@@ -306,7 +306,7 @@ python cli.py t  --scenario demo/market_cap_tier                              # 
 
 **分支：** `master` 发布；从 `dev` 拉 `feature/*` / `bugfix/*`；`hotfix/*` 仅从 rc 拉。勿直接向 `master` 提 PR。
 
-**开发：** `python devcli.py -h`（`ui` 开发 UI · `uk` 释放端口 · `csc` 清缓存）· Docker：[devtools/docker/README.md](devtools/docker/README.md)
+**开发：** `python devcli.py -h`（`ui` 开发 UI · `uk` 释放端口 · `csc` 清缓存）· Docker：[docs/docker.md](docs/docker.md)
 
 **测试 / 依赖：**
 

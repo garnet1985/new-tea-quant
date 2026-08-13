@@ -11,8 +11,8 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.system_actions import SystemActions
-from core.infra.system_actions.contracts import PipelineLeaseBusyError
+from core.infra.task_guard import TaskGuard
+from core.infra.task_guard.contracts import TaskLeaseBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
@@ -59,9 +59,9 @@ class WorkbenchRunLauncher:
                 return {"is_triggered": False, "reason": "策略未启用"}
             return {"is_triggered": False, "reason": f"策略不可运行: {name}"}
 
-        pipeline = SystemActions.pipeline.read_status()
-        if pipeline.get("busy"):
-            kind = pipeline.get("kind") or "unknown"
+        status = TaskGuard.read_status()
+        if status.get("busy"):
+            kind = status.get("kind") or "unknown"
             return {
                 "is_triggered": False,
                 "reason": f"系统任务进行中（{kind}），请稍后再试",
@@ -177,7 +177,7 @@ class WorkbenchRunLauncher:
         api_settings: Dict[str, Any],
         force_refresh: bool,
     ) -> None:
-        lease = SystemActions.pipeline.lease(
+        lease = TaskGuard.lease(
             kind="strategy_run",
             job_id=job_id,
             resource_key=strategy_name,
@@ -186,7 +186,7 @@ class WorkbenchRunLauncher:
         )
         try:
             lease.acquire()
-        except PipelineLeaseBusyError as exc:
+        except TaskLeaseBusyError as exc:
             inst = PipelineProgress.load(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))

@@ -2,24 +2,24 @@
 """
 模拟用户从源码 zip 冷启动：``install.py`` → ``cli.py se``。
 
-用法（在已解压的项目根目录）::
+由 GitHub Actions job ``smoke-fresh-install`` 调用：先 ``git archive`` 解压到临时目录，再执行本脚本。
 
-    python devtools/quick_tools/smoke_fresh_install.py
+本地复现（项目根）::
 
-CI 会先 ``git archive`` 解压到临时目录再调用本脚本。
+    python ci/smoke_fresh_install.py
 """
 from __future__ import annotations
-
-from core.infra.cmd_layout import i
 
 import argparse
 import subprocess
 import sys
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[1]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
+
+from core.infra.cmd_layout import i
 
 REPO_ROOT = _REPO
 

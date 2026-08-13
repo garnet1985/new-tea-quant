@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
-from core.infra.system_actions import SystemActions
+from core.infra.task_guard import TaskGuard
 
 pytestmark = pytest.mark.force_run
 
@@ -24,7 +24,7 @@ def userspace_layout(tmp_path, monkeypatch):
     ntq.mkdir(parents=True)
     (sim / "out.json").write_text("{}", encoding="utf-8")
     (scan / "opportunities.csv").write_text("x", encoding="utf-8")
-    (ntq / "pipeline_active.json").write_text("{}", encoding="utf-8")
+    (ntq / "task_guard_active.json").write_text("{}", encoding="utf-8")
     (strategies / "settings.py").write_text("settings = {}\n", encoding="utf-8")
     (strategies / "strategy.py").write_text(
         "\n".join(
@@ -54,21 +54,21 @@ def userspace_layout(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_run_temp_cleanup_rejects_when_pipeline_busy(userspace_layout):
+def test_run_temp_cleanup_rejects_when_task_busy(userspace_layout):
     with patch.object(
-        SystemActions.pipeline,
+        TaskGuard,
         "read_status",
         return_value={"busy": True, "label": "Tag 计算中", "kind": "tag_run"},
     ):
         out = TempCleanup.run(clear_userspace_ntq=True)
     assert out["ok"] is False
-    assert out["error"] == "pipeline_busy"
+    assert out["error"] == "task_busy"
     assert (userspace_layout / ".ntq").exists()
 
 
 def test_run_temp_cleanup_selected_targets(userspace_layout):
     with patch.object(
-        SystemActions.pipeline,
+        TaskGuard,
         "read_status",
         return_value={"busy": False},
     ), patch.object(

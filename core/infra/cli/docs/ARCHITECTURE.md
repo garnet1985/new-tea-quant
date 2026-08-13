@@ -90,7 +90,7 @@ argv
 ## 依赖（结论）
 
 - `infra.project_context`：项目根与路径
-- `infra.system_actions`：pipeline 租约
+- `infra.task_guard`：长任务互斥
 - `infra.setup`：安装
 - `infra.updater`：应用升级
 

@@ -111,5 +111,5 @@ jobs:
           mkdir -p /tmp/ntq-smoke
           unzip -q /tmp/ntq-source.zip -d /tmp/ntq-smoke
           cd /tmp/ntq-smoke
-          python devtools/quick_tools/smoke_fresh_install.py --repo-root .
+          python ci/smoke_fresh_install.py --repo-root .
 

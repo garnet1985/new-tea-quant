@@ -143,9 +143,9 @@ class TempCleanup:
         clear_userspace_ntq: bool = False,
     ) -> Dict[str, Any]:
         """
-        按勾选项清理。有全局 pipeline 任务进行中时拒绝（``error=pipeline_busy``）。
+        按勾选项清理。有全局长任务进行中时拒绝（``error=task_busy``）。
         """
-        from core.infra.system_actions import SystemActions
+        from core.infra.task_guard import TaskGuard
 
         selected = [
             clear_db_cache,
@@ -156,13 +156,13 @@ class TempCleanup:
         if not any(selected):
             return {"ok": False, "error": "nothing_selected"}
 
-        pipeline = SystemActions.pipeline.read_status()
-        if pipeline.get("busy"):
+        status = TaskGuard.read_status()
+        if status.get("busy"):
             return {
                 "ok": False,
-                "error": "pipeline_busy",
+                "error": "task_busy",
                 "label": str(
-                    pipeline.get("label") or pipeline.get("kind") or ""
+                    status.get("label") or status.get("kind") or ""
                 ).strip(),
             }
 

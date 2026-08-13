@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher
+from core.infra.task_guard import TaskGuard
 
 
 def test_trigger_unknown_scenario():
@@ -14,10 +15,11 @@ def test_trigger_unknown_scenario():
     assert "未知" in out["reason"]
 
 
-def test_trigger_rejects_when_pipeline_busy(monkeypatch):
+def test_trigger_rejects_when_task_busy(monkeypatch):
     monkeypatch.setattr(
-        "core.infra.system_actions.system_actions.PipelineNamespace.read_status",
-        lambda: {"busy": True, "kind": "strategy_run", "job_id": "x"},
+        TaskGuard,
+        "read_status",
+        staticmethod(lambda: {"busy": True, "kind": "strategy_run", "job_id": "x"}),
     )
     info = MagicMock()
     info.id.return_value = "demo/x"

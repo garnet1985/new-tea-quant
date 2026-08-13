@@ -1,0 +1,14 @@
+name: infra.task_guard
+version: "0.2.0"
+compatible_core_versions: ">=0.4.2"
+description: "长任务互斥守卫：忙闲查询与全局单任务租约（非 job queue / pipeline 调度）。"
+dependencies:
+  - infra.project_context
+changelog:
+  - version: "0.2.0"
+    changes:
+      - 由 infra.system_actions 收窄并更名为 task_guard；门面 TaskGuard；实现 TaskLease
+      - 去掉杂项系统操作语义；仅保留长任务互斥
+  - version: "0.1.0"
+    changes:
+      - （历史）原 system_actions 初始化：缓存清理、租约、脚手架等

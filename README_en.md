@@ -298,7 +298,7 @@ It is recommended to explicitly specify `--strategy`; add `-f` when a forced rec
 
 **Branches:** `master` for releases; pull `feature/*` / `bugfix/*` from `dev`; `hotfix/*` only from `rc`. Do not submit PRs directly to `master`.
 
-**Development:** `python devcli.py -h` (`ui` for UI dev · `uk` to release ports · `csc` to clear cache) · Docker: [devtools/docker/README.md](devtools/docker/README.md)
+**Development:** `python devcli.py -h` (`ui` for UI dev · `uk` to release ports · `csc` to clear cache) · Docker: [docs/docker.md](docs/docker.md)
 
 **Testing / Dependencies:**
 

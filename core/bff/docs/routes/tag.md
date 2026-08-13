@@ -35,7 +35,7 @@ core/bff/APIs/tag/
 
 | T1 | 方法 | 路由 | 归属 | 编排摘要 |
 |----|------|------|------|----------|
-| T1-00 | GET | `/v1/runtime/pipeline` | **platform/runtime**（非本包） | `SystemActions.pipeline.read_status()` |
+| T1-00 | GET | `/v1/runtime/pipeline` | **platform/runtime**（非本包） | `TaskGuard.read_status()` |
 | T1-01 | GET | `/v1/tags/list` | `routes/catalog` | `TagCatalog.fetch_page` |
 | T1-02 | POST | `/v1/tag/<path:tag_key>/run` | `routes/runner` | `TagRunLauncher.trigger` → `ok` / **409** |
 | T1-03 | GET | `/v1/tag/<path:tag_key>/run/progress` | `routes/runner` | `TagRunProgress.get_poll_dto` → `ok` / **404** |

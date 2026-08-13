@@ -138,8 +138,8 @@ new-tea-quant/
 │   ├── backup/                    # 备份数据目录（多为生成物，见该目录 README）
 │   └── config/                    # 用户项目配置（覆盖 core/default_config）
 ├── initialization/                # 安装、初始化所需要的数据包等
-├── devtools/                      # 维护用：Docker 说明、尚未收口的本地脚本（非运行时核心）
-└── docs/                          # 仓库文档
+├── ci/                            # GitHub Actions 专用验收脚本（非运行时）
+└── docs/                          # 仓库文档（含 Docker 运行说明）
 ```
 
 ---

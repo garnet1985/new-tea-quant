@@ -1,4 +1,4 @@
-"""Global DuckDB pipeline lease (single active long-running job)."""
+"""Global long-running task lease (single active job)."""
 
 from __future__ import annotations
 
@@ -11,15 +11,12 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import ProjectContext
-from core.infra.system_actions.contracts import (
-    VALID_KINDS,
-    PipelineLeaseBusyError,
-)
+from core.infra.task_guard.contracts import VALID_KINDS, TaskLeaseBusyError
 
 _LOCK = threading.Lock()
 
 
-class PipelineLease:
+class TaskLease:
     """Context manager: acquire on enter, release on exit."""
 
     @staticmethod
@@ -27,7 +24,7 @@ class PipelineLease:
         return (
             ProjectContext.path.get_userspace_ntq_directory()
             / "runtime"
-            / "pipeline_active.json"
+            / "task_guard_active.json"
         )
 
     @staticmethod
@@ -49,17 +46,17 @@ class PipelineLease:
 
     @staticmethod
     def read_status() -> Dict[str, Any]:
-        """Return idle or active lease snapshot for ``GET /runtime/pipeline``."""
+        """Return idle or active lease snapshot for runtime busy checks."""
         with _LOCK:
-            path = PipelineLease.lease_path()
+            path = TaskLease.lease_path()
             if not path.is_file():
-                return PipelineLease._idle_message()
+                return TaskLease._idle_message()
             try:
                 raw = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
-                return PipelineLease._idle_message()
+                return TaskLease._idle_message()
             if not isinstance(raw, dict) or not raw.get("job_id"):
-                return PipelineLease._idle_message()
+                return TaskLease._idle_message()
             return {
                 "busy": True,
                 "kind": raw.get("kind"),
@@ -100,19 +97,19 @@ class PipelineLease:
 
     def acquire(self) -> None:
         if self.kind not in VALID_KINDS:
-            raise ValueError(f"invalid pipeline kind: {self.kind!r}")
+            raise ValueError(f"invalid task kind: {self.kind!r}")
         if not self.job_id:
-            raise ValueError("job_id required for pipeline lease")
+            raise ValueError("job_id required for task lease")
 
         with _LOCK:
-            path = PipelineLease.lease_path()
+            path = TaskLease.lease_path()
             if path.is_file():
                 try:
                     existing = json.loads(path.read_text(encoding="utf-8"))
                 except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     existing = {}
                 if isinstance(existing, dict) and existing.get("job_id"):
-                    raise PipelineLeaseBusyError(existing)
+                    raise TaskLeaseBusyError(existing)
 
             payload = {
                 "kind": self.kind,
@@ -120,14 +117,14 @@ class PipelineLease:
                 "resource_key": self.resource_key,
                 "label": self.label or self.resource_key or self.kind,
                 "domains": self.domains,
-                "started_at": PipelineLease._iso_now(),
+                "started_at": TaskLease._iso_now(),
             }
-            PipelineLease._atomic_write(path, payload)
+            TaskLease._atomic_write(path, payload)
             self._held = True
 
     def release(self) -> None:
         with _LOCK:
-            path = PipelineLease.lease_path()
+            path = TaskLease.lease_path()
             if not self._held:
                 return
             if path.is_file():
@@ -139,7 +136,7 @@ class PipelineLease:
                     path.unlink(missing_ok=True)
             self._held = False
 
-    def __enter__(self) -> "PipelineLease":
+    def __enter__(self) -> "TaskLease":
         self.acquire()
         return self
 

@@ -36,7 +36,7 @@
 | 层 | 机制 | HTTP |
 |----|------|------|
 | Tag ↔ Tag | BFF tag run 锁；FED 跑一个 disable 其余 | T1-02 重复 → **409** |
-| 全局 pipeline | `.ntq/runtime/pipeline_active.json` 租约 | T1-00 `busy`；T1-02 冲突 → **409** |
+| 全局长任务互斥 | `.ntq/runtime/task_guard_active.json`（`TaskGuard`） | T1-00 `busy`；T1-02 冲突 → **409** |
 
 FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `busy && kind !== tag_run` 时 disable 所有运行按钮。
 
@@ -115,7 +115,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 }
 ```
 
-**实现**：`core/infra/system_actions/core/pipeline_lease/pipeline_lease.py`；Tag MVP 至少写入/释放 `kind=tag_run`；Strategy scan/run、renew 后续接入同一 acquire/release。
+**实现**：`core/infra/task_guard`（`TaskGuard` / `TaskLease`）；Tag MVP 至少写入/释放 `kind=tag_run`；Strategy scan/run、renew 后续接入同一 acquire/release。路径文件：`userspace/.ntq/runtime/task_guard_active.json`。HTTP 仍为历史路径 `GET /runtime/pipeline`。
 
 ---
 

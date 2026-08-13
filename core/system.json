@@ -44,7 +44,7 @@
     "managed_scope": [
       ".github",
       "core",
-      "devtools",
+      "ci",
       "docs",
       ".gitignore",
       ".dockerignore",

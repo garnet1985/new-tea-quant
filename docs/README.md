@@ -10,14 +10,13 @@
 - [数据源使用](../userspace/data_source/USER_GUIDE.md)
 - [标签系统](../userspace/tags/USER_GUIDE.md)
 
-## 仓库辅助工具（devtools）
+## Docker
 
-面向维护者与本地开发：**不参与**运行时业务逻辑。结构与入口如下（路径均相对仓库根目录）。
+- [Docker 运行说明](docker.md)（`Dockerfile` / `docker-compose.yml` 在仓库根目录）
 
-| 路径 | 说明 |
-|------|------|
-| [devtools/docker/README.md](../devtools/docker/README.md) | Docker Compose 用法；**`Dockerfile`**、**`docker-compose.yml`** 仍在仓库根目录 |
-| `devtools/automation/table_exporting/export_table.py` | 基于 `model.export_data` 的按表导出 CLI（维护/Demo 用） |
+## CI
+
+- [ci/README.md](../ci/README.md) — Workflow 专用验收脚本（如冷启动冒烟）；与 `devcli` / `TaskGuard` 分开
 
 ## UI（`core/ui/`）
 

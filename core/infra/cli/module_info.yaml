@@ -5,7 +5,7 @@ compatible_core_versions: ">=0.4.1"
 description: "客户端模块：在命令行工具内为用户或开发者提供一系列边界操作命令的模块。"
 dependencies:
   - infra.project_context
-  - infra.system_actions
+  - infra.task_guard
   - infra.db
   - infra.trace
   - modules.strategy

@@ -19,8 +19,8 @@ from typing import Dict, Optional, Tuple
 from core.infra.setup.core.install_runtime import REPO_ROOT
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 INIT_DATA_DIR = REPO_ROOT / "initialization" / "data"
-# 可选：``--export-dir devtools/export_output`` 时写入
-ALT_EXPORT_DIR = REPO_ROOT / "devtools" / "export_output"
+# 可选：``--export-dir`` 覆盖时的本地默认旁路目录（不进 Git）
+ALT_EXPORT_DIR = REPO_ROOT / "initialization" / "data" / "export_output"
 
 # 进仓库 / 安装向导使用的固定 zip 名（勿改，避免 Git 里堆积 data_v0.3.x_*.zip）
 GIT_DATA_ZIP_NAME = "data_demo.zip"

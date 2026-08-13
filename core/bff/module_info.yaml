@@ -11,7 +11,7 @@ dependencies:
   - modules.indicator
   - modules.market_profile
   - infra.project_context
-  - infra.system_actions
+  - infra.task_guard
   - infra.discovery
   - infra.trace
   - infra.db

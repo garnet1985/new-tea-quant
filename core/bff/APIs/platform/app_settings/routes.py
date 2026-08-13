@@ -49,7 +49,7 @@ def post_data_settings():
 
 @settings_api_bp.route("/v1/settings/cache/clear", methods=["POST"])
 def post_cache_clear():
-    """按勾选项清理 userspace 缓存；全局 pipeline 忙时返回 409。"""
+    """按勾选项清理 userspace 缓存；长任务忙时返回 409。"""
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return error("请求体须为 JSON 对象", 400)
@@ -59,7 +59,7 @@ def post_cache_clear():
         err = str(out.get("error") or "清理失败")
         if err == "nothing_selected":
             return error("请至少选择一项缓存", 400)
-        if err == "pipeline_busy":
+        if err == "task_busy":
             label = str(out.get("label") or "").strip()
             msg = f"当前有任务进行中，请稍后再试{('：' + label) if label else ''}"
             return error(msg, 409)

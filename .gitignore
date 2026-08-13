@@ -115,4 +115,6 @@ experiments/
 # 3. 如果使用 GitHub Pages 托管 HTML 报告，可以通过 CI 自动生成和部署
 # 如果需要提交 htmlcov/ 用于 GitHub Pages，可以注释掉下面这行
 htmlcov/
+.coverage
+coverage.json
 .pytest_cache/

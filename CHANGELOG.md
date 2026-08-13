@@ -44,15 +44,15 @@
 ### v0.6.x (TBD)
 
 目标：多市场支持，多种功能支持
-- 正式推出API进入module info，为锁定API做好准备
+- （Done）正式推出API进入module info，为锁定API做好准备
 - 统一代码风格，注释变成中英文
 
-- 加入港股的market profile
-- 让框架支持T+0交易
-- 让框架支持退市处理
+- （Done）加入港股的market profile
+- （Done partial）让框架支持T+0交易
+- （Done）让框架支持退市处理
 - 让框架支持做空策略
 
-- 修改console adapter变成command line作为扫描输出的标准展示形式
+- （Done）修改console adapter变成command line作为扫描输出的标准展示形式
 - 增加ntq ui adapter变成UI作为扫描输出的标准展示形式
 - 在UI对策略，标签和扫描机会归类
 
@@ -63,9 +63,8 @@
 ### v0.5.x (TBD)
 
 目标，决策者模式
-- 加入on select investment回调函数（capital allocation超出最大持股的回调函数）
 - 提供决策者模式的UI界面
-- 加入多策略并行 on portfolio 选股时的决策函数
+- （Done）加入多策略并行 on portfolio 选股时的决策函数
 - 提供多策略并行的UI界面
 - 将500股1年的数据变成200股3年的数据，跨度更大
 - 更多演示用例
@@ -110,6 +109,7 @@
 - 修复了UI界面上扫描页面如果扫描出的机会是0个会重置扫描状态的bug
 - 修复了UI界面上扫描页面如果严格模式并且不符合要求的时候仍然能执行扫描的bug
 - 修复了UI策略和标签进度显示和后端不一致的问题
+- 补充了更多的测试的核心用例，总覆盖率约63%
 
 ---
 

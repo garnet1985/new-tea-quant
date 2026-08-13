@@ -122,3 +122,43 @@ class TestDateRangeHelper:
         assert "000001.SZ::daily" in ranges
         assert "000001.SZ::weekly" in ranges
 
+    def test_calc_last_update_empty_context_returns_none(self):
+        from core.modules.data_source.core.service.date_range import date_range_helper as drh
+
+        assert drh.calc_last_update_based_on_renew_mode({}, last_update="20240101") is None
+
+    def test_calc_last_update_incremental_advances_one_period(self):
+        """INCREMENTAL：起点 = last_update 的下一周期。"""
+        from core.modules.data_source.core.service.date_range import date_range_helper as drh
+        from core.modules.data_source.core.enums import UpdateMode
+
+        config = Mock()
+        config.get_renew_mode.return_value = UpdateMode.INCREMENTAL
+        config.get_date_format.return_value = "day"
+        ctx = {"config": config, "data_manager": Mock()}
+
+        with patch(
+            "core.modules.data_source.core.service.date_range.date_range_helper.RenewCommonHelper.get_default_date_range",
+            return_value=("20000101", "20001231"),
+        ):
+            start = drh.calc_last_update_based_on_renew_mode(ctx, last_update="20240101")
+
+        assert start == "20240102"
+
+    def test_calc_last_update_incremental_missing_last_uses_default(self):
+        from core.modules.data_source.core.service.date_range import date_range_helper as drh
+        from core.modules.data_source.core.enums import UpdateMode
+
+        config = Mock()
+        config.get_renew_mode.return_value = UpdateMode.INCREMENTAL
+        config.get_date_format.return_value = "day"
+        ctx = {"config": config, "data_manager": Mock()}
+
+        with patch(
+            "core.modules.data_source.core.service.date_range.date_range_helper.RenewCommonHelper.get_default_date_range",
+            return_value=("19990101", "20001231"),
+        ):
+            start = drh.calc_last_update_based_on_renew_mode(ctx, last_update=None)
+
+        assert start == "19990101"
+

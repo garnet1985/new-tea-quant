@@ -1,5 +1,7 @@
 [run]
-# Default suite is core/infra + core/modules (see pytest.ini).
+# Coverage denominator = product runtime we intentionally measure.
+# Default suite: core/infra + core/modules (see pytest.ini).
+# Cases matter more than %; omit paths we do not expect unit tests to cover.
 source = core
 omit =
     */__test__/*
@@ -11,9 +13,19 @@ omit =
     */__init__.py
     */example.py
     */*_example.py
-    # Not in default pytest suite (norecursedirs); keep coverage denominator honest
+    */__main__.py
+    # Not in default pytest suite (norecursedirs)
     */core/ui/*
     */core/bff/*
+    # Maintainer toolbox (devcli scripts) — tested ad hoc; not product facade stats
+    */core/infra/cli/dev/scripts/*
+    # Install/upgrade plumbing — FS-heavy; covered by install/CI smoke, not unit suite
+    */core/infra/setup/core/steps/*
+    */core/infra/setup/core/scripts/*
+    */core/infra/setup/core/cli_runtime.py
+    */core/infra/setup/core/ui_runtime.py
+    */core/infra/updater/core/orchestrator/*
+    */core/infra/updater/core/post_upgrade/*
 
 [report]
 exclude_lines =

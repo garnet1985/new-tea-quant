@@ -46,7 +46,6 @@
       "core",
       "devtools",
       "docs",
-      "setup",
       ".gitignore",
       ".dockerignore",
       "CHANGELOG.md",
@@ -69,11 +68,12 @@
       "SECURITY.md",
       "cli.py",
       "devcli.py",
-      "SUPPORT.md"
+      "SUPPORT.md",
+      "init_userspace"
     ],
     "update_ignored_paths": [
       "userspace",
-      "setup/init_data"
+      "init_data"
     ]
   }
 }

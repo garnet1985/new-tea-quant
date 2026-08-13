@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from core.infra.project_context import ProjectContext
-from setup import Setup
+from core.infra.setup import Setup
 
 from core.bff.shared.response import ok, passthrough
 

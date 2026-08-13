@@ -6,7 +6,7 @@
 - **新建表**：``CREATE TABLE IF NOT EXISTS`` + 各 ``CREATE INDEX IF NOT EXISTS``。
 - **仅新增列**：先按旧 schema **丢弃该表全部二级索引**，再 ``ADD COLUMN``（新列一律按可空写入，避免已有行违反 NOT NULL），再按**新** schema **重建索引**。
 - **仅索引变化**（无字段增删改）：对变更索引 ``DROP`` + ``CREATE``。
-- **删表 / 删列 / 改列类型等**：不生成 DDL，抛出 :class:`MigrationPlanError`，需走 ``core/infra/update/core/db`` 脚本。
+- **删表 / 删列 / 改列类型等**：不生成 DDL，抛出 :class:`MigrationPlanError`，需走 ``core/infra/updater/core/db`` 脚本。
 """
 from __future__ import annotations
 

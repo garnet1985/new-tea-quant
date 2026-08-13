@@ -11,7 +11,7 @@
 ## 职责与边界
 
 **In scope：** 清缓存、pipeline 租约读写、从模板 scaffold  
-**Out of scope：** 回测/打标业务执行、升级编排（见 `setup/updater`）；通用文件发现（见 `infra.discovery`）
+**Out of scope：** 回测/打标业务执行、首次安装（见 `infra.setup`）、升级编排（见 `infra.updater`）；通用文件发现（见 `infra.discovery`）
 
 ## 架构
 

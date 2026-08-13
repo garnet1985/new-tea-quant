@@ -14,7 +14,7 @@ from core.infra.project_context.contracts import (
     DEFAULT_DUCKDB_DOMAINS,
     DUCKDB_DOMAIN_FILES,
 )
-from setup import Setup
+from core.infra.setup import Setup
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
@@ -103,7 +103,7 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        progress_file = REPO_ROOT / "setup" / "init_data" / ".import_progress.json"
+        progress_file = REPO_ROOT / "init_data" / ".import_progress.json"
         if not progress_file.is_file():
             return {
                 "status": "ok",

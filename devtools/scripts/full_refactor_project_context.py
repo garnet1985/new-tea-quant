@@ -122,7 +122,7 @@ def full_refactor_file(file_path: Path) -> bool:
 def batch_refactor_all_files():
     """批量重构所有需要更新的文件"""
     files_to_refactor = [
-        "setup/core/steps/db_connection/install.py",
+        "core/infra/setup/core/steps/db_connection/install.py",
         "core/tables/stock/adj_factor_events/model.py",
         "devtools/quick_tools/renew_core_stock_data.py",
         "core/modules/data_manager/data_manager.py",

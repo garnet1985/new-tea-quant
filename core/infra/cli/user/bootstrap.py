@@ -57,7 +57,7 @@ class UserBootstrap:
             return
 
         try:
-            from setup import Setup
+            from core.infra.setup import Setup
         except ModuleNotFoundError:
             return
 

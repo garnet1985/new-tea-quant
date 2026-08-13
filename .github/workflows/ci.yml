@@ -31,10 +31,10 @@ jobs:
 
       - name: Bootstrap DuckDB demo data for integration tests
         run: |
-          python setup/core/steps/init_userspace/install.py
+          python core/infra/setup/core/steps/init_userspace/install.py
           mkdir -p userspace/system/config/database
           printf '%s\n' '{"database_type": "duckdb"}' > userspace/system/config/database/common.json
-          python setup/core/steps/import_data/install.py --force
+          python core/infra/setup/core/steps/import_data/install.py --force
 
       - name: Smoke test - import core modules
         run: |

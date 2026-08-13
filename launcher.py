@@ -18,7 +18,7 @@ if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
 import argparse
 
 from core.ui.ports import UI_BFF_PORT, UI_DEV_PORT
-from setup import Setup
+from core.infra.setup import Setup
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

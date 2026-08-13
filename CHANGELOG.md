@@ -88,7 +88,16 @@
 - 代码清理：淘汰了老的job pipeline模块，职责分配到原来的业务模块中
 - 模块重构：重构BFF，取消了原来在模块中的launcher，将BFF专有逻辑迁移到BFF中。
 - 模块重构：将data cursor（数据游标）重置入data contract (数据契约)模块，并将时间推进功能从strategy（策略模块）挪入data contract（数据契约）模块
+
+
+
+
 - 模块重构：收敛了quick tools，dev tools和system action模块
+
+
+
+
+
 - 模块重构：抽取了tag（标签模块）和strategy（策略模块）公共底层模块，独立成backtest engine（回测引擎）模块
 - 新模块：回测引擎（Backtest Engine或BE）新的回测调度执行器，是tag和strategy模块的基础，负责根据可用系统资源重组，执行，监控回测执行。Strategy和Tag模块的功能精简为提供任务，提供用户执行逻辑。
 - 为新的回测引擎加入一套完成性能测试基准和devcli的入口。

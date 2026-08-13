@@ -22,7 +22,7 @@ from core.infra.cli.dev.scripts.publish_prep.changelog_sync import (
     sync_version_metadata_from_changelog,
 )
 from core.infra.cli.dev.services.paths import REPO_ROOT, repo_python
-from setup import Setup
+from core.infra.setup import Setup
 
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 SYSTEM_PY = REPO_ROOT / "core" / "system.py"
@@ -38,7 +38,6 @@ _MODULE_PACKAGE_ROOTS: Tuple[Tuple[str, Path], ...] = (
 _SINGLE_MODULE_ROOTS: Tuple[Tuple[str, Path], ...] = (
     ("core/ui", REPO_ROOT / "core" / "ui"),
     ("core/bff", REPO_ROOT / "core" / "bff"),
-    ("setup", REPO_ROOT / "setup"),
 )
 
 
@@ -328,9 +327,13 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         if opts.check_only:
             print("\n[跳过] init userspace 打包（--check-only）", flush=True)
         else:
-            from setup import Setup
+            from core.infra.project_context import ProjectContext
+            from core.infra.updater import Updater
+            from core.infra.setup import Setup
 
             print("\n[执行] 打包 init userspace…", flush=True)
+            dest = ProjectContext.path.get_updater_directory()
+            Updater.runtime.sync_orchestrator(dest)
             if Setup.artifacts.package_userspace() != 0:
                 return 1
 

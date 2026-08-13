@@ -69,7 +69,7 @@ COMPILATION_REQUIRED_PACKAGES = {
     "curl-cffi": "akshare 传递依赖；须用预编译 wheel",
 }
 
-# 与 setup/core/steps/resolve_deps、ui_runtime、updater 的 pip --only-binary 列表对齐
+# 与 core/infra/setup/core/steps/resolve_deps、ui_runtime、updater 的 pip --only-binary 列表对齐
 ONLY_BINARY_INSTALL = {
     "numpy",
     "pandas",
@@ -209,7 +209,7 @@ class DependencyRiskDetector:
                     package=pkg_name,
                     risk_level=RiskLevel.INFO,
                     message="含原生扩展，但安装路径已用 --only-binary 强制 wheel（风险已缓解）",
-                    suggestion="保持 setup/core/steps/resolve_deps 等处的 only-binary 列表；勿在裸 pip install 时省略",
+                    suggestion="保持 core/infra/setup/core/steps/resolve_deps 等处的 only-binary 列表；勿在裸 pip install 时省略",
                     is_fixable=False,
                 ))
                 print(f"   {i('info')}  {pkg_name}: 已 only-binary 缓解")

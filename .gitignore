@@ -28,12 +28,12 @@ backup
 .pytest_cache/
 .ntq/
 
-# setup/init_data：固定名 data_demo.zip 进库（每次 -ex 覆盖）；带版本号的 data_v*.zip 勿提交
-setup/init_data/*
-!setup/init_data/README.md
-!setup/init_data/data_demo.zip
-!setup/init_data/data_demo.meta.json
-!setup/init_data/example_*.zip
+# init_data：固定名 data_demo.zip 进库（每次 -ex 覆盖）；带版本号的 data_v*.zip 勿提交
+init_data/*
+!init_data/README.md
+!init_data/data_demo.zip
+!init_data/data_demo.meta.json
+!init_data/example_*.zip
 
 ########################
 # Strategy Results

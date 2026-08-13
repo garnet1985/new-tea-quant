@@ -15,7 +15,7 @@ import sys
 if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
-from setup import Setup
+from core.infra.setup import Setup
 
 
 def main() -> int:

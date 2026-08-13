@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from core.modules.data_source import DataSourceManager
-from setup.core.scripts.init_data.config import SAMPLE_RANDOM_SEED, TARGET_STOCK_COUNT
+from core.infra.setup.core.scripts.init_data.config import SAMPLE_RANDOM_SEED, TARGET_STOCK_COUNT
 
 from .stock_pool_ops import generate_stratified_pool_files
 

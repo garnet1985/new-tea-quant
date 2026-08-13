@@ -169,15 +169,27 @@ class DevHandlers:
 
     @staticmethod
     def cmd_data_export_init(args: argparse.Namespace) -> int:
-        from setup import Setup
+        from core.infra.setup import Setup
 
         return Setup.artifacts.export_demo_data(list(getattr(args, "forward", None) or []))
 
     @staticmethod
     def cmd_userspace_package(args: argparse.Namespace) -> int:
-        from setup import Setup
+        return DevHandlers._package_userspace_with_updater(
+            write_zip=not getattr(args, "no_zip", False)
+        )
 
-        return Setup.artifacts.package_userspace(write_zip=not getattr(args, "no_zip", False))
+    @staticmethod
+    def _package_userspace_with_updater(*, write_zip: bool) -> int:
+        from core.infra.project_context import ProjectContext
+        from core.infra.updater import Updater
+        from core.infra.setup import Setup
+
+        dest = ProjectContext.path.get_updater_directory()
+        notes = Updater.runtime.sync_orchestrator(dest)
+        for line in notes:
+            print(f"  · sync updater → {line}", flush=True)
+        return Setup.artifacts.package_userspace(write_zip=write_zip)
 
     @staticmethod
     def cmd_db_checkpoint(args: argparse.Namespace) -> int:

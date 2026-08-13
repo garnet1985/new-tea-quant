@@ -72,7 +72,7 @@ class UserRunner:
             pass
 
         try:
-            from setup import Setup
+            from core.infra.setup import Setup
 
             Setup.trace.app_start(entry="cli")
         except Exception:

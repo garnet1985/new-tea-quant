@@ -23,7 +23,7 @@ from pathlib import Path
 
 from core.infra.cmd_layout import CmdLayout
 from core.infra.cli.dev.services.paths import REPO_ROOT
-from setup import Setup
+from core.infra.setup import Setup
 
 BFF_REQUIREMENTS = Setup.env.ui_bff_requirements()
 DEFAULT_VENV_DIR = REPO_ROOT / ".ntq" / "ci-minimal-venv"
@@ -52,7 +52,7 @@ UI_BOOTSTRAP_CHECKS: tuple[ImportCheck, ...] = (
     ),
     ImportCheck(
         "setup.facade",
-        "from setup import Setup",
+        "from core.infra.setup import Setup",
         "安装域门面",
     ),
     ImportCheck(

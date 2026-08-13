@@ -17,7 +17,7 @@
 
 **不负责**
 
-- 具体业务动作的实现（交给 `system_actions`、各业务模块等）
+- 具体业务动作的实现（交给 `system_actions`、`infra.setup`、`infra.updater`、各业务模块等）
 - 把 `user/`、`dev/`、`shared/` 作为跨模块公开 import 面
 - 合成单一 CLI 二进制（见 [DESIGN.md](./DESIGN.md)）
 
@@ -87,7 +87,9 @@ argv
 ## 依赖（结论）
 
 - `infra.project_context`：项目根与路径
-- `infra.system_actions`：安装 / 更新等系统动作
+- `infra.system_actions`：缓存 / pipeline / scaffold
+- `infra.setup`：安装
+- `infra.updater`：应用升级
 
 ---
 

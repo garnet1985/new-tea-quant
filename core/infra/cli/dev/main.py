@@ -35,7 +35,7 @@ class DevRunner:
             print()
 
         try:
-            from setup import Setup
+            from core.infra.setup import Setup
 
             Setup.trace.app_start(entry="devcli")
         except Exception:

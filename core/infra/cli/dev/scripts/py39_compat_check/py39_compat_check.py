@@ -45,7 +45,6 @@ _SKIP_DIR_NAMES = frozenset(
 
 _SCAN_ROOTS: Tuple[Path, ...] = (
     REPO_ROOT / "core",
-    REPO_ROOT / "setup",
     REPO_ROOT / "devtools",
     REPO_ROOT / "userspace",
 )

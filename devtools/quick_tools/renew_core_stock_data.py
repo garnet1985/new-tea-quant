@@ -54,7 +54,6 @@ def _ensure_tushare_token() -> None:
         return
     src = (
         REPO_ROOT
-        / "setup"
         / "init_userspace"
         / "userspace"
         / "data_source"
@@ -64,7 +63,7 @@ def _ensure_tushare_token() -> None:
     )
     if src.is_file():
         dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-        logger.info("已从 setup/init_userspace 复制 Tushare token")
+        logger.info("已从 init_userspace 复制 Tushare token")
         return
     raise FileNotFoundError(
         f"缺少 Tushare token: {dst}（可复制 auth_token.txt.example 并填入）"

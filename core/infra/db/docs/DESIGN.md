@@ -102,7 +102,7 @@ db.checkpoint_duckdb()
 
 ## 4. 边界与扩展
 
-**边界**：`infra.db` 不提供业务语义；升级编排在 `userspace/updater`。
+**边界**：`infra.db` 不提供业务语义；升级编排在 `userspace/system/updater`。
 
 **扩展**：
 

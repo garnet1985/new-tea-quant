@@ -26,7 +26,6 @@ from core.infra.setup import Setup
 
 REPO_ROOT = ProjectContext.path.get_project_root()
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
-SYSTEM_PY = REPO_ROOT / "core" / "system.py"
 README_FILES = (REPO_ROOT / "README.md", REPO_ROOT / "README_en.md")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 BADGE_ANCHOR = "https://img.shields.io/badge/version-"
@@ -216,7 +215,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         try:
             features = sync_version_metadata_from_changelog(version, release_date=release_date)
             print(
-                f"已写入 {SYSTEM_JSON.relative_to(REPO_ROOT)} / {SYSTEM_PY.relative_to(REPO_ROOT)}: "
+                f"已写入 {SYSTEM_JSON.relative_to(REPO_ROOT)}: "
                 f"version={version}, new_features={len(features)} 条（release_date 优先取 CHANGELOG 标题日期）",
                 flush=True,
             )

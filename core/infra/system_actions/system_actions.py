@@ -1,11 +1,11 @@
-"""SystemActions 门面 — cache / pipeline / scaffold。
+"""SystemActions 门面 — pipeline / scaffold。
 
 方法内懒导入，避免包 import 时拉起 strategy/tag 重链。
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Optional
 
 from .contracts import (
     VALID_KINDS,
@@ -30,7 +30,7 @@ class TypesNamespace:
 
     def __getattr__(self, name: str) -> Any:
         if name == "PipelineLease":
-            from core.infra.system_actions.core.cache_cleanup.pipeline_lease import (
+            from core.infra.system_actions.core.pipeline_lease.pipeline_lease import (
                 PipelineLease,
             )
 
@@ -38,80 +38,12 @@ class TypesNamespace:
         raise AttributeError(f"{type(self).__name__!r} has no attribute {name!r}")
 
 
-class CacheNamespace:
-    """缓存与模拟产物清理。"""
-
-    @staticmethod
-    def run(
-        *,
-        clear_db_cache: bool = False,
-        clear_backtest_results: bool = False,
-        clear_scan_results: bool = False,
-        clear_userspace_ntq: bool = False,
-    ) -> Dict[str, Any]:
-        from core.infra.system_actions.core.cache_cleanup.cache_cleanup import (
-            CacheCleanup,
-        )
-
-        return CacheCleanup.run(
-            clear_db_cache=clear_db_cache,
-            clear_backtest_results=clear_backtest_results,
-            clear_scan_results=clear_scan_results,
-            clear_userspace_ntq=clear_userspace_ntq,
-        )
-
-    @staticmethod
-    def clear_workbench_db() -> int:
-        from core.infra.system_actions.core.cache_cleanup.cache_cleanup import (
-            CacheCleanup,
-        )
-
-        return CacheCleanup.clear_workbench_db_cache()
-
-    @staticmethod
-    def clear_backtest_results(
-        *, strategy_names: Optional[Iterable[str]] = None
-    ) -> int:
-        from core.infra.system_actions.core.cache_cleanup.cache_cleanup import (
-            CacheCleanup,
-        )
-
-        return CacheCleanup.clear_backtest_results_disk(strategy_names=strategy_names)
-
-    @staticmethod
-    def clear_scan_results(*, strategy_names: Optional[Iterable[str]] = None) -> int:
-        from core.infra.system_actions.core.cache_cleanup.cache_cleanup import (
-            CacheCleanup,
-        )
-
-        return CacheCleanup.clear_scan_results_disk(strategy_names=strategy_names)
-
-    @staticmethod
-    def clear_strategy_results(
-        *, strategy_names: Optional[Iterable[str]] = None
-    ) -> int:
-        """删除整棵 ``results/``（含 simulations + scan）；细粒度请用 clear_backtest / clear_scan。"""
-        from core.infra.system_actions.core.cache_cleanup.cache_cleanup import (
-            CacheCleanup,
-        )
-
-        return CacheCleanup.clear_strategy_results_disk(strategy_names=strategy_names)
-
-    @staticmethod
-    def clear_userspace_ntq() -> None:
-        from core.infra.system_actions.core.cache_cleanup.cache_cleanup import (
-            CacheCleanup,
-        )
-
-        CacheCleanup.clear_userspace_ntq_dir()
-
-
 class PipelineNamespace:
     """全局 DuckDB pipeline 租约。"""
 
     @staticmethod
-    def read_status() -> Dict[str, Any]:
-        from core.infra.system_actions.core.cache_cleanup.pipeline_lease import (
+    def read_status() -> dict:
+        from core.infra.system_actions.core.pipeline_lease.pipeline_lease import (
             PipelineLease,
         )
 
@@ -127,7 +59,7 @@ class PipelineNamespace:
         domains: Optional[list] = None,
     ):
         """构造 ``PipelineLease`` 上下文管理器。"""
-        from core.infra.system_actions.core.cache_cleanup.pipeline_lease import (
+        from core.infra.system_actions.core.pipeline_lease.pipeline_lease import (
             PipelineLease,
         )
 
@@ -163,7 +95,6 @@ class ScaffoldNamespace:
 class SystemActions:
     """系统级操作门面（Facade）。"""
 
-    cache = CacheNamespace()
     pipeline = PipelineNamespace()
     scaffold = ScaffoldNamespace()
     types = TypesNamespace()

@@ -1,4 +1,4 @@
-"""Userspace cache cleanup (settings UI + devcli)."""
+"""临时文件 / 运行时产物清理（settings UI + devcli）。"""
 
 from __future__ import annotations
 
@@ -7,11 +7,10 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from core.infra.project_context import ProjectContext
-from core.infra.system_actions.core.cache_cleanup.pipeline_lease import PipelineLease
 
 
-class CacheCleanup:
-    """缓存清理操作（方法挂靠本类，不作为模块自由函数导出）。"""
+class TempCleanup:
+    """清理 userspace/.ntq、策略 results/、workbench 快照表。"""
 
     @staticmethod
     def _rm_tree(path: Path) -> None:
@@ -81,7 +80,7 @@ class CacheCleanup:
     ) -> int:
         """删除各策略 ``results/simulations/``。返回删除的目录数。"""
         removed = 0
-        for folder in CacheCleanup._discovered_strategy_folders(
+        for folder in TempCleanup._discovered_strategy_folders(
             strategy_names=strategy_names
         ):
             sim_root = (
@@ -89,7 +88,7 @@ class CacheCleanup:
                 / "simulations"
             )
             if sim_root.exists():
-                CacheCleanup._rm_tree(sim_root)
+                TempCleanup._rm_tree(sim_root)
                 removed += 1
         return removed
 
@@ -99,12 +98,12 @@ class CacheCleanup:
     ) -> int:
         """删除各策略 ``results/scan/``。返回删除的目录数。"""
         removed = 0
-        for folder in CacheCleanup._discovered_strategy_folders(
+        for folder in TempCleanup._discovered_strategy_folders(
             strategy_names=strategy_names
         ):
             scan_root = ProjectContext.path.get_strategy_scan_results_directory(folder)
             if scan_root.exists():
-                CacheCleanup._rm_tree(scan_root)
+                TempCleanup._rm_tree(scan_root)
                 removed += 1
         return removed
 
@@ -114,12 +113,12 @@ class CacheCleanup:
     ) -> int:
         """删除各策略整个 ``results/``（含 simulations 与 scan；devcli 一键用）。"""
         removed = 0
-        for folder in CacheCleanup._discovered_strategy_folders(
+        for folder in TempCleanup._discovered_strategy_folders(
             strategy_names=strategy_names
         ):
             results = ProjectContext.path.get_strategy_results_directory(folder)
             if results.exists():
-                CacheCleanup._rm_tree(results)
+                TempCleanup._rm_tree(results)
                 removed += 1
         return removed
 
@@ -133,7 +132,7 @@ class CacheCleanup:
         ProjectContext.cache.clear_userspace_cache()
         us_ntq = ProjectContext.path.get_userspace_ntq_directory()
         if us_ntq.is_dir():
-            CacheCleanup._rm_tree(us_ntq)
+            TempCleanup._rm_tree(us_ntq)
 
     @staticmethod
     def run(
@@ -144,8 +143,10 @@ class CacheCleanup:
         clear_userspace_ntq: bool = False,
     ) -> Dict[str, Any]:
         """
-        按勾选项清理缓存。有全局 pipeline 任务进行中时拒绝（``error=pipeline_busy``）。
+        按勾选项清理。有全局 pipeline 任务进行中时拒绝（``error=pipeline_busy``）。
         """
+        from core.infra.system_actions import SystemActions
+
         selected = [
             clear_db_cache,
             clear_backtest_results,
@@ -155,7 +156,7 @@ class CacheCleanup:
         if not any(selected):
             return {"ok": False, "error": "nothing_selected"}
 
-        pipeline = PipelineLease.read_status()
+        pipeline = SystemActions.pipeline.read_status()
         if pipeline.get("busy"):
             return {
                 "ok": False,
@@ -166,12 +167,15 @@ class CacheCleanup:
             }
 
         if clear_db_cache:
-            CacheCleanup.clear_workbench_db_cache()
+            TempCleanup.clear_workbench_db_cache()
         if clear_backtest_results:
-            CacheCleanup.clear_backtest_results_disk()
+            TempCleanup.clear_backtest_results_disk()
         if clear_scan_results:
-            CacheCleanup.clear_scan_results_disk()
+            TempCleanup.clear_scan_results_disk()
         if clear_userspace_ntq:
-            CacheCleanup.clear_userspace_ntq_dir()
+            TempCleanup.clear_userspace_ntq_dir()
 
         return {"ok": True, "message": "缓存已经全部清理"}
+
+
+__all__ = ["TempCleanup"]

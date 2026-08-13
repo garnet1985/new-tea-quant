@@ -137,33 +137,34 @@ class DevHandlers:
 
     @staticmethod
     def cmd_clear_global_cache(_args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.cache import clear_userspace_ntq_dir
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_userspace_ntq_dir()
+        TempCleanup.clear_userspace_ntq_dir()
         print("userspace/.ntq 已清理。", flush=True)
         return 0
 
     @staticmethod
     def cmd_clear_strategy_cache(_args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.cache import clear_simulation_cache_all
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_simulation_cache_all()
+        TempCleanup.clear_strategy_results_disk()
+        TempCleanup.clear_workbench_db_cache()
         print("物理模拟 results/ 与 DB 工作台快照已清理。", flush=True)
         return 0
 
     @staticmethod
     def cmd_cache_clear_db(_args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.cache import clear_workbench_db_cache
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_workbench_db_cache()
+        TempCleanup.clear_workbench_db_cache()
         print("DB 工作台快照已清理。", flush=True)
         return 0
 
     @staticmethod
     def cmd_cache_clear_disk(_args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.cache import clear_simulation_disk_cache
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_simulation_disk_cache()
+        TempCleanup.clear_strategy_results_disk()
         print("物理模拟 results/ 已清理。", flush=True)
         return 0
 

@@ -9,7 +9,7 @@
 ## Scope
 
 验证门面 `SystemActions` 与 `contracts` / `types`（`test_api.py`）。  
-清理 / 租约行为单测在 `core/cache_cleanup/__test__/`。
+租约行为单测在 `core/pipeline_lease/__test__/`。
 
 ## 边界
 
@@ -24,7 +24,7 @@
 
 | Case | 文件 | 说明 |
 |------|------|------|
-| `test_facade_export` | `test_api.py` | `__all__` + 四 namespace |
-| `test_cache_*` / `pipeline_*` / `scaffold_*` | `test_api.py` | 方法存在与抽检 |
+| `test_facade_export` | `test_api.py` | `__all__` + pipeline / scaffold / types |
+| `test_pipeline_*` / `scaffold_*` | `test_api.py` | 方法存在与抽检 |
 | `test_contracts_and_types` | `test_api.py` | contracts ≡ types |
 | `test_pipeline_lease_construct` | `test_api.py` | lease 返回上下文管理器 |

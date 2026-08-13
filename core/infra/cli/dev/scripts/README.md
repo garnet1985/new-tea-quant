@@ -12,6 +12,6 @@
 | `minimal_import_check/` | `devcli.py ic` | UI 最小 import |
 | `py39_compat_check/` | pack 步骤 | 3.9 语法 |
 | `stock_pool/` | `devcli.py ssp` / `pc` | 分层样本池 |
-| `cache/` | `cgc`/`csc`/`cdc`/`cmc` | 薄封装 SystemActions.cache |
+| `temp_cleanup/` | `cgc`/`csc`/`cdc`/`cmc` | 清 .ntq / results / workbench 快照 |
 
 独立运行示例：`python -m core.infra.cli.dev.scripts.raw_icon_scan`

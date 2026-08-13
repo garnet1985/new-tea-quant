@@ -14,7 +14,7 @@ pytestmark = pytest.mark.force_run
 def isolated_lease(tmp_path, monkeypatch):
     lease_file = tmp_path / "pipeline_active.json"
     monkeypatch.setattr(
-        "core.infra.system_actions.core.cache_cleanup.pipeline_lease.PipelineLease.lease_path",
+        "core.infra.system_actions.core.pipeline_lease.pipeline_lease.PipelineLease.lease_path",
         staticmethod(lambda: lease_file),
     )
     return lease_file

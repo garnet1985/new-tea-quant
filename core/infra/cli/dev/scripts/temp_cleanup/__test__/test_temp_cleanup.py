@@ -1,4 +1,4 @@
-"""Tests for userspace cache cleanup (经 Facade / CacheCleanup)。"""
+"""Tests for userspace temp cleanup."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
+from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 from core.infra.system_actions import SystemActions
-from core.infra.system_actions.core.cache_cleanup.cache_cleanup import CacheCleanup
 
 pytestmark = pytest.mark.force_run
 
@@ -54,31 +54,33 @@ def userspace_layout(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_run_cache_cleanup_rejects_when_pipeline_busy(userspace_layout):
-    with patch(
-        "core.infra.system_actions.core.cache_cleanup.pipeline_lease.PipelineLease.read_status",
+def test_run_temp_cleanup_rejects_when_pipeline_busy(userspace_layout):
+    with patch.object(
+        SystemActions.pipeline,
+        "read_status",
         return_value={"busy": True, "label": "Tag 计算中", "kind": "tag_run"},
     ):
-        out = SystemActions.cache.run(clear_userspace_ntq=True)
+        out = TempCleanup.run(clear_userspace_ntq=True)
     assert out["ok"] is False
     assert out["error"] == "pipeline_busy"
     assert (userspace_layout / ".ntq").exists()
 
 
-def test_run_cache_cleanup_selected_targets(userspace_layout):
-    with patch(
-        "core.infra.system_actions.core.cache_cleanup.pipeline_lease.PipelineLease.read_status",
+def test_run_temp_cleanup_selected_targets(userspace_layout):
+    with patch.object(
+        SystemActions.pipeline,
+        "read_status",
         return_value={"busy": False},
     ), patch.object(
-        CacheCleanup,
+        TempCleanup,
         "clear_workbench_db_cache",
         return_value=2,
     ) as mock_db, patch.object(
-        CacheCleanup,
+        TempCleanup,
         "_discovered_strategy_folders",
         return_value=[Path("demo/nested/my_strategy")],
     ):
-        out = SystemActions.cache.run(
+        out = TempCleanup.run(
             clear_db_cache=True,
             clear_backtest_results=True,
             clear_scan_results=True,
@@ -107,7 +109,7 @@ def test_run_cache_cleanup_selected_targets(userspace_layout):
     assert not (userspace_layout / ".ntq").exists()
 
 
-def test_run_cache_cleanup_nothing_selected():
-    out = SystemActions.cache.run()
+def test_run_temp_cleanup_nothing_selected():
+    out = TempCleanup.run()
     assert out["ok"] is False
     assert out["error"] == "nothing_selected"

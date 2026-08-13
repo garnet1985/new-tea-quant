@@ -16,55 +16,9 @@
 
 ## SystemActions
 
-**描述：** 系统级操作门面 — `cache` / `pipeline` / `scaffold` / `types`
+**描述：** 系统级操作门面 — `pipeline` / `scaffold` / `types`
 
-### cache
-
-#### run
-
-`SystemActions.cache.run(*, clear_db_cache=False, clear_backtest_results=False, clear_scan_results=False, clear_userspace_ntq=False) -> dict`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **引入版本：** `0.1.0`
-- **描述：** 按勾选项清理；未选 → `nothing_selected`；pipeline 忙碌 → `pipeline_busy`
-
-#### clear_workbench_db
-
-`SystemActions.cache.clear_workbench_db() -> int`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **引入版本：** `0.1.0`
-- **描述：** 清空 workbench 快照表；返回删除行数
-
-#### clear_backtest_results / clear_scan_results
-
-`SystemActions.cache.clear_backtest_results(*, strategy_names=None) -> int`  
-`SystemActions.cache.clear_scan_results(*, strategy_names=None) -> int`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **引入版本：** `0.1.0`
-- **描述：** 分别删除 `results/simulations/` 与 `results/scan/`；返回删除目录数
-
-#### clear_strategy_results
-
-`SystemActions.cache.clear_strategy_results(*, strategy_names=None) -> int`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **引入版本：** `0.1.0`
-- **描述：** 删除整棵 `results/`（**含** simulations + scan）；细粒度请用上面两项
-
-#### clear_userspace_ntq
-
-`SystemActions.cache.clear_userspace_ntq() -> None`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **引入版本：** `0.1.0`
-- **描述：** 删除 `userspace/.ntq/`（不触碰仓库根 `.ntq/`）
+临时文件 / 运行时产物清理已迁至 `core.infra.cli.dev.scripts.temp_cleanup`（devcli + 设置页）。
 
 ### pipeline
 

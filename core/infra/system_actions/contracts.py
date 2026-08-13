@@ -46,7 +46,7 @@ class PipelineLeaseBusyError(Exception):
 
 def __getattr__(name: str) -> Any:
     if name == "PipelineLease":
-        from core.infra.system_actions.core.cache_cleanup.pipeline_lease import (
+        from core.infra.system_actions.core.pipeline_lease.pipeline_lease import (
             PipelineLease,
         )
 

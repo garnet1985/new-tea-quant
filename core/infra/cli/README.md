@@ -11,7 +11,7 @@
 ## 模块依赖
 
 - `infra.project_context`：项目根与路径等运行时上下文
-- `infra.system_actions`：缓存清理、pipeline 租约、脚手架
+- `infra.system_actions`：pipeline 租约、脚手架
 - `infra.setup`：安装（bootstrap / `install.py`）
 - `infra.updater`：应用升级（`cli.py u` → userspace updater）
 

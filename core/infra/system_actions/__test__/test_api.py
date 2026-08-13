@@ -23,21 +23,9 @@ class TestSystemActionsApi(unittest.TestCase):
         import core.infra.system_actions as pkg
 
         self.assertEqual(pkg.__all__, ["SystemActions"])
-        self.assertTrue(hasattr(SystemActions, "cache"))
         self.assertTrue(hasattr(SystemActions, "pipeline"))
         self.assertTrue(hasattr(SystemActions, "scaffold"))
         self.assertTrue(hasattr(SystemActions, "types"))
-
-    def test_cache_methods(self):
-        for name in (
-            "run",
-            "clear_workbench_db",
-            "clear_backtest_results",
-            "clear_scan_results",
-            "clear_strategy_results",
-            "clear_userspace_ntq",
-        ):
-            self.assertTrue(callable(getattr(SystemActions.cache, name)))
 
     def test_pipeline_methods(self):
         self.assertTrue(callable(SystemActions.pipeline.read_status))
@@ -51,11 +39,6 @@ class TestSystemActionsApi(unittest.TestCase):
         status = SystemActions.pipeline.read_status()
         self.assertIsInstance(status, dict)
         self.assertIn("busy", status)
-
-    def test_cache_run_nothing_selected(self):
-        out = SystemActions.cache.run()
-        self.assertEqual(out.get("ok"), False)
-        self.assertEqual(out.get("error"), "nothing_selected")
 
     def test_contracts_and_types(self):
         self.assertTrue(issubclass(ScaffoldError, ValueError))

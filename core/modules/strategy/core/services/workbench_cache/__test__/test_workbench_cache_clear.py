@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.strategy.core.services.workbench_cache_clear import (
+from core.modules.strategy.core.services.workbench_cache import (
     WorkbenchCacheClear,
 )
 

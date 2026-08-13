@@ -159,7 +159,7 @@ class TestStrategyApi(unittest.TestCase):
 
     def test_clear_workbench_cache_raises_on_failure(self) -> None:
         with patch(
-            "core.modules.strategy.core.services.workbench_cache_clear.WorkbenchCacheClear.clear_all",
+            "core.modules.strategy.core.services.workbench_cache.WorkbenchCacheClear.clear_all",
             return_value={"ok": False, "error": "存储不可用"},
         ):
             with self.assertRaises(RuntimeError):

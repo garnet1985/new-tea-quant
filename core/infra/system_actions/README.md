@@ -1,6 +1,6 @@
 # System Actions（`infra.system_actions`）
 
-系统级操作：缓存清理、全局 pipeline 租约、从模板新建策略 / Tag。
+系统级操作：全局 pipeline 租约、从模板新建策略 / Tag。
 
 ## 布局
 
@@ -9,7 +9,7 @@ core/infra/system_actions/
 ├── system_actions.py   # Facade
 ├── contracts.py
 ├── core/
-│   ├── cache_cleanup/  # 内部实现 + __test__
+│   ├── pipeline_lease/  # 内部实现 + __test__
 │   └── shortcuts/
 ├── __test__/
 └── docs/

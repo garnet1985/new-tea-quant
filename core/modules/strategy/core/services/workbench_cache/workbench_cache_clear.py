@@ -1,7 +1,7 @@
 """Workbench simulation cache clear (domain service).
 
 Deletes rows in ``sys_strategy_workbench_snapshot`` only (not disk simulation dirs).
-Consumers: BFF support + ``cache_cleanup`` (must not depend on ``core.bff``).
+Consumers: BFF support + ``temp_cleanup`` (must not depend on ``core.bff``).
 """
 
 from __future__ import annotations

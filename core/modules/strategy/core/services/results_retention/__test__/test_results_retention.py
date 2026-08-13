@@ -22,7 +22,7 @@ def test_prune_simulation_results_per_kind(tmp_path: Path) -> None:
         "_resolve_folder",
         return_value=tmp_path,
     ), patch(
-        "core.modules.strategy.core.services.results_retention.ProjectContext"
+        "core.modules.strategy.core.services.results_retention.results_retention.ProjectContext"
     ) as pc:
         pc.path.get_strategy_simulation_enum_directory.return_value = enum_root
         out = ResultsRetention.prune_simulation_results(

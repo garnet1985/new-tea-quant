@@ -13,17 +13,16 @@ terms:
     aliases:
       - "门面"
     avoid:
-      - "deep-import cache_cleanup / shortcuts 当公开 API"
+      - "deep-import pipeline_lease / shortcuts 当公开 API"
 
   SystemActions:
-    definition: "本模块门面类；挂载 cache / pipeline / scaffold / types。"
+    definition: "本模块门面类；挂载 pipeline / scaffold / types。"
     aliases: []
     avoid: []
 
   namespace:
-    definition: "门面下的命名空间（cache / pipeline / scaffold / types）。"
+    definition: "门面下的命名空间（pipeline / scaffold / types）。"
     aliases:
-      - "SystemActions.cache"
       - "SystemActions.pipeline"
       - "SystemActions.scaffold"
       - "SystemActions.types"
@@ -47,18 +46,6 @@ terms:
     definition: "合法 pipeline kind 集合：tag_run / strategy_scan / strategy_run / data_renew。"
     aliases:
       - "Kind"
-    avoid: []
-
-  cache_cleanup:
-    definition: "清理 workbench DB 缓存 / 模拟与扫描产物 / userspace .ntq。"
-    aliases:
-      - "SystemActions.cache"
-      - "CacheCleanup"
-    avoid: []
-
-  clear_strategy_results:
-    definition: "删除策略整棵 results/（含 simulations + scan）；细粒度用 clear_backtest_results / clear_scan_results。"
-    aliases: []
     avoid: []
 
   scaffold:

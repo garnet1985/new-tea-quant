@@ -1,7 +1,9 @@
 [run]
+# Default suite is core/infra + core/modules (see pytest.ini).
 source = core
-omit = 
+omit =
     */__test__/*
+    */__performance__/*
     */__pycache__/*
     */venv/*
     */userspace/*
@@ -9,6 +11,9 @@ omit =
     */__init__.py
     */example.py
     */*_example.py
+    # Not in default pytest suite (norecursedirs); keep coverage denominator honest
+    */core/ui/*
+    */core/bff/*
 
 [report]
 exclude_lines =

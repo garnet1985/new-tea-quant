@@ -8,8 +8,8 @@
 ## 用法
 
 ```bash
-# 例：新建 modules/foo
-cp -R docs/doc_templates/module/ modules/foo/
+# 例：新建 core/modules/foo
+cp -R docs/doc_templates/module/ core/modules/foo/
 # 然后：替换 <占位>；不需要的可选文件/目录整份删除（并去掉 README 里对应链接）
 ```
 

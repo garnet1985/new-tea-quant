@@ -4,11 +4,12 @@
 
 配置约定见模块文档（如 [`project_context`](../core/infra/project_context/README.md)）与 `core/default_config/` JSON；不再在仓库根 `docs/` 单独维护配置专题。
 
-## 用户指南（迁移至 userspace）
+## 用户指南（userspace）
 
 - [策略开发](../userspace/strategies/USER_GUIDE.md)
-- [数据源使用](../userspace/data_source/USER_GUIDE.md)
-- [标签系统](../userspace/tags/USER_GUIDE.md)
+- [数据源扩展](../userspace/extensions/data_source/USER_GUIDE.md)
+- [标签扩展](../userspace/extensions/tags/USER_GUIDE.md)
+- [适配器扩展](../userspace/extensions/adapters/USER_GUIDE.md)
 
 ## Docker
 
@@ -18,16 +19,15 @@
 
 - [ci/README.md](../ci/README.md) — Workflow 专用验收脚本（如冷启动冒烟）；与 `devcli` / `TaskGuard` 分开
 
-## UI（`core/ui/`）
+## UI / BFF
 
-当前仓库内已有 UI 代码骨架：
+- [`core/ui/`](../core/ui/README.md)：工作台前端（`fed/`：React）
+- [`core/bff/`](../core/bff/README.md)：Flask BFF（HTTP 编排；可托管 FED build）
+- 启动优先根目录 `python launcher.py`（见根 README）
 
-- `core/ui/fed/`：React 前端（ECharts，可接入 MUI）
-- `core/bff/`：Python Flask BFF
+## 维护者入口
 
-## 零散工具
-
-一次性迁移脚本已清理。维护者入口优先 `python devcli.py -h`。
+- `python devcli.py -h`（pack / 检查等）；CI 专用脚本见 [`ci/README.md`](../ci/README.md)
 
 ## 架构与设计
 

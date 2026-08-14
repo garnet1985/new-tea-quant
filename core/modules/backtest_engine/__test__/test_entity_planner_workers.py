@@ -1,11 +1,16 @@
 """entity_based planner worker concurrency (memory budget must not double-subtract floor)."""
 from __future__ import annotations
 
-from core.infra.machine_capacity.contracts import MachineCapacity
+from unittest.mock import patch
+
 from core.modules.backtest_engine.core.schedule.entity_based.planner import EntityPlanner
 
 
-def test_resolve_max_workers_auto_uses_cpu_cap() -> None:
+_CPU_PATCH = "core.modules.backtest_engine.core.schedule.entity_based.probe.mp.cpu_count"
+
+
+@patch(_CPU_PATCH, return_value=10)
+def test_resolve_max_workers_auto_uses_cpu_cap(_mock_cpu) -> None:
     performance = {
         "max_workers": "auto",
         "prefetch_ahead": 1,
@@ -25,7 +30,8 @@ def test_resolve_max_workers_auto_uses_cpu_cap() -> None:
     assert source == "auto"
 
 
-def test_resolve_max_workers_respects_max_parallel_jobs_cap() -> None:
+@patch(_CPU_PATCH, return_value=10)
+def test_resolve_max_workers_respects_max_parallel_jobs_cap(_mock_cpu) -> None:
     performance = {
         "max_workers": "auto",
         "prefetch_ahead": 1,

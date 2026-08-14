@@ -29,3 +29,31 @@ def test_should_apply_on_requires_process():
         mode="on",
         use_process_pool=False,
     )
+
+
+def test_scope_does_not_create_holder_after_suspend():
+    """suspend 后不得 DataManager()，否则 wait_for_main_end 会死等 600s。"""
+    DuckdbWorkerPool._main_suspend_depth = 0
+    created_after_suspend = []
+
+    def _resolve(*_args, **_kwargs):
+        if DuckdbWorkerPool._main_suspend_depth > 0:
+            created_after_suspend.append(True)
+            raise AssertionError("must not create holder while DuckDB pool is suspended")
+        return None
+
+    try:
+        with patch.object(DuckdbWorkerPool, "is_duckdb_backend", return_value=True), patch.object(
+            DuckdbWorkerPool, "prepare_main_for_worker_pool"
+        ), patch.object(DuckdbWorkerPool, "wait_pool_children_done"), patch.object(
+            DuckdbWorkerPool, "ensure_data_manager_restored", return_value=None
+        ), patch.object(
+            DuckdbWorkerPool, "resolve_holder", side_effect=_resolve
+        ):
+            with DuckdbWorkerPool.duckdb_worker_pool_main_process(None) as dm:
+                assert dm is None
+                assert DuckdbWorkerPool._main_suspend_depth == 1
+        assert created_after_suspend == []
+        assert DuckdbWorkerPool._main_suspend_depth == 0
+    finally:
+        DuckdbWorkerPool._main_suspend_depth = 0

@@ -593,7 +593,8 @@ class DuckdbWorkerPool:
         if DuckdbWorkerPool._main_suspend_depth > 0:
             DuckdbWorkerPool._main_suspend_depth += 1
             try:
-                yield dm if dm is not None else DuckdbWorkerPool.resolve_holder(None, allow_create=True)
+                # 已 suspend 时禁止 allow_create：DataManager.__init__ 会 wait_for_main_end → 死锁。
+                yield dm
             finally:
                 DuckdbWorkerPool._main_suspend_depth -= 1
             return
@@ -601,7 +602,8 @@ class DuckdbWorkerPool:
         DuckdbWorkerPool.prepare_main_for_worker_pool(dm)
         DuckdbWorkerPool._main_suspend_depth = 1
         try:
-            yield dm if dm is not None else DuckdbWorkerPool.resolve_holder(None, allow_create=True)
+            # 同样：suspend 之后不得新建会打开 DuckDB 的 holder。
+            yield dm
         finally:
             DuckdbWorkerPool._finalize_worker_pool_main_process(
                 dm,

@@ -10,7 +10,11 @@ import os
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+_REPO_ROOT = next(
+    p
+    for p in Path(__file__).resolve().parents
+    if (p / "install.py").is_file() and (p / "core" / "system.json").is_file()
+)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 os.chdir(_REPO_ROOT)

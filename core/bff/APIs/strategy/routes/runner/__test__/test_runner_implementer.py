@@ -26,7 +26,7 @@ def test_submit_run_resolves_name():
     impl._WorkbenchRunLauncher = launcher
     with patch(
         "core.bff.APIs.strategy.routes.runner.implementer.Strategy.resolve",
-        return_value="demo/x",
+        return_value="demo-key",
     ):
         out = impl.submit_run(
             strategy_key_or_name="k",
@@ -36,7 +36,7 @@ def test_submit_run_resolves_name():
         )
     assert out["job_id"] == "j1"
     launcher.submit.assert_called_once_with(
-        strategy_name="demo/x",
+        strategy_name="demo-key",
         step="enum",
         api_settings={"a": 1},
         force_refresh=True,
@@ -48,7 +48,7 @@ def test_get_step_progress_rejects_bad_step():
     impl._WorkbenchRunLauncher = MagicMock()
     with patch(
         "core.bff.APIs.strategy.routes.runner.implementer.Strategy.resolve",
-        return_value="demo/x",
+        return_value="demo-key",
     ):
         with pytest.raises(ValueError, match="step"):
             impl.get_step_progress(
@@ -62,8 +62,8 @@ def test_trigger_scan_resolves_name():
     impl._trigger_strategy_scan_run = trigger
     with patch(
         "core.bff.APIs.strategy.routes.runner.implementer.Strategy.resolve",
-        return_value="demo/x",
+        return_value="demo-key",
     ):
         out = impl.trigger_scan(strategy_key_or_name="k", demo=True, force=False)
     assert out["job_id"] == "s1"
-    trigger.assert_called_once_with(strategy_name="demo/x", demo=True, force=False)
+    trigger.assert_called_once_with(strategy_name="demo-key", demo=True, force=False)

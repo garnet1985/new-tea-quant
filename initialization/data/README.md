@@ -26,10 +26,12 @@ git rm --cached initialization/data/data_v*.zip 2>/dev/null || true
 
 ## 安装
 
-本目录内**只能有 1 个**非 `example_*` 的 zip 参与导入（即 `data_demo.zip`）。然后：
+本目录内**只能有 1 个** `.zip` 参与导入。然后：
 
 ```bash
-python core/infra/setup/core/steps/import_data/install.py
+python cli.py id
+# 强制全量重导：
+python cli.py id -f
 ```
 
 ## 远端仓库已经因多个 zip 变大

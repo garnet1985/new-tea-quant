@@ -76,14 +76,40 @@ def test_build_step_report_ref_from_entity_list(mock_fetch, _mock_enrich, tmp_pa
     assert ref["avg_gap_days"] == 12.0
 
 
+@patch.object(WorkbenchReports, "_enrich_stock_ref_with_list_names", side_effect=lambda x: x)
 @patch(
-    "core.bff.APIs.strategy.routes.report.step_report.WorkbenchSnapshots.fetch_by_version",
-    return_value=None,
+    "core.bff.APIs.strategy.routes.report.step_report.WorkbenchSnapshots.fetch_by_version"
 )
-def test_build_step_report_missing_row(_mock_fetch):
-    assert (
-        WorkbenchReports.build_step_report(
-            strategy_name="demo/x", normalized_step="enum", version=1
-        )
-        is None
+def test_build_step_report_ref_empty_entity_list_is_available(
+    mock_fetch, _mock_enrich, tmp_path, monkeypatch
+):
+    """0 机会时 entity_list.rows=[] → stock_ref={} 仍应 available（勿当成需重跑）。"""
+    out_dir = tmp_path / "3"
+    out_dir.mkdir(parents=True)
+    (out_dir / "entity_list.json").write_text(
+        json.dumps(
+            {
+                "strategy_key": "demo",
+                "version_id": 3,
+                "rows": [],
+                "created_at": "",
+            }
+        ),
+        encoding="utf-8",
     )
+    mock_fetch.return_value = {
+        "version": 3,
+        "result_report": {"enum": {"output_dir": str(out_dir)}},
+    }
+    monkeypatch.setattr(
+        "core.bff.APIs.strategy.routes.report.step_report.resolve_simulation_output_dirs",
+        lambda *a, **k: [out_dir],
+    )
+
+    msg = WorkbenchReports.build_step_report_ref(
+        strategy_name="demo/x",
+        normalized_step="enum",
+        version=3,
+    )
+    assert msg["stock_ref_available"] is True
+    assert msg["stock_ref"] == {}

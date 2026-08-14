@@ -10,6 +10,7 @@ import {
   Stack,
   Button,
   TextField,
+  Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
@@ -18,6 +19,7 @@ import {
   fetchStrategyList,
   getStrategyDesignPath,
   getStrategyDisplayLabel,
+  groupStrategiesByCategory,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import StrategyPackageImportDialog from '../../components/strategyPackageImportDialog/strategyPackageImportDialog';
@@ -51,7 +53,6 @@ function StrategyListPage({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [nameQuery, setNameQuery] = useState('');
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
   const [importOpen, setImportOpen] = useState(false);
   const [importNotice, setImportNotice] = useState(null);
   const [exportingName, setExportingName] = useState('');
@@ -62,11 +63,26 @@ function StrategyListPage({
     if (!q) return rows;
     return rows.filter((r) => {
       const id = String(r.name || '').toLowerCase();
+      const path = String(r.path || '').toLowerCase();
+      const key = String(r.key || '').toLowerCase();
       const label = String(r.display_name || '').toLowerCase();
       const desc = String(r.description || '').toLowerCase();
-      return id.includes(q) || label.includes(q) || desc.includes(q);
+      const category = String(r.category || '').toLowerCase();
+      return (
+        id.includes(q)
+        || path.includes(q)
+        || key.includes(q)
+        || label.includes(q)
+        || desc.includes(q)
+        || category.includes(q)
+      );
     });
   }, [rows, nameQuery]);
+
+  const groupedRows = useMemo(
+    () => groupStrategiesByCategory(displayRows),
+    [displayRows],
+  );
 
   const load = useCallback(() => {
     setLoading(true);
@@ -85,10 +101,6 @@ function StrategyListPage({
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    setPaginationModel((m) => ({ ...m, page: 0 }));
-  }, [nameQuery]);
 
   const handleExportStrategyPackage = useCallback(async (strategyName) => {
     if (!strategyName || exportingName) return;
@@ -200,6 +212,15 @@ function StrategyListPage({
     },
   ];
 
+  const gridSx = {
+    '& .MuiDataGrid-cell': {
+      py: 1.25,
+      alignItems: 'flex-start',
+      whiteSpace: 'normal',
+      lineHeight: 1.5,
+    },
+  };
+
   return (
     <PageLayout
       className="strategy-list-page"
@@ -274,33 +295,60 @@ function StrategyListPage({
         </Stack>
 
         <Box className="strategy-list-grid-body">
-          <DataGrid
-            autoHeight
-            rows={displayRows}
-            columns={columns}
-            loading={loading}
-            getRowHeight={() => 'auto'}
-            slots={NTQ_DATA_GRID_LOADING_SLOTS}
-            localeText={zhCN}
-            disableRowSelectionOnClick
-            sx={{
-              '& .MuiDataGrid-cell': {
-                py: 1.25,
-                alignItems: 'flex-start',
-                whiteSpace: 'normal',
-                lineHeight: 1.5,
-              },
-            }}
-            onRowDoubleClick={(params) => {
-              navigate(getEnterPath(params.row.name), {
-                state: enterNavState(params.row),
-              });
-            }}
-            // 仅 [10]：MUI TablePagination 在仅一项时不渲染 “Rows per page” 与下拉（避免英文标签）
-            pageSizeOptions={[10]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-          />
+          {groupedRows.length === 0 ? (
+            <DataGrid
+              autoHeight
+              rows={[]}
+              columns={columns}
+              loading={loading}
+              slots={NTQ_DATA_GRID_LOADING_SLOTS}
+              localeText={zhCN}
+              hideFooter
+              disableRowSelectionOnClick
+              sx={gridSx}
+            />
+          ) : (
+            <Stack spacing={2.5}>
+              {groupedRows.map(({ category, rows: categoryRows }) => (
+                <Box key={category} className="strategy-list-category-section">
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={1}
+                    className="strategy-list-category-header"
+                  >
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      {category}
+                    </Typography>
+                    <Box
+                      component="span"
+                      className="strategy-list-category-count"
+                      aria-label={`${categoryRows.length} 个策略`}
+                    >
+                      {categoryRows.length}
+                    </Box>
+                  </Stack>
+                  <DataGrid
+                    autoHeight
+                    rows={categoryRows}
+                    columns={columns}
+                    loading={loading}
+                    getRowHeight={() => 'auto'}
+                    slots={NTQ_DATA_GRID_LOADING_SLOTS}
+                    localeText={zhCN}
+                    hideFooter
+                    disableRowSelectionOnClick
+                    sx={gridSx}
+                    onRowDoubleClick={(params) => {
+                      navigate(getEnterPath(params.row.name), {
+                        state: enterNavState(params.row),
+                      });
+                    }}
+                  />
+                </Box>
+              ))}
+            </Stack>
+          )}
         </Box>
       </Paper>
 

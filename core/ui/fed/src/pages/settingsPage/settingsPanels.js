@@ -25,6 +25,7 @@ import {
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/apis/settingsApi';
+import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/apis/feedbackApi';
 
 export function SettingsSystemPanel() {
   return (
@@ -244,7 +245,7 @@ const CACHE_OPTIONS = [
   {
     key: 'clear_backtest_results',
     label: '回测结果临时文件清理',
-    hint: '删除各策略 results/simulations/ 下的枚举、价格、资金模拟产物。',
+    hint: '删除各策略 results/simulations/ 下的枚举、价格、投资模拟产物。',
   },
   {
     key: 'clear_scan_results',
@@ -500,6 +501,109 @@ export function SettingsTracePanel() {
           ) : null}
           <Box>
             <Button variant="outlined" onClick={load} disabled={saving || loading}>
+              重新读取
+            </Button>
+          </Box>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+export function SettingsFeedbackPanel() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saveOk, setSaveOk] = useState('');
+  const [promptsDisabled, setPromptsDisabled] = useState(false);
+  const [contactUrl, setContactUrl] = useState('https://new-tea.cn/zh-hans/contact?from=ntq_app');
+
+  const applyState = useCallback((r) => {
+    setPromptsDisabled(Boolean(r.prompts_disabled));
+    if (r.contact_url) setContactUrl(String(r.contact_url));
+  }, []);
+
+  const load = useCallback(() => {
+    setLoadError('');
+    setLoading(true);
+    fetchFeedbackSettings()
+      .then(applyState)
+      .catch((e) => {
+        setLoadError(e?.message || '读取反馈设置失败');
+      })
+      .finally(() => setLoading(false));
+  }, [applyState]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleToggle = (_event, nextEnabled) => {
+    // Switch ON = prompts enabled = prompts_disabled false
+    const nextDisabled = !nextEnabled;
+    setSaveError('');
+    setSaveOk('');
+    setSaving(true);
+    saveFeedbackSettings({ prompts_disabled: nextDisabled })
+      .then((r) => {
+        applyState(r);
+        setSaveOk(nextDisabled ? '已关闭应用内反馈询问。' : '已开启应用内反馈询问。');
+      })
+      .catch((e) => {
+        setSaveError(e?.message || '保存失败');
+      })
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <Stack spacing={2}>
+      <Typography variant="subtitle1" fontWeight={700}>
+        反馈
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        任务成功后偶尔会弹出简短反馈。你可以随时关闭询问。一旦你主动发送，不会再要求任何本地授权。
+        更长的问题请走官网联系页。
+      </Typography>
+
+      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
+      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
+
+      {loading ? (
+        <InlineLoadingState block message="正在加载反馈设置…" />
+      ) : (
+        <Stack spacing={1.5} sx={{ maxWidth: 520 }}>
+          <FormControlLabel
+            sx={{
+              ml: 0,
+              gap: 1.5,
+              alignItems: 'center',
+              '& .MuiFormControlLabel-label': { marginLeft: 0 },
+            }}
+            control={(
+              <Switch
+                checked={!promptsDisabled}
+                onChange={handleToggle}
+                disabled={saving}
+                inputProps={{ 'aria-label': '开启应用内反馈询问' }}
+              />
+            )}
+            label={promptsDisabled ? '已关闭应用内反馈询问' : '允许应用内反馈询问'}
+          />
+          <Box>
+            <Button
+              component="a"
+              href={contactUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="outlined"
+            >
+              打开官网联系页
+            </Button>
+          </Box>
+          <Box>
+            <Button variant="text" onClick={load} disabled={saving || loading}>
               重新读取
             </Button>
           </Box>

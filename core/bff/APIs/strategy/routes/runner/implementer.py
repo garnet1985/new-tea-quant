@@ -37,6 +37,7 @@ class StrategyRunnerImplementer:
 
     @staticmethod
     def resolve_strategy_name(strategy_key_or_name: str) -> str:
+        """``meta.key`` 或 path → 稳定身份 ``meta.key``（DB / 进度 / UI）。"""
         return Strategy.resolve(strategy_key_or_name)
 
     @staticmethod

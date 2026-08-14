@@ -24,7 +24,8 @@ STOCK_CORPORATE_FINANCE_DECLARATION: Dict[str, Any] = {
     # - entity_ids（股票列表）
     # - start_quarter, end_quarter（可选：季度范围，如 "2020Q1", "2020Q4"）
     "specific": {
-        # 没有需要静态声明的特有参数
+        # PIT 按披露日推进；勿用默认 "date"（财报行无该字段，until 会始终空）
+        "time_axis_field": "ann_date",
     },
 }
 

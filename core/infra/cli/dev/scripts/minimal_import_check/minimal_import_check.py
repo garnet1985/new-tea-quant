@@ -73,7 +73,9 @@ UI_BOOTSTRAP_CHECKS: tuple[ImportCheck, ...] = (
             import os
             os.environ["NTQ_SKIP_AUTO_VENV"] = "1"
             import importlib.util
-            path = os.path.join("setup", "steps", "sys_req_check", "install.py")
+            path = os.path.join(
+                "core", "infra", "setup", "core", "steps", "sys_req_check", "install.py"
+            )
             spec = importlib.util.spec_from_file_location("ntq_sys_req_check", path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)

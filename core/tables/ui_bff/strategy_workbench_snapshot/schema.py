@@ -24,7 +24,7 @@ schema = {
             "length": 128,
             "isRequired": True,
             "nullable": False,
-            "description": "策略目录名",
+            "description": "策略稳定身份（settings.meta.key；旧行可能仍为目录相对路径）",
         },
         {
             "name": "version",

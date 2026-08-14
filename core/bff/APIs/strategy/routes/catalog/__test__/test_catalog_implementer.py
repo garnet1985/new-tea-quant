@@ -50,6 +50,7 @@ def test_list_strategies_pagination_and_summary(mock_discover):
             settings={
                 "meta": {
                     "description": ("line1", "line2"),
+                    "category": " 回归 ",
                     "keywords": ["k1", "", None, "k2"],
                     "details": {"entry": [" buy "]},
                 }
@@ -67,9 +68,11 @@ def test_list_strategies_pagination_and_summary(mock_discover):
     assert items[0]["display_name"] == "A"
     assert items[0]["is_enabled"] is False
     assert items[0]["worker_class_name"] == "DemoHooks"
+    assert items[0]["category"] == ""
 
     page2, _ = catalog.list_strategies(page=2, limit=1)
     assert page2[0]["name"] == "demo/b"
     assert page2[0]["description"] == "line1line2"
+    assert page2[0]["category"] == "回归"
     assert page2[0]["keywords"] == ["k1", "k2"]
     assert page2[0]["details"] == {"entry": ["buy"]}

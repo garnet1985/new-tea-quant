@@ -1,4 +1,4 @@
-"""Tests for WorkbenchVersionId / DiscoveryService.resolve_strategy_path."""
+"""Tests for WorkbenchVersionId / DiscoveryService resolve helpers."""
 
 from __future__ import annotations
 
@@ -41,3 +41,29 @@ def test_discovery_resolve_strategy_path():
     with patch.object(DiscoveryService, "discover_strategies", return_value=[]):
         with pytest.raises(FileNotFoundError):
             DiscoveryService.resolve_strategy_path("missing")
+
+
+def test_discovery_resolve_strategy_key():
+    info = MagicMock()
+    info.key = "demo-key"
+    info.id.return_value = "demo/x"
+    with patch.object(
+        DiscoveryService, "discover_strategies", return_value=[info]
+    ):
+        assert DiscoveryService.resolve_strategy_key("demo-key") == "demo-key"
+        assert DiscoveryService.resolve_strategy_key("demo/x") == "demo-key"
+
+    info_no_key = MagicMock()
+    info_no_key.key = ""
+    info_no_key.id.return_value = "demo/legacy"
+    with patch.object(
+        DiscoveryService, "discover_strategies", return_value=[info_no_key]
+    ):
+        assert DiscoveryService.resolve_strategy_key("demo/legacy") == "demo/legacy"
+
+    with pytest.raises(ValueError):
+        DiscoveryService.resolve_strategy_key("")
+
+    with patch.object(DiscoveryService, "discover_strategies", return_value=[]):
+        with pytest.raises(FileNotFoundError):
+            DiscoveryService.resolve_strategy_key("missing")

@@ -13,6 +13,7 @@ import {
   loadDesignActiveRun,
   persistDesignActiveRun,
 } from '../lib/strategyDesignActiveRunPersistence';
+import { notifyTaskSuccess } from '../../../utils/feedbackPromptBus';
 
 const RUN_STEPS = new Set(['enum', 'price', 'portfolio']);
 
@@ -288,6 +289,7 @@ export function useStrategyDesignExecution({
               lastUpdatedAt: Date.now(),
             }));
           }
+          notifyTaskSuccess('strategy_run');
         }
       }
     };

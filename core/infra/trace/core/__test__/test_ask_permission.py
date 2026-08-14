@@ -15,7 +15,7 @@ def consent_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     config_root = tmp_path / "userspace" / "system" / "config"
     config_root.mkdir(parents=True)
 
-    from core.infra.trace.core.services import consent_service, permission_service
+    from core.infra.trace.core.services import client_service, consent_service
 
     monkeypatch.setattr(
         consent_service.TraceConsentService,
@@ -24,6 +24,12 @@ def consent_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.delenv("NTQ_TRACE_ENABLED", raising=False)
     monkeypatch.delenv("NTQ_TRACE_SKIP", raising=False)
+    # grant/revoke emit track.decision; never hit production from unit tests.
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(lambda *args, **kwargs: True),
+    )
     return config_root
 
 

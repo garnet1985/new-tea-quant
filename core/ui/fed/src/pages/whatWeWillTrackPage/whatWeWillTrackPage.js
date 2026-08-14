@@ -78,7 +78,9 @@ function WhatWeWillTrackPage() {
               </li>
               <li>
                 <code>app.start</code>
-                ：应用启动入口（UI / CLI / DevCLI）
+                ：应用启动入口（UI / DevCLI；用户 CLI 仅策略/Tag 的 run 类命令，并带
+                <code>command</code>
+                原文）
               </li>
               <li>
                 <code>track.decision</code>

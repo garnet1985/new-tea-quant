@@ -29,6 +29,7 @@ import {
   fetchStrategyScanReadiness,
   getStrategyDisplayLabel,
   getStrategyDesignPath,
+  groupStrategiesByCategory,
   startStrategyScan,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
@@ -37,6 +38,7 @@ import StrategyDescriptionText from '../../components/strategyDescriptionText/st
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
+import { notifyTaskSuccess } from '../../utils/feedbackPromptBus';
 import './scanPage.scss';
 
 const SHOW_REPORT_GENERATED_AT = false;
@@ -96,6 +98,7 @@ function ScanPage() {
     const row = rows.find((r) => r.id === detailStrategyId);
     return getStrategyDisplayLabel(row) || detailStrategyId;
   }, [detailStrategyId, rows]);
+  const groupedRows = useMemo(() => groupStrategiesByCategory(rows), [rows]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -394,6 +397,7 @@ function ScanPage() {
             window.setTimeout(() => {
               refreshScanPrimaryActions({ silent: true });
             }, 0);
+            notifyTaskSuccess('scan');
             return;
           }
           if (status === 'failed') {
@@ -558,28 +562,57 @@ function ScanPage() {
                 message={loading ? '正在加载策略列表…' : '正在校验扫描就绪状态…'}
               />
             ) : (
-              <DataGrid
-                autoHeight
-                rows={rows}
-                columns={columns}
-                loading={false}
-                getRowHeight={() => 'auto'}
-                slots={NTQ_DATA_GRID_LOADING_SLOTS}
-                localeText={zhCN}
-                disableRowSelectionOnClick
-                sx={{
-                  '& .MuiDataGrid-cell': {
-                    py: 1.25,
-                    alignItems: 'flex-start',
-                    whiteSpace: 'normal',
-                    lineHeight: 1.5,
-                  },
-                }}
-                pageSizeOptions={[10]}
-                initialState={{
-                  pagination: { paginationModel: { page: 0, pageSize: 10 } },
-                }}
-              />
+              <Stack spacing={2.5}>
+                {groupedRows.map(({ category, rows: categoryRows }) => (
+                  <Box key={category}>
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        {category}
+                      </Typography>
+                      <Box
+                        component="span"
+                        aria-label={`${categoryRows.length} 个策略`}
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 22,
+                          height: 22,
+                          px: 0.75,
+                          borderRadius: '999px',
+                          boxSizing: 'border-box',
+                          fontSize: 12,
+                          lineHeight: 1,
+                          fontWeight: 600,
+                          color: 'rgba(255, 255, 255, 0.82)',
+                          bgcolor: 'rgba(255, 255, 255, 0.14)',
+                        }}
+                      >
+                        {categoryRows.length}
+                      </Box>
+                    </Stack>
+                    <DataGrid
+                      autoHeight
+                      rows={categoryRows}
+                      columns={columns}
+                      loading={false}
+                      getRowHeight={() => 'auto'}
+                      slots={NTQ_DATA_GRID_LOADING_SLOTS}
+                      localeText={zhCN}
+                      hideFooter
+                      disableRowSelectionOnClick
+                      sx={{
+                        '& .MuiDataGrid-cell': {
+                          py: 1.25,
+                          alignItems: 'flex-start',
+                          whiteSpace: 'normal',
+                          lineHeight: 1.5,
+                        },
+                      }}
+                    />
+                  </Box>
+                ))}
+              </Stack>
             )}
           </Box>
         </CardContent>

@@ -240,3 +240,70 @@ def save_trace_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any
     if not ok_set:
         return None, "保存使用统计偏好失败"
     return get_trace_settings(), None
+
+
+def get_feedback_settings() -> Dict[str, Any]:
+    """Soft-prompt prefs (independent of Trace.consent)."""
+    from core.infra.feedback import Feedback
+
+    prefs = Feedback.get_prefs()
+    return {
+        "prompts_disabled": bool(prefs.get("prompts_disabled")),
+        "decided_at": str(prefs.get("decided_at") or ""),
+        "source": str(prefs.get("source") or ""),
+        "contact_url": Feedback.contact_url(),
+    }
+
+
+def save_feedback_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    if "prompts_disabled" not in payload:
+        return None, "缺少 prompts_disabled 字段"
+    disabled = payload.get("prompts_disabled")
+    if not isinstance(disabled, bool):
+        return None, "prompts_disabled 须为布尔值"
+
+    from core.infra.feedback import Feedback
+
+    source = str(payload.get("source") or "settings_ui").strip()[:32] or "settings_ui"
+    ok_set = Feedback.set_prompts_disabled(disabled, source=source)
+    if not ok_set:
+        return None, "保存反馈偏好失败"
+    return get_feedback_settings(), None
+
+
+def note_feedback_task_success(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from core.infra.feedback import Feedback
+
+    source = str((payload or {}).get("source") or "").strip()[:32]
+    return Feedback.note_task_success(source=source)
+
+
+def submit_feedback(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    rating = str((payload or {}).get("rating") or "").strip().lower()
+    if rating not in {"up", "down"}:
+        return None, "rating 须为 up 或 down"
+
+    from core.infra.feedback import Feedback
+
+    text = str((payload or {}).get("text") or "")
+    source = str((payload or {}).get("source") or "popup").strip()[:32] or "popup"
+    ok_send = Feedback.submit(rating=rating, text=text, source=source)
+    if not ok_send:
+        return None, "反馈发送失败，请稍后重试"
+    return {"status": "ok"}, None
+
+
+def feedback_prompt_action(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    action = str((payload or {}).get("action") or "").strip().lower()
+    from core.infra.feedback import Feedback
+
+    if action == "snooze":
+        Feedback.snooze_prompt()
+        return {"status": "ok", "action": "snooze"}, None
+    if action == "disable":
+        source = str((payload or {}).get("source") or "popup").strip()[:32] or "popup"
+        ok_set = Feedback.disable_prompts(source=source)
+        if not ok_set:
+            return None, "关闭反馈弹窗失败"
+        return {"status": "ok", "action": "disable"}, None
+    return None, "action 须为 snooze 或 disable"

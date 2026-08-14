@@ -100,12 +100,7 @@ export function useStrategyReportRemoteData({
         if (cancelled) return;
         const raw = msg?.stock_ref;
         const available = msg?.stock_ref_available !== false;
-        if (
-          available
-          && raw
-          && typeof raw === 'object'
-          && Object.keys(raw).length > 0
-        ) {
+        if (available && raw && typeof raw === 'object') {
           const mapped = sortMappedEnumRows(
             mapStockRefToRows(raw),
             ENUM_REF_DEFAULT_SORT.sortBy,
@@ -141,12 +136,7 @@ export function useStrategyReportRemoteData({
         if (cancelled) return;
         const raw = msg?.stock_ref;
         const available = msg?.stock_ref_available !== false;
-        if (
-          available
-          && raw
-          && typeof raw === 'object'
-          && Object.keys(raw).length > 0
-        ) {
+        if (available && raw && typeof raw === 'object') {
           const mapped = sortMappedPriceRows(
             mapPriceStockRefToRows(raw),
             PRICE_REF_DEFAULT_SORT.sortBy,

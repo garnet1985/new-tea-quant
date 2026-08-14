@@ -17,6 +17,7 @@ CLI_COMMAND_REFERENCE = """
   python cli.py t                       执行标签      同 tag [--scenario NAME]
   python cli.py ex [NAME]               导出策略包    同 export_strategy [NAME] [-o PATH]
   python cli.py im [PATH]               导入策略包    同 import_strategy [PATH] [--skip-existing] [--dry-run]
+  python cli.py id                      导入数据包    同 import_data（读 initialization/data 唯一 zip；-f 强制重导）
   python cli.py u                       升级 core     同 update
   python cli.py v                       查看版本      同 version
 

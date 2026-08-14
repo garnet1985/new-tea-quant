@@ -34,12 +34,20 @@ class SetupTrace:
             pass
 
     @staticmethod
-    def app_start(*, entry: AppEntry) -> None:
-        """Emit ``app.start`` when launcher / cli / devcli is used."""
+    def app_start(*, entry: AppEntry, command: Optional[str] = None) -> None:
+        """Emit ``app.start`` when launcher / cli / devcli is used.
+
+        For CLI, callers may pass ``command`` (e.g. ``cli.py sp --strategy …``)
+        and should only call this for strategy/tag run commands.
+        """
         try:
             from core.infra.trace import Trace
 
-            Trace.track("app.start", {"entry": entry})
+            body: dict = {"entry": entry}
+            text = str(command or "").strip()
+            if text:
+                body["command"] = text[:256]
+            Trace.track("app.start", body)
         except Exception:
             pass
 

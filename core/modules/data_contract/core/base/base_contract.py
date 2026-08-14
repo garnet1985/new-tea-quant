@@ -121,17 +121,25 @@ class ContractSpecific:
     @classmethod
     def from_dict(cls, specific: Dict[str, Any]) -> ContractSpecific:
         """从字典创建 ContractSpecific 实例。"""
-        # 动态创建子类实例（包含特定字段）
         if not specific:
             return cls()
-        
-        # 动态创建 dataclass 子类
-        specific_cls = dataclass(type(
-            "DynamicContractSpecific",
-            (cls,),
-            {key: field(default_factory=lambda: value) if isinstance(value, (list, dict)) else field(default=value)
-             for key, value in specific.items()}
-        ))
+
+        # dataclass 动态字段必须带类型注解，否则 TypeError
+        namespace: Dict[str, Any] = {
+            "__annotations__": {
+                key: (type(value) if value is not None else Any)
+                for key, value in specific.items()
+            }
+        }
+        for key, value in specific.items():
+            if isinstance(value, (list, dict)):
+                namespace[key] = field(default_factory=lambda v=value: v)
+            else:
+                namespace[key] = field(default=value)
+
+        specific_cls = dataclass(
+            type("DynamicContractSpecific", (cls,), namespace)
+        )
         return specific_cls(**specific)
 
 

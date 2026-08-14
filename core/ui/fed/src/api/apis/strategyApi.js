@@ -12,6 +12,40 @@ export function getStrategyDisplayLabel(item) {
   return String(item?.display_name || item?.name || '').trim();
 }
 
+/** 无 ``meta.category`` 时的 UI 归类名。 */
+export const UNKNOWN_STRATEGY_CATEGORY = '未知归类';
+
+/** 策略归类展示名：有 category 用原文，否则「未知归类」。 */
+export function getStrategyCategoryLabel(item) {
+  const category = String(item?.category || '').trim();
+  return category || UNKNOWN_STRATEGY_CATEGORY;
+}
+
+/**
+ * 按 category 分组；命名类按中文序，``未知归类`` 始终在最后。
+ * @param {object[]} rows
+ * @returns {{ category: string, rows: object[] }[]}
+ */
+export function groupStrategiesByCategory(rows) {
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const category = getStrategyCategoryLabel(row);
+    if (!map.has(category)) map.set(category, []);
+    map.get(category).push(row);
+  });
+  const named = [...map.keys()]
+    .filter((name) => name !== UNKNOWN_STRATEGY_CATEGORY)
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  const order = [...named];
+  if (map.has(UNKNOWN_STRATEGY_CATEGORY)) {
+    order.push(UNKNOWN_STRATEGY_CATEGORY);
+  }
+  return order.map((category) => ({
+    category,
+    rows: map.get(category) || [],
+  }));
+}
+
 /** 将策略路径 ID（可含 ``/``）编码为 URL 路径段。 */
 function encodeStrategyPathSegments(strategyName) {
   return String(strategyName || '')
@@ -45,17 +79,25 @@ export async function fetchStrategyList() {
   const json = await requestJson(API_STRATEGY_CATALOG(1, 100), { method: 'GET' });
   const list = json?.message?.items || [];
   return {
-    data: list.map((item) => ({
-      id: item.name,
-      name: item.name,
-      key: String(item.key || '').trim(),
-      // 保留服务端原值；展示时用 getStrategyDisplayLabel，勿把路径写进 display_name
-      display_name: String(item.display_name || '').trim(),
-      description: coerceMetaDescription(item.description),
-      keywords: Array.isArray(item.keywords) ? item.keywords : [],
-      details: item.details && typeof item.details === 'object' ? item.details : null,
-      is_enabled: Boolean(item.is_enabled),
-    })),
+    data: list.map((item) => {
+      const pathName = String(item.name || '').trim();
+      const key = String(item.key || '').trim();
+      // API / 路由身份：优先 meta.key；无 key 时回落 path（兼容旧策略）
+      const identity = key || pathName;
+      return {
+        id: identity,
+        name: identity,
+        path: pathName,
+        key,
+        // 保留服务端原值；展示时用 getStrategyDisplayLabel，勿把路径写进 display_name
+        display_name: String(item.display_name || '').trim(),
+        category: String(item.category || '').trim(),
+        description: coerceMetaDescription(item.description),
+        keywords: Array.isArray(item.keywords) ? item.keywords : [],
+        details: item.details && typeof item.details === 'object' ? item.details : null,
+        is_enabled: Boolean(item.is_enabled),
+      };
+    }),
   };
 }
 
@@ -384,7 +426,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
     || ({
       enum: '枚举',
       price: '价格回测',
-      portfolio: '资金模拟',
+      portfolio: '投资模拟',
     }[pipeline] || '');
   const progress_stage_label = curStep
     ? String(curStep.description || curStep.name || '').trim()

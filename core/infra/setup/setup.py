@@ -116,6 +116,18 @@ class RuntimeNamespace:
         return ensure_cli_install_via_install_py()
 
     @staticmethod
+    def import_init_data(*, force: bool = False) -> int:
+        """
+        导入 ``initialization/data/`` 下唯一 zip 数据包到当前配置的数据库。
+
+        ``force=True`` 忽略进度指纹，全量重导。成功返回 ``0``。
+        """
+        from core.infra.setup.core.steps.import_data.installer import SetupDataInstaller
+
+        SetupDataInstaller(table_prefix="").run(force=force, remove_extract=True)
+        return 0
+
+    @staticmethod
     def install_ui(*, force: bool = False) -> None:
         from core.infra.setup.core.ui_runtime import install_ui_runtime
 
@@ -210,10 +222,10 @@ class TraceNamespace:
         SetupTrace.install_complete(success=success, entry=entry, error_code=error_code)
 
     @staticmethod
-    def app_start(*, entry: AppEntry) -> None:
+    def app_start(*, entry: AppEntry, command: Optional[str] = None) -> None:
         from core.infra.setup.core.trace_events import SetupTrace
 
-        SetupTrace.app_start(entry=entry)
+        SetupTrace.app_start(entry=entry, command=command)
 
 
 class Setup:

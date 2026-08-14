@@ -72,9 +72,15 @@ class UserRunner:
             pass
 
         try:
+            from core.infra.cli.user.commands import UserCommands
             from core.infra.setup import Setup
 
-            Setup.trace.app_start(entry="cli")
+            cmd = str(getattr(args, "command", "") or "")
+            if cmd in UserCommands.TRACE_RUN_COMMANDS and not (
+                cmd == "tag" and bool(getattr(args, "list", False))
+            ):
+                command_line = " ".join(["cli.py", *raw]).strip()[:256]
+                Setup.trace.app_start(entry="cli", command=command_line)
         except Exception:
             pass
 

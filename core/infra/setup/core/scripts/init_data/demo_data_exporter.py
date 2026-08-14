@@ -252,7 +252,7 @@ def export_demo_data_package(
     )
     logger.info(
         "导入：将 zip 单独放入 initialization/data/ 后执行 "
-        "python core/infra/setup/core/steps/import_data/install.py"
+        "python cli.py id"
     )
     return output_zip
 

@@ -37,7 +37,7 @@ class AnalyzeService:
 
         found = False
         for info in enabled:
-            sn = str(info.unique_relative_path or info.key or "").strip()
+            sn = str(info.key or info.unique_relative_path or "").strip()
             if not sn:
                 continue
             folder = info.resolved_folder()

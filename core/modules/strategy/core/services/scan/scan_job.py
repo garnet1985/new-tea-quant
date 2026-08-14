@@ -31,8 +31,8 @@ class ScanJob:
 
     @staticmethod
     def strategy_cache_key(info: EnabledStrategyInfo, fallback: str = "") -> str:
-        """Stable id for progress / UI (not the on-disk strategy root)."""
-        return str(info.unique_relative_path or info.key or fallback or "").strip()
+        """Stable id for progress / UI: ``meta.key`` (path only if key missing)."""
+        return str(info.key or info.unique_relative_path or fallback or "").strip()
 
     @staticmethod
     def strategy_folder(info: EnabledStrategyInfo):

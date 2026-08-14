@@ -112,6 +112,15 @@
 - **引入版本：** `0.1.0`
 - **描述：** 跑 CLI 安装步骤；`ensure_cli_install` 经根目录 `install.py`（user CLI 自动触发）
 
+#### import_init_data
+
+`Setup.runtime.import_init_data(*, force: bool = False) -> int`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.4.4`
+- **描述：** 导入 `initialization/data/` 下唯一 zip；`force` 全量重导；用户 CLI：`python cli.py id`
+
 #### install_ui / check_ui_prerequisites / launch_ui / set_ui_dev_mode
 
 `Setup.runtime.install_ui(*, force: bool = False) -> None`  
@@ -175,12 +184,12 @@
 ### trace
 
 `Setup.trace.install_complete(*, success: bool, entry: "ui" | "cli", error_code=None) -> None`  
-`Setup.trace.app_start(*, entry: "ui" | "cli" | "devcli") -> None`
+`Setup.trace.app_start(*, entry: "ui" | "cli" | "devcli", command: str | None = None) -> None`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 失败不影响安装；勿上报异常原文
+- **描述：** 失败不影响安装；勿上报异常原文。CLI 侧仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
 
 ---
 

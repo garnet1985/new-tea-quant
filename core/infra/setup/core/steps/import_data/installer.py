@@ -109,7 +109,7 @@ class SetupDataInstaller:
         raise RuntimeError(
             f"{CmdLayout.icon.get('error')} 为避免混包导入，initialization/data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
             f"当前发现 {len(zips)} 个：{names}\n"
-            "请保留您需要导入的zip数据文件，另一个zip数据文件移走/改后缀后重新运行install.py。"
+            "请保留您需要导入的 zip，另一个移走/改后缀后重新运行: python cli.py id"
         )
 
     def _extract_zips(self, extract_root: Path) -> List[Path]:
@@ -199,7 +199,7 @@ class SetupDataInstaller:
             NewTeaQuantSetup.print_check_item("warn", f"未发现任何初始化数据包: {data_dir}")
             NewTeaQuantSetup.print_check_item(
                 "warn",
-                "请将 zip 数据包放到 initialization/data 后重跑: python3 install.py",
+                "请将 zip 数据包放到 initialization/data 后重跑: python cli.py id",
             )
             return
 

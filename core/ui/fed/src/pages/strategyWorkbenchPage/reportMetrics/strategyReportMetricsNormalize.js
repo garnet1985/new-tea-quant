@@ -8,6 +8,9 @@
 
 export const REPORT_BLOCK_UNAVAILABLE_ZH = '数据异常，无法显示该结果。';
 
+/** 合法空结果（如 0 机会 / 搜索无命中） */
+export const REPORT_EMPTY_MATCH_ZH = '没有匹配记录。';
+
 function readEnumMetrics(slot) {
   if (!slot || typeof slot !== 'object') return null;
   const inner = slot.enumMetrics;

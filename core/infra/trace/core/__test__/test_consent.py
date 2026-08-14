@@ -17,12 +17,19 @@ def consent_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.delenv("NTQ_TRACE_ENABLED", raising=False)
     monkeypatch.delenv("NTQ_TRACE_SKIP", raising=False)
 
-    from core.infra.trace.core.services import consent_service
+    from core.infra.trace.core.services import client_service, consent_service
 
     monkeypatch.setattr(
         consent_service.TraceConsentService,
         "consent_path",
         staticmethod(lambda: config_root / "trace_consent.json"),
+    )
+    # Default: never POST to the production endpoint from consent tests.
+    # Individual tests may replace this with a capturing fake_post.
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(lambda *args, **kwargs: True),
     )
     return config_root
 
@@ -36,9 +43,19 @@ def test_disabled_when_never_asked(consent_env: Path) -> None:
     assert TraceConfigService.is_enabled() is False
 
 
-def test_grant_and_revoke(consent_env: Path) -> None:
+def test_grant_and_revoke(
+    consent_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace.core.services import client_service
     from core.infra.trace.core.services.config_service import TraceConfigService
     from core.infra.trace.core.services.consent_service import TraceConsentService
+
+    # grant/revoke always emit track.decision; never hit the real endpoint in tests.
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(lambda *args, **kwargs: True),
+    )
 
     assert TraceConsentService.grant(source="cli") is True
     assert (consent_env / "trace_consent.json").is_file()

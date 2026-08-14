@@ -106,7 +106,8 @@ class WorkbenchReports:
             if not output_dir.is_dir():
                 continue
             loaded = cls._load_stock_ref_from_dir(step.value, output_dir)
-            if loaded:
+            # ``{}`` is a valid empty grid (0 opportunities); only ``None`` means unavailable.
+            if loaded is not None:
                 stock_ref = loaded
                 resolved_dir = output_dir.name
                 break

@@ -174,7 +174,7 @@ function buildDrawdownCurveOption(metrics) {
 function CapitalAllocationReport({
   metrics,
   stockRows,
-  title = '资金模拟报告',
+  title = '投资模拟报告',
   showStockGrid = true,
   hideTitle = false,
 }) {

@@ -39,6 +39,25 @@ class MetaSettings(SettingsBase):
             return "".join(parts)
         return str(desc).strip()
 
+    @property
+    def category(self) -> str:
+        """UI 归类标签（选填；空则 FED 归入「未知归类」）。"""
+        return str(self.meta.get("category") or "").strip()
+
+    @property
+    def keywords(self) -> list:
+        raw = self.meta.get("keywords")
+        if not isinstance(raw, list):
+            return []
+        out = []
+        for item in raw:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                out.append(text)
+        return out
+
     def apply_defaults(self) -> None:
         if "meta" not in self.raw_settings or not isinstance(self.raw_settings["meta"], dict):
             self.raw_settings["meta"] = {}

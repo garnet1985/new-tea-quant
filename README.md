@@ -281,10 +281,10 @@ NTQ 自带以下演示资产：
 分层回测与扫描（完整列表：`python cli.py -h`）：
 
 ```bash
-python cli.py se --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # 机会枚举
-python cli.py sp --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # 价格层
-python cli.py so --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # 资金层
-python cli.py c  --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # 全市场扫描
+python cli.py se --strategy rsi_v1   # 机会枚举
+python cli.py sp --strategy rsi_v1   # 价格层
+python cli.py so --strategy rsi_v1   # 资金层
+python cli.py c  --strategy rsi_v1   # 全市场扫描
 python cli.py t  --scenario demo/market_cap_tier                              # 特征标签
 ```
 

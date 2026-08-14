@@ -41,7 +41,7 @@ jobs:
           python - << 'EOF'
           import importlib
           modules = [
-              "core.infra.project_context.path_manager",
+              "core.infra.project_context",
               "core.infra.cli",
               "core.infra.utils",
               "core.infra.trace",

@@ -280,10 +280,10 @@ This is still unofficial **v0.x**: API stability is not guaranteed until 1.0. (B
 Layered backtest and scan (full list: `python cli.py -h`):
 
 ```bash
-python cli.py se --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Enumerate
-python cli.py sp --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Price layer
-python cli.py so --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Portfolio layer
-python cli.py c  --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Market scan
+python cli.py se --strategy rsi_v1   # Enumerate
+python cli.py sp --strategy rsi_v1   # Price layer
+python cli.py so --strategy rsi_v1   # Portfolio layer
+python cli.py c  --strategy rsi_v1   # Market scan
 python cli.py t  --scenario demo/market_cap_tier                              # Feature tags
 ```
 

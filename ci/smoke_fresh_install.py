@@ -23,7 +23,7 @@ from core.infra.cmd_layout import i
 
 REPO_ROOT = _REPO
 
-DEFAULT_STRATEGY = "demo/random/random_v1_null_baseline"
+DEFAULT_STRATEGY = "random_v1"
 
 
 def _venv_python(root: Path) -> Path:
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         "-s",
         "--strategy",
         default=DEFAULT_STRATEGY,
-        help=f"枚举策略路径（默认 {DEFAULT_STRATEGY}）",
+        help=f"枚举策略 meta.key 或路径（默认 {DEFAULT_STRATEGY}）",
     )
     args = parser.parse_args(argv)
     return smoke_fresh_install(repo_root=args.repo_root, strategy=args.strategy)

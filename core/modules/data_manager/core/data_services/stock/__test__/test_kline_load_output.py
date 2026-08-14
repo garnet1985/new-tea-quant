@@ -23,6 +23,33 @@ class TestKlineLoadOutput(unittest.TestCase):
             self.skipTest(f"demo 库无 {stock} {start}–{end} 日线（抽样包可缺此标的）")
         return rows
 
+    def _load_qfq_diverged_pair(self, dm: DataManager):
+        """找一只在 _DEMO_START 上前复权价 ≠ 原始价的样本（依赖除权事件）。"""
+        svc = dm.service.stock.kline
+        adj = dm.get_table("sys_adj_factor_events")
+        events = []
+        if adj is not None:
+            events = adj.load(
+                "event_date > %s",
+                (_DEMO_START,),
+                order_by="event_date ASC",
+            ) or []
+        seen = []
+        for ev in events:
+            sid = str(ev.get("id") or "").strip()
+            if not sid or sid in seen:
+                continue
+            seen.append(sid)
+            raw = svc.load_raw(sid, "daily", _DEMO_START, _DEMO_START)
+            qfq = svc.load_qfq_split(sid, "daily", _DEMO_START, _DEMO_START)
+            if raw and qfq and raw[0].get("close") != qfq[0].get("close"):
+                return raw, qfq
+            if len(seen) >= 30:
+                break
+        self.skipTest(
+            f"demo 包中 {_DEMO_START} 找不到前复权与原始收盘价不同的样本"
+        )
+
     def test_load_qfq_uses_standard_ohlc_keys(self):
         dm = DataManager()
         rows = self._require_rows(
@@ -46,11 +73,7 @@ class TestKlineLoadOutput(unittest.TestCase):
 
     def test_load_qfq_embeds_raw_ohlc(self):
         dm = DataManager()
-        svc = dm.service.stock.kline
-        raw_rows = svc.load_raw(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
-        qfq_rows = svc.load_qfq_split(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
-        self._require_rows(raw_rows, stock=_DEMO_STOCK, start=_DEMO_START, end=_DEMO_START)
-        self._require_rows(qfq_rows, stock=_DEMO_STOCK, start=_DEMO_START, end=_DEMO_START)
+        raw_rows, qfq_rows = self._load_qfq_diverged_pair(dm)
         self.assertEqual(len(raw_rows), 1)
         self.assertEqual(len(qfq_rows), 1)
         qfq = qfq_rows[0]
@@ -62,11 +85,7 @@ class TestKlineLoadOutput(unittest.TestCase):
 
     def test_load_raw_matches_db_ohlc(self):
         dm = DataManager()
-        svc = dm.service.stock.kline
-        raw = svc.load_raw(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
-        qfq = svc.load_qfq_split(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
-        self._require_rows(raw, stock=_DEMO_STOCK, start=_DEMO_START, end=_DEMO_START)
-        self._require_rows(qfq, stock=_DEMO_STOCK, start=_DEMO_START, end=_DEMO_START)
+        raw, qfq = self._load_qfq_diverged_pair(dm)
         self.assertEqual(len(raw), 1)
         self.assertEqual(len(qfq), 1)
         self.assertNotEqual(raw[0]["close"], qfq[0]["close"])

@@ -13,7 +13,9 @@ import {
 } from '../reportMetricTips';
 import { formatReportMoney } from '../lib/formatReportMoney';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import ReportUnavailableHint from '../components/reportUnavailableHint';
+import ReportUnavailableHint, {
+  REPORT_EMPTY_MATCH_ZH,
+} from '../components/reportUnavailableHint';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LABEL_SM,
@@ -282,7 +284,7 @@ function PriceFactorReport({
                   sortingMode="client"
                   initialSortModel={[{ field: 'avgRoi', sort: 'desc' }]}
                 />
-              ) : <ReportUnavailableHint />}
+              ) : <ReportUnavailableHint message={REPORT_EMPTY_MATCH_ZH} />}
             </>
           )}
         </Box>

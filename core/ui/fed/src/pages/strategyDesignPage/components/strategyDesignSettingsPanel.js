@@ -197,7 +197,7 @@ function StrategyDesignSettingsPanel({
     if (activeStep === 'portfolio') {
       return (
         <>
-          <SectionAccordion title="资金组合参数">
+          <SectionAccordion title="投资模拟参数">
             <SettingsSchemaEditor
               schema={portfolioSchema}
               value={settings?.portfolio}

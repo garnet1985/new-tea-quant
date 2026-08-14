@@ -320,9 +320,13 @@ function StrategyListPage({
                     <Typography variant="subtitle1" fontWeight={700}>
                       {category}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Box
+                      component="span"
+                      className="strategy-list-category-count"
+                      aria-label={`${categoryRows.length} 个策略`}
+                    >
                       {categoryRows.length}
-                    </Typography>
+                    </Box>
                   </Stack>
                   <DataGrid
                     autoHeight

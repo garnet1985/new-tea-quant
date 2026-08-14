@@ -426,7 +426,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
     || ({
       enum: '枚举',
       price: '价格回测',
-      portfolio: '资金模拟',
+      portfolio: '投资模拟',
     }[pipeline] || '');
   const progress_stage_label = curStep
     ? String(curStep.description || curStep.name || '').trim()

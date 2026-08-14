@@ -11,7 +11,9 @@ import {
   REPORT_STOCK_GRID_TIPS,
 } from '../reportMetricTips';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import ReportUnavailableHint from '../components/reportUnavailableHint';
+import ReportUnavailableHint, {
+  REPORT_EMPTY_MATCH_ZH,
+} from '../components/reportUnavailableHint';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import {
   REPORT_CHART_AXIS_LABEL,
@@ -203,7 +205,7 @@ function OpportunityEnumrateReport({
                   sortingMode="client"
                   initialSortModel={[{ field: 'opportunities', sort: 'desc' }]}
                 />
-              ) : <ReportUnavailableHint />}
+              ) : <ReportUnavailableHint message={REPORT_EMPTY_MATCH_ZH} />}
             </>
           )}
         </Box>

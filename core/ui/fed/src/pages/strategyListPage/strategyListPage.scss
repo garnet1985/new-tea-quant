@@ -84,3 +84,19 @@
   margin-bottom: 8px;
   padding: 0 2px;
 }
+
+.strategy-list-category-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.14);
+}

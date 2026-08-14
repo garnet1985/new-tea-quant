@@ -102,10 +102,16 @@ function StrategyDesignExecutionPanel() {
     navigate(getStrategyDesignPath(wb.strategyName, nextStep.key));
   }, [currentStepDone, navigate, nextStep, wb.strategyName]);
 
+  const panelTitle = useMemo(() => {
+    const step = STRATEGY_DESIGN_STEPS.find((item) => item.key === wb.activeStep);
+    const stepTitle = step?.executionPanelTitle || step?.label || '';
+    return stepTitle ? `${EXECUTION_PANEL_TITLE} - ${stepTitle}` : EXECUTION_PANEL_TITLE;
+  }, [wb.activeStep]);
+
   return (
     <Box className="ntq-design-exec-panel">
       <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
-        {EXECUTION_PANEL_TITLE}
+        {panelTitle}
       </Typography>
 
       {wb.runError ? (

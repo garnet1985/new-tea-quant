@@ -569,9 +569,27 @@ function ScanPage() {
                       <Typography variant="subtitle1" fontWeight={700}>
                         {category}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Box
+                        component="span"
+                        aria-label={`${categoryRows.length} 个策略`}
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 22,
+                          height: 22,
+                          px: 0.75,
+                          borderRadius: '999px',
+                          boxSizing: 'border-box',
+                          fontSize: 12,
+                          lineHeight: 1,
+                          fontWeight: 600,
+                          color: 'rgba(255, 255, 255, 0.82)',
+                          bgcolor: 'rgba(255, 255, 255, 0.14)',
+                        }}
+                      >
                         {categoryRows.length}
-                      </Typography>
+                      </Box>
                     </Stack>
                     <DataGrid
                       autoHeight

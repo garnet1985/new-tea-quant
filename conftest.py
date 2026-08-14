@@ -37,11 +37,18 @@ def pytest_configure(config: pytest.Config) -> None:
 
 @pytest.fixture(autouse=True)
 def ntq_block_trace_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Import concrete modules first: dotted-path setattr fails when the
+    # ``services`` package is not yet loaded under ``core.infra.trace.core``.
+    from core.infra.feedback.core.services import client_service as feedback_client
+    from core.infra.trace.core.services import client_service as trace_client
+
     monkeypatch.setattr(
-        "core.infra.trace.core.services.client_service.TraceClientService.post",
+        trace_client.TraceClientService,
+        "post",
         staticmethod(TraceHttpBlock.post),
     )
     monkeypatch.setattr(
-        "core.infra.feedback.core.services.client_service.FeedbackClientService.post",
+        feedback_client.FeedbackClientService,
+        "post",
         staticmethod(FeedbackHttpBlock.post),
     )

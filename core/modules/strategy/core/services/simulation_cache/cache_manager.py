@@ -1,0 +1,257 @@
+"""模拟结果 DB 缓存（Facade 查写 ``sys_strategy_workbench_snapshot``）。
+
+本文件:
+- SimulationCacheManager: enum / price_factor / portfolio 三槽位读写
+  边界: 负责双指纹 AND 命中、写 slot、enum 更新清下游；不负责算指纹或跑 Pipeline
+"""
+from __future__ import annotations
+
+import logging
+from enum import Enum
+from pathlib import Path
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
+
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+    RUNTIME_ENV_FILE,
+)
+from core.modules.strategy.core.services.simulation_cache.base_cache_manager import (
+    BaseCacheManager,
+)
+from core.modules.strategy.core.services.simulation_cache.fingerprints import (
+    FingerprintResult,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class _ReportSlot(str, Enum):
+    """工作台 ``result_report`` 内槽位名。"""
+
+    ENUM = "enum"
+    PRICE_FACTOR = "price_factor"
+    PORTFOLIO = "portfolio"
+
+
+_KIND_TO_SLOT = {
+    SimulateKind.ENUMERATE: _ReportSlot.ENUM,
+    SimulateKind.PRICE_FACTOR: _ReportSlot.PRICE_FACTOR,
+    SimulateKind.PORTFOLIO: _ReportSlot.PORTFOLIO,
+}
+
+# Facade / Pipeline 结果 key → DB slot（含历史别名 ``enum``）
+_VALUE_KEY_TO_SLOT = {
+    SimulateKind.ENUMERATE.value: _ReportSlot.ENUM,
+    _ReportSlot.ENUM.value: _ReportSlot.ENUM,
+    SimulateKind.PRICE_FACTOR.value: _ReportSlot.PRICE_FACTOR,
+    SimulateKind.PORTFOLIO.value: _ReportSlot.PORTFOLIO,
+}
+
+_SLOT_TO_KIND_VALUE = {
+    _ReportSlot.ENUM: SimulateKind.ENUMERATE.value,
+    _ReportSlot.PRICE_FACTOR: SimulateKind.PRICE_FACTOR.value,
+    _ReportSlot.PORTFOLIO: SimulateKind.PORTFOLIO.value,
+}
+
+
+def _kind_to_slot(kind: Union[SimulateKind, str, None]) -> Optional[_ReportSlot]:
+    if kind is None:
+        return _ReportSlot.ENUM
+    if isinstance(kind, SimulateKind):
+        return _KIND_TO_SLOT.get(kind)
+    text = str(kind).strip().lower()
+    if text in _VALUE_KEY_TO_SLOT:
+        return _VALUE_KEY_TO_SLOT[text]
+    try:
+        return _KIND_TO_SLOT.get(SimulateKind(text))
+    except ValueError:
+        return None
+
+
+def _value_key_to_slot(key: str) -> Optional[_ReportSlot]:
+    return _VALUE_KEY_TO_SLOT.get(str(key or "").strip().lower())
+
+
+def _slot_to_kind_value(slot: _ReportSlot) -> str:
+    return _SLOT_TO_KIND_VALUE.get(slot) or slot.value
+
+
+class SimulationCacheManager(BaseCacheManager):
+    """模拟三步缓存（enum / price_factor / portfolio 槽位）。
+
+    边界:
+    - 负责: 双指纹 AND 查/写工作台快照；按 kind 读写槽位
+    - 不负责: 算指纹、跑 Pipeline
+    - 调用方: Strategy.simulate
+    """
+
+    table_name: ClassVar[str] = "sys_strategy_workbench_snapshot"
+    max_rows: ClassVar[int] = 50  # 仅作文档/历史；prune 一律读 data.json retention
+
+    @classmethod
+    def get_cache(
+        cls,
+        key: str,
+        fps: FingerprintResult,
+        kind: Any = None,
+    ) -> Optional[Dict[str, Any]]:
+        """按 strategy + settings_fp + env_fp 取行；目标 kind 槽位非空则命中。
+
+        返回形状与 ``Strategy._run_steps`` 一致：``{kind.value: slot_payload}``。
+        """
+        strategy_name = str(key or "").strip()
+        slot = _kind_to_slot(kind if kind is not None else SimulateKind.ENUMERATE)
+        if not strategy_name or slot is None:
+            return None
+        sfp = str(fps.settings_fp or "").strip()
+        efp = str(fps.env_fp or "").strip()
+        dsh = str(getattr(fps, "disk_settings_hash", "") or "").strip()
+        if not sfp or not efp:
+            return None
+
+        row = cls._load_row_by_fingerprints(
+            strategy_name, sfp, efp, disk_settings_hash=dsh
+        )
+        if not row:
+            return None
+        reports = cls._reports_from_row(row)
+        payload = reports.get(slot.value)
+        if not isinstance(payload, dict) or not payload:
+            return None
+        if not cls._artifacts_present(payload):
+            logger.warning(
+                "simulate cache stale (artifacts missing): kind=%s strategy=%s output_dir=%s",
+                slot.value,
+                strategy_name,
+                payload.get("output_dir"),
+            )
+            return None
+        out = {_slot_to_kind_value(slot): dict(payload)}
+        out["_workbench_version"] = int(row.get("version") or 0)
+        return out
+
+    @classmethod
+    def set_cache(
+        cls,
+        key: str,
+        fps: FingerprintResult,
+        value: Dict[str, Any],
+    ) -> int:
+        """把 ``value`` 内各 step 结果 merge 进双指纹对应行；返回 workbench version（失败 0）。
+
+        ``value`` 形如 ``{"enumerate": {...}, "price_factor": {...}}``（也可直接用 DB slot 名）。
+        写入 ``enum`` 时清除下游 ``price_factor`` / ``portfolio``。
+        """
+        strategy_name = str(key or "").strip()
+        sfp = str(fps.settings_fp or "").strip()
+        efp = str(fps.env_fp or "").strip()
+        dsh = str(getattr(fps, "disk_settings_hash", "") or "").strip()
+        if not strategy_name or not sfp or not efp:
+            return 0
+
+        slots = cls._extract_slots(value)
+        if not slots:
+            return 0
+
+        model = cls._table()
+        if model is None:
+            logger.warning("表 %s 未注册，跳过 set_cache", cls.table_name)
+            return 0
+
+        row = cls._load_row_by_fingerprints(
+            strategy_name, sfp, efp, disk_settings_hash=dsh, model=model
+        )
+        if row:
+            version = int(row.get("version") or 0)
+            if version <= 0:
+                return 0
+            merged = cls._reports_from_row(row)
+            merged = cls._merge_slots(merged, slots)
+            merged = cls._bump_write_count(merged)
+            model.update_result_report(
+                strategy_name,
+                version,
+                merged,
+                settings_finger_print_id=sfp,
+                env_fingerprint_id=efp,
+                disk_settings_hash=dsh,
+            )
+            cls._prune_oldest(model, strategy_name)
+            return version
+
+        merged = cls._merge_slots({}, slots)
+        merged = cls._attach_initial_write_meta(merged)
+        created = model.create_snapshot(
+            strategy_name,
+            dict(fps.settings_diff or {}),
+            merged,
+            settings_finger_print_id=sfp,
+            env_fingerprint_id=efp,
+            disk_settings_hash=dsh,
+        )
+        version = int((created or {}).get("version") or 0)
+        if version > 0:
+            cls._prune_oldest(model, strategy_name)
+        return version
+
+    @classmethod
+    def find_enum_output_version(
+        cls,
+        key: str,
+        fps: FingerprintResult,
+    ) -> Optional[str]:
+        """双指纹命中且 enum 槽有 ``version_id`` 时返回之（供补跑 price/portfolio 用）。"""
+        cached = cls.get_cache(key, fps, SimulateKind.ENUMERATE)
+        if not cached:
+            return None
+        slot = cached.get(SimulateKind.ENUMERATE.value) or {}
+        version_id = slot.get("version_id")
+        if version_id is None or str(version_id).strip() == "":
+            return None
+        return str(version_id)
+
+    # --- simulation-specific ----------------------------------------------
+
+    @classmethod
+    def _artifacts_present(cls, payload: Dict[str, Any]) -> bool:
+        """有 ``output_dir`` 时要求目录与 ``runtime_env.json`` 仍在；否则视为可命中元数据。"""
+        raw = payload.get("output_dir")
+        if raw is None or str(raw).strip() == "":
+            return True
+        output_dir = Path(str(raw))
+        return output_dir.is_dir() and (output_dir / RUNTIME_ENV_FILE).is_file()
+
+    @classmethod
+    def _extract_slots(
+        cls,
+        value: Dict[str, Any],
+    ) -> List[Tuple[_ReportSlot, Dict[str, Any]]]:
+        out: List[Tuple[_ReportSlot, Dict[str, Any]]] = []
+        for key, payload in (value or {}).items():
+            if str(key).startswith("_"):
+                continue
+            slot = _value_key_to_slot(str(key))
+            if slot is None or not isinstance(payload, dict) or not payload:
+                continue
+            cleaned = {k: v for k, v in payload.items() if v is not None}
+            if cleaned:
+                out.append((slot, cleaned))
+        out.sort(key=lambda item: 0 if item[0] is _ReportSlot.ENUM else 1)
+        return out
+
+    @classmethod
+    def _merge_slots(
+        cls,
+        existing: Dict[str, Any],
+        slots: List[Tuple[_ReportSlot, Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        merged = dict(existing or {})
+        for slot, payload in slots:
+            merged[slot.value] = dict(payload)
+            if slot is _ReportSlot.ENUM:
+                merged.pop(_ReportSlot.PRICE_FACTOR.value, None)
+                merged.pop(_ReportSlot.PORTFOLIO.value, None)
+        return merged
+
+
+__all__ = ["SimulationCacheManager"]

@@ -1,46 +1,65 @@
 # Data Manager 设计说明
 
-**版本：** `0.3.4`
+**模块：** `modules.data_manager` · **版本：** `0.2.0`
 
-本文档描述 **表发现流程**、**表名约定**与 **服务入口形态**。实现以 `data_manager.py` 为准。
-
-**相关文档**：[架构总览](./ARCHITECTURE.md)
+API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_manager.py` 为准。
 
 ---
 
-## 表发现与注册
+## 1. 表发现与注册
 
-1. 初始化 `DatabaseManager` 后，`schema_manager.create_all_tables` 创建基线结构（若可写库）。
-2. **`_discover_tables`**：对 `PathManager.core() / "tables"` 与 `PathManager.userspace() / "tables"` 递归查找 **`schema.py`**，以其父目录为「表目录」。
-3. 对每个目录调用 **`register_table(path, from_core=...)`**：
-   - 读取 **`schema.py`** 得逻辑表名 **`name`**。
-   - **Core**：表名须以 **`sys_`** 开头，否则跳过。
-   - **Userspace**：表名任意。
-   - 加载 **`model.py`** 中第一个 **`DbBaseModel`** 子类，缓存到 **`_table_cache[table_name]`**。
-4. **`get_table(table_name)`** 返回已绑定默认 db 的 **Model 实例**（供 DataService 内部使用）。
-
----
-
-## 物理表名
-
-**`get_physical_table_name(logical_name)`**：PostgreSQL 下可返回 **`schema.table`** 形式；MySQL 当前返回逻辑名（见源码注释）。
+1. 初始化 `DatabaseManager` 后，`create_all_base_tables` 创建基线结构（可写库时）。
+2. **`_discover_tables`**：对 `core/tables` 与 `userspace/extensions/tables`（`ProjectContext.path.get_extensions_tables_directory()`）递归查找 **`schema.py`**。
+3. **`register_table(path, from_core=...)`**：
+   - 读 `schema.py` 逻辑表名 `name`
+   - **Core**：须以 `sys_` 开头，否则跳过
+   - **Userspace**：表名任意
+   - 加载 `model.py` 中第一个 `DbBaseModel` 子类 → `_table_cache`
+4. **`get_table(table_name)`** 返回已绑定默认 db 的 Model 实例（供 DataService 内部使用）
 
 ---
 
-## 服务访问形态
+## 2. 物理表名
 
-- **显式嵌套**：`data_mgr.stock.list.load(...)`、`data_mgr.macro.load_gdp(...)`，不在 `StockService` 上为子域再提供一层「万能 `load_kline`」式隐式路由（避免职责混淆）。
-- **`DataService`（`data_mgr.service`）**：子服务容器，**不**承担跨域聚合 API；Strategy/Tag 侧用各自 Worker 数据管理器组装多源数据。
+**`get_physical_table_name(logical_name)`**：PostgreSQL 下可为 `schema.table`；MySQL 等当前返回逻辑名。
 
 ---
 
-## 与 data_contract 的关系
+## 3. 服务访问形态
 
-**`modules.data_contract`** 的 **Loader** 通过 **`DataManager`** 取 raw 行；契约、缓存与 **`DataKey`** 路由在 data_contract 层完成，本模块不感知 `issue/load` 语义。
+- **显式嵌套**：`data_mgr.stock.list.load(...)`、`data_mgr.macro.load_gdp(...)`
+- **`DataService`（`data_mgr.service`）**：子服务容器，不承担跨域聚合 API
+
+---
+
+## 4. 与 data_contract
+
+Loader 经 **`DataManager`** 取 raw 行；契约 / `DataKey` / `until` 在 data_contract，本模块不感知 `issue` 语义。
+
+---
+
+## 5. 设计决策
+
+### 决策 1：Facade 与单例
+
+**决策：** 默认进程内单例（锁 + 双重检查）；`force_new` 用于测试/隔离。  
+**影响：** 多进程每进程各自 `DataManager`。
+
+### 决策 2：表定义在 `core/tables` 与 `userspace/extensions/tables`
+
+**决策：** 递归发现 `schema.py`；core 强制 `sys_` 前缀。
+
+### 决策 3：领域服务属性链
+
+**决策：** 经 `stock` / `macro` / `calendar` / … 属性访问，不包根导出各 Service 类。
+
+### 决策 4：样本股票宇宙属于 DataManager
+
+**决策：** `use_sample_stock_list` 决定系统内保留哪些股票，经 `DataManager.sample_universe` 访问。data_source 只消费该宇宙（抓取切片 / 写库过滤），不持有名单文件或 API。
 
 ---
 
 ## 相关文档
 
-- [API.md](API.md)
-- [DECISIONS.md](DECISIONS.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [API.md](../API.md)

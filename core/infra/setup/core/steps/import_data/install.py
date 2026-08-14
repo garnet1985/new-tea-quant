@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""
+安装流程步骤：导入初始化数据（必跑）。
+"""
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import sys
+from pathlib import Path
+
+_REPO_ROOT = next(
+    p
+    for p in Path(__file__).resolve().parents
+    if (p / "install.py").is_file() and (p / "core" / "system.json").is_file()
+)
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+os.chdir(_REPO_ROOT)
+
+from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.steps.import_data.installer import SetupDataInstaller
+
+NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="导入 initialization/data 初始化数据")
+    parser.add_argument("--force", action="store_true", help="忽略清单并全量重导")
+    return parser.parse_args()
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    args = _parse_args()
+    inst = SetupDataInstaller(table_prefix="")
+    inst.run(force=args.force, remove_extract=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

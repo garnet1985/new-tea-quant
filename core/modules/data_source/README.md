@@ -1,62 +1,42 @@
-# Data Source 模块（`modules.data_source`）
+# Data Source 模块（`modules.data_source`）· **版本 0.4.0**
 
-从 **`userspace/data_source/mapping.py`**（`DATA_SOURCES`）与各 handler 的 **`config.py`**（`CONFIG`）驱动：为每个启用的 **data source key** 加载绑定表 **schema**（`DataManager.get_table(table).load_schema()`）、实例化 **Handler** 与全局 **Provider**，由 **`DataSourceExecutionScheduler`** 按依赖 **拓扑排序** 串行执行，将第三方 API 结果规范化后写入数据库（**`is_dry_run`** 时跳过写入）。
+> 公开 API：[API.md](./API.md) · 快速开始：[QUICKSTART.md](./QUICKSTART.md)  
+> 包根仅 `DataSourceManager`；基类见 `contracts.py`
 
-## 适用场景
-
-- 从 Tushare / AKShare / 东财等 **Provider** 拉数并落库。
-- 多数据源之间存在 **依赖**（如先拉股票列表再拉 K 线），需统一调度顺序。
-- 与 **`core/tables`** 表结构对齐，避免维护独立 schema 文件。
+从 **`userspace/data_source/mapping.py`** 与各 handler **`config.py`** 驱动抓取：加载表 schema、实例化 Handler / Provider，由调度器按依赖拓扑执行并写库（`is_dry_run` 可跳过写入）。
 
 ## 快速开始
 
-```python
-from core.modules.data_source.data_source_manager import DataSourceManager
+见 [QUICKSTART.md](./QUICKSTART.md)。
 
-mgr = DataSourceManager(is_verbose=True)
-mgr.execute()  # 运行 mapping 中所有 is_enabled 的数据源
-```
-
-多 bundle 并发经 **`infra.job_pipeline`**（线程池 + 主进程 `on_result` 攒批写库，适配 DuckDB）。见 `service/pipeline/`。本模块**不**依赖 `infra.worker`；`save_batch_size: auto` 见 `service/executor/save_batch_auto_sizer.py`。
-
-**样本股票池**：名单在 `core/modules/data_source/dev/stock_pool/`；`data.json` 配置 `use_sample_stock_list: 500`（对应 `stratified_500.csv`）；或 `python dev-cli.py -sample_stock_list -500`。
-
-用户侧目录约定见 [`docs/DESIGN.md`](docs/DESIGN.md)；扩展说明另见 **`userspace/data_source/README.md`**（若存在）。
-
-## 目录结构（本模块）
+## 目录结构
 
 ```text
 core/modules/data_source/
-├── module_info.yaml
-├── README.md
-├── data_source_manager.py
-├── execution_scheduler.py
-├── renew_manager.py
-├── base_class/
-├── data_class/
-├── service/
+├── module_info.yaml / API.md / QUICKSTART.md / README.md
+├── contracts.py
+├── core/                       # 实现层
+│   ├── data_source_manager.py
+│   ├── execution_scheduler.py
+│   ├── base_class / data_class / catalog / service /
+│   └── **/__test__/
+├── __test__/                   # 公开 API 契约测
 └── docs/
-    ├── ARCHITECTURE.md
-    ├── DESIGN.md
-    ├── API.md
-    └── DECISIONS.md
 ```
 
-## 模块依赖（`module_info.yaml`）
+## 依赖
 
-- **`modules.data_manager`**：表 schema、写库 Model。
-- **`infra.project_context`**：`PathManager`（mapping、handlers、providers 路径）。
-- **`infra.discovery`**：扫描 **`userspace.data_source.providers`** 注册 Provider 类。
+- **`modules.data_manager`**
+- **`infra.project_context`**
+- **`infra.discovery`**
 
 ## 测试
 
-```bash
-python3 -m pytest core/modules/data_source/__test__/ -q
-```
+见 [`__test__/TEST_CASES.md`](__test__/TEST_CASES.md)。
 
 ## 相关文档
 
-- [架构与调度](docs/ARCHITECTURE.md)
-- [配置与约定](docs/DESIGN.md)
-- [公开 API](docs/API.md)
-- [设计决策](docs/DECISIONS.md)
+- [架构](docs/ARCHITECTURE.md)
+- [设计](docs/DESIGN.md)
+- [API](API.md)
+- [glossary](glossary.yaml)

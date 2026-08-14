@@ -1,0 +1,50 @@
+# Data Manager 术语表
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "对外统一入口类。本模块门面是 DataManager。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.data_manager / core.data_services"
+
+  DataManager:
+    definition: "统一数据访问 Facade：DatabaseManager + 表发现/注册 + 各领域 DataService 属性。"
+    aliases:
+      - "data_mgr"
+      - "数据管理器"
+    avoid:
+      - "从包根导入 CalendarService / StockService"
+      - "from core.modules.data_manager.core.data_manager import DataManager（优先包根）"
+
+  DataService:
+    definition: "领域服务容器（stock/macro/calendar/index/db_cache/backup_restore）；经 DataManager.service 或对应属性访问。"
+    aliases:
+      - "service 容器"
+    avoid:
+      - "生产代码 deep-import DataService / TagDataService / ListService"
+
+  CalendarService:
+    definition: "交易日历服务；经 DataManager.calendar 访问。"
+    aliases:
+      - "calendar"
+    avoid:
+      - "包根导出 CalendarService"
+
+  BaseTableNames:
+    definition: "contracts 中与 schema.name 对齐的基础表名枚举（sys_*）；运行时以 discovery 注册名为准。"
+    aliases: []
+    avoid:
+      - "使用无 sys_ 前缀的旧枚举值"
+
+  sample_universe:
+    definition: "开发样本股票宇宙（data.json use_sample_stock_list + DataManager.sample_universe + core/dev/sample_stock_list）。"
+    aliases:
+      - "样本宇宙"
+      - "样本池"
+      - "use_sample_stock_list"
+    avoid:
+      - "从 data_source 取样本名单"
+      - "包根导出 SampleUniverse"
+      - "在业务路径硬编码股票列表"

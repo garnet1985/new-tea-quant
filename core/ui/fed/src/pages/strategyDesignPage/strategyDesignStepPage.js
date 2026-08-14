@@ -27,13 +27,20 @@ function StrategyDesignStepPage() {
     );
   }
 
+  if (!wb.hasValidSettings) {
+    return (
+      <Box className="ntq-design-step-page">
+        <Alert severity="error" sx={{ mb: 1.5 }}>
+          {wb.settingsError || '策略配置不可用，无法打开设置编辑器。'}
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
     <Box className="ntq-design-step-page">
-      {wb.settingsError ? (
-        <Alert severity="warning" sx={{ mb: 1.5 }}>{wb.settingsError}</Alert>
-      ) : null}
       {options.optionsError ? (
-        <Alert severity="warning" sx={{ mb: 1.5 }}>{options.optionsError}</Alert>
+        <Alert severity="error" sx={{ mb: 1.5 }}>{options.optionsError}</Alert>
       ) : null}
       <StrategySettingsContainer initialSettings={wb.initialSettings}>
         {({
@@ -45,7 +52,7 @@ function StrategyDesignStepPage() {
           onFeesChange,
           onSimulationChange,
           onPriceSimulatorChange,
-          onCapitalSimulatorChange,
+          onPortfolioChange,
         }) => (
           <>
             <StrategyDesignDraftSync
@@ -72,7 +79,7 @@ function StrategyDesignStepPage() {
                     onFeesChange={onFeesChange}
                     onSimulationChange={onSimulationChange}
                     onPriceSimulatorChange={onPriceSimulatorChange}
-                    onCapitalSimulatorChange={onCapitalSimulatorChange}
+                    onPortfolioChange={onPortfolioChange}
                     allocationModeOptions={options.allocationModeOptions}
                     samplingStrategyOptions={options.samplingStrategyOptions}
                     simulationTemplateOptions={options.simulationTemplateOptions}

@@ -1,21 +1,35 @@
 name: modules.data_source
-version: 0.3.7
-compatible_core_versions: ">=0.3.3"
-description: "配置驱动的数据抓取：mapping + handler config、Provider 发现、BaseHandler 执行管线、调度器按依赖拓扑执行并写回绑定表。"
+version: "0.2.0"
+compatible_core_versions: ">=0.4.1"
+description: "数据源模块：提供配置驱动的数据抓取，支持按照不同模式和不同数据供应商请求并加载数据。"
 dependencies:
   - modules.data_manager
   - infra.project_context
   - infra.discovery
-  - infra.job_pipeline
+  - infra.db
+  - infra.utils
 changelog:
-  - version: "0.3.7"
+  - version: "0.2.0"
+    changes:
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 删除了没有使用的services
+  - version: "0.1.3"
     changes:
       - 修复复权因子事件表的精度问题
-      - 清理了不需要的代码
-  - version: "0.3.6"
+      - 清理了不需要的代码，优化了代码结构
+      - 多 bundle 并行迁入私有 service.pipeline.job_pipeline，移除了对 infra.job_pipeline 的依赖
+  - version: "0.1.2"
     changes:
-      - 修复批量写入路径；SaveBatchAutoSizer 按内存动态调整抓取批次
-      - JobPipeline 集成 handler 并行执行
-  - version: "0.3.0"
+      - 修复了批量写入路径
+      - 支持了按内存动态调整抓取批次，防止内存占用过高
+      - 集成了handler并行执行，支持了并行IO
+  - version: "0.1.1"
     changes:
-      - 配置驱动 handler 管线与依赖拓扑调度（基线）
+      - 配置驱动 handler 管线与依赖拓扑调度
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 支持按照不同模式和不同数据供应商请求并加载数据
+      - 提供数据源基类，暴露生命周期中的钩子函数，让上层应用可以进行扩展

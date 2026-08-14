@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { stripLegacyStrategySettingsForRun } from '../../../../../utils/stripLegacyStrategySettings';
+import { stripLegacyStrategySettingsForRun, migrateLegacyStrategySettings } from '../../../../../utils/stripLegacyStrategySettings';
 import JSON5 from 'json5';
 
 function stripHashComments(text) {
@@ -207,7 +207,10 @@ function formatCoreToDisplayText(core) {
 }
 
 function StrategySettingsContainer({ initialSettings, children }) {
-  const normalizedInitial = useMemo(() => initialSettings || {}, [initialSettings]);
+  const normalizedInitial = useMemo(
+    () => migrateLegacyStrategySettings(initialSettings || {}),
+    [initialSettings],
+  );
   const [draftSettings, setDraftSettings] = useState(normalizedInitial);
   const defaultCoreText = useMemo(
     () => formatCoreToDisplayText(normalizedInitial?.core),
@@ -465,8 +468,8 @@ function StrategySettingsContainer({ initialSettings, children }) {
     (nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator),
     [updateSection],
   );
-  const onCapitalSimulatorChange = useCallback(
-    (nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator),
+  const onPortfolioChange = useCallback(
+    (nextPortfolio) => updateSection('portfolio', nextPortfolio),
     [updateSection],
   );
 
@@ -480,7 +483,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
     onFeesChange,
     onSimulationChange,
     onPriceSimulatorChange,
-    onCapitalSimulatorChange,
+    onPortfolioChange,
   });
 }
 

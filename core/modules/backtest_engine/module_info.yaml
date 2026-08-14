@@ -1,0 +1,26 @@
+name: modules.backtest_engine
+version: "0.2.0"
+compatible_core_versions: ">=0.4.4"
+description: "回测引擎模块：对上层应用提供的任务进行规划，重组和按时间推进。"
+dependencies:
+  - infra.project_context
+  - infra.db
+  - infra.machine_capacity
+  - modules.data_manager
+  - modules.data_contract
+changelog:
+  - version: "0.2.0"
+    changes:
+      - 对切片模块进行重构，进行了真正的读算分离，并且支持每个切片完成后对结果进行评估并用于计划的优化
+      - 去掉了对策略模块的反向依赖
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+  - version: "0.1.1"
+    changes:
+      - 收紧所有钩子函数进入入口函数的hooks参数
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 从策略和标签模块抽取共同回测部分，提供对外钩子函数可以让上层应用进行扩展
+      - 实现探针模式，让探针做小批量测试然后进行规划，充分利用资源的同时防止内存占用过高

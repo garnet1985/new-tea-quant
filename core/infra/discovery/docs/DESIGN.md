@@ -1,27 +1,20 @@
 # Discovery 详细设计
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
-本文档说明 `infra.discovery` 的实现向细节；鸟瞰与边界见 [架构总览](./ARCHITECTURE.md)。
-
-**相关文档**：[架构总览](./ARCHITECTURE.md) · [API](./API.md) · [决策记录](./DECISIONS.md)
+实现向细节；鸟瞰与边界见 [ARCHITECTURE.md](./ARCHITECTURE.md)。公开入口见根目录 [API.md](../API.md)。
 
 ---
 
 ## 1. 组件关系
 
 ```text
+Discovery（门面）
+  ├── file → FileUtils
+  ├── discover → FileDiscovery / ClassDiscovery / ModuleDiscovery
+  └── class_discovery → DiscoveryConfig + ClassDiscovery
+
 DiscoveryConfig ──► ClassDiscovery ──► DiscoveryResult
- │
- ├── discover                         ├── discover_class_by_path
-                         ├── discover_class_attribute
-                         └── clear_cache
-
-ModuleDiscovery (静态方法)
-    ├── discover_objects
-    └── discover_modules_by_path
-
-discover_subclasses(...) ──► ClassDiscovery + DiscoveryConfig薄封装
 ```
 
 ---
@@ -29,72 +22,86 @@ discover_subclasses(...) ──► ClassDiscovery + DiscoveryConfig薄封装
 ## 2. `ClassDiscovery.discover` 扫描语义
 
 1. `importlib.import_module(base_module_path)` 得到基础包；取其 `__path__`。
-2. `pkgutil.iter_modules(package_paths)` 得到一级子项 `(importer, modname, ispkg)`。
-3. **仅当 `ispkg` 为真**且 `modname` 不在 `skip_modules`、不以 `_` 开头时继续。
-4. `module_path = module_name_pattern.format(base_module=base_module_path, name=modname)`。
-5. 导入 `module_path` 后，对 `dir(module)` 中每个 `type` 且 `issubclass(attr, base_class)`、排除基类自身、通过 `class_filter`（若有）的类：
-   - `key = key_extractor(cls)`，若配置存在且 `key` 为假值则跳过；
-   - 无 `key_extractor` 时用类名字符串。
-6. 写入 `result.classes[key]`；若键已存在则 **不覆盖**，打 `warning`。
-7. 对每个 `attribute_extractors` 条目，将 `extractor(cls)` 记入 `result.metadata[attr_name][key]`。
-8. `use_cache` 为真时将 `result` 存入 `_cache[base_module_path]`。
+2. `pkgutil.iter_modules` 得到一级子项；**仅当 `ispkg` 为真**且不在 `skip_modules`、不以 `_` 开头时继续。
+3. `module_path = module_name_pattern.format(base_module=..., name=modname)`。
+4. 导入后筛 `issubclass(..., base_class)`，经 `class_filter` / `key_extractor`。
+5. 键冲突：**不覆盖**先发现的类，打 `warning`。
+6. `use_cache` 时按 `base_module_path` 缓存 `DiscoveryResult`。
 
-基础包 `ImportError`：debug 日志，返回空结果。其它未捕获异常：error 日志，返回当前 `result`。
+基础包 `ImportError`：debug，返回空结果。其它未捕获异常：error，返回当前结果。
 
 ---
 
 ## 3. `ModuleDiscovery.discover_objects` 扫描语义
 
-1. 导入 `base_module_path`，遍历 `pkgutil.iter_modules`。
-2. **不**检查 `ispkg`：一级子模块名无论包或单文件均可。
-3. `module_path = module_pattern.format(base_module=base_module_path, name=modname)`。
-4. 导入成功后若存在 `object_name` 属性则 `objects[modname] = getattr(...)`；否则 debug 无该属性。
-5. `ImportError` 跳过；其它异常 warning。基础包不存在：debug，返回 `{}`。
+1. 导入基础包，遍历一级子模块名（**不**要求 `ispkg`）。
+2. 按 `module_pattern` 导入；存在 `object_name` 则收集。
+3. 单模块失败跳过（fail-soft）。
 
 ---
 
-## 4. `discover_modules_by_path`
+## 4. 定点加载
 
-1. `base_path` 不存在则返回 `{}`。
-2. `iterdir()` 中仅处理目录、且目录名不以 `_` 开头。
-3. `module_path = module_pattern.format(name=item.name)`（**仅** `name` 占位符，与 `discover_objects` 不同）。
-4. 导入模块；若给定 `object_name` 则收集对象，否则收集模块本身。
+- `ClassDiscovery.discover_class_by_path`（staticmethod）：`class_path.rsplit('.', 1)` → import → `getattr`；可选 `issubclass`。
 
 ---
 
-## 5. 定点加载与属性回退
+## 4b. `find_in_tree`（按目录名 key）
 
-### `discover_class_by_path`
+与 `find_file`（任意深度同名文件）不同：目标路径形如 `**/{key}/{filename}`。
 
-- `class_path.rsplit('.', 1)` 得到 `(module_path, class_name)`。
-- `getattr(module, class_name)`；可选 `issubclass` 校验，`TypeError` 时放弃校验（与实现一致）。
+1. 校验 `key` / `filename` 为单路径段。
+2. 先试 `base_dir / key / filename`。
+3. 再 `base_dir.rglob(f"{key}/{filename}")`，取排序后首个文件。
 
-### `discover_class_attribute`
-
-1. 先用 `discover_class_by_path(..., base_class=None)` 取类；若类上存在非空 `attribute_name` 则返回。
-2. 否则在同一模块上查找属性名为 `class_name + attribute_name.capitalize()` 的对象。  
-   Python的 `str.capitalize()` 只将首字符大写、其余小写，因此 `attribute_name="config_class"` 时后缀为 `Config_class`，而非驼峰式的 `ConfigClass`。
+自 `project_context.DiscoveryManager.find_in_tree` 迁入；业务（如 data_source handlers）经 `Discovery.file.find_in_tree` 调用。
 
 ---
 
-## 6. 缓存与并发
+## 5. 缓存与并发
 
-- 缓存粒度：`ClassDiscovery` 实例内 `_cache`，键为 `base_module_path` 字符串。
-- 无锁；假定单线程初始化或调用方串行。多线程并发 `discover` 需调用方外部同步。
+- `ClassDiscovery` 实例内 `_cache`；无锁，假定串行初始化。
+- `FileDiscovery` 缓存 key 含 `base_dir` / `pattern` / `file_type` / `max_depth` / `exclude` / `follow_symlinks`。
 - `ModuleDiscovery` 无状态、无缓存。
 
 ---
 
-## 7. 日志级别约定（实现现状）
+## 6. 日志级别约定
 
 | 场景 | 级别 |
 |------|------|
 | 基础包/模块不存在（预期可缺） | `debug` |
-| 单模块导入失败、属性缺失等可继续 | `warning`（`discover` 外层未捕获用 `error`） |
+| 单模块导入失败等可继续 | `warning` |
 | 重复注册键 | `warning` |
 
 ---
 
-## 8. 与测试的依赖
+## 附录：设计决策（原 DECISIONS）
 
-单元测试可能引用 `userspace.*` 与 `core.infra.project_context.PathManager`；本模块实现本身不依赖 `project_context`。
+### D1：收敛为独立 infra 模块
+
+横切发现逻辑集中，避免各业务复制 `pkgutil` 扫描。
+
+### D2：拆分 ClassDiscovery 与 ModuleDiscovery
+
+「找子类」与「读模块常量」语义不同，分类型比单类多分支更清晰。
+
+### D3：DiscoveryConfig 承载规则
+
+配置可组合、可测；避免超长 kwargs。
+
+### D4：ClassDiscovery 默认缓存
+
+适合启动期多次查询；提供 `clear_cache`；热替换由调用方清理。
+
+### D5：fail-soft
+
+扩展缺失或语法错误不拖垮装配；调用方处理空结果。
+
+### D6：约定式 module_name_pattern
+
+`str.format` 占位符 `base_module` / `name`，鼓励统一目录约定。
+
+### D7：不保留模块级便捷函数与猜测性属性回退
+
+公开能力一律经 `Discovery.*`；已删除 `discover_*` 自由函数、`discover_class_attribute` 约定回退、`discover_modules_by_path`。

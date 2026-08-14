@@ -1,0 +1,21 @@
+# 模块元数据
+name: infra.cmd_layout
+version: "0.1.2"
+compatible_core_versions: ">=0.4.0"
+description: "命令行UI模块：给命令行工具提供一套通用的UI组件，方便其他模块展示结果。"
+dependencies: []
+changelog:
+  - version: "0.1.2"
+    changes:
+      - 将 IconService 收入 cmd_layout.icon（CmdLayout.icon.get / i）
+      - 删除 core.infra.utils.icon；调用方统一走 infra.cmd_layout
+      - 标准化模块文档和对外API
+      - 公开 API 状态按 core 0.x 规则改为最高 beta（禁止 stable）
+  - version: "0.1.1"
+    changes:
+      - 增加纯 ASCII 条形图，兼容 Windows / Linux / macOS 终端
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 增加几种简单的图标接口，方便外部调用
+

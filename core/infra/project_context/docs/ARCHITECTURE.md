@@ -1,21 +1,22 @@
 # Project Context 架构文档
 
-**版本：** `0.3.0`
+**版本：** `0.2.0`
 
 ---
 
 ## 模块介绍
 
-`infra.project_context` 提供 NTQ 的「我在哪、有哪些配置、配置怎么读与合并」的统一答案：项目根与语义目录、约定式配置发现、JSON/Python 加载及默认与用户合并。
+`infra.project_context` 提供 NTQ 的「我在哪、有哪些配置、配置怎么读与合并」的统一答案：项目根与语义目录、约定式配置发现、默认与用户配置合并。
+
+**核心设计：** Facade 模式。包根只导出 `ProjectContext`；类型与常量走 `contracts` 或 `ProjectContext.types`；`PathManager` / `ConfigManager` / `DiscoveryManager` 为内部实现。
 
 ---
 
 ## 模块目标
 
-- 单一来源推断项目根与 `core` / `userspace` 等关键目录。
-- 为策略、标签、数据源、Data Contract 等提供稳定路径构造，避免业务层硬编码相对路径。
-- 统一默认配置（`core/default_config`）与用户配置（`userspace/config`）的发现与合并语义。
-- 通过 Facade 可选地一次获取 `path` / `discovery` / `config` / `file` 能力。
+- 单一入口：`ProjectContext` + namespace（`path` / `config` / `meta` / `cache` / `discovery` / `types`）
+- 稳定路径构造，避免业务硬编码相对路径
+- 统一 `core/default_config` 与 `userspace/config` 的发现与合并语义
 
 ---
 
@@ -23,49 +24,82 @@
 
 **职责（In scope）**
 
-- 根目录检测与缓存；`userspace` 环境变量覆盖。
-- 基于 `pathlib.Path` 的路径 API。
-- 约定式配置发现（domain + config id）、可覆盖加载、树形 `find_in_tree`。
-- 配置：JSON/Python 加载、`load_with_defaults`、数据库/数据/Worker 等专项加载器。
+- 根目录检测与缓存；userspace 环境变量与 `.ntq/userspace-path.json` 覆盖
+- 基于 `pathlib.Path` 的语义路径 API（含 `coerce_strategy_folder`、`get_backup_data_directory`）
+- 约定式配置发现与可覆盖加载
+- JSON 配置加载与合并（含 database / data 专项）
 
 **边界（Out of scope）**
 
-- 不实现业务领域逻辑（策略、数据源规则等）。
-- 不负责数据库连接或 Worker 进程生命周期（仅提供配置读取与路径）。
-- 不替代 `logging` 模块配置应用侧初始化。
+- 业务领域逻辑（策略、数据源规则等）
+- 数据库连接或 Worker 进程生命周期
+- 通用文件发现 IO（见 `infra.discovery`，含 `find_in_tree`）
 
 ---
 
 ## 依赖说明
 
-- 无 `module_info.yaml` 声明的模块依赖；标准库为主。`ProjectContextManager.core_info` 可选读取 `core.system`；`get_module_config` 在调用链内引用 `infra.worker` 的类型。
+- 无 YAML 级外部模块依赖；标准库为主
+- `ProjectContext.meta.core_info` 可选读取 `core.system`
 
 ---
 
-## 工作拆分
-
-- `PathManager`（`path_manager.py`）：`get_root` 与缓存；`core`/`userspace`/策略/标签/数据源/Data Contract 等语义路径。
-- `DiscoveryManager`（`discovery_manager.py`）：`discover_configs`、`discover_config`、`load_overridable_config`、`find_in_tree`。
-- `ConfigManager`（`config_manager.py`）：`load_with_defaults`、`load_json`/`load_python`、数据库与各类 `load_*_config`、环境变量覆盖、便捷 getter。
-- `FileManager`（`file_manager.py`）：`find_file`/`find_files`、`read_file`、存在性、`ensure_dir`（无约定布局的 I/O 原语）。
-- `ProjectContextManager`（`project_context_manager.py`）：挂载各 Manager；`core_info`/`core_version`。
-
----
-
-## 架构/流程图
+## 架构设计
 
 ```text
-ProjectContextManager
-├── PathManager（静态）
-├── DiscoveryManager（静态）
-├── ConfigManager（静态）
-└── FileManager（静态）
+对外：
+  ProjectContext
+    ├── path / config / meta / cache / discovery / types
+    └── contracts（异常、常量、合并函数）
+
+内部（core/）：
+  PathManager · ConfigManager · DiscoveryManager
 ```
 
+配置发现：
+
 ```text
-配置: default_config[/domain]/{id}.json + userspace/config[/domain]/{id}.json
-      -> DiscoveryManager.load_overridable_config -> Dict
-数据库: database/common + database/{type} + env 覆盖
+default_config[/domain]/{id}.json + userspace/config[/domain]/{id}.json
+  -> discovery.load_overridable_config -> Dict
+database: common + {type} + env 覆盖
+```
+
+userspace 解析：
+
+```text
+NEW_TEA_QUANT_USERSPACE_ROOT
+  -> NTQ_USERSPACE_ROOT
+  -> {project_root}/.ntq/userspace-path.json
+  -> {project_root}/userspace
+```
+
+---
+
+## 使用方式
+
+```python
+from core.infra.project_context import ProjectContext
+
+root = ProjectContext.path.get_project_root()
+folder = ProjectContext.path.coerce_strategy_folder("demo/my_strategy")
+backup_data = ProjectContext.path.get_backup_data_directory()
+settings = ProjectContext.config.load_core_config("logging")
+ids = ProjectContext.discovery.discover_configs("markets")
+```
+
+禁止直接依赖内部 Manager：
+
+```python
+# ❌
+from core.infra.project_context.core.path_manager import PathManager
+```
+
+类型与常量：
+
+```python
+from core.infra.project_context import ProjectContext
+
+err = ProjectContext.types.OverridableConfigNotFoundError
 ```
 
 ---
@@ -73,4 +107,5 @@ ProjectContextManager
 ## 相关文档
 
 - [详细设计](./DESIGN.md)
-- [API](./API.md)、[决策记录](./DECISIONS.md)
+- [API](../API.md)
+- [契约测试](../__test__/test_api.py)

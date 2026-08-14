@@ -1,27 +1,36 @@
 name: modules.data_contract
-version: 0.3.6
-compatible_core_versions: ">=0.4.1"
-description: "DataKey 白名单、DataSpec 路由、ContractIssuer 签发句柄、DataContractManager.issue 与进程内缓存、各业务 Loader 取数；支持 userspace 合并映射。"
+version: "0.4.0"
+compatible_core_versions: ">=0.4.4"
+description: "数据契约模块：提供一套可扩展的数据声明到数据加载的契约，主要目的是为了实现回测过程中的声明式数据注入。"
 dependencies:
   - modules.data_manager
   - infra.project_context
+  - infra.utils
 changelog:
-  - version: "0.3.6"
+  - version: "0.4.0"
     changes:
-      - 给 base loader 加入 load_batch 方法，支持批量加载
-  - version: "0.3.5"
-    changes:
-      - 增加对BFF的支持
-  - version: "0.3.4"
-    changes:
-      - 将Klines按照term拆分成3个数据契约
-  - version: "0.3.3"
-    changes:
-      - Strategy 枚举/回测路径接入 issue + load_batch
-      - PER_ENTITY plural、IssueResult 信封；entity_ids 糖化
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
   - version: "0.3.0"
     changes:
-      - DataKey 白名单、ContractIssuer、GLOBAL/PER_ENTITY 路由与 Loader 注册
+      - 将按照时间推进的行为纳入数据契约的职责范畴
+      - 将数据游标从单独模块整合进入数据契约模块
+  - version: "0.2.3"
+    changes:
+      - 给契约基类加入抽象函数load_batch，强制契约loader支持更有IO效率的批量加载
+  - version: "0.2.2"
+    changes:
+      - 增加对BFF的支持
+  - version: "0.2.1"
+    changes:
+      - 修改契约的懒加载机制，修改入口函数和参数
+      - 将Klines按照term拆分成3个数据契约
   - version: "0.2.0"
     changes:
-      - 模块初版：DataSpec 与 issue 基线
+      - 对契约进行细化分类，按照不同维度划分为时序与非时序，全局和个体共四个类型
+      - 数据契约引入内存缓存，契约可以复用
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 引入契约概念，用户只需要声明契约名称，引擎可以择时自动加载契约数据

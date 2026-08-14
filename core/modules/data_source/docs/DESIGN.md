@@ -1,51 +1,75 @@
 # Data Source 设计说明
 
-**版本：** `0.3.6`
+**模块：** `modules.data_source` · **版本：** `0.2.0`
 
-本文档描述 **userspace 配置布局**、**schema 来源**与 **handler 发现规则**。实现以 `data_source_manager.py`、`service/manager_helper.py` 为准。
-
-**相关文档**：[架构总览](./ARCHITECTURE.md)
+API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_source_manager.py`、`core/service/manager_helper.py` 为准。
 
 ---
 
-## userspace 布局
+## 1. userspace 布局
 
 | 路径 | 作用 |
 | --- | --- |
-| `userspace/data_source/mapping.py` | 定义 **`DATA_SOURCES`**（见 `DataSourceManagerHelper.discover_mappings`） |
-| `userspace/data_source/handlers/<name>/config.py` | 各数据源 **`CONFIG`**（顶层 **`table`** 绑定物理表名） |
-| `userspace/data_source/handlers/.../handler.py`（或 mapping 指向的模块） | **Handler** 类实现 |
-| `userspace/data_source/providers/` | **Provider** 包，供 `ClassDiscovery` 扫描 |
+| `userspace/data_source/mapping.py` | **`DATA_SOURCES`** |
+| `userspace/data_source/handlers/<name>/config.py` | 各源 **`CONFIG`**（顶层 **`table`**） |
+| `userspace/data_source/handlers/.../handler.py` | Handler 实现 |
+| `userspace/data_source/providers/` | Provider 包 |
 
 ---
 
-## Schema 与表绑定
+## 2. Schema 与表绑定
 
-- **`DataSourceConfig`** 顶层 **`table`** → **`DataManager.get_table(table_name)`** → **`model.load_schema()`** 得到 **dict schema**。
-- Handler 输出需与该 schema 对齐；**不写独立 schema 文件**。
-
----
-
-## Config 发现顺序
-
-1. **`PathManager.data_source_handler(data_source_key)/config.py`**
-2. 不存在则在 **`handlers/`** 下递归查找包含该 key 的目录中的 **`config.py`**（`DiscoveryManager.find_in_tree`）
+- **`CONFIG.table`** → **`DataManager.get_table`** → **`load_schema()`**
+- Handler 输出与 schema 对齐；不维护独立 schema 文件
 
 ---
 
-## Provider 发现
+## 3. Config / Provider 发现
 
-- **`DataSourceProviderHelper.discover_provider_classes()`** 使用 **`ClassDiscovery`** 扫描 **`userspace.data_source.providers`**，将 **`BaseProvider`** 子类注册为可实例化 Provider（细节见 `provider_helper.py`）。
+1. handler config：约定路径或 `handlers/` 树内按 key 查找
+2. Provider：扫描 `userspace.data_source.providers` 下 `BaseProvider` 子类
 
 ---
 
-## 执行与 `is_dry_run`
+## 4. 执行与 `is_dry_run`
 
-- CONFIG 顶层 **`is_dry_run`**（经 `DataSourceConfig.get_is_dry_run()`）为真时：**跳过写库**，仍可走抓取与标准化（见 Handler 管线）。
+- **`is_dry_run`** 为真时跳过写库，仍可抓取与标准化
+
+---
+
+## 5. 设计决策
+
+### 决策 1：Schema 以数据库表为准
+
+**决策：** `CONFIG.table` 绑定已注册表；`load_schema()` 为唯一字段契约。
+
+### 决策 2：单一入口 `DataSourceManager.execute` / `renew`
+
+**决策：** discover → 建 handler → scheduler 拓扑执行。
+
+### 决策 3：数据源之间串行 + 拓扑序
+
+**决策：** `DataSourceExecutionScheduler` 拓扑排序；reserved dependency 由 `reserved_dependencies` 解析。
+
+### 决策 4：Provider 全量发现、Handler 按名取用
+
+**决策：** 初始化发现全部 Provider；handler 按 `provider_name` 取用。
+
+### 决策 5：TQDM 在 import 时禁用
+
+**决策：** `base_handler` 加载时设 `TQDM_DISABLE=1`。
+
+### 决策 6：日期范围无独立 RenewManager
+
+**决策：** 由 `DateRangeService` / `date_range_helper` / `RenewCommonHelper` 统一计算；已删除未接入的 RenewManager 与三模式 RenewService 占位实现。
+
+### 决策 7：样本股票宇宙不在本模块
+
+**决策：** 系统内保留哪些股票由 `DataManager.sample_universe` 决定。本模块只在抓取切片与写库过滤时消费，不持有名单文件或 Facade API。
 
 ---
 
 ## 相关文档
 
-- [API.md](API.md)
-- [DECISIONS.md](DECISIONS.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [API.md](../API.md)

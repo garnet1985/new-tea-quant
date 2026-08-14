@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""
+应用升级 CLI 入口。
+
+须从 ``userspace/system/updater/run_apply.py`` 启动（由 ``Updater.runtime.sync_orchestrator`` 写入），
+勿在升级过程中 import ``core.infra.updater.core.orchestrator.pipeline``。
+
+开发时可在仓库根执行::
+
+    python core/infra/updater/core/orchestrator/run_apply.py
+
+安装后::
+
+    python userspace/system/updater/run_apply.py
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_UPDATER_DIR = Path(__file__).resolve().parent
+if str(_UPDATER_DIR) not in sys.path:
+    sys.path.insert(0, str(_UPDATER_DIR))
+
+from upgrade_entry import main  # noqa: E402
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

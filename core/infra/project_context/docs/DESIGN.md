@@ -1,52 +1,65 @@
 # Project Context 详细设计
 
-**版本：** `0.3.0`
+**版本：** `0.2.0`
 
-本文档描述实现向行为；总览见 [架构文档](./ARCHITECTURE.md)。
-
-**相关文档**：[架构总览](./ARCHITECTURE.md) · [API](./API.md) · [决策记录](./DECISIONS.md)
+实现向行为；总览见 [架构文档](./ARCHITECTURE.md)。
 
 ---
 
-## 1. 项目根检测（`PathManager.get_root`）
+## 1. Facade + namespace
 
-1. 若 `_root_cache` 已设，直接返回。
-2. 从 `path_manager.py` 所在路径向上遍历父目录。
-3. 若目录下存在任一根标记且存在：`.git`、`pyproject.toml`、`setup.py`、`requirements.txt`、`start.py`，则缓存并返回该目录。
-4. 否则使用固定层级的 `parent^5` 作为 fallback 并缓存。
+- **`ProjectContext`：** 静态 namespace 容器，无实例状态。
+- **内部 Manager：** `PathManager`、`ConfigManager`、`DiscoveryManager` 不对外导出。
+- **人读契约：** 根目录 `API.md`；跨模块类型在 `contracts.py` 或 `ProjectContext.types`。
 
----
+### 决策摘要
 
-## 2. `core()` 与 `userspace()`
-
-- **`core()`**：优先 `项目根/core`；若不存在则尝试 `项目根/app/core`；仍不存在则返回 `项目根/core`（不创建）。
-- **`userspace()`**：依次检查 `NEW_TEA_QUANT_USERSPACE_ROOT`、`NTQ_USERSPACE_ROOT`；若存在且为有效路径则返回；否则 `项目根/userspace`（不存在亦返回该 Path）。
-
----
-
-## 3. `DiscoveryManager` 与 `ConfigManager`
-
-- **`DiscoveryManager.discover_configs` / `discover_config` / `load_overridable_config`**：约定路径下的枚举、路径解析、可覆盖加载；`domain=""` 为根级 `data.json` 等。
-- **`ConfigManager.load_with_defaults`**：已知 `default_path` + `user_path` 时读盘并 `deep_merge_config`。
-- **`ConfigManager.load_core_config`**：委托 `DiscoveryManager.load_overridable_config("", config_name)`。
-- **`load_database_config`**：合并 `database/common`、按类型加载 `database/{type}`、展开 `_advanced`、合并用户侧扁平或 wrapper 格式，最后 **`load_with_env_vars`**（`DB_{TYPE}_*`）。
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| 入口 | 仅 `ProjectContext` | 防止多入口与命名漂移 |
+| 路径类型 | `pathlib.Path` | 跨平台、可组合 |
+| 配置缺失 | `load_core_config` → `{}`；overridable 两侧皆无 → 抛错 | 可选配置温和失败；强依赖可覆盖配置须显式失败 |
+| 稳定性标记 | 公开 API 最高 `beta`（core `0.x`） | 与 CORE_MODULE_STANDARDS 一致 |
+| 契约载体 | `API.md` + `test_api.py`（不再维护 `api.yaml`） | 人读 SSOT |
+| 文件发现 | `find_in_tree` 在 `infra.discovery` | 通用 IO 与项目上下文解耦 |
 
 ---
 
-## 4. Python 配置加载
+## 2. 路径
 
-- `importlib.util.spec_from_file_location` 生成唯一模块名，执行模块后读取约定变量名（默认 `settings`），必须为 `dict`。
-
----
-
-## 5. `ProjectContextManager.core_info`
-
-1. 读 `PathManager.core() / "core_meta.json"`，成功则 `json.loads`。
-2. 失败则 `from core.system import system_meta` 并 `to_dict()`。
-3. 仍失败返回 `None`。
+- **项目根：** 自包路径向上查找根标记（`.git`、`pyproject.toml` 等），命中后缓存；否则 fallback 父链。
+- **userspace 优先级：** `NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。
+- **策略根：** `coerce_strategy_folder` — 绝对 discovered folder 原样返回；相对 id 拼到 `userspace/strategies/`。
+- **命名：** `get_xxx_root` / `get_xxx_directory` / `get_xxx_path`；仿真目录用 `get_strategy_simulation_{price,portfolio,enum}_directory`；Tag 门面用 `get_tag_directory`。
+- **备份数据：** `get_backup_data_directory` → `userspace/system/backup/data/`。
 
 ---
 
-## 6. `get_module_config` 与 Worker
+## 3. 配置加载
 
-- 运行时 `from core.infra.worker.multi_process.task_type import TaskType`，将 Worker 配置中的字符串映射为枚举；避免在 `project_context` 顶层 import `worker`，减轻与 `worker -> ConfigManager` 的静态环。
+- **`load_core_config`：** 委托 `DiscoveryManager.load_overridable_config("", name)`；缺文件返回空 dict。
+- **`load_database_config`：** 合并 `database/common` + `database/{type}` + userspace + `DB_*` env。
+- **`load_data_config` / 访问器：** 读合并后的 `data.json` 字段（含 `get_decimal_places`、`get_adj_factor_event_decimal_places`、`get_database_type`）。
+- **`merge_market_profile_dicts`：** 市场 profile 规则深度合并；供 discovery `merge_fn` 使用。
+
+---
+
+## 4. 配置发现
+
+- **`discover_configs(domain)`：** core ∪ userspace 下 id 并集排序。
+- **`load_overridable_config`：** 默认 `ConfigManager.load_with_defaults`；可注入自定义 `merge_fn`。
+- **`OverridableConfigNotFoundError` / `DiscoveredConfig`：** 定义于 `contracts`，经 `ProjectContext.types` 挂载。
+
+---
+
+## 5. 测试
+
+- **`__test__/test_api.py`：** 公开 Facade / contracts 契约 smoke（`force_run`）。
+- **`core/__test__/`：** 内部 Manager 行为测试（PathManager、ConfigManager、DiscoveryManager 等）。
+
+---
+
+## 相关文档
+
+- [架构总览](./ARCHITECTURE.md)
+- [API](../API.md)

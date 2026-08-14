@@ -3,7 +3,7 @@ sys_stock_st_periods 表 Model
 """
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.stock.stock_st_periods.schema import schema as _schema
 

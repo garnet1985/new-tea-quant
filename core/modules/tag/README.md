@@ -1,61 +1,38 @@
-# Tag 模块（`modules.tag`）
+# Tag（`modules.tag`）
 
-**`TagManager`** 在 **`userspace/tags/`**（或 `PathManager.tags()` 指向的目录）下发现场景：每个子目录含 **`settings.py`** 与 **`tag_worker.py`**（继承 **`BaseTagWorker`**）。执行时按 **`TagUpdateMode`**（增量 / 全量刷新）构建 Job，经 **`JobPipeline`**（主进程 inject/report + 多进程 `execute`）逐实体、逐交易日调用 **`calculate_tag`**，结果经 **`DataManager.stock.tags`** 批量写入。
+**版本：** `0.4.0` · 兼容 core `>=0.4.4`
 
-仓库内专题说明见 **[用户指南：标签系统](../../../userspace/tags/USER_GUIDE.md)**；示例配置见 **`userspace/tags/`**。
+标签资产层：按 `data.base` 路由到 per_entity（BacktestEngine）或 global / non_time_series 主进程推进器。对外门面为 `Tag`；hooks / 枚举见 `contracts`。
 
 ## 适用场景
 
-- 把「某段逻辑在固定数据契约下的切片结果」沉淀为可复用、可追溯的 JSON 标签，供策略与分析多次读取。
-- 需要按交易日 **`as_of`** 单调推进、依赖 **DataCursor** 前缀视图避免未来数据泄露的批量打标。
+- CLI / 工作台触发单个或全部已启用 tag 计算
+- userspace 场景目录：`settings.py` + `tag.py`（`TagHooks`）
 
-## 快速开始
+## 模块依赖
 
-```bash
-# 仓库根目录
-python -m core.modules.tag --list
-python -m core.modules.tag my_scenario -v
-python -m core.modules.tag --all -v
-```
+见 `module_info.yaml`（data_manager、data_contract、backtest_engine、project_context）。
+
+## 设计初衷
+
+- **要解决的问题：** 配置驱动的标签计算与落库，供策略复用。
+- **明确不做：** 不在本模块另起平行于 BE 的调度（硬约束见 [docs/DESIGN.md](./docs/DESIGN.md) / [docs/notes/BOUNDARY_NOTES.md](./docs/notes/BOUNDARY_NOTES.md)）。
+
+## 公开 import
 
 ```python
-from core.modules.tag import TagManager
-
-mgr = TagManager()
-mgr.execute()  # 跑 scenarios 根下全部场景
-# mgr.execute("my_scenario")
-# mgr.execute(settings={...})  # 临时 settings，不落盘发现缓存
+from core.modules.tag import Tag
+from core.modules.tag.contracts import TagHooks, TagContext
 ```
 
-自定义 Worker：在场景目录中实现 **`tag_worker.py`**，类继承 **`BaseTagWorker`** 并实现 **`calculate_tag`**（见 [API](docs/API.md)）。
-
-## 目录结构
-
-```text
-core/modules/tag/
-├── module_info.yaml
-├── README.md
-├── __init__.py
-├── tag_manager.py
-├── base_tag_worker.py
-├── config.py
-├── enums.py
-├── components/
-└── models/
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── DESIGN.md
-    ├── API.md
-    └── DECISIONS.md
-```
-
-## 模块依赖（`module_info.yaml`）
-
-运行时依赖 **`modules.data_manager`**、**`modules.data_contract`**、**`modules.data_cursor`**、**`infra.project_context`**、**`infra.worker`**。
+UI catalog/run：`core/bff/APIs/tag`。
 
 ## 相关文档
 
-- [架构与边界](docs/ARCHITECTURE.md)
-- [子模块与数据流](docs/DESIGN.md)
-- [公开 API](docs/API.md)
-- [设计决策](docs/DECISIONS.md)
+- [快速开始](./QUICKSTART.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [设计](./docs/DESIGN.md)
+- [边界笔记](./docs/notes/BOUNDARY_NOTES.md)
+- [测试用例](./__test__/TEST_CASES.md)

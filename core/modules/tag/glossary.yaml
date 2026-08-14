@@ -1,0 +1,131 @@
+# Tag 术语表
+# Version: 0.4.0
+
+terms:
+  Facade:
+    definition: "对外统一入口类。本模块门面是 Tag。"
+    aliases:
+      - "门面"
+    avoid:
+      - "TagManager"
+      - "deep-import core.engines / core.services（跨模块优先 Facade）"
+
+  Tag:
+    definition: "标签模块 Facade：discovery / execute / list；按 data.base 路由到 per_entity / global / non_time_series 执行器"
+    aliases:
+      - "tag facade"
+    avoid:
+      - "TagManager"
+      - "TagWorker"
+
+  TagHooks:
+    definition: "userspace tag.py 钩子基类（calculate_tag / on_calendar_asof）；global / non_ts 复用 calculate_tag"
+    aliases:
+      - "tag hooks"
+    avoid:
+      - "BaseTagWorker"
+      - "tag_worker.py"
+
+  scenario:
+    definition: "一个 tag 场景目录；系统名 = 相对 userspace/extensions/tags 的路径"
+    aliases:
+      - "tag_key path id"
+      - "scenario_name"
+    avoid:
+      - "把 meta.key 当作 DB scenario.name（DB 用路径）"
+
+  meta.key:
+    definition: "CLI/API 短 alias（全局唯一）"
+    aliases:
+      - "tag alias"
+    avoid:
+      - "与路径 id 混用而不做查找"
+
+  base_route:
+    definition: "由 data.base 的 contract scope×type 推断：per_entity | global | non_time_series"
+    aliases:
+      - "data.base 路由"
+    avoid:
+      - "手写 tag_target_type 当产品入口"
+
+  entity_based:
+    definition: "仅 per_entity：各实体按交易日推进；经 BacktestEngine"
+    aliases:
+      - "entity parallel"
+    avoid:
+      - "timeline（旧名）"
+      - "用于 global / non_ts base"
+
+  slice_based:
+    definition: "仅 per_entity：日历切片 + on_calendar_asof 横截面；经 BacktestEngine"
+    aliases:
+      - "calendar slice"
+    avoid:
+      - "sliced（旧名）"
+      - "用于 global / non_ts base"
+
+  TagGlobalPipeline:
+    definition: "global 时序轻量主进程推进器（不走 BE）；实体哨兵 __global__"
+    aliases:
+      - "global runner"
+      - "global_based"
+    avoid:
+      - "把 global 硬塞进 entity_based/slice_based"
+
+  TagNonTimeSeriesPipeline:
+    definition: "非时序轻量主进程一次计算（不走 BE）；实体哨兵 __global__；as_of=计算窗 end_date"
+    aliases:
+      - "non_ts runner"
+      - "non_time_series"
+    avoid:
+      - "对非时序 base 做日历 as_of 循环"
+
+  GLOBAL_ENTITY_ID:
+    definition: "global / non_ts 场景落库 / progress 用的哨兵 entity_id（__global__）"
+    aliases:
+      - "__global__"
+    avoid:
+      - "__general__（旧 stub 名，已收敛到同一哨兵）"
+
+  list_data_key:
+    definition: "per_entity contract meta：所属 GLOBAL list 的 data_key（如 stock.list）"
+    aliases:
+      - "entity list data key"
+    avoid:
+      - "entity_list_data_id"
+
+  update_mode:
+    definition: "incremental=从 last_calculated_end 续算；refresh=目标区间重算语义"
+    aliases:
+      - "calculation.update_mode"
+    avoid:
+      - "用 max(as_of_date) 当 incremental 水位"
+
+  last_calculated_end:
+    definition: "每实体上次成功算到的业务日（sys_tag_calc_progress / TagDataService）"
+    aliases:
+      - "calc progress watermark"
+    avoid:
+      - "calculated_at（落库墙钟）"
+      - "scenario.updated_at（元数据）"
+      - "max(as_of_date)"
+
+  TagInfo:
+    definition: "hooks 身份（key/path）；公开自 contracts；勿与 discovery 的 DiscoveredTagInfo 混淆"
+    aliases: []
+    avoid:
+      - "把 Tag.find() 返回值当成 hooks.TagInfo"
+
+  DiscoveredTagInfo:
+    definition: "discovery 校验通过后的场景元数据（settings + hooks_class）；Tag.find 返回此类型"
+    aliases:
+      - "discovery TagInfo（旧名，已改名）"
+    avoid:
+      - "与 hooks TagInfo 同名混用"
+
+  TagCalendarAsOfResult:
+    definition: "slice_based on_calendar_asof 返回：entity_tags + session_state（同 strategy）"
+    aliases: []
+    avoid:
+      - "CalendarAsOfContext（旧名）"
+      - "carry（已改为 session_state）"

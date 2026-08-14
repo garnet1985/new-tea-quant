@@ -4,8 +4,12 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock, patch
 
-from core.infra.db import DatabaseManager
-from core.modules.data_manager.data_manager import DataManager
+import pytest
+
+pytestmark = pytest.mark.force_run
+
+from core.infra.db.contracts import DatabaseManager
+from core.modules.data_manager import DataManager
 
 
 def test_concurrent_data_manager_construct_initializes_db_once():
@@ -33,7 +37,7 @@ def test_concurrent_data_manager_construct_initializes_db_once():
                 with patch.object(DatabaseManager, "create_all_base_tables"):
                     with patch.object(DataManager, "_discover_tables"):
                         with patch(
-                            "core.modules.data_manager.data_services.DataService"
+                            "core.modules.data_manager.core.data_services.DataService"
                         ) as ds_cls:
                             ds_cls.return_value.index.sync_list_from_config = MagicMock()
                             threads = [threading.Thread(target=worker) for _ in range(8)]

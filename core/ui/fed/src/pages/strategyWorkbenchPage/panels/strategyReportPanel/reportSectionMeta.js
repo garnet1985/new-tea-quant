@@ -8,5 +8,5 @@ export const REPORT_PANEL_TOOLTIP =
 export const REPORT_TAB_SECTION_TITLES = {
   enum: '枚举机会报告',
   price: '价格回测报告',
-  capital: '资金模拟报告',
+  portfolio: '投资模拟报告',
 };

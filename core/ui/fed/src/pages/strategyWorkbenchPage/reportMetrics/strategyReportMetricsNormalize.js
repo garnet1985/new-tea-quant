@@ -1,16 +1,31 @@
 /**
  * 策略报告 metrics：仅认 BFF V2-07 / 快照槽位当前形态，不做字段别名与推导补全。
  *
- * - enum：``{ enumMetrics: { … } }``（``EnumeratorReport.to_bff_payload``，camelCase）
- * - price：``PriceReport.to_dict()`` 扁平 snake_case
- * - capital：``CapitalReport`` + BFF 扩展，snake_case
+ * - enum：``{ enumMetrics: { … } }``（camelCase）
+ * - price：``{ priceMetrics: { … } }``（camelCase）
+ * - portfolio：``{ capitalMetrics: { … } }``（OverallReport.to_ui_dict，camelCase）
  */
 
 export const REPORT_BLOCK_UNAVAILABLE_ZH = '数据异常，无法显示该结果。';
 
+/** 合法空结果（如 0 机会 / 搜索无命中） */
+export const REPORT_EMPTY_MATCH_ZH = '没有匹配记录。';
+
 function readEnumMetrics(slot) {
   if (!slot || typeof slot !== 'object') return null;
   const inner = slot.enumMetrics;
+  return inner && typeof inner === 'object' ? inner : null;
+}
+
+function readPriceMetrics(slot) {
+  if (!slot || typeof slot !== 'object') return null;
+  const inner = slot.priceMetrics;
+  return inner && typeof inner === 'object' ? inner : null;
+}
+
+function readCapitalMetrics(slot) {
+  if (!slot || typeof slot !== 'object') return null;
+  const inner = slot.capitalMetrics;
   return inner && typeof inner === 'object' ? inner : null;
 }
 
@@ -154,57 +169,55 @@ export function normalizeEnumMetricsFromSummary(slot) {
   };
 }
 
-/** ``result_report.price_factor``：``PriceReport.to_dict()`` 扁平 snake_case。 */
+/** ``result_report.price_factor``：``{ priceMetrics: { … } }`` camelCase。 */
 export function normalizePriceMetricsFromSummary(slot) {
-  if (!slot || typeof slot !== 'object') return null;
+  const m = readPriceMetrics(slot);
+  if (!m) return null;
 
-  const num = (key) => numOrNaN(slot[key]);
+  const num = (key) => numOrNaN(m[key]);
 
-  const winRate = num('win_rate');
-  const avgRoiRaw = num('avg_roi');
-  const avgRoi = Number.isFinite(avgRoiRaw) && Math.abs(avgRoiRaw) < 1 ? avgRoiRaw * 100 : avgRoiRaw;
-  const avgDurationDays = num('avg_duration_in_days');
-  // PriceReport.annual_return 为小数比例（1.05 = 105%），与控制台 ann_cal * 100 一致；不可沿用「<1 才 ×100」
-  const annualRaw = num('annual_return');
-  const annualReturn = Number.isFinite(annualRaw) ? annualRaw * 100 : NaN;
+  const winRate = num('winRate');
+  const avgRoi = num('avgRoi');
+  const avgDurationDays = num('avgDurationDays');
+  const annualReturn = num('annualReturn');
 
-  const totalInvestments = num('total_investments');
-  const totalOpenInvestments = num('total_open_investments');
-  const totalWinInvestments = num('total_win_investments');
-  const totalLossInvestments = num('total_loss_investments');
-  const stocksWithOpportunities = num('stocks_have_opportunities');
-  const avgInvestmentsPerStock = num('avg_investments_per_stock');
-  const avgProfitPerInvestment = num('avg_profit_per_investment');
-  const avgProfitPerStock = num('avg_profit_per_stock');
+  const totalInvestments = num('totalInvestments');
+  const totalOpenInvestments = num('totalOpenInvestments');
+  const totalWinInvestments = num('totalWinInvestments');
+  const totalLossInvestments = num('totalLossInvestments');
+  const stocksWithOpportunities = num('stocksHaveOpportunities');
+  const avgInvestmentsPerStock = num('avgInvestmentsPerStock');
+  const avgProfitPerInvestment = num('avgProfitPerInvestment');
+  const avgProfitPerStock = num('avgProfitPerStock');
 
-  const roiPctLabelsIn = toStringList(slot.roi_percentile_labels);
-  const roiPctValuesRaw = toNumberList(slot.roi_percentile_values);
+  const roiPctLabelsIn = toStringList(m.roiPercentileLabels);
+  const roiPctValuesRaw = toNumberList(m.roiPercentileValues);
   const pv = roiPctValuesRaw.length >= 9 ? roiPctValuesRaw.slice(0, 9) : [];
 
-  const roiP10 = num('roi_p10');
-  const roiP20 = num('roi_p20');
-  const roiP30 = num('roi_p30');
-  const roiP40 = num('roi_p40');
-  const roiP50 = num('roi_p50');
-  const roiP60 = num('roi_p60');
-  const roiP70 = num('roi_p70');
-  const roiP80 = num('roi_p80');
-  const roiP90 = num('roi_p90');
-  const roiP25 = num('roi_p25');
-  const roiP75 = num('roi_p75');
-  const roiIqr = num('roi_iqr');
-  const roiConclusion = String(slot.roi_conclusion ?? '').trim();
-  const roiStdPct = num('roi_std_pct');
+  const roiP10 = num('roiP10');
+  const roiP20 = num('roiP20');
+  const roiP30 = num('roiP30');
+  const roiP40 = num('roiP40');
+  const roiP50 = num('roiP50');
+  const roiP60 = num('roiP60');
+  const roiP70 = num('roiP70');
+  const roiP80 = num('roiP80');
+  const roiP90 = num('roiP90');
+  const roiP25 = num('roiP25');
+  const roiP75 = num('roiP75');
+  const roiIqr = num('roiIqr');
+  const roiConclusion = String(m.roiConclusion ?? '').trim();
+  const roiStdPct = num('roiStdPct');
 
-  const roiBucketLabels = toStringList(slot.roi_bucket_labels);
-  const roiBucketCounts = toNumberList(slot.roi_bucket_counts);
-  const roiBucketBinCount = num('roi_bucket_bin_count');
-  const roiTruncatedExitCount = num('roi_truncated_exit_count');
-  const roiDistributionSampleCount = num('roi_distribution_sample_count');
+  const roiBucketLabels = toStringList(m.roiBucketLabels);
+  const roiBucketCounts = toNumberList(m.roiBucketCounts);
+  const roiBucketBinCount = num('roiBucketBinCount');
+  const roiTruncatedExitCount = num('roiTruncatedExitCount');
+  const roiDistributionSampleCount = num('roiDistributionSampleCount');
 
-  const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
-  const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
-  const skippedStockStatus = num('skipped_stock_status');
+  const skippedBuyAtLimitUp = num('skippedBuyAtLimitUp');
+  const skippedSellAtLimitDown = num('skippedSellAtLimitDown');
+  const skippedStockStatus = num('skippedStockStatus');
 
   const overviewOk = [winRate, avgRoi, avgDurationDays, annualReturn].every((x) => Number.isFinite(x));
   const sampleCoverageOk = [totalInvestments, stocksWithOpportunities, avgInvestmentsPerStock, totalOpenInvestments]
@@ -281,40 +294,28 @@ export function normalizePriceMetricsFromSummary(slot) {
   };
 }
 
-/** ``result_report.capital_allocation``：snake_case，含 ``equity_curve_*``。 */
+/** ``result_report.portfolio``：``{ capitalMetrics: { … } }`` camelCase。 */
 export function normalizeCapitalMetricsFromSummary(slot) {
-  if (!slot || typeof slot !== 'object') return null;
+  const m = readCapitalMetrics(slot);
+  if (!m) return null;
 
-  const num = (key) => numOrNaN(slot[key]);
+  const num = (key) => numOrNaN(m[key]);
 
-  const equityCurveLabels = Array.isArray(slot.equity_curve_labels)
-    ? slot.equity_curve_labels.map((v) => String(v ?? ''))
-    : [];
-  const equityCurveValues = Array.isArray(slot.equity_curve_values)
-    ? slot.equity_curve_values.map((v) => Number(v ?? 0))
-    : [];
+  const equityCurveLabels = toStringList(m.equityCurveLabels);
+  const equityCurveValues = toNumberList(m.equityCurveValues);
 
-  const initialCapital = num('initial_capital');
-  const finalEquity = num('final_total_equity');
-  const totalReturnPct = (() => {
-    const x = num('total_return');
-    return Number.isFinite(x) && Math.abs(x) <= 1 ? x * 100 : x;
-  })();
-  const maxDrawdownPct = (() => {
-    const x = num('max_drawdown');
-    return Number.isFinite(x) && Math.abs(x) <= 1 ? x * 100 : x;
-  })();
-  const winRatePct = (() => {
-    const x = num('win_rate');
-    return Number.isFinite(x) && Math.abs(x) <= 1 ? x * 100 : x;
-  })();
-  const totalProfit = num('total_profit');
-  const totalTrades = num('total_trades');
-  const buyTrades = num('buy_trades');
-  const sellTrades = num('sell_trades');
-  const winTrades = num('win_trades');
-  const lossTrades = num('loss_trades');
-  const avgPnlPerTrade = num('avg_pnl_per_trade');
+  const initialCapital = num('initialCapital');
+  const finalEquity = num('finalEquity');
+  const totalReturnPct = num('totalReturnPct');
+  const maxDrawdownPct = num('maxDrawdownPct');
+  const winRatePct = num('winRatePct');
+  const totalProfit = num('totalProfit');
+  const totalTrades = num('totalTrades');
+  const buyTrades = num('buyTrades');
+  const sellTrades = num('sellTrades');
+  const winTrades = num('winTrades');
+  const lossTrades = num('lossTrades');
+  const avgPnlPerTrade = num('avgPnlPerTrade');
 
   const hasCharts = equityCurveLabels.length >= 2
     && equityCurveValues.length === equityCurveLabels.length
@@ -328,26 +329,17 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     return null;
   }
 
-  const calmarRatio = num('calmar_ratio');
-  const drawdownCurveValues = Array.isArray(slot.drawdown_curve_values)
-    ? slot.drawdown_curve_values.map((v) => Number(v ?? 0))
-    : [];
-  const worstTradePnls = Array.isArray(slot.worst_sell_pnls)
-    ? slot.worst_sell_pnls.map((v) => Number(v ?? 0))
-    : [];
+  const calmarRatio = num('calmarRatio');
+  const drawdownCurveValues = toNumberList(m.drawdownCurveValues);
+  const worstTradePnls = toNumberList(m.worstTradePnls);
 
-  const stockSummary = slot.stock_summary && typeof slot.stock_summary === 'object'
-    ? slot.stock_summary
-    : {};
-  const stockCount = Object.keys(stockSummary).length;
-
-  const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
-  const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
-  const skippedStockStatus = num('skipped_stock_status');
-  const skippedBuyParticipationRaw = num('skipped_buy_participation');
-  const skippedSellParticipationRaw = num('skipped_sell_participation');
-  const clippedBuyParticipationRaw = num('clipped_buy_participation');
-  const clippedSellParticipationRaw = num('clipped_sell_participation');
+  const skippedBuyAtLimitUp = num('skippedBuyAtLimitUp');
+  const skippedSellAtLimitDown = num('skippedSellAtLimitDown');
+  const skippedStockStatus = num('skippedStockStatus');
+  const skippedBuyParticipation = num('skippedBuyParticipation');
+  const skippedSellParticipation = num('skippedSellParticipation');
+  const clippedBuyParticipation = num('clippedBuyParticipation');
+  const clippedSellParticipation = num('clippedSellParticipation');
   const executionSkipsOk = [
     skippedBuyAtLimitUp,
     skippedSellAtLimitDown,
@@ -368,18 +360,18 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     lossTrades: Math.round(lossTrades),
     winRatePct: Number(winRatePct.toFixed(2)),
     avgPnlPerTrade: Number.isFinite(avgPnlPerTrade) ? Number(avgPnlPerTrade.toFixed(2)) : NaN,
-    avgOpenPositions: num('average_open_positions'),
-    peakPositions: num('peak_open_positions'),
-    fullExposureDaysRatio: num('full_exposure_days_ratio_pct'),
-    avgCashRatio: num('average_cash_ratio_pct'),
-    capitalUtilizationRatio: num('capital_utilization_ratio_pct'),
-    maxLossStreak: num('max_consecutive_losing_sells'),
-    maxDrawdownDurationDays: num('max_drawdown_duration_days'),
+    avgOpenPositions: num('avgOpenPositions'),
+    peakPositions: num('peakPositions'),
+    fullExposureDaysRatio: num('fullExposureDaysRatio'),
+    avgCashRatio: num('avgCashRatio'),
+    capitalUtilizationRatio: num('capitalUtilizationRatio'),
+    maxLossStreak: num('maxLossStreak'),
+    maxDrawdownDurationDays: num('maxDrawdownDurationDays'),
     worstTradePnls: worstTradePnls.slice(0, 3),
-    stockCount,
-    avgTradesPerStock: num('average_trades_per_stock'),
-    top5ContributionRatio: num('top5_profit_concentration_pct'),
-    stockPnlCv: num('stock_profit_coefficient_of_variation'),
+    stockCount: num('stockCount'),
+    avgTradesPerStock: num('avgTradesPerStock'),
+    top5ContributionRatio: num('top5ContributionRatio'),
+    stockPnlCv: num('stockPnlCv'),
     equityCurveLabels,
     equityCurveValues,
     drawdownCurveValues,
@@ -388,17 +380,17 @@ export function normalizeCapitalMetricsFromSummary(slot) {
       ? Math.round(skippedSellAtLimitDown)
       : 0,
     skippedStockStatus: Number.isFinite(skippedStockStatus) ? Math.round(skippedStockStatus) : 0,
-    skippedBuyParticipation: Number.isFinite(skippedBuyParticipationRaw)
-      ? Math.round(skippedBuyParticipationRaw)
+    skippedBuyParticipation: Number.isFinite(skippedBuyParticipation)
+      ? Math.round(skippedBuyParticipation)
       : 0,
-    skippedSellParticipation: Number.isFinite(skippedSellParticipationRaw)
-      ? Math.round(skippedSellParticipationRaw)
+    skippedSellParticipation: Number.isFinite(skippedSellParticipation)
+      ? Math.round(skippedSellParticipation)
       : 0,
-    clippedBuyParticipation: Number.isFinite(clippedBuyParticipationRaw)
-      ? Math.round(clippedBuyParticipationRaw)
+    clippedBuyParticipation: Number.isFinite(clippedBuyParticipation)
+      ? Math.round(clippedBuyParticipation)
       : 0,
-    clippedSellParticipation: Number.isFinite(clippedSellParticipationRaw)
-      ? Math.round(clippedSellParticipationRaw)
+    clippedSellParticipation: Number.isFinite(clippedSellParticipation)
+      ? Math.round(clippedSellParticipation)
       : 0,
     _availability: {
       executionSkips: executionSkipsOk,

@@ -1,0 +1,18 @@
+name: infra.trace
+version: 0.1.0
+compatible_core_versions: ">=0.4.4"
+description: "使用追踪模块：追踪一些重要事件的模块，用于改善用户体验，统计分析错误的模块。"
+dependencies:
+  - infra.project_context
+  - infra.machine_capacity
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 提供trace.track()用于立刻上报重要事件（失败入队重试）
+      - 提供trace.queue()用于仅写入本地队列
+      - 提供trace.send()用于按预算发送本地队列
+      - 提供trace.config()用于配置追踪相关参数

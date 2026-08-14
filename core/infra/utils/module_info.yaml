@@ -1,0 +1,16 @@
+name: infra.utils
+version: 0.2.0
+compatible_core_versions: ">=0.4.4"
+description: "工具函数模块：提供一些通用的业务无关的工具函数。例如日期处理，类型转换，CSV/归档 IO，确定性随机，Markdown 模版填充等等。"
+dependencies: []
+changelog:
+  - version: "0.2.0"
+    changes:
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 从 core/utils 迁入 core/infra/utils（无兼容层）
+      - 导出 DateUtils、Utils、deterministic_unit_float；io.csv_io / io.file_io
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

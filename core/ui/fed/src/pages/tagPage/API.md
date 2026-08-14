@@ -1,10 +1,10 @@
 # Tag 控制台 API（T1）
 
-本文档描述 Tag 列表与运行（MVP）的 BFF 契约。实现编排见 `core/ui/bff/APIs/tag/ROUTES_ORCHESTRATION.md`。
+本文档描述 Tag 列表与运行（MVP）的 BFF 契约。实现编排见 `core/bff/docs/routes/tag.md`。
 
 ## HTTP 前缀
 
-- BFF 蓝图前缀 **`/api`**（`core/ui/bff/app.py`）。
+- BFF 蓝图前缀 **`/api`**（`core/bff/app.py`）。
 - 下文路径省略 `/api` 时，完整 URL 仍为 **`/api/v1/...`**。
 - **「T1-xx」** 为本契约接口族编号；路径中的 **`/v1/`** 为 REST 版本段。
 
@@ -17,8 +17,8 @@
 
 ### BFF 边界
 
-- BFF **不做** tag 业务缓存决策；是否 incremental、是否写库由 **TagManager / 引擎** 决定。
-- BFF 职责：HTTP 校验、调用 discovery / TagManager、维护 **单进程 tag run 编排**（job 文件或内存 + 后台线程），统一 `ok` / `error` 信封。
+- BFF **不做** tag 业务缓存决策；是否 incremental、是否写库由 **`Tag` / 引擎**（含 settings `is_dry_run`）决定。
+- BFF 职责：HTTP 校验、调用 **`TagCatalog` / `TagRunLauncher`**（BFF helpers / runner 薄壳；进度经 core `TagRunProgress`）、维护 **单进程 tag run 编排**，统一 `ok` / `error` 信封。
 
 ## API 清单（T1 — MVP）
 
@@ -36,7 +36,7 @@
 | 层 | 机制 | HTTP |
 |----|------|------|
 | Tag ↔ Tag | BFF tag run 锁；FED 跑一个 disable 其余 | T1-02 重复 → **409** |
-| 全局 pipeline | `.ntq/runtime/pipeline_active.json` 租约 | T1-00 `busy`；T1-02 冲突 → **409** |
+| 全局长任务互斥 | `.ntq/runtime/task_guard_active.json`（`TaskGuard`） | T1-00 `busy`；T1-02 冲突 → **409** |
 
 FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `busy && kind !== tag_run` 时 disable 所有运行按钮。
 
@@ -65,7 +65,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 }
 ```
 
-与 strategy / scan BFF 一致（`core/ui/bff/shared/response.py`）。
+与 strategy / scan BFF 一致（`core/bff/shared/response.py`）。
 
 ### 分页（T1-01）
 
@@ -115,13 +115,13 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 }
 ```
 
-**实现**：`core/infra/system_actions/cache_cleanup/pipeline_lease.py`；Tag MVP 至少写入/释放 `kind=tag_run`；Strategy scan/run、renew 后续接入同一 acquire/release。
+**实现**：`core/infra/task_guard`（`TaskGuard` / `TaskLease`）；Tag MVP 至少写入/释放 `kind=tag_run`；Strategy scan/run、renew 后续接入同一 acquire/release。路径文件：`userspace/.ntq/runtime/task_guard_active.json`。HTTP 仍为历史路径 `GET /runtime/pipeline`。
 
 ---
 
 ### T1-01 `GET /tags/list`
 
-**语义**：返回 userspace 下通过 `TagDiscoveryHelper.discover_tags()` 发现的 scenario 摘要，并合并 tag DB 侧可选元数据（最后计算日期等）。
+**语义**：返回 userspace 下通过 discovery 发现的 scenario 摘要（`TagCatalog.fetch_page`），并合并 tag DB 侧可选元数据（最后计算日期等）。
 
 **Query**
 
@@ -139,7 +139,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 | `is_enabled` | boolean | settings 顶层 `is_enabled` |
 | `description` | string | `meta.description`，可空 |
 | `tag_definitions` | array | settings `tags[]` 摘要，见下表 |
-| `last_computed_as_of` | string \| null | **列表「最后更新」主字段**：`sys_tag_value` 上该 scenario 的 **MAX(as_of_date)**，统一 **8 位 `YYYYMMDD`**；从未计算为 `null`（见 `tag_service.get_max_as_of_date`） |
+| `last_computed_as_of` | string \| null | **列表「最后计算至」**：`sys_tag_calc_progress` 上该 scenario 各实体 `last_calculated_end` 的 **最小值**（保守水位；**不是** `MAX(as_of)`）。统一 **8 位 `YYYYMMDD`**；从未写过 progress 为 `null` |
 | `scenario_updated_at` | string \| null | `sys_tag_scenario.updated_at`（ISO）；**仅元数据/registry 变更**，增量计算不写；DuckDB 下常等于创建时间，勿当作计算完成时间 |
 | `execution_mode` | string | `calculation.execution_mode` 规范化值（如 `entity_timeline`、`calendar_slice`）；仅展示，MVP 不可改 |
 | `update_mode` | string | `calculation.update_mode`：`incremental` \| `refresh`（默认 `incremental`） |
@@ -189,7 +189,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 
 ### T1-02 `POST /tag/<path:tag_key>/run`
 
-**语义**：在后台启动 **单个** scenario 的 `TagManager.execute(scenario_name=tag_key)`（或等价 BED 入口）。MVP **不支持** body 内联 settings。
+**语义**：在后台启动 **单个** scenario 的 `Tag().execute(scenario_name=tag_key)`（经 `TagRunLauncher.trigger`）。MVP **不支持** body 内联 settings。
 
 **请求体**
 

@@ -4,7 +4,7 @@ data_shibor 表 Model
 上海银行间同业拆放利率。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.macro.shibor.schema import schema as _schema
 
 

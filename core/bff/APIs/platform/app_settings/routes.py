@@ -1,0 +1,136 @@
+"""App settings routes (userspace database config, etc.)."""
+
+from __future__ import annotations
+
+from flask import Blueprint, request
+
+from core.bff.shared.response import error, ok
+
+from . import service as settings_service
+
+settings_api_bp = Blueprint("settings_api", __name__)
+
+
+@settings_api_bp.route("/v1/settings/database", methods=["GET"])
+def get_database_settings():
+    """读取合并后的当前库类型与库名（与 ``ProjectContext.config.load_database_config`` 一致）。"""
+    return ok(settings_service.get_database_settings())
+
+
+@settings_api_bp.route("/v1/settings/database", methods=["POST"])
+def post_database_settings():
+    """写入 ``userspace/config/database/common.json`` 与 ``{type}.json``。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_database_settings(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/settings/data", methods=["GET"])
+def get_data_settings():
+    """读取合并后的 data.json 关键字段（default_start_date / as-of / 样本池）。"""
+    return ok(settings_service.get_data_settings())
+
+
+@settings_api_bp.route("/v1/settings/data", methods=["POST"])
+def post_data_settings():
+    """写入 ``userspace/config/data.json`` 中的数据范围字段。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_data_settings(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/settings/cache/clear", methods=["POST"])
+def post_cache_clear():
+    """按勾选项清理 userspace 缓存；长任务忙时返回 409。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+
+    out = settings_service.run_cache_clear(payload)
+    if not out.get("ok"):
+        err = str(out.get("error") or "清理失败")
+        if err == "nothing_selected":
+            return error("请至少选择一项缓存", 400)
+        if err == "task_busy":
+            label = str(out.get("label") or "").strip()
+            msg = f"当前有任务进行中，请稍后再试{('：' + label) if label else ''}"
+            return error(msg, 409)
+        return error(err, 400)
+    return ok({"cleared": True, "message": str(out.get("message") or "缓存已经全部清理")})
+
+
+@settings_api_bp.route("/v1/settings/trace", methods=["GET"])
+def get_trace_settings():
+    """读取使用统计（匿名遥测）同意状态。"""
+    return ok(settings_service.get_trace_settings())
+
+
+@settings_api_bp.route("/v1/settings/trace", methods=["POST"])
+def post_trace_settings():
+    """写入使用统计同意（``enabled`` 布尔值）。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_trace_settings(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/settings/feedback", methods=["GET"])
+def get_feedback_settings():
+    """读取应用内反馈弹窗偏好（与 Trace.consent 无关）。"""
+    return ok(settings_service.get_feedback_settings())
+
+
+@settings_api_bp.route("/v1/settings/feedback", methods=["POST"])
+def post_feedback_settings():
+    """写入是否关闭反馈弹窗（``prompts_disabled``）。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_feedback_settings(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/feedback/task-success", methods=["POST"])
+def post_feedback_task_success():
+    """任务成功后记录一次；可能返回 should_prompt。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+    return ok(settings_service.note_feedback_task_success(payload))
+
+
+@settings_api_bp.route("/v1/feedback", methods=["POST"])
+def post_feedback_submit():
+    """用户主动提交 thumbs + 可选短文（无需 Trace consent）。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.submit_feedback(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/feedback/prompt", methods=["POST"])
+def post_feedback_prompt_action():
+    """弹窗动作：snooze / disable。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.feedback_prompt_action(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)

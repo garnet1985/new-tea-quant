@@ -1,0 +1,62 @@
+"""
+Backtest Engine - Slice-based Executor (DuckDB Branch)
+
+DuckDB ProcessPool scope wrapper; execution delegates to ``SliceExecutor``.
+"""
+from __future__ import annotations
+
+from typing import Any, List, Optional
+
+from core.modules.backtest_engine.core.shared.context import ExecutionContext
+from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
+    execute_with_duckdb_process_pool_scope,
+)
+from core.modules.backtest_engine.core.shared.types import (
+    LoadPerEntityWindowFn,
+)
+from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
+from core.modules.backtest_engine.core.schedule.slice_based.planner import (
+    SliceDispatchPlan,
+    SliceJobBatch,
+)
+
+
+class SliceExecutorDuckDB(SliceExecutor):
+    """Slice executor + DuckDB ProcessPool scope."""
+
+    @staticmethod
+    def execute(
+        plan: SliceDispatchPlan,
+        batches: List[SliceJobBatch],
+        context: ExecutionContext,
+        execute_fn: SliceExecutor.ExecuteFn,
+        on_result: Optional[SliceExecutor.OnResultHook] = None,
+        log_label: str = "切片执行",
+        *,
+        data_mgr: Optional[Any] = None,
+        progress_reporter: Optional[Any] = None,
+        load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
+        duckdb_process_pool_scope: str = "auto",
+        duckdb_resume_main_after_pool: bool = True,
+    ) -> SliceExecutor.ExecutionResult:
+        # R>0: readers use RO DuckDB in child processes → release main lock.
+        # R=0: sync loads on main → keep main DuckDB alive.
+        use_process_pool = int(getattr(plan, "reader_workers", 0) or 0) > 0
+        return execute_with_duckdb_process_pool_scope(
+            SliceExecutor.execute,
+            data_mgr=data_mgr,
+            duckdb_process_pool_scope=duckdb_process_pool_scope,
+            duckdb_resume_main_after_pool=duckdb_resume_main_after_pool,
+            use_process_pool=use_process_pool,
+            plan=plan,
+            batches=batches,
+            context=context,
+            execute_fn=execute_fn,
+            on_result=on_result,
+            log_label=log_label,
+            progress_reporter=progress_reporter,
+            load_per_entity_window=load_per_entity_window,
+        )
+
+
+__all__ = ["SliceExecutorDuckDB"]

@@ -1,23 +1,31 @@
 /** 与 ``sortMappedPriceRows`` 字段一致；仅用于首屏默认顺序 */
 export const PRICE_REF_DEFAULT_SORT = { sortBy: 'avg_roi', order: 'desc' };
 
-/** 价格回测 ``0_stock_ref.json`` 逐股条目（snake_case）。 */
+/** 价格回测逐股 ref（``entity_list.json``，snake_case）。 */
 export function mapPriceStockRefToRows(stockRef) {
   if (!stockRef || typeof stockRef !== 'object') return [];
   return Object.entries(stockRef).map(([code, v]) => {
     const row = v && typeof v === 'object' ? v : {};
     const avgRoiRaw = Number(row.avg_roi ?? 0);
-    const avgRoi = Number.isFinite(avgRoiRaw) && Math.abs(avgRoiRaw) < 1
+    const avgRoiPct = Number.isFinite(avgRoiRaw) && Math.abs(avgRoiRaw) < 1
       ? avgRoiRaw * 100
       : avgRoiRaw;
+    // Kill float dust (e.g. 97.33000000000001) at row ingress — same as metrics normalize.
+    const avgRoi = Number.isFinite(avgRoiPct) ? Number(avgRoiPct.toFixed(2)) : 0;
     return {
       id: String(code),
       stockCode: String(code),
       stockName: String(row.stock_name || code),
-      winRate: Number(row.win_rate ?? 0),
-      avgRoi: Number.isFinite(avgRoi) ? avgRoi : 0,
-      avgDurationDays: Number(row.avg_duration_in_days ?? 0),
-      expirationRatio: Number(row.expiration_ratio ?? 0),
+      winRate: Number.isFinite(Number(row.win_rate))
+        ? Number(Number(row.win_rate).toFixed(1))
+        : 0,
+      avgRoi,
+      avgDurationDays: Number.isFinite(Number(row.avg_duration_in_days))
+        ? Number(Number(row.avg_duration_in_days).toFixed(1))
+        : 0,
+      expirationRatio: Number.isFinite(Number(row.expiration_ratio))
+        ? Number(Number(row.expiration_ratio).toFixed(1))
+        : 0,
       totalInvestments: Number(row.total_investments ?? 0),
     };
   });

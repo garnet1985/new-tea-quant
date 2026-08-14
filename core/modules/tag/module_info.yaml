@@ -1,31 +1,47 @@
 name: modules.tag
-version: 0.3.1
-compatible_core_versions: ">=0.4.0"
-description: "标签资产层：按场景（Scenario）发现配置、多进程执行 TagWorker，基于 DataContract + DataCursor 按 as_of 切片计算并批量落库。"
+version: "0.4.0"
+compatible_core_versions: ">=0.4.4"
+description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。UI catalog/run 在 BFF；进度落盘 TagRunProgress。"
 dependencies:
   - modules.data_manager
   - modules.data_contract
-  - modules.data_cursor
+  - modules.backtest_engine
+  - modules.strategy
   - infra.project_context
-  - infra.worker
-  - infra.job_pipeline
+  - infra.discovery
+  - infra.utils
+  - infra.trace
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 提供更多API防止外部模块直接调用包内非公开接口
+  - version: "0.3.2"
+    changes:
+      - 更好地支持非时序数据的标签计算（不走回测引擎）
   - version: "0.3.1"
     changes:
-      - 增强tag的profiler，帮助性能测试收集必要的数据
-      - 新增 dry-run 模式：运行计算但不写入数据库
-      - 加入data cursor计算到calendar_slice模式中，让回测速度提高6-9倍
+      - 引入新的数据契约，使用契约内的数据游标，让贴标签速度提高6-9倍
   - version: "0.3.0"
     changes:
-      - 支持sliced块状切片
-      - engines 目录重组：shared / timeline / sliced + router
-      - TagManager 精简为发现与调度入口
-      - Tag calendar_slice 一等 API on_calendar_asof + carry + entity_tags fan-out
-      - Tag 控制台 launcher + BFF（T1-00…03）；全局 pipeline 租约
+      - 迁移到backtest engine，淘汰老的标签模块
+      - 支持切片运行（因为回测引擎支持了）
+      - 支持dry-run模式，只计算不入库
+      - 加入profiler收集运行的性能数据
+      - 移除 JobPipeline，不再需要单独的job调度器
   - version: "0.2.1"
     changes:
-      - Tag 调度并行度改读 job_pipeline profile（tag profile）
-      - dispatch 调优文档与 JobPipeline worker_profile 对齐
+      - 支持交易日历推进
+      - 支持UI显示，增加了BFF launcher
   - version: "0.2.0"
     changes:
-      - Scenario 发现、TagWorker 多进程、DataContract + DataCursor as_of 切片落库
+      - Tag 调度集成 job_pipeline
+      - 优化文档
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 场景（Scenario） 发现
+      - TagWorker 多进程
+      - 支持增量式标签计算

@@ -1,11 +1,18 @@
 name: modules.adapter
-version: 0.2.0
-compatible_core_versions: ">=0.2.0"
-description: "策略 Scanner 扫描结果的后续处理：基类、userspace 动态加载约定、校验与历史模拟统计加载（HistoryLoader）。"
+version: "0.2.0"
+compatible_core_versions: ">=0.4.4"
+description: "适配器模块：对策略模块扫描出的机会进行后续操作的扩展模块。"
 dependencies:
-  - modules.strategy
+  - infra.project_context
 changelog:
   - version: "0.2.0"
     changes:
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 将history loader功能并入strategy模块
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
       - Scanner adapter 发现与 console 等 userspace 扩展点
       - HistoryLoader 读取策略历史模拟统计

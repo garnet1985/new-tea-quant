@@ -1,0 +1,61 @@
+# Strategy 术语表
+# Version: 0.6.0
+
+terms:
+  Facade:
+    definition: "对外统一入口类。本模块门面是 Strategy。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.engines.* / core.services.*（跨模块优先 Facade）"
+
+  Strategy:
+    definition: "策略执行 Facade：scan / simulate（enumerate·price_factor·portfolio）/ analyze / discovery 列表。"
+    aliases: []
+    avoid: []
+
+  simulate:
+    definition: "统一模拟入口：指纹 → 缓存槽 → Pipeline；enumerate/price_factor/portfolio 为其薄封装。"
+    aliases:
+      - "回测步骤"
+    avoid:
+      - "simulate(kind=full)（暂不支持）"
+
+  SimulateKind:
+    definition: "模拟子步骤枚举：enumerate / price_factor / portfolio / full；从 contracts 导入。"
+    aliases: []
+    avoid: []
+
+  Opportunity:
+    definition: "扫描/枚举命中的交易机会数据类；从 contracts 导入。"
+    aliases: []
+    avoid: []
+
+  Investment:
+    definition: "价格因子/组合路径上的投资记录数据类；从 contracts 导入。"
+    aliases: []
+    avoid: []
+
+  StrategyHooks:
+    definition: "userspace 策略钩子基类契约；从 contracts 导入，勿从 core.hooks 深引。"
+    aliases:
+      - "用户钩子"
+    avoid:
+      - "core.modules.strategy.core.hooks（作者路径）"
+
+  StrategyContext:
+    definition: "钩子侧数据视图；从 contracts 导入。"
+    aliases: []
+    avoid: []
+
+  Enumerator:
+    definition: "枚举引擎：entity_based / slice_based，经 BacktestEngine RunCallbacks 推进。"
+    aliases:
+      - "枚举器"
+    avoid:
+      - "TimelineBuilder（禁止在 strategy 侧引入）"
+
+  WorkbenchStep:
+    definition: "工作台三步 enum / price / portfolio；与 SimulateKind 互转；从 contracts 导入。"
+    aliases: []
+    avoid: []

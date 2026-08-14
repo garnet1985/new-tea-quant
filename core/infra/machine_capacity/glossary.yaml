@@ -1,0 +1,82 @@
+# Machine Capacity 术语表
+# Version: 0.2.0
+
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
+
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 MachineInfo。"
+    aliases:
+      - "门面"
+    avoid:
+      - "把 MachineInfo 再 export 到业务模块空壳"
+
+  MachineInfo:
+    definition: "本模块门面类；从 performance 解析容量与可用 worker。"
+    aliases: []
+    avoid: []
+
+  MachineCapacity:
+    definition: "机器容量快照（冻结 dataclass）；从 contracts 导入，或经 MachineInfo.types。"
+    aliases:
+      - "MachineInfo.types.MachineCapacity"
+    avoid:
+      - "from core.infra.machine_capacity import MachineCapacity"
+
+  performance:
+    definition: "调度性能配置字典；本模块读取 reserve_cores / memory_budget_mb / memory_floor_mb / worker_memory_fraction 等键。"
+    aliases: []
+    avoid:
+      - "main_process_reserve_mb（已移除）"
+      - "dispatch_memory_budget_mb（已移除，只用 memory_budget_mb）"
+
+  memory_budget_mb:
+    definition: "可分配给 worker 池的内存预算（MB）；可为 auto。"
+    aliases: []
+    avoid: []
+
+  memory_floor_mb:
+    definition: "机器必须保留的空闲内存底线（MB），不参与 worker 预算；可为 auto。"
+    aliases: []
+    avoid: []
+
+  reserve_cores:
+    definition: "为系统/主进程预留的逻辑核数。"
+    aliases: []
+    avoid: []
+
+  worker_memory_fraction:
+    definition: "auto 预算时，(available − floor) 中分给 worker 的比例；默认 0.85，夹在 0.1–1.0。"
+    aliases: []
+    avoid: []
+
+  available_workers:
+    definition: "可用 worker 数 = max(1, cpu_count − reserve_cores)。"
+    aliases:
+      - "get_available_workers"
+    avoid: []
+
+  worker_pool_budget_mb:
+    definition: "进程池可用的内存预算（MB）；对 capacity.memory_budget_mb 做至少 1 的夹紧。"
+    aliases: []
+    avoid: []
+
+  virtual_memory_mb:
+    definition: "本机 (total_mb, available_mb)；依赖可选 psutil，缺失或失败时返回 (None, None) 并走内置 fallback。"
+    aliases:
+      - "psutil fallback"
+    avoid:
+      - "MachineInfo._virtual_memory_mb（已改为公开 virtual_memory_mb）"
+
+  disk_type:
+    definition: "路径所在卷介质：ssd / hdd / unknown；由 MachineInfo.get_disk_type 探测。"
+    aliases:
+      - "get_disk_type"
+      - "ssd"
+      - "hdd"
+    avoid:
+      - "把磁盘序列号或设备路径上报到 Trace"

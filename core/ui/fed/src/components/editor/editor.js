@@ -4,6 +4,7 @@ import {
   DateField,
   DateRangeField,
   DictParserField,
+  DividerField,
   FieldCollectionField,
   FieldGroupField,
   FeesOverrideField,
@@ -18,6 +19,10 @@ function renderNode(node, value, onChange, errors, emitChangeMeta, context) {
   if (!node) return null;
   if (node.type === 'section') {
     return <SectionField node={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} renderNode={renderNode} context={context} />;
+  }
+
+  if (node.type === 'divider') {
+    return <DividerField node={node} />;
   }
 
   if (node.type === 'fieldGroup') {

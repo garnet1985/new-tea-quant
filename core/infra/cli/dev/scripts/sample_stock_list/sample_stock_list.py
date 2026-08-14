@@ -1,0 +1,170 @@
+"""分层抽样样本名单：生成 dev CSV、写入 data.json、清除（供 devcli 调用）。"""
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+from typing import Tuple
+
+from core.infra.project_context import ProjectContext
+from core.infra.utils import Utils
+from core.modules.data_manager import DataManager
+from core.infra.setup.core.scripts.init_data.config import (
+    LIST_STATUS_LABELS,
+    MIN_PER_STRATUM,
+    SAMPLE_RANDOM_SEED,
+)
+from core.infra.setup.core.scripts.init_data.stock_pool import (
+    SamplingReport,
+    load_stock_universe,
+    log_sampling_report,
+    sample_stratified_stock_pool,
+)
+
+logger = logging.getLogger(__name__)
+
+_DATA_JSON = ProjectContext.path.get_user_config_root() / "data.json"
+_POOL_KEY = "use_sample_stock_list"
+
+
+class SampleStockList:
+    """开发用分层抽样样本名单（``devcli.py ssp`` / ``pc``）。"""
+
+    @staticmethod
+    def _invalidate_cache() -> None:
+        DataManager.sample_universe.invalidate_cache()
+
+    @staticmethod
+    def _csv_path(count: int) -> Path:
+        return DataManager.sample_universe.csv_path(count)
+
+    @staticmethod
+    def _read_data_json() -> dict:
+        if not _DATA_JSON.is_file():
+            return {}
+        return json.loads(_DATA_JSON.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _write_data_json(payload: dict) -> None:
+        _DATA_JSON.parent.mkdir(parents=True, exist_ok=True)
+        _DATA_JSON.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    @classmethod
+    def set_flag(cls, count: int | None) -> None:
+        data = cls._read_data_json()
+        if count is None:
+            data.pop(_POOL_KEY, None)
+        else:
+            data[_POOL_KEY] = int(count)
+        cls._write_data_json(data)
+        cls._invalidate_cache()
+
+    @staticmethod
+    def _rows_for_ids(universe, stock_ids):
+        by_id = {r.stock_id: r for r in universe}
+        rows = []
+        for sid in stock_ids:
+            row = by_id.get(sid)
+            if row is None:
+                continue
+            rows.append(
+                {
+                    "id": row.stock_id,
+                    "list_status": row.list_status,
+                    "board": row.board,
+                    "market": row.market,
+                }
+            )
+        return rows
+
+    @classmethod
+    def generate(
+        cls,
+        *,
+        count: int,
+        seed: int = SAMPLE_RANDOM_SEED,
+        output: Path | None = None,
+        verbose: bool = False,
+    ) -> Tuple[Path, list[str], SamplingReport]:
+        if count <= 0:
+            raise ValueError("count 须为正整数")
+
+        level = logging.INFO if verbose else logging.WARNING
+        logging.basicConfig(level=level, format="%(levelname)s %(message)s", force=True)
+
+        dm = DataManager(is_verbose=False)
+        dm.initialize()
+        if not dm.db:
+            raise RuntimeError("数据库不可用")
+
+        universe = load_stock_universe(dm)
+        stock_ids, report = sample_stratified_stock_pool(
+            universe,
+            target_n=count,
+            seed=seed,
+            min_per_stratum=MIN_PER_STRATUM,
+        )
+        log_sampling_report(report, status_labels=LIST_STATUS_LABELS)
+
+        out = Path(output) if output else cls._csv_path(count)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        rows = cls._rows_for_ids(universe, stock_ids)
+        Utils.io.write_dicts_to_csv(
+            out,
+            rows,
+            preferred_order=["id", "list_status", "board", "market"],
+        )
+
+        meta_path = out.with_suffix(".meta.json")
+        meta = {
+            "sample_size": len(stock_ids),
+            "target_n": count,
+            "seed": seed,
+            "stratification": "list_status × board × market",
+            "universe_size": report.universe_size,
+            "status_counts_universe": report.status_counts_universe,
+            "status_counts_sample": report.status_counts_sample,
+            "strata": report.stratum_rows,
+            "use_sample_stock_list": count,
+            "dev_pool_file": str(out),
+        }
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        ids_path = out.with_suffix(".ids.txt")
+        ids_path.write_text("\n".join(stock_ids) + "\n", encoding="utf-8")
+
+        logger.info("已写入 %s (%d 只)", out, len(rows))
+        return out, stock_ids, report
+
+    @classmethod
+    def activate(
+        cls,
+        count: int,
+        *,
+        seed: int = SAMPLE_RANDOM_SEED,
+        verbose: bool = False,
+    ) -> int:
+        csv_path, stock_ids, _report = cls.generate(
+            count=count,
+            seed=seed,
+            verbose=verbose,
+        )
+        cls.set_flag(count)
+        print(f"样本名单已写入 data.json: {len(stock_ids)} 只", flush=True)
+        print(f"  dev 名单: {csv_path}", flush=True)
+        print(f"  use_sample_stock_list: {count}", flush=True)
+        print("renew 将仅处理名单内股票，并在 stock_list 入库后 prune 名单外数据。", flush=True)
+        return 0
+
+    @classmethod
+    def deactivate(cls) -> int:
+        had = _POOL_KEY in cls._read_data_json()
+        cls.set_flag(None)
+        if had:
+            print("已清除 data.json 的 use_sample_stock_list；renew 恢复全量 stock_list。", flush=True)
+        else:
+            print("data.json 未配置 use_sample_stock_list（已是全量模式）。", flush=True)
+        return 0

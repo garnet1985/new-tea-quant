@@ -28,13 +28,17 @@ import {
   fetchStrategyScanProgress,
   fetchStrategyScanReadiness,
   getStrategyDisplayLabel,
-  getStrategyWorkbenchPath,
+  getStrategyDesignPath,
+  groupStrategiesByCategory,
   startStrategyScan,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
+import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
+import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
+import { notifyTaskSuccess } from '../../utils/feedbackPromptBus';
 import './scanPage.scss';
 
 const SHOW_REPORT_GENERATED_AT = false;
@@ -55,6 +59,7 @@ function ScanPage() {
   const [demoScanCutoffDate, setDemoScanCutoffDate] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [readinessLoading, setReadinessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   const [runningStrategyId, setRunningStrategyId] = useState('');
@@ -72,12 +77,19 @@ function ScanPage() {
 
   /** run | rerun — 与 GET …/scan 的 `primary_action` 对齐，仅影响按钮文案 */
   const [scanPrimaryById, setScanPrimaryById] = useState({});
+  /** 严格模式数据门禁：策略 id → 是否可扫 / 阻断原因 */
+  const [scanGateById, setScanGateById] = useState({});
+  const [strictBlockReason, setStrictBlockReason] = useState('');
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStrategyId, setDetailStrategyId] = useState('');
 
   const pollRef = useRef({ timeoutId: null });
+  const readinessReqRef = useRef(0);
   const running = Boolean(runningStrategyId) && Boolean(runningJobId);
+  /** 列表加载，或（非扫描中的）readiness 校验；扫描中不挡进度条 */
+  const gridLoading = loading || (readinessLoading && !running);
+  const pageBusy = loading || readinessLoading;
 
   const reportPayload = useMemo(() => results?.[reportStrategyId] || null, [results, reportStrategyId]);
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
@@ -86,9 +98,12 @@ function ScanPage() {
     const row = rows.find((r) => r.id === detailStrategyId);
     return getStrategyDisplayLabel(row) || detailStrategyId;
   }, [detailStrategyId, rows]);
+  const groupedRows = useMemo(() => groupStrategiesByCategory(rows), [rows]);
 
   const load = useCallback(() => {
     setLoading(true);
+    setReadinessLoading(true);
+    readinessReqRef.current += 1;
     setLoadError('');
     Promise.all([
       fetchStrategyList(),
@@ -104,6 +119,7 @@ function ScanPage() {
         setDataEnd({});
         setDemoScanCutoffDate('');
         setLoadError(e?.message || '加载策略列表失败');
+        setReadinessLoading(false);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -116,40 +132,72 @@ function ScanPage() {
     return '—';
   }, [demoScanCutoffDate, dataEnd?.effective_end_date]);
 
-  const refreshScanPrimaryActions = useCallback(() => {
+  const refreshScanPrimaryActions = useCallback((options = {}) => {
+    const silent = Boolean(options.silent);
     const demo = mode === 'demo';
     const list = Array.isArray(rows) ? rows.filter((r) => r?.name) : [];
+    const reqId = readinessReqRef.current + 1;
+    readinessReqRef.current = reqId;
+    if (!silent) setReadinessLoading(true);
+
     if (list.length === 0) {
+      if (readinessReqRef.current !== reqId) return;
       setScanPrimaryById({});
+      setScanGateById({});
+      setStrictBlockReason('');
+      if (!silent) setReadinessLoading(false);
       return;
     }
+
     Promise.all(
       list.map((r) => fetchStrategyScanReadiness(r.name, { demo }).then((x) => ({
         id: r.id,
         action: x.primary_action === 'rerun' ? 'rerun' : 'run',
         report: x.report,
+        canScan: x.can_scan === true,
+        blockReason: String(x.block_reason || '').trim(),
       }))),
     )
       .then((pairs) => {
+        if (readinessReqRef.current !== reqId) return;
         const next = {};
-        pairs.forEach(({ id, action }) => {
+        const gates = {};
+        let sharedBlock = '';
+        pairs.forEach(({ id, action, canScan, blockReason }) => {
           next[id] = action;
+          gates[id] = { canScan, blockReason };
+          if (!demo && !sharedBlock && blockReason) sharedBlock = blockReason;
         });
         setScanPrimaryById(next);
+        setScanGateById(gates);
+        setStrictBlockReason(sharedBlock);
+        if (sharedBlock) setRunError('');
         setResults((prev) => {
           const o = { ...(prev || {}) };
           pairs.forEach(({ id, action, report }) => {
             if (report && typeof report === 'object') {
               o[id] = report;
             } else if (action === 'run') {
-              delete o[id];
+              // 未落盘才清空；保留内存中已有的合法 0 机会结果，避免闪回「—」
+              const existing = o[id];
+              const keptZero = existing
+                && typeof existing === 'object'
+                && Number.isFinite(Number(existing.total_opportunities ?? existing.totalOpportunities));
+              if (!keptZero) delete o[id];
             }
           });
           return o;
         });
       })
       .catch(() => {
+        if (readinessReqRef.current !== reqId) return;
         setScanPrimaryById({});
+        setScanGateById({});
+        setStrictBlockReason('');
+      })
+      .finally(() => {
+        if (readinessReqRef.current !== reqId) return;
+        if (!silent) setReadinessLoading(false);
       });
   }, [rows, mode]);
 
@@ -246,7 +294,9 @@ function ScanPage() {
         const id = params.row.id;
         const isThisRunning = running && id === runningStrategyId;
         const isRerun = scanPrimaryById[id] === 'rerun';
-        const disableRun = !enabled || running;
+        const gate = scanGateById[id] || {};
+        const blocked = mode === 'strict' && gate.canScan === false;
+        const disableRun = !enabled || running || blocked;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
             <Button
@@ -254,13 +304,15 @@ function ScanPage() {
               variant="contained"
               disabled={disableRun}
               title={
-                isRerun
-                  ? '将全量重新扫描并忽略已保存的扫描结果'
-                  : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描'
+                blocked
+                  ? (gate.blockReason || '严格模式数据未就绪，无法扫描')
+                  : (isRerun
+                    ? '将全量重新扫描并忽略已保存的扫描结果'
+                    : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描')
               }
               onClick={(e) => {
                 e.stopPropagation();
-                if (!enabled || running) return;
+                if (!enabled || running || blocked) return;
                 const force = isRerun || e.shiftKey;
                 setRunError('');
                 setReportVisible(false);
@@ -276,7 +328,14 @@ function ScanPage() {
                     setReportDemo(Boolean(res?.demo));
                   })
                   .catch((err) => {
-                    setRunError(err?.message || '启动扫描失败');
+                    const msg = err?.message || '启动扫描失败';
+                    // 严格门禁已有顶部提示时，不再重复打一条 error
+                    if (mode === 'strict' && (gate.blockReason || msg.includes('严格模式'))) {
+                      if (msg.includes('严格模式')) setStrictBlockReason(msg);
+                      setRunError('');
+                      return;
+                    }
+                    setRunError(msg);
                   });
               }}
             >
@@ -284,7 +343,8 @@ function ScanPage() {
             </Button>
             <Link
               component={RouterLink}
-              to={getStrategyWorkbenchPath(params.row.name)}
+              to={getStrategyDesignPath(params.row.name)}
+              state={buildStrategyDesignNavState(params.row)}
               underline="hover"
               onClick={(e) => e.stopPropagation()}
               sx={{ fontSize: 13 }}
@@ -300,7 +360,7 @@ function ScanPage() {
         );
       },
     },
-  ]), [mode, openDetail, progress.pct, results, running, runningStrategyId, scanPrimaryById]);
+  ]), [mode, openDetail, progress.pct, results, running, runningStrategyId, scanGateById, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -335,8 +395,9 @@ function ScanPage() {
             setRunningStrategyId('');
             setRunningJobId('');
             window.setTimeout(() => {
-              refreshScanPrimaryActions();
+              refreshScanPrimaryActions({ silent: true });
             }, 0);
+            notifyTaskSuccess('scan');
             return;
           }
           if (status === 'failed') {
@@ -376,9 +437,9 @@ function ScanPage() {
       )}
       bannerRightSlot={(
         <Chip
-          label={running ? '扫描中…' : '就绪'}
+          label={running ? '扫描中…' : (pageBusy ? '加载中…' : '就绪')}
           color={running ? 'warning' : 'default'}
-          variant={running ? 'filled' : 'outlined'}
+          variant={running || pageBusy ? 'filled' : 'outlined'}
         />
       )}
     >
@@ -389,10 +450,15 @@ function ScanPage() {
             <Typography variant="subtitle1" fontWeight={700}>扫描模式</Typography>
             <Typography variant="caption" color="text.secondary">接入数据服务后由服务端校验</Typography>
           </Stack>
-          <FormControl component="fieldset">
+          <FormControl component="fieldset" disabled={running}>
             <RadioGroup
               value={mode}
-              onChange={(e) => setMode(e.target.value)}
+              onChange={(e) => {
+                setMode(e.target.value);
+                setRunError('');
+                setStrictBlockReason('');
+                setReadinessLoading(true);
+              }}
               aria-label="扫描模式"
               className="scan-mode-options"
             >
@@ -423,8 +489,8 @@ function ScanPage() {
                     <Typography variant="body2" color="text.secondary">
                       以数据集中已有最新日期作为扫描截止日（当前：
                       {' '}
-                      <strong>{demoCutoffLabel}</strong>
-                      {dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
+                      <strong>{loading ? '…' : demoCutoffLabel}</strong>
+                      {!loading && dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
                       ），用于演示链路，不代表实时市场。
                     </Typography>
                   </Box>
@@ -453,7 +519,7 @@ function ScanPage() {
             <Stack direction="row" alignItems="center" spacing={1.25} flexWrap="wrap">
               <Button
                 variant="outlined"
-                disabled={running}
+                disabled={running || pageBusy}
                 onClick={load}
               >
                 刷新策略列表
@@ -466,7 +532,14 @@ function ScanPage() {
 
           {loadError ? <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert> : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
-          {runError ? <Alert severity="error" sx={{ mb: 1.5 }}>{runError}</Alert> : null}
+          {!gridLoading && mode === 'strict' && strictBlockReason ? (
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              {strictBlockReason}
+            </Alert>
+          ) : null}
+          {runError && runError !== strictBlockReason ? (
+            <Alert severity="error" sx={{ mb: 1.5 }}>{runError}</Alert>
+          ) : null}
 
           {running ? (
             <Box sx={{ mb: 1.5 }}>
@@ -481,29 +554,66 @@ function ScanPage() {
             </Box>
           ) : null}
 
-          <Box sx={{ width: '100%' }}>
-            <DataGrid
-              autoHeight
-              rows={rows}
-              columns={columns}
-              loading={loading}
-              getRowHeight={() => 'auto'}
-              slots={NTQ_DATA_GRID_LOADING_SLOTS}
-              localeText={zhCN}
-              disableRowSelectionOnClick
-              sx={{
-                '& .MuiDataGrid-cell': {
-                  py: 1.25,
-                  alignItems: 'flex-start',
-                  whiteSpace: 'normal',
-                  lineHeight: 1.5,
-                },
-              }}
-              pageSizeOptions={[10]}
-              initialState={{
-                pagination: { paginationModel: { page: 0, pageSize: 10 } },
-              }}
-            />
+          <Box sx={{ width: '100%', minHeight: gridLoading ? 160 : undefined }}>
+            {gridLoading ? (
+              <InlineLoadingState
+                block
+                compact
+                message={loading ? '正在加载策略列表…' : '正在校验扫描就绪状态…'}
+              />
+            ) : (
+              <Stack spacing={2.5}>
+                {groupedRows.map(({ category, rows: categoryRows }) => (
+                  <Box key={category}>
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        {category}
+                      </Typography>
+                      <Box
+                        component="span"
+                        aria-label={`${categoryRows.length} 个策略`}
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 22,
+                          height: 22,
+                          px: 0.75,
+                          borderRadius: '999px',
+                          boxSizing: 'border-box',
+                          fontSize: 12,
+                          lineHeight: 1,
+                          fontWeight: 600,
+                          color: 'rgba(255, 255, 255, 0.82)',
+                          bgcolor: 'rgba(255, 255, 255, 0.14)',
+                        }}
+                      >
+                        {categoryRows.length}
+                      </Box>
+                    </Stack>
+                    <DataGrid
+                      autoHeight
+                      rows={categoryRows}
+                      columns={columns}
+                      loading={false}
+                      getRowHeight={() => 'auto'}
+                      slots={NTQ_DATA_GRID_LOADING_SLOTS}
+                      localeText={zhCN}
+                      hideFooter
+                      disableRowSelectionOnClick
+                      sx={{
+                        '& .MuiDataGrid-cell': {
+                          py: 1.25,
+                          alignItems: 'flex-start',
+                          whiteSpace: 'normal',
+                          lineHeight: 1.5,
+                        },
+                      }}
+                    />
+                  </Box>
+                ))}
+              </Stack>
+            )}
           </Box>
         </CardContent>
       </Card>
@@ -616,7 +726,12 @@ function ScanPage() {
                       headerName: '触发价格',
                       minWidth: 120,
                       flex: 0.5,
-                      valueFormatter: (v) => (v?.value === '' || v?.value == null ? '—' : String(v.value)),
+                      valueFormatter: (v) => {
+                        const raw = v?.value;
+                        if (raw === '' || raw == null) return '—';
+                        const n = Number(raw);
+                        return Number.isFinite(n) ? n.toFixed(2) : String(raw);
+                      },
                     },
                     {
                       field: 'extra_fields',
@@ -626,7 +741,16 @@ function ScanPage() {
                       valueGetter: (params) => {
                         const v = params?.row?.extra_fields;
                         if (!v || (typeof v === 'object' && Object.keys(v).length === 0)) return '';
-                        return typeof v === 'string' ? v : JSON.stringify(v);
+                        if (typeof v === 'string') return v;
+                        const rounded = {};
+                        Object.entries(v).forEach(([k, val]) => {
+                          if (typeof val === 'number' && Number.isFinite(val)) {
+                            rounded[k] = Number(val.toFixed(2));
+                          } else {
+                            rounded[k] = val;
+                          }
+                        });
+                        return JSON.stringify(rounded);
                       },
                       renderCell: (params) => (
                         <Typography

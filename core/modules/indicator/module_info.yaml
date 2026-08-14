@@ -1,15 +1,20 @@
 name: modules.indicator
-version: 0.2.2
+version: "0.2.0"
 compatible_core_versions: ">=0.4.1"
-description: "技术指标计算：IndicatorService 作为 pandas-ta-classic 的代理，K 线 List[Dict] 与 DataFrame 互转，通用 calculate 与常用便捷方法。"
+description: "技术指标计算模块：使用pandas-ta-classic包提供技术指标计算服务，支持计算多种技术指标。"
 dependencies: []
 changelog:
-  - version: "0.2.2"
-    changes:
-      - 修改K线qfq的模拟算法，是误差更小，更贴近外部认可的数据来源
-  - version: "0.2.1"
-    changes:
-      - K 线指标计算路径优化（与 v0.3.3 core 性能改进对齐）
   - version: "0.2.0"
     changes:
-      - IndicatorService、pandas-ta-classic 代理与 AVAILABLE_INDICATORS 注册
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+  - version: "0.1.1"
+    changes:
+      - 使用了pandas-ta-classic的快捷指标计算入口，提高了计算效率
+      - 对数据格式进行优化，减少了数据转换的次数，提高了计算效率
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 集成pandas-ta-classic 计算指标
+      - 提供了 AVAILABLE_INDICATORS 文档，方便用户查看可用的指标

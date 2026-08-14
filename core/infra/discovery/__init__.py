@@ -1,28 +1,14 @@
-"""
-Discovery Module - 自动发现工具
+"""Discovery（``infra.discovery``）— 文件与类发现基础设施。
 
-提供通用的类、模块、配置自动发现功能。
+公开门面::
 
-使用场景：
-- 自动发现 Provider 类
-- 自动发现 Handler 类及其 Config
-- 自动发现 Strategy Worker 类
-- 自动发现 Adapter 类
-- 自动发现 Schema 定义
+    from core.infra.discovery import Discovery
+
+跨模块契约类型见 ``contracts``::
+
+    from core.infra.discovery.contracts import DiscoveryConfig, DiscoveryResult
 """
 
-from .class_discovery import (
-    ClassDiscovery,
-    DiscoveryConfig,
-    DiscoveryResult,
-    discover_subclasses
-)
-from .module_discovery import ModuleDiscovery
+from .discovery import Discovery
 
-__all__ = [
-    'ClassDiscovery',
-    'DiscoveryConfig',
-    'DiscoveryResult',
-    'ModuleDiscovery',
-    'discover_subclasses',
-]
+__all__ = ["Discovery"]

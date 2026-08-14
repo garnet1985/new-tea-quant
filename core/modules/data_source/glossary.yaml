@@ -1,0 +1,61 @@
+# Data Source 术语表
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "对外统一入口类。本模块门面是 DataSourceManager。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.service / core.catalog（优先包根 / contracts）"
+      - "from ...core.data_source_manager import DataSourceManager（优先包根）"
+
+  DataSourceManager:
+    definition: "数据源 Facade：mapping 发现、handler 构建、依赖拓扑执行与 renew。"
+    aliases:
+      - "data source manager"
+    avoid:
+      - "from ...data_source_manager import DataSourceManager（优先包根）"
+
+  BaseProvider:
+    definition: "外部 API Provider 基类；从 contracts.py 导入。"
+    aliases:
+      - "provider"
+    avoid: []
+
+  BaseHandler:
+    definition: "单数据源同步执行管线；从 contracts.py 导入。"
+    aliases:
+      - "handler"
+    avoid: []
+
+  ApiJob:
+    definition: "单次 API 抓取 job 描述；从 contracts.py 导入。"
+    aliases: []
+    avoid: []
+
+  ApiJobBundle:
+    definition: "一组 ApiJob 的执行与落库批次单元。"
+    aliases:
+      - "bundle"
+    avoid: []
+
+  DateRangeService:
+    definition: "基于 renew 配置计算 last_update 与实体抓取窗；委托 date_range_helper / RenewCommonHelper。"
+    aliases:
+      - "日期范围服务"
+    avoid:
+      - "RenewManager"
+      - "IncrementalRenewService / RollingRenewService / RefreshRenewService"
+
+  UpdateMode:
+    definition: "renew 模式：incremental / refresh / rolling（enums.UpdateMode）。"
+    aliases:
+      - "renew_mode"
+    avoid: []
+
+  DATA_SOURCES:
+    definition: "userspace mapping 中启用的数据源字典键集。"
+    aliases:
+      - "mapping"
+    avoid: []

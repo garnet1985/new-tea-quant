@@ -1,0 +1,96 @@
+# Project Context 术语表
+# Version: 0.2.0
+
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
+
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 ProjectContext。"
+    aliases:
+      - "门面"
+    avoid:
+      - "ProjectContextManager"
+      - "直接 import PathManager / ConfigManager"
+
+  ProjectContext:
+    definition: "本模块门面类；提供 path / config / meta / cache / discovery / types 命名空间。"
+    aliases: []
+    avoid:
+      - "from core.infra.project_context.core.path_manager import PathManager"
+
+  path:
+    definition: "PathNamespace：项目根、userspace 与语义目录路径（返回 pathlib.Path）。"
+    aliases:
+      - "PathNamespace"
+    avoid:
+      - "get_strategy_directory_simulation_*（已统一为 get_strategy_simulation_*_directory）"
+
+  config:
+    definition: "ConfigNamespace：默认配置与 userspace 覆盖的加载、合并与常用字段访问器。"
+    aliases:
+      - "ConfigNamespace"
+    avoid: []
+
+  meta:
+    definition: "MetaNamespace：读取 core_meta.json（可选回退 core.system）。"
+    aliases:
+      - "MetaNamespace"
+    avoid: []
+
+  cache:
+    definition: "CacheNamespace：清理 userspace 路径缓存（clear_userspace_cache）。"
+    aliases:
+      - "CacheNamespace"
+    avoid: []
+
+  discovery:
+    definition: "DiscoveryNamespace：约定式配置发现与 load_overridable_config。"
+    aliases:
+      - "DiscoveryNamespace"
+    avoid:
+      - "ProjectContext 上的 find_in_tree（已迁至 infra.discovery）"
+
+  types:
+    definition: "TypesNamespace：与 contracts 同源的异常、常量与类型挂载点。"
+    aliases:
+      - "TypesNamespace"
+    avoid:
+      - "from core.infra.project_context import OverridableConfigNotFoundError（优先 contracts 或 ProjectContext.types）"
+
+  userspace_root:
+    definition: "userspace 目录；优先级 NEW_TEA_QUANT_USERSPACE_ROOT → NTQ_USERSPACE_ROOT → {project_root}/.ntq/userspace-path.json → {project_root}/userspace。"
+    aliases:
+      - "get_userspace_root"
+    avoid:
+      - "硬编码 userspace 相对路径"
+
+  overridable_config:
+    definition: "core/default_config 默认 + userspace/config 覆盖的可合并配置；两侧皆无有效文件时 load_overridable_config 抛 OverridableConfigNotFoundError。"
+    aliases:
+      - "可覆盖配置"
+    avoid: []
+
+  coerce_strategy_folder:
+    definition: "将策略 id 或绝对 discovered folder 规范化为策略根目录；绝对路径原样返回，相对名拼到 userspace/strategies/。"
+    aliases:
+      - "ProjectContext.path.coerce_strategy_folder"
+    avoid:
+      - "直接拼接 strategies 路径而不经 coerce"
+
+  get_tag_directory:
+    definition: "Tag scenario 目录（userspace/extensions/tags/{name}/）；PathManager 内部仍称 get_tag_scenario_directory。"
+    aliases:
+      - "get_tag_scenario_directory（PathManager 内部名）"
+    avoid:
+      - "ProjectContext.path.get_tag_scenario_directory（门面已移除）"
+
+  find_in_tree:
+    definition: "目录树文件发现；已迁至 core.infra.discovery（Discovery.file.find_in_tree），不在 ProjectContext 上暴露。"
+    aliases:
+      - "Discovery.file.find_in_tree"
+    avoid:
+      - "ProjectContext.discovery.find_in_tree"

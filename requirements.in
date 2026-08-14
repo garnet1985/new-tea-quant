@@ -27,6 +27,9 @@ akshare
 # Worker monitoring
 psutil
 
+# YAML (module_info / discovery file utils)
+pyyaml
+
 # ========================
 # UI BFF runtime (Flask)
 # ========================

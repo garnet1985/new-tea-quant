@@ -1,123 +1,74 @@
 # Data Contract 设计说明
 
-**版本：** `0.3.3`（0.3.0 中 **IssueResult / load_batch** 见下文「PER_ENTITY plural」；**已实现**）
+**模块：** `modules.data_contract` · **版本：** `0.4.0`
 
-本文档描述 **`DataSpec` 字段**、**core 默认路由表摘要**、**缓存策略**、**userspace 合并**及 **Tag 专用 `DataKey.TAG`**。实现以 `mapping.py`、`data_contract_manager.py`、`cache/policy.py`、`discovery.py` 为准。
-
-**相关文档**：[架构总览](./ARCHITECTURE.md) · [演进路线](./ROADMAP.md)
+API 以根目录 [API.md](../API.md) 为准。名词见 [CONCEPTS.md](./CONCEPTS.md) / [glossary.yaml](../glossary.yaml)。
 
 ---
 
-## `DataSpec`（`TypedDict`，字段均可选）
+## 1. Facade：`ContractIssuer`
 
-| 字段 | 含义 |
+- 包根仅导出 `ContractIssuer`
+- 推荐静态入口：`ContractIssuer.issue(key, entity_ids=…, runtime=…, fill_in_data=…)`
+- 首次 `issue` / 类方法会自动 discovery；实例路径可显式 `discover()`
+
+---
+
+## 2. 契约三层：meta / runtime / specific
+
+| 层 | 含义 |
 | --- | --- |
-| `scope` | `ContractScope.GLOBAL` 或 `PER_ENTITY`。 |
-| `type` | `ContractType.TIME_SERIES` 或 `NON_TIME_SERIES`。 |
-| `unique_keys` | `validate_raw` 时要求行记录上存在的列（轻量校验）。 |
-| `time_axis_field` / `time_axis_format` | 时序模板使用（如 `date` + `YYYYMMDD`，或 `quarter` + `YYYYQ`）。 |
-| `loader` | `BaseLoader` 子类（非实例）；可选 override **`load_batch`**，见下文。 |
-| `entity_list_data_id` | 部分 per-entity loader 依赖的全局列表类 `DataKey`（如股票池）。 |
-| `display_name` | 展示用名称。 |
-| `defaults` | 与 `issue(..., **override_params)` 合并为 `loader_params`，后者覆盖前者。 |
+| **meta** | 声明期：key、type、scope、loader、`list_data_key`（PER_ENTITY）等 |
+| **runtime** | 签发后：entity_ids、时间窗、adjust 等参数 |
+| **specific** | 契约特有扩展字段 |
+
+时序句柄为 `BaseTimeSeriesContract`：`until(as_of)` 推进内置 `CursorState`（无独立 data_cursor 包）。
 
 ---
 
-## Core `default_map` 摘要
+## 3. Scope 与取数
 
-| `DataKey` | scope | type | 说明（loader） |
-| --- | --- | --- | --- |
-| `STOCK_LIST` | GLOBAL | 非时序 | 股票列表 |
-| `STOCK_KLINE_DAILY` | PER_ENTITY | 时序 | 股票日 K（`adjust` 等由 params） |
-| `STOCK_KLINE_WEEKLY` | PER_ENTITY | 时序 | 股票周 K |
-| `STOCK_KLINE_MONTHLY` | PER_ENTITY | 时序 | 股票月 K |
-| `TAG` | PER_ENTITY | 时序 | 标签值（scenario 等由 params / loader） |
-| `STOCK_CORPORATE_FINANCE` | PER_ENTITY | 时序 | 财报季频 |
-| `STOCK_ADJ_FACTOR_EVENTS` | PER_ENTITY | 时序 | 复权事件 |
-| `INDEX_LIST` | GLOBAL | 非时序 | 指数列表 |
-| `INDEX_KLINE_DAILY` | PER_ENTITY | 时序 | 指数日线 |
-| `INDEX_WEIGHT_DAILY` | PER_ENTITY | 时序 | 指数权重 |
-| `MACRO_*` | GLOBAL | 时序 | 宏观序列（GDP/LPR/CPI/PPI/PMI） |
-
-完整默认值与字段以 `mapping.py` 为准。
-
----
-
-## `issue` 与时间窗
-
-- **非时序**：`start`/`end` 不参与业务语义；DCM 内部用占位窗口参与 cache key（见 `DataContractManager._effective_load_window`）。
-- **时序**：须 **同时提供** `start` 与 `end`，或 **同时省略**（省略表示 **全量语义**，内部用 `__full__` 标记参与缓存键）。只传其一 → **`ValueError`**。
-- **PER_ENTITY（0.3.0）**：须 **`entity_ids`**（非空序列）；**`entity_id="A"`** 糖化为 **`["A"]`**。返回 **`IssueResult.by_entity`**，见 [`DECISIONS.md`](DECISIONS.md) 决策 8–9。
-- **GLOBAL**：不要求 entity 维度；误传 `entity_id` / `entity_ids` 在 DCM 内忽略以免污染缓存键。
-
----
-
-## PER_ENTITY plural 与 `load_batch`（0.3.0）
-
-### 签发与返回
-
-```text
-issue(STOCK_KLINE_DAILY, entity_ids=[A, B, C], start=..., end=..., **params)
-  → IssueResult(by_entity={
-        A: DataContract(meta=..., data=rows_A),
-        B: DataContract(...),
-        C: DataContract(...),
-    })
-```
-
-一股：`entity_ids=[A]`，`by_entity` 仅一个键。
-
-GLOBAL 不变：
-
-```text
-issue(STOCK_LIST) → IssueResult(contract=DataContract(...))
-```
-
-### Loader 双路径（同一类）
-
-```text
-load_batch(entity_ids, params, context)
-  ├─ override 且可 bulk IO → 一次取数，返回 {entity_id: raw}
-  └─ 默认实现 → for id in entity_ids: load(..., context 含 id)
-```
-
-DCM **优先** loader 的 **`load_batch`**（相对 `BaseLoader` 默认实现）；无优化实现时自动 fallback，语义与循环 **`load`** 一致。
-
-### 与 `DataCursor` 的衔接
-
-每个 **`DataContract`** 的 **`data`** 仍为 **单 entity 的 `List[Dict]`**（时序）或等价 payload；**不**在一个句柄内存 `Dict[entity_id, rows]`。多 entity 在 **`IssueResult.by_entity`** 层拆分；Strategy / Tag 每股取 **`by_entity[stock_id]`** 再建 cursor。
-
----
-
-## 缓存范围（`resolve_cache_scope`）
-
-| mapping 条件 | `ContractCacheScope` |
+| Scope | 行为 |
 | --- | --- |
-| GLOBAL + 非时序 | `GLOBAL`（进程级共享 store） |
-| GLOBAL + 时序 | `PER_STRATEGY`（单次策略 run 内共享，随 `enter/exit_strategy_run` 清理） |
-| 其他（含全部 PER_ENTITY） | `NONE`（不写缓存；`issue` 仅装配句柄，数据依赖 `load`） |
+| **GLOBAL** | 共享一份数据；`fill_in_data` → `loader.load` |
+| **PER_ENTITY** | 须 `entity_ids`；单实体 `load`，多实体优先 `load_batch` |
 
-`DataContractManager.issue`：若 scope 为 NONE，直接 **`issuer.issue`**；若为 GLOBAL/PER_STRATEGY，则按 sha256 键尝试 **get → 命中则克隆 data 到 contract**；未命中则 **`contract.load(start=eff_start, end=eff_end)`** 后 **put** 再返回。
-
----
-
-## Userspace 合并
-
-- 文件：`userspace/data_contract/mapping.py`（路径由 `PathManager.data_contract_mapping()` 解析）。
-- 导出变量名（优先级）：`custom_map` → `default_map` → `DATA_CONTRACT_MAP`。
-- 键：**`DataKey` 实例或与已有枚举值相同的 `str`**（通过 `DataKey(key)` 构造）；须与 **core 已定义的 `DataKey` 成员**一致，**不得与 core 已有键重复**（重复 → `ValueError`）。
-- 新增「全新」业务 id 需要先在 **`contract_const.DataKey`** 中增加枚举成员（core 变更），再在 userspace 提供对应 `DataSpec`。
+`meta.list_data_key`：PER_ENTITY 所属宇宙的 GLOBAL list（如 `stock.kline.daily` → `stock.list`）。
 
 ---
 
-## `DataKey.TAG`（标签）
+## 4. 系统 key 与 userspace 扩展
 
-映射为 **PER_ENTITY + TIME_SERIES**，时间轴字段 **`as_of_date`**；具体场景（scenario）由 **`TagLoader`** 与 `loader_params`（如 `tag_scenario` / `scenario_id`）解析，与标签元数据一致。
+系统 key：`core/data_contracts/data_keys.py` → `SYS_DATA_KEY`，经 `contracts.DATA_KEY` 暴露。
+
+每个 key 包布局：
+
+| 文件 | 要求 | 说明 |
+| --- | --- | --- |
+| `declaration.py` | 必需 | meta（type/scope/loader；PER_ENTITY 含 `list_data_key`） |
+| `loader.py` | 通常必需 | `BaseDataContractLoader`；若 `contract_class` 自管取数可省略职责外移 |
+| `contract.py` | 可选 | 自定义子类，经 `meta.contract_class` 挂载（如 ST 状态查询、Tag） |
+
+新增系统契约：
+
+1. 按上表建立 `core/data_contracts/<key>/`
+2. 在 `SYS_DATA_KEY` 增加常量；declaration 的 `meta.key` 使用该常量
+3. 若专用子类需跨模块类型提示，在 `contracts.py` 再导出（如 `StockStPeriodsContract`）
+
+用户扩展：userspace `data_keys`（`USER_DATA_KEY`）+ `data_contracts/<key>/`；discovery 合并进可用 key 集。
+
+---
+
+## 5. 与应用层边界
+
+| 类别 | 走 contract？ |
+| --- | --- |
+| settings 声明的 `required_data` / extras | ✅ |
+| 编排用股票池 / 日历等（未声明） | ❌ 可由应用直调其它服务；一旦写入 extras 则走 contract |
 
 ---
 
 ## 相关文档
 
-- [API.md](API.md)
-- [DECISIONS.md](DECISIONS.md)
-- [ROADMAP.md](ROADMAP.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [CONCEPTS.md](./CONCEPTS.md)

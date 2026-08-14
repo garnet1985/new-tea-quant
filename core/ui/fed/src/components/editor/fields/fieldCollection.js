@@ -40,6 +40,13 @@ function parseItemValue(config, rawValue, item) {
   return rawValue;
 }
 
+function resolveDisplayValue(itemField, item, index, items) {
+  if (typeof itemField?.resolve === 'function') {
+    return itemField.resolve({ item, index, items });
+  }
+  return item?.[itemField.key] ?? '';
+}
+
 function FieldCollectionField({ field, value, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
@@ -114,6 +121,35 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
             onChange={(e) => updateItem(index, { [itemField.key]: e.target.checked })}
           />
         </Stack>
+      );
+    }
+
+    if (itemField.type === 'display') {
+      const displayText = resolveDisplayValue(itemField, item, index, items);
+      const showEmpty = displayText === '' || displayText == null;
+      return (
+        <Box key={itemField.key}>
+          <EditorFieldLabel field={labelField} context={context} />
+          <TextField
+            size="small"
+            value={showEmpty ? '' : String(displayText)}
+            placeholder={itemField.placeholder || ' '}
+            fullWidth
+            disabled
+            InputProps={{
+              readOnly: true,
+              sx: {
+                // 空名时保留一行高度，避免填入 ratio 后卡片跳动
+                minHeight: 40,
+                '& .MuiInputBase-input': {
+                  color: showEmpty ? 'transparent' : 'text.secondary',
+                  WebkitTextFillColor: showEmpty ? 'transparent' : undefined,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                },
+              },
+            }}
+          />
+        </Box>
       );
     }
 

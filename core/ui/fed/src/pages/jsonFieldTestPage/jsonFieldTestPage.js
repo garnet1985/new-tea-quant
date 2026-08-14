@@ -351,7 +351,7 @@ function JsonFieldTestPage() {
   return (
     <PageLayout
       className="json-field-test-page"
-      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="Raw JSON 测试"
       bannerTitle="Raw JSON 测试"
       bannerDescription="第一版不做字段树渲染，只验证输入体验、错误提示友好性和性能表现。"

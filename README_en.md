@@ -196,7 +196,7 @@ Next, have fun ^_^
 
 ### Data Notes
  
-1. **(Note: This step is temporarily unavailable and is being fixed)** If you want to **get more (about 3 years, full A-share market) demo data packages**: for more complete strategy validation/backtesting, please register at **[new-tea.cn](https://new-tea.cn)** to download. **Empty** `initialization/data/` and put **only 1** zip file in it, then execute `python core/infra/setup/core/steps/import_data/install.py` (If you are emptying and reinstalling, you need to add the `--force` parameter at the end of the command).  
+1. If you want to **get more (about 3 years, full A-share market) demo data packages**: for more complete strategy validation/backtesting, please register at **[new-tea.cn](https://new-tea.cn)** to download. Move any existing zip out of `initialization/data/`, put **only 1** zip file in it, then run `python cli.py id` (add `-f` to force a full re-import). You may point at a different database name to keep demo and full data side by side (see `userspace/system/config/database/`).  
 2. **Bring Your Own Data Source**: You can also connect your own (e.g., Tushare), see [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md).
 3. Demo data and demo strategies are for learning and research only, do not use for live trading or commercial purposes.
 

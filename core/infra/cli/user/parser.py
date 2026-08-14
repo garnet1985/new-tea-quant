@@ -57,6 +57,7 @@ class UserParser:
         UserParser._p_tag(sub)
         UserParser._p_export_strategy(sub)
         UserParser._p_import_strategy(sub)
+        UserParser._p_import_data(sub)
         UserParser._p_update(sub)
         UserParser._p_version(sub)
 
@@ -197,6 +198,15 @@ class UserParser:
         p.add_argument("path", nargs="?", default=None, metavar="PATH")
         p.add_argument("--skip-existing", action="store_true")
         p.add_argument("--dry-run", action="store_true")
+
+    @staticmethod
+    def _p_import_data(sub: argparse._SubParsersAction) -> None:
+        UserParser._cmd(
+            sub,
+            "import_data",
+            aliases=UserCommands.aliases_for("import_data"),
+            help="导入 initialization/data 下唯一 zip 数据包（-f 强制全量重导）",
+        )
 
     @staticmethod
     def _p_update(sub: argparse._SubParsersAction) -> None:

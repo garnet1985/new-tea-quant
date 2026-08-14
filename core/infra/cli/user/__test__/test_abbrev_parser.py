@@ -29,6 +29,8 @@ pytestmark = pytest.mark.force_run
         (["r", "stock_klines", "-f"], ["renew", "stock_klines", "-f"]),
         (["ex", "example"], ["export_strategy", "example"]),
         (["im", "./pkg.zip"], ["import_strategy", "./pkg.zip"]),
+        (["id"], ["import_data"]),
+        (["id", "-f"], ["import_data", "-f"]),
     ],
 )
 def test_expand_argv(raw: list[str], expected: list[str]) -> None:

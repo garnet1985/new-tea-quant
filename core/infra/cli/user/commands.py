@@ -19,6 +19,7 @@ class UserCommands:
         "t": "tag",
         "ex": "export_strategy",
         "im": "import_strategy",
+        "id": "import_data",
         "u": "update",
         "v": "version",
     }
@@ -36,6 +37,7 @@ class UserCommands:
             "tag",
             "export_strategy",
             "import_strategy",
+            "import_data",
             "update",
             "version",
         }
@@ -59,6 +61,7 @@ class UserCommands:
             "version",
             "export_strategy",
             "import_strategy",
+            "import_data",
         }
     )
 

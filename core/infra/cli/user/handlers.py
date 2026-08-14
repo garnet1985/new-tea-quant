@@ -100,6 +100,17 @@ class UserHandlers:
                 dry_run=bool(getattr(args, "dry_run", False)),
             )
 
+        if cmd == "import_data":
+            from core.infra.setup import Setup
+
+            UserHandlers.setup_logging(verbose=args.verbose)
+            force = bool(getattr(args, "force", False))
+            logger.info(
+                i("ongoing") + " 导入 initialization/data 数据包%s",
+                " [force]" if force else "",
+            )
+            return Setup.runtime.import_init_data(force=force)
+
         return None
 
     @staticmethod

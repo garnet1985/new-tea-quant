@@ -112,6 +112,15 @@
 - **引入版本：** `0.1.0`
 - **描述：** 跑 CLI 安装步骤；`ensure_cli_install` 经根目录 `install.py`（user CLI 自动触发）
 
+#### import_init_data
+
+`Setup.runtime.import_init_data(*, force: bool = False) -> int`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.4.4`
+- **描述：** 导入 `initialization/data/` 下唯一 zip；`force` 全量重导；用户 CLI：`python cli.py id`
+
 #### install_ui / check_ui_prerequisites / launch_ui / set_ui_dev_mode
 
 `Setup.runtime.install_ui(*, force: bool = False) -> None`  

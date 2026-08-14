@@ -23,7 +23,7 @@ python -m core.infra.setup.core.scripts.init_data --help
 
 ## 不导出的表
 
-运行时/框架生成数据，见 `config.EXCLUDED_GENERATED_TABLES`：`sys_cache`、`sys_meta_info`、tag 三表、`sys_strategy_workbench_snapshot` 等。
+运行时/框架生成数据，见 `config.EXCLUDED_GENERATED_TABLES`：`sys_cache`、`sys_meta_info`、tag 四表、`sys_strategy_workbench_snapshot` 等。
 
 ## 配置
 

@@ -75,14 +75,15 @@
 - **状态：** `beta`
 - **描述：** 按 `meta.key` 或相对路径查找元数据；不存在返回 `None`。`get_strategy_info` 等价于 `find(..., enabled_only=False)`（含 `relative_path` / `unique_relative_path` / `key` / `is_enabled` / `display_name` / `folder` / `settings`）
 
-### resolve / resolve_folder / is_valid_path
+### resolve / resolve_path / resolve_folder / is_valid_path
 
 `Strategy.resolve(key_or_id: str) -> str`  
+`Strategy.resolve_path(key_or_id: str) -> str`  
 `Strategy.resolve_folder(key_or_id: str) -> Path`  
 `Strategy.is_valid_path(relative_path: str) -> bool`
 
 - **状态：** `beta`
-- **描述：** key/path → 相对 path（缺失 `FileNotFoundError`）；→ 绝对目录（未入库回落 coerce）；脚手架路径段机器可读校验
+- **描述：** key/path → 稳定身份 `meta.key`（缺 key 时回落 path；DB / 进度 / UI 用）；→ userspace 相对 path（打包与路径型 API）；→ 绝对目录（未入库回落 coerce）；脚手架路径段机器可读校验
 
 ### load_price_entity_investments / price_overall_report_path
 

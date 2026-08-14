@@ -120,6 +120,25 @@ class DiscoveryService:
         raise FileNotFoundError(f"策略不存在: {needle!r}")
 
     @staticmethod
+    def resolve_strategy_key(key_or_name: str) -> str:
+        """``meta.key`` 或 path name → 稳定身份 ``meta.key``（缺 key 时回落 path）。
+
+        目录改名但 ``meta.key`` 不变时，返回值不变。路径仅作定位别名。
+
+        Raises:
+            ValueError: 空 needle
+            FileNotFoundError: 发现列表中无匹配
+        """
+        needle = str(key_or_name or "").strip()
+        if not needle:
+            raise ValueError("strategy_key_or_name 不能为空")
+        for info in DiscoveryService.discover_strategies():
+            if info.key == needle or info.id() == needle:
+                key = str(getattr(info, "key", "") or "").strip()
+                return key or str(info.id())
+        raise FileNotFoundError(f"策略不存在: {needle!r}")
+
+    @staticmethod
     def resolve_strategy_folder(key_or_name: str) -> Path:
         """``meta.key`` / relative path → discovered absolute strategy folder.
 

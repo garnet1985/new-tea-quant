@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from core.modules.strategy.core.engines.scanner.helpers import cache_manager as cache_mod
 from core.modules.strategy.core.engines.scanner.helpers.cache_manager import (
     ScanCacheManager,
 )
@@ -17,11 +18,23 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import (
 pytestmark = pytest.mark.force_run
 
 
-def test_save_load_and_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_scan_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    scan_dir = tmp_path / "scan"
     monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.helpers.cache_manager.ProjectContext.path.get_strategy_scan_results_directory",
-        lambda _name: tmp_path / "scan",
+        cache_mod.ProjectContext.path,
+        "get_strategy_scan_results_directory",
+        lambda _name: scan_dir,
     )
+    monkeypatch.setattr(
+        cache_mod.ProjectContext.config,
+        "get_scan_results_max_versions",
+        lambda: 7,
+    )
+    return scan_dir
+
+
+def test_save_load_and_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _isolate_scan_dir(tmp_path, monkeypatch)
     cache = ScanCacheManager("demo_strategy", max_cache_days=2)
     opp = Opportunity(
         stock=StockInfo(id="600000.SH", name="浦发"),
@@ -51,10 +64,7 @@ def test_save_load_and_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 def test_report_manager_writes_scan_summary_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.helpers.cache_manager.ProjectContext.path.get_strategy_scan_results_directory",
-        lambda _name: tmp_path / "scan",
-    )
+    scan_dir = _isolate_scan_dir(tmp_path, monkeypatch)
     mgr = ReportManager.begin(
         strategy_key="demo",
         scan_date="20240110",
@@ -70,8 +80,8 @@ def test_report_manager_writes_scan_summary_json(
         )
     )
     report = mgr.finalize(present=False)
-    summary_path = tmp_path / "scan" / "20240110" / "scan_summary.json"
-    csv_path = tmp_path / "scan" / "20240110" / "opportunities.csv"
+    summary_path = scan_dir / "20240110" / "scan_summary.json"
+    csv_path = scan_dir / "20240110" / "opportunities.csv"
     assert summary_path.is_file()
     assert csv_path.is_file()
     assert report["total_opportunities"] == 1
@@ -82,10 +92,7 @@ def test_report_manager_writes_scan_summary_json(
 def test_report_manager_writes_empty_summary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.helpers.cache_manager.ProjectContext.path.get_strategy_scan_results_directory",
-        lambda _name: tmp_path / "scan",
-    )
+    scan_dir = _isolate_scan_dir(tmp_path, monkeypatch)
     mgr = ReportManager.begin(
         strategy_key="demo",
         scan_date="20240110",
@@ -93,8 +100,8 @@ def test_report_manager_writes_empty_summary(
         adapter_names=[],
     )
     report = mgr.finalize(present=False)
-    summary_path = tmp_path / "scan" / "20240110" / "scan_summary.json"
-    csv_path = tmp_path / "scan" / "20240110" / "opportunities.csv"
+    summary_path = scan_dir / "20240110" / "scan_summary.json"
+    csv_path = scan_dir / "20240110" / "opportunities.csv"
     assert summary_path.is_file()
     assert not csv_path.is_file()
     assert report["total_opportunities"] == 0

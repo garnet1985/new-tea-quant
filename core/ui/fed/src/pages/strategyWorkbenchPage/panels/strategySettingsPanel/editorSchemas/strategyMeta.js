@@ -4,8 +4,10 @@ export function normalizeMeta(rawMeta, rootSettings = {}) {
   const meta = rawMeta && typeof rawMeta === 'object' ? rawMeta : {};
   const root = rootSettings && typeof rootSettings === 'object' ? rootSettings : {};
   return {
+    key: String(meta.key || '').trim(),
     display_name: meta.display_name || '',
     description: coerceMetaDescription(meta.description),
+    category: String(meta.category || '').trim(),
     keywords: Array.isArray(meta.keywords) ? meta.keywords : [],
     details: meta.details && typeof meta.details === 'object' ? meta.details : { entry: [] },
     is_enabled: Boolean(root.is_enabled),

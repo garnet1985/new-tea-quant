@@ -357,6 +357,15 @@ class Strategy:
 
     @staticmethod
     def resolve(key_or_id: str) -> str:
+        """``meta.key`` 或 path → 稳定身份 ``meta.key``（缺 key 时回落 path）。
+
+        用于 DB / 进度 / UI 身份。磁盘定位请用 ``resolve_path`` / ``resolve_folder``。
+        不存在则 ``FileNotFoundError``。
+        """
+        return DiscoveryService.resolve_strategy_key(key_or_id)
+
+    @staticmethod
+    def resolve_path(key_or_id: str) -> str:
         """``meta.key`` 或 path → userspace 相对 path（含未启用）。不存在则 ``FileNotFoundError``。"""
         return DiscoveryService.resolve_strategy_path(key_or_id)
 

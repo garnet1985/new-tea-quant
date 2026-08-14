@@ -27,14 +27,14 @@ def test_fetch_latest_merges_ui_flags():
 
     with patch(
         "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
-        return_value="demo/x",
+        return_value="demo-key",
     ):
         out_row, out_flags = impl.fetch_latest("demo-key")
 
     assert out_row is row
     assert out_flags == flags
-    snaps.fetch_latest.assert_called_once_with("demo/x")
-    snaps.ui_flags.assert_called_once_with("demo/x", row)
+    snaps.fetch_latest.assert_called_once_with("demo-key")
+    snaps.ui_flags.assert_called_once_with("demo-key", row)
 
 
 def test_fetch_by_version_invalid_id():
@@ -42,7 +42,7 @@ def test_fetch_by_version_invalid_id():
     impl._WorkbenchSnapshots = MagicMock()
     with patch(
         "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
-        return_value="demo/x",
+        return_value="demo-key",
     ):
         with pytest.raises(ValueError, match="version_id"):
             impl.fetch_by_version(strategy_key_or_name="demo/x", version_id="bad")
@@ -55,7 +55,7 @@ def test_fetch_by_version_missing_row():
     impl._WorkbenchSnapshots = snaps
     with patch(
         "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
-        return_value="demo/x",
+        return_value="demo-key",
     ):
         with pytest.raises(FileNotFoundError, match="快照不存在"):
             impl.fetch_by_version(strategy_key_or_name="demo/x", version_id="v9")
@@ -68,8 +68,8 @@ def test_list_versions_resolves_name():
     impl._WorkbenchSnapshots = snaps
     with patch(
         "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
-        return_value="demo/x",
+        return_value="demo-key",
     ):
         items = impl.list_versions("k")
     assert items[0]["version_id"] == "v1"
-    snaps.list_dropdown.assert_called_once_with("demo/x")
+    snaps.list_dropdown.assert_called_once_with("demo-key")

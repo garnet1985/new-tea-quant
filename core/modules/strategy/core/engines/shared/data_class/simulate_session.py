@@ -74,8 +74,9 @@ class SimulateSession:
 
     @property
     def strategy_key(self) -> str:
+        """Stable identity for DB / cache: ``meta.key`` (path only if key missing)."""
         return str(
-            self.strategy_info.unique_relative_path or self.strategy_info.key or ""
+            self.strategy_info.key or self.strategy_info.unique_relative_path or ""
         )
 
     @property

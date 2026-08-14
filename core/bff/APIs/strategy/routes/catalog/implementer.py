@@ -58,6 +58,7 @@ class StrategyCatalogImplementer:
             "worker_class_name": str(info.get("hooks_class_name") or "").strip(),
             "folder": str(info.get("folder") or "").strip(),
             "description": self._coerce_meta_text(meta.get("description")),
+            "category": str(meta.get("category") or "").strip(),
             "keywords": self._keywords(meta.get("keywords")),
             "details": details,
         }

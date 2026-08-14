@@ -49,7 +49,8 @@ class ScanCacheManager:
         self.cache_base_dir = ProjectContext.path.get_strategy_scan_results_directory(
             self.strategy_root
         )
-        self.cache_base_dir.mkdir(parents=True, exist_ok=True)
+        # Do not mkdir here: construction is also used for load/complete paths.
+        # Writers (save_*) create date dirs when they actually persist.
 
     @property
     def strategy_name(self) -> str:

@@ -1,0 +1,12 @@
+"""Stock KLine Declarations 模块（daily/weekly/monthly）。"""
+from .declaration import (
+    STOCK_KLINE_DAILY_DECLARATION,
+    STOCK_KLINE_WEEKLY_DECLARATION,
+    STOCK_KLINE_MONTHLY_DECLARATION,
+)
+
+__all__ = [
+    'STOCK_KLINE_DAILY_DECLARATION',
+    'STOCK_KLINE_WEEKLY_DECLARATION',
+    'STOCK_KLINE_MONTHLY_DECLARATION',
+]

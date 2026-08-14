@@ -1,22 +1,48 @@
-# 策略模块（Strategy Module）
+# Strategy（`modules.strategy`）
 
-`core/modules/strategy` 为策略运行时实现的主入口目录。
+为 NTQ 提供策略执行：扫描、枚举、价格因子与组合模拟，以及策略发现。对外门面为 `Strategy`；hooks / 枚举 / 共享类型见 `contracts`。
 
-当前结构（Flow 形式组织）：
+## 适用场景
 
-- `strategy_manager.py`：顶层入口，对外提供 scan / simulate / analyze 等主流程编排
-- `engines/`：按引擎域拆分实现，核心以 **Flow** 为中心组织（而非散落的函数式入口）
-  - `scanner/`：实时扫描 Flow（针对最新一日/窗口，产出 active opportunities）
-  - `enumerator/`：机会枚举 Flow（产出 opportunities + targets，作为底层事实表/缓存层）
-  - `simulator/price_factor/`：价格因子回测 Flow（快速验证价格层 alpha）
-  - `simulator/capital_allocation/`：带资金约束回测 Flow（更接近真实交易过程）
-  - `analyzer/`：结果分析与摘要 Flow（结构化汇总与指标）
-  - `shared/`：多引擎共用的数据结构与辅助函数
-- `services/`：跨 Flow 的共享能力（发现/配置、数据读写、缓存、产物落地、校验、launcher 编排等）
+- CLI / 工作台触发 scan 或 simulate 各步
+- 用户策略经 `StrategyHooks` + `StrategyContext` 挂入回测
+- 列出 / 查询已发现策略元数据
 
-迁移说明：
+## 模块依赖
 
-- 旧版 `strategy1` 已移除。
-- 运行时流程统一围绕已发现的 `DiscoveredStrategy`，并在各引擎域内以 Flow 组织实现。
+见 `module_info.yaml`（data_manager、data_contract、indicator、backtest_engine、project_context）。  
+兼容 core：`>=0.4.4`。
 
-详细设计与契约见 **`docs/`** 目录。
+## 设计初衷
+
+- **要解决的问题：** 统一策略包发现、模拟缓存与多引擎编排入口。
+- **明确不做：** 不在本模块另起平行于 BacktestEngine 的调度 / Timeline（硬约束见 [docs/DESIGN.md](./docs/DESIGN.md) 与 [docs/notes/BOUNDARY_NOTES.md](./docs/notes/BOUNDARY_NOTES.md)）。
+
+## 用户策略 import（公开面）
+
+```python
+from core.modules.strategy import Strategy
+from core.modules.strategy.contracts import (
+    StrategyHooks,
+    StrategyContext,
+    Opportunity,
+    SimulateKind,
+)
+```
+
+勿 deep-import `core.modules.strategy.core.engines.*`（实现位于 `core/`，包根只导出 `Strategy`）。
+
+## 常见问题
+
+**Q：enumerate 和 simulate 什么关系？**  
+A：`enumerate` / `price_factor` / `portfolio` 都是 `Strategy.simulate(..., kind=...)` 的薄封装。
+
+## 相关文档
+
+- [快速开始](./QUICKSTART.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [设计](./docs/DESIGN.md)
+- [边界笔记](./docs/notes/BOUNDARY_NOTES.md)
+- [测试用例](./__test__/TEST_CASES.md)

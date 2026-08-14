@@ -1,0 +1,39 @@
+# glossary — infra.utils
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Utils。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.date / core.io / core.math / core.markdown"
+
+  Utils:
+    definition: "本模块门面类；挂载 date / types / io / math / markdown。"
+    aliases: []
+    avoid:
+      - "DateUtils 当公开入口"
+      - "TypeUtils 当公开入口"
+
+  period_type:
+    definition: "日/周/月/季/年周期类型字符串；常量见 contracts.PERIOD_*。"
+    aliases:
+      - "PERIOD_DAY"
+      - "PERIOD_MONTH"
+      - "PeriodType"
+    avoid: []
+
+  MarkdownMgr:
+    definition: "Markdown 模版 ``{{:token}}`` 填充器；公开入口 Utils.markdown。"
+    aliases:
+      - "Utils.markdown"
+    avoid:
+      - "extract_tokens 当包级导出"
+
+  deterministic_unit_float:
+    definition: "由 key 派生的确定性 [0,1) 伪随机；公开入口 Utils.math.deterministic_unit_float。"
+    aliases:
+      - "Utils.math"
+      - "DeterministicRandom"
+    avoid: []

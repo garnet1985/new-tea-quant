@@ -11,6 +11,7 @@ import {
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import StrategyMetaDetailText from 'components/strategyMetaDetailText/strategyMetaDetailText';
+import { resolveStrategyShortLabel } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import { STRATEGY_DESIGN_STEP_INTRO } from '../constants/strategyDesignSteps';
 import { DESIGN_RESTORE_MORE_MENU_VALUE } from '../constants/strategyDesignMetaConstants';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
@@ -19,6 +20,11 @@ import './strategyDesignMetaBar.scss';
 
 function StrategyDesignMetaBar() {
   const wb = useStrategyDesignWorkbenchContext();
+  const strategyLabel = resolveStrategyShortLabel({
+    displayName: wb.strategyDisplayName,
+    key: wb.strategyKey,
+    name: wb.strategyName,
+  });
 
   const stepIntro = useMemo(() => {
     const intro = STRATEGY_DESIGN_STEP_INTRO[wb.activeStep];
@@ -59,7 +65,7 @@ function StrategyDesignMetaBar() {
         <Box className="ntq-design-meta__info">
           <Box className="ntq-design-meta__title-row">
             <Typography variant="h6" fontWeight={700} className="ntq-design-meta__strategy-name">
-              {wb.strategyDisplayName || wb.strategyName}
+              {strategyLabel}
             </Typography>
             {wb.hasPersistedSnapshot ? (
               <Box

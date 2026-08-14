@@ -1,0 +1,42 @@
+# Market Profile 术语表
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "对外统一入口类。本模块门面是 MarketRulesProxy。"
+    aliases:
+      - "门面"
+    avoid:
+      - "get_market_profile"
+      - "create_market_rules（跨模块 deep-import）"
+
+  MarketRulesProxy:
+    definition: "市场制度规则 Facade：挂载/查询市场，或用 for_market 创建单市场规则实例。"
+    aliases:
+      - "市场规则代理"
+    avoid:
+      - "get_market_profile"
+
+  MarketBaseRules:
+    definition: "单市场规则实例基类（涨跌幅、整手、交收等）；从 contracts 导入。"
+    aliases:
+      - "市场规则"
+    avoid: []
+
+  LotSizeResolved:
+    definition: "resolve_lot_size 返回的整手解析结果（min_lot / lot_step）；从 contracts 导入。"
+    aliases: []
+    avoid: []
+
+  for_market:
+    definition: "MarketRulesProxy 类方法：按 profile_id 创建单个 MarketBaseRules，不预加载其它市场。"
+    aliases:
+      - "单市场工厂"
+    avoid:
+      - "create_market_rules（内部实现名）"
+
+  profile_id:
+    definition: "市场配置键，如 china_a_stock、hong_kong、us_stock。"
+    aliases:
+      - "market_profile"
+    avoid: []

@@ -1,91 +1,63 @@
 # Data Contract 架构文档
 
-**版本：** `0.3.3`（PER_ENTITY plural / `load_batch`：**已实现**；Tag 旁路清理见 [`ROADMAP.md`](ROADMAP.md)）
+**模块：** `modules.data_contract` · **版本：** `0.4.0`
 
 ---
 
 ## 模块介绍
 
-`modules.data_contract` 将「策略/标签声明的数据依赖」收敛为 **`DataKey` → `DataSpec`** 的路由：由 **`ContractIssuer`** 装配 **`TimeSeriesContract` / `NonTimeSeriesContract`** 句柄并绑定 **`BaseLoader`** 子类；**`DataContractManager.issue`** 在合并后的映射上执行参数校验、缓存 key 计算、可缓存 GLOBAL 数据的物化；**`ContractCacheManager`** 提供 global / per-strategy 两层存储与生命周期方法。
+将「策略/标签声明的数据依赖」收敛为 **`DATA_KEY` → declaration + loader`**，经 **发现 → 签发 → 填充 →（时序）PIT 游标** 交付。公开 Facade 为 **`ContractIssuer`**。
 
 ---
 
-## 模块目标
+## 分层结构
 
-- **声明式取数**：业务只使用稳定的 `DataKey` 与显式 **`entity_ids`**（PER_ENTITY）或 **`start` / `end` / **params**（GLOBAL），由 mapping 决定如何加载。
-- **可合并扩展**：`userspace.data_contract.mapping` 导出映射表，与 core **按 `DataKey` 合并**，重复键 fail-fast。
-- **缓存可控**：仅对部分 GLOBAL 规格写入缓存；PER_ENTITY 默认 **NONE**（不走路径缓存），由 loader 按需拉数；batch 加载不改变该 policy（0.3.0 首版）。
-- **应用层不旁路（已声明项）**：Strategy / Tag 对 settings **已声明** `DataKey` 仅经 **`issue`** 取数；编排层（股票池、日历、元数据）可直调 DataManager（决策 11）。
+```text
+modules.data_contract/
+├── __init__.py              # 仅 ContractIssuer（Facade）
+├── contracts.py             # DATA_KEY / 基类 / 专用子类（无 Issuer）
+├── core/
+│   ├── discovery/           # ContractIssuer 实现
+│   ├── base/                # Base*Contract、Loader、CursorState
+│   └── data_contracts/<key>/
+│       ├── declaration.py   # 必需
+│       ├── loader.py        # 必需（除非 contract 自管取数）
+│       └── contract.py      # 可选：meta.contract_class 自定义子类
+├── docs/
+└── __test__/                # 公开 API 契约测
+```
 
----
-
-## 工作拆分
-
-- **`contract_const`**：`DataKey`、`ContractScope`、`ContractType` 枚举。
-- **`mapping`**：`DataSpec` / `DataSpecMap`、`default_map`（core 全表路由）。
-- **`discovery`**：`discover_userspace_map()` 导入 `userspace.data_contract.mapping` 并规范化键。
-- **`contract_issuer`**：由 `DataSpec` 构造 contract、注入 `context`（如 `stock_id`）、合并 `defaults` 与 `**override_params` 为 `loader_params`。
-- **`data_contract_manager`**：`issue` 主流程、时序窗口与 `entity_id` 校验、缓存读写与 payload 克隆。
-- **`cache`**：`ContractCacheManager`、两层 `Store`、`resolve_cache_scope`（按 scope+type 决定 GLOBAL / PER_STRATEGY / NONE）。
-- **`contracts`**：`DataContract` 基类与 `validate_raw`（时序/非时序子类实现轻量校验）。
-- **`loaders`**：按数据类型实现的 `BaseLoader.load`；0.3.0 起可选 **`load_batch`**（默认 fallback 循环 `load`）。
-- **`issue_result`**（0.3.0 计划）：`IssueResult` 信封类型。
-
----
-
-## 依赖说明
-
-见 `module_info.yaml`：**`modules.data_manager`**（取数）、**`infra.project_context`**（userspace 路径与 mapping 文件发现）。
+| 层 | 包 | 职责 |
+| --- | --- | --- |
+| Facade | 包根 / `ContractIssuer` | `issue`、discover、get_contract |
+| 类型 | `contracts.py` | `DATA_KEY`、基类、专用子类（如 `StockStPeriodsContract`） |
+| 基类 | `core/base/` | meta/runtime/specific；`until` / `fill_in_data` |
+| 实现 | `core/data_contracts/<key>/` | declaration + loader；可选 `contract.py` |
 
 ---
 
-## 模块职责与边界
-
-**职责（In scope）**
-
-- 维护 core `default_map` 与 userspace 合并规则。
-- 签发句柄、协调缓存与 `load` 参数。
-
-**边界（Out of scope）**
-
-- 不负责持久化 schema 迁移、不负责定义数据库表（由 data_manager / DB 层负责）。
-- 不替代 `DataManager` 的 SQL 与业务查询实现（loader 内部调用）。
-
----
-
-## 架构 / 流程图
+## 流程
 
 ```mermaid
-flowchart TB
-  subgraph core [Core 映射]
-    M[default_map]
-  end
-  subgraph user [Userspace]
-    U[userspace.data_contract.mapping]
-  end
-  subgraph dcm [DataContractManager]
-    I[issue]
-    C[ContractCacheManager]
-  end
-  M --> I
-  U --> I
-  I --> C
-  I --> Issuer[ContractIssuer]
-  Issuer --> L{BaseLoader}
-  L -->|PER_ENTITY 优先| LB[load_batch]
-  L -->|fallback| LS[load]
-  I --> IR[IssueResult]
-  IR -->|GLOBAL| SC[contract]
-  IR -->|PER_ENTITY| BE[by_entity map]
+flowchart LR
+  K[DATA_KEY] --> I[ContractIssuer.issue]
+  I --> C[BaseDataContract]
+  C --> F[fill_in_data / loader]
+  F --> U[until as_of 可选]
 ```
+
+---
+
+## 边界
+
+**In scope：** DATA_KEY 白名单、签发、loader 取数、时序 `until`  
+**Out of scope：** DB schema/SQL（`data_manager`）；策略/标签编排
 
 ---
 
 ## 相关文档
 
-- [DESIGN.md](DESIGN.md)
-- [API.md](API.md)
-- [DECISIONS.md](DECISIONS.md)
-- [CONCEPTS.md](CONCEPTS.md)
-- [ROADMAP.md](ROADMAP.md)
-- 多源 **`DataContract.data`** 的 **`as_of`** 前缀累计视图：[`modules.data_cursor`](../../data_cursor/README.md)
+- [DESIGN.md](./DESIGN.md)
+- [CONCEPTS.md](./CONCEPTS.md)
+- [API.md](../API.md)
+- [glossary.yaml](../glossary.yaml)

@@ -1,0 +1,31 @@
+# glossary — modules.adapter
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Adapter。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.base_adapter / core.adapter_validator"
+
+  Adapter:
+    definition: "本模块门面类；公开静态方法 validate / load_class。"
+    aliases: []
+    avoid:
+      - "validate_adapter"
+
+  BaseOpportunityAdapter:
+    definition: "userspace adapter 须继承的基类；须实现 process(opportunities, context)。"
+    aliases:
+      - "contracts.BaseOpportunityAdapter"
+    avoid:
+      - "自行回读 strategy 模拟产物"
+
+  userspace_adapter_path:
+    definition: "userspace/extensions/adapters/<name>/adapter.py；导入路径 userspace.extensions.adapters.<name>.adapter。"
+    aliases:
+      - "AdapterLoader"
+    avoid:
+      - "userspace.adapters.*"
+      - "userspace/adapters/"

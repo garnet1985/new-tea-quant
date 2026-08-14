@@ -1,0 +1,99 @@
+"""扫描命中后的贴板标注（写入 Opportunity.metadata）。
+
+本文件:
+- annotate_enter_at_limit / opportunity_enter_at_limit: 进场贴板判定
+  边界: 负责 metadata 标注；不负责 market_rules 定义或 scan hook 逻辑
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from core.modules.market_profile import MarketRulesProxy
+from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
+from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
+
+ENTER_AT_LIMIT_KEY = "enter_at_limit"
+
+
+def annotate_enter_at_limit(
+    opportunity: Opportunity,
+    *,
+    market_profile: str,
+    klines: List[Dict[str, Any]],
+    scan_date: Optional[str] = None,
+) -> None:
+    """用 trigger 价 vs 昨收判断是否贴涨停，写入 ``metadata.enter_at_limit``。"""
+    if opportunity is None:
+        return
+    day = str(scan_date or opportunity.trigger_date or "").strip()
+    signal_bar = _bar_on(klines, day) if day else (klines[-1] if klines else None)
+    if not signal_bar:
+        return
+    entity_id = str(opportunity.stock.id or "").strip()
+    try:
+        ref = float(opportunity.trigger_price or 0.0)
+    except (TypeError, ValueError):
+        ref = 0.0
+    if not entity_id:
+        return
+
+    prev = SafeBarValue.optional_float(signal_bar, "pre_close")
+    if prev is None:
+        # 尝试用前一根 bar 的 close
+        idx = _bar_index(klines, day)
+        if idx is not None and idx > 0:
+            prev = SafeBarValue.float(klines[idx - 1], "close")
+    # 涨跌停比例带需要 /prev；prev 缺失时无法判定（非“价格非法”）
+    if prev is None or prev == 0:
+        return
+
+    profile = str(market_profile or "").strip() or "china_a_stock"
+    try:
+        rules = MarketRulesProxy.for_market(profile)
+        at_up = bool(rules.is_at_limit_up(ref, prev, entity_id))
+    except Exception:
+        at_up = False
+
+    if not isinstance(opportunity.metadata, dict):
+        opportunity.metadata = {}
+    opportunity.metadata[ENTER_AT_LIMIT_KEY] = at_up
+
+
+def opportunity_enter_at_limit(opportunity: Opportunity) -> Optional[bool]:
+    if not isinstance(opportunity.metadata, dict):
+        return None
+    raw = opportunity.metadata.get(ENTER_AT_LIMIT_KEY)
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        return bool(raw)
+    text = str(raw).strip().lower()
+    if text in {"1", "true", "yes"}:
+        return True
+    if text in {"0", "false", "no"}:
+        return False
+    return None
+
+
+def _bar_on(klines: List[Dict[str, Any]], day: str) -> Optional[Dict[str, Any]]:
+    for bar in klines or []:
+        if str(bar.get("date") or "").strip() == day:
+            return bar
+    return None
+
+
+def _bar_index(klines: List[Dict[str, Any]], day: str) -> Optional[int]:
+    for i, bar in enumerate(klines or []):
+        if str(bar.get("date") or "").strip() == day:
+            return i
+    return None
+
+
+__all__ = [
+    "ENTER_AT_LIMIT_KEY",
+    "annotate_enter_at_limit",
+    "opportunity_enter_at_limit",
+]

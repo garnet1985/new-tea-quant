@@ -47,8 +47,6 @@ export function createStrategyFeesSchema({ readonly = false } = {}) {
   };
 }
 
-export const strategyFeeFields = feeFieldDefs.map((def) => toFeeField(def));
-
 const strategyFeesSchema = createStrategyFeesSchema();
 
 export default strategyFeesSchema;

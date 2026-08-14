@@ -1,11 +1,16 @@
 name: modules.market_profile
-version: 0.1.0
-compatible_core_versions: ">=0.3.0"
-description: "市场制度配置：加载 markets/*.json，按 rule engine 解析涨跌幅、整手等，供回测与资金模拟查询。"
-dependencies:
-  - infra.project_context
+version: "0.2.0"
+compatible_core_versions: ">=0.4.1"
+description: "市场制度规则模块：提供市场制度规则的查询服务，支持查询涨跌停、最小申报单位、板块手数等规则。"
+dependencies: []
 changelog:
+  - version: "0.2.0"
+    changes:
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
   - version: "0.1.0"
     changes:
-      - china_a_stock 等内置 market profile；userspace 可覆盖/扩展
-      - 涨跌停、最小申报单位、板块手数规则供 enum/capital 查询
+      - 初始化模块，完成基础功能
+      - 提供了市场制度规则的查询服务，支持查询涨跌停、最小申报单位、板块手数规则
+      - 把中国A股抽象成了一个profile成为默认配置

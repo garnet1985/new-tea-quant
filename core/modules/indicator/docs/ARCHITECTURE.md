@@ -1,12 +1,12 @@
 # Indicator 架构文档
 
-**版本：** `0.2.1`
+**版本：** `0.2.0`
 
 ---
 
 ## 模块介绍
 
-`modules.indicator` 仅暴露 **`IndicatorService`**：类方法集合，**延迟导入** **`pandas_ta_classic`**，将业务侧 **K 线字典列表** 转为 **OHLCV DataFrame**，调用 TA 库函数后把结果序列化回 **Python 原生列表**，供策略与标签在无 DataFrame 的代码路径上使用。
+`modules.indicator` 仅暴露 **`Indicator`**：类方法集合，**延迟导入** **`pandas_ta_classic`**，将业务侧 **K 线字典列表** 转为 **OHLCV DataFrame / close Series**，调用 TA 库函数后把结果序列化回 **Python 原生列表**，供策略与标签在无 DataFrame 的代码路径上使用。
 
 ---
 
@@ -20,7 +20,15 @@
 
 ## 工作拆分
 
-- **`indicator_service.py`**：`_init_ta`、`_klines_to_dataframe`、`_result_to_list`、`calculate`、便捷封装、`list_indicators`、`get_indicator_help`。
+```text
+indicator/
+├── __init__.py          # 导出 Indicator
+├── contracts.py         # BatchIndicatorResult
+└── core/
+    └── indicator.py     # Facade 实现：calculate / compute / 便捷方法 / TA 加载
+```
+
+- **`core/indicator.py`**：`_init_ta`、数据裁剪与转换、`calculate` / `compute` / `compute_batch`、便捷封装、`list_indicators`、`get_indicator_help`、`warmup`。
 
 ---
 
@@ -47,11 +55,11 @@
 ```mermaid
 flowchart LR
   K[List Dict klines]
-  DF[DataFrame OHLCV]
+  C[compute 分层]
   TA[pandas-ta-classic]
   OUT[List or Dict lists]
-  K --> DF
-  DF --> TA
+  K --> C
+  C -->|close / OHLCV / 宽表| TA
   TA --> OUT
 ```
 
@@ -60,6 +68,5 @@ flowchart LR
 ## 相关文档
 
 - [DESIGN.md](DESIGN.md)
-- [API.md](API.md)
-- [DECISIONS.md](DECISIONS.md)
-- [可用指标表](../AVAILABLE_INDICATORS.md)
+- [API.md](../API.md)
+- [可用指标表](./AVAILABLE_INDICATORS.md)

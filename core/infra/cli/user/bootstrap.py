@@ -1,0 +1,74 @@
+"""CLI bootstrap: venv re-exec and install gate."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+from core.infra.cli.shared.env import CliEnv
+from core.infra.cli.user.abbrev import UserAbbrev
+from core.infra.cli.user.commands import UserCommands
+
+
+class UserBootstrap:
+    """User CLI process bootstrap (venv / install gate)."""
+
+    @staticmethod
+    def ensure_venv_for_cli(entry_file: str) -> None:
+        """Re-exec into project venv when not already inside one."""
+        if CliEnv.is_truthy(CliEnv.SKIP_AUTO_VENV):
+            return
+        if sys.prefix != sys.base_prefix:
+            return
+
+        repo_root = os.path.dirname(os.path.abspath(entry_file))
+        if os.name == "nt":
+            vpy = os.path.join(repo_root, "venv", "Scripts", "python.exe")
+        else:
+            vpy = os.path.join(repo_root, "venv", "bin", "python")
+
+        if os.path.isfile(vpy):
+            os.execv(vpy, [vpy, os.path.abspath(entry_file), *sys.argv[1:]])
+
+    @staticmethod
+    def should_skip_auto_install(argv: list[str]) -> bool:
+        """Skip install.py when command does not need full runtime."""
+        if CliEnv.is_truthy(CliEnv.SKIP_AUTO_INSTALL):
+            return True
+
+        if not argv:
+            return True
+
+        if argv[0] in ("-v", "--version"):
+            return True
+
+        if argv[0] in ("-h", "--help", "help"):
+            return True
+
+        if "-n" in argv or "--new" in argv:
+            return True
+
+        expanded = UserAbbrev.expand_argv(argv)
+        return bool(expanded) and expanded[0] in UserCommands.EARLY_COMMANDS
+
+    @staticmethod
+    def ensure_app_installed_if_needed() -> None:
+        if UserBootstrap.should_skip_auto_install(sys.argv[1:]):
+            return
+
+        try:
+            from core.infra.setup import Setup
+        except ModuleNotFoundError:
+            return
+
+        if not Setup.runtime.needs_install("cli"):
+            return
+
+        scope = Setup.runtime.cli_install_scope()
+        if scope == "deps_only":
+            print("检测到 requirements.txt 变更，正在更新依赖 …", flush=True)
+        else:
+            print("检测到应用尚未完成安装，正在运行 install.py …", flush=True)
+        code = Setup.runtime.ensure_cli_install()
+        if code != 0:
+            raise SystemExit(code)

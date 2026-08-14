@@ -1,0 +1,132 @@
+{
+  "case_name": "slice_based",
+  "run_at": "2026-08-07T05:59:07Z",
+  "run_date": "2026-08-07T05:59:07Z",
+  "module": "modules.backtest_engine",
+  "description": "按时间切片空策略基准：测引擎按片读数与推进日历的速度",
+  "versions": {
+    "backtest_engine": "0.4.0",
+    "core": "0.4.3",
+    "dependencies": {
+      "data_manager": "0.4.0",
+      "strategy": "0.7.0",
+      "data_contract": "0.6.0"
+    }
+  },
+  "environment": {
+    "os": "Darwin 24.6.0",
+    "cpu": "arm",
+    "memory_gb": 32.0,
+    "python": "3.9"
+  },
+  "dataset": {
+    "dataset_id": "fake_v1_direct",
+    "seed": 20260525,
+    "stock_count": 2000,
+    "start_date": "20230101",
+    "end_date": "20260101",
+    "open_days": 784,
+    "kline_rows": 1568000,
+    "term": "daily",
+    "id_scheme": "continuous_000000",
+    "inject": "direct",
+    "generated_at": "2026-08-06T08:46:15Z"
+  },
+  "db": {
+    "engine": "mysql",
+    "engine_dir": "mysql",
+    "name": "perf_test_tmp",
+    "paths": null
+  },
+  "metrics": {
+    "case_id": "slice_based",
+    "mode": "slice_based",
+    "db_engine": "mysql",
+    "strategy": "slice_based",
+    "workload": "strategy_baseline",
+    "wall_time_s": 5.082738666999999,
+    "entities": 500,
+    "entities_driven": 500,
+    "timeline_points": 784,
+    "success": true,
+    "elapsed_seconds": 4.933771083,
+    "opportunities_count": 0,
+    "output_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/scripts/test_strategies/slice_based/results/simulations/enum/1",
+    "version_id": 1,
+    "total_jobs": 1,
+    "completed_jobs": 1,
+    "failed_jobs": 0,
+    "slice_runtime": {
+      "per_entity_load_count": 8,
+      "formal_slices_completed": 8,
+      "reader_workers": 8,
+      "queue_depth": 3,
+      "slice_samples": [
+        {
+          "slice_index": 0,
+          "load_sec": 1.1277,
+          "compute_sec": 0.3922,
+          "serialize_sec": 0.0,
+          "deserialize_sec": 0.0,
+          "rss_after_mb": 116.0,
+          "payload_mb": 71.9,
+          "payload_bytes": 75366400
+        },
+        {
+          "slice_index": 1,
+          "load_sec": 0.6939,
+          "compute_sec": 0.3857,
+          "serialize_sec": 0.0,
+          "deserialize_sec": 0.0,
+          "rss_after_mb": 192.6,
+          "payload_mb": 148.5,
+          "payload_bytes": 155762688
+        }
+      ]
+    },
+    "warnings": [],
+    "stock_count_max": 2000,
+    "scale_fraction": 0.25,
+    "mode_label": "按时间切片（slice）",
+    "sample_size": 500,
+    "data_rows": 392000,
+    "throughput_entity_day_per_s": 77123.77631080753,
+    "schedule": {
+      "compute_workers": 1,
+      "reader_workers": 8,
+      "queue_depth": 3,
+      "slice_open_days": 105,
+      "formal_slices": 8,
+      "per_entity_load_count": 8
+    },
+    "time_split": {
+      "planning_sec": 0.1083,
+      "planning_pct": 2.1,
+      "load_sec": 3.4628,
+      "load_pct": 68.6,
+      "compute_sec": 1.4787,
+      "compute_pct": 29.3,
+      "report_sec": 0.0,
+      "report_pct": 0.0,
+      "planning_subs": {
+        "调度采样": "正式任务前 2 片（耗时已计入读数据/推进，不单列）"
+      },
+      "load_subs": {
+        "读进程峰值内存": "104.1 MB",
+        "单片读数（估）": "0.911s/片"
+      },
+      "compute_subs": {
+        "计算进程峰值内存": "44.4 MB",
+        "单片推进（估）": "0.389s/片",
+        "片内推进": 1.4787
+      },
+      "report_subs": {},
+      "notes": [
+        "空策略下「推进日历 / 引擎开销」主要是填上下文、按日推进、数据交接，不是选股算力。"
+      ]
+    },
+    "parallelism": 1.0,
+    "parallelism_efficiency": 0.1111,
+    "report_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/reports/0.4.0/slice_based/N500/mysql"
+  }
+}

@@ -1,0 +1,83 @@
+.feedback-prompt-overlay {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 1350;
+  width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.feedback-prompt-overlay__panel {
+  pointer-events: auto;
+  width: 100%;
+  padding: 18px 18px 14px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(18, 18, 36, 0.98);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transform-origin: bottom right;
+}
+
+.feedback-prompt-overlay__panel.is-enter {
+  animation: feedback-prompt-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.feedback-prompt-overlay__panel.is-leave {
+  animation: feedback-prompt-out 200ms ease-in both;
+}
+
+.feedback-prompt-overlay__title {
+  margin: 0 !important;
+  font-weight: 700 !important;
+  font-size: 1.05rem !important;
+}
+
+.feedback-prompt-overlay__copy {
+  margin: 0;
+}
+
+.feedback-prompt-overlay__rating {
+  align-self: flex-start;
+
+  .MuiToggleButton-root {
+    gap: 6px;
+    text-transform: none;
+  }
+
+  .feedback-prompt-overlay__rate-icon {
+    transition: color 160ms ease;
+  }
+}
+
+.feedback-prompt-overlay__actions {
+  margin-top: 4px;
+  width: 100%;
+  align-items: center;
+}
+
+@keyframes feedback-prompt-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes feedback-prompt-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px) translateY(6px);
+  }
+}

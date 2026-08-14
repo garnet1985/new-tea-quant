@@ -3,7 +3,7 @@ sys_trade_calendar 表 Model
 """
 from typing import Any, Dict, List, Optional
 
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.calendar.trade_calendar.schema import schema as _schema
 
@@ -101,9 +101,9 @@ class TradeCalendarModel(DbBaseModel):
         as_of_date: Optional[str] = None,
     ) -> str:
         """库内已同步日历中，``<= as_of_date`` 最近一个开市日（``is_open=1``）。"""
-        from core.utils.date.date_utils import DateUtils
+        from core.infra.utils import Utils
 
-        anchor = str(as_of_date or DateUtils.today()).strip()
+        anchor = str(as_of_date or Utils.date.today()).strip()
         return self.load_max_cal_date_on_or_before(
             anchor, market=market, is_open_only=True
         )
@@ -124,9 +124,9 @@ class TradeCalendarModel(DbBaseModel):
             return self.load_db_latest_completed_trading_date(
                 market=market, as_of_date=as_of_date
             )
-        from core.utils.date.date_utils import DateUtils
+        from core.infra.utils import Utils
 
-        anchor = str(as_of_date or DateUtils.today()).strip()
+        anchor = str(as_of_date or Utils.date.today()).strip()
         return self.load_max_cal_date_on_or_before(
             anchor, market=market, is_open_only=False
         )

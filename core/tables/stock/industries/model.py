@@ -2,7 +2,7 @@
 行业定义表 Model（表名 sys_industries）
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.stock.industries.schema import schema as _schema
 

@@ -1,22 +1,26 @@
 name: ui
-version: 0.4.1
-compatible_core_versions: ">=0.4.0"
+version: "0.2.0"
+compatible_core_versions: ">=0.4.4"
 description: "NTQ 前端UI基础设施：提供可视化的用户界面，通过浏览器展示。"
 dependencies:
   - modules.strategy
   - infra.project_context
 changelog:
-  - version: "0.4.1"
-    changes:
-      - 新增加tag和data source，并入“高级功能”下
-  - version: "0.4.0"
-    changes:
-      - Setup 向导与设置页支持 DuckDB（默认引擎）；修复 duckdb 被误显示为 postgresql 的问题
-      - 策略 Run 提交时剥离已废弃的 performance / dispatch settings 字段
-  - version: "0.3.0"
-    changes:
-      - 策略工作台、设置编辑与回测进度 UI
-      - Python 静态服务托管 FED 资产；header 版本号从 API 读取
   - version: "0.2.0"
+    changes:
+      - 重新设计一些策略工作台的API接口，优化用户体验
+      - 增加Trace模块的询问，详情以及设置页面
+  - version: "0.1.2"
+    changes:
+      - 新增加tag和data source页面，并入“高级功能”菜单下
+  - version: "0.1.2"
+    changes:
+      - 安装向导与设置页支持 DuckDB（默认引擎）；
+      - 修复 duckdb 被误显示为 postgresql 的问题
+  - version: "0.1.1"
+    changes:
+      - 完成策略工作台、设置编辑与回测进度 UI
+      - header 增加版本号
+  - version: "0.1.0"
     changes:
       - 基础 Fed 构建链路与 launcher 集成

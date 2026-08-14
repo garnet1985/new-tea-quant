@@ -4,7 +4,7 @@ data_stock_index_indicator 表 Model
 股指指标。
 """
 from typing import List, Dict, Any
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.index.stock_index_klines.schema import schema as _schema
 
 

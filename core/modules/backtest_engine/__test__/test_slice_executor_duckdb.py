@@ -1,0 +1,88 @@
+"""SliceExecutorDuckDB scope wrapper tests."""
+from __future__ import annotations
+
+from contextlib import contextmanager
+from unittest.mock import patch
+
+import pytest
+
+from core.modules.backtest_engine.core.shared.context import ExecutionContext
+from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
+from core.modules.backtest_engine.core.schedule.slice_based.executor_duckdb import (
+    SliceExecutorDuckDB,
+)
+from core.modules.backtest_engine.core.schedule.slice_based.planner import (
+    SliceDispatchPlan,
+)
+
+pytestmark = pytest.mark.force_run
+
+
+def _plan(*, reader_workers: int) -> SliceDispatchPlan:
+    return SliceDispatchPlan(
+        reader_workers=reader_workers,
+        reader_memory_budget_mb=40.0,
+        compute_processes=1,
+        compute_memory_budget_mb=30.0,
+        queue_capacity=4,
+        preload_depth=2,
+        slice_open_days=20,
+        dispatch_jobs=2,
+        memory_budget_mb=4096.0,
+        oom_adjusted=False,
+    )
+
+
+def _run(plan: SliceDispatchPlan) -> list[dict]:
+    context = ExecutionContext.create(task_name="test", total_jobs=0)
+    expected = SliceExecutor.ExecutionResult(
+        success=True,
+        total_jobs=0,
+        completed_jobs=0,
+        failed_jobs=0,
+        failures=[],
+        elapsed_seconds=0.0,
+        job_results=[],
+    )
+    scope_calls: list[dict] = []
+
+    @contextmanager
+    def fake_scope(**kwargs):
+        scope_calls.append(kwargs)
+        yield
+
+    with patch(
+        "core.modules.backtest_engine.core.shared.duckdb_executor_scope.Db.duckdb.worker_pool.should_apply",
+        return_value=True,
+    ), patch(
+        "core.modules.backtest_engine.core.shared.duckdb_executor_scope.Db.duckdb.worker_pool.maybe_scope",
+        side_effect=fake_scope,
+    ), patch.object(
+        SliceExecutor,
+        "execute",
+        return_value=expected,
+    ):
+        result = SliceExecutorDuckDB.execute(
+            plan,
+            [],
+            context,
+            execute_fn=lambda ctx: {"success": True},
+            data_mgr=object(),
+            duckdb_process_pool_scope="auto",
+            duckdb_resume_main_after_pool=False,
+        )
+    assert result is expected
+    return scope_calls
+
+
+def test_duckdb_scope_enables_pool_when_readers_positive() -> None:
+    scope_calls = _run(_plan(reader_workers=2))
+    assert len(scope_calls) == 1
+    assert scope_calls[0]["use_process_pool"] is True
+    assert scope_calls[0]["resume_main_after"] is False
+
+
+def test_duckdb_scope_keeps_main_db_when_readers_zero() -> None:
+    scope_calls = _run(_plan(reader_workers=0))
+    assert len(scope_calls) == 1
+    assert scope_calls[0]["use_process_pool"] is False

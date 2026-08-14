@@ -86,6 +86,8 @@ pymysql==1.1.2
     # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via pandas
+pyyaml==6.0.3
+    # via -r requirements.in
 pytz==2026.1.post1
     # via pandas
 requests==2.32.5

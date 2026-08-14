@@ -1,9 +1,20 @@
+# 模块元数据
 name: infra.discovery
-version: 0.2.0
-compatible_core_versions: ">=0.2.0"
-description: "NTQ 的扩展发现基础设施：按包路径与命名约定扫描并加载子类、模块级对象及类属性。"
+version: "0.2.1"
+compatible_core_versions: ">=0.4.0"
+description: "发现模块：自动发现一些带有特征的文件/类/文件夹的模块，用来服务于用户自定义的功能文件和类。"
 dependencies: []
 changelog:
-  - version: "0.2.0"
+  - version: "0.2.1"
     changes:
-      - ClassDiscovery 包扫描；data_source Provider / handler 发现基线
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+  - version: "0.1.1"
+    changes:
+      - 新增 FileUtils（单个文件操作）
+      - 新增 FileDiscovery（批量文件发现）
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 快捷发现文件/类/文件夹等，方便外部调用

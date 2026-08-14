@@ -2,7 +2,7 @@
 股票-市场映射表 Model（表名 sys_stock_market_map）
 """
 from typing import List, Dict, Any
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.stock.stock_market_map.schema import schema as _schema
 

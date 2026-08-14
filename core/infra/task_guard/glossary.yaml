@@ -1,0 +1,35 @@
+# Task Guard 术语表
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面是 TaskGuard。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.lease 当公开 API"
+
+  TaskGuard:
+    definition: "长任务互斥守卫门面：read_status / lease / types。"
+    aliases: []
+    avoid:
+      - "当作 job queue 或多任务 pipeline 调度器"
+
+  task_lease:
+    definition: "全局长任务租约；落盘 userspace/.ntq/runtime/task_guard_active.json。"
+    aliases:
+      - "TaskLease"
+      - "租约"
+      - "TaskGuard.lease"
+    avoid:
+      - "pipeline_active.json（旧名）"
+
+  TaskLeaseBusyError:
+    definition: "acquire 失败：已有任务持有全局互斥租约。"
+    aliases: []
+    avoid: []
+
+  VALID_KINDS:
+    definition: "合法 kind：tag_run / strategy_scan / strategy_run / data_renew。"
+    aliases: []
+    avoid: []

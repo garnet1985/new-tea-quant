@@ -4,7 +4,7 @@
 表初始值见同目录 data.json。
 """
 from typing import List, Dict, Any
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.index.index_list.schema import schema as _schema
 
 

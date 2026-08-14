@@ -35,9 +35,9 @@ Tag 配置编辑、tag 结果预览等均 **不在 MVP**。
 
 ## 与 Strategy / Scan 的对齐
 
-- 列表形态参考 `StrategyListPage` + **V2-02** `GET /strategies/list`。
+- 列表形态参考 `StrategyListPage` + **V2-02** `GET /strategy/catalog/{page}/{limit}`。
 - 运行形态参考 **机会扫描**：`POST …/run` → `job_id` → `GET …/progress`（见 `scanPage` + `strategy_scan` BFF）。
-- API 编号采用 **T1-xx**（Tag 控制台 MVP）；契约写法与 `strategyWorkbenchPage/mocks/API.md` 一致。
+- API 编号采用 **T1-xx**（Tag 控制台 MVP）；契约写法对齐策略 V2 族（见 `core/bff/docs/routes/strategy.md`）。
 
 ## 列表「最后更新」用哪个字段？
 
@@ -62,19 +62,19 @@ Tag 配置编辑、tag 结果预览等均 **不在 MVP**。
 - **BFF**：进程内 tag run 锁 + 活跃 `job_id`（对齐 `scanner_run._ACTIVE_JOB_ID`）。
 - **Progress**：仍按 job 分文件 `userspace/.ntq/tmp/progress/tag-run/{tag_key}__{job_id}.json`（与 scan 同形）。
 
-### 第 2 层 — DuckDB 全局 pipeline（跨模块）
+### 第 2 层 — DuckDB 全局长任务互斥（跨模块）
 
 Tag、Strategy 回测/扫描、Data Source renew 等可能争用 **`data.duckdb`**（及个别写路径）。MVP **不做排队**，冲突即 **409** + UI disable。
 
-**推荐实现：全局 pipeline 租约（单文件）**
+**推荐实现：`infra.task_guard` 全局租约（单文件）**
 
-- 路径：`userspace/.ntq/runtime/pipeline_active.json`（与 `ProgressRecorder` 同属 `.ntq` 运行时区）。
+- 路径：`userspace/.ntq/runtime/task_guard_active.json`（与 `ProgressRecorder` 同属 `.ntq` 运行时区）。
 - 内容示例：`{ "kind": "tag_run"|"strategy_scan"|"strategy_run"|"data_renew", "job_id", "resource_key", "started_at", "domains": ["data","tag"] }`
 - **Acquire**：任何长任务启动前 CAS 写入；已有活跃租约 → 拒绝。
 - **Release**：任务终态（completed/failed）或 BFF 进程 atexit 清理。
-- **查询**：`GET /api/v1/runtime/pipeline`（**T1-00**）供 FED 进页/轮询时 disable 按钮并展示「谁占用了 DB」。
+- **查询**：`GET /api/v1/runtime/pipeline`（**T1-00**，路径名历史；实现为 `TaskGuard.read_status()`）供 FED 进页/轮询时 disable 按钮并展示「谁占用了 DB」。
 
-各模块后续在 `POST …/run` 入口统一调用同一 `PipelineLease.acquire(kind=…)`；Tag MVP 先实现 tag 侧 + 只读 T1-00，Strategy/renew 接入可渐进。
+各模块后续在 `POST …/run` 入口统一调用同一 `TaskGuard.lease(kind=…)`；Tag MVP 先实现 tag 侧 + 只读 T1-00，Strategy/renew 接入可渐进。
 
 默认三分库：`data.duckdb`、`tag.duckdb`、`strategy.duckdb` — tag run 写 tag、读 data；renew 写 data；回测读 data、写 strategy。
 
@@ -104,7 +104,7 @@ Setup 完成 `import_data` 后，用户可在 Tag 列表触发计算；与 setup
 ## 附录：`sys_tag_scenario.updated_at` 在代码里如何更新
 
 1. **表定义**（`core/tables/tag/tag_scenario/schema.py`）：MySQL 风格 `default: CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`。
-2. **DuckDB 建表**（`core/infra/db/engines/_shared/fields/base.py`）：`ON UPDATE` 被去掉，仅剩 insert 默认值 → **无自动 on-update**。
+2. **DuckDB 建表**（`core/infra/db/core/engines/shared/fields/base.py`）：`ON UPDATE` 被去掉，仅剩 insert 默认值 → **无自动 on-update**。
 3. **写入路径**（`ScenarioModel._ensure_scenario_metadata` → `tag_service`）：
    - 首次：`save_scenario` → `upsert_many`
    - 已存在且 `recompute=True`：删旧 scenario 再 `save_scenario`
@@ -112,4 +112,4 @@ Setup 完成 `import_data` 后，用户可在 Tag 列表触发计算；与 setup
    - 已存在且 meta 不变：**直接 `_set_meta(scenario_metadata)`，不写库**
 4. **计算阶段**：`save_batch` 只写 `sys_tag_value`，**不 touch** `sys_tag_scenario.updated_at`。
 
-结论：该字段 **不是**「最后一次 tag 计算完成时间」；列表用 `get_max_as_of_date` / value 聚合（`tag_service.get_tag_value_last_update_info`）。
+结论：该字段 **不是**「最后一次 tag 计算完成时间」。列表「最后计算至 / 数据状态」读 **`sys_tag_calc_progress.last_calculated_end`**（各实体最小值），**不要**用 `MAX(as_of)`——变化日写入的 tag 的 as_of 不等于计算推进水位。

@@ -2,7 +2,7 @@
 stock_klines 表 Model
 """
 from typing import List, Dict, Any, Optional, Sequence
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.stock.stock_klines.schema import schema as _schema
 

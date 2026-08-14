@@ -11,3 +11,4 @@ export { default as DateRangeField } from './dateRange';
 export { default as DictParserField } from './dictParser';
 export { default as FieldCollectionField } from './fieldCollection';
 export { default as FeesOverrideField } from './feesOverride';
+export { default as DividerField } from './divider';

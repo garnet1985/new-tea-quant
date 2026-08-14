@@ -2,7 +2,7 @@
 export const STEP_TABS = [
   { key: 'enum', label: '枚举报告' },
   { key: 'price', label: '价格回测报告' },
-  { key: 'capital', label: '资金模拟报告' },
+  { key: 'portfolio', label: '投资模拟报告' },
 ];
 
 /** 对比版本下拉末项：打开完整版本列表 */

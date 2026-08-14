@@ -36,10 +36,10 @@
 
 ### UI 最小依赖 import 冒烟（CI / 本地）
 
-`python -m devtools.quick_tools.minimal_import_check`（或 `python dev-cli.py -ic`）在**仅安装**
-`core/ui/bff/requirements.txt` 的隔离 venv 中，逐条 import launcher 与 BFF 冷启动链。CI：`minimal-ui-imports`。
+`python -m core.infra.cli.dev.scripts.minimal_import_check`（或 `python devcli.py ic`）在**仅安装**
+`core/bff/requirements.txt` 的隔离 venv 中，逐条 import launcher 与 BFF 冷启动链。CI：`minimal-ui-imports`。
 
-开发快捷入口：`dev-cli.py`；脚本位于 `devtools/quick_tools/`。清理：`dev-cli.py -kui`、`-cc`（仅 userspace/.ntq）、`-cu`。
+开发快捷入口：`devcli.py`；脚本位于 `core/infra/cli/dev/scripts/`。清理：`devcli.py uk`、`cgc`（仅 userspace/.ntq）、`csc`。
 
 ## 3.1 launcher.py（唯一入口）
 
@@ -71,7 +71,7 @@
 建议分层：
 
 - Python（UI runtime）：
-  - `core/ui/bff/requirements.txt`
+  - `core/bff/requirements.txt`
 - Node（FED runtime）：
   - `core/ui/fed/package.json` + lock 文件
 - Core 全量依赖（非 UI 最小启动）：

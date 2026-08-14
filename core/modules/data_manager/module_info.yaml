@@ -1,24 +1,38 @@
 name: modules.data_manager
-version: 0.3.6
+version: "0.2.0"
 compatible_core_versions: ">=0.4.1"
-description: "统一数据访问门面：DatabaseManager、core/userspace 表发现、各领域 DataService（stock/macro/calendar/index/db_cache）。"
+description: "数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。"
 dependencies:
   - infra.db
   - infra.project_context
+  - infra.discovery
+  - infra.utils
 changelog:
-  - version: "0.3.6"
+  - version: "0.2.0"
     changes:
-      - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%
-  - version: "0.3.5"
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - CalendarService 不再包根导出；经 DataManager.calendar 访问
+      - 删除过时 ui_transit（旧 UI 投资台账占位，无表无调用）
+      - 删除未使用 helpers/FilteringHelper
+  - version: "0.1.6"
     changes:
-      - 修改K线qfq的模拟算法，是误差更小，更贴近外部认可的数据来源
-  - version: "0.3.4"
+      - 优化了并支持了调度器中的entities_per_job约束，效率最高提升约15%（并行IO收益）
+  - version: "0.1.5"
     changes:
-      - K 线加载查询优化（回测路径显著提速）
-      - 配合 DuckDB 域路由与 data_contract 批量取数
-  - version: "0.3.3"
+      - 修改K线qfq的模拟算法，使误差更小，更贴近外部认可的数据来源
+  - version: "0.1.4"
     changes:
-      - 交易日历、风险时段表与服务；全量股票列表（含退市）
-  - version: "0.3.0"
+      - 优化了K线加载查询，显著提升了回测路径的效率
+      - 配合 DuckDB 域路由，可以支持批量取数
+  - version: "0.1.2"
     changes:
-      - DataService 门面与 userspace 表发现基线
+      - 增加了交易日历、风险时段表与服务；全量股票列表（含退市）
+  - version: "0.1.1"
+    changes:
+      - 内部重新定义服务，按照业务划分了几个基础服务，并且提供了跨表的服务架构
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 提供数据基础服务，提供单表查询的基类和跨表的服务架构

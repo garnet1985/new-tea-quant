@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# NTQ 用户 CLI。与 python cli.py -h 相同；维护请改 core/infra/cli/help_text.py
+# NTQ 用户 CLI。与 python cli.py -h 相同；维护请改 core/infra/cli/user/help_text.py
 #
 # 规则: xx=命令  -f/-n=全局  --xx=对象参数
 #
@@ -9,6 +9,8 @@
 #
 from __future__ import annotations
 
+from core.infra.cmd_layout import i
+
 import sys
 
 # Windows GBK 编码兼容：强制 UTF-8 输出，保留 emoji 符号
@@ -16,25 +18,24 @@ if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
 import os
-import sys
 
 _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from core.infra.cli.bootstrap import ensure_app_installed_if_needed, ensure_venv_for_cli
+from core.infra.cli import Cli
 
-ensure_venv_for_cli(__file__)
-ensure_app_installed_if_needed()
+# venv 重入尽量在导入重依赖之前（Cli.user.* 为 lazy import）
+Cli.user.ensure_venv(__file__)
 
 try:
-    from core.infra.cli.main import main
+    Cli.user.bootstrap(__file__)
 except ModuleNotFoundError as exc:
     missing = getattr(exc, "name", None) or str(exc)
     sys.stderr.write(
         "\n".join(
             [
-                f"❌ 缺少依赖包: {missing}",
+                f"{i('error')} 缺少依赖包: {missing}",
                 "",
                 "建议：在仓库根目录先执行一次安装（会创建 venv/ 并安装 requirements.txt）：",
                 "  python3 install.py",
@@ -51,6 +52,5 @@ except ModuleNotFoundError as exc:
     )
     raise SystemExit(1) from exc
 
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(Cli.user.main())

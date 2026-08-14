@@ -1,15 +1,28 @@
+# 模块元数据
 name: infra.db
-version: 0.3.0
+version: "0.3.1"
 compatible_core_versions: ">=0.4.0"
-description: "NTQ 数据库基础设施：Engine 挂载、Schema 管理、迁移与表级写入。"
+description: "数据库模块：解析用户数据表声明，提供数据库操作接口，对多数据库进行统一管理。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.3.1"
+    changes:
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
   - version: "0.3.0"
     changes:
-      - Engine 挂载架构（mysql / duckdb）；storage_domain 与表级域路由
-      - DuckDB 写管道、WAL/checkpoint、process_pool_scope 主进程锁协作
-      - storage_registry、duckdb 表文件地图自动生成
+      - 引擎引入duckdb以及一系列解析器
+      - 对duckdb做默认checkpoint的操作
+      - 对建表进行更安全的判断，确保不会覆盖存在的表
   - version: "0.2.0"
     changes:
-      - DatabaseManager + ConnectionManager 基线；队列写入与 schema 管理
+      - 增加入方言解析器，支持mysql和pgsql
+      - 重新定义模块配置声明，引入用户空间的common.json来配置所使用的数据库
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 单例模式
+      - 支持pgsql
+      - 支持schema声明式建表

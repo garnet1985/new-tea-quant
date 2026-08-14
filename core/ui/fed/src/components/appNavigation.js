@@ -15,11 +15,14 @@ import NtqIcon from './ntqIcon/ntqIcon';
 import { useAppVersion } from '../hooks/useAppVersion';
 import './appNavigation.scss';
 
-const navItems = [
-  { label: '策略选股', path: '/scan' },
-  { label: '制定策略', path: '/strategy-design' },
-  { label: '设置', path: '/settings' },
+/** 主流程导航（不含高级下拉 / 反馈外链） */
+const primaryNavItems = [
+  { label: '策略选股', path: '/scan', icon: 'monitoring' },
+  { label: '制定策略', path: '/strategy-design', icon: 'tactic' },
 ];
+
+/** 设置放在主导航末项 */
+const settingsNavItem = { label: '设置', path: '/settings', icon: 'settings' };
 
 /** 高级功能子菜单（Tag 等） */
 const advancedNavItems = [
@@ -33,6 +36,30 @@ const HOME_PATH = '/strategy-design';
 
 const ADVANCED_BASE = '/advanced';
 const ADVANCED_MENU_CLOSE_DELAY_MS = 160;
+const NAV_ICON_SIZE = 22;
+
+function NavButtonLabel({ icon, label, caret = false }) {
+  return (
+    <>
+      {icon ? (
+        <NtqIcon
+          name={icon}
+          size={NAV_ICON_SIZE}
+          className="ntq-nav-btn__icon"
+        />
+      ) : null}
+      <span className="ntq-nav-btn__label">{label}</span>
+      {caret ? (
+        <NtqIcon
+          name="expandMore"
+          size={16}
+          tone="muted"
+          className="ntq-nav-btn__caret-icon"
+        />
+      ) : null}
+    </>
+  );
+}
 
 function AppNavigation() {
   const location = useLocation();
@@ -114,7 +141,7 @@ function AppNavigation() {
               </Box>
             </Box>
             <Stack direction="row" spacing={0} flexWrap="wrap" className="ntq-nav">
-              {navItems.slice(0, 2).map((item) => {
+              {primaryNavItems.map((item) => {
                 const isActive = location.pathname.startsWith(item.path);
                 return (
                   <Button
@@ -124,7 +151,7 @@ function AppNavigation() {
                     variant="text"
                     className={`ntq-nav-btn${isActive ? ' is-active' : ''}`}
                   >
-                    {item.label}
+                    <NavButtonLabel icon={item.icon} label={item.label} />
                   </Button>
                 );
               })}
@@ -142,13 +169,7 @@ function AppNavigation() {
                   aria-expanded={advancedOpen ? 'true' : 'false'}
                   onClick={toggleAdvancedMenu}
                 >
-                  高级功能
-                  <NtqIcon
-                    name="expandMore"
-                    size={16}
-                    tone="muted"
-                    className="ntq-nav-btn__caret-icon"
-                  />
+                  <NavButtonLabel icon="dataObject" label="高级功能" caret />
                 </Button>
               </Box>
               <Popper
@@ -184,20 +205,25 @@ function AppNavigation() {
                 </Paper>
               </Popper>
 
-              {navItems.slice(2).map((item) => {
-                const isActive = location.pathname.startsWith(item.path);
-                return (
-                  <Button
-                    key={item.path}
-                    component={RouterLink}
-                    to={item.path}
-                    variant="text"
-                    className={`ntq-nav-btn${isActive ? ' is-active' : ''}`}
-                  >
-                    {item.label}
-                  </Button>
-                );
-              })}
+              <Button
+                component="a"
+                href="https://new-tea.cn/zh-hans/contact?from=ntq_app"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="text"
+                className="ntq-nav-btn"
+              >
+                <NavButtonLabel icon="chat" label="反馈" />
+              </Button>
+
+              <Button
+                component={RouterLink}
+                to={settingsNavItem.path}
+                variant="text"
+                className={`ntq-nav-btn${location.pathname.startsWith(settingsNavItem.path) ? ' is-active' : ''}`}
+              >
+                <NavButtonLabel icon={settingsNavItem.icon} label={settingsNavItem.label} />
+              </Button>
             </Stack>
           </Box>
         </Box>

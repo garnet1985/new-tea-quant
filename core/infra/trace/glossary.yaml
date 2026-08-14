@@ -1,0 +1,62 @@
+# Trace 术语表
+# Version: 0.1.0
+
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
+
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Trace（静态 API，勿实例化）。"
+    aliases:
+      - "门面"
+    avoid:
+      - "new Trace()"
+
+  Trace:
+    definition: "匿名 usage / behavior 上报门面；挂载 config / consent / types。"
+    aliases: []
+    avoid:
+      - "与 UI 请求排障 traceId 混淆"
+
+  TraceDefaults:
+    definition: "模块内置默认值唯一源（含 TARGET_URL）；见 core/defaults.py。"
+    aliases:
+      - "core/defaults.py"
+      - "Trace.types.TraceDefaults"
+    avoid:
+      - "在 config_service / contracts 再硬编码同一 URL"
+
+  target_url:
+    definition: "上报 POST 地址。默认 TraceDefaults.TARGET_URL；可被 userspace/system/config/trace.json 或 NTQ_TRACE_ENDPOINT 覆盖。"
+    aliases:
+      - "NTQ_TRACE_ENDPOINT"
+      - "ingest endpoint"
+    avoid: []
+
+  consent:
+    definition: "用户 opt-in 同意；落盘 userspace/system/config/trace_consent.json（与 .ntq 清理隔离）。"
+    aliases:
+      - "trace_consent.json"
+      - "Trace.consent"
+    avoid: []
+
+  installation_id:
+    definition: "本机持久化的匿名安装标识，格式 ntq_i_<uuid-hex>。"
+    aliases: []
+    avoid: []
+
+  queue:
+    definition: "userspace/.ntq/trace/queue 下一事件一文件的本地 outbox。"
+    aliases: []
+    avoid: []
+
+  budget:
+    definition: "send 时间与条数上限；standard=1s/5，extreme=2s/10。"
+    aliases:
+      - "SendBudget"
+    avoid:
+      - "FlushBudget"
+      - "flush"

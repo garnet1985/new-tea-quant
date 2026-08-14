@@ -10,9 +10,9 @@ import logging
 import re
 
 logger = logging.getLogger(__name__)
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
+from core.infra.utils import Utils
 from core.tables.stock.adj_factor_events.schema import schema as _schema
-from core.utils.io import csv_io, file_io
 
 
 CSV_PREFERRED_COLUMNS = [
@@ -359,8 +359,8 @@ class DataAdjFactorEventModel(DbBaseModel):
         rows = self._build_rows_with_start_anchor(start_date, end_date)
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        csv_bytes = csv_io.dicts_to_csv_bytes(rows)
-        archive_path = file_io.write_archive(
+        csv_bytes = Utils.io.dicts_to_csv_bytes(rows)
+        archive_path = Utils.io.write_archive(
             out_dir,
             archive_name=self.table_name,
             files={f"{self.table_name}.csv": csv_bytes},
@@ -379,9 +379,9 @@ class DataAdjFactorEventModel(DbBaseModel):
     @property
     def csv_dir(self) -> Path:
         """季度/全量 CSV 默认目录（userspace handler）。"""
-        from core.infra.project_context import PathManager
+        from core.infra.project_context import ProjectContext
 
-        d = PathManager.data_source_handler("adj_factor_event")
+        d = ProjectContext.path.get_data_source_handler_directory("adj_factor_event")
         d.mkdir(parents=True, exist_ok=True)
         return d
 
@@ -417,13 +417,13 @@ class DataAdjFactorEventModel(DbBaseModel):
 
     def get_current_quarter_csv_name(self, base_date: Optional[str] = None) -> str:
         """``adj_factor_events_YYYYQn.csv``（base_date 默认今天）。"""
-        from core.utils.date import DateUtils
+        from core.infra.utils import Utils
 
         if base_date:
             d = str(base_date).replace("-", "")[:8]
         else:
             d = datetime.now().strftime("%Y%m%d")
-        return f"adj_factor_events_{DateUtils.get_current_quarter(d)}.csv"
+        return f"adj_factor_events_{Utils.date.get_current_quarter(d)}.csv"
 
     def get_latest_csv_file(self) -> Optional[str]:
         """``csv_dir`` 下最新的 ``adj_factor_events_*.csv``。"""
@@ -445,7 +445,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         )
         end = end_date or self.get_max_event_date()
         if not start or not end:
-            csv_io.write_dicts_to_csv(file_path, [], preferred_order=CSV_PREFERRED_COLUMNS)
+            Utils.io.write_dicts_to_csv(file_path, [], preferred_order=CSV_PREFERRED_COLUMNS)
             return 0
         rows = self.load(
             "event_date >= %s AND event_date <= %s",
@@ -454,7 +454,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         )
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        csv_io.write_dicts_to_csv(
+        Utils.io.write_dicts_to_csv(
             path,
             rows,
             preferred_order=CSV_PREFERRED_COLUMNS,
@@ -487,11 +487,8 @@ class DataAdjFactorEventModel(DbBaseModel):
         """
         import pandas as pd
 
-        from core.infra.project_context import ConfigManager
-        from core.modules.data_source.service.sample_stock_list import (
-            pool_stock_ids,
-            sample_pool_count,
-        )
+        from core.infra.project_context import ProjectContext
+        from core.modules.data_manager import DataManager
         from core.tables.stock.adj_factor_events.csv_import import (
             CsvImportRejected,
             log_csv_import_report,
@@ -506,11 +503,11 @@ class DataAdjFactorEventModel(DbBaseModel):
         df = pd.read_csv(path)
         validate_csv_columns(df.columns)
 
-        default_start = ConfigManager.get_default_start_date() or ""
-        as_of = ConfigManager.get_as_of_latest_completed_trading_date()
+        default_start = ProjectContext.config.get_default_start_date() or ""
+        as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
         pool_ids: Optional[Set[str]] = None
-        if sample_pool_count():
-            pool_ids = set(pool_stock_ids())
+        if DataManager.sample_universe.count():
+            pool_ids = set(DataManager.sample_universe.ids())
 
         raw_rows = df.to_dict("records")
         stock_ids = {

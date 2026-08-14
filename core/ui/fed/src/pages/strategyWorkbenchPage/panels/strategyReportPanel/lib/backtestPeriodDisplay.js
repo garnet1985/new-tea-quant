@@ -32,16 +32,6 @@ export function readBacktestPeriodFromSlot(slot) {
       };
     }
   }
-  const legacyStart = String(slot.start_date || '').trim();
-  const legacyEnd = String(slot.end_date || '').trim();
-  if (legacyStart && legacyEnd) {
-    return {
-      start_date: legacyStart,
-      end_date: legacyEnd,
-      start_source: '',
-      end_source: '',
-    };
-  }
   return null;
 }
 

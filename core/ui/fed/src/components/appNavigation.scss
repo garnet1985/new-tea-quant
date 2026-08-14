@@ -99,9 +99,16 @@
   background: transparent;
   color: var(--ntq-text);
   transition: background 180ms ease, color 180ms ease;
-  padding-left: 18px !important;
-  padding-right: 18px !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
   min-width: 0 !important;
+  gap: 6px;
+
+  .MuiButton-label,
+  & > * {
+    display: inline-flex;
+    align-items: center;
+  }
 
   &:hover {
     background: var(--ntq-white-06);
@@ -113,6 +120,15 @@
   }
 }
 
+.ntq-nav-btn__icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.ntq-nav-btn__label {
+  line-height: 1;
+}
+
 .ntq-nav-btn.is-active {
   color: var(--ntq-cyan);
   background: rgba(255, 255, 255, 0.06);
@@ -120,6 +136,10 @@
   &:hover {
     background: rgba(255, 255, 255, 0.08);
     color: var(--ntq-cyan);
+  }
+
+  .ntq-nav-btn__icon {
+    opacity: 1;
   }
 }
 

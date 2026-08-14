@@ -2,7 +2,7 @@
 
 **版本：** `0.2.0`
 
-本文档说明 **userspace 扩展布局**、**动态加载规则**、**`process` 上下文**，以及与 **`AdapterDispatcher`** 的协作关系。实现以 `base_adapter.py`、`adapter_validator.py`、`core/modules/strategy/components/scanner/adapter_dispatcher.py` 为准。
+userspace 扩展布局、动态加载、`process` 上下文，以及与 `AdapterDispatcher` 的协作。
 
 **相关文档**：[架构总览](./ARCHITECTURE.md)
 
@@ -10,32 +10,25 @@
 
 ## userspace 目录约定
 
-每个 adapter 占一个与名称一致的子目录：
-
 ```text
-userspace/adapters/
+userspace/extensions/adapters/
 ├── console/
-│   ├── adapter.py      # 必须：实现继承 BaseOpportunityAdapter 的类
-│   └── settings.py     # 可选：顶层变量 settings 或 config（dict）
+│   ├── adapter.py      # 必须：继承 BaseOpportunityAdapter 的类
+│   └── settings.py     # 可选：顶层 settings 或 config（dict）
 └── <adapter_name>/
     ├── adapter.py
     └── settings.py
 ```
 
-- **模块路径**：`userspace.adapters.<adapter_name>.adapter`（与目录名一致）。
-- **类查找**：加载模块后取 **第一个** 满足「继承 `BaseOpportunityAdapter` 且非基类本身」的类；验证器与分发器使用相同规则。
-- **配置**：`BaseOpportunityAdapter._load_config` 导入 `userspace.adapters.<adapter_name>.settings`，读取模块级 **`settings`** 或 **`config`**；缺失则为 `{}`。
+- **模块路径**：`userspace.extensions.adapters.<adapter_name>.adapter`
+- **类查找**：取模块中**第一个**「继承 `BaseOpportunityAdapter` 且非基类」的类（`AdapterLoader` / 校验器 / 分发器同一规则）
+- **配置**：导入 `userspace.extensions.adapters.<name>.settings`，读取 `settings` 或 `config`；缺失则为 `{}`
 
 ---
 
 ## 策略配置
 
-在策略的 **scanner** 段使用 **`adapters`**：
-
-- 类型：字符串（单个名）或字符串列表；空或缺省时等价于仅依赖分发器侧的「无配置」分支（使用 `default_output`）。
-- 默认占位：解析逻辑会将缺省补为 `["console"]`（见 `ScannerSettings`），具体以策略设置代码为准。
-
-校验：`ScannerSettings._validate_adapters` 对列表中每个名称调用 **`validate_adapter(name)`**，失败则写入校验报告并提示检查 `userspace/adapters/<name>/adapter.py`。
+scanner 段使用 `adapters`（字符串或列表）。校验经 `Adapter.validate(name)`；失败提示检查 `userspace/extensions/adapters/<name>/adapter.py`。
 
 ---
 
@@ -45,36 +38,36 @@ userspace/adapters/
 process(opportunities: List[Opportunity], context: Dict[str, Any]) -> None
 ```
 
-**`context`** 由 Scanner 管线传入，常见键包括：
+常见 `context` 键：
 
-| 键 | 说明 |
-| --- | --- |
-| `date` | 扫描日期 |
-| `strategy_name` | 策略名 |
-| `scan_summary` | 扫描汇总（如股票数等，依实现而定） |
-
-`Opportunity` 为策略模块定义的数据类；adapter 不应修改框架扫描语义，仅消费数据。
+- `date` / `strategy_name` / `scan_summary` / `date_meta`
+- `price_history`：`{ "session_summary": dict|None, "by_stock": {stock_id: stats} }`（由 strategy 推送）
 
 ---
 
 ## 运行时行为（AdapterDispatcher）
 
-1. **`adapter_names` 为空**：直接调用 **`BaseOpportunityAdapter.default_output`**，不再加载 userspace。
-2. **非空**：按顺序对每个名称 `importlib.import_module("userspace.adapters.{name}.adapter")`，取第一个合法子类，**无参实例化**后调用 **`process`**。
-3. **任一成功**即增加成功计数；若**全部**加载失败或 `process` 抛错导致成功数为 0，则 **`default_output`**。
-4. 单个 adapter 失败会记录错误日志并继续尝试下一个。
+1. 组装 / 保留 `context["price_history"]`
+2. `adapter_names` 为空 → `BaseOpportunityAdapter.default_output`
+3. 非空 → 按名 `Adapter.load_class`，实例化后 `process`
+4. 全部失败 → `default_output`
 
 ---
 
-## HistoryLoader 与结果目录
+## 设计决策
 
-`HistoryLoader` 通过 **`VersionManager.resolve_price_factor_version(..., version_spec="latest")`** 定位模拟版本目录，再用 **`ResultPathManager`** 解析单股 JSON 与会话汇总文件。无文件或解析失败时返回 **`None`**，调用方需容错。
+### 1. userspace 包路径与目录名一致
 
-统计字段含义见 `HistoryLoader.load_stock_history` 文档字符串；ROI / `result` / `duration_in_days` 等来自价格模拟落盘格式。
+约定 `userspace/extensions/adapters/<name>/`，配置只写 `<name>`，与其它 extensions 一致。
 
----
+### 2. 模块内第一个合法子类即实现
 
-## 相关文档
+鼓励每个 `adapter.py` 只放一个主类；多子类时依赖枚举顺序。
 
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [API.md](API.md)
+### 3. 额外信息由 strategy 推送
+
+adapter 只消费标准机会列表 + context；不 import strategy、不读模拟产物目录。
+
+### 4. 分发与兜底放在 strategy.Scanner
+
+`AdapterDispatcher` 在 strategy；加载规则下沉到 `AdapterLoader` 避免与校验器重复。

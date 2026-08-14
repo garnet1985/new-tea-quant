@@ -1,13 +1,14 @@
 {
   "job_pipeline": {
-    "_comment": "ProcessPool 与 dispatch 调度；策略 settings 不可覆盖。default 为兜底；各 worker 可设 reserve_cores / max_parallel_jobs_cap / dispatch。用户可在 userspace/config/worker.json 用相同结构覆盖。",
+    "_comment": "BE 调度配置（ProcessPool / entities_per_job 等）；策略/Tag settings 不可覆盖。default 为兜底；各 profile 可设 reserve_cores / max_parallel_jobs_cap / dispatch / calendar_slice。用户可在 userspace/config/worker.json 用相同结构覆盖。代码 fallback：backtest_engine.performance.worker_profile.constants",
     "default": {
       "reserve_cores": 1,
       "max_parallel_jobs_cap": null
     },
     "enumerator": {
       "reserve_cores": 2,
-      "max_parallel_jobs_cap": null,
+      "max_workers": "auto",
+      "_comment_dispatch": "entities_per_job 等见 dispatch；代码 fallback 见 backtest_engine.performance.worker_profile.constants",
       "calendar_slice": {
         "reader_workers": "auto",
         "queue_depth": "auto",
@@ -22,24 +23,22 @@
         "monitor_interval": 5,
         "entities_per_job": "auto",
         "dispatch_probe": true,
-        "entities_per_job_min": 1,
-        "entities_per_job_max": 500
+        "entities_per_job_auto_target": 20,
+        "entities_per_job_min": 20,
+        "entities_per_job_max": 100
       }
     },
     "tag": {
       "reserve_cores": 1,
       "max_parallel_jobs_cap": null,
-      "_comment": "Tag 系统有两种执行模式，配置相互独立：",
-      "_comment_entity_timeline": "Entity Timeline: 多实体并行，每个 Worker 独立 IO + 计算",
-      "entity_timeline": {
-        "stage_in_worker": true,
+      "_comment": "Tag SOT：与 enumerator 同构（dispatch=entity_based，calendar_slice=slice_based）",
+      "dispatch": {
         "dispatch_probe": true,
         "entities_per_job": "auto",
         "entities_per_job_min": 1,
         "entities_per_job_max": 500,
         "memory_floor_mb": "auto"
       },
-      "_comment_calendar_slice": "Calendar Sliced: Reader + Compute 双通道，Reader 多进程读，Compute 单进程算",
       "calendar_slice": {
         "reader_workers": "auto",
         "queue_depth": "auto",
@@ -57,38 +56,14 @@
     },
     "scanner": {
       "reserve_cores": 1,
-      "max_parallel_jobs_cap": null
+      "max_parallel_jobs_cap": null,
+      "dispatch": {
+        "entities_per_job": "auto",
+        "entities_per_job_auto_target": 50,
+        "entities_per_job_min": 20,
+        "entities_per_job_max": 200,
+        "dispatch_probe": true
+      }
     }
-  },
-  "module_task_config": {
-    "OpportunityEnumerator": {
-      "task_type": "MIXED",
-      "reserve_cores": 2,
-      "description": "机会枚举器 - 既有数据库查询（I/O），也有指标计算和止盈止损判断（CPU）"
-    },
-    "TagManager": {
-      "task_type": "IO_INTENSIVE",
-      "reserve_cores": 1,
-      "description": "标签管理器 - 主要是数据库查询和写入（I/O）"
-    },
-    "Simulator": {
-      "task_type": "MIXED",
-      "reserve_cores": 2,
-      "description": "策略模拟器 - 既有数据查询（I/O），也有止盈止损计算（CPU）"
-    },
-    "Scanner": {
-      "task_type": "IO_INTENSIVE",
-      "reserve_cores": 1,
-      "description": "策略扫描器 - 主要是数据查询（I/O）和简单判断"
-    },
-    "DataSourceHandler": {
-      "task_type": "IO_INTENSIVE",
-      "reserve_cores": 1,
-      "description": "数据源处理器 - 网络请求、数据库写入（I/O）"
-    }
-  },
-  "default_task_config": {
-    "task_type": "MIXED",
-    "reserve_cores": 2
   }
 }

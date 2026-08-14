@@ -1,0 +1,498 @@
+"""
+Backtest Engine - entity_based Planner
+
+entity_based 调度规划器：5 步骤显式流程。
+"""
+from __future__ import annotations
+
+import logging
+import math
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, Callable
+
+from core.infra.machine_capacity import MachineInfo
+from core.infra.machine_capacity.contracts import MachineCapacity
+from core.modules.backtest_engine.core.performance.worker_profile.dispatch_settings import (
+    clamp_entities_per_job,
+    default_auto_entities_per_job,
+)
+from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
+from core.modules.backtest_engine.core.shared.types import JobContext, TaskStartFn, TaskCompleteFn
+from core.modules.backtest_engine.core.schedule.entity_based.probe import (
+    Probe,
+    ProbeResult,
+    WorkerProbe,
+    DEFAULT_PROBE_ENTITIES,
+)
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.core.schedule.entity_based.monitor import (
+    MonitorPlanSnapshot,
+    EntityMonitorConfig,
+)
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_PREFETCH_AHEAD: int = 1
+
+
+@dataclass(frozen=True)
+class DispatchPlan:
+    """调度规划（Step 3结果）。"""
+    
+    entities_per_job: int
+    max_workers: int
+    dispatch_jobs: int
+    prefetch_ahead: int
+    memory_budget_mb: float
+    worker_job_budget_mb: float
+    source_entities_per_job: str
+    source_max_workers: str
+    # 调度探针快照（entities_sampled=0 表示跳过或估计）
+    probe: Optional[ProbeResult] = None
+
+
+@dataclass(frozen=True)
+class JobBatch:
+    """切割后的job批次（Step 4结果）。"""
+    
+    batch_id: str
+    entity_ids: List[str]
+    entities_count: int
+    payload: Dict[str, Any]
+
+
+class EntityPlanner(BasePlanner):
+    """entity_based 调度规划器（5 步显式流程）。"""
+
+    @classmethod
+    def plan_jobs(
+        cls,
+        jobs: List[Dict[str, Any]],
+        performance: Dict[str, Any],
+        *,
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]] = None,
+        on_task_start: Optional[TaskStartFn] = None,
+        on_task_complete: Optional[TaskCompleteFn] = None,
+        executor: Optional[str] = None,
+        log_label: str = "调度",
+    ) -> Tuple[DispatchPlan, List[JobBatch], EntityMonitorConfig]:
+        """
+        Planner的编排层（对外API）。
+        
+        完整的5步骤流程：
+        1. get_machine_capacity: 得到当前电脑配置
+        2. dispatch_probe: 对jobs进行小切割探针测量
+        3. settle_plan: 根据探针结果制定规划
+        4. split_job_batches: 根据plan切割jobs
+        5. build_monitor: 制定动态planner
+        
+        Args:
+            jobs: 待执行的job列表
+            performance: 配置字典
+            executor: 执行器标识字符串（"tag", "strategy.enum", "strategy.price"）
+            log_label: 日志标签
+            
+        Returns:
+            (DispatchPlan, List[JobBatch]): 规划结果和切割后的job批次
+        """
+        capacity = cls._get_machine_capacity(performance)
+        probe_result = cls._dispatch_probe(
+            jobs,
+            capacity,
+            performance,
+            execute_fn,
+            on_task_start,
+            on_task_complete,
+            log_label,
+        )
+        plan = cls._settle_plan(
+            jobs, capacity, probe_result, performance, log_label
+        )
+        plan = DispatchPlan(
+            entities_per_job=plan.entities_per_job,
+            max_workers=plan.max_workers,
+            dispatch_jobs=plan.dispatch_jobs,
+            prefetch_ahead=plan.prefetch_ahead,
+            memory_budget_mb=plan.memory_budget_mb,
+            worker_job_budget_mb=plan.worker_job_budget_mb,
+            source_entities_per_job=plan.source_entities_per_job,
+            source_max_workers=plan.source_max_workers,
+            probe=probe_result,
+        )
+        batches = cls._split_job_batches(jobs, plan)
+        monitor_config = cls._build_monitor(plan, performance)
+        
+        logger.info(
+            "%s规划完成: capacity(cpu=%s, mem=%.1fMB), "
+            "probe(mb=%.1fMB/entity), plan(epj=%s, workers=%s, jobs=%s), batches=%s",
+            log_label,
+            capacity.cpu_count,
+            capacity.memory_budget_mb,
+            probe_result.mb_per_entity,
+            plan.entities_per_job,
+            plan.max_workers,
+            plan.dispatch_jobs,
+            len(batches),
+        )
+        
+        return plan, batches, monitor_config
+    
+    # ===== Step 2: dispatch_probe =====
+    
+    @staticmethod
+    def _dispatch_probe(
+        jobs: List[Dict[str, Any]],
+        capacity: MachineCapacity,
+        performance: Dict[str, Any],
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
+        on_task_start: Optional[TaskStartFn],
+        on_task_complete: Optional[TaskCompleteFn],
+        log_label: str,
+    ) -> ProbeResult:
+        """
+        Step 2: 对jobs进行小切割，变成一个小批次放入探针，得到结果。
+
+        Args:
+            jobs: 待执行的job列表（支持Bundle模式和传统模式）
+            capacity: 机器容量
+            performance: 配置字典
+            execute_fn: 执行函数
+            on_task_start: task 初始化回调
+            on_task_complete: task 完成回调
+            log_label: 日志标签
+
+        Returns:
+            ProbeResult: 探针结果
+        """
+        total_entities = EntityPlanner._get_total_entities(jobs)
+
+        # 判断是否需要运行探针
+        should_probe = Probe.should_run(performance, total_entities)
+
+        if not should_probe:
+            # 不运行探针，使用默认值
+            return Probe._get_default_result(performance)
+
+        # 确定探针entity数量
+        probe_entities_count = EntityPlanner._get_probe_entities_count(
+            total_entities, capacity
+        )
+
+        # 构建探针jobs（Probe内部会处理Bundle模式）
+        probe_jobs = Probe.build_probe_jobs(jobs, probe_entities_count)
+
+        # 执行探针
+        logger.info(
+            "%s探针启动: entities=%s, probe_entities=%s",
+            log_label,
+            total_entities,
+            probe_entities_count,
+        )
+
+        return Probe.dispatch(
+            probe_jobs,
+            performance,
+            execute_fn,
+            on_task_start=on_task_start,
+            on_task_complete=on_task_complete,
+            log_label=log_label,
+        )
+    
+    @staticmethod
+    def _get_probe_entities_count(total_entities: int, capacity: MachineCapacity) -> int:
+        _ = capacity
+        return min(DEFAULT_PROBE_ENTITIES, total_entities)
+    
+    # ===== Step 3: settle_plan =====
+
+    @staticmethod
+    def _prefetch_ahead(performance: Dict[str, Any]) -> int:
+        raw = performance.get("prefetch_ahead")
+        if raw is None:
+            return DEFAULT_PREFETCH_AHEAD
+        return max(0, int(raw))
+
+    @staticmethod
+    def _get_total_entities(jobs: List[Dict[str, Any]]) -> int:
+        """计算真实的entity数量（Bundle模式）。
+
+        Args:
+            jobs: bundle job列表（单个bundle job）
+
+        Returns:
+            int: entity总数（len(entity_specified))
+        """
+        if not jobs:
+            return 0
+
+        bundle_job = jobs[0]
+        entity_specified = bundle_job["payload"].get("entity_specified", [])
+        return len(entity_specified)
+
+    @staticmethod
+    def _settle_plan(
+        jobs: List[Dict[str, Any]],
+        capacity: MachineCapacity,
+        probe_result: ProbeResult,
+        performance: Dict[str, Any],
+        log_label: str,
+    ) -> DispatchPlan:
+        """Step 3: epj from settings or v1 default; workers from CPU with memory safety cap."""
+        total_entities = EntityPlanner._get_total_entities(jobs)
+
+        if total_entities <= 0:
+            return DispatchPlan(
+                entities_per_job=1,
+                max_workers=1,
+                dispatch_jobs=0,
+                prefetch_ahead=0,
+                memory_budget_mb=capacity.memory_budget_mb,
+                worker_job_budget_mb=0.0,
+                source_entities_per_job="empty",
+                source_max_workers="empty",
+            )
+
+        mb_per_entity = EntityPlanner._resolve_mb_per_entity(
+            probe_result,
+            performance,
+            log_label,
+        )
+        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
+
+        entities_per_job, epj_source = EntityPlanner._resolve_entities_per_job(
+            total_entities=total_entities,
+            mb_per_entity=mb_per_entity,
+            memory_budget_mb=capacity.memory_budget_mb,
+            performance=performance,
+            log_label=log_label,
+        )
+        worker_job_budget_mb = max(1.0, entities_per_job * mb_per_entity)
+
+        max_workers, mw_source = EntityPlanner._resolve_max_workers(
+            total_entities=total_entities,
+            entities_per_job=entities_per_job,
+            worker_job_budget_mb=worker_job_budget_mb,
+            available_memory_mb=available_memory_mb,
+            performance=performance,
+            log_label=log_label,
+        )
+
+        dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
+        prefetch_ahead = EntityPlanner._prefetch_ahead(performance)
+
+        logger.info(
+            "%s规划: entities=%s → jobs≈%s (epj=%s, %s, job≈%.1fMB), "
+            "workers=%s (%s), prefetch=%s, budget=%.0fMB (avail≈%.0fMB), "
+            "mb/entity=%.3f",
+            log_label,
+            total_entities,
+            dispatch_jobs,
+            entities_per_job,
+            epj_source,
+            worker_job_budget_mb,
+            max_workers,
+            mw_source,
+            prefetch_ahead,
+            capacity.memory_budget_mb,
+            available_memory_mb,
+            mb_per_entity,
+        )
+
+        return DispatchPlan(
+            entities_per_job=entities_per_job,
+            max_workers=max_workers,
+            dispatch_jobs=dispatch_jobs,
+            prefetch_ahead=prefetch_ahead,
+            memory_budget_mb=capacity.memory_budget_mb,
+            worker_job_budget_mb=worker_job_budget_mb,
+            source_entities_per_job=epj_source,
+            source_max_workers=mw_source,
+        )
+
+    @staticmethod
+    def _resolve_mb_per_entity(
+        probe_result: ProbeResult,
+        performance: Dict[str, Any],
+        log_label: str,
+    ) -> float:
+        staged = performance.get("mb_per_entity_staged")
+        if staged not in (None, ""):
+            return max(0.01, float(staged))
+        if probe_result.entities_sampled > 0:
+            return max(0.01, float(probe_result.mb_per_entity))
+        epj_override = performance.get("entities_per_job")
+        if epj_override not in (None, "", "auto"):
+            return 1.0
+        raise ValueError(
+            f"{log_label}: entities_per_job=auto 需要调度探针或 mb_per_entity_staged"
+        )
+
+    @staticmethod
+    def _resolve_entities_per_job(
+        *,
+        total_entities: int,
+        mb_per_entity: float,
+        memory_budget_mb: float,
+        performance: Dict[str, Any],
+        log_label: str,
+    ) -> Tuple[int, str]:
+        _ = total_entities
+        epj_override = performance.get("entities_per_job")
+        if epj_override not in (None, "", "auto"):
+            return max(1, int(epj_override)), "settings"
+
+        epj = default_auto_entities_per_job(performance)
+        single_job_mb = epj * mb_per_entity
+        if single_job_mb <= memory_budget_mb:
+            return epj, "default"
+
+        fitted = clamp_entities_per_job(
+            max(1, int(memory_budget_mb / mb_per_entity)),
+            performance,
+        )
+        logger.info(
+            "%s单 job 内存 %.1fMB 超过 budget %.0fMB，epj %s → %s",
+            log_label,
+            single_job_mb,
+            memory_budget_mb,
+            epj,
+            fitted,
+        )
+        return fitted, "memory_capped"
+
+    @staticmethod
+    def _resolve_max_workers(
+        *,
+        total_entities: int,
+        entities_per_job: int,
+        worker_job_budget_mb: float,
+        available_memory_mb: float,
+        performance: Dict[str, Any],
+        log_label: str,
+    ) -> Tuple[int, str]:
+        mw_override = performance.get("max_workers")
+        if mw_override not in (None, "", "auto"):
+            return max(1, int(mw_override)), "settings"
+
+        dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
+        cpu_workers = WorkerProbe.resolve(
+            "auto",
+            reserve_cores=MachineInfo.get_reserve_cores(performance),
+            cap=MachineInfo.parse_max_parallel_jobs_cap(
+                performance.get("max_parallel_jobs_cap")
+            ),
+        )
+        if dispatch_jobs > 0:
+            cpu_workers = min(cpu_workers, dispatch_jobs)
+        cpu_workers = max(1, cpu_workers)
+        prefetch_ahead = EntityPlanner._prefetch_ahead(performance)
+        max_by_memory = max(
+            1,
+            int(available_memory_mb / worker_job_budget_mb) - prefetch_ahead,
+        )
+        workers = max(1, min(cpu_workers, max_by_memory))
+        if workers < cpu_workers:
+            logger.info(
+                "%s内存收紧 workers: %s → %s (job≈%.1fMB, prefetch=%s, budget≈%.0fMB)",
+                log_label,
+                cpu_workers,
+                workers,
+                worker_job_budget_mb,
+                prefetch_ahead,
+                available_memory_mb,
+            )
+            return workers, "memory_capped"
+        return workers, "auto"
+
+    # ===== Step 4: split_job_batches =====
+    
+    @staticmethod
+    def _split_job_batches(
+        jobs: List[Dict[str, Any]],
+        plan: DispatchPlan,
+    ) -> List[JobBatch]:
+        """
+        Step 4: 根据plan切割bundle job。
+
+        Args:
+            jobs: bundle job列表（单个bundle job）
+            plan: 调度规划
+
+        Returns:
+            List[JobBatch]: 切割后的job批次列表
+
+        Bundle结构：
+        {
+            entity_specified: [{"id": "600000.SH"}, ...],
+            entity_shared: {data_key: {params, start, end, indicators}},
+            global: {data_key: {}},
+            shm_info: {...},
+            strategy_info / tag_info: {...},  # 业务 hooks 元数据（透传）
+            settings: {...},
+            ...  # 其余业务字段原样透传
+        }
+        """
+        if plan.dispatch_jobs <= 0:
+            return []
+
+        # Bundle模式：切割 entity_specified，其余 payload 字段透传
+        bundle_job = jobs[0]
+        payload = bundle_job["payload"]
+
+        entity_specified = payload.get("entity_specified", [])
+        if not entity_specified:
+            return []
+
+        batches = []
+        entities_per_job = plan.entities_per_job
+
+        for i in range(plan.dispatch_jobs):
+            start_idx = i * entities_per_job
+            end_idx = min(start_idx + entities_per_job, len(entity_specified))
+
+            batch_entities = entity_specified[start_idx:end_idx]
+            batch_entity_ids = [item.get("id") for item in batch_entities if item.get("id")]
+
+            # 构建batch payload：切割 entity_specified，其余业务字段原样透传
+            # （strategy_info / tag_info / tag_definitions / scenario_name 等）
+            batch_payload = {
+                k: v
+                for k, v in payload.items()
+                if k not in {"entity_specified", "entities_count"}
+            }
+            batch_payload["entity_specified"] = batch_entities
+            batch_payload["entities_count"] = len(batch_entities)
+
+            batch = JobBatch(
+                batch_id=f"batch_{i}",
+                entity_ids=batch_entity_ids,
+                entities_count=len(batch_entities),
+                payload=batch_payload,
+            )
+
+            batches.append(batch)
+
+        return batches
+    
+    # ===== Step 5: build_monitor =====
+    
+    @staticmethod
+    def _build_monitor(
+        plan: DispatchPlan,
+        performance: Dict[str, Any],
+    ) -> EntityMonitorConfig:
+        """Step 5: monitor evaluation window config (runtime adjust in-flight only)."""
+        snapshot = MonitorPlanSnapshot(
+            entities_per_job=plan.entities_per_job,
+            max_workers=plan.max_workers,
+            prefetch_ahead=plan.prefetch_ahead,
+            worker_job_budget_mb=plan.worker_job_budget_mb,
+        )
+        return EntityMonitorConfig.from_dispatch_plan(snapshot, performance)
+
+
+__all__ = [
+    "DispatchPlan",
+    "JobBatch",
+    "EntityPlanner",
+]

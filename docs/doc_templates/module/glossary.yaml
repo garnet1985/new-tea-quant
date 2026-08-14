@@ -1,0 +1,18 @@
+# <Module Display Name> 术语表
+# Version: <module.version>
+#
+# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
+# 与 CONCEPTS：本文件是词条表；运作原理写 docs/CONCEPTS.md（若有）
+
+terms:
+  <TermName>:
+    definition: "<一句话或短段定义；写清在本模块中的含义>"
+    aliases:
+      - "<同义 / 可接受别名 / 其他上下文中的叫法>"
+    avoid:
+      - "<易与本词混淆、不应混用的名称>"
+
+  <AnotherTerm>:
+    definition: "<…>"
+    aliases: []
+    avoid: []

@@ -36,7 +36,7 @@ jobs:
 
     - name: Run dependency risk detector
       run: |
-        python devtools/scripts/check_dependency_risk.py --ci-mode --verbose
+        python -m core.infra.cli.dev.scripts.dependency_risk --ci-mode --verbose
       continue-on-error: true
 
     - name: Test Windows installation (Windows only)
@@ -57,7 +57,7 @@ jobs:
     - name: Generate risk report
       if: always()
       run: |
-        python devtools/scripts/check_dependency_risk.py --fix > dependency-risk-report.txt 2>&1 || true
+        python -m core.infra.cli.dev.scripts.dependency_risk --fix > dependency-risk-report.txt 2>&1 || true
         echo "## 📊 Dependency Risk Report" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         cat dependency-risk-report.txt >> $GITHUB_STEP_SUMMARY
@@ -89,7 +89,7 @@ jobs:
           cat /tmp/req_changes.txt
           
           # 运行风险检测器
-          python devtools/scripts/check_dependency_risk.py --ci-mode
+          python -m core.infra.cli.dev.scripts.dependency_risk --ci-mode
           
           if [ $? -ne 0 ]; then
             echo "::error::Critical or high-risk dependencies detected! Please review and fix."

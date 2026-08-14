@@ -22,7 +22,7 @@ function FieldGroupField({ node, value, onChange, errors, emitChangeMeta, render
       label={hasLabel ? node.label : undefined}
       tooltip={node.tooltip || node.labelTooltip || ''}
       context={context}
-      plain={!hasLabel}
+      plain={Boolean(node.plain) || !hasLabel}
     >
       {childNodes}
     </EditorFieldGroup>

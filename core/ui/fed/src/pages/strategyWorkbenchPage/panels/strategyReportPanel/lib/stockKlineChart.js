@@ -172,27 +172,25 @@ function fmtIndicator(value) {
 }
 
 const MARKER_DETAIL_LABELS = {
+  investment_id: '投资 ID',
   opportunity_id: '机会 ID',
   trigger_date: '触发日',
   chart_close: '图上收盘价',
   engine_trigger_price: '引擎记录价',
-  buy_date: '买入日',
-  buy_price: '买入价',
-  sell_date: '目标完成日',
-  sell_price: '卖出价',
+  entry_date: '入场日',
+  entry_price: '入场价',
+  exit_date: '出场日',
+  exit_price: '出场价',
   lifecycle: '生命周期',
-  outcome: '结果',
-  sell_reason: '卖出原因',
-  target_name: '目标',
-  profit: '盈亏',
-  profit_ratio: '收益率',
-  target_type: '目标类型',
+  result: '结果',
+  exit_reason: '出场原因',
+  roi: '收益率',
 };
 
 const MARKER_DETAIL_DATE_KEYS = new Set([
   'trigger_date',
-  'buy_date',
-  'sell_date',
+  'entry_date',
+  'exit_date',
 ]);
 
 function formatMarkerDetailValue(key, value) {

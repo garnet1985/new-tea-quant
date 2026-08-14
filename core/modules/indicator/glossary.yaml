@@ -1,0 +1,33 @@
+# Indicator 术语表
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "对外统一入口类。本模块门面是 Indicator。"
+    aliases:
+      - "门面"
+    avoid:
+      - "IndicatorService"
+      - "deep-import core.indicator（优先包根）"
+
+  Indicator:
+    definition: "技术指标 Facade：pandas-ta-classic 代理与 K 线 List[Dict] 格式转换；静态 API，勿实例化。"
+    aliases:
+      - "指标门面"
+    avoid:
+      - "IndicatorService"
+
+  BatchIndicatorResult:
+    definition: "compute_batch 单项结果元组 (name, params, values)；从 contracts.py 导入。"
+    aliases: []
+    avoid: []
+
+  calculate:
+    definition: "通用指标入口；未知指标走完整 OHLCV 宽表 DataFrame。"
+    aliases: []
+    avoid: []
+
+  compute:
+    definition: "策略配置友好的单指标计算（close / 裁剪 OHLCV / 宽表分层）。"
+    aliases: []
+    avoid: []

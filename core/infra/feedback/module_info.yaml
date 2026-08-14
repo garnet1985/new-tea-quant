@@ -1,0 +1,12 @@
+name: infra.feedback
+version: 0.1.0
+compatible_core_versions: ">=0.4.4"
+description: "应用内软反馈：点赞/点踩与可选短文上报；不依赖 Trace.consent。"
+dependencies:
+  - infra.project_context
+  - infra.trace
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 初始化模块：Feedback.submit / 弹窗频控 / prefs
+      - 与 Trace.track 同意模型解耦：发送无需本地 permission

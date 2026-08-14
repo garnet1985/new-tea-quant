@@ -4,7 +4,7 @@ data_gdp 表 Model
 国内生产总值。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.macro.gdp.schema import schema as _schema
 
 

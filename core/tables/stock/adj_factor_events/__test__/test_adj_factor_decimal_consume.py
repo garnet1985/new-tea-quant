@@ -1,7 +1,7 @@
 """消费路径：infra 读出口已规范为 float，业务层不再处理 Decimal。"""
 import pytest
 
-from core.modules.data_manager.data_services.stock.sub_services.kline_service import (
+from core.modules.data_manager.core.data_services.stock.sub_services.kline_service import (
     KlineService,
 )
 from core.tables.stock.adj_factor_events.model import DataAdjFactorEventModel

@@ -1,0 +1,111 @@
+# BacktestEngine 术语表
+# Version: 0.2.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 BacktestEngine。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.schedule / core.performance 当公开 API"
+
+  BacktestEngine:
+    definition: "回测调度 Facade：probe → plan → execute → monitor；业务经 RunCallbacks 注入。"
+    aliases: ["backtest_engine", "回测引擎"]
+    avoid: ["BacktestScheduler", "JobPipeline"]
+
+  entity_based:
+    definition: "执行模式：每 entity（或 entity batch）独立并行；slice 边界内无 cross-entity 编排交互"
+    aliases: ["entity parallel", "embarrassingly parallel jobs"]
+    avoid: ["把模式名写成 timeline", "stock_based only"]
+
+  slice_based:
+    definition: >-
+      执行模式：全截面数据按日历正式片从 DB 分次装载+释放，reader/compute 预读管道控峰值内存；
+      算法 SOT 见 docs/SLICE_BASED_ALGORITHM.md。禁止全窗一次加载。
+    aliases: ["calendar slice", "time-slice bulk"]
+    avoid: ["sliced", "chunk mode", "全窗一次 JobBundleLoader"]
+
+  formal_slice:
+    definition: "连续 slice_open_days 个 open dates 构成的装载与调度单元；N 片至少 N 次按片 DB 读"
+    aliases: ["正式片", "calendar slice window"]
+    avoid: ["仅进度账本上的片（无对应 IO）"]
+
+  slice_probe:
+    definition: "小块真实试跑，产出 mb/open_day 与读/算单价，供片宽与 preload_depth 规划"
+    aliases: ["head probe", "slice 探针"]
+    avoid: ["用全窗加载代替探针"]
+
+  preload_depth:
+    definition: "读队列预取的正式片数；由 t_read/t_compute 与内存预算共同决定"
+    aliases: ["queue_capacity", "预读深度"]
+    avoid: ["靠一次读满消除等待"]
+
+  Timeline:
+    definition: >-
+      日历轴：simulation window / open dates 的发布与按 job 推进（contracts.Timeline）。
+      与已废弃的执行模式别名「timeline」不是同一概念。
+    aliases: ["日历轴", "contracts.Timeline"]
+    avoid: ["把 Timeline 当成 entity_based 的旧模式名"]
+
+  timeline_mode_alias:
+    definition: "已废弃的执行模式别名，曾指向 entity_based；BacktestMode.normalize 会拒绝。"
+    aliases: []
+    avoid: ["作为新模式名使用", "与 contracts.Timeline 混用"]
+
+  sliced:
+    definition: "已废弃别名 → slice_based（迁移期代码/文档）"
+    aliases: []
+    avoid: ["作为新模式名使用"]
+
+  BacktestJob:
+    definition: "调度 job 契约 dataclass：id + payload"
+    aliases: ["engine job"]
+    avoid: ["wire", "wire format"]
+
+  job_dict:
+    definition: "可序列化的 job 表示 {'id': str, 'payload': dict}"
+    aliases: ["job record"]
+    avoid: ["wire"]
+
+  performance:
+    definition: "调度配置 dict；应用方 dispatch 配置 merge engine base 后传入；用户 settings 不可覆盖"
+    aliases: ["dispatch performance"]
+    avoid: ["settings.performance", "global worker.json", "executor_key"]
+
+  task_name:
+    definition: "单次 run 展示/追踪名 → JobContext"
+    aliases: []
+    avoid: ["run_name", "log_label"]
+
+  RunCallbacks:
+    definition: "单次 run 的生命周期钩子。Task 寄生主体：entity=一次 worker 提交；slice=一片正式 slice。字段含 on_task_start / on_tick / on_task_complete；跨进程收包用 on_receive_task_result（slice 默认不调）。BE 只提供时间点，不暗示业务动作。"
+  Task:
+    definition: "run 内的 partial work。entity_based 寄生于一个 worker 进程内的一次提交；slice_based 寄生于一片正式日历 slice 的 compute。"
+    aliases: ["hooks", "callbacks"]
+    avoid: ["run 上平铺多个 on_* 参数", "对外传 execute_fn="]
+
+  execute_fn:
+    definition: "引擎内部 worker 入口类型 (JobContext) -> dict；由 TimelineWorkerExecute / SliceWorkerExecute 实现，非 run 公开参数"
+    aliases: ["worker entry"]
+    avoid: ["BacktestEngine.run(..., execute_fn=)"]
+
+  probe:
+    definition: "engine 内部：plan 前用内置 worker 试跑小样本（调用方不可见）"
+    aliases: []
+    avoid: ["ProbeRegistry"]
+
+  RunResult:
+    definition: "run 返回汇总：plan、monitor_stats、job_results 等"
+    aliases: []
+    avoid: ["DispatchResult"]
+
+  JobContext:
+    definition: "worker 收到的作用域：job_id + payload + task_name"
+    aliases: []
+    avoid: ["WorkerContext"]
+
+  JobReport:
+    definition: "单 job execute 返回：success + data + error"
+    aliases: []
+    avoid: ["JobResult"]

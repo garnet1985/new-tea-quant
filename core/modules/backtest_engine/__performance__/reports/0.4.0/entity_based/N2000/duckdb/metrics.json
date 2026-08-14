@@ -1,0 +1,108 @@
+{
+  "case_name": "entity_based",
+  "run_at": "2026-08-06T08:49:00Z",
+  "run_date": "2026-08-06T08:49:00Z",
+  "module": "modules.backtest_engine",
+  "description": "按股票分包空策略基准：测引擎全段装载与计算的速度",
+  "versions": {
+    "backtest_engine": "0.4.0",
+    "core": "0.4.3",
+    "dependencies": {
+      "data_manager": "0.4.0",
+      "strategy": "0.7.0",
+      "data_contract": "0.6.0"
+    }
+  },
+  "environment": {
+    "os": "Darwin 24.6.0",
+    "cpu": "arm",
+    "memory_gb": 32.0,
+    "python": "3.9"
+  },
+  "dataset": {
+    "dataset_id": "fake_v1_direct",
+    "seed": 20260525,
+    "stock_count": 2000,
+    "start_date": "20230101",
+    "end_date": "20260101",
+    "open_days": 784,
+    "kline_rows": 1568000,
+    "term": "daily",
+    "id_scheme": "continuous_000000",
+    "inject": "direct",
+    "generated_at": "2026-08-06T08:42:28Z"
+  },
+  "db": {
+    "engine": "duckdb",
+    "engine_dir": "duckdb",
+    "name": "perf_test_tmp_1",
+    "paths": {
+      "data": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/.db/perf_test_tmp_1.duckdb",
+      "tag": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/.db/perf_test_tmp_1_tag.duckdb",
+      "strategy": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/.db/perf_test_tmp_1_strategy.duckdb"
+    }
+  },
+  "metrics": {
+    "case_id": "entity_based",
+    "mode": "entity_based",
+    "db_engine": "duckdb",
+    "strategy": "entity_based",
+    "workload": "strategy_baseline",
+    "wall_time_s": 4.798865375,
+    "entities": 2000,
+    "entities_driven": 2000,
+    "timeline_points": 784,
+    "success": true,
+    "elapsed_seconds": 4.760969792,
+    "opportunities_count": 0,
+    "output_dir": "/Users/garnet/Desktop/new-tea-quant/userspace/strategies/entity_based/results/simulations/enum/18",
+    "version_id": 18,
+    "total_jobs": 100,
+    "completed_jobs": 100,
+    "failed_jobs": 0,
+    "slice_runtime": null,
+    "warnings": [],
+    "stock_count_max": 2000,
+    "scale_fraction": 1.0,
+    "mode_label": "按股票分包（entity）",
+    "sample_size": 2000,
+    "data_rows": 1568000,
+    "throughput_entity_day_per_s": 326743.9024584014,
+    "schedule": {
+      "workers": 8,
+      "job_count": 100,
+      "entities_per_job": 20
+    },
+    "time_split": {
+      "planning_sec": 0.0194,
+      "planning_pct": 0.4,
+      "load_sec": 1.8814,
+      "load_pct": 39.4,
+      "compute_sec": 2.88,
+      "compute_pct": 60.2,
+      "report_sec": 0.0,
+      "report_pct": 0.0,
+      "planning_subs": {
+        "试跑采样（定并行）": 0.0182,
+        "正式规划": 0.0012
+      },
+      "load_subs": {
+        "峰值内存（试跑采样）": "128.8 MB",
+        "装合约/行情": 1.8814
+      },
+      "compute_subs": {
+        "填上下文": 0.9262,
+        "按日 as-of": 0.9137,
+        "合约 until": 0.8409,
+        "日历 tick": 0.1992
+      },
+      "report_subs": {},
+      "notes": [
+        "空策略下「推进日历 / 引擎开销」主要是填上下文、按日推进、数据交接，不是选股算力。"
+      ]
+    },
+    "parallelism": 7.17,
+    "parallelism_efficiency": 0.8962,
+    "report_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/reports/0.4.0/entity_based/N2000/duckdb"
+  }
+}

@@ -13,6 +13,7 @@ jobs:
     env:
       # CI 已在 setup-python 解释器安装 requirements-dev；勿再切到空 venv/
       NTQ_SKIP_AUTO_VENV: "1"
+      NTQ_TRACE_ENABLED: "0"
 
     steps:
       - name: Checkout repository
@@ -30,17 +31,20 @@ jobs:
 
       - name: Bootstrap DuckDB demo data for integration tests
         run: |
-          python setup/steps/init_userspace/install.py
+          python core/infra/setup/core/steps/init_userspace/install.py
           mkdir -p userspace/system/config/database
           printf '%s\n' '{"database_type": "duckdb"}' > userspace/system/config/database/common.json
-          python setup/steps/import_data/install.py --force
+          python core/infra/setup/core/steps/import_data/install.py --force
 
       - name: Smoke test - import core modules
         run: |
           python - << 'EOF'
           import importlib
           modules = [
-              "core.infra.project_context.path_manager",
+              "core.infra.project_context",
+              "core.infra.cli",
+              "core.infra.utils",
+              "core.infra.trace",
               "core.modules.strategy",
               "core.modules.data_manager",
               "core.modules.data_source",
@@ -53,7 +57,8 @@ jobs:
           EOF
 
       - name: Run core tests
-        run: python -m pytest -v
+        run: |
+          python -m pytest -v -rs
 
   # UI 仅装 BFF 依赖时，launcher / BFF 冷启动链不得 import 未声明的三方包
   minimal-ui-imports:
@@ -68,7 +73,7 @@ jobs:
           python-version: "3.9"
 
       - name: UI minimal import smoke
-        run: python -m devtools.quick_tools.minimal_import_check
+        run: python -m core.infra.cli.dev.scripts.minimal_import_check
 
   # 确保 Dockerfile 可构建（不跑完整 install，避免 CI 时间过长）
   docker-build:
@@ -106,5 +111,5 @@ jobs:
           mkdir -p /tmp/ntq-smoke
           unzip -q /tmp/ntq-source.zip -d /tmp/ntq-smoke
           cd /tmp/ntq-smoke
-          python devtools/quick_tools/smoke_fresh_install.py --repo-root .
+          python ci/smoke_fresh_install.py --repo-root .
 

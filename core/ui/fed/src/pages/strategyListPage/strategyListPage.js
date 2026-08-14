@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -10,6 +10,7 @@ import {
   Stack,
   Button,
   TextField,
+  Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
@@ -18,46 +19,40 @@ import {
   fetchStrategyList,
   getStrategyDesignPath,
   getStrategyDisplayLabel,
-  getStrategyWorkbenchPath,
+  groupStrategiesByCategory,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import StrategyPackageImportDialog from '../../components/strategyPackageImportDialog/strategyPackageImportDialog';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
+import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
 import './strategyListPage.scss';
 
 /**
  * @param {object} props
- * @param {string} props.listBasePath 列表页路由（面包屑）
- * @param {(name: string) => string} props.getEnterPath 进入单策略调试页
- * @param {string} props.navLabel 主导航/面包屑标签
- * @param {string} props.bannerTitle
- * @param {string} props.bannerDescription
+ * @param {string} [props.listBasePath] 列表页路由（面包屑）
+ * @param {(name: string) => string} [props.getEnterPath] 进入单策略调试页
+ * @param {string} [props.navLabel] 主导航/面包屑标签
+ * @param {string} [props.bannerTitle]
+ * @param {string} [props.bannerDescription]
  */
 const STRATEGY_LIST_BANNER_TITLE = '选择一个策略';
 const STRATEGY_LIST_BANNER_DESCRIPTION =
   '请从表格中选择一个策略；支持按名称搜索。进入后可调参数、分步回测并对比版本。';
 
 function StrategyListPage({
-  listBasePath: listBasePathProp,
-  getEnterPath: getEnterPathProp,
-  navLabel: navLabelProp,
+  listBasePath = '/strategy-design',
+  getEnterPath = getStrategyDesignPath,
+  navLabel = '制定策略',
   bannerTitle = STRATEGY_LIST_BANNER_TITLE,
   bannerDescription = STRATEGY_LIST_BANNER_DESCRIPTION,
 }) {
   const navigate = useNavigate();
-  const location = useLocation();
-  const isDesignFlow = location.pathname.startsWith('/strategy-design');
-
-  const listBasePath = listBasePathProp ?? (isDesignFlow ? '/strategy-design' : '/strategy-workbench');
-  const getEnterPath = getEnterPathProp ?? (isDesignFlow ? getStrategyDesignPath : getStrategyWorkbenchPath);
-  const navLabel = navLabelProp ?? (isDesignFlow ? '制定策略' : '策略实验室');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [nameQuery, setNameQuery] = useState('');
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
   const [importOpen, setImportOpen] = useState(false);
   const [importNotice, setImportNotice] = useState(null);
   const [exportingName, setExportingName] = useState('');
@@ -68,11 +63,26 @@ function StrategyListPage({
     if (!q) return rows;
     return rows.filter((r) => {
       const id = String(r.name || '').toLowerCase();
+      const path = String(r.path || '').toLowerCase();
+      const key = String(r.key || '').toLowerCase();
       const label = String(r.display_name || '').toLowerCase();
       const desc = String(r.description || '').toLowerCase();
-      return id.includes(q) || label.includes(q) || desc.includes(q);
+      const category = String(r.category || '').toLowerCase();
+      return (
+        id.includes(q)
+        || path.includes(q)
+        || key.includes(q)
+        || label.includes(q)
+        || desc.includes(q)
+        || category.includes(q)
+      );
     });
   }, [rows, nameQuery]);
+
+  const groupedRows = useMemo(
+    () => groupStrategiesByCategory(displayRows),
+    [displayRows],
+  );
 
   const load = useCallback(() => {
     setLoading(true);
@@ -92,10 +102,6 @@ function StrategyListPage({
     load();
   }, [load]);
 
-  useEffect(() => {
-    setPaginationModel((m) => ({ ...m, page: 0 }));
-  }, [nameQuery]);
-
   const handleExportStrategyPackage = useCallback(async (strategyName) => {
     if (!strategyName || exportingName) return;
     setExportingName(strategyName);
@@ -109,6 +115,8 @@ function StrategyListPage({
     }
   }, [exportingName]);
 
+  const enterNavState = useCallback((row) => buildStrategyDesignNavState(row), []);
+
   const columns = [
     {
       field: 'display_name',
@@ -120,6 +128,7 @@ function StrategyListPage({
         <Link
           component={RouterLink}
           to={getEnterPath(params.row.name)}
+          state={enterNavState(params.row)}
           underline="hover"
           onClick={(e) => e.stopPropagation()}
         >
@@ -145,12 +154,14 @@ function StrategyListPage({
       filterable: false,
       renderCell: (params) => {
         const name = params.row.name;
-        const isExporting = exportingName === name;
+        const exportId = params.row.key || name;
+        const isExporting = exportingName === exportId;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
             <Link
               component={RouterLink}
               to={getEnterPath(name)}
+              state={enterNavState(params.row)}
               underline="hover"
               onClick={(e) => e.stopPropagation()}
             >
@@ -167,7 +178,7 @@ function StrategyListPage({
               disabled={Boolean(exportingName)}
               onClick={(e) => {
                 e.stopPropagation();
-                handleExportStrategyPackage(name);
+                handleExportStrategyPackage(exportId);
               }}
               sx={{
                 border: 'none',
@@ -200,6 +211,15 @@ function StrategyListPage({
       ),
     },
   ];
+
+  const gridSx = {
+    '& .MuiDataGrid-cell': {
+      py: 1.25,
+      alignItems: 'flex-start',
+      whiteSpace: 'normal',
+      lineHeight: 1.5,
+    },
+  };
 
   return (
     <PageLayout
@@ -275,31 +295,60 @@ function StrategyListPage({
         </Stack>
 
         <Box className="strategy-list-grid-body">
-          <DataGrid
-            autoHeight
-            rows={displayRows}
-            columns={columns}
-            loading={loading}
-            getRowHeight={() => 'auto'}
-            slots={NTQ_DATA_GRID_LOADING_SLOTS}
-            localeText={zhCN}
-            disableRowSelectionOnClick
-            sx={{
-              '& .MuiDataGrid-cell': {
-                py: 1.25,
-                alignItems: 'flex-start',
-                whiteSpace: 'normal',
-                lineHeight: 1.5,
-              },
-            }}
-            onRowDoubleClick={(params) => {
-              navigate(getEnterPath(params.row.name));
-            }}
-            // 仅 [10]：MUI TablePagination 在仅一项时不渲染 “Rows per page” 与下拉（避免英文标签）
-            pageSizeOptions={[10]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-          />
+          {groupedRows.length === 0 ? (
+            <DataGrid
+              autoHeight
+              rows={[]}
+              columns={columns}
+              loading={loading}
+              slots={NTQ_DATA_GRID_LOADING_SLOTS}
+              localeText={zhCN}
+              hideFooter
+              disableRowSelectionOnClick
+              sx={gridSx}
+            />
+          ) : (
+            <Stack spacing={2.5}>
+              {groupedRows.map(({ category, rows: categoryRows }) => (
+                <Box key={category} className="strategy-list-category-section">
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={1}
+                    className="strategy-list-category-header"
+                  >
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      {category}
+                    </Typography>
+                    <Box
+                      component="span"
+                      className="strategy-list-category-count"
+                      aria-label={`${categoryRows.length} 个策略`}
+                    >
+                      {categoryRows.length}
+                    </Box>
+                  </Stack>
+                  <DataGrid
+                    autoHeight
+                    rows={categoryRows}
+                    columns={columns}
+                    loading={loading}
+                    getRowHeight={() => 'auto'}
+                    slots={NTQ_DATA_GRID_LOADING_SLOTS}
+                    localeText={zhCN}
+                    hideFooter
+                    disableRowSelectionOnClick
+                    sx={gridSx}
+                    onRowDoubleClick={(params) => {
+                      navigate(getEnterPath(params.row.name), {
+                        state: enterNavState(params.row),
+                      });
+                    }}
+                  />
+                </Box>
+              ))}
+            </Stack>
+          )}
         </Box>
       </Paper>
 

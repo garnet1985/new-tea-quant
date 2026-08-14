@@ -32,6 +32,7 @@ import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOve
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import NtqRainbowRunButton from '../../components/ntqRainbowRunButton/ntqRainbowRunButton';
 import FreshnessStatusChip from '../../components/freshnessStatusChip/freshnessStatusChip';
+import { notifyTaskSuccess } from '../../utils/feedbackPromptBus';
 import './tagListPage.scss';
 
 function clearRowProgress(rows) {
@@ -345,6 +346,7 @@ function TagListPage() {
             setRunningJobId('');
             load();
             refreshPipeline();
+            notifyTaskSuccess('tag');
             return;
           }
           if (status === 'failed') {

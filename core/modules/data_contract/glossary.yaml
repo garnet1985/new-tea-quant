@@ -1,0 +1,161 @@
+# Data Contract 术语表
+# Version: 0.4.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 ContractIssuer。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.discovery / core.base / core.data_contracts"
+
+  ContractIssuer:
+    definition: "发现与签发 Facade；推荐 ContractIssuer.issue(...)。"
+    aliases:
+      - "Issuer"
+    avoid:
+      - "DataContracts"
+      - "DataContractManager"
+
+  DataContract:
+    definition: "已签发的数据契约句柄（BaseDataContract）：含 meta/runtime/specific，可选已填充 data。"
+    aliases:
+      - "BaseDataContract"
+      - "契约实例"
+    avoid: []
+
+  DataKey:
+    definition: "数据契约的唯一标识字符串；同一 key 多次 issue 会得到不同 contract_id。"
+    aliases:
+      - "DATA_KEY"
+      - "data key"
+      - "contract key"
+    avoid:
+      - "data contract id"
+      - "contract id"
+
+  ContractId:
+    definition: "单次签发后的唯一实例 id；data key 不变，contract_id 每次不同。"
+    aliases:
+      - "contract id"
+      - "数据契约id"
+    avoid:
+      - "data key"
+
+  ContractMeta:
+    definition: "声明期元数据：key、type、scope、loader、list_data_key 等。"
+    aliases:
+      - "meta"
+      - "数据契约元数据"
+    avoid: []
+
+  ContractScope:
+    definition: "GLOBAL（共享）或 PER_ENTITY（按实体分片）。"
+    aliases:
+      - "scope"
+    avoid:
+      - "用「签发」指代 scope"
+
+  GLOBAL:
+    definition: "全局数据契约，所有实体共享（如 GDP、股票列表）。"
+    aliases:
+      - "全局数据"
+    avoid:
+      - "局部数据"
+
+  PER_ENTITY:
+    definition: "按实体分片的契约；须声明 list_data_key 指向所属 GLOBAL list。"
+    aliases:
+      - "局部数据"
+    avoid:
+      - "全局数据"
+
+  list_data_key:
+    definition: "PER_ENTITY meta 字段：所属实体宇宙的 GLOBAL list data_key。"
+    aliases:
+      - "entity list data key"
+    avoid:
+      - "entity_list_data_id"
+
+  Entity:
+    definition: "实体：股票、指数等；宇宙由 list_data_key 指向的 list 决定。"
+    aliases:
+      - "stock"
+      - "index"
+    avoid: []
+
+  ContractType:
+    definition: "TIME_SERIES 或 NON_TIME_SERIES。"
+    aliases: []
+    avoid: []
+
+  TimeSeries:
+    definition: "按时间轴组织的数据（行情、宏观等）。"
+    aliases:
+      - "时间序列"
+    avoid: []
+
+  NonTimeSeries:
+    definition: "无统一时间轴的清单/映射类数据。"
+    aliases:
+      - "非时间序列"
+    avoid: []
+
+  TimeWindow:
+    definition: "时间范围：起止及中间时间点。"
+    aliases:
+      - "时间范围"
+    avoid: []
+
+  TimeAxisField:
+    definition: "契约主时间轴字段名（如 date / ann_date）。"
+    aliases:
+      - "时间轴字段"
+    avoid: []
+
+  TimeAxisFormat:
+    definition: "时间轴格式；默认常见为 YYYYMMDD。"
+    aliases:
+      - "时间格式"
+    avoid: []
+
+  AsOfDate:
+    definition: "PIT 截止时间点；until(as_of) 推进可见数据上界。"
+    aliases:
+      - "当前时间点"
+    avoid: []
+
+  DataCursor:
+    definition: "时序游标概念；实现为 BaseTimeSeriesContract 内 CursorState。"
+    aliases:
+      - "CursorState"
+    avoid:
+      - "modules.data_cursor"
+      - "DataCursor 独立包"
+
+  Fill_in_Data:
+    definition: "对契约调用 loader 填充 data。"
+    aliases:
+      - "fill_in_data"
+    avoid: []
+
+  Until:
+    definition: "将时序可见数据推进到指定 as_of。"
+    aliases:
+      - "until"
+    avoid: []
+
+  contract_class:
+    definition: "declaration.meta 可选字段：指向自定义 BaseDataContract 子类（通常放在同 key 包的 contract.py）。"
+    aliases:
+      - "自定义契约类"
+      - "contract.py"
+    avoid:
+      - "从 contracts 导入 ContractIssuer"
+
+  StockStPeriodsContract:
+    definition: "stock.st_periods 专用时序契约；经 contracts 导出，提供 ST/*ST 查询 API。"
+    aliases:
+      - "ST 区间契约"
+    avoid:
+      - "deep-import core.data_contracts.stock_st_periods.contract"

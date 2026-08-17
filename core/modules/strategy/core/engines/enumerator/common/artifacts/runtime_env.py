@@ -13,11 +13,10 @@ from typing import Any, Dict, List
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.services.strategy_settings import BacktestPeriod
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
-    ArtifactStore,
+    EnumerateStore,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -139,13 +138,13 @@ class RuntimeEnv:
 
     @classmethod
     def load(cls, output_dir: Path) -> "RuntimeEnv":
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+        store = EnumerateStore.at(output_dir)
         payload = store.read_json("runtime_env")
         entity_ids = store.read_text_lines("entity_ids")
         return cls.from_dict(payload, entity_ids=entity_ids)
 
     def save(self, output_dir: Path) -> SavedRuntimeEnvPaths:
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+        store = EnumerateStore.at(output_dir)
         entity_ids_path = store.write_text_lines("entity_ids", self.entity_ids)
         runtime_env_path = store.write_json("runtime_env", self.to_dict())
         return SavedRuntimeEnvPaths(

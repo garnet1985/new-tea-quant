@@ -19,10 +19,11 @@ from core.infra.utils import Utils
 from core.modules.strategy.core.engines.shared.data_class.investment.enums import (
     Lifecycle,
 )
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     ArtifactStore,
+    EnumerateStore,
     InvestmentRow,
+    PriceFactorStore,
     PriceInvestmentRow,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
@@ -181,9 +182,7 @@ class WorkbenchStockDetail:
                 message="价格回测产物目录不可用，请重新执行价格回测",
             )
 
-        investments = ArtifactStore.at(
-            output_dir, kind=SimulateKind.PRICE_FACTOR
-        ).price_investments(sid)
+        investments = PriceFactorStore.at(output_dir).investments(sid)
         if not investments:
             return cls._unavailable(
                 common,
@@ -261,19 +260,8 @@ class WorkbenchStockDetail:
         ):
             if not output_dir.is_dir():
                 continue
-            store = ArtifactStore.at(
-                output_dir,
-                kind=(
-                    SimulateKind.ENUMERATE
-                    if step == "enum"
-                    else SimulateKind.PRICE_FACTOR
-                ),
-            )
-            if step == "enum":
-                ok = store.has_enum_investments(entity_id)
-            else:
-                ok = store.has_price_investments(entity_id)
-            if ok:
+            store = ArtifactStore.for_kind(step).at(output_dir)
+            if store.has_investments(entity_id):
                 return output_dir
         return None
 
@@ -281,11 +269,11 @@ class WorkbenchStockDetail:
     def _load_enum_investments(
         output_dir: Path, entity_id: str
     ) -> List[InvestmentRow]:
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
-        if not store.has_enum_investments(entity_id):
+        store = EnumerateStore.at(output_dir)
+        if not store.has_investments(entity_id):
             return []
         try:
-            loaded = store.enum_investments(entity_id)
+            loaded = store.investments(entity_id)
         except Exception:
             logger.exception(
                 "读取枚举投资 CSV 失败: %s %s", output_dir, entity_id

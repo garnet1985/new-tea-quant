@@ -1,4 +1,8 @@
-"""统一仿真产物入口：定位 version、读写表、prune、进程内缓存。"""
+"""统一仿真产物入口：定位 version、读写表、prune、进程内缓存。
+
+``ArtifactStore`` 是基类（定位 / json / prune / 缓存）。
+三步表形态不同，由子类覆盖：``EnumerateStore`` / ``PriceFactorStore`` / ``PortfolioStore``。
+"""
 from __future__ import annotations
 
 import json
@@ -7,13 +11,13 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts.io import ArtifactIO
-from core.modules.strategy.core.services.artifacts.layout import (
+from core.modules.strategy.core.services.artifacts.consts import (
+    ENTITIES_SUBDIR,
     ENTITY_IDS_FILE,
     ENTITY_LIST_FILE,
     EQUITY_CURVE_FILE,
@@ -25,10 +29,8 @@ from core.modules.strategy.core.services.artifacts.layout import (
     SIGNAL_SNAPSHOTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
     TRADES_FILE,
-    entities_dir,
-    entity_file,
-    named_file,
 )
+from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 from core.modules.strategy.core.services.artifacts.tables.enum_investments import (
     EntityInvestmentCsv,
     GoalAchievementCsv,
@@ -47,13 +49,13 @@ logger = logging.getLogger(__name__)
 
 _KindLike = Union[SimulateKind, str]
 
+# 全称 ↔ 缩写；不要把不同名词互连（例如 capital 不是 portfolio）。
 _KIND_ALIASES = {
     "enumerate": SimulateKind.ENUMERATE,
     "enum": SimulateKind.ENUMERATE,
     "price_factor": SimulateKind.PRICE_FACTOR,
     "price": SimulateKind.PRICE_FACTOR,
     "portfolio": SimulateKind.PORTFOLIO,
-    "capital": SimulateKind.PORTFOLIO,
 }
 
 _NAMED_FILES = {
@@ -107,32 +109,27 @@ class ArtifactStore:
     """一次仿真 version 的产物句柄。
 
     读一次缓存；reporter / analyzer 共用同一实例。
+    直接构造基类无意义；``at`` / ``open`` 按 kind 返回子类。
     """
 
+    KIND: ClassVar[Optional[SimulateKind]] = None
     SNAPSHOT_KEY: ClassVar[str] = "output_recorder"
     _CACHE: ClassVar[Dict[Tuple[str, str], "ArtifactStore"]] = {}
 
-    def __init__(
-        self,
-        output_dir: Path,
-        *,
-        kind: SimulateKind,
-        version_id: str,
-    ) -> None:
+    def __init__(self, output_dir: Path, *, version_id: str) -> None:
+        if type(self) is ArtifactStore:
+            raise TypeError(
+                "用 ArtifactStore.at(..., kind=) 或 EnumerateStore / "
+                "PriceFactorStore / PortfolioStore"
+            )
         self.output_dir = Path(output_dir)
-        self.kind = kind
+        self.kind = self.KIND or SimulateKind.ENUMERATE
         self.version_id = str(version_id)
         self.runtime = ArtifactRuntime()
         self.start_date = ""
         self.end_date = ""
         self.entity_ids: List[str] = []
         self._runtime_loaded = False
-        self._enum_investments: Dict[str, EntityInvestmentCsv] = {}
-        self._enum_goals: Dict[str, GoalAchievementCsv] = {}
-        self._enum_snapshots: Dict[str, EntitySignalSnapshotCsv] = {}
-        self._price_investments: Dict[str, List[PriceInvestmentRow]] = {}
-
-    # ── 定位 ──────────────────────────────────────────
 
     @classmethod
     def parse_kind(cls, kind: _KindLike) -> SimulateKind:
@@ -144,61 +141,85 @@ class ArtifactStore:
         if mapped is None:
             raise ValueError(
                 f"unsupported simulation kind: {kind!r} "
-                f"(expected enum/price/portfolio)"
+                f"(expected enumerate / price_factor / portfolio)"
             )
         return mapped
 
     @classmethod
-    def simulation_root(cls, strategy_folder: Union[str, Path], kind: _KindLike) -> Path:
-        folder = Path(strategy_folder)
-        parsed = cls.parse_kind(kind)
-        if parsed is SimulateKind.ENUMERATE:
-            return ProjectContext.path.get_strategy_simulation_enum_directory(folder)
-        if parsed is SimulateKind.PRICE_FACTOR:
-            return ProjectContext.path.get_strategy_simulation_price_directory(folder)
-        return ProjectContext.path.get_strategy_simulation_portfolio_directory(folder)
+    def for_kind(cls, kind: _KindLike) -> Type["ArtifactStore"]:
+        return _STORE_BY_KIND[cls.parse_kind(kind)]
+
+    @classmethod
+    def _require_kind(cls, kind: Optional[_KindLike] = None) -> SimulateKind:
+        if cls.KIND is not None:
+            if kind is not None:
+                parsed = cls.parse_kind(kind)
+                if parsed is not cls.KIND:
+                    raise ValueError(
+                        f"{cls.__name__} 的 kind 必须是 {cls.KIND.value}，收到: {kind!r}"
+                    )
+            return cls.KIND
+        if kind is None or str(kind).strip() == "":
+            raise ValueError("kind 不能为空")
+        return cls.parse_kind(kind)
+
+    @classmethod
+    def simulation_root(
+        cls,
+        strategy_folder: Union[str, Path],
+        kind: Optional[_KindLike] = None,
+    ) -> Path:
+        if cls.KIND is None:
+            return cls.for_kind(cls._require_kind(kind)).simulation_root(
+                strategy_folder
+            )
+        raise NotImplementedError(f"{cls.__name__} 未实现 simulation_root")
 
     @classmethod
     def allocate(
         cls,
         strategy_folder: Union[str, Path],
-        kind: _KindLike,
+        kind: Optional[_KindLike] = None,
         *,
         strategy_id: str = "",
         max_versions: Optional[int] = None,
     ) -> "ArtifactStore":
-        parsed = cls.parse_kind(kind)
-        root = cls.simulation_root(strategy_folder, parsed)
+        parsed = cls._require_kind(kind)
+        impl = cls.for_kind(parsed)
+        root = impl.simulation_root(strategy_folder)
         output_dir, version_id = cls._allocate_version_dir(
             str(strategy_id or strategy_folder),
             root,
             max_versions=max_versions,
         )
-        return cls.at(output_dir, kind=parsed, version_id=str(version_id))
+        return impl.at(output_dir, version_id=str(version_id))
 
     @classmethod
     def resolve(
         cls,
         strategy_folder: Union[str, Path],
-        kind: _KindLike,
-        version_id: str,
+        kind: Optional[_KindLike] = None,
+        version_id: str = "",
     ) -> "ArtifactStore":
+        parsed = cls._require_kind(kind)
         vid = str(version_id or "").strip()
         if not vid:
             raise ValueError("version_id 不能为空")
-        output_dir = cls.simulation_root(strategy_folder, kind) / vid
+        impl = cls.for_kind(parsed)
+        output_dir = impl.simulation_root(strategy_folder) / vid
         if not output_dir.is_dir():
             raise FileNotFoundError(f"仿真 version 目录不存在: {output_dir}")
-        return cls.open(output_dir, kind=kind, version_id=vid)
+        return impl.open(output_dir, version_id=vid)
 
     @classmethod
     def latest(
         cls,
         strategy_folder: Union[str, Path],
-        kind: _KindLike,
+        kind: Optional[_KindLike] = None,
     ) -> Optional["ArtifactStore"]:
-        parsed = cls.parse_kind(kind)
-        root = cls.simulation_root(strategy_folder, parsed)
+        parsed = cls._require_kind(kind)
+        impl = cls.for_kind(parsed)
+        root = impl.simulation_root(strategy_folder)
         meta_path = root / "meta.json"
         if not meta_path.is_file():
             return None
@@ -212,14 +233,14 @@ class ArtifactStore:
         output_dir = root / str(latest_id)
         if not output_dir.is_dir():
             return None
-        return cls.at(output_dir, kind=parsed, version_id=str(latest_id))
+        return impl.at(output_dir, version_id=str(latest_id))
 
     @classmethod
     def open(
         cls,
         output_dir: Union[str, Path],
         *,
-        kind: _KindLike,
+        kind: Optional[_KindLike] = None,
         version_id: Optional[str] = None,
     ) -> "ArtifactStore":
         store = cls.at(output_dir, kind=kind, version_id=version_id)
@@ -231,19 +252,23 @@ class ArtifactStore:
         cls,
         output_dir: Union[str, Path],
         *,
-        kind: _KindLike,
+        kind: Optional[_KindLike] = None,
         version_id: Optional[str] = None,
     ) -> "ArtifactStore":
-        parsed = cls.parse_kind(kind)
+        parsed = cls._require_kind(kind)
+        impl = cls.for_kind(parsed)
         directory = Path(output_dir)
         vid = str(version_id or directory.name or "").strip() or "0"
-        key = (parsed.value, str(directory.resolve()) if directory.exists() else str(directory))
+        key = (
+            parsed.value,
+            str(directory.resolve()) if directory.exists() else str(directory),
+        )
         cached = cls._CACHE.get(key)
         if cached is not None:
             if version_id is not None and str(version_id).strip():
                 cached.version_id = str(version_id).strip()
             return cached
-        store = cls(directory, kind=parsed, version_id=vid)
+        store = impl(directory, version_id=vid)
         cls._CACHE[key] = store
         return store
 
@@ -252,7 +277,7 @@ class ArtifactStore:
         cls,
         output_dir: Union[str, Path],
         *,
-        kind: _KindLike = SimulateKind.ENUMERATE,
+        kind: Optional[_KindLike] = None,
         version_id: str = "1",
         entity_ids: Optional[Sequence[str]] = None,
         start_date: str = "",
@@ -281,9 +306,7 @@ class ArtifactStore:
 
     @classmethod
     def clear_cache(cls) -> None:
-        cls._CACHE.clear()
-
-    # ── prune / allocate internals ──────────────────────────────────────────
+        ArtifactStore._CACHE.clear()
 
     @classmethod
     def prune(
@@ -305,14 +328,9 @@ class ArtifactStore:
         per_kind: Dict[str, int] = {}
         total = 0
         for parsed in kinds:
-            root = cls.simulation_root(folder, parsed)
+            root = cls.for_kind(parsed).simulation_root(folder)
             deleted = cls.prune_root(root, max_versions=max_versions)
-            label = {
-                SimulateKind.ENUMERATE: "enum",
-                SimulateKind.PRICE_FACTOR: "price",
-                SimulateKind.PORTFOLIO: "portfolio",
-            }[parsed]
-            per_kind[label] = deleted
+            per_kind[parsed.value] = deleted
             total += deleted
         return {
             "ok": True,
@@ -398,8 +416,15 @@ class ArtifactStore:
             version_id=str(snapshot.get("version_id") or ""),
         )
 
+    def entities_dir(self) -> Path:
+        return self.output_dir / ENTITIES_SUBDIR
+
+    def entity_file(self, entity_id: str, suffix: str) -> Path:
+        eid = str(entity_id or "").strip().replace("/", "_")
+        return self.entities_dir() / f"{eid}{suffix}"
+
     def ensure_entities_dir(self) -> Path:
-        path = entities_dir(self.output_dir)
+        path = self.entities_dir()
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -407,40 +432,54 @@ class ArtifactStore:
         filename = _NAMED_FILES.get(str(name or "").strip())
         if not filename:
             raise ValueError(f"unknown artifact file: {name!r}")
-        return named_file(self.output_dir, filename)
+        return self.output_dir / filename
 
     def has_runtime_env(self) -> bool:
         return self.file("runtime_env").is_file()
 
-    # ── json / text ──────────────────────────────────────────
+    def has_investments(self, entity_id: str) -> bool:
+        return False
 
     def read_json(self, name: str) -> Dict[str, Any]:
-        path = self.file(name) if name in _NAMED_FILES else named_file(self.output_dir, name)
+        path = (
+            self.file(name)
+            if name in _NAMED_FILES
+            else self.output_dir / name
+        )
         return ArtifactIO.read_json(path)
 
     def write_json(self, name: str, payload: Any) -> Path:
-        path = self.file(name) if name in _NAMED_FILES else named_file(self.output_dir, name)
+        path = (
+            self.file(name)
+            if name in _NAMED_FILES
+            else self.output_dir / name
+        )
         return ArtifactIO.write_json(path, payload)
 
     def read_text_lines(self, name: str) -> List[str]:
-        path = self.file(name) if name in _NAMED_FILES else named_file(self.output_dir, name)
+        path = (
+            self.file(name)
+            if name in _NAMED_FILES
+            else self.output_dir / name
+        )
         return ArtifactIO.read_text_lines(path)
 
     def write_text_lines(self, name: str, lines: Sequence[str]) -> Path:
-        path = self.file(name) if name in _NAMED_FILES else named_file(self.output_dir, name)
+        path = (
+            self.file(name)
+            if name in _NAMED_FILES
+            else self.output_dir / name
+        )
         return ArtifactIO.write_text_lines(path, lines)
-
-    # ── runtime identity ──────────────────────────────────────────
 
     def _ensure_runtime(self) -> None:
         if self._runtime_loaded:
             return
-        runtime_path = named_file(self.output_dir, RUNTIME_ENV_FILE)
+        runtime_path = self.output_dir / RUNTIME_ENV_FILE
         if not runtime_path.is_file():
             raise FileNotFoundError(f"缺少 {RUNTIME_ENV_FILE}: {self.output_dir}")
         raw = ArtifactIO.read_json(runtime_path)
-        ids_path = named_file(self.output_dir, ENTITY_IDS_FILE)
-        entity_ids = ArtifactIO.read_text_lines(ids_path)
+        entity_ids = ArtifactIO.read_text_lines(self.output_dir / ENTITY_IDS_FILE)
         if not entity_ids:
             raw_ids = raw.get("entity_ids")
             if isinstance(raw_ids, list):
@@ -465,14 +504,45 @@ class ArtifactStore:
         self.entity_ids = entity_ids
         self._runtime_loaded = True
 
-    # ── enum tables ──────────────────────────────────────────
+    @staticmethod
+    def _scan_suffix(directory: Path, suffix: str) -> List[str]:
+        if not directory.is_dir():
+            return []
+        return sorted(
+            entry.name[: -len(suffix)]
+            for entry in directory.iterdir()
+            if entry.is_file() and entry.name.endswith(suffix)
+        )
 
-    def enum_investments(self, entity_id: str) -> EntityInvestmentCsv:
+
+class EnumerateStore(ArtifactStore):
+    """enumerate version：stock / goal / signal_snapshot CSV。"""
+
+    KIND = SimulateKind.ENUMERATE
+
+    def __init__(self, output_dir: Path, *, version_id: str) -> None:
+        super().__init__(output_dir, version_id=version_id)
+        self._investments: Dict[str, EntityInvestmentCsv] = {}
+        self._goals: Dict[str, GoalAchievementCsv] = {}
+        self._snapshots: Dict[str, EntitySignalSnapshotCsv] = {}
+
+    @classmethod
+    def simulation_root(
+        cls,
+        strategy_folder: Union[str, Path],
+        kind: Optional[_KindLike] = None,
+    ) -> Path:
+        cls._require_kind(kind)
+        return ProjectContext.path.get_strategy_simulation_enum_directory(
+            Path(strategy_folder)
+        )
+
+    def investments(self, entity_id: str) -> EntityInvestmentCsv:
         eid = str(entity_id or "").strip()
-        cached = self._enum_investments.get(eid)
+        cached = self._investments.get(eid)
         if cached is not None:
             return cached
-        path = entity_file(self.output_dir, eid, STOCK_INVESTMENTS_SUFFIX)
+        path = self.entity_file(eid, STOCK_INVESTMENTS_SUFFIX)
         table = EntityInvestmentCsv(
             entity_id=eid,
             rows=[
@@ -480,15 +550,15 @@ class ArtifactStore:
                 for row in Utils.io.read_csv_to_dicts(path)
             ],
         )
-        self._enum_investments[eid] = table
+        self._investments[eid] = table
         return table
 
-    def enum_goals(self, entity_id: str) -> GoalAchievementCsv:
+    def goals(self, entity_id: str) -> GoalAchievementCsv:
         eid = str(entity_id or "").strip()
-        cached = self._enum_goals.get(eid)
+        cached = self._goals.get(eid)
         if cached is not None:
             return cached
-        path = entity_file(self.output_dir, eid, GOAL_ACHIEVEMENTS_SUFFIX)
+        path = self.entity_file(eid, GOAL_ACHIEVEMENTS_SUFFIX)
         table = GoalAchievementCsv(
             entity_id=eid,
             rows=[
@@ -496,15 +566,15 @@ class ArtifactStore:
                 for row in Utils.io.read_csv_to_dicts(path)
             ],
         )
-        self._enum_goals[eid] = table
+        self._goals[eid] = table
         return table
 
-    def enum_snapshots(self, entity_id: str) -> EntitySignalSnapshotCsv:
+    def snapshots(self, entity_id: str) -> EntitySignalSnapshotCsv:
         eid = str(entity_id or "").strip()
-        cached = self._enum_snapshots.get(eid)
+        cached = self._snapshots.get(eid)
         if cached is not None:
             return cached
-        path = entity_file(self.output_dir, eid, SIGNAL_SNAPSHOTS_SUFFIX)
+        path = self.entity_file(eid, SIGNAL_SNAPSHOTS_SUFFIX)
         table = EntitySignalSnapshotCsv(
             entity_id=eid,
             rows=[
@@ -513,29 +583,28 @@ class ArtifactStore:
                 if str(row.get(EntitySignalSnapshotCsv.JOIN_KEY) or "").strip()
             ],
         )
-        self._enum_snapshots[eid] = table
+        self._snapshots[eid] = table
         return table
 
-    def list_enum_investment_entities(self) -> List[str]:
-        nested = self._scan_suffix(entities_dir(self.output_dir), STOCK_INVESTMENTS_SUFFIX)
+    def list_investment_entities(self) -> List[str]:
+        nested = self._scan_suffix(self.entities_dir(), STOCK_INVESTMENTS_SUFFIX)
         if nested:
             return nested
         return self._scan_suffix(self.output_dir, STOCK_INVESTMENTS_SUFFIX)
 
-    def load_all_enum_investments(self) -> Dict[str, List[InvestmentRow]]:
-        out: Dict[str, List[InvestmentRow]] = {}
-        for entity_id in self.list_enum_investment_entities():
-            out[entity_id] = list(self.enum_investments(entity_id).rows)
-        return out
+    def load_all_investments(self) -> Dict[str, List[InvestmentRow]]:
+        return {
+            entity_id: list(self.investments(entity_id).rows)
+            for entity_id in self.list_investment_entities()
+        }
 
-    def has_enum_investments(self, entity_id: str) -> bool:
-        path = entity_file(self.output_dir, entity_id, STOCK_INVESTMENTS_SUFFIX)
-        return path.is_file()
+    def has_investments(self, entity_id: str) -> bool:
+        return self.entity_file(entity_id, STOCK_INVESTMENTS_SUFFIX).is_file()
 
-    def write_enum_investments(
+    def write_investments(
         self, table: EntityInvestmentCsv, *, append: bool = False
     ) -> Path:
-        path = entity_file(self.output_dir, table.entity_id, STOCK_INVESTMENTS_SUFFIX)
+        path = self.entity_file(table.entity_id, STOCK_INVESTMENTS_SUFFIX)
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [row.to_csv_row() for row in table.rows]
         if append and path.is_file():
@@ -543,11 +612,11 @@ class ArtifactStore:
         Utils.io.write_dicts_to_csv(
             path, rows, preferred_order=list(EntityInvestmentCsv.COLUMNS)
         )
-        self._enum_investments.pop(str(table.entity_id or "").strip(), None)
+        self._investments.pop(str(table.entity_id or "").strip(), None)
         return path
 
-    def write_enum_goals(self, table: GoalAchievementCsv, *, append: bool = False) -> Path:
-        path = entity_file(self.output_dir, table.entity_id, GOAL_ACHIEVEMENTS_SUFFIX)
+    def write_goals(self, table: GoalAchievementCsv, *, append: bool = False) -> Path:
+        path = self.entity_file(table.entity_id, GOAL_ACHIEVEMENTS_SUFFIX)
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [row.to_csv_row() for row in table.rows]
         if append and path.is_file():
@@ -555,13 +624,13 @@ class ArtifactStore:
         Utils.io.write_dicts_to_csv(
             path, rows, preferred_order=list(GoalAchievementCsv.COLUMNS)
         )
-        self._enum_goals.pop(str(table.entity_id or "").strip(), None)
+        self._goals.pop(str(table.entity_id or "").strip(), None)
         return path
 
-    def write_enum_snapshots(
+    def write_snapshots(
         self, table: EntitySignalSnapshotCsv, *, append: bool = False
     ) -> Path:
-        path = entity_file(self.output_dir, table.entity_id, SIGNAL_SNAPSHOTS_SUFFIX)
+        path = self.entity_file(table.entity_id, SIGNAL_SNAPSHOTS_SUFFIX)
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [row.to_csv_row() for row in table.rows]
         if append and path.is_file():
@@ -574,10 +643,10 @@ class ArtifactStore:
         keys.discard(EntitySignalSnapshotCsv.JOIN_KEY)
         preferred = [EntitySignalSnapshotCsv.JOIN_KEY] + sorted(keys)
         Utils.io.write_dicts_to_csv(path, rows, preferred_order=preferred)
-        self._enum_snapshots.pop(str(table.entity_id or "").strip(), None)
+        self._snapshots.pop(str(table.entity_id or "").strip(), None)
         return path
 
-    def append_enum_entity(
+    def append_entity(
         self, entity_id: str, investments: Sequence[Dict[str, Any]]
     ) -> Dict[str, int]:
         stock = EntityInvestmentCsv.build(entity_id, investments)
@@ -588,15 +657,15 @@ class ArtifactStore:
         investment_rows = 0
         goal_rows = 0
         if stock.rows:
-            self.write_enum_investments(stock, append=True)
+            self.write_investments(stock, append=True)
             investment_files = 1
             investment_rows = len(stock.rows)
         if goals.rows:
-            self.write_enum_goals(goals, append=True)
+            self.write_goals(goals, append=True)
             goal_files = 1
             goal_rows = len(goals.rows)
         if snapshots.rows:
-            self.write_enum_snapshots(snapshots, append=True)
+            self.write_snapshots(snapshots, append=True)
         return {
             "investment_files": investment_files,
             "goal_files": goal_files,
@@ -604,16 +673,35 @@ class ArtifactStore:
             "goal_rows": goal_rows,
         }
 
-    # ── price tables ──────────────────────────────────────────
 
-    def price_investments(self, entity_id: str) -> List[PriceInvestmentRow]:
+class PriceFactorStore(ArtifactStore):
+    """price_factor version：``entities/{id}_investments.csv``。"""
+
+    KIND = SimulateKind.PRICE_FACTOR
+
+    def __init__(self, output_dir: Path, *, version_id: str) -> None:
+        super().__init__(output_dir, version_id=version_id)
+        self._investments: Dict[str, List[PriceInvestmentRow]] = {}
+
+    @classmethod
+    def simulation_root(
+        cls,
+        strategy_folder: Union[str, Path],
+        kind: Optional[_KindLike] = None,
+    ) -> Path:
+        cls._require_kind(kind)
+        return ProjectContext.path.get_strategy_simulation_price_directory(
+            Path(strategy_folder)
+        )
+
+    def investments(self, entity_id: str) -> List[PriceInvestmentRow]:
         eid = str(entity_id or "").strip()
-        cached = self._price_investments.get(eid)
+        cached = self._investments.get(eid)
         if cached is not None:
             return cached
-        path = entity_file(self.output_dir, eid, PRICE_INVESTMENTS_SUFFIX)
+        path = self.entity_file(eid, PRICE_INVESTMENTS_SUFFIX)
         if not path.is_file():
-            self._price_investments[eid] = []
+            self._investments[eid] = []
             return []
         out: List[PriceInvestmentRow] = []
         for raw in Utils.io.read_csv_to_dicts(path):
@@ -621,20 +709,20 @@ class ArtifactStore:
             if not row.opportunity_id and not row.enter_date:
                 continue
             out.append(row)
-        self._price_investments[eid] = out
+        self._investments[eid] = out
         return out
 
-    def load_all_price_investments(
+    def load_all_investments(
         self, entity_ids: Sequence[str]
     ) -> Dict[str, List[PriceInvestmentRow]]:
         return {
-            str(eid): self.price_investments(eid)
+            str(eid): self.investments(eid)
             for eid in entity_ids
             if str(eid or "").strip()
         }
 
-    def has_price_investments(self, entity_id: str) -> bool:
-        path = entity_file(self.output_dir, entity_id, PRICE_INVESTMENTS_SUFFIX)
+    def has_investments(self, entity_id: str) -> bool:
+        path = self.entity_file(entity_id, PRICE_INVESTMENTS_SUFFIX)
         if not path.is_file():
             return False
         try:
@@ -644,12 +732,12 @@ class ArtifactStore:
         except OSError:
             return False
 
-    def write_price_investments(
+    def write_investments(
         self,
         entity_id: str,
         rows: Sequence[Union[PriceInvestmentRow, Dict[str, Any]]],
     ) -> Path:
-        path = entity_file(self.output_dir, entity_id, PRICE_INVESTMENTS_SUFFIX)
+        path = self.entity_file(entity_id, PRICE_INVESTMENTS_SUFFIX)
         path.parent.mkdir(parents=True, exist_ok=True)
         payloads: List[Dict[str, Any]] = []
         for row in rows:
@@ -662,18 +750,38 @@ class ArtifactStore:
         Utils.io.write_dicts_to_csv(
             path, payloads, preferred_order=list(PriceInvestmentRow.COLUMN_ORDER)
         )
-        self._price_investments.pop(str(entity_id or "").strip(), None)
+        self._investments.pop(str(entity_id or "").strip(), None)
         return path
 
-    @staticmethod
-    def _scan_suffix(directory: Path, suffix: str) -> List[str]:
-        if not directory.is_dir():
-            return []
-        return sorted(
-            entry.name[: -len(suffix)]
-            for entry in directory.iterdir()
-            if entry.is_file() and entry.name.endswith(suffix)
+
+class PortfolioStore(ArtifactStore):
+    """portfolio version：trades / equity_curve json。"""
+
+    KIND = SimulateKind.PORTFOLIO
+
+    @classmethod
+    def simulation_root(
+        cls,
+        strategy_folder: Union[str, Path],
+        kind: Optional[_KindLike] = None,
+    ) -> Path:
+        cls._require_kind(kind)
+        return ProjectContext.path.get_strategy_simulation_portfolio_directory(
+            Path(strategy_folder)
         )
 
 
-__all__ = ["ArtifactRuntime", "ArtifactStore"]
+_STORE_BY_KIND: Dict[SimulateKind, Type[ArtifactStore]] = {
+    SimulateKind.ENUMERATE: EnumerateStore,
+    SimulateKind.PRICE_FACTOR: PriceFactorStore,
+    SimulateKind.PORTFOLIO: PortfolioStore,
+}
+
+
+__all__ = [
+    "ArtifactRuntime",
+    "ArtifactStore",
+    "EnumerateStore",
+    "PortfolioStore",
+    "PriceFactorStore",
+]

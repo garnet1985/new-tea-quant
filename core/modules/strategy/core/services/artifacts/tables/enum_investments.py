@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
 
-from core.modules.strategy.core.services.artifacts.layout import (
+from core.modules.strategy.core.services.artifacts.consts import (
     GOAL_ACHIEVEMENTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
 )

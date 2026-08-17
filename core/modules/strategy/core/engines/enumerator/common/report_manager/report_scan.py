@@ -8,8 +8,7 @@ from typing import Dict, List, Optional
 from core.modules.strategy.core.engines.enumerator.common.artifacts.runtime_env import (
     RuntimeEnv,
 )
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore, InvestmentRow
+from core.modules.strategy.core.services.artifacts import EnumerateStore, InvestmentRow
 
 
 @dataclass
@@ -53,9 +52,9 @@ class EnumCsvScan:
             for k, v in dict(period.to_dict() or {}).items()
         }
 
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+        store = EnumerateStore.at(output_dir)
         investments_by_entity: Dict[str, List[InvestmentRow]] = {}
-        for entity_id, rows in store.load_all_enum_investments().items():
+        for entity_id, rows in store.load_all_investments().items():
             investments_by_entity[entity_id] = list(rows)
 
         return cls(

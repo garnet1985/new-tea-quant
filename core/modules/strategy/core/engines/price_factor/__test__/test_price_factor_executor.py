@@ -6,13 +6,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
-    ArtifactStore,
     EntityInvestmentCsv,
+    EnumerateStore,
     GoalAchievementCsv,
     GoalAchievementRow,
     InvestmentRow,
+    PriceFactorStore,
 )
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FACTOR_GLOBAL_KEY
@@ -20,13 +20,13 @@ from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FA
 pytestmark = pytest.mark.force_run
 
 
-def _enum_store(output_dir: Path) -> ArtifactStore:
-    return ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+def _enum_store(output_dir: Path) -> EnumerateStore:
+    return EnumerateStore.at(output_dir)
 
 
 def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
     store = _enum_store(output_dir)
-    store.write_enum_investments(
+    store.write_investments(
         EntityInvestmentCsv(
             entity_id=entity_id,
             rows=[
@@ -40,7 +40,7 @@ def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
             ],
         )
     )
-    store.write_enum_goals(
+    store.write_goals(
         GoalAchievementCsv(
             entity_id=entity_id,
             rows=[
@@ -88,7 +88,7 @@ def test_load_batch_enum_data(tmp_path: Path) -> None:
 
 
 def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
-    _enum_store(tmp_path).write_enum_investments(
+    _enum_store(tmp_path).write_investments(
         EntityInvestmentCsv(
             entity_id="000003.SZ",
             rows=[
@@ -125,7 +125,7 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
     price_dir = tmp_path / "price"
     _write_enum_csv(enum_dir, "000001.SZ")
     # overlapping second opp should be locked out
-    _enum_store(enum_dir).write_enum_investments(
+    _enum_store(enum_dir).write_investments(
         EntityInvestmentCsv(
             entity_id="000001.SZ",
             rows=[
@@ -173,8 +173,6 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
     ctx.init = PriceFactorJobExecutor._load_batch_enum_data(ctx)
     stats = PriceFactorJobExecutor._replay_and_save_batch(ctx)
     assert stats["investments"] == 1
-    saved = ArtifactStore.at(
-        price_dir, kind=SimulateKind.PRICE_FACTOR
-    ).price_investments("000001.SZ")
+    saved = PriceFactorStore.at(price_dir).investments("000001.SZ")
     assert len(saved) == 1
     assert saved[0].opportunity_id == "opp-a"

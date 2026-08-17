@@ -1,4 +1,4 @@
-"""ArtifactStore：allocate / 读表 / 缓存 / prune。"""
+"""ArtifactStore：allocate / 读表 / 缓存 / prune / 子类分发。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,10 +7,13 @@ import pytest
 
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
+    RUNTIME_ENV_FILE,
     ArtifactStore,
     EntityInvestmentCsv,
+    EnumerateStore,
     InvestmentRow,
-    RUNTIME_ENV_FILE,
+    PortfolioStore,
+    PriceFactorStore,
 )
 
 pytestmark = pytest.mark.force_run
@@ -23,14 +26,21 @@ def _clear_store_cache():
     ArtifactStore.clear_cache()
 
 
-def test_at_returns_same_instance(tmp_path: Path) -> None:
+def test_at_returns_subclass_and_same_instance(tmp_path: Path) -> None:
     a = ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
     b = ArtifactStore.at(tmp_path, kind="enum", version_id="1")
-    assert a is b
+    c = EnumerateStore.at(tmp_path, version_id="1")
+    assert isinstance(a, EnumerateStore)
+    assert a is b is c
 
 
-def test_write_and_read_enum_investments(tmp_path: Path) -> None:
-    store = ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
+def test_parse_kind_rejects_capital() -> None:
+    with pytest.raises(ValueError, match="unsupported"):
+        ArtifactStore.parse_kind("capital")
+
+
+def test_write_and_read_investments(tmp_path: Path) -> None:
+    store = EnumerateStore.at(tmp_path, version_id="1")
     table = EntityInvestmentCsv(
         entity_id="000001.SZ",
         rows=[
@@ -41,15 +51,15 @@ def test_write_and_read_enum_investments(tmp_path: Path) -> None:
             )
         ],
     )
-    store.write_enum_investments(table)
+    store.write_investments(table)
     ArtifactStore.clear_cache()
-    loaded = ArtifactStore.at(tmp_path, kind="enum").enum_investments("000001.SZ")
+    loaded = EnumerateStore.at(tmp_path).investments("000001.SZ")
     assert [row.investment_id for row in loaded.rows] == ["1"]
-    assert store.list_enum_investment_entities() == ["000001.SZ"]
+    assert store.list_investment_entities() == ["000001.SZ"]
 
 
 def test_open_reads_runtime(tmp_path: Path) -> None:
-    store = ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE, version_id="9")
+    store = EnumerateStore.at(tmp_path, version_id="9")
     store.write_text_lines("entity_ids", ["000001.SZ"])
     store.write_json(
         "runtime_env",
@@ -61,7 +71,7 @@ def test_open_reads_runtime(tmp_path: Path) -> None:
         },
     )
     ArtifactStore.clear_cache()
-    opened = ArtifactStore.open(tmp_path, kind="enumerate", version_id="9")
+    opened = EnumerateStore.open(tmp_path, version_id="9")
     assert opened.version_id == "9"
     assert opened.entity_ids == ["000001.SZ"]
     assert opened.start_date == "20240102"
@@ -82,15 +92,14 @@ def test_prune_root_keeps_newest(tmp_path: Path) -> None:
 def test_allocate_increments_and_prunes(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "portfolio"
     monkeypatch.setattr(
-        ArtifactStore,
+        PortfolioStore,
         "simulation_root",
-        classmethod(lambda cls, folder, kind: root),
+        classmethod(lambda cls, folder, kind=None: root),
     )
     ids = []
     for _ in range(5):
-        store = ArtifactStore.allocate(
+        store = PortfolioStore.allocate(
             tmp_path,
-            SimulateKind.PORTFOLIO,
             strategy_id="demo/s",
             max_versions=3,
         )
@@ -109,11 +118,12 @@ def test_latest_reads_meta(tmp_path: Path, monkeypatch) -> None:
         '{"next_output_version": 3}', encoding="utf-8"
     )
     monkeypatch.setattr(
-        ArtifactStore,
+        PriceFactorStore,
         "simulation_root",
-        classmethod(lambda cls, folder, kind: root),
+        classmethod(lambda cls, folder, kind=None: root),
     )
-    store = ArtifactStore.latest(tmp_path, "price")
+    store = PriceFactorStore.latest(tmp_path)
     assert store is not None
+    assert isinstance(store, PriceFactorStore)
     assert store.version_id == "2"
     assert store.output_dir == root / "2"

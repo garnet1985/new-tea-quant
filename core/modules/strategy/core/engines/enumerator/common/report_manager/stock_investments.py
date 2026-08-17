@@ -1,10 +1,9 @@
-"""ReportManager.investments 写门面（委托 ArtifactStore）。"""
+"""ReportManager.investments 写门面（委托 EnumerateStore）。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, TYPE_CHECKING
 
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts import EnumerateStore
 
 __all__ = [
     "InvestmentsReport",
@@ -17,15 +16,14 @@ class InvestmentsReport:
     def __init__(self, manager: "ReportManager") -> None:
         self._manager = manager
 
-    def _store(self) -> ArtifactStore:
-        return ArtifactStore.at(
+    def _store(self) -> EnumerateStore:
+        return EnumerateStore.at(
             self._manager.output_dir,
-            kind=SimulateKind.ENUMERATE,
             version_id=str(self._manager.version_id),
         )
 
     def append_entity(self, entity_id: str, investments: Sequence[Dict[str, Any]]) -> Dict[str, int]:
-        return self._store().append_enum_entity(entity_id, investments)
+        return self._store().append_entity(entity_id, investments)
 
     def flush_buffered(self, buffer: List[Dict[str, Any]]) -> Dict[str, int]:
         if not buffer:

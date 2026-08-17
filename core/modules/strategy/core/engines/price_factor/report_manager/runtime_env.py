@@ -11,8 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts import PriceFactorStore
 from core.system import get_version
 
 
@@ -77,14 +76,14 @@ class PriceRuntimeEnv:
         )
 
     def save(self, output_dir: Path) -> Path:
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.PRICE_FACTOR)
+        store = PriceFactorStore.at(output_dir)
         path = store.write_json("runtime_env", self.to_dict())
         store.write_text_lines("entity_ids", self.entity_ids)
         return path
 
     @classmethod
     def load(cls, output_dir: Path) -> "PriceRuntimeEnv":
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.PRICE_FACTOR)
+        store = PriceFactorStore.at(output_dir)
         env = cls.from_dict(store.read_json("runtime_env"))
         lines = store.read_text_lines("entity_ids")
         if lines:

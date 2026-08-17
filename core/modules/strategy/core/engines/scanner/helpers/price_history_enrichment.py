@@ -6,8 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts import PriceFactorStore
 from core.modules.strategy.core.services.discovery import DiscoveryService
 
 logger = logging.getLogger(__name__)
@@ -41,9 +40,7 @@ def build_price_history_for_adapter(
 
 def _load_stock_history(version_dir: Path, stock_id: str) -> Optional[Dict[str, Any]]:
     try:
-        rows = ArtifactStore.at(
-            version_dir, kind=SimulateKind.PRICE_FACTOR
-        ).price_investments(stock_id)
+        rows = PriceFactorStore.at(version_dir).investments(stock_id)
         if not rows:
             return None
         investments = [
@@ -66,7 +63,7 @@ def _load_stock_history(version_dir: Path, stock_id: str) -> Optional[Dict[str, 
 
 def _load_session_summary(version_dir: Path) -> Optional[Dict[str, Any]]:
     try:
-        store = ArtifactStore.at(version_dir, kind=SimulateKind.PRICE_FACTOR)
+        store = PriceFactorStore.at(version_dir)
         path = store.file("overall_report")
         if not path.is_file():
             return None
@@ -84,7 +81,7 @@ def _latest_price_version_dir(strategy_name: str) -> Optional[Path]:
         folder = DiscoveryService.resolve_strategy_folder(name)
     except Exception:
         folder = name
-    store = ArtifactStore.latest(folder, SimulateKind.PRICE_FACTOR)
+    store = PriceFactorStore.latest(folder)
     return store.output_dir if store is not None else None
 
 

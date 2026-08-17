@@ -12,11 +12,11 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.market_profile import MarketRulesProxy
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
-    ArtifactStore,
+    EnumerateStore,
     GoalAchievementRow,
     InvestmentRow,
+    PriceFactorStore,
     PriceInvestmentRow,
 )
 from core.modules.strategy.core.engines.price_factor.helpers import (
@@ -134,12 +134,12 @@ class PriceFactorJobExecutor:
             enum_dir,
         )
 
-        enum_store = ArtifactStore.at(enum_dir, kind=SimulateKind.ENUMERATE)
+        enum_store = EnumerateStore.at(enum_dir)
         entities: Dict[str, Dict[str, Any]] = {}
         for entity_id in entity_ids:
             entities[entity_id] = {
-                "investments": enum_store.enum_investments(entity_id),
-                "goals": enum_store.enum_goals(entity_id),
+                "investments": enum_store.investments(entity_id),
+                "goals": enum_store.goals(entity_id),
             }
 
         return {
@@ -210,7 +210,7 @@ class PriceFactorJobExecutor:
                 goal_rows=goal_rows,
                 market_rules=market_rules,
             )
-            ArtifactStore.at(out_dir, kind=SimulateKind.PRICE_FACTOR).write_price_investments(
+            PriceFactorStore.at(out_dir).write_investments(
                 str(entity_id), price_rows
             )
             total_inv += len(price_rows)

@@ -10,9 +10,8 @@ from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
+    EnumerateStore,
 )
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.engines.price_factor.job_builder import (
     PriceFactorJobBuilder,
     PRICE_FACTOR_GLOBAL_KEY,
@@ -52,7 +51,7 @@ def _write_runtime(
 
 def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
-    data = ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="3")
+    data = EnumerateStore.open(tmp_path, version_id="3")
 
     jobs = PriceFactorJobBuilder.build_jobs(data)
     BacktestJob.validate_many(jobs, mode="entity_based")
@@ -75,12 +74,12 @@ def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
 
 def test_build_jobs_empty_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=[])
-    data = ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
+    data = EnumerateStore.open(tmp_path, version_id="1")
     assert PriceFactorJobBuilder.build_jobs(data) == []
 
 
 def test_build_jobs_rejects_missing_period(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ"], start="", end="")
-    data = ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
+    data = EnumerateStore.open(tmp_path, version_id="1")
     with pytest.raises(ValueError, match="period"):
         PriceFactorJobBuilder.build_jobs(data)

@@ -8,10 +8,9 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
-    ArtifactStore,
     EntityInvestmentCsv,
+    EnumerateStore,
     InvestmentRow,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
@@ -110,7 +109,7 @@ def test_price_replay_skips_matching_status() -> None:
 
 
 def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
-    ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE).write_enum_investments(
+    EnumerateStore.at(tmp_path).write_investments(
         EntityInvestmentCsv(
             entity_id="600000.SH",
             rows=[
@@ -137,7 +136,7 @@ def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
         )
     )
 
-    data = ArtifactStore.hydrate(
+    data = EnumerateStore.hydrate(
         tmp_path,
         entity_ids=["600000.SH"],
         start_date="20240101",

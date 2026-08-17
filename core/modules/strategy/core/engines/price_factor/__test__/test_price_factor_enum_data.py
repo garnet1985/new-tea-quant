@@ -5,12 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
-    ArtifactStore,
     EntityInvestmentCsv,
+    EnumerateStore,
     InvestmentRow,
 )
 
@@ -24,7 +23,7 @@ def _write_runtime(
     start: str = "20240102",
     end: str = "20240131",
 ) -> None:
-    store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+    store = EnumerateStore.at(output_dir)
     store.write_text_lines("entity_ids", entity_ids)
     store.write_json(
         "runtime_env",
@@ -44,7 +43,7 @@ def _write_runtime(
 def test_load_enum_output_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
     # entities CSV 存在也不应被 open 时加载
-    ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE).write_enum_investments(
+    EnumerateStore.at(tmp_path).write_investments(
         EntityInvestmentCsv(
             entity_id="000001.SZ",
             rows=[
@@ -59,7 +58,7 @@ def test_load_enum_output_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
         )
     )
 
-    data = ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="7")
+    data = EnumerateStore.open(tmp_path, version_id="7")
 
     assert data.version_id == "7"
     assert data.output_dir == tmp_path
@@ -70,8 +69,8 @@ def test_load_enum_output_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
 
 def test_load_enum_output_empty_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=[])
-    ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE).ensure_entities_dir()
-    data = ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
+    EnumerateStore.at(tmp_path).ensure_entities_dir()
+    data = EnumerateStore.open(tmp_path, version_id="1")
     assert data.entity_ids == []
 
 
@@ -79,5 +78,5 @@ def test_load_enum_output_requires_runtime_env(tmp_path: Path) -> None:
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / ENTITY_IDS_FILE).write_text("000001.SZ\n", encoding="utf-8")
     with pytest.raises(FileNotFoundError):
-        ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
+        EnumerateStore.open(tmp_path, version_id="1")
     assert not (tmp_path / RUNTIME_ENV_FILE).is_file()

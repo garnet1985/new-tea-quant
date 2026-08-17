@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts import EnumerateStore
 from core.modules.strategy.core.services.results_retention import ResultsRetention
 
 pytestmark = pytest.mark.force_run
@@ -23,9 +23,9 @@ def test_prune_simulation_results_per_kind(tmp_path: Path) -> None:
         "_resolve_folder",
         return_value=tmp_path,
     ), patch.object(
-        ArtifactStore,
+        EnumerateStore,
         "simulation_root",
-        classmethod(lambda cls, folder, kind: enum_root),
+        classmethod(lambda cls, folder, kind=None: enum_root),
     ):
         out = ResultsRetention.prune_simulation_results(
             "demo/x", kind="enum", max_versions=2
@@ -33,7 +33,7 @@ def test_prune_simulation_results_per_kind(tmp_path: Path) -> None:
 
     assert out["ok"] is True
     assert out["deleted_count"] == 2
-    assert out["per_kind"]["enum"] == 2
+    assert out["per_kind"]["enumerate"] == 2
     remaining = sorted(
         int(p.name) for p in enum_root.iterdir() if p.is_dir() and p.name.isdigit()
     )

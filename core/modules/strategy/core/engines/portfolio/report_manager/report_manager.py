@@ -37,12 +37,12 @@ from core.modules.strategy.core.engines.portfolio.report_manager.runtime_env imp
 from core.modules.strategy.core.engines.shared.services.report_manager import (
     BaseReportManager,
 )
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
-    ArtifactStore,
+    EnumerateStore,
+    PortfolioStore,
 )
 
 if TYPE_CHECKING:
@@ -92,7 +92,7 @@ class ReportManager(BaseReportManager):
     def begin(
         cls,
         ctx: "SimulateSession",
-        data: ArtifactStore,
+        data: EnumerateStore,
     ) -> "ReportManager":
         info = ctx.strategy_info
         strategy_key = str(getattr(info, "key", "") or "").strip()
@@ -113,9 +113,8 @@ class ReportManager(BaseReportManager):
         if folder is None or not str(folder):
             raise ValueError("strategy_folder 不能为空")
 
-        store = ArtifactStore.allocate(
+        store = PortfolioStore.allocate(
             folder,
-            SimulateKind.PORTFOLIO,
             strategy_id=strategy_path or strategy_key or str(folder),
         )
         output_dir = store.output_dir
@@ -176,9 +175,8 @@ class ReportManager(BaseReportManager):
         if sim is None:
             raise RuntimeError("portfolio save 需要先 finalize(sim)")
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        store = ArtifactStore.at(
+        store = PortfolioStore.at(
             self.output_dir,
-            kind=SimulateKind.PORTFOLIO,
             version_id=str(self.version_id),
         )
         if self._save_trades:

@@ -39,12 +39,12 @@ from core.modules.strategy.core.engines.price_factor.report_manager.runtime_env 
 from core.modules.strategy.core.engines.shared.services.report_manager import (
     BaseReportManager,
 )
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
-    ArtifactStore,
+    EnumerateStore,
+    PriceFactorStore,
 )
 
 if TYPE_CHECKING:
@@ -89,7 +89,7 @@ class ReportManager(BaseReportManager):
     def begin(
         cls,
         ctx: "SimulateSession",
-        data: "ArtifactStore",
+        data: "EnumerateStore",
         *,
         start: str,
         end: str,
@@ -114,9 +114,8 @@ class ReportManager(BaseReportManager):
         if folder is None or not str(folder):
             raise ValueError("strategy_folder 不能为空")
 
-        store = ArtifactStore.allocate(
+        store = PriceFactorStore.allocate(
             folder,
-            SimulateKind.PRICE_FACTOR,
             strategy_id=strategy_path or strategy_key or str(folder),
         )
         output_dir = store.output_dir

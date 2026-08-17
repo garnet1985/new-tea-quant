@@ -6,8 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts import PortfolioStore
 from core.system import get_version
 
 
@@ -72,12 +71,12 @@ class PortfolioRuntimeEnv:
         )
 
     def save(self, output_dir: Path) -> Path:
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.PORTFOLIO)
+        store = PortfolioStore.at(output_dir)
         return store.write_json("runtime_env", self.to_dict())
 
     @classmethod
     def load(cls, output_dir: Path) -> "PortfolioRuntimeEnv":
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.PORTFOLIO)
+        store = PortfolioStore.at(output_dir)
         return cls.from_dict(store.read_json("runtime_env"))
 
 

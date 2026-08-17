@@ -32,7 +32,8 @@ class ResultsRetention:
     ) -> Dict[str, Any]:
         """对单个策略的 simulations 目录做 keep-N。
 
-        ``kind`` 为 ``enum`` / ``price`` / ``portfolio``；``None`` 表示三步都清。
+        ``kind`` 为 ``enumerate`` / ``price_factor`` / ``portfolio``
+        （缩写 ``enum`` / ``price`` 也可）；``None`` 表示三步都清。
         """
         folder = cls._resolve_folder(key_or_id)
         return ArtifactStore.prune(

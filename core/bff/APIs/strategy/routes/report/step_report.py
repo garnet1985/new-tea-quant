@@ -11,8 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore, PriceFactorStore
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     attach_enum_opportunities_field,
@@ -165,7 +164,7 @@ class WorkbenchReports:
             kind = ArtifactStore.parse_kind(step)
         except ValueError:
             return None
-        store = ArtifactStore.at(output_dir, kind=kind)
+        store = ArtifactStore.for_kind(kind).at(output_dir)
         entity_list = store.file("entity_list")
         if not entity_list.is_file():
             return None
@@ -216,19 +215,17 @@ class WorkbenchReports:
         eid = str(entity_id or "").strip()
         if not eid:
             return False
-        store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
-        if not store.has_enum_investments(eid):
+        store = EnumerateStore.at(output_dir)
+        if not store.has_investments(eid):
             return False
-        return bool(store.enum_investments(eid).rows)
+        return bool(store.investments(eid).rows)
 
     @classmethod
     def _price_entity_has_data(cls, output_dir: Path, entity_id: str) -> bool:
         eid = str(entity_id or "").strip().replace("/", "_")
         if not eid:
             return False
-        return ArtifactStore.at(
-            output_dir, kind=SimulateKind.PRICE_FACTOR
-        ).has_price_investments(eid)
+        return PriceFactorStore.at(output_dir).has_investments(eid)
 
     @staticmethod
     def _batch_load_stock_display_names(codes: List[str]) -> Dict[str, str]:

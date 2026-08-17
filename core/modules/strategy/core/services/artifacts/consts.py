@@ -1,7 +1,4 @@
-"""仿真 version 目录文件名与相对路径（仅 ArtifactStore 使用）。"""
-from __future__ import annotations
-
-from pathlib import Path
+"""仿真 version 目录文件名常量。"""
 
 RUNTIME_ENV_FILE = "runtime_env.json"
 ENTITY_IDS_FILE = "entity_ids.txt"
@@ -41,20 +38,6 @@ PORTFOLIO_VERSION_REQUIRED_FILES = (
     *PORTFOLIO_REPORT_FILES,
 )
 
-
-def entities_dir(output_dir: Path) -> Path:
-    return Path(output_dir) / ENTITIES_SUBDIR
-
-
-def named_file(output_dir: Path, filename: str) -> Path:
-    return Path(output_dir) / filename
-
-
-def entity_file(output_dir: Path, entity_id: str, suffix: str) -> Path:
-    eid = str(entity_id or "").strip().replace("/", "_")
-    return entities_dir(output_dir) / f"{eid}{suffix}"
-
-
 __all__ = [
     "ENTITIES_SUBDIR",
     "ENTITY_IDS_FILE",
@@ -74,7 +57,4 @@ __all__ = [
     "SIGNAL_SNAPSHOTS_SUFFIX",
     "STOCK_INVESTMENTS_SUFFIX",
     "TRADES_FILE",
-    "entities_dir",
-    "entity_file",
-    "named_file",
 ]

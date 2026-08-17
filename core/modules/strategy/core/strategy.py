@@ -367,20 +367,16 @@ class Strategy:
     @staticmethod
     def load_price_entity_investments(version_dir: Path, entity_id: str):
         """读取 price_factor version 下单实体 investments CSV。"""
-        from .services.artifacts import ArtifactStore
+        from .services.artifacts import PriceFactorStore
 
-        return ArtifactStore.at(
-            version_dir, kind=SimulateKind.PRICE_FACTOR
-        ).price_investments(entity_id)
+        return PriceFactorStore.at(version_dir).investments(entity_id)
 
     @staticmethod
     def price_overall_report_path(version_dir: Path) -> Path:
         """price_factor version 目录下 ``overall_report.json`` 路径。"""
-        from .services.artifacts import ArtifactStore
+        from .services.artifacts import PriceFactorStore
 
-        return ArtifactStore.at(
-            version_dir, kind=SimulateKind.PRICE_FACTOR
-        ).file("overall_report")
+        return PriceFactorStore.at(version_dir).file("overall_report")
 
     @staticmethod
     def present_report(

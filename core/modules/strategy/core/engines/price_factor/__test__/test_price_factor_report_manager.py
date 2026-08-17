@@ -7,13 +7,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
-    ArtifactStore,
+    EnumerateStore,
+    PriceFactorStore,
     PriceInvestmentRow,
 )
 
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.force_run
 
 
 def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
-    store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+    store = EnumerateStore.at(output_dir)
     store.write_text_lines("entity_ids", entity_ids)
     store.write_json(
         "runtime_env",
@@ -43,13 +43,13 @@ def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
 def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> None:
     enum_dir = tmp_path / "enum" / "1"
     _write_enum_runtime(enum_dir, ["000001.SZ"])
-    data = ArtifactStore.open(enum_dir, kind=SimulateKind.ENUMERATE, version_id="1")
+    data = EnumerateStore.open(enum_dir, version_id="1")
 
     price_root = tmp_path / "price"
     monkeypatch.setattr(
-        ArtifactStore,
+        PriceFactorStore,
         "simulation_root",
-        classmethod(lambda cls, folder, kind: price_root),
+        classmethod(lambda cls, folder, kind=None: price_root),
     )
 
     ctx = SimpleNamespace(
@@ -63,9 +63,7 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
         env_fp="efp",
     )
     report = ReportManager.begin(ctx, data, start="20240102", end="20240110")
-    ArtifactStore.at(
-        report.output_dir, kind=SimulateKind.PRICE_FACTOR
-    ).write_price_investments(
+    PriceFactorStore.at(report.output_dir).write_investments(
         "000001.SZ",
         [
             PriceInvestmentRow(
@@ -98,13 +96,13 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
     assert result["priceMetrics"]["totalWinInvestments"] == 1
     assert result["summary"]["total_investments"] == 1
     assert result["summary"]["total_win_investments"] == 1
-    store = ArtifactStore.at(report.output_dir, kind=SimulateKind.PRICE_FACTOR)
+    store = PriceFactorStore.at(report.output_dir)
     assert store.file("runtime_env").is_file()
     assert store.file("overall_report").is_file()
     assert store.file("entity_list").is_file()
     assert store.file("performance").is_file()
     assert store.file("entity_ids").is_file()
-    assert store.has_price_investments("000001.SZ")
+    assert store.has_investments("000001.SZ")
 
     overall = json.loads(
         (report.output_dir / OVERALL_REPORT_FILE).read_text(encoding="utf-8")

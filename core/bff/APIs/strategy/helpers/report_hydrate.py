@@ -123,7 +123,7 @@ def resolve_simulation_output_dirs(
         kind = ArtifactStore.parse_kind(step)
     except ValueError:
         return []
-    root = ArtifactStore.simulation_root(folder, kind)
+    root = ArtifactStore.for_kind(kind).simulation_root(folder)
 
     out: List[Path] = []
     seen: set[str] = set()
@@ -143,7 +143,7 @@ def _load_overall_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:
         kind = ArtifactStore.parse_kind(step)
     except ValueError:
         return None
-    store = ArtifactStore.at(output_dir, kind=kind)
+    store = ArtifactStore.for_kind(kind).at(output_dir)
     if not store.file("overall_report").is_file():
         return None
     try:

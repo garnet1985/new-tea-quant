@@ -47,12 +47,12 @@ from core.modules.strategy.core.engines.shared.services.report_manager import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
     ArtifactStore,
+    EnumerateStore,
 )
 
 
@@ -130,9 +130,8 @@ class ReportManager(BaseReportManager):
             if not path_id:
                 raise ValueError("strategy_folder / strategy_path / strategy_key 不能为空")
             folder = path_id
-        store = ArtifactStore.allocate(
+        store = EnumerateStore.allocate(
             folder,
-            SimulateKind.ENUMERATE,
             strategy_id=path_id or str(folder),
         )
         output_dir = store.output_dir

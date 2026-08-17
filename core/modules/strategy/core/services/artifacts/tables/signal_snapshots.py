@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Sequence
 
-from core.modules.strategy.core.services.artifacts.layout import (
+from core.modules.strategy.core.services.artifacts.consts import (
     SIGNAL_SNAPSHOTS_SUFFIX,
 )
 from core.modules.strategy.core.services.artifacts.tables.enum_investments import (

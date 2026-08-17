@@ -9,12 +9,12 @@ import pytest
 from core.modules.strategy.core.engines.enumerator.common.report_manager.stock_investments import (
     InvestmentsReport,
 )
-from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     SIGNAL_SNAPSHOTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
     ArtifactStore,
     EntitySignalSnapshotCsv,
+    EnumerateStore,
 )
 
 pytestmark = pytest.mark.force_run
@@ -27,8 +27,8 @@ def _clear_store_cache():
     ArtifactStore.clear_cache()
 
 
-def _store(output_dir: Path) -> ArtifactStore:
-    return ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+def _store(output_dir: Path) -> EnumerateStore:
+    return EnumerateStore.at(output_dir)
 
 
 def _payload(investment_id: str, snapshot: dict | None = None) -> dict:
@@ -60,14 +60,14 @@ def test_build_skips_empty_snapshots() -> None:
 
 def test_save_omits_file_when_no_captures(tmp_path: Path) -> None:
     csv = EntitySignalSnapshotCsv.build("688005.SH", [_payload("1", {})])
-    _store(tmp_path).write_enum_snapshots(csv)
+    _store(tmp_path).write_snapshots(csv)
     path = tmp_path / "entities" / f"688005.SH{SIGNAL_SNAPSHOTS_SUFFIX}"
     assert not path.exists()
 
 
 def test_save_unions_keys_and_roundtrips(tmp_path: Path) -> None:
     store = _store(tmp_path)
-    store.write_enum_snapshots(
+    store.write_snapshots(
         EntitySignalSnapshotCsv.build(
             "688005.SH",
             [
@@ -78,7 +78,7 @@ def test_save_unions_keys_and_roundtrips(tmp_path: Path) -> None:
     )
 
     ArtifactStore.clear_cache()
-    loaded = _store(tmp_path).enum_snapshots("688005.SH")
+    loaded = _store(tmp_path).snapshots("688005.SH")
     assert [row.investment_id for row in loaded.rows] == ["1", "2"]
     header = loaded.rows[0].values.keys()
     assert list(header) == ["pe_percentile", "rsi"]
@@ -90,13 +90,13 @@ def test_save_unions_keys_and_roundtrips(tmp_path: Path) -> None:
 
 def test_append_unions_new_keys(tmp_path: Path) -> None:
     store = _store(tmp_path)
-    store.write_enum_snapshots(
+    store.write_snapshots(
         EntitySignalSnapshotCsv.build(
             "688005.SH",
             [_payload("1", {"rsi": 18.2})],
         )
     )
-    store.write_enum_snapshots(
+    store.write_snapshots(
         EntitySignalSnapshotCsv.build(
             "688005.SH",
             [_payload("2", {"pe_percentile": 15.0})],
@@ -105,7 +105,7 @@ def test_append_unions_new_keys(tmp_path: Path) -> None:
     )
 
     ArtifactStore.clear_cache()
-    loaded = _store(tmp_path).enum_snapshots("688005.SH")
+    loaded = _store(tmp_path).snapshots("688005.SH")
     assert [row.investment_id for row in loaded.rows] == ["1", "2"]
     assert loaded.rows[0].values["rsi"] == "18.2"
     assert loaded.rows[0].values["pe_percentile"] == ""
@@ -129,12 +129,12 @@ def test_report_writes_sidecar_not_trading_columns(tmp_path: Path) -> None:
     assert sidecar.is_file()
     assert trading.is_file()
 
-    snapshots = _store(tmp_path).enum_snapshots("688005.SH")
+    snapshots = _store(tmp_path).snapshots("688005.SH")
     assert [row.investment_id for row in snapshots.rows] == ["1"]
     assert snapshots.rows[0].values["rsi"] == "18.2"
     assert snapshots.rows[0].values["hit"] == "1"
 
-    investments = _store(tmp_path).enum_investments("688005.SH")
+    investments = _store(tmp_path).investments("688005.SH")
     assert [row.investment_id for row in investments.rows] == ["1", "2"]
     trading_header = trading.read_text(encoding="utf-8").splitlines()[0]
     assert "signal_snapshot" not in trading_header

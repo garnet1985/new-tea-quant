@@ -21,6 +21,8 @@ changelog:
     changes:
       - 移除 Strategy.analyze 与 AnalyzeService；归因归入 modules.analysis
       - 用户扫描钩子改为 has_opportunity(ctx) -> bool；enumerate 与 scan 共用；命中后由框架构建 Opportunity
+      - extra_fields 更名为 signal_snapshot
+      - StrategyContext 提供 remember/recall/forget（custom）与 capture（命中后写入 signal_snapshot）
   - version: "0.6.0"
     changes:
       - 标准化模块，标准化文档以及对外API

@@ -42,6 +42,7 @@ class StrategyHooks(ABC):
         """当日该实体是否有交易机会（用户必须实现）。
 
         只返回 True / False。命中时由框架根据当日 bar 构建 Opportunity。
+        逻辑层归因输入用 ``ctx.capture(key, value)``；跨日内存状态用 ``remember`` / ``recall`` / ``forget``。
         """
         pass
 

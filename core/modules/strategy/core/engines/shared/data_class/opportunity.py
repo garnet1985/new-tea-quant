@@ -5,7 +5,7 @@
 
 本文件:
 - StockInfo / OpportunityMeta / OpportunityContributor / Opportunity
-  边界: 负责入场条件快照（trigger_*）；不含 exit、lifecycle、goal 完成字段（见 Investment）
+  边界: 负责入场条件快照（trigger_*、signal_snapshot）；不含 exit、lifecycle、goal 完成字段（见 Investment）
 """
 
 from __future__ import annotations
@@ -60,6 +60,7 @@ class Opportunity:
     """Records a strategy scan signal; trading state lives on ``Investment``.
 
     Signal fields use ``trigger_*``; post-fill trade fields use ``entry_*`` / ``exit_info.*``.
+    ``signal_snapshot`` is the decision-time bag for later attribution (not scratchpad).
     """
 
     STATUS_AT_TRIGGER_KEY: ClassVar[str] = "stock_status_at_trigger"
@@ -72,7 +73,7 @@ class Opportunity:
     market_profile: str = ""
     meta: OpportunityMeta = field(default_factory=OpportunityMeta)
     contributor: OpportunityContributor = field(default_factory=OpportunityContributor)
-    extra_fields: Dict[str, Any] = field(default_factory=dict)
+    signal_snapshot: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -227,7 +228,7 @@ class Opportunity:
             market_profile=str(raw.get("market_profile") or ""),
             meta=meta,
             contributor=contributor,
-            extra_fields=dict(raw.get("extra_fields") or {}),
+            signal_snapshot=dict(raw.get("signal_snapshot") or {}),
             metadata=dict(raw.get("metadata") or {}),
         )
 

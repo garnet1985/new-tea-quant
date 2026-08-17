@@ -30,11 +30,11 @@ strategy 的 report 回答「结果长什么样」。本模块要回答「这份
 |--------|------|------|
 | 旋钮 | settings 里的阈值、止盈止损、资金参数 | 枚举 run 的 settings 快照里可能有 |
 | 数据声明 | `settings.data` 声明的 DATA_KEY / 指标 | 能还原「用了什么数据」，不是每笔的值 |
-| 决策现场值 | `has_opportunity` 当时看到的 RSI、PE 分位等 | 内存 `extra_fields` 有；落盘 CSV 目前丢掉 |
+| 决策现场值 | `has_opportunity` 当时看到的 RSI、PE 分位等 | 逻辑层经 `ctx.capture` 进入内存 `Opportunity.signal_snapshot`；声明层尚未自动冻；落盘格式未定 |
 | 执行与环境 | 成交价规则、股票池、回测区间 | `runtime_env` 一类元数据 |
 | 代码本身 | hooks 里的 if/else | 很难当成可列表的 input |
 
-还没有决定：归因认哪几层；没落盘的现场值算不算「本模块的输入」；声明了但没进 `extra_fields` 的数据算不算用过。
+还没有决定：归因认哪几层；没落盘的现场值算不算「本模块的输入」；声明了但没进 `signal_snapshot` 的数据算不算用过。
 
 ---
 

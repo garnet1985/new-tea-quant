@@ -65,6 +65,34 @@ def test_fill_and_refill_share_custom_and_settings_cache() -> None:
     assert filled.custom["flag"] == 1
 
 
+def test_remember_recall_forget() -> None:
+    ctx = StrategyContext.assemble(
+        strategy_key="demo",
+        settings=_settings(),
+        stock_list=["000001.SZ"],
+    )
+    ctx.remember("last_rsi", 28.5)
+    assert ctx.recall("last_rsi") == 28.5
+    assert ctx.custom["last_rsi"] == 28.5
+    assert ctx.recall("missing") is None
+    assert ctx.recall("missing", 0) == 0
+    ctx.forget("last_rsi")
+    assert ctx.recall("last_rsi") is None
+    ctx.forget("missing")
+
+
+def test_fill_shares_captures_bag() -> None:
+    base = StrategyContext.assemble(
+        strategy_key="demo",
+        settings=_settings(),
+        stock_list=["000001.SZ"],
+    )
+    filled = StrategyContext.fill(base, now="20240110", items={"k": []})
+    filled.capture("rsi", 12)
+    assert base.take_captures() == {"rsi": 12}
+    assert filled.take_captures() == {}
+
+
 def test_refill_without_stock_list_raises() -> None:
     ctx = StrategyContext(
         strategy=StrategyInfo(key="x"),

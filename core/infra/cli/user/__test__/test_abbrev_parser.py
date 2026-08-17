@@ -25,7 +25,6 @@ pytestmark = pytest.mark.force_run
         ),
         (["se", "--strategy", "demo"], ["strategy_enumerate", "--strategy", "demo"]),
         (["so"], ["strategy_portfolio"]),
-        (["sy"], ["strategy_analyse"]),
         (["r", "stock_klines", "-f"], ["renew", "stock_klines", "-f"]),
         (["ex", "example"], ["export_strategy", "example"]),
         (["im", "./pkg.zip"], ["import_strategy", "./pkg.zip"]),

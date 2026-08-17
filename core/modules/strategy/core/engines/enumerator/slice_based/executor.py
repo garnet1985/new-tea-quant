@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.data_contract.contracts import DATA_KEY
-from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
+from core.modules.strategy.contracts import CalendarAsOfResult
 from core.modules.strategy.core.engines.enumerator.common.base_executor import (
     BaseJobExecutor,
     ExecutorHooksContext,
@@ -26,6 +26,9 @@ from core.modules.strategy.core.engines.enumerator.common.performance_tracker.pe
     EnumJobPerfRecorder,
 )
 from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
+from core.modules.strategy.core.engines.shared.services.opportunity_factory import (
+    OpportunityFactory,
+)
 from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
     InvestmentTracker,
 )
@@ -435,7 +438,7 @@ class SliceTaskState:
             if perf is not None:
                 perf.begin("enum_scan")
             self.hook_runtime.call_if_overridden("on_before_scan", scan_ctx)
-            opportunity = self.hook_runtime.call("scan_opportunity", scan_ctx)
+            opportunity = OpportunityFactory.resolve(self.hook_runtime, scan_ctx)
             self.hook_runtime.call_if_overridden(
                 "on_after_scan",
                 StrategyContext.fill(
@@ -445,7 +448,7 @@ class SliceTaskState:
                     calendar=calendar,
                     entity_id=entity_id,
                     entity_info={"id": entity_id, **stock_info},
-                    opportunity=opportunity if isinstance(opportunity, Opportunity) else None,
+                    opportunity=opportunity,
                 ),
             )
             if perf is not None:
@@ -462,7 +465,7 @@ class SliceTaskState:
             )
             return
 
-        if not isinstance(opportunity, Opportunity):
+        if opportunity is None:
             return
 
         tracker.register_from_opportunity(

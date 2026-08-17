@@ -198,14 +198,8 @@ class BaseOpportunityAdapter(ABC):
                 if px:
                     print(f"  价格: {px}")
 
-            if opp.extra_fields:
-                lower = opp.extra_fields.get("lower_bound")
-                upper = opp.extra_fields.get("upper_bound")
-                if lower is not None and upper is not None:
-                    lo = BaseOpportunityAdapter.format_scalar_price(lower)
-                    hi = BaseOpportunityAdapter.format_scalar_price(upper)
-                    if lo and hi:
-                        print(f"  价格区间: {lo} - {hi}")
+            if opp.signal_snapshot:
+                print(f"  信号快照: {opp.signal_snapshot}")
 
         print("\n" + "=" * 60)
 

@@ -1,24 +1,13 @@
-"""枚举 version 投资 / goal CSV 内容模型（InvestmentCsv）。
-
-消费者: enumerator, price_factor, portfolio
-边界: 行模型 + 按 ArtifactPaths 读/写 CSV
-不负责: version 目录 resolve / runtime 投影（见 EnumOutput / EnumSource）
-说明: 不仅是 parser——enumerator 写盘与 P/O 读取共用同一契约
-"""
+"""枚举 investment / goal CSV 行模型（无 IO；读写见 ArtifactStore）。"""
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
 
-from core.infra.utils import Utils
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+from core.modules.strategy.core.services.artifacts.consts import (
     GOAL_ACHIEVEMENTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
-)
-from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
-    ArtifactPaths,
 )
 
 
@@ -385,9 +374,8 @@ class EntityInvestmentCsv:
     """单只股票的全部 investment 记录 → ``{entity_id}_stock_investments.csv``。
 
     边界:
-    - 负责: 从 investment dicts 构建行、读写 CSV
-    - 不负责: overall 汇总
-    - 调用方: enumerator InvestmentsReport / price_factor / portfolio
+    - 负责: 从 investment dicts 构建行
+    - 不负责: 文件 IO（见 ArtifactStore）
     """
 
     FILE_SUFFIX: ClassVar[str] = STOCK_INVESTMENTS_SUFFIX
@@ -430,55 +418,14 @@ class EntityInvestmentCsv:
             ],
         )
 
-    @classmethod
-    def load(cls, output_dir: Path, entity_id: str) -> "EntityInvestmentCsv":
-        path = cls.file_path(output_dir, entity_id)
-        return cls(
-            entity_id=str(entity_id or "").strip(),
-            rows=[InvestmentRow.from_csv_row(row) for row in Utils.io.read_csv_to_dicts(path)],
-        )
-
-    @classmethod
-    def file_path(cls, output_dir: Path, entity_id: str) -> Path:
-        return ArtifactPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
-
-    @classmethod
-    def _scan_entity_ids(cls, directory: Path) -> List[str]:
-        if not directory.is_dir():
-            return []
-        suffix = cls.FILE_SUFFIX
-        return sorted(
-            entry.name[: -len(suffix)]
-            for entry in directory.iterdir()
-            if entry.is_file() and entry.name.endswith(suffix)
-        )
-
-    @classmethod
-    def collect_entity_ids(cls, output_dir: Path) -> List[str]:
-        nested = cls._scan_entity_ids(ArtifactPaths.entities_dir(output_dir))
-        if nested:
-            return nested
-        return cls._scan_entity_ids(output_dir)
-
-    def save(self, output_dir: Path, *, append: bool = False) -> Path:
-        path = self.file_path(output_dir, self.entity_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [row.to_csv_row() for row in self.rows]
-        if append and path.is_file():
-            existing = Utils.io.read_csv_to_dicts(path)
-            rows = existing + rows
-        Utils.io.write_dicts_to_csv(path, rows, preferred_order=list(self.COLUMNS))
-        return path
-
 
 @dataclass
 class GoalAchievementCsv:
-    """单只股票的全部 goal 成交腿 → ``{entity_id}_goal_achievements.csv``。
+    """单只股票的全部 goal 成交腿。
 
     边界:
-    - 负责: 从 investment.goals 构建行、读写 CSV
-    - 不负责: overall 汇总
-    - 调用方: enumerator InvestmentsReport / price_factor / portfolio
+    - 负责: 从 investment.goals 构建行
+    - 不负责: 文件 IO（见 ArtifactStore）
     """
 
     FILE_SUFFIX: ClassVar[str] = GOAL_ACHIEVEMENTS_SUFFIX
@@ -514,28 +461,6 @@ class GoalAchievementCsv:
                 if isinstance(goal, dict):
                     rows.append(GoalAchievementRow.from_payload(investment_id, goal))
         return cls(entity_id=str(entity_id or "").strip(), rows=rows)
-
-    @classmethod
-    def load(cls, output_dir: Path, entity_id: str) -> "GoalAchievementCsv":
-        path = cls.file_path(output_dir, entity_id)
-        return cls(
-            entity_id=str(entity_id or "").strip(),
-            rows=[GoalAchievementRow.from_csv_row(row) for row in Utils.io.read_csv_to_dicts(path)],
-        )
-
-    @classmethod
-    def file_path(cls, output_dir: Path, entity_id: str) -> Path:
-        return ArtifactPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
-
-    def save(self, output_dir: Path, *, append: bool = False) -> Path:
-        path = self.file_path(output_dir, self.entity_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [row.to_csv_row() for row in self.rows]
-        if append and path.is_file():
-            existing = Utils.io.read_csv_to_dicts(path)
-            rows = existing + rows
-        Utils.io.write_dicts_to_csv(path, rows, preferred_order=list(self.COLUMNS))
-        return path
 
 
 __all__ = [

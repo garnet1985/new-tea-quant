@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, TextIO, TYPE_CHECKING
 
 from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.engines.shared.data_class.investment import Lifecycle
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
 )
 from core.modules.strategy.core.engines.enumerator.common.report_manager.opportunity_metrics import (

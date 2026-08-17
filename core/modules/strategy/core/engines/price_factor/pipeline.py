@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
+from core.modules.strategy.core.services.artifacts import EnumerateStore
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
 from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
@@ -55,23 +55,24 @@ class PriceFactorPipeline:
         return out
 
     @classmethod
-    def load_enum_data(cls, ctx: "SimulateSession") -> EnumSource:
+    def load_enum_data(cls, ctx: "SimulateSession") -> EnumerateStore:
         """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
-        output_dir = EnumSource.resolve_dir(ctx.strategy_folder, version_id)
-        return EnumSource.load(output_dir, version_id)
+        return EnumerateStore.resolve(
+            ctx.strategy_folder, version_id=version_id
+        )
 
     @classmethod
-    def resolve_window(cls, data: EnumSource) -> Tuple[str, str]:
+    def resolve_window(cls, data: EnumerateStore) -> Tuple[str, str]:
         """枚举 runtime period → 已 resolve 的 simulation window。"""
         return resolve_simulation_window(data)
 
     @classmethod
     def build_jobs(
         cls,
-        data: EnumSource,
+        data: EnumerateStore,
         *,
         report: ReportManager,
     ) -> List[Dict[str, Any]]:
@@ -85,7 +86,7 @@ class PriceFactorPipeline:
         *,
         start: str,
         end: str,
-        data: EnumSource,
+        data: EnumerateStore,
     ) -> Any:
         """BE 自管调度；``start``/``end`` window 必传；钩子仅 ``PriceFactorJobExecutor.build_run_callbacks()``。"""
         if not jobs:

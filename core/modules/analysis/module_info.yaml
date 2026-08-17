@@ -1,0 +1,10 @@
+name: modules.analysis
+version: "0.1.0"
+compatible_core_versions: ">=0.4.4"
+description: "分析模块：回测完成后，解释策略 inputs 与 outputs 的关系（骨架，行为 API 未定）。"
+dependencies: []
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 建立空模块骨架（Facade / 文档 / 公开 API 契约测）
+      - 明确与 factor 研究平台分家；归因方法与输入判定仍待设计

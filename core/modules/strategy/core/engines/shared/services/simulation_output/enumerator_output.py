@@ -78,6 +78,9 @@ class EnumOutput:
     def goal_achievements_path(self, entity_id: str) -> Path:
         return ArtifactPaths.goal_achievements_path(self.output_dir, entity_id)
 
+    def signal_snapshots_path(self, entity_id: str) -> Path:
+        return ArtifactPaths.signal_snapshots_path(self.output_dir, entity_id)
+
     def collect_stock_investment_entity_ids(self) -> List[str]:
         return ArtifactPaths.collect_entity_ids_from_stock_investments(self.output_dir)
 

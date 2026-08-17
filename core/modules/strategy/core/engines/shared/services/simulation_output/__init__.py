@@ -7,6 +7,7 @@
 - 布局: file_names / paths / io / EnumOutput
 - 读句柄: EnumSource（runtime 投影 + 委托读 investments CSV）
 - CSV 行模型: investment_csv（E 写、P/O 读，同一份）
+- 归因 sidecar: signal_snapshot_csv（E 写；P/O 不读）
 
 不负责: P/O 自有产物写盘；enumerator RuntimeEnv 业务写模型（仍在 artifacts）
 """
@@ -26,6 +27,7 @@ from .file_names import (
     PORTFOLIO_REPORT_FILES,
     PORTFOLIO_VERSION_REQUIRED_FILES,
     RUNTIME_ENV_FILE,
+    SIGNAL_SNAPSHOTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
 )
 from .io import ArtifactIO
@@ -36,6 +38,10 @@ from .investment_csv import (
     GoalAchievementCsv,
     GoalAchievementRow,
     InvestmentRow,
+)
+from .signal_snapshot_csv import (
+    EntitySignalSnapshotCsv,
+    SignalSnapshotRow,
 )
 from .paths import ArtifactPaths, ReportPaths
 
@@ -54,6 +60,7 @@ __all__ = [
     "PORTFOLIO_REPORT_FILES",
     "PORTFOLIO_VERSION_REQUIRED_FILES",
     "RUNTIME_ENV_FILE",
+    "SIGNAL_SNAPSHOTS_SUFFIX",
     "STOCK_INVESTMENTS_SUFFIX",
     "ArtifactIO",
     "ArtifactPaths",
@@ -62,7 +69,9 @@ __all__ = [
     "EnumRuntimeMeta",
     "EnumSource",
     "EntityInvestmentCsv",
+    "EntitySignalSnapshotCsv",
     "GoalAchievementCsv",
     "GoalAchievementRow",
     "InvestmentRow",
+    "SignalSnapshotRow",
 ]

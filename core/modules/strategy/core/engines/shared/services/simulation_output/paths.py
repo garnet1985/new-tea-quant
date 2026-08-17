@@ -16,6 +16,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
     RUNTIME_ENV_FILE,
+    SIGNAL_SNAPSHOTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
 )
 
@@ -56,6 +57,11 @@ class ArtifactPaths:
     def goal_achievements_path(output_dir: Path, entity_id: str) -> Path:
         eid = str(entity_id or "").strip()
         return ArtifactPaths.entities_dir(output_dir) / f"{eid}{GOAL_ACHIEVEMENTS_SUFFIX}"
+
+    @staticmethod
+    def signal_snapshots_path(output_dir: Path, entity_id: str) -> Path:
+        eid = str(entity_id or "").strip()
+        return ArtifactPaths.entities_dir(output_dir) / f"{eid}{SIGNAL_SNAPSHOTS_SUFFIX}"
 
     @staticmethod
     def collect_entity_ids_from_stock_investments(output_dir: Path) -> List[str]:

@@ -17,6 +17,7 @@ ENTITIES_SUBDIR = "entities"
 # 枚举实体 CSV 后缀（布局约定；行 schema 由各引擎私有解析）
 STOCK_INVESTMENTS_SUFFIX = "_stock_investments.csv"
 GOAL_ACHIEVEMENTS_SUFFIX = "_goal_achievements.csv"
+SIGNAL_SNAPSHOTS_SUFFIX = "_signal_snapshots.csv"
 
 # 价格回测实体 CSV 后缀
 PRICE_INVESTMENTS_SUFFIX = "_investments.csv"
@@ -60,5 +61,6 @@ __all__ = [
     "PORTFOLIO_REPORT_FILES",
     "PORTFOLIO_VERSION_REQUIRED_FILES",
     "RUNTIME_ENV_FILE",
+    "SIGNAL_SNAPSHOTS_SUFFIX",
     "STOCK_INVESTMENTS_SUFFIX",
 ]

@@ -9,8 +9,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Sequence, TYPE_CHECKING
 
 from core.modules.strategy.core.engines.shared.services.simulation_output import (
-    GoalAchievementCsv,
     EntityInvestmentCsv,
+    EntitySignalSnapshotCsv,
+    GoalAchievementCsv,
 )
 
 __all__ = [
@@ -27,6 +28,7 @@ class InvestmentsReport:
     def append_entity(self, entity_id: str, investments: Sequence[Dict[str, Any]]) -> Dict[str, int]:
         stock_investments = EntityInvestmentCsv.build(entity_id, investments)
         goal_achievements = GoalAchievementCsv.build(entity_id, investments)
+        signal_snapshots = EntitySignalSnapshotCsv.build(entity_id, investments)
         investment_files = 0
         goal_files = 0
         investment_rows = 0
@@ -39,6 +41,8 @@ class InvestmentsReport:
             goal_achievements.save(self._manager.output_dir, append=True)
             goal_files = 1
             goal_rows = len(goal_achievements.rows)
+        if signal_snapshots.rows:
+            signal_snapshots.save(self._manager.output_dir, append=True)
         return {
             "investment_files": investment_files,
             "goal_files": goal_files,

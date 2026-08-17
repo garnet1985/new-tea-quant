@@ -33,7 +33,7 @@ class StrategyInfo:
 class StrategyData:
     """运行数据（只读）。
 
-    - ``scan_opportunity``：``items`` 为单实体 DataKey→rows；可带 ``entity_id`` / ``entity_info``
+    - ``has_opportunity``：``items`` 为单实体 DataKey→rows；可带 ``entity_id`` / ``entity_info``
     - ``on_calendar_asof``：``by_entity`` 为 entity_id→当日 payload；``calendar`` 为日历元数据
     """
 

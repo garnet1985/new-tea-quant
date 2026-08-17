@@ -159,6 +159,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 | `strategy_settings` 整包 | S E P O | hooks, core.services | **keep（整块）** | period 挂在 settings |
 | `simulation_output` | E（写路径经 Artifact*）P O（读） | fingerprints | **keep** | 见上文读路径表 |
 | `as_of_slice` | S E | — | **keep** | 时钟点切数据 |
+| `opportunity_factory` | S E | — | **keep** | has_opportunity → Opportunity |
 | `safe_values` | （按需） | — | keep | 小工具 |
 
 ### A2. `core/services`（跨引擎 + Facade，非整引擎私有）

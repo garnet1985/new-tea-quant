@@ -1,7 +1,7 @@
 """用户 StrategyHooks 抽象基类（userspace 继承实现）。
 
 本文件:
-- StrategyHooks: scan / asof / portfolio 等 hook 声明与默认实现
+- StrategyHooks: has_opportunity / asof / portfolio 等 hook 声明与默认实现
   边界: 定义用户扩展点；不负责加载、StrategyContext 组装或 BE 调度
 """
 from __future__ import annotations
@@ -38,8 +38,11 @@ class StrategyHooks(ABC):
         return None
 
     @abstractmethod
-    def scan_opportunity(self, ctx: StrategyContext) -> Optional[Opportunity]:
-        """扫描机会（用户必须实现）。"""
+    def has_opportunity(self, ctx: StrategyContext) -> bool:
+        """当日该实体是否有交易机会（用户必须实现）。
+
+        只返回 True / False。命中时由框架根据当日 bar 构建 Opportunity。
+        """
         pass
 
     def on_after_scan(self, ctx: StrategyContext) -> None:
@@ -107,20 +110,6 @@ class StrategyHooks(ABC):
         from core.infra.utils import Utils
 
         return Utils.math.deterministic_unit_float(*key_parts)
-
-    def build_opportunity(
-        self,
-        ctx: StrategyContext,
-        record_of_today: Dict[str, Any],
-        *,
-        extra_fields: Optional[Dict[str, Any]] = None,
-    ) -> Opportunity:
-        stock_info = dict(ctx.data.entity_info) if ctx.data.entity_info else {}
-        return Opportunity(
-            stock=stock_info,
-            record_of_today=record_of_today,
-            extra_fields=extra_fields,
-        )
 
 
 __all__ = ["StrategyHooks"]

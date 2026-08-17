@@ -191,8 +191,8 @@ def test_default_enter_selection_respects_max_portfolio_size():
 
 def test_on_pick_portfolio_member_override_filters_by_id():
     class PickOne(StrategyHooks):
-        def scan_opportunity(self, ctx: StrategyContext):
-            return None
+        def has_opportunity(self, ctx: StrategyContext) -> bool:
+            return False
 
         def on_pick_portfolio_member(
             self, ctx: StrategyContext

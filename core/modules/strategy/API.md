@@ -1,6 +1,6 @@
 # Strategy API 文档
 
-**版本：** `0.6.0`  
+**版本：** `0.7.0`  
 **最低支持核心版本：** `>=0.4.4`
 
 > 须与 `module_info.yaml` 一致。  
@@ -15,7 +15,7 @@
 
 ## Strategy
 
-**描述：** 策略 Facade — scan / simulate（enumerate · price_factor · portfolio）/ analyze / discovery
+**描述：** 策略 Facade — scan / simulate（enumerate · price_factor · portfolio）/ discovery
 
 ### scan
 
@@ -49,13 +49,6 @@
 
 - **状态：** `beta`
 - **描述：** `simulate` 的薄封装（分别对应 `SimulateKind.ENUMERATE` / `PRICE_FACTOR` / `PORTFOLIO`）
-
-### analyze
-
-`Strategy.analyze(*, session_id: str | None = None) -> None`
-
-- **状态：** `beta`
-- **描述：** 读取各启用策略下 price / portfolio 最新 version 摘要并 present；`session_id` 预留未用
 
 ### list_strategies / list_enabled_strategies / list_enabled_keys / list_strategy_infos
 
@@ -98,7 +91,7 @@
 `Strategy.present_report(kind: SimulateKind | str, output_dir: str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI / analyze）；勿 deep-import 各引擎 `ReportManager`
+- **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
 
 ### clear_workbench_cache
 
@@ -141,7 +134,7 @@ Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUME
 
 | 符号 | 说明 |
 |------|------|
-| `StrategyHooks` / `StrategyContext` / `StrategyData` / `StrategyInfo` | userspace hook 契约 |
+| `StrategyHooks` / `StrategyContext` / `StrategyData` / `StrategyInfo` | userspace hook 契约；扫描/枚举主入口为 `has_opportunity() -> bool` |
 | `Opportunity` / `Investment` / `CalendarAsOfResult` | 引擎共享数据类 |
 | `AsOfSlice` / `JobBundleLoader` / `ProgressRecorder` | 跨模块协作面（tag / BE 数据装载与进度落盘） |
 | `ExecutionMode` / `SellReason` / `SimulateKind` / `WorkbenchStep` | 公开枚举 |

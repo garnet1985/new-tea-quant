@@ -70,16 +70,6 @@ class Strategy:
         return ScannerPipeline.scan(key_or_id, demo=demo)
 
     @staticmethod
-    def analyze(*, session_id: Optional[str] = None) -> None:
-        """读取各启用策略下 price / portfolio 最新 version 摘要并 present。
-
-        ``session_id`` 预留，当前未使用。
-        """
-        from core.modules.strategy.core.services.analyze import AnalyzeService
-
-        AnalyzeService.analyze(session_id=session_id)
-
-    @staticmethod
     def enumerate(
         key_or_id: str,
         ignore_cache: bool = False,

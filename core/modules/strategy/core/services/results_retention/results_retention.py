@@ -7,20 +7,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.scanner.helpers.cache_manager import (
     ScanCacheManager,
 )
-from core.modules.strategy.core.services.data.simulation_output_recorder import (
-    SimulationOutputRecorder,
-)
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.discovery import DiscoveryService
 
 logger = logging.getLogger(__name__)
-
-_SIM_KINDS = ("enum", "price", "portfolio")
 
 
 class ResultsRetention:
@@ -39,22 +35,9 @@ class ResultsRetention:
         ``kind`` 为 ``enum`` / ``price`` / ``portfolio``；``None`` 表示三步都清。
         """
         folder = cls._resolve_folder(key_or_id)
-        kinds = cls._normalize_kinds(kind)
-        per_kind: Dict[str, int] = {}
-        total = 0
-        for k in kinds:
-            root = cls._simulation_root(folder, k)
-            deleted = SimulationOutputRecorder.prune_old_version_dirs(
-                root, max_versions=max_versions
-            )
-            per_kind[k] = deleted
-            total += deleted
-        return {
-            "ok": True,
-            "strategy_folder": str(folder),
-            "deleted_count": total,
-            "per_kind": per_kind,
-        }
+        return ArtifactStore.prune(
+            folder, kind=kind, max_versions=max_versions
+        )
 
     @classmethod
     def prune_scan_results(
@@ -90,39 +73,6 @@ class ResultsRetention:
             if hasattr(info, "resolved_folder"):
                 return Path(info.resolved_folder())
         return ProjectContext.path.coerce_strategy_folder(str(key_or_id).strip())
-
-    @staticmethod
-    def _normalize_kinds(kind: Optional[str]) -> Tuple[str, ...]:
-        if kind is None or str(kind).strip() == "":
-            return _SIM_KINDS
-        raw = str(kind).strip().lower()
-        aliases = {
-            "enumerate": "enum",
-            "enum": "enum",
-            "price_factor": "price",
-            "price": "price",
-            "portfolio": "portfolio",
-            "capital": "portfolio",
-        }
-        mapped = aliases.get(raw)
-        if mapped is None:
-            raise ValueError(
-                f"unsupported simulation kind for retention: {kind!r} "
-                f"(expected enum/price/portfolio)"
-            )
-        return (mapped,)
-
-    @staticmethod
-    def _simulation_root(folder: Path, kind: str) -> Path:
-        if kind == "enum":
-            return ProjectContext.path.get_strategy_simulation_enum_directory(folder)
-        if kind == "price":
-            return ProjectContext.path.get_strategy_simulation_price_directory(folder)
-        if kind == "portfolio":
-            return ProjectContext.path.get_strategy_simulation_portfolio_directory(
-                folder
-            )
-        raise ValueError(f"unknown kind: {kind!r}")
 
     @staticmethod
     def _scan_version_count(cache_base_dir: Union[str, Path]) -> int:

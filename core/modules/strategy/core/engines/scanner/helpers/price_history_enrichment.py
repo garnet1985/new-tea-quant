@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.infra.project_context import ProjectContext
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.discovery import DiscoveryService
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,9 @@ def build_price_history_for_adapter(
 
 def _load_stock_history(version_dir: Path, stock_id: str) -> Optional[Dict[str, Any]]:
     try:
-        from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-            EntityInvestments,
-        )
-
-        rows = EntityInvestments.load(version_dir, stock_id)
+        rows = ArtifactStore.at(
+            version_dir, kind=SimulateKind.PRICE_FACTOR
+        ).price_investments(stock_id)
         if not rows:
             return None
         investments = [
@@ -67,14 +66,11 @@ def _load_stock_history(version_dir: Path, stock_id: str) -> Optional[Dict[str, 
 
 def _load_session_summary(version_dir: Path) -> Optional[Dict[str, Any]]:
     try:
-        from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
-            ReportPaths,
-        )
-
-        summary_file = ReportPaths.overall_report_path(version_dir)
-        if not summary_file.is_file():
+        store = ArtifactStore.at(version_dir, kind=SimulateKind.PRICE_FACTOR)
+        path = store.file("overall_report")
+        if not path.is_file():
             return None
-        return json.loads(summary_file.read_text(encoding="utf-8"))
+        return store.read_json("overall_report")
     except Exception as e:
         logger.debug("[price_history] 加载会话汇总失败: %s", e)
         return None
@@ -85,24 +81,11 @@ def _latest_price_version_dir(strategy_name: str) -> Optional[Path]:
     if not name:
         return None
     try:
-        from core.modules.strategy.core.services.discovery import DiscoveryService
-
         folder = DiscoveryService.resolve_strategy_folder(name)
     except Exception:
         folder = name
-    root = ProjectContext.path.get_strategy_simulation_price_directory(folder)
-    meta_path = root / "meta.json"
-    if not meta_path.is_file():
-        return None
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        latest_id = int(meta.get("next_output_version") or 1) - 1
-    except Exception:
-        return None
-    if latest_id <= 0:
-        return None
-    version_dir = root / str(latest_id)
-    return version_dir if version_dir.is_dir() else None
+    store = ArtifactStore.latest(folder, SimulateKind.PRICE_FACTOR)
+    return store.output_dir if store is not None else None
 
 
 def _calculate_statistics(investments: List[Dict[str, Any]]) -> Dict[str, Any]:

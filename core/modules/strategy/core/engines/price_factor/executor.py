@@ -12,11 +12,12 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.market_profile import MarketRulesProxy
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import (
+    ArtifactStore,
     GoalAchievementRow,
-    GoalAchievementCsv,
     InvestmentRow,
-    EntityInvestmentCsv,
+    PriceInvestmentRow,
 )
 from core.modules.strategy.core.engines.price_factor.helpers import (
     load_stock_klines,
@@ -25,10 +26,6 @@ from core.modules.strategy.core.engines.price_factor.helpers import (
     retry_deferred_exits,
 )
 from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    EntityInvestments,
-    PriceInvestmentRow,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
@@ -137,11 +134,12 @@ class PriceFactorJobExecutor:
             enum_dir,
         )
 
+        enum_store = ArtifactStore.at(enum_dir, kind=SimulateKind.ENUMERATE)
         entities: Dict[str, Dict[str, Any]] = {}
         for entity_id in entity_ids:
             entities[entity_id] = {
-                "investments": EntityInvestmentCsv.load(enum_dir, entity_id),
-                "goals": GoalAchievementCsv.load(enum_dir, entity_id),
+                "investments": enum_store.enum_investments(entity_id),
+                "goals": enum_store.enum_goals(entity_id),
             }
 
         return {
@@ -212,7 +210,9 @@ class PriceFactorJobExecutor:
                 goal_rows=goal_rows,
                 market_rules=market_rules,
             )
-            EntityInvestments.save(out_dir, str(entity_id), price_rows)
+            ArtifactStore.at(out_dir, kind=SimulateKind.PRICE_FACTOR).write_price_investments(
+                str(entity_id), price_rows
+            )
             total_inv += len(price_rows)
             skipped_exit_at_limit += skip_sell
 

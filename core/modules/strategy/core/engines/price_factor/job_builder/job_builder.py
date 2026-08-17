@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
@@ -32,7 +32,7 @@ class PriceFactorJobBuilder:
     @classmethod
     def build_jobs(
         cls,
-        data: EnumSource,
+        data: ArtifactStore,
         *,
         report: Optional["ReportManager"] = None,
     ) -> List[Dict[str, Any]]:

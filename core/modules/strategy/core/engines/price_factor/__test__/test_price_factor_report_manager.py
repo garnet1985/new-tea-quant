@@ -7,59 +7,49 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
-    ENTITY_IDS_FILE,
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
+from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
-    RUNTIME_ENV_FILE,
-)
-from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
-from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    EntityInvestments,
+    ArtifactStore,
     PriceInvestmentRow,
-)
-from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
-    ReportPaths,
 )
 
 pytestmark = pytest.mark.force_run
 
 
 def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / ENTITY_IDS_FILE).write_text(
-        "\n".join(entity_ids) + "\n",
-        encoding="utf-8",
-    )
-    payload = {
-        "strategy_key": "rsi_v1",
-        "strategy_path": "demo/regression/rsi/rsi_v1_without_value_anchor",
-        "version_id": 1,
-        "execution_mode": "entity_based",
-        "market_profile": "china_a_stock",
-        "period": {"start_date": "20240102", "end_date": "20240110"},
-        "settings_fp": "s",
-        "env_fp": "e",
-        "system": {},
-        "settings_snapshot": {"effective_settings": {}, "settings_diff": {}},
-    }
-    (output_dir / RUNTIME_ENV_FILE).write_text(
-        json.dumps(payload, ensure_ascii=False),
-        encoding="utf-8",
+    store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+    store.write_text_lines("entity_ids", entity_ids)
+    store.write_json(
+        "runtime_env",
+        {
+            "strategy_key": "rsi_v1",
+            "strategy_path": "demo/regression/rsi/rsi_v1_without_value_anchor",
+            "version_id": 1,
+            "execution_mode": "entity_based",
+            "market_profile": "china_a_stock",
+            "period": {"start_date": "20240102", "end_date": "20240110"},
+            "settings_fp": "s",
+            "env_fp": "e",
+            "system": {},
+            "settings_snapshot": {"effective_settings": {}, "settings_diff": {}},
+        },
     )
 
 
 def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> None:
     enum_dir = tmp_path / "enum" / "1"
     _write_enum_runtime(enum_dir, ["000001.SZ"])
-    data = EnumSource.load(enum_dir, "1")
+    data = ArtifactStore.open(enum_dir, kind=SimulateKind.ENUMERATE, version_id="1")
 
     price_root = tmp_path / "price"
     monkeypatch.setattr(
-        "core.modules.strategy.core.engines.price_factor.report_manager.report_manager.ProjectContext.path.get_strategy_simulation_price_directory",
-        lambda _name: price_root,
+        ArtifactStore,
+        "simulation_root",
+        classmethod(lambda cls, folder, kind: price_root),
     )
 
     ctx = SimpleNamespace(
@@ -68,12 +58,14 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
             unique_relative_path="demo/regression/rsi/rsi_v1_without_value_anchor",
         ),
         strategy_key="demo/regression/rsi/rsi_v1_without_value_anchor",
+        strategy_folder=tmp_path,
         settings_fp="sfp",
         env_fp="efp",
     )
     report = ReportManager.begin(ctx, data, start="20240102", end="20240110")
-    EntityInvestments.save(
-        report.output_dir,
+    ArtifactStore.at(
+        report.output_dir, kind=SimulateKind.PRICE_FACTOR
+    ).write_price_investments(
         "000001.SZ",
         [
             PriceInvestmentRow(
@@ -106,12 +98,13 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
     assert result["priceMetrics"]["totalWinInvestments"] == 1
     assert result["summary"]["total_investments"] == 1
     assert result["summary"]["total_win_investments"] == 1
-    assert ReportPaths.runtime_env_path(report.output_dir).is_file()
-    assert ReportPaths.overall_report_path(report.output_dir).is_file()
-    assert ReportPaths.entity_list_path(report.output_dir).is_file()
-    assert ReportPaths.performance_path(report.output_dir).is_file()
-    assert ReportPaths.entity_ids_path(report.output_dir).is_file()
-    assert ReportPaths.investments_csv(report.output_dir, "000001.SZ").is_file()
+    store = ArtifactStore.at(report.output_dir, kind=SimulateKind.PRICE_FACTOR)
+    assert store.file("runtime_env").is_file()
+    assert store.file("overall_report").is_file()
+    assert store.file("entity_list").is_file()
+    assert store.file("performance").is_file()
+    assert store.file("entity_ids").is_file()
+    assert store.has_price_investments("000001.SZ")
 
     overall = json.loads(
         (report.output_dir / OVERALL_REPORT_FILE).read_text(encoding="utf-8")

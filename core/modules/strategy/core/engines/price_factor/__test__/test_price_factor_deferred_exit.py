@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 import pytest
 
 from core.modules.market_profile import MarketRulesProxy
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
+from core.modules.strategy.core.services.artifacts import (
     InvestmentRow,
 )
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor

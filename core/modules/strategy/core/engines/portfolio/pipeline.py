@@ -9,9 +9,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from core.modules.market_profile import MarketRulesProxy
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
-    EntityInvestmentCsv,
-)
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
 )
@@ -27,7 +26,6 @@ from core.modules.strategy.core.engines.portfolio.simulator import (
     PortfolioSimResult,
     PortfolioSimulator,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -88,19 +86,20 @@ class PortfolioPipeline:
         return out
 
     @classmethod
-    def load_enum_data(cls, ctx: "SimulateSession") -> EnumSource:
+    def load_enum_data(cls, ctx: "SimulateSession") -> ArtifactStore:
         """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
-        output_dir = EnumSource.resolve_dir(ctx.strategy_folder, version_id)
-        return EnumSource.load(output_dir, version_id)
+        return ArtifactStore.resolve(
+            ctx.strategy_folder, SimulateKind.ENUMERATE, version_id
+        )
 
     @classmethod
     def begin_report(
         cls,
         ctx: "SimulateSession",
-        data: EnumSource,
+        data: ArtifactStore,
     ) -> ReportManager:
         """分配 portfolio version 目录并写 runtime。"""
         return ReportManager.begin(ctx, data)
@@ -108,7 +107,7 @@ class PortfolioPipeline:
     @classmethod
     def build_events(
         cls,
-        data: EnumSource,
+        data: ArtifactStore,
         *,
         settings: StrategySettings,
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
@@ -118,19 +117,16 @@ class PortfolioPipeline:
         ``simulation.risk_control.should_skip_enter`` 命中触发日状态的行不生成事件（枚举 CSV 仍在）。
         """
         control = settings.simulation.risk_control
-        entity_ids = list(data.entity_ids) or EntityInvestmentCsv.collect_entity_ids(
-            data.output_dir
-        )
+        entity_ids = list(data.entity_ids) or data.list_enum_investment_entities()
         events: List[PortfolioEvent] = []
         opportunities: Dict[str, Opportunity] = {}
         for entity_id in entity_ids:
             eid = str(entity_id or "").strip()
             if not eid:
                 continue
-            path = EntityInvestmentCsv.file_path(data.output_dir, eid)
-            if not path.is_file():
+            if not data.has_enum_investments(eid):
                 continue
-            loaded = EntityInvestmentCsv.load(data.output_dir, eid)
+            loaded = data.enum_investments(eid)
             for row in loaded.rows:
                 if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
                     continue
@@ -196,7 +192,7 @@ class PortfolioPipeline:
         report: ReportManager,
         sim_result: PortfolioSimResult,
         *,
-        data: EnumSource,
+        data: ArtifactStore,
         settings: StrategySettings,
     ) -> Dict[str, Any]:
         """落盘 overall / trades / equity，返回可缓存 report dict。"""

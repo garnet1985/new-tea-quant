@@ -1,8 +1,4 @@
-"""version 产物边界 IO（无 schema）。
-
-消费者: enumerator, price_factor, portfolio
-边界: 只做 json / 文本行读写；不解释业务字段
-"""
+"""version 产物边界 IO（无 schema）。"""
 from __future__ import annotations
 
 import json
@@ -11,7 +7,7 @@ from typing import Any, Dict, List, Sequence
 
 
 class ArtifactIO:
-    """json / 文本行边界读写（布局服务 namespace）。"""
+    """json / 文本行边界读写。"""
 
     @classmethod
     def read_json(cls, path: Path) -> Dict[str, Any]:

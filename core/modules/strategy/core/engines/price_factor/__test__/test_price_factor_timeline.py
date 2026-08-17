@@ -6,11 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+from core.modules.strategy.core.services.artifacts import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.engines.price_factor.timeline import resolve_simulation_window
 
 pytestmark = pytest.mark.force_run
@@ -37,7 +38,7 @@ def _write_runtime(output_dir: Path, *, start: str, end: str) -> None:
 
 def test_resolve_simulation_window_uses_runtime_period(tmp_path: Path) -> None:
     _write_runtime(tmp_path, start="20240102", end="20240105")
-    data = EnumSource.load(tmp_path, "1")
+    data = ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
     start, end = resolve_simulation_window(data)
     assert start == "20240102"
     assert end == "20240105"
@@ -45,6 +46,6 @@ def test_resolve_simulation_window_uses_runtime_period(tmp_path: Path) -> None:
 
 def test_resolve_simulation_window_requires_period(tmp_path: Path) -> None:
     _write_runtime(tmp_path, start="", end="")
-    data = EnumSource.load(tmp_path, "1")
+    data = ArtifactStore.open(tmp_path, kind=SimulateKind.ENUMERATE, version_id="1")
     with pytest.raises(ValueError, match="period"):
         resolve_simulation_window(data)

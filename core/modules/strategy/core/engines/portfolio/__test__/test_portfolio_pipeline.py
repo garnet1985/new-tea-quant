@@ -12,9 +12,10 @@ import pytest
 pytestmark = pytest.mark.force_run
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
-    InvestmentRow,
+from core.modules.strategy.core.services.artifacts import (
+    ArtifactStore,
     EntityInvestmentCsv,
+    InvestmentRow,
 )
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.portfolio.enter_selection import (
@@ -22,7 +23,6 @@ from core.modules.strategy.core.engines.portfolio.enter_selection import (
     EntrySelector,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -83,36 +83,38 @@ def test_load_enum_data_requires_enum_version():
 
 
 def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
-    EntityInvestmentCsv(
-        entity_id="600000.SH",
-        rows=[
-            InvestmentRow(
-                investment_id="1",
-                trigger_date="20240102",
-                entry_date="20240103",
-                entry_price=10.0,
-                entry_price_raw=20.0,
-                exit_date="20240110",
-                exit_price=11.0,
-                exit_price_raw=22.0,
-                weighted_roi=0.1,
-                lifecycle="complete",
-                result="win",
-            ),
-            InvestmentRow(
-                investment_id="2",
-                trigger_date="20240102",
-                entry_date="20240104",
-                entry_price=10.0,
-                entry_price_raw=0.0,
-                exit_date="20240111",
-                weighted_roi=0.2,
-                lifecycle="complete",
-            ),
-        ],
-    ).save(tmp_path)
+    ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE).write_enum_investments(
+        EntityInvestmentCsv(
+            entity_id="600000.SH",
+            rows=[
+                InvestmentRow(
+                    investment_id="1",
+                    trigger_date="20240102",
+                    entry_date="20240103",
+                    entry_price=10.0,
+                    entry_price_raw=20.0,
+                    exit_date="20240110",
+                    exit_price=11.0,
+                    exit_price_raw=22.0,
+                    weighted_roi=0.1,
+                    lifecycle="complete",
+                    result="win",
+                ),
+                InvestmentRow(
+                    investment_id="2",
+                    trigger_date="20240102",
+                    entry_date="20240104",
+                    entry_price=10.0,
+                    entry_price_raw=0.0,
+                    exit_date="20240111",
+                    weighted_roi=0.2,
+                    lifecycle="complete",
+                ),
+            ],
+        )
+    )
 
-    data = EnumSource.stub(
+    data = ArtifactStore.hydrate(
         tmp_path,
         entity_ids=["600000.SH"],
         start_date="20240101",

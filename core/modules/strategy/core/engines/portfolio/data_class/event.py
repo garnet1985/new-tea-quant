@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.services.simulation_output import (
+    from core.modules.strategy.core.services.artifacts import (
         InvestmentRow,
     )
 

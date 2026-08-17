@@ -1,7 +1,7 @@
 """枚举 version 运行环境（runtime_env.json + entity_ids）（enumerator 私有）。
 
 本文件: SystemEnv / SettingsSnapshot / RuntimeEnv
-边界: 负责 enum runtime 内容组装与读写；布局/IO 委托 simulation_output
+边界: 负责 enum runtime 内容组装与读写；布局/IO 委托 services.artifacts
 period 解析见 StrategySettings.resolve_period / BacktestPeriod
 """
 from __future__ import annotations
@@ -13,13 +13,11 @@ from typing import Any, Dict, List
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.services.strategy_settings import BacktestPeriod
-from core.modules.strategy.core.engines.shared.services.simulation_output.io import ArtifactIO
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
-)
-from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
-    ArtifactPaths,
+    ArtifactStore,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -141,25 +139,15 @@ class RuntimeEnv:
 
     @classmethod
     def load(cls, output_dir: Path) -> "RuntimeEnv":
-        runtime_env_path = ArtifactPaths.runtime_env_path(output_dir)
-        entity_ids_path = ArtifactPaths.entity_ids_path(output_dir)
-        if not runtime_env_path.is_file():
-            raise FileNotFoundError(f"缺少 {RUNTIME_ENV_FILE}: {output_dir}")
-        payload = ArtifactIO.read_json(runtime_env_path)
-        entity_ids = ArtifactIO.read_text_lines(entity_ids_path)
+        store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+        payload = store.read_json("runtime_env")
+        entity_ids = store.read_text_lines("entity_ids")
         return cls.from_dict(payload, entity_ids=entity_ids)
 
     def save(self, output_dir: Path) -> SavedRuntimeEnvPaths:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        entity_ids_path = ArtifactIO.write_text_lines(
-            ArtifactPaths.entity_ids_path(output_dir),
-            self.entity_ids,
-        )
-        runtime_env_path = ArtifactIO.write_json(
-            ArtifactPaths.runtime_env_path(output_dir),
-            self.to_dict(),
-        )
+        store = ArtifactStore.at(output_dir, kind=SimulateKind.ENUMERATE)
+        entity_ids_path = store.write_text_lines("entity_ids", self.entity_ids)
+        runtime_env_path = store.write_json("runtime_env", self.to_dict())
         return SavedRuntimeEnvPaths(
             entity_ids_path=entity_ids_path,
             runtime_env_path=runtime_env_path,

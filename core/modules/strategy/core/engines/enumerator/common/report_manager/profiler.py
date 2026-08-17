@@ -18,7 +18,7 @@ from core.modules.backtest_engine.contracts import (
     EntityMonitorStats,
     WorkerTaskPerf,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+from core.modules.strategy.core.services.artifacts import (
     PERFORMANCE_FILE,
 )
 from core.modules.strategy.core.engines.enumerator.common.report_manager.report_output import (

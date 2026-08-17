@@ -366,17 +366,21 @@ class Strategy:
 
     @staticmethod
     def load_price_entity_investments(version_dir: Path, entity_id: str):
-        """读取 price_factor version 下单实体 investments CSV（跨模块入口；勿 deep-import EntityInvestments）。"""
-        from .engines.price_factor.report_manager.investments import EntityInvestments
+        """读取 price_factor version 下单实体 investments CSV。"""
+        from .services.artifacts import ArtifactStore
 
-        return EntityInvestments.load(version_dir, entity_id)
+        return ArtifactStore.at(
+            version_dir, kind=SimulateKind.PRICE_FACTOR
+        ).price_investments(entity_id)
 
     @staticmethod
     def price_overall_report_path(version_dir: Path) -> Path:
         """price_factor version 目录下 ``overall_report.json`` 路径。"""
-        from .engines.price_factor.report_manager.report_consts import ReportPaths
+        from .services.artifacts import ArtifactStore
 
-        return ReportPaths.overall_report_path(version_dir)
+        return ArtifactStore.at(
+            version_dir, kind=SimulateKind.PRICE_FACTOR
+        ).file("overall_report")
 
     @staticmethod
     def present_report(

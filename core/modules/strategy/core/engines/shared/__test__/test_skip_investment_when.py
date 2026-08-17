@@ -8,12 +8,13 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
-    InvestmentRow,
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import (
+    ArtifactStore,
     EntityInvestmentCsv,
+    InvestmentRow,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StatusTagPolicy,
@@ -109,32 +110,34 @@ def test_price_replay_skips_matching_status() -> None:
 
 
 def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
-    EntityInvestmentCsv(
-        entity_id="600000.SH",
-        rows=[
-            _inv_row(
-                investment_id="1",
-                entry_price_raw=20.0,
-                stock_status_at_trigger=("st",),
-            ),
-            _inv_row(
-                investment_id="2",
-                entry_date="20240104",
-                exit_date="20240111",
-                entry_price_raw=21.0,
-                stock_status_at_trigger=("star_st",),
-            ),
-            _inv_row(
-                investment_id="3",
-                entry_date="20240105",
-                exit_date="20240112",
-                entry_price_raw=22.0,
-                stock_status_at_trigger=(),
-            ),
-        ],
-    ).save(tmp_path)
+    ArtifactStore.at(tmp_path, kind=SimulateKind.ENUMERATE).write_enum_investments(
+        EntityInvestmentCsv(
+            entity_id="600000.SH",
+            rows=[
+                _inv_row(
+                    investment_id="1",
+                    entry_price_raw=20.0,
+                    stock_status_at_trigger=("st",),
+                ),
+                _inv_row(
+                    investment_id="2",
+                    entry_date="20240104",
+                    exit_date="20240111",
+                    entry_price_raw=21.0,
+                    stock_status_at_trigger=("star_st",),
+                ),
+                _inv_row(
+                    investment_id="3",
+                    entry_date="20240105",
+                    exit_date="20240112",
+                    entry_price_raw=22.0,
+                    stock_status_at_trigger=(),
+                ),
+            ],
+        )
+    )
 
-    data = EnumSource.stub(
+    data = ArtifactStore.hydrate(
         tmp_path,
         entity_ids=["600000.SH"],
         start_date="20240101",

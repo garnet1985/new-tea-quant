@@ -1,18 +1,10 @@
-"""ReportManager.investments 写门面（委托 simulation_output CSV 模型）。
-
-本文件:
-- InvestmentsReport: worker buffer → 每股 CSV 追加
-  边界: 仅绑 ReportManager；行模型在 simulation_output.investment_csv
-"""
+"""ReportManager.investments 写门面（委托 ArtifactStore）。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
-    EntityInvestmentCsv,
-    EntitySignalSnapshotCsv,
-    GoalAchievementCsv,
-)
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 
 __all__ = [
     "InvestmentsReport",
@@ -25,30 +17,15 @@ class InvestmentsReport:
     def __init__(self, manager: "ReportManager") -> None:
         self._manager = manager
 
+    def _store(self) -> ArtifactStore:
+        return ArtifactStore.at(
+            self._manager.output_dir,
+            kind=SimulateKind.ENUMERATE,
+            version_id=str(self._manager.version_id),
+        )
+
     def append_entity(self, entity_id: str, investments: Sequence[Dict[str, Any]]) -> Dict[str, int]:
-        stock_investments = EntityInvestmentCsv.build(entity_id, investments)
-        goal_achievements = GoalAchievementCsv.build(entity_id, investments)
-        signal_snapshots = EntitySignalSnapshotCsv.build(entity_id, investments)
-        investment_files = 0
-        goal_files = 0
-        investment_rows = 0
-        goal_rows = 0
-        if stock_investments.rows:
-            stock_investments.save(self._manager.output_dir, append=True)
-            investment_files = 1
-            investment_rows = len(stock_investments.rows)
-        if goal_achievements.rows:
-            goal_achievements.save(self._manager.output_dir, append=True)
-            goal_files = 1
-            goal_rows = len(goal_achievements.rows)
-        if signal_snapshots.rows:
-            signal_snapshots.save(self._manager.output_dir, append=True)
-        return {
-            "investment_files": investment_files,
-            "goal_files": goal_files,
-            "investment_rows": investment_rows,
-            "goal_rows": goal_rows,
-        }
+        return self._store().append_enum_entity(entity_id, investments)
 
     def flush_buffered(self, buffer: List[Dict[str, Any]]) -> Dict[str, int]:
         if not buffer:

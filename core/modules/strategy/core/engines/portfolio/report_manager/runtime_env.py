@@ -1,15 +1,13 @@
 """Portfolio ``runtime_env.json``。"""
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.modules.strategy.core.engines.portfolio.report_manager.report_consts import (
-    ReportPaths,
-)
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.system import get_version
 
 
@@ -74,19 +72,13 @@ class PortfolioRuntimeEnv:
         )
 
     def save(self, output_dir: Path) -> Path:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        path = ReportPaths.runtime_env_path(output_dir)
-        path.write_text(
-            json.dumps(self.to_dict(), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return path
+        store = ArtifactStore.at(output_dir, kind=SimulateKind.PORTFOLIO)
+        return store.write_json("runtime_env", self.to_dict())
 
     @classmethod
     def load(cls, output_dir: Path) -> "PortfolioRuntimeEnv":
-        path = ReportPaths.runtime_env_path(output_dir)
-        return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        store = ArtifactStore.at(output_dir, kind=SimulateKind.PORTFOLIO)
+        return cls.from_dict(store.read_json("runtime_env"))
 
 
 __all__ = ["PortfolioRuntimeEnv"]

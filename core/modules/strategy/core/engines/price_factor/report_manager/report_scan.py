@@ -5,10 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    EntityInvestments,
-    PriceInvestmentRow,
-)
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore, PriceInvestmentRow
 from core.modules.strategy.core.engines.price_factor.report_manager.runtime_env import (
     PriceRuntimeEnv,
 )
@@ -44,7 +42,8 @@ class PriceCsvScan:
     ) -> "PriceCsvScan":
         runtime = PriceRuntimeEnv.load(output_dir)
         ids = list(entity_ids) if entity_ids is not None else list(runtime.entity_ids or [])
-        by_entity = EntityInvestments.load_all(output_dir, ids)
+        store = ArtifactStore.at(output_dir, kind=SimulateKind.PRICE_FACTOR)
+        by_entity = store.load_all_price_investments(ids)
         period = dict(runtime.period or {})
         return cls(
             total_entities=max(0, len(ids)),

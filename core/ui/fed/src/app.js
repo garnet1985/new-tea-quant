@@ -149,11 +149,7 @@ function App() {
         <Routes>
           <Route
             path="/setup"
-            element={(
-              <TraceConsentGuard source="setup_ui">
-                <SetupPage />
-              </TraceConsentGuard>
-            )}
+            element={<SetupPage />}
           />
           <Route path="/what-we-will-track" element={<WhatWeWillTrackPage />} />
           <Route

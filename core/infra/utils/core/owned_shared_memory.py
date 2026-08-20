@@ -41,7 +41,9 @@ def create_owned_shared_memory(blob: bytes) -> "SharedMemory":
 def attach_shared_memory(name: str) -> "SharedMemory":
     if SharedMemory is None:
         raise RuntimeError("multiprocessing.shared_memory 不可用")
-    return SharedMemory(name=name)
+    shm = SharedMemory(name=name)
+    _unregister_from_resource_tracker(shm)
+    return shm
 
 
 def close_and_unlink(shm: Optional["SharedMemory"]) -> None:

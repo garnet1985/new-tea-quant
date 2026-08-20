@@ -5,8 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from core.modules.backtest_engine.core.shared.owned_shared_memory import (
+    shared_memory_available,
+)
 from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
-    SHARED_MEMORY_AVAILABLE,
     GlobalEntityCache,
 )
 
@@ -24,7 +26,7 @@ def test_seed_system_globals_filters_blank_ids() -> None:
 
 
 def test_shared_memory_readable_after_create() -> None:
-    if not SHARED_MEMORY_AVAILABLE:
+    if not shared_memory_available():
         pytest.skip("shared_memory 不可用")
     cache = GlobalEntityCache(settings=MagicMock())
     cache._global_data = {"k": [1, 2, 3]}

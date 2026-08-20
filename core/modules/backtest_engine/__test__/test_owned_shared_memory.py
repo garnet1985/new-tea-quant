@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.infra.utils.core.owned_shared_memory import (
+from core.modules.backtest_engine.core.shared.owned_shared_memory import (
     attach_shared_memory,
     close_and_unlink,
     create_owned_shared_memory,

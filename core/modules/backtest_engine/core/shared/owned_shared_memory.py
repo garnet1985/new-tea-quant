@@ -3,6 +3,9 @@
 Windows 上 ``SharedMemory.close()`` 会关掉最后一个 mapping handle，
 子进程再 ``SharedMemory(name=wnsm_…)`` 就会报「找不到指定的文件」。
 POSIX 上 close 只关 fd，对象仍在直到 unlink；两边统一：创建方持有到 cleanup。
+
+放在 backtest_engine.shared，不进 ``infra.utils``：data_contract 基类已 import Utils，
+避免再挂 SHM / multiprocessing 到那条导入链上。
 """
 from __future__ import annotations
 

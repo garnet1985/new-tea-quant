@@ -19,7 +19,7 @@ import pickle
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Union
 
-from core.infra.utils.core.owned_shared_memory import (
+from core.modules.backtest_engine.core.shared.owned_shared_memory import (
     attach_shared_memory,
     close_and_unlink,
     create_owned_shared_memory,

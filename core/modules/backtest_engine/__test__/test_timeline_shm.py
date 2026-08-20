@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.infra.utils.core.owned_shared_memory import shared_memory_available
+from core.modules.backtest_engine.core.shared.owned_shared_memory import shared_memory_available
 from core.modules.backtest_engine.core.timeline.timeline import Timeline
 
 pytestmark = pytest.mark.force_run

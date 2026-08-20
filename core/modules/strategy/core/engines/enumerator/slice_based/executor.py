@@ -86,7 +86,8 @@ class SliceTaskState:
         ids = [str(eid).strip() for eid in self.entity_ids if str(eid).strip()]
         self.entity_ids = ids
         self.trackers = {eid: InvestmentTracker(entity_id=eid) for eid in ids}
-        self._stock_info = {eid: StockMetaHelper.load(eid) for eid in ids}
+        # 必须用 payload.stock_info：ProcessPool 阶段主库已释放，禁止 DataManager()。
+        self._stock_info = StockMetaHelper.from_payload(self.payload, ids)
         self._ready_date_by_entity = {}
         self._job_min_ready_date = ""
         self._job_has_work = True

@@ -67,10 +67,11 @@ class DuckdbWorkerPool:
 
 
     @staticmethod
-    def wait_for_main_duckdb_worker_pool_end(*, timeout_sec: float = 600.0) -> None:
+    def wait_for_main_duckdb_worker_pool_end(*, timeout_sec: float = 30.0) -> None:
         """其它线程在 suspend 期间不得打开 DuckDB 写连接；阻塞直到 worker 池结束。
 
-        持有 suspend 的同一线程再 ``DataManager()`` 会自锁 600s，直接失败。
+        持有 suspend 的同一线程再 ``DataManager()`` 会自锁，直接失败（勿长时间 sleep）。
+        等待可被 Ctrl+C 打断（``interrupt_requested`` / ``KeyboardInterrupt``）。
         """
         if DuckdbWorkerPool._main_suspend_depth <= 0:
             return
@@ -79,13 +80,21 @@ class DuckdbWorkerPool:
             raise RuntimeError(
                 "DuckDB 已为 ProcessPool 释放主连接：当前线程禁止再打开主库"
             )
-        deadline = time.monotonic() + timeout_sec
+        deadline = time.monotonic() + max(0.0, float(timeout_sec))
         while DuckdbWorkerPool._main_suspend_depth > 0:
+            try:
+                from core.ui.process_cleanup import interrupt_requested
+
+                if interrupt_requested():
+                    raise KeyboardInterrupt
+            except ImportError:
+                pass
             if time.monotonic() >= deadline:
                 raise TimeoutError(
                     "等待 DuckDB ProcessPool 主进程释放文件锁超时 "
                     f"({timeout_sec}s)"
                 )
+            # 短 sleep，便于 SIGINT / KeyboardInterrupt 在 Windows 上及时送达
             time.sleep(0.05)
 
 

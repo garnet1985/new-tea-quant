@@ -86,9 +86,11 @@ class EntityTaskState:
             for entity_id in self.entity_ids
             if str(entity_id).strip()
         }
-        self._stock_info = {
-            entity_id: StockMetaHelper.load(entity_id) for entity_id in self.trackers
-        }
+        # Prefer payload.stock_info（建 job 时已批量加载）；worker 内避免全表扫。
+        self._stock_info = StockMetaHelper.from_payload(
+            self.payload,
+            list(self.trackers.keys()),
+        )
         self._last_bar_by_entity = {}
         self._scan_contexts = {}
         self._ready_date_by_entity = {}

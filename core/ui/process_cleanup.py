@@ -21,6 +21,17 @@ logger = logging.getLogger(__name__)
 _INTERRUPT_LOCK = threading.Lock()
 _INTERRUPT_INSTALLED = False
 _INTERRUPT_EXITING = False
+_INTERRUPT_REQUESTED = False
+
+
+def interrupt_requested() -> bool:
+    """Ctrl+C 已触发（供等待循环尽快退出，勿再睡满超时）。"""
+    return _INTERRUPT_REQUESTED
+
+
+def request_interrupt() -> None:
+    global _INTERRUPT_REQUESTED
+    _INTERRUPT_REQUESTED = True
 
 
 def kill_process_group(pid: int, *, grace_sec: float = 5.0) -> None:
@@ -65,13 +76,18 @@ def _kill_windows_tree(pid: int, *, grace_sec: float) -> None:
     """``taskkill /T`` 杀掉整棵进程树（含 ProcessPool worker）。"""
     if pid <= 0:
         return
+    # 中断路径 grace 很短：直接 /F，避免先软杀再等
+    force_first = float(grace_sec) <= 0.2
+    if force_first:
+        _run_taskkill(pid, force=True, timeout_sec=3.0)
+        return
     _run_taskkill(pid, force=False)
     if _wait_pid(pid, max(0.2, float(grace_sec))):
         return
     _run_taskkill(pid, force=True)
 
 
-def _run_taskkill(pid: int, *, force: bool) -> None:
+def _run_taskkill(pid: int, *, force: bool, timeout_sec: float = 15.0) -> None:
     cmd = ["taskkill", "/T", "/PID", str(pid)]
     if force:
         cmd.insert(1, "/F")
@@ -81,7 +97,7 @@ def _run_taskkill(pid: int, *, force: bool) -> None:
             capture_output=True,
             text=True,
             check=False,
-            timeout=15,
+            timeout=max(1.0, float(timeout_sec)),
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
         logger.debug("taskkill pid=%s force=%s: %s", pid, force, exc)
@@ -146,7 +162,13 @@ def terminate_multiprocessing_children(*, grace_sec: float = 3.0) -> None:
             proc.terminate()
         except Exception as exc:
             logger.debug("terminate child %s: %s", proc.name, exc)
-    deadline = time.monotonic() + grace_sec
+        if os.name == "nt":
+            try:
+                # 中断路径：立刻 taskkill，勿先睡满 grace
+                _kill_windows_tree(int(proc.pid), grace_sec=min(0.15, max(0.0, float(grace_sec))))
+            except Exception as exc:
+                logger.debug("taskkill child %s: %s", proc.name, exc)
+    deadline = time.monotonic() + max(0.0, float(grace_sec))
     while time.monotonic() < deadline:
         if not any(p.is_alive() for p in children):
             return
@@ -160,7 +182,7 @@ def terminate_multiprocessing_children(*, grace_sec: float = 3.0) -> None:
             logger.debug("kill child %s: %s", proc.name, exc)
         if os.name == "nt":
             try:
-                _kill_windows_tree(int(proc.pid), grace_sec=0.2)
+                _kill_windows_tree(int(proc.pid), grace_sec=0.05)
             except Exception as exc:
                 logger.debug("taskkill child %s: %s", proc.name, exc)
 
@@ -287,11 +309,32 @@ def windows_new_process_group_flag() -> int:
     return int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) or 0)
 
 
+def _force_exit_now(code: int = 130) -> None:
+    """立刻杀子进程并 ``os._exit``；handler / 等待循环共用，禁止长阻塞。"""
+    global _INTERRUPT_EXITING
+    request_interrupt()
+    if _INTERRUPT_EXITING:
+        os._exit(code)
+    _INTERRUPT_EXITING = True
+    try:
+        sys.stderr.write("\n收到中断，正在结束子进程…\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
+    try:
+        # grace≈0：Windows 上 taskkill 后不再睡满数百毫秒
+        terminate_multiprocessing_children(grace_sec=0.05)
+    except Exception:
+        pass
+    os._exit(code)
+
+
 def install_interrupt_force_exit() -> None:
     """Ctrl+C / Ctrl+Break：杀掉 multiprocessing 子进程后 ``os._exit``。
 
     禁止在 signal handler 里做 DuckDB CHECKPOINT：查询或 ProcessPool
     占用文件锁时会永久卡死，Windows PowerShell 表现为无法退出。
+    等待 ``wait_for_main`` 等循环会读 ``interrupt_requested()``，勿再睡满超时。
     """
     global _INTERRUPT_INSTALLED
     if threading.current_thread() is not threading.main_thread():
@@ -301,20 +344,7 @@ def install_interrupt_force_exit() -> None:
             return
 
         def _handler(signum, frame) -> None:  # noqa: ARG001
-            global _INTERRUPT_EXITING
-            if _INTERRUPT_EXITING:
-                os._exit(130)
-            _INTERRUPT_EXITING = True
-            try:
-                sys.stderr.write("\n收到中断，正在结束子进程…\n")
-                sys.stderr.flush()
-            except Exception:
-                pass
-            try:
-                terminate_multiprocessing_children(grace_sec=0.8)
-            except Exception:
-                pass
-            os._exit(130)
+            _force_exit_now(130)
 
         signal.signal(signal.SIGINT, _handler)
         sigbreak = getattr(signal, "SIGBREAK", None)
@@ -323,7 +353,36 @@ def install_interrupt_force_exit() -> None:
                 signal.signal(sigbreak, _handler)
             except (OSError, ValueError, AttributeError):
                 pass
+        if os.name == "nt":
+            _install_windows_console_ctrl_handler()
         _INTERRUPT_INSTALLED = True
+
+
+def _install_windows_console_ctrl_handler() -> None:
+    """Windows：控制台 Ctrl+C 可能不走 Python SIGINT，补 ``SetConsoleCtrlHandler``。"""
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except Exception:
+        return
+
+    HandlerRoutine = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+
+    @HandlerRoutine
+    def _console_handler(ctrl_type: int) -> bool:
+        # 0=CTRL_C_EVENT 1=CTRL_BREAK_EVENT 2=CTRL_CLOSE_EVENT
+        if ctrl_type in (0, 1, 2):
+            # 控制台回调在独立线程；直接强制退出，避免卡在主线程 C 层 wait
+            _force_exit_now(130)
+            return True
+        return False
+
+    try:
+        # 保持引用，避免被 GC
+        install_interrupt_force_exit._win_ctrl_handler = _console_handler  # type: ignore[attr-defined]
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(_console_handler, True)
+    except Exception as exc:
+        logger.debug("SetConsoleCtrlHandler: %s", exc)
 
 
 def interrupt_force_exit_installed() -> bool:

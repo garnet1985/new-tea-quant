@@ -193,7 +193,7 @@ db = Db.manager.create(cfg)
 | `ensure_holder_restored(data_mgr=None)` | 恢复 pool 后主进程 holder/DB（duck-type）；应用层首选 `DataManager.ensure_restored_after_worker_pool` |
 | `ensure_data_manager_restored(data_mgr=None)` | 兼容旧名 → `ensure_holder_restored` |
 | `wait_pool_children_done(*, timeout_sec=15)` | 等待子进程结束 |
-| `wait_for_main_end(*, timeout_sec=600)` | 等待主进程 suspend 结束 |
+| `wait_for_main_end(*, timeout_sec=30)` | 等待主进程 suspend 结束 |
 | `is_main_active()` | 主进程是否处于 suspend |
 | `connect_domains(db, *, domains, read_only)` | 按域连接 |
 | `database_config_read_only()` | 只读域配置副本 |

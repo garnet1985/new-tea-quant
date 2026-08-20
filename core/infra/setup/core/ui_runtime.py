@@ -12,6 +12,8 @@ from typing import Tuple
 
 from core.system import python_minimum
 from core.ui.process_cleanup import (
+    install_interrupt_force_exit,
+    interrupt_requested,
     kill_process_group,
     pids_listening_on,
     process_cmdline,
@@ -264,13 +266,18 @@ def release_ui_listen_ports(ports: tuple[int, ...] = ALL_UI_PORTS) -> None:
 def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
+        if interrupt_requested():
+            raise KeyboardInterrupt
         try:
             with urllib.request.urlopen(url, timeout=5) as resp:
                 if 200 <= resp.status < 400:
                     return True
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
             pass
-        time.sleep(0.5)
+        try:
+            time.sleep(0.5)
+        except KeyboardInterrupt:
+            raise
     return False
 
 
@@ -294,20 +301,21 @@ def _fed_dev_env() -> dict[str, str]:
     return env
 
 
-def _terminate_proc(proc: subprocess.Popen | None) -> None:
+def _terminate_proc(proc: subprocess.Popen | None, *, grace_sec: float = 3.0) -> None:
     if proc is None:
         return
     if proc.poll() is not None:
         return
+    wait_cap = 1.0 if interrupt_requested() else 8.0
     try:
-        kill_process_group(proc.pid, grace_sec=3.0)
+        kill_process_group(proc.pid, grace_sec=grace_sec)
     except Exception:
         pass
     try:
-        proc.wait(timeout=8)
+        proc.wait(timeout=wait_cap)
     except subprocess.TimeoutExpired:
         try:
-            kill_process_group(proc.pid, grace_sec=0.5)
+            kill_process_group(proc.pid, grace_sec=0.2)
         except Exception:
             pass
         try:
@@ -315,7 +323,7 @@ def _terminate_proc(proc: subprocess.Popen | None) -> None:
         except (ProcessLookupError, OSError):
             pass
         try:
-            proc.wait(timeout=5)
+            proc.wait(timeout=min(2.0, wait_cap))
         except subprocess.TimeoutExpired:
             pass
     except Exception:
@@ -331,12 +339,29 @@ def _shutdown_ui_stack_procs(
     fed_proc: subprocess.Popen | None,
 ) -> None:
     """结束 CRA/BFF 子进程；若进程组信号未生效，按端口兜底（避免 Ctrl+C 后孤儿 BFF）。"""
-    _terminate_proc(bff_proc)
-    _terminate_proc(fed_proc)
+    grace = 0.2 if interrupt_requested() else 3.0
+    _terminate_proc(bff_proc, grace_sec=grace)
+    _terminate_proc(fed_proc, grace_sec=grace)
     _force_shutdown_ui_ports()
 
 
+def _wait_child_interruptible(proc: subprocess.Popen) -> int:
+    """轮询子进程退出；勿用阻塞 ``Popen.wait()``（Windows 上会吞掉 Ctrl+C）。"""
+    while True:
+        code = proc.poll()
+        if code is not None:
+            return int(code)
+        if interrupt_requested():
+            raise KeyboardInterrupt
+        try:
+            time.sleep(0.25)
+        except KeyboardInterrupt:
+            raise
+
+
 def launch_ui_stack() -> None:
+    # 尽早安装：否则卡在 BFF wait / 预加载时 Ctrl+C 可能无法强制退出
+    install_interrupt_force_exit()
     host = os.getenv("NTQ_BFF_HOST", "127.0.0.1").strip() or "127.0.0.1"
     dev = ui_dev_mode()
 
@@ -407,7 +432,7 @@ def launch_ui_stack() -> None:
             print(f"请手动打开: {ui_url}", flush=True)
 
         try:
-            (fed_proc or bff_proc).wait()
+            _wait_child_interruptible(fed_proc or bff_proc)
         except KeyboardInterrupt:
             print("\n正在关闭…", flush=True)
     except KeyboardInterrupt:

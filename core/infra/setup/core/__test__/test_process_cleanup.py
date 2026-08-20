@@ -8,8 +8,10 @@ import subprocess
 import pytest
 
 from core.ui.process_cleanup import (
+    interrupt_requested,
     kill_process_group,
     pids_listening_on,
+    request_interrupt,
     windows_new_process_group_flag,
 )
 
@@ -80,3 +82,13 @@ def test_kill_process_group_unix_uses_killpg(monkeypatch) -> None:
     kill_process_group(111, grace_sec=0.1)
     assert signals
     assert signals[0][0] == 9000
+
+
+def test_request_interrupt_sets_flag(monkeypatch) -> None:
+    import core.ui.process_cleanup as pc
+
+    monkeypatch.setattr(pc, "_INTERRUPT_REQUESTED", False)
+    assert interrupt_requested() is False
+    request_interrupt()
+    assert interrupt_requested() is True
+    monkeypatch.setattr(pc, "_INTERRUPT_REQUESTED", False)

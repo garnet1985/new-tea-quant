@@ -156,7 +156,7 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 |------|------|
 | 连接 | `wal_autocheckpoint`（默认 4MB，`duckdb.json`） |
 | 每批 renew 写库后 | `CHECKPOINT`（`checkpoint_after_batch_save`） |
-| Ctrl+C | SIGINT 先 `CHECKPOINT` 再中断 |
+| Ctrl+C | 杀掉子进程后立即退出（不做 CHECKPOINT，避免与进行中的查询死锁） |
 | 关闭连接 | `close()` 时 `CHECKPOINT` |
 | 手动 | `python dev-cli.py -dbc` |
 

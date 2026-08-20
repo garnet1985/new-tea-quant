@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.data_class import (
@@ -126,8 +126,11 @@ class InvestmentTracker:
         trigger_price: float,
         trigger_price_raw: float = 0.0,
         status_tags_provider: Any = None,
-    ) -> Investment:
-        """Scan 命中：Opportunity → Investment（``PENDING_TO_ENTER``）→ ``pending_enter``。"""
+    ) -> Optional[Investment]:
+        """Scan 命中：Opportunity → Investment（``PENDING_TO_ENTER``）→ ``pending_enter``。
+
+        ``skip_enter_when`` 命中触发日状态时不注册（枚举结果也不保留）。
+        """
         self._investment_index += 1
         opportunity.bind_scan_context(
             strategy_name=strategy_name,
@@ -145,6 +148,11 @@ class InvestmentTracker:
             open_dates=open_dates,
             status_tags_provider=status_tags_provider,
         )
+        skip = settings.simulation.risk_control.should_skip_enter(
+            status_tags=investment.status_tags_at_trigger()
+        )
+        if skip:
+            return None
         self.pending_enter.append(investment)
         return investment
 

@@ -583,9 +583,7 @@ function SetupPage() {
           />
 
           {flowStage === 'success' ? (
-            <>
-              <TraceConsentGuard source="setup_ui" />
-              <Card variant="outlined">
+            <Card variant="outlined">
                 <CardContent>
                   <Stack alignItems="center" spacing={1} sx={{ mb: 1 }}>
                     <Box
@@ -617,7 +615,6 @@ function SetupPage() {
                   </Stack>
                 </CardContent>
               </Card>
-            </>
           ) : null}
 
           {flowStage === 'fail' ? (
@@ -664,6 +661,7 @@ function SetupPage() {
           </Stack>
         </Box>
       </Container>
+      {flowStage === 'success' ? <TraceConsentGuard source="setup_ui" /> : null}
     </>
   );
 }

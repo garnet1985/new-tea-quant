@@ -11,7 +11,12 @@ import webbrowser
 from typing import Tuple
 
 from core.system import python_minimum
-from core.ui.process_cleanup import kill_process_group
+from core.ui.process_cleanup import (
+    kill_process_group,
+    pids_listening_on,
+    process_cmdline,
+    windows_new_process_group_flag,
+)
 from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
 from core.infra.cmd_layout import CmdLayout
 
@@ -177,29 +182,11 @@ def install_ui_runtime(force: bool = False) -> None:
 
 
 def _pids_listening_on(port: int) -> list[int]:
-    try:
-        out = subprocess.run(
-            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        return []
-    return [int(line) for line in out.stdout.splitlines() if line.strip().isdigit()]
+    return pids_listening_on(port)
 
 
 def _process_cmdline(pid: int) -> str:
-    try:
-        out = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "command="],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        return ""
-    return (out.stdout or "").strip()
+    return process_cmdline(pid)
 
 
 def _wait_port_free(port: int, *, timeout_sec: float = 15.0) -> bool:
@@ -215,7 +202,10 @@ def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) 
     fed_root = str(FED_ROOT.resolve())
 
     def _should_kill(cmd: str) -> bool:
-        return bool(cmd) and (any(s in cmd for s in match_substrings) or fed_root in cmd)
+        if any(s in cmd for s in match_substrings) or fed_root in cmd:
+            return True
+        # Windows 取不到 cmdline 时仍回收本产品占用的 UI 端口。
+        return not cmd and os.name == "nt"
 
     for attempt in range(2):
         for pid in _pids_listening_on(port):
@@ -224,7 +214,7 @@ def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) 
                 print(f"结束占用 {port} 的旧进程 pid={pid}", flush=True)
                 try:
                     kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
-                except ProcessLookupError:
+                except (ProcessLookupError, OSError, AttributeError):
                     pass
         if _wait_port_free(port, timeout_sec=8.0):
             return
@@ -243,7 +233,7 @@ def _force_shutdown_ui_ports() -> None:
                 print(f"结束 UI 进程 pid={pid}（:{port}） {label}", flush=True)
                 try:
                     kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
-                except ProcessLookupError:
+                except (ProcessLookupError, OSError, AttributeError):
                     pass
             if _wait_port_free(port, timeout_sec=8.0):
                 break
@@ -309,18 +299,29 @@ def _terminate_proc(proc: subprocess.Popen | None) -> None:
         return
     if proc.poll() is not None:
         return
-    kill_process_group(proc.pid, grace_sec=3.0)
+    try:
+        kill_process_group(proc.pid, grace_sec=3.0)
+    except Exception:
+        pass
     try:
         proc.wait(timeout=8)
     except subprocess.TimeoutExpired:
-        kill_process_group(proc.pid, grace_sec=0.5)
+        try:
+            kill_process_group(proc.pid, grace_sec=0.5)
+        except Exception:
+            pass
         try:
             proc.kill()
-        except ProcessLookupError:
+        except (ProcessLookupError, OSError):
             pass
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
+            pass
+    except Exception:
+        try:
+            proc.kill()
+        except (ProcessLookupError, OSError):
             pass
 
 
@@ -353,11 +354,16 @@ def launch_ui_stack() -> None:
 
     bff_proc: subprocess.Popen | None = None
     fed_proc: subprocess.Popen | None = None
+    popen_kw: dict = {}
+    win_flag = windows_new_process_group_flag()
+    if win_flag:
+        popen_kw["creationflags"] = win_flag
     try:
         bff_proc = subprocess.Popen(
             [sys.executable, "-m", "core.bff.app"],
             cwd=str(REPO_ROOT),
             env=bff_env,
+            **popen_kw,
         )
 
         health_url = f"http://{host}:{UI_BFF_PORT}/api/health"
@@ -371,6 +377,7 @@ def launch_ui_stack() -> None:
                 ["npm", "start"],
                 cwd=str(FED_ROOT),
                 env=_fed_dev_env(),
+                **popen_kw,
             )
             ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-design"
             print(

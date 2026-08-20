@@ -210,16 +210,22 @@ class ScannerJobExecutor:
                     status_tags_provider=st_provider,
                     trade_date=as_of,
                 )
-                klines = complete.get(base_key) or []
-                if not isinstance(klines, list):
-                    klines = []
-                annotate_enter_at_limit(
-                    opportunity,
-                    market_profile=market_profile,
-                    klines=klines,
-                    scan_date=as_of,
-                )
-                out.append(opportunity)
+                skip = None
+                if isinstance(settings, StrategySettings):
+                    skip = settings.simulation.risk_control.should_skip_enter(
+                        status_tags=opportunity.status_tags_at_trigger()
+                    )
+                if skip is None:
+                    klines = complete.get(base_key) or []
+                    if not isinstance(klines, list):
+                        klines = []
+                    annotate_enter_at_limit(
+                        opportunity,
+                        market_profile=market_profile,
+                        klines=klines,
+                        scan_date=as_of,
+                    )
+                    out.append(opportunity)
 
             try:
                 after_ctx = StrategyContext.fill(

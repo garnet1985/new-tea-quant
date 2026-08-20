@@ -57,3 +57,20 @@ def test_scope_does_not_create_holder_after_suspend():
         assert DuckdbWorkerPool._main_suspend_depth == 0
     finally:
         DuckdbWorkerPool._main_suspend_depth = 0
+        DuckdbWorkerPool._suspend_thread_ident = None
+
+
+def test_wait_for_main_end_fails_on_owner_thread():
+    """同一线程在 suspend 期间打开主库必须立刻失败，不能死等 600s。"""
+    import threading
+
+    DuckdbWorkerPool._main_suspend_depth = 1
+    DuckdbWorkerPool._suspend_thread_ident = threading.get_ident()
+    try:
+        import pytest
+
+        with pytest.raises(RuntimeError, match="禁止再打开主库"):
+            DuckdbWorkerPool.wait_for_main_duckdb_worker_pool_end(timeout_sec=1)
+    finally:
+        DuckdbWorkerPool._main_suspend_depth = 0
+        DuckdbWorkerPool._suspend_thread_ident = None

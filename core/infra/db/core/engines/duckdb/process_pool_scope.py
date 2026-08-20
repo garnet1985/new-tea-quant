@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import os
+import threading
 import time
 from contextlib import contextmanager
 from copy import deepcopy
@@ -37,6 +38,7 @@ class DuckdbWorkerPool:
 
     CONFIG_OVERLAY_ENV = "NTQ_DATABASE_CONFIG_JSON"
     _main_suspend_depth = 0
+    _suspend_thread_ident: Optional[int] = None
     _holder_resolver: Optional[_HolderResolver] = None
 
     @staticmethod
@@ -66,7 +68,17 @@ class DuckdbWorkerPool:
 
     @staticmethod
     def wait_for_main_duckdb_worker_pool_end(*, timeout_sec: float = 600.0) -> None:
-        """其它线程在 suspend 期间不得打开 DuckDB 写连接；阻塞直到 worker 池结束。"""
+        """其它线程在 suspend 期间不得打开 DuckDB 写连接；阻塞直到 worker 池结束。
+
+        持有 suspend 的同一线程再 ``DataManager()`` 会自锁 600s，直接失败。
+        """
+        if DuckdbWorkerPool._main_suspend_depth <= 0:
+            return
+        owner = DuckdbWorkerPool._suspend_thread_ident
+        if owner is not None and threading.get_ident() == owner:
+            raise RuntimeError(
+                "DuckDB 已为 ProcessPool 释放主连接：当前线程禁止再打开主库"
+            )
         deadline = time.monotonic() + timeout_sec
         while DuckdbWorkerPool._main_suspend_depth > 0:
             if time.monotonic() >= deadline:
@@ -475,6 +487,7 @@ class DuckdbWorkerPool:
         """CLI / 工作台 Ctrl+C：终止遗留 worker、恢复 auto_init 与主库连接。"""
         
         DuckdbWorkerPool._main_suspend_depth = 0
+        DuckdbWorkerPool._suspend_thread_ident = None
         try:
             from core.ui.process_cleanup import terminate_multiprocessing_children
 
@@ -503,6 +516,7 @@ class DuckdbWorkerPool:
     ) -> None:
         
         DuckdbWorkerPool._main_suspend_depth = 0
+        DuckdbWorkerPool._suspend_thread_ident = None
         try:
             DuckdbWorkerPool.wait_pool_children_done(timeout_sec=wait_children_timeout_sec)
         finally:
@@ -601,6 +615,7 @@ class DuckdbWorkerPool:
 
         DuckdbWorkerPool.prepare_main_for_worker_pool(dm)
         DuckdbWorkerPool._main_suspend_depth = 1
+        DuckdbWorkerPool._suspend_thread_ident = threading.get_ident()
         try:
             # 同样：suspend 之后不得新建会打开 DuckDB 的 holder。
             yield dm

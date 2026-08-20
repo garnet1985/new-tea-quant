@@ -2,16 +2,13 @@
 DuckDB WAL 策略：尽量缩短 .wal 存在时间。
 
 - 连接时设置 wal_autocheckpoint（按 WAL 体积自动 CHECKPOINT）
-- 批量 renew 写入后、SIGINT、close() 时显式 CHECKPOINT
+- 批量 renew 写入后、close() 时显式 CHECKPOINT
+- SIGINT 不再 CHECKPOINT（会与进行中的查询/进程池死锁）；由 process_cleanup 强制退出
 """
 from __future__ import annotations
 
-import logging
-import signal
 import threading
 from typing import Any, Dict, Optional
-
-logger = logging.getLogger(__name__)
 
 
 class DuckdbWalPolicy:
@@ -88,43 +85,23 @@ class DuckdbWalPolicy:
         engine: Any,
         db_config: Dict[str, Any],
     ) -> None:
-        """主线程 SIGINT：对 DuckdbEngine 合并 WAL。"""
-        if not DuckdbWalPolicy.should_checkpoint_on_sigint(db_config):
-            return
+        """主线程 SIGINT：立刻杀掉子进程并退出。
+
+        禁止在 handler 里 CHECKPOINT：工作台回测线程若正占用 DuckDB，
+        CHECKPOINT 会与查询死锁，Windows 上 Ctrl+C 表现为无法退出。
+        WAL 由下次打开主库时恢复。``engine`` / ``checkpoint_on_sigint``
+        保留签名兼容；中断路径不再读它们。
+        """
+        _ = engine
+        _ = db_config
         if threading.current_thread() is not threading.main_thread():
             return
         with DuckdbWalPolicy._sigint_lock:
             if DuckdbWalPolicy._sigint_installed:
                 return
+            from core.ui.process_cleanup import install_interrupt_force_exit
 
-            def _handler(signum, frame):
-                from core.infra.db.core.engines.duckdb.process_pool_scope import (
-                    DuckdbWorkerPool,
-                )
-
-                if DuckdbWorkerPool.is_main_duckdb_worker_pool_active():
-                    logger.info(
-                        "收到 Ctrl+C（ProcessPool 阶段），跳过 SIGINT CHECKPOINT，"
-                        "由 worker finally 恢复主库后再合并 WAL"
-                    )
-                    signal.signal(signal.SIGINT, signal.SIG_DFL)
-                    raise KeyboardInterrupt
-
-                logger.info("收到 Ctrl+C，正在将 DuckDB WAL 合并进主库…")
-                try:
-                    if getattr(engine, "_initialized", False):
-                        DuckdbWalPolicy.checkpoint_engine(engine)
-                    else:
-                        logger.info(
-                            "主库 DuckDB 未连接（如 Tag stage_in_worker suspend），"
-                            "跳过 SIGINT CHECKPOINT，由业务 finally 恢复后再合并 WAL"
-                        )
-                except Exception as e:
-                    logger.warning("中断时 CHECKPOINT 未完全成功: %s", e)
-                signal.signal(signal.SIGINT, signal.SIG_DFL)
-                raise KeyboardInterrupt
-
-            signal.signal(signal.SIGINT, _handler)
+            install_interrupt_force_exit()
             DuckdbWalPolicy._sigint_installed = True
 
     @staticmethod

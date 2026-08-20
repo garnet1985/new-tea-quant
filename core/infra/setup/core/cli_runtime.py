@@ -63,18 +63,6 @@ def _run_step(step_id: str) -> int:
                 os.environ["NTQ_USERSPACE_CONFLICT_POLICY"] = env_backup
 
 
-def _ask_trace_permission_after_install() -> None:
-    """userspace 解压完成后再询问，避免同意写入提前创建目标路径。"""
-    try:
-        from core.infra.trace import Trace
-
-        Trace.ask_permission(source="cli_install")
-    except KeyboardInterrupt:
-        raise
-    except Exception:
-        pass
-
-
 def install_cli_runtime(force: bool = False) -> None:
     if not force and not needs_install("cli"):
         print("CLI 安装检查通过，跳过安装步骤。", flush=True)
@@ -121,7 +109,6 @@ def install_cli_runtime(force: bool = False) -> None:
     )
     SetupTrace.install_complete(success=True, entry="cli")
     print("CLI 应用安装完成。", flush=True)
-    _ask_trace_permission_after_install()
 
 
 def ensure_cli_install_via_install_py() -> int:

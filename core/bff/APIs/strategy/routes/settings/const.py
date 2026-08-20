@@ -45,11 +45,11 @@ SAMPLING_META: Dict[str, tuple] = {
 RISK_CONTROL_META: Dict[str, tuple] = {
     "st": (
         "ST",
-        "触发日处于 ST（含 SST）时，价格/资金回测跳过进场；枚举机会仍保留。",
+        "触发日处于 ST（含 SST）时，枚举、价格回测与资金回测均跳过该机会。",
     ),
     "star_st": (
         "*ST",
-        "触发日处于 *ST（含 S*ST）时，价格/资金回测跳过进场；枚举机会仍保留。",
+        "触发日处于 *ST（含 S*ST）时，枚举、价格回测与资金回测均跳过该机会。",
     ),
 }
 

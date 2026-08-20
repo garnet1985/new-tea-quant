@@ -77,58 +77,67 @@ class SliceOrchestrator:
         init.setdefault("global_data", {})
 
         result: Dict[str, Any] = {"success": True}
+        interrupted = False
+        try:
+            if not points:
+                logger.warning("SliceOrchestrator: timeline 无 points")
+                return cls._finish(job_context, clipped, sched, result)
 
-        if not points:
-            logger.warning("SliceOrchestrator: timeline 无 points")
-            return cls._finish(job_context, clipped, sched, result)
+            RunProgressReporter.report_from_payload(job_context.payload, 0)
+            windows = cls.split_windows(len(points), sched.slice_open_days)
+            on_tick = callbacks.on_tick
+            on_task_start = callbacks.on_task_start
+            on_task_complete = callbacks.on_task_complete
+            task_total = len(windows)
 
-        RunProgressReporter.report_from_payload(job_context.payload, 0)
-        windows = cls.split_windows(len(points), sched.slice_open_days)
-        on_tick = callbacks.on_tick
-        on_task_start = callbacks.on_task_start
-        on_task_complete = callbacks.on_task_complete
-        task_total = len(windows)
-
-        # Run-scoped prep (globals/state) before RSS baseline — same footing as
-        # legacy job-level on_task_start, so payload_mb = rss - baseline excludes
-        # globals. Per-slice on_task_start below may no-op once state exists.
-        if on_task_start is not None:
-            started = on_task_start(job_context)
-            if started is not None:
-                job_context.init = started
-        sched.baseline_rss_mb = cls._process_rss_mb()
-
-        for slice_index, (start_idx, end_idx) in enumerate(windows):
-            # One Task = one formal slice compute.
-            sched.slice_index = slice_index
-            sched.window_t0 = time.perf_counter()
-            sched.window_load_sec = 0.0
-            cls._load_window(job_context, sched, start_idx, end_idx)
-            cls._prefetch_ahead(job_context, sched, after_end_idx=end_idx)
-
+            # Run-scoped prep (globals/state) before RSS baseline — same footing as
+            # legacy job-level on_task_start, so payload_mb = rss - baseline excludes
+            # globals. Per-slice on_task_start below may no-op once state exists.
             if on_task_start is not None:
                 started = on_task_start(job_context)
                 if started is not None:
                     job_context.init = started
+            sched.baseline_rss_mb = cls._process_rss_mb()
 
-            for index in range(start_idx, end_idx + 1):
-                point = points[index]
-                if on_tick is not None:
-                    on_tick(job_context, point, index)
+            for slice_index, (start_idx, end_idx) in enumerate(windows):
+                # One Task = one formal slice compute.
+                sched.slice_index = slice_index
+                sched.window_t0 = time.perf_counter()
+                sched.window_load_sec = 0.0
+                cls._load_window(job_context, sched, start_idx, end_idx)
+                cls._prefetch_ahead(job_context, sched, after_end_idx=end_idx)
 
-            task_init = job_context.init if isinstance(job_context.init, dict) else {}
-            job_context.init = task_init
-            task_init["_task_index"] = slice_index + 1
-            task_init["_task_total"] = task_total
+                if on_task_start is not None:
+                    started = on_task_start(job_context)
+                    if started is not None:
+                        job_context.init = started
 
-            if on_task_complete is not None:
-                extra = on_task_complete(job_context)
-                if isinstance(extra, dict):
-                    result = {**result, **extra}
+                for index in range(start_idx, end_idx + 1):
+                    point = points[index]
+                    if on_tick is not None:
+                        on_tick(job_context, point, index)
 
-            cls._complete_window(job_context, sched, end_idx)
+                task_init = job_context.init if isinstance(job_context.init, dict) else {}
+                job_context.init = task_init
+                task_init["_task_index"] = slice_index + 1
+                task_init["_task_total"] = task_total
 
-        return cls._finish(job_context, clipped, sched, result)
+                if on_task_complete is not None:
+                    extra = on_task_complete(job_context)
+                    if isinstance(extra, dict):
+                        result = {**result, **extra}
+
+                cls._complete_window(job_context, sched, end_idx)
+
+            return cls._finish(job_context, clipped, sched, result)
+        except BaseException:
+            interrupted = True
+            raise
+        finally:
+            try:
+                pool.shutdown(wait=not interrupted)
+            except Exception as exc:
+                logger.debug("SliceReaderPool shutdown: %s", exc)
 
     @classmethod
     def split_windows(

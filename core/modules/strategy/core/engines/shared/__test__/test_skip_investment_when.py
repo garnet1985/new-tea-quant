@@ -150,3 +150,84 @@ def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
     )
     assert sorted(opps.keys()) == ["600000.SH:2", "600000.SH:3"]
     assert {e.investment_id for e in events if e.is_buy()} == {"2", "3"}
+
+
+class _StatusProvider:
+    def __init__(self, tags):
+        self._tags = list(tags)
+
+    def status_tags_at(self, entity_id, day):
+        _ = entity_id, day
+        return list(self._tags)
+
+
+def test_enumerator_skips_st_opportunity() -> None:
+    from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
+        InvestmentTracker,
+    )
+    from core.modules.strategy.core.engines.shared.data_class.opportunity import (
+        Opportunity,
+        StockInfo,
+    )
+
+    tracker = InvestmentTracker(entity_id="600000.SH")
+    opp = Opportunity(
+        stock=StockInfo(id="600000.SH", name="ST示例"),
+        record_of_today={
+            "date": "20240102",
+            "open": 10,
+            "high": 11,
+            "low": 9,
+            "close": 10,
+        },
+        trigger_date="20240102",
+        trigger_price=10.0,
+    )
+    inv = tracker.register_from_opportunity(
+        opp,
+        settings=StrategySettings.from_dict(_base_simulation(skip_enter_when=["st"])),
+        open_dates=["20240102", "20240103"],
+        strategy_name="demo",
+        stock_info={"id": "600000.SH", "name": "ST示例"},
+        trigger_date="20240102",
+        trigger_price=10.0,
+        status_tags_provider=_StatusProvider(["st"]),
+    )
+    assert inv is None
+    assert tracker.investment_count() == 0
+
+
+def test_enumerator_keeps_non_st_when_skip_configured() -> None:
+    from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
+        InvestmentTracker,
+    )
+    from core.modules.strategy.core.engines.shared.data_class.opportunity import (
+        Opportunity,
+        StockInfo,
+    )
+
+    tracker = InvestmentTracker(entity_id="600000.SH")
+    opp = Opportunity(
+        stock=StockInfo(id="600000.SH"),
+        record_of_today={
+            "date": "20240102",
+            "open": 10,
+            "high": 11,
+            "low": 9,
+            "close": 10,
+        },
+        trigger_date="20240102",
+        trigger_price=10.0,
+    )
+    inv = tracker.register_from_opportunity(
+        opp,
+        settings=StrategySettings.from_dict(_base_simulation(skip_enter_when=["st"])),
+        open_dates=["20240102", "20240103"],
+        strategy_name="demo",
+        stock_info={"id": "600000.SH"},
+        trigger_date="20240102",
+        trigger_price=10.0,
+        status_tags_provider=_StatusProvider([]),
+    )
+    assert inv is not None
+    assert tracker.investment_count() == 1

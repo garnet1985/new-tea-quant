@@ -6,15 +6,12 @@
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
-    ReportPaths,
-)
+from core.modules.strategy.core.services.artifacts import PriceFactorStore
 from core.system import get_version
 
 
@@ -79,34 +76,18 @@ class PriceRuntimeEnv:
         )
 
     def save(self, output_dir: Path) -> Path:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        path = ReportPaths.runtime_env_path(output_dir)
-        path.write_text(
-            json.dumps(self.to_dict(), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        ids_path = ReportPaths.entity_ids_path(output_dir)
-        ids_path.write_text(
-            "\n".join(self.entity_ids) + ("\n" if self.entity_ids else ""),
-            encoding="utf-8",
-        )
+        store = PriceFactorStore.at(output_dir)
+        path = store.write_json("runtime_env", self.to_dict())
+        store.write_text_lines("entity_ids", self.entity_ids)
         return path
 
     @classmethod
     def load(cls, output_dir: Path) -> "PriceRuntimeEnv":
-        path = ReportPaths.runtime_env_path(output_dir)
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        env = cls.from_dict(raw)
-        ids_path = ReportPaths.entity_ids_path(output_dir)
-        if ids_path.is_file():
-            lines = [
-                line.strip()
-                for line in ids_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-            if lines:
-                env.entity_ids = lines
+        store = PriceFactorStore.at(output_dir)
+        env = cls.from_dict(store.read_json("runtime_env"))
+        lines = store.read_text_lines("entity_ids")
+        if lines:
+            env.entity_ids = lines
         return env
 
 

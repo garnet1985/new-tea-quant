@@ -94,6 +94,12 @@ def _start_trace_drain() -> None:
 
 
 if __name__ == "__main__":
+    import multiprocessing as mp
+
+    mp.freeze_support()
+    from core.ui.process_cleanup import install_interrupt_force_exit
+
+    install_interrupt_force_exit()
     _register_shutdown_hooks()
     app = create_app()
     _start_trace_drain()

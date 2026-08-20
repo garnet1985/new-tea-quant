@@ -168,15 +168,7 @@ class SliceExecutor:
                     )
         except KeyboardInterrupt:
             logger.warning("%s收到Ctrl+C，停止执行", log_label)
-            return SliceExecutor.ExecutionResult(
-                success=False,
-                total_jobs=len(jobs),
-                completed_jobs=completed_jobs,
-                failed_jobs=failed_jobs,
-                failures=failures,
-                elapsed_seconds=time.monotonic() - start_time,
-                job_results=job_results,
-            )
+            raise
 
         elapsed_seconds = time.monotonic() - start_time
         success = failed_jobs == 0

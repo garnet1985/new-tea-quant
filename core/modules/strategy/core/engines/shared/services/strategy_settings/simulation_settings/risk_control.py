@@ -291,7 +291,7 @@ class ForceExitWhenPolicy:
 class RiskControl(SettingsBase):
     """``settings.simulation.risk_control`` + 判定 API。
 
-    - ``should_skip_enter``：触发日状态 → 跳过下游模拟（枚举仍保留）
+    - ``should_skip_enter``：触发日状态 → 跳过枚举注册与下游模拟
     - ``should_force_exit``：持仓强平（退市恒生效 + ``force_exit_when``）
     - ``pending_enter``：PENDING_TO_ENTER 挂单超时 / 漂移 / status abort
     """

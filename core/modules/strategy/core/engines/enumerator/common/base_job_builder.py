@@ -69,11 +69,17 @@ class BaseJobBuilder:
 
         entity_specified: List[Dict[str, Any]] = [{"id": entity_id} for entity_id in ids]
 
+        # 进 DuckDB ProcessPool 前写入：slice 主进程释放主库后不能再 DataManager()。
+        from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
+
+        stock_info = StockMetaHelper.load_map(ids)
+
         payload: Dict[str, Any] = {
             "entity_specified": entity_specified,
             "entity_shared": entity_shared,
             "global": global_data_keys,
             "shm_info": shm_info,
+            "stock_info": stock_info,
             "entities_count": len(ids),
             "strategy_info": {
                 "key": strategy_info.key,

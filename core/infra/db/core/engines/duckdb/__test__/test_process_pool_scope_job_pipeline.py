@@ -32,7 +32,7 @@ def test_should_apply_on_requires_process():
 
 
 def test_scope_does_not_create_holder_after_suspend():
-    """suspend 后不得 DataManager()，否则 wait_for_main_end 会死等 600s。"""
+    """suspend 后不得 DataManager()，否则 wait_for_main_end 会死等超时。"""
     DuckdbWorkerPool._main_suspend_depth = 0
     created_after_suspend = []
 
@@ -57,3 +57,40 @@ def test_scope_does_not_create_holder_after_suspend():
         assert DuckdbWorkerPool._main_suspend_depth == 0
     finally:
         DuckdbWorkerPool._main_suspend_depth = 0
+        DuckdbWorkerPool._suspend_thread_ident = None
+
+
+def test_wait_for_main_end_fails_on_owner_thread():
+    """同一线程在 suspend 期间打开主库必须立刻失败，不能死等超时。"""
+    import threading
+
+    DuckdbWorkerPool._main_suspend_depth = 1
+    DuckdbWorkerPool._suspend_thread_ident = threading.get_ident()
+    try:
+        import pytest
+
+        with pytest.raises(RuntimeError, match="禁止再打开主库"):
+            DuckdbWorkerPool.wait_for_main_duckdb_worker_pool_end(timeout_sec=1)
+    finally:
+        DuckdbWorkerPool._main_suspend_depth = 0
+        DuckdbWorkerPool._suspend_thread_ident = None
+
+
+def test_wait_for_main_end_aborts_on_interrupt(monkeypatch):
+    """Ctrl+C 置位后不得继续睡到 timeout。"""
+    import threading
+
+    DuckdbWorkerPool._main_suspend_depth = 1
+    DuckdbWorkerPool._suspend_thread_ident = threading.get_ident() + 1
+    monkeypatch.setattr(
+        "core.ui.process_cleanup.interrupt_requested",
+        lambda: True,
+    )
+    try:
+        import pytest
+
+        with pytest.raises(KeyboardInterrupt):
+            DuckdbWorkerPool.wait_for_main_duckdb_worker_pool_end(timeout_sec=30)
+    finally:
+        DuckdbWorkerPool._main_suspend_depth = 0
+        DuckdbWorkerPool._suspend_thread_ident = None

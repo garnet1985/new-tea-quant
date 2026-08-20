@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import OrderedDict
-from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures import Future, ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -152,7 +152,7 @@ class SliceReaderPool:
             self.queue_depth,
         )
 
-    def shutdown(self) -> None:
+    def shutdown(self, *, wait: bool = True) -> None:
         if self._shutdown:
             return
         self._shutdown = True
@@ -161,9 +161,19 @@ class SliceReaderPool:
         self._loading.clear()
         self._ready.clear()
         if self._executor is not None:
-            self._executor.shutdown(wait=True, cancel_futures=True)
+            try:
+                self._executor.shutdown(wait=wait, cancel_futures=True)
+            except TypeError:
+                self._executor.shutdown(wait=wait)
             self._executor = None
-        logger.info("SliceReaderPool shutdown")
+        if not wait:
+            try:
+                from core.ui.process_cleanup import terminate_multiprocessing_children
+
+                terminate_multiprocessing_children(grace_sec=1.0)
+            except Exception:
+                pass
+        logger.info("SliceReaderPool shutdown wait=%s", wait)
 
     @classmethod
     def payload_for_reader(cls, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -268,7 +278,13 @@ class SliceReaderPool:
 
     def _await_future(self, key: SliceWindowKey, fut: Future) -> SliceWindowResult:
         try:
-            raw = fut.result()
+            raw = None
+            while True:
+                try:
+                    raw = fut.result(timeout=0.5)
+                    break
+                except FuturesTimeoutError:
+                    continue
             result = self._result_from_raw(key, raw)
         except Exception as exc:
             result = SliceWindowResult(

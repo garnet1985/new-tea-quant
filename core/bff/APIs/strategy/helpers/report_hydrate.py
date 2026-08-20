@@ -10,10 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
-    OVERALL_REPORT_FILE,
-)
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 
 logger = logging.getLogger(__name__)
 
@@ -123,16 +120,10 @@ def resolve_simulation_output_dirs(
     names = _version_dir_candidates_from_slot(slot, workbench_version)
     try:
         folder = _resolve_strategy_folder(sn)
+        kind = ArtifactStore.parse_kind(step)
     except ValueError:
         return []
-    if step == "enum":
-        root = ProjectContext.path.get_strategy_simulation_enum_directory(folder)
-    elif step == "price":
-        root = ProjectContext.path.get_strategy_simulation_price_directory(folder)
-    elif step == "portfolio":
-        root = ProjectContext.path.get_strategy_simulation_portfolio_directory(folder)
-    else:
-        return []
+    root = ArtifactStore.for_kind(kind).simulation_root(folder)
 
     out: List[Path] = []
     seen: set[str] = set()
@@ -148,8 +139,12 @@ def resolve_simulation_output_dirs(
 
 
 def _load_overall_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:
-    path = output_dir / OVERALL_REPORT_FILE
-    if not path.is_file():
+    try:
+        kind = ArtifactStore.parse_kind(step)
+    except ValueError:
+        return None
+    store = ArtifactStore.for_kind(kind).at(output_dir)
+    if not store.file("overall_report").is_file():
         return None
     try:
         if step == "enum":

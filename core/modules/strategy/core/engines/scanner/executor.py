@@ -1,7 +1,7 @@
 """ScannerJobExecutor — 单日轴 lookback 加载 + scan hooks。
 
 本文件:
-- ScannerJobExecutor: RunCallbacks 面；on_tick 调 scan_opportunity、贴板标注
+- ScannerJobExecutor: RunCallbacks 面；on_tick 调 has_opportunity、贴板标注
   边界: 负责 worker 内 scan 业务；不负责 Pipeline 缓存/adapters、BE batch 切分
 """
 from __future__ import annotations
@@ -20,6 +20,9 @@ from core.modules.strategy.core.services.entity_loader.job_bundle_loader import 
     JobBundleLoader,
 )
 from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
+from core.modules.strategy.core.engines.shared.services.opportunity_factory import (
+    OpportunityFactory,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -184,7 +187,7 @@ class ScannerJobExecutor:
 
             try:
                 hook_runtime.call_if_overridden("on_before_scan", scan_ctx)
-                scanned = hook_runtime.call("scan_opportunity", scan_ctx)
+                opportunity = OpportunityFactory.resolve(hook_runtime, scan_ctx)
             except Exception as exc:
                 logger.error(
                     "scanner hooks 失败 entity=%s: %s",
@@ -194,9 +197,7 @@ class ScannerJobExecutor:
                 )
                 continue
 
-            opportunity: Optional[Opportunity] = None
-            if isinstance(scanned, Opportunity):
-                opportunity = scanned
+            if opportunity is not None:
                 stock_info = (runtime.get("stock_info") or {}).get(eid, {"id": eid})
                 opportunity.bind_scan_context(
                     strategy_name=str(hook_runtime.strategy_name or ""),
@@ -209,16 +210,22 @@ class ScannerJobExecutor:
                     status_tags_provider=st_provider,
                     trade_date=as_of,
                 )
-                klines = complete.get(base_key) or []
-                if not isinstance(klines, list):
-                    klines = []
-                annotate_enter_at_limit(
-                    opportunity,
-                    market_profile=market_profile,
-                    klines=klines,
-                    scan_date=as_of,
-                )
-                out.append(opportunity)
+                skip = None
+                if isinstance(settings, StrategySettings):
+                    skip = settings.simulation.risk_control.should_skip_enter(
+                        status_tags=opportunity.status_tags_at_trigger()
+                    )
+                if skip is None:
+                    klines = complete.get(base_key) or []
+                    if not isinstance(klines, list):
+                        klines = []
+                    annotate_enter_at_limit(
+                        opportunity,
+                        market_profile=market_profile,
+                        klines=klines,
+                        scan_date=as_of,
+                    )
+                    out.append(opportunity)
 
             try:
                 after_ctx = StrategyContext.fill(

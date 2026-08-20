@@ -180,7 +180,6 @@ class UserHandlers:
             "strategy_price_factor",
             "strategy_portfolio",
             "strategy_simulate",
-            "strategy_analyse",
         ):
             UserHandlers._handle_strategy(cmd, app, args)
             return
@@ -512,13 +511,6 @@ class UserHandlers:
             raise SystemExit(1)
 
     @staticmethod
-    def _run_strategy_analyse(args: argparse.Namespace) -> None:
-        from core.modules.strategy import Strategy
-
-        logger.info(f"{i('bar_chart')} 分析模拟结果...")
-        Strategy.analyze(session_id=getattr(args, "session", None))
-
-    @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         if cmd == "strategy_enumerate":
             UserHandlers._run_strategy_enumerate(args)
@@ -538,10 +530,6 @@ class UserHandlers:
 
         if cmd == "strategy_simulate":
             UserHandlers._run_strategy_simulate(args)
-            return
-
-        if cmd == "strategy_analyse":
-            UserHandlers._run_strategy_analyse(args)
             return
 
         raise SystemExit(f"未知命令: {cmd}")

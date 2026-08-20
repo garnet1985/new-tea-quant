@@ -2,8 +2,8 @@
 
 本文件:
 - StrategyInfo / StrategyData: 只读 dataclass
-- StrategyContext: strategy + settings + data + custom（custom 为可写 dict）
-  边界: 用户可见四块；引擎用 assemble / fill / refill / with_* 组装，不向用户暴露写 API
+- StrategyContext: strategy + settings + data + custom / captures
+  边界: 只读块由引擎组装；用户写口为 remember/recall/forget 与 capture
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ class StrategyInfo:
 class StrategyData:
     """运行数据（只读）。
 
-    - ``scan_opportunity``：``items`` 为单实体 DataKey→rows；可带 ``entity_id`` / ``entity_info``
+    - ``has_opportunity``：``items`` 为单实体 DataKey→rows；可带 ``entity_id`` / ``entity_info``
     - ``on_calendar_asof``：``by_entity`` 为 entity_id→当日 payload；``calendar`` 为日历元数据
     """
 
@@ -79,7 +79,7 @@ class StrategyData:
 
 @dataclass
 class StrategyContext:
-    """钩子回调入参壳：只读块 + 唯一可写 ``custom``。"""
+    """钩子回调入参壳：只读块 + ``custom``（remember）+ 归因袋（capture）。"""
 
     strategy: StrategyInfo
     settings: StrategySettings
@@ -87,6 +87,12 @@ class StrategyContext:
     custom: Dict[str, Any] = field(default_factory=dict)
     _cached_settings_dict: Optional[Dict[str, Any]] = field(
         default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _captures: Dict[str, Any] = field(
+        default_factory=dict,
         init=False,
         repr=False,
         compare=False,
@@ -104,8 +110,34 @@ class StrategyContext:
             self._cached_settings_dict = cached
         return cached
 
+    def remember(self, key: str, value: Any) -> None:
+        """写入本次回测内存袋（``custom``）；任务结束即释放。"""
+        self.custom[str(key)] = value
+
+    def recall(self, key: str, default: Any = None) -> Any:
+        """读取 ``remember`` 的值；缺 key 返回 ``default``。"""
+        return self.custom.get(str(key), default)
+
+    def forget(self, key: str) -> None:
+        """删除 ``remember`` 的值；缺 key 静默。"""
+        self.custom.pop(str(key), None)
+
+    def capture(self, key: str, value: Any) -> None:
+        """记录本笔命中的逻辑层输入（归因）；不进 ``custom``。"""
+        self._captures[str(key)] = value
+
+    def clear_captures(self) -> None:
+        """引擎：每次 ``has_opportunity`` 前清空归因袋。"""
+        self._captures.clear()
+
+    def take_captures(self) -> Dict[str, Any]:
+        """引擎：取出并清空归因袋。"""
+        out = dict(self._captures)
+        self._captures.clear()
+        return out
+
     def with_data(self, data: StrategyData) -> "StrategyContext":
-        """引擎：换 data，共享同一 ``custom`` dict 与 settings 缓存。"""
+        """引擎：换 data，共享 ``custom`` / captures 与 settings 缓存。"""
         ctx = StrategyContext(
             strategy=self.strategy,
             settings=self.settings,
@@ -113,6 +145,7 @@ class StrategyContext:
             custom=self.custom,
         )
         ctx._cached_settings_dict = self._cached_settings_dict
+        ctx._captures = self._captures
         return ctx
 
     def refill(
@@ -125,7 +158,7 @@ class StrategyContext:
         entity_info: Optional[Mapping[str, Any]] = None,
         opportunity: Optional[Opportunity] = None,
     ) -> "StrategyContext":
-        """热路径：就地替换 ``data``（保留 strategy / settings / custom）。"""
+        """热路径：就地替换 ``data``（保留 strategy / settings / custom / captures）。"""
         stock_list = list(self.data.stock_list)
         if not stock_list:
             raise ValueError("StrategyContext.refill 要求已 assemble（含 stock_list）")
@@ -181,7 +214,7 @@ class StrategyContext:
         entity_info: Optional[Mapping[str, Any]] = None,
         opportunity: Optional[Opportunity] = None,
     ) -> "StrategyContext":
-        """1→1：基于 base 填当日只读 data（共享 custom）。"""
+        """1→1：基于 base 填当日只读 data（共享 custom / captures）。"""
         if base is None:
             raise ValueError("StrategyContext.fill 要求非空 base")
         stock_list = list(base.data.stock_list)

@@ -1,0 +1,38 @@
+# Analysis 术语表
+# Version: 0.1.0
+#
+# 词条只固定「不要混用」的名字。归因方法、输入判定仍待决，不在此假装已有术语。
+
+terms:
+  Analysis:
+    definition: "回测完成后解释 inputs 与 outputs 关系的模块门面。当前为骨架，无行为 API。"
+    aliases:
+      - "分析模块"
+      - "归因模块"
+    avoid:
+      - "把 strategy 的 simulate report 当成归因"
+      - "price_factor（策略第二层模拟，不是因子模型）"
+      - "factor 模块（未建；全市场因子研究，与本模块分家）"
+
+  input:
+    definition: "一次策略 run 里进入决策或约束结果的东西。如何认定仍待决（见 docs/DESIGN.md）。"
+    aliases:
+      - "inputs"
+      - "输入"
+    avoid:
+      - "因子（factor）作为本模块同义词"
+
+  output:
+    definition: "一次策略 run 已经落盘的结果（各层 report / CSV 等）。如何解释、是否分三层仍待决。"
+    aliases:
+      - "outputs"
+      - "回测结果"
+    avoid:
+      - "把 BE 的 RunResult（调度成败）当成金融结果"
+
+  attribution:
+    definition: "解释 outputs 与 inputs 的关系。具体方法仍待决。"
+    aliases:
+      - "归因"
+    avoid:
+      - "IC / 滚动回测 / 因子挖掘（factor 模块议题）"

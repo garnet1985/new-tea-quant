@@ -45,6 +45,7 @@ import {
 } from './setup.helpers';
 import SetupDialogs from './setupDialogs';
 import SetupExecutionPanel from './setupExecutionPanel';
+import TraceConsentGuard from '../../components/traceConsentGuard';
 import './setupPage.scss';
 
 /** 安装向导表单：统一尺寸、描边标签始终上浮，避免部分字段像 placeholder */
@@ -583,37 +584,37 @@ function SetupPage() {
 
           {flowStage === 'success' ? (
             <Card variant="outlined">
-              <CardContent>
-                <Stack alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                  <Box
-                    sx={{
-                      animation: 'ySpinFast 0.3s ease',
-                      '@keyframes ySpinFast': {
-                        '0%': { transform: 'rotateY(0deg) scale(0.9)', opacity: 0.4 },
-                        '100%': { transform: 'rotateY(360deg) scale(1)', opacity: 1 },
-                      },
-                    }}
-                  >
-                    <NtqIcon name="success" size={72} tone="success" />
-                  </Box>
-                  <Typography variant="h6">成功</Typography>
-                </Stack>
-                <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-                  安装流程已完成。你可以进入主业务页面。
-                </Typography>
-                <Stack direction="row" spacing={2}>
-                  <Button component={RouterLink} to="/strategy-design" variant="contained">
-                    前往制定策略
-                  </Button>
-                  <Button component={RouterLink} to="/settings" variant="outlined">
-                    前往设置
-                  </Button>
-                  <Button color="warning" variant="outlined" onClick={handleRestartSetup}>
-                    重新安装
-                  </Button>
-                </Stack>
-              </CardContent>
-            </Card>
+                <CardContent>
+                  <Stack alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                    <Box
+                      sx={{
+                        animation: 'ySpinFast 0.3s ease',
+                        '@keyframes ySpinFast': {
+                          '0%': { transform: 'rotateY(0deg) scale(0.9)', opacity: 0.4 },
+                          '100%': { transform: 'rotateY(360deg) scale(1)', opacity: 1 },
+                        },
+                      }}
+                    >
+                      <NtqIcon name="success" size={72} tone="success" />
+                    </Box>
+                    <Typography variant="h6">成功</Typography>
+                  </Stack>
+                  <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
+                    安装流程已完成。你可以进入主业务页面。
+                  </Typography>
+                  <Stack direction="row" spacing={2}>
+                    <Button component={RouterLink} to="/strategy-design" variant="contained">
+                      前往制定策略
+                    </Button>
+                    <Button component={RouterLink} to="/settings" variant="outlined">
+                      前往设置
+                    </Button>
+                    <Button color="warning" variant="outlined" onClick={handleRestartSetup}>
+                      重新安装
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
           ) : null}
 
           {flowStage === 'fail' ? (
@@ -660,6 +661,7 @@ function SetupPage() {
           </Stack>
         </Box>
       </Container>
+      {flowStage === 'success' ? <TraceConsentGuard source="setup_ui" /> : null}
     </>
   );
 }

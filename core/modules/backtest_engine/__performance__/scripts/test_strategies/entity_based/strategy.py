@@ -6,11 +6,8 @@ entity_based 不走 calendar asof 市况包；此处仍声明 needs=False 保持
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from core.modules.strategy.contracts import (
     CalendarAsOfResult,
-    Opportunity,
     StrategyContext,
     StrategyHooks,
 )
@@ -29,6 +26,6 @@ class PerfNullHooks(StrategyHooks):
             stocks=[],
         )
 
-    def scan_opportunity(self, ctx: StrategyContext) -> Optional[Opportunity]:
+    def has_opportunity(self, ctx: StrategyContext) -> bool:
         _ = ctx
-        return None
+        return False

@@ -70,16 +70,6 @@ class Strategy:
         return ScannerPipeline.scan(key_or_id, demo=demo)
 
     @staticmethod
-    def analyze(*, session_id: Optional[str] = None) -> None:
-        """读取各启用策略下 price / portfolio 最新 version 摘要并 present。
-
-        ``session_id`` 预留，当前未使用。
-        """
-        from core.modules.strategy.core.services.analyze import AnalyzeService
-
-        AnalyzeService.analyze(session_id=session_id)
-
-    @staticmethod
     def enumerate(
         key_or_id: str,
         ignore_cache: bool = False,
@@ -376,17 +366,17 @@ class Strategy:
 
     @staticmethod
     def load_price_entity_investments(version_dir: Path, entity_id: str):
-        """读取 price_factor version 下单实体 investments CSV（跨模块入口；勿 deep-import EntityInvestments）。"""
-        from .engines.price_factor.report_manager.investments import EntityInvestments
+        """读取 price_factor version 下单实体 investments CSV。"""
+        from .services.artifacts import PriceFactorStore
 
-        return EntityInvestments.load(version_dir, entity_id)
+        return PriceFactorStore.at(version_dir).investments(entity_id)
 
     @staticmethod
     def price_overall_report_path(version_dir: Path) -> Path:
         """price_factor version 目录下 ``overall_report.json`` 路径。"""
-        from .engines.price_factor.report_manager.report_consts import ReportPaths
+        from .services.artifacts import PriceFactorStore
 
-        return ReportPaths.overall_report_path(version_dir)
+        return PriceFactorStore.at(version_dir).file("overall_report")
 
     @staticmethod
     def present_report(

@@ -93,6 +93,7 @@ new-tea-quant/
 | [`indicator`](../core/modules/indicator/) | 指标计算 | [README](../core/modules/indicator/README.md) |
 | [`tag`](../core/modules/tag/) | 标签扫描与结果 | [README](../core/modules/tag/README.md) |
 | [`strategy`](../core/modules/strategy/) | 策略发现与模拟（scan / enumerate / price_factor / portfolio） | [README](../core/modules/strategy/README.md) |
+| [`analysis`](../core/modules/analysis/) | 回测后解释 inputs 与 outputs 的关系（骨架） | [README](../core/modules/analysis/README.md) |
 | [`backtest_engine`](../core/modules/backtest_engine/) | 回测时间轴与执行引擎 | [README](../core/modules/backtest_engine/README.md) |
 | [`market_profile`](../core/modules/market_profile/) | 市场画像相关 | [README](../core/modules/market_profile/README.md) |
 | [`adapter`](../core/modules/adapter/) | `Strategy.scan` 机会列表的后处理回调（userspace adapters） | [README](../core/modules/adapter/README.md) |

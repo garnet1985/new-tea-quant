@@ -19,18 +19,19 @@ import pickle
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Union
 
+from core.modules.backtest_engine.core.shared.owned_shared_memory import (
+    attach_shared_memory,
+    close_and_unlink,
+    create_owned_shared_memory,
+    shared_memory_available,
+)
+
 if TYPE_CHECKING:
     from core.modules.backtest_engine.core.shared.types import JobContext, RunCallbacks, TickFn
 
 logger = logging.getLogger(__name__)
 
-try:
-    from multiprocessing.shared_memory import SharedMemory
-
-    _SHM_AVAILABLE = True
-except ImportError:
-    SharedMemory = None  # type: ignore[misc, assignment]
-    _SHM_AVAILABLE = False
+_SHM_AVAILABLE = shared_memory_available()
 
 TimelineInput = Union["Timeline", Sequence[str], None]
 _idle_tick_warned = False
@@ -65,6 +66,7 @@ class Timeline:
     _run_active: ClassVar[bool] = False
     _shm_name: ClassVar[Optional[str]] = None
     _shm_size: ClassVar[int] = 0
+    _shm: ClassVar[Any] = None
 
     # ── 构造 ──
 
@@ -483,26 +485,21 @@ class Timeline:
     @classmethod
     def _publish(cls, timeline: "Timeline") -> None:
         cls._unlink_shm()
-        if not _SHM_AVAILABLE or SharedMemory is None:
+        if not _SHM_AVAILABLE:
             logger.warning("SharedMemory 不可用：timeline 将整份嵌入 payload.global")
-            cls._shm_name = None
-            cls._shm_size = 0
             return
         blob = pickle.dumps(timeline.to_dict(), protocol=pickle.HIGHEST_PROTOCOL)
         try:
-            shm = SharedMemory(create=True, size=len(blob))
-        except (PermissionError, OSError) as exc:
+            shm = create_owned_shared_memory(blob)
+        except (PermissionError, OSError, RuntimeError) as exc:
             logger.warning(
                 "SharedMemory 创建失败（%s）：timeline 将整份嵌入 payload.global",
                 exc,
             )
-            cls._shm_name = None
-            cls._shm_size = 0
             return
-        shm.buf[: len(blob)] = blob
+        cls._shm = shm
         cls._shm_name = shm.name
         cls._shm_size = len(blob)
-        shm.close()
         logger.info(
             "Timeline SHM: name=%s size=%d points=%d",
             cls._shm_name,
@@ -512,18 +509,8 @@ class Timeline:
 
     @classmethod
     def _unlink_shm(cls) -> None:
-        if not cls._shm_name or not _SHM_AVAILABLE or SharedMemory is None:
-            cls._shm_name = None
-            cls._shm_size = 0
-            return
-        try:
-            shm = SharedMemory(name=cls._shm_name)
-            shm.close()
-            shm.unlink()
-        except FileNotFoundError:
-            pass
-        except Exception as exc:
-            logger.warning("Timeline SHM unlink 失败: %s", exc)
+        close_and_unlink(cls._shm)
+        cls._shm = None
         cls._shm_name = None
         cls._shm_size = 0
 
@@ -551,13 +538,16 @@ class Timeline:
 
     @classmethod
     def _read_shm(cls, shm_info: Dict[str, Any]) -> Optional["Timeline"]:
-        if not _SHM_AVAILABLE or SharedMemory is None:
+        if not _SHM_AVAILABLE:
             return None
         name = str(shm_info.get("name") or "").strip()
         size = int(shm_info.get("size") or 0)
         if not name or size <= 0:
             return None
-        shm = SharedMemory(name=name)
+        try:
+            shm = attach_shared_memory(name)
+        except (FileNotFoundError, OSError):
+            return None
         try:
             raw = bytes(shm.buf[:size])
             return cls.from_dict(pickle.loads(raw))

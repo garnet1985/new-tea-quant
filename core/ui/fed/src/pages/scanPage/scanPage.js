@@ -710,13 +710,13 @@ function ScanPage() {
                         stock_id: String(o?.stock_id || o?.stockId || ''),
                         stock_name: String(o?.stock_name || o?.stockName || ''),
                         trigger_price: o?.trigger_price ?? o?.triggerPrice ?? '',
-                        extra_fields: o?.extra_fields ?? o?.extraFields ?? {},
+                        signal_snapshot: o?.signal_snapshot ?? o?.signalSnapshot ?? {},
                       }));
                     }
                     const list = Array.isArray(detailPayload?.summary?.stocks_with_opportunities)
                       ? detailPayload.summary.stocks_with_opportunities
                       : [];
-                    return list.map((code) => ({ id: code, stock_id: code, stock_name: '', trigger_price: '', extra_fields: {} }));
+                    return list.map((code) => ({ id: code, stock_id: code, stock_name: '', trigger_price: '', signal_snapshot: {} }));
                   })()}
                   columns={[
                     { field: 'stock_id', headerName: '股票代码', minWidth: 140, flex: 0.6 },
@@ -734,12 +734,12 @@ function ScanPage() {
                       },
                     },
                     {
-                      field: 'extra_fields',
-                      headerName: '额外信息',
+                      field: 'signal_snapshot',
+                      headerName: '信号快照',
                       minWidth: 220,
                       flex: 1,
                       valueGetter: (params) => {
-                        const v = params?.row?.extra_fields;
+                        const v = params?.row?.signal_snapshot;
                         if (!v || (typeof v === 'object' && Object.keys(v).length === 0)) return '';
                         if (typeof v === 'string') return v;
                         const rounded = {};

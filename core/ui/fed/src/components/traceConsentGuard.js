@@ -5,7 +5,8 @@ import TraceConsentAskOverlay from './traceConsentAskOverlay';
 
 /**
  * 尚未决定使用统计时全屏询问（挡住下方）。
- * 用于主 UI（已安装用户）与 /setup 安装向导（首次打开）。
+ * 主 UI（SetupGuard 之后）与安装向导的成功页使用；不要包住未完成的 /setup，
+ * 否则同意写入会提前 mkdir userspace，挡住 init_userspace。
  */
 function TraceConsentGuard({ children, source }) {
   const [needsAsk, setNeedsAsk] = useState(false);

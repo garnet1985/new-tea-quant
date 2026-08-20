@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Sequence
 
 from core.infra.utils import Utils
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
+from core.modules.strategy.core.services.artifacts import (
     InvestmentRow,
 )
 @dataclass

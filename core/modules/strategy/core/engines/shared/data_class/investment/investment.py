@@ -166,7 +166,7 @@ class Investment(Opportunity):
             market_profile=profile,
             meta=cls._copy_dataclass(opportunity.meta, OpportunityMeta),
             contributor=cls._copy_dataclass(opportunity.contributor, OpportunityContributor),
-            extra_fields=dict(opportunity.extra_fields),
+            signal_snapshot=dict(opportunity.signal_snapshot),
             metadata=dict(opportunity.metadata),
             settings=settings,
             market_rules=market_rules,
@@ -1223,7 +1223,7 @@ class Investment(Opportunity):
             market_profile=str(self.market_profile or ""),
             meta=self._copy_dataclass(self.meta, OpportunityMeta),
             contributor=self._copy_dataclass(self.contributor, OpportunityContributor),
-            extra_fields=dict(self.extra_fields or {}),
+            signal_snapshot=dict(self.signal_snapshot or {}),
             metadata=dict(self.metadata or {}),
         )
 

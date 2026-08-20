@@ -11,12 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
-    ENTITY_LIST_FILE,
-)
-from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
-    ArtifactPaths,
-)
+from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore, PriceFactorStore
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     attach_enum_opportunities_field,
@@ -165,7 +160,12 @@ class WorkbenchReports:
     def _load_stock_ref_from_dir(
         cls, step: str, output_dir: Path
     ) -> Optional[Dict[str, Any]]:
-        entity_list = output_dir / ENTITY_LIST_FILE
+        try:
+            kind = ArtifactStore.parse_kind(step)
+        except ValueError:
+            return None
+        store = ArtifactStore.for_kind(kind).at(output_dir)
+        entity_list = store.file("entity_list")
         if not entity_list.is_file():
             return None
         try:
@@ -210,34 +210,22 @@ class WorkbenchReports:
             valid[str(sid)] = dict(payload) if isinstance(payload, dict) else payload
         return valid
 
-    @staticmethod
-    def _csv_has_rows(path: Path) -> bool:
-        if not path.is_file():
-            return False
-        try:
-            content = path.read_text(encoding="utf-8")
-            lines = [line.strip() for line in content.split("\n") if line.strip()]
-            return len(lines) >= 2
-        except Exception:
-            return False
-
     @classmethod
     def _enum_entity_has_data(cls, output_dir: Path, entity_id: str) -> bool:
         eid = str(entity_id or "").strip()
         if not eid:
             return False
-        return cls._csv_has_rows(ArtifactPaths.stock_investments_path(output_dir, eid))
+        store = EnumerateStore.at(output_dir)
+        if not store.has_investments(eid):
+            return False
+        return bool(store.investments(eid).rows)
 
     @classmethod
     def _price_entity_has_data(cls, output_dir: Path, entity_id: str) -> bool:
         eid = str(entity_id or "").strip().replace("/", "_")
         if not eid:
             return False
-        from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
-            ReportPaths,
-        )
-
-        return cls._csv_has_rows(ReportPaths.investments_csv(output_dir, eid))
+        return PriceFactorStore.at(output_dir).has_investments(eid)
 
     @staticmethod
     def _batch_load_stock_display_names(codes: List[str]) -> Dict[str, str]:

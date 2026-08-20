@@ -16,7 +16,7 @@
 ## 设计初衷
 
 - **要解决的问题：** 统一策略包发现、模拟缓存与多引擎编排入口。
-- **明确不做：** 不在本模块另起平行于 BacktestEngine 的调度 / Timeline（硬约束见 [docs/DESIGN.md](./docs/DESIGN.md) 与 [docs/notes/BOUNDARY_NOTES.md](./docs/notes/BOUNDARY_NOTES.md)）。
+- **明确不做：** 不在本模块另起平行于 BacktestEngine 的调度 / Timeline（硬约束见 [docs/DESIGN.md](./docs/DESIGN.md) 与 [docs/notes/BOUNDARY_NOTES.md](./docs/notes/BOUNDARY_NOTES.md)）。不负责回测归因（见 `modules.analysis`）。
 
 ## 用户策略 import（公开面）
 

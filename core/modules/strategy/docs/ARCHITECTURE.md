@@ -1,6 +1,6 @@
 # Strategy — 架构
 
-**版本：** `0.6.0`
+**版本：** `0.7.0`
 
 `modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enumerate / price_factor / portfolio）、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
 
@@ -37,7 +37,7 @@ strategy/
     ├── enums.py
     ├── hooks/
     ├── helpers/
-    ├── services/            # analyze, discovery, entity_loader, simulation_cache, package, progress, results_retention, workbench_cache
+    ├── services/            # discovery, entity_loader, simulation_cache, package, progress, results_retention, workbench_cache
     └── engines/
         ├── scanner/
         ├── enumerator/      # entity_based / slice_based

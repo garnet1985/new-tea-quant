@@ -5,11 +5,9 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from core.bff.APIs.strategy.routes.report.stock_detail import WorkbenchStockDetail
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    PriceInvestmentRow,
-)
-from core.modules.strategy.core.engines.shared.services.simulation_output.investment_csv import (
+from core.modules.strategy.core.services.artifacts import (
     InvestmentRow,
+    PriceInvestmentRow,
 )
 
 

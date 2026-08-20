@@ -183,7 +183,7 @@ class DuckdbWorkerPoolNamespace:
         DuckdbWorkerPool.wait_pool_children_done(timeout_sec=timeout_sec)
 
     @staticmethod
-    def wait_for_main_end(*, timeout_sec: float = 600.0) -> None:
+    def wait_for_main_end(*, timeout_sec: float = 30.0) -> None:
         from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
         DuckdbWorkerPool.wait_for_main_duckdb_worker_pool_end(timeout_sec=timeout_sec)

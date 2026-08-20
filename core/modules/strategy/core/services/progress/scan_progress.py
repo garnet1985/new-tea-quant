@@ -109,7 +109,7 @@ class ScanProgress:
                 "stock_name": opp.stock_name,
                 "trigger_date": opp.trigger_date,
                 "trigger_price": opp.trigger_price,
-                "extra_fields": opp.extra_fields or {},
+                "signal_snapshot": opp.signal_snapshot or {},
             }
             for opp in opportunities
         ]

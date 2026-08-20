@@ -162,7 +162,7 @@ class ScannerPipeline:
         summary_path = cache.scan_summary_path(scan_date)
         use_cache = (not force) and summary_path.is_file()
 
-        # 横截面策略：先 asof 选股再扫，避免 scan_opportunity 对全宇宙放行
+        # 横截面策略：先 asof 选股再扫，避免 has_opportunity 对全宇宙放行
         if not use_cache:
             stock_ids = ScannerCalendarAsof.filter_stock_ids(
                 strategy_info=strategy_info,

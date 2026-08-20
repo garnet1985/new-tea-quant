@@ -6,48 +6,58 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
-    GoalAchievementRow,
-    GoalAchievementCsv,
-    InvestmentRow,
+from core.modules.strategy.core.services.artifacts import (
     EntityInvestmentCsv,
+    EnumerateStore,
+    GoalAchievementCsv,
+    GoalAchievementRow,
+    InvestmentRow,
+    PriceFactorStore,
 )
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FACTOR_GLOBAL_KEY
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import EntityInvestments
 
 pytestmark = pytest.mark.force_run
 
 
+def _enum_store(output_dir: Path) -> EnumerateStore:
+    return EnumerateStore.at(output_dir)
+
+
 def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
-    EntityInvestmentCsv(
-        entity_id=entity_id,
-        rows=[
-            InvestmentRow(
-                investment_id=f"opp-{entity_id}",
-                trigger_date="20240102",
-                entry_date="20240103",
-                entry_price=10.0,
-                lifecycle="complete",
-            )
-        ],
-    ).save(output_dir)
-    GoalAchievementCsv(
-        entity_id=entity_id,
-        rows=[
-            GoalAchievementRow(
-                investment_id=f"opp-{entity_id}",
-                goal_name="take_profit",
-                date="20240110",
-                price=11.0,
-                exit_ratio=1.0,
-                profit=1.0,
-                weighted_profit=1.0,
-                reason="take_profit",
-                roi=0.1,
-            )
-        ],
-    ).save(output_dir)
+    store = _enum_store(output_dir)
+    store.write_investments(
+        EntityInvestmentCsv(
+            entity_id=entity_id,
+            rows=[
+                InvestmentRow(
+                    investment_id=f"opp-{entity_id}",
+                    trigger_date="20240102",
+                    entry_date="20240103",
+                    entry_price=10.0,
+                    lifecycle="complete",
+                )
+            ],
+        )
+    )
+    store.write_goals(
+        GoalAchievementCsv(
+            entity_id=entity_id,
+            rows=[
+                GoalAchievementRow(
+                    investment_id=f"opp-{entity_id}",
+                    goal_name="take_profit",
+                    date="20240110",
+                    price=11.0,
+                    exit_ratio=1.0,
+                    profit=1.0,
+                    weighted_profit=1.0,
+                    reason="take_profit",
+                    roi=0.1,
+                )
+            ],
+        )
+    )
 
 
 def test_load_batch_enum_data(tmp_path: Path) -> None:
@@ -78,18 +88,20 @@ def test_load_batch_enum_data(tmp_path: Path) -> None:
 
 
 def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
-    EntityInvestmentCsv(
-        entity_id="000003.SZ",
-        rows=[
-            InvestmentRow(
-                investment_id="opp-3",
-                trigger_date="20240102",
-                entry_date="20240103",
-                entry_price=1.0,
-                lifecycle="open",
-            )
-        ],
-    ).save(tmp_path)
+    _enum_store(tmp_path).write_investments(
+        EntityInvestmentCsv(
+            entity_id="000003.SZ",
+            rows=[
+                InvestmentRow(
+                    investment_id="opp-3",
+                    trigger_date="20240102",
+                    entry_date="20240103",
+                    entry_price=1.0,
+                    lifecycle="open",
+                )
+            ],
+        )
+    )
     payload = {
         "entity_specified": [{"id": "000003.SZ"}],
         "global": {
@@ -113,35 +125,37 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
     price_dir = tmp_path / "price"
     _write_enum_csv(enum_dir, "000001.SZ")
     # overlapping second opp should be locked out
-    EntityInvestmentCsv(
-        entity_id="000001.SZ",
-        rows=[
-            InvestmentRow(
-                investment_id="opp-a",
-                trigger_date="20240102",
-                entry_date="20240103",
-                entry_price=10.0,
-                exit_date="20240120",
-                exit_price=11.0,
-                lifecycle="complete",
-                result="win",
-                weighted_roi=0.1,
-                holding_days=10,
-            ),
-            InvestmentRow(
-                investment_id="opp-b",
-                trigger_date="20240105",
-                entry_date="20240106",
-                entry_price=10.0,
-                exit_date="20240108",
-                exit_price=9.0,
-                lifecycle="complete",
-                result="loss",
-                weighted_roi=-0.1,
-                holding_days=2,
-            ),
-        ],
-    ).save(enum_dir)
+    _enum_store(enum_dir).write_investments(
+        EntityInvestmentCsv(
+            entity_id="000001.SZ",
+            rows=[
+                InvestmentRow(
+                    investment_id="opp-a",
+                    trigger_date="20240102",
+                    entry_date="20240103",
+                    entry_price=10.0,
+                    exit_date="20240120",
+                    exit_price=11.0,
+                    lifecycle="complete",
+                    result="win",
+                    weighted_roi=0.1,
+                    holding_days=10,
+                ),
+                InvestmentRow(
+                    investment_id="opp-b",
+                    trigger_date="20240105",
+                    entry_date="20240106",
+                    entry_price=10.0,
+                    exit_date="20240108",
+                    exit_price=9.0,
+                    lifecycle="complete",
+                    result="loss",
+                    weighted_roi=-0.1,
+                    holding_days=2,
+                ),
+            ],
+        )
+    )
 
     payload = {
         "entity_specified": [{"id": "000001.SZ"}],
@@ -159,6 +173,6 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
     ctx.init = PriceFactorJobExecutor._load_batch_enum_data(ctx)
     stats = PriceFactorJobExecutor._replay_and_save_batch(ctx)
     assert stats["investments"] == 1
-    saved = EntityInvestments.load(price_dir, "000001.SZ")
+    saved = PriceFactorStore.at(price_dir).investments("000001.SZ")
     assert len(saved) == 1
     assert saved[0].opportunity_id == "opp-a"

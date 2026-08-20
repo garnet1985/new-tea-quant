@@ -81,13 +81,25 @@ def create_worker_data_manager() -> Any:
 
 
 def bootstrap_worker_data_manager() -> Any:
-    """子进程 job 入口：在 reset_default 之后重建 DataManager。"""
+    """子进程 job 入口：在 reset_default 之后重建 DataManager。
+
+    slice_based 在主进程跑 compute：若已进入 DuckDB ProcessPool scope
+    （主库已释放给 reader），禁止在此重新 ``DataManager()``——会与
+    reader 的 read_only 连接 Conflicting lock（Windows 上尤其致命）。
+    """
     if mp.current_process().name == "MainProcess":
         from core.modules.data_manager import DataManager
 
+        if Db.duckdb.worker_pool.is_main_active():
+            logger.debug(
+                "bootstrap_worker_data_manager: 主进程处于 DuckDB pool suspend，"
+                "不重建 DataManager"
+            )
+            return DataManager.get_instance()
+
         # Prefer the already-attached instance (e.g. BE perf overlay / slice
-        # in-process). Do not invent a ProjectContext DB while the caller still
-        # holds a live DataManager.
+        # in-process R=0). Do not invent a ProjectContext DB while the caller
+        # still holds a live DataManager.
         inst = DataManager.get_instance()
         db = getattr(inst, "db", None) if inst is not None else None
         if (

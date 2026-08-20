@@ -26,11 +26,13 @@ from core.modules.strategy.core.engines.enumerator.common.performance_tracker.pe
 from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
     InvestmentTracker,
 )
-from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
 from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
+from core.modules.strategy.core.engines.shared.services.opportunity_factory import (
+    OpportunityFactory,
+)
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import (
     SafeBarValue,
 )
@@ -84,9 +86,11 @@ class EntityTaskState:
             for entity_id in self.entity_ids
             if str(entity_id).strip()
         }
-        self._stock_info = {
-            entity_id: StockMetaHelper.load(entity_id) for entity_id in self.trackers
-        }
+        # Prefer payload.stock_info（建 job 时已批量加载）；worker 内避免全表扫。
+        self._stock_info = StockMetaHelper.from_payload(
+            self.payload,
+            list(self.trackers.keys()),
+        )
         self._last_bar_by_entity = {}
         self._scan_contexts = {}
         self._ready_date_by_entity = {}
@@ -271,14 +275,14 @@ class EntityTaskState:
             try:
                 if perf is not None:
                     perf.begin("enum_scan")
-                scanned = self.hook_runtime.call("scan_opportunity", scan_ctx)
+                opportunity = OpportunityFactory.resolve(self.hook_runtime, scan_ctx)
                 if perf is not None:
                     perf.end("enum_scan", accumulate=True)
             except Exception as exc:
                 if perf is not None:
                     perf.end("enum_scan", accumulate=True)
                 logger.error(
-                    "scan_opportunity 失败：entity_id=%s now=%s error=%s",
+                    "has_opportunity 失败：entity_id=%s now=%s error=%s",
                     entity_id,
                     now,
                     exc,
@@ -286,11 +290,11 @@ class EntityTaskState:
                 )
                 continue
 
-            if not isinstance(scanned, Opportunity):
+            if opportunity is None:
                 continue
 
             tracker.register_from_opportunity(
-                scanned,
+                opportunity,
                 settings=self.settings,
                 open_dates=self._timeline_points,
                 strategy_name=self.strategy_name,

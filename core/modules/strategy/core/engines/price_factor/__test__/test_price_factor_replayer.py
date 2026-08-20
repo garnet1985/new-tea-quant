@@ -1,7 +1,7 @@
 """PriceFactorJobExecutor._replay_entity_investments：锁仓回放。"""
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
+from core.modules.strategy.core.services.artifacts import (
     InvestmentRow,
 )
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
@@ -77,7 +77,7 @@ def test_replay_skips_invalid_entry() -> None:
 
 def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
     """goals CSV 的 exit_ratio 为绝对份额：两腿 0.5+0.5 必须 complete，不能剩 25% open。"""
-    from core.modules.strategy.core.engines.shared.services.simulation_output import (
+    from core.modules.strategy.core.services.artifacts import (
         GoalAchievementRow,
     )
 

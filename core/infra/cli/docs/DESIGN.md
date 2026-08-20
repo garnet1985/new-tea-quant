@@ -1,6 +1,6 @@
 # CLI — 设计
 
-**版本：** `0.3.0`
+**版本：** `0.4.0`
 
 记录双入口、门面类（Facade）导出与命令行参数（argv）脚手架等选型。术语见 [glossary.yaml](../glossary.yaml)。相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
 

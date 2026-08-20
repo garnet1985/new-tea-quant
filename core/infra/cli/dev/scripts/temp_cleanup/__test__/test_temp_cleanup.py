@@ -31,8 +31,8 @@ def userspace_layout(tmp_path, monkeypatch):
             [
                 "from core.modules.strategy.hooks import StrategyHooks",
                 "class StrategyHooksImpl(StrategyHooks):",
-                "    def scan_opportunity(self, ctx):",
-                "        return None",
+                "    def has_opportunity(self, ctx):",
+                "        return False",
                 "",
             ]
         ),

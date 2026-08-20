@@ -1,7 +1,7 @@
 """枚举 Report 输出配置（performance_detail 等）。
 
 本文件: ReportOutput
-边界: enumerator 私有；不进 simulation_output 布局服务
+边界: enumerator 私有；不进 artifacts 布局服务
 """
 from __future__ import annotations
 

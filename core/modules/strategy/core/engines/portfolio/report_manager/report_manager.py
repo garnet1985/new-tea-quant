@@ -31,34 +31,24 @@ from core.modules.strategy.core.engines.portfolio.report_manager.performance_rep
     PerformanceReport,
     PerformanceReportHandle,
 )
-from core.modules.strategy.core.engines.portfolio.report_manager.report_consts import (
-    ReportPaths,
-)
 from core.modules.strategy.core.engines.portfolio.report_manager.runtime_env import (
     PortfolioRuntimeEnv,
 )
 from core.modules.strategy.core.engines.shared.services.report_manager import (
     BaseReportManager,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
-)
-from core.modules.strategy.core.engines.shared.services.simulation_output.io import (
-    ArtifactIO,
-)
-from core.modules.strategy.core.services.data.simulation_output_recorder import (
-    SimulationOutputRecorder,
+    EnumerateStore,
+    PortfolioStore,
 )
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.portfolio.simulator import PortfolioSimResult
     from core.modules.strategy.core.engines.shared.data_class.simulate_session import (
         SimulateSession,
-    )
-    from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import (
-        EnumSource,
     )
 
 _DEFAULT_MARKET_PROFILE = "china_a_stock"
@@ -102,7 +92,7 @@ class ReportManager(BaseReportManager):
     def begin(
         cls,
         ctx: "SimulateSession",
-        data: "EnumSource",
+        data: EnumerateStore,
     ) -> "ReportManager":
         info = ctx.strategy_info
         strategy_key = str(getattr(info, "key", "") or "").strip()
@@ -123,11 +113,12 @@ class ReportManager(BaseReportManager):
         if folder is None or not str(folder):
             raise ValueError("strategy_folder 不能为空")
 
-        root = ProjectContext.path.get_strategy_simulation_portfolio_directory(folder)
-        output_dir, version_id = SimulationOutputRecorder.allocate_version_dir(
-            strategy_path or strategy_key or str(folder),
-            root,
+        store = PortfolioStore.allocate(
+            folder,
+            strategy_id=strategy_path or strategy_key or str(folder),
         )
+        output_dir = store.output_dir
+        version_id = int(store.version_id)
         market_profile = (
             str(data.runtime.market_profile or "").strip() or _DEFAULT_MARKET_PROFILE
         )
@@ -184,16 +175,14 @@ class ReportManager(BaseReportManager):
         if sim is None:
             raise RuntimeError("portfolio save 需要先 finalize(sim)")
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        store = PortfolioStore.at(
+            self.output_dir,
+            version_id=str(self.version_id),
+        )
         if self._save_trades:
-            ArtifactIO.write_json(
-                ReportPaths.trades_path(self.output_dir),
-                [t.to_dict() for t in sim.trades],
-            )
+            store.write_json("trades", [t.to_dict() for t in sim.trades])
         if self._save_equity_curve:
-            ArtifactIO.write_json(
-                ReportPaths.equity_curve_path(self.output_dir),
-                list(sim.equity_curve),
-            )
+            store.write_json("equity_curve", list(sim.equity_curve))
         performance_path = self.performance.save()
         overall_report_path = self.overall.save()
         entity_list_path = self.entity_list.save()

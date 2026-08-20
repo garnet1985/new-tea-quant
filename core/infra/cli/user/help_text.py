@@ -11,7 +11,6 @@ CLI_COMMAND_REFERENCE = """
   python cli.py sp                      价格因子模拟  同 strategy_price_factor [--strategy NAME]
   python cli.py so                      组合模拟      同 strategy_portfolio [--strategy NAME]
   python cli.py s                       完整模拟链路  同 strategy_simulate
-  python cli.py sy                      分析结果      同 strategy_analyse [--session ID]
 
   python cli.py r [SOURCE]              更新数据      同 renew [SOURCE]
   python cli.py t                       执行标签      同 tag [--scenario NAME]

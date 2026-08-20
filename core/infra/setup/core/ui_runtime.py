@@ -11,7 +11,14 @@ import webbrowser
 from typing import Tuple
 
 from core.system import python_minimum
-from core.ui.process_cleanup import kill_process_group
+from core.ui.process_cleanup import (
+    install_interrupt_force_exit,
+    interrupt_requested,
+    kill_process_group,
+    pids_listening_on,
+    process_cmdline,
+    windows_new_process_group_flag,
+)
 from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
 from core.infra.cmd_layout import CmdLayout
 
@@ -177,29 +184,11 @@ def install_ui_runtime(force: bool = False) -> None:
 
 
 def _pids_listening_on(port: int) -> list[int]:
-    try:
-        out = subprocess.run(
-            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        return []
-    return [int(line) for line in out.stdout.splitlines() if line.strip().isdigit()]
+    return pids_listening_on(port)
 
 
 def _process_cmdline(pid: int) -> str:
-    try:
-        out = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "command="],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        return ""
-    return (out.stdout or "").strip()
+    return process_cmdline(pid)
 
 
 def _wait_port_free(port: int, *, timeout_sec: float = 15.0) -> bool:
@@ -215,7 +204,10 @@ def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) 
     fed_root = str(FED_ROOT.resolve())
 
     def _should_kill(cmd: str) -> bool:
-        return bool(cmd) and (any(s in cmd for s in match_substrings) or fed_root in cmd)
+        if any(s in cmd for s in match_substrings) or fed_root in cmd:
+            return True
+        # Windows 取不到 cmdline 时仍回收本产品占用的 UI 端口。
+        return not cmd and os.name == "nt"
 
     for attempt in range(2):
         for pid in _pids_listening_on(port):
@@ -224,7 +216,7 @@ def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) 
                 print(f"结束占用 {port} 的旧进程 pid={pid}", flush=True)
                 try:
                     kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
-                except ProcessLookupError:
+                except (ProcessLookupError, OSError, AttributeError):
                     pass
         if _wait_port_free(port, timeout_sec=8.0):
             return
@@ -243,7 +235,7 @@ def _force_shutdown_ui_ports() -> None:
                 print(f"结束 UI 进程 pid={pid}（:{port}） {label}", flush=True)
                 try:
                     kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
-                except ProcessLookupError:
+                except (ProcessLookupError, OSError, AttributeError):
                     pass
             if _wait_port_free(port, timeout_sec=8.0):
                 break
@@ -274,13 +266,18 @@ def release_ui_listen_ports(ports: tuple[int, ...] = ALL_UI_PORTS) -> None:
 def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
+        if interrupt_requested():
+            raise KeyboardInterrupt
         try:
             with urllib.request.urlopen(url, timeout=5) as resp:
                 if 200 <= resp.status < 400:
                     return True
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
             pass
-        time.sleep(0.5)
+        try:
+            time.sleep(0.5)
+        except KeyboardInterrupt:
+            raise
     return False
 
 
@@ -304,23 +301,35 @@ def _fed_dev_env() -> dict[str, str]:
     return env
 
 
-def _terminate_proc(proc: subprocess.Popen | None) -> None:
+def _terminate_proc(proc: subprocess.Popen | None, *, grace_sec: float = 3.0) -> None:
     if proc is None:
         return
     if proc.poll() is not None:
         return
-    kill_process_group(proc.pid, grace_sec=3.0)
+    wait_cap = 1.0 if interrupt_requested() else 8.0
     try:
-        proc.wait(timeout=8)
+        kill_process_group(proc.pid, grace_sec=grace_sec)
+    except Exception:
+        pass
+    try:
+        proc.wait(timeout=wait_cap)
     except subprocess.TimeoutExpired:
-        kill_process_group(proc.pid, grace_sec=0.5)
         try:
-            proc.kill()
-        except ProcessLookupError:
+            kill_process_group(proc.pid, grace_sec=0.2)
+        except Exception:
             pass
         try:
-            proc.wait(timeout=5)
+            proc.kill()
+        except (ProcessLookupError, OSError):
+            pass
+        try:
+            proc.wait(timeout=min(2.0, wait_cap))
         except subprocess.TimeoutExpired:
+            pass
+    except Exception:
+        try:
+            proc.kill()
+        except (ProcessLookupError, OSError):
             pass
 
 
@@ -330,12 +339,29 @@ def _shutdown_ui_stack_procs(
     fed_proc: subprocess.Popen | None,
 ) -> None:
     """结束 CRA/BFF 子进程；若进程组信号未生效，按端口兜底（避免 Ctrl+C 后孤儿 BFF）。"""
-    _terminate_proc(bff_proc)
-    _terminate_proc(fed_proc)
+    grace = 0.2 if interrupt_requested() else 3.0
+    _terminate_proc(bff_proc, grace_sec=grace)
+    _terminate_proc(fed_proc, grace_sec=grace)
     _force_shutdown_ui_ports()
 
 
+def _wait_child_interruptible(proc: subprocess.Popen) -> int:
+    """轮询子进程退出；勿用阻塞 ``Popen.wait()``（Windows 上会吞掉 Ctrl+C）。"""
+    while True:
+        code = proc.poll()
+        if code is not None:
+            return int(code)
+        if interrupt_requested():
+            raise KeyboardInterrupt
+        try:
+            time.sleep(0.25)
+        except KeyboardInterrupt:
+            raise
+
+
 def launch_ui_stack() -> None:
+    # 尽早安装：否则卡在 BFF wait / 预加载时 Ctrl+C 可能无法强制退出
+    install_interrupt_force_exit()
     host = os.getenv("NTQ_BFF_HOST", "127.0.0.1").strip() or "127.0.0.1"
     dev = ui_dev_mode()
 
@@ -353,11 +379,16 @@ def launch_ui_stack() -> None:
 
     bff_proc: subprocess.Popen | None = None
     fed_proc: subprocess.Popen | None = None
+    popen_kw: dict = {}
+    win_flag = windows_new_process_group_flag()
+    if win_flag:
+        popen_kw["creationflags"] = win_flag
     try:
         bff_proc = subprocess.Popen(
             [sys.executable, "-m", "core.bff.app"],
             cwd=str(REPO_ROOT),
             env=bff_env,
+            **popen_kw,
         )
 
         health_url = f"http://{host}:{UI_BFF_PORT}/api/health"
@@ -371,6 +402,7 @@ def launch_ui_stack() -> None:
                 ["npm", "start"],
                 cwd=str(FED_ROOT),
                 env=_fed_dev_env(),
+                **popen_kw,
             )
             ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-design"
             print(
@@ -400,7 +432,7 @@ def launch_ui_stack() -> None:
             print(f"请手动打开: {ui_url}", flush=True)
 
         try:
-            (fed_proc or bff_proc).wait()
+            _wait_child_interruptible(fed_proc or bff_proc)
         except KeyboardInterrupt:
             print("\n正在关闭…", flush=True)
     except KeyboardInterrupt:

@@ -1,5 +1,5 @@
 # Strategy 术语表
-# Version: 0.6.0
+# Version: 0.7.0
 
 terms:
   Facade:
@@ -10,7 +10,7 @@ terms:
       - "deep-import core.engines.* / core.services.*（跨模块优先 Facade）"
 
   Strategy:
-    definition: "策略执行 Facade：scan / simulate（enumerate·price_factor·portfolio）/ analyze / discovery 列表。"
+    definition: "策略执行 Facade：scan / simulate（enumerate·price_factor·portfolio）/ discovery 列表。"
     aliases: []
     avoid: []
 
@@ -27,9 +27,26 @@ terms:
     avoid: []
 
   Opportunity:
-    definition: "扫描/枚举命中的交易机会数据类；从 contracts 导入。"
+    definition: "扫描/枚举命中后由框架构建的交易机会数据类；用户钩子 has_opportunity 只返回 bool。从 contracts 导入。"
     aliases: []
-    avoid: []
+    avoid:
+      - "在 has_opportunity 里手动 new Opportunity / 调用已删除的 build_opportunity"
+      - "extra_fields（已更名为 signal_snapshot）"
+
+  signal_snapshot:
+    definition: "命中时的逻辑层归因记录。用户在 has_opportunity 里 ctx.capture(key, value)，框架写入 Opportunity.signal_snapshot。"
+    aliases:
+      - "信号快照"
+      - "决策现场值"
+    avoid:
+      - "extra_fields"
+      - "ctx.remember（易失 scratchpad，不落归因）"
+
+  StrategyContext:
+    definition: "钩子侧数据视图；从 contracts 导入。remember/recall/forget 管本次回测内存袋；capture 管本笔归因输入。"
+    aliases: []
+    avoid:
+      - "把 capture 写进 custom / remember"
 
   Investment:
     definition: "价格因子/组合路径上的投资记录数据类；从 contracts 导入。"
@@ -37,16 +54,11 @@ terms:
     avoid: []
 
   StrategyHooks:
-    definition: "userspace 策略钩子基类契约；从 contracts 导入，勿从 core.hooks 深引。"
+    definition: "userspace 策略钩子基类契约；必实现 has_opportunity。从 contracts 导入，勿从 core.hooks 深引。"
     aliases:
       - "用户钩子"
     avoid:
       - "core.modules.strategy.core.hooks（作者路径）"
-
-  StrategyContext:
-    definition: "钩子侧数据视图；从 contracts 导入。"
-    aliases: []
-    avoid: []
 
   Enumerator:
     definition: "枚举引擎：entity_based / slice_based，经 BacktestEngine RunCallbacks 推进。"

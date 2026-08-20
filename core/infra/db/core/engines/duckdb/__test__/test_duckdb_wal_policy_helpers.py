@@ -28,3 +28,22 @@ def test_should_checkpoint_can_disable():
 def test_checkpoint_duckdb_engine_requires_checkpoint_method():
     with pytest.raises(TypeError, match="checkpoint"):
         DuckdbWalPolicy.checkpoint_engine(object())
+
+
+def test_sigint_install_never_checkpoints_in_handler(monkeypatch):
+    DuckdbWalPolicy._sigint_installed = False
+    called = []
+
+    def _install():
+        called.append(True)
+
+    monkeypatch.setattr(
+        "core.ui.process_cleanup.install_interrupt_force_exit",
+        _install,
+    )
+    DuckdbWalPolicy.install_sigint_checkpoint_handler(
+        object(),
+        {"duckdb": {"checkpoint_on_sigint": False}},
+    )
+    assert called == [True]
+    DuckdbWalPolicy._sigint_installed = False

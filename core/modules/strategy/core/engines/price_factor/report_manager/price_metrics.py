@@ -8,9 +8,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Sequence
 
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    PriceInvestmentRow,
-)
+from core.modules.strategy.core.services.artifacts import PriceInvestmentRow
 
 
 @dataclass

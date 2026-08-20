@@ -12,7 +12,7 @@ import { ReactComponent as FallbackLogo } from '../ntqIcon/icons/tactic.svg';
 import './traceConsentAskOverlay.scss';
 
 /**
- * 全屏询问是否同意匿名使用统计。可复用于主 UI / 安装向导。
+ * 全屏询问是否同意匿名使用统计。主 UI 与安装完成后的成功页可复用。
  * 无关闭入口：必须点同意或不同意。
  */
 function TraceConsentAskOverlay({

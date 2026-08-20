@@ -16,16 +16,15 @@ from core.modules.data_manager import DataManager
 from core.modules.indicator import Indicator
 from core.modules.strategy.contracts import WorkbenchStep
 from core.infra.utils import Utils
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    EntityInvestments,
-    PriceInvestmentRow,
-)
 from core.modules.strategy.core.engines.shared.data_class.investment.enums import (
     Lifecycle,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
-    EntityInvestmentCsv,
+from core.modules.strategy.core.services.artifacts import (
+    ArtifactStore,
+    EnumerateStore,
     InvestmentRow,
+    PriceFactorStore,
+    PriceInvestmentRow,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
@@ -183,7 +182,7 @@ class WorkbenchStockDetail:
                 message="价格回测产物目录不可用，请重新执行价格回测",
             )
 
-        investments = EntityInvestments.load(output_dir, sid)
+        investments = PriceFactorStore.at(output_dir).investments(sid)
         if not investments:
             return cls._unavailable(
                 common,
@@ -261,11 +260,8 @@ class WorkbenchStockDetail:
         ):
             if not output_dir.is_dir():
                 continue
-            if step == "enum":
-                path = EntityInvestmentCsv.file_path(output_dir, entity_id)
-            else:
-                path = EntityInvestments.path(output_dir, entity_id)
-            if path.is_file():
+            store = ArtifactStore.for_kind(step).at(output_dir)
+            if store.has_investments(entity_id):
                 return output_dir
         return None
 
@@ -273,13 +269,15 @@ class WorkbenchStockDetail:
     def _load_enum_investments(
         output_dir: Path, entity_id: str
     ) -> List[InvestmentRow]:
-        path = EntityInvestmentCsv.file_path(output_dir, entity_id)
-        if not path.is_file():
+        store = EnumerateStore.at(output_dir)
+        if not store.has_investments(entity_id):
             return []
         try:
-            loaded = EntityInvestmentCsv.load(output_dir, entity_id)
+            loaded = store.investments(entity_id)
         except Exception:
-            logger.exception("读取枚举投资 CSV 失败: %s", path)
+            logger.exception(
+                "读取枚举投资 CSV 失败: %s %s", output_dir, entity_id
+            )
             return []
         return [
             row

@@ -74,15 +74,6 @@ def install_cli_runtime(force: bool = False) -> None:
         print("CLI 安装检查通过，跳过安装步骤。", flush=True)
         return
 
-    try:
-        from core.infra.trace import Trace
-
-        Trace.ask_permission(source="cli_install")
-    except KeyboardInterrupt:
-        raise
-    except Exception:
-        pass
-
     if scope == "deps_only":
         steps = list(CLI_DEPS_ONLY_STEPS)
         print(

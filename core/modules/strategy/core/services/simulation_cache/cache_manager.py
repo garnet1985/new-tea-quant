@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+from core.modules.strategy.core.services.artifacts import (
     RUNTIME_ENV_FILE,
 )
 from core.modules.strategy.core.services.simulation_cache.base_cache_manager import (

@@ -32,8 +32,8 @@ def test_build_calendar_view_year_end() -> None:
 
 def test_filter_stock_ids_passthrough_without_asof_override() -> None:
     class _Hooks(StrategyHooks):
-        def scan_opportunity(self, ctx):  # noqa: ANN001
-            return None
+        def has_opportunity(self, ctx):  # noqa: ANN001
+            return False
 
     settings = StrategySettings.from_dict({})
     settings.apply_defaults()

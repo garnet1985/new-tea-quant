@@ -7,7 +7,6 @@ Backtest Engine - entity_based Executor
 from __future__ import annotations
 
 import logging
-import multiprocessing as mp
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass
@@ -115,46 +114,60 @@ class EntityExecutor:
 
         start_time = time.monotonic()
         pending_index = 0
+        pool: Optional[ProcessPoolExecutor] = None
 
         try:
-            with ProcessPoolExecutor(max_workers=pool_workers) as pool:
-                futures: Dict[Future, Job] = {}
+            pool = ProcessPoolExecutor(max_workers=pool_workers)
+            futures: Dict[Future, Job] = {}
 
-                while pending_index < len(jobs) or futures:
-                    submit_cap = resolve_submit_cap()
-                    while pending_index < len(jobs) and len(futures) < submit_cap:
-                        job = jobs[pending_index]
-                        pending_index += 1
-                        job_context = EntityExecutor._build_job_context(job, context)
-                        future = pool.submit(
-                            EntityExecutor._invoke_worker,
-                            execute_fn,
-                            job_context,
-                            on_task_start,
-                            on_task_complete,
-                        )
-                        futures[future] = job
+            while pending_index < len(jobs) or futures:
+                submit_cap = resolve_submit_cap()
+                while pending_index < len(jobs) and len(futures) < submit_cap:
+                    job = jobs[pending_index]
+                    pending_index += 1
+                    job_context = EntityExecutor._build_job_context(job, context)
+                    future = pool.submit(
+                        EntityExecutor._invoke_worker,
+                        execute_fn,
+                        job_context,
+                        on_task_start,
+                        on_task_complete,
+                    )
+                    futures[future] = job
 
-                    if not futures:
-                        break
+                if not futures:
+                    break
 
-                    done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
-                    for future in done:
-                        job = futures.pop(future)
-                        EntityExecutor._finish_future(
-                            future,
-                            job,
-                            context,
-                            failures,
-                            job_results,
-                            on_receive_task_result,
-                            on_after_all_tasks_complete,
-                            log_label,
-                        )
+                done, _ = wait(
+                    futures.keys(),
+                    timeout=0.5,
+                    return_when=FIRST_COMPLETED,
+                )
+                if not done:
+                    continue
+                for future in done:
+                    job = futures.pop(future)
+                    EntityExecutor._finish_future(
+                        future,
+                        job,
+                        context,
+                        failures,
+                        job_results,
+                        on_receive_task_result,
+                        on_after_all_tasks_complete,
+                        log_label,
+                    )
 
-        except KeyboardInterrupt:
-            logger.info("%s收到Ctrl+C，停止执行", log_label)
+        except BaseException:
+            logger.info("%s收到中断或失败，停止进程池", log_label)
+            EntityExecutor._abandon_pool(pool)
             raise
+        else:
+            if pool is not None:
+                try:
+                    pool.shutdown(wait=True, cancel_futures=True)
+                except TypeError:
+                    pool.shutdown(wait=True)
 
         elapsed_seconds = time.monotonic() - start_time
         result = EntityExecutor.ExecutionResult(
@@ -187,6 +200,27 @@ class EntityExecutor:
             elapsed_seconds,
         )
         return result
+
+    @staticmethod
+    def _abandon_pool(pool: Optional[ProcessPoolExecutor]) -> None:
+        """Ctrl+C / 失败：不等待 worker（Windows 上 ``shutdown(wait=True)`` 会卡死）。"""
+        if pool is None:
+            return
+        try:
+            pool.shutdown(wait=False, cancel_futures=True)
+        except TypeError:
+            try:
+                pool.shutdown(wait=False)
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
+            from core.ui.process_cleanup import terminate_multiprocessing_children
+
+            terminate_multiprocessing_children(grace_sec=1.0)
+        except Exception:
+            pass
 
     @staticmethod
     def _invoke_worker(

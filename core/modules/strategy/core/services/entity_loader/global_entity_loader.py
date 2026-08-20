@@ -17,23 +17,22 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.data_contract import ContractIssuer
 from core.modules.data_contract.contracts import DATA_KEY
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     SYSTEM_GLOBAL_DATA_KEYS,
     DataDeclaration,
 )
-from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
-    StrategySettings,
-)
 
 logger = logging.getLogger(__name__)
 
-try:
-    from multiprocessing.shared_memory import SharedMemory
 
-    SHARED_MEMORY_AVAILABLE = True
-except ImportError:
-    logger.warning("multiprocessing.shared_memory 不可用，将使用普通 dict 存储")
-    SHARED_MEMORY_AVAILABLE = False
+def _owned_shm():
+    """延迟加载，避免与 data_contract → Utils 的导入链缠在一起。"""
+    from core.modules.backtest_engine.core.shared import owned_shared_memory as shm
+
+    return shm
 
 
 class GlobalEntityCache:
@@ -45,6 +44,7 @@ class GlobalEntityCache:
         self._global_meta: Dict[str, Any] = {}
         self._shm_name: Optional[str] = None
         self._shm_size: int = 0
+        self._shm = None
 
     def init_system_globals(self) -> "GlobalEntityCache":
         """加载三个系统级 global 数据（不走 settings.data 分组，必定存在）。"""
@@ -189,7 +189,12 @@ class GlobalEntityCache:
             return ""
 
     def _create_shared_memory(self) -> None:
-        if not SHARED_MEMORY_AVAILABLE:
+        shm_mod = _owned_shm()
+        shm_mod.close_and_unlink(self._shm)
+        self._shm = None
+        self._shm_name = None
+        self._shm_size = 0
+        if not shm_mod.shared_memory_available():
             logger.warning("共享内存不可用，使用普通 dict 存储")
             return
         if not self._global_data:
@@ -198,27 +203,28 @@ class GlobalEntityCache:
 
         try:
             serialized_data = pickle.dumps(self._global_data)
-            data_size = len(serialized_data)
-            shm = SharedMemory(create=True, size=data_size)
-            shm.buf[:data_size] = serialized_data
+            shm = shm_mod.create_owned_shared_memory(serialized_data)
+            self._shm = shm
             self._shm_name = shm.name
-            self._shm_size = data_size
+            self._shm_size = len(serialized_data)
             logger.info(
                 "共享内存创建成功：name=%s, size=%d bytes, keys=%d",
                 shm.name,
-                data_size,
+                self._shm_size,
                 len(self._global_data),
             )
-            shm.close()
         except Exception as exc:
             logger.error("共享内存创建失败：%s", exc, exc_info=True)
+            shm_mod.close_and_unlink(self._shm)
+            self._shm = None
             self._shm_name = None
             self._shm_size = 0
 
     @staticmethod
     def access_shared_memory(shm_name: str, shm_size: int) -> Dict[str, Any]:
         """子进程从共享内存读取 global 数据。"""
-        if not SHARED_MEMORY_AVAILABLE:
+        shm_mod = _owned_shm()
+        if not shm_mod.shared_memory_available():
             logger.warning("共享内存不可用，无法读取")
             return {}
         if not shm_name or shm_size <= 0:
@@ -226,10 +232,12 @@ class GlobalEntityCache:
             return {}
 
         try:
-            shm = SharedMemory(name=shm_name)
-            serialized_data = bytes(shm.buf[:shm_size])
-            global_data = pickle.loads(serialized_data)
-            shm.close()
+            shm = shm_mod.attach_shared_memory(shm_name)
+            try:
+                serialized_data = bytes(shm.buf[:shm_size])
+                global_data = pickle.loads(serialized_data)
+            finally:
+                shm.close()
             logger.info(
                 "共享内存读取成功：name=%s, size=%d bytes, keys=%d",
                 shm_name,
@@ -243,17 +251,19 @@ class GlobalEntityCache:
 
     def cleanup(self) -> None:
         """主进程释放共享内存。"""
-        if not SHARED_MEMORY_AVAILABLE or not self._shm_name:
+        if self._shm is None and not self._shm_name:
             return
-        try:
-            shm = SharedMemory(name=self._shm_name)
-            shm.close()
-            shm.unlink()
-            logger.info("共享内存释放成功：name=%s", self._shm_name)
-            self._shm_name = None
-            self._shm_size = 0
-        except Exception as exc:
-            logger.error("共享内存释放失败：%s", exc, exc_info=True)
+        name = self._shm_name
+        _owned_shm().close_and_unlink(self._shm)
+        self._shm = None
+        self._shm_name = None
+        self._shm_size = 0
+        logger.info("共享内存释放成功：name=%s", name)
+
+    def __getstate__(self) -> Dict[str, Any]:
+        state = dict(self.__dict__)
+        state["_shm"] = None
+        return state
 
     def get_shm_info(self) -> Dict[str, Any]:
         return {

@@ -2,7 +2,7 @@
 
 本文件:
 - ScannerCalendarAsof: 主进程调用 asof，收窄 ``stock_ids``（top_n / 价格区间等）
-  边界: 负责 asof 预筛；不负责 BE job / scan_opportunity
+  边界: 负责 asof 预筛；不负责 BE job / has_opportunity
 """
 from __future__ import annotations
 

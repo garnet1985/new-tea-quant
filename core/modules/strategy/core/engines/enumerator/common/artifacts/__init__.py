@@ -1,9 +1,8 @@
 """enumerator version 产物内容模型入口。
 
-投资/goal CSV 行模型已上移 ``simulation_output.investment_csv``（E/P/O 共用）。
-本包仅保留 enumerator 私有 RuntimeEnv 等写模型，并 re-export CSV 类型便于内部 import。
+CSV 行模型与 IO 在 ``services.artifacts``。本包仅保留 enumerator 私有 RuntimeEnv。
 """
-from core.modules.strategy.core.engines.shared.services.simulation_output import (
+from core.modules.strategy.core.services.artifacts import (
     EntityInvestmentCsv,
     GoalAchievementCsv,
     GoalAchievementRow,

@@ -51,7 +51,6 @@ class UserParser:
         UserParser._p_strategy_price_factor(sub)
         UserParser._p_strategy_portfolio(sub)
         UserParser._p_strategy_simulate(sub)
-        UserParser._p_strategy_analyse(sub)
         UserParser._p_renew(sub)
         UserParser._p_export_adj_factor(sub)
         UserParser._p_tag(sub)
@@ -117,16 +116,6 @@ class UserParser:
             help="完整模拟链路（price → portfolio）",
         )
         UserParser._add_strategy_target(p)
-
-    @staticmethod
-    def _p_strategy_analyse(sub: argparse._SubParsersAction) -> None:
-        p = UserParser._cmd(
-            sub,
-            "strategy_analyse",
-            aliases=UserCommands.aliases_for("strategy_analyse"),
-            help="分析模拟结果",
-        )
-        p.add_argument("--session", type=str, default=None)
 
     @staticmethod
     def _p_renew(sub: argparse._SubParsersAction) -> None:

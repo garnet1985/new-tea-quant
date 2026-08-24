@@ -1,7 +1,6 @@
-import { requestJson } from '../global/httpClient';
-import { API_VERSION_PREFIX } from '../conf/apiConfig';
-import { mapDataEnd } from '../shared/dataEnd';
-import { getUpdateModeIcon } from '../shared/updateModeIcon';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import { mapDataEnd } from './mappers/dataEnd';
+import { getUpdateModeIcon } from './mappers/updateModeIcon';
 
 const API_TAGS_LIST = `${API_VERSION_PREFIX}/tags/list`;
 const API_RUNTIME_PIPELINE = `${API_VERSION_PREFIX}/runtime/pipeline`;
@@ -61,7 +60,7 @@ export function getTagComputeStatusLabel(item) {
  * @returns {Promise<{ busy: boolean, kind?: string|null, label?: string|null, resource_key?: string|null }>}
  */
 export async function fetchPipelineStatus() {
-  const json = await requestJson(API_RUNTIME_PIPELINE, { method: 'GET' });
+  const json = await request.getJson(API_RUNTIME_PIPELINE);
   const m = json?.message || {};
   return {
     busy: Boolean(m.busy),
@@ -82,7 +81,7 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
     page: String(page),
     limit: String(limit),
   });
-  const json = await requestJson(`${API_TAGS_LIST}?${params.toString()}`, { method: 'GET' });
+  const json = await request.getJson(`${API_TAGS_LIST}?${params.toString()}`);
   const m = json?.message || {};
   const items = Array.isArray(m.items) ? m.items : [];
   const dataEnd = m.data_end && typeof m.data_end === 'object' ? m.data_end : {};
@@ -112,11 +111,7 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
  * T1-02：启动 Tag 计算
  */
 export async function startTagRun(tagKey) {
-  const json = await requestJson(`${apiTagPath(tagKey)}/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  });
+  const json = await request.postJson(`${apiTagPath(tagKey)}/run`, { body: {} });
   const m = json?.message || {};
   return {
     job_id: String(m.job_id || m.run_id || '').trim(),
@@ -131,6 +126,8 @@ export async function startTagRun(tagKey) {
  */
 export async function fetchTagRunProgress(tagKey, jobId) {
   const params = new URLSearchParams({ job_id: String(jobId || '') });
-  const json = await requestJson(`${apiTagPath(tagKey)}/run/progress?${params.toString()}`, { method: 'GET' });
+  const json = await request.getJson(`${apiTagPath(tagKey)}/run/progress?${params.toString()}`, {
+    timeoutMs: HTTP_TIMEOUT_MS.POLL,
+  });
   return json?.message || {};
 }

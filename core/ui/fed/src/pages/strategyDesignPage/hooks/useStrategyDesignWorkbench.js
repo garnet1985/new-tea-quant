@@ -8,7 +8,7 @@ import {
   fetchStrategyVersionDetail,
   fetchStrategyVersions,
   restoreStrategyVersion,
-} from '../../../api/apis/strategyApi';
+} from '../../../api/strategyApi';
 import { stripLegacyStrategySettingsForRun } from '../../../utils/stripLegacyStrategySettings';
 import {
   extractStrategyDescription,

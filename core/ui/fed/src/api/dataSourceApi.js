@@ -1,7 +1,6 @@
-import { requestJson } from '../global/httpClient';
-import { API_VERSION_PREFIX } from '../conf/apiConfig';
-import { mapDataEnd } from '../shared/dataEnd';
-import { getUpdateModeIcon } from '../shared/updateModeIcon';
+import request, { API_VERSION_PREFIX } from 'services/request';
+import { mapDataEnd } from './mappers/dataEnd';
+import { getUpdateModeIcon } from './mappers/updateModeIcon';
 
 const API_DATA_SOURCES_LIST = `${API_VERSION_PREFIX}/data-sources/list`;
 const API_DATA_SOURCES_FRESHNESS = `${API_VERSION_PREFIX}/data-sources/freshness`;
@@ -47,7 +46,7 @@ export async function fetchDataSourceList({ page = 1, limit = 200 } = {}) {
     page: String(page),
     limit: String(limit),
   });
-  const json = await requestJson(`${API_DATA_SOURCES_LIST}?${params.toString()}`, { method: 'GET' });
+  const json = await request.getJson(`${API_DATA_SOURCES_LIST}?${params.toString()}`);
   const m = json?.message || {};
   const items = Array.isArray(m.items) ? m.items : [];
   const dataEnd = m.data_end && typeof m.data_end === 'object' ? m.data_end : {};
@@ -111,7 +110,7 @@ export async function fetchDataSourceFreshness({ names } = {}) {
   }
   const query = params.toString();
   const url = query ? `${API_DATA_SOURCES_FRESHNESS}?${query}` : API_DATA_SOURCES_FRESHNESS;
-  const json = await requestJson(url, { method: 'GET' });
+  const json = await request.getJson(url);
   const m = json?.message || {};
   const rawItems = m.items && typeof m.items === 'object' ? m.items : {};
   const dataEnd = m.data_end && typeof m.data_end === 'object' ? m.data_end : {};

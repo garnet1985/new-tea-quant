@@ -1,5 +1,4 @@
-import { requestJson } from '../global/httpClient';
-import { API_VERSION_PREFIX } from '../conf/apiConfig';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
 
 const API_BASE = `${API_VERSION_PREFIX}/setup`;
 const STEP_STATUS_SUCCESS = 'success';
@@ -66,7 +65,7 @@ async function executePipelineRequest(makeRequest, onProgress, preferredStepId =
         onProgress({ stepId, status: 'running', snapshot });
       }
     } catch (_error) {
-      // ignore poll error
+      // poll 失败由 request silent 兜底，不阻断主流程
     }
   };
 
@@ -91,17 +90,20 @@ async function executePipelineRequest(makeRequest, onProgress, preferredStepId =
 }
 
 export async function getSetupDefinition() {
-  const json = await requestJson(`${API_BASE}/definition`, { method: 'GET' });
+  const json = await request.getJson(`${API_BASE}/definition`);
   return normalizeDefinition(json?.message?.steps || []);
 }
 
 export async function getSetupStatus() {
-  const json = await requestJson(`${API_BASE}/status`, { method: 'GET' });
+  const json = await request.getJson(`${API_BASE}/status`, {
+    timeoutMs: HTTP_TIMEOUT_MS.POLL,
+    silent: true,
+  });
   return json.message || null;
 }
 
 export async function resetSetupStatus() {
-  const json = await requestJson(`${API_BASE}/reset`, { method: 'POST', body: '{}' });
+  const json = await request.postJson(`${API_BASE}/reset`, { body: {} });
   return json.message || null;
 }
 
@@ -109,7 +111,10 @@ export async function startSetupWorkflow(_onProgress) {
   const pre = await getSetupStatus();
   const preferredStepId = firstPendingStepId(pre);
   return executePipelineRequest(
-    () => requestJson(`${API_BASE}/start`, { method: 'POST', body: '{}' }),
+    () => request.postJson(`${API_BASE}/start`, {
+      body: {},
+      timeoutMs: HTTP_TIMEOUT_MS.SETUP,
+    }),
     _onProgress,
     preferredStepId,
   );
@@ -117,9 +122,9 @@ export async function startSetupWorkflow(_onProgress) {
 
 export async function submitInteractiveStep(stepId, inputValues, _onProgress) {
   return executePipelineRequest(
-    () => requestJson(`${API_BASE}/steps/${encodeURIComponent(stepId)}/submit`, {
-      method: 'POST',
-      body: JSON.stringify({ inputs: inputValues || {} }),
+    () => request.postJson(`${API_BASE}/steps/${encodeURIComponent(stepId)}/submit`, {
+      body: { inputs: inputValues || {} },
+      timeoutMs: HTTP_TIMEOUT_MS.SETUP,
     }),
     _onProgress,
     stepId,
@@ -130,16 +135,18 @@ export async function retryFailedStep(_onProgress) {
   const pre = await getSetupStatus();
   const preferredStepId = failedStepId(pre) || firstPendingStepId(pre);
   return executePipelineRequest(
-    () => requestJson(`${API_BASE}/retry`, { method: 'POST', body: '{}' }),
+    () => request.postJson(`${API_BASE}/retry`, {
+      body: {},
+      timeoutMs: HTTP_TIMEOUT_MS.SETUP,
+    }),
     _onProgress,
     preferredStepId,
   );
 }
 
 export async function precheckDbConnection(inputs) {
-  const json = await requestJson(`${API_BASE}/steps/db_connection/precheck`, {
-    method: 'POST',
-    body: JSON.stringify({ inputs: inputs || {} }),
+  const json = await request.postJson(`${API_BASE}/steps/db_connection/precheck`, {
+    body: { inputs: inputs || {} },
   });
   return {
     dbExists: Boolean(json?.message?.dbExists),
@@ -150,9 +157,8 @@ export async function precheckDbConnection(inputs) {
 }
 
 export async function precheckUserspacePath(inputs) {
-  const json = await requestJson(`${API_BASE}/steps/init_userspace/precheck-path`, {
-    method: 'POST',
-    body: JSON.stringify({ inputs: inputs || {} }),
+  const json = await request.postJson(`${API_BASE}/steps/init_userspace/precheck-path`, {
+    body: { inputs: inputs || {} },
   });
   return {
     userspacePath: json?.message?.userspacePath || '',
@@ -161,7 +167,10 @@ export async function precheckUserspacePath(inputs) {
 }
 
 export async function getImportDataProgress() {
-  const json = await requestJson(`${API_BASE}/steps/import_data/progress`, { method: 'GET' });
+  const json = await request.getJson(`${API_BASE}/steps/import_data/progress`, {
+    timeoutMs: HTTP_TIMEOUT_MS.POLL,
+    silent: true,
+  });
   return {
     running: Boolean(json?.message?.running),
     totalTables: Number(json?.message?.totalTables || 0),

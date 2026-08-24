@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { Box, Button, LinearProgress, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { getStrategyDesignPath } from '../../../api/apis/strategyApi';
+import { getStrategyDesignPath } from '../../../api/strategyApi';
 import { STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from '../../strategyWorkbenchPage/panels/strategyExecutionPanel/executionSectionMeta';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';

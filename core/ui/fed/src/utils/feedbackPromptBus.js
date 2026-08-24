@@ -1,4 +1,4 @@
-import { noteFeedbackTaskSuccess } from '../api/apis/feedbackApi';
+import { noteFeedbackTaskSuccess } from '../api/feedbackApi';
 
 const listeners = new Set();
 

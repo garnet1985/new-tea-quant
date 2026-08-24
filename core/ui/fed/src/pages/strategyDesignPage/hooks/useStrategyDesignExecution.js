@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   fetchStrategyRunStatus,
   startStrategyRun,
-} from '../../../api/apis/strategyApi';
+} from '../../../api/strategyApi';
 import {
   mergeStepStatusFromRunProgress,
   stepStatusFromRunPlanSteps,

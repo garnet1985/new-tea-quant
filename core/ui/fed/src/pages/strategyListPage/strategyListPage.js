@@ -20,7 +20,7 @@ import {
   getStrategyDesignPath,
   getStrategyDisplayLabel,
   groupStrategiesByCategory,
-} from '../../api/apis/strategyApi';
+} from '../../api/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import StrategyPackageImportDialog from '../../components/strategyPackageImportDialog/strategyPackageImportDialog';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';

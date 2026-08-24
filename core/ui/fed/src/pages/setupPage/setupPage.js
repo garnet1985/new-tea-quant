@@ -31,7 +31,7 @@ import {
   retryFailedStep,
   startSetupWorkflow,
   submitInteractiveStep,
-} from '../../api/apis/setupApi';
+} from '../../api/setupApi';
 import {
   applyDbTypeDefaults,
   DEFAULT_STEP_ID,
@@ -298,8 +298,15 @@ function SetupPage() {
     setPausedStep('');
     setImportProgress(EMPTY_IMPORT_PROGRESS);
     setProgressText('准备执行安装步骤...');
-    const result = await runningWithProgress((onProgress) => startSetupWorkflow(onProgress));
-    consumePipelineResult(result, definition[0]?.id || DEFAULT_STEP_ID);
+    try {
+      const result = await runningWithProgress((onProgress) => startSetupWorkflow(onProgress));
+      consumePipelineResult(result, definition[0]?.id || DEFAULT_STEP_ID);
+    } catch (err) {
+      setRunningStep('');
+      setFlowStage('fail');
+      setFailedStep(definition[0]?.id || DEFAULT_STEP_ID);
+      setErrorMessage(err?.message || '安装请求失败，请检查网络后重试。');
+    }
   };
 
   const handleSubmitInteractionStep = async (options = {}) => {
@@ -353,16 +360,33 @@ function SetupPage() {
     setProgressText('提交输入并继续执行...');
     setErrorMessage('');
     setFailedStep('');
-    const result = await runningWithProgress((onProgress) => submitInteractiveStep(pausedStep, submitValues, onProgress));
-    consumePipelineResult(result, pausedStep);
+    try {
+      const result = await runningWithProgress(
+        (onProgress) => submitInteractiveStep(pausedStep, submitValues, onProgress),
+      );
+      consumePipelineResult(result, pausedStep);
+    } catch (err) {
+      setRunningStep('');
+      setFlowStage('fail');
+      setFailedStep(pausedStep);
+      setErrorMessage(err?.message || '提交失败，请检查网络后重试。');
+    }
   };
 
   const handleRetryFailedStep = async () => {
     setFlowStage('executing');
     setProgressText('重试失败步骤并继续执行...');
     setErrorMessage('');
-    const result = await runningWithProgress((onProgress) => retryFailedStep(onProgress));
-    consumePipelineResult(result, failedStep || definition[0]?.id || DEFAULT_STEP_ID);
+    const stepId = failedStep || definition[0]?.id || DEFAULT_STEP_ID;
+    try {
+      const result = await runningWithProgress((onProgress) => retryFailedStep(onProgress));
+      consumePipelineResult(result, stepId);
+    } catch (err) {
+      setRunningStep('');
+      setFlowStage('fail');
+      setFailedStep(stepId);
+      setErrorMessage(err?.message || '重试失败，请检查网络后重试。');
+    }
   };
 
   const handleRestartSetup = async () => {

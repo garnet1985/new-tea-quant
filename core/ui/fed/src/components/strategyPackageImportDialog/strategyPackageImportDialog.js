@@ -21,7 +21,7 @@ import {
 import {
   importStrategyPackage,
   previewStrategyPackageImport,
-} from '../../api/apis/strategyApi';
+} from '../../api/strategyApi';
 import './strategyPackageImportDialog.scss';
 
 const POLICY_OPTIONS = [

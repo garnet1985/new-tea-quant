@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
-import { fetchStrategyStockDetail } from '../../../../../api/apis/strategyApi';
+import { fetchStrategyStockDetail } from '../../../../../api/strategyApi';
 import BacktestPeriodBanner from './backtestPeriodBanner';
 import { buildStockKlineChartOptionFromPayload } from '../lib/stockKlineChart';
 import {

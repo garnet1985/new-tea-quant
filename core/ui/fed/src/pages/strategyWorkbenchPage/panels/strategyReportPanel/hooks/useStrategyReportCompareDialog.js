@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchStrategyVersionDetail } from '../../../../../api/apis/strategyApi';
+import { fetchStrategyVersionDetail } from '../../../../../api/strategyApi';
 import { buildWorkbenchSnapshotFromVersionDetail } from '../../../workbenchSnapshot';
 import { REPORT_COMPARE_MORE_MENU_VALUE } from '../constants/strategyReportConstants';
 

@@ -1,7 +1,6 @@
-import { requestJson } from '../global/httpClient';
-import { coerceMetaDescription } from '../../utils/formatStrategyDescription';
-import { API_VERSION_PREFIX } from '../conf/apiConfig';
-import { mapDataEnd } from '../shared/dataEnd';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import { coerceMetaDescription } from '../utils/formatStrategyDescription';
+import { mapDataEnd } from './mappers/dataEnd';
 
 /** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
 const API_STRATEGY_CATALOG = (page, limit) =>
@@ -76,7 +75,7 @@ const API_SETTINGS_MARKET_RULES = `${API_VERSION_PREFIX}/strategy/settings/marke
  * @returns {Promise<{ data: object[] }>}
  */
 export async function fetchStrategyList() {
-  const json = await requestJson(API_STRATEGY_CATALOG(1, 100), { method: 'GET' });
+  const json = await request.getJson(API_STRATEGY_CATALOG(1, 100));
   const list = json?.message?.items || [];
   return {
     data: list.map((item) => {
@@ -105,7 +104,7 @@ export async function fetchStrategyList() {
  * 扫描页上下文：data.json 截至日 + 演示模式截止日（与后端 ScanDateResolver 一致）。
  */
 export async function fetchStrategyScanContext() {
-  const json = await requestJson(API_STRATEGY_SCAN_CONTEXT, { method: 'GET' });
+  const json = await request.getJson(API_STRATEGY_SCAN_CONTEXT);
   const m = json?.message || {};
   const dataEnd = m.data_end && typeof m.data_end === 'object' ? m.data_end : {};
   const cutoff = String(m.demo_scan_cutoff_date || '').trim();
@@ -121,7 +120,7 @@ export async function fetchStrategyScanContext() {
  */
 export async function fetchStrategyScanReadiness(strategyName, { demo = false } = {}) {
   const params = new URLSearchParams({ demo: demo ? '1' : '0' });
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'GET' });
+  const json = await request.getJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`);
   const m = json?.message || {};
   const report = m.report && typeof m.report === 'object' ? m.report : null;
   const blockReason = String(m.block_reason || m.blockReason || '').trim();
@@ -143,7 +142,7 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
 export async function startStrategyScan(strategyName, { demo = false, force = false } = {}) {
   const params = new URLSearchParams({ demo: demo ? '1' : '0' });
   if (force) params.set('force', '1');
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'POST' });
+  const json = await request.postJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`);
   const m = json?.message || {};
   return {
     strategy_name: m.strategy_name || strategyName,
@@ -159,7 +158,9 @@ export async function startStrategyScan(strategyName, { demo = false, force = fa
  */
 export async function fetchStrategyScanProgress(strategyName, jobId) {
   const params = new URLSearchParams({ job_id: String(jobId || '') });
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/scan/progress?${params.toString()}`, { method: 'GET' });
+  const json = await request.getJson(`${apiStrategyPath(strategyName)}/scan/progress?${params.toString()}`, {
+    timeoutMs: HTTP_TIMEOUT_MS.POLL,
+  });
   return json?.message || {};
 }
 
@@ -180,9 +181,8 @@ export function getStrategyDesignPath(strategyName, step = '') {
  * @returns {Promise<{ strategy_name: string, settings: object, workbench_version_id?: string, has_persisted_snapshot?: boolean, has_other_versions?: boolean }>}
  */
 export async function fetchStrategySettings(strategyKeyOrName) {
-  const json = await requestJson(
+  const json = await request.getJson(
     `${apiStrategyPath(strategyKeyOrName)}/version/latest`,
-    { method: 'GET' },
   );
   const m = json?.message || {};
   return {
@@ -214,12 +214,9 @@ export async function applyStrategySettingsToUserspace(strategyKeyOrName, _setti
   if (!versionId) {
     throw new Error('缺少工作台 version_id，无法发布（请先加载有效快照）');
   }
-  const json = await requestJson(
+  const json = await request.postJson(
     `${apiStrategyPath(strategyKeyOrName)}/settings/apply/${encodeURIComponent(versionId)}`,
-    {
-      method: 'POST',
-      body: JSON.stringify({}),
-    },
+    { body: {} },
   );
   return {
     strategy_name: json?.message?.strategy_name || strategyKeyOrName,
@@ -233,9 +230,8 @@ export async function applyStrategySettingsToUserspace(strategyKeyOrName, _setti
  * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string }> }>}
  */
 export async function fetchStrategyVersions(strategyKeyOrName) {
-  const json = await requestJson(
+  const json = await request.getJson(
     `${apiStrategyPath(strategyKeyOrName)}/versions`,
-    { method: 'GET' },
   );
   const items = json?.message?.items ?? [];
   return {
@@ -255,9 +251,8 @@ export async function fetchStrategyVersions(strategyKeyOrName) {
  * @returns {Promise<{ version_id: string, settings: object }>}
  */
 export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
-  const json = await requestJson(
+  const json = await request.getJson(
     `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}`,
-    { method: 'GET' },
   );
   const m = json?.message || {};
   return {
@@ -297,9 +292,9 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     settings: settings && typeof settings === 'object' ? settings : {},
     force_refresh: forceRefresh,
   };
-  const json = await requestJson(
+  const json = await request.postJson(
     `${apiStrategyPath(strategyName)}/${encodeURIComponent(targetStep)}/run`,
-    { method: 'POST', body: JSON.stringify(body) },
+    { body },
   );
   const m = json?.message || {};
   if (!m.is_triggered) {
@@ -338,7 +333,7 @@ export async function fetchStrategyStockDetail(strategyKeyOrName, step, versionI
     throw new Error('缺少 strategy_key_or_name、version_id 或 stock_id');
   }
   const url = `${base}/report/${encodeURIComponent(step)}/${vid}/stock/${code}`;
-  const json = await requestJson(url, { method: 'GET' });
+  const json = await request.getJson(url);
   return json?.message || {};
 }
 
@@ -349,19 +344,7 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
     throw new Error('缺少 strategy_key_or_name 或 version_id');
   }
   const url = `${base}/report/${encodeURIComponent(step)}/${vid}/ref`;
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-  });
-  let json = {};
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error('报告 ref 响应不是合法 JSON');
-  }
-  if (!response.ok || json?.status !== 'ok') {
-    const detail = String(json?.message || json?.error || '').trim();
-    throw new Error(detail || `读取报告 ref 失败（HTTP ${response.status}）`);
-  }
+  const json = await request.getJson(url);
   return json?.message || {};
 }
 
@@ -371,9 +354,9 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
  * @param {string} jobId
  */
 export async function fetchStrategyRunProgress(strategyName, jobId) {
-  const json = await requestJson(
+  const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { method: 'GET' },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
   );
   return json?.message || null;
 }
@@ -489,7 +472,7 @@ export async function fetchStrategyRunStatus(strategyName, jobId) {
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
  */
 export async function fetchCapitalAllocationModeConfig() {
-  const json = await requestJson(API_SETTINGS_PORTFOLIO, { method: 'GET' });
+  const json = await request.getJson(API_SETTINGS_PORTFOLIO);
   const items = json?.message?.items ?? [];
   return {
     options: items.map((row) => ({
@@ -506,7 +489,7 @@ export async function fetchCapitalAllocationModeConfig() {
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
  */
 export async function fetchSamplingStrategyConfig() {
-  const json = await requestJson(API_SETTINGS_SAMPLING, { method: 'GET' });
+  const json = await request.getJson(API_SETTINGS_SAMPLING);
   const items = json?.message?.items ?? [];
   return {
     options: items.map((row) => ({
@@ -523,7 +506,7 @@ export async function fetchSamplingStrategyConfig() {
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, object> }>}
  */
 export async function fetchSimulationTemplateConfig() {
-  const json = await requestJson(API_SETTINGS_SIMULATION, { method: 'GET' });
+  const json = await request.getJson(API_SETTINGS_SIMULATION);
   const items = json?.message?.items ?? [];
   const profiles = {};
   items.forEach((row) => {
@@ -547,7 +530,7 @@ export async function fetchSimulationTemplateConfig() {
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchSkipInvestmentWhenOptions() {
-  const json = await requestJson(API_SETTINGS_RISK_CONTROL, { method: 'GET' });
+  const json = await request.getJson(API_SETTINGS_RISK_CONTROL);
   const items = json?.message?.items ?? [];
   return items.map((row) => ({
     value: row.value,
@@ -561,7 +544,7 @@ export async function fetchSkipInvestmentWhenOptions() {
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchMarketProfileOptions() {
-  const json = await requestJson(API_SETTINGS_MARKET_RULES, { method: 'GET' });
+  const json = await request.getJson(API_SETTINGS_MARKET_RULES);
   const items = json?.message?.items ?? [];
   return items.map((row) => ({ value: row.value, label: row.label }));
 }
@@ -571,15 +554,6 @@ const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/pack
 const API_STRATEGY_PACKAGE_EXPORT = (strategyKeyOrName) =>
   `${apiStrategyPath(strategyKeyOrName)}/package/export`;
 
-async function readFetchErrorDetail(response) {
-  try {
-    const json = await response.json();
-    return json?.message?.detail || `HTTP ${response.status}`;
-  } catch {
-    return `HTTP ${response.status}`;
-  }
-}
-
 /**
  * 下载策略交流包（V2-13）：`GET /api/v1/strategy/:strategy_key_or_name/package/export`
  * @param {string} strategyKeyOrName ``settings.meta.key`` 或 path name
@@ -588,11 +562,9 @@ async function readFetchErrorDetail(response) {
 export async function downloadStrategyPackage(strategyKeyOrName, { scope = 'bundle' } = {}) {
   const params = new URLSearchParams({ scope });
   const url = `${API_STRATEGY_PACKAGE_EXPORT(strategyKeyOrName)}?${params.toString()}`;
-  const response = await fetch(url, { method: 'GET' });
-  if (!response.ok) {
-    throw new Error(await readFetchErrorDetail(response));
-  }
-  const blob = await response.blob();
+  const { blob, response } = await request.getBlob(url, {
+    timeoutMs: HTTP_TIMEOUT_MS.LONG,
+  });
   let filename = `${strategyKeyOrName}-strategy.zip`;
   const cd = response.headers.get('Content-Disposition') || '';
   const match = /filename\*?=(?:UTF-8''|utf-8'')?["']?([^"';]+)/i.exec(cd);
@@ -620,14 +592,11 @@ export async function previewStrategyPackageImport(file, { policy = 'reject' } =
   const fd = new FormData();
   fd.append('file', file);
   const params = new URLSearchParams({ policy });
-  const response = await fetch(`${API_STRATEGY_PACKAGE_IMPORT_PREVIEW}?${params.toString()}`, {
-    method: 'POST',
+  const url = `${API_STRATEGY_PACKAGE_IMPORT_PREVIEW}?${params.toString()}`;
+  const json = await request.postForm(url, {
     body: fd,
+    timeoutMs: HTTP_TIMEOUT_MS.LONG,
   });
-  const json = await response.json();
-  if (!response.ok || json?.status !== 'ok') {
-    throw new Error(json?.message?.detail || `HTTP ${response.status}`);
-  }
   return json.message;
 }
 
@@ -640,19 +609,10 @@ export async function importStrategyPackage(file, { policy = 'reject' } = {}) {
   const fd = new FormData();
   fd.append('file', file);
   const params = new URLSearchParams({ policy });
-  const response = await fetch(`${API_STRATEGY_PACKAGE_IMPORT}?${params.toString()}`, {
-    method: 'POST',
+  const url = `${API_STRATEGY_PACKAGE_IMPORT}?${params.toString()}`;
+  const json = await request.postForm(url, {
     body: fd,
+    timeoutMs: HTTP_TIMEOUT_MS.LONG,
   });
-  const json = await response.json();
-  if (response.status === 409) {
-    const err = new Error(json?.message?.detail || '导入冲突');
-    err.code = 'package_conflict';
-    err.preview = json?.message?.preview;
-    throw err;
-  }
-  if (!response.ok || json?.status !== 'ok') {
-    throw new Error(json?.message?.detail || `HTTP ${response.status}`);
-  }
   return json.message;
 }

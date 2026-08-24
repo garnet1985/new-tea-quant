@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getSetupStatus } from '../api/apis/setupApi';
+import { getSetupStatus } from '../api/setupApi';
 import PageLoadingState from './pageLoadingState/pageLoadingState';
 
 function SetupGuard({ children }) {

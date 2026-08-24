@@ -31,7 +31,7 @@ import {
   getStrategyDesignPath,
   groupStrategiesByCategory,
   startStrategyScan,
-} from '../../api/apis/strategyApi';
+} from '../../api/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';

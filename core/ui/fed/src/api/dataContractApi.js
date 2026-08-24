@@ -1,5 +1,4 @@
-import { requestJson } from '../global/httpClient';
-import { API_VERSION_PREFIX } from '../conf/apiConfig';
+import request, { API_VERSION_PREFIX } from 'services/request';
 
 const API_DATA_CONTRACTS_LIST = `${API_VERSION_PREFIX}/data-contracts/list`;
 
@@ -22,7 +21,7 @@ export async function fetchDataContractList({ page = 1, limit = 200 } = {}) {
     page: String(page),
     limit: String(limit),
   });
-  const json = await requestJson(`${API_DATA_CONTRACTS_LIST}?${params.toString()}`, { method: 'GET' });
+  const json = await request.getJson(`${API_DATA_CONTRACTS_LIST}?${params.toString()}`);
   const m = json?.message || {};
   const items = Array.isArray(m.items) ? m.items : [];
   return {

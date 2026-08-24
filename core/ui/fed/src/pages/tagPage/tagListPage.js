@@ -23,7 +23,7 @@ import {
   getTagUpdateModeIcon,
   getTagUpdateModeLabel,
   startTagRun,
-} from '../../api/apis/tagApi';
+} from '../../api/tagApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import NtqHelpTooltip from '../../components/ntqHelpTooltip/ntqHelpTooltip';

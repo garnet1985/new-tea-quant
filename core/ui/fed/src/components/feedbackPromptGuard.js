@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { feedbackPromptAction, submitFeedback } from '../api/apis/feedbackApi';
+import { feedbackPromptAction, submitFeedback } from '../api/feedbackApi';
 import FeedbackPromptOverlay from './feedbackPromptOverlay';
 import { subscribeFeedbackPrompt } from '../utils/feedbackPromptBus';
 

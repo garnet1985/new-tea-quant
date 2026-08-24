@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchStrategyStepReportRef } from '../../../../../api/apis/strategyApi';
+import { fetchStrategyStepReportRef } from '../../../../../api/strategyApi';
 import { STEP_TABS } from '../constants/strategyReportConstants';
 import {
   ENUM_REF_DEFAULT_SORT,
@@ -53,8 +53,10 @@ export function useStrategyReportRemoteData({
   const versionIdForReport = String(reportVersionId || '').trim();
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
   const [enumRefRows, setEnumRefRows] = useState([]);
+  const [enumRefError, setEnumRefError] = useState('');
   const [priceRefStatus, setPriceRefStatus] = useState('idle');
   const [priceRefRows, setPriceRefRows] = useState([]);
+  const [priceRefError, setPriceRefError] = useState('');
 
   const availableTabs = useMemo(() => {
     const stepStatus = executionState?.stepStatus || {};
@@ -92,9 +94,11 @@ export function useStrategyReportRemoteData({
     if (!strategyName || !versionIdForReport || resolvedActiveTab !== 'enum') {
       setEnumRefStatus('idle');
       setEnumRefRows([]);
+      setEnumRefError('');
       return undefined;
     }
     setEnumRefStatus('loading');
+    setEnumRefError('');
     fetchStrategyStepReportRef(strategyName, 'enum', versionIdForReport)
       .then((msg) => {
         if (cancelled) return;
@@ -113,10 +117,11 @@ export function useStrategyReportRemoteData({
         setEnumRefRows([]);
         setEnumRefStatus('missing');
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
         setEnumRefRows([]);
         setEnumRefStatus('error');
+        setEnumRefError(err?.message || '加载枚举报告失败');
       });
     return () => {
       cancelled = true;
@@ -128,9 +133,11 @@ export function useStrategyReportRemoteData({
     if (!strategyName || !versionIdForReport || resolvedActiveTab !== 'price') {
       setPriceRefStatus('idle');
       setPriceRefRows([]);
+      setPriceRefError('');
       return undefined;
     }
     setPriceRefStatus('loading');
+    setPriceRefError('');
     fetchStrategyStepReportRef(strategyName, 'price', versionIdForReport)
       .then((msg) => {
         if (cancelled) return;
@@ -149,10 +156,11 @@ export function useStrategyReportRemoteData({
         setPriceRefRows([]);
         setPriceRefStatus('missing');
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
         setPriceRefRows([]);
         setPriceRefStatus('error');
+        setPriceRefError(err?.message || '加载价格回测报告失败');
       });
     return () => {
       cancelled = true;
@@ -162,8 +170,10 @@ export function useStrategyReportRemoteData({
   return {
     enumRefStatus,
     enumRefRows,
+    enumRefError,
     priceRefStatus,
     priceRefRows,
+    priceRefError,
     availableTabs,
     resolvedActiveTab,
   };

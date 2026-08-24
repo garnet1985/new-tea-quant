@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchAppHealth } from '../api/apis/healthApi';
+import { fetchAppHealth } from '../api/healthApi';
 
 /** 展示用：``0.3.0`` → ``v0.3.0`` */
 export function formatAppVersionLabel(version) {

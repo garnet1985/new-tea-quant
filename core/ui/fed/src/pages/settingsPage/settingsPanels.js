@@ -24,8 +24,8 @@ import {
 } from '@mui/material';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/apis/settingsApi';
-import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/apis/feedbackApi';
+import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
+import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 
 export function SettingsSystemPanel() {
   return (

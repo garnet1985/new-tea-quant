@@ -22,7 +22,7 @@ import {
   getDataSourceRenewTypeIcon,
   getDataSourceRenewTypeLabel,
   getDataSourceUpdateStatusLabel,
-} from '../../api/apis/dataSourceApi';
+} from '../../api/dataSourceApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';

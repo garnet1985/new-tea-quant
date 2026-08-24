@@ -182,10 +182,10 @@ class WorkbenchReports:
 
             raw = EntityListReport.load(output_dir).to_ui_dict()
             return cls._filter_price_stock_ref(output_dir, raw)
-        except Exception:
-            logger.debug(
-                "failed to load entity_list from %s", output_dir, exc_info=True
-            )
+        except Exception as exc:
+            from core.bff.shared.client_log import log_degraded
+
+            log_degraded("report.step.entityList", exc, f"{step}:{output_dir}")
             return None
 
     @classmethod
@@ -240,7 +240,10 @@ class WorkbenchReports:
             ph = ",".join(["%s"] * len(chunk))
             try:
                 rows = model.load(f"id IN ({ph})", tuple(chunk))
-            except Exception:
+            except Exception as exc:
+                from core.bff.shared.client_log import log_degraded
+
+                log_degraded("report.step.stockDisplayNames", exc, f"chunk={len(chunk)}")
                 continue
             for r in rows or []:
                 rec = dict(r or {})

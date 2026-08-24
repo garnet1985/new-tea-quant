@@ -48,6 +48,7 @@ function DataSourceListPage() {
   const [loading, setLoading] = useState(true);
   const [freshnessLoading, setFreshnessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [freshnessError, setFreshnessError] = useState('');
   const [updateNotice, setUpdateNotice] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
@@ -65,6 +66,7 @@ function DataSourceListPage() {
 
   const loadFreshness = useCallback((sourceNames) => {
     setFreshnessLoading(true);
+    setFreshnessError('');
     fetchDataSourceFreshness(
       Array.isArray(sourceNames) && sourceNames.length > 0 ? { names: sourceNames } : {},
     )
@@ -80,11 +82,10 @@ function DataSourceListPage() {
         }
       })
       .catch(() => {
+        setFreshnessError('无法读取数据新鲜度，状态显示可能不准确。');
         setRows((prev) => prev.map((row) => ({
           ...row,
           freshness_pending: false,
-          update_status: 'needs_update',
-          update_status_label: '—',
         })));
       })
       .finally(() => setFreshnessLoading(false));
@@ -262,6 +263,15 @@ function DataSourceListPage() {
       bannerDescription="查看已配置的数据源、Provider 认证与更新策略；Token 未配置时更新按钮不可用。"
     >
       {loadError ? <Alert severity="error" className="data-source-list-alert">{loadError}</Alert> : null}
+      {freshnessError ? (
+        <Alert
+          severity="warning"
+          className="data-source-list-alert"
+          onClose={() => setFreshnessError('')}
+        >
+          {freshnessError}
+        </Alert>
+      ) : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="data-source-list-alert" />
       {updateNotice ? (
         <Alert

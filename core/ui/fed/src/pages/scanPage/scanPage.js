@@ -61,6 +61,7 @@ function ScanPage() {
   const [loading, setLoading] = useState(true);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [readinessError, setReadinessError] = useState('');
 
   const [runningStrategyId, setRunningStrategyId] = useState('');
   const [runningJobId, setRunningJobId] = useState('');
@@ -139,6 +140,7 @@ function ScanPage() {
     const reqId = readinessReqRef.current + 1;
     readinessReqRef.current = reqId;
     if (!silent) setReadinessLoading(true);
+    setReadinessError('');
 
     if (list.length === 0) {
       if (readinessReqRef.current !== reqId) return;
@@ -171,6 +173,7 @@ function ScanPage() {
         setScanPrimaryById(next);
         setScanGateById(gates);
         setStrictBlockReason(sharedBlock);
+        setReadinessError('');
         if (sharedBlock) setRunError('');
         setResults((prev) => {
           const o = { ...(prev || {}) };
@@ -194,6 +197,7 @@ function ScanPage() {
         setScanPrimaryById({});
         setScanGateById({});
         setStrictBlockReason('');
+        setReadinessError('无法读取扫描就绪状态，部分操作可能不可用。');
       })
       .finally(() => {
         if (readinessReqRef.current !== reqId) return;
@@ -531,6 +535,11 @@ function ScanPage() {
           </Stack>
 
           {loadError ? <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert> : null}
+          {readinessError ? (
+            <Alert severity="warning" sx={{ mb: 1.5 }} onClose={() => setReadinessError('')}>
+              {readinessError}
+            </Alert>
+          ) : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
           {!gridLoading && mode === 'strict' && strictBlockReason ? (
             <Alert severity="warning" sx={{ mb: 1.5 }}>

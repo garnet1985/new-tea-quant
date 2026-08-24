@@ -5,7 +5,7 @@ from pathlib import Path
 from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
 
-from core.bff.shared.response import ok, passthrough
+from core.bff.shared.response import ok, from_payload
 
 
 class SetupService:
@@ -47,22 +47,22 @@ class SetupService:
         return ok(self._setup_runtime.get_status())
 
     def start_setup(self):
-        return passthrough(self._setup_runtime.start())
+        return from_payload(self._setup_runtime.start())
 
     def submit_setup_step(self, step_id: str, inputs: dict):
-        return passthrough(self._setup_runtime.submit(step_id, inputs or {}))
+        return from_payload(self._setup_runtime.submit(step_id, inputs or {}))
 
     def retry_setup(self):
-        return passthrough(self._setup_runtime.retry())
+        return from_payload(self._setup_runtime.retry())
 
     def reset_setup(self):
-        return passthrough(self._setup_runtime.reset())
+        return from_payload(self._setup_runtime.reset())
 
     def precheck_db_connection(self, inputs: dict):
-        return passthrough(self._setup_runtime.precheck_db_connection(inputs or {}))
+        return from_payload(self._setup_runtime.precheck_db_connection(inputs or {}))
 
     def precheck_userspace_path(self, inputs: dict):
-        return passthrough(self._setup_runtime.precheck_userspace_path(inputs or {}))
+        return from_payload(self._setup_runtime.precheck_userspace_path(inputs or {}))
 
     def get_import_data_progress(self):
-        return passthrough(self._setup_runtime.get_import_data_progress())
+        return from_payload(self._setup_runtime.get_import_data_progress())

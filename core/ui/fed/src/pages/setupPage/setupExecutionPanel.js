@@ -13,6 +13,7 @@ function SetupExecutionPanel({
   progressText,
   runningStep,
   importProgress,
+  pollWarning,
   rows,
   executingColumns,
 }) {
@@ -27,6 +28,11 @@ function SetupExecutionPanel({
         <Typography color="text.secondary" sx={{ mb: 2 }}>
           {progressText}
         </Typography>
+        {pollWarning ? (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            {pollWarning}
+          </Alert>
+        ) : null}
         {runningStep === 'import_data' && importProgress.totalTables > 0 ? (
           <Alert severity="info" sx={{ mb: 2 }}>
             导入进度：{importProgress.completedCount}/{importProgress.totalTables}

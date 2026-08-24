@@ -25,6 +25,7 @@ import {
   emptyWorkbenchSnapshot,
 } from '../../strategyWorkbenchPage/workbenchSnapshot';
 import { DESIGN_RESTORE_MORE_MENU_VALUE, VERSION_PICKER_PAGE_SIZE } from '../constants/strategyDesignMetaConstants';
+import logClientError from '../../../utils/logClientError';
 import {
   buildWorkbenchSnapshotFromVersionDetail,
   workbenchPageStateFromVersionDetail,
@@ -123,6 +124,7 @@ export function useStrategyDesignWorkbench() {
   const [selectedConfigVersion, setSelectedConfigVersion] = useState('');
   const [appliedVersionId, setAppliedVersionId] = useState('');
   const [marketProfileOptions, setMarketProfileOptions] = useState([]);
+  const [marketProfileOptionsError, setMarketProfileOptionsError] = useState('');
 
   const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -150,10 +152,17 @@ export function useStrategyDesignWorkbench() {
     let cancelled = false;
     fetchMarketProfileOptions()
       .then((rows) => {
-        if (!cancelled) setMarketProfileOptions(Array.isArray(rows) ? rows : []);
+        if (!cancelled) {
+          setMarketProfileOptions(Array.isArray(rows) ? rows : []);
+          setMarketProfileOptionsError('');
+        }
       })
-      .catch(() => {
-        if (!cancelled) setMarketProfileOptions([]);
+      .catch((err) => {
+        if (!cancelled) {
+          setMarketProfileOptions([]);
+          setMarketProfileOptionsError(err?.message || '市场配置选项加载失败');
+          logClientError('design.marketProfileOptions', err);
+        }
       });
     return () => {
       cancelled = true;
@@ -310,8 +319,9 @@ export function useStrategyDesignWorkbench() {
             lastCompletedWorkbenchVersionId: wbVer,
           },
         });
-      } catch {
-        /* 保留上一轮快照 */
+      } catch (error) {
+        logClientError('design.workbenchSnapshotSync', error);
+        setSaveError('工作台数据同步失败，请刷新页面或重新选择版本。');
       }
     })();
 
@@ -567,6 +577,7 @@ export function useStrategyDesignWorkbench() {
     strategyDescription,
     strategyEntryConditions,
     marketProfileLabel,
+    marketProfileOptionsError,
     isEnabled: Boolean(draftSettings?.is_enabled ?? initialSettings?.is_enabled),
     currentVersionDisplay,
     isAppliedSettings,

@@ -1,4 +1,5 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import logClientError from '../utils/logClientError';
 
 const API_BASE = `${API_VERSION_PREFIX}/setup`;
 const STEP_STATUS_SUCCESS = 'success';
@@ -55,17 +56,25 @@ function runningStepId(snapshot) {
 async function executePipelineRequest(makeRequest, onProgress, preferredStepId = '') {
   let timerId = null;
   let stopped = false;
+  let pollFailCount = 0;
 
   const emitRunning = async () => {
     if (!onProgress || stopped) return;
     try {
       const snapshot = await getSetupStatus();
+      pollFailCount = 0;
       const stepId = runningStepId(snapshot) || preferredStepId || firstPendingStepId(snapshot);
       if (stepId) {
         onProgress({ stepId, status: 'running', snapshot });
       }
-    } catch (_error) {
-      // poll 失败由 request silent 兜底，不阻断主流程
+    } catch (error) {
+      logClientError('setup.pipelinePoll', error);
+      pollFailCount += 1;
+      if (pollFailCount >= 3) {
+        onProgress({
+          pollWarning: '步骤进度暂时无法更新，安装可能仍在进行…',
+        });
+      }
     }
   };
 

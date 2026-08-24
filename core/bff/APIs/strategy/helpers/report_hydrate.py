@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.bff.shared.client_log import log_degraded
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,8 @@ def enum_opportunity_count_from_slot(slot: Optional[Dict[str, Any]]) -> Optional
             try:
                 return int(slot[key])
             except (TypeError, ValueError):
-                pass
+                # 当前字段不可解析时继续尝试下一个候选键
+                continue
     em = slot.get("enumMetrics")
     if isinstance(em, dict) and em.get("totalOpportunities") is not None:
         try:
@@ -160,8 +162,8 @@ def _load_overall_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:
                 OverallReport,
             )
         return OverallReport.load(output_dir).to_ui_dict()
-    except Exception:
-        logger.debug("failed to load overall_report from %s", output_dir, exc_info=True)
+    except Exception as exc:
+        log_degraded("report.hydrate.overallReport", exc, f"{step}:{output_dir}")
         return None
 
 

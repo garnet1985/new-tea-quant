@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.modules.data_manager import DataManager
 from core.modules.tag.core.services.discovery import DiscoveryService
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
+from core.bff.shared.client_log import log_degraded
 
 
 class TagCatalog:
@@ -38,7 +39,8 @@ class TagCatalog:
             effective_end = str(data_end.get("effective_end_date") or "").strip()
             if data_end.get("is_end_date_truncated"):
                 truncation_hint = str(data_end.get("truncation_hint") or "").strip()
-        except Exception:
+        except Exception as exc:
+            log_degraded("tag.catalog.dataManagerInit", exc)
             tag_svc = None
 
         if total == 0:
@@ -172,7 +174,8 @@ class TagCatalog:
             return None
         try:
             progress = tag_svc.get_entity_calc_progress(tag_key) or {}
-        except Exception:
+        except Exception as exc:
+            log_degraded("tag.catalog.calcProgress", exc, tag_key)
             progress = {}
         ends = [str(v).strip() for v in progress.values() if str(v or "").strip()]
         if ends:
@@ -186,14 +189,16 @@ class TagCatalog:
             return None
         try:
             defs = tag_svc.get_tag_definitions(int(scenario["id"]))
-        except Exception:
+        except Exception as exc:
+            log_degraded("tag.catalog.tagDefinitions", exc, tag_key)
             return None
         def_ids = [int(d["id"]) for d in defs if d.get("id") is not None]
         if not def_ids:
             return None
         try:
             return tag_svc.get_max_as_of_date(def_ids)
-        except Exception:
+        except Exception as exc:
+            log_degraded("tag.catalog.maxAsOf", exc, tag_key)
             return None
 
     @classmethod

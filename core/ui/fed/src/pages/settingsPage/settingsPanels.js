@@ -26,6 +26,7 @@ import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadin
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 export function SettingsSystemPanel() {
   return (
@@ -404,13 +405,15 @@ function formatTraceDecidedAt(raw) {
 
 export function SettingsTracePanel() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [saveError, setSaveError] = useState('');
   const [saveOk, setSaveOk] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [decided, setDecided] = useState(false);
   const [decidedAt, setDecidedAt] = useState('');
+
+  const saveAction = useAsyncAction(
+    useCallback((nextEnabled) => saveTraceSettings({ enabled: Boolean(nextEnabled) }), []),
+  );
 
   const applyState = useCallback((r) => {
     setEnabled(Boolean(r.enabled));
@@ -433,19 +436,16 @@ export function SettingsTracePanel() {
     load();
   }, [load]);
 
-  const handleToggle = (_event, next) => {
-    setSaveError('');
+  const handleToggle = async (_event, next) => {
     setSaveOk('');
-    setSaving(true);
-    saveTraceSettings({ enabled: Boolean(next) })
-      .then((r) => {
-        applyState(r);
-        setSaveOk(next ? '已开启匿名使用统计。' : '已关闭匿名使用统计。本地排队事件已清空。');
-      })
-      .catch((e) => {
-        setSaveError(e?.message || '保存失败');
-      })
-      .finally(() => setSaving(false));
+    saveAction.clearError();
+    try {
+      const r = await saveAction.run(Boolean(next));
+      applyState(r);
+      setSaveOk(next ? '已开启匿名使用统计。' : '已关闭匿名使用统计。本地排队事件已清空。');
+    } catch {
+      /* saveAction.error */
+    }
   };
 
   return (
@@ -464,7 +464,7 @@ export function SettingsTracePanel() {
       </Typography>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
@@ -487,7 +487,7 @@ export function SettingsTracePanel() {
               <Switch
                 checked={enabled}
                 onChange={handleToggle}
-                disabled={saving}
+                disabled={saveAction.busy}
                 inputProps={{ 'aria-label': '开启匿名使用统计' }}
               />
             )}
@@ -500,7 +500,7 @@ export function SettingsTracePanel() {
             </Typography>
           ) : null}
           <Box>
-            <Button variant="outlined" onClick={load} disabled={saving || loading}>
+            <Button variant="outlined" onClick={load} disabled={saveAction.busy || loading}>
               重新读取
             </Button>
           </Box>
@@ -512,12 +512,14 @@ export function SettingsTracePanel() {
 
 export function SettingsFeedbackPanel() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [saveError, setSaveError] = useState('');
   const [saveOk, setSaveOk] = useState('');
   const [promptsDisabled, setPromptsDisabled] = useState(false);
   const [contactUrl, setContactUrl] = useState('https://new-tea.cn/zh-hans/contact?from=ntq_app');
+
+  const saveAction = useAsyncAction(
+    useCallback((nextDisabled) => saveFeedbackSettings({ prompts_disabled: Boolean(nextDisabled) }), []),
+  );
 
   const applyState = useCallback((r) => {
     setPromptsDisabled(Boolean(r.prompts_disabled));
@@ -539,21 +541,18 @@ export function SettingsFeedbackPanel() {
     load();
   }, [load]);
 
-  const handleToggle = (_event, nextEnabled) => {
+  const handleToggle = async (_event, nextEnabled) => {
     // Switch ON = prompts enabled = prompts_disabled false
     const nextDisabled = !nextEnabled;
-    setSaveError('');
     setSaveOk('');
-    setSaving(true);
-    saveFeedbackSettings({ prompts_disabled: nextDisabled })
-      .then((r) => {
-        applyState(r);
-        setSaveOk(nextDisabled ? '已关闭应用内反馈询问。' : '已开启应用内反馈询问。');
-      })
-      .catch((e) => {
-        setSaveError(e?.message || '保存失败');
-      })
-      .finally(() => setSaving(false));
+    saveAction.clearError();
+    try {
+      const r = await saveAction.run(nextDisabled);
+      applyState(r);
+      setSaveOk(nextDisabled ? '已关闭应用内反馈询问。' : '已开启应用内反馈询问。');
+    } catch {
+      /* saveAction.error */
+    }
   };
 
   return (
@@ -567,7 +566,7 @@ export function SettingsFeedbackPanel() {
       </Typography>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
@@ -585,7 +584,7 @@ export function SettingsFeedbackPanel() {
               <Switch
                 checked={!promptsDisabled}
                 onChange={handleToggle}
-                disabled={saving}
+                disabled={saveAction.busy}
                 inputProps={{ 'aria-label': '开启应用内反馈询问' }}
               />
             )}
@@ -603,7 +602,7 @@ export function SettingsFeedbackPanel() {
             </Button>
           </Box>
           <Box>
-            <Button variant="text" onClick={load} disabled={saving || loading}>
+            <Button variant="text" onClick={load} disabled={saveAction.busy || loading}>
               重新读取
             </Button>
           </Box>

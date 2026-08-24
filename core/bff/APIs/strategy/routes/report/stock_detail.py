@@ -528,16 +528,20 @@ class WorkbenchStockDetail:
                     nm = str(payload.get("stock_name") or "").strip()
                     if nm and nm != stock_id:
                         return nm
-            except Exception:
-                pass
+            except Exception as exc:
+                from core.bff.shared.client_log import log_degraded
+
+                log_degraded("report.stockDetail.displayName.entityList", exc, stock_id)
         try:
             rec = DataManager().service.stock.list.load_single(stock_id)
             if isinstance(rec, dict):
                 nm = str(rec.get("name") or "").strip()
                 if nm:
                     return nm
-        except Exception:
-            pass
+        except Exception as exc:
+            from core.bff.shared.client_log import log_degraded
+
+            log_degraded("report.stockDetail.displayName.stockList", exc, stock_id)
         return stock_id
 
     @staticmethod
@@ -662,9 +666,11 @@ class WorkbenchStockDetail:
         length = params.get("length")
         if length is not None:
             try:
-                return f"{name}{int(length)}"
+                length_int = int(length)
             except (TypeError, ValueError):
-                pass
+                length_int = None
+            if length_int is not None:
+                return f"{name}{length_int}"
         parts = [name]
         for key in sorted(params.keys()):
             value = params[key]

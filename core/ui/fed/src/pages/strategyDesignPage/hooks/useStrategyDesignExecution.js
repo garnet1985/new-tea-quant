@@ -14,6 +14,7 @@ import {
   persistDesignActiveRun,
 } from '../lib/strategyDesignActiveRunPersistence';
 import { notifyTaskSuccess } from '../../../utils/feedbackPromptBus';
+import logClientError from '../../../utils/logClientError';
 
 const RUN_STEPS = new Set(['enum', 'price', 'portfolio']);
 
@@ -186,8 +187,12 @@ export function useStrategyDesignExecution({
           return;
         }
         clearDesignActiveRun(strategyName);
-      } catch {
-        if (!cancelled) clearDesignActiveRun(strategyName);
+      } catch (error) {
+        logClientError('design.restoreActiveRun', error);
+        if (!cancelled) {
+          clearDesignActiveRun(strategyName);
+          setRunError('无法恢复上次执行状态，请重新运行当前步骤。');
+        }
       }
     })();
 

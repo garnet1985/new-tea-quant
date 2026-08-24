@@ -146,6 +146,9 @@ function StrategyDesignMetaBar() {
           {wb.settingsError ? (
             <Typography variant="caption" color="error">{wb.settingsError}</Typography>
           ) : null}
+          {wb.marketProfileOptionsError ? (
+            <Typography variant="caption" color="warning.main">{wb.marketProfileOptionsError}</Typography>
+          ) : null}
           {wb.saveError ? (
             <Typography variant="caption" color="error">{wb.saveError}</Typography>
           ) : null}

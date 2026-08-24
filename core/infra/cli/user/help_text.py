@@ -10,6 +10,7 @@ CLI_COMMAND_REFERENCE = """
   python cli.py se                      枚举          同 strategy_enumerate [--strategy NAME]
   python cli.py sp                      价格因子模拟  同 strategy_price_factor [--strategy NAME]
   python cli.py so                      组合模拟      同 strategy_portfolio [--strategy NAME]
+  python cli.py sa                      归因 input    同 strategy_analyze [--strategy NAME] [--step enum|price|portfolio] [--version ID]
   python cli.py s                       完整模拟链路  同 strategy_simulate
 
   python cli.py r [SOURCE]              更新数据      同 renew [SOURCE]

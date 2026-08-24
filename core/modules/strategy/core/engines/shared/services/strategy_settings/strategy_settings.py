@@ -25,6 +25,7 @@ from .fees_settings import FeesSettings
 from .simulation_settings import BacktestPeriod, SimulationSettings
 from .portfolio_settings import PortfolioSettings
 from .scanner_settings import ScannerSettings
+from .analysis_settings import AnalysisSettings
 from .validation_report import ValidationReport
 from core.infra.utils import Utils
 
@@ -55,6 +56,7 @@ class StrategySettings:
             "is_enabled",
             "scanner",
             "enumerator",
+            "analysis",
         }
     )
 
@@ -75,6 +77,7 @@ class StrategySettings:
             self, "portfolio", PortfolioSettings(raw_settings=self.raw_settings)
         )
         object.__setattr__(self, "scanner", ScannerSettings(raw_settings=self.raw_settings))
+        object.__setattr__(self, "analysis", AnalysisSettings(raw_settings=self.raw_settings))
 
     @classmethod
     def from_dict(cls, settings: Dict[str, Any]) -> "StrategySettings":
@@ -211,6 +214,7 @@ class StrategySettings:
         self.simulation.apply_defaults()
         self.portfolio.apply_defaults()
         self.scanner.apply_defaults()
+        self.analysis.apply_defaults()
 
     def validate(self) -> ValidationReport:
         report = ValidationReport(is_valid=True)
@@ -235,6 +239,7 @@ class StrategySettings:
             self.simulation,
             self.portfolio,
             self.scanner,
+            self.analysis,
         ):
             sub_report = sub.validate()
             report.errors.extend(sub_report.errors)
@@ -270,6 +275,8 @@ class StrategySettings:
             out["portfolio"] = self.portfolio.to_dict()
         if self.scanner.scanner:
             out["scanner"] = self.scanner.to_dict()
+        if self.analysis.enabled or "analysis" in self.raw_settings:
+            out["analysis"] = self.analysis.to_dict()
         return out
 
 

@@ -379,6 +379,67 @@ class Strategy:
         return PriceFactorStore.at(version_dir).file("overall_report")
 
     @staticmethod
+    def analyze(
+        key_or_id: str,
+        *,
+        step: Union[str, SimulateKind] = "enum",
+        version_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """收集归因 input + report，写入 ``simulations/<step>/<vid>/analysis/``。"""
+        from .engines.analyzer import AnalyzerPipeline
+        from .engines.analyzer.step import parse_step, step_to_simulate_kind
+        from .services.artifacts import ArtifactStore
+        from .services.discovery import DiscoveryService
+
+        folder = DiscoveryService.resolve_strategy_folder(key_or_id)
+        workbench_step = parse_step(step)
+        simulate_kind = step_to_simulate_kind(workbench_step)
+        vid = str(version_id or "").strip()
+        if vid:
+            store = ArtifactStore.resolve(
+                folder, kind=simulate_kind, version_id=vid
+            )
+        else:
+            store = ArtifactStore.latest(folder, kind=simulate_kind)
+            if store is None:
+                raise FileNotFoundError(
+                    f"未找到策略 {key_or_id!r} 的 {workbench_step.value} 仿真产物"
+                )
+        store = ArtifactStore.open(
+            store.output_dir,
+            kind=simulate_kind,
+            version_id=store.version_id,
+        )
+        return AnalyzerPipeline.run(store)
+
+    @staticmethod
+    def maybe_analyze_after_simulate(
+        key_or_id: str,
+        *,
+        step: str,
+        simulate_result: Dict[str, Any],
+        runtime_settings: Optional[Dict[str, Any]] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """回测成功后按 ``settings.analysis.enabled`` 自动收集归因产物。"""
+        from .engines.analyzer.auto_run import (
+            effective_settings_for_strategy,
+            maybe_run_after_simulate,
+        )
+
+        effective = effective_settings_for_strategy(
+            key_or_id,
+            runtime_settings,
+        )
+        return maybe_run_after_simulate(
+            key_or_id,
+            step=step,
+            simulate_result=simulate_result,
+            effective_settings=effective,
+            force=force,
+        )
+
+    @staticmethod
     def present_report(
         kind: Union[SimulateKind, str],
         output_dir: Union[str, Path],

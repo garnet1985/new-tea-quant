@@ -239,6 +239,32 @@ class UserHandlers:
         return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
 
     @staticmethod
+    def _maybe_auto_analyze(
+        strategy_key: str,
+        step: str,
+        simulate_result: dict,
+        *,
+        runtime_settings: Optional[dict] = None,
+        force: bool = False,
+    ) -> None:
+        from core.modules.strategy import Strategy
+
+        out = Strategy.maybe_analyze_after_simulate(
+            strategy_key,
+            step=step,
+            simulate_result=simulate_result,
+            runtime_settings=runtime_settings,
+            force=force,
+        )
+        if out.get("skipped"):
+            reason = str(out.get("reason") or "")
+            if reason == "disabled":
+                return
+            print(f"  归因: skip ({reason})", flush=True)
+            return
+        print(f"  归因: report={out.get('report_path')}", flush=True)
+
+    @staticmethod
     def _run_strategy_enumerate(args: argparse.Namespace) -> None:
         import time
 
@@ -306,6 +332,14 @@ class UserHandlers:
                 print(f"  failed: {failed[0].get('error')}")
             raise SystemExit(1)
 
+        UserHandlers._maybe_auto_analyze(
+            strategy_key,
+            "enum",
+            result,
+            runtime_settings=runtime_settings or None,
+            force=force,
+        )
+
     @staticmethod
     def _run_strategy_price_factor(args: argparse.Namespace) -> None:
         import time
@@ -358,6 +392,13 @@ class UserHandlers:
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
 
+        UserHandlers._maybe_auto_analyze(
+            strategy_key,
+            "price",
+            result,
+            force=force,
+        )
+
     @staticmethod
     def _run_strategy_portfolio(args: argparse.Namespace) -> None:
         import time
@@ -409,6 +450,13 @@ class UserHandlers:
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
+
+        UserHandlers._maybe_auto_analyze(
+            strategy_key,
+            "portfolio",
+            result,
+            force=force,
+        )
 
     @staticmethod
     def _run_strategy_scan(args: argparse.Namespace) -> None:
@@ -510,6 +558,48 @@ class UserHandlers:
         if not (po.get("success", True) if isinstance(po, dict) else True):
             raise SystemExit(1)
 
+        UserHandlers._maybe_auto_analyze(
+            strategy_key,
+            "price",
+            pf_result,
+            force=force,
+        )
+        UserHandlers._maybe_auto_analyze(
+            strategy_key,
+            "portfolio",
+            po_result,
+            force=force,
+        )
+
+    @staticmethod
+    def _run_strategy_analyze(args: argparse.Namespace) -> None:
+        from core.modules.strategy import Strategy
+
+        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
+        step = str(getattr(args, "step", None) or "enum").strip().lower()
+        version_id = getattr(args, "version", None)
+
+        print("收集归因 input…", flush=True)
+        print(f"  策略: {strategy_key}", flush=True)
+        print(f"  step: {step}", flush=True)
+        if version_id:
+            print(f"  version: {version_id}", flush=True)
+
+        result = Strategy.analyze(
+            strategy_key,
+            step=step,
+            version_id=str(version_id).strip() if version_id else None,
+        )
+        print(f"  success: {result.get('success')}", flush=True)
+        print(f"  source: {result.get('source_path')}", flush=True)
+        print(f"  report: {result.get('report_path')}", flush=True)
+        print(
+            f"  entities: {result.get('entity_count')}  investments: {result.get('investment_count')}",
+            flush=True,
+        )
+        if not result.get("success"):
+            raise SystemExit(1)
+
     @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         if cmd == "strategy_enumerate":
@@ -530,6 +620,10 @@ class UserHandlers:
 
         if cmd == "strategy_simulate":
             UserHandlers._run_strategy_simulate(args)
+            return
+
+        if cmd == "strategy_analyze":
+            UserHandlers._run_strategy_analyze(args)
             return
 
         raise SystemExit(f"未知命令: {cmd}")

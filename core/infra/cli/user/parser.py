@@ -50,6 +50,7 @@ class UserParser:
         UserParser._p_strategy_enumerate(sub)
         UserParser._p_strategy_price_factor(sub)
         UserParser._p_strategy_portfolio(sub)
+        UserParser._p_strategy_analyze(sub)
         UserParser._p_strategy_simulate(sub)
         UserParser._p_renew(sub)
         UserParser._p_export_adj_factor(sub)
@@ -106,6 +107,29 @@ class UserParser:
             help="组合/资金回测（portfolio）",
         )
         UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_analyze(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_analyze",
+            aliases=UserCommands.aliases_for("strategy_analyze"),
+            help="收集归因 input（analysis/source.json）",
+        )
+        UserParser._add_strategy_target(p)
+        p.add_argument(
+            "--step",
+            type=str,
+            default="enum",
+            choices=("enum", "enumerate", "price", "price_factor", "portfolio"),
+            help="回测 step（默认 enum）",
+        )
+        p.add_argument(
+            "--version",
+            type=str,
+            default=None,
+            help="version id（默认该 kind 最新）",
+        )
 
     @staticmethod
     def _p_strategy_simulate(sub: argparse._SubParsersAction) -> None:

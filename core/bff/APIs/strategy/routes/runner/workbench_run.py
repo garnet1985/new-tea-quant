@@ -204,11 +204,23 @@ class WorkbenchRunLauncher:
                     ignore_cache=force_refresh,
                     runtime_settings=api_settings,
                 )
+                analysis = Strategy.maybe_analyze_after_simulate(
+                    strategy_name,
+                    step=norm_step,
+                    simulate_result=result if isinstance(result, dict) else {},
+                    runtime_settings=api_settings,
+                    force=force_refresh,
+                )
                 wb_version = int((result or {}).get("_workbench_version") or 0)
                 payload: Dict[str, Any] = {"message": f"{norm_step} 已完成"}
                 if wb_version > 0:
                     payload["version_id"] = f"v{wb_version}"
                     payload["report_step"] = norm_step
+                if isinstance(analysis, dict) and not analysis.get("skipped"):
+                    payload["analysis"] = {
+                        "source_path": analysis.get("source_path"),
+                        "report_path": analysis.get("report_path"),
+                    }
                 prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Workbench run failed job_id=%s", job_id)

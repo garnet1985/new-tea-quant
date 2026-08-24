@@ -114,12 +114,12 @@ class StrategyHookRuntime:
             return True
         return getattr(impl, "__func__", impl) is not base
 
-    def call(self, method: str, ctx: StrategyContext) -> Any:
+    def call(self, method: str, ctx: StrategyContext, **kwargs: Any) -> Any:
         hook = getattr(self.hooks, method, None)
         if not callable(hook):
             raise AttributeError(f"StrategyHooks has no method {method!r}")
         try:
-            result = hook(ctx)
+            result = hook(ctx, **kwargs) if kwargs else hook(ctx)
             if method == "on_calendar_asof" and not isinstance(result, CalendarAsOfResult):
                 raise TypeError(
                     f"{method} 必须返回 CalendarAsOfResult，实际: {type(result).__name__}"
@@ -135,10 +135,10 @@ class StrategyHookRuntime:
             )
             raise
 
-    def call_if_overridden(self, method: str, ctx: StrategyContext) -> Any:
+    def call_if_overridden(self, method: str, ctx: StrategyContext, **kwargs: Any) -> Any:
         if not self.is_overridden(method):
             return None
-        return self.call(method, ctx)
+        return self.call(method, ctx, **kwargs)
 
 
 __all__ = ["StrategyHookRuntime"]

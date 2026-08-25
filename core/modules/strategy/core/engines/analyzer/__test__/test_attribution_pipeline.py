@@ -110,6 +110,9 @@ def test_attribution_pipeline_ml_ok() -> None:
         AttributionContext(source=source, step="enum", decision_space=decision_space)
     )
     ml = out["ml"]
+    xgb = ml.get("xgb") if isinstance(ml.get("xgb"), dict) else {}
+    if xgb.get("reason") == "missing_dependency":
+        pytest.skip(f"optional ML dependency missing: {xgb.get('dependency')}")
     assert ml["status"] in ("ok", "partial")
     assert ml["xgb"]["status"] in ("ok", "partial")
     assert len(ml["xgb"]["feature_importance"]) == 2
@@ -154,6 +157,12 @@ def test_report_includes_attribution_section() -> None:
     assert corr["rho"] is not None
     assert report["attribution"]["classical"]["scope_note"]
     assert len(report["hints_for_ui"]) >= 1
+    insights = report["insights"]
+    assert insights["headline"]
+    # Small fixture may collapse quantile bins; still must persist insights shell.
+    assert insights["status"] in ("ok", "empty")
+    if insights["status"] == "ok":
+        assert insights["field_key"] == "rsi"
 
 
 def test_attribution_pipeline_run_comparison_ok() -> None:

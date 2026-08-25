@@ -140,6 +140,60 @@ def test_analysis_report_presenter_is_conclusion_first(tmp_path: Path) -> None:
     assert "分水岭" in text or "两档" in text
 
 
+def test_presenter_prefers_persisted_insights(tmp_path: Path) -> None:
+    payload = _sample_report()
+    payload["insights"] = {
+        "status": "ok",
+        "headline": "【落盘结论】只应出现这一句",
+        "tiers": [],
+        "key_findings": [],
+        "explains": [],
+        "does_not_explain": [],
+        "next_steps": [],
+        "technical": {},
+    }
+    _write_report(tmp_path, payload)
+    buf = io.StringIO()
+    AnalysisReportPresenter.load(tmp_path).present(stream=buf)
+    text = buf.getvalue()
+    assert "【落盘结论】只应出现这一句" in text
+    # Must not rebuild from buckets when insights already persisted.
+    assert "分水岭" not in text
+
+
+def test_presenter_shows_run_comparison_section(tmp_path: Path) -> None:
+    payload = _sample_report()
+    payload["attribution"]["classical"]["run_comparison"] = {
+        "status": "ok",
+        "baseline_version_id": "2",
+        "comparison": {
+            "status": "ok",
+            "current_version_id": "3",
+            "baseline_version_id": "2",
+            "has_meaningful_diff": True,
+            "settings_diff": [
+                {
+                    "key": "rsi_oversold_threshold",
+                    "current": 20,
+                    "baseline": 25,
+                }
+            ],
+            "capture_diff": [],
+            "coverage_diff": [],
+        },
+    }
+    # Force rebuild path (no persisted insights).
+    payload.pop("insights", None)
+    _write_report(tmp_path, payload)
+    buf = io.StringIO()
+    AnalysisReportPresenter.load(tmp_path).present(stream=buf)
+    text = buf.getvalue()
+    assert "两次回测对照" in text
+    assert "rsi_oversold_threshold" in text
+    assert "改了什么" in text
+    assert text.find("关键发现") < text.find("两次回测对照")
+
+
 def test_analysis_report_presenter_missing_report_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         AnalysisReportPresenter.load(tmp_path)

@@ -13,7 +13,7 @@ from ..dataset import (
 from ..step_config import get_step_outcome_config
 from .base import AttributionContext
 
-_MIN_SAMPLES = 200
+_MIN_SAMPLES = 50
 _MIN_FEATURES = 2
 
 
@@ -46,10 +46,15 @@ class MultivariateStage:
                 "status": "skipped",
                 "reason": "insufficient_aligned_samples",
                 "n": len(matrix),
+                "required_samples": _MIN_SAMPLES,
             }
 
-        logistic = Analysis.Classical.logistic_win(matrix, keys, wins)
-        ols = Analysis.Classical.ols_weighted_roi(matrix, keys, rois)
+        logistic = Analysis.Classical.logistic_win(
+            matrix, keys, wins, min_samples=_MIN_SAMPLES
+        )
+        ols = Analysis.Classical.ols_weighted_roi(
+            matrix, keys, rois, min_samples=_MIN_SAMPLES
+        )
         stage_status = _stage_status(logistic, ols)
 
         return {

@@ -74,9 +74,22 @@ modules/analysis/                         # 无 version 路径、不读 Artifact
 - [x] `modules.analysis` ml（XGBoost + SHAP）
 - [x] `attribution.classical.*` 写入 report + 用户向说明（第四步）
 - [x] CLI `sa` 终端归因摘要（`present_analysis_report`）
-- [ ] portfolio per-trade join（collect 补全，不挡 enum 算法）
-- [ ] BFF 读 analysis 展示（辅助）
-- [ ] UI 读 analysis 展示（辅助）
+- [x] `insights` 写入 `report.json`（CLI present 优先读落盘；缺则现场 rebuild）
+- [x] price 层 `sa` 端到端（collect join enum snapshot · `engine.roi` · skip_summary · 白话 present）
+- [x] run_comparison 白话 present（`--baseline-version` → insights.run_comparison + CLI「两次回测对照」）
+- [x] portfolio per-trade join（buy/sell 配对 · enum snapshot · `engine.roi/profit`）
+- [x] 多 varying capture 可演示场景（`rsi_v3` · 其他条件 + 多指标白话；multivariate 门槛 50）
+- [ ] BFF 读 analysis 展示（辅助，CLI 完成后再做）
+- [ ] UI 读 analysis 展示（辅助，CLI 完成后再做）
+
+**多指标演示**
+
+```bash
+python cli.py sa --strategy rsi_v3 --step enum --version 2
+```
+
+`rsi_v3_pe_percentile_gate` 已 capture：`rsi` / `netprofit_yoy` / `pe` / `pe_percentile`（均为 varying）。
+报告会给出主结论 +「其他变化条件」+「多指标一起看」。
 
 ---
 
@@ -153,6 +166,16 @@ analyzer 只 import `modules.analysis` 公开 API，不 deep-import `core/`。
       "run_comparison": { "status": "not_requested" }
     },
     "ml": { "status": "skipped", "reason": "..." }
+  },
+  "insights": {
+    "status": "ok | empty",
+    "headline": "...",
+    "tiers": [],
+    "key_findings": [],
+    "explains": [],
+    "does_not_explain": [],
+    "next_steps": [],
+    "technical": {}
   },
   "hints_for_ui": []
 }

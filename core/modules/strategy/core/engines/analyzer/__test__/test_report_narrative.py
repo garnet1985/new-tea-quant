@@ -59,6 +59,7 @@ def test_report_includes_scope_note_and_hints() -> None:
     assert "rsi_oversold_threshold" in joined
     assert "对照" in joined
     assert "总胜率" in joined or "总收益" in joined
+    assert report["insights"]["headline"]
 
 
 def test_report_with_baseline_includes_run_comparison() -> None:

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from .consts import SCHEMA_VERSION
 from .attribution_pipeline import AttributionPipeline
+from .insights import build_insights
 from .report_narrative import build_hints_for_ui, build_scope_note
 from .stages.base import AttributionContext
 
@@ -42,13 +43,15 @@ class AttributionReportBuilder:
         )
         classical = dict(attribution.get("classical") or {})
         classical["scope_note"] = build_scope_note(step)
+        if step == "price":
+            classical["skip_summary"] = _price_skip_summary(source)
         attribution = {**attribution, "classical": classical}
         hints_for_ui = build_hints_for_ui(
             step=step,
             decision_space=decision_space,
             attribution=attribution,
         )
-        return {
+        report = {
             "schema_version": SCHEMA_VERSION,
             "step": step,
             "version_id": str(source.get("version_id") or ""),
@@ -63,6 +66,9 @@ class AttributionReportBuilder:
             "attribution": attribution,
             "hints_for_ui": hints_for_ui,
         }
+        # Persisted for CLI present + future BFF/UI; rebuild only if missing.
+        report["insights"] = build_insights(report)
+        return report
 
     @staticmethod
     def _outcome_fields(step: str) -> List[str]:
@@ -178,6 +184,33 @@ def _as_float(value: Any) -> Optional[float]:
         return float(str(value).strip())
     except (TypeError, ValueError):
         return None
+
+
+def _price_skip_summary(source: Dict[str, Any]) -> Dict[str, Any]:
+    """Roll up ``engine.skip_reason`` for price-layer reports."""
+    by_reason: Dict[str, int] = {}
+    total = 0
+    skipped = 0
+    for entity in source.get("entities") or []:
+        if not isinstance(entity, dict):
+            continue
+        for investment in entity.get("investments") or []:
+            if not isinstance(investment, dict):
+                continue
+            total += 1
+            engine = investment.get("engine")
+            if not isinstance(engine, dict):
+                continue
+            reason = str(engine.get("skip_reason") or "").strip()
+            if not reason:
+                continue
+            skipped += 1
+            by_reason[reason] = int(by_reason.get(reason) or 0) + 1
+    return {
+        "investment_count": total,
+        "skipped_count": skipped,
+        "by_reason": dict(sorted(by_reason.items())),
+    }
 
 
 __all__ = ["AttributionReportBuilder"]

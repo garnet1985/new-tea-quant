@@ -110,6 +110,7 @@ def test_build_insights_merges_to_two_tiers_and_headline() -> None:
     assert any("20" in line for line in insights["does_not_explain"])
     assert insights["next_steps"]
     assert insights["technical"]["sample_size"] == 1603
+    assert insights["run_comparison"]["status"] == "not_requested"
 
 
 def test_build_insights_empty_without_fields() -> None:
@@ -121,3 +122,75 @@ def test_build_insights_empty_without_fields() -> None:
     )
     assert insights["status"] == "empty"
     assert insights["next_steps"]
+    assert insights["run_comparison"]["status"] == "not_requested"
+
+
+def test_build_insights_run_comparison_plain() -> None:
+    report = _report_with_rsi_buckets()
+    report["attribution"]["classical"]["run_comparison"] = {
+        "status": "ok",
+        "baseline_version_id": "2",
+        "comparison": {
+            "status": "ok",
+            "current_version_id": "3",
+            "baseline_version_id": "2",
+            "has_meaningful_diff": True,
+            "settings_diff": [
+                {
+                    "key": "rsi_oversold_threshold",
+                    "current": 20,
+                    "baseline": 25,
+                    "role": "settings_knob",
+                }
+            ],
+            "capture_diff": [],
+            "coverage_diff": [],
+        },
+    }
+    insights = build_insights(report)
+    block = insights["run_comparison"]
+    assert block["status"] == "ok"
+    assert "rsi_oversold_threshold" in block["headline"]
+    assert block["changes"]
+    assert "25" in block["changes"][0]["detail"] and "20" in block["changes"][0]["detail"]
+    assert block["explains"]
+    assert any("baseline" in step or "对照" in step or "成绩单" in step for step in insights["next_steps"])
+
+
+def test_build_insights_lists_other_fields_and_multivariate() -> None:
+    report = _report_with_rsi_buckets()
+    report["decision_space"]["capture"]["pe_percentile"] = {
+        "role": "varying",
+        "min": 10.0,
+        "max": 80.0,
+        "count": 1603,
+    }
+    report["attribution"]["classical"]["univariate"]["fields"]["pe_percentile"] = {
+        "n": 1603,
+        "correlation": {"status": "ok", "rho": -0.12, "p_value": 0.01},
+        "buckets": {"status": "ok", "buckets": []},
+    }
+    report["attribution"]["classical"]["multivariate"] = {
+        "status": "ok",
+        "features": ["rsi", "pe_percentile"],
+        "n": 1603,
+        "ols_weighted_roi": {
+            "status": "ok",
+            "coefficients": [
+                {"feature": "rsi", "coef": -0.02},
+                {"feature": "pe_percentile", "coef": -0.001},
+            ],
+        },
+        "logistic_win": {"status": "skipped"},
+    }
+    insights = build_insights(report)
+    assert insights["other_fields"]
+    assert insights["other_fields"][0]["key"] == "pe_percentile"
+    assert insights["multivariate"]["status"] == "ok"
+    assert insights["multivariate"]["ranking"]
+    assert "rsi" in insights["multivariate"]["headline"] or "pe_percentile" in insights[
+        "multivariate"
+    ]["headline"]
+    # RSI threshold must not leak onto unrelated fields.
+    assert "netprofit" not in (insights.get("chart_note") or "")
+    assert "进场条件要求 pe" not in (insights.get("chart_note") or "")

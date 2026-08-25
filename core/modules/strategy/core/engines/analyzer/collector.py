@@ -104,23 +104,64 @@ class AttributionInputCollector:
         )
         trades_path = self.store.file("trades")
         equity_path = self.store.file("equity_curve")
+        trade_rows = _load_trade_rows(self.store)
+        entities = self._collect_portfolio_entities(trade_rows, enum_store)
+        capture_keys, with_snapshot, total = self._capture_stats(entities)
+        open_buys = _count_open_buys(trade_rows)
         payload["inputs"]["portfolio_artifacts"] = {
             "trades_present": trades_path.is_file(),
             "equity_curve_present": equity_path.is_file(),
+            "trade_count": len(trade_rows),
+            "completed_lots": total,
+            "open_buys": open_buys,
         }
-        if trades_path.is_file():
-            trades = self.store.read_json("trades")
-            trade_rows = trades.get("trades") if isinstance(trades, dict) else trades
-            payload["inputs"]["portfolio_artifacts"]["trade_count"] = (
-                len(trade_rows) if isinstance(trade_rows, list) else 0
-            )
-        payload["entities"] = []
         payload["inputs"]["capture"] = {
-            "keys": [],
-            "coverage": {"investment_count": 0, "with_snapshot": 0},
-            "note": "portfolio layer defers per-trade join to a later phase",
+            "keys": capture_keys,
+            "coverage": {
+                "investment_count": total,
+                "with_snapshot": with_snapshot,
+            },
+            "join": {
+                "source_step": WorkbenchStep.ENUM.value,
+                "join_key": "investment_id",
+                "entity_key": "entity_id",
+                "lot_key": "entity_id+investment_id",
+            },
         }
+        payload["entities"] = entities
         return payload
+
+    def _collect_portfolio_entities(
+        self,
+        trade_rows: Sequence[Dict[str, Any]],
+        enum_store: Optional[EnumerateStore],
+    ) -> List[Dict[str, Any]]:
+        buys, sells = _split_trades(trade_rows)
+        by_entity: Dict[str, List[Dict[str, Any]]] = {}
+        snapshot_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        for sell in sells:
+            entity_id = str(sell.get("entity_id") or "").strip()
+            inv_id = str(sell.get("investment_id") or "").strip()
+            if not entity_id or not inv_id:
+                continue
+            buy = buys.get(_lot_key(entity_id, inv_id))
+            if buy is None:
+                continue
+            if entity_id not in snapshot_cache:
+                snapshot_cache[entity_id] = {}
+                if enum_store is not None and enum_store.has_investments(entity_id):
+                    snapshot_cache[entity_id] = _snapshot_index(
+                        enum_store.snapshots(entity_id).rows
+                    )
+            capture = snapshot_cache[entity_id].get(inv_id, {})
+            by_entity.setdefault(entity_id, []).append(
+                _join_portfolio_investment(buy=buy, sell=sell, capture=capture)
+            )
+        return [
+            {"entity_id": entity_id, "investments": rows}
+            for entity_id, rows in sorted(by_entity.items())
+            if rows
+        ]
 
     def _base_payload(
         self,
@@ -335,6 +376,19 @@ def _join_price_investment(
     }
 
 
+def _join_portfolio_investment(
+    *,
+    buy: Dict[str, Any],
+    sell: Dict[str, Any],
+    capture: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "investment_id": str(sell.get("investment_id") or "").strip(),
+        "engine": _serialize_portfolio_engine(buy=buy, sell=sell),
+        "capture": dict(capture),
+    }
+
+
 def _serialize_enum_engine(row: InvestmentRow) -> Dict[str, Any]:
     return {
         "trigger_date": row.trigger_date,
@@ -366,6 +420,92 @@ def _serialize_price_engine(row: PriceInvestmentRow) -> Dict[str, Any]:
         "holding_days": row.holding_days,
         "holding_trading_days": row.holding_trading_days,
     }
+
+
+def _serialize_portfolio_engine(
+    *,
+    buy: Dict[str, Any],
+    sell: Dict[str, Any],
+) -> Dict[str, Any]:
+    buy_amount = _as_float(buy.get("amount"))
+    profit = _as_float(sell.get("profit"))
+    roi = None
+    if profit is not None and buy_amount is not None and buy_amount > 0:
+        roi = profit / buy_amount
+    result = ""
+    if roi is not None:
+        result = "win" if roi > 0 else "loss"
+    return {
+        "buy_date": str(buy.get("date") or "").strip(),
+        "sell_date": str(sell.get("date") or "").strip(),
+        "buy_price": _as_float(buy.get("price")),
+        "sell_price": _as_float(sell.get("price")),
+        "shares": int(float(sell.get("shares") or 0) or 0),
+        "buy_amount": buy_amount,
+        "sell_amount": _as_float(sell.get("amount")),
+        "buy_fees": _as_float(buy.get("fees")),
+        "sell_fees": _as_float(sell.get("fees")),
+        "profit": profit,
+        "roi": roi,
+        "result": result,
+        "lifecycle": "complete",
+    }
+
+
+def _load_trade_rows(store: ArtifactStore) -> List[Dict[str, Any]]:
+    path = store.file("trades")
+    if not path.is_file():
+        return []
+    raw = store.read_json("trades")
+    if isinstance(raw, list):
+        return [row for row in raw if isinstance(row, dict)]
+    if isinstance(raw, dict):
+        trades = raw.get("trades")
+        if isinstance(trades, list):
+            return [row for row in trades if isinstance(row, dict)]
+    return []
+
+
+def _split_trades(
+    trade_rows: Sequence[Dict[str, Any]],
+) -> Tuple[Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
+    buys: Dict[str, Dict[str, Any]] = {}
+    sells: List[Dict[str, Any]] = []
+    for row in trade_rows:
+        entity_id = str(row.get("entity_id") or "").strip()
+        inv_id = str(row.get("investment_id") or "").strip()
+        side = str(row.get("side") or "").strip().lower()
+        if not entity_id or not inv_id:
+            continue
+        if side == "buy":
+            buys[_lot_key(entity_id, inv_id)] = row
+        elif side == "sell":
+            sells.append(row)
+    return buys, sells
+
+
+def _count_open_buys(trade_rows: Sequence[Dict[str, Any]]) -> int:
+    buys, sells = _split_trades(trade_rows)
+    sold = {
+        _lot_key(str(row.get("entity_id") or "").strip(), str(row.get("investment_id") or "").strip())
+        for row in sells
+    }
+    return sum(1 for key in buys if key not in sold)
+
+
+def _lot_key(entity_id: str, investment_id: str) -> str:
+    return f"{entity_id}\t{investment_id}"
+
+
+def _as_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _serialize_goal_leg(row: GoalAchievementRow) -> Dict[str, Any]:

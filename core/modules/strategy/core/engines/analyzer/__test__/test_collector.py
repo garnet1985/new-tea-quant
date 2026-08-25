@@ -16,6 +16,9 @@ from core.modules.strategy.core.services.artifacts import (
     EntitySignalSnapshotCsv,
     EnumerateStore,
     GoalAchievementCsv,
+    PortfolioStore,
+    PriceFactorStore,
+    PriceInvestmentRow,
 )
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
@@ -208,10 +211,205 @@ def test_pipeline_writes_source_and_report_json(tmp_path: Path) -> None:
     report = ArtifactIO.read_json(report_path)
     assert report["step"] == "enum"
     assert "attribution" in report
+    assert "insights" in report
     assert report["attribution"]["classical"]["run_comparison"]["status"] == "not_requested"
     assert report["decision_space"]["capture"]["rsi"]["role"] == "constant"
     assert report["decision_space"]["capture"]["rsi_length"]["role"] == "constant"
     assert report["decision_space"]["declared_core"]["rsi_oversold_threshold"]["role"] == "settings_knob"
+
+
+def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
+    enum_dir = tmp_path / "enum" / "1"
+    price_dir = tmp_path / "price" / "1"
+    enum_dir.mkdir(parents=True)
+    price_dir.mkdir(parents=True)
+
+    _write_runtime(enum_dir, kind=SimulateKind.ENUMERATE)
+    _write_enum_entity(enum_dir)
+
+    ArtifactIO.write_json(
+        price_dir / "runtime_env.json",
+        {
+            "strategy_key": "demo_rsi",
+            "strategy_path": "demo/regression/rsi/rsi_v1_baseline",
+            "version_id": 1,
+            "enum_version_id": "1",
+            "enum_output_dir": str(enum_dir.resolve()),
+            "fingerprints": {"settings": "abc", "env": "def"},
+            "period": {"start_date": "20230101", "end_date": "20260101"},
+            "settings": {
+                "effective_settings": {
+                    "core": {"rsi_oversold_threshold": 20},
+                    "data": {},
+                    "goal": {},
+                    "simulation": {"execution": {"mode": "entity_based"}},
+                }
+            },
+        },
+    )
+    (price_dir / "entity_ids.txt").write_text("688005.SH\n", encoding="utf-8")
+    price_store = PriceFactorStore.at(price_dir, version_id="1")
+    price_store.write_investments(
+        "688005.SH",
+        [
+            PriceInvestmentRow(
+                opportunity_id="1",
+                enter_date="20240103",
+                enter_price=10.1,
+                exit_date="20240201",
+                exit_price=11.0,
+                roi=0.09,
+                holding_days=20,
+                holding_trading_days=15,
+                exit_reason="take_profit",
+                skip_reason="",
+                lifecycle="complete",
+                result="win",
+            ),
+            PriceInvestmentRow(
+                opportunity_id="2",
+                enter_date="20240304",
+                enter_price=9.6,
+                exit_date="",
+                exit_price=0.0,
+                roi=0.0,
+                holding_days=0,
+                holding_trading_days=0,
+                exit_reason="",
+                skip_reason="liquidity",
+                lifecycle="skipped",
+                result="",
+            ),
+        ],
+    )
+
+    store = PriceFactorStore.open(price_dir, version_id="1")
+    source = AttributionInputCollector(store).collect()
+    assert source["step"] == "price"
+    assert source["upstream"]["enum_version_id"] == "1"
+    assert source["inputs"]["capture"]["keys"] == [
+        "rsi",
+        "rsi_length",
+        "rsi_oversold_threshold",
+    ]
+    assert source["inputs"]["capture"]["coverage"]["investment_count"] == 2
+    assert source["inputs"]["capture"]["coverage"]["with_snapshot"] == 1
+    rows = source["entities"][0]["investments"]
+    assert rows[0]["investment_id"] == "1"
+    assert float(rows[0]["capture"]["rsi"]) == 18.2
+    assert rows[0]["engine"]["roi"] == 0.09
+    assert rows[1]["engine"]["skip_reason"] == "liquidity"
+    assert rows[1]["capture"] == {}
+
+    report = AttributionReportBuilder.build(source, step="price")
+    assert report["step"] == "price"
+    assert report["manifest"]["outcome_fields"] == ["engine.roi", "engine.result"]
+    skip_summary = report["attribution"]["classical"]["skip_summary"]
+    assert skip_summary["skipped_count"] == 1
+    assert skip_summary["by_reason"]["liquidity"] == 1
+    assert report["insights"]["headline"]
+    assert any(
+        "跳过" in str(item.get("caption") or "")
+        for item in report["insights"].get("key_findings") or []
+        if isinstance(item, dict)
+    )
+
+
+def test_collect_portfolio_joins_completed_lots(tmp_path: Path) -> None:
+    enum_dir = tmp_path / "enum" / "1"
+    portfolio_dir = tmp_path / "portfolio" / "1"
+    enum_dir.mkdir(parents=True)
+    portfolio_dir.mkdir(parents=True)
+
+    _write_runtime(enum_dir, kind=SimulateKind.ENUMERATE)
+    _write_enum_entity(enum_dir)
+
+    ArtifactIO.write_json(
+        portfolio_dir / "runtime_env.json",
+        {
+            "strategy_key": "demo_rsi",
+            "strategy_path": "demo/regression/rsi/rsi_v1_baseline",
+            "version_id": 1,
+            "enum_version_id": "1",
+            "enum_output_dir": str(enum_dir.resolve()),
+            "fingerprints": {"settings": "abc", "env": "def"},
+            "period": {"start_date": "20230101", "end_date": "20260101"},
+            "settings": {
+                "effective_settings": {
+                    "core": {"rsi_oversold_threshold": 20},
+                    "data": {},
+                    "goal": {},
+                    "simulation": {"execution": {"mode": "entity_based"}},
+                    "portfolio": {"capital": 1_000_000},
+                }
+            },
+        },
+    )
+    ArtifactIO.write_json(
+        portfolio_dir / "trades.json",
+        [
+            {
+                "date": "20240103",
+                "entity_id": "688005.SH",
+                "investment_id": "1",
+                "side": "buy",
+                "shares": 100,
+                "price": 10.0,
+                "amount": 1000.0,
+                "fees": 1.0,
+                "total_cost": 1001.0,
+            },
+            {
+                "date": "20240201",
+                "entity_id": "688005.SH",
+                "investment_id": "1",
+                "side": "sell",
+                "shares": 100,
+                "price": 11.0,
+                "amount": 1100.0,
+                "fees": 1.0,
+                "net_proceeds": 1099.0,
+                "profit": 100.0,
+            },
+            {
+                "date": "20240304",
+                "entity_id": "688005.SH",
+                "investment_id": "2",
+                "side": "buy",
+                "shares": 50,
+                "price": 9.0,
+                "amount": 450.0,
+                "fees": 1.0,
+                "total_cost": 451.0,
+            },
+            # open buy without sell — should not enter completed lots
+        ],
+    )
+    ArtifactIO.write_json(portfolio_dir / "equity_curve.json", [])
+
+    store = PortfolioStore.open(portfolio_dir, version_id="1")
+    source = AttributionInputCollector(store).collect()
+    assert source["step"] == "portfolio"
+    assert source["inputs"]["portfolio_artifacts"]["completed_lots"] == 1
+    assert source["inputs"]["portfolio_artifacts"]["open_buys"] == 1
+    assert source["inputs"]["capture"]["coverage"]["investment_count"] == 1
+    assert source["inputs"]["capture"]["coverage"]["with_snapshot"] == 1
+    assert source["inputs"]["capture"]["keys"] == [
+        "rsi",
+        "rsi_length",
+        "rsi_oversold_threshold",
+    ]
+    row = source["entities"][0]["investments"][0]
+    assert row["investment_id"] == "1"
+    assert float(row["capture"]["rsi"]) == 18.2
+    assert row["engine"]["roi"] == pytest.approx(0.1)
+    assert row["engine"]["result"] == "win"
+    assert row["engine"]["profit"] == 100.0
+
+    report = AttributionReportBuilder.build(source, step="portfolio")
+    assert report["step"] == "portfolio"
+    assert report["manifest"]["outcome_fields"] == ["engine.roi", "engine.result"]
+    assert report["insights"]["headline"]
 
 
 def test_report_marks_varying_capture() -> None:

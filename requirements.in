@@ -12,6 +12,10 @@ duckdb
 # Data
 pandas
 numpy>=2.0
+scipy
+scikit-learn
+xgboost>=2.0
+shap>=0.44
 
 # Indicators
 pandas-ta-classic

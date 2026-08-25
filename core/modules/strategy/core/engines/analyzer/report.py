@@ -5,13 +5,22 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
 from .consts import SCHEMA_VERSION
+from .attribution_pipeline import AttributionPipeline
+from .report_narrative import build_hints_for_ui, build_scope_note
+from .stages.base import AttributionContext
 
 
 class AttributionReportBuilder:
     """从已收集的 source payload 生成 report.json。"""
 
     @classmethod
-    def build(cls, source: Dict[str, Any], *, step: str) -> Dict[str, Any]:
+    def build(
+        cls,
+        source: Dict[str, Any],
+        *,
+        step: str,
+        baseline_source: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         capture_keys = list(
             (source.get("inputs") or {}).get("capture", {}).get("keys") or []
         )
@@ -19,6 +28,26 @@ class AttributionReportBuilder:
             (source.get("inputs") or {}).get("capture", {}).get("coverage") or {}
         )
         decision_space = cls._decision_space(source)
+        baseline_decision_space = (
+            cls._decision_space(baseline_source) if baseline_source else None
+        )
+        attribution = AttributionPipeline.run(
+            AttributionContext(
+                source=source,
+                step=step,
+                decision_space=decision_space,
+                baseline_source=baseline_source,
+                baseline_decision_space=baseline_decision_space,
+            )
+        )
+        classical = dict(attribution.get("classical") or {})
+        classical["scope_note"] = build_scope_note(step)
+        attribution = {**attribution, "classical": classical}
+        hints_for_ui = build_hints_for_ui(
+            step=step,
+            decision_space=decision_space,
+            attribution=attribution,
+        )
         return {
             "schema_version": SCHEMA_VERSION,
             "step": step,
@@ -28,9 +57,19 @@ class AttributionReportBuilder:
             "manifest": {
                 "capture_keys": capture_keys,
                 "coverage": coverage,
+                "outcome_fields": cls._outcome_fields(step),
             },
             "decision_space": decision_space,
+            "attribution": attribution,
+            "hints_for_ui": hints_for_ui,
         }
+
+    @staticmethod
+    def _outcome_fields(step: str) -> List[str]:
+        from .step_config import get_step_outcome_config
+
+        config = get_step_outcome_config(step)
+        return [config.roi_field, config.result_field]
 
     @classmethod
     def _decision_space(cls, source: Dict[str, Any]) -> Dict[str, Any]:

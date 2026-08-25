@@ -11,10 +11,10 @@
 
 | 步 | 内容 | 状态 |
 |----|------|------|
-| **1** | **文档与 TODO**（本文 + `modules/analysis/TODO.md`） | 进行中 |
-| **2** | **AttributionPipeline + stages**；需 `analysis` 的 stage 先接 **空函数/占位** | 未开始 |
-| **3** | **填充 `modules.analysis`** 内统计函数 | 未开始 |
-| **4** | **Report 组装**（`scope_note` / `hints_for_ui`、副作用说明；BFF 展示另说） | 未开始 |
+| **1** | **文档与 TODO**（本文 + `modules/analysis/TODO.md`） | 完成 |
+| **2** | **AttributionPipeline + stages**；需 `analysis` 的 stage 先接 **空函数/占位** | 完成 |
+| **3** | **填充 `modules.analysis`** — univariate + multivariate 完成；run_comparison / ml 仍 stub | 完成 |
+| **4** | **Report 组装**（`scope_note` / `hints_for_ui`、副作用说明；BFF 展示另说） | 完成 |
 
 ---
 
@@ -67,9 +67,12 @@ modules/analysis/                         # 无 version 路径、不读 Artifact
 - [x] `decision_space` → `report.json`（manifest + constant/varying）
 - [x] `settings.analysis.enabled` + 自动跑（CLI / BFF）
 - [x] 测试基线：`rsi_v1_baseline` + capture
-- [ ] `AttributionPipeline` + stages（第二步）
-- [ ] `modules.analysis` 统计实现（第三步）
-- [ ] `attribution.classical.*` 写入 report + 用户向说明（第四步）
+- [x] `AttributionPipeline` + stages（第二步）
+- [x] `modules.analysis` univariate 统计（第三步）
+- [x] `modules.analysis` multivariate 统计（第三步）
+- [x] `modules.analysis` run_comparison
+- [x] `modules.analysis` ml（XGBoost + SHAP）
+- [x] `attribution.classical.*` 写入 report + 用户向说明（第四步）
 - [ ] portfolio per-trade join（collect 补全，不挡 enum 算法）
 - [ ] BFF 读 analysis 展示（最后做）
 

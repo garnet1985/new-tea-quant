@@ -207,6 +207,8 @@ def test_pipeline_writes_source_and_report_json(tmp_path: Path) -> None:
 
     report = ArtifactIO.read_json(report_path)
     assert report["step"] == "enum"
+    assert "attribution" in report
+    assert report["attribution"]["classical"]["run_comparison"]["status"] == "not_requested"
     assert report["decision_space"]["capture"]["rsi"]["role"] == "constant"
     assert report["decision_space"]["capture"]["rsi_length"]["role"] == "constant"
     assert report["decision_space"]["declared_core"]["rsi_oversold_threshold"]["role"] == "settings_knob"

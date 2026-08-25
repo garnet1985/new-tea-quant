@@ -384,6 +384,7 @@ class Strategy:
         *,
         step: Union[str, SimulateKind] = "enum",
         version_id: Optional[str] = None,
+        baseline_version_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """收集归因 input + report，写入 ``simulations/<step>/<vid>/analysis/``。"""
         from .engines.analyzer import AnalyzerPipeline
@@ -410,7 +411,13 @@ class Strategy:
             kind=simulate_kind,
             version_id=store.version_id,
         )
-        return AnalyzerPipeline.run(store)
+        return AnalyzerPipeline.run(
+            store,
+            baseline_version_id=str(baseline_version_id).strip()
+            if baseline_version_id
+            else None,
+            strategy_folder=folder,
+        )
 
     @staticmethod
     def maybe_analyze_after_simulate(

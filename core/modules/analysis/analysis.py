@@ -1,18 +1,49 @@
-"""Analysis Facade — 回测后 inputs→outputs 归因入口。
-
-本文件:
-- Analysis: 对外唯一门面
-  边界: 本版本只占位；不读产物、不算归因、不写报告
-"""
-
+"""Analysis Facade — stats/ML primitives for attribution (no I/O)."""
 from __future__ import annotations
+
+from core.modules.analysis.core.classical.multivariate import (
+    logistic_win,
+    ols_weighted_roi,
+)
+from core.modules.analysis.core.classical.run_comparison import compare_run_summaries
+from core.modules.analysis.core.classical.univariate import (
+    quantile_buckets,
+    spearman_correlation,
+)
+from core.modules.analysis.core.ml.xgb_regressor import xgb_feature_importance
+
+
+class Classical:
+    """Classical statistics attribution primitives."""
+
+    quantile_buckets = staticmethod(quantile_buckets)
+    spearman_correlation = staticmethod(spearman_correlation)
+    logistic_win = staticmethod(logistic_win)
+    ols_weighted_roi = staticmethod(ols_weighted_roi)
+    compare_run_summaries = staticmethod(compare_run_summaries)
+
+
+class ML:
+    """Machine-learning attribution primitives (later track)."""
+
+    xgb_feature_importance = staticmethod(xgb_feature_importance)
 
 
 class Analysis:
-    """回测结果归因门面（骨架）。
+    """Attribution stats toolbox facade."""
 
-    设计未完成前不提供行为方法。调用方仅可 import 本类以确认模块存在。
-    """
+    Classical = Classical
+    ML = ML
 
 
-__all__ = ["Analysis"]
+__all__ = [
+    "Analysis",
+    "Classical",
+    "ML",
+    "compare_run_summaries",
+    "logistic_win",
+    "ols_weighted_roi",
+    "quantile_buckets",
+    "spearman_correlation",
+    "xgb_feature_importance",
+]

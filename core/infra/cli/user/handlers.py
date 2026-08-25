@@ -578,17 +578,23 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         step = str(getattr(args, "step", None) or "enum").strip().lower()
         version_id = getattr(args, "version", None)
+        baseline_version_id = getattr(args, "baseline_version", None)
 
         print("收集归因 input…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         print(f"  step: {step}", flush=True)
         if version_id:
             print(f"  version: {version_id}", flush=True)
+        if baseline_version_id:
+            print(f"  baseline version: {baseline_version_id}", flush=True)
 
         result = Strategy.analyze(
             strategy_key,
             step=step,
             version_id=str(version_id).strip() if version_id else None,
+            baseline_version_id=str(baseline_version_id).strip()
+            if baseline_version_id
+            else None,
         )
         print(f"  success: {result.get('success')}", flush=True)
         print(f"  source: {result.get('source_path')}", flush=True)

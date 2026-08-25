@@ -11,9 +11,12 @@
 
 | 步 | 本模块工作 | 状态 |
 |----|------------|------|
-| **1** | 本文档 + API 草案 | 进行中 |
-| **2** | `core/` 下 **空函数/stub**，签名固定，返回 `{status: "stub"}` | 未开始 |
-| **3** | **实现** classical 统计（univariate 优先） | 未开始 |
+| **1** | 本文档 + API 草案 | 完成 |
+| **2** | `core/` 下 **空函数/stub**，签名固定 | 完成 |
+| **3** | **实现** classical univariate（分桶 + Spearman） | 完成 |
+| **3b** | multivariate（logistic + OLS） | 完成 |
+| **3c** | run_comparison | 完成 |
+| **3d** | ml（XGBoost + SHAP） | 完成 |
 | **4** | （analyzer 侧 report 文案；本模块不加业务句子） | — |
 
 ---
@@ -147,11 +150,11 @@ analyzer 从 `source.json` 抽出 **对齐长度的列向量**，不传 `Investm
 
 ## 第三步实现顺序
 
-1. [ ] `quantile_buckets` — 纯 Python 或 numpy 分位；桶 `< min_bucket_size` 合并或 skip
-2. [ ] `spearman_correlation` — 可手写秩相关或 scipy.stats.spearmanr
-3. [ ] `logistic_win` / `ols_weighted_roi` — sklearn/statsmodels，门槛：`N/features >= 10`
-4. [ ] `compare_run_summaries` — 对比两次 univariate 摘要 / declared diff
-5. [ ] `xgb_feature_importance` + SHAP — 第四轨，依赖可选
+1. [x] `quantile_buckets` — equal-frequency buckets + outcome stats
+2. [x] `spearman_correlation` — rank correlation + normal-approx p-value
+3. [x] `logistic_win` / `ols_weighted_roi`
+4. [x] `compare_run_summaries`
+5. [x] `xgb_feature_importance` + SHAP
 
 ---
 

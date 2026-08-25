@@ -130,6 +130,12 @@ class UserParser:
             default=None,
             help="version id（默认该 kind 最新）",
         )
+        p.add_argument(
+            "--baseline-version",
+            type=str,
+            default=None,
+            help="run_comparison 对照的 baseline version id",
+        )
 
     @staticmethod
     def _p_strategy_simulate(sub: argparse._SubParsersAction) -> None:

@@ -114,7 +114,7 @@ class UserParser:
             sub,
             "strategy_analyze",
             aliases=UserCommands.aliases_for("strategy_analyze"),
-            help="收集归因 input（analysis/source.json）",
+            help="收集归因产物并打印终端摘要（analysis/report.json）",
         )
         UserParser._add_strategy_target(p)
         p.add_argument(

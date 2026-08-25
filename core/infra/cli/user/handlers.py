@@ -180,6 +180,7 @@ class UserHandlers:
             "strategy_price_factor",
             "strategy_portfolio",
             "strategy_simulate",
+            "strategy_analyze",
         ):
             UserHandlers._handle_strategy(cmd, app, args)
             return
@@ -580,7 +581,7 @@ class UserHandlers:
         version_id = getattr(args, "version", None)
         baseline_version_id = getattr(args, "baseline_version", None)
 
-        print("收集归因 input…", flush=True)
+        print("收集归因并生成报告…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         print(f"  step: {step}", flush=True)
         if version_id:
@@ -605,6 +606,11 @@ class UserHandlers:
         )
         if not result.get("success"):
             raise SystemExit(1)
+
+        output_dir = result.get("output_dir")
+        if output_dir:
+            print("", flush=True)
+            Strategy.present_analysis_report(output_dir)
 
     @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:

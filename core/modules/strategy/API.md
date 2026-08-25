@@ -93,6 +93,13 @@
 - **状态：** `beta`
 - **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
 
+### present_analysis_report
+
+`Strategy.present_analysis_report(output_dir: str | Path, *, stream=None) -> None`
+
+- **状态：** `beta`
+- **描述：** 从仿真 `output_dir` 读取 `analysis/report.json` 并打印归因终端摘要（`sa` 生成后调用）；内部为 `AnalysisReportPresenter.load(...).present(...)`；缺失文件则 `FileNotFoundError`
+
 ### clear_workbench_cache
 
 `Strategy.clear_workbench_cache() -> int`

@@ -470,6 +470,17 @@ class Strategy:
         ReportManager.from_output_dir(path).present(stream=stream)
 
     @staticmethod
+    def present_analysis_report(
+        output_dir: Union[str, Path],
+        *,
+        stream: Optional[TextIO] = None,
+    ) -> None:
+        """从仿真 ``output_dir`` 展示归因 ``analysis/report.json`` 终端摘要。"""
+        from .engines.analyzer.present import AnalysisReportPresenter
+
+        AnalysisReportPresenter.load(output_dir).present(stream=stream)
+
+    @staticmethod
     def is_valid_path(relative_path: str) -> bool:
         """脚手架路径段是否机器可读（ASCII 标识符段）。"""
         from .services.discovery.path_rules import StrategyPathRules

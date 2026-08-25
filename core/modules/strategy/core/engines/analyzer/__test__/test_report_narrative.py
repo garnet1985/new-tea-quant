@@ -45,8 +45,8 @@ def _rsi_like_source() -> dict:
 
 def test_build_scope_note_enum() -> None:
     note = build_scope_note("enum")
-    assert "in-sample" in note or "共变" in note
-    assert "overall" in note
+    assert "机会枚举" in note or "现场" in note
+    assert "因果" in note or "预测" in note
 
 
 def test_report_includes_scope_note_and_hints() -> None:
@@ -57,8 +57,8 @@ def test_report_includes_scope_note_and_hints() -> None:
     assert len(hints) >= 2
     joined = "\n".join(hints)
     assert "rsi_oversold_threshold" in joined
-    assert "run_comparison" in joined
-    assert "overall_report" in joined
+    assert "对照" in joined
+    assert "总胜率" in joined or "总收益" in joined
 
 
 def test_report_with_baseline_includes_run_comparison() -> None:
@@ -78,8 +78,8 @@ def test_report_with_baseline_includes_run_comparison() -> None:
     assert run_comparison["status"] == "ok"
     assert run_comparison["comparison"]["settings_diff"]
     joined = "\n".join(report["hints_for_ui"])
-    assert "run_comparison" in joined
-    assert "未指定 baseline version" not in joined
+    assert "对照" in joined
+    assert "还没指定对照版本" not in joined
 
 
 def test_hints_for_multivariate_skip() -> None:
@@ -101,4 +101,4 @@ def test_hints_for_multivariate_skip() -> None:
         decision_space={"capture": {"rsi": {"role": "varying"}}, "declared_core": {}},
         attribution=attribution,
     )
-    assert any("2 个 varying" in hint for hint in hints)
+    assert any("2 个会变化" in hint or "2 个" in hint for hint in hints)

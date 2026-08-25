@@ -73,8 +73,10 @@ modules/analysis/                         # 无 version 路径、不读 Artifact
 - [x] `modules.analysis` run_comparison
 - [x] `modules.analysis` ml（XGBoost + SHAP）
 - [x] `attribution.classical.*` 写入 report + 用户向说明（第四步）
+- [x] CLI `sa` 终端归因摘要（`present_analysis_report`）
 - [ ] portfolio per-trade join（collect 补全，不挡 enum 算法）
-- [ ] BFF 读 analysis 展示（最后做）
+- [ ] BFF 读 analysis 展示（辅助）
+- [ ] UI 读 analysis 展示（辅助）
 
 ---
 

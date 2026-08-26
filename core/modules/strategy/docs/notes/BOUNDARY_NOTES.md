@@ -139,7 +139,8 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 
 UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``。
 **加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress`` + ``ScanJob``（扫描）；BFF 只读 / 薄壳。
-**Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；后端 run 只走指纹 ``SimulationCacheManager``。
+**Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；读 **磁盘** ``simulations/meta.json`` registry + ``{vid}/effective_settings.json``。
+**Run / cache hit** 在 ``Strategy.simulate`` → ``SimulationVersionStore``（``settings_fp + env_fp`` 扫 registry，**无** workbench DB 双轨）。
 ``launcher`` 包已删除。
 
 ---
@@ -167,7 +168,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 | 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
 |------|------------|------|------|------|
 | `entity_loader` 整包 | S E | Facade, fingerprints | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
-| `simulation_cache` | — | Facade / fingerprints | keep | DB 槽位 + 指纹（指纹服务于 cache，**不拆出**） |
+| `simulation_cache` | — | Facade / fingerprints | keep | 磁盘 registry + 指纹（``SimulationVersionStore``） |
 | `discovery` | — | Facade | keep | 策略发现 |
 | `data/simulation_output_recorder` | E P O | — | keep | version 目录分配 |
 
@@ -213,7 +214,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 |------|------|
 | 多引擎同名 `JobBuilder` / `JobExecutor` | — | **done**：类名加前缀（文件名不变）`Scanner*` / `EnumEntity*` / `EnumSlice*` / `PriceFactor*`；基类仍 `BaseJob*` |
 
-| 两个 `CacheManager` | `scanner/helpers/cache_manager.py`（磁盘 scan CSV）vs `simulation_cache/cache_manager.py`（DB workbench） |
+| 磁盘 scan cache | `scanner/helpers/cache_manager.py`（``ScanCacheManager``，磁盘 scan CSV） |
 | `Investment` vs `PortfolioInvestment` | 文件名 `portfolio/data_class/investment.py` 仍易混；类名已区分 |
 | userspace `strategy.py` vs 模块 `strategy.py` | discovery 已用 `_ntq_strategy_*` 区分 |
 | Scanner runtime `scan_date` 键名 | 与 tick `as_of`/`point` 并存；可逐步改成只作 meta，避免再当时钟 |

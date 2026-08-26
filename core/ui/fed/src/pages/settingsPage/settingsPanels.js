@@ -239,11 +239,6 @@ export function SettingsDataPanel({
 
 const CACHE_OPTIONS = [
   {
-    key: 'clear_db_cache',
-    label: '数据库缓存清理',
-    hint: '清空 sys_strategy_workbench_snapshot（策略调试版本快照）。不会删除磁盘 results/。',
-  },
-  {
     key: 'clear_backtest_results',
     label: '回测结果临时文件清理',
     hint: '删除各策略 results/simulations/ 下的枚举、价格、投资模拟产物。',
@@ -261,7 +256,6 @@ const CACHE_OPTIONS = [
 ];
 
 const DEFAULT_CACHE_SELECTION = {
-  clear_db_cache: true,
   clear_backtest_results: true,
   clear_scan_results: true,
   clear_userspace_ntq: true,

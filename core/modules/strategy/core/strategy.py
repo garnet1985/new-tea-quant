@@ -1,7 +1,7 @@
 """Strategy 模块 Facade — scan / enumerate / price / portfolio / simulate / discovery。
 
 本文件:
-- Strategy: 对外 API（扫描委托 ScannerPipeline；simulate 指纹→缓存→Pipeline）
+- Strategy: 对外 API（扫描委托 ScannerPipeline；simulate 指纹→磁盘 registry→Pipeline）
   边界: 负责公开入口与 simulate 跨 step 编排；scan 领域逻辑在 ScannerPipeline
 - BackTestPipelines: SimulateKind → Pipeline 懒加载映射
 """
@@ -18,8 +18,8 @@ from .services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from .engines.shared.data_class.simulate_session import SimulateSession
-from .services.simulation_cache.cache_manager import (
-    SimulationCacheManager,
+from .services.simulation_cache.version_store import (
+    SimulationVersionStore,
 )
 from .services.simulation_cache.fingerprints import (
     FingerprintCalculator,
@@ -54,8 +54,8 @@ class BackTestPipelines:
 class Strategy:
     """策略模块 Facade。
 
-    模拟编排：算指纹 → 查目标 kind 槽 → miss 则 resolve steps（必要时先 enum）
-    → 每步 Pipeline.run 后 ``set_cache`` 写自己的 slot。
+    模拟编排：算指纹 → 查磁盘 registry → miss 则 resolve steps（必要时先 enum）
+    → 每步 Pipeline.run 后写 registry + effective_settings。
     """
 
     @staticmethod
@@ -121,16 +121,12 @@ class Strategy:
     ) -> Dict[str, Any]:
         """统一模拟入口：枚举 / 价格 / 资金。
 
-        缓存与指纹流程（各 step 共用）::
+        缓存与指纹流程（磁盘单轨）::
 
-            1. 计算 settings_fp / env_fp（与磁盘 settings ⊕ runtime 对齐）
-            2. 查目标 kind 槽位缓存；命中则直接返回
-            3. 未命中：
-               - price/portfolio：先按指纹找 enum version
-                 · 有 → 只跑本 step（enum_version 来自缓存 / 枚举产物）
-                 · 无 → 先跑 enumerate，再跑本 step
-            4. 每完成一个 step 即 ``set_cache`` 合并写入该 step 的 slot
-               （写入 enum 会清掉下游 price/portfolio 槽）
+            1. 计算 settings_fp / env_fp
+            2. 扫 ``simulations/meta.json`` registry；step 产物存在则命中
+            3. 未命中：price/portfolio 先按指纹找 enum vid；无则先 enum 再本 step
+            4. 每步完成后 ``SimulationVersionStore.record_step_complete``
         """
         strategy_info = DiscoveryService.find_strategy(key_or_id)
         if strategy_info is None:
@@ -162,8 +158,14 @@ class Strategy:
         )
         cache_key = ctx.strategy_key or key_or_id
 
+        strategy_folder = DiscoveryService.resolve_strategy_folder(key_or_id)
+
         if not ignore_cache:
-            cached = SimulationCacheManager.get_cache(cache_key, ctx.fp_res, ctx.kind)
+            cached = SimulationVersionStore.get_cache(
+                strategy_folder,
+                fp_res,
+                ctx.kind,
+            )
             if cached:
                 logger.info(
                     "simulate cache hit: kind=%s strategy=%s",
@@ -183,16 +185,24 @@ class Strategy:
                 cache_key,
             )
 
-        Strategy._resolve_steps(ctx)
+        Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
         ctx.validate_for_run()
-        return Strategy._run_steps(ctx, cache_key=cache_key)
+        return Strategy._run_steps(ctx, strategy_folder=strategy_folder)
 
     @staticmethod
-    def _resolve_steps(ctx: SimulateSession) -> None:
+    def _resolve_steps(ctx: SimulateSession, *, ignore_cache: bool = False) -> None:
         """按目标 kind + 指纹是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
         from .engines.enumerator import EnumeratorPipeline
 
         step = ctx.kind
+        if ignore_cache:
+            if step == SimulateKind.ENUMERATE:
+                ctx.steps = [SimulateKind.ENUMERATE]
+            else:
+                ctx.steps = [SimulateKind.ENUMERATE, step]
+            ctx.enum_version = None
+            return
+
         if step == SimulateKind.ENUMERATE:
             ctx.steps = [SimulateKind.ENUMERATE]
             ctx.enum_version = None
@@ -220,11 +230,16 @@ class Strategy:
     def _run_steps(
         ctx: SimulateSession,
         *,
-        cache_key: str,
+        strategy_folder: Union[str, Path],
     ) -> Dict[str, Any]:
-        """依次执行 Pipeline；每步完成后按指纹更新对应 cache slot。"""
+        """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
         consolidated: Dict[str, Any] = {}
-        last_wb_version = 0
+        folder = Path(strategy_folder)
+        strategy_name = str(
+            getattr(ctx.strategy_info, "unique_relative_path", "")
+            or ctx.strategy_key
+            or ""
+        )
         for step in ctx.steps:
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
@@ -233,22 +248,27 @@ class Strategy:
                 if version_id:
                     ctx.enum_version = str(version_id)
 
-            # 逐步写 slot：enum 先落盘后，即使下游 price 失败，指纹→enum version 仍可复用
-            wb_version = SimulationCacheManager.set_cache(
-                cache_key,
-                ctx.fp_res,
-                {step.value: step_res},
-            )
-            if int(wb_version or 0) > 0:
-                last_wb_version = int(wb_version)
+            if step_res.get("version_id") and step_res.get("output_dir"):
+                SimulationVersionStore.record_step_complete(
+                    folder,
+                    version_id=str(step_res.get("version_id")),
+                    kind=step,
+                    fps=ctx.fp_res,
+                    output_dir=str(step_res.get("output_dir")),
+                    entity_ids=list(ctx.entity_ids or []),
+                    strategy_name=strategy_name,
+                )
             logger.info(
-                "simulate cache updated: kind=%s strategy=%s version_id=%s workbench=%s",
+                "simulate step complete: kind=%s strategy=%s version_id=%s",
                 step.value,
-                cache_key,
+                ctx.strategy_key,
                 step_res.get("version_id"),
-                last_wb_version,
             )
-        consolidated["_workbench_version"] = last_wb_version
+        primary = consolidated.get(ctx.kind.value)
+        if isinstance(primary, dict):
+            vid = str(primary.get("version_id") or "").strip()
+            if vid:
+                consolidated["version_id"] = vid
         return consolidated
 
     @staticmethod
@@ -386,7 +406,7 @@ class Strategy:
         version_id: Optional[str] = None,
         baseline_version_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """收集归因 input + report，写入 ``simulations/<step>/<vid>/analysis/``。"""
+        """收集归因 input + report，写入 ``simulations/{version_id}/{step}/analysis/``。"""
         from .engines.analyzer import AnalyzerPipeline
         from .engines.analyzer.step import parse_step, step_to_simulate_kind
         from .services.artifacts import ArtifactStore
@@ -488,23 +508,13 @@ class Strategy:
         return StrategyPathRules.is_machine_readable_path(relative_path)
 
     @staticmethod
-    def clear_workbench_cache() -> int:
-        """清空 ``sys_strategy_workbench_snapshot``；失败抛 ``RuntimeError``，成功返回删除行数。"""
-        from .services.workbench_cache import WorkbenchCacheClear
-
-        out = WorkbenchCacheClear.clear_all()
-        if not out.get("ok"):
-            raise RuntimeError(str(out.get("error") or "存储不可用"))
-        return int(out.get("deleted_count") or 0)
-
-    @staticmethod
     def prune_simulation_results(
         key_or_id: str,
         *,
         kind: Optional[str] = None,
         max_versions: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """按 retention 清理策略 ``results/simulations/{kind}/`` 旧版本目录。
+        """按 retention 清理策略 ``results/simulations/`` 旧 version 目录。
 
         ``kind`` 为 ``enum`` / ``price`` / ``portfolio``（或 enumerate/price_factor）；
         ``None`` 表示三步都 prune。上限默认读 ``data.json`` retention。

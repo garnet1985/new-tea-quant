@@ -125,14 +125,15 @@ def resolve_simulation_output_dirs(
         kind = ArtifactStore.parse_kind(step)
     except ValueError:
         return []
-    root = ArtifactStore.for_kind(kind).simulation_root(folder)
+    root = ArtifactStore.simulations_root(folder)
+    step_dir = ArtifactStore.for_kind(kind).step_dir_name()
 
     out: List[Path] = []
     seen: set[str] = set()
     for name in names:
         p = Path(name)
         if not p.is_absolute():
-            p = root / name
+            p = root / name / step_dir
         key = str(p)
         if key not in seen:
             seen.add(key)

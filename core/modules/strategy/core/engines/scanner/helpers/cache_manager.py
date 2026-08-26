@@ -2,7 +2,7 @@
 
 本文件:
 - ScanCacheManager: ``scan_results/{strategy}/{date}/opportunities.csv`` 读写与过期清理
-  边界: 负责磁盘 scan 缓存；不负责 SimulationCacheManager 或 enum 产物
+  边界: 负责磁盘 scan 缓存；不负责 simulation version registry 或 enum 产物
 """
 
 from __future__ import annotations

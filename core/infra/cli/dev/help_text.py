@@ -10,8 +10,7 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py uk                      结束 UI 端口（8000 + 8888）  同 ui_kill [--ntq-only]
   python devcli.py ic                      import 冒烟       同 check_import
   python devcli.py cgc                     清 .ntq           同 clear_global_cache
-  python devcli.py csc                     清策略模拟缓存    同 clear_strategy_cache
-  python devcli.py cdc                     清 DB 快照        同 cache_clear_db
+  python devcli.py csc                     清策略 results/   同 clear_strategy_cache
   python devcli.py cmc                     清 results/       同 cache_clear_disk
   python devcli.py dbc                     DuckDB WAL        同 db_checkpoint [--recover]
   python devcli.py ex                      演示数据 zip      同 data_export_init

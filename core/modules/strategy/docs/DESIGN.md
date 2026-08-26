@@ -4,6 +4,9 @@
 
 硬约束摘要如下；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
+仿真 **version 布局 / 指纹 / 退役工作台双轨** 见进行中的改造说明：  
+[VERSIONING_REDESIGN.md](./VERSIONING_REDESIGN.md)。
+
 ---
 
 ## 与 BacktestEngine（硬约束）

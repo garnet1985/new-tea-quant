@@ -1,32 +1,40 @@
 """Workbench simulation cache clear (domain service).
 
-Deletes rows in ``sys_strategy_workbench_snapshot`` only (not disk simulation dirs).
+``clear_by_version`` removes disk simulation version dirs + registry entries.
+``clear_all`` removes ``results/simulations/`` for every discovered strategy.
+
 Consumers: BFF support + ``temp_cleanup`` (must not depend on ``core.bff``).
 """
 
 from __future__ import annotations
 
 import logging
+import shutil
+from pathlib import Path
 from typing import Any, Dict
 
-from core.modules.data_manager import DataManager
+from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
+from core.modules.strategy.core.services.discovery import DiscoveryService
 
 logger = logging.getLogger(__name__)
 
 
 class WorkbenchCacheClear:
-    """Clear workbench snapshot DB cache (all / by version)."""
+    """Clear workbench simulation cache on disk."""
 
     @classmethod
     def clear_all(cls) -> Dict[str, Any]:
-        model = cls._snapshot_model()
-        if model is None:
-            return {"ok": False, "error": "存储不可用", "deleted_count": 0}
+        deleted = 0
         try:
-            model._ensure_table_ready()
-            deleted = int(model.delete_all() or 0)
+            for info in DiscoveryService.discover_strategies():
+                folder = Path(info.resolved_folder())
+                sim_root = ArtifactStore.simulations_root(folder)
+                if sim_root.is_dir():
+                    shutil.rmtree(sim_root)
+                    deleted += 1
         except Exception as exc:
-            logger.exception("clear_all workbench snapshot cache failed")
+            logger.exception("clear_all workbench simulation cache failed")
             return {"ok": False, "error": str(exc) or "清理失败", "deleted_count": 0}
         return {"ok": True, "deleted_count": deleted, "cleared": deleted >= 0}
 
@@ -37,14 +45,19 @@ class WorkbenchCacheClear:
         if not name or sid <= 0:
             return {"ok": False, "error": "参数无效", "deleted": False}
 
-        model = cls._snapshot_model()
-        if model is None:
-            return {"ok": False, "error": "存储不可用", "deleted": False}
-
         try:
-            model._ensure_table_ready()
-            row = model.load_by_strategy_version(name, sid)
-            if not row:
+            folder = DiscoveryService.resolve_strategy_folder(name)
+        except Exception:
+            folder = None
+
+        vid = str(sid)
+        removed_disk = False
+        if folder is not None:
+            root = ArtifactStore.simulations_root(folder)
+            version_dir = Path(root) / vid
+            had_entry = VersionMetaStore.get_registry_entry(root, vid) is not None
+            had_dir = version_dir.is_dir()
+            if not had_entry and not had_dir:
                 return {
                     "ok": False,
                     "error": "快照不存在",
@@ -52,14 +65,12 @@ class WorkbenchCacheClear:
                     "strategy_name": name,
                     "version": sid,
                 }
-            n = int(model.delete_version_row(name, sid) or 0)
-        except Exception as exc:
-            logger.exception(
-                "clear_by_version failed strategy=%s version=%s", name, sid
-            )
-            return {"ok": False, "error": str(exc) or "删除失败", "deleted": False}
+            VersionMetaStore.remove_version_from_registry(root, vid)
+            if had_dir:
+                shutil.rmtree(version_dir)
+            removed_disk = had_entry or had_dir
 
-        if n <= 0:
+        if not removed_disk:
             return {
                 "ok": False,
                 "error": "快照不存在",
@@ -67,20 +78,13 @@ class WorkbenchCacheClear:
                 "strategy_name": name,
                 "version": sid,
             }
+
         return {
             "ok": True,
             "deleted": True,
             "strategy_name": name,
             "version_id": f"v{sid}",
         }
-
-    @staticmethod
-    def _snapshot_model():
-        try:
-            return DataManager().get_table("sys_strategy_workbench_snapshot")
-        except Exception:
-            logger.exception("Failed to resolve workbench snapshot table")
-            return None
 
 
 __all__ = ["WorkbenchCacheClear"]

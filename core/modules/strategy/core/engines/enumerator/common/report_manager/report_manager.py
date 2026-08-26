@@ -121,7 +121,7 @@ class ReportManager(BaseReportManager):
     ) -> "ReportManager":
         """分配 version 目录并写入 runtime_env.json / entity_ids.txt。
 
-        结果根基于 discovered ``strategy_folder``（``{folder}/results/simulations/enum``），
+        结果根基于 discovered ``strategy_folder``（``{folder}/results/simulations/{version_id}/enum``），
         不再用相对名重拼 userspace/strategies。
         """
         path_id = str(strategy_path or strategy_key or "").strip()

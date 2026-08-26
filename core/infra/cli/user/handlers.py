@@ -266,6 +266,23 @@ class UserHandlers:
         print(f"  归因: report={out.get('report_path')}", flush=True)
 
     @staticmethod
+    def _print_simulate_version(result: dict, step_key: str) -> None:
+        """Print disk ``version_id`` + step ``output_dir`` (``se`` / ``sp`` / ``so``)."""
+        if not isinstance(result, dict):
+            return
+        step = result.get(step_key)
+        vid = str(result.get("version_id") or "").strip()
+        if isinstance(step, dict):
+            vid = vid or str(step.get("version_id") or "").strip()
+            out_dir = str(step.get("output_dir") or "").strip()
+            if vid:
+                print(f"  version_id: {vid}", flush=True)
+            if out_dir:
+                print(f"  output_dir: {out_dir}", flush=True)
+        elif vid:
+            print(f"  version_id: {vid}", flush=True)
+
+    @staticmethod
     def _run_strategy_enumerate(args: argparse.Namespace) -> None:
         import time
 
@@ -302,6 +319,7 @@ class UserHandlers:
         wall_sec = time.perf_counter() - t0
 
         enum_result = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else result
+        UserHandlers._print_simulate_version(result, "enumerate")
 
         # 终局摘要统一走 Strategy.present_report
         if enum_result.get("output_dir"):
@@ -354,7 +372,7 @@ class UserHandlers:
         print(f"{i('market')} 价格因子回测…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，将新建 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -366,6 +384,7 @@ class UserHandlers:
 
         pf = result.get("price_factor") if isinstance(result.get("price_factor"), dict) else result
         enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+        UserHandlers._print_simulate_version(result, "price_factor")
         if enum_part:
             print(
                 f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
@@ -413,7 +432,7 @@ class UserHandlers:
         print(f"{i('money')} 组合回测（portfolio）…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，将新建 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -425,6 +444,7 @@ class UserHandlers:
 
         pf = result.get("portfolio") if isinstance(result.get("portfolio"), dict) else result
         enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+        UserHandlers._print_simulate_version(result, "portfolio")
         if enum_part:
             print(
                 f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
@@ -514,7 +534,7 @@ class UserHandlers:
         print(f"{i('game')} 模拟链路 · PriceFactor → Portfolio …", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，将新建 version", flush=True)
 
         t0 = time.perf_counter()
         pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)

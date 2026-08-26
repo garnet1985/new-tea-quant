@@ -156,22 +156,22 @@ class PathNamespace:
         return PathManager.get_tag_scenario_directory(tag_name)
 
     @staticmethod
-    def get_strategy_simulation_price_directory(strategy_name: str) -> Path:
-        """获取策略模拟价格目录"""
+    def get_strategy_simulations_directory(strategy_name: str) -> Path:
+        """获取策略仿真版本根目录（``results/simulations/``）。"""
         from .path_manager import PathManager
-        return PathManager.get_strategy_simulation_price_directory(strategy_name)
+        return PathManager.get_strategy_simulations_directory(strategy_name)
 
     @staticmethod
-    def get_strategy_simulation_portfolio_directory(strategy_name: str) -> Path:
-        """获取策略模拟组合目录"""
+    def get_strategy_simulation_step_directory(
+        strategy_name: str,
+        version_id: Union[str, int],
+        step: str,
+    ) -> Path:
+        """获取单步仿真产物目录（``simulations/{version_id}/{step}/``）。"""
         from .path_manager import PathManager
-        return PathManager.get_strategy_simulation_portfolio_directory(strategy_name)
-
-    @staticmethod
-    def get_strategy_simulation_enum_directory(strategy_name: str) -> Path:
-        """获取策略模拟枚举目录"""
-        from .path_manager import PathManager
-        return PathManager.get_strategy_simulation_enum_directory(strategy_name)
+        return PathManager.get_strategy_simulation_step_directory(
+            strategy_name, version_id, step
+        )
 
     @staticmethod
     def get_strategy_scan_results_directory(strategy_name: str) -> Path:

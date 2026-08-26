@@ -204,7 +204,6 @@ def run_cache_clear(payload: Dict[str, Any]) -> Dict[str, Any]:
     from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
     return TempCleanup.run(
-        clear_db_cache=_flag("clear_db_cache"),
         clear_backtest_results=_flag("clear_backtest_results"),
         clear_scan_results=_flag("clear_scan_results"),
         clear_userspace_ntq=_flag("clear_userspace_ntq"),

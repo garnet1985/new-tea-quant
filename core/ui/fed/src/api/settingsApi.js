@@ -141,7 +141,6 @@ export async function clearSettingsCache(body) {
   const json = await request.postJson(API_SETTINGS_CACHE_CLEAR, {
     timeoutMs: HTTP_TIMEOUT_MS.LONG,
     body: {
-      clear_db_cache: Boolean(body?.clear_db_cache),
       clear_backtest_results: Boolean(body?.clear_backtest_results),
       clear_scan_results: Boolean(body?.clear_scan_results),
       clear_userspace_ntq: Boolean(body?.clear_userspace_ntq),

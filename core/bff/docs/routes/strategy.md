@@ -25,7 +25,7 @@ core/bff/APIs/strategy/
 - **共用类方法**：``DiscoveryService.resolve_strategy_path``、``WorkbenchVersionId.parse``、``WorkbenchStep.try_parse``（挂在类上，不单独 export 函数）。
 - **routes/<area>/routes.py**：解析 HTTP → `impl.lazy_load()` → `ok` / `error`。
 - **routes/<area>/implementer.py**：领域编排 / DTO；lazy-import strategy core 与本包 helpers。
-- **Snapshot**：前端概念（多 version settings）；读模型在 ``helpers/workbench_snapshots``。后端 run 只认指纹缓存写表。
+- **Snapshot**：前端概念（多 version settings）；读模型在 ``helpers/workbench_snapshots``（磁盘 registry）。后端 run 经 ``Strategy.simulate`` 写 ``simulations/{vid}/``，BFF 不做 cache 命中判断。
 - 不再保留独立的 ``cache`` 路由模块；快照 DbCache 清理挂在 **version**。
 - BFF 不做缓存命中判断。
 - 工作台三步 ``enum | price | portfolio`` 与核心共用 ``WorkbenchStep``（``core.modules.strategy.contracts``）。

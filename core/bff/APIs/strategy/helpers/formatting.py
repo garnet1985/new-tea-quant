@@ -32,4 +32,5 @@ def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
         "step_status": _step_status_from_result_report(result_report),
         "result_report": result_report,
         "execution_panel": build_execution_panel_from_result_report(result_report),
+        "env_invalid": bool(row.get("env_invalid")),
     }

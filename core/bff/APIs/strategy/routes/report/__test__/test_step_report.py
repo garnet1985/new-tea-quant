@@ -25,6 +25,7 @@ def test_build_step_report_message(mock_fetch, mock_resolve):
     assert msg["version_id"] == "v5"
     assert msg["step"] == "enum"
     assert msg["report"]["enumMetrics"]["totalOpportunities"] == 9
+    assert msg["analysis"]["available"] is False
 
 
 @patch.object(WorkbenchReports, "_enrich_stock_ref_with_list_names", side_effect=lambda x: x)

@@ -211,10 +211,23 @@ class WorkbenchRunLauncher:
                     runtime_settings=api_settings,
                     force=force_refresh,
                 )
-                wb_version = int((result or {}).get("_workbench_version") or 0)
+                step_payload = (
+                    (result or {}).get(kind.value)
+                    if isinstance(result, dict)
+                    else None
+                )
+                version_id = ""
+                if isinstance(step_payload, dict):
+                    version_id = str(step_payload.get("version_id") or "").strip()
+                if not version_id and isinstance(result, dict):
+                    version_id = str(result.get("version_id") or "").strip()
                 payload: Dict[str, Any] = {"message": f"{norm_step} 已完成"}
-                if wb_version > 0:
-                    payload["version_id"] = f"v{wb_version}"
+                if version_id:
+                    payload["version_id"] = (
+                        version_id
+                        if version_id.startswith("v")
+                        else f"v{version_id}"
+                    )
                     payload["report_step"] = norm_step
                 if isinstance(analysis, dict) and not analysis.get("skipped"):
                     payload["analysis"] = {

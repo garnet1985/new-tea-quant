@@ -7,25 +7,25 @@ from unittest.mock import patch
 
 import pytest
 
-from core.modules.strategy.core.services.artifacts import EnumerateStore
+from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore
 from core.modules.strategy.core.services.results_retention import ResultsRetention
 
 pytestmark = pytest.mark.force_run
 
 
 def test_prune_simulation_results_per_kind(tmp_path: Path) -> None:
-    enum_root = tmp_path / "simulations" / "enum"
+    sim_root = tmp_path / "simulations"
     for i in (1, 2, 3, 4):
-        (enum_root / str(i)).mkdir(parents=True)
+        (sim_root / str(i) / "enum").mkdir(parents=True)
 
     with patch.object(
         ResultsRetention,
         "_resolve_folder",
         return_value=tmp_path,
     ), patch.object(
-        EnumerateStore,
-        "simulation_root",
-        classmethod(lambda cls, folder, kind=None: enum_root),
+        ArtifactStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: sim_root),
     ):
         out = ResultsRetention.prune_simulation_results(
             "demo/x", kind="enum", max_versions=2
@@ -35,7 +35,7 @@ def test_prune_simulation_results_per_kind(tmp_path: Path) -> None:
     assert out["deleted_count"] == 2
     assert out["per_kind"]["enumerate"] == 2
     remaining = sorted(
-        int(p.name) for p in enum_root.iterdir() if p.is_dir() and p.name.isdigit()
+        int(p.name) for p in sim_root.iterdir() if p.is_dir() and p.name.isdigit()
     )
     assert remaining == [3, 4]
 

@@ -20,6 +20,7 @@ from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_price_slot,
     resolve_simulation_output_dirs,
 )
+from core.bff.APIs.strategy.helpers.analysis_payload import resolve_analysis_for_step
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
@@ -52,11 +53,20 @@ class WorkbenchReports:
             row,
             workbench_version=int(version),
         )
+        rr = dict(row.get("result_report") or {})
+        slot = rr.get(step.report_slot)
+        analysis = resolve_analysis_for_step(
+            name,
+            step.value,
+            slot if isinstance(slot, dict) else {},
+            workbench_version=int(version),
+        )
         return {
             "version_id": f"v{int(version)}",
             "strategy_name": name,
             "step": step.value,
             "report": report,
+            "analysis": analysis,
         }
 
     @classmethod

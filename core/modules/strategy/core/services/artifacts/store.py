@@ -31,6 +31,7 @@ from core.modules.strategy.core.services.artifacts.consts import (
     TRADES_FILE,
 )
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.services.artifacts.tables.enum_investments import (
     EntityInvestmentCsv,
     GoalAchievementCsv,
@@ -58,6 +59,12 @@ _KIND_ALIASES = {
     "portfolio": SimulateKind.PORTFOLIO,
 }
 
+_STEP_DIR_BY_KIND: Dict[SimulateKind, str] = {
+    SimulateKind.ENUMERATE: "enum",
+    SimulateKind.PRICE_FACTOR: "price",
+    SimulateKind.PORTFOLIO: "portfolio",
+}
+
 _NAMED_FILES = {
     "runtime_env": RUNTIME_ENV_FILE,
     "entity_ids": ENTITY_IDS_FILE,
@@ -69,9 +76,18 @@ _NAMED_FILES = {
 }
 
 
-def _read_next_output_version(meta: Dict[str, Any]) -> int:
+def _count_version_dirs(simulation_root: Path) -> int:
+    root = Path(simulation_root)
+    if not root.is_dir():
+        return 0
+    return sum(
+        1 for d in root.iterdir() if d.is_dir() and d.name.isdigit()
+    )
+
+
+def _read_next_version_id(meta: Dict[str, Any]) -> int:
     try:
-        return max(int(meta.get("next_output_version") or 1), 1)
+        return max(int(meta.get("next_version_id") or 1), 1)
     except (TypeError, ValueError):
         return 1
 
@@ -164,16 +180,32 @@ class ArtifactStore:
         return cls.parse_kind(kind)
 
     @classmethod
+    def simulations_root(
+        cls,
+        strategy_folder: Union[str, Path],
+    ) -> Path:
+        return ProjectContext.path.get_strategy_simulations_directory(
+            Path(strategy_folder)
+        )
+
+    @classmethod
+    def step_dir_name(cls, kind: Optional[_KindLike] = None) -> str:
+        parsed = cls._require_kind(kind)
+        return _STEP_DIR_BY_KIND[parsed]
+
+    @classmethod
     def simulation_root(
         cls,
         strategy_folder: Union[str, Path],
         kind: Optional[_KindLike] = None,
     ) -> Path:
+        """共享仿真根 ``results/simulations/``（三步共用 version id）。"""
         if cls.KIND is None:
-            return cls.for_kind(cls._require_kind(kind)).simulation_root(
+            return cls.for_kind(cls._require_kind(kind)).simulations_root(
                 strategy_folder
             )
-        raise NotImplementedError(f"{cls.__name__} 未实现 simulation_root")
+        cls._require_kind(kind)
+        return cls.simulations_root(strategy_folder)
 
     @classmethod
     def allocate(
@@ -182,17 +214,25 @@ class ArtifactStore:
         kind: Optional[_KindLike] = None,
         *,
         strategy_id: str = "",
+        version_id: Optional[Union[str, int]] = None,
         max_versions: Optional[int] = None,
     ) -> "ArtifactStore":
         parsed = cls._require_kind(kind)
         impl = cls.for_kind(parsed)
-        root = impl.simulation_root(strategy_folder)
-        output_dir, version_id = cls._allocate_version_dir(
+        root = impl.simulations_root(strategy_folder)
+        step_dir = impl.step_dir_name()
+        reuse_vid = str(version_id or "").strip()
+        if reuse_vid:
+            output_dir = root / reuse_vid / step_dir
+            output_dir.mkdir(parents=True, exist_ok=True)
+            return impl.at(output_dir, version_id=reuse_vid)
+        output_dir, new_vid = cls._allocate_version_dir(
             str(strategy_id or strategy_folder),
             root,
+            step_dir,
             max_versions=max_versions,
         )
-        return impl.at(output_dir, version_id=str(version_id))
+        return impl.at(output_dir, version_id=str(new_vid))
 
     @classmethod
     def resolve(
@@ -206,7 +246,8 @@ class ArtifactStore:
         if not vid:
             raise ValueError("version_id 不能为空")
         impl = cls.for_kind(parsed)
-        output_dir = impl.simulation_root(strategy_folder) / vid
+        root = impl.simulations_root(strategy_folder)
+        output_dir = root / vid / impl.step_dir_name()
         if not output_dir.is_dir():
             raise FileNotFoundError(f"仿真 version 目录不存在: {output_dir}")
         return impl.open(output_dir, version_id=vid)
@@ -219,18 +260,18 @@ class ArtifactStore:
     ) -> Optional["ArtifactStore"]:
         parsed = cls._require_kind(kind)
         impl = cls.for_kind(parsed)
-        root = impl.simulation_root(strategy_folder)
+        root = impl.simulations_root(strategy_folder)
         meta_path = root / "meta.json"
         if not meta_path.is_file():
             return None
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            latest_id = int(meta.get("next_output_version") or 1) - 1
+            latest_id = int(_read_next_version_id(meta)) - 1
         except Exception:
             return None
         if latest_id <= 0:
             return None
-        output_dir = root / str(latest_id)
+        output_dir = root / str(latest_id) / impl.step_dir_name()
         if not output_dir.is_dir():
             return None
         return impl.at(output_dir, version_id=str(latest_id))
@@ -317,6 +358,8 @@ class ArtifactStore:
         max_versions: Optional[int] = None,
     ) -> Dict[str, Any]:
         folder = Path(strategy_folder)
+        root = cls.simulations_root(folder)
+        deleted = cls.prune_root(root, max_versions=max_versions)
         if kind is None or str(kind).strip() == "":
             kinds = (
                 SimulateKind.ENUMERATE,
@@ -325,17 +368,11 @@ class ArtifactStore:
             )
         else:
             kinds = (cls.parse_kind(kind),)
-        per_kind: Dict[str, int] = {}
-        total = 0
-        for parsed in kinds:
-            root = cls.for_kind(parsed).simulation_root(folder)
-            deleted = cls.prune_root(root, max_versions=max_versions)
-            per_kind[parsed.value] = deleted
-            total += deleted
+        per_kind = {parsed.value: deleted for parsed in kinds}
         return {
             "ok": True,
             "strategy_folder": str(folder),
-            "deleted_count": total,
+            "deleted_count": deleted,
             "per_kind": per_kind,
         }
 
@@ -359,6 +396,7 @@ class ArtifactStore:
         deleted = 0
         for old_dir in version_dirs[cap:]:
             try:
+                VersionMetaStore.remove_version_from_registry(root, old_dir.name)
                 shutil.rmtree(old_dir)
                 deleted += 1
                 logger.info("Pruned simulation version dir: %s", old_dir)
@@ -371,12 +409,18 @@ class ArtifactStore:
     def _allocate_version_dir(
         cls,
         strategy_id: str,
-        simulation_root: Path,
+        simulations_root: Path,
+        step_dir: str,
         *,
         max_versions: Optional[int] = None,
     ) -> Tuple[Path, int]:
-        simulation_root.mkdir(parents=True, exist_ok=True)
-        meta_path = simulation_root / "meta.json"
+        simulations_root.mkdir(parents=True, exist_ok=True)
+        cap = _resolve_max_versions(max_versions)
+        if _count_version_dirs(simulations_root) >= cap:
+            raise ValueError(
+                f"仿真 version 已达上限 {cap}；请先 prune 或提高 max_versions，系统不会静默删除旧版本"
+            )
+        meta_path = simulations_root / "meta.json"
         if meta_path.is_file():
             try:
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -384,19 +428,27 @@ class ArtifactStore:
                 meta = {}
         else:
             meta = {}
-        version_id = _read_next_output_version(meta)
-        version_dir = simulation_root / str(version_id)
-        version_dir.mkdir(parents=True, exist_ok=True)
-        meta["next_output_version"] = version_id + 1
+        version_id = _read_next_version_id(meta)
+        output_dir = simulations_root / str(version_id) / step_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        meta["next_version_id"] = version_id + 1
         meta["last_updated"] = datetime.now().isoformat()
         meta["strategy_name"] = strategy_id
         meta_path.write_text(
             json.dumps(meta, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-        logger.info("Allocated simulation version: %s (id=%d)", version_dir, version_id)
-        cls.prune_root(simulation_root, max_versions=max_versions)
-        return version_dir, version_id
+        VersionMetaStore.ensure_registry_entry(
+            simulations_root,
+            str(version_id),
+        )
+        logger.info(
+            "Allocated simulation version: %s (id=%d, step=%s)",
+            output_dir,
+            version_id,
+            step_dir,
+        )
+        return output_dir, version_id
 
     def to_snapshot(self) -> Dict[str, Any]:
         return {
@@ -533,9 +585,7 @@ class EnumerateStore(ArtifactStore):
         kind: Optional[_KindLike] = None,
     ) -> Path:
         cls._require_kind(kind)
-        return ProjectContext.path.get_strategy_simulation_enum_directory(
-            Path(strategy_folder)
-        )
+        return cls.simulations_root(strategy_folder)
 
     def investments(self, entity_id: str) -> EntityInvestmentCsv:
         eid = str(entity_id or "").strip()
@@ -690,9 +740,7 @@ class PriceFactorStore(ArtifactStore):
         kind: Optional[_KindLike] = None,
     ) -> Path:
         cls._require_kind(kind)
-        return ProjectContext.path.get_strategy_simulation_price_directory(
-            Path(strategy_folder)
-        )
+        return cls.simulations_root(strategy_folder)
 
     def investments(self, entity_id: str) -> List[PriceInvestmentRow]:
         eid = str(entity_id or "").strip()
@@ -766,9 +814,7 @@ class PortfolioStore(ArtifactStore):
         kind: Optional[_KindLike] = None,
     ) -> Path:
         cls._require_kind(kind)
-        return ProjectContext.path.get_strategy_simulation_portfolio_directory(
-            Path(strategy_folder)
-        )
+        return cls.simulations_root(strategy_folder)
 
 
 _STORE_BY_KIND: Dict[SimulateKind, Type[ArtifactStore]] = {

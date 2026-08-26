@@ -41,15 +41,15 @@ def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
 
 
 def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> None:
-    enum_dir = tmp_path / "enum" / "1"
+    enum_dir = tmp_path / "1" / "enum"
     _write_enum_runtime(enum_dir, ["000001.SZ"])
     data = EnumerateStore.open(enum_dir, version_id="1")
 
-    price_root = tmp_path / "price"
+    sim_root = tmp_path / "simulations"
     monkeypatch.setattr(
         PriceFactorStore,
-        "simulation_root",
-        classmethod(lambda cls, folder, kind=None: price_root),
+        "simulations_root",
+        classmethod(lambda cls, folder: sim_root),
     )
 
     ctx = SimpleNamespace(

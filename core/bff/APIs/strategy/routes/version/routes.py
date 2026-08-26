@@ -43,7 +43,7 @@ def delete_strategy_version_cache_all():
     """
     DELETE /api/v1/strategy/version/cache
 
-    清空工作台快照 DbCache 表全部行（V2-11，无 target）。
+    清空全部策略的 simulation 磁盘缓存（``results/simulations/``）。
     """
     versions = version_impl.lazy_load()
     return _http_from_cache_result(versions.clear_cache_all(), all_mode=True)
@@ -104,7 +104,7 @@ def delete_strategy_version_cache_by_version(
     """
     DELETE /api/v1/strategy/:strategy_key_or_name/version/:version_id/cache
 
-    V2-12：删除指定工作台 version 的一条快照行。
+    删除指定 simulation version 的磁盘目录与 registry 条目。
     """
     versions = version_impl.lazy_load()
     try:

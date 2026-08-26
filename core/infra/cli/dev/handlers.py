@@ -156,16 +156,7 @@ class DevHandlers:
         from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
         TempCleanup.clear_strategy_results_disk()
-        TempCleanup.clear_workbench_db_cache()
-        print("物理模拟 results/ 与 DB 工作台快照已清理。", flush=True)
-        return 0
-
-    @staticmethod
-    def cmd_cache_clear_db(_args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
-
-        TempCleanup.clear_workbench_db_cache()
-        print("DB 工作台快照已清理。", flush=True)
+        print("策略 results/ 已清理。", flush=True)
         return 0
 
     @staticmethod

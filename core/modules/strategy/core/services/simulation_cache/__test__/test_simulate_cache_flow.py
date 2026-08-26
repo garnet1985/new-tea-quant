@@ -1,14 +1,19 @@
-"""Strategy.simulate 指纹缓存编排：hit / miss / 补跑 enum / 逐步写 slot。"""
+"""Strategy.simulate 指纹缓存编排：hit / miss / 补跑 enum / 磁盘 registry。"""
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import core.modules.strategy.core.strategy as strategy_module
 from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.engines.enumerator.pipeline import EnumeratorPipeline
+from core.modules.strategy.core.engines.shared.data_class.simulate_session import (
+    SimulateSession,
+)
 from core.modules.strategy.core.strategy import Strategy
-from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 
 def _fps():
@@ -30,11 +35,23 @@ def _ctx(*, kind=SimulateKind.PRICE_FACTOR):
     return SimulateSession(strategy_info=info, fp_res=_fps(), kind=kind)
 
 
+def test_resolve_steps_price_ignore_cache_skips_enum_reuse():
+    ctx = _ctx()
+    with patch.object(
+        EnumeratorPipeline,
+        "find_output_version_via_fps",
+        return_value="7",
+    ):
+        Strategy._resolve_steps(ctx, ignore_cache=True)
+    assert ctx.steps == [SimulateKind.ENUMERATE, SimulateKind.PRICE_FACTOR]
+    assert ctx.enum_version is None
+
+
 def test_resolve_steps_price_reuses_enum_version():
     ctx = _ctx()
-    with patch(
-        "core.modules.strategy.core.engines.enumerator.EnumeratorPipeline"
-        ".find_output_version_via_fps",
+    with patch.object(
+        EnumeratorPipeline,
+        "find_output_version_via_fps",
         return_value="7",
     ):
         Strategy._resolve_steps(ctx)
@@ -44,9 +61,9 @@ def test_resolve_steps_price_reuses_enum_version():
 
 def test_resolve_steps_price_prepends_enumerate_when_missing():
     ctx = _ctx()
-    with patch(
-        "core.modules.strategy.core.engines.enumerator.EnumeratorPipeline"
-        ".find_output_version_via_fps",
+    with patch.object(
+        EnumeratorPipeline,
+        "find_output_version_via_fps",
         return_value=None,
     ):
         Strategy._resolve_steps(ctx)
@@ -60,24 +77,33 @@ def test_simulate_returns_price_slot_on_cache_hit():
     info.relative_path = "demo/rsi"
     cached = {"price_factor": {"version_id": 9, "success": True}}
 
-    with patch(
-        "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
+    with patch.object(
+        strategy_module.DiscoveryService,
+        "find_strategy",
         return_value=info,
-    ), patch(
-        "core.modules.strategy.core.strategy.GlobalEntityCache.get_stock_list",
+    ), patch.object(
+        strategy_module.DiscoveryService,
+        "resolve_strategy_folder",
+        return_value=Path("/tmp/demo"),
+    ), patch.object(
+        strategy_module.GlobalEntityCache,
+        "get_stock_list",
         return_value=[],
-    ), patch(
-        "core.modules.strategy.core.strategy.GlobalEntityCache"
-        ".get_latest_completed_trading_date",
+    ), patch.object(
+        strategy_module.GlobalEntityCache,
+        "get_latest_completed_trading_date",
         return_value="2024-01-01",
-    ), patch(
-        "core.modules.strategy.core.strategy.FingerprintCalculator.calculate_fingerprints",
+    ), patch.object(
+        strategy_module.FingerprintCalculator,
+        "calculate_fingerprints",
         return_value=_fps(),
-    ), patch(
-        "core.modules.strategy.core.strategy.SimulationCacheManager.get_cache",
+    ), patch.object(
+        strategy_module.SimulationVersionStore,
+        "get_cache",
         return_value=cached,
-    ) as get_cache, patch(
-        "core.modules.strategy.core.strategy.Strategy._run_steps"
+    ) as get_cache, patch.object(
+        Strategy,
+        "_run_steps",
     ) as run_steps:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.PRICE_FACTOR)
 
@@ -106,52 +132,63 @@ def test_strategy_enumerate_delegates_to_simulate() -> None:
 
 
 def test_simulate_missing_strategy_raises() -> None:
-    with patch(
-        "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
-        return_value=None,
-    ):
+    with patch.object(strategy_module.DiscoveryService, "find_strategy", return_value=None):
         with pytest.raises(ValueError, match="不存在或未启用"):
             Strategy.simulate("missing", kind=SimulateKind.ENUMERATE)
 
 
 def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
-    """Facade 主线：cache miss → resolve enumerate → Pipeline.run → 写 cache。"""
+    """Facade 主线：cache miss → Pipeline.run → 写磁盘 registry。"""
     info = MagicMock()
     info.id.return_value = "demo/rsi"
     info.unique_relative_path = "demo/rsi"
     info.key = "demo/rsi"
     info.relative_path = "demo/rsi"
-    step_res = {"success": True, "version_id": "3", "opportunities_count": 0}
+    step_res = {
+        "success": True,
+        "version_id": "3",
+        "output_dir": "/tmp/demo/simulations/3/enum",
+        "opportunities_count": 0,
+    }
 
-    with patch(
-        "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
+    with patch.object(
+        strategy_module.DiscoveryService,
+        "find_strategy",
         return_value=info,
-    ), patch(
-        "core.modules.strategy.core.strategy.GlobalEntityCache.get_stock_list",
+    ), patch.object(
+        strategy_module.DiscoveryService,
+        "resolve_strategy_folder",
+        return_value=Path("/tmp/demo"),
+    ), patch.object(
+        strategy_module.GlobalEntityCache,
+        "get_stock_list",
         return_value=["000001.SZ"],
-    ), patch(
-        "core.modules.strategy.core.strategy.GlobalEntityCache"
-        ".get_latest_completed_trading_date",
+    ), patch.object(
+        strategy_module.GlobalEntityCache,
+        "get_latest_completed_trading_date",
         return_value="20240110",
-    ), patch(
-        "core.modules.strategy.core.strategy.FingerprintCalculator.calculate_fingerprints",
+    ), patch.object(
+        strategy_module.FingerprintCalculator,
+        "calculate_fingerprints",
         return_value=_fps(),
-    ), patch(
-        "core.modules.strategy.core.strategy.SimulationCacheManager.get_cache",
+    ), patch.object(
+        strategy_module.SimulationVersionStore,
+        "get_cache",
         return_value=None,
-    ), patch(
-        "core.modules.strategy.core.engines.enumerator.EnumeratorPipeline.run",
+    ), patch.object(
+        EnumeratorPipeline,
+        "run",
         return_value=step_res,
-    ) as run, patch(
-        "core.modules.strategy.core.strategy.SimulationCacheManager.set_cache",
-        return_value=11,
-    ) as set_cache:
+    ) as run, patch.object(
+        strategy_module.SimulationVersionStore,
+        "record_step_complete",
+    ) as record:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.ENUMERATE)
 
     assert out["enumerate"]["version_id"] == "3"
-    assert out["_workbench_version"] == 11
+    assert out["version_id"] == "3"
     run.assert_called_once()
-    set_cache.assert_called_once()
+    record.assert_called_once()
 
 
 def test_simulate_session_validate_for_run_requires_steps() -> None:

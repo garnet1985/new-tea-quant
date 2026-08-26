@@ -1,6 +1,7 @@
 """仿真 version 目录文件名常量。"""
 
 RUNTIME_ENV_FILE = "runtime_env.json"
+EFFECTIVE_SETTINGS_FILE = "effective_settings.json"
 ENTITY_IDS_FILE = "entity_ids.txt"
 PERFORMANCE_FILE = "performance.json"
 OVERALL_REPORT_FILE = "overall_report.json"

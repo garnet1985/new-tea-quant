@@ -14,7 +14,7 @@ import copy
 import hashlib
 import json
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, FrozenSet, List, Tuple
+from typing import Any, ClassVar, Dict, FrozenSet, List, Tuple, Union
 
 from core.modules.backtest_engine.contracts import BacktestMode
 from .meta_settings import MetaSettings
@@ -94,6 +94,35 @@ class StrategySettings:
             for key, value in diff.items()
             if key.split(".")[0] in cls.FINGERPRINT_FIELDS
         }
+
+    @classmethod
+    def extract_effective_settings(
+        cls,
+        settings: Union["StrategySettings", Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """从 effective settings 抽取参与指纹/版本冻结的配置子集（``FINGERPRINT_FIELDS``）。
+
+        字段定义在 ``StrategySettings.FINGERPRINT_FIELDS``（策略通用上层规则）；
+        带 value 的快照写入 ``simulations/{vid}/effective_settings.json``。
+        """
+        raw = (
+            settings.raw_settings
+            if isinstance(settings, StrategySettings)
+            else dict(settings or {})
+        )
+        return {
+            key: copy.deepcopy(raw[key])
+            for key in cls.FINGERPRINT_FIELDS
+            if key in raw
+        }
+
+    @classmethod
+    def fingerprint_semantic(
+        cls,
+        settings: Union["StrategySettings", Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """兼容别名；请用 ``extract_effective_settings``。"""
+        return cls.extract_effective_settings(settings)
 
     @classmethod
     def fingerprint_diff(

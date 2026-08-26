@@ -29,8 +29,12 @@ from core.modules.strategy.core.services.entity_loader.strategy_data_resolver im
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
+)
+from core.modules.strategy.core.services.simulation_cache.version_store import (
+    SimulationVersionStore,
 )
 from core.modules.strategy.core.services.progress import PipelineProgress
 
@@ -57,13 +61,9 @@ class EnumeratorPipeline:
 
     @classmethod
     def find_output_version_via_fps(cls, ctx: "SimulateSession") -> Optional[str]:
-        """按双指纹查工作台 enum 槽的 ``version_id``；未找到返回 None。"""
-        from core.modules.strategy.core.services.simulation_cache.cache_manager import (
-            SimulationCacheManager,
-        )
-
-        return SimulationCacheManager.find_enum_output_version(
-            ctx.strategy_key,
+        """按双指纹查磁盘 enum 产物对应的 version id；未找到返回 None。"""
+        return SimulationVersionStore.find_enum_version(
+            DiscoveryService.resolve_strategy_folder(ctx.strategy_key),
             ctx.fp_res,
         )
 

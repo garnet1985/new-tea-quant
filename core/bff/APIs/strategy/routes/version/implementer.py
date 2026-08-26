@@ -1,6 +1,6 @@
-"""Version implementer: workbench snapshot reads + DbCache clear.
+"""Version implementer: disk registry reads + cache clear.
 
-Reads go through BFF ``WorkbenchSnapshots`` (UI snapshot read model).
+Reads go through BFF ``WorkbenchSnapshots`` (disk ``simulations/meta.json``).
 """
 
 from __future__ import annotations

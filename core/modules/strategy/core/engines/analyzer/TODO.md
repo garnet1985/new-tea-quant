@@ -79,8 +79,8 @@ modules/analysis/                         # 无 version 路径、不读 Artifact
 - [x] run_comparison 白话 present（`--baseline-version` → insights.run_comparison + CLI「两次回测对照」）
 - [x] portfolio per-trade join（buy/sell 配对 · enum snapshot · `engine.roi/profit`）
 - [x] 多 varying capture 可演示场景（`rsi_v3` · 其他条件 + 多指标白话；multivariate 门槛 50）
-- [ ] BFF 读 analysis 展示（辅助，CLI 完成后再做）
-- [ ] UI 读 analysis 展示（辅助，CLI 完成后再做）
+- [x] BFF 读 analysis 展示（`GET …/report/{step}/{vid}` → `analysis.insights`）
+- [ ] UI 读 analysis 展示（消费 BFF `analysis` 字段）
 
 **多指标演示**
 

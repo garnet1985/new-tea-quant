@@ -1,7 +1,7 @@
 # 测试用例 — `modules.strategy`
 
 **模块：** `modules.strategy`  
-**覆盖版本：** `0.7.0`
+**覆盖版本：** `0.8.0`
 
 ## Scope
 

@@ -207,7 +207,7 @@
 
 - [x] analyzer 读写 `{vid}/{step}/analysis/`（随 step `output_dir`）
 - [x] demo 策略端到端：`simulate` + `sa` 验证新路径（`test_analysis_version_layout_e2e`）
-- [x] BFF step report + `analysis.insights`（`helpers/analysis_payload`）
+- [x] BFF step report + `analysis.insights`（`Strategy.resolve_step_analysis`）
 - [x] 更新 `engines/analyzer/TODO.md`
 
 ### Batch 6 — 清理与回归

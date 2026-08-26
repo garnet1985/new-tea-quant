@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
+from core.modules.strategy import Strategy
 from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore, PriceFactorStore
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
@@ -18,9 +19,7 @@ from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_enum_slot,
     hydrate_portfolio_slot,
     hydrate_price_slot,
-    resolve_simulation_output_dirs,
 )
-from core.bff.APIs.strategy.helpers.analysis_payload import resolve_analysis_for_step
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,7 @@ class WorkbenchReports:
         )
         rr = dict(row.get("result_report") or {})
         slot = rr.get(step.report_slot)
-        analysis = resolve_analysis_for_step(
+        analysis = Strategy.resolve_step_analysis(
             name,
             step.value,
             slot if isinstance(slot, dict) else {},
@@ -102,7 +101,7 @@ class WorkbenchReports:
         stock_ref: Optional[Dict[str, Any]] = None
         resolved_dir = ""
 
-        for output_dir in resolve_simulation_output_dirs(
+        for output_dir in Strategy.resolve_simulation_output_dirs(
             name,
             step=step.value,
             slot=slot if isinstance(slot, dict) else {},

@@ -68,7 +68,7 @@ results/simulations/{vid}/effective_settings.json
 | ``__test__/test_versioning_regression.py`` | env_invalid、共享 vid、ignore_cache |
 | ``__test__/test_analysis_version_layout_e2e.py`` | ``{vid}/{step}/analysis/`` |
 | ``services/artifacts/__test__/test_artifact_store.py`` | allocate / prune |
-| ``bff/.../test_analysis_payload.py`` | BFF ``analysis.insights`` |
+| BFF step report ``analysis`` 字段 | ``Strategy.resolve_step_analysis`` |
 | ``services/workbench_cache/__test__/test_workbench_cache_clear.py`` | 磁盘 version 清理 |
 
 ---

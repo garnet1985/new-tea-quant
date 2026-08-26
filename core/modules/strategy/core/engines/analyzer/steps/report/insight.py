@@ -1,10 +1,18 @@
-"""Internal insight service — conclusion-first summaries for reports."""
+"""Insight service — conclusion-first summaries for reports."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
 class InsightBuilder:
+    @classmethod
+    def resolve(cls, report: Dict[str, Any]) -> Dict[str, Any]:
+        """Prefer insights written at report time; rebuild for older reports."""
+        persisted = report.get("insights")
+        if isinstance(persisted, dict) and str(persisted.get("headline") or "").strip():
+            return dict(persisted)
+        return cls.build(report)
+
     @classmethod
     def build(cls, report: Dict[str, Any]) -> Dict[str, Any]:
         """Build conclusion-first insight payload for CLI / UI."""

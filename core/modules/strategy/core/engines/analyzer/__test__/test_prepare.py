@@ -20,6 +20,11 @@ from core.modules.strategy.core.services.artifacts import (
     PriceFactorStore,
     PriceInvestmentRow,
 )
+from core.modules.strategy.core.services.artifacts.consts import (
+    ANALYSIS_REPORT_JSON,
+    ANALYSIS_SOURCE_JSON,
+    ANALYSIS_SUBDIR,
+)
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
 pytestmark = pytest.mark.force_run
@@ -200,10 +205,10 @@ def test_pipeline_writes_source_and_report_json(tmp_path: Path) -> None:
     _write_enum_entity(tmp_path)
 
     store = EnumerateStore.open(tmp_path, version_id="1")
-    result = Analyzer.Pipeline.run(store)
+    result = Analyzer.run(store)
 
-    source_path = tmp_path / "analysis" / Analyzer.Paths.SOURCE_JSON
-    report_path = tmp_path / "analysis" / Analyzer.Paths.REPORT_JSON
+    source_path = tmp_path / ANALYSIS_SUBDIR / ANALYSIS_SOURCE_JSON
+    report_path = tmp_path / ANALYSIS_SUBDIR / ANALYSIS_REPORT_JSON
     assert source_path.is_file()
     assert report_path.is_file()
     assert result["step"] == "enum"

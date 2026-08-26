@@ -1,7 +1,7 @@
 """Insight builder for conclusion-first attribution reports."""
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.analyzer.steps.report._insights import InsightBuilder
+from core.modules.strategy.core.engines.analyzer.steps.report.insight import InsightBuilder
 
 import pytest
 

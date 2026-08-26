@@ -1,7 +1,11 @@
-"""User-facing scope notes and UI/CLI hints for attribution reports."""
+"""Step 3 — 总结：把 analyze 结果整理成 report 文档（不含 insights）。"""
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Union
+
+from ...consts import SCHEMA_VERSION
+from ..analyze.analyze_output import AnalyzeOutput
 
 _SCOPE_NOTES: Dict[str, str] = {
     "enum": (
@@ -21,13 +25,60 @@ _SCOPE_NOTES: Dict[str, str] = {
 }
 
 
-class ReportNarrative:
+class ReportSummarizer:
+    """整理 analyze 输出 + source 元数据 → report 主体（insights 由 ReportStep 另填）。"""
+
+    @classmethod
+    def build(
+        cls,
+        source: Dict[str, Any],
+        *,
+        analyze_out: Union[AnalyzeOutput, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        analyze_result = (
+            analyze_out.to_dict()
+            if isinstance(analyze_out, AnalyzeOutput)
+            else dict(analyze_out)
+        )
+        step = (
+            analyze_out.step
+            if isinstance(analyze_out, AnalyzeOutput)
+            else str(analyze_result.get("step") or source.get("step") or "enum")
+        )
+        decision_space = dict(analyze_result.get("decision_space") or {})
+        attribution = dict(analyze_result.get("attribution") or {})
+        classical = dict(attribution.get("classical") or {})
+        classical["scope_note"] = cls.scope_note(step)
+        if step == "price":
+            classical["skip_summary"] = cls._price_skip_summary(source)
+        attribution = {**attribution, "classical": classical}
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "step": step,
+            "version_id": str(source.get("version_id") or ""),
+            "strategy_key": str(source.get("strategy_key") or ""),
+            "generated_at": datetime.now().isoformat(),
+            "manifest": {
+                "capture_keys": list(analyze_result.get("capture_keys") or []),
+                "coverage": dict(analyze_result.get("coverage") or {}),
+                "outcome_fields": list(analyze_result.get("outcome_fields") or []),
+            },
+            "decision_space": decision_space,
+            "attribution": attribution,
+            "hints_for_ui": cls.hints_for_ui(
+                step=step,
+                decision_space=decision_space,
+                attribution=attribution,
+            ),
+        }
+
     @staticmethod
     def scope_note(step: str) -> str:
         return _SCOPE_NOTES.get(str(step or "").strip(), _SCOPE_NOTES["enum"])
 
-    @staticmethod
+    @classmethod
     def hints_for_ui(
+        cls,
         *,
         step: str,
         decision_space: Dict[str, Any],
@@ -42,7 +93,7 @@ class ReportNarrative:
         if classical_status in ("ok", "partial"):
             hints.append("这里不重复「总胜率 / 总收益 / 净值曲线」——那些看整体成绩单即可。")
 
-        constant_knobs = ReportNarrative._constant_settings_knobs(declared, capture)
+        constant_knobs = cls._constant_settings_knobs(declared, capture)
         run_comparison = classical.get("run_comparison") or {}
         run_comparison_ok = run_comparison.get("status") == "ok"
         for key in sorted(constant_knobs):
@@ -115,7 +166,7 @@ class ReportNarrative:
                 "不能据此判断「触发阈值本身」是不是最优。"
             )
 
-        ReportNarrative._append_significant_correlation_hint(hints, fields)
+        cls._append_significant_correlation_hint(hints, fields)
 
         if classical_status == "skipped":
             hints.append("这次没有可变化的数字条件，归因未展开。")
@@ -137,6 +188,32 @@ class ReportNarrative:
                 hints.append("变化中的数字条件不足 2 个，暂不做机器学习分析。")
 
         return hints
+
+    @staticmethod
+    def _price_skip_summary(source: Dict[str, Any]) -> Dict[str, Any]:
+        by_reason: Dict[str, int] = {}
+        total = 0
+        skipped = 0
+        for entity in source.get("entities") or []:
+            if not isinstance(entity, dict):
+                continue
+            for investment in entity.get("investments") or []:
+                if not isinstance(investment, dict):
+                    continue
+                total += 1
+                engine = investment.get("engine")
+                if not isinstance(engine, dict):
+                    continue
+                reason = str(engine.get("skip_reason") or "").strip()
+                if not reason:
+                    continue
+                skipped += 1
+                by_reason[reason] = int(by_reason.get(reason) or 0) + 1
+        return {
+            "investment_count": total,
+            "skipped_count": skipped,
+            "by_reason": dict(sorted(by_reason.items())),
+        }
 
     @staticmethod
     def _constant_settings_knobs(

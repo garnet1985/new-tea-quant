@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from core.modules.strategy.core.services.artifacts import ArtifactIO
 
-from ...support.paths import AnalyzerPaths
+from ...consts import SCHEMA_VERSION, source_json
 from .analyze_output import AnalyzeOutput
 from .data import DecisionSpaceBuilder, StepOutcomeRegistry
 from .pipeline import FactorAnalysisPipeline, StageInput
@@ -68,7 +68,7 @@ class AnalyzeStep:
         if resolved_path is None:
             out_dir = str(source.get("output_dir") or "").strip()
             resolved_path = (
-                AnalyzerPaths.source_json(Path(out_dir))
+                source_json(Path(out_dir))
                 if out_dir
                 else Path("analysis/source.json")
             )

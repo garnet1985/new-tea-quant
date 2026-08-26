@@ -11,27 +11,18 @@
 | 包 | 职责 |
 |----|------|
 | ``analyzer.py`` | Facade / API 暴露 |
-| ``pipeline/`` | Prepare → Analyze → Report |
 | ``steps/prepare/`` | 回测产物 → ``source.json``（编排；I/O 走 ``ArtifactStore``） |
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
-| ``steps/report/`` | compose + persist ``report.json``；``present.py`` 终端展示 |
-| ``support/`` | 路径、step 映射 |
-| ``io/`` | BFF/UI payload |
+| ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
 
 ### Report 步结构
 
 ```text
-report.py              # 入口：build → store.write_json("analysis_report")
-compose.py             # 重组 analyze 结果为 report 文档
-narrative.py           # scope note + UI hints
-skip_summary.py        # price 步 skip 汇总
-_insights.py           # 内部私有：下结论（InsightBuilder）
-present.py             # 读 report + 终端展示
+report.py              # 入口：总结 → insight → 持久化
+summarize.py           # 总结：整理 analyze 结果为 report 主体
+insight.py             # 下结论（InsightBuilder）
+present.py             # 终端展示
 ```
-
-| 留在 report step（strategy） | 在 modules.analysis |
-|------------------------------|---------------------|
-| compose、narrative、insights | （analyze 步已消费） |
 
 ### Analyze 步结构
 
@@ -55,13 +46,14 @@ pipeline/
 |-------------------------------|-------------------------------|
 | ``DecisionSpaceBuilder``、``CaptureDataset``、stages | 分桶、相关、回归、XGB |
 
-## Pipeline（3 步）
+## Pipeline（simulate 内嵌 analyze）
 
 ```text
-PrepareStep.run(store)     → source.json
-AnalyzeStep.run(path)      → AnalyzeOutput（内存）
-ReportStep.run(store, …)   → report.json
+Strategy.simulate → BackTestPipeline.run → (若 analysis.enabled) Analyzer.run
+PrepareStep → AnalyzeStep → ReportStep
 ```
+
+``settings.analysis.enabled=false`` 时不跑 analyze 步。
 
 ## 依赖方向
 

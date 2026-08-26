@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, TextIO, Union
 from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 
-from ._insights import InsightBuilder
+from .insight import InsightBuilder
 
 _SECTION_WIDTH = 64
 
@@ -26,7 +26,7 @@ class AnalysisReportPresenter:
         report_path = ArtifactStore.named_path(output_dir, "analysis_report")
         if not report_path.is_file():
             raise FileNotFoundError(
-                f"归因报告不存在: {report_path}（请先运行 sa / Strategy.analyze）"
+                f"归因报告不存在: {report_path}（请先运行 simulate 并启用 analysis.enabled）"
             )
         payload = ArtifactStore.read_json_at(output_dir, "analysis_report")
         if not isinstance(payload, dict):
@@ -38,7 +38,7 @@ class AnalysisReportPresenter:
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         report = self._report
-        insights = _resolve_insights(report)  # noqa
+        insights = InsightBuilder.resolve(report)
 
         CmdLayout.title.print_banner(f"{icon('chart')} 这次回测怎么读", stream=out)
         print(
@@ -339,14 +339,6 @@ def _how_to_read(tiers: List[Any]) -> str:
         f"高段（{high.get('label')}）平均赚 {high_roi:.1f}%，"
         f"低段（{low.get('label')}）平均赚 {low_roi:.1f}%。差距明显。"
     )
-
-
-def _resolve_insights(report: Dict[str, Any]) -> Dict[str, Any]:
-    """Prefer insights written at report time; rebuild for older reports."""
-    persisted = report.get("insights")
-    if isinstance(persisted, dict) and str(persisted.get("headline") or "").strip():
-        return persisted
-    return InsightBuilder.build(report)
 
 
 def _step_label(step: Any) -> str:

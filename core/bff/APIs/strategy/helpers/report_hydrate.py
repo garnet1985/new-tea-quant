@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy import Strategy
 from core.bff.shared.client_log import log_degraded
 
 logger = logging.getLogger(__name__)
@@ -69,61 +70,6 @@ def _merge_ui_into_slot(slot: Dict[str, Any], ui: Dict[str, Any]) -> Dict[str, A
     return out
 
 
-def _version_dir_candidates_from_slot(
-    slot: Dict[str, Any], workbench_version: int = 0
-) -> List[str]:
-    dirs: List[str] = []
-
-    out_d = str(slot.get("output_dir") or "").strip()
-    if out_d:
-        dirs.append(out_d)
-
-    vid = slot.get("version_id")
-    if vid is not None:
-        try:
-            dirs.append(str(int(vid)))
-        except (TypeError, ValueError):
-            text = str(vid).strip()
-            if text:
-                dirs.append(text)
-
-    if workbench_version > 0:
-        dirs.append(str(int(workbench_version)))
-
-    seen: set[str] = set()
-    uniq: List[str] = []
-    for d in dirs:
-        if d and d not in seen:
-            seen.add(d)
-            uniq.append(d)
-    return uniq
-
-
-def _resolve_strategy_folder(strategy_name: str) -> Path:
-    """Prefer discovered strategy folder; fall back to userspace/strategies/{name}."""
-    from core.modules.strategy import Strategy
-
-    return Strategy.resolve_folder(strategy_name)
-
-
-def resolve_simulation_output_dirs(
-    strategy_name: str,
-    *,
-    step: str,
-    slot: Optional[Dict[str, Any]] = None,
-    workbench_version: int = 0,
-) -> List[Path]:
-    """Absolute version-dir candidates for enum / price / portfolio."""
-    from core.modules.strategy import Strategy
-
-    return Strategy.resolve_simulation_output_dirs(
-        strategy_name,
-        step=step,
-        slot=slot,
-        workbench_version=workbench_version,
-    )
-
-
 def _load_overall_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:
     try:
         kind = ArtifactStore.parse_kind(step)
@@ -163,7 +109,7 @@ def hydrate_enum_slot(
     if not sn or _slot_has_metrics(slot, "enumMetrics"):
         return slot
 
-    for output_dir in resolve_simulation_output_dirs(
+    for output_dir in Strategy.resolve_simulation_output_dirs(
         sn, step="enum", slot=slot, workbench_version=workbench_version
     ):
         ui = _load_overall_ui("enum", output_dir)
@@ -184,7 +130,7 @@ def hydrate_price_slot(
     if not sn or _slot_has_metrics(slot, "priceMetrics"):
         return slot
 
-    for output_dir in resolve_simulation_output_dirs(
+    for output_dir in Strategy.resolve_simulation_output_dirs(
         sn, step="price", slot=slot, workbench_version=workbench_version
     ):
         ui = _load_overall_ui("price", output_dir)
@@ -206,7 +152,7 @@ def hydrate_portfolio_slot(
     if not sn or _slot_has_metrics(slot, "capitalMetrics"):
         return slot
 
-    for output_dir in resolve_simulation_output_dirs(
+    for output_dir in Strategy.resolve_simulation_output_dirs(
         sn, step="portfolio", slot=slot, workbench_version=workbench_version
     ):
         ui = _load_overall_ui("portfolio", output_dir)
@@ -253,5 +199,4 @@ __all__ = [
     "hydrate_price_slot",
     "hydrate_portfolio_slot",
     "hydrate_workbench_result_report",
-    "resolve_simulation_output_dirs",
 ]

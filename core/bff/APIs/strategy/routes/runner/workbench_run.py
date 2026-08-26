@@ -204,13 +204,6 @@ class WorkbenchRunLauncher:
                     ignore_cache=force_refresh,
                     runtime_settings=api_settings,
                 )
-                analysis = Strategy.maybe_analyze_after_simulate(
-                    strategy_name,
-                    step=norm_step,
-                    simulate_result=result if isinstance(result, dict) else {},
-                    runtime_settings=api_settings,
-                    force=force_refresh,
-                )
                 step_payload = (
                     (result or {}).get(kind.value)
                     if isinstance(result, dict)
@@ -221,13 +214,11 @@ class WorkbenchRunLauncher:
                     version_id = str(step_payload.get("version_id") or "").strip()
                 if not version_id and isinstance(result, dict):
                     version_id = str(result.get("version_id") or "").strip()
-                if version_id:
-                    Strategy.ensure_version_analysis(
-                        strategy_name,
-                        version_id=version_id,
-                        runtime_settings=api_settings,
-                        force=force_refresh,
-                    )
+                analysis = (
+                    step_payload.get("analysis")
+                    if isinstance(step_payload, dict)
+                    else None
+                )
                 payload: Dict[str, Any] = {"message": f"{norm_step} 已完成"}
                 if version_id:
                     payload["version_id"] = (

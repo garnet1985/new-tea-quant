@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.data_manager import DataManager
 from core.modules.indicator import Indicator
+from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
 from core.infra.utils import Utils
 from core.modules.strategy.core.engines.shared.data_class.investment.enums import (
@@ -29,7 +30,6 @@ from core.modules.strategy.core.services.artifacts import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-from core.bff.APIs.strategy.helpers.report_hydrate import resolve_simulation_output_dirs
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
@@ -252,7 +252,7 @@ class WorkbenchStockDetail:
         *,
         entity_id: str,
     ) -> Optional[Path]:
-        for output_dir in resolve_simulation_output_dirs(
+        for output_dir in Strategy.resolve_simulation_output_dirs(
             strategy_name,
             step=step,
             slot=slot,

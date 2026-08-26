@@ -240,30 +240,12 @@ class UserHandlers:
         return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
 
     @staticmethod
-    def _maybe_auto_analyze(
-        strategy_key: str,
-        step: str,
-        simulate_result: dict,
-        *,
-        runtime_settings: Optional[dict] = None,
-        force: bool = False,
-    ) -> None:
-        from core.modules.strategy import Strategy
-
-        out = Strategy.maybe_analyze_after_simulate(
-            strategy_key,
-            step=step,
-            simulate_result=simulate_result,
-            runtime_settings=runtime_settings,
-            force=force,
-        )
-        if out.get("skipped"):
-            reason = str(out.get("reason") or "")
-            if reason == "disabled":
-                return
-            print(f"  归因: skip ({reason})", flush=True)
-            return
-        print(f"  归因: report={out.get('report_path')}", flush=True)
+    def _print_analysis_from_step(step_result: dict) -> None:
+        analysis = step_result.get("analysis") if isinstance(step_result, dict) else None
+        if isinstance(analysis, dict) and not analysis.get("skipped"):
+            print(f"  归因: report={analysis.get('report_path')}", flush=True)
+        elif isinstance(analysis, dict) and analysis.get("reason") not in (None, "disabled"):
+            print(f"  归因: skip ({analysis.get('reason')})", flush=True)
 
     @staticmethod
     def _print_simulate_version(result: dict, step_key: str) -> None:
@@ -351,13 +333,7 @@ class UserHandlers:
                 print(f"  failed: {failed[0].get('error')}")
             raise SystemExit(1)
 
-        UserHandlers._maybe_auto_analyze(
-            strategy_key,
-            "enum",
-            result,
-            runtime_settings=runtime_settings or None,
-            force=force,
-        )
+        UserHandlers._print_analysis_from_step(enum_result)
 
     @staticmethod
     def _run_strategy_price_factor(args: argparse.Namespace) -> None:
@@ -412,12 +388,7 @@ class UserHandlers:
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
 
-        UserHandlers._maybe_auto_analyze(
-            strategy_key,
-            "price",
-            result,
-            force=force,
-        )
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
 
     @staticmethod
     def _run_strategy_portfolio(args: argparse.Namespace) -> None:
@@ -472,12 +443,7 @@ class UserHandlers:
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
 
-        UserHandlers._maybe_auto_analyze(
-            strategy_key,
-            "portfolio",
-            result,
-            force=force,
-        )
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
 
     @staticmethod
     def _run_strategy_scan(args: argparse.Namespace) -> None:
@@ -579,58 +545,44 @@ class UserHandlers:
         if not (po.get("success", True) if isinstance(po, dict) else True):
             raise SystemExit(1)
 
-        UserHandlers._maybe_auto_analyze(
-            strategy_key,
-            "price",
-            pf_result,
-            force=force,
-        )
-        UserHandlers._maybe_auto_analyze(
-            strategy_key,
-            "portfolio",
-            po_result,
-            force=force,
-        )
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
+        UserHandlers._print_analysis_from_step(po if isinstance(po, dict) else {})
 
     @staticmethod
     def _run_strategy_analyze(args: argparse.Namespace) -> None:
+        from pathlib import Path
+
         from core.modules.strategy import Strategy
+
+        output_dir = getattr(args, "output_dir", None)
+        if output_dir:
+            Strategy.present_analysis_report(Path(output_dir))
+            return
 
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         step = str(getattr(args, "step", None) or "enum").strip().lower()
         version_id = getattr(args, "version", None)
-        baseline_version_id = getattr(args, "baseline_version", None)
 
-        print("收集归因并生成报告…", flush=True)
-        print(f"  策略: {strategy_key}", flush=True)
-        print(f"  step: {step}", flush=True)
-        if version_id:
-            print(f"  version: {version_id}", flush=True)
-        if baseline_version_id:
-            print(f"  baseline version: {baseline_version_id}", flush=True)
-
-        result = Strategy.analyze(
-            strategy_key,
-            step=step,
-            version_id=str(version_id).strip() if version_id else None,
-            baseline_version_id=str(baseline_version_id).strip()
-            if baseline_version_id
-            else None,
-        )
-        print(f"  success: {result.get('success')}", flush=True)
-        print(f"  source: {result.get('source_path')}", flush=True)
-        print(f"  report: {result.get('report_path')}", flush=True)
-        print(
-            f"  entities: {result.get('entity_count')}  investments: {result.get('investment_count')}",
-            flush=True,
-        )
-        if not result.get("success"):
+        if not version_id:
+            print(
+                "归因已集成在 simulate 中：请在 settings.analysis.enabled=true 后运行 se/sp/so；"
+                "或使用 --output-dir 展示已有 report。",
+                flush=True,
+            )
             raise SystemExit(1)
 
-        output_dir = result.get("output_dir")
-        if output_dir:
-            print("", flush=True)
-            Strategy.present_analysis_report(output_dir)
+        for candidate in Strategy.resolve_simulation_output_dirs(
+            strategy_key,
+            step=step,
+            slot={"version_id": str(version_id).strip()},
+        ):
+            if not candidate.is_dir():
+                continue
+            Strategy.present_analysis_report(candidate)
+            return
+
+        print(f"未找到 version {version_id!r} 的 {step} 归因报告。", flush=True)
+        raise SystemExit(1)
 
     @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:

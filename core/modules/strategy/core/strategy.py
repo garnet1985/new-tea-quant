@@ -187,7 +187,97 @@ class Strategy:
 
         Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
         ctx.validate_for_run()
-        return Strategy._run_steps(ctx, strategy_folder=strategy_folder)
+        return Strategy._run_steps(
+            ctx,
+            strategy_folder=strategy_folder,
+            ignore_cache=ignore_cache,
+        )
+
+    @staticmethod
+    def _maybe_run_analysis(
+        step: SimulateKind,
+        step_res: Dict[str, Any],
+        ctx: SimulateSession,
+        strategy_folder: Path,
+        *,
+        force: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """``settings.analysis.enabled`` 时在 simulate 主 step 完成后跑 analyze。"""
+        if step != ctx.kind:
+            return None
+        if step_res.get("success") is False:
+            return {"skipped": True, "reason": "simulate_failed"}
+        if not ctx.effective_settings.analysis.enabled:
+            return {"skipped": True, "reason": "disabled"}
+
+        output_dir = str(step_res.get("output_dir") or "").strip()
+        version_id = str(step_res.get("version_id") or "").strip()
+        if not output_dir:
+            return {"skipped": True, "reason": "missing_output_dir"}
+
+        from .engines.analyzer import Analyzer
+        from .services.artifacts import ArtifactStore
+
+        store = ArtifactStore.open(
+            Path(output_dir),
+            kind=step,
+            version_id=version_id or None,
+        )
+        try:
+            return Analyzer.run(store, strategy_folder=strategy_folder, force=force)
+        except Exception as exc:
+            logger.exception(
+                "analysis step failed: strategy=%s step=%s",
+                ctx.strategy_key,
+                step.value,
+            )
+            return {"skipped": True, "reason": "error", "error": str(exc)}
+
+    @staticmethod
+    def _resolve_simulation_output_dir_candidates(
+        strategy_name: str,
+        *,
+        step: str,
+        slot: Optional[Dict[str, Any]] = None,
+        workbench_version: int = 0,
+    ) -> List[Path]:
+        from .enums import WorkbenchStep
+        from .services.artifacts import ArtifactStore
+
+        sn = str(strategy_name or "").strip()
+        if not sn:
+            return []
+
+        slot = slot if isinstance(slot, dict) else {}
+        workbench_step = WorkbenchStep.parse(step)
+        kind = workbench_step.to_simulate_kind()
+        folder = Strategy.resolve_folder(sn)
+        root = ArtifactStore.simulations_root(folder)
+        step_dir = ArtifactStore.step_dir_name(kind)
+
+        names: List[str] = []
+        out_d = str(slot.get("output_dir") or "").strip()
+        if out_d:
+            names.append(out_d)
+        vid = slot.get("version_id")
+        if vid is not None:
+            text = str(vid).strip().lstrip("vV")
+            if text:
+                names.append(text)
+        if workbench_version > 0:
+            names.append(str(int(workbench_version)))
+
+        seen: set[str] = set()
+        out: List[Path] = []
+        for name in names:
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            path = Path(name)
+            if not path.is_absolute():
+                path = root / name / step_dir
+            out.append(path)
+        return out
 
     @staticmethod
     def _resolve_steps(ctx: SimulateSession, *, ignore_cache: bool = False) -> None:
@@ -231,6 +321,7 @@ class Strategy:
         ctx: SimulateSession,
         *,
         strategy_folder: Union[str, Path],
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
         consolidated: Dict[str, Any] = {}
@@ -258,6 +349,17 @@ class Strategy:
                     entity_ids=list(ctx.entity_ids or []),
                     strategy_name=strategy_name,
                 )
+
+            analysis_out = Strategy._maybe_run_analysis(
+                step,
+                step_res,
+                ctx,
+                folder,
+                force=ignore_cache,
+            )
+            if analysis_out is not None:
+                step_res["analysis"] = analysis_out
+
             logger.info(
                 "simulate step complete: kind=%s strategy=%s version_id=%s",
                 step.value,
@@ -399,51 +501,11 @@ class Strategy:
         return PriceFactorStore.at(version_dir).file("overall_report")
 
     @staticmethod
-    def analyze(
-        key_or_id: str,
-        *,
-        step: Union[str, SimulateKind] = "enum",
-        version_id: Optional[str] = None,
-        baseline_version_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """收集归因 input + report，写入 ``simulations/{version_id}/{step}/analysis/``。"""
-        from .engines.analyzer import Analyzer
-        from .services.artifacts import ArtifactStore
-        from .services.discovery import DiscoveryService
-
-        folder = DiscoveryService.resolve_strategy_folder(key_or_id)
-        workbench_step = Analyzer.Step.parse(step)
-        simulate_kind = Analyzer.Step.to_simulate_kind(workbench_step)
-        vid = str(version_id or "").strip()
-        if vid:
-            store = ArtifactStore.resolve(
-                folder, kind=simulate_kind, version_id=vid
-            )
-        else:
-            store = ArtifactStore.latest(folder, kind=simulate_kind)
-            if store is None:
-                raise FileNotFoundError(
-                    f"未找到策略 {key_or_id!r} 的 {workbench_step.value} 仿真产物"
-                )
-        store = ArtifactStore.open(
-            store.output_dir,
-            kind=simulate_kind,
-            version_id=store.version_id,
-        )
-        return Analyzer.run(
-            store,
-            baseline_version_id=str(baseline_version_id).strip()
-            if baseline_version_id
-            else None,
-            strategy_folder=folder,
-        )
-
-    @staticmethod
     def step_analysis_from_output_dir(output_dir: Union[str, Path]) -> Dict[str, Any]:
         """Read ``analysis/report.json`` insights payload for one step output dir."""
-        from .engines.analyzer import Analyzer
+        from .engines.analyzer.steps.report import ReportStep
 
-        return Analyzer.Payload.from_output_dir(Path(output_dir))
+        return ReportStep.load_payload(Path(output_dir))
 
     @staticmethod
     def resolve_step_analysis(
@@ -454,14 +516,24 @@ class Strategy:
         workbench_version: int = 0,
     ) -> Dict[str, Any]:
         """Resolve step output dir(s) and load attribution insights payload."""
-        from .engines.analyzer import Analyzer
+        from .engines.analyzer.steps.report import ReportStep
 
-        return Analyzer.Payload.resolve_for_step(
+        for output_dir in Strategy._resolve_simulation_output_dir_candidates(
             strategy_name,
-            step,
-            slot if isinstance(slot, dict) else {},
+            step=str(step or "").strip(),
+            slot=slot if isinstance(slot, dict) else {},
             workbench_version=int(workbench_version or 0),
-        )
+        ):
+            if not output_dir.is_dir():
+                continue
+            payload = ReportStep.load_payload(output_dir)
+            if payload.get("available"):
+                return payload
+        return {
+            "available": False,
+            "report_path": "",
+            "insights": None,
+        }
 
     @staticmethod
     def resolve_simulation_output_dirs(
@@ -472,59 +544,11 @@ class Strategy:
         workbench_version: int = 0,
     ) -> List[Path]:
         """Absolute version-dir candidates for enum / price / portfolio."""
-        from .engines.analyzer import Analyzer
-
-        return Analyzer.OutputDirs.resolve(
+        return Strategy._resolve_simulation_output_dir_candidates(
             strategy_name,
             step=step,
             slot=slot,
             workbench_version=workbench_version,
-        )
-
-    @staticmethod
-    def maybe_analyze_after_simulate(
-        key_or_id: str,
-        *,
-        step: str,
-        simulate_result: Dict[str, Any],
-        runtime_settings: Optional[Dict[str, Any]] = None,
-        force: bool = False,
-    ) -> Dict[str, Any]:
-        """回测成功后按 ``settings.analysis.enabled`` 自动收集归因产物。"""
-        from .engines.analyzer import Analyzer
-
-        effective = Analyzer.AutoRun.effective_settings_for_strategy(
-            key_or_id,
-            runtime_settings,
-        )
-        return Analyzer.AutoRun.maybe_after_simulate(
-            key_or_id,
-            step=step,
-            simulate_result=simulate_result,
-            effective_settings=effective,
-            force=force,
-        )
-
-    @staticmethod
-    def ensure_version_analysis(
-        key_or_id: str,
-        *,
-        version_id: str,
-        runtime_settings: Optional[Dict[str, Any]] = None,
-        force: bool = False,
-    ) -> Dict[str, Any]:
-        """补跑同一 version 下缺 ``analysis/report.json`` 的各 step 归因。"""
-        from .engines.analyzer import Analyzer
-
-        effective = Analyzer.AutoRun.effective_settings_for_strategy(
-            key_or_id,
-            runtime_settings,
-        )
-        return Analyzer.AutoRun.ensure_version(
-            key_or_id,
-            version_id=version_id,
-            effective_settings=effective,
-            force=force,
         )
 
     @staticmethod

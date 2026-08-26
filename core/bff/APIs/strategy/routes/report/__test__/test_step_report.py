@@ -62,7 +62,7 @@ def test_build_step_report_ref_from_entity_list(mock_fetch, _mock_enrich, tmp_pa
         "result_report": {"enum": {"output_dir": str(out_dir)}},
     }
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.report.step_report.resolve_simulation_output_dirs",
+        "core.bff.APIs.strategy.routes.report.step_report.Strategy.resolve_simulation_output_dirs",
         lambda *a, **k: [out_dir],
     )
 
@@ -103,7 +103,7 @@ def test_build_step_report_ref_empty_entity_list_is_available(
         "result_report": {"enum": {"output_dir": str(out_dir)}},
     }
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.report.step_report.resolve_simulation_output_dirs",
+        "core.bff.APIs.strategy.routes.report.step_report.Strategy.resolve_simulation_output_dirs",
         lambda *a, **k: [out_dir],
     )
 

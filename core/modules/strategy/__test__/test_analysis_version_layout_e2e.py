@@ -1,8 +1,7 @@
-"""simulate + sa 在新版 ``simulations/{vid}/{step}/`` 布局下的端到端。"""
+"""simulate + analyze 在新版 ``simulations/{vid}/{step}/`` 布局下的端到端。"""
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -12,6 +11,10 @@ from core.modules.strategy.core.services.artifacts import (
     ArtifactStore,
     EntityInvestmentCsv,
     EnumerateStore,
+)
+from core.modules.strategy.core.services.artifacts.consts import (
+    ANALYSIS_REPORT_JSON,
+    ANALYSIS_SUBDIR,
 )
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
@@ -86,7 +89,7 @@ def _write_enum_entity(step_dir: Path) -> None:
     )
 
 
-def test_analyzer_pipeline_writes_under_vid_step_layout(tmp_path: Path) -> None:
+def test_analyzer_run_writes_under_vid_step_layout(tmp_path: Path) -> None:
     strategy_folder = tmp_path / "demo" / "rsi"
     enum_dir = strategy_folder / "results" / "simulations" / "3" / "enum"
     enum_dir.mkdir(parents=True)
@@ -98,36 +101,11 @@ def test_analyzer_pipeline_writes_under_vid_step_layout(tmp_path: Path) -> None:
         kind=SimulateKind.ENUMERATE,
         version_id="3",
     )
-    out = Analyzer.Pipeline.run(store)
+    out = Analyzer.run(store)
 
-    report_path = enum_dir / Analyzer.Paths.ANALYSIS_SUBDIR / Analyzer.Paths.REPORT_JSON
+    report_path = enum_dir / ANALYSIS_SUBDIR / ANALYSIS_REPORT_JSON
     assert report_path.is_file()
     assert out["report_path"] == str(report_path.resolve())
     report = ArtifactIO.read_json(report_path)
     assert isinstance(report.get("insights"), dict)
     assert str(report["insights"].get("headline") or "").strip()
-
-
-def test_maybe_run_after_simulate_resolves_version_id(tmp_path: Path) -> None:
-    strategy_folder = tmp_path / "demo" / "rsi"
-    enum_dir = strategy_folder / "results" / "simulations" / "3" / "enum"
-    enum_dir.mkdir(parents=True)
-    _write_runtime(enum_dir)
-    _write_enum_entity(enum_dir)
-
-    import core.modules.strategy.core.services.discovery as discovery_mod
-
-    with patch.object(
-        discovery_mod.DiscoveryService,
-        "resolve_strategy_folder",
-        return_value=strategy_folder,
-    ):
-        out = Analyzer.AutoRun.maybe_after_simulate(
-            "demo/rsi",
-            step="enum",
-            simulate_result={"enumerate": {"success": True, "version_id": "3"}},
-            effective_settings={"analysis": {"enabled": True}},
-        )
-
-    assert out.get("skipped") is False
-    assert "simulations/3/enum/analysis" in str(out.get("report_path") or "")

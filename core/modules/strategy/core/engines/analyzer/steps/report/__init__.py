@@ -1,12 +1,14 @@
 """Step 3 — Report."""
 
-from .compose import ReportComposer
+from .insight import InsightBuilder
 from .present import AnalysisReportPresenter
 from .report import ReportOutput, ReportStep
+from .summarize import ReportSummarizer
 
 __all__ = [
     "AnalysisReportPresenter",
-    "ReportComposer",
+    "InsightBuilder",
     "ReportOutput",
     "ReportStep",
+    "ReportSummarizer",
 ]

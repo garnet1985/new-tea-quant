@@ -24,8 +24,7 @@ from core.modules.strategy.core.services.artifacts.tables.signal_snapshots impor
     SignalSnapshotRow,
 )
 
-from ...support.paths import AnalyzerPaths
-from ...support.step_mapping import AnalyzerStepMapping
+from ...consts import SCHEMA_VERSION
 
 
 @dataclass(frozen=True)
@@ -222,11 +221,15 @@ class PrepareStep:
         if not isinstance(effective, dict):
             effective = self.store.runtime.settings_snapshot.effective_settings
 
+        workbench_step = WorkbenchStep.from_simulate_kind(self.store.kind)
+        if workbench_step is None:
+            raise ValueError(f"unsupported prepare step: {self.store.kind!r}")
+
         payload: Dict[str, Any] = {
-            "schema_version": AnalyzerPaths.SCHEMA_VERSION,
+            "schema_version": SCHEMA_VERSION,
             "strategy_key": str(raw.get("strategy_key") or self.store.runtime.strategy_key or "").strip(),
             "strategy_path": str(raw.get("strategy_path") or self.store.runtime.strategy_path or "").strip(),
-            "step": AnalyzerStepMapping.value(self.store.kind),
+            "step": workbench_step.value,
             "version_id": str(self.store.version_id),
             "output_dir": str(self.store.output_dir.resolve()),
             "fingerprints": {

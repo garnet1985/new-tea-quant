@@ -1,6 +1,6 @@
 # Strategy API 文档
 
-**版本：** `0.7.0`  
+**版本：** `0.8.0`  
 **最低支持核心版本：** `>=0.4.4`
 
 > 须与 `module_info.yaml` 一致。  
@@ -103,6 +103,16 @@
 
 - **状态：** `beta`
 - **描述：** 从仿真 `output_dir` 读取 `analysis/report.json` 并打印归因终端摘要（`sa` 生成后调用）；内部为 `AnalysisReportPresenter.load(...).present(...)`；缺失文件则 `FileNotFoundError`
+
+### step_analysis_from_output_dir / resolve_step_analysis / resolve_simulation_output_dirs
+
+`Strategy.step_analysis_from_output_dir(output_dir: str | Path) -> dict`  
+`Strategy.resolve_step_analysis(strategy_name: str, step: str, slot: dict | None = None, *, workbench_version: int = 0) -> dict`  
+`Strategy.resolve_simulation_output_dirs(strategy_name: str, *, step: str, slot: dict | None = None, workbench_version: int = 0) -> list[Path]`
+
+- **状态：** `beta`
+- **描述：** 归因 insights 读取与 step 产物目录解析（BFF step report / hydrate 用）。`step_analysis_from_output_dir` 读单目录 `analysis/report.json` → `{available, report_path, insights}`；`resolve_step_analysis` 按 slot + workbench version 候选目录解析；`resolve_simulation_output_dirs` 返回 enum / price / portfolio 的绝对 version-dir 候选列表
+- **生成：** simulate 且 `settings.analysis.enabled=true` 时在主 simulate 步结束后自动生成 report；无独立 `Strategy.analyze`
 
 ### prune_simulation_results / prune_scan_results
 

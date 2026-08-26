@@ -1,4 +1,5 @@
 import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
+import logClientError from '../../utils/logClientError';
 
 const IDLE_STEP_STATUS = { enum: 'idle', price: 'idle', portfolio: 'idle' };
 
@@ -17,7 +18,8 @@ function readSessionBlob(strategyName) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
+  } catch (error) {
+    logClientError('design.sessionStorage.read', error, sn);
     return null;
   }
 }
@@ -31,8 +33,8 @@ function writeSessionBlob(strategyName, patch) {
       strategyDesignSessionStorageKey(sn),
       JSON.stringify({ ...prev, ...patch, savedAt: Date.now() }),
     );
-  } catch {
-    /* ignore quota */
+  } catch (error) {
+    logClientError('design.sessionStorage.write', error, sn);
   }
 }
 

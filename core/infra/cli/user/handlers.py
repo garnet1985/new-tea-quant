@@ -180,6 +180,7 @@ class UserHandlers:
             "strategy_price_factor",
             "strategy_portfolio",
             "strategy_simulate",
+            "strategy_analyze",
         ):
             UserHandlers._handle_strategy(cmd, app, args)
             return
@@ -239,6 +240,31 @@ class UserHandlers:
         return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
 
     @staticmethod
+    def _print_analysis_from_step(step_result: dict) -> None:
+        analysis = step_result.get("analysis") if isinstance(step_result, dict) else None
+        if isinstance(analysis, dict) and not analysis.get("skipped"):
+            print(f"  归因: report={analysis.get('report_path')}", flush=True)
+        elif isinstance(analysis, dict) and analysis.get("reason") not in (None, "disabled"):
+            print(f"  归因: skip ({analysis.get('reason')})", flush=True)
+
+    @staticmethod
+    def _print_simulate_version(result: dict, step_key: str) -> None:
+        """Print disk ``version_id`` + step ``output_dir`` (``se`` / ``sp`` / ``so``)."""
+        if not isinstance(result, dict):
+            return
+        step = result.get(step_key)
+        vid = str(result.get("version_id") or "").strip()
+        if isinstance(step, dict):
+            vid = vid or str(step.get("version_id") or "").strip()
+            out_dir = str(step.get("output_dir") or "").strip()
+            if vid:
+                print(f"  version_id: {vid}", flush=True)
+            if out_dir:
+                print(f"  output_dir: {out_dir}", flush=True)
+        elif vid:
+            print(f"  version_id: {vid}", flush=True)
+
+    @staticmethod
     def _run_strategy_enumerate(args: argparse.Namespace) -> None:
         import time
 
@@ -275,6 +301,7 @@ class UserHandlers:
         wall_sec = time.perf_counter() - t0
 
         enum_result = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else result
+        UserHandlers._print_simulate_version(result, "enumerate")
 
         # 终局摘要统一走 Strategy.present_report
         if enum_result.get("output_dir"):
@@ -306,6 +333,8 @@ class UserHandlers:
                 print(f"  failed: {failed[0].get('error')}")
             raise SystemExit(1)
 
+        UserHandlers._print_analysis_from_step(enum_result)
+
     @staticmethod
     def _run_strategy_price_factor(args: argparse.Namespace) -> None:
         import time
@@ -319,7 +348,7 @@ class UserHandlers:
         print(f"{i('market')} 价格因子回测…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，将新建 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -331,6 +360,7 @@ class UserHandlers:
 
         pf = result.get("price_factor") if isinstance(result.get("price_factor"), dict) else result
         enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+        UserHandlers._print_simulate_version(result, "price_factor")
         if enum_part:
             print(
                 f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
@@ -358,6 +388,8 @@ class UserHandlers:
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
 
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
+
     @staticmethod
     def _run_strategy_portfolio(args: argparse.Namespace) -> None:
         import time
@@ -371,7 +403,7 @@ class UserHandlers:
         print(f"{i('money')} 组合回测（portfolio）…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，将新建 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -383,6 +415,7 @@ class UserHandlers:
 
         pf = result.get("portfolio") if isinstance(result.get("portfolio"), dict) else result
         enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+        UserHandlers._print_simulate_version(result, "portfolio")
         if enum_part:
             print(
                 f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
@@ -409,6 +442,8 @@ class UserHandlers:
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
+
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
 
     @staticmethod
     def _run_strategy_scan(args: argparse.Namespace) -> None:
@@ -465,7 +500,7 @@ class UserHandlers:
         print(f"{i('game')} 模拟链路 · PriceFactor → Portfolio …", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，将新建 version", flush=True)
 
         t0 = time.perf_counter()
         pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)
@@ -510,6 +545,45 @@ class UserHandlers:
         if not (po.get("success", True) if isinstance(po, dict) else True):
             raise SystemExit(1)
 
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
+        UserHandlers._print_analysis_from_step(po if isinstance(po, dict) else {})
+
+    @staticmethod
+    def _run_strategy_analyze(args: argparse.Namespace) -> None:
+        from pathlib import Path
+
+        from core.modules.strategy import Strategy
+
+        output_dir = getattr(args, "output_dir", None)
+        if output_dir:
+            Strategy.present_analysis_report(Path(output_dir))
+            return
+
+        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
+        step = str(getattr(args, "step", None) or "enum").strip().lower()
+        version_id = getattr(args, "version", None)
+
+        if not version_id:
+            print(
+                "归因已集成在 simulate 中：请在 settings.analysis.enabled=true 后运行 se/sp/so；"
+                "或使用 --output-dir 展示已有 report。",
+                flush=True,
+            )
+            raise SystemExit(1)
+
+        for candidate in Strategy.resolve_simulation_output_dirs(
+            strategy_key,
+            step=step,
+            slot={"version_id": str(version_id).strip()},
+        ):
+            if not candidate.is_dir():
+                continue
+            Strategy.present_analysis_report(candidate)
+            return
+
+        print(f"未找到 version {version_id!r} 的 {step} 归因报告。", flush=True)
+        raise SystemExit(1)
+
     @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         if cmd == "strategy_enumerate":
@@ -530,6 +604,10 @@ class UserHandlers:
 
         if cmd == "strategy_simulate":
             UserHandlers._run_strategy_simulate(args)
+            return
+
+        if cmd == "strategy_analyze":
+            UserHandlers._run_strategy_analyze(args)
             return
 
         raise SystemExit(f"未知命令: {cmd}")

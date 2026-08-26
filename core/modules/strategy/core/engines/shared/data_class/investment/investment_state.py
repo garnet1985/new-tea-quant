@@ -91,8 +91,9 @@ class InvestmentState:
     customized_state: Dict[str, Any] = field(default_factory=dict)
     triggered_force_exit_tags: List[str] = field(default_factory=list)
     last_bar: Optional[Dict[str, Any]] = None
-    triggered_stop_loss_idx: int = -1
-    triggered_take_profit_idx: int = -1
+    # 已触发的 goal stage_id（独立标记，非高水位 idx）
+    triggered_stop_loss_ids: List[str] = field(default_factory=list)
+    triggered_take_profit_ids: List[str] = field(default_factory=list)
     remaining_ratio: float = 1.0
     protect_loss_active: bool = False
     dynamic_loss_active: bool = False

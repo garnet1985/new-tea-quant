@@ -1,8 +1,11 @@
 # Strategy — 设计说明
 
-**模块：** `modules.strategy` · **版本：** `0.7.0`
+**模块：** `modules.strategy` · **版本：** `0.8.0`
 
 硬约束摘要如下；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
+
+仿真 **version 布局 / 指纹 / 退役工作台双轨** 见进行中的改造说明：  
+[VERSIONING_REDESIGN.md](./VERSIONING_REDESIGN.md)。
 
 ---
 

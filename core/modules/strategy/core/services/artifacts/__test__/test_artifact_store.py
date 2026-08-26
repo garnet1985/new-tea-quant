@@ -1,6 +1,7 @@
 """ArtifactStore：allocate / 读表 / 缓存 / prune / 子类分发。"""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -81,49 +82,94 @@ def test_open_reads_runtime(tmp_path: Path) -> None:
 
 
 def test_prune_root_keeps_newest(tmp_path: Path) -> None:
-    root = tmp_path / "enum"
+    root = tmp_path / "simulations"
     for i in range(1, 5):
         (root / str(i)).mkdir(parents=True)
     deleted = ArtifactStore.prune_root(root, max_versions=2)
     assert deleted == 2
-    assert sorted(p.name for p in root.iterdir()) == ["3", "4"]
+    assert sorted(p.name for p in root.iterdir() if p.is_dir()) == ["3", "4"]
 
 
-def test_allocate_increments_and_prunes(tmp_path: Path, monkeypatch) -> None:
-    root = tmp_path / "portfolio"
+def test_allocate_reuses_version_id_for_step(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "simulations"
+    monkeypatch.setattr(
+        EnumerateStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    monkeypatch.setattr(
+        PriceFactorStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    enum_store = EnumerateStore.allocate(tmp_path, strategy_id="demo")
+    price_store = PriceFactorStore.allocate(
+        tmp_path,
+        strategy_id="demo",
+        version_id=enum_store.version_id,
+    )
+    assert enum_store.version_id == price_store.version_id == "1"
+    assert enum_store.output_dir == root / "1" / "enum"
+    assert price_store.output_dir == root / "1" / "price"
+    meta = json.loads((root / "meta.json").read_text(encoding="utf-8"))
+    assert meta["next_version_id"] == 2
+
+
+def test_allocate_rejects_when_at_cap(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "simulations"
+    for i in (1, 2, 3):
+        (root / str(i)).mkdir(parents=True)
     monkeypatch.setattr(
         PortfolioStore,
-        "simulation_root",
-        classmethod(lambda cls, folder, kind=None: root),
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    with pytest.raises(ValueError, match="已达上限"):
+        PortfolioStore.allocate(tmp_path, strategy_id="demo", max_versions=3)
+
+
+def test_allocate_increments_without_auto_prune(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "simulations"
+    monkeypatch.setattr(
+        PortfolioStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
     )
     ids = []
-    for _ in range(5):
+    for _ in range(3):
         store = PortfolioStore.allocate(
             tmp_path,
             strategy_id="demo/s",
             max_versions=3,
         )
         ids.append(int(store.version_id))
-    assert ids == [1, 2, 3, 4, 5]
+    assert ids == [1, 2, 3]
     remaining = sorted(
         int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit()
     )
-    assert remaining == [3, 4, 5]
+    assert remaining == [1, 2, 3]
+    assert (root / "3" / "portfolio").is_dir()
+    deleted = ArtifactStore.prune_root(root, max_versions=2)
+    assert deleted == 1
+    remaining = sorted(
+        int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit()
+    )
+    assert remaining == [2, 3]
 
 
 def test_latest_reads_meta(tmp_path: Path, monkeypatch) -> None:
-    root = tmp_path / "price"
-    (root / "2").mkdir(parents=True)
+    root = tmp_path / "simulations"
+    (root / "2" / "price").mkdir(parents=True)
     (root / "meta.json").write_text(
-        '{"next_output_version": 3}', encoding="utf-8"
+        '{"next_version_id": 3}', encoding="utf-8"
     )
     monkeypatch.setattr(
         PriceFactorStore,
-        "simulation_root",
-        classmethod(lambda cls, folder, kind=None: root),
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
     )
     store = PriceFactorStore.latest(tmp_path)
     assert store is not None
     assert isinstance(store, PriceFactorStore)
     assert store.version_id == "2"
-    assert store.output_dir == root / "2"
+    assert store.output_dir == root / "2" / "price"

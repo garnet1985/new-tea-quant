@@ -6,7 +6,7 @@ import {
   fetchDataSettings,
   saveDatabaseSettings,
   saveDataSettings,
-} from '../../api/apis/settingsApi';
+} from '../../api/settingsApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import {
   SettingsCachePanel,

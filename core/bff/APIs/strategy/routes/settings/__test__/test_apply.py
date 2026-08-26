@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from core.bff.APIs.strategy.routes.settings.apply import WorkbenchApplySettings
 
 
 @patch.object(WorkbenchApplySettings, "_write_settings_py")
 @patch.object(WorkbenchApplySettings, "_backup_settings_file")
-@patch.object(WorkbenchApplySettings, "_snapshot_model")
 @patch(
     "core.bff.APIs.strategy.routes.settings.apply.WorkbenchSnapshots.fetch_by_version"
 )
-def test_apply_success(mock_fetch, mock_model, mock_backup, mock_write):
+def test_apply_success(mock_fetch, mock_backup, mock_write):
     mock_fetch.return_value = {
         "version": 3,
         "settings_snapshot": {
@@ -30,9 +29,6 @@ def test_apply_success(mock_fetch, mock_model, mock_backup, mock_write):
             },
         },
     }
-    model = MagicMock()
-    model.touch_version_updated_at.return_value = 1
-    mock_model.return_value = model
 
     out, err = WorkbenchApplySettings.apply(
         strategy_name="demo/x", version=3, pretty=True
@@ -42,7 +38,6 @@ def test_apply_success(mock_fetch, mock_model, mock_backup, mock_write):
     assert out["version_id"] == "v3"
     mock_backup.assert_called_once_with("demo/x")
     mock_write.assert_called_once()
-    model.touch_version_updated_at.assert_called_once_with("demo/x", 3)
 
 
 @patch(

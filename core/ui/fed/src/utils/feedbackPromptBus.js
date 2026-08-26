@@ -1,4 +1,5 @@
-import { noteFeedbackTaskSuccess } from '../api/apis/feedbackApi';
+import { noteFeedbackTaskSuccess } from '../api/feedbackApi';
+import logClientError from './logClientError';
 
 const listeners = new Set();
 
@@ -18,8 +19,8 @@ function emitFeedbackPrompt(payload) {
   listeners.forEach((fn) => {
     try {
       fn(payload);
-    } catch {
-      // ignore listener errors
+    } catch (error) {
+      logClientError('feedback.listener', error);
     }
   });
 }
@@ -34,7 +35,7 @@ export async function notifyTaskSuccess(source) {
     if (r?.should_prompt) {
       emitFeedbackPrompt({ source: String(source || '').trim() || 'task' });
     }
-  } catch {
-    // never block task UX
+  } catch (error) {
+    logClientError('feedback.notifyTaskSuccess', error);
   }
 }

@@ -10,3 +10,6 @@ export const REPORT_TAB_SECTION_TITLES = {
   price: '价格回测报告',
   portfolio: '投资模拟报告',
 };
+
+/** V2-07 ``message.analysis`` 区块标题 */
+export const ANALYSIS_SECTION_TITLE = '归因解读';

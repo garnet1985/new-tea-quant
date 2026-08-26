@@ -1,7 +1,7 @@
 """Workbench snapshot read model for UI (V2-01 / V2-03 / V2-08).
 
-Frontend-only concept: multi-version settings / cold-start / ui_flags.
-Backend run uses fingerprint cache (``SimulationCacheManager``), not this reader.
+Version catalog and settings snapshots come from disk ``simulations/meta.json``
+registry + ``{vid}/effective_settings.json`` + step artifacts.
 
 Consumers: ``routes/version``, ``routes/report``, ``routes/settings/apply``.
 """
@@ -10,15 +10,21 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.data_manager import DataManager
+from core.modules.strategy.core.enums import SimulateKind, WorkbenchStep
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     StrategyInfo,
+)
+from core.modules.strategy.core.services.simulation_cache.version_store import (
+    SimulationVersionStore,
 )
 
 from core.bff.APIs.strategy.helpers.report_hydrate import (
@@ -27,12 +33,17 @@ from core.bff.APIs.strategy.helpers.report_hydrate import (
 
 logger = logging.getLogger(__name__)
 
-_MAX_ROW_REPAIR_LOOPS = 5
 _DROPDOWN_LIMIT = 10
+
+_STEP_SLOTS: Tuple[Tuple[SimulateKind, str], ...] = (
+    (SimulateKind.ENUMERATE, WorkbenchStep.ENUM.report_slot),
+    (SimulateKind.PRICE_FACTOR, WorkbenchStep.PRICE.report_slot),
+    (SimulateKind.PORTFOLIO, WorkbenchStep.PORTFOLIO.report_slot),
+)
 
 
 class WorkbenchSnapshots:
-    """UI workbench snapshot catalog / latest / by-version."""
+    """UI workbench snapshot catalog / latest / by-version (disk registry)."""
 
     @staticmethod
     def parse_version_id(version_id: str) -> Optional[int]:
@@ -43,7 +54,7 @@ class WorkbenchSnapshots:
 
     @classmethod
     def fetch_latest(cls, strategy_name: str) -> Optional[Dict[str, Any]]:
-        """Latest persisted row, or cold-start synthetic row (version=0, not written)."""
+        """Latest disk version row, or cold-start synthetic row (version=0)."""
         name = str(strategy_name or "").strip()
         if not name:
             return None
@@ -52,31 +63,12 @@ class WorkbenchSnapshots:
         if info is None:
             return None
 
-        model = cls._snapshot_model()
-        if model is None:
-            logger.error("Workbench snapshot table is not registered")
-            return None
-
-        for _ in range(_MAX_ROW_REPAIR_LOOPS):
-            row = cls._load_latest_row(model, name)
-            if not row:
-                break
-            if cls._row_usable(row):
-                return cls._enrich_row(name, info, row)
-            sid = int(row.get("version") or 0)
-            if sid <= 0:
-                logger.warning("Unusable snapshot row for %s (missing version)", name)
-                break
-            logger.warning(
-                "Removing unusable workbench snapshot row strategy=%s version=%s",
-                name,
-                sid,
-            )
-            try:
-                model.delete_version_row(name, sid)
-            except Exception:
-                logger.exception("Failed to delete unusable snapshot %s v%s", name, sid)
-                break
+        root = cls._simulations_root(info)
+        version_ids = cls._sorted_version_ids(root, descending=True)
+        for vid in version_ids:
+            row = cls._build_disk_row(name, info, int(vid))
+            if row is not None:
+                return row
 
         return cls._synthetic_cold_start_row(name, dict(info.settings or {}))
 
@@ -95,15 +87,7 @@ class WorkbenchSnapshots:
         if info is None:
             return None
 
-        model = cls._snapshot_model()
-        if model is None:
-            logger.error("Workbench snapshot table is not registered")
-            return None
-
-        row = model.load_by_strategy_version(name, sid)
-        if not row or not cls._row_usable(row):
-            return None
-        return cls._enrich_row(name, info, dict(row))
+        return cls._build_disk_row(name, info, sid)
 
     @classmethod
     def list_dropdown(
@@ -115,21 +99,26 @@ class WorkbenchSnapshots:
         name = str(strategy_name or "").strip()
         if not name:
             return []
-        model = cls._snapshot_model()
-        if model is None:
+
+        info = cls._find_strategy(name)
+        if info is None:
             return []
-        rows = model.list_by_strategy(name, limit=max(1, int(limit)))
+
+        root = cls._simulations_root(info)
         items: List[Dict[str, Any]] = []
-        for row in rows:
-            sid = int(row.get("version") or 0)
-            if sid <= 0:
-                continue
+        for vid in cls._sorted_version_ids(root, descending=True)[: max(1, int(limit))]:
+            entry = VersionMetaStore.get_registry_entry(root, vid) or {}
+            sid = int(vid)
             items.append(
                 {
                     "version_id": f"v{sid}",
                     "version": sid,
-                    "updated_at": cls._iso(row.get("updated_at")),
-                    "created_at": cls._iso(row.get("created_at")),
+                    "env_invalid": VersionMetaStore.is_env_invalid(
+                        entry,
+                        cls._current_env_fp(info),
+                    ),
+                    "updated_at": cls._iso(entry.get("updated_at") or entry.get("created_at")),
+                    "created_at": cls._iso(entry.get("created_at")),
                 }
             )
         return items
@@ -137,16 +126,135 @@ class WorkbenchSnapshots:
     @classmethod
     def ui_flags(cls, strategy_name: str, row: Dict[str, Any]) -> Dict[str, bool]:
         sid = int(row.get("version") or 0)
-        model = cls._snapshot_model()
+        info = cls._find_strategy(str(strategy_name or "").strip())
         n = 0
-        if model is not None:
-            n = len(model.list_by_strategy(str(strategy_name).strip(), limit=500) or [])
+        if info is not None:
+            n = len(cls._sorted_version_ids(cls._simulations_root(info), descending=True))
         return {
             "has_persisted_snapshot": sid > 0,
             "has_other_versions": sid > 0 and n >= 2,
+            "env_invalid": bool(row.get("env_invalid")),
         }
 
+    @classmethod
+    def _current_env_fp(cls, info: StrategyInfo) -> str:
+        from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
+            GlobalEntityCache,
+        )
+        from core.modules.strategy.core.services.simulation_cache.fingerprints import (
+            FingerprintCalculator,
+        )
+
+        fps = FingerprintCalculator.calculate_fingerprints(
+            info,
+            None,
+            GlobalEntityCache.get_stock_list(),
+            GlobalEntityCache.get_latest_completed_trading_date(),
+        )
+        return str(fps.env_fp or "")
+
+    @classmethod
+    def _env_invalid_for_entry(
+        cls,
+        info: StrategyInfo,
+        entry: Dict[str, Any],
+    ) -> bool:
+        return VersionMetaStore.is_env_invalid(entry, cls._current_env_fp(info))
+
     # --- internals ---------------------------------------------------------
+
+    @classmethod
+    def _build_disk_row(
+        cls,
+        strategy_name: str,
+        info: StrategyInfo,
+        version: int,
+    ) -> Optional[Dict[str, Any]]:
+        vid = str(int(version))
+        root = cls._simulations_root(info)
+        if VersionMetaStore.resolve_version(root, vid) is None:
+            return None
+
+        folder = cls._strategy_folder(info)
+        entry = VersionMetaStore.get_registry_entry(root, vid) or {}
+        settings_snapshot = cls._settings_snapshot_from_disk(info, root, vid)
+        result_report = cls._result_report_from_disk(folder, root, vid)
+
+        row: Dict[str, Any] = {
+            "strategy_name": str(strategy_name or "").strip(),
+            "version": int(version),
+            "settings_snapshot": settings_snapshot,
+            "reports": result_report,
+            "result_report": result_report,
+            "settings_finger_print_id": str(entry.get("settings_fp") or ""),
+            "env_fingerprint_id": str(entry.get("env_fp") or ""),
+            "env_invalid": cls._env_invalid_for_entry(info, entry),
+            "created_at": entry.get("created_at"),
+            "updated_at": entry.get("updated_at") or entry.get("created_at"),
+        }
+        return cls._enrich_row(strategy_name, info, row)
+
+    @classmethod
+    def _settings_snapshot_from_disk(
+        cls,
+        info: StrategyInfo,
+        simulations_root: Path,
+        version_id: str,
+    ) -> Dict[str, Any]:
+        disk_settings = dict(info.settings or {})
+        effective = VersionMetaStore.read_effective_settings(
+            simulations_root, version_id
+        )
+        if not effective:
+            return disk_settings
+        subset = {
+            key: value
+            for key, value in effective.items()
+            if key != "entity_ids"
+        }
+        if not subset:
+            return disk_settings
+        return StrategySettings.merge_disk_with_diff(disk_settings, subset)
+
+    @classmethod
+    def _result_report_from_disk(
+        cls,
+        strategy_folder: Path,
+        simulations_root: Path,
+        version_id: str,
+    ) -> Dict[str, Any]:
+        result_report: Dict[str, Any] = {}
+        for kind, slot_key in _STEP_SLOTS:
+            if not VersionMetaStore.step_has_artifacts(simulations_root, version_id, kind):
+                continue
+            cached = SimulationVersionStore.get_cache_by_version_id(
+                strategy_folder,
+                version_id,
+                kind,
+            )
+            if not cached:
+                continue
+            slot = cached.get(kind.value)
+            if isinstance(slot, dict) and slot:
+                result_report[slot_key] = dict(slot)
+        return result_report
+
+    @classmethod
+    def _sorted_version_ids(cls, simulations_root: Path, *, descending: bool) -> List[str]:
+        ids = VersionMetaStore.list_version_ids(simulations_root)
+        return sorted(ids, key=int, reverse=descending)
+
+    @classmethod
+    def _simulations_root(cls, info: StrategyInfo) -> Path:
+        return ArtifactStore.simulations_root(cls._strategy_folder(info))
+
+    @staticmethod
+    def _strategy_folder(info: StrategyInfo) -> Path:
+        if hasattr(info, "resolved_folder"):
+            folder = info.resolved_folder()
+            if folder is not None:
+                return Path(folder)
+        return Path(info.folder)
 
     @classmethod
     def _enrich_row(
@@ -156,14 +264,7 @@ class WorkbenchSnapshots:
         row: Dict[str, Any],
     ) -> Dict[str, Any]:
         out = dict(row)
-        settings_diff = out.get("settings_diff")
-        if isinstance(settings_diff, dict):
-            disk_settings = dict(info.settings or {})
-            out["settings_snapshot"] = StrategySettings.merge_disk_with_diff(
-                disk_settings,
-                settings_diff,
-            )
-        elif not isinstance(out.get("settings_snapshot"), dict):
+        if not isinstance(out.get("settings_snapshot"), dict):
             out["settings_snapshot"] = dict(info.settings or {})
 
         rr = out.get("result_report") or out.get("reports") or {}
@@ -186,25 +287,6 @@ class WorkbenchSnapshots:
         return None
 
     @staticmethod
-    def _snapshot_model():
-        try:
-            return DataManager().get_table("sys_strategy_workbench_snapshot")
-        except Exception:
-            logger.exception("Failed to resolve workbench snapshot table")
-            return None
-
-    @staticmethod
-    def _load_latest_row(model: Any, strategy_name: str) -> Optional[Dict[str, Any]]:
-        rows = model.list_by_strategy(str(strategy_name), limit=1)
-        if not rows:
-            return None
-        return dict(rows[0] or {})
-
-    @staticmethod
-    def _row_usable(row: Dict[str, Any]) -> bool:
-        return isinstance(row.get("settings_diff"), dict)
-
-    @staticmethod
     def _synthetic_cold_start_row(
         strategy_name: str,
         settings_api: Dict[str, Any],
@@ -217,6 +299,7 @@ class WorkbenchSnapshots:
             "result_report": {},
             "settings_finger_print_id": "",
             "env_fingerprint_id": "",
+            "env_invalid": False,
         }
 
     @staticmethod

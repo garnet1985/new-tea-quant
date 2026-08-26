@@ -31,7 +31,7 @@ import {
   retryFailedStep,
   startSetupWorkflow,
   submitInteractiveStep,
-} from '../../api/apis/setupApi';
+} from '../../api/setupApi';
 import {
   applyDbTypeDefaults,
   DEFAULT_STEP_ID,
@@ -46,6 +46,7 @@ import {
 import SetupDialogs from './setupDialogs';
 import SetupExecutionPanel from './setupExecutionPanel';
 import TraceConsentGuard from '../../components/traceConsentGuard';
+import logClientError from '../../utils/logClientError';
 import './setupPage.scss';
 
 /** 安装向导表单：统一尺寸、描边标签始终上浮，避免部分字段像 placeholder */
@@ -71,9 +72,14 @@ function SetupPage() {
   const [dbRiskConfirmOpen, setDbRiskConfirmOpen] = useState(false);
   const [dbRiskContext, setDbRiskContext] = useState({ dbType: '', database: '' });
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState('');
   const [userspacePathExists, setUserspacePathExists] = useState(false);
   const [checkingUserspacePath, setCheckingUserspacePath] = useState(false);
+  const [userspacePrecheckError, setUserspacePrecheckError] = useState('');
   const [importProgress, setImportProgress] = useState(EMPTY_IMPORT_PROGRESS);
+  const [pollWarning, setPollWarning] = useState('');
+  const [importPollWarning, setImportPollWarning] = useState('');
+  const [restartError, setRestartError] = useState('');
 
   const restoreFlowStage = (defs, current) => {
     const stepStates = current?.stepStates || [];
@@ -97,27 +103,38 @@ function SetupPage() {
     setErrorMessage('');
   };
 
-  useEffect(() => {
+  const loadBootstrap = useCallback(() => {
+    setBootstrapping(true);
+    setBootstrapError('');
     Promise.all([getSetupDefinition(), getSetupStatus()])
       .then(([defs, current]) => {
         if (current?.isReady) {
           setDefinition(defs);
           setStatus(current);
           restoreFlowStage(defs, current);
-          return;
+          return undefined;
         }
 
-        // 产品语义：入口只允许“未开始”或“已完成”，禁止显示中间态（如 50%）。
-        resetSetupStatus().then((fresh) => {
-          setDefinition(defs);
-          setStatus(fresh);
-          restoreFlowStage(defs, fresh);
-        });
+        return resetSetupStatus()
+          .then((fresh) => {
+            setDefinition(defs);
+            setStatus(fresh);
+            restoreFlowStage(defs, fresh);
+          });
+      })
+      .catch((err) => {
+        setBootstrapError(err?.message || '加载安装向导失败，请检查网络后重试。');
+        setDefinition([]);
+        setStatus(null);
       })
       .finally(() => {
         setBootstrapping(false);
       });
   }, []);
+
+  useEffect(() => {
+    loadBootstrap();
+  }, [loadBootstrap]);
 
   const activeStep = useMemo(() => {
     if (!status || definition.length === 0) return 0;
@@ -150,14 +167,20 @@ function SetupPage() {
     });
   }, [definition, flowStage, status]);
 
-  const runningWithProgress = (runner) => runner(({ stepId, status: progressStatus, snapshot }) => {
-    setRunningStep(progressStatus === 'running' ? stepId : '');
-    if (progressStatus === 'running') {
-      const label = definition.find((step) => step.id === stepId)?.name || stepId;
-      setProgressText(`正在执行: ${label}`);
-    }
-    if (snapshot) setStatus(snapshot);
-  });
+  const runningWithProgress = (runner) => {
+    setPollWarning('');
+    return runner(({ stepId, status: progressStatus, snapshot, pollWarning: warning }) => {
+      if (warning) {
+        setPollWarning(warning);
+      }
+      setRunningStep(progressStatus === 'running' ? stepId : '');
+      if (progressStatus === 'running') {
+        const label = definition.find((step) => step.id === stepId)?.name || stepId;
+        setProgressText(`正在执行: ${label}`);
+      }
+      if (snapshot) setStatus(snapshot);
+    });
+  };
 
   const consumePipelineResult = (result, defaultFailedStep = DEFAULT_STEP_ID) => {
     setRunningStep('');
@@ -277,29 +300,44 @@ function SetupPage() {
       return;
     }
     setCheckingUserspacePath(true);
+    setUserspacePrecheckError('');
     try {
       const result = await precheckUserspacePath({ userspaceTargetPath: value });
       setUserspacePathExists(Boolean(result.pathExists));
       if (!result.pathExists) {
         setFormValues((prev) => ({ ...prev, userspaceConflictPolicy: 'skip' }));
       }
-    } catch (_error) {
+    } catch (error) {
+      logClientError('setup.userspacePrecheck', error);
       setUserspacePathExists(false);
+      setUserspacePrecheckError('路径检查失败，请检查网络后重试。');
     } finally {
       setCheckingUserspacePath(false);
     }
   };
 
   const handleStartSetup = async () => {
-    if (!status || definition.length === 0) return;
+    if (!status || definition.length === 0) {
+      setErrorMessage(
+        bootstrapError || '安装步骤未加载，请点击下方「重新加载」或刷新页面后重试。',
+      );
+      return;
+    }
     setFlowStage('executing');
     setErrorMessage('');
     setFailedStep('');
     setPausedStep('');
     setImportProgress(EMPTY_IMPORT_PROGRESS);
     setProgressText('准备执行安装步骤...');
-    const result = await runningWithProgress((onProgress) => startSetupWorkflow(onProgress));
-    consumePipelineResult(result, definition[0]?.id || DEFAULT_STEP_ID);
+    try {
+      const result = await runningWithProgress((onProgress) => startSetupWorkflow(onProgress));
+      consumePipelineResult(result, definition[0]?.id || DEFAULT_STEP_ID);
+    } catch (err) {
+      setRunningStep('');
+      setFlowStage('fail');
+      setFailedStep(definition[0]?.id || DEFAULT_STEP_ID);
+      setErrorMessage(err?.message || '安装请求失败，请检查网络后重试。');
+    }
   };
 
   const handleSubmitInteractionStep = async (options = {}) => {
@@ -337,7 +375,13 @@ function SetupPage() {
         return;
       }
       if (!confirmedDbRisk) {
-        const dbCheck = await precheckDbConnection(submitValues);
+        let dbCheck;
+        try {
+          dbCheck = await precheckDbConnection(submitValues);
+        } catch (err) {
+          setErrorMessage(err?.message || '数据库连接预检失败，请检查网络后重试。');
+          return;
+        }
         if (dbCheck.dbExists) {
           setDbRiskContext({
             dbType: dbCheck.dbType || '',
@@ -353,31 +397,53 @@ function SetupPage() {
     setProgressText('提交输入并继续执行...');
     setErrorMessage('');
     setFailedStep('');
-    const result = await runningWithProgress((onProgress) => submitInteractiveStep(pausedStep, submitValues, onProgress));
-    consumePipelineResult(result, pausedStep);
+    try {
+      const result = await runningWithProgress(
+        (onProgress) => submitInteractiveStep(pausedStep, submitValues, onProgress),
+      );
+      consumePipelineResult(result, pausedStep);
+    } catch (err) {
+      setRunningStep('');
+      setFlowStage('fail');
+      setFailedStep(pausedStep);
+      setErrorMessage(err?.message || '提交失败，请检查网络后重试。');
+    }
   };
 
   const handleRetryFailedStep = async () => {
     setFlowStage('executing');
     setProgressText('重试失败步骤并继续执行...');
     setErrorMessage('');
-    const result = await runningWithProgress((onProgress) => retryFailedStep(onProgress));
-    consumePipelineResult(result, failedStep || definition[0]?.id || DEFAULT_STEP_ID);
+    const stepId = failedStep || definition[0]?.id || DEFAULT_STEP_ID;
+    try {
+      const result = await runningWithProgress((onProgress) => retryFailedStep(onProgress));
+      consumePipelineResult(result, stepId);
+    } catch (err) {
+      setRunningStep('');
+      setFlowStage('fail');
+      setFailedStep(stepId);
+      setErrorMessage(err?.message || '重试失败，请检查网络后重试。');
+    }
   };
 
   const handleRestartSetup = async () => {
-    const nextStatus = await resetSetupStatus();
-    setStatus(nextStatus);
-    setFlowStage('input');
-    setRunningStep('');
-    setProgressText('等待开始');
-    setErrorMessage('');
-    setFailedStep('');
-    setPausedStep('');
-    setFormValues({});
-    setUserspacePathEditable(false);
-    setUserspacePathExists(false);
-    setImportProgress(EMPTY_IMPORT_PROGRESS);
+    setRestartError('');
+    try {
+      const nextStatus = await resetSetupStatus();
+      setStatus(nextStatus);
+      setFlowStage('input');
+      setRunningStep('');
+      setProgressText('等待开始');
+      setErrorMessage('');
+      setFailedStep('');
+      setPausedStep('');
+      setFormValues({});
+      setUserspacePathEditable(false);
+      setUserspacePathExists(false);
+      setImportProgress(EMPTY_IMPORT_PROGRESS);
+    } catch (err) {
+      setRestartError(err?.message || '重置安装状态失败，请检查网络后重试。');
+    }
   };
 
   useEffect(() => {
@@ -385,14 +451,21 @@ function SetupPage() {
       return undefined;
     }
     let stopped = false;
+    let failCount = 0;
     const tick = async () => {
       try {
         const next = await getImportDataProgress();
+        failCount = 0;
         if (!stopped) {
           setImportProgress(next);
+          setImportPollWarning('');
         }
-      } catch (_error) {
-        // ignore temporary polling errors
+      } catch (error) {
+        logClientError('setup.importProgressPoll', error);
+        failCount += 1;
+        if (!stopped && failCount >= 3) {
+          setImportPollWarning('导入进度暂时无法更新，安装可能仍在进行…');
+        }
       }
     };
     tick();
@@ -456,8 +529,24 @@ function SetupPage() {
                 <Typography color="text.secondary" sx={{ mb: 2 }}>
                   点击开始后，系统会按 pipeline 顺序执行步骤；遇到需要交互的步骤会自动暂停并显示表单。
                 </Typography>
+                {bootstrapError ? (
+                  <Alert
+                    severity="error"
+                    sx={{ mb: 2 }}
+                    action={(
+                      <Button color="inherit" size="small" onClick={loadBootstrap}>
+                        重新加载
+                      </Button>
+                    )}
+                  >
+                    {bootstrapError}
+                  </Alert>
+                ) : null}
+                {errorMessage && !bootstrapError ? (
+                  <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+                ) : null}
                 <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                  <Button variant="contained" onClick={handleStartSetup}>
+                  <Button variant="contained" onClick={handleStartSetup} disabled={Boolean(bootstrapError)}>
                     开始安装
                   </Button>
                 </Stack>
@@ -471,6 +560,9 @@ function SetupPage() {
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   需要用户输入：{pausedStepDef?.name || pausedStep}
                 </Typography>
+                {errorMessage ? (
+                  <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+                ) : null}
                 <Box
                   component="form"
                   className="setup-interaction-form"
@@ -524,7 +616,11 @@ function SetupPage() {
                           }
                           helperText={
                             field.key === 'userspaceTargetPath'
-                              ? (checkingUserspacePath ? '正在检查目标路径...' : (field.helperText || ''))
+                              ? (
+                                checkingUserspacePath
+                                  ? '正在检查目标路径...'
+                                  : (userspacePrecheckError || field.helperText || '')
+                              )
                               : (field.helperText || '')
                           }
                           disabled={field.editableByCheckbox ? !userspacePathEditable : false}
@@ -578,6 +674,7 @@ function SetupPage() {
             progressText={progressText}
             runningStep={runningStep}
             importProgress={importProgress}
+            pollWarning={pollWarning || importPollWarning}
             rows={rows}
             executingColumns={executingColumns}
           />
@@ -602,6 +699,9 @@ function SetupPage() {
                   <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
                     安装流程已完成。你可以进入主业务页面。
                   </Typography>
+                  {restartError ? (
+                    <Alert severity="error" sx={{ mb: 2 }}>{restartError}</Alert>
+                  ) : null}
                   <Stack direction="row" spacing={2}>
                     <Button component={RouterLink} to="/strategy-design" variant="contained">
                       前往制定策略

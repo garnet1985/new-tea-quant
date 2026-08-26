@@ -1,6 +1,6 @@
 # Strategy API 文档
 
-**版本：** `0.7.0`  
+**版本：** `0.8.0`  
 **最低支持核心版本：** `>=0.4.4`
 
 > 须与 `module_info.yaml` 一致。  
@@ -34,12 +34,16 @@
 
 - **类型：** `staticmethod`
 - **状态：** `beta`
-- **描述：** 统一模拟入口（指纹 → 缓存 → Pipeline）；`kind=full` 暂不支持（`ValueError`）
+- **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）
 - **参数：**
   - `key_or_id`：策略标识（须已启用）
   - `kind`：`enumerate` / `price_factor` / `portfolio`（或对应 `SimulateKind`）
-  - `ignore_cache`：跳过缓存命中
+  - `ignore_cache`：跳过磁盘 cache 命中
   - `runtime_settings`：运行时覆盖 settings（参与指纹）
+- **返回：** 目标 step 槽位 dict（如 `enumerate` / `price_factor` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（含 `output_dir` / `version_id`）。
+- **环境失效：** registry 中 `env_fp` 与当前运行环境不一致时不可 cache hit（配置相同也会 miss 并新建 version）；BFF 读 version 时返回 `env_invalid: true`。
+- **强制重跑：** `ignore_cache=True`（CLI `--force`）跳过 cache 命中，且 price/portfolio 不复用已有 enum，始终 allocate 新 `version_id`。
+- **磁盘布局：** `{strategy}/results/simulations/{version_id}/{enum|price|portfolio}/`；索引在 `simulations/meta.json`（`registry` + `next_version_id`）；配置快照在 `{version_id}/effective_settings.json`。
 
 ### enumerate / price_factor / portfolio
 
@@ -93,12 +97,22 @@
 - **状态：** `beta`
 - **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
 
-### clear_workbench_cache
+### present_analysis_report
 
-`Strategy.clear_workbench_cache() -> int`
+`Strategy.present_analysis_report(output_dir: str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 清空 `sys_strategy_workbench_snapshot`；失败 `RuntimeError`；成功返回删除行数
+- **描述：** 从仿真 `output_dir` 读取 `analysis/report.json` 并打印归因终端摘要（`sa` 生成后调用）；内部为 `AnalysisReportPresenter.load(...).present(...)`；缺失文件则 `FileNotFoundError`
+
+### step_analysis_from_output_dir / resolve_step_analysis / resolve_simulation_output_dirs
+
+`Strategy.step_analysis_from_output_dir(output_dir: str | Path) -> dict`  
+`Strategy.resolve_step_analysis(strategy_name: str, step: str, slot: dict | None = None, *, workbench_version: int = 0) -> dict`  
+`Strategy.resolve_simulation_output_dirs(strategy_name: str, *, step: str, slot: dict | None = None, workbench_version: int = 0) -> list[Path]`
+
+- **状态：** `beta`
+- **描述：** 归因 insights 读取与 step 产物目录解析（BFF step report / hydrate 用）。`step_analysis_from_output_dir` 读单目录 `analysis/report.json` → `{available, report_path, insights}`；`resolve_step_analysis` 按 slot + workbench version 候选目录解析；`resolve_simulation_output_dirs` 返回 enum / price / portfolio 的绝对 version-dir 候选列表
+- **生成：** simulate 且 `settings.analysis.enabled=true` 时在主 simulate 步结束后自动生成 report；无独立 `Strategy.analyze`
 
 ### prune_simulation_results / prune_scan_results
 
@@ -106,7 +120,7 @@
 `Strategy.prune_scan_results(key_or_id: str, *, max_versions: int | None = None) -> dict`
 
 - **状态：** `beta`
-- **描述：** 磁盘中间值 keep-N（与 workbench DB 独立）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示三步都清。写入新 version 时也会自动 prune。
+- **描述：** 磁盘 simulation keep-N（按 **version 目录** 粒度）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示整个 version 目录 prune。删单 version 用 BFF `DELETE …/version/:id/cache` 或 `WorkbenchCacheClear.clear_by_version`；批量清磁盘用 `TempCleanup.clear_backtest_results_disk` 或 `WorkbenchCacheClear.clear_all`。触顶时 **allocate 拒绝**，不静默删。
 
 ### export_package / import_package
 

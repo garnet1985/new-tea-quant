@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
+from core.modules.strategy import Strategy
 from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore, PriceFactorStore
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
@@ -18,7 +19,6 @@ from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_enum_slot,
     hydrate_portfolio_slot,
     hydrate_price_slot,
-    resolve_simulation_output_dirs,
 )
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
@@ -52,11 +52,20 @@ class WorkbenchReports:
             row,
             workbench_version=int(version),
         )
+        rr = dict(row.get("result_report") or {})
+        slot = rr.get(step.report_slot)
+        analysis = Strategy.resolve_step_analysis(
+            name,
+            step.value,
+            slot if isinstance(slot, dict) else {},
+            workbench_version=int(version),
+        )
         return {
             "version_id": f"v{int(version)}",
             "strategy_name": name,
             "step": step.value,
             "report": report,
+            "analysis": analysis,
         }
 
     @classmethod
@@ -92,7 +101,7 @@ class WorkbenchReports:
         stock_ref: Optional[Dict[str, Any]] = None
         resolved_dir = ""
 
-        for output_dir in resolve_simulation_output_dirs(
+        for output_dir in Strategy.resolve_simulation_output_dirs(
             name,
             step=step.value,
             slot=slot if isinstance(slot, dict) else {},
@@ -182,10 +191,10 @@ class WorkbenchReports:
 
             raw = EntityListReport.load(output_dir).to_ui_dict()
             return cls._filter_price_stock_ref(output_dir, raw)
-        except Exception:
-            logger.debug(
-                "failed to load entity_list from %s", output_dir, exc_info=True
-            )
+        except Exception as exc:
+            from core.bff.shared.client_log import log_degraded
+
+            log_degraded("report.step.entityList", exc, f"{step}:{output_dir}")
             return None
 
     @classmethod
@@ -240,7 +249,10 @@ class WorkbenchReports:
             ph = ",".join(["%s"] * len(chunk))
             try:
                 rows = model.load(f"id IN ({ph})", tuple(chunk))
-            except Exception:
+            except Exception as exc:
+                from core.bff.shared.client_log import log_degraded
+
+                log_degraded("report.step.stockDisplayNames", exc, f"chunk={len(chunk)}")
                 continue
             for r in rows or []:
                 rec = dict(r or {})

@@ -1,12 +1,19 @@
 """仿真 version 目录文件名常量。"""
 
 RUNTIME_ENV_FILE = "runtime_env.json"
+EFFECTIVE_SETTINGS_FILE = "effective_settings.json"
 ENTITY_IDS_FILE = "entity_ids.txt"
 PERFORMANCE_FILE = "performance.json"
 OVERALL_REPORT_FILE = "overall_report.json"
 ENTITY_LIST_FILE = "entity_list.json"
 TRADES_FILE = "trades.json"
 EQUITY_CURVE_FILE = "equity_curve.json"
+
+ANALYSIS_SUBDIR = "analysis"
+ANALYSIS_SOURCE_JSON = "source.json"
+ANALYSIS_REPORT_JSON = "report.json"
+ANALYSIS_SOURCE_FILE = f"{ANALYSIS_SUBDIR}/{ANALYSIS_SOURCE_JSON}"
+ANALYSIS_REPORT_FILE = f"{ANALYSIS_SUBDIR}/{ANALYSIS_REPORT_JSON}"
 
 ENTITIES_SUBDIR = "entities"
 
@@ -39,6 +46,11 @@ PORTFOLIO_VERSION_REQUIRED_FILES = (
 )
 
 __all__ = [
+    "ANALYSIS_REPORT_FILE",
+    "ANALYSIS_REPORT_JSON",
+    "ANALYSIS_SOURCE_FILE",
+    "ANALYSIS_SOURCE_JSON",
+    "ANALYSIS_SUBDIR",
     "ENTITIES_SUBDIR",
     "ENTITY_IDS_FILE",
     "ENTITY_LIST_FILE",

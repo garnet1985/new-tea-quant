@@ -124,8 +124,8 @@ class FeedbackSubmitService:
             ver = ProjectContext.meta.core_version()
             if ver:
                 meta["ntq_version"] = str(ver)[:32]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("ntq_version meta unavailable: %s", exc)
         if isinstance(extra, Mapping):
             for key, value in list(extra.items())[:16]:
                 if not isinstance(key, str) or not key or len(key) > 64:

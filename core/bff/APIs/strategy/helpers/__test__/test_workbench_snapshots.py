@@ -2,25 +2,44 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
+from core.modules.strategy.core.services.artifacts.consts import (
+    EFFECTIVE_SETTINGS_FILE,
+    RUNTIME_ENV_FILE,
+)
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     StrategyInfo,
 )
 
 
 def _info(path: str = "demo/random/random_v1_null_baseline") -> StrategyInfo:
+    folder = Path(f"/tmp/{path}")
     return StrategyInfo(
         unique_relative_path=path,
-        strategy_file=Path(f"/tmp/{path}/strategy.py"),
-        settings_file=Path(f"/tmp/{path}/settings.py"),
-        folder=Path(f"/tmp/{path}"),
+        strategy_file=folder / "strategy.py",
+        settings_file=folder / "settings.py",
+        folder=folder,
         key="random_v1",
         display_name="demo",
         is_enabled=True,
-        settings={"is_enabled": True, "meta": {"key": "random_v1"}, "core": {"seed": 1}},
+        settings={
+            "is_enabled": True,
+            "meta": {"key": "random_v1"},
+            "core": {"seed": 1},
+            "data": {"base": {"data_key": "stock.kline.daily"}},
+            "simulation": {
+                "execution": {
+                    "mode": "entity_based",
+                    "start_date": "20200101",
+                    "end_date": "20201231",
+                }
+            },
+        },
         hooks_class=type("H", (), {}),
         hooks_module_path="mod",
     )
@@ -33,53 +52,84 @@ def test_parse_version_id():
     assert WorkbenchSnapshots.parse_version_id("") is None
 
 
-@patch.object(WorkbenchSnapshots, "_snapshot_model")
 @patch.object(WorkbenchSnapshots, "_find_strategy")
-def test_fetch_latest_cold_start(mock_find, mock_model):
+def test_fetch_latest_cold_start(mock_find):
     mock_find.return_value = _info()
-    model = MagicMock()
-    model.list_by_strategy.return_value = []
-    mock_model.return_value = model
-
-    row = WorkbenchSnapshots.fetch_latest("demo/random/random_v1_null_baseline")
+    with patch.object(WorkbenchSnapshots, "_simulations_root") as mock_root:
+        mock_root.return_value = Path("/tmp/empty/simulations")
+        with patch.object(
+            VersionMetaStore, "list_version_ids", return_value=[]
+        ):
+            row = WorkbenchSnapshots.fetch_latest("demo/random/random_v1_null_baseline")
     assert row is not None
     assert row["version"] == 0
     assert row["settings_snapshot"]["core"]["seed"] == 1
     assert row["result_report"] == {}
 
 
-@patch.object(WorkbenchSnapshots, "_snapshot_model")
 @patch.object(WorkbenchSnapshots, "_find_strategy")
-def test_fetch_latest_merges_settings_diff(mock_find, mock_model):
-    mock_find.return_value = _info()
-    model = MagicMock()
-    model.list_by_strategy.return_value = [
-        {
-            "version": 2,
-            "settings_diff": {"core": {"seed": 99}},
-            "result_report": {"enum": {"enumMetrics": {"totalOpportunities": 3}}},
-        }
-    ]
-    mock_model.return_value = model
+def test_fetch_latest_reads_disk_version(mock_find, tmp_path: Path):
+    info = _info()
+    mock_find.return_value = info
+    root = tmp_path / "simulations"
+    enum_dir = root / "2" / "enum"
+    enum_dir.mkdir(parents=True)
+    (enum_dir / RUNTIME_ENV_FILE).write_text("{}", encoding="utf-8")
+    (root / "2" / EFFECTIVE_SETTINGS_FILE).write_text(
+        json.dumps({"core": {"seed": 99}}),
+        encoding="utf-8",
+    )
+    VersionMetaStore.register_version(root, "2", settings_fp="s", env_fp="e")
 
-    row = WorkbenchSnapshots.fetch_latest("demo/random/random_v1_null_baseline")
+    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root), patch.object(
+        WorkbenchSnapshots, "_strategy_folder", return_value=info.folder
+    ), patch.object(
+        WorkbenchSnapshots,
+        "_enrich_row",
+        side_effect=lambda name, _info, row: row,
+    ):
+        row = WorkbenchSnapshots.fetch_latest("demo/random/random_v1_null_baseline")
+
+    assert row is not None
     assert row["version"] == 2
     assert row["settings_snapshot"]["core"]["seed"] == 99
-    assert row["result_report"]["enum"]["opportunities"] == 3
 
 
-@patch.object(WorkbenchSnapshots, "_snapshot_model")
-def test_list_dropdown(mock_model):
-    model = MagicMock()
-    model.list_by_strategy.return_value = [
-        {"version": 2, "created_at": None, "updated_at": None},
-        {"version": 1, "created_at": None, "updated_at": None},
-    ]
-    mock_model.return_value = model
-    items = WorkbenchSnapshots.list_dropdown("demo/x")
+@patch.object(WorkbenchSnapshots, "_find_strategy")
+def test_list_dropdown_from_registry(mock_find, tmp_path: Path):
+    mock_find.return_value = _info()
+    root = tmp_path / "simulations"
+    VersionMetaStore.write_root_meta(
+        root,
+        {
+            "registry": {
+                "2": {"created_at": "2024-01-02", "settings_fp": "s", "env_fp": "e"},
+                "1": {"created_at": "2024-01-01", "settings_fp": "s", "env_fp": "e"},
+            }
+        },
+    )
+    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root):
+        items = WorkbenchSnapshots.list_dropdown("demo/x")
     assert [i["version_id"] for i in items] == ["v2", "v1"]
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy", return_value=None)
 def test_fetch_latest_missing_strategy(_mock_find):
     assert WorkbenchSnapshots.fetch_latest("missing") is None
+
+
+@patch.object(WorkbenchSnapshots, "_find_strategy")
+def test_ui_flags_counts_disk_versions(mock_find, tmp_path: Path):
+    mock_find.return_value = _info()
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "1", settings_fp="s", env_fp="e")
+    VersionMetaStore.register_version(root, "2", settings_fp="s", env_fp="e")
+    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root):
+        flags = WorkbenchSnapshots.ui_flags(
+            "demo/x",
+            {"version": 2, "settings_snapshot": {}, "result_report": {}},
+        )
+    assert flags == {
+        "has_persisted_snapshot": True,
+        "has_other_versions": True,
+    }

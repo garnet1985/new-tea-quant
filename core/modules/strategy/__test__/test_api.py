@@ -52,8 +52,11 @@ class TestStrategyApi(unittest.TestCase):
             "load_price_entity_investments",
             "price_overall_report_path",
             "present_report",
+            "present_analysis_report",
+            "step_analysis_from_output_dir",
+            "resolve_step_analysis",
+            "resolve_simulation_output_dirs",
             "is_valid_path",
-            "clear_workbench_cache",
             "prune_simulation_results",
             "prune_scan_results",
             "export_package",
@@ -155,14 +158,6 @@ class TestStrategyApi(unittest.TestCase):
         self.assertTrue(Strategy.is_valid_path("demo/random_v1"))
         self.assertFalse(Strategy.is_valid_path("demo/市值"))
         self.assertFalse(Strategy.is_valid_path(""))
-
-    def test_clear_workbench_cache_raises_on_failure(self) -> None:
-        with patch(
-            "core.modules.strategy.core.services.workbench_cache.WorkbenchCacheClear.clear_all",
-            return_value={"ok": False, "error": "存储不可用"},
-        ):
-            with self.assertRaises(RuntimeError):
-                Strategy.clear_workbench_cache()
 
     def test_simulate_full_raises(self) -> None:
         with patch(

@@ -14,11 +14,19 @@ _ALLOWED_ACTIONS = frozenset({"set_protect_loss", "set_dynamic_loss"})
 
 @dataclass(frozen=True)
 class GoalStage:
-    ratio: float
+    """单段止盈/止损。
+
+    - 固定比例：``ratio`` 有值，``custom`` 为空
+    - 自定义触发：``custom`` 非空，``ratio`` 为 None（由 hooks 判定）
+    """
+
+    ratio: Optional[float]
     name: str
     close_invest: bool
-    exit_ratio: float  # 0~1；相对**初始总仓位**的绝对份额；close_invest=True 时为 1.0
+    exit_ratio: float  # 0~1；相对**初始总仓位**的绝对份额；0=不操作仓位；close_invest=True 时为 1.0
     actions: Tuple[str, ...] = ()
+    custom: Optional[str] = None
+    stage_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -172,15 +180,20 @@ class GoalSettings(SettingsBase):
         if not isinstance(stages_raw, list) or not stages_raw:
             raise ValueError(f"{label}.stages 须为非空 list")
 
-        out: List[GoalStage] = []
+        out_list: List[GoalStage] = []
         for idx, item in enumerate(stages_raw):
-            out.append(
-                cls._parse_stage_item(item, field_path=f"{label}.stages[{idx}]")
+            out_list.append(
+                cls._parse_stage_item(
+                    item,
+                    field_path=f"{label}.stages[{idx}]",
+                    label=label,
+                    index=idx,
+                )
             )
 
         if require_coverage:
-            cls._validate_stage_coverage(out, label=label)
-        return tuple(out)
+            cls._validate_stage_coverage(out_list, label=label)
+        return tuple(out_list)
 
     @classmethod
     def _validate_stage_coverage(
@@ -199,17 +212,37 @@ class GoalSettings(SettingsBase):
             )
 
     @classmethod
-    def _parse_stage_item(cls, item: Any, *, field_path: str) -> GoalStage:
+    def _parse_stage_item(
+        cls,
+        item: Any,
+        *,
+        field_path: str,
+        label: str,
+        index: int,
+    ) -> GoalStage:
         if not isinstance(item, dict):
             raise ValueError(f"{field_path} 须为 dict")
-        if "ratio" not in item:
-            raise ValueError(f"{field_path} 缺少 ratio")
-        ratio = float(item["ratio"])
-        # settings 不写 name；运行期按 ratio 推断（-0.1→loss10%，0.1→win10%）。
-        # 若旧配置仍带 name，仅在非空时沿用，否则一律推断。
+
+        custom_raw = item.get("custom")
+        custom = str(custom_raw or "").strip() or None
+        has_ratio = "ratio" in item and item.get("ratio") is not None and item.get("ratio") != ""
+
+        if custom and has_ratio:
+            raise ValueError(f"{field_path} 不可同时指定 ratio 与 custom")
+        if not custom and not has_ratio:
+            raise ValueError(f"{field_path} 须指定 ratio 或 custom")
+
+        ratio: Optional[float] = float(item["ratio"]) if has_ratio else None
+
+        # settings 不写 name；ratio 段按比例推断；custom 段默认用 custom 名。
         raw_name = str(item.get("name") or "").strip()
-        label_hint = field_path.rsplit(".stages", 1)[0]
-        name = raw_name or cls._to_stage_name(label=label_hint, ratio=ratio)
+        if raw_name:
+            name = raw_name
+        elif custom:
+            name = custom
+        else:
+            assert ratio is not None
+            name = cls._to_stage_name(label=label, ratio=ratio)
 
         close_invest = item.get("close_invest") is True
         raw_exit = item.get("exit_ratio", item.get("sell_ratio"))
@@ -217,8 +250,8 @@ class GoalSettings(SettingsBase):
             exit_ratio = 1.0
         elif raw_exit is not None and raw_exit != "":
             exit_ratio = float(raw_exit)
-            if exit_ratio <= 0.0 or exit_ratio > 1.0:
-                raise ValueError(f"{field_path}.exit_ratio 须在 (0, 1]")
+            if exit_ratio < 0.0 or exit_ratio > 1.0:
+                raise ValueError(f"{field_path}.exit_ratio 须在 [0, 1]")
         else:
             raise ValueError(
                 f"{field_path} 须指定 close_invest=True 或 exit_ratio"
@@ -228,12 +261,19 @@ class GoalSettings(SettingsBase):
         actions = cls._parse_actions(
             item.get("actions"), field_path=f"{field_path}.actions"
         )
+        raw_id = str(item.get("id") or "").strip()
+        kind = "stop_loss" if "stop_loss" in label else (
+            "take_profit" if "take_profit" in label else "goal"
+        )
+        stage_id = raw_id or f"{kind}:{index}:{custom or name}"
         return GoalStage(
             ratio=ratio,
             name=name,
             close_invest=close_invest,
             exit_ratio=exit_ratio,
             actions=actions,
+            custom=custom,
+            stage_id=stage_id,
         )
 
     @classmethod
@@ -291,9 +331,23 @@ class GoalSettings(SettingsBase):
             name=name,
         )
 
+    def custom_stage_keys(self) -> Tuple[str, ...]:
+        """``stop_loss`` / ``take_profit`` 中出现过的 custom 名（去重、保序）。"""
+        seen: List[str] = []
+        for stages in (self.stop_loss_stages, self.take_profit_stages):
+            for stage in stages:
+                key = str(stage.custom or "").strip()
+                if key and key not in seen:
+                    seen.append(key)
+        return tuple(seen)
+
     def exit_price(self, stage: GoalStage, basis_price: float) -> float:
+        if stage.custom or stage.ratio is None:
+            raise ValueError(
+                f"custom stage {stage.stage_id!r} 无 ratio，不能计算 exit_price"
+            )
         # qfq 基准可为负/0；目标价=basis*(1+ratio)，不做正负校验
-        return round(float(basis_price) * (1.0 + stage.ratio), 6)
+        return round(float(basis_price) * (1.0 + float(stage.ratio)), 6)
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()

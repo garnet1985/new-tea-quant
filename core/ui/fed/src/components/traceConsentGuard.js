@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { fetchTraceSettings, saveTraceSettings } from '../api/apis/settingsApi';
+import { fetchTraceSettings, saveTraceSettings } from '../api/settingsApi';
 import TraceConsentAskOverlay from './traceConsentAskOverlay';
 
 /**

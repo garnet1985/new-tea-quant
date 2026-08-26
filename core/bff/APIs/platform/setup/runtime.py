@@ -15,6 +15,7 @@ from core.infra.project_context.contracts import (
     DUCKDB_DOMAIN_FILES,
 )
 from core.infra.setup import Setup
+from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
@@ -74,11 +75,16 @@ class SetupRuntimeManager:
         payload = inputs or {}
         db_type = str(payload.get("dbType", "duckdb")).strip().lower() or "duckdb"
         db_name = str(payload.get("database", "")).strip()
-        exists = self._db_exists_precheck(payload, state=None)
+        exists, precheck_err = self._db_exists_precheck(payload, state=None)
+        if precheck_err:
+            return self._error(
+                "SETUP_DB_PRECHECK_FAILED",
+                precheck_err or "无法连接数据库进行预检，请检查连接参数与网络。",
+            )
         return {
             "status": "ok",
             "message": {
-                "dbExists": bool(exists),
+                "dbExists": bool(exists) if exists is not None else False,
                 "dbType": db_type,
                 "database": db_name,
                 "isDuckdb": db_type == "duckdb",
@@ -118,7 +124,8 @@ class SetupRuntimeManager:
             }
         try:
             payload = json.loads(progress_file.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            log_degraded("setup.importProgressRead", exc, str(progress_file))
             payload = {}
 
         completed_tables = payload.get("completed_tables", {}) or {}
@@ -210,7 +217,7 @@ class SetupRuntimeManager:
             step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
             db_existed_before = None
             if step_id == "db_connection":
-                db_existed_before = self._db_exists_precheck(step_inputs, state=state)
+                db_existed_before, _ = self._db_exists_precheck(step_inputs, state=state)
 
             self._prepare_inputs_for_step(state, step_id, step_inputs)
             script_rel = str(step.get("scriptEntry", "")).strip()
@@ -271,6 +278,7 @@ class SetupRuntimeManager:
             return True, ""
         except Exception as e:  # pragma: no cover
             msg = str(e)
+            log_degraded("setup.executeStep", e, step_id)
             self._set_step_state(state, step_id, self.STATUS_FAILED, msg)
             return False, msg
 
@@ -346,7 +354,8 @@ class SetupRuntimeManager:
             return self._new_state(self.get_definition())
         try:
             return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            log_degraded("setup.runtimeStateRead", exc, str(STATE_FILE))
             return self._new_state(self.get_definition())
 
     def _save_state(self, state: Dict[str, Any]) -> None:
@@ -387,17 +396,17 @@ class SetupRuntimeManager:
         inputs: Dict[str, Any],
         *,
         state: Optional[Dict[str, Any]] = None,
-    ) -> Optional[bool]:
+    ) -> Tuple[Optional[bool], Optional[str]]:
         db_type = str((inputs or {}).get("dbType", "duckdb")).strip().lower() or "duckdb"
         if db_type == "duckdb":
-            return self._duckdb_files_exist(state)
+            return self._duckdb_files_exist(state), None
 
         host = str((inputs or {}).get("host", "localhost")).strip() or "localhost"
         user = str((inputs or {}).get("user", "")).strip()
         password = str((inputs or {}).get("password", ""))
         database = str((inputs or {}).get("database", "")).strip()
         if not database or not user:
-            return None
+            return None, None
 
         try:
             if db_type == "postgresql":
@@ -411,7 +420,12 @@ class SetupRuntimeManager:
                         user=user,
                         password=password,
                     )
-                except Exception:
+                except Exception as pg_exc:
+                    log_degraded(
+                        "setup.dbPrecheck.postgresFallback",
+                        pg_exc,
+                        "postgres → template1",
+                    )
                     conn = psycopg2.connect(
                         host=host,
                         port=int((inputs or {}).get("port", 5432)),
@@ -422,7 +436,7 @@ class SetupRuntimeManager:
                 try:
                     with conn.cursor() as cur:
                         cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database,))
-                        return cur.fetchone() is not None
+                        return cur.fetchone() is not None, None
                 finally:
                     conn.close()
 
@@ -443,12 +457,13 @@ class SetupRuntimeManager:
                             "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = %s",
                             (database,),
                         )
-                        return cur.fetchone() is not None
+                        return cur.fetchone() is not None, None
                 finally:
                     conn.close()
-        except Exception:
-            return None
-        return None
+        except Exception as exc:
+            log_degraded("setup.dbPrecheck", exc)
+            return None, str(exc) or "数据库连接失败"
+        return None, None
 
     @staticmethod
     def _error(code: str, detail: str) -> Dict[str, Any]:

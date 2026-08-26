@@ -177,6 +177,99 @@ class TestGoalSettings(unittest.TestCase):
         report = settings.validate()
         self.assertFalse(report.is_valid)
 
+    def test_parse_custom_stage(self) -> None:
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "take_profit": {
+                        "stages": [
+                            {"custom": "bb_upper", "close_invest": True},
+                        ]
+                    }
+                },
+            }
+        )
+        stage = settings.goal.take_profit
+        assert stage is not None
+        self.assertIsNone(stage.ratio)
+        self.assertEqual(stage.custom, "bb_upper")
+        self.assertEqual(stage.name, "bb_upper")
+        self.assertEqual(stage.stage_id, "take_profit:0:bb_upper")
+        self.assertEqual(stage.exit_ratio, 1.0)
+        self.assertTrue(stage.close_invest)
+
+    def test_rejects_ratio_and_custom_both(self) -> None:
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "take_profit": {
+                        "stages": [
+                            {"ratio": 0.1, "custom": "bb_upper", "close_invest": True},
+                        ]
+                    }
+                },
+            }
+        )
+        with self.assertRaises(ValueError):
+            _ = settings.goal.take_profit_stages
+
+    def test_custom_stage_keys(self) -> None:
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "stop_loss": {
+                        "stages": [{"custom": "atr_stop", "close_invest": True}]
+                    },
+                    "take_profit": {
+                        "stages": [
+                            {"custom": "bb_upper", "close_invest": True},
+                            {"custom": "atr_stop", "exit_ratio": 0.5},
+                        ]
+                    },
+                },
+            }
+        )
+        self.assertEqual(settings.goal.custom_stage_keys(), ("atr_stop", "bb_upper"))
+
+    def test_exit_price_raises_for_custom(self) -> None:
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "take_profit": {
+                        "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    }
+                },
+            }
+        )
+        stage = settings.goal.take_profit
+        assert stage is not None
+        with self.assertRaises(ValueError):
+            settings.goal.exit_price(stage, 10.0)
+
+    def test_parse_exit_ratio_zero_action_only(self) -> None:
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "take_profit": {
+                        "stages": [
+                            {
+                                "custom": "bb_middle",
+                                "exit_ratio": 0,
+                                "actions": ["set_protect_loss"],
+                            }
+                        ]
+                    }
+                },
+            }
+        )
+        stage = settings.goal.take_profit
+        assert stage is not None
+        self.assertEqual(stage.exit_ratio, 0.0)
+        self.assertFalse(stage.close_invest)
+        self.assertEqual(stage.actions, ("set_protect_loss",))
+        report = settings.validate()
+        self.assertTrue(report.is_valid)
+
 
 if __name__ == "__main__":
     unittest.main()

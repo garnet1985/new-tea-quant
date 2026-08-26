@@ -16,7 +16,7 @@ import {
   fetchDataContractList,
   getDataContractDisplayLabel,
   getDataContractOriginLabel,
-} from '../../api/apis/dataContractApi';
+} from '../../api/dataContractApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';

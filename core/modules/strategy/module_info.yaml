@@ -1,5 +1,5 @@
 name: modules.strategy
-version: "0.7.0"
+version: "0.8.0"
 compatible_core_versions: ">=0.4.4"
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
 dependencies:
@@ -17,9 +17,14 @@ dependencies:
   - infra.utils
   - infra.trace
 changelog:
+  - version: "0.8.0"
+    changes:
+      - 重构策略模块的归因分析，渐入cmd和UI的入口，增加设置里对归因分析的开关
+      - 移除 Strategy.analyze 独立入口，入口变成内部通过settings的连接
+      - 重新设计回测缓存系统，淘汰数据库缓存，UI和命令行都直接反馈入settings.py
   - version: "0.7.0"
     changes:
-      - 移除 Strategy.analyze 与 AnalyzeService；归因归入 modules.analysis
+      - 移除 Strategy.analyze 与 AnalyzeService
       - 用户扫描钩子改为 has_opportunity(ctx) -> bool；enumerate 与 scan 共用；命中后由框架构建 Opportunity
       - extra_fields 更名为 signal_snapshot
       - StrategyContext 提供 remember/recall/forget（custom）与 capture（命中后写入 signal_snapshot）

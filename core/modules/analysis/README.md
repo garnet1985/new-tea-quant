@@ -1,37 +1,34 @@
 # Analysis（`modules.analysis`）
 
-回测完成后，解释**这一次（或少数几次）策略 run** 的 inputs 与 outputs 有多大关系。对外门面为 `Analysis`。
+**统计 / ML 原语工具箱**（无业务、无 I/O）。解释一次策略 run 的 **编排与产物** 在 `strategy/engines/analyzer`。
 
-当前是空骨架：可以 import，没有可调用的归因行为。三个核心问题仍未拍板，见设计文档。
+## 职责
 
-## 适用场景
+- 提供分桶、相关、回归等 **纯函数**（输入列向量 → 输出统计结构）
+- 后期：XGBoost / SHAP 等同模块 `core/ml/`
+- **不提供：** 读 `simulations/`、step 配置、report 文案、simulate 调度
 
-- 一次 enumerate / price_factor / portfolio 跑完后，想理解结果在多大程度上来自声明过的输入
-- 对照两次只改了旋钮的 run，看输出差在哪
-- 明确不用于：全市场因子挖掘、滚动 IC、股票分组研究平台（那是未来的 factor 模块）
+## 消费者
 
-## 模块依赖
+- `strategy/engines/analyzer` — AttributionPipeline stages
+- 日后 factor 等模块可复用同一套数学，但不经过 strategy 产物路径
 
-无（骨架）。预计日后只读 `modules.strategy` 的公开产物路径，不依赖 backtest_engine。
+## 实施计划
 
-## 设计初衷
+见 [TODO.md](./TODO.md)（与 analyzer 侧 [TODO.md](../strategy/core/engines/analyzer/TODO.md) 四步对齐）。
 
-- **要解决的问题：** 现有各层 report 只描述结果长什么样，不解释结果和 inputs 的关系。
-- **明确不做：** 不跑回测、不另起时间轴、不建因子库。`modules.strategy` 不提供 analyze API。
+## 当前状态
 
-## 常见问题
+- Facade `Analysis` 仍为占位
+- 行为 API 尚未导出；第二步起在 `core/classical/` 添加 stub
 
-**Q：现在能算归因吗？**  
-A：不能。先把「如何认定 inputs / 如何归因 / 如何解释三层结果」想清楚，再加行为 API。
+## 明确不做
 
-**Q：和 strategy 里的报告是什么关系？**  
-A：strategy 生产并展示模拟产物；本模块消费产物做解释。二者不要重复计算胜率、净值这类总数。
+- 全市场因子 IC / 滚动 / 挖掘（未来 factor 模块）
+- 重复 strategy overall 报告中的胜率、净值
 
 ## 相关文档
 
-- [公开 API](./API.md)
-- [术语表](./glossary.yaml)
-- [概念与运作](./docs/CONCEPTS.md)
-- [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
-- [测试用例](./__test__/TEST_CASES.md)
+- [TODO.md](./TODO.md) — **当前权威实施清单**
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — 部分表述待与 TODO 同步
+- [API.md](./API.md) — 行为 API 定稿后更新

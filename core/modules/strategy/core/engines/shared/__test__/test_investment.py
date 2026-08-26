@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import Any
 
 import pytest
 
@@ -17,6 +18,9 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+from core.modules.strategy.core.hooks.base import StrategyHooks
+from core.modules.strategy.core.hooks.hook_params import StrategyContext
+from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 
 OPEN_DATES = ("20240102", "20240103", "20240104", "20240105", "20240108")
@@ -127,6 +131,7 @@ def _inv(
     settings: StrategySettings,
     *,
     status_tags_provider=None,
+    hook_runtime=None,
 ) -> Investment:
     opp.market_profile = "china_a_stock"
     return Investment.create_from_opportunity(
@@ -134,6 +139,7 @@ def _inv(
         settings=settings,
         open_dates=OPEN_DATES,
         status_tags_provider=status_tags_provider,
+        hook_runtime=hook_runtime,
     )
 
 
@@ -1012,6 +1018,278 @@ class TestInvestmentMultiStageGoals(unittest.TestCase):
         self.assertTrue(_react(inv2, _tick("20240102", o=10, h=11, l=9, c=10)))
         self.assertFalse(inv2.settle(*_tick("20240103", o=10, h=11, l=9, c=11)))
         self.assertEqual(inv2.exit_info.reason, "simulate_end")
+
+
+class _CustomTakeProfitHooks(StrategyHooks):
+    def __init__(self, *, trigger_keys: set[str]) -> None:
+        self._trigger_keys = trigger_keys
+        self.calls: list[str] = []
+
+    def has_opportunity(self, ctx: StrategyContext) -> bool:
+        _ = ctx
+        return True
+
+    def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage: Any) -> bool:
+        _ = (ctx, stage)
+        self.calls.append(custom)
+        return custom in self._trigger_keys
+
+
+class _DefaultHooks(StrategyHooks):
+    def has_opportunity(self, ctx: StrategyContext) -> bool:
+        _ = ctx
+        return True
+
+
+class TestInvestmentCustomGoalHooks(unittest.TestCase):
+    def test_custom_take_profit_triggers_via_hook(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        hooks = _CustomTakeProfitHooks(trigger_keys={"bb_upper"})
+        runtime = StrategyHookRuntime(hooks, strategy_name="demo", settings=settings)
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings, hook_runtime=runtime)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=11, l=9.8, c=11.0)))
+        self.assertEqual(inv.exit_info.reason, "take_profit")
+        self.assertEqual(hooks.calls, ["bb_upper"])
+        self.assertIn("take_profit:0:bb_upper", inv.runtime_state.triggered_take_profit_ids)
+
+    def test_custom_false_does_not_trigger(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        hooks = _CustomTakeProfitHooks(trigger_keys=set())
+        runtime = StrategyHookRuntime(hooks, strategy_name="demo", settings=settings)
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings, hook_runtime=runtime)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        self.assertTrue(_react(inv, _tick("20240104", o=10, h=12, l=10, c=11.5)))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(inv.runtime_state.triggered_take_profit_ids, [])
+
+    def test_missing_hook_runtime_raises(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        with self.assertRaises(RuntimeError):
+            inv.check_targets("20240103", _bar("20240103", o=10, h=11, l=9, c=10.5))
+
+    def test_missing_hook_override_raises(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        runtime = StrategyHookRuntime(_DefaultHooks(), strategy_name="demo", settings=settings)
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings, hook_runtime=runtime)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        with self.assertRaises(RuntimeError):
+            inv.check_targets("20240103", _bar("20240103", o=10, h=11, l=9, c=10.5))
+
+    def test_mixed_ratio_and_custom_independent_trigger(self) -> None:
+        """custom 段可独立触发，不要求前面的 ratio 段先触发。"""
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {"ratio": 0.2, "exit_ratio": 0.5},
+                        {"custom": "bb_upper", "close_invest": True},
+                    ]
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        hooks = _CustomTakeProfitHooks(trigger_keys={"bb_upper"})
+        runtime = StrategyHookRuntime(hooks, strategy_name="demo", settings=settings)
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings, hook_runtime=runtime)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        # high=11.5 未达 20% 目标 12，但 custom hook 返回 True
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=11.5, l=10, c=11.2)))
+        self.assertEqual(inv.exit_info.reason, "take_profit")
+        self.assertEqual(len(inv.completed_goals), 1)
+        self.assertEqual(inv.runtime_state.triggered_take_profit_ids, ["take_profit:1:bb_upper"])
+        self.assertNotIn("take_profit:0:win20%", inv.runtime_state.triggered_take_profit_ids)
+
+    def test_custom_same_bar_chain(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {"custom": "first", "exit_ratio": 0.5},
+                        {"custom": "second", "close_invest": True},
+                    ]
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        hooks = _CustomTakeProfitHooks(trigger_keys={"first", "second"})
+        runtime = StrategyHookRuntime(hooks, strategy_name="demo", settings=settings)
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings, hook_runtime=runtime)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=12, l=10, c=11.5)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(len(inv.completed_goals), 2)
+        self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
+        self.assertAlmostEqual(inv.completed_goals[1]["exit_ratio"], 0.5)
+        self.assertEqual(hooks.calls, ["first", "second"])
+
+    def test_exit_ratio_zero_action_only_no_position_change(self) -> None:
+        """exit_ratio=0：只跑 actions，不卖出、不挂 pending exit。"""
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {
+                            "ratio": 0.1,
+                            "exit_ratio": 0,
+                            "actions": ["set_protect_loss"],
+                        }
+                    ]
+                },
+                "protect_loss": {"ratio": 0, "close_invest": True},
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        self.assertTrue(_react(inv, _tick("20240104", o=10, h=11.5, l=10.5, c=11.2)))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertIsNone(inv.pending_exit)
+        self.assertEqual(len(inv.completed_goals), 0)
+        self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 1.0)
+        self.assertTrue(inv.runtime_state.protect_loss_active)
+        self.assertFalse(_react(inv, _tick("20240105", o=10, h=10.2, l=9.8, c=10.0)))
+        self.assertEqual(inv.exit_info.reason, "protect_loss")
+
+    def test_exit_ratio_zero_same_bar_chain_to_close(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {"ratio": 0.05, "exit_ratio": 0, "actions": ["set_protect_loss"]},
+                        {"ratio": 0.2, "close_invest": True},
+                    ]
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        # high=12.5 同时过 5% 与 20%；先 action-only，再同 tick 清仓
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=12.5, l=10, c=12)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertTrue(inv.runtime_state.protect_loss_active)
+        self.assertEqual(len(inv.completed_goals), 1)
+        self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 1.0)
 
 
 if __name__ == "__main__":

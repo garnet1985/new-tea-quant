@@ -10,7 +10,6 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
-from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
@@ -31,7 +30,7 @@ class WorkbenchApplySettings:
         pretty: bool = False,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
-        Snapshot row → validate → backup + atomic write ``settings.py`` → touch ``updated_at``.
+        Snapshot row → validate → backup + atomic write ``settings.py``.
 
         Success: ``({"applied": True, "strategy_name", "version_id"}, None)``.
         """
@@ -58,6 +57,10 @@ class WorkbenchApplySettings:
         if not report.is_usable():
             return None, cls._format_validation_error(report)
 
+        fp_err = cls._verify_settings_fingerprint(name, sid, settings_snapshot)
+        if fp_err:
+            return None, fp_err
+
         normalized = ss.to_dict()
 
         try:
@@ -68,19 +71,6 @@ class WorkbenchApplySettings:
                 "apply-settings 写盘失败 strategy=%s version=%s", name, sid
             )
             return None, f"写盘失败: {exc}"
-
-        model = cls._snapshot_model()
-        if model is None:
-            logger.error("sys_strategy_workbench_snapshot 未注册，写盘已成功")
-            return None, "存储不可用"
-
-        try:
-            n = int(model.touch_version_updated_at(name, sid) or 0)
-            if n <= 0:
-                return None, "更新快照时间失败: 行不存在或无法更新"
-        except Exception as exc:
-            logger.exception("touch_version_updated_at failed")
-            return None, f"更新快照时间失败: {exc}"
 
         return (
             {
@@ -105,6 +95,44 @@ class WorkbenchApplySettings:
             if msg:
                 return f"settings 校验失败: {msg}"
         return f"settings 校验失败: {first}"
+
+    @classmethod
+    def _verify_settings_fingerprint(
+        cls,
+        strategy_name: str,
+        version: int,
+        settings_snapshot: Dict[str, Any],
+    ) -> Optional[str]:
+        """恢复前 round-trip：快照 settings_fp 须与 registry 一致。"""
+        from core.modules.strategy.core.services.artifacts import ArtifactStore
+        from core.modules.strategy.core.services.artifacts.version_meta import (
+            VersionMetaStore,
+        )
+        from core.modules.strategy.core.services.discovery import DiscoveryService
+        from core.modules.strategy.core.services.simulation_cache.fingerprints import (
+            FingerprintCalculator,
+        )
+
+        folder = DiscoveryService.resolve_strategy_folder(strategy_name)
+        root = ArtifactStore.simulations_root(folder)
+        entry = VersionMetaStore.get_registry_entry(root, str(int(version)))
+        expected = str((entry or {}).get("settings_fp") or "").strip()
+        if not expected:
+            return None
+
+        effective = VersionMetaStore.read_effective_settings(root, str(int(version))) or {}
+        entity_ids = [
+            str(x).strip()
+            for x in (effective.get("entity_ids") or [])
+            if str(x).strip()
+        ]
+        computed = FingerprintCalculator.to_effective_settings_fingerprint(
+            StrategySettings.from_dict(settings_snapshot),
+            entity_ids,
+        )
+        if computed != expected:
+            return "配置快照与 version 指纹不一致"
+        return None
 
     @staticmethod
     def _settings_path(strategy_name: str) -> Path:
@@ -167,14 +195,6 @@ class WorkbenchApplySettings:
             tmp.write(content)
             temp_path = Path(tmp.name)
         os.replace(str(temp_path), str(target_path))
-
-    @staticmethod
-    def _snapshot_model():
-        try:
-            return DataManager().get_table("sys_strategy_workbench_snapshot")
-        except Exception:
-            logger.exception("Failed to resolve workbench snapshot table")
-            return None
 
 
 __all__ = ["WorkbenchApplySettings"]

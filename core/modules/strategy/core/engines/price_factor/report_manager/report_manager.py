@@ -117,6 +117,7 @@ class ReportManager(BaseReportManager):
         store = PriceFactorStore.allocate(
             folder,
             strategy_id=strategy_path or strategy_key or str(folder),
+            version_id=str(data.version_id),
         )
         output_dir = store.output_dir
         version_id = int(store.version_id)

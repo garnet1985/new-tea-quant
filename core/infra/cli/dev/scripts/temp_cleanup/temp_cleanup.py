@@ -10,7 +10,7 @@ from core.infra.project_context import ProjectContext
 
 
 class TempCleanup:
-    """清理 userspace/.ntq、策略 results/、workbench 快照表。"""
+    """清理 userspace/.ntq、策略 results/。"""
 
     @staticmethod
     def _rm_tree(path: Path) -> None:
@@ -68,17 +68,10 @@ class TempCleanup:
         return out
 
     @staticmethod
-    def clear_workbench_db_cache() -> int:
-        """清空 ``sys_strategy_workbench_snapshot`` 表。返回删除行数。"""
-        from core.modules.strategy import Strategy
-
-        return Strategy.clear_workbench_cache()
-
-    @staticmethod
     def clear_backtest_results_disk(
         *, strategy_names: Optional[Iterable[str]] = None
     ) -> int:
-        """删除各策略 ``results/simulations/``。返回删除的目录数。"""
+        """删除各策略 ``results/simulations/``（含旧 enum/price/portfolio  per-step 与新 {vid}/ 布局）。"""
         removed = 0
         for folder in TempCleanup._discovered_strategy_folders(
             strategy_names=strategy_names
@@ -137,7 +130,6 @@ class TempCleanup:
     @staticmethod
     def run(
         *,
-        clear_db_cache: bool = False,
         clear_backtest_results: bool = False,
         clear_scan_results: bool = False,
         clear_userspace_ntq: bool = False,
@@ -148,7 +140,6 @@ class TempCleanup:
         from core.infra.task_guard import TaskGuard
 
         selected = [
-            clear_db_cache,
             clear_backtest_results,
             clear_scan_results,
             clear_userspace_ntq,
@@ -166,8 +157,6 @@ class TempCleanup:
                 ).strip(),
             }
 
-        if clear_db_cache:
-            TempCleanup.clear_workbench_db_cache()
         if clear_backtest_results:
             TempCleanup.clear_backtest_results_disk()
         if clear_scan_results:

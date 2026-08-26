@@ -73,8 +73,9 @@ class FingerprintCalculator:
 
         entity_ids = list(cache.get_stock_ids())
         coerced_diff = FingerprintCalculator.coerce_numeric_tree(settings_diff)
-        settings_fp = FingerprintCalculator.to_settings_diff_fingerprint(
-            coerced_diff, entity_ids
+        settings_fp = FingerprintCalculator.to_effective_settings_fingerprint(
+            effective_settings,
+            entity_ids,
         )
         disk_settings_hash = FingerprintCalculator.to_disk_settings_hash(disk_settings)
         env_fp = FingerprintCalculator.to_env_fingerprint(
@@ -90,6 +91,29 @@ class FingerprintCalculator:
             settings_diff=coerced_diff,
             effective_settings=effective_settings,
             entity_ids=entity_ids,
+        )
+
+    @staticmethod
+    def to_effective_settings_fingerprint(
+        effective_settings: StrategySettings,
+        entity_ids: List[str],
+    ) -> str:
+        """settings 指纹：effective settings 指纹子集 + entity_ids。"""
+        subset = StrategySettings.extract_effective_settings(effective_settings)
+        signature = {
+            "effective_settings": FingerprintCalculator.coerce_numeric_tree(subset),
+            "entity_ids": sorted(entity_ids),
+        }
+        return FingerprintCalculator._to_fingerprint_hash(signature)
+
+    @staticmethod
+    def to_settings_semantic_fingerprint(
+        effective_settings: StrategySettings,
+        entity_ids: List[str],
+    ) -> str:
+        """兼容别名；请用 ``to_effective_settings_fingerprint``。"""
+        return FingerprintCalculator.to_effective_settings_fingerprint(
+            effective_settings, entity_ids
         )
 
     @staticmethod

@@ -20,7 +20,7 @@
 |------------------|----------------------|------|
 | **data** | `data/data.duckdb` | 外部抓取、行情、宏观、股票主数据、交易日历、供应商指标等 |
 | **tag** | `data/tag.duckdb` | 标签场景/定义/值；未来降级为「股票分类器」仍留本域 |
-| **strategy** | `data/strategy.duckdb` | 策略运行时 DB 产出（含 `sys_strategy_workbench_snapshot` 等中间缓存） |
+| **strategy** | `data/strategy.duckdb` | 策略运行时 DB 产出 |
 
 **预留（v1 不建库）：** `factor` — 因子挖掘模块上线后再加。
 
@@ -78,7 +78,6 @@ schema = {
 
 **已有 / 规划中的 DB 表：**
 
-- `sys_strategy_workbench_snapshot` — 自动三步（enum / price / portfolio）工作台快照与 DbCache
 - **决策者模式（ROADMAP 0.5.x，规划）：** 交互式按日推进的会话与曲线，**不单独拆 domain**，表名实现时再定，例如：
   - `sys_decision_session` — 会话主记录（策略名、区间、当前 simulation date、状态）
   - `sys_decision_step`（或按日拆分）— 用户每日仓位决策、权益/回撤曲线点
@@ -197,7 +196,7 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 ```text
 TableDomainRegistry["sys_stock_list"]     → "data"
 TableDomainRegistry["sys_tag_value"]      → "tag"
-TableDomainRegistry["sys_strategy_workbench_snapshot"] → "strategy"
+TableDomainRegistry["sys_strategy_cache"] → "strategy"   # 示例
 ```
 
 **构建时机：** 与现有 `register_table` / `_discover_tables` 一致；userspace 晚注册表时**追加**条目并建表，而非仅在首次 init 写死。
@@ -282,7 +281,6 @@ DuckdbEngine（duckdb 时）
 | `kline_service` | klines + adj_factor_events；list + klines | 均 data | 同域，安全 |
 | `stock_service` | list + map + industries + klines | 均 data | 同域，安全 |
 | `tag_service` | tag_value + tag_definition | 均 tag | 同域，安全 |
-| `workbench_snapshot/model` | 硬编码 `UPDATE sys_strategy_workbench_snapshot` | strategy | 须走 strategy 连接或去硬编码 |
 | `adj_factor_events/model` 等 table model | 单表 + 偶发查 stock_list | 多在同域 | 逐文件核对 |
 
 **隐患：** 上述服务里 `self.db = DatabaseManager.get_default()` — 若 default 只指向 data，tag/strategy 的 raw SQL 会打错库。

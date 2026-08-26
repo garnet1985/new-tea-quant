@@ -65,6 +65,7 @@ class Investment(Opportunity):
     market_rules: Any = None
     open_dates: Tuple[str, ...] = field(default_factory=tuple)
     status_tags_provider: Any = None
+    hook_runtime: Any = None
 
     _TARGET_CHECK_HANDLERS: ClassVar[Dict[TargetCheckStep, str]] = {
         TargetCheckStep.CHECK_STOP_LOSS: "_check_stop_loss",
@@ -140,6 +141,7 @@ class Investment(Opportunity):
         settings: "StrategySettings",
         open_dates: Sequence[str],
         status_tags_provider: Any = None,
+        hook_runtime: Any = None,
     ) -> "Investment":
         """从机会创建 Investment，初始 ``PENDING_TO_ENTER``（尚未成交）。"""
         from core.infra.project_context import ProjectContext
@@ -172,6 +174,7 @@ class Investment(Opportunity):
             market_rules=market_rules,
             open_dates=tuple(open_dates),
             status_tags_provider=status_tags_provider,
+            hook_runtime=hook_runtime,
             runtime_state=InvestmentState(
                 state=Lifecycle.PENDING_TO_ENTER,
                 holding=holding,
@@ -193,8 +196,8 @@ class Investment(Opportunity):
             "customized_state": dict(rs.customized_state or {}),
             "triggered_force_exit_tags": list(rs.triggered_force_exit_tags or []),
             "last_bar": rs.last_bar,
-            "triggered_stop_loss_idx": rs.triggered_stop_loss_idx,
-            "triggered_take_profit_idx": rs.triggered_take_profit_idx,
+            "triggered_stop_loss_ids": list(rs.triggered_stop_loss_ids or []),
+            "triggered_take_profit_ids": list(rs.triggered_take_profit_ids or []),
             "remaining_ratio": rs.remaining_ratio,
             "protect_loss_active": rs.protect_loss_active,
             "dynamic_loss_active": rs.dynamic_loss_active,
@@ -301,6 +304,10 @@ class Investment(Opportunity):
                 need_exit = self._evaluate_goals(as_of, bar)
             if not need_exit:
                 break
+            if self.pending_exit is None:
+                # action-only（exit_ratio=0）：已标记 stage / 跑 actions，同 tick 继续评估
+                need_exit = False
+                continue
             if self._should_defer_exit(as_of, bar):
                 self._mark_pending_exit_kind(
                     PendingExitKind.NEXT_OPEN_DEFER, armed_as_of=as_of
@@ -353,7 +360,7 @@ class Investment(Opportunity):
     def _pending_exit_ratio(self) -> float:
         if self.pending_exit is None:
             return 1.0
-        return float(self.pending_exit.exit_ratio or 1.0)
+        return float(self.pending_exit.exit_ratio)
 
     def _check_force_exit(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """``RiskControl.should_force_exit``；命中则写 ``pending_exit``（先于 goals）。"""
@@ -449,6 +456,29 @@ class Investment(Opportunity):
         )
         return True
 
+    def _trigger_goal_stage(
+        self,
+        *,
+        stage: Any,
+        stage_id: str,
+        triggered: List[str],
+        bar: Dict[str, Any],
+        reason: str,
+        apply_actions: bool,
+    ) -> bool:
+        """标记 stage 已触发；``exit_ratio=0`` 时只跑 actions、不武装 pending exit。"""
+        triggered.append(stage_id)
+        if apply_actions:
+            self._apply_take_profit_actions(stage, bar)
+        exit_ratio = 1.0 if stage.close_invest else float(stage.exit_ratio)
+        if exit_ratio <= 0.0:
+            return True
+        return self._arm_goal_exit(
+            reason=reason,
+            exit_ratio=exit_ratio,
+            goal_name=stage.name,
+        )
+
     def _check_protect_loss(self, as_of: str, bar: Dict[str, Any]) -> bool:
         _ = as_of
         if (
@@ -516,18 +546,33 @@ class Investment(Opportunity):
             return False
         basis = float(self.entry.price or self.trigger_price or 0.0)
         low = float(bar["low"])
+        triggered = self.runtime_state.triggered_stop_loss_ids
         for idx, stage in enumerate(stages):
-            if idx <= self.runtime_state.triggered_stop_loss_idx:
+            stage_id = str(stage.stage_id or f"stop_loss:{idx}:{stage.name}")
+            if stage_id in triggered:
                 continue
-            stop_price = self.settings.goal.exit_price(stage, basis)
-            if low > stop_price:
-                continue
-            self.runtime_state.triggered_stop_loss_idx = idx
-            exit_ratio = 1.0 if stage.close_invest else float(stage.exit_ratio)
-            return self._arm_goal_exit(
+            if stage.custom:
+                if not self._custom_goal_triggered(
+                    "is_stop_loss",
+                    as_of=as_of,
+                    bar=bar,
+                    custom=str(stage.custom),
+                    stage=stage,
+                    stage_index=idx,
+                    kind="stop_loss",
+                ):
+                    continue
+            else:
+                stop_price = self.settings.goal.exit_price(stage, basis)
+                if low > stop_price:
+                    continue
+            return self._trigger_goal_stage(
+                stage=stage,
+                stage_id=stage_id,
+                triggered=triggered,
+                bar=bar,
                 reason=ExitReason.STOP_LOSS.value,
-                exit_ratio=exit_ratio,
-                goal_name=stage.name,
+                apply_actions=False,
             )
         return False
 
@@ -540,22 +585,112 @@ class Investment(Opportunity):
             return False
         basis = float(self.entry.price or self.trigger_price or 0.0)
         high = float(bar["high"])
+        triggered = self.runtime_state.triggered_take_profit_ids
         for idx, stage in enumerate(stages):
-            if idx <= self.runtime_state.triggered_take_profit_idx:
+            stage_id = str(stage.stage_id or f"take_profit:{idx}:{stage.name}")
+            if stage_id in triggered:
                 continue
-            target_price = self.settings.goal.exit_price(stage, basis)
-            if high < target_price:
-                continue
-            self.runtime_state.triggered_take_profit_idx = idx
-            self._apply_take_profit_actions(stage, bar)
-            exit_ratio = 1.0 if stage.close_invest else float(stage.exit_ratio)
-            return self._arm_goal_exit(
+            if stage.custom:
+                if not self._custom_goal_triggered(
+                    "is_take_profit",
+                    as_of=as_of,
+                    bar=bar,
+                    custom=str(stage.custom),
+                    stage=stage,
+                    stage_index=idx,
+                    kind="take_profit",
+                ):
+                    continue
+            else:
+                target_price = self.settings.goal.exit_price(stage, basis)
+                if high < target_price:
+                    continue
+            return self._trigger_goal_stage(
+                stage=stage,
+                stage_id=stage_id,
+                triggered=triggered,
+                bar=bar,
                 reason=ExitReason.TAKE_PROFIT.value,
-                exit_ratio=exit_ratio,
-                goal_name=stage.name,
+                apply_actions=True,
             )
         return False
 
+    def _custom_goal_triggered(
+        self,
+        method: str,
+        *,
+        as_of: str,
+        bar: Dict[str, Any],
+        custom: str,
+        stage: Any,
+        stage_index: int,
+        kind: str,
+    ) -> bool:
+        """调用 hooks 判定 custom stage；未接线或未 override 时显式失败。"""
+        runtime = self.hook_runtime
+        if runtime is None:
+            raise RuntimeError(
+                f"goal.{kind} stage custom={custom!r} 需要 StrategyHooks，"
+                "但 Investment 未注入 hook_runtime"
+            )
+        if not runtime.is_overridden(method):
+            raise RuntimeError(
+                f"goal.{kind} stage custom={custom!r} 要求 override "
+                f"StrategyHooks.{method}"
+            )
+        ctx = self._build_goal_hook_ctx(
+            as_of=as_of,
+            bar=bar,
+            stage=stage,
+            stage_index=stage_index,
+            kind=kind,
+        )
+        result = runtime.call(method, ctx, custom=custom, stage=stage)
+        return bool(result)
+
+    def _build_goal_hook_ctx(
+        self,
+        *,
+        as_of: str,
+        bar: Dict[str, Any],
+        stage: Any,
+        stage_index: int,
+        kind: str,
+    ):
+        from core.modules.strategy.core.hooks.hook_params import (
+            StrategyContext,
+            StrategyData,
+            StrategyInfo,
+        )
+
+        entity_id = self._entity_id()
+        strategy_key = ""
+        if self.hook_runtime is not None:
+            strategy_key = str(getattr(self.hook_runtime, "strategy_name", "") or "")
+        if not strategy_key:
+            strategy_key = str((self.metadata or {}).get("strategy_name") or "").strip()
+        basis = float(self.entry.price or self.trigger_price or 0.0)
+        items = {
+            "bar": dict(bar),
+            "entry_price": float(self.entry.price or 0.0),
+            "basis": basis,
+            "remaining_ratio": float(self.runtime_state.remaining_ratio or 0.0),
+            "stage_index": int(stage_index),
+            "goal_kind": kind,
+            "triggered_stop_loss_ids": list(self.runtime_state.triggered_stop_loss_ids),
+            "triggered_take_profit_ids": list(self.runtime_state.triggered_take_profit_ids),
+        }
+        return StrategyContext(
+            strategy=StrategyInfo(key=strategy_key),
+            settings=self.settings,
+            data=StrategyData.build(
+                now=str(as_of or "").strip(),
+                stock_list=[entity_id] if entity_id else [],
+                entity_id=entity_id,
+                items=items,
+            ),
+            custom=self.runtime_state.customized_state,
+        )
     def _apply_take_profit_actions(self, stage: Any, bar: Dict[str, Any]) -> None:
         actions = tuple(getattr(stage, "actions", ()) or ())
         for action in actions:
@@ -847,8 +982,8 @@ class Investment(Opportunity):
 
         # pending.exit_ratio = 相对**初始总仓位**的绝对份额（非相对剩余）
         # close_invest 在配置层会写成 1.0；实际成交不超过当前 remaining
-        requested = float(self.pending_exit.exit_ratio or 1.0)
-        if requested <= 0:
+        requested = float(self.pending_exit.exit_ratio)
+        if requested <= 0.0:
             return False
         prev_remaining = float(self.runtime_state.remaining_ratio or 0.0)
         if prev_remaining <= 1e-12:

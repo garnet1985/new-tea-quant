@@ -48,9 +48,12 @@ def _background_scan_job(
             demo=bool(demo),
             force=bool(force),
         )
-    except Exception:
-        # ScanJob.execute already recorded fail on disk.
-        pass
+    except Exception as exc:
+        logger.exception(
+            "background scan job failed job_id=%s strategy=%s",
+            job_id,
+            strategy_name,
+        )
     finally:
         global _ACTIVE_JOB_ID  # noqa: PLW0603
         with _LOCK:

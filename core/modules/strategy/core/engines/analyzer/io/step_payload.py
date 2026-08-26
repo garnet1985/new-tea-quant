@@ -4,11 +4,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from core.modules.strategy.core.services.artifacts.io import ArtifactIO
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 
-from ..steps.report import InsightBuilder
+from ..steps.report._insights import InsightBuilder
 from ..support.output_dirs import SimulationOutputDirs
-from ..support.paths import AnalyzerPaths
 
 _EMPTY: Dict[str, Any] = {
     "available": False,
@@ -20,11 +19,11 @@ _EMPTY: Dict[str, Any] = {
 class StepAnalysisPayload:
     @classmethod
     def from_output_dir(cls, output_dir: Path) -> Dict[str, Any]:
-        report_path = AnalyzerPaths.report_json(Path(output_dir))
+        report_path = ArtifactStore.named_path(output_dir, "analysis_report")
         if not report_path.is_file():
             return dict(_EMPTY)
         try:
-            report = ArtifactIO.read_json(report_path)
+            report = ArtifactStore.read_json_at(output_dir, "analysis_report")
         except Exception:
             return dict(_EMPTY)
         if not isinstance(report, dict):

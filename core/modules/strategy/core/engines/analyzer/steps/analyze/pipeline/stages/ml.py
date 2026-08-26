@@ -1,13 +1,12 @@
-"""ML attribution stage — XGBoost + SHAP (in-sample explanation)."""
+"""ML factor analysis — XGBoost feature importance."""
 from __future__ import annotations
 
 from typing import Any, Dict
 
 from core.modules.analysis import Analysis
 
-from ..capture_dataset import CaptureDataset
-from ....support.step_outcome import StepOutcomeRegistry
-from ..context import AttributionContext
+from ...data import CaptureDataset, StepOutcomeRegistry
+from ..context import StageInput
 
 _MIN_SAMPLES = 500
 _MIN_FEATURES = 2
@@ -16,17 +15,19 @@ _MIN_FEATURES = 2
 class MLStage:
     name = "ml"
 
-    def run(self, ctx: AttributionContext) -> Dict[str, Any]:
-        keys = CaptureDataset.list_varying_numeric_capture_keys(ctx.decision_space)
+    def run(self, stage_input: StageInput) -> Dict[str, Any]:
+        keys = CaptureDataset.list_varying_numeric_capture_keys(
+            stage_input.decision_space
+        )
         if len(keys) < _MIN_FEATURES:
             return {
                 "status": "skipped",
                 "reason": "insufficient_varying_fields",
             }
 
-        config = StepOutcomeRegistry.get(ctx.step)
+        config = StepOutcomeRegistry.get(stage_input.step)
         matrix, rois, _ = CaptureDataset.extract_feature_matrix(
-            ctx.source, keys, config
+            stage_input.source, keys, config
         )
         if len(matrix) < _MIN_SAMPLES:
             return {
@@ -43,3 +44,6 @@ class MLStage:
             "n": len(matrix),
             "xgb": xgb_result,
         }
+
+
+__all__ = ["MLStage"]

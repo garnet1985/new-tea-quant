@@ -1,4 +1,4 @@
-"""Derive beginner-facing insights from attribution ``report.json``."""
+"""Internal insight service — conclusion-first summaries for reports."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple

@@ -1,6 +1,11 @@
 """仿真产物统一入口。"""
 from .io import ArtifactIO
 from .consts import (
+    ANALYSIS_REPORT_FILE,
+    ANALYSIS_REPORT_JSON,
+    ANALYSIS_SOURCE_FILE,
+    ANALYSIS_SOURCE_JSON,
+    ANALYSIS_SUBDIR,
     ENTITIES_SUBDIR,
     ENTITY_IDS_FILE,
     ENTITY_LIST_FILE,
@@ -38,6 +43,11 @@ from .tables import (
 )
 
 __all__ = [
+    "ANALYSIS_REPORT_FILE",
+    "ANALYSIS_REPORT_JSON",
+    "ANALYSIS_SOURCE_FILE",
+    "ANALYSIS_SOURCE_JSON",
+    "ANALYSIS_SUBDIR",
     "ENTITIES_SUBDIR",
     "ENTITY_IDS_FILE",
     "ENTITY_LIST_FILE",

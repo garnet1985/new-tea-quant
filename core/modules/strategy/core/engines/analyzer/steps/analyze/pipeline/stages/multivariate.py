@@ -1,13 +1,12 @@
-"""Multivariate attribution stage — logistic win + OLS ROI."""
+"""Multivariate factor analysis — logistic win + OLS ROI."""
 from __future__ import annotations
 
 from typing import Any, Dict
 
 from core.modules.analysis import Analysis
 
-from ..capture_dataset import CaptureDataset
-from ....support.step_outcome import StepOutcomeRegistry
-from ..context import AttributionContext
+from ...data import CaptureDataset, StepOutcomeRegistry
+from ..context import StageInput
 
 _MIN_SAMPLES = 50
 _MIN_FEATURES = 2
@@ -16,8 +15,10 @@ _MIN_FEATURES = 2
 class MultivariateStage:
     name = "multivariate"
 
-    def run(self, ctx: AttributionContext) -> Dict[str, Any]:
-        keys = CaptureDataset.list_varying_numeric_capture_keys(ctx.decision_space)
+    def run(self, stage_input: StageInput) -> Dict[str, Any]:
+        keys = CaptureDataset.list_varying_numeric_capture_keys(
+            stage_input.decision_space
+        )
         if len(keys) < _MIN_FEATURES:
             return {
                 "status": "skipped",
@@ -26,7 +27,7 @@ class MultivariateStage:
                 "found_features": len(keys),
             }
 
-        n = CaptureDataset.count_investments(ctx.source)
+        n = CaptureDataset.count_investments(stage_input.source)
         if n < _MIN_SAMPLES:
             return {
                 "status": "skipped",
@@ -35,9 +36,9 @@ class MultivariateStage:
                 "n": n,
             }
 
-        config = StepOutcomeRegistry.get(ctx.step)
+        config = StepOutcomeRegistry.get(stage_input.step)
         matrix, rois, wins = CaptureDataset.extract_feature_matrix(
-            ctx.source, keys, config
+            stage_input.source, keys, config
         )
         if len(matrix) < _MIN_SAMPLES:
             return {
@@ -72,3 +73,6 @@ class MultivariateStage:
         if logistic_ok or ols_ok:
             return "partial"
         return "skipped"
+
+
+__all__ = ["MultivariateStage"]

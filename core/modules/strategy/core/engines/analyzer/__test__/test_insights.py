@@ -1,7 +1,7 @@
 """Insight builder for conclusion-first attribution reports."""
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.analyzer import Analyzer
+from core.modules.strategy.core.engines.analyzer.steps.report._insights import InsightBuilder
 
 import pytest
 
@@ -99,7 +99,7 @@ def _report_with_rsi_buckets() -> dict:
 
 
 def test_build_insights_merges_to_two_tiers_and_headline() -> None:
-    insights = Analyzer.Insights.build(_report_with_rsi_buckets())
+    insights = InsightBuilder.build(_report_with_rsi_buckets())
     assert insights["status"] == "ok"
     assert insights["field_key"] == "rsi"
     assert len(insights["tiers"]) == 2
@@ -114,7 +114,7 @@ def test_build_insights_merges_to_two_tiers_and_headline() -> None:
 
 
 def test_build_insights_empty_without_fields() -> None:
-    insights = Analyzer.Insights.build(
+    insights = InsightBuilder.build(
         {
             "decision_space": {"capture": {}, "declared_core": {}},
             "attribution": {"classical": {"univariate": {"fields": {}}}},
@@ -147,7 +147,7 @@ def test_build_insights_run_comparison_plain() -> None:
             "coverage_diff": [],
         },
     }
-    insights = Analyzer.Insights.build(report)
+    insights = InsightBuilder.build(report)
     block = insights["run_comparison"]
     assert block["status"] == "ok"
     assert "rsi_oversold_threshold" in block["headline"]
@@ -183,7 +183,7 @@ def test_build_insights_lists_other_fields_and_multivariate() -> None:
         },
         "logistic_win": {"status": "skipped"},
     }
-    insights = Analyzer.Insights.build(report)
+    insights = InsightBuilder.build(report)
     assert insights["other_fields"]
     assert insights["other_fields"][0]["key"] == "pe_percentile"
     assert insights["multivariate"]["status"] == "ok"

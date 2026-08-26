@@ -1,11 +1,11 @@
-"""Map ``source.json`` investments → aligned series for attribution (strategy schema)."""
+"""Map ``source.json`` investments → aligned series for factor analysis."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.analysis import Analysis
 
-from ...support.step_outcome import StepOutcomeConfig
+from .outcome import StepOutcomeConfig
 
 
 class CaptureDataset:

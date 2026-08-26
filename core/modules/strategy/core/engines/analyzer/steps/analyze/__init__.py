@@ -3,13 +3,23 @@
 from .analyze import AnalyzeStep
 from .analyze_output import AnalyzeOutput
 from .baseline_source import BaselineSourceLoader
-from .capture_dataset import CaptureDataset
-from .decision_space import DecisionSpaceBuilder
+from .data import CaptureDataset, DecisionSpaceBuilder, StepOutcomeRegistry
+from .pipeline import (
+    AnalysisStage,
+    DEFAULT_STAGES,
+    FactorAnalysisPipeline,
+    StageInput,
+)
 
 __all__ = [
-    "AnalyzeStep",
+    "AnalysisStage",
     "AnalyzeOutput",
+    "AnalyzeStep",
     "BaselineSourceLoader",
     "CaptureDataset",
+    "DEFAULT_STAGES",
     "DecisionSpaceBuilder",
+    "FactorAnalysisPipeline",
+    "StageInput",
+    "StepOutcomeRegistry",
 ]

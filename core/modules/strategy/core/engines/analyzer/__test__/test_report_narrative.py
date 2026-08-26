@@ -1,9 +1,9 @@
 """Report narrative: scope_note and hints_for_ui."""
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.analyzer import Analyzer
 from core.modules.strategy.core.engines.analyzer.steps.analyze import AnalyzeStep
 from core.modules.strategy.core.engines.analyzer.steps.report import ReportStep
+from core.modules.strategy.core.engines.analyzer.steps.report.narrative import ReportNarrative
 
 from typing import Optional
 
@@ -58,7 +58,7 @@ def _rsi_like_source() -> dict:
 
 
 def test_build_scope_note_enum() -> None:
-    note = Analyzer.Narrative.scope_note("enum")
+    note = ReportNarrative.scope_note("enum")
     assert "机会枚举" in note or "现场" in note
     assert "因果" in note or "预测" in note
 
@@ -111,7 +111,7 @@ def test_hints_for_multivariate_skip() -> None:
         },
         "ml": {"status": "skipped", "reason": "insufficient_varying_fields"},
     }
-    hints = Analyzer.Narrative.hints_for_ui(
+    hints = ReportNarrative.hints_for_ui(
         step="enum",
         decision_space={"capture": {"rsi": {"role": "varying"}}, "declared_core": {}},
         attribution=attribution,

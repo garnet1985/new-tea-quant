@@ -8,11 +8,7 @@ from core.modules.strategy.core.services.artifacts import ArtifactStore
 from .io.step_payload import StepAnalysisPayload
 from .pipeline import AnalyzerAutoRun, AnalyzerPipeline
 from .steps import AnalyzeStep, PrepareStep, ReportStep
-from .steps.report import (
-    AnalysisReportPresenter,
-    InsightBuilder,
-    ReportNarrative,
-)
+from .steps.report import AnalysisReportPresenter
 from .support.output_dirs import SimulationOutputDirs
 from .support.paths import AnalyzerPaths
 from .support.step_mapping import AnalyzerStepMapping
@@ -26,8 +22,6 @@ class Analyzer:
     Prepare = PrepareStep
     Analyze = AnalyzeStep
     Report = ReportStep
-    Insights = InsightBuilder
-    Narrative = ReportNarrative
     Presenter = AnalysisReportPresenter
     Paths = AnalyzerPaths
     OutputDirs = SimulationOutputDirs

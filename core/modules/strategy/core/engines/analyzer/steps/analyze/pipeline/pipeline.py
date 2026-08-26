@@ -1,33 +1,26 @@
-"""Attribution sub-stages inside Analyze step."""
+"""Iterate factor-analysis stages; collect results for Report."""
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional
 
-from .attribution import MLStage, MultivariateStage, RunComparisonStage, UnivariateStage
-from .context import AttributionContext, AttributionStage
+from .context import AnalysisStage, StageInput
+from .stages import DEFAULT_STAGES
 
 
-class AttributionPipeline:
-    """Run classical + ML sub-stages; output merges into ``report.attribution``."""
-
-    _DEFAULT_STAGES: List[AttributionStage] = [
-        UnivariateStage(),
-        MultivariateStage(),
-        RunComparisonStage(),
-        MLStage(),
-    ]
+class FactorAnalysisPipeline:
+    """Run each analysis stage with shared ``StageInput``; merge outputs."""
 
     @classmethod
     def run(
         cls,
-        ctx: AttributionContext,
+        stage_input: StageInput,
         *,
-        stages: Optional[Iterable[AttributionStage]] = None,
+        stages: Optional[Iterable[AnalysisStage]] = None,
     ) -> Dict[str, Any]:
         classical: Dict[str, Any] = {}
         ml: Dict[str, Any] = {"status": "skipped", "reason": "not_run"}
-        for stage in stages or cls._DEFAULT_STAGES:
-            fragment = stage.run(ctx)
+        for stage in stages or DEFAULT_STAGES:
+            fragment = stage.run(stage_input)
             if stage.name == "ml":
                 ml = fragment
             else:
@@ -61,3 +54,6 @@ class AttributionPipeline:
         if any(status in ("ok", "not_requested") for status in statuses):
             return "ok"
         return "skipped"
+
+
+__all__ = ["FactorAnalysisPipeline"]

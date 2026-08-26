@@ -1,4 +1,4 @@
-"""Per-step outcome field mapping for attribution stages."""
+"""Per-step outcome field mapping for factor analysis stages."""
 from __future__ import annotations
 
 from dataclasses import dataclass

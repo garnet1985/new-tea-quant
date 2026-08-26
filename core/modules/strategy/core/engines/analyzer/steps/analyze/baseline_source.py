@@ -7,8 +7,7 @@ from typing import Any, Dict, Union
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 
-from ...support.paths import AnalyzerPaths
-from ..prepare import PrepareStep, SourceWriter
+from ..prepare import PrepareStep
 
 
 class BaselineSourceLoader:
@@ -26,13 +25,9 @@ class BaselineSourceLoader:
         baseline_store = ArtifactStore.resolve(
             strategy_folder, kind=kind, version_id=vid
         )
-        source_path = (
-            Path(baseline_store.output_dir)
-            / AnalyzerPaths.ANALYSIS_SUBDIR
-            / AnalyzerPaths.SOURCE_JSON
-        )
+        source_path = baseline_store.file("analysis_source")
         if source_path.is_file():
-            return SourceWriter.read(source_path)
+            return baseline_store.read_json("analysis_source")
 
         baseline_store = ArtifactStore.open(
             baseline_store.output_dir,

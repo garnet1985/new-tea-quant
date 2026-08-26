@@ -6,10 +6,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO, Union
 
 from core.infra.cmd_layout import CmdLayout
-from core.modules.strategy.core.services.artifacts.io import ArtifactIO
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 
-from ...support.paths import AnalyzerPaths
-from .insights import InsightBuilder
+from ._insights import InsightBuilder
 
 _SECTION_WIDTH = 64
 
@@ -23,13 +22,13 @@ class AnalysisReportPresenter:
 
     @classmethod
     def load(cls, output_dir: Union[str, Path]) -> "AnalysisReportPresenter":
-        """Load ``{output_dir}/analysis/report.json``."""
-        report_path = Path(output_dir) / AnalyzerPaths.ANALYSIS_SUBDIR / AnalyzerPaths.REPORT_JSON
+        """Load ``{output_dir}/analysis/report.json`` via artifact store."""
+        report_path = ArtifactStore.named_path(output_dir, "analysis_report")
         if not report_path.is_file():
             raise FileNotFoundError(
                 f"归因报告不存在: {report_path}（请先运行 sa / Strategy.analyze）"
             )
-        payload = ArtifactIO.read_json(report_path)
+        payload = ArtifactStore.read_json_at(output_dir, "analysis_report")
         if not isinstance(payload, dict):
             raise ValueError(f"归因报告格式无效: {report_path}")
         return cls(payload, report_path=report_path)

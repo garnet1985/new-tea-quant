@@ -1,13 +1,12 @@
-"""Step 3 — Report (narrative + insights + ``report.json``)."""
+"""Step 3 — Report."""
 
-from .insights import InsightBuilder
+from .compose import ReportComposer
 from .present import AnalysisReportPresenter
-from .report import ReportStep
-from .report_narrative import ReportNarrative
+from .report import ReportOutput, ReportStep
 
 __all__ = [
-    "ReportStep",
-    "InsightBuilder",
-    "ReportNarrative",
     "AnalysisReportPresenter",
+    "ReportComposer",
+    "ReportOutput",
+    "ReportStep",
 ]

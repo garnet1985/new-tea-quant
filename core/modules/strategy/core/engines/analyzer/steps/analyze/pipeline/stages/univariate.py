@@ -1,21 +1,22 @@
-"""Univariate attribution stage → ``modules.analysis`` stubs."""
+"""Univariate factor analysis — quantile buckets + Spearman."""
 from __future__ import annotations
 
 from typing import Any, Dict
 
 from core.modules.analysis import Analysis
 
-from ..capture_dataset import CaptureDataset
-from ....support.step_outcome import StepOutcomeRegistry
-from ..context import AttributionContext
+from ...data import CaptureDataset, StepOutcomeRegistry
+from ..context import StageInput
 
 
 class UnivariateStage:
     name = "univariate"
 
-    def run(self, ctx: AttributionContext) -> Dict[str, Any]:
-        config = StepOutcomeRegistry.get(ctx.step)
-        keys = CaptureDataset.list_varying_numeric_capture_keys(ctx.decision_space)
+    def run(self, stage_input: StageInput) -> Dict[str, Any]:
+        config = StepOutcomeRegistry.get(stage_input.step)
+        keys = CaptureDataset.list_varying_numeric_capture_keys(
+            stage_input.decision_space
+        )
         if not keys:
             return {
                 "status": "skipped",
@@ -26,7 +27,7 @@ class UnivariateStage:
         fields: Dict[str, Any] = {}
         for key in keys:
             values, rois, wins = CaptureDataset.extract_capture_series(
-                ctx.source, key, config
+                stage_input.source, key, config
             )
             if len(values) < 2:
                 fields[key] = {

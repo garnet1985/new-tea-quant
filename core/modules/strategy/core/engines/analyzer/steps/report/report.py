@@ -1,21 +1,43 @@
-"""Step 3 — 组装 report（叙事 + insights）并落盘 ``analysis/report.json``。"""
+"""Step 3 — Report: compose analyze results → persist → present."""
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Union
 
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 
-from ...support.paths import AnalyzerPaths
 from ..analyze.analyze_output import AnalyzeOutput
-from .insights import InsightBuilder
-from .report_narrative import ReportNarrative
-from .report_output import ReportOutput
-from .report_writer import ReportWriter
-from .skip_summary import PriceSkipSummary
+from .compose import ReportComposer
+
+
+@dataclass(frozen=True)
+class ReportOutput:
+    """Report 步产出 — 磁盘上的 ``analysis/report.json``。"""
+
+    report_path: Path
+    analysis_dir: Path
+    step: str
+    version_id: str
+
+    @classmethod
+    def from_payload(
+        cls,
+        *,
+        report_path: Path,
+        report: Dict[str, Any],
+    ) -> "ReportOutput":
+        return cls(
+            report_path=Path(report_path),
+            analysis_dir=Path(report_path).parent,
+            step=str(report.get("step") or ""),
+            version_id=str(report.get("version_id") or ""),
+        )
 
 
 class ReportStep:
+    """Three phases: input from analyze → compose + persist → (optional) present."""
+
     @classmethod
     def run(
         cls,
@@ -25,7 +47,7 @@ class ReportStep:
         analyze_out: Union[AnalyzeOutput, Dict[str, Any]],
     ) -> ReportOutput:
         report = cls.build(source, analyze_out=analyze_out)
-        report_path = ReportWriter.write(store, report)
+        report_path = store.write_json("analysis_report", report)
         return ReportOutput.from_payload(report_path=report_path, report=report)
 
     @classmethod
@@ -35,42 +57,8 @@ class ReportStep:
         *,
         analyze_out: Union[AnalyzeOutput, Dict[str, Any]],
     ) -> Dict[str, Any]:
-        analyze_result = (
-            analyze_out.to_dict()
-            if isinstance(analyze_out, AnalyzeOutput)
-            else dict(analyze_out)
-        )
-        step = (
-            analyze_out.step
-            if isinstance(analyze_out, AnalyzeOutput)
-            else str(analyze_result.get("step") or source.get("step") or "enum")
-        )
-        decision_space = dict(analyze_result.get("decision_space") or {})
-        attribution = dict(analyze_result.get("attribution") or {})
-        classical = dict(attribution.get("classical") or {})
-        classical["scope_note"] = ReportNarrative.scope_note(step)
-        if step == "price":
-            classical["skip_summary"] = PriceSkipSummary.build(source)
-        attribution = {**attribution, "classical": classical}
-        hints_for_ui = ReportNarrative.hints_for_ui(
-            step=step,
-            decision_space=decision_space,
-            attribution=attribution,
-        )
-        report = {
-            "schema_version": AnalyzerPaths.SCHEMA_VERSION,
-            "step": step,
-            "version_id": str(source.get("version_id") or ""),
-            "strategy_key": str(source.get("strategy_key") or ""),
-            "generated_at": datetime.now().isoformat(),
-            "manifest": {
-                "capture_keys": list(analyze_result.get("capture_keys") or []),
-                "coverage": dict(analyze_result.get("coverage") or {}),
-                "outcome_fields": list(analyze_result.get("outcome_fields") or []),
-            },
-            "decision_space": decision_space,
-            "attribution": attribution,
-            "hints_for_ui": hints_for_ui,
-        }
-        report["insights"] = InsightBuilder.build(report)
-        return report
+        return ReportComposer.build(source, analyze_out=analyze_out)
+
+    @classmethod
+    def read(cls, store: ArtifactStore) -> Dict[str, Any]:
+        return store.read_json("analysis_report")

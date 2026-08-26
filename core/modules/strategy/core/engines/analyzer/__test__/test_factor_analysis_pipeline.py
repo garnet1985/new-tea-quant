@@ -1,21 +1,17 @@
-"""AttributionPipeline integration (stub analysis backends)."""
+"""FactorAnalysisPipeline integration (stub analysis backends)."""
 from __future__ import annotations
-
-from core.modules.strategy.core.engines.analyzer.steps.analyze import (
-    AnalyzeStep,
-    DecisionSpaceBuilder,
-)
-from core.modules.strategy.core.engines.analyzer.steps.analyze.attribution_pipeline import (
-    AttributionPipeline,
-)
-from core.modules.strategy.core.engines.analyzer.steps.analyze.context import (
-    AttributionContext,
-)
-from core.modules.strategy.core.engines.analyzer.steps.report import ReportStep
 
 from typing import Optional
 
 import pytest
+
+from core.modules.strategy.core.engines.analyzer.steps.analyze import (
+    AnalyzeStep,
+    DecisionSpaceBuilder,
+    FactorAnalysisPipeline,
+    StageInput,
+)
+from core.modules.strategy.core.engines.analyzer.steps.report import ReportStep
 
 pytestmark = pytest.mark.force_run
 
@@ -59,13 +55,13 @@ def _varying_source() -> dict:
     }
 
 
-def test_attribution_pipeline_univariate_ok() -> None:
+def test_factor_analysis_pipeline_univariate_ok() -> None:
     source = _varying_source()
     decision_space = DecisionSpaceBuilder.build(source)
     assert decision_space["capture"]["rsi"]["role"] == "varying"
 
-    out = AttributionPipeline.run(
-        AttributionContext(source=source, step="enum", decision_space=decision_space)
+    out = FactorAnalysisPipeline.run(
+        StageInput(source=source, step="enum", decision_space=decision_space)
     )
     classical = out["classical"]
     assert classical["status"] == "ok"
@@ -109,13 +105,13 @@ def _multivariate_source() -> dict:
     }
 
 
-def test_attribution_pipeline_multivariate_ok() -> None:
+def test_factor_analysis_pipeline_multivariate_ok() -> None:
     source = _multivariate_source()
     decision_space = DecisionSpaceBuilder.build(source)
     assert len(decision_space["capture"]) == 2
 
-    out = AttributionPipeline.run(
-        AttributionContext(source=source, step="enum", decision_space=decision_space)
+    out = FactorAnalysisPipeline.run(
+        StageInput(source=source, step="enum", decision_space=decision_space)
     )
     multivariate = out["classical"]["multivariate"]
     assert multivariate["status"] == "ok"
@@ -124,12 +120,12 @@ def test_attribution_pipeline_multivariate_ok() -> None:
     assert len(multivariate["logistic_win"]["coefficients"]) == 2
 
 
-def test_attribution_pipeline_ml_ok() -> None:
+def test_factor_analysis_pipeline_ml_ok() -> None:
     source = _multivariate_source_large()
     decision_space = DecisionSpaceBuilder.build(source)
 
-    out = AttributionPipeline.run(
-        AttributionContext(source=source, step="enum", decision_space=decision_space)
+    out = FactorAnalysisPipeline.run(
+        StageInput(source=source, step="enum", decision_space=decision_space)
     )
     ml = out["ml"]
     xgb = ml.get("xgb") if isinstance(ml.get("xgb"), dict) else {}
@@ -187,14 +183,14 @@ def test_report_includes_attribution_section() -> None:
         assert insights["field_key"] == "rsi"
 
 
-def test_attribution_pipeline_run_comparison_ok() -> None:
+def test_factor_analysis_pipeline_run_comparison_ok() -> None:
     current_source = _rsi_like_source_for_compare(current_threshold=20.0, version_id="3")
     baseline_source = _rsi_like_source_for_compare(current_threshold=25.0, version_id="2")
     decision_space = DecisionSpaceBuilder.build(current_source)
     baseline_decision_space = DecisionSpaceBuilder.build(baseline_source)
 
-    out = AttributionPipeline.run(
-        AttributionContext(
+    out = FactorAnalysisPipeline.run(
+        StageInput(
             source=current_source,
             step="enum",
             decision_space=decision_space,

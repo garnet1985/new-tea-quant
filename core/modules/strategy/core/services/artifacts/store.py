@@ -17,6 +17,8 @@ from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts.consts import (
+    ANALYSIS_REPORT_FILE,
+    ANALYSIS_SOURCE_FILE,
     ENTITIES_SUBDIR,
     ENTITY_IDS_FILE,
     ENTITY_LIST_FILE,
@@ -73,6 +75,8 @@ _NAMED_FILES = {
     "performance": PERFORMANCE_FILE,
     "trades": TRADES_FILE,
     "equity_curve": EQUITY_CURVE_FILE,
+    "analysis_source": ANALYSIS_SOURCE_FILE,
+    "analysis_report": ANALYSIS_REPORT_FILE,
 }
 
 
@@ -479,6 +483,17 @@ class ArtifactStore:
         path = self.entities_dir()
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @classmethod
+    def named_path(cls, output_dir: Union[str, Path], name: str) -> Path:
+        filename = _NAMED_FILES.get(str(name or "").strip())
+        if not filename:
+            raise ValueError(f"unknown artifact file: {name!r}")
+        return Path(output_dir) / filename
+
+    @classmethod
+    def read_json_at(cls, output_dir: Union[str, Path], name: str) -> Dict[str, Any]:
+        return ArtifactIO.read_json(cls.named_path(output_dir, name))
 
     def file(self, name: str) -> Path:
         filename = _NAMED_FILES.get(str(name or "").strip())

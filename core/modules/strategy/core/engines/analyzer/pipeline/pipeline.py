@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Union
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 
 from ..steps.analyze import AnalyzeStep, BaselineSourceLoader
-from ..steps.prepare import PrepareStep, SourceWriter
+from ..steps.prepare import PrepareStep
 from ..steps.report import ReportStep
 from ..support.paths import AnalyzerPaths
 from ..support.step_mapping import AnalyzerStepMapping
@@ -27,7 +27,7 @@ class AnalyzerPipeline:
         store._ensure_runtime()
 
         prepare_out = PrepareStep.run(store)
-        source = SourceWriter.read(prepare_out.source_path)
+        source = store.read_json("analysis_source")
 
         baseline_source = None
         baseline_vid = str(baseline_version_id or "").strip()

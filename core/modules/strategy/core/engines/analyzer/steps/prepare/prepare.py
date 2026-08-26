@@ -1,6 +1,8 @@
 """分析 input 准备：读回测产物 → 转换 → 落盘 ``analysis/source.json``。"""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
@@ -24,7 +26,41 @@ from core.modules.strategy.core.services.artifacts.tables.signal_snapshots impor
 
 from ...support.paths import AnalyzerPaths
 from ...support.step_mapping import AnalyzerStepMapping
-from .source_writer import SourceWriter
+
+
+@dataclass(frozen=True)
+class PrepareOutput:
+    """Prepare 步产出 — 磁盘上的 ``analysis/source.json``。"""
+
+    source_path: Path
+    analysis_dir: Path
+    entity_count: int
+    investment_count: int
+    step: str
+    version_id: str
+
+    @classmethod
+    def from_payload(
+        cls,
+        *,
+        source_path: Path,
+        payload: Dict[str, Any],
+    ) -> "PrepareOutput":
+        entity_count = len(payload.get("entities") or [])
+        investment_count = int(
+            (payload.get("inputs") or {})
+            .get("capture", {})
+            .get("coverage", {})
+            .get("investment_count", 0)
+        )
+        return cls(
+            source_path=Path(source_path),
+            analysis_dir=Path(source_path).parent,
+            entity_count=entity_count,
+            investment_count=investment_count,
+            step=str(payload.get("step") or ""),
+            version_id=str(payload.get("version_id") or ""),
+        )
 
 
 class PrepareStep:
@@ -35,11 +71,11 @@ class PrepareStep:
         self._runtime_raw = store.read_json("runtime_env")
 
     @classmethod
-    def run(cls, store: ArtifactStore) -> "PrepareOutput":
-        from .prepare_output import PrepareOutput
-
+    def run(cls, store: ArtifactStore) -> PrepareOutput:
         payload = cls(store).build()
-        source_path = SourceWriter.write(store, payload)
+        body = dict(payload)
+        body["collected_at"] = datetime.now().isoformat()
+        source_path = store.write_json("analysis_source", body)
         return PrepareOutput.from_payload(source_path=source_path, payload=payload)
 
     def build(self) -> Dict[str, Any]:
@@ -530,4 +566,4 @@ def _serialize_goal_leg(row: GoalAchievementRow) -> Dict[str, Any]:
     }
 
 
-__all__ = ["PrepareStep"]
+__all__ = ["PrepareOutput", "PrepareStep"]

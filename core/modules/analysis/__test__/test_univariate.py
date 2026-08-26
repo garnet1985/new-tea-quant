@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.analysis import Analysis, quantile_buckets, spearman_correlation
+from core.modules.analysis import Analysis
 
 pytestmark = pytest.mark.force_run
 
@@ -12,7 +12,7 @@ def test_quantile_buckets_splits_and_summarizes() -> None:
     values = [10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
     rois = [0.10, 0.05, 0.02, -0.01, -0.03, -0.05]
     wins = [True, True, True, False, False, False]
-    out = quantile_buckets(
+    out = Analysis.Classical.quantile_buckets(
         values,
         rois,
         wins,
@@ -27,7 +27,7 @@ def test_quantile_buckets_splits_and_summarizes() -> None:
 
 
 def test_quantile_buckets_skips_when_below_min_bucket_size() -> None:
-    out = quantile_buckets([1.0, 2.0], [0.1, 0.2], [True, False], min_bucket_size=30)
+    out = Analysis.Classical.quantile_buckets([1.0, 2.0], [0.1, 0.2], [True, False], min_bucket_size=30)
     assert out["status"] == "skipped"
     assert out["reason"] == "insufficient_samples"
 
@@ -35,14 +35,14 @@ def test_quantile_buckets_skips_when_below_min_bucket_size() -> None:
 def test_spearman_perfect_monotone() -> None:
     x = [1.0, 2.0, 3.0, 4.0, 5.0]
     y = [2.0, 4.0, 6.0, 8.0, 10.0]
-    out = spearman_correlation(x, y)
+    out = Analysis.Classical.spearman_correlation(x, y)
     assert out["status"] == "ok"
     assert out["rho"] == pytest.approx(1.0)
     assert out["p_value"] == pytest.approx(0.0, abs=1e-9)
 
 
 def test_spearman_requires_min_samples() -> None:
-    out = spearman_correlation([1.0, 2.0], [0.1, 0.2])
+    out = Analysis.Classical.spearman_correlation([1.0, 2.0], [0.1, 0.2])
     assert out["status"] == "skipped"
 
 

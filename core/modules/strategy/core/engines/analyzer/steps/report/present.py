@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Optional, TextIO, Union
 from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
-from .consts import ANALYSIS_SUBDIR, REPORT_JSON
-from .insights import build_insights
+from ...support.paths import AnalyzerPaths
+from .insights import InsightBuilder
 
 _SECTION_WIDTH = 64
 
@@ -24,7 +24,7 @@ class AnalysisReportPresenter:
     @classmethod
     def load(cls, output_dir: Union[str, Path]) -> "AnalysisReportPresenter":
         """Load ``{output_dir}/analysis/report.json``."""
-        report_path = Path(output_dir) / ANALYSIS_SUBDIR / REPORT_JSON
+        report_path = Path(output_dir) / AnalyzerPaths.ANALYSIS_SUBDIR / AnalyzerPaths.REPORT_JSON
         if not report_path.is_file():
             raise FileNotFoundError(
                 f"归因报告不存在: {report_path}（请先运行 sa / Strategy.analyze）"
@@ -39,7 +39,7 @@ class AnalysisReportPresenter:
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         report = self._report
-        insights = _resolve_insights(report)
+        insights = _resolve_insights(report)  # noqa
 
         CmdLayout.title.print_banner(f"{icon('chart')} 这次回测怎么读", stream=out)
         print(
@@ -343,11 +343,11 @@ def _how_to_read(tiers: List[Any]) -> str:
 
 
 def _resolve_insights(report: Dict[str, Any]) -> Dict[str, Any]:
-    """Prefer insights written at analyze time; rebuild for older reports."""
+    """Prefer insights written at report time; rebuild for older reports."""
     persisted = report.get("insights")
     if isinstance(persisted, dict) and str(persisted.get("headline") or "").strip():
         return persisted
-    return build_insights(report)
+    return InsightBuilder.build(report)
 
 
 def _step_label(step: Any) -> str:

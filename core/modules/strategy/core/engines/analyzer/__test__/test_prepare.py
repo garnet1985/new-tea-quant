@@ -1,4 +1,4 @@
-"""AttributionInputCollector：join investments / goals / snapshots。"""
+"""PrepareStep：join 回测产物并写出 source.json。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.engines.analyzer.collector import AttributionInputCollector
-from core.modules.strategy.core.engines.analyzer.consts import REPORT_JSON, SOURCE_JSON
-from core.modules.strategy.core.engines.analyzer.pipeline import AnalyzerPipeline
-from core.modules.strategy.core.engines.analyzer.report import AttributionReportBuilder
+from core.modules.strategy.core.engines.analyzer import Analyzer
+from core.modules.strategy.core.engines.analyzer.steps.analyze import AnalyzeStep, DecisionSpaceBuilder
+from core.modules.strategy.core.engines.analyzer.steps.prepare import PrepareStep
+from core.modules.strategy.core.engines.analyzer.steps.report import ReportStep
 from core.modules.strategy.core.services.artifacts import (
     ArtifactStore,
     EntityInvestmentCsv,
@@ -23,6 +23,11 @@ from core.modules.strategy.core.services.artifacts import (
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
 pytestmark = pytest.mark.force_run
+
+
+def _build_report(source: dict, *, step: str) -> dict:
+    analyze_result = AnalyzeStep.run_payload(source, step=step)
+    return ReportStep.build(source, analyze_out=analyze_result)
 
 
 @pytest.fixture(autouse=True)
@@ -169,7 +174,7 @@ def test_collect_enum_joins_capture_and_goal_legs(tmp_path: Path) -> None:
     _write_enum_entity(tmp_path)
 
     store = EnumerateStore.open(tmp_path, version_id="1")
-    source = AttributionInputCollector(store).collect()
+    source = PrepareStep(store).build()
 
     assert source["step"] == "enum"
     assert source["inputs"]["declared"]["core"]["rsi_oversold_threshold"] == 20
@@ -195,10 +200,10 @@ def test_pipeline_writes_source_and_report_json(tmp_path: Path) -> None:
     _write_enum_entity(tmp_path)
 
     store = EnumerateStore.open(tmp_path, version_id="1")
-    result = AnalyzerPipeline.run(store)
+    result = Analyzer.Pipeline.run(store)
 
-    source_path = tmp_path / "analysis" / SOURCE_JSON
-    report_path = tmp_path / "analysis" / REPORT_JSON
+    source_path = tmp_path / "analysis" / Analyzer.Paths.SOURCE_JSON
+    report_path = tmp_path / "analysis" / Analyzer.Paths.REPORT_JSON
     assert source_path.is_file()
     assert report_path.is_file()
     assert result["step"] == "enum"
@@ -284,7 +289,7 @@ def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
     )
 
     store = PriceFactorStore.open(price_dir, version_id="1")
-    source = AttributionInputCollector(store).collect()
+    source = PrepareStep(store).build()
     assert source["step"] == "price"
     assert source["upstream"]["enum_version_id"] == "1"
     assert source["inputs"]["capture"]["keys"] == [
@@ -301,7 +306,7 @@ def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
     assert rows[1]["engine"]["skip_reason"] == "liquidity"
     assert rows[1]["capture"] == {}
 
-    report = AttributionReportBuilder.build(source, step="price")
+    report = _build_report(source, step="price")
     assert report["step"] == "price"
     assert report["manifest"]["outcome_fields"] == ["engine.roi", "engine.result"]
     skip_summary = report["attribution"]["classical"]["skip_summary"]
@@ -388,7 +393,7 @@ def test_collect_portfolio_joins_completed_lots(tmp_path: Path) -> None:
     ArtifactIO.write_json(portfolio_dir / "equity_curve.json", [])
 
     store = PortfolioStore.open(portfolio_dir, version_id="1")
-    source = AttributionInputCollector(store).collect()
+    source = PrepareStep(store).build()
     assert source["step"] == "portfolio"
     assert source["inputs"]["portfolio_artifacts"]["completed_lots"] == 1
     assert source["inputs"]["portfolio_artifacts"]["open_buys"] == 1
@@ -406,7 +411,7 @@ def test_collect_portfolio_joins_completed_lots(tmp_path: Path) -> None:
     assert row["engine"]["result"] == "win"
     assert row["engine"]["profit"] == 100.0
 
-    report = AttributionReportBuilder.build(source, step="portfolio")
+    report = _build_report(source, step="portfolio")
     assert report["step"] == "portfolio"
     assert report["manifest"]["outcome_fields"] == ["engine.roi", "engine.result"]
     assert report["insights"]["headline"]
@@ -430,6 +435,6 @@ def test_report_marks_varying_capture() -> None:
             }
         ],
     }
-    report = AttributionReportBuilder.build(source, step="enum")
+    report = _build_report(source, step="enum")
     assert report["decision_space"]["capture"]["rsi"]["role"] == "varying"
     assert report["decision_space"]["capture"]["rsi"]["unique_count"] == 2

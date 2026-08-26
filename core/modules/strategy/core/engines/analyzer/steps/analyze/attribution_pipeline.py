@@ -1,14 +1,14 @@
-"""Business attribution pipeline — orchestrates stages, merges report fragment."""
+"""Attribution sub-stages inside Analyze step."""
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional
 
-from .stages import MLStage, MultivariateStage, RunComparisonStage, UnivariateStage
-from .stages.base import AttributionContext, AttributionStage
+from .attribution import MLStage, MultivariateStage, RunComparisonStage, UnivariateStage
+from .context import AttributionContext, AttributionStage
 
 
 class AttributionPipeline:
-    """Run classical + ML stages; output merges into ``report.attribution``."""
+    """Run classical + ML sub-stages; output merges into ``report.attribution``."""
 
     _DEFAULT_STAGES: List[AttributionStage] = [
         UnivariateStage(),
@@ -61,6 +61,3 @@ class AttributionPipeline:
         if any(status in ("ok", "not_requested") for status in statuses):
             return "ok"
         return "skipped"
-
-
-__all__ = ["AttributionPipeline"]

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.analysis import Analysis, xgb_feature_importance
+from core.modules.analysis import Analysis
 
 pytestmark = pytest.mark.force_run
 
@@ -23,7 +23,7 @@ def _synthetic_ml(n: int = 520) -> tuple:
 
 def test_xgb_feature_importance_fits_and_ranks_features() -> None:
     matrix, names, target = _synthetic_ml()
-    out = xgb_feature_importance(matrix, names, target, min_samples=500)
+    out = Analysis.ML.xgb_feature_importance(matrix, names, target, min_samples=500)
     assert out["status"] in ("ok", "partial")
     assert out["n"] == 520
     assert len(out["feature_importance"]) == 2
@@ -33,7 +33,7 @@ def test_xgb_feature_importance_fits_and_ranks_features() -> None:
 
 def test_xgb_skips_below_min_samples() -> None:
     matrix, names, target = _synthetic_ml(n=100)
-    out = xgb_feature_importance(matrix, names, target, min_samples=500)
+    out = Analysis.ML.xgb_feature_importance(matrix, names, target, min_samples=500)
     assert out["status"] == "skipped"
     assert out["reason"] == "insufficient_samples"
 

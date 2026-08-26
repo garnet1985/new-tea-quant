@@ -1,18 +1,5 @@
-"""回测归因：收集 input → analysis/source.json。"""
+"""回测归因（Prepare → Analyze → Report；统计在 modules.analysis）。"""
 
-from __future__ import annotations
+from .analyzer import Analyzer
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .pipeline import AnalyzerPipeline
-
-__all__ = ["AnalyzerPipeline"]
-
-
-def __getattr__(name: str):
-    if name == "AnalyzerPipeline":
-        from .pipeline import AnalyzerPipeline
-
-        return AnalyzerPipeline
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+__all__ = ["Analyzer"]

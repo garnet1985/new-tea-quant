@@ -1,7 +1,7 @@
 """Run comparison stats implementation."""
 from __future__ import annotations
 
-from core.modules.analysis import Analysis, compare_run_summaries
+from core.modules.analysis import Analysis
 
 import pytest
 
@@ -54,7 +54,7 @@ def test_compare_run_summaries_detects_settings_and_capture_diff() -> None:
         "decision_space": _decision_space(threshold=25.0, rsi_max=24.9, count=1400),
         "coverage": {"investment_count": 1400},
     }
-    out = compare_run_summaries(current, baseline)
+    out = Analysis.Classical.compare_run_summaries(current, baseline)
     assert out["status"] == "ok"
     assert out["has_meaningful_diff"] is True
     assert out["settings_diff"][0]["key"] == "rsi_oversold_threshold"
@@ -71,7 +71,7 @@ def test_compare_run_summaries_no_diff() -> None:
         "decision_space": space,
         "coverage": {"investment_count": 100},
     }
-    out = compare_run_summaries(summary, dict(summary, version_id="2"))
+    out = Analysis.Classical.compare_run_summaries(summary, dict(summary, version_id="2"))
     assert out["status"] == "ok"
     assert out["has_meaningful_diff"] is False
 

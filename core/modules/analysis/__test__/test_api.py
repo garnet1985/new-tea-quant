@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import inspect
 import unittest
 
 import pytest
 
-from core.modules.analysis import Analysis, Classical, ML, quantile_buckets
+from core.modules.analysis import Analysis, Classical, ML
 from core.modules.analysis import contracts as analysis_contracts
 
 pytestmark = pytest.mark.force_run
@@ -17,8 +16,7 @@ class TestAnalysisApi(unittest.TestCase):
     def test_facade_exports(self) -> None:
         import core.modules.analysis as pkg
 
-        self.assertIn("Analysis", pkg.__all__)
-        self.assertIn("quantile_buckets", pkg.__all__)
+        self.assertEqual(pkg.__all__, ["Analysis", "Classical", "ML"])
         self.assertIs(pkg.Analysis, Analysis)
 
     def test_classical_namespace(self) -> None:
@@ -27,7 +25,7 @@ class TestAnalysisApi(unittest.TestCase):
         self.assertTrue(callable(Analysis.ML.xgb_feature_importance))
 
     def test_quantile_buckets_ok(self) -> None:
-        out = quantile_buckets(
+        out = Analysis.Classical.quantile_buckets(
             [1.0, 2.0, 3.0, 4.0],
             [0.1, 0.2, 0.3, 0.4],
             [True, True, False, False],

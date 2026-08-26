@@ -5,17 +5,17 @@ from typing import Any, Dict
 
 from core.modules.analysis import Analysis
 
-from ..dataset import extract_capture_series, list_varying_numeric_capture_keys
-from ..step_config import get_step_outcome_config
-from .base import AttributionContext
+from ..capture_dataset import CaptureDataset
+from ....support.step_outcome import StepOutcomeRegistry
+from ..context import AttributionContext
 
 
 class UnivariateStage:
     name = "univariate"
 
     def run(self, ctx: AttributionContext) -> Dict[str, Any]:
-        config = get_step_outcome_config(ctx.step)
-        keys = list_varying_numeric_capture_keys(ctx.decision_space)
+        config = StepOutcomeRegistry.get(ctx.step)
+        keys = CaptureDataset.list_varying_numeric_capture_keys(ctx.decision_space)
         if not keys:
             return {
                 "status": "skipped",
@@ -25,7 +25,9 @@ class UnivariateStage:
 
         fields: Dict[str, Any] = {}
         for key in keys:
-            values, rois, wins = extract_capture_series(ctx.source, key, config)
+            values, rois, wins = CaptureDataset.extract_capture_series(
+                ctx.source, key, config
+            )
             if len(values) < 2:
                 fields[key] = {
                     "status": "skipped",

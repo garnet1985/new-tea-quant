@@ -5,20 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.analyzer.auto_run import (
-    is_analysis_enabled,
-    maybe_run_after_simulate,
-)
-from core.modules.strategy.core.engines.analyzer.consts import ANALYSIS_SUBDIR, REPORT_JSON
+from core.modules.strategy.core.engines.analyzer import Analyzer
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
 pytestmark = pytest.mark.force_run
 
 
 def test_is_analysis_enabled() -> None:
-    assert not is_analysis_enabled({})
-    assert not is_analysis_enabled({"analysis": {"enabled": False}})
-    assert is_analysis_enabled({"analysis": {"enabled": True}})
+    assert not Analyzer.AutoRun.is_enabled({})
+    assert not Analyzer.AutoRun.is_enabled({"analysis": {"enabled": False}})
+    assert Analyzer.AutoRun.is_enabled({"analysis": {"enabled": True}})
 
 
 def test_fingerprint_diff_ignores_analysis() -> None:
@@ -38,7 +34,7 @@ def test_fingerprint_diff_ignores_analysis() -> None:
 
 
 def test_maybe_run_skips_when_disabled(tmp_path: Path) -> None:
-    out = maybe_run_after_simulate(
+    out = Analyzer.AutoRun.maybe_after_simulate(
         "demo",
         step="enum",
         simulate_result={"enumerate": {"success": True, "output_dir": str(tmp_path)}},
@@ -48,11 +44,14 @@ def test_maybe_run_skips_when_disabled(tmp_path: Path) -> None:
 
 
 def test_maybe_run_skips_when_report_exists(tmp_path: Path) -> None:
-    analysis_dir = tmp_path / ANALYSIS_SUBDIR
+    analysis_dir = tmp_path / Analyzer.Paths.ANALYSIS_SUBDIR
     analysis_dir.mkdir(parents=True)
-    ArtifactIO.write_json(analysis_dir / REPORT_JSON, {"insights": {"headline": "ok"}})
+    ArtifactIO.write_json(
+        analysis_dir / Analyzer.Paths.REPORT_JSON,
+        {"insights": {"headline": "ok"}},
+    )
 
-    out = maybe_run_after_simulate(
+    out = Analyzer.AutoRun.maybe_after_simulate(
         "demo",
         step="enum",
         simulate_result={"enumerate": {"success": True, "output_dir": str(tmp_path)}},

@@ -407,14 +407,13 @@ class Strategy:
         baseline_version_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """收集归因 input + report，写入 ``simulations/{version_id}/{step}/analysis/``。"""
-        from .engines.analyzer import AnalyzerPipeline
-        from .engines.analyzer.step import parse_step, step_to_simulate_kind
+        from .engines.analyzer import Analyzer
         from .services.artifacts import ArtifactStore
         from .services.discovery import DiscoveryService
 
         folder = DiscoveryService.resolve_strategy_folder(key_or_id)
-        workbench_step = parse_step(step)
-        simulate_kind = step_to_simulate_kind(workbench_step)
+        workbench_step = Analyzer.Step.parse(step)
+        simulate_kind = Analyzer.Step.to_simulate_kind(workbench_step)
         vid = str(version_id or "").strip()
         if vid:
             store = ArtifactStore.resolve(
@@ -431,12 +430,55 @@ class Strategy:
             kind=simulate_kind,
             version_id=store.version_id,
         )
-        return AnalyzerPipeline.run(
+        return Analyzer.run(
             store,
             baseline_version_id=str(baseline_version_id).strip()
             if baseline_version_id
             else None,
             strategy_folder=folder,
+        )
+
+    @staticmethod
+    def step_analysis_from_output_dir(output_dir: Union[str, Path]) -> Dict[str, Any]:
+        """Read ``analysis/report.json`` insights payload for one step output dir."""
+        from .engines.analyzer import Analyzer
+
+        return Analyzer.Payload.from_output_dir(Path(output_dir))
+
+    @staticmethod
+    def resolve_step_analysis(
+        strategy_name: str,
+        step: str,
+        slot: Optional[Dict[str, Any]] = None,
+        *,
+        workbench_version: int = 0,
+    ) -> Dict[str, Any]:
+        """Resolve step output dir(s) and load attribution insights payload."""
+        from .engines.analyzer import Analyzer
+
+        return Analyzer.Payload.resolve_for_step(
+            strategy_name,
+            step,
+            slot if isinstance(slot, dict) else {},
+            workbench_version=int(workbench_version or 0),
+        )
+
+    @staticmethod
+    def resolve_simulation_output_dirs(
+        strategy_name: str,
+        *,
+        step: str,
+        slot: Optional[Dict[str, Any]] = None,
+        workbench_version: int = 0,
+    ) -> List[Path]:
+        """Absolute version-dir candidates for enum / price / portfolio."""
+        from .engines.analyzer import Analyzer
+
+        return Analyzer.OutputDirs.resolve(
+            strategy_name,
+            step=step,
+            slot=slot,
+            workbench_version=workbench_version,
         )
 
     @staticmethod
@@ -449,16 +491,13 @@ class Strategy:
         force: bool = False,
     ) -> Dict[str, Any]:
         """回测成功后按 ``settings.analysis.enabled`` 自动收集归因产物。"""
-        from .engines.analyzer.auto_run import (
-            effective_settings_for_strategy,
-            maybe_run_after_simulate,
-        )
+        from .engines.analyzer import Analyzer
 
-        effective = effective_settings_for_strategy(
+        effective = Analyzer.AutoRun.effective_settings_for_strategy(
             key_or_id,
             runtime_settings,
         )
-        return maybe_run_after_simulate(
+        return Analyzer.AutoRun.maybe_after_simulate(
             key_or_id,
             step=step,
             simulate_result=simulate_result,
@@ -475,16 +514,13 @@ class Strategy:
         force: bool = False,
     ) -> Dict[str, Any]:
         """补跑同一 version 下缺 ``analysis/report.json`` 的各 step 归因。"""
-        from .engines.analyzer.auto_run import (
-            effective_settings_for_strategy,
-            ensure_version_analysis,
-        )
+        from .engines.analyzer import Analyzer
 
-        effective = effective_settings_for_strategy(
+        effective = Analyzer.AutoRun.effective_settings_for_strategy(
             key_or_id,
             runtime_settings,
         )
-        return ensure_version_analysis(
+        return Analyzer.AutoRun.ensure_version(
             key_or_id,
             version_id=version_id,
             effective_settings=effective,
@@ -521,9 +557,9 @@ class Strategy:
         stream: Optional[TextIO] = None,
     ) -> None:
         """从仿真 ``output_dir`` 展示归因 ``analysis/report.json`` 终端摘要。"""
-        from .engines.analyzer.present import AnalysisReportPresenter
+        from .engines.analyzer import Analyzer
 
-        AnalysisReportPresenter.load(output_dir).present(stream=stream)
+        Analyzer.Presenter.load(output_dir).present(stream=stream)
 
     @staticmethod
     def is_valid_path(relative_path: str) -> bool:

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.engines.analyzer.present import AnalysisReportPresenter
+from core.modules.strategy.core.engines.analyzer import Analyzer
 
 import pytest
 
@@ -128,7 +128,7 @@ def _write_report(tmp_path: Path, payload: dict) -> Path:
 def test_analysis_report_presenter_is_conclusion_first(tmp_path: Path) -> None:
     _write_report(tmp_path, _sample_report())
     buf = io.StringIO()
-    AnalysisReportPresenter.load(tmp_path).present(stream=buf)
+    Analyzer.Presenter.load(tmp_path).present(stream=buf)
     text = buf.getvalue()
     assert "一句话结论" in text
     assert text.find("一句话结论") < text.find("证据")
@@ -154,7 +154,7 @@ def test_presenter_prefers_persisted_insights(tmp_path: Path) -> None:
     }
     _write_report(tmp_path, payload)
     buf = io.StringIO()
-    AnalysisReportPresenter.load(tmp_path).present(stream=buf)
+    Analyzer.Presenter.load(tmp_path).present(stream=buf)
     text = buf.getvalue()
     assert "【落盘结论】只应出现这一句" in text
     # Must not rebuild from buckets when insights already persisted.
@@ -186,7 +186,7 @@ def test_presenter_shows_run_comparison_section(tmp_path: Path) -> None:
     payload.pop("insights", None)
     _write_report(tmp_path, payload)
     buf = io.StringIO()
-    AnalysisReportPresenter.load(tmp_path).present(stream=buf)
+    Analyzer.Presenter.load(tmp_path).present(stream=buf)
     text = buf.getvalue()
     assert "两次回测对照" in text
     assert "rsi_oversold_threshold" in text
@@ -196,7 +196,7 @@ def test_presenter_shows_run_comparison_section(tmp_path: Path) -> None:
 
 def test_analysis_report_presenter_missing_report_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        AnalysisReportPresenter.load(tmp_path)
+        Analyzer.Presenter.load(tmp_path)
 
 
 def test_strategy_present_analysis_report_delegates(tmp_path: Path) -> None:

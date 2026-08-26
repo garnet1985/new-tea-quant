@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.analysis import Analysis, logistic_win, ols_weighted_roi
+from core.modules.analysis import Analysis
 
 pytestmark = pytest.mark.force_run
 
@@ -24,7 +24,7 @@ def _synthetic_multivariate(n: int = 220) -> tuple:
 
 def test_logistic_win_fits_and_returns_coefficients() -> None:
     matrix, names, wins, _ = _synthetic_multivariate()
-    out = logistic_win(matrix, names, wins, min_samples=200)
+    out = Analysis.Classical.logistic_win(matrix, names, wins, min_samples=200)
     assert out["status"] == "ok"
     assert out["n"] == 220
     assert out["n_features"] == 2
@@ -35,7 +35,7 @@ def test_logistic_win_fits_and_returns_coefficients() -> None:
 
 def test_ols_weighted_roi_fits_and_returns_r_squared() -> None:
     matrix, names, _, rois = _synthetic_multivariate()
-    out = ols_weighted_roi(matrix, names, rois, min_samples=200)
+    out = Analysis.Classical.ols_weighted_roi(matrix, names, rois, min_samples=200)
     assert out["status"] == "ok"
     assert out["r_squared"] is not None
     assert out["adj_r_squared"] is not None
@@ -44,8 +44,8 @@ def test_ols_weighted_roi_fits_and_returns_r_squared() -> None:
 
 def test_multivariate_skips_below_min_samples() -> None:
     matrix, names, wins, rois = _synthetic_multivariate(n=50)
-    logistic = logistic_win(matrix, names, wins, min_samples=200)
-    ols = ols_weighted_roi(matrix, names, rois, min_samples=200)
+    logistic = Analysis.Classical.logistic_win(matrix, names, wins, min_samples=200)
+    ols = Analysis.Classical.ols_weighted_roi(matrix, names, rois, min_samples=200)
     assert logistic["status"] == "skipped"
     assert logistic["reason"] == "insufficient_samples"
     assert ols["status"] == "skipped"
@@ -54,7 +54,7 @@ def test_multivariate_skips_below_min_samples() -> None:
 def test_logistic_skips_single_class() -> None:
     matrix, names, _, _ = _synthetic_multivariate(n=220)
     wins = [True] * 220
-    out = logistic_win(matrix, names, wins, min_samples=200)
+    out = Analysis.Classical.logistic_win(matrix, names, wins, min_samples=200)
     assert out["status"] == "skipped"
     assert out["reason"] == "single_class"
 

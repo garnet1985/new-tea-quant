@@ -1,4 +1,4 @@
-"""归因 input 收集：join 产物表，不写统计。"""
+"""分析 input 准备：读回测产物 → 转换 → 落盘 ``analysis/source.json``。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -22,18 +22,27 @@ from core.modules.strategy.core.services.artifacts.tables.signal_snapshots impor
     SignalSnapshotRow,
 )
 
-from .consts import SCHEMA_VERSION
-from .step import step_value
+from ...support.paths import AnalyzerPaths
+from ...support.step_mapping import AnalyzerStepMapping
+from .source_writer import SourceWriter
 
 
-class AttributionInputCollector:
-    """从 ArtifactStore 句柄重组归因 input（无 IO 定位逻辑）。"""
+class PrepareStep:
+    """收集、转换并持久化 analyze 步使用的 ``analysis/source.json``。"""
 
     def __init__(self, store: ArtifactStore) -> None:
         self.store = store
         self._runtime_raw = store.read_json("runtime_env")
 
-    def collect(self) -> Dict[str, Any]:
+    @classmethod
+    def run(cls, store: ArtifactStore) -> "PrepareOutput":
+        from .prepare_output import PrepareOutput
+
+        payload = cls(store).build()
+        source_path = SourceWriter.write(store, payload)
+        return PrepareOutput.from_payload(source_path=source_path, payload=payload)
+
+    def build(self) -> Dict[str, Any]:
         kind = self.store.kind
         if kind is SimulateKind.ENUMERATE:
             return self._collect_enumerate()
@@ -41,7 +50,7 @@ class AttributionInputCollector:
             return self._collect_price()
         if kind is SimulateKind.PORTFOLIO:
             return self._collect_portfolio()
-        raise ValueError(f"unsupported analysis step: {kind!r}")
+        raise ValueError(f"unsupported prepare step: {kind!r}")
 
     def _collect_enumerate(self) -> Dict[str, Any]:
         enum_store = self._as_enumerate_store()
@@ -178,10 +187,10 @@ class AttributionInputCollector:
             effective = self.store.runtime.settings_snapshot.effective_settings
 
         payload: Dict[str, Any] = {
-            "schema_version": SCHEMA_VERSION,
+            "schema_version": AnalyzerPaths.SCHEMA_VERSION,
             "strategy_key": str(raw.get("strategy_key") or self.store.runtime.strategy_key or "").strip(),
             "strategy_path": str(raw.get("strategy_path") or self.store.runtime.strategy_path or "").strip(),
-            "step": step_value(self.store.kind),
+            "step": AnalyzerStepMapping.value(self.store.kind),
             "version_id": str(self.store.version_id),
             "output_dir": str(self.store.output_dir.resolve()),
             "fingerprints": {
@@ -281,12 +290,12 @@ class AttributionInputCollector:
 
     def _as_enumerate_store(self) -> EnumerateStore:
         if not isinstance(self.store, EnumerateStore):
-            raise TypeError("enumerate collector requires EnumerateStore")
+            raise TypeError("enumerate prepare requires EnumerateStore")
         return self.store
 
     def _as_price_store(self) -> PriceFactorStore:
         if not isinstance(self.store, PriceFactorStore):
-            raise TypeError("price collector requires PriceFactorStore")
+            raise TypeError("price prepare requires PriceFactorStore")
         return self.store
 
     @staticmethod
@@ -521,4 +530,4 @@ def _serialize_goal_leg(row: GoalAchievementRow) -> Dict[str, Any]:
     }
 
 
-__all__ = ["AttributionInputCollector"]
+__all__ = ["PrepareStep"]

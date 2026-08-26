@@ -1,15 +1,29 @@
 """Report narrative: scope_note and hints_for_ui."""
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.analyzer.report import AttributionReportBuilder
-from core.modules.strategy.core.engines.analyzer.report_narrative import (
-    build_hints_for_ui,
-    build_scope_note,
-)
+from core.modules.strategy.core.engines.analyzer import Analyzer
+from core.modules.strategy.core.engines.analyzer.steps.analyze import AnalyzeStep
+from core.modules.strategy.core.engines.analyzer.steps.report import ReportStep
+
+from typing import Optional
 
 import pytest
 
 pytestmark = pytest.mark.force_run
+
+
+def _build_report(
+    source: dict,
+    *,
+    step: str,
+    baseline_source: Optional[dict] = None,
+) -> dict:
+    analyze_result = AnalyzeStep.run_payload(
+        source,
+        step=step,
+        baseline_source=baseline_source,
+    )
+    return ReportStep.build(source, analyze_out=analyze_result)
 
 
 def _rsi_like_source() -> dict:
@@ -44,13 +58,13 @@ def _rsi_like_source() -> dict:
 
 
 def test_build_scope_note_enum() -> None:
-    note = build_scope_note("enum")
+    note = Analyzer.Narrative.scope_note("enum")
     assert "机会枚举" in note or "现场" in note
     assert "因果" in note or "预测" in note
 
 
 def test_report_includes_scope_note_and_hints() -> None:
-    report = AttributionReportBuilder.build(_rsi_like_source(), step="enum")
+    report = _build_report(_rsi_like_source(), step="enum")
     classical = report["attribution"]["classical"]
     assert classical["scope_note"]
     hints = report["hints_for_ui"]
@@ -70,7 +84,7 @@ def test_report_with_baseline_includes_run_comparison() -> None:
     for investment in baseline["entities"][0]["investments"]:
         investment["capture"]["rsi_oversold_threshold"] = 25
 
-    report = AttributionReportBuilder.build(
+    report = _build_report(
         current,
         step="enum",
         baseline_source=baseline,
@@ -97,7 +111,7 @@ def test_hints_for_multivariate_skip() -> None:
         },
         "ml": {"status": "skipped", "reason": "insufficient_varying_fields"},
     }
-    hints = build_hints_for_ui(
+    hints = Analyzer.Narrative.hints_for_ui(
         step="enum",
         decision_space={"capture": {"rsi": {"role": "varying"}}, "declared_core": {}},
         attribution=attribution,

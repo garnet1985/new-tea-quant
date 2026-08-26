@@ -114,31 +114,14 @@ def resolve_simulation_output_dirs(
     workbench_version: int = 0,
 ) -> List[Path]:
     """Absolute version-dir candidates for enum / price / portfolio."""
-    sn = str(strategy_name or "").strip()
-    if not sn:
-        return []
+    from core.modules.strategy import Strategy
 
-    slot = slot if isinstance(slot, dict) else {}
-    names = _version_dir_candidates_from_slot(slot, workbench_version)
-    try:
-        folder = _resolve_strategy_folder(sn)
-        kind = ArtifactStore.parse_kind(step)
-    except ValueError:
-        return []
-    root = ArtifactStore.simulations_root(folder)
-    step_dir = ArtifactStore.for_kind(kind).step_dir_name()
-
-    out: List[Path] = []
-    seen: set[str] = set()
-    for name in names:
-        p = Path(name)
-        if not p.is_absolute():
-            p = root / name / step_dir
-        key = str(p)
-        if key not in seen:
-            seen.add(key)
-            out.append(p)
-    return out
+    return Strategy.resolve_simulation_output_dirs(
+        strategy_name,
+        step=step,
+        slot=slot,
+        workbench_version=workbench_version,
+    )
 
 
 def _load_overall_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:

@@ -80,7 +80,7 @@ modules/analysis/                         # 无 version 路径、不读 Artifact
 - [x] portfolio per-trade join（buy/sell 配对 · enum snapshot · `engine.roi/profit`）
 - [x] 多 varying capture 可演示场景（`rsi_v3` · 其他条件 + 多指标白话；multivariate 门槛 50）
 - [x] BFF 读 analysis 展示（`GET …/report/{step}/{vid}` → `analysis.insights`）
-- [ ] UI 读 analysis 展示（消费 BFF `analysis` 字段）
+- [x] UI 读 analysis 展示（V2-07 同 API，报告面板「归因解读」区块）
 
 **多指标演示**
 

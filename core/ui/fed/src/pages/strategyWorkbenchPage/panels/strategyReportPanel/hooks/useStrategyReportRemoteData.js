@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchStrategyStepReportRef } from '../../../../../api/strategyApi';
+import { fetchStrategyStepReport, fetchStrategyStepReportRef } from '../../../../../api/strategyApi';
 import { STEP_TABS } from '../constants/strategyReportConstants';
 import {
   ENUM_REF_DEFAULT_SORT,
@@ -37,8 +37,8 @@ function stockRefRefreshToken(resultReport, tabKey) {
 }
 
 /**
- * 报告面板远程数据：枚举 ``report_ref``（V2-07b）与可用 Tab 推导。
- * 主面板与对比弹窗读页面注入的 V2-08 ``workbenchSnapshot.result_report``；枚举明细仍用 V2-07b ``report_ref``。
+ * 报告面板远程数据：V2-07 归因 insights、V2-07b 逐股 ref 与可用 Tab 推导。
+ * 主面板 metrics 读 V2-08 ``workbenchSnapshot.result_report``；归因与逐股明细 lazy 拉 V2-07 / V2-07b。
  */
 export function useStrategyReportRemoteData({
   strategyName,
@@ -57,6 +57,9 @@ export function useStrategyReportRemoteData({
   const [priceRefStatus, setPriceRefStatus] = useState('idle');
   const [priceRefRows, setPriceRefRows] = useState([]);
   const [priceRefError, setPriceRefError] = useState('');
+  const [analysisStatus, setAnalysisStatus] = useState('idle');
+  const [analysisPayload, setAnalysisPayload] = useState(null);
+  const [analysisError, setAnalysisError] = useState('');
 
   const availableTabs = useMemo(() => {
     const stepStatus = executionState?.stepStatus || {};
@@ -88,6 +91,17 @@ export function useStrategyReportRemoteData({
     const stepDone = executionState?.stepStatus?.price === 'done' ? 1 : 0;
     return `${slotToken}|f${focusTick}|d${stepDone}`;
   }, [executionState?.stepStatus?.price, reportTabFocusRequest, resultReport]);
+
+  const analysisRefreshKey = useMemo(() => {
+    const tab = String(resolvedActiveTab || '').trim();
+    if (!tab) return '';
+    const slotToken = stockRefRefreshToken(resultReport, tab);
+    const focusTick = reportTabFocusRequest?.step === tab
+      ? Number(reportTabFocusRequest.tick) || 0
+      : 0;
+    const stepDone = executionState?.stepStatus?.[tab] === 'done' ? 1 : 0;
+    return `${tab}|${slotToken}|f${focusTick}|d${stepDone}`;
+  }, [executionState?.stepStatus, reportTabFocusRequest, resolvedActiveTab, resultReport]);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,6 +181,40 @@ export function useStrategyReportRemoteData({
     };
   }, [priceRefRefreshKey, resolvedActiveTab, strategyName, versionIdForReport]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const tab = String(resolvedActiveTab || '').trim();
+    const stepDone = executionState?.stepStatus?.[tab] === 'done';
+    if (!strategyName || !versionIdForReport || !tab || !stepDone) {
+      setAnalysisStatus('idle');
+      setAnalysisPayload(null);
+      setAnalysisError('');
+      return undefined;
+    }
+    setAnalysisStatus('loading');
+    setAnalysisError('');
+    fetchStrategyStepReport(strategyName, tab, versionIdForReport)
+      .then(({ analysis }) => {
+        if (cancelled) return;
+        if (analysis?.available && analysis?.insights) {
+          setAnalysisPayload(analysis);
+          setAnalysisStatus('ok');
+          return;
+        }
+        setAnalysisPayload(analysis && typeof analysis === 'object' ? analysis : null);
+        setAnalysisStatus('missing');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setAnalysisPayload(null);
+        setAnalysisStatus('error');
+        setAnalysisError(err?.message || '加载归因解读失败');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [analysisRefreshKey, executionState?.stepStatus, resolvedActiveTab, strategyName, versionIdForReport]);
+
   return {
     enumRefStatus,
     enumRefRows,
@@ -174,6 +222,9 @@ export function useStrategyReportRemoteData({
     priceRefStatus,
     priceRefRows,
     priceRefError,
+    analysisStatus,
+    analysisPayload,
+    analysisError,
     availableTabs,
     resolvedActiveTab,
   };

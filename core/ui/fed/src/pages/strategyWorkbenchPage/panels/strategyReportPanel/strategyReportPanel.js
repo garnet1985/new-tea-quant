@@ -51,6 +51,7 @@ import {
 } from './reportSectionMeta';
 import BacktestPeriodBanner from './components/backtestPeriodBanner';
 import ReportStockDetailView from './components/reportStockDetailView';
+import StepAnalysisInsights from './components/stepAnalysisInsights';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({
@@ -104,6 +105,9 @@ function StrategyReportPanel({
     enumRefRows,
     priceRefStatus,
     priceRefRows,
+    analysisStatus,
+    analysisPayload,
+    analysisError,
     availableTabs,
     resolvedActiveTab,
   } = useStrategyReportRemoteData({
@@ -459,6 +463,15 @@ function StrategyReportPanel({
         <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
       ) : null}
       {renderTabContent()}
+      {resolvedActiveTab
+        && executionState?.stepStatus?.[resolvedActiveTab] === 'done'
+        && !(reportStockView === 'detail' && selectedStock) ? (
+          <StepAnalysisInsights
+            status={analysisStatus}
+            analysis={analysisPayload}
+            error={analysisError}
+          />
+        ) : null}
     </Stack>
   );
 

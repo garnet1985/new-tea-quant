@@ -10,7 +10,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 
-from .consts import ANALYSIS_SUBDIR, SOURCE_JSON
+from .consts import ANALYSIS_SUBDIR, REPORT_JSON, SOURCE_JSON
 from .pipeline import AnalyzerPipeline
 from .step import parse_step
 
@@ -33,6 +33,15 @@ def is_analysis_enabled(settings: Dict[str, Any]) -> bool:
 
 def analysis_source_path(output_dir: Path) -> Path:
     return Path(output_dir) / ANALYSIS_SUBDIR / SOURCE_JSON
+
+
+def analysis_report_path(output_dir: Path) -> Path:
+    return Path(output_dir) / ANALYSIS_SUBDIR / REPORT_JSON
+
+
+def analysis_report_ready(output_dir: Path) -> bool:
+    """True when ``analysis/report.json`` exists (归因已落盘)。"""
+    return analysis_report_path(Path(output_dir)).is_file()
 
 
 def extract_step_result(
@@ -72,7 +81,7 @@ def maybe_run_after_simulate(
     if not output_dir and not version_id:
         return {"skipped": True, "reason": "missing_version"}
 
-    if output_dir and analysis_source_path(Path(output_dir)).is_file() and not force:
+    if output_dir and analysis_report_ready(Path(output_dir)) and not force:
         return {"skipped": True, "reason": "exists"}
 
     try:
@@ -103,6 +112,66 @@ def maybe_run_after_simulate(
         return {"skipped": True, "reason": "error", "error": str(exc)}
 
 
+def ensure_version_analysis(
+    strategy_key: str,
+    *,
+    version_id: str,
+    effective_settings: Dict[str, Any],
+    force: bool = False,
+) -> Dict[str, Any]:
+    """对同一 version 下已有 simulate 产物、缺 ``analysis/report.json`` 的 step 补跑 analyze。"""
+    if not is_analysis_enabled(effective_settings):
+        return {"skipped": True, "reason": "disabled"}
+
+    vid = str(version_id or "").strip().lstrip("vV")
+    if not vid:
+        return {"skipped": True, "reason": "missing_version"}
+
+    from core.modules.strategy.core.services.artifacts import ArtifactStore
+    from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
+    from core.modules.strategy.core.services.discovery import DiscoveryService
+
+    try:
+        folder = DiscoveryService.resolve_strategy_folder(strategy_key)
+    except Exception:
+        return {"skipped": True, "reason": "strategy_not_found"}
+
+    root = ArtifactStore.simulations_root(folder)
+    if VersionMetaStore.resolve_version(root, vid) is None:
+        return {"skipped": True, "reason": "missing_version"}
+
+    ran: list[str] = []
+    already: list[str] = []
+    errors: list[Dict[str, str]] = []
+    for workbench_step in WorkbenchStep:
+        kind = workbench_step.to_simulate_kind()
+        if not VersionMetaStore.step_has_artifacts(root, vid, kind):
+            continue
+        try:
+            store = ArtifactStore.resolve(folder, kind=kind, version_id=vid)
+        except FileNotFoundError:
+            continue
+        out_dir = Path(store.output_dir)
+        if analysis_report_ready(out_dir) and not force:
+            already.append(workbench_step.value)
+            continue
+        try:
+            AnalyzerPipeline.run(store)
+            ran.append(workbench_step.value)
+        except Exception as exc:
+            logger.exception(
+                "analysis backfill failed: strategy=%s version=%s step=%s",
+                strategy_key,
+                vid,
+                workbench_step.value,
+            )
+            errors.append({"step": workbench_step.value, "error": str(exc)})
+
+    if not ran and not errors:
+        return {"skipped": True, "reason": "nothing_todo", "already": already}
+    return {"skipped": False, "ran": ran, "already": already, "errors": errors}
+
+
 def effective_settings_for_strategy(
     strategy_key: str,
     runtime_settings: Optional[Dict[str, Any]] = None,
@@ -121,8 +190,11 @@ def effective_settings_for_strategy(
 
 
 __all__ = [
+    "analysis_report_path",
+    "analysis_report_ready",
     "analysis_source_path",
     "effective_settings_for_strategy",
+    "ensure_version_analysis",
     "extract_step_result",
     "is_analysis_enabled",
     "maybe_run_after_simulate",

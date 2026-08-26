@@ -20,6 +20,20 @@
   margin-bottom: 0.5rem;
 }
 
+.ntq-step-analysis {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ntq-white-12);
+}
+
+.ntq-step-analysis__title {
+  margin-bottom: 0.5rem;
+}
+
+.ntq-step-analysis__body {
+  padding-left: 0.125rem;
+}
+
 .ntq-report-compare {
   width: 100%;
   display: flex;

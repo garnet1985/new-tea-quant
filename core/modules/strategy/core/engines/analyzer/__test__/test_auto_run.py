@@ -9,7 +9,7 @@ from core.modules.strategy.core.engines.analyzer.auto_run import (
     is_analysis_enabled,
     maybe_run_after_simulate,
 )
-from core.modules.strategy.core.engines.analyzer.consts import ANALYSIS_SUBDIR, SOURCE_JSON
+from core.modules.strategy.core.engines.analyzer.consts import ANALYSIS_SUBDIR, REPORT_JSON
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
 pytestmark = pytest.mark.force_run
@@ -47,10 +47,10 @@ def test_maybe_run_skips_when_disabled(tmp_path: Path) -> None:
     assert out == {"skipped": True, "reason": "disabled"}
 
 
-def test_maybe_run_skips_when_source_exists(tmp_path: Path) -> None:
+def test_maybe_run_skips_when_report_exists(tmp_path: Path) -> None:
     analysis_dir = tmp_path / ANALYSIS_SUBDIR
     analysis_dir.mkdir(parents=True)
-    ArtifactIO.write_json(analysis_dir / SOURCE_JSON, {"step": "enum"})
+    ArtifactIO.write_json(analysis_dir / REPORT_JSON, {"insights": {"headline": "ok"}})
 
     out = maybe_run_after_simulate(
         "demo",

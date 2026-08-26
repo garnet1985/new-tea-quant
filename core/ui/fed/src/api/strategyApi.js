@@ -313,6 +313,31 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
 }
 
 /**
+ * V2-07：步骤报告 + 归因 insights（同一次 GET）。
+ * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
+ * @param {string} strategyKeyOrName
+ * @param {'enum'|'price'|'portfolio'} step
+ * @param {string} versionId
+ * @returns {Promise<{ report: object, analysis: object, version_id: string, step: string }>}
+ */
+export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId) {
+  const base = apiStrategyPath(strategyKeyOrName);
+  const vid = encodeURIComponent(String(versionId || '').trim());
+  if (!base || !vid) {
+    throw new Error('缺少 strategy_key_or_name 或 version_id');
+  }
+  const url = `${base}/report/${encodeURIComponent(step)}/${vid}`;
+  const json = await request.getJson(url);
+  const m = json?.message || {};
+  return {
+    report: m.report && typeof m.report === 'object' ? m.report : {},
+    analysis: m.analysis && typeof m.analysis === 'object' ? m.analysis : {},
+    version_id: String(m.version_id || versionId || '').trim(),
+    step: String(m.step || step || '').trim(),
+  };
+}
+
+/**
  * V2-07b：枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
  * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
  * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/ref

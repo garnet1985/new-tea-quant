@@ -467,6 +467,31 @@ class Strategy:
         )
 
     @staticmethod
+    def ensure_version_analysis(
+        key_or_id: str,
+        *,
+        version_id: str,
+        runtime_settings: Optional[Dict[str, Any]] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """补跑同一 version 下缺 ``analysis/report.json`` 的各 step 归因。"""
+        from .engines.analyzer.auto_run import (
+            effective_settings_for_strategy,
+            ensure_version_analysis,
+        )
+
+        effective = effective_settings_for_strategy(
+            key_or_id,
+            runtime_settings,
+        )
+        return ensure_version_analysis(
+            key_or_id,
+            version_id=version_id,
+            effective_settings=effective,
+            force=force,
+        )
+
+    @staticmethod
     def present_report(
         kind: Union[SimulateKind, str],
         output_dir: Union[str, Path],

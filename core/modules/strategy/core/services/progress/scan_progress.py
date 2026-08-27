@@ -1,15 +1,13 @@
-"""Scanner async job progress — disk via ProgressRecorder (strategy-scan channel)."""
+"""Scanner async job progress — disk via ProgressRecorder (strategy-scan channel).
+
+不读 scan 落盘：opportunities 由 ``Strategy.scan_run`` 传入。
+"""
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Dict, List, Optional
 
-from core.modules.strategy.core.engines.scanner.helpers import ScanCacheManager
-
 from .progress_recorder import ProgressRecorder
-
-logger = logging.getLogger(__name__)
 
 
 class ScanProgress:
@@ -118,25 +116,12 @@ class ScanProgress:
         self,
         report: Dict[str, Any],
         *,
-        cache_key: str = "",
+        opportunities: Optional[List[Any]] = None,
     ) -> None:
         base = self._load()
         packed_report = dict(report or {})
-        try:
-            scan_date = str(packed_report.get("date") or "").strip()
-            disk_key = str(
-                cache_key or packed_report.get("strategy_key") or self.strategy_key
-            ).strip()
-            if scan_date and disk_key:
-                cache = ScanCacheManager(disk_key)
-                opportunities = cache.load_opportunities(scan_date)
-                packed_report["opportunities"] = self.opportunity_rows(opportunities)
-        except Exception:
-            logger.exception(
-                "Failed to attach opportunities for job_id=%s strategy=%s",
-                self.job_id,
-                self.strategy_key,
-            )
+        if opportunities is not None:
+            packed_report["opportunities"] = self.opportunity_rows(opportunities)
         base.update(
             {
                 "strategy_name": self.strategy_key,

@@ -37,6 +37,10 @@ class TestStrategyApi(unittest.TestCase):
     def test_public_methods(self) -> None:
         for name in (
             "scan",
+            "scan_page_context",
+            "scan_readiness",
+            "scan_block_reason",
+            "scan_run",
             "enumerate",
             "price_factor",
             "portfolio",

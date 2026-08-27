@@ -39,7 +39,7 @@ strategy/
     ├── helpers/
     ├── services/            # discovery, entity_loader, fingerprint, artifacts, package, progress
     └── engines/
-        ├── scanner/
+        ├── scanner/         # pipeline + job_builder / executor
         ├── enumerator/      # entity_based / slice_based
         ├── price_factor/
         ├── portfolio/       # 不走 BE

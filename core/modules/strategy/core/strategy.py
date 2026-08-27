@@ -71,6 +71,97 @@ class Strategy:
         return ScannerPipeline.scan(key_or_id, demo=demo)
 
     @staticmethod
+    def scan_page_context() -> Dict[str, Any]:
+        """扫描页上下文（数据截止日 / demo 锚点日）。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.page_context()
+
+    @staticmethod
+    def scan_readiness(key_or_id: str, *, demo: bool = False) -> Dict[str, Any]:
+        """工作台扫描就绪态（能否开扫、已有落盘报告）。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.readiness(key_or_id, demo=demo)
+
+    @staticmethod
+    def scan_block_reason(*, demo: bool = False) -> str:
+        """严格模式下的数据门禁文案；demo 或已就绪返回空串。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.block_reason(demo=demo)
+
+    @staticmethod
+    def scan_run(
+        key_or_id: str,
+        *,
+        progress_id: str,
+        demo: bool = False,
+        force: bool = False,
+    ) -> None:
+        """工作台一次扫描：写 ``ScanProgress``，再跑 ``ScannerPipeline.run``。"""
+        from core.modules.data_manager import DataManager
+
+        from .engines.scanner.helpers import ScanCacheManager, ScanDateResolver
+        from .engines.scanner.pipeline import ScannerPipeline
+        from .engines.shared.services.strategy_settings.strategy_settings import (
+            StrategySettings,
+        )
+        from .services.progress.scan_progress import ScanProgress
+
+        name = str(key_or_id or "").strip()
+        jid = str(progress_id or "").strip()
+        prog = ScanProgress.for_job(name, jid)
+        prog.mark_running()
+        try:
+            info, err = ScannerPipeline.resolve_one(name)
+            if err or info is None:
+                raise ValueError(err or "无法解析策略")
+
+            path_key = ScannerPipeline.strategy_key(info, name)
+            folder = ScannerPipeline.strategy_folder(info)
+            data_mgr = DataManager(is_verbose=False)
+            settings = StrategySettings.from_dict(dict(info.settings or {}))
+            settings.apply_defaults()
+            ScannerPipeline.apply_scan_mode(settings, demo=bool(demo))
+
+            block = ScannerPipeline.block_reason(demo=bool(demo), data_manager=data_mgr)
+            if block:
+                raise ValueError(block)
+
+            kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
+            if not kline_latest:
+                raise ValueError("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+
+            def _on_progress(payload: Dict[str, Any]) -> None:
+                prog.tick(payload)
+
+            report = ScannerPipeline.run(
+                info,
+                settings,
+                force=bool(force),
+                on_progress=_on_progress,
+                data_manager=data_mgr,
+            )
+            opportunities: List[Any] = []
+            if isinstance(report, dict):
+                report.setdefault("strategy_key", path_key)
+                scan_date = str(report.get("date") or "").strip()
+                if scan_date:
+                    cache = ScanCacheManager(folder, settings.scanner.max_cache_days)
+                    opportunities = cache.load_opportunities(scan_date)
+            prog.complete(
+                report if isinstance(report, dict) else {},
+                opportunities=opportunities,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Scanner run failed progress_id=%s strategy=%s", jid, name
+            )
+            prog.fail(str(exc))
+            raise
+
+    @staticmethod
     def enumerate(
         key_or_id: str,
         ignore_cache: bool = False,

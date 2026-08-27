@@ -138,7 +138,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 | ReportManager 统一生命周期（`BaseReportManager` + 四引擎） | done |
 
 UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``。
-**加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress`` + ``ScanJob``（扫描）；BFF 只读 / 薄壳。
+**加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress``（扫描进度）；扫描编排在 ``ScannerPipeline``，工作台带进度入口是 ``Strategy.scan_run``。BFF 只读 / 薄壳。
 **Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；读 **磁盘** ``simulations/meta.json`` registry + ``{vid}/effective_settings.json``。
 **Run / cache hit** 在 ``Strategy.simulate`` → ``SimulationVersionStore``（``settings_fp + env_fp`` 扫 registry，**无** workbench DB 双轨）。
 ``launcher`` 包已删除。

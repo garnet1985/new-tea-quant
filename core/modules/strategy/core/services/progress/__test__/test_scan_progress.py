@@ -52,7 +52,7 @@ def test_seed_tick_complete_poll(tmp_path, monkeypatch):
         assert mid["progress"] == 40.0
         assert mid["done_jobs"] == 4
 
-        prog.complete({"date": "2020-01-02", "total_opportunities": 0}, cache_key="")
+        prog.complete({"date": "2020-01-02", "total_opportunities": 0})
         done = ScanProgress.get_poll_dto("demo/x", "job1")
         assert done["status"] == "completed"
         assert done["is_success"] is True
@@ -62,6 +62,14 @@ def test_seed_tick_complete_poll(tmp_path, monkeypatch):
         assert not live.exists()
     finally:
         PathManager.clear_userspace_cache()
+
+
+def test_scan_progress_does_not_import_engines() -> None:
+    import core.modules.strategy.core.services.progress.scan_progress as mod
+
+    text = Path(mod.__file__).read_text(encoding="utf-8")
+    assert "engines" not in text
+    assert "ScanCacheManager" not in text
 
 
 def test_fail_poll(tmp_path, monkeypatch):

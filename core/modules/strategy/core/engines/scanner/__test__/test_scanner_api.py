@@ -17,6 +17,20 @@ def test_strategy_scan_delegates_to_pipeline() -> None:
     scan.assert_called_once_with("demo", demo=True)
 
 
+def test_strategy_scan_workbench_delegates_to_pipeline() -> None:
+    with patch.object(ScannerPipeline, "page_context", return_value={"data_end": {}}) as ctx:
+        assert Strategy.scan_page_context() == {"data_end": {}}
+    ctx.assert_called_once()
+
+    with patch.object(ScannerPipeline, "readiness", return_value={"can_scan": True}) as ready:
+        assert Strategy.scan_readiness("demo", demo=True) == {"can_scan": True}
+    ready.assert_called_once_with("demo", demo=True)
+
+    with patch.object(ScannerPipeline, "block_reason", return_value="") as block:
+        assert Strategy.scan_block_reason(demo=False) == ""
+    block.assert_called_once_with(demo=False)
+
+
 def test_scanner_pipeline_scan_empty_targets() -> None:
     with patch.object(ScannerPipeline, "resolve_targets", return_value=[]):
         assert ScannerPipeline.scan() == {}

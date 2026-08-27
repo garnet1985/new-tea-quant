@@ -28,6 +28,16 @@
   - `key_or_id`：策略 key / 相对路径；`None` 时行为由扫描管线决定
   - `demo`：演示模式
 
+### scan_page_context / scan_readiness / scan_block_reason / scan_run
+
+`Strategy.scan_page_context() -> dict`  
+`Strategy.scan_readiness(key_or_id: str, *, demo: bool = False) -> dict`  
+`Strategy.scan_block_reason(*, demo: bool = False) -> str`  
+`Strategy.scan_run(key_or_id: str, *, progress_id: str, demo: bool = False, force: bool = False) -> None`
+
+- **状态：** `beta`
+- **描述：** 工作台扫描。读模型在 `ScannerPipeline`（page_context / readiness / block_reason）；`scan_run` 写 `ScanProgress` 后调用 `ScannerPipeline.run`。CLI 用 `scan`（可多策略、无进度文件）。BFF 只负责线程与单飞锁。
+
 ### simulate
 
 `Strategy.simulate(key_or_id: str, *, kind: SimulateKind | str = SimulateKind.ENUMERATE, ignore_cache: bool = False, runtime_settings: dict | None = None) -> dict`

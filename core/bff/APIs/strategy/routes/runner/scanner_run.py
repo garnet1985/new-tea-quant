@@ -1,4 +1,4 @@
-"""BFF scanner async shell: single-flight + thread; domain in ``ScanJob`` / ``ScanProgress``."""
+"""BFF scanner async shell: single-flight + thread; domain on ``Strategy.scan_run`` / ``ScanProgress``."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
+from core.modules.strategy import Strategy
 from core.modules.strategy.core.services.progress import ScanProgress
-from core.modules.strategy.core.services.scan import ScanJob
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,11 @@ def _has_active_scan_locked() -> bool:
 
 
 def get_scan_page_context() -> Dict[str, Any]:
-    return ScanJob.page_context()
+    return Strategy.scan_page_context()
 
 
 def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, Any]:
-    return ScanJob.readiness(strategy_name=strategy_name, demo=bool(demo))
+    return Strategy.scan_readiness(strategy_name, demo=bool(demo))
 
 
 def get_scan_progress(*, strategy_name: str, job_id: str) -> Optional[Dict[str, Any]]:
@@ -42,9 +42,9 @@ def _background_scan_job(
     job_id: str, strategy_name: str, *, demo: bool, force: bool
 ) -> None:
     try:
-        ScanJob.execute(
-            strategy_name=strategy_name,
-            job_id=job_id,
+        Strategy.scan_run(
+            strategy_name,
+            progress_id=job_id,
             demo=bool(demo),
             force=bool(force),
         )
@@ -70,7 +70,7 @@ def trigger_strategy_scan_run(
         return {"is_triggered": False, "reason": "strategy_name 无效"}
 
     # 严格模式：启动线程前先做数据门禁，避免先跑进度再失败
-    block = ScanJob.strict_block_reason(demo=bool(demo))
+    block = Strategy.scan_block_reason(demo=bool(demo))
     if block:
         return {"is_triggered": False, "reason": block}
 

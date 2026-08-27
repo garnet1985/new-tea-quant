@@ -13,19 +13,17 @@ from core.modules.strategy import Strategy
 
 class StrategyVersionImplementer:
     def __init__(self) -> None:
-        self._WorkbenchCacheClear = None
+        self._ArtifactRetention = None
         self._WorkbenchSnapshots = None
 
     def lazy_load(self) -> "StrategyVersionImplementer":
         if self._WorkbenchSnapshots is None:
-            from core.modules.strategy.core.services.workbench_cache import (
-                WorkbenchCacheClear,
-            )
+            from core.modules.strategy.core.services.artifacts import ArtifactRetention
             from core.bff.APIs.strategy.helpers.workbench_snapshots import (
                 WorkbenchSnapshots,
             )
 
-            self._WorkbenchCacheClear = WorkbenchCacheClear
+            self._ArtifactRetention = ArtifactRetention
             self._WorkbenchSnapshots = WorkbenchSnapshots
         return self
 
@@ -60,18 +58,18 @@ class StrategyVersionImplementer:
         return row
 
     def clear_cache_all(self) -> Dict[str, Any]:
-        assert self._WorkbenchCacheClear is not None
-        return self._WorkbenchCacheClear.clear_all()
+        assert self._ArtifactRetention is not None
+        return self._ArtifactRetention.clear_all()
 
     def clear_cache_by_version(
         self, *, strategy_key_or_name: str, version_id: str
     ) -> Dict[str, Any]:
-        assert self._WorkbenchCacheClear is not None
+        assert self._ArtifactRetention is not None
         name = Strategy.resolve(strategy_key_or_name)
         sid = WorkbenchVersionId.parse(version_id)
         if sid is None:
             raise ValueError("version_id 无效")
-        return self._WorkbenchCacheClear.clear_by_version(name, sid)
+        return self._ArtifactRetention.clear_by_version(name, sid)
 
 
 impl = StrategyVersionImplementer()

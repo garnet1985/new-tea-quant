@@ -37,7 +37,7 @@ strategy/
     ├── enums.py
     ├── hooks/
     ├── helpers/
-    ├── services/            # discovery, entity_loader, simulation_cache, package, progress, results_retention, workbench_cache
+    ├── services/            # discovery, entity_loader, fingerprint, artifacts, package, progress
     └── engines/
         ├── scanner/
         ├── enumerator/      # entity_based / slice_based

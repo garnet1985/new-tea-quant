@@ -167,8 +167,9 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 
 | 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
 |------|------------|------|------|------|
-| `entity_loader` 整包 | S E | Facade, fingerprints | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
-| `simulation_cache` | — | Facade / fingerprints | keep | 磁盘 registry + 指纹（``SimulationVersionStore``） |
+| `entity_loader` 整包 | S E | Facade, SimulateSession | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
+| `fingerprint` | — | Facade / BFF settings | keep | 收集 identity input → settings_fp / env_fp（``FingerprintCalculator``） |
+| `artifacts` | E P O | Facade / BFF | keep | 产物读写 + version cache（路径/`version_id`，不含引擎 UI）+ retention（``ArtifactRetention``） |
 | `discovery` | — | Facade | keep | 策略发现 |
 | `data/simulation_output_recorder` | E P O | — | keep | version 目录分配 |
 
@@ -214,7 +215,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 |------|------|
 | 多引擎同名 `JobBuilder` / `JobExecutor` | — | **done**：类名加前缀（文件名不变）`Scanner*` / `EnumEntity*` / `EnumSlice*` / `PriceFactor*`；基类仍 `BaseJob*` |
 
-| 磁盘 scan cache | `scanner/helpers/cache_manager.py`（``ScanCacheManager``，磁盘 scan CSV） |
+| 磁盘 scan cache | `ScanCacheManager` 读写 CSV；日期 keep-N 在 ``ArtifactStore.prune_scan`` |
 | `Investment` vs `PortfolioInvestment` | 文件名 `portfolio/data_class/investment.py` 仍易混；类名已区分 |
 | userspace `strategy.py` vs 模块 `strategy.py` | discovery 已用 `_ntq_strategy_*` 区分 |
 | Scanner runtime `scan_date` 键名 | 与 tick `as_of`/`point` 并存；可逐步改成只作 meta，避免再当时钟 |
@@ -226,7 +227,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 | 在 BE 内核调 `contract.until` | 切片属 Strategy 适配层（`AsOfSlice`），不把 data_contract 绑进 BE |
 | 为 enum 再引入 TimelineBuilder / JobSession | 禁止 |
 | 删模块内 `bff_support` / `launcher` | **done**：UI snapshot/hydrate → BFF helpers；scan/job progress → core services；BFF runner 薄壳 |
-| 拆 `fingerprints` 出 `simulation_cache` | **不做**：指纹本就是给 cache 用的；以后若边界变了再挪 |
+| 拆 `fingerprints` 出 `simulation_cache` | **done**：``services/fingerprint``；查盘/清理已并入 ``artifacts`` |
 
 ---
 

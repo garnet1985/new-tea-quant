@@ -90,6 +90,17 @@ def test_prune_root_keeps_newest(tmp_path: Path) -> None:
     assert sorted(p.name for p in root.iterdir() if p.is_dir()) == ["3", "4"]
 
 
+def test_prune_scan_root_keeps_newest_dates(tmp_path: Path) -> None:
+    root = tmp_path / "scan"
+    for day in ("20240108", "20240109", "20240110", "20240111"):
+        (root / day).mkdir(parents=True)
+    (root / "notes").mkdir()
+    deleted = ArtifactStore.prune_scan_root(root, max_versions=2)
+    assert deleted == 2
+    remaining = sorted(p.name for p in root.iterdir() if p.is_dir())
+    assert remaining == ["20240110", "20240111", "notes"]
+
+
 def test_allocate_reuses_version_id_for_step(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "simulations"
     monkeypatch.setattr(

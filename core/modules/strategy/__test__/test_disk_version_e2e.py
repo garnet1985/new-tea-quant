@@ -16,9 +16,20 @@ from core.modules.strategy.core.services.artifacts.consts import (
 )
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.engines.enumerator.pipeline import EnumeratorPipeline
+from core.modules.strategy.core.engines.shared.data_class.simulate_session import (
+    SimulateSession,
+)
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 from core.modules.strategy.core.strategy import Strategy
 
 pytestmark = pytest.mark.force_run
+
+
+def _prepare_entity_cache(self, **kwargs):
+    self.global_entity_cache = MagicMock()
+    return self.global_entity_cache
 
 
 def _fps():
@@ -27,9 +38,8 @@ def _fps():
         env_fp="env-fp",
         disk_settings_hash="dsh",
         settings_diff={"core": {"n": 1}},
-        effective_settings={"core": {"n": 1}},
+        effective_settings=StrategySettings.from_dict({"core": {"n": 1}}),
         entity_ids=["000001.SZ"],
-        global_entity_cache=MagicMock(),
     )
 
 
@@ -80,6 +90,10 @@ def test_simulate_miss_writes_disk_registry_and_version_dirs(tmp_path: Path) -> 
         strategy_module.SimulationVersionStore,
         "get_cache",
         return_value=None,
+    ), patch.object(
+        SimulateSession,
+        "prepare_entity_cache",
+        _prepare_entity_cache,
     ), patch.object(
         EnumeratorPipeline,
         "run",
@@ -149,5 +163,6 @@ def test_simulate_hit_skips_pipeline(tmp_path: Path) -> None:
     ) as run:
         out = Strategy.simulate("demo/test_strategy", kind=SimulateKind.ENUMERATE)
 
-    assert out == cached
+    assert out["enumerate"] == cached["enumerate"]
+    assert out["version_id"] == "2"
     run.assert_not_called()

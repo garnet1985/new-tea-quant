@@ -96,7 +96,11 @@ def _read_next_version_id(meta: Dict[str, Any]) -> int:
         return 1
 
 
-def _resolve_max_versions(max_versions: Optional[int] = None) -> int:
+def _resolve_positive_cap(
+    max_versions: Optional[int],
+    *,
+    default: int,
+) -> int:
     if max_versions is not None:
         try:
             value = int(max_versions)
@@ -107,7 +111,32 @@ def _resolve_max_versions(max_versions: Optional[int] = None) -> int:
         if value < 1:
             raise ValueError(f"max_versions 必须 >= 1，收到: {value}")
         return value
-    return ProjectContext.config.get_simulation_results_max_versions()
+    return int(default)
+
+
+def _resolve_max_versions(max_versions: Optional[int] = None) -> int:
+    return _resolve_positive_cap(
+        max_versions,
+        default=ProjectContext.config.get_simulation_results_max_versions(),
+    )
+
+
+def _resolve_scan_max_versions(max_versions: Optional[int] = None) -> int:
+    return _resolve_positive_cap(
+        max_versions,
+        default=ProjectContext.config.get_scan_results_max_versions(),
+    )
+
+
+def _iter_scan_date_dirs(scan_root: Path) -> List[Path]:
+    root = Path(scan_root)
+    if not root.is_dir():
+        return []
+    return [
+        d
+        for d in root.iterdir()
+        if d.is_dir() and d.name.isdigit() and len(d.name) == 8
+    ]
 
 
 @dataclass
@@ -189,6 +218,15 @@ class ArtifactStore:
         strategy_folder: Union[str, Path],
     ) -> Path:
         return ProjectContext.path.get_strategy_simulations_directory(
+            Path(strategy_folder)
+        )
+
+    @classmethod
+    def scan_root(
+        cls,
+        strategy_folder: Union[str, Path],
+    ) -> Path:
+        return ProjectContext.path.get_strategy_scan_results_directory(
             Path(strategy_folder)
         )
 
@@ -407,6 +445,46 @@ class ArtifactStore:
             except Exception:
                 logger.exception("Failed to prune simulation version dir: %s", old_dir)
         cls.clear_cache()
+        return deleted
+
+    @classmethod
+    def prune_scan(
+        cls,
+        strategy_folder: Union[str, Path],
+        *,
+        max_versions: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        folder = Path(strategy_folder)
+        cap = _resolve_scan_max_versions(max_versions)
+        deleted = cls.prune_scan_root(cls.scan_root(folder), max_versions=cap)
+        return {
+            "ok": True,
+            "strategy_folder": str(folder),
+            "deleted_count": deleted,
+            "max_versions": cap,
+        }
+
+    @classmethod
+    def prune_scan_root(
+        cls,
+        scan_root: Path,
+        *,
+        max_versions: Optional[int] = None,
+    ) -> int:
+        """keep-N：``results/scan/{YYYYMMDD}/``，保留最新日期目录。"""
+        cap = _resolve_scan_max_versions(max_versions)
+        date_dirs = _iter_scan_date_dirs(scan_root)
+        if len(date_dirs) <= cap:
+            return 0
+        date_dirs.sort(key=lambda d: d.name, reverse=True)
+        deleted = 0
+        for old_dir in date_dirs[cap:]:
+            try:
+                shutil.rmtree(old_dir)
+                deleted += 1
+                logger.info("Pruned scan date dir: %s", old_dir)
+            except Exception:
+                logger.exception("Failed to prune scan date dir: %s", old_dir)
         return deleted
 
     @classmethod

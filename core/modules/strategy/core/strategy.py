@@ -18,10 +18,11 @@ from .services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from .engines.shared.data_class.simulate_session import SimulateSession
-from .services.simulation_cache.version_store import (
-    SimulationVersionStore,
+from .engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
 )
-from .services.simulation_cache.fingerprints import (
+from .services.artifacts import SimulationVersionStore
+from .services.fingerprint import (
     FingerprintCalculator,
 )
 
@@ -147,14 +148,14 @@ class Strategy:
         fp_res = FingerprintCalculator.calculate_fingerprints(
             strategy_info,
             runtime_settings,
-            stock_list,
-            latest_completed_trading_date,
+            entity_ids=stock_list,
         )
 
         ctx = SimulateSession.create(
             strategy_info=strategy_info,
             fp_res=fp_res,
             kind=step,
+            seed_entity_cache=False,
         )
         cache_key = ctx.strategy_key or key_or_id
 
@@ -172,7 +173,7 @@ class Strategy:
                     ctx.kind.value,
                     cache_key,
                 )
-                return dict(cached)
+                return Strategy._attach_version_id(dict(cached), ctx.kind)
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
                 ctx.kind.value,
@@ -185,6 +186,10 @@ class Strategy:
                 cache_key,
             )
 
+        ctx.prepare_entity_cache(
+            stock_list=stock_list,
+            latest_completed_trading_date=latest_completed_trading_date,
+        )
         Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
         ctx.validate_for_run()
         return Strategy._run_steps(
@@ -326,11 +331,7 @@ class Strategy:
         """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
         consolidated: Dict[str, Any] = {}
         folder = Path(strategy_folder)
-        strategy_name = str(
-            getattr(ctx.strategy_info, "unique_relative_path", "")
-            or ctx.strategy_key
-            or ""
-        )
+        semantic = StrategySettings.extract_effective_settings(ctx.effective_settings)
         for step in ctx.steps:
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
@@ -343,11 +344,9 @@ class Strategy:
                 SimulationVersionStore.record_step_complete(
                     folder,
                     version_id=str(step_res.get("version_id")),
-                    kind=step,
                     fps=ctx.fp_res,
-                    output_dir=str(step_res.get("output_dir")),
+                    settings=semantic,
                     entity_ids=list(ctx.entity_ids or []),
-                    strategy_name=strategy_name,
                 )
 
             analysis_out = Strategy._maybe_run_analysis(
@@ -366,12 +365,20 @@ class Strategy:
                 ctx.strategy_key,
                 step_res.get("version_id"),
             )
-        primary = consolidated.get(ctx.kind.value)
+        return Strategy._attach_version_id(consolidated, ctx.kind)
+
+    @staticmethod
+    def _attach_version_id(
+        payload: Dict[str, Any],
+        kind: SimulateKind,
+    ) -> Dict[str, Any]:
+        """把 step 槽里的 ``version_id`` 提到顶层，cache hit / miss 同一形状。"""
+        primary = payload.get(kind.value)
         if isinstance(primary, dict):
             vid = str(primary.get("version_id") or "").strip()
             if vid:
-                consolidated["version_id"] = vid
-        return consolidated
+                payload["version_id"] = vid
+        return payload
 
     @staticmethod
     def latest_completed_trading_date() -> str:
@@ -604,9 +611,9 @@ class Strategy:
         ``kind`` 为 ``enum`` / ``price`` / ``portfolio``（或 enumerate/price_factor）；
         ``None`` 表示三步都 prune。上限默认读 ``data.json`` retention。
         """
-        from .services.results_retention import ResultsRetention
+        from .services.artifacts import ArtifactRetention
 
-        return ResultsRetention.prune_simulation_results(
+        return ArtifactRetention.prune_simulation_results(
             key_or_id, kind=kind, max_versions=max_versions
         )
 
@@ -617,9 +624,9 @@ class Strategy:
         max_versions: Optional[int] = None,
     ) -> Dict[str, Any]:
         """按 retention 清理策略 ``results/scan/`` 旧日期版本。"""
-        from .services.results_retention import ResultsRetention
+        from .services.artifacts import ArtifactRetention
 
-        return ResultsRetention.prune_scan_results(
+        return ArtifactRetention.prune_scan_results(
             key_or_id, max_versions=max_versions
         )
 

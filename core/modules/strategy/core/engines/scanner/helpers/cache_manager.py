@@ -1,8 +1,8 @@
 """扫描结果按日 CSV 文件缓存（非 DB 工作台）。
 
 本文件:
-- ScanCacheManager: ``scan_results/{strategy}/{date}/opportunities.csv`` 读写与过期清理
-  边界: 负责磁盘 scan 缓存；不负责 simulation version registry 或 enum 产物
+- ScanCacheManager: ``results/scan/{date}/opportunities.csv`` 读写
+  边界: 负责扫描 CSV / summary I/O；日期目录 keep-N 在 ``ArtifactStore.prune_scan``
 """
 
 from __future__ import annotations
@@ -10,7 +10,6 @@ from __future__ import annotations
 import csv
 import json
 import logging
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Union
@@ -143,21 +142,12 @@ class ScanCacheManager:
         return out
 
     def cleanup_old_cache(self) -> None:
-        if not self.cache_base_dir.exists():
-            return
-        date_dirs = [
-            d
-            for d in self.cache_base_dir.iterdir()
-            if d.is_dir() and d.name.isdigit() and len(d.name) == 8
-        ]
-        if len(date_dirs) <= self.max_cache_days:
-            return
-        date_dirs.sort(key=lambda d: d.name, reverse=True)
-        for date_dir in date_dirs[self.max_cache_days :]:
-            try:
-                shutil.rmtree(date_dir)
-            except Exception as exc:
-                logger.warning("[ScanCacheManager] cleanup failed: %s", exc)
+        from core.modules.strategy.core.services.artifacts import ArtifactStore
+
+        ArtifactStore.prune_scan_root(
+            self.cache_base_dir,
+            max_versions=int(self.max_cache_days),
+        )
 
 
 __all__ = ["ScanCacheManager"]

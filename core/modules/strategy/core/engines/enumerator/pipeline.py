@@ -33,9 +33,7 @@ from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
 )
-from core.modules.strategy.core.services.simulation_cache.version_store import (
-    SimulationVersionStore,
-)
+from core.modules.strategy.core.services.artifacts import SimulationVersionStore
 from core.modules.strategy.core.services.progress import PipelineProgress
 
 if TYPE_CHECKING:
@@ -437,7 +435,7 @@ class EnumeratorPipeline:
         slice_plan = results.get("calendar_slice_runtime_plan")
         if isinstance(slice_plan, dict) and slice_plan:
             out["calendar_slice_runtime_plan"] = dict(slice_plan)
-        # DB / BFF：附带 ``enumMetrics``（与 price/portfolio ``to_cache_dict`` 对齐）
+        # 实时 run 附带 ``enumMetrics``；cache hit / BFF 读路径由 hydrate 从 overall_report 补全
         output_dir = results.get("output_dir")
         if output_dir:
             try:

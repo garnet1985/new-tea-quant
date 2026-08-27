@@ -1,4 +1,4 @@
-"""仿真产物统一入口。"""
+"""仿真产物统一入口：读写、version cache、retention。"""
 from .io import ArtifactIO
 from .consts import (
     ANALYSIS_REPORT_FILE,
@@ -32,6 +32,8 @@ from .store import (
     PortfolioStore,
     PriceFactorStore,
 )
+from .version_cache import SimulationVersionStore
+from .retention import ArtifactRetention
 from .tables import (
     EntityInvestmentCsv,
     EntitySignalSnapshotCsv,
@@ -69,6 +71,7 @@ __all__ = [
     "ArtifactIO",
     "ArtifactRuntime",
     "ArtifactStore",
+    "ArtifactRetention",
     "EnumerateStore",
     "PortfolioStore",
     "PriceFactorStore",
@@ -79,4 +82,5 @@ __all__ = [
     "InvestmentRow",
     "PriceInvestmentRow",
     "SignalSnapshotRow",
+    "SimulationVersionStore",
 ]

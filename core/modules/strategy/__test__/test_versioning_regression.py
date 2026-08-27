@@ -14,23 +14,22 @@ from core.modules.strategy.core.services.artifacts.consts import (
     RUNTIME_ENV_FILE,
 )
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
-from core.modules.strategy.core.services.simulation_cache.version_store import (
-    SimulationVersionStore,
-)
+from core.modules.strategy.core.services.artifacts import SimulationVersionStore
 from core.modules.strategy.core.strategy import Strategy
 
 pytestmark = pytest.mark.force_run
 
 
 def _fps(*, settings_fp: str = "sfp", env_fp: str = "efp"):
+    settings = MagicMock()
+    settings.analysis.enabled = False
     return SimpleNamespace(
         settings_fp=settings_fp,
         env_fp=env_fp,
         disk_settings_hash="dsh",
         settings_diff={},
-        effective_settings={"core": {"n": 1}},
+        effective_settings=settings,
         entity_ids=["000001.SZ"],
-        global_entity_cache=MagicMock(),
     )
 
 
@@ -43,7 +42,7 @@ def test_registry_hit_requires_matching_env_fp(tmp_path: Path) -> None:
     VersionMetaStore.register_version(root, "1", settings_fp="s", env_fp="old-env")
 
     with patch(
-        "core.modules.strategy.core.services.simulation_cache.version_store.ArtifactStore.simulations_root",
+        "core.modules.strategy.core.services.artifacts.version_cache.ArtifactStore.simulations_root",
         return_value=root,
     ):
         hit = SimulationVersionStore.get_cache(
@@ -75,7 +74,7 @@ def test_new_layout_paths_under_shared_version_id(tmp_path: Path) -> None:
 
 def test_ignore_cache_skips_enum_reuse() -> None:
     from core.modules.strategy.core.engines.enumerator.pipeline import EnumeratorPipeline
-    from core.modules.strategy.core.services.simulation_cache.__test__.test_simulate_cache_flow import (
+    from core.modules.strategy.__test__.test_simulate_cache_flow import (
         _ctx,
     )
 

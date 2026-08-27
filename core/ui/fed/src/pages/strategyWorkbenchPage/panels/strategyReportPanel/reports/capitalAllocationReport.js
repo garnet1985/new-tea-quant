@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { Box, Stack, Typography } from '@mui/material';
-import ReactECharts from 'echarts-for-react';
-import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import React from 'react';
+import { Stack, Typography } from '@mui/material';
+import ChartPanel from 'components/chartPanel/chartPanel';
 import MetricCard from 'components/metricCard/metricCard';
+import MetricGrid from 'components/metricGrid/metricGrid';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import {
   CAPITAL_CHART_TIPS,
@@ -11,9 +11,12 @@ import {
   REPORT_STOCK_GRID_TIPS,
 } from '../reportMetricTips';
 import { formatReportMoney } from '../lib/formatReportMoney';
-import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import { formatReportChartDateLabel } from '../lib/reportDateFormat';
 import ReportUnavailableHint from '../components/reportUnavailableHint';
+import ReportStockGridSection from '../components/reportStockGridSection';
+import ExecutionSkipCards from '../components/executionSkipCards';
+import { useReportStockSearch } from '../hooks/useReportStockSearch';
+import { STOCK_NAME_COLUMN, stockCodeColumn } from '../lib/reportStockColumns';
+import { formatReportChartDateLabel } from '../lib/reportDateFormat';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
@@ -178,25 +181,11 @@ function CapitalAllocationReport({
   showStockGrid = true,
   hideTitle = false,
 }) {
-  const [stockSearch, setStockSearch] = useState('');
-
-  const derivedStockRows = useMemo(() => (
-    Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
-  ), [stockRows]);
-
-  const filteredRows = useMemo(() => {
-    const keyword = stockSearch.trim().toLowerCase();
-    const filtered = keyword
-      ? derivedStockRows.filter((row) => (
-        row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
-      ))
-      : derivedStockRows;
-    return filtered;
-  }, [derivedStockRows, stockSearch]);
+  const { stockSearch, setStockSearch, derivedStockRows, filteredRows } = useReportStockSearch(stockRows);
 
   const stockColumns = [
-    { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },
-    { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
+    stockCodeColumn(),
+    STOCK_NAME_COLUMN,
     {
       field: 'tradeCount',
       headerName: '交易次数',
@@ -232,12 +221,13 @@ function CapitalAllocationReport({
       ) : null}
 
       {showStockSampleGrid ? (
-        <ReportStockSampleGrid
+        <ReportStockGridSection
+          filteredRows={filteredRows}
+          hideWhenEmpty={false}
           title="逐股样本"
           tip={REPORT_STOCK_GRID_TIPS.portfolio}
           searchValue={stockSearch}
           onSearchChange={setStockSearch}
-          rows={filteredRows}
           columns={stockColumns}
         />
       ) : null}
@@ -246,7 +236,7 @@ function CapitalAllocationReport({
         title="资金结果总览"
         tip={CAPITAL_SECTION_TIPS.overview}
       >
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+        <MetricGrid>
           <MetricCard
             title="初始资金"
             titleTip={CAPITAL_METRIC_TIPS.initialCapital}
@@ -267,28 +257,20 @@ function CapitalAllocationReport({
             titleTip={CAPITAL_METRIC_TIPS.calmarRatio}
             value={metrics.calmarRatio}
           />
-        </Box>
-        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75 }}>
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              资产曲线
-            </Typography>
-            <NtqHelpTooltip title={CAPITAL_CHART_TIPS.equityCurve} />
-          </Stack>
-          <ReactECharts
-            option={buildEquityCurveOption(metrics)}
-            style={{ height: 180, width: '100%' }}
-            notMerge
-            lazyUpdate
-          />
-        </Box>
+        </MetricGrid>
+        <ChartPanel
+          title="资产曲线"
+          tip={CAPITAL_CHART_TIPS.equityCurve}
+          option={buildEquityCurveOption(metrics)}
+          height={180}
+        />
       </SectionBlock>
 
       <SectionBlock
         title="交易质量"
         tip={CAPITAL_SECTION_TIPS.tradeQuality}
       >
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+        <MetricGrid>
           <MetricCard
             title="总交易次数"
             titleTip={CAPITAL_METRIC_TIPS.totalTrades}
@@ -311,7 +293,7 @@ function CapitalAllocationReport({
             titleTip={CAPITAL_METRIC_TIPS.avgPnlPerTrade}
             value={formatReportMoney(metrics.avgPnlPerTrade)}
           />
-        </Box>
+        </MetricGrid>
       </SectionBlock>
 
       <SectionBlock
@@ -319,43 +301,11 @@ function CapitalAllocationReport({
         tip={CAPITAL_SECTION_TIPS.executionSkips}
       >
         {executionSkipsAvail ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1 }}>
-            <MetricCard
-              title="涨停跳过买入"
-              titleTip={CAPITAL_METRIC_TIPS.skippedBuyAtLimitUp}
-              value={metrics.skippedBuyAtLimitUp.toLocaleString()}
-            />
-            <MetricCard
-              title="跌停跳过卖出"
-              titleTip={CAPITAL_METRIC_TIPS.skippedSellAtLimitDown}
-              value={metrics.skippedSellAtLimitDown.toLocaleString()}
-            />
-            <MetricCard
-              title="状态跳过投资"
-              titleTip={CAPITAL_METRIC_TIPS.skippedStockStatus}
-              value={metrics.skippedStockStatus.toLocaleString()}
-            />
-            <MetricCard
-              title="参与率跳过买入"
-              titleTip={CAPITAL_METRIC_TIPS.skippedBuyParticipation}
-              value={metrics.skippedBuyParticipation.toLocaleString()}
-            />
-            <MetricCard
-              title="参与率跳过卖出"
-              titleTip={CAPITAL_METRIC_TIPS.skippedSellParticipation}
-              value={metrics.skippedSellParticipation.toLocaleString()}
-            />
-            <MetricCard
-              title="参与率缩量买入"
-              titleTip={CAPITAL_METRIC_TIPS.clippedBuyParticipation}
-              value={metrics.clippedBuyParticipation.toLocaleString()}
-            />
-            <MetricCard
-              title="参与率缩量卖出"
-              titleTip={CAPITAL_METRIC_TIPS.clippedSellParticipation}
-              value={metrics.clippedSellParticipation.toLocaleString()}
-            />
-          </Box>
+          <ExecutionSkipCards
+            metrics={metrics}
+            tips={CAPITAL_METRIC_TIPS}
+            includeParticipation
+          />
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
@@ -363,7 +313,7 @@ function CapitalAllocationReport({
         title="仓位与资金利用率"
         tip={CAPITAL_SECTION_TIPS.utilization}
       >
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+        <MetricGrid>
           <MetricCard
             title="平均持仓数"
             titleTip={CAPITAL_METRIC_TIPS.avgOpenPositions}
@@ -384,14 +334,14 @@ function CapitalAllocationReport({
             titleTip={CAPITAL_METRIC_TIPS.capitalUtilization}
             value={`${metrics.capitalUtilizationRatio}%`}
           />
-        </Box>
+        </MetricGrid>
       </SectionBlock>
 
       <SectionBlock
         title="风险结构"
         tip={CAPITAL_SECTION_TIPS.risk}
       >
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+        <MetricGrid>
           <MetricCard
             title="最大回撤"
             titleTip={CAPITAL_METRIC_TIPS.maxDrawdown}
@@ -412,28 +362,20 @@ function CapitalAllocationReport({
             titleTip={CAPITAL_METRIC_TIPS.worstTradePnls}
             value={metrics.worstTradePnls.map((value) => formatReportMoney(value)).join(' / ')}
           />
-        </Box>
-        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75 }}>
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              回撤曲线
-            </Typography>
-            <NtqHelpTooltip title={CAPITAL_CHART_TIPS.drawdownCurve} />
-          </Stack>
-          <ReactECharts
-            option={buildDrawdownCurveOption(metrics)}
-            style={{ height: 170, width: '100%' }}
-            notMerge
-            lazyUpdate
-          />
-        </Box>
+        </MetricGrid>
+        <ChartPanel
+          title="回撤曲线"
+          tip={CAPITAL_CHART_TIPS.drawdownCurve}
+          option={buildDrawdownCurveOption(metrics)}
+          height={170}
+        />
       </SectionBlock>
 
       <SectionBlock
         title="股票集中度"
         tip={CAPITAL_SECTION_TIPS.concentration}
       >
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+        <MetricGrid>
           <MetricCard
             title="触发股票数"
             titleTip={CAPITAL_METRIC_TIPS.stockCount}
@@ -454,7 +396,7 @@ function CapitalAllocationReport({
             titleTip={CAPITAL_METRIC_TIPS.stockPnlCv}
             value={metrics.stockPnlCv}
           />
-        </Box>
+        </MetricGrid>
       </SectionBlock>
     </Stack>
   );

@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { Box, Stack, Typography } from '@mui/material';
-import ReactECharts from 'echarts-for-react';
+import ChartPanel from 'components/chartPanel/chartPanel';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import MetricCard from 'components/metricCard/metricCard';
+import MetricGrid from 'components/metricGrid/metricGrid';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import ReportUnavailableHint from '../components/reportUnavailableHint';
@@ -61,20 +62,6 @@ import {
   sampleSizeFromFacts,
   significanceLabel,
 } from '../lib/analysisFactsDisplay';
-
-function metricGrid(children) {
-  return (
-    <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' },
-        gap: 1,
-      }}
-    >
-      {children}
-    </Box>
-  );
-}
 
 function RankRows({ rows, valueKey, formatValue }) {
   const peak = maxAbs(rows.map((row) => row?.[valueKey]));
@@ -274,37 +261,6 @@ BinTable.defaultProps = {
   rows: [],
 };
 
-function RoiChartPanel({ title, tip, option, height = 180 }) {
-  if (!option) return null;
-  return (
-    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, minWidth: 0 }}>
-      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
-        <Typography variant="caption" color="text.secondary">{title}</Typography>
-        {tip ? <NtqHelpTooltip title={tip} /> : null}
-      </Stack>
-      <ReactECharts
-        option={option}
-        style={{ height, width: '100%' }}
-        notMerge
-        lazyUpdate
-      />
-    </Box>
-  );
-}
-
-RoiChartPanel.propTypes = {
-  title: PropTypes.string.isRequired,
-  tip: PropTypes.string,
-  option: PropTypes.object,
-  height: PropTypes.number,
-};
-
-RoiChartPanel.defaultProps = {
-  tip: '',
-  option: null,
-  height: 180,
-};
-
 function StepAnalysisInsights({ status, analysis, error = '' }) {
   const facts = useMemo(() => {
     if (!analysis?.enabled || !analysis?.facts || typeof analysis.facts !== 'object') {
@@ -416,47 +372,45 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
 
           {showOverview ? (
             <SectionBlock title={ANALYSIS_OVERVIEW_TITLE} tip={ANALYSIS_SECTION_TIPS.overview}>
-              {metricGrid(
-                <>
-                  {facts.field_key ? (
-                    <MetricCard
-                      title={ANALYSIS_PRIMARY_FIELD_CAPTION}
-                      titleTip={ANALYSIS_METRIC_TIPS.fieldKey}
-                      value={String(facts.field_key)}
-                    />
-                  ) : null}
-                  {corr && corr.status === 'ok' ? (
-                    <MetricCard
-                      title={ANALYSIS_DIRECTION_CAPTION}
-                      titleTip={ANALYSIS_METRIC_TIPS.direction}
-                      value={direction.label}
-                      hint={`ρ=${formatNum(corr.rho, 3)}`}
-                    />
-                  ) : null}
-                  {corr && corr.status === 'ok' ? (
-                    <MetricCard
-                      title={ANALYSIS_SIGNIFICANCE_CAPTION}
-                      titleTip={ANALYSIS_METRIC_TIPS.significance}
-                      value={significance.label}
-                      hint={`p=${formatPValue(corr.p_value)}`}
-                    />
-                  ) : null}
-                  {sampleSize != null ? (
-                    <MetricCard
-                      title={ANALYSIS_SAMPLE_CAPTION}
-                      titleTip={ANALYSIS_METRIC_TIPS.sample}
-                      value={formatCount(sampleSize)}
-                    />
-                  ) : null}
-                  {skipped > 0 ? (
-                    <MetricCard
-                      title={ANALYSIS_SKIP_CAPTION}
-                      titleTip={ANALYSIS_METRIC_TIPS.skip}
-                      value={`${formatCount(skipped)} / ${formatCount(skip.investment_count)}`}
-                    />
-                  ) : null}
-                </>,
-              )}
+              <MetricGrid columns={4} denseXs>
+                {facts.field_key ? (
+                  <MetricCard
+                    title={ANALYSIS_PRIMARY_FIELD_CAPTION}
+                    titleTip={ANALYSIS_METRIC_TIPS.fieldKey}
+                    value={String(facts.field_key)}
+                  />
+                ) : null}
+                {corr && corr.status === 'ok' ? (
+                  <MetricCard
+                    title={ANALYSIS_DIRECTION_CAPTION}
+                    titleTip={ANALYSIS_METRIC_TIPS.direction}
+                    value={direction.label}
+                    hint={`ρ=${formatNum(corr.rho, 3)}`}
+                  />
+                ) : null}
+                {corr && corr.status === 'ok' ? (
+                  <MetricCard
+                    title={ANALYSIS_SIGNIFICANCE_CAPTION}
+                    titleTip={ANALYSIS_METRIC_TIPS.significance}
+                    value={significance.label}
+                    hint={`p=${formatPValue(corr.p_value)}`}
+                  />
+                ) : null}
+                {sampleSize != null ? (
+                  <MetricCard
+                    title={ANALYSIS_SAMPLE_CAPTION}
+                    titleTip={ANALYSIS_METRIC_TIPS.sample}
+                    value={formatCount(sampleSize)}
+                  />
+                ) : null}
+                {skipped > 0 ? (
+                  <MetricCard
+                    title={ANALYSIS_SKIP_CAPTION}
+                    titleTip={ANALYSIS_METRIC_TIPS.skip}
+                    value={`${formatCount(skipped)} / ${formatCount(skip.investment_count)}`}
+                  />
+                ) : null}
+              </MetricGrid>
             </SectionBlock>
           ) : null}
 
@@ -474,7 +428,7 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
               >
                 {watershedOption ? (
                   <Box>
-                    <RoiChartPanel
+                    <ChartPanel
                       title={ANALYSIS_WATERSHED_TITLE}
                       tip={ANALYSIS_CHART_TIPS.watershed}
                       option={watershedOption}
@@ -484,7 +438,7 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
                 ) : null}
                 {binsOption ? (
                   <Box>
-                    <RoiChartPanel
+                    <ChartPanel
                       title={ANALYSIS_BINS_TITLE}
                       tip={ANALYSIS_CHART_TIPS.bins}
                       option={binsOption}
@@ -499,8 +453,8 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
 
           {otherFields.length > 0 ? (
             <SectionBlock title={ANALYSIS_OTHER_FIELDS_TITLE} tip={ANALYSIS_SECTION_TIPS.otherFields}>
-              {metricGrid(
-                otherFields.map((row) => {
+              <MetricGrid columns={4} denseXs>
+                {otherFields.map((row) => {
                   const dir = correlationDirection(row.rho);
                   return (
                     <MetricCard
@@ -511,8 +465,8 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
                       hint={`ρ=${formatNum(row.rho, 2)}`}
                     />
                   );
-                }),
-              )}
+                })}
+              </MetricGrid>
             </SectionBlock>
           ) : null}
 

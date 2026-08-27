@@ -109,7 +109,7 @@ class WorkbenchApplySettings:
             VersionMetaStore,
         )
         from core.modules.strategy.core.services.discovery import DiscoveryService
-        from core.modules.strategy.core.services.simulation_cache.fingerprints import (
+        from core.modules.strategy.core.services.fingerprint import (
             FingerprintCalculator,
         )
 

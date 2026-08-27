@@ -6,13 +6,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore, RUNTIME_ENV_FILE
-from core.modules.strategy.core.services.artifacts.version_meta import (
-    VersionMetaStore,
-)
-from core.modules.strategy.core.services.simulation_cache.fingerprints import (
-    FingerprintResult,
-)
+from core.modules.strategy.core.services.fingerprint import FingerprintResult
+
+from .consts import RUNTIME_ENV_FILE
+from .store import ArtifactStore
+from .version_meta import VersionMetaStore
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +74,7 @@ class SimulationVersionStore:
                 store.output_dir,
             )
             return None
-        payload = cls._build_step_payload(store, kind)
+        payload = cls._build_step_payload(store)
         if payload is None:
             return None
         return {_KIND_VALUE[kind]: payload}
@@ -106,19 +104,12 @@ class SimulationVersionStore:
         strategy_folder: Union[str, Path],
         *,
         version_id: Union[str, int],
-        kind: SimulateKind,
         fps: FingerprintResult,
-        output_dir: Union[str, Path],
+        settings: Dict[str, Any],
         entity_ids: Optional[list] = None,
-        strategy_name: str = "",
     ) -> None:
-        from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
-            StrategySettings,
-        )
-
         root = ArtifactStore.simulations_root(strategy_folder)
         vid = str(version_id or "").strip()
-        semantic = StrategySettings.extract_effective_settings(fps.effective_settings)
         VersionMetaStore.register_version(
             root,
             vid,
@@ -128,7 +119,7 @@ class SimulationVersionStore:
         VersionMetaStore.write_effective_settings(
             root,
             vid,
-            settings=semantic,
+            settings=dict(settings or {}),
             entity_ids=list(entity_ids or fps.entity_ids or []),
         )
 
@@ -150,7 +141,7 @@ class SimulationVersionStore:
             store = ArtifactStore.resolve(strategy_folder, kind=kind, version_id=vid)
         except FileNotFoundError:
             return None
-        payload = cls._build_step_payload(store, kind)
+        payload = cls._build_step_payload(store)
         if payload is None:
             return None
         return {_KIND_VALUE[kind]: payload}
@@ -161,9 +152,8 @@ class SimulationVersionStore:
         return path.is_dir() and (path / RUNTIME_ENV_FILE).is_file()
 
     @classmethod
-    def _build_step_payload(
-        cls, store: ArtifactStore, kind: SimulateKind
-    ) -> Optional[Dict[str, Any]]:
+    def _build_step_payload(cls, store: ArtifactStore) -> Optional[Dict[str, Any]]:
+        """Cache 摘要：路径与 version，不含引擎 UI 指标（BFF hydrate 读 overall_report）。"""
         output_dir = store.output_dir
         payload: Dict[str, Any] = {
             "success": True,
@@ -175,30 +165,7 @@ class SimulationVersionStore:
             payload["strategy_key"] = store.runtime.strategy_key
         except Exception:
             pass
-
-        ui = cls._load_ui_dict(output_dir, kind)
-        if ui:
-            payload.update(ui)
         return payload
-
-    @staticmethod
-    def _load_ui_dict(output_dir: Path, kind: SimulateKind) -> Optional[Dict[str, Any]]:
-        try:
-            if kind is SimulateKind.ENUMERATE:
-                from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
-                    OverallReport,
-                )
-            elif kind is SimulateKind.PRICE_FACTOR:
-                from core.modules.strategy.core.engines.price_factor.report_manager.overall_report import (
-                    OverallReport,
-                )
-            else:
-                from core.modules.strategy.core.engines.portfolio.report_manager.overall_report import (
-                    OverallReport,
-                )
-            return OverallReport.load(output_dir).to_ui_dict()
-        except Exception:
-            return None
 
 
 __all__ = ["SimulationVersionStore"]

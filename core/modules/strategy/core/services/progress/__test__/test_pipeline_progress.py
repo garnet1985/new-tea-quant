@@ -47,6 +47,25 @@ def test_seed_enter_tick_complete(tmp_path, monkeypatch):
     assert names == ["load", "dispatch", "execute", "report"]
 
 
+def test_report_step_stays_open_until_complete(tmp_path, monkeypatch):
+    """归因并进 report：complete 之前当前步仍是 report，总进度未到 100。"""
+    _patch_recorder(tmp_path, monkeypatch)
+    PipelineProgress.seed("demo/x", "job-report", pipeline_name="enum")
+    with PipelineProgress.bind("demo/x", "job-report") as prog:
+        prog.mark_running()
+        for name in ("load", "dispatch", "execute"):
+            prog.enter_step(name)
+            prog.complete_step(name)
+        prog.enter_step("report")
+        mid = prog.to_dict()
+        assert mid["step"]["name"] == "report"
+        assert float(mid["progress"]) < 100.0
+        prog.complete_step("report")
+        done = prog.to_dict()
+        assert done["step"] is None
+        assert float(done["progress"]) == 100.0
+
+
 def test_fail_keeps_completed_steps(tmp_path, monkeypatch):
     _patch_recorder(tmp_path, monkeypatch)
     PipelineProgress.seed("demo/x", "job2", pipeline_name="price")

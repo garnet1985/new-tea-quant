@@ -164,7 +164,7 @@
 - [x] `ArtifactStore`：`simulations/{vid}/{enum|price|portfolio}/`
 - [x] `simulations/meta.json`：`next_version_id` + `registry`；触顶拒绝 allocate
 - [x] `{vid}/effective_settings.json`：`VersionMetaStore.write_effective_settings`
-- [x] `ResultsRetention` / `prune_root`：按 **version 目录** keep-N
+- [x] `ArtifactRetention` / `prune_root`：按 **version 目录** keep-N
 - [x] 单测：allocate、registry、prune、触顶拒绝
 - [x] 停用 per-step 独立 `next_output_version`
 - [x] 三步共享 vid（price/portfolio `allocate(version_id=enum)`）
@@ -191,7 +191,7 @@
 - [x] `workbench_run`：simulate 结果读 step `version_id`（不再 `_workbench_version`）
 - [x] BFF：`WorkbenchSnapshots` 读磁盘 `registry` + `effective_settings.json`
 - [x] BFF apply settings：写 `settings.py` 后不再 touch DB 快照行
-- [x] BFF：`WorkbenchCacheClear` / DELETE cache → 删磁盘 version
+- [x] BFF：`ArtifactRetention` / DELETE cache → 删磁盘 version
 - [x] `WorkbenchSnapshots` / `result_report`：report hydrate 对齐 `{vid}/{step}/`
 - [x] CLI `se/sp/so`：经 `Strategy.simulate` 单轨磁盘；输出 `version_id`
 - [x] 文档：`BOUNDARY_NOTES` / `API.md` / BFF `strategy.md` 更新
@@ -207,7 +207,7 @@
 
 - [x] analyzer 读写 `{vid}/{step}/analysis/`（随 step `output_dir`）
 - [x] demo 策略端到端：`simulate` + `sa` 验证新路径（`test_analysis_version_layout_e2e`）
-- [x] BFF step report + `analysis.insights`（`Strategy.resolve_step_analysis`）
+- [x] BFF step report + `analysis.facts` / `analysis.enabled`（`Strategy.resolve_step_analysis`）
 - [x] 更新 `engines/analyzer/TODO.md`
 
 ### Batch 6 — 清理与回归
@@ -260,13 +260,13 @@ Batch 0
 | 区域 | 路径 |
 |------|------|
 | 产物布局 | `core/modules/strategy/core/services/artifacts/store.py` |
+| 扫描日期目录 | `.../artifacts/scan_store.py`（``ScanStore`` / ``ArtifactStore.scan_at``） |
 | registry / effective_settings | `.../artifacts/version_meta.py` |
-| 磁盘 cache hit | `.../simulation_cache/version_store.py` |
-| 指纹 | `.../simulation_cache/fingerprints.py` |
+| 磁盘 cache hit | `.../artifacts/version_cache.py` |
+| 磁盘 cache 清理 / keep-N | `.../artifacts/retention.py` |
+| 指纹 | `.../fingerprint/fingerprint.py` |
 | 字段抽取规则 | `.../strategy_settings/strategy_settings.py`（`FINGERPRINT_FIELDS`） |
 | simulate 编排 | `core/modules/strategy/core/strategy.py` |
 | 清理说明 | `core/modules/strategy/docs/VERSIONING_CLEANUP.md` |
-| 磁盘 cache 清理 | `.../workbench_cache/workbench_cache_clear.py` |
-| 保留 | `.../results_retention/` |
 | BFF 快照 | `core/bff/APIs/strategy/helpers/workbench_snapshots.py` |
 | 归因 | `core/modules/strategy/core/engines/analyzer/` |

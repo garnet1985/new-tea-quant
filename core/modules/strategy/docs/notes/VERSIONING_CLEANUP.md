@@ -31,11 +31,11 @@ results/simulations/{vid}/effective_settings.json
 |------|------------|
 | 删某策略全部 simulation 磁盘 | ``TempCleanup.clear_backtest_results_disk(strategy_names=[...])`` |
 | 删某策略整个 ``results/`` | ``TempCleanup.clear_strategy_results_disk(...)`` |
-| 删全部策略 simulation 磁盘 | ``WorkbenchCacheClear.clear_all()`` 或 BFF ``DELETE /version/cache`` |
-| 删单策略单 version | ``WorkbenchCacheClear.clear_by_version`` 或 BFF ``DELETE …/version/:id/cache`` |
+| 删全部策略 simulation 磁盘 | ``ArtifactRetention.clear_all()`` 或 BFF ``DELETE /version/cache`` |
+| 删单策略单 version | ``ArtifactRetention.clear_by_version`` 或 BFF ``DELETE …/version/:id/cache`` |
 | devcli 勾选 backtest results | ``TempCleanup.run(clear_backtest_results=True)`` |
 
-路径：`core/infra/cli/dev/scripts/temp_cleanup/temp_cleanup.py`、`core/modules/strategy/core/services/workbench_cache/`
+路径：`core/infra/cli/dev/scripts/temp_cleanup/temp_cleanup.py`、`core/modules/strategy/core/services/artifacts/retention.py`
 
 ---
 
@@ -68,8 +68,8 @@ results/simulations/{vid}/effective_settings.json
 | ``__test__/test_versioning_regression.py`` | env_invalid、共享 vid、ignore_cache |
 | ``__test__/test_analysis_version_layout_e2e.py`` | ``{vid}/{step}/analysis/`` |
 | ``services/artifacts/__test__/test_artifact_store.py`` | allocate / prune |
-| BFF step report ``analysis`` 字段 | ``Strategy.resolve_step_analysis`` |
-| ``services/workbench_cache/__test__/test_workbench_cache_clear.py`` | 磁盘 version 清理 |
+| BFF step report ``analysis`` 字段 | ``Strategy.resolve_step_analysis`` + ``enabled`` / ``facts`` |
+| ``services/artifacts/__test__/test_retention.py`` | keep-N + 磁盘 version 清理 |
 
 ---
 

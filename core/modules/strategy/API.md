@@ -28,6 +28,16 @@
   - `key_or_id`：策略 key / 相对路径；`None` 时行为由扫描管线决定
   - `demo`：演示模式
 
+### scan_page_context / scan_readiness / scan_block_reason / scan_run
+
+`Strategy.scan_page_context() -> dict`  
+`Strategy.scan_readiness(key_or_id: str, *, demo: bool = False) -> dict`  
+`Strategy.scan_block_reason(*, demo: bool = False) -> str`  
+`Strategy.scan_run(key_or_id: str, *, progress_id: str, demo: bool = False, force: bool = False) -> None`
+
+- **状态：** `beta`
+- **描述：** 工作台扫描。读模型在 `ScannerPipeline`（page_context / readiness / block_reason）；`scan_run` 写 `ScanProgress` 后调用 `ScannerPipeline.run`。CLI 用 `scan`（可多策略、无进度文件）。BFF 只负责线程与单飞锁。落盘 `{strategy}/results/scan/{YYYYMMDD}/`（`scan_summary.json` + 有机会时 `opportunities.csv`），读写走 `ArtifactStore.scan_at`。
+
 ### simulate
 
 `Strategy.simulate(key_or_id: str, *, kind: SimulateKind | str = SimulateKind.ENUMERATE, ignore_cache: bool = False, runtime_settings: dict | None = None) -> dict`
@@ -40,7 +50,7 @@
   - `kind`：`enumerate` / `price_factor` / `portfolio`（或对应 `SimulateKind`）
   - `ignore_cache`：跳过磁盘 cache 命中
   - `runtime_settings`：运行时覆盖 settings（参与指纹）
-- **返回：** 目标 step 槽位 dict（如 `enumerate` / `price_factor` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（含 `output_dir` / `version_id`）。
+- **返回：** 目标 step 槽位 dict（如 `enumerate` / `price_factor` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（`success` / `output_dir` / `version_id`）；UI 指标由 BFF `report_hydrate` 从 `overall_report.json` 补全。
 - **环境失效：** registry 中 `env_fp` 与当前运行环境不一致时不可 cache hit（配置相同也会 miss 并新建 version）；BFF 读 version 时返回 `env_invalid: true`。
 - **强制重跑：** `ignore_cache=True`（CLI `--force`）跳过 cache 命中，且 price/portfolio 不复用已有 enum，始终 allocate 新 `version_id`。
 - **磁盘布局：** `{strategy}/results/simulations/{version_id}/{enum|price|portfolio}/`；索引在 `simulations/meta.json`（`registry` + `next_version_id`）；配置快照在 `{version_id}/effective_settings.json`。
@@ -111,7 +121,7 @@
 `Strategy.resolve_simulation_output_dirs(strategy_name: str, *, step: str, slot: dict | None = None, workbench_version: int = 0) -> list[Path]`
 
 - **状态：** `beta`
-- **描述：** 归因 insights 读取与 step 产物目录解析（BFF step report / hydrate 用）。`step_analysis_from_output_dir` 读单目录 `analysis/report.json` → `{available, report_path, insights}`；`resolve_step_analysis` 按 slot + workbench version 候选目录解析；`resolve_simulation_output_dirs` 返回 enum / price / portfolio 的绝对 version-dir 候选列表
+- **描述：** 归因读取与 step 产物目录解析（BFF step report / hydrate 用）。`step_analysis_from_output_dir` 读单目录 `analysis/report.json` → `{available, report_path, facts, insights}`（`facts` 给 UI 数字，`insights` 给 CLI 叙事）；`resolve_step_analysis` 按 slot + workbench version 候选目录解析；`resolve_simulation_output_dirs` 返回 enum / price / portfolio 的绝对 version-dir 候选列表。BFF `GET …/report/:step/:version` 的 `analysis` 含 `enabled`、`facts`（含科学 `buckets` 与合成 `tiers`）和 `conclusion`（headline / key_findings / explains，来自 insights 切片），不下发完整 `insights`
 - **生成：** simulate 且 `settings.analysis.enabled=true` 时在主 simulate 步结束后自动生成 report；无独立 `Strategy.analyze`
 
 ### prune_simulation_results / prune_scan_results
@@ -120,7 +130,7 @@
 `Strategy.prune_scan_results(key_or_id: str, *, max_versions: int | None = None) -> dict`
 
 - **状态：** `beta`
-- **描述：** 磁盘 simulation keep-N（按 **version 目录** 粒度）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示整个 version 目录 prune。删单 version 用 BFF `DELETE …/version/:id/cache` 或 `WorkbenchCacheClear.clear_by_version`；批量清磁盘用 `TempCleanup.clear_backtest_results_disk` 或 `WorkbenchCacheClear.clear_all`。触顶时 **allocate 拒绝**，不静默删。
+- **描述：** 磁盘 simulation keep-N（按 **version 目录** 粒度）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示整个 version 目录 prune。删单 version 用 BFF `DELETE …/version/:id/cache` 或 `ArtifactRetention.clear_by_version`；批量清磁盘用 `TempCleanup.clear_backtest_results_disk` 或 `ArtifactRetention.clear_all`。触顶时 **allocate 拒绝**，不静默删。
 
 ### export_package / import_package
 

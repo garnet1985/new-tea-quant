@@ -78,6 +78,7 @@ function StrategyReportPanel({
     [workbenchSnapshot],
   );
   const resultReport = workbenchSnapshot?.result_report ?? null;
+  const analysisEnabled = workbenchSnapshot?.settings?.analysis?.enabled === true;
 
   const {
     compareDropdownVersionIds,
@@ -118,6 +119,7 @@ function StrategyReportPanel({
     resultReport,
     reportTabFocusRequest,
     lockedTab,
+    analysisEnabled,
   });
 
   const {
@@ -464,6 +466,7 @@ function StrategyReportPanel({
       ) : null}
       {renderTabContent()}
       {resolvedActiveTab
+        && analysisEnabled
         && executionState?.stepStatus?.[resolvedActiveTab] === 'done'
         && !(reportStockView === 'detail' && selectedStock) ? (
           <StepAnalysisInsights

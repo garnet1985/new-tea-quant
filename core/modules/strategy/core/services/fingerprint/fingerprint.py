@@ -1,9 +1,9 @@
-"""模拟指纹：settings_fp / env_fp / disk_settings_hash（进入引擎前）。
+"""模拟身份指纹：收集 input → settings_fp / env_fp / disk_settings_hash。
 
-本文件:
-- FingerprintCalculator: 有效 settings merge、GlobalEntityCache seed、三类指纹
-- FingerprintResult: 一次 simulate 共享的指纹 + effective_settings + entity_ids
-  边界: 负责算指纹与 seed cache；不负责 DB 缓存读写或 Pipeline 执行
+边界:
+- 负责: 有效 settings 合并、三类指纹、FingerprintResult
+- 不负责: GlobalEntityCache seed、磁盘 cache 读写、Pipeline 执行
+  entity_ids 由主线（entity_loader）先 resolve 再传入
 """
 from __future__ import annotations
 
@@ -12,12 +12,9 @@ import inspect
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
-    GlobalEntityCache,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -29,14 +26,11 @@ from core.system import get_version
 
 @dataclass(frozen=True)
 class FingerprintResult:
-    """一次模拟请求的共享指纹与有效 settings。
+    """一次模拟请求的身份指纹与有效 settings。
 
-    边界:
-    - 负责: 供编排层查缓存、供各 Pipeline 使用
-    - 不负责: 缓存读写本身
+    不含运行时 cache：主线用 ``effective_settings`` 再 seed GlobalEntityCache。
     """
 
-    global_entity_cache: GlobalEntityCache
     settings_fp: str
     env_fp: str
     disk_settings_hash: str
@@ -46,51 +40,57 @@ class FingerprintResult:
 
 
 class FingerprintCalculator:
-    """指纹计算入口：effective settings、GlobalEntityCache seed、settings/env/disk 指纹。"""
+    """收集 identity 输入并产出指纹。"""
+
+    @staticmethod
+    def merge_settings(
+        strategy_info: EnabledStrategyInfo,
+        runtime_settings: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[StrategySettings, Dict[str, Any]]:
+        """disk settings ⊕ runtime → effective settings + diff。"""
+        if strategy_info is None:
+            raise ValueError("strategy_info 不能为空")
+        disk_settings = dict(strategy_info.settings or {})
+        return StrategySettings.calculate_effective_settings(
+            disk_settings=disk_settings,
+            user_settings=runtime_settings or {},
+        )
 
     @staticmethod
     def calculate_fingerprints(
         strategy_info: EnabledStrategyInfo,
         runtime_settings: Optional[Dict[str, Any]] = None,
-        stock_list: Optional[List[str]] = None,
-        latest_completed_trading_date: Optional[str] = None,
+        *,
+        entity_ids: Optional[Sequence[str]] = None,
     ) -> FingerprintResult:
-        """计算指纹；stock_list / latest_date 由编排层预取时不再重复加载。"""
+        """收集 settings / 策略代码 / 环境 input，产出三类指纹。"""
         if strategy_info is None:
             raise ValueError("strategy_info 不能为空")
 
         disk_settings = dict(strategy_info.settings or {})
-        effective_settings, settings_diff = StrategySettings.calculate_effective_settings(
-            disk_settings=disk_settings,
-            user_settings=runtime_settings or {},
+        effective_settings, settings_diff = FingerprintCalculator.merge_settings(
+            strategy_info,
+            runtime_settings,
         )
-        cache = GlobalEntityCache(effective_settings)
-        cache.seed_system_globals(
-            stock_list=stock_list,
-            latest_completed_trading_date=latest_completed_trading_date,
-        )
-        cache.init_trade_calendar()
-
-        entity_ids = list(cache.get_stock_ids())
+        ids = [str(x).strip() for x in (entity_ids or []) if str(x).strip()]
         coerced_diff = FingerprintCalculator.coerce_numeric_tree(settings_diff)
         settings_fp = FingerprintCalculator.to_effective_settings_fingerprint(
             effective_settings,
-            entity_ids,
+            ids,
         )
         disk_settings_hash = FingerprintCalculator.to_disk_settings_hash(disk_settings)
         env_fp = FingerprintCalculator.to_env_fingerprint(
             strategy_info,
             effective_settings,
-            entity_ids=entity_ids,
+            entity_ids=ids,
         )
         return FingerprintResult(
-            global_entity_cache=cache,
             settings_fp=settings_fp,
             env_fp=env_fp,
             disk_settings_hash=disk_settings_hash,
             settings_diff=coerced_diff,
             effective_settings=effective_settings,
-            entity_ids=entity_ids,
+            entity_ids=ids,
         )
 
     @staticmethod
@@ -156,7 +156,6 @@ class FingerprintCalculator:
         else:
             settings_obj = StrategySettings.from_dict(dict(effective_settings or {}))
 
-        # 与 StrategySettings.resolve_period 一致：simulation + data.json 默认
         period = settings_obj.resolve_period()
         start_date = period.start_date
         end_date = period.end_date
@@ -214,8 +213,6 @@ class FingerprintCalculator:
         if isinstance(value, list):
             return [FingerprintCalculator.coerce_numeric_tree(v) for v in value]
         return value
-
-    # --- hash helpers -----------------------------------------------------
 
     @staticmethod
     def _hooks_code_hash(

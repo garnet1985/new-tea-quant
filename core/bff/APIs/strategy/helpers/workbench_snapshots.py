@@ -23,9 +23,7 @@ from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     StrategyInfo,
 )
-from core.modules.strategy.core.services.simulation_cache.version_store import (
-    SimulationVersionStore,
-)
+from core.modules.strategy.core.services.artifacts import SimulationVersionStore
 
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_workbench_result_report,
@@ -141,15 +139,14 @@ class WorkbenchSnapshots:
         from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
             GlobalEntityCache,
         )
-        from core.modules.strategy.core.services.simulation_cache.fingerprints import (
+        from core.modules.strategy.core.services.fingerprint import (
             FingerprintCalculator,
         )
 
         fps = FingerprintCalculator.calculate_fingerprints(
             info,
             None,
-            GlobalEntityCache.get_stock_list(),
-            GlobalEntityCache.get_latest_completed_trading_date(),
+            entity_ids=GlobalEntityCache.get_stock_list(),
         )
         return str(fps.env_fp or "")
 

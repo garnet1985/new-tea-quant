@@ -71,10 +71,10 @@ def test_load_enum_data_requires_enum_version():
             settings_fp="s",
             env_fp="e",
             effective_settings=MagicMock(),
-            global_entity_cache=MagicMock(),
             entity_ids=[],
         ),
         kind=SimulateKind.PORTFOLIO,
+        global_entity_cache=MagicMock(),
         enum_version=None,
         steps=[SimulateKind.PORTFOLIO],
     )

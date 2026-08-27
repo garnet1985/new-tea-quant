@@ -1,7 +1,8 @@
-"""统一仿真产物入口：定位 version、读写表、prune、进程内缓存。
+"""统一仿真产物入口：定位 version / scan 日期目录、读写表、prune、进程内缓存。
 
 ``ArtifactStore`` 是基类（定位 / json / prune / 缓存）。
 三步表形态不同，由子类覆盖：``EnumerateStore`` / ``PriceFactorStore`` / ``PortfolioStore``。
+扫描走 ``scan_at`` → ``ScanStore``（``results/scan/{YYYYMMDD}/``，不复用仿真 version）。
 """
 from __future__ import annotations
 
@@ -96,7 +97,11 @@ def _read_next_version_id(meta: Dict[str, Any]) -> int:
         return 1
 
 
-def _resolve_max_versions(max_versions: Optional[int] = None) -> int:
+def _resolve_positive_cap(
+    max_versions: Optional[int],
+    *,
+    default: int,
+) -> int:
     if max_versions is not None:
         try:
             value = int(max_versions)
@@ -107,7 +112,32 @@ def _resolve_max_versions(max_versions: Optional[int] = None) -> int:
         if value < 1:
             raise ValueError(f"max_versions 必须 >= 1，收到: {value}")
         return value
-    return ProjectContext.config.get_simulation_results_max_versions()
+    return int(default)
+
+
+def _resolve_max_versions(max_versions: Optional[int] = None) -> int:
+    return _resolve_positive_cap(
+        max_versions,
+        default=ProjectContext.config.get_simulation_results_max_versions(),
+    )
+
+
+def _resolve_scan_max_versions(max_versions: Optional[int] = None) -> int:
+    return _resolve_positive_cap(
+        max_versions,
+        default=ProjectContext.config.get_scan_results_max_versions(),
+    )
+
+
+def _iter_scan_date_dirs(scan_root: Path) -> List[Path]:
+    root = Path(scan_root)
+    if not root.is_dir():
+        return []
+    return [
+        d
+        for d in root.iterdir()
+        if d.is_dir() and d.name.isdigit() and len(d.name) == 8
+    ]
 
 
 @dataclass
@@ -189,6 +219,15 @@ class ArtifactStore:
         strategy_folder: Union[str, Path],
     ) -> Path:
         return ProjectContext.path.get_strategy_simulations_directory(
+            Path(strategy_folder)
+        )
+
+    @classmethod
+    def scan_root(
+        cls,
+        strategy_folder: Union[str, Path],
+    ) -> Path:
+        return ProjectContext.path.get_strategy_scan_results_directory(
             Path(strategy_folder)
         )
 
@@ -410,6 +449,46 @@ class ArtifactStore:
         return deleted
 
     @classmethod
+    def prune_scan(
+        cls,
+        strategy_folder: Union[str, Path],
+        *,
+        max_versions: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        folder = Path(strategy_folder)
+        cap = _resolve_scan_max_versions(max_versions)
+        deleted = cls.prune_scan_root(cls.scan_root(folder), max_versions=cap)
+        return {
+            "ok": True,
+            "strategy_folder": str(folder),
+            "deleted_count": deleted,
+            "max_versions": cap,
+        }
+
+    @classmethod
+    def prune_scan_root(
+        cls,
+        scan_root: Path,
+        *,
+        max_versions: Optional[int] = None,
+    ) -> int:
+        """keep-N：``results/scan/{YYYYMMDD}/``，保留最新日期目录。"""
+        cap = _resolve_scan_max_versions(max_versions)
+        date_dirs = _iter_scan_date_dirs(scan_root)
+        if len(date_dirs) <= cap:
+            return 0
+        date_dirs.sort(key=lambda d: d.name, reverse=True)
+        deleted = 0
+        for old_dir in date_dirs[cap:]:
+            try:
+                shutil.rmtree(old_dir)
+                deleted += 1
+                logger.info("Pruned scan date dir: %s", old_dir)
+            except Exception:
+                logger.exception("Failed to prune scan date dir: %s", old_dir)
+        return deleted
+
+    @classmethod
     def _allocate_version_dir(
         cls,
         strategy_id: str,
@@ -494,6 +573,25 @@ class ArtifactStore:
     @classmethod
     def read_json_at(cls, output_dir: Union[str, Path], name: str) -> Dict[str, Any]:
         return ArtifactIO.read_json(cls.named_path(output_dir, name))
+
+    @classmethod
+    def write_json_at(
+        cls,
+        output_dir: Union[str, Path],
+        name: str,
+        payload: Any,
+    ) -> Path:
+        return ArtifactIO.write_json(cls.named_path(output_dir, name), payload)
+
+    @classmethod
+    def scan_at(
+        cls,
+        strategy_folder: Union[str, Path],
+        scan_date: str,
+    ) -> "ScanStore":
+        from core.modules.strategy.core.services.artifacts.scan_store import ScanStore
+
+        return ScanStore.at(strategy_folder, scan_date)
 
     def file(self, name: str) -> Path:
         filename = _NAMED_FILES.get(str(name or "").strip())

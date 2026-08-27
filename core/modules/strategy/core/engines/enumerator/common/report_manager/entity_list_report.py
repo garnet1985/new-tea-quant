@@ -1,7 +1,6 @@
 """每股机会摘要表（entity_list.json）—— UI data grid / CMD 简报 / DB 可缓存。"""
 from __future__ import annotations
 
-import json
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,6 +11,7 @@ from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.engines.shared.data_class.investment import Lifecycle
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_LIST_FILE,
+    ArtifactStore,
 )
 from core.modules.strategy.core.engines.enumerator.common.report_manager.opportunity_metrics import (
     TimingDispersion,
@@ -112,17 +112,10 @@ class EntityListReport:
 
     @classmethod
     def load(cls, output_dir: Path) -> "EntityListReport":
-        path = output_dir / cls.ENTITY_LIST_FILE
-        return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        return cls.from_dict(ArtifactStore.read_json_at(output_dir, "entity_list"))
 
     def save(self, output_dir: Path) -> Path:
-        path = output_dir / self.ENTITY_LIST_FILE
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(self.to_dict(), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return path
+        return ArtifactStore.write_json_at(output_dir, "entity_list", self.to_dict())
 
     def present(self, stream: Optional[TextIO] = None) -> None:
         """CMD：触发股数 + Top5（全表留给 UI grid）。"""

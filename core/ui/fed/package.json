@@ -11,9 +11,9 @@
     "echarts": "^5.6.0",
     "echarts-for-react": "^3.0.2",
     "json5": "^2.2.3",
-    "react": "^17.0.2",
+    "react": "^18.3.1",
     "react-diff-viewer-continued": "^3.4.0",
-    "react-dom": "^17.0.2",
+    "react-dom": "^18.3.1",
     "react-router-dom": "^6.0.0",
     "react-scripts": "5.0.1",
     "sass": "^1.99.0",
@@ -50,6 +50,8 @@
     "nth-check": "^2.1.1",
     "postcss": "^8.5.10",
     "serialize-javascript": "^6.0.2",
-    "underscore": "^1.13.7"
+    "underscore": "^1.13.7",
+    "react": "$react",
+    "react-dom": "$react-dom"
   }
 }

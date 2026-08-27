@@ -41,7 +41,7 @@ core/bff/APIs/strategy/
 | V2-05 | POST | `/v1/strategy/<strategy_key_or_name>/<step>/run` | `routes/runner/` |
 | V2-06b | GET | `/v1/strategy/<strategy_key_or_name>/run/progress` | `routes/runner/` |
 | V2-06 | GET | `/v1/strategy/<strategy_key_or_name>/<step>/progress` | `routes/runner/` |
-| V2-07 | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>` | `routes/report/` — 含 ``report`` + ``analysis.insights`` |
+| V2-07 | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>` | `routes/report/` — 含 ``report`` + ``analysis``（``enabled`` / ``available`` / ``facts`` / ``conclusion``） |
 | V2-07b | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/ref` | `routes/report/` |
 | V2-07c | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/stock/<stock_id>` | `routes/report/` |
 | V2-08 | GET | `/v1/strategy/<strategy_key_or_name>/version/<version_id>` | `routes/version/` |

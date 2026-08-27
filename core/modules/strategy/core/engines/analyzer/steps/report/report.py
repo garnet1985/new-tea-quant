@@ -8,6 +8,7 @@ from typing import Any, Dict, Union
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 
 from ..analyze.analyze_output import AnalyzeOutput
+from .facts import InsightFacts
 from .insight import InsightBuilder
 from .summarize import ReportSummarizer
 
@@ -15,6 +16,7 @@ _EMPTY_PAYLOAD: Dict[str, Any] = {
     "available": False,
     "report_path": "",
     "insights": None,
+    "facts": None,
 }
 
 
@@ -68,7 +70,7 @@ class ReportStep:
 
     @classmethod
     def load_payload(cls, output_dir: Union[str, Path]) -> Dict[str, Any]:
-        """Read ``analysis/report.json`` insights payload for BFF / UI."""
+        """Read ``analysis/report.json`` for BFF / UI (``facts``) and CLI (``insights``)."""
         path = Path(output_dir)
         report_path = ArtifactStore.named_path(path, "analysis_report")
         if not report_path.is_file():
@@ -81,9 +83,11 @@ class ReportStep:
             return dict(_EMPTY_PAYLOAD)
 
         insights = InsightBuilder.resolve(report)
+        facts = InsightFacts.from_report(report)
 
         return {
             "available": True,
             "report_path": str(report_path),
             "insights": insights,
+            "facts": facts,
         }

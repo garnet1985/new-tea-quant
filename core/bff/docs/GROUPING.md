@@ -35,7 +35,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 
 | 域 | UI catalog / snapshot | 异步进度 / job |
 |----|----------------------|----------------|
-| strategy | BFF `helpers/`（snapshots、hydrate） | core `PipelineProgress` / `ScanJob`；BFF runner 薄壳 |
+| strategy | BFF `helpers/`（snapshots、hydrate） | core `PipelineProgress` / `Strategy.scan_run`；BFF runner 薄壳 |
 | tag | BFF `helpers/tag_catalog` | core `TagRunProgress`；BFF `routes/runner/tag_run` |
 | data_contract | BFF `helpers/contract_catalog` | — |
 | data_source | BFF `helpers/source_catalog` | — |

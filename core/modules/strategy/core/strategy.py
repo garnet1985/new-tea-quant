@@ -18,10 +18,11 @@ from .services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from .engines.shared.data_class.simulate_session import SimulateSession
-from .services.simulation_cache.version_store import (
-    SimulationVersionStore,
+from .engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
 )
-from .services.simulation_cache.fingerprints import (
+from .services.artifacts import SimulationVersionStore
+from .services.fingerprint import (
     FingerprintCalculator,
 )
 
@@ -68,6 +69,99 @@ class Strategy:
         from core.modules.strategy.core.engines.scanner import ScannerPipeline
 
         return ScannerPipeline.scan(key_or_id, demo=demo)
+
+    @staticmethod
+    def scan_page_context() -> Dict[str, Any]:
+        """扫描页上下文（数据截止日 / demo 锚点日）。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.page_context()
+
+    @staticmethod
+    def scan_readiness(key_or_id: str, *, demo: bool = False) -> Dict[str, Any]:
+        """工作台扫描就绪态（能否开扫、已有落盘报告）。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.readiness(key_or_id, demo=demo)
+
+    @staticmethod
+    def scan_block_reason(*, demo: bool = False) -> str:
+        """严格模式下的数据门禁文案；demo 或已就绪返回空串。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.block_reason(demo=demo)
+
+    @staticmethod
+    def scan_run(
+        key_or_id: str,
+        *,
+        progress_id: str,
+        demo: bool = False,
+        force: bool = False,
+    ) -> None:
+        """工作台一次扫描：写 ``ScanProgress``，再跑 ``ScannerPipeline.run``。"""
+        from core.modules.data_manager import DataManager
+
+        from .engines.scanner.helpers import ScanDateResolver
+        from .engines.scanner.pipeline import ScannerPipeline
+        from .engines.scanner.report_manager import ReportManager
+        from .engines.shared.services.strategy_settings.strategy_settings import (
+            StrategySettings,
+        )
+        from .services.artifacts.store import ArtifactStore
+        from .services.progress.scan_progress import ScanProgress
+
+        name = str(key_or_id or "").strip()
+        jid = str(progress_id or "").strip()
+        prog = ScanProgress.for_job(name, jid)
+        prog.mark_running()
+        try:
+            info, err = ScannerPipeline.resolve_one(name)
+            if err or info is None:
+                raise ValueError(err or "无法解析策略")
+
+            path_key = ScannerPipeline.strategy_key(info, name)
+            folder = ScannerPipeline.strategy_folder(info)
+            data_mgr = DataManager(is_verbose=False)
+            settings = StrategySettings.from_dict(dict(info.settings or {}))
+            settings.apply_defaults()
+            ScannerPipeline.apply_scan_mode(settings, demo=bool(demo))
+
+            block = ScannerPipeline.block_reason(demo=bool(demo), data_manager=data_mgr)
+            if block:
+                raise ValueError(block)
+
+            kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
+            if not kline_latest:
+                raise ValueError("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+
+            def _on_progress(payload: Dict[str, Any]) -> None:
+                prog.tick(payload)
+
+            report = ScannerPipeline.run(
+                info,
+                settings,
+                force=bool(force),
+                on_progress=_on_progress,
+                data_manager=data_mgr,
+            )
+            opportunities: List[Any] = []
+            if isinstance(report, dict):
+                report.setdefault("strategy_key", path_key)
+                scan_date = str(report.get("date") or "").strip()
+                if scan_date:
+                    store = ArtifactStore.scan_at(folder, scan_date)
+                    opportunities = ReportManager.load_opportunities(store)
+            prog.complete(
+                report if isinstance(report, dict) else {},
+                opportunities=opportunities,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Scanner run failed progress_id=%s strategy=%s", jid, name
+            )
+            prog.fail(str(exc))
+            raise
 
     @staticmethod
     def enumerate(
@@ -147,14 +241,14 @@ class Strategy:
         fp_res = FingerprintCalculator.calculate_fingerprints(
             strategy_info,
             runtime_settings,
-            stock_list,
-            latest_completed_trading_date,
+            entity_ids=stock_list,
         )
 
         ctx = SimulateSession.create(
             strategy_info=strategy_info,
             fp_res=fp_res,
             kind=step,
+            seed_entity_cache=False,
         )
         cache_key = ctx.strategy_key or key_or_id
 
@@ -172,7 +266,7 @@ class Strategy:
                     ctx.kind.value,
                     cache_key,
                 )
-                return dict(cached)
+                return Strategy._attach_version_id(dict(cached), ctx.kind)
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
                 ctx.kind.value,
@@ -185,6 +279,10 @@ class Strategy:
                 cache_key,
             )
 
+        ctx.prepare_entity_cache(
+            stock_list=stock_list,
+            latest_completed_trading_date=latest_completed_trading_date,
+        )
         Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
         ctx.validate_for_run()
         return Strategy._run_steps(
@@ -202,7 +300,7 @@ class Strategy:
         *,
         force: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        """``settings.analysis.enabled`` 时在 simulate 主 step 完成后跑 analyze。"""
+        """``settings.analysis.enabled`` 时在 report 步内、complete 之前跑 analyze。"""
         if step != ctx.kind:
             return None
         if step_res.get("success") is False:
@@ -324,13 +422,11 @@ class Strategy:
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
+        from .services.progress import PipelineProgress
+
         consolidated: Dict[str, Any] = {}
         folder = Path(strategy_folder)
-        strategy_name = str(
-            getattr(ctx.strategy_info, "unique_relative_path", "")
-            or ctx.strategy_key
-            or ""
-        )
+        semantic = StrategySettings.extract_effective_settings(ctx.effective_settings)
         for step in ctx.steps:
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
@@ -343,11 +439,9 @@ class Strategy:
                 SimulationVersionStore.record_step_complete(
                     folder,
                     version_id=str(step_res.get("version_id")),
-                    kind=step,
                     fps=ctx.fp_res,
-                    output_dir=str(step_res.get("output_dir")),
+                    settings=semantic,
                     entity_ids=list(ctx.entity_ids or []),
-                    strategy_name=strategy_name,
                 )
 
             analysis_out = Strategy._maybe_run_analysis(
@@ -359,6 +453,7 @@ class Strategy:
             )
             if analysis_out is not None:
                 step_res["analysis"] = analysis_out
+            PipelineProgress.complete_step_bound("report")
 
             logger.info(
                 "simulate step complete: kind=%s strategy=%s version_id=%s",
@@ -366,12 +461,20 @@ class Strategy:
                 ctx.strategy_key,
                 step_res.get("version_id"),
             )
-        primary = consolidated.get(ctx.kind.value)
+        return Strategy._attach_version_id(consolidated, ctx.kind)
+
+    @staticmethod
+    def _attach_version_id(
+        payload: Dict[str, Any],
+        kind: SimulateKind,
+    ) -> Dict[str, Any]:
+        """把 step 槽里的 ``version_id`` 提到顶层，cache hit / miss 同一形状。"""
+        primary = payload.get(kind.value)
         if isinstance(primary, dict):
             vid = str(primary.get("version_id") or "").strip()
             if vid:
-                consolidated["version_id"] = vid
-        return consolidated
+                payload["version_id"] = vid
+        return payload
 
     @staticmethod
     def latest_completed_trading_date() -> str:
@@ -502,7 +605,7 @@ class Strategy:
 
     @staticmethod
     def step_analysis_from_output_dir(output_dir: Union[str, Path]) -> Dict[str, Any]:
-        """Read ``analysis/report.json`` insights payload for one step output dir."""
+        """Read ``analysis/report.json`` facts/insights payload for one step output dir."""
         from .engines.analyzer.steps.report import ReportStep
 
         return ReportStep.load_payload(Path(output_dir))
@@ -515,7 +618,7 @@ class Strategy:
         *,
         workbench_version: int = 0,
     ) -> Dict[str, Any]:
-        """Resolve step output dir(s) and load attribution insights payload."""
+        """Resolve step output dir(s) and load attribution facts/insights payload."""
         from .engines.analyzer.steps.report import ReportStep
 
         for output_dir in Strategy._resolve_simulation_output_dir_candidates(
@@ -533,6 +636,7 @@ class Strategy:
             "available": False,
             "report_path": "",
             "insights": None,
+            "facts": None,
         }
 
     @staticmethod
@@ -604,9 +708,9 @@ class Strategy:
         ``kind`` 为 ``enum`` / ``price`` / ``portfolio``（或 enumerate/price_factor）；
         ``None`` 表示三步都 prune。上限默认读 ``data.json`` retention。
         """
-        from .services.results_retention import ResultsRetention
+        from .services.artifacts import ArtifactRetention
 
-        return ResultsRetention.prune_simulation_results(
+        return ArtifactRetention.prune_simulation_results(
             key_or_id, kind=kind, max_versions=max_versions
         )
 
@@ -617,9 +721,9 @@ class Strategy:
         max_versions: Optional[int] = None,
     ) -> Dict[str, Any]:
         """按 retention 清理策略 ``results/scan/`` 旧日期版本。"""
-        from .services.results_retention import ResultsRetention
+        from .services.artifacts import ArtifactRetention
 
-        return ResultsRetention.prune_scan_results(
+        return ArtifactRetention.prune_scan_results(
             key_or_id, max_versions=max_versions
         )
 

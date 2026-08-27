@@ -13,7 +13,15 @@ from core.modules.strategy.core.engines.enumerator.pipeline import EnumeratorPip
 from core.modules.strategy.core.engines.shared.data_class.simulate_session import (
     SimulateSession,
 )
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 from core.modules.strategy.core.strategy import Strategy
+
+
+def _prepare_entity_cache(self, **kwargs):
+    self.global_entity_cache = MagicMock()
+    return self.global_entity_cache
 
 
 def _fps():
@@ -22,9 +30,8 @@ def _fps():
         env_fp="efp",
         disk_settings_hash="dsh",
         settings_diff={},
-        effective_settings=SimpleNamespace(),
+        effective_settings=StrategySettings.from_dict({"core": {"n": 1}}),
         entity_ids=[],
-        global_entity_cache=MagicMock(),
     )
 
 
@@ -32,7 +39,12 @@ def _ctx(*, kind=SimulateKind.PRICE_FACTOR):
     info = MagicMock()
     info.id.return_value = "demo/rsi"
     info.relative_path = "demo/rsi"
-    return SimulateSession(strategy_info=info, fp_res=_fps(), kind=kind)
+    return SimulateSession(
+        strategy_info=info,
+        fp_res=_fps(),
+        kind=kind,
+        global_entity_cache=MagicMock(),
+    )
 
 
 def test_resolve_steps_price_ignore_cache_skips_enum_reuse():
@@ -107,7 +119,8 @@ def test_simulate_returns_price_slot_on_cache_hit():
     ) as run_steps:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.PRICE_FACTOR)
 
-    assert out == cached
+    assert out["price_factor"] == cached["price_factor"]
+    assert out["version_id"] == "9"
     get_cache.assert_called_once()
     run_steps.assert_not_called()
 
@@ -176,6 +189,10 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
         "get_cache",
         return_value=None,
     ), patch.object(
+        SimulateSession,
+        "prepare_entity_cache",
+        _prepare_entity_cache,
+    ), patch.object(
         EnumeratorPipeline,
         "run",
         return_value=step_res,
@@ -189,6 +206,8 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
     assert out["version_id"] == "3"
     run.assert_called_once()
     record.assert_called_once()
+    assert record.call_args.kwargs["settings"] == {"core": {"n": 1}}
+    assert record.call_args.kwargs["version_id"] == "3"
 
 
 def test_simulate_session_validate_for_run_requires_steps() -> None:

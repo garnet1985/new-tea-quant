@@ -300,7 +300,7 @@ class Strategy:
         *,
         force: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        """``settings.analysis.enabled`` 时在 simulate 主 step 完成后跑 analyze。"""
+        """``settings.analysis.enabled`` 时在 report 步内、complete 之前跑 analyze。"""
         if step != ctx.kind:
             return None
         if step_res.get("success") is False:
@@ -422,6 +422,8 @@ class Strategy:
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
+        from .services.progress import PipelineProgress
+
         consolidated: Dict[str, Any] = {}
         folder = Path(strategy_folder)
         semantic = StrategySettings.extract_effective_settings(ctx.effective_settings)
@@ -451,6 +453,7 @@ class Strategy:
             )
             if analysis_out is not None:
                 step_res["analysis"] = analysis_out
+            PipelineProgress.complete_step_bound("report")
 
             logger.info(
                 "simulate step complete: kind=%s strategy=%s version_id=%s",
@@ -602,7 +605,7 @@ class Strategy:
 
     @staticmethod
     def step_analysis_from_output_dir(output_dir: Union[str, Path]) -> Dict[str, Any]:
-        """Read ``analysis/report.json`` insights payload for one step output dir."""
+        """Read ``analysis/report.json`` facts/insights payload for one step output dir."""
         from .engines.analyzer.steps.report import ReportStep
 
         return ReportStep.load_payload(Path(output_dir))
@@ -615,7 +618,7 @@ class Strategy:
         *,
         workbench_version: int = 0,
     ) -> Dict[str, Any]:
-        """Resolve step output dir(s) and load attribution insights payload."""
+        """Resolve step output dir(s) and load attribution facts/insights payload."""
         from .engines.analyzer.steps.report import ReportStep
 
         for output_dir in Strategy._resolve_simulation_output_dir_candidates(
@@ -633,6 +636,7 @@ class Strategy:
             "available": False,
             "report_path": "",
             "insights": None,
+            "facts": None,
         }
 
     @staticmethod

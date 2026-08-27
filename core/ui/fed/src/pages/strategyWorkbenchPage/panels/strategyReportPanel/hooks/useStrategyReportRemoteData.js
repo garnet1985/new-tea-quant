@@ -37,7 +37,7 @@ function stockRefRefreshToken(resultReport, tabKey) {
 }
 
 /**
- * 报告面板远程数据：V2-07 归因 insights、V2-07b 逐股 ref 与可用 Tab 推导。
+ * 报告面板远程数据：V2-07 归因 facts、V2-07b 逐股 ref 与可用 Tab 推导。
  * 主面板 metrics 读 V2-08 ``workbenchSnapshot.result_report``；归因与逐股明细 lazy 拉 V2-07 / V2-07b。
  */
 export function useStrategyReportRemoteData({
@@ -49,6 +49,8 @@ export function useStrategyReportRemoteData({
   reportTabFocusRequest = null,
   /** 制定策略等单步视图：固定当前 Tab，不随 availableTabs 回退 */
   lockedTab = '',
+  /** ``settings.analysis.enabled``；false 时不拉 V2-07 归因 */
+  analysisEnabled = false,
 }) {
   const versionIdForReport = String(reportVersionId || '').trim();
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
@@ -185,7 +187,7 @@ export function useStrategyReportRemoteData({
     let cancelled = false;
     const tab = String(resolvedActiveTab || '').trim();
     const stepDone = executionState?.stepStatus?.[tab] === 'done';
-    if (!strategyName || !versionIdForReport || !tab || !stepDone) {
+    if (!analysisEnabled || !strategyName || !versionIdForReport || !tab || !stepDone) {
       setAnalysisStatus('idle');
       setAnalysisPayload(null);
       setAnalysisError('');
@@ -196,24 +198,29 @@ export function useStrategyReportRemoteData({
     fetchStrategyStepReport(strategyName, tab, versionIdForReport)
       .then(({ analysis }) => {
         if (cancelled) return;
-        if (analysis?.available && analysis?.insights) {
-          setAnalysisPayload(analysis);
+        const payload = analysis && typeof analysis === 'object' ? analysis : null;
+        if (!payload || payload.enabled === false) {
+          setAnalysisPayload(null);
+          setAnalysisStatus('idle');
+          return;
+        }
+        setAnalysisPayload(payload);
+        if (payload.available && payload.facts && typeof payload.facts === 'object') {
           setAnalysisStatus('ok');
           return;
         }
-        setAnalysisPayload(analysis && typeof analysis === 'object' ? analysis : null);
         setAnalysisStatus('missing');
       })
       .catch((err) => {
         if (cancelled) return;
         setAnalysisPayload(null);
         setAnalysisStatus('error');
-        setAnalysisError(err?.message || '加载归因解读失败');
+        setAnalysisError(err?.message || '加载归因报告失败');
       });
     return () => {
       cancelled = true;
     };
-  }, [analysisRefreshKey, executionState?.stepStatus, resolvedActiveTab, strategyName, versionIdForReport]);
+  }, [analysisEnabled, analysisRefreshKey, executionState?.stepStatus, resolvedActiveTab, strategyName, versionIdForReport]);
 
   return {
     enumRefStatus,

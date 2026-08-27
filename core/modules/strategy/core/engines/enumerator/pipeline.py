@@ -150,9 +150,7 @@ class EnumeratorPipeline:
             entity_count=len(stock_ids),
             effective_settings_obj=effective_settings_obj,
         )
-
-        if drive:
-            PipelineProgress.complete_step_bound("report")
+        # report 步由 Strategy._run_steps 在归因之后 complete
         return results
 
     @classmethod

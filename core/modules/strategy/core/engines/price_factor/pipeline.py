@@ -50,8 +50,7 @@ class PriceFactorPipeline:
             PipelineProgress.complete_step_bound("execute")
             PipelineProgress.enter_step_bound("report")
         out = report.finalize(run_result, data=data)
-        if drive:
-            PipelineProgress.complete_step_bound("report")
+        # report 步由 Strategy._run_steps 在归因之后 complete
         return out
 
     @classmethod

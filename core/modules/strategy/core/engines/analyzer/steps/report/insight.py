@@ -15,7 +15,7 @@ class InsightBuilder:
 
     @classmethod
     def build(cls, report: Dict[str, Any]) -> Dict[str, Any]:
-        """Build conclusion-first insight payload for CLI / UI."""
+        """Build conclusion-first insight payload for CLI ``sa``."""
         step = str(report.get("step") or "enum").strip() or "enum"
         decision_space = report.get("decision_space") if isinstance(report.get("decision_space"), dict) else {}
         attribution = report.get("attribution") if isinstance(report.get("attribution"), dict) else {}

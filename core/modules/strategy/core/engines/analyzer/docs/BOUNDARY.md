@@ -20,7 +20,8 @@
 ```text
 report.py              # 入口：总结 → insight → 持久化
 summarize.py           # 总结：整理 analyze 结果为 report 主体
-insight.py             # 下结论（InsightBuilder）
+insight.py             # CLI 叙事（InsightBuilder）
+facts.py               # BFF / FED 结构化 facts（无 CLI 文案）
 present.py             # 终端展示
 ```
 

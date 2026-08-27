@@ -313,7 +313,7 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
 }
 
 /**
- * V2-07：步骤报告 + 归因 insights（同一次 GET）。
+ * V2-07：步骤报告 + 归因 facts（同一次 GET）。
  * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
  * @param {string} strategyKeyOrName
  * @param {'enum'|'price'|'portfolio'} step

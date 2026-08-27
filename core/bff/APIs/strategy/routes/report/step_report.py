@@ -25,6 +25,26 @@ from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshot
 logger = logging.getLogger(__name__)
 
 
+def _analysis_enabled(settings: Any) -> bool:
+    if not isinstance(settings, dict):
+        return False
+    block = settings.get("analysis")
+    if not isinstance(block, dict):
+        return False
+    return block.get("enabled") is True
+
+
+def _analysis_read_model(payload: Any, *, settings: Any) -> Dict[str, Any]:
+    data = payload if isinstance(payload, dict) else {}
+    facts = data.get("facts")
+    return {
+        "enabled": _analysis_enabled(settings),
+        "available": bool(data.get("available")),
+        "report_path": str(data.get("report_path") or ""),
+        "facts": facts if isinstance(facts, dict) else None,
+    }
+
+
 class WorkbenchReports:
     """V2-07 step report + V2-07b per-stock ref."""
 
@@ -54,11 +74,14 @@ class WorkbenchReports:
         )
         rr = dict(row.get("result_report") or {})
         slot = rr.get(step.report_slot)
-        analysis = Strategy.resolve_step_analysis(
-            name,
-            step.value,
-            slot if isinstance(slot, dict) else {},
-            workbench_version=int(version),
+        analysis = _analysis_read_model(
+            Strategy.resolve_step_analysis(
+                name,
+                step.value,
+                slot if isinstance(slot, dict) else {},
+                workbench_version=int(version),
+            ),
+            settings=row.get("settings_snapshot"),
         )
         return {
             "version_id": f"v{int(version)}",

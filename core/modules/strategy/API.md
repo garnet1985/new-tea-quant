@@ -121,7 +121,7 @@
 `Strategy.resolve_simulation_output_dirs(strategy_name: str, *, step: str, slot: dict | None = None, workbench_version: int = 0) -> list[Path]`
 
 - **状态：** `beta`
-- **描述：** 归因 insights 读取与 step 产物目录解析（BFF step report / hydrate 用）。`step_analysis_from_output_dir` 读单目录 `analysis/report.json` → `{available, report_path, insights}`；`resolve_step_analysis` 按 slot + workbench version 候选目录解析；`resolve_simulation_output_dirs` 返回 enum / price / portfolio 的绝对 version-dir 候选列表
+- **描述：** 归因读取与 step 产物目录解析（BFF step report / hydrate 用）。`step_analysis_from_output_dir` 读单目录 `analysis/report.json` → `{available, report_path, facts, insights}`（`facts` 给 UI，`insights` 给 CLI 叙事）；`resolve_step_analysis` 按 slot + workbench version 候选目录解析；`resolve_simulation_output_dirs` 返回 enum / price / portfolio 的绝对 version-dir 候选列表。BFF `GET …/report/:step/:version` 的 `analysis` 另附 `enabled`（该 version 快照 `settings.analysis.enabled`），不下发 `insights`
 - **生成：** simulate 且 `settings.analysis.enabled=true` 时在主 simulate 步结束后自动生成 report；无独立 `Strategy.analyze`
 
 ### prune_simulation_results / prune_scan_results

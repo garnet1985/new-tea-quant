@@ -80,8 +80,7 @@ class PortfolioPipeline:
             data=data,
             settings=settings,
         )
-        if drive:
-            PipelineProgress.complete_step_bound("report")
+        # report 步由 Strategy._run_steps 在归因之后 complete
         return out
 
     @classmethod

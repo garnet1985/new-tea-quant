@@ -260,6 +260,7 @@ Batch 0
 | 区域 | 路径 |
 |------|------|
 | 产物布局 | `core/modules/strategy/core/services/artifacts/store.py` |
+| 扫描日期目录 | `.../artifacts/scan_store.py`（``ScanStore`` / ``ArtifactStore.scan_at``） |
 | registry / effective_settings | `.../artifacts/version_meta.py` |
 | 磁盘 cache hit | `.../artifacts/version_cache.py` |
 | 磁盘 cache 清理 / keep-N | `.../artifacts/retention.py` |

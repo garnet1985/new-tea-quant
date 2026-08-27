@@ -36,7 +36,7 @@
 `Strategy.scan_run(key_or_id: str, *, progress_id: str, demo: bool = False, force: bool = False) -> None`
 
 - **状态：** `beta`
-- **描述：** 工作台扫描。读模型在 `ScannerPipeline`（page_context / readiness / block_reason）；`scan_run` 写 `ScanProgress` 后调用 `ScannerPipeline.run`。CLI 用 `scan`（可多策略、无进度文件）。BFF 只负责线程与单飞锁。
+- **描述：** 工作台扫描。读模型在 `ScannerPipeline`（page_context / readiness / block_reason）；`scan_run` 写 `ScanProgress` 后调用 `ScannerPipeline.run`。CLI 用 `scan`（可多策略、无进度文件）。BFF 只负责线程与单飞锁。落盘 `{strategy}/results/scan/{YYYYMMDD}/`（`scan_summary.json` + 有机会时 `opportunities.csv`），读写走 `ArtifactStore.scan_at`。
 
 ### simulate
 

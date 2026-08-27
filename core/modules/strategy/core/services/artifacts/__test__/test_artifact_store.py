@@ -184,3 +184,30 @@ def test_latest_reads_meta(tmp_path: Path, monkeypatch) -> None:
     assert isinstance(store, PriceFactorStore)
     assert store.version_id == "2"
     assert store.output_dir == root / "2" / "price"
+
+
+def test_write_json_at_roundtrip(tmp_path: Path) -> None:
+    ArtifactStore.write_json_at(tmp_path, "overall_report", {"ok": True})
+    assert ArtifactStore.read_json_at(tmp_path, "overall_report") == {"ok": True}
+
+
+def test_scan_at_uses_date_dir(tmp_path: Path, monkeypatch) -> None:
+    scan_root = tmp_path / "scan"
+    monkeypatch.setattr(
+        ArtifactStore,
+        "scan_root",
+        classmethod(lambda cls, folder: scan_root),
+    )
+    store = ArtifactStore.scan_at(tmp_path, "20240110")
+    assert store.output_dir == scan_root / "20240110"
+    store.write_summary({"date": "20240110", "total_opportunities": 0})
+    assert store.has_summary()
+    assert store.read_summary()["total_opportunities"] == 0
+
+
+def test_scan_store_does_not_import_engines() -> None:
+    import core.modules.strategy.core.services.artifacts.scan_store as mod
+
+    text = Path(mod.__file__).read_text(encoding="utf-8")
+    assert "engines" not in text
+

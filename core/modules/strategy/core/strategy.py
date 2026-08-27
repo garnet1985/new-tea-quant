@@ -102,11 +102,13 @@ class Strategy:
         """工作台一次扫描：写 ``ScanProgress``，再跑 ``ScannerPipeline.run``。"""
         from core.modules.data_manager import DataManager
 
-        from .engines.scanner.helpers import ScanCacheManager, ScanDateResolver
+        from .engines.scanner.helpers import ScanDateResolver
         from .engines.scanner.pipeline import ScannerPipeline
+        from .engines.scanner.report_manager import ReportManager
         from .engines.shared.services.strategy_settings.strategy_settings import (
             StrategySettings,
         )
+        from .services.artifacts.store import ArtifactStore
         from .services.progress.scan_progress import ScanProgress
 
         name = str(key_or_id or "").strip()
@@ -148,8 +150,8 @@ class Strategy:
                 report.setdefault("strategy_key", path_key)
                 scan_date = str(report.get("date") or "").strip()
                 if scan_date:
-                    cache = ScanCacheManager(folder, settings.scanner.max_cache_days)
-                    opportunities = cache.load_opportunities(scan_date)
+                    store = ArtifactStore.scan_at(folder, scan_date)
+                    opportunities = ReportManager.load_opportunities(store)
             prog.complete(
                 report if isinstance(report, dict) else {},
                 opportunities=opportunities,

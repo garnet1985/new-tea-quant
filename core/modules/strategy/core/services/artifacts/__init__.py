@@ -1,4 +1,4 @@
-"""仿真产物统一入口：读写、version cache、retention。"""
+"""仿真 / 扫描产物统一入口：读写、version cache、retention。"""
 from .io import ArtifactIO
 from .consts import (
     ANALYSIS_REPORT_FILE,
@@ -21,6 +21,8 @@ from .consts import (
     PORTFOLIO_REPORT_FILES,
     PORTFOLIO_VERSION_REQUIRED_FILES,
     RUNTIME_ENV_FILE,
+    SCAN_OPPORTUNITIES_FILE,
+    SCAN_SUMMARY_FILE,
     SIGNAL_SNAPSHOTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
     TRADES_FILE,
@@ -32,7 +34,9 @@ from .store import (
     PortfolioStore,
     PriceFactorStore,
 )
+from .scan_store import ScanStore
 from .version_cache import SimulationVersionStore
+from . import retention
 from .retention import ArtifactRetention
 from .tables import (
     EntityInvestmentCsv,
@@ -65,6 +69,8 @@ __all__ = [
     "PORTFOLIO_REPORT_FILES",
     "PORTFOLIO_VERSION_REQUIRED_FILES",
     "RUNTIME_ENV_FILE",
+    "SCAN_OPPORTUNITIES_FILE",
+    "SCAN_SUMMARY_FILE",
     "SIGNAL_SNAPSHOTS_SUFFIX",
     "STOCK_INVESTMENTS_SUFFIX",
     "TRADES_FILE",
@@ -75,6 +81,7 @@ __all__ = [
     "EnumerateStore",
     "PortfolioStore",
     "PriceFactorStore",
+    "ScanStore",
     "EntityInvestmentCsv",
     "EntitySignalSnapshotCsv",
     "GoalAchievementCsv",

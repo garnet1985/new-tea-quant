@@ -7,6 +7,7 @@ import pytest
 
 from core.modules.strategy import Strategy
 from core.modules.strategy.core.engines.scanner import ScannerPipeline
+from core.modules.strategy.core.engines.scanner.helpers import ScanDateResolver
 
 pytestmark = pytest.mark.force_run
 
@@ -63,8 +64,9 @@ def test_scanner_pipeline_scan_calls_run() -> None:
         },
     )()
     with patch.object(ScannerPipeline, "resolve_targets", return_value=[info]):
-        with patch(
-            "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver.load_kline_latest_date",
+        with patch.object(
+            ScanDateResolver,
+            "load_kline_latest_date",
             return_value="20240110",
         ):
             with patch.object(ScannerPipeline, "run", return_value=fake_report) as run:
@@ -86,8 +88,9 @@ def test_scanner_pipeline_scan_strict_gate_raises() -> None:
         },
     )()
     with patch.object(ScannerPipeline, "resolve_targets", return_value=[info]):
-        with patch(
-            "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver.strict_data_block_reason",
+        with patch.object(
+            ScanDateResolver,
+            "strict_data_block_reason",
             return_value="calendar not aligned",
         ):
             with patch.object(ScannerPipeline, "run") as run:

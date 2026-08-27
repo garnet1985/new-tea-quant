@@ -4,7 +4,7 @@
 - scan_summary.json  — 全局摘要（CMD / 返回值同源）
 - opportunities.csv  — 机会明细（有机会时）
 
-不进 workbench ``result_report`` / SimulationCache。
+读写走 ``ArtifactStore.scan_at`` / ``ScanStore``；不进仿真 version。
 """
 from __future__ import annotations
 
@@ -14,10 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO
 
 from core.infra.cmd_layout import CmdLayout
-from core.modules.strategy.core.engines.scanner.helpers import (
-    AdapterDispatcher,
-    ScanCacheManager,
-)
+from core.modules.strategy.core.engines.scanner.helpers import AdapterDispatcher
 from core.modules.strategy.core.engines.scanner.report_manager.scan_summary import (
     ScanSummary,
 )
@@ -25,9 +22,14 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.report_manager import (
     BaseReportManager,
 )
+from core.modules.strategy.core.services.artifacts.consts import (
+    SCAN_OPPORTUNITIES_FILE,
+    SCAN_SUMMARY_FILE,
+)
+from core.modules.strategy.core.services.artifacts.scan_store import ScanStore
+from core.modules.strategy.core.services.artifacts.store import ArtifactStore
 
-SCAN_SUMMARY_FILE = "scan_summary.json"
-OPPORTUNITIES_CSV_FILE = "opportunities.csv"
+OPPORTUNITIES_CSV_FILE = SCAN_OPPORTUNITIES_FILE
 
 
 @dataclass
@@ -36,7 +38,7 @@ class ReportManager(BaseReportManager):
 
     边界:
     - 负责: collect opportunities、summary、落盘、adapter present
-    - 不负责: BE 调度 / 日期解析
+    - 不负责: BE 调度 / 日期解析 / 磁盘路径
     - 调用方: ScannerPipeline
     """
 
@@ -49,7 +51,7 @@ class ReportManager(BaseReportManager):
     skip_save: bool = False
     opportunities: List[Opportunity] = field(default_factory=list)
     summary: Optional[ScanSummary] = field(default=None, init=False, repr=False)
-    _cache: Optional[ScanCacheManager] = field(default=None, init=False, repr=False)
+    _store: Optional[ScanStore] = field(default=None, init=False, repr=False)
 
     @classmethod
     def begin(
@@ -67,8 +69,8 @@ class ReportManager(BaseReportManager):
         key = str(strategy_key or "").strip()
         day = str(scan_date or "").strip()
         root = strategy_folder if strategy_folder is not None else key
-        cache = ScanCacheManager(root, max_cache_days=int(max_cache_days))
-        output_dir = cache.cache_base_dir / day if day else cache.cache_base_dir
+        store = ArtifactStore.scan_at(root, day) if day else None
+        output_dir = store.output_dir if store is not None else Path()
         mgr = cls(
             output_dir=output_dir,
             strategy_key=key,
@@ -79,8 +81,12 @@ class ReportManager(BaseReportManager):
             max_cache_days=int(max_cache_days),
             skip_save=bool(skip_save),
         )
-        mgr._cache = cache
+        mgr._store = store
         return mgr
+
+    @staticmethod
+    def load_opportunities(store: ScanStore) -> List[Opportunity]:
+        return [Opportunity.from_dict(row) for row in store.read_opportunity_rows()]
 
     def collect(self, item: Any) -> None:
         """接受 ``List[Opportunity]``、单条 Opportunity、或 BE ``run_result``。"""
@@ -144,12 +150,9 @@ class ReportManager(BaseReportManager):
             return None
         if not self.scan_date:
             return None
-        cache = self._cache or ScanCacheManager(
-            self.strategy_key, max_cache_days=self.max_cache_days
-        )
-        summary_path = cache.save_scan_summary(self.scan_date, self.to_report_dict())
-        # 始终调用：有机会写 CSV；0 机会清掉陈旧 CSV
-        cache.save_opportunities(self.scan_date, self.opportunities)
+        store = self._store or ArtifactStore.scan_at(self.strategy_key, self.scan_date)
+        summary_path = store.write_summary(self.to_report_dict())
+        store.write_opportunity_rows([opp.to_dict() for opp in self.opportunities])
         return summary_path
 
     def present(self, stream: Optional[TextIO] = None) -> None:

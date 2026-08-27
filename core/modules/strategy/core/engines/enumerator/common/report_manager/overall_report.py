@@ -1,7 +1,6 @@
 """机会总体报告（overall_report.json）—— CMD / UI / DB 同一契约。"""
 from __future__ import annotations
 
-import json
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -11,6 +10,7 @@ from typing import Any, Dict, List, Optional, TextIO, TYPE_CHECKING
 from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.services.artifacts import (
     OVERALL_REPORT_FILE,
+    ArtifactStore,
 )
 from core.modules.strategy.core.engines.shared.data_class.investment import Lifecycle
 from core.modules.strategy.core.helpers.statistics import StatisticsHelper
@@ -176,17 +176,10 @@ class OverallReport:
 
     @classmethod
     def load(cls, output_dir: Path) -> "OverallReport":
-        path = output_dir / cls.OVERALL_REPORT_FILE
-        return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        return cls.from_dict(ArtifactStore.read_json_at(output_dir, "overall_report"))
 
     def save(self, output_dir: Path) -> Path:
-        path = output_dir / self.OVERALL_REPORT_FILE
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(self.to_dict(), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return path
+        return ArtifactStore.write_json_at(output_dir, "overall_report", self.to_dict())
 
     def present(self, stream: Optional[TextIO] = None) -> None:
         """CMD presenter：banner + 机会结论（只读本对象）。"""

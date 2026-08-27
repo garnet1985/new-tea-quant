@@ -1,4 +1,4 @@
-"""仿真 version 目录文件名常量。"""
+"""仿真 version 目录与扫描日期目录文件名常量。"""
 
 RUNTIME_ENV_FILE = "runtime_env.json"
 EFFECTIVE_SETTINGS_FILE = "effective_settings.json"
@@ -45,6 +45,9 @@ PORTFOLIO_VERSION_REQUIRED_FILES = (
     *PORTFOLIO_REPORT_FILES,
 )
 
+SCAN_SUMMARY_FILE = "scan_summary.json"
+SCAN_OPPORTUNITIES_FILE = "opportunities.csv"
+
 __all__ = [
     "ANALYSIS_REPORT_FILE",
     "ANALYSIS_REPORT_JSON",
@@ -66,6 +69,8 @@ __all__ = [
     "PORTFOLIO_REPORT_FILES",
     "PORTFOLIO_VERSION_REQUIRED_FILES",
     "RUNTIME_ENV_FILE",
+    "SCAN_OPPORTUNITIES_FILE",
+    "SCAN_SUMMARY_FILE",
     "SIGNAL_SNAPSHOTS_SUFFIX",
     "STOCK_INVESTMENTS_SUFFIX",
     "TRADES_FILE",

@@ -1,7 +1,8 @@
-"""统一仿真产物入口：定位 version、读写表、prune、进程内缓存。
+"""统一仿真产物入口：定位 version / scan 日期目录、读写表、prune、进程内缓存。
 
 ``ArtifactStore`` 是基类（定位 / json / prune / 缓存）。
 三步表形态不同，由子类覆盖：``EnumerateStore`` / ``PriceFactorStore`` / ``PortfolioStore``。
+扫描走 ``scan_at`` → ``ScanStore``（``results/scan/{YYYYMMDD}/``，不复用仿真 version）。
 """
 from __future__ import annotations
 
@@ -572,6 +573,25 @@ class ArtifactStore:
     @classmethod
     def read_json_at(cls, output_dir: Union[str, Path], name: str) -> Dict[str, Any]:
         return ArtifactIO.read_json(cls.named_path(output_dir, name))
+
+    @classmethod
+    def write_json_at(
+        cls,
+        output_dir: Union[str, Path],
+        name: str,
+        payload: Any,
+    ) -> Path:
+        return ArtifactIO.write_json(cls.named_path(output_dir, name), payload)
+
+    @classmethod
+    def scan_at(
+        cls,
+        strategy_folder: Union[str, Path],
+        scan_date: str,
+    ) -> "ScanStore":
+        from core.modules.strategy.core.services.artifacts.scan_store import ScanStore
+
+        return ScanStore.at(strategy_folder, scan_date)
 
     def file(self, name: str) -> Path:
         filename = _NAMED_FILES.get(str(name or "").strip())

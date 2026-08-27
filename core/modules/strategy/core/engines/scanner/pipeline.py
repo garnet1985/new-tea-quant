@@ -1,7 +1,7 @@
 """Scanner Pipeline — 扫描领域编排。
 
 - ``scan``：CLI / 多策略
-- ``run``：单策略（日期 → cache/BE → ReportManager）
+- ``run``：单策略（日期 → ScanStore / BE → ReportManager）
 - ``page_context`` / ``readiness`` / ``block_reason``：工作台读模型（能否扫、已有落盘）
 
 进度文件由 Facade ``Strategy.scan_run`` 写；本类不碰 ``ScanProgress`` 生命周期。
@@ -17,7 +17,6 @@ from core.modules.backtest_engine import BacktestEngine
 from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.scanner.executor import ScannerJobExecutor
 from core.modules.strategy.core.engines.scanner.helpers import (
-    ScanCacheManager,
     ScanDateResolver,
     ScannerCalendarAsof,
 )
@@ -26,6 +25,7 @@ from core.modules.strategy.core.engines.scanner.report_manager import ReportMana
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+from core.modules.strategy.core.services.artifacts.store import ArtifactStore
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
@@ -212,10 +212,10 @@ class ScannerPipeline:
                 report = None
                 primary = "run"
                 if kline_latest:
-                    cache = ScanCacheManager(folder, settings.scanner.max_cache_days)
-                    summary_payload = cache.load_scan_summary(kline_latest)
+                    store = ArtifactStore.scan_at(folder, kline_latest)
+                    summary_payload = store.read_summary()
                     if isinstance(summary_payload, dict):
-                        opportunities = cache.load_opportunities(kline_latest)
+                        opportunities = ReportManager.load_opportunities(store)
                         total_opps = int(summary_payload.get("total_opportunities") or 0)
                         report = {
                             "date": str(summary_payload.get("date") or kline_latest),
@@ -240,12 +240,12 @@ class ScannerPipeline:
 
             resolver = ScanDateResolver(data_mgr)
             scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
-            cache = ScanCacheManager(folder, settings.scanner.max_cache_days)
-            summary_payload = cache.load_scan_summary(scan_date)
+            store = ArtifactStore.scan_at(folder, scan_date)
+            summary_payload = store.read_summary()
             if not isinstance(summary_payload, dict):
                 return {"primary_action": "run", "can_scan": True, "block_reason": ""}
 
-            opportunities = cache.load_opportunities(scan_date)
+            opportunities = ReportManager.load_opportunities(store)
             total_from_summary = summary_payload.get("total_opportunities")
             try:
                 total_opps = (
@@ -305,7 +305,7 @@ class ScannerPipeline:
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
         data_manager: Any = None,
     ) -> Dict[str, Any]:
-        """单策略扫描（日期 → cache / BE → ReportManager）。"""
+        """单策略扫描（日期 → ScanStore / BE → ReportManager）。"""
         from core.infra.project_context import ProjectContext
 
         settings.apply_defaults()
@@ -320,14 +320,9 @@ class ScannerPipeline:
         )
 
         scan_max = ProjectContext.config.get_scan_results_max_versions()
-        cache = ScanCacheManager(
-            strategy_folder,
-            max_cache_days=scan_max,
-        )
-        cache.cleanup_old_cache()
-
-        summary_path = cache.scan_summary_path(scan_date)
-        use_cache = (not force) and summary_path.is_file()
+        ArtifactStore.prune_scan(strategy_folder, max_versions=scan_max)
+        store = ArtifactStore.scan_at(strategy_folder, scan_date)
+        use_cache = (not force) and store.has_summary()
 
         # 横截面策略：先 asof 选股再扫，避免 has_opportunity 对全宇宙放行
         if not use_cache:
@@ -351,7 +346,7 @@ class ScannerPipeline:
         )
 
         if use_cache:
-            report.collect(cache.load_opportunities(scan_date))
+            report.collect(ReportManager.load_opportunities(store))
             if callable(on_progress):
                 try:
                     on_progress(

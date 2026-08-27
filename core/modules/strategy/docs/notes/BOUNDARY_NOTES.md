@@ -169,7 +169,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 |------|------------|------|------|------|
 | `entity_loader` 整包 | S E | Facade, SimulateSession | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
 | `fingerprint` | — | Facade / BFF settings | keep | 收集 identity input → settings_fp / env_fp（``FingerprintCalculator``） |
-| `artifacts` | E P O | Facade / BFF | keep | 产物读写 + version cache（路径/`version_id`，不含引擎 UI）+ retention（``ArtifactRetention``） |
+| `artifacts` | S E P O | Facade / BFF | keep | 产物读写 + version cache（路径/`version_id`，不含引擎 UI）+ retention（``ArtifactRetention``）+ scan 日期目录（``ScanStore``） |
 | `discovery` | — | Facade | keep | 策略发现 |
 | `data/simulation_output_recorder` | E P O | — | keep | version 目录分配 |
 
@@ -187,7 +187,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 
 ## 遗留问题
 
-> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。无兼容别名；各引擎 `report_manager/` 包布局统一（`report_manager.py` + 私有 summary 数据类）。Scanner 落盘仍用 `scan_results/{date}/`。
+> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。无兼容别名；各引擎 `report_manager/` 包布局统一（`report_manager.py` + 私有 summary 数据类）。Scanner 落盘 ``results/scan/{YYYYMMDD}/``（``ScanStore``）。
 
 ### 应尽快（正确性风险）
 
@@ -215,7 +215,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 |------|------|
 | 多引擎同名 `JobBuilder` / `JobExecutor` | — | **done**：类名加前缀（文件名不变）`Scanner*` / `EnumEntity*` / `EnumSlice*` / `PriceFactor*`；基类仍 `BaseJob*` |
 
-| 磁盘 scan cache | `ScanCacheManager` 读写 CSV；日期 keep-N 在 ``ArtifactStore.prune_scan`` |
+| 磁盘 scan 产物 | ``ArtifactStore.scan_at`` / ``ScanStore`` 读写 ``results/scan/{YYYYMMDD}/``；keep-N 在 ``ArtifactStore.prune_scan`` |
 | `Investment` vs `PortfolioInvestment` | 文件名 `portfolio/data_class/investment.py` 仍易混；类名已区分 |
 | userspace `strategy.py` vs 模块 `strategy.py` | discovery 已用 `_ntq_strategy_*` 区分 |
 | Scanner runtime `scan_date` 键名 | 与 tick `as_of`/`point` 并存；可逐步改成只作 meta，避免再当时钟 |

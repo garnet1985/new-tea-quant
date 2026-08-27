@@ -28,6 +28,7 @@ def test_build_step_report_message(mock_fetch, mock_resolve):
     assert msg["analysis"]["available"] is False
     assert msg["analysis"]["enabled"] is False
     assert msg["analysis"]["facts"] is None
+    assert msg["analysis"]["conclusion"] is None
     assert "insights" not in msg["analysis"]
 
 
@@ -48,8 +49,14 @@ def test_build_step_report_analysis_enabled_facts(mock_resolve_analysis, mock_fe
     mock_resolve_analysis.return_value = {
         "available": True,
         "report_path": "/tmp/analysis/report.json",
-        "insights": {"headline": "CLI 文案不应下发"},
-        "facts": {"status": "ok", "field_key": "rsi", "tiers": []},
+        "insights": {
+            "headline": "rsi 低段平均收益更高",
+            "key_findings": [{"caption": "胜率差距", "value": "14%"}],
+            "explains": ["分档只解释这一次。"],
+            "does_not_explain": ["不是因果。"],
+            "next_steps": ["不应出现在 conclusion"],
+        },
+        "facts": {"status": "ok", "field_key": "rsi", "tiers": [], "buckets": []},
     }
 
     msg = WorkbenchReports.build_step_report(
@@ -60,6 +67,9 @@ def test_build_step_report_analysis_enabled_facts(mock_resolve_analysis, mock_fe
     assert msg["analysis"]["enabled"] is True
     assert msg["analysis"]["available"] is True
     assert msg["analysis"]["facts"]["field_key"] == "rsi"
+    assert msg["analysis"]["conclusion"]["headline"] == "rsi 低段平均收益更高"
+    assert msg["analysis"]["conclusion"]["key_findings"][0]["value"] == "14%"
+    assert "next_steps" not in msg["analysis"]["conclusion"]
     assert "insights" not in msg["analysis"]
 
 

@@ -32,8 +32,12 @@ class InsightFacts:
                 "status": "empty",
                 "field_key": None,
                 "tiers": [],
+                "buckets": [],
                 "correlation": None,
                 "skip_summary": dict(skip_summary) if skip_summary else None,
+                "empty_reason": cls._empty_reason(
+                    report, univariate, skip_summary
+                ),
                 "other_fields": [],
                 "run_comparison": cls._run_comparison(classical),
                 "multivariate": cls._multivariate(classical),
@@ -48,6 +52,7 @@ class InsightFacts:
             "status": "ok",
             "field_key": key,
             "tiers": list(tiers),
+            "buckets": list(buckets),
             "correlation": cls._correlation(corr),
             "skip_summary": dict(skip_summary) if skip_summary else None,
             "other_fields": cls._other_fields(fields, primary_key=key),
@@ -56,6 +61,66 @@ class InsightFacts:
             "ml": cls._ml(attribution),
             "technical": cls._technical(report, classical, field=field, field_key=key),
         }
+
+    @staticmethod
+    def _empty_reason(
+        report: Dict[str, Any],
+        univariate: Dict[str, Any],
+        skip_summary: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Why this step has no attributable field — codes for FED, no CLI copy."""
+        manifest = report.get("manifest") if isinstance(report.get("manifest"), dict) else {}
+        coverage = (
+            manifest.get("coverage") if isinstance(manifest.get("coverage"), dict) else {}
+        )
+        capture_keys = manifest.get("capture_keys")
+        if not isinstance(capture_keys, list):
+            capture_keys = []
+        investment_count = InsightFacts._as_int(
+            coverage.get("investment_count"),
+            fallback=skip_summary.get("investment_count") if skip_summary else None,
+        )
+        with_snapshot = InsightFacts._as_int(coverage.get("with_snapshot"))
+        uni_reason = str(univariate.get("reason") or "")
+        fields = univariate.get("fields") if isinstance(univariate.get("fields"), dict) else {}
+        insufficient_field = any(
+            isinstance(field, dict) and str(field.get("reason") or "") == "insufficient_samples"
+            for field in fields.values()
+        )
+        has_coverage = (
+            "investment_count" in coverage
+            or "with_snapshot" in coverage
+            or bool(skip_summary)
+        )
+        if uni_reason == "no_varying_numeric_capture":
+            code = "no_capture"
+        elif not has_coverage and investment_count <= 0 and with_snapshot <= 0:
+            code = "unknown"
+        elif investment_count <= 0:
+            code = "insufficient_samples"
+        elif with_snapshot <= 0:
+            code = "no_capture"
+        elif with_snapshot < 2 or insufficient_field or uni_reason == "insufficient_samples":
+            code = "insufficient_samples"
+        else:
+            code = "no_capture"
+        return {
+            "code": code,
+            "investment_count": investment_count,
+            "with_snapshot": with_snapshot,
+            "capture_key_count": len(capture_keys),
+        }
+
+    @staticmethod
+    def _as_int(value: Any, fallback: Any = None) -> int:
+        for raw in (value, fallback):
+            if raw is None:
+                continue
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                continue
+        return 0
 
     @staticmethod
     def _correlation(corr: Dict[str, Any]) -> Optional[Dict[str, Any]]:

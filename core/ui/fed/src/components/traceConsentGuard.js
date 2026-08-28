@@ -8,7 +8,7 @@ import TraceConsentAskOverlay from './traceConsentAskOverlay';
  * 主 UI（SetupGuard 之后）与安装向导的成功页使用；不要包住未完成的 /setup，
  * 否则同意写入会提前 mkdir userspace，挡住 init_userspace。
  */
-function TraceConsentGuard({ children, source }) {
+function TraceConsentGuard({ children = null, source = 'ask_ui' }) {
   const [needsAsk, setNeedsAsk] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -69,11 +69,6 @@ function TraceConsentGuard({ children, source }) {
 TraceConsentGuard.propTypes = {
   children: PropTypes.node,
   source: PropTypes.string,
-};
-
-TraceConsentGuard.defaultProps = {
-  children: null,
-  source: 'ask_ui',
 };
 
 export default TraceConsentGuard;

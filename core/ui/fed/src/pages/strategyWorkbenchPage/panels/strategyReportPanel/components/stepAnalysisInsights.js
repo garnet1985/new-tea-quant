@@ -5,7 +5,7 @@ import ChartPanel from 'components/chartPanel/chartPanel';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import MetricCard from 'components/metricCard/metricCard';
 import MetricGrid from 'components/metricGrid/metricGrid';
-import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import { SectionBlock, SectionTitle } from 'components/sectionBlock/sectionBlock';
 import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import ReportUnavailableHint from '../components/reportUnavailableHint';
 import {
@@ -15,8 +15,6 @@ import {
 } from '../reportMetricTips';
 import {
   ANALYSIS_BINS_TITLE,
-  ANALYSIS_CONCLUSION_TITLE,
-  ANALYSIS_DIRECTION_CAPTION,
   ANALYSIS_EMPTY_CAPTURE_Q,
   ANALYSIS_EMPTY_HIT_BADGE,
   ANALYSIS_EMPTY_LEAD_ZH,
@@ -24,43 +22,43 @@ import {
   ANALYSIS_EMPTY_TITLE,
   ANALYSIS_EMPTY_ZH,
   ANALYSIS_ERROR_ZH,
-  ANALYSIS_EXPLAIN_CAPTION,
+  ANALYSIS_EXPLAIN_BOX_TITLE,
+  ANALYSIS_FINDINGS_TITLE,
+  ANALYSIS_HERO_READ_TITLE,
   ANALYSIS_LOADING_ZH,
   ANALYSIS_MISSING_ZH,
   ANALYSIS_MULTIVARIATE_TITLE,
-  ANALYSIS_NOT_EXPLAIN_CAPTION,
+  ANALYSIS_NEXT_TITLE,
+  ANALYSIS_NOT_EXPLAIN_BOX_TITLE,
   ANALYSIS_OTHER_FIELDS_TITLE,
-  ANALYSIS_OVERVIEW_TITLE,
-  ANALYSIS_PRIMARY_FIELD_CAPTION,
   ANALYSIS_RUN_COMPARISON_TITLE,
-  ANALYSIS_SAMPLE_CAPTION,
   ANALYSIS_SECTION_TITLE,
-  ANALYSIS_SIGNIFICANCE_CAPTION,
-  ANALYSIS_SKIP_CAPTION,
-  ANALYSIS_TIER_COL_N,
-  ANALYSIS_TIER_COL_RANGE,
-  ANALYSIS_TIER_COL_ROI,
-  ANALYSIS_TIER_COL_WIN,
-  ANALYSIS_TIERS_TITLE,
-  ANALYSIS_WATERSHED_TITLE,
+  ANALYSIS_TECH_DISCLAIMER,
+  ANALYSIS_TECH_TITLE,
+  ANALYSIS_WATERSHED_MARK,
+  analysisHeroCaption,
+  analysisHeroTitle,
+  analysisNextSteps,
   analysisEmptyCaptureDetail,
   analysisEmptySampleDetail,
 } from '../reportSectionMeta';
 import {
+  buildHeroRoiOption,
   buildRoiBarOption,
   correlationDirection,
   formatCount,
   formatNum,
-  formatPlain,
   formatPValue,
-  formatRoiPct,
-  formatWinPct,
+  formatPlain,
+  highlightCardsFromTiers,
   maxAbs,
   multivariateKindLabel,
   rankFillPct,
+  rowsExtent,
   sameBinning,
   sampleSizeFromFacts,
-  significanceLabel,
+  splitValueFromTiers,
+  stripCornerQuotes,
 } from '../lib/analysisFactsDisplay';
 
 function RankRows({ rows, valueKey, formatValue }) {
@@ -101,35 +99,86 @@ RankRows.propTypes = {
   formatValue: PropTypes.func.isRequired,
 };
 
-function FindingList({ items }) {
-  const rows = Array.isArray(items) ? items.filter((item) => item && typeof item === 'object') : [];
+function HighlightCard({ value, caption, tone = 'info' }) {
+  return (
+    <Box className={`ntq-analysis-highlight ntq-analysis-highlight--${tone || 'info'}`}>
+      <Typography className="ntq-analysis-highlight__value">{value}</Typography>
+      <Typography variant="caption" color="text.secondary" className="ntq-analysis-highlight__caption">
+        {caption}
+      </Typography>
+    </Box>
+  );
+}
+
+HighlightCard.propTypes = {
+  value: PropTypes.string.isRequired,
+  caption: PropTypes.string.isRequired,
+  tone: PropTypes.string,
+};
+
+function CalloutList({ title, items = [], tone = 'ok' }) {
+  const rows = Array.isArray(items) ? items.map((item) => String(item || '').trim()).filter(Boolean) : [];
   if (!rows.length) return null;
   return (
-    <Stack spacing={0.5} className="ntq-analysis-findings">
-      {rows.map((item, idx) => {
-        const caption = String(item.caption || '').trim();
-        const value = String(item.value || '').trim();
-        const line = caption && value ? `${caption}：${value}` : (caption || value);
-        if (!line) return null;
-        return (
-          <Typography key={`${line}-${idx}`} variant="body2" color="text.primary">
-            {`· ${line}`}
-          </Typography>
-        );
-      })}
+    <Box className={`ntq-analysis-callout ntq-analysis-callout--${tone || 'ok'}`}>
+      <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>{title}</Typography>
+      <Stack spacing={0.5}>
+        {rows.map((line) => (
+          <Box key={line} className="ntq-analysis-callout__row">
+            <span className="ntq-analysis-callout__mark">{tone === 'warn' ? '✕' : '✓'}</span>
+            <Typography variant="body2">{line}</Typography>
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+CalloutList.propTypes = {
+  title: PropTypes.string.isRequired,
+  items: PropTypes.arrayOf(PropTypes.string),
+  tone: PropTypes.string,
+};
+
+function NumberedSteps({ items = [] }) {
+  const rows = Array.isArray(items) ? items.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  if (!rows.length) return null;
+  return (
+    <Stack spacing={0.85} className="ntq-analysis-steps">
+      {rows.map((line, idx) => (
+        <Box key={line} className="ntq-analysis-step">
+          <span className="ntq-analysis-step__n">{idx + 1}</span>
+          <Typography variant="body2">{line}</Typography>
+        </Box>
+      ))}
     </Stack>
   );
 }
 
-FindingList.propTypes = {
-  items: PropTypes.arrayOf(PropTypes.object),
+NumberedSteps.propTypes = {
+  items: PropTypes.arrayOf(PropTypes.string),
 };
 
-FindingList.defaultProps = {
-  items: [],
+function ReadNote({ title, text = '', tip = '' }) {
+  if (!text) return null;
+  return (
+    <Box className="ntq-analysis-read">
+      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+        <Typography className="ntq-analysis-read__title">{title}</Typography>
+        {tip ? <NtqHelpTooltip title={tip} /> : null}
+      </Stack>
+      <Typography variant="body2">{text}</Typography>
+    </Box>
+  );
+}
+
+ReadNote.propTypes = {
+  title: PropTypes.string.isRequired,
+  text: PropTypes.string,
+  tip: PropTypes.string,
 };
 
-function EmptyCheckCard({ question, detail, isHit }) {
+function EmptyCheckCard({ question, detail, isHit = false }) {
   return (
     <Box className={`ntq-analysis-empty-check${isHit ? ' ntq-analysis-empty-check--hit' : ''}`}>
       <Stack direction="row" spacing={0.75} alignItems="baseline" sx={{ mb: 0.35 }}>
@@ -155,11 +204,7 @@ EmptyCheckCard.propTypes = {
   isHit: PropTypes.bool,
 };
 
-EmptyCheckCard.defaultProps = {
-  isHit: false,
-};
-
-function EmptyChecks({ reason }) {
+function EmptyChecks({ reason = null }) {
   const block = reason && typeof reason === 'object' ? reason : {};
   const code = String(block.code || 'unknown');
   const investmentCount = Number(block.investment_count) || 0;
@@ -199,69 +244,7 @@ EmptyChecks.propTypes = {
   reason: PropTypes.object,
 };
 
-EmptyChecks.defaultProps = {
-  reason: null,
-};
-
-function NoteList({ title, items }) {
-  const rows = Array.isArray(items) ? items.map((item) => String(item || '').trim()).filter(Boolean) : [];
-  if (!rows.length) return null;
-  return (
-    <Stack spacing={0.35}>
-      <Typography variant="caption" color="text.secondary">{title}</Typography>
-      {rows.map((line) => (
-        <Typography key={line} variant="body2" color="text.secondary">
-          {`· ${line}`}
-        </Typography>
-      ))}
-    </Stack>
-  );
-}
-
-NoteList.propTypes = {
-  title: PropTypes.string.isRequired,
-  items: PropTypes.arrayOf(PropTypes.string),
-};
-
-NoteList.defaultProps = {
-  items: [],
-};
-
-function BinTable({ rows }) {
-  const list = Array.isArray(rows) ? rows.filter((row) => row && typeof row === 'object') : [];
-  if (!list.length) return null;
-  return (
-    <Box className="ntq-analysis-tier-table" sx={{ mt: 1 }}>
-      <Box className="ntq-analysis-tier-row ntq-analysis-tier-row--head">
-        <span>{ANALYSIS_TIER_COL_RANGE}</span>
-        <span>{ANALYSIS_TIER_COL_ROI}</span>
-        <span>{ANALYSIS_TIER_COL_WIN}</span>
-        <span>{ANALYSIS_TIER_COL_N}</span>
-      </Box>
-      {list.map((row, idx) => {
-        const label = String(row.label || '?').trim() || '?';
-        return (
-          <Box key={`${label}-${idx}`} className="ntq-analysis-tier-row">
-            <span>{label}</span>
-            <span>{formatRoiPct(row.mean_roi)}</span>
-            <span>{formatWinPct(row.win_rate)}</span>
-            <span>{formatCount(row.count)}</span>
-          </Box>
-        );
-      })}
-    </Box>
-  );
-}
-
-BinTable.propTypes = {
-  rows: PropTypes.arrayOf(PropTypes.object),
-};
-
-BinTable.defaultProps = {
-  rows: [],
-};
-
-function StepAnalysisInsights({ status, analysis, error = '' }) {
+function StepAnalysisInsights({ status, analysis = null, error = '' }) {
   const facts = useMemo(() => {
     if (!analysis?.enabled || !analysis?.facts || typeof analysis.facts !== 'object') {
       return null;
@@ -278,10 +261,14 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
   const corr = facts?.correlation && typeof facts.correlation === 'object'
     ? facts.correlation
     : null;
-  const direction = correlationDirection(corr?.rho);
-  const significance = significanceLabel(corr?.p_value);
-  const tiers = Array.isArray(facts?.tiers) ? facts.tiers.filter((t) => t && typeof t === 'object') : [];
-  const buckets = Array.isArray(facts?.buckets) ? facts.buckets.filter((t) => t && typeof t === 'object') : [];
+  const tiers = useMemo(
+    () => (Array.isArray(facts?.tiers) ? facts.tiers.filter((t) => t && typeof t === 'object') : []),
+    [facts],
+  );
+  const buckets = useMemo(
+    () => (Array.isArray(facts?.buckets) ? facts.buckets.filter((t) => t && typeof t === 'object') : []),
+    [facts],
+  );
   const otherFields = Array.isArray(facts?.other_fields)
     ? facts.other_fields.filter((row) => row && typeof row === 'object')
     : [];
@@ -302,30 +289,64 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
     : null;
   const skipped = Number(skip?.skipped_count) || 0;
   const sampleSize = sampleSizeFromFacts(facts);
+  const isEmpty = facts?.status === 'empty';
   const watershedDistinct = tiers.length > 0 && !sameBinning(tiers, buckets);
-  const watershedOption = useMemo(
-    () => (watershedDistinct ? buildRoiBarOption(tiers, { barMaxWidth: 56 }) : null),
-    [watershedDistinct, tiers],
+  const heroRows = watershedDistinct || tiers.length === 2 ? tiers : buckets;
+  const heroOption = useMemo(
+    () => (heroRows.length > 0
+      ? buildHeroRoiOption(heroRows, {
+        watershedLabel: heroRows.length === 2 ? ANALYSIS_WATERSHED_MARK : '',
+      })
+      : null),
+    [heroRows],
   );
   const binsOption = useMemo(
-    () => (buckets.length > 0
+    () => (watershedDistinct && buckets.length > 0
       ? buildRoiBarOption(buckets, { barMaxWidth: buckets.length > 4 ? 22 : 36, rotate: buckets.length > 4 ? 20 : 0 })
       : null),
-    [buckets],
+    [watershedDistinct, buckets],
   );
-  const showOverview = Boolean(
-    facts?.field_key || (corr && corr.status === 'ok') || sampleSize != null || skipped > 0,
+  const highlights = useMemo(
+    () => highlightCardsFromTiers({ tiers, buckets }),
+    [tiers, buckets],
   );
+  const extent = rowsExtent(heroRows.length ? heroRows : buckets);
+  const heroCaption = analysisHeroCaption({
+    sampleSize,
+    fieldKey: facts?.field_key,
+    extent,
+  });
+  const nextSteps = !isEmpty
+    ? analysisNextSteps({
+      fieldKey: facts?.field_key,
+      splitValue: splitValueFromTiers(tiers),
+      hasOtherFields: otherFields.length > 0,
+    })
+    : [];
+  const techLine1 = [
+    sampleSize != null ? `样本 ${formatCount(sampleSize)} 笔` : '',
+    extent.min != null && extent.max != null
+      ? `${facts?.field_key || '条件'} 区间 [${formatNum(extent.min, 1)}, ${formatNum(extent.max, 1)}]`
+      : '',
+    watershedDistinct
+      ? `分档方式：按收益落差合成分水岭（细档 ${buckets.length}）`
+      : (buckets.length ? `分档方式：${buckets.length} 个等频档` : ''),
+  ].filter(Boolean).join(' · ');
+  const techLine2 = [
+    corr?.status === 'ok' && corr?.p_value != null ? `p-value：${formatPValue(corr.p_value)}` : '',
+    corr?.status === 'ok' && corr?.rho != null ? `ρ=${formatNum(corr.rho, 3)}` : '',
+    skipped > 0 ? `跳过 ${formatCount(skipped)} / ${formatCount(skip.investment_count)}` : '',
+  ].filter(Boolean).join(' · ');
   const showMultivariate = (multivariate?.status === 'ok' || multivariate?.status === 'partial')
     && mvRanking.length > 0;
   const showCompare = runComparison?.status === 'ok' && settingsDiff.length > 0;
-  const showConclusion = facts?.status !== 'empty' && Boolean(
-    conclusion?.headline
-    || (Array.isArray(conclusion?.key_findings) && conclusion.key_findings.length)
-    || (Array.isArray(conclusion?.explains) && conclusion.explains.length)
-    || (Array.isArray(conclusion?.does_not_explain) && conclusion.does_not_explain.length),
-  );
-  const showBinCharts = Boolean(watershedOption || binsOption);
+  const explains = (Array.isArray(conclusion?.explains) ? conclusion.explains : [])
+    .map((line) => stripCornerQuotes(line))
+    .filter(Boolean);
+  const doesNot = (Array.isArray(conclusion?.does_not_explain) ? conclusion.does_not_explain : [])
+    .map((line) => stripCornerQuotes(line))
+    .filter(Boolean);
+  const headline = stripCornerQuotes(conclusion?.headline || '');
 
   if (status === 'idle') return null;
   if (analysis && analysis.enabled === false) return null;
@@ -351,104 +372,66 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
       ) : null}
       {status === 'ok' && facts ? (
         <Stack spacing={1.25} className="ntq-step-analysis__body">
-          {facts.status === 'empty' ? (
+          {isEmpty ? (
             <EmptyChecks reason={facts.empty_reason} />
+          ) : (
+            <>
+          {highlights.length > 0 ? (
+            <Stack spacing={1}>
+              <SectionTitle title={ANALYSIS_FINDINGS_TITLE} tip={ANALYSIS_SECTION_TIPS.findings} />
+              <Box className="ntq-analysis-highlights">
+                {highlights.map((card) => (
+                  <HighlightCard
+                    key={card.key}
+                    value={card.value}
+                    caption={card.caption}
+                    tone={card.tone}
+                  />
+                ))}
+              </Box>
+            </Stack>
           ) : null}
 
-          {showConclusion ? (
-            <SectionBlock title={ANALYSIS_CONCLUSION_TITLE} tip={ANALYSIS_SECTION_TIPS.conclusion}>
+          {heroOption || headline ? (
+            <SectionBlock title={analysisHeroTitle(facts.field_key)} tip={ANALYSIS_SECTION_TIPS.hero}>
               <Stack spacing={1}>
-                {conclusion.headline ? (
-                  <Typography variant="body2" fontWeight={600} color="text.primary">
-                    {conclusion.headline}
+                {heroCaption ? (
+                  <Typography variant="caption" color="text.secondary" className="ntq-analysis-hero-caption">
+                    {heroCaption}
                   </Typography>
                 ) : null}
-                <FindingList items={conclusion.key_findings} />
-                <NoteList title={ANALYSIS_EXPLAIN_CAPTION} items={conclusion.explains} />
-                <NoteList title={ANALYSIS_NOT_EXPLAIN_CAPTION} items={conclusion.does_not_explain} />
+                <ReadNote
+                  title={ANALYSIS_HERO_READ_TITLE}
+                  text={headline}
+                  tip={ANALYSIS_SECTION_TIPS.read}
+                />
+                {heroOption ? (
+                  <ChartPanel
+                    option={heroOption}
+                    height={heroRows.length <= 2 ? 220 : 200}
+                    framed={false}
+                  />
+                ) : null}
+                {binsOption ? (
+                  <ChartPanel
+                    title={ANALYSIS_BINS_TITLE}
+                    tip={ANALYSIS_CHART_TIPS.bins}
+                    option={binsOption}
+                    height={buckets.length > 4 ? 200 : 180}
+                    framed={false}
+                  />
+                ) : null}
               </Stack>
             </SectionBlock>
           ) : null}
 
-          {showOverview ? (
-            <SectionBlock title={ANALYSIS_OVERVIEW_TITLE} tip={ANALYSIS_SECTION_TIPS.overview}>
-              <MetricGrid columns={4} denseXs>
-                {facts.field_key ? (
-                  <MetricCard
-                    title={ANALYSIS_PRIMARY_FIELD_CAPTION}
-                    titleTip={ANALYSIS_METRIC_TIPS.fieldKey}
-                    value={String(facts.field_key)}
-                  />
-                ) : null}
-                {corr && corr.status === 'ok' ? (
-                  <MetricCard
-                    title={ANALYSIS_DIRECTION_CAPTION}
-                    titleTip={ANALYSIS_METRIC_TIPS.direction}
-                    value={direction.label}
-                    hint={`ρ=${formatNum(corr.rho, 3)}`}
-                  />
-                ) : null}
-                {corr && corr.status === 'ok' ? (
-                  <MetricCard
-                    title={ANALYSIS_SIGNIFICANCE_CAPTION}
-                    titleTip={ANALYSIS_METRIC_TIPS.significance}
-                    value={significance.label}
-                    hint={`p=${formatPValue(corr.p_value)}`}
-                  />
-                ) : null}
-                {sampleSize != null ? (
-                  <MetricCard
-                    title={ANALYSIS_SAMPLE_CAPTION}
-                    titleTip={ANALYSIS_METRIC_TIPS.sample}
-                    value={formatCount(sampleSize)}
-                  />
-                ) : null}
-                {skipped > 0 ? (
-                  <MetricCard
-                    title={ANALYSIS_SKIP_CAPTION}
-                    titleTip={ANALYSIS_METRIC_TIPS.skip}
-                    value={`${formatCount(skipped)} / ${formatCount(skip.investment_count)}`}
-                  />
-                ) : null}
-              </MetricGrid>
-            </SectionBlock>
-          ) : null}
-
-          {showBinCharts ? (
-            <SectionBlock title={ANALYSIS_TIERS_TITLE} tip={ANALYSIS_SECTION_TIPS.tiers}>
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: {
-                    xs: '1fr',
-                    md: watershedOption && binsOption ? '1fr 1fr' : '1fr',
-                  },
-                  gap: 1,
-                }}
-              >
-                {watershedOption ? (
-                  <Box>
-                    <ChartPanel
-                      title={ANALYSIS_WATERSHED_TITLE}
-                      tip={ANALYSIS_CHART_TIPS.watershed}
-                      option={watershedOption}
-                    />
-                    <BinTable rows={tiers} />
-                  </Box>
-                ) : null}
-                {binsOption ? (
-                  <Box>
-                    <ChartPanel
-                      title={ANALYSIS_BINS_TITLE}
-                      tip={ANALYSIS_CHART_TIPS.bins}
-                      option={binsOption}
-                      height={buckets.length > 4 ? 200 : 180}
-                    />
-                    <BinTable rows={buckets} />
-                  </Box>
-                ) : null}
-              </Box>
-            </SectionBlock>
+          {explains.length > 0 || doesNot.length > 0 ? (
+            <Box
+              className={`ntq-analysis-split${explains.length && doesNot.length ? '' : ' ntq-analysis-split--single'}`}
+            >
+              <CalloutList title={ANALYSIS_EXPLAIN_BOX_TITLE} items={explains} tone="ok" />
+              <CalloutList title={ANALYSIS_NOT_EXPLAIN_BOX_TITLE} items={doesNot} tone="warn" />
+            </Box>
           ) : null}
 
           {otherFields.length > 0 ? (
@@ -502,6 +485,30 @@ function StepAnalysisInsights({ status, analysis, error = '' }) {
               </Stack>
             </SectionBlock>
           ) : null}
+
+          {nextSteps.length > 0 ? (
+            <SectionBlock title={ANALYSIS_NEXT_TITLE} tip={ANALYSIS_SECTION_TIPS.next}>
+              <NumberedSteps items={nextSteps} />
+            </SectionBlock>
+          ) : null}
+
+          {techLine1 || techLine2 ? (
+            <SectionBlock title={ANALYSIS_TECH_TITLE} tip={ANALYSIS_SECTION_TIPS.tech}>
+              <Box className="ntq-analysis-tech">
+                {techLine1 ? (
+                  <Typography className="ntq-analysis-tech__line">{techLine1}</Typography>
+                ) : null}
+                {techLine2 ? (
+                  <Typography className="ntq-analysis-tech__line">{techLine2}</Typography>
+                ) : null}
+                <Typography className="ntq-analysis-tech__line">
+                  {`免责：${ANALYSIS_TECH_DISCLAIMER}`}
+                </Typography>
+              </Box>
+            </SectionBlock>
+          ) : null}
+            </>
+          )}
         </Stack>
       ) : null}
       {status === 'ok' && !facts ? (
@@ -520,11 +527,6 @@ StepAnalysisInsights.propTypes = {
     conclusion: PropTypes.object,
   }),
   error: PropTypes.string,
-};
-
-StepAnalysisInsights.defaultProps = {
-  analysis: null,
-  error: '',
 };
 
 export default StepAnalysisInsights;

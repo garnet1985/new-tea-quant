@@ -4,13 +4,13 @@ import { Box, Stack, Typography } from '@mui/material';
 import StrategyDescriptionText from '../strategyDescriptionText/strategyDescriptionText';
 
 function StrategyMetaDetailText({
-  description,
-  entryConditions,
-  variant,
-  color,
-  className,
-  empty,
-  maxLines,
+  description = '',
+  entryConditions = [],
+  variant = 'body2',
+  color = 'text.secondary',
+  className = '',
+  empty = '暂无策略描述',
+  maxLines = null,
 }) {
   const entries = Array.isArray(entryConditions)
     ? entryConditions.map((item) => String(item || '').trim()).filter(Boolean)
@@ -71,16 +71,6 @@ StrategyMetaDetailText.propTypes = {
   className: PropTypes.string,
   empty: PropTypes.node,
   maxLines: PropTypes.number,
-};
-
-StrategyMetaDetailText.defaultProps = {
-  description: '',
-  entryConditions: [],
-  variant: 'body2',
-  color: 'text.secondary',
-  className: '',
-  empty: '暂无策略描述',
-  maxLines: null,
 };
 
 export default StrategyMetaDetailText;

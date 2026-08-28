@@ -19,9 +19,5 @@ ReportUnavailableHint.propTypes = {
   message: PropTypes.string,
 };
 
-ReportUnavailableHint.defaultProps = {
-  message: REPORT_BLOCK_UNAVAILABLE_ZH,
-};
-
 export { REPORT_EMPTY_MATCH_ZH };
 export default ReportUnavailableHint;

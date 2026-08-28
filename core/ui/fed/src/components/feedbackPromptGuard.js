@@ -8,7 +8,7 @@ import { subscribeFeedbackPrompt } from '../utils/feedbackPromptBus';
  * Listens for soft-prompt requests after successful tasks.
  * Not a Trace consent gate — send needs no local permission.
  */
-function FeedbackPromptGuard({ children }) {
+function FeedbackPromptGuard({ children = null }) {
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState('popup');
 
@@ -52,10 +52,6 @@ function FeedbackPromptGuard({ children }) {
 
 FeedbackPromptGuard.propTypes = {
   children: PropTypes.node,
-};
-
-FeedbackPromptGuard.defaultProps = {
-  children: null,
 };
 
 export default FeedbackPromptGuard;

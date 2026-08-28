@@ -53,14 +53,4 @@ StrategyDesignSimulateButton.propTypes = {
   className: PropTypes.string,
 };
 
-StrategyDesignSimulateButton.defaultProps = {
-  done: false,
-  disabled: false,
-  onClick: undefined,
-  runLabel: '开始模拟',
-  rerunLabel: '重新模拟',
-  compact: false,
-  className: '',
-};
-
 export default StrategyDesignSimulateButton;

@@ -41,12 +41,4 @@ NtqRainbowRunButton.propTypes = {
   className: PropTypes.string,
 };
 
-NtqRainbowRunButton.defaultProps = {
-  done: false,
-  disabled: false,
-  onClick: undefined,
-  ariaLabel: '运行',
-  className: '',
-};
-
 export default NtqRainbowRunButton;

@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { Box, Typography } from '@mui/material';
 import './pageBanner.scss';
 
-function PageBanner({ title, description, rightSlot }) {
+function PageBanner({ title, description = null, rightSlot = null }) {
   return (
     <Box className="ntq-page-banner">
       <Box className="ntq-page-banner__inner">
@@ -27,11 +27,6 @@ PageBanner.propTypes = {
   title: PropTypes.string.isRequired,
   description: PropTypes.node,
   rightSlot: PropTypes.node,
-};
-
-PageBanner.defaultProps = {
-  description: null,
-  rightSlot: null,
 };
 
 export default PageBanner;

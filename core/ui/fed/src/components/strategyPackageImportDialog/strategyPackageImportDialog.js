@@ -38,7 +38,7 @@ function statusLabel(status) {
   return status || '—';
 }
 
-function StrategyPackageImportDialog({ open, onClose, onSuccess }) {
+function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
   const [file, setFile] = useState(null);
   const [policy, setPolicy] = useState('reject');
   const [preview, setPreview] = useState(null);
@@ -211,10 +211,6 @@ StrategyPackageImportDialog.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func,
-};
-
-StrategyPackageImportDialog.defaultProps = {
-  onSuccess: null,
 };
 
 export default StrategyPackageImportDialog;

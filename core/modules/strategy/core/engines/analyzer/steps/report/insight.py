@@ -65,7 +65,7 @@ class InsightBuilder:
                 "tiers": [],
                 "explains": [],
                 "does_not_explain": [
-                    "没有「会变化」的数字条件，无法做分档对比。",
+                    "没有会变化的数字条件，无法做分档对比。",
                 ],
                 "next_steps": next_steps,
                 "technical": cls._technical_shell(report, classical, skip_summary=skip_summary),
@@ -255,7 +255,7 @@ class InsightBuilder:
                         {
                             "value": f"{ratio:.1f}x",
                             "caption": (
-                                f"「{key}」更好那一档的平均收益，"
+                                f"{key} 更好那一档的平均收益，"
                                 f"大约是较差那一档的 {ratio:.1f} 倍"
                             ),
                         }
@@ -287,7 +287,7 @@ class InsightBuilder:
             findings.append(
                 {
                     "value": f"{rho:+.2f}",
-                    "caption": f"「{key}」与收益的相关方向（正=越高越好）",
+                    "caption": f"{key} 与收益的相关方向（正=越高越好）",
                 }
             )
         skipped = int((skip_summary or {}).get("skipped_count") or 0)
@@ -310,28 +310,28 @@ class InsightBuilder:
             if low_roi is not None and high_roi is not None and cut is not None:
                 if float(low_roi) > float(high_roi):
                     return (
-                        f"「{key}」越低，赚得越多 — 但主要分成两档，"
+                        f"{key} 越低，赚得越多 — 但主要分成两档，"
                         f"不是无限越低越好（分水岭约 {InsightBuilder._fmt_num(cut)}）"
                     )
                 return (
-                    f"「{key}」越高，赚得越多 — 但主要分成两档，"
+                    f"{key} 越高，赚得越多 — 但主要分成两档，"
                     f"不是无限越高越好（分水岭约 {InsightBuilder._fmt_num(cut)}）"
                 )
         if len(tiers) > 2:
             best, _ = InsightBuilder._best_worst_tiers(tiers)
             if best and best.get("min") is not None and best.get("max") is not None:
                 return (
-                    f"「{key}」在 [{InsightBuilder._fmt_num(best['min'])}, {InsightBuilder._fmt_num(best['max'])}] "
+                    f"{key} 在 [{InsightBuilder._fmt_num(best['min'])}, {InsightBuilder._fmt_num(best['max'])}] "
                     f"这一段表现最好"
                 )
         if corr.get("status") == "ok" and corr.get("rho") is not None:
             rho = float(corr["rho"])
             if abs(rho) < 0.05:
-                return f"「{key}」高低和赚亏关系很弱，这次看不出清晰规律。"
+                return f"{key} 高低和赚亏关系很弱，这次看不出清晰规律。"
             if rho < 0:
-                return f"「{key}」越高，这次样本里往往赚得越少。"
-            return f"「{key}」越高，这次样本里往往赚得越多。"
-        return f"已对「{key}」做了分档对比，请看下方证据。"
+                return f"{key} 越高，这次样本里往往赚得越少。"
+            return f"{key} 越高，这次样本里往往赚得越多。"
+        return f"已对 {key} 做了分档对比，请看下方证据。"
     @staticmethod
     def _chart_note(
         key: str,
@@ -351,7 +351,7 @@ class InsightBuilder:
             unit = "笔组合成交"
         parts = [f"{n} {unit}"]
         if mins and maxs:
-            parts.append(f"「{key}」落在 {InsightBuilder._fmt_num(min(mins))} ~ {InsightBuilder._fmt_num(max(maxs))}")
+            parts.append(f"{key} 落在 {InsightBuilder._fmt_num(min(mins))} ~ {InsightBuilder._fmt_num(max(maxs))}")
         if threshold is not None:
             parts.append(f"进场条件要求 {key} < {InsightBuilder._fmt_num(threshold)}，所以看不到更高的区间")
         buckets_meta = field.get("buckets") if isinstance(field.get("buckets"), dict) else {}
@@ -377,7 +377,7 @@ class InsightBuilder:
             if best and worst and best.get("mean_roi") is not None and worst.get("mean_roi") is not None:
                 if float(best["mean_roi"]) > float(worst["mean_roi"]):
                     lines.append(
-                        f"「{key}」落在更好那一档时，平均收益明显高于另一档。"
+                        f"{key} 落在更好那一档时，平均收益明显高于另一档。"
                     )
             if len(tiers) == 2 and tiers[1].get("min") is not None:
                 cut = tiers[1]["min"]
@@ -388,7 +388,7 @@ class InsightBuilder:
                 )
                 if low_better:
                     lines.append(
-                        f"差距主要出现在「低于约 {InsightBuilder._fmt_num(cut)}」和「更接近上限」之间，"
+                        f"差距主要出现在低于约 {InsightBuilder._fmt_num(cut)} 和更接近上限之间，"
                         "中间没有平滑渐变。"
                     )
                     if threshold is not None and float(cut) < float(threshold):
@@ -424,7 +424,7 @@ class InsightBuilder:
             if len(tiers) == 2 and tiers[1].get("min") is not None:
                 cut = tiers[1]["min"]
                 lines.append(
-                    f"「{InsightBuilder._fmt_num(cut)}」是不是最优门槛，还需要改参数重跑对照，不能单凭这次就定死。"
+                    f"{InsightBuilder._fmt_num(cut)} 是不是最优门槛，还需要改参数重跑对照，不能单凭这次就定死。"
                 )
             else:
                 lines.append("最优参数仍需改设置重跑验证，不能把相关当成因果。")
@@ -538,7 +538,7 @@ class InsightBuilder:
             "binning": binning,
             "correlation": corr_text,
             "disclaimer": (
-                f"本报告只描述这次回测里「{unit}」内部差异，"
+                f"本报告只描述这次回测里{unit}内部差异，"
                 "不构成因果证明或未来预测。"
             ),
             "strategy_key": report.get("strategy_key"),
@@ -625,7 +625,7 @@ class InsightBuilder:
                 {
                     "key": key,
                     "value": f"{rho:+.2f}",
-                    "caption": f"「{key}」{detail}",
+                    "caption": f"{key} {detail}",
                 }
             )
         return out
@@ -643,7 +643,7 @@ class InsightBuilder:
             headline = "多个条件一起看时，能分出相对更重要的信号。"
             if top:
                 headline = (
-                    f"多指标一起看时，「{top['key']}」对结果影响相对最大"
+                    f"多指标一起看时，{top['key']} 对结果影响相对最大"
                     f"（{top['caption']}）"
                 )
             return {
@@ -654,7 +654,7 @@ class InsightBuilder:
                 "n": block.get("n"),
                 "ranking": ranking,
                 "explains": [
-                    "下面排序只解释「这一次」里谁更重要，不是因果排名。",
+                    "下面排序只解释这一次里谁更重要，不是因果排名。",
                 ],
                 "does_not_explain": [
                     "不能据此删掉其他条件；换行情排序可能变。",
@@ -715,12 +715,12 @@ class InsightBuilder:
                     {
                         "key": name,
                         "value": InsightBuilder._fmt_num(score, 3) if score is not None else "-",
-                        "caption": f"「{name}」相对重要性",
+                        "caption": f"{name} 相对重要性",
                     }
                 )
             if top:
                 headline = (
-                    f"机器学习里「{top.get('feature')}」相对最重要"
+                    f"机器学习里 {top.get('feature')} 相对最重要"
                     "（只解释这一次，不能外推）。"
                 )
             return {
@@ -796,7 +796,7 @@ class InsightBuilder:
                 "explains": [],
                 "does_not_explain": [],
                 "next_steps": [
-                    "想比较「改阈值前后差在哪」，请带上 --baseline-version 再跑归因。",
+                    "想比较改阈值前后差在哪，请带上 --baseline-version 再跑归因。",
                 ],
             }
         if status != "ok":
@@ -859,7 +859,7 @@ class InsightBuilder:
         if changes:
             first = changes[0]
             headline = (
-                f"相对对照版 v{baseline_vid}：主要改了「{first['label']}」"
+                f"相对对照版 v{baseline_vid}：主要改了 {first['label']}"
                 f"（{first['detail']}）"
             )
             if len(changes) > 1:
@@ -868,7 +868,7 @@ class InsightBuilder:
             headline = f"相对对照版 v{baseline_vid}：参数和现场条件几乎没变"
         explains: List[str] = []
         does_not: List[str] = [
-            "对照只说明「两次配置/分布差在哪」，不直接比较总胜率或总收益。",
+            "对照只说明两次配置/分布差在哪，不直接比较总胜率或总收益。",
             "也不能据此断定哪一版更好——要结合各自整体成绩单一起看。",
         ]
         if settings_diff:
@@ -879,7 +879,7 @@ class InsightBuilder:
             explains.append("两次回测的现场条件分布不同，变化可能来自行情或进场样本差异。")
         elif not comparison.get("has_meaningful_diff"):
             explains.append("对照后几乎看不出配置差异；若你预期不同，请核对版本号是否选对。")
-            does_not.append("「几乎没变」不等于两版赚钱一样多。")
+            does_not.append("几乎没变不等于两版赚钱一样多。")
         next_steps: List[str] = []
         if settings_diff:
             next_steps.append("打开两版整体成绩单，对照总收益/胜率是否随参数变好。")

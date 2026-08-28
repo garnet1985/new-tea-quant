@@ -6,13 +6,13 @@ import PageBanner from '../pageBanner/pageBanner';
 import './pageLayout.scss';
 
 function PageLayout({
-  breadcrumbsItems,
+  breadcrumbsItems = [],
   breadcrumbsCurrent,
   bannerTitle,
-  bannerDescription,
-  bannerRightSlot,
-  children,
-  className,
+  bannerDescription = null,
+  bannerRightSlot = null,
+  children = null,
+  className = '',
 }) {
   return (
     <Box className={['ntq-page', className].filter(Boolean).join(' ')}>
@@ -39,14 +39,6 @@ PageLayout.propTypes = {
   bannerRightSlot: PropTypes.node,
   children: PropTypes.node,
   className: PropTypes.string,
-};
-
-PageLayout.defaultProps = {
-  breadcrumbsItems: [],
-  bannerDescription: null,
-  bannerRightSlot: null,
-  children: null,
-  className: '',
 };
 
 export default PageLayout;

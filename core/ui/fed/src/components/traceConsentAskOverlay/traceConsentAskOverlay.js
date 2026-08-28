@@ -16,12 +16,12 @@ import './traceConsentAskOverlay.scss';
  * 无关闭入口：必须点同意或不同意。
  */
 function TraceConsentAskOverlay({
-  open,
-  saving,
-  error,
+  open = false,
+  saving = false,
+  error = '',
   onAllow,
   onDeny,
-  detailPath,
+  detailPath = '/what-we-will-track',
 }) {
   const [logoFailed, setLogoFailed] = useState(false);
 
@@ -127,13 +127,6 @@ TraceConsentAskOverlay.propTypes = {
   onAllow: PropTypes.func.isRequired,
   onDeny: PropTypes.func.isRequired,
   detailPath: PropTypes.string,
-};
-
-TraceConsentAskOverlay.defaultProps = {
-  open: false,
-  saving: false,
-  error: '',
-  detailPath: '/what-we-will-track',
 };
 
 export default TraceConsentAskOverlay;

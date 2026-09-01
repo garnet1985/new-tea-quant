@@ -4,8 +4,87 @@
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+# 年化：把相邻净值段近似为交易日。无风险利率 / Sortino 目标收益均为 0。
+_PERIODS_PER_YEAR = 252.0
+_RATIO_EPS = 1e-12
+
+
+def period_returns(equity_values: Sequence[float]) -> List[float]:
+    """相邻净值点的简单收益率；前一点过小则跳过该段。"""
+    out: List[float] = []
+    for prev, cur in zip(equity_values, list(equity_values)[1:]):
+        a = float(prev)
+        b = float(cur)
+        if a > _RATIO_EPS:
+            out.append((b - a) / a)
+    return out
+
+
+def _sample_std(values: Sequence[float]) -> Optional[float]:
+    n = len(values)
+    if n < 2:
+        return None
+    mean = sum(values) / n
+    var = sum((x - mean) ** 2 for x in values) / (n - 1)
+    if var < 0:
+        return 0.0
+    return math.sqrt(var)
+
+
+def annualized_sharpe(returns: Sequence[float]) -> Optional[float]:
+    """年化夏普：（段收益均值 / 样本标准差）× √252。波动过小则无法计算。"""
+    if len(returns) < 2:
+        return None
+    std = _sample_std(returns)
+    if std is None or std < _RATIO_EPS:
+        return None
+    mean = sum(returns) / len(returns)
+    return (mean / std) * math.sqrt(_PERIODS_PER_YEAR)
+
+
+def annualized_sortino(returns: Sequence[float], *, mar: float = 0.0) -> Optional[float]:
+    """年化 Sortino：（段收益均值 − MAR）/ 下行波动 × √252。
+
+    下行波动 = sqrt(mean(min(r − MAR, 0)²))，分母用全部段数（上涨段贡献 0）。
+    """
+    n = len(returns)
+    if n < 2:
+        return None
+    downside_sq = sum(min(float(r) - mar, 0.0) ** 2 for r in returns) / n
+    if downside_sq < _RATIO_EPS:
+        return None
+    mean = sum(returns) / n
+    return ((mean - mar) / math.sqrt(downside_sq)) * math.sqrt(_PERIODS_PER_YEAR)
+
+
+def _optional_float(raw: Any) -> Optional[float]:
+    if raw is None:
+        return None
+    try:
+        n = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(n):
+        return None
+    return n
+
+
+def annualized_risk_ratios(
+    equity_values: Sequence[float],
+) -> Tuple[Optional[float], Optional[float]]:
+    """从完整净值序列计算年化夏普、Sortino；算不出则为 None。"""
+    rets = period_returns(equity_values)
+    sharpe = annualized_sharpe(rets)
+    sortino = annualized_sortino(rets)
+    if sharpe is not None:
+        sharpe = round(float(sharpe), 4)
+    if sortino is not None:
+        sortino = round(float(sortino), 4)
+    return sharpe, sortino
 
 
 @dataclass
@@ -22,6 +101,8 @@ class EquityCurves:
     full_exposure_days_ratio_pct: float = 0.0
     average_cash_ratio_pct: float = 0.0
     capital_utilization_ratio_pct: float = 0.0
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -35,6 +116,8 @@ class EquityCurves:
             "full_exposure_days_ratio_pct": self.full_exposure_days_ratio_pct,
             "average_cash_ratio_pct": self.average_cash_ratio_pct,
             "capital_utilization_ratio_pct": self.capital_utilization_ratio_pct,
+            "sharpe_ratio": self.sharpe_ratio,
+            "sortino_ratio": self.sortino_ratio,
         }
 
     @classmethod
@@ -59,6 +142,8 @@ class EquityCurves:
             capital_utilization_ratio_pct=float(
                 data.get("capital_utilization_ratio_pct") or 0.0
             ),
+            sharpe_ratio=_optional_float(data.get("sharpe_ratio")),
+            sortino_ratio=_optional_float(data.get("sortino_ratio")),
         )
 
     @classmethod
@@ -130,6 +215,7 @@ class EquityCurves:
             dd_pct = ((peak_run - v) / peak_run * 100.0) if peak_run > 1e-9 else 0.0
             drawdown_full.append(round(dd_pct, 4))
 
+        sharpe_ratio, sortino_ratio = annualized_risk_ratios(vals_full)
         idxs = cls.downsample_indices(len(vals_full), 80)
         peak_open = max(opens_full) if opens_full else 0.0
         avg_open = sum(opens_full) / len(opens_full) if opens_full else 0.0
@@ -164,6 +250,8 @@ class EquityCurves:
             ),
             average_cash_ratio_pct=round(avg_cash, 2),
             capital_utilization_ratio_pct=round(cap_util, 2),
+            sharpe_ratio=sharpe_ratio,
+            sortino_ratio=sortino_ratio,
         )
 
 

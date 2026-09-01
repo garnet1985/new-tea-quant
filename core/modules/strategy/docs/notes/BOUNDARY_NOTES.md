@@ -55,7 +55,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 |------|----------------|
 | **enumerator** | 不需要 |
 | **price_factor** | 现状：`run(start,end)` + 默认日历；真业务在 on_task_complete 事件回放，`on_tick` noop。**不要**为「少空转」先加 TimelineBuilder；等回放迁到 `on_tick` 再议 event 轴 |
-| **portfolio** | **不用 BE**；enum → `PortfolioEvent` 排序 → 进程内模拟。不要为组合套 `Timeline.drive` |
+| **portfolio** | **不用 BE**；enum → `PortfolioEvent` 排序 → 进程内模拟。不要为组合套 `Timeline.drive`。日频盯市夏普（未实现）见 `engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md`，仍不走 BE |
 
 ### 进程内传对象
 

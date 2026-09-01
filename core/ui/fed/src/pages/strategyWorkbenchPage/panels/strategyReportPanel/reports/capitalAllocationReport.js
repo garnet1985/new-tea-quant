@@ -11,6 +11,11 @@ import {
   REPORT_STOCK_GRID_TIPS,
 } from '../reportMetricTips';
 import { formatReportMoney } from '../lib/formatReportMoney';
+
+function formatRiskRatio(value) {
+  if (!Number.isFinite(value)) return '—';
+  return Number(value).toFixed(2);
+}
 import ReportUnavailableHint from '../components/reportUnavailableHint';
 import ReportStockGridSection from '../components/reportStockGridSection';
 import ExecutionSkipCards from '../components/executionSkipCards';
@@ -236,7 +241,7 @@ function CapitalAllocationReport({
         title="资金结果总览"
         tip={CAPITAL_SECTION_TIPS.overview}
       >
-        <MetricGrid>
+        <MetricGrid columns={3}>
           <MetricCard
             title="初始资金"
             titleTip={CAPITAL_METRIC_TIPS.initialCapital}
@@ -255,7 +260,17 @@ function CapitalAllocationReport({
           <MetricCard
             title="收益回撤比（Calmar）"
             titleTip={CAPITAL_METRIC_TIPS.calmarRatio}
-            value={metrics.calmarRatio}
+            value={formatRiskRatio(metrics.calmarRatio)}
+          />
+          <MetricCard
+            title="夏普比率"
+            titleTip={CAPITAL_METRIC_TIPS.sharpeRatio}
+            value={formatRiskRatio(metrics.sharpeRatio)}
+          />
+          <MetricCard
+            title="Sortino"
+            titleTip={CAPITAL_METRIC_TIPS.sortinoRatio}
+            value={formatRiskRatio(metrics.sortinoRatio)}
           />
         </MetricGrid>
         <ChartPanel

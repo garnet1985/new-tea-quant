@@ -16,7 +16,14 @@ from core.modules.strategy.core.engines.portfolio.report_manager.capital_metrics
     EquityCurves,
     SkipMetrics,
     TradeQualityMetrics,
+    _optional_float,
 )
+
+
+def _fmt_risk_ratio(value: Optional[float]) -> str:
+    if value is None:
+        return "—"
+    return f"{float(value):.2f}"
 
 
 @dataclass
@@ -34,6 +41,8 @@ class OverallSummary:
     open_positions: int = 0
     win_rate: float = 0.0
     calmar_ratio: float = 0.0
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
     curves: EquityCurves = field(default_factory=EquityCurves)
     quality: TradeQualityMetrics = field(default_factory=TradeQualityMetrics)
     skips: SkipMetrics = field(default_factory=SkipMetrics)
@@ -51,6 +60,8 @@ class OverallSummary:
             "open_positions": self.open_positions,
             "win_rate": self.win_rate,
             "calmar_ratio": self.calmar_ratio,
+            "sharpe_ratio": self.sharpe_ratio,
+            "sortino_ratio": self.sortino_ratio,
         }
         payload.update(self.curves.to_dict())
         payload.update(self.quality.to_dict())
@@ -72,6 +83,8 @@ class OverallSummary:
             open_positions=int(data.get("open_positions") or 0),
             win_rate=float(data.get("win_rate") or 0.0),
             calmar_ratio=float(data.get("calmar_ratio") or 0.0),
+            sharpe_ratio=_optional_float(data.get("sharpe_ratio")),
+            sortino_ratio=_optional_float(data.get("sortino_ratio")),
             curves=EquityCurves.from_dict(data),
             quality=TradeQualityMetrics.from_dict(data),
             skips=SkipMetrics.from_dict(data),
@@ -124,6 +137,8 @@ class OverallSummary:
             open_positions=int(account.open_position_count()),
             win_rate=round(win_rate, 6),
             calmar_ratio=round(calmar, 4),
+            sharpe_ratio=curves.sharpe_ratio,
+            sortino_ratio=curves.sortino_ratio,
             curves=curves,
             quality=quality,
             skips=SkipMetrics.from_sim(sim),
@@ -202,7 +217,8 @@ class OverallReport:
         print(
             f"{icon('success') if wr_pct >= 50 else icon('warning')} 胜率 {wr_pct:.1f}%    "
             f"完成 {s.completed_investments}    持仓 {s.open_positions}    "
-            f"回撤 {s.curves.max_drawdown * 100:.2f}%    Calmar {s.calmar_ratio:.2f}",
+            f"回撤 {s.curves.max_drawdown * 100:.2f}%    Calmar {s.calmar_ratio:.2f}    "
+            f"夏普 {_fmt_risk_ratio(s.sharpe_ratio)}    Sortino {_fmt_risk_ratio(s.sortino_ratio)}",
             file=out,
             flush=True,
         )
@@ -267,6 +283,8 @@ class OverallReport:
                 "lossTrades": q.loss_trades,
                 "avgPnlPerTrade": q.avg_pnl_per_trade,
                 "calmarRatio": s.calmar_ratio,
+                "sharpeRatio": s.sharpe_ratio,
+                "sortinoRatio": s.sortino_ratio,
                 "avgOpenPositions": c.average_open_positions,
                 "peakPositions": c.peak_open_positions,
                 "fullExposureDaysRatio": c.full_exposure_days_ratio_pct,

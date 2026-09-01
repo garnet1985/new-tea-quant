@@ -1,9 +1,9 @@
 # 资金层：按日盯市的夏普 / Sortino（未实现）
 
-**状态：** 研究结论与算法草案。实现另开专项，**不要**在 UI 调整分支落地。  
+**状态：** 研究结论与算法草案。错误口径的夏普 / Sortino **已从代码和 UI 撤回**；正确实现另开专项，不要在 UI 调整分支落地。  
 **位置：** `simulate` 成交已定之后、`finalize` 写报告之前；不改事件驱动模拟，不走 BE。
 
-现有 `capital_metrics.annualized_sharpe` / `annualized_sortino` 的公式可保留。要换的是**喂进去的净值序列**。
+当前报告只保留 Calmar（区间总收益 / 最大回撤）。夏普 / Sortino 等日频盯市后再加。
 
 ---
 
@@ -17,9 +17,11 @@
 
 `PortfolioSimulator` 按买卖事件走账户，换日时 `_append_equity` 调 `account.equity({})`。空行情字典下，持仓按 `average_cost` 计价。曲线只在成交换日记点，不是每个开市日。
 
-图上的权益曲线还会再抽到最多约 80 点。夏普已经用抽稀前的全量点，但那些点仍是「事件日 + 成本价」。
+图上的权益曲线还会再抽到最多约 80 点。标量回撤在抽稀前用全量事件点计算，但那些点仍是「事件日 + 成本价」。
 
-### 1.2 现用公式（算式没错，口径错）
+### 1.2 不要用事件点去乘 √252
+
+曾试用：
 
 ```text
 r_t = (E_t - E_{t-1}) / E_{t-1}
@@ -27,9 +29,7 @@ r_t = (E_t - E_{t-1}) / E_{t-1}
 Sortino = (mean(r) − 0) / sqrt(mean(min(r, 0)²)) × √252
 ```
 
-无风险 / Sortino 目标收益均为 0。段数 &lt; 2 或波动≈0 时为 `None`（UI/CLI 显示 —）。
-
-把事件段当成交易日去乘 √252，是**口径错误**，不是随机误差。样本再多也不会收敛到日频盯市夏普。同一组稀疏点可以对应完全不同的真日频夏普（中间路径看不见）。
+无风险 / Sortino 目标收益均为 0。公式本身常见，但把事件段当成交易日去乘 √252 是**口径错误**，不是随机误差。该实现已删除。样本再多也不会收敛到日频盯市夏普。同一组稀疏点可以对应完全不同的真日频夏普（中间路径看不见）。
 
 Calmar 仍是「区间总收益 / 最大回撤」，不是年化 Calmar。回撤来自同一条成本曲线，会一起被压低。
 
@@ -116,7 +116,14 @@ PortfolioSimulator.run（不变）
 
 ### 4.4 日收益与比率
 
-对盯市后的 `equity[d]` 调用现有 `period_returns` → `annualized_risk_ratios`。相邻点现在才是交易日，×√252 才成立。
+对盯市后的 `equity[d]` 计算日收益后再年化：
+
+```text
+夏普 = mean(r) / sample_std(r) × √252
+Sortino = mean(r) / sqrt(mean(min(r, 0)²)) × √252
+```
+
+无风险 / Sortino 目标 = 0。段数不足 2 或波动≈0 时不展示。相邻点必须是交易日，×√252 才成立。
 
 最大回撤、回撤持续天数在这条全日序列上算（抽稀前）。写给 UI 的曲线仍可抽到约 80 点。
 
@@ -185,13 +192,13 @@ PortfolioSimulator.run（不变）
 | 位置 | 做什么 |
 |------|--------|
 | 新模块（如 `report_manager/daily_mtm.py`） | 成交 → 日历 → 按窗口拉 raw close → 日净值。允许 IO。 |
-| `capital_metrics.py` | 保持无 IO；继续吃全日序列。 |
-| `pipeline.py` / `report_manager.py` | 模拟后调用盯市，把曲线交给现有 overall。 |
+| `capital_metrics.py` | 保持无 IO；在全日盯市序列上计算夏普 / Sortino / 回撤。 |
+| `pipeline.py` / `report_manager.py` | 模拟后调用盯市，把曲线交给现有 overall；CLI / UI 再挂夏普与 Sortino。 |
 | `kline_service.load_batch` / `load_raw` | 复用；`adjust="none"`。 |
 | 日历 | `calendar.load_open_dates`（与 scanner 同源即可）。 |
 | 测试 | 固定 10 日 K + 两笔成交，断言日净值与夏普；缺 K 线沿用昨收；清仓后不再计入。 |
 
-旧报告没有日序列时，夏普/Sortino 仍为 —，需重新跑资金步。
+旧报告没有日序列时不要回填错误口径的夏普；需重新跑资金步。
 
 ---
 

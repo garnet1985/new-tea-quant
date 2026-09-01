@@ -262,16 +262,6 @@ function CapitalAllocationReport({
             titleTip={CAPITAL_METRIC_TIPS.calmarRatio}
             value={formatRiskRatio(metrics.calmarRatio)}
           />
-          <MetricCard
-            title="夏普比率"
-            titleTip={CAPITAL_METRIC_TIPS.sharpeRatio}
-            value={formatRiskRatio(metrics.sharpeRatio)}
-          />
-          <MetricCard
-            title="Sortino"
-            titleTip={CAPITAL_METRIC_TIPS.sortinoRatio}
-            value={formatRiskRatio(metrics.sortinoRatio)}
-          />
         </MetricGrid>
         <ChartPanel
           title="资产曲线"

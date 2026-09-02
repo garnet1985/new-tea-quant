@@ -23,7 +23,7 @@ def test_disk_cache_hit(tmp_path: Path) -> None:
     step_dir = root / "1" / "enum"
     step_dir.mkdir(parents=True)
     (step_dir / RUNTIME_ENV_FILE).write_text(
-        json.dumps({"strategy_key": "demo", "execute_fp": "s", "env_fp": "e"}),
+        json.dumps({"strategy_key": "demo"}),
         encoding="utf-8",
     )
     (root / "meta.json").write_text(

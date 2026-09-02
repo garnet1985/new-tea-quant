@@ -69,7 +69,6 @@ def test_open_reads_runtime(tmp_path: Path) -> None:
             "strategy_key": "demo",
             "period": {"start_date": "20240102", "end_date": "20240131"},
             "market_profile": "china_a_stock",
-            "settings": {"effective_settings": {"x": 1}},
         },
     )
     ArtifactStore.clear_cache()

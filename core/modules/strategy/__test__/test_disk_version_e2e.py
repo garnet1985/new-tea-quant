@@ -38,7 +38,6 @@ def _fps():
     return SimpleNamespace(
         execute_fp="settings-fp",
         env_fp="env-fp",
-        disk_settings_hash="dsh",
         settings_diff={"core": {"n": 1}},
         effective_settings=StrategySettings.from_dict({"core": {"n": 1}}),
         entity_ids=["000001.SZ"],

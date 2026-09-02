@@ -129,7 +129,9 @@ class RuntimeEnv:
             period=effective_settings.resolve_period(),
             system=cls._build_system_env(),
             settings_snapshot=SettingsSnapshot(
-                effective_settings=effective_settings.to_dict(),
+                effective_settings=StrategySettings.extract_execute_settings(
+                    effective_settings
+                ),
                 settings_diff=dict(settings_diff or {}),
             ),
             created_at=datetime.now().isoformat(),
@@ -150,9 +152,7 @@ class RuntimeEnv:
             vid_dir.parent, vid_dir.name
         )
         if not entity_ids:
-            entity_ids = list(
-                archive.get("entity_ids") or payload.get("entity_ids") or []
-            )
+            entity_ids = list(archive.get("entity_ids") or [])
         env = cls.from_dict(payload, entity_ids=entity_ids)
         if not env.period.start_date and not env.period.end_date:
             env.period = BacktestPeriod.from_dict(
@@ -161,11 +161,9 @@ class RuntimeEnv:
                     "end_date": str(archive.get("end_date") or ""),
                 }
             )
-        if not env.settings_snapshot.effective_settings and archive.get(
-            "effective_settings"
-        ):
+        if not env.settings_snapshot.effective_settings:
             env.settings_snapshot.effective_settings = dict(
-                archive["effective_settings"]
+                archive.get("effective_settings") or {}
             )
         if not env.execute_fp:
             env.execute_fp = str(archive.get("execute_fp") or "")
@@ -204,10 +202,6 @@ class RuntimeEnv:
         entity_ids: List[str] | None = None,
     ) -> "RuntimeEnv":
         data = raw or {}
-        fingerprints = data.get("fingerprints") or {}
-        settings_raw = data.get("settings") or {}
-        if "effective_settings" not in settings_raw and "settings_snapshot" in data:
-            settings_raw = data.get("settings_snapshot") or {}
         strategy_key = str(data.get("strategy_key") or "")
 
         return cls(
@@ -218,11 +212,11 @@ class RuntimeEnv:
             entity_ids=cls._normalize_entity_ids(
                 entity_ids if entity_ids is not None else data.get("entity_ids") or []
             ),
-            execute_fp=str(fingerprints.get("execute") or data.get("execute_fp") or ""),
-            env_fp=str(fingerprints.get("env") or data.get("env_fp") or ""),
+            execute_fp=str(data.get("execute_fp") or ""),
+            env_fp=str(data.get("env_fp") or ""),
             period=BacktestPeriod.from_dict(data.get("period") or {}),
             system=SystemEnv.from_dict(data.get("system") or {}),
-            settings_snapshot=SettingsSnapshot.from_dict(settings_raw),
+            settings_snapshot=SettingsSnapshot(),
             created_at=str(data.get("created_at") or ""),
             strategy_path=str(data.get("strategy_path") or strategy_key or ""),
         )

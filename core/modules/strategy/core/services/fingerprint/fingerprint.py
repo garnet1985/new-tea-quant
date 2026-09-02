@@ -1,4 +1,4 @@
-"""模拟身份指纹：收集 input → execute_fp / env_fp / disk_settings_hash。
+"""模拟身份指纹：收集 input → execute_fp / env_fp。
 
 不负责 GlobalEntityCache seed、磁盘 cache、Pipeline。
 entity_ids 由调用方（entity_loader）先 resolve 再传入。
@@ -31,7 +31,6 @@ class FingerprintResult:
 
     execute_fp: str
     env_fp: str
-    disk_settings_hash: str
     settings_diff: Dict[str, Any]
     effective_settings: StrategySettings
     entity_ids: List[str]
@@ -65,7 +64,6 @@ class FingerprintCalculator:
         if strategy_info is None:
             raise ValueError("strategy_info 不能为空")
 
-        disk_settings = dict(strategy_info.settings or {})
         merged, settings_diff = FingerprintCalculator.merge_settings(
             strategy_info,
             runtime_settings,
@@ -78,12 +76,10 @@ class FingerprintCalculator:
             usable,
             ids,
         )
-        disk_settings_hash = FingerprintCalculator.to_disk_settings_hash(disk_settings)
         env_fp = FingerprintCalculator.to_env_fingerprint(strategy_info)
         return FingerprintResult(
             execute_fp=execute_fp,
             env_fp=env_fp,
-            disk_settings_hash=disk_settings_hash,
             settings_diff=coerced_diff,
             effective_settings=usable,
             entity_ids=ids,
@@ -128,16 +124,6 @@ class FingerprintCalculator:
             "scope": payload["scope"],
         }
         return FingerprintCalculator._to_fingerprint_hash(signature)
-
-    @staticmethod
-    def to_disk_settings_hash(disk_settings: Dict[str, Any]) -> str:
-        """磁盘 settings 中影响结果的字段哈希（物理文件被改则缓存失效）。"""
-        filtered = StrategySettings._filter_fingerprint_fields(
-            dict(disk_settings or {})
-        )
-        return FingerprintCalculator._to_fingerprint_hash(
-            FingerprintCalculator.coerce_numeric_tree(filtered)
-        )
 
     @staticmethod
     def to_env_fingerprint(

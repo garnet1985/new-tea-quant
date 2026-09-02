@@ -120,15 +120,11 @@ class SimulationVersionStore:
             raw = getattr(settings_obj, "raw_settings", None)
             if isinstance(raw, dict) and raw:
                 full = dict(raw)
-            elif hasattr(settings_obj, "to_dict"):
-                full = dict(settings_obj.to_dict() or {})
         extracted = dict(effective_settings or {})
         if not extracted and settings_obj is not None:
             extract = getattr(type(settings_obj), "extract_execute_settings", None)
             if callable(extract):
                 extracted = dict(extract(settings_obj) or {})
-            elif hasattr(settings_obj, "to_dict"):
-                extracted = dict(settings_obj.to_dict() or {})
         ids = list(entity_ids or getattr(fps, "entity_ids", None) or [])
         start = str(start_date or "").strip()
         end = str(end_date or "").strip()

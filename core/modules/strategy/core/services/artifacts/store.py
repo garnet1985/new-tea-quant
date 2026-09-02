@@ -644,30 +644,23 @@ class ArtifactStore:
         if not runtime_path.is_file():
             raise FileNotFoundError(f"缺少 {RUNTIME_ENV_FILE}: {self.output_dir}")
         raw = ArtifactIO.read_json(runtime_path)
-        entity_ids = ArtifactIO.read_text_lines(self.output_dir / ENTITY_IDS_FILE)
-        if not entity_ids:
-            raw_ids = raw.get("entity_ids")
-            if isinstance(raw_ids, list):
-                entity_ids = [str(x).strip() for x in raw_ids if str(x).strip()]
-        period = raw.get("period") if isinstance(raw.get("period"), dict) else {}
-        settings_raw = raw.get("settings") if isinstance(raw.get("settings"), dict) else {}
-        if "effective_settings" not in settings_raw and isinstance(
-            raw.get("settings_snapshot"), dict
-        ):
-            settings_raw = raw.get("settings_snapshot") or {}
         archive = VersionMetaStore.read_archive_context(
             self.output_dir.parent.parent, self.version_id
         )
+        entity_ids = ArtifactIO.read_text_lines(self.output_dir / ENTITY_IDS_FILE)
         if not entity_ids:
             entity_ids = list(archive.get("entity_ids") or [])
-        if not str(period.get("start_date") or "").strip():
+        period = {
+            "start_date": str(archive.get("start_date") or "").strip(),
+            "end_date": str(archive.get("end_date") or "").strip(),
+        }
+        if not period["start_date"] and not period["end_date"]:
+            raw_period = raw.get("period") if isinstance(raw.get("period"), dict) else {}
             period = {
-                "start_date": str(archive.get("start_date") or ""),
-                "end_date": str(archive.get("end_date") or ""),
+                "start_date": str(raw_period.get("start_date") or "").strip(),
+                "end_date": str(raw_period.get("end_date") or "").strip(),
             }
-        effective = dict(settings_raw.get("effective_settings") or {})
-        if not effective and archive.get("effective_settings"):
-            effective = dict(archive["effective_settings"])
+        effective = dict(archive.get("effective_settings") or {})
         key = str(raw.get("strategy_key") or "").strip()
         self.runtime = ArtifactRuntime(
             strategy_key=key,

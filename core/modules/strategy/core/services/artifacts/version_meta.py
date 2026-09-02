@@ -293,7 +293,6 @@ class VersionMetaStore:
         }
         registry[vid] = entry
         root_meta["registry"] = registry
-        root_meta.pop("fingerprint_index", None)
         cls.write_root_meta(simulations_root, root_meta)
         return entry
 
@@ -329,7 +328,6 @@ class VersionMetaStore:
         entry["updated_at"] = datetime.now().isoformat()
         registry[vid] = entry
         root_meta["registry"] = registry
-        root_meta.pop("fingerprint_index", None)
         cls.write_root_meta(simulations_root, root_meta)
 
     @classmethod
@@ -480,7 +478,6 @@ class VersionMetaStore:
         registry = cls._registry(root_meta)
         registry.pop(vid, None)
         root_meta["registry"] = registry
-        root_meta.pop("fingerprint_index", None)
         cls.write_root_meta(simulations_root, root_meta)
 
 

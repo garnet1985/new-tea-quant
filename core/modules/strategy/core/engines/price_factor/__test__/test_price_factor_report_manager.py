@@ -32,10 +32,6 @@ def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
             "execution_mode": "entity_based",
             "market_profile": "china_a_stock",
             "period": {"start_date": "20240102", "end_date": "20240110"},
-            "execute_fp": "s",
-            "env_fp": "e",
-            "system": {},
-            "settings_snapshot": {"effective_settings": {}, "settings_diff": {}},
         },
     )
 

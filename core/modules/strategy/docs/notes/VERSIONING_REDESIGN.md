@@ -189,10 +189,10 @@ registry `steps.{kind} = "ok"`；磁盘兜底：
 
 ### Batch 2 — 指纹与磁盘 cache hit
 
-**目标：** 命中只认 `settings_fp + env_fp`；simulate 查磁盘 registry。
+**目标：** 命中只认 `execute_fp + env_fp`；simulate 查磁盘 registry。
 
-- [x] `FingerprintCalculator`：`settings_fp` = effective 子集 hash
-- [x] DB `get_cache` 命中不再要求 `disk_settings_hash`
+- [x] `FingerprintCalculator`：`execute_fp` = usable settings 白名单投影 ⊕ scope
+- [x] 命中键不含 `disk_settings_hash`
 - [x] `SimulationVersionStore`：扫 registry 命中 step 产物
 - [x] `Strategy.simulate`：优先磁盘 cache hit
 - [x] miss：allocate → 写 registry + `effective_settings.json` → pipeline

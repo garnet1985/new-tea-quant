@@ -64,7 +64,7 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 |---|------|
 | D34 | **`execute_fp`**：`hash(FingerprintCalculator.extract_execute_payload(settings, entity_ids=...))`。白名单：`strategy_settings/execute_fp_whitelist.py`。抽取：`StrategySettings.extract_execute_settings`。settings = 白名单功能块；scope = 标的快照。区间已在 `simulation` 内。 |
 | D35 | **`env_fp`**：用户改 settings/scope **回不去** 的执行环境。NTQ/core 版本、策略 hooks 源码、DB/合约映射等。 |
-| D36 | **不引入第三种 fp。** scope 进 `execute_fp`，不要再塞进 `env_fp`。现实现把 `start_date` / `end_date` / `execution_mode` 编进 `env_fp`，必须拿出来。解析出的 `entity_ids` 是这次回测的标的快照，属 scope → `execute_fp`；**不要双边哈希**。胶囊「设置已变更」仍 **只比 settings 投影**，不比整个 `execute_fp`（股票池漂移不是用户改了设置）。 |
+| D36 | **不引入第三种 fp。** scope 进 `execute_fp`，不要再塞进 `env_fp`。区间已在 `simulation` 内。解析出的 `entity_ids` 是这次回测的标的快照，属 scope → `execute_fp`；**不要双边哈希**。胶囊「设置已变更」仍 **只比 settings 投影**，不比整个 `execute_fp`（股票池漂移不是用户改了设置）。 |
 
 旧 version 的 `{vid}/` 只读，是因为 **不能把新环境的结果写进旧目录**。不是「正在看失效 version 时 Run 按钮报错」。Run 永远走 D33。恢复了一份新引擎已经不认的配置，失败发生在 **validate**，提示改 settings，而不是「版本只读所以不能跑」。
 

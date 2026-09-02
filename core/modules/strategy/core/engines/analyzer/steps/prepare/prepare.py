@@ -215,18 +215,14 @@ class PrepareStep:
         upstream: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         raw = self._runtime_raw
-        fps = raw.get("fingerprints") if isinstance(raw.get("fingerprints"), dict) else {}
-        period = raw.get("period") if isinstance(raw.get("period"), dict) else {}
-        settings_raw = raw.get("settings") if isinstance(raw.get("settings"), dict) else {}
         archive = VersionMetaStore.read_archive_context(
             self.store.output_dir.parent.parent, self.store.version_id
         )
-        effective = settings_raw.get("effective_settings")
-        if not isinstance(effective, dict) or not effective:
-            effective = (
-                archive.get("effective_settings")
-                or self.store.runtime.settings_snapshot.effective_settings
-            )
+        effective = (
+            archive.get("effective_settings")
+            or self.store.runtime.settings_snapshot.effective_settings
+            or {}
+        )
 
         workbench_step = WorkbenchStep.from_simulate_kind(self.store.kind)
         if workbench_step is None:
@@ -240,29 +236,17 @@ class PrepareStep:
             "version_id": str(self.store.version_id),
             "output_dir": str(self.store.output_dir.resolve()),
             "fingerprints": {
-                "execute": str(
-                    archive.get("execute_fp")
-                    or fps.get("execute")
-                    or raw.get("execute_fp")
-                    or ""
-                ).strip(),
-                "env": str(
-                    archive.get("env_fp")
-                    or fps.get("env")
-                    or raw.get("env_fp")
-                    or ""
-                ).strip(),
+                "execute": str(archive.get("execute_fp") or "").strip(),
+                "env": str(archive.get("env_fp") or "").strip(),
             },
             "period": {
                 "start_date": str(
-                    period.get("start_date")
-                    or archive.get("start_date")
+                    archive.get("start_date")
                     or self.store.start_date
                     or ""
                 ).strip(),
                 "end_date": str(
-                    period.get("end_date")
-                    or archive.get("end_date")
+                    archive.get("end_date")
                     or self.store.end_date
                     or ""
                 ).strip(),

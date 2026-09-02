@@ -28,7 +28,6 @@ def _fps(*, execute_fp: str = "sfp", env_fp: str = "efp"):
     return SimpleNamespace(
         execute_fp=execute_fp,
         env_fp=env_fp,
-        disk_settings_hash="dsh",
         settings_diff={},
         effective_settings=settings,
         entity_ids=["000001.SZ"],

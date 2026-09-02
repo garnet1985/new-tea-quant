@@ -38,7 +38,8 @@ import {
   buildWorkbenchSnapshotFromSettingsResponse,
   emptyWorkbenchSnapshot,
 } from '../../strategyWorkbenchPage/workbenchSnapshot';
-import { DESIGN_RESTORE_MORE_MENU_VALUE, VERSION_PICKER_PAGE_SIZE } from '../constants/strategyDesignMetaConstants';
+import { versionPickSearchText } from '../../../components/versionPickLabel/versionPickMarks';
+import { VERSION_PICKER_PAGE_SIZE } from '../constants/strategyDesignMetaConstants';
 import logClientError from '../../../utils/logClientError';
 import {
   buildWorkbenchSnapshotFromVersionDetail,
@@ -106,6 +107,7 @@ function mapConfigVersionRows(verRes) {
     updatedAt: version.updated_at || '',
     version: Number(version.version || 0),
     envInvalid: Boolean(version.env_invalid),
+    expiresSoon: Boolean(version.expires_soon),
   }));
 }
 
@@ -448,20 +450,11 @@ export function useStrategyDesignWorkbench() {
     [configVersions],
   );
 
-  const latestFiveVersions = useMemo(() => configVersions.slice(0, 5), [configVersions]);
-
-  const restoreDropdownVersions = useMemo(() => {
-    const cur = String(selectedConfigVersion || '').trim();
-    return latestFiveVersions.filter((v) => !cur || v.id !== cur);
-  }, [latestFiveVersions, selectedConfigVersion]);
-
   const versionPickerFiltered = useMemo(() => {
     const keyword = versionSearch.trim().toLowerCase();
     if (!keyword) return configVersions;
     return configVersions.filter((version) => (
-      version.id.toLowerCase().includes(keyword)
-      || version.createdAt.toLowerCase().includes(keyword)
-      || version.updatedAt.toLowerCase().includes(keyword)
+      versionPickSearchText(version).toLowerCase().includes(keyword)
     ));
   }, [configVersions, versionSearch]);
 
@@ -656,21 +649,6 @@ export function useStrategyDesignWorkbench() {
     setVersionPickerPage(1);
   }, []);
 
-  const handleRestoreMenuChange = useCallback((event) => {
-    const value = event.target.value;
-    window.setTimeout(() => {
-      if (value === DESIGN_RESTORE_MORE_MENU_VALUE) {
-        openMoreVersionsDialog();
-        return;
-      }
-      if (value) {
-        setSaveError('');
-        setRestoreOk('');
-        requestApplyVersion(value);
-      }
-    }, 0);
-  }, [openMoreVersionsDialog, requestApplyVersion]);
-
   const handleExportStrategyPackage = useCallback(async () => {
     if (!strategyName) return;
     setPackageExporting(true);
@@ -804,7 +782,6 @@ export function useStrategyDesignWorkbench() {
     capsuleStatus,
     hasPersistedSnapshot,
     hasOtherVersions,
-    restoreDropdownVersions,
     disableMetaActions,
     packageExporting,
     packageExportError,
@@ -829,7 +806,7 @@ export function useStrategyDesignWorkbench() {
     versionPickerTotalPages,
     configVersions,
     selectedConfigVersion,
-    handleRestoreMenuChange,
+    openMoreVersionsDialog,
     handleExportStrategyPackage,
     closeVersionsDialog,
     requestApplyVersion,

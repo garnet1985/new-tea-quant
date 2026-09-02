@@ -32,6 +32,8 @@ import {
 } from '../../mocks/strategyReportMetrics';
 import SettingsJsonDiff from './components/settingsJsonDiff';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
+import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
+import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -83,8 +85,12 @@ function StrategyReportPanel({
   const {
     compareDropdownVersionIds,
     compareBaselineMenuLabel,
-    renderCompareSelectValue,
   } = useWorkbenchCompareVersionMenu(executionCompareRecentVersionIds, activeWorkbenchVersionId);
+
+  const renderCompareSelectValue = (selected) => {
+    if (selected === '' || selected == null) return compareBaselineMenuLabel;
+    return <VersionPickLabel version={lookupVersionById(configVersions, selected)} />;
+  };
 
   const reportComparePickerVersions = useMemo(() => {
     const cur = activeWorkbenchVersionId;
@@ -496,7 +502,9 @@ function StrategyReportPanel({
               >
                 <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
                 {compareDropdownVersionIds.map((id) => (
-                  <MenuItem key={id} value={id}>{id}</MenuItem>
+                  <MenuItem key={id} value={id}>
+                    <VersionPickLabel version={lookupVersionById(configVersions, id)} />
+                  </MenuItem>
                 ))}
                 <MenuItem value={REPORT_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
               </Select>
@@ -618,6 +626,9 @@ function StrategyReportPanel({
       >
         <DialogTitle>选择对比版本</DialogTitle>
         <DialogContent dividers>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            仅供查阅：环境已更新，产物只读。即将清理：保留额度触顶后会优先删除。
+          </Typography>
           <List dense className="ntq-report-compare__picker-list">
             {reportComparePickerVersions.map((version) => (
               <ListItemButton
@@ -628,7 +639,7 @@ function StrategyReportPanel({
                 }}
               >
                 <ListItemText
-                  primary={version.id}
+                  primary={<VersionPickLabel version={version} />}
                   secondary={version.updatedAt || version.createdAt}
                 />
               </ListItemButton>

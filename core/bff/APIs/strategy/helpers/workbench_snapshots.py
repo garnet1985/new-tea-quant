@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from core.modules.strategy.core.enums import SimulateKind, WorkbenchStep
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -97,6 +97,11 @@ class WorkbenchSnapshots:
         *,
         limit: int = _DROPDOWN_LIMIT,
     ) -> List[Dict[str, Any]]:
+        """Version catalog for UI pickers: newest first, capped by ``limit``.
+
+        Each item includes ``env_invalid`` (artifacts read-only) and
+        ``expires_soon`` (keep-N would drop this vid next).
+        """
         name = str(strategy_name or "").strip()
         if not name:
             return []
@@ -106,8 +111,10 @@ class WorkbenchSnapshots:
             return []
 
         root = cls._simulations_root(info)
+        all_vids = cls._sorted_version_ids(root, descending=True)
+        at_risk = cls.expires_soon_vids(all_vids, cls._retention_cap())
         items: List[Dict[str, Any]] = []
-        for vid in cls._sorted_version_ids(root, descending=True)[: max(1, int(limit))]:
+        for vid in all_vids[: max(1, int(limit))]:
             entry = VersionMetaStore.get_registry_entry(root, vid) or {}
             sid = int(vid)
             items.append(
@@ -118,11 +125,41 @@ class WorkbenchSnapshots:
                         entry,
                         cls._current_env_fp(info),
                     ),
+                    "expires_soon": vid in at_risk,
                     "updated_at": cls._iso(entry.get("updated_at") or entry.get("created_at")),
                     "created_at": cls._iso(entry.get("created_at")),
                 }
             )
         return items
+
+    @staticmethod
+    def expires_soon_vids(vids_newest_first: List[str], cap: int) -> Set[str]:
+        """keep-N 触顶后会先删的 version id（更旧、号更靠前）。
+
+        ``n >= cap`` 时标记最旧的 ``n - cap + 1`` 个：已超额的立刻会被 prune，
+        以及再 allocate 一条就会被挤掉的那一个。pin 尚未实现，暂不排除。
+        """
+        ids = [str(v).strip() for v in vids_newest_first if str(v).strip()]
+        try:
+            c = int(cap)
+        except (TypeError, ValueError):
+            c = 10
+        if c < 1:
+            c = 1
+        n = len(ids)
+        if n < c:
+            return set()
+        drop = n - c + 1
+        return set(ids[-drop:])
+
+    @classmethod
+    def _retention_cap(cls) -> int:
+        try:
+            from core.infra.project_context import ProjectContext
+
+            return int(ProjectContext.config.get_simulation_results_max_versions())
+        except Exception:
+            return 10
 
     @classmethod
     def ui_flags(cls, strategy_name: str, row: Dict[str, Any]) -> Dict[str, bool]:

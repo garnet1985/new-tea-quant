@@ -297,7 +297,7 @@ export async function persistStrategySettings(strategyKeyOrName, settings, opts 
 /**
  * V2-03：读取策略工作台版本列表（至多 10 条）。
  * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
- * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string }> }>}
+ * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string, env_invalid: boolean, expires_soon: boolean }> }>}
  */
 export async function fetchStrategyVersions(strategyKeyOrName) {
   const json = await request.getJson(
@@ -311,6 +311,7 @@ export async function fetchStrategyVersions(strategyKeyOrName) {
       created_at: row.created_at || '',
       updated_at: row.updated_at || '',
       env_invalid: Boolean(row.env_invalid),
+      expires_soon: Boolean(row.expires_soon),
     })),
   };
 }

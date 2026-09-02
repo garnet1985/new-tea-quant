@@ -185,30 +185,6 @@
   font-size: 12px !important;
 }
 
-.ntq-design-meta__version-select {
-  margin-left: 0 !important;
-  width: auto;
-  min-width: 128px !important;
-  max-width: 148px;
-
-  .MuiOutlinedInput-root {
-    height: var(--ntq-design-meta-admin-h) !important;
-    min-height: var(--ntq-design-meta-admin-h) !important;
-  }
-
-  .MuiSelect-select {
-    display: flex !important;
-    align-items: center !important;
-    min-height: var(--ntq-design-meta-admin-h) !important;
-    height: var(--ntq-design-meta-admin-h) !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 10px !important;
-    padding-right: 28px !important;
-    box-sizing: border-box;
-  }
-}
-
 .ntq-design-meta__export-btn {
   text-transform: none;
   font-weight: 500;

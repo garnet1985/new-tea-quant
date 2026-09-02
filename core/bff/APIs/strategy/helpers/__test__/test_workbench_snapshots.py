@@ -155,11 +155,47 @@ def test_list_dropdown_from_registry(mock_find, tmp_path: Path):
     )
     with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root), patch.object(
         WorkbenchSnapshots, "_current_env_fp", return_value="current-env"
-    ):
+    ), patch.object(WorkbenchSnapshots, "_retention_cap", return_value=10):
         items = WorkbenchSnapshots.list_dropdown("demo/x")
     assert [i["version_id"] for i in items] == ["v2", "v1"]
     assert items[0]["env_invalid"] is True
     assert items[1]["env_invalid"] is False
+    assert items[0]["expires_soon"] is False
+    assert items[1]["expires_soon"] is False
+
+
+def test_expires_soon_vids_at_and_over_cap():
+    assert WorkbenchSnapshots.expires_soon_vids(["3", "2", "1"], 10) == set()
+    assert WorkbenchSnapshots.expires_soon_vids(["3", "2", "1"], 3) == {"1"}
+    assert WorkbenchSnapshots.expires_soon_vids(["5", "4", "3", "2", "1"], 3) == {
+        "3",
+        "2",
+        "1",
+    }
+
+
+@patch.object(WorkbenchSnapshots, "_find_strategy")
+def test_list_dropdown_marks_expires_soon(mock_find, tmp_path: Path):
+    mock_find.return_value = _info()
+    root = tmp_path / "simulations"
+    VersionMetaStore.write_root_meta(
+        root,
+        {
+            "registry": {
+                "3": {"created_at": "2024-01-03", "execute_fp": "s", "env_fp": "e"},
+                "2": {"created_at": "2024-01-02", "execute_fp": "s", "env_fp": "e"},
+                "1": {"created_at": "2024-01-01", "execute_fp": "s", "env_fp": "e"},
+            }
+        },
+    )
+    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root), patch.object(
+        WorkbenchSnapshots, "_current_env_fp", return_value="e"
+    ), patch.object(WorkbenchSnapshots, "_retention_cap", return_value=3):
+        items = WorkbenchSnapshots.list_dropdown("demo/x")
+    by_id = {i["version_id"]: i for i in items}
+    assert by_id["v1"]["expires_soon"] is True
+    assert by_id["v2"]["expires_soon"] is False
+    assert by_id["v3"]["expires_soon"] is False
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy", return_value=None)

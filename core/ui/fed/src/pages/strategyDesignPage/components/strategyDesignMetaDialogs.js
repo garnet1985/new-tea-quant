@@ -14,10 +14,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
+import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 
 function StrategyDesignMetaDialogs() {
   const wb = useStrategyDesignWorkbenchContext();
+  const pendingVersion = lookupVersionById(wb.configVersions, wb.pendingVersionId);
 
   return (
     <>
@@ -31,9 +34,14 @@ function StrategyDesignMetaDialogs() {
             {' '}
             当时冻结的配置写回 settings.py，并刷新当前编辑器。未保存的草稿将被覆盖。
           </Typography>
-          {wb.configVersions.find((version) => version.id === wb.pendingVersionId)?.envInvalid ? (
+          {pendingVersion.envInvalid ? (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
               该版本产物仅供查阅。恢复配置后运行会按当前环境查找或新建 version，不会写回此目录。
+            </Typography>
+          ) : null}
+          {pendingVersion.expiresSoon ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+              该版本在保留额度触顶后会优先被清理。恢复配置不受影响。
             </Typography>
           ) : null}
         </DialogContent>
@@ -50,13 +58,13 @@ function StrategyDesignMetaDialogs() {
       </Dialog>
 
       <Dialog open={wb.moreVersionsOpen} onClose={wb.closeVersionsDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>选择工作台版本</DialogTitle>
+        <DialogTitle>恢复到历史版本</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1}>
             <TextField
               size="small"
               fullWidth
-              placeholder="搜索版本 ID、创建或更新时间"
+              placeholder="搜索版本 ID、时间或标记"
               value={wb.versionSearch}
               onChange={(event) => wb.setVersionSearch(event.target.value)}
             />
@@ -64,6 +72,9 @@ function StrategyDesignMetaDialogs() {
               {wb.configVersions.length > 0
                 ? `共 ${wb.versionPickerFiltered.length} 条${wb.versionPickerFiltered.length !== wb.configVersions.length ? `（已筛选，全部 ${wb.configVersions.length} 条）` : ''}`
                 : '暂无可选版本'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              仅供查阅：环境已更新，产物只读。即将清理：保留额度触顶后会优先删除。
             </Typography>
             <List sx={{ maxHeight: 340, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
               {wb.versionPickerSlice.length > 0 ? wb.versionPickerSlice.map((version) => (
@@ -76,7 +87,7 @@ function StrategyDesignMetaDialogs() {
                   }}
                 >
                   <ListItemText
-                    primary={version.envInvalid ? `${version.id}（环境已更新）` : version.id}
+                    primary={<VersionPickLabel version={version} />}
                     secondary={version.updatedAt || version.createdAt}
                   />
                 </ListItemButton>

@@ -2,9 +2,6 @@ import React, { useMemo } from 'react';
 import {
   Box,
   Button,
-  ListSubheader,
-  MenuItem,
-  Select,
   Stack,
   Typography,
 } from '@mui/material';
@@ -13,7 +10,6 @@ import NtqIcon from 'components/ntqIcon/ntqIcon';
 import StrategyMetaDetailText from 'components/strategyMetaDetailText/strategyMetaDetailText';
 import { resolveStrategyShortLabel } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import { STRATEGY_DESIGN_STEP_INTRO } from '../constants/strategyDesignSteps';
-import { DESIGN_RESTORE_MORE_MENU_VALUE } from '../constants/strategyDesignMetaConstants';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 import StrategyDesignStepper from './strategyDesignStepper';
 import './strategyDesignMetaBar.scss';
@@ -94,25 +90,15 @@ function StrategyDesignMetaBar() {
 
           <Stack direction="row" spacing={0} alignItems="center" flexWrap="nowrap" className="ntq-design-meta__admin">
             {wb.hasPersistedSnapshot ? (
-              <>
-                <Select
-                  size="small"
-                  displayEmpty
-                  value=""
-                  renderValue={() => '恢复到历史版本'}
-                  onChange={wb.handleRestoreMenuChange}
-                  disabled={wb.disableMetaActions || !wb.hasOtherVersions}
-                  className="ntq-compact-dropdown ntq-design-meta__admin-action ntq-design-meta__version-select"
-                >
-                  <ListSubheader disableSticky>恢复到历史版本</ListSubheader>
-                  {wb.restoreDropdownVersions.map((version) => (
-                    <MenuItem key={version.id} value={version.id}>
-                      {version.envInvalid ? `${version.id}（环境已更新）` : version.id}
-                    </MenuItem>
-                  ))}
-                  <MenuItem value={DESIGN_RESTORE_MORE_MENU_VALUE}>更多版本…</MenuItem>
-                </Select>
-              </>
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={wb.disableMetaActions || !wb.hasOtherVersions}
+                onClick={wb.openMoreVersionsDialog}
+                className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
+              >
+                恢复到历史版本
+              </Button>
             ) : null}
             {wb.strategyName ? (
               <>

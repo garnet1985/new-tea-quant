@@ -83,6 +83,14 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 
 ---
 
+## 工作台占用（草稿 vs 磁盘 vs freeze）
+
+| # | 决策 |
+|---|------|
+| D38 | **工作台占用：** 前端长期只持有草稿。胶囊「设置已变更」= 草稿 execute 投影 vs **当前选中 vid 的 freeze**（`effective_settings`）。「文件已更新」= 草稿 vs 当前 `settings.py`，rev 为文件字节 sha256。进页 / 设置区 focus / Run·Persist / 恢复前探测磁盘；草稿干净且 rev 变了则静默灌盘，草稿脏且 rev 变了则冲突框。Persist/Run/恢复带 If-Match；写盘后回读新 rev。 |
+
+---
+
 ## 何时换号（对照）
 
 | 条件 | 行为 |

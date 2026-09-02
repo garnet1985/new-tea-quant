@@ -13,6 +13,7 @@ import {
   loadDesignActiveRun,
   persistDesignActiveRun,
 } from '../lib/strategyDesignActiveRunPersistence';
+import { isSettingsConflictError } from '../lib/settingsOccupancy';
 import { notifyTaskSuccess } from '../../../utils/feedbackPromptBus';
 import logClientError from '../../../utils/logClientError';
 import { normalizeWorkbenchVersionId } from '../../../utils/workbenchVersionId';
@@ -30,9 +31,12 @@ export function useStrategyDesignExecution({
   strategyName,
   activeStep,
   getDraftSettingsForSubmit,
+  getSettingsRev,
   setAppliedSettings,
   isLoadingSettings,
   onRunStarted,
+  onSettingsPersisted,
+  onSettingsConflict,
   setSession,
   getExecutionState,
 }) {
@@ -65,12 +69,12 @@ export function useStrategyDesignExecution({
     }));
   }, [setSession]);
 
-  const startRun = useCallback(async (target, { isForce = false, _retryAfterBusy = false } = {}) => {
+  const startRun = useCallback(async (target, { isForce = false, _retryAfterBusy = false, forceSettingsWrite = false } = {}) => {
     if (!strategyName || !RUN_STEPS.has(target)) return;
     clearStockKlineMemoryCache();
 
     if (executionBusy && !_retryAfterBusy) {
-      queueMicrotask(() => startRun(target, { isForce, _retryAfterBusy: true }));
+      queueMicrotask(() => startRun(target, { isForce, _retryAfterBusy: true, forceSettingsWrite }));
       return;
     }
 
@@ -96,7 +100,10 @@ export function useStrategyDesignExecution({
 
       const started = await startStrategyRun(strategyName, target, resolvedSettings, {
         force_refresh: isForce,
+        settings_rev: getSettingsRev?.() ?? null,
+        force_settings_write: Boolean(forceSettingsWrite),
       });
+      onSettingsPersisted?.(started);
       const runId = started?.run_id;
       if (!runId) throw new Error('启动执行失败：缺少 run_id');
 
@@ -116,18 +123,25 @@ export function useStrategyDesignExecution({
         stepStatus: nextStepStatus,
       });
     } catch (err) {
-      setRunError(err?.message || '启动执行失败');
-      progressPollStepRef.current = '';
       patchExecutionSession({
         runningStep: '',
         activeRunId: '',
         runId: '',
       });
+      progressPollStepRef.current = '';
+      if (isSettingsConflictError(err)) {
+        onSettingsConflict?.(err, { target, isForce });
+        return;
+      }
+      setRunError(err?.message || '启动执行失败');
     }
   }, [
     executionBusy,
     getDraftSettingsForSubmit,
+    getSettingsRev,
     onRunStarted,
+    onSettingsConflict,
+    onSettingsPersisted,
     patchExecutionSession,
     getExecutionState,
     strategyName,
@@ -343,10 +357,19 @@ export function useStrategyDesignExecution({
     }
   }, [strategyName]);
 
+  const retryRunAfterOverwrite = useCallback((pending) => {
+    const target = pending?.target || activeStep;
+    return startRun(target, {
+      isForce: Boolean(pending?.isForce),
+      forceSettingsWrite: true,
+    });
+  }, [activeStep, startRun]);
+
   return {
     runError,
     progressDetail,
     handleRunCurrentStep,
+    retryRunAfterOverwrite,
     forceEnumerate,
     executionBusy,
   };

@@ -105,6 +105,54 @@ function StrategyDesignMetaDialogs() {
           <Button onClick={wb.closeVersionsDialog}>关闭</Button>
         </DialogActions>
       </Dialog>
+      <Dialog
+        open={Boolean(wb.diskConflict)}
+        onClose={() => {
+          if (!wb.diskConflictBusy) wb.closeDiskConflict();
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>文件已更新</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            settings.py 已在别处修改，与当前编辑器草稿不一致。
+          </Typography>
+          {wb.diskConflict?.intent === 'restore' ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+              继续恢复会丢掉当前草稿，并用历史版本覆盖磁盘上的新改动。
+            </Typography>
+          ) : null}
+          {wb.diskConflict?.intent === 'run' ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+              用编辑器覆盖文件后才会继续运行。
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={wb.closeDiskConflict}
+            disabled={wb.diskConflictBusy}
+          >
+            取消
+          </Button>
+          <Button
+            onClick={wb.confirmDiskConflictTakeFile}
+            disabled={wb.diskConflictBusy}
+          >
+            用文件覆盖编辑器
+          </Button>
+          <Button
+            variant="contained"
+            onClick={wb.confirmDiskConflictOverwriteFile}
+            disabled={wb.diskConflictBusy}
+          >
+            {wb.diskConflictBusy
+              ? '处理中...'
+              : (wb.diskConflict?.intent === 'restore' ? '仍要恢复历史版本' : '用编辑器覆盖文件')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

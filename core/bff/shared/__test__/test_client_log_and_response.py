@@ -40,11 +40,21 @@ def test_from_payload_error_maps_to_http_error(app):
         assert body["message"]["code"] == "SETUP_STEP_NOT_FOUND"
 
 
-def test_ok_helper_shape(app):
+def test_error_helper_merges_extra(app):
+    from core.bff.shared.response import error
+
     with app.app_context():
-        resp, status = ok({"ready": True})
-        assert status == 200
-        assert resp.get_json() == {"status": "ok", "message": {"ready": True}}
+        resp, status = error(
+            "settings.py 已在别处更新",
+            409,
+            code="settings_conflict",
+            extra={"settings_rev": "abc", "disk_settings": {"n": 1}},
+        )
+        assert status == 409
+        body = resp.get_json()
+        assert body["message"]["code"] == "settings_conflict"
+        assert body["message"]["settings_rev"] == "abc"
+        assert body["message"]["disk_settings"] == {"n": 1}
 
 
 @pytest.fixture

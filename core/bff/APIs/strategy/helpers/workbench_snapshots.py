@@ -28,6 +28,7 @@ from core.modules.strategy.core.services.artifacts import SimulationVersionStore
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_workbench_result_report,
 )
+from core.bff.APIs.strategy.helpers.settings_occupancy import SettingsOccupancy
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,9 @@ class WorkbenchSnapshots:
             if row is not None:
                 return row
 
-        return cls._synthetic_cold_start_row(name, dict(info.settings or {}))
+        return cls._synthetic_cold_start_row(
+            name, info, dict(info.settings or {})
+        )
 
     @classmethod
     def fetch_by_version(
@@ -273,6 +276,11 @@ class WorkbenchSnapshots:
             out["disk_settings"] = dict(info.settings or {})
         if not isinstance(out.get("effective_settings"), dict):
             out["effective_settings"] = {}
+        occupancy = SettingsOccupancy.occupancy_from_info(
+            info, out.get("disk_settings") or {}
+        )
+        out["settings_rev"] = occupancy["settings_rev"]
+        out["execute_settings"] = occupancy["execute_settings"]
 
         rr = out.get("result_report") or out.get("reports") or {}
         if isinstance(rr, dict):
@@ -296,14 +304,20 @@ class WorkbenchSnapshots:
     @staticmethod
     def _synthetic_cold_start_row(
         strategy_name: str,
+        info: StrategyInfo,
         settings_api: Dict[str, Any],
     ) -> Dict[str, Any]:
+        occupancy = SettingsOccupancy.occupancy_from_info(
+            info, dict(settings_api or {})
+        )
         return {
             "strategy_name": str(strategy_name or "").strip(),
             "version": 0,
             "settings_snapshot": dict(settings_api or {}),
             "disk_settings": dict(settings_api or {}),
             "effective_settings": {},
+            "execute_settings": occupancy["execute_settings"],
+            "settings_rev": occupancy["settings_rev"],
             "reports": {},
             "result_report": {},
             "execute_fp": "",

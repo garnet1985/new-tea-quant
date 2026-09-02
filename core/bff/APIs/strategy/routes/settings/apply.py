@@ -9,9 +9,11 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Optional, Tuple
 
-from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
+)
+from core.bff.APIs.strategy.helpers.settings_occupancy import (
+    SettingsOccupancy,
 )
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
@@ -32,16 +34,21 @@ class WorkbenchApplySettings:
         strategy_name: str,
         version: int,
         pretty: bool = False,
+        expected_rev: Optional[str] = None,
+        force: bool = False,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
         Snapshot row → validate → backup + atomic write ``settings.py``.
 
-        Success: ``({"applied": True, "strategy_name", "version_id"}, None)``.
+        Success: ``({"applied": True, "strategy_name", "version_id", "settings_rev"}, None)``.
+        ``expected_rev`` 与当前文件不一致且未 ``force`` 时抛 ``SettingsFileConflict``。
         """
         name = str(strategy_name or "").strip()
         sid = int(version)
         if not name or sid <= 0:
             return None, "参数无效"
+
+        SettingsOccupancy.require_match(name, expected_rev, force=bool(force))
 
         row = WorkbenchSnapshots.fetch_by_version(name, sid)
         if not row:
@@ -76,11 +83,15 @@ class WorkbenchApplySettings:
             )
             return None, f"写盘失败: {exc}"
 
+        occupancy = SettingsOccupancy.read(name)
         return (
             {
                 "applied": True,
                 "strategy_name": name,
                 "version_id": f"v{sid}",
+                "settings_rev": occupancy["settings_rev"],
+                "disk_settings": occupancy["disk_settings"],
+                "execute_settings": occupancy["execute_settings"],
             },
             None,
         )
@@ -92,31 +103,48 @@ class WorkbenchApplySettings:
         strategy_name: str,
         settings: Dict[str, Any],
         pretty: bool = True,
-    ) -> Optional[str]:
-        """Validate editor settings, then write the payload as-is (do not expand defaults)."""
+        expected_rev: Optional[str] = None,
+        force: bool = False,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """校验草稿后按原样写 ``settings.py``（不展开默认值）。
+
+        成功：``({settings_rev, disk_settings, execute_settings}, None)``。
+        空 payload：``(None, None)``（不写盘）。
+        ``expected_rev`` 不匹配且未 ``force`` 时抛 ``SettingsFileConflict``。
+        """
         name = str(strategy_name or "").strip()
         if not name:
-            return "参数无效"
+            return None, "参数无效"
         if not isinstance(settings, dict) or not settings:
-            return None
+            return None, None
+
+        SettingsOccupancy.require_match(name, expected_rev, force=bool(force))
 
         try:
             ss = StrategySettings.from_dict(settings)
             report = ss.validate()
         except Exception as exc:
             logger.exception("persist editor settings validate failed strategy=%s", name)
-            return f"settings 校验失败: {exc}"
+            return None, f"settings 校验失败: {exc}"
 
         if not report.is_usable():
-            return StrategySettings.format_validation_error(report)
+            return None, StrategySettings.format_validation_error(report)
 
         try:
             cls._backup_settings_file(name)
             cls._write_settings_py(name, dict(settings), pretty)
         except Exception as exc:
             logger.exception("persist editor settings 写盘失败 strategy=%s", name)
-            return f"写盘失败: {exc}"
-        return None
+            return None, f"写盘失败: {exc}"
+        occupancy = SettingsOccupancy.read(name)
+        return (
+            {
+                "settings_rev": occupancy["settings_rev"],
+                "disk_settings": occupancy["disk_settings"],
+                "execute_settings": occupancy["execute_settings"],
+            },
+            None,
+        )
 
     @classmethod
     def _verify_settings_fingerprint(
@@ -156,11 +184,7 @@ class WorkbenchApplySettings:
 
     @staticmethod
     def _settings_path(strategy_name: str) -> Path:
-        from core.modules.strategy import Strategy
-
-        return ProjectContext.path.get_strategy_settings_path(
-            Strategy.resolve_folder(strategy_name)
-        )
+        return SettingsOccupancy.settings_path(strategy_name)
 
     @classmethod
     def _backup_settings_file(cls, strategy_name: str) -> None:

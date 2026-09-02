@@ -68,7 +68,10 @@ function StrategyDesignStepPage() {
             />
             <Grid container spacing={2} className="ntq-design-step-page__grid">
               <Grid item xs={12} md={3}>
-                <Box className="ntq-design-step-page__settings">
+                <Box
+                  className="ntq-design-step-page__settings"
+                  onFocusCapture={wb.handleSettingsFocus}
+                >
                   <StrategyDesignSettingsPanel
                     activeStep={wb.activeStep}
                     settings={draftSettings}

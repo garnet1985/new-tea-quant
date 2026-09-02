@@ -198,6 +198,10 @@ export async function fetchStrategySettings(strategyKeyOrName) {
     effective_settings: m.effective_settings && typeof m.effective_settings === 'object'
       ? m.effective_settings
       : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+    settings_rev: String(m.settings_rev || ''),
     settings_source: undefined,
     workbench_version_id: normalizeWorkbenchVersionId(m.version_id),
     step_status: m.step_status,
@@ -225,13 +229,68 @@ export async function applyStrategySettingsToUserspace(strategyKeyOrName, _setti
   if (!versionId) {
     throw new Error('缺少工作台 version_id，无法恢复配置（请先选择有效版本）');
   }
+  const body = {};
+  if (opts.settings_rev != null) body.settings_rev = String(opts.settings_rev);
+  if (opts.force) body.force = true;
+  const headers = {};
+  if (opts.settings_rev) headers['If-Match'] = String(opts.settings_rev);
   const json = await request.postJson(
     `${apiStrategyPath(strategyKeyOrName)}/settings/apply/${encodeURIComponent(versionId)}`,
-    { body: {} },
+    { body, headers },
   );
+  const m = json?.message || {};
   return {
-    strategy_name: json?.message?.strategy_name || strategyKeyOrName,
-    applied: Boolean(json?.message?.applied),
+    strategy_name: m.strategy_name || strategyKeyOrName,
+    applied: Boolean(m.applied),
+    settings_rev: String(m.settings_rev || ''),
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object' ? m.disk_settings : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+  };
+}
+
+/**
+ * 当前 ``settings.py`` 占用（rev + 正文 + execute 投影），不带 version 报告。
+ */
+export async function fetchStrategySettingsCurrent(strategyKeyOrName) {
+  const json = await request.getJson(
+    `${apiStrategyPath(strategyKeyOrName)}/settings/current`,
+  );
+  const m = json?.message || {};
+  return {
+    strategy_name: m.strategy_name || strategyKeyOrName,
+    settings_rev: String(m.settings_rev || ''),
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object' ? m.disk_settings : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+  };
+}
+
+/**
+ * 将编辑器草稿写回 ``settings.py``。
+ * @param {{ settings_rev?: string, force?: boolean }} [opts]
+ */
+export async function persistStrategySettings(strategyKeyOrName, settings, opts = {}) {
+  const body = {
+    settings: settings && typeof settings === 'object' ? settings : {},
+  };
+  if (opts.settings_rev != null) body.settings_rev = String(opts.settings_rev);
+  if (opts.force) body.force = true;
+  const headers = {};
+  if (opts.settings_rev) headers['If-Match'] = String(opts.settings_rev);
+  const json = await request.postJson(
+    `${apiStrategyPath(strategyKeyOrName)}/settings/persist`,
+    { body, headers },
+  );
+  const m = json?.message || {};
+  return {
+    settings_rev: String(m.settings_rev || ''),
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object' ? m.disk_settings : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
   };
 }
 
@@ -276,6 +335,10 @@ export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
     effective_settings: m.effective_settings && typeof m.effective_settings === 'object'
       ? m.effective_settings
       : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+    settings_rev: String(m.settings_rev || ''),
     step_status: m.step_status,
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
@@ -311,9 +374,13 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     settings: settings && typeof settings === 'object' ? settings : {},
     force_refresh: forceRefresh,
   };
+  if (options?.settings_rev != null) body.settings_rev = String(options.settings_rev);
+  if (options?.force_settings_write) body.force_settings_write = true;
+  const headers = {};
+  if (options?.settings_rev) headers['If-Match'] = String(options.settings_rev);
   const json = await request.postJson(
     `${apiStrategyPath(strategyName)}/${encodeURIComponent(targetStep)}/run`,
-    { body },
+    { body, headers },
   );
   const m = json?.message || {};
   if (!m.is_triggered) {
@@ -328,6 +395,7 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     job_id: jid,
     steps,
     resolved_chain: resolved_chain.length ? resolved_chain : [targetStep],
+    settings_rev: String(m.settings_rev || ''),
   };
 }
 

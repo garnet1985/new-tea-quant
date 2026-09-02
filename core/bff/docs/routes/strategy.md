@@ -45,7 +45,9 @@ core/bff/APIs/strategy/
 | V2-07b | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/ref` | `routes/report/` |
 | V2-07c | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/stock/<stock_id>` | `routes/report/` |
 | V2-08 | GET | `/v1/strategy/<strategy_key_or_name>/version/<version_id>` | `routes/version/` |
-| V2-09 | POST | `/v1/strategy/<strategy_key_or_name>/settings/apply/<version_id>` | `routes/settings/` — 恢复历史 version 配置到 ``settings.py`` |
+| occupancy | GET | `/v1/strategy/<strategy_key_or_name>/settings/current` | `routes/settings/` — 当前 `settings.py` 字节 rev + 正文 + execute 投影 |
+| persist | POST | `/v1/strategy/<strategy_key_or_name>/settings/persist` | `routes/settings/` — 草稿写回；`If-Match` / `settings_rev`，冲突 409 |
+| V2-09 | POST | `/v1/strategy/<strategy_key_or_name>/settings/apply/<version_id>` | `routes/settings/` — 恢复历史 version 配置到 ``settings.py``；同样 If-Match |
 | V2-11 | DELETE | `/v1/strategy/version/cache` | `routes/version/` |
 | V2-12 | DELETE | `/v1/strategy/<strategy_key_or_name>/version/<version_id>/cache` | `routes/version/` |
 | V2-13 | GET | `/v1/strategy/<strategy_key_or_name>/package/export` | `routes/package/` |

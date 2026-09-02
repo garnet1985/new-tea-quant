@@ -5,8 +5,10 @@ import {
   downloadStrategyPackage,
   fetchMarketProfileOptions,
   fetchStrategySettings,
+  fetchStrategySettingsCurrent,
   fetchStrategyVersionDetail,
   fetchStrategyVersions,
+  persistStrategySettings,
   restoreStrategyVersion,
 } from '../../../api/strategyApi';
 import {
@@ -14,6 +16,12 @@ import {
   stripLegacyStrategySettingsForRun,
 } from '../../../utils/stripLegacyStrategySettings';
 import { isFingerprintEqual } from '../lib/strategySettingsFingerprint';
+import {
+  isDraftDirty,
+  isSettingsConflictError,
+  occupancyFromError,
+  persistComparable,
+} from '../lib/settingsOccupancy';
 import {
   extractStrategyDescription,
   extractStrategyDisplayName,
@@ -80,6 +88,15 @@ function buildMergeBaseSettings() {
   };
 }
 
+function editorSettingsFromDisk(serverSettings, extraMeta = {}) {
+  const src = serverSettings && typeof serverSettings === 'object' ? serverSettings : {};
+  const incomingMeta = src.meta && typeof src.meta === 'object' ? src.meta : {};
+  return migrateLegacyStrategySettings(mergeShapeOnly(buildMergeBaseSettings(), {
+    ...src,
+    meta: normalizeMeta({ ...incomingMeta, ...extraMeta }, src),
+  }));
+}
+
 function mapConfigVersionRows(verRes) {
   return (verRes?.versions || []).map((version) => ({
     id: version.version_id || `v${version.version || ''}`,
@@ -140,12 +157,21 @@ export function useStrategyDesignWorkbench() {
   const [versionPickerPage, setVersionPickerPage] = useState(1);
   const [packageExporting, setPackageExporting] = useState(false);
   const [packageExportError, setPackageExportError] = useState('');
+  const [diskConflict, setDiskConflict] = useState(null);
+  const [diskConflictBusy, setDiskConflictBusy] = useState(false);
 
   const lastRunSyncedVersionRef = useRef('');
   const snapshotSyncGenRef = useRef(0);
   const suppressDraftDrivenPanelResetRef = useRef(false);
+  const loadedRevRef = useRef('');
+  const loadedSettingsRef = useRef(buildMergeBaseSettings());
+  const draftSettingsRef = useRef(buildMergeBaseSettings());
+  const occupancyCheckRef = useRef(false);
+  const pendingRunAfterOverwriteRef = useRef(null);
+  const confirmRestoreVersionRef = useRef(null);
   const executionStateRef = useRef(session.executionState);
   executionStateRef.current = session.executionState;
+  draftSettingsRef.current = draftSettings;
   const labelSeedRef = useRef(labelSeed);
   labelSeedRef.current = labelSeed;
 
@@ -159,6 +185,38 @@ export function useStrategyDesignWorkbench() {
   const onRunStarted = useCallback(() => {
     lastRunSyncedVersionRef.current = '';
     snapshotSyncGenRef.current += 1;
+  }, []);
+
+  const adoptLoadedFill = useCallback((nextSettings, settingsRev) => {
+    loadedRevRef.current = String(settingsRev || '');
+    loadedSettingsRef.current = deepClone(nextSettings || buildMergeBaseSettings());
+  }, []);
+
+  const fillEditorFromDisk = useCallback((serverSettings, settingsRev, extraMeta = {}) => {
+    const nextSettings = editorSettingsFromDisk(serverSettings, extraMeta);
+    const nextDisplayName = extractStrategyDisplayName(nextSettings);
+    const nextKey = extractStrategyKey(nextSettings);
+    suppressDraftDrivenPanelResetRef.current = true;
+    setInitialSettings(nextSettings);
+    setStrategyDisplayName(nextDisplayName);
+    setStrategyKey(nextKey);
+    if (strategyName) {
+      writeCachedStrategyLabel(strategyName, {
+        displayName: nextDisplayName,
+        key: nextKey,
+      });
+    }
+    setStrategyDescription(extractStrategyDescription(nextSettings));
+    setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
+    setHasValidSettings(true);
+    setSettingsError('');
+    adoptLoadedFill(nextSettings, settingsRev);
+    return nextSettings;
+  }, [adoptLoadedFill, strategyName]);
+
+  const adoptPersistedRev = useCallback((settingsRev, draft = draftSettingsRef.current) => {
+    loadedRevRef.current = String(settingsRev || '');
+    loadedSettingsRef.current = persistComparable(draft);
   }, []);
 
   useEffect(() => {
@@ -221,30 +279,12 @@ export function useStrategyDesignWorkbench() {
         const serverSettings = res?.disk_settings || res?.settings || {};
         const hasServerSettings = serverSettings && typeof serverSettings === 'object'
           && Object.keys(serverSettings).length > 0;
-        const incomingMeta = serverSettings?.meta && typeof serverSettings.meta === 'object'
-          ? serverSettings.meta
-          : {};
 
         if (hasServerSettings) {
-          const nextSettings = migrateLegacyStrategySettings(mergeShapeOnly(mergeBase, {
-            ...serverSettings,
-            meta: normalizeMeta(incomingMeta, serverSettings),
-          }));
-          const nextDisplayName = extractStrategyDisplayName(nextSettings);
-          const nextKey = extractStrategyKey(nextSettings);
-          setInitialSettings(nextSettings);
-          setStrategyDisplayName(nextDisplayName);
-          setStrategyKey(nextKey);
-          writeCachedStrategyLabel(strategyName, {
-            displayName: nextDisplayName,
-            key: nextKey,
-          });
-          setStrategyDescription(extractStrategyDescription(nextSettings));
-          setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
-          setHasValidSettings(true);
-          setSettingsError('');
+          fillEditorFromDisk(serverSettings, res?.settings_rev);
         } else {
           setInitialSettings(mergeBase);
+          adoptLoadedFill(mergeBase, res?.settings_rev);
           setStrategyDescription('');
           setStrategyEntryConditions([]);
           setHasValidSettings(false);
@@ -263,10 +303,9 @@ export function useStrategyDesignWorkbench() {
             prev.executionState?.lastCompletedWorkbenchVersionId,
           );
           const versionChanged = Boolean(prevVid) && prevVid !== wbVer;
-          const nextDraft = hasServerSettings ? migrateLegacyStrategySettings(mergeShapeOnly(mergeBase, {
-            ...serverSettings,
-            meta: normalizeMeta(incomingMeta, serverSettings),
-          })) : mergeBase;
+          const nextDraft = hasServerSettings
+            ? editorSettingsFromDisk(serverSettings)
+            : mergeBase;
           return {
             ...prev,
             workbenchSnapshot: snapshot,
@@ -306,7 +345,7 @@ export function useStrategyDesignWorkbench() {
     return () => {
       isCancelled = true;
     };
-  }, [patchSession, setSession, strategyName]);
+  }, [adoptLoadedFill, fillEditorFromDisk, patchSession, setSession, strategyName]);
 
   useEffect(() => {
     if (!strategyName || isLoadingSettings || runIsActive) return undefined;
@@ -452,24 +491,126 @@ export function useStrategyDesignWorkbench() {
     [draftSettings],
   );
 
+  const getSettingsRev = useCallback(() => loadedRevRef.current, []);
+
+  const onSettingsPersisted = useCallback((started) => {
+    if (started?.settings_rev != null) {
+      adoptPersistedRev(started.settings_rev);
+    }
+  }, [adoptPersistedRev]);
+
+  const onSettingsConflict = useCallback((err, pendingRun) => {
+    pendingRunAfterOverwriteRef.current = pendingRun || null;
+    setDiskConflict({
+      intent: 'run',
+      ...occupancyFromError(err),
+    });
+  }, []);
+
   const {
     runError,
     progressDetail,
     handleRunCurrentStep,
+    retryRunAfterOverwrite,
     forceEnumerate,
     executionBusy,
   } = useStrategyDesignExecution({
     strategyName,
     activeStep: session.activeStep,
     getDraftSettingsForSubmit,
+    getSettingsRev,
     setAppliedSettings,
     isLoadingSettings,
     onRunStarted,
+    onSettingsPersisted,
+    onSettingsConflict,
     setSession,
     getExecutionState,
   });
 
   const disableMetaActions = isSavingSettings || isLoadingSettings || !hasValidSettings || !strategyName || executionBusy;
+
+  const handleSettingsFocus = useCallback(() => {
+    if (!strategyName || isLoadingSettings || executionBusy || diskConflict || occupancyCheckRef.current) {
+      return;
+    }
+    occupancyCheckRef.current = true;
+    fetchStrategySettingsCurrent(strategyName)
+      .then((occupancy) => {
+        const remoteRev = String(occupancy?.settings_rev || '');
+        if (remoteRev === loadedRevRef.current) return;
+        if (isDraftDirty(draftSettingsRef.current, loadedSettingsRef.current)) {
+          setDiskConflict({ intent: 'focus', ...occupancy });
+          return;
+        }
+        fillEditorFromDisk(occupancy.disk_settings, occupancy.settings_rev);
+        setRestoreOk('已从 settings.py 刷新');
+        setSaveError('');
+      })
+      .catch((err) => {
+        logClientError('design.settingsOccupancy', err);
+      })
+      .finally(() => {
+        occupancyCheckRef.current = false;
+      });
+  }, [diskConflict, executionBusy, fillEditorFromDisk, isLoadingSettings, strategyName]);
+
+  const closeDiskConflict = useCallback(() => {
+    setDiskConflict(null);
+    setDiskConflictBusy(false);
+    pendingRunAfterOverwriteRef.current = null;
+  }, []);
+
+  const confirmDiskConflictTakeFile = useCallback(() => {
+    if (!diskConflict) return;
+    fillEditorFromDisk(diskConflict.disk_settings, diskConflict.settings_rev);
+    setRestoreOk('已用 settings.py 覆盖编辑器');
+    setSaveError('');
+    closeDiskConflict();
+  }, [closeDiskConflict, diskConflict, fillEditorFromDisk]);
+
+  const confirmDiskConflictOverwriteFile = useCallback(async () => {
+    if (!diskConflict || !strategyName) return;
+    const intent = diskConflict.intent;
+    setDiskConflictBusy(true);
+    setSaveError('');
+    try {
+      if (intent === 'restore') {
+        setDiskConflict(null);
+        setDiskConflictBusy(false);
+        confirmRestoreVersionRef.current?.({ skipOccupancyCheck: true, force: true });
+        return;
+      }
+      if (intent === 'run') {
+        const pendingRun = pendingRunAfterOverwriteRef.current;
+        closeDiskConflict();
+        if (pendingRun) retryRunAfterOverwrite(pendingRun);
+        return;
+      }
+      const payload = getDraftSettingsForSubmit();
+      const occupancy = await persistStrategySettings(strategyName, payload, {
+        settings_rev: loadedRevRef.current,
+        force: true,
+      });
+      adoptPersistedRev(occupancy.settings_rev, payload);
+      setRestoreOk('已用编辑器覆盖 settings.py');
+      closeDiskConflict();
+    } catch (err) {
+      setDiskConflictBusy(false);
+      if (isSettingsConflictError(err)) {
+        setDiskConflict((prev) => (prev ? { ...prev, ...occupancyFromError(err) } : prev));
+        return;
+      }
+      setSaveError(err?.message || '写回 settings.py 失败');
+    }
+  }, [
+    adoptPersistedRev,
+    closeDiskConflict,
+    diskConflict,
+    getDraftSettingsForSubmit,
+    retryRunAfterOverwrite,
+    strategyName,
+  ]);
 
   const handleDraftDrivenReset = useCallback(() => {
     if (strategyName) clearDesignActiveRun(strategyName);
@@ -522,85 +663,96 @@ export function useStrategyDesignWorkbench() {
     }
   }, [strategyName]);
 
-  const confirmRestoreVersion = useCallback(() => {
+  const confirmRestoreVersion = useCallback(async (opts = {}) => {
     const target = versionMap[pendingVersionId];
     if (!target || !strategyName) {
       setConfirmOpen(false);
       return;
     }
+    const skipOccupancyCheck = Boolean(opts.skipOccupancyCheck);
+    const forceWrite = Boolean(opts.force);
     setIsSavingSettings(true);
     setSaveError('');
     setRestoreOk('');
-    applyStrategySettingsToUserspace(strategyName, null, { version_id: target.id })
-      .then(() => restoreStrategyVersion(strategyName, target.id))
-      .then((restoreMeta) => {
-        const detail = restoreMeta.detail;
-        const res = workbenchPageStateFromVersionDetail(detail, strategyName, configVersions);
-        setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
-        setHasOtherVersions(Boolean(res?.has_other_versions));
-        const snapshot = buildWorkbenchSnapshotFromVersionDetail(detail);
-        const wbVerRestore = snapshot.versionId;
-        lastRunSyncedVersionRef.current = wbVerRestore;
-        const hydrationRestore = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
-        const serverSettings = (detail?.settings && Object.keys(detail.settings).length > 0)
-          ? detail.settings
-          : (detail?.disk_settings && Object.keys(detail.disk_settings).length > 0)
-            ? detail.disk_settings
-            : (res?.settings || {});
-        const incomingMeta = serverSettings?.meta && typeof serverSettings.meta === 'object'
-          ? serverSettings.meta
-          : {
-            name: serverSettings?.name,
-            description: serverSettings?.description,
-            is_enabled: serverSettings?.is_enabled,
-          };
-        const mergedSettings = migrateLegacyStrategySettings(mergeShapeOnly(buildMergeBaseSettings(), {
-          ...serverSettings,
-          meta: normalizeMeta({ ...incomingMeta, name: strategyName }),
-        }));
-        const wb = wbVerRestore || restoreMeta?.version_id || '';
-        suppressDraftDrivenPanelResetRef.current = true;
-        setInitialSettings(mergedSettings);
-        const restoredDisplayName = extractStrategyDisplayName(mergedSettings);
-        const restoredKey = extractStrategyKey(mergedSettings);
-        setStrategyDisplayName(restoredDisplayName);
-        setStrategyKey(restoredKey);
-        writeCachedStrategyLabel(strategyName, {
-          displayName: restoredDisplayName,
-          key: restoredKey,
-        });
-        setStrategyDescription(extractStrategyDescription(mergedSettings));
-        setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
-        setHasValidSettings(true);
-        setDraftSettings(deepClone(mergedSettings));
-        setSelectedConfigVersion(wb);
-        setAppliedSettings(deepClone(mergedSettings));
-        setAppliedVersionId(typeof wb === 'string' ? wb.trim() : '');
-        patchSession({
-          workbenchSnapshot: snapshot,
-          draftSettings: deepClone(mergedSettings),
-          appliedSettings: deepClone(mergedSettings),
-          executionState: {
-            stepStatus: hydrationRestore.stepStatus,
-            result: hydrationRestore.result,
-            compareVersion: { enum: '', price: '', portfolio: '' },
-            runningStep: '',
-            runId: '',
-            activeRunId: '',
-            lastCompletedWorkbenchVersionId: wbVerRestore,
-          },
-          panelsResetEpoch: session.panelsResetEpoch,
-        });
-        setRestoreOk('已将历史配置写回 settings.py。');
-        setConfirmOpen(false);
-      })
-      .catch((err) => {
-        setSaveError(err?.message || '恢复配置失败');
-      })
-      .finally(() => {
-        setIsSavingSettings(false);
+    try {
+      if (!skipOccupancyCheck) {
+        const occupancy = await fetchStrategySettingsCurrent(strategyName);
+        const remoteRev = String(occupancy.settings_rev || '');
+        const dirty = isDraftDirty(draftSettingsRef.current, loadedSettingsRef.current);
+        if (dirty && remoteRev !== loadedRevRef.current) {
+          setDiskConflict({ intent: 'restore', ...occupancy });
+          return;
+        }
+        if (!dirty && remoteRev !== loadedRevRef.current) {
+          opts = { ...opts, force: true };
+        }
+      }
+      const applied = await applyStrategySettingsToUserspace(strategyName, null, {
+        version_id: target.id,
+        settings_rev: loadedRevRef.current,
+        force: forceWrite || Boolean(opts.force) || skipOccupancyCheck,
       });
-  }, [configVersions, patchSession, pendingVersionId, session.panelsResetEpoch, strategyName, versionMap]);
+      const restoreMeta = await restoreStrategyVersion(strategyName, target.id);
+      const detail = restoreMeta.detail;
+      const res = workbenchPageStateFromVersionDetail(detail, strategyName, configVersions);
+      setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
+      setHasOtherVersions(Boolean(res?.has_other_versions));
+      const snapshot = buildWorkbenchSnapshotFromVersionDetail(detail);
+      const wbVerRestore = snapshot.versionId;
+      lastRunSyncedVersionRef.current = wbVerRestore;
+      const hydrationRestore = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
+      const serverSettings = (detail?.settings && Object.keys(detail.settings).length > 0)
+        ? detail.settings
+        : (detail?.disk_settings && Object.keys(detail.disk_settings).length > 0)
+          ? detail.disk_settings
+          : (res?.settings || {});
+      const mergedSettings = fillEditorFromDisk(
+        serverSettings,
+        applied.settings_rev || detail.settings_rev,
+        { name: strategyName },
+      );
+      const wb = wbVerRestore || restoreMeta?.version_id || '';
+      setDraftSettings(deepClone(mergedSettings));
+      setSelectedConfigVersion(wb);
+      setAppliedSettings(deepClone(mergedSettings));
+      setAppliedVersionId(typeof wb === 'string' ? wb.trim() : '');
+      patchSession({
+        workbenchSnapshot: snapshot,
+        draftSettings: deepClone(mergedSettings),
+        appliedSettings: deepClone(mergedSettings),
+        executionState: {
+          stepStatus: hydrationRestore.stepStatus,
+          result: hydrationRestore.result,
+          compareVersion: { enum: '', price: '', portfolio: '' },
+          runningStep: '',
+          runId: '',
+          activeRunId: '',
+          lastCompletedWorkbenchVersionId: wbVerRestore,
+        },
+        panelsResetEpoch: session.panelsResetEpoch,
+      });
+      setRestoreOk('已将历史配置写回 settings.py。');
+      setConfirmOpen(false);
+      setDiskConflict(null);
+    } catch (err) {
+      if (isSettingsConflictError(err)) {
+        setDiskConflict({ intent: 'restore', ...occupancyFromError(err) });
+        return;
+      }
+      setSaveError(err?.message || '恢复配置失败');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }, [
+    configVersions,
+    fillEditorFromDisk,
+    patchSession,
+    pendingVersionId,
+    session.panelsResetEpoch,
+    strategyName,
+    versionMap,
+  ]);
+  confirmRestoreVersionRef.current = confirmRestoreVersion;
 
   return {
     strategyName,
@@ -661,6 +813,12 @@ export function useStrategyDesignWorkbench() {
     requestApplyVersion,
     confirmRestoreVersion,
     handleRunCurrentStep,
+    handleSettingsFocus,
+    diskConflict,
+    diskConflictBusy,
+    closeDiskConflict,
+    confirmDiskConflictTakeFile,
+    confirmDiskConflictOverwriteFile,
     setSaveError,
     setRestoreOk,
     resetSessionForDraftChange,

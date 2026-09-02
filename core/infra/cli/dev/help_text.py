@@ -11,7 +11,6 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py ic                      import 冒烟       同 check_import
   python devcli.py cgc                     清 .ntq           同 clear_global_cache
   python devcli.py csc                     清策略 results/   同 clear_strategy_cache
-  python devcli.py cmc                     清 results/       同 cache_clear_disk
   python devcli.py dbc                     DuckDB WAL        同 db_checkpoint [--recover]
   python devcli.py ex                      演示数据 zip      同 data_export_init
   python devcli.py pu                      打包 userspace    同 userspace_package [--no-zip]

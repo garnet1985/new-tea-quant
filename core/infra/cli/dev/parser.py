@@ -63,12 +63,6 @@ class DevParser:
             help="清理各策略 results/ 目录",
         ).set_defaults(handler=DevHandlers.cmd_clear_strategy_cache)
 
-        sub.add_parser(
-            "cache_clear_disk",
-            aliases=DevCommands.aliases_for("cache_clear_disk"),
-            help="仅删除各策略 results/ 目录",
-        ).set_defaults(handler=DevHandlers.cmd_cache_clear_disk)
-
         p_dbc = sub.add_parser(
             "db_checkpoint",
             aliases=DevCommands.aliases_for("db_checkpoint"),

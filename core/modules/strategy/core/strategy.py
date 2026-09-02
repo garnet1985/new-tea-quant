@@ -429,6 +429,7 @@ class Strategy:
         execute_settings = StrategySettings.extract_execute_settings(
             ctx.effective_settings
         )
+        full_settings = dict(ctx.effective_settings.raw_settings or {})
         try:
             period = ctx.effective_settings.resolve_period()
             start_date = str(period.start_date or "")
@@ -436,7 +437,6 @@ class Strategy:
         except Exception:
             start_date = ""
             end_date = ""
-        full_settings = ctx.effective_settings.to_dict()
         for step in ctx.steps:
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res

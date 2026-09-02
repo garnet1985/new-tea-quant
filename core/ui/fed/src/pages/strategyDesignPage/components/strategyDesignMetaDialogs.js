@@ -31,6 +31,11 @@ function StrategyDesignMetaDialogs() {
             {' '}
             当时冻结的配置写回 settings.py，并刷新当前编辑器。未保存的草稿将被覆盖。
           </Typography>
+          {wb.configVersions.find((version) => version.id === wb.pendingVersionId)?.envInvalid ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+              该版本产物仅供查阅。恢复配置后运行会按当前环境查找或新建 version，不会写回此目录。
+            </Typography>
+          ) : null}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => wb.setConfirmOpen(false)}>取消</Button>
@@ -71,7 +76,7 @@ function StrategyDesignMetaDialogs() {
                   }}
                 >
                   <ListItemText
-                    primary={version.id}
+                    primary={version.envInvalid ? `${version.id}（环境已更新）` : version.id}
                     secondary={version.updatedAt || version.createdAt}
                   />
                 </ListItemButton>

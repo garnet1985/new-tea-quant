@@ -59,7 +59,7 @@ class WorkbenchApplySettings:
             return None, f"settings 校验失败: {exc}"
 
         if not report.is_usable():
-            return None, cls._format_validation_error(report)
+            return None, StrategySettings.format_validation_error(report)
 
         fp_err = cls._verify_settings_fingerprint(name, sid, settings_snapshot)
         if fp_err:
@@ -108,7 +108,7 @@ class WorkbenchApplySettings:
             return f"settings 校验失败: {exc}"
 
         if not report.is_usable():
-            return cls._format_validation_error(report)
+            return StrategySettings.format_validation_error(report)
 
         try:
             cls._backup_settings_file(name)
@@ -117,21 +117,6 @@ class WorkbenchApplySettings:
             logger.exception("persist editor settings 写盘失败 strategy=%s", name)
             return f"写盘失败: {exc}"
         return None
-
-    @staticmethod
-    def _format_validation_error(report: Any) -> str:
-        errors = list(getattr(report, "errors", None) or [])
-        if not errors:
-            return "settings 校验失败"
-        first = errors[0]
-        if isinstance(first, dict):
-            field = str(first.get("field") or first.get("path") or "").strip()
-            msg = str(first.get("message") or first.get("msg") or first).strip()
-            if field and msg:
-                return f"settings 校验失败: {field}: {msg}"
-            if msg:
-                return f"settings 校验失败: {msg}"
-        return f"settings 校验失败: {first}"
 
     @classmethod
     def _verify_settings_fingerprint(
@@ -158,10 +143,13 @@ class WorkbenchApplySettings:
             return None
 
         archive = VersionMetaStore.read_archive_context(root, str(int(version)))
-        computed = FingerprintCalculator.to_execute_fingerprint(
-            StrategySettings.from_dict(settings_snapshot),
-            archive.get("entity_ids") or [],
-        )
+        try:
+            computed = FingerprintCalculator.to_execute_fingerprint(
+                StrategySettings.from_dict(settings_snapshot),
+                archive.get("entity_ids") or [],
+            )
+        except ValueError as exc:
+            return f"配置快照无法计算指纹: {exc}"
         if computed != expected:
             return "配置快照与 version 指纹不一致"
         return None

@@ -1,4 +1,5 @@
 import {
+  EXECUTE_SETTINGS_DEFAULTS,
   fingerprintSignature,
   isFingerprintEqual,
   stableStringify,
@@ -46,16 +47,35 @@ describe('strategySettingsFingerprint', () => {
     expect(isFingerprintEqual(draft, freeze)).toBe(true);
   });
 
+  it('treats omitted defaults the same as an explicit freeze of those defaults', () => {
+    const draft = {
+      core: { n: 1 },
+      simulation: {
+        execution: { mode: 'entity_based', start_date: '20200101', end_date: '20201231' },
+      },
+    };
+    const freeze = {
+      core: { n: 1 },
+      data: EXECUTE_SETTINGS_DEFAULTS.data,
+      portfolio: EXECUTE_SETTINGS_DEFAULTS.portfolio,
+      simulation: {
+        ...EXECUTE_SETTINGS_DEFAULTS.simulation,
+        execution: { mode: 'entity_based', start_date: '20200101', end_date: '20201231' },
+      },
+    };
+    expect(isFingerprintEqual(draft, freeze)).toBe(true);
+  });
+
   it('ignores UI draft keys such as force_exit_when_draft', () => {
     const freeze = {
       core: { n: 1 },
-      simulation: { risk_control: { skip_enter_when: ['limit_up'] } },
+      simulation: { risk_control: { skip_enter_when: ['st'] } },
     };
     const draft = {
       core: { n: 1 },
       simulation: {
         risk_control: {
-          skip_enter_when: ['limit_up'],
+          skip_enter_when: ['st'],
           force_exit_when_draft: { status: 'x' },
         },
       },

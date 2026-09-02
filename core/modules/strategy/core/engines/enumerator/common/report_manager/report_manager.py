@@ -142,6 +142,8 @@ class ReportManager(BaseReportManager):
             version_id=int(version_id),
             strategy_path=path_id or str(folder),
         )
+        full_settings = dict(effective_settings.raw_settings or {})
+        execute_subset = StrategySettings.extract_execute_settings(effective_settings)
         manager.runtime.save_begin(
             entity_ids=entity_ids,
             execute_fp=execute_fp,
@@ -165,10 +167,8 @@ class ReportManager(BaseReportManager):
         VersionMetaStore.write_version_archive(
             EnumerateStore.simulations_root(folder),
             str(version_id),
-            full_settings=effective_settings.to_dict(),
-            effective_settings=StrategySettings.extract_execute_settings(
-                effective_settings
-            ),
+            full_settings=full_settings,
+            effective_settings=execute_subset,
             entity_ids=entity_ids,
             start_date=start_date,
             end_date=end_date,

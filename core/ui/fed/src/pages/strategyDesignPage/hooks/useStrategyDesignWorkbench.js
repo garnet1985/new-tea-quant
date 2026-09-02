@@ -86,6 +86,7 @@ function mapConfigVersionRows(verRes) {
     createdAt: version.created_at || '',
     updatedAt: version.updated_at || '',
     version: Number(version.version || 0),
+    envInvalid: Boolean(version.env_invalid),
   }));
 }
 
@@ -428,6 +429,12 @@ export function useStrategyDesignWorkbench() {
     session.workbenchSnapshot?.settings,
   ]);
 
+  const envInvalid = Boolean(session.workbenchSnapshot?.envInvalid);
+
+  const capsuleStatus = envInvalid
+    ? '环境已更新'
+    : (isAppliedSettings ? '无设置变化' : '设置已变更');
+
   const currentVersionDisplay = useMemo(() => {
     const applied = String(appliedVersionId || '').trim();
     if (!applied) return 'settings文件';
@@ -535,9 +542,11 @@ export function useStrategyDesignWorkbench() {
         const wbVerRestore = snapshot.versionId;
         lastRunSyncedVersionRef.current = wbVerRestore;
         const hydrationRestore = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
-        const serverSettings = (detail?.disk_settings && Object.keys(detail.disk_settings).length > 0)
-          ? detail.disk_settings
-          : (res?.settings || {});
+        const serverSettings = (detail?.settings && Object.keys(detail.settings).length > 0)
+          ? detail.settings
+          : (detail?.disk_settings && Object.keys(detail.disk_settings).length > 0)
+            ? detail.disk_settings
+            : (res?.settings || {});
         const incomingMeta = serverSettings?.meta && typeof serverSettings.meta === 'object'
           ? serverSettings.meta
           : {
@@ -617,6 +626,8 @@ export function useStrategyDesignWorkbench() {
     isEnabled: Boolean(draftSettings?.is_enabled ?? initialSettings?.is_enabled),
     currentVersionDisplay,
     isAppliedSettings,
+    envInvalid,
+    capsuleStatus,
     hasPersistedSnapshot,
     hasOtherVersions,
     restoreDropdownVersions,

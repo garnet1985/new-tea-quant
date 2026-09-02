@@ -73,12 +73,48 @@ class StrategySettings:
         }
 
     @classmethod
+    def to_usable(
+        cls,
+        settings: Union["StrategySettings", Dict[str, Any], None],
+    ) -> "StrategySettings":
+        """clone → apply_defaults → validate。不能跑回测则无法给出身份。"""
+        obj = cls.from_dict(cls._raw_settings_dict(settings))
+        report = obj.validate()
+        if not report.is_usable():
+            raise ValueError(cls.format_validation_error(report))
+        return obj
+
+    @staticmethod
+    def format_validation_error(report: ValidationReport) -> str:
+        errors = list(getattr(report, "errors", None) or [])
+        if not errors:
+            return "settings 校验失败"
+        first = errors[0]
+        if isinstance(first, dict):
+            field = str(
+                first.get("field_path")
+                or first.get("field")
+                or first.get("path")
+                or ""
+            ).strip()
+            msg = str(first.get("message") or first.get("msg") or "").strip()
+            if field and msg:
+                return f"settings 校验失败: {field}: {msg}"
+            if msg:
+                return f"settings 校验失败: {msg}"
+        return f"settings 校验失败: {first}"
+
+    @classmethod
     def extract_execute_settings(
         cls,
         settings: Union["StrategySettings", Dict[str, Any], None],
     ) -> Dict[str, Any]:
-        """抽出 ``execute_fp`` 的 settings 块（白名单 + 去草稿 + 去空对象）。"""
-        raw = cls._raw_settings_dict(settings)
+        """抽出 ``execute_fp`` 的 settings 块。
+
+        先 ``to_usable``，再白名单 + 去草稿 + 去空对象。
+        缺 key 与「显式写成默认值」会收敛成同一份投影。
+        """
+        raw = dict(cls.to_usable(settings).raw_settings)
         extracted: Dict[str, Any] = {}
         for key in sorted(EXECUTE_SETTINGS_FIELDS):
             if key not in raw or raw[key] is None:
@@ -254,29 +290,31 @@ class StrategySettings:
         return bool(self._validated)
 
     def to_dict(self) -> Dict[str, Any]:
-        self.apply_defaults()
-        out = copy.deepcopy(self.raw_settings)
-        out["is_enabled"] = self.is_enabled
-        out["meta"] = self.meta.to_dict()
-        if self.core:
-            out["core"] = self.core
-        out["data"] = self.data.to_dict()
-        sampling = self.sampling.to_dict()
+        """展开默认值的拷贝；不得改 ``self.raw_settings``（否则会污染 execute_fp / 归档）。"""
+        clone = StrategySettings(raw_settings=copy.deepcopy(self.raw_settings))
+        clone.apply_defaults()
+        out = copy.deepcopy(clone.raw_settings)
+        out["is_enabled"] = clone.is_enabled
+        out["meta"] = clone.meta.to_dict()
+        if clone.core:
+            out["core"] = clone.core
+        out["data"] = clone.data.to_dict()
+        sampling = clone.sampling.to_dict()
         if sampling:
             out["sampling"] = sampling
-        out["goal"] = self.goal.to_dict()
-        if self.fees.fees:
-            out["fees"] = self.fees.to_dict()
+        out["goal"] = clone.goal.to_dict()
+        if clone.fees.fees:
+            out["fees"] = clone.fees.to_dict()
         out["simulation"] = {
-            **(self.raw_settings.get("simulation") or {}),
-            **self.simulation.to_dict(),
+            **(clone.raw_settings.get("simulation") or {}),
+            **clone.simulation.to_dict(),
         }
-        if self.portfolio.portfolio:
-            out["portfolio"] = self.portfolio.to_dict()
-        if self.scanner.scanner:
-            out["scanner"] = self.scanner.to_dict()
-        if self.analysis.enabled or "analysis" in self.raw_settings:
-            out["analysis"] = self.analysis.to_dict()
+        if clone.portfolio.portfolio:
+            out["portfolio"] = clone.portfolio.to_dict()
+        if clone.scanner.scanner:
+            out["scanner"] = clone.scanner.to_dict()
+        if clone.analysis.enabled or "analysis" in clone.raw_settings:
+            out["analysis"] = clone.analysis.to_dict()
         return out
 
 

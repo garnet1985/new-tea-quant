@@ -76,9 +76,9 @@ function StrategyDesignMetaBar() {
               <Box
                 className={[
                   'ntq-design-meta__version-capsule',
-                  wb.isAppliedSettings
-                    ? 'ntq-design-meta__version-capsule--clean'
-                    : 'ntq-design-meta__version-capsule--changed',
+                  (wb.envInvalid || !wb.isAppliedSettings)
+                    ? 'ntq-design-meta__version-capsule--changed'
+                    : 'ntq-design-meta__version-capsule--clean',
                 ].join(' ')}
               >
                 <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
@@ -86,7 +86,7 @@ function StrategyDesignMetaBar() {
                 </Box>
                 <Box component="span" className="ntq-design-meta__version-capsule-sep" aria-hidden />
                 <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
-                  {wb.isAppliedSettings ? '无设置变化' : '设置已变更'}
+                  {wb.capsuleStatus}
                 </Box>
               </Box>
             ) : null}
@@ -106,7 +106,9 @@ function StrategyDesignMetaBar() {
                 >
                   <ListSubheader disableSticky>恢复到历史版本</ListSubheader>
                   {wb.restoreDropdownVersions.map((version) => (
-                    <MenuItem key={version.id} value={version.id}>{version.id}</MenuItem>
+                    <MenuItem key={version.id} value={version.id}>
+                      {version.envInvalid ? `${version.id}（环境已更新）` : version.id}
+                    </MenuItem>
                   ))}
                   <MenuItem value={DESIGN_RESTORE_MORE_MENU_VALUE}>更多版本…</MenuItem>
                 </Select>

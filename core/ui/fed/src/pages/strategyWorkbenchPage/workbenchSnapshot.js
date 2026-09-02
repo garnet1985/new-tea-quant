@@ -12,6 +12,7 @@ export function emptyWorkbenchSnapshot() {
     settings: null,
     diskSettings: null,
     effectiveSettings: null,
+    envInvalid: false,
   };
 }
 
@@ -31,6 +32,7 @@ export function buildWorkbenchSnapshotFromVersionDetail(detail) {
     settings: detail.settings ?? null,
     diskSettings: detail.disk_settings ?? null,
     effectiveSettings: detail.effective_settings ?? null,
+    envInvalid: Boolean(detail.env_invalid),
   };
 }
 
@@ -52,5 +54,6 @@ export function buildWorkbenchSnapshotFromSettingsResponse(res) {
     settings: res.snapshot_settings ?? res.settings ?? null,
     diskSettings: res.disk_settings ?? null,
     effectiveSettings: res.effective_settings ?? null,
+    envInvalid: Boolean(res.env_invalid),
   };
 }

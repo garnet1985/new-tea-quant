@@ -143,14 +143,18 @@ def test_list_dropdown_from_registry(mock_find, tmp_path: Path):
         root,
         {
             "registry": {
-                "2": {"created_at": "2024-01-02", "execute_fp": "s", "env_fp": "e"},
-                "1": {"created_at": "2024-01-01", "execute_fp": "s", "env_fp": "e"},
+                "2": {"created_at": "2024-01-02", "execute_fp": "s", "env_fp": "old-env"},
+                "1": {"created_at": "2024-01-01", "execute_fp": "s", "env_fp": "current-env"},
             }
         },
     )
-    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root):
+    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root), patch.object(
+        WorkbenchSnapshots, "_current_env_fp", return_value="current-env"
+    ):
         items = WorkbenchSnapshots.list_dropdown("demo/x")
     assert [i["version_id"] for i in items] == ["v2", "v1"]
+    assert items[0]["env_invalid"] is True
+    assert items[1]["env_invalid"] is False
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy", return_value=None)

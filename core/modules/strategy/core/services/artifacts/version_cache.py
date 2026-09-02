@@ -116,8 +116,12 @@ class SimulationVersionStore:
         vid = str(version_id or "").strip()
         settings_obj = getattr(fps, "effective_settings", None)
         full = dict(full_settings or {})
-        if not full and settings_obj is not None and hasattr(settings_obj, "to_dict"):
-            full = dict(settings_obj.to_dict() or {})
+        if not full and settings_obj is not None:
+            raw = getattr(settings_obj, "raw_settings", None)
+            if isinstance(raw, dict) and raw:
+                full = dict(raw)
+            elif hasattr(settings_obj, "to_dict"):
+                full = dict(settings_obj.to_dict() or {})
         extracted = dict(effective_settings or {})
         if not extracted and settings_obj is not None:
             extract = getattr(type(settings_obj), "extract_execute_settings", None)

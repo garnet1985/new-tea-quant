@@ -27,7 +27,7 @@ def _disk() -> dict:
                 "end_date": "20201231",
             },
             "risk_control": {
-                "skip_enter_when": ["limit_up"],
+                "skip_enter_when": ["st"],
                 "force_exit_when_draft": {"status": "x"},
             },
         },
@@ -52,6 +52,18 @@ def _info(settings: dict):
     )
 
 
+def test_extract_empty_matches_canonical_defaults() -> None:
+    """FED ``EXECUTE_SETTINGS_DEFAULTS`` 必须与这份投影对齐。"""
+    out = StrategySettings.extract_execute_settings({})
+    assert out["data"]["base"]["data_key"] == "stock.kline.daily"
+    assert out["simulation"]["execution"]["mode"] == "entity_based"
+    assert out["simulation"]["risk_control"]["pending_enter"]["max_wait_open_days"] == 5
+    assert out["portfolio"]["initial_capital"] == 1_000_000
+    assert "meta" not in out
+    assert "scanner" not in out
+    assert "analysis" not in out
+
+
 def test_extract_keeps_whitelist_drops_others() -> None:
     out = StrategySettings.extract_execute_settings(_disk())
     assert set(out.keys()) <= set(EXECUTE_SETTINGS_FIELDS)
@@ -70,12 +82,12 @@ def test_extract_drops_ui_draft_keys_and_empty_objects() -> None:
     out = StrategySettings.extract_execute_settings(_disk())
     risk = out["simulation"]["risk_control"]
     assert "force_exit_when_draft" not in risk
-    assert risk["skip_enter_when"] == ["limit_up"]
+    assert risk["skip_enter_when"] == ["st"]
 
-    with_empty = StrategySettings.extract_execute_settings(
-        {"core": {"n": 1}, "simulation": {"assumption": {"tradability": {"slippage": {}}}}}
-    )
-    assert with_empty == {"core": {"n": 1}}
+    raw = _disk()
+    raw["core"] = {"n": 1, "placeholder": {}}
+    with_empty = StrategySettings.extract_execute_settings(raw)
+    assert with_empty["core"] == {"n": 1}
 
 
 def test_extract_payload_puts_entity_ids_in_scope() -> None:
@@ -110,6 +122,26 @@ def test_execute_fp_stable_after_round_trip() -> None:
     fp2 = FingerprintCalculator.to_execute_fingerprint(reloaded, ids)
     assert StrategySettings.extract_execute_settings(reloaded) == subset
     assert fp1 == fp2
+
+
+def test_to_dict_does_not_mutate_execute_fp() -> None:
+    import copy
+
+    disk = _disk()
+    effective, _ = StrategySettings.calculate_effective_settings(disk, {})
+    ids = ["000001.SZ"]
+    before = FingerprintCalculator.to_execute_fingerprint(effective, ids)
+    raw_before = copy.deepcopy(effective.raw_settings)
+    try:
+        effective.to_dict()
+    except ValueError:
+        pass
+    assert effective.raw_settings == raw_before
+    assert FingerprintCalculator.to_execute_fingerprint(effective, ids) == before
+    archived = dict(effective.raw_settings)
+    assert FingerprintCalculator.to_execute_fingerprint(
+        StrategySettings.from_dict(archived), ids
+    ) == before
 
 
 def test_execute_fp_changes_when_period_or_entity_ids_change() -> None:
@@ -177,3 +209,41 @@ def test_calculate_fingerprints_result_has_no_entity_cache() -> None:
     assert result.execute_fp
     assert result.env_fp
     assert not hasattr(result, "global_entity_cache")
+    # 跑过 to_usable：缺省已填进 effective，后续运行与哈希同一份
+    assert result.effective_settings.raw_settings["simulation"]["execution"]["mode"] == (
+        "entity_based"
+    )
+
+
+def test_execute_fp_sparse_raw_matches_filled_defaults() -> None:
+    ids = ["000001.SZ"]
+    sparse = _disk()
+    usable = StrategySettings.to_usable(sparse)
+    filled_raw = dict(usable.raw_settings)
+    dumped = usable.to_dict()
+    fp_sparse = FingerprintCalculator.to_execute_fingerprint(sparse, ids)
+    fp_filled = FingerprintCalculator.to_execute_fingerprint(filled_raw, ids)
+    fp_dumped = FingerprintCalculator.to_execute_fingerprint(dumped, ids)
+    assert fp_sparse == fp_filled
+    assert fp_sparse == fp_dumped
+    assert StrategySettings.extract_execute_settings(sparse) == (
+        StrategySettings.extract_execute_settings(filled_raw)
+    )
+
+
+def test_execute_fp_rejects_unusable_settings() -> None:
+    bad = {
+        **_disk(),
+        "simulation": {
+            "execution": {
+                "mode": "entity_based",
+                "start_date": "20200101",
+                "end_date": "20201231",
+            },
+            "risk_control": {"skip_enter_when": ["limit_up"]},
+        },
+    }
+    with pytest.raises(ValueError, match="skip_enter_when"):
+        FingerprintCalculator.to_execute_fingerprint(bad, ["000001.SZ"])
+    with pytest.raises(ValueError, match="skip_enter_when"):
+        StrategySettings.to_usable(bad)

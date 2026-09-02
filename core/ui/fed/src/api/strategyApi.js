@@ -205,6 +205,7 @@ export async function fetchStrategySettings(strategyKeyOrName) {
     execution_panel: m.execution_panel ?? null,
     has_persisted_snapshot: Boolean(m.has_persisted_snapshot),
     has_other_versions: Boolean(m.has_other_versions),
+    env_invalid: Boolean(m.env_invalid),
   };
 }
 
@@ -250,6 +251,7 @@ export async function fetchStrategyVersions(strategyKeyOrName) {
       version: Number(row.version ?? 0),
       created_at: row.created_at || '',
       updated_at: row.updated_at || '',
+      env_invalid: Boolean(row.env_invalid),
     })),
   };
 }
@@ -277,6 +279,7 @@ export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
     step_status: m.step_status,
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
+    env_invalid: Boolean(m.env_invalid),
   };
 }
 

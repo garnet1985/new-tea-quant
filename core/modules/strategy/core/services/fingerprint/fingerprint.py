@@ -66,14 +66,16 @@ class FingerprintCalculator:
             raise ValueError("strategy_info 不能为空")
 
         disk_settings = dict(strategy_info.settings or {})
-        effective_settings, settings_diff = FingerprintCalculator.merge_settings(
+        merged, settings_diff = FingerprintCalculator.merge_settings(
             strategy_info,
             runtime_settings,
         )
+        # 指纹与后续运行共用同一份 usable settings
+        usable = StrategySettings.to_usable(merged)
         ids = [str(x).strip() for x in (entity_ids or []) if str(x).strip()]
         coerced_diff = FingerprintCalculator.coerce_numeric_tree(settings_diff)
         execute_fp = FingerprintCalculator.to_execute_fingerprint(
-            effective_settings,
+            usable,
             ids,
         )
         disk_settings_hash = FingerprintCalculator.to_disk_settings_hash(disk_settings)
@@ -83,7 +85,7 @@ class FingerprintCalculator:
             env_fp=env_fp,
             disk_settings_hash=disk_settings_hash,
             settings_diff=coerced_diff,
-            effective_settings=effective_settings,
+            effective_settings=usable,
             entity_ids=ids,
         )
 
@@ -102,7 +104,7 @@ class FingerprintCalculator:
         *,
         entity_ids: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
-        """``execute_fp`` 哈希前的稳定载荷。"""
+        """``execute_fp`` 哈希前的稳定载荷（usable → 白名单投影 ⊕ scope）。"""
         return {
             "settings": StrategySettings.extract_execute_settings(settings),
             "scope": FingerprintCalculator.extract_execute_scope(entity_ids=entity_ids),
@@ -113,7 +115,10 @@ class FingerprintCalculator:
         effective_settings: Union[StrategySettings, Dict[str, Any], None],
         entity_ids: Optional[Sequence[str]] = None,
     ) -> str:
-        """对 extract_execute_payload 做哈希（settings 投影 ⊕ scope）。"""
+        """对 extract_execute_payload 做哈希。
+
+        内部始终 ``to_usable``：缺省与显式默认值同一哈希；不能用则抛错、不分配 vid。
+        """
         payload = FingerprintCalculator.extract_execute_payload(
             effective_settings,
             entity_ids=entity_ids,

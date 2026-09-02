@@ -136,19 +136,12 @@ class WorkbenchSnapshots:
 
     @classmethod
     def _current_env_fp(cls, info: StrategyInfo) -> str:
-        from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
-            GlobalEntityCache,
-        )
         from core.modules.strategy.core.services.fingerprint import (
             FingerprintCalculator,
         )
 
-        fps = FingerprintCalculator.calculate_fingerprints(
-            info,
-            None,
-            entity_ids=GlobalEntityCache.get_stock_list(),
-        )
-        return str(fps.env_fp or "")
+        # 列 version 只比 env，不要求当前 settings 可跑
+        return str(FingerprintCalculator.to_env_fingerprint(info) or "")
 
     @classmethod
     def _env_invalid_for_entry(

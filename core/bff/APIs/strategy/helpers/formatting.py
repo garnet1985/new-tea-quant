@@ -25,10 +25,14 @@ def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
     sid = int(row.get("version") or 0)
     version_id = f"v{sid}" if sid > 0 else ""
     settings = dict(row.get("settings_snapshot") or {})
+    disk_settings = dict(row.get("disk_settings") or settings)
+    effective_settings = dict(row.get("effective_settings") or {})
     result_report = dict(row.get("result_report") or {})
     return {
         "version_id": version_id,
         "settings": settings,
+        "disk_settings": disk_settings,
+        "effective_settings": effective_settings,
         "step_status": _step_status_from_result_report(result_report),
         "result_report": result_report,
         "execution_panel": build_execution_panel_from_result_report(result_report),

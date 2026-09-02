@@ -4,6 +4,11 @@
 **范围：** 策略回测产物布局、指纹命中、工作台缓存/发布、CLI↔UI 混用  
 **兼容性：** **不考虑**旧布局 / 旧 DB 快照语义；哪里不兼容就改哪里。
 
+身份 / effective / 环境失效的 **后续拍板**（2026-09-02）见：
+
+- [DECISIONS.md](./DECISIONS.md)（D15–D37，与下表冲突时以 DECISIONS 为准）
+- [SETTINGS_VERSION_IDENTITY.md](./SETTINGS_VERSION_IDENTITY.md)（讨论纪要）
+
 ---
 
 ## 1. 目标（两个）
@@ -24,13 +29,13 @@
 | D3 | **一个 version id 跨三步共享**；未跑 step 无产物目录 / 无 `runtime_env.json` |
 | D4 | **settings.py 是日常编辑 SOT**；取消「发布到 settings」作为主路径 |
 | D5 | **执行与缓存均以 effective settings 的指纹子集为准**，不是物理文件字节 |
-| D6 | 指纹主键：`settings_fp` + `env_fp`；退役 `disk_settings_hash` 作为命中键 |
-| D7 | 配置快照冻结在 `{vid}/effective_settings.json`；浏览历史 ≠ 静默改 settings.py |
+| D6 | 指纹主键：`execute_fp` + `env_fp`（旧名 `settings_fp` 实施时改名，**D16 / D34**）；退役 `disk_settings_hash` 作为命中键 |
+| D7 | 配置快照冻结在 `{vid}/`（**完整 settings** 必要；`effective_settings.json` 可为缓存）。浏览历史 ≠ 静默改 settings.py。**2026-09-02 修订：D25** |
 | D8 | 「恢复配置」为显式动作，写回前 round-trip 校验指纹 |
-| D9 | env 变了（含 NTQ 版本）：旧 version **环境失效**（不可 cache hit），报告仍可打开 |
-| D10 | 对环境失效 version 强跑 → **新建 version**，不覆盖旧目录 |
-| D11 | 同 env + 同 settings 下补跑缺失 step → **写在同一 version** 下 |
-| D12 | 触顶 keep-N：**不静默删**；拒绝 allocate 或确认后删 |
+| D9 | env 变了：旧 `{vid}/` 只读、不可 hit。**D27–D31、D33** |
+| D10 | 运行与选中号无关；强制重跑不新开号（同双指纹写回原 vid）。**D17、D33** |
+| D11 | 同 env + 同 settings 下补跑缺失 step → **写在同一 version** 下；复写上游则作废下游（**D18**） |
+| D12 | 触顶 keep-N：未 pin、号更靠前的先删（确认后）；后期 UI 打即将过期。**D31** |
 | D13 | 归因：落在 `{vid}/{step}/analysis/`，与 step 同生共死 |
 | D14 | DB 工作台快照：降级或删除；UI 版本列表 = 磁盘 `registry` |
 
@@ -81,7 +86,7 @@
 约定：
 
 - **registry 的 key 即 version id**，条目内不重复存 `version_id`。
-- **指纹平铺**为 `settings_fp` / `env_fp`（不用嵌套 `fingerprints` 对象）。
+- **指纹平铺**为 `execute_fp` / `env_fp`（磁盘 registry 旧字段名 `settings_fp` 实施时迁移；不用嵌套 `fingerprints` 对象）。
 - **无 `fingerprint_index`**：按双指纹命中时线性扫描 `registry`（version 数量可承受）。
 - 条目可扩展：`pinned`、`keep_forever` 等标记与指纹字段并列。
 
@@ -90,7 +95,7 @@
 | 入口 | 做法 |
 |------|------|
 | **vid** | `registry[vid]` 或 `VersionMetaStore.get_registry_entry` |
-| **双指纹** | 扫描 registry，匹配 `settings_fp` + `env_fp` |
+| **双指纹** | 扫描 registry，匹配 `execute_fp` + `env_fp` |
 
 ### `{vid}/effective_settings.json`
 
@@ -113,25 +118,25 @@
 
 | 用户动作 | 系统行为 | 提示要点 |
 |----------|----------|----------|
-| 打开 version N | 只读报告/归因 | 历史快照 |
-| 配置与 N 相同且 env 相同 → Run | 命中 N，复用 | 命中已有版本 N |
-| 配置变了 → Run | 新建 N+1 | 新版本 |
-| env 变了（含 NTQ）仍打开 N | 可看报告；不可 hit | 该版本在当前环境已失效（`env_invalid`） |
-| 对环境失效 N 强跑 | 新建 M，保留 N | 需重新 run；结果在新版本 |
-| 在有效 N 上补跑缺失 step | 写入 N/{step} | 同版本补全 |
-| 恢复配置到 N | 读 `effective_settings.json`，校验 fp 后写 settings.py | 显式确认 |
-| version 触顶 | 拒绝或确认删除 | 不静默 |
+| 打开 version N | 看 N 的报告；不改 settings、不决定写入目标 | 选中 ≠ 绑定运行 |
+| 确认恢复到 N | 写回 `settings.py` | 显式确认 |
+| Run（非强制） | `(当前 execute_fp, 当前 env_fp)` 命中或新建 | 与选中号无关 |
+| 强制重跑且双指纹已有条目 | 重算写入该 vid，复写上游则删下游 | 不新开号 |
+| 打开 env 失效的 N | N 的目录只读；报告可看 | 环境已更新 / 仅供查阅 |
+| 恢复失效 N 的配置后再 Run | 按当前 env 命中或新建；validate 失败则报配置不兼容 | 绝不写回 N |
+| 当前 settings 在当前 env 无 version | 胶囊可挂最近旧号 +「当前环境尚无结果」；主按钮重跑 | 见 D37 |
+| keep-N 触顶 | 未 pin、号更靠前的先删（确认后） | 不静默；后期打即将过期 |
 
 主叙事：
 
-> 老版本在当前环境下**环境失效** → 不能复用 → 重跑产生**新版本**；旧报告仍可查看。
+> 老版本目录在当前环境下**只读**；运行只认当前 settings + 当前 env。命中则复用，没有则新号；旧报告仍可查看。
 
 **术语（Batch 4+）：**
 
 | 字段 / 文案 | 含义 |
 |-------------|------|
-| `env_invalid` | registry 存盘 `env_fp` ≠ 当前运行环境指纹；**禁止 cache hit**，报告只读仍可 |
-| UI / CLI 提示 | 用「环境已失效」「当前环境不可用」等中文，不用 stale |
+| `env_invalid` | registry 存盘 `env_fp` ≠ 当前运行环境指纹；**禁止写入该目录 / 禁止命中该目录**，报告仍可 |
+| UI / CLI 提示 | 「环境已更新」「仅供查阅」；不用 stale；不要写成「不能跑」 |
 
 ---
 
@@ -139,7 +144,7 @@
 
 1. `effective = calculate_effective_settings(disk, runtime)`  
 2. `subset = extract_effective_settings(effective)` ← `FINGERPRINT_FIELDS` 子集  
-3. `settings_fp = hash(subset ⊕ entity_ids)`（数值 coerce、稳定序列化）  
+3. `execute_fp = hash(canonical effective settings ⊕ scope)`（数值 coerce、稳定序列化；旧名 `settings_fp`）  
 4. `env_fp = hash(hooks/引擎/DB/合约/period/execution_mode/…)`  
 5. **验收：**  
    - 两次读同一 settings → 同 fp  

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { Box, Button, LinearProgress, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import { STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from '../../strategyWorkbenchPage/panels/strategyExecutionPanel/executionSectionMeta';
@@ -57,6 +57,7 @@ function resolveExecutionStatusCopy({
 
 function StrategyDesignExecutionPanel() {
   const navigate = useNavigate();
+  const location = useLocation();
   const wb = useStrategyDesignWorkbenchContext();
 
   const prevStep = useMemo(() => {
@@ -94,13 +95,13 @@ function StrategyDesignExecutionPanel() {
 
   const handleGoPrevStep = useCallback(() => {
     if (!prevStep || !wb.strategyName || wb.executionBusy) return;
-    navigate(getStrategyDesignPath(wb.strategyName, prevStep.key));
-  }, [navigate, prevStep, wb.executionBusy, wb.strategyName]);
+    navigate(getStrategyDesignPath(wb.strategyName, prevStep.key), { state: location.state });
+  }, [location.state, navigate, prevStep, wb.executionBusy, wb.strategyName]);
 
   const handleGoNextStep = useCallback(() => {
     if (!nextStep || !wb.strategyName || !currentStepDone) return;
-    navigate(getStrategyDesignPath(wb.strategyName, nextStep.key));
-  }, [currentStepDone, navigate, nextStep, wb.strategyName]);
+    navigate(getStrategyDesignPath(wb.strategyName, nextStep.key), { state: location.state });
+  }, [currentStepDone, location.state, navigate, nextStep, wb.strategyName]);
 
   const panelTitle = useMemo(() => {
     const step = STRATEGY_DESIGN_STEPS.find((item) => item.key === wb.activeStep);

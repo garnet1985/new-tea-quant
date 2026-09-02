@@ -1,5 +1,6 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
 import { coerceMetaDescription } from '../utils/formatStrategyDescription';
+import { normalizeWorkbenchVersionId } from '../utils/workbenchVersionId';
 import { mapDataEnd } from './mappers/dataEnd';
 
 /** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
@@ -185,11 +186,20 @@ export async function fetchStrategySettings(strategyKeyOrName) {
     `${apiStrategyPath(strategyKeyOrName)}/version/latest`,
   );
   const m = json?.message || {};
+  const diskSettings = (m.disk_settings && typeof m.disk_settings === 'object')
+    ? m.disk_settings
+    : null;
+  const snapshotSettings = m.settings || {};
   return {
     strategy_name: strategyKeyOrName,
-    settings: m.settings || {},
+    settings: diskSettings || snapshotSettings,
+    disk_settings: diskSettings || snapshotSettings,
+    snapshot_settings: snapshotSettings,
+    effective_settings: m.effective_settings && typeof m.effective_settings === 'object'
+      ? m.effective_settings
+      : {},
     settings_source: undefined,
-    workbench_version_id: typeof m.version_id === 'string' ? m.version_id : '',
+    workbench_version_id: normalizeWorkbenchVersionId(m.version_id),
     step_status: m.step_status,
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
@@ -199,7 +209,7 @@ export async function fetchStrategySettings(strategyKeyOrName) {
 }
 
 /**
- * V2-09：将**指定快照版本**的 settings 写入 userspace `settings.py`。
+ * V2-09：将指定 version 冻结的 settings 写回 userspace `settings.py`（恢复配置，不是发布）。
  * 若未传 `versionId`，则用当前 **latest**（先隐式依赖 V2-01）的 `version_id`。
  * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @param {object} _settings 保留参数；V2 以服务端快照为准，此参数不参与请求体
@@ -212,7 +222,7 @@ export async function applyStrategySettingsToUserspace(strategyKeyOrName, _setti
     versionId = (latest.workbench_version_id || '').trim();
   }
   if (!versionId) {
-    throw new Error('缺少工作台 version_id，无法发布（请先加载有效快照）');
+    throw new Error('缺少工作台 version_id，无法恢复配置（请先选择有效版本）');
   }
   const json = await request.postJson(
     `${apiStrategyPath(strategyKeyOrName)}/settings/apply/${encodeURIComponent(versionId)}`,
@@ -258,6 +268,12 @@ export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
   return {
     version_id: m.version_id || versionId,
     settings: m.settings || {},
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object'
+      ? m.disk_settings
+      : {},
+    effective_settings: m.effective_settings && typeof m.effective_settings === 'object'
+      ? m.effective_settings
+      : {},
     step_status: m.step_status,
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
@@ -451,7 +467,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   }
 
   const result = envelope.result && typeof envelope.result === 'object' ? envelope.result : {};
-  const version_id = typeof result.version_id === 'string' ? result.version_id.trim() : '';
+  const version_id = normalizeWorkbenchVersionId(result.version_id);
   let fail_reason = '';
   if (state === 'failed') {
     fail_reason = String(envelope.error || result.message || '').trim();

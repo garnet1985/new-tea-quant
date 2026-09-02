@@ -64,6 +64,8 @@ def test_fetch_latest_cold_start(mock_find):
     assert row is not None
     assert row["version"] == 0
     assert row["settings_snapshot"]["core"]["seed"] == 1
+    assert row["disk_settings"]["core"]["seed"] == 1
+    assert row["effective_settings"] == {}
     assert row["result_report"] == {}
 
 
@@ -93,6 +95,8 @@ def test_fetch_latest_reads_disk_version(mock_find, tmp_path: Path):
     assert row is not None
     assert row["version"] == 2
     assert row["settings_snapshot"]["core"]["seed"] == 99
+    assert row["disk_settings"]["core"]["seed"] == 1
+    assert row["effective_settings"]["core"]["seed"] == 99
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy")
@@ -132,4 +136,5 @@ def test_ui_flags_counts_disk_versions(mock_find, tmp_path: Path):
     assert flags == {
         "has_persisted_snapshot": True,
         "has_other_versions": True,
+        "env_invalid": False,
     }

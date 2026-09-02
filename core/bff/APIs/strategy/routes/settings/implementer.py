@@ -1,4 +1,4 @@
-"""Settings implementer: option catalogs + apply snapshot → userspace."""
+"""Settings implementer: option catalogs + restore version freeze → userspace settings.py."""
 
 from __future__ import annotations
 

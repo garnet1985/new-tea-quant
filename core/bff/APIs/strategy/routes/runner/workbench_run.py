@@ -197,6 +197,9 @@ class WorkbenchRunLauncher:
             with PipelineProgress.bind(strategy_name, job_id) as prog:
                 prog.mark_running()
                 cls._duckdb_prepare()
+                persist_err = cls._persist_run_settings(strategy_name, api_settings)
+                if persist_err:
+                    raise RuntimeError(persist_err)
                 kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
                 result = Strategy.simulate(
                     strategy_name,
@@ -251,6 +254,22 @@ class WorkbenchRunLauncher:
             except Exception:
                 logger.exception("pipeline lease release failed")
             cls._clear_active(strategy_name, job_id)
+
+    @staticmethod
+    def _persist_run_settings(
+        strategy_name: str,
+        api_settings: Dict[str, Any],
+    ) -> Optional[str]:
+        """Write editor payload to settings.py so disk is SOT for this run."""
+        if not isinstance(api_settings, dict) or not api_settings:
+            return None
+        from core.bff.APIs.strategy.routes.settings.apply import WorkbenchApplySettings
+
+        return WorkbenchApplySettings.persist_editor_settings(
+            strategy_name=strategy_name,
+            settings=api_settings,
+            pretty=True,
+        )
 
     @classmethod
     def _clear_active(cls, strategy_name: str, job_id: str) -> None:

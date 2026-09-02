@@ -66,7 +66,7 @@ def post_settings_apply(strategy_key_or_name: str, version_id: str):
     """
     POST /api/v1/strategy/:strategy_key_or_name/settings/apply/:version_id
 
-    将指定工作台版本的 settings 写回 userspace ``settings.py``。
+    将指定 version 冻结的 settings 写回 userspace ``settings.py``（恢复配置）。
     Body 可选 ``{ "pretty": bool }``。
     """
     settings = impl.lazy_load()

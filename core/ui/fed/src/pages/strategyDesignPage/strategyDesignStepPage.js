@@ -17,7 +17,7 @@ function StrategyDesignStepPage() {
 
   const handleDraftSync = useCallback((nextDraft) => {
     wb.setDraftSettings(nextDraft);
-  }, [wb]);
+  }, [wb.setDraftSettings]);
 
   if (wb.isLoadingSettings) {
     return (

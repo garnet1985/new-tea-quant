@@ -40,6 +40,36 @@ def test_apply_success(mock_fetch, mock_backup, mock_write):
     mock_write.assert_called_once()
 
 
+@patch.object(WorkbenchApplySettings, "_write_settings_py")
+@patch.object(WorkbenchApplySettings, "_backup_settings_file")
+def test_persist_editor_settings_success(mock_backup, mock_write):
+    err = WorkbenchApplySettings.persist_editor_settings(
+        strategy_name="demo/x",
+        settings={
+            "is_enabled": True,
+            "meta": {"key": "demo"},
+            "data": {"base": {"data_key": "stock.kline.daily", "params": {}, "indicators": {}}},
+            "goal": {},
+            "simulation": {
+                "execution": {
+                    "mode": "entity_based",
+                    "start_date": "20200101",
+                    "end_date": "20201231",
+                }
+            },
+        },
+    )
+    assert err is None
+    mock_backup.assert_called_once_with("demo/x")
+    mock_write.assert_called_once()
+
+
+def test_persist_editor_settings_skips_empty():
+    assert WorkbenchApplySettings.persist_editor_settings(
+        strategy_name="demo/x", settings={}
+    ) is None
+
+
 @patch(
     "core.bff.APIs.strategy.routes.settings.apply.WorkbenchSnapshots.fetch_by_version",
     return_value=None,

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box } from '@mui/material';
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../api/strategyApi';
 import StrategyDesignBreadcrumbCurrent from './components/strategyDesignBreadcrumbCurrent';
 import StrategyDesignMetaBar from './components/strategyDesignMetaBar';
@@ -18,6 +18,7 @@ import StrategyDesignStepPage from './strategyDesignStepPage';
  */
 function StrategyDesignLayout() {
   const params = useParams();
+  const location = useLocation();
   const { strategyName, step } = useMemo(
     () => parseStrategyDesignRoute(params['*']),
     [params],
@@ -29,7 +30,13 @@ function StrategyDesignLayout() {
 
   if (!step) {
     const target = readCachedStrategyDesignStep(strategyName) || STRATEGY_DESIGN_DEFAULT_STEP;
-    return <Navigate to={getStrategyDesignPath(strategyName, target)} replace />;
+    return (
+      <Navigate
+        to={getStrategyDesignPath(strategyName, target)}
+        replace
+        state={location.state}
+      />
+    );
   }
 
   return (

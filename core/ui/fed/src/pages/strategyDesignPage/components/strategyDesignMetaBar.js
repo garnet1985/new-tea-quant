@@ -35,7 +35,12 @@ function StrategyDesignMetaBar() {
   if (wb.isLoadingSettings) {
     return (
       <Box className="ntq-design-meta">
-        <InlineLoadingState compact row message="正在加载策略与工作台快照…" />
+        <Box className="ntq-design-meta__page-title">
+          <InlineLoadingState compact row message="正在加载策略与工作台快照…" />
+          <Box className="ntq-design-meta__page-title-stepper">
+            <StrategyDesignStepper />
+          </Box>
+        </Box>
       </Box>
     );
   }
@@ -88,25 +93,8 @@ function StrategyDesignMetaBar() {
           </Box>
 
           <Stack direction="row" spacing={0} alignItems="center" flexWrap="nowrap" className="ntq-design-meta__admin">
-            <Button
-              variant="outlined"
-              size="small"
-              disabled={wb.disableMetaActions}
-              onClick={() => {
-                wb.setSaveError('');
-                wb.setUserspaceApplyOk('');
-                wb.setDeployConfirmOpen(true);
-              }}
-              className="ntq-design-meta__admin-action ntq-design-meta__publish-btn"
-              title="将当前工作台版本发布到策略 settings.py"
-            >
-              发布策略
-            </Button>
             {wb.hasPersistedSnapshot ? (
               <>
-                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
-                  |
-                </Typography>
                 <Select
                   size="small"
                   displayEmpty
@@ -126,9 +114,11 @@ function StrategyDesignMetaBar() {
             ) : null}
             {wb.strategyName ? (
               <>
-                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
-                  |
-                </Typography>
+                {wb.hasPersistedSnapshot ? (
+                  <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
+                    |
+                  </Typography>
+                ) : null}
                 <Button
                   variant="outlined"
                   size="small"
@@ -152,8 +142,8 @@ function StrategyDesignMetaBar() {
           {wb.saveError ? (
             <Typography variant="caption" color="error">{wb.saveError}</Typography>
           ) : null}
-          {wb.userspaceApplyOk ? (
-            <Typography variant="caption" color="success.main">{wb.userspaceApplyOk}</Typography>
+          {wb.restoreOk ? (
+            <Typography variant="caption" color="success.main">{wb.restoreOk}</Typography>
           ) : null}
           {wb.packageExportError ? (
             <Typography variant="caption" color="error">{wb.packageExportError}</Typography>

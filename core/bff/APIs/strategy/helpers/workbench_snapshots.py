@@ -174,13 +174,17 @@ class WorkbenchSnapshots:
 
         folder = cls._strategy_folder(info)
         entry = VersionMetaStore.get_registry_entry(root, vid) or {}
-        settings_snapshot = cls._settings_snapshot_from_disk(info, root, vid)
+        settings_snapshot, disk_settings, effective_subset = cls._settings_layers_from_disk(
+            info, root, vid
+        )
         result_report = cls._result_report_from_disk(folder, root, vid)
 
         row: Dict[str, Any] = {
             "strategy_name": str(strategy_name or "").strip(),
             "version": int(version),
             "settings_snapshot": settings_snapshot,
+            "disk_settings": disk_settings,
+            "effective_settings": effective_subset,
             "reports": result_report,
             "result_report": result_report,
             "settings_finger_print_id": str(entry.get("settings_fp") or ""),
@@ -192,26 +196,37 @@ class WorkbenchSnapshots:
         return cls._enrich_row(strategy_name, info, row)
 
     @classmethod
-    def _settings_snapshot_from_disk(
+    def _settings_layers_from_disk(
         cls,
         info: StrategyInfo,
         simulations_root: Path,
         version_id: str,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
         disk_settings = dict(info.settings or {})
         effective = VersionMetaStore.read_effective_settings(
             simulations_root, version_id
-        )
-        if not effective:
-            return disk_settings
+        ) or {}
         subset = {
             key: value
             for key, value in effective.items()
             if key != "entity_ids"
         }
         if not subset:
-            return disk_settings
-        return StrategySettings.merge_disk_with_diff(disk_settings, subset)
+            return disk_settings, disk_settings, {}
+        snapshot = StrategySettings.merge_disk_with_diff(disk_settings, subset)
+        return snapshot, disk_settings, subset
+
+    @classmethod
+    def _settings_snapshot_from_disk(
+        cls,
+        info: StrategyInfo,
+        simulations_root: Path,
+        version_id: str,
+    ) -> Dict[str, Any]:
+        snapshot, _, _ = cls._settings_layers_from_disk(
+            info, simulations_root, version_id
+        )
+        return snapshot
 
     @classmethod
     def _result_report_from_disk(
@@ -263,6 +278,10 @@ class WorkbenchSnapshots:
         out = dict(row)
         if not isinstance(out.get("settings_snapshot"), dict):
             out["settings_snapshot"] = dict(info.settings or {})
+        if not isinstance(out.get("disk_settings"), dict):
+            out["disk_settings"] = dict(info.settings or {})
+        if not isinstance(out.get("effective_settings"), dict):
+            out["effective_settings"] = {}
 
         rr = out.get("result_report") or out.get("reports") or {}
         if isinstance(rr, dict):
@@ -292,6 +311,8 @@ class WorkbenchSnapshots:
             "strategy_name": str(strategy_name or "").strip(),
             "version": 0,
             "settings_snapshot": dict(settings_api or {}),
+            "disk_settings": dict(settings_api or {}),
+            "effective_settings": {},
             "reports": {},
             "result_report": {},
             "settings_finger_print_id": "",

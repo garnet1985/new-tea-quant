@@ -9,7 +9,11 @@ import {
   fetchStrategyVersions,
   restoreStrategyVersion,
 } from '../../../api/strategyApi';
-import { stripLegacyStrategySettingsForRun } from '../../../utils/stripLegacyStrategySettings';
+import {
+  migrateLegacyStrategySettings,
+  stripLegacyStrategySettingsForRun,
+} from '../../../utils/stripLegacyStrategySettings';
+import { isFingerprintEqual } from '../lib/strategySettingsFingerprint';
 import {
   extractStrategyDescription,
   extractStrategyDisplayName,
@@ -19,7 +23,9 @@ import {
 } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import {
   buildWorkbenchExecutionHydrationFromSnapshot,
+  mergeHydratedStepStatus,
 } from '../../strategyWorkbenchPage/workbenchExecutionHydration';
+import { normalizeWorkbenchVersionId, parseWorkbenchVersionNumber } from '../../../utils/workbenchVersionId';
 import {
   buildWorkbenchSnapshotFromSettingsResponse,
   emptyWorkbenchSnapshot,
@@ -112,7 +118,7 @@ export function useStrategyDesignWorkbench() {
   const [hasValidSettings, setHasValidSettings] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [saveError, setSaveError] = useState('');
-  const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
+  const [restoreOk, setRestoreOk] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [strategyDisplayName, setStrategyDisplayName] = useState(() => labelSeed.displayName);
   const [strategyKey, setStrategyKey] = useState(() => labelSeed.key);
@@ -126,7 +132,6 @@ export function useStrategyDesignWorkbench() {
   const [marketProfileOptions, setMarketProfileOptions] = useState([]);
   const [marketProfileOptionsError, setMarketProfileOptionsError] = useState('');
 
-  const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingVersionId, setPendingVersionId] = useState('');
   const [moreVersionsOpen, setMoreVersionsOpen] = useState(false);
@@ -140,6 +145,13 @@ export function useStrategyDesignWorkbench() {
   const suppressDraftDrivenPanelResetRef = useRef(false);
   const executionStateRef = useRef(session.executionState);
   executionStateRef.current = session.executionState;
+  const labelSeedRef = useRef(labelSeed);
+  labelSeedRef.current = labelSeed;
+
+  const lastCompletedId = String(session.executionState?.lastCompletedWorkbenchVersionId || '').trim();
+  const runIsActive = Boolean(
+    session.executionState?.activeRunId || session.executionState?.runningStep,
+  );
 
   const getExecutionState = useCallback(() => executionStateRef.current, []);
 
@@ -177,6 +189,7 @@ export function useStrategyDesignWorkbench() {
   useEffect(() => {
     let isCancelled = false;
     const mergeBase = buildMergeBaseSettings();
+    const seed = labelSeedRef.current;
 
     if (!strategyName) {
       setIsLoadingSettings(false);
@@ -186,8 +199,8 @@ export function useStrategyDesignWorkbench() {
     setStrategyDescription('');
     setStrategyEntryConditions([]);
     // 用导航 state / session 种子，加载完成前不闪路径名
-    setStrategyDisplayName(labelSeed.displayName);
-    setStrategyKey(labelSeed.key);
+    setStrategyDisplayName(seed.displayName);
+    setStrategyKey(seed.key);
     setIsLoadingSettings(true);
     setHasValidSettings(false);
     setSettingsError('');
@@ -204,7 +217,7 @@ export function useStrategyDesignWorkbench() {
         setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
         setHasOtherVersions(Boolean(res?.has_other_versions));
 
-        const serverSettings = res?.settings || {};
+        const serverSettings = res?.disk_settings || res?.settings || {};
         const hasServerSettings = serverSettings && typeof serverSettings === 'object'
           && Object.keys(serverSettings).length > 0;
         const incomingMeta = serverSettings?.meta && typeof serverSettings.meta === 'object'
@@ -212,10 +225,10 @@ export function useStrategyDesignWorkbench() {
           : {};
 
         if (hasServerSettings) {
-          const nextSettings = mergeShapeOnly(mergeBase, {
+          const nextSettings = migrateLegacyStrategySettings(mergeShapeOnly(mergeBase, {
             ...serverSettings,
             meta: normalizeMeta(incomingMeta, serverSettings),
-          });
+          }));
           const nextDisplayName = extractStrategyDisplayName(nextSettings);
           const nextKey = extractStrategyKey(nextSettings);
           setInitialSettings(nextSettings);
@@ -239,30 +252,40 @@ export function useStrategyDesignWorkbench() {
 
         const snapshot = buildWorkbenchSnapshotFromSettingsResponse(res);
         const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
-        const wbVer = snapshot.versionId;
+        const wbVer = normalizeWorkbenchVersionId(snapshot.versionId);
         setSelectedConfigVersion(wbVer);
         setAppliedVersionId(wbVer);
         lastRunSyncedVersionRef.current = hydration.lastCompletedWorkbenchVersionId;
 
-        patchSession({
-          workbenchSnapshot: snapshot,
-          draftSettings: hasServerSettings ? mergeShapeOnly(mergeBase, {
+        setSession((prev) => {
+          const prevVid = normalizeWorkbenchVersionId(
+            prev.executionState?.lastCompletedWorkbenchVersionId,
+          );
+          const versionChanged = Boolean(prevVid) && prevVid !== wbVer;
+          const nextDraft = hasServerSettings ? migrateLegacyStrategySettings(mergeShapeOnly(mergeBase, {
             ...serverSettings,
             meta: normalizeMeta(incomingMeta, serverSettings),
-          }) : mergeBase,
-          appliedSettings: hasServerSettings ? mergeShapeOnly(mergeBase, {
-            ...serverSettings,
-            meta: normalizeMeta(incomingMeta, serverSettings),
-          }) : mergeBase,
-          executionState: {
-            stepStatus: hydration.stepStatus,
-            result: hydration.result,
-            compareVersion: { enum: '', price: '', portfolio: '' },
-            runningStep: '',
-            runId: '',
-            activeRunId: '',
-            lastCompletedWorkbenchVersionId: hydration.lastCompletedWorkbenchVersionId,
-          },
+          })) : mergeBase;
+          return {
+            ...prev,
+            workbenchSnapshot: snapshot,
+            draftSettings: nextDraft,
+            appliedSettings: nextDraft,
+            executionState: {
+              stepStatus: mergeHydratedStepStatus(
+                prev.executionState?.stepStatus,
+                hydration.stepStatus,
+                { versionChanged: !prevVid || versionChanged },
+              ),
+              result: hydration.result,
+              compareVersion: { enum: '', price: '', portfolio: '' },
+              runningStep: '',
+              runId: '',
+              activeRunId: '',
+              lastCompletedWorkbenchVersionId: hydration.lastCompletedWorkbenchVersionId,
+            },
+            lastUpdatedAt: Date.now(),
+          };
         });
       })
       .catch((err) => {
@@ -282,11 +305,11 @@ export function useStrategyDesignWorkbench() {
     return () => {
       isCancelled = true;
     };
-  }, [labelSeed.displayName, labelSeed.key, patchSession, strategyName]);
+  }, [patchSession, setSession, strategyName]);
 
   useEffect(() => {
-    if (!strategyName || isLoadingSettings) return undefined;
-    const runVer = (session.executionState?.lastCompletedWorkbenchVersionId || '').trim();
+    if (!strategyName || isLoadingSettings || runIsActive) return undefined;
+    const runVer = lastCompletedId;
     if (!runVer || runVer === lastRunSyncedVersionRef.current) return undefined;
 
     const syncGen = snapshotSyncGenRef.current;
@@ -304,20 +327,43 @@ export function useStrategyDesignWorkbench() {
         const res = workbenchPageStateFromVersionDetail(detail, strategyName, rows);
         const snapshot = buildWorkbenchSnapshotFromVersionDetail(detail);
         const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
-        const wbVer = res.workbench_version_id || runVer;
+        const wbVer = normalizeWorkbenchVersionId(res.workbench_version_id || runVer);
+        const incomingN = parseWorkbenchVersionNumber(wbVer);
+
+        const live = executionStateRef.current;
+        const curVid = normalizeWorkbenchVersionId(live?.lastCompletedWorkbenchVersionId);
+        const curN = parseWorkbenchVersionNumber(curVid);
+        if (curN > 0 && incomingN > 0 && curN > incomingN) return;
+        if (live?.activeRunId || live?.runningStep) return;
+
         setHasPersistedSnapshot(Boolean(res.has_persisted_snapshot));
         setHasOtherVersions(Boolean(res.has_other_versions));
         setSelectedConfigVersion(wbVer);
         setAppliedVersionId(wbVer);
         lastRunSyncedVersionRef.current = wbVer;
-        patchSession({
-          workbenchSnapshot: snapshot,
-          executionState: {
-            ...session.executionState,
-            stepStatus: hydration.stepStatus,
-            result: hydration.result,
-            lastCompletedWorkbenchVersionId: wbVer,
-          },
+        setSession((prev) => {
+          const prevVid = normalizeWorkbenchVersionId(
+            prev.executionState?.lastCompletedWorkbenchVersionId,
+          );
+          const prevN = parseWorkbenchVersionNumber(prevVid);
+          if (prevN > 0 && incomingN > 0 && prevN > incomingN) return prev;
+          if (prev.executionState?.activeRunId || prev.executionState?.runningStep) return prev;
+          const versionChanged = Boolean(prevVid) && prevVid !== wbVer;
+          return {
+            ...prev,
+            workbenchSnapshot: snapshot,
+            executionState: {
+              ...prev.executionState,
+              stepStatus: mergeHydratedStepStatus(
+                prev.executionState?.stepStatus,
+                hydration.stepStatus,
+                { versionChanged },
+              ),
+              result: hydration.result,
+              lastCompletedWorkbenchVersionId: wbVer || prevVid,
+            },
+            lastUpdatedAt: Date.now(),
+          };
         });
       } catch (error) {
         logClientError('design.workbenchSnapshotSync', error);
@@ -330,8 +376,9 @@ export function useStrategyDesignWorkbench() {
     };
   }, [
     isLoadingSettings,
-    patchSession,
-    session.executionState,
+    lastCompletedId,
+    runIsActive,
+    setSession,
     strategyName,
   ]);
 
@@ -368,10 +415,18 @@ export function useStrategyDesignWorkbench() {
     return versionPickerFiltered.slice(start, start + VERSION_PICKER_PAGE_SIZE);
   }, [versionPickerFiltered, versionPickerPage, versionPickerTotalPages]);
 
-  const isAppliedSettings = useMemo(
-    () => JSON.stringify(draftSettings) === JSON.stringify(appliedSettings),
-    [appliedSettings, draftSettings],
-  );
+  const isAppliedSettings = useMemo(() => {
+    const freeze = session.workbenchSnapshot?.effectiveSettings;
+    const baseline = (freeze && typeof freeze === 'object' && Object.keys(freeze).length > 0)
+      ? freeze
+      : (session.workbenchSnapshot?.settings || appliedSettings);
+    return isFingerprintEqual(draftSettings, baseline);
+  }, [
+    appliedSettings,
+    draftSettings,
+    session.workbenchSnapshot?.effectiveSettings,
+    session.workbenchSnapshot?.settings,
+  ]);
 
   const currentVersionDisplay = useMemo(() => {
     const applied = String(appliedVersionId || '').trim();
@@ -411,11 +466,7 @@ export function useStrategyDesignWorkbench() {
 
   const handleDraftDrivenReset = useCallback(() => {
     if (strategyName) clearDesignActiveRun(strategyName);
-    setSelectedConfigVersion('');
-    setAppliedVersionId('');
-    lastRunSyncedVersionRef.current = '';
-    resetSessionForDraftChange();
-  }, [resetSessionForDraftChange, strategyName]);
+  }, [strategyName]);
 
   const requestApplyVersion = useCallback((versionId) => {
     if (!versionId) return;
@@ -425,7 +476,7 @@ export function useStrategyDesignWorkbench() {
 
   const openMoreVersionsDialog = useCallback(() => {
     setSaveError('');
-    setUserspaceApplyOk('');
+    setRestoreOk('');
     setVersionPickerPage(1);
     setMoreVersionsOpen(true);
   }, []);
@@ -445,7 +496,7 @@ export function useStrategyDesignWorkbench() {
       }
       if (value) {
         setSaveError('');
-        setUserspaceApplyOk('');
+        setRestoreOk('');
         requestApplyVersion(value);
       }
     }, 0);
@@ -472,7 +523,9 @@ export function useStrategyDesignWorkbench() {
     }
     setIsSavingSettings(true);
     setSaveError('');
-    restoreStrategyVersion(strategyName, target.id)
+    setRestoreOk('');
+    applyStrategySettingsToUserspace(strategyName, null, { version_id: target.id })
+      .then(() => restoreStrategyVersion(strategyName, target.id))
       .then((restoreMeta) => {
         const detail = restoreMeta.detail;
         const res = workbenchPageStateFromVersionDetail(detail, strategyName, configVersions);
@@ -482,7 +535,9 @@ export function useStrategyDesignWorkbench() {
         const wbVerRestore = snapshot.versionId;
         lastRunSyncedVersionRef.current = wbVerRestore;
         const hydrationRestore = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
-        const serverSettings = res?.settings || {};
+        const serverSettings = (detail?.disk_settings && Object.keys(detail.disk_settings).length > 0)
+          ? detail.disk_settings
+          : (res?.settings || {});
         const incomingMeta = serverSettings?.meta && typeof serverSettings.meta === 'object'
           ? serverSettings.meta
           : {
@@ -490,10 +545,10 @@ export function useStrategyDesignWorkbench() {
             description: serverSettings?.description,
             is_enabled: serverSettings?.is_enabled,
           };
-        const mergedSettings = mergeShapeOnly(buildMergeBaseSettings(), {
+        const mergedSettings = migrateLegacyStrategySettings(mergeShapeOnly(buildMergeBaseSettings(), {
           ...serverSettings,
           meta: normalizeMeta({ ...incomingMeta, name: strategyName }),
-        });
+        }));
         const wb = wbVerRestore || restoreMeta?.version_id || '';
         suppressDraftDrivenPanelResetRef.current = true;
         setInitialSettings(mergedSettings);
@@ -527,35 +582,16 @@ export function useStrategyDesignWorkbench() {
           },
           panelsResetEpoch: session.panelsResetEpoch,
         });
+        setRestoreOk('已将历史配置写回 settings.py。');
         setConfirmOpen(false);
       })
       .catch((err) => {
-        setSaveError(err?.message || '恢复快照失败');
+        setSaveError(err?.message || '恢复配置失败');
       })
       .finally(() => {
         setIsSavingSettings(false);
       });
   }, [configVersions, patchSession, pendingVersionId, session.panelsResetEpoch, strategyName, versionMap]);
-
-  const confirmDeployToUserspace = useCallback(() => {
-    if (!strategyName) {
-      setDeployConfirmOpen(false);
-      return;
-    }
-    setIsSavingSettings(true);
-    setSaveError('');
-    applyStrategySettingsToUserspace(strategyName, getDraftSettingsForSubmit())
-      .then(() => {
-        setUserspaceApplyOk('已写入 userspace 策略 settings.py。');
-        setDeployConfirmOpen(false);
-      })
-      .catch((err) => {
-        setSaveError(err?.message || '发布到策略目录失败');
-      })
-      .finally(() => {
-        setIsSavingSettings(false);
-      });
-  }, [getDraftSettingsForSubmit, strategyName]);
 
   return {
     strategyName,
@@ -592,10 +628,8 @@ export function useStrategyDesignWorkbench() {
     hasValidSettings,
     settingsError,
     saveError,
-    userspaceApplyOk,
+    restoreOk,
     isSavingSettings,
-    deployConfirmOpen,
-    setDeployConfirmOpen,
     confirmOpen,
     setConfirmOpen,
     pendingVersionId,
@@ -615,10 +649,9 @@ export function useStrategyDesignWorkbench() {
     closeVersionsDialog,
     requestApplyVersion,
     confirmRestoreVersion,
-    confirmDeployToUserspace,
     handleRunCurrentStep,
     setSaveError,
-    setUserspaceApplyOk,
+    setRestoreOk,
     resetSessionForDraftChange,
   };
 }

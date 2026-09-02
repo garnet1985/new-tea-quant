@@ -185,20 +185,6 @@
   font-size: 12px !important;
 }
 
-.ntq-design-meta__publish-btn {
-  text-transform: none;
-  font-weight: 500;
-  color: rgba(34, 211, 238, 0.92) !important;
-  border-color: rgba(34, 211, 238, 0.42) !important;
-  padding-left: 10px !important;
-  padding-right: 10px !important;
-
-  &:hover:not(:disabled) {
-    border-color: rgba(34, 211, 238, 0.72) !important;
-    background: rgba(34, 211, 238, 0.08) !important;
-  }
-}
-
 .ntq-design-meta__version-select {
   margin-left: 0 !important;
   width: auto;

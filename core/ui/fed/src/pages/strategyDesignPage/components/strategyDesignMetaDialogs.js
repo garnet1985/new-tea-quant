@@ -21,36 +21,15 @@ function StrategyDesignMetaDialogs() {
 
   return (
     <>
-      <Dialog open={wb.deployConfirmOpen} onClose={() => wb.setDeployConfirmOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>发布到策略目录</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2">
-            将把当前工作台参数写入该策略在 userspace 下的 settings.py，覆盖目录中的现有文件。
-            此操作不会改动 DB 中的工作台快照（快照仍通过保存/执行步骤累积）。
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => wb.setDeployConfirmOpen(false)}>取消</Button>
-          <Button
-            variant="contained"
-            disabled={wb.isSavingSettings}
-            onClick={wb.confirmDeployToUserspace}
-          >
-            {wb.isSavingSettings ? '发布中...' : '确认发布'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       <Dialog open={wb.confirmOpen} onClose={() => wb.setConfirmOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>恢复历史快照到工作台</DialogTitle>
+        <DialogTitle>恢复历史版本配置</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2">
-            将把快照
+            将把版本
             {' '}
             <strong>{wb.pendingVersionId}</strong>
             {' '}
-            恢复为当前工作台内容（写入 DB 新快照，不修改 userspace 下的 settings.py）。
-            未保存的草稿将被覆盖。
+            当时冻结的配置写回 settings.py，并刷新当前编辑器。未保存的草稿将被覆盖。
           </Typography>
         </DialogContent>
         <DialogActions>

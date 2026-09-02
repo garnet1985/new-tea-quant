@@ -15,6 +15,7 @@ import {
 } from '../lib/strategyDesignActiveRunPersistence';
 import { notifyTaskSuccess } from '../../../utils/feedbackPromptBus';
 import logClientError from '../../../utils/logClientError';
+import { normalizeWorkbenchVersionId } from '../../../utils/workbenchVersionId';
 
 const RUN_STEPS = new Set(['enum', 'price', 'portfolio']);
 
@@ -53,6 +54,9 @@ export function useStrategyDesignExecution({
     setSession((prev) => ({
       ...prev,
       ...extraPatch,
+      stepProgress: extraPatch.stepProgress
+        ? { ...(prev.stepProgress || {}), ...extraPatch.stepProgress }
+        : prev.stepProgress,
       executionState: {
         ...prev.executionState,
         ...executionPatch,
@@ -83,9 +87,8 @@ export function useStrategyDesignExecution({
         runningStep: target,
         activeRunId: '',
         runId: '',
-        lastCompletedWorkbenchVersionId: '',
       }, {
-        stepProgress: { enum: 0, price: 0, portfolio: 0 },
+        stepProgress: { [target]: 0 },
       });
 
       const resolvedSettings = getDraftSettingsForSubmit?.();
@@ -258,7 +261,9 @@ export function useStrategyDesignExecution({
         };
 
         if (status?.state === 'done' && status?.version_id) {
-          executionPatch.lastCompletedWorkbenchVersionId = String(status.version_id);
+          executionPatch.lastCompletedWorkbenchVersionId = normalizeWorkbenchVersionId(
+            status.version_id,
+          ) || String(status.version_id);
         }
 
         if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {

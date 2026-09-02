@@ -10,6 +10,8 @@ export function emptyWorkbenchSnapshot() {
     result_report: null,
     execution_panel: null,
     settings: null,
+    diskSettings: null,
+    effectiveSettings: null,
   };
 }
 
@@ -27,6 +29,8 @@ export function buildWorkbenchSnapshotFromVersionDetail(detail) {
     result_report: detail.result_report ?? null,
     execution_panel: detail.execution_panel ?? null,
     settings: detail.settings ?? null,
+    diskSettings: detail.disk_settings ?? null,
+    effectiveSettings: detail.effective_settings ?? null,
   };
 }
 
@@ -45,6 +49,8 @@ export function buildWorkbenchSnapshotFromSettingsResponse(res) {
     step_status: res.step_status ?? null,
     result_report: res.result_report ?? null,
     execution_panel: res.execution_panel ?? null,
-    settings: res.settings ?? null,
+    settings: res.snapshot_settings ?? res.settings ?? null,
+    diskSettings: res.disk_settings ?? null,
+    effectiveSettings: res.effective_settings ?? null,
   };
 }

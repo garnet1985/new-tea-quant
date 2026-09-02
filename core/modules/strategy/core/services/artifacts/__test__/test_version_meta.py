@@ -52,6 +52,16 @@ def test_find_version_by_fingerprints_scans_registry(tmp_path: Path) -> None:
     )
 
 
+def test_find_version_by_fingerprints_returns_newest_duplicate(tmp_path: Path) -> None:
+    """旧 force 可能留下同指纹多号；复写必须命中最新号，不能写回更早的 v4。"""
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "4", execute_fp="sfp", env_fp="efp")
+    VersionMetaStore.register_version(root, "6", execute_fp="sfp", env_fp="efp")
+    assert (
+        VersionMetaStore.find_version_by_fingerprints(root, "sfp", "efp") == "6"
+    )
+
+
 def test_vid_and_fingerprint_lookup_are_equivalent(tmp_path: Path) -> None:
     root = tmp_path / "simulations"
     VersionMetaStore.register_version(
@@ -149,6 +159,31 @@ def test_step_status_from_disk(tmp_path: Path) -> None:
     assert (
         VersionMetaStore.step_status(root, "1", SimulateKind.ENUMERATE) == "ok"
     )
+
+
+def test_clear_downstream_steps_deletes_price_and_portfolio(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "6", execute_fp="sfp", env_fp="efp")
+    for step, kind in (
+        ("enum", SimulateKind.ENUMERATE),
+        ("price", SimulateKind.PRICE_FACTOR),
+        ("portfolio", SimulateKind.PORTFOLIO),
+    ):
+        step_dir = root / "6" / step
+        step_dir.mkdir(parents=True)
+        (step_dir / RUNTIME_ENV_FILE).write_text("{}", encoding="utf-8")
+        VersionMetaStore.mark_step_complete(root, "6", kind)
+
+    VersionMetaStore.clear_downstream_steps(root, "6", SimulateKind.ENUMERATE)
+
+    assert (root / "6" / "enum" / RUNTIME_ENV_FILE).is_file()
+    assert not (root / "6" / "price").exists()
+    assert not (root / "6" / "portfolio").exists()
+    entry = VersionMetaStore.get_registry_entry(root, "6")
+    assert entry is not None
+    assert entry["steps"] == {"enumerate": "ok"}
+    assert VersionMetaStore.step_status(root, "6", SimulateKind.PRICE_FACTOR) == "missing"
+    assert VersionMetaStore.step_status(root, "6", SimulateKind.PORTFOLIO) == "missing"
 
 
 def test_prune_syncs_registry(tmp_path: Path) -> None:

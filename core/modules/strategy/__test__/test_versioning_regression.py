@@ -97,6 +97,116 @@ def test_ignore_cache_skips_enum_reuse() -> None:
     assert SimulateKind.ENUMERATE in ctx.steps
 
 
+def test_overwrite_enum_clears_downstream_artifacts(tmp_path: Path) -> None:
+    """D18：同 vid 复写 enum 时删除 price / portfolio 产物。"""
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "6", execute_fp="sfp", env_fp="efp")
+    for name, kind in (
+        ("enum", SimulateKind.ENUMERATE),
+        ("price", SimulateKind.PRICE_FACTOR),
+        ("portfolio", SimulateKind.PORTFOLIO),
+    ):
+        d = root / "6" / name
+        d.mkdir(parents=True)
+        (d / RUNTIME_ENV_FILE).write_text("{}", encoding="utf-8")
+        VersionMetaStore.mark_step_complete(root, "6", kind)
+
+    VersionMetaStore.clear_downstream_steps(root, "6", SimulateKind.ENUMERATE)
+    assert VersionMetaStore.step_has_artifacts(root, "6", SimulateKind.ENUMERATE)
+    assert not VersionMetaStore.step_has_artifacts(root, "6", SimulateKind.PRICE_FACTOR)
+    assert not VersionMetaStore.step_has_artifacts(root, "6", SimulateKind.PORTFOLIO)
+
+
+def test_enum_report_manager_begin_reuses_fingerprint_vid(tmp_path: Path, monkeypatch) -> None:
+    """D17：同指纹重跑枚举写入同一 vid；begin 不得把 VersionMetaStore 变成局部变量。"""
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.report_manager import (
+        ReportManager,
+    )
+    from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+        StrategySettings,
+    )
+    from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore
+
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "6", execute_fp="sfp", env_fp="efp")
+    monkeypatch.setattr(
+        ArtifactStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    monkeypatch.setattr(
+        EnumerateStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    settings = StrategySettings.from_dict(
+        {
+            "core": {"n": 1},
+            "simulation": {
+                "execution": {
+                    "mode": "entity_based",
+                    "start_date": "20240102",
+                    "end_date": "20240110",
+                }
+            },
+        }
+    )
+    mgr = ReportManager.begin(
+        "demo",
+        entity_ids=["000001.SZ"],
+        execute_fp="sfp",
+        env_fp="efp",
+        effective_settings=settings,
+        settings_diff={},
+        execution_mode="entity_based",
+        market_profile="cn",
+        strategy_path="demo",
+        strategy_folder=tmp_path,
+    )
+    assert int(mgr.version_id) == 6
+    assert mgr.output_dir == root / "6" / "enum"
+
+
+def test_run_steps_clears_downstream_before_overwriting_enum(tmp_path: Path) -> None:
+    from core.modules.strategy.__test__.test_simulate_cache_flow import _ctx
+    from core.modules.strategy.core.services.artifacts import ArtifactStore
+
+    ctx = _ctx(kind=SimulateKind.ENUMERATE)
+    ctx.steps = [SimulateKind.ENUMERATE]
+    pipeline = MagicMock()
+    pipeline.run.return_value = {
+        "success": True,
+        "version_id": "6",
+        "output_dir": str(tmp_path / "6" / "enum"),
+    }
+    with patch.object(
+        ArtifactStore, "simulations_root", return_value=tmp_path / "simulations"
+    ), patch.object(
+        VersionMetaStore, "find_version_by_fingerprints", return_value="6"
+    ), patch.object(
+        VersionMetaStore, "step_status", return_value="ok"
+    ), patch.object(
+        VersionMetaStore, "clear_downstream_steps"
+    ) as clear, patch.object(
+        ArtifactStore, "clear_cache"
+    ), patch.object(
+        SimulationVersionStore, "record_step_complete"
+    ), patch.object(
+        Strategy, "_maybe_run_analysis", return_value=None
+    ), patch(
+        "core.modules.strategy.core.services.progress.PipelineProgress.complete_step_bound"
+    ), patch(
+        "core.modules.strategy.core.strategy.BackTestPipelines.__class_getitem__",
+        return_value=pipeline,
+    ):
+        Strategy._run_steps(ctx, strategy_folder=tmp_path, ignore_cache=True)
+
+    clear.assert_called_once()
+    assert clear.call_args.args[1] == "6"
+    assert clear.call_args.args[2] == SimulateKind.ENUMERATE
+    pipeline.run.assert_called_once()
+
+
 def test_effective_settings_snapshot_is_flat_registry(tmp_path: Path) -> None:
     root = tmp_path / "simulations"
     VersionMetaStore.register_version(root, "2", execute_fp="aa", env_fp="bb")

@@ -2,6 +2,8 @@ import {
   mergeHydratedStepStatus,
   mergeStepStatusFromRunProgress,
   mapWorkbenchStepStatusToExecutionCards,
+  resetDownstreamStepStatus,
+  stepStatusFromRunPlanSteps,
 } from './workbenchExecutionHydration';
 
 describe('mergeHydratedStepStatus', () => {
@@ -13,12 +15,30 @@ describe('mergeHydratedStepStatus', () => {
     )).toEqual({ enum: 'done', price: 'idle', portfolio: 'idle' });
   });
 
-  it('does not downgrade done to idle on the same version', () => {
+  it('applies D18 idle downgrade on the same version', () => {
     expect(mergeHydratedStepStatus(
       { enum: 'done', price: 'done', portfolio: 'done' },
       { enum: 'done', price: 'idle', portfolio: 'idle' },
       { versionChanged: false },
-    )).toEqual({ enum: 'done', price: 'done', portfolio: 'done' });
+    )).toEqual({ enum: 'done', price: 'idle', portfolio: 'idle' });
+  });
+});
+
+describe('resetDownstreamStepStatus', () => {
+  it('idles price and portfolio when re-running enum', () => {
+    expect(resetDownstreamStepStatus(
+      { enum: 'done', price: 'done', portfolio: 'done' },
+      'enum',
+    )).toEqual({ enum: 'running', price: 'idle', portfolio: 'idle' });
+  });
+});
+
+describe('stepStatusFromRunPlanSteps', () => {
+  it('idles downstream of the running planned step', () => {
+    expect(stepStatusFromRunPlanSteps(
+      [{ step_name: 'enum', status: 'running' }],
+      { enum: 'done', price: 'done', portfolio: 'done' },
+    )).toEqual({ enum: 'running', price: 'idle', portfolio: 'idle' });
   });
 });
 

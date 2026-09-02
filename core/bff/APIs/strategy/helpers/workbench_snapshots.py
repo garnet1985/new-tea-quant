@@ -183,6 +183,7 @@ class WorkbenchSnapshots:
             "effective_settings": effective_subset,
             "reports": result_report,
             "result_report": result_report,
+            "step_status": cls._step_status_from_disk(root, vid),
             "execute_fp": str(entry.get("execute_fp") or ""),
             "env_fingerprint_id": str(entry.get("env_fp") or ""),
             "env_invalid": cls._env_invalid_for_entry(info, entry),
@@ -223,6 +224,23 @@ class WorkbenchSnapshots:
         return snapshot
 
     @classmethod
+    def _step_status_from_disk(
+        cls,
+        simulations_root: Path,
+        version_id: str,
+    ) -> Dict[str, Any]:
+        """步进完成态只认 registry / ``runtime_env.json``，不依赖报告 hydrate。"""
+        return {
+            slot_key: {
+                "done": VersionMetaStore.step_status(
+                    simulations_root, version_id, kind
+                )
+                == "ok"
+            }
+            for kind, slot_key in _STEP_SLOTS
+        }
+
+    @classmethod
     def _result_report_from_disk(
         cls,
         strategy_folder: Path,
@@ -231,18 +249,32 @@ class WorkbenchSnapshots:
     ) -> Dict[str, Any]:
         result_report: Dict[str, Any] = {}
         for kind, slot_key in _STEP_SLOTS:
-            if not VersionMetaStore.step_has_artifacts(simulations_root, version_id, kind):
+            if VersionMetaStore.step_status(
+                simulations_root, version_id, kind
+            ) != "ok":
                 continue
-            cached = SimulationVersionStore.get_cache_by_version_id(
-                strategy_folder,
-                version_id,
-                kind,
-            )
-            if not cached:
-                continue
-            slot = cached.get(kind.value)
+            cached = None
+            try:
+                cached = SimulationVersionStore.get_cache_by_version_id(
+                    strategy_folder,
+                    version_id,
+                    kind,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "workbench result_report cache miss: step=%s vid=%s err=%s",
+                    kind.value,
+                    version_id,
+                    exc,
+                )
+            slot = cached.get(kind.value) if isinstance(cached, dict) else None
             if isinstance(slot, dict) and slot:
                 result_report[slot_key] = dict(slot)
+            else:
+                result_report[slot_key] = {
+                    "success": True,
+                    "version_id": version_id,
+                }
         return result_report
 
     @classmethod

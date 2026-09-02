@@ -5,6 +5,7 @@ import {
 } from '../../../api/strategyApi';
 import {
   mergeStepStatusFromRunProgress,
+  resetDownstreamStepStatus,
   stepStatusFromRunPlanSteps,
 } from '../../strategyWorkbenchPage/workbenchExecutionHydration';
 import { clearStockKlineMemoryCache } from '../../strategyWorkbenchPage/panels/strategyReportPanel/lib/stockKlineMemoryCache';
@@ -78,6 +79,9 @@ export function useStrategyDesignExecution({
       return;
     }
 
+    const prevStatus = getExecutionState()?.stepStatus
+      || { enum: 'idle', price: 'idle', portfolio: 'idle' };
+
     try {
       setRunError('');
       progressPollStepRef.current = target;
@@ -87,10 +91,13 @@ export function useStrategyDesignExecution({
 
       onRunStarted?.();
 
+      const optimisticStatus = resetDownstreamStepStatus(prevStatus, target);
+
       patchExecutionSession({
         runningStep: target,
         activeRunId: '',
         runId: '',
+        stepStatus: optimisticStatus,
       }, {
         stepProgress: { [target]: 0 },
       });
@@ -111,9 +118,9 @@ export function useStrategyDesignExecution({
 
       const planSteps = Array.isArray(started?.steps) ? started.steps : [];
       const nextRunning = started?.resolved_chain?.[0] || target;
-      const nextStepStatus = stepStatusFromRunPlanSteps(
-        planSteps,
-        getExecutionState()?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle' },
+      const nextStepStatus = resetDownstreamStepStatus(
+        stepStatusFromRunPlanSteps(planSteps, optimisticStatus),
+        nextRunning,
       );
 
       patchExecutionSession({
@@ -127,6 +134,7 @@ export function useStrategyDesignExecution({
         runningStep: '',
         activeRunId: '',
         runId: '',
+        stepStatus: prevStatus,
       });
       progressPollStepRef.current = '';
       if (isSettingsConflictError(err)) {

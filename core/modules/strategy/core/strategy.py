@@ -422,10 +422,13 @@ class Strategy:
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
+        from .services.artifacts import ArtifactStore, SimulationVersionStore
+        from .services.artifacts.version_meta import VersionMetaStore
         from .services.progress import PipelineProgress
 
         consolidated: Dict[str, Any] = {}
         folder = Path(strategy_folder)
+        root = ArtifactStore.simulations_root(folder)
         execute_settings = StrategySettings.extract_execute_settings(
             ctx.effective_settings
         )
@@ -438,6 +441,20 @@ class Strategy:
             start_date = ""
             end_date = ""
         for step in ctx.steps:
+            vid = str(ctx.enum_version or "").strip()
+            if not vid:
+                vid = str(
+                    VersionMetaStore.find_version_by_fingerprints(
+                        root,
+                        str(ctx.execute_fp or ""),
+                        str(ctx.env_fp or ""),
+                    )
+                    or ""
+                ).strip()
+            # D18：真正复写已跑步时先作废下游，避免旧报告撒谎
+            if vid and VersionMetaStore.step_status(root, vid, step) == "ok":
+                VersionMetaStore.clear_downstream_steps(root, vid, step)
+                ArtifactStore.clear_cache()
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
             if step == SimulateKind.ENUMERATE:

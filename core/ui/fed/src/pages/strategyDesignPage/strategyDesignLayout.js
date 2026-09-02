@@ -40,7 +40,7 @@ function StrategyDesignLayout() {
   }
 
   return (
-    <StrategyDesignProvider strategyName={strategyName} initialStep={step}>
+    <StrategyDesignProvider key={strategyName} strategyName={strategyName} initialStep={step}>
       <StrategyDesignWorkbenchProvider>
         <StrategyDesignShell
           breadcrumbsItems={[

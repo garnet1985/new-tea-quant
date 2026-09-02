@@ -83,6 +83,18 @@ export function writeCachedStrategyDesignStep(strategyName, activeStep) {
   writeSessionBlob(strategyName, { activeStep: step });
 }
 
+/** 刚跑完的 version：切步若重挂载，仍看这一号，不要跳回号最大的 latest。 */
+export function readCachedWorkbenchVersion(strategyName) {
+  return String(readSessionBlob(strategyName)?.lastCompletedWorkbenchVersionId || '').trim();
+}
+
+/** @param {string} strategyName @param {string} versionId */
+export function writeCachedWorkbenchVersion(strategyName, versionId) {
+  const vid = String(versionId || '').trim();
+  if (!vid) return;
+  writeSessionBlob(strategyName, { lastCompletedWorkbenchVersionId: vid });
+}
+
 /**
  * 面包屑短名缓存（避免 settings 返回前用路径名闪一下）。
  * @returns {{ displayName: string, key: string }}

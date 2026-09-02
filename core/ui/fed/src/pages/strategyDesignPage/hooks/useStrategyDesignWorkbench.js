@@ -48,8 +48,10 @@ import { clearDesignActiveRun } from '../lib/strategyDesignActiveRunPersistence'
 import { useStrategyDesignSession } from '../strategyDesignContext';
 import {
   readCachedStrategyLabel,
+  readCachedWorkbenchVersion,
   readStrategyLabelFromLocationState,
   writeCachedStrategyLabel,
+  writeCachedWorkbenchVersion,
 } from '../strategyDesignSessionState';
 import { useStrategyDesignExecution } from './useStrategyDesignExecution';
 
@@ -269,7 +271,7 @@ export function useStrategyDesignWorkbench() {
       fetchStrategyVersions(strategyName),
       fetchStrategySettings(strategyName),
     ])
-      .then(([verRes, res]) => {
+      .then(async ([verRes, res]) => {
         if (isCancelled) return;
         const rows = mapConfigVersionRows(verRes);
         setConfigVersions(rows);
@@ -291,9 +293,27 @@ export function useStrategyDesignWorkbench() {
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
 
-        const snapshot = buildWorkbenchSnapshotFromSettingsResponse(res);
+        let snapshot = buildWorkbenchSnapshotFromSettingsResponse(res);
+        const latestVer = normalizeWorkbenchVersionId(snapshot.versionId);
+        const cachedVer = normalizeWorkbenchVersionId(
+          readCachedWorkbenchVersion(strategyName),
+        );
+        if (cachedVer && cachedVer !== latestVer) {
+          try {
+            const detail = await fetchStrategyVersionDetail(strategyName, cachedVer);
+            if (isCancelled) return;
+            snapshot = buildWorkbenchSnapshotFromVersionDetail(detail);
+            const flags = workbenchPageStateFromVersionDetail(detail, strategyName, rows);
+            setHasPersistedSnapshot(Boolean(flags.has_persisted_snapshot));
+            setHasOtherVersions(Boolean(flags.has_other_versions));
+          } catch (error) {
+            logClientError('design.cachedWorkbenchVersion', error);
+          }
+        }
+
         const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
         const wbVer = normalizeWorkbenchVersionId(snapshot.versionId);
+        writeCachedWorkbenchVersion(strategyName, wbVer);
         setSelectedConfigVersion(wbVer);
         setAppliedVersionId(wbVer);
         lastRunSyncedVersionRef.current = hydration.lastCompletedWorkbenchVersionId;
@@ -380,6 +400,7 @@ export function useStrategyDesignWorkbench() {
         setHasOtherVersions(Boolean(res.has_other_versions));
         setSelectedConfigVersion(wbVer);
         setAppliedVersionId(wbVer);
+        writeCachedWorkbenchVersion(strategyName, wbVer);
         lastRunSyncedVersionRef.current = wbVer;
         setSession((prev) => {
           const prevVid = normalizeWorkbenchVersionId(
@@ -712,6 +733,7 @@ export function useStrategyDesignWorkbench() {
         { name: strategyName },
       );
       const wb = wbVerRestore || restoreMeta?.version_id || '';
+      writeCachedWorkbenchVersion(strategyName, wb);
       setDraftSettings(deepClone(mergedSettings));
       setSelectedConfigVersion(wb);
       setAppliedSettings(deepClone(mergedSettings));

@@ -20,6 +20,23 @@ def _step_status_from_result_report(result_report: Dict[str, Any]) -> Dict[str, 
     return out
 
 
+def _normalize_step_status(
+    raw: Any,
+    result_report: Dict[str, Any],
+) -> Dict[str, Any]:
+    """步进器认产物/registry 槽，不认报告正文是否 hydrate 成功。"""
+    if isinstance(raw, dict) and any(key in raw for key in _STEP_KEYS):
+        out: Dict[str, Any] = {}
+        for key in _STEP_KEYS:
+            entry = raw.get(key)
+            if isinstance(entry, dict):
+                out[key] = {"done": bool(entry.get("done"))}
+            else:
+                out[key] = {"done": False}
+        return out
+    return _step_status_from_result_report(result_report)
+
+
 def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
     """``strategy_snapshot`` row → envelope ``message`` payload for GET …/version/latest."""
     sid = int(row.get("version") or 0)
@@ -35,7 +52,7 @@ def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
         "effective_settings": effective_settings,
         "execute_settings": dict(row.get("execute_settings") or {}),
         "settings_rev": str(row.get("settings_rev") or ""),
-        "step_status": _step_status_from_result_report(result_report),
+        "step_status": _normalize_step_status(row.get("step_status"), result_report),
         "result_report": result_report,
         "execution_panel": build_execution_panel_from_result_report(result_report),
         "env_invalid": bool(row.get("env_invalid")),

@@ -5,14 +5,27 @@
 
 const IDLE = { enum: 'idle', price: 'idle', portfolio: 'idle' };
 const RUN_STEP_NAMES = new Set(['enum', 'price', 'portfolio']);
-const STEP_CARD_KEYS = ['enum', 'price', 'portfolio'];
-const STATUS_RANK = {
-  idle: 0,
-  pending: 1,
-  running: 2,
-  failed: 3,
-  done: 4,
+const DOWNSTREAM_STEPS = {
+  enum: ['price', 'portfolio'],
+  price: ['portfolio'],
+  portfolio: [],
 };
+
+/**
+ * 复写上游步时把下游圆圈打回 idle（D18）。当前步标 running。
+ * @param {object} prev
+ * @param {string} target
+ */
+export function resetDownstreamStepStatus(prev, target) {
+  const next = { ...(prev && typeof prev === 'object' ? prev : IDLE) };
+  const key = String(target || '').trim();
+  if (!RUN_STEP_NAMES.has(key)) return next;
+  next[key] = 'running';
+  (DOWNSTREAM_STEPS[key] || []).forEach((ds) => {
+    next[ds] = 'idle';
+  });
+  return next;
+}
 
 /**
  * V2-05 POST ``steps[]`` → 执行面板 stepStatus。只更新计划内步骤，其余保留 ``prev``（依赖链由后端规划）。
@@ -22,6 +35,7 @@ const STATUS_RANK = {
 export function stepStatusFromRunPlanSteps(planSteps, prev = IDLE) {
   const next = { ...prev };
   if (!Array.isArray(planSteps) || planSteps.length === 0) return next;
+  let runningTarget = '';
   planSteps.forEach((row, idx) => {
     const nm = String(row?.step_name || '').trim();
     if (!RUN_STEP_NAMES.has(nm)) return;
@@ -31,7 +45,13 @@ export function stepStatusFromRunPlanSteps(planSteps, prev = IDLE) {
     else if (backendSt === 'failed') next[nm] = 'failed';
     else if (backendSt === 'pending') next[nm] = 'pending';
     else next[nm] = idx === 0 ? 'running' : 'pending';
+    if (next[nm] === 'running' && !runningTarget) runningTarget = nm;
   });
+  if (runningTarget) {
+    (DOWNSTREAM_STEPS[runningTarget] || []).forEach((ds) => {
+      next[ds] = 'idle';
+    });
+  }
   return next;
 }
 
@@ -56,27 +76,17 @@ export function mergeStepStatusFromRunProgress(prev, progressMerge) {
 
 /**
  * 快照 hydration 与当前 stepStatus 合并。
- * 换 version 时以 hydration 为准；同一 version 不把已完成步骤降成 idle。
+ * 始终以磁盘快照为准（含同 vid 上 D18 把下游打回 idle）。
  */
-export function mergeHydratedStepStatus(prevStatus, hydratedStatus, { versionChanged } = {}) {
+export function mergeHydratedStepStatus(_prevStatus, hydratedStatus, _opts = {}) {
   const hydrated = hydratedStatus && typeof hydratedStatus === 'object'
     ? hydratedStatus
     : { ...IDLE };
-  const normalizedHydrated = {
+  return {
     enum: String(hydrated.enum || 'idle'),
     price: String(hydrated.price || 'idle'),
     portfolio: String(hydrated.portfolio || 'idle'),
   };
-  if (versionChanged) return normalizedHydrated;
-
-  const prev = prevStatus && typeof prevStatus === 'object' ? prevStatus : {};
-  const next = {};
-  STEP_CARD_KEYS.forEach((key) => {
-    const a = String(prev[key] || 'idle');
-    const b = String(normalizedHydrated[key] || 'idle');
-    next[key] = (STATUS_RANK[a] || 0) >= (STATUS_RANK[b] || 0) ? a : b;
-  });
-  return next;
 }
 
 function slotDone(entry) {

@@ -12,9 +12,10 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts.consts import (
@@ -30,6 +31,11 @@ _STEP_DIRS = {
     SimulateKind.ENUMERATE: "enum",
     SimulateKind.PRICE_FACTOR: "price",
     SimulateKind.PORTFOLIO: "portfolio",
+}
+_DOWNSTREAM_KINDS: Dict[SimulateKind, Tuple[SimulateKind, ...]] = {
+    SimulateKind.ENUMERATE: (SimulateKind.PRICE_FACTOR, SimulateKind.PORTFOLIO),
+    SimulateKind.PRICE_FACTOR: (SimulateKind.PORTFOLIO,),
+    SimulateKind.PORTFOLIO: (),
 }
 
 
@@ -356,6 +362,41 @@ class VersionMetaStore:
         cls.write_root_meta(simulations_root, root_meta)
 
     @classmethod
+    def clear_downstream_steps(
+        cls,
+        simulations_root: Path,
+        version_id: str,
+        kind: SimulateKind,
+    ) -> None:
+        """D18：同 vid 复写上游步时删除下游产物，并去掉 registry ``steps`` 标记。"""
+        vid = str(version_id or "").strip()
+        downstream = _DOWNSTREAM_KINDS.get(kind, ())
+        if not vid or not downstream:
+            return
+        root = Path(simulations_root)
+        root_meta = cls.read_root_meta(root)
+        registry = cls._registry(root_meta)
+        entry = dict(registry.get(vid) or {})
+        steps = dict(entry.get("steps") or {})
+        changed = False
+        for ds in downstream:
+            step_dir = root / vid / _STEP_DIRS[ds]
+            if step_dir.is_dir():
+                shutil.rmtree(step_dir, ignore_errors=True)
+                changed = True
+            if ds.value in steps:
+                steps.pop(ds.value, None)
+                changed = True
+        if not changed:
+            return
+        if entry:
+            entry["steps"] = steps
+            entry["updated_at"] = datetime.now().isoformat()
+            registry[vid] = entry
+            root_meta["registry"] = registry
+            cls.write_root_meta(root, root_meta)
+
+    @classmethod
     def find_version_by_fingerprints(
         cls,
         simulations_root: Path,
@@ -370,8 +411,9 @@ class VersionMetaStore:
         if not root.is_dir():
             return None
 
+        # 同指纹若留下多号（旧 force 新开号），复写最新号，避免写回更早的 vid
         root_meta = cls.read_root_meta(root)
-        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x)):
+        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x), reverse=True):
             entry = cls._registry(root_meta).get(vid)
             if not isinstance(entry, dict):
                 continue
@@ -434,7 +476,7 @@ class VersionMetaStore:
         if not execute:
             return None
         root_meta = cls.read_root_meta(Path(simulations_root))
-        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x)):
+        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x), reverse=True):
             entry = cls._registry(root_meta).get(vid)
             if not isinstance(entry, dict):
                 continue

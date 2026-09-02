@@ -1,7 +1,7 @@
 """Workbench snapshot read model for UI (V2-01 / V2-03 / V2-08).
 
 Version catalog and settings snapshots come from disk ``simulations/meta.json``
-registry + ``{vid}/effective_settings.json`` + step artifacts.
+registry + ``{vid}/settings.json`` / ``effective_settings.json`` + step artifacts.
 
 Consumers: ``routes/version``, ``routes/report``, ``routes/settings/apply``.
 """
@@ -187,7 +187,7 @@ class WorkbenchSnapshots:
             "effective_settings": effective_subset,
             "reports": result_report,
             "result_report": result_report,
-            "settings_finger_print_id": str(entry.get("settings_fp") or ""),
+            "execute_fp": str(entry.get("execute_fp") or ""),
             "env_fingerprint_id": str(entry.get("env_fp") or ""),
             "env_invalid": cls._env_invalid_for_entry(info, entry),
             "created_at": entry.get("created_at"),
@@ -203,18 +203,16 @@ class WorkbenchSnapshots:
         version_id: str,
     ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
         disk_settings = dict(info.settings or {})
+        archived = VersionMetaStore.read_settings(simulations_root, version_id) or {}
         effective = VersionMetaStore.read_effective_settings(
             simulations_root, version_id
         ) or {}
-        subset = {
-            key: value
-            for key, value in effective.items()
-            if key != "entity_ids"
-        }
-        if not subset:
+        if archived:
+            return archived, disk_settings, effective
+        if not effective:
             return disk_settings, disk_settings, {}
-        snapshot = StrategySettings.merge_disk_with_diff(disk_settings, subset)
-        return snapshot, disk_settings, subset
+        snapshot = StrategySettings.merge_disk_with_diff(disk_settings, effective)
+        return snapshot, disk_settings, effective
 
     @classmethod
     def _settings_snapshot_from_disk(
@@ -315,7 +313,7 @@ class WorkbenchSnapshots:
             "effective_settings": {},
             "reports": {},
             "result_report": {},
-            "settings_finger_print_id": "",
+            "execute_fp": "",
             "env_fingerprint_id": "",
             "env_invalid": False,
         }

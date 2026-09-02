@@ -655,13 +655,26 @@ class ArtifactStore:
             raw.get("settings_snapshot"), dict
         ):
             settings_raw = raw.get("settings_snapshot") or {}
+        archive = VersionMetaStore.read_archive_context(
+            self.output_dir.parent.parent, self.version_id
+        )
+        if not entity_ids:
+            entity_ids = list(archive.get("entity_ids") or [])
+        if not str(period.get("start_date") or "").strip():
+            period = {
+                "start_date": str(archive.get("start_date") or ""),
+                "end_date": str(archive.get("end_date") or ""),
+            }
+        effective = dict(settings_raw.get("effective_settings") or {})
+        if not effective and archive.get("effective_settings"):
+            effective = dict(archive["effective_settings"])
         key = str(raw.get("strategy_key") or "").strip()
         self.runtime = ArtifactRuntime(
             strategy_key=key,
             strategy_path=str(raw.get("strategy_path") or key).strip(),
             market_profile=str(raw.get("market_profile") or "").strip(),
             settings_snapshot=_SettingsView(
-                effective_settings=dict(settings_raw.get("effective_settings") or {}),
+                effective_settings=effective,
             ),
         )
         self.start_date = str(period.get("start_date") or "").strip()

@@ -12,19 +12,21 @@ from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts.consts import (
     EFFECTIVE_SETTINGS_FILE,
     RUNTIME_ENV_FILE,
+    SCOPE_FILE,
+    SETTINGS_FILE,
 )
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
-from core.modules.strategy.core.services.artifacts import SimulationVersionStore
+from core.modules.strategy.core.services.artifacts import ArtifactStore, SimulationVersionStore
 from core.modules.strategy.core.strategy import Strategy
 
 pytestmark = pytest.mark.force_run
 
 
-def _fps(*, settings_fp: str = "sfp", env_fp: str = "efp"):
+def _fps(*, execute_fp: str = "sfp", env_fp: str = "efp"):
     settings = MagicMock()
     settings.analysis.enabled = False
     return SimpleNamespace(
-        settings_fp=settings_fp,
+        execute_fp=execute_fp,
         env_fp=env_fp,
         disk_settings_hash="dsh",
         settings_diff={},
@@ -39,15 +41,12 @@ def test_registry_hit_requires_matching_env_fp(tmp_path: Path) -> None:
     step_dir = root / "1" / "enum"
     step_dir.mkdir(parents=True)
     (step_dir / RUNTIME_ENV_FILE).write_text("{}", encoding="utf-8")
-    VersionMetaStore.register_version(root, "1", settings_fp="s", env_fp="old-env")
+    VersionMetaStore.register_version(root, "1", execute_fp="s", env_fp="old-env")
 
-    with patch(
-        "core.modules.strategy.core.services.artifacts.version_cache.ArtifactStore.simulations_root",
-        return_value=root,
-    ):
+    with patch.object(ArtifactStore, "simulations_root", return_value=root):
         hit = SimulationVersionStore.get_cache(
             tmp_path,
-            _fps(settings_fp="s", env_fp="new-env"),
+            _fps(execute_fp="s", env_fp="new-env"),
             SimulateKind.ENUMERATE,
         )
     assert hit is None
@@ -60,15 +59,25 @@ def test_new_layout_paths_under_shared_version_id(tmp_path: Path) -> None:
         d = root / "4" / step
         d.mkdir(parents=True)
         (d / RUNTIME_ENV_FILE).write_text("{}", encoding="utf-8")
-    VersionMetaStore.register_version(root, "4", settings_fp="s", env_fp="e")
-    VersionMetaStore.write_effective_settings(
-        root, "4", settings={"core": {"n": 1}}, entity_ids=["000001.SZ"]
+    VersionMetaStore.register_version(root, "4", execute_fp="s", env_fp="e")
+    VersionMetaStore.write_version_archive(
+        root,
+        "4",
+        full_settings={"meta": {"key": "demo"}, "core": {"n": 1}},
+        effective_settings={"core": {"n": 1}},
+        entity_ids=["000001.SZ"],
+        start_date="20240102",
+        end_date="20240110",
     )
 
     assert VersionMetaStore.step_has_artifacts(root, "4", SimulateKind.ENUMERATE)
     assert VersionMetaStore.step_has_artifacts(root, "4", SimulateKind.PRICE_FACTOR)
     assert VersionMetaStore.step_has_artifacts(root, "4", SimulateKind.PORTFOLIO)
+    assert (root / "4" / SETTINGS_FILE).is_file()
     assert (root / "4" / EFFECTIVE_SETTINGS_FILE).is_file()
+    assert (root / "4" / SCOPE_FILE).is_file()
+    effective = json.loads((root / "4" / EFFECTIVE_SETTINGS_FILE).read_text(encoding="utf-8"))
+    assert "entity_ids" not in effective
     assert "4" in VersionMetaStore.read_root_meta(root).get("registry", {})
 
 
@@ -91,10 +100,10 @@ def test_ignore_cache_skips_enum_reuse() -> None:
 
 def test_effective_settings_snapshot_is_flat_registry(tmp_path: Path) -> None:
     root = tmp_path / "simulations"
-    VersionMetaStore.register_version(root, "2", settings_fp="aa", env_fp="bb")
+    VersionMetaStore.register_version(root, "2", execute_fp="aa", env_fp="bb")
     meta = VersionMetaStore.read_root_meta(root)
     entry = meta["registry"]["2"]
-    assert entry["settings_fp"] == "aa"
+    assert entry["execute_fp"] == "aa"
     assert entry["env_fp"] == "bb"
     assert "fingerprints" not in entry
     assert "version_id" not in entry

@@ -1,4 +1,4 @@
-"""StrategySettings 指纹 / effective merge 主线。"""
+"""StrategySettings fingerprint / effective merge."""
 from __future__ import annotations
 
 import pytest
@@ -41,36 +41,4 @@ def test_calculate_effective_settings_merges_fingerprint_fields_only() -> None:
     effective, settings_diff = StrategySettings.calculate_effective_settings(disk, user)
     assert settings_diff.get("core") == {"n": 9}
     assert effective.core.get("n") == 9
-    # scanner 不进指纹 diff → effective 仍为 disk 侧
     assert effective.scanner.adapter_names == ["console"]
-
-
-def test_fingerprint_hash_stable_under_entity_id_order() -> None:
-    settings = StrategySettings.from_dict(_disk())
-    a = settings.fingerprint_hash(
-        settings_diff={"core": {"n": 1}},
-        entity_ids=["000002.SZ", "000001.SZ"],
-        start_date="20240101",
-        end_date="20240131",
-    )
-    b = settings.fingerprint_hash(
-        settings_diff={"core": {"n": 1}},
-        entity_ids=["000001.SZ", "000002.SZ"],
-        start_date="20240101",
-        end_date="20240131",
-    )
-    assert a == b
-    assert len(a) == 64
-
-
-def test_fingerprint_hash_changes_when_window_changes() -> None:
-    settings = StrategySettings.from_dict(_disk())
-    base = dict(
-        settings_diff={},
-        entity_ids=["000001.SZ"],
-        start_date="20240101",
-        end_date="20240131",
-    )
-    h1 = settings.fingerprint_hash(**base)
-    h2 = settings.fingerprint_hash(**{**base, "end_date": "20240229"})
-    assert h1 != h2

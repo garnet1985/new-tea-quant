@@ -23,7 +23,7 @@ def test_disk_cache_hit(tmp_path: Path) -> None:
     step_dir = root / "1" / "enum"
     step_dir.mkdir(parents=True)
     (step_dir / RUNTIME_ENV_FILE).write_text(
-        json.dumps({"strategy_key": "demo", "settings_fp": "s", "env_fp": "e"}),
+        json.dumps({"strategy_key": "demo", "execute_fp": "s", "env_fp": "e"}),
         encoding="utf-8",
     )
     (root / "meta.json").write_text(
@@ -31,7 +31,7 @@ def test_disk_cache_hit(tmp_path: Path) -> None:
             {
                 "registry": {
                     "1": {
-                        "settings_fp": "s",
+                        "execute_fp": "s",
                         "env_fp": "e",
                     }
                 },
@@ -40,7 +40,7 @@ def test_disk_cache_hit(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     fps = SimpleNamespace(
-        settings_fp="s", env_fp="e", entity_ids=[], effective_settings=MagicMock()
+        execute_fp="s", env_fp="e", entity_ids=[], effective_settings=MagicMock()
     )
 
     with patch.object(ArtifactStore, "simulations_root", return_value=root), patch.object(
@@ -68,7 +68,7 @@ def test_disk_cache_miss_when_env_invalid(tmp_path: Path) -> None:
             {
                 "registry": {
                     "1": {
-                        "settings_fp": "s",
+                        "execute_fp": "s",
                         "env_fp": "old-env",
                     }
                 },
@@ -77,7 +77,7 @@ def test_disk_cache_miss_when_env_invalid(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     fps = SimpleNamespace(
-        settings_fp="s", env_fp="new-env", entity_ids=[], effective_settings={}
+        execute_fp="s", env_fp="new-env", entity_ids=[], effective_settings={}
     )
 
     with patch.object(ArtifactStore, "simulations_root", return_value=root):

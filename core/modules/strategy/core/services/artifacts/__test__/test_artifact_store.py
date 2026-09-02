@@ -16,6 +16,7 @@ from core.modules.strategy.core.services.artifacts import (
     PortfolioStore,
     PriceFactorStore,
 )
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 
 pytestmark = pytest.mark.force_run
 
@@ -79,6 +80,32 @@ def test_open_reads_runtime(tmp_path: Path) -> None:
     assert opened.runtime.strategy_key == "demo"
     assert opened.has_runtime_env()
     assert (tmp_path / RUNTIME_ENV_FILE).is_file()
+
+
+def test_open_hydrates_runtime_from_version_archive(tmp_path: Path) -> None:
+    simulations = tmp_path / "simulations"
+    step_dir = simulations / "2" / "enum"
+    step_dir.mkdir(parents=True)
+    VersionMetaStore.write_version_archive(
+        simulations,
+        "2",
+        full_settings={"core": {"n": 1}, "analysis": {"enabled": True}},
+        effective_settings={"core": {"n": 1}},
+        entity_ids=["000001.SZ"],
+        start_date="20240102",
+        end_date="20240131",
+    )
+    store = EnumerateStore.at(step_dir, version_id="2")
+    store.write_json(
+        "runtime_env",
+        {"strategy_key": "demo", "market_profile": "china_a_stock"},
+    )
+    ArtifactStore.clear_cache()
+    opened = EnumerateStore.open(step_dir, version_id="2")
+    assert opened.entity_ids == ["000001.SZ"]
+    assert opened.start_date == "20240102"
+    assert opened.end_date == "20240131"
+    assert opened.runtime.settings_snapshot.effective_settings == {"core": {"n": 1}}
 
 
 def test_prune_root_keeps_newest(tmp_path: Path) -> None:

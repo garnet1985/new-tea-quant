@@ -62,7 +62,7 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 
 | # | 决策 |
 |---|------|
-| D34 | **`execute_fp`**（原 `settings_fp`，实施时改名）：这次回测 **可逆** 的执行身份。`hash(canonical effective settings ⊕ scope ⊕ 其它会改变结果、但用户还能改回来的输入)`。settings = 白名单功能块；scope = 区间、标的范围等「这次跑谁、哪段时间」。代码里旧名 `settings_fp` 视为别名，逐步替换。 |
+| D34 | **`execute_fp`**：`hash(FingerprintCalculator.extract_execute_payload(settings, entity_ids=...))`。白名单：`strategy_settings/execute_fp_whitelist.py`。抽取：`StrategySettings.extract_execute_settings`。settings = 白名单功能块；scope = 标的快照。区间已在 `simulation` 内。 |
 | D35 | **`env_fp`**：用户改 settings/scope **回不去** 的执行环境。NTQ/core 版本、策略 hooks 源码、DB/合约映射等。 |
 | D36 | **不引入第三种 fp。** scope 进 `execute_fp`，不要再塞进 `env_fp`。现实现把 `start_date` / `end_date` / `execution_mode` 编进 `env_fp`，必须拿出来。解析出的 `entity_ids` 是这次回测的标的快照，属 scope → `execute_fp`；**不要双边哈希**。胶囊「设置已变更」仍 **只比 settings 投影**，不比整个 `execute_fp`（股票池漂移不是用户改了设置）。 |
 

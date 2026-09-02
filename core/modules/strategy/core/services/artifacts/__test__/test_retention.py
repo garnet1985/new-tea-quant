@@ -117,7 +117,7 @@ def test_clear_by_version_success(mock_resolve, tmp_path: Path):
     root = strategy_folder / "results" / "simulations"
     version_dir = root / "2" / "enum"
     version_dir.mkdir(parents=True)
-    VersionMetaStore.register_version(root, "2", settings_fp="s", env_fp="e")
+    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
 
     mock_resolve.return_value = strategy_folder
 

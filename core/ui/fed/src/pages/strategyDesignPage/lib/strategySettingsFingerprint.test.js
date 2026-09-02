@@ -45,4 +45,21 @@ describe('strategySettingsFingerprint', () => {
     };
     expect(isFingerprintEqual(draft, freeze)).toBe(true);
   });
+
+  it('ignores UI draft keys such as force_exit_when_draft', () => {
+    const freeze = {
+      core: { n: 1 },
+      simulation: { risk_control: { skip_enter_when: ['limit_up'] } },
+    };
+    const draft = {
+      core: { n: 1 },
+      simulation: {
+        risk_control: {
+          skip_enter_when: ['limit_up'],
+          force_exit_when_draft: { status: 'x' },
+        },
+      },
+    };
+    expect(isFingerprintEqual(draft, freeze)).toBe(true);
+  });
 });

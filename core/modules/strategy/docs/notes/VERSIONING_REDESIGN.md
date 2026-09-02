@@ -47,9 +47,11 @@
 {strategy}/results/simulations/
   meta.json                    # next_version_id + registry（见下）
   3/
-    effective_settings.json    # 本 version 冻结的 effective 指纹子集 + entity_ids
+    settings.json              # 当时完整运行 settings（恢复用，D25）
+    effective_settings.json    # 白名单投影（不含 entity_ids）
+    scope.json                 # { entity_ids, start_date, end_date } 解析后的开市日区间
     enum/
-      runtime_env.json
+      runtime_env.json         # 步骤完成标记；不含 settings / scope / fp
       overall_report.json
       entities/...
       analysis/report.json     # 归因（若已跑）
@@ -70,13 +72,17 @@
     "1": {
       "created_at": "...",
       "updated_at": "...",
-      "settings_fp": "...",
-      "env_fp": "..."
+      "execute_fp": "...",
+      "env_fp": "...",
+      "engine_version": "...",
+      "steps": {"enumerate": "ok"}
     },
     "3": {
       "created_at": "...",
-      "settings_fp": "...",
+      "execute_fp": "...",
       "env_fp": "...",
+      "engine_version": "...",
+      "steps": {},
       "pinned": true
     }
   }
@@ -86,9 +92,9 @@
 约定：
 
 - **registry 的 key 即 version id**，条目内不重复存 `version_id`。
-- **指纹平铺**为 `execute_fp` / `env_fp`（磁盘 registry 旧字段名 `settings_fp` 实施时迁移；不用嵌套 `fingerprints` 对象）。
+- **指纹平铺**为 `execute_fp` / `env_fp`（不用嵌套 `fingerprints` 对象）。
 - **无 `fingerprint_index`**：按双指纹命中时线性扫描 `registry`（version 数量可承受）。
-- 条目可扩展：`pinned`、`keep_forever` 等标记与指纹字段并列。
+- 条目可扩展：`steps`、`engine_version`、`pinned`、`keep_forever` 等标记与指纹字段并列。
 
 ### 两种查 version（等价）
 
@@ -97,20 +103,27 @@
 | **vid** | `registry[vid]` 或 `VersionMetaStore.get_registry_entry` |
 | **双指纹** | 扫描 registry，匹配 `execute_fp` + `env_fp` |
 
-### `{vid}/effective_settings.json`
+### `{vid}/` 身份归档
 
-- **带 value 的配置快照**（非 registry 索引层）。
-- 内容为 `StrategySettings.extract_effective_settings()` 的结果 + `entity_ids`。
-- **字段抽取规则**在上层：`StrategySettings.FINGERPRINT_FIELDS`（策略通用）。
-- 三步（enum / price / portfolio）**共享**同一文件，写在 `{vid}/` 根下。
+三步共享，**只写一次**（同身份 force-rerun / 补步不覆盖）：
+
+| 文件 | 内容 |
+|------|------|
+| `settings.json` | 当时完整运行 settings（恢复 `settings.py` 用，D25） |
+| `effective_settings.json` | `StrategySettings.extract_execute_settings()` 白名单投影；**不含** `entity_ids` |
+| `scope.json` | `{ entity_ids, start_date, end_date }`；日期为解析后的开市日区间。`execution_mode` 留在 settings |
+
+白名单见 `strategy_settings/execute_fp_whitelist.py`。
 
 ### step 是否已有产物
 
-不单独存 steps meta；看磁盘：
+registry `steps.{kind} = "ok"`；磁盘兜底：
 
 ```text
 {vid}/{step}/runtime_env.json 存在 → 该 step 已跑完
 ```
+
+`runtime_env.json` 只作步骤完成标记（strategy_key / mode / market_profile / created_at）。settings、scope、指纹从 `{vid}/` 归档 hydrate。
 
 ---
 
@@ -143,15 +156,15 @@
 ## 5. 指纹（实施要点）
 
 1. `effective = calculate_effective_settings(disk, runtime)`  
-2. `subset = extract_effective_settings(effective)` ← `FINGERPRINT_FIELDS` 子集  
-3. `execute_fp = hash(canonical effective settings ⊕ scope)`（数值 coerce、稳定序列化；旧名 `settings_fp`）  
-4. `env_fp = hash(hooks/引擎/DB/合约/period/execution_mode/…)`  
+2. `subset = StrategySettings.extract_execute_settings(effective)` ← `EXECUTE_SETTINGS_FIELDS` 白名单  
+3. `execute_fp = hash(canonical settings ⊕ scope)`（数值 coerce、稳定序列化）  
+4. `env_fp = hash(hooks / 引擎 / DB / 合约)`（不含 period / mode / entity_ids）  
 5. **验收：**  
    - 两次读同一 settings → 同 fp  
    - 写 `effective_settings.json` → 再读 → 同 fp  
-   - 只改 `analysis.*` → settings_fp 不变  
+   - 只改 `analysis.*` → execute_fp 不变  
 
-非指纹字段：`meta` / `scanner` / `analysis` / `is_enabled` 等（`NON_FINGERPRINT_FIELDS`）。
+非指纹字段：`meta` / `scanner` / `analysis` / `is_enabled` 等（`NON_EXECUTE_SETTINGS_FIELDS`）。
 
 ---
 
@@ -168,7 +181,7 @@
 
 - [x] `ArtifactStore`：`simulations/{vid}/{enum|price|portfolio}/`
 - [x] `simulations/meta.json`：`next_version_id` + `registry`；触顶拒绝 allocate
-- [x] `{vid}/effective_settings.json`：`VersionMetaStore.write_effective_settings`
+- [x] `{vid}/` 归档：`settings.json` + `effective_settings.json` + `scope.json`
 - [x] `ArtifactRetention` / `prune_root`：按 **version 目录** keep-N
 - [x] 单测：allocate、registry、prune、触顶拒绝
 - [x] 停用 per-step 独立 `next_output_version`
@@ -206,7 +219,7 @@
 - [x] 打开 version：当前 env_fp vs registry → `env_invalid` 旗标
 - [x] `env_invalid` 禁止 cache hit；CLI/BFF 提示「环境已失效」
 - [x] 强制重跑（`ignore_cache` / `--force`）→ 不复用 enum，始终新 vid（D10）
-- [x] 「恢复配置到 N」：读 `effective_settings.json`，round-trip 校验 `settings_fp` 后写 `settings.py`
+- [x] 「恢复配置到 N」：读 `{vid}/settings.json`，round-trip 校验 `execute_fp`（scope 来自 `scope.json`）后写 `settings.py`
 
 ### Batch 5 — 归因与 Report API 对齐
 
@@ -255,7 +268,7 @@ Batch 0
 - 旧 `simulations/enum/N` 自动迁移工具（默认可删重建）  
 - 静默覆盖历史 version  
 - `fingerprint_index` 反查表（registry 扫描即可）  
-- `{vid}/meta.json`（索引与快照已分层：meta.json registry + effective_settings.json）  
+- `{vid}/meta.json`（索引与快照已分层：meta.json registry + `{vid}/` 归档）  
 - 三步合并为一次归因  
 
 ---
@@ -266,11 +279,11 @@ Batch 0
 |------|------|
 | 产物布局 | `core/modules/strategy/core/services/artifacts/store.py` |
 | 扫描日期目录 | `.../artifacts/scan_store.py`（``ScanStore`` / ``ArtifactStore.scan_at``） |
-| registry / effective_settings | `.../artifacts/version_meta.py` |
+| registry / `{vid}/` 归档 | `.../artifacts/version_meta.py` |
 | 磁盘 cache hit | `.../artifacts/version_cache.py` |
 | 磁盘 cache 清理 / keep-N | `.../artifacts/retention.py` |
 | 指纹 | `.../fingerprint/fingerprint.py` |
-| 字段抽取规则 | `.../strategy_settings/strategy_settings.py`（`FINGERPRINT_FIELDS`） |
+| 字段抽取规则 | `strategy_settings/execute_fp_whitelist.py` + `StrategySettings.extract_execute_settings` |
 | simulate 编排 | `core/modules/strategy/core/strategy.py` |
 | 清理说明 | `core/modules/strategy/docs/VERSIONING_CLEANUP.md` |
 | BFF 快照 | `core/bff/APIs/strategy/helpers/workbench_snapshots.py` |

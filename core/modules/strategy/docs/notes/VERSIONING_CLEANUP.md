@@ -19,8 +19,10 @@ results/simulations/portfolio/N/
 
 ```text
 results/simulations/meta.json          # registry + next_version_id
-results/simulations/{vid}/enum|price|portfolio/
+results/simulations/{vid}/settings.json
 results/simulations/{vid}/effective_settings.json
+results/simulations/{vid}/scope.json
+results/simulations/{vid}/enum|price|portfolio/
 ```
 
 **做法：** 删除整个 ``results/simulations/`` 后重新 ``se`` / ``sp`` / ``so``。不提供自动迁移。

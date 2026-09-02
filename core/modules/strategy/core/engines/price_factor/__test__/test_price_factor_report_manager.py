@@ -32,7 +32,7 @@ def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
             "execution_mode": "entity_based",
             "market_profile": "china_a_stock",
             "period": {"start_date": "20240102", "end_date": "20240110"},
-            "settings_fp": "s",
+            "execute_fp": "s",
             "env_fp": "e",
             "system": {},
             "settings_snapshot": {"effective_settings": {}, "settings_diff": {}},
@@ -59,7 +59,7 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
         ),
         strategy_key="demo/regression/rsi/rsi_v1_without_value_anchor",
         strategy_folder=tmp_path,
-        settings_fp="sfp",
+        execute_fp="sfp",
         env_fp="efp",
     )
     report = ReportManager.begin(ctx, data, start="20240102", end="20240110")

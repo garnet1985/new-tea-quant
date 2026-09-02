@@ -110,7 +110,7 @@ class ReportManager(BaseReportManager):
         strategy_key: str,
         *,
         entity_ids: List[str],
-        settings_fp: str,
+        execute_fp: str,
         env_fp: str,
         effective_settings: StrategySettings,
         settings_diff: Dict[str, Any],
@@ -144,12 +144,34 @@ class ReportManager(BaseReportManager):
         )
         manager.runtime.save_begin(
             entity_ids=entity_ids,
-            settings_fp=settings_fp,
+            execute_fp=execute_fp,
             env_fp=env_fp,
             effective_settings=effective_settings,
             settings_diff=settings_diff,
             execution_mode=execution_mode,
             market_profile=market_profile,
+        )
+        try:
+            period = effective_settings.resolve_period()
+            start_date = str(period.start_date or "")
+            end_date = str(period.end_date or "")
+        except Exception:
+            start_date = ""
+            end_date = ""
+        from core.modules.strategy.core.services.artifacts.version_meta import (
+            VersionMetaStore,
+        )
+
+        VersionMetaStore.write_version_archive(
+            EnumerateStore.simulations_root(folder),
+            str(version_id),
+            full_settings=effective_settings.to_dict(),
+            effective_settings=StrategySettings.extract_execute_settings(
+                effective_settings
+            ),
+            entity_ids=entity_ids,
+            start_date=start_date,
+            end_date=end_date,
         )
         return manager
 

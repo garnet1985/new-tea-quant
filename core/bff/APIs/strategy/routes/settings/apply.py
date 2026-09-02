@@ -140,7 +140,7 @@ class WorkbenchApplySettings:
         version: int,
         settings_snapshot: Dict[str, Any],
     ) -> Optional[str]:
-        """恢复前 round-trip：快照 settings_fp 须与 registry 一致。"""
+        """恢复前 round-trip：快照 execute_fp 须与 registry 一致。"""
         from core.modules.strategy.core.services.artifacts import ArtifactStore
         from core.modules.strategy.core.services.artifacts.version_meta import (
             VersionMetaStore,
@@ -153,19 +153,14 @@ class WorkbenchApplySettings:
         folder = DiscoveryService.resolve_strategy_folder(strategy_name)
         root = ArtifactStore.simulations_root(folder)
         entry = VersionMetaStore.get_registry_entry(root, str(int(version)))
-        expected = str((entry or {}).get("settings_fp") or "").strip()
+        expected = str((entry or {}).get("execute_fp") or "").strip()
         if not expected:
             return None
 
-        effective = VersionMetaStore.read_effective_settings(root, str(int(version))) or {}
-        entity_ids = [
-            str(x).strip()
-            for x in (effective.get("entity_ids") or [])
-            if str(x).strip()
-        ]
-        computed = FingerprintCalculator.to_effective_settings_fingerprint(
+        archive = VersionMetaStore.read_archive_context(root, str(int(version)))
+        computed = FingerprintCalculator.to_execute_fingerprint(
             StrategySettings.from_dict(settings_snapshot),
-            entity_ids,
+            archive.get("entity_ids") or [],
         )
         if computed != expected:
             return "配置快照与 version 指纹不一致"

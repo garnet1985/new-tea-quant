@@ -68,7 +68,7 @@ def test_load_enum_data_requires_enum_version():
             unique_relative_path="demo/rsi",
         ),
         fp_res=MagicMock(
-            settings_fp="s",
+            execute_fp="s",
             env_fp="e",
             effective_settings=MagicMock(),
             entity_ids=[],

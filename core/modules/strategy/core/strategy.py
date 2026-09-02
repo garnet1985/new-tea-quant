@@ -217,7 +217,7 @@ class Strategy:
 
         缓存与指纹流程（磁盘单轨）::
 
-            1. 计算 settings_fp / env_fp
+            1. 计算 execute_fp / env_fp
             2. 扫 ``simulations/meta.json`` registry；step 产物存在则命中
             3. 未命中：price/portfolio 先按指纹找 enum vid；无则先 enum 再本 step
             4. 每步完成后 ``SimulationVersionStore.record_step_complete``
@@ -426,7 +426,17 @@ class Strategy:
 
         consolidated: Dict[str, Any] = {}
         folder = Path(strategy_folder)
-        semantic = StrategySettings.extract_effective_settings(ctx.effective_settings)
+        execute_settings = StrategySettings.extract_execute_settings(
+            ctx.effective_settings
+        )
+        try:
+            period = ctx.effective_settings.resolve_period()
+            start_date = str(period.start_date or "")
+            end_date = str(period.end_date or "")
+        except Exception:
+            start_date = ""
+            end_date = ""
+        full_settings = ctx.effective_settings.to_dict()
         for step in ctx.steps:
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
@@ -440,8 +450,12 @@ class Strategy:
                     folder,
                     version_id=str(step_res.get("version_id")),
                     fps=ctx.fp_res,
-                    settings=semantic,
+                    kind=step,
+                    full_settings=full_settings,
+                    effective_settings=execute_settings,
                     entity_ids=list(ctx.entity_ids or []),
+                    start_date=start_date,
+                    end_date=end_date,
                 )
 
             analysis_out = Strategy._maybe_run_analysis(

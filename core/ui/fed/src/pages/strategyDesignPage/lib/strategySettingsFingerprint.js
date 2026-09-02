@@ -1,14 +1,14 @@
 /**
- * 与 ``StrategySettings.FINGERPRINT_FIELDS`` 对齐：胶囊「设置已变更」只比这些字段。
- * enumerator / price_simulator / meta / analysis 等不参与 version 指纹，切步填默认值不应误报。
+ * 与 ``EXECUTE_SETTINGS_FIELDS`` 对齐：胶囊「设置已变更」只比这些功能块。
+ * enumerator / price_simulator / meta / analysis 不参与。
  *
  * 比较前走 ``migrateLegacyStrategySettings``，避免编辑器草稿与 Python freeze
- * 在空嵌套 / 旧 key 形态上误报「设置已变更」。
+ * 在空嵌套 / 旧 key 上误报变更。
  */
 
 import { migrateLegacyStrategySettings } from '../../../utils/stripLegacyStrategySettings';
 
-export const STRATEGY_SETTINGS_FINGERPRINT_FIELDS = [
+export const EXECUTE_SETTINGS_FIELDS = [
   'core',
   'data',
   'goal',
@@ -18,6 +18,8 @@ export const STRATEGY_SETTINGS_FINGERPRINT_FIELDS = [
   'portfolio',
   'market_profile',
 ];
+
+const EXECUTE_NESTED_DROP_KEYS = new Set(['force_exit_when_draft']);
 
 export function stableStringify(value) {
   if (value === undefined) return 'null';
@@ -36,7 +38,7 @@ export function fingerprintSlice(settings) {
     ? settings
     : {};
   const out = {};
-  STRATEGY_SETTINGS_FINGERPRINT_FIELDS.forEach((key) => {
+  EXECUTE_SETTINGS_FIELDS.forEach((key) => {
     if (src[key] !== undefined) {
       out[key] = src[key];
     }
@@ -44,12 +46,13 @@ export function fingerprintSlice(settings) {
   return out;
 }
 
-/** 去掉空对象，避免 freeze / 编辑器在空 slippage 等占位上误报变更。 */
+/** 去掉空对象，避免 freeze / 编辑器占位误报变更。 */
 export function pruneEmptyObjects(value) {
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map((item) => pruneEmptyObjects(item));
   const out = {};
   Object.keys(value).forEach((key) => {
+    if (EXECUTE_NESTED_DROP_KEYS.has(key)) return;
     const next = pruneEmptyObjects(value[key]);
     if (next && typeof next === 'object' && !Array.isArray(next) && Object.keys(next).length === 0) {
       return;

@@ -139,8 +139,8 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 
 UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``。
 **加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress``（扫描进度）；扫描编排在 ``ScannerPipeline``，工作台带进度入口是 ``Strategy.scan_run``。BFF 只读 / 薄壳。
-**Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；读 **磁盘** ``simulations/meta.json`` registry + ``{vid}/effective_settings.json``。
-**Run / cache hit** 在 ``Strategy.simulate`` → ``SimulationVersionStore``（``settings_fp + env_fp`` 扫 registry，**无** workbench DB 双轨）。
+**Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；读 **磁盘** ``simulations/meta.json`` registry + ``{vid}/settings.json`` / ``effective_settings.json`` / ``scope.json``。
+**Run / cache hit** 在 ``Strategy.simulate`` → ``SimulationVersionStore``（``execute_fp + env_fp`` 扫 registry，**无** workbench DB 双轨）。
 ``launcher`` 包已删除。
 
 ---
@@ -168,7 +168,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 | 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
 |------|------------|------|------|------|
 | `entity_loader` 整包 | S E | Facade, SimulateSession | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
-| `fingerprint` | — | Facade / BFF settings | keep | 收集 identity input → settings_fp / env_fp（``FingerprintCalculator``） |
+| `fingerprint` | — | Facade / BFF settings | keep | 收集 identity input → execute_fp / env_fp（``FingerprintCalculator``） |
 | `artifacts` | S E P O | Facade / BFF | keep | 产物读写 + version cache（路径/`version_id`，不含引擎 UI）+ retention（``ArtifactRetention``）+ scan 日期目录（``ScanStore``） |
 | `discovery` | — | Facade | keep | 策略发现 |
 | `data/simulation_output_recorder` | E P O | — | keep | version 目录分配 |

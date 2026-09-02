@@ -128,7 +128,7 @@ class ReportManager(BaseReportManager):
             version_id=int(version_id),
             enum_version_id=str(data.version_id),
             enum_output_dir=str(data.output_dir),
-            settings_fp=str(ctx.settings_fp or ""),
+            execute_fp=str(ctx.execute_fp or ""),
             env_fp=str(ctx.env_fp or ""),
             period={"start_date": start, "end_date": end},
             entity_ids=entity_ids,

@@ -24,6 +24,7 @@ import {
 } from '@mui/material';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
+import { formatDateTime } from '../../utils/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -382,19 +383,7 @@ export function SettingsCachePanel() {
 }
 
 function formatTraceDecidedAt(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return '';
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
+  return formatDateTime(raw, { style: 'absolute' });
 }
 
 export function SettingsTracePanel() {

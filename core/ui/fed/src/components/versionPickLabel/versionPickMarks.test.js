@@ -1,7 +1,9 @@
 import {
   VERSION_MARK_EXPIRES_SOON,
   VERSION_MARK_READONLY,
+  VERSION_MARK_READONLY_HINT,
   lookupVersionById,
+  versionMarkExpiresHint,
   versionPickMarks,
   versionPickSearchText,
 } from './versionPickMarks';
@@ -34,6 +36,15 @@ describe('versionPickMarks', () => {
     const rows = [{ id: 'v2', envInvalid: true }];
     expect(lookupVersionById(rows, 'v2').envInvalid).toBe(true);
     expect(lookupVersionById(rows, 'v9')).toEqual({ id: 'v9' });
+  });
+
+  it('explains why a mark appears', () => {
+    const readonly = versionPickMarks({ id: 'v2', envInvalid: true });
+    expect(readonly[0].hint).toBe(VERSION_MARK_READONLY_HINT);
+    expect(readonly[0].hint).toContain('软件升级');
+    const expires = versionPickMarks({ id: 'v1', expiresSoon: true, retentionMax: 10 });
+    expect(expires[0].hint).toBe(versionMarkExpiresHint(10));
+    expect(expires[0].hint).toContain('最多保留 10 份');
   });
 
   it('includes mark labels in search text', () => {

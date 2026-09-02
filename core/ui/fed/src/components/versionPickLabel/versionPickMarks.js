@@ -1,10 +1,27 @@
+import { formatDateTime, formatVersionPickTime } from '../../utils/formatDateTime';
+
 export const VERSION_MARK_READONLY = '仅供查阅';
 export const VERSION_MARK_EXPIRES_SOON = '即将清理';
 
-export const VERSION_MARK_HINTS = {
-  readonly: '环境已更新，这份产物仅供查阅；仍可恢复当时配置。',
-  expires: '保留额度触顶后会优先清理该版本。',
-};
+export const VERSION_MARK_READONLY_HINT = [
+  '当前版本是在以前的运行环境中生成的并且已经无法在当前环境继续使用。',
+  '可能的原因包括软件升级、回测引擎或数据合约更新、代码发生变动等等。',
+  '这个版本目录和结果将会变成只读，如果恢复到此版本可能结果将会是无法运行或者产生新的衍生版本。',
+].join('');
+
+export function versionMarkExpiresHint(retentionMax) {
+  const n = Number(retentionMax);
+  const capText = Number.isFinite(n) && n > 0
+    ? `系统目前最多保留 ${n} 份回测结果。`
+    : '系统只保留有限数量的回测结果。';
+  return [
+    '不是按日历过期，而是按保留份数。',
+    capText,
+    '额度用满后再产生新版本并触发清理时，更旧、未固定的版本会优先被删掉。',
+    '当前在制定策略里新回测额度满时会先拒绝写入，避免悄悄删掉结果；扫描等流程会按上限自动裁剪。',
+    '调整保留份数的入口会和「固定版本」一起放进设置。',
+  ].join('');
+}
 
 export function versionPickMarks(version) {
   if (!version || typeof version !== 'object') return [];
@@ -13,14 +30,14 @@ export function versionPickMarks(version) {
     marks.push({
       key: 'readonly',
       label: VERSION_MARK_READONLY,
-      hint: VERSION_MARK_HINTS.readonly,
+      hint: VERSION_MARK_READONLY_HINT,
     });
   }
   if (version.expiresSoon) {
     marks.push({
       key: 'expires',
       label: VERSION_MARK_EXPIRES_SOON,
-      hint: VERSION_MARK_HINTS.expires,
+      hint: versionMarkExpiresHint(version.retentionMax),
     });
   }
   return marks;
@@ -34,10 +51,14 @@ export function lookupVersionById(versions, id) {
 
 export function versionPickSearchText(version) {
   const marks = versionPickMarks(version).map((mark) => mark.label).join(' ');
+  const when = formatVersionPickTime(version);
+  const absolute = formatDateTime(version?.updatedAt || version?.createdAt, { style: 'absolute' });
   return [
     version?.id,
     version?.createdAt,
     version?.updatedAt,
+    when,
+    absolute,
     marks,
   ].filter(Boolean).join(' ');
 }

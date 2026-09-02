@@ -162,6 +162,7 @@ def test_list_dropdown_from_registry(mock_find, tmp_path: Path):
     assert items[1]["env_invalid"] is False
     assert items[0]["expires_soon"] is False
     assert items[1]["expires_soon"] is False
+    assert items[0]["retention_max"] == 10
 
 
 def test_expires_soon_vids_at_and_over_cap():
@@ -196,6 +197,7 @@ def test_list_dropdown_marks_expires_soon(mock_find, tmp_path: Path):
     assert by_id["v1"]["expires_soon"] is True
     assert by_id["v2"]["expires_soon"] is False
     assert by_id["v3"]["expires_soon"] is False
+    assert by_id["v1"]["retention_max"] == 3
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy", return_value=None)

@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
 import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
+import { formatVersionPickTime } from '../../../utils/formatDateTime';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 
 function StrategyDesignMetaDialogs() {
@@ -73,9 +74,6 @@ function StrategyDesignMetaDialogs() {
                 ? `共 ${wb.versionPickerFiltered.length} 条${wb.versionPickerFiltered.length !== wb.configVersions.length ? `（已筛选，全部 ${wb.configVersions.length} 条）` : ''}`
                 : '暂无可选版本'}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              仅供查阅：环境已更新，产物只读。即将清理：保留额度触顶后会优先删除。
-            </Typography>
             <List sx={{ maxHeight: 340, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
               {wb.versionPickerSlice.length > 0 ? wb.versionPickerSlice.map((version) => (
                 <ListItemButton
@@ -88,7 +86,7 @@ function StrategyDesignMetaDialogs() {
                 >
                   <ListItemText
                     primary={<VersionPickLabel version={version} />}
-                    secondary={version.updatedAt || version.createdAt}
+                    secondary={formatVersionPickTime(version)}
                   />
                 </ListItemButton>
               )) : (

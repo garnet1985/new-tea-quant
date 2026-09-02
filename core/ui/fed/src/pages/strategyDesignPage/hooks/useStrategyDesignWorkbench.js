@@ -108,6 +108,7 @@ function mapConfigVersionRows(verRes) {
     version: Number(version.version || 0),
     envInvalid: Boolean(version.env_invalid),
     expiresSoon: Boolean(version.expires_soon),
+    retentionMax: Number(version.retention_max || 0),
   }));
 }
 

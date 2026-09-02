@@ -34,6 +34,7 @@ import SettingsJsonDiff from './components/settingsJsonDiff';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
 import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
+import { formatVersionPickTime } from '../../../../utils/formatDateTime';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -626,9 +627,6 @@ function StrategyReportPanel({
       >
         <DialogTitle>选择对比版本</DialogTitle>
         <DialogContent dividers>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            仅供查阅：环境已更新，产物只读。即将清理：保留额度触顶后会优先删除。
-          </Typography>
           <List dense className="ntq-report-compare__picker-list">
             {reportComparePickerVersions.map((version) => (
               <ListItemButton
@@ -640,7 +638,7 @@ function StrategyReportPanel({
               >
                 <ListItemText
                   primary={<VersionPickLabel version={version} />}
-                  secondary={version.updatedAt || version.createdAt}
+                  secondary={formatVersionPickTime(version)}
                 />
               </ListItemButton>
             ))}

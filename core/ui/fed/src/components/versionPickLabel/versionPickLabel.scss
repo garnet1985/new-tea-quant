@@ -35,3 +35,21 @@
   background: rgba(248, 113, 113, 0.12);
   border: 1px solid rgba(248, 113, 113, 0.32);
 }
+
+.ntq-version-pick-label__help {
+  display: inline-flex;
+  align-items: center;
+  margin-left: -2px;
+}
+
+.ntq-version-pick-label__hints {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.ntq-version-pick-label__hint strong {
+  display: block;
+  margin-bottom: 4px;
+}

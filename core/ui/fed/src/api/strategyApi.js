@@ -312,6 +312,7 @@ export async function fetchStrategyVersions(strategyKeyOrName) {
       updated_at: row.updated_at || '',
       env_invalid: Boolean(row.env_invalid),
       expires_soon: Boolean(row.expires_soon),
+      retention_max: Number(row.retention_max || 0),
     })),
   };
 }

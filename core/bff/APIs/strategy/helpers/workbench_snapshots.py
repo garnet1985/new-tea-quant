@@ -99,8 +99,9 @@ class WorkbenchSnapshots:
     ) -> List[Dict[str, Any]]:
         """Version catalog for UI pickers: newest first, capped by ``limit``.
 
-        Each item includes ``env_invalid`` (artifacts read-only) and
-        ``expires_soon`` (keep-N would drop this vid next).
+        Each item includes ``env_invalid`` (artifacts read-only),
+        ``expires_soon`` (keep-N would drop this vid next), and
+        ``retention_max``.
         """
         name = str(strategy_name or "").strip()
         if not name:
@@ -112,7 +113,8 @@ class WorkbenchSnapshots:
 
         root = cls._simulations_root(info)
         all_vids = cls._sorted_version_ids(root, descending=True)
-        at_risk = cls.expires_soon_vids(all_vids, cls._retention_cap())
+        cap = cls._retention_cap()
+        at_risk = cls.expires_soon_vids(all_vids, cap)
         items: List[Dict[str, Any]] = []
         for vid in all_vids[: max(1, int(limit))]:
             entry = VersionMetaStore.get_registry_entry(root, vid) or {}
@@ -126,6 +128,7 @@ class WorkbenchSnapshots:
                         cls._current_env_fp(info),
                     ),
                     "expires_soon": vid in at_risk,
+                    "retention_max": cap,
                     "updated_at": cls._iso(entry.get("updated_at") or entry.get("created_at")),
                     "created_at": cls._iso(entry.get("created_at")),
                 }

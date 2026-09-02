@@ -39,6 +39,7 @@ import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadin
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
 import { notifyTaskSuccess } from '../../utils/feedbackPromptBus';
+import { formatDateTime } from '../../utils/formatDateTime';
 import './scanPage.scss';
 
 const SHOW_REPORT_GENERATED_AT = false;
@@ -321,7 +322,7 @@ function ScanPage() {
                 setRunError('');
                 setReportVisible(false);
                 setReportStrategyId('');
-                setScanTriggeredAt(new Date().toLocaleString('zh-CN', { hour12: false }));
+                setScanTriggeredAt(formatDateTime(new Date(), { style: 'absolute' }));
                 setProgress({ pct: 0, label: '准备扫描…' });
                 startStrategyScan(params.row.name, { demo: mode === 'demo', force })
                   .then((res) => {
@@ -393,7 +394,7 @@ function ScanPage() {
             setResults((prev) => ({ ...(prev || {}), [runningStrategyId]: report }));
             setReportStrategyId(runningStrategyId);
             setReportStrategyName(getStrategyDisplayLabel(runningRow) || strategyName);
-            setReportGeneratedAt(new Date().toLocaleString('zh-CN', { hour12: false }));
+            setReportGeneratedAt(formatDateTime(new Date(), { style: 'absolute' }));
             if (typeof p?.demo === 'boolean') setReportDemo(p.demo);
             setReportVisible(true);
             setRunningStrategyId('');

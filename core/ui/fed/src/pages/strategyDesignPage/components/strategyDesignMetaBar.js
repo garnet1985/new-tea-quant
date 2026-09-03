@@ -87,12 +87,9 @@ function StrategyDesignMetaBar() {
                   </Box>
                 </Box>
                 {wb.currentVersionPinned ? (
-                  <NtqIcon
-                    name="pinFilled"
-                    size={14}
-                    className="ntq-design-meta__version-capsule-pin"
-                    title="已固定"
-                  />
+                  <span className="ntq-design-meta__version-capsule-pin" title="已固定">
+                    <NtqIcon name="pinFilled" size={20} />
+                  </span>
                 ) : null}
               </Box>
             ) : null}

@@ -138,8 +138,12 @@
 }
 
 .ntq-design-meta__version-capsule-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: rgba(255, 167, 38, 0.95);
   flex-shrink: 0;
+  line-height: 0;
 }
 
 .ntq-design-meta__version-capsule-part--status {

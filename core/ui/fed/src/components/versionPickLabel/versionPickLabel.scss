@@ -11,6 +11,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ntq-version-pick-label__suffix {
+  color: inherit;
+  opacity: 0.72;
+}
+
 .ntq-version-pick-label__mark {
   display: inline-flex;
   align-items: center;

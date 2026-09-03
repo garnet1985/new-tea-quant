@@ -1,0 +1,16 @@
+.ntq-version-picker-dialog__list {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--ntq-white-12, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+}
+
+.ntq-version-picker-dialog__empty {
+  padding: 12px;
+}
+
+.ntq-version-picker-dialog__pages {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}

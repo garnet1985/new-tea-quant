@@ -1,1 +1,0 @@
-export const VERSION_PICKER_PAGE_SIZE = 8;

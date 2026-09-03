@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchStrategyVersionDetail } from '../../../../../api/strategyApi';
 import { buildWorkbenchSnapshotFromVersionDetail } from '../../../workbenchSnapshot';
-import { REPORT_COMPARE_MORE_MENU_VALUE } from '../constants/strategyReportConstants';
 
 /**
  * 「对比结果」弹窗：对比版本 V2-08 快照、settings diff。
@@ -16,7 +15,7 @@ export function useStrategyReportCompareDialog({
   const baseVersionId = String(workbenchSnapshot?.versionId || '').trim();
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareDialogSubTab, setCompareDialogSubTab] = useState('report');
-  const [reportCompareMoreOpen, setReportCompareMoreOpen] = useState(false);
+  const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const [compareVersion, setCompareVersion] = useState('');
   const [compareError, setCompareError] = useState('');
   const [compareSnapshot, setCompareSnapshot] = useState(null);
@@ -68,21 +67,9 @@ export function useStrategyReportCompareDialog({
   useEffect(() => {
     if (!compareDialogOpen) {
       setCompareDialogSubTab('report');
-      setReportCompareMoreOpen(false);
+      setComparePickerOpen(false);
     }
   }, [compareDialogOpen]);
-
-  const handleReportCompareSelectChange = (event) => {
-    const value = event.target.value;
-    const proceed = () => {
-      if (value === REPORT_COMPARE_MORE_MENU_VALUE) {
-        setReportCompareMoreOpen(true);
-        return;
-      }
-      setCompareVersion(value);
-    };
-    window.setTimeout(proceed, 0);
-  };
 
   const compareSideReportBusy = Boolean(compareVersion && compareSnapshotLoading);
 
@@ -94,13 +81,12 @@ export function useStrategyReportCompareDialog({
     setCompareDialogOpen,
     compareDialogSubTab,
     setCompareDialogSubTab,
-    reportCompareMoreOpen,
-    setReportCompareMoreOpen,
+    comparePickerOpen,
+    setComparePickerOpen,
     baseVersionId,
     compareVersion,
     setCompareVersion,
     compareError,
-    handleReportCompareSelectChange,
     compareSnapshot,
     compareSideReportBusy,
     baseSettings,

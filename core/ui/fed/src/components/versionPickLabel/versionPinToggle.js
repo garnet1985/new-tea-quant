@@ -56,7 +56,11 @@ export default function VersionPinToggle({
       onClick={handleClick}
       onMouseDown={stopRowAction}
       aria-label={ariaLabel}
-      className="ntq-version-pin-toggle ntq-version-row-action"
+      className={[
+        'ntq-version-pin-toggle',
+        'ntq-version-row-action',
+        pinned ? 'ntq-version-row-action--pinned' : '',
+      ].filter(Boolean).join(' ')}
     >
       {icon}
     </IconButton>

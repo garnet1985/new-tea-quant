@@ -35,6 +35,15 @@
   }
 }
 
+.ntq-version-row-action--pinned {
+  border-color: rgba(255, 167, 38, 0.78) !important;
+
+  &:hover:not(.Mui-disabled) {
+    border-color: rgba(255, 213, 79, 0.95) !important;
+    background: rgba(255, 167, 38, 0.12) !important;
+  }
+}
+
 .ntq-version-row-actions {
   display: inline-flex;
   align-items: center;

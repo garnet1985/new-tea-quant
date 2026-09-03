@@ -21,12 +21,15 @@ function VersionMarkHints({ marks }) {
   );
 }
 
-export default function VersionPickLabel({ version, id }) {
+export default function VersionPickLabel({ version, id, suffix }) {
   const vid = String(id || version?.id || '').trim() || '—';
   const marks = versionPickMarks(version);
   return (
     <span className="ntq-version-pick-label">
       <span className="ntq-version-pick-label__id">{vid}</span>
+      {suffix ? (
+        <span className="ntq-version-pick-label__suffix">{suffix}</span>
+      ) : null}
       {marks.map((mark) => (
         <span
           key={mark.key}

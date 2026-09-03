@@ -44,5 +44,6 @@ A：`enumerate` / `price_factor` / `portfolio` 都是 `Strategy.simulate(..., ki
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
 - [设计](./docs/DESIGN.md)
+- [Version / 指纹](./docs/VERSIONING.md)
 - [边界笔记](./docs/notes/BOUNDARY_NOTES.md)
 - [测试用例](./__test__/TEST_CASES.md)

@@ -366,7 +366,7 @@ class UserHandlers:
         print(f"{i('market')} 价格因子回测…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存，将新建 version", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -421,7 +421,7 @@ class UserHandlers:
         print(f"{i('money')} 组合回测（portfolio）…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存，将新建 version", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -518,7 +518,7 @@ class UserHandlers:
         print(f"{i('game')} 模拟链路 · PriceFactor → Portfolio …", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存，将新建 version", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
 
         t0 = time.perf_counter()
         pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)

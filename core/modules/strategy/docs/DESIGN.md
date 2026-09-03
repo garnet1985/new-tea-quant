@@ -4,9 +4,8 @@
 
 硬约束摘要如下；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
-仿真 **version 布局 / 指纹 / 退役工作台双轨** 见：  
-[VERSIONING_REDESIGN.md](./notes/VERSIONING_REDESIGN.md)。  
-身份与 effective 的拍板：[DECISIONS.md](./notes/DECISIONS.md)（讨论 [SETTINGS_VERSION_IDENTITY.md](./notes/SETTINGS_VERSION_IDENTITY.md)）。
+仿真 version / 指纹 / 固定 / keep-N 见 [VERSIONING.md](./VERSIONING.md)。  
+编号决策：[notes/DECISIONS.md](./notes/DECISIONS.md)。
 
 ---
 
@@ -47,6 +46,6 @@ Strategy 主业：把用户策略钩子经 BE `RunCallbacks` 挂进回测器。*
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
 - [API.md](../API.md)
+- [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
 - [DECISIONS.md](./notes/DECISIONS.md)
-- [SETTINGS_VERSION_IDENTITY.md](./notes/SETTINGS_VERSION_IDENTITY.md)

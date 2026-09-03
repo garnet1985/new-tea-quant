@@ -140,7 +140,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``。
 **加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress``（扫描进度）；扫描编排在 ``ScannerPipeline``，工作台带进度入口是 ``Strategy.scan_run``。BFF 只读 / 薄壳。
 **Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；读 **磁盘** ``simulations/meta.json`` registry + ``{vid}/settings.json`` / ``effective_settings.json`` / ``scope.json``。
-**Run / cache hit** 在 ``Strategy.simulate`` → ``SimulationVersionStore``（``execute_fp + env_fp`` 扫 registry，**无** workbench DB 双轨）。
+**Run / cache hit** 在 ``Strategy.simulate`` → ``SimulationVersionStore``（``execute_fp + env_fp`` 扫 registry，**无** workbench DB 双轨）。现行规格：[VERSIONING.md](../VERSIONING.md)。
 ``launcher`` 包已删除。
 
 ---

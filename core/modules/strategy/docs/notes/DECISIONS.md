@@ -1,9 +1,11 @@
 # Settings / Version / Effective — 决策记录
 
-更新时间：2026-09-02  
-状态：已拍板（实施前以本文为准；与 [VERSIONING_REDESIGN.md](./VERSIONING_REDESIGN.md) D1–D14 冲突时，**以本文修订为准**）
+更新时间：2026-09-03  
+状态：已落地。现行叙事见 [VERSIONING.md](../VERSIONING.md)；本文只保留编号决策（D1–D39）。
 
-讨论过程与否决项见 [SETTINGS_VERSION_IDENTITY.md](./SETTINGS_VERSION_IDENTITY.md)。
+过程稿已归档：[VERSIONING_REDESIGN.md](./VERSIONING_REDESIGN.md)、[SETTINGS_VERSION_IDENTITY.md](./SETTINGS_VERSION_IDENTITY.md)。
+
+布局与运行时契约（原 D1–D14：共享 vid、`settings.py` SOT、双指纹、恢复显式、keep-N）已写入 [VERSIONING.md](../VERSIONING.md)，不再在此重复。
 
 ---
 
@@ -91,6 +93,14 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 
 ---
 
+## 固定（pin）
+
+| # | 决策 |
+|---|------|
+| D39 | **固定是列表开关，不是身份。** 只改 `simulations/meta.json` 根字段 `pinned: ["3","6"]`（registry key，不是 `v3`）。不写 registry 行、不写 `{vid}/`、不改 `settings.py`、不绑定 Run。效果：列表置顶；keep-N 与「即将清理」跳过 pinned。不阻止手动删除（UI / `sdv` / BFF `DELETE …/cache`）；删除时从 `pinned` 拿掉。 |
+
+---
+
 ## 何时换号（对照）
 
 | 条件 | 行为 |
@@ -115,3 +125,7 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 - 用「是否点过控件」判断主动改设置；只认 canonical effective 是否变
 - 因正在浏览 `env_invalid` version 就让 Run 直接报错（产物只读 ≠ 禁止在当前环境跑）
 - 同一 `(execute_fp, env_fp)` 因强制重跑而新开第二个 vid
+- pin 写在 registry 行或 `{vid}/` 上
+- pin 改写 settings、绑定 Run、或禁止手动删除
+- 恢复配置时把 `scope.json` 的股票池写回运行时（恢复只写 `settings.py`）
+- 独立 Replay 动作（要复现历史配置：先恢复再 Run）

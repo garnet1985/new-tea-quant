@@ -12,6 +12,7 @@ import {
   restoreStrategyVersion,
   deleteStrategyVersion,
   setStrategyVersionPinned,
+  revealStrategyFolder,
 } from '../../../api/strategyApi';
 import {
   migrateLegacyStrategySettings,
@@ -165,6 +166,7 @@ export function useStrategyDesignWorkbench() {
   const [moreVersionsOpen, setMoreVersionsOpen] = useState(false);
   const [packageExporting, setPackageExporting] = useState(false);
   const [packageExportError, setPackageExportError] = useState('');
+  const [folderRevealError, setFolderRevealError] = useState('');
   const [diskConflict, setDiskConflict] = useState(null);
   const [diskConflictBusy, setDiskConflictBusy] = useState(false);
 
@@ -789,6 +791,16 @@ export function useStrategyDesignWorkbench() {
     }
   }, [strategyName]);
 
+  const handleRevealStrategyFolder = useCallback(async () => {
+    if (!strategyName) return;
+    setFolderRevealError('');
+    try {
+      await revealStrategyFolder(strategyName);
+    } catch (e) {
+      setFolderRevealError(e?.message || '无法打开文件夹');
+    }
+  }, [strategyName]);
+
   const confirmRestoreVersion = useCallback(async (opts = {}) => {
     const target = versionMap[pendingVersionId];
     if (!target || !strategyName) {
@@ -914,6 +926,7 @@ export function useStrategyDesignWorkbench() {
     disablePinActions,
     packageExporting,
     packageExportError,
+    folderRevealError,
     setPackageExportError,
     isLoadingSettings,
     hasValidSettings,
@@ -935,6 +948,7 @@ export function useStrategyDesignWorkbench() {
     selectedConfigVersion,
     openMoreVersionsDialog,
     handleExportStrategyPackage,
+    handleRevealStrategyFolder,
     closeVersionsDialog,
     requestApplyVersion,
     requestDeleteVersion,

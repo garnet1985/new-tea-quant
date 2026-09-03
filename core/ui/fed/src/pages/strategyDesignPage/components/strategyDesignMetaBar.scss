@@ -173,9 +173,10 @@
 }
 
 .ntq-design-meta__admin {
-  flex-wrap: nowrap !important;
+  flex-wrap: wrap !important;
   padding-top: 2px;
   gap: 0 !important;
+  row-gap: 6px !important;
   min-width: 0;
 }
 

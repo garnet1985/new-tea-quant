@@ -16,6 +16,7 @@ core/bff/APIs/strategy/
     report/                 # V2-07*
     settings/               # V2-04 / V2-09
     version/                # V2-01/03/08 + cache + pin
+    folder/                 # 打开策略目录
     runner/                 # V2-05/06* + scan 薄壳；进度落盘在 strategy core
 ```
 
@@ -53,6 +54,7 @@ core/bff/APIs/strategy/
 | V2-12 | DELETE | `/v1/strategy/<strategy_key_or_name>/version/<version_id>/cache` | `routes/version/` |
 | pin | POST | `/v1/strategy/<strategy_key_or_name>/version/<version_id>/pin` | `routes/version/` — 固定（只改 `meta.json` 根上 `pinned`） |
 | pin | DELETE | `/v1/strategy/<strategy_key_or_name>/version/<version_id>/pin` | `routes/version/` — 取消固定 |
+| folder | POST | `/v1/strategy/<strategy_key_or_name>/folder/reveal` | `routes/folder/` — 本机打开策略目录 |
 | V2-13 | GET | `/v1/strategy/<strategy_key_or_name>/package/export` | `routes/package/` |
 | V2-14 | POST | `/v1/strategy/package/import/preview` | `routes/package/` |
 | V2-15 | POST | `/v1/strategy/package/import` | `routes/package/` |

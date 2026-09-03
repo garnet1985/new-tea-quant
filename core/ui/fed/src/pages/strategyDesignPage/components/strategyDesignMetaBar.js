@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -8,6 +9,7 @@ import {
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import StrategyMetaDetailText from 'components/strategyMetaDetailText/strategyMetaDetailText';
+import { getStrategyListPath } from '../../../api/strategyApi';
 import { resolveStrategyShortLabel } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import { STRATEGY_DESIGN_STEP_INTRO } from '../constants/strategyDesignSteps';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
@@ -95,25 +97,56 @@ function StrategyDesignMetaBar() {
             ) : null}
           </Box>
 
-          <Stack direction="row" spacing={0} alignItems="center" flexWrap="nowrap" className="ntq-design-meta__admin">
+          <Stack direction="row" spacing={0} alignItems="center" className="ntq-design-meta__admin">
+            <Button
+              component={RouterLink}
+              to={getStrategyListPath()}
+              variant="outlined"
+              size="small"
+              className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
+              startIcon={<NtqIcon name="arrowBack" size={16} tone="muted" />}
+            >
+              选择其他策略
+            </Button>
+            {wb.strategyName ? (
+              <>
+                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
+                  |
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={wb.handleRevealStrategyFolder}
+                  className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
+                  startIcon={<NtqIcon name="folderOpen" size={16} tone="muted" />}
+                  title="在文件管理器中打开策略目录"
+                >
+                  打开文件夹
+                </Button>
+              </>
+            ) : null}
             {wb.hasPersistedSnapshot ? (
-              <Button
-                variant="outlined"
-                size="small"
-                disabled={wb.disableMetaActions}
-                onClick={wb.openMoreVersionsDialog}
-                className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-              >
-                恢复到历史版本
-              </Button>
+              <>
+                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
+                  |
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={wb.disableMetaActions}
+                  onClick={wb.openMoreVersionsDialog}
+                  className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
+                  startIcon={<NtqIcon name="history" size={16} tone="muted" />}
+                >
+                  恢复到历史版本
+                </Button>
+              </>
             ) : null}
             {wb.strategyName ? (
               <>
-                {wb.hasPersistedSnapshot ? (
-                  <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
-                    |
-                  </Typography>
-                ) : null}
+                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
+                  |
+                </Typography>
                 <Button
                   variant="outlined"
                   size="small"
@@ -142,6 +175,9 @@ function StrategyDesignMetaBar() {
           ) : null}
           {wb.packageExportError ? (
             <Typography variant="caption" color="error">{wb.packageExportError}</Typography>
+          ) : null}
+          {wb.folderRevealError ? (
+            <Typography variant="caption" color="error">{wb.folderRevealError}</Typography>
           ) : null}
         </Box>
 

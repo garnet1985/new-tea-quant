@@ -3,6 +3,18 @@ import { coerceMetaDescription } from '../utils/formatStrategyDescription';
 import { normalizeWorkbenchVersionId } from '../utils/workbenchVersionId';
 import { mapDataEnd } from './mappers/dataEnd';
 
+export {
+  UNKNOWN_STRATEGY_CATEGORY,
+  UNKNOWN_STRATEGY_CATEGORY_QUERY,
+  STRATEGY_LIST_CATEGORY_PARAM,
+  getStrategyCategoryLabel,
+  getStrategyCategoryQueryValue,
+  getStrategyListPath,
+  groupStrategiesByCategory,
+  listPeerStrategies,
+  readStrategyListCategoryQuery,
+} from './strategyCategory';
+
 /** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
 const API_STRATEGY_CATALOG = (page, limit) =>
   `${API_VERSION_PREFIX}/strategy/catalog/${encodeURIComponent(page)}/${encodeURIComponent(limit)}`;
@@ -10,40 +22,6 @@ const API_STRATEGY_SCAN_CONTEXT = `${API_VERSION_PREFIX}/strategy/scan/context`;
 /** 策略列表/扫描页展示名：优先 ``display_name``，否则回退路径 ID。 */
 export function getStrategyDisplayLabel(item) {
   return String(item?.display_name || item?.name || '').trim();
-}
-
-/** 无 ``meta.category`` 时的 UI 归类名。 */
-export const UNKNOWN_STRATEGY_CATEGORY = '未知归类';
-
-/** 策略归类展示名：有 category 用原文，否则「未知归类」。 */
-export function getStrategyCategoryLabel(item) {
-  const category = String(item?.category || '').trim();
-  return category || UNKNOWN_STRATEGY_CATEGORY;
-}
-
-/**
- * 按 category 分组；命名类按中文序，``未知归类`` 始终在最后。
- * @param {object[]} rows
- * @returns {{ category: string, rows: object[] }[]}
- */
-export function groupStrategiesByCategory(rows) {
-  const map = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const category = getStrategyCategoryLabel(row);
-    if (!map.has(category)) map.set(category, []);
-    map.get(category).push(row);
-  });
-  const named = [...map.keys()]
-    .filter((name) => name !== UNKNOWN_STRATEGY_CATEGORY)
-    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  const order = [...named];
-  if (map.has(UNKNOWN_STRATEGY_CATEGORY)) {
-    order.push(UNKNOWN_STRATEGY_CATEGORY);
-  }
-  return order.map((category) => ({
-    category,
-    rows: map.get(category) || [],
-  }));
 }
 
 /** 将策略路径 ID（可含 ``/``）编码为 URL 路径段。 */
@@ -707,6 +685,17 @@ const API_STRATEGY_PACKAGE_IMPORT = `${API_VERSION_PREFIX}/strategy/package/impo
 const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/package/import/preview`;
 const API_STRATEGY_PACKAGE_EXPORT = (strategyKeyOrName) =>
   `${apiStrategyPath(strategyKeyOrName)}/package/export`;
+const API_STRATEGY_FOLDER_REVEAL = (strategyKeyOrName) =>
+  `${apiStrategyPath(strategyKeyOrName)}/folder/reveal`;
+
+/**
+ * 在运行 BFF 的机器上打开策略目录（Finder / Explorer）。
+ * POST /api/v1/strategy/:strategy_key_or_name/folder/reveal
+ */
+export async function revealStrategyFolder(strategyKeyOrName) {
+  const json = await request.postJson(API_STRATEGY_FOLDER_REVEAL(strategyKeyOrName));
+  return json?.message || {};
+}
 
 /**
  * 下载策略交流包（V2-13）：`GET /api/v1/strategy/:strategy_key_or_name/package/export`

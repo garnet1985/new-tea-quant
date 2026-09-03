@@ -3,6 +3,8 @@
 根 meta 职责（索引层）:
 - ``next_version_id``
 - ``registry``：``{ vid: { created_at, execute_fp, env_fp, steps, ... } }``
+- ``pinned``：固定的 version id 列表（``["3", "6"]``）。version 条目不感知；
+  清理 / 列表标记前先读此字段。缺省或 ``[]`` 表示没有固定。
 
 ``{vid}/`` 归档（三步共享，只写一次）:
 - ``settings.json``：当时完整运行 settings
@@ -236,6 +238,74 @@ class VersionMetaStore:
     def _registry(cls, root_meta: Dict[str, Any]) -> Dict[str, Any]:
         reg = root_meta.get("registry")
         return dict(reg) if isinstance(reg, dict) else {}
+
+    @staticmethod
+    def _normalize_pinned_vid(value: Any) -> Optional[str]:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        if text.lower().startswith("v") and text[1:].isdigit():
+            text = text[1:]
+        if not text.isdigit():
+            return None
+        n = int(text)
+        return str(n) if n > 0 else None
+
+    @classmethod
+    def _parse_pinned_raw(cls, raw: Any) -> List[str]:
+        if not isinstance(raw, list):
+            return []
+        seen: set[str] = set()
+        out: List[str] = []
+        for item in raw:
+            vid = cls._normalize_pinned_vid(item)
+            if not vid or vid in seen:
+                continue
+            seen.add(vid)
+            out.append(vid)
+        return out
+
+    @classmethod
+    def read_pinned_ids(cls, simulations_root: Path) -> List[str]:
+        """读 meta.pinned，并丢掉 registry/磁盘上已经不存在的 id。"""
+        root = Path(simulations_root)
+        root_meta = cls.read_root_meta(root)
+        existing = set(cls.list_version_ids(root))
+        return [
+            vid
+            for vid in cls._parse_pinned_raw(root_meta.get("pinned"))
+            if vid in existing
+        ]
+
+    @classmethod
+    def set_version_pinned(
+        cls,
+        simulations_root: Path,
+        version_id: str,
+        pinned: bool,
+    ) -> List[str]:
+        """固定 / 取消固定。只改根 ``pinned``，不写 registry 条目。"""
+        vid = cls._normalize_pinned_vid(version_id)
+        if not vid:
+            raise ValueError("version_id 无效")
+        root = Path(simulations_root)
+        existing = set(cls.list_version_ids(root))
+        if vid not in existing:
+            raise FileNotFoundError("快照不存在")
+        root_meta = cls.read_root_meta(root)
+        current = [
+            item
+            for item in cls._parse_pinned_raw(root_meta.get("pinned"))
+            if item in existing
+        ]
+        if pinned:
+            if vid not in current:
+                current.append(vid)
+        else:
+            current = [item for item in current if item != vid]
+        root_meta["pinned"] = current
+        cls.write_root_meta(root, root_meta)
+        return list(current)
 
     @staticmethod
     def _entry_execute_fp(entry: Dict[str, Any]) -> str:
@@ -520,6 +590,9 @@ class VersionMetaStore:
         registry = cls._registry(root_meta)
         registry.pop(vid, None)
         root_meta["registry"] = registry
+        pinned = cls._parse_pinned_raw(root_meta.get("pinned"))
+        if vid in pinned:
+            root_meta["pinned"] = [item for item in pinned if item != vid]
         cls.write_root_meta(simulations_root, root_meta)
 
 

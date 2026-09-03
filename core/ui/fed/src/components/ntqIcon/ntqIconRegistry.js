@@ -8,6 +8,8 @@ import { ReactComponent as DownloadIcon } from './icons/download.svg';
 import { ReactComponent as HelpIcon } from './icons/help.svg';
 import { ReactComponent as InfoIcon } from './icons/info.svg';
 import { ReactComponent as MonitoringIcon } from './icons/monitoring.svg';
+import { ReactComponent as PinIcon } from './icons/pin.svg';
+import { ReactComponent as PinFilledIcon } from './icons/pin_filled.svg';
 import { ReactComponent as PlayIcon } from './icons/play.svg';
 import { ReactComponent as PlayCircleIcon } from './icons/play_circle.svg';
 import { ReactComponent as RadioUncheckedIcon } from './icons/radio_button_unchecked.svg';
@@ -38,6 +40,8 @@ export const NTQ_ICON_MAP = {
   help: HelpIcon,
   info: InfoIcon,
   monitoring: MonitoringIcon,
+  pin: PinIcon,
+  pinFilled: PinFilledIcon,
   play: PlayIcon,
   playCircle: PlayCircleIcon,
   radioUnchecked: RadioUncheckedIcon,

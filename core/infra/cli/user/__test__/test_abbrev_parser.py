@@ -26,6 +26,8 @@ pytestmark = pytest.mark.force_run
         (["se", "--strategy", "demo"], ["strategy_enumerate", "--strategy", "demo"]),
         (["so"], ["strategy_portfolio"]),
         (["sdv", "--strategy", "rsi_v1:3"], ["strategy_delete_version", "--strategy", "rsi_v1:3"]),
+        (["spn", "--strategy", "rsi_v1:3"], ["strategy_pin_version", "--strategy", "rsi_v1:3"]),
+        (["sup", "--strategy", "rsi_v1:v3"], ["strategy_unpin_version", "--strategy", "rsi_v1:v3"]),
         (["r", "stock_klines", "-f"], ["renew", "stock_klines", "-f"]),
         (["ex", "example"], ["export_strategy", "example"]),
         (["im", "./pkg.zip"], ["import_strategy", "./pkg.zip"]),
@@ -85,6 +87,18 @@ def test_parse_sdv_requires_strategy() -> None:
         UserParser.parse_args(["sdv"])
 
 
+def test_parse_spn_strategy_version() -> None:
+    args = UserParser.parse_args(["spn", "--strategy", "rsi_v1:3"])
+    assert args.command == "strategy_pin_version"
+    assert args.strategy == "rsi_v1:3"
+
+
+def test_parse_sup_strategy_version() -> None:
+    args = UserParser.parse_args(["sup", "--strategy", "rsi_v1:v3"])
+    assert args.command == "strategy_unpin_version"
+    assert args.strategy == "rsi_v1:v3"
+
+
 def test_parse_strategy_version_spec() -> None:
     from core.infra.cli.user.handlers import UserHandlers
 
@@ -139,3 +153,64 @@ def test_run_strategy_delete_version_missing_strategy(monkeypatch) -> None:
     monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
     with pytest.raises(SystemExit):
         UserHandlers._run_strategy_delete_version(Namespace(strategy="nope:3"))
+
+
+def test_run_strategy_delete_version_notes_pinned(monkeypatch, capsys) -> None:
+    from argparse import Namespace
+
+    from core.infra.cli.user.handlers import UserHandlers
+
+    class FakeStrategy:
+        @staticmethod
+        def resolve(spec: str) -> str:
+            return "rsi_v1"
+
+        @staticmethod
+        def delete_simulation_version(key: str, sid: int) -> dict:
+            return {"ok": True, "deleted": True, "version_id": "v3", "was_pinned": True}
+
+    monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
+    UserHandlers._run_strategy_delete_version(Namespace(strategy="rsi_v1:3"))
+    assert "原先已固定" in capsys.readouterr().out
+
+
+def test_run_strategy_pin_version_ok(monkeypatch, capsys) -> None:
+    from argparse import Namespace
+
+    from core.infra.cli.user.handlers import UserHandlers
+
+    class FakeStrategy:
+        @staticmethod
+        def resolve(spec: str) -> str:
+            return "rsi_v1"
+
+        @staticmethod
+        def set_simulation_version_pinned(key: str, sid: int, pinned: bool) -> dict:
+            assert key == "rsi_v1"
+            assert sid == 3
+            assert pinned is True
+            return {"ok": True, "version_id": "v3", "pinned": True}
+
+    monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
+    UserHandlers._run_strategy_set_pinned(Namespace(strategy="rsi_v1:3"), True)
+    assert "已固定 rsi_v1 v3" in capsys.readouterr().out
+
+
+def test_run_strategy_unpin_version_ok(monkeypatch, capsys) -> None:
+    from argparse import Namespace
+
+    from core.infra.cli.user.handlers import UserHandlers
+
+    class FakeStrategy:
+        @staticmethod
+        def resolve(spec: str) -> str:
+            return "rsi_v1"
+
+        @staticmethod
+        def set_simulation_version_pinned(key: str, sid: int, pinned: bool) -> dict:
+            assert pinned is False
+            return {"ok": True, "version_id": "v3", "pinned": False}
+
+    monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
+    UserHandlers._run_strategy_set_pinned(Namespace(strategy="rsi_v1:3"), False)
+    assert "已取消固定 rsi_v1 v3" in capsys.readouterr().out

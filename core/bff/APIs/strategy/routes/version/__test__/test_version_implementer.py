@@ -93,3 +93,21 @@ def test_list_versions_resolves_name():
         items = impl.list_versions("k")
     assert items[0]["version_id"] == "v1"
     snaps.list_dropdown.assert_called_once_with("demo-key")
+
+
+def test_set_pinned_resolves_and_delegates():
+    impl = StrategyVersionImplementer()
+    with patch(
+        "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
+        return_value="demo-key",
+    ), patch(
+        "core.bff.APIs.strategy.routes.version.implementer.Strategy.set_simulation_version_pinned",
+        return_value={"ok": True, "pinned": True, "version_id": "v3"},
+    ) as pin:
+        out = impl.set_pinned(
+            strategy_key_or_name="demo/x",
+            version_id="v3",
+            pinned=True,
+        )
+    assert out["pinned"] is True
+    pin.assert_called_once_with("demo-key", 3, True)

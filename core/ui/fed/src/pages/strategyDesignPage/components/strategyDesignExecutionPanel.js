@@ -1,6 +1,8 @@
 import React, { useCallback, useMemo } from 'react';
 import { Box, Button, LinearProgress, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
+import VersionPinToggle from 'components/versionPickLabel/versionPinToggle';
+import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import { STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from '../../strategyWorkbenchPage/panels/strategyExecutionPanel/executionSectionMeta';
@@ -109,11 +111,29 @@ function StrategyDesignExecutionPanel() {
     return stepTitle ? `${EXECUTION_PANEL_TITLE} - ${stepTitle}` : EXECUTION_PANEL_TITLE;
   }, [wb.activeStep]);
 
+  const currentVersion = lookupVersionById(wb.configVersions, wb.currentVersionDisplay);
+  const showPinToggle = Boolean(wb.hasPersistedSnapshot && String(wb.currentVersionDisplay || '').startsWith('v'));
+
   return (
     <Box className="ntq-design-exec-panel">
-      <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
-        {panelTitle}
-      </Typography>
+      <Box className="ntq-design-exec-panel__title-row">
+        <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
+          {panelTitle}
+        </Typography>
+        {showPinToggle ? (
+          <VersionPinToggle
+            version={{
+              ...currentVersion,
+              id: wb.currentVersionDisplay,
+              pinned: wb.currentVersionPinned,
+            }}
+            versions={wb.configVersions}
+            disabled={wb.disablePinActions}
+            onToggle={wb.toggleVersionPinned}
+            showLabel
+          />
+        ) : null}
+      </Box>
 
       {wb.runError ? (
         <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">

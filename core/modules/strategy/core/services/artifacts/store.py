@@ -430,14 +430,21 @@ class ArtifactStore:
         if not root.is_dir():
             return 0
         cap = _resolve_max_versions(max_versions)
+        pinned = set(VersionMetaStore.read_pinned_ids(root))
         version_dirs = [
             d for d in root.iterdir() if d.is_dir() and d.name.isdigit()
         ]
-        if len(version_dirs) <= cap:
+        excess = len(version_dirs) - cap
+        if excess <= 0:
             return 0
-        version_dirs.sort(key=lambda d: int(d.name), reverse=True)
+        unpinned_oldest_first = sorted(
+            (d for d in version_dirs if d.name not in pinned),
+            key=lambda d: int(d.name),
+        )
         deleted = 0
-        for old_dir in version_dirs[cap:]:
+        for old_dir in unpinned_oldest_first:
+            if deleted >= excess:
+                break
             try:
                 VersionMetaStore.remove_version_from_registry(root, old_dir.name)
                 shutil.rmtree(old_dir)

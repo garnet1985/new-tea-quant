@@ -207,3 +207,33 @@ def test_find_version_by_execute_fp(tmp_path: Path) -> None:
     assert VersionMetaStore.find_version_by_execute_fp(root, "sfp") == "2"
     assert VersionMetaStore.find_version_by_execute_fp(root, "other") is None
 
+
+def test_pinned_is_root_meta_not_registry(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    (root / "2").mkdir(parents=True)
+    (root / "3").mkdir(parents=True)
+    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
+    VersionMetaStore.register_version(root, "3", execute_fp="s", env_fp="e")
+    assert VersionMetaStore.read_pinned_ids(root) == []
+    ids = VersionMetaStore.set_version_pinned(root, "2", True)
+    assert ids == ["2"]
+    meta = VersionMetaStore.read_root_meta(root)
+    assert meta["pinned"] == ["2"]
+    assert "pinned" not in (VersionMetaStore.get_registry_entry(root, "2") or {})
+    VersionMetaStore.set_version_pinned(root, "3", True)
+    assert VersionMetaStore.read_pinned_ids(root) == ["2", "3"]
+    VersionMetaStore.set_version_pinned(root, "2", False)
+    assert VersionMetaStore.read_pinned_ids(root) == ["3"]
+    VersionMetaStore.remove_version_from_registry(root, "3")
+    assert VersionMetaStore.read_pinned_ids(root) == []
+    assert VersionMetaStore.read_root_meta(root).get("pinned") == []
+    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
+    VersionMetaStore.set_version_pinned(root, "v2", True)
+    assert VersionMetaStore.read_pinned_ids(root) == ["2"]
+    assert VersionMetaStore.set_version_pinned(root, "2", True) == ["2"]
+    VersionMetaStore.write_root_meta(
+        root,
+        {**VersionMetaStore.read_root_meta(root), "pinned": ["2", "99"]},
+    )
+    assert VersionMetaStore.read_pinned_ids(root) == ["2"]
+

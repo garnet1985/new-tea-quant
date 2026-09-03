@@ -116,6 +116,31 @@ def test_prune_root_keeps_newest(tmp_path: Path) -> None:
     assert sorted(p.name for p in root.iterdir() if p.is_dir()) == ["3", "4"]
 
 
+def test_prune_root_skips_pinned(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    for i in range(1, 5):
+        (root / str(i)).mkdir(parents=True)
+        VersionMetaStore.register_version(root, str(i), execute_fp="s", env_fp="e")
+    VersionMetaStore.set_version_pinned(root, "1", True)
+    deleted = ArtifactStore.prune_root(root, max_versions=2)
+    assert deleted == 2
+    remaining = sorted(p.name for p in root.iterdir() if p.is_dir())
+    assert remaining == ["1", "4"]
+    assert VersionMetaStore.read_pinned_ids(root) == ["1"]
+
+
+def test_prune_root_keeps_pinned_excess(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    for i in range(1, 4):
+        (root / str(i)).mkdir(parents=True)
+        VersionMetaStore.register_version(root, str(i), execute_fp="s", env_fp="e")
+        VersionMetaStore.set_version_pinned(root, str(i), True)
+    deleted = ArtifactStore.prune_root(root, max_versions=1)
+    assert deleted == 0
+    remaining = sorted(p.name for p in root.iterdir() if p.is_dir())
+    assert remaining == ["1", "2", "3"]
+
+
 def test_prune_scan_root_keeps_newest_dates(tmp_path: Path) -> None:
     root = tmp_path / "scan"
     for day in ("20240108", "20240109", "20240110", "20240111"):

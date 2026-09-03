@@ -105,6 +105,13 @@
   color: rgba(255, 255, 255, 0.95);
 }
 
+.ntq-design-meta__version-capsule-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .ntq-design-meta__version-capsule {
   display: inline-flex;
   align-items: stretch;
@@ -128,6 +135,11 @@
 .ntq-design-meta__version-capsule-part--version {
   color: var(--ntq-text, rgba(255, 255, 255, 0.92));
   background: transparent;
+}
+
+.ntq-design-meta__version-capsule-pin {
+  color: rgba(255, 167, 38, 0.95);
+  flex-shrink: 0;
 }
 
 .ntq-design-meta__version-capsule-part--status {

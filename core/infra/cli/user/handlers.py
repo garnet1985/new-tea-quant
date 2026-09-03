@@ -197,6 +197,8 @@ class UserHandlers:
             "strategy_simulate",
             "strategy_analyze",
             "strategy_delete_version",
+            "strategy_pin_version",
+            "strategy_unpin_version",
         ):
             UserHandlers._handle_strategy(cmd, app, args)
             return
@@ -621,10 +623,37 @@ class UserHandlers:
         if not out.get("ok"):
             print(out.get("error") or "删除失败", flush=True)
             raise SystemExit(1)
+        vid_label = out.get("version_id") or f"v{sid}"
+        pinned_note = "（原先已固定）" if out.get("was_pinned") else ""
         print(
-            f"已删除 {strategy_key} {out.get('version_id') or f'v{sid}'} 的回测产物。",
+            f"已删除 {strategy_key} {vid_label} 的回测产物{pinned_note}。",
             flush=True,
         )
+
+    @staticmethod
+    def _run_strategy_set_pinned(args: argparse.Namespace, pinned: bool) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            spec, sid = UserHandlers.parse_strategy_version_spec(
+                getattr(args, "strategy", None)
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+
+        try:
+            strategy_key = Strategy.resolve(spec)
+        except FileNotFoundError:
+            logger.error("策略不存在: %s", spec)
+            raise SystemExit(1)
+        out = Strategy.set_simulation_version_pinned(strategy_key, sid, pinned)
+        if not out.get("ok"):
+            print(out.get("error") or "操作失败", flush=True)
+            raise SystemExit(1)
+        vid_label = out.get("version_id") or f"v{sid}"
+        action = "已固定" if pinned else "已取消固定"
+        print(f"{action} {strategy_key} {vid_label}。", flush=True)
 
     @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
@@ -654,6 +683,14 @@ class UserHandlers:
 
         if cmd == "strategy_delete_version":
             UserHandlers._run_strategy_delete_version(args)
+            return
+
+        if cmd == "strategy_pin_version":
+            UserHandlers._run_strategy_set_pinned(args, True)
+            return
+
+        if cmd == "strategy_unpin_version":
+            UserHandlers._run_strategy_set_pinned(args, False)
             return
 
         raise SystemExit(f"未知命令: {cmd}")

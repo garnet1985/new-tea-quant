@@ -100,8 +100,9 @@ class WorkbenchSnapshots:
         """Version catalog for UI pickers: newest first, capped by ``limit``.
 
         Each item includes ``env_invalid`` (artifacts read-only),
-        ``expires_soon`` (keep-N would drop this vid next), and
-        ``retention_max``.
+        ``expires_soon`` (keep-N would drop this vid next),
+        ``pinned``, and ``retention_max``.
+        先读 ``pinned``：固定的排在前面；即将清理只在未固定集合里算。
         """
         name = str(strategy_name or "").strip()
         if not name:
@@ -114,9 +115,12 @@ class WorkbenchSnapshots:
         root = cls._simulations_root(info)
         all_vids = cls._sorted_version_ids(root, descending=True)
         cap = cls._retention_cap()
-        at_risk = cls.expires_soon_vids(all_vids, cap)
+        pinned_ids = VersionMetaStore.read_pinned_ids(root)
+        pinned_set = set(pinned_ids)
+        at_risk = cls.expires_soon_vids(all_vids, cap, pinned_ids)
+        ordered = cls._order_vids_pinned_first(all_vids, pinned_ids)
         items: List[Dict[str, Any]] = []
-        for vid in all_vids[: max(1, int(limit))]:
+        for vid in ordered[: max(1, int(limit))]:
             entry = VersionMetaStore.get_registry_entry(root, vid) or {}
             sid = int(vid)
             items.append(
@@ -128,6 +132,7 @@ class WorkbenchSnapshots:
                         cls._current_env_fp(info),
                     ),
                     "expires_soon": vid in at_risk,
+                    "pinned": vid in pinned_set,
                     "retention_max": cap,
                     "updated_at": cls._iso(entry.get("updated_at") or entry.get("created_at")),
                     "created_at": cls._iso(entry.get("created_at")),
@@ -136,13 +141,33 @@ class WorkbenchSnapshots:
         return items
 
     @staticmethod
-    def expires_soon_vids(vids_newest_first: List[str], cap: int) -> Set[str]:
-        """keep-N 触顶后会先删的 version id（更旧、号更靠前）。
+    def _order_vids_pinned_first(
+        newest_first: List[str],
+        pinned_ids: List[str],
+    ) -> List[str]:
+        pinned = set(pinned_ids)
+        top = [vid for vid in newest_first if vid in pinned]
+        rest = [vid for vid in newest_first if vid not in pinned]
+        return top + rest
 
-        ``n >= cap`` 时标记最旧的 ``n - cap + 1`` 个：已超额的立刻会被 prune，
-        以及再 allocate 一条就会被挤掉的那一个。pin 尚未实现，暂不排除。
+    @staticmethod
+    def expires_soon_vids(
+        vids_newest_first: List[str],
+        cap: int,
+        pinned_ids: Optional[List[str]] = None,
+    ) -> Set[str]:
+        """keep-N 触顶后会先删的 version id（更旧、号更靠前、未固定）。
+
+        先读 ``pinned``。``n >= cap`` 时在未固定集合里标记最旧的
+        ``n - cap + 1`` 个。
         """
         ids = [str(v).strip() for v in vids_newest_first if str(v).strip()]
+        pinned = {
+            str(v).strip()
+            for v in (pinned_ids or [])
+            if str(v).strip()
+        }
+        unpinned_newest_first = [vid for vid in ids if vid not in pinned]
         try:
             c = int(cap)
         except (TypeError, ValueError):
@@ -153,7 +178,8 @@ class WorkbenchSnapshots:
         if n < c:
             return set()
         drop = n - c + 1
-        return set(ids[-drop:])
+        unpinned_oldest_first = list(reversed(unpinned_newest_first))
+        return set(unpinned_oldest_first[:drop])
 
     @classmethod
     def _retention_cap(cls) -> int:
@@ -227,6 +253,7 @@ class WorkbenchSnapshots:
             "execute_fp": str(entry.get("execute_fp") or ""),
             "env_fingerprint_id": str(entry.get("env_fp") or ""),
             "env_invalid": cls._env_invalid_for_entry(info, entry),
+            "pinned": vid in set(VersionMetaStore.read_pinned_ids(root)),
             "created_at": entry.get("created_at"),
             "updated_at": entry.get("updated_at") or entry.get("created_at"),
         }
@@ -395,6 +422,7 @@ class WorkbenchSnapshots:
             "execute_fp": "",
             "env_fingerprint_id": "",
             "env_invalid": False,
+            "pinned": False,
         }
 
     @staticmethod

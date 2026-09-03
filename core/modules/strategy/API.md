@@ -128,10 +128,11 @@
 
 `Strategy.prune_simulation_results(key_or_id: str, *, kind: str | None = None, max_versions: int | None = None) -> dict`  
 `Strategy.prune_scan_results(key_or_id: str, *, max_versions: int | None = None) -> dict`  
-`Strategy.delete_simulation_version(key_or_id: str, version: int | str) -> dict`
+`Strategy.delete_simulation_version(key_or_id: str, version: int | str) -> dict`  
+`Strategy.set_simulation_version_pinned(key_or_id: str, version: int | str, pinned: bool) -> dict`
 
 - **状态：** `beta`
-- **描述：** 磁盘 simulation keep-N（按 **version 目录** 粒度）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示整个 version 目录 prune。删单 version 用 `delete_simulation_version`（CLI `sdv`、BFF `DELETE …/version/:id/cache`，内部 `ArtifactRetention.clear_by_version`）；批量清磁盘用 `TempCleanup.clear_backtest_results_disk` 或 `ArtifactRetention.clear_all`。触顶时 **allocate 拒绝**，不静默删。`delete_simulation_version` 的 `version` 接受 `3` / `v3`，只删产物目录与 registry，不改 `settings.py`。
+- **描述：** 磁盘 simulation keep-N（按 **version 目录** 粒度）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示整个 version 目录 prune。删单 version 用 `delete_simulation_version`（CLI `sdv`、BFF `DELETE …/version/:id/cache`，内部 `ArtifactRetention.clear_by_version`）；批量清磁盘用 `TempCleanup.clear_backtest_results_disk` 或 `ArtifactRetention.clear_all`。触顶时 **allocate 拒绝**，不静默删。`delete_simulation_version` 的 `version` 接受 `3` / `v3`，只删产物目录与 registry，不改 `settings.py`；已固定的也可删，并同步从 meta.`pinned` 拿掉。`set_simulation_version_pinned` 只改 `simulations/meta.json` 根上的 `pinned` 列表（CLI `spn` / `sup`，BFF `POST|DELETE …/version/:id/pin`）。自动清理与「即将清理」标记都先读 `pinned`。
 
 ### export_package / import_package
 

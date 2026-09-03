@@ -71,5 +71,18 @@ class StrategyVersionImplementer:
             raise ValueError("version_id 无效")
         return self._ArtifactRetention.clear_by_version(name, sid)
 
+    def set_pinned(
+        self,
+        *,
+        strategy_key_or_name: str,
+        version_id: str,
+        pinned: bool,
+    ) -> Dict[str, Any]:
+        name = Strategy.resolve(strategy_key_or_name)
+        sid = WorkbenchVersionId.parse(version_id)
+        if sid is None:
+            raise ValueError("version_id 无效")
+        return Strategy.set_simulation_version_pinned(name, sid, bool(pinned))
+
 
 impl = StrategyVersionImplementer()

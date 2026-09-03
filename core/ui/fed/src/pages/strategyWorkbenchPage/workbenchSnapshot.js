@@ -15,6 +15,7 @@ export function emptyWorkbenchSnapshot() {
     executeSettings: null,
     settingsRev: '',
     envInvalid: false,
+    pinned: false,
   };
 }
 
@@ -37,6 +38,7 @@ export function buildWorkbenchSnapshotFromVersionDetail(detail) {
     executeSettings: detail.execute_settings ?? null,
     settingsRev: String(detail.settings_rev || ''),
     envInvalid: Boolean(detail.env_invalid),
+    pinned: Boolean(detail.pinned),
   };
 }
 
@@ -61,5 +63,6 @@ export function buildWorkbenchSnapshotFromSettingsResponse(res) {
     executeSettings: res.execute_settings ?? null,
     settingsRev: String(res.settings_rev || ''),
     envInvalid: Boolean(res.env_invalid),
+    pinned: Boolean(res.pinned),
   };
 }

@@ -210,6 +210,7 @@ export async function fetchStrategySettings(strategyKeyOrName) {
     has_persisted_snapshot: Boolean(m.has_persisted_snapshot),
     has_other_versions: Boolean(m.has_other_versions),
     env_invalid: Boolean(m.env_invalid),
+    pinned: Boolean(m.pinned),
   };
 }
 
@@ -297,7 +298,7 @@ export async function persistStrategySettings(strategyKeyOrName, settings, opts 
 /**
  * V2-03：读取策略工作台版本列表（至多 10 条）。
  * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
- * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string, env_invalid: boolean, expires_soon: boolean }> }>}
+ * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string, env_invalid: boolean, expires_soon: boolean, pinned: boolean }> }>}
  */
 export async function fetchStrategyVersions(strategyKeyOrName) {
   const json = await request.getJson(
@@ -312,6 +313,7 @@ export async function fetchStrategyVersions(strategyKeyOrName) {
       updated_at: row.updated_at || '',
       env_invalid: Boolean(row.env_invalid),
       expires_soon: Boolean(row.expires_soon),
+      pinned: Boolean(row.pinned),
       retention_max: Number(row.retention_max || 0),
     })),
   };
@@ -345,6 +347,7 @@ export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
     env_invalid: Boolean(m.env_invalid),
+    pinned: Boolean(m.pinned),
   };
 }
 
@@ -378,6 +381,26 @@ export async function deleteStrategyVersion(strategyKeyOrName, versionId) {
     deleted: Boolean(m.deleted),
     version_id: m.version_id || versionId,
     strategy_name: m.strategy_name || '',
+  };
+}
+
+/**
+ * 固定 / 取消固定一份 simulation version（只改 meta.pinned）。
+ * @param {string} strategyKeyOrName
+ * @param {string} versionId
+ * @param {boolean} pinned
+ */
+export async function setStrategyVersionPinned(strategyKeyOrName, versionId, pinned) {
+  const path = `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}/pin`;
+  const json = pinned
+    ? await request.postJson(path)
+    : await request.deleteJson(path);
+  const m = json?.message || {};
+  return {
+    pinned: Boolean(m.pinned),
+    version_id: m.version_id || versionId,
+    strategy_name: m.strategy_name || '',
+    pinned_ids: Array.isArray(m.pinned_ids) ? m.pinned_ids : [],
   };
 }
 

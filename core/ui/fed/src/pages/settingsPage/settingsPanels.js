@@ -244,7 +244,7 @@ export function SettingsDataPanel({
               value={simulationResultsMaxVersions}
               onChange={(e) => onSimulationResultsMaxVersionsChange(e.target.value)}
               placeholder="10"
-              helperText="按份数保留，不是按日历过期。制定策略额度满时会先拒绝新回测；扫描会按上限自动裁剪。改小后已有结果不会立刻删除。"
+              helperText="按份数保留，不是按日历过期。制定策略额度满时会先拒绝新回测；扫描会按上限自动裁剪。已固定的版本不会被自动清理，仍可手动删除。改小后已有结果不会立刻删除。"
             />
           </Box>
           <Box>

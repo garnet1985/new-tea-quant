@@ -56,4 +56,5 @@ def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
         "result_report": result_report,
         "execution_panel": build_execution_panel_from_result_report(result_report),
         "env_invalid": bool(row.get("env_invalid")),
+        "pinned": bool(row.get("pinned")),
     }

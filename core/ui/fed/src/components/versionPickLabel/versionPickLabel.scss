@@ -36,6 +36,12 @@
   border: 1px solid rgba(248, 113, 113, 0.32);
 }
 
+.ntq-version-pick-label__mark--pinned {
+  color: rgba(255, 167, 38, 0.95);
+  background: rgba(255, 167, 38, 0.14);
+  border: 1px solid rgba(255, 167, 38, 0.35);
+}
+
 .ntq-version-pick-label__help {
   display: inline-flex;
   align-items: center;

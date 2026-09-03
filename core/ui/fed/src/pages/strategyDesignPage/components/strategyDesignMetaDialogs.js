@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
+import VersionPinToggle from 'components/versionPickLabel/versionPinToggle';
 import {
   SETTINGS_RETENTION_HREF,
   lookupVersionById,
@@ -51,7 +52,7 @@ function StrategyDesignMetaDialogs() {
               该版本产物仅供查阅。恢复配置后运行会按当前环境查找或新建 version，不会写回此目录。
             </Typography>
           ) : null}
-          {pendingVersion.expiresSoon ? (
+          {pendingVersion.expiresSoon && !pendingVersion.pinned ? (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
               该版本在保留额度触顶后会优先被清理。恢复配置不受影响。
             </Typography>
@@ -89,7 +90,7 @@ function StrategyDesignMetaDialogs() {
                 {retentionCap > 0 ? retentionCap : '—'}
               </Box>
               」个版本
-              {' · '}
+              {' · 已固定的不会自动清理 · '}
               <Link
                 href={SETTINGS_RETENTION_HREF}
                 target="_blank"
@@ -121,26 +122,34 @@ function StrategyDesignMetaDialogs() {
                   key={version.id}
                   disablePadding
                   secondaryAction={(
-                    <IconButton
-                      edge="end"
-                      size="small"
-                      color="error"
-                      aria-label={`删除 ${version.id}`}
-                      title="删除此版本产物"
-                      disabled={wb.disableMetaActions || wb.isDeletingVersion}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        wb.requestDeleteVersion(version.id);
-                      }}
-                    >
-                      <NtqIcon name="trash" size={18} tone="error" />
-                    </IconButton>
+                    <Stack direction="row" className="ntq-version-row-actions" alignItems="center">
+                      <VersionPinToggle
+                        version={version}
+                        versions={wb.configVersions}
+                        disabled={wb.disablePinActions}
+                        onToggle={wb.toggleVersionPinned}
+                      />
+                      <IconButton
+                        size="small"
+                        color="error"
+                        className="ntq-version-row-action ntq-version-row-action--danger"
+                        aria-label={`删除 ${version.id}`}
+                        title="删除此版本产物"
+                        disabled={wb.disableMetaActions || wb.isDeletingVersion}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          wb.requestDeleteVersion(version.id);
+                        }}
+                      >
+                        <NtqIcon name="trash" size={20} tone="error" />
+                      </IconButton>
+                    </Stack>
                   )}
                 >
                   <ListItemButton
                     selected={version.id === wb.selectedConfigVersion}
-                    sx={{ pr: 7 }}
+                    sx={{ pr: 14 }}
                     onClick={() => {
                       wb.closeVersionsDialog();
                       wb.requestApplyVersion(version.id);
@@ -195,6 +204,11 @@ function StrategyDesignMetaDialogs() {
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
             不会改 settings.py，也不会改当前编辑器里的配置。
           </Typography>
+          {pendingDeleteVersion.pinned ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+              该版本已固定。固定只跳过自动清理，仍可以手动删除。
+            </Typography>
+          ) : null}
         </DialogContent>
         <DialogActions>
           <Button

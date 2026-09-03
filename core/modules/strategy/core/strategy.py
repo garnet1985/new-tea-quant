@@ -783,6 +783,27 @@ class Strategy:
         return ArtifactRetention.clear_by_version(key_or_id, sid)
 
     @staticmethod
+    def set_simulation_version_pinned(
+        key_or_id: str,
+        version: Union[int, str],
+        pinned: bool,
+    ) -> Dict[str, Any]:
+        """固定 / 取消固定一份 simulation version（只改 meta.pinned）。
+
+        ``version`` 接受 ``3`` / ``v3``。不改 ``settings.py``。
+        """
+        from .helpers.version_id import WorkbenchVersionId
+        from .services.artifacts import ArtifactRetention
+
+        if isinstance(version, int):
+            sid = version if version > 0 else None
+        else:
+            sid = WorkbenchVersionId.parse(str(version))
+        if sid is None:
+            return {"ok": False, "error": "version_id 无效"}
+        return ArtifactRetention.set_pinned(key_or_id, sid, bool(pinned))
+
+    @staticmethod
     def export_package(
         target: str,
         *,

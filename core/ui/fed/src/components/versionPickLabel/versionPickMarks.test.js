@@ -1,13 +1,18 @@
 import {
   VERSION_MARK_EXPIRES_SOON,
+  VERSION_MARK_PINNED,
   VERSION_MARK_READONLY,
   VERSION_MARK_READONLY_HINT,
+  VERSION_PIN_CAP_WARN,
+  VERSION_PIN_HINT,
   formatRetentionCapLabel,
   lookupVersionById,
+  pinWouldBlockAllocate,
   retentionCapFromVersions,
   versionMarkExpiresHint,
   versionPickMarks,
   versionPickSearchText,
+  versionPinHint,
 } from './versionPickMarks';
 
 describe('versionPickMarks', () => {
@@ -23,6 +28,27 @@ describe('versionPickMarks', () => {
   it('marks keep-N risk versions as soon to expire', () => {
     const marks = versionPickMarks({ id: 'v1', expiresSoon: true });
     expect(marks.map((m) => m.label)).toEqual([VERSION_MARK_EXPIRES_SOON]);
+  });
+
+  it('marks pinned versions and hides expires-soon', () => {
+    const marks = versionPickMarks({
+      id: 'v1',
+      pinned: true,
+      expiresSoon: true,
+    });
+    expect(marks.map((m) => m.key)).toEqual(['pinned']);
+    expect(marks[0].label).toBe(VERSION_MARK_PINNED);
+    expect(marks[0].hint).toBe(VERSION_PIN_HINT);
+  });
+
+  it('can show readonly together with pinned', () => {
+    const marks = versionPickMarks({
+      id: 'v1',
+      pinned: true,
+      envInvalid: true,
+      expiresSoon: true,
+    });
+    expect(marks.map((m) => m.key)).toEqual(['pinned', 'readonly']);
   });
 
   it('can show both marks', () => {
@@ -48,6 +74,17 @@ describe('versionPickMarks', () => {
     expect(expires[0].hint).toBe(versionMarkExpiresHint(10));
     expect(expires[0].hint).toContain('最多保留 10 份');
     expect(expires[0].hint).toContain('数据范围');
+    expect(expires[0].hint).toContain('已固定的不会进入即将清理');
+  });
+
+  it('warns when pinning would leave no evictable slot', () => {
+    const rows = [
+      { id: 'v3', pinned: true, retentionMax: 2 },
+      { id: 'v2', pinned: false, retentionMax: 2 },
+    ];
+    expect(pinWouldBlockAllocate(rows, 'v2')).toBe(true);
+    expect(versionPinHint({ id: 'v2', pinned: false }, rows)).toContain(VERSION_PIN_CAP_WARN);
+    expect(versionPinHint({ id: 'v3', pinned: true }, rows)).toBe(VERSION_PIN_HINT);
   });
 
   it('formats the keep-N caption used in the restore dialog', () => {
@@ -62,9 +99,11 @@ describe('versionPickMarks', () => {
       updatedAt: '2024-01-01',
       envInvalid: true,
       expiresSoon: true,
+      pinned: true,
     });
     expect(haystack).toContain('v1');
     expect(haystack).toContain(VERSION_MARK_READONLY);
-    expect(haystack).toContain(VERSION_MARK_EXPIRES_SOON);
+    expect(haystack).toContain(VERSION_MARK_PINNED);
+    expect(haystack).not.toContain(VERSION_MARK_EXPIRES_SOON);
   });
 });

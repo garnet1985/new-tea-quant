@@ -173,6 +173,39 @@ def test_expires_soon_vids_at_and_over_cap():
         "2",
         "1",
     }
+    assert WorkbenchSnapshots.expires_soon_vids(
+        ["5", "4", "3", "2", "1"], 3, ["1"]
+    ) == {"4", "3", "2"}
+
+
+@patch.object(WorkbenchSnapshots, "_find_strategy")
+def test_list_dropdown_pins_first_and_skips_expires(mock_find, tmp_path: Path):
+    mock_find.return_value = _info()
+    root = tmp_path / "simulations"
+    VersionMetaStore.write_root_meta(
+        root,
+        {
+            "pinned": ["1"],
+            "registry": {
+                "3": {"created_at": "2024-01-03", "execute_fp": "s", "env_fp": "e"},
+                "2": {"created_at": "2024-01-02", "execute_fp": "s", "env_fp": "e"},
+                "1": {"created_at": "2024-01-01", "execute_fp": "s", "env_fp": "e"},
+            },
+        },
+    )
+    (root / "1").mkdir(parents=True)
+    (root / "2").mkdir(parents=True)
+    (root / "3").mkdir(parents=True)
+    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root), patch.object(
+        WorkbenchSnapshots, "_current_env_fp", return_value="e"
+    ), patch.object(WorkbenchSnapshots, "_retention_cap", return_value=3):
+        items = WorkbenchSnapshots.list_dropdown("demo/x")
+    assert [i["version_id"] for i in items] == ["v1", "v3", "v2"]
+    by_id = {i["version_id"]: i for i in items}
+    assert by_id["v1"]["pinned"] is True
+    assert by_id["v1"]["expires_soon"] is False
+    assert by_id["v2"]["pinned"] is False
+    assert by_id["v2"]["expires_soon"] is True
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy")
@@ -198,6 +231,7 @@ def test_list_dropdown_marks_expires_soon(mock_find, tmp_path: Path):
     assert by_id["v2"]["expires_soon"] is False
     assert by_id["v3"]["expires_soon"] is False
     assert by_id["v1"]["retention_max"] == 3
+    assert by_id["v1"]["pinned"] is False
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy", return_value=None)

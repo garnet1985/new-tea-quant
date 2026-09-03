@@ -69,21 +69,31 @@ function StrategyDesignMetaBar() {
               {strategyLabel}
             </Typography>
             {wb.hasPersistedSnapshot ? (
-              <Box
-                className={[
-                  'ntq-design-meta__version-capsule',
-                  (wb.envInvalid || !wb.isAppliedSettings)
-                    ? 'ntq-design-meta__version-capsule--changed'
-                    : 'ntq-design-meta__version-capsule--clean',
-                ].join(' ')}
-              >
-                <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
-                  {wb.currentVersionDisplay}
+              <Box className="ntq-design-meta__version-capsule-wrap">
+                <Box
+                  className={[
+                    'ntq-design-meta__version-capsule',
+                    (wb.envInvalid || !wb.isAppliedSettings)
+                      ? 'ntq-design-meta__version-capsule--changed'
+                      : 'ntq-design-meta__version-capsule--clean',
+                  ].join(' ')}
+                >
+                  <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
+                    {wb.currentVersionDisplay}
+                  </Box>
+                  <Box component="span" className="ntq-design-meta__version-capsule-sep" aria-hidden />
+                  <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
+                    {wb.capsuleStatus}
+                  </Box>
                 </Box>
-                <Box component="span" className="ntq-design-meta__version-capsule-sep" aria-hidden />
-                <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
-                  {wb.capsuleStatus}
-                </Box>
+                {wb.currentVersionPinned ? (
+                  <NtqIcon
+                    name="pinFilled"
+                    size={14}
+                    className="ntq-design-meta__version-capsule-pin"
+                    title="已固定"
+                  />
+                ) : null}
               </Box>
             ) : null}
           </Box>

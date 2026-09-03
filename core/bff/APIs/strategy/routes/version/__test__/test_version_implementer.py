@@ -61,6 +61,26 @@ def test_fetch_by_version_missing_row():
             impl.fetch_by_version(strategy_key_or_name="demo/x", version_id="v9")
 
 
+def test_clear_cache_by_version_resolves_and_parses():
+    impl = StrategyVersionImplementer()
+    retention = MagicMock()
+    retention.clear_by_version.return_value = {
+        "ok": True,
+        "deleted": True,
+        "version_id": "v3",
+    }
+    impl._ArtifactRetention = retention
+    with patch(
+        "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
+        return_value="demo-key",
+    ):
+        out = impl.clear_cache_by_version(
+            strategy_key_or_name="demo/x", version_id="v3"
+        )
+    assert out["deleted"] is True
+    retention.clear_by_version.assert_called_once_with("demo-key", 3)
+
+
 def test_list_versions_resolves_name():
     impl = StrategyVersionImplementer()
     snaps = MagicMock()

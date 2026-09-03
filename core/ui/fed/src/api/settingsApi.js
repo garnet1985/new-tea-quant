@@ -56,24 +56,27 @@ export async function saveDatabaseSettings(body) {
 }
 
 /**
- * @returns {Promise<{ default_start_date: string, as_of_latest_completed_trading_date: string|null, use_sample_stock_list: number|null, config_path: string }>}
+ * @returns {Promise<{ default_start_date: string, as_of_latest_completed_trading_date: string|null, use_sample_stock_list: number|null, simulation_results_max_versions: number|null, config_path: string }>}
  */
 export async function fetchDataSettings() {
   const json = await request.getJson(API_SETTINGS_DATA);
   const m = json?.message || {};
   const sample = m.use_sample_stock_list;
+  const retentionMax = m.simulation_results_max_versions;
   return {
     default_start_date: normalizeYyyymmdd(m.default_start_date),
     as_of_latest_completed_trading_date: m.as_of_latest_completed_trading_date
       ? normalizeYyyymmdd(m.as_of_latest_completed_trading_date)
       : null,
     use_sample_stock_list: sample != null && sample !== '' ? Number(sample) : null,
+    simulation_results_max_versions:
+      retentionMax != null && retentionMax !== '' ? Number(retentionMax) : null,
     config_path: String(m.config_path || '').trim(),
   };
 }
 
 /**
- * @param {{ default_start_date: string, as_of_latest_completed_trading_date?: string, use_sample_stock_list?: string|number }} body
+ * @param {{ default_start_date: string, as_of_latest_completed_trading_date?: string, use_sample_stock_list?: string|number, simulation_results_max_versions?: string|number }} body
  */
 export async function saveDataSettings(body) {
   const json = await request.postJson(API_SETTINGS_DATA, {
@@ -83,16 +86,21 @@ export async function saveDataSettings(body) {
         body.as_of_latest_completed_trading_date,
       ),
       use_sample_stock_list: String(body.use_sample_stock_list ?? '').trim() || null,
+      simulation_results_max_versions:
+        String(body.simulation_results_max_versions ?? '').trim() || null,
     },
   });
   const m = json?.message || {};
   const sample = m.use_sample_stock_list;
+  const retentionMax = m.simulation_results_max_versions;
   return {
     default_start_date: normalizeYyyymmdd(m.default_start_date),
     as_of_latest_completed_trading_date: m.as_of_latest_completed_trading_date
       ? normalizeYyyymmdd(m.as_of_latest_completed_trading_date)
       : null,
     use_sample_stock_list: sample != null && sample !== '' ? Number(sample) : null,
+    simulation_results_max_versions:
+      retentionMax != null && retentionMax !== '' ? Number(retentionMax) : null,
     config_path: String(m.config_path || '').trim(),
   };
 }

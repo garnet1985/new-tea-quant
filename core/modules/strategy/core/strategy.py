@@ -759,6 +759,30 @@ class Strategy:
         )
 
     @staticmethod
+    def delete_simulation_version(
+        key_or_id: str,
+        version: Union[int, str],
+    ) -> Dict[str, Any]:
+        """删除单个策略的一份 simulation version（目录 + registry）。
+
+        不改 ``settings.py``。``version`` 接受 ``3`` / ``v3``。
+        """
+        from .helpers.version_id import WorkbenchVersionId
+        from .services.artifacts import ArtifactRetention
+
+        if isinstance(version, int):
+            sid = version if version > 0 else None
+        else:
+            sid = WorkbenchVersionId.parse(str(version))
+        if sid is None:
+            return {
+                "ok": False,
+                "error": "version_id 无效",
+                "deleted": False,
+            }
+        return ArtifactRetention.clear_by_version(key_or_id, sid)
+
+    @staticmethod
     def export_package(
         target: str,
         *,

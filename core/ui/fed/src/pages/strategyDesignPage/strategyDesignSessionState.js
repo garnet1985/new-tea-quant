@@ -90,9 +90,9 @@ export function readCachedWorkbenchVersion(strategyName) {
 
 /** @param {string} strategyName @param {string} versionId */
 export function writeCachedWorkbenchVersion(strategyName, versionId) {
-  const vid = String(versionId || '').trim();
-  if (!vid) return;
-  writeSessionBlob(strategyName, { lastCompletedWorkbenchVersionId: vid });
+  writeSessionBlob(strategyName, {
+    lastCompletedWorkbenchVersionId: String(versionId || '').trim(),
+  });
 }
 
 /**

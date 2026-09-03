@@ -6,7 +6,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  Link,
   List,
+  ListItem,
   ListItemButton,
   ListItemText,
   Pagination,
@@ -14,14 +17,22 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
 import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
-import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
+import {
+  SETTINGS_RETENTION_HREF,
+  lookupVersionById,
+  retentionCapFromVersions,
+} from 'components/versionPickLabel/versionPickMarks';
 import { formatVersionPickTime } from '../../../utils/formatDateTime';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 
 function StrategyDesignMetaDialogs() {
   const wb = useStrategyDesignWorkbenchContext();
   const pendingVersion = lookupVersionById(wb.configVersions, wb.pendingVersionId);
+  const pendingDeleteVersion = lookupVersionById(wb.configVersions, wb.pendingDeleteVersionId);
+  const retentionCap = retentionCapFromVersions(wb.configVersions);
+  const pendingDeleteId = pendingDeleteVersion.id || wb.pendingDeleteVersionId;
 
   return (
     <>
@@ -59,7 +70,37 @@ function StrategyDesignMetaDialogs() {
       </Dialog>
 
       <Dialog open={wb.moreVersionsOpen} onClose={wb.closeVersionsDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>恢复到历史版本</DialogTitle>
+        <DialogTitle sx={{ pr: 3 }}>
+          <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2}>
+            <Box component="span" sx={{ flexShrink: 0 }}>恢复到历史版本</Box>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              component="div"
+              sx={{ fontWeight: 400, textAlign: 'right', lineHeight: 1.4 }}
+            >
+              当前设置最多保留
+              {' '}
+              「
+              <Box
+                component="span"
+                sx={{ fontWeight: 700, fontSize: '1.2em', color: 'text.primary' }}
+              >
+                {retentionCap > 0 ? retentionCap : '—'}
+              </Box>
+              」个版本
+              {' · '}
+              <Link
+                href={SETTINGS_RETENTION_HREF}
+                target="_blank"
+                rel="noopener noreferrer"
+                underline="hover"
+              >
+                去设置
+              </Link>
+            </Typography>
+          </Stack>
+        </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1}>
             <TextField
@@ -76,19 +117,41 @@ function StrategyDesignMetaDialogs() {
             </Typography>
             <List sx={{ maxHeight: 340, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
               {wb.versionPickerSlice.length > 0 ? wb.versionPickerSlice.map((version) => (
-                <ListItemButton
+                <ListItem
                   key={version.id}
-                  selected={version.id === wb.selectedConfigVersion}
-                  onClick={() => {
-                    wb.closeVersionsDialog();
-                    wb.requestApplyVersion(version.id);
-                  }}
+                  disablePadding
+                  secondaryAction={(
+                    <IconButton
+                      edge="end"
+                      size="small"
+                      color="error"
+                      aria-label={`删除 ${version.id}`}
+                      title="删除此版本产物"
+                      disabled={wb.disableMetaActions || wb.isDeletingVersion}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        wb.requestDeleteVersion(version.id);
+                      }}
+                    >
+                      <NtqIcon name="trash" size={18} tone="error" />
+                    </IconButton>
+                  )}
                 >
-                  <ListItemText
-                    primary={<VersionPickLabel version={version} />}
-                    secondary={formatVersionPickTime(version)}
-                  />
-                </ListItemButton>
+                  <ListItemButton
+                    selected={version.id === wb.selectedConfigVersion}
+                    sx={{ pr: 7 }}
+                    onClick={() => {
+                      wb.closeVersionsDialog();
+                      wb.requestApplyVersion(version.id);
+                    }}
+                  >
+                    <ListItemText
+                      primary={<VersionPickLabel version={version} />}
+                      secondary={formatVersionPickTime(version)}
+                    />
+                  </ListItemButton>
+                </ListItem>
               )) : (
                 <Box sx={{ p: 1.5 }}>
                   <Typography variant="body2" color="text.secondary">
@@ -112,6 +175,42 @@ function StrategyDesignMetaDialogs() {
         </DialogContent>
         <DialogActions>
           <Button onClick={wb.closeVersionsDialog}>关闭</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={wb.deleteConfirmOpen}
+        onClose={() => {
+          if (!wb.isDeletingVersion) wb.setDeleteConfirmOpen(false);
+        }}
+        maxWidth="xs"
+        fullWidth
+        sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
+      >
+        <DialogTitle>确认删除 {pendingDeleteId}？</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">
+            将永久删除这份回测的报告、缓存目录和版本登记，删除后无法恢复。
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            不会改 settings.py，也不会改当前编辑器里的配置。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => wb.setDeleteConfirmOpen(false)}
+            disabled={wb.isDeletingVersion}
+          >
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={wb.isDeletingVersion}
+            onClick={wb.confirmDeleteVersion}
+          >
+            {wb.isDeletingVersion ? '删除中...' : '确认删除'}
+          </Button>
         </DialogActions>
       </Dialog>
       <Dialog

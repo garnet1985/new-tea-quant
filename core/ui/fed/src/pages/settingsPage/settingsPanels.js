@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -169,12 +169,24 @@ export function SettingsDataPanel({
   defaultStartDate,
   asOfLatestCompletedDate,
   useSampleStockList,
+  simulationResultsMaxVersions,
   onDefaultStartDateChange,
   onAsOfLatestCompletedDateChange,
   onUseSampleStockListChange,
+  onSimulationResultsMaxVersionsChange,
   onSave,
   onReload,
 }) {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (loading) return undefined;
+    if (location.hash !== '#retention') return undefined;
+    const el = document.getElementById('settings-retention');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return undefined;
+  }, [loading, location.hash]);
+
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1" fontWeight={700}>
@@ -224,6 +236,17 @@ export function SettingsDataPanel({
             placeholder="留空表示全市场"
             helperText="use_sample_stock_list；正整数 N 对应 stratified_N 样本池。"
           />
+          <Box id="settings-retention">
+            <TextField
+              label="回测结果保留份数"
+              size="small"
+              fullWidth
+              value={simulationResultsMaxVersions}
+              onChange={(e) => onSimulationResultsMaxVersionsChange(e.target.value)}
+              placeholder="10"
+              helperText="按份数保留，不是按日历过期。制定策略额度满时会先拒绝新回测；扫描会按上限自动裁剪。改小后已有结果不会立刻删除。"
+            />
+          </Box>
           <Box>
             <Button variant="contained" onClick={onSave} disabled={saving}>
               {saving ? '保存中…' : '保存数据设置'}

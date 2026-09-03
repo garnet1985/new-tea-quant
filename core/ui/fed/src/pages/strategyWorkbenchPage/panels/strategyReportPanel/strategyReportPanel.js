@@ -149,6 +149,7 @@ function StrategyReportPanel({
     workbenchSnapshot,
     resolvedActiveTab,
     showReportCompare,
+    configVersions,
   });
 
   useEffect(() => {

@@ -52,6 +52,7 @@ class UserParser:
         UserParser._p_strategy_portfolio(sub)
         UserParser._p_strategy_analyze(sub)
         UserParser._p_strategy_simulate(sub)
+        UserParser._p_strategy_delete_version(sub)
         UserParser._p_renew(sub)
         UserParser._p_export_adj_factor(sub)
         UserParser._p_tag(sub)
@@ -146,6 +147,21 @@ class UserParser:
             help="完整模拟链路（price → portfolio）",
         )
         UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_delete_version(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_delete_version",
+            aliases=UserCommands.aliases_for("strategy_delete_version"),
+            help="删除指定策略的一份回测产物（settings.py 不动）",
+        )
+        p.add_argument(
+            "--strategy",
+            type=str,
+            required=True,
+            help="策略:版本，例如 rsi_v1:3 或 demo/foo:v3",
+        )
 
     @staticmethod
     def _p_renew(sub: argparse._SubParsersAction) -> None:

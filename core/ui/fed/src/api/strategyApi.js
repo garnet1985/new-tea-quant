@@ -365,6 +365,23 @@ export async function restoreStrategyVersion(strategyKeyOrName, versionId) {
 }
 
 /**
+ * V2-12：删除一份 simulation version 产物（目录 + registry），不改 settings.py。
+ * @param {string} strategyKeyOrName
+ * @param {string} versionId
+ */
+export async function deleteStrategyVersion(strategyKeyOrName, versionId) {
+  const json = await request.deleteJson(
+    `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}/cache`,
+  );
+  const m = json?.message || {};
+  return {
+    deleted: Boolean(m.deleted),
+    version_id: m.version_id || versionId,
+    strategy_name: m.strategy_name || '',
+  };
+}
+
+/**
  * V2-05：启动 run（路径上的 ``step`` 为用户点击步；实际子步骤链见响应 ``steps`` / ``resolved_chain``，由后端 ``plan_schema`` 规划）。
  * @param {string} strategyName
  * @param {'enum'|'price'|'portfolio'} targetStep

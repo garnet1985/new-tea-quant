@@ -12,6 +12,7 @@ CLI_COMMAND_REFERENCE = """
   python cli.py so                      组合模拟      同 strategy_portfolio [--strategy NAME]
   python cli.py sa                      归因报告      同 strategy_analyze [--strategy NAME] [--step enum|price|portfolio] [--version ID] [--baseline-version ID]
   python cli.py s                       完整模拟链路  同 strategy_simulate
+  python cli.py sdv --strategy rsi_v1:3 删一份回测产物 同 strategy_delete_version（策略:版本）
 
   python cli.py r [SOURCE]              更新数据      同 renew [SOURCE]
   python cli.py t                       执行标签      同 tag [--scenario NAME]

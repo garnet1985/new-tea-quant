@@ -145,15 +145,39 @@ def normalize_sample_pool(value: Any) -> Optional[int]:
     return n
 
 
+def normalize_positive_int(value: Any, field: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} 须为正整数")
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} 须为正整数")
+    if n < 1:
+        raise ValueError(f"{field} 须大于 0")
+    return n
+
+
 def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
     sample = cfg.get("use_sample_stock_list")
     sample_out: Optional[int] = None
     if isinstance(sample, int) and sample > 0:
         sample_out = sample
+    sim_max: Optional[int] = None
+    try:
+        sim_max = int(ProjectContext.config.get_simulation_results_max_versions())
+    except Exception:
+        raw = cfg.get("retention") if isinstance(cfg.get("retention"), dict) else {}
+        try:
+            sim_max = int(raw.get("simulation_results_max_versions"))
+        except (TypeError, ValueError):
+            sim_max = None
+        if sim_max is not None and sim_max < 1:
+            sim_max = None
     return {
         "default_start_date": str(cfg.get("default_start_date") or "").strip(),
         "as_of_latest_completed_trading_date": _get_as_of_latest_completed_trading_date(),
         "use_sample_stock_list": sample_out,
+        "simulation_results_max_versions": sim_max,
         "config_path": str(ProjectContext.path.get_user_config_root() / "data.json"),
     }
 
@@ -175,6 +199,12 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
             "as_of_latest_completed_trading_date",
         )
         sample = normalize_sample_pool(payload.get("use_sample_stock_list"))
+        sim_max = None
+        if "simulation_results_max_versions" in payload:
+            sim_max = normalize_positive_int(
+                payload.get("simulation_results_max_versions"),
+                "simulation_results_max_versions",
+            )
     except ValueError as exc:
         return None, str(exc)
 
@@ -190,6 +220,11 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
     existing["default_start_date"] = default_start
     existing["as_of_latest_completed_trading_date"] = as_of
     existing["use_sample_stock_list"] = sample
+    if sim_max is not None:
+        retention = existing.get("retention")
+        retention = dict(retention) if isinstance(retention, dict) else {}
+        retention["simulation_results_max_versions"] = sim_max
+        existing["retention"] = retention
     _write_json(path, existing)
     logger.info("[bff.settings] wrote data settings to %s", path)
 

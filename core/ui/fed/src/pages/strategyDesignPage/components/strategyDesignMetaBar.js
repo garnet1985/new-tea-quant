@@ -93,7 +93,7 @@ function StrategyDesignMetaBar() {
               <Button
                 variant="outlined"
                 size="small"
-                disabled={wb.disableMetaActions || !wb.hasOtherVersions}
+                disabled={wb.disableMetaActions}
                 onClick={wb.openMoreVersionsDialog}
                 className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
               >

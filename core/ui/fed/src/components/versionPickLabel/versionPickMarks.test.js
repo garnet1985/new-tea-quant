@@ -2,7 +2,9 @@ import {
   VERSION_MARK_EXPIRES_SOON,
   VERSION_MARK_READONLY,
   VERSION_MARK_READONLY_HINT,
+  formatRetentionCapLabel,
   lookupVersionById,
+  retentionCapFromVersions,
   versionMarkExpiresHint,
   versionPickMarks,
   versionPickSearchText,
@@ -45,6 +47,13 @@ describe('versionPickMarks', () => {
     const expires = versionPickMarks({ id: 'v1', expiresSoon: true, retentionMax: 10 });
     expect(expires[0].hint).toBe(versionMarkExpiresHint(10));
     expect(expires[0].hint).toContain('最多保留 10 份');
+    expect(expires[0].hint).toContain('数据范围');
+  });
+
+  it('formats the keep-N caption used in the restore dialog', () => {
+    expect(formatRetentionCapLabel(10)).toBe('当前设置最多保留 「10」个版本');
+    expect(formatRetentionCapLabel(0)).toBe('当前设置按份数保留版本');
+    expect(retentionCapFromVersions([{ id: 'v1', retentionMax: 10 }])).toBe(10);
   });
 
   it('includes mark labels in search text', () => {

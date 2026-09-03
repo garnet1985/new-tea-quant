@@ -10,6 +10,7 @@ import {
   fetchStrategyVersions,
   persistStrategySettings,
   restoreStrategyVersion,
+  deleteStrategyVersion,
 } from '../../../api/strategyApi';
 import {
   migrateLegacyStrategySettings,
@@ -157,6 +158,9 @@ export function useStrategyDesignWorkbench() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingVersionId, setPendingVersionId] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDeleteVersionId, setPendingDeleteVersionId] = useState('');
+  const [isDeletingVersion, setIsDeletingVersion] = useState(false);
   const [moreVersionsOpen, setMoreVersionsOpen] = useState(false);
   const [versionSearch, setVersionSearch] = useState('');
   const [versionPickerPage, setVersionPickerPage] = useState(1);
@@ -543,7 +547,7 @@ export function useStrategyDesignWorkbench() {
     getExecutionState,
   });
 
-  const disableMetaActions = isSavingSettings || isLoadingSettings || !hasValidSettings || !strategyName || executionBusy;
+  const disableMetaActions = isSavingSettings || isDeletingVersion || isLoadingSettings || !hasValidSettings || !strategyName || executionBusy;
 
   const handleSettingsFocus = useCallback(() => {
     if (!strategyName || isLoadingSettings || executionBusy || diskConflict || occupancyCheckRef.current) {
@@ -636,6 +640,104 @@ export function useStrategyDesignWorkbench() {
     setPendingVersionId(versionId);
     setConfirmOpen(true);
   }, []);
+
+  const requestDeleteVersion = useCallback((versionId) => {
+    if (!versionId) return;
+    setPendingDeleteVersionId(versionId);
+    setDeleteConfirmOpen(true);
+  }, []);
+
+  const confirmDeleteVersion = useCallback(async () => {
+    const targetId = normalizeWorkbenchVersionId(pendingDeleteVersionId);
+    if (!targetId || !strategyName) {
+      setDeleteConfirmOpen(false);
+      return;
+    }
+    setIsDeletingVersion(true);
+    setSaveError('');
+    setRestoreOk('');
+    try {
+      await deleteStrategyVersion(strategyName, targetId);
+      const verRes = await fetchStrategyVersions(strategyName);
+      const rows = mapConfigVersionRows(verRes);
+      setConfigVersions(rows);
+      const deletedWasCurrent = [
+        selectedConfigVersion,
+        appliedVersionId,
+        lastCompletedId,
+      ].some((id) => normalizeWorkbenchVersionId(id) === targetId);
+      const nextId = rows[0]?.id || '';
+      if (deletedWasCurrent) {
+        if (nextId) {
+          const detail = await fetchStrategyVersionDetail(strategyName, nextId);
+          const snapshot = buildWorkbenchSnapshotFromVersionDetail(detail);
+          const flags = workbenchPageStateFromVersionDetail(detail, strategyName, rows);
+          setHasPersistedSnapshot(Boolean(flags.has_persisted_snapshot));
+          setHasOtherVersions(Boolean(flags.has_other_versions));
+          const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
+          const wbVer = normalizeWorkbenchVersionId(snapshot.versionId);
+          writeCachedWorkbenchVersion(strategyName, wbVer);
+          setSelectedConfigVersion(wbVer);
+          setAppliedVersionId(wbVer);
+          lastRunSyncedVersionRef.current = hydration.lastCompletedWorkbenchVersionId;
+          patchSession({
+            workbenchSnapshot: snapshot,
+            executionState: {
+              stepStatus: mergeHydratedStepStatus(
+                session.executionState?.stepStatus,
+                hydration.stepStatus,
+                { versionChanged: true },
+              ),
+              result: hydration.result,
+              compareVersion: { enum: '', price: '', portfolio: '' },
+              runningStep: '',
+              runId: '',
+              activeRunId: '',
+              lastCompletedWorkbenchVersionId: hydration.lastCompletedWorkbenchVersionId,
+            },
+          });
+        } else {
+          writeCachedWorkbenchVersion(strategyName, '');
+          setSelectedConfigVersion('');
+          setAppliedVersionId('');
+          setHasPersistedSnapshot(false);
+          setHasOtherVersions(false);
+          lastRunSyncedVersionRef.current = '';
+          setMoreVersionsOpen(false);
+          patchSession({
+            workbenchSnapshot: emptyWorkbenchSnapshot(),
+            executionState: {
+              stepStatus: { enum: 'idle', price: 'idle', portfolio: 'idle' },
+              result: { enum: null, price: null, portfolio: null },
+              compareVersion: { enum: '', price: '', portfolio: '' },
+              runningStep: '',
+              runId: '',
+              activeRunId: '',
+              lastCompletedWorkbenchVersionId: '',
+            },
+          });
+        }
+      } else {
+        setHasPersistedSnapshot(rows.length > 0);
+        setHasOtherVersions(rows.length >= 2);
+      }
+      setDeleteConfirmOpen(false);
+      setPendingDeleteVersionId('');
+      setRestoreOk(`已删除 ${targetId} 的回测产物`);
+    } catch (err) {
+      setSaveError(err?.message || '删除失败');
+    } finally {
+      setIsDeletingVersion(false);
+    }
+  }, [
+    appliedVersionId,
+    lastCompletedId,
+    patchSession,
+    pendingDeleteVersionId,
+    selectedConfigVersion,
+    session.executionState?.stepStatus,
+    strategyName,
+  ]);
 
   const openMoreVersionsDialog = useCallback(() => {
     setSaveError('');
@@ -796,6 +898,10 @@ export function useStrategyDesignWorkbench() {
     confirmOpen,
     setConfirmOpen,
     pendingVersionId,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
+    pendingDeleteVersionId,
+    isDeletingVersion,
     moreVersionsOpen,
     setMoreVersionsOpen,
     versionSearch,
@@ -811,6 +917,8 @@ export function useStrategyDesignWorkbench() {
     handleExportStrategyPackage,
     closeVersionsDialog,
     requestApplyVersion,
+    requestDeleteVersion,
+    confirmDeleteVersion,
     confirmRestoreVersion,
     handleRunCurrentStep,
     handleSettingsFocus,

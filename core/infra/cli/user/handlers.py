@@ -37,6 +37,21 @@ class UserHandlers:
         return text or None
 
     @staticmethod
+    def parse_strategy_version_spec(raw: object) -> tuple[str, int]:
+        """``rsi_v1:3`` / ``demo/foo:v3`` → (策略, version int)。按最后一个冒号切开。"""
+        from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
+
+        text = str(raw or "").strip()
+        if ":" not in text:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        name, _, vid = text.rpartition(":")
+        name = name.strip()
+        sid = WorkbenchVersionId.parse(vid)
+        if not name or sid is None:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        return name, sid
+
+    @staticmethod
     def run_app_update() -> int:
         repo_root = Path(__file__).resolve().parents[4]
         updater_dir = repo_root / "userspace" / "system" / "updater"
@@ -181,6 +196,7 @@ class UserHandlers:
             "strategy_portfolio",
             "strategy_simulate",
             "strategy_analyze",
+            "strategy_delete_version",
         ):
             UserHandlers._handle_strategy(cmd, app, args)
             return
@@ -585,6 +601,32 @@ class UserHandlers:
         raise SystemExit(1)
 
     @staticmethod
+    def _run_strategy_delete_version(args: argparse.Namespace) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            spec, sid = UserHandlers.parse_strategy_version_spec(
+                getattr(args, "strategy", None)
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+
+        try:
+            strategy_key = Strategy.resolve(spec)
+        except FileNotFoundError:
+            logger.error("策略不存在: %s", spec)
+            raise SystemExit(1)
+        out = Strategy.delete_simulation_version(strategy_key, sid)
+        if not out.get("ok"):
+            print(out.get("error") or "删除失败", flush=True)
+            raise SystemExit(1)
+        print(
+            f"已删除 {strategy_key} {out.get('version_id') or f'v{sid}'} 的回测产物。",
+            flush=True,
+        )
+
+    @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         if cmd == "strategy_enumerate":
             UserHandlers._run_strategy_enumerate(args)
@@ -608,6 +650,10 @@ class UserHandlers:
 
         if cmd == "strategy_analyze":
             UserHandlers._run_strategy_analyze(args)
+            return
+
+        if cmd == "strategy_delete_version":
+            UserHandlers._run_strategy_delete_version(args)
             return
 
         raise SystemExit(f"未知命令: {cmd}")

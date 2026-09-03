@@ -20,6 +20,7 @@ import { ReactComponent as SettingsIcon } from './icons/settings.svg';
 import { ReactComponent as SuccessIcon } from './icons/success.svg';
 import { ReactComponent as SyncAltIcon } from './icons/sync_alt.svg';
 import { ReactComponent as TacticIcon } from './icons/tactic.svg';
+import { ReactComponent as TrashIcon } from './icons/trash.svg';
 import { ReactComponent as UploadFileIcon } from './icons/upload_file.svg';
 import { ReactComponent as WarningIcon } from './icons/warning.svg';
 import { ReactComponent as WebhookIcon } from './icons/webhook.svg';
@@ -49,6 +50,7 @@ export const NTQ_ICON_MAP = {
   success: SuccessIcon,
   syncAlt: SyncAltIcon,
   tactic: TacticIcon,
+  trash: TrashIcon,
   uploadFile: UploadFileIcon,
   warning: WarningIcon,
   webhook: WebhookIcon,

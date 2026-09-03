@@ -2,6 +2,7 @@ import { formatDateTime, formatVersionPickTime } from '../../utils/formatDateTim
 
 export const VERSION_MARK_READONLY = '仅供查阅';
 export const VERSION_MARK_EXPIRES_SOON = '即将清理';
+export const SETTINGS_RETENTION_HREF = '/settings/data#retention';
 
 export const VERSION_MARK_READONLY_HINT = [
   '当前版本是在以前的运行环境中生成的并且已经无法在当前环境继续使用。',
@@ -19,8 +20,23 @@ export function versionMarkExpiresHint(retentionMax) {
     capText,
     '额度用满后再产生新版本并触发清理时，更旧、未固定的版本会优先被删掉。',
     '当前在制定策略里新回测额度满时会先拒绝写入，避免悄悄删掉结果；扫描等流程会按上限自动裁剪。',
-    '调整保留份数的入口会和「固定版本」一起放进设置。',
+    '调整保留份数请到设置 → 数据范围。',
   ].join('');
+}
+
+export function retentionCapFromVersions(versions) {
+  const rows = Array.isArray(versions) ? versions : [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const n = Number(rows[i]?.retentionMax);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return 0;
+}
+
+export function formatRetentionCapLabel(retentionMax) {
+  const n = Number(retentionMax);
+  if (Number.isFinite(n) && n > 0) return `当前设置最多保留 「${n}」个版本`;
+  return '当前设置按份数保留版本';
 }
 
 export function versionPickMarks(version) {

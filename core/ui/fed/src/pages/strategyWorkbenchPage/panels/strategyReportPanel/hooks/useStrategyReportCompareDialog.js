@@ -11,6 +11,7 @@ export function useStrategyReportCompareDialog({
   workbenchSnapshot,
   resolvedActiveTab,
   showReportCompare,
+  configVersions = [],
 }) {
   const baseVersionId = String(workbenchSnapshot?.versionId || '').trim();
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
@@ -24,6 +25,16 @@ export function useStrategyReportCompareDialog({
   useEffect(() => {
     if (!showReportCompare && compareDialogOpen) setCompareDialogOpen(false);
   }, [showReportCompare, compareDialogOpen]);
+
+  useEffect(() => {
+    const cur = String(compareVersion || '').trim();
+    if (!cur) return undefined;
+    const rows = Array.isArray(configVersions) ? configVersions : [];
+    if (rows.length === 0 || !rows.some((row) => row.id === cur)) {
+      setCompareVersion('');
+    }
+    return undefined;
+  }, [configVersions, compareVersion]);
 
   useEffect(() => {
     let cancelled = false;

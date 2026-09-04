@@ -27,9 +27,49 @@ import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import { formatDateTime } from '../../utils/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
+import { getMlExtrasStatus, installMlExtras } from '../../api/setupApi';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { useFakeProgress } from '../../hooks/useFakeProgress';
 
 export function SettingsSystemPanel() {
+  const [mlStatus, setMlStatus] = useState(null);
+  const [mlLoadError, setMlLoadError] = useState('');
+  const [mlOk, setMlOk] = useState('');
+  const [installing, setInstalling] = useState(false);
+  const fakePercent = useFakeProgress(installing, 8);
+
+  const loadMlStatus = useCallback(() => {
+    setMlLoadError('');
+    return getMlExtrasStatus()
+      .then((next) => {
+        setMlStatus(next);
+      })
+      .catch((err) => {
+        setMlLoadError(err?.message || '无法检查机器学习依赖状态。');
+      });
+  }, []);
+
+  useEffect(() => {
+    loadMlStatus();
+  }, [loadMlStatus]);
+
+  const handleInstallMl = async () => {
+    setInstalling(true);
+    setMlOk('');
+    setMlLoadError('');
+    try {
+      const next = await installMlExtras();
+      setMlStatus(next);
+      setMlOk(next.installed ? '机器学习依赖已安装。' : '安装请求已完成，请刷新后复查。');
+    } catch (err) {
+      setMlLoadError(err?.message || '安装失败，请检查网络后重试。');
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const mlInstalled = Boolean(mlStatus?.installed);
+
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1" fontWeight={700}>
@@ -41,6 +81,50 @@ export function SettingsSystemPanel() {
       <Box>
         <Button component={RouterLink} to="/setup" variant="contained" color="secondary">
           重新安装
+        </Button>
+      </Box>
+
+      <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
+        机器学习组件
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        归因分析中的 XGBoost / SHAP 为选装。跳过安装向导后可在这里补装，可能需要几分钟。
+      </Typography>
+      {mlLoadError ? <Alert severity="error">{mlLoadError}</Alert> : null}
+      {mlOk ? <Alert severity="success">{mlOk}</Alert> : null}
+      {mlStatus == null && !mlLoadError ? (
+        <InlineLoadingState message="正在检查机器学习依赖…" />
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          {mlInstalled
+            ? `已安装${mlStatus?.shap ? '（含 SHAP）' : '（XGBoost）'}。`
+            : '尚未安装。未安装时，策略报告会跳过机器学习解释。'}
+        </Typography>
+      )}
+      {installing ? (
+        <Box>
+          <Typography variant="caption" color="text.secondary">
+            正在安装… {fakePercent}%
+          </Typography>
+          <Box sx={{ mt: 0.5, height: 8, borderRadius: 1, bgcolor: 'grey.200', overflow: 'hidden' }}>
+            <Box
+              sx={{
+                width: `${fakePercent}%`,
+                bgcolor: 'primary.main',
+                height: '100%',
+                transition: 'width 0.4s ease',
+              }}
+            />
+          </Box>
+        </Box>
+      ) : null}
+      <Box>
+        <Button
+          variant="outlined"
+          disabled={mlInstalled || installing}
+          onClick={handleInstallMl}
+        >
+          {mlInstalled ? '已安装' : '安装机器学习依赖'}
         </Button>
       </Box>
     </Stack>

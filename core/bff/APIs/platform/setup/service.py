@@ -40,7 +40,11 @@ class SetupService:
                     filtered_schema.append(field)
                 step["inputSchema"] = filtered_schema
             elif step.get("id") == "import_data":
-                step["name"] = "导入初始化数据"
+                step["name"] = "导入演示数据"
+            elif step.get("id") == "resolve_ml_deps":
+                step["name"] = "机器学习依赖"
+            elif step.get("id") == "resolve_deps":
+                step["name"] = "核心依赖"
         return ok({"steps": steps})
 
     def get_setup_status(self):
@@ -66,3 +70,9 @@ class SetupService:
 
     def get_import_data_progress(self):
         return from_payload(self._setup_runtime.get_import_data_progress())
+
+    def get_ml_extras_status(self):
+        return from_payload(self._setup_runtime.get_ml_extras_status())
+
+    def install_ml_extras(self):
+        return from_payload(self._setup_runtime.install_ml_extras())

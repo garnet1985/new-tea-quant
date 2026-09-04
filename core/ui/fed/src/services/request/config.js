@@ -8,6 +8,8 @@ export const HTTP_TIMEOUT_MS = {
   LONG: 120_000,
   /** Setup 流水线单步（含数据导入，可能较慢） */
   SETUP: 600_000,
+  /** 选装机器学习依赖（xgboost / shap） */
+  SETUP_ML: 900_000,
 };
 
 // Host/port 不在这里配置：FED 使用相对路径 + CRA proxy。

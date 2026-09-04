@@ -15,6 +15,7 @@ from core.infra.project_context.contracts import (
     DUCKDB_DOMAIN_FILES,
 )
 from core.infra.setup import Setup
+from core.infra.setup.core.pipeline_state import sync_definition_into_state, wants_skip_input
 from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -38,6 +39,37 @@ class SetupRuntimeManager:
         with self._lock:
             current = self._load_state()
             return self._build_snapshot(current)
+
+    def get_ml_extras_status(self) -> Dict[str, Any]:
+        return {"status": "ok", "message": self._ml_extras_payload()}
+
+    def install_ml_extras(self) -> Dict[str, Any]:
+        script = REPO_ROOT / "core" / "infra" / "setup" / "core" / "steps" / "resolve_ml_deps" / "install.py"
+        if not script.is_file():
+            return self._error("SETUP_ML_EXTRAS_MISSING", f"脚本不存在: {script}")
+        proc = subprocess.run(
+            [sys_executable(), str(script)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            msg = (proc.stderr or proc.stdout or "").strip()[-600:] or "机器学习依赖安装失败"
+            return self._error("SETUP_ML_EXTRAS_FAILED", msg)
+
+        with self._lock:
+            state = self._load_state()
+            self._set_step_state(state, "resolve_ml_deps", self.STATUS_SUCCESS, "")
+            definition = self.get_definition()
+            state["isReady"] = all(
+                self._get_step_state(state, step["id"]) == self.STATUS_SUCCESS
+                for step in definition
+            )
+            self._bump_version(state)
+            self._save_state(state)
+        payload = self._ml_extras_payload()
+        payload["installedNow"] = True
+        return {"status": "ok", "message": payload}
 
     def start(self) -> Dict[str, Any]:
         definition = self.get_definition()
@@ -210,11 +242,16 @@ class SetupRuntimeManager:
 
     def _execute_step(self, state: Dict[str, Any], step: Dict[str, Any]) -> Tuple[bool, str]:
         step_id = step["id"]
+        step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
+        if wants_skip_input(step_inputs):
+            self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
+            self._save_state(state)
+            return True, ""
+
         self._set_step_state(state, step_id, self.STATUS_RUNNING, "")
         self._save_state(state)
 
         try:
-            step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
             db_existed_before = None
             if step_id == "db_connection":
                 db_existed_before, _ = self._db_exists_precheck(step_inputs, state=state)
@@ -353,10 +390,14 @@ class SetupRuntimeManager:
         if not STATE_FILE.is_file():
             return self._new_state(self.get_definition())
         try:
-            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         except Exception as exc:
             log_degraded("setup.runtimeStateRead", exc, str(STATE_FILE))
             return self._new_state(self.get_definition())
+        state, mutated = sync_definition_into_state(self.get_definition(), state)
+        if mutated:
+            self._save_state(state)
+        return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
         with self._lock:
@@ -369,6 +410,9 @@ class SetupRuntimeManager:
                 item["status"] = status
                 item["errorMessage"] = err
                 return
+        state.setdefault("stepStates", []).append(
+            {"stepId": step_id, "status": status, "errorMessage": err},
+        )
 
     def _get_step_state(self, state: Dict[str, Any], step_id: str) -> str:
         for item in state.get("stepStates", []):
@@ -466,8 +510,28 @@ class SetupRuntimeManager:
         return None, None
 
     @staticmethod
+    def _ml_extras_payload() -> Dict[str, Any]:
+        xgboost_ok = _module_available("xgboost")
+        shap_ok = _module_available("shap")
+        return {
+            "installed": xgboost_ok,
+            "xgboost": xgboost_ok,
+            "shap": shap_ok,
+        }
+
+    @staticmethod
     def _error(code: str, detail: str) -> Dict[str, Any]:
         return {"status": "error", "message": {"code": code, "detail": detail}}
+
+
+def _module_available(name: str) -> bool:
+    import importlib
+
+    try:
+        importlib.import_module(name)
+        return True
+    except ImportError:
+        return False
 
 
 def sys_executable() -> str:

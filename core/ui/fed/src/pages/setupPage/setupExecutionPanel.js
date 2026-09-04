@@ -4,9 +4,51 @@ import {
   Box,
   Card,
   CardContent,
+  Stack,
   Typography,
 } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import NtqIcon from '../../components/ntqIcon/ntqIcon';
+
+function stateIcon(row, runningStep) {
+  if (runningStep && row.id === runningStep) {
+    return (
+      <Stack direction="row" spacing={1} alignItems="center" className="setup-step-state">
+        <NtqIcon name="refresh" size={20} spin />
+        <Typography variant="body2">执行中...</Typography>
+      </Stack>
+    );
+  }
+  if (row.state === '已完成') {
+    return (
+      <Stack direction="row" spacing={1} alignItems="center">
+        <NtqIcon name="success" size={20} tone="success" />
+        <Typography variant="body2">已完成</Typography>
+      </Stack>
+    );
+  }
+  if (row.state === '失败') {
+    return (
+      <Stack direction="row" spacing={1} alignItems="center">
+        <NtqIcon name="cancel" size={20} tone="error" />
+        <Typography variant="body2">失败</Typography>
+      </Stack>
+    );
+  }
+  if (row.state === '待输入') {
+    return (
+      <Stack direction="row" spacing={1} alignItems="center">
+        <NtqIcon name="radioUnchecked" size={20} tone="warning" />
+        <Typography variant="body2">待输入</Typography>
+      </Stack>
+    );
+  }
+  return (
+    <Stack direction="row" spacing={1} alignItems="center">
+      <NtqIcon name="radioUnchecked" size={20} tone="disabled" />
+      <Typography variant="body2">{row.state}</Typography>
+    </Stack>
+  );
+}
 
 function SetupExecutionPanel({
   flowStage,
@@ -15,7 +57,6 @@ function SetupExecutionPanel({
   importProgress,
   pollWarning,
   rows,
-  executingColumns,
 }) {
   if (flowStage !== 'executing') return null;
 
@@ -40,14 +81,22 @@ function SetupExecutionPanel({
             {importProgress.currentTable ? `，当前表：${importProgress.currentTable}` : ''}
           </Alert>
         ) : null}
-        <Box sx={{ height: 320 }}>
-          <DataGrid
-            rows={rows}
-            columns={executingColumns}
-            disableRowSelectionOnClick
-            hideFooter
-          />
-        </Box>
+        <Stack spacing={1} className="setup-page__step-list">
+          {rows.map((row) => (
+            <Box key={row.id} className="setup-page__step-row">
+              <Typography variant="body2" className="setup-page__step-row-index">
+                {row.order}
+              </Typography>
+              <Box className="setup-page__step-row-main">
+                <Typography variant="body2">{row.name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {row.detail}
+                </Typography>
+              </Box>
+              {stateIcon(row, runningStep)}
+            </Box>
+          ))}
+        </Stack>
       </CardContent>
     </Card>
   );

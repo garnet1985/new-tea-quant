@@ -130,10 +130,11 @@ export async function startSetupWorkflow(_onProgress) {
 }
 
 export async function submitInteractiveStep(stepId, inputValues, _onProgress) {
+  const timeoutMs = stepId === 'resolve_ml_deps' ? HTTP_TIMEOUT_MS.SETUP_ML : HTTP_TIMEOUT_MS.SETUP;
   return executePipelineRequest(
     () => request.postJson(`${API_BASE}/steps/${encodeURIComponent(stepId)}/submit`, {
       body: { inputs: inputValues || {} },
-      timeoutMs: HTTP_TIMEOUT_MS.SETUP,
+      timeoutMs,
     }),
     _onProgress,
     stepId,
@@ -187,5 +188,30 @@ export async function getImportDataProgress() {
     currentTable: json?.message?.currentTable || '',
     percent: Number(json?.message?.percent || 0),
     updatedAt: Number(json?.message?.updatedAt || 0),
+  };
+}
+
+export async function getMlExtrasStatus() {
+  const json = await request.getJson(`${API_BASE}/ml-extras`, {
+    timeoutMs: HTTP_TIMEOUT_MS.POLL,
+    silent: true,
+  });
+  return {
+    installed: Boolean(json?.message?.installed),
+    xgboost: Boolean(json?.message?.xgboost),
+    shap: Boolean(json?.message?.shap),
+  };
+}
+
+export async function installMlExtras() {
+  const json = await request.postJson(`${API_BASE}/ml-extras`, {
+    body: {},
+    timeoutMs: HTTP_TIMEOUT_MS.SETUP_ML,
+  });
+  return {
+    installed: Boolean(json?.message?.installed),
+    xgboost: Boolean(json?.message?.xgboost),
+    shap: Boolean(json?.message?.shap),
+    installedNow: Boolean(json?.message?.installedNow),
   };
 }

@@ -70,5 +70,6 @@
     "init_userspace"
   ],
   "order": 4,
+  "progressWeight": 8,
   "uiVisible": true
 }

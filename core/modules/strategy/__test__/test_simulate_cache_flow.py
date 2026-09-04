@@ -26,9 +26,8 @@ def _prepare_entity_cache(self, **kwargs):
 
 def _fps():
     return SimpleNamespace(
-        settings_fp="sfp",
+        execute_fp="sfp",
         env_fp="efp",
-        disk_settings_hash="dsh",
         settings_diff={},
         effective_settings=StrategySettings.from_dict({"core": {"n": 1}}),
         entity_ids=[],
@@ -206,7 +205,9 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
     assert out["version_id"] == "3"
     run.assert_called_once()
     record.assert_called_once()
-    assert record.call_args.kwargs["settings"] == {"core": {"n": 1}}
+    assert record.call_args.kwargs["full_settings"]["core"]["n"] == 1
+    assert record.call_args.kwargs["effective_settings"]["core"]["n"] == 1
+    assert record.call_args.kwargs["kind"] == SimulateKind.ENUMERATE
     assert record.call_args.kwargs["version_id"] == "3"
 
 

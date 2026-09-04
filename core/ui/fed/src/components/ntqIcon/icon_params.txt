@@ -1,0 +1,5 @@
+weight: 200
+grade: 0
+Optical Size: 24
+fill: currentColor
+address: https://fonts.google.com/icons 

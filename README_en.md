@@ -198,8 +198,8 @@ Pick a strategy, then open it via the title or **Enter Debug**:
 
 The page has four main areas:
 
-- **Strategy info:** top full-width block—name, description, version, publish and other global actions.
-- **Strategy settings:** left panel; changes with each backtest step. Editing parameters creates a new version for comparison.  
+- **Strategy info:** top full-width block—name, description, version capsule, and pin / restore actions.
+- **Strategy settings:** left panel; changes with each backtest step. Saving parameters writes `settings.py`. A new disk version is allocated when the execute fingerprint changes.  
   **Note:** Strategy **logic** cannot be edited in the UI—only in `userspace/strategies/`. The UI only tunes parameters exposed in code. (AI-assisted editing may come later.)
 - **Execution panel:** run the current step. Three stages:  
   - **Enumerate:** find historical opportunities;  
@@ -244,12 +244,12 @@ Closer to real trading: capital, positions, risk settings, and a historical simu
 
 When a strategy is tuned, use **Strategy Scan** from the main nav to screen current opportunities.
 
-**Important:** click **Publish strategy** under the title on the strategy page first. Otherwise parameters stay in workbench cache and are **not** written back into strategy code—scans will not use your latest debug settings.
+Scans use the current `settings.py` in the strategy folder (the workbench Persist / Run path writes that file). There is no separate **Publish strategy** step.
 
 For a “real” market scan you typically need:
 
 - **Fresh enough data** (NTQ does not ship a market data vendor; connect your own)
-- A **published, complete** strategy
+- An **enabled, complete** strategy
 
 On the scan page you can use **strict mode** (refuse to run if data is stale), pick a strategy, and click **Start scan**. Results list current opportunities your strategy finds:
 

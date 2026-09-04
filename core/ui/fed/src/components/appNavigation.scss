@@ -93,7 +93,7 @@
 }
 
 .ntq-nav-btn {
-  height: $ntq-header-height;
+  height: $ntq-header-height + 2px;
   border-radius: 0 !important; // override MUI global button radius
   border: none;
   background: transparent;

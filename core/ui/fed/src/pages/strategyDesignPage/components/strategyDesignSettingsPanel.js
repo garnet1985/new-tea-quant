@@ -29,6 +29,7 @@ import {
   STRATEGY_DESIGN_SETTINGS_GLOBAL_TOOLTIP,
   STRATEGY_DESIGN_SETTINGS_STEP_TITLE,
 } from '../constants/strategyDesignSettingsLayout';
+import StrategyDesignPeerStrategies from './strategyDesignPeerStrategies';
 
 function buildMarketProfileOnlySchema(marketProfileOptions) {
   const meta = buildStrategyMetaSchema(marketProfileOptions);
@@ -291,6 +292,7 @@ function StrategyDesignSettingsPanel({
       >
         {globalSettingsBody}
       </SectionAccordion>
+      <StrategyDesignPeerStrategies />
     </Stack>
   );
 }

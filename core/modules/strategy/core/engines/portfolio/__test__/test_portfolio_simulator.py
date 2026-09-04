@@ -176,6 +176,37 @@ def test_simulator_same_investment_id_does_not_cross_entity_sell():
     assert sells[0].profit == pytest.approx(result.trades[0].shares * 1.0)
 
 
+def test_simulator_skips_non_positive_sell_and_keeps_lot():
+    alloc = _allocation(allocation={"max_portfolio_size": 2})
+    fees = FeeCalculator(
+        commission_rate=0.0, min_commission=0.0, stamp_duty_rate=0.0, transfer_fee_rate=0.0
+    )
+    sim = PortfolioSimulator.create(allocation=alloc, fee_calculator=fees)
+    events = [
+        PortfolioEvent(
+            kind="buy",
+            date="20240103",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=10.0,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240110",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=-8.72,
+        ),
+    ]
+    result = sim.run(events, initial_capital=1_000_000)
+    assert result.skipped_sells == 1
+    assert result.completed_count == 0
+    assert len(result.trades) == 1
+    assert result.trades[0].is_buy()
+    assert result.account.cash < 1_000_000
+    assert result.account.open_position_count() == 1
+
+
 def test_simulator_skips_sell_without_open_lot():
     alloc = _allocation()
     fees = FeeCalculator(

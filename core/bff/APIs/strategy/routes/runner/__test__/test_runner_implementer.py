@@ -40,6 +40,8 @@ def test_submit_run_resolves_name():
         step="enum",
         api_settings={"a": 1},
         force_refresh=True,
+        expected_rev=None,
+        force_settings_write=False,
     )
 
 

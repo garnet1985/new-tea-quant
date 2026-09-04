@@ -68,7 +68,7 @@ def test_load_enum_data_requires_enum_version():
             unique_relative_path="demo/rsi",
         ),
         fp_res=MagicMock(
-            settings_fp="s",
+            execute_fp="s",
             env_fp="e",
             effective_settings=MagicMock(),
             entity_ids=[],
@@ -96,7 +96,7 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
                     exit_date="20240110",
                     exit_price=11.0,
                     exit_price_raw=22.0,
-                    weighted_roi=0.1,
+                    weighted_roi=0.5,
                     lifecycle="complete",
                     result="win",
                 ),
@@ -126,10 +126,41 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
     assert len(events) == 2
     buy, sell = events
     assert buy.price == 20.0
-    assert sell.price == 22.0
+    assert sell.price == 22.0  # exit_price_raw，即使 weighted_roi=0.5 也不用 20*1.5
     dumped = opportunities["600000.SH:1"].to_dict()
     assert "weighted_roi" not in dumped
     assert "result" not in dumped
+
+
+def test_build_events_skips_exit_without_raw_sell(tmp_path: Path):
+    EnumerateStore.at(tmp_path).write_investments(
+        EntityInvestmentCsv(
+            entity_id="920522.BJ",
+            rows=[
+                InvestmentRow(
+                    investment_id="1",
+                    trigger_date="20240102",
+                    entry_date="20240103",
+                    entry_price_raw=20.0,
+                    exit_date="20240110",
+                    exit_price_raw=0.0,
+                    weighted_roi=-1.4,
+                    lifecycle="complete",
+                ),
+            ],
+        )
+    )
+    data = EnumerateStore.hydrate(
+        tmp_path,
+        entity_ids=["920522.BJ"],
+        start_date="20240101",
+        end_date="20240131",
+    )
+    events, opportunities = PortfolioPipeline.build_events(
+        data, settings=StrategySettings.from_dict({})
+    )
+    assert events == []
+    assert opportunities == {}
 
 
 def test_entry_selector_picks_in_order_within_capacity():

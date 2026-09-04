@@ -160,14 +160,6 @@ class DevHandlers:
         return 0
 
     @staticmethod
-    def cmd_cache_clear_disk(_args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
-
-        TempCleanup.clear_strategy_results_disk()
-        print("物理模拟 results/ 已清理。", flush=True)
-        return 0
-
-    @staticmethod
     def cmd_data_export_init(args: argparse.Namespace) -> int:
         from core.infra.setup import Setup
 

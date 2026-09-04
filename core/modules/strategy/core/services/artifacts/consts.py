@@ -2,6 +2,8 @@
 
 RUNTIME_ENV_FILE = "runtime_env.json"
 EFFECTIVE_SETTINGS_FILE = "effective_settings.json"
+SETTINGS_FILE = "settings.json"
+SCOPE_FILE = "scope.json"
 ENTITY_IDS_FILE = "entity_ids.txt"
 PERFORMANCE_FILE = "performance.json"
 OVERALL_REPORT_FILE = "overall_report.json"
@@ -71,6 +73,9 @@ __all__ = [
     "RUNTIME_ENV_FILE",
     "SCAN_OPPORTUNITIES_FILE",
     "SCAN_SUMMARY_FILE",
+    "SCOPE_FILE",
+    "SETTINGS_FILE",
+    "EFFECTIVE_SETTINGS_FILE",
     "SIGNAL_SNAPSHOTS_SUFFIX",
     "STOCK_INVESTMENTS_SUFFIX",
     "TRADES_FILE",

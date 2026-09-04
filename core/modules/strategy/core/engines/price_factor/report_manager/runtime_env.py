@@ -24,7 +24,7 @@ class PriceRuntimeEnv:
     version_id: int
     enum_version_id: str
     enum_output_dir: str
-    settings_fp: str
+    execute_fp: str
     env_fp: str
     period: Dict[str, str] = field(default_factory=dict)
     entity_ids: List[str] = field(default_factory=list)
@@ -39,11 +39,6 @@ class PriceRuntimeEnv:
             "version_id": int(self.version_id),
             "enum_version_id": self.enum_version_id,
             "enum_output_dir": self.enum_output_dir,
-            "settings_fp": self.settings_fp,
-            "env_fp": self.env_fp,
-            "period": dict(self.period or {}),
-            "entity_ids": list(self.entity_ids or []),
-            "entity_count": len(self.entity_ids or []),
             "market_profile": self.market_profile,
             "engine_version": self.engine_version or get_version(),
             "created_at": self.created_at or datetime.now().isoformat(),
@@ -63,7 +58,7 @@ class PriceRuntimeEnv:
             version_id=int(data.get("version_id") or 0),
             enum_version_id=str(data.get("enum_version_id") or "").strip(),
             enum_output_dir=str(data.get("enum_output_dir") or "").strip(),
-            settings_fp=str(data.get("settings_fp") or "").strip(),
+            execute_fp=str(data.get("execute_fp") or "").strip(),
             env_fp=str(data.get("env_fp") or "").strip(),
             period={
                 "start_date": str(period.get("start_date") or "").strip(),
@@ -88,6 +83,25 @@ class PriceRuntimeEnv:
         lines = store.read_text_lines("entity_ids")
         if lines:
             env.entity_ids = lines
+        vid_dir = Path(output_dir).parent
+        from core.modules.strategy.core.services.artifacts.version_meta import (
+            VersionMetaStore,
+        )
+
+        archive = VersionMetaStore.read_archive_context(
+            vid_dir.parent, vid_dir.name
+        )
+        if not env.entity_ids:
+            env.entity_ids = list(archive.get("entity_ids") or [])
+        if not str((env.period or {}).get("start_date") or "").strip():
+            env.period = {
+                "start_date": str(archive.get("start_date") or ""),
+                "end_date": str(archive.get("end_date") or ""),
+            }
+        if not env.execute_fp:
+            env.execute_fp = str(archive.get("execute_fp") or "")
+        if not env.env_fp:
+            env.env_fp = str(archive.get("env_fp") or "")
         return env
 
 

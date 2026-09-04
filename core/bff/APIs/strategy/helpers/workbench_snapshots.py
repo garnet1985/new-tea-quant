@@ -1,7 +1,7 @@
 """Workbench snapshot read model for UI (V2-01 / V2-03 / V2-08).
 
 Version catalog and settings snapshots come from disk ``simulations/meta.json``
-registry + ``{vid}/effective_settings.json`` + step artifacts.
+registry + ``{vid}/settings.json`` / ``effective_settings.json`` + step artifacts.
 
 Consumers: ``routes/version``, ``routes/report``, ``routes/settings/apply``.
 """
@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from core.modules.strategy.core.enums import SimulateKind, WorkbenchStep
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -28,6 +28,7 @@ from core.modules.strategy.core.services.artifacts import SimulationVersionStore
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_workbench_result_report,
 )
+from core.bff.APIs.strategy.helpers.settings_occupancy import SettingsOccupancy
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,9 @@ class WorkbenchSnapshots:
             if row is not None:
                 return row
 
-        return cls._synthetic_cold_start_row(name, dict(info.settings or {}))
+        return cls._synthetic_cold_start_row(
+            name, info, dict(info.settings or {})
+        )
 
     @classmethod
     def fetch_by_version(
@@ -94,6 +97,13 @@ class WorkbenchSnapshots:
         *,
         limit: int = _DROPDOWN_LIMIT,
     ) -> List[Dict[str, Any]]:
+        """Version catalog for UI pickers: newest first, capped by ``limit``.
+
+        Each item includes ``env_invalid`` (artifacts read-only),
+        ``expires_soon`` (keep-N would drop this vid next),
+        ``pinned``, and ``retention_max``.
+        先读 ``pinned``：固定的排在前面；即将清理只在未固定集合里算。
+        """
         name = str(strategy_name or "").strip()
         if not name:
             return []
@@ -103,8 +113,14 @@ class WorkbenchSnapshots:
             return []
 
         root = cls._simulations_root(info)
+        all_vids = cls._sorted_version_ids(root, descending=True)
+        cap = cls._retention_cap()
+        pinned_ids = VersionMetaStore.read_pinned_ids(root)
+        pinned_set = set(pinned_ids)
+        at_risk = cls.expires_soon_vids(all_vids, cap, pinned_ids)
+        ordered = cls._order_vids_pinned_first(all_vids, pinned_ids)
         items: List[Dict[str, Any]] = []
-        for vid in cls._sorted_version_ids(root, descending=True)[: max(1, int(limit))]:
+        for vid in ordered[: max(1, int(limit))]:
             entry = VersionMetaStore.get_registry_entry(root, vid) or {}
             sid = int(vid)
             items.append(
@@ -115,11 +131,64 @@ class WorkbenchSnapshots:
                         entry,
                         cls._current_env_fp(info),
                     ),
+                    "expires_soon": vid in at_risk,
+                    "pinned": vid in pinned_set,
+                    "retention_max": cap,
                     "updated_at": cls._iso(entry.get("updated_at") or entry.get("created_at")),
                     "created_at": cls._iso(entry.get("created_at")),
                 }
             )
         return items
+
+    @staticmethod
+    def _order_vids_pinned_first(
+        newest_first: List[str],
+        pinned_ids: List[str],
+    ) -> List[str]:
+        pinned = set(pinned_ids)
+        top = [vid for vid in newest_first if vid in pinned]
+        rest = [vid for vid in newest_first if vid not in pinned]
+        return top + rest
+
+    @staticmethod
+    def expires_soon_vids(
+        vids_newest_first: List[str],
+        cap: int,
+        pinned_ids: Optional[List[str]] = None,
+    ) -> Set[str]:
+        """keep-N 触顶后会先删的 version id（更旧、号更靠前、未固定）。
+
+        先读 ``pinned``。``n >= cap`` 时在未固定集合里标记最旧的
+        ``n - cap + 1`` 个。
+        """
+        ids = [str(v).strip() for v in vids_newest_first if str(v).strip()]
+        pinned = {
+            str(v).strip()
+            for v in (pinned_ids or [])
+            if str(v).strip()
+        }
+        unpinned_newest_first = [vid for vid in ids if vid not in pinned]
+        try:
+            c = int(cap)
+        except (TypeError, ValueError):
+            c = 10
+        if c < 1:
+            c = 1
+        n = len(ids)
+        if n < c:
+            return set()
+        drop = n - c + 1
+        unpinned_oldest_first = list(reversed(unpinned_newest_first))
+        return set(unpinned_oldest_first[:drop])
+
+    @classmethod
+    def _retention_cap(cls) -> int:
+        try:
+            from core.infra.project_context import ProjectContext
+
+            return int(ProjectContext.config.get_simulation_results_max_versions())
+        except Exception:
+            return 10
 
     @classmethod
     def ui_flags(cls, strategy_name: str, row: Dict[str, Any]) -> Dict[str, bool]:
@@ -136,19 +205,12 @@ class WorkbenchSnapshots:
 
     @classmethod
     def _current_env_fp(cls, info: StrategyInfo) -> str:
-        from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
-            GlobalEntityCache,
-        )
         from core.modules.strategy.core.services.fingerprint import (
             FingerprintCalculator,
         )
 
-        fps = FingerprintCalculator.calculate_fingerprints(
-            info,
-            None,
-            entity_ids=GlobalEntityCache.get_stock_list(),
-        )
-        return str(fps.env_fp or "")
+        # 列 version 只比 env，不要求当前 settings 可跑
+        return str(FingerprintCalculator.to_env_fingerprint(info) or "")
 
     @classmethod
     def _env_invalid_for_entry(
@@ -174,22 +236,47 @@ class WorkbenchSnapshots:
 
         folder = cls._strategy_folder(info)
         entry = VersionMetaStore.get_registry_entry(root, vid) or {}
-        settings_snapshot = cls._settings_snapshot_from_disk(info, root, vid)
+        settings_snapshot, disk_settings, effective_subset = cls._settings_layers_from_disk(
+            info, root, vid
+        )
         result_report = cls._result_report_from_disk(folder, root, vid)
 
         row: Dict[str, Any] = {
             "strategy_name": str(strategy_name or "").strip(),
             "version": int(version),
             "settings_snapshot": settings_snapshot,
+            "disk_settings": disk_settings,
+            "effective_settings": effective_subset,
             "reports": result_report,
             "result_report": result_report,
-            "settings_finger_print_id": str(entry.get("settings_fp") or ""),
+            "step_status": cls._step_status_from_disk(root, vid),
+            "execute_fp": str(entry.get("execute_fp") or ""),
             "env_fingerprint_id": str(entry.get("env_fp") or ""),
             "env_invalid": cls._env_invalid_for_entry(info, entry),
+            "pinned": vid in set(VersionMetaStore.read_pinned_ids(root)),
             "created_at": entry.get("created_at"),
             "updated_at": entry.get("updated_at") or entry.get("created_at"),
         }
         return cls._enrich_row(strategy_name, info, row)
+
+    @classmethod
+    def _settings_layers_from_disk(
+        cls,
+        info: StrategyInfo,
+        simulations_root: Path,
+        version_id: str,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        disk_settings = dict(info.settings or {})
+        archived = VersionMetaStore.read_settings(simulations_root, version_id) or {}
+        effective = VersionMetaStore.read_effective_settings(
+            simulations_root, version_id
+        ) or {}
+        if archived:
+            return archived, disk_settings, effective
+        if not effective:
+            return disk_settings, disk_settings, {}
+        snapshot = StrategySettings.merge_disk_with_diff(disk_settings, effective)
+        return snapshot, disk_settings, effective
 
     @classmethod
     def _settings_snapshot_from_disk(
@@ -198,20 +285,27 @@ class WorkbenchSnapshots:
         simulations_root: Path,
         version_id: str,
     ) -> Dict[str, Any]:
-        disk_settings = dict(info.settings or {})
-        effective = VersionMetaStore.read_effective_settings(
-            simulations_root, version_id
+        snapshot, _, _ = cls._settings_layers_from_disk(
+            info, simulations_root, version_id
         )
-        if not effective:
-            return disk_settings
-        subset = {
-            key: value
-            for key, value in effective.items()
-            if key != "entity_ids"
+        return snapshot
+
+    @classmethod
+    def _step_status_from_disk(
+        cls,
+        simulations_root: Path,
+        version_id: str,
+    ) -> Dict[str, Any]:
+        """步进完成态只认 registry / ``runtime_env.json``，不依赖报告 hydrate。"""
+        return {
+            slot_key: {
+                "done": VersionMetaStore.step_status(
+                    simulations_root, version_id, kind
+                )
+                == "ok"
+            }
+            for kind, slot_key in _STEP_SLOTS
         }
-        if not subset:
-            return disk_settings
-        return StrategySettings.merge_disk_with_diff(disk_settings, subset)
 
     @classmethod
     def _result_report_from_disk(
@@ -222,18 +316,32 @@ class WorkbenchSnapshots:
     ) -> Dict[str, Any]:
         result_report: Dict[str, Any] = {}
         for kind, slot_key in _STEP_SLOTS:
-            if not VersionMetaStore.step_has_artifacts(simulations_root, version_id, kind):
+            if VersionMetaStore.step_status(
+                simulations_root, version_id, kind
+            ) != "ok":
                 continue
-            cached = SimulationVersionStore.get_cache_by_version_id(
-                strategy_folder,
-                version_id,
-                kind,
-            )
-            if not cached:
-                continue
-            slot = cached.get(kind.value)
+            cached = None
+            try:
+                cached = SimulationVersionStore.get_cache_by_version_id(
+                    strategy_folder,
+                    version_id,
+                    kind,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "workbench result_report cache miss: step=%s vid=%s err=%s",
+                    kind.value,
+                    version_id,
+                    exc,
+                )
+            slot = cached.get(kind.value) if isinstance(cached, dict) else None
             if isinstance(slot, dict) and slot:
                 result_report[slot_key] = dict(slot)
+            else:
+                result_report[slot_key] = {
+                    "success": True,
+                    "version_id": version_id,
+                }
         return result_report
 
     @classmethod
@@ -263,6 +371,15 @@ class WorkbenchSnapshots:
         out = dict(row)
         if not isinstance(out.get("settings_snapshot"), dict):
             out["settings_snapshot"] = dict(info.settings or {})
+        if not isinstance(out.get("disk_settings"), dict):
+            out["disk_settings"] = dict(info.settings or {})
+        if not isinstance(out.get("effective_settings"), dict):
+            out["effective_settings"] = {}
+        occupancy = SettingsOccupancy.occupancy_from_info(
+            info, out.get("disk_settings") or {}
+        )
+        out["settings_rev"] = occupancy["settings_rev"]
+        out["execute_settings"] = occupancy["execute_settings"]
 
         rr = out.get("result_report") or out.get("reports") or {}
         if isinstance(rr, dict):
@@ -286,17 +403,26 @@ class WorkbenchSnapshots:
     @staticmethod
     def _synthetic_cold_start_row(
         strategy_name: str,
+        info: StrategyInfo,
         settings_api: Dict[str, Any],
     ) -> Dict[str, Any]:
+        occupancy = SettingsOccupancy.occupancy_from_info(
+            info, dict(settings_api or {})
+        )
         return {
             "strategy_name": str(strategy_name or "").strip(),
             "version": 0,
             "settings_snapshot": dict(settings_api or {}),
+            "disk_settings": dict(settings_api or {}),
+            "effective_settings": {},
+            "execute_settings": occupancy["execute_settings"],
+            "settings_rev": occupancy["settings_rev"],
             "reports": {},
             "result_report": {},
-            "settings_finger_print_id": "",
+            "execute_fp": "",
             "env_fingerprint_id": "",
             "env_invalid": False,
+            "pinned": False,
         }
 
     @staticmethod

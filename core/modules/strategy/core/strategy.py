@@ -217,7 +217,7 @@ class Strategy:
 
         缓存与指纹流程（磁盘单轨）::
 
-            1. 计算 settings_fp / env_fp
+            1. 计算 execute_fp / env_fp
             2. 扫 ``simulations/meta.json`` registry；step 产物存在则命中
             3. 未命中：price/portfolio 先按指纹找 enum vid；无则先 enum 再本 step
             4. 每步完成后 ``SimulationVersionStore.record_step_complete``
@@ -422,12 +422,39 @@ class Strategy:
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
+        from .services.artifacts import ArtifactStore, SimulationVersionStore
+        from .services.artifacts.version_meta import VersionMetaStore
         from .services.progress import PipelineProgress
 
         consolidated: Dict[str, Any] = {}
         folder = Path(strategy_folder)
-        semantic = StrategySettings.extract_effective_settings(ctx.effective_settings)
+        root = ArtifactStore.simulations_root(folder)
+        execute_settings = StrategySettings.extract_execute_settings(
+            ctx.effective_settings
+        )
+        full_settings = dict(ctx.effective_settings.raw_settings or {})
+        try:
+            period = ctx.effective_settings.resolve_period()
+            start_date = str(period.start_date or "")
+            end_date = str(period.end_date or "")
+        except Exception:
+            start_date = ""
+            end_date = ""
         for step in ctx.steps:
+            vid = str(ctx.enum_version or "").strip()
+            if not vid:
+                vid = str(
+                    VersionMetaStore.find_version_by_fingerprints(
+                        root,
+                        str(ctx.execute_fp or ""),
+                        str(ctx.env_fp or ""),
+                    )
+                    or ""
+                ).strip()
+            # D18：真正复写已跑步时先作废下游，避免旧报告撒谎
+            if vid and VersionMetaStore.step_status(root, vid, step) == "ok":
+                VersionMetaStore.clear_downstream_steps(root, vid, step)
+                ArtifactStore.clear_cache()
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
             if step == SimulateKind.ENUMERATE:
@@ -440,8 +467,12 @@ class Strategy:
                     folder,
                     version_id=str(step_res.get("version_id")),
                     fps=ctx.fp_res,
-                    settings=semantic,
+                    kind=step,
+                    full_settings=full_settings,
+                    effective_settings=execute_settings,
                     entity_ids=list(ctx.entity_ids or []),
+                    start_date=start_date,
+                    end_date=end_date,
                 )
 
             analysis_out = Strategy._maybe_run_analysis(
@@ -726,6 +757,51 @@ class Strategy:
         return ArtifactRetention.prune_scan_results(
             key_or_id, max_versions=max_versions
         )
+
+    @staticmethod
+    def delete_simulation_version(
+        key_or_id: str,
+        version: Union[int, str],
+    ) -> Dict[str, Any]:
+        """删除单个策略的一份 simulation version（目录 + registry）。
+
+        不改 ``settings.py``。``version`` 接受 ``3`` / ``v3``。
+        """
+        from .helpers.version_id import WorkbenchVersionId
+        from .services.artifacts import ArtifactRetention
+
+        if isinstance(version, int):
+            sid = version if version > 0 else None
+        else:
+            sid = WorkbenchVersionId.parse(str(version))
+        if sid is None:
+            return {
+                "ok": False,
+                "error": "version_id 无效",
+                "deleted": False,
+            }
+        return ArtifactRetention.clear_by_version(key_or_id, sid)
+
+    @staticmethod
+    def set_simulation_version_pinned(
+        key_or_id: str,
+        version: Union[int, str],
+        pinned: bool,
+    ) -> Dict[str, Any]:
+        """固定 / 取消固定一份 simulation version（只改 meta.pinned）。
+
+        ``version`` 接受 ``3`` / ``v3``。不改 ``settings.py``。
+        """
+        from .helpers.version_id import WorkbenchVersionId
+        from .services.artifacts import ArtifactRetention
+
+        if isinstance(version, int):
+            sid = version if version > 0 else None
+        else:
+            sid = WorkbenchVersionId.parse(str(version))
+        if sid is None:
+            return {"ok": False, "error": "version_id 无效"}
+        return ArtifactRetention.set_pinned(key_or_id, sid, bool(pinned))
 
     @staticmethod
     def export_package(

@@ -22,6 +22,7 @@ changelog:
       - 重构策略模块的归因分析，渐入cmd和UI的入口，增加设置里对归因分析的开关
       - 移除 Strategy.analyze 独立入口，入口变成内部通过settings的连接
       - 重新设计回测缓存系统，淘汰数据库缓存，UI和命令行都直接反馈入settings.py
+      - 重新指定了指纹生成逻辑：新概念execute_fp包含原来的settings_fp和env_fp里的回测范围字段，settings_fp不再使用。
   - version: "0.7.0"
     changes:
       - 移除 Strategy.analyze 与 AnalyzeService

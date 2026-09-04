@@ -1,4 +1,4 @@
-"""磁盘仿真 version 索引：按 settings_fp + env_fp 命中 step 产物。"""
+"""磁盘仿真 version 索引：按 execute_fp + env_fp 命中 step 产物。"""
 from __future__ import annotations
 
 import logging
@@ -33,11 +33,11 @@ class SimulationVersionStore:
         root = ArtifactStore.simulations_root(strategy_folder)
         vid = VersionMetaStore.find_version_by_fingerprints(
             root,
-            str(fps.settings_fp or ""),
+            str(fps.execute_fp or ""),
             str(fps.env_fp or ""),
         )
         if not vid:
-            cls._log_env_invalid_on_settings_match(root, fps)
+            cls._log_env_invalid_on_execute_match(root, fps)
             return None
         enum_dir = root / vid / ArtifactStore.step_dir_name(SimulateKind.ENUMERATE)
         if not cls._step_artifacts_present(enum_dir):
@@ -54,11 +54,11 @@ class SimulationVersionStore:
         root = ArtifactStore.simulations_root(strategy_folder)
         vid = VersionMetaStore.find_version_by_fingerprints(
             root,
-            str(fps.settings_fp or ""),
+            str(fps.execute_fp or ""),
             str(fps.env_fp or ""),
         )
         if not vid:
-            cls._log_env_invalid_on_settings_match(root, fps)
+            cls._log_env_invalid_on_execute_match(root, fps)
             return None
         try:
             store = ArtifactStore.resolve(
@@ -80,14 +80,14 @@ class SimulationVersionStore:
         return {_KIND_VALUE[kind]: payload}
 
     @classmethod
-    def _log_env_invalid_on_settings_match(
+    def _log_env_invalid_on_execute_match(
         cls,
         simulations_root: Path,
         fps: FingerprintResult,
     ) -> None:
-        alt = VersionMetaStore.find_version_by_settings_fp(
+        alt = VersionMetaStore.find_version_by_execute_fp(
             simulations_root,
-            str(fps.settings_fp or ""),
+            str(fps.execute_fp or ""),
         )
         if not alt:
             return
@@ -105,22 +105,54 @@ class SimulationVersionStore:
         *,
         version_id: Union[str, int],
         fps: FingerprintResult,
-        settings: Dict[str, Any],
+        kind: SimulateKind,
+        full_settings: Optional[Dict[str, Any]] = None,
+        effective_settings: Optional[Dict[str, Any]] = None,
         entity_ids: Optional[list] = None,
+        start_date: str = "",
+        end_date: str = "",
     ) -> None:
         root = ArtifactStore.simulations_root(strategy_folder)
         vid = str(version_id or "").strip()
+        settings_obj = getattr(fps, "effective_settings", None)
+        full = dict(full_settings or {})
+        if not full and settings_obj is not None:
+            raw = getattr(settings_obj, "raw_settings", None)
+            if isinstance(raw, dict) and raw:
+                full = dict(raw)
+        extracted = dict(effective_settings or {})
+        if not extracted and settings_obj is not None:
+            extract = getattr(type(settings_obj), "extract_execute_settings", None)
+            if callable(extract):
+                extracted = dict(extract(settings_obj) or {})
+        ids = list(entity_ids or getattr(fps, "entity_ids", None) or [])
+        start = str(start_date or "").strip()
+        end = str(end_date or "").strip()
+        if (not start or not end) and settings_obj is not None and hasattr(
+            settings_obj, "resolve_period"
+        ):
+            try:
+                period = settings_obj.resolve_period()
+                start = start or str(getattr(period, "start_date", "") or "")
+                end = end or str(getattr(period, "end_date", "") or "")
+            except Exception:
+                pass
+
         VersionMetaStore.register_version(
             root,
             vid,
-            settings_fp=str(fps.settings_fp or ""),
+            execute_fp=str(fps.execute_fp or ""),
             env_fp=str(fps.env_fp or ""),
         )
-        VersionMetaStore.write_effective_settings(
+        VersionMetaStore.mark_step_complete(root, vid, kind)
+        VersionMetaStore.write_version_archive(
             root,
             vid,
-            settings=dict(settings or {}),
-            entity_ids=list(entity_ids or fps.entity_ids or []),
+            full_settings=full,
+            effective_settings=extracted,
+            entity_ids=ids,
+            start_date=start,
+            end_date=end,
         )
 
     @classmethod

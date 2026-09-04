@@ -1,9 +1,7 @@
-"""模拟身份指纹：收集 input → settings_fp / env_fp / disk_settings_hash。
+"""模拟身份指纹：收集 input → execute_fp / env_fp。
 
-边界:
-- 负责: 有效 settings 合并、三类指纹、FingerprintResult
-- 不负责: GlobalEntityCache seed、磁盘 cache 读写、Pipeline 执行
-  entity_ids 由主线（entity_loader）先 resolve 再传入
+不负责 GlobalEntityCache seed、磁盘 cache、Pipeline。
+entity_ids 由调用方（entity_loader）先 resolve 再传入。
 """
 from __future__ import annotations
 
@@ -31,9 +29,8 @@ class FingerprintResult:
     不含运行时 cache：主线用 ``effective_settings`` 再 seed GlobalEntityCache。
     """
 
-    settings_fp: str
+    execute_fp: str
     env_fp: str
-    disk_settings_hash: str
     settings_diff: Dict[str, Any]
     effective_settings: StrategySettings
     entity_ids: List[str]
@@ -63,129 +60,86 @@ class FingerprintCalculator:
         *,
         entity_ids: Optional[Sequence[str]] = None,
     ) -> FingerprintResult:
-        """收集 settings / 策略代码 / 环境 input，产出三类指纹。"""
+        """收集 settings / hooks / 环境，产出 execute_fp 与 env_fp。"""
         if strategy_info is None:
             raise ValueError("strategy_info 不能为空")
 
-        disk_settings = dict(strategy_info.settings or {})
-        effective_settings, settings_diff = FingerprintCalculator.merge_settings(
+        merged, settings_diff = FingerprintCalculator.merge_settings(
             strategy_info,
             runtime_settings,
         )
+        # 指纹与后续运行共用同一份 usable settings
+        usable = StrategySettings.to_usable(merged)
         ids = [str(x).strip() for x in (entity_ids or []) if str(x).strip()]
         coerced_diff = FingerprintCalculator.coerce_numeric_tree(settings_diff)
-        settings_fp = FingerprintCalculator.to_effective_settings_fingerprint(
-            effective_settings,
+        execute_fp = FingerprintCalculator.to_execute_fingerprint(
+            usable,
             ids,
         )
-        disk_settings_hash = FingerprintCalculator.to_disk_settings_hash(disk_settings)
-        env_fp = FingerprintCalculator.to_env_fingerprint(
-            strategy_info,
-            effective_settings,
-            entity_ids=ids,
-        )
+        env_fp = FingerprintCalculator.to_env_fingerprint(strategy_info)
         return FingerprintResult(
-            settings_fp=settings_fp,
+            execute_fp=execute_fp,
             env_fp=env_fp,
-            disk_settings_hash=disk_settings_hash,
             settings_diff=coerced_diff,
-            effective_settings=effective_settings,
+            effective_settings=usable,
             entity_ids=ids,
         )
 
     @staticmethod
-    def to_effective_settings_fingerprint(
-        effective_settings: StrategySettings,
-        entity_ids: List[str],
-    ) -> str:
-        """settings 指纹：effective settings 指纹子集 + entity_ids。"""
-        subset = StrategySettings.extract_effective_settings(effective_settings)
-        signature = {
-            "effective_settings": FingerprintCalculator.coerce_numeric_tree(subset),
-            "entity_ids": sorted(entity_ids),
+    def extract_execute_scope(
+        *,
+        entity_ids: Optional[Sequence[str]] = None,
+    ) -> Dict[str, Any]:
+        """``execute_fp.scope``：只放标的快照（区间已在 simulation 里）。"""
+        ids = [str(x).strip() for x in (entity_ids or []) if str(x).strip()]
+        return {"entity_ids": sorted(ids)}
+
+    @staticmethod
+    def extract_execute_payload(
+        settings: Union[StrategySettings, Dict[str, Any], None],
+        *,
+        entity_ids: Optional[Sequence[str]] = None,
+    ) -> Dict[str, Any]:
+        """``execute_fp`` 哈希前的稳定载荷（usable → 白名单投影 ⊕ scope）。"""
+        return {
+            "settings": StrategySettings.extract_execute_settings(settings),
+            "scope": FingerprintCalculator.extract_execute_scope(entity_ids=entity_ids),
         }
-        return FingerprintCalculator._to_fingerprint_hash(signature)
 
     @staticmethod
-    def to_settings_semantic_fingerprint(
-        effective_settings: StrategySettings,
-        entity_ids: List[str],
+    def to_execute_fingerprint(
+        effective_settings: Union[StrategySettings, Dict[str, Any], None],
+        entity_ids: Optional[Sequence[str]] = None,
     ) -> str:
-        """兼容别名；请用 ``to_effective_settings_fingerprint``。"""
-        return FingerprintCalculator.to_effective_settings_fingerprint(
-            effective_settings, entity_ids
-        )
+        """对 extract_execute_payload 做哈希。
 
-    @staticmethod
-    def to_settings_diff_fingerprint(
-        settings_diff: Dict[str, Any],
-        entity_ids: List[str],
-    ) -> str:
-        """settings 指纹：已 coerce 的 settings_diff + entity_ids。
-
-        对 diff 做指纹与对「effective 的语义核」等价，前提是 effective = disk ⊕ diff，
-        且 disk 另有 ``disk_settings_hash`` 防物理文件漂移。
+        内部始终 ``to_usable``：缺省与显式默认值同一哈希；不能用则抛错、不分配 vid。
         """
+        payload = FingerprintCalculator.extract_execute_payload(
+            effective_settings,
+            entity_ids=entity_ids,
+        )
         signature = {
-            "settings_diff": FingerprintCalculator.coerce_numeric_tree(settings_diff),
-            "entity_ids": sorted(entity_ids),
+            "settings": FingerprintCalculator.coerce_numeric_tree(payload["settings"]),
+            "scope": payload["scope"],
         }
         return FingerprintCalculator._to_fingerprint_hash(signature)
-
-    @staticmethod
-    def to_disk_settings_hash(disk_settings: Dict[str, Any]) -> str:
-        """磁盘 settings 中影响结果的字段哈希（物理文件被改则缓存失效）。"""
-        filtered = StrategySettings._filter_fingerprint_fields(
-            dict(disk_settings or {})
-        )
-        return FingerprintCalculator._to_fingerprint_hash(
-            FingerprintCalculator.coerce_numeric_tree(filtered)
-        )
 
     @staticmethod
     def to_env_fingerprint(
         strategy_info: EnabledStrategyInfo,
-        effective_settings: Union[StrategySettings, Dict[str, Any]],
         *,
-        entity_ids: List[str],
         hooks_file_path: str = "",
     ) -> str:
-        """env 指纹：策略代码 / 与 JobBuilder 一致的区间 / execution_mode / 引擎与 DB。"""
-        if isinstance(effective_settings, StrategySettings):
-            settings_obj = effective_settings
-        else:
-            settings_obj = StrategySettings.from_dict(dict(effective_settings or {}))
-
-        period = settings_obj.resolve_period()
-        start_date = period.start_date
-        end_date = period.end_date
-
+        """不可逆环境：NTQ 版本、hooks 源码、DB / 合约映射。"""
         hooks_class = getattr(strategy_info, "hooks_class", None)
         hooks_class_name = hooks_class.__name__ if hooks_class is not None else ""
         hooks_code_hash = FingerprintCalculator._hooks_code_hash(
             hooks_class, hooks_file_path, strategy_info
         )
 
-        try:
-            execution_mode = settings_obj.execution_mode
-        except Exception:
-            simulation = settings_obj.raw_settings.get("simulation") or {}
-            execution = (
-                simulation.get("execution")
-                if isinstance(simulation, dict)
-                else {}
-            )
-            execution_mode = str(
-                (execution.get("mode") if isinstance(execution, dict) else "")
-                or ""
-            )
-
         signature = {
             "strategy_id": getattr(strategy_info, "unique_relative_path", "") or "",
-            "entity_ids": sorted(entity_ids or []),
-            "start_date": start_date,
-            "end_date": end_date,
-            "execution_mode": execution_mode,
             "engine_version": get_version(),
             "database_type": FingerprintCalculator._get_database_type(),
             "hooks_module_path": getattr(strategy_info, "hooks_module_path", "") or "",

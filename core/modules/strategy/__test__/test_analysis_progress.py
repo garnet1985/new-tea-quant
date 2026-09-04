@@ -51,7 +51,7 @@ def test_run_steps_completes_report_after_analysis(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         strategy_mod.StrategySettings,
-        "extract_effective_settings",
+        "extract_execute_settings",
         lambda _settings: {},
     )
 

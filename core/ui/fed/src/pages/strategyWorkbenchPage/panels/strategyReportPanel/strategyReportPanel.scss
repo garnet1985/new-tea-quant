@@ -345,12 +345,10 @@
   background: rgba(0, 0, 0, 0.10);
 }
 
-.ntq-report-compare__select {
-  min-width: 168px;
-}
-
-.ntq-report-compare__picker-list {
-  max-height: 360px;
-  overflow: auto;
+.ntq-report-compare__picker-trigger {
+  min-width: 0;
+  max-width: 100%;
+  justify-content: flex-start;
+  text-transform: none;
 }
 

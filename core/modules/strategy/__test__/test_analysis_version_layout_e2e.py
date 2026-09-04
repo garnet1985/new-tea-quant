@@ -17,6 +17,7 @@ from core.modules.strategy.core.services.artifacts.consts import (
     ANALYSIS_SUBDIR,
 )
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 
 pytestmark = pytest.mark.force_run
 
@@ -28,24 +29,33 @@ def _write_runtime(step_dir: Path) -> None:
             "strategy_key": "rsi_v1",
             "strategy_path": "demo/regression/rsi/rsi_v1_baseline",
             "version_id": int(step_dir.parent.name),
-            "fingerprints": {"settings": "s", "env": "e"},
+            "market_profile": "china_a_stock",
             "period": {"start_date": "20230101", "end_date": "20260101"},
-            "settings": {
-                "effective_settings": {
-                    "core": {"rsi_oversold_threshold": 20},
-                    "data": {
-                        "base": {
-                            "data_key": "stock.kline.daily",
-                            "indicators": {"rsi": [{"length": 14}]},
-                        }
-                    },
-                    "goal": {"stop_loss": {"stages": [{"ratio": -0.2}]}},
-                    "simulation": {"execution": {"mode": "entity_based"}},
-                }
-            },
         },
     )
     (step_dir / "entity_ids.txt").write_text("688005.SH\n", encoding="utf-8")
+    root = step_dir.parent.parent
+    vid = step_dir.parent.name
+    VersionMetaStore.register_version(root, vid, execute_fp="s", env_fp="e")
+    VersionMetaStore.write_version_archive(
+        root,
+        vid,
+        full_settings={"core": {"rsi_oversold_threshold": 20}},
+        effective_settings={
+            "core": {"rsi_oversold_threshold": 20},
+            "data": {
+                "base": {
+                    "data_key": "stock.kline.daily",
+                    "indicators": {"rsi": [{"length": 14}]},
+                }
+            },
+            "goal": {"stop_loss": {"stages": [{"ratio": -0.2}]}},
+            "simulation": {"execution": {"mode": "entity_based"}},
+        },
+        entity_ids=["688005.SH"],
+        start_date="20230101",
+        end_date="20260101",
+    )
 
 
 def _write_enum_entity(step_dir: Path) -> None:

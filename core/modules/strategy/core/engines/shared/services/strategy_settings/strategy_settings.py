@@ -11,23 +11,23 @@
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, FrozenSet, List, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
-from core.modules.backtest_engine.contracts import BacktestMode
-from .meta_settings import MetaSettings
-from .data_settings import DataSettings
-from .sampling_settings import SamplingSettings
-from .goal_settings import GoalSettings
-from .fees_settings import FeesSettings
-from .simulation_settings import BacktestPeriod, SimulationSettings
-from .portfolio_settings import PortfolioSettings
-from .scanner_settings import ScannerSettings
-from .analysis_settings import AnalysisSettings
-from .validation_report import ValidationReport
 from core.infra.utils import Utils
+from core.modules.backtest_engine.contracts import BacktestMode
+
+from .analysis_settings import AnalysisSettings
+from .execute_fp_whitelist import EXECUTE_NESTED_DROP_KEYS, EXECUTE_SETTINGS_FIELDS
+from .data_settings import DataSettings
+from .fees_settings import FeesSettings
+from .goal_settings import GoalSettings
+from .meta_settings import MetaSettings
+from .portfolio_settings import PortfolioSettings
+from .sampling_settings import SamplingSettings
+from .scanner_settings import ScannerSettings
+from .simulation_settings import BacktestPeriod, SimulationSettings
+from .validation_report import ValidationReport
 
 
 @dataclass
@@ -36,29 +36,6 @@ class StrategySettings:
 
     内层子类与 settings section 一一对应（见模块 docstring）。
     """
-
-    FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            "core",
-            "data",
-            "goal",
-            "sampling",
-            "fees",
-            "simulation",
-            "portfolio",
-            "market_profile",
-        }
-    )
-
-    NON_FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            "meta",
-            "is_enabled",
-            "scanner",
-            "enumerator",
-            "analysis",
-        }
-    )
 
     raw_settings: Dict[str, Any]
     _validated: bool = field(default=False, repr=False)
@@ -92,37 +69,97 @@ class StrategySettings:
         return {
             key: copy.deepcopy(value)
             for key, value in diff.items()
-            if key.split(".")[0] in cls.FINGERPRINT_FIELDS
+            if key.split(".")[0] in EXECUTE_SETTINGS_FIELDS
         }
 
     @classmethod
-    def extract_effective_settings(
+    def to_usable(
         cls,
-        settings: Union["StrategySettings", Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        """从 effective settings 抽取参与指纹/版本冻结的配置子集（``FINGERPRINT_FIELDS``）。
+        settings: Union["StrategySettings", Dict[str, Any], None],
+    ) -> "StrategySettings":
+        """clone → apply_defaults → validate。不能跑回测则无法给出身份。"""
+        obj = cls.from_dict(cls._raw_settings_dict(settings))
+        report = obj.validate()
+        if not report.is_usable():
+            raise ValueError(cls.format_validation_error(report))
+        return obj
 
-        字段定义在 ``StrategySettings.FINGERPRINT_FIELDS``（策略通用上层规则）；
-        带 value 的快照写入 ``simulations/{vid}/effective_settings.json``。
+    @staticmethod
+    def format_validation_error(report: ValidationReport) -> str:
+        errors = list(getattr(report, "errors", None) or [])
+        if not errors:
+            return "settings 校验失败"
+        first = errors[0]
+        if isinstance(first, dict):
+            field = str(
+                first.get("field_path")
+                or first.get("field")
+                or first.get("path")
+                or ""
+            ).strip()
+            msg = str(first.get("message") or first.get("msg") or "").strip()
+            if field and msg:
+                return f"settings 校验失败: {field}: {msg}"
+            if msg:
+                return f"settings 校验失败: {msg}"
+        return f"settings 校验失败: {first}"
+
+    @classmethod
+    def extract_execute_settings(
+        cls,
+        settings: Union["StrategySettings", Dict[str, Any], None],
+    ) -> Dict[str, Any]:
+        """抽出 ``execute_fp`` 的 settings 块。
+
+        先 ``to_usable``，再白名单 + 去草稿 + 去空对象。
+        缺 key 与「显式写成默认值」会收敛成同一份投影。
         """
-        raw = (
-            settings.raw_settings
-            if isinstance(settings, StrategySettings)
-            else dict(settings or {})
-        )
-        return {
-            key: copy.deepcopy(raw[key])
-            for key in cls.FINGERPRINT_FIELDS
-            if key in raw
-        }
+        raw = dict(cls.to_usable(settings).raw_settings)
+        extracted: Dict[str, Any] = {}
+        for key in sorted(EXECUTE_SETTINGS_FIELDS):
+            if key not in raw or raw[key] is None:
+                continue
+            extracted[key] = copy.deepcopy(raw[key])
+        return cls._prune_empty_objects(cls._drop_nested_keys(extracted))
+
+    @staticmethod
+    def _raw_settings_dict(
+        settings: Union["StrategySettings", Dict[str, Any], None],
+    ) -> Dict[str, Any]:
+        if settings is None:
+            return {}
+        raw = getattr(settings, "raw_settings", None)
+        if isinstance(raw, dict):
+            return dict(raw)
+        if isinstance(settings, dict):
+            return dict(settings)
+        return {}
 
     @classmethod
-    def fingerprint_semantic(
-        cls,
-        settings: Union["StrategySettings", Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        """兼容别名；请用 ``extract_effective_settings``。"""
-        return cls.extract_effective_settings(settings)
+    def _drop_nested_keys(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: cls._drop_nested_keys(item)
+                for key, item in value.items()
+                if key not in EXECUTE_NESTED_DROP_KEYS
+            }
+        if isinstance(value, list):
+            return [cls._drop_nested_keys(item) for item in value]
+        return value
+
+    @classmethod
+    def _prune_empty_objects(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            out: Dict[str, Any] = {}
+            for key, item in value.items():
+                pruned = cls._prune_empty_objects(item)
+                if isinstance(pruned, dict) and not pruned:
+                    continue
+                out[key] = pruned
+            return out
+        if isinstance(value, list):
+            return [cls._prune_empty_objects(item) for item in value]
+        return value
 
     @classmethod
     def fingerprint_diff(
@@ -151,10 +188,6 @@ class StrategySettings:
         settings_diff = cls.fingerprint_diff(disk_settings, user_settings)
         effective = cls.merge_disk_with_diff(disk_settings, settings_diff)
         return cls(raw_settings=effective), settings_diff
-
-    @classmethod
-    def fingerprint_payload(cls, settings_diff: Dict[str, Any]) -> Dict[str, Any]:
-        return copy.deepcopy(settings_diff)
 
     @property
     def execution_mode(self) -> str:
@@ -187,32 +220,6 @@ class StrategySettings:
     @property
     def is_slice_based(self) -> bool:
         return self.execution_mode == BacktestMode.SLICE_BASED.value
-
-    def fingerprint_hash(
-        self,
-        *,
-        settings_diff: Dict[str, Any],
-        entity_ids: List[str],
-        start_date: str,
-        end_date: str,
-    ) -> str:
-        signature = {
-            "settings": self.fingerprint_payload(settings_diff),
-            "entity_ids": sorted(entity_ids),
-            "start_date": start_date,
-            "end_date": end_date,
-        }
-        return self._stable_hash(signature)
-
-    @staticmethod
-    def _stable_hash(payload: Dict[str, Any]) -> str:
-        canonical = json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @property
     def is_enabled(self) -> bool:
@@ -283,29 +290,31 @@ class StrategySettings:
         return bool(self._validated)
 
     def to_dict(self) -> Dict[str, Any]:
-        self.apply_defaults()
-        out = copy.deepcopy(self.raw_settings)
-        out["is_enabled"] = self.is_enabled
-        out["meta"] = self.meta.to_dict()
-        if self.core:
-            out["core"] = self.core
-        out["data"] = self.data.to_dict()
-        sampling = self.sampling.to_dict()
+        """展开默认值的拷贝；不得改 ``self.raw_settings``（否则会污染 execute_fp / 归档）。"""
+        clone = StrategySettings(raw_settings=copy.deepcopy(self.raw_settings))
+        clone.apply_defaults()
+        out = copy.deepcopy(clone.raw_settings)
+        out["is_enabled"] = clone.is_enabled
+        out["meta"] = clone.meta.to_dict()
+        if clone.core:
+            out["core"] = clone.core
+        out["data"] = clone.data.to_dict()
+        sampling = clone.sampling.to_dict()
         if sampling:
             out["sampling"] = sampling
-        out["goal"] = self.goal.to_dict()
-        if self.fees.fees:
-            out["fees"] = self.fees.to_dict()
+        out["goal"] = clone.goal.to_dict()
+        if clone.fees.fees:
+            out["fees"] = clone.fees.to_dict()
         out["simulation"] = {
-            **(self.raw_settings.get("simulation") or {}),
-            **self.simulation.to_dict(),
+            **(clone.raw_settings.get("simulation") or {}),
+            **clone.simulation.to_dict(),
         }
-        if self.portfolio.portfolio:
-            out["portfolio"] = self.portfolio.to_dict()
-        if self.scanner.scanner:
-            out["scanner"] = self.scanner.to_dict()
-        if self.analysis.enabled or "analysis" in self.raw_settings:
-            out["analysis"] = self.analysis.to_dict()
+        if clone.portfolio.portfolio:
+            out["portfolio"] = clone.portfolio.to_dict()
+        if clone.scanner.scanner:
+            out["scanner"] = clone.scanner.to_dict()
+        if clone.analysis.enabled or "analysis" in clone.raw_settings:
+            out["analysis"] = clone.analysis.to_dict()
         return out
 
 

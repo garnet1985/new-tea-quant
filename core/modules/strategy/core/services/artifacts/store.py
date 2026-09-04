@@ -430,14 +430,21 @@ class ArtifactStore:
         if not root.is_dir():
             return 0
         cap = _resolve_max_versions(max_versions)
+        pinned = set(VersionMetaStore.read_pinned_ids(root))
         version_dirs = [
             d for d in root.iterdir() if d.is_dir() and d.name.isdigit()
         ]
-        if len(version_dirs) <= cap:
+        excess = len(version_dirs) - cap
+        if excess <= 0:
             return 0
-        version_dirs.sort(key=lambda d: int(d.name), reverse=True)
+        unpinned_oldest_first = sorted(
+            (d for d in version_dirs if d.name not in pinned),
+            key=lambda d: int(d.name),
+        )
         deleted = 0
-        for old_dir in version_dirs[cap:]:
+        for old_dir in unpinned_oldest_first:
+            if deleted >= excess:
+                break
             try:
                 VersionMetaStore.remove_version_from_registry(root, old_dir.name)
                 shutil.rmtree(old_dir)
@@ -644,24 +651,30 @@ class ArtifactStore:
         if not runtime_path.is_file():
             raise FileNotFoundError(f"缺少 {RUNTIME_ENV_FILE}: {self.output_dir}")
         raw = ArtifactIO.read_json(runtime_path)
+        archive = VersionMetaStore.read_archive_context(
+            self.output_dir.parent.parent, self.version_id
+        )
         entity_ids = ArtifactIO.read_text_lines(self.output_dir / ENTITY_IDS_FILE)
         if not entity_ids:
-            raw_ids = raw.get("entity_ids")
-            if isinstance(raw_ids, list):
-                entity_ids = [str(x).strip() for x in raw_ids if str(x).strip()]
-        period = raw.get("period") if isinstance(raw.get("period"), dict) else {}
-        settings_raw = raw.get("settings") if isinstance(raw.get("settings"), dict) else {}
-        if "effective_settings" not in settings_raw and isinstance(
-            raw.get("settings_snapshot"), dict
-        ):
-            settings_raw = raw.get("settings_snapshot") or {}
+            entity_ids = list(archive.get("entity_ids") or [])
+        period = {
+            "start_date": str(archive.get("start_date") or "").strip(),
+            "end_date": str(archive.get("end_date") or "").strip(),
+        }
+        if not period["start_date"] and not period["end_date"]:
+            raw_period = raw.get("period") if isinstance(raw.get("period"), dict) else {}
+            period = {
+                "start_date": str(raw_period.get("start_date") or "").strip(),
+                "end_date": str(raw_period.get("end_date") or "").strip(),
+            }
+        effective = dict(archive.get("effective_settings") or {})
         key = str(raw.get("strategy_key") or "").strip()
         self.runtime = ArtifactRuntime(
             strategy_key=key,
             strategy_path=str(raw.get("strategy_path") or key).strip(),
             market_profile=str(raw.get("market_profile") or "").strip(),
             settings_snapshot=_SettingsView(
-                effective_settings=dict(settings_raw.get("effective_settings") or {}),
+                effective_settings=effective,
             ),
         )
         self.start_date = str(period.get("start_date") or "").strip()

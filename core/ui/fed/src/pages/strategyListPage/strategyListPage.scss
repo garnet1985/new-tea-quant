@@ -37,6 +37,55 @@
   flex-wrap: wrap;
 }
 
+.strategy-list-category-chips {
+  padding: 0 12px 14px 12px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.strategy-list-category-chips-scroller {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  padding: 2px 0;
+}
+
+.strategy-list-category-chip {
+  flex: 0 0 auto;
+  max-width: 11.5em;
+  height: 28px !important;
+  padding: 0 10px !important;
+  cursor: pointer;
+
+  .MuiChip-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &--all {
+    max-width: none;
+  }
+
+  &.is-selected {
+    border-color: var(--ntq-cyan) !important;
+    background: rgba(61, 221, 243, 0.16) !important;
+    color: var(--ntq-text) !important;
+  }
+}
+
+.strategy-list-category-empty {
+  padding: 24px 8px 12px;
+}
+
 .strategy-list-search {
   flex: 0 0 auto;
   width: 360px;
@@ -83,6 +132,24 @@
 .strategy-list-category-header {
   margin-bottom: 8px;
   padding: 0 2px;
+}
+
+.strategy-list-category-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover .strategy-list-category-header-label {
+    text-decoration: underline;
+  }
 }
 
 .strategy-list-category-count {

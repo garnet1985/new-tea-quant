@@ -1,4 +1,4 @@
-"""临时文件 / 运行时产物清理（``devcli.py cgc/csc/cdc/cmc``；设置页 ``TempCleanup.run``）。"""
+"""临时文件 / 运行时产物清理（``devcli.py cgc/csc``；设置页 ``TempCleanup.run``）。"""
 
 from .temp_cleanup import TempCleanup
 

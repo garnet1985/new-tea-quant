@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -20,6 +20,8 @@ import {
   getStrategyDesignPath,
   getStrategyDisplayLabel,
   groupStrategiesByCategory,
+  readStrategyListCategoryQuery,
+  STRATEGY_LIST_CATEGORY_PARAM,
 } from '../../api/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import StrategyPackageImportDialog from '../../components/strategyPackageImportDialog/strategyPackageImportDialog';
@@ -39,7 +41,7 @@ import './strategyListPage.scss';
  */
 const STRATEGY_LIST_BANNER_TITLE = '选择一个策略';
 const STRATEGY_LIST_BANNER_DESCRIPTION =
-  '请从表格中选择一个策略；支持按名称搜索。进入后可调参数、分步回测并对比版本。';
+  '请从表格中选择一个策略；可按归类筛选或按名称搜索。进入后可调参数、分步回测并对比版本。';
 
 function StrategyListPage({
   listBasePath = '/strategy-design',
@@ -49,6 +51,7 @@ function StrategyListPage({
   bannerDescription = STRATEGY_LIST_BANNER_DESCRIPTION,
 }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -58,10 +61,28 @@ function StrategyListPage({
   const [exportingName, setExportingName] = useState('');
   const [exportError, setExportError] = useState('');
 
+  const categoryQuery = readStrategyListCategoryQuery(searchParams);
+  const selectedChipRef = useRef(null);
+
+  const catalogGroups = useMemo(
+    () => groupStrategiesByCategory(rows),
+    [rows],
+  );
+
+  const categoryFilteredRows = useMemo(() => {
+    if (!categoryQuery) return rows;
+    const match = catalogGroups.find((g) => g.queryValue === categoryQuery);
+    return match ? match.rows : [];
+  }, [rows, categoryQuery, catalogGroups]);
+
+  const catalogHasSelectedCategory = Boolean(
+    !categoryQuery || catalogGroups.some((g) => g.queryValue === categoryQuery),
+  );
+
   const displayRows = useMemo(() => {
     const q = nameQuery.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
+    if (!q) return categoryFilteredRows;
+    return categoryFilteredRows.filter((r) => {
       const id = String(r.name || '').toLowerCase();
       const path = String(r.path || '').toLowerCase();
       const key = String(r.key || '').toLowerCase();
@@ -77,12 +98,28 @@ function StrategyListPage({
         || category.includes(q)
       );
     });
-  }, [rows, nameQuery]);
+  }, [categoryFilteredRows, nameQuery]);
 
   const groupedRows = useMemo(
     () => groupStrategiesByCategory(displayRows),
     [displayRows],
   );
+
+  const setCategoryQuery = useCallback((nextQuery) => {
+    const q = String(nextQuery || '').trim();
+    if (q === categoryQuery) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (q) next.set(STRATEGY_LIST_CATEGORY_PARAM, q);
+      else next.delete(STRATEGY_LIST_CATEGORY_PARAM);
+      return next;
+    });
+  }, [categoryQuery, setSearchParams]);
+
+  const toggleCategoryQuery = useCallback((queryValue) => {
+    const q = String(queryValue || '').trim();
+    setCategoryQuery(q && q === categoryQuery ? '' : q);
+  }, [categoryQuery, setCategoryQuery]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -101,6 +138,14 @@ function StrategyListPage({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    selectedChipRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'nearest',
+      block: 'nearest',
+    });
+  }, [categoryQuery]);
 
   const handleExportStrategyPackage = useCallback(async (strategyName) => {
     if (!strategyName || exportingName) return;
@@ -294,8 +339,60 @@ function StrategyListPage({
           </Button>
         </Stack>
 
+        {catalogGroups.length > 0 ? (
+          <Stack
+            direction="row"
+            alignItems="center"
+            className="strategy-list-category-chips"
+            role="group"
+            aria-label="按归类筛选"
+          >
+            <Chip
+              size="small"
+              clickable
+              label={`全部 ${rows.length}`}
+              className={[
+                'strategy-list-category-chip',
+                'strategy-list-category-chip--all',
+                categoryQuery ? '' : 'is-selected',
+              ].filter(Boolean).join(' ')}
+              aria-pressed={!categoryQuery}
+              onClick={() => setCategoryQuery('')}
+            />
+            <Box className="strategy-list-category-chips-scroller">
+              {catalogGroups.map(({ category, queryValue, rows: categoryRows }) => {
+                const selected = categoryQuery === queryValue;
+                return (
+                  <Chip
+                    key={queryValue}
+                    size="small"
+                    clickable
+                    title={category}
+                    label={`${category} ${categoryRows.length}`}
+                    className={[
+                      'strategy-list-category-chip',
+                      selected ? 'is-selected' : '',
+                    ].filter(Boolean).join(' ')}
+                    aria-pressed={selected}
+                    ref={selected ? selectedChipRef : undefined}
+                    onClick={() => toggleCategoryQuery(queryValue)}
+                  />
+                );
+              })}
+            </Box>
+          </Stack>
+        ) : null}
+
         <Box className="strategy-list-grid-body">
-          {groupedRows.length === 0 ? (
+          {!loading && categoryQuery && !catalogHasSelectedCategory ? (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              className="strategy-list-category-empty"
+            >
+              没有该归类的策略
+            </Typography>
+          ) : groupedRows.length === 0 ? (
             <DataGrid
               autoHeight
               rows={[]}
@@ -309,23 +406,37 @@ function StrategyListPage({
             />
           ) : (
             <Stack spacing={2.5}>
-              {groupedRows.map(({ category, rows: categoryRows }) => (
-                <Box key={category} className="strategy-list-category-section">
+              {groupedRows.map(({ category, queryValue, rows: categoryRows }) => (
+                <Box key={queryValue} className="strategy-list-category-section">
                   <Stack
                     direction="row"
                     alignItems="center"
                     spacing={1}
                     className="strategy-list-category-header"
                   >
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      {category}
-                    </Typography>
                     <Box
-                      component="span"
-                      className="strategy-list-category-count"
-                      aria-label={`${categoryRows.length} 个策略`}
+                      component="button"
+                      type="button"
+                      className="strategy-list-category-header-btn"
+                      onClick={() => toggleCategoryQuery(queryValue)}
+                      aria-pressed={categoryQuery === queryValue}
+                      title={categoryQuery === queryValue ? '显示全部归类' : `只看${category}`}
                     >
-                      {categoryRows.length}
+                      <Typography
+                        variant="subtitle1"
+                        fontWeight={700}
+                        component="span"
+                        className="strategy-list-category-header-label"
+                      >
+                        {category}
+                      </Typography>
+                      <Box
+                        component="span"
+                        className="strategy-list-category-count"
+                        aria-label={`${categoryRows.length} 个策略`}
+                      >
+                        {categoryRows.length}
+                      </Box>
                     </Box>
                   </Stack>
                   <DataGrid

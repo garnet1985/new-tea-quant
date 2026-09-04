@@ -91,8 +91,8 @@ class SimulateSession:
         return cache
 
     @property
-    def settings_fp(self) -> str:
-        return self.fp_res.settings_fp
+    def execute_fp(self) -> str:
+        return self.fp_res.execute_fp
 
     @property
     def env_fp(self) -> str:
@@ -138,8 +138,8 @@ class SimulateSession:
             raise ValueError("SimulateSession.strategy_info 不能为空")
         if self.fp_res is None:
             raise ValueError("SimulateSession.fp_res 不能为空")
-        if not self.settings_fp or not self.env_fp:
-            raise ValueError("settings_fp / env_fp 不能为空")
+        if not self.execute_fp or not self.env_fp:
+            raise ValueError("execute_fp / env_fp 不能为空")
         if self.global_entity_cache is None:
             raise ValueError("global_entity_cache 不能为空")
         if self.kind == SimulateKind.FULL:

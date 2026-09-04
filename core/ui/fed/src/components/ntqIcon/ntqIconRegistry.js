@@ -1,13 +1,18 @@
 import { ReactComponent as AddIcon } from './icons/add.svg';
+import { ReactComponent as ArrowBackIcon } from './icons/arrow_back.svg';
 import { ReactComponent as ArrowRightIcon } from './icons/arrow_right.svg';
 import { ReactComponent as CancelIcon } from './icons/cancel.svg';
 import { ReactComponent as ChatIcon } from './icons/chat.svg';
 import { ReactComponent as DataObjectIcon } from './icons/data_object.svg';
 import { ReactComponent as DeleteIcon } from './icons/delete.svg';
 import { ReactComponent as DownloadIcon } from './icons/download.svg';
+import { ReactComponent as FolderOpenIcon } from './icons/folder_open.svg';
 import { ReactComponent as HelpIcon } from './icons/help.svg';
+import { ReactComponent as HistoryIcon } from './icons/history.svg';
 import { ReactComponent as InfoIcon } from './icons/info.svg';
 import { ReactComponent as MonitoringIcon } from './icons/monitoring.svg';
+import { ReactComponent as PinIcon } from './icons/pin.svg';
+import { ReactComponent as PinFilledIcon } from './icons/pin_filled.svg';
 import { ReactComponent as PlayIcon } from './icons/play.svg';
 import { ReactComponent as PlayCircleIcon } from './icons/play_circle.svg';
 import { ReactComponent as RadioUncheckedIcon } from './icons/radio_button_unchecked.svg';
@@ -20,6 +25,7 @@ import { ReactComponent as SettingsIcon } from './icons/settings.svg';
 import { ReactComponent as SuccessIcon } from './icons/success.svg';
 import { ReactComponent as SyncAltIcon } from './icons/sync_alt.svg';
 import { ReactComponent as TacticIcon } from './icons/tactic.svg';
+import { ReactComponent as TrashIcon } from './icons/trash.svg';
 import { ReactComponent as UploadFileIcon } from './icons/upload_file.svg';
 import { ReactComponent as WarningIcon } from './icons/warning.svg';
 import { ReactComponent as WebhookIcon } from './icons/webhook.svg';
@@ -27,6 +33,7 @@ import { ReactComponent as WebhookIcon } from './icons/webhook.svg';
 /** 与 ``icons/*.svg`` 及 ``NTQ_ICON_MAP`` 的 key 对应；``expandMore`` 复用 ``arrow_right`` + 旋转。 */
 export const NTQ_ICON_MAP = {
   add: AddIcon,
+  arrowBack: ArrowBackIcon,
   cancel: CancelIcon,
   chat: ChatIcon,
   chevronRight: ArrowRightIcon,
@@ -34,9 +41,13 @@ export const NTQ_ICON_MAP = {
   delete: DeleteIcon,
   download: DownloadIcon,
   expandMore: ArrowRightIcon,
+  folderOpen: FolderOpenIcon,
   help: HelpIcon,
+  history: HistoryIcon,
   info: InfoIcon,
   monitoring: MonitoringIcon,
+  pin: PinIcon,
+  pinFilled: PinFilledIcon,
   play: PlayIcon,
   playCircle: PlayCircleIcon,
   radioUnchecked: RadioUncheckedIcon,
@@ -49,6 +60,7 @@ export const NTQ_ICON_MAP = {
   success: SuccessIcon,
   syncAlt: SyncAltIcon,
   tactic: TacticIcon,
+  trash: TrashIcon,
   uploadFile: UploadFileIcon,
   warning: WarningIcon,
   webhook: WebhookIcon,

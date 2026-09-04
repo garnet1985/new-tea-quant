@@ -117,7 +117,7 @@ def test_clear_by_version_success(mock_resolve, tmp_path: Path):
     root = strategy_folder / "results" / "simulations"
     version_dir = root / "2" / "enum"
     version_dir.mkdir(parents=True)
-    VersionMetaStore.register_version(root, "2", settings_fp="s", env_fp="e")
+    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
 
     mock_resolve.return_value = strategy_folder
 
@@ -125,8 +125,44 @@ def test_clear_by_version_success(mock_resolve, tmp_path: Path):
     assert out["ok"] is True
     assert out["deleted"] is True
     assert out["version_id"] == "v2"
+    assert out.get("was_pinned") is False
     assert not (root / "2").exists()
     assert VersionMetaStore.get_registry_entry(root, "2") is None
+
+
+@patch(_RESOLVE)
+def test_clear_by_version_reports_was_pinned(mock_resolve, tmp_path: Path):
+    strategy_folder = tmp_path / "strategy"
+    strategy_folder.mkdir()
+    root = strategy_folder / "results" / "simulations"
+    (root / "2").mkdir(parents=True)
+    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
+    VersionMetaStore.set_version_pinned(root, "2", True)
+    mock_resolve.return_value = strategy_folder
+
+    out = ArtifactRetention.clear_by_version("demo/x", 2)
+    assert out["ok"] is True
+    assert out["was_pinned"] is True
+    assert VersionMetaStore.read_pinned_ids(root) == []
+
+
+@patch(_RESOLVE)
+def test_set_pinned_roundtrip(mock_resolve, tmp_path: Path):
+    strategy_folder = tmp_path / "strategy"
+    strategy_folder.mkdir()
+    root = strategy_folder / "results" / "simulations"
+    (root / "3").mkdir(parents=True)
+    VersionMetaStore.register_version(root, "3", execute_fp="s", env_fp="e")
+    mock_resolve.return_value = strategy_folder
+
+    out = ArtifactRetention.set_pinned("demo/x", 3, True)
+    assert out["ok"] is True
+    assert out["pinned"] is True
+    assert out["pinned_ids"] == ["v3"]
+    assert VersionMetaStore.read_pinned_ids(root) == ["3"]
+    out = ArtifactRetention.set_pinned("demo/x", 3, False)
+    assert out["pinned"] is False
+    assert out["pinned_ids"] == []
 
 
 @patch(_RESOLVE)

@@ -15,11 +15,41 @@ terms:
     avoid: []
 
   simulate:
-    definition: "统一模拟入口：指纹 → 缓存槽 → Pipeline；enumerate/price_factor/portfolio 为其薄封装。"
+    definition: "统一模拟入口：execute_fp + env_fp → 磁盘 simulations/meta.json registry → Pipeline；enumerate/price_factor/portfolio 为其薄封装。"
     aliases:
       - "回测步骤"
     avoid:
       - "simulate(kind=full)（暂不支持）"
+      - "发布策略（已取消；日常 SOT 是 settings.py）"
+
+  execute_fp:
+    definition: "回测可逆执行输入的指纹：白名单 settings ⊕ 本次解析出的 entity_ids。与 env_fp 组成命中键。"
+    aliases: []
+    avoid:
+      - "settings_fp（旧名）"
+      - "把 interval / entity_ids 再塞进 env_fp"
+
+  env_fp:
+    definition: "不可逆执行环境指纹：NTQ/core 版本、hooks 源码、DB 类型、data_contract 映射。变了则旧 {vid}/ 只读。"
+    aliases: []
+    avoid:
+      - "因正在看 env_invalid version 就让 Run 报错"
+
+  simulation_version:
+    definition: "一次完整回测的磁盘号。三步共享 {vid}/；索引在 simulations/meta.json。选中号不绑定 Run。"
+    aliases:
+      - "version"
+      - "vid"
+    avoid:
+      - "一步一个 version"
+      - "工作台 DB version ≠ 磁盘 version"
+
+  pin:
+    definition: "meta.json 根上 pinned 列表。置顶且跳过自动清理；不改 settings、不绑定 Run、不禁止手动删除。"
+    aliases:
+      - "固定"
+    avoid:
+      - "把 pinned 写在 registry 行或 {vid}/ 上"
 
   SimulateKind:
     definition: "模拟子步骤枚举：enumerate / price_factor / portfolio / full；从 contracts 导入。"

@@ -43,6 +43,31 @@ function toStringList(arr) {
   return Array.isArray(arr) ? arr.map((v) => String(v ?? '')) : [];
 }
 
+function normalizeTradeEvent(row) {
+  if (!row || typeof row !== 'object') return null;
+  const date = String(row.date || '').trim();
+  const side = String(row.side || '').trim().toLowerCase();
+  if (!date || (side !== 'buy' && side !== 'sell')) return null;
+  const entityId = String(row.entityId || '').trim();
+  const stockName = String(row.stockName || entityId).trim();
+  const shares = Number(row.shares);
+  const price = Number(row.price);
+  const cost = Number(row.cost);
+  const profit = Number(row.profit);
+  const buyPrice = Number(row.buyPrice);
+  return {
+    date,
+    side,
+    entityId,
+    stockName: stockName || entityId,
+    shares: Number.isFinite(shares) ? shares : 0,
+    price: Number.isFinite(price) && price >= 0 ? price : 0,
+    cost: Number.isFinite(cost) ? cost : null,
+    profit: Number.isFinite(profit) ? profit : null,
+    buyPrice: Number.isFinite(buyPrice) && buyPrice > 0 ? buyPrice : null,
+  };
+}
+
 /**
  * ``result_report.enum`` 槽位 → FED 展示结构；缺字段则对应块 ``_availability`` 为 false。
  */
@@ -331,6 +356,12 @@ export function normalizeCapitalMetricsFromSummary(slot) {
 
   const calmarRatio = num('calmarRatio');
   const drawdownCurveValues = toNumberList(m.drawdownCurveValues);
+  const eventCurveLabels = toStringList(m.eventCurveLabels);
+  const eventCurveValues = toNumberList(m.eventCurveValues);
+  const eventDrawdownValues = toNumberList(m.eventDrawdownValues);
+  const tradeEvents = Array.isArray(m.tradeEvents)
+    ? m.tradeEvents.map(normalizeTradeEvent).filter(Boolean)
+    : [];
   const worstTradePnls = toNumberList(m.worstTradePnls);
 
   const skippedBuyAtLimitUp = num('skippedBuyAtLimitUp');
@@ -375,6 +406,10 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     equityCurveLabels,
     equityCurveValues,
     drawdownCurveValues,
+    eventCurveLabels,
+    eventCurveValues,
+    eventDrawdownValues,
+    tradeEvents,
     skippedBuyAtLimitUp: Number.isFinite(skippedBuyAtLimitUp) ? Math.round(skippedBuyAtLimitUp) : 0,
     skippedSellAtLimitDown: Number.isFinite(skippedSellAtLimitDown)
       ? Math.round(skippedSellAtLimitDown)

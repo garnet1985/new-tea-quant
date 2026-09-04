@@ -306,11 +306,9 @@ DuckdbEngine（duckdb 时）
 
 | 位置 | 域 | 说明 |
 |------|-----|------|
-| `SimulatorResDbCacheService` / `workbench.py` | strategy 写 | 高频更新 `reports` JSON |
-| `workbench.py` `get_table("sys_stock_list")` | 读 data | **跨域**；需 ATTACH 或经 `DataManager.stock.list` 走 data 连接 |
+| 磁盘 `results/simulations/` | 非 DB | version 产物与 `meta.json` registry（三步共享 vid）。工作台 DB 快照已退役。规格见 `modules.strategy` `docs/VERSIONING.md` |
 | `StrategyDataInjectionService` / `DataContract` loaders | 读 data（+ tag） | 子进程只读；Contract 不感知 domain，loader 内部用 DataManager |
 | `ProcessWorker` 多进程 | 读 data、写 strategy（主进程） | 子进程禁止打开 strategy 写连接；data 只读 |
-| 磁盘 `results/simulations/` | 非 DB | 不受三域影响 |
 
 ### 7.6 tag 模块
 

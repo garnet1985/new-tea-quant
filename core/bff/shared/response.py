@@ -9,11 +9,20 @@ def ok(message: dict, http_status: int = 200):
     return jsonify({"status": "ok", "message": message}), http_status
 
 
-def error(detail: str, http_status: int = 500, code: Optional[str] = None):
+def error(
+    detail: str,
+    http_status: int = 500,
+    code: Optional[str] = None,
+    extra: Optional[dict] = None,
+):
     """Return a standard error response."""
     payload = {"detail": detail}
     if code:
         payload["code"] = code
+    if extra:
+        for key, value in extra.items():
+            if key not in payload:
+                payload[key] = value
     return jsonify({"status": "error", "message": payload}), http_status
 
 

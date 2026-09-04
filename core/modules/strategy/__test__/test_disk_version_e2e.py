@@ -13,6 +13,8 @@ from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts.consts import (
     EFFECTIVE_SETTINGS_FILE,
     RUNTIME_ENV_FILE,
+    SCOPE_FILE,
+    SETTINGS_FILE,
 )
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.engines.enumerator.pipeline import EnumeratorPipeline
@@ -34,9 +36,8 @@ def _prepare_entity_cache(self, **kwargs):
 
 def _fps():
     return SimpleNamespace(
-        settings_fp="settings-fp",
+        execute_fp="settings-fp",
         env_fp="env-fp",
-        disk_settings_hash="dsh",
         settings_diff={"core": {"n": 1}},
         effective_settings=StrategySettings.from_dict({"core": {"n": 1}}),
         entity_ids=["000001.SZ"],
@@ -108,15 +109,27 @@ def test_simulate_miss_writes_disk_registry_and_version_dirs(tmp_path: Path) -> 
 
     entry = VersionMetaStore.get_registry_entry(sim_root, "1")
     assert entry is not None
-    assert entry["settings_fp"] == "settings-fp"
+    assert entry["execute_fp"] == "settings-fp"
     assert entry["env_fp"] == "env-fp"
 
-    effective_path = sim_root / "1" / EFFECTIVE_SETTINGS_FILE
-    assert effective_path.is_file()
+    vid_dir = sim_root / "1"
+    settings = json.loads((vid_dir / SETTINGS_FILE).read_text(encoding="utf-8"))
+    effective = json.loads((vid_dir / EFFECTIVE_SETTINGS_FILE).read_text(encoding="utf-8"))
+    scope = json.loads((vid_dir / SCOPE_FILE).read_text(encoding="utf-8"))
+    runtime = json.loads((vid_dir / "enum" / RUNTIME_ENV_FILE).read_text(encoding="utf-8"))
+    assert settings["core"]["n"] == 1
+    assert "entity_ids" not in effective
+    assert "core" in effective
+    assert scope["entity_ids"] == ["000001.SZ"]
+    assert "execute_fp" not in runtime
+    assert "entity_ids" not in runtime
+    assert "period" not in runtime
+    assert "settings" not in runtime
+    assert entry.get("steps", {}).get("enumerate") == "ok"
 
     meta = json.loads((sim_root / "meta.json").read_text(encoding="utf-8"))
     assert "1" in meta.get("registry", {})
-    assert (sim_root / "1" / "enum" / RUNTIME_ENV_FILE).is_file()
+    assert (vid_dir / "enum" / RUNTIME_ENV_FILE).is_file()
 
 
 def test_simulate_hit_skips_pipeline(tmp_path: Path) -> None:

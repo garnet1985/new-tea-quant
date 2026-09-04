@@ -54,6 +54,7 @@ from core.modules.strategy.core.services.artifacts import (
     ArtifactStore,
     EnumerateStore,
 )
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 
 
 @dataclass
@@ -110,7 +111,7 @@ class ReportManager(BaseReportManager):
         strategy_key: str,
         *,
         entity_ids: List[str],
-        settings_fp: str,
+        execute_fp: str,
         env_fp: str,
         effective_settings: StrategySettings,
         settings_diff: Dict[str, Any],
@@ -130,9 +131,16 @@ class ReportManager(BaseReportManager):
             if not path_id:
                 raise ValueError("strategy_folder / strategy_path / strategy_key 不能为空")
             folder = path_id
+        root = ArtifactStore.simulations_root(folder)
+        reuse_vid = VersionMetaStore.find_version_by_fingerprints(
+            root,
+            str(execute_fp or ""),
+            str(env_fp or ""),
+        )
         store = EnumerateStore.allocate(
             folder,
             strategy_id=path_id or str(folder),
+            version_id=reuse_vid,
         )
         output_dir = store.output_dir
         version_id = int(store.version_id)
@@ -142,14 +150,32 @@ class ReportManager(BaseReportManager):
             version_id=int(version_id),
             strategy_path=path_id or str(folder),
         )
+        full_settings = dict(effective_settings.raw_settings or {})
+        execute_subset = StrategySettings.extract_execute_settings(effective_settings)
         manager.runtime.save_begin(
             entity_ids=entity_ids,
-            settings_fp=settings_fp,
+            execute_fp=execute_fp,
             env_fp=env_fp,
             effective_settings=effective_settings,
             settings_diff=settings_diff,
             execution_mode=execution_mode,
             market_profile=market_profile,
+        )
+        try:
+            period = effective_settings.resolve_period()
+            start_date = str(period.start_date or "")
+            end_date = str(period.end_date or "")
+        except Exception:
+            start_date = ""
+            end_date = ""
+        VersionMetaStore.write_version_archive(
+            EnumerateStore.simulations_root(folder),
+            str(version_id),
+            full_settings=full_settings,
+            effective_settings=execute_subset,
+            entity_ids=entity_ids,
+            start_date=start_date,
+            end_date=end_date,
         )
         return manager
 

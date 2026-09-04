@@ -37,6 +37,21 @@ class UserHandlers:
         return text or None
 
     @staticmethod
+    def parse_strategy_version_spec(raw: object) -> tuple[str, int]:
+        """``rsi_v1:3`` / ``demo/foo:v3`` → (策略, version int)。按最后一个冒号切开。"""
+        from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
+
+        text = str(raw or "").strip()
+        if ":" not in text:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        name, _, vid = text.rpartition(":")
+        name = name.strip()
+        sid = WorkbenchVersionId.parse(vid)
+        if not name or sid is None:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        return name, sid
+
+    @staticmethod
     def run_app_update() -> int:
         repo_root = Path(__file__).resolve().parents[4]
         updater_dir = repo_root / "userspace" / "system" / "updater"
@@ -181,6 +196,9 @@ class UserHandlers:
             "strategy_portfolio",
             "strategy_simulate",
             "strategy_analyze",
+            "strategy_delete_version",
+            "strategy_pin_version",
+            "strategy_unpin_version",
         ):
             UserHandlers._handle_strategy(cmd, app, args)
             return
@@ -348,7 +366,7 @@ class UserHandlers:
         print(f"{i('market')} 价格因子回测…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存，将新建 version", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -403,7 +421,7 @@ class UserHandlers:
         print(f"{i('money')} 组合回测（portfolio）…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存，将新建 version", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -500,7 +518,7 @@ class UserHandlers:
         print(f"{i('game')} 模拟链路 · PriceFactor → Portfolio …", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存，将新建 version", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
 
         t0 = time.perf_counter()
         pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)
@@ -585,6 +603,59 @@ class UserHandlers:
         raise SystemExit(1)
 
     @staticmethod
+    def _run_strategy_delete_version(args: argparse.Namespace) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            spec, sid = UserHandlers.parse_strategy_version_spec(
+                getattr(args, "strategy", None)
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+
+        try:
+            strategy_key = Strategy.resolve(spec)
+        except FileNotFoundError:
+            logger.error("策略不存在: %s", spec)
+            raise SystemExit(1)
+        out = Strategy.delete_simulation_version(strategy_key, sid)
+        if not out.get("ok"):
+            print(out.get("error") or "删除失败", flush=True)
+            raise SystemExit(1)
+        vid_label = out.get("version_id") or f"v{sid}"
+        pinned_note = "（原先已固定）" if out.get("was_pinned") else ""
+        print(
+            f"已删除 {strategy_key} {vid_label} 的回测产物{pinned_note}。",
+            flush=True,
+        )
+
+    @staticmethod
+    def _run_strategy_set_pinned(args: argparse.Namespace, pinned: bool) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            spec, sid = UserHandlers.parse_strategy_version_spec(
+                getattr(args, "strategy", None)
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+
+        try:
+            strategy_key = Strategy.resolve(spec)
+        except FileNotFoundError:
+            logger.error("策略不存在: %s", spec)
+            raise SystemExit(1)
+        out = Strategy.set_simulation_version_pinned(strategy_key, sid, pinned)
+        if not out.get("ok"):
+            print(out.get("error") or "操作失败", flush=True)
+            raise SystemExit(1)
+        vid_label = out.get("version_id") or f"v{sid}"
+        action = "已固定" if pinned else "已取消固定"
+        print(f"{action} {strategy_key} {vid_label}。", flush=True)
+
+    @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         if cmd == "strategy_enumerate":
             UserHandlers._run_strategy_enumerate(args)
@@ -608,6 +679,18 @@ class UserHandlers:
 
         if cmd == "strategy_analyze":
             UserHandlers._run_strategy_analyze(args)
+            return
+
+        if cmd == "strategy_delete_version":
+            UserHandlers._run_strategy_delete_version(args)
+            return
+
+        if cmd == "strategy_pin_version":
+            UserHandlers._run_strategy_set_pinned(args, True)
+            return
+
+        if cmd == "strategy_unpin_version":
+            UserHandlers._run_strategy_set_pinned(args, False)
             return
 
         raise SystemExit(f"未知命令: {cmd}")

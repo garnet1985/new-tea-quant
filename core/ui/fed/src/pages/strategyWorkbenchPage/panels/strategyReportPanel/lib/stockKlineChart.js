@@ -1,5 +1,13 @@
 import { formatReportChartDateLabel } from './reportDateFormat';
 import {
+  REPORT_MARKER_PIN_DOWN,
+  REPORT_MARKER_PIN_OFFSET_DOWN,
+  REPORT_MARKER_PIN_OFFSET_UP,
+  REPORT_MARKER_PIN_SIZE,
+  REPORT_MARKER_PIN_UP,
+  reportMarkerPinStyle,
+} from './reportChartMarkers';
+import {
   REPORT_CHART_AXIS_LABEL_SM,
   REPORT_CHART_AXIS_LINE,
   REPORT_CHART_SPLIT_LINE,
@@ -21,22 +29,15 @@ const CANDLE_UP_COLOR = '#FF4D67';
 const CANDLE_DOWN_COLOR = '#00D9A5';
 
 /** Pin 尖端指向 K 线：买入在下方尖朝上，目标在上方尖朝下；path 与挂载位置对调 */
-const MARKER_BELOW_CANDLE_SYMBOL = 'path://M6,0 L1,9 C1,13 3.5,15 6,15 C8.5,15 11,13 11,9 L6,0 Z';
-const MARKER_ABOVE_CANDLE_SYMBOL = 'path://M6,15 L1,6 C1,2 3.5,0 6,0 C8.5,0 11,2 11,6 L6,15 Z';
-const UP_MARKER_SIZE = 14;
-const DOWN_MARKER_SIZE = 14;
-const UP_MARKER_OFFSET_Y = 12;
-const DOWN_MARKER_OFFSET_Y = -12;
+const MARKER_BELOW_CANDLE_SYMBOL = REPORT_MARKER_PIN_UP;
+const MARKER_ABOVE_CANDLE_SYMBOL = REPORT_MARKER_PIN_DOWN;
+const UP_MARKER_SIZE = REPORT_MARKER_PIN_SIZE;
+const DOWN_MARKER_SIZE = REPORT_MARKER_PIN_SIZE;
+const UP_MARKER_OFFSET_Y = REPORT_MARKER_PIN_OFFSET_UP;
+const DOWN_MARKER_OFFSET_Y = REPORT_MARKER_PIN_OFFSET_DOWN;
 
 function buildMarkerItemStyle(color, shadowRgb) {
-  return {
-    color,
-    borderColor: '#FFFFFF',
-    borderWidth: 2,
-    shadowBlur: 10,
-    shadowColor: `rgba(${shadowRgb}, 0.72)`,
-    shadowOffsetY: 1,
-  };
+  return reportMarkerPinStyle(color, shadowRgb);
 }
 
 function buildCyanUpArrowStyle() {

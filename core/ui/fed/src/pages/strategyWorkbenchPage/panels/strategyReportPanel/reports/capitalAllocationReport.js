@@ -10,168 +10,17 @@ import {
   CAPITAL_SECTION_TIPS,
   REPORT_STOCK_GRID_TIPS,
 } from '../reportMetricTips';
-import { formatReportMoney } from '../lib/formatReportMoney';
 import ReportUnavailableHint from '../components/reportUnavailableHint';
 import ReportStockGridSection from '../components/reportStockGridSection';
 import ExecutionSkipCards from '../components/executionSkipCards';
 import { useReportStockSearch } from '../hooks/useReportStockSearch';
 import { STOCK_NAME_COLUMN, stockCodeColumn } from '../lib/reportStockColumns';
-import { formatReportChartDateLabel } from '../lib/reportDateFormat';
-import {
-  REPORT_CHART_AXIS_LABEL,
-  REPORT_CHART_AXIS_LINE,
-  REPORT_CHART_GRID_BASE,
-  REPORT_CHART_SPLIT_LINE,
-  REPORT_CHART_TOOLTIP,
-} from '../lib/reportChartsTheme';
+import { formatReportMoney } from '../lib/formatReportMoney';
+import { buildPortfolioEventChartOption } from '../lib/portfolioEventChart';
 
-const EQUITY_LINE_POS = '#4CAF50';
-const EQUITY_LINE_NEG = '#EF5350';
-const EQUITY_AREA_POS = 'rgba(76, 175, 80, 0.16)';
-const EQUITY_AREA_NEG = 'rgba(239, 83, 80, 0.16)';
-
-/** 整条资产曲线按最终盈亏着色：赚绿、亏红（与中间过程无关） */
-function equityResultIsPositive(metrics) {
-  const initial = Number(metrics.initialCapital);
-  const final = Number(metrics.finalEquity);
-  if (Number.isFinite(initial) && Number.isFinite(final)) {
-    return final >= initial;
-  }
-  const ret = Number(metrics.totalReturnPct);
-  if (Number.isFinite(ret)) return ret >= 0;
-  const profit = Number(metrics.totalProfit);
-  if (Number.isFinite(profit)) return profit >= 0;
-  return true;
-}
-
-/** 资产曲线纵轴按数据区间缩放（不再默认贴 0），少量留白便于读出波动 */
-function equityAxisMinMax(equityCurveValues) {
-  const nums = (equityCurveValues || [])
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v));
-  if (nums.length === 0) return {};
-  const minV = Math.min(...nums);
-  const maxV = Math.max(...nums);
-  const span = Math.max(maxV - minV, Math.abs(minV) * 0.02, Math.abs(maxV) * 0.02, 1);
-  const pad = span * 0.12;
-  return {
-    min: minV - pad,
-    max: maxV + pad,
-  };
-}
-
-/** 纵轴「万」刻度：区间窄时加小数，避免多档都显示成同一个 3w */
-function formatEquityAxisWan(value, yMin, yMax) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '';
-  const span = (
-    Number.isFinite(yMin) && Number.isFinite(yMax)
-      ? Math.abs(yMax - yMin)
-      : Math.abs(n)
-  );
-  const wan = n / 10000;
-  if (span < 10000) return `${wan.toFixed(2)}w`;
-  if (span < 80000) return `${wan.toFixed(1)}w`;
-  return `${Math.round(wan)}w`;
-}
-
-function buildEquityCurveOption(metrics) {
-  const values = metrics.equityCurveValues || [];
-  const positive = equityResultIsPositive(metrics);
-  const lineColor = positive ? EQUITY_LINE_POS : EQUITY_LINE_NEG;
-  const areaColor = positive ? EQUITY_AREA_POS : EQUITY_AREA_NEG;
-  const { min: yMin, max: yMax } = equityAxisMinMax(values);
-
-  return {
-    animation: false,
-    grid: REPORT_CHART_GRID_BASE,
-    xAxis: {
-      type: 'category',
-      data: metrics.equityCurveLabels,
-      axisTick: { show: false },
-      axisLine: REPORT_CHART_AXIS_LINE,
-      axisLabel: {
-        ...REPORT_CHART_AXIS_LABEL,
-        formatter: (v) => formatReportChartDateLabel(v),
-      },
-    },
-    yAxis: {
-      type: 'value',
-      ...((yMin !== undefined && yMax !== undefined) ? { min: yMin, max: yMax } : {}),
-      splitNumber: 4,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: {
-        ...REPORT_CHART_AXIS_LABEL,
-        formatter: (value) => formatEquityAxisWan(value, yMin, yMax),
-      },
-      splitLine: REPORT_CHART_SPLIT_LINE,
-    },
-    series: [
-      {
-        type: 'line',
-        data: values,
-        smooth: true,
-        symbol: 'none',
-        lineStyle: { width: 2, color: lineColor },
-        areaStyle: { color: areaColor },
-      },
-    ],
-    tooltip: {
-      ...REPORT_CHART_TOOLTIP,
-      trigger: 'axis',
-      formatter: (params) => {
-        const point = params?.[0];
-        if (!point) return '';
-        return `${formatReportChartDateLabel(point.axisValue)}<br/>总资产：${Number(point.data).toLocaleString()}`;
-      },
-    },
-  };
-}
-
-function buildDrawdownCurveOption(metrics) {
-  return {
-    animation: false,
-    grid: REPORT_CHART_GRID_BASE,
-    xAxis: {
-      type: 'category',
-      data: metrics.equityCurveLabels,
-      axisTick: { show: false },
-      axisLine: REPORT_CHART_AXIS_LINE,
-      axisLabel: {
-        ...REPORT_CHART_AXIS_LABEL,
-        formatter: (v) => formatReportChartDateLabel(v),
-      },
-    },
-    yAxis: {
-      type: 'value',
-      min: 0,
-      splitNumber: 3,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { ...REPORT_CHART_AXIS_LABEL, formatter: '{value}%' },
-      splitLine: REPORT_CHART_SPLIT_LINE,
-    },
-    series: [
-      {
-        type: 'line',
-        data: metrics.drawdownCurveValues,
-        smooth: true,
-        symbol: 'none',
-        lineStyle: { width: 2, color: '#EF5350' },
-        areaStyle: { color: 'rgba(239, 83, 80, 0.14)' },
-      },
-    ],
-    tooltip: {
-      ...REPORT_CHART_TOOLTIP,
-      trigger: 'axis',
-      formatter: (params) => {
-        const point = params?.[0];
-        if (!point) return '';
-        return `${formatReportChartDateLabel(point.axisValue)}<br/>回撤：${point.data}%`;
-      },
-    },
-  };
+function formatRiskRatio(value) {
+  if (!Number.isFinite(value)) return '—';
+  return Number(value).toFixed(2);
 }
 
 function CapitalAllocationReport({
@@ -236,7 +85,7 @@ function CapitalAllocationReport({
         title="资金结果总览"
         tip={CAPITAL_SECTION_TIPS.overview}
       >
-        <MetricGrid>
+        <MetricGrid columns={3}>
           <MetricCard
             title="初始资金"
             titleTip={CAPITAL_METRIC_TIPS.initialCapital}
@@ -255,14 +104,15 @@ function CapitalAllocationReport({
           <MetricCard
             title="收益回撤比（Calmar）"
             titleTip={CAPITAL_METRIC_TIPS.calmarRatio}
-            value={metrics.calmarRatio}
+            value={formatRiskRatio(metrics.calmarRatio)}
           />
         </MetricGrid>
         <ChartPanel
-          title="资产曲线"
-          tip={CAPITAL_CHART_TIPS.equityCurve}
-          option={buildEquityCurveOption(metrics)}
-          height={180}
+          title="资产与回撤"
+          note="上：总资产 · 下：回撤（相对历史最高净值，不是本金）"
+          tip={CAPITAL_CHART_TIPS.equityEventCurve}
+          option={buildPortfolioEventChartOption(metrics)}
+          height={380}
         />
       </SectionBlock>
 
@@ -363,12 +213,6 @@ function CapitalAllocationReport({
             value={metrics.worstTradePnls.map((value) => formatReportMoney(value)).join(' / ')}
           />
         </MetricGrid>
-        <ChartPanel
-          title="回撤曲线"
-          tip={CAPITAL_CHART_TIPS.drawdownCurve}
-          option={buildDrawdownCurveOption(metrics)}
-          height={170}
-        />
       </SectionBlock>
 
       <SectionBlock

@@ -16,7 +16,6 @@ from core.modules.strategy.core.services.artifacts import (
     EntitySignalSnapshotCsv,
     EnumerateStore,
     GoalAchievementCsv,
-    PortfolioStore,
     PriceFactorStore,
     PriceInvestmentRow,
 )
@@ -28,6 +27,18 @@ from core.modules.strategy.core.services.artifacts.consts import (
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 
 pytestmark = pytest.mark.force_run
+
+_EFFECTIVE = {
+    "core": {"rsi_oversold_threshold": 20},
+    "data": {
+        "base": {
+            "data_key": "stock.kline.daily",
+            "indicators": {"rsi": [{"length": 14}]},
+        }
+    },
+    "goal": {"stop_loss": {"stages": [{"ratio": -0.2}]}},
+    "simulation": {"execution": {"mode": "entity_based"}},
+}
 
 
 def _build_report(source: dict, *, step: str) -> dict:
@@ -42,29 +53,34 @@ def _clear_store_cache():
     ArtifactStore.clear_cache()
 
 
-def _write_runtime(tmp_path: Path, *, kind: SimulateKind) -> None:
+def _write_runtime(step_dir: Path, *, extra: dict | None = None) -> None:
     runtime = {
         "strategy_key": "demo_rsi",
         "strategy_path": "demo/regression/rsi/rsi_v1_baseline",
         "version_id": 1,
-        "fingerprints": {"settings": "abc", "env": "def"},
+        "market_profile": "china_a_stock",
         "period": {"start_date": "20230101", "end_date": "20260101"},
-        "settings": {
-            "effective_settings": {
-                "core": {"rsi_oversold_threshold": 20},
-                "data": {
-                    "base": {
-                        "data_key": "stock.kline.daily",
-                        "indicators": {"rsi": [{"length": 14}]},
-                    }
-                },
-                "goal": {"stop_loss": {"stages": [{"ratio": -0.2}]}},
-                "simulation": {"execution": {"mode": "entity_based"}},
-            }
-        },
     }
-    ArtifactIO.write_json(tmp_path / "runtime_env.json", runtime)
-    (tmp_path / "entity_ids.txt").write_text("688005.SH\n", encoding="utf-8")
+    if extra:
+        runtime.update(extra)
+    ArtifactIO.write_json(step_dir / "runtime_env.json", runtime)
+    (step_dir / "entity_ids.txt").write_text("688005.SH\n", encoding="utf-8")
+
+
+def _hydrate_step(step_dir: Path, kind: SimulateKind, *, extra: dict | None = None):
+    _write_runtime(step_dir, extra=extra)
+    return ArtifactStore.hydrate(
+        step_dir,
+        kind=kind,
+        version_id="1",
+        entity_ids=["688005.SH"],
+        start_date="20230101",
+        end_date="20260101",
+        strategy_key="demo_rsi",
+        strategy_path="demo/regression/rsi/rsi_v1_baseline",
+        market_profile="china_a_stock",
+        effective_settings=dict(_EFFECTIVE),
+    )
 
 
 def _write_enum_entity(tmp_path: Path) -> None:
@@ -175,10 +191,8 @@ def _write_enum_entity(tmp_path: Path) -> None:
 
 
 def test_collect_enum_joins_capture_and_goal_legs(tmp_path: Path) -> None:
-    _write_runtime(tmp_path, kind=SimulateKind.ENUMERATE)
     _write_enum_entity(tmp_path)
-
-    store = EnumerateStore.open(tmp_path, version_id="1")
+    store = _hydrate_step(tmp_path, SimulateKind.ENUMERATE)
     source = PrepareStep(store).build()
 
     assert source["step"] == "enum"
@@ -201,10 +215,8 @@ def test_collect_enum_joins_capture_and_goal_legs(tmp_path: Path) -> None:
 
 
 def test_pipeline_writes_source_and_report_json(tmp_path: Path) -> None:
-    _write_runtime(tmp_path, kind=SimulateKind.ENUMERATE)
     _write_enum_entity(tmp_path)
-
-    store = EnumerateStore.open(tmp_path, version_id="1")
+    store = _hydrate_step(tmp_path, SimulateKind.ENUMERATE)
     result = Analyzer.run(store)
 
     source_path = tmp_path / ANALYSIS_SUBDIR / ANALYSIS_SOURCE_JSON
@@ -234,7 +246,7 @@ def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
     enum_dir.mkdir(parents=True)
     price_dir.mkdir(parents=True)
 
-    _write_runtime(enum_dir, kind=SimulateKind.ENUMERATE)
+    _write_runtime(enum_dir)
     _write_enum_entity(enum_dir)
 
     ArtifactIO.write_json(
@@ -245,16 +257,8 @@ def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
             "version_id": 1,
             "enum_version_id": "1",
             "enum_output_dir": str(enum_dir.resolve()),
-            "fingerprints": {"settings": "abc", "env": "def"},
+            "market_profile": "china_a_stock",
             "period": {"start_date": "20230101", "end_date": "20260101"},
-            "settings": {
-                "effective_settings": {
-                    "core": {"rsi_oversold_threshold": 20},
-                    "data": {},
-                    "goal": {},
-                    "simulation": {"execution": {"mode": "entity_based"}},
-                }
-            },
         },
     )
     (price_dir / "entity_ids.txt").write_text("688005.SH\n", encoding="utf-8")
@@ -293,7 +297,18 @@ def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
         ],
     )
 
-    store = PriceFactorStore.open(price_dir, version_id="1")
+    store = ArtifactStore.hydrate(
+        price_dir,
+        kind=SimulateKind.PRICE_FACTOR,
+        version_id="1",
+        entity_ids=["688005.SH"],
+        start_date="20230101",
+        end_date="20260101",
+        strategy_key="demo_rsi",
+        strategy_path="demo/regression/rsi/rsi_v1_baseline",
+        market_profile="china_a_stock",
+        effective_settings=dict(_EFFECTIVE),
+    )
     source = PrepareStep(store).build()
     assert source["step"] == "price"
     assert source["upstream"]["enum_version_id"] == "1"
@@ -331,7 +346,7 @@ def test_collect_portfolio_joins_completed_lots(tmp_path: Path) -> None:
     enum_dir.mkdir(parents=True)
     portfolio_dir.mkdir(parents=True)
 
-    _write_runtime(enum_dir, kind=SimulateKind.ENUMERATE)
+    _write_runtime(enum_dir)
     _write_enum_entity(enum_dir)
 
     ArtifactIO.write_json(
@@ -342,17 +357,8 @@ def test_collect_portfolio_joins_completed_lots(tmp_path: Path) -> None:
             "version_id": 1,
             "enum_version_id": "1",
             "enum_output_dir": str(enum_dir.resolve()),
-            "fingerprints": {"settings": "abc", "env": "def"},
+            "market_profile": "china_a_stock",
             "period": {"start_date": "20230101", "end_date": "20260101"},
-            "settings": {
-                "effective_settings": {
-                    "core": {"rsi_oversold_threshold": 20},
-                    "data": {},
-                    "goal": {},
-                    "simulation": {"execution": {"mode": "entity_based"}},
-                    "portfolio": {"capital": 1_000_000},
-                }
-            },
         },
     )
     ArtifactIO.write_json(
@@ -397,7 +403,18 @@ def test_collect_portfolio_joins_completed_lots(tmp_path: Path) -> None:
     )
     ArtifactIO.write_json(portfolio_dir / "equity_curve.json", [])
 
-    store = PortfolioStore.open(portfolio_dir, version_id="1")
+    store = ArtifactStore.hydrate(
+        portfolio_dir,
+        kind=SimulateKind.PORTFOLIO,
+        version_id="1",
+        entity_ids=["688005.SH"],
+        start_date="20230101",
+        end_date="20260101",
+        strategy_key="demo_rsi",
+        strategy_path="demo/regression/rsi/rsi_v1_baseline",
+        market_profile="china_a_stock",
+        effective_settings=dict(_EFFECTIVE),
+    )
     source = PrepareStep(store).build()
     assert source["step"] == "portfolio"
     assert source["inputs"]["portfolio_artifacts"]["completed_lots"] == 1

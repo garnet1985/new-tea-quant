@@ -1,6 +1,19 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
 import { coerceMetaDescription } from '../utils/formatStrategyDescription';
+import { normalizeWorkbenchVersionId } from '../utils/workbenchVersionId';
 import { mapDataEnd } from './mappers/dataEnd';
+
+export {
+  UNKNOWN_STRATEGY_CATEGORY,
+  UNKNOWN_STRATEGY_CATEGORY_QUERY,
+  STRATEGY_LIST_CATEGORY_PARAM,
+  getStrategyCategoryLabel,
+  getStrategyCategoryQueryValue,
+  getStrategyListPath,
+  groupStrategiesByCategory,
+  listPeerStrategies,
+  readStrategyListCategoryQuery,
+} from './strategyCategory';
 
 /** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
 const API_STRATEGY_CATALOG = (page, limit) =>
@@ -9,40 +22,6 @@ const API_STRATEGY_SCAN_CONTEXT = `${API_VERSION_PREFIX}/strategy/scan/context`;
 /** 策略列表/扫描页展示名：优先 ``display_name``，否则回退路径 ID。 */
 export function getStrategyDisplayLabel(item) {
   return String(item?.display_name || item?.name || '').trim();
-}
-
-/** 无 ``meta.category`` 时的 UI 归类名。 */
-export const UNKNOWN_STRATEGY_CATEGORY = '未知归类';
-
-/** 策略归类展示名：有 category 用原文，否则「未知归类」。 */
-export function getStrategyCategoryLabel(item) {
-  const category = String(item?.category || '').trim();
-  return category || UNKNOWN_STRATEGY_CATEGORY;
-}
-
-/**
- * 按 category 分组；命名类按中文序，``未知归类`` 始终在最后。
- * @param {object[]} rows
- * @returns {{ category: string, rows: object[] }[]}
- */
-export function groupStrategiesByCategory(rows) {
-  const map = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const category = getStrategyCategoryLabel(row);
-    if (!map.has(category)) map.set(category, []);
-    map.get(category).push(row);
-  });
-  const named = [...map.keys()]
-    .filter((name) => name !== UNKNOWN_STRATEGY_CATEGORY)
-    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  const order = [...named];
-  if (map.has(UNKNOWN_STRATEGY_CATEGORY)) {
-    order.push(UNKNOWN_STRATEGY_CATEGORY);
-  }
-  return order.map((category) => ({
-    category,
-    rows: map.get(category) || [],
-  }));
 }
 
 /** 将策略路径 ID（可含 ``/``）编码为 URL 路径段。 */
@@ -185,21 +164,36 @@ export async function fetchStrategySettings(strategyKeyOrName) {
     `${apiStrategyPath(strategyKeyOrName)}/version/latest`,
   );
   const m = json?.message || {};
+  const diskSettings = (m.disk_settings && typeof m.disk_settings === 'object')
+    ? m.disk_settings
+    : null;
+  const snapshotSettings = m.settings || {};
   return {
     strategy_name: strategyKeyOrName,
-    settings: m.settings || {},
+    settings: diskSettings || snapshotSettings,
+    disk_settings: diskSettings || snapshotSettings,
+    snapshot_settings: snapshotSettings,
+    effective_settings: m.effective_settings && typeof m.effective_settings === 'object'
+      ? m.effective_settings
+      : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+    settings_rev: String(m.settings_rev || ''),
     settings_source: undefined,
-    workbench_version_id: typeof m.version_id === 'string' ? m.version_id : '',
+    workbench_version_id: normalizeWorkbenchVersionId(m.version_id),
     step_status: m.step_status,
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
     has_persisted_snapshot: Boolean(m.has_persisted_snapshot),
     has_other_versions: Boolean(m.has_other_versions),
+    env_invalid: Boolean(m.env_invalid),
+    pinned: Boolean(m.pinned),
   };
 }
 
 /**
- * V2-09：将**指定快照版本**的 settings 写入 userspace `settings.py`。
+ * V2-09：将指定 version 冻结的 settings 写回 userspace `settings.py`（恢复配置，不是发布）。
  * 若未传 `versionId`，则用当前 **latest**（先隐式依赖 V2-01）的 `version_id`。
  * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @param {object} _settings 保留参数；V2 以服务端快照为准，此参数不参与请求体
@@ -212,22 +206,77 @@ export async function applyStrategySettingsToUserspace(strategyKeyOrName, _setti
     versionId = (latest.workbench_version_id || '').trim();
   }
   if (!versionId) {
-    throw new Error('缺少工作台 version_id，无法发布（请先加载有效快照）');
+    throw new Error('缺少工作台 version_id，无法恢复配置（请先选择有效版本）');
   }
+  const body = {};
+  if (opts.settings_rev != null) body.settings_rev = String(opts.settings_rev);
+  if (opts.force) body.force = true;
+  const headers = {};
+  if (opts.settings_rev) headers['If-Match'] = String(opts.settings_rev);
   const json = await request.postJson(
     `${apiStrategyPath(strategyKeyOrName)}/settings/apply/${encodeURIComponent(versionId)}`,
-    { body: {} },
+    { body, headers },
   );
+  const m = json?.message || {};
   return {
-    strategy_name: json?.message?.strategy_name || strategyKeyOrName,
-    applied: Boolean(json?.message?.applied),
+    strategy_name: m.strategy_name || strategyKeyOrName,
+    applied: Boolean(m.applied),
+    settings_rev: String(m.settings_rev || ''),
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object' ? m.disk_settings : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+  };
+}
+
+/**
+ * 当前 ``settings.py`` 占用（rev + 正文 + execute 投影），不带 version 报告。
+ */
+export async function fetchStrategySettingsCurrent(strategyKeyOrName) {
+  const json = await request.getJson(
+    `${apiStrategyPath(strategyKeyOrName)}/settings/current`,
+  );
+  const m = json?.message || {};
+  return {
+    strategy_name: m.strategy_name || strategyKeyOrName,
+    settings_rev: String(m.settings_rev || ''),
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object' ? m.disk_settings : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+  };
+}
+
+/**
+ * 将编辑器草稿写回 ``settings.py``。
+ * @param {{ settings_rev?: string, force?: boolean }} [opts]
+ */
+export async function persistStrategySettings(strategyKeyOrName, settings, opts = {}) {
+  const body = {
+    settings: settings && typeof settings === 'object' ? settings : {},
+  };
+  if (opts.settings_rev != null) body.settings_rev = String(opts.settings_rev);
+  if (opts.force) body.force = true;
+  const headers = {};
+  if (opts.settings_rev) headers['If-Match'] = String(opts.settings_rev);
+  const json = await request.postJson(
+    `${apiStrategyPath(strategyKeyOrName)}/settings/persist`,
+    { body, headers },
+  );
+  const m = json?.message || {};
+  return {
+    settings_rev: String(m.settings_rev || ''),
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object' ? m.disk_settings : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
   };
 }
 
 /**
  * V2-03：读取策略工作台版本列表（至多 10 条）。
  * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
- * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string }> }>}
+ * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string, env_invalid: boolean, expires_soon: boolean, pinned: boolean }> }>}
  */
 export async function fetchStrategyVersions(strategyKeyOrName) {
   const json = await request.getJson(
@@ -240,6 +289,10 @@ export async function fetchStrategyVersions(strategyKeyOrName) {
       version: Number(row.version ?? 0),
       created_at: row.created_at || '',
       updated_at: row.updated_at || '',
+      env_invalid: Boolean(row.env_invalid),
+      expires_soon: Boolean(row.expires_soon),
+      pinned: Boolean(row.pinned),
+      retention_max: Number(row.retention_max || 0),
     })),
   };
 }
@@ -258,9 +311,21 @@ export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
   return {
     version_id: m.version_id || versionId,
     settings: m.settings || {},
+    disk_settings: m.disk_settings && typeof m.disk_settings === 'object'
+      ? m.disk_settings
+      : {},
+    effective_settings: m.effective_settings && typeof m.effective_settings === 'object'
+      ? m.effective_settings
+      : {},
+    execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
+      ? m.execute_settings
+      : {},
+    settings_rev: String(m.settings_rev || ''),
     step_status: m.step_status,
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
+    env_invalid: Boolean(m.env_invalid),
+    pinned: Boolean(m.pinned),
   };
 }
 
@@ -281,6 +346,43 @@ export async function restoreStrategyVersion(strategyKeyOrName, versionId) {
 }
 
 /**
+ * V2-12：删除一份 simulation version 产物（目录 + registry），不改 settings.py。
+ * @param {string} strategyKeyOrName
+ * @param {string} versionId
+ */
+export async function deleteStrategyVersion(strategyKeyOrName, versionId) {
+  const json = await request.deleteJson(
+    `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}/cache`,
+  );
+  const m = json?.message || {};
+  return {
+    deleted: Boolean(m.deleted),
+    version_id: m.version_id || versionId,
+    strategy_name: m.strategy_name || '',
+  };
+}
+
+/**
+ * 固定 / 取消固定一份 simulation version（只改 meta.pinned）。
+ * @param {string} strategyKeyOrName
+ * @param {string} versionId
+ * @param {boolean} pinned
+ */
+export async function setStrategyVersionPinned(strategyKeyOrName, versionId, pinned) {
+  const path = `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}/pin`;
+  const json = pinned
+    ? await request.postJson(path)
+    : await request.deleteJson(path);
+  const m = json?.message || {};
+  return {
+    pinned: Boolean(m.pinned),
+    version_id: m.version_id || versionId,
+    strategy_name: m.strategy_name || '',
+    pinned_ids: Array.isArray(m.pinned_ids) ? m.pinned_ids : [],
+  };
+}
+
+/**
  * V2-05：启动 run（路径上的 ``step`` 为用户点击步；实际子步骤链见响应 ``steps`` / ``resolved_chain``，由后端 ``plan_schema`` 规划）。
  * @param {string} strategyName
  * @param {'enum'|'price'|'portfolio'} targetStep
@@ -292,9 +394,13 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     settings: settings && typeof settings === 'object' ? settings : {},
     force_refresh: forceRefresh,
   };
+  if (options?.settings_rev != null) body.settings_rev = String(options.settings_rev);
+  if (options?.force_settings_write) body.force_settings_write = true;
+  const headers = {};
+  if (options?.settings_rev) headers['If-Match'] = String(options.settings_rev);
   const json = await request.postJson(
     `${apiStrategyPath(strategyName)}/${encodeURIComponent(targetStep)}/run`,
-    { body },
+    { body, headers },
   );
   const m = json?.message || {};
   if (!m.is_triggered) {
@@ -309,6 +415,7 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     job_id: jid,
     steps,
     resolved_chain: resolved_chain.length ? resolved_chain : [targetStep],
+    settings_rev: String(m.settings_rev || ''),
   };
 }
 
@@ -451,7 +558,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   }
 
   const result = envelope.result && typeof envelope.result === 'object' ? envelope.result : {};
-  const version_id = typeof result.version_id === 'string' ? result.version_id.trim() : '';
+  const version_id = normalizeWorkbenchVersionId(result.version_id);
   let fail_reason = '';
   if (state === 'failed') {
     fail_reason = String(envelope.error || result.message || '').trim();
@@ -578,6 +685,17 @@ const API_STRATEGY_PACKAGE_IMPORT = `${API_VERSION_PREFIX}/strategy/package/impo
 const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/package/import/preview`;
 const API_STRATEGY_PACKAGE_EXPORT = (strategyKeyOrName) =>
   `${apiStrategyPath(strategyKeyOrName)}/package/export`;
+const API_STRATEGY_FOLDER_REVEAL = (strategyKeyOrName) =>
+  `${apiStrategyPath(strategyKeyOrName)}/folder/reveal`;
+
+/**
+ * 在运行 BFF 的机器上打开策略目录（Finder / Explorer）。
+ * POST /api/v1/strategy/:strategy_key_or_name/folder/reveal
+ */
+export async function revealStrategyFolder(strategyKeyOrName) {
+  const json = await request.postJson(API_STRATEGY_FOLDER_REVEAL(strategyKeyOrName));
+  return json?.message || {};
+}
 
 /**
  * 下载策略交流包（V2-13）：`GET /api/v1/strategy/:strategy_key_or_name/package/export`

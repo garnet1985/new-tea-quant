@@ -40,6 +40,8 @@ class WorkbenchRunLauncher:
         step: str,
         api_settings: Dict[str, Any],
         force_refresh: bool,
+        expected_rev: Optional[str] = None,
+        force_settings_write: bool = False,
     ) -> Dict[str, Any]:
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
@@ -77,6 +79,38 @@ class WorkbenchRunLauncher:
             jid = f"wb-run-{uuid.uuid4().hex[:12]}"
             cls._ACTIVE_BY_STRATEGY[name] = jid
 
+        occupancy: Dict[str, Any] = {}
+        try:
+            occupancy = cls._persist_run_settings(
+                name,
+                api_settings,
+                expected_rev=expected_rev,
+                force=bool(force_settings_write),
+            )
+        except Exception as persist_exc:
+            cls._clear_active(name, jid)
+            from core.bff.APIs.strategy.helpers.settings_occupancy import (
+                SettingsFileConflict,
+            )
+
+            if isinstance(persist_exc, SettingsFileConflict):
+                return {
+                    "is_triggered": False,
+                    "conflict": True,
+                    "reason": str(persist_exc),
+                    "occupancy": persist_exc.occupancy,
+                }
+            raise
+
+        persist_err = occupancy.pop("_error", None) if occupancy else None
+        if persist_err:
+            cls._clear_active(name, jid)
+            return {
+                "is_triggered": False,
+                "persist_error": True,
+                "reason": persist_err,
+            }
+
         PipelineProgress.seed(
             name,
             jid,
@@ -97,6 +131,7 @@ class WorkbenchRunLauncher:
             "pipeline_id": jid,
             "pipeline_name": norm,
             "pipeline_description": PipelineProgress.pipeline_description(norm),
+            "settings_rev": str((occupancy or {}).get("settings_rev") or ""),
         }
 
     @classmethod
@@ -251,6 +286,36 @@ class WorkbenchRunLauncher:
             except Exception:
                 logger.exception("pipeline lease release failed")
             cls._clear_active(strategy_name, job_id)
+
+    @staticmethod
+    def _persist_run_settings(
+        strategy_name: str,
+        api_settings: Dict[str, Any],
+        *,
+        expected_rev: Optional[str] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """把编辑器草稿写入 settings.py，使本次 run 的磁盘为 SOT。"""
+        if not isinstance(api_settings, dict) or not api_settings:
+            from core.bff.APIs.strategy.helpers.settings_occupancy import (
+                SettingsOccupancy,
+            )
+
+            return SettingsOccupancy.read(strategy_name)
+        from core.bff.APIs.strategy.routes.settings.apply import WorkbenchApplySettings
+
+        occupancy, err = WorkbenchApplySettings.persist_editor_settings(
+            strategy_name=strategy_name,
+            settings=api_settings,
+            pretty=True,
+            expected_rev=expected_rev,
+            force=force,
+        )
+        if err:
+            out = dict(occupancy or {})
+            out["_error"] = err
+            return out
+        return dict(occupancy or {})
 
     @classmethod
     def _clear_active(cls, strategy_name: str, job_id: str) -> None:

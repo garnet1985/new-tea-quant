@@ -16,16 +16,22 @@ function PageLayout({
   className = '',
   loading = false,
   loadingMessage = '正在加载…',
+  showBreadcrumbs = true,
+  showBanner = true,
 }) {
   return (
     <Box className={['ntq-page', className].filter(Boolean).join(' ')}>
       <Box className="ntq-page__shell">
-        <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
-        <PageBanner
-          title={bannerTitle}
-          description={bannerDescription}
-          rightSlot={bannerRightSlot}
-        />
+        {showBreadcrumbs ? (
+          <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
+        ) : null}
+        {showBanner ? (
+          <PageBanner
+            title={bannerTitle}
+            description={bannerDescription}
+            rightSlot={bannerRightSlot}
+          />
+        ) : null}
         <Box className={['ntq-page__body', loading ? 'is-loading' : ''].filter(Boolean).join(' ')}>
           {loading ? (
             <PageLoadingState message={loadingMessage} minHeight="48vh" />
@@ -38,14 +44,16 @@ function PageLayout({
 
 PageLayout.propTypes = {
   breadcrumbsItems: PropTypes.arrayOf(PropTypes.shape({ label: PropTypes.string.isRequired, to: PropTypes.string.isRequired })),
-  breadcrumbsCurrent: PropTypes.node.isRequired,
-  bannerTitle: PropTypes.string.isRequired,
+  breadcrumbsCurrent: PropTypes.node,
+  bannerTitle: PropTypes.string,
   bannerDescription: PropTypes.node,
   bannerRightSlot: PropTypes.node,
   children: PropTypes.node,
   className: PropTypes.string,
   loading: PropTypes.bool,
   loadingMessage: PropTypes.string,
+  showBreadcrumbs: PropTypes.bool,
+  showBanner: PropTypes.bool,
 };
 
 export default PageLayout;

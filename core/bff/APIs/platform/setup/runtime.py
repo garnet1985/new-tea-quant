@@ -20,6 +20,8 @@ from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
+# 这些步骤会在子进程里打开 DuckDB；BFF 若仍握着同一文件会 Conflicting lock。
+_STEPS_NEED_EXCLUSIVE_DUCKDB = frozenset({"db_connection", "import_data"})
 
 
 class SetupRuntimeManager:
@@ -266,6 +268,9 @@ class SetupRuntimeManager:
                 self._set_step_state(state, step_id, self.STATUS_FAILED, f"脚本不存在: {script_rel}")
                 return False, f"脚本不存在: {script_rel}"
 
+            if step_id in _STEPS_NEED_EXCLUSIVE_DUCKDB:
+                self._release_bff_duckdb_for_setup_subprocess()
+
             env = os.environ.copy()
             if step_id == "init_userspace":
                 step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
@@ -422,6 +427,15 @@ class SetupRuntimeManager:
 
     def _bump_version(self, state: Dict[str, Any]) -> None:
         state["version"] = int(state.get("version", 1)) + 1
+
+    def _release_bff_duckdb_for_setup_subprocess(self) -> None:
+        """安装子进程写库前，关掉 BFF 进程里已打开的 DuckDB，避免文件锁冲突。"""
+        try:
+            from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+
+            DuckdbWorkerPool.release_all_process_duckdb_handles()
+        except Exception as exc:
+            log_degraded("setup.releaseDuckdbForSubprocess", exc, "")
 
     def _duckdb_files_exist(self, state: Optional[Dict[str, Any]] = None) -> bool:
         userspace_root = self._resolve_userspace_root(state) if state else ProjectContext.path.get_userspace_root()

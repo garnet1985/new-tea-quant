@@ -725,14 +725,19 @@ function SetupPage() {
                     <Typography variant="h6">成功</Typography>
                   </Stack>
                   <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-                    安装流程已完成。你可以进入欢迎页，或从这里重新执行引导安装。
+                    安装流程已完成。接下来请选择是否分享匿名使用数据。
                   </Typography>
                   {restartError ? (
                     <Alert severity="error" sx={{ mb: 2 }}>{restartError}</Alert>
                   ) : null}
                   <Stack direction="row" spacing={2}>
-                    <Button component={RouterLink} to="/welcome" variant="contained">
-                      前往欢迎页
+                    <Button
+                      component={RouterLink}
+                      to="/setup/trace"
+                      state={{ source: 'setup_ui' }}
+                      variant="contained"
+                    >
+                      继续
                     </Button>
                     <Button component={RouterLink} to="/settings" variant="outlined">
                       前往设置

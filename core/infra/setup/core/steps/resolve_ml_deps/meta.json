@@ -1,0 +1,27 @@
+{
+  "id": "resolve_ml_deps",
+  "name": "机器学习依赖",
+  "description": "可选安装 XGBoost 与 SHAP。跳过后可在设置中补装。",
+  "scriptEntry": "core/infra/setup/core/steps/resolve_ml_deps/install.py",
+  "requiresUserInput": true,
+  "optional": true,
+  "cliSkip": true,
+  "inputSchema": [
+    {
+      "key": "skip",
+      "label": "跳过安装",
+      "type": "boolean",
+      "required": true,
+      "defaultValue": false
+    }
+  ],
+  "retryPolicy": {
+    "mode": "retry_same_step"
+  },
+  "dependencies": [
+    "import_data"
+  ],
+  "order": 6,
+  "progressWeight": 14,
+  "uiVisible": true
+}

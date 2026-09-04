@@ -12,6 +12,9 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy import Strategy
+from core.bff.APIs.strategy.helpers.portfolio_event_timeline import (
+    attach_portfolio_event_timeline,
+)
 from core.bff.shared.client_log import log_degraded
 
 logger = logging.getLogger(__name__)
@@ -145,20 +148,31 @@ def hydrate_portfolio_slot(
     *,
     workbench_version: int = 0,
 ) -> Dict[str, Any]:
-    """Hydrate portfolio slot from ``overall_report.json`` when metrics missing."""
+    """Hydrate portfolio slot from ``overall_report.json`` when metrics missing.
+
+    Always tries to attach the full event timeline (curve + trades) from disk,
+    even when ``capitalMetrics`` already exists — the downsampled chart series
+    cannot host trade markers.
+    """
     if not isinstance(slot, dict) or not slot:
         return slot
     sn = str(strategy_name or "").strip()
-    if not sn or _slot_has_metrics(slot, "capitalMetrics"):
+    if not sn:
         return slot
 
-    for output_dir in Strategy.resolve_simulation_output_dirs(
-        sn, step="portfolio", slot=slot, workbench_version=workbench_version
-    ):
-        ui = _load_overall_ui("portfolio", output_dir)
-        if ui:
-            return _merge_ui_into_slot(slot, ui)
-    return slot
+    out = dict(slot)
+    dirs = list(
+        Strategy.resolve_simulation_output_dirs(
+            sn, step="portfolio", slot=out, workbench_version=workbench_version
+        )
+    )
+    if not _slot_has_metrics(out, "capitalMetrics"):
+        for output_dir in dirs:
+            ui = _load_overall_ui("portfolio", output_dir)
+            if ui:
+                out = _merge_ui_into_slot(out, ui)
+                break
+    return attach_portfolio_event_timeline(out, dirs)
 
 
 def hydrate_workbench_result_report(

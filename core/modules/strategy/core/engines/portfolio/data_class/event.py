@@ -20,10 +20,11 @@ if TYPE_CHECKING:
 class PortfolioEvent:
     """资金回放事件（替换 legacy trigger/target）。
 
-    - buy: ``price`` = ``entry_price_raw``（来自 enter_price 对应 raw 字段，
-      默认 next_open→raw open；**不用** raw close 定仓）
-    - sell: ``price`` = ``entry_price_raw * (1 + roi)``（**不用** exit_price_raw / raw close）
-      其中 roi 来自枚举 ``weighted_roi``（前复权收益率）
+    买卖价都是未复权成交价，不用前复权收益率去反推卖出价。
+    枚举 ``weighted_roi`` 仍挂在 sell 事件上供对照，但不参与资金记账。
+
+    - buy: ``price`` = ``entry_price_raw``
+    - sell: ``price`` = ``exit_price_raw``（必须 > 0；缺则整笔不进资金层）
     """
 
     kind: str
@@ -70,7 +71,8 @@ class PortfolioEvent:
     ) -> List["PortfolioEvent"]:
         """一笔枚举 investment → buy/sell 事件。
 
-        缺 ``entry_price_raw`` 时不生成任何事件（避免用前复权价定仓）。
+        缺 ``entry_price_raw`` 时不生成任何事件。
+        已有卖出日但缺合法 ``exit_price_raw`` 时整笔跳过（避免用 qfq ROI 造出卖出价）。
         """
         eid = str(entity_id or "").strip()
         inv_id = str(getattr(row, "investment_id", "") or "").strip()
@@ -78,10 +80,11 @@ class PortfolioEvent:
         entry_raw = float(getattr(row, "entry_price_raw", 0.0) or 0.0)
         exit_date = str(getattr(row, "exit_date", "") or "").strip()
         exit_raw = float(getattr(row, "exit_price_raw", 0.0) or 0.0)
-        # weighted_roi: 枚举层用前复权价算的加权 roi
         roi = float(getattr(row, "weighted_roi", 0.0) or 0.0)
 
         if not entry_date or entry_raw <= 0:
+            return []
+        if exit_date and exit_raw <= 0:
             return []
 
         events: List[PortfolioEvent] = [
@@ -97,15 +100,14 @@ class PortfolioEvent:
                 bar_volume=_optional_float(getattr(row, "enter_bar_volume", None)),
             )
         ]
-        if exit_date and entry_raw > 0:
-            sell_price = entry_raw * (1.0 + roi)
+        if exit_date:
             events.append(
                 cls(
                     kind="sell",
                     date=exit_date,
                     entity_id=eid,
                     investment_id=inv_id,
-                    price=sell_price,
+                    price=exit_raw,
                     roi=roi,
                     entry_price_raw=entry_raw,
                     exit_price_raw=exit_raw,

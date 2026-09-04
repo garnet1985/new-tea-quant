@@ -6,7 +6,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import StrategyMetaDetailText from 'components/strategyMetaDetailText/strategyMetaDetailText';
 import { getStrategyListPath } from '../../../api/strategyApi';
@@ -29,19 +28,6 @@ function StrategyDesignMetaBar() {
     if (!intro) return { title: '制定策略', summary: '' };
     return intro;
   }, [wb.activeStep]);
-
-  if (wb.isLoadingSettings) {
-    return (
-      <Box className="ntq-design-meta">
-        <Box className="ntq-design-meta__page-title">
-          <InlineLoadingState compact row message="正在加载策略与工作台快照…" />
-          <Box className="ntq-design-meta__page-title-stepper">
-            <StrategyDesignStepper />
-          </Box>
-        </Box>
-      </Box>
-    );
-  }
 
   return (
     <Box className="ntq-design-meta">

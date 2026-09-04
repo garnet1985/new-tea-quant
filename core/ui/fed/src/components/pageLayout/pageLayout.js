@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Box } from '@mui/material';
 import AppBreadcrumbs from '../appBreadcrumbs/appBreadcrumbs';
 import PageBanner from '../pageBanner/pageBanner';
+import PageLoadingState from '../pageLoadingState/pageLoadingState';
 import './pageLayout.scss';
 
 function PageLayout({
@@ -13,6 +14,8 @@ function PageLayout({
   bannerRightSlot = null,
   children = null,
   className = '',
+  loading = false,
+  loadingMessage = '正在加载…',
 }) {
   return (
     <Box className={['ntq-page', className].filter(Boolean).join(' ')}>
@@ -23,8 +26,10 @@ function PageLayout({
           description={bannerDescription}
           rightSlot={bannerRightSlot}
         />
-        <Box className="ntq-page__body">
-          {children}
+        <Box className={['ntq-page__body', loading ? 'is-loading' : ''].filter(Boolean).join(' ')}>
+          {loading ? (
+            <PageLoadingState message={loadingMessage} minHeight="48vh" />
+          ) : children}
         </Box>
       </Box>
     </Box>
@@ -39,6 +44,8 @@ PageLayout.propTypes = {
   bannerRightSlot: PropTypes.node,
   children: PropTypes.node,
   className: PropTypes.string,
+  loading: PropTypes.bool,
+  loadingMessage: PropTypes.string,
 };
 
 export default PageLayout;

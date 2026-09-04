@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -23,19 +23,24 @@ import {
   Typography,
 } from '@mui/material';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
+import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import { formatDateTime } from '../../utils/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
-import { getMlExtrasStatus, installMlExtras } from '../../api/setupApi';
+import { getMlExtrasStatus, installMlExtras, resetSetupStatus } from '../../api/setupApi';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useFakeProgress } from '../../hooks/useFakeProgress';
 
 export function SettingsSystemPanel() {
+  const navigate = useNavigate();
   const [mlStatus, setMlStatus] = useState(null);
   const [mlLoadError, setMlLoadError] = useState('');
   const [mlOk, setMlOk] = useState('');
   const [installing, setInstalling] = useState(false);
+  const [reinstallOpen, setReinstallOpen] = useState(false);
+  const [reinstalling, setReinstalling] = useState(false);
+  const [reinstallError, setReinstallError] = useState('');
   const fakePercent = useFakeProgress(installing, 8);
 
   const loadMlStatus = useCallback(() => {
@@ -68,6 +73,20 @@ export function SettingsSystemPanel() {
     }
   };
 
+  const handleConfirmReinstall = async () => {
+    setReinstalling(true);
+    setReinstallError('');
+    try {
+      await resetSetupStatus();
+      setReinstallOpen(false);
+      navigate('/setup', { replace: true, state: { autoStart: true } });
+    } catch (err) {
+      setReinstallError(err?.message || '无法重置安装状态，请检查网络后重试。');
+    } finally {
+      setReinstalling(false);
+    }
+  };
+
   const mlInstalled = Boolean(mlStatus?.installed);
 
   return (
@@ -76,13 +95,54 @@ export function SettingsSystemPanel() {
         安装与维护
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        需要重新执行引导安装（数据路径、数据库连接、导入等）时，请进入安装向导。
+        重新安装会再次走引导：数据路径、数据库连接、演示数据和可选的机器学习依赖。确认后从第一步开始，不会停留在「安装完成」页。
       </Typography>
+      {reinstallError ? <Alert severity="error">{reinstallError}</Alert> : null}
       <Box>
-        <Button component={RouterLink} to="/setup" variant="contained" color="secondary">
+        <Button
+          variant="contained"
+          color="secondary"
+          disabled={reinstalling}
+          onClick={() => {
+            setReinstallError('');
+            setReinstallOpen(true);
+          }}
+        >
           重新安装
         </Button>
       </Box>
+      <Dialog
+        open={reinstallOpen}
+        onClose={() => !reinstalling && setReinstallOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>确认重新安装？</DialogTitle>
+        <DialogContent>
+          <DialogContentText component="div">
+            向导会从头执行。请先了解这些风险：
+            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+              <li>可能覆盖 userspace 路径选择，以及数据库连接配置。</li>
+              <li>若选择导入演示数据，现有表数据可能被覆盖。</li>
+              <li>进行中的回测 / 扫描结果不会自动备份。</li>
+              <li>已安装的 Python 依赖不会被卸载；机器学习组件仍可稍后在本页补装。</li>
+            </Box>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReinstallOpen(false)} disabled={reinstalling}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleConfirmReinstall}
+            disabled={reinstalling}
+          >
+            {reinstalling ? '正在进入安装…' : '确认，从第一步开始'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
         机器学习组件
@@ -183,7 +243,7 @@ export function SettingsDatabasePanel({
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载数据库配置…" />
+        <PageLoadingState message="正在加载数据库配置…" minHeight="36vh" />
       ) : (
         <Stack spacing={2} sx={{ maxWidth: 420 }}>
           <FormControl fullWidth size="small">
@@ -290,7 +350,7 @@ export function SettingsDataPanel({
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载数据配置…" />
+        <PageLoadingState message="正在加载数据配置…" minHeight="36vh" />
       ) : (
         <Stack spacing={2} sx={{ maxWidth: 420 }}>
           <TextField
@@ -558,7 +618,7 @@ export function SettingsTracePanel() {
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载使用统计设置…" />
+        <PageLoadingState message="正在加载使用统计设置…" minHeight="36vh" />
       ) : (
         <Stack spacing={1.5} sx={{ maxWidth: 520 }}>
           {!decided ? (
@@ -660,7 +720,7 @@ export function SettingsFeedbackPanel() {
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载反馈设置…" />
+        <PageLoadingState message="正在加载反馈设置…" minHeight="36vh" />
       ) : (
         <Stack spacing={1.5} sx={{ maxWidth: 520 }}>
           <FormControlLabel

@@ -54,6 +54,7 @@ function StrategyListPage({
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [nameQuery, setNameQuery] = useState('');
   const [importOpen, setImportOpen] = useState(false);
@@ -132,7 +133,10 @@ function StrategyListPage({
         setLoadError(e?.message || '加载失败');
         setRows([]);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setPageReady(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -273,6 +277,8 @@ function StrategyListPage({
       breadcrumbsCurrent="选择一个策略"
       bannerTitle={bannerTitle}
       bannerDescription={bannerDescription}
+      loading={!pageReady}
+      loadingMessage="正在加载策略列表…"
     >
       {loadError ? <Alert severity="error" className="strategy-list-alert">{loadError}</Alert> : null}
       {importNotice ? (

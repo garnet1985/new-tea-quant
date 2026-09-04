@@ -60,6 +60,8 @@ function ScanPage() {
   const [demoScanCutoffDate, setDemoScanCutoffDate] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pageReady, setPageReady] = useState(false);
+  const [contextLoading, setContextLoading] = useState(true);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [readinessError, setReadinessError] = useState('');
@@ -89,9 +91,6 @@ function ScanPage() {
   const pollRef = useRef({ timeoutId: null });
   const readinessReqRef = useRef(0);
   const running = Boolean(runningStrategyId) && Boolean(runningJobId);
-  /** 列表加载，或（非扫描中的）readiness 校验；扫描中不挡进度条 */
-  const gridLoading = loading || (readinessLoading && !running);
-  const pageBusy = loading || readinessLoading;
 
   const reportPayload = useMemo(() => results?.[reportStrategyId] || null, [results, reportStrategyId]);
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
@@ -104,26 +103,36 @@ function ScanPage() {
 
   const load = useCallback(() => {
     setLoading(true);
+    setContextLoading(true);
     setReadinessLoading(true);
     readinessReqRef.current += 1;
     setLoadError('');
-    Promise.all([
-      fetchStrategyList(),
-      fetchStrategyScanContext(),
-    ])
-      .then(([listRes, ctxRes]) => {
+    setScanPrimaryById({});
+    setScanGateById({});
+
+    fetchStrategyList()
+      .then((listRes) => {
         setRows(Array.isArray(listRes?.data) ? listRes.data : []);
-        setDataEnd(ctxRes?.dataEnd && typeof ctxRes.dataEnd === 'object' ? ctxRes.dataEnd : {});
-        setDemoScanCutoffDate(String(ctxRes?.demoScanCutoffDate || '').trim());
       })
       .catch((e) => {
         setRows([]);
+        setLoadError(e?.message || '加载策略列表失败');
+      })
+      .finally(() => {
+        setLoading(false);
+        setPageReady(true);
+      });
+
+    fetchStrategyScanContext()
+      .then((ctxRes) => {
+        setDataEnd(ctxRes?.dataEnd && typeof ctxRes.dataEnd === 'object' ? ctxRes.dataEnd : {});
+        setDemoScanCutoffDate(String(ctxRes?.demoScanCutoffDate || '').trim());
+      })
+      .catch(() => {
         setDataEnd({});
         setDemoScanCutoffDate('');
-        setLoadError(e?.message || '加载策略列表失败');
-        setReadinessLoading(false);
       })
-      .finally(() => setLoading(false));
+      .finally(() => setContextLoading(false));
   }, []);
 
   const demoCutoffLabel = useMemo(() => {
@@ -148,7 +157,9 @@ function ScanPage() {
       setScanPrimaryById({});
       setScanGateById({});
       setStrictBlockReason('');
-      if (!silent) setReadinessLoading(false);
+      if (!silent) {
+        setReadinessLoading(false);
+      }
       return;
     }
 
@@ -211,8 +222,10 @@ function ScanPage() {
   }, [load]);
 
   useEffect(() => {
+    if (loading) return undefined;
     refreshScanPrimaryActions();
-  }, [refreshScanPrimaryActions]);
+    return undefined;
+  }, [loading, refreshScanPrimaryActions]);
 
   useEffect(() => () => {
     if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
@@ -271,6 +284,10 @@ function ScanPage() {
       renderCell: (params) => {
         const id = params.row.id;
         const enabled = Boolean(params.row.is_enabled);
+        const pending = readinessLoading && scanPrimaryById[id] == null;
+        if (pending) {
+          return <Typography variant="body2" color="text.secondary">…</Typography>;
+        }
         const pack = results?.[id];
         if (!enabled || !pack) return <Typography variant="body2" color="text.secondary">—</Typography>;
         const n = Number(pack?.total_opportunities ?? pack?.totalOpportunities ?? pack?.opportunity_count ?? 0);
@@ -297,55 +314,60 @@ function ScanPage() {
       renderCell: (params) => {
         const enabled = Boolean(params.row.is_enabled);
         const id = params.row.id;
+        const pending = readinessLoading && scanPrimaryById[id] == null;
         const isThisRunning = running && id === runningStrategyId;
         const isRerun = scanPrimaryById[id] === 'rerun';
         const gate = scanGateById[id] || {};
         const blocked = mode === 'strict' && gate.canScan === false;
-        const disableRun = !enabled || running || blocked;
+        const disableRun = pending || !enabled || running || blocked;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
-            <Button
-              size="small"
-              variant="contained"
-              disabled={disableRun}
-              title={
-                blocked
-                  ? (gate.blockReason || '严格模式数据未就绪，无法扫描')
-                  : (isRerun
-                    ? '将全量重新扫描并忽略已保存的扫描结果'
-                    : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描')
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!enabled || running || blocked) return;
-                const force = isRerun || e.shiftKey;
-                setRunError('');
-                setReportVisible(false);
-                setReportStrategyId('');
-                setScanTriggeredAt(formatDateTime(new Date(), { style: 'absolute' }));
-                setProgress({ pct: 0, label: '准备扫描…' });
-                startStrategyScan(params.row.name, { demo: mode === 'demo', force })
-                  .then((res) => {
-                    const jobId = String(res?.job_id || '').trim();
-                    if (!jobId) throw new Error('启动失败：未返回 job_id');
-                    setRunningStrategyId(id);
-                    setRunningJobId(jobId);
-                    setReportDemo(Boolean(res?.demo));
-                  })
-                  .catch((err) => {
-                    const msg = err?.message || '启动扫描失败';
-                    // 严格门禁已有顶部提示时，不再重复打一条 error
-                    if (mode === 'strict' && (gate.blockReason || msg.includes('严格模式'))) {
-                      if (msg.includes('严格模式')) setStrictBlockReason(msg);
-                      setRunError('');
-                      return;
-                    }
-                    setRunError(msg);
-                  });
-              }}
-            >
-              {isRerun ? '重新扫描' : '开始扫描'}
-            </Button>
+            {pending ? (
+              <InlineLoadingState compact row message="校验中…" />
+            ) : (
+              <Button
+                size="small"
+                variant="contained"
+                disabled={disableRun}
+                title={
+                  blocked
+                    ? (gate.blockReason || '严格模式数据未就绪，无法扫描')
+                    : (isRerun
+                      ? '将全量重新扫描并忽略已保存的扫描结果'
+                      : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描')
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!enabled || running || blocked) return;
+                  const force = isRerun || e.shiftKey;
+                  setRunError('');
+                  setReportVisible(false);
+                  setReportStrategyId('');
+                  setScanTriggeredAt(formatDateTime(new Date(), { style: 'absolute' }));
+                  setProgress({ pct: 0, label: '准备扫描…' });
+                  startStrategyScan(params.row.name, { demo: mode === 'demo', force })
+                    .then((res) => {
+                      const jobId = String(res?.job_id || '').trim();
+                      if (!jobId) throw new Error('启动失败：未返回 job_id');
+                      setRunningStrategyId(id);
+                      setRunningJobId(jobId);
+                      setReportDemo(Boolean(res?.demo));
+                    })
+                    .catch((err) => {
+                      const msg = err?.message || '启动扫描失败';
+                      // 严格门禁已有顶部提示时，不再重复打一条 error
+                      if (mode === 'strict' && (gate.blockReason || msg.includes('严格模式'))) {
+                        if (msg.includes('严格模式')) setStrictBlockReason(msg);
+                        setRunError('');
+                        return;
+                      }
+                      setRunError(msg);
+                    });
+                }}
+              >
+                {isRerun ? '重新扫描' : '开始扫描'}
+              </Button>
+            )}
             <Link
               component={RouterLink}
               to={getStrategyDesignPath(params.row.name)}
@@ -365,7 +387,7 @@ function ScanPage() {
         );
       },
     },
-  ]), [mode, openDetail, progress.pct, results, running, runningStrategyId, scanGateById, scanPrimaryById]);
+  ]), [mode, openDetail, progress.pct, readinessLoading, results, running, runningStrategyId, scanGateById, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -442,11 +464,21 @@ function ScanPage() {
       )}
       bannerRightSlot={(
         <Chip
-          label={running ? '扫描中…' : (pageBusy ? '加载中…' : '就绪')}
+          label={
+            running
+              ? '扫描中…'
+              : loading
+                ? '加载中…'
+                : readinessLoading
+                  ? '校验就绪…'
+                  : '就绪'
+          }
           color={running ? 'warning' : 'default'}
-          variant={running || pageBusy ? 'filled' : 'outlined'}
+          variant={running || loading || readinessLoading ? 'filled' : 'outlined'}
         />
       )}
+      loading={!pageReady}
+      loadingMessage="正在加载策略选股…"
     >
 
       <Card variant="outlined" sx={{ mb: 2 }}>
@@ -462,6 +494,8 @@ function ScanPage() {
                 setMode(e.target.value);
                 setRunError('');
                 setStrictBlockReason('');
+                setScanPrimaryById({});
+                setScanGateById({});
                 setReadinessLoading(true);
               }}
               aria-label="扫描模式"
@@ -494,8 +528,8 @@ function ScanPage() {
                     <Typography variant="body2" color="text.secondary">
                       以数据集中已有最新日期作为扫描截止日（当前：
                       {' '}
-                      <strong>{loading ? '…' : demoCutoffLabel}</strong>
-                      {!loading && dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
+                      <strong>{contextLoading ? '…' : demoCutoffLabel}</strong>
+                      {!contextLoading && dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
                       ），用于演示链路，不代表实时市场。
                     </Typography>
                   </Box>
@@ -524,7 +558,7 @@ function ScanPage() {
             <Stack direction="row" alignItems="center" spacing={1.25} flexWrap="wrap">
               <Button
                 variant="outlined"
-                disabled={running || pageBusy}
+                disabled={running || loading}
                 onClick={load}
               >
                 刷新策略列表
@@ -542,7 +576,7 @@ function ScanPage() {
             </Alert>
           ) : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
-          {!gridLoading && mode === 'strict' && strictBlockReason ? (
+          {!readinessLoading && mode === 'strict' && strictBlockReason ? (
             <Alert severity="warning" sx={{ mb: 1.5 }}>
               {strictBlockReason}
             </Alert>
@@ -564,12 +598,12 @@ function ScanPage() {
             </Box>
           ) : null}
 
-          <Box sx={{ width: '100%', minHeight: gridLoading ? 160 : undefined }}>
-            {gridLoading ? (
+          <Box sx={{ width: '100%', minHeight: loading && groupedRows.length === 0 ? 160 : undefined }}>
+            {loading && groupedRows.length === 0 ? (
               <InlineLoadingState
                 block
                 compact
-                message={loading ? '正在加载策略列表…' : '正在校验扫描就绪状态…'}
+                message="正在加载策略列表…"
               />
             ) : (
               <Stack spacing={2.5}>

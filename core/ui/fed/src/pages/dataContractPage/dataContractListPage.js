@@ -33,6 +33,7 @@ function BoolChip({ value, trueLabel, falseLabel }) {
 function DataContractListPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
@@ -58,7 +59,10 @@ function DataContractListPage() {
         setRows([]);
         setLoadError(e?.message || '加载数据契约列表失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setPageReady(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -131,6 +135,8 @@ function DataContractListPage() {
       breadcrumbsCurrent="数据契约"
       bannerTitle="数据契约"
       bannerDescription="列出 core 与 userspace 合并后的 DataKey 目录，便于在策略与 Tag 配置中查找 data key。"
+      loading={!pageReady}
+      loadingMessage="正在加载数据契约…"
     >
       {loadError ? <Alert severity="error" className="data-contract-list-alert">{loadError}</Alert> : null}
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Backdrop,
@@ -17,7 +17,7 @@ import {
 import { DataGrid } from '@mui/x-data-grid';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   getSetupDefinition,
   getImportDataProgress,
@@ -60,6 +60,9 @@ const SETUP_TEXT_FIELD_COMMON = {
 
 function SetupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [reinstallAutoStart] = useState(() => Boolean(location.state?.autoStart));
+  const autoStartedRef = useRef(false);
   const [definition, setDefinition] = useState([]);
   const [status, setStatus] = useState(null);
   const [flowStage, setFlowStage] = useState('input');
@@ -110,19 +113,19 @@ function SetupPage() {
     setBootstrapError('');
     Promise.all([getSetupDefinition(), getSetupStatus()])
       .then(([defs, current]) => {
-        if (current?.isReady) {
-          setDefinition(defs);
-          setStatus(current);
-          restoreFlowStage(defs, current);
-          return undefined;
+        if (reinstallAutoStart || !current?.isReady) {
+          return resetSetupStatus()
+            .then((fresh) => {
+              setDefinition(defs);
+              setStatus(fresh);
+              restoreFlowStage(defs, fresh);
+            });
         }
 
-        return resetSetupStatus()
-          .then((fresh) => {
-            setDefinition(defs);
-            setStatus(fresh);
-            restoreFlowStage(defs, fresh);
-          });
+        setDefinition(defs);
+        setStatus(current);
+        navigate('/welcome', { replace: true });
+        return undefined;
       })
       .catch((err) => {
         setBootstrapError(err?.message || '加载安装向导失败，请检查网络后重试。');
@@ -132,7 +135,7 @@ function SetupPage() {
       .finally(() => {
         setBootstrapping(false);
       });
-  }, []);
+  }, [navigate, reinstallAutoStart]);
 
   useEffect(() => {
     loadBootstrap();
@@ -335,6 +338,16 @@ function SetupPage() {
     }
   };
 
+  useEffect(() => {
+    if (!reinstallAutoStart || bootstrapping || autoStartedRef.current) return undefined;
+    if (bootstrapError || flowStage !== 'input' || !status || definition.length === 0) return undefined;
+    autoStartedRef.current = true;
+    handleStartSetup();
+    return undefined;
+    // handleStartSetup 每次渲染都会新建；只在重置后的「开始安装」入口自动开跑一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reinstallAutoStart, bootstrapping, bootstrapError, flowStage, status, definition.length]);
+
   const handleSubmitInteractionStep = async (options = {}) => {
     const { confirmedOverwrite = false, confirmedDbRisk = false, skip } = options;
     if (!status || !pausedStep) return;
@@ -429,9 +442,7 @@ function SetupPage() {
     try {
       const nextStatus = await resetSetupStatus();
       setStatus(nextStatus);
-      setFlowStage('input');
       setRunningStep('');
-      setProgressText('等待开始');
       setErrorMessage('');
       setFailedStep('');
       setPausedStep('');
@@ -439,8 +450,13 @@ function SetupPage() {
       setUserspacePathEditable(false);
       setUserspacePathExists(false);
       setImportProgress(EMPTY_IMPORT_PROGRESS);
+      setFlowStage('executing');
+      setProgressText('准备执行安装步骤...');
+      const result = await runningWithProgress((onProgress) => startSetupWorkflow(onProgress));
+      consumePipelineResult(result, definition[0]?.id || DEFAULT_STEP_ID);
     } catch (err) {
       setRestartError(err?.message || '重置安装状态失败，请检查网络后重试。');
+      setFlowStage('input');
     }
   };
 

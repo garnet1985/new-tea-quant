@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { Alert, Button, Stack } from '@mui/material';
 import { getSetupStatus } from '../api/setupApi';
 import { fetchTraceSettings } from '../api/settingsApi';
 import PageLoadingState from './pageLoadingState/pageLoadingState';
 
 function SetupGuard({ children }) {
-  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [needsTraceAsk, setNeedsTraceAsk] = useState(false);
@@ -19,7 +18,6 @@ function SetupGuard({ children }) {
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
     setLoadError('');
     Promise.all([
       getSetupStatus(),
@@ -43,7 +41,7 @@ function SetupGuard({ children }) {
     return () => {
       alive = false;
     };
-  }, [location.pathname, retryKey]);
+  }, [retryKey]);
 
   if (loading) {
     return <PageLoadingState message="检查系统就绪状态…" minHeight="40vh" />;

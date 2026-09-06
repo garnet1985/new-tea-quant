@@ -35,7 +35,9 @@
 
 **接下来**
 
-- **[v0.5.x](ROADMAP.md)**：决策者模式（第四层回测：按交易日回放、自己挑选每日机会）及其报告。详见 [ROADMAP.md](ROADMAP.md)。
+- **[v0.5.x](ROADMAP.md)**：决策者模式（第四层回测：按交易日回放、自己挑选每日机会）及其报告。
+- **[v0.5.x](ROADMAP.md)**：AI 助理（辅助写策略代码、解释回测报告、应用内小百科）。
+- 详见 [ROADMAP.md](ROADMAP.md)。
 
 ## NTQ 是什么？
 
@@ -250,9 +252,9 @@ def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
 NTQ 能帮助您将您的想法进行验证，您可能需要：
 
 - 有基本的金融知识和市场规则知识
-- 脑海中能把自己找到的「潜力股」抽象成算法的方式（之后 NTQ 会集成 AI 辅助做这件事情，但是当前还不支持）
-- 一些基本的 Python 编程能力，能把「想法」落地成代码（之后 NTQ 会加入 AI 辅助写代码，但当前版本还不支持）
-- 一些基本的统计学知识，能看懂基本的回测报告（同样，之后会有 AI 辅助，但现阶段还不支持）
+- 脑海中能把自己找到的「潜力股」抽象成算法的方式（**[v0.5.x](ROADMAP.md)** 将集成 AI 辅助，当前还不支持）
+- 一些基本的 Python 编程能力，能把「想法」落地成代码（**[v0.5.x](ROADMAP.md)** 将加入 AI 辅助写代码，当前还不支持）
+- 一些基本的统计学知识，能看懂基本的回测报告（同样，**[v0.5.x](ROADMAP.md)** 会有 AI 辅助解释报告，现阶段还不支持）
 
 ## NTQ 不能做什么？
 
@@ -385,7 +387,7 @@ NTQ 自带以下演示资产：
 
 - **策略信息**：顶部全宽区域，展示名称、说明、版本胶囊，以及固定 / 恢复等操作。
 - **策略配置**：左侧面板，随回测步骤变化。保存会写回 `settings.py`；回测指纹变了才会开新磁盘 version，便于对比。  
-  **注意**：策略**逻辑**不能在 UI 里改，只能在 `userspace/strategies/` 对应目录改代码；UI 仅能调试代码里暴露的参数。（后续可能会配套 AI 辅助。）
+  **注意**：策略**逻辑**不能在 UI 里改，只能在 `userspace/strategies/` 对应目录改代码；UI 仅能调试代码里暴露的参数。（**[v0.5.x](ROADMAP.md)** 将配套 AI 辅助。）
 - **执行面板**：当前步骤的执行入口。回测目前分三步（第四步决策者模式计划于 **[v0.5.x](ROADMAP.md)**）：  
   - **枚举**：在历史数据中找出策略机会；  
   - **价格回测**：按 1 股、不计成本，看策略对价格波动的捕获；  
@@ -478,48 +480,6 @@ python cli.py t  --scenario demo/market_cap_tier   # 特征标签
 
 ---
 
-## Fun time：AI 如何评价 NTQ？
-
-> 以下为第三方 AI 在阅读 NTQ 一些核心文件与文档后的评价，仅供娱乐，附**完整回复截图**。**非商业广告**，不代表任何 AI 官方立场；AI 可能过度乐观，请结合本仓库自行判断。  
-> 也欢迎用您自己的 AI 评价本工程；请务必先让 AI 阅读核心代码后再评价，否则容易出现严重脱离实际的幻觉。
-
-<details>
-<summary><strong>Gemini 3.1 Pro</strong>（展开长图）</summary>
-
-![Gemini 3.1 Pro 对 NTQ 的审阅](docs/images/ai-assessments/gemini-3.1-pro.jpg)
-
-</details>
-
-<details>
-<summary><strong>GPT-5.5</strong>（展开长图）</summary>
-
-![GPT-5.5 对 NTQ 的审阅](docs/images/ai-assessments/gpt-5.5.jpg)
-
-</details>
-
-<details>
-<summary><strong>Claude Sonnet 4.6</strong>（展开长图）</summary>
-
-![Claude Sonnet 4.6 对 NTQ 的审阅](docs/images/ai-assessments/claude-sonnet-4.6.jpg)
-
-</details>
-
-<details>
-<summary><strong>DeepSeek</strong>（展开长图，6 屏拼接）</summary>
-
-![DeepSeek 对 NTQ 的审阅](docs/images/ai-assessments/deepseek.jpg)
-
-</details>
-
-<details>
-<summary><strong>Gitee 马建仓助手</strong>（展开长图）</summary>
-
-![Gitee 助手对 NTQ 的审阅](docs/images/ai-assessments/gitee-assistant.jpg)
-
-</details>
-
----
-
 ## 几个典型用法（举例）
 
 | 您想做的事 | 建议路径 |
@@ -567,5 +527,47 @@ python3 -m piptools compile --output-file requirements.txt requirements.in
 ```
 
 依赖清单：[requirements-dev.txt](requirements-dev.txt) · [requirements.in](requirements.in)
+
+</details>
+
+---
+
+## Fun time：AI 如何评价 NTQ？
+
+> 以下为第三方 AI 在阅读 NTQ 一些核心文件与文档后的评价，仅供娱乐，附**完整回复截图**。**非商业广告**，不代表任何 AI 官方立场；AI 可能过度乐观，请结合本仓库自行判断。  
+> 也欢迎用您自己的 AI 评价本工程；请务必先让 AI 阅读核心代码后再评价，否则容易出现严重脱离实际的幻觉。
+
+<details>
+<summary><strong>Gemini 3.1 Pro</strong>（展开长图）</summary>
+
+![Gemini 3.1 Pro 对 NTQ 的审阅](docs/images/ai-assessments/gemini-3.1-pro.jpg)
+
+</details>
+
+<details>
+<summary><strong>GPT-5.5</strong>（展开长图）</summary>
+
+![GPT-5.5 对 NTQ 的审阅](docs/images/ai-assessments/gpt-5.5.jpg)
+
+</details>
+
+<details>
+<summary><strong>Claude Sonnet 4.6</strong>（展开长图）</summary>
+
+![Claude Sonnet 4.6 对 NTQ 的审阅](docs/images/ai-assessments/claude-sonnet-4.6.jpg)
+
+</details>
+
+<details>
+<summary><strong>DeepSeek</strong>（展开长图，6 屏拼接）</summary>
+
+![DeepSeek 对 NTQ 的审阅](docs/images/ai-assessments/deepseek.jpg)
+
+</details>
+
+<details>
+<summary><strong>Gitee 马建仓助手</strong>（展开长图）</summary>
+
+![Gitee 助手对 NTQ 的审阅](docs/images/ai-assessments/gitee-assistant.jpg)
 
 </details>

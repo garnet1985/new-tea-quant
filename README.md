@@ -38,7 +38,7 @@
 
 ## NTQ 是什么？
 
-**New Tea Quant（NTQ）**是一款对个人开发者友好、轻量级、高性能量化策略回测与研究框架。（**New Tea**这个名字来源于作者的宠物蓝猫，她的名字就叫“新茶”）
+**New Tea Quant**（NTQ）是一款对个人开发者友好、轻量级、高性能量化策略回测与研究框架。（**New Tea**这个名字来源于作者的宠物蓝猫，她的名字就叫“新茶”）
 
 NTQ 本质上就做两件事：
 
@@ -50,8 +50,6 @@ NTQ 本质上就做两件事：
 ## NTQ 和其他平台有什么显著不同？我为什么要用 NTQ？
 
 NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上各种工具无法完美适配需求，最后自己研发了一款以个人 PC 和 A 股为基底的研究工具。
-
-- **NTQ 做了对个人 PC 的优化。** 其他量化框架（部署在个人 PC 上的）都没有很强的内存管理能力，需要用户自己处理和承担后果。如果您的数据量一大，个人 PC 很可能因为内存不够而导致死机和蓝屏。NTQ 在运行回测任务的时候使用了 CPU 与内存规划，在速度和稳定性之间寻找到了平衡点，让个人 PC 也能运行超过 PC 内存大小的数据回测。
 
 - **NTQ 是作者踩过坑并且帮您默认规避了这些坑的。**
 
@@ -71,7 +69,144 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 
 还有很多很多的大坑小坑，NTQ 在自己的回测引擎内置了各种各样的可交易性模块帮您规避这些风险，让您真正得到可靠的结果，而不是随便找些数据、随便写一些脚本就能跑出的策略。
 
+- **NTQ 做了对个人 PC 的优化。** 其他量化框架（部署在个人 PC 上的）都没有很强的内存管理能力，需要用户自己处理和承担后果。如果您的数据量一大，个人 PC 很可能因为内存不够而导致死机和蓝屏。NTQ 在运行回测任务的时候使用了 CPU 与内存规划，在速度和稳定性之间寻找到了平衡点，让个人 PC 也能运行超过 PC 内存大小的数据回测。
+
 - **NTQ 是深度绑定中国市场的。** 如果您使用的是其他各种流行的框架，它们大部分都是从「美股」或者国外金融市场改造进入「A 股」模式的，改造过程中有很多很多的坑或者错误可能需要发现和买单；而 NTQ 一开始就面向中国 A 股，免去了这些麻烦。
+
+- **NTQ 是配置声明式的。** 不同于很多其他框架，NTQ 的代码量要求较少，大部分是类似 JSON 的配置声明。您的策略由 2 个基本文件组成：`strategy.py` 和 `settings.py`。
+
+在 **`settings.py`** 里，您能配置回测过程中的绝大部分信息：
+
+- 交易基本信息
+- 风险控制
+- 交易目标
+- 回测需要的数据
+- 股票池
+- ……
+
+完整字段说明见 [`userspace/strategies/settings_example.py`](userspace/strategies/settings_example.py)。
+
+<details>
+<summary><strong>settings.py 配置示例（点击展开）</strong></summary>
+
+比如您要设置一个简单的目标：盈利 30% 就平仓，亏损 20% 就止损：
+
+```python
+"goal": {
+    "stop_loss": {"stages": [{"ratio": -0.2, "close_invest": True}]},
+    "take_profit": {"stages": [{"ratio": 0.3, "close_invest": True}]},
+}
+```
+
+或者更复杂的多段 + 目标变化配置：如果我买入股票，最多持有 100 个交易日，止损 20%。如果盈利达到 15% 我就设置保护止损到成本就止损。然后到盈利 30% 我就卖出一半，到盈利 50% 我就卖出 40%，剩下的 10% 变成动态止损，当回撤大于 15% 的时候就止损。您只需要这样配置：
+
+```python
+"goal": {
+    "expiration": {"fixed_window_in_days": 100, "mode": "trading_day"},
+    "stop_loss": {"stages": [{"ratio": -0.2, "close_invest": True}]},
+    "take_profit": {
+        "stages": [
+            # 盈 15%：不卖，把止损抬到成本
+            {"ratio": 0.15, "exit_ratio": 0, "actions": ["set_protect_loss"]},
+            # 盈 30%：卖掉当前仓位的一半（相当于原始仓位的 50%）
+            {"ratio": 0.3, "exit_ratio": 0.5},
+            # 盈 50%：再卖掉仓位的 40% 其余 10% 交给动态止损
+            {"ratio": 0.5, "exit_ratio": 0.4, "actions": ["set_dynamic_loss"]},
+        ]
+    },
+    "protect_loss": {"ratio": 0, "close_invest": True},
+    "dynamic_loss": {"ratio": -0.15, "close_invest": True},
+}
+```
+
+再比如配置回测所需要的数据的例子：
+我在回测过程中需要注入日 K 线、公司财务和 CPI 数据，我可以这么配置：
+
+```python
+"data": {
+    "base": {
+        "data_key": "stock.kline.daily",
+        "params": {"adjust": "qfq"},
+    },
+    "required": [
+        {"data_key": "stock.finance.quarterly"},
+        {"data_key": "macro.cpi"},
+    ],
+}
+```
+
+如果我还需要给 K 线加上 MACD 指标，我可以这样声明：
+
+```python
+"data": {
+    "base": {
+        "data_key": "stock.kline.daily",
+        "params": {"adjust": "qfq"},
+        "indicators": {
+            "macd": [{"fast": 12, "slow": 26, "signal": 9}],
+        },
+    },
+}
+```
+
+</details>
+
+---
+
+在 **`strategy.py`** 里，单股入场只需实现 `has_opportunity`；切片筛选、组合挑选和自定义目标按需再写：
+
+- **`has_opportunity(ctx)`**：当日该股票是否有买入机会。能读到「当前日期为止」的数据，做完计算后返回 `True` / `False`（没有机会就 `False`，框架跳过）。
+- **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤，返回要进入单股判定的股票 id 列表，随后对这些股票调用 `has_opportunity`。
+- **`on_pick_portfolio_member(ctx)`**：处理组合容量。例如最大持股 3 只，当日却扫出 10 个机会，在这里决定选择哪 3 个机会。
+
+另外，您也可以自定义目标：在 `settings.py` 的某一段止盈 / 止损上写 `"custom": "规则名"`，再实现 **`is_take_profit`** / **`is_stop_loss`**，自行决定何时触发、触发后卖多少仓位。
+
+<details>
+<summary><strong>strategy.py 钩子示例（点击展开）</strong></summary>
+
+```python
+def has_opportunity(self, ctx: StrategyContext) -> bool:
+    data = ctx.data.items_with_meta()
+    bar = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+    if bar is None:
+        return False
+    ctx.capture("rsi", bar.get("rsi14"))  # 归因用，可选
+    return True
+```
+
+- **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤，返回要进入单股判定的股票 id 列表，随后对这些股票调用 `has_opportunity`。
+
+```python
+def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
+    as_of = str(ctx.data.now or "")
+    stocks = list((ctx.data.by_entity or {}).keys())  # 在这里按截面规则筛选
+    return CalendarAsOfResult(as_of_date=as_of, stocks=stocks)
+```
+
+- **`on_pick_portfolio_member(ctx)`**：处理组合容量。例如最大持股 3 只，当日却扫出 10 个机会，在这里决定选择哪 3 个机会。
+
+```python
+def on_pick_portfolio_member(self, ctx: StrategyContext):
+    opportunities = ctx.data.items["opportunities"]
+    remaining = ctx.data.items["account"]["remaining_slots"]
+    return opportunities[:remaining]
+```
+
+另外，您也可以自定义目标：在 `settings.py` 的某一段止盈 / 止损上写 `"custom": "规则名"`，再实现 **`is_take_profit`** / **`is_stop_loss`**，自行决定何时触发、触发后卖多少仓位。
+
+```python
+# settings.py
+"take_profit": {"stages": [{"custom": "my_rule", "close_invest": True}]}
+
+# strategy.py
+def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
+    if custom == "my_rule":
+        bar = (ctx.data.items or {}).get("bar") or {}
+        return float(bar.get("close") or 0) >= 10
+    return False
+```
+
+</details>
 
 ### NTQ 和其他平台的不同之处
 

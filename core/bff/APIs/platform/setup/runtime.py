@@ -544,7 +544,8 @@ def _module_available(name: str) -> bool:
     try:
         importlib.import_module(name)
         return True
-    except ImportError:
+    except Exception:
+        # Windows 上 xgboost/shap 常以 OSError（DLL）失败，不只 ImportError。
         return False
 
 

@@ -36,8 +36,16 @@ function WelcomePage() {
   }, []);
 
   const lowerSlots = useMemo(() => ([
-    { id: 'intro', title: '关于 NTQ', hint: '简介将放在这里' },
-    { id: 'shortcuts', title: '快捷入口', hint: '常用操作将放在这里' },
+    { 
+      id: 'intro', 
+      title: '什么是New Tea Quant (NTQ)?', 
+      hint: 'NTQ是一款量化回测平台，支持多种策略回测和优化。' 
+    },
+    { 
+      id: 'shortcuts', 
+      title: '为什么选择NTQ?', 
+      hint: 'NTQ支持多种策略回测和优化，支持多种数据源，支持多种回测引擎，支持多种优化引擎。' 
+    },
   ]), []);
 
   return (

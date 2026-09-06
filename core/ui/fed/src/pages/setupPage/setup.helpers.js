@@ -19,7 +19,7 @@ export const SETUP_CHOICE_COPY = {
   },
   resolve_ml_deps: {
     title: '要安装机器学习依赖吗？',
-    body: '归因分析里的 XGBoost / SHAP 解释需要额外依赖，安装可能需要几分钟。跳过后可随时在「设置 → 安装与维护」中补装。',
+    body: '策略设置里的归因开关需要 XGBoost / SHAP，安装可能需要几分钟。跳过后可随时在「设置 → 安装与维护」中补装。',
     confirmLabel: '安装（可能需要几分钟）',
     skipLabel: '跳过',
   },

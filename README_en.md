@@ -175,46 +175,99 @@ You can also customize goals: put `"custom": "rule_name"` on a take-profit / sto
 <summary><strong>strategy.py hook examples (click to expand)</strong></summary>
 
 ```python
+# Example: RSI below 20 counts as an opportunity:
 def has_opportunity(self, ctx: StrategyContext) -> bool:
-    data = ctx.data.items_with_meta()
-    bar = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
-    if bar is None:
+    # Daily bars for this name as of today (plus declared indicators); last row is today
+    klines_daily = ctx.data.items.get("stock.kline.daily") or []
+    if not klines_daily:
         return False
-    ctx.capture("rsi", bar.get("rsi14"))  # for attribution; optional
-    return True
+    # Last bar in the series is today
+    kline_today = klines_daily[-1]
+    # RSI from today's bar
+    rsi = kline_today.get("rsi14")
+    # Optional: record today's RSI for later attribution
+    ctx.capture("rsi", rsi)
+
+    # True = there is an opportunity when RSI exists and is below 20
+    # In practice this 20 lives in settings.core so the UI can show it and you can vary the parameter
+    return rsi is not None and rsi < 20
 ```
 
-- **`on_calendar_asof(ctx)`:** `slice_based` only. Filter the universe as of today, then `has_opportunity` runs on the ids you return.
+- **`on_calendar_asof(ctx)`:** `slice_based` only. You see the full universe as of today, filter first; put the selected stock ids in `CalendarAsOfResult`, then `has_opportunity` runs on those ids.
 
 ```python
+# Example: pick the 3 names with the highest turnover today, then hand them to has_opportunity
 def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
-    as_of = str(ctx.data.now or "")
-    stocks = list((ctx.data.by_entity or {}).keys())  # cross-section filter here
-    return CalendarAsOfResult(as_of_date=as_of, stocks=stocks)
+    today = str(ctx.data.now or "")
+    ranked = []
+
+    # ctx.data.by_entity: every name in the universe, data as of today
+    for stock_id, payload in (ctx.data.by_entity or {}).items():
+        # Turnover is on daily indicators; declare stock.indicators.daily in settings.data.required
+        rows = payload.get("stock.indicators.daily") or []
+        if not rows:
+            continue
+        # Last row is today
+        indicator_today = rows[-1]
+        turnover = indicator_today.get("turnover_rate")
+        if turnover is None:
+            continue
+        ranked.append((turnover, stock_id))
+
+    # Highest turnover first, take top 3
+    ranked.sort(reverse=True)
+    top3 = [stock_id for _, stock_id in ranked[:3]]
+
+    # CalendarAsOfResult: tell the framework which names you screened today
+    return CalendarAsOfResult(as_of_date=today, stocks=top3)
 ```
 
-- **`on_pick_portfolio_member(ctx)`:** e.g. max 3 holdings, 10 hits today.
+- **`on_pick_portfolio_member(ctx)`:** capacity. E.g. max 3 holdings but 10 hits today — choose which 3.
 
 ```python
+# Example: when there are many hits today, buy the 3 highest-priced names
 def on_pick_portfolio_member(self, ctx: StrategyContext):
-    opportunities = ctx.data.items["opportunities"]
-    remaining = ctx.data.items["account"]["remaining_slots"]
-    return opportunities[:remaining]
+    # Opportunities scanned today that are not yet in the book
+    opportunities = ctx.data.items.get("opportunities") or []
+    # How many slots are left (open holdings already occupy slots)
+    remaining = (ctx.data.items.get("account") or {}).get("remaining_slots") or 0
+
+    ranked = []
+    for opp in opportunities:
+        # trigger_price: signal price for this name today (usually close)
+        price = opp.trigger_price
+        ranked.append((price, opp))
+
+    # Highest price first, take top 3, and do not exceed remaining slots
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    n = min(3, remaining)
+    return [opp for _, opp in ranked[:n]]
 ```
 
-Custom take-profit / stop-loss:
+Custom take-profit / stop-loss: put `"custom": "rule_name"` on a stage in `settings.py`; the framework then asks `is_take_profit` / `is_stop_loss` whether to fire today.
 
 ```python
-# settings.py
-"take_profit": {"stages": [{"custom": "my_rule", "close_invest": True}]}
+# settings.py: this take-profit stage has no fixed ratio; strategy.py decides. close_invest = flatten the whole position
+"take_profit": {"stages": [{"custom": "up_20pct", "close_invest": True}]}
 
 # strategy.py
+# Example: take profit when the name is 20% above entry
 def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
-    if custom == "my_rule":
-        bar = (ctx.data.items or {}).get("bar") or {}
-        return float(bar.get("close") or 0) >= 10
-    return False
+    if custom != "up_20pct":
+        return False
+
+    # While a position is open, the framework hands you today's bar directly
+    bar = ctx.data.items.get("bar") or {}
+    close = bar.get("close")
+    # Fill price at entry
+    entry_price = ctx.data.items.get("entry_price") or 0
+    if close is None or not entry_price:
+        return False
+
+    return close >= entry_price * 1.2
 ```
+
+`is_stop_loss` is the same pattern; put the rule on `stop_loss.stages`.
 
 </details>
 
@@ -250,7 +303,7 @@ When you file an issue, **OS (Win / macOS / Linux), Python version, which step, 
 
 NTQ helps you test your ideas. You will likely need:
 
-- Basic finance and market-rule knowledge
+- Know basic financial terms and market rules
 - A way to turn “this looks like a promising name” into an algorithm (**[v0.5.x](ROADMAP.md)** AI help; not in this version)
 - Enough Python to turn that idea into code (**[v0.5.x](ROADMAP.md)** AI coding help; not in this version)
 - Enough stats to read a basic backtest report (**[v0.5.x](ROADMAP.md)** AI report help; not yet)

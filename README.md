@@ -176,46 +176,99 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 <summary><strong>strategy.py 钩子示例（点击展开）</strong></summary>
 
 ```python
+# 举例：如果RSI参数小于20就算是一个机会：
 def has_opportunity(self, ctx: StrategyContext) -> bool:
-    data = ctx.data.items_with_meta()
-    bar = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
-    if bar is None:
+    # 当日这只股票的日 K（含 settings 里声明的指标）；最后一根就是今天
+    klines_daily = ctx.data.items.get("stock.kline.daily") or []
+    if not klines_daily:
         return False
-    ctx.capture("rsi", bar.get("rsi14"))  # 归因用，可选
-    return True
+    # 从所有K线中取最后一根，也就是今天的
+    kline_today = klines_daily[-1]
+    # 从今日的K线中读取RSI参数
+    rsi = kline_today.get("rsi14")  
+    # （可选步骤）把当日的RSI数值记录下来，后续会对结果进行归因的时候使用
+    ctx.capture("rsi", rsi)  
+
+    # 如果 RSI 存在且小于 20 就返回 True 代表有机会 
+    # 通常来说，这个20是定义在settings.core里的，这样UI就可以看到并通过修改参数得到不同的结果
+    return rsi is not None and rsi < 20
 ```
 
-- **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤，返回要进入单股判定的股票 id 列表，随后对这些股票调用 `has_opportunity`。
+- **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤；筛出的股票 id 放进 `CalendarAsOfResult` 返回，随后对这些股票调用 `has_opportunity`。
 
 ```python
+# 举例：选出当日换手率最高的 3 只股票，再交给 has_opportunity
 def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
-    as_of = str(ctx.data.now or "")
-    stocks = list((ctx.data.by_entity or {}).keys())  # 在这里按截面规则筛选
-    return CalendarAsOfResult(as_of_date=as_of, stocks=stocks)
+    today = str(ctx.data.now or "")
+    ranked = []
+
+    # ctx.data.by_entity：股票池里每一只、截至当天的数据
+    for stock_id, payload in (ctx.data.by_entity or {}).items():
+        # 换手率在日度指标里，需在 settings.data.required 声明 stock.indicators.daily
+        rows = payload.get("stock.indicators.daily") or []
+        if not rows:
+            continue
+        # 最后一条就是今天
+        indicator_today = rows[-1]
+        turnover = indicator_today.get("turnover_rate")
+        if turnover is None:
+            continue
+        ranked.append((turnover, stock_id))
+
+    # 按换手率从大到小排，取前 3 只
+    ranked.sort(reverse=True)
+    top3 = [stock_id for _, stock_id in ranked[:3]]
+
+    # CalendarAsOfResult：告诉框架「今天筛出了哪些股票」
+    return CalendarAsOfResult(as_of_date=today, stocks=top3)
 ```
 
 - **`on_pick_portfolio_member(ctx)`**：处理组合容量。例如最大持股 3 只，当日却扫出 10 个机会，在这里决定选择哪 3 个机会。
 
 ```python
+# 举例：当日机会很多时，挑价格最高的 3 只买入
 def on_pick_portfolio_member(self, ctx: StrategyContext):
-    opportunities = ctx.data.items["opportunities"]
-    remaining = ctx.data.items["account"]["remaining_slots"]
-    return opportunities[:remaining]
+    # 当日扫出来、还没进组合的机会
+    opportunities = ctx.data.items.get("opportunities") or []
+    # 组合还剩几个空位（已持仓会占掉槽）
+    remaining = (ctx.data.items.get("account") or {}).get("remaining_slots") or 0
+
+    ranked = []
+    for opp in opportunities:
+        # trigger_price：这只股票当日的信号价（通常是收盘价）
+        price = opp.trigger_price
+        ranked.append((price, opp))
+
+    # 按价格从高到低排，取前 3 只，且不超过剩余空位
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    n = min(3, remaining)
+    return [opp for _, opp in ranked[:n]]
 ```
 
-自定义止盈 / 止损：
+自定义止盈 / 止损：在 `settings.py` 某一段上写 `"custom": "规则名"`，框架就会来问 `is_take_profit` / `is_stop_loss` 今天要不要触发。
 
 ```python
-# settings.py
-"take_profit": {"stages": [{"custom": "my_rule", "close_invest": True}]}
+# settings.py：这一段止盈不写固定比例，交给 strategy.py 自己判断；close_invest 表示全部平仓
+"take_profit": {"stages": [{"custom": "up_20pct", "close_invest": True}]}
 
 # strategy.py
+# 举例：相对买入价涨了 20% 就止盈
 def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
-    if custom == "my_rule":
-        bar = (ctx.data.items or {}).get("bar") or {}
-        return float(bar.get("close") or 0) >= 10
-    return False
+    if custom != "up_20pct":
+        return False
+
+    # 持仓监控时，框架直接给你今天这根 K 线
+    bar = ctx.data.items.get("bar") or {}
+    close = bar.get("close")
+    # 买入成交价
+    entry_price = ctx.data.items.get("entry_price") or 0
+    if close is None or not entry_price:
+        return False
+
+    return close >= entry_price * 1.2
 ```
+
+`is_stop_loss` 写法相同，只是把规则写在 `stop_loss.stages` 上。
 
 </details>
 
@@ -251,7 +304,7 @@ def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
 
 NTQ 能帮助您将您的想法进行验证，您可能需要：
 
-- 有基本的金融知识和市场规则知识
+- 了解基本的金融术语和市场规则
 - 脑海中能把自己找到的「潜力股」抽象成算法的方式（**[v0.5.x](ROADMAP.md)** 将集成 AI 辅助，当前还不支持）
 - 一些基本的 Python 编程能力，能把「想法」落地成代码（**[v0.5.x](ROADMAP.md)** 将加入 AI 辅助写代码，当前还不支持）
 - 一些基本的统计学知识，能看懂基本的回测报告（同样，**[v0.5.x](ROADMAP.md)** 会有 AI 辅助解释报告，现阶段还不支持）

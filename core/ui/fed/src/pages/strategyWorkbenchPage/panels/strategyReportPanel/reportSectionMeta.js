@@ -75,7 +75,7 @@ export function analysisHeroCaption({ sampleSize, fieldKey, extent }) {
   const hi = Number(extent?.max);
   const key = String(fieldKey || '').trim();
   if (Number.isFinite(lo) && Number.isFinite(hi)) {
-    parts.push(`${key || '条件'} 范围 ${lo.toFixed(1)} ~ ${hi.toFixed(1)}`);
+    parts.push(`${key || '条件'} 范围 ${lo.toFixed(2)} ~ ${hi.toFixed(2)}`);
   }
   if (!parts.length) return '';
   return `数据来源：${parts.join(' · ')}`;
@@ -86,7 +86,10 @@ export function analysisNextSteps({ fieldKey, splitValue, hasOtherFields }) {
   const steps = [];
   const cut = Number(splitValue);
   if (Number.isFinite(cut)) {
-    steps.push(`把 ${field} 相关门槛收到大约 ${cut} 附近再跑一次，看总收益是否更好。`);
+    const cutLabel = Math.abs(cut - Math.round(cut)) < 1e-9
+      ? String(Math.round(cut))
+      : cut.toFixed(2);
+    steps.push(`把 ${field} 相关门槛收到大约 ${cutLabel} 附近再跑一次，看总收益是否更好。`);
   } else {
     steps.push(`按这次 ${field} 分档结果收紧或放宽入场，再跑一次对照。`);
   }

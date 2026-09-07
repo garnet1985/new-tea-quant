@@ -76,7 +76,7 @@ describe('setup.helpers fake progress and choice steps', () => {
   });
 
   it('scales tick size with the current slice', () => {
-    expect(fakeProgressTickSize(0, 45)).toBeCloseTo(3.15);
-    expect(fakeProgressTickSize(50, 57.2)).toBeCloseTo(0.504);
+    expect(fakeProgressTickSize(0, 45)).toBeCloseTo(0.8);
+    expect(fakeProgressTickSize(50, 57.2)).toBeCloseTo(0.15);
   });
 });

@@ -36,6 +36,7 @@ export function formatWinPct(value) {
 export function formatNum(value, digits = 2) {
   const n = asFiniteNumber(value);
   if (n == null) return '—';
+  if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
   return n.toFixed(digits);
 }
 
@@ -59,6 +60,13 @@ export function stripCornerQuotes(text) {
 
 export function formatPlain(value) {
   if (value == null) return '—';
+  if (typeof value === 'boolean') return String(value);
+  if (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) {
+    const n = asFiniteNumber(value);
+    if (n != null && (typeof value === 'number' || /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(String(value).trim()))) {
+      return formatNum(n, 3);
+    }
+  }
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
@@ -145,8 +153,8 @@ export function buildRoiBarOption(rows, { barMaxWidth = 36, rotate = 0 } = {}) {
     const lo = asFiniteNumber(t.min);
     const hi = asFiniteNumber(t.max);
     if (lo == null && hi == null) return '';
-    if (lo != null && hi != null) return `${lo}~${hi}`;
-    return String(lo ?? hi);
+    if (lo != null && hi != null) return `${formatNum(lo, 2)}~${formatNum(hi, 2)}`;
+    return formatNum(lo ?? hi, 2);
   });
   return {
     animation: false,
@@ -169,7 +177,7 @@ export function buildRoiBarOption(rows, { barMaxWidth = 36, rotate = 0 } = {}) {
       axisTick: { show: false },
       axisLabel: {
         ...REPORT_CHART_AXIS_LABEL,
-        formatter: (value) => `${value}%`,
+        formatter: (value) => `${Number(value).toFixed(1)}%`,
       },
       splitLine: REPORT_CHART_SPLIT_LINE,
     },
@@ -216,12 +224,12 @@ export function buildTierRoiOption(tiers) {
   return buildRoiBarOption(tiers, { barMaxWidth: 48 });
 }
 
-export function formatRange(min, max, digits = 1) {
+export function formatRange(min, max, digits = 2) {
   const lo = asFiniteNumber(min);
   const hi = asFiniteNumber(max);
   if (lo == null && hi == null) return '';
   if (lo != null && hi != null) return `${formatNum(lo, digits)}~${formatNum(hi, digits)}`;
-  return String(lo ?? hi);
+  return formatNum(lo ?? hi, digits);
 }
 
 export function rowsExtent(rows) {

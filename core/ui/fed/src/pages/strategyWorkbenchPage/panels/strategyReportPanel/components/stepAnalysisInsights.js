@@ -326,7 +326,7 @@ function StepAnalysisInsights({ status, analysis = null, error = '' }) {
   const techLine1 = [
     sampleSize != null ? `样本 ${formatCount(sampleSize)} 笔` : '',
     extent.min != null && extent.max != null
-      ? `${facts?.field_key || '条件'} 区间 [${formatNum(extent.min, 1)}, ${formatNum(extent.max, 1)}]`
+      ? `${facts?.field_key || '条件'} 区间 [${formatNum(extent.min, 2)}, ${formatNum(extent.max, 2)}]`
       : '',
     watershedDistinct
       ? `分档方式：按收益落差合成分水岭（细档 ${buckets.length}）`

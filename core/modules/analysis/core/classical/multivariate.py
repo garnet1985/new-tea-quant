@@ -2,16 +2,13 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-try:
-    from sklearn.linear_model import LogisticRegression
-except ImportError:  # pragma: no cover
-    LogisticRegression = None  # type: ignore
-
 _MIN_SAMPLES_PER_FEATURE = 10
+_LOGISTIC_MAX_ITER = 100
+_LOGISTIC_TOL = 1e-8
 
 
 def _validate_inputs(
@@ -78,6 +75,36 @@ def _log_likelihood(y: np.ndarray, probs: np.ndarray) -> float:
     return float(np.sum(y * np.log(clipped) + (1.0 - y) * np.log(1.0 - clipped)))
 
 
+def _sigmoid(z: np.ndarray) -> np.ndarray:
+    return 1.0 / (1.0 + np.exp(-np.clip(z, -30.0, 30.0)))
+
+
+def _fit_unregularized_logistic(
+    design: np.ndarray, y: np.ndarray
+) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Newton / IRLS MLE. Returns ``(coefs, probs, hessian)`` or ``None``."""
+    n_coef = design.shape[1]
+    beta = np.zeros(n_coef, dtype=float)
+    for _ in range(_LOGISTIC_MAX_ITER):
+        probs = _sigmoid(design @ beta)
+        weights = np.clip(probs * (1.0 - probs), 1e-12, None)
+        hessian = design.T @ (design * weights[:, None])
+        score = design.T @ (y - probs)
+        try:
+            step = np.linalg.solve(hessian, score)
+        except np.linalg.LinAlgError:
+            return None
+        beta = beta + step
+        if float(np.max(np.abs(step))) < _LOGISTIC_TOL:
+            break
+    if not np.all(np.isfinite(beta)):
+        return None
+    probs = np.clip(_sigmoid(design @ beta), 1e-9, 1.0 - 1e-9)
+    weights = np.clip(probs * (1.0 - probs), 1e-12, None)
+    hessian = design.T @ (design * weights[:, None])
+    return beta, probs, hessian
+
+
 def logistic_win(
     feature_matrix: Sequence[Sequence[float]],
     feature_names: Sequence[str],
@@ -91,13 +118,6 @@ def logistic_win(
     if not validation.get("ok"):
         return {key: value for key, value in validation.items() if key != "ok"}
 
-    if LogisticRegression is None:
-        return {
-            "status": "skipped",
-            "reason": "missing_dependency",
-            "dependency": "scikit-learn",
-        }
-
     n = int(validation["n"])
     p = int(validation["n_features"])
     y = np.asarray(is_win, dtype=int)
@@ -105,22 +125,12 @@ def logistic_win(
         return {"status": "skipped", "reason": "single_class", "n": n, "n_features": p}
 
     design = np.column_stack([np.ones(n), _as_matrix(feature_matrix)])
-    try:
-        model = LogisticRegression(
-            fit_intercept=False,
-            penalty=None,
-            solver="lbfgs",
-            max_iter=1000,
-        )
-        model.fit(design, y)
-    except (ValueError, np.linalg.LinAlgError):
+    fitted = _fit_unregularized_logistic(design, y)
+    if fitted is None:
         return {"status": "skipped", "reason": "fit_failed", "n": n, "n_features": p}
 
-    coefs = model.coef_.ravel()
-    probs = np.clip(model.predict_proba(design)[:, 1], 1e-9, 1.0 - 1e-9)
-    weights = probs * (1.0 - probs)
+    coefs, probs, hessian = fitted
     try:
-        hessian = design.T @ (design * weights[:, None])
         cov = np.linalg.inv(hessian)
         se = np.sqrt(np.clip(np.diag(cov), 0.0, None))
     except np.linalg.LinAlgError:
@@ -143,7 +153,7 @@ def logistic_win(
                 "std_err": float(se[coef_index]),
                 "z_stat": z_stat,
                 "p_value": _normal_two_tail_p(z_stat),
-                "odds_ratio": float(math.exp(coef_value)),
+                "odds_ratio": float(math.exp(min(max(coef_value, -30.0), 30.0))),
             }
         )
 

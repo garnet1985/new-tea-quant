@@ -26,7 +26,8 @@ export const SETUP_CHOICE_COPY = {
 };
 
 export const FAKE_PROGRESS_CAP = 90;
-export const FAKE_PROGRESS_STEP = 3;
+/** Default nudge per timer tick (~1%/s at 800ms interval). */
+export const FAKE_PROGRESS_STEP = 0.8;
 export const FAKE_PROGRESS_WITHIN_STEP_RATIO = 0.9;
 export const DEFAULT_STEP_PROGRESS_WEIGHT = 1;
 
@@ -115,7 +116,7 @@ export function setupStatusSignature(status) {
 export function fakeProgressTickSize(basePercent, capPercent) {
   const span = Math.max(0, (Number(capPercent) || 0) - (Number(basePercent) || 0));
   if (span <= 0) return 0;
-  return Math.max(0.3, span * 0.07);
+  return Math.min(FAKE_PROGRESS_STEP, Math.max(0.15, span * 0.02));
 }
 
 export function shouldShowDbConnectionField(fieldKey, dbType) {

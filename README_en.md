@@ -68,6 +68,8 @@ The author wanted to do his own quant research. Off-the-shelf tools did not fit 
 
   - **Your data may have survivorship bias.** The names on stock websites are the ones still alive. Did your backtest include names that later delisted? Buying those can produce huge losses. Leave them out and your returns and win rate look better than they should.
 
+  - **Did you peek at future data?** If you reconstruct a moment in the middle of the timeline from the complete history, you may have used information that did not exist yet to justify a decision at that moment. Live trading cannot do that, so the backtest is often distorted. NTQ uses data contracts to keep future data out of reach: you cannot pull from backtest data or the context object anything that would only exist later, including event times. A conclusion at T strictly follows data that was already known at T.
+
   - **Do you know how adjusted prices are built?** How they differ from raw prices? If your backtest uses adjusted prices for P&L and stop/take-profit, it is almost certainly wrong. Forward-adjusted prices can make position sizing too optimistic. In extreme cases they can go **negative**; a simulated buy at a negative price makes return negative whether you actually lost money or not. Did you catch that?
 
   - **Even if the strategy is profitable, is it a handful of extreme names — or is everyone grinding up?** How do you choose when several opportunities appear on the same day? Can you persist intermediate data and inspect it later? After a run, do you know the shape of the return distribution? Without that, you cannot really find a strategy that fits you.

@@ -131,6 +131,7 @@ def test_analysis_report_presenter_is_conclusion_first(tmp_path: Path) -> None:
     Analyzer.Presenter.load(tmp_path).present(stream=buf)
     text = buf.getvalue()
     assert "一句话结论" in text
+    assert "当前版本 v3" in text
     assert text.find("一句话结论") < text.find("证据")
     assert "关键发现" in text
     assert "说明了什么" in text

@@ -10,7 +10,7 @@ describe('strategySettingsFingerprint', () => {
     expect(stableStringify({ b: 1, a: 2 })).toBe(stableStringify({ a: 2, b: 1 }));
   });
 
-  it('ignores non-fingerprint fields such as price_simulator', () => {
+  it('ignores non-fingerprint fields such as price_simulator and analysis', () => {
     const base = {
       core: { n: 1 },
       simulation: { execution: { mode: 'entity_based' } },
@@ -20,8 +20,10 @@ describe('strategySettingsFingerprint', () => {
       price_simulator: { lookback: 20 },
       enumerator: { max_workers: 4 },
       meta: { name: 'x' },
+      analysis: { enabled: true },
     };
     expect(isFingerprintEqual(base, withPrice)).toBe(true);
+    expect(isFingerprintEqual(base, { ...base, analysis: { enabled: false } })).toBe(true);
   });
 
   it('detects fingerprint field changes', () => {

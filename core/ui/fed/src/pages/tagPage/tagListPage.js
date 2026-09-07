@@ -58,6 +58,7 @@ function TagListPage() {
   const [rows, setRows] = useState([]);
   const [dataEnd, setDataEnd] = useState({});
   const [loading, setLoading] = useState(true);
+  const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
@@ -139,7 +140,10 @@ function TagListPage() {
         setDataEnd({});
         setLoadError(e?.message || '加载 Tag 列表失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setPageReady(true);
+      });
     refreshPipeline();
   }, [refreshPipeline]);
 
@@ -402,6 +406,8 @@ function TagListPage() {
           variant={statusChip.variant}
         />
       )}
+      loading={!pageReady}
+      loadingMessage="正在加载标签列表…"
     >
       {loadError ? <Alert severity="error" className="tag-list-alert">{loadError}</Alert> : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="tag-list-alert" />

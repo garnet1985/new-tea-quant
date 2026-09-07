@@ -1,10 +1,19 @@
 {
   "id": "import_data",
-  "name": "导入初始化数据",
-  "description": "导入初始化数据包，完成系统基础数据准备。",
+  "name": "导入演示数据",
+  "description": "数据库配置成功后可选导入演示数据。跳过后可自行接入数据源。",
   "scriptEntry": "core/infra/setup/core/steps/import_data/install.py",
-  "requiresUserInput": false,
-  "inputSchema": [],
+  "requiresUserInput": true,
+  "optional": true,
+  "inputSchema": [
+    {
+      "key": "skip",
+      "label": "跳过导入",
+      "type": "boolean",
+      "required": true,
+      "defaultValue": false
+    }
+  ],
   "retryPolicy": {
     "mode": "retry_same_step"
   },
@@ -12,5 +21,6 @@
     "db_connection"
   ],
   "order": 5,
+  "progressWeight": 20,
   "uiVisible": true
 }

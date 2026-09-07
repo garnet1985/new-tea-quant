@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Box } from '@mui/material';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../api/strategyApi';
+import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
 import StrategyDesignBreadcrumbCurrent from './components/strategyDesignBreadcrumbCurrent';
 import StrategyDesignMetaBar from './components/strategyDesignMetaBar';
 import StrategyDesignMetaDialogs from './components/strategyDesignMetaDialogs';
@@ -9,9 +10,30 @@ import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
 import { parseStrategyDesignRoute } from './lib/parseStrategyDesignRoute';
 import { readCachedStrategyDesignStep } from './strategyDesignSessionState';
 import { StrategyDesignProvider } from './strategyDesignContext';
-import { StrategyDesignWorkbenchProvider } from './strategyDesignWorkbenchContext';
+import { StrategyDesignWorkbenchProvider, useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
 import StrategyDesignShell from './strategyDesignShell';
 import StrategyDesignStepPage from './strategyDesignStepPage';
+
+function StrategyDesignBody() {
+  const wb = useStrategyDesignWorkbenchContext();
+  if (wb.isLoadingSettings) {
+    return (
+      <Box className="ntq-page__body strategy-design-shell__body is-loading">
+        <PageLoadingState message="正在加载策略工作台…" minHeight="48vh" />
+      </Box>
+    );
+  }
+
+  return (
+    <>
+      <StrategyDesignMetaBar />
+      <StrategyDesignMetaDialogs />
+      <Box className="ntq-page__body strategy-design-shell__body">
+        <StrategyDesignStepPage />
+      </Box>
+    </>
+  );
+}
 
 /**
  * 制定策略顶层容器：面包屑 + Stepper + 步内 Outlet。
@@ -49,11 +71,7 @@ function StrategyDesignLayout() {
           ]}
           breadcrumbsCurrent={<StrategyDesignBreadcrumbCurrent />}
         >
-          <StrategyDesignMetaBar />
-          <StrategyDesignMetaDialogs />
-          <Box className="ntq-page__body strategy-design-shell__body">
-            <StrategyDesignStepPage />
-          </Box>
+          <StrategyDesignBody />
         </StrategyDesignShell>
       </StrategyDesignWorkbenchProvider>
     </StrategyDesignProvider>

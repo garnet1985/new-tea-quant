@@ -46,6 +46,7 @@ function DataSourceListPage() {
   const [rows, setRows] = useState([]);
   const [dataEnd, setDataEnd] = useState({});
   const [loading, setLoading] = useState(true);
+  const [pageReady, setPageReady] = useState(false);
   const [freshnessLoading, setFreshnessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [freshnessError, setFreshnessError] = useState('');
@@ -100,6 +101,7 @@ function DataSourceListPage() {
         setRows(nextRows);
         setDataEnd(res?.dataEnd && typeof res.dataEnd === 'object' ? res.dataEnd : {});
         setLoading(false);
+        setPageReady(true);
         loadFreshness(nextRows.map((row) => row.name));
       })
       .catch((e) => {
@@ -107,6 +109,7 @@ function DataSourceListPage() {
         setDataEnd({});
         setLoadError(e?.message || '加载数据源列表失败');
         setLoading(false);
+        setPageReady(true);
       });
   }, [loadFreshness]);
 
@@ -261,6 +264,8 @@ function DataSourceListPage() {
       breadcrumbsCurrent="数据源"
       bannerTitle="数据源"
       bannerDescription="查看已配置的数据源、Provider 认证与更新策略；Token 未配置时更新按钮不可用。"
+      loading={!pageReady}
+      loadingMessage="正在加载数据源…"
     >
       {loadError ? <Alert severity="error" className="data-source-list-alert">{loadError}</Alert> : null}
       {freshnessError ? (

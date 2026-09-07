@@ -571,36 +571,54 @@ class UserHandlers:
         from pathlib import Path
 
         from core.modules.strategy import Strategy
+        from core.modules.strategy.core.enums import WorkbenchStep
+        from core.modules.strategy.core.services.artifacts import ArtifactStore
 
         output_dir = getattr(args, "output_dir", None)
         if output_dir:
-            Strategy.present_analysis_report(Path(output_dir))
+            UserHandlers._present_analysis_or_exit(Path(output_dir))
             return
 
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         step = str(getattr(args, "step", None) or "enum").strip().lower()
-        version_id = getattr(args, "version", None)
+        version_id = str(getattr(args, "version", None) or "").strip()
 
         if not version_id:
-            print(
-                "归因已集成在 simulate 中：请在 settings.analysis.enabled=true 后运行 se/sp/so；"
-                "或使用 --output-dir 展示已有 report。",
-                flush=True,
-            )
-            raise SystemExit(1)
+            folder = Strategy.resolve_folder(strategy_key)
+            kind = WorkbenchStep.parse(step).to_simulate_kind()
+            store = ArtifactStore.latest(folder, kind)
+            if store is None:
+                print(
+                    f"未找到 {strategy_key} 的 {step} 回测产物。"
+                    "请先运行 se / sp / so（并开启 settings.analysis.enabled）。",
+                    flush=True,
+                )
+                raise SystemExit(1)
+            UserHandlers._present_analysis_or_exit(store.output_dir)
+            return
 
         for candidate in Strategy.resolve_simulation_output_dirs(
             strategy_key,
             step=step,
-            slot={"version_id": str(version_id).strip()},
+            slot={"version_id": version_id},
         ):
             if not candidate.is_dir():
                 continue
-            Strategy.present_analysis_report(candidate)
+            UserHandlers._present_analysis_or_exit(candidate)
             return
 
         print(f"未找到 version {version_id!r} 的 {step} 归因报告。", flush=True)
         raise SystemExit(1)
+
+    @staticmethod
+    def _present_analysis_or_exit(output_dir: Path) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            Strategy.present_analysis_report(output_dir)
+        except FileNotFoundError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
 
     @staticmethod
     def _run_strategy_delete_version(args: argparse.Namespace) -> None:

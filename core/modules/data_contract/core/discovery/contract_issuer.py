@@ -15,6 +15,9 @@ from core.modules.data_contract.core.base.base_loader import BaseDataContractLoa
 
 logger = logging.getLogger(__name__)
 
+# userspace 自带的模板目录，不是可注册 contract。
+_USER_CONTRACT_TEMPLATE_DIRS = frozenset({"contract_example"})
+
 
 class ContractIssuer:
     """Contract Issuer - 发现和管理 Contract Declarations。
@@ -214,9 +217,31 @@ class ContractIssuer:
             # 跳过非 Contract 目录
             if sub_dir.name.startswith('_') or sub_dir.name.startswith('.'):
                 continue
+            if sub_dir.name in _USER_CONTRACT_TEMPLATE_DIRS:
+                logger.debug(f"跳过用户 contract 模板目录：{sub_dir.name}")
+                continue
 
             # 发现单个 contract
             self._discover_single_contract(sub_dir, is_customized=is_customized)
+
+    @staticmethod
+    def _load_contract_py_module(sub_dir: Path, stem: str, *, is_customized: bool):
+        """加载 declaration.py / loader.py。
+
+        系统 contract 走包内 import；用户 contract 按文件加载，
+        不能当成 ``core.modules.data_contract.core.data_contracts.*``。
+        """
+        if is_customized:
+            path = sub_dir / f"{stem}.py"
+            module_name = f"userspace_data_contract_{sub_dir.name}_{stem}"
+            spec = importlib.util.spec_from_file_location(module_name, path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"无法加载 {path}")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        module_name = f"core.modules.data_contract.core.data_contracts.{sub_dir.name}.{stem}"
+        return importlib.import_module(module_name)
 
     def _discover_single_contract(self, sub_dir: Path, is_customized: bool = False) -> None:
         """发现单个 contract（检查必要文件和继承关系）。
@@ -253,8 +278,7 @@ class ContractIssuer:
 
         # 3. 导入并验证 declaration
         try:
-            module_name = f"core.modules.data_contract.core.data_contracts.{sub_dir.name}.declaration"
-            module = importlib.import_module(module_name)
+            module = self._load_contract_py_module(sub_dir, "declaration", is_customized=is_customized)
 
             # 提取导出的 declaration（查找以 _DECLARATION 结尾的变量）
             declarations_found = []
@@ -307,8 +331,7 @@ class ContractIssuer:
 
         # 4. 验证 loader 继承关系
         try:
-            loader_module_name = f"core.modules.data_contract.core.data_contracts.{sub_dir.name}.loader"
-            loader_module = importlib.import_module(loader_module_name)
+            loader_module = self._load_contract_py_module(sub_dir, "loader", is_customized=is_customized)
 
             # 查找 loader 类
             loader_classes_found = []

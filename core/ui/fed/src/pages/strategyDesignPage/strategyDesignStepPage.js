@@ -2,7 +2,6 @@ import React, { useCallback } from 'react';
 import { Alert, Box, Grid, Stack } from '@mui/material';
 import StrategyDesignExecutionPanel from './components/strategyDesignExecutionPanel';
 import StrategyDesignReportPanel from './components/strategyDesignReportPanel';
-import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import StrategySettingsContainer from '../strategyWorkbenchPage/panels/strategySettingsPanel/containers/strategySettingsContainer';
 import StrategyDesignDraftSync from './components/strategyDesignDraftSync';
 import StrategyDesignDraftChangeBridge from './components/strategyDesignDraftChangeBridge';
@@ -18,14 +17,6 @@ function StrategyDesignStepPage() {
   const handleDraftSync = useCallback((nextDraft) => {
     wb.setDraftSettings(nextDraft);
   }, [wb.setDraftSettings]);
-
-  if (wb.isLoadingSettings) {
-    return (
-      <Box className="ntq-design-step-page">
-        <InlineLoadingState compact row message="正在加载策略设置…" />
-      </Box>
-    );
-  }
 
   if (!wb.hasValidSettings) {
     return (

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-安装流程步骤：导入初始化数据（必跑）。
+安装流程步骤：导入演示数据（向导中可跳过；CLI 默认执行）。
 """
 from __future__ import annotations
 

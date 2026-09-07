@@ -44,7 +44,7 @@ class AnalysisReportPresenter:
         print(
             f"{icon('gear')} 策略 {report.get('strategy_key') or '-'}  ·  "
             f"{_step_label(report.get('step'))}  ·  "
-            f"版本 v{report.get('version_id') or '-'}",
+            f"当前版本 v{report.get('version_id') or '-'}",
             file=out,
             flush=True,
         )

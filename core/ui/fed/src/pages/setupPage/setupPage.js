@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Backdrop,
@@ -11,16 +11,13 @@ import {
   FormControlLabel,
   MenuItem,
   Stack,
-  Step,
-  StepLabel,
-  Stepper,
   TextField,
   Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   getSetupDefinition,
   getImportDataProgress,
@@ -38,14 +35,18 @@ import {
   EMPTY_IMPORT_PROGRESS,
   getFieldDisplayValue,
   getFieldInputId,
+  isChoicePauseStep,
+  setupStatusSignature,
   shouldShowDbConnectionField,
   shouldShowUserspaceConflictPolicy,
   STEP_STATUS,
   validateDbConnectionSubmit,
 } from './setup.helpers';
+import SetupChoiceCard from './setupChoiceCard';
 import SetupDialogs from './setupDialogs';
 import SetupExecutionPanel from './setupExecutionPanel';
-import TraceConsentGuard from '../../components/traceConsentGuard';
+import SetupProgressBar from './setupProgressBar';
+import SetupStepper from './setupStepper';
 import logClientError from '../../utils/logClientError';
 import './setupPage.scss';
 
@@ -58,6 +59,10 @@ const SETUP_TEXT_FIELD_COMMON = {
 };
 
 function SetupPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [reinstallAutoStart] = useState(() => Boolean(location.state?.autoStart));
+  const autoStartedRef = useRef(false);
   const [definition, setDefinition] = useState([]);
   const [status, setStatus] = useState(null);
   const [flowStage, setFlowStage] = useState('input');
@@ -108,19 +113,19 @@ function SetupPage() {
     setBootstrapError('');
     Promise.all([getSetupDefinition(), getSetupStatus()])
       .then(([defs, current]) => {
-        if (current?.isReady) {
-          setDefinition(defs);
-          setStatus(current);
-          restoreFlowStage(defs, current);
-          return undefined;
+        if (reinstallAutoStart || !current?.isReady) {
+          return resetSetupStatus()
+            .then((fresh) => {
+              setDefinition(defs);
+              setStatus(fresh);
+              restoreFlowStage(defs, fresh);
+            });
         }
 
-        return resetSetupStatus()
-          .then((fresh) => {
-            setDefinition(defs);
-            setStatus(fresh);
-            restoreFlowStage(defs, fresh);
-          });
+        setDefinition(defs);
+        setStatus(current);
+        navigate('/welcome', { replace: true });
+        return undefined;
       })
       .catch((err) => {
         setBootstrapError(err?.message || '加载安装向导失败，请检查网络后重试。');
@@ -130,7 +135,7 @@ function SetupPage() {
       .finally(() => {
         setBootstrapping(false);
       });
-  }, []);
+  }, [navigate, reinstallAutoStart]);
 
   useEffect(() => {
     loadBootstrap();
@@ -173,12 +178,16 @@ function SetupPage() {
       if (warning) {
         setPollWarning(warning);
       }
-      setRunningStep(progressStatus === 'running' ? stepId : '');
-      if (progressStatus === 'running') {
+      if (progressStatus === 'running' && stepId) {
+        setRunningStep(stepId);
         const label = definition.find((step) => step.id === stepId)?.name || stepId;
         setProgressText(`正在执行: ${label}`);
       }
-      if (snapshot) setStatus(snapshot);
+      if (snapshot) {
+        setStatus((prev) => (
+          setupStatusSignature(prev) === setupStatusSignature(snapshot) ? prev : snapshot
+        ));
+      }
     });
   };
 
@@ -190,6 +199,7 @@ function SetupPage() {
       setProgressText('安装完成');
       setFailedStep('');
       setPausedStep('');
+      navigate('/setup/trace', { replace: true, state: { source: 'setup_ui' } });
       return;
     }
     if (result.kind === 'paused') {
@@ -257,18 +267,6 @@ function SetupPage() {
       </Stack>
     );
   }, [runningStep]);
-
-  const executingColumns = useMemo(() => ([
-    { field: 'order', headerName: '#', width: 80 },
-    { field: 'name', headerName: '步骤', flex: 1 },
-    {
-      field: 'state',
-      headerName: '状态',
-      width: 180,
-      renderCell: (params) => renderStepStateCell(params, '待完成'),
-    },
-    { field: 'detail', headerName: '说明', flex: 1.6 },
-  ]), [renderStepStateCell]);
 
   const failColumns = useMemo(() => ([
     { field: 'order', headerName: '#', width: 80 },
@@ -340,8 +338,18 @@ function SetupPage() {
     }
   };
 
+  useEffect(() => {
+    if (!reinstallAutoStart || bootstrapping || autoStartedRef.current) return undefined;
+    if (bootstrapError || flowStage !== 'input' || !status || definition.length === 0) return undefined;
+    autoStartedRef.current = true;
+    handleStartSetup();
+    return undefined;
+    // handleStartSetup 每次渲染都会新建；只在重置后的「开始安装」入口自动开跑一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reinstallAutoStart, bootstrapping, bootstrapError, flowStage, status, definition.length]);
+
   const handleSubmitInteractionStep = async (options = {}) => {
-    const { confirmedOverwrite = false, confirmedDbRisk = false } = options;
+    const { confirmedOverwrite = false, confirmedDbRisk = false, skip } = options;
     if (!status || !pausedStep) return;
     const schema = pausedStepDef?.requiredUserInputs || [];
     const policyField = schema.find((field) => field.key === 'userspaceConflictPolicy');
@@ -367,6 +375,9 @@ function SetupPage() {
     });
     if (pausedStep === 'init_userspace' && !userspacePathExists) {
       submitValues.userspaceConflictPolicy = 'skip';
+    }
+    if (typeof skip === 'boolean') {
+      submitValues.skip = skip;
     }
     if (pausedStep === 'db_connection') {
       const validationError = validateDbConnectionSubmit(submitValues);
@@ -431,9 +442,7 @@ function SetupPage() {
     try {
       const nextStatus = await resetSetupStatus();
       setStatus(nextStatus);
-      setFlowStage('input');
       setRunningStep('');
-      setProgressText('等待开始');
       setErrorMessage('');
       setFailedStep('');
       setPausedStep('');
@@ -441,8 +450,13 @@ function SetupPage() {
       setUserspacePathEditable(false);
       setUserspacePathExists(false);
       setImportProgress(EMPTY_IMPORT_PROGRESS);
+      setFlowStage('executing');
+      setProgressText('准备执行安装步骤...');
+      const result = await runningWithProgress((onProgress) => startSetupWorkflow(onProgress));
+      consumePipelineResult(result, definition[0]?.id || DEFAULT_STEP_ID);
     } catch (err) {
       setRestartError(err?.message || '重置安装状态失败，请检查网络后重试。');
+      setFlowStage('input');
     }
   };
 
@@ -479,10 +493,15 @@ function SetupPage() {
   }, [flowStage, runningStep]);
 
   const completedCount = rows.filter((row) => row.state === '已完成').length;
-  const progressPercent = definition.length > 0
-    ? Math.round((completedCount / definition.length) * 100)
-    : 0;
+  const completedIds = useMemo(
+    () => rows.filter((row) => row.state === '已完成').map((row) => row.stepId),
+    [rows],
+  );
+  const runningProgressId = flowStage === 'executing'
+    ? (runningStep || rows.find((row) => row.state !== '已完成')?.stepId || '')
+    : '';
   const pausedStepDef = definition.find((step) => step.id === pausedStep);
+  const isChoicePause = isChoicePauseStep(pausedStep);
 
   return (
     <>
@@ -494,7 +513,7 @@ function SetupPage() {
           <Stack spacing={3}>
           {flowStage !== 'input' && status?.isReady ? (
             <Alert severity="success">
-              安装流程已完成。你现在可以进入主业务页面。
+              安装流程已完成。你可以进入欢迎页开始使用。
             </Alert>
           ) : (
             <Alert severity="warning">
@@ -504,19 +523,19 @@ function SetupPage() {
 
           <Card variant="outlined">
             <CardContent>
-              <Stepper activeStep={activeStep < 0 ? definition.length : activeStep} sx={{ mb: 2 }}>
-                {definition.map((step) => (
-                  <Step key={step.id} completed={rows.find((row) => row.stepId === step.id)?.state === '已完成'}>
-                    <StepLabel>{step.name}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
-              <Typography variant="body2" color="text.secondary">
-                总进度: {completedCount}/{definition.length} ({progressPercent}%)
-              </Typography>
-              <Box sx={{ mt: 1, height: 8, borderRadius: 1, bgcolor: 'grey.200', overflow: 'hidden' }}>
-                <Box sx={{ width: `${progressPercent}%`, bgcolor: 'primary.main', height: '100%' }} />
-              </Box>
+              <SetupStepper
+                definition={definition}
+                completedIds={completedIds}
+                activeStep={activeStep}
+              />
+              <SetupProgressBar
+                definition={definition}
+                completedIds={completedIds}
+                runningStepId={runningProgressId}
+                flowStage={flowStage}
+                importProgress={importProgress}
+                completedCount={completedCount}
+              />
             </CardContent>
           </Card>
 
@@ -527,7 +546,7 @@ function SetupPage() {
                   安装开始
                 </Typography>
                 <Typography color="text.secondary" sx={{ mb: 2 }}>
-                  点击开始后，系统会按 pipeline 顺序执行步骤；遇到需要交互的步骤会自动暂停并显示表单。
+                  点击开始后，系统会按顺序执行步骤。数据库配置成功后会询问是否导入演示数据；机器学习依赖为选装。跳过的步骤视为完成。
                 </Typography>
                 {bootstrapError ? (
                   <Alert
@@ -554,7 +573,16 @@ function SetupPage() {
             </Card>
           ) : null}
 
-          {flowStage === 'interaction' ? (
+          {flowStage === 'interaction' && isChoicePause ? (
+            <SetupChoiceCard
+              stepId={pausedStep}
+              errorMessage={errorMessage}
+              onConfirm={() => handleSubmitInteractionStep({ skip: false })}
+              onSkip={() => handleSubmitInteractionStep({ skip: true })}
+            />
+          ) : null}
+
+          {flowStage === 'interaction' && !isChoicePause ? (
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="h6" sx={{ mb: 2 }}>
@@ -579,6 +607,7 @@ function SetupPage() {
                   flexWrap="wrap"
                 >
                   {(pausedStepDef?.requiredUserInputs || []).map((field) => {
+                    if (field.key === 'skip' || field.type === 'boolean') return null;
                     const dbType = formValues.dbType || 'duckdb';
                     if (!shouldShowDbConnectionField(field.key, dbType)) return null;
                     if (!shouldShowUserspaceConflictPolicy(field, userspacePathEditable, userspacePathExists)) return null;
@@ -676,7 +705,6 @@ function SetupPage() {
             importProgress={importProgress}
             pollWarning={pollWarning || importPollWarning}
             rows={rows}
-            executingColumns={executingColumns}
           />
 
           {flowStage === 'success' ? (
@@ -697,14 +725,19 @@ function SetupPage() {
                     <Typography variant="h6">成功</Typography>
                   </Stack>
                   <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-                    安装流程已完成。你可以进入主业务页面。
+                    安装流程已完成。接下来请选择是否分享匿名使用数据。
                   </Typography>
                   {restartError ? (
                     <Alert severity="error" sx={{ mb: 2 }}>{restartError}</Alert>
                   ) : null}
                   <Stack direction="row" spacing={2}>
-                    <Button component={RouterLink} to="/strategy-design" variant="contained">
-                      前往制定策略
+                    <Button
+                      component={RouterLink}
+                      to="/setup/trace"
+                      state={{ source: 'setup_ui' }}
+                      variant="contained"
+                    >
+                      继续
                     </Button>
                     <Button component={RouterLink} to="/settings" variant="outlined">
                       前往设置
@@ -761,7 +794,6 @@ function SetupPage() {
           </Stack>
         </Box>
       </Container>
-      {flowStage === 'success' ? <TraceConsentGuard source="setup_ui" /> : null}
     </>
   );
 }

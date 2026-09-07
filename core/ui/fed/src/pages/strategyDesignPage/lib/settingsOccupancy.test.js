@@ -15,4 +15,10 @@ describe('settingsOccupancy', () => {
     const draft = persistComparable({ core: { n: 1 }, meta: { name: 'b' } });
     expect(isDraftDirty(draft, loaded)).toBe(true);
   });
+
+  it('flags dirty when analysis.enabled changes (persisted, not fingerprint)', () => {
+    const loaded = persistComparable({ core: { n: 1 }, analysis: { enabled: false } });
+    const draft = persistComparable({ core: { n: 1 }, analysis: { enabled: true } });
+    expect(isDraftDirty(draft, loaded)).toBe(true);
+  });
 });

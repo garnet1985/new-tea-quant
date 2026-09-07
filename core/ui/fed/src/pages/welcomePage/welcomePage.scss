@@ -65,10 +65,12 @@
 .welcome-lower {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  max-width: 42rem;
+  gap: 36px;
+  max-width: 46rem;
   margin: 0 auto;
   width: 100%;
+  padding: 0 8px 56px;
+  box-sizing: border-box;
 }
 
 .welcome-lower__slot {
@@ -76,12 +78,37 @@
 }
 
 .welcome-lower__slot-title {
-  margin: 0 0 6px !important;
+  margin: 0 0 12px !important;
   font-weight: 700 !important;
+  font-size: 1.15rem !important;
+  color: var(--ntq-white-98);
 }
 
-.welcome-lower__slot-hint {
-  margin: 0 !important;
+.welcome-lower__lead {
+  margin: 0 0 10px !important;
+  color: var(--ntq-text);
+  line-height: 1.7 !important;
+}
+
+.welcome-lower__list {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--ntq-text);
+  line-height: 1.7;
+
+  li + li {
+    margin-top: 8px;
+  }
+
+  strong {
+    color: var(--ntq-white-98);
+    font-weight: 650;
+  }
+
+  code {
+    font-size: 0.88em;
+    color: var(--ntq-white-98);
+  }
 }
 
 .welcome-intro-canvas {

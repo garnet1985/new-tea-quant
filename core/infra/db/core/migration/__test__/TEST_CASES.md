@@ -1,6 +1,6 @@
 # 测试用例 — `infra.db` / `core/migration`
 
-**覆盖版本：** `0.5.0`  
+**版本：** `0.3.1`  
 **本文件位置：** `core/migration/__test__/`
 
 ## Scope

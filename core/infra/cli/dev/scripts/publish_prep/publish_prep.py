@@ -13,13 +13,19 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List
 
 from core.infra.cmd_layout import CmdLayout
 from core.infra.cli.dev.scripts.publish_prep.changelog_sync import (
     compare_system_new_features,
     sync_version_metadata_from_changelog,
+)
+from core.infra.cli.dev.scripts.publish_prep.module_versions import (
+    check_module_info_files,
+    sync_module_doc_versions,
+    validate_module_doc_versions,
+    validate_module_info_changelog,
+    validate_module_info_names,
 )
 from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
@@ -29,42 +35,6 @@ SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 README_FILES = (REPO_ROOT / "README.md", REPO_ROOT / "README_en.md")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 BADGE_ANCHOR = "https://img.shields.io/badge/version-"
-
-# ``core/modules/*``、``core/infra/*`` 每个子包；``core/ui`` / ``core/bff`` 为顶层特殊模块
-_MODULE_PACKAGE_ROOTS: Tuple[Tuple[str, Path], ...] = (
-    ("core/modules", REPO_ROOT / "core" / "modules"),
-    ("core/infra", REPO_ROOT / "core" / "infra"),
-)
-_SINGLE_MODULE_ROOTS: Tuple[Tuple[str, Path], ...] = (
-    ("core/ui", REPO_ROOT / "core" / "ui"),
-    ("core/bff", REPO_ROOT / "core" / "bff"),
-    ("core/tables", REPO_ROOT / "core" / "tables"),
-)
-
-_DOC_VERSION_FILES: Tuple[str, ...] = (
-    "API.md",
-    "glossary.yaml",
-    "QUICKSTART.md",
-    "docs/ARCHITECTURE.md",
-    "docs/DESIGN.md",
-    "docs/CONCEPTS.md",
-)
-_DOC_HEADER_LINES = 40
-_DOC_VERSION_RE = re.compile(
-    r"(?:\*\*版本：\*\*|# Version:)\s*`?(?P<ver>\d+\.\d+\.\d+)`?"
-)
-_DOC_CORE_COMPAT_RE = re.compile(
-    r"\*\*最低支持核心版本：\*\*\s*`(?P<ver>[^`]+)`"
-)
-_DOC_VERSION_SUB_RE = re.compile(
-    r"(\*\*版本：\*\*\s*`?)(\d+\.\d+\.\d+)(`?)"
-)
-_GLOSSARY_VERSION_SUB_RE = re.compile(
-    r"(# Version:\s*)(\d+\.\d+\.\d+)"
-)
-_DOC_CORE_SUB_RE = re.compile(
-    r"(\*\*最低支持核心版本：\*\*\s*`)([^`]+)(`)"
-)
 
 
 @dataclass
@@ -85,177 +55,6 @@ def normalize_version(raw: str) -> str:
     if not VERSION_RE.match(v):
         raise ValueError(f"版本号须为 X.Y.Z，收到: {raw!r}")
     return v
-
-
-def _module_package_dirs(root: Path) -> List[Path]:
-    if not root.is_dir():
-        return []
-    out: List[Path] = []
-    for child in sorted(root.iterdir()):
-        if not child.is_dir():
-            continue
-        name = child.name
-        if name.startswith(".") or name.startswith("__"):
-            continue
-        out.append(child)
-    return out
-
-
-def iter_module_info_paths() -> List[Path]:
-    paths: List[Path] = []
-    for _, root in _MODULE_PACKAGE_ROOTS:
-        paths.extend(pkg / "module_info.yaml" for pkg in _module_package_dirs(root))
-    for _, root in _SINGLE_MODULE_ROOTS:
-        paths.append(root / "module_info.yaml")
-    return paths
-
-
-def check_module_info_files() -> List[str]:
-    """返回缺少 module_info.yaml 的模块目录（相对路径）。"""
-    missing: List[str] = []
-    for label, root in _MODULE_PACKAGE_ROOTS:
-        for pkg in _module_package_dirs(root):
-            rel = pkg.relative_to(REPO_ROOT).as_posix()
-            if not (pkg / "module_info.yaml").is_file():
-                missing.append(f"{label}/{pkg.name} ({rel})")
-    for label, root in _SINGLE_MODULE_ROOTS:
-        if not (root / "module_info.yaml").is_file():
-            missing.append(f"{label} ({root.relative_to(REPO_ROOT).as_posix()})")
-    return missing
-
-
-def validate_module_info_changelog() -> List[str]:
-    """``version`` 与 ``changelog[0].version`` 不一致或缺少 changelog 时返回问题描述。"""
-    import yaml
-
-    issues: List[str] = []
-    for info_path in iter_module_info_paths():
-        if not info_path.is_file():
-            continue
-        rel = info_path.relative_to(REPO_ROOT).as_posix()
-        try:
-            data = yaml.safe_load(info_path.read_text(encoding="utf-8")) or {}
-        except Exception as exc:
-            issues.append(f"{rel}: 无法解析 YAML ({exc})")
-            continue
-        ver = data.get("version")
-        changelog = data.get("changelog") or []
-        if not changelog:
-            issues.append(f"{rel}: 缺少 changelog")
-            continue
-        head = changelog[0] if isinstance(changelog[0], dict) else {}
-        if str(head.get("version")) != str(ver):
-            issues.append(
-                f"{rel}: version={ver!r} 与 changelog[0].version={head.get('version')!r} 不一致"
-            )
-        if not head.get("changes"):
-            issues.append(f"{rel}: changelog 首条 changes 为空")
-    return issues
-
-
-def _header_text(path: Path) -> str:
-    lines = path.read_text(encoding="utf-8").splitlines()
-    return "\n".join(lines[:_DOC_HEADER_LINES])
-
-
-def _rewrite_header(path: Path, pattern: re.Pattern[str], replacement: str) -> bool:
-    raw = path.read_text(encoding="utf-8")
-    lines = raw.splitlines(keepends=True)
-    head = "".join(lines[:_DOC_HEADER_LINES])
-    rest = "".join(lines[_DOC_HEADER_LINES:])
-    new_head, n = pattern.subn(replacement, head, count=1)
-    if n == 0:
-        return False
-    if new_head != head:
-        path.write_text(new_head + rest, encoding="utf-8")
-        return True
-    return False
-
-
-def validate_module_doc_versions() -> List[str]:
-    """文档头版本 / API 最低核心版本须与 ``module_info.yaml`` 一致。"""
-    import yaml
-
-    issues: List[str] = []
-    for info_path in iter_module_info_paths():
-        if not info_path.is_file():
-            continue
-        rel_info = info_path.relative_to(REPO_ROOT).as_posix()
-        try:
-            data = yaml.safe_load(info_path.read_text(encoding="utf-8")) or {}
-        except Exception as exc:
-            issues.append(f"{rel_info}: 无法解析 YAML ({exc})")
-            continue
-        ssot = str(data.get("version") or "").strip()
-        core_compat = str(data.get("compatible_core_versions") or "").strip()
-        if not ssot:
-            issues.append(f"{rel_info}: 缺少 version")
-            continue
-        root = info_path.parent
-        for rel_doc in _DOC_VERSION_FILES:
-            doc_path = root / rel_doc
-            if not doc_path.is_file():
-                continue
-            rel = doc_path.relative_to(REPO_ROOT).as_posix()
-            header = _header_text(doc_path)
-            found = _DOC_VERSION_RE.search(header)
-            if found is None:
-                issues.append(f"{rel}: 文首未找到版本号（应为 {ssot}）")
-            elif found.group("ver") != ssot:
-                issues.append(
-                    f"{rel}: 版本 {found.group('ver')!r} ≠ module_info.version {ssot!r}"
-                )
-            if doc_path.name == "API.md" and core_compat:
-                core_found = _DOC_CORE_COMPAT_RE.search(header)
-                if core_found is None:
-                    issues.append(
-                        f"{rel}: 文首未找到最低支持核心版本（应为 {core_compat}）"
-                    )
-                elif core_found.group("ver").strip() != core_compat:
-                    issues.append(
-                        f"{rel}: 最低支持核心版本 {core_found.group('ver')!r} "
-                        f"≠ module_info.compatible_core_versions {core_compat!r}"
-                    )
-    return issues
-
-
-def sync_module_doc_versions() -> List[str]:
-    """按 module_info 改写已有文档头版本（只动文首第一次出现）。返回改过的相对路径。"""
-    import yaml
-
-    changed: List[str] = []
-    for info_path in iter_module_info_paths():
-        if not info_path.is_file():
-            continue
-        try:
-            data = yaml.safe_load(info_path.read_text(encoding="utf-8")) or {}
-        except Exception:
-            continue
-        ssot = str(data.get("version") or "").strip()
-        core_compat = str(data.get("compatible_core_versions") or "").strip()
-        if not ssot:
-            continue
-        root = info_path.parent
-        for rel_doc in _DOC_VERSION_FILES:
-            doc_path = root / rel_doc
-            if not doc_path.is_file():
-                continue
-            touched = False
-            if doc_path.name == "glossary.yaml":
-                touched = _rewrite_header(
-                    doc_path, _GLOSSARY_VERSION_SUB_RE, rf"\g<1>{ssot}"
-                ) or touched
-            else:
-                touched = _rewrite_header(
-                    doc_path, _DOC_VERSION_SUB_RE, rf"\g<1>{ssot}\g<3>"
-                ) or touched
-            if doc_path.name == "API.md" and core_compat:
-                touched = _rewrite_header(
-                    doc_path, _DOC_CORE_SUB_RE, rf"\g<1>{core_compat}\g<3>"
-                ) or touched
-            if touched:
-                changed.append(doc_path.relative_to(REPO_ROOT).as_posix())
-    return changed
 
 
 def sync_readme_version_badges(version: str) -> None:
@@ -398,7 +197,28 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     else:
         print(f"  {CmdLayout.icon.i('success')} 各 module_info changelog 与 version 一致", flush=True)
 
-    print("\n[检查] 模块文档版本是否与 module_info 一致…", flush=True)
+    print("\n[检查] module_info.name 是否符合目录约定…", flush=True)
+    name_issues = validate_module_info_names()
+    if name_issues:
+        failures.append("module_info.name 校验未通过")
+        for line in name_issues:
+            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+    else:
+        print(
+            f"  {CmdLayout.icon.i('success')} name = modules.* / infra.* / ui / bff / tables",
+            flush=True,
+        )
+
+    if not opts.check_only:
+        print("\n[同步] 按 module_info 改写文档文首版本字段…", flush=True)
+        synced = sync_module_doc_versions()
+        if synced:
+            for line in synced:
+                print(f"  {CmdLayout.icon.i('success')} {line}", flush=True)
+        else:
+            print(f"  {CmdLayout.icon.i('success')} 无需改写", flush=True)
+
+    print("\n[检查] 模块文档版本字段是否与 module_info 一致…", flush=True)
     doc_issues = validate_module_doc_versions()
     if doc_issues:
         failures.append("模块文档版本校验未通过")
@@ -406,7 +226,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
     else:
         print(
-            f"  {CmdLayout.icon.i('success')} API / glossary / docs 文首版本与 module_info 一致",
+            f"  {CmdLayout.icon.i('success')} **版本：** / # Version: / 最低支持核心版本 与 module_info 一致",
             flush=True,
         )
 

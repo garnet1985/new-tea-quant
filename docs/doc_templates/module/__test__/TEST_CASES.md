@@ -7,7 +7,7 @@
 -->
 
 **模块：** `<namespace.module_name>`  
-**覆盖版本：** `<module.version>`  
+**版本：** `<module.version>`  
 **本文件位置：** `__test__/`
 
 ---

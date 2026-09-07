@@ -12,11 +12,12 @@ import './strategyDesignStepPage.scss';
 
 function StrategyDesignStepPage() {
   const wb = useStrategyDesignWorkbenchContext();
+  const { setDraftSettings } = wb;
   const options = useStrategyDesignSettingsOptions();
 
   const handleDraftSync = useCallback((nextDraft) => {
-    wb.setDraftSettings(nextDraft);
-  }, [wb.setDraftSettings]);
+    setDraftSettings(nextDraft);
+  }, [setDraftSettings]);
 
   if (!wb.hasValidSettings) {
     return (

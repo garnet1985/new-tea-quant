@@ -6,7 +6,7 @@
 -->
 
 **模块：** `<namespace.module_name>`  
-**当前基线版本：** `<module.version>`
+**版本：** `<module.version>`
 
 ## 用途
 

@@ -1,6 +1,6 @@
 name: modules.strategy
 version: "0.8.0"
-compatible_core_versions: ">=0.4.4"
+compatible_core_versions: ">=0.4.5"
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
 dependencies:
   - modules.data_manager

@@ -4,7 +4,7 @@
 
 | 文件夹 | 入口 | 说明 |
 |--------|------|------|
-| `publish_prep/` | `devcli.py p` | 发布闸门（含 changelog_sync） |
+| `publish_prep/` | `devcli.py p` | 发布闸门（changelog_sync + 模块版本字段 / name 不漂移） |
 | `raw_icon_scan/` | pack 步骤 / `-m …raw_icon_scan` | 裸状态 emoji |
 | `dependency_risk/` | `devcli.py cd` | 依赖风险 |
 | `minimal_import_check/` | `devcli.py ic` | UI 最小 import |

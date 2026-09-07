@@ -14,7 +14,7 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py dbc                     DuckDB WAL        同 db_checkpoint [--recover]
   python devcli.py ex                      演示数据 zip      同 data_export_init
   python devcli.py pu                      打包 userspace    同 userspace_package [--no-zip]
-  python devcli.py p -core_v0.3.2          发布检查          同 pack --version 0.3.2
+  python devcli.py p -core_v0.3.2          发布检查          同 pack --version 0.3.2（含模块版本不漂移）
   python devcli.py ssp 500                 分层抽样样本名单  同 sample_stock_pool N
   python devcli.py pc                      取消样本名单      同 pool_clear
   python devcli.py cd                      依赖安装风险检测  同 check_deps [--verbose]

@@ -1,4 +1,4 @@
-# New Tea Quant（NTQ）- A股量化交易研究框架
+# New Tea Quant（NTQ）- A股量化研究框架
 
 <br/>
 

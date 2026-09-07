@@ -1,8 +1,7 @@
 # 测试用例 — `modules.indicator`
 
 **模块：** `modules.indicator`  
-**覆盖版本：** `0.3.0`
-
+**版本：** `0.2.0`  
 ## Scope
 
 验证门面 `Indicator` 公开行为（对齐 `API.md`）。计算路径实现测见 `core/__test__/`（不在本索引）。

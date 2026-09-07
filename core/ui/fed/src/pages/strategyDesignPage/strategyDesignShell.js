@@ -6,7 +6,12 @@ import '../../components/pageLayout/pageLayout.scss';
 import './strategyDesignShell.scss';
 
 /** 制定策略页壳：仅面包屑 + 正文（无 PageBanner） */
-function StrategyDesignShell({ breadcrumbsItems, breadcrumbsCurrent, children, className }) {
+function StrategyDesignShell({
+  breadcrumbsItems = [],
+  breadcrumbsCurrent,
+  children = null,
+  className = '',
+}) {
   return (
     <Box className={['ntq-page', 'strategy-design-shell', className].filter(Boolean).join(' ')}>
       <Box className="ntq-page__shell">
@@ -24,12 +29,6 @@ StrategyDesignShell.propTypes = {
   breadcrumbsCurrent: PropTypes.node.isRequired,
   children: PropTypes.node,
   className: PropTypes.string,
-};
-
-StrategyDesignShell.defaultProps = {
-  breadcrumbsItems: [],
-  children: null,
-  className: '',
 };
 
 export default StrategyDesignShell;

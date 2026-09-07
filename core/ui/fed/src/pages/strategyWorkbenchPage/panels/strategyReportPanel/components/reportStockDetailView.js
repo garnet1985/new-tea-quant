@@ -3,13 +3,11 @@ import {
   Box,
   Button,
   Stack,
-  Tab,
-  Tabs,
   Typography,
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
-import { fetchStrategyStockDetail } from '../../../../../api/apis/strategyApi';
+import { fetchStrategyStockDetail } from '../../../../../api/strategyApi';
 import BacktestPeriodBanner from './backtestPeriodBanner';
 import { buildStockKlineChartOptionFromPayload } from '../lib/stockKlineChart';
 import {
@@ -18,11 +16,8 @@ import {
   getStockKlineMemoryCache,
   setStockKlineMemoryCache,
 } from '../lib/stockKlineMemoryCache';
-import { STEP_TABS } from '../constants/strategyReportConstants';
 import { normalizeEnumMetricsFromSummary } from '../../../reportMetrics/strategyReportMetricsNormalize';
 import StockEnumDetailReport from './stockEnumDetailReport';
-
-const DETAIL_LAYER_TABS = STEP_TABS.map((t) => ({ key: t.key, label: t.label }));
 
 function ReportStockDetailView({
   strategyName,
@@ -32,13 +27,13 @@ function ReportStockDetailView({
   stepStatus = {},
   onBack,
 }) {
-  const [activeLayer, setActiveLayer] = useState(initialStep);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
 
   const stockCode = stock?.stockCode || '';
   const stockName = stock?.stockName || stockCode;
+  const activeLayer = initialStep;
 
   const layerEnabled = useCallback((key) => stepStatus?.[key] === 'done', [stepStatus]);
 
@@ -152,26 +147,6 @@ function ReportStockDetailView({
           </Typography>
         </Stack>
       </Stack>
-
-      <Tabs
-        value={activeLayer}
-        onChange={(_e, v) => setActiveLayer(v)}
-        variant="scrollable"
-        allowScrollButtonsMobile
-      >
-        {DETAIL_LAYER_TABS.map((tab) => {
-          const enabled = layerEnabled(tab.key);
-          return (
-            <Tab
-              key={tab.key}
-              value={tab.key}
-              label={tab.label}
-              disabled={!enabled}
-              title={enabled ? '' : '需先完成该步回测'}
-            />
-          );
-        })}
-      </Tabs>
 
       <BacktestPeriodBanner slot={periodSlot} />
       {payload?.candles?.length ? (

@@ -4,7 +4,7 @@ import { Typography } from '@mui/material';
 import LoadingBars from '../loadingBars/loadingBars';
 import './pageLoadingState.scss';
 
-function PageLoadingState({ message, className, minHeight, barCount }) {
+function PageLoadingState({ message = null, className = '', minHeight = '', barCount = 5 }) {
   const style = minHeight ? { '--ntq-page-loading-min-height': minHeight } : undefined;
 
   return (
@@ -27,13 +27,6 @@ PageLoadingState.propTypes = {
   className: PropTypes.string,
   minHeight: PropTypes.string,
   barCount: PropTypes.number,
-};
-
-PageLoadingState.defaultProps = {
-  message: null,
-  className: '',
-  minHeight: '',
-  barCount: 5,
 };
 
 export default PageLoadingState;

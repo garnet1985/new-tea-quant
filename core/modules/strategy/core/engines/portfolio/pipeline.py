@@ -80,8 +80,7 @@ class PortfolioPipeline:
             data=data,
             settings=settings,
         )
-        if drive:
-            PipelineProgress.complete_step_bound("report")
+        # report 步由 Strategy._run_steps 在归因之后 complete
         return out
 
     @classmethod
@@ -112,7 +111,8 @@ class PortfolioPipeline:
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
         """读 enum CSV → 事件列表 + 已屏蔽结果字段的 Opportunity 索引。
 
-        买入价固定为 ``entry_price_raw``；缺 raw 的行跳过（不回退 qfq）。
+        买入价固定为 ``entry_price_raw``，卖出价固定为 ``exit_price_raw``；
+        缺任一合法 raw 的已完成笔跳过（不回退 qfq、不用 ROI 反推）。
         ``simulation.risk_control.should_skip_enter`` 命中触发日状态的行不生成事件。
         """
         control = settings.simulation.risk_control

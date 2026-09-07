@@ -37,6 +37,21 @@ class UserHandlers:
         return text or None
 
     @staticmethod
+    def parse_strategy_version_spec(raw: object) -> tuple[str, int]:
+        """``rsi_v1:3`` / ``demo/foo:v3`` → (策略, version int)。按最后一个冒号切开。"""
+        from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
+
+        text = str(raw or "").strip()
+        if ":" not in text:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        name, _, vid = text.rpartition(":")
+        name = name.strip()
+        sid = WorkbenchVersionId.parse(vid)
+        if not name or sid is None:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        return name, sid
+
+    @staticmethod
     def run_app_update() -> int:
         repo_root = Path(__file__).resolve().parents[4]
         updater_dir = repo_root / "userspace" / "system" / "updater"
@@ -180,6 +195,10 @@ class UserHandlers:
             "strategy_price_factor",
             "strategy_portfolio",
             "strategy_simulate",
+            "strategy_analyze",
+            "strategy_delete_version",
+            "strategy_pin_version",
+            "strategy_unpin_version",
         ):
             UserHandlers._handle_strategy(cmd, app, args)
             return
@@ -239,6 +258,31 @@ class UserHandlers:
         return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
 
     @staticmethod
+    def _print_analysis_from_step(step_result: dict) -> None:
+        analysis = step_result.get("analysis") if isinstance(step_result, dict) else None
+        if isinstance(analysis, dict) and not analysis.get("skipped"):
+            print(f"  归因: report={analysis.get('report_path')}", flush=True)
+        elif isinstance(analysis, dict) and analysis.get("reason") not in (None, "disabled"):
+            print(f"  归因: skip ({analysis.get('reason')})", flush=True)
+
+    @staticmethod
+    def _print_simulate_version(result: dict, step_key: str) -> None:
+        """Print disk ``version_id`` + step ``output_dir`` (``se`` / ``sp`` / ``so``)."""
+        if not isinstance(result, dict):
+            return
+        step = result.get(step_key)
+        vid = str(result.get("version_id") or "").strip()
+        if isinstance(step, dict):
+            vid = vid or str(step.get("version_id") or "").strip()
+            out_dir = str(step.get("output_dir") or "").strip()
+            if vid:
+                print(f"  version_id: {vid}", flush=True)
+            if out_dir:
+                print(f"  output_dir: {out_dir}", flush=True)
+        elif vid:
+            print(f"  version_id: {vid}", flush=True)
+
+    @staticmethod
     def _run_strategy_enumerate(args: argparse.Namespace) -> None:
         import time
 
@@ -275,6 +319,7 @@ class UserHandlers:
         wall_sec = time.perf_counter() - t0
 
         enum_result = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else result
+        UserHandlers._print_simulate_version(result, "enumerate")
 
         # 终局摘要统一走 Strategy.present_report
         if enum_result.get("output_dir"):
@@ -306,6 +351,8 @@ class UserHandlers:
                 print(f"  failed: {failed[0].get('error')}")
             raise SystemExit(1)
 
+        UserHandlers._print_analysis_from_step(enum_result)
+
     @staticmethod
     def _run_strategy_price_factor(args: argparse.Namespace) -> None:
         import time
@@ -319,7 +366,7 @@ class UserHandlers:
         print(f"{i('market')} 价格因子回测…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -331,6 +378,7 @@ class UserHandlers:
 
         pf = result.get("price_factor") if isinstance(result.get("price_factor"), dict) else result
         enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+        UserHandlers._print_simulate_version(result, "price_factor")
         if enum_part:
             print(
                 f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
@@ -358,6 +406,8 @@ class UserHandlers:
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
 
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
+
     @staticmethod
     def _run_strategy_portfolio(args: argparse.Namespace) -> None:
         import time
@@ -371,7 +421,7 @@ class UserHandlers:
         print(f"{i('money')} 组合回测（portfolio）…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
         print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
 
         t0 = time.perf_counter()
@@ -383,6 +433,7 @@ class UserHandlers:
 
         pf = result.get("portfolio") if isinstance(result.get("portfolio"), dict) else result
         enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+        UserHandlers._print_simulate_version(result, "portfolio")
         if enum_part:
             print(
                 f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
@@ -409,6 +460,8 @@ class UserHandlers:
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
+
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
 
     @staticmethod
     def _run_strategy_scan(args: argparse.Namespace) -> None:
@@ -465,7 +518,7 @@ class UserHandlers:
         print(f"{i('game')} 模拟链路 · PriceFactor → Portfolio …", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
-            print("  --force: 忽略缓存重跑", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
 
         t0 = time.perf_counter()
         pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)
@@ -510,6 +563,116 @@ class UserHandlers:
         if not (po.get("success", True) if isinstance(po, dict) else True):
             raise SystemExit(1)
 
+        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
+        UserHandlers._print_analysis_from_step(po if isinstance(po, dict) else {})
+
+    @staticmethod
+    def _run_strategy_analyze(args: argparse.Namespace) -> None:
+        from pathlib import Path
+
+        from core.modules.strategy import Strategy
+        from core.modules.strategy.core.enums import WorkbenchStep
+        from core.modules.strategy.core.services.artifacts import ArtifactStore
+
+        output_dir = getattr(args, "output_dir", None)
+        if output_dir:
+            UserHandlers._present_analysis_or_exit(Path(output_dir))
+            return
+
+        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
+        step = str(getattr(args, "step", None) or "enum").strip().lower()
+        version_id = str(getattr(args, "version", None) or "").strip()
+
+        if not version_id:
+            folder = Strategy.resolve_folder(strategy_key)
+            kind = WorkbenchStep.parse(step).to_simulate_kind()
+            store = ArtifactStore.latest(folder, kind)
+            if store is None:
+                print(
+                    f"未找到 {strategy_key} 的 {step} 回测产物。"
+                    "请先运行 se / sp / so（并开启 settings.analysis.enabled）。",
+                    flush=True,
+                )
+                raise SystemExit(1)
+            UserHandlers._present_analysis_or_exit(store.output_dir)
+            return
+
+        for candidate in Strategy.resolve_simulation_output_dirs(
+            strategy_key,
+            step=step,
+            slot={"version_id": version_id},
+        ):
+            if not candidate.is_dir():
+                continue
+            UserHandlers._present_analysis_or_exit(candidate)
+            return
+
+        print(f"未找到 version {version_id!r} 的 {step} 归因报告。", flush=True)
+        raise SystemExit(1)
+
+    @staticmethod
+    def _present_analysis_or_exit(output_dir: Path) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            Strategy.present_analysis_report(output_dir)
+        except FileNotFoundError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+
+    @staticmethod
+    def _run_strategy_delete_version(args: argparse.Namespace) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            spec, sid = UserHandlers.parse_strategy_version_spec(
+                getattr(args, "strategy", None)
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+
+        try:
+            strategy_key = Strategy.resolve(spec)
+        except FileNotFoundError:
+            logger.error("策略不存在: %s", spec)
+            raise SystemExit(1)
+        out = Strategy.delete_simulation_version(strategy_key, sid)
+        if not out.get("ok"):
+            print(out.get("error") or "删除失败", flush=True)
+            raise SystemExit(1)
+        vid_label = out.get("version_id") or f"v{sid}"
+        pinned_note = "（原先已固定）" if out.get("was_pinned") else ""
+        print(
+            f"已删除 {strategy_key} {vid_label} 的回测产物{pinned_note}。",
+            flush=True,
+        )
+
+    @staticmethod
+    def _run_strategy_set_pinned(args: argparse.Namespace, pinned: bool) -> None:
+        from core.modules.strategy import Strategy
+
+        try:
+            spec, sid = UserHandlers.parse_strategy_version_spec(
+                getattr(args, "strategy", None)
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+
+        try:
+            strategy_key = Strategy.resolve(spec)
+        except FileNotFoundError:
+            logger.error("策略不存在: %s", spec)
+            raise SystemExit(1)
+        out = Strategy.set_simulation_version_pinned(strategy_key, sid, pinned)
+        if not out.get("ok"):
+            print(out.get("error") or "操作失败", flush=True)
+            raise SystemExit(1)
+        vid_label = out.get("version_id") or f"v{sid}"
+        action = "已固定" if pinned else "已取消固定"
+        print(f"{action} {strategy_key} {vid_label}。", flush=True)
+
     @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         if cmd == "strategy_enumerate":
@@ -530,6 +693,22 @@ class UserHandlers:
 
         if cmd == "strategy_simulate":
             UserHandlers._run_strategy_simulate(args)
+            return
+
+        if cmd == "strategy_analyze":
+            UserHandlers._run_strategy_analyze(args)
+            return
+
+        if cmd == "strategy_delete_version":
+            UserHandlers._run_strategy_delete_version(args)
+            return
+
+        if cmd == "strategy_pin_version":
+            UserHandlers._run_strategy_set_pinned(args, True)
+            return
+
+        if cmd == "strategy_unpin_version":
+            UserHandlers._run_strategy_set_pinned(args, False)
             return
 
         raise SystemExit(f"未知命令: {cmd}")

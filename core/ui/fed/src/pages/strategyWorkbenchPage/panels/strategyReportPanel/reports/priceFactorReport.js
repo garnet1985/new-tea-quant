@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { Box, Link, Stack, Typography } from '@mui/material';
-import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
-import ReactECharts from 'echarts-for-react';
-import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import React, { useMemo } from 'react';
+import { Box, Stack, Typography } from '@mui/material';
+import ChartPanel from 'components/chartPanel/chartPanel';
 import MetricCard from 'components/metricCard/metricCard';
+import MetricGrid from 'components/metricGrid/metricGrid';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import {
   PRICE_CHART_TIPS,
@@ -12,10 +11,11 @@ import {
   REPORT_STOCK_GRID_TIPS,
 } from '../reportMetricTips';
 import { formatReportMoney } from '../lib/formatReportMoney';
-import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import ReportUnavailableHint, {
-  REPORT_EMPTY_MATCH_ZH,
-} from '../components/reportUnavailableHint';
+import ReportUnavailableHint from '../components/reportUnavailableHint';
+import ReportStockGridSection from '../components/reportStockGridSection';
+import ExecutionSkipCards from '../components/executionSkipCards';
+import { useReportStockSearch } from '../hooks/useReportStockSearch';
+import { STOCK_NAME_COLUMN, stockCodeColumn } from '../lib/reportStockColumns';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LABEL_SM,
@@ -136,7 +136,7 @@ function PriceFactorReport({
   onStockSelect,
   stockLinkEnabled = false,
 }) {
-  const [stockSearch, setStockSearch] = useState('');
+  const { stockSearch, setStockSearch, filteredRows } = useReportStockSearch(stockRows);
 
   const avail = metrics?._availability ?? {
     overview: false,
@@ -154,48 +154,9 @@ function PriceFactorReport({
     ? PRICE_CHART_TIPS.roiBucketTruncatedNote(roiTruncatedCount)
     : null;
 
-  const derivedStockRows = useMemo(() => (
-    Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
-  ), [stockRows]);
-
-  const filteredRows = useMemo(() => {
-    const keyword = stockSearch.trim().toLowerCase();
-    const filtered = keyword
-      ? derivedStockRows.filter((row) => (
-        row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
-      ))
-      : derivedStockRows;
-    return filtered;
-  }, [derivedStockRows, stockSearch]);
-
   const stockColumns = useMemo(() => [
-    {
-      field: 'stockCode',
-      headerName: '代码',
-      flex: 1,
-      minWidth: 120,
-      renderCell: (params) => {
-        const code = params.value;
-        if (!stockLinkEnabled || typeof onStockSelect !== 'function') {
-          return code;
-        }
-        return (
-          <Link
-            component="button"
-            type="button"
-            underline="hover"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStockSelect(params.row);
-            }}
-            sx={{ font: 'inherit', textAlign: 'left' }}
-          >
-            {code}
-          </Link>
-        );
-      },
-    },
-    { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
+    stockCodeColumn({ onStockSelect, stockLinkEnabled }),
+    STOCK_NAME_COLUMN,
     {
       field: 'avgRoi',
       headerName: '平均收益（ROI）',
@@ -244,8 +205,6 @@ function PriceFactorReport({
     return <ReportUnavailableHint />;
   }
 
-  const showStockGridTable = Boolean(stockGridOverlay || filteredRows.length > 0);
-
   const volCardHint = (() => {
     if (!avail.roiPercentileViz) return '';
     if (Number.isFinite(metrics.roiStdPct)) {
@@ -267,27 +226,18 @@ function PriceFactorReport({
       ) : null}
 
       {showStockGrid ? (
-        <Box sx={{ position: 'relative' }}>
-          {stockGridLoading ? (
-            <InlineLoadingState block compact message="正在加载逐股数据…" />
-          ) : (
-            <>
-              {stockGridOverlay}
-              {showStockGridTable ? (
-                <ReportStockSampleGrid
-                  title="逐股样本"
-                  tip={stockGridTip}
-                  searchValue={stockSearch}
-                  onSearchChange={setStockSearch}
-                  rows={filteredRows}
-                  columns={stockColumns}
-                  sortingMode="client"
-                  initialSortModel={[{ field: 'avgRoi', sort: 'desc' }]}
-                />
-              ) : <ReportUnavailableHint message={REPORT_EMPTY_MATCH_ZH} />}
-            </>
-          )}
-        </Box>
+        <ReportStockGridSection
+          loading={stockGridLoading}
+          overlay={stockGridOverlay}
+          filteredRows={filteredRows}
+          title="逐股样本"
+          tip={stockGridTip}
+          searchValue={stockSearch}
+          onSearchChange={setStockSearch}
+          columns={stockColumns}
+          sortingMode="client"
+          initialSortModel={[{ field: 'avgRoi', sort: 'desc' }]}
+        />
       ) : null}
 
       <SectionBlock
@@ -295,7 +245,7 @@ function PriceFactorReport({
         tip={PRICE_SECTION_TIPS.overview}
       >
         {avail.overview ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+          <MetricGrid>
             <MetricCard title="胜率" titleTip={PRICE_METRIC_TIPS.winRate} value={`${metrics.winRate}%`} />
             <MetricCard
               title="平均每笔收益率（ROI）"
@@ -312,7 +262,7 @@ function PriceFactorReport({
               titleTip={PRICE_METRIC_TIPS.annualReturn}
               value={`${metrics.annualReturn}%`}
             />
-          </Box>
+          </MetricGrid>
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
@@ -321,7 +271,7 @@ function PriceFactorReport({
         tip={PRICE_SECTION_TIPS.sampleCoverage}
       >
         {avail.sampleCoverage ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+          <MetricGrid>
             <MetricCard
               title="总投资次数"
               titleTip={PRICE_METRIC_TIPS.totalInvestments}
@@ -342,7 +292,7 @@ function PriceFactorReport({
               titleTip={PRICE_METRIC_TIPS.totalOpenInvestments}
               value={metrics.totalOpenInvestments.toLocaleString()}
             />
-          </Box>
+          </MetricGrid>
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
@@ -351,23 +301,7 @@ function PriceFactorReport({
         tip={PRICE_SECTION_TIPS.executionSkips}
       >
         {avail.executionSkips ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1 }}>
-            <MetricCard
-              title="涨停跳过买入"
-              titleTip={PRICE_METRIC_TIPS.skippedBuyAtLimitUp}
-              value={metrics.skippedBuyAtLimitUp.toLocaleString()}
-            />
-            <MetricCard
-              title="跌停跳过卖出"
-              titleTip={PRICE_METRIC_TIPS.skippedSellAtLimitDown}
-              value={metrics.skippedSellAtLimitDown.toLocaleString()}
-            />
-            <MetricCard
-              title="状态跳过投资"
-              titleTip={PRICE_METRIC_TIPS.skippedStockStatus}
-              value={metrics.skippedStockStatus.toLocaleString()}
-            />
-          </Box>
+          <ExecutionSkipCards metrics={metrics} tips={PRICE_METRIC_TIPS} />
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
@@ -376,7 +310,7 @@ function PriceFactorReport({
         tip={PRICE_SECTION_TIPS.profitStructure}
       >
         {avail.profitBasics ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+          <MetricGrid>
             <MetricCard
               title="盈亏次数"
               titleTip={PRICE_METRIC_TIPS.winLossCount}
@@ -405,7 +339,7 @@ function PriceFactorReport({
                 hint={volCardHint}
               />
             ) : null}
-          </Box>
+          </MetricGrid>
         ) : <ReportUnavailableHint />}
         {!avail.roiPercentileViz ? (
           <Box sx={{ mt: avail.profitBasics ? 1 : 0 }}>
@@ -417,25 +351,14 @@ function PriceFactorReport({
             {roiAllTruncated ? null : <ReportUnavailableHint />}
           </Box>
         ) : (
-          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
-            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
-              <Typography variant="caption" color="text.secondary">
-                收益率（ROI）分位图
-              </Typography>
-              <NtqHelpTooltip title={PRICE_CHART_TIPS.roiPercentileCaption} />
-            </Stack>
-            {roiTruncatedNote ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {roiTruncatedNote}
-              </Typography>
-            ) : null}
-            <ReactECharts
-              option={buildRoiDistributionOption(metrics)}
-              style={{ height: 170, width: '100%' }}
-              notMerge
-              lazyUpdate
-            />
-          </Box>
+          <ChartPanel
+            title="收益率（ROI）分位图"
+            tip={PRICE_CHART_TIPS.roiPercentileCaption}
+            option={buildRoiDistributionOption(metrics)}
+            height={170}
+            note={roiTruncatedNote}
+            sx={{ mt: 1 }}
+          />
         )}
         {!avail.roiBucketViz ? (
           <Box sx={{ mt: 1 }}>
@@ -447,25 +370,14 @@ function PriceFactorReport({
             {roiAllTruncated ? null : <ReportUnavailableHint />}
           </Box>
         ) : (
-          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
-            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
-              <Typography variant="caption" color="text.secondary">
-                收益率（ROI）分布
-              </Typography>
-              <NtqHelpTooltip title={PRICE_CHART_TIPS.roiBucketCaption} />
-            </Stack>
-            {roiTruncatedNote ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                {roiTruncatedNote}
-              </Typography>
-            ) : null}
-            <ReactECharts
-              option={buildRoiBucketOption(metrics)}
-              style={{ height: 190, width: '100%' }}
-              notMerge
-              lazyUpdate
-            />
-          </Box>
+          <ChartPanel
+            title="收益率（ROI）分布"
+            tip={PRICE_CHART_TIPS.roiBucketCaption}
+            option={buildRoiBucketOption(metrics)}
+            height={190}
+            note={roiTruncatedNote}
+            sx={{ mt: 1 }}
+          />
         )}
       </SectionBlock>
     </Stack>

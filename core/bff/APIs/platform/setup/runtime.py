@@ -15,9 +15,13 @@ from core.infra.project_context.contracts import (
     DUCKDB_DOMAIN_FILES,
 )
 from core.infra.setup import Setup
+from core.infra.setup.core.pipeline_state import sync_definition_into_state, wants_skip_input
+from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
+# 这些步骤会在子进程里打开 DuckDB；BFF 若仍握着同一文件会 Conflicting lock。
+_STEPS_NEED_EXCLUSIVE_DUCKDB = frozenset({"db_connection", "import_data"})
 
 
 class SetupRuntimeManager:
@@ -37,6 +41,37 @@ class SetupRuntimeManager:
         with self._lock:
             current = self._load_state()
             return self._build_snapshot(current)
+
+    def get_ml_extras_status(self) -> Dict[str, Any]:
+        return {"status": "ok", "message": self._ml_extras_payload()}
+
+    def install_ml_extras(self) -> Dict[str, Any]:
+        script = REPO_ROOT / "core" / "infra" / "setup" / "core" / "steps" / "resolve_ml_deps" / "install.py"
+        if not script.is_file():
+            return self._error("SETUP_ML_EXTRAS_MISSING", f"脚本不存在: {script}")
+        proc = subprocess.run(
+            [sys_executable(), str(script)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            msg = (proc.stderr or proc.stdout or "").strip()[-600:] or "机器学习依赖安装失败"
+            return self._error("SETUP_ML_EXTRAS_FAILED", msg)
+
+        with self._lock:
+            state = self._load_state()
+            self._set_step_state(state, "resolve_ml_deps", self.STATUS_SUCCESS, "")
+            definition = self.get_definition()
+            state["isReady"] = all(
+                self._get_step_state(state, step["id"]) == self.STATUS_SUCCESS
+                for step in definition
+            )
+            self._bump_version(state)
+            self._save_state(state)
+        payload = self._ml_extras_payload()
+        payload["installedNow"] = True
+        return {"status": "ok", "message": payload}
 
     def start(self) -> Dict[str, Any]:
         definition = self.get_definition()
@@ -74,11 +109,16 @@ class SetupRuntimeManager:
         payload = inputs or {}
         db_type = str(payload.get("dbType", "duckdb")).strip().lower() or "duckdb"
         db_name = str(payload.get("database", "")).strip()
-        exists = self._db_exists_precheck(payload, state=None)
+        exists, precheck_err = self._db_exists_precheck(payload, state=None)
+        if precheck_err:
+            return self._error(
+                "SETUP_DB_PRECHECK_FAILED",
+                precheck_err or "无法连接数据库进行预检，请检查连接参数与网络。",
+            )
         return {
             "status": "ok",
             "message": {
-                "dbExists": bool(exists),
+                "dbExists": bool(exists) if exists is not None else False,
                 "dbType": db_type,
                 "database": db_name,
                 "isDuckdb": db_type == "duckdb",
@@ -118,7 +158,8 @@ class SetupRuntimeManager:
             }
         try:
             payload = json.loads(progress_file.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            log_degraded("setup.importProgressRead", exc, str(progress_file))
             payload = {}
 
         completed_tables = payload.get("completed_tables", {}) or {}
@@ -203,14 +244,19 @@ class SetupRuntimeManager:
 
     def _execute_step(self, state: Dict[str, Any], step: Dict[str, Any]) -> Tuple[bool, str]:
         step_id = step["id"]
+        step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
+        if wants_skip_input(step_inputs):
+            self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
+            self._save_state(state)
+            return True, ""
+
         self._set_step_state(state, step_id, self.STATUS_RUNNING, "")
         self._save_state(state)
 
         try:
-            step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
             db_existed_before = None
             if step_id == "db_connection":
-                db_existed_before = self._db_exists_precheck(step_inputs, state=state)
+                db_existed_before, _ = self._db_exists_precheck(step_inputs, state=state)
 
             self._prepare_inputs_for_step(state, step_id, step_inputs)
             script_rel = str(step.get("scriptEntry", "")).strip()
@@ -221,6 +267,9 @@ class SetupRuntimeManager:
             if not script.is_file():
                 self._set_step_state(state, step_id, self.STATUS_FAILED, f"脚本不存在: {script_rel}")
                 return False, f"脚本不存在: {script_rel}"
+
+            if step_id in _STEPS_NEED_EXCLUSIVE_DUCKDB:
+                self._release_bff_duckdb_for_setup_subprocess()
 
             env = os.environ.copy()
             if step_id == "init_userspace":
@@ -271,6 +320,7 @@ class SetupRuntimeManager:
             return True, ""
         except Exception as e:  # pragma: no cover
             msg = str(e)
+            log_degraded("setup.executeStep", e, step_id)
             self._set_step_state(state, step_id, self.STATUS_FAILED, msg)
             return False, msg
 
@@ -345,9 +395,14 @@ class SetupRuntimeManager:
         if not STATE_FILE.is_file():
             return self._new_state(self.get_definition())
         try:
-            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        except Exception:
+            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except Exception as exc:
+            log_degraded("setup.runtimeStateRead", exc, str(STATE_FILE))
             return self._new_state(self.get_definition())
+        state, mutated = sync_definition_into_state(self.get_definition(), state)
+        if mutated:
+            self._save_state(state)
+        return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
         with self._lock:
@@ -360,6 +415,9 @@ class SetupRuntimeManager:
                 item["status"] = status
                 item["errorMessage"] = err
                 return
+        state.setdefault("stepStates", []).append(
+            {"stepId": step_id, "status": status, "errorMessage": err},
+        )
 
     def _get_step_state(self, state: Dict[str, Any], step_id: str) -> str:
         for item in state.get("stepStates", []):
@@ -369,6 +427,15 @@ class SetupRuntimeManager:
 
     def _bump_version(self, state: Dict[str, Any]) -> None:
         state["version"] = int(state.get("version", 1)) + 1
+
+    def _release_bff_duckdb_for_setup_subprocess(self) -> None:
+        """安装子进程写库前，关掉 BFF 进程里已打开的 DuckDB，避免文件锁冲突。"""
+        try:
+            from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+
+            DuckdbWorkerPool.release_all_process_duckdb_handles()
+        except Exception as exc:
+            log_degraded("setup.releaseDuckdbForSubprocess", exc, "")
 
     def _duckdb_files_exist(self, state: Optional[Dict[str, Any]] = None) -> bool:
         userspace_root = self._resolve_userspace_root(state) if state else ProjectContext.path.get_userspace_root()
@@ -387,17 +454,17 @@ class SetupRuntimeManager:
         inputs: Dict[str, Any],
         *,
         state: Optional[Dict[str, Any]] = None,
-    ) -> Optional[bool]:
+    ) -> Tuple[Optional[bool], Optional[str]]:
         db_type = str((inputs or {}).get("dbType", "duckdb")).strip().lower() or "duckdb"
         if db_type == "duckdb":
-            return self._duckdb_files_exist(state)
+            return self._duckdb_files_exist(state), None
 
         host = str((inputs or {}).get("host", "localhost")).strip() or "localhost"
         user = str((inputs or {}).get("user", "")).strip()
         password = str((inputs or {}).get("password", ""))
         database = str((inputs or {}).get("database", "")).strip()
         if not database or not user:
-            return None
+            return None, None
 
         try:
             if db_type == "postgresql":
@@ -411,7 +478,12 @@ class SetupRuntimeManager:
                         user=user,
                         password=password,
                     )
-                except Exception:
+                except Exception as pg_exc:
+                    log_degraded(
+                        "setup.dbPrecheck.postgresFallback",
+                        pg_exc,
+                        "postgres → template1",
+                    )
                     conn = psycopg2.connect(
                         host=host,
                         port=int((inputs or {}).get("port", 5432)),
@@ -422,7 +494,7 @@ class SetupRuntimeManager:
                 try:
                     with conn.cursor() as cur:
                         cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database,))
-                        return cur.fetchone() is not None
+                        return cur.fetchone() is not None, None
                 finally:
                     conn.close()
 
@@ -443,16 +515,38 @@ class SetupRuntimeManager:
                             "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = %s",
                             (database,),
                         )
-                        return cur.fetchone() is not None
+                        return cur.fetchone() is not None, None
                 finally:
                     conn.close()
-        except Exception:
-            return None
-        return None
+        except Exception as exc:
+            log_degraded("setup.dbPrecheck", exc)
+            return None, str(exc) or "数据库连接失败"
+        return None, None
+
+    @staticmethod
+    def _ml_extras_payload() -> Dict[str, Any]:
+        xgboost_ok = _module_available("xgboost")
+        shap_ok = _module_available("shap")
+        return {
+            "installed": xgboost_ok,
+            "xgboost": xgboost_ok,
+            "shap": shap_ok,
+        }
 
     @staticmethod
     def _error(code: str, detail: str) -> Dict[str, Any]:
         return {"status": "error", "message": {"code": code, "detail": detail}}
+
+
+def _module_available(name: str) -> bool:
+    import importlib
+
+    try:
+        importlib.import_module(name)
+        return True
+    except Exception:
+        # Windows 上 xgboost/shap 常以 OSError（DLL）失败，不只 ImportError。
+        return False
 
 
 def sys_executable() -> str:

@@ -1,12 +1,5 @@
-"""分析模块（``modules.analysis``）。
+"""Analysis module — stats/ML primitives (no business I/O)."""
 
-公开门面::
+from .analysis import Analysis, Classical, ML
 
-    from core.modules.analysis import Analysis
-
-本版本仅为骨架：无行为 API。契约类型（若有）从 ``contracts`` 导入。
-"""
-
-from .analysis import Analysis
-
-__all__ = ["Analysis"]
+__all__ = ["Analysis", "Classical", "ML"]

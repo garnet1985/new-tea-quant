@@ -1,3 +1,5 @@
+from flask import request
+
 from core.bff.APIs.strategy.api_base import API_BASE_PATH, strategy_api_bp
 from core.bff.APIs.strategy.helpers.formatting import workbench_snapshot_to_message
 from core.bff.APIs.strategy.routes.version.implementer import impl as version_impl
@@ -43,7 +45,7 @@ def delete_strategy_version_cache_all():
     """
     DELETE /api/v1/strategy/version/cache
 
-    清空工作台快照 DbCache 表全部行（V2-11，无 target）。
+    清空全部策略的 simulation 磁盘缓存（``results/simulations/``）。
     """
     versions = version_impl.lazy_load()
     return _http_from_cache_result(versions.clear_cache_all(), all_mode=True)
@@ -104,7 +106,7 @@ def delete_strategy_version_cache_by_version(
     """
     DELETE /api/v1/strategy/:strategy_key_or_name/version/:version_id/cache
 
-    V2-12：删除指定工作台 version 的一条快照行。
+    删除指定 simulation version 的磁盘目录与 registry 条目。
     """
     versions = version_impl.lazy_load()
     try:
@@ -116,6 +118,48 @@ def delete_strategy_version_cache_by_version(
     except FileNotFoundError as exc:
         return error(str(exc), 404)
     return _http_from_cache_result(out, all_mode=False)
+
+
+def _http_from_pin_result(out: dict):
+    if out.get("ok"):
+        return ok(
+            {
+                "pinned": bool(out.get("pinned")),
+                "strategy_name": out.get("strategy_name"),
+                "version_id": out.get("version_id"),
+                "pinned_ids": list(out.get("pinned_ids") or []),
+            }
+        )
+    err = str(out.get("error") or "操作失败")
+    if err == "快照不存在":
+        return error(err, 404)
+    return error(err, 400)
+
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/version/<version_id>/pin",
+    methods=["POST", "DELETE"],
+)
+def set_strategy_version_pin(strategy_key_or_name: str, version_id: str):
+    """
+    POST /api/v1/strategy/:strategy_key_or_name/version/:version_id/pin
+    DELETE /api/v1/strategy/:strategy_key_or_name/version/:version_id/pin
+
+    固定 / 取消固定（只改 simulations/meta.json 的 pinned 列表）。
+    """
+    versions = version_impl.lazy_load()
+    pinned = request.method == "POST"
+    try:
+        out = versions.set_pinned(
+            strategy_key_or_name=strategy_key_or_name,
+            version_id=version_id,
+            pinned=pinned,
+        )
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
+    return _http_from_pin_result(out)
 
 
 @strategy_api_bp.route(

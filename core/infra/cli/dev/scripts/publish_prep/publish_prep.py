@@ -13,13 +13,19 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List
 
 from core.infra.cmd_layout import CmdLayout
 from core.infra.cli.dev.scripts.publish_prep.changelog_sync import (
     compare_system_new_features,
     sync_version_metadata_from_changelog,
+)
+from core.infra.cli.dev.scripts.publish_prep.module_versions import (
+    check_module_info_files,
+    sync_module_doc_versions,
+    validate_module_doc_versions,
+    validate_module_info_changelog,
+    validate_module_info_names,
 )
 from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
@@ -29,16 +35,6 @@ SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 README_FILES = (REPO_ROOT / "README.md", REPO_ROOT / "README_en.md")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 BADGE_ANCHOR = "https://img.shields.io/badge/version-"
-
-# ``core/modules/*``、``core/infra/*`` 每个子包；``core/ui`` / ``core/bff`` 为顶层特殊模块
-_MODULE_PACKAGE_ROOTS: Tuple[Tuple[str, Path], ...] = (
-    ("core/modules", REPO_ROOT / "core" / "modules"),
-    ("core/infra", REPO_ROOT / "core" / "infra"),
-)
-_SINGLE_MODULE_ROOTS: Tuple[Tuple[str, Path], ...] = (
-    ("core/ui", REPO_ROOT / "core" / "ui"),
-    ("core/bff", REPO_ROOT / "core" / "bff"),
-)
 
 
 @dataclass
@@ -59,68 +55,6 @@ def normalize_version(raw: str) -> str:
     if not VERSION_RE.match(v):
         raise ValueError(f"版本号须为 X.Y.Z，收到: {raw!r}")
     return v
-
-
-def _module_package_dirs(root: Path) -> List[Path]:
-    if not root.is_dir():
-        return []
-    out: List[Path] = []
-    for child in sorted(root.iterdir()):
-        if not child.is_dir():
-            continue
-        name = child.name
-        if name.startswith(".") or name.startswith("__"):
-            continue
-        out.append(child)
-    return out
-
-
-def check_module_info_files() -> List[str]:
-    """返回缺少 module_info.yaml 的模块目录（相对路径）。"""
-    missing: List[str] = []
-    for label, root in _MODULE_PACKAGE_ROOTS:
-        for pkg in _module_package_dirs(root):
-            rel = pkg.relative_to(REPO_ROOT).as_posix()
-            if not (pkg / "module_info.yaml").is_file():
-                missing.append(f"{label}/{pkg.name} ({rel})")
-    for label, root in _SINGLE_MODULE_ROOTS:
-        if not (root / "module_info.yaml").is_file():
-            missing.append(f"{label} ({root.relative_to(REPO_ROOT).as_posix()})")
-    return missing
-
-
-def validate_module_info_changelog() -> List[str]:
-    """``version`` 与 ``changelog[0].version`` 不一致或缺少 changelog 时返回问题描述。"""
-    import yaml
-
-    issues: List[str] = []
-    paths: List[Path] = []
-    for _, root in _MODULE_PACKAGE_ROOTS:
-        paths.extend(pkg / "module_info.yaml" for pkg in _module_package_dirs(root))
-    for _, root in _SINGLE_MODULE_ROOTS:
-        paths.append(root / "module_info.yaml")
-    for info_path in paths:
-        if not info_path.is_file():
-            continue
-        rel = info_path.relative_to(REPO_ROOT).as_posix()
-        try:
-            data = yaml.safe_load(info_path.read_text(encoding="utf-8")) or {}
-        except Exception as exc:
-            issues.append(f"{rel}: 无法解析 YAML ({exc})")
-            continue
-        ver = data.get("version")
-        changelog = data.get("changelog") or []
-        if not changelog:
-            issues.append(f"{rel}: 缺少 changelog")
-            continue
-        head = changelog[0] if isinstance(changelog[0], dict) else {}
-        if str(head.get("version")) != str(ver):
-            issues.append(
-                f"{rel}: version={ver!r} 与 changelog[0].version={head.get('version')!r} 不一致"
-            )
-        if not head.get("changes"):
-            issues.append(f"{rel}: changelog 首条 changes 为空")
-    return issues
 
 
 def sync_readme_version_badges(version: str) -> None:
@@ -251,7 +185,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
     else:
         print(
-            f"  {CmdLayout.icon.i('success')} core/modules/*、core/infra/*、core/ui、core/bff、setup 均已具备 module_info.yaml",
+            f"  {CmdLayout.icon.i('success')} core/modules/*、core/infra/*、core/ui、core/bff、core/tables 均已具备 module_info.yaml",
             flush=True,
         )
 
@@ -262,6 +196,39 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
     else:
         print(f"  {CmdLayout.icon.i('success')} 各 module_info changelog 与 version 一致", flush=True)
+
+    print("\n[检查] module_info.name 是否符合目录约定…", flush=True)
+    name_issues = validate_module_info_names()
+    if name_issues:
+        failures.append("module_info.name 校验未通过")
+        for line in name_issues:
+            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+    else:
+        print(
+            f"  {CmdLayout.icon.i('success')} name = modules.* / infra.* / ui / bff / tables",
+            flush=True,
+        )
+
+    if not opts.check_only:
+        print("\n[同步] 按 module_info 改写文档文首版本字段…", flush=True)
+        synced = sync_module_doc_versions()
+        if synced:
+            for line in synced:
+                print(f"  {CmdLayout.icon.i('success')} {line}", flush=True)
+        else:
+            print(f"  {CmdLayout.icon.i('success')} 无需改写", flush=True)
+
+    print("\n[检查] 模块文档版本字段是否与 module_info 一致…", flush=True)
+    doc_issues = validate_module_doc_versions()
+    if doc_issues:
+        failures.append("模块文档版本校验未通过")
+        for line in doc_issues:
+            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+    else:
+        print(
+            f"  {CmdLayout.icon.i('success')} **版本：** / # Version: / 最低支持核心版本 与 module_info 一致",
+            flush=True,
+        )
 
     if not opts.skip_py39:
         from core.infra.cli.dev.scripts.py39_compat_check import run_py39_compat_check

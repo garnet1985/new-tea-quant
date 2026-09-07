@@ -151,7 +151,7 @@ userspace = ProjectContext.path.get_userspace_root()
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.1`（as_of / sample）；`0.2.0`（start_date）；`0.5.0`（decimal / database_type 访问器）；`0.5.0`（retention 访问器，不 bump）
-- **描述：** `data.json` 与 database 常用字段访问器；必填键缺省/非法值报错（`as_of` / `use_sample_stock_list` 允许 null）。retention 三项分别为仿真磁盘 / workbench DB / scan 日期版本 keep-N
+- **描述：** `data.json` 与 database 常用字段访问器；必填键缺省/非法值报错（`as_of` / `use_sample_stock_list` 允许 null）。`simulation_results_max_versions` 为仿真磁盘 version keep-N；`scan_results_max_versions` 为 scan 日期目录 keep-N。`workbench_db_max_versions` 为遗留键（工作台 DB 快照已退役，runtime 不再用它做清理）。
 
 #### load_benchmark_stock_index_list
 

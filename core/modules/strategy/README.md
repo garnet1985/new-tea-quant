@@ -16,7 +16,7 @@
 ## 设计初衷
 
 - **要解决的问题：** 统一策略包发现、模拟缓存与多引擎编排入口。
-- **明确不做：** 不在本模块另起平行于 BacktestEngine 的调度 / Timeline（硬约束见 [docs/DESIGN.md](./docs/DESIGN.md) 与 [docs/notes/BOUNDARY_NOTES.md](./docs/notes/BOUNDARY_NOTES.md)）。不负责回测归因（见 `modules.analysis`）。
+- **明确不做：** 不在本模块另起平行于 BacktestEngine 的调度 / Timeline（硬约束见 [docs/DESIGN.md](./docs/DESIGN.md) 与 [docs/notes/BOUNDARY_NOTES.md](./docs/notes/BOUNDARY_NOTES.md)）。归因编排在 `engines/analyzer`，纯统计/ML 在 `modules.analysis`（见 [core/engines/analyzer/docs/BOUNDARY.md](./core/engines/analyzer/docs/BOUNDARY.md)）。
 
 ## 用户策略 import（公开面）
 
@@ -44,5 +44,6 @@ A：`enumerate` / `price_factor` / `portfolio` 都是 `Strategy.simulate(..., ki
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
 - [设计](./docs/DESIGN.md)
+- [Version / 指纹](./docs/VERSIONING.md)
 - [边界笔记](./docs/notes/BOUNDARY_NOTES.md)
 - [测试用例](./__test__/TEST_CASES.md)

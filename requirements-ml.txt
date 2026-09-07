@@ -1,0 +1,4 @@
+# Optional ML extras (XGBoost + SHAP).
+# Installed by the optional setup step, or later from Settings → 安装与维护.
+xgboost>=2.0
+shap>=0.44

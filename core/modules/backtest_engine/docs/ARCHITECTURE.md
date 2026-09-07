@@ -1,6 +1,6 @@
 # Backtest Engine — 架构
 
-**模块：** `modules.backtest_engine` · **版本：** 0.4.0
+**模块：** `modules.backtest_engine` · **版本：** 0.2.0
 
 ---
 

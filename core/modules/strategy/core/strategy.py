@@ -1,7 +1,7 @@
 """Strategy 模块 Facade — scan / enumerate / price / portfolio / simulate / discovery。
 
 本文件:
-- Strategy: 对外 API（扫描委托 ScannerPipeline；simulate 指纹→缓存→Pipeline）
+- Strategy: 对外 API（扫描委托 ScannerPipeline；simulate 指纹→磁盘 registry→Pipeline）
   边界: 负责公开入口与 simulate 跨 step 编排；scan 领域逻辑在 ScannerPipeline
 - BackTestPipelines: SimulateKind → Pipeline 懒加载映射
 """
@@ -18,10 +18,11 @@ from .services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from .engines.shared.data_class.simulate_session import SimulateSession
-from .services.simulation_cache.cache_manager import (
-    SimulationCacheManager,
+from .engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
 )
-from .services.simulation_cache.fingerprints import (
+from .services.artifacts import SimulationVersionStore
+from .services.fingerprint import (
     FingerprintCalculator,
 )
 
@@ -54,8 +55,8 @@ class BackTestPipelines:
 class Strategy:
     """策略模块 Facade。
 
-    模拟编排：算指纹 → 查目标 kind 槽 → miss 则 resolve steps（必要时先 enum）
-    → 每步 Pipeline.run 后 ``set_cache`` 写自己的 slot。
+    模拟编排：算指纹 → 查磁盘 registry → miss 则 resolve steps（必要时先 enum）
+    → 每步 Pipeline.run 后写 registry + effective_settings。
     """
 
     @staticmethod
@@ -68,6 +69,99 @@ class Strategy:
         from core.modules.strategy.core.engines.scanner import ScannerPipeline
 
         return ScannerPipeline.scan(key_or_id, demo=demo)
+
+    @staticmethod
+    def scan_page_context() -> Dict[str, Any]:
+        """扫描页上下文（数据截止日 / demo 锚点日）。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.page_context()
+
+    @staticmethod
+    def scan_readiness(key_or_id: str, *, demo: bool = False) -> Dict[str, Any]:
+        """工作台扫描就绪态（能否开扫、已有落盘报告）。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.readiness(key_or_id, demo=demo)
+
+    @staticmethod
+    def scan_block_reason(*, demo: bool = False) -> str:
+        """严格模式下的数据门禁文案；demo 或已就绪返回空串。"""
+        from .engines.scanner.pipeline import ScannerPipeline
+
+        return ScannerPipeline.block_reason(demo=demo)
+
+    @staticmethod
+    def scan_run(
+        key_or_id: str,
+        *,
+        progress_id: str,
+        demo: bool = False,
+        force: bool = False,
+    ) -> None:
+        """工作台一次扫描：写 ``ScanProgress``，再跑 ``ScannerPipeline.run``。"""
+        from core.modules.data_manager import DataManager
+
+        from .engines.scanner.helpers import ScanDateResolver
+        from .engines.scanner.pipeline import ScannerPipeline
+        from .engines.scanner.report_manager import ReportManager
+        from .engines.shared.services.strategy_settings.strategy_settings import (
+            StrategySettings,
+        )
+        from .services.artifacts.store import ArtifactStore
+        from .services.progress.scan_progress import ScanProgress
+
+        name = str(key_or_id or "").strip()
+        jid = str(progress_id or "").strip()
+        prog = ScanProgress.for_job(name, jid)
+        prog.mark_running()
+        try:
+            info, err = ScannerPipeline.resolve_one(name)
+            if err or info is None:
+                raise ValueError(err or "无法解析策略")
+
+            path_key = ScannerPipeline.strategy_key(info, name)
+            folder = ScannerPipeline.strategy_folder(info)
+            data_mgr = DataManager(is_verbose=False)
+            settings = StrategySettings.from_dict(dict(info.settings or {}))
+            settings.apply_defaults()
+            ScannerPipeline.apply_scan_mode(settings, demo=bool(demo))
+
+            block = ScannerPipeline.block_reason(demo=bool(demo), data_manager=data_mgr)
+            if block:
+                raise ValueError(block)
+
+            kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
+            if not kline_latest:
+                raise ValueError("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+
+            def _on_progress(payload: Dict[str, Any]) -> None:
+                prog.tick(payload)
+
+            report = ScannerPipeline.run(
+                info,
+                settings,
+                force=bool(force),
+                on_progress=_on_progress,
+                data_manager=data_mgr,
+            )
+            opportunities: List[Any] = []
+            if isinstance(report, dict):
+                report.setdefault("strategy_key", path_key)
+                scan_date = str(report.get("date") or "").strip()
+                if scan_date:
+                    store = ArtifactStore.scan_at(folder, scan_date)
+                    opportunities = ReportManager.load_opportunities(store)
+            prog.complete(
+                report if isinstance(report, dict) else {},
+                opportunities=opportunities,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Scanner run failed progress_id=%s strategy=%s", jid, name
+            )
+            prog.fail(str(exc))
+            raise
 
     @staticmethod
     def enumerate(
@@ -121,16 +215,12 @@ class Strategy:
     ) -> Dict[str, Any]:
         """统一模拟入口：枚举 / 价格 / 资金。
 
-        缓存与指纹流程（各 step 共用）::
+        缓存与指纹流程（磁盘单轨）::
 
-            1. 计算 settings_fp / env_fp（与磁盘 settings ⊕ runtime 对齐）
-            2. 查目标 kind 槽位缓存；命中则直接返回
-            3. 未命中：
-               - price/portfolio：先按指纹找 enum version
-                 · 有 → 只跑本 step（enum_version 来自缓存 / 枚举产物）
-                 · 无 → 先跑 enumerate，再跑本 step
-            4. 每完成一个 step 即 ``set_cache`` 合并写入该 step 的 slot
-               （写入 enum 会清掉下游 price/portfolio 槽）
+            1. 计算 execute_fp / env_fp
+            2. 扫 ``simulations/meta.json`` registry；step 产物存在则命中
+            3. 未命中：price/portfolio 先按指纹找 enum vid；无则先 enum 再本 step
+            4. 每步完成后 ``SimulationVersionStore.record_step_complete``
         """
         strategy_info = DiscoveryService.find_strategy(key_or_id)
         if strategy_info is None:
@@ -151,26 +241,32 @@ class Strategy:
         fp_res = FingerprintCalculator.calculate_fingerprints(
             strategy_info,
             runtime_settings,
-            stock_list,
-            latest_completed_trading_date,
+            entity_ids=stock_list,
         )
 
         ctx = SimulateSession.create(
             strategy_info=strategy_info,
             fp_res=fp_res,
             kind=step,
+            seed_entity_cache=False,
         )
         cache_key = ctx.strategy_key or key_or_id
 
+        strategy_folder = DiscoveryService.resolve_strategy_folder(key_or_id)
+
         if not ignore_cache:
-            cached = SimulationCacheManager.get_cache(cache_key, ctx.fp_res, ctx.kind)
+            cached = SimulationVersionStore.get_cache(
+                strategy_folder,
+                fp_res,
+                ctx.kind,
+            )
             if cached:
                 logger.info(
                     "simulate cache hit: kind=%s strategy=%s",
                     ctx.kind.value,
                     cache_key,
                 )
-                return dict(cached)
+                return Strategy._attach_version_id(dict(cached), ctx.kind)
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
                 ctx.kind.value,
@@ -183,16 +279,118 @@ class Strategy:
                 cache_key,
             )
 
-        Strategy._resolve_steps(ctx)
+        ctx.prepare_entity_cache(
+            stock_list=stock_list,
+            latest_completed_trading_date=latest_completed_trading_date,
+        )
+        Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
         ctx.validate_for_run()
-        return Strategy._run_steps(ctx, cache_key=cache_key)
+        return Strategy._run_steps(
+            ctx,
+            strategy_folder=strategy_folder,
+            ignore_cache=ignore_cache,
+        )
 
     @staticmethod
-    def _resolve_steps(ctx: SimulateSession) -> None:
+    def _maybe_run_analysis(
+        step: SimulateKind,
+        step_res: Dict[str, Any],
+        ctx: SimulateSession,
+        strategy_folder: Path,
+        *,
+        force: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """``settings.analysis.enabled`` 时在 report 步内、complete 之前跑 analyze。"""
+        if step != ctx.kind:
+            return None
+        if step_res.get("success") is False:
+            return {"skipped": True, "reason": "simulate_failed"}
+        if not ctx.effective_settings.analysis.enabled:
+            return {"skipped": True, "reason": "disabled"}
+
+        output_dir = str(step_res.get("output_dir") or "").strip()
+        version_id = str(step_res.get("version_id") or "").strip()
+        if not output_dir:
+            return {"skipped": True, "reason": "missing_output_dir"}
+
+        from .engines.analyzer import Analyzer
+        from .services.artifacts import ArtifactStore
+
+        store = ArtifactStore.open(
+            Path(output_dir),
+            kind=step,
+            version_id=version_id or None,
+        )
+        try:
+            return Analyzer.run(store, strategy_folder=strategy_folder, force=force)
+        except Exception as exc:
+            logger.exception(
+                "analysis step failed: strategy=%s step=%s",
+                ctx.strategy_key,
+                step.value,
+            )
+            return {"skipped": True, "reason": "error", "error": str(exc)}
+
+    @staticmethod
+    def _resolve_simulation_output_dir_candidates(
+        strategy_name: str,
+        *,
+        step: str,
+        slot: Optional[Dict[str, Any]] = None,
+        workbench_version: int = 0,
+    ) -> List[Path]:
+        from .enums import WorkbenchStep
+        from .services.artifacts import ArtifactStore
+
+        sn = str(strategy_name or "").strip()
+        if not sn:
+            return []
+
+        slot = slot if isinstance(slot, dict) else {}
+        workbench_step = WorkbenchStep.parse(step)
+        kind = workbench_step.to_simulate_kind()
+        folder = Strategy.resolve_folder(sn)
+        root = ArtifactStore.simulations_root(folder)
+        step_dir = ArtifactStore.step_dir_name(kind)
+
+        names: List[str] = []
+        out_d = str(slot.get("output_dir") or "").strip()
+        if out_d:
+            names.append(out_d)
+        vid = slot.get("version_id")
+        if vid is not None:
+            text = str(vid).strip().lstrip("vV")
+            if text:
+                names.append(text)
+        if workbench_version > 0:
+            names.append(str(int(workbench_version)))
+
+        seen: set[str] = set()
+        out: List[Path] = []
+        for name in names:
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            path = Path(name)
+            if not path.is_absolute():
+                path = root / name / step_dir
+            out.append(path)
+        return out
+
+    @staticmethod
+    def _resolve_steps(ctx: SimulateSession, *, ignore_cache: bool = False) -> None:
         """按目标 kind + 指纹是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
         from .engines.enumerator import EnumeratorPipeline
 
         step = ctx.kind
+        if ignore_cache:
+            if step == SimulateKind.ENUMERATE:
+                ctx.steps = [SimulateKind.ENUMERATE]
+            else:
+                ctx.steps = [SimulateKind.ENUMERATE, step]
+            ctx.enum_version = None
+            return
+
         if step == SimulateKind.ENUMERATE:
             ctx.steps = [SimulateKind.ENUMERATE]
             ctx.enum_version = None
@@ -220,12 +418,43 @@ class Strategy:
     def _run_steps(
         ctx: SimulateSession,
         *,
-        cache_key: str,
+        strategy_folder: Union[str, Path],
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """依次执行 Pipeline；每步完成后按指纹更新对应 cache slot。"""
+        """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
+        from .services.artifacts import ArtifactStore, SimulationVersionStore
+        from .services.artifacts.version_meta import VersionMetaStore
+        from .services.progress import PipelineProgress
+
         consolidated: Dict[str, Any] = {}
-        last_wb_version = 0
+        folder = Path(strategy_folder)
+        root = ArtifactStore.simulations_root(folder)
+        execute_settings = StrategySettings.extract_execute_settings(
+            ctx.effective_settings
+        )
+        full_settings = dict(ctx.effective_settings.raw_settings or {})
+        try:
+            period = ctx.effective_settings.resolve_period()
+            start_date = str(period.start_date or "")
+            end_date = str(period.end_date or "")
+        except Exception:
+            start_date = ""
+            end_date = ""
         for step in ctx.steps:
+            vid = str(ctx.enum_version or "").strip()
+            if not vid:
+                vid = str(
+                    VersionMetaStore.find_version_by_fingerprints(
+                        root,
+                        str(ctx.execute_fp or ""),
+                        str(ctx.env_fp or ""),
+                    )
+                    or ""
+                ).strip()
+            # D18：真正复写已跑步时先作废下游，避免旧报告撒谎
+            if vid and VersionMetaStore.step_status(root, vid, step) == "ok":
+                VersionMetaStore.clear_downstream_steps(root, vid, step)
+                ArtifactStore.clear_cache()
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
             if step == SimulateKind.ENUMERATE:
@@ -233,23 +462,50 @@ class Strategy:
                 if version_id:
                     ctx.enum_version = str(version_id)
 
-            # 逐步写 slot：enum 先落盘后，即使下游 price 失败，指纹→enum version 仍可复用
-            wb_version = SimulationCacheManager.set_cache(
-                cache_key,
-                ctx.fp_res,
-                {step.value: step_res},
+            if step_res.get("version_id") and step_res.get("output_dir"):
+                SimulationVersionStore.record_step_complete(
+                    folder,
+                    version_id=str(step_res.get("version_id")),
+                    fps=ctx.fp_res,
+                    kind=step,
+                    full_settings=full_settings,
+                    effective_settings=execute_settings,
+                    entity_ids=list(ctx.entity_ids or []),
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+
+            analysis_out = Strategy._maybe_run_analysis(
+                step,
+                step_res,
+                ctx,
+                folder,
+                force=ignore_cache,
             )
-            if int(wb_version or 0) > 0:
-                last_wb_version = int(wb_version)
+            if analysis_out is not None:
+                step_res["analysis"] = analysis_out
+            PipelineProgress.complete_step_bound("report")
+
             logger.info(
-                "simulate cache updated: kind=%s strategy=%s version_id=%s workbench=%s",
+                "simulate step complete: kind=%s strategy=%s version_id=%s",
                 step.value,
-                cache_key,
+                ctx.strategy_key,
                 step_res.get("version_id"),
-                last_wb_version,
             )
-        consolidated["_workbench_version"] = last_wb_version
-        return consolidated
+        return Strategy._attach_version_id(consolidated, ctx.kind)
+
+    @staticmethod
+    def _attach_version_id(
+        payload: Dict[str, Any],
+        kind: SimulateKind,
+    ) -> Dict[str, Any]:
+        """把 step 槽里的 ``version_id`` 提到顶层，cache hit / miss 同一形状。"""
+        primary = payload.get(kind.value)
+        if isinstance(primary, dict):
+            vid = str(primary.get("version_id") or "").strip()
+            if vid:
+                payload["version_id"] = vid
+        return payload
 
     @staticmethod
     def latest_completed_trading_date() -> str:
@@ -379,6 +635,58 @@ class Strategy:
         return PriceFactorStore.at(version_dir).file("overall_report")
 
     @staticmethod
+    def step_analysis_from_output_dir(output_dir: Union[str, Path]) -> Dict[str, Any]:
+        """Read ``analysis/report.json`` facts/insights payload for one step output dir."""
+        from .engines.analyzer.steps.report import ReportStep
+
+        return ReportStep.load_payload(Path(output_dir))
+
+    @staticmethod
+    def resolve_step_analysis(
+        strategy_name: str,
+        step: str,
+        slot: Optional[Dict[str, Any]] = None,
+        *,
+        workbench_version: int = 0,
+    ) -> Dict[str, Any]:
+        """Resolve step output dir(s) and load attribution facts/insights payload."""
+        from .engines.analyzer.steps.report import ReportStep
+
+        for output_dir in Strategy._resolve_simulation_output_dir_candidates(
+            strategy_name,
+            step=str(step or "").strip(),
+            slot=slot if isinstance(slot, dict) else {},
+            workbench_version=int(workbench_version or 0),
+        ):
+            if not output_dir.is_dir():
+                continue
+            payload = ReportStep.load_payload(output_dir)
+            if payload.get("available"):
+                return payload
+        return {
+            "available": False,
+            "report_path": "",
+            "insights": None,
+            "facts": None,
+        }
+
+    @staticmethod
+    def resolve_simulation_output_dirs(
+        strategy_name: str,
+        *,
+        step: str,
+        slot: Optional[Dict[str, Any]] = None,
+        workbench_version: int = 0,
+    ) -> List[Path]:
+        """Absolute version-dir candidates for enum / price / portfolio."""
+        return Strategy._resolve_simulation_output_dir_candidates(
+            strategy_name,
+            step=step,
+            slot=slot,
+            workbench_version=workbench_version,
+        )
+
+    @staticmethod
     def present_report(
         kind: Union[SimulateKind, str],
         output_dir: Union[str, Path],
@@ -402,21 +710,22 @@ class Strategy:
         ReportManager.from_output_dir(path).present(stream=stream)
 
     @staticmethod
+    def present_analysis_report(
+        output_dir: Union[str, Path],
+        *,
+        stream: Optional[TextIO] = None,
+    ) -> None:
+        """从仿真 ``output_dir`` 展示归因 ``analysis/report.json`` 终端摘要。"""
+        from .engines.analyzer import Analyzer
+
+        Analyzer.Presenter.load(output_dir).present(stream=stream)
+
+    @staticmethod
     def is_valid_path(relative_path: str) -> bool:
         """脚手架路径段是否机器可读（ASCII 标识符段）。"""
         from .services.discovery.path_rules import StrategyPathRules
 
         return StrategyPathRules.is_machine_readable_path(relative_path)
-
-    @staticmethod
-    def clear_workbench_cache() -> int:
-        """清空 ``sys_strategy_workbench_snapshot``；失败抛 ``RuntimeError``，成功返回删除行数。"""
-        from .services.workbench_cache import WorkbenchCacheClear
-
-        out = WorkbenchCacheClear.clear_all()
-        if not out.get("ok"):
-            raise RuntimeError(str(out.get("error") or "存储不可用"))
-        return int(out.get("deleted_count") or 0)
 
     @staticmethod
     def prune_simulation_results(
@@ -425,14 +734,14 @@ class Strategy:
         kind: Optional[str] = None,
         max_versions: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """按 retention 清理策略 ``results/simulations/{kind}/`` 旧版本目录。
+        """按 retention 清理策略 ``results/simulations/`` 旧 version 目录。
 
         ``kind`` 为 ``enum`` / ``price`` / ``portfolio``（或 enumerate/price_factor）；
         ``None`` 表示三步都 prune。上限默认读 ``data.json`` retention。
         """
-        from .services.results_retention import ResultsRetention
+        from .services.artifacts import ArtifactRetention
 
-        return ResultsRetention.prune_simulation_results(
+        return ArtifactRetention.prune_simulation_results(
             key_or_id, kind=kind, max_versions=max_versions
         )
 
@@ -443,11 +752,56 @@ class Strategy:
         max_versions: Optional[int] = None,
     ) -> Dict[str, Any]:
         """按 retention 清理策略 ``results/scan/`` 旧日期版本。"""
-        from .services.results_retention import ResultsRetention
+        from .services.artifacts import ArtifactRetention
 
-        return ResultsRetention.prune_scan_results(
+        return ArtifactRetention.prune_scan_results(
             key_or_id, max_versions=max_versions
         )
+
+    @staticmethod
+    def delete_simulation_version(
+        key_or_id: str,
+        version: Union[int, str],
+    ) -> Dict[str, Any]:
+        """删除单个策略的一份 simulation version（目录 + registry）。
+
+        不改 ``settings.py``。``version`` 接受 ``3`` / ``v3``。
+        """
+        from .helpers.version_id import WorkbenchVersionId
+        from .services.artifacts import ArtifactRetention
+
+        if isinstance(version, int):
+            sid = version if version > 0 else None
+        else:
+            sid = WorkbenchVersionId.parse(str(version))
+        if sid is None:
+            return {
+                "ok": False,
+                "error": "version_id 无效",
+                "deleted": False,
+            }
+        return ArtifactRetention.clear_by_version(key_or_id, sid)
+
+    @staticmethod
+    def set_simulation_version_pinned(
+        key_or_id: str,
+        version: Union[int, str],
+        pinned: bool,
+    ) -> Dict[str, Any]:
+        """固定 / 取消固定一份 simulation version（只改 meta.pinned）。
+
+        ``version`` 接受 ``3`` / ``v3``。不改 ``settings.py``。
+        """
+        from .helpers.version_id import WorkbenchVersionId
+        from .services.artifacts import ArtifactRetention
+
+        if isinstance(version, int):
+            sid = version if version > 0 else None
+        else:
+            sid = WorkbenchVersionId.parse(str(version))
+        if sid is None:
+            return {"ok": False, "error": "version_id 无效"}
+        return ArtifactRetention.set_pinned(key_or_id, sid, bool(pinned))
 
     @staticmethod
     def export_package(

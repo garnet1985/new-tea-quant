@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { Box, Link, Stack, Typography } from '@mui/material';
-import ReactECharts from 'echarts-for-react';
-import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import React from 'react';
+import { Stack, Typography } from '@mui/material';
+import ChartPanel from 'components/chartPanel/chartPanel';
 import MetricCard from 'components/metricCard/metricCard';
+import MetricGrid from 'components/metricGrid/metricGrid';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import {
   ENUM_CHART_TIPS,
@@ -10,11 +10,10 @@ import {
   ENUM_SECTION_TIPS,
   REPORT_STOCK_GRID_TIPS,
 } from '../reportMetricTips';
-import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import ReportUnavailableHint, {
-  REPORT_EMPTY_MATCH_ZH,
-} from '../components/reportUnavailableHint';
-import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
+import ReportUnavailableHint from '../components/reportUnavailableHint';
+import ReportStockGridSection from '../components/reportStockGridSection';
+import { useReportStockSearch } from '../hooks/useReportStockSearch';
+import { STOCK_NAME_COLUMN, stockCodeColumn } from '../lib/reportStockColumns';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
@@ -97,7 +96,7 @@ function OpportunityEnumrateReport({
   onStockSelect,
   stockLinkEnabled = false,
 }) {
-  const [stockSearch, setStockSearch] = useState('');
+  const { stockSearch, setStockSearch, filteredRows } = useReportStockSearch(stockRows);
 
   const avail = metrics?._availability ?? {
     overview: false,
@@ -107,48 +106,9 @@ function OpportunityEnumrateReport({
     tradability: false,
   };
 
-  const derivedStockRows = useMemo(() => (
-    Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
-  ), [stockRows]);
-
-  const filteredRows = useMemo(() => {
-    const keyword = stockSearch.trim().toLowerCase();
-    const filtered = keyword
-      ? derivedStockRows.filter((row) => (
-        row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
-      ))
-      : derivedStockRows;
-    return filtered;
-  }, [derivedStockRows, stockSearch]);
-
   const stockColumns = [
-    {
-      field: 'stockCode',
-      headerName: '代码',
-      flex: 1,
-      minWidth: 120,
-      renderCell: (params) => {
-        const code = params.value;
-        if (!stockLinkEnabled || typeof onStockSelect !== 'function') {
-          return code;
-        }
-        return (
-          <Link
-            component="button"
-            type="button"
-            underline="hover"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStockSelect(params.row);
-            }}
-            sx={{ font: 'inherit', textAlign: 'left' }}
-          >
-            {code}
-          </Link>
-        );
-      },
-    },
-    { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
+    stockCodeColumn({ onStockSelect, stockLinkEnabled }),
+    STOCK_NAME_COLUMN,
     {
       field: 'opportunities',
       headerName: '机会数',
@@ -179,8 +139,6 @@ function OpportunityEnumrateReport({
     return <ReportUnavailableHint />;
   }
 
-  const showStockGridTable = Boolean(stockGridOverlay || filteredRows.length > 0);
-
   return (
     <Stack spacing={1.25}>
       {!hideTitle ? (
@@ -188,27 +146,18 @@ function OpportunityEnumrateReport({
       ) : null}
 
       {showStockGrid ? (
-        <Box sx={{ position: 'relative' }}>
-          {stockGridLoading ? (
-            <InlineLoadingState block compact message="正在加载逐股数据…" />
-          ) : (
-            <>
-              {stockGridOverlay}
-              {showStockGridTable ? (
-                <ReportStockSampleGrid
-                  title="逐股样本"
-                  tip={stockGridTip}
-                  searchValue={stockSearch}
-                  onSearchChange={setStockSearch}
-                  rows={filteredRows}
-                  columns={stockColumns}
-                  sortingMode="client"
-                  initialSortModel={[{ field: 'opportunities', sort: 'desc' }]}
-                />
-              ) : <ReportUnavailableHint message={REPORT_EMPTY_MATCH_ZH} />}
-            </>
-          )}
-        </Box>
+        <ReportStockGridSection
+          loading={stockGridLoading}
+          overlay={stockGridOverlay}
+          filteredRows={filteredRows}
+          title="逐股样本"
+          tip={stockGridTip}
+          searchValue={stockSearch}
+          onSearchChange={setStockSearch}
+          columns={stockColumns}
+          sortingMode="client"
+          initialSortModel={[{ field: 'opportunities', sort: 'desc' }]}
+        />
       ) : null}
 
       <SectionBlock
@@ -216,7 +165,7 @@ function OpportunityEnumrateReport({
         tip={ENUM_SECTION_TIPS.overview}
       >
         {avail.overview ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+          <MetricGrid>
             <MetricCard
               title="机会总数"
               titleTip={ENUM_METRIC_TIPS.totalOpportunities}
@@ -227,7 +176,7 @@ function OpportunityEnumrateReport({
               titleTip={ENUM_METRIC_TIPS.completeness}
               value={`${metrics.completedCount.toLocaleString()} / ${metrics.totalOpportunities.toLocaleString()} (${metrics.completedRatio}%)`}
             />
-          </Box>
+          </MetricGrid>
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
@@ -236,7 +185,7 @@ function OpportunityEnumrateReport({
         tip={ENUM_SECTION_TIPS.stockStats}
       >
         {avail.stockStats ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+          <MetricGrid>
             <MetricCard
               title="触发机会的股票占比"
               titleTip={ENUM_METRIC_TIPS.triggerStocksRatio}
@@ -247,24 +196,16 @@ function OpportunityEnumrateReport({
               titleTip={ENUM_METRIC_TIPS.avgPerStock}
               value={Number(metrics.avgPerStock).toFixed(2)}
             />
-          </Box>
+          </MetricGrid>
         ) : <ReportUnavailableHint />}
-        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: avail.stockStats ? 1 : 0 }}>
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              每股机会数分布
-            </Typography>
-            <NtqHelpTooltip title={ENUM_CHART_TIPS.opportunityDistribution} />
-          </Stack>
-          {avail.distribution ? (
-            <ReactECharts
-              option={buildStockDistributionOption(metrics)}
-              style={{ height: 170, width: '100%' }}
-              notMerge
-              lazyUpdate
-            />
-          ) : <ReportUnavailableHint />}
-        </Box>
+        <ChartPanel
+          title="每股机会数分布"
+          tip={ENUM_CHART_TIPS.opportunityDistribution}
+          option={avail.distribution ? buildStockDistributionOption(metrics) : null}
+          height={170}
+          fallback={<ReportUnavailableHint />}
+          sx={{ mt: avail.stockStats ? 1 : 0 }}
+        />
       </SectionBlock>
 
       <SectionBlock
@@ -272,7 +213,7 @@ function OpportunityEnumrateReport({
         tip={ENUM_SECTION_TIPS.tradability}
       >
         {avail.tradability ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+          <MetricGrid>
             <MetricCard
               title="涨停无法买入"
               titleTip={ENUM_METRIC_TIPS.limitUpBuy}
@@ -285,7 +226,7 @@ function OpportunityEnumrateReport({
               value={`${metrics.sellAtLimitDownCount.toLocaleString()} / ${metrics.sellTradabilitySampleCount.toLocaleString()}`}
               hint={`占比 ${metrics.limitDownSellRatio}%`}
             />
-          </Box>
+          </MetricGrid>
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
@@ -295,7 +236,7 @@ function OpportunityEnumrateReport({
       >
         {avail.timing ? (
           <Stack spacing={1}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+            <MetricGrid>
               <MetricCard
                 title="平均每股机会间隔"
                 titleTip={ENUM_METRIC_TIPS.meanGap}
@@ -306,7 +247,7 @@ function OpportunityEnumrateReport({
                 titleTip={ENUM_METRIC_TIPS.meanDuration}
                 value={`${metrics.meanDuration} 天`}
               />
-            </Box>
+            </MetricGrid>
             <MetricCard
               title="机会分散度"
               titleTip={ENUM_METRIC_TIPS.dispersion}

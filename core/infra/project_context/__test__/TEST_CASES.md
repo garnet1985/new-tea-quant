@@ -1,8 +1,7 @@
 # 测试用例 — `infra.project_context`
 
 **模块：** `infra.project_context`  
-**覆盖版本：** `0.5.0`
-
+**版本：** `0.2.0`  
 ## Scope
 
 验证门面 `ProjectContext` 与 path / config / meta / cache / discovery / types 公开契约（对齐 `API.md`）。

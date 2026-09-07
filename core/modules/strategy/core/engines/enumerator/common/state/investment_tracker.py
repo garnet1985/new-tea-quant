@@ -126,6 +126,7 @@ class InvestmentTracker:
         trigger_price: float,
         trigger_price_raw: float = 0.0,
         status_tags_provider: Any = None,
+        hook_runtime: Any = None,
     ) -> Optional[Investment]:
         """Scan 命中：Opportunity → Investment（``PENDING_TO_ENTER``）→ ``pending_enter``。
 
@@ -147,6 +148,7 @@ class InvestmentTracker:
             settings=settings,
             open_dates=open_dates,
             status_tags_provider=status_tags_provider,
+            hook_runtime=hook_runtime,
         )
         skip = settings.simulation.risk_control.should_skip_enter(
             status_tags=investment.status_tags_at_trigger()

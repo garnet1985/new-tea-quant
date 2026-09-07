@@ -4,6 +4,9 @@ from flask import request
 
 from core.bff.APIs.strategy.api_base import API_BASE_PATH, strategy_api_bp
 from core.bff.APIs.strategy.helpers.query import parse_bool_query
+from core.bff.APIs.strategy.helpers.settings_occupancy import (
+    SettingsOccupancy,
+)
 from core.bff.APIs.strategy.routes.runner.implementer import impl as runner_impl
 from core.bff.shared.request import json_payload
 from core.bff.shared.response import error, ok
@@ -77,6 +80,14 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
 
     raw_force = payload.get("force_refresh", payload.get("is_force", False))
     force_refresh = raw_force if isinstance(raw_force, bool) else bool(raw_force)
+    expected_rev = SettingsOccupancy.expected_rev_from_request(
+        payload,
+        if_match_header=request.headers.get("If-Match"),
+    )
+    raw_force_write = payload.get("force_settings_write", False)
+    force_settings_write = (
+        raw_force_write if isinstance(raw_force_write, bool) else bool(raw_force_write)
+    )
 
     try:
         out = runner.submit_run(
@@ -84,12 +95,23 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
             step=step,
             api_settings=settings,
             force_refresh=force_refresh,
+            expected_rev=expected_rev,
+            force_settings_write=force_settings_write,
         )
     except ValueError as exc:
         return error(str(exc), 400)
     except FileNotFoundError as exc:
         return error(str(exc), 404)
 
+    if out.get("conflict"):
+        return error(
+            str(out.get("reason") or "settings.py 已在别处更新"),
+            409,
+            code="settings_conflict",
+            extra=SettingsOccupancy.conflict_extra(out.get("occupancy") or {}),
+        )
+    if out.get("persist_error"):
+        return error(str(out.get("reason") or "写盘失败"), 400)
     if out.get("is_triggered"):
         return ok(
             {
@@ -99,6 +121,7 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
                 "pipeline_id": out.get("pipeline_id") or out["job_id"],
                 "pipeline_name": out.get("pipeline_name"),
                 "pipeline_description": out.get("pipeline_description"),
+                "settings_rev": out.get("settings_rev") or "",
             }
         )
     return ok({"is_triggered": False, "reason": out.get("reason", "未知错误")})

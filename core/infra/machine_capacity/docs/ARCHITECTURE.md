@@ -1,6 +1,6 @@
 # Machine Capacity — 架构
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 门面 `MachineInfo` + 契约 `MachineCapacity`。本模块体量小，实现内联在门面文件中。
 

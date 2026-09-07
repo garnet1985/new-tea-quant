@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { fetchTraceSettings, saveTraceSettings } from '../api/apis/settingsApi';
+import { fetchTraceSettings, saveTraceSettings } from '../api/settingsApi';
 import TraceConsentAskOverlay from './traceConsentAskOverlay';
 
 /**
  * 尚未决定使用统计时全屏询问（挡住下方）。
- * 主 UI（SetupGuard 之后）与安装向导的成功页使用；不要包住未完成的 /setup，
+ * 现仅作为 `/setup/trace` 页面内容复用；不要包住未完成的 /setup，
  * 否则同意写入会提前 mkdir userspace，挡住 init_userspace。
+ * 主 UI 由 SetupGuard 在未决定时重定向到 `/setup/trace`，不再用遮罩挡业务页。
  */
-function TraceConsentGuard({ children, source }) {
+function TraceConsentGuard({ children = null, source = 'ask_ui' }) {
   const [needsAsk, setNeedsAsk] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -69,11 +70,6 @@ function TraceConsentGuard({ children, source }) {
 TraceConsentGuard.propTypes = {
   children: PropTypes.node,
   source: PropTypes.string,
-};
-
-TraceConsentGuard.defaultProps = {
-  children: null,
-  source: 'ask_ui',
 };
 
 export default TraceConsentGuard;

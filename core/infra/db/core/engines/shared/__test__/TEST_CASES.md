@@ -1,6 +1,6 @@
 # 测试用例 — `infra.db` / `core/engines/shared`
 
-**覆盖版本：** `0.5.0`  
+**版本：** `0.3.1`  
 **本文件位置：** `core/engines/shared/__test__/`
 
 ## Scope

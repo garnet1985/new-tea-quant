@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.data_manager import DataManager
 from core.modules.indicator import Indicator
+from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
 from core.infra.utils import Utils
 from core.modules.strategy.core.engines.shared.data_class.investment.enums import (
@@ -29,7 +30,6 @@ from core.modules.strategy.core.services.artifacts import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-from core.bff.APIs.strategy.helpers.report_hydrate import resolve_simulation_output_dirs
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
@@ -252,7 +252,7 @@ class WorkbenchStockDetail:
         *,
         entity_id: str,
     ) -> Optional[Path]:
-        for output_dir in resolve_simulation_output_dirs(
+        for output_dir in Strategy.resolve_simulation_output_dirs(
             strategy_name,
             step=step,
             slot=slot,
@@ -528,16 +528,20 @@ class WorkbenchStockDetail:
                     nm = str(payload.get("stock_name") or "").strip()
                     if nm and nm != stock_id:
                         return nm
-            except Exception:
-                pass
+            except Exception as exc:
+                from core.bff.shared.client_log import log_degraded
+
+                log_degraded("report.stockDetail.displayName.entityList", exc, stock_id)
         try:
             rec = DataManager().service.stock.list.load_single(stock_id)
             if isinstance(rec, dict):
                 nm = str(rec.get("name") or "").strip()
                 if nm:
                     return nm
-        except Exception:
-            pass
+        except Exception as exc:
+            from core.bff.shared.client_log import log_degraded
+
+            log_degraded("report.stockDetail.displayName.stockList", exc, stock_id)
         return stock_id
 
     @staticmethod
@@ -662,9 +666,11 @@ class WorkbenchStockDetail:
         length = params.get("length")
         if length is not None:
             try:
-                return f"{name}{int(length)}"
+                length_int = int(length)
             except (TypeError, ValueError):
-                pass
+                length_int = None
+            if length_int is not None:
+                return f"{name}{length_int}"
         parts = [name]
         for key in sorted(params.keys()):
             value = params[key]

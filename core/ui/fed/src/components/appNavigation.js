@@ -31,8 +31,8 @@ const advancedNavItems = [
   { label: '数据契约', path: '/advanced/data-contracts' },
 ];
 
-/** Logo 点击回到的主入口（与主导航第一项一致） */
-const HOME_PATH = '/strategy-design';
+/** Logo 点击回到欢迎页（应用默认入口） */
+const HOME_PATH = '/welcome';
 
 const ADVANCED_BASE = '/advanced';
 const ADVANCED_MENU_CLOSE_DELAY_MS = 160;

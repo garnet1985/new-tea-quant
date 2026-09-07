@@ -12,4 +12,4 @@
 
 约定：reporter 只描述「结果长什么样」；归因不进本包（见 `engines/analyzer`）。
 
-读盘走 `services.artifacts.ArtifactStore`（与 analyzer 同一套 input、同一进程缓存）。收拢本包时不要再各自拼路径 / 读 CSV。
+读盘走 `services.artifacts.ArtifactStore`（与 analyzer 同一套 input、同一进程缓存）。Scanner 走 `ArtifactStore.scan_at` / `ScanStore`（`results/scan/{YYYYMMDD}/`，不复用仿真 version）。收拢本包时不要再各自拼路径 / 读 CSV。

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
+from core.modules.strategy import Strategy
 from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore, PriceFactorStore
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
@@ -18,11 +19,74 @@ from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_enum_slot,
     hydrate_portfolio_slot,
     hydrate_price_slot,
-    resolve_simulation_output_dirs,
 )
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
+
+
+def _string_list(raw: Any) -> List[str]:
+    if not isinstance(raw, list):
+        return []
+    out: List[str] = []
+    for item in raw:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+    return out
+
+
+def _finding_rows(raw: Any) -> List[Dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: List[Dict[str, str]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            caption = str(item.get("caption") or "").strip()
+            value = str(item.get("value") or "").strip()
+            if caption or value:
+                out.append({"caption": caption, "value": value})
+        elif isinstance(item, str) and item.strip():
+            out.append({"caption": item.strip(), "value": ""})
+    return out
+
+
+def _conclusion_read_model(insights: Any) -> Optional[Dict[str, Any]]:
+    """CLI InsightBuilder 结论切片：headline / findings，不含 next_steps。"""
+    if not isinstance(insights, dict):
+        return None
+    headline = str(insights.get("headline") or "").strip()
+    findings = _finding_rows(insights.get("key_findings"))
+    explains = _string_list(insights.get("explains"))
+    does_not = _string_list(insights.get("does_not_explain"))
+    if not headline and not findings and not explains and not does_not:
+        return None
+    return {
+        "headline": headline or None,
+        "key_findings": findings,
+        "explains": explains,
+        "does_not_explain": does_not,
+    }
+
+
+def _analysis_enabled(settings: Any) -> bool:
+    if not isinstance(settings, dict):
+        return False
+    block = settings.get("analysis")
+    if not isinstance(block, dict):
+        return False
+    return block.get("enabled") is True
+
+
+def _analysis_read_model(payload: Any, *, settings: Any) -> Dict[str, Any]:
+    data = payload if isinstance(payload, dict) else {}
+    facts = data.get("facts")
+    return {
+        "enabled": _analysis_enabled(settings),
+        "available": bool(data.get("available")),
+        "report_path": str(data.get("report_path") or ""),
+        "facts": facts if isinstance(facts, dict) else None,
+        "conclusion": _conclusion_read_model(data.get("insights")),
+    }
 
 
 class WorkbenchReports:
@@ -52,11 +116,23 @@ class WorkbenchReports:
             row,
             workbench_version=int(version),
         )
+        rr = dict(row.get("result_report") or {})
+        slot = rr.get(step.report_slot)
+        analysis = _analysis_read_model(
+            Strategy.resolve_step_analysis(
+                name,
+                step.value,
+                slot if isinstance(slot, dict) else {},
+                workbench_version=int(version),
+            ),
+            settings=row.get("settings_snapshot"),
+        )
         return {
             "version_id": f"v{int(version)}",
             "strategy_name": name,
             "step": step.value,
             "report": report,
+            "analysis": analysis,
         }
 
     @classmethod
@@ -92,7 +168,7 @@ class WorkbenchReports:
         stock_ref: Optional[Dict[str, Any]] = None
         resolved_dir = ""
 
-        for output_dir in resolve_simulation_output_dirs(
+        for output_dir in Strategy.resolve_simulation_output_dirs(
             name,
             step=step.value,
             slot=slot if isinstance(slot, dict) else {},
@@ -182,10 +258,10 @@ class WorkbenchReports:
 
             raw = EntityListReport.load(output_dir).to_ui_dict()
             return cls._filter_price_stock_ref(output_dir, raw)
-        except Exception:
-            logger.debug(
-                "failed to load entity_list from %s", output_dir, exc_info=True
-            )
+        except Exception as exc:
+            from core.bff.shared.client_log import log_degraded
+
+            log_degraded("report.step.entityList", exc, f"{step}:{output_dir}")
             return None
 
     @classmethod
@@ -240,7 +316,10 @@ class WorkbenchReports:
             ph = ",".join(["%s"] * len(chunk))
             try:
                 rows = model.load(f"id IN ({ph})", tuple(chunk))
-            except Exception:
+            except Exception as exc:
+                from core.bff.shared.client_log import log_degraded
+
+                log_degraded("report.step.stockDisplayNames", exc, f"chunk={len(chunk)}")
                 continue
             for r in rows or []:
                 rec = dict(r or {})

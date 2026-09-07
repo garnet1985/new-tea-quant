@@ -58,3 +58,13 @@ def precheck_userspace_path():
 @setup_api_bp.route('/v1/setup/steps/import_data/progress', methods=['GET'])
 def get_import_data_progress():
     return _setup_service.get_import_data_progress()
+
+
+@setup_api_bp.route('/v1/setup/ml-extras', methods=['GET'])
+def get_ml_extras_status():
+    return _setup_service.get_ml_extras_status()
+
+
+@setup_api_bp.route('/v1/setup/ml-extras', methods=['POST'])
+def install_ml_extras():
+    return _setup_service.install_ml_extras()

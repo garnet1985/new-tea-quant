@@ -1,7 +1,7 @@
 # 模块文档规范
 
-**版本：** 1.2.0  
-**最后更新：** 2026-08-01  
+**版本：** 1.2.1  
+**最后更新：** 2026-09-07  
 **适用范围：** `core/modules/*`、`core/infra/*`（及其他按 core 模块标准收口的主模块）的**文档**
 
 > **文档 SSOT：** 模块文档的格式、清单、位置与维护规则以**本文**为准。  
@@ -97,7 +97,24 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### 版本一致性
 
-`module_info.yaml` 的 `version`、`changelog[0].version`，以及 `API.md` / `docs/ARCHITECTURE.md` / `glossary.yaml` 头注释版本（及若存在的 `DESIGN` / `docs/CONCEPTS` / `QUICKSTART`）必须一致。版本 bump 语义见 [CORE 指标 11](../CORE_MODULE_STANDARDS.md)。
+`module_info.yaml` 是模块版本 SSOT。下列位置的版本字段必须与它一致（`devcli.py p` / pack 会检查；非 `--check-only` 时还会按 SSOT 改写文首数字与历史别名）。
+
+**字段名（硬性，禁止别名）：**
+
+| 位置 | 字段 | 例 |
+|------|------|----|
+| `module_info.yaml` | `version` / `changelog[0].version` | `0.4.0` |
+| `module_info.yaml` | `compatible_core_versions` | `>=0.4.5` |
+| `module_info.yaml` | `name` | `modules.strategy` / `infra.cli` / `ui` / `bff` / `tables` |
+| Markdown 文首 | `**版本：**` | `**版本：** 0.4.0` |
+| `API.md` 文首另须 | `**最低支持核心版本：**` | `**最低支持核心版本：** >=0.4.5` |
+| `glossary.yaml` 头注释 | `# Version:` | `# Version: 0.4.0` |
+
+禁止用 `**覆盖版本：**`、`**当前基线版本：**` 表示模块版本。
+
+**须带标准版本字段的文件（存在则检查）：** `API.md`、`glossary.yaml`、`QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/DESIGN.md`、`docs/CONCEPTS.md`、模块内全部 `**/TEST_CASES.md`、`__performance__/README.md`、`__performance__/CASES.md`。`README.md` 与 `docs/` 根下其它 md 若文首已写版本字段，也必须等于 SSOT。`docs/notes/` 不检查。
+
+版本 bump 语义见 [CORE 指标 11](../CORE_MODULE_STANDARDS.md)。
 
 ---
 
@@ -271,7 +288,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 > 模板：[`__test__/TEST_CASES.md`](doc_templates/module/__test__/TEST_CASES.md)。  
 > 测试类型与目录职责见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)。
 
-**固定结构：** 文首（模块 / 覆盖版本 / 路径）→ Scope → 负责 / 不负责 → 若干 `## Scenario` → 其下 Case 表（函数名 / 文件 / 说明）。
+**固定结构：** 文首（模块 / **版本：** / 路径）→ Scope → 负责 / 不负责 → 若干 `## Scenario` → 其下 Case 表（函数名 / 文件 / 说明）。
 
 **规则：**
 
@@ -298,7 +315,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 |--------|------|
 | 文档齐全 | 根：README + API + glossary + module_info；docs：ARCHITECTURE；（可选）DESIGN / CONCEPTS / QUICKSTART |
 | 从模板 copy | 章节与 [`doc_templates/module/`](doc_templates/module/) 一致 |
-| 版本号一致 | module_info 与各文档文首版本一致 |
+| 版本号一致 | module_info 与各文档文首 `**版本：**` / `# Version:` 一致；`devcli.py p` 闸门 |
 | 文档同步 | 与代码一致；触发见 §3 |
 | 根目录 `API.md` | 签名 / 状态 / 参数表对齐代码；有 `test_api.py` |
 | 无双源 | 无并行 `api.yaml` / `docs/API.md` |

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Box } from '@mui/material';
 import MetricCard from 'components/metricCard/metricCard';
+import MetricGrid from 'components/metricGrid/metricGrid';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import { ENUM_METRIC_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from './reportUnavailableHint';
@@ -22,13 +22,7 @@ function StockEnumDetailReport({ metrics }) {
 
   return (
     <SectionBlock title="枚举统计" tip={SINGLE_STOCK_ENUM_SECTION_TIP}>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-          gap: 1,
-        }}
-      >
+      <MetricGrid>
         {avail.overview ? (
           <>
             <MetricCard
@@ -89,7 +83,7 @@ function StockEnumDetailReport({ metrics }) {
             />
           </>
         ) : null}
-      </Box>
+      </MetricGrid>
     </SectionBlock>
   );
 }

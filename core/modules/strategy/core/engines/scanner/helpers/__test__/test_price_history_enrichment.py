@@ -32,11 +32,11 @@ def test_latest_price_version_dir_empty_name():
 
 
 def test_latest_price_version_dir_from_meta(tmp_path: Path):
-    root = tmp_path / "price"
-    version = root / "3"
+    root = tmp_path / "simulations"
+    version = root / "3" / "price"
     version.mkdir(parents=True)
     (root / "meta.json").write_text(
-        json.dumps({"next_output_version": 4}), encoding="utf-8"
+        json.dumps({"next_version_id": 4}), encoding="utf-8"
     )
 
     from core.infra.project_context import ProjectContext
@@ -46,7 +46,7 @@ def test_latest_price_version_dir_from_meta(tmp_path: Path):
         patch.object(DiscoveryService, "resolve_strategy_folder", return_value="demo"),
         patch.object(
             ProjectContext.path,
-            "get_strategy_simulation_price_directory",
+            "get_strategy_simulations_directory",
             return_value=root,
         ),
     ):

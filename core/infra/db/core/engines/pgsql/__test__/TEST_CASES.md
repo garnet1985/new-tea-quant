@@ -1,6 +1,6 @@
 # 测试用例 — `infra.db` / `core/engines/pgsql`
 
-**覆盖版本：** `0.5.0`  
+**版本：** `0.3.1`  
 **本文件位置：** `core/engines/pgsql/__test__/`
 
 ## Scope

@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { getStrategyDesignPath } from '../../../api/apis/strategyApi';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getStrategyDesignPath } from '../../../api/strategyApi';
 import { STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
 import { useStrategyDesignSession } from '../strategyDesignContext';
 import { resolveStepperVisual } from '../lib/resolveStepperVisual';
@@ -62,6 +62,7 @@ function StepperCircle({ step, visual, isLast, connectorDone = false }) {
 
 function StrategyDesignStepper() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { strategyName, session } = useStrategyDesignSession();
   const activeStep = session.activeStep;
   const stepStatus = session.executionState?.stepStatus ?? EMPTY_OBJECT;
@@ -82,8 +83,8 @@ function StrategyDesignStepper() {
 
   const handleStepClick = useCallback((stepKey) => {
     if (!strategyName) return;
-    navigate(getStrategyDesignPath(strategyName, stepKey));
-  }, [navigate, strategyName]);
+    navigate(getStrategyDesignPath(strategyName, stepKey), { state: location.state });
+  }, [location.state, navigate, strategyName]);
 
   const stepCount = STRATEGY_DESIGN_STEPS.length;
 

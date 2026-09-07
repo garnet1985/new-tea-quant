@@ -31,7 +31,7 @@ def post_database_settings():
 
 @settings_api_bp.route("/v1/settings/data", methods=["GET"])
 def get_data_settings():
-    """读取合并后的 data.json 关键字段（default_start_date / as-of / 样本池）。"""
+    """读取合并后的 data.json 关键字段（日期范围 / 样本池 / 回测保留份数）。"""
     return ok(settings_service.get_data_settings())
 
 

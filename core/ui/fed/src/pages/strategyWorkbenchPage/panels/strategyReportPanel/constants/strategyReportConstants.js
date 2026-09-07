@@ -5,9 +5,6 @@ export const STEP_TABS = [
   { key: 'portfolio', label: '投资模拟报告' },
 ];
 
-/** 对比版本下拉末项：打开完整版本列表 */
-export const REPORT_COMPARE_MORE_MENU_VALUE = '__report_compare_more_versions__';
-
 /** 报告对比弹窗右侧：未选其它快照版本 */
 export const COMPARE_EMPTY_OTHER_VERSION_ZH = '无可对比结果，请选择不同版本';
 /** 报告对比弹窗右侧：已选版本但该 Tab 无可用报告数据 */

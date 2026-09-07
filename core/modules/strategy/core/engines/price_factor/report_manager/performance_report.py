@@ -1,7 +1,6 @@
 """价格回测 performance.json（轻量；非 UI 主区块）。"""
 from __future__ import annotations
 
-import json
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,6 +10,7 @@ from typing import Any, Dict, Optional, TextIO, TYPE_CHECKING
 from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.services.artifacts import (
     PERFORMANCE_FILE,
+    ArtifactStore,
 )
 
 
@@ -53,17 +53,10 @@ class PerformanceReport:
 
     @classmethod
     def load(cls, output_dir: Path) -> "PerformanceReport":
-        path = Path(output_dir) / cls.PERFORMANCE_FILE
-        return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        return cls.from_dict(ArtifactStore.read_json_at(output_dir, "performance"))
 
     def save(self, output_dir: Path) -> Path:
-        path = Path(output_dir) / self.PERFORMANCE_FILE
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(self.to_dict(), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return path
+        return ArtifactStore.write_json_at(output_dir, "performance", self.to_dict())
 
     def present(self, stream: Optional[TextIO] = None) -> None:
         out = stream or sys.stdout

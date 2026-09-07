@@ -6,7 +6,7 @@ import {
   fetchDataSettings,
   saveDatabaseSettings,
   saveDataSettings,
-} from '../../api/apis/settingsApi';
+} from '../../api/settingsApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import {
   SettingsCachePanel,
@@ -57,6 +57,7 @@ function SettingsPage() {
   const [defaultStartDate, setDefaultStartDate] = React.useState('');
   const [asOfLatestCompletedDate, setAsOfLatestCompletedDate] = React.useState('');
   const [useSampleStockList, setUseSampleStockList] = React.useState('');
+  const [simulationResultsMaxVersions, setSimulationResultsMaxVersions] = React.useState('');
 
   const loadDatabase = useCallback(() => {
     setLoading(true);
@@ -82,6 +83,11 @@ function SettingsPage() {
         setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
         setUseSampleStockList(
           r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
+        );
+        setSimulationResultsMaxVersions(
+          r.simulation_results_max_versions != null
+            ? String(r.simulation_results_max_versions)
+            : '',
         );
       })
       .catch((e) => {
@@ -120,6 +126,7 @@ function SettingsPage() {
       default_start_date: defaultStartDate.trim(),
       as_of_latest_completed_trading_date: asOfLatestCompletedDate.trim(),
       use_sample_stock_list: useSampleStockList.trim(),
+      simulation_results_max_versions: simulationResultsMaxVersions.trim(),
     })
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
@@ -127,7 +134,12 @@ function SettingsPage() {
         setUseSampleStockList(
           r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
         );
-        setDataSaveOk('已保存到 userspace/config/data.json。数据源列表的截至日与更新状态将按新配置评估。');
+        setSimulationResultsMaxVersions(
+          r.simulation_results_max_versions != null
+            ? String(r.simulation_results_max_versions)
+            : '',
+        );
+        setDataSaveOk('已保存到 userspace/config/data.json。');
       })
       .catch((e) => {
         setDataSaveError(e?.message || '保存失败');
@@ -196,9 +208,11 @@ function SettingsPage() {
                   defaultStartDate={defaultStartDate}
                   asOfLatestCompletedDate={asOfLatestCompletedDate}
                   useSampleStockList={useSampleStockList}
+                  simulationResultsMaxVersions={simulationResultsMaxVersions}
                   onDefaultStartDateChange={setDefaultStartDate}
                   onAsOfLatestCompletedDateChange={setAsOfLatestCompletedDate}
                   onUseSampleStockListChange={setUseSampleStockList}
+                  onSimulationResultsMaxVersionsChange={setSimulationResultsMaxVersions}
                   onSave={handleSaveData}
                   onReload={loadDataSettings}
                 />

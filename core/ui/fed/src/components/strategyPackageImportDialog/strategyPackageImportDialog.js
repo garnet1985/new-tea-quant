@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   Alert,
@@ -21,7 +21,8 @@ import {
 import {
   importStrategyPackage,
   previewStrategyPackageImport,
-} from '../../api/apis/strategyApi';
+} from '../../api/strategyApi';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import './strategyPackageImportDialog.scss';
 
 const POLICY_OPTIONS = [
@@ -37,57 +38,64 @@ function statusLabel(status) {
   return status || '—';
 }
 
-function StrategyPackageImportDialog({ open, onClose, onSuccess }) {
+function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
   const [file, setFile] = useState(null);
   const [policy, setPolicy] = useState('reject');
   const [preview, setPreview] = useState(null);
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
+
+  const previewAction = useAsyncAction(
+    useCallback(
+      ({ importFile, importPolicy }) => previewStrategyPackageImport(importFile, { policy: importPolicy }),
+      [],
+    ),
+  );
+  const importAction = useAsyncAction(
+    useCallback(
+      ({ importFile, importPolicy }) => importStrategyPackage(importFile, { policy: importPolicy }),
+      [],
+    ),
+  );
+
+  const busy = previewAction.busy || importAction.busy;
+  const error = previewAction.error || importAction.error;
+  const { clearError: clearPreviewError } = previewAction;
+  const { clearError: clearImportError } = importAction;
 
   useEffect(() => {
     if (!open) {
       setFile(null);
       setPolicy('reject');
       setPreview(null);
-      setError(null);
-      setBusy(false);
+      clearPreviewError();
+      clearImportError();
     }
-  }, [open]);
+  }, [open, clearPreviewError, clearImportError]);
 
   const handleFileChange = (event) => {
     setFile(event.target.files?.[0] || null);
     setPreview(null);
-    setError(null);
+    clearPreviewError();
+    clearImportError();
   };
 
   const handlePreview = async () => {
     if (!file) return;
-    setBusy(true);
-    setError(null);
     try {
-      const result = await previewStrategyPackageImport(file, { policy });
+      const result = await previewAction.run({ importFile: file, importPolicy: policy });
       setPreview(result);
-    } catch (e) {
+    } catch {
       setPreview(null);
-      setError(e?.message || '预览失败');
-    } finally {
-      setBusy(false);
     }
   };
 
   const handleImport = async () => {
     if (!file) return;
-    setBusy(true);
-    setError(null);
     try {
-      const result = await importStrategyPackage(file, { policy });
+      const result = await importAction.run({ importFile: file, importPolicy: policy });
       onSuccess?.(result);
       onClose();
     } catch (e) {
       if (e?.preview) setPreview(e.preview);
-      setError(e?.message || '导入失败');
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -203,10 +211,6 @@ StrategyPackageImportDialog.propTypes = {
   open: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func,
-};
-
-StrategyPackageImportDialog.defaultProps = {
-  onSuccess: null,
 };
 
 export default StrategyPackageImportDialog;

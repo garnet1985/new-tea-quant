@@ -116,6 +116,7 @@ class ReportManager(BaseReportManager):
         store = PortfolioStore.allocate(
             folder,
             strategy_id=strategy_path or strategy_key or str(folder),
+            version_id=str(data.version_id),
         )
         output_dir = store.output_dir
         version_id = int(store.version_id)
@@ -128,7 +129,7 @@ class ReportManager(BaseReportManager):
             version_id=int(version_id),
             enum_version_id=str(data.version_id),
             enum_output_dir=str(data.output_dir),
-            settings_fp=str(ctx.settings_fp or ""),
+            execute_fp=str(ctx.execute_fp or ""),
             env_fp=str(ctx.env_fp or ""),
             period={
                 "start_date": data.start_date,

@@ -41,5 +41,6 @@
     "resolve_deps"
   ],
   "order": 3,
+  "progressWeight": 8,
   "uiVisible": true
 }

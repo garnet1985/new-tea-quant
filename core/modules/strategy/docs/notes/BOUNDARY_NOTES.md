@@ -55,7 +55,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 |------|----------------|
 | **enumerator** | 不需要 |
 | **price_factor** | 现状：`run(start,end)` + 默认日历；真业务在 on_task_complete 事件回放，`on_tick` noop。**不要**为「少空转」先加 TimelineBuilder；等回放迁到 `on_tick` 再议 event 轴 |
-| **portfolio** | **不用 BE**；enum → `PortfolioEvent` 排序 → 进程内模拟。不要为组合套 `Timeline.drive` |
+| **portfolio** | **不用 BE**；enum → `PortfolioEvent` 排序 → 进程内模拟。不要为组合套 `Timeline.drive`。日频盯市夏普（未实现）见 `engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md`，仍不走 BE |
 
 ### 进程内传对象
 
@@ -138,8 +138,9 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 | ReportManager 统一生命周期（`BaseReportManager` + 四引擎） | done |
 
 UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``。
-**加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress`` + ``ScanJob``（扫描）；BFF 只读 / 薄壳。
-**Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；后端 run 只走指纹 ``SimulationCacheManager``。
+**加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress``（扫描进度）；扫描编排在 ``ScannerPipeline``，工作台带进度入口是 ``Strategy.scan_run``。BFF 只读 / 薄壳。
+**Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；读 **磁盘** ``simulations/meta.json`` registry + ``{vid}/settings.json`` / ``effective_settings.json`` / ``scope.json``。
+**Run / cache hit** 在 ``Strategy.simulate`` → ``SimulationVersionStore``（``execute_fp + env_fp`` 扫 registry，**无** workbench DB 双轨）。现行规格：[VERSIONING.md](../VERSIONING.md)。
 ``launcher`` 包已删除。
 
 ---
@@ -166,8 +167,9 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 
 | 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
 |------|------------|------|------|------|
-| `entity_loader` 整包 | S E | Facade, fingerprints | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
-| `simulation_cache` | — | Facade / fingerprints | keep | DB 槽位 + 指纹（指纹服务于 cache，**不拆出**） |
+| `entity_loader` 整包 | S E | Facade, SimulateSession | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
+| `fingerprint` | — | Facade / BFF settings | keep | 收集 identity input → execute_fp / env_fp（``FingerprintCalculator``） |
+| `artifacts` | S E P O | Facade / BFF | keep | 产物读写 + version cache（路径/`version_id`，不含引擎 UI）+ retention（``ArtifactRetention``）+ scan 日期目录（``ScanStore``） |
 | `discovery` | — | Facade | keep | 策略发现 |
 | `data/simulation_output_recorder` | E P O | — | keep | version 目录分配 |
 
@@ -185,7 +187,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 
 ## 遗留问题
 
-> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。无兼容别名；各引擎 `report_manager/` 包布局统一（`report_manager.py` + 私有 summary 数据类）。Scanner 落盘仍用 `scan_results/{date}/`。
+> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。无兼容别名；各引擎 `report_manager/` 包布局统一（`report_manager.py` + 私有 summary 数据类）。Scanner 落盘 ``results/scan/{YYYYMMDD}/``（``ScanStore``）。
 
 ### 应尽快（正确性风险）
 
@@ -213,7 +215,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 |------|------|
 | 多引擎同名 `JobBuilder` / `JobExecutor` | — | **done**：类名加前缀（文件名不变）`Scanner*` / `EnumEntity*` / `EnumSlice*` / `PriceFactor*`；基类仍 `BaseJob*` |
 
-| 两个 `CacheManager` | `scanner/helpers/cache_manager.py`（磁盘 scan CSV）vs `simulation_cache/cache_manager.py`（DB workbench） |
+| 磁盘 scan 产物 | ``ArtifactStore.scan_at`` / ``ScanStore`` 读写 ``results/scan/{YYYYMMDD}/``；keep-N 在 ``ArtifactStore.prune_scan`` |
 | `Investment` vs `PortfolioInvestment` | 文件名 `portfolio/data_class/investment.py` 仍易混；类名已区分 |
 | userspace `strategy.py` vs 模块 `strategy.py` | discovery 已用 `_ntq_strategy_*` 区分 |
 | Scanner runtime `scan_date` 键名 | 与 tick `as_of`/`point` 并存；可逐步改成只作 meta，避免再当时钟 |
@@ -225,7 +227,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 | 在 BE 内核调 `contract.until` | 切片属 Strategy 适配层（`AsOfSlice`），不把 data_contract 绑进 BE |
 | 为 enum 再引入 TimelineBuilder / JobSession | 禁止 |
 | 删模块内 `bff_support` / `launcher` | **done**：UI snapshot/hydrate → BFF helpers；scan/job progress → core services；BFF runner 薄壳 |
-| 拆 `fingerprints` 出 `simulation_cache` | **不做**：指纹本就是给 cache 用的；以后若边界变了再挪 |
+| 拆 `fingerprints` 出 `simulation_cache` | **done**：``services/fingerprint``；查盘/清理已并入 ``artifacts`` |
 
 ---
 

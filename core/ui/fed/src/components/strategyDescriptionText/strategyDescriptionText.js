@@ -4,13 +4,13 @@ import { Stack, Typography } from '@mui/material';
 import { splitStrategyDescription } from '../../utils/formatStrategyDescription';
 
 function StrategyDescriptionText({
-  text,
-  variant,
-  color,
-  className,
-  empty,
-  maxLines,
-  component,
+  text = '',
+  variant = 'body2',
+  color = 'text.secondary',
+  className = '',
+  empty = '—',
+  maxLines = null,
+  component = 'div',
 }) {
   const lines = splitStrategyDescription(text);
   const clampSx = maxLines != null && maxLines > 0
@@ -58,16 +58,6 @@ StrategyDescriptionText.propTypes = {
   empty: PropTypes.node,
   maxLines: PropTypes.number,
   component: PropTypes.elementType,
-};
-
-StrategyDescriptionText.defaultProps = {
-  text: '',
-  variant: 'body2',
-  color: 'text.secondary',
-  className: '',
-  empty: '—',
-  maxLines: null,
-  component: 'div',
 };
 
 export default StrategyDescriptionText;

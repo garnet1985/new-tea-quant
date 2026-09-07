@@ -26,7 +26,7 @@ function NtqHelpTooltip({
   shine = false,
   placement = 'top',
   iconSize = 20,
-  ariaLabel,
+  ariaLabel = '',
   className = '',
 }) {
   const iconName = VARIANT_ICON[variant] || VARIANT_ICON.help;
@@ -70,15 +70,6 @@ function NtqHelpTooltip({
     </Tooltip>
   );
 }
-
-NtqHelpTooltip.defaultProps = {
-  variant: 'help',
-  shine: false,
-  placement: 'top',
-  iconSize: 20,
-  ariaLabel: '',
-  className: '',
-};
 
 NtqHelpTooltip.propTypes = {
   title: PropTypes.node,

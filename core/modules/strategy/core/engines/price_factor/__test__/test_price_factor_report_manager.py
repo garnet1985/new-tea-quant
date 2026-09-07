@@ -32,24 +32,20 @@ def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
             "execution_mode": "entity_based",
             "market_profile": "china_a_stock",
             "period": {"start_date": "20240102", "end_date": "20240110"},
-            "settings_fp": "s",
-            "env_fp": "e",
-            "system": {},
-            "settings_snapshot": {"effective_settings": {}, "settings_diff": {}},
         },
     )
 
 
 def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> None:
-    enum_dir = tmp_path / "enum" / "1"
+    enum_dir = tmp_path / "1" / "enum"
     _write_enum_runtime(enum_dir, ["000001.SZ"])
     data = EnumerateStore.open(enum_dir, version_id="1")
 
-    price_root = tmp_path / "price"
+    sim_root = tmp_path / "simulations"
     monkeypatch.setattr(
         PriceFactorStore,
-        "simulation_root",
-        classmethod(lambda cls, folder, kind=None: price_root),
+        "simulations_root",
+        classmethod(lambda cls, folder: sim_root),
     )
 
     ctx = SimpleNamespace(
@@ -59,7 +55,7 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
         ),
         strategy_key="demo/regression/rsi/rsi_v1_without_value_anchor",
         strategy_folder=tmp_path,
-        settings_fp="sfp",
+        execute_fp="sfp",
         env_fp="efp",
     )
     report = ReportManager.begin(ctx, data, start="20240102", end="20240110")

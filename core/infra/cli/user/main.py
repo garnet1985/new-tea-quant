@@ -19,6 +19,20 @@ class UserRunner:
     """User CLI main dispatch."""
 
     @staticmethod
+    def _setup_wizard_ready() -> bool:
+        try:
+            import json
+
+            from core.infra.setup.core.env import NewTeaQuantSetup
+
+            path = NewTeaQuantSetup.repo_root / ".ntq" / "setup-runtime.json"
+            if not path.is_file():
+                return False
+            return bool(json.loads(path.read_text(encoding="utf-8")).get("isReady"))
+        except Exception:
+            return False
+
+    @staticmethod
     def _setup_warnings() -> None:
         warnings.filterwarnings("ignore", category=FutureWarning, module="tushare")
         warnings.filterwarnings(
@@ -65,7 +79,9 @@ class UserRunner:
         try:
             from core.infra.trace import Trace
 
-            Trace.ask_permission(source="cli")
+            # 向导未完成时，首次询问走浏览器最后一页 /setup/trace，避免 CLI 先写入同意文件。
+            if UserRunner._setup_wizard_ready():
+                Trace.ask_permission(source="cli")
         except KeyboardInterrupt:
             return 0
         except Exception:

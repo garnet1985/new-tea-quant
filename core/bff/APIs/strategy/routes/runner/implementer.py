@@ -52,6 +52,8 @@ class StrategyRunnerImplementer:
         step: str,
         api_settings: Dict[str, Any],
         force_refresh: bool,
+        expected_rev: Optional[str] = None,
+        force_settings_write: bool = False,
     ) -> Dict[str, Any]:
         assert self._WorkbenchRunLauncher is not None
         name = Strategy.resolve(strategy_key_or_name)
@@ -60,6 +62,8 @@ class StrategyRunnerImplementer:
             step=step,
             api_settings=api_settings,
             force_refresh=bool(force_refresh),
+            expected_rev=expected_rev,
+            force_settings_write=bool(force_settings_write),
         )
 
     def get_run_progress(

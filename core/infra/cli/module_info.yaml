@@ -1,6 +1,6 @@
 # 模块元数据
 name: infra.cli
-version: "0.4.0"
+version: "0.4.1"
 compatible_core_versions: ">=0.4.1"
 description: "客户端模块：在命令行工具内为用户或开发者提供一系列边界操作命令的模块。"
 dependencies:
@@ -13,6 +13,9 @@ dependencies:
   - modules.data_manager
   - modules.data_source
 changelog:
+  - version: "0.4.1"
+    changes:
+      - pack / `devcli.py p`：统一模块版本字段（`**版本：**` / `# Version:`），检查 name 与文档不漂移
   - version: "0.4.0"
     changes:
       - 移除 strategy_analyse / sy；分析不再走策略模块

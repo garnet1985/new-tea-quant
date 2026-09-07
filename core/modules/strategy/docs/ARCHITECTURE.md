@@ -1,6 +1,6 @@
 # Strategy — 架构
 
-**版本：** `0.7.0`
+**版本：** `0.8.0`
 
 `modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enumerate / price_factor / portfolio）、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
 
@@ -13,7 +13,7 @@
 - 策略包发现与 Facade 编排（指纹 → 缓存 → Pipeline）
 - Scanner / Enumerator / PriceFactor / Portfolio 引擎与报告
 - userspace hooks 契约（`StrategyHooks` / `StrategyContext`）
-- 模拟产物路径与工作台缓存槽
+- 模拟产物路径与磁盘 version registry
 
 **不负责**
 
@@ -37,9 +37,9 @@ strategy/
     ├── enums.py
     ├── hooks/
     ├── helpers/
-    ├── services/            # discovery, entity_loader, simulation_cache, package, progress, results_retention, workbench_cache
+    ├── services/            # discovery, entity_loader, fingerprint, artifacts, package, progress
     └── engines/
-        ├── scanner/
+        ├── scanner/         # pipeline + job_builder / executor
         ├── enumerator/      # entity_based / slice_based
         ├── price_factor/
         ├── portfolio/       # 不走 BE
@@ -81,4 +81,7 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
 - [DESIGN.md](./DESIGN.md)
+- [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
+- [DECISIONS.md](./notes/DECISIONS.md)
+- [资金层日频盯市风险比（未实现）](../core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md)

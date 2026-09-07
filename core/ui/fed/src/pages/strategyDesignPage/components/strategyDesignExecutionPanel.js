@@ -1,7 +1,9 @@
 import React, { useCallback, useMemo } from 'react';
 import { Box, Button, LinearProgress, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { getStrategyDesignPath } from '../../../api/apis/strategyApi';
+import { useLocation, useNavigate } from 'react-router-dom';
+import VersionPinToggle from 'components/versionPickLabel/versionPinToggle';
+import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
+import { getStrategyDesignPath } from '../../../api/strategyApi';
 import { STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from '../../strategyWorkbenchPage/panels/strategyExecutionPanel/executionSectionMeta';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
@@ -57,6 +59,7 @@ function resolveExecutionStatusCopy({
 
 function StrategyDesignExecutionPanel() {
   const navigate = useNavigate();
+  const location = useLocation();
   const wb = useStrategyDesignWorkbenchContext();
 
   const prevStep = useMemo(() => {
@@ -94,13 +97,13 @@ function StrategyDesignExecutionPanel() {
 
   const handleGoPrevStep = useCallback(() => {
     if (!prevStep || !wb.strategyName || wb.executionBusy) return;
-    navigate(getStrategyDesignPath(wb.strategyName, prevStep.key));
-  }, [navigate, prevStep, wb.executionBusy, wb.strategyName]);
+    navigate(getStrategyDesignPath(wb.strategyName, prevStep.key), { state: location.state });
+  }, [location.state, navigate, prevStep, wb.executionBusy, wb.strategyName]);
 
   const handleGoNextStep = useCallback(() => {
     if (!nextStep || !wb.strategyName || !currentStepDone) return;
-    navigate(getStrategyDesignPath(wb.strategyName, nextStep.key));
-  }, [currentStepDone, navigate, nextStep, wb.strategyName]);
+    navigate(getStrategyDesignPath(wb.strategyName, nextStep.key), { state: location.state });
+  }, [currentStepDone, location.state, navigate, nextStep, wb.strategyName]);
 
   const panelTitle = useMemo(() => {
     const step = STRATEGY_DESIGN_STEPS.find((item) => item.key === wb.activeStep);
@@ -108,11 +111,29 @@ function StrategyDesignExecutionPanel() {
     return stepTitle ? `${EXECUTION_PANEL_TITLE} - ${stepTitle}` : EXECUTION_PANEL_TITLE;
   }, [wb.activeStep]);
 
+  const currentVersion = lookupVersionById(wb.configVersions, wb.currentVersionDisplay);
+  const showPinToggle = Boolean(wb.hasPersistedSnapshot && String(wb.currentVersionDisplay || '').startsWith('v'));
+
   return (
     <Box className="ntq-design-exec-panel">
-      <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
-        {panelTitle}
-      </Typography>
+      <Box className="ntq-design-exec-panel__title-row">
+        <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
+          {panelTitle}
+        </Typography>
+        {showPinToggle ? (
+          <VersionPinToggle
+            version={{
+              ...currentVersion,
+              id: wb.currentVersionDisplay,
+              pinned: wb.currentVersionPinned,
+            }}
+            versions={wb.configVersions}
+            disabled={wb.disablePinActions}
+            onToggle={wb.toggleVersionPinned}
+            showLabel
+          />
+        ) : null}
+      </Box>
 
       {wb.runError ? (
         <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">

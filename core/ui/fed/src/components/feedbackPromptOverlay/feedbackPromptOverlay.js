@@ -16,7 +16,7 @@ import './feedbackPromptOverlay.scss';
  * Lightweight soft-feedback toast (bottom-right; not a consent gate).
  */
 function FeedbackPromptOverlay({
-  open,
+  open = false,
   onSubmit,
   onLater,
   onNever,
@@ -138,10 +138,6 @@ FeedbackPromptOverlay.propTypes = {
   onSubmit: PropTypes.func.isRequired,
   onLater: PropTypes.func.isRequired,
   onNever: PropTypes.func.isRequired,
-};
-
-FeedbackPromptOverlay.defaultProps = {
-  open: false,
 };
 
 export default FeedbackPromptOverlay;

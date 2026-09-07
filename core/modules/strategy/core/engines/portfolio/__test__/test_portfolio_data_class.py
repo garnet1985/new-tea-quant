@@ -33,7 +33,7 @@ def test_account_equity_and_open_position_count():
     assert account.equity({"600000.SH": 12.0}) == 80_000.0 + 12_000.0
 
 
-def test_portfolio_event_from_investment_row_raw_and_roi_sell():
+def test_portfolio_event_buy_and_sell_use_raw_fill_prices():
     row = InvestmentRow(
         investment_id="1",
         entry_date="20240103",
@@ -41,18 +41,58 @@ def test_portfolio_event_from_investment_row_raw_and_roi_sell():
         entry_price_raw=20.0,
         exit_date="20240110",
         exit_price=11.0,
-        exit_price_raw=22.0,
-        weighted_roi=0.1,
+        exit_price_raw=15.0,
+        weighted_roi=0.5,
         lifecycle="complete",
     )
     events = PortfolioEvent.from_investment_row(row, "600000.SH")
     assert len(events) == 2
     buy, sell = events
-    assert buy.is_buy()
     assert buy.price == 20.0
-    assert sell.is_sell()
-    assert sell.price == 22.0  # 20 * (1 + 0.1)
-    assert sell.roi == 0.1
+    assert sell.price == 15.0  # exit_price_raw，不是 20 * (1 + 0.5)
+    assert sell.roi == 0.5
+
+
+def test_portfolio_event_sell_ignores_qfq_roi_below_minus_one():
+    row = InvestmentRow(
+        investment_id="1",
+        entry_date="20240103",
+        entry_price=10.0,
+        entry_price_raw=20.0,
+        exit_date="20240110",
+        exit_price=1.0,
+        exit_price_raw=2.5,
+        weighted_roi=-1.5,
+        lifecycle="complete",
+    )
+    sell = PortfolioEvent.from_investment_row(row, "920522.BJ")[1]
+    assert sell.price == 2.5
+
+
+def test_portfolio_event_skips_when_exit_date_without_exit_raw():
+    row = InvestmentRow(
+        investment_id="1",
+        entry_date="20240103",
+        entry_price=10.0,
+        entry_price_raw=20.0,
+        exit_date="20240110",
+        weighted_roi=-1.4,
+        lifecycle="complete",
+    )
+    assert PortfolioEvent.from_investment_row(row, "920522.BJ") == []
+
+
+def test_portfolio_event_open_position_without_exit_still_buys():
+    row = InvestmentRow(
+        investment_id="3",
+        entry_date="20240103",
+        entry_price_raw=20.0,
+        lifecycle="open",
+    )
+    events = PortfolioEvent.from_investment_row(row, "600000.SH")
+    assert len(events) == 1
+    assert events[0].is_buy()
+    assert events[0].price == 20.0
 
 
 def test_portfolio_event_skips_without_entry_price_raw():
@@ -94,6 +134,18 @@ def test_portfolio_investment_from_trades_profit():
     assert inv.realized_profit == 200.0
     assert inv.holding_days == 7
     assert abs(inv.roi - (200.0 / 2005.0)) < 1e-9
+
+
+def test_trade_make_sell_rejects_non_positive_price():
+    with pytest.raises(ValueError, match="sell price"):
+        Trade.make_sell(
+            date="20240110",
+            entity_id="600000.SH",
+            investment_id="1",
+            shares=100,
+            sell_price=0.0,
+            buy_price=20.0,
+        )
 
 
 def test_trade_share_value_profit_ignores_fees():

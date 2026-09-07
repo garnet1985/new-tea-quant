@@ -4,10 +4,11 @@ import { ThemeProvider, createTheme, alpha } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { zhCN as muiZhCN } from '@mui/material/locale';
 import SetupPage from './pages/setupPage';
+import SetupTracePage from './pages/setupPage/setupTracePage';
 import SetupGuard from 'components/setupGuard';
-import TraceConsentGuard from 'components/traceConsentGuard';
 import FeedbackPromptGuard from 'components/feedbackPromptGuard';
 import MainLayout from './layouts/mainLayout';
+import WelcomePage from './pages/welcomePage';
 import StrategyListPage from './pages/strategyListPage';
 import { StrategyDesignLayout } from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
@@ -151,18 +152,18 @@ function App() {
             path="/setup"
             element={<SetupPage />}
           />
+          <Route path="/setup/trace" element={<SetupTracePage />} />
           <Route path="/what-we-will-track" element={<WhatWeWillTrackPage />} />
           <Route
             element={(
               <SetupGuard>
-                <TraceConsentGuard source="ask_ui">
-                  <FeedbackPromptGuard>
-                    <MainLayout />
-                  </FeedbackPromptGuard>
-                </TraceConsentGuard>
+                <FeedbackPromptGuard>
+                  <MainLayout />
+                </FeedbackPromptGuard>
               </SetupGuard>
             )}
           >
+            <Route path="/welcome" element={<WelcomePage />} />
             <Route
               path="/strategy-workbench/*"
               element={<Navigate to="/strategy-design" replace />}
@@ -201,7 +202,7 @@ function App() {
             />
             <Route path="/settings/*" element={<SettingsPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/strategy-design" replace />} />
+          <Route path="*" element={<Navigate to="/welcome" replace />} />
         </Routes>
       </Router>
     </ThemeProvider>

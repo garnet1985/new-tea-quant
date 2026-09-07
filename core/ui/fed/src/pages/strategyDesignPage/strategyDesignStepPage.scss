@@ -31,11 +31,14 @@
       display: none;
     }
 
+    &:not(:last-of-type) {
+      border-bottom: none;
+      margin-bottom: -1px !important;
+    }
+
     &:first-of-type {
       z-index: 1;
       border-radius: 5px 5px 0 0 !important;
-      border-bottom: none;
-      margin-bottom: -1px !important;
     }
 
     &:last-of-type {

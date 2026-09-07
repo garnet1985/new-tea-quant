@@ -1,11 +1,17 @@
 name: ui
-version: "0.2.0"
-compatible_core_versions: ">=0.4.4"
+version: "0.2.1"
+compatible_core_versions: ">=0.4.5"
 description: "NTQ 前端UI基础设施：提供可视化的用户界面，通过浏览器展示。"
 dependencies:
   - modules.strategy
   - infra.project_context
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 前端 React 17 → 18.3（createRoot）
+      - 重新整理了版本变化逻辑，现在都是根据物理settings文件作为主体进行版本控制
+      - 支持用户一边使用编辑器，一边使用UI更改配置，同时保证两者的一致性
+      - 回测不同步骤里加入了归因的报告
   - version: "0.2.0"
     changes:
       - 重新设计一些策略工作台的API接口，优化用户体验

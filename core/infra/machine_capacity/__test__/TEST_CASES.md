@@ -1,7 +1,7 @@
 # 测试用例 — `infra.machine_capacity`（模块根）
 
 **模块：** `infra.machine_capacity`  
-**覆盖版本：** `0.2.1`  
+**版本：** `0.2.1`  
 **本文件位置：** `__test__/`
 
 ---

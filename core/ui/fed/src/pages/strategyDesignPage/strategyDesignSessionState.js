@@ -1,4 +1,5 @@
 import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
+import logClientError from '../../utils/logClientError';
 
 const IDLE_STEP_STATUS = { enum: 'idle', price: 'idle', portfolio: 'idle' };
 
@@ -17,7 +18,8 @@ function readSessionBlob(strategyName) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
+  } catch (error) {
+    logClientError('design.sessionStorage.read', error, sn);
     return null;
   }
 }
@@ -31,8 +33,8 @@ function writeSessionBlob(strategyName, patch) {
       strategyDesignSessionStorageKey(sn),
       JSON.stringify({ ...prev, ...patch, savedAt: Date.now() }),
     );
-  } catch {
-    /* ignore quota */
+  } catch (error) {
+    logClientError('design.sessionStorage.write', error, sn);
   }
 }
 
@@ -79,6 +81,18 @@ export function writeCachedStrategyDesignStep(strategyName, activeStep) {
   const step = String(activeStep || '').trim();
   if (!step) return;
   writeSessionBlob(strategyName, { activeStep: step });
+}
+
+/** 刚跑完的 version：切步若重挂载，仍看这一号，不要跳回号最大的 latest。 */
+export function readCachedWorkbenchVersion(strategyName) {
+  return String(readSessionBlob(strategyName)?.lastCompletedWorkbenchVersionId || '').trim();
+}
+
+/** @param {string} strategyName @param {string} versionId */
+export function writeCachedWorkbenchVersion(strategyName, versionId) {
+  writeSessionBlob(strategyName, {
+    lastCompletedWorkbenchVersionId: String(versionId || '').trim(),
+  });
 }
 
 /**

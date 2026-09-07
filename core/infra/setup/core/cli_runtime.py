@@ -43,7 +43,7 @@ CLI_INSTALL_STEPS: Tuple[str, ...] = (
 def _ordered_cli_steps() -> List[str]:
     metas = load_setup_step_meta(ui_only=True)
     if metas:
-        return [str(s["id"]) for s in metas]
+        return [str(s["id"]) for s in metas if not bool(s.get("cliSkip"))]
     return list(CLI_INSTALL_STEPS)
 
 

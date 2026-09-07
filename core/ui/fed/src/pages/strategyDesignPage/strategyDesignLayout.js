@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { Box } from '@mui/material';
-import { Navigate, useParams } from 'react-router-dom';
-import { getStrategyDesignPath } from '../../api/apis/strategyApi';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
+import { getStrategyDesignPath } from '../../api/strategyApi';
+import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
 import StrategyDesignBreadcrumbCurrent from './components/strategyDesignBreadcrumbCurrent';
 import StrategyDesignMetaBar from './components/strategyDesignMetaBar';
 import StrategyDesignMetaDialogs from './components/strategyDesignMetaDialogs';
@@ -9,15 +10,37 @@ import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
 import { parseStrategyDesignRoute } from './lib/parseStrategyDesignRoute';
 import { readCachedStrategyDesignStep } from './strategyDesignSessionState';
 import { StrategyDesignProvider } from './strategyDesignContext';
-import { StrategyDesignWorkbenchProvider } from './strategyDesignWorkbenchContext';
+import { StrategyDesignWorkbenchProvider, useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
 import StrategyDesignShell from './strategyDesignShell';
 import StrategyDesignStepPage from './strategyDesignStepPage';
+
+function StrategyDesignBody() {
+  const wb = useStrategyDesignWorkbenchContext();
+  if (wb.isLoadingSettings) {
+    return (
+      <Box className="ntq-page__body strategy-design-shell__body is-loading">
+        <PageLoadingState message="正在加载策略工作台…" minHeight="48vh" />
+      </Box>
+    );
+  }
+
+  return (
+    <>
+      <StrategyDesignMetaBar />
+      <StrategyDesignMetaDialogs />
+      <Box className="ntq-page__body strategy-design-shell__body">
+        <StrategyDesignStepPage />
+      </Box>
+    </>
+  );
+}
 
 /**
  * 制定策略顶层容器：面包屑 + Stepper + 步内 Outlet。
  */
 function StrategyDesignLayout() {
   const params = useParams();
+  const location = useLocation();
   const { strategyName, step } = useMemo(
     () => parseStrategyDesignRoute(params['*']),
     [params],
@@ -29,11 +52,17 @@ function StrategyDesignLayout() {
 
   if (!step) {
     const target = readCachedStrategyDesignStep(strategyName) || STRATEGY_DESIGN_DEFAULT_STEP;
-    return <Navigate to={getStrategyDesignPath(strategyName, target)} replace />;
+    return (
+      <Navigate
+        to={getStrategyDesignPath(strategyName, target)}
+        replace
+        state={location.state}
+      />
+    );
   }
 
   return (
-    <StrategyDesignProvider strategyName={strategyName} initialStep={step}>
+    <StrategyDesignProvider key={strategyName} strategyName={strategyName} initialStep={step}>
       <StrategyDesignWorkbenchProvider>
         <StrategyDesignShell
           breadcrumbsItems={[
@@ -42,11 +71,7 @@ function StrategyDesignLayout() {
           ]}
           breadcrumbsCurrent={<StrategyDesignBreadcrumbCurrent />}
         >
-          <StrategyDesignMetaBar />
-          <StrategyDesignMetaDialogs />
-          <Box className="ntq-page__body strategy-design-shell__body">
-            <StrategyDesignStepPage />
-          </Box>
+          <StrategyDesignBody />
         </StrategyDesignShell>
       </StrategyDesignWorkbenchProvider>
     </StrategyDesignProvider>

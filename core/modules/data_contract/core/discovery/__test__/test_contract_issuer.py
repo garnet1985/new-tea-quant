@@ -85,6 +85,7 @@ class TestContractIssuerDiscovery:
         assert isinstance(user_keys, list)
         # 默认情况下，用户 key 为空（没有用户自定义 contract）
         assert len(user_keys) == 0
+        assert "contract_example" not in issuer.get_validation_errors()
 
     def test_is_customized_for_system_key(self):
         """测试 is_customized()：检查系统 key。"""

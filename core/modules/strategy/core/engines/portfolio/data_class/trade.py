@@ -102,12 +102,14 @@ class Trade:
         buy_price: float,
         fees: float = 0.0,
     ) -> "Trade":
-        """卖出：profit 按 share value 变化计算（不含 fees）。"""
+        """卖出：``sell_price`` 必须为 raw 且 > 0（不做多倒贴、不用 qfq ROI 造价）。"""
         n = int(shares)
         px = float(sell_price)
         buy_px = float(buy_price)
         if n <= 0:
             raise ValueError("sell shares 必须 > 0")
+        if px <= 0:
+            raise ValueError("sell price (raw) 必须 > 0")
         if buy_px <= 0:
             raise ValueError("buy_price (raw) 必须 > 0")
         amount = cls.sell_share_value(n, px)

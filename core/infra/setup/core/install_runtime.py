@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional
 
 from core.system import system_meta
 from core.infra.setup.core.env import NewTeaQuantSetup
+
+logger = logging.getLogger(__name__)
 
 InstallProfileName = Literal["ui", "cli"]
 
@@ -45,7 +48,8 @@ def load_state() -> Dict[str, Any]:
         return {}
     try:
         return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as exc:
+        logger.warning("install_runtime state read failed: %s", STATE_FILE, exc_info=exc)
         return {}
 
 

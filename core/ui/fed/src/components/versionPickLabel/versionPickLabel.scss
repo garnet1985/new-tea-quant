@@ -1,0 +1,66 @@
+.ntq-version-pick-label {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.ntq-version-pick-label__id {
+  font-variant-numeric: tabular-nums;
+}
+
+.ntq-version-pick-label__suffix {
+  color: inherit;
+  opacity: 0.72;
+}
+
+.ntq-version-pick-label__mark {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.ntq-version-pick-label__mark--readonly {
+  color: rgba(255, 167, 38, 0.95);
+  background: rgba(255, 167, 38, 0.14);
+  border: 1px solid rgba(255, 167, 38, 0.35);
+}
+
+.ntq-version-pick-label__mark--expires {
+  color: rgba(248, 113, 113, 0.95);
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.32);
+}
+
+.ntq-version-pick-label__mark--pinned {
+  color: rgba(255, 167, 38, 0.95);
+  background: rgba(255, 167, 38, 0.14);
+  border: 1px solid rgba(255, 167, 38, 0.35);
+}
+
+.ntq-version-pick-label__help {
+  display: inline-flex;
+  align-items: center;
+  margin-left: -2px;
+}
+
+.ntq-version-pick-label__hints {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.ntq-version-pick-label__hint strong {
+  display: block;
+  margin-bottom: 4px;
+}

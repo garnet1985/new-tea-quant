@@ -1,7 +1,7 @@
 # 性能测试用例 — `<Module Display Name>`
 
 **模块：** `<namespace.module_name>`  
-**覆盖版本：** `<module.version>`  
+**版本：** `<module.version>`  
 **位置：** `__performance__/`
 
 ---

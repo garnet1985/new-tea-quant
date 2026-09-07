@@ -1,6 +1,6 @@
 # CLI — 设计
 
-**版本：** `0.4.0`
+**版本：** `0.4.1`
 
 记录双入口、门面类（Facade）导出与命令行参数（argv）脚手架等选型。术语见 [glossary.yaml](../glossary.yaml)。相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
 
@@ -130,6 +130,7 @@ user / dev 各自维护 `SHORT_TO_LONG`；允许同名短别名语义不同。us
 - **影响：**
   - 首 token 在表中则替换为长命令，再交 argparse；空 argv / `-v` / `--version` → `version`
   - dev 的 `pack` 可经 `after_expand` 支持 `-core_vX.Y.Z` → `--version X.Y.Z`
+  - pack 以各模块 `module_info.yaml` 为版本 SSOT：检查 `name`、changelog、文档文首 `**版本：**` / `# Version:` / `最低支持核心版本`；非 `--check-only` 时按 SSOT 改写文首
   - user bootstrap：非 venv 且存在 `venv/` 时 `os.execv` 重入；非 early 命令按需 `install.py`；early 含 `update` / `version` / 策略 import|export、help、`-n` 新建等
 
 ---

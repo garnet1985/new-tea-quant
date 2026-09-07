@@ -1,19 +1,16 @@
-"""ScanCacheManager 单元测试。"""
+"""ScanStore / scanner ReportManager 落盘测试。"""
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.scanner.helpers import cache_manager as cache_mod
-from core.modules.strategy.core.engines.scanner.helpers.cache_manager import (
-    ScanCacheManager,
-)
 from core.modules.strategy.core.engines.scanner.report_manager import ReportManager
 from core.modules.strategy.core.engines.shared.data_class.opportunity import (
     Opportunity,
     StockInfo,
 )
+from core.modules.strategy.core.services.artifacts import ArtifactStore, ScanStore
 
 pytestmark = pytest.mark.force_run
 
@@ -21,43 +18,41 @@ pytestmark = pytest.mark.force_run
 def _isolate_scan_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     scan_dir = tmp_path / "scan"
     monkeypatch.setattr(
-        cache_mod.ProjectContext.path,
-        "get_strategy_scan_results_directory",
-        lambda _name: scan_dir,
-    )
-    monkeypatch.setattr(
-        cache_mod.ProjectContext.config,
-        "get_scan_results_max_versions",
-        lambda: 7,
+        ArtifactStore,
+        "scan_root",
+        classmethod(lambda cls, folder: scan_dir),
     )
     return scan_dir
 
 
-def test_save_load_and_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_scan_store_save_load_and_prune(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _isolate_scan_dir(tmp_path, monkeypatch)
-    cache = ScanCacheManager("demo_strategy", max_cache_days=2)
+    store = ArtifactStore.scan_at("demo_strategy", "20240110")
+    assert isinstance(store, ScanStore)
     opp = Opportunity(
         stock=StockInfo(id="600000.SH", name="浦发"),
         record_of_today={"date": "20240110", "close": 10.0},
         trigger_date="20240110",
         trigger_price=10.0,
     )
-    cache.save_opportunities("20240110", [opp])
-    loaded = cache.load_opportunities("20240110")
+    store.write_opportunity_rows([opp.to_dict()])
+    loaded = ReportManager.load_opportunities(store)
     assert len(loaded) == 1
     assert loaded[0].stock_id == "600000.SH"
     assert loaded[0].trigger_price == pytest.approx(10.0)
 
-    cache.save_opportunities("20240111", [])
-    assert not cache.opportunities_csv_path("20240111").is_file()
+    empty = ArtifactStore.scan_at("demo_strategy", "20240111")
+    empty.write_opportunity_rows([])
+    assert not empty.file("opportunities").is_file()
 
+    scan_root = ArtifactStore.scan_root("demo_strategy")
     for day in ("20240108", "20240109", "20240110"):
-        (cache.cache_base_dir / day).mkdir(parents=True, exist_ok=True)
-        (cache.cache_base_dir / day / "opportunities.csv").write_text(
-            "x\n", encoding="utf-8"
-        )
-    cache.cleanup_old_cache()
-    remaining = sorted(d.name for d in cache.cache_base_dir.iterdir() if d.is_dir())
+        (scan_root / day).mkdir(parents=True, exist_ok=True)
+        (scan_root / day / "opportunities.csv").write_text("x\n", encoding="utf-8")
+    ArtifactStore.prune_scan_root(scan_root, max_versions=2)
+    remaining = sorted(d.name for d in scan_root.iterdir() if d.is_dir())
     assert remaining == ["20240109", "20240110"]
 
 

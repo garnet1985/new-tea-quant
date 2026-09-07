@@ -224,36 +224,42 @@ class PathManager:
         return PathManager.get_strategy_directory(strategy_folder_or_rel) / "results"
 
     @staticmethod
-    def get_strategy_simulation_enum_directory(
+    def get_strategy_simulations_directory(
         strategy_folder_or_rel: Union[str, Path],
     ) -> Path:
-        """枚举模拟结果：``{strategy_root}/results/simulations/enum/``。"""
+        """仿真版本根：``{strategy_root}/results/simulations/``。"""
         return (
             PathManager.get_strategy_results_directory(strategy_folder_or_rel)
             / "simulations"
-            / "enum"
         )
 
     @staticmethod
-    def get_strategy_simulation_price_directory(
+    def get_strategy_simulation_step_directory(
         strategy_folder_or_rel: Union[str, Path],
+        version_id: Union[str, int],
+        step: str,
     ) -> Path:
-        """价格模拟结果：``{strategy_root}/results/simulations/price/``。"""
+        """单步产物目录：``{strategy_root}/results/simulations/{version_id}/{step}/``。"""
+        step_key = str(step or "").strip().lower()
+        step_dir = {
+            "enumerate": "enum",
+            "enum": "enum",
+            "price_factor": "price",
+            "price": "price",
+            "portfolio": "portfolio",
+        }.get(step_key)
+        if step_dir is None:
+            raise ValueError(
+                f"unsupported simulation step: {step!r} "
+                "(expected enum / price / portfolio)"
+            )
+        vid = str(version_id or "").strip()
+        if not vid:
+            raise ValueError("version_id 不能为空")
         return (
-            PathManager.get_strategy_results_directory(strategy_folder_or_rel)
-            / "simulations"
-            / "price"
-        )
-
-    @staticmethod
-    def get_strategy_simulation_portfolio_directory(
-        strategy_folder_or_rel: Union[str, Path],
-    ) -> Path:
-        """组合模拟结果：``{strategy_root}/results/simulations/portfolio/``。"""
-        return (
-            PathManager.get_strategy_results_directory(strategy_folder_or_rel)
-            / "simulations"
-            / "portfolio"
+            PathManager.get_strategy_simulations_directory(strategy_folder_or_rel)
+            / vid
+            / step_dir
         )
 
     @staticmethod

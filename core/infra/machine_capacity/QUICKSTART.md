@@ -1,6 +1,6 @@
 # Machine Capacity — 快速开始
 
-**模块：** `infra.machine_capacity` · **版本：** `0.2.0`
+**模块：** `infra.machine_capacity` · **版本：** `0.2.1`
 
 ```python
 from core.infra.machine_capacity import MachineInfo

@@ -1,4 +1,4 @@
-"""Settings implementer: option catalogs + apply snapshot → userspace."""
+"""Settings implementer: option catalogs + restore version freeze → userspace settings.py."""
 
 from __future__ import annotations
 
@@ -50,6 +50,8 @@ class StrategySettingsImplementer:
         strategy_key_or_name: str,
         version_id: str,
         pretty: bool = False,
+        expected_rev: Optional[str] = None,
+        force: bool = False,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         assert self._Apply is not None
         name = Strategy.resolve(strategy_key_or_name)
@@ -57,8 +59,41 @@ class StrategySettingsImplementer:
         if sid is None:
             return None, "version_id 无效"
         return self._Apply.apply(
-            strategy_name=name, version=sid, pretty=bool(pretty)
+            strategy_name=name,
+            version=sid,
+            pretty=bool(pretty),
+            expected_rev=expected_rev,
+            force=bool(force),
         )
+
+    def persist_editor_settings(
+        self,
+        *,
+        strategy_key_or_name: str,
+        settings: Dict[str, Any],
+        pretty: bool = True,
+        expected_rev: Optional[str] = None,
+        force: bool = False,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        assert self._Apply is not None
+        name = Strategy.resolve(strategy_key_or_name)
+        return self._Apply.persist_editor_settings(
+            strategy_name=name,
+            settings=settings,
+            pretty=bool(pretty),
+            expected_rev=expected_rev,
+            force=bool(force),
+        )
+
+    def fetch_current_occupancy(self, strategy_key_or_name: str) -> Dict[str, Any]:
+        name = Strategy.resolve(strategy_key_or_name)
+        from core.bff.APIs.strategy.helpers.settings_occupancy import (
+            SettingsOccupancy,
+        )
+
+        occupancy = SettingsOccupancy.read(name)
+        occupancy["strategy_name"] = name
+        return occupancy
 
 
 impl = StrategySettingsImplementer()

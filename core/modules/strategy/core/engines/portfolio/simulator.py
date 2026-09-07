@@ -219,6 +219,9 @@ class PortfolioSimulator:
             return
 
         sell_price = float(event.price or 0.0)
+        if sell_price <= 0:
+            result.skipped_sells += 1
+            return
         shares = int(position.shares)
         shares, part_tag = self.allocation.apply_participation(
             shares,

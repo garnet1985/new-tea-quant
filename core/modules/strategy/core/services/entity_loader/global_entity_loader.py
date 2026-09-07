@@ -1,7 +1,7 @@
 """全局 entity 数据加载与共享内存（entity_loader 整块之一）。
 
 消费者: enumerator
-其它: Facade, fingerprints
+其它: Facade, SimulateSession
 （整块消费者见 entity_loader/__init__.py）
 
 本文件:

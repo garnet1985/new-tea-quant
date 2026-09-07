@@ -33,10 +33,10 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     _write(root / "extensions/data_source/providers/tushare/auth_token.txt", "secret")
     _write(root / "extensions/data_source/providers/tushare/auth_token.txt.example", "template")
     _write(root / "extensions/data_source/config.py", "TOKEN='x'")
-    _write(root / "strategies/demo/results/simulations/price/1/a.csv")
+    _write(root / "strategies/demo/results/simulations/1/price/a.csv")
     _write(
         root
-        / "strategies/demo/regression/rsi/rsi_v1_without_value_anchor/results/simulations/price/1/a.csv"
+        / "strategies/demo/regression/rsi/rsi_v1_without_value_anchor/results/simulations/1/price/a.csv"
     )
     _write(root / "system/db/data.duckdb", "db")
     _write(root / "extensions/data_source/handlers/adj_factor_event/adj_factor_events_2025Q4.csv", "a,b")

@@ -110,7 +110,7 @@ def test_resolve_output_dir_requires_entity_csv(tmp_path, monkeypatch):
         "investment_id,trigger_date\nx,20200101\n", encoding="utf-8"
     )
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.report.stock_detail.resolve_simulation_output_dirs",
+        "core.bff.APIs.strategy.routes.report.stock_detail.Strategy.resolve_simulation_output_dirs",
         lambda *a, **k: [out_dir],
     )
     resolved = WorkbenchStockDetail._resolve_output_dir(

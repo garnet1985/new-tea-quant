@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -23,22 +23,168 @@ import {
   Typography,
 } from '@mui/material';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
+import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/apis/settingsApi';
-import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/apis/feedbackApi';
+import { formatDateTime } from '../../utils/formatDateTime';
+import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
+import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
+import { getMlExtrasStatus, installMlExtras, resetSetupStatus } from '../../api/setupApi';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { useFakeProgress } from '../../hooks/useFakeProgress';
 
 export function SettingsSystemPanel() {
+  const navigate = useNavigate();
+  const [mlStatus, setMlStatus] = useState(null);
+  const [mlLoadError, setMlLoadError] = useState('');
+  const [mlOk, setMlOk] = useState('');
+  const [installing, setInstalling] = useState(false);
+  const [reinstallOpen, setReinstallOpen] = useState(false);
+  const [reinstalling, setReinstalling] = useState(false);
+  const [reinstallError, setReinstallError] = useState('');
+  const fakePercent = useFakeProgress(installing, 8);
+
+  const loadMlStatus = useCallback(() => {
+    setMlLoadError('');
+    return getMlExtrasStatus()
+      .then((next) => {
+        setMlStatus(next);
+      })
+      .catch((err) => {
+        setMlLoadError(err?.message || '无法检查机器学习依赖状态。');
+      });
+  }, []);
+
+  useEffect(() => {
+    loadMlStatus();
+  }, [loadMlStatus]);
+
+  const handleInstallMl = async () => {
+    setInstalling(true);
+    setMlOk('');
+    setMlLoadError('');
+    try {
+      const next = await installMlExtras();
+      setMlStatus(next);
+      setMlOk(next.installed ? '机器学习依赖已安装。' : '安装请求已完成，请刷新后复查。');
+    } catch (err) {
+      setMlLoadError(err?.message || '安装失败，请检查网络后重试。');
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const handleConfirmReinstall = async () => {
+    setReinstalling(true);
+    setReinstallError('');
+    try {
+      await resetSetupStatus();
+      setReinstallOpen(false);
+      navigate('/setup', { replace: true, state: { autoStart: true } });
+    } catch (err) {
+      setReinstallError(err?.message || '无法重置安装状态，请检查网络后重试。');
+    } finally {
+      setReinstalling(false);
+    }
+  };
+
+  const mlInstalled = Boolean(mlStatus?.installed);
+
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1" fontWeight={700}>
         安装与维护
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        需要重新执行引导安装（数据路径、数据库连接、导入等）时，请进入安装向导。
+        重新安装会再次走引导：数据路径、数据库连接、演示数据和可选的机器学习依赖。确认后从第一步开始，不会停留在「安装完成」页。
       </Typography>
+      {reinstallError ? <Alert severity="error">{reinstallError}</Alert> : null}
       <Box>
-        <Button component={RouterLink} to="/setup" variant="contained" color="secondary">
+        <Button
+          variant="contained"
+          color="secondary"
+          disabled={reinstalling}
+          onClick={() => {
+            setReinstallError('');
+            setReinstallOpen(true);
+          }}
+        >
           重新安装
+        </Button>
+      </Box>
+      <Dialog
+        open={reinstallOpen}
+        onClose={() => !reinstalling && setReinstallOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>确认重新安装？</DialogTitle>
+        <DialogContent>
+          <DialogContentText component="div">
+            向导会从头执行。请先了解这些风险：
+            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+              <li>可能覆盖 userspace 路径选择，以及数据库连接配置。</li>
+              <li>若选择导入演示数据，现有表数据可能被覆盖。</li>
+              <li>进行中的回测 / 扫描结果不会自动备份。</li>
+              <li>已安装的 Python 依赖不会被卸载；机器学习组件仍可稍后在本页补装。</li>
+            </Box>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReinstallOpen(false)} disabled={reinstalling}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleConfirmReinstall}
+            disabled={reinstalling}
+          >
+            {reinstalling ? '正在进入安装…' : '确认，从第一步开始'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
+        机器学习组件
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        策略设置里的「回测后归因」开关需要这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
+      </Typography>
+      {mlLoadError ? <Alert severity="error">{mlLoadError}</Alert> : null}
+      {mlOk ? <Alert severity="success">{mlOk}</Alert> : null}
+      {mlStatus == null && !mlLoadError ? (
+        <InlineLoadingState message="正在检查机器学习依赖…" />
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          {mlInstalled
+            ? `已安装${mlStatus?.shap ? '（含 SHAP）' : '（XGBoost）'}。`
+            : '尚未安装。未安装时，策略设置里的归因开关不可用。'}
+        </Typography>
+      )}
+      {installing ? (
+        <Box>
+          <Typography variant="caption" color="text.secondary">
+            正在安装… {fakePercent}%
+          </Typography>
+          <Box sx={{ mt: 0.5, height: 8, borderRadius: 1, bgcolor: 'grey.200', overflow: 'hidden' }}>
+            <Box
+              sx={{
+                width: `${fakePercent}%`,
+                bgcolor: 'primary.main',
+                height: '100%',
+                transition: 'width 0.4s ease',
+              }}
+            />
+          </Box>
+        </Box>
+      ) : null}
+      <Box>
+        <Button
+          variant="outlined"
+          disabled={mlInstalled || installing}
+          onClick={handleInstallMl}
+        >
+          {mlInstalled ? '已安装' : '安装机器学习依赖'}
         </Button>
       </Box>
     </Stack>
@@ -97,7 +243,7 @@ export function SettingsDatabasePanel({
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载数据库配置…" />
+        <PageLoadingState message="正在加载数据库配置…" minHeight="36vh" />
       ) : (
         <Stack spacing={2} sx={{ maxWidth: 420 }}>
           <FormControl fullWidth size="small">
@@ -167,12 +313,24 @@ export function SettingsDataPanel({
   defaultStartDate,
   asOfLatestCompletedDate,
   useSampleStockList,
+  simulationResultsMaxVersions,
   onDefaultStartDateChange,
   onAsOfLatestCompletedDateChange,
   onUseSampleStockListChange,
+  onSimulationResultsMaxVersionsChange,
   onSave,
   onReload,
 }) {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (loading) return undefined;
+    if (location.hash !== '#retention') return undefined;
+    const el = document.getElementById('settings-retention');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return undefined;
+  }, [loading, location.hash]);
+
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1" fontWeight={700}>
@@ -192,7 +350,7 @@ export function SettingsDataPanel({
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载数据配置…" />
+        <PageLoadingState message="正在加载数据配置…" minHeight="36vh" />
       ) : (
         <Stack spacing={2} sx={{ maxWidth: 420 }}>
           <TextField
@@ -222,6 +380,17 @@ export function SettingsDataPanel({
             placeholder="留空表示全市场"
             helperText="use_sample_stock_list；正整数 N 对应 stratified_N 样本池。"
           />
+          <Box id="settings-retention">
+            <TextField
+              label="回测结果保留份数"
+              size="small"
+              fullWidth
+              value={simulationResultsMaxVersions}
+              onChange={(e) => onSimulationResultsMaxVersionsChange(e.target.value)}
+              placeholder="10"
+              helperText="按份数保留，不是按日历过期。制定策略额度满时会先拒绝新回测；扫描会按上限自动裁剪。已固定的版本不会被自动清理，仍可手动删除。改小后已有结果不会立刻删除。"
+            />
+          </Box>
           <Box>
             <Button variant="contained" onClick={onSave} disabled={saving}>
               {saving ? '保存中…' : '保存数据设置'}
@@ -237,11 +406,6 @@ export function SettingsDataPanel({
 }
 
 const CACHE_OPTIONS = [
-  {
-    key: 'clear_db_cache',
-    label: '数据库缓存清理',
-    hint: '清空 sys_strategy_workbench_snapshot（策略调试版本快照）。不会删除磁盘 results/。',
-  },
   {
     key: 'clear_backtest_results',
     label: '回测结果临时文件清理',
@@ -260,7 +424,6 @@ const CACHE_OPTIONS = [
 ];
 
 const DEFAULT_CACHE_SELECTION = {
-  clear_db_cache: true,
   clear_backtest_results: true,
   clear_scan_results: true,
   clear_userspace_ntq: true,
@@ -387,30 +550,20 @@ export function SettingsCachePanel() {
 }
 
 function formatTraceDecidedAt(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return '';
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
+  return formatDateTime(raw, { style: 'absolute' });
 }
 
 export function SettingsTracePanel() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [saveError, setSaveError] = useState('');
   const [saveOk, setSaveOk] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [decided, setDecided] = useState(false);
   const [decidedAt, setDecidedAt] = useState('');
+
+  const saveAction = useAsyncAction(
+    useCallback((nextEnabled) => saveTraceSettings({ enabled: Boolean(nextEnabled) }), []),
+  );
 
   const applyState = useCallback((r) => {
     setEnabled(Boolean(r.enabled));
@@ -433,19 +586,16 @@ export function SettingsTracePanel() {
     load();
   }, [load]);
 
-  const handleToggle = (_event, next) => {
-    setSaveError('');
+  const handleToggle = async (_event, next) => {
     setSaveOk('');
-    setSaving(true);
-    saveTraceSettings({ enabled: Boolean(next) })
-      .then((r) => {
-        applyState(r);
-        setSaveOk(next ? '已开启匿名使用统计。' : '已关闭匿名使用统计。本地排队事件已清空。');
-      })
-      .catch((e) => {
-        setSaveError(e?.message || '保存失败');
-      })
-      .finally(() => setSaving(false));
+    saveAction.clearError();
+    try {
+      const r = await saveAction.run(Boolean(next));
+      applyState(r);
+      setSaveOk(next ? '已开启匿名使用统计。' : '已关闭匿名使用统计。本地排队事件已清空。');
+    } catch {
+      /* saveAction.error */
+    }
   };
 
   return (
@@ -464,11 +614,11 @@ export function SettingsTracePanel() {
       </Typography>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载使用统计设置…" />
+        <PageLoadingState message="正在加载使用统计设置…" minHeight="36vh" />
       ) : (
         <Stack spacing={1.5} sx={{ maxWidth: 520 }}>
           {!decided ? (
@@ -487,7 +637,7 @@ export function SettingsTracePanel() {
               <Switch
                 checked={enabled}
                 onChange={handleToggle}
-                disabled={saving}
+                disabled={saveAction.busy}
                 inputProps={{ 'aria-label': '开启匿名使用统计' }}
               />
             )}
@@ -500,7 +650,7 @@ export function SettingsTracePanel() {
             </Typography>
           ) : null}
           <Box>
-            <Button variant="outlined" onClick={load} disabled={saving || loading}>
+            <Button variant="outlined" onClick={load} disabled={saveAction.busy || loading}>
               重新读取
             </Button>
           </Box>
@@ -512,12 +662,14 @@ export function SettingsTracePanel() {
 
 export function SettingsFeedbackPanel() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [saveError, setSaveError] = useState('');
   const [saveOk, setSaveOk] = useState('');
   const [promptsDisabled, setPromptsDisabled] = useState(false);
   const [contactUrl, setContactUrl] = useState('https://new-tea.cn/zh-hans/contact?from=ntq_app');
+
+  const saveAction = useAsyncAction(
+    useCallback((nextDisabled) => saveFeedbackSettings({ prompts_disabled: Boolean(nextDisabled) }), []),
+  );
 
   const applyState = useCallback((r) => {
     setPromptsDisabled(Boolean(r.prompts_disabled));
@@ -539,21 +691,18 @@ export function SettingsFeedbackPanel() {
     load();
   }, [load]);
 
-  const handleToggle = (_event, nextEnabled) => {
+  const handleToggle = async (_event, nextEnabled) => {
     // Switch ON = prompts enabled = prompts_disabled false
     const nextDisabled = !nextEnabled;
-    setSaveError('');
     setSaveOk('');
-    setSaving(true);
-    saveFeedbackSettings({ prompts_disabled: nextDisabled })
-      .then((r) => {
-        applyState(r);
-        setSaveOk(nextDisabled ? '已关闭应用内反馈询问。' : '已开启应用内反馈询问。');
-      })
-      .catch((e) => {
-        setSaveError(e?.message || '保存失败');
-      })
-      .finally(() => setSaving(false));
+    saveAction.clearError();
+    try {
+      const r = await saveAction.run(nextDisabled);
+      applyState(r);
+      setSaveOk(nextDisabled ? '已关闭应用内反馈询问。' : '已开启应用内反馈询问。');
+    } catch {
+      /* saveAction.error */
+    }
   };
 
   return (
@@ -567,11 +716,11 @@ export function SettingsFeedbackPanel() {
       </Typography>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
 
       {loading ? (
-        <InlineLoadingState block message="正在加载反馈设置…" />
+        <PageLoadingState message="正在加载反馈设置…" minHeight="36vh" />
       ) : (
         <Stack spacing={1.5} sx={{ maxWidth: 520 }}>
           <FormControlLabel
@@ -585,7 +734,7 @@ export function SettingsFeedbackPanel() {
               <Switch
                 checked={!promptsDisabled}
                 onChange={handleToggle}
-                disabled={saving}
+                disabled={saveAction.busy}
                 inputProps={{ 'aria-label': '开启应用内反馈询问' }}
               />
             )}
@@ -603,7 +752,7 @@ export function SettingsFeedbackPanel() {
             </Button>
           </Box>
           <Box>
-            <Button variant="text" onClick={load} disabled={saving || loading}>
+            <Button variant="text" onClick={load} disabled={saveAction.busy || loading}>
               重新读取
             </Button>
           </Box>

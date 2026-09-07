@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import './loadingBars.scss';
 
-function LoadingBars({ barCount, className, 'aria-label': ariaLabel }) {
+function LoadingBars({ barCount = 5, className = '', 'aria-label': ariaLabel = '加载中' }) {
   const count = Math.max(3, Math.min(8, Number(barCount) || 5));
   const bars = Array.from({ length: count }, (_, i) => `bar-${i}`);
 
@@ -23,12 +23,6 @@ LoadingBars.propTypes = {
   barCount: PropTypes.number,
   className: PropTypes.string,
   'aria-label': PropTypes.string,
-};
-
-LoadingBars.defaultProps = {
-  barCount: 5,
-  className: '',
-  'aria-label': '加载中',
 };
 
 export default LoadingBars;

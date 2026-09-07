@@ -10,5 +10,6 @@
   },
   "dependencies": [],
   "order": 1,
+  "progressWeight": 2,
   "uiVisible": false
 }

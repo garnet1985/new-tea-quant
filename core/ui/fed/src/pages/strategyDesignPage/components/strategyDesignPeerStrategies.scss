@@ -1,0 +1,30 @@
+.ntq-design-peer-strategies__list {
+  padding: 2px 2px 4px;
+}
+
+.ntq-design-peer-strategies__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 4px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ntq-design-peer-strategies__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ntq-design-peer-strategies__badge {
+  flex: 0 0 auto;
+}
+
+.ntq-design-peer-strategies__more {
+  display: inline-flex;
+  padding: 8px 4px 2px;
+  font-size: 13px;
+}

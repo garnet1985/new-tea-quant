@@ -1,1 +1,1 @@
-"""内部实现包。骨架阶段为空。"""
+"""Analysis internal stats implementations (no I/O)."""

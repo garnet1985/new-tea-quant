@@ -1,3 +1,5 @@
+import logClientError from '../../../utils/logClientError';
+
 const ACTIVE_RUN_STORAGE_PREFIX = 'ntq-design-active-run';
 
 function activeRunStorageKey(strategyName) {
@@ -17,8 +19,8 @@ export function persistDesignActiveRun(strategyName, { activeRunId, progressPoll
         savedAt: Date.now(),
       }),
     );
-  } catch {
-    /* ignore quota / private mode */
+  } catch (error) {
+    logClientError('design.activeRunStorage.write', error, sn);
   }
 }
 
@@ -27,8 +29,8 @@ export function clearDesignActiveRun(strategyName) {
   if (!sn) return;
   try {
     sessionStorage.removeItem(activeRunStorageKey(sn));
-  } catch {
-    /* ignore */
+  } catch (error) {
+    logClientError('design.activeRunStorage.clear', error, sn);
   }
 }
 
@@ -46,7 +48,8 @@ export function loadDesignActiveRun(strategyName) {
       activeRunId,
       progressPollStep: String(parsed.progressPollStep || '').trim(),
     };
-  } catch {
+  } catch (error) {
+    logClientError('design.activeRunStorage.read', error, sn);
     return null;
   }
 }

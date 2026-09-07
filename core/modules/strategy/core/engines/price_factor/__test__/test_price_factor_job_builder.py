@@ -39,9 +39,6 @@ def _write_runtime(
         "execution_mode": "entity_based",
         "market_profile": "china_a_stock",
         "period": {"start_date": start, "end_date": end},
-        "fingerprints": {"settings": "s", "env": "e"},
-        "system": {},
-        "settings": {"effective_settings": {"market_profile": "china_a_stock"}},
     }
     (output_dir / RUNTIME_ENV_FILE).write_text(
         json.dumps(payload, ensure_ascii=False),

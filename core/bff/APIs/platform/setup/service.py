@@ -5,7 +5,7 @@ from pathlib import Path
 from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
 
-from core.bff.shared.response import ok, passthrough
+from core.bff.shared.response import ok, from_payload
 
 
 class SetupService:
@@ -40,29 +40,39 @@ class SetupService:
                     filtered_schema.append(field)
                 step["inputSchema"] = filtered_schema
             elif step.get("id") == "import_data":
-                step["name"] = "导入初始化数据"
+                step["name"] = "导入演示数据"
+            elif step.get("id") == "resolve_ml_deps":
+                step["name"] = "机器学习依赖"
+            elif step.get("id") == "resolve_deps":
+                step["name"] = "核心依赖"
         return ok({"steps": steps})
 
     def get_setup_status(self):
         return ok(self._setup_runtime.get_status())
 
     def start_setup(self):
-        return passthrough(self._setup_runtime.start())
+        return from_payload(self._setup_runtime.start())
 
     def submit_setup_step(self, step_id: str, inputs: dict):
-        return passthrough(self._setup_runtime.submit(step_id, inputs or {}))
+        return from_payload(self._setup_runtime.submit(step_id, inputs or {}))
 
     def retry_setup(self):
-        return passthrough(self._setup_runtime.retry())
+        return from_payload(self._setup_runtime.retry())
 
     def reset_setup(self):
-        return passthrough(self._setup_runtime.reset())
+        return from_payload(self._setup_runtime.reset())
 
     def precheck_db_connection(self, inputs: dict):
-        return passthrough(self._setup_runtime.precheck_db_connection(inputs or {}))
+        return from_payload(self._setup_runtime.precheck_db_connection(inputs or {}))
 
     def precheck_userspace_path(self, inputs: dict):
-        return passthrough(self._setup_runtime.precheck_userspace_path(inputs or {}))
+        return from_payload(self._setup_runtime.precheck_userspace_path(inputs or {}))
 
     def get_import_data_progress(self):
-        return passthrough(self._setup_runtime.get_import_data_progress())
+        return from_payload(self._setup_runtime.get_import_data_progress())
+
+    def get_ml_extras_status(self):
+        return from_payload(self._setup_runtime.get_ml_extras_status())
+
+    def install_ml_extras(self):
+        return from_payload(self._setup_runtime.install_ml_extras())

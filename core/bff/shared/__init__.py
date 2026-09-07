@@ -2,7 +2,7 @@
 
 from .file_ops import atomic_write_text, backup_file
 from .request import json_payload, pagination_params, v2_not_implemented
-from .response import ok, error, passthrough
+from .response import ok, error, passthrough, from_payload
 
 __all__ = [
     "atomic_write_text",
@@ -13,4 +13,5 @@ __all__ = [
     "ok",
     "error",
     "passthrough",
+    "from_payload",
 ]

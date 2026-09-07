@@ -93,6 +93,13 @@ class DuckdbDomainConnection:
                 return duckdb.connect(db_path, read_only=True)
             return duckdb.connect(db_path)
         except Exception as e:
+            if self._is_lock_error(e):
+                raise RuntimeError(
+                    f"无法打开 DuckDB（文件被其他进程占用）: {db_path}。"
+                    f" 同一库同时只能有一个写进程。请先结束占用进程后再试"
+                    f"（常见原因：另一个未退出的 UI/BFF、cli，或上次安装步骤仍在运行）。"
+                    f" 原始错误: {self._short_exc(e)}"
+                ) from e
             if not self._is_corrupt_wal_error(e):
                 raise
             wal_path = f"{db_path}.wal"
@@ -125,6 +132,11 @@ class DuckdbDomainConnection:
     def _short_exc(exc: BaseException) -> str:
         msg = str(exc).strip()
         return msg.split("\n", 1)[0].strip() or repr(exc)
+
+    @staticmethod
+    def _is_lock_error(exc: BaseException) -> bool:
+        msg = str(exc).lower()
+        return "conflicting lock" in msg or "could not set lock" in msg
 
     @staticmethod
     def _is_corrupt_wal_error(exc: BaseException) -> bool:

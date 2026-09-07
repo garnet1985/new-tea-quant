@@ -1,7 +1,7 @@
 # NTQ Core Module Standards - 核心模块创建与维护准则
 
-**版本：** 1.2.0  
-**最后更新：** 2026-08-01  
+**版本：** 1.2.1  
+**最后更新：** 2026-09-07  
 **适用范围：** `core/modules/*`、`core/infra/*`（及其他 core 下按本标准收口的主模块）
 
 > **本文：** 核心模块的创建、维护、测试结构、版本、Facade / 导出等**模块规则**。  
@@ -253,7 +253,7 @@
 
 | 内容 | 要求 |
 |------|------|
-| 覆盖版本 | = `module_info.yaml` 的 `version`（或注明兼容范围） |
+| 版本 | = `module_info.yaml` 的 `version`（文首字段名 `**版本：**`，禁止 `**覆盖版本：**`） |
 | Scope / 边界 | 负责 / 不负责；允许的测试类型 |
 | Scenario → Case | Case 名 = pytest 函数名；标明所属 `test_*.py` |
 | 与 API 对齐 | 根目录 API suite 须能映射到 `API.md` |
@@ -290,7 +290,7 @@
 
 | 属性名 | 类型 | 说明 | 检查方式 |
 |--------|------|------|---------|
-| `name` | string | 模块名称（如 `infra.db`） | 属性存在 |
+| `name` | string | 模块名称：`modules.x` / `infra.x` / `ui` / `bff` / `tables` | 与目录一致（`devcli.py p` 检查） |
 | `version` | string | 模块版本 `MAJOR.MINOR.PATCH` | 属性存在，格式正确 |
 | `compatible_core_versions` | string | 兼容的 **core** 版本 range（与模块 `version` 独立） | 属性存在 |
 | `description` | string | 模块描述 | 属性存在 |
@@ -299,7 +299,7 @@
 
 **`changelog` 格式：** 新 → 旧；每条含 `version` + `changes`（字符串列表）。
 
-**版本一致性：** `module_info.yaml` 的 `version`、`changelog[0].version` 与各文档文首版本一致（文档侧细则见 [模块文档规范](docs/module-doc-standard.md)）。
+**版本一致性：** `module_info.yaml` 的 `version`、`changelog[0].version` 与各文档文首标准版本字段一致；`name` 须符合目录约定。`devcli.py p` 强制检查。细则见 [模块文档规范](docs/module-doc-standard.md)。
 
 **版本 bump 语义：** 见 **指标 11**（小 / 中 / 大）。
 
@@ -454,7 +454,7 @@ settings["performance"] = {"max_workers": 8}
 - **公开符号改名** = 破坏性 → **中版本**；仅模块内部改名 → **小版本**。
 - 仅文档笔误、与行为无关的措辞修正：可不 bump；文档与实现对齐的实质性修正 → 至少 **小版本**。
 - 同一发布批次多次提交：合并为一次 bump；`changelog` 写清本版本要点。
-- bump 后同步：`module_info.version`、`changelog[0]`、相关文档文首版本、`API.md` 中受影响入口的「引入版本」只在新增时填写。
+- bump 后同步：`module_info.version`、`changelog[0]`、文档文首标准版本字段（Markdown `**版本：**`，glossary `# Version:`）。`devcli.py p` 强制检查。`API.md` 里「引入版本」只在新增入口时填写。
 
 ---
 
@@ -657,7 +657,7 @@ else:
 
 | 检查项 | 类型 | 说明 |
 |--------|------|------|
-| ✅ 版本号一致 | 硬性指标 | module_info 与各文档文首版本一致 |
+| ✅ 版本号一致 | 硬性指标 | module_info 与各文档文首 `**版本：**` 一致；`devcli.py p` 闸门 |
 | ✅ changelog 更新 | 硬性指标 | 记录所有改动 |
 | ✅ 文档同步更新 | 硬性指标 | 见 [模块文档规范](docs/module-doc-standard.md) 维护触发 |
 | ✅ 根目录 `API.md` 与实现一致 | 硬性指标 | 签名 / 状态 / 参数表对齐代码 |

@@ -1,8 +1,7 @@
 # 测试用例 — `modules.data_manager`
 
 **模块：** `modules.data_manager`  
-**覆盖版本：** `0.4.0`
-
+**版本：** `0.2.0`  
 ## Scope
 
 验证门面 `DataManager` 公开逻辑（对齐 `API.md`）。

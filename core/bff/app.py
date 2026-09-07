@@ -75,8 +75,10 @@ def _shutdown_worker_children() -> None:
         from core.ui.process_cleanup import terminate_multiprocessing_children
 
         terminate_multiprocessing_children()
-    except Exception:
-        pass
+    except Exception as exc:
+        from core.bff.shared.client_log import log_degraded
+
+        log_degraded("app.shutdownWorkers", exc)
 
 
 def _register_shutdown_hooks() -> None:
@@ -89,8 +91,10 @@ def _start_trace_drain() -> None:
         from core.infra.trace import Trace
 
         Trace.start_background_drain()
-    except Exception:
-        pass
+    except Exception as exc:
+        from core.bff.shared.client_log import log_degraded
+
+        log_degraded("app.traceDrain", exc)
 
 
 if __name__ == "__main__":

@@ -110,7 +110,8 @@ class FeedbackPrefsService:
             state["last_action"] = "snooze"
             FeedbackPrefsService._save_state(state)
             return True
-        except Exception:
+        except Exception as exc:
+            logger.debug("snooze_prompt failed: %s", exc)
             return False
 
     @staticmethod

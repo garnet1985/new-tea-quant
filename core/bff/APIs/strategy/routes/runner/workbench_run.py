@@ -40,6 +40,8 @@ class WorkbenchRunLauncher:
         step: str,
         api_settings: Dict[str, Any],
         force_refresh: bool,
+        expected_rev: Optional[str] = None,
+        force_settings_write: bool = False,
     ) -> Dict[str, Any]:
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
@@ -77,6 +79,38 @@ class WorkbenchRunLauncher:
             jid = f"wb-run-{uuid.uuid4().hex[:12]}"
             cls._ACTIVE_BY_STRATEGY[name] = jid
 
+        occupancy: Dict[str, Any] = {}
+        try:
+            occupancy = cls._persist_run_settings(
+                name,
+                api_settings,
+                expected_rev=expected_rev,
+                force=bool(force_settings_write),
+            )
+        except Exception as persist_exc:
+            cls._clear_active(name, jid)
+            from core.bff.APIs.strategy.helpers.settings_occupancy import (
+                SettingsFileConflict,
+            )
+
+            if isinstance(persist_exc, SettingsFileConflict):
+                return {
+                    "is_triggered": False,
+                    "conflict": True,
+                    "reason": str(persist_exc),
+                    "occupancy": persist_exc.occupancy,
+                }
+            raise
+
+        persist_err = occupancy.pop("_error", None) if occupancy else None
+        if persist_err:
+            cls._clear_active(name, jid)
+            return {
+                "is_triggered": False,
+                "persist_error": True,
+                "reason": persist_err,
+            }
+
         PipelineProgress.seed(
             name,
             jid,
@@ -97,6 +131,7 @@ class WorkbenchRunLauncher:
             "pipeline_id": jid,
             "pipeline_name": norm,
             "pipeline_description": PipelineProgress.pipeline_description(norm),
+            "settings_rev": str((occupancy or {}).get("settings_rev") or ""),
         }
 
     @classmethod
@@ -204,11 +239,34 @@ class WorkbenchRunLauncher:
                     ignore_cache=force_refresh,
                     runtime_settings=api_settings,
                 )
-                wb_version = int((result or {}).get("_workbench_version") or 0)
+                step_payload = (
+                    (result or {}).get(kind.value)
+                    if isinstance(result, dict)
+                    else None
+                )
+                version_id = ""
+                if isinstance(step_payload, dict):
+                    version_id = str(step_payload.get("version_id") or "").strip()
+                if not version_id and isinstance(result, dict):
+                    version_id = str(result.get("version_id") or "").strip()
+                analysis = (
+                    step_payload.get("analysis")
+                    if isinstance(step_payload, dict)
+                    else None
+                )
                 payload: Dict[str, Any] = {"message": f"{norm_step} 已完成"}
-                if wb_version > 0:
-                    payload["version_id"] = f"v{wb_version}"
+                if version_id:
+                    payload["version_id"] = (
+                        version_id
+                        if version_id.startswith("v")
+                        else f"v{version_id}"
+                    )
                     payload["report_step"] = norm_step
+                if isinstance(analysis, dict) and not analysis.get("skipped"):
+                    payload["analysis"] = {
+                        "source_path": analysis.get("source_path"),
+                        "report_path": analysis.get("report_path"),
+                    }
                 prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Workbench run failed job_id=%s", job_id)
@@ -228,6 +286,36 @@ class WorkbenchRunLauncher:
             except Exception:
                 logger.exception("pipeline lease release failed")
             cls._clear_active(strategy_name, job_id)
+
+    @staticmethod
+    def _persist_run_settings(
+        strategy_name: str,
+        api_settings: Dict[str, Any],
+        *,
+        expected_rev: Optional[str] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """把编辑器草稿写入 settings.py，使本次 run 的磁盘为 SOT。"""
+        if not isinstance(api_settings, dict) or not api_settings:
+            from core.bff.APIs.strategy.helpers.settings_occupancy import (
+                SettingsOccupancy,
+            )
+
+            return SettingsOccupancy.read(strategy_name)
+        from core.bff.APIs.strategy.routes.settings.apply import WorkbenchApplySettings
+
+        occupancy, err = WorkbenchApplySettings.persist_editor_settings(
+            strategy_name=strategy_name,
+            settings=api_settings,
+            pretty=True,
+            expected_rev=expected_rev,
+            force=force,
+        )
+        if err:
+            out = dict(occupancy or {})
+            out["_error"] = err
+            return out
+        return dict(occupancy or {})
 
     @classmethod
     def _clear_active(cls, strategy_name: str, job_id: str) -> None:

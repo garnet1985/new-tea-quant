@@ -23,7 +23,7 @@ import {
   getTagUpdateModeIcon,
   getTagUpdateModeLabel,
   startTagRun,
-} from '../../api/apis/tagApi';
+} from '../../api/tagApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import NtqHelpTooltip from '../../components/ntqHelpTooltip/ntqHelpTooltip';
@@ -58,12 +58,14 @@ function TagListPage() {
   const [rows, setRows] = useState([]);
   const [dataEnd, setDataEnd] = useState({});
   const [loading, setLoading] = useState(true);
+  const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
 
   const [pipelineBusy, setPipelineBusy] = useState(false);
   const [pipelineLabel, setPipelineLabel] = useState('');
+  const [pipelineError, setPipelineError] = useState('');
 
   const [runningTagId, setRunningTagId] = useState('');
   const [runningTagKey, setRunningTagKey] = useState('');
@@ -116,10 +118,12 @@ function TagListPage() {
       .then((st) => {
         setPipelineBusy(Boolean(st.busy) && st.kind !== 'tag_run');
         setPipelineLabel(String(st.label || st.kind || '').trim());
+        setPipelineError('');
       })
       .catch(() => {
         setPipelineBusy(false);
         setPipelineLabel('');
+        setPipelineError('无法读取数据管道状态，运行按钮可能不准确。');
       });
   }, []);
 
@@ -136,7 +140,10 @@ function TagListPage() {
         setDataEnd({});
         setLoadError(e?.message || '加载 Tag 列表失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setPageReady(true);
+      });
     refreshPipeline();
   }, [refreshPipeline]);
 
@@ -399,12 +406,19 @@ function TagListPage() {
           variant={statusChip.variant}
         />
       )}
+      loading={!pageReady}
+      loadingMessage="正在加载标签列表…"
     >
       {loadError ? <Alert severity="error" className="tag-list-alert">{loadError}</Alert> : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="tag-list-alert" />
       {runError ? (
         <Alert severity="error" className="tag-list-alert" onClose={() => setRunError('')}>
           {runError}
+        </Alert>
+      ) : null}
+      {pipelineError ? (
+        <Alert severity="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
+          {pipelineError}
         </Alert>
       ) : null}
       {pipelineBusy && pipelineLabel ? (

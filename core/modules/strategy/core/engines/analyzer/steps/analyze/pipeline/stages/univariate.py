@@ -1,0 +1,70 @@
+"""Univariate factor analysis — quantile buckets + Spearman."""
+from __future__ import annotations
+
+from typing import Any, Dict
+
+from core.modules.analysis import Analysis
+
+from ...data import CaptureDataset, StepOutcomeRegistry
+from ..context import StageInput
+
+
+class UnivariateStage:
+    name = "univariate"
+
+    def run(self, stage_input: StageInput) -> Dict[str, Any]:
+        config = StepOutcomeRegistry.get(stage_input.step)
+        keys = CaptureDataset.list_varying_numeric_capture_keys(
+            stage_input.decision_space
+        )
+        if not keys:
+            return {
+                "status": "skipped",
+                "reason": "no_varying_numeric_capture",
+                "fields": {},
+            }
+
+        fields: Dict[str, Any] = {}
+        for key in keys:
+            values, rois, wins = CaptureDataset.extract_capture_series(
+                stage_input.source, key, config
+            )
+            if len(values) < 2:
+                fields[key] = {
+                    "status": "skipped",
+                    "reason": "insufficient_samples",
+                    "n": len(values),
+                }
+                continue
+            fields[key] = {
+                "method": "quantile_buckets",
+                "n": len(values),
+                "buckets": Analysis.Classical.quantile_buckets(
+                    values, rois, wins
+                ),
+                "correlation": Analysis.Classical.spearman_correlation(
+                    values, rois
+                ),
+            }
+
+        stage_status = "ok"
+        for field in fields.values():
+            if not isinstance(field, dict):
+                continue
+            if field.get("status") == "skipped":
+                stage_status = "partial"
+                continue
+            buckets = field.get("buckets")
+            corr = field.get("correlation")
+            if isinstance(buckets, dict) and buckets.get("status") != "ok":
+                stage_status = "partial"
+            if isinstance(corr, dict) and corr.get("status") not in ("ok", "skipped"):
+                stage_status = "partial"
+
+        return {
+            "status": stage_status,
+            "fields": fields,
+        }
+
+
+__all__ = ["UnivariateStage"]

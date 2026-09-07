@@ -53,7 +53,6 @@ EXCLUDED_GENERATED_TABLES = frozenset(
         "sys_tag_scenario",
         "sys_tag_definition",
         "sys_tag_calc_progress",
-        "sys_strategy_workbench_snapshot",
     }
 )
 

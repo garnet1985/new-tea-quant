@@ -66,6 +66,28 @@ class StrategyHooks(ABC):
         """
         return []
 
+    def is_stop_loss(self, ctx: StrategyContext, *, custom: str, stage: Any) -> bool:
+        """自定义止损段触发判定。
+
+        仅当 settings 中某 ``stop_loss`` stage 声明 ``custom`` 时由引擎调用。
+        默认未实现：子类须 override，否则运行期报错。
+        """
+        _ = (ctx, stage)
+        raise NotImplementedError(
+            f"unsupported stop_loss custom={str(custom or '').strip()!r}"
+        )
+
+    def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage: Any) -> bool:
+        """自定义止盈段触发判定。
+
+        仅当 settings 中某 ``take_profit`` stage 声明 ``custom`` 时由引擎调用。
+        默认未实现：子类须 override，否则运行期报错。
+        """
+        _ = (ctx, stage)
+        raise NotImplementedError(
+            f"unsupported take_profit custom={str(custom or '').strip()!r}"
+        )
+
     # ── scan 辅助原语 ──
 
     @staticmethod

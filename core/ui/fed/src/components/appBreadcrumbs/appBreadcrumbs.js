@@ -10,7 +10,7 @@ import './appBreadcrumbs.scss';
  * items: [{ label, to }] ordered from root to leaf (excluding current).
  * current: string|node rendered as the last, non-clickable segment.
  */
-function AppBreadcrumbs({ items, current, className }) {
+function AppBreadcrumbs({ items = [], current, className = '' }) {
   const safeItems = Array.isArray(items) ? items.filter((x) => x && x.label && x.to) : [];
   return (
     <Breadcrumbs
@@ -44,11 +44,6 @@ AppBreadcrumbs.propTypes = {
   items: PropTypes.arrayOf(PropTypes.shape({ label: PropTypes.string.isRequired, to: PropTypes.string.isRequired })),
   current: PropTypes.node.isRequired,
   className: PropTypes.string,
-};
-
-AppBreadcrumbs.defaultProps = {
-  items: [],
-  className: '',
 };
 
 export default AppBreadcrumbs;

@@ -29,9 +29,11 @@ from core.modules.strategy.core.services.entity_loader.strategy_data_resolver im
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
 )
+from core.modules.strategy.core.services.artifacts import SimulationVersionStore
 from core.modules.strategy.core.services.progress import PipelineProgress
 
 if TYPE_CHECKING:
@@ -57,13 +59,9 @@ class EnumeratorPipeline:
 
     @classmethod
     def find_output_version_via_fps(cls, ctx: "SimulateSession") -> Optional[str]:
-        """按双指纹查工作台 enum 槽的 ``version_id``；未找到返回 None。"""
-        from core.modules.strategy.core.services.simulation_cache.cache_manager import (
-            SimulationCacheManager,
-        )
-
-        return SimulationCacheManager.find_enum_output_version(
-            ctx.strategy_key,
+        """按双指纹查磁盘 enum 产物对应的 version id；未找到返回 None。"""
+        return SimulationVersionStore.find_enum_version(
+            DiscoveryService.resolve_strategy_folder(ctx.strategy_key),
             ctx.fp_res,
         )
 
@@ -112,7 +110,7 @@ class EnumeratorPipeline:
         report_manager = cls._step_to_begin_report_manager(
             strategy_info=strategy_info,
             stock_ids=stock_ids,
-            settings_fp=ctx.settings_fp,
+            execute_fp=ctx.execute_fp,
             env_fp=ctx.env_fp,
             effective_settings_obj=effective_settings_obj,
             settings_diff=ctx.settings_diff,
@@ -152,9 +150,7 @@ class EnumeratorPipeline:
             entity_count=len(stock_ids),
             effective_settings_obj=effective_settings_obj,
         )
-
-        if drive:
-            PipelineProgress.complete_step_bound("report")
+        # report 步由 Strategy._run_steps 在归因之后 complete
         return results
 
     @classmethod
@@ -290,7 +286,7 @@ class EnumeratorPipeline:
         *,
         strategy_info: EnabledStrategyInfo,
         stock_ids: List[str],
-        settings_fp: str,
+        execute_fp: str,
         env_fp: str,
         effective_settings_obj: StrategySettings,
         settings_diff: Dict[str, Any],
@@ -300,7 +296,7 @@ class EnumeratorPipeline:
             strategy_path=strategy_info.unique_relative_path,
             strategy_folder=strategy_info.resolved_folder(),
             entity_ids=stock_ids,
-            settings_fp=settings_fp,
+            execute_fp=execute_fp,
             env_fp=env_fp,
             effective_settings=effective_settings_obj,
             settings_diff=settings_diff,
@@ -437,7 +433,7 @@ class EnumeratorPipeline:
         slice_plan = results.get("calendar_slice_runtime_plan")
         if isinstance(slice_plan, dict) and slice_plan:
             out["calendar_slice_runtime_plan"] = dict(slice_plan)
-        # DB / BFF：附带 ``enumMetrics``（与 price/portfolio ``to_cache_dict`` 对齐）
+        # 实时 run 附带 ``enumMetrics``；cache hit / BFF 读路径由 hydrate 从 overall_report 补全
         output_dir = results.get("output_dir")
         if output_dir:
             try:

@@ -7,20 +7,17 @@ import {
   Box,
   Button,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
-  List,
-  ListItemButton,
-  ListItemText,
-  MenuItem,
-  Select,
   Stack,
   Tab,
   Tabs,
   Typography,
 } from '@mui/material';
 import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
+import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
+import VersionPickerDialog from 'components/versionPickLabel/versionPickerDialog';
+import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
 import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
 import PriceFactorReport from './reports/priceFactorReport';
 import CapitalAllocationReport from './reports/capitalAllocationReport';
@@ -32,11 +29,9 @@ import {
 } from '../../mocks/strategyReportMetrics';
 import SettingsJsonDiff from './components/settingsJsonDiff';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
-import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
   COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
-  REPORT_COMPARE_MORE_MENU_VALUE,
   STEP_TABS,
 } from './constants/strategyReportConstants';
 import { useStrategyReportCompareDialog } from './hooks/useStrategyReportCompareDialog';
@@ -51,14 +46,13 @@ import {
 } from './reportSectionMeta';
 import BacktestPeriodBanner from './components/backtestPeriodBanner';
 import ReportStockDetailView from './components/reportStockDetailView';
+import StepAnalysisInsights from './components/stepAnalysisInsights';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({
   strategyName,
   executionState,
-  /** 与执行面板相同：最近工作台 ``version_id``（新→旧，至多 5） */
-  executionCompareRecentVersionIds = [],
-  /** 完整版本列表，供「更多版本…」弹窗选择对比快照 */
+  /** 完整版本列表，供版本选择器选择对比快照 */
   configVersions = [],
   /** V2-01 / V2-08 工作台快照；执行/报告/对比左侧同源 */
   workbenchSnapshot = null,
@@ -77,23 +71,11 @@ function StrategyReportPanel({
     [workbenchSnapshot],
   );
   const resultReport = workbenchSnapshot?.result_report ?? null;
+  const analysisEnabled = workbenchSnapshot?.settings?.analysis?.enabled === true;
 
-  const {
-    compareDropdownVersionIds,
-    compareBaselineMenuLabel,
-    renderCompareSelectValue,
-  } = useWorkbenchCompareVersionMenu(executionCompareRecentVersionIds, activeWorkbenchVersionId);
-
-  const reportComparePickerVersions = useMemo(() => {
-    const cur = activeWorkbenchVersionId;
-    const rows = Array.isArray(configVersions) ? configVersions : [];
-    if (!cur) return rows;
-    return rows.filter((v) => v.id !== cur);
-  }, [configVersions, activeWorkbenchVersionId]);
-  let reportComparePickerEmptyHint = '暂无可选版本。';
-  if (Array.isArray(configVersions) && configVersions.length > 0) {
-    reportComparePickerEmptyHint = '没有其它可对比版本（已排除当前工作台快照）。';
-  }
+  const comparePickerEmptyHint = (Array.isArray(configVersions) && configVersions.length > 0)
+    ? '没有其它可对比版本（已排除当前工作台快照）。'
+    : '暂无可选版本。';
 
   const [activeTab, setActiveTab] = useState('');
   const [selectedStock, setSelectedStock] = useState(null);
@@ -104,6 +86,9 @@ function StrategyReportPanel({
     enumRefRows,
     priceRefStatus,
     priceRefRows,
+    analysisStatus,
+    analysisPayload,
+    analysisError,
     availableTabs,
     resolvedActiveTab,
   } = useStrategyReportRemoteData({
@@ -114,6 +99,7 @@ function StrategyReportPanel({
     resultReport,
     reportTabFocusRequest,
     lockedTab,
+    analysisEnabled,
   });
 
   const {
@@ -121,12 +107,11 @@ function StrategyReportPanel({
     setCompareDialogOpen,
     compareDialogSubTab,
     setCompareDialogSubTab,
-    reportCompareMoreOpen,
-    setReportCompareMoreOpen,
+    comparePickerOpen,
+    setComparePickerOpen,
     compareVersion,
     setCompareVersion,
     compareError,
-    handleReportCompareSelectChange,
     compareSnapshot,
     compareSideReportBusy,
     baseSettings,
@@ -136,6 +121,7 @@ function StrategyReportPanel({
     workbenchSnapshot,
     resolvedActiveTab,
     showReportCompare,
+    configVersions,
   });
 
   useEffect(() => {
@@ -459,6 +445,16 @@ function StrategyReportPanel({
         <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
       ) : null}
       {renderTabContent()}
+      {resolvedActiveTab
+        && analysisEnabled
+        && executionState?.stepStatus?.[resolvedActiveTab] === 'done'
+        && !(reportStockView === 'detail' && selectedStock) ? (
+          <StepAnalysisInsights
+            status={analysisStatus}
+            analysis={analysisPayload}
+            error={analysisError}
+          />
+        ) : null}
     </Stack>
   );
 
@@ -470,20 +466,16 @@ function StrategyReportPanel({
           <Stack spacing={2}>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
               <Typography variant="caption" color="text.secondary">对比版本</Typography>
-              <Select
+              <Button
                 size="small"
-                displayEmpty
-                value={compareVersion}
-                renderValue={renderCompareSelectValue}
-                onChange={handleReportCompareSelectChange}
-                className="ntq-report-compare__select"
+                variant="outlined"
+                className="ntq-report-compare__picker-trigger"
+                onClick={() => setComparePickerOpen(true)}
               >
-                <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
-                {compareDropdownVersionIds.map((id) => (
-                  <MenuItem key={id} value={id}>{id}</MenuItem>
-                ))}
-                <MenuItem value={REPORT_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
-              </Select>
+                {compareVersion
+                  ? <VersionPickLabel version={lookupVersionById(configVersions, compareVersion)} />
+                  : '选择对比版本'}
+              </Button>
             </Stack>
             <Box className="ntq-report-compare">
               <Tabs
@@ -594,40 +586,19 @@ function StrategyReportPanel({
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={reportCompareMoreOpen}
-        onClose={() => setReportCompareMoreOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>选择对比版本</DialogTitle>
-        <DialogContent dividers>
-          <List dense className="ntq-report-compare__picker-list">
-            {reportComparePickerVersions.map((version) => (
-              <ListItemButton
-                key={version.id}
-                onClick={() => {
-                  setCompareVersion(version.id);
-                  setReportCompareMoreOpen(false);
-                }}
-              >
-                <ListItemText
-                  primary={version.id}
-                  secondary={version.updatedAt || version.createdAt}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-          {reportComparePickerVersions.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              {reportComparePickerEmptyHint}
-            </Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setReportCompareMoreOpen(false)}>关闭</Button>
-        </DialogActions>
-      </Dialog>
+      <VersionPickerDialog
+        open={comparePickerOpen}
+        onClose={() => setComparePickerOpen(false)}
+        title="选择对比版本"
+        versions={configVersions}
+        selectedId={compareVersion}
+        excludeIds={activeWorkbenchVersionId ? [activeWorkbenchVersionId] : []}
+        emptyHint={comparePickerEmptyHint}
+        allowClear={Boolean(compareVersion)}
+        clearLabel="不对比"
+        onSelect={setCompareVersion}
+        dialogSx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
+      />
     </>
   );
 

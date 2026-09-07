@@ -73,21 +73,15 @@ def test_run_temp_cleanup_selected_targets(userspace_layout):
         return_value={"busy": False},
     ), patch.object(
         TempCleanup,
-        "clear_workbench_db_cache",
-        return_value=2,
-    ) as mock_db, patch.object(
-        TempCleanup,
         "_discovered_strategy_folders",
         return_value=[Path("demo/nested/my_strategy")],
     ):
         out = TempCleanup.run(
-            clear_db_cache=True,
             clear_backtest_results=True,
             clear_scan_results=True,
             clear_userspace_ntq=True,
         )
     assert out == {"ok": True, "message": "缓存已经全部清理"}
-    mock_db.assert_called_once()
     assert not (
         userspace_layout
         / "strategies"

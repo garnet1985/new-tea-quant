@@ -7,6 +7,7 @@ import pytest
 
 from core.modules.strategy import Strategy
 from core.modules.strategy.core.engines.scanner import ScannerPipeline
+from core.modules.strategy.core.engines.scanner.helpers import ScanDateResolver
 
 pytestmark = pytest.mark.force_run
 
@@ -15,6 +16,20 @@ def test_strategy_scan_delegates_to_pipeline() -> None:
     with patch.object(ScannerPipeline, "scan", return_value={}) as scan:
         assert Strategy.scan("demo", demo=True) == {}
     scan.assert_called_once_with("demo", demo=True)
+
+
+def test_strategy_scan_workbench_delegates_to_pipeline() -> None:
+    with patch.object(ScannerPipeline, "page_context", return_value={"data_end": {}}) as ctx:
+        assert Strategy.scan_page_context() == {"data_end": {}}
+    ctx.assert_called_once()
+
+    with patch.object(ScannerPipeline, "readiness", return_value={"can_scan": True}) as ready:
+        assert Strategy.scan_readiness("demo", demo=True) == {"can_scan": True}
+    ready.assert_called_once_with("demo", demo=True)
+
+    with patch.object(ScannerPipeline, "block_reason", return_value="") as block:
+        assert Strategy.scan_block_reason(demo=False) == ""
+    block.assert_called_once_with(demo=False)
 
 
 def test_scanner_pipeline_scan_empty_targets() -> None:
@@ -49,8 +64,9 @@ def test_scanner_pipeline_scan_calls_run() -> None:
         },
     )()
     with patch.object(ScannerPipeline, "resolve_targets", return_value=[info]):
-        with patch(
-            "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver.load_kline_latest_date",
+        with patch.object(
+            ScanDateResolver,
+            "load_kline_latest_date",
             return_value="20240110",
         ):
             with patch.object(ScannerPipeline, "run", return_value=fake_report) as run:
@@ -72,8 +88,9 @@ def test_scanner_pipeline_scan_strict_gate_raises() -> None:
         },
     )()
     with patch.object(ScannerPipeline, "resolve_targets", return_value=[info]):
-        with patch(
-            "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver.strict_data_block_reason",
+        with patch.object(
+            ScanDateResolver,
+            "strict_data_block_reason",
             return_value="calendar not aligned",
         ):
             with patch.object(ScannerPipeline, "run") as run:

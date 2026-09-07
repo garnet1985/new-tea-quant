@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { fingerprintSignature } from '../lib/strategySettingsFingerprint';
 
 /**
- * 左侧 settings 草稿变更时重置执行/报告会话（对齐策略实验室 ``WorkbenchDraftChangeResetBridge``）。
+ * 指纹字段变更时清掉进行中的 run（切步填默认值 / 非指纹字段不触发）。
+ * 历史 version 报告保留；胶囊用指纹对比显示「设置已变更」。
  */
 function StrategyDesignDraftChangeBridge({
   draftSettings,
@@ -12,7 +14,7 @@ function StrategyDesignDraftChangeBridge({
 }) {
   const baselineSigRef = useRef(null);
   const establishedRef = useRef(false);
-  const compositeSig = JSON.stringify(draftSettings);
+  const compositeSig = fingerprintSignature(draftSettings);
 
   useEffect(() => {
     if (!strategyName) return;

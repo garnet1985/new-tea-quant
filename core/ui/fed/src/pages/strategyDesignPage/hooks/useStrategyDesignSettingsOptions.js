@@ -5,7 +5,7 @@ import {
   fetchSamplingStrategyConfig,
   fetchSimulationTemplateConfig,
   fetchSkipInvestmentWhenOptions,
-} from '../../../api/apis/strategyApi';
+} from '../../../api/strategyApi';
 
 /** 制定策略设置面板：下拉/模板等选项。 */
 export function useStrategyDesignSettingsOptions() {

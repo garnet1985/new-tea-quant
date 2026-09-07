@@ -12,6 +12,8 @@ duckdb
 # Data
 pandas
 numpy>=2.0
+scipy
+# xgboost / shap：见 requirements-ml.txt（安装向导或设置中选装）
 
 # Indicators
 pandas-ta-classic

@@ -1,8 +1,7 @@
 # 测试用例 — `infra.task_guard`（模块根）
 
 **模块：** `infra.task_guard`  
-**覆盖版本：** `0.2.0`
-
+**版本：** `0.2.0`  
 ## Scope
 
 验证门面 `TaskGuard` 与 `contracts` / `types`（`test_api.py`）。

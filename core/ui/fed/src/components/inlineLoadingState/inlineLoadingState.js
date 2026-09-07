@@ -5,13 +5,13 @@ import LoadingBars from '../loadingBars/loadingBars';
 import './inlineLoadingState.scss';
 
 function InlineLoadingState({
-  message,
-  compact,
-  row,
-  block,
-  className,
-  barCount,
-  'aria-label': ariaLabel,
+  message = null,
+  compact = false,
+  row = false,
+  block = false,
+  className = '',
+  barCount = 5,
+  'aria-label': ariaLabel = '',
 }) {
   const rootClass = [
     'ntq-inline-loading',
@@ -52,16 +52,6 @@ InlineLoadingState.propTypes = {
   className: PropTypes.string,
   barCount: PropTypes.number,
   'aria-label': PropTypes.string,
-};
-
-InlineLoadingState.defaultProps = {
-  message: null,
-  compact: false,
-  row: false,
-  block: false,
-  className: '',
-  barCount: 5,
-  'aria-label': '',
 };
 
 export default InlineLoadingState;

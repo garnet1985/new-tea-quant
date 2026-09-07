@@ -4,7 +4,7 @@
 #   MINOR — 改已有稳定 API / 配置，或任何破坏性改动
 #   MAJOR — 随 core 大版本；core 为 0.x 时模块 MAJOR 保持 0
 
-name: <namespace.module_name> # 例：infra.db / modules.data_contract
+name: <namespace.module_name> # 目录约定：core/modules/x → modules.x；core/infra/x → infra.x；另：ui / bff / tables
 version: "<MAJOR.MINOR.PATCH>" # 须与 changelog[0].version 一致
 compatible_core_versions: ">=<core.min>" # 例：">=0.4.0"
 description: "<模块一句话简述>"

@@ -12,7 +12,7 @@ HTTP 前缀一律为 `/api`（见 `core/bff/app.py`）。契约细节优先看 F
 | platform / app_settings | `APIs/platform/app_settings` | — | `app_settings/service.py`（含 trace） |
 | data / sources | `APIs/data/sources` | [`routes/data_sources.md`](routes/data_sources.md) | BFF helpers + implementer |
 | data / contracts | `APIs/data/contracts` | [`routes/data_contracts.md`](routes/data_contracts.md) | BFF helpers + implementer |
-| strategy | `APIs/strategy`（`routes/` + `helpers/`） | [`routes/strategy.md`](routes/strategy.md) | core `PipelineProgress` / `ScanJob`；BFF snapshots + runner 薄壳 |
+| strategy | `APIs/strategy`（`routes/` + `helpers/`） | [`routes/strategy.md`](routes/strategy.md) | core `PipelineProgress` / `Strategy.scan_run`；BFF snapshots + runner 薄壳 |
 | tag | `APIs/tag`（`routes/` + `helpers/`） | [`routes/tag.md`](routes/tag.md) | core `TagRunProgress`；BFF catalog + runner 薄壳 |
 
 分组准则见 [`GROUPING.md`](GROUPING.md)、架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。

@@ -37,6 +37,10 @@ class TestStrategyApi(unittest.TestCase):
     def test_public_methods(self) -> None:
         for name in (
             "scan",
+            "scan_page_context",
+            "scan_readiness",
+            "scan_block_reason",
+            "scan_run",
             "enumerate",
             "price_factor",
             "portfolio",
@@ -52,10 +56,15 @@ class TestStrategyApi(unittest.TestCase):
             "load_price_entity_investments",
             "price_overall_report_path",
             "present_report",
+            "present_analysis_report",
+            "step_analysis_from_output_dir",
+            "resolve_step_analysis",
+            "resolve_simulation_output_dirs",
             "is_valid_path",
-            "clear_workbench_cache",
             "prune_simulation_results",
             "prune_scan_results",
+            "delete_simulation_version",
+            "set_simulation_version_pinned",
             "export_package",
             "import_package",
             "latest_completed_trading_date",
@@ -156,13 +165,35 @@ class TestStrategyApi(unittest.TestCase):
         self.assertFalse(Strategy.is_valid_path("demo/市值"))
         self.assertFalse(Strategy.is_valid_path(""))
 
-    def test_clear_workbench_cache_raises_on_failure(self) -> None:
+    def test_delete_simulation_version_invalid(self) -> None:
+        for bad in (0, "v0", "nope", ""):
+            out = Strategy.delete_simulation_version("demo/x", bad)
+            self.assertFalse(out.get("ok"), bad)
+            self.assertEqual(out.get("error"), "version_id 无效")
+
+    def test_delete_simulation_version_delegates(self) -> None:
         with patch(
-            "core.modules.strategy.core.services.workbench_cache.WorkbenchCacheClear.clear_all",
-            return_value={"ok": False, "error": "存储不可用"},
-        ):
-            with self.assertRaises(RuntimeError):
-                Strategy.clear_workbench_cache()
+            "core.modules.strategy.core.services.artifacts.ArtifactRetention.clear_by_version",
+            return_value={"ok": True, "deleted": True, "version_id": "v3"},
+        ) as clear:
+            out = Strategy.delete_simulation_version("demo/x", "v3")
+        clear.assert_called_once_with("demo/x", 3)
+        self.assertTrue(out["ok"])
+
+    def test_set_simulation_version_pinned_invalid(self) -> None:
+        for bad in (0, "v0", "nope", ""):
+            out = Strategy.set_simulation_version_pinned("demo/x", bad, True)
+            self.assertFalse(out.get("ok"), bad)
+            self.assertEqual(out.get("error"), "version_id 无效")
+
+    def test_set_simulation_version_pinned_delegates(self) -> None:
+        with patch(
+            "core.modules.strategy.core.services.artifacts.ArtifactRetention.set_pinned",
+            return_value={"ok": True, "pinned": True, "version_id": "v3"},
+        ) as pin:
+            out = Strategy.set_simulation_version_pinned("demo/x", "v3", True)
+        pin.assert_called_once_with("demo/x", 3, True)
+        self.assertTrue(out["ok"])
 
     def test_simulate_full_raises(self) -> None:
         with patch(

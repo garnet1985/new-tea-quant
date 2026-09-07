@@ -204,7 +204,7 @@ def _run_one(
     from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
         GlobalEntityCache,
     )
-    from core.modules.strategy.core.services.simulation_cache.fingerprints import (
+    from core.modules.strategy.core.services.fingerprint import (
         FingerprintCalculator,
     )
 
@@ -241,15 +241,16 @@ def _run_one(
     fp_res = FingerprintCalculator.calculate_fingerprints(
         strategy,
         runtime,
-        list(ids),
-        latest,
+        entity_ids=list(ids),
     )
-    ctx = SimulateSession(
+    ctx = SimulateSession.create(
         strategy_info=strategy,
         fp_res=fp_res,
         kind=SimulateKind.ENUMERATE,
-        steps=[SimulateKind.ENUMERATE],
+        stock_list=list(ids),
+        latest_completed_trading_date=latest,
     )
+    ctx.steps = [SimulateKind.ENUMERATE]
     t0 = time.perf_counter()
     result = EnumeratorPipeline.run(ctx)
     wall = time.perf_counter() - t0

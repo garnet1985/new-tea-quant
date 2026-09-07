@@ -20,6 +20,7 @@ from core.modules.backtest_engine.contracts import (
 )
 from core.modules.strategy.core.services.artifacts import (
     PERFORMANCE_FILE,
+    ArtifactStore,
 )
 from core.modules.strategy.core.engines.enumerator.common.report_manager.report_output import (
     ReportOutput,
@@ -513,14 +514,12 @@ class ProfilerPerformance:
 
     @classmethod
     def load(cls, output_dir: Path) -> "ProfilerPerformance":
-        path = output_dir / cls.PERFORMANCE_FILE
-        return cls.from_dict(cls._read_json(path))
+        return cls.from_dict(ArtifactStore.read_json_at(output_dir, "performance"))
 
     # ── 落盘 ──
 
     def save(self, output_dir: Path) -> SavedPerformanceArtifact:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        path = self._write_json(output_dir / self.PERFORMANCE_FILE, self.to_dict())
+        path = ArtifactStore.write_json_at(output_dir, "performance", self.to_dict())
         return SavedPerformanceArtifact(performance_path=path)
 
     def present(self, stream: Optional[TextIO] = None) -> None:
@@ -751,19 +750,6 @@ class ProfilerPerformance:
             return 0.0
         return round(job_wall_sum / execute_elapsed, 2)
 
-    @staticmethod
-    def _write_json(path: Path, payload: Dict[str, Any]) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return path
-
-    @staticmethod
-    def _read_json(path: Path) -> Dict[str, Any]:
-        return json.loads(path.read_text(encoding="utf-8"))
-
 
 class _ProfilerCollectSession:
     """主进程侧 job 性能采集会话。
@@ -868,8 +854,7 @@ class ProfilerReport:
         return artifact.performance_path
 
     def load(self) -> Dict[str, Any]:
-        path = self._manager.output_dir / ProfilerPerformance.PERFORMANCE_FILE
-        return ProfilerPerformance._read_json(path)
+        return ArtifactStore.read_json_at(self._manager.output_dir, "performance")
 
     def summary(self) -> Dict[str, Any]:
         return dict(self.load().get("summary") or {})

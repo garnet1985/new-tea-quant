@@ -165,6 +165,7 @@ class Investment(Opportunity):
             trigger_date=str(opportunity.trigger_date or ""),
             trigger_price=float(opportunity.trigger_price or 0.0),
             trigger_price_raw=float(opportunity.trigger_price_raw or 0.0),
+            trigger_price_hfq=float(opportunity.trigger_price_hfq or 0.0),
             market_profile=profile,
             meta=cls._copy_dataclass(opportunity.meta, OpportunityMeta),
             contributor=cls._copy_dataclass(opportunity.contributor, OpportunityContributor),
@@ -438,9 +439,12 @@ class Investment(Opportunity):
         held = self._settlement_days_held(entry_date, as_of, self.open_dates)
         return self.market_rules.is_allowed_to_sell(held)
 
-    def _monitor_px(self, bar: Dict[str, Any]) -> float:
+    def _monitor_px(self, bar: Dict[str, Any], *, use_hfq: bool = False) -> float:
         model = str(self.settings.simulation.monitor_price or "close").strip().lower() or "close"
-        return SafeBarValue.price_for_model(bar, model, use_raw=False)
+        return SafeBarValue.price_for_model(bar, model, use_hfq=use_hfq)
+
+    def _hfq_basis(self) -> float:
+        return float(self.entry.price_hfq or 0.0)
 
     def _arm_goal_exit(
         self,
@@ -489,10 +493,10 @@ class Investment(Opportunity):
         cfg = self.settings.goal.protect_loss
         if cfg is None:
             return False
-        basis = float(self.entry.price or self.trigger_price or 0.0)
-        monitor = self._monitor_px(bar)
-        # 相对收益需 /basis；basis=0 时本 tick 无法定义，不代表价格非法
-        if basis == 0:
+        basis = self._hfq_basis()
+        monitor = self._monitor_px(bar, use_hfq=True)
+        # 相对收益需 /basis；basis<=0 时本 tick 无法定义，不代表价格非法
+        if basis <= 0:
             return False
         price_return = (monitor - basis) / basis
         if price_return > float(cfg.ratio):
@@ -514,8 +518,8 @@ class Investment(Opportunity):
         cfg = self.settings.goal.dynamic_loss
         if cfg is None:
             return False
-        monitor = self._monitor_px(bar)
-        basis = float(self.entry.price or self.trigger_price or 0.0)
+        monitor = self._monitor_px(bar, use_hfq=True)
+        basis = self._hfq_basis()
         peak = self.runtime_state.dynamic_loss_peak
         if peak is None:
             peak = basis
@@ -524,8 +528,8 @@ class Investment(Opportunity):
             peak = max(float(peak), float(extreme_hi))
         peak = max(float(peak), monitor)
         self.runtime_state.dynamic_loss_peak = peak
-        # 回撤需 /peak；peak=0 时本 tick 无法定义
-        if peak == 0:
+        # 回撤需 /peak；peak<=0 时本 tick 无法定义
+        if peak <= 0:
             return False
         drawdown = (monitor - peak) / peak
         if drawdown > float(cfg.ratio):
@@ -544,8 +548,12 @@ class Investment(Opportunity):
         stages = self.settings.goal.stop_loss_stages
         if not stages:
             return False
-        basis = float(self.entry.price or self.trigger_price or 0.0)
-        low = float(bar["low"])
+        basis = self._hfq_basis()
+        if basis <= 0:
+            return False
+        low = SafeBarValue.optional_float(bar, "low", use_hfq=True)
+        if low is None:
+            return False
         triggered = self.runtime_state.triggered_stop_loss_ids
         for idx, stage in enumerate(stages):
             stage_id = str(stage.stage_id or f"stop_loss:{idx}:{stage.name}")
@@ -583,8 +591,12 @@ class Investment(Opportunity):
         stages = self.settings.goal.take_profit_stages
         if not stages:
             return False
-        basis = float(self.entry.price or self.trigger_price or 0.0)
-        high = float(bar["high"])
+        basis = self._hfq_basis()
+        if basis <= 0:
+            return False
+        high = SafeBarValue.optional_float(bar, "high", use_hfq=True)
+        if high is None:
+            return False
         triggered = self.runtime_state.triggered_take_profit_ids
         for idx, stage in enumerate(stages):
             stage_id = str(stage.stage_id or f"take_profit:{idx}:{stage.name}")
@@ -669,11 +681,11 @@ class Investment(Opportunity):
             strategy_key = str(getattr(self.hook_runtime, "strategy_name", "") or "")
         if not strategy_key:
             strategy_key = str((self.metadata or {}).get("strategy_name") or "").strip()
-        basis = float(self.entry.price or self.trigger_price or 0.0)
         items = {
             "bar": dict(bar),
             "entry_price": float(self.entry.price or 0.0),
-            "basis": basis,
+            "entry_price_hfq": float(self.entry.price_hfq or 0.0),
+            "basis": self._hfq_basis(),
             "remaining_ratio": float(self.runtime_state.remaining_ratio or 0.0),
             "stage_index": int(stage_index),
             "goal_kind": kind,
@@ -698,9 +710,11 @@ class Investment(Opportunity):
                 self.runtime_state.protect_loss_active = True
             elif action == "set_dynamic_loss":
                 self.runtime_state.dynamic_loss_active = True
-                monitor = self._monitor_px(bar)
-                high = float(bar.get("high") or 0.0) or monitor
-                peak = max(monitor, high)
+                monitor = self._monitor_px(bar, use_hfq=True)
+                high = SafeBarValue.optional_float(bar, "high", use_hfq=True)
+                peak = monitor
+                if high is not None:
+                    peak = max(monitor, high)
                 prev = self.runtime_state.dynamic_loss_peak
                 if prev is not None and prev > 0:
                     peak = max(peak, float(prev))
@@ -875,10 +889,12 @@ class Investment(Opportunity):
         if price is None:
             return
         raw_price = self._resolve_entry_price(as_of, bar, use_raw=True)
+        hfq_price = self._resolve_entry_price(as_of, bar, use_hfq=True)
         at_limit_up, prev_close = self._eval_limit_up(price, bar)
         self.entry = EnterState(
             price=price,
             price_raw=float(raw_price or 0.0),
+            price_hfq=float(hfq_price or 0.0),
             date=str(as_of or "").strip(),
             direction=TradeSide.BUY,
             prev_close=prev_close,
@@ -892,6 +908,7 @@ class Investment(Opportunity):
         bar: Dict[str, Any],
         *,
         use_raw: bool = False,
+        use_hfq: bool = False,
         check_tradability: bool = True,
     ) -> Optional[float]:
         """Entry fill price for this tick, or ``None`` if not ready / blocked.
@@ -899,6 +916,8 @@ class Investment(Opportunity):
         ``enter_price``: ``next_open`` | ``touch`` | ``open`` | ``close``。
         ``touch``：限价=``trigger_price``，当日 high/low 触及则成交。
         """
+        if use_raw and use_hfq:
+            raise ValueError("use_raw and use_hfq are mutually exclusive")
         if self.lifecycle != Lifecycle.PENDING_TO_ENTER:
             return None
 
@@ -911,31 +930,37 @@ class Investment(Opportunity):
         if model == "next_open":
             if as_of <= trigger:
                 return None
-            price = SafeBarValue.price_for_model(bar, "open", use_raw=use_raw)
+            price = SafeBarValue.price_for_model(
+                bar, "open", use_raw=use_raw, use_hfq=use_hfq
+            )
         elif model == "touch":
             if as_of <= trigger:
                 return None
             if not self._touch_limit_hit(bar):
                 return None
-            limit = float(self.trigger_price or 0.0)
-            if use_raw:
+            if use_hfq:
+                price = float(self.trigger_price_hfq or 0.0)
+            elif use_raw:
                 # 无独立 raw trigger 时用同一限价
-                price = limit
+                price = float(self.trigger_price or 0.0)
             else:
-                price = limit
+                price = float(self.trigger_price or 0.0)
         elif model in {"close", "open"}:
             if as_of != trigger:
                 return None
-            price = SafeBarValue.price_for_model(bar, model, use_raw=use_raw)
+            price = SafeBarValue.price_for_model(
+                bar, model, use_raw=use_raw, use_hfq=use_hfq
+            )
         else:
             raise ValueError(f"unsupported enter_price: {model!r}")
 
-        # 裸价成交层仍要求 > 0；qfq（含 0/负）一律可用
-        if use_raw and price <= 0:
+        # 裸价 / 后复权成交层仍要求 > 0；qfq（含 0/负）一律可用
+        if (use_raw or use_hfq) and price <= 0:
             return None
         if (
             check_tradability
             and not use_raw
+            and not use_hfq
             and self._is_enter_blocked_by_limit_up(price, bar)
         ):
             return None
@@ -994,9 +1019,6 @@ class Investment(Opportunity):
         new_remaining = max(0.0, prev_remaining - abs_ratio)
         self.runtime_state.remaining_ratio = new_remaining
 
-        basis = float(self.entry.price or self.trigger_price or 0.0)
-        profit = exit_price - basis
-        roi = (profit / basis) if basis != 0 else 0.0
         exit_price_raw = self._resolve_exit_price(
             fill_as_of,
             fill_bar,
@@ -1004,6 +1026,20 @@ class Investment(Opportunity):
             use_raw=True,
             check_tradability=False,
         )
+        exit_price_hfq = self._resolve_exit_price(
+            fill_as_of,
+            fill_bar,
+            price_model=price_model,
+            use_hfq=True,
+            check_tradability=False,
+        )
+        basis_hfq = self._hfq_basis()
+        if basis_hfq > 0 and exit_price_hfq is not None:
+            profit = float(exit_price_hfq) - basis_hfq
+            roi = profit / basis_hfq
+        else:
+            profit = 0.0
+            roi = 0.0
         at_limit_down, exit_prev_close = self._eval_limit_down(exit_price, fill_bar)
 
         self.completed_goals.append(
@@ -1012,6 +1048,7 @@ class Investment(Opportunity):
                 "date": fill_as_of,
                 "price": exit_price,
                 "price_raw": float(exit_price_raw or 0.0),
+                "price_hfq": float(exit_price_hfq or 0.0),
                 "exit_ratio": abs_ratio,
                 "profit": profit,
                 "weighted_profit": profit * abs_ratio,
@@ -1031,6 +1068,7 @@ class Investment(Opportunity):
             self.exit_info = ExitState(
                 price=exit_price,
                 price_raw=float(exit_price_raw or 0.0),
+                price_hfq=float(exit_price_hfq or 0.0),
                 date=fill_as_of,
                 reason=self.pending_exit.reason,
                 ratio=total_abs if total_abs > 0 else abs_ratio,
@@ -1073,9 +1111,12 @@ class Investment(Opportunity):
         *,
         price_model: Optional[str] = None,
         use_raw: bool = False,
+        use_hfq: bool = False,
         check_tradability: bool = True,
     ) -> Optional[float]:
         """Exit fill price for this tick, or ``None`` if not ready / blocked."""
+        if use_raw and use_hfq:
+            raise ValueError("use_raw and use_hfq are mutually exclusive")
         if self.pending_exit is None:
             return None
         if self.lifecycle not in (Lifecycle.OPEN, Lifecycle.PENDING_TO_EXIT):
@@ -1096,13 +1137,16 @@ class Investment(Opportunity):
         else:
             model = str(self.settings.simulation.exit_price or "close").strip().lower()
 
-        exit_price = SafeBarValue.price_for_model(bar, model, use_raw=use_raw)
-        # 裸价成交层仍要求 > 0；qfq（含 0/负）一律可用
-        if use_raw and exit_price <= 0:
+        exit_price = SafeBarValue.price_for_model(
+            bar, model, use_raw=use_raw, use_hfq=use_hfq
+        )
+        # 裸价 / 后复权成交层仍要求 > 0；qfq（含 0/负）一律可用
+        if (use_raw or use_hfq) and exit_price <= 0:
             return None
         if (
             check_tradability
             and not use_raw
+            and not use_hfq
             and self._is_exit_blocked_by_limit_down(exit_price, bar)
         ):
             return None
@@ -1174,9 +1218,13 @@ class Investment(Opportunity):
         raw_price = SafeBarValue.price_for_model(signal_bar, "close", use_raw=True)
         if raw_price > 0:
             raw_price = self.settings.simulation.tradability.slippage.apply_enter(raw_price)
+        hfq_price = SafeBarValue.price_for_model(signal_bar, "close", use_hfq=True)
+        if hfq_price > 0:
+            hfq_price = self.settings.simulation.tradability.slippage.apply_enter(hfq_price)
         self.entry = EnterState(
             price=price,
             price_raw=float(raw_price or 0.0),
+            price_hfq=float(hfq_price or 0.0),
             date=fill_as_of,
             direction=TradeSide.BUY,
             prev_close=prev_close,
@@ -1269,20 +1317,27 @@ class Investment(Opportunity):
     def _update_extremes(self, as_of: str, bar: Dict[str, Any]) -> None:
         if self.lifecycle != Lifecycle.OPEN:
             return
-        basis = float(self.entry.price or 0.0)
-        high = float(bar.get("high") or bar.get("close") or 0.0)
-        low = float(bar.get("low") or bar.get("close") or 0.0)
+        basis = self._hfq_basis()
+        high = SafeBarValue.optional_float(bar, "high", use_hfq=True)
+        low = SafeBarValue.optional_float(bar, "low", use_hfq=True)
+        close = SafeBarValue.optional_float(bar, "close", use_hfq=True)
+        if high is None:
+            high = close
+        if low is None:
+            low = close
+        if high is None or low is None:
+            return
         if self.extreme.highest is None or high > self.extreme.highest:
             self.extreme.highest = high
             self.extreme.highest_date = as_of
             self.extreme.highest_return = (
-                (high - basis) / basis if basis != 0 else 0.0
+                (high - basis) / basis if basis > 0 else 0.0
             )
         if self.extreme.lowest is None or low < self.extreme.lowest:
             self.extreme.lowest = low
             self.extreme.lowest_date = as_of
             self.extreme.lowest_return = (
-                (low - basis) / basis if basis != 0 else 0.0
+                (low - basis) / basis if basis > 0 else 0.0
             )
 
     def _update_holding(self, as_of: str) -> None:
@@ -1355,6 +1410,7 @@ class Investment(Opportunity):
             trigger_date=str(self.trigger_date or ""),
             trigger_price=float(self.trigger_price or 0.0),
             trigger_price_raw=float(self.trigger_price_raw or 0.0),
+            trigger_price_hfq=float(self.trigger_price_hfq or 0.0),
             market_profile=str(self.market_profile or ""),
             meta=self._copy_dataclass(self.meta, OpportunityMeta),
             contributor=self._copy_dataclass(self.contributor, OpportunityContributor),

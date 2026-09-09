@@ -126,13 +126,14 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
     assert len(events) == 2
     buy, sell = events
     assert buy.price == 20.0
-    assert sell.price == 22.0  # exit_price_raw，即使 weighted_roi=0.5 也不用 20*1.5
+    assert sell.price == 22.0  # 事件上的 exit_raw 仅审计
+    assert sell.roi == pytest.approx(0.5)
     dumped = opportunities["600000.SH:1"].to_dict()
     assert "weighted_roi" not in dumped
     assert "result" not in dumped
 
 
-def test_build_events_skips_exit_without_raw_sell(tmp_path: Path):
+def test_build_events_emits_sell_without_raw_exit(tmp_path: Path):
     EnumerateStore.at(tmp_path).write_investments(
         EntityInvestmentCsv(
             entity_id="920522.BJ",
@@ -159,8 +160,11 @@ def test_build_events_skips_exit_without_raw_sell(tmp_path: Path):
     events, opportunities = PortfolioPipeline.build_events(
         data, settings=StrategySettings.from_dict({})
     )
-    assert events == []
-    assert opportunities == {}
+    assert len(events) == 2
+    assert events[0].is_buy()
+    assert events[1].is_sell()
+    assert events[1].roi == pytest.approx(-1.4)
+    assert "920522.BJ:1" in opportunities
 
 
 def test_entry_selector_picks_in_order_within_capacity():

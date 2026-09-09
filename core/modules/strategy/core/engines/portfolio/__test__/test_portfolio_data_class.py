@@ -33,7 +33,7 @@ def test_account_equity_and_open_position_count():
     assert account.equity({"600000.SH": 12.0}) == 80_000.0 + 12_000.0
 
 
-def test_portfolio_event_buy_and_sell_use_raw_fill_prices():
+def test_portfolio_event_buy_uses_raw_sell_keeps_exit_raw_for_audit():
     row = InvestmentRow(
         investment_id="1",
         entry_date="20240103",
@@ -49,11 +49,11 @@ def test_portfolio_event_buy_and_sell_use_raw_fill_prices():
     assert len(events) == 2
     buy, sell = events
     assert buy.price == 20.0
-    assert sell.price == 15.0  # exit_price_raw，不是 20 * (1 + 0.5)
+    assert sell.price == 15.0  # 审计用 exit_raw；资金层用 sell.roi
     assert sell.roi == 0.5
 
 
-def test_portfolio_event_sell_ignores_qfq_roi_below_minus_one():
+def test_portfolio_event_sell_without_exit_raw_still_emits():
     row = InvestmentRow(
         investment_id="1",
         entry_date="20240103",
@@ -61,15 +61,18 @@ def test_portfolio_event_sell_ignores_qfq_roi_below_minus_one():
         entry_price_raw=20.0,
         exit_date="20240110",
         exit_price=1.0,
-        exit_price_raw=2.5,
+        exit_price_raw=0.0,
         weighted_roi=-1.5,
         lifecycle="complete",
     )
-    sell = PortfolioEvent.from_investment_row(row, "920522.BJ")[1]
-    assert sell.price == 2.5
+    events = PortfolioEvent.from_investment_row(row, "920522.BJ")
+    assert len(events) == 2
+    sell = events[1]
+    assert sell.price == 0.0
+    assert sell.roi == pytest.approx(-1.5)
 
 
-def test_portfolio_event_skips_when_exit_date_without_exit_raw():
+def test_portfolio_event_emits_sell_when_exit_date_without_exit_raw():
     row = InvestmentRow(
         investment_id="1",
         entry_date="20240103",
@@ -79,7 +82,10 @@ def test_portfolio_event_skips_when_exit_date_without_exit_raw():
         weighted_roi=-1.4,
         lifecycle="complete",
     )
-    assert PortfolioEvent.from_investment_row(row, "920522.BJ") == []
+    events = PortfolioEvent.from_investment_row(row, "920522.BJ")
+    assert len(events) == 2
+    assert events[1].is_sell()
+    assert events[1].roi == pytest.approx(-1.4)
 
 
 def test_portfolio_event_open_position_without_exit_still_buys():
@@ -121,12 +127,14 @@ def test_portfolio_investment_from_trades_profit():
         entity_id="600000.SH",
         investment_id="1",
         shares=100,
-        sell_price=22.0,
         buy_price=20.0,
+        roi=0.1,
         fees=5.0,
     )
-    # share value profit：100*(22-20)=200；fees 不计入 profit
+    # hfq ROI 盈利：100 × 20 × 0.1 = 200；fees 不计入 profit
     assert sell.profit == 200.0
+    assert sell.price == pytest.approx(22.0)
+    assert sell.amount == pytest.approx(2200.0)
     assert sell.net_proceeds == 2195.0
     inv = PortfolioInvestment.from_trades(buy, [sell])
     assert inv.lifecycle == "complete"
@@ -136,22 +144,36 @@ def test_portfolio_investment_from_trades_profit():
     assert abs(inv.roi - (200.0 / 2005.0)) < 1e-9
 
 
-def test_trade_make_sell_rejects_non_positive_price():
-    with pytest.raises(ValueError, match="sell price"):
+def test_trade_make_sell_rejects_non_positive_buy_price():
+    with pytest.raises(ValueError, match="buy_price"):
         Trade.make_sell(
             date="20240110",
             entity_id="600000.SH",
             investment_id="1",
             shares=100,
-            sell_price=0.0,
-            buy_price=20.0,
+            buy_price=0.0,
+            roi=0.1,
         )
 
 
-def test_trade_share_value_profit_ignores_fees():
-    assert Trade.share_value_profit(100, sell_price=22.0, buy_price=20.0) == 200.0
+def test_trade_hfq_cash_profit_ignores_fees():
+    assert Trade.hfq_cash_profit(100, buy_price=20.0, roi=0.1) == 200.0
+    assert Trade.equivalent_exit_value(100, buy_price=20.0, roi=0.1) == 2200.0
     assert Trade.purchase_share_value(100, 20.0) == 2000.0
-    assert Trade.sell_share_value(100, 22.0) == 2200.0
+
+
+def test_trade_make_sell_split_zero_roi_returns_principal():
+    sell = Trade.make_sell(
+        date="20240110",
+        entity_id="600000.SH",
+        investment_id="1",
+        shares=100,
+        buy_price=10.0,
+        roi=0.0,
+    )
+    assert sell.profit == pytest.approx(0.0)
+    assert sell.price == pytest.approx(10.0)
+    assert sell.amount == pytest.approx(1000.0)
 
 
 def test_portfolio_settings_defaults_and_validate():

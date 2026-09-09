@@ -125,6 +125,7 @@ class InvestmentTracker:
         trigger_date: str,
         trigger_price: float,
         trigger_price_raw: float = 0.0,
+        trigger_price_hfq: float = 0.0,
         status_tags_provider: Any = None,
         hook_runtime: Any = None,
     ) -> Optional[Investment]:
@@ -140,6 +141,7 @@ class InvestmentTracker:
             trigger_date=trigger_date,
             trigger_price=trigger_price,
             trigger_price_raw=trigger_price_raw,
+            trigger_price_hfq=trigger_price_hfq,
             opportunity_index=self._investment_index,
             market_profile=ProjectContext.config.get_default_market_profile_key(),
         )

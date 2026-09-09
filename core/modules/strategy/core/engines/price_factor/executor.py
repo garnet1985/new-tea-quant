@@ -273,6 +273,7 @@ class PriceFactorJobExecutor:
 
             enter_date = str(row.entry_date or "").strip()
             enter_price = float(row.entry_price or 0.0)
+            enter_price_hfq = float(row.entry_price_hfq or 0.0)
             # entry_price 为 qfq（可为负/0）；只要求有进场日
             if not enter_date:
                 continue
@@ -307,6 +308,7 @@ class PriceFactorJobExecutor:
                 )
                 processed, pending, defer_skips = retry_deferred_exits(
                     enter_price=enter_price,
+                    enter_price_hfq=enter_price_hfq,
                     processed_legs=processed,
                     skipped_legs=skipped_legs,
                     klines=klines,
@@ -315,6 +317,8 @@ class PriceFactorJobExecutor:
                     market_rules=market_rules,
                 )
                 skipped_sell += int(defer_skips or 0)
+
+            used_deferred = any(bool(leg.get("deferred")) for leg in processed)
 
             holding_until = resolve_holding_until(
                 processed_legs=processed,
@@ -327,8 +331,10 @@ class PriceFactorJobExecutor:
                     row=row,
                     enter_date=enter_date,
                     enter_price=enter_price,
+                    enter_price_hfq=enter_price_hfq,
                     processed=processed,
                     pending=pending,
+                    used_deferred=used_deferred,
                 )
             )
 
@@ -381,6 +387,7 @@ def _build_exit_legs(
                     "date": day,
                     "exit_date": day,
                     "exit_price": float(g.price or 0.0),
+                    "exit_price_hfq": float(g.price_hfq or 0.0),
                     "exit_ratio": float(g.exit_ratio or 0.0) or 1.0,
                     "reason": str(g.reason or "").strip(),
                     "exit_at_limit": flag,
@@ -396,6 +403,7 @@ def _build_exit_legs(
             "date": exit_date,
             "exit_date": exit_date,
             "exit_price": float(row.exit_price or 0.0),
+            "exit_price_hfq": float(row.exit_price_hfq or 0.0),
             "exit_ratio": 1.0,
             "reason": str(row.exit_reason or "").strip(),
             "exit_at_limit": row.exit_at_limit,
@@ -407,15 +415,12 @@ def _leg_date(leg: Dict[str, Any]) -> str:
     return str(leg.get("date") or leg.get("exit_date") or "").strip()
 
 
-def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float:
-    basis = float(enter_price or 0.0)
-    if not processed:
-        return 0.0
-    # basis=0 时相对 ROI 无定义 → 记 0
-    if basis == 0:
+def _aggregate_hfq_roi(processed: List[Dict[str, Any]], enter_price_hfq: float) -> float:
+    """跌停顺延后按腿用 hfq 重算加权 ROI。缺合法 hfq 的腿贡献 0。"""
+    basis = float(enter_price_hfq or 0.0)
+    if not processed or basis <= 0:
         return 0.0
     weighted_profit = 0.0
-    # exit_ratio = 相对初始仓位的绝对份额（与 enum completed_goals / goals CSV 一致）
     ordered = sorted(processed, key=_leg_date)
     for leg in ordered:
         try:
@@ -426,10 +431,12 @@ def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float
             continue
         ratio = min(ratio, 1.0)
         try:
-            sell_px = float(leg.get("exit_price") or 0.0)
+            sell_hfq = float(leg.get("exit_price_hfq") or 0.0)
         except (TypeError, ValueError):
-            sell_px = 0.0
-        weighted_profit += (sell_px - basis) * ratio
+            sell_hfq = 0.0
+        if sell_hfq <= 0:
+            continue
+        weighted_profit += (sell_hfq - basis) * ratio
     return weighted_profit / basis
 
 
@@ -438,26 +445,33 @@ def _to_price_row(
     row: InvestmentRow,
     enter_date: str,
     enter_price: float,
+    enter_price_hfq: float,
     processed: List[Dict[str, Any]],
     pending: Any,
+    used_deferred: bool,
 ) -> PriceInvestmentRow:
     closed = position_fully_closed(processed)
     if closed:
         last = max(processed, key=_leg_date)
         exit_date = _leg_date(last)
         exit_price = float(last.get("exit_price") or 0.0)
-        roi = _aggregate_roi(processed, enter_price)
+        exit_price_hfq = float(last.get("exit_price_hfq") or 0.0)
+        if used_deferred:
+            roi = _aggregate_hfq_roi(processed, enter_price_hfq)
+        else:
+            roi = float(row.weighted_roi or 0.0)
         exit_reason = str(last.get("reason") or row.exit_reason or "").strip()
         lifecycle = "complete"
-        if roi > 0:
-            result = "win"
-        elif roi < 0:
-            result = "loss"
+        if used_deferred:
+            result = "win" if roi >= 0 else "loss"
         else:
             result = str(row.result or "").strip()
+            if not result:
+                result = "win" if roi >= 0 else "loss"
     else:
         exit_date = ""
         exit_price = 0.0
+        exit_price_hfq = 0.0
         roi = 0.0
         if pending is not None:
             exit_reason = str(getattr(pending, "reason", "") or row.exit_reason or "").strip()
@@ -481,8 +495,10 @@ def _to_price_row(
         opportunity_id=str(row.investment_id or "").strip(),
         enter_date=enter_date,
         enter_price=enter_price,
+        enter_price_hfq=enter_price_hfq,
         exit_date=exit_date,
         exit_price=exit_price,
+        exit_price_hfq=exit_price_hfq,
         roi=roi,
         holding_days=holding_days,
         holding_trading_days=holding_days,

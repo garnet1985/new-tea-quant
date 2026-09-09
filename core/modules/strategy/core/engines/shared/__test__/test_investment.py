@@ -35,12 +35,16 @@ def _bar(
     c: float,
     pre_close: float | None = None,
     raw: dict | None = None,
+    hfq: dict | None = None,
+    adj_factor: float | None = None,
 ) -> dict:
     row = {"date": date, "open": o, "high": h, "low": l, "close": c}
     if pre_close is not None:
         row["pre_close"] = pre_close
-    if raw is not None:
-        row["raw"] = raw
+    ohlc = {k: row[k] for k in ("open", "high", "low", "close", "pre_close") if k in row}
+    row["raw"] = dict(raw) if raw is not None else dict(ohlc)
+    row["hfq"] = dict(hfq) if hfq is not None else dict(ohlc)
+    row["adj_factor"] = 1.0 if adj_factor is None else float(adj_factor)
     return row
 
 
@@ -53,9 +57,21 @@ def _tick(
     c: float,
     pre_close: float | None = None,
     raw: dict | None = None,
+    hfq: dict | None = None,
+    adj_factor: float | None = None,
 ):
     """返回 (as_of, bar)。"""
-    return date, _bar(date, o=o, h=h, l=l, c=c, pre_close=pre_close, raw=raw)
+    return date, _bar(
+        date,
+        o=o,
+        h=h,
+        l=l,
+        c=c,
+        pre_close=pre_close,
+        raw=raw,
+        hfq=hfq,
+        adj_factor=adj_factor,
+    )
 
 
 def _react(inv: Investment, tick) -> bool:
@@ -276,6 +292,7 @@ class TestInvestmentRawPrices(unittest.TestCase):
         )
         self.assertEqual(inv.entry.price, 10.5)
         self.assertEqual(inv.entry.price_raw, 21.0)
+        self.assertEqual(inv.entry.price_hfq, 10.5)
 
         self.assertFalse(
             _react(inv, 
@@ -291,7 +308,9 @@ class TestInvestmentRawPrices(unittest.TestCase):
         )
         self.assertEqual(inv.exit_info.price, 8.0)
         self.assertEqual(inv.exit_info.price_raw, 16.0)
+        self.assertEqual(inv.exit_info.price_hfq, 8.0)
         self.assertEqual(inv.completed_goals[0]["price_raw"], 16.0)
+        self.assertEqual(inv.completed_goals[0]["price_hfq"], 8.0)
 
         from core.modules.strategy.core.services.artifacts import (
             InvestmentRow,
@@ -301,6 +320,76 @@ class TestInvestmentRawPrices(unittest.TestCase):
         self.assertEqual(row.trigger_price_raw, 20.0)
         self.assertEqual(row.entry_price_raw, 21.0)
         self.assertEqual(row.exit_price_raw, 16.0)
+        self.assertEqual(row.entry_price_hfq, 10.5)
+        self.assertEqual(row.exit_price_hfq, 8.0)
+
+
+class TestInvestmentHfqRoiAndStops(unittest.TestCase):
+    def test_split_does_not_trip_ratio_stop_or_fake_loss(self) -> None:
+        """10 送 10：qfq/raw 腰斩，hfq 持平 → 不止损，ROI=0。"""
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+            trigger_price_raw=10.0,
+            trigger_price_hfq=10.0,
+        )
+        inv = _inv(opp, settings)
+
+        self.assertTrue(
+            _react(
+                inv,
+                _tick(
+                    "20240103",
+                    o=10.0,
+                    h=10.5,
+                    l=9.8,
+                    c=10.2,
+                    raw={"open": 10.0, "high": 10.5, "low": 9.8, "close": 10.2},
+                    hfq={"open": 10.0, "high": 10.5, "low": 9.8, "close": 10.2},
+                    adj_factor=1.0,
+                ),
+            )
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(inv.entry.price, 10.0)
+        self.assertEqual(inv.entry.price_raw, 10.0)
+        self.assertEqual(inv.entry.price_hfq, 10.0)
+
+        still_open = _react(
+            inv,
+            _tick(
+                "20240104",
+                o=5.0,
+                h=5.2,
+                l=4.8,
+                c=5.0,
+                raw={"open": 5.0, "high": 5.2, "low": 4.8, "close": 5.0},
+                hfq={"open": 10.0, "high": 10.4, "low": 9.6, "close": 10.0},
+                adj_factor=2.0,
+            ),
+        )
+        self.assertTrue(still_open)
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+
+        inv.settle("20240104", _bar(
+            "20240104",
+            o=5.0,
+            h=5.2,
+            l=4.8,
+            c=5.0,
+            raw={"open": 5.0, "high": 5.2, "low": 4.8, "close": 5.0},
+            hfq={"open": 10.0, "high": 10.4, "low": 9.6, "close": 10.0},
+            adj_factor=2.0,
+        ))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.price, 5.0)
+        self.assertEqual(inv.exit_info.price_raw, 5.0)
+        self.assertEqual(inv.exit_info.price_hfq, 10.0)
+        self.assertAlmostEqual(inv.outcome.weighted_roi, 0.0, places=6)
+        self.assertEqual(inv.outcome.result.value, "win")
 
 
 class TestGoalSettingsExpiration(unittest.TestCase):

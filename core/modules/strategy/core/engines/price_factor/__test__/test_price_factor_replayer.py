@@ -18,8 +18,10 @@ def _row(**kwargs) -> InvestmentRow:
         trigger_price=10.0,
         entry_date="20240102",
         entry_price=10.0,
+        entry_price_hfq=10.0,
         exit_date="20240110",
         exit_price=11.0,
+        exit_price_hfq=11.0,
         exit_reason="take_profit",
         lifecycle="complete",
         result="win",
@@ -27,6 +29,10 @@ def _row(**kwargs) -> InvestmentRow:
         holding_days=5,
     )
     base.update(kwargs)
+    if "entry_price_hfq" not in kwargs:
+        base["entry_price_hfq"] = float(base.get("entry_price") or 0.0)
+    if "exit_price_hfq" not in kwargs:
+        base["exit_price_hfq"] = float(base.get("exit_price") or 0.0)
     return InvestmentRow(**base)
 
 
@@ -98,6 +104,7 @@ def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
             goal_name="take_profit",
             date="20240108",
             price=11.0,
+            price_hfq=11.0,
             exit_ratio=0.5,
             reason="take_profit",
         ),
@@ -106,6 +113,7 @@ def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
             goal_name="take_profit",
             date="20240110",
             price=12.0,
+            price_hfq=12.0,
             exit_ratio=0.5,
             reason="take_profit",
         ),
@@ -113,4 +121,32 @@ def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
     out, _ = PriceFactorJobExecutor._replay_entity_investments(rows, goal_rows=goals)
     assert len(out) == 1
     assert out[0].lifecycle == "complete"
-    assert out[0].roi == pytest.approx(0.15)  # 0.5*0.1 + 0.5*0.2
+    assert out[0].roi == pytest.approx(0.15)  # enum weighted_roi，不是 qfq 差价重算
+    assert out[0].enter_price_hfq == pytest.approx(10.0)
+
+
+def test_replay_uses_enum_hfq_roi_not_qfq_split() -> None:
+    """10 送 10：qfq 腰斩、hfq 持平 → price 层 roi 必须是 0，不能是 −50%。"""
+    rows = [
+        _row(
+            investment_id="1",
+            entry_date="20240102",
+            entry_price=10.0,
+            exit_date="20240110",
+            exit_price=5.0,
+            entry_price_hfq=10.0,
+            exit_price_hfq=10.0,
+            exit_reason="expiration",
+            weighted_roi=0.0,
+            result="win",
+        )
+    ]
+    out, _ = PriceFactorJobExecutor._replay_entity_investments(rows)
+    assert len(out) == 1
+    assert out[0].lifecycle == "complete"
+    assert out[0].roi == pytest.approx(0.0)
+    assert out[0].result == "win"
+    assert out[0].enter_price == pytest.approx(10.0)
+    assert out[0].exit_price == pytest.approx(5.0)
+    assert out[0].enter_price_hfq == pytest.approx(10.0)
+    assert out[0].exit_price_hfq == pytest.approx(10.0)

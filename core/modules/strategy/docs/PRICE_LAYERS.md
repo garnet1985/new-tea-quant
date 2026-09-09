@@ -1,6 +1,6 @@
 # 价格三层：qfq 信号 / hfq ROI / raw 成交
 
-**状态：** 口径已锁定（2026-09-09）。数据层已按本文给三层价；enumerate / 止盈止损 / 资金层尚未切到 hfq。  
+**状态：** 口径已锁定（2026-09-09）。数据层已给三层价；enumerate 止盈止损 / `weighted_roi` 已切 hfq；price_factor 已聚合枚举 hfq ROI；portfolio 平仓已按 `股数 × 买入 raw × hfq ROI` 记账。  
 **取代：** [CORPORATE_ACTION_CASH_ACCOUNTS.md](../core/CORPORATE_ACTION_CASH_ACCOUNTS.md)（分红送转双账户 + Tushare `dividend` 不再做）。  
 **三层共用：** enumerate / price_factor / portfolio 同一套尺，禁止一层 qfq、一层 raw 冻股数。
 
@@ -83,14 +83,10 @@ qfq(t) = raw(t) × F(段)/F(最新) + C   # 信号；C 来自腾讯锚
 
 已落地、仍有效：
 
-- 资金买卖记账价用 raw；禁止用 qfq `weighted_roi` 反推卖出价
+- 资金买卖：买入扣 `entry_price_raw × 股数`；平仓盈利 = `股数 × 买入 raw × hfq ROI`（费用另扣）
 - 代码：`portfolio/data_class/event.py`、`trade.py`、`simulator.py`
-
-尚未落地（相对本文）：
-
-- 枚举 `_apply_exit` 仍是 qfq 涨跌幅 → `weighted_roi`
-- 比例止盈止损仍碰 qfq
-- 资金层仍按买入股数 × **未复权卖出价**（送转日会把 0% 算成腰斩）
+- 枚举 `_apply_exit` / 比例止盈止损 / 峰谷 / `weighted_roi` 用 hfq；产物带 `*_hfq`
+- price_factor 无顺延吃枚举 `weighted_roi`；跌停顺延用 bar `hfq` 对 `entry_price_hfq` 重算；`roi × enter_hfq` 记均利（不是资金层现金）
 
 ---
 

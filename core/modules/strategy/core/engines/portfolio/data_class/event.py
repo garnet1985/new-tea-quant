@@ -20,11 +20,11 @@ if TYPE_CHECKING:
 class PortfolioEvent:
     """资金回放事件（替换 legacy trigger/target）。
 
-    买卖价都是未复权成交价，不用前复权收益率去反推卖出价。
-    枚举 ``weighted_roi`` 仍挂在 sell 事件上供对照，但不参与资金记账。
+    买入扣现金用 ``entry_price_raw``。平仓盈利用枚举 hfq ``weighted_roi``：
+    ``股数 × 买入 raw × ROI``。``exit_price_raw`` 仅审计，不参与资金。
 
     - buy: ``price`` = ``entry_price_raw``
-    - sell: ``price`` = ``exit_price_raw``（必须 > 0；缺则整笔不进资金层）
+    - sell: ``price`` = ``exit_price_raw``（可缺；模拟器用 ``roi`` 算钱）
     """
 
     kind: str
@@ -32,7 +32,7 @@ class PortfolioEvent:
     entity_id: str
     investment_id: str
     price: float
-    # roi: return on investment（来自枚举 weighted_roi）；buy 事件为 0
+    # roi: return on investment（来自枚举 weighted_roi / hfq）；buy 事件为 0
     roi: float = 0.0
     entry_price_raw: float = 0.0
     exit_price_raw: float = 0.0
@@ -71,8 +71,8 @@ class PortfolioEvent:
     ) -> List["PortfolioEvent"]:
         """一笔枚举 investment → buy/sell 事件。
 
-        缺 ``entry_price_raw`` 时不生成任何事件。
-        已有卖出日但缺合法 ``exit_price_raw`` 时整笔跳过（避免用 qfq ROI 造出卖出价）。
+        缺合法 ``entry_price_raw`` 时不生成任何事件。
+        有卖出日即生成 sell（不要求 ``exit_price_raw``）；资金层用 ``weighted_roi``。
         """
         eid = str(entity_id or "").strip()
         inv_id = str(getattr(row, "investment_id", "") or "").strip()
@@ -83,8 +83,6 @@ class PortfolioEvent:
         roi = float(getattr(row, "weighted_roi", 0.0) or 0.0)
 
         if not entry_date or entry_raw <= 0:
-            return []
-        if exit_date and exit_raw <= 0:
             return []
 
         events: List[PortfolioEvent] = [

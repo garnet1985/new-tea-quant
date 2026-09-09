@@ -111,8 +111,8 @@ class PortfolioPipeline:
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
         """读 enum CSV → 事件列表 + 已屏蔽结果字段的 Opportunity 索引。
 
-        买入价固定为 ``entry_price_raw``，卖出价固定为 ``exit_price_raw``；
-        缺任一合法 raw 的已完成笔跳过（不回退 qfq、不用 ROI 反推）。
+        买入扣现金用 ``entry_price_raw``；平仓用枚举 hfq ``weighted_roi``。
+        缺合法买入 raw 的笔跳过。不要求 ``exit_price_raw``，也不用它算钱。
         ``simulation.risk_control.should_skip_enter`` 命中触发日状态的行不生成事件。
         """
         control = settings.simulation.risk_control

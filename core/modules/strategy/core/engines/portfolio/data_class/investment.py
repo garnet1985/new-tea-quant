@@ -29,9 +29,9 @@ class PortfolioInvestment:
     average_cost: float = 0.0
     total_cost: float = 0.0
     fees: float = 0.0
-    # 已实现盈亏（realized profit）：sell share value − purchase share value
+    # 已实现盈亏：Σ 股数 × 买入 raw × hfq ROI（不含 fees）
     realized_profit: float = 0.0
-    # roi: return on investment = realized_profit / total_cost
+    # 资金层含费 ROI = realized_profit / total_cost；分子已是 hfq 口径
     roi: float = 0.0
     holding_days: int = 0
     lifecycle: str = "open"
@@ -62,18 +62,11 @@ class PortfolioInvestment:
         shares = int(buy_trade.shares or 0)
         average_cost = (total_cost / shares) if shares > 0 else 0.0
         fees = float(buy_trade.fees or 0.0) + sum(float(t.fees or 0.0) for t in sells)
-        # realized_profit：按 share value 变化汇总（不含 fees）
-        buy_price = float(buy_trade.price or 0.0)
+        # realized_profit：卖出腿已按 hfq ROI 记账；缺 profit 时视为 0（不用 exit_raw 重算）
         realized_profit = 0.0
         for sell in sells:
             if sell.profit is not None:
                 realized_profit += float(sell.profit)
-            else:
-                realized_profit += Trade.share_value_profit(
-                    int(sell.shares or 0),
-                    float(sell.price or 0.0),
-                    buy_price,
-                )
         roi = (realized_profit / total_cost) if total_cost > 0 else 0.0
 
         sell_date = ""

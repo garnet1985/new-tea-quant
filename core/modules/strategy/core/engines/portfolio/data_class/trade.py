@@ -1,12 +1,13 @@
 """Portfolio 成交记录 data class。
 
 本文件:
-- Trade: 单笔 buy/sell 成交；profit = sell share value − purchase share value
+- Trade: 单笔 buy/sell 成交；卖出盈利 = 股数 × 买入 raw × hfq ROI
   边界: 负责成交记录结构；不负责 FeeCalculator 或 Account 更新
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -25,7 +26,7 @@ class Trade:
     fees: float = 0.0
     total_cost: Optional[float] = None
     net_proceeds: Optional[float] = None
-    # 本笔实现的盈亏：share value 变化（不含 fees）；通常卖出腿填写
+    # 本笔实现的盈亏：股数 × 买入 raw × hfq ROI（不含 fees）；通常卖出腿填写
     profit: Optional[float] = None
     cash_after: Optional[float] = None
     equity_after: Optional[float] = None
@@ -42,20 +43,26 @@ class Trade:
         return float(shares) * float(buy_price)
 
     @staticmethod
-    def sell_share_value(shares: int, sell_price: float) -> float:
-        """卖出时股份市值（shares × sell_price，不含 fees）。"""
-        return float(shares) * float(sell_price)
+    def hfq_cash_profit(shares: int, buy_price: float, roi: float) -> float:
+        """平仓盈利 = 买入股数 × 买入 raw × hfq ROI（不含 fees）。"""
+        return float(shares) * float(buy_price) * float(roi)
 
     @staticmethod
-    def share_value_profit(
-        shares: int,
-        sell_price: float,
-        buy_price: float,
-    ) -> float:
-        """profit = sell share value − purchase share value。"""
-        return Trade.sell_share_value(shares, sell_price) - Trade.purchase_share_value(
-            shares, buy_price
+    def equivalent_exit_value(shares: int, buy_price: float, roi: float) -> float:
+        """同股等价卖出额 = 本金 + 盈利；不是交易所 raw 打印价 × 股数。"""
+        return Trade.purchase_share_value(shares, buy_price) + Trade.hfq_cash_profit(
+            shares, buy_price, roi
         )
+
+    @staticmethod
+    def finite_roi(roi: Any) -> float:
+        try:
+            value = float(roi or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(value):
+            return 0.0
+        return value
 
     @classmethod
     def make_buy(
@@ -98,21 +105,25 @@ class Trade:
         entity_id: str,
         investment_id: str,
         shares: int,
-        sell_price: float,
         buy_price: float,
+        roi: float,
         fees: float = 0.0,
     ) -> "Trade":
-        """卖出：``sell_price`` 必须为 raw 且 > 0（不做多倒贴、不用 qfq ROI 造价）。"""
+        """卖出：现金与盈利按 hfq ROI，不用 exit_raw 当成交额。
+
+        ``price`` / ``amount`` 为同股等价价与卖出额（``买入 raw × (1 + ROI)``），
+        不是交易所 raw 打印价。
+        """
         n = int(shares)
-        px = float(sell_price)
         buy_px = float(buy_price)
         if n <= 0:
             raise ValueError("sell shares 必须 > 0")
-        if px <= 0:
-            raise ValueError("sell price (raw) 必须 > 0")
         if buy_px <= 0:
             raise ValueError("buy_price (raw) 必须 > 0")
-        amount = cls.sell_share_value(n, px)
+        roi_value = cls.finite_roi(roi)
+        profit = cls.hfq_cash_profit(n, buy_px, roi_value)
+        amount = cls.equivalent_exit_value(n, buy_px, roi_value)
+        px = amount / float(n)
         fee = float(fees or 0.0)
         return cls(
             date=str(date or "").strip(),
@@ -124,7 +135,7 @@ class Trade:
             amount=amount,
             fees=fee,
             net_proceeds=amount - fee,
-            profit=cls.share_value_profit(n, px, buy_px),
+            profit=profit,
         )
 
     def to_dict(self) -> Dict[str, Any]:

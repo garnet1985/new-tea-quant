@@ -1,7 +1,7 @@
 """价格回测：按需加载单股日 K 线。
 
 本文件:
-- load_stock_klines: DataManager qfq daily
+- load_stock_klines: DataManager 日 K（顶层 qfq，嵌套 raw/hfq）
   边界: 负责 K 线 IO；不负责 slippage 或成交回放
 """
 
@@ -20,7 +20,7 @@ def load_stock_klines(
     end_date: str,
     term: str = "daily",
 ) -> List[Dict[str, Any]]:
-    """从 DataManager 拉 qfq daily；失败返回空列表。"""
+    """从 DataManager 拉日 K（顶层 qfq，嵌套 raw/hfq）；失败返回空列表。"""
     sid = str(stock_id or "").strip()
     start = str(start_date or "").strip()
     end = str(end_date or "").strip()

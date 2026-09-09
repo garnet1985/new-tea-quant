@@ -478,6 +478,7 @@ class SliceTaskState:
             trigger_date=as_of,
             trigger_price=SafeBarValue.float(bar, "close"),
             trigger_price_raw=SafeBarValue.float(bar, "close", use_raw=True),
+            trigger_price_hfq=SafeBarValue.float(bar, "close", use_hfq=True),
             status_tags_provider=self.entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS),
             hook_runtime=self.hook_runtime,
         )

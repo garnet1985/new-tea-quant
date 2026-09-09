@@ -88,7 +88,7 @@ PortfolioSimulator.run（不变）
 输入：本次 `PortfolioSimResult.trades`、回测 `start_date`/`end_date`、`initial_capital`。  
 输出：每个开市日的现金、净值、持仓数。
 
-计价：仓位是未复权股数，盯市用**未复权日收盘**（`kline.load_raw` / `load_batch(..., adjust="none")` 的 `close`）。不要用前复权收盘去乘未复权股数。
+计价：仓位是未复权股数，盯市用**未复权日收盘**（`kline.load_raw` 的 `close`，或分层 bar 的 `row["raw"]["close"]`）。不要用前复权收盘去乘未复权股数。
 
 ### 4.1 回放持股与现金（不读行情）
 
@@ -194,7 +194,7 @@ Sortino = mean(r) / sqrt(mean(min(r, 0)²)) × √252
 | 新模块（如 `report_manager/daily_mtm.py`） | 成交 → 日历 → 按窗口拉 raw close → 日净值。允许 IO。 |
 | `capital_metrics.py` | 保持无 IO；在全日盯市序列上计算夏普 / Sortino / 回撤。 |
 | `pipeline.py` / `report_manager.py` | 模拟后调用盯市，把曲线交给现有 overall；CLI / UI 再挂夏普与 Sortino。 |
-| `kline_service.load_batch` / `load_raw` | 复用；`adjust="none"`。 |
+| `kline_service.load_raw` / 分层 bar 的 `raw.close` | 盯市用未复权收盘；不要用顶层 qfq。 |
 | 日历 | `calendar.load_open_dates`（与 scanner 同源即可）。 |
 | 测试 | 固定 10 日 K + 两笔成交，断言日净值与夏普；缺 K 线沿用昨收；清仓后不再计入。 |
 

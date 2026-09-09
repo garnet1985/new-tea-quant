@@ -138,7 +138,7 @@ Inject daily bars, quarterly fundamentals, and CPI:
 "data": {
     "base": {
         "data_key": "stock.kline.daily",
-        "params": {"adjust": "qfq"},
+        "params": {},
     },
     "required": [
         {"data_key": "stock.finance.quarterly"},
@@ -153,7 +153,7 @@ Add MACD on the base K-line:
 "data": {
     "base": {
         "data_key": "stock.kline.daily",
-        "params": {"adjust": "qfq"},
+        "params": {},
         "indicators": {
             "macd": [{"fast": 12, "slow": 26, "signal": 9}],
         },

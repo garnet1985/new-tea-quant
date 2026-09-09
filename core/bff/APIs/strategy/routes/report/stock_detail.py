@@ -337,33 +337,23 @@ class WorkbenchStockDetail:
         params = base.get("params") if isinstance(base.get("params"), dict) else {}
         data_key = str(base.get("data_key") or "stock.kline.daily")
         term = str(params.get("term") or data_key.rsplit(".", 1)[-1] or "daily").strip()
-        adjust = str(params.get("adjust") or "qfq").strip().lower() or "qfq"
         indicators_cfg = (
             base.get("indicators") if isinstance(base.get("indicators"), dict) else {}
         )
 
         try:
             kline_svc = DataManager().stock.kline
-            if adjust == "qfq":
-                rows = list(
-                    kline_svc.load_qfq_split(
-                        stock_id, term=term, start_date=start, end_date=end
-                    )
-                    or []
+            rows = list(
+                kline_svc.load_qfq_split(
+                    stock_id, term=term, start_date=start, end_date=end
                 )
-            else:
-                rows = list(
-                    kline_svc.load_raw(
-                        stock_id, term=term, start_date=start, end_date=end
-                    )
-                    or []
-                )
+                or []
+            )
         except Exception:
             logger.exception("加载单股 K 线失败: %s", stock_id)
             return [], [], {
                 "data_id": data_key,
                 "term": term,
-                "adjust": adjust,
             }
 
         candles = [c for row in rows if (c := cls._api_candle_row(row)) is not None]
@@ -371,7 +361,6 @@ class WorkbenchStockDetail:
         return candles, indicator_series, {
             "data_id": data_key,
             "term": term,
-            "adjust": adjust,
         }
 
     @classmethod

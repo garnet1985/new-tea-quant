@@ -126,13 +126,7 @@ function ReportStockDetailView({
     return normalizeEnumMetricsFromSummary({ enumMetrics: raw });
   }, [activeLayer, payload]);
 
-  const priceAdjustLabel = useMemo(() => {
-    const adj = String(payload?.kline_params?.adjust || 'qfq').toLowerCase();
-    if (adj === 'qfq') return '前复权 (qfq)';
-    if (adj === 'hfq') return '后复权 (hfq)';
-    if (adj === 'none' || adj === 'nfq') return '不复权';
-    return adj;
-  }, [payload]);
+  const priceAdjustLabel = '顶层前复权 · 行内 raw / hfq';
 
   return (
     <Stack spacing={1.25} className="ntq-report-stock-detail">

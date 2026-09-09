@@ -139,7 +139,7 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 "data": {
     "base": {
         "data_key": "stock.kline.daily",
-        "params": {"adjust": "qfq"},
+        "params": {},
     },
     "required": [
         {"data_key": "stock.finance.quarterly"},
@@ -154,7 +154,7 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 "data": {
     "base": {
         "data_key": "stock.kline.daily",
-        "params": {"adjust": "qfq"},
+        "params": {},
         "indicators": {
             "macd": [{"fast": 12, "slow": 26, "signal": 9}],
         },

@@ -84,4 +84,5 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 - [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
 - [DECISIONS.md](./notes/DECISIONS.md)
+- [价格三层：qfq 信号 / hfq ROI / raw 成交](./PRICE_LAYERS.md)
 - [资金层日频盯市风险比（未实现）](../core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md)

@@ -16,7 +16,7 @@ def _userspace_settings(**overrides) -> dict:
             "execution": {"mode": "entity_based", "start_date": "20240101", "end_date": ""},
         },
         "data": {
-            "base": {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}},
+            "base": {"data_key": "stock.kline.daily", "params": {}},
             "required": [],
             "min_required_records": 0,
         },

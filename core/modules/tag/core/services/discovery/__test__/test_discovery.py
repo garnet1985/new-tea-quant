@@ -21,7 +21,7 @@ def _minimal_settings(**overrides):
         "data": {
             "base": {
                 "data_key": "stock.kline.daily",
-                "params": {"adjust": "qfq"},
+                "params": {},
             },
             "required": [],
             "min_required_records": 1,

@@ -1,6 +1,6 @@
 name: modules.strategy
-version: "0.8.0"
-compatible_core_versions: ">=0.4.5"
+version: "0.9.0"
+compatible_core_versions: ">=0.5.0"
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
 dependencies:
   - modules.data_manager
@@ -17,6 +17,10 @@ dependencies:
   - infra.utils
   - infra.trace
 changelog:
+  - version: "0.9.0"
+    changes:
+      - 将枚举结果变成契约，后续价格，组合，决策者模式都可以共用
+      - （破坏性改动，需要更高版本内核）将枚举结果从3个csv文件简化成一个json文件，并且不在支持csv
   - version: "0.8.0"
     changes:
       - 重构策略模块的归因分析，渐入cmd和UI的入口，增加设置里对归因分析的开关

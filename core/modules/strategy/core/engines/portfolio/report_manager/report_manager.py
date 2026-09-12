@@ -19,6 +19,9 @@ from typing import Any, Dict, List, Optional, TextIO, TYPE_CHECKING
 
 from core.infra.cmd_layout import CmdLayout
 from core.infra.project_context import ProjectContext
+from core.modules.strategy.core.engines.portfolio.report_manager.daily_mtm import (
+    mark_portfolio_equity,
+)
 from core.modules.strategy.core.engines.portfolio.report_manager.entity_list_report import (
     EntityListReport,
     EntityListReportHandle,
@@ -241,10 +244,19 @@ class ReportManager(BaseReportManager):
         present: bool = False,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        _ = kwargs
         started = time.perf_counter()
+        period_map = dict(period or {})
+        sim = mark_portfolio_equity(
+            sim,
+            start_date=str(period_map.get("start_date") or ""),
+            end_date=str(period_map.get("end_date") or ""),
+            market_profile=self.market_profile,
+            load_open_dates=kwargs.pop("load_open_dates", None),
+            load_hfq_closes=kwargs.pop("load_hfq_closes", None),
+        )
+        _ = kwargs
         self._sim = sim
-        self._period = dict(period or {})
+        self._period = period_map
         self._save_trades = bool(save_trades)
         self._save_equity_curve = bool(save_equity_curve)
         self.summarize()

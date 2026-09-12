@@ -84,7 +84,8 @@ qfq(t) = raw(t) × F(段)/F(最新) + C   # 信号；C 来自腾讯锚
 已落地、仍有效：
 
 - 资金买卖：买入扣 `entry_price_raw × 股数`；平仓盈利 = `股数 × 买入 raw × hfq ROI`（费用另扣）
-- 代码：`portfolio/data_class/event.py`、`trade.py`、`simulator.py`
+- 资金日频盯市：`mark_px = entry_raw × (1 + (hfq_close − entry_hfq) / entry_hfq)`，不是 raw 收盘 × 冻结股数（10 送 10 会假腰斩）
+- 代码：`portfolio/data_class/event.py`、`trade.py`、`simulator.py`、`report_manager/daily_mtm.py`
 - 枚举 `_apply_exit` / 比例止盈止损 / 峰谷 / `weighted_roi` 用 hfq；产物带 `*_hfq`
 - price_factor 无顺延吃枚举 `weighted_roi`；跌停顺延用 bar `hfq` 对 `entry_price_hfq` 重算；`roi × enter_hfq` 记均利（不是资金层现金）
 
@@ -94,7 +95,7 @@ qfq(t) = raw(t) × F(段)/F(最新) + C   # 信号；C 来自腾讯锚
 
 1. **enumerate：** 成交股数用 raw；止盈止损与 `weighted_roi` 用 hfq。胜负看 hfq ROI 符号。
 2. **price_factor：** 继续聚合枚举的 `weighted_roi`，自己不要用 qfq 再算一遍收益。
-3. **portfolio：** 买入 `entry_price_raw` × 买入股数扣现金；平仓盈利 = 买入股数 × 买入 raw × 该笔 hfq ROI（费用另扣）。不要第二种 ROI。
+3. **portfolio：** 买入 `entry_price_raw` × 买入股数扣现金；平仓盈利 = 买入股数 × 买入 raw × 该笔 hfq ROI（费用另扣）。日频盯市用同一把尺反推同股等价市值。不要第二种 ROI。
 
 缺合法买入 raw 的笔不进资金层。hfq 分母须 `> 0`（后复权应满足；不满足则该笔不算收益）。
 
@@ -105,4 +106,4 @@ qfq(t) = raw(t) × F(段)/F(最新) + C   # 信号；C 来自腾讯锚
 - 接 `dividend` 做双账户（送转改股数 + 现金红利）
 - qfq 与 hfq 百分比填进同一列 `weighted_roi`
 - 用 hfq 当买入价计算可买股数
-- 日频盯市夏普（另见 [DAILY_MTM_RISK_RATIOS.md](../../core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md)）
+- 未复权股数 × 交易所 raw 收盘去盯市（另见 [DAILY_MTM_RISK_RATIOS.md](../../core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md)）

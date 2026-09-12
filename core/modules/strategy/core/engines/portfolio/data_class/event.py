@@ -17,6 +17,7 @@ class PortfolioEvent:
 
     买入扣现金用 ``entry_price_raw``。平仓盈利用枚举 hfq ``weighted_roi``：
     ``股数 × 买入 raw × ROI``。``exit_price_raw`` 仅审计，不参与资金。
+    买入 ``entry_price_hfq`` 给日频盯市当 ROI 分母。
 
     - buy: ``price`` = ``entry_price_raw``
     - sell: ``price`` = ``exit_price_raw``（可缺；模拟器用 ``roi`` 算钱）
@@ -31,6 +32,8 @@ class PortfolioEvent:
     roi: float = 0.0
     entry_price_raw: float = 0.0
     exit_price_raw: float = 0.0
+    # 买入成交后复权价；日频盯市 ROI 分母（不是买入日收盘）
+    entry_price_hfq: float = 0.0
     # 成交日 bar 成交量（股）；buy / sell 事件各自带当日 volume
     bar_volume: Optional[float] = None
 
@@ -55,6 +58,7 @@ class PortfolioEvent:
             roi=float(raw.get("roi") or 0.0),
             entry_price_raw=float(raw.get("entry_price_raw") or 0.0),
             exit_price_raw=float(raw.get("exit_price_raw") or 0.0),
+            entry_price_hfq=float(raw.get("entry_price_hfq") or 0.0),
             bar_volume=_optional_float(raw.get("bar_volume")),
         )
 
@@ -75,6 +79,7 @@ class PortfolioEvent:
             investment_id=str(getattr(row, "investment_id", "") or "").strip(),
             entry_date=str(getattr(row, "entry_date", "") or "").strip(),
             entry_price_raw=float(getattr(row, "entry_price_raw", 0.0) or 0.0),
+            entry_price_hfq=float(getattr(row, "entry_price_hfq", 0.0) or 0.0),
             exit_date=str(getattr(row, "exit_date", "") or "").strip(),
             exit_price_raw=float(getattr(row, "exit_price_raw", 0.0) or 0.0),
             weighted_roi=float(getattr(row, "weighted_roi", 0.0) or 0.0),
@@ -90,6 +95,7 @@ class PortfolioEvent:
         investment_id: str,
         entry_date: str,
         entry_price_raw: float,
+        entry_price_hfq: float,
         exit_date: str,
         exit_price_raw: float,
         weighted_roi: float,
@@ -108,6 +114,7 @@ class PortfolioEvent:
                 roi=0.0,
                 entry_price_raw=entry_price_raw,
                 exit_price_raw=exit_price_raw,
+                entry_price_hfq=float(entry_price_hfq or 0.0),
                 bar_volume=_optional_float(enter_bar_volume),
             )
         ]
@@ -122,6 +129,7 @@ class PortfolioEvent:
                     roi=weighted_roi,
                     entry_price_raw=entry_price_raw,
                     exit_price_raw=exit_price_raw,
+                    entry_price_hfq=float(entry_price_hfq or 0.0),
                     bar_volume=_optional_float(exit_bar_volume),
                 )
             )

@@ -106,6 +106,7 @@ def test_simulator_buy_sell_realizes_hfq_roi_profit():
             entity_id="600000.SH",
             investment_id="a",
             price=10.0,
+            entry_price_hfq=10.0,
         ),
         PortfolioEvent(
             kind="sell",
@@ -124,6 +125,7 @@ def test_simulator_buy_sell_realizes_hfq_roi_profit():
     assert buy.is_buy()
     assert sell.is_sell()
     assert buy.shares == 50_000  # 500_000 / 10
+    assert buy.entry_price_hfq == pytest.approx(10.0)
     assert sell.profit == pytest.approx(50_000.0)  # 50k * 1
     assert result.account.cash == pytest.approx(1_050_000.0)
     assert result.account.open_position_count() == 0
@@ -307,6 +309,7 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
                 entity_id="600000.SH",
                 investment_id="a",
                 price=10.0,
+                entry_price_hfq=10.0,
             ),
             PortfolioEvent(
                 kind="sell",
@@ -325,7 +328,12 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
         strategy_path="demo/rsi",
         version_id=1,
         enum_version_id="3",
-    ).finalize(result, period={"start_date": "20240101", "end_date": "20240131"})
+    ).finalize(
+        result,
+        period={"start_date": "20240101", "end_date": "20240131"},
+        # 空日历 → 盯市跳过，本测只断言成交落盘与成本曲线期末
+        load_open_dates=lambda *_args, **_kwargs: [],
+    )
     assert report["success"] is True
     assert report["version_id"] == 1
     assert report["capitalMetrics"]["totalTrades"] >= 2
@@ -339,3 +347,6 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
     assert report["summary"]["completed_investments"] == 1
     assert report["summary"]["total_return"] == pytest.approx(0.05)
     assert report["summary"]["final_total_equity"] == pytest.approx(1_050_000.0)
+    assert report["summary"]["sharpe_ratio"] is None
+    assert report["summary"]["sortino_ratio"] is None
+    assert report["capitalMetrics"]["sharpeRatio"] is None

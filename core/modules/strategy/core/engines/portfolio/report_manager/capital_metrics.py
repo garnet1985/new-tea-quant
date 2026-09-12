@@ -1,11 +1,73 @@
-"""Portfolio 衍生指标（曲线 / 回撤 / 利用率 / 集中度）。
+"""Portfolio 衍生指标（曲线 / 回撤 / 利用率 / 集中度 / 夏普 Sortino）。
 
 边界: 纯计算；无 IO。调用方: OverallReport / EntityListReport build。
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+TRADING_DAYS_PER_YEAR = 252.0
+_VOL_EPS = 1e-12
+
+
+def daily_returns(equity_values: Sequence[float]) -> List[float]:
+    """相邻净值的简单收益率；前一日净值须 > 0。"""
+    out: List[float] = []
+    vals = [float(v) for v in equity_values]
+    for prev, cur in zip(vals, vals[1:]):
+        if not math.isfinite(prev) or not math.isfinite(cur) or prev <= _VOL_EPS:
+            continue
+        out.append((cur - prev) / prev)
+    return out
+
+
+def annualized_risk_ratios(
+    equity_values: Sequence[float],
+    *,
+    rf_daily: float = 0.0,
+    mar: float = 0.0,
+    periods_per_year: float = TRADING_DAYS_PER_YEAR,
+) -> Tuple[Optional[float], Optional[float]]:
+    """日频净值 → 年化夏普 / Sortino。
+
+    v1：``rf_daily = 0``、``mar = 0``。段数不足 2 或波动≈0 时返回 ``None``（UI 显示 —）。
+    Sortino 分母用全部交易日的 ``min(r − MAR, 0)²`` 均值（上涨日贡献 0）。
+    """
+    returns = daily_returns(equity_values)
+    if len(returns) < 2:
+        return None, None
+    excess = [r - float(rf_daily or 0.0) for r in returns]
+    mean_excess = sum(excess) / float(len(excess))
+    mean_vs_mar = sum(r - float(mar or 0.0) for r in returns) / float(len(returns))
+    std = _sample_std(excess)
+    down = _downside_deviation(returns, mar=float(mar or 0.0))
+    scale = math.sqrt(float(periods_per_year or TRADING_DAYS_PER_YEAR))
+    sharpe = (mean_excess / std * scale) if std is not None else None
+    sortino = (mean_vs_mar / down * scale) if down is not None else None
+    return sharpe, sortino
+
+
+def _sample_std(values: Sequence[float]) -> Optional[float]:
+    n = len(values)
+    if n < 2:
+        return None
+    mean = sum(values) / float(n)
+    var = sum((x - mean) ** 2 for x in values) / float(n - 1)
+    if not math.isfinite(var) or var <= _VOL_EPS:
+        return None
+    return math.sqrt(var)
+
+
+def _downside_deviation(returns: Sequence[float], *, mar: float) -> Optional[float]:
+    n = len(returns)
+    if n < 1:
+        return None
+    sq_mean = sum(min(r - mar, 0.0) ** 2 for r in returns) / float(n)
+    if not math.isfinite(sq_mean) or sq_mean <= _VOL_EPS:
+        return None
+    return math.sqrt(sq_mean)
 
 
 @dataclass
@@ -346,4 +408,7 @@ __all__ = [
     "EquityCurves",
     "TradeQualityMetrics",
     "SkipMetrics",
+    "annualized_risk_ratios",
+    "daily_returns",
+    "TRADING_DAYS_PER_YEAR",
 ]

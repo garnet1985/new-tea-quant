@@ -146,9 +146,13 @@ class OverallSummary:
                 if row.holding_days:
                     hold_sum += float(row.holding_days)
                     hold_n += 1
-                enter_px = float(row.enter_price or 0.0)
-                if enter_px != 0.0:
-                    profit_sum += float(row.roi) * enter_px
+                enter_px_hfq = float(getattr(row, "enter_price_hfq", 0.0) or 0.0)
+                if enter_px_hfq > 0:
+                    profit_sum += float(row.roi) * enter_px_hfq
+                else:
+                    enter_px = float(row.enter_price or 0.0)
+                    if enter_px != 0.0:
+                        profit_sum += float(row.roi) * enter_px
 
         completed = win + loss
         unfinished = open_n

@@ -17,7 +17,7 @@ from core.modules.strategy.core.engines.enumerator.common.report_manager.opportu
     TimingDispersion,
 )
 from core.modules.strategy.core.engines.enumerator.common.report_manager.report_scan import (
-    EnumCsvScan,
+    EnumScan,
 )
 
 
@@ -65,7 +65,7 @@ class EntityListReport:
     created_at: str = ""
 
     @classmethod
-    def build_from_scan(cls, scan: EnumCsvScan) -> "EntityListReport":
+    def build_from_scan(cls, scan: EnumScan) -> "EntityListReport":
         rows: List[EntityListRow] = []
         for entity_id, invs in scan.investments_by_entity.items():
             total = len(invs)
@@ -102,7 +102,7 @@ class EntityListReport:
         version_id: int = 0,
         total_entities: Optional[int] = None,
     ) -> "EntityListReport":
-        scan = EnumCsvScan.collect(
+        scan = EnumScan.collect(
             output_dir,
             total_entities=total_entities,
             strategy_key=strategy_key,
@@ -178,7 +178,7 @@ class EntityListReportHandle:
         self._manager = manager
         self._report: Optional[EntityListReport] = None
 
-    def build_from_scan(self, scan: EnumCsvScan) -> "EntityListReportHandle":
+    def build_from_scan(self, scan: EnumScan) -> "EntityListReportHandle":
         self._report = EntityListReport.build_from_scan(scan)
         return self
 

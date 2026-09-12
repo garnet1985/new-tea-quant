@@ -346,7 +346,7 @@ class GoalSettings(SettingsBase):
             raise ValueError(
                 f"custom stage {stage.stage_id!r} 无 ratio，不能计算 exit_price"
             )
-        # qfq 基准可为负/0；目标价=basis*(1+ratio)，不做正负校验
+        # ratio 基准随调用方；枚举止盈止损传入 hfq
         return round(float(basis_price) * (1.0 + float(stage.ratio)), 6)
 
     def to_dict(self) -> Dict[str, Any]:

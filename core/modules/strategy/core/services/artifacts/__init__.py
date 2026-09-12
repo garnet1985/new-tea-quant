@@ -25,8 +25,6 @@ from .consts import (
     SCAN_SUMMARY_FILE,
     SCOPE_FILE,
     SETTINGS_FILE,
-    SIGNAL_SNAPSHOTS_SUFFIX,
-    STOCK_INVESTMENTS_SUFFIX,
     TRADES_FILE,
 )
 from .store import (
@@ -41,13 +39,8 @@ from .version_cache import SimulationVersionStore
 from . import retention
 from .retention import ArtifactRetention
 from .tables import (
-    EntityInvestmentCsv,
-    EntitySignalSnapshotCsv,
-    GoalAchievementCsv,
     GoalAchievementRow,
-    InvestmentRow,
     PriceInvestmentRow,
-    SignalSnapshotRow,
 )
 
 __all__ = [
@@ -75,8 +68,6 @@ __all__ = [
     "SCAN_SUMMARY_FILE",
     "SCOPE_FILE",
     "SETTINGS_FILE",
-    "SIGNAL_SNAPSHOTS_SUFFIX",
-    "STOCK_INVESTMENTS_SUFFIX",
     "TRADES_FILE",
     "ArtifactIO",
     "ArtifactRuntime",
@@ -86,12 +77,7 @@ __all__ = [
     "PortfolioStore",
     "PriceFactorStore",
     "ScanStore",
-    "EntityInvestmentCsv",
-    "EntitySignalSnapshotCsv",
-    "GoalAchievementCsv",
     "GoalAchievementRow",
-    "InvestmentRow",
     "PriceInvestmentRow",
-    "SignalSnapshotRow",
     "SimulationVersionStore",
 ]

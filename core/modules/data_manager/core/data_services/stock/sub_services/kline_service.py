@@ -3,7 +3,7 @@ K线数据服务（KlineService）
 
 职责：
 - 封装K线相关的查询和数据操作
-- 提供前复权计算功能（方案 B：raw×F/F(最新)+C，见 adj_factor_event README）
+- 前复权（方案 B：raw×F/F(最新)+C）与后复权（raw×F）；见 adj_factor_event README / strategy PRICE_LAYERS
 - 处理多周期K线加载
 
 涉及的表：
@@ -259,7 +259,7 @@ class KlineService(BaseDataService):
         前复权：K 线与复权事件分两次简单查询，在内存合并（无大 JOIN）。
 
         返回行：顶层 ``open/close/high/low`` 为前复权价（非 ``qfq_*`` 宽列）；
-        ``raw`` 为折算前不复权 OHLC：``{"open","high","low","close","pre_close"?}``。
+        ``raw`` 为折算前不复权 OHLC；``hfq`` 为 ``raw × F(段)``；``adj_factor`` 为当日生效 F。
         与 ``load_qfq(..., use_join=False)`` 等价，单独暴露便于批量路径复用。
         """
         start_date = self._normalize_date(start_date)
@@ -330,8 +330,10 @@ class KlineService(BaseDataService):
         - 复权计算：``raw×F(段)/F(最新) + C``，``C`` 由**最新事件** anchor 折算；``qfq_diff`` 仅 anchor 缺失时应急
 
         返回行形态：
-        - 顶层 ``open/close/high/low``：前复权价（与 ``load_raw`` 列名一致，语义由本方法决定）
-        - ``raw``：折算前不复权价 ``{open, high, low, close, pre_close?}``（无事件时与顶层相同）
+        - 顶层 ``open/close/high/low``：前复权价（信号默认；与 ``load_raw`` 列名一致）
+        - ``raw``：折算前不复权价 ``{open, high, low, close, pre_close?}``
+        - ``hfq``：``raw × F(段)``，无加项 C
+        - ``adj_factor``：当日生效 F（无事件为 1）
         """
         if not use_join:
             return self.load_qfq_split(
@@ -369,14 +371,13 @@ class KlineService(BaseDataService):
         
         Args:
             stock_id: 股票代码
-            settings: 配置字典，包含terms、adjust、allow_negative_records等
+            settings: 配置字典，包含 terms、allow_negative_records 等（``adjust`` 已忽略）
             
         Returns:
             Dict[term, List[Dict]]: 各周期的K线数据
         """
         min_required_base_records = settings.get('min_required_base_records', 0)
         min_required_kline_term = settings.get('signal_base_term', 'daily')
-        adjust = settings.get('adjust', 'qfq')
         allow_negative_records = settings.get('allow_negative_records', False)
         
         # 从 settings 中提取 start_date 和 end_date（如果存在）
@@ -386,13 +387,7 @@ class KlineService(BaseDataService):
         kline_data = {}
         
         for term in settings.get('terms', []):
-            # 使用 load_qfq 方法（如果 adjust='qfq'）
-            if adjust == 'qfq':
-                records = self.load_qfq(stock_id, term, start_date, end_date)
-            else:
-                # 对于其他复权方式，使用原始数据加载
-                records = self.load_raw(stock_id, term, start_date, end_date)
-            
+            records = self.load_qfq(stock_id, term, start_date, end_date)
             kline_data[term] = records
         
         # 检查最小记录数要求
@@ -420,13 +415,14 @@ class KlineService(BaseDataService):
             term: 周期（daily/weekly/monthly）
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
-            adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
+            adjust: 已忽略（兼容旧调用）。一律返回前复权顶层 + ``raw`` / ``hfq`` / ``adj_factor``
             
         Returns:
             Dict[stock_id, List[Dict]]: 每只股票的K线数据字典
         """
         if not stock_ids:
             return {}
+        _ = adjust
         
         # 统一日期格式
         start_date = self._normalize_date(start_date)
@@ -460,19 +456,17 @@ class KlineService(BaseDataService):
             if stock_id in result:
                 result[stock_id].append(kline)
         
-        # 前复权：batch raw + 全量 adj 事件 + 内存 merge（F(最新) 取该股最新除权）
-        if adjust == 'qfq':
-            adj_by_stock = self._load_adj_events_for_qfq_batch(stock_ids)
-            for stock_id in stock_ids:
-                klines = result.get(stock_id) or []
-                if not klines:
-                    continue
-                result[stock_id] = self._merge_qfq_from_raw_and_events(
-                    stock_id=stock_id,
-                    term=term,
-                    raw_rows=klines,
-                    events=adj_by_stock.get(stock_id) or [],
-                )
+        adj_by_stock = self._load_adj_events_for_qfq_batch(stock_ids)
+        for stock_id in stock_ids:
+            klines = result.get(stock_id) or []
+            if not klines:
+                continue
+            result[stock_id] = self._merge_qfq_from_raw_and_events(
+                stock_id=stock_id,
+                term=term,
+                raw_rows=klines,
+                events=adj_by_stock.get(stock_id) or [],
+            )
 
         return result
 
@@ -592,24 +586,21 @@ class KlineService(BaseDataService):
         as_dataframe: bool = False
     ) -> Union[List[Dict], Any]:
         """
-        加载K线数据（``qfq`` → ``load_qfq``，否则 ``load_raw``）。
+        加载K线：顶层为前复权 OHLC，行内带 ``raw`` / ``hfq`` / ``adj_factor``。
         
         Args:
             stock_id: 股票代码
             term: 周期（daily/weekly/monthly）
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
-            adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
+            adjust: 已忽略（兼容旧调用）。只要未复权请用 ``load_raw``
             as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
             
         Returns:
             DataFrame or List[Dict]: K线数据
         """
-        if adjust == 'qfq':
-            result = self.load_qfq(stock_id, term, start_date, end_date)
-        else:
-            # 对于其他复权方式，返回原始数据
-            result = self.load_raw(stock_id, term, start_date, end_date)
+        result = self.load_qfq(stock_id, term, start_date, end_date)
+        _ = adjust
         
         if as_dataframe:
             import pandas as pd
@@ -1044,6 +1035,20 @@ class KlineService(BaseDataService):
                 raw[field] = kline.get(field)
         kline["raw"] = raw
 
+    @staticmethod
+    def _attach_hfq_and_factor(kline: Dict[str, Any], factor_eff: float) -> None:
+        """``hfq = raw × F(段)``；无事件时 F=1。与 qfq 的加项 C 无关。"""
+        f = float(factor_eff) if factor_eff and float(factor_eff) > 0 else 1.0
+        raw_prices = kline.get("raw") if isinstance(kline.get("raw"), dict) else {}
+        hfq: Dict[str, float] = {}
+        for field in _PRICE_FIELDS:
+            raw_value = raw_prices.get(field)
+            if raw_value is None:
+                continue
+            hfq[field] = float(raw_value) * f
+        kline["hfq"] = hfq
+        kline["adj_factor"] = f
+
     def _apply_qfq_from_event_info(
         self,
         kline: Dict[str, Any],
@@ -1054,16 +1059,17 @@ class KlineService(BaseDataService):
     ) -> None:
         """
         按生效事件对 OHLC 应用前复权，结果写回顶层 ``open/close/high/low/pre_close``；
-        折算前不复权价保留在 ``raw``。
+        折算前不复权价保留在 ``raw``；``hfq`` / ``adj_factor`` 一并挂上。
 
         主路径：``raw×F(段)/F(最新) + C``（C 由最新事件 anchor 折算，段内 ``F(段)`` 仍按当日生效事件）。
         最新事件缺 anchor 时，回退段内 ``qfq_diff`` 应急。
-        无生效事件时顶层保持原价，仍写入 ``raw``（与顶层一致）。
+        无生效事件时顶层保持原价，仍写入 ``raw``（与顶层一致），``hfq`` 等同 raw。
         """
         self._snapshot_raw_prices(kline)
 
         event = info.get("event")
         if not event:
+            self._attach_hfq_and_factor(kline, 1.0)
             return
 
         factor_eff = event.get("factor") or 1.0
@@ -1073,8 +1079,53 @@ class KlineService(BaseDataService):
         raw_prices = kline.get("raw") if isinstance(kline.get("raw"), dict) else {}
 
         ctx = global_qfq_context or {"use_global_offset": False, "global_offset": 0.0}
-        if ctx.get("use_global_offset"):
-            global_offset = float(ctx.get("global_offset") or 0.0)
+        try:
+            if ctx.get("use_global_offset"):
+                global_offset = float(ctx.get("global_offset") or 0.0)
+                for field in _PRICE_FIELDS:
+                    raw_value = raw_prices.get(field, kline.get(field))
+                    if raw_value is None:
+                        kline[field] = None
+                        continue
+                    kline[field] = self._qfq_price_global_offset(
+                        float(raw_value),
+                        factor_eff=factor_eff,
+                        factor_latest=factor_latest,
+                        global_offset=global_offset,
+                    )
+                return
+
+            qfq_anchor = event.get("qfq_anchor")
+            raw_anchor = event.get("raw_anchor")
+            has_anchor = qfq_anchor is not None and raw_anchor is not None
+
+            if not has_anchor:
+                stock_id = event.get("id") or kline.get("id")
+                event_date = event.get("event_date")
+                logger.warning(
+                    "复权事件缺少 anchor，应急回退 qfq_diff: stock=%s event_date=%s",
+                    stock_id,
+                    event_date,
+                )
+                qfq_diff = info.get("qfq_diff")
+                if qfq_diff is None:
+                    qfq_diff = event.get("qfq_diff")
+                if qfq_diff is None:
+                    qfq_diff = 0.0
+
+                for field in _PRICE_FIELDS:
+                    raw_value = raw_prices.get(field, kline.get(field))
+                    if raw_value is None:
+                        kline[field] = None
+                        continue
+                    kline[field] = self._qfq_price_from_diff_fallback(
+                        float(raw_value),
+                        factor_eff=factor_eff,
+                        factor_latest=factor_latest,
+                        qfq_diff=float(qfq_diff),
+                    )
+                return
+
             for field in _PRICE_FIELDS:
                 raw_value = raw_prices.get(field, kline.get(field))
                 if raw_value is None:
@@ -1084,49 +1135,7 @@ class KlineService(BaseDataService):
                     float(raw_value),
                     factor_eff=factor_eff,
                     factor_latest=factor_latest,
-                    global_offset=global_offset,
+                    global_offset=0.0,
                 )
-            return
-
-        qfq_anchor = event.get("qfq_anchor")
-        raw_anchor = event.get("raw_anchor")
-        has_anchor = qfq_anchor is not None and raw_anchor is not None
-
-        if not has_anchor:
-            stock_id = event.get("id") or kline.get("id")
-            event_date = event.get("event_date")
-            logger.warning(
-                "复权事件缺少 anchor，应急回退 qfq_diff: stock=%s event_date=%s",
-                stock_id,
-                event_date,
-            )
-            qfq_diff = info.get("qfq_diff")
-            if qfq_diff is None:
-                qfq_diff = event.get("qfq_diff")
-            if qfq_diff is None:
-                qfq_diff = 0.0
-
-            for field in _PRICE_FIELDS:
-                raw_value = raw_prices.get(field, kline.get(field))
-                if raw_value is None:
-                    kline[field] = None
-                    continue
-                kline[field] = self._qfq_price_from_diff_fallback(
-                    float(raw_value),
-                    factor_eff=factor_eff,
-                    factor_latest=factor_latest,
-                    qfq_diff=float(qfq_diff),
-                )
-            return
-
-        for field in _PRICE_FIELDS:
-            raw_value = raw_prices.get(field, kline.get(field))
-            if raw_value is None:
-                kline[field] = None
-                continue
-            kline[field] = self._qfq_price_global_offset(
-                float(raw_value),
-                factor_eff=factor_eff,
-                factor_latest=factor_latest,
-                global_offset=0.0,
-            )
+        finally:
+            self._attach_hfq_and_factor(kline, factor_eff)

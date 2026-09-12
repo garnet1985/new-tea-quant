@@ -6,7 +6,7 @@ import pytest
 
 from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 
-_STOCK_KLINE = {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}}
+_STOCK_KLINE = {"data_key": "stock.kline.daily", "params": {}}
 
 
 def _userspace_settings(**overrides) -> dict:

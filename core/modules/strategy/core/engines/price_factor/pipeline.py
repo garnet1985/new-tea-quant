@@ -2,7 +2,7 @@
 
 本文件:
 - PriceFactorPipeline: load_enum_data → window → jobs → BE → ReportManager.finalize
-  边界: 负责 price step 编排；不负责指纹缓存、legacy CSV 格式、tick 回放细节（PriceFactorJobExecutor）
+  边界: 负责 price step 编排；不负责指纹缓存、枚举 JSON 加载、tick 回放细节（PriceFactorJobExecutor）
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ class PriceFactorPipeline:
 
     @classmethod
     def load_enum_data(cls, ctx: "SimulateSession") -> EnumerateStore:
-        """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
+        """解析 enum version 目录，加载 runtime + entity_ids（不读枚举结果）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()

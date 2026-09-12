@@ -10,12 +10,13 @@ from core.modules.strategy.core.engines.analyzer import Analyzer
 from core.modules.strategy.core.engines.analyzer.steps.analyze import AnalyzeStep, DecisionSpaceBuilder
 from core.modules.strategy.core.engines.analyzer.steps.prepare import PrepareStep
 from core.modules.strategy.core.engines.analyzer.steps.report import ReportStep
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    CompletedGoal,
+    EnumResult,
+    EnumResultsManager,
+)
 from core.modules.strategy.core.services.artifacts import (
     ArtifactStore,
-    EntityInvestmentCsv,
-    EntitySignalSnapshotCsv,
-    EnumerateStore,
-    GoalAchievementCsv,
     PriceFactorStore,
     PriceInvestmentRow,
 )
@@ -84,113 +85,63 @@ def _hydrate_step(step_dir: Path, kind: SimulateKind, *, extra: dict | None = No
 
 
 def _write_enum_entity(tmp_path: Path) -> None:
-    entities = tmp_path / "entities"
-    entities.mkdir(parents=True, exist_ok=True)
-    store = EnumerateStore.at(tmp_path, version_id="1")
-    store.write_investments(
-        EntityInvestmentCsv.build(
-            "688005.SH",
-            [
-                {
-                    "meta": {"opportunity_id": "1"},
-                    "trigger_date": "20240102",
-                    "trigger_price": 10.0,
-                    "lifecycle": "complete",
-                    "entry": {"date": "20240103", "price": 10.1},
-                    "exit_info": {
-                        "date": "20240201",
-                        "price": 11.0,
-                        "reason": "take_profit",
-                    },
-                    "holding": {"days": 20},
-                    "outcome": {"result": "win", "weighted_roi": 0.08},
-                    "signal_snapshot": {
-                        "rsi": 18.2,
-                        "rsi_length": 14,
-                        "rsi_oversold_threshold": 20,
-                    },
+    manager = EnumResultsManager.at(tmp_path)
+    manager.accept(
+        "688005.SH",
+        [
+            EnumResult(
+                entity_id="688005.SH",
+                investment_id="1",
+                trigger_date="20240102",
+                trigger_price=10.0,
+                lifecycle="complete",
+                entry_date="20240103",
+                entry_price=10.1,
+                exit_date="20240201",
+                exit_price=11.0,
+                exit_reason="take_profit",
+                holding_days=20,
+                result="win",
+                weighted_roi=0.08,
+                signal_snapshot={
+                    "rsi": 18.2,
+                    "rsi_length": 14,
+                    "rsi_oversold_threshold": 20,
                 },
-                {
-                    "meta": {"opportunity_id": "2"},
-                    "trigger_date": "20240301",
-                    "trigger_price": 9.5,
-                    "lifecycle": "complete",
-                    "entry": {"date": "20240304", "price": 9.6},
-                    "exit_info": {
-                        "date": "20240401",
-                        "price": 9.0,
-                        "reason": "stop_loss",
-                    },
-                    "holding": {"days": 18},
-                    "outcome": {"result": "loss", "weighted_roi": -0.05},
-                },
-            ],
-        )
+                completed_goals=(
+                    CompletedGoal(
+                        name="take_profit",
+                        date="20240201",
+                        price=11.0,
+                        exit_ratio=0.5,
+                        profit=0.4,
+                        weighted_profit=0.2,
+                        reason="take_profit",
+                        roi=0.08,
+                    ),
+                ),
+            ),
+            EnumResult(
+                entity_id="688005.SH",
+                investment_id="2",
+                trigger_date="20240301",
+                trigger_price=9.5,
+                lifecycle="complete",
+                entry_date="20240304",
+                entry_price=9.6,
+                exit_date="20240401",
+                exit_price=9.0,
+                exit_reason="stop_loss",
+                holding_days=18,
+                result="loss",
+                weighted_roi=-0.05,
+            ),
+        ],
     )
-    store.write_goals(
-        GoalAchievementCsv.build(
-            "688005.SH",
-            [
-                {
-                    "meta": {"opportunity_id": "1"},
-                    "trigger_date": "20240102",
-                    "trigger_price": 10.0,
-                    "lifecycle": "complete",
-                    "entry": {},
-                    "exit_info": {},
-                    "holding": {},
-                    "outcome": {},
-                    "completed_goals": [
-                        {
-                            "name": "take_profit",
-                            "date": "20240201",
-                            "price": 11.0,
-                            "exit_ratio": 0.5,
-                            "profit": 0.4,
-                            "weighted_profit": 0.2,
-                            "reason": "take_profit",
-                            "roi": 0.08,
-                        }
-                    ],
-                }
-            ],
-        )
-    )
-    store.write_snapshots(
-        EntitySignalSnapshotCsv.build(
-            "688005.SH",
-            [
-                {
-                    "meta": {"opportunity_id": "1"},
-                    "trigger_date": "20240102",
-                    "trigger_price": 10.0,
-                    "lifecycle": "complete",
-                    "entry": {},
-                    "exit_info": {},
-                    "holding": {},
-                    "outcome": {},
-                    "signal_snapshot": {
-                        "rsi": 18.2,
-                        "rsi_length": 14,
-                        "rsi_oversold_threshold": 20,
-                    },
-                },
-                {
-                    "meta": {"opportunity_id": "2"},
-                    "trigger_date": "20240301",
-                    "trigger_price": 9.5,
-                    "lifecycle": "complete",
-                    "entry": {},
-                    "exit_info": {},
-                    "holding": {},
-                    "outcome": {},
-                },
-            ],
-        )
-    )
+    manager.persist("688005.SH")
 
 
-def test_collect_enum_joins_capture_and_goal_legs(tmp_path: Path) -> None:
+def test_collect_enum_joins_capture_and_completed_goals(tmp_path: Path) -> None:
     _write_enum_entity(tmp_path)
     store = _hydrate_step(tmp_path, SimulateKind.ENUMERATE)
     source = PrepareStep(store).build()
@@ -210,7 +161,7 @@ def test_collect_enum_joins_capture_and_goal_legs(tmp_path: Path) -> None:
     rows = source["entities"][0]["investments"]
     assert rows[0]["investment_id"] == "1"
     assert float(rows[0]["capture"]["rsi"]) == 18.2
-    assert rows[0]["goal_legs"][0]["goal_name"] == "take_profit"
+    assert rows[0]["completed_goals"][0]["goal_name"] == "take_profit"
     assert rows[1]["capture"] == {}
 
 
@@ -323,6 +274,7 @@ def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
     assert rows[0]["investment_id"] == "1"
     assert float(rows[0]["capture"]["rsi"]) == 18.2
     assert rows[0]["engine"]["roi"] == 0.09
+    assert rows[0]["completed_goals"] == []
     assert rows[1]["engine"]["skip_reason"] == "liquidity"
     assert rows[1]["capture"] == {}
 

@@ -125,6 +125,7 @@ class InvestmentTracker:
         trigger_date: str,
         trigger_price: float,
         trigger_price_raw: float = 0.0,
+        trigger_price_hfq: float = 0.0,
         status_tags_provider: Any = None,
         hook_runtime: Any = None,
     ) -> Optional[Investment]:
@@ -140,6 +141,7 @@ class InvestmentTracker:
             trigger_date=trigger_date,
             trigger_price=trigger_price,
             trigger_price_raw=trigger_price_raw,
+            trigger_price_hfq=trigger_price_hfq,
             opportunity_index=self._investment_index,
             market_profile=ProjectContext.config.get_default_market_profile_key(),
         )
@@ -179,17 +181,40 @@ class InvestmentTracker:
             investment.settle(as_of, bar, reason=reason)
             self.completed.append(investment)
 
-    def investments_as_dicts(self) -> List[Dict[str, Any]]:
-        """供 recorder 写 investments / goals CSV。"""
+    def investments(self) -> List[Investment]:
+        """当前全部 Investment（待进场 / 持仓 / 待出场 / 已完成），供落盘交还。"""
         return [
-            inv.to_dict()
-            for inv in (
-                *self.pending_enter,
-                *self.open,
-                *self.pending_exit,
-                *self.completed,
-            )
+            *self.pending_enter,
+            *self.open,
+            *self.pending_exit,
+            *self.completed,
         ]
+
+    def buffer_for_persist(self) -> List[Dict[str, Any]]:
+        """本 entity 的落盘缓冲行（``Investment`` 对象，由 EnumResultsManager 投影）。"""
+        eid = str(self.entity_id or "").strip()
+        if not eid:
+            return []
+        rows: List[Dict[str, Any]] = []
+        for investment in self.investments():
+            rows.append(
+                {
+                    "entity_id": eid,
+                    "date": str(getattr(investment, "trigger_date", "") or ""),
+                    "investment": investment,
+                }
+            )
+        return rows
+
+    @classmethod
+    def buffer_many_for_persist(
+        cls, trackers: Dict[str, "InvestmentTracker"]
+    ) -> List[Dict[str, Any]]:
+        """多 entity tracker 的落盘缓冲行。"""
+        rows: List[Dict[str, Any]] = []
+        for tracker in trackers.values():
+            rows.extend(tracker.buffer_for_persist())
+        return rows
 
 
 __all__ = ["InvestmentTracker"]

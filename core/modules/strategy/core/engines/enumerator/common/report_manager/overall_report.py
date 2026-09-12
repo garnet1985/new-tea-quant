@@ -20,7 +20,7 @@ from core.modules.strategy.core.engines.enumerator.common.report_manager.opportu
     TradabilityMetrics,
 )
 from core.modules.strategy.core.engines.enumerator.common.report_manager.report_scan import (
-    EnumCsvScan,
+    EnumScan,
 )
 
 
@@ -99,7 +99,7 @@ class OverallReport:
     created_at: str = ""
 
     @classmethod
-    def build_from_scan(cls, scan: EnumCsvScan) -> "OverallReport":
+    def build_from_scan(cls, scan: EnumScan) -> "OverallReport":
         investments = scan.all_investments
         completed = [
             row for row in investments if row.lifecycle == Lifecycle.COMPLETE.value
@@ -166,7 +166,7 @@ class OverallReport:
         version_id: int = 0,
         total_entities: Optional[int] = None,
     ) -> "OverallReport":
-        scan = EnumCsvScan.collect(
+        scan = EnumScan.collect(
             output_dir,
             total_entities=total_entities,
             strategy_key=strategy_key,
@@ -373,7 +373,7 @@ class OverallReportHandle:
         self._manager = manager
         self._report: Optional[OverallReport] = None
 
-    def build_from_scan(self, scan: EnumCsvScan) -> "OverallReportHandle":
+    def build_from_scan(self, scan: EnumScan) -> "OverallReportHandle":
         self._report = OverallReport.build_from_scan(scan)
         return self
 

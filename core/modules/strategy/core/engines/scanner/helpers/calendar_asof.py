@@ -233,13 +233,6 @@ class ScannerCalendarAsof:
         if not ids or not day:
             return {}
 
-        adjust = "qfq"
-        base_block = settings.data.base if settings is not None else {}
-        if isinstance(base_block, dict):
-            raw_params = base_block.get("params") or {}
-            if isinstance(raw_params, dict) and raw_params.get("adjust"):
-                adjust = str(raw_params.get("adjust") or "qfq").strip() or "qfq"
-
         # 单日选股只需要当日 bar；多取几天容错停牌空洞
         start = cls._lookback_start(day, 5)
         kline = getattr(getattr(data_manager, "stock", None), "kline", None)
@@ -254,7 +247,6 @@ class ScannerCalendarAsof:
                 term="daily",
                 start_date=start,
                 end_date=day,
-                adjust=adjust,
             )
         except Exception as exc:
             logger.error("scanner asof load_batch 失败: %s", exc, exc_info=True)

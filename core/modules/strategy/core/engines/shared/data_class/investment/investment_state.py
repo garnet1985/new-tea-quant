@@ -15,10 +15,14 @@ from .enums import ExpirationMode, InvestmentResult, Lifecycle, TradeSide
 
 @dataclass
 class FillState:
-    """进场/出场成交共用字段。"""
+    """进场/出场成交共用字段。
+
+    ``price`` = qfq（图 / 信号对账）；``price_raw`` = 成交；``price_hfq`` = ROI / 比例目标。
+    """
 
     price: float = 0.0
     price_raw: float = 0.0
+    price_hfq: float = 0.0
     date: str = ""
     prev_close: Optional[float] = None
     at_limit: Optional[bool] = None

@@ -27,13 +27,13 @@ class DeferredPendingExit:
     deferred_from_date: str = ""
 
 
-def _leg_date(leg: Dict[str, Any]) -> str:
-    return str(leg.get("date") or leg.get("exit_date") or "").strip()
+def _goal_date(goal: Dict[str, Any]) -> str:
+    return str(goal.get("date") or goal.get("exit_date") or "").strip()
 
 
-def _leg_exit_ratio(leg: Dict[str, Any]) -> float:
+def _goal_exit_ratio(goal: Dict[str, Any]) -> float:
     try:
-        return float(leg.get("exit_ratio", leg.get("sell_ratio")) or 0.0)
+        return float(goal.get("exit_ratio", goal.get("sell_ratio")) or 0.0)
     except (TypeError, ValueError):
         return 0.0
 
@@ -63,9 +63,17 @@ def _exit_fill_model(exit_price_model: str) -> str:
     return model
 
 
-def _theoretical_exit_price(bar: Dict[str, Any], exit_price_model: str) -> float:
+def _theoretical_exit_price(
+    bar: Dict[str, Any],
+    exit_price_model: str,
+    *,
+    use_hfq: bool = False,
+) -> float:
     model = _exit_fill_model(exit_price_model)
-    return float(SafeBarValue.price_for_model(bar, model, use_raw=False) or 0.0)
+    return float(
+        SafeBarValue.price_for_model(bar, model, use_raw=False, use_hfq=use_hfq)
+        or 0.0
+    )
 
 
 def _is_blocked_at_limit_down(
@@ -90,51 +98,68 @@ def _is_blocked_at_limit_down(
         return False
 
 
-def _build_executed_leg(
+def _build_executed_goal(
     *,
     source: Dict[str, Any],
     bar: Dict[str, Any],
     exit_price: float,
-    enter_price: float,
+    exit_price_hfq: float,
+    enter_price_hfq: float,
     at_limit_down: Optional[bool],
 ) -> Dict[str, Any]:
-    exit_ratio = _leg_exit_ratio(source) or 1.0
-    basis = float(enter_price or 0.0)
-    profit = exit_price - basis
+    exit_ratio = _goal_exit_ratio(source) or 1.0
+    basis = float(enter_price_hfq or 0.0)
+    sell_hfq = float(exit_price_hfq or 0.0)
+    # 缺合法 hfq（分母须 > 0，卖出价须 > 0）→ 该档 ROI 记 0
+    if basis > 0 and sell_hfq > 0:
+        profit = sell_hfq - basis
+        roi = profit / basis
+    else:
+        profit = 0.0
+        roi = 0.0
     weighted_profit = profit * exit_ratio
-    roi = (weighted_profit / basis) if basis > 0 else 0.0
     day = str(bar.get("date") or "").strip()
     return {
         "date": day,
         "exit_date": day,
         "exit_price": exit_price,
+        "exit_price_hfq": sell_hfq,
         "exit_ratio": exit_ratio,
         "profit": profit,
         "weighted_profit": weighted_profit,
         "roi": roi,
         "reason": str(source.get("reason") or "").strip(),
+        "goal_name": str(source.get("goal_name") or source.get("reason") or "").strip(),
+        "price_raw": float(source.get("price_raw") or 0.0),
         "exit_at_limit": at_limit_down,
         "exit_prev_close": SafeBarValue.optional_float(bar, "pre_close") or None,
+        "deferred": True,
     }
 
 
 def retry_deferred_exits(
     *,
     enter_price: float,
-    processed_legs: List[Dict[str, Any]],
-    skipped_legs: List[Dict[str, Any]],
+    processed_goals: List[Dict[str, Any]],
+    skipped_goals: List[Dict[str, Any]],
     klines: List[Dict[str, Any]],
     entity_id: str,
     settings: Optional[StrategySettings] = None,
     market_rules: Any = None,
+    enter_price_hfq: float = 0.0,
 ) -> Tuple[List[Dict[str, Any]], Optional[DeferredPendingExit], int]:
-    """对跳过的退出腿按交易日顺延重试。
+    """对跳过的已触发目标按交易日顺延重试。
 
-    返回 ``(processed_legs, pending_or_none, extra_skip_count)``。
+    跌停挡板仍看 qfq（bar 顶层 vs ``pre_close``）。新成交价的 ROI 用
+    ``enter_price_hfq`` 与 bar ``hfq``；缺合法 hfq 的档 ROI 记 0。
+    ``enter_price`` 为 qfq 入场价，仅保留给调用方对称传入。
+
+    返回 ``(processed_goals, pending_or_none, extra_skip_count)``。
     """
-    if position_fully_closed(processed_legs) or not skipped_legs:
-        return processed_legs, None, 0
+    if position_fully_closed(processed_goals) or not skipped_goals:
+        return processed_goals, None, 0
 
+    _ = enter_price
     strategy = settings or StrategySettings.from_dict({})
     sim = strategy.simulation
     exit_price_model = str(sim.exit_price or "close")
@@ -144,12 +169,12 @@ def retry_deferred_exits(
     by_date = _klines_by_date(klines)
     ordered = _ordered_kline_dates(klines)
     if not ordered:
-        return processed_legs, _pending_from_skipped(skipped_legs), 0
+        return processed_goals, _pending_from_skipped(skipped_goals), 0
 
-    out = list(processed_legs)
+    out = list(processed_goals)
     extra_skips = 0
-    remaining_skipped = sorted(list(skipped_legs), key=_leg_date)
-    start_after = _leg_date(remaining_skipped[0])
+    remaining_skipped = sorted(list(skipped_goals), key=_goal_date)
+    start_after = _goal_date(remaining_skipped[0])
     try_dates = [d for d in ordered if d > start_after]
 
     for day in try_dates:
@@ -161,13 +186,13 @@ def retry_deferred_exits(
 
         still_pending: List[Dict[str, Any]] = []
         for src in remaining_skipped:
-            raw_px = _theoretical_exit_price(bar, exit_price_model)
-            if raw_px <= 0:
+            qfq_px = _theoretical_exit_price(bar, exit_price_model, use_hfq=False)
+            if qfq_px <= 0:
                 still_pending.append(src)
                 continue
-            sell_px = slip.apply_exit(raw_px)
+            sell_qfq = slip.apply_exit(qfq_px)
             blocked = _is_blocked_at_limit_down(
-                sell_px,
+                sell_qfq,
                 bar,
                 entity_id=entity_id,
                 market_rules=market_rules,
@@ -182,16 +207,19 @@ def retry_deferred_exits(
             if market_rules is not None and prev is not None and prev > 0 and entity_id:
                 try:
                     at_limit = bool(
-                        market_rules.is_at_limit_down(sell_px, prev, entity_id)
+                        market_rules.is_at_limit_down(sell_qfq, prev, entity_id)
                     )
                 except Exception:
                     at_limit = None
+            hfq_px = _theoretical_exit_price(bar, exit_price_model, use_hfq=True)
+            sell_hfq = slip.apply_exit(hfq_px) if hfq_px > 0 else 0.0
             out.append(
-                _build_executed_leg(
+                _build_executed_goal(
                     source=src,
                     bar=bar,
-                    exit_price=sell_px,
-                    enter_price=enter_price,
+                    exit_price=sell_qfq,
+                    exit_price_hfq=sell_hfq,
+                    enter_price_hfq=enter_price_hfq,
                     at_limit_down=at_limit,
                 )
             )
@@ -212,10 +240,10 @@ def _pending_from_skipped(
     if not skipped:
         return None
     first = skipped[0]
-    day = _leg_date(first)
+    day = _goal_date(first)
     return DeferredPendingExit(
         reason=str(first.get("reason") or "exit").strip(),
-        exit_ratio=_leg_exit_ratio(first) or 1.0,
+        exit_ratio=_goal_exit_ratio(first) or 1.0,
         triggered_date=day,
         deferred_from_date=day,
     )

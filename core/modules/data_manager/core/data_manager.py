@@ -62,7 +62,7 @@ class DataManager:
         # 自动使用单例（推荐）
         data_mgr = DataManager(is_verbose=True)
         data_mgr.initialize()
-        klines = data_mgr.stock.kline.load('000001.SZ', term='daily', adjust='qfq')
+        klines = data_mgr.stock.kline.load('000001.SZ', term='daily')
 
         # 强制创建新实例（不推荐，除非有特殊需求）
         data_mgr = DataManager(is_verbose=True, force_new=True)

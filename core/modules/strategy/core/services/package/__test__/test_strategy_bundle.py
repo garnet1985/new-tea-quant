@@ -48,7 +48,7 @@ def _minimal_settings(*, required=None, adapters=None) -> dict:
         "is_enabled": True,
         "meta": {"key": "demo"},
         "data": {
-            "base": {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}},
+            "base": {"data_key": "stock.kline.daily", "params": {}},
             "required": list(required or []),
             "min_required_records": 30,
         },

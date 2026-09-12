@@ -218,8 +218,8 @@ class PortfolioSimulator:
             open_lots.pop(lot_key, None)
             return
 
-        sell_price = float(event.price or 0.0)
-        if sell_price <= 0:
+        buy_price = float(lot.buy_price or 0.0)
+        if buy_price <= 0:
             result.skipped_sells += 1
             return
         shares = int(position.shares)
@@ -241,14 +241,16 @@ class PortfolioSimulator:
             result.skipped_sells += 1
             return
 
-        fees = self.fee_calculator.calculate_fees(shares * sell_price, "sell")
+        roi = Trade.finite_roi(event.roi)
+        proceeds = Trade.equivalent_exit_value(shares, buy_price, roi)
+        fees = self.fee_calculator.calculate_fees(proceeds, "sell")
         trade = Trade.make_sell(
             date=event.date,
             entity_id=entity_id,
             investment_id=inv_id,
             shares=shares,
-            sell_price=sell_price,
-            buy_price=lot.buy_price,
+            buy_price=buy_price,
+            roi=roi,
             fees=fees,
         )
         net = float(trade.net_proceeds if trade.net_proceeds is not None else trade.amount - fees)
@@ -266,7 +268,7 @@ class PortfolioSimulator:
             lot.shares = int(position.shares)
 
         trade.cash_after = account.cash
-        trade.equity_after = account.equity({entity_id: sell_price})
+        trade.equity_after = account.equity({entity_id: float(trade.price or 0.0)})
         result.trades.append(trade)
 
     def _win_rate(self, result: PortfolioSimResult) -> float:

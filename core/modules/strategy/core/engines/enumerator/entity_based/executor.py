@@ -26,6 +26,7 @@ from core.modules.strategy.core.engines.enumerator.common.performance_tracker.pe
 from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
     InvestmentTracker,
 )
+
 from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
@@ -302,6 +303,7 @@ class EntityTaskState:
                 trigger_date=now,
                 trigger_price=SafeBarValue.float(bar, "close"),
                 trigger_price_raw=SafeBarValue.float(bar, "close", use_raw=True),
+                trigger_price_hfq=SafeBarValue.float(bar, "close", use_hfq=True),
                 status_tags_provider=self.entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS),
                 hook_runtime=self.hook_runtime,
             )
@@ -334,7 +336,7 @@ class EntityTaskState:
 
             ReportManager.worker_buffer_opportunities(
                 self.payload,
-                self.buffer_for_recorder(),
+                InvestmentTracker.buffer_many_for_persist(self.trackers),
             )
 
         if self.perf is not None:
@@ -354,19 +356,6 @@ class EntityTaskState:
 
     def entities_with_investments(self) -> int:
         return sum(1 for tracker in self.trackers.values() if tracker.investment_count())
-
-    def buffer_for_recorder(self) -> List[Dict[str, Any]]:
-        rows: List[Dict[str, Any]] = []
-        for entity_id, tracker in self.trackers.items():
-            for inv_dict in tracker.investments_as_dicts():
-                rows.append(
-                    {
-                        "entity_id": entity_id,
-                        "date": inv_dict.get("trigger_date") or "",
-                        "opportunity": inv_dict,
-                    }
-                )
-        return rows
 
 
 class EnumEntityJobExecutor(BaseJobExecutor):

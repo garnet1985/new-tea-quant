@@ -4,7 +4,7 @@
 其它: Investment tick
 
 本文件:
-- SafeBarValue: 从 bar / bar[\"raw\"] 读 float；失败时用 default 并 warning
+- SafeBarValue: 从 bar / bar["raw"] / bar["hfq"] 读 float；失败时用 default 并 warning
   边界: 只负责安全取值；不负责成交、贴板业务或 DataManager 装载
 """
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class SafeBarValue:
     """从 K 线 dict 安全取数。
 
-    约定: 顶层为前复权；``bar[\"raw\"]`` 为不复权。
+    约定: 顶层为前复权；``bar["raw"]`` 为不复权；``bar["hfq"]`` 为后复权（``raw × F``）。
     职责: 缺字段 / 坏类型时给 default（或 ``None``）并打 warning，避免挂掉 tick/pipeline。
     """
 
@@ -30,15 +30,28 @@ class SafeBarValue:
         key: str,
         *,
         use_raw: bool = False,
+        use_hfq: bool = False,
         default: float = 0.0,
     ) -> float:
         """必取浮点；失败返回 ``default`` 并 warning。"""
-        source, src_err = cls._source(bar, use_raw=use_raw)
+        source, src_err = cls._source(bar, use_raw=use_raw, use_hfq=use_hfq)
         if source is None:
-            cls._warn(key, use_raw=use_raw, reason=src_err or "no source", default=default)
+            cls._warn(
+                key,
+                use_raw=use_raw,
+                use_hfq=use_hfq,
+                reason=src_err or "no source",
+                default=default,
+            )
             return float(default)
         if key not in source or source.get(key) in (None, ""):
-            cls._warn(key, use_raw=use_raw, reason="missing", default=default)
+            cls._warn(
+                key,
+                use_raw=use_raw,
+                use_hfq=use_hfq,
+                reason="missing",
+                default=default,
+            )
             return float(default)
         try:
             return float(source[key])
@@ -46,6 +59,7 @@ class SafeBarValue:
             cls._warn(
                 key,
                 use_raw=use_raw,
+                use_hfq=use_hfq,
                 reason=f"not numeric: {source.get(key)!r}",
                 default=default,
             )
@@ -58,12 +72,19 @@ class SafeBarValue:
         key: str,
         *,
         use_raw: bool = False,
+        use_hfq: bool = False,
     ) -> Optional[float]:
         """可选浮点；缺失返回 ``None``（不 warning）；坏类型 warning 后返回 ``None``。"""
-        source, src_err = cls._source(bar, use_raw=use_raw)
+        source, src_err = cls._source(bar, use_raw=use_raw, use_hfq=use_hfq)
         if source is None:
             if src_err:
-                cls._warn(key, use_raw=use_raw, reason=src_err, default=None)
+                cls._warn(
+                    key,
+                    use_raw=use_raw,
+                    use_hfq=use_hfq,
+                    reason=src_err,
+                    default=None,
+                )
             return None
         if key not in source or source.get(key) in (None, ""):
             return None
@@ -73,6 +94,7 @@ class SafeBarValue:
             cls._warn(
                 key,
                 use_raw=use_raw,
+                use_hfq=use_hfq,
                 reason=f"not numeric: {source.get(key)!r}",
                 default=None,
             )
@@ -93,6 +115,7 @@ class SafeBarValue:
         model: str,
         *,
         use_raw: bool = False,
+        use_hfq: bool = False,
         default: float = 0.0,
     ) -> float:
         """按 tradability 价模型取价；``next_open`` → 本根 ``open``。
@@ -106,18 +129,32 @@ class SafeBarValue:
             cls._warn(
                 key,
                 use_raw=use_raw,
+                use_hfq=use_hfq,
                 reason=f"unsupported price model {model!r}; fallback close",
                 default=default,
             )
             key = "close"
-        return cls.float(bar, key, use_raw=use_raw, default=default)
+        return cls.float(
+            bar, key, use_raw=use_raw, use_hfq=use_hfq, default=default
+        )
 
     @classmethod
     def _source(
-        cls, bar: Any, *, use_raw: bool
+        cls,
+        bar: Any,
+        *,
+        use_raw: bool = False,
+        use_hfq: bool = False,
     ) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
         if not isinstance(bar, dict):
             return None, f"bar is not dict: {type(bar).__name__}"
+        if use_raw and use_hfq:
+            return None, "use_raw and use_hfq are mutually exclusive"
+        if use_hfq:
+            hfq = bar.get("hfq")
+            if not isinstance(hfq, dict):
+                return None, "bar['hfq'] missing or not dict"
+            return hfq, None
         if not use_raw:
             return bar, None
         raw = bar.get("raw")
@@ -133,8 +170,14 @@ class SafeBarValue:
         use_raw: bool,
         reason: str,
         default: Any,
+        use_hfq: bool = False,
     ) -> None:
-        layer = "raw" if use_raw else "qfq"
+        if use_hfq:
+            layer = "hfq"
+        elif use_raw:
+            layer = "raw"
+        else:
+            layer = "qfq"
         logger.warning(
             "SafeBarValue: key=%s layer=%s reason=%s → default=%r",
             key,

@@ -114,7 +114,7 @@ def _trade_events(rows: Sequence[Any]) -> List[Dict[str, Any]]:
         except (TypeError, ValueError):
             raw_price = 0.0
         # Legacy trades.json may carry a negative sell from qfq-ROI reconstruction.
-        # Display floor is 0 (long stock cannot pay to exit); engine now uses exit_price_raw.
+        # Display floor is 0 (long stock cannot pay to exit); engine cash uses hfq ROI.
         price = max(0.0, raw_price)
         event: Dict[str, Any] = {
             "date": date,

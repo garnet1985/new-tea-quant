@@ -9,6 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from core.modules.market_profile import MarketRulesProxy
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResultsManager,
+)
 from core.modules.strategy.core.services.artifacts import EnumerateStore
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
@@ -85,7 +88,7 @@ class PortfolioPipeline:
 
     @classmethod
     def load_enum_data(cls, ctx: "SimulateSession") -> EnumerateStore:
-        """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
+        """解析 enum version 目录，加载 runtime + entity_ids（不读枚举结果）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
@@ -109,39 +112,46 @@ class PortfolioPipeline:
         *,
         settings: StrategySettings,
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
-        """读 enum CSV → 事件列表 + 已屏蔽结果字段的 Opportunity 索引。
+        """从枚举结果展开买卖事件 + 选仓用 Opportunity（屏蔽 ROI / result）。
 
-        买入价固定为 ``entry_price_raw``，卖出价固定为 ``exit_price_raw``；
-        缺任一合法 raw 的已完成笔跳过（不回退 qfq、不用 ROI 反推）。
+        买入扣现金用 ``entry_price_raw``；平仓用枚举 hfq ``weighted_roi``。
+        缺合法买入 raw 的笔跳过。不要求 ``exit_price_raw``，也不用它算钱。
         ``simulation.risk_control.should_skip_enter`` 命中触发日状态的行不生成事件。
         """
         control = settings.simulation.risk_control
-        entity_ids = list(data.entity_ids) or data.list_investment_entities()
+        manager = EnumResultsManager.at(data.output_dir)
+        entity_ids = [
+            str(item or "").strip()
+            for item in (data.entity_ids or [])
+            if str(item or "").strip()
+        ]
+        if not entity_ids:
+            entity_ids = manager.list_entities() or data.list_investment_entities()
         events: List[PortfolioEvent] = []
         opportunities: Dict[str, Opportunity] = {}
         for entity_id in entity_ids:
             eid = str(entity_id or "").strip()
             if not eid:
                 continue
-            if not data.has_investments(eid):
-                continue
-            loaded = data.investments(eid)
-            for row in loaded.rows:
-                if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
+            for row in manager.results(eid):
+                filled = row.with_entity_id(eid) if eid and not row.entity_id else row
+                if control.should_skip_enter(status_tags=filled.stock_status_at_trigger):
                     continue
-                row_events = PortfolioEvent.from_investment_row(row, eid)
+                row_events = PortfolioEvent.from_enum_result(filled, eid)
                 if not row_events:
                     continue
                 events.extend(row_events)
-                oid = str(row.investment_id or "").strip()
-                if oid:
-                    key = f"{eid}:{oid}"
-                    if key not in opportunities:
-                        opp = row.to_opportunity(eid)
-                        # 选仓索引用 entity:investment，避免跨股 id 碰撞
-                        if opp.meta is not None:
-                            opp.meta.opportunity_id = key
-                        opportunities[key] = opp
+                oid = str(filled.investment_id or "").strip()
+                if not oid:
+                    continue
+                key = f"{eid}:{oid}"
+                if key in opportunities:
+                    continue
+                opp = filled.to_opportunity()
+                # 选仓索引用 entity:investment，避免跨股 id 碰撞
+                if opp.meta is not None:
+                    opp.meta.opportunity_id = key
+                opportunities[key] = opp
 
         events.sort(
             key=lambda e: (

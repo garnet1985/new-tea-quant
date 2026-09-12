@@ -8,13 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.enum_result_contract import EnumResult
-    from core.modules.strategy.core.services.artifacts import (
-        InvestmentRow,
-    )
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -78,25 +72,6 @@ class PortfolioEvent:
         eid = str(entity_id or getattr(row, "entity_id", "") or "").strip()
         return cls._from_fill(
             entity_id=eid,
-            investment_id=str(getattr(row, "investment_id", "") or "").strip(),
-            entry_date=str(getattr(row, "entry_date", "") or "").strip(),
-            entry_price_raw=float(getattr(row, "entry_price_raw", 0.0) or 0.0),
-            exit_date=str(getattr(row, "exit_date", "") or "").strip(),
-            exit_price_raw=float(getattr(row, "exit_price_raw", 0.0) or 0.0),
-            weighted_roi=float(getattr(row, "weighted_roi", 0.0) or 0.0),
-            enter_bar_volume=getattr(row, "enter_bar_volume", None),
-            exit_bar_volume=getattr(row, "exit_bar_volume", None),
-        )
-
-    @classmethod
-    def from_investment_row(
-        cls,
-        row: "InvestmentRow",
-        entity_id: str,
-    ) -> List["PortfolioEvent"]:
-        """DEPRECATED: CSV / 测试适配。请改 ``from_enum_result``。"""
-        return cls._from_fill(
-            entity_id=str(entity_id or "").strip(),
             investment_id=str(getattr(row, "investment_id", "") or "").strip(),
             entry_date=str(getattr(row, "entry_date", "") or "").strip(),
             entry_price_raw=float(getattr(row, "entry_price_raw", 0.0) or 0.0),

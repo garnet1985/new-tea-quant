@@ -190,12 +190,8 @@ class InvestmentTracker:
             *self.completed,
         ]
 
-    def investments_as_dicts(self) -> List[Dict[str, Any]]:
-        """DEPRECATED: CSV sidecar 仍用 ``to_dict``；新落盘走 ``investments()`` + EnumResultsManager。"""
-        return [inv.to_dict() for inv in self.investments()]
-
     def buffer_for_persist(self) -> List[Dict[str, Any]]:
-        """本 entity 的落盘缓冲行；``opportunity`` dict 仅供 CSV sidecar。"""
+        """本 entity 的落盘缓冲行（``Investment`` 对象，由 EnumResultsManager 投影）。"""
         eid = str(self.entity_id or "").strip()
         if not eid:
             return []
@@ -206,7 +202,6 @@ class InvestmentTracker:
                     "entity_id": eid,
                     "date": str(getattr(investment, "trigger_date", "") or ""),
                     "investment": investment,
-                    "opportunity": investment.to_dict(),
                 }
             )
         return rows

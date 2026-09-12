@@ -3,10 +3,9 @@
 边界:
 - 负责: ``Investment`` → ``EnumResult`` 交还；``entities/{id}.json`` 读写；按 entity 筛选
 - 不负责: tick 调度、价格锁仓、组合资金；不一次加载全市场
-- 调用方: 枚举落盘；价格回测 worker；组合 build_events
+- 调用方: 枚举落盘；价格回测 worker；组合 build_events；枚举报告 / 分析 / BFF
 
 查询必须带 ``entity_ids``。``filled`` = 有进场日；``completed`` = lifecycle complete。
-无 JSON 时回退 CSV sidecar（DEPRECATED）。
 """
 from __future__ import annotations
 
@@ -14,15 +13,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.modules.strategy.core.engines.shared.enum_result_contract.enum_result import (
-    CompletedGoal,
     EnumResult,
     results_from_document,
     results_to_document,
-)
-from core.modules.strategy.core.services.artifacts import (
-    EnumerateStore,
-    GoalAchievementRow,
-    InvestmentRow,
 )
 from core.modules.strategy.core.services.artifacts.consts import ENTITIES_SUBDIR
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
@@ -79,7 +72,7 @@ class EnumResultsManager:
         return written
 
     def load(self, entity_ids: Sequence[str]) -> Dict[str, Tuple[EnumResult, ...]]:
-        """按 id 从盘还原进内存（缺 JSON 时回退 CSV；都没有则为空）。"""
+        """按 id 从盘还原进内存（没有 JSON 则为空）。"""
         out: Dict[str, Tuple[EnumResult, ...]] = {}
         for raw_id in entity_ids or ():
             eid = str(raw_id or "").strip()
@@ -140,87 +133,11 @@ class EnumResultsManager:
 
     def _read_entity(self, entity_id: str) -> Tuple[EnumResult, ...]:
         path = self.entity_path(entity_id)
-        if path.is_file():
-            payload = ArtifactIO.read_json(path)
-            _eid, rows = results_from_document(payload, entity_id=entity_id)
-            return tuple(rows)
-        # DEPRECATED: 无 JSON 时读 investments/goals CSV
-        return _legacy_csv_results(self.output_dir, entity_id)
-
-
-def _legacy_csv_results(enum_dir: Path, entity_id: str) -> Tuple[EnumResult, ...]:
-    """DEPRECATED: 读 ``*_stock_investments.csv`` / goals，待 sidecar 删除。"""
-    store = EnumerateStore.at(enum_dir)
-    if not store.has_investments(entity_id):
-        return ()
-    table = store.investments(entity_id)
-    goals_by: Dict[str, List[GoalAchievementRow]] = {}
-    for goal in store.goals(entity_id).rows:
-        inv_id = str(goal.investment_id or "").strip()
-        if not inv_id:
-            continue
-        goals_by.setdefault(inv_id, []).append(goal)
-    for goals in goals_by.values():
-        goals.sort(key=lambda row: str(row.date or ""))
-    return tuple(
-        _enum_result_from_investment_row(
-            row,
-            goals_by.get(str(row.investment_id or "").strip()) or [],
-            entity_id,
-        )
-        for row in table.rows
-    )
-
-
-def _enum_result_from_investment_row(
-    row: InvestmentRow,
-    goals: Sequence[GoalAchievementRow],
-    entity_id: str,
-) -> EnumResult:
-    """DEPRECATED: CSV 行 → EnumResult。"""
-    return EnumResult(
-        entity_id=str(entity_id or "").strip(),
-        investment_id=str(row.investment_id or "").strip(),
-        trigger_date=str(row.trigger_date or "").strip(),
-        trigger_price=float(row.trigger_price or 0.0),
-        trigger_price_raw=float(row.trigger_price_raw or 0.0),
-        trigger_price_hfq=float(row.trigger_price_hfq or 0.0),
-        entry_date=str(row.entry_date or "").strip(),
-        entry_price=float(row.entry_price or 0.0),
-        entry_price_raw=float(row.entry_price_raw or 0.0),
-        entry_price_hfq=float(row.entry_price_hfq or 0.0),
-        exit_date=str(row.exit_date or "").strip(),
-        exit_price=float(row.exit_price or 0.0),
-        exit_price_raw=float(row.exit_price_raw or 0.0),
-        exit_price_hfq=float(row.exit_price_hfq or 0.0),
-        exit_reason=str(row.exit_reason or "").strip(),
-        lifecycle=str(row.lifecycle or "").strip(),
-        result=str(row.result or "").strip(),
-        weighted_roi=float(row.weighted_roi or 0.0),
-        holding_days=int(row.holding_days or 0),
-        enter_prev_close=row.enter_prev_close,
-        enter_at_limit=row.enter_at_limit,
-        exit_prev_close=row.exit_prev_close,
-        exit_at_limit=row.exit_at_limit,
-        stock_status_at_trigger=tuple(row.stock_status_at_trigger or ()),
-        enter_bar_volume=row.enter_bar_volume,
-        exit_bar_volume=row.exit_bar_volume,
-        completed_goals=tuple(
-            CompletedGoal(
-                name=str(g.goal_name or "").strip(),
-                date=str(g.date or "").strip(),
-                price=float(g.price or 0.0),
-                price_raw=float(g.price_raw or 0.0),
-                price_hfq=float(g.price_hfq or 0.0),
-                exit_ratio=float(g.exit_ratio or 0.0),
-                profit=float(g.profit or 0.0),
-                weighted_profit=float(g.weighted_profit or 0.0),
-                reason=str(g.reason or "").strip(),
-                roi=float(g.roi or 0.0),
-            )
-            for g in goals or []
-        ),
-    )
+        if not path.is_file():
+            return ()
+        payload = ArtifactIO.read_json(path)
+        _eid, rows = results_from_document(payload, entity_id=entity_id)
+        return tuple(rows)
 
 
 __all__ = ["EnumResultsManager"]

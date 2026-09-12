@@ -6,9 +6,6 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.services.artifacts import (
-    InvestmentRow,
-)
 from core.modules.strategy.core.engines.portfolio.data_class import (
     Account,
     PortfolioEvent,
@@ -54,29 +51,8 @@ def test_portfolio_event_from_enum_result_buy_uses_raw() -> None:
     assert sell.roi == 0.5
 
 
-def test_portfolio_event_buy_uses_raw_sell_keeps_exit_raw_for_audit():
-    """DEPRECATED: from_investment_row CSV 适配。"""
-    row = InvestmentRow(
-        investment_id="1",
-        entry_date="20240103",
-        entry_price=10.0,
-        entry_price_raw=20.0,
-        exit_date="20240110",
-        exit_price=11.0,
-        exit_price_raw=15.0,
-        weighted_roi=0.5,
-        lifecycle="complete",
-    )
-    events = PortfolioEvent.from_investment_row(row, "600000.SH")
-    assert len(events) == 2
-    buy, sell = events
-    assert buy.price == 20.0
-    assert sell.price == 15.0  # 审计用 exit_raw；资金层用 sell.roi
-    assert sell.roi == 0.5
-
-
 def test_portfolio_event_sell_without_exit_raw_still_emits():
-    row = InvestmentRow(
+    row = EnumResult(
         investment_id="1",
         entry_date="20240103",
         entry_price=10.0,
@@ -87,7 +63,7 @@ def test_portfolio_event_sell_without_exit_raw_still_emits():
         weighted_roi=-1.5,
         lifecycle="complete",
     )
-    events = PortfolioEvent.from_investment_row(row, "920522.BJ")
+    events = PortfolioEvent.from_enum_result(row, "920522.BJ")
     assert len(events) == 2
     sell = events[1]
     assert sell.price == 0.0
@@ -95,7 +71,7 @@ def test_portfolio_event_sell_without_exit_raw_still_emits():
 
 
 def test_portfolio_event_emits_sell_when_exit_date_without_exit_raw():
-    row = InvestmentRow(
+    row = EnumResult(
         investment_id="1",
         entry_date="20240103",
         entry_price=10.0,
@@ -104,27 +80,27 @@ def test_portfolio_event_emits_sell_when_exit_date_without_exit_raw():
         weighted_roi=-1.4,
         lifecycle="complete",
     )
-    events = PortfolioEvent.from_investment_row(row, "920522.BJ")
+    events = PortfolioEvent.from_enum_result(row, "920522.BJ")
     assert len(events) == 2
     assert events[1].is_sell()
     assert events[1].roi == pytest.approx(-1.4)
 
 
 def test_portfolio_event_open_position_without_exit_still_buys():
-    row = InvestmentRow(
+    row = EnumResult(
         investment_id="3",
         entry_date="20240103",
         entry_price_raw=20.0,
         lifecycle="open",
     )
-    events = PortfolioEvent.from_investment_row(row, "600000.SH")
+    events = PortfolioEvent.from_enum_result(row, "600000.SH")
     assert len(events) == 1
     assert events[0].is_buy()
     assert events[0].price == 20.0
 
 
 def test_portfolio_event_skips_without_entry_price_raw():
-    row = InvestmentRow(
+    row = EnumResult(
         investment_id="2",
         entry_date="20240103",
         entry_price=10.0,
@@ -132,7 +108,7 @@ def test_portfolio_event_skips_without_entry_price_raw():
         exit_date="20240110",
         weighted_roi=0.1,
     )
-    assert PortfolioEvent.from_investment_row(row, "600000.SH") == []
+    assert PortfolioEvent.from_enum_result(row, "600000.SH") == []
 
 
 def test_portfolio_investment_from_trades_profit():

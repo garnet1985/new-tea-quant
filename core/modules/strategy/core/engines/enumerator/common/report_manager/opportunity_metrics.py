@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Sequence
 
 from core.infra.utils import Utils
-from core.modules.strategy.core.services.artifacts import (
-    InvestmentRow,
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResult,
 )
+
+
 @dataclass
 class OpportunityCountBuckets:
     """每股机会数动态分档。"""
@@ -201,7 +203,7 @@ class TimingDispersion:
         return "较集中"
 
     @classmethod
-    def mean_gap_for_rows(cls, rows: Sequence[InvestmentRow]) -> float:
+    def mean_gap_for_rows(cls, rows: Sequence[EnumResult]) -> float:
         """同一 entity 相邻触发间隔均值（天）；不足 2 次为 0。"""
         trigger_dates = sorted(
             d
@@ -222,7 +224,7 @@ class TimingDispersion:
     @classmethod
     def compute(
         cls,
-        investments_by_entity: Dict[str, Sequence[InvestmentRow]],
+        investments_by_entity: Dict[str, Sequence[EnumResult]],
     ) -> "TimingDispersion":
         gaps: List[float] = []
         durations: List[float] = []
@@ -305,7 +307,7 @@ class TradabilityMetrics:
         )
 
     @classmethod
-    def compute(cls, investments: Sequence[InvestmentRow]) -> "TradabilityMetrics":
+    def compute(cls, investments: Sequence[EnumResult]) -> "TradabilityMetrics":
         buy_sample = 0
         buy_limit = 0
         sell_sample = 0

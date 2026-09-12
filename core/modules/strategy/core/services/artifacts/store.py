@@ -29,24 +29,15 @@ from core.modules.strategy.core.services.artifacts.consts import (
     PERFORMANCE_FILE,
     PRICE_INVESTMENTS_SUFFIX,
     RUNTIME_ENV_FILE,
-    SIGNAL_SNAPSHOTS_SUFFIX,
-    STOCK_INVESTMENTS_SUFFIX,
     TRADES_FILE,
 )
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.services.artifacts.tables.enum_investments import (
-    EntityInvestmentCsv,
-    GoalAchievementCsv,
     GoalAchievementRow,
-    InvestmentRow,
 )
 from core.modules.strategy.core.services.artifacts.tables.price_investments import (
     PriceInvestmentRow,
-)
-from core.modules.strategy.core.services.artifacts.tables.signal_snapshots import (
-    EntitySignalSnapshotCsv,
-    SignalSnapshotRow,
 )
 
 logger = logging.getLogger(__name__)
@@ -694,15 +685,9 @@ class ArtifactStore:
 
 
 class EnumerateStore(ArtifactStore):
-    """enumerate version：EnumResult JSON + DEPRECATED CSV sidecar。"""
+    """enumerate version：``entities/{id}.json``（EnumResult）。"""
 
     KIND = SimulateKind.ENUMERATE
-
-    def __init__(self, output_dir: Path, *, version_id: str) -> None:
-        super().__init__(output_dir, version_id=version_id)
-        self._investments: Dict[str, EntityInvestmentCsv] = {}
-        self._goals: Dict[str, GoalAchievementCsv] = {}
-        self._snapshots: Dict[str, EntitySignalSnapshotCsv] = {}
 
     @classmethod
     def simulation_root(
@@ -713,149 +698,19 @@ class EnumerateStore(ArtifactStore):
         cls._require_kind(kind)
         return cls.simulations_root(strategy_folder)
 
-    def investments(self, entity_id: str) -> EntityInvestmentCsv:
-        """DEPRECATED: CSV sidecar。价格 / 组合已改读 JSON；分析 / BFF 仍依赖。"""
-        eid = str(entity_id or "").strip()
-        cached = self._investments.get(eid)
-        if cached is not None:
-            return cached
-        path = self.entity_file(eid, STOCK_INVESTMENTS_SUFFIX)
-        table = EntityInvestmentCsv(
-            entity_id=eid,
-            rows=[
-                InvestmentRow.from_csv_row(row)
-                for row in Utils.io.read_csv_to_dicts(path)
-            ],
-        )
-        self._investments[eid] = table
-        return table
-
-    def goals(self, entity_id: str) -> GoalAchievementCsv:
-        """DEPRECATED: CSV sidecar。价格层已改读嵌套 completed_goals。"""
-        eid = str(entity_id or "").strip()
-        cached = self._goals.get(eid)
-        if cached is not None:
-            return cached
-        path = self.entity_file(eid, GOAL_ACHIEVEMENTS_SUFFIX)
-        table = GoalAchievementCsv(
-            entity_id=eid,
-            rows=[
-                GoalAchievementRow.from_csv_row(row)
-                for row in Utils.io.read_csv_to_dicts(path)
-            ],
-        )
-        self._goals[eid] = table
-        return table
-
-    def snapshots(self, entity_id: str) -> EntitySignalSnapshotCsv:
-        eid = str(entity_id or "").strip()
-        cached = self._snapshots.get(eid)
-        if cached is not None:
-            return cached
-        path = self.entity_file(eid, SIGNAL_SNAPSHOTS_SUFFIX)
-        table = EntitySignalSnapshotCsv(
-            entity_id=eid,
-            rows=[
-                SignalSnapshotRow.from_csv_row(row)
-                for row in Utils.io.read_csv_to_dicts(path)
-                if str(row.get(EntitySignalSnapshotCsv.JOIN_KEY) or "").strip()
-            ],
-        )
-        self._snapshots[eid] = table
-        return table
-
     def list_investment_entities(self) -> List[str]:
-        """DEPRECATED: 扫 investments CSV 文件名。组合优先 ``EnumResultsManager.list_entities``。"""
-        nested = self._scan_suffix(self.entities_dir(), STOCK_INVESTMENTS_SUFFIX)
-        if nested:
-            return nested
-        return self._scan_suffix(self.output_dir, STOCK_INVESTMENTS_SUFFIX)
-
-    def load_all_investments(self) -> Dict[str, List[InvestmentRow]]:
-        return {
-            entity_id: list(self.investments(entity_id).rows)
-            for entity_id in self.list_investment_entities()
-        }
+        """磁盘上已有 ``entities/{id}.json`` 的 entity。"""
+        return self._scan_suffix(self.entities_dir(), ".json")
 
     def has_investments(self, entity_id: str) -> bool:
-        return self.entity_file(entity_id, STOCK_INVESTMENTS_SUFFIX).is_file()
-
-    def write_investments(
-        self, table: EntityInvestmentCsv, *, append: bool = False
-    ) -> Path:
-        path = self.entity_file(table.entity_id, STOCK_INVESTMENTS_SUFFIX)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [row.to_csv_row() for row in table.rows]
-        if append and path.is_file():
-            rows = Utils.io.read_csv_to_dicts(path) + rows
-        Utils.io.write_dicts_to_csv(
-            path, rows, preferred_order=list(EntityInvestmentCsv.COLUMNS)
-        )
-        self._investments.pop(str(table.entity_id or "").strip(), None)
-        return path
-
-    def write_goals(self, table: GoalAchievementCsv, *, append: bool = False) -> Path:
-        path = self.entity_file(table.entity_id, GOAL_ACHIEVEMENTS_SUFFIX)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [row.to_csv_row() for row in table.rows]
-        if append and path.is_file():
-            rows = Utils.io.read_csv_to_dicts(path) + rows
-        Utils.io.write_dicts_to_csv(
-            path, rows, preferred_order=list(GoalAchievementCsv.COLUMNS)
-        )
-        self._goals.pop(str(table.entity_id or "").strip(), None)
-        return path
-
-    def write_snapshots(
-        self, table: EntitySignalSnapshotCsv, *, append: bool = False
-    ) -> Path:
-        path = self.entity_file(table.entity_id, SIGNAL_SNAPSHOTS_SUFFIX)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [row.to_csv_row() for row in table.rows]
-        if append and path.is_file():
-            rows = Utils.io.read_csv_to_dicts(path) + rows
-        if not rows:
-            return path
-        keys: set[str] = set()
-        for row in rows:
-            keys.update(str(k) for k in row.keys())
-        keys.discard(EntitySignalSnapshotCsv.JOIN_KEY)
-        preferred = [EntitySignalSnapshotCsv.JOIN_KEY] + sorted(keys)
-        Utils.io.write_dicts_to_csv(path, rows, preferred_order=preferred)
-        self._snapshots.pop(str(table.entity_id or "").strip(), None)
-        return path
-
-    def append_entity(
-        self, entity_id: str, investments: Sequence[Dict[str, Any]]
-    ) -> Dict[str, int]:
-        """DEPRECATED: 枚举主产物改为 ``entities/{id}.json``；CSV sidecar 待下游迁走后删除。"""
-        stock = EntityInvestmentCsv.build(entity_id, investments)
-        goals = GoalAchievementCsv.build(entity_id, investments)
-        snapshots = EntitySignalSnapshotCsv.build(entity_id, investments)
-        investment_files = 0
-        goal_files = 0
-        investment_rows = 0
-        goal_rows = 0
-        if stock.rows:
-            self.write_investments(stock, append=True)
-            investment_files = 1
-            investment_rows = len(stock.rows)
-        if goals.rows:
-            self.write_goals(goals, append=True)
-            goal_files = 1
-            goal_rows = len(goals.rows)
-        if snapshots.rows:
-            self.write_snapshots(snapshots, append=True)
-        return {
-            "investment_files": investment_files,
-            "goal_files": goal_files,
-            "investment_rows": investment_rows,
-            "goal_rows": goal_rows,
-        }
+        eid = str(entity_id or "").strip()
+        if not eid:
+            return False
+        return (self.entities_dir() / f"{eid}.json").is_file()
 
 
 class PriceFactorStore(ArtifactStore):
-    """price_factor version：``entities/{id}_investments.csv`` + 分段卖出腿。"""
+    """price_factor version：``entities/{id}_investments.csv`` + 分档卖出。"""
 
     KIND = SimulateKind.PRICE_FACTOR
 
@@ -963,7 +818,7 @@ class PriceFactorStore(ArtifactStore):
             else:
                 payloads.append(dict(row or {}))
         Utils.io.write_dicts_to_csv(
-            path, payloads, preferred_order=list(GoalAchievementCsv.COLUMNS)
+            path, payloads, preferred_order=list(GoalAchievementRow.COLUMN_ORDER)
         )
         self._goals.pop(str(entity_id or "").strip(), None)
         return path

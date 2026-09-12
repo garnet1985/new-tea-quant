@@ -8,17 +8,17 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.services.artifacts import (
-    EntityInvestmentCsv,
-    EnumerateStore,
-    InvestmentRow,
-)
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResult,
+    EnumResultsManager,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StatusTagPolicy,
     StrategySettings,
 )
+from core.modules.strategy.core.services.artifacts import EnumerateStore
 
 
 def _base_simulation(**risk_overrides):
@@ -68,7 +68,7 @@ def test_match_reason() -> None:
     assert StatusTagPolicy(()).match_reason(["st"]) is None
 
 
-def _inv_row(**kwargs) -> InvestmentRow:
+def _inv_row(**kwargs) -> EnumResult:
     base = dict(
         investment_id="1",
         trigger_date="20240101",
@@ -86,7 +86,7 @@ def _inv_row(**kwargs) -> InvestmentRow:
         holding_days=5,
     )
     base.update(kwargs)
-    return InvestmentRow(**base)
+    return EnumResult(**base)
 
 
 def test_price_replay_skips_matching_status() -> None:
@@ -109,32 +109,32 @@ def test_price_replay_skips_matching_status() -> None:
 
 
 def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
-    EnumerateStore.at(tmp_path).write_investments(
-        EntityInvestmentCsv(
-            entity_id="600000.SH",
-            rows=[
-                _inv_row(
-                    investment_id="1",
-                    entry_price_raw=20.0,
-                    stock_status_at_trigger=("st",),
-                ),
-                _inv_row(
-                    investment_id="2",
-                    entry_date="20240104",
-                    exit_date="20240111",
-                    entry_price_raw=21.0,
-                    stock_status_at_trigger=("star_st",),
-                ),
-                _inv_row(
-                    investment_id="3",
-                    entry_date="20240105",
-                    exit_date="20240112",
-                    entry_price_raw=22.0,
-                    stock_status_at_trigger=(),
-                ),
-            ],
-        )
+    manager = EnumResultsManager.at(tmp_path)
+    manager.accept(
+        "600000.SH",
+        [
+            _inv_row(
+                investment_id="1",
+                entry_price_raw=20.0,
+                stock_status_at_trigger=("st",),
+            ),
+            _inv_row(
+                investment_id="2",
+                entry_date="20240104",
+                exit_date="20240111",
+                entry_price_raw=21.0,
+                stock_status_at_trigger=("star_st",),
+            ),
+            _inv_row(
+                investment_id="3",
+                entry_date="20240105",
+                exit_date="20240112",
+                entry_price_raw=22.0,
+                stock_status_at_trigger=(),
+            ),
+        ],
     )
+    manager.persist("600000.SH")
 
     data = EnumerateStore.hydrate(
         tmp_path,

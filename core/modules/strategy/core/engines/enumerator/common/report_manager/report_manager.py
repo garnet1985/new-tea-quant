@@ -7,7 +7,7 @@
 
 引擎 artifact（非报告正文）:
 - runtime_env.json / entity_ids.txt
-- entities/{id}.json（EnumResult）；CSV sidecar DEPRECATED
+- entities/{id}.json（EnumResult）
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from core.modules.strategy.core.engines.enumerator.common.report_manager.profile
     ProfilerReport,
 )
 from core.modules.strategy.core.engines.enumerator.common.report_manager.report_scan import (
-    EnumCsvScan,
+    EnumScan,
 )
 from core.modules.strategy.core.engines.enumerator.common.artifacts.runtime_env import (
     RuntimeEnv,
@@ -219,7 +219,7 @@ class ReportManager(BaseReportManager):
             opportunities_count=self._finalize_opportunities_count,
             performance_config=self._finalize_performance_config,
         )
-        scan = EnumCsvScan.collect(
+        scan = EnumScan.collect(
             self.output_dir,
             total_entities=self._finalize_entity_count,
             strategy_key=self.strategy_key,

@@ -6,10 +6,8 @@ from typing import Any, Dict, List
 import pytest
 
 from core.modules.market_profile import MarketRulesProxy
-from core.modules.strategy.core.services.artifacts import (
-    InvestmentRow,
-)
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
+from core.modules.strategy.core.engines.shared.enum_result_contract import EnumResult
 from core.modules.strategy.core.engines.price_factor.helpers.deferred_exit import (
     retry_deferred_exits,
 )
@@ -20,7 +18,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings import
 pytestmark = pytest.mark.force_run
 
 
-def _row(**kwargs) -> InvestmentRow:
+def _row(**kwargs) -> EnumResult:
     base = dict(
         investment_id="1",
         trigger_date="20240101",
@@ -44,7 +42,7 @@ def _row(**kwargs) -> InvestmentRow:
         base["entry_price_hfq"] = float(base.get("entry_price") or 0.0)
     if "exit_price_hfq" not in kwargs:
         base["exit_price_hfq"] = float(base.get("exit_price") or 0.0)
-    return InvestmentRow(**base)
+    return EnumResult(**base)
 
 
 def _bar(

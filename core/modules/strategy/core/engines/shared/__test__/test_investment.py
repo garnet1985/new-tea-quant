@@ -312,11 +312,11 @@ class TestInvestmentRawPrices(unittest.TestCase):
         self.assertEqual(inv.completed_goals[0]["price_raw"], 16.0)
         self.assertEqual(inv.completed_goals[0]["price_hfq"], 8.0)
 
-        from core.modules.strategy.core.services.artifacts import (
-            InvestmentRow,
+        from core.modules.strategy.core.engines.shared.enum_result_contract import (
+            EnumResult,
         )
 
-        row = InvestmentRow.from_payload(inv.to_dict())
+        row = EnumResult.from_investment(inv)
         self.assertEqual(row.trigger_price_raw, 20.0)
         self.assertEqual(row.entry_price_raw, 21.0)
         self.assertEqual(row.exit_price_raw, 16.0)
@@ -527,19 +527,13 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         self.assertTrue(inv.exit_info.at_limit)
         self.assertEqual(inv.exit_info.prev_close, 10.0)
 
-        from core.modules.strategy.core.services.artifacts import (
-            InvestmentRow,
+        from core.modules.strategy.core.engines.shared.enum_result_contract import (
+            EnumResult,
         )
 
-        row = InvestmentRow.from_payload(inv.to_dict())
+        row = EnumResult.from_investment(inv)
         self.assertTrue(row.enter_at_limit)
         self.assertTrue(row.exit_at_limit)
-        csv_row = row.to_csv_row()
-        self.assertEqual(csv_row["enter_at_limit"], "1")
-        self.assertEqual(csv_row["exit_at_limit"], "1")
-        roundtrip = InvestmentRow.from_csv_row(csv_row)
-        self.assertTrue(roundtrip.enter_at_limit)
-        self.assertTrue(roundtrip.exit_at_limit)
 
 
 class _FixedStatusTags:
@@ -645,19 +639,15 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         # 源 Opportunity 同步打标
         self.assertEqual(opp.status_tags_at_trigger(), ("st", "star_st"))
 
-        from core.modules.strategy.core.services.artifacts import (
-            InvestmentRow,
+        from core.modules.strategy.core.engines.shared.enum_result_contract import (
+            EnumResult,
         )
 
         # 需 entry/exit 结构：走一轮最小成交
         _react(inv, _tick("20240103", o=10.0, h=10.5, l=9.8, c=10.2, pre_close=10.0))
-        row = InvestmentRow.from_payload(inv.to_dict())
+        row = EnumResult.from_investment(inv)
         self.assertEqual(row.stock_status_at_trigger, ("st", "star_st"))
-        csv_row = row.to_csv_row()
-        self.assertEqual(csv_row["stock_status_at_trigger"], '["st", "star_st"]')
-        roundtrip = InvestmentRow.from_csv_row(csv_row)
-        self.assertEqual(roundtrip.stock_status_at_trigger, ("st", "star_st"))
-        projected = roundtrip.to_opportunity("600000.SH")
+        projected = row.to_opportunity()
         self.assertEqual(projected.status_tags_at_trigger(), ("st", "star_st"))
 
     def test_without_provider_does_not_stamp_status_key(self) -> None:

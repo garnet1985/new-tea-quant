@@ -117,7 +117,6 @@ class PortfolioPipeline:
         买入扣现金用 ``entry_price_raw``；平仓用枚举 hfq ``weighted_roi``。
         缺合法买入 raw 的笔跳过。不要求 ``exit_price_raw``，也不用它算钱。
         ``simulation.risk_control.should_skip_enter`` 命中触发日状态的行不生成事件。
-        优先 ``entities/{id}.json``；无 JSON 时管理器回退 CSV（DEPRECATED）。
         """
         control = settings.simulation.risk_control
         manager = EnumResultsManager.at(data.output_dir)

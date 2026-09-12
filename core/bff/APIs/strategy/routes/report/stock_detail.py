@@ -1,7 +1,7 @@
 """BFF single-stock detail (V2-07c): K-line + step markers.
 
 NEW artifacts only:
-- enum: ``entities/{id}_stock_investments.csv``  # DEPRECATED: 待改 EnumResult JSON
+- enum: ``entities/{id}.json``
 - price: ``entities/{id}_investments.csv`` + 分档卖出 ``*_goal_achievements.csv``
 """
 
@@ -20,11 +20,13 @@ from core.infra.utils import Utils
 from core.modules.strategy.core.engines.shared.data_class.investment.enums import (
     Lifecycle,
 )
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResult,
+    EnumResultsManager,
+)
 from core.modules.strategy.core.services.artifacts import (
     ArtifactStore,
-    EnumerateStore,
     GoalAchievementRow,
-    InvestmentRow,
     PriceFactorStore,
     PriceInvestmentRow,
 )
@@ -277,21 +279,17 @@ class WorkbenchStockDetail:
     @staticmethod
     def _load_enum_investments(
         output_dir: Path, entity_id: str
-    ) -> List[InvestmentRow]:
-        """DEPRECATED: 读枚举 CSV；待改 EnumResultsManager。"""
-        store = EnumerateStore.at(output_dir)
-        if not store.has_investments(entity_id):
-            return []
+    ) -> List[EnumResult]:
         try:
-            loaded = store.investments(entity_id)
+            rows = list(EnumResultsManager.at(output_dir).results(entity_id))
         except Exception:
             logger.exception(
-                "读取枚举投资 CSV 失败: %s %s", output_dir, entity_id
+                "读取枚举结果失败: %s %s", output_dir, entity_id
             )
             return []
         return [
             row
-            for row in loaded.rows
+            for row in rows
             if row.investment_id or row.trigger_date or row.entry_date
         ]
 
@@ -375,7 +373,7 @@ class WorkbenchStockDetail:
 
     @classmethod
     def _enum_markers(
-        cls, investments: List[InvestmentRow], candles: List[Dict[str, Any]]
+        cls, investments: Sequence[EnumResult], candles: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         by_date = cls._candle_index_by_date(candles)
         markers: List[Dict[str, Any]] = []
@@ -450,15 +448,37 @@ class WorkbenchStockDetail:
         if not taken:
             return []
         try:
-            enum_goals = EnumerateStore.at(enum_dir).goals(sid).rows
+            enum_rows = EnumResultsManager.at(enum_dir).results(sid)
         except Exception:
             logger.exception("读取枚举已成交目标失败: %s %s", enum_dir, sid)
             return []
-        return [
-            row
-            for row in enum_goals
-            if str(row.investment_id or "").strip() in taken
-        ]
+        out: List[GoalAchievementRow] = []
+        for row in enum_rows:
+            inv_id = str(row.investment_id or "").strip()
+            if inv_id not in taken:
+                continue
+            for goal in row.completed_goals:
+                day = str(goal.date or "").strip()
+                name = str(goal.name or "").strip()
+                reason = str(goal.reason or "").strip() or name or "exit"
+                if not day or not name:
+                    continue
+                out.append(
+                    GoalAchievementRow(
+                        investment_id=inv_id,
+                        goal_name=name,
+                        date=day,
+                        price=float(goal.price or 0.0),
+                        price_raw=float(goal.price_raw or 0.0),
+                        price_hfq=float(goal.price_hfq or 0.0),
+                        exit_ratio=float(goal.exit_ratio or 0.0),
+                        profit=float(goal.profit or 0.0),
+                        weighted_profit=float(goal.weighted_profit or 0.0),
+                        reason=reason,
+                        roi=float(goal.roi or 0.0),
+                    )
+                )
+        return out
 
     @classmethod
     def _price_markers(
@@ -598,7 +618,7 @@ class WorkbenchStockDetail:
         return float(inv.roi or 0.0) > 0
 
     @staticmethod
-    def _enum_metrics_for_stock(investments: List[InvestmentRow]) -> Dict[str, Any]:
+    def _enum_metrics_for_stock(investments: Sequence[EnumResult]) -> Dict[str, Any]:
         total = len(investments)
         if total <= 0:
             return {}

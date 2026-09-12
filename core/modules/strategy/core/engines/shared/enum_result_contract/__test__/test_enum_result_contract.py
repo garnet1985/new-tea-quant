@@ -30,13 +30,6 @@ from core.modules.strategy.core.engines.shared.enum_result_contract import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.services.artifacts import (
-    EntityInvestmentCsv,
-    EnumerateStore,
-    GoalAchievementCsv,
-    GoalAchievementRow,
-    InvestmentRow,
-)
 
 pytestmark = pytest.mark.force_run
 
@@ -226,44 +219,6 @@ def test_manager_persist_and_scoped_queries(tmp_path: Path) -> None:
     assert other.filled(["000002.SZ"])[0].lifecycle == "open"
     assert other.completed(["000002.SZ"]) == []
     assert other.filled([]) == []
-
-
-def test_manager_csv_fallback_without_json(tmp_path: Path) -> None:
-    EnumerateStore.at(tmp_path).write_investments(
-        EntityInvestmentCsv(
-            entity_id="600000.SH",
-            rows=[
-                InvestmentRow(
-                    investment_id="csv-7",
-                    trigger_date="20240102",
-                    entry_date="20240103",
-                    entry_price_raw=10.6,
-                    lifecycle="complete",
-                    stock_status_at_trigger=("st",),
-                )
-            ],
-        )
-    )
-    EnumerateStore.at(tmp_path).write_goals(
-        GoalAchievementCsv(
-            entity_id="600000.SH",
-            rows=[
-                GoalAchievementRow(
-                    investment_id="csv-7",
-                    goal_name="take_profit",
-                    date="20240110",
-                    price=11.0,
-                    exit_ratio=1.0,
-                    reason="take_profit",
-                )
-            ],
-        )
-    )
-    loaded = EnumResultsManager.at(tmp_path).results("600000.SH")
-    assert len(loaded) == 1
-    assert loaded[0].investment_id == "csv-7"
-    assert loaded[0].stock_status_at_trigger == ("st",)
-    assert loaded[0].completed_goals[0].name == "take_profit"
 
 
 def test_manager_accept_investment_and_skip_empty_file(tmp_path: Path) -> None:

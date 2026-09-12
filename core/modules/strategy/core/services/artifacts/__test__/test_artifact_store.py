@@ -10,9 +10,7 @@ from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     RUNTIME_ENV_FILE,
     ArtifactStore,
-    EntityInvestmentCsv,
     EnumerateStore,
-    InvestmentRow,
     PortfolioStore,
     PriceFactorStore,
 )
@@ -41,22 +39,26 @@ def test_parse_kind_rejects_capital() -> None:
         ArtifactStore.parse_kind("capital")
 
 
-def test_write_and_read_investments(tmp_path: Path) -> None:
-    store = EnumerateStore.at(tmp_path, version_id="1")
-    table = EntityInvestmentCsv(
-        entity_id="000001.SZ",
-        rows=[
-            InvestmentRow(
+def test_write_and_list_enum_json(tmp_path: Path) -> None:
+    from core.modules.strategy.core.engines.shared.enum_result_contract import (
+        EnumResult,
+        EnumResultsManager,
+    )
+
+    manager = EnumResultsManager.at(tmp_path)
+    manager.accept(
+        "000001.SZ",
+        [
+            EnumResult(
                 investment_id="1",
                 trigger_date="20240102",
                 lifecycle="complete",
             )
         ],
     )
-    store.write_investments(table)
-    ArtifactStore.clear_cache()
-    loaded = EnumerateStore.at(tmp_path).investments("000001.SZ")
-    assert [row.investment_id for row in loaded.rows] == ["1"]
+    manager.persist("000001.SZ")
+    store = EnumerateStore.at(tmp_path, version_id="1")
+    assert store.has_investments("000001.SZ")
     assert store.list_investment_entities() == ["000001.SZ"]
 
 

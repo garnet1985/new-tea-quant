@@ -3,9 +3,9 @@
 边界:
 - 负责: 从 ``Investment`` 投影；JSON 往返；选仓用的 ``Opportunity`` 投影
 - 不负责: 生命周期模拟、文件 IO（见 EnumResultsManager）
-- 调用方: EnumResultsManager；价格回测 worker；组合选仓 / 事件展开
+- 调用方: EnumResultsManager；价格回测 worker；组合选仓 / 事件展开；枚举报告 / 分析 / BFF
 
-字段口径与现有枚举 CSV 一致：价无后缀 = qfq；``*_raw`` 成交；``*_hfq`` 比例 / ROI。
+字段口径：价无后缀 = qfq；``*_raw`` 成交；``*_hfq`` 比例 / ROI。
 """
 from __future__ import annotations
 

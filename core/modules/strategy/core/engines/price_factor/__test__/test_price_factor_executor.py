@@ -12,58 +12,12 @@ from core.modules.strategy.core.engines.shared.enum_result_contract import (
     EnumResultsManager,
 )
 from core.modules.strategy.core.services.artifacts import (
-    EntityInvestmentCsv,
-    EnumerateStore,
-    GoalAchievementCsv,
-    GoalAchievementRow,
-    InvestmentRow,
     PriceFactorStore,
 )
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FACTOR_GLOBAL_KEY
 
 pytestmark = pytest.mark.force_run
-
-
-def _enum_store(output_dir: Path) -> EnumerateStore:
-    return EnumerateStore.at(output_dir)
-
-
-def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
-    """DEPRECATED: CSV sidecar 回退夹具。"""
-    store = _enum_store(output_dir)
-    store.write_investments(
-        EntityInvestmentCsv(
-            entity_id=entity_id,
-            rows=[
-                InvestmentRow(
-                    investment_id=f"opp-{entity_id}",
-                    trigger_date="20240102",
-                    entry_date="20240103",
-                    entry_price=10.0,
-                    lifecycle="complete",
-                )
-            ],
-        )
-    )
-    store.write_goals(
-        GoalAchievementCsv(
-            entity_id=entity_id,
-            rows=[
-                GoalAchievementRow(
-                    investment_id=f"opp-{entity_id}",
-                    goal_name="take_profit",
-                    date="20240110",
-                    price=11.0,
-                    exit_ratio=1.0,
-                    profit=1.0,
-                    weighted_profit=1.0,
-                    reason="take_profit",
-                    roi=0.1,
-                )
-            ],
-        )
-    )
 
 
 def _write_enum_json(
@@ -138,9 +92,17 @@ def _filled_result(
     )
 
 
-def test_load_batch_enum_data_csv_fallback(tmp_path: Path) -> None:
-    _write_enum_csv(tmp_path, "000001.SZ")
-    _write_enum_csv(tmp_path, "000002.SZ")
+def test_load_batch_enum_data(tmp_path: Path) -> None:
+    _write_enum_json(
+        tmp_path,
+        "000001.SZ",
+        _filled_result(
+            "000001.SZ",
+            exit_date="20240110",
+            goal_date="20240110",
+        ),
+    )
+    _write_enum_json(tmp_path, "000002.SZ", _filled_result("000002.SZ"))
 
     init = PriceFactorJobExecutor._load_batch_enum_data(
         SimpleNamespace(
@@ -160,19 +122,17 @@ def test_load_batch_enum_data_csv_fallback(tmp_path: Path) -> None:
 
 
 def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
-    _enum_store(tmp_path).write_investments(
-        EntityInvestmentCsv(
+    _write_enum_json(
+        tmp_path,
+        "000003.SZ",
+        EnumResult(
             entity_id="000003.SZ",
-            rows=[
-                InvestmentRow(
-                    investment_id="opp-3",
-                    trigger_date="20240102",
-                    entry_date="20240103",
-                    entry_price=1.0,
-                    lifecycle="open",
-                )
-            ],
-        )
+            investment_id="opp-3",
+            trigger_date="20240102",
+            entry_date="20240103",
+            entry_price=1.0,
+            lifecycle="open",
+        ),
     )
     init = PriceFactorJobExecutor._load_batch_enum_data(
         SimpleNamespace(
@@ -184,78 +144,6 @@ def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
     assert len(rows) == 1
     assert rows[0].investment_id == "opp-3"
     assert rows[0].completed_goals == ()
-
-
-def test_load_batch_prefers_json_over_csv(tmp_path: Path) -> None:
-    _write_enum_csv(tmp_path, "000001.SZ")
-    _write_enum_json(
-        tmp_path, "000001.SZ", _filled_result("000001.SZ", investment_id="json-a")
-    )
-
-    init = PriceFactorJobExecutor._load_batch_enum_data(
-        SimpleNamespace(
-            job_id="batch_0",
-            payload=_payload(tmp_path, ["000001.SZ"]),
-        )
-    )
-    rows = init["entities"]["000001.SZ"]["results"]
-    assert [row.investment_id for row in rows] == ["json-a"]
-    assert rows[0].completed_goals[0].name == "take_profit"
-
-
-def test_replay_and_save_batch_csv_fallback(tmp_path: Path) -> None:
-    enum_dir = tmp_path / "enum"
-    price_dir = tmp_path / "price"
-    _write_enum_csv(enum_dir, "000001.SZ")
-    # overlapping second opp should be locked out
-    _enum_store(enum_dir).write_investments(
-        EntityInvestmentCsv(
-            entity_id="000001.SZ",
-            rows=[
-                InvestmentRow(
-                    investment_id="opp-a",
-                    trigger_date="20240102",
-                    entry_date="20240103",
-                    entry_price=10.0,
-                    exit_date="20240120",
-                    exit_price=11.0,
-                    lifecycle="complete",
-                    result="win",
-                    weighted_roi=0.1,
-                    holding_days=10,
-                ),
-                InvestmentRow(
-                    investment_id="opp-b",
-                    trigger_date="20240105",
-                    entry_date="20240106",
-                    entry_price=10.0,
-                    exit_date="20240108",
-                    exit_price=9.0,
-                    lifecycle="complete",
-                    result="loss",
-                    weighted_roi=-0.1,
-                    holding_days=2,
-                ),
-            ],
-        )
-    )
-
-    ctx = SimpleNamespace(
-        job_id="batch_0",
-        payload=_payload(enum_dir, ["000001.SZ"], price_output_dir=price_dir),
-        init={},
-    )
-    ctx.init = PriceFactorJobExecutor._load_batch_enum_data(ctx)
-    stats = PriceFactorJobExecutor._replay_and_save_batch(ctx)
-    assert stats["investments"] == 1
-    saved = PriceFactorStore.at(price_dir).investments("000001.SZ")
-    assert len(saved) == 1
-    assert saved[0].opportunity_id == "opp-a"
-    goals = PriceFactorStore.at(price_dir).goals("000001.SZ")
-    assert len(goals) == 1
-    assert goals[0].investment_id == "opp-a"
-    assert goals[0].date == "20240120"
-    assert "completed_goals" not in saved[0].to_dict()
 
 
 def test_replay_and_save_batch_from_json(tmp_path: Path) -> None:

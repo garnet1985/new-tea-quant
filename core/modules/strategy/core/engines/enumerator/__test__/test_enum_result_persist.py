@@ -1,4 +1,4 @@
-"""枚举落盘走 EnumResultsManager JSON；CSV sidecar 仍写。"""
+"""枚举落盘走 EnumResultsManager JSON。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -38,7 +38,6 @@ from core.modules.strategy.core.engines.shared.enum_result_contract import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.services.artifacts import STOCK_INVESTMENTS_SUFFIX
 
 pytestmark = pytest.mark.force_run
 
@@ -72,26 +71,26 @@ def _investment(entity_id: str = "600000.SH", investment_id: str = "7") -> Inves
     return inv
 
 
-def test_flush_writes_json_and_deprecated_csv(tmp_path: Path) -> None:
+def test_flush_writes_json(tmp_path: Path) -> None:
     tracker = InvestmentTracker(entity_id="600000.SH")
     tracker.completed.append(_investment())
     buffer = InvestmentTracker.buffer_many_for_persist({"600000.SH": tracker})
     assert "investment" in buffer[0]
-    assert isinstance(buffer[0]["opportunity"], dict)
+    assert "opportunity" not in buffer[0]
 
     report = InvestmentsReport(SimpleNamespace(output_dir=tmp_path, version_id="1"))
     stats = report.flush_buffered(buffer)
     assert stats["json_files"] == 1
-    assert stats["investment_files"] == 1
+    assert stats["opportunities_count"] == 1
     assert (tmp_path / "entities" / "600000.SH.json").is_file()
-    assert (tmp_path / "entities" / f"600000.SH{STOCK_INVESTMENTS_SUFFIX}").is_file()
+    assert list(tmp_path.joinpath("entities").glob("*.csv")) == []
 
     loaded = EnumResultsManager.at(tmp_path).filled(["600000.SH"])
     assert [row.investment_id for row in loaded] == ["7"]
     assert loaded[0].signal_snapshot == {"rsi": 31.0}
 
 
-def test_enum_report_scan_prefers_json(tmp_path: Path) -> None:
+def test_enum_report_scan_reads_json(tmp_path: Path) -> None:
     tracker = InvestmentTracker(entity_id="600000.SH")
     tracker.completed.append(_investment())
     InvestmentsReport(SimpleNamespace(output_dir=tmp_path, version_id="1")).flush_buffered(
@@ -101,3 +100,4 @@ def test_enum_report_scan_prefers_json(tmp_path: Path) -> None:
     assert list(by_entity) == ["600000.SH"]
     assert by_entity["600000.SH"][0].investment_id == "7"
     assert by_entity["600000.SH"][0].lifecycle == "complete"
+    assert by_entity["600000.SH"][0].signal_snapshot == {"rsi": 31.0}

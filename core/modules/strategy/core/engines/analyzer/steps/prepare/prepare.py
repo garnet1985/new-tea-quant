@@ -11,17 +11,16 @@ from core.modules.strategy.core.services.artifacts import (
     ENTITIES_SUBDIR,
     GOAL_ACHIEVEMENTS_SUFFIX,
     PRICE_INVESTMENTS_SUFFIX,
-    SIGNAL_SNAPSHOTS_SUFFIX,
-    STOCK_INVESTMENTS_SUFFIX,
     ArtifactStore,
     EnumerateStore,
     GoalAchievementRow,
-    InvestmentRow,
     PriceFactorStore,
     PriceInvestmentRow,
 )
-from core.modules.strategy.core.services.artifacts.tables.signal_snapshots import (
-    SignalSnapshotRow,
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    CompletedGoal,
+    EnumResult,
+    EnumResultsManager,
 )
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 
@@ -95,9 +94,7 @@ class PrepareStep:
         payload = self._base_payload(
             artifact_paths={
                 "runtime_env": "runtime_env.json",
-                "investments": f"{ENTITIES_SUBDIR}/*{STOCK_INVESTMENTS_SUFFIX}",
-                "goal_achievements": f"{ENTITIES_SUBDIR}/*{GOAL_ACHIEVEMENTS_SUFFIX}",
-                "signal_snapshots": f"{ENTITIES_SUBDIR}/*{SIGNAL_SNAPSHOTS_SUFFIX}",
+                "enum_results": f"{ENTITIES_SUBDIR}/*.json",
             },
         )
         payload["inputs"]["capture"] = {
@@ -194,11 +191,9 @@ class PrepareStep:
             if buy is None:
                 continue
             if entity_id not in snapshot_cache:
-                snapshot_cache[entity_id] = {}
-                if enum_store is not None and enum_store.has_investments(entity_id):
-                    snapshot_cache[entity_id] = _snapshot_index(
-                        enum_store.snapshots(entity_id).rows
-                    )
+                snapshot_cache[entity_id] = _enum_capture_index(
+                    enum_store, entity_id
+                )
             capture = snapshot_cache[entity_id].get(inv_id, {})
             by_entity.setdefault(entity_id, []).append(
                 _join_portfolio_investment(buy=buy, sell=sell, capture=capture)
@@ -283,24 +278,25 @@ class PrepareStep:
         return block
 
     def _collect_enum_entities(self, store: EnumerateStore) -> List[Dict[str, Any]]:
-        """DEPRECATED: 读枚举 CSV；待改 EnumResultsManager。"""
+        manager = EnumResultsManager.at(store.output_dir)
+        entity_ids = [
+            str(item or "").strip()
+            for item in (store.entity_ids or [])
+            if str(item or "").strip()
+        ]
+        if not entity_ids:
+            entity_ids = manager.list_entities() or store.list_investment_entities()
         entities: List[Dict[str, Any]] = []
-        for entity_id in store.list_investment_entities():
-            investments = store.investments(entity_id).rows
-            if not investments:
+        for entity_id in entity_ids:
+            results = manager.results(entity_id)
+            if not results:
                 continue
-            goals = store.goals(entity_id).rows
-            snapshots = _snapshot_index(store.snapshots(entity_id).rows)
-            goal_index = _goal_index(goals)
-            rows = [
-                _join_enum_investment(
-                    row,
-                    capture=snapshots.get(row.investment_id, {}),
-                    completed_goals=goal_index.get(row.investment_id, []),
-                )
-                for row in investments
-            ]
-            entities.append({"entity_id": entity_id, "investments": rows})
+            entities.append(
+                {
+                    "entity_id": entity_id,
+                    "investments": [_join_enum_investment(row) for row in results],
+                }
+            )
         return entities
 
     def _collect_price_entities(
@@ -314,9 +310,9 @@ class PrepareStep:
             rows_raw = store.investments(entity_id)
             if not rows_raw:
                 continue
-            snapshots: Dict[str, Dict[str, Any]] = {}
-            if enum_store is not None and enum_store.has_investments(entity_id):
-                snapshots = _snapshot_index(enum_store.snapshots(entity_id).rows)
+            snapshots: Dict[str, Dict[str, Any]] = _enum_capture_index(
+                enum_store, entity_id
+            )
             goal_index = _goal_index(store.goals(entity_id))
             rows = [
                 _join_price_investment(
@@ -395,10 +391,17 @@ def _declared_manifest(effective_settings: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _snapshot_index(rows: Sequence[SignalSnapshotRow]) -> Dict[str, Dict[str, Any]]:
+def _enum_capture_index(
+    enum_store: Optional[EnumerateStore], entity_id: str
+) -> Dict[str, Dict[str, Any]]:
+    if enum_store is None:
+        return {}
+    eid = str(entity_id or "").strip()
+    if not eid:
+        return {}
     return {
-        str(row.investment_id or "").strip(): dict(row.values or {})
-        for row in rows
+        str(row.investment_id or "").strip(): dict(row.signal_snapshot or {})
+        for row in EnumResultsManager.at(enum_store.output_dir).results(eid)
         if str(row.investment_id or "").strip()
     }
 
@@ -413,17 +416,14 @@ def _goal_index(rows: Sequence[GoalAchievementRow]) -> Dict[str, List[Dict[str, 
     return out
 
 
-def _join_enum_investment(
-    row: InvestmentRow,
-    *,
-    capture: Dict[str, Any],
-    completed_goals: Sequence[Dict[str, Any]],
-) -> Dict[str, Any]:
+def _join_enum_investment(row: EnumResult) -> Dict[str, Any]:
     return {
         "investment_id": row.investment_id,
         "engine": _serialize_enum_engine(row),
-        "completed_goals": list(completed_goals),
-        "capture": dict(capture),
+        "completed_goals": [
+            _serialize_completed_goal_from_enum(goal) for goal in row.completed_goals
+        ],
+        "capture": dict(row.signal_snapshot or {}),
     }
 
 
@@ -454,7 +454,7 @@ def _join_portfolio_investment(
     }
 
 
-def _serialize_enum_engine(row: InvestmentRow) -> Dict[str, Any]:
+def _serialize_enum_engine(row: EnumResult) -> Dict[str, Any]:
     return {
         "trigger_date": row.trigger_date,
         "trigger_price": row.trigger_price,
@@ -576,6 +576,20 @@ def _as_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _serialize_completed_goal_from_enum(goal: CompletedGoal) -> Dict[str, Any]:
+    return {
+        "goal_name": goal.name,
+        "date": goal.date,
+        "price": goal.price,
+        "price_hfq": goal.price_hfq,
+        "exit_ratio": goal.exit_ratio,
+        "profit": goal.profit,
+        "weighted_profit": goal.weighted_profit,
+        "reason": goal.reason,
+        "roi": goal.roi,
+    }
 
 
 def _serialize_completed_goal(row: GoalAchievementRow) -> Dict[str, Any]:

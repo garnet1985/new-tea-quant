@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar, Dict, List, Sequence
 
+from core.modules.strategy.core.helpers.coerce import ValueCoerce
+
 
 @dataclass
 class PriceInvestmentRow:
@@ -72,23 +74,8 @@ class PriceInvestmentRow:
             result=str(data.get("result") or "").strip(),
         )
 
-    @staticmethod
-    def as_float(value: Any, default: float = 0.0) -> float:
-        if value is None or value == "":
-            return default
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def as_int(value: Any, default: int = 0) -> int:
-        if value is None or value == "":
-            return default
-        try:
-            return int(float(value))
-        except (TypeError, ValueError):
-            return default
+    as_float = staticmethod(ValueCoerce.as_float)
+    as_int = staticmethod(ValueCoerce.as_int)
 
 
 __all__ = ["PriceInvestmentRow"]

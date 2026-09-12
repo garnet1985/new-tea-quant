@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
 
+from core.modules.strategy.core.helpers.coerce import ValueCoerce
 from core.modules.strategy.core.services.artifacts.consts import (
     GOAL_ACHIEVEMENTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
@@ -15,58 +16,16 @@ class _RowCoerce:
     """Investment / Goal CSV 行字段强制转换。
 
     边界:
-    - 负责: str/float/int 与必填字段校验
+    - 负责: 标量 coerce + CSV 标签 / 必填校验
     - 不负责: 业务语义、文件 IO
     - 调用方: InvestmentRow / GoalAchievementRow（模块内私有）
     """
 
-    @staticmethod
-    def as_str(value: Any) -> str:
-        if value is None:
-            return ""
-        if hasattr(value, "value"):
-            return str(value.value)
-        return str(value).strip()
-
-    @staticmethod
-    def as_float(value: Any, default: float = 0.0) -> float:
-        if value is None or value == "":
-            return default
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def as_int(value: Any, default: int = 0) -> int:
-        if value is None or value == "":
-            return default
-        try:
-            return int(float(value))
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def as_optional_float(value: Any) -> Optional[float]:
-        if value is None or value == "":
-            return None
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
-    @staticmethod
-    def as_optional_bool(value: Any) -> Optional[bool]:
-        if value is None or value == "":
-            return None
-        if isinstance(value, bool):
-            return value
-        text = str(value).strip().lower()
-        if text in ("true", "1", "yes"):
-            return True
-        if text in ("false", "0", "no"):
-            return False
-        return None
+    as_str = staticmethod(ValueCoerce.as_str)
+    as_float = staticmethod(ValueCoerce.as_float)
+    as_int = staticmethod(ValueCoerce.as_int)
+    as_optional_float = staticmethod(ValueCoerce.as_optional_float)
+    as_optional_bool = staticmethod(ValueCoerce.as_optional_bool)
 
     @staticmethod
     def optional_bool_to_csv(value: Optional[bool]) -> str:

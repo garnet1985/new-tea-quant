@@ -1,11 +1,11 @@
 # Settings / Version / Effective — 决策记录
 
 更新时间：2026-09-03  
-状态：已落地。现行叙事见 [VERSIONING.md](../VERSIONING.md)；本文只保留编号决策（D1–D39）。
+状态：已落地。现行叙事见 [VERSIONING.md](./notes/VERSIONING.md)；本文只保留编号决策（D1–D39）。
 
-过程稿已归档：[VERSIONING_REDESIGN.md](./VERSIONING_REDESIGN.md)、[SETTINGS_VERSION_IDENTITY.md](./SETTINGS_VERSION_IDENTITY.md)。
+过程稿已归档：[VERSIONING_REDESIGN.md](./notes//VERSIONING_REDESIGN.md)、[SETTINGS_VERSION_IDENTITY.md](./notes/SETTINGS_VERSION_IDENTITY.md)。
 
-布局与运行时契约（原 D1–D14：共享 vid、`settings.py` SOT、双指纹、恢复显式、keep-N）已写入 [VERSIONING.md](../VERSIONING.md)，不再在此重复。
+布局与运行时契约（原 D1–D14：共享 vid、`settings.py` SOT、双指纹、恢复显式、keep-N）已写入 [VERSIONING.md](./notes/VERSIONING.md)，不再在此重复。
 
 ---
 

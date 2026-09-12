@@ -2,7 +2,7 @@
 
 NEW artifacts only:
 - enum: ``entities/{id}_stock_investments.csv``
-- price: ``entities/{id}_investments.csv``
+- price: ``entities/{id}_investments.csv`` + 分档卖出 ``*_goal_achievements.csv``
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.data_manager import DataManager
 from core.modules.indicator import Indicator
@@ -23,6 +23,7 @@ from core.modules.strategy.core.engines.shared.data_class.investment.enums impor
 from core.modules.strategy.core.services.artifacts import (
     ArtifactStore,
     EnumerateStore,
+    GoalAchievementRow,
     InvestmentRow,
     PriceFactorStore,
     PriceInvestmentRow,
@@ -195,7 +196,15 @@ class WorkbenchStockDetail:
         candles, indicator_series, kline_params = cls._load_chart(
             sid, settings, backtest_period
         )
-        markers = cls._price_markers(investments, candles)
+        goal_rows = cls._load_price_completed_goals(
+            price_dir=output_dir,
+            entity_id=sid,
+            investments=investments,
+            strategy_name=strategy_name,
+            snapshot_row=row,
+            version=version,
+        )
+        markers = cls._price_markers(investments, candles, goal_rows=goal_rows)
 
         return {
             **common,
@@ -403,12 +412,62 @@ class WorkbenchStockDetail:
         return markers
 
     @classmethod
+    def _load_price_completed_goals(
+        cls,
+        *,
+        price_dir: Path,
+        entity_id: str,
+        investments: List[PriceInvestmentRow],
+        strategy_name: str,
+        snapshot_row: Dict[str, Any],
+        version: int,
+    ) -> List[GoalAchievementRow]:
+        """价格层已成交目标：优先本步 goal CSV（含跌停顺延后的成交日）。"""
+        sid = str(entity_id or "").strip()
+        try:
+            price_goals = list(PriceFactorStore.at(price_dir).goals(sid) or [])
+        except Exception:
+            logger.exception("读取价格回测已成交目标失败: %s %s", price_dir, sid)
+            price_goals = []
+        if price_goals:
+            return price_goals
+
+        enum_dir = cls._resolve_output_dir(
+            strategy_name,
+            "enum",
+            cls._slot(snapshot_row, "enum"),
+            version,
+            entity_id=sid,
+        )
+        if enum_dir is None:
+            return []
+        taken = {
+            str(inv.opportunity_id or "").strip()
+            for inv in investments
+            if str(inv.opportunity_id or "").strip()
+        }
+        if not taken:
+            return []
+        try:
+            enum_goals = EnumerateStore.at(enum_dir).goals(sid).rows
+        except Exception:
+            logger.exception("读取枚举已成交目标失败: %s %s", enum_dir, sid)
+            return []
+        return [
+            row
+            for row in enum_goals
+            if str(row.investment_id or "").strip() in taken
+        ]
+
+    @classmethod
     def _price_markers(
         cls,
         investments: List[PriceInvestmentRow],
         candles: List[Dict[str, Any]],
+        goal_rows: Optional[Sequence[GoalAchievementRow]] = None,
     ) -> List[Dict[str, Any]]:
         by_date = cls._candle_index_by_date(candles)
+        goals_by_inv = cls._index_completed_goals(goal_rows or [])
         markers: List[Dict[str, Any]] = []
         for inv in investments:
             enter = Utils.date.normalize_str(str(inv.enter_date or "")) or ""
@@ -429,28 +488,104 @@ class WorkbenchStockDetail:
                         },
                     }
                 )
-            exit_d = Utils.date.normalize_str(str(inv.exit_date or "")) or ""
-            if exit_d and exit_d in by_date:
-                bar = by_date[exit_d]
-                is_win = cls._price_row_is_win(inv)
-                markers.append(
-                    {
-                        "date": exit_d,
-                        "price": cls._round_price(cls._float_or_none(bar.get("high"))),
-                        "type": "target_win" if is_win else "target_loss",
-                        "label": "目标胜" if is_win else "目标负",
-                        "detail": {
-                            "opportunity_id": str(inv.opportunity_id or "").strip(),
-                            "exit_date": exit_d,
-                            "exit_price": cls._round_price(inv.exit_price),
-                            "exit_reason": str(inv.exit_reason or "").strip(),
-                            "roi": cls._round_price(inv.roi),
-                            "lifecycle": str(inv.lifecycle or "").strip(),
-                            "result": str(inv.result or "").strip(),
-                        },
-                    }
-                )
+            inv_id = str(inv.opportunity_id or "").strip()
+            goals = list(goals_by_inv.get(inv_id) or [])
+            if goals:
+                for goal in goals:
+                    cls._append_price_exit_marker(
+                        markers, inv=inv, candles_by_date=by_date, goal=goal
+                    )
+                continue
+            cls._append_price_exit_marker(
+                markers, inv=inv, candles_by_date=by_date, goal=None
+            )
         return markers
+
+    @staticmethod
+    def _index_completed_goals(
+        goal_rows: Sequence[GoalAchievementRow],
+    ) -> Dict[str, List[GoalAchievementRow]]:
+        out: Dict[str, List[GoalAchievementRow]] = {}
+        for row in goal_rows or []:
+            inv_id = str(getattr(row, "investment_id", "") or "").strip()
+            day = str(getattr(row, "date", "") or "").strip()
+            if not inv_id or not day:
+                continue
+            out.setdefault(inv_id, []).append(row)
+        for goals in out.values():
+            goals.sort(key=lambda r: str(r.date or ""))
+        return out
+
+    @classmethod
+    def _append_price_exit_marker(
+        cls,
+        markers: List[Dict[str, Any]],
+        *,
+        inv: PriceInvestmentRow,
+        candles_by_date: Dict[str, Dict[str, Any]],
+        goal: Optional[GoalAchievementRow],
+    ) -> None:
+        if goal is not None:
+            exit_d = Utils.date.normalize_str(str(goal.date or "")) or ""
+            exit_price = float(goal.price or 0.0)
+            exit_reason = str(goal.reason or "").strip()
+            roi = float(goal.roi or 0.0)
+            goal_name = str(goal.goal_name or "").strip()
+            exit_ratio = float(goal.exit_ratio or 0.0)
+        else:
+            exit_d = Utils.date.normalize_str(str(inv.exit_date or "")) or ""
+            exit_price = float(inv.exit_price or 0.0)
+            exit_reason = str(inv.exit_reason or "").strip()
+            roi = float(inv.roi or 0.0)
+            goal_name = ""
+            exit_ratio = 0.0
+        if not exit_d or exit_d not in candles_by_date:
+            return
+        bar = candles_by_date[exit_d]
+        is_win = cls._price_exit_is_win(
+            reason=exit_reason, roi=roi, inv=inv
+        )
+        detail: Dict[str, Any] = {
+            "opportunity_id": str(inv.opportunity_id or "").strip(),
+            "exit_date": exit_d,
+            "exit_price": cls._round_price(exit_price or cls._float_or_none(bar.get("high"))),
+            "exit_reason": exit_reason,
+            "roi": cls._round_price(roi),
+            "lifecycle": str(inv.lifecycle or "").strip(),
+            "result": str(inv.result or "").strip(),
+        }
+        if goal_name:
+            detail["goal_name"] = goal_name
+        if exit_ratio > 0:
+            detail["exit_ratio"] = exit_ratio
+        markers.append(
+            {
+                "date": exit_d,
+                "price": cls._round_price(cls._float_or_none(bar.get("high"))),
+                "type": "target_win" if is_win else "target_loss",
+                "label": "目标胜" if is_win else "目标负",
+                "detail": detail,
+            }
+        )
+
+    @classmethod
+    def _price_exit_is_win(
+        cls,
+        *,
+        reason: str,
+        roi: float,
+        inv: PriceInvestmentRow,
+    ) -> bool:
+        hint = str(reason or "").strip().lower()
+        if any(key in hint for key in ("stop_loss", "protect_loss", "dynamic_loss")):
+            return False
+        if "take_profit" in hint:
+            return True
+        if roi > 0:
+            return True
+        if roi < 0:
+            return False
+        return cls._price_row_is_win(inv)
 
     @staticmethod
     def _price_row_is_win(inv: PriceInvestmentRow) -> bool:

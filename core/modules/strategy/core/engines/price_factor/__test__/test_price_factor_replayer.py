@@ -81,8 +81,8 @@ def test_replay_skips_invalid_entry() -> None:
     assert [r.opportunity_id for r in out] == ["2"]
 
 
-def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
-    """goals CSV 的 exit_ratio 为绝对份额：两腿 0.5+0.5 必须 complete，不能剩 25% open。"""
+def test_replay_multi_stage_absolute_exit_ratios_complete() -> None:
+    """goals CSV 的 exit_ratio 为绝对份额：两档 0.5+0.5 必须 complete，不能剩 25% open。"""
     from core.modules.strategy.core.services.artifacts import (
         GoalAchievementRow,
     )
@@ -123,6 +123,9 @@ def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
     assert out[0].lifecycle == "complete"
     assert out[0].roi == pytest.approx(0.15)  # enum weighted_roi，不是 qfq 差价重算
     assert out[0].enter_price_hfq == pytest.approx(10.0)
+    assert [goal["date"] for goal in out[0].completed_goals] == ["20240108", "20240110"]
+    assert out[0].completed_goals[0]["exit_ratio"] == pytest.approx(0.5)
+    assert out[0].completed_goals[1]["goal_name"] == "take_profit"
 
 
 def test_replay_uses_enum_hfq_roi_not_qfq_split() -> None:

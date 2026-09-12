@@ -210,8 +210,16 @@ class PriceFactorJobExecutor:
                 goal_rows=goal_rows,
                 market_rules=market_rules,
             )
-            PriceFactorStore.at(out_dir).write_investments(
-                str(entity_id), price_rows
+            store = PriceFactorStore.at(out_dir)
+            store.write_investments(str(entity_id), price_rows)
+            store.write_goals(
+                str(entity_id),
+                [
+                    goal
+                    for row in price_rows
+                    for goal in (row.completed_goals or [])
+                    if isinstance(goal, dict)
+                ],
             )
             total_inv += len(price_rows)
             skipped_exit_at_limit += skip_sell
@@ -285,22 +293,22 @@ class PriceFactorJobExecutor:
                 continue
 
             inv_id = str(row.investment_id or "").strip()
-            legs = _build_exit_legs(row, goals_by_inv.get(inv_id) or [])
+            goals = _build_completed_goals(row, goals_by_inv.get(inv_id) or [])
 
             processed: List[Dict[str, Any]] = []
-            skipped_legs: List[Dict[str, Any]] = []
-            for leg in legs:
+            skipped_goals: List[Dict[str, Any]] = []
+            for goal in goals:
                 if (
-                    leg.get("exit_at_limit") is True
+                    goal.get("exit_at_limit") is True
                     and not allow_exit_at_limit_down
                 ):
                     skipped_sell += 1
-                    skipped_legs.append(leg)
+                    skipped_goals.append(goal)
                     continue
-                processed.append(leg)
+                processed.append(goal)
 
             pending = None
-            if skipped_legs and not position_fully_closed(processed):
+            if skipped_goals and not position_fully_closed(processed):
                 klines = kline_loader(
                     sid,
                     start_date=enter_date,
@@ -309,8 +317,8 @@ class PriceFactorJobExecutor:
                 processed, pending, defer_skips = retry_deferred_exits(
                     enter_price=enter_price,
                     enter_price_hfq=enter_price_hfq,
-                    processed_legs=processed,
-                    skipped_legs=skipped_legs,
+                    processed_goals=processed,
+                    skipped_goals=skipped_goals,
                     klines=klines,
                     entity_id=sid,
                     settings=strategy,
@@ -318,25 +326,29 @@ class PriceFactorJobExecutor:
                 )
                 skipped_sell += int(defer_skips or 0)
 
-            used_deferred = any(bool(leg.get("deferred")) for leg in processed)
+            used_deferred = any(bool(goal.get("deferred")) for goal in processed)
 
             holding_until = resolve_holding_until(
-                processed_legs=processed,
+                processed_goals=processed,
                 enter_date=enter_date,
                 backtest_end_date=end,
             )
 
-            out.append(
-                _to_price_row(
-                    row=row,
-                    enter_date=enter_date,
-                    enter_price=enter_price,
-                    enter_price_hfq=enter_price_hfq,
-                    processed=processed,
-                    pending=pending,
-                    used_deferred=used_deferred,
-                )
+            price_row = _to_price_row(
+                row=row,
+                enter_date=enter_date,
+                enter_price=enter_price,
+                enter_price_hfq=enter_price_hfq,
+                processed=processed,
+                pending=pending,
+                used_deferred=used_deferred,
             )
+            price_row.completed_goals = _processed_goals_to_rows(
+                investment_id=inv_id,
+                processed=processed,
+                enter_price_hfq=enter_price_hfq,
+            )
+            out.append(price_row)
 
         return out, skipped_sell
 
@@ -364,55 +376,129 @@ def _index_goals_by_investment(
         if not inv_id:
             continue
         out.setdefault(inv_id, []).append(g)
-    for legs in out.values():
-        legs.sort(key=lambda r: str(r.date or ""))
+    for goals in out.values():
+        goals.sort(key=lambda r: str(r.date or ""))
     return out
 
 
-def _build_exit_legs(
+def _build_completed_goals(
     row: InvestmentRow,
-    goal_legs: Sequence[GoalAchievementRow],
+    completed: Sequence[GoalAchievementRow],
 ) -> List[Dict[str, Any]]:
-    """goals 非空按腿；否则退化为单笔 InvestmentRow exit。"""
-    if goal_legs:
-        legs: List[Dict[str, Any]] = []
+    """goals 非空按已成交目标；否则退化为单笔 InvestmentRow exit。"""
+    if completed:
+        goals: List[Dict[str, Any]] = []
         exit_date = str(row.exit_date or "").strip()
-        for g in goal_legs:
+        for g in completed:
             day = str(g.date or "").strip()
             flag: Optional[bool] = None
-            if len(goal_legs) == 1 or (exit_date and day == exit_date):
+            if len(completed) == 1 or (exit_date and day == exit_date):
                 flag = row.exit_at_limit
-            legs.append(
+            goals.append(
                 {
                     "date": day,
                     "exit_date": day,
                     "exit_price": float(g.price or 0.0),
                     "exit_price_hfq": float(g.price_hfq or 0.0),
+                    "price_raw": float(g.price_raw or 0.0),
                     "exit_ratio": float(g.exit_ratio or 0.0) or 1.0,
                     "reason": str(g.reason or "").strip(),
+                    "goal_name": str(g.goal_name or "").strip(),
+                    "profit": float(g.profit or 0.0),
+                    "weighted_profit": float(g.weighted_profit or 0.0),
+                    "roi": float(g.roi or 0.0),
                     "exit_at_limit": flag,
                 }
             )
-        return legs
+        return goals
 
     exit_date = str(row.exit_date or "").strip()
     if not exit_date:
         return []
+    reason = str(row.exit_reason or "").strip()
     return [
         {
             "date": exit_date,
             "exit_date": exit_date,
             "exit_price": float(row.exit_price or 0.0),
             "exit_price_hfq": float(row.exit_price_hfq or 0.0),
+            "price_raw": float(row.exit_price_raw or 0.0),
             "exit_ratio": 1.0,
-            "reason": str(row.exit_reason or "").strip(),
+            "reason": reason,
+            "goal_name": reason or "exit",
             "exit_at_limit": row.exit_at_limit,
         }
     ]
 
 
-def _leg_date(leg: Dict[str, Any]) -> str:
-    return str(leg.get("date") or leg.get("exit_date") or "").strip()
+def _goal_date(goal: Dict[str, Any]) -> str:
+    return str(goal.get("date") or goal.get("exit_date") or "").strip()
+
+
+def _processed_goals_to_rows(
+    *,
+    investment_id: str,
+    processed: List[Dict[str, Any]],
+    enter_price_hfq: float,
+) -> List[Dict[str, Any]]:
+    inv_id = str(investment_id or "").strip()
+    if not inv_id:
+        return []
+    out: List[Dict[str, Any]] = []
+    for goal in sorted(processed or [], key=_goal_date):
+        day = _goal_date(goal)
+        if not day:
+            continue
+        reason = str(goal.get("reason") or "").strip() or "exit"
+        name = str(goal.get("goal_name") or "").strip() or reason
+        try:
+            exit_ratio = float(goal.get("exit_ratio") or 0.0) or 1.0
+        except (TypeError, ValueError):
+            exit_ratio = 1.0
+        try:
+            price = float(goal.get("exit_price") or 0.0)
+        except (TypeError, ValueError):
+            price = 0.0
+        try:
+            price_hfq = float(goal.get("exit_price_hfq") or 0.0)
+        except (TypeError, ValueError):
+            price_hfq = 0.0
+        try:
+            price_raw = float(goal.get("price_raw") or 0.0)
+        except (TypeError, ValueError):
+            price_raw = 0.0
+        try:
+            roi = float(goal.get("roi") or 0.0)
+        except (TypeError, ValueError):
+            roi = 0.0
+        try:
+            profit = float(goal.get("profit") or 0.0)
+        except (TypeError, ValueError):
+            profit = 0.0
+        try:
+            weighted_profit = float(goal.get("weighted_profit") or 0.0)
+        except (TypeError, ValueError):
+            weighted_profit = 0.0
+        if (roi == 0.0 and profit == 0.0) and enter_price_hfq > 0 and price_hfq > 0:
+            profit = price_hfq - enter_price_hfq
+            roi = profit / enter_price_hfq
+            weighted_profit = profit * exit_ratio
+        out.append(
+            {
+                "investment_id": inv_id,
+                "goal_name": name,
+                "date": day,
+                "price": price,
+                "price_raw": price_raw,
+                "price_hfq": price_hfq,
+                "exit_ratio": exit_ratio,
+                "profit": profit,
+                "weighted_profit": weighted_profit,
+                "reason": reason,
+                "roi": roi,
+            }
+        )
+    return out
 
 
 def _aggregate_hfq_roi(processed: List[Dict[str, Any]], enter_price_hfq: float) -> float:
@@ -421,17 +507,17 @@ def _aggregate_hfq_roi(processed: List[Dict[str, Any]], enter_price_hfq: float) 
     if not processed or basis <= 0:
         return 0.0
     weighted_profit = 0.0
-    ordered = sorted(processed, key=_leg_date)
-    for leg in ordered:
+    ordered = sorted(processed, key=_goal_date)
+    for goal in ordered:
         try:
-            ratio = float(leg.get("exit_ratio") or 0.0)
+            ratio = float(goal.get("exit_ratio") or 0.0)
         except (TypeError, ValueError):
             ratio = 0.0
         if ratio <= 0:
             continue
         ratio = min(ratio, 1.0)
         try:
-            sell_hfq = float(leg.get("exit_price_hfq") or 0.0)
+            sell_hfq = float(goal.get("exit_price_hfq") or 0.0)
         except (TypeError, ValueError):
             sell_hfq = 0.0
         if sell_hfq <= 0:
@@ -452,8 +538,8 @@ def _to_price_row(
 ) -> PriceInvestmentRow:
     closed = position_fully_closed(processed)
     if closed:
-        last = max(processed, key=_leg_date)
-        exit_date = _leg_date(last)
+        last = max(processed, key=_goal_date)
+        exit_date = _goal_date(last)
         exit_price = float(last.get("exit_price") or 0.0)
         exit_price_hfq = float(last.get("exit_price_hfq") or 0.0)
         if used_deferred:

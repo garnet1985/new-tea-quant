@@ -319,7 +319,7 @@ class InvestmentRow:
 
 @dataclass
 class GoalAchievementRow:
-    """单笔 goal 成交腿 → goal_achievements.csv 行。
+    """单笔已成交目标 → goal_achievements.csv 行。
 
     边界:
     - 负责: goal payload/CSV 行互转
@@ -445,7 +445,7 @@ class EntityInvestmentCsv:
 
 @dataclass
 class GoalAchievementCsv:
-    """单只股票的全部 goal 成交腿。
+    """单只股票的全部已成交目标。
 
     边界:
     - 负责: 从 investment.goals 构建行
@@ -477,12 +477,12 @@ class GoalAchievementCsv:
             if not isinstance(investment, dict):
                 continue
             investment_id = _RowCoerce.require_investment_id(investment)
-            goal_legs = investment.get("completed_goals")
-            if goal_legs is None:
-                goal_legs = []
-            if not isinstance(goal_legs, list):
+            completed_goals = investment.get("completed_goals")
+            if completed_goals is None:
+                completed_goals = []
+            if not isinstance(completed_goals, list):
                 raise ValueError("investment payload.completed_goals 必须是 list")
-            for goal in goal_legs:
+            for goal in completed_goals:
                 if isinstance(goal, dict):
                     rows.append(GoalAchievementRow.from_payload(investment_id, goal))
         return cls(entity_id=str(entity_id or "").strip(), rows=rows)

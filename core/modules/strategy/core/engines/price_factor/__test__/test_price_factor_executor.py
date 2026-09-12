@@ -176,3 +176,8 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
     saved = PriceFactorStore.at(price_dir).investments("000001.SZ")
     assert len(saved) == 1
     assert saved[0].opportunity_id == "opp-a"
+    goals = PriceFactorStore.at(price_dir).goals("000001.SZ")
+    assert len(goals) == 1
+    assert goals[0].investment_id == "opp-a"
+    assert goals[0].date == "20240120"
+    assert "completed_goals" not in saved[0].to_dict()

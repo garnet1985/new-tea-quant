@@ -851,13 +851,14 @@ class EnumerateStore(ArtifactStore):
 
 
 class PriceFactorStore(ArtifactStore):
-    """price_factor version：``entities/{id}_investments.csv``。"""
+    """price_factor version：``entities/{id}_investments.csv`` + 分段卖出腿。"""
 
     KIND = SimulateKind.PRICE_FACTOR
 
     def __init__(self, output_dir: Path, *, version_id: str) -> None:
         super().__init__(output_dir, version_id=version_id)
         self._investments: Dict[str, List[PriceInvestmentRow]] = {}
+        self._goals: Dict[str, List[GoalAchievementRow]] = {}
 
     @classmethod
     def simulation_root(
@@ -918,13 +919,49 @@ class PriceFactorStore(ArtifactStore):
             if isinstance(row, PriceInvestmentRow):
                 payloads.append(row.to_dict())
             else:
-                payloads.append(dict(row or {}))
+                payload = dict(row or {})
+                payload.pop("completed_goals", None)
+                payloads.append(payload)
         if not payloads:
             payloads = [{name: "" for name in PriceInvestmentRow.COLUMN_ORDER}]
         Utils.io.write_dicts_to_csv(
             path, payloads, preferred_order=list(PriceInvestmentRow.COLUMN_ORDER)
         )
         self._investments.pop(str(entity_id or "").strip(), None)
+        return path
+
+    def goals(self, entity_id: str) -> List[GoalAchievementRow]:
+        eid = str(entity_id or "").strip()
+        cached = self._goals.get(eid)
+        if cached is not None:
+            return cached
+        path = self.entity_file(eid, GOAL_ACHIEVEMENTS_SUFFIX)
+        out: List[GoalAchievementRow] = []
+        for raw in Utils.io.read_csv_to_dicts(path):
+            try:
+                out.append(GoalAchievementRow.from_csv_row(raw))
+            except ValueError:
+                continue
+        self._goals[eid] = out
+        return out
+
+    def write_goals(
+        self,
+        entity_id: str,
+        rows: Sequence[Union[GoalAchievementRow, Dict[str, Any]]],
+    ) -> Path:
+        path = self.entity_file(entity_id, GOAL_ACHIEVEMENTS_SUFFIX)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payloads: List[Dict[str, Any]] = []
+        for row in rows:
+            if isinstance(row, GoalAchievementRow):
+                payloads.append(row.to_csv_row())
+            else:
+                payloads.append(dict(row or {}))
+        Utils.io.write_dicts_to_csv(
+            path, payloads, preferred_order=list(GoalAchievementCsv.COLUMNS)
+        )
+        self._goals.pop(str(entity_id or "").strip(), None)
         return path
 
 

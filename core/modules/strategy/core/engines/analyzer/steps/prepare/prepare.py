@@ -119,6 +119,7 @@ class PrepareStep:
             artifact_paths={
                 "runtime_env": "runtime_env.json",
                 "investments": f"{ENTITIES_SUBDIR}/*{PRICE_INVESTMENTS_SUFFIX}",
+                "goal_achievements": f"{ENTITIES_SUBDIR}/*{GOAL_ACHIEVEMENTS_SUFFIX}",
             },
             upstream=self._upstream_block(enum_store),
         )
@@ -294,7 +295,7 @@ class PrepareStep:
                 _join_enum_investment(
                     row,
                     capture=snapshots.get(row.investment_id, {}),
-                    goal_legs=goal_index.get(row.investment_id, []),
+                    completed_goals=goal_index.get(row.investment_id, []),
                 )
                 for row in investments
             ]
@@ -315,10 +316,12 @@ class PrepareStep:
             snapshots: Dict[str, Dict[str, Any]] = {}
             if enum_store is not None and enum_store.has_investments(entity_id):
                 snapshots = _snapshot_index(enum_store.snapshots(entity_id).rows)
+            goal_index = _goal_index(store.goals(entity_id))
             rows = [
                 _join_price_investment(
                     row,
                     capture=snapshots.get(row.opportunity_id, {}),
+                    completed_goals=goal_index.get(row.opportunity_id, []),
                 )
                 for row in rows_raw
             ]
@@ -405,7 +408,7 @@ def _goal_index(rows: Sequence[GoalAchievementRow]) -> Dict[str, List[Dict[str, 
         inv_id = str(row.investment_id or "").strip()
         if not inv_id:
             continue
-        out.setdefault(inv_id, []).append(_serialize_goal_leg(row))
+        out.setdefault(inv_id, []).append(_serialize_completed_goal(row))
     return out
 
 
@@ -413,12 +416,12 @@ def _join_enum_investment(
     row: InvestmentRow,
     *,
     capture: Dict[str, Any],
-    goal_legs: Sequence[Dict[str, Any]],
+    completed_goals: Sequence[Dict[str, Any]],
 ) -> Dict[str, Any]:
     return {
         "investment_id": row.investment_id,
         "engine": _serialize_enum_engine(row),
-        "goal_legs": list(goal_legs),
+        "completed_goals": list(completed_goals),
         "capture": dict(capture),
     }
 
@@ -427,10 +430,12 @@ def _join_price_investment(
     row: PriceInvestmentRow,
     *,
     capture: Dict[str, Any],
+    completed_goals: Sequence[Dict[str, Any]],
 ) -> Dict[str, Any]:
     return {
         "investment_id": row.opportunity_id,
         "engine": _serialize_price_engine(row),
+        "completed_goals": list(completed_goals),
         "capture": dict(capture),
     }
 
@@ -572,7 +577,7 @@ def _as_float(value: Any) -> Optional[float]:
         return None
 
 
-def _serialize_goal_leg(row: GoalAchievementRow) -> Dict[str, Any]:
+def _serialize_completed_goal(row: GoalAchievementRow) -> Dict[str, Any]:
     return {
         "goal_name": row.goal_name,
         "date": row.date,

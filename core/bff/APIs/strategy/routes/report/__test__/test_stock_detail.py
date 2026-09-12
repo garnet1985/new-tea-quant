@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from core.bff.APIs.strategy.routes.report.stock_detail import WorkbenchStockDetail
 from core.modules.strategy.core.services.artifacts import (
+    GoalAchievementRow,
     InvestmentRow,
     PriceInvestmentRow,
 )
@@ -54,6 +55,53 @@ def test_price_markers_enter_and_exit():
     assert types == ["buy", "target_win"]
     assert markers[0]["detail"]["entry_date"] == "20200102"
     assert markers[1]["detail"]["exit_date"] == "20200105"
+
+
+def test_price_markers_emit_each_completed_goal():
+    inv = PriceInvestmentRow(
+        opportunity_id="p1",
+        enter_date="20200102",
+        enter_price=10.0,
+        exit_date="20200105",
+        exit_price=11.0,
+        roi=0.075,
+        lifecycle="complete",
+        result="win",
+        exit_reason="take_profit",
+    )
+    candles = [
+        {"date": "20200102", "open": 10, "high": 11, "low": 9, "close": 10},
+        {"date": "20200104", "open": 10.4, "high": 10.8, "low": 10.2, "close": 10.5},
+        {"date": "20200105", "open": 11, "high": 12, "low": 10, "close": 11},
+    ]
+    goals = [
+        GoalAchievementRow(
+            investment_id="p1",
+            goal_name="win20%",
+            date="20200104",
+            price=10.5,
+            exit_ratio=0.5,
+            reason="take_profit",
+            roi=0.05,
+        ),
+        GoalAchievementRow(
+            investment_id="p1",
+            goal_name="win30%",
+            date="20200105",
+            price=11.0,
+            exit_ratio=0.5,
+            reason="take_profit",
+            roi=0.1,
+        ),
+    ]
+    markers = WorkbenchStockDetail._price_markers([inv], candles, goal_rows=goals)
+    types = [m["type"] for m in markers]
+    dates = [m["date"] for m in markers]
+    assert types == ["buy", "target_win", "target_win"]
+    assert dates == ["20200102", "20200104", "20200105"]
+    assert markers[1]["detail"]["goal_name"] == "win20%"
+    assert markers[1]["detail"]["exit_ratio"] == 0.5
+    assert markers[2]["detail"]["goal_name"] == "win30%"
 
 
 def test_enum_metrics_for_stock():

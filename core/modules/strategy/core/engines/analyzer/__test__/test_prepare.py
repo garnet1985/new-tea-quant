@@ -190,7 +190,7 @@ def _write_enum_entity(tmp_path: Path) -> None:
     )
 
 
-def test_collect_enum_joins_capture_and_goal_legs(tmp_path: Path) -> None:
+def test_collect_enum_joins_capture_and_completed_goals(tmp_path: Path) -> None:
     _write_enum_entity(tmp_path)
     store = _hydrate_step(tmp_path, SimulateKind.ENUMERATE)
     source = PrepareStep(store).build()
@@ -210,7 +210,7 @@ def test_collect_enum_joins_capture_and_goal_legs(tmp_path: Path) -> None:
     rows = source["entities"][0]["investments"]
     assert rows[0]["investment_id"] == "1"
     assert float(rows[0]["capture"]["rsi"]) == 18.2
-    assert rows[0]["goal_legs"][0]["goal_name"] == "take_profit"
+    assert rows[0]["completed_goals"][0]["goal_name"] == "take_profit"
     assert rows[1]["capture"] == {}
 
 
@@ -323,6 +323,7 @@ def test_collect_price_joins_enum_capture(tmp_path: Path) -> None:
     assert rows[0]["investment_id"] == "1"
     assert float(rows[0]["capture"]["rsi"]) == 18.2
     assert rows[0]["engine"]["roi"] == 0.09
+    assert rows[0]["completed_goals"] == []
     assert rows[1]["engine"]["skip_reason"] == "liquidity"
     assert rows[1]["capture"] == {}
 

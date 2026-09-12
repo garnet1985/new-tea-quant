@@ -994,7 +994,7 @@ class Investment(Opportunity):
         price_model: Optional[str] = None,
         check_tradability: bool = True,
     ) -> bool:
-        """Record exit leg from ``pending_exit``. Returns ``True`` if fill applied."""
+        """Record completed goal from ``pending_exit``. Returns ``True`` if fill applied."""
         fill_as_of, fill_bar = self._resolve_exit_fill(as_of, bar)
         exit_price = self._resolve_exit_price(
             fill_as_of,

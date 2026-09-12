@@ -113,8 +113,8 @@ def test_retry_deferred_fills_on_next_non_limit_bar() -> None:
     processed, pending, skips = retry_deferred_exits(
         enter_price=10.0,
         enter_price_hfq=10.0,
-        processed_legs=[],
-        skipped_legs=skipped,
+        processed_goals=[],
+        skipped_goals=skipped,
         klines=klines,
         entity_id="600000.SH",
         settings=_settings(allow_exit_at_limit_down=False),
@@ -304,8 +304,8 @@ def test_deferred_exit_roi_uses_hfq_not_qfq_split() -> None:
     processed, pending, skips = retry_deferred_exits(
         enter_price=10.0,
         enter_price_hfq=10.0,
-        processed_legs=[],
-        skipped_legs=skipped,
+        processed_goals=[],
+        skipped_goals=skipped,
         klines=klines,
         entity_id="600000.SH",
         settings=_settings(allow_exit_at_limit_down=False),
@@ -356,7 +356,7 @@ def test_deferred_exit_roi_uses_hfq_not_qfq_split() -> None:
     assert out[0].result == "win"
 
 
-def test_deferred_exit_missing_hfq_leg_roi_is_zero() -> None:
+def test_deferred_exit_missing_hfq_goal_roi_is_zero() -> None:
     rules = MarketRulesProxy.for_market("china_a_stock")
     skipped = [
         {
@@ -388,8 +388,8 @@ def test_deferred_exit_missing_hfq_leg_roi_is_zero() -> None:
     processed, pending, _skips = retry_deferred_exits(
         enter_price=10.0,
         enter_price_hfq=10.0,
-        processed_legs=[],
-        skipped_legs=skipped,
+        processed_goals=[],
+        skipped_goals=skipped,
         klines=klines,
         entity_id="600000.SH",
         settings=_settings(allow_exit_at_limit_down=False),

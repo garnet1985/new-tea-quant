@@ -1,8 +1,8 @@
 """价格层 ``*_investments.csv`` 行模型（无 IO）。"""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Any, ClassVar, Dict, Sequence
+from dataclasses import asdict, dataclass, field
+from typing import Any, ClassVar, Dict, List, Sequence
 
 
 @dataclass
@@ -11,6 +11,7 @@ class PriceInvestmentRow:
 
     ``enter_price`` / ``exit_price`` 为 qfq（K 线标注）；``*_hfq`` 为后复权对账价。
     ``roi`` 为 hfq 收益：无顺延时等于枚举 ``weighted_roi``，跌停顺延后按 hfq 重算。
+    ``completed_goals`` 仅内存：已成交目标（对应 ``goal_achievements.csv``），不写入 investments CSV。
     """
 
     opportunity_id: str = ""
@@ -27,6 +28,7 @@ class PriceInvestmentRow:
     skip_reason: str = ""
     lifecycle: str = ""
     result: str = ""
+    completed_goals: List[Dict[str, Any]] = field(default_factory=list)
 
     COLUMN_ORDER: ClassVar[Sequence[str]] = (
         "opportunity_id",
@@ -46,7 +48,9 @@ class PriceInvestmentRow:
     )
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        data.pop("completed_goals", None)
+        return data
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "PriceInvestmentRow":

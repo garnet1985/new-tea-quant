@@ -714,7 +714,7 @@ class EnumerateStore(ArtifactStore):
         return cls.simulations_root(strategy_folder)
 
     def investments(self, entity_id: str) -> EntityInvestmentCsv:
-        """DEPRECATED: CSV sidecar。价格层已改读 JSON；组合 / 分析 / BFF 仍依赖。"""
+        """DEPRECATED: CSV sidecar。价格 / 组合已改读 JSON；分析 / BFF 仍依赖。"""
         eid = str(entity_id or "").strip()
         cached = self._investments.get(eid)
         if cached is not None:
@@ -765,6 +765,7 @@ class EnumerateStore(ArtifactStore):
         return table
 
     def list_investment_entities(self) -> List[str]:
+        """DEPRECATED: 扫 investments CSV 文件名。组合优先 ``EnumResultsManager.list_entities``。"""
         nested = self._scan_suffix(self.entities_dir(), STOCK_INVESTMENTS_SUFFIX)
         if nested:
             return nested

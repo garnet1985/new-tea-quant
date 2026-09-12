@@ -18,7 +18,6 @@ from core.modules.strategy.core.engines.shared.enum_result_contract import (
     EnumResultsManager,
 )
 from core.modules.strategy.core.services.artifacts import (
-    EnumerateStore,
     GoalAchievementRow,
     InvestmentRow,
     PriceFactorStore,
@@ -143,7 +142,7 @@ class PriceFactorJobExecutor:
         entities: Dict[str, Dict[str, Any]] = {}
         for entity_id in entity_ids:
             entities[entity_id] = {
-                "results": cls._load_entity_enum_results(manager, entity_id),
+                "results": manager.results(entity_id),
             }
 
         return {
@@ -152,15 +151,6 @@ class PriceFactorJobExecutor:
             "end_date": str(meta.get("end_date") or "").strip(),
             "entities": entities,
         }
-
-    @staticmethod
-    def _load_entity_enum_results(
-        manager: EnumResultsManager, entity_id: str
-    ) -> Tuple[EnumResult, ...]:
-        if manager.entity_path(entity_id).is_file():
-            return manager.results(entity_id)
-        # DEPRECATED: 无 JSON 时读 CSV sidecar
-        return tuple(_enum_results_from_csv(manager.output_dir, entity_id))
 
     @classmethod
     def _replay_and_save_batch(cls, job_context: Any) -> Dict[str, int]:
@@ -402,23 +392,6 @@ def _coerce_enum_results(
             _enum_result_from_investment_row(item, goals_by.get(inv_id) or [], eid)
         )
     return out
-
-
-def _enum_results_from_csv(enum_dir: Path, entity_id: str) -> List[EnumResult]:
-    """DEPRECATED: 无 ``entities/{id}.json`` 时读 investments/goals CSV。"""
-    store = EnumerateStore.at(enum_dir)
-    if not store.has_investments(entity_id):
-        return []
-    table = store.investments(entity_id)
-    goals_by = _index_goals_by_investment(store.goals(entity_id).rows)
-    return [
-        _enum_result_from_investment_row(
-            row,
-            goals_by.get(str(row.investment_id or "").strip()) or [],
-            entity_id,
-        )
-        for row in table.rows
-    ]
 
 
 def _enum_result_from_investment_row(

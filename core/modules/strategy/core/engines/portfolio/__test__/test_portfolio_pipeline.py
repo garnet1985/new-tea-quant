@@ -23,6 +23,10 @@ from core.modules.strategy.core.engines.portfolio.enter_selection import (
     EntrySelector,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResult,
+    EnumResultsManager,
+)
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -83,6 +87,7 @@ def test_load_enum_data_requires_enum_version():
 
 
 def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
+    """DEPRECATED: CSV sidecar 回退。"""
     EnumerateStore.at(tmp_path).write_investments(
         EntityInvestmentCsv(
             entity_id="600000.SH",
@@ -134,6 +139,7 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
 
 
 def test_build_events_emits_sell_without_raw_exit(tmp_path: Path):
+    """DEPRECATED: CSV sidecar 回退。"""
     EnumerateStore.at(tmp_path).write_investments(
         EntityInvestmentCsv(
             entity_id="920522.BJ",
@@ -165,6 +171,102 @@ def test_build_events_emits_sell_without_raw_exit(tmp_path: Path):
     assert events[1].is_sell()
     assert events[1].roi == pytest.approx(-1.4)
     assert "920522.BJ:1" in opportunities
+
+
+def _filled_result(
+    entity_id: str,
+    *,
+    investment_id: str = "1",
+    entry_price_raw: float = 20.0,
+    exit_price_raw: float = 22.0,
+    weighted_roi: float = 0.5,
+    entry_date: str = "20240103",
+    exit_date: str = "20240110",
+) -> EnumResult:
+    return EnumResult(
+        entity_id=entity_id,
+        investment_id=investment_id,
+        trigger_date="20240102",
+        trigger_price=10.0,
+        entry_date=entry_date,
+        entry_price=10.0,
+        entry_price_raw=entry_price_raw,
+        exit_date=exit_date,
+        exit_price=11.0,
+        exit_price_raw=exit_price_raw,
+        weighted_roi=weighted_roi,
+        lifecycle="complete",
+        result="win",
+    )
+
+
+def test_build_events_from_json(tmp_path: Path) -> None:
+    manager = EnumResultsManager.at(tmp_path)
+    manager.accept(
+        "600000.SH",
+        [
+            _filled_result("600000.SH"),
+            _filled_result(
+                "600000.SH",
+                investment_id="2",
+                entry_date="20240104",
+                entry_price_raw=0.0,
+                weighted_roi=0.2,
+            ),
+        ],
+    )
+    manager.persist("600000.SH")
+    data = EnumerateStore.hydrate(
+        tmp_path,
+        entity_ids=["600000.SH"],
+        start_date="20240101",
+        end_date="20240131",
+    )
+    events, opportunities = PortfolioPipeline.build_events(
+        data, settings=StrategySettings.from_dict({})
+    )
+    assert len(events) == 2
+    buy, sell = events
+    assert buy.price == 20.0
+    assert sell.price == 22.0
+    assert sell.roi == pytest.approx(0.5)
+    dumped = opportunities["600000.SH:1"].to_dict()
+    assert "weighted_roi" not in dumped
+    assert "result" not in dumped
+
+
+def test_build_events_prefers_json_over_csv(tmp_path: Path) -> None:
+    EnumerateStore.at(tmp_path).write_investments(
+        EntityInvestmentCsv(
+            entity_id="600000.SH",
+            rows=[
+                InvestmentRow(
+                    investment_id="csv-1",
+                    trigger_date="20240102",
+                    entry_date="20240103",
+                    entry_price_raw=20.0,
+                    exit_date="20240110",
+                    weighted_roi=0.1,
+                    lifecycle="complete",
+                )
+            ],
+        )
+    )
+    manager = EnumResultsManager.at(tmp_path)
+    manager.accept("600000.SH", [_filled_result("600000.SH", investment_id="json-1")])
+    manager.persist("600000.SH")
+    data = EnumerateStore.hydrate(
+        tmp_path,
+        entity_ids=["600000.SH"],
+        start_date="20240101",
+        end_date="20240131",
+    )
+    events, opportunities = PortfolioPipeline.build_events(
+        data, settings=StrategySettings.from_dict({})
+    )
+    assert [e.investment_id for e in events if e.is_buy()] == ["json-1"]
+    assert "600000.SH:json-1" in opportunities
+    assert "600000.SH:csv-1" not in opportunities
 
 
 def test_entry_selector_picks_in_order_within_capacity():

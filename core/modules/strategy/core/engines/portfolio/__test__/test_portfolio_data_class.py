@@ -16,6 +16,7 @@ from core.modules.strategy.core.engines.portfolio.data_class import (
     Position,
     Trade,
 )
+from core.modules.strategy.core.engines.shared.enum_result_contract import EnumResult
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     PortfolioSettings,
 )
@@ -33,7 +34,28 @@ def test_account_equity_and_open_position_count():
     assert account.equity({"600000.SH": 12.0}) == 80_000.0 + 12_000.0
 
 
+def test_portfolio_event_from_enum_result_buy_uses_raw() -> None:
+    row = EnumResult(
+        investment_id="1",
+        entry_date="20240103",
+        entry_price=10.0,
+        entry_price_raw=20.0,
+        exit_date="20240110",
+        exit_price=11.0,
+        exit_price_raw=15.0,
+        weighted_roi=0.5,
+        lifecycle="complete",
+    )
+    events = PortfolioEvent.from_enum_result(row, "600000.SH")
+    assert len(events) == 2
+    buy, sell = events
+    assert buy.price == 20.0
+    assert sell.price == 15.0
+    assert sell.roi == 0.5
+
+
 def test_portfolio_event_buy_uses_raw_sell_keeps_exit_raw_for_audit():
+    """DEPRECATED: from_investment_row CSV 适配。"""
     row = InvestmentRow(
         investment_id="1",
         entry_date="20240103",

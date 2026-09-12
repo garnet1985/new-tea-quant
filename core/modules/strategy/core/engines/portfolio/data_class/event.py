@@ -1,8 +1,8 @@
-"""Portfolio 买卖事件（由 enum InvestmentRow 展开）。
+"""Portfolio 买卖事件（由 EnumResult 展开）。
 
 本文件:
 - PortfolioEvent: buy/sell 事件；定价规则见类 docstring
-  边界: 负责事件模型与 from_investment_row；不负责 simulate 或 hooks
+  边界: 负责事件模型与 from_enum_result；不负责 simulate 或 hooks
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from core.modules.strategy.core.engines.shared.enum_result_contract import EnumResult
     from core.modules.strategy.core.services.artifacts import (
         InvestmentRow,
     )
@@ -64,38 +65,75 @@ class PortfolioEvent:
         )
 
     @classmethod
+    def from_enum_result(
+        cls,
+        row: "EnumResult",
+        entity_id: str = "",
+    ) -> List["PortfolioEvent"]:
+        """一笔枚举结果 → buy/sell 事件。
+
+        缺合法 ``entry_price_raw`` 时不生成任何事件。
+        有卖出日即生成 sell（不要求 ``exit_price_raw``）；资金层用 ``weighted_roi``。
+        """
+        eid = str(entity_id or getattr(row, "entity_id", "") or "").strip()
+        return cls._from_fill(
+            entity_id=eid,
+            investment_id=str(getattr(row, "investment_id", "") or "").strip(),
+            entry_date=str(getattr(row, "entry_date", "") or "").strip(),
+            entry_price_raw=float(getattr(row, "entry_price_raw", 0.0) or 0.0),
+            exit_date=str(getattr(row, "exit_date", "") or "").strip(),
+            exit_price_raw=float(getattr(row, "exit_price_raw", 0.0) or 0.0),
+            weighted_roi=float(getattr(row, "weighted_roi", 0.0) or 0.0),
+            enter_bar_volume=getattr(row, "enter_bar_volume", None),
+            exit_bar_volume=getattr(row, "exit_bar_volume", None),
+        )
+
+    @classmethod
     def from_investment_row(
         cls,
         row: "InvestmentRow",
         entity_id: str,
     ) -> List["PortfolioEvent"]:
-        """一笔枚举 investment → buy/sell 事件。
+        """DEPRECATED: CSV / 测试适配。请改 ``from_enum_result``。"""
+        return cls._from_fill(
+            entity_id=str(entity_id or "").strip(),
+            investment_id=str(getattr(row, "investment_id", "") or "").strip(),
+            entry_date=str(getattr(row, "entry_date", "") or "").strip(),
+            entry_price_raw=float(getattr(row, "entry_price_raw", 0.0) or 0.0),
+            exit_date=str(getattr(row, "exit_date", "") or "").strip(),
+            exit_price_raw=float(getattr(row, "exit_price_raw", 0.0) or 0.0),
+            weighted_roi=float(getattr(row, "weighted_roi", 0.0) or 0.0),
+            enter_bar_volume=getattr(row, "enter_bar_volume", None),
+            exit_bar_volume=getattr(row, "exit_bar_volume", None),
+        )
 
-        缺合法 ``entry_price_raw`` 时不生成任何事件。
-        有卖出日即生成 sell（不要求 ``exit_price_raw``）；资金层用 ``weighted_roi``。
-        """
-        eid = str(entity_id or "").strip()
-        inv_id = str(getattr(row, "investment_id", "") or "").strip()
-        entry_date = str(getattr(row, "entry_date", "") or "").strip()
-        entry_raw = float(getattr(row, "entry_price_raw", 0.0) or 0.0)
-        exit_date = str(getattr(row, "exit_date", "") or "").strip()
-        exit_raw = float(getattr(row, "exit_price_raw", 0.0) or 0.0)
-        roi = float(getattr(row, "weighted_roi", 0.0) or 0.0)
-
-        if not entry_date or entry_raw <= 0:
+    @classmethod
+    def _from_fill(
+        cls,
+        *,
+        entity_id: str,
+        investment_id: str,
+        entry_date: str,
+        entry_price_raw: float,
+        exit_date: str,
+        exit_price_raw: float,
+        weighted_roi: float,
+        enter_bar_volume: Any,
+        exit_bar_volume: Any,
+    ) -> List["PortfolioEvent"]:
+        if not entry_date or entry_price_raw <= 0:
             return []
-
         events: List[PortfolioEvent] = [
             cls(
                 kind="buy",
                 date=entry_date,
-                entity_id=eid,
-                investment_id=inv_id,
-                price=entry_raw,
+                entity_id=entity_id,
+                investment_id=investment_id,
+                price=entry_price_raw,
                 roi=0.0,
-                entry_price_raw=entry_raw,
-                exit_price_raw=exit_raw,
-                bar_volume=_optional_float(getattr(row, "enter_bar_volume", None)),
+                entry_price_raw=entry_price_raw,
+                exit_price_raw=exit_price_raw,
+                bar_volume=_optional_float(enter_bar_volume),
             )
         ]
         if exit_date:
@@ -103,13 +141,13 @@ class PortfolioEvent:
                 cls(
                     kind="sell",
                     date=exit_date,
-                    entity_id=eid,
-                    investment_id=inv_id,
-                    price=exit_raw,
-                    roi=roi,
-                    entry_price_raw=entry_raw,
-                    exit_price_raw=exit_raw,
-                    bar_volume=_optional_float(getattr(row, "exit_bar_volume", None)),
+                    entity_id=entity_id,
+                    investment_id=investment_id,
+                    price=exit_price_raw,
+                    roi=weighted_roi,
+                    entry_price_raw=entry_price_raw,
+                    exit_price_raw=exit_price_raw,
+                    bar_volume=_optional_float(exit_bar_volume),
                 )
             )
         return events

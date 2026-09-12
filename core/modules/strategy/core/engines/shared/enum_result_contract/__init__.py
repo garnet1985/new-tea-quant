@@ -1,6 +1,6 @@
 """跨回测层枚举结果 contract（对象 + 管理器）。
 
-枚举落盘与价格回测 worker 已接入；组合仍读 CSV。
+枚举落盘、价格回测 worker、组合 build_events 已接入。
 """
 
 from .enum_result import CompletedGoal, EnumResult

@@ -243,9 +243,9 @@ class InvestmentRow:
         )
 
     def to_opportunity(self, entity_id: str) -> "Opportunity":
-        """投影为 Opportunity，仅保留信号字段（屏蔽 entry/exit/result/roi 等）。
+        """DEPRECATED: 选仓改用 ``EnumResult.to_opportunity``。
 
-        供 portfolio ``on_pick_portfolio_member`` 使用。
+        投影为 Opportunity，仅保留信号字段（屏蔽 entry/exit/result/roi 等）。
         """
         from core.modules.strategy.core.engines.shared.data_class.opportunity import (
             Opportunity,

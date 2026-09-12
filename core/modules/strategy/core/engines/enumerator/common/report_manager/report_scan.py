@@ -87,7 +87,7 @@ def _load_investments_by_entity(output_dir: Path) -> Dict[str, List[InvestmentRo
             ]
             for entity_id in json_ids
         }
-    # DEPRECATED: CSV sidecar，待组合迁走后删除
+    # DEPRECATED: CSV sidecar，待枚举报告改读 EnumResult 后删除
     store = EnumerateStore.at(output_dir)
     return {
         entity_id: list(rows)

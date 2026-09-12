@@ -694,7 +694,7 @@ class ArtifactStore:
 
 
 class EnumerateStore(ArtifactStore):
-    """enumerate version：stock / goal / signal_snapshot CSV。"""
+    """enumerate version：EnumResult JSON + DEPRECATED CSV sidecar。"""
 
     KIND = SimulateKind.ENUMERATE
 
@@ -714,6 +714,7 @@ class EnumerateStore(ArtifactStore):
         return cls.simulations_root(strategy_folder)
 
     def investments(self, entity_id: str) -> EntityInvestmentCsv:
+        """DEPRECATED: CSV sidecar。价格层已改读 JSON；组合 / 分析 / BFF 仍依赖。"""
         eid = str(entity_id or "").strip()
         cached = self._investments.get(eid)
         if cached is not None:
@@ -730,6 +731,7 @@ class EnumerateStore(ArtifactStore):
         return table
 
     def goals(self, entity_id: str) -> GoalAchievementCsv:
+        """DEPRECATED: CSV sidecar。价格层已改读嵌套 completed_goals。"""
         eid = str(entity_id or "").strip()
         cached = self._goals.get(eid)
         if cached is not None:
@@ -825,6 +827,7 @@ class EnumerateStore(ArtifactStore):
     def append_entity(
         self, entity_id: str, investments: Sequence[Dict[str, Any]]
     ) -> Dict[str, int]:
+        """DEPRECATED: 枚举主产物改为 ``entities/{id}.json``；CSV sidecar 待下游迁走后删除。"""
         stock = EntityInvestmentCsv.build(entity_id, investments)
         goals = GoalAchievementCsv.build(entity_id, investments)
         snapshots = EntitySignalSnapshotCsv.build(entity_id, investments)

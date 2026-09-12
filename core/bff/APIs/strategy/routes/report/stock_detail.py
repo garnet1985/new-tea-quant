@@ -1,7 +1,7 @@
 """BFF single-stock detail (V2-07c): K-line + step markers.
 
 NEW artifacts only:
-- enum: ``entities/{id}_stock_investments.csv``
+- enum: ``entities/{id}_stock_investments.csv``  # DEPRECATED: 待改 EnumResult JSON
 - price: ``entities/{id}_investments.csv`` + 分档卖出 ``*_goal_achievements.csv``
 """
 
@@ -278,6 +278,7 @@ class WorkbenchStockDetail:
     def _load_enum_investments(
         output_dir: Path, entity_id: str
     ) -> List[InvestmentRow]:
+        """DEPRECATED: 读枚举 CSV；待改 EnumResultsManager。"""
         store = EnumerateStore.at(output_dir)
         if not store.has_investments(entity_id):
             return []

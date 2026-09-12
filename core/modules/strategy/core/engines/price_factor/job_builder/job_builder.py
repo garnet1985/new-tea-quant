@@ -1,8 +1,8 @@
-"""价格回测 Job 构建（entity_based bundle；CSV 由 worker 读）。
+"""价格回测 Job 构建（entity_based bundle；枚举结果由 worker 读）。
 
 本文件:
-- PriceFactorJobBuilder: entity_specified + enum 目录路径；不含 entities CSV 内容
-  边界: 负责 job payload；不负责执行、读 CSV、BE batch 切分
+- PriceFactorJobBuilder: entity_specified + enum 目录路径；不含枚举结果内容
+  边界: 负责 job payload；不负责执行、读枚举 JSON、BE batch 切分
 """
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ class PriceFactorJobBuilder:
     """组装价格回测 bundle job。
 
     边界:
-    - 负责: 单 bundle（entity_specified + enum 目录路径）；CSV 不进 payload
-    - 不负责: 执行、读 entities CSV、切 batch（BE Planner）、建 timeline 轴
+    - 负责: 单 bundle（entity_specified + enum 目录路径）；枚举结果不进 payload
+    - 不负责: 执行、读枚举 JSON / CSV、切 batch（BE Planner）、建 timeline 轴
     - 调用方: PriceFactorPipeline
     """
 

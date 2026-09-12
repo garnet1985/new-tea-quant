@@ -283,6 +283,7 @@ class PrepareStep:
         return block
 
     def _collect_enum_entities(self, store: EnumerateStore) -> List[Dict[str, Any]]:
+        """DEPRECATED: 读枚举 CSV；待改 EnumResultsManager。"""
         entities: List[Dict[str, Any]] = []
         for entity_id in store.list_investment_entities():
             investments = store.investments(entity_id).rows

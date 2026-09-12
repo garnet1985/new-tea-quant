@@ -109,7 +109,7 @@ class PortfolioPipeline:
         *,
         settings: StrategySettings,
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
-        """读 enum CSV → 事件列表 + 已屏蔽结果字段的 Opportunity 索引。
+        """DEPRECATED: 读 enum CSV。待改 EnumResultsManager（价格层已迁 JSON）。
 
         买入扣现金用 ``entry_price_raw``；平仓用枚举 hfq ``weighted_roi``。
         缺合法买入 raw 的笔跳过。不要求 ``exit_price_raw``，也不用它算钱。

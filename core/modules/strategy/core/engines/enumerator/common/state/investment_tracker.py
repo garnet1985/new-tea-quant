@@ -181,17 +181,45 @@ class InvestmentTracker:
             investment.settle(as_of, bar, reason=reason)
             self.completed.append(investment)
 
-    def investments_as_dicts(self) -> List[Dict[str, Any]]:
-        """供 recorder 写 investments / goals CSV。"""
+    def investments(self) -> List[Investment]:
+        """当前全部 Investment（待进场 / 持仓 / 待出场 / 已完成），供落盘交还。"""
         return [
-            inv.to_dict()
-            for inv in (
-                *self.pending_enter,
-                *self.open,
-                *self.pending_exit,
-                *self.completed,
-            )
+            *self.pending_enter,
+            *self.open,
+            *self.pending_exit,
+            *self.completed,
         ]
+
+    def investments_as_dicts(self) -> List[Dict[str, Any]]:
+        """DEPRECATED: CSV sidecar 仍用 ``to_dict``；新落盘走 ``investments()`` + EnumResultsManager。"""
+        return [inv.to_dict() for inv in self.investments()]
+
+    def buffer_for_persist(self) -> List[Dict[str, Any]]:
+        """本 entity 的落盘缓冲行；``opportunity`` dict 仅供 CSV sidecar。"""
+        eid = str(self.entity_id or "").strip()
+        if not eid:
+            return []
+        rows: List[Dict[str, Any]] = []
+        for investment in self.investments():
+            rows.append(
+                {
+                    "entity_id": eid,
+                    "date": str(getattr(investment, "trigger_date", "") or ""),
+                    "investment": investment,
+                    "opportunity": investment.to_dict(),
+                }
+            )
+        return rows
+
+    @classmethod
+    def buffer_many_for_persist(
+        cls, trackers: Dict[str, "InvestmentTracker"]
+    ) -> List[Dict[str, Any]]:
+        """多 entity tracker 的落盘缓冲行。"""
+        rows: List[Dict[str, Any]] = []
+        for tracker in trackers.values():
+            rows.extend(tracker.buffer_for_persist())
+        return rows
 
 
 __all__ = ["InvestmentTracker"]

@@ -7,7 +7,7 @@
 
 引擎 artifact（非报告正文）:
 - runtime_env.json / entity_ids.txt
-- entities/*.csv
+- entities/{id}.json（EnumResult）；CSV sidecar DEPRECATED
 """
 from __future__ import annotations
 

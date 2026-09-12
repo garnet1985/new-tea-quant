@@ -1,4 +1,4 @@
-"""EnumResult / EnumResultsManager 基本往返与查询（未接入引擎）。"""
+"""EnumResult / EnumResultsManager 基本往返与查询。"""
 from __future__ import annotations
 
 from pathlib import Path

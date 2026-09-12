@@ -1,4 +1,4 @@
-"""价格回测 PriceFactorJobExecutor — worker 读 enum CSV + 成交回放落盘。
+"""价格回测 PriceFactorJobExecutor — worker 读枚举结果 + 成交回放落盘。
 
 本文件:
 - PriceFactorJobExecutor: RunCallbacks；task 结束写 price entities CSV
@@ -8,10 +8,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.market_profile import MarketRulesProxy
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    CompletedGoal,
+    EnumResult,
+    EnumResultsManager,
+)
 from core.modules.strategy.core.services.artifacts import (
     EnumerateStore,
     GoalAchievementRow,
@@ -39,7 +44,7 @@ class PriceFactorJobExecutor:
     """价格回测唯一对外钩子面（生命周期 + 日历推进）。
 
     边界:
-    - 负责: 读本 batch 枚举 CSV；task 结束时按锁仓规则回放并写 price entities CSV
+    - 负责: 读本 batch 枚举结果；task 结束时按锁仓规则回放并写 price entities CSV
     - 不负责: BE 调度/切 batch、overall 汇总（ReportManager.finalize）
     - 调用方: PriceFactorPipeline → ``callbacks=PriceFactorJobExecutor.build_run_callbacks()``
 
@@ -118,7 +123,7 @@ class PriceFactorJobExecutor:
 
     @classmethod
     def _load_batch_enum_data(cls, job_context: Any) -> Dict[str, Any]:
-        """读本 batch entity 的枚举 CSV → ``job_context.init``。"""
+        """读本 batch entity 的枚举结果 → ``job_context.init``。"""
         payload = job_context.payload or {}
         meta = PriceFactorJobBuilder.price_factor_meta(payload)
         enum_dir = Path(str(meta.get("enum_output_dir") or "")).expanduser()
@@ -127,19 +132,18 @@ class PriceFactorJobExecutor:
 
         entity_ids = cls._entity_ids_from_payload(payload)
         logger.info(
-            "%s 加载枚举 CSV：job_id=%s entities=%d dir=%s",
+            "%s 加载枚举结果：job_id=%s entities=%d dir=%s",
             cls.task_log_label,
             job_context.job_id,
             len(entity_ids),
             enum_dir,
         )
 
-        enum_store = EnumerateStore.at(enum_dir)
+        manager = EnumResultsManager.at(enum_dir)
         entities: Dict[str, Dict[str, Any]] = {}
         for entity_id in entity_ids:
             entities[entity_id] = {
-                "investments": enum_store.investments(entity_id),
-                "goals": enum_store.goals(entity_id),
+                "results": cls._load_entity_enum_results(manager, entity_id),
             }
 
         return {
@@ -148,6 +152,15 @@ class PriceFactorJobExecutor:
             "end_date": str(meta.get("end_date") or "").strip(),
             "entities": entities,
         }
+
+    @staticmethod
+    def _load_entity_enum_results(
+        manager: EnumResultsManager, entity_id: str
+    ) -> Tuple[EnumResult, ...]:
+        if manager.entity_path(entity_id).is_file():
+            return manager.results(entity_id)
+        # DEPRECATED: 无 JSON 时读 CSV sidecar
+        return tuple(_enum_results_from_csv(manager.output_dir, entity_id))
 
     @classmethod
     def _replay_and_save_batch(cls, job_context: Any) -> Dict[str, int]:
@@ -198,16 +211,12 @@ class PriceFactorJobExecutor:
         for entity_id, pack in entities.items():
             if not isinstance(pack, dict):
                 continue
-            stock_inv = pack.get("investments")
-            rows = list(getattr(stock_inv, "rows", None) or [])
-            goals_pack = pack.get("goals")
-            goal_rows = list(getattr(goals_pack, "rows", None) or [])
+            rows = list(pack.get("results") or [])
             price_rows, skip_sell = cls._replay_entity_investments(
                 rows,
                 entity_id=str(entity_id),
                 backtest_end=end_date,
                 settings=strategy,
-                goal_rows=goal_rows,
                 market_rules=market_rules,
             )
             store = PriceFactorStore.at(out_dir)
@@ -242,7 +251,7 @@ class PriceFactorJobExecutor:
 
     @staticmethod
     def _replay_entity_investments(
-        investments: Sequence[InvestmentRow],
+        investments: Sequence[Union[EnumResult, InvestmentRow]],
         *,
         entity_id: str = "",
         backtest_end: str = "",
@@ -251,9 +260,9 @@ class PriceFactorJobExecutor:
         market_rules: Any = None,
         load_klines=None,
     ) -> Tuple[List[PriceInvestmentRow], int]:
-        """单 entity：枚举 investments → 买 1 / 锁仓 / 跌停顺延卖出 → PriceInvestmentRow。
+        """单 entity：枚举结果 → 买 1 / 锁仓 / 跌停顺延卖出 → PriceInvestmentRow。
 
-        返回 ``(rows, skipped_exit_at_limit)``。
+        ``goal_rows`` / ``InvestmentRow`` 为 DEPRECATED CSV 测试入口。
         """
         strategy = settings or StrategySettings.from_dict({})
         sim = strategy.simulation
@@ -261,9 +270,11 @@ class PriceFactorJobExecutor:
         allow_enter_at_limit_up = bool(sim.allow_enter_at_limit_up)
         allow_exit_at_limit_down = bool(sim.allow_exit_at_limit_down)
         kline_loader = load_klines or load_stock_klines
-        goals_by_inv = _index_goals_by_investment(goal_rows or [])
+        enum_rows = _coerce_enum_results(
+            investments, goal_rows=goal_rows, entity_id=entity_id
+        )
         ordered = sorted(
-            list(investments or []),
+            enum_rows,
             key=lambda row: (
                 str(row.entry_date or row.trigger_date or "").strip(),
                 str(row.investment_id or "").strip(),
@@ -293,7 +304,7 @@ class PriceFactorJobExecutor:
                 continue
 
             inv_id = str(row.investment_id or "").strip()
-            goals = _build_completed_goals(row, goals_by_inv.get(inv_id) or [])
+            goals = _build_completed_goals(row)
 
             processed: List[Dict[str, Any]] = []
             skipped_goals: List[Dict[str, Any]] = []
@@ -367,9 +378,104 @@ class PriceFactorJobExecutor:
         return out
 
 
+def _coerce_enum_results(
+    investments: Sequence[Union[EnumResult, InvestmentRow]],
+    *,
+    goal_rows: Optional[Sequence[GoalAchievementRow]] = None,
+    entity_id: str = "",
+) -> List[EnumResult]:
+    """把 worker / 测试入口统一成 EnumResult。
+
+    ``InvestmentRow`` + ``goal_rows`` 为 DEPRECATED CSV 适配。
+    """
+    eid = str(entity_id or "").strip()
+    out: List[EnumResult] = []
+    goals_by: Optional[Dict[str, List[GoalAchievementRow]]] = None
+    for item in investments or []:
+        if isinstance(item, EnumResult):
+            out.append(item.with_entity_id(eid) if eid and not item.entity_id else item)
+            continue
+        if goals_by is None:
+            goals_by = _index_goals_by_investment(goal_rows or [])
+        inv_id = str(getattr(item, "investment_id", "") or "").strip()
+        out.append(
+            _enum_result_from_investment_row(item, goals_by.get(inv_id) or [], eid)
+        )
+    return out
+
+
+def _enum_results_from_csv(enum_dir: Path, entity_id: str) -> List[EnumResult]:
+    """DEPRECATED: 无 ``entities/{id}.json`` 时读 investments/goals CSV。"""
+    store = EnumerateStore.at(enum_dir)
+    if not store.has_investments(entity_id):
+        return []
+    table = store.investments(entity_id)
+    goals_by = _index_goals_by_investment(store.goals(entity_id).rows)
+    return [
+        _enum_result_from_investment_row(
+            row,
+            goals_by.get(str(row.investment_id or "").strip()) or [],
+            entity_id,
+        )
+        for row in table.rows
+    ]
+
+
+def _enum_result_from_investment_row(
+    row: InvestmentRow,
+    goals: Sequence[GoalAchievementRow],
+    entity_id: str,
+) -> EnumResult:
+    """DEPRECATED: CSV 行 → EnumResult。"""
+    return EnumResult(
+        entity_id=str(entity_id or "").strip(),
+        investment_id=str(row.investment_id or "").strip(),
+        trigger_date=str(row.trigger_date or "").strip(),
+        trigger_price=float(row.trigger_price or 0.0),
+        trigger_price_raw=float(row.trigger_price_raw or 0.0),
+        trigger_price_hfq=float(row.trigger_price_hfq or 0.0),
+        entry_date=str(row.entry_date or "").strip(),
+        entry_price=float(row.entry_price or 0.0),
+        entry_price_raw=float(row.entry_price_raw or 0.0),
+        entry_price_hfq=float(row.entry_price_hfq or 0.0),
+        exit_date=str(row.exit_date or "").strip(),
+        exit_price=float(row.exit_price or 0.0),
+        exit_price_raw=float(row.exit_price_raw or 0.0),
+        exit_price_hfq=float(row.exit_price_hfq or 0.0),
+        exit_reason=str(row.exit_reason or "").strip(),
+        lifecycle=str(row.lifecycle or "").strip(),
+        result=str(row.result or "").strip(),
+        weighted_roi=float(row.weighted_roi or 0.0),
+        holding_days=int(row.holding_days or 0),
+        enter_prev_close=row.enter_prev_close,
+        enter_at_limit=row.enter_at_limit,
+        exit_prev_close=row.exit_prev_close,
+        exit_at_limit=row.exit_at_limit,
+        stock_status_at_trigger=tuple(row.stock_status_at_trigger or ()),
+        enter_bar_volume=row.enter_bar_volume,
+        exit_bar_volume=row.exit_bar_volume,
+        completed_goals=tuple(
+            CompletedGoal(
+                name=str(g.goal_name or "").strip(),
+                date=str(g.date or "").strip(),
+                price=float(g.price or 0.0),
+                price_raw=float(g.price_raw or 0.0),
+                price_hfq=float(g.price_hfq or 0.0),
+                exit_ratio=float(g.exit_ratio or 0.0),
+                profit=float(g.profit or 0.0),
+                weighted_profit=float(g.weighted_profit or 0.0),
+                reason=str(g.reason or "").strip(),
+                roi=float(g.roi or 0.0),
+            )
+            for g in goals or []
+        ),
+    )
+
+
 def _index_goals_by_investment(
     goal_rows: Sequence[GoalAchievementRow],
 ) -> Dict[str, List[GoalAchievementRow]]:
+    """DEPRECATED: 仅 CSV sidecar 按 investment_id 拼 goals。"""
     out: Dict[str, List[GoalAchievementRow]] = {}
     for g in goal_rows or []:
         inv_id = str(getattr(g, "investment_id", "") or "").strip()
@@ -381,11 +487,9 @@ def _index_goals_by_investment(
     return out
 
 
-def _build_completed_goals(
-    row: InvestmentRow,
-    completed: Sequence[GoalAchievementRow],
-) -> List[Dict[str, Any]]:
-    """goals 非空按已成交目标；否则退化为单笔 InvestmentRow exit。"""
+def _build_completed_goals(row: EnumResult) -> List[Dict[str, Any]]:
+    """嵌套 completed_goals；否则退化为单笔 exit。"""
+    completed = list(row.completed_goals or ())
     if completed:
         goals: List[Dict[str, Any]] = []
         exit_date = str(row.exit_date or "").strip()
@@ -403,7 +507,7 @@ def _build_completed_goals(
                     "price_raw": float(g.price_raw or 0.0),
                     "exit_ratio": float(g.exit_ratio or 0.0) or 1.0,
                     "reason": str(g.reason or "").strip(),
-                    "goal_name": str(g.goal_name or "").strip(),
+                    "goal_name": str(g.name or "").strip(),
                     "profit": float(g.profit or 0.0),
                     "weighted_profit": float(g.weighted_profit or 0.0),
                     "roi": float(g.roi or 0.0),
@@ -528,7 +632,7 @@ def _aggregate_hfq_roi(processed: List[Dict[str, Any]], enter_price_hfq: float) 
 
 def _to_price_row(
     *,
-    row: InvestmentRow,
+    row: EnumResult,
     enter_date: str,
     enter_price: float,
     enter_price_hfq: float,

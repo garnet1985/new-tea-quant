@@ -204,7 +204,10 @@ class PortfolioPipeline:
         data: EnumerateStore,
         settings: StrategySettings,
     ) -> Dict[str, Any]:
-        """落盘 overall / trades / equity，返回可缓存 report dict。"""
+        """落盘 overall / trades / equity，返回可缓存 report dict。
+
+盯市在 ``ReportManager.finalize`` 内、写报告之前完成。
+"""
         portfolio = settings.portfolio
         return report.finalize(
             sim_result,

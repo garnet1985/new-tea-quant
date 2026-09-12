@@ -42,13 +42,16 @@ def test_portfolio_event_from_enum_result_buy_uses_raw() -> None:
         exit_price_raw=15.0,
         weighted_roi=0.5,
         lifecycle="complete",
+        entry_price_hfq=21.0,
     )
     events = PortfolioEvent.from_enum_result(row, "600000.SH")
     assert len(events) == 2
     buy, sell = events
     assert buy.price == 20.0
+    assert buy.entry_price_hfq == 21.0
     assert sell.price == 15.0
     assert sell.roi == 0.5
+    assert sell.entry_price_hfq == 21.0
 
 
 def test_portfolio_event_sell_without_exit_raw_still_emits():

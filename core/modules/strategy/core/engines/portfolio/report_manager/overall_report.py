@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO, TYPE_CHECKING
+import math
 
 from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.services.artifacts import (
@@ -16,6 +17,11 @@ from core.modules.strategy.core.engines.portfolio.report_manager.capital_metrics
     EquityCurves,
     SkipMetrics,
     TradeQualityMetrics,
+    annualized_risk_ratios,
+)
+from core.modules.strategy.core.engines.portfolio.report_manager.risk_free import (
+    load_overnight_shibor,
+    overnight_daily_rf,
 )
 
 
@@ -34,6 +40,8 @@ class OverallSummary:
     open_positions: int = 0
     win_rate: float = 0.0
     calmar_ratio: float = 0.0
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
     curves: EquityCurves = field(default_factory=EquityCurves)
     quality: TradeQualityMetrics = field(default_factory=TradeQualityMetrics)
     skips: SkipMetrics = field(default_factory=SkipMetrics)
@@ -51,6 +59,8 @@ class OverallSummary:
             "open_positions": self.open_positions,
             "win_rate": self.win_rate,
             "calmar_ratio": self.calmar_ratio,
+            "sharpe_ratio": self.sharpe_ratio,
+            "sortino_ratio": self.sortino_ratio,
         }
         payload.update(self.curves.to_dict())
         payload.update(self.quality.to_dict())
@@ -72,16 +82,45 @@ class OverallSummary:
             open_positions=int(data.get("open_positions") or 0),
             win_rate=float(data.get("win_rate") or 0.0),
             calmar_ratio=float(data.get("calmar_ratio") or 0.0),
+            sharpe_ratio=_optional_ratio(data, "sharpe_ratio"),
+            sortino_ratio=_optional_ratio(data, "sortino_ratio"),
             curves=EquityCurves.from_dict(data),
             quality=TradeQualityMetrics.from_dict(data),
             skips=SkipMetrics.from_dict(data),
         )
 
     @classmethod
-    def build_from_sim(cls, sim: Any) -> "OverallSummary":
+    def build_from_sim(
+        cls,
+        sim: Any,
+        *,
+        shibor_overnight: Optional[Dict[str, float]] = None,
+    ) -> "OverallSummary":
         account = sim.account
         initial = float(account.initial_cash)
-        final_equity = float(account.equity({}))
+        curve = list(sim.equity_curve or [])
+        marked = bool(getattr(sim, "equity_marked_to_market", False))
+        if marked and curve:
+            final_equity = EquityCurves.point_equity(curve[-1])
+            final_cash = EquityCurves.point_cash(curve[-1])
+            open_positions = int(curve[-1].get("open_positions") or 0)
+            dates = [str(p.get("date") or "") for p in curve]
+            vals = [EquityCurves.point_equity(p) for p in curve]
+            rf_map = shibor_overnight
+            if rf_map is None:
+                rf_map = load_overnight_shibor(
+                    dates[0] if dates else "",
+                    dates[-1] if dates else "",
+                )
+            sharpe, sortino = annualized_risk_ratios(
+                vals,
+                rf_daily=overnight_daily_rf(dates, rf_map),
+            )
+        else:
+            final_equity = float(account.equity({}))
+            final_cash = float(account.cash)
+            open_positions = int(account.open_position_count())
+            sharpe, sortino = None, None
         total_return = (final_equity / initial - 1.0) if initial > 0 else 0.0
         buy_n = sum(1 for t in sim.trades if t.is_buy())
         sell_n = sum(1 for t in sim.trades if t.is_sell())
@@ -102,7 +141,7 @@ class OverallSummary:
             per_sells[eid] = per_sells.get(eid, 0) + 1
 
         curves = EquityCurves.compute(
-            list(sim.equity_curve or []),
+            curve,
             initial_capital=initial,
         )
         quality = TradeQualityMetrics.compute(
@@ -114,20 +153,58 @@ class OverallSummary:
         calmar = (total_return / mdd) if mdd > 1e-12 else 0.0
         return cls(
             initial_capital=initial,
-            final_cash=float(account.cash),
+            final_cash=final_cash,
             final_total_equity=final_equity,
             total_return=round(total_return, 6),
             total_trades=len(sim.trades),
             buy_trades=buy_n,
             sell_trades=sell_n,
             completed_investments=completed,
-            open_positions=int(account.open_position_count()),
+            open_positions=open_positions,
             win_rate=round(win_rate, 6),
             calmar_ratio=round(calmar, 4),
+            sharpe_ratio=_round_ratio(sharpe),
+            sortino_ratio=_round_ratio(sortino),
             curves=curves,
             quality=quality,
             skips=SkipMetrics.from_sim(sim),
         )
+
+
+def _optional_ratio(data: Dict[str, Any], key: str) -> Optional[float]:
+    if key not in data or data.get(key) is None or data.get(key) == "":
+        return None
+    try:
+        value = float(data.get(key))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
+
+
+def _round_ratio(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(out):
+        return None
+    return round(out, 4)
+
+
+def _fmt_ratio(value: Optional[float]) -> str:
+    if value is None:
+        return "—"
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    if not math.isfinite(out):
+        return "—"
+    return f"{out:.2f}"
 
 
 @dataclass
@@ -154,6 +231,7 @@ class OverallReport:
         version_id: int = 0,
         enum_version_id: str = "",
         backtest_period: Optional[Dict[str, str]] = None,
+        shibor_overnight: Optional[Dict[str, float]] = None,
     ) -> "OverallReport":
         return cls(
             strategy_key=strategy_key,
@@ -161,7 +239,7 @@ class OverallReport:
             version_id=version_id,
             enum_version_id=enum_version_id,
             backtest_period=dict(backtest_period or {}),
-            summary=OverallSummary.build_from_sim(sim),
+            summary=OverallSummary.build_from_sim(sim, shibor_overnight=shibor_overnight),
             created_at=datetime.now().isoformat(),
         )
 
@@ -202,7 +280,8 @@ class OverallReport:
         print(
             f"{icon('success') if wr_pct >= 50 else icon('warning')} 胜率 {wr_pct:.1f}%    "
             f"完成 {s.completed_investments}    持仓 {s.open_positions}    "
-            f"回撤 {s.curves.max_drawdown * 100:.2f}%    Calmar {s.calmar_ratio:.2f}",
+            f"回撤 {s.curves.max_drawdown * 100:.2f}%    Calmar {s.calmar_ratio:.2f}    "
+            f"夏普 {_fmt_ratio(s.sharpe_ratio)}    Sortino {_fmt_ratio(s.sortino_ratio)}",
             file=out,
             flush=True,
         )
@@ -267,6 +346,8 @@ class OverallReport:
                 "lossTrades": q.loss_trades,
                 "avgPnlPerTrade": q.avg_pnl_per_trade,
                 "calmarRatio": s.calmar_ratio,
+                "sharpeRatio": s.sharpe_ratio,
+                "sortinoRatio": s.sortino_ratio,
                 "avgOpenPositions": c.average_open_positions,
                 "peakPositions": c.peak_open_positions,
                 "fullExposureDaysRatio": c.full_exposure_days_ratio_pct,
@@ -329,6 +410,7 @@ class OverallReportHandle:
             version_id=self._manager.version_id,
             enum_version_id=self._manager.enum_version_id,
             backtest_period=dict(self._manager._period or {}),
+            shibor_overnight=getattr(self._manager, "_shibor_overnight", None),
         )
         return self
 

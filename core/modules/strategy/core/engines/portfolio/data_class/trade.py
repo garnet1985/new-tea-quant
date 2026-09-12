@@ -30,6 +30,8 @@ class Trade:
     profit: Optional[float] = None
     cash_after: Optional[float] = None
     equity_after: Optional[float] = None
+    # 买入成交后复权价；日频盯市 ROI 分母。卖出腿可空。
+    entry_price_hfq: float = 0.0
 
     def is_buy(self) -> bool:
         return str(self.side or "").strip().lower() == "buy"
@@ -74,6 +76,7 @@ class Trade:
         shares: int,
         price: float,
         fees: float = 0.0,
+        entry_price_hfq: float = 0.0,
     ) -> "Trade":
         """买入：``price`` 必须为 raw（不复权）。"""
         n = int(shares)
@@ -95,6 +98,7 @@ class Trade:
             fees=fee,
             total_cost=amount + fee,
             profit=None,
+            entry_price_hfq=float(entry_price_hfq or 0.0),
         )
 
     @classmethod
@@ -159,6 +163,8 @@ class Trade:
             out["cash_after"] = float(self.cash_after)
         if self.equity_after is not None:
             out["equity_after"] = float(self.equity_after)
+        if self.is_buy() or float(self.entry_price_hfq or 0.0) > 0:
+            out["entry_price_hfq"] = float(self.entry_price_hfq or 0.0)
         return out
 
     @classmethod
@@ -178,6 +184,7 @@ class Trade:
             profit=cls._optional_float(raw.get("profit")),
             cash_after=cls._optional_float(raw.get("cash_after")),
             equity_after=cls._optional_float(raw.get("equity_after")),
+            entry_price_hfq=float(raw.get("entry_price_hfq") or 0.0),
         )
 
     @staticmethod

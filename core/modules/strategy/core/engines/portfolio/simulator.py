@@ -32,6 +32,7 @@ class OpenLot:
     shares: int
     buy_price: float
     buy_date: str
+    entry_price_hfq: float = 0.0
 
 
 def _lot_key(entity_id: str, investment_id: str) -> str:
@@ -54,6 +55,8 @@ class PortfolioSimResult:
     buy_participation_clipped: int = 0
     sell_participation_skip: int = 0
     sell_participation_clipped: int = 0
+    # True：equity_curve 已换成开市日 hfq 盯市，可算夏普 / Sortino
+    equity_marked_to_market: bool = False
 
     @property
     def success(self) -> bool:
@@ -173,6 +176,7 @@ class PortfolioSimulator:
             shares=shares,
             price=price,
             fees=fees,
+            entry_price_hfq=float(getattr(event, "entry_price_hfq", 0.0) or 0.0),
         )
         total_cost = float(trade.total_cost or (trade.amount + trade.fees))
         if total_cost > account.cash:
@@ -192,6 +196,7 @@ class PortfolioSimulator:
             shares=shares,
             buy_price=price,
             buy_date=str(event.date or ""),
+            entry_price_hfq=float(getattr(event, "entry_price_hfq", 0.0) or 0.0),
         )
         trade.cash_after = account.cash
         trade.equity_after = account.equity({entity_id: price})

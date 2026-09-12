@@ -19,6 +19,10 @@ from core.modules.strategy.core.engines.portfolio.report_manager.capital_metrics
     TradeQualityMetrics,
     annualized_risk_ratios,
 )
+from core.modules.strategy.core.engines.portfolio.report_manager.risk_free import (
+    load_overnight_shibor,
+    overnight_daily_rf,
+)
 
 
 @dataclass
@@ -86,7 +90,12 @@ class OverallSummary:
         )
 
     @classmethod
-    def build_from_sim(cls, sim: Any) -> "OverallSummary":
+    def build_from_sim(
+        cls,
+        sim: Any,
+        *,
+        shibor_overnight: Optional[Dict[str, float]] = None,
+    ) -> "OverallSummary":
         account = sim.account
         initial = float(account.initial_cash)
         curve = list(sim.equity_curve or [])
@@ -95,8 +104,17 @@ class OverallSummary:
             final_equity = EquityCurves.point_equity(curve[-1])
             final_cash = EquityCurves.point_cash(curve[-1])
             open_positions = int(curve[-1].get("open_positions") or 0)
+            dates = [str(p.get("date") or "") for p in curve]
+            vals = [EquityCurves.point_equity(p) for p in curve]
+            rf_map = shibor_overnight
+            if rf_map is None:
+                rf_map = load_overnight_shibor(
+                    dates[0] if dates else "",
+                    dates[-1] if dates else "",
+                )
             sharpe, sortino = annualized_risk_ratios(
-                [EquityCurves.point_equity(p) for p in curve]
+                vals,
+                rf_daily=overnight_daily_rf(dates, rf_map),
             )
         else:
             final_equity = float(account.equity({}))
@@ -213,6 +231,7 @@ class OverallReport:
         version_id: int = 0,
         enum_version_id: str = "",
         backtest_period: Optional[Dict[str, str]] = None,
+        shibor_overnight: Optional[Dict[str, float]] = None,
     ) -> "OverallReport":
         return cls(
             strategy_key=strategy_key,
@@ -220,7 +239,7 @@ class OverallReport:
             version_id=version_id,
             enum_version_id=enum_version_id,
             backtest_period=dict(backtest_period or {}),
-            summary=OverallSummary.build_from_sim(sim),
+            summary=OverallSummary.build_from_sim(sim, shibor_overnight=shibor_overnight),
             created_at=datetime.now().isoformat(),
         )
 
@@ -391,6 +410,7 @@ class OverallReportHandle:
             version_id=self._manager.version_id,
             enum_version_id=self._manager.enum_version_id,
             backtest_period=dict(self._manager._period or {}),
+            shibor_overnight=getattr(self._manager, "_shibor_overnight", None),
         )
         return self
 

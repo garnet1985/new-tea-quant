@@ -161,7 +161,7 @@ def test_open_position_final_equity_includes_unrealized():
     # 期末 hfq = 10 + 9 = 19 → 90_000 + 1000×10×1.9
     assert last["equity"] == pytest.approx(109_000.0)
     assert last["open_positions"] == 1
-    summary = OverallSummary.build_from_sim(sim)
+    summary = OverallSummary.build_from_sim(sim, shibor_overnight={})
     assert summary.final_total_equity == pytest.approx(109_000.0)
     assert summary.total_return == pytest.approx(0.09)
     assert summary.sharpe_ratio is not None
@@ -182,7 +182,7 @@ def test_empty_calendar_keeps_cost_curve():
     )
     assert out.equity_marked_to_market is False
     assert len(out.equity_curve) == 1
-    summary = OverallSummary.build_from_sim(out)
+    summary = OverallSummary.build_from_sim(out, shibor_overnight={})
     assert summary.sharpe_ratio is None
     assert summary.sortino_ratio is None
 
@@ -212,6 +212,55 @@ def test_annualized_risk_ratios_formula_and_insufficient_samples():
     assert sortino_up is None
 
 
+def test_overnight_shibor_lowers_sharpe_vs_rf_zero():
+    from core.modules.strategy.core.engines.portfolio.report_manager.risk_free import (
+        annual_pct_to_daily,
+        overnight_daily_rf,
+    )
+
+    values = [100.0, 101.0, 99.0, 102.0]
+    sharpe0, _ = annualized_risk_ratios(values, rf_daily=0.0)
+    rf = annual_pct_to_daily(1.5)
+    sharpe_rf, sortino_rf = annualized_risk_ratios(values, rf_daily=rf)
+    assert sharpe0 is not None and sharpe_rf is not None
+    assert sharpe_rf < sharpe0
+    assert sortino_rf is not None
+
+    dates = DATES[:4]
+    series = overnight_daily_rf(dates, {DATES[0]: 1.5, DATES[2]: 1.5})
+    assert len(series) == 3
+    assert series[0] == pytest.approx(rf)
+    assert series[1] == pytest.approx(rf)  # 缺 DATES[1] 沿用
+
+
+def test_overall_summary_uses_injected_shibor():
+    buy = Trade.make_buy(
+        date=DATES[0],
+        entity_id="600000.SH",
+        investment_id="a",
+        shares=1_000,
+        price=10.0,
+        entry_price_hfq=10.0,
+    )
+    prices = [10.0, 11.0, 12.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 19.0]
+    sim = mark_portfolio_equity(
+        PortfolioSimResult(
+            account=Account(initial_cash=100_000.0, cash=90_000.0),
+            trades=[buy],
+        ),
+        start_date=DATES[0],
+        end_date=DATES[9],
+        load_open_dates=lambda *_: list(DATES),
+        load_hfq_closes=lambda *_: {d: px for d, px in zip(DATES, prices)},
+    )
+    zero = OverallSummary.build_from_sim(sim, shibor_overnight={})
+    with_rf = OverallSummary.build_from_sim(
+        sim, shibor_overnight={d: 1.5 for d in DATES}
+    )
+    assert zero.sharpe_ratio is not None and with_rf.sharpe_ratio is not None
+    assert with_rf.sharpe_ratio < zero.sharpe_ratio
+
+
 def test_report_manager_finalize_writes_daily_mtm_curve(tmp_path):
     from core.modules.strategy.core.engines.portfolio.report_manager import ReportManager
 
@@ -228,6 +277,7 @@ def test_report_manager_finalize_writes_daily_mtm_curve(tmp_path):
         period={"start_date": DATES[0], "end_date": DATES[9]},
         load_open_dates=lambda *_: list(DATES),
         load_hfq_closes=lambda *_: dict(hfq),
+        load_shibor_overnight=lambda *_: {},
     )
     assert len(report["summary"]["equity_curve_labels"]) >= 2
     assert report["summary"]["final_total_equity"] == pytest.approx(100_000.0)

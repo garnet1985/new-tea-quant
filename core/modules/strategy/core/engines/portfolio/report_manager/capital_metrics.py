@@ -26,27 +26,57 @@ def daily_returns(equity_values: Sequence[float]) -> List[float]:
 def annualized_risk_ratios(
     equity_values: Sequence[float],
     *,
-    rf_daily: float = 0.0,
-    mar: float = 0.0,
+    rf_daily: float | Sequence[float] = 0.0,
+    mar: float | Sequence[float] | None = None,
     periods_per_year: float = TRADING_DAYS_PER_YEAR,
 ) -> Tuple[Optional[float], Optional[float]]:
     """日频净值 → 年化夏普 / Sortino。
 
-    v1：``rf_daily = 0``、``mar = 0``。段数不足 2 或波动≈0 时返回 ``None``（UI 显示 —）。
+    ``rf_daily``：每个收益段的无风险日利率（标量或与段数等长的序列）。
+    默认 ``MAR = rf``（Sortino 与夏普同一条现金成本）。段数不足 2 或波动≈0 时返回 ``None``。
     Sortino 分母用全部交易日的 ``min(r − MAR, 0)²`` 均值（上涨日贡献 0）。
     """
-    returns = daily_returns(equity_values)
-    if len(returns) < 2:
+    vals = [float(v) for v in equity_values]
+    n_steps = max(0, len(vals) - 1)
+    rf_steps = _as_daily_series(rf_daily, n_steps)
+    mar_steps = rf_steps if mar is None else _as_daily_series(mar, n_steps)
+    excess: List[float] = []
+    vs_mar: List[float] = []
+    for i, (prev, cur) in enumerate(zip(vals, vals[1:])):
+        if not math.isfinite(prev) or not math.isfinite(cur) or prev <= _VOL_EPS:
+            continue
+        ret = (cur - prev) / prev
+        rf_i = rf_steps[i] if i < len(rf_steps) else 0.0
+        mar_i = mar_steps[i] if i < len(mar_steps) else 0.0
+        excess.append(ret - rf_i)
+        vs_mar.append(ret - mar_i)
+    if len(excess) < 2:
         return None, None
-    excess = [r - float(rf_daily or 0.0) for r in returns]
     mean_excess = sum(excess) / float(len(excess))
-    mean_vs_mar = sum(r - float(mar or 0.0) for r in returns) / float(len(returns))
+    mean_vs_mar = sum(vs_mar) / float(len(vs_mar))
     std = _sample_std(excess)
-    down = _downside_deviation(returns, mar=float(mar or 0.0))
+    down = _downside_deviation(vs_mar)
     scale = math.sqrt(float(periods_per_year or TRADING_DAYS_PER_YEAR))
     sharpe = (mean_excess / std * scale) if std is not None else None
     sortino = (mean_vs_mar / down * scale) if down is not None else None
     return sharpe, sortino
+
+
+def _as_daily_series(value: float | Sequence[float] | None, n: int) -> List[float]:
+    if n <= 0:
+        return []
+    if value is None or isinstance(value, (int, float)):
+        return [float(value or 0.0)] * n
+    seq = [float(x or 0.0) for x in list(value)]
+    if len(seq) == n:
+        return seq
+    if len(seq) == n + 1:
+        return seq[1:]
+    if not seq:
+        return [0.0] * n
+    if len(seq) < n:
+        return seq + [seq[-1]] * (n - len(seq))
+    return seq[:n]
 
 
 def _sample_std(values: Sequence[float]) -> Optional[float]:
@@ -60,11 +90,11 @@ def _sample_std(values: Sequence[float]) -> Optional[float]:
     return math.sqrt(var)
 
 
-def _downside_deviation(returns: Sequence[float], *, mar: float) -> Optional[float]:
-    n = len(returns)
+def _downside_deviation(vs_mar: Sequence[float]) -> Optional[float]:
+    n = len(vs_mar)
     if n < 1:
         return None
-    sq_mean = sum(min(r - mar, 0.0) ** 2 for r in returns) / float(n)
+    sq_mean = sum(min(x, 0.0) ** 2 for x in vs_mar) / float(n)
     if not math.isfinite(sq_mean) or sq_mean <= _VOL_EPS:
         return None
     return math.sqrt(sq_mean)

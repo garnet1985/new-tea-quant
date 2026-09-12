@@ -333,6 +333,7 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
         period={"start_date": "20240101", "end_date": "20240131"},
         # 空日历 → 盯市跳过，本测只断言成交落盘与成本曲线期末
         load_open_dates=lambda *_args, **_kwargs: [],
+        load_shibor_overnight=lambda *_args, **_kwargs: {},
     )
     assert report["success"] is True
     assert report["version_id"] == 1

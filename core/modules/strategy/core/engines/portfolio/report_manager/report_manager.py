@@ -22,6 +22,9 @@ from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.portfolio.report_manager.daily_mtm import (
     mark_portfolio_equity,
 )
+from core.modules.strategy.core.engines.portfolio.report_manager.risk_free import (
+    load_overnight_shibor,
+)
 from core.modules.strategy.core.engines.portfolio.report_manager.entity_list_report import (
     EntityListReport,
     EntityListReportHandle,
@@ -81,6 +84,9 @@ class ReportManager(BaseReportManager):
     _save_trades: bool = field(default=True, init=False, repr=False)
     _save_equity_curve: bool = field(default=True, init=False, repr=False)
     _elapsed_seconds: float = field(default=0.0, init=False, repr=False)
+    _shibor_overnight: Optional[Dict[str, float]] = field(
+        default=None, init=False, repr=False
+    )
     _saved_artifacts: Optional[SavedRunArtifacts] = field(
         default=None, init=False, repr=False
     )
@@ -254,6 +260,18 @@ class ReportManager(BaseReportManager):
             load_open_dates=kwargs.pop("load_open_dates", None),
             load_hfq_closes=kwargs.pop("load_hfq_closes", None),
         )
+        shibor_src = kwargs.pop("load_shibor_overnight", None)
+        start = str(period_map.get("start_date") or "")
+        end = str(period_map.get("end_date") or "")
+        if shibor_src is None:
+            self._shibor_overnight = load_overnight_shibor(start, end)
+        elif callable(shibor_src):
+            try:
+                self._shibor_overnight = dict(shibor_src(start, end) or {})
+            except Exception:
+                self._shibor_overnight = {}
+        else:
+            self._shibor_overnight = dict(shibor_src or {})
         _ = kwargs
         self._sim = sim
         self._period = period_map

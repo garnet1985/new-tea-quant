@@ -1,6 +1,6 @@
 # 决策者模式：资金回测回放
 
-**状态：** 口径已锁定（2026-09-12）。第一刀已落地：会话引擎 + CLI REPL（`sd` / `sdl` / `sdd`）+ 走完后 `finalize`。UI 未做。  
+**状态：** 口径已锁定（2026-09-12）。会话引擎 + CLI REPL（`sd` / `sdl` / `sdd`）+ 走完 `finalize` 已落地。BFF D1 已挂（`/api/v1/strategy/.../decision/sessions`）；FED 未做。  
 **一句话：** 决策者模式是 **当前策略** 的 `portfolio` 回放。用户唯一能改的是 **选谁**（`on_pick_portfolio_member`）和 **买多少股**；其余全部沿用资金回测。  
 **位置：** NTQ 第四层；与 enumerate / price_factor / portfolio 同一 version。代码在 `core/engines/decision_maker/`。
 
@@ -288,4 +288,4 @@ info 000001.SZ 60
 
 用户股数不走 `AllocationStrategy.calculate_shares_to_buy`，只过 `floor_shares` / `apply_participation` / 费用 / 现金 / `max_portfolio_size`。
 
-UI 屏幕、scan adapter 仍后做。
+UI 屏幕、scan adapter 仍后做。BFF 决策者路由：`core/bff/docs/routes/strategy.md` D1。

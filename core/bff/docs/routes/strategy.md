@@ -1,6 +1,6 @@
 # 策略域 BFF：`routes/` 编排
 
-**版本：** 0.1.0
+**版本：** 0.2.1
 
 FED 侧尚无独立 `strategy*/API.md`（原 `strategyWorkbenchPage/mocks/API.md` 已移除）；本文件为策略 HTTP 路由与编排的当前 SSOT，字段语义以工作台 / 设计页前端消费为准。
 
@@ -12,6 +12,7 @@ core/bff/APIs/strategy/
   helpers/                  # snapshots / report_hydrate / formatting …
   routes/
     catalog/                # V2-02
+    decision/               # D1-01 … D1-10 决策者会话
     package/                # V2-13 … 15
     report/                 # V2-07*
     settings/               # V2-04 / V2-09
@@ -31,6 +32,7 @@ core/bff/APIs/strategy/
 - Version / 指纹规则见 ``modules.strategy`` [VERSIONING.md](../../modules/strategy/docs/VERSIONING.md)。
 - BFF 不做缓存命中判断。
 - 工作台三步 ``enum | price | portfolio`` 与核心共用 ``WorkbenchStep``（``core.modules.strategy.contracts``）。
+- **决策者**不是 ``WorkbenchStep`` / ``SimulateKind``。HTTP 挂在 ``/decision/sessions``；动作与 CLI ``sd`` 同一台 ``DecisionEngine``（每次请求从磁盘打开该局）。
 
 ## V2 路由 × 文件
 
@@ -61,5 +63,28 @@ core/bff/APIs/strategy/
 | scan | GET | `/v1/strategy/scan/context` | `routes/runner/` |
 | scan | GET/POST | `/v1/strategy/<strategy_key_or_name>/scan` | `routes/runner/` |
 | scan | GET | `/v1/strategy/<strategy_key_or_name>/scan/progress` | `routes/runner/` |
+
+## D1 决策者
+
+口径见 strategy [DECISION_MAKER.md](../../../modules/strategy/docs/notes/DECISION_MAKER.md)。``version`` / ``version_id`` 默认当前 ``settings.py`` 命中的 enum vid（与 ``so`` / ``sd`` 相同）。信封同 V2：``{ status, message }``。
+
+| D1 | 方法 | 路由 | 说明 |
+|----|------|------|------|
+| D1-01 | GET | `/v1/strategy/<strategy_key_or_name>/decision/sessions` | 列出该 version 下各局。query：``version`` |
+| D1-02 | POST | `/v1/strategy/<strategy_key_or_name>/decision/sessions` | 打开或续局。body：``version_id`` / ``session_id`` / ``new_session``。0 局新开；1 局续；≥2 且未指定 session → **409** ``ambiguous_sessions``（``message.sessions``） |
+| D1-03 | GET | `/v1/strategy/<strategy_key_or_name>/decision/sessions/<dm_id>` | 该局现场快照（不推进） |
+| D1-04 | DELETE | `/v1/strategy/<strategy_key_or_name>/decision/sessions/<dm_id>` | 删除一局 |
+| D1-05 | POST | `…/sessions/<dm_id>/pick` | body ``{ local_id, shares }``；同一编号覆盖。返回现场 |
+| D1-06 | POST | `…/sessions/<dm_id>/done` | 看账单，``phase=confirming`` |
+| D1-07 | POST | `…/sessions/<dm_id>/reset` | 清空当天草稿 |
+| D1-08 | POST | `…/sessions/<dm_id>/next` | 须已 done。提交并推进到下一抉择日；``exits`` 为沿途只读出场 |
+| D1-09 | GET | `…/sessions/<dm_id>/holdings` | 持仓（这一停的收盘 / 浮动 / 策略目标文案） |
+| D1-10 | GET | `…/sessions/<dm_id>/info` | query：``target``（编号或代码，必填）、``n``、``columns``（逗号分隔）。截至 D 的最近 N 根 |
+
+现场 ``message``（D1-02/03/05–08）主要字段：``dm_id`` / ``version_id`` / ``phase``（``picking`` \| ``confirming`` \| ``completed``）/ ``current_date`` / ``cash`` / ``open_position_count`` / ``max_portfolio_size`` / ``asof_stats``（整份策略 as-of）/ ``opportunities[].stats``（**该标的** as-of）/ ``draft`` / ``bill`` / ``exits`` / ``report_available``。
+
+无枚举产物 → **400**（文案与 CLI 相同）。策略不存在 → **404**。
+
+**未注册**：走完后与机器 portfolio 并排对照的 report GET（终局仍写在 ``decision/{dm_id}/``，对照走现有 V2-07 ``report/portfolio/{vid}`` 即可；决策者报告路由后做）。
 
 **未注册**：V2-10 `versions/range`。

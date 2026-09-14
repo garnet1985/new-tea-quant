@@ -128,6 +128,9 @@ class UserRunner:
             return 0
         except SystemExit as exc:
             code = exc.code
+            if isinstance(code, str) and code.strip():
+                print(code, flush=True)
+                return 1
             return int(code) if isinstance(code, int) else 1
         except Exception as exc:
             logger.error(i('error') + " 执行失败: %s", exc)

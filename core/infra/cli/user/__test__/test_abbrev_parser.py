@@ -250,3 +250,27 @@ def test_run_strategy_unpin_version_ok(monkeypatch, capsys) -> None:
     monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
     UserHandlers._run_strategy_set_pinned(Namespace(strategy="rsi_v1:3"), False)
     assert "已取消固定 rsi_v1 v3" in capsys.readouterr().out
+
+
+def test_execute_dispatches_decision_commands(monkeypatch) -> None:
+    from argparse import Namespace
+
+    from core.infra.cli.user.handlers import UserHandlers
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        UserHandlers,
+        "_handle_strategy",
+        staticmethod(lambda cmd, app, args: seen.append(cmd)),
+    )
+    for cmd in (
+        "strategy_decision",
+        "strategy_decision_list",
+        "strategy_decision_delete",
+    ):
+        UserHandlers.execute(Namespace(command=cmd), app=None)
+    assert seen == [
+        "strategy_decision",
+        "strategy_decision_list",
+        "strategy_decision_delete",
+    ]

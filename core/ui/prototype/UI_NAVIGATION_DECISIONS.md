@@ -1,21 +1,22 @@
 # NTQ Prototype 导航决策记录
 
-更新时间：2026-04-23（setup-first 版本）
+更新时间：2026-09-14（决策者入口加入主导航）
 
 ## 背景
 
 当前原型目标：
 
 1. 降低首次使用门槛（先完成系统就绪，再进入业务功能）
-2. 支持两条高频路径（策略验证、机会扫描）
+2. 支持三条高频路径（策略验证、机会扫描、决策者回放）
 3. 专业能力集中管理，但避免用户在 UI 里直接改代码逻辑
 
 ## 导航方案结论
 
-主导航采用 4 项：
+主导航采用 5 项：
 
 - 策略工作台
 - 机会扫描
+- 决策者
 - 高级功能
 - 设置
 
@@ -63,6 +64,11 @@
 - 支持严格模式 / 扫描演示模式
 - 展示进度、报告、策略机会数与弹窗明细（占位）
 
+### 决策者
+
+- **入口页**（`decision.html`）：开始新决策 / 继续 / 管理。继续不猜测未完成局。
+- **对局页**（`decision-play.html`）：日历 HUD + 推进确认；左状态、右 event 再机会。不接 API。
+
 ### 高级功能（新分组）
 
 目标：集中管理“可配置资产”，尽量避免 UI 直接改代码逻辑。
@@ -94,6 +100,8 @@
 - `prototype/workbench-detail.html`
 - `prototype/workbench-stock.html`
 - `prototype/scan.html`
+- `prototype/decision.html`
+- `prototype/decision-play.html`
 - `prototype/advanced.html`
 - `prototype/settings.html`
 - `prototype/setup.html`（新增：首次安装引导原型页）

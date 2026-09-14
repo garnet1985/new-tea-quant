@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - 决策者对局</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+  <link rel="stylesheet" href="./backtest.css" />
+  <link rel="stylesheet" href="./workbench.css" />
+  <link rel="stylesheet" href="./decision.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a href="./workbench.html">策略工作台</a>
+        <a href="./scan.html">机会扫描</a>
+        <a class="active" href="./decision.html">决策者</a>
+        <div class="nav-dropdown">
+          <button type="button" class="nav-parent" aria-haspopup="true" aria-expanded="false">高级功能 ▾</button>
+          <div class="nav-dropdown-menu">
+            <a href="./data-acquire.html">数据接入</a>
+            <a href="./tag-console.html">标签工作台</a>
+            <a href="./backup-and-restore.html">备份与恢复</a>
+          </div>
+        </div>
+        <a href="./settings.html">设置</a>
+      </nav>
+    </header>
+
+    <main class="content workbench-detail-wide decision-play-page">
+      <header class="topbar">
+        <div>
+          <p class="breadcrumb"><a href="./decision.html">决策者</a> / <span id="crumb-session">对局</span></p>
+          <h1 class="title" id="play-title">决策者对局</h1>
+          <p class="subtitle">日历只显示有抉择的日子，不可点选跳转。推进先出账单，确认后才提交。</p>
+        </div>
+        <a class="button ghost-btn" href="./decision.html">返回入口</a>
+      </header>
+
+      <p class="decision-readonly-banner" id="readonly-banner" hidden>
+        本局已走完，只读回看。不能改股数，也不能再推进。
+      </p>
+
+      <section class="card decision-hud" aria-label="对局时钟">
+        <div class="decision-calendar" id="calendar" title="日历为 HUD，不可跳转到某一天"></div>
+        <div class="decision-hud-actions">
+          <div class="decision-hud-cash">
+            <span>现金</span>
+            <strong id="hud-cash">—</strong>
+          </div>
+          <div class="decision-hud-cash">
+            <span>当前日</span>
+            <strong id="hud-date">—</strong>
+          </div>
+          <button type="button" class="button" id="btn-advance">推进</button>
+        </div>
+      </section>
+
+      <div class="decision-play-split">
+        <aside class="decision-left">
+          <article class="card">
+            <div class="section-head">
+              <h3>策略与模拟</h3>
+              <span class="muted">只读</span>
+            </div>
+            <div class="meta-grid">
+              <div><span class="muted">策略</span><strong>rsi_v1</strong></div>
+              <div><span class="muted">version</span><strong>3</strong></div>
+              <div><span class="muted">session</span><strong id="meta-session">—</strong></div>
+              <div><span class="muted">区间</span><strong>2024-01-02 → 2025-06-30</strong></div>
+              <div><span class="muted">max_portfolio_size</span><strong>5</strong></div>
+              <div><span class="muted">手数</span><strong>100 股</strong></div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <h3>资金仓位</h3>
+              <span class="muted">硬约束</span>
+            </div>
+            <div class="decision-capital-grid">
+              <div><span>现金</span><strong id="cap-cash">—</strong></div>
+              <div><span>持仓 / 上限</span><strong id="cap-slots">—</strong></div>
+              <div><span>策略 as-of 胜率</span><strong id="cap-wr">58%</strong></div>
+              <div><span>策略平均 ROI</span><strong id="cap-roi">+3.1%</strong></div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <h3>持仓</h3>
+              <span class="muted">入场后不可干预</span>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>标的</th>
+                    <th>股数</th>
+                    <th>买入</th>
+                    <th>浮动</th>
+                  </tr>
+                </thead>
+                <tbody id="holdings-body"></tbody>
+              </table>
+            </div>
+            <p class="muted" id="holdings-empty" hidden>当前无持仓</p>
+          </article>
+        </aside>
+
+        <section class="decision-right">
+          <article class="card">
+            <div class="section-head">
+              <h3>当天 event</h3>
+              <span class="muted">先结算出场，只读</span>
+            </div>
+            <div class="decision-event-list" id="event-list"></div>
+            <p class="muted" id="event-empty" hidden>本日无出场通报（空日已跳过，不占日历格）。</p>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <h3>新机会</h3>
+              <span class="muted">唯一可改：编号与股数 · 胜率为该标的 as-of</span>
+            </div>
+            <div class="table-wrap">
+              <table class="table decision-opp-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>标的</th>
+                    <th>买入价</th>
+                    <th>历史胜率</th>
+                    <th>平均 ROI</th>
+                    <th>股数</th>
+                  </tr>
+                </thead>
+                <tbody id="opp-body"></tbody>
+              </table>
+            </div>
+            <p class="muted" id="opp-note"></p>
+          </article>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="report-modal hidden" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="report-panel decision-confirm-panel">
+      <div class="report-header">
+        <h3 id="confirm-title">确认当天选择</h3>
+        <button type="button" class="button ghost-btn report-close" id="confirm-close">关闭</button>
+      </div>
+      <div class="report-content">
+        <p class="muted" id="confirm-lead">提交后不可改当日选择。空选择等于本日不买，时钟跳到下一抉择日。</p>
+        <ul class="decision-bill" id="confirm-bill"></ul>
+        <div class="decision-bill-total">
+          <span>合计</span>
+          <span id="confirm-total">0.00</span>
+        </div>
+        <div class="decision-manage-actions" style="margin-top: 16px;">
+          <button type="button" class="button" id="btn-confirm-next">确认推进</button>
+          <button type="button" class="button ghost-btn" id="btn-reset">重新下单</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="decision-drawer" id="info-drawer" hidden>
+    <div data-drawer-dismiss></div>
+    <aside class="decision-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="info-title">
+      <div class="decision-drawer-head">
+        <h3 id="info-title">info</h3>
+        <button type="button" class="button ghost-btn" id="info-close">关闭</button>
+      </div>
+      <div class="decision-drawer-body">
+        <p class="muted" id="info-asof"></p>
+        <div class="meta-grid" style="margin: 12px 0;">
+          <div><span class="muted">策略 as-of</span><strong id="info-strategy">—</strong></div>
+          <div><span class="muted">本标的 as-of</span><strong id="info-ticker">—</strong></div>
+        </div>
+        <p class="muted">K 线截至当前日 D，不预载全市场。</p>
+        <div class="decision-kline" id="info-kline" aria-hidden="true"></div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>开</th>
+                <th>高</th>
+                <th>低</th>
+                <th>收</th>
+              </tr>
+            </thead>
+            <tbody id="info-bars"></tbody>
+          </table>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="decision-toast" id="toast" hidden></div>
+
+  <script>
+    (() => {
+      const money = (n) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const params = new URLSearchParams(window.location.search);
+      const isNew = params.get("new") === "1";
+      const readonly = params.get("readonly") === "1";
+      const sessionId = isNew ? 4 : Number(params.get("session") || 1);
+
+      const DAYS = {
+        1: [
+          {
+            date: "2025-04-07",
+            cash: 999314.65,
+            calendar: [
+              { date: "03-10", state: "past" },
+              { date: "03-21", state: "past" },
+              { date: "03-28", state: "past" },
+              { date: "04-07", state: "now" },
+              { date: "04-15", state: "locked" },
+              { date: "04-22", state: "locked" },
+            ],
+            events: [
+              { date: "2025-04-02", text: "出场 601318.SH 中国平安  800 股  盈亏 +1,240.00  (止盈)", win: true },
+              { date: "2025-04-03", text: "出场 000858.SZ 五粮液  200 股  盈亏 -860.50  (到期)", win: false },
+            ],
+            holdings: [
+              { ticker: "600036.SH", name: "招商银行", shares: 700, buy: "2025-03-21 @ 36.80", pnl: "+1,120.00" },
+            ],
+            opps: [
+              { id: 1, ticker: "000001.SZ", name: "平安银行", price: 11.42, wr: "—", roi: "—" },
+              { id: 2, ticker: "000002.SZ", name: "万科A", price: 7.18, wr: "50%", roi: "+1.2%" },
+              { id: 3, ticker: "600519.SH", name: "贵州茅台", price: 1482.00, wr: "67%", roi: "+4.8%" },
+              { id: 4, ticker: "601318.SH", name: "中国平安", price: 48.26, wr: "40%", roi: "-0.6%" },
+              { id: 5, ticker: "000858.SZ", name: "五粮液", price: 128.40, wr: "—", roi: "—" },
+              { id: 6, ticker: "600276.SH", name: "恒瑞医药", price: 42.15, wr: "75%", roi: "+6.1%" },
+              { id: 7, ticker: "002415.SZ", name: "海康威视", price: 31.08, wr: "33%", roi: "-1.4%" },
+              { id: 8, ticker: "601012.SH", name: "隆基绿能", price: 16.72, wr: "—", roi: "—" },
+            ],
+            note: "当日共 31 条机会，此处示意前 8 条。点行看 info，不要预载全市场。",
+          },
+          {
+            date: "2025-04-15",
+            cash: 968104.21,
+            calendar: [
+              { date: "03-21", state: "past" },
+              { date: "03-28", state: "past" },
+              { date: "04-07", state: "past" },
+              { date: "04-15", state: "now" },
+              { date: "04-22", state: "locked" },
+              { date: "05-06", state: "locked" },
+            ],
+            events: [
+              { date: "2025-04-11", text: "出场 600036.SH 招商银行  700 股  盈亏 +2,310.00  (止盈)", win: true },
+            ],
+            holdings: [],
+            opps: [
+              { id: 1, ticker: "600030.SH", name: "中信证券", price: 26.44, wr: "60%", roi: "+2.4%" },
+              { id: 2, ticker: "000725.SZ", name: "京东方A", price: 4.12, wr: "—", roi: "—" },
+              { id: 3, ticker: "601888.SH", name: "中国中免", price: 68.90, wr: "45%", roi: "+0.8%" },
+              { id: 4, ticker: "002594.SZ", name: "比亚迪", price: 312.50, wr: "80%", roi: "+7.2%" },
+            ],
+            note: "推进后跳过了空日；event 区是这段路上的出场通报。",
+          },
+        ],
+        2: [
+          {
+            date: "2025-03-12",
+            cash: 1012440.00,
+            calendar: [
+              { date: "02-18", state: "past" },
+              { date: "03-03", state: "past" },
+              { date: "03-12", state: "now" },
+              { date: "03-21", state: "locked" },
+              { date: "03-28", state: "locked" },
+            ],
+            events: [],
+            holdings: [
+              { ticker: "000333.SZ", name: "美的集团", shares: 400, buy: "2025-02-18 @ 72.10", pnl: "+640.00" },
+              { ticker: "600900.SH", name: "长江电力", shares: 1000, buy: "2025-03-03 @ 27.40", pnl: "-180.00" },
+            ],
+            opps: [
+              { id: 1, ticker: "601166.SH", name: "兴业银行", price: 18.22, wr: "55%", roi: "+2.0%" },
+              { id: 2, ticker: "000651.SZ", name: "格力电器", price: 41.08, wr: "—", roi: "—" },
+              { id: 3, ticker: "600887.SH", name: "伊利股份", price: 28.76, wr: "62%", roi: "+3.4%" },
+            ],
+            note: "第 2 局较早的停顿点。继续入口在 ≥2 局时不会默认进第 1 局。",
+          },
+        ],
+        3: [
+          {
+            date: "2025-06-30",
+            cash: 1086210.40,
+            calendar: [
+              { date: "06-06", state: "past" },
+              { date: "06-16", state: "past" },
+              { date: "06-30", state: "now" },
+            ],
+            events: [],
+            holdings: [],
+            opps: [],
+            note: "本局已走完。终局报告与机器 portfolio 同结构，本原型不画净值曲线。",
+            completed: true,
+          },
+        ],
+        4: [
+          {
+            date: "2024-01-08",
+            cash: 1000000,
+            calendar: [
+              { date: "01-08", state: "now" },
+              { date: "01-16", state: "locked" },
+              { date: "01-24", state: "locked" },
+              { date: "02-05", state: "locked" },
+            ],
+            events: [],
+            holdings: [],
+            opps: [
+              { id: 1, ticker: "600000.SH", name: "浦发银行", price: 8.64, wr: "—", roi: "—" },
+              { id: 2, ticker: "000001.SZ", name: "平安银行", price: 9.12, wr: "—", roi: "—" },
+              { id: 3, ticker: "601318.SH", name: "中国平安", price: 40.18, wr: "—", roi: "—" },
+              { id: 4, ticker: "600519.SH", name: "贵州茅台", price: 1688.00, wr: "—", roi: "—" },
+            ],
+            note: "新局：区间内尚无已实现样本，标的 as-of 胜率为 —。",
+          },
+        ],
+      };
+
+      const days = DAYS[sessionId] || DAYS[1];
+      let dayIndex = 0;
+      const picks = new Map();
+      const isCompleted = Boolean(days[0].completed || readonly);
+
+      const els = {
+        crumb: document.getElementById("crumb-session"),
+        title: document.getElementById("play-title"),
+        banner: document.getElementById("readonly-banner"),
+        calendar: document.getElementById("calendar"),
+        hudCash: document.getElementById("hud-cash"),
+        hudDate: document.getElementById("hud-date"),
+        capCash: document.getElementById("cap-cash"),
+        capSlots: document.getElementById("cap-slots"),
+        metaSession: document.getElementById("meta-session"),
+        holdingsBody: document.getElementById("holdings-body"),
+        holdingsEmpty: document.getElementById("holdings-empty"),
+        eventList: document.getElementById("event-list"),
+        eventEmpty: document.getElementById("event-empty"),
+        oppBody: document.getElementById("opp-body"),
+        oppNote: document.getElementById("opp-note"),
+        advance: document.getElementById("btn-advance"),
+        confirm: document.getElementById("confirm-modal"),
+        bill: document.getElementById("confirm-bill"),
+        total: document.getElementById("confirm-total"),
+        drawer: document.getElementById("info-drawer"),
+        infoTitle: document.getElementById("info-title"),
+        infoAsof: document.getElementById("info-asof"),
+        infoStrategy: document.getElementById("info-strategy"),
+        infoTicker: document.getElementById("info-ticker"),
+        infoKline: document.getElementById("info-kline"),
+        infoBars: document.getElementById("info-bars"),
+        toast: document.getElementById("toast"),
+      };
+
+      const toast = (text) => {
+        els.toast.textContent = text;
+        els.toast.hidden = false;
+        window.clearTimeout(toast._t);
+        toast._t = window.setTimeout(() => {
+          els.toast.hidden = true;
+        }, 2200);
+      };
+
+      const day = () => days[dayIndex];
+
+      const renderCalendar = () => {
+        els.calendar.innerHTML = day().calendar.map((cell) => `
+          <div class="decision-cal-cell is-${cell.state}">
+            <span>${cell.state === "now" ? "当前" : cell.state === "past" ? "已过" : "未到"}</span>
+            <strong>${cell.date}</strong>
+          </div>
+        `).join("");
+      };
+
+      const renderHoldings = () => {
+        const rows = day().holdings;
+        els.holdingsEmpty.hidden = rows.length > 0;
+        els.holdingsBody.innerHTML = rows.map((row) => `
+          <tr>
+            <td>${row.ticker}<br><span class="muted">${row.name}</span></td>
+            <td>${row.shares.toLocaleString()}</td>
+            <td>${row.buy}</td>
+            <td>${row.pnl}</td>
+          </tr>
+        `).join("");
+        els.capSlots.textContent = `${rows.length} / 5`;
+      };
+
+      const renderEvents = () => {
+        const rows = day().events;
+        els.eventEmpty.hidden = rows.length > 0;
+        els.eventList.innerHTML = rows.map((row) => `
+          <article class="decision-event ${row.win ? "is-win" : "is-loss"}">
+            <time>${row.date}</time>
+            <div>${row.text}</div>
+          </article>
+        `).join("");
+      };
+
+      const renderOpps = () => {
+        const rows = day().opps;
+        els.oppNote.textContent = day().note || "";
+        if (!rows.length) {
+          els.oppBody.innerHTML = `<tr><td colspan="6" class="muted">今日无新机会</td></tr>`;
+          return;
+        }
+        els.oppBody.innerHTML = rows.map((row) => {
+          const shares = picks.get(row.id) || "";
+          return `
+            <tr class="is-clickable${shares ? " is-picked" : ""}" data-opp="${row.id}">
+              <td>${row.id}</td>
+              <td>${row.ticker}<br><span class="muted">${row.name}</span></td>
+              <td>${money(row.price)}</td>
+              <td>${row.wr}</td>
+              <td>${row.roi}</td>
+              <td>
+                <input type="number" min="0" step="100" ${isCompleted ? "disabled" : ""} value="${shares}" data-shares="${row.id}" aria-label="股数 ${row.ticker}" />
+              </td>
+            </tr>
+          `;
+        }).join("");
+      };
+
+      const renderCash = () => {
+        const cashText = money(day().cash);
+        els.hudCash.textContent = cashText;
+        els.capCash.textContent = cashText;
+        els.hudDate.textContent = day().date;
+      };
+
+      const renderAll = () => {
+        renderCalendar();
+        renderCash();
+        renderHoldings();
+        renderEvents();
+        renderOpps();
+      };
+
+      const currentBill = () => {
+        const items = [];
+        day().opps.forEach((row) => {
+          const shares = Number(picks.get(row.id) || 0);
+          if (shares > 0) {
+            items.push({ ...row, shares, notional: shares * row.price });
+          }
+        });
+        return items;
+      };
+
+      const openConfirm = () => {
+        if (isCompleted) return;
+        const items = currentBill();
+        els.bill.innerHTML = items.length
+          ? items.map((row) => `<li><span>[${row.id}] ${row.name} ${row.shares.toLocaleString()} 股</span><span>约 ${money(row.notional)}</span></li>`).join("")
+          : `<li><span>当前选择：（空，本日不买）</span><span></span></li>`;
+        const total = items.reduce((sum, row) => sum + row.notional, 0);
+        els.total.textContent = `${money(total)} 元`;
+        els.confirm.classList.remove("hidden");
+      };
+
+      const closeConfirm = () => els.confirm.classList.add("hidden");
+
+      const openInfo = (opp) => {
+        const asof = day().date;
+        els.infoTitle.textContent = `${opp.ticker} ${opp.name}`;
+        els.infoAsof.textContent = `as-of ${asof} · K 线停在当前日，不含未来`;
+        els.infoStrategy.textContent = "胜率 58%  平均ROI +3.1%  n=86";
+        els.infoTicker.textContent = `胜率 ${opp.wr}  平均ROI ${opp.roi}`;
+        const bars = [];
+        let close = opp.price * 0.97;
+        for (let i = 7; i >= 0; i -= 1) {
+          const d = new Date(`${asof}T00:00:00`);
+          d.setDate(d.getDate() - i);
+          const open = close;
+          const change = (Math.sin(opp.id + i) * 0.012 + 0.002) * open;
+          close = +(open + change).toFixed(2);
+          const high = +(Math.max(open, close) * 1.008).toFixed(2);
+          const low = +(Math.min(open, close) * 0.992).toFixed(2);
+          bars.push({
+            date: d.toISOString().slice(0, 10),
+            open: +open.toFixed(2),
+            high,
+            low,
+            close,
+            up: close >= open,
+          });
+        }
+        bars[bars.length - 1].date = asof;
+        bars[bars.length - 1].close = opp.price;
+        const max = Math.max(...bars.map((b) => b.high));
+        const min = Math.min(...bars.map((b) => b.low));
+        els.infoKline.innerHTML = bars.map((b) => {
+          const h = ((b.close - min) / (max - min || 1)) * 100;
+          return `<div class="decision-kbar${b.up ? "" : " is-down"}" style="height:${Math.max(12, h)}%"></div>`;
+        }).join("");
+        els.infoBars.innerHTML = bars.map((b) => `
+          <tr>
+            <td>${b.date}</td>
+            <td>${money(b.open)}</td>
+            <td>${money(b.high)}</td>
+            <td>${money(b.low)}</td>
+            <td>${money(b.close)}</td>
+          </tr>
+        `).join("");
+        els.drawer.hidden = false;
+      };
+
+      els.crumb.textContent = `第 ${sessionId} 局`;
+      els.title.textContent = isNew ? "新决策 · 第 4 局" : `决策者对局 · 第 ${sessionId} 局`;
+      els.metaSession.textContent = String(sessionId);
+      if (isCompleted) {
+        els.banner.hidden = false;
+        els.advance.disabled = true;
+      }
+
+      els.oppBody.addEventListener("input", (event) => {
+        const input = event.target.closest("[data-shares]");
+        if (!input) return;
+        const id = Number(input.getAttribute("data-shares"));
+        const value = Number(input.value || 0);
+        if (value > 0) picks.set(id, value);
+        else picks.delete(id);
+        const row = input.closest("tr");
+        if (row) row.classList.toggle("is-picked", value > 0);
+      });
+
+      els.oppBody.addEventListener("click", (event) => {
+        if (event.target.closest("input")) return;
+        const tr = event.target.closest("[data-opp]");
+        if (!tr) return;
+        const id = Number(tr.getAttribute("data-opp"));
+        const opp = day().opps.find((row) => row.id === id);
+        if (opp) openInfo(opp);
+      });
+
+      els.advance.addEventListener("click", openConfirm);
+      document.getElementById("confirm-close").addEventListener("click", closeConfirm);
+      document.getElementById("btn-reset").addEventListener("click", () => {
+        picks.clear();
+        closeConfirm();
+        renderOpps();
+        toast("已清空草稿，仍停在当天");
+      });
+      document.getElementById("btn-confirm-next").addEventListener("click", () => {
+        closeConfirm();
+        if (dayIndex >= days.length - 1) {
+          toast("原型只演示到下一抉择日。真实引擎会继续 next。");
+          return;
+        }
+        dayIndex += 1;
+        picks.clear();
+        renderAll();
+        toast("已提交当天，跳到下一抉择日");
+      });
+      document.getElementById("info-close").addEventListener("click", () => {
+        els.drawer.hidden = true;
+      });
+      els.drawer.addEventListener("click", (event) => {
+        if (event.target.hasAttribute("data-drawer-dismiss")) els.drawer.hidden = true;
+      });
+      els.confirm.addEventListener("click", (event) => {
+        if (event.target === els.confirm) closeConfirm();
+      });
+
+      renderAll();
+    })();
+  </script>
+</body>
+</html>

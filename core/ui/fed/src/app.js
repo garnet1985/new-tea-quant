@@ -12,6 +12,7 @@ import WelcomePage from './pages/welcomePage';
 import StrategyListPage from './pages/strategyListPage';
 import { StrategyDesignLayout } from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
+import { DecisionLobbyPage, DecisionPlayPage } from './pages/decisionPage';
 import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
 import DataSourceListPage from './pages/dataSourcePage';
@@ -179,6 +180,14 @@ function App() {
             <Route
               path="/scan"
               element={<ScanPage />}
+            />
+            <Route
+              path="/decision"
+              element={<DecisionLobbyPage />}
+            />
+            <Route
+              path="/decision/play"
+              element={<DecisionPlayPage />}
             />
             <Route
               path="/advanced/data-sources"

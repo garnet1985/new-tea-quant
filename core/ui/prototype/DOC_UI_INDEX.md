@@ -11,6 +11,7 @@
 - `DOC_workbench-detail.md` -> `workbench-detail.html`
 - `DOC_workbench-stock.md` -> `workbench-stock.html`
 - `DOC_scan.md` -> `scan.html`
+- `DOC_decision.md` -> `decision.html` / `decision-play.html`
 - `DOC_setup.md` -> `setup.html`
 - `DOC_data-acquire.md` -> `data-acquire.html`
 - `DOC_tag-console.md` -> `tag-console.html`

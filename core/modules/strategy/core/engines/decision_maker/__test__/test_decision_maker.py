@@ -193,6 +193,42 @@ def test_asof_stats_exclude_future_exits(tmp_path: Path):
     assert later.avg_roi == pytest.approx(0.1)
 
 
+def test_opportunity_list_uses_per_ticker_asof(tmp_path: Path):
+    rows = [
+        _row("600000.SH", "a1", "20240102", "20240105", 0.10),
+        _row("600000.SH", "a2", "20240102", "20240105", -0.05),
+        _row("000001.SZ", "b1", "20240102", "20240105", -0.20),
+    ]
+    engine = _engine(
+        tmp_path,
+        [
+            _buy("20240110", "600000.SH", "c", 10.0),
+            _buy("20240110", "000001.SZ", "d", 20.0),
+        ],
+        rows=rows,
+    )
+    opps = engine.opportunities()
+    assert [o.entity_id for o in opps] == ["000001.SZ", "600000.SH"]
+    ping = next(o for o in opps if o.entity_id == "000001.SZ")
+    pu = next(o for o in opps if o.entity_id == "600000.SH")
+    assert ping.ticker_stats is not None
+    assert ping.ticker_stats.sample_size == 1
+    assert ping.ticker_stats.win_rate == pytest.approx(0.0)
+    assert ping.ticker_stats.avg_roi == pytest.approx(-0.20)
+    assert pu.ticker_stats is not None
+    assert pu.ticker_stats.sample_size == 2
+    assert pu.ticker_stats.win_rate == pytest.approx(0.5)
+    assert pu.ticker_stats.avg_roi == pytest.approx(0.025)
+    assert ping.stats is not None and pu.stats is not None
+    assert ping.stats.sample_size == pu.stats.sample_size == 3
+
+    stdout = StringIO()
+    DecisionRepl(engine, stdin=StringIO("quit\n"), stdout=stdout).run()
+    text = stdout.getvalue()
+    assert "000001.SZ" in text and "历史胜率: 0%" in text and "平均ROI: -20.0%" in text
+    assert "600000.SH" in text and "历史胜率: 50%" in text and "平均ROI: +2.5%" in text
+
+
 def test_pick_done_reset_and_lot_error(tmp_path: Path):
     engine = _engine(
         tmp_path, [_buy("20240103", "600000.SH", "a", 10.0)]

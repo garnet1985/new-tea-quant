@@ -176,10 +176,9 @@ class DecisionRepl:
             self._writeln("发现了新的机会！" if opps else "今日无新机会。")
         for opp in opps:
             name = opp.name or opp.entity_id
-            wr = format_pct(opp.stats.win_rate if opp.stats else None)
-            roi = format_pct(
-                opp.stats.avg_roi if opp.stats else None, signed=True
-            )
+            ticker = opp.ticker_stats
+            wr = format_pct(ticker.win_rate if ticker else None)
+            roi = format_pct(ticker.avg_roi if ticker else None, signed=True)
             self._writeln(
                 f"  [{opp.local_id}] {opp.entity_id} {name}  "
                 f"买入价: {opp.entry_price_raw:.2f}  "

@@ -32,6 +32,7 @@
 |----------------------|------|------|
 | `test_pauses_on_first_buy_date` | `test_decision_maker.py` | 开局停在第一笔买入日 |
 | `test_asof_stats_exclude_future_exits` | `test_decision_maker.py` | as-of 胜率不含未到期机会 |
+| `test_opportunity_list_uses_per_ticker_asof` | `test_decision_maker.py` | 机会列表胜率按标的 as-of，不是全策略同一数字 |
 | `test_pick_done_reset_and_lot_error` | `test_decision_maker.py` | 手数校验、覆盖草稿、done/reset |
 | `test_next_requires_done_empty_means_skip` | `test_decision_maker.py` | 空仓 next 跳过买入、结算出场 |
 | `test_buy_then_exit_log_then_next_decision` | `test_decision_maker.py` | 买入后下一抉择日前打出场日志 |

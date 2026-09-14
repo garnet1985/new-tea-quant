@@ -10,6 +10,9 @@ CLI_COMMAND_REFERENCE = """
   python cli.py se                      枚举          同 strategy_enumerate [--strategy NAME]
   python cli.py sp                      价格因子模拟  同 strategy_price_factor [--strategy NAME]
   python cli.py so                      组合模拟      同 strategy_portfolio [--strategy NAME]
+  python cli.py sd                      决策者 REPL   同 strategy_decision [--strategy NAME] [--version ID] [--session N] [--new-session]
+  python cli.py sdl                     列出决策者会话 同 strategy_decision_list [--strategy NAME] [--version ID]
+  python cli.py sdd --session N         删除一局决策者 同 strategy_decision_delete --session N
   python cli.py sa                      归因报告      同 strategy_analyze [--strategy NAME] [--step enum|price|portfolio] [--version ID]  # 省略 version 则该 step 最近一次
   python cli.py s                       完整模拟链路  同 strategy_simulate
   python cli.py sdv --strategy rsi_v1:3 删一份回测产物 同 strategy_delete_version（策略:版本）

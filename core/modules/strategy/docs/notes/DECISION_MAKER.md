@@ -1,8 +1,8 @@
 # 决策者模式：资金回测回放
 
-**状态：** 口径已锁定（2026-09-12）。未实现。  
+**状态：** 口径已锁定（2026-09-12）。第一刀已落地：会话引擎 + CLI REPL（`sd` / `sdl` / `sdd`）+ 走完后 `finalize`。UI 未做。  
 **一句话：** 决策者模式是 **当前策略** 的 `portfolio` 回放。用户唯一能改的是 **选谁**（`on_pick_portfolio_member`）和 **买多少股**；其余全部沿用资金回测。  
-**位置：** NTQ 第四层；与 enumerate / price_factor / portfolio 同一 version。会话与命令行协议已锁；引擎/UI 代码另开。
+**位置：** NTQ 第四层；与 enumerate / price_factor / portfolio 同一 version。代码在 `core/engines/decision_maker/`。
 
 ---
 
@@ -282,8 +282,10 @@ info 000001.SZ 60
 
 ---
 
-## 10. 本篇仍不写（明天实现时再定）
+## 10. 实现备忘（第一刀已定）
 
-`session.json` 字段表、与 `PortfolioSimulator` 的函数怎么拆、UI 屏幕、scan adapter 何时接入、命令行短别名（进局 / 列出 / 删除）的最终拼写。
+命令行短别名：`sd` 进 REPL，`sdl` 列出，`sdd` 删除。新开用 `--new-session`（全局 `-n` 仍是从模板建策略）。指定局用 `--session`，旧 version 用 `--version`。
 
-第一刀：会话引擎 + 命令行 REPL + 走完后的 `finalize`。UI 后做。
+用户股数不走 `AllocationStrategy.calculate_shares_to_buy`，只过 `floor_shares` / `apply_participation` / 费用 / 现金 / `max_portfolio_size`。
+
+UI 屏幕、scan adapter 仍后做。

@@ -1,5 +1,5 @@
 # Strategy 术语表
-# Version: 0.8.0
+# Version: 0.9.0
 
 terms:
   Facade:
@@ -10,7 +10,7 @@ terms:
       - "deep-import core.engines.* / core.services.*（跨模块优先 Facade）"
 
   Strategy:
-    definition: "策略执行 Facade：scan / simulate（enumerate·price_factor·portfolio）/ discovery 列表。"
+    definition: "策略执行 Facade：scan / simulate（enumerate·price_factor·portfolio）/ decision / discovery 列表。"
     aliases: []
     avoid: []
 
@@ -101,3 +101,20 @@ terms:
     definition: "工作台三步 enum / price / portfolio；与 SimulateKind 互转；从 contracts 导入。"
     aliases: []
     avoid: []
+
+  DecisionMaker:
+    definition: "当前策略 portfolio 回放：人只替换选谁和买多少股；成交/费用/手数/流动性/组合上限/纪律出场与资金层相同。不是 SimulateKind，不进指纹缓存。"
+    aliases:
+      - "决策者"
+      - "决策者模式"
+    avoid:
+      - "写成 SimulateKind"
+      - "另起成交规则"
+      - "推进时把日净值写入存档"
+
+  dm_id:
+    definition: "一局决策者会话号。磁盘路径 simulations/{vid}/decision/{dm_id}/。与 simulation version_id 不是同一层。"
+    aliases:
+      - "session id"
+    avoid:
+      - "与 vid / version_id 混用"

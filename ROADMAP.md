@@ -15,6 +15,7 @@ ROAD MAPs
 - 引入更多经典策略 ✅
 - 加强analysis的report(机器学习归因) ✅
 - 让模块更容易按照sass方式部署 （❌暂不考虑）
+- 安装失败 Trace 要能排障（现在只有 `step_failed:import_data`，看不见表名/异常类型）— 见 [`INSTALL_TRACE_TODO.md`](core/infra/setup/docs/notes/INSTALL_TRACE_TODO.md)
 
 提高系统效率
 - 将单进程单股回测变成单进程多股回测，自动设置股票bundle size，从而大幅度提高回测效率 ✅

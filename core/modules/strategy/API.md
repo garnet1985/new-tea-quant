@@ -1,6 +1,6 @@
 # Strategy API 文档
 
-**版本：** `0.8.0`  
+**版本：** `0.9.0`  
 **最低支持核心版本：** `>=0.4.5`
 
 > 须与 `module_info.yaml` 一致。  
@@ -15,7 +15,7 @@
 
 ## Strategy
 
-**描述：** 策略 Facade — scan / simulate（enumerate · price_factor · portfolio）/ discovery
+**描述：** 策略 Facade — scan / simulate（enumerate · price_factor · portfolio）/ decision / discovery
 
 ### scan
 
@@ -63,6 +63,16 @@
 
 - **状态：** `beta`
 - **描述：** `simulate` 的薄封装（分别对应 `SimulateKind.ENUMERATE` / `PRICE_FACTOR` / `PORTFOLIO`）
+
+### decision_open / decision_list / decision_delete / decision_repl
+
+`Strategy.decision_open(key_or_id, *, version_id=None, session_id=None, new_session=False)`  
+`Strategy.decision_list(key_or_id, *, version_id=None) -> dict`  
+`Strategy.decision_delete(key_or_id, session_id, *, version_id=None) -> dict`  
+`Strategy.decision_repl(key_or_id, *, version_id=None, session_id=None, new_session=False) -> int`
+
+- **状态：** `beta`
+- **描述：** 决策者（当前策略 `portfolio` 回放）。须已有枚举 version（默认当前 `settings.py` 指纹，与 `so` 相同）。不是 `SimulateKind`，不进指纹缓存。磁盘 `{vid}/decision/{dm_id}/`。CLI：`sd` / `sdl` / `sdd`。口径见 [docs/notes/DECISION_MAKER.md](./docs/notes/DECISION_MAKER.md)。
 
 ### list_strategies / list_enabled_strategies / list_enabled_keys / list_strategy_infos
 

@@ -674,6 +674,89 @@ class UserHandlers:
         print(f"{action} {strategy_key} {vid_label}。", flush=True)
 
     @staticmethod
+    def _run_strategy_decision(args: argparse.Namespace) -> None:
+        from core.modules.strategy import Strategy
+
+        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
+        try:
+            code = Strategy.decision_repl(
+                strategy_key,
+                version_id=getattr(args, "version", None),
+                session_id=getattr(args, "session_id", None),
+                new_session=bool(getattr(args, "new_session", False)),
+            )
+        except ValueError as exc:
+            UserHandlers._print_decision_error(exc)
+            raise SystemExit(1) from exc
+        if int(code or 0) != 0:
+            raise SystemExit(int(code))
+
+    @staticmethod
+    def _run_strategy_decision_list(args: argparse.Namespace) -> None:
+        from core.modules.strategy import Strategy
+
+        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
+        try:
+            payload = Strategy.decision_list(
+                strategy_key, version_id=getattr(args, "version", None)
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+        sessions = list(payload.get("sessions") or [])
+        print(
+            f"决策者 version {payload.get('version_id')}  {payload.get('strategy_key')}"
+            f"{'  （已有机器 portfolio）' if payload.get('has_portfolio') else ''}",
+            flush=True,
+        )
+        if not sessions:
+            print("  （无会话）", flush=True)
+            return
+        for row in sessions:
+            UserHandlers._print_decision_row(row)
+
+    @staticmethod
+    def _run_strategy_decision_delete(args: argparse.Namespace) -> None:
+        from core.modules.strategy import Strategy
+
+        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
+        try:
+            out = Strategy.decision_delete(
+                strategy_key,
+                str(getattr(args, "session_id", "") or ""),
+                version_id=getattr(args, "version", None),
+            )
+        except ValueError as exc:
+            print(str(exc), flush=True)
+            raise SystemExit(1) from exc
+        print(
+            f"已删除决策者会话 {out.get('dm_id')}（version {out.get('version_id')}）。",
+            flush=True,
+        )
+
+    @staticmethod
+    def _print_decision_error(exc: BaseException) -> None:
+        print(str(exc), flush=True)
+        sessions = getattr(exc, "sessions", None)
+        if not sessions:
+            return
+        for row in sessions:
+            UserHandlers._print_decision_row(row)
+        print("用法: python cli.py sd --session <id>  或  --new-session", flush=True)
+
+    @staticmethod
+    def _print_decision_row(row: dict) -> None:
+        dm_id = row.get("dm_id") or ""
+        status = row.get("status") or ""
+        label = "进行中" if status == "in_progress" else "已完成"
+        raw = str(row.get("current_date") or "").strip()
+        if len(raw) == 8 and raw.isdigit():
+            date = f"{raw[:4]}-{raw[4:6]}-{raw[6:]}"
+        else:
+            date = raw or "—"
+        print(f"  {dm_id}  {label}  {date}", flush=True)
+
+    @staticmethod
     def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         if cmd == "strategy_enumerate":
             UserHandlers._run_strategy_enumerate(args)
@@ -685,6 +768,18 @@ class UserHandlers:
 
         if cmd == "strategy_portfolio":
             UserHandlers._run_strategy_portfolio(args)
+            return
+
+        if cmd == "strategy_decision":
+            UserHandlers._run_strategy_decision(args)
+            return
+
+        if cmd == "strategy_decision_list":
+            UserHandlers._run_strategy_decision_list(args)
+            return
+
+        if cmd == "strategy_decision_delete":
+            UserHandlers._run_strategy_decision_delete(args)
             return
 
         if cmd == "scan":

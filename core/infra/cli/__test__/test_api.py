@@ -36,6 +36,7 @@ class TestCliApi(unittest.TestCase):
             or "python cli.py" in text
         )
         self.assertIn("sdv", text)
+        self.assertIn("sd", text)
 
     def test_user_bootstrap_noop_when_skipped(self) -> None:
         from core.infra.cli import Cli

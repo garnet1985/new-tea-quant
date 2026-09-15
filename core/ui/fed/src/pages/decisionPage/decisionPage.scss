@@ -58,14 +58,15 @@
 .decision-hud-main {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px 16px;
 }
 
 .decision-calendar-block {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -80,9 +81,10 @@
 
 .decision-clock {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 132px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .decision-clock__date {
@@ -94,8 +96,10 @@
 }
 
 .decision-clock__weekday {
-  font-size: 12px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
   color: var(--ntq-text-muted);
+  white-space: nowrap;
 }
 
 .decision-clock.is-landed .decision-clock__date {
@@ -123,8 +127,18 @@
   }
 }
 
-.decision-advance-btn {
+.decision-hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.decision-hud-actions .MuiButton-root {
+  min-width: 108px;
+  height: 40px;
+  padding: 0 16px;
+  box-sizing: border-box;
 }
 
 .decision-hud-metrics {
@@ -353,31 +367,157 @@
   min-width: 0;
 }
 
-.decision-meta-row {
-  display: grid;
-  grid-template-columns: 7.5em minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-  text-align: left;
-}
-
-.decision-capital-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.decision-capital-grid div {
+.decision-aside {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: 4px;
+  gap: 18px;
+}
+
+.decision-aside-section {
+  display: flex;
+  flex-direction: column;
   align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.decision-aside-section + .decision-aside-section {
+  padding-top: 16px;
+  border-top: 1px solid var(--ntq-white-12);
+}
+
+.decision-aside-title {
+  margin: 0 0 2px !important;
   text-align: left;
-  padding: 10px 12px;
-  border: 1px solid var(--ntq-white-12);
+}
+
+.decision-kv {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 6px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.decision-kv__label {
+  color: var(--ntq-text-muted);
+  flex: 0 0 auto;
+}
+
+.decision-kv__value {
+  min-width: 0;
+}
+
+.decision-pnl {
+  font-variant-numeric: tabular-nums;
+}
+
+.decision-pnl.is-profit {
+  color: #ff4d67;
+}
+
+.decision-pnl.is-loss {
+  color: #4ade80;
+}
+
+.decision-holding-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  padding: 0 4px 4px;
+  font-size: 12px;
+  color: var(--ntq-text-muted);
+}
+
+.decision-holding-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+
+.decision-holding-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 4px;
+  border: 0;
   border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.decision-holding-row:hover,
+.decision-holding-row:focus-visible {
   background: var(--ntq-white-03);
+  outline: none;
+}
+
+.decision-holding-row__stock {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.decision-holding-row__stock strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-holding-row__stock span {
+  overflow: hidden;
+  color: var(--ntq-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-holding-row__qty {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.decision-holding-hint {
+  margin-top: 2px !important;
+}
+
+.decision-goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.decision-goal-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.decision-goal-row__text {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .decision-event {
@@ -403,7 +543,18 @@
 }
 
 .decision-shares-input {
-  width: 92px;
+  width: 118px;
+}
+
+.decision-col-help {
+  cursor: help;
+  border-bottom: 1px dotted currentColor;
+}
+
+.decision-opp-stock {
+  color: var(--ntq-cyan);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .decision-opp-card.is-hot {

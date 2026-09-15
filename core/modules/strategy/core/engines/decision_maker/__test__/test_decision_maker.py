@@ -241,6 +241,9 @@ def test_pick_done_reset_and_lot_error(tmp_path: Path):
     assert shares == 1000
     assert notional == pytest.approx(10_000)
     engine.set_pick(1, 200)
+    engine.set_pick(1, 0)
+    assert engine.draft == {}
+    engine.set_pick(1, 200)
     bill = engine.done()
     assert bill[0][1] == 200
     assert engine.phase == PHASE_CONFIRMING

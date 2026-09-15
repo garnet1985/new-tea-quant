@@ -179,6 +179,16 @@ class AllocationStrategy:
             buy_price=buy_price,
         )
 
+    def suggest_kelly_shares(
+        self,
+        account: Account,
+        buy_price: float,
+        entity_id: str,
+        win_rate: Optional[float],
+    ) -> int:
+        """凯莉建议股数：与 ``mode=kelly`` 下单同一套公式、手数与现金约束。"""
+        return int(self._kelly(account, buy_price, entity_id, win_rate) or 0)
+
     def _resolve_planned(
         self,
         *,

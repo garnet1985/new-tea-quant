@@ -305,12 +305,12 @@ class DecisionEngine:
             )
             found = SimulationVersionStore.find_enum_version(folder, fp_res)
             if not found:
-                raise DecisionError("当前 settings 没有命中的枚举产物，请先 se")
+                raise DecisionError("当前 settings 没有命中的枚举产物，请先运行策略的枚举程序")
             vid = str(found)
         try:
             enum_store = EnumerateStore.resolve(folder, version_id=vid)
         except FileNotFoundError as exc:
-            raise DecisionError(f"枚举产物不存在（version {vid}），请先 se") from exc
+            raise DecisionError(f"枚举产物不存在（version {vid}），请先运行策略的枚举程序") from exc
         simulations = ArtifactStore.simulations_root(folder)
         settings_raw = VersionMetaStore.read_effective_settings(simulations, vid)
         if not settings_raw:
@@ -492,6 +492,11 @@ class DecisionEngine:
         opp = self.opportunity_by_local(int(local_id))
         if opp is None:
             raise DecisionError(f"没有编号 [{local_id}]")
+        if int(shares) <= 0:
+            self.draft.pop(int(local_id), None)
+            self.phase = PHASE_PICKING
+            self.save()
+            return opp, 0, 0.0
         event = self._buy_event(opp)
         other_ids = [i for i in self.draft if i != int(local_id)]
         other_entities = set()

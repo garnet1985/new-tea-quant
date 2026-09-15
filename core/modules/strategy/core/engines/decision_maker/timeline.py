@@ -15,12 +15,61 @@ from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEve
 from core.modules.strategy.core.engines.shared.enum_result_contract.enum_result import (
     EnumResult,
 )
+from core.tables.stock.stock_st_periods.st_period_rules import bare_stock_name
 
 logger = logging.getLogger(__name__)
 
 
 def lot_key(entity_id: str, investment_id: str) -> str:
     return f"{str(entity_id or '').strip()}\t{str(investment_id or '').strip()}"
+
+
+_STATUS_LABELS = {"st": "ST", "star_st": "*ST"}
+
+
+def normalize_status_tags(raw: Any) -> Tuple[str, ...]:
+    out: List[str] = []
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    for item in raw:
+        tag = str(item or "").strip().lower()
+        if tag and tag not in out:
+            out.append(tag)
+    return tuple(out)
+
+
+def format_status_tags(tags: Sequence[str]) -> str:
+    labels: List[str] = []
+    for tag in tags or ():
+        label = _STATUS_LABELS.get(str(tag).strip().lower())
+        if label and label not in labels:
+            labels.append(label)
+    return " ".join(labels)
+
+
+def _enum_status_tags(row: Optional[EnumResult]) -> Tuple[str, ...]:
+    if row is None:
+        return ()
+    return normalize_status_tags(getattr(row, "stock_status_at_trigger", ()) or ())
+
+
+def _enum_display_name(
+    row: Optional[EnumResult],
+    entity_id: str,
+    *,
+    name_lookup: Optional[Callable[[str], str]] = None,
+) -> str:
+    stored = str(getattr(row, "stock_name", "") or "").strip() if row is not None else ""
+    if stored:
+        return stored
+    raw = ""
+    if callable(name_lookup):
+        try:
+            raw = str(name_lookup(entity_id) or "").strip()
+        except Exception as exc:
+            logger.debug("证券名称查找失败 %s: %s", entity_id, exc)
+            raw = ""
+    return bare_stock_name(raw)
 
 
 @dataclass(frozen=True)
@@ -52,6 +101,7 @@ class DayOpportunity:
     entry_price_hfq: float
     bar_volume: Optional[float]
     name: str = ""
+    status_tags: Tuple[str, ...] = ()
     stats: Optional[AsOfStats] = None
     ticker_stats: Optional[AsOfStats] = None
 
@@ -180,6 +230,22 @@ class DecisionTimeline:
                 names.append(name)
         return " / ".join(names), reason
 
+    def row_for(self, entity_id: str, investment_id: str) -> Optional[EnumResult]:
+        return self.rows.get(lot_key(entity_id, investment_id))
+
+    def display_name(
+        self,
+        entity_id: str,
+        investment_id: str = "",
+        *,
+        name_lookup: Optional[Callable[[str], str]] = None,
+    ) -> str:
+        row = self.row_for(entity_id, investment_id) if investment_id else None
+        return _enum_display_name(row, entity_id, name_lookup=name_lookup)
+
+    def status_tags(self, entity_id: str, investment_id: str) -> Tuple[str, ...]:
+        return _enum_status_tags(self.row_for(entity_id, investment_id))
+
     def opportunities_on(
         self,
         date: str,
@@ -190,23 +256,19 @@ class DecisionTimeline:
         out: List[DayOpportunity] = []
         for idx, event in enumerate(self.buys_on(date), start=1):
             eid = str(event.entity_id or "").strip()
-            name = ""
-            if callable(name_lookup):
-                try:
-                    name = str(name_lookup(eid) or "").strip()
-                except Exception as exc:
-                    logger.debug("证券名称查找失败 %s: %s", eid, exc)
-                    name = ""
+            iid = str(event.investment_id or "").strip()
+            row = self.row_for(eid, iid)
             ticker = self.asof_stats(date, entity_id=eid)
             out.append(
                 DayOpportunity(
                     local_id=idx,
                     entity_id=eid,
-                    investment_id=str(event.investment_id or "").strip(),
+                    investment_id=iid,
                     entry_price_raw=float(event.price or event.entry_price_raw or 0.0),
                     entry_price_hfq=float(getattr(event, "entry_price_hfq", 0.0) or 0.0),
                     bar_volume=event.bar_volume,
-                    name=name,
+                    name=_enum_display_name(row, eid, name_lookup=name_lookup),
+                    status_tags=_enum_status_tags(row),
                     stats=stats,
                     ticker_stats=ticker,
                 )
@@ -218,5 +280,7 @@ __all__ = [
     "AsOfStats",
     "DayOpportunity",
     "DecisionTimeline",
+    "format_status_tags",
     "lot_key",
+    "normalize_status_tags",
 ]

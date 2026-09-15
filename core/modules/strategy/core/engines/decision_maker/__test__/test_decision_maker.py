@@ -114,7 +114,7 @@ def _sell(date, entity, inv, *, roi=0.1, price=0.0):
     )
 
 
-def _row(entity, inv, entry, exit_date, roi):
+def _row(entity, inv, entry, exit_date, roi, **extra):
     return EnumResult(
         entity_id=entity,
         investment_id=inv,
@@ -125,10 +125,11 @@ def _row(entity, inv, entry, exit_date, roi):
         completed_goals=(
             CompletedGoal(name="win10%", date=exit_date, reason="take_profit"),
         ),
+        **extra,
     )
 
 
-def _engine(tmp_path: Path, events, rows=None, dm_id="1", **alloc):
+def _engine(tmp_path: Path, events, rows=None, dm_id="1", name_lookup=None, **alloc):
     settings = _settings(**alloc)
     allocation = _allocation(**alloc)
     timeline = DecisionTimeline.from_events(
@@ -146,7 +147,7 @@ def _engine(tmp_path: Path, events, rows=None, dm_id="1", **alloc):
         allocation=allocation,
         strategy_key="demo",
         version_id="3",
-        name_lookup=lambda eid: _NAMES.get(eid, ""),
+        name_lookup=name_lookup or (lambda eid: _NAMES.get(eid, "")),
         load_bars=lambda *a, **k: [],
         load_close=lambda *a, **k: 11.0,
         load_open_dates=lambda *a, **k: [],
@@ -168,6 +169,39 @@ def test_pauses_on_first_buy_date(tmp_path: Path):
     opps = engine.opportunities()
     assert [o.entity_id for o in opps] == ["600000.SH"]
     assert opps[0].name == "浦发银行"
+
+
+def test_opportunity_uses_enum_status_and_bare_name(tmp_path: Path):
+    engine = _engine(
+        tmp_path,
+        [_buy("20240103", "300108.SZ", "a", 10.0)],
+        rows=[
+            _row(
+                "300108.SZ",
+                "a",
+                "20240103",
+                "20240120",
+                0.1,
+                stock_name="吉药",
+                stock_status_at_trigger=("star_st",),
+            )
+        ],
+        name_lookup=lambda eid: "*ST吉药(退)",
+    )
+    opps = engine.opportunities()
+    assert opps[0].name == "吉药"
+    assert opps[0].status_tags == ("star_st",)
+
+
+def test_opportunity_strips_lookup_name_when_enum_name_missing(tmp_path: Path):
+    engine = _engine(
+        tmp_path,
+        [_buy("20240103", "300108.SZ", "a", 10.0)],
+        name_lookup=lambda eid: "*ST吉药(退)",
+    )
+    opps = engine.opportunities()
+    assert opps[0].name == "吉药"
+    assert opps[0].status_tags == ()
 
 
 def test_asof_stats_exclude_future_exits(tmp_path: Path):
@@ -395,6 +429,7 @@ def test_holdings_show_declared_goals_not_future_date(tmp_path: Path):
     rows = held.holdings()
     assert len(rows) == 1
     assert rows[0].shares == 100
+    assert rows[0].status_tags == ()
     assert any("止盈" in g and "20240120" not in g for g in rows[0].goals)
     assert any("止损" in g for g in rows[0].goals)
 

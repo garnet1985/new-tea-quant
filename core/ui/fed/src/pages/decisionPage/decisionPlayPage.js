@@ -47,6 +47,7 @@ import {
   formatMoney,
   formatPct,
   formatSignedMoney,
+  mapStockStatusTags,
   monthTitle,
   shiftMonth,
   weekdayLabel,
@@ -87,6 +88,13 @@ function formatHoldingPnl(unrealized, pnlPct) {
   return `${money}（${sign}${n.toFixed(1)}%）`;
 }
 
+function formatHoldingListPnl(unrealized) {
+  if (unrealized == null || !Number.isFinite(Number(unrealized))) return '—';
+  const n = Number(unrealized);
+  if (n >= 0) return `+${formatMoney(n)}`;
+  return formatMoney(n);
+}
+
 function holdingPnlTone(unrealized) {
   return Number(unrealized) < 0 ? 'is-loss' : 'is-profit';
 }
@@ -103,6 +111,24 @@ function formatMarketValueWithPnl(marketValue, unrealized) {
         ({formatSignedMoney(unrealized)})
       </span>
     </>
+  );
+}
+
+function StockStatusChips({ tags }) {
+  const items = mapStockStatusTags(tags);
+  if (!items.length) return null;
+  return (
+    <span className="decision-status-chips">
+      {items.map((item) => (
+        <Chip
+          key={item.tag}
+          size="small"
+          variant="outlined"
+          label={item.label}
+          className={`decision-status-chip is-${item.tag === 'star_st' ? 'star-st' : item.tag}`}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -203,7 +229,12 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
     ? Number(row.marketValue) / Number(equity)
     : null;
   const kv = row ? [
-    ['股票', holdingStockLabel(row)],
+    ['股票', (
+      <span className="decision-stock-with-status">
+        {holdingStockLabel(row)}
+        <StockStatusChips tags={row.statusTags} />
+      </span>
+    )],
     ['持有', `${Number(row.shares).toLocaleString()} 股`],
     ['买入日', row.buyDate || '—'],
     ['买入价', row.buyPrice != null ? formatMoney(row.buyPrice) : '—'],
@@ -457,6 +488,27 @@ function DecisionPlayPage() {
     return items;
   }, [snapshot?.opps, picks]);
   const billTotal = bill.reduce((sum, row) => sum + row.notional, 0);
+  const holdingsByTicker = useMemo(() => {
+    const map = {};
+    holdings.forEach((row) => {
+      const ticker = String(row.ticker || '').trim();
+      if (ticker) map[ticker] = row;
+    });
+    return map;
+  }, [holdings]);
+  const oppRows = useMemo(
+    () => (snapshot?.opps || []).map((opp) => {
+      const held = holdingsByTicker[opp.ticker];
+      return {
+        ...opp,
+        held: Boolean(held),
+        heldBuyPrice: held?.buyPrice ?? null,
+        heldShares: held?.shares ?? null,
+        heldBuyDate: held?.buyDate || '',
+      };
+    }),
+    [snapshot?.opps, holdingsByTicker],
+  );
 
   const infoChart = useMemo(() => {
     if (!infoPayload?.candles?.length) return {};
@@ -515,6 +567,7 @@ function DecisionPlayPage() {
   };
 
   const openShareEditor = (row, preset) => {
+    if (row.held) return;
     const current = Number(picks[row.id] || 0);
     const draft = preset != null ? String(preset) : (current > 0 ? String(current) : '');
     setShareEditors((prev) => ({
@@ -531,6 +584,7 @@ function DecisionPlayPage() {
   };
 
   const commitShareEditor = (row, rawValue) => {
+    if (row.held) return;
     const editor = shareEditors[row.id];
     const raw = rawValue != null ? rawValue : (editor?.draft ?? (picks[row.id] != null ? String(picks[row.id]) : ''));
     const result = validateShareDraft(raw, row.lotSize);
@@ -581,7 +635,7 @@ function DecisionPlayPage() {
   };
 
   const applySuggestedShares = (row) => {
-    if (row.suggestedShares == null || row.suggestedShares <= 0) return;
+    if (row.held || row.suggestedShares == null || row.suggestedShares <= 0) return;
     setShareEditors((prev) => ({
       ...prev,
       [row.id]: { open: true, draft: String(row.suggestedShares), error: '' },
@@ -596,11 +650,22 @@ function DecisionPlayPage() {
     {
       field: 'stock',
       headerName: '股票',
-      minWidth: 168,
-      flex: 1.1,
+      minWidth: 200,
+      flex: 1.2,
       valueGetter: (p) => opportunityStockLabel(p.row),
       renderCell: (grid) => (
-        <span className="decision-opp-stock">{opportunityStockLabel(grid.row)}</span>
+        <span className="decision-opp-stock-cell">
+          <span className="decision-opp-stock-line">
+            <span className="decision-opp-stock">{opportunityStockLabel(grid.row)}</span>
+            <StockStatusChips tags={grid.row.statusTags} />
+          </span>
+          {grid.row.held ? (
+            <span className="decision-opp-held">
+              持有中
+              {grid.row.heldBuyPrice != null ? ` · 上次买入 ${formatMoney(grid.row.heldBuyPrice)}` : ''}
+            </span>
+          ) : null}
+        </span>
       ),
     },
     {
@@ -635,7 +700,7 @@ function DecisionPlayPage() {
       ),
       renderCell: (grid) => {
         const suggested = grid.row.suggestedShares;
-        if (suggested == null) return '—';
+        if (suggested == null || grid.row.held) return '—';
         if (suggested <= 0 || shareDisabled) {
           return <span>{Number(suggested).toLocaleString()}</span>;
         }
@@ -659,6 +724,9 @@ function DecisionPlayPage() {
       width: 132,
       sortable: false,
       renderCell: (grid) => {
+        if (grid.row.held) {
+          return <Chip size="small" variant="outlined" label="已持有" />;
+        }
         const editor = shareEditors[grid.row.id];
         const picked = Number(picks[grid.row.id] || 0);
         const open = Boolean(editor?.open) || picked > 0;
@@ -1011,6 +1079,7 @@ function DecisionPlayPage() {
                     <Box className="decision-holding-head">
                       <span>股票</span>
                       <span>持有</span>
+                      <span>盈亏</span>
                     </Box>
                     <Box className="decision-holding-list">
                       {holdings.map((row) => (
@@ -1021,11 +1090,22 @@ function DecisionPlayPage() {
                           onClick={() => setHoldingDetailId(row.id)}
                         >
                           <span className="decision-holding-row__stock">
-                            <strong>{row.name || row.ticker || '—'}</strong>
+                            <strong>
+                              {row.name || row.ticker || '—'}
+                              <StockStatusChips tags={row.statusTags} />
+                            </strong>
                             {row.name && row.ticker ? <span>{row.ticker}</span> : null}
                           </span>
                           <span className="decision-holding-row__qty">
                             {Number(row.shares).toLocaleString()} 股
+                          </span>
+                          <span className={`decision-holding-row__pnl decision-pnl ${
+                            row.unrealized == null || !Number.isFinite(Number(row.unrealized))
+                              ? ''
+                              : holdingPnlTone(row.unrealized)
+                          }`}
+                          >
+                            {formatHoldingListPnl(row.unrealized)}
                           </span>
                         </button>
                       ))}
@@ -1084,11 +1164,16 @@ function DecisionPlayPage() {
               {hasOpps ? (
                 <DataGrid
                   autoHeight
-                  rows={snapshot.opps || []}
+                  rows={oppRows}
                   columns={oppColumns}
                   localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
                   hideFooter
                   disableRowSelectionOnClick
+                  getRowClassName={(params) => (params.row.held ? 'is-held' : '')}
+                  getRowHeight={(params) => {
+                    const row = oppRows.find((item) => item.id === params.id);
+                    return row?.held ? 64 : null;
+                  }}
                   onRowClick={(gridParams, event) => {
                     if (event.target.closest('input, button, .MuiButton-root')) return;
                     openInfo(gridParams.row);
@@ -1139,8 +1224,8 @@ function DecisionPlayPage() {
                 justifyContent="space-between"
                 sx={{ py: 0.5 }}
               >
-                <Typography variant="body2">
-                  [{row.id}] {row.name} {row.shares.toLocaleString()} 股
+                <Typography variant="body2" component="div" className="decision-stock-with-status">
+                  [{row.id}] {row.name} <StockStatusChips tags={row.statusTags} /> {row.shares.toLocaleString()} 股
                 </Typography>
                 <Typography variant="body2">约 {formatMoney(row.notional)}</Typography>
               </Stack>
@@ -1166,8 +1251,9 @@ function DecisionPlayPage() {
         fullWidth
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, pr: 1 }}>
-          <span>
+          <span className="decision-stock-with-status">
             {infoOpp ? opportunityStockLabel(infoOpp) : 'K 线'}
+            {infoOpp ? <StockStatusChips tags={infoOpp.statusTags} /> : null}
           </span>
           <IconButton aria-label="关闭" onClick={() => setInfoOpp(null)}>
             <NtqIcon name="cancel" size={18} />

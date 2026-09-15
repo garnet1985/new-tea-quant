@@ -18,6 +18,7 @@ def test_session_snapshot_uses_ticker_stats_and_draft():
         local_id=1,
         entity_id="000001.SZ",
         name="平安银行",
+        status_tags=("star_st",),
         entry_price_raw=10.0,
         ticker_stats=SimpleNamespace(
             sample_size=2,
@@ -75,6 +76,8 @@ def test_session_snapshot_uses_ticker_stats_and_draft():
     assert msg["exits"] == []
     assert msg["opportunities"][0]["lot_size"] is None
     assert msg["opportunities"][0]["suggested_shares"] is None
+    assert msg["opportunities"][0]["status_tags"] == ["star_st"]
+    assert msg["draft"][0]["status_tags"] == ["star_st"]
 
 
 def test_session_snapshot_kelly_suggestion_and_lot():
@@ -174,6 +177,7 @@ def test_session_list_and_holdings_and_info():
     row = SimpleNamespace(
         entity_id="000001.SZ",
         name="平安银行",
+        status_tags=("st",),
         shares=100,
         buy_date="20250401",
         buy_price=10.0,
@@ -184,11 +188,13 @@ def test_session_list_and_holdings_and_info():
     )
     held = holdings_message(engine, [row])
     assert held["holdings"][0]["unrealized"] == 100.0
+    assert held["holdings"][0]["status_tags"] == ["st"]
 
     info = info_message(
         {
             "entity_id": "000001.SZ",
             "name": "平安银行",
+            "status_tags": ["st"],
             "as_of": "20250407",
             "stats": {"sample_size": 1, "wins": 0, "win_rate": 0.0, "avg_roi": -0.1},
             "ticker_stats": {
@@ -219,6 +225,7 @@ def test_session_list_and_holdings_and_info():
         }
     )
     assert info["ticker_stats"]["win_rate"] is None
+    assert info["status_tags"] == ["st"]
     assert info["columns"][-1] == "rsi14"
     assert info["rows"][0]["rsi14"] is None
     assert info["candles"][-1]["date"] == "20250407"

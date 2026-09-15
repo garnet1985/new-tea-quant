@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.decision_maker.timeline import DayOpportunity
@@ -25,6 +25,7 @@ class ExitNotice:
     profit: float
     goal_names: str
     reason: str
+    status_tags: Tuple[str, ...] = ()
 
 
 @dataclass
@@ -50,6 +51,7 @@ class HoldingRow:
     close: Optional[float]
     unrealized: Optional[float]
     goals: List[str]
+    status_tags: Tuple[str, ...] = ()
 
 
 __all__ = [

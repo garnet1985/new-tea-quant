@@ -581,7 +581,7 @@ class DecisionEngine:
             rows.append(
                 HoldingRow(
                     entity_id=lot.entity_id,
-                    name=self._name(lot.entity_id),
+                    name=self._name(lot.entity_id, lot.investment_id),
                     shares=int(lot.shares),
                     buy_date=str(lot.buy_date),
                     buy_price=float(lot.buy_price),
@@ -589,6 +589,7 @@ class DecisionEngine:
                     close=close,
                     unrealized=unrealized,
                     goals=self._goal_lines(lot),
+                    status_tags=self._status_tags(lot.entity_id, lot.investment_id),
                 )
             )
         rows.sort(key=lambda row: (row.entity_id, row.buy_date))
@@ -622,7 +623,8 @@ class DecisionEngine:
         self._last_info_entity = entity_id
         return {
             "entity_id": entity_id,
-            "name": self._name(entity_id),
+            "name": self._name_for_entity(entity_id),
+            "status_tags": list(self._status_tags_for_entity(entity_id)),
             "as_of": as_of,
             "stats": self.timeline.asof_stats(as_of).to_dict(),
             "ticker_stats": self.timeline.asof_stats(as_of, entity_id=entity_id).to_dict(),
@@ -741,11 +743,14 @@ class DecisionEngine:
                 ExitNotice(
                     date=str(event.date or date),
                     entity_id=str(event.entity_id or ""),
-                    name=self._name(str(event.entity_id or "")),
+                    name=self._name(str(event.entity_id or ""), str(event.investment_id or "")),
                     shares=int(trade.shares),
                     profit=float(trade.profit or 0.0),
                     goal_names=goals,
                     reason=reason,
+                    status_tags=self._status_tags(
+                        str(event.entity_id or ""), str(event.investment_id or "")
+                    ),
                 )
             )
         return notices
@@ -802,12 +807,35 @@ class DecisionEngine:
                     continue
         return close
 
-    def _name(self, entity_id: str) -> str:
-        try:
-            return str(self._name_lookup(entity_id) or "").strip()
-        except Exception as exc:
-            logger.debug("证券名称不可用 %s: %s", entity_id, exc)
-            return ""
+    def _name(self, entity_id: str, investment_id: str = "") -> str:
+        return self.timeline.display_name(
+            entity_id,
+            investment_id,
+            name_lookup=self._name_lookup,
+        )
+
+    def _status_tags(self, entity_id: str, investment_id: str) -> Tuple[str, ...]:
+        return self.timeline.status_tags(entity_id, investment_id)
+
+    def _status_tags_for_entity(self, entity_id: str) -> Tuple[str, ...]:
+        eid = str(entity_id or "").strip()
+        for opp in self.opportunities():
+            if opp.entity_id == eid:
+                return tuple(opp.status_tags or ())
+        for lot in self.open_lots.values():
+            if str(lot.entity_id) == eid:
+                return self._status_tags(lot.entity_id, lot.investment_id)
+        return ()
+
+    def _name_for_entity(self, entity_id: str) -> str:
+        eid = str(entity_id or "").strip()
+        for opp in self.opportunities():
+            if opp.entity_id == eid:
+                return str(opp.name or "").strip() or self._name(eid)
+        for lot in self.open_lots.values():
+            if str(lot.entity_id) == eid:
+                return self._name(lot.entity_id, lot.investment_id)
+        return self._name(eid)
 
     def _prune_kline_cache(self) -> None:
         keep = {lot.entity_id for lot in self.open_lots.values()}
@@ -867,7 +895,9 @@ def _default_name(entity_id: str) -> str:
             dm.initialize()
         info = dm.stock.load_info(entity_id)
         if isinstance(info, dict):
-            return str(info.get("name") or "").strip()
+            from core.tables.stock.stock_st_periods.st_period_rules import bare_stock_name
+
+            return bare_stock_name(str(info.get("name") or ""))
     except Exception as exc:
         logger.debug("证券名称加载失败 %s: %s", entity_id, exc)
         return ""

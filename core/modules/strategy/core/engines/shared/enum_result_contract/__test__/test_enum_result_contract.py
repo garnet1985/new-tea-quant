@@ -163,14 +163,23 @@ def test_from_investment_drops_runtime_and_keeps_fill() -> None:
     assert row.result == "loss"
     assert row.weighted_roi == pytest.approx(-0.1)
     assert row.stock_status_at_trigger == ("st",)
+    assert row.stock_name == "浦发银行"
     assert row.signal_snapshot == {"rsi": 31.0}
     assert row.completed_goals[0].name == "loss10%"
     assert row.enter_at_limit is False
     assert row.exit_at_limit is True
     dumped = row.to_dict()
+    assert dumped["stock_name"] == "浦发银行"
     assert "settings" not in dumped
     assert "pending_exit" not in dumped
     assert "last_bar" not in dumped
+
+
+def test_from_investment_strips_status_markers_from_stock_name() -> None:
+    inv = _investment()
+    inv.stock.name = "*ST吉药(退)"
+    row = EnumResult.from_investment(inv)
+    assert row.stock_name == "吉药"
 
 
 def test_to_opportunity_hides_outcome() -> None:

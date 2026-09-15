@@ -424,14 +424,20 @@
 }
 
 .decision-holding-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px 72px;
   align-items: baseline;
-  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   padding: 0 4px 4px;
   font-size: 12px;
   color: var(--ntq-text-muted);
+}
+
+.decision-holding-head span:nth-child(2),
+.decision-holding-head span:nth-child(3) {
+  text-align: right;
 }
 
 .decision-holding-list {
@@ -443,10 +449,10 @@
 }
 
 .decision-holding-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px 72px;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   margin: 0;
@@ -490,9 +496,18 @@
 }
 
 .decision-holding-row__qty {
-  flex: 0 0 auto;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.decision-holding-row__pnl {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -555,6 +570,57 @@
   color: var(--ntq-cyan);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.decision-opp-stock-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.decision-opp-stock-line,
+.decision-stock-with-status,
+.decision-status-chips {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.decision-holding-row__stock strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.decision-status-chip {
+  height: 18px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.decision-status-chip.is-st {
+  color: #fbbf24 !important;
+  border-color: rgba(251, 191, 36, 0.55) !important;
+}
+
+.decision-status-chip.is-star-st {
+  color: #fb7185 !important;
+  border-color: rgba(251, 113, 133, 0.65) !important;
+}
+
+.decision-opp-held {
+  color: var(--ntq-text-muted);
+  font-size: 11px;
+}
+
+.decision-opp-card .MuiDataGrid-row.is-held {
+  opacity: 0.78;
 }
 
 .decision-opp-card.is-hot {

@@ -174,6 +174,17 @@ def _suggested_kelly_shares(engine: Any, opp: Any) -> Optional[int]:
         return None
 
 
+def _status_tags(raw: Any) -> List[str]:
+    if not isinstance(raw, (list, tuple)):
+        return []
+    out: List[str] = []
+    for item in raw:
+        tag = str(item or "").strip().lower()
+        if tag and tag not in out:
+            out.append(tag)
+    return out
+
+
 def _opportunity_dict(opp: Any, engine: Any = None) -> Dict[str, Any]:
     ticker = getattr(opp, "ticker_stats", None)
     entity_id = str(getattr(opp, "entity_id", "") or "")
@@ -181,6 +192,7 @@ def _opportunity_dict(opp: Any, engine: Any = None) -> Dict[str, Any]:
         "local_id": int(getattr(opp, "local_id", 0) or 0),
         "entity_id": entity_id,
         "name": str(getattr(opp, "name", "") or ""),
+        "status_tags": _status_tags(getattr(opp, "status_tags", None)),
         "entry_price": float(getattr(opp, "entry_price_raw", 0.0) or 0.0),
         "stats": _stats_dict(ticker),
         "lot_size": _lot_size(engine, entity_id),
@@ -203,6 +215,7 @@ def _draft_lines(engine: Any) -> List[Dict[str, Any]]:
                 "local_id": int(getattr(opp, "local_id", lid) or lid),
                 "entity_id": str(getattr(opp, "entity_id", "") or ""),
                 "name": str(getattr(opp, "name", "") or ""),
+                "status_tags": _status_tags(getattr(opp, "status_tags", None)),
                 "shares": shares,
                 "entry_price": price,
                 "notional": float(shares) * price,
@@ -216,6 +229,7 @@ def _exit_dict(notice: Any) -> Dict[str, Any]:
         "date": str(getattr(notice, "date", "") or ""),
         "entity_id": str(getattr(notice, "entity_id", "") or ""),
         "name": str(getattr(notice, "name", "") or ""),
+        "status_tags": _status_tags(getattr(notice, "status_tags", None)),
         "shares": int(getattr(notice, "shares", 0) or 0),
         "profit": float(getattr(notice, "profit", 0.0) or 0.0),
         "goal_names": str(getattr(notice, "goal_names", "") or ""),
@@ -308,6 +322,7 @@ def holdings_message(engine: Any, rows: Iterable[Any]) -> Dict[str, Any]:
             {
                 "entity_id": str(getattr(row, "entity_id", "") or ""),
                 "name": str(getattr(row, "name", "") or ""),
+                "status_tags": _status_tags(getattr(row, "status_tags", None)),
                 "shares": int(getattr(row, "shares", 0) or 0),
                 "buy_date": str(getattr(row, "buy_date", "") or ""),
                 "buy_price": float(getattr(row, "buy_price", 0.0) or 0.0),
@@ -333,6 +348,7 @@ def info_message(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "entity_id": str(body.get("entity_id") or ""),
         "name": str(body.get("name") or ""),
+        "status_tags": _status_tags(body.get("status_tags")),
         "as_of": str(body.get("as_of") or ""),
         "stats": _stats_dict(body.get("stats")),
         "ticker_stats": _stats_dict(body.get("ticker_stats")),

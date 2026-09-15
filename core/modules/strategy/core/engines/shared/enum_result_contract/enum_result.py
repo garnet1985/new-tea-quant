@@ -13,6 +13,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from core.modules.strategy.core.helpers.coerce import ValueCoerce
+from core.tables.stock.stock_st_periods.st_period_rules import bare_stock_name
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.shared.data_class.investment.investment import (
@@ -96,6 +97,7 @@ class EnumResult:
     exit_prev_close: Optional[float] = None
     exit_at_limit: Optional[bool] = None
     stock_status_at_trigger: Tuple[str, ...] = ()
+    stock_name: str = ""
     enter_bar_volume: Optional[float] = None
     exit_bar_volume: Optional[float] = None
     completed_goals: Tuple[CompletedGoal, ...] = ()
@@ -156,6 +158,7 @@ class EnumResult:
             "exit_prev_close": self.exit_prev_close,
             "exit_at_limit": self.exit_at_limit,
             "stock_status_at_trigger": list(self.stock_status_at_trigger),
+            "stock_name": self.stock_name,
             "enter_bar_volume": self.enter_bar_volume,
             "exit_bar_volume": self.exit_bar_volume,
             "completed_goals": [goal.to_dict() for goal in self.completed_goals],
@@ -195,6 +198,7 @@ class EnumResult:
             stock_status_at_trigger=ValueCoerce.as_str_tuple(
                 data.get("stock_status_at_trigger")
             ),
+            stock_name=bare_stock_name(ValueCoerce.as_str(data.get("stock_name"))),
             enter_bar_volume=ValueCoerce.as_optional_float(data.get("enter_bar_volume")),
             exit_bar_volume=ValueCoerce.as_optional_float(data.get("exit_bar_volume")),
             completed_goals=tuple(
@@ -299,6 +303,7 @@ class EnumResult:
                 else None
             ),
             stock_status_at_trigger=tags,
+            stock_name=_bare_name_from_stock(getattr(investment, "stock", None)),
             enter_bar_volume=(
                 ValueCoerce.as_optional_float(getattr(entry, "bar_volume", None))
                 if entry is not None
@@ -331,7 +336,7 @@ class EnumResult:
                 self.stock_status_at_trigger
             )
         return Opportunity(
-            stock=StockInfo(id=self.entity_id),
+            stock=StockInfo(id=self.entity_id, name=self.stock_name),
             record_of_today={},
             trigger_date=self.trigger_date,
             trigger_price=float(self.trigger_price or 0.0),
@@ -343,6 +348,16 @@ class EnumResult:
             ),
             metadata=metadata,
         )
+
+
+def _bare_name_from_stock(stock: Any) -> str:
+    if stock is None:
+        return ""
+    if isinstance(stock, dict):
+        raw = stock.get("name")
+    else:
+        raw = getattr(stock, "name", "")
+    return bare_stock_name(str(raw or ""))
 
 
 def results_to_document(

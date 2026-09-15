@@ -36,6 +36,25 @@ export function formatAvgRoi(roi, sampleSize) {
   return `${sign}${n.toFixed(1)}%`;
 }
 
+const STOCK_STATUS_LABELS = {
+  st: 'ST',
+  star_st: '*ST',
+};
+
+/** 枚举触发日状态：``st`` / ``star_st`` → 展示标签。 */
+export function mapStockStatusTags(raw) {
+  const seen = new Set();
+  const out = [];
+  (Array.isArray(raw) ? raw : []).forEach((item) => {
+    const tag = String(item || '').trim().toLowerCase();
+    const label = STOCK_STATUS_LABELS[tag];
+    if (!label || seen.has(tag)) return;
+    seen.add(tag);
+    out.push({ tag, label });
+  });
+  return out;
+}
+
 function parseIsoDate(value) {
   return new Date(`${value}T00:00:00`);
 }

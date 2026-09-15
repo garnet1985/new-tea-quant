@@ -28,7 +28,10 @@ from core.modules.strategy.core.engines.decision_maker.engine import (
     DecisionEngine,
 )
 from core.modules.strategy.core.engines.decision_maker.exceptions import DecisionError
-from core.modules.strategy.core.engines.decision_maker.timeline import DayOpportunity
+from core.modules.strategy.core.engines.decision_maker.timeline import (
+    DayOpportunity,
+    format_status_tags,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +143,7 @@ class DecisionRepl:
         if pick is not None:
             local_id, shares = pick
             opp, n, notional = self.engine.set_pick(local_id, shares)
-            label = opp.name or opp.entity_id
+            label = _stock_label(opp.name, opp.entity_id, opp.status_tags)
             self._writeln(
                 f"✓ 已选择: [{opp.local_id}] {label}  {format_shares(n)} 股  "
                 f"约 {format_money(notional)} 元"
@@ -175,7 +178,7 @@ class DecisionRepl:
         if announce:
             self._writeln("发现了新的机会！" if opps else "今日无新机会。")
         for opp in opps:
-            name = opp.name or opp.entity_id
+            name = _stock_label(opp.name, opp.entity_id, opp.status_tags)
             ticker = opp.ticker_stats
             wr = format_pct(ticker.win_rate if ticker else None)
             roi = format_pct(ticker.avg_roi if ticker else None, signed=True)
@@ -197,7 +200,7 @@ class DecisionRepl:
             total = 0.0
             for opp, shares, notional in bill:
                 total += float(notional)
-                label = opp.name or opp.entity_id
+                label = _stock_label(opp.name, opp.entity_id, opp.status_tags)
                 self._writeln(
                     f"  [{opp.local_id}] {label}  {format_shares(shares)} 股  "
                     f"约 {format_money(notional)} 元"
@@ -217,7 +220,7 @@ class DecisionRepl:
         self._print_day(announce=True)
 
     def _print_exit(self, notice: ExitNotice) -> None:
-        label = notice.name or notice.entity_id
+        label = _stock_label(notice.name, notice.entity_id, notice.status_tags)
         why = notice.goal_names or notice.reason or "纪律出场"
         sign = "+" if notice.profit >= 0 else ""
         self._writeln(
@@ -232,7 +235,7 @@ class DecisionRepl:
             self._writeln("当前无持仓")
             return
         for row in rows:
-            label = row.name or row.entity_id
+            label = _stock_label(row.name, row.entity_id, row.status_tags)
             if row.unrealized is None:
                 pnl = "—"
             else:
@@ -249,7 +252,11 @@ class DecisionRepl:
 
     def _print_info(self, payload: Dict[str, Any]) -> None:
         entity = payload.get("entity_id") or ""
-        name = payload.get("name") or ""
+        name = _stock_label(
+            payload.get("name") or "",
+            entity,
+            payload.get("status_tags") or (),
+        )
         stats = payload.get("stats") or {}
         ticker = payload.get("ticker_stats") or {}
         self._writeln(
@@ -295,6 +302,12 @@ class DecisionRepl:
     def _writeln(self, text: str = "") -> None:
         self.stdout.write(text + "\n")
         self.stdout.flush()
+
+
+def _stock_label(name: str, entity_id: str, tags: Any = ()) -> str:
+    base = str(name or "").strip() or str(entity_id or "").strip() or "—"
+    status = format_status_tags(tags or ())
+    return f"{base} {status}".strip() if status else base
 
 
 def _parse_pick(text: str) -> Optional[Tuple[int, int]]:

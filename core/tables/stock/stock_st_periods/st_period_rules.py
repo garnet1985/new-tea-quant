@@ -19,6 +19,10 @@ ALL_ST_LEVELS = (
 )
 
 
+_BARE_NAME_PREFIXES = ("退市", "S*ST", "SST", "*ST", "ST")
+_BARE_NAME_PAREN_SUFFIXES = ("(退市)", "(退)", "（退市）", "（退）")
+
+
 def classify_st_level(name: str) -> Optional[str]:
     raw = (name or "").strip()
     if not raw:
@@ -32,6 +36,30 @@ def classify_st_level(name: str) -> Optional[str]:
     if raw.startswith("ST"):
         return ST_LEVEL_ST
     return None
+
+
+def bare_stock_name(name: str) -> str:
+    """去掉简称上的 ST / *ST / 退市 标记，留下稳定名。
+
+    Tushare 摘牌后常见 ``*ST吉药(退)``、``工智退``、``退市华业`` 三种写法。
+    """
+    text = str(name or "").strip()
+    if not text:
+        return ""
+    upper = text.upper()
+    for prefix in _BARE_NAME_PREFIXES:
+        needle = prefix.upper()
+        if upper.startswith(needle):
+            text = text[len(prefix) :].strip()
+            upper = text.upper()
+            break
+    for suffix in _BARE_NAME_PAREN_SUFFIXES:
+        if text.endswith(suffix):
+            text = text[: -len(suffix)].strip()
+            break
+    if len(text) > 1 and text.endswith("退"):
+        text = text[:-1].strip()
+    return text
 
 
 def normalize_yyyymmdd(value: Any) -> str:

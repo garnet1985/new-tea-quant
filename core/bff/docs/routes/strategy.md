@@ -81,7 +81,7 @@ core/bff/APIs/strategy/
 | D1-09 | GET | `…/sessions/<dm_id>/holdings` | 持仓（这一停的收盘 / 浮动 / 策略目标文案） |
 | D1-10 | GET | `…/sessions/<dm_id>/info` | query：``target``（编号或代码，必填）、``n``、``columns``（逗号分隔）。截至 D 的最近 N 根。``message`` 含 CLI 表 ``columns/rows``，以及与 V2-07c 同形的 ``candles`` / ``indicator_series``（NaN → ``null``） |
 
-现场 ``message``（D1-02/03/05–08）主要字段：``dm_id`` / ``version_id`` / ``phase``（``picking`` \| ``confirming`` \| ``completed``）/ ``current_date`` / ``start_date`` / ``end_date``（时间线回测区间）/ ``cash`` / ``open_position_count`` / ``max_portfolio_size`` / ``asof_stats``（整份策略 as-of）/ ``opportunities[].stats``（**该标的** as-of）/ ``opportunities[].lot_size`` / ``opportunities[].suggested_shares``（凯莉建议股数，无 as-of 样本为 ``null``）/ ``draft`` / ``bill`` / ``exits`` / ``report_available``。``pick`` 股数为 0 时从当天草稿去掉该编号。
+现场 ``message``（D1-02/03/05–08）主要字段：``dm_id`` / ``version_id`` / ``phase``（``picking`` \| ``confirming`` \| ``completed``）/ ``current_date`` / ``start_date`` / ``end_date``（时间线回测区间）/ ``cash`` / ``open_position_count`` / ``max_portfolio_size`` / ``asof_stats``（整份策略 as-of）/ ``opportunities[].stats``（**该标的** as-of）/ ``opportunities[].lot_size`` / ``opportunities[].suggested_shares``（凯莉建议股数，无 as-of 样本为 ``null``）/ ``opportunities[].status_tags``（枚举触发日 ``st`` / ``star_st``，与 ``stock_status_at_trigger`` 同口径）/ ``opportunities[].name``（去掉 ST / ``(退)`` 后的稳定名）/ ``draft`` / ``bill`` / ``exits`` / ``report_available``。``pick`` 股数为 0 时从当天草稿去掉该编号。
 
 无枚举产物 → **400**（文案与 CLI 相同）。策略不存在 → **404**。
 

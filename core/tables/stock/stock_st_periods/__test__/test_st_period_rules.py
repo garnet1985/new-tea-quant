@@ -3,6 +3,7 @@ import unittest
 from core.tables.stock.stock_st_periods.st_period_rules import (
     ST_LEVEL_STAR_ST,
     ST_LEVEL_ST,
+    bare_stock_name,
     classify_st_level,
     consolidate_st_periods,
     is_active_on,
@@ -16,6 +17,17 @@ class TestStPeriodRules(unittest.TestCase):
         self.assertEqual(classify_st_level("ST联创"), ST_LEVEL_ST)
         self.assertEqual(classify_st_level("SST自仪"), "SST")
         self.assertIsNone(classify_st_level("贵州茅台"))
+
+    def test_bare_stock_name_strips_status_markers(self):
+        self.assertEqual(bare_stock_name("*ST吉药(退)"), "吉药")
+        self.assertEqual(bare_stock_name("ST联创"), "联创")
+        self.assertEqual(bare_stock_name("S*ST生化"), "生化")
+        self.assertEqual(bare_stock_name("SST自仪"), "自仪")
+        self.assertEqual(bare_stock_name("工智退"), "工智")
+        self.assertEqual(bare_stock_name("*ST工智退"), "工智")
+        self.assertEqual(bare_stock_name("退市华业"), "华业")
+        self.assertEqual(bare_stock_name("贵州茅台"), "贵州茅台")
+        self.assertEqual(bare_stock_name(""), "")
 
     def test_is_active_on_inclusive_end(self):
         period = {

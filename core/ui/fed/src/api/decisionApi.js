@@ -110,6 +110,21 @@ function mapStats(raw) {
   };
 }
 
+function mapStatusTags(raw) {
+  return (Array.isArray(raw) ? raw : [])
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter((tag, index, all) => tag && all.indexOf(tag) === index);
+}
+
+const STATUS_LABELS = { st: 'ST', star_st: '*ST' };
+
+function statusLabelText(raw) {
+  return mapStatusTags(raw)
+    .map((tag) => STATUS_LABELS[tag])
+    .filter(Boolean)
+    .join(' ');
+}
+
 function mapOpportunity(row) {
   const raw = row && typeof row === 'object' ? row : {};
   const stats = mapStats(raw.stats);
@@ -118,6 +133,7 @@ function mapOpportunity(row) {
     id: localId,
     ticker: String(raw.entity_id || ''),
     name: String(raw.name || ''),
+    statusTags: mapStatusTags(raw.status_tags),
     price: Number(raw.entry_price) || 0,
     wr: stats ? stats.winRateLabel : '—',
     roi: stats ? stats.avgRoiLabel : '—',
@@ -142,14 +158,17 @@ function mapExit(row) {
   const date = formatDecisionDate(raw.date);
   const pnl = Number.isFinite(profit) ? formatMoney(profit) : '—';
   const sign = Number.isFinite(profit) && profit > 0 ? '+' : '';
+  const status = statusLabelText(raw.status_tags);
+  const nameBit = [name, status].filter(Boolean).join(' ');
   return {
     date,
     ticker,
     name,
+    statusTags: mapStatusTags(raw.status_tags),
     shares,
     profit: Number.isFinite(profit) ? profit : 0,
     win,
-    text: `出场 ${ticker} ${name}  ${shares.toLocaleString()} 股  盈亏 ${sign}${pnl}${reason ? `  (${reason})` : ''}`,
+    text: `出场 ${ticker} ${nameBit}  ${shares.toLocaleString()} 股  盈亏 ${sign}${pnl}${reason ? `  (${reason})` : ''}`,
   };
 }
 
@@ -222,6 +241,7 @@ export function mapDecisionHoldings(message) {
       id: `${row.entity_id || 'h'}-${row.buy_date || index}`,
       ticker: String(row.entity_id || ''),
       name: String(row.name || ''),
+      statusTags: mapStatusTags(row.status_tags),
       shares,
       buyDate,
       buyPrice: Number.isFinite(buyPrice) ? buyPrice : null,
@@ -407,6 +427,7 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
     return {
       entityId: String(m.entity_id || ''),
       name: String(m.name || ''),
+      statusTags: mapStatusTags(m.status_tags),
       asOf: formatDecisionDate(m.as_of),
       stats: mapStats(m.stats),
       tickerStats: mapStats(m.ticker_stats),

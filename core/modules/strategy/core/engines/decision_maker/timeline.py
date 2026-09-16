@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from core.infra.utils import Utils
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.shared.enum_result_contract.enum_result import (
     EnumResult,
@@ -22,6 +23,20 @@ logger = logging.getLogger(__name__)
 
 def lot_key(entity_id: str, investment_id: str) -> str:
     return f"{str(entity_id or '').strip()}\t{str(investment_id or '').strip()}"
+
+
+def _as_ymd(raw: Any) -> str:
+    """统一成 YYYYMMDD，避免 ``2023-05-04`` 与 ``20230504`` 字符串比较失真。"""
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    normalized = Utils.date.normalize_str(text)
+    if normalized:
+        digits = "".join(ch for ch in str(normalized) if ch.isdigit())
+        if len(digits) >= 8:
+            return digits[:8]
+    digits = "".join(ch for ch in text if ch.isdigit())
+    return digits[:8] if len(digits) >= 8 else ""
 
 
 _STATUS_LABELS = {"st": "ST", "star_st": "*ST"}
@@ -116,6 +131,7 @@ class DecisionTimeline:
 
     events: List[PortfolioEvent] = field(default_factory=list)
     rows: Dict[str, EnumResult] = field(default_factory=dict)
+    enum_rows: List[EnumResult] = field(default_factory=list)
     start_date: str = ""
     end_date: str = ""
     buys_by_date: Dict[str, List[PortfolioEvent]] = field(default_factory=dict)
@@ -131,8 +147,9 @@ class DecisionTimeline:
         start_date: str = "",
         end_date: str = "",
     ) -> "DecisionTimeline":
+        enum_rows = list(rows or ())
         row_map: Dict[str, EnumResult] = {}
-        for row in rows or ():
+        for row in enum_rows:
             eid = str(getattr(row, "entity_id", "") or "").strip()
             iid = str(getattr(row, "investment_id", "") or "").strip()
             if eid and iid:
@@ -165,6 +182,7 @@ class DecisionTimeline:
         return cls(
             events=ordered,
             rows=row_map,
+            enum_rows=enum_rows,
             start_date=str(start_date or "").strip(),
             end_date=str(end_date or "").strip(),
             buys_by_date=buys,
@@ -177,6 +195,31 @@ class DecisionTimeline:
 
     def sells_on(self, date: str) -> List[PortfolioEvent]:
         return list(self.sells_by_date.get(str(date or "").strip()) or ())
+
+    def is_last_sell(self, event: PortfolioEvent, *, after_date: str = "") -> bool:
+        """该 lot 在时间线上是否还有更晚的卖出事件。"""
+        _ = after_date
+        key = lot_key(event.entity_id, event.investment_id)
+        found = False
+        for item in self.events:
+            if not item.is_sell():
+                continue
+            if lot_key(item.entity_id, item.investment_id) != key:
+                continue
+            if not found:
+                if item is event:
+                    found = True
+                continue
+            return False
+        if found:
+            return True
+        date = str(event.date or "").strip()
+        return not any(
+            item.is_sell()
+            and lot_key(item.entity_id, item.investment_id) == key
+            and str(item.date or "") > date
+            for item in self.events
+        )
 
     def first_buy_date(self) -> str:
         for date in self.dates:
@@ -191,16 +234,25 @@ class DecisionTimeline:
         return [item for item in self.dates if item > cur]
 
     def asof_stats(self, as_of: str, *, entity_id: str = "") -> AsOfStats:
-        """``exit_date < D`` 的已结束机会；可再限该标的。"""
-        cutoff = str(as_of or "").strip()
+        """该标的（或全策略）在 D 之前已完成进场的枚举：``exit_date < D``。
+
+        未卖完（持仓未归零）不计胜率 / ROI。
+        """
+        cutoff = _as_ymd(as_of)
         eid = str(entity_id or "").strip()
         rois: List[float] = []
         wins = 0
-        for row in self.rows.values():
-            exit_date = str(getattr(row, "exit_date", "") or "").strip()
-            if not exit_date or not cutoff or not (exit_date < cutoff):
-                continue
+        pool = self.enum_rows or list(self.rows.values())
+        for row in pool:
             if eid and str(getattr(row, "entity_id", "") or "").strip() != eid:
+                continue
+            lifecycle = str(getattr(row, "lifecycle", "") or "").strip().lower()
+            if lifecycle in {"open", "pending_to_enter", "pending_to_exit"}:
+                continue
+            if not _as_ymd(getattr(row, "entry_date", "")):
+                continue
+            exit_date = _as_ymd(getattr(row, "exit_date", ""))
+            if not cutoff or not exit_date or not (exit_date < cutoff):
                 continue
             roi = float(getattr(row, "weighted_roi", 0.0) or 0.0)
             rois.append(roi)
@@ -246,15 +298,44 @@ class DecisionTimeline:
     def status_tags(self, entity_id: str, investment_id: str) -> Tuple[str, ...]:
         return _enum_status_tags(self.row_for(entity_id, investment_id))
 
+    def unique_buys_on(
+        self,
+        date: str,
+        *,
+        skip_entities: Optional[Sequence[str]] = None,
+    ) -> List[PortfolioEvent]:
+        """同一标的同一天只留第一笔买入（对齐资金层 EntrySelector）。
+
+        ``skip_entities`` 为已持仓，不再出示第二笔。
+        """
+        seen = {
+            str(item or "").strip()
+            for item in (skip_entities or ())
+            if str(item or "").strip()
+        }
+        out: List[PortfolioEvent] = []
+        for event in self.buys_on(date):
+            eid = str(event.entity_id or "").strip()
+            if eid and eid in seen:
+                continue
+            if eid:
+                seen.add(eid)
+            out.append(event)
+        return out
+
     def opportunities_on(
         self,
         date: str,
         *,
         name_lookup: Optional[Callable[[str], str]] = None,
+        skip_entities: Optional[Sequence[str]] = None,
     ) -> List[DayOpportunity]:
         stats = self.asof_stats(date)
         out: List[DayOpportunity] = []
-        for idx, event in enumerate(self.buys_on(date), start=1):
+        for idx, event in enumerate(
+            self.unique_buys_on(date, skip_entities=skip_entities),
+            start=1,
+        ):
             eid = str(event.entity_id or "").strip()
             iid = str(event.investment_id or "").strip()
             row = self.row_for(eid, iid)

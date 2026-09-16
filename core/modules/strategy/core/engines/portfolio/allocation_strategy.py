@@ -113,6 +113,20 @@ class AllocationStrategy:
             self.market_rules.floor_quantity_for_stock(max(int(shares), 0), entity_id)
         )
 
+    def shares_from_cash(self, cash: float, buy_price: float, entity_id: str) -> int:
+        """预算金额按成交价换成股数，再向下取整到合法申报数量。"""
+        px = float(buy_price or 0.0)
+        budget = float(cash or 0.0)
+        if px <= 0 or budget <= 0:
+            return 0
+        planned = self.floor_shares(int(budget / px), entity_id)
+        return self._resolve_planned(
+            planned_shares=planned,
+            entity_id=entity_id,
+            cash=budget,
+            buy_price=px,
+        )
+
     def apply_participation(
         self,
         planned_shares: int,
@@ -131,6 +145,36 @@ class AllocationStrategy:
     def min_buy_shares(self, entity_id: str) -> int:
         lot = self.market_rules.resolve_lot_size(entity_id)
         return self.floor_shares(int(lot.min_lot), entity_id)
+
+    def lot_step_for_stock(self, entity_id: str) -> int:
+        """申报数量步长：主板/创业板 100，科创板/北证 1。"""
+        lot = self.market_rules.resolve_lot_size(entity_id)
+        return max(int(lot.lot_step or 1), 1)
+
+    def size_sell_shares(
+        self,
+        *,
+        remaining: int,
+        initial_shares: int,
+        exit_ratio: float,
+        entity_id: str,
+        is_last: bool,
+    ) -> int:
+        """纪律卖出股数：比例由资金层算，合法申报数量问 market profile。"""
+        left = int(remaining)
+        if left <= 0:
+            return 0
+        try:
+            ratio = float(exit_ratio)
+        except (TypeError, ValueError):
+            ratio = 1.0
+        if is_last or ratio >= 1.0 - 1e-12:
+            return self.market_rules.floor_sell_quantity_for_stock(left, left, entity_id)
+        initial = max(int(initial_shares or left), 1)
+        planned = min(left, max(int(initial * max(ratio, 0.0)), 0))
+        return self.market_rules.floor_sell_quantity_for_stock(
+            planned, left, entity_id
+        )
 
     def _equal_capital(self, account: Account, buy_price: float, entity_id: str) -> int:
         if float(account.cash) < self.per_trade_capital:
@@ -179,15 +223,21 @@ class AllocationStrategy:
             buy_price=buy_price,
         )
 
-    def suggest_kelly_shares(
+    def suggest_shares(
         self,
         account: Account,
         buy_price: float,
         entity_id: str,
-        win_rate: Optional[float],
+        *,
+        win_rate: Optional[float] = None,
     ) -> int:
-        """凯莉建议股数：与 ``mode=kelly`` 下单同一套公式、手数与现金约束。"""
-        return int(self._kelly(account, buy_price, entity_id, win_rate) or 0)
+        """按 ``allocation.mode`` 给出建议股数，与机器下单同一套公式。"""
+        return int(
+            self.calculate_shares_to_buy(
+                account, buy_price, entity_id, win_rate=win_rate
+            )
+            or 0
+        )
 
     def _resolve_planned(
         self,

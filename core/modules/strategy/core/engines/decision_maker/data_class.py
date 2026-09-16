@@ -30,7 +30,7 @@ class ExitNotice:
 
 @dataclass
 class AdvanceResult:
-    """``next`` 推进结果：是否走完、出场日志、下一抉择日机会。"""
+    """``next`` 推进结果：是否走完、本站事件日志、当日机会。"""
 
     completed: bool
     current_date: str
@@ -52,6 +52,7 @@ class HoldingRow:
     unrealized: Optional[float]
     goals: List[str]
     status_tags: Tuple[str, ...] = ()
+    hold_unit: str = "natural_day"
 
 
 __all__ = [

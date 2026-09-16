@@ -88,6 +88,42 @@ def is_active_on(
     return True
 
 
+def period_overlaps_window(
+    period: Dict[str, Any],
+    window_start: str,
+    window_end: str,
+) -> bool:
+    """时段 [start_date, end_date] 是否与闭区间窗相交；end 空表示仍有效。"""
+    start = normalize_yyyymmdd(window_start)
+    end = normalize_yyyymmdd(window_end)
+    if not start or not end:
+        return False
+    row_start = normalize_yyyymmdd(period.get("start_date"))
+    if not row_start or row_start > end:
+        return False
+    row_end = normalize_yyyymmdd(period.get("end_date"))
+    if row_end and row_end < start:
+        return False
+    return True
+
+
+def overlapping_window_sql(
+    *,
+    start_col: str = "start_date",
+    end_col: str = "end_date",
+    placeholder: str = "%s",
+) -> str:
+    """与 ``[window_start, window_end]`` 相交的 SQL 片段。
+
+    绑定参数顺序为 ``(window_end, window_start)``：开始日不得晚于窗尾，
+    结束日空/仍有效，或不得早于窗起。
+    """
+    return (
+        f"{start_col} <= {placeholder} "
+        f"AND ({end_col} IS NULL OR {end_col} = '' OR {end_col} >= {placeholder})"
+    )
+
+
 def records_to_st_periods(
     records: List[Dict[str, Any]],
     *,

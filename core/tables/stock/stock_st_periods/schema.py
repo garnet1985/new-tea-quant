@@ -5,6 +5,8 @@
 主键 (stock_id, st_level, start_date)；end_date 为空表示仍有效。
 
 数据来源以 Tushare namechange 的 name + start_date/end_date 为主。
+导出/导入按与日期窗**相交**保留（含窗口前已开始、窗内仍有效的时段），
+不按 start_date BETWEEN 截断。
 """
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）

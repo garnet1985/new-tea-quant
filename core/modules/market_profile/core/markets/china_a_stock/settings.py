@@ -48,6 +48,12 @@ settings = {
                 "matching": {"id": {"start_with": ["688"]}},
                 "min_lot": 200,
                 "lot_step": 1
+            },
+            {
+                "key": "bei_jiao_suo",
+                "matching": {"id": {"start_with": ["8", "43", "92"]}},
+                "min_lot": 100,
+                "lot_step": 1
             }
         ]
     },

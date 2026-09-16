@@ -13,7 +13,10 @@ from core.modules.strategy.core.engines.portfolio.data_class import (
     Position,
     Trade,
 )
-from core.modules.strategy.core.engines.shared.enum_result_contract import EnumResult
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    CompletedGoal,
+    EnumResult,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     PortfolioSettings,
 )
@@ -100,6 +103,41 @@ def test_portfolio_event_open_position_without_exit_still_buys():
     assert len(events) == 1
     assert events[0].is_buy()
     assert events[0].price == 20.0
+
+
+def test_portfolio_event_splits_sells_from_completed_goals():
+    row = EnumResult(
+        investment_id="1",
+        entry_date="20240103",
+        entry_price_raw=20.0,
+        entry_price_hfq=21.0,
+        exit_date="20240112",
+        weighted_roi=-0.05,
+        lifecycle="complete",
+        completed_goals=(
+            CompletedGoal(
+                name="expiration",
+                date="20240110",
+                price_raw=18.0,
+                exit_ratio=0.6,
+                roi=-0.04,
+            ),
+            CompletedGoal(
+                name="expiration",
+                date="20240112",
+                price_raw=17.0,
+                exit_ratio=0.4,
+                roi=-0.065,
+            ),
+        ),
+    )
+    events = PortfolioEvent.from_enum_result(row, "000488.SZ")
+    assert [e.kind for e in events] == ["buy", "sell", "sell"]
+    assert events[1].date == "20240110"
+    assert events[1].exit_ratio == pytest.approx(0.6)
+    assert events[1].roi == pytest.approx(-0.04)
+    assert events[2].date == "20240112"
+    assert events[2].exit_ratio == pytest.approx(0.4)
 
 
 def test_portfolio_event_skips_without_entry_price_raw():

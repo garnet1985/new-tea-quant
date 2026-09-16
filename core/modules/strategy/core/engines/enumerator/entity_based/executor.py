@@ -251,6 +251,8 @@ class EntityTaskState:
 
             if bar is None:
                 continue
+            if tracker.has_live:
+                continue
 
             complete_data = per_entity
             if self.global_data:

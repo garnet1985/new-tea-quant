@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 _HELP = """命令:
   <编号>:<股数>   选择当日机会（同一编号再输入则覆盖）
   done            看账单
-  next            提交当天并推进到下一抉择日（须先 done）
+  next            提交当天并推进到下一事件日（须先 done）
   reset           清空草稿，留在当天
   holdings        持仓（status / holding 同义）
   info <编号|代码> [N] [字段,...]
@@ -245,7 +245,7 @@ class DecisionRepl:
             self._writeln(
                 f"  {row.entity_id} {label}  {format_shares(row.shares)} 股  "
                 f"买入 {format_date(row.buy_date)} @ {row.buy_price:.2f}  "
-                f"持有 {row.hold_days} 日  收盘 {close}  浮动 {pnl}"
+                f"持有 {_hold_span_text(row)}  收盘 {close}  浮动 {pnl}"
             )
             for goal in row.goals:
                 self._writeln(f"    {goal}")
@@ -308,6 +308,17 @@ def _stock_label(name: str, entity_id: str, tags: Any = ()) -> str:
     base = str(name or "").strip() or str(entity_id or "").strip() or "—"
     status = format_status_tags(tags or ())
     return f"{base} {status}".strip() if status else base
+
+
+def _hold_span_text(row: Any) -> str:
+    unit = str(getattr(row, "hold_unit", "") or "").strip().lower()
+    if unit == "trading_day":
+        suffix = "个交易日"
+    elif unit == "open_day":
+        suffix = "个开市日"
+    else:
+        suffix = "个自然日"
+    return f"{int(getattr(row, 'hold_days', 0) or 0)} {suffix}"
 
 
 def _parse_pick(text: str) -> Optional[Tuple[int, int]]:

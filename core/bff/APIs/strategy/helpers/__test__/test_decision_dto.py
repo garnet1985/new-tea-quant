@@ -75,7 +75,11 @@ def test_session_snapshot_uses_ticker_stats_and_draft():
     assert msg["bill"] == []
     assert msg["exits"] == []
     assert msg["opportunities"][0]["lot_size"] is None
+    assert msg["opportunities"][0]["lot_step"] is None
     assert msg["opportunities"][0]["suggested_shares"] is None
+    assert msg["opportunities"][0]["suggested_cash"] is None
+    assert msg["opportunities"][0]["suggested_basis"] == ""
+    assert msg["allocation_mode"] == ""
     assert msg["opportunities"][0]["status_tags"] == ["star_st"]
     assert msg["draft"][0]["status_tags"] == ["star_st"]
 
@@ -108,9 +112,11 @@ def test_session_snapshot_kelly_suggestion_and_lot():
             open_position_count=lambda: 0,
         ),
         allocation=SimpleNamespace(
+            mode="kelly",
             max_portfolio_size=10,
+            kelly_fraction=0.5,
             min_buy_shares=lambda _eid: 100,
-            suggest_kelly_shares=lambda _account, _px, _eid, _wr: 800,
+            suggest_shares=lambda _account, _px, _eid, win_rate=None: 800,
         ),
         timeline=SimpleNamespace(asof_stats=lambda _d: None),
         opportunities=lambda: [opp],
@@ -118,7 +124,132 @@ def test_session_snapshot_kelly_suggestion_and_lot():
     )
     msg = session_snapshot(engine)
     assert msg["opportunities"][0]["lot_size"] == 100
+    assert msg["opportunities"][0]["lot_step"] == 100
     assert msg["opportunities"][0]["suggested_shares"] == 800
+    assert msg["opportunities"][0]["suggested_cash"] == 8000.0
+    assert msg["opportunities"][0]["suggested_basis"] == "凯莉（胜率 75% × 折扣 0.5）"
+    assert msg["allocation_mode"] == "kelly"
+
+
+def test_session_snapshot_equal_capital_suggestion_without_asof():
+    opp = SimpleNamespace(
+        local_id=1,
+        entity_id="000001.SZ",
+        name="平安银行",
+        entry_price_raw=10.0,
+        ticker_stats=None,
+    )
+    engine = SimpleNamespace(
+        dm_id="1",
+        version_id="3",
+        strategy_key="rsi_v1",
+        status="in_progress",
+        phase="picking",
+        is_completed=False,
+        current_date="20230504",
+        draft={},
+        account=SimpleNamespace(
+            cash=1_000_000.0,
+            initial_cash=1_000_000.0,
+            open_position_count=lambda: 0,
+        ),
+        allocation=SimpleNamespace(
+            mode="equal_capital",
+            max_portfolio_size=10,
+            per_trade_capital=100_000.0,
+            min_buy_shares=lambda _eid: 100,
+            suggest_shares=lambda _account, _px, _eid, win_rate=None: 10_000,
+        ),
+        timeline=SimpleNamespace(asof_stats=lambda _d: None),
+        opportunities=lambda: [opp],
+        opportunity_by_local=lambda lid: opp if lid == 1 else None,
+    )
+    msg = session_snapshot(engine)
+    assert msg["allocation_mode"] == "equal_capital"
+    assert msg["opportunities"][0]["suggested_shares"] == 10_000
+    assert msg["opportunities"][0]["suggested_cash"] == 100_000.0
+    assert msg["opportunities"][0]["suggested_basis"] == "等价（每笔 100,000 元）"
+
+
+def test_session_snapshot_equal_shares_suggestion():
+    opp = SimpleNamespace(
+        local_id=1,
+        entity_id="000001.SZ",
+        name="平安银行",
+        entry_price_raw=10.0,
+        ticker_stats=None,
+    )
+    engine = SimpleNamespace(
+        dm_id="1",
+        version_id="3",
+        strategy_key="rsi_v1",
+        status="in_progress",
+        phase="picking",
+        is_completed=False,
+        current_date="20230504",
+        draft={},
+        account=SimpleNamespace(
+            cash=1_000_000.0,
+            initial_cash=1_000_000.0,
+            open_position_count=lambda: 0,
+        ),
+        allocation=SimpleNamespace(
+            mode="equal_shares",
+            max_portfolio_size=10,
+            lots_per_trade=2,
+            min_buy_shares=lambda _eid: 100,
+            suggest_shares=lambda _account, _px, _eid, win_rate=None: 200,
+        ),
+        timeline=SimpleNamespace(asof_stats=lambda _d: None),
+        opportunities=lambda: [opp],
+        opportunity_by_local=lambda lid: opp if lid == 1 else None,
+    )
+    msg = session_snapshot(engine)
+    assert msg["allocation_mode"] == "equal_shares"
+    assert msg["opportunities"][0]["suggested_shares"] == 200
+    assert msg["opportunities"][0]["suggested_cash"] == 2000.0
+    assert msg["opportunities"][0]["suggested_basis"] == "等股（2 手）"
+
+
+def test_session_snapshot_star_lot_step():
+    opp = SimpleNamespace(
+        local_id=1,
+        entity_id="688981.SH",
+        name="中芯国际",
+        entry_price_raw=50.0,
+        ticker_stats=None,
+    )
+    engine = SimpleNamespace(
+        dm_id="1",
+        version_id="3",
+        strategy_key="rsi_v1",
+        status="in_progress",
+        phase="picking",
+        is_completed=False,
+        current_date="20230504",
+        draft={},
+        account=SimpleNamespace(
+            cash=1_000_000.0,
+            initial_cash=1_000_000.0,
+            open_position_count=lambda: 0,
+        ),
+        allocation=SimpleNamespace(
+            mode="equal_shares",
+            max_portfolio_size=10,
+            lots_per_trade=1,
+            min_buy_shares=lambda _eid: 200,
+            lot_step_for_stock=lambda _eid: 1,
+            suggest_shares=lambda _account, _px, _eid, win_rate=None: 200,
+        ),
+        timeline=SimpleNamespace(asof_stats=lambda _d: None),
+        opportunities=lambda: [opp],
+        opportunity_by_local=lambda lid: opp if lid == 1 else None,
+    )
+    msg = session_snapshot(engine)
+    assert msg["opportunities"][0]["lot_size"] == 200
+    assert msg["opportunities"][0]["lot_step"] == 1
+    assert msg["opportunities"][0]["suggested_shares"] == 200
+    assert msg["opportunities"][0]["suggested_cash"] == 10000.0
 
 
 def test_session_snapshot_bill_when_confirming():
@@ -189,6 +320,7 @@ def test_session_list_and_holdings_and_info():
     held = holdings_message(engine, [row])
     assert held["holdings"][0]["unrealized"] == 100.0
     assert held["holdings"][0]["status_tags"] == ["st"]
+    assert held["holdings"][0]["hold_unit"] == "natural_day"
 
     info = info_message(
         {

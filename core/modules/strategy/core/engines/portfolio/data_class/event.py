@@ -36,6 +36,8 @@ class PortfolioEvent:
     entry_price_hfq: float = 0.0
     # 成交日 bar 成交量（股）；buy / sell 事件各自带当日 volume
     bar_volume: Optional[float] = None
+    # 相对买入股数的绝对份额；1.0 = 卖剩余全部。枚举分档 / 流动性拆段写入。
+    exit_ratio: float = 1.0
 
     def is_buy(self) -> bool:
         return str(self.kind or "").strip().lower() == "buy"
@@ -60,6 +62,7 @@ class PortfolioEvent:
             exit_price_raw=float(raw.get("exit_price_raw") or 0.0),
             entry_price_hfq=float(raw.get("entry_price_hfq") or 0.0),
             bar_volume=_optional_float(raw.get("bar_volume")),
+            exit_ratio=_exit_ratio(raw.get("exit_ratio")),
         )
 
     @classmethod
@@ -71,21 +74,66 @@ class PortfolioEvent:
         """一笔枚举结果 → buy/sell 事件。
 
         缺合法 ``entry_price_raw`` 时不生成任何事件。
-        有卖出日即生成 sell（不要求 ``exit_price_raw``）；资金层用 ``weighted_roi``。
+        ``completed_goals`` 有成交切片则按切片生成多次卖（持仓归零才算完）。
+        否则有卖出日即生成一笔 sell（不要求 ``exit_price_raw``）；资金层用 ``weighted_roi``。
         """
         eid = str(entity_id or getattr(row, "entity_id", "") or "").strip()
-        return cls._from_fill(
-            entity_id=eid,
-            investment_id=str(getattr(row, "investment_id", "") or "").strip(),
-            entry_date=str(getattr(row, "entry_date", "") or "").strip(),
-            entry_price_raw=float(getattr(row, "entry_price_raw", 0.0) or 0.0),
-            entry_price_hfq=float(getattr(row, "entry_price_hfq", 0.0) or 0.0),
-            exit_date=str(getattr(row, "exit_date", "") or "").strip(),
-            exit_price_raw=float(getattr(row, "exit_price_raw", 0.0) or 0.0),
-            weighted_roi=float(getattr(row, "weighted_roi", 0.0) or 0.0),
-            enter_bar_volume=getattr(row, "enter_bar_volume", None),
-            exit_bar_volume=getattr(row, "exit_bar_volume", None),
+        iid = str(getattr(row, "investment_id", "") or "").strip()
+        entry_date = str(getattr(row, "entry_date", "") or "").strip()
+        entry_price_raw = float(getattr(row, "entry_price_raw", 0.0) or 0.0)
+        entry_price_hfq = float(getattr(row, "entry_price_hfq", 0.0) or 0.0)
+        if not entry_date or entry_price_raw <= 0:
+            return []
+        events: List["PortfolioEvent"] = [
+            cls(
+                kind="buy",
+                date=entry_date,
+                entity_id=eid,
+                investment_id=iid,
+                price=entry_price_raw,
+                roi=0.0,
+                entry_price_raw=entry_price_raw,
+                entry_price_hfq=entry_price_hfq,
+                bar_volume=_optional_float(getattr(row, "enter_bar_volume", None)),
+            )
+        ]
+        slices = _exit_slices(row)
+        if slices:
+            for item in slices:
+                events.append(
+                    cls(
+                        kind="sell",
+                        date=item["date"],
+                        entity_id=eid,
+                        investment_id=iid,
+                        price=float(item["price"] or 0.0),
+                        roi=float(item["roi"] or 0.0),
+                        entry_price_raw=entry_price_raw,
+                        exit_price_raw=float(item["price"] or 0.0),
+                        entry_price_hfq=entry_price_hfq,
+                        exit_ratio=float(item["exit_ratio"]),
+                    )
+                )
+            return events
+        exit_date = str(getattr(row, "exit_date", "") or "").strip()
+        if not exit_date:
+            return events
+        events.append(
+            cls(
+                kind="sell",
+                date=exit_date,
+                entity_id=eid,
+                investment_id=iid,
+                price=float(getattr(row, "exit_price_raw", 0.0) or 0.0),
+                roi=float(getattr(row, "weighted_roi", 0.0) or 0.0),
+                entry_price_raw=entry_price_raw,
+                exit_price_raw=float(getattr(row, "exit_price_raw", 0.0) or 0.0),
+                entry_price_hfq=entry_price_hfq,
+                bar_volume=_optional_float(getattr(row, "exit_bar_volume", None)),
+                exit_ratio=1.0,
+            )
         )
+        return events
 
     @classmethod
     def _from_fill(
@@ -102,38 +150,20 @@ class PortfolioEvent:
         enter_bar_volume: Any,
         exit_bar_volume: Any,
     ) -> List["PortfolioEvent"]:
-        if not entry_date or entry_price_raw <= 0:
-            return []
-        events: List[PortfolioEvent] = [
-            cls(
-                kind="buy",
-                date=entry_date,
-                entity_id=entity_id,
-                investment_id=investment_id,
-                price=entry_price_raw,
-                roi=0.0,
-                entry_price_raw=entry_price_raw,
-                exit_price_raw=exit_price_raw,
-                entry_price_hfq=float(entry_price_hfq or 0.0),
-                bar_volume=_optional_float(enter_bar_volume),
-            )
-        ]
-        if exit_date:
-            events.append(
-                cls(
-                    kind="sell",
-                    date=exit_date,
-                    entity_id=entity_id,
-                    investment_id=investment_id,
-                    price=exit_price_raw,
-                    roi=weighted_roi,
-                    entry_price_raw=entry_price_raw,
-                    exit_price_raw=exit_price_raw,
-                    entry_price_hfq=float(entry_price_hfq or 0.0),
-                    bar_volume=_optional_float(exit_bar_volume),
-                )
-            )
-        return events
+        row = type("Row", (), {
+            "entity_id": entity_id,
+            "investment_id": investment_id,
+            "entry_date": entry_date,
+            "entry_price_raw": entry_price_raw,
+            "entry_price_hfq": entry_price_hfq,
+            "exit_date": exit_date,
+            "exit_price_raw": exit_price_raw,
+            "weighted_roi": weighted_roi,
+            "enter_bar_volume": enter_bar_volume,
+            "exit_bar_volume": exit_bar_volume,
+            "completed_goals": (),
+        })()
+        return cls.from_enum_result(row, entity_id)
 
 
 def _optional_float(value: Any) -> Optional[float]:
@@ -144,3 +174,37 @@ def _optional_float(value: Any) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return out if out > 0 else None
+
+
+def _exit_ratio(value: Any) -> float:
+    if value is None or value == "":
+        return 1.0
+    try:
+        ratio = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    if ratio <= 0:
+        return 1.0
+    return min(ratio, 1.0)
+
+
+def _exit_slices(row: Any) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for goal in getattr(row, "completed_goals", ()) or ():
+        date = str(getattr(goal, "date", "") or "").strip()
+        try:
+            ratio = float(getattr(goal, "exit_ratio", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            ratio = 0.0
+        if not date or ratio <= 1e-12:
+            continue
+        try:
+            roi = float(getattr(goal, "roi", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            roi = 0.0
+        try:
+            price = float(getattr(goal, "price_raw", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            price = 0.0
+        out.append({"date": date, "exit_ratio": ratio, "roi": roi, "price": price})
+    return out

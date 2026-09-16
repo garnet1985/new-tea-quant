@@ -74,14 +74,14 @@ core/bff/APIs/strategy/
 | D1-02 | POST | `/v1/strategy/<strategy_key_or_name>/decision/sessions` | 打开或续局。body：``version_id`` / ``session_id`` / ``new_session``。0 局新开；1 局续；≥2 且未指定 session → **409** ``ambiguous_sessions``（``message.sessions``） |
 | D1-03 | GET | `/v1/strategy/<strategy_key_or_name>/decision/sessions/<dm_id>` | 该局现场快照（不推进） |
 | D1-04 | DELETE | `/v1/strategy/<strategy_key_or_name>/decision/sessions/<dm_id>` | 删除一局 |
-| D1-05 | POST | `…/sessions/<dm_id>/pick` | body ``{ local_id, shares }``；同一编号覆盖。返回现场 |
+| D1-05 | POST | `…/sessions/<dm_id>/pick` | body ``{ local_id, shares }``；也可 ``cash``（金额按手数折股）。同一编号覆盖。返回现场 |
 | D1-06 | POST | `…/sessions/<dm_id>/done` | 看账单，``phase=confirming`` |
 | D1-07 | POST | `…/sessions/<dm_id>/reset` | 清空当天草稿 |
-| D1-08 | POST | `…/sessions/<dm_id>/next` | 须已 done。提交并推进到下一抉择日；``exits`` 为沿途只读出场 |
+| D1-08 | POST | `…/sessions/<dm_id>/next` | 须已 done。提交并推进到下一事件日（仓位变化或新机会）；``exits`` 为沿途只读出场 |
 | D1-09 | GET | `…/sessions/<dm_id>/holdings` | 持仓（这一停的收盘 / 浮动 / 策略目标文案） |
 | D1-10 | GET | `…/sessions/<dm_id>/info` | query：``target``（编号或代码，必填）、``n``、``columns``（逗号分隔）。截至 D 的最近 N 根。``message`` 含 CLI 表 ``columns/rows``，以及与 V2-07c 同形的 ``candles`` / ``indicator_series``（NaN → ``null``） |
 
-现场 ``message``（D1-02/03/05–08）主要字段：``dm_id`` / ``version_id`` / ``phase``（``picking`` \| ``confirming`` \| ``completed``）/ ``current_date`` / ``start_date`` / ``end_date``（时间线回测区间）/ ``cash`` / ``open_position_count`` / ``max_portfolio_size`` / ``asof_stats``（整份策略 as-of）/ ``opportunities[].stats``（**该标的** as-of）/ ``opportunities[].lot_size`` / ``opportunities[].suggested_shares``（凯莉建议股数，无 as-of 样本为 ``null``）/ ``opportunities[].status_tags``（枚举触发日 ``st`` / ``star_st``，与 ``stock_status_at_trigger`` 同口径）/ ``opportunities[].name``（去掉 ST / ``(退)`` 后的稳定名）/ ``draft`` / ``bill`` / ``exits`` / ``report_available``。``pick`` 股数为 0 时从当天草稿去掉该编号。
+现场 ``message``（D1-02/03/05–08）主要字段：``dm_id`` / ``version_id`` / ``phase``（``picking`` \| ``confirming`` \| ``completed``）/ ``current_date`` / ``start_date`` / ``end_date``（时间线回测区间）/ ``cash`` / ``open_position_count`` / ``max_portfolio_size`` / ``allocation_mode``（``equal_capital`` \| ``equal_shares`` \| ``kelly``）/ ``asof_stats``（整份策略 as-of）/ ``opportunities[].stats``（**该标的** as-of：该标的 ``exit_date < D`` 的已完成枚举）/ ``opportunities[].lot_size`` / ``opportunities[].lot_step``（主板/创业板 100，科创板/北证 1）/ ``opportunities[].suggested_shares``（按 ``allocation_mode`` 的建议股数：等价 / 等股 / 凯莉；下不成或凯莉无样本为 ``null``）/ ``opportunities[].suggested_cash``（建议股数对应金额）/ ``opportunities[].suggested_basis``（建议根据文案）/ ``opportunities[].status_tags``（枚举触发日 ``st`` / ``star_st``，与 ``stock_status_at_trigger`` 同口径）/ ``opportunities[].name``（去掉 ST / ``(退)`` 后的稳定名）/ ``draft`` / ``bill`` / ``exits`` / ``report_available``。``opportunities`` 同一标的同一买入日只留一笔，已持仓标的不再出现。``pick`` 金额或股数为 0 时从当天草稿去掉该编号。
 
 无枚举产物 → **400**（文案与 CLI 相同）。策略不存在 → **404**。
 

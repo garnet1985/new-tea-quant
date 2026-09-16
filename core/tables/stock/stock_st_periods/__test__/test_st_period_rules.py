@@ -7,6 +7,8 @@ from core.tables.stock.stock_st_periods.st_period_rules import (
     classify_st_level,
     consolidate_st_periods,
     is_active_on,
+    overlapping_window_sql,
+    period_overlaps_window,
     records_to_st_periods,
 )
 
@@ -39,6 +41,33 @@ class TestStPeriodRules(unittest.TestCase):
         self.assertTrue(is_active_on(period, "20061008"))
         self.assertFalse(is_active_on(period, "20061009"))
         self.assertFalse(is_active_on(period, "20010507"))
+
+    def test_period_overlaps_window_keeps_open_interval_started_before(self):
+        open_star = {
+            "st_level": ST_LEVEL_STAR_ST,
+            "start_date": "20240430",
+            "end_date": None,
+        }
+        self.assertTrue(period_overlaps_window(open_star, "20250101", "20260101"))
+        self.assertTrue(period_overlaps_window(open_star, "20230101", "20260101"))
+        ended_before = {
+            "st_level": ST_LEVEL_ST,
+            "start_date": "20200101",
+            "end_date": "20241231",
+        }
+        self.assertFalse(period_overlaps_window(ended_before, "20250101", "20260101"))
+        starts_after = {
+            "st_level": ST_LEVEL_ST,
+            "start_date": "20260201",
+            "end_date": None,
+        }
+        self.assertFalse(period_overlaps_window(starts_after, "20250101", "20260101"))
+
+    def test_overlapping_window_sql_bind_order(self):
+        sql = overlapping_window_sql()
+        self.assertIn("start_date <= %s", sql)
+        self.assertIn("end_date >= %s", sql)
+        self.assertIn("end_date IS NULL", sql)
 
     def test_records_to_st_periods(self):
         rows = records_to_st_periods(

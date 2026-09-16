@@ -106,21 +106,37 @@ def post_strategy_decision_pick(strategy_key_or_name: str, dm_id: str):
     """
     POST /api/v1/strategy/:strategy_key_or_name/decision/sessions/:dm_id/pick
 
-    D1-05：录入 ``{ local_id, shares }``；同一编号覆盖。
+    D1-05：录入 ``{ local_id, shares }``；也可 ``cash``（金额按手数折股）。同一编号覆盖。
     """
     decision = decision_impl.lazy_load()
     body = json_payload()
     try:
         local_id = int(body.get("local_id"))
-        shares = int(body.get("shares"))
     except (TypeError, ValueError):
-        return error("local_id / shares 须为整数", 400)
+        return error("local_id 须为整数", 400)
+    cash_raw = body.get("cash")
+    shares_raw = body.get("shares")
+    cash = None
+    shares = None
+    if cash_raw is not None and str(cash_raw).strip() != "":
+        try:
+            cash = float(cash_raw)
+        except (TypeError, ValueError):
+            return error("cash 须为数字", 400)
+    elif shares_raw is not None and str(shares_raw).strip() != "":
+        try:
+            shares = int(shares_raw)
+        except (TypeError, ValueError):
+            return error("shares 须为整数", 400)
+    else:
+        return error("请指定 cash 或 shares", 400)
     try:
         msg = decision.set_pick(
             strategy_key_or_name,
             dm_id,
             local_id=local_id,
             shares=shares,
+            cash=cash,
             version_id=_version_id(body.get("version_id"), request.args.get("version")),
         )
     except ValueError as exc:

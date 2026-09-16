@@ -38,7 +38,8 @@ class StPeriodService(BaseDataService):
         period_end: str,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
-        与 [period_start, period_end] 有交集的时段，按 stock_id 分组。
+        与 [period_start, period_end] 有交集的时段，按 stock_id 分组
+        （含窗口前已开始、结束日空或仍落在窗内的行）。
         每个 run 调用一次即可，后续 is_on 走内存。
         """
         rows = self._model.load_overlapping_window(

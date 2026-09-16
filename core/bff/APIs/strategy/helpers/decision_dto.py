@@ -148,7 +148,34 @@ def _lot_size(engine: Any, entity_id: str) -> Optional[int]:
     return n if n > 0 else None
 
 
-def _suggested_kelly_shares(engine: Any, opp: Any) -> Optional[int]:
+def _lot_step(engine: Any, entity_id: str, min_lot: Optional[int]) -> Optional[int]:
+    alloc = getattr(engine, "allocation", None)
+    fn = getattr(alloc, "lot_step_for_stock", None)
+    if callable(fn):
+        try:
+            n = int(fn(str(entity_id or "")) or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            return n
+    return min_lot if min_lot and min_lot > 0 else None
+
+
+_ALLOCATION_BASIS = {
+    "equal_capital": "等价",
+    "equal_shares": "等股",
+    "kelly": "凯莉",
+}
+
+
+def _allocation_mode(alloc: Any) -> str:
+    mode = str(getattr(alloc, "mode", "") or "").strip().lower()
+    if mode == "custom":
+        return "equal_capital"
+    return mode if mode in _ALLOCATION_BASIS else ""
+
+
+def _ticker_win_rate(opp: Any) -> Optional[float]:
     stats = getattr(opp, "ticker_stats", None)
     if stats is None:
         return None
@@ -156,22 +183,66 @@ def _suggested_kelly_shares(engine: Any, opp: Any) -> Optional[int]:
     win_rate = getattr(stats, "win_rate", None)
     if sample <= 0 or win_rate is None:
         return None
+    try:
+        return float(win_rate)
+    except (TypeError, ValueError):
+        return None
+
+
+def _suggested_basis(alloc: Any, *, win_rate: Optional[float]) -> str:
+    mode = _allocation_mode(alloc)
+    if mode == "equal_capital":
+        capital = float(getattr(alloc, "per_trade_capital", 0.0) or 0.0)
+        if capital > 0:
+            return f"等价（每笔 {capital:,.0f} 元）"
+        return "等价"
+    if mode == "equal_shares":
+        lots = int(getattr(alloc, "lots_per_trade", 1) or 1)
+        return f"等股（{lots} 手）"
+    if mode == "kelly":
+        frac = float(getattr(alloc, "kelly_fraction", 0.5) or 0.0)
+        if win_rate is None:
+            return "凯莉（无 as-of 样本）"
+        return f"凯莉（胜率 {win_rate * 100:.0f}% × 折扣 {frac:g}）"
+    return ""
+
+
+def _suggested_shares(engine: Any, opp: Any) -> Optional[int]:
     alloc = getattr(engine, "allocation", None)
-    fn = getattr(alloc, "suggest_kelly_shares", None)
     account = getattr(engine, "account", None)
-    if not callable(fn) or account is None:
+    mode = _allocation_mode(alloc)
+    fn = getattr(alloc, "suggest_shares", None)
+    if not callable(fn) or account is None or not mode:
+        return None
+    win_rate = _ticker_win_rate(opp)
+    if mode == "kelly" and win_rate is None:
         return None
     try:
-        return int(
+        n = int(
             fn(
                 account,
                 float(getattr(opp, "entry_price_raw", 0.0) or 0.0),
                 str(getattr(opp, "entity_id", "") or ""),
-                float(win_rate),
+                win_rate=win_rate,
             )
+            or 0
         )
     except (TypeError, ValueError):
         return None
+    return n if n > 0 else None
+
+
+def _suggested_cash(alloc: Any, opp: Any, shares: Optional[int]) -> Optional[float]:
+    mode = _allocation_mode(alloc)
+    if mode == "equal_capital":
+        capital = float(getattr(alloc, "per_trade_capital", 0.0) or 0.0)
+        return capital if capital > 0 else None
+    if shares is None or int(shares) <= 0:
+        return None
+    price = float(getattr(opp, "entry_price_raw", 0.0) or 0.0)
+    if price <= 0:
+        return None
+    return round(float(shares) * price, 2)
 
 
 def _status_tags(raw: Any) -> List[str]:
@@ -188,6 +259,10 @@ def _status_tags(raw: Any) -> List[str]:
 def _opportunity_dict(opp: Any, engine: Any = None) -> Dict[str, Any]:
     ticker = getattr(opp, "ticker_stats", None)
     entity_id = str(getattr(opp, "entity_id", "") or "")
+    alloc = getattr(engine, "allocation", None) if engine is not None else None
+    win_rate = _ticker_win_rate(opp)
+    suggested = _suggested_shares(engine, opp)
+    min_lot = _lot_size(engine, entity_id)
     return {
         "local_id": int(getattr(opp, "local_id", 0) or 0),
         "entity_id": entity_id,
@@ -195,8 +270,11 @@ def _opportunity_dict(opp: Any, engine: Any = None) -> Dict[str, Any]:
         "status_tags": _status_tags(getattr(opp, "status_tags", None)),
         "entry_price": float(getattr(opp, "entry_price_raw", 0.0) or 0.0),
         "stats": _stats_dict(ticker),
-        "lot_size": _lot_size(engine, entity_id),
-        "suggested_shares": _suggested_kelly_shares(engine, opp),
+        "lot_size": min_lot,
+        "lot_step": _lot_step(engine, entity_id, min_lot),
+        "suggested_shares": suggested,
+        "suggested_cash": _suggested_cash(alloc, opp, suggested),
+        "suggested_basis": _suggested_basis(alloc, win_rate=win_rate) if alloc else "",
     }
 
 
@@ -304,6 +382,7 @@ def session_snapshot(
         "initial_cash": initial,
         "open_position_count": open_count,
         "max_portfolio_size": max_size,
+        "allocation_mode": _allocation_mode(allocation),
         "asof_stats": asof,
         "opportunities": [
             _opportunity_dict(opp, engine) for opp in (engine.opportunities() or [])
@@ -327,6 +406,7 @@ def holdings_message(engine: Any, rows: Iterable[Any]) -> Dict[str, Any]:
                 "buy_date": str(getattr(row, "buy_date", "") or ""),
                 "buy_price": float(getattr(row, "buy_price", 0.0) or 0.0),
                 "hold_days": int(getattr(row, "hold_days", 0) or 0),
+                "hold_unit": str(getattr(row, "hold_unit", "") or "natural_day"),
                 "close": getattr(row, "close", None),
                 "unrealized": getattr(row, "unrealized", None),
                 "goals": [str(item) for item in (getattr(row, "goals", None) or [])],

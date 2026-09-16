@@ -100,7 +100,8 @@ class StrategyDecisionImplementer:
         session_id: str,
         *,
         local_id: int,
-        shares: int,
+        shares: Optional[int] = None,
+        cash: Optional[float] = None,
         version_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         engine = self._open(
@@ -108,7 +109,10 @@ class StrategyDecisionImplementer:
             version_id=version_id,
             session_id=str(session_id or "").strip(),
         )
-        engine.set_pick(int(local_id), int(shares))
+        if cash is not None:
+            engine.set_pick_cash(int(local_id), float(cash))
+        else:
+            engine.set_pick(int(local_id), int(shares or 0))
         return session_snapshot(engine)
 
     def done(

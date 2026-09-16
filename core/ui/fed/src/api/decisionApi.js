@@ -141,9 +141,16 @@ function mapOpportunity(row) {
     lotSize: Number.isFinite(Number(raw.lot_size)) && Number(raw.lot_size) > 0
       ? Number(raw.lot_size)
       : null,
+    lotStep: Number.isFinite(Number(raw.lot_step)) && Number(raw.lot_step) > 0
+      ? Number(raw.lot_step)
+      : null,
     suggestedShares: raw.suggested_shares == null || !Number.isFinite(Number(raw.suggested_shares))
       ? null
       : Number(raw.suggested_shares),
+    suggestedCash: raw.suggested_cash == null || !Number.isFinite(Number(raw.suggested_cash))
+      ? null
+      : Number(raw.suggested_cash),
+    suggestedBasis: String(raw.suggested_basis || '').trim(),
   };
 }
 
@@ -205,6 +212,7 @@ export function mapDecisionSnapshot(message) {
     initialCash: Number(m.initial_cash) || 0,
     openPositionCount: Number(m.open_position_count) || 0,
     maxPortfolioSize: Number(m.max_portfolio_size) || 0,
+    allocationMode: String(m.allocation_mode || ''),
     asof,
     opps,
     draft,
@@ -246,6 +254,7 @@ export function mapDecisionHoldings(message) {
       buyDate,
       buyPrice: Number.isFinite(buyPrice) ? buyPrice : null,
       holdDays: Number(row.hold_days) || 0,
+      holdUnit: String(row.hold_unit || 'natural_day'),
       close: close != null && Number.isFinite(close) ? close : null,
       cost,
       marketValue,
@@ -350,16 +359,17 @@ export async function deleteDecisionSession(strategyName, sessionId, { versionId
   return unwrapMessage(json);
 }
 
-export async function pickDecisionShares(strategyName, sessionId, { localId, shares, versionId } = {}) {
+export async function pickDecisionShares(strategyName, sessionId, { localId, cash, shares, versionId } = {}) {
+  const body = {
+    local_id: Number(localId),
+    ...(versionId ? { version_id: String(versionId) } : {}),
+  };
+  if (shares != null) body.shares = Number(shares) || 0;
+  else if (cash != null) body.cash = Number(cash) || 0;
+  else body.shares = 0;
   const json = await request.postJson(
     `${apiDecisionSessions(strategyName)}/${encodeURIComponent(sessionId)}/pick`,
-    {
-      body: {
-        local_id: Number(localId),
-        shares: Number(shares) || 0,
-        ...(versionId ? { version_id: String(versionId) } : {}),
-      },
-    },
+    { body },
   );
   return mapDecisionSnapshot(unwrapMessage(json));
 }

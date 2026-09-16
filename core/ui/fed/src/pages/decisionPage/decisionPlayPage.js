@@ -47,6 +47,7 @@ import {
   formatMoney,
   formatPct,
   formatSignedMoney,
+  listOpenDaysAfter,
   mapStockStatusTags,
   monthTitle,
   shiftMonth,
@@ -55,6 +56,8 @@ import {
 import './decisionPage.scss';
 
 const WEEKDAY_HEADS = ['一', '二', '三', '四', '五', '六', '日'];
+const CLOCK_STEP_MS = 300;
+const CLOCK_FADE_OUT_MS = 100;
 
 function prefersReducedMotion() {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -146,16 +149,60 @@ function opportunityStockLabel(row) {
   return name || ticker || '—';
 }
 
-function validateShareDraft(raw, lotSize) {
+function inferAShareLot(ticker) {
+  // 与 china_a_stock 手数表对齐：现场 lot_step 未到时也能步进。
+  const id = String(ticker || '').split('.')[0];
+  if (/^688/.test(id)) return { minLot: 200, lotStep: 1 };
+  if (/^(8|43|92)/.test(id)) return { minLot: 100, lotStep: 1 };
+  return { minLot: 100, lotStep: 100 };
+}
+
+function lotRule(row) {
+  const inferred = inferAShareLot(row?.ticker);
+  const minLot = Number(row?.lotSize) > 0 ? Number(row.lotSize) : inferred.minLot;
+  const lotStep = Number(row?.lotStep) > 0 ? Number(row.lotStep) : inferred.lotStep;
+  return { minLot, lotStep };
+}
+
+function shareStepJump(lotStep) {
+  const step = Math.max(1, Number(lotStep) || 1);
+  return step >= 100 ? step : 100;
+}
+
+function stepShares(current, direction, minLot, lotStep) {
+  const min = Math.max(1, Number(minLot) || 1);
+  const jump = shareStepJump(lotStep);
+  const n = Math.max(0, Math.trunc(Number(current) || 0));
+  if (direction > 0) {
+    if (n < min) return min;
+    return n + jump;
+  }
+  if (n <= min) return 0;
+  const next = n - jump;
+  return next < min ? min : next;
+}
+
+function validateShareDraft(raw, minLot, lotStep) {
   const text = String(raw ?? '').trim();
   if (!text) return { ok: true, shares: 0 };
-  if (!/^\d+$/.test(text)) return { ok: false, message: '须为非负整数' };
+  if (!/^\d+$/.test(text)) return { ok: false, message: '股数须为整数' };
   const shares = Number(text);
-  if (!Number.isFinite(shares) || shares < 0) return { ok: false, message: '须为非负整数' };
-  if (shares > 0 && lotSize && shares % Number(lotSize) !== 0) {
-    return { ok: false, message: `须为 ${lotSize} 的整数倍` };
+  if (!Number.isInteger(shares) || shares < 0) return { ok: false, message: '股数须为整数' };
+  if (shares === 0) return { ok: true, shares: 0 };
+  const min = Math.max(1, Number(minLot) || 1);
+  const step = Math.max(1, Number(lotStep) || min);
+  if (shares < min) return { ok: false, message: `最少 ${min} 股` };
+  if ((shares - min) % step !== 0) {
+    return { ok: false, message: `须为 ${min} 起、每 ${step} 股` };
   }
   return { ok: true, shares };
+}
+
+function cashFromShares(shares, price) {
+  const n = Number(shares) || 0;
+  const px = Number(price) || 0;
+  if (n <= 0 || px <= 0) return 0;
+  return n * px;
 }
 
 function headerWithTooltip(label, title) {
@@ -166,17 +213,67 @@ function headerWithTooltip(label, title) {
   );
 }
 
+function suggestedBuyTooltip(mode) {
+  if (mode === 'equal_shares') {
+    return '点按填入建议股数。等股：每次买入手数 × 最小交易单位。';
+  }
+  if (mode === 'kelly') {
+    return '点按填入建议股数。凯莉：当前现金 × 该标的 as-of 胜率 × 凯莉折扣。无已完成样本为 —。';
+  }
+  return '点按填入建议股数。等价资金：初始资金 ÷ 最大持股数，再按手数折股。';
+}
+
+function SuggestedSharesCell({ suggestedCash, suggestedShares, basis, held, disabled, onApply }) {
+  if (held) return '—';
+  const hasCash = suggestedCash != null && suggestedCash > 0;
+  const hasShares = suggestedShares != null && suggestedShares > 0;
+  const basisEl = basis ? <span className="decision-suggest-basis">{basis}</span> : null;
+  const body = (
+    <span className="decision-suggest-cell">
+      {hasShares ? Number(suggestedShares).toLocaleString() : '—'}
+      {hasShares && hasCash ? (
+        <span className="decision-suggest-shares">约 {Number(suggestedCash).toLocaleString()} 元</span>
+      ) : null}
+      {basisEl}
+    </span>
+  );
+  if (!hasShares) {
+    return (
+      <span className="decision-suggest-cell">
+        —
+        {basisEl}
+      </span>
+    );
+  }
+  if (disabled) return body;
+  return (
+    <Button
+      size="small"
+      variant="text"
+      className="decision-suggest-apply"
+      onClick={(event) => {
+        event.stopPropagation();
+        onApply();
+      }}
+    >
+      {body}
+    </Button>
+  );
+}
+
 function SharesInvestCell({
   open,
   disabled,
   draft,
   error,
-  lotSize,
+  notional,
   ticker,
+  lotStep,
   onOpen,
   onDraftChange,
   onCommit,
   onCancel,
+  onStep,
 }) {
   if (!open) {
     return (
@@ -193,32 +290,99 @@ function SharesInvestCell({
       </Button>
     );
   }
+  const jump = shareStepJump(lotStep);
+  const stopRow = (event) => event.stopPropagation();
   return (
-    <TextField
-      className="decision-shares-input"
-      size="small"
-      autoFocus
-      disabled={disabled}
-      value={draft}
-      error={Boolean(error)}
-      placeholder={lotSize ? `${lotSize} 的整数倍` : '股数'}
-      inputProps={{ inputMode: 'numeric', 'aria-label': `股数 ${ticker}` }}
-      onClick={(event) => event.stopPropagation()}
-      onMouseDown={(event) => event.stopPropagation()}
-      onChange={(event) => onDraftChange(event.target.value)}
-      onBlur={(event) => onCommit(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          onCommit(event.target.value);
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          onCancel();
-        }
-      }}
-    />
+    <span className="decision-invest-cell">
+      <span className="decision-invest-row">
+        <TextField
+          className="decision-shares-input"
+          size="small"
+          type="number"
+          autoFocus
+          disabled={disabled}
+          value={draft}
+          error={Boolean(error)}
+          placeholder="股数"
+          inputProps={{
+            min: 0,
+            step: jump,
+            inputMode: 'numeric',
+            'aria-label': `投资股数 ${ticker}`,
+          }}
+          onClick={stopRow}
+          onMouseDown={stopRow}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onBlur={(event) => onCommit(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              onStep(1);
+            }
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              onStep(-1);
+            }
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              onCommit(event.target.value);
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              onCancel();
+            }
+          }}
+        />
+        <span className="decision-shares-stepper">
+          <button
+            type="button"
+            className="decision-stepper-btn"
+            disabled={disabled}
+            aria-label={`增加 ${jump} 股`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onStep(1);
+            }}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            className="decision-stepper-btn"
+            disabled={disabled}
+            aria-label={`减少 ${jump} 股`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onStep(-1);
+            }}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            ▼
+          </button>
+        </span>
+        {notional ? (
+          <span className="decision-invest-notional">约 {notional}</span>
+        ) : null}
+      </span>
+      {error ? (
+        <span className="decision-invest-hint is-error">{error}</span>
+      ) : null}
+    </span>
   );
+}
+
+function formatHoldSpan(days, unit) {
+  const n = Number(days) || 0;
+  if (unit === 'trading_day') return `${n} 个交易日`;
+  if (unit === 'open_day') return `${n} 个开市日`;
+  return `${n} 个自然日`;
 }
 
 function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
@@ -242,7 +406,7 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
     ['总成本', row.cost != null ? formatMoney(row.cost) : '—'],
     ['总价值', formatMarketValueWithPnl(row.marketValue, row.unrealized)],
     ['浮动盈亏', formatHoldingPnl(row.unrealized, row.pnlPct)],
-    ['持有时长', `${Number(row.holdDays) || 0} 日`],
+    ['持有时长', formatHoldSpan(row.holdDays, row.holdUnit)],
     ['仓位占比', weight == null ? '—' : `${(weight * 100).toFixed(1)}%`],
   ] : [];
 
@@ -349,7 +513,6 @@ function DecisionPlayPage() {
   const [picks, setPicks] = useState({});
   const [events, setEvents] = useState([]);
   const [historyDays, setHistoryDays] = useState([]);
-  const [equityDelta, setEquityDelta] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [pageReady, setPageReady] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -360,13 +523,16 @@ function DecisionPlayPage() {
   const [shareEditors, setShareEditors] = useState({});
   const [toast, setToast] = useState('');
   const [advancing, setAdvancing] = useState(false);
+  const [displayClockDate, setDisplayClockDate] = useState('');
+  const [clockMotion, setClockMotion] = useState('is-landed');
   const [calendarAnchor, setCalendarAnchor] = useState(null);
   const [viewYear, setViewYear] = useState(() => dateToYearMonth('').year);
   const [viewMonth, setViewMonth] = useState(() => dateToYearMonth('').month);
   const animRef = useRef({ cancelled: false, timer: null });
   const pickTimerRef = useRef(null);
   const pendingPicksRef = useRef({});
-  const equityRef = useRef(null);
+  const runAdvanceRef = useRef(null);
+  const spaceLockRef = useRef(false);
   const holdingDetailCacheRef = useRef(null);
   const calendarOpen = Boolean(calendarAnchor);
   const lobbyHref = decisionLobbyPath(strategyKey);
@@ -422,8 +588,6 @@ function DecisionPlayPage() {
       setLoadError('');
       setEvents([]);
       setHistoryDays([]);
-      setEquityDelta(null);
-      equityRef.current = null;
       try {
         const snap = await fetchDecisionSession(strategyKey, sessionId);
         if (cancelled) return;
@@ -446,11 +610,14 @@ function DecisionPlayPage() {
   }, [strategyKey, sessionId, navigate, lobbyHref, applyLive, loadHoldings]);
 
   const clockDate = snapshot?.clockDate || '';
+  const shownClockDate = displayClockDate || clockDate;
   const completed = Boolean(snapshot?.completed || readonlyQuery);
   const rangeStart = snapshot?.startDate || '';
   const rangeEnd = snapshot?.endDate || '';
   const holdingsValue = holdingsMarketValue(holdings);
   const equity = (Number(snapshot?.cash) || 0) + holdingsValue;
+  const initialCash = Number(snapshot?.initialCash) || 0;
+  const equityDelta = initialCash > 0 ? equity - initialCash : null;
   const cashRatio = equity > 0 ? (Number(snapshot?.cash) || 0) / equity : null;
   const hasOpps = Boolean(snapshot?.hasOpps);
   const selectableSlots = Math.max(
@@ -460,16 +627,17 @@ function DecisionPlayPage() {
   const showEquityDelta = typeof equityDelta === 'number' && equityDelta !== 0;
 
   useEffect(() => {
-    if (snapshot) equityRef.current = equity;
-  }, [snapshot, equity]);
+    if (advancing) return;
+    if (snapshot?.clockDate) setDisplayClockDate(snapshot.clockDate);
+  }, [advancing, snapshot?.clockDate]);
 
   const eventMarks = useMemo(
-    () => (calendarOpen ? collectEventMarks(historyDays, clockDate) : {}),
-    [calendarOpen, historyDays, clockDate],
+    () => (calendarOpen ? collectEventMarks(historyDays, shownClockDate) : {}),
+    [calendarOpen, historyDays, shownClockDate],
   );
   const elapsedDays = useMemo(
-    () => countTradingDaysInclusive(rangeStart, clockDate),
-    [rangeStart, clockDate],
+    () => countTradingDaysInclusive(rangeStart, shownClockDate),
+    [rangeStart, shownClockDate],
   );
   const totalDays = useMemo(
     () => countTradingDaysInclusive(rangeStart, rangeEnd),
@@ -512,16 +680,21 @@ function DecisionPlayPage() {
 
   const infoChart = useMemo(() => {
     if (!infoPayload?.candles?.length) return {};
+    const markers = [];
+    const buyYmd = String(infoOpp?.buyDate || infoOpp?.heldBuyDate || '').replace(/-/g, '');
+    const clockYmd = String(clockDate || '').replace(/-/g, '');
+    if (buyYmd) {
+      markers.push({ type: 'buy', date: buyYmd, label: '买入' });
+    }
+    if (clockYmd && clockYmd !== buyYmd) {
+      markers.push({ type: 'opportunity', date: clockYmd, label: '当前日' });
+    }
     return buildStockKlineChartOptionFromPayload({
       candles: infoPayload.candles,
       indicator_series: infoPayload.indicatorSeries || [],
-      markers: clockDate ? [{
-        type: 'opportunity',
-        date: clockDate.replace(/-/g, ''),
-        label: '当前日',
-      }] : [],
+      markers,
     });
-  }, [infoPayload, clockDate]);
+  }, [infoPayload, clockDate, infoOpp]);
 
   const holdingDetail = holdings.find((row) => row.id === holdingDetailId) || null;
   if (holdingDetail) holdingDetailCacheRef.current = holdingDetail;
@@ -544,7 +717,7 @@ function DecisionPlayPage() {
         shares: Number(pending[id]) || 0,
       });
     }
-    if (last && last !== snapshot) applyLive(last, undefined, { keepPicks: true });
+    if (last && last !== snapshot) applyLive(last, undefined, { keepPicks: false });
   }, [applyLive, snapshot, strategyKey]);
 
   const schedulePick = (localId, shares) => {
@@ -552,7 +725,7 @@ function DecisionPlayPage() {
     if (pickTimerRef.current) window.clearTimeout(pickTimerRef.current);
     pickTimerRef.current = window.setTimeout(() => {
       flushPicks().catch((err) => {
-        const message = errorMessage(err, '无法写入股数');
+        const message = errorMessage(err, '无法下单');
         setToast(message);
         setShareEditors((prev) => ({
           ...prev,
@@ -568,8 +741,8 @@ function DecisionPlayPage() {
 
   const openShareEditor = (row, preset) => {
     if (row.held) return;
-    const current = Number(picks[row.id] || 0);
-    const draft = preset != null ? String(preset) : (current > 0 ? String(current) : '');
+    const shares = Number(picks[row.id] || 0);
+    const draft = preset != null ? String(preset) : (shares > 0 ? String(shares) : '');
     setShareEditors((prev) => ({
       ...prev,
       [row.id]: { open: true, draft, error: '' },
@@ -586,8 +759,10 @@ function DecisionPlayPage() {
   const commitShareEditor = (row, rawValue) => {
     if (row.held) return;
     const editor = shareEditors[row.id];
-    const raw = rawValue != null ? rawValue : (editor?.draft ?? (picks[row.id] != null ? String(picks[row.id]) : ''));
-    const result = validateShareDraft(raw, row.lotSize);
+    const picked = Number(picks[row.id] || 0);
+    const raw = rawValue != null ? rawValue : (editor?.draft ?? (picked > 0 ? String(picked) : ''));
+    const { minLot, lotStep } = lotRule(row);
+    const result = validateShareDraft(raw, minLot, lotStep);
     if (!result.ok) {
       setShareEditors((prev) => ({
         ...prev,
@@ -614,16 +789,15 @@ function DecisionPlayPage() {
       ...prev,
       [row.id]: { open: true, draft: String(result.shares), error: '' },
     }));
-    setPicks((prev) => ({ ...prev, [row.id]: result.shares }));
     schedulePick(row.id, result.shares);
   };
 
   const cancelShareEditor = (row) => {
-    const current = Number(picks[row.id] || 0);
-    if (current > 0) {
+    const picked = Number(picks[row.id] || 0);
+    if (picked > 0) {
       setShareEditors((prev) => ({
         ...prev,
-        [row.id]: { open: true, draft: String(current), error: '' },
+        [row.id]: { open: true, draft: String(picked), error: '' },
       }));
       return;
     }
@@ -634,14 +808,47 @@ function DecisionPlayPage() {
     });
   };
 
-  const applySuggestedShares = (row) => {
-    if (row.held || row.suggestedShares == null || row.suggestedShares <= 0) return;
+  const stepShareEditor = (row, direction) => {
+    if (row.held) return;
+    const { minLot, lotStep } = lotRule(row);
+    const editor = shareEditors[row.id];
+    const current = editor?.draft != null && String(editor.draft).trim() !== ''
+      ? editor.draft
+      : (picks[row.id] || 0);
+    const next = stepShares(current, direction, minLot, lotStep);
+    const draft = next > 0 ? String(next) : '';
     setShareEditors((prev) => ({
       ...prev,
-      [row.id]: { open: true, draft: String(row.suggestedShares), error: '' },
+      [row.id]: { open: true, draft, error: '' },
     }));
-    setPicks((prev) => ({ ...prev, [row.id]: row.suggestedShares }));
-    schedulePick(row.id, row.suggestedShares);
+    commitShareEditor(row, draft);
+  };
+
+  const applySuggestedShares = (row) => {
+    const shares = Number(row.suggestedShares) || 0;
+    if (row.held || shares <= 0) return;
+    setShareEditors((prev) => ({
+      ...prev,
+      [row.id]: { open: true, draft: String(shares), error: '' },
+    }));
+    schedulePick(row.id, shares);
+  };
+
+  const openInfo = async (row) => {
+    setInfoOpp(row);
+    setInfoPayload(null);
+    if (!strategyKey || !snapshot?.dmId || !row) return;
+    setInfoLoading(true);
+    try {
+      const payload = await fetchDecisionInfo(strategyKey, snapshot.dmId, {
+        target: String(row.ticker || row.id || ''),
+      });
+      setInfoPayload(payload);
+    } catch (err) {
+      setToast(errorMessage(err, '无法加载 info'));
+    } finally {
+      setInfoLoading(false);
+    }
   };
 
   const shareDisabled = completed || advancing || snapshot?.phase === 'confirming';
@@ -656,7 +863,13 @@ function DecisionPlayPage() {
       renderCell: (grid) => (
         <span className="decision-opp-stock-cell">
           <span className="decision-opp-stock-line">
-            <span className="decision-opp-stock">{opportunityStockLabel(grid.row)}</span>
+            <button
+              type="button"
+              className="decision-opp-stock"
+              onClick={() => openInfo(grid.row)}
+            >
+              {opportunityStockLabel(grid.row)}
+            </button>
             <StockStatusChips tags={grid.row.statusTags} />
           </span>
           {grid.row.held ? (
@@ -679,7 +892,7 @@ function DecisionPlayPage() {
       width: 108,
       renderHeader: headerWithTooltip(
         '模拟胜率',
-        '目前为止的模拟回测胜率（该标的 as-of；无样本为 —）',
+        '该标的在当前日之前已经完成的枚举记录胜率（exit_date < 当天）。无样本为 —。',
       ),
     },
     {
@@ -687,62 +900,60 @@ function DecisionPlayPage() {
       width: 108,
       renderHeader: headerWithTooltip(
         '模拟 ROI',
-        '目前为止的模拟回测平均回报率（ROI，该标的 as-of；无样本为 —）',
+        '该标的在当前日之前已经完成的枚举记录平均 ROI。无样本为 —。',
       ),
     },
     {
       field: 'suggestedShares',
-      width: 112,
+      width: 184,
       sortable: false,
       renderHeader: headerWithTooltip(
         '建议买入',
-        '凯莉公式建议股数：当前现金 × as-of 胜率，再乘策略凯莉折扣，并按手数取整。无样本为 —；未扣其他草稿。',
+        suggestedBuyTooltip(snapshot?.allocationMode),
       ),
-      renderCell: (grid) => {
-        const suggested = grid.row.suggestedShares;
-        if (suggested == null || grid.row.held) return '—';
-        if (suggested <= 0 || shareDisabled) {
-          return <span>{Number(suggested).toLocaleString()}</span>;
-        }
-        return (
-          <Button
-            size="small"
-            variant="text"
-            onClick={(event) => {
-              event.stopPropagation();
-              applySuggestedShares(grid.row);
-            }}
-          >
-            {Number(suggested).toLocaleString()}
-          </Button>
-        );
-      },
+      renderCell: (grid) => (
+        <SuggestedSharesCell
+          suggestedCash={grid.row.suggestedCash}
+          suggestedShares={grid.row.suggestedShares}
+          basis={grid.row.suggestedBasis}
+          held={grid.row.held}
+          disabled={shareDisabled}
+          onApply={() => applySuggestedShares(grid.row)}
+        />
+      ),
     },
     {
       field: 'shares',
       headerName: '投资',
-      width: 132,
+      width: 248,
       sortable: false,
       renderCell: (grid) => {
         if (grid.row.held) {
           return <Chip size="small" variant="outlined" label="已持有" />;
         }
         const editor = shareEditors[grid.row.id];
-        const picked = Number(picks[grid.row.id] || 0);
-        const open = Boolean(editor?.open) || picked > 0;
-        const draft = editor?.draft ?? (picked > 0 ? String(picked) : '');
+        const pickedShares = Number(picks[grid.row.id] || 0);
+        const open = Boolean(editor?.open) || pickedShares > 0;
+        const draft = editor?.draft ?? (pickedShares > 0 ? String(pickedShares) : '');
+        const parsed = Number(draft);
+        const notional = Number.isFinite(parsed) && parsed > 0
+          ? formatMoney(cashFromShares(parsed, grid.row.price))
+          : '';
+        const { lotStep } = lotRule(grid.row);
         return (
           <SharesInvestCell
             open={open}
             disabled={shareDisabled}
             draft={draft}
             error={editor?.error || ''}
-            lotSize={grid.row.lotSize}
+            notional={notional}
             ticker={grid.row.ticker}
+            lotStep={lotStep}
             onOpen={() => openShareEditor(grid.row)}
             onDraftChange={(value) => updateShareDraft(grid.row.id, value)}
             onCommit={(raw) => commitShareEditor(grid.row, raw)}
             onCancel={() => cancelShareEditor(grid.row)}
+            onStep={(direction) => stepShareEditor(grid.row, direction)}
           />
         );
       },
@@ -771,33 +982,53 @@ function DecisionPlayPage() {
   };
 
   const runAdvance = async () => {
-    if (!strategyKey || !snapshot?.dmId || completed) return;
+    if (!strategyKey || !snapshot?.dmId || completed || advancing) return;
     setConfirmOpen(false);
     closeCalendar();
-    const prevEquity = equityRef.current;
+    const fromDate = snapshot.clockDate || displayClockDate;
+    setAdvancing(true);
+    setClockMotion('is-out');
     try {
       if (snapshot.phase !== 'confirming') {
         await flushPicks();
         const confirming = await doneDecisionDay(strategyKey, snapshot.dmId);
         applyLive(confirming, undefined, { keepPicks: true });
       }
-      if (!prefersReducedMotion()) {
-        setAdvancing(true);
-        await sleep(280);
-        if (animRef.current.cancelled) return;
-      }
       const nextSnap = await nextDecisionDay(strategyKey, snapshot.dmId);
       const held = await loadHoldings(nextSnap.dmId);
-      const nextEquity = (Number(nextSnap.cash) || 0) + holdingsMarketValue(held);
+      const hops = listOpenDaysAfter(fromDate, nextSnap.clockDate);
+      if (!prefersReducedMotion() && hops.length) {
+        for (const date of hops) {
+          if (animRef.current.cancelled) return;
+          setClockMotion('is-out');
+          await sleep(CLOCK_FADE_OUT_MS);
+          if (animRef.current.cancelled) return;
+          setDisplayClockDate(date);
+          setClockMotion('is-in');
+          await sleep(Math.max(CLOCK_STEP_MS - CLOCK_FADE_OUT_MS, 200));
+        }
+      } else {
+        setDisplayClockDate(nextSnap.clockDate || fromDate);
+      }
       applyLive(nextSnap, held, { hopEvents: nextSnap.events || [], keepPicks: false });
-      if (typeof prevEquity === 'number') setEquityDelta(nextEquity - prevEquity);
-      else setEquityDelta(null);
+      setClockMotion('is-landed');
       setAdvancing(false);
       setToast(nextSnap.completed ? '本局已走完' : '已提交当天，停在下一事件日');
     } catch (err) {
+      setClockMotion('is-landed');
       setAdvancing(false);
       setToast(errorMessage(err, '推进失败'));
     }
+  };
+  runAdvanceRef.current = runAdvance;
+
+  const requestAdvance = () => {
+    if (completed || advancing) return;
+    if (hasOpps) {
+      setConfirmOpen(true);
+      return;
+    }
+    runAdvance();
   };
 
   const resetDraft = async () => {
@@ -814,22 +1045,38 @@ function DecisionPlayPage() {
     }
   };
 
-  const openInfo = async (row) => {
-    setInfoOpp(row);
-    setInfoPayload(null);
-    if (!strategyKey || !snapshot?.dmId || !row) return;
-    setInfoLoading(true);
-    try {
-      const payload = await fetchDecisionInfo(strategyKey, snapshot.dmId, {
-        target: String(row.ticker || row.id || ''),
-      });
-      setInfoPayload(payload);
-    } catch (err) {
-      setToast(errorMessage(err, '无法加载 info'));
-    } finally {
-      setInfoLoading(false);
-    }
-  };
+  useEffect(() => {
+    const isSpace = (event) => event.code === 'Space' || event.key === ' ';
+    const onKeyDown = (event) => {
+      if (!isSpace(event) || event.repeat) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target?.closest?.('input, textarea, [contenteditable="true"]')) return;
+      if (infoOpp || holdingDetailId) return;
+      if (completed || advancing) {
+        event.preventDefault();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (spaceLockRef.current) return;
+      spaceLockRef.current = true;
+      if (confirmOpen || !hasOpps) {
+        runAdvanceRef.current?.();
+        return;
+      }
+      setConfirmOpen(true);
+    };
+    const onKeyUp = (event) => {
+      if (isSpace(event)) spaceLockRef.current = false;
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+    };
+  }, [advancing, completed, confirmOpen, hasOpps, holdingDetailId, infoOpp]);
 
   if (!pageReady && !loadError) {
     return (
@@ -874,7 +1121,7 @@ function DecisionPlayPage() {
       className="decision-page"
       breadcrumbsItems={[{ label: '决策者', to: lobbyHref }]}
       breadcrumbsCurrent={`第 ${snapshot.dmId} 局`}
-      bannerTitle={`决策者对局 · 第 ${snapshot.dmId} 局`}
+      bannerTitle={`决策模拟 · 第 ${snapshot.dmId} 局`}
       bannerDescription="时钟只显示当前停顿日。推进后总进度前移；月历是只读地图，只标注已经发生的事件。"
       bannerRightSlot={(
         <Button component={RouterLink} to={lobbyHref} variant="outlined" size="small">
@@ -896,11 +1143,10 @@ function DecisionPlayPage() {
                 交易日历
               </Typography>
               <Box
-                key={clockDate}
-                className={`decision-clock ${advancing ? 'is-advancing' : 'is-landed'}`}
+                className={`decision-clock ${clockMotion}`}
               >
-                <Typography className="decision-clock__date">{clockDate || '—'}</Typography>
-                <Typography className="decision-clock__weekday">{weekdayLabel(clockDate)}</Typography>
+                <Typography className="decision-clock__date">{shownClockDate || '—'}</Typography>
+                <Typography className="decision-clock__weekday">{weekdayLabel(shownClockDate)}</Typography>
               </Box>
             </Box>
 
@@ -910,9 +1156,11 @@ function DecisionPlayPage() {
                 variant="contained"
                 disabled={completed || advancing}
                 startIcon={<NtqIcon name="play" size={16} />}
-                onClick={() => setConfirmOpen(true)}
+                onClick={requestAdvance}
+                title="空格也可推进"
+                aria-keyshortcuts="Space"
               >
-                {advancing ? '推进中' : '推进'}
+                {advancing ? '推进中' : '下一个事件（空格键）'}
               </Button>
               <Button
                 variant="outlined"
@@ -967,7 +1215,7 @@ function DecisionPlayPage() {
             <Typography className="decision-progress__label" variant="caption">
               {totalDays > 0
                 ? `已走 ${elapsedDays} / ${totalDays} 个交易日`
-                : (clockDate ? `停在 ${clockDate}` : '区间未知')}
+                : (shownClockDate ? `停在 ${shownClockDate}` : '区间未知')}
             </Typography>
           </Box>
         </CardContent>
@@ -1030,7 +1278,7 @@ function DecisionPlayPage() {
         </Box>
       </Popover>
 
-      <Box className="decision-play-split">
+      <Box className={`decision-play-split ${advancing ? 'is-advancing' : ''}`}>
         <Box className="decision-left">
           <Card variant="outlined">
             <CardContent className="decision-aside">
@@ -1157,7 +1405,7 @@ function DecisionPlayPage() {
                 </Typography>
                 {hasOpps ? (
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, pt: 0.75 }}>
-                    点击查看股票当前状态。可选择机会数：{selectableSlots}
+                    点击股票名称查看当前状态。可选择机会数：{selectableSlots}
                   </Typography>
                 ) : null}
               </Stack>
@@ -1172,17 +1420,14 @@ function DecisionPlayPage() {
                   getRowClassName={(params) => (params.row.held ? 'is-held' : '')}
                   getRowHeight={(params) => {
                     const row = oppRows.find((item) => item.id === params.id);
-                    return row?.held ? 64 : null;
-                  }}
-                  onRowClick={(gridParams, event) => {
-                    if (event.target.closest('input, button, .MuiButton-root')) return;
-                    openInfo(gridParams.row);
+                    if (row?.held) return 64;
+                    if (shareEditors[row?.id]?.open || Number(picks[row?.id] || 0) > 0) return 72;
+                    return 56;
                   }}
                   sx={{
                     border: 0,
-                    '& .MuiDataGrid-row': { cursor: 'pointer' },
                     '& .MuiDataGrid-row:hover': {
-                      backgroundColor: 'rgba(34, 211, 238, 0.08)',
+                      backgroundColor: 'rgba(34, 211, 238, 0.06)',
                     },
                     '& .MuiDataGrid-cell': { outline: 'none' },
                   }}
@@ -1206,6 +1451,7 @@ function DecisionPlayPage() {
             name: row.name,
             wr: '—',
             roi: '—',
+            buyDate: row.buyDate,
           });
         } : undefined}
       />
@@ -1214,7 +1460,7 @@ function DecisionPlayPage() {
         <DialogTitle>确认当天选择</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            提交后不可改当日选择。空选择等于本日不买，进度条会带到下一事件日。
+            提交后不可改当日选择。空选择等于本日不买。空格确认后，日历会按交易日走到下一事件。
           </Typography>
           {bill.length ? (
             bill.map((row) => (
@@ -1297,7 +1543,7 @@ function DecisionPlayPage() {
                   option={infoChart}
                   height={560}
                   note={infoPayload?.candles?.length
-                    ? '主图：K线（前复权）与策略声明指标。使用底部滑块调整可见区间。'
+                    ? '主图：K线（前复权）与策略声明指标。买入日有标记。使用底部滑块调整可见区间。'
                     : '没有截至当前日的 K 线。'}
                 />
               )}

@@ -130,6 +130,20 @@ export function countTradingDaysInclusive(fromDate, toDate) {
   return count;
 }
 
+/** ``fromDate`` 之后到 ``toDate``（含）的开市日，周末跳过。 */
+export function listOpenDaysAfter(fromDate, toDate) {
+  if (!fromDate || !toDate || fromDate >= toDate) return [];
+  const out = [];
+  const cursor = parseIsoDate(fromDate);
+  const end = parseIsoDate(toDate);
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= end) {
+    if (!isWeekend(cursor)) out.push(formatIsoDate(new Date(cursor)));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
 /** as-of 之前（含当天）已发生的出场 / 机会，供月历标注。未来日不进入。 */
 export function collectEventMarks(days, asOf) {
   const marks = {};

@@ -132,7 +132,10 @@ class InvestmentTracker:
         """Scan 命中：Opportunity → Investment（``PENDING_TO_ENTER``）→ ``pending_enter``。
 
         ``skip_enter_when`` 命中触发日状态时不注册（枚举结果也不保留）。
+        已有未完结仓（待进场 / 持仓 / 待出场）时不再叠第二笔。
         """
+        if self.has_live:
+            return None
         self._investment_index += 1
         opportunity.bind_scan_context(
             strategy_name=strategy_name,

@@ -126,6 +126,7 @@ class DecisionBroker:
             buy_price=preview.price,
             buy_date=str(event.date or ""),
             entry_price_hfq=float(getattr(event, "entry_price_hfq", 0.0) or 0.0),
+            initial_shares=preview.shares,
         )
         trade.cash_after = account.cash
         trade.equity_after = account.equity({entity_id: preview.price})
@@ -136,8 +137,14 @@ class DecisionBroker:
         event: PortfolioEvent,
         account: Account,
         open_lots: Dict[str, OpenLot],
+        *,
+        is_last: bool = True,
     ) -> Tuple[Optional[Trade], Optional[str]]:
-        """纪律卖出。未持有该 lot 则跳过（用户没买）。返回 (trade, skip_reason)。"""
+        """纪律卖出。未持有该 lot 则跳过（用户没买）。返回 (trade, skip_reason)。
+
+        卖出数量跟枚举切片 ``exit_ratio``，中间笔向下取整到手；最后一笔清空（含零股）。
+        不再按当日量二次 clip。
+        """
         inv_id = str(event.investment_id or "").strip()
         entity_id = str(event.entity_id or "").strip()
         key = lot_key(entity_id, inv_id)
@@ -152,17 +159,16 @@ class DecisionBroker:
         buy_price = float(lot.buy_price or 0.0)
         if buy_price <= 0:
             return None, "bad_price"
-        shares = int(position.shares)
-        shares, part_tag = self.allocation.apply_participation(
-            shares,
-            bar_volume=event.bar_volume,
+        remaining = int(position.shares)
+        shares = self.allocation.size_sell_shares(
+            remaining=remaining,
+            initial_shares=int(lot.initial_shares or remaining),
+            exit_ratio=getattr(event, "exit_ratio", 1.0),
             entity_id=entity_id,
+            is_last=is_last,
         )
-        if part_tag in (
-            self.allocation.liquidity.TAG_SKIP,
-            self.allocation.liquidity.TAG_CLIP_ZERO,
-        ) or shares <= 0:
-            return None, "liquidity"
+        if shares <= 0:
+            return None, "empty"
         roi = Trade.finite_roi(event.roi)
         proceeds = Trade.equivalent_exit_value(shares, buy_price, roi)
         fees = self.fee_calculator.calculate_fees(proceeds, "sell")
@@ -180,7 +186,7 @@ class DecisionBroker:
         )
         account.cash += net
         position.realized_profit += float(trade.profit or 0.0)
-        position.shares = max(0, int(position.shares) - shares)
+        position.shares = max(0, remaining - shares)
         if position.shares <= 0:
             position.current_investment_id = None
             open_lots.pop(key, None)

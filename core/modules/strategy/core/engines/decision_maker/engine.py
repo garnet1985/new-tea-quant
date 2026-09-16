@@ -2,7 +2,7 @@
 
 本文件:
 - DecisionEngine: start / pick / done / reset / next / holdings / info / 终局 finalize
-  边界: 人只改选谁和股数；时钟只在抉择日暂停；不把日净值写入存档
+  边界: 人只改选谁和股数；时钟在事件日暂停（机会或仓位变化）；不把日净值写入存档
 """
 
 from __future__ import annotations
@@ -392,6 +392,7 @@ class DecisionEngine:
                     "buy_price": float(lot.buy_price),
                     "buy_date": str(lot.buy_date),
                     "entry_price_hfq": float(lot.entry_price_hfq or 0.0),
+                    "initial_shares": int(lot.initial_shares or lot.shares),
                 }
                 for lot in self.open_lots.values()
             ],
@@ -436,6 +437,9 @@ class DecisionEngine:
                 buy_price=float(raw.get("buy_price") or 0.0),
                 buy_date=str(raw.get("buy_date") or ""),
                 entry_price_hfq=float(raw.get("entry_price_hfq") or 0.0),
+                initial_shares=int(
+                    raw.get("initial_shares") or raw.get("shares") or 0
+                ),
             )
             self.open_lots[lot_key(lot.entity_id, lot.investment_id)] = lot
         self.trades = [
@@ -460,11 +464,20 @@ class DecisionEngine:
     def is_completed(self) -> bool:
         return self.status == STATUS_COMPLETED or self.phase == PHASE_COMPLETED
 
+    def _held_entity_ids(self) -> Tuple[str, ...]:
+        return tuple(
+            str(lot.entity_id or "").strip()
+            for lot in self.open_lots.values()
+            if str(lot.entity_id or "").strip()
+        )
+
     def opportunities(self) -> List[DayOpportunity]:
         if self.is_completed or not self.current_date:
             return []
         return self.timeline.opportunities_on(
-            self.current_date, name_lookup=self._name_lookup
+            self.current_date,
+            name_lookup=self._name_lookup,
+            skip_entities=self._held_entity_ids(),
         )
 
     def opportunity_by_local(self, local_id: int) -> Optional[DayOpportunity]:
@@ -520,6 +533,48 @@ class DecisionEngine:
         self.save()
         return opp, preview.shares, preview.notional
 
+    def set_pick_cash(
+        self, local_id: int, cash: float
+    ) -> Tuple[DayOpportunity, int, float]:
+        """UI 填金额：按成交价与市场手数折成可买股数。"""
+        if self.is_completed:
+            raise DecisionError("本局已结束，只能查看报告")
+        if self.phase == PHASE_CONFIRMING:
+            raise DecisionError("请输入 next 继续推进，或 reset 重新下单")
+        try:
+            budget = float(cash)
+        except (TypeError, ValueError):
+            raise DecisionError("金额须为非负数") from None
+        if budget <= 0:
+            return self.set_pick(int(local_id), 0)
+        opp = self.opportunity_by_local(int(local_id))
+        if opp is None:
+            raise DecisionError(f"没有编号 [{local_id}]")
+        event = self._buy_event(opp)
+        price = float(event.price or 0.0)
+        shares = self.allocation.shares_from_cash(
+            min(budget, float(self.account.cash)),
+            price,
+            opp.entity_id,
+        )
+        if shares <= 0:
+            min_lot = self.allocation.min_buy_shares(opp.entity_id)
+            need = float(min_lot) * price if price > 0 else 0.0
+            raise DecisionError(
+                f"金额不足一手（最小 {min_lot} 股，约 {need:.0f} 元）"
+            )
+        sized, tag = self.allocation.apply_participation(
+            shares,
+            bar_volume=event.bar_volume,
+            entity_id=opp.entity_id,
+        )
+        if tag in (
+            self.allocation.liquidity.TAG_SKIP,
+            self.allocation.liquidity.TAG_CLIP_ZERO,
+        ) or sized <= 0:
+            raise DecisionError("超过当日流动性，下不成")
+        return self.set_pick(int(local_id), int(sized))
+
     def done(self) -> List[Tuple[DayOpportunity, int, float]]:
         if self.is_completed:
             raise DecisionError("本局已结束，只能查看报告")
@@ -546,11 +601,12 @@ class DecisionEngine:
             raise DecisionError("本局已结束，只能查看报告")
         if self.phase != PHASE_CONFIRMING:
             raise DecisionError("请先输入 done 确认选择")
+        had_buys = bool(self.draft)
         logs = self._commit_draft()
         self.draft = {}
         more = self._walk_to_next_decision(
             after_date=self.current_date,
-            include_sells_on_after=True,
+            include_sells_on_after=had_buys,
         )
         logs.extend(more)
         self._prune_kline_cache()
@@ -578,6 +634,7 @@ class DecisionEngine:
             unrealized = None
             if close is not None:
                 unrealized = (float(close) - float(lot.buy_price)) * float(lot.shares)
+            held_days, held_unit = self._held_span(lot.buy_date, self.current_date)
             rows.append(
                 HoldingRow(
                     entity_id=lot.entity_id,
@@ -585,7 +642,8 @@ class DecisionEngine:
                     shares=int(lot.shares),
                     buy_date=str(lot.buy_date),
                     buy_price=float(lot.buy_price),
-                    hold_days=_hold_days(lot.buy_date, self.current_date),
+                    hold_days=held_days,
+                    hold_unit=held_unit,
                     close=close,
                     unrealized=unrealized,
                     goals=self._goal_lines(lot),
@@ -712,13 +770,17 @@ class DecisionEngine:
         after_date: str,
         include_sells_on_after: bool,
     ) -> List[ExitNotice]:
+        """推进到下一事件日：仓位变化（成交的卖出）或新的可交易机会。"""
         logs: List[ExitNotice] = []
         if include_sells_on_after and after_date:
             logs.extend(self._apply_sells(after_date))
         dates = self.timeline.dates_after(after_date)
         for date in dates:
-            logs.extend(self._apply_sells(date))
-            if self.timeline.buys_on(date):
+            day_logs = self._apply_sells(date)
+            logs.extend(day_logs)
+            if day_logs or self.timeline.unique_buys_on(
+                date, skip_entities=self._held_entity_ids()
+            ):
                 self.current_date = date
                 self.phase = PHASE_PICKING
                 self.status = STATUS_IN_PROGRESS
@@ -730,7 +792,12 @@ class DecisionEngine:
         notices: List[ExitNotice] = []
         for event in self.timeline.sells_on(date):
             before = lot_key(event.entity_id, event.investment_id) in self.open_lots
-            trade, skip = self.broker.apply_sell(event, self.account, self.open_lots)
+            trade, skip = self.broker.apply_sell(
+                event,
+                self.account,
+                self.open_lots,
+                is_last=self.timeline.is_last_sell(event, after_date=date),
+            )
             if skip or trade is None:
                 continue
             self.trades.append(trade)
@@ -767,20 +834,47 @@ class DecisionEngine:
             logger.exception("决策者终局报告写入失败 dm_id=%s: %s", self.dm_id, exc)
 
     def _goal_lines(self, lot: OpenLot) -> List[str]:
+        _ = lot
         goal = self.settings.goal
-        basis = float(lot.entry_price_hfq or 0.0) or float(lot.buy_price or 0.0)
         lines: List[str] = []
         for stage in goal.take_profit_stages:
-            lines.append(_stage_line("止盈", stage, basis, goal.exit_price))
+            lines.append(_stage_line("止盈", stage))
         for stage in goal.stop_loss_stages:
-            lines.append(_stage_line("止损", stage, basis, goal.exit_price))
+            lines.append(_stage_line("止损", stage))
         protect = goal.protect_loss
         if protect is not None:
             lines.append(f"保护 {protect.name}: {protect.ratio:+.1%}")
         exp = goal.expiration
         if exp is not None:
-            lines.append(f"到期 {exp.window_days} {exp.mode}")
+            unit = _hold_unit_label(str(exp.mode or "natural_day"))
+            lines.append(f"到期 {exp.window_days} {unit}")
         return [item for item in lines if item]
+
+    def _held_span(self, buy_date: str, current: str) -> Tuple[int, str]:
+        """持有时长与到期用同一把尺子；日历不可用时退回自然日。"""
+        exp = self.settings.goal.expiration
+        mode = str(getattr(exp, "mode", "") or "").strip().lower()
+        if mode in {"trading_day", "open_day"}:
+            counted = self._inclusive_open_days(buy_date, current)
+            if counted > 0:
+                return counted, mode
+        return _hold_days(buy_date, current), "natural_day"
+
+    def _inclusive_open_days(self, start: str, end: str) -> int:
+        begin = str(start or "").strip()
+        stop = str(end or "").strip()
+        if not begin or not stop or begin > stop:
+            return 0
+        loader = self._load_open_dates or _default_load_open_dates
+        try:
+            rows = loader(begin, stop) or []
+        except Exception as exc:
+            logger.debug("开市日不可用 %s–%s: %s", begin, stop, exc)
+            return 0
+        dates = sorted({str(item or "").strip() for item in rows if str(item or "").strip()})
+        if begin not in dates or stop not in dates:
+            return 0
+        return sum(1 for item in dates if begin <= item <= stop)
 
     def _close_on(self, entity_id: str, date: str) -> Optional[float]:
         if self._load_close is not None:
@@ -846,26 +940,11 @@ class DecisionEngine:
                 self._kline_cache.pop(key, None)
 
 
-def _stage_line(
-    kind: str,
-    stage: Any,
-    basis: float,
-    exit_price_fn: Any,
-) -> str:
+def _stage_line(kind: str, stage: Any) -> str:
     name = str(getattr(stage, "name", "") or getattr(stage, "stage_id", "") or kind)
     if getattr(stage, "custom", None) or getattr(stage, "ratio", None) is None:
         return f"{kind} {name}"
-    ratio = float(stage.ratio)
-    price = None
-    if basis > 0:
-        try:
-            price = float(exit_price_fn(stage, basis))
-        except (TypeError, ValueError, KeyError) as exc:
-            logger.debug("目标价不可用 %s: %s", name, exc)
-            price = None
-    if price is None:
-        return f"{kind} {name}: {ratio:+.1%}"
-    return f"{kind} {name}: {ratio:+.1%} → {price:.2f}"
+    return f"{kind} {name}: {float(stage.ratio):+.1%}"
 
 
 def _hold_days(buy_date: str, current: str) -> int:
@@ -874,6 +953,31 @@ def _hold_days(buy_date: str, current: str) -> int:
     if a is None or b is None:
         return 0
     return max(0, (b - a).days)
+
+
+def _hold_unit_label(unit: str) -> str:
+    key = str(unit or "").strip().lower()
+    if key == "trading_day":
+        return "个交易日"
+    if key == "open_day":
+        return "个开市日"
+    return "个自然日"
+
+
+def _default_load_open_dates(start: str, end: str) -> List[str]:
+    try:
+        from core.modules.data_manager import DataManager
+
+        dm = DataManager()
+        if getattr(dm, "_data_service", None) is None:
+            dm.initialize()
+        cal = getattr(getattr(dm, "service", None), "calendar", None)
+        if cal is None or not callable(getattr(cal, "load_open_dates", None)):
+            return []
+        return list(cal.load_open_dates(start, end, market="SSE") or [])
+    except Exception as exc:
+        logger.debug("交易日历加载失败 %s–%s: %s", start, end, exc)
+        return []
 
 
 def _parse_ymd(value: str) -> Optional[datetime]:

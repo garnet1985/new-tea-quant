@@ -15,7 +15,6 @@ import {
   Popover,
   Snackbar,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -230,7 +229,7 @@ function SuggestedSharesCell({ suggestedCash, suggestedShares, basis, held, disa
   const basisEl = basis ? <span className="decision-suggest-basis">{basis}</span> : null;
   const body = (
     <span className="decision-suggest-cell">
-      {hasShares ? Number(suggestedShares).toLocaleString() : '—'}
+      {hasShares ? `${Number(suggestedShares).toLocaleString()} 股` : '—'}
       {hasShares && hasCash ? (
         <span className="decision-suggest-shares">约 {Number(suggestedCash).toLocaleString()} 元</span>
       ) : null}
@@ -294,22 +293,32 @@ function SharesInvestCell({
   const stopRow = (event) => event.stopPropagation();
   return (
     <span className="decision-invest-cell">
-      <span className="decision-invest-row">
-        <TextField
-          className="decision-shares-input"
-          size="small"
-          type="number"
+      <span className={`decision-shares-capsule${error ? ' is-error' : ''}${disabled ? ' is-disabled' : ''}`}>
+        <button
+          type="button"
+          className="decision-capsule-btn"
+          disabled={disabled}
+          aria-label={`减少 ${jump} 股`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStep(-1);
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
+          −
+        </button>
+        <input
+          className="decision-capsule-input"
+          type="text"
+          inputMode="numeric"
           autoFocus
           disabled={disabled}
           value={draft}
-          error={Boolean(error)}
           placeholder="股数"
-          inputProps={{
-            min: 0,
-            step: jump,
-            inputMode: 'numeric',
-            'aria-label': `投资股数 ${ticker}`,
-          }}
+          aria-label={`投资股数 ${ticker}`}
           onClick={stopRow}
           onMouseDown={stopRow}
           onChange={(event) => onDraftChange(event.target.value)}
@@ -333,44 +342,26 @@ function SharesInvestCell({
             }
           }}
         />
-        <span className="decision-shares-stepper">
-          <button
-            type="button"
-            className="decision-stepper-btn"
-            disabled={disabled}
-            aria-label={`增加 ${jump} 股`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onStep(1);
-            }}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          >
-            ▲
-          </button>
-          <button
-            type="button"
-            className="decision-stepper-btn"
-            disabled={disabled}
-            aria-label={`减少 ${jump} 股`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onStep(-1);
-            }}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          >
-            ▼
-          </button>
-        </span>
-        {notional ? (
-          <span className="decision-invest-notional">约 {notional}</span>
-        ) : null}
+        <button
+          type="button"
+          className="decision-capsule-btn"
+          disabled={disabled}
+          aria-label={`增加 ${jump} 股`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStep(1);
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
+          +
+        </button>
       </span>
+      {notional ? (
+        <span className="decision-invest-notional">约 {notional}</span>
+      ) : null}
       {error ? (
         <span className="decision-invest-hint is-error">{error}</span>
       ) : null}
@@ -501,12 +492,19 @@ function MonthGrid({ year, month, clockDate, marks, rangeStart, rangeEnd }) {
   );
 }
 
-function DecisionPlayPage() {
+export function DecisionPlaySession({
+  strategyKey: strategyKeyProp,
+  sessionId: sessionIdProp,
+  readonly: readonlyProp,
+  hideStrategyMeta = false,
+  render = null,
+} = {}) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const strategyKey = String(params.get('strategy') || '').trim();
-  const readonlyQuery = params.get('readonly') === '1';
-  const sessionId = String(params.get('session') || '').trim();
+  const strategyKey = String(strategyKeyProp || params.get('strategy') || '').trim();
+  const readonlyQuery = readonlyProp != null ? Boolean(readonlyProp) : params.get('readonly') === '1';
+  const sessionId = String(sessionIdProp || params.get('session') || '').trim();
+  const embedded = typeof render === 'function';
 
   const [snapshot, setSnapshot] = useState(null);
   const [holdings, setHoldings] = useState([]);
@@ -521,6 +519,7 @@ function DecisionPlayPage() {
   const [infoPayload, setInfoPayload] = useState(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const [shareEditors, setShareEditors] = useState({});
+  const [positionOpen, setPositionOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [advancing, setAdvancing] = useState(false);
   const [displayClockDate, setDisplayClockDate] = useState('');
@@ -578,7 +577,9 @@ function DecisionPlayPage() {
   useEffect(() => {
     animRef.current.cancelled = false;
     if (!strategyKey || !sessionId) {
-      navigate(strategyKey ? lobbyHref : '/decision', { replace: true });
+      if (!embedded) {
+        navigate(strategyKey ? lobbyHref : '/decision', { replace: true });
+      }
       return undefined;
     }
 
@@ -607,7 +608,7 @@ function DecisionPlayPage() {
       if (animRef.current.timer) window.clearTimeout(animRef.current.timer);
       if (pickTimerRef.current) window.clearTimeout(pickTimerRef.current);
     };
-  }, [strategyKey, sessionId, navigate, lobbyHref, applyLive, loadHoldings]);
+  }, [strategyKey, sessionId, embedded, navigate, lobbyHref, applyLive, loadHoldings]);
 
   const clockDate = snapshot?.clockDate || '';
   const shownClockDate = displayClockDate || clockDate;
@@ -620,10 +621,20 @@ function DecisionPlayPage() {
   const equityDelta = initialCash > 0 ? equity - initialCash : null;
   const cashRatio = equity > 0 ? (Number(snapshot?.cash) || 0) / equity : null;
   const hasOpps = Boolean(snapshot?.hasOpps);
-  const selectableSlots = Math.max(
-    0,
-    (Number(snapshot?.maxPortfolioSize) || 0) - (Number(snapshot?.openPositionCount) || 0),
-  );
+  const maxPortfolioSize = Number(snapshot?.maxPortfolioSize) || 0;
+  const openPositionCount = Number(snapshot?.openPositionCount) || 0;
+  const activePickIds = useMemo(() => {
+    const ids = new Set();
+    Object.entries(picks || {}).forEach(([id, shares]) => {
+      if (Number(shares) > 0) ids.add(String(id));
+    });
+    Object.entries(shareEditors || {}).forEach(([id, editor]) => {
+      const n = Number(String(editor?.draft ?? '').trim());
+      if (Number.isFinite(n) && n > 0) ids.add(String(id));
+    });
+    return ids;
+  }, [picks, shareEditors]);
+  const remainingSlots = Math.max(0, maxPortfolioSize - openPositionCount - activePickIds.size);
   const showEquityDelta = typeof equityDelta === 'number' && equityDelta !== 0;
 
   useEffect(() => {
@@ -741,6 +752,11 @@ function DecisionPlayPage() {
 
   const openShareEditor = (row, preset) => {
     if (row.held) return;
+    const picked = Number(picks[row.id] || 0) > 0;
+    if (!picked && remainingSlots <= 0) {
+      setToast('已达组合上限');
+      return;
+    }
     const shares = Number(picks[row.id] || 0);
     const draft = preset != null ? String(preset) : (shares > 0 ? String(shares) : '');
     setShareEditors((prev) => ({
@@ -785,6 +801,15 @@ function DecisionPlayPage() {
       schedulePick(row.id, 0);
       return;
     }
+    const occupying = Number(picks[row.id] || 0) > 0 || activePickIds.has(String(row.id));
+    if (!occupying && remainingSlots <= 0) {
+      setShareEditors((prev) => ({
+        ...prev,
+        [row.id]: { open: true, draft: raw, error: '已达组合上限' },
+      }));
+      setToast('已达组合上限');
+      return;
+    }
     setShareEditors((prev) => ({
       ...prev,
       [row.id]: { open: true, draft: String(result.shares), error: '' },
@@ -827,6 +852,11 @@ function DecisionPlayPage() {
   const applySuggestedShares = (row) => {
     const shares = Number(row.suggestedShares) || 0;
     if (row.held || shares <= 0) return;
+    const occupying = Number(picks[row.id] || 0) > 0 || activePickIds.has(String(row.id));
+    if (!occupying && remainingSlots <= 0) {
+      setToast('已达组合上限');
+      return;
+    }
     setShareEditors((prev) => ({
       ...prev,
       [row.id]: { open: true, draft: String(shares), error: '' },
@@ -852,6 +882,12 @@ function DecisionPlayPage() {
   };
 
   const shareDisabled = completed || advancing || snapshot?.phase === 'confirming';
+  const slotLocked = (row) => {
+    if (!row || row.held) return true;
+    if (shareDisabled) return true;
+    if (activePickIds.has(String(row.id))) return false;
+    return remainingSlots <= 0;
+  };
   const oppColumns = [
     { field: 'id', headerName: '#', width: 56 },
     {
@@ -905,7 +941,7 @@ function DecisionPlayPage() {
     },
     {
       field: 'suggestedShares',
-      width: 184,
+      width: 168,
       sortable: false,
       renderHeader: headerWithTooltip(
         '建议买入',
@@ -917,7 +953,7 @@ function DecisionPlayPage() {
           suggestedShares={grid.row.suggestedShares}
           basis={grid.row.suggestedBasis}
           held={grid.row.held}
-          disabled={shareDisabled}
+          disabled={slotLocked(grid.row)}
           onApply={() => applySuggestedShares(grid.row)}
         />
       ),
@@ -925,7 +961,8 @@ function DecisionPlayPage() {
     {
       field: 'shares',
       headerName: '投资',
-      width: 248,
+      width: 168,
+      minWidth: 156,
       sortable: false,
       renderCell: (grid) => {
         if (grid.row.held) {
@@ -943,7 +980,7 @@ function DecisionPlayPage() {
         return (
           <SharesInvestCell
             open={open}
-            disabled={shareDisabled}
+            disabled={slotLocked(grid.row)}
             draft={draft}
             error={editor?.error || ''}
             notional={notional}
@@ -1079,6 +1116,17 @@ function DecisionPlayPage() {
   }, [advancing, completed, confirmOpen, hasOpps, holdingDetailId, infoOpp]);
 
   if (!pageReady && !loadError) {
+    if (embedded) {
+      return render({
+        loading: true,
+        error: '',
+        hud: null,
+        status: null,
+        board: null,
+        dialogs: null,
+        completed: false,
+      });
+    }
     return (
       <PageLayout
         className="decision-page"
@@ -1093,6 +1141,17 @@ function DecisionPlayPage() {
   }
 
   if (loadError || !snapshot) {
+    if (embedded) {
+      return render({
+        loading: false,
+        error: loadError || '对局不存在',
+        hud: null,
+        status: null,
+        board: null,
+        dialogs: null,
+        completed: false,
+      });
+    }
     return (
       <PageLayout
         className="decision-page"
@@ -1116,110 +1175,105 @@ function DecisionPlayPage() {
   const strategyRoi = asof?.avgRoiLabel || '—';
   const rangeLabel = rangeStart && rangeEnd ? `${rangeStart} → ${rangeEnd}` : '—';
 
-  return (
-    <PageLayout
-      className="decision-page"
-      breadcrumbsItems={[{ label: '决策者', to: lobbyHref }]}
-      breadcrumbsCurrent={`第 ${snapshot.dmId} 局`}
-      bannerTitle={`决策模拟 · 第 ${snapshot.dmId} 局`}
-      bannerDescription="时钟只显示当前停顿日。推进后总进度前移；月历是只读地图，只标注已经发生的事件。"
-      bannerRightSlot={(
-        <Button component={RouterLink} to={lobbyHref} variant="outlined" size="small">
-          返回入口
-        </Button>
-      )}
-    >
+  const clockHud = (
+    <Box className={`decision-hud${embedded ? ' decision-hud--embedded' : ''}`} aria-label="对局时钟">
+      <Box className="decision-hud-main">
+        <Box className="decision-calendar-block">
+          <Typography className="decision-calendar-title" component="h2">
+            交易日历
+          </Typography>
+          <Box className={`decision-clock ${clockMotion}`}>
+            <Typography className="decision-clock__date">{shownClockDate || '—'}</Typography>
+            <Typography className="decision-clock__weekday">{weekdayLabel(shownClockDate)}</Typography>
+          </Box>
+        </Box>
+
+        <Box className="decision-hud-actions">
+          <Button
+            className="decision-advance-btn"
+            variant="contained"
+            disabled={completed || advancing}
+            startIcon={<NtqIcon name="play" size={16} />}
+            onClick={requestAdvance}
+            title="空格也可推进"
+            aria-keyshortcuts="Space"
+          >
+            {advancing ? '推进中' : '下一个事件（空格键）'}
+          </Button>
+          <Button
+            variant="outlined"
+            className="decision-calendar-toggle"
+            aria-haspopup="dialog"
+            aria-expanded={calendarOpen}
+            onClick={openCalendar}
+          >
+            事件回溯
+          </Button>
+        </Box>
+
+        <Box className="decision-hud-metrics">
+          <Box className="decision-hud-metric">
+            <Typography variant="caption" color="text.secondary">账户价值</Typography>
+            <Typography variant="h6" className="decision-hud-metric__value">
+              {formatMoney(equity)}
+              {showEquityDelta ? (
+                <Box
+                  component="span"
+                  className={`decision-hud-delta ${equityDelta >= 0 ? 'is-up' : 'is-down'}`}
+                >
+                  （{formatSignedMoney(equityDelta)}）
+                </Box>
+              ) : null}
+            </Typography>
+          </Box>
+          <Box className="decision-hud-metric">
+            <Typography variant="caption" color="text.secondary">可用资金</Typography>
+            <Typography variant="h6" className="decision-hud-metric__value">
+              {formatMoney(snapshot.cash)}
+              <Box component="span" className="decision-hud-ratio">
+                {' '}
+                ({formatPct(cashRatio)})
+              </Box>
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      <Box className="decision-progress">
+        <Box
+          className="decision-progress__track"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(sessionPct)}
+          aria-label="回测进度"
+        >
+          <Box className="decision-progress__fill" style={{ width: `${sessionPct}%` }} />
+        </Box>
+        <Typography className="decision-progress__label" variant="caption">
+          {totalDays > 0
+            ? `已走 ${elapsedDays} / ${totalDays} 个交易日`
+            : (shownClockDate ? `停在 ${shownClockDate}` : '区间未知')}
+        </Typography>
+      </Box>
+    </Box>
+  );
+
+  const playInner = (
+    <>
       {completed ? (
         <Alert severity="warning" variant="outlined" sx={{ mb: 2 }}>
           本局已走完，只读回看。不能改股数，也不能再推进。
         </Alert>
       ) : null}
 
-      <Card variant="outlined" sx={{ mb: 2 }}>
-        <CardContent className="decision-hud" aria-label="对局时钟">
-          <Box className="decision-hud-main">
-            <Box className="decision-calendar-block">
-              <Typography className="decision-calendar-title" component="h2">
-                交易日历
-              </Typography>
-              <Box
-                className={`decision-clock ${clockMotion}`}
-              >
-                <Typography className="decision-clock__date">{shownClockDate || '—'}</Typography>
-                <Typography className="decision-clock__weekday">{weekdayLabel(shownClockDate)}</Typography>
-              </Box>
-            </Box>
-
-            <Box className="decision-hud-actions">
-              <Button
-                className="decision-advance-btn"
-                variant="contained"
-                disabled={completed || advancing}
-                startIcon={<NtqIcon name="play" size={16} />}
-                onClick={requestAdvance}
-                title="空格也可推进"
-                aria-keyshortcuts="Space"
-              >
-                {advancing ? '推进中' : '下一个事件（空格键）'}
-              </Button>
-              <Button
-                variant="outlined"
-                className="decision-calendar-toggle"
-                aria-haspopup="dialog"
-                aria-expanded={calendarOpen}
-                onClick={openCalendar}
-              >
-                事件回溯
-              </Button>
-            </Box>
-
-            <Box className="decision-hud-metrics">
-              <Box className="decision-hud-metric">
-                <Typography variant="caption" color="text.secondary">账户价值</Typography>
-                <Typography variant="h6" className="decision-hud-metric__value">
-                  {formatMoney(equity)}
-                  {showEquityDelta ? (
-                    <Box
-                      component="span"
-                      className={`decision-hud-delta ${equityDelta >= 0 ? 'is-up' : 'is-down'}`}
-                    >
-                      （{formatSignedMoney(equityDelta)}）
-                    </Box>
-                  ) : null}
-                </Typography>
-              </Box>
-              <Box className="decision-hud-metric">
-                <Typography variant="caption" color="text.secondary">可用资金</Typography>
-                <Typography variant="h6" className="decision-hud-metric__value">
-                  {formatMoney(snapshot.cash)}
-                  <Box component="span" className="decision-hud-ratio">
-                    {' '}
-                    ({formatPct(cashRatio)})
-                  </Box>
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
-
-          <Box className="decision-progress">
-            <Box
-              className="decision-progress__track"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(sessionPct)}
-              aria-label="回测进度"
-            >
-              <Box className="decision-progress__fill" style={{ width: `${sessionPct}%` }} />
-            </Box>
-            <Typography className="decision-progress__label" variant="caption">
-              {totalDays > 0
-                ? `已走 ${elapsedDays} / ${totalDays} 个交易日`
-                : (shownClockDate ? `停在 ${shownClockDate}` : '区间未知')}
-            </Typography>
-          </Box>
+      {embedded ? null : (
+      <Card variant="outlined" className="decision-hud-card" sx={{ mb: 2 }}>
+        <CardContent>
+          {clockHud}
         </CardContent>
       </Card>
+      )}
 
       <Popover
         open={calendarOpen}
@@ -1282,6 +1336,7 @@ function DecisionPlayPage() {
         <Box className="decision-left">
           <Card variant="outlined">
             <CardContent className="decision-aside">
+              {hideStrategyMeta ? null : (
               <Box className="decision-aside-section">
                 <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
                   策略与模拟
@@ -1299,28 +1354,15 @@ function DecisionPlayPage() {
                   </Typography>
                 ))}
               </Box>
+              )}
 
               <Box className="decision-aside-section">
                 <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
-                  仓位状态
+                  持仓状态
                 </Typography>
-                {[
-                  ['持仓 / 上限', `${snapshot.openPositionCount} / ${snapshot.maxPortfolioSize || '—'}`],
-                  ['持仓市值', formatMoney(holdingsValue)],
-                  ['至今最大回撤', formatDrawdown(null)],
-                  ['策略至今胜率', strategyWin],
-                  ['策略平均回报率', strategyRoi],
-                ].map(([label, value]) => (
-                  <Typography key={label} className="decision-kv" variant="body2">
-                    <span className="decision-kv__label">{label}</span>
-                    <span className="decision-kv__value">{value}</span>
-                  </Typography>
-                ))}
-              </Box>
-
-              <Box className="decision-aside-section">
-                <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
-                  持仓
+                <Typography className="decision-kv" variant="body2">
+                  <span className="decision-kv__label">持仓市值</span>
+                  <span className="decision-kv__value">{formatMoney(holdingsValue)}</span>
                 </Typography>
                 {holdings.length ? (
                   <>
@@ -1366,6 +1408,35 @@ function DecisionPlayPage() {
                   <Typography variant="body2" color="text.secondary">当前无持仓</Typography>
                 )}
               </Box>
+
+              <Box className="decision-aside-section">
+                <button
+                  type="button"
+                  className={`decision-aside-fold${positionOpen ? ' is-open' : ''}`}
+                  aria-expanded={positionOpen}
+                  onClick={() => setPositionOpen((open) => !open)}
+                >
+                  <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
+                    约束条件与状态统计
+                  </Typography>
+                  <NtqIcon name="expandMore" size={20} />
+                </button>
+                {positionOpen ? (
+                  <>
+                    {[
+                      ['持仓 / 上限', `${snapshot.openPositionCount} / ${snapshot.maxPortfolioSize || '—'}`],
+                      ['至今最大回撤', formatDrawdown(null)],
+                      ['策略至今胜率', strategyWin],
+                      ['策略平均回报率', strategyRoi],
+                    ].map(([label, value]) => (
+                      <Typography key={label} className="decision-kv" variant="body2">
+                        <span className="decision-kv__label">{label}</span>
+                        <span className="decision-kv__value">{value}</span>
+                      </Typography>
+                    ))}
+                  </>
+                ) : null}
+              </Box>
             </CardContent>
           </Card>
         </Box>
@@ -1396,7 +1467,7 @@ function DecisionPlayPage() {
 
           <Card variant="outlined" className={hasOpps ? 'decision-opp-card is-hot' : 'decision-opp-card'}>
             <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }} spacing={2}>
+              <Box className="decision-opp-head">
                 <Typography
                   className={`decision-opp-title ${hasOpps ? 'is-hot' : 'is-empty'}`}
                   component="h2"
@@ -1404,11 +1475,18 @@ function DecisionPlayPage() {
                   {hasOpps ? '发现了新的可交易机会' : '今日没有可交易的机会'}
                 </Typography>
                 {hasOpps ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, pt: 0.75 }}>
-                    点击股票名称查看当前状态。可选择机会数：{selectableSlots}
+                  <Typography className="decision-opp-meta">
+                    点击股票名称查看当前状态。还可选择
+                    {' '}
+                    <span className="decision-opp-slots">{remainingSlots}</span>
+                    {' '}
+                    个机会
+                    {remainingSlots <= 0 ? (
+                      <span className="decision-opp-slots-full">（已达组合上限）</span>
+                    ) : null}
                   </Typography>
                 ) : null}
-              </Stack>
+              </Box>
               {hasOpps ? (
                 <DataGrid
                   autoHeight
@@ -1417,7 +1495,12 @@ function DecisionPlayPage() {
                   localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
                   hideFooter
                   disableRowSelectionOnClick
-                  getRowClassName={(params) => (params.row.held ? 'is-held' : '')}
+                  getRowClassName={(params) => {
+                    const classes = [];
+                    if (params.row.held) classes.push('is-held');
+                    if (slotLocked(params.row) && !params.row.held) classes.push('is-capped');
+                    return classes.join(' ');
+                  }}
                   getRowHeight={(params) => {
                     const row = oppRows.find((item) => item.id === params.id);
                     if (row?.held) return 64;
@@ -1429,7 +1512,7 @@ function DecisionPlayPage() {
                     '& .MuiDataGrid-row:hover': {
                       backgroundColor: 'rgba(34, 211, 238, 0.06)',
                     },
-                    '& .MuiDataGrid-cell': { outline: 'none' },
+                    '& .MuiDataGrid-cell': { outline: 'none', overflow: 'visible' },
                   }}
                 />
               ) : null}
@@ -1486,7 +1569,7 @@ function DecisionPlayPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={resetDraft}>重新下单</Button>
-          <Button variant="contained" onClick={runAdvance} disabled={advancing}>确认推进</Button>
+          <Button variant="contained" onClick={runAdvance} disabled={advancing}>确认推进（空格键）</Button>
         </DialogActions>
       </Dialog>
 
@@ -1562,8 +1645,40 @@ function DecisionPlayPage() {
           {toast}
         </Alert>
       </Snackbar>
+    </>
+  );
+
+  if (embedded) {
+    return render({
+      loading: false,
+      error: '',
+      inner: playInner,
+      hud: clockHud,
+      completed,
+      snapshot,
+      advancing,
+      requestAdvance,
+    });
+  }
+
+  return (
+    <PageLayout
+      className="decision-page"
+      breadcrumbsItems={[{ label: '决策者', to: lobbyHref }]}
+      breadcrumbsCurrent={`第 ${snapshot.dmId} 局`}
+      bannerTitle={`决策模拟 · 第 ${snapshot.dmId} 局`}
+      bannerDescription="时钟只显示当前停顿日。推进后总进度前移；月历是只读地图，只标注已经发生的事件。"
+      bannerRightSlot={(
+        <Button component={RouterLink} to={lobbyHref} variant="outlined" size="small">
+          返回入口
+        </Button>
+      )}
+    >
+      {playInner}
     </PageLayout>
   );
 }
 
-export default DecisionPlayPage;
+export default function DecisionPlayPage() {
+  return <DecisionPlaySession />;
+}

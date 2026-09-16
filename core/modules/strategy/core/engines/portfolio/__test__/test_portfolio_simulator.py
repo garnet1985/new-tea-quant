@@ -79,6 +79,30 @@ def test_equal_capital_skips_when_cash_below_slot():
     assert shares == 0
 
 
+def test_equal_capital_star_suggestion_leaves_fee_room():
+    """科创板步长 1，不能把整笔预算用满后再因佣金被 skip 成 0 股。"""
+    alloc = AllocationStrategy.create(
+        settings=_strategy_settings(
+            allocation={
+                "max_portfolio_size": 10,
+                "skip_trade_when_insufficient": True,
+            }
+        ),
+        market_rules=MarketRulesProxy.for_market("china_a_stock"),
+        fee_calculator=FeeCalculator(
+            commission_rate=0.00025,
+            min_commission=5.0,
+            stamp_duty_rate=0.001,
+            transfer_fee_rate=0.0,
+        ),
+    )
+    account = Account(initial_cash=1_000_000, cash=1_000_000)
+    price = 18.51
+    shares = alloc.suggest_shares(account, price, "688005.SH")
+    assert shares >= 200
+    assert alloc.fee_calculator.buy_total_cost(shares * price) <= alloc.per_trade_capital
+
+
 def test_equal_shares_uses_lots_per_trade():
     alloc = _allocation(
         allocation={"mode": "equal_shares", "lots_per_trade": 2, "max_portfolio_size": 10}

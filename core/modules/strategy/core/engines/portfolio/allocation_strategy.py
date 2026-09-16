@@ -252,18 +252,55 @@ class AllocationStrategy:
             return 0
         if self.fee_calculator.buy_total_cost(min_lot * buy_price) > cash:
             return 0
-        if self.fee_calculator.buy_total_cost(planned_shares * buy_price) <= cash:
-            return planned_shares
+        fitted = self._fit_shares(
+            planned_shares,
+            cash=cash,
+            buy_price=buy_price,
+            entity_id=entity_id,
+        )
+        if fitted > 0:
+            return fitted
         if self.skip_trade_when_insufficient:
             return 0
-        affordable = self._max_affordable_shares(cash, buy_price)
-        return self.floor_shares(affordable, entity_id)
+        return self._fit_shares(
+            self._max_affordable_shares(cash, buy_price),
+            cash=cash,
+            buy_price=buy_price,
+            entity_id=entity_id,
+        )
+
+    def _fit_shares(
+        self,
+        shares: int,
+        *,
+        cash: float,
+        buy_price: float,
+        entity_id: str,
+    ) -> int:
+        """从计划股数向下取整，直到含费用后仍买得起。"""
+        min_lot = self.min_buy_shares(entity_id)
+        step = self.lot_step_for_stock(entity_id)
+        n = self.floor_shares(int(shares), entity_id)
+        while n >= min_lot:
+            if self.fee_calculator.buy_total_cost(n * buy_price) <= cash:
+                return n
+            overshoot = self.fee_calculator.buy_total_cost(n * buy_price) - cash
+            drop = max(int(overshoot / buy_price) + 1, step)
+            nxt = n - drop
+            n = self.floor_shares(nxt, entity_id) if nxt >= min_lot else 0
+        return 0
 
     def _max_affordable_shares(self, cash: float, buy_price: float) -> int:
         if cash <= 0 or buy_price <= 0:
             return 0
-        denom = buy_price * (1.0 + float(self.fee_calculator.commission_rate or 0.0))
-        return int(cash / denom) if denom > 0 else 0
+        rate = float(self.fee_calculator.commission_rate or 0.0) + float(
+            self.fee_calculator.transfer_fee_rate or 0.0
+        )
+        min_c = float(self.fee_calculator.min_commission or 0.0)
+        cap_rate = cash / (1.0 + rate) if rate > 0 else cash
+        cap_min = cash - min_c
+        amount = min(cap_rate, cap_min)
+        return int(amount / buy_price) if amount > 0 else 0
 
 
 __all__ = ["AllocationStrategy"]

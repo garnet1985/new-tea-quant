@@ -1,4 +1,4 @@
-/** 制定策略三步（与后端 step key / 路由 segment 对齐） */
+/** 制定策略四步。前三步对齐后端 WorkbenchStep；第四步决策模拟是交互对局，不走 simulate()。 */
 export const STRATEGY_DESIGN_STEPS = [
   {
     key: 'enum',
@@ -21,6 +21,15 @@ export const STRATEGY_DESIGN_STEPS = [
     executionPanelTitle: '模拟投资组合',
     pathSegment: 'portfolio',
   },
+  {
+    key: 'decision',
+    no: 4,
+    label: '决策模拟',
+    executionPanelTitle: '决策模拟',
+    pathSegment: 'decision',
+    interactive: true,
+    requires: ['enum', 'portfolio'],
+  },
 ];
 
 /** Meta 顶栏：当前步说明（标题 + 一句摘要） */
@@ -37,7 +46,19 @@ export const STRATEGY_DESIGN_STEP_INTRO = {
     title: '投资模拟',
     summary: '给定资金下的组合交易与收益评估',
   },
+  decision: {
+    title: '决策模拟',
+    summary: '在已完成的枚举与投资模拟上，按事件日自己选股下单',
+  },
 };
+
+export const STRATEGY_DESIGN_RUN_STEP_KEYS = new Set(
+  STRATEGY_DESIGN_STEPS.filter((step) => !step.interactive).map((step) => step.key),
+);
+
+export function isDecisionStepReady(stepStatus = {}) {
+  return stepStatus.enum === 'done' && stepStatus.portfolio === 'done';
+}
 
 export const STRATEGY_DESIGN_STEP_KEYS = new Set(
   STRATEGY_DESIGN_STEPS.map((s) => s.key),

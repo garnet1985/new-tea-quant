@@ -15,6 +15,13 @@ export function formatSignedMoney(value) {
   return `${sign}${formatMoney(n)}`;
 }
 
+/** 工作台 version id：``1`` / ``v1`` 都显示成 v1。 */
+export function formatSimVersion(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '—';
+  return /^v/i.test(text) ? text : `v${text}`;
+}
+
 export function formatPct(ratio) {
   if (ratio == null || !Number.isFinite(Number(ratio))) return '—';
   return `${(Number(ratio) * 100).toFixed(0)}%`;

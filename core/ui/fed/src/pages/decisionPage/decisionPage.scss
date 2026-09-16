@@ -429,6 +429,39 @@
   text-align: left;
 }
 
+.decision-aside-fold {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.decision-aside-fold .decision-aside-title {
+  margin: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.decision-aside-fold .ntq-icon-wrap {
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+  opacity: 0.7;
+}
+
+.decision-aside-fold.is-open .ntq-icon-wrap {
+  transform: rotate(0deg);
+}
+
 .decision-kv {
   display: flex;
   flex-wrap: wrap;
@@ -594,19 +627,71 @@
   backdrop-filter: none !important;
 }
 
-.decision-shares-input {
-  width: 96px;
+.decision-shares-capsule {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 32px;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(6, 10, 24, 0.72);
 }
 
-.decision-shares-input input[type='number'] {
-  appearance: textfield;
-  -moz-appearance: textfield;
+.decision-shares-capsule.is-error {
+  border-color: var(--ntq-danger, #f87171);
 }
 
-.decision-shares-input input[type='number']::-webkit-outer-spin-button,
-.decision-shares-input input[type='number']::-webkit-inner-spin-button {
+.decision-shares-capsule.is-disabled {
+  opacity: 0.45;
+}
+
+.decision-capsule-btn {
   appearance: none;
+  box-sizing: border-box;
+  width: 28px;
+  padding: 0;
   margin: 0;
+  border: 0;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.decision-capsule-btn:hover:not(:disabled) {
+  background: rgba(34, 211, 238, 0.16);
+}
+
+.decision-capsule-btn:disabled {
+  cursor: default;
+}
+
+.decision-capsule-input {
+  box-sizing: border-box;
+  width: 68px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: none;
+}
+
+.decision-capsule-input::placeholder {
+  color: var(--ntq-text-muted);
+}
+
+.decision-capsule-input:disabled {
+  cursor: default;
 }
 
 .decision-invest-cell {
@@ -623,41 +708,6 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-}
-
-.decision-shares-stepper {
-  display: inline-flex;
-  flex-direction: column;
-  flex-shrink: 0;
-}
-
-.decision-stepper-btn {
-  appearance: none;
-  box-sizing: border-box;
-  width: 22px;
-  height: 14px;
-  padding: 0;
-  margin: 0;
-  border: 1px solid var(--ntq-border, rgba(255, 255, 255, 0.18));
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
-  font-size: 8px;
-  line-height: 12px;
-  cursor: pointer;
-}
-
-.decision-stepper-btn:first-child {
-  border-radius: 4px 4px 0 0;
-  border-bottom-width: 0;
-}
-
-.decision-stepper-btn:last-child {
-  border-radius: 0 0 4px 4px;
-}
-
-.decision-stepper-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .decision-invest-notional {
@@ -778,8 +828,20 @@
   opacity: 0.78;
 }
 
+.decision-opp-card .MuiDataGrid-row.is-capped {
+  opacity: 0.5;
+}
+
 .decision-opp-card.is-hot {
   border-color: rgba(34, 211, 238, 0.45) !important;
+}
+
+.decision-opp-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .decision-opp-title {
@@ -798,6 +860,29 @@
 
 .decision-opp-title.is-empty {
   color: var(--ntq-text-muted);
+}
+
+.decision-opp-meta {
+  margin: 0 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.decision-opp-slots {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 0 4px;
+  color: var(--ntq-cyan);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.decision-opp-slots-full {
+  margin-left: 6px;
+  color: #fbbf24;
 }
 
 @media (max-width: 960px) {

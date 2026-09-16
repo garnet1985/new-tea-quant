@@ -5,6 +5,7 @@ import StrategyDesignReportPanel from './components/strategyDesignReportPanel';
 import StrategySettingsContainer from '../strategyWorkbenchPage/panels/strategySettingsPanel/containers/strategySettingsContainer';
 import StrategyDesignDraftSync from './components/strategyDesignDraftSync';
 import StrategyDesignDraftChangeBridge from './components/strategyDesignDraftChangeBridge';
+import StrategyDesignDecisionStep from './components/strategyDesignDecisionStep';
 import StrategyDesignSettingsPanel from './components/strategyDesignSettingsPanel';
 import { useStrategyDesignSettingsOptions } from './hooks/useStrategyDesignSettingsOptions';
 import { useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
@@ -25,6 +26,14 @@ function StrategyDesignStepPage() {
         <Alert severity="error" sx={{ mb: 1.5 }}>
           {wb.settingsError || '策略配置不可用，无法打开设置编辑器。'}
         </Alert>
+      </Box>
+    );
+  }
+
+  if (wb.activeStep === 'decision') {
+    return (
+      <Box className="ntq-design-step-page">
+        <StrategyDesignDecisionStep />
       </Box>
     );
   }

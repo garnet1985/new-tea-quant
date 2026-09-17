@@ -65,26 +65,6 @@ export function readSimulationRange(settings) {
   };
 }
 
-export function decisionLobbyPath(strategyName) {
-  const key = String(strategyName || '').trim();
-  if (!key) return '/decision';
-  return `/decision?${new URLSearchParams({ strategy: key }).toString()}`;
-}
-
-export function decisionPlayPath({
-  strategy,
-  session,
-  isNew = false,
-  readonly = false,
-} = {}) {
-  const query = new URLSearchParams();
-  if (strategy) query.set('strategy', String(strategy));
-  if (isNew) query.set('new', '1');
-  else if (session) query.set('session', String(session));
-  if (readonly) query.set('readonly', '1');
-  return `/decision/play?${query.toString()}`;
-}
-
 export function mapDecisionSessionRow(row) {
   const raw = row && typeof row === 'object' ? row : {};
   const dmId = String(raw.dm_id || raw.dmId || '').trim();

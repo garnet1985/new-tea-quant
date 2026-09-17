@@ -18,7 +18,6 @@ import './appNavigation.scss';
 /** 主流程导航（不含高级下拉 / 反馈外链） */
 const primaryNavItems = [
   { label: '制定策略', path: '/strategy-design', icon: 'tactic' },
-  { label: '实盘决策模拟', path: '/decision', icon: 'playCircle' },
   { label: '策略选股', path: '/scan', icon: 'monitoring' },
 ];
 

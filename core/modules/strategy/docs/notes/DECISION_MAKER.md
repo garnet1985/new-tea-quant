@@ -1,6 +1,6 @@
 # 决策者模式：资金回测回放
 
-**状态：** 口径已锁定（2026-09-12）。会话引擎 + CLI REPL（`sd` / `sdl` / `sdd`）+ 走完 `finalize` 已落地。BFF D1 已挂（`/api/v1/strategy/.../decision/sessions`）。单策略 **决策模拟** 是制定策略第四步；主导航 **决策者** 入口保留，留给将来的多策略超级决策模拟。  
+**状态：** 口径已锁定（2026-09-12）。会话引擎 + CLI REPL（`sd` / `sdl` / `sdd`）+ 走完 `finalize` 已落地。BFF D1 已挂（`/api/v1/strategy/.../decision/sessions`）。单策略 **决策模拟** 是制定策略第四步。跨策略（多策略一本账）**推迟到 0.5.1**，口径见 [DECISION_MAKER_CROSS.md](./DECISION_MAKER_CROSS.md)。  
 **一句话：** 决策模拟是 **当前策略** 的 `portfolio` 回放。用户唯一能改的是 **选谁**（`on_pick_portfolio_member`）和 **买多少股**；其余全部沿用资金回测。  
 **位置：** NTQ 第四层；与 enumerate / price_factor / portfolio 同一 version。代码在 `core/engines/decision_maker/`。UI 步在制定策略 `/strategy-design/:strategy/decision`，不进入 `WorkbenchStep` / `simulate()`。
 

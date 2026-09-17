@@ -32,7 +32,7 @@ core/bff/APIs/strategy/
 - Version / 指纹规则见 ``modules.strategy`` [VERSIONING.md](../../modules/strategy/docs/VERSIONING.md)。
 - BFF 不做缓存命中判断。
 - 工作台三步 ``enum | price | portfolio`` 与核心共用 ``WorkbenchStep``（``core.modules.strategy.contracts``）。制定策略 UI 另有第四步 **决策模拟**（``/strategy-design/.../decision``），不进入 ``WorkbenchStep``。
-- **决策模拟 / 决策者**不是 ``WorkbenchStep`` / ``SimulateKind``。HTTP 挂在 ``/decision/sessions``；动作与 CLI ``sd`` 同一台 ``DecisionEngine``（每次请求从磁盘打开该局）。主导航 ``/decision`` 入口保留（将来多策略）。
+- **决策模拟 / 决策者**不是 ``WorkbenchStep`` / ``SimulateKind``。HTTP 挂在 ``/decision/sessions``；动作与 CLI ``sd`` 同一台 ``DecisionEngine``（每次请求从磁盘打开该局）。FED 入口是制定策略第四步；主导航 ``/decision`` 已去掉（跨策略推迟到 0.5.1）。
 
 ## V2 路由 × 文件
 

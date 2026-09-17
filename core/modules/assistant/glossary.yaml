@@ -9,9 +9,10 @@ terms:
     avoid:
       - "deep-import core.assistant_manager"
       - "deep-import core.provider_catalog"
+      - "deep-import core.openai_compatible_client"
 
   Assistant:
-    definition: "本模块门面类；公开静态方法 list_providers / get_provider。"
+    definition: "本模块门面类；公开静态方法 list_providers / get_provider / chat。"
     aliases: []
     avoid:
       - "AI"
@@ -19,11 +20,17 @@ terms:
       - "把 AssistantManager 当公开入口"
 
   AssistantManager:
-    definition: "内部编排层：协调供应商发现，后续还将协调调用。不对外导出。"
+    definition: "内部编排层：协调供应商发现与调用。不对外导出。"
     aliases:
       - "管理器"
     avoid:
       - "从包根 import AssistantManager"
+
+  AssistantError:
+    definition: "配置缺失或供应商调用失败。消息中不得包含 api_key。"
+    aliases: []
+    avoid:
+      - "把 HTTP 原始 Authorization 头写进异常"
 
   Provider:
     definition: "一个 userspace 供应商目录；系统名 = 相对 userspace/extensions/assistant/providers 的文件夹名。"

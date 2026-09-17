@@ -11,6 +11,7 @@ from .APIs.platform import (
     runtime_api_bp,
     setup_api_bp,
     settings_api_bp,
+    assistant_api_bp,
 )
 from .APIs.data import data_contract_api_bp, data_source_api_bp
 from .APIs.strategy import strategy_api_bp
@@ -51,6 +52,7 @@ def create_app():
     app.register_blueprint(strategy_api_bp, url_prefix="/api")
     app.register_blueprint(settings_api_bp, url_prefix="/api")
     app.register_blueprint(runtime_api_bp, url_prefix="/api")
+    app.register_blueprint(assistant_api_bp, url_prefix="/api")
     app.register_blueprint(data_contract_api_bp, url_prefix="/api")
     app.register_blueprint(data_source_api_bp, url_prefix="/api")
     app.register_blueprint(tag_api_bp, url_prefix="/api")

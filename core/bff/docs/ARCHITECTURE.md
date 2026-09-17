@@ -24,7 +24,7 @@ core/bff/
   static_ui.py           # 生产模式挂载 core/ui/fed/build
   shared/                # response / request / file_ops（无业务域知识）
   APIs/
-    platform/            # health, runtime, setup, app_settings
+    platform/            # health, runtime, setup, app_settings, assistant
     data/                # sources, contracts
     strategy/            # routes/ + helpers/
     tag/                 # routes/ + helpers/

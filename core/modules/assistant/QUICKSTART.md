@@ -2,13 +2,13 @@
 
 **模块：** `modules.assistant` · **版本：** `0.1.0`
 
-发现 `userspace/extensions/assistant/providers/` 下已配置的供应商。
+发现已配置的供应商并发送一轮对话。
 
 ---
 
 ## 前置条件
 
-- userspace 中存在至少一个供应商目录（安装后可先用预置的 `zhipu`）
+- `userspace/extensions/assistant/providers/<id>/` 中有 `config.py` 与非空 `api_key.txt`
 - 公开契约见 [API.md](./API.md)
 
 ---
@@ -18,13 +18,11 @@
 ```python
 from core.modules.assistant import Assistant
 
-providers = Assistant.list_providers()
-zhipu = Assistant.get_provider("zhipu")
-print([item.provider_id for item in providers])
-print(None if zhipu is None else (zhipu.model, zhipu.has_api_key))
+print(Assistant.list_providers())
+print(Assistant.chat("只回复 pong", provider_id="zhipu"))
 ```
 
-**预期结果：** 列表里出现 `zhipu`；`model` 为 `glm-4-flash`。
+**预期结果：** 助手文本为 `pong`（或等价短回复）。
 
 ---
 

@@ -1,7 +1,7 @@
 name: modules.assistant
 version: "0.1.0"
 compatible_core_versions: ">=0.5.0"
-description: "AI 助理模块：发现 userspace 供应商配置，并作为后续聊天调用的门面。"
+description: "AI 助理模块：发现 userspace 供应商配置，并发送 OpenAI 兼容聊天。"
 dependencies:
   - infra.project_context
   - infra.discovery
@@ -11,3 +11,6 @@ changelog:
       - 初始化模块，完成供应商发现
       - 路径一律经 ProjectContext，userspace 只放 OpenAI 兼容配置
       - 内部以 AssistantManager 编排，包根只导出 Assistant
+      - 新增 Assistant.chat：用已配置供应商发送一轮非流式对话
+      - 密钥只在 Manager 内部读取，不进入 ProviderInfo
+      - chat 支持可选 history；请求内置 NTQ 系统提示

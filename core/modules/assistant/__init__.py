@@ -6,7 +6,7 @@
 
 契约类型::
 
-    from core.modules.assistant.contracts import ProviderInfo
+    from core.modules.assistant.contracts import ProviderInfo, AssistantError
 """
 
 from .assistant import Assistant

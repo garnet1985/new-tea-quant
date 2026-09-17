@@ -1,0 +1,298 @@
+@use '../../assets/scss/variables' as *;
+
+$ntq-assistant-fab-size: 48px;
+$ntq-assistant-fab-ring: 1.5px;
+$ntq-assistant-aurora: conic-gradient(
+  from 0deg,
+  var(--ntq-violet) 0deg,
+  var(--ntq-cyan) 120deg,
+  var(--ntq-green) 240deg,
+  var(--ntq-violet) 360deg
+);
+
+@keyframes ntq-assistant-aurora-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ntq-assistant-fab-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes ntq-assistant-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ntq-assistant-dock__fab-slot {
+  position: fixed;
+  top: calc(#{$ntq-header-height} + 14px);
+  right: 18px;
+  z-index: 1250;
+  width: $ntq-assistant-fab-size;
+  height: $ntq-assistant-fab-size;
+}
+
+.ntq-assistant-dock__fab {
+  width: $ntq-assistant-fab-size;
+  height: $ntq-assistant-fab-size;
+  padding: 0 !important;
+  border: none;
+  border-radius: 999px;
+  background: #0a0a18 !important;
+  overflow: visible;
+  box-shadow:
+    0 0 12px rgba(34, 211, 238, 0.42),
+    0 0 28px rgba(168, 85, 247, 0.32);
+
+  &:hover {
+    background: #101028 !important;
+    transform: scale(1.04);
+  }
+
+  &.is-open {
+    box-shadow:
+      0 0 10px rgba(34, 211, 238, 0.28),
+      0 0 18px rgba(168, 85, 247, 0.22);
+  }
+}
+
+.ntq-assistant-dock__fab-glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    rgba(34, 211, 238, 0.38) 0%,
+    rgba(168, 85, 247, 0.22) 42%,
+    transparent 70%
+  );
+  animation: ntq-assistant-fab-pulse 2.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ntq-assistant-dock__fab-ring {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  padding: $ntq-assistant-fab-ring;
+  background: $ntq-assistant-aurora;
+  transform-origin: center center;
+  animation: ntq-assistant-aurora-spin 3.6s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.ntq-assistant-dock__fab-icon {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.7));
+}
+
+.ntq-assistant-dock__panel {
+  position: fixed;
+  top: calc(#{$ntq-header-height} + 14px);
+  right: calc(18px + #{$ntq-assistant-fab-size} + 12px);
+  z-index: 1250;
+  display: flex;
+  flex-direction: column;
+  width: 400px;
+  height: min(640px, calc(100vh - #{$ntq-header-height} - 28px));
+  background: #0a0a18;
+  background-image: none;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 14px;
+  box-shadow:
+    0 18px 48px rgba(6, 6, 18, 0.55),
+    0 0 24px rgba(34, 211, 238, 0.14);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: hidden;
+  animation: ntq-assistant-panel-in 160ms ease-out;
+}
+
+.ntq-assistant-dock__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 12px 12px 16px;
+  border-bottom: 1px solid var(--ntq-white-12);
+  flex-shrink: 0;
+}
+
+.ntq-assistant-dock__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ntq-text);
+}
+
+.ntq-assistant-dock__subtitle {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: var(--ntq-text-muted);
+}
+
+.ntq-assistant-dock__close {
+  color: var(--ntq-text-muted) !important;
+}
+
+.ntq-assistant-dock__messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ntq-assistant-dock__empty {
+  margin: auto 8px;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ntq-text-muted);
+}
+
+.ntq-assistant-dock__bubble {
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+
+  &.is-user {
+    align-self: flex-end;
+    background: rgba(34, 211, 238, 0.14);
+    border-color: rgba(34, 211, 238, 0.28);
+  }
+
+  &.is-assistant {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--ntq-white-12);
+  }
+
+  &.is-error {
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(239, 68, 68, 0.12);
+  }
+
+  &.is-pending {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+  }
+}
+
+.ntq-assistant-dock__bubble-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ntq-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ntq-assistant-dock__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--ntq-white-12);
+  flex-shrink: 0;
+}
+
+.ntq-assistant-dock__input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ntq-text);
+  font: inherit;
+  font-size: var(--ntq-form-control-font-size);
+  line-height: var(--ntq-form-control-line-height);
+  padding: 8px 10px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(34, 211, 238, 0.45);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+  }
+}
+
+.ntq-assistant-dock__send {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ntq-cyan);
+  color: #061018;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  &:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-assistant-dock__fab-glow,
+  .ntq-assistant-dock__fab-ring {
+    animation: none;
+  }
+
+  .ntq-assistant-dock__fab:hover {
+    transform: none;
+  }
+
+  .ntq-assistant-dock__panel {
+    animation: none;
+  }
+}

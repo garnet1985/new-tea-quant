@@ -88,6 +88,15 @@ class ProviderCatalog:
         )
 
     @staticmethod
+    def load_api_key(directory: Path) -> Optional[str]:
+        """读取 ``api_key.txt``；缺失或空白返回 ``None``。"""
+        key_path = directory / _API_KEY_FILE
+        if not key_path.is_file():
+            return None
+        text = Discovery.file.load_text(key_path)
+        key = str(text or "").strip()
+        return key or None
+
+    @staticmethod
     def _has_api_key(directory: Path) -> bool:
-        text = Discovery.file.load_text(directory / _API_KEY_FILE)
-        return bool(str(text or "").strip())
+        return ProviderCatalog.load_api_key(directory) is not None

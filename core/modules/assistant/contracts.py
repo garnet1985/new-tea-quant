@@ -1,9 +1,13 @@
-"""跨模块契约：助理供应商发现结果。"""
+"""跨模块契约：助理供应商发现结果与调用错误。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+
+
+class AssistantError(Exception):
+    """助理配置或调用失败。"""
 
 
 @dataclass(frozen=True)
@@ -18,4 +22,4 @@ class ProviderInfo:
     has_api_key: bool
 
 
-__all__ = ["ProviderInfo"]
+__all__ = ["AssistantError", "ProviderInfo"]

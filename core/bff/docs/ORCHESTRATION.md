@@ -10,6 +10,7 @@ HTTP 前缀一律为 `/api`（见 `core/bff/app.py`）。契约细节优先看 F
 | platform / runtime | `APIs/platform/runtime` | Tag T1-00 引用 | `infra.task_guard` |
 | platform / setup | `APIs/platform/setup` | — | `setup` meta + `SetupRuntimeManager` |
 | platform / app_settings | `APIs/platform/app_settings` | — | `app_settings/service.py`（含 trace） |
+| platform / assistant | `APIs/platform/assistant` | [`routes/assistant.md`](routes/assistant.md) | `modules.assistant` Facade |
 | data / sources | `APIs/data/sources` | [`routes/data_sources.md`](routes/data_sources.md) | BFF helpers + implementer |
 | data / contracts | `APIs/data/contracts` | [`routes/data_contracts.md`](routes/data_contracts.md) | BFF helpers + implementer |
 | strategy | `APIs/strategy`（`routes/` + `helpers/`） | [`routes/strategy.md`](routes/strategy.md) | core `PipelineProgress` / `Strategy.scan_run`；BFF snapshots + runner 薄壳 |

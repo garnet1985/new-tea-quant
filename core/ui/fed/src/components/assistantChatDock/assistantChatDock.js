@@ -1,0 +1,228 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { IconButton } from '@mui/material';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
+import LoadingBars from 'components/loadingBars/loadingBars';
+import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
+import { isHttpStatusError } from 'services/request';
+import './assistantChatDock.scss';
+
+function errorMessage(err, fallback) {
+  if (isHttpStatusError(err) && err.message) return err.message;
+  return String(err?.message || fallback);
+}
+
+function nextId(idRef) {
+  const value = idRef.current;
+  idRef.current += 1;
+  return value;
+}
+
+function toHistory(messages) {
+  return messages
+    .filter((item) => (
+      (item.role === 'user' || item.role === 'assistant')
+      && item.content
+      && !item.pending
+      && !item.error
+    ))
+    .map((item) => ({ role: item.role, content: item.content }));
+}
+
+function AssistantChatDock() {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [hint, setHint] = useState('');
+  const listRef = useRef(null);
+  const inputRef = useRef(null);
+  const idRef = useRef(1);
+
+  const toggleOpen = useCallback(() => {
+    setOpen((value) => !value);
+  }, []);
+
+  const close = useCallback(() => {
+    setOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const timer = window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 40);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    listAssistantProviders()
+      .then((items) => {
+        if (cancelled) return;
+        const ready = (Array.isArray(items) ? items : []).some(
+          (item) => item.enabled && item.hasApiKey,
+        );
+        setHint(ready ? '' : '还没有可用的 AI 供应商。');
+      })
+      .catch((err) => {
+        if (!cancelled) setHint(errorMessage(err, '无法连接助理服务。'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const send = useCallback(async () => {
+    const content = draft.trim();
+    if (!content || sending) return;
+    const history = toHistory(messages);
+    const userId = nextId(idRef);
+    const pendingId = nextId(idRef);
+    setDraft('');
+    setSending(true);
+    setMessages((prev) => [
+      ...prev,
+      { id: userId, role: 'user', content },
+      { id: pendingId, role: 'assistant', content: '', pending: true },
+    ]);
+    try {
+      const result = await chatWithAssistant({ content, history });
+      setMessages((prev) => prev.map((item) => (
+        item.id === pendingId
+          ? { ...item, pending: false, content: result.reply || '（空回复）' }
+          : item
+      )));
+    } catch (err) {
+      setMessages((prev) => prev.map((item) => (
+        item.id === pendingId
+          ? { ...item, pending: false, error: true, content: errorMessage(err, '对话失败') }
+          : item
+      )));
+    } finally {
+      setSending(false);
+    }
+  }, [draft, messages, sending]);
+
+  const onDraftKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    send();
+  };
+
+  return (
+    <div className="ntq-assistant-dock">
+      <div className="ntq-assistant-dock__fab-slot">
+        <IconButton
+          className={['ntq-assistant-dock__fab', open ? 'is-open' : ''].filter(Boolean).join(' ')}
+          onClick={toggleOpen}
+          aria-label={open ? '关闭助理' : '打开助理'}
+          aria-expanded={open}
+          aria-controls="ntq-assistant-dialog"
+          disableRipple
+        >
+          <span className="ntq-assistant-dock__fab-glow" aria-hidden />
+          <span className="ntq-assistant-dock__fab-ring" aria-hidden />
+          <span className="ntq-assistant-dock__fab-icon">
+            <NtqIcon name={open ? 'cancel' : 'chat'} size={22} />
+          </span>
+        </IconButton>
+      </div>
+
+      {open ? (
+        <section
+          id="ntq-assistant-dialog"
+          className="ntq-assistant-dock__panel"
+          role="dialog"
+          aria-modal="false"
+          aria-label="NTQ 助理"
+        >
+          <header className="ntq-assistant-dock__head">
+            <div className="ntq-assistant-dock__head-text">
+              <p className="ntq-assistant-dock__title">NTQ 助理</p>
+              <p className="ntq-assistant-dock__subtitle">问术语、策略或报告</p>
+            </div>
+            <IconButton
+              className="ntq-assistant-dock__close"
+              onClick={close}
+              aria-label="关闭助理"
+              size="small"
+              disableRipple
+            >
+              <NtqIcon name="cancel" size={18} tone="muted" />
+            </IconButton>
+          </header>
+
+          <div ref={listRef} className="ntq-assistant-dock__messages">
+            {messages.length === 0 ? (
+              <p className="ntq-assistant-dock__empty">
+                {hint || '可以问 NTQ 名词、策略怎么写，或报告该怎么看。'}
+              </p>
+            ) : null}
+            {messages.map((item) => (
+              <div
+                key={item.id}
+                className={[
+                  'ntq-assistant-dock__bubble',
+                  `is-${item.role}`,
+                  item.error ? 'is-error' : '',
+                  item.pending ? 'is-pending' : '',
+                ].filter(Boolean).join(' ')}
+              >
+                {item.pending ? (
+                  <LoadingBars barCount={4} className="ntq-loading-bars--sm" aria-label="助理正在回复" />
+                ) : (
+                  <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <form
+            className="ntq-assistant-dock__composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              send();
+            }}
+          >
+            <textarea
+              ref={inputRef}
+              className="ntq-assistant-dock__input"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onDraftKeyDown}
+              placeholder="输入问题，Enter 发送"
+              rows={2}
+              disabled={sending}
+              aria-label="助理消息"
+            />
+            <button
+              type="submit"
+              className="ntq-assistant-dock__send"
+              disabled={sending || !draft.trim()}
+            >
+              发送
+            </button>
+          </form>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+export default AssistantChatDock;

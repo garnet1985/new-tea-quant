@@ -106,7 +106,7 @@
 
 #### 其他 path 辅助
 
-同命名空间还提供系统库、备份、tmp、data_source / data_contract、策略仿真与扫描结果等路径构造（见 `core/namespaces.py` 中 `PathNamespace`）。状态均为 **`beta`**。
+同命名空间还提供系统库、备份、tmp、data_source / data_contract、assistant providers、策略仿真与扫描结果等路径构造（见 `core/namespaces.py` 中 `PathNamespace`）。状态均为 **`beta`**。
 
 ```python
 from core.infra.project_context import ProjectContext

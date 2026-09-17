@@ -97,6 +97,7 @@ new-tea-quant/
 | [`backtest_engine`](../core/modules/backtest_engine/) | 回测时间轴与执行引擎 | [README](../core/modules/backtest_engine/README.md) |
 | [`market_profile`](../core/modules/market_profile/) | 市场画像相关 | [README](../core/modules/market_profile/README.md) |
 | [`adapter`](../core/modules/adapter/) | `Strategy.scan` 机会列表的后处理回调（userspace adapters） | [README](../core/modules/adapter/README.md) |
+| [`assistant`](../core/modules/assistant/) | AI 助理：发现 userspace 供应商配置（聊天调用后续接入） | [README](../core/modules/assistant/README.md) |
 
 策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/adapters/`。细节以各模块 README 与 `docs/` 为准。
 

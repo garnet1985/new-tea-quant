@@ -26,7 +26,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 
 | 域 | 含 | 不含 |
 |----|----|------|
-| **strategy** | workbench + scan + package + strategy catalog | app 级 settings |
+| **strategy** | workbench + scan + package + strategy catalog + decision | app 级 settings |
 | **tag** | tag list + tag run | runtime/pipeline（平台能力） |
 | **data** | data_source + data_contract 目录/新鲜度 | — |
 | **platform** | health + runtime/pipeline + setup + app settings/cache/trace | strategy 仿真 options |

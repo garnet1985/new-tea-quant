@@ -79,6 +79,30 @@ def test_equal_capital_skips_when_cash_below_slot():
     assert shares == 0
 
 
+def test_equal_capital_suggestion_is_budget_over_price():
+    """建议买入 = 每笔预算 ÷ 买价再折手，不因佣金变成 —。"""
+    alloc = AllocationStrategy.create(
+        settings=_strategy_settings(
+            allocation={
+                "max_portfolio_size": 10,
+                "skip_trade_when_insufficient": True,
+            }
+        ),
+        market_rules=MarketRulesProxy.for_market("china_a_stock"),
+        fee_calculator=FeeCalculator(
+            commission_rate=0.00025,
+            min_commission=5.0,
+            stamp_duty_rate=0.001,
+            transfer_fee_rate=0.0,
+        ),
+    )
+    account = Account(initial_cash=1_000_000, cash=1_000_000)
+    price = 18.51
+    shares = alloc.suggest_shares(account, price, "688005.SH")
+    assert shares == alloc.floor_shares(int(100_000 / price), "688005.SH")
+    assert shares >= 200
+
+
 def test_equal_shares_uses_lots_per_trade():
     alloc = _allocation(
         allocation={"mode": "equal_shares", "lots_per_trade": 2, "max_portfolio_size": 10}
@@ -86,6 +110,21 @@ def test_equal_shares_uses_lots_per_trade():
     account = Account(initial_cash=1_000_000, cash=1_000_000)
     shares = alloc.calculate_shares_to_buy(account, buy_price=10.0, entity_id="600000.SH")
     assert shares == 200
+
+
+def test_suggest_shares_follows_allocation_mode():
+    account = Account(initial_cash=1_000_000, cash=1_000_000)
+    equal_cap = _allocation(allocation={"mode": "equal_capital", "max_portfolio_size": 10})
+    assert equal_cap.suggest_shares(account, 10.0, "600000.SH") == 10_000
+    equal_sh = _allocation(
+        allocation={"mode": "equal_shares", "lots_per_trade": 2, "max_portfolio_size": 10}
+    )
+    assert equal_sh.suggest_shares(account, 10.0, "600000.SH") == 200
+    kelly = _allocation(
+        allocation={"mode": "kelly", "kelly_fraction": 0.5, "max_portfolio_size": 10}
+    )
+    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=None) == 0
+    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=0.75) > 0
 
 
 def test_simulator_buy_sell_realizes_hfq_roi_profit():
@@ -130,6 +169,89 @@ def test_simulator_buy_sell_realizes_hfq_roi_profit():
     assert result.account.cash == pytest.approx(1_050_000.0)
     assert result.account.open_position_count() == 0
     assert len(result.equity_curve) >= 1
+
+
+def test_simulator_goal_slices_flatten_without_leftover():
+    alloc = _allocation(allocation={"max_portfolio_size": 2})
+    fees = FeeCalculator(
+        commission_rate=0.0,
+        min_commission=0.0,
+        stamp_duty_rate=0.0,
+        transfer_fee_rate=0.0,
+    )
+    sim = PortfolioSimulator.create(
+        allocation=alloc, fee_calculator=fees, save_equity_curve=False
+    )
+    events = [
+        PortfolioEvent(
+            kind="buy",
+            date="20240103",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=10.0,
+            bar_volume=10_000_000,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240110",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=9.0,
+            roi=-0.04,
+            exit_ratio=0.6,
+            bar_volume=100,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240112",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=8.5,
+            roi=-0.06,
+            exit_ratio=0.4,
+            bar_volume=100,
+        ),
+    ]
+    result = sim.run(events, initial_capital=1_000_000)
+    sells = [t for t in result.trades if t.is_sell()]
+    assert len(sells) == 2
+    assert sells[0].shares + sells[1].shares == result.trades[0].shares
+    assert result.completed_count == 1
+    assert result.account.open_position_count() == 0
+
+
+def test_size_sell_shares_floors_to_lot_then_flattens_odd_lot():
+    alloc = _allocation()
+    assert (
+        alloc.size_sell_shares(
+            remaining=52_000,
+            initial_shares=52_000,
+            exit_ratio=8194 / 52_000,
+            entity_id="000488.SZ",
+            is_last=False,
+        )
+        == 8100
+    )
+    assert (
+        alloc.size_sell_shares(
+            remaining=94,
+            initial_shares=52_000,
+            exit_ratio=0.01,
+            entity_id="000488.SZ",
+            is_last=False,
+        )
+        == 94
+    )
+    assert (
+        alloc.size_sell_shares(
+            remaining=43_900,
+            initial_shares=52_000,
+            exit_ratio=0.15,
+            entity_id="000488.SZ",
+            is_last=True,
+        )
+        == 43_900
+    )
 
 
 def test_simulator_same_investment_id_does_not_cross_entity_sell():

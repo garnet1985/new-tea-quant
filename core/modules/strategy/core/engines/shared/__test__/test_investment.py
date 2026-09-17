@@ -37,10 +37,13 @@ def _bar(
     raw: dict | None = None,
     hfq: dict | None = None,
     adj_factor: float | None = None,
+    volume: float | None = None,
 ) -> dict:
     row = {"date": date, "open": o, "high": h, "low": l, "close": c}
     if pre_close is not None:
         row["pre_close"] = pre_close
+    if volume is not None:
+        row["volume"] = volume
     ohlc = {k: row[k] for k in ("open", "high", "low", "close", "pre_close") if k in row}
     row["raw"] = dict(raw) if raw is not None else dict(ohlc)
     row["hfq"] = dict(hfq) if hfq is not None else dict(ohlc)
@@ -59,6 +62,7 @@ def _tick(
     raw: dict | None = None,
     hfq: dict | None = None,
     adj_factor: float | None = None,
+    volume: float | None = None,
 ):
     """返回 (as_of, bar)。"""
     return date, _bar(
@@ -71,6 +75,7 @@ def _tick(
         raw=raw,
         hfq=hfq,
         adj_factor=adj_factor,
+        volume=volume,
     )
 
 
@@ -228,6 +233,63 @@ class TestInvestmentExpiration(unittest.TestCase):
         _react(inv, _tick("20240103", o=10, h=10.5, l=9.8, c=10.2))
         self.assertFalse(_react(inv, _tick("20240104", o=10.2, h=10.5, l=10.0, c=10.3)))
         self.assertEqual(inv.exit_info.reason, "expired")
+
+    def test_liquidity_clip_retries_until_flat_then_sets_result(self) -> None:
+        """流动性砍量后跨 bar 继续卖；持仓归零才有 result。"""
+        settings = _settings(
+            simulation={
+                "assumption": {
+                    "template": "none",
+                    "tradability": {
+                        "enter_price": "next_open",
+                        "exit_price": "close",
+                        "liquidity": {
+                            "max_participation_rate": 0.1,
+                            "participation_on_exceed": "clip",
+                        },
+                    },
+                },
+            },
+            goal={
+                "stop_loss": {"stages": [{"ratio": -0.9, "close_invest": True}]},
+                "take_profit": {"stages": [{"ratio": 0.9, "close_invest": True}]},
+                "expiration": {"fixed_window_in_days": 2, "mode": "open_day"},
+            },
+        )
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10, volume=10_000),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        self.assertTrue(
+            _react(inv, _tick("20240103", o=10, h=10.5, l=9.8, c=10.2, volume=10_000))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(inv.runtime_state.liquidity_share_basis, 1000.0)
+
+        still_live = _react(
+            inv, _tick("20240104", o=10.2, h=10.5, l=10.0, c=10.3, volume=5_000)
+        )
+        self.assertTrue(still_live)
+        self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
+        self.assertIsNone(inv.outcome.result)
+        self.assertEqual(len(inv.completed_goals), 1)
+        self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
+        self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 0.5)
+
+        self.assertFalse(
+            _react(inv, _tick("20240105", o=10.3, h=10.6, l=10.1, c=10.4, volume=5_000))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.reason, "expired")
+        self.assertEqual(len(inv.completed_goals), 2)
+        self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 0.0)
+        self.assertIsNotNone(inv.outcome.result)
+        self.assertAlmostEqual(
+            sum(float(g["exit_ratio"]) for g in inv.completed_goals), 1.0
+        )
 
 
 class TestInvestmentToOpportunity(unittest.TestCase):
@@ -1126,7 +1188,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1156,7 +1218,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1184,7 +1246,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1209,7 +1271,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1238,7 +1300,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
                 "take_profit": {
                     "stages": [
                         {"ratio": 0.2, "exit_ratio": 0.5},
-                        {"custom": "bb_upper", "close_invest": True},
+                        {"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"},
                     ]
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
@@ -1271,8 +1333,8 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             goal={
                 "take_profit": {
                     "stages": [
-                        {"custom": "first", "exit_ratio": 0.5},
-                        {"custom": "second", "close_invest": True},
+                        {"custom": "first", "exit_ratio": 0.5, "description": "第一段自定义止盈"},
+                        {"custom": "second", "close_invest": True, "description": "第二段自定义止盈"},
                     ]
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},

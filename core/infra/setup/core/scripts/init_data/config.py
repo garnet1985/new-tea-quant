@@ -42,7 +42,11 @@ SAMPLE_RANDOM_SEED = 20250525
 # 每个非空分层至少保留 1 只（在目标总数允许时）
 MIN_PER_STRATUM = 1
 
-DateFilter = Optional[Tuple[str, str]]  # (column, kind)  kind: yyyymmdd | quarter
+DateFilter = Optional[Tuple[str, str]]
+# (column, kind)  kind:
+#   yyyymmdd          — 点时序：column BETWEEN 窗起、窗尾
+#   yyyymmdd_overlap  — 区间时序：与窗相交（column=起点，结束列固定 end_date）
+#   quarter           — 季度 BETWEEN
 
 # 运行时 / 框架生成表：永不打入演示数据包（即使用 --tables 指定也会跳过）
 EXCLUDED_GENERATED_TABLES = frozenset(
@@ -75,7 +79,10 @@ EXPORT_TABLES: Dict[str, TableExportSpec] = {
     "sys_stock_moneyflow": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
     "sys_adj_factor_events": TableExportSpec(("event_date", "yyyymmdd"), stock_column="id"),
     "sys_corporate_finance": TableExportSpec(("quarter", "quarter"), stock_column="id"),
-    "sys_stock_st_periods": TableExportSpec(("start_date", "yyyymmdd"), stock_column="stock_id"),
+    # ST 时段按与窗相交导出：窗口前已戴帽、窗内仍有效的行要留下（保留真实 start_date）
+    "sys_stock_st_periods": TableExportSpec(
+        ("start_date", "yyyymmdd_overlap"), stock_column="stock_id"
+    ),
     # --- 指数（全市场代表，不按股票池过滤）---
     "sys_index_klines": TableExportSpec(("date", "yyyymmdd")),
     "sys_index_weight": TableExportSpec(("date", "yyyymmdd")),

@@ -80,7 +80,7 @@ export function useStrategyDesignExecution({
     }
 
     const prevStatus = getExecutionState()?.stepStatus
-      || { enum: 'idle', price: 'idle', portfolio: 'idle' };
+      || { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' };
 
     try {
       setRunError('');
@@ -179,7 +179,7 @@ export function useStrategyDesignExecution({
           progressPollStepRef.current = pollStep;
           setSession((prev) => {
             const stepStatus = mergeStepStatusFromRunProgress(
-              prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle' },
+              prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' },
               status?.step_status_merge,
             );
             return {
@@ -268,7 +268,7 @@ export function useStrategyDesignExecution({
 
       setSession((prev) => {
         const nextStepStatus = mergeStepStatusFromRunProgress(
-          prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle' },
+          prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' },
           patch,
         );
         const mergedProgress = { ...(prev.stepProgress || {}), ...progressPatch };

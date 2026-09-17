@@ -38,6 +38,7 @@ from core.modules.strategy.core.engines.shared.data_class.investment import (
     TargetCheckStep,
     TradeSide,
 )
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 
 if TYPE_CHECKING:
@@ -200,6 +201,7 @@ class Investment(Opportunity):
             "triggered_stop_loss_ids": list(rs.triggered_stop_loss_ids or []),
             "triggered_take_profit_ids": list(rs.triggered_take_profit_ids or []),
             "remaining_ratio": rs.remaining_ratio,
+            "liquidity_share_basis": rs.liquidity_share_basis,
             "protect_loss_active": rs.protect_loss_active,
             "dynamic_loss_active": rs.dynamic_loss_active,
             "dynamic_loss_peak": rs.dynamic_loss_peak,
@@ -269,7 +271,9 @@ class Investment(Opportunity):
     def try_exit(self, as_of: str, bar: Dict[str, Any]) -> None:
         """``PENDING_TO_EXIT``：尝试出场成交。
 
-        全平 → ``COMPLETE``；部分平仓 → ``OPEN`` 并同 tick 再评估 goals（不含 force）。
+        持仓归零 → ``COMPLETE``（此时才有胜负 / 加权 ROI）。
+        本指令还没卖完（含流动性砍量）→ 继续 ``PENDING_TO_EXIT``。
+        本指令卖完但仍有仓 → ``OPEN`` 并同 tick 再评估 goals（不含 force）。
         """
         if self.lifecycle != Lifecycle.PENDING_TO_EXIT:
             return
@@ -278,16 +282,14 @@ class Investment(Opportunity):
         if self._is_able_to_exit(
             as_of, bar, check_tradability=not skip_tradability
         ):
-            self._apply_exit(
+            filled = self._apply_exit(
                 as_of, bar, check_tradability=not skip_tradability
             )
-            if self.runtime_state.remaining_ratio <= 1e-12:
-                self.lifecycle = Lifecycle.COMPLETE
-                self._remember_bar(bar)
-                return
-            self.lifecycle = Lifecycle.OPEN
-            self._process_open_exits(as_of, bar, check_force=False)
             self._remember_bar(bar)
+            if filled:
+                self._after_exit_fill(as_of, bar, check_force=False)
+            else:
+                self.lifecycle = Lifecycle.PENDING_TO_EXIT
             return
         self._remember_bar(bar)
 
@@ -319,12 +321,21 @@ class Investment(Opportunity):
             if self._is_able_to_exit(
                 as_of, bar, check_tradability=not skip_tradability
             ):
-                self._apply_exit(
+                filled = self._apply_exit(
                     as_of, bar, check_tradability=not skip_tradability
                 )
-                if self.runtime_state.remaining_ratio <= 1e-12:
+                if not filled:
+                    self._mark_pending_exit_kind(
+                        PendingExitKind.FILL_RETRY, armed_as_of=as_of
+                    )
+                    self.lifecycle = Lifecycle.PENDING_TO_EXIT
+                    return True
+                if float(self.runtime_state.remaining_ratio or 0.0) <= 1e-12:
                     self.lifecycle = Lifecycle.COMPLETE
                     return False
+                if self._pending_unfilled_ratio() > 1e-12:
+                    self.lifecycle = Lifecycle.PENDING_TO_EXIT
+                    return True
                 self.lifecycle = Lifecycle.OPEN
                 need_exit = False
                 continue
@@ -363,6 +374,81 @@ class Investment(Opportunity):
             return 1.0
         return float(self.pending_exit.exit_ratio)
 
+    def _pending_unfilled_ratio(self) -> float:
+        pending = self.pending_exit
+        if pending is None:
+            return 0.0
+        remaining = float(self.runtime_state.remaining_ratio or 0.0)
+        leftover = float(getattr(pending, "unfilled_ratio", 0.0) or 0.0)
+        if leftover > 1e-12:
+            return min(leftover, remaining)
+        return min(max(float(pending.exit_ratio or 0.0), 0.0), remaining)
+
+    def _set_pending_exit(
+        self,
+        *,
+        reason: str,
+        exit_ratio: float,
+        goal_name: str,
+        fill_bar: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        remaining = float(self.runtime_state.remaining_ratio or 0.0)
+        wanted = min(max(float(exit_ratio), 0.0), 1.0, remaining)
+        self.pending_exit = PendingExit(
+            reason=reason,
+            exit_ratio=float(exit_ratio),
+            goal_name=goal_name,
+            fill_bar=fill_bar,
+            unfilled_ratio=wanted,
+        )
+
+    def _entry_liquidity_share_basis(self, bar: Dict[str, Any]) -> Optional[float]:
+        """入场当日 ``volume × 参与率``；未知量则不按流动性拆段。"""
+        if self.settings is None:
+            return None
+        cap = self.settings.simulation.liquidity.max_shares(SafeBarValue.volume(bar))
+        if cap is None or cap <= 0:
+            return None
+        return float(cap)
+
+    def _liquidity_capped_ratio(self, planned: float, bar: Dict[str, Any]) -> float:
+        """把本 bar 可卖比例限制在参与率内；基数是入场当日可参与上限。"""
+        planned = max(float(planned), 0.0)
+        if planned <= 1e-12 or self.settings is None:
+            return 0.0
+        liq = self.settings.simulation.liquidity
+        cap_shares = liq.max_shares(SafeBarValue.volume(bar))
+        if cap_shares is None:
+            return planned
+        if cap_shares <= 0:
+            return 0.0
+        basis = float(self.runtime_state.liquidity_share_basis or 0.0)
+        if basis <= 0:
+            return planned
+        if (
+            str(liq.participation_on_exceed) == liq.ON_EXCEED_SKIP
+            and planned * basis > float(cap_shares) + 1e-9
+        ):
+            return 0.0
+        return min(planned, float(cap_shares) / basis)
+
+    def _after_exit_fill(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        check_force: bool,
+    ) -> bool:
+        """成交后收口生命周期。True=继续跟踪。"""
+        if float(self.runtime_state.remaining_ratio or 0.0) <= 1e-12:
+            self.lifecycle = Lifecycle.COMPLETE
+            return False
+        if self._pending_unfilled_ratio() > 1e-12:
+            self.lifecycle = Lifecycle.PENDING_TO_EXIT
+            return True
+        self.lifecycle = Lifecycle.OPEN
+        return self._process_open_exits(as_of, bar, check_force=check_force)
+
     def _check_force_exit(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """``RiskControl.should_force_exit``；命中则写 ``pending_exit``（先于 goals）。"""
         stock_meta: Dict[str, Any] = {}
@@ -389,7 +475,7 @@ class Investment(Opportunity):
         else:
             exit_ratio = float(decision.exit_ratio)
         fill_bar = self._delisted_fill_bar(tag, bar)
-        self.pending_exit = PendingExit(
+        self._set_pending_exit(
             reason=reason,
             exit_ratio=exit_ratio,
             goal_name=reason,
@@ -453,7 +539,7 @@ class Investment(Opportunity):
         exit_ratio: float,
         goal_name: str,
     ) -> bool:
-        self.pending_exit = PendingExit(
+        self._set_pending_exit(
             reason=reason,
             exit_ratio=float(exit_ratio),
             goal_name=goal_name,
@@ -498,8 +584,7 @@ class Investment(Opportunity):
         # 相对收益需 /basis；basis<=0 时本 tick 无法定义，不代表价格非法
         if basis <= 0:
             return False
-        price_return = (monitor - basis) / basis
-        if price_return > float(cfg.ratio):
+        if not HfqRoi.is_target_hit(basis, monitor, cfg.ratio):
             return False
         exit_ratio = 1.0 if cfg.close_invest else float(cfg.exit_ratio)
         return self._arm_goal_exit(
@@ -531,8 +616,7 @@ class Investment(Opportunity):
         # 回撤需 /peak；peak<=0 时本 tick 无法定义
         if peak <= 0:
             return False
-        drawdown = (monitor - peak) / peak
-        if drawdown > float(cfg.ratio):
+        if not HfqRoi.is_target_hit(peak, monitor, cfg.ratio):
             return False
         exit_ratio = 1.0 if cfg.close_invest else float(cfg.exit_ratio)
         return self._arm_goal_exit(
@@ -571,8 +655,7 @@ class Investment(Opportunity):
                 ):
                     continue
             else:
-                stop_price = self.settings.goal.exit_price(stage, basis)
-                if low > stop_price:
+                if not HfqRoi.is_target_hit(basis, low, stage.ratio):
                     continue
             return self._trigger_goal_stage(
                 stage=stage,
@@ -614,8 +697,7 @@ class Investment(Opportunity):
                 ):
                     continue
             else:
-                target_price = self.settings.goal.exit_price(stage, basis)
-                if high < target_price:
+                if not HfqRoi.is_target_hit(basis, high, stage.ratio):
                     continue
             return self._trigger_goal_stage(
                 stage=stage,
@@ -901,6 +983,7 @@ class Investment(Opportunity):
             at_limit=at_limit_up,
             bar_volume=SafeBarValue.volume(bar),
         )
+        self.runtime_state.liquidity_share_basis = self._entry_liquidity_share_basis(bar)
 
     def _resolve_entry_price(
         self,
@@ -993,6 +1076,7 @@ class Investment(Opportunity):
         *,
         price_model: Optional[str] = None,
         check_tradability: bool = True,
+        apply_liquidity: bool = True,
     ) -> bool:
         """Record completed goal from ``pending_exit``. Returns ``True`` if fill applied."""
         fill_as_of, fill_bar = self._resolve_exit_fill(as_of, bar)
@@ -1007,17 +1091,23 @@ class Investment(Opportunity):
 
         # pending.exit_ratio = 相对**初始总仓位**的绝对份额（非相对剩余）
         # close_invest 在配置层会写成 1.0；实际成交不超过当前 remaining
-        requested = float(self.pending_exit.exit_ratio)
+        requested = self._pending_unfilled_ratio()
         if requested <= 0.0:
             return False
         prev_remaining = float(self.runtime_state.remaining_ratio or 0.0)
         if prev_remaining <= 1e-12:
             return False
-        abs_ratio = min(min(requested, 1.0), prev_remaining)
+        planned = min(min(requested, 1.0), prev_remaining)
+        if apply_liquidity:
+            abs_ratio = self._liquidity_capped_ratio(planned, fill_bar)
+        else:
+            abs_ratio = planned
         if abs_ratio <= 1e-12:
             return False
         new_remaining = max(0.0, prev_remaining - abs_ratio)
         self.runtime_state.remaining_ratio = new_remaining
+        pending = self.pending_exit
+        pending.unfilled_ratio = max(0.0, requested - abs_ratio)
 
         exit_price_raw = self._resolve_exit_price(
             fill_as_of,
@@ -1034,17 +1124,13 @@ class Investment(Opportunity):
             check_tradability=False,
         )
         basis_hfq = self._hfq_basis()
-        if basis_hfq > 0 and exit_price_hfq is not None:
-            profit = float(exit_price_hfq) - basis_hfq
-            roi = profit / basis_hfq
-        else:
-            profit = 0.0
-            roi = 0.0
+        roi = HfqRoi.ratio(basis_hfq, exit_price_hfq)
+        profit = HfqRoi.cash_profit(1.0, basis_hfq, roi)
         at_limit_down, exit_prev_close = self._eval_limit_down(exit_price, fill_bar)
 
         self.completed_goals.append(
             {
-                "name": self.pending_exit.goal_name or self.pending_exit.reason,
+                "name": pending.goal_name or pending.reason,
                 "date": fill_as_of,
                 "price": exit_price,
                 "price_raw": float(exit_price_raw or 0.0),
@@ -1052,7 +1138,7 @@ class Investment(Opportunity):
                 "exit_ratio": abs_ratio,
                 "profit": profit,
                 "weighted_profit": profit * abs_ratio,
-                "reason": self.pending_exit.reason,
+                "reason": pending.reason,
                 "roi": roi,
             }
         )
@@ -1070,7 +1156,7 @@ class Investment(Opportunity):
                 price_raw=float(exit_price_raw or 0.0),
                 price_hfq=float(exit_price_hfq or 0.0),
                 date=fill_as_of,
-                reason=self.pending_exit.reason,
+                reason=pending.reason,
                 ratio=total_abs if total_abs > 0 else abs_ratio,
                 prev_close=exit_prev_close,
                 at_limit=at_limit_down,
@@ -1088,7 +1174,10 @@ class Investment(Opportunity):
                     entry_date, fill_as_of, mode, self.open_dates
                 )
                 self.holding.last_bar_date = fill_as_of
-        self.pending_exit = None
+            self.pending_exit = None
+            return True
+        if float(pending.unfilled_ratio or 0.0) <= 1e-12:
+            self.pending_exit = None
         return True
 
     def _resolve_exit_fill(
@@ -1178,18 +1267,19 @@ class Investment(Opportunity):
             if not self._apply_no_next_tick_enter(as_of, bar):
                 self.lifecycle = Lifecycle.COMPLETE
                 return False
-        self.pending_exit = PendingExit(
+        self._set_pending_exit(
             reason=exit_reason,
             exit_ratio=1.0,
             goal_name=exit_reason,
         )
         if self.lifecycle in (Lifecycle.OPEN, Lifecycle.PENDING_TO_EXIT):
-            # 强平不受贴板政策拦截
+            # 强平不受贴板政策拦截；样本边界一次出完，不再按流动性拆段
             self._apply_exit(
                 as_of,
                 bar,
                 price_model="close",
                 check_tradability=False,
+                apply_liquidity=False,
             )
         self.lifecycle = Lifecycle.COMPLETE
         return False
@@ -1230,6 +1320,9 @@ class Investment(Opportunity):
             prev_close=prev_close,
             at_limit=at_limit_up,
             bar_volume=SafeBarValue.volume(signal_bar),
+        )
+        self.runtime_state.liquidity_share_basis = self._entry_liquidity_share_basis(
+            signal_bar
         )
         self.lifecycle = Lifecycle.OPEN
         self._update_extremes(fill_as_of, signal_bar)
@@ -1330,15 +1423,11 @@ class Investment(Opportunity):
         if self.extreme.highest is None or high > self.extreme.highest:
             self.extreme.highest = high
             self.extreme.highest_date = as_of
-            self.extreme.highest_return = (
-                (high - basis) / basis if basis > 0 else 0.0
-            )
+            self.extreme.highest_return = HfqRoi.ratio(basis, high)
         if self.extreme.lowest is None or low < self.extreme.lowest:
             self.extreme.lowest = low
             self.extreme.lowest_date = as_of
-            self.extreme.lowest_return = (
-                (low - basis) / basis if basis > 0 else 0.0
-            )
+            self.extreme.lowest_return = HfqRoi.ratio(basis, low)
 
     def _update_holding(self, as_of: str) -> None:
         if self.lifecycle != Lifecycle.OPEN or self.holding.mode is None:

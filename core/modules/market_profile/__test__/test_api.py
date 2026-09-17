@@ -61,6 +61,9 @@ class TestMarketProfileApi(unittest.TestCase):
         self.assertIsInstance(lot, LotSizeResolved)
         self.assertEqual(lot.min_lot, 100)
         self.assertEqual(rules.floor_quantity_for_stock(150, "000001.SZ"), 100)
+        self.assertEqual(
+            rules.floor_sell_quantity_for_stock(150, 1000, "000001.SZ"), 100
+        )
         self.assertEqual(rules.get_settlement_period(), 1)
         self.assertFalse(rules.is_allowed_to_sell(0))
         self.assertTrue(rules.is_allowed_to_sell(1))

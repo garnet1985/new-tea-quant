@@ -218,7 +218,7 @@ function CapitalAllocationReport({
             value={`${metrics.maxLossStreak} 笔`}
           />
           <MetricCard
-            title="Top3 单笔亏损"
+            title="Top3 最低盈亏"
             titleTip={CAPITAL_METRIC_TIPS.worstTradePnls}
             value={metrics.worstTradePnls.map((value) => formatReportMoney(value)).join(' / ')}
           />

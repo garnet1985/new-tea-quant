@@ -74,6 +74,140 @@ export function inferStageName(ratio, kind = 'stop_loss') {
   return `level${pct}%`;
 }
 
+const EXPIRATION_MODE_SUMMARY = {
+  trading_day: '交易日',
+  natural_day: '自然日',
+  open_day: '开盘日',
+};
+
+function stageCustomKey(stage) {
+  return String(stage?.custom || '').trim();
+}
+
+function isCustomStage({ item } = {}) {
+  return Boolean(stageCustomKey(item));
+}
+
+function collectStageActions(stage) {
+  const seen = new Set();
+  const out = [];
+  const raw = Array.isArray(stage?.actions) ? stage.actions : [];
+  raw.forEach((item) => {
+    const key = String(item || '').trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(key);
+  });
+  const one = String(stage?.action || '').trim();
+  if (one && !seen.has(one)) out.push(one);
+  return out;
+}
+
+function formatRatioPct(ratio) {
+  const n = Number(ratio);
+  if (!Number.isFinite(n)) return '';
+  return `${formatPctG(Math.abs(n) * 100)}%`;
+}
+
+function formatExitPhrase(spec) {
+  if (!spec || typeof spec !== 'object') return '';
+  if (spec.close_invest) return '清仓';
+  const exitN = Number(spec.exit_ratio);
+  if (Number.isFinite(exitN) && exitN >= 1) return '清仓';
+  if (Number.isFinite(exitN) && exitN > 0) return `卖出 ${formatPctG(exitN * 100)}%`;
+  return '';
+}
+
+function formatActionSuffix(stage) {
+  const actions = collectStageActions(stage);
+  const bits = [];
+  if (actions.includes(ACTION_SET_PROTECT_LOSS)) bits.push('触发保护止损');
+  if (actions.includes(ACTION_SET_DYNAMIC_LOSS)) bits.push('触发动态止损');
+  return bits;
+}
+
+function formatStagePhrase(stage, kind) {
+  if (stageCustomKey(stage)) {
+    const desc = String(stage?.description || '').trim() || '未填写说明';
+    return [`（自定义）${desc}`, ...formatActionSuffix(stage)].join(' ');
+  }
+  const pct = formatRatioPct(stage?.ratio);
+  if (!pct) return '';
+  const verb = kind === 'take_profit' ? '当盈利' : '当亏损';
+  const parts = [`${verb} ${pct}`];
+  const exit = formatExitPhrase(stage);
+  if (exit) parts.push(exit);
+  parts.push(...formatActionSuffix(stage));
+  return parts.join(' ');
+}
+
+function hasActiveExpiration(goal) {
+  if (!goal || typeof goal !== 'object') return false;
+  if (goal.expirationEnabled === false) return false;
+  const exp = goal.expiration;
+  if (!exp || typeof exp !== 'object') return false;
+  const days = Number(exp.fixed_window_in_days);
+  return Number.isFinite(days) && days > 0;
+}
+
+function formatExpirationLine(goal) {
+  if (!hasActiveExpiration(goal)) return '';
+  const days = Number(goal.expiration.fixed_window_in_days);
+  const daysText = Number.isInteger(days) ? String(days) : formatPctG(days);
+  const mode = String(goal.expiration.mode || 'open_day').trim().toLowerCase();
+  const label = EXPIRATION_MODE_SUMMARY[mode] || EXPIRATION_MODE_SUMMARY.open_day;
+  return `最长持有：${daysText} 个${label}`;
+}
+
+function hasSideLoss(cfg) {
+  if (!cfg || typeof cfg !== 'object') return false;
+  if (cfg.ratio === '' || cfg.ratio == null) return false;
+  return Number.isFinite(Number(cfg.ratio));
+}
+
+function formatProtectLossLine(cfg) {
+  if (!hasSideLoss(cfg)) return '';
+  const ratio = Number(cfg.ratio);
+  const where = ratio === 0
+    ? '买入成本'
+    : `买入成本的 ${formatPctG((1 + ratio) * 100)}%`;
+  const exit = formatExitPhrase(cfg) || '清仓';
+  return `保护止损：当价格回落到${where} ${exit}`;
+}
+
+function formatDynamicLossLine(cfg) {
+  if (!hasSideLoss(cfg)) return '';
+  const pct = formatRatioPct(cfg.ratio);
+  if (!pct) return '';
+  const exit = formatExitPhrase(cfg) || '清仓';
+  return `动态止损：当价格从最高回撤 ${pct} ${exit}`;
+}
+
+function formatSideStages(block, kind) {
+  const stages = Array.isArray(block?.stages) ? block.stages : [];
+  return stages
+    .map((stage) => formatStagePhrase(stage, kind))
+    .filter(Boolean)
+    .join('；');
+}
+
+/** 顶栏「目标」栏：止盈 / 止损 / 持有期排成完整句子。 */
+export function formatGoalSummaryLines(goal) {
+  if (!goal || typeof goal !== 'object') return [];
+  const lines = [];
+  const expirationLine = formatExpirationLine(goal);
+  if (expirationLine) lines.push(expirationLine);
+  const takeProfit = formatSideStages(goal.take_profit, 'take_profit');
+  if (takeProfit) lines.push(`止盈：${takeProfit}`);
+  const stopLoss = formatSideStages(goal.stop_loss, 'stop_loss');
+  if (stopLoss) lines.push(`止损：${stopLoss}`);
+  const protect = formatProtectLossLine(goal.protect_loss);
+  if (protect) lines.push(protect);
+  const dynamic = formatDynamicLossLine(goal.dynamic_loss);
+  if (dynamic) lines.push(dynamic);
+  return lines;
+}
+
 function inferredNameField(kind) {
   return {
     key: '_inferredName',
@@ -81,19 +215,61 @@ function inferredNameField(kind) {
     label: '阶段名称',
     tooltip: '由触发比例自动推断（settings 不写 name），不可编辑。',
     placeholder: ' ',
+    visibleWhen: ({ item }) => !isCustomStage({ item }),
     resolve: ({ item }) => inferStageName(item?.ratio, kind),
   };
 }
 
+function customStageFields() {
+  return [
+    {
+      key: 'custom',
+      type: 'display',
+      label: '自定义规则',
+      tooltip: 'settings.py 里的 custom 钩子名，由 is_take_profit / is_stop_loss 判定。',
+      placeholder: ' ',
+      visibleWhen: isCustomStage,
+      resolve: ({ item }) => stageCustomKey(item),
+    },
+    {
+      key: 'description',
+      type: 'text',
+      label: '自定义说明',
+      tooltip: '自定义目标必须填写，会显示在策略顶栏。',
+      visibleWhen: isCustomStage,
+    },
+  ];
+}
+
 function normalizeStage(stage) {
   const exitRatio = stage?.exit_ratio;
+  const custom = stageCustomKey(stage);
   return {
-    ratio: toNumberOrEmpty(stage?.ratio, ''),
+    ratio: custom ? '' : toNumberOrEmpty(stage?.ratio, ''),
+    custom,
+    description: String(stage?.description || '').trim(),
     close_invest: Boolean(stage?.close_invest),
     exit_ratio: toNumberOrEmpty(exitRatio, ''),
     actions: Array.isArray(stage?.actions) ? stage.actions : [],
     action: takeProfitActionFromStage(stage),
   };
+}
+
+function finalizeStageForSave(stage) {
+  const next = stripStageName({ ...stage });
+  delete next.action;
+  const custom = stageCustomKey(next);
+  const description = String(next.description || '').trim();
+  if (custom) {
+    next.custom = custom;
+    delete next.ratio;
+    if (description) next.description = description;
+    else delete next.description;
+  } else {
+    delete next.custom;
+    delete next.description;
+  }
+  return next;
 }
 
 function hasGoalExpiration(goal) {
@@ -196,7 +372,7 @@ export function applyGoalActions(goal) {
       ...next.take_profit,
       stages: next.take_profit.stages.map((stage) => {
         const { action, ...rest } = stage;
-        return stripStageName({ ...rest, actions: takeProfitActionsFromAction(action) });
+        return finalizeStageForSave({ ...rest, actions: takeProfitActionsFromAction(action) });
       }),
     };
   }
@@ -204,7 +380,7 @@ export function applyGoalActions(goal) {
   if (next.stop_loss?.stages) {
     next.stop_loss = {
       ...next.stop_loss,
-      stages: next.stop_loss.stages.map(({ action, ...rest }) => stripStageName(rest)),
+      stages: next.stop_loss.stages.map(({ action, ...rest }) => finalizeStageForSave(rest)),
     };
   }
 
@@ -281,6 +457,7 @@ const goalStageSchemas = [
     }),
     template: [
       inferredNameField('stop_loss'),
+      ...customStageFields(),
       {
         key: 'ratio',
         type: 'number',
@@ -288,6 +465,7 @@ const goalStageSchemas = [
         tooltip:
           '当持仓相对买入价的盈亏达到该比例时触发本阶段（止损填负数，如 -0.1 表示亏损 10%；上方名称自动推断为 loss10%）',
         parse: (raw) => toNumberOrEmpty(raw, ''),
+        visibleWhen: ({ item }) => !isCustomStage({ item }),
       },
       {
         key: 'exit_ratio',
@@ -313,6 +491,7 @@ const goalStageSchemas = [
     }),
     template: [
       inferredNameField('take_profit'),
+      ...customStageFields(),
       {
         key: 'ratio',
         type: 'number',
@@ -320,6 +499,7 @@ const goalStageSchemas = [
         tooltip:
           '当持仓相对买入价的盈亏达到该比例时触发本阶段（止盈填正数，如 0.1 表示盈利 10%；上方名称自动推断为 win10%）',
         parse: (raw) => toNumberOrEmpty(raw, ''),
+        visibleWhen: ({ item }) => !isCustomStage({ item }),
       },
       {
         key: 'exit_ratio',

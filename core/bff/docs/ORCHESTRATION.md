@@ -1,6 +1,6 @@
 # BFF 路由编排索引
 
-**版本：** 0.2.0
+**版本：** 0.2.1
 
 HTTP 前缀一律为 `/api`（见 `core/bff/app.py`）。契约细节优先看 FED 各页 `API.md`（有则）；实现步骤看 [`routes/`](routes/)。
 

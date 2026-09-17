@@ -736,7 +736,7 @@ export function useStrategyDesignWorkbench() {
           patchSession({
             workbenchSnapshot: emptyWorkbenchSnapshot(),
             executionState: {
-              stepStatus: { enum: 'idle', price: 'idle', portfolio: 'idle' },
+              stepStatus: { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' },
               result: { enum: null, price: null, portfolio: null },
               compareVersion: { enum: '', price: '', portfolio: '' },
               runningStep: '',

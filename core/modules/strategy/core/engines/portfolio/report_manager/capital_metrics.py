@@ -261,7 +261,10 @@ class EquityCurves:
 
 @dataclass
 class TradeQualityMetrics:
-    """成交质量 / 风险尾部。"""
+    """成交质量 / 风险尾部。
+
+    ``worst_sell_pnls``：单笔卖出盈亏从低到高的前三笔，可能含盈利。
+    """
 
     win_trades: int = 0
     loss_trades: int = 0

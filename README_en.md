@@ -171,7 +171,7 @@ In **`strategy.py`**, entry on a single name is just `has_opportunity` (see the 
 - **`on_calendar_asof(ctx)`:** for **`slice_based`** mode. You see the full universe as of today, filter first, return stock ids; then `has_opportunity` runs on those ids.
 - **`on_pick_portfolio_member(ctx)`:** capacity. E.g. max 3 holdings but 10 hits today — choose which 3.
 
-You can also customize goals: put `"custom": "rule_name"` on a take-profit / stop-loss stage in `settings.py`, then implement **`is_take_profit`** / **`is_stop_loss`**.
+You can also customize goals: put `"custom": "rule_name"` and a human-readable `"description"` on a take-profit / stop-loss stage in `settings.py`, then implement **`is_take_profit`** / **`is_stop_loss`**.
 
 <details>
 <summary><strong>strategy.py hook examples (click to expand)</strong></summary>
@@ -246,11 +246,11 @@ def on_pick_portfolio_member(self, ctx: StrategyContext):
     return [opp for _, opp in ranked[:n]]
 ```
 
-Custom take-profit / stop-loss: put `"custom": "rule_name"` on a stage in `settings.py`; the framework then asks `is_take_profit` / `is_stop_loss` whether to fire today.
+Custom take-profit / stop-loss: put `"custom": "rule_name"` and `"description"` on a stage in `settings.py`; the framework then asks `is_take_profit` / `is_stop_loss` whether to fire today.
 
 ```python
-# settings.py: this take-profit stage has no fixed ratio; strategy.py decides. close_invest = flatten the whole position
-"take_profit": {"stages": [{"custom": "up_20pct", "close_invest": True}]}
+# settings.py: this take-profit stage has no fixed ratio; strategy.py decides. close_invest = flatten the whole position. description shows in the strategy header
+"take_profit": {"stages": [{"custom": "up_20pct", "close_invest": True, "description": "20% above entry"}]}
 
 # strategy.py
 # Example: take profit when the name is 20% above entry

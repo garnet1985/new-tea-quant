@@ -85,7 +85,7 @@ value     = buy_shares × mark_px
 profit = shares × entry_raw × hfq_ROI
 ```
 
-（`Trade.hfq_cash_profit` / `equivalent_exit_value`）
+（`HfqRoi.cash_profit` / `HfqRoi.mark_value`）
 
 K 线读 `bar["hfq"]["close"]`（或 `raw.close × adj_factor`）。不要用 qfq 收盘，也不要用 raw 收盘去乘冻结股数。
 

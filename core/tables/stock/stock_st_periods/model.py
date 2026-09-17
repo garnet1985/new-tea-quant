@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from core.infra.db.contracts import DbBaseModel
 
 from core.tables.stock.stock_st_periods.schema import schema as _schema
+from core.tables.stock.stock_st_periods.st_period_rules import overlapping_window_sql
 
 
 class StockStPeriodsModel(DbBaseModel):
@@ -32,9 +33,7 @@ class StockStPeriodsModel(DbBaseModel):
             return []
         placeholders = ",".join(["%s"] * len(ids))
         sql = (
-            f"stock_id IN ({placeholders}) "
-            "AND start_date <= %s "
-            "AND (end_date IS NULL OR end_date = '' OR end_date >= %s)"
+            f"stock_id IN ({placeholders}) AND {overlapping_window_sql()}"
         )
         params = tuple(ids) + (period_end, period_start)
         return self.load(sql, params, order_by="stock_id ASC, start_date ASC")

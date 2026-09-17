@@ -13,7 +13,10 @@ from core.modules.strategy.core.engines.portfolio.data_class import (
     Position,
     Trade,
 )
-from core.modules.strategy.core.engines.shared.enum_result_contract import EnumResult
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    CompletedGoal,
+    EnumResult,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     PortfolioSettings,
 )
@@ -102,6 +105,43 @@ def test_portfolio_event_open_position_without_exit_still_buys():
     assert events[0].price == 20.0
 
 
+def test_portfolio_event_splits_sells_from_completed_goals():
+    row = EnumResult(
+        investment_id="1",
+        entry_date="20240103",
+        entry_price_raw=20.0,
+        entry_price_hfq=21.0,
+        exit_date="20240112",
+        weighted_roi=-0.05,
+        lifecycle="complete",
+        completed_goals=(
+            CompletedGoal(
+                name="expiration",
+                date="20240110",
+                price_raw=18.0,
+                exit_ratio=0.6,
+                roi=-0.04,
+            ),
+            CompletedGoal(
+                name="expiration",
+                date="20240112",
+                price_raw=17.0,
+                exit_ratio=0.4,
+                roi=-0.065,
+            ),
+        ),
+    )
+    events = PortfolioEvent.from_enum_result(row, "000488.SZ")
+    assert [e.kind for e in events] == ["buy", "sell", "sell"]
+    assert events[1].date == "20240110"
+    assert events[1].exit_ratio == pytest.approx(0.6)
+    assert events[1].roi == pytest.approx(-0.04)
+    assert events[1].goal_name == "expiration"
+    assert events[2].date == "20240112"
+    assert events[2].exit_ratio == pytest.approx(0.4)
+    assert events[2].goal_name == "expiration"
+
+
 def test_portfolio_event_skips_without_entry_price_raw():
     row = EnumResult(
         investment_id="2",
@@ -157,10 +197,19 @@ def test_trade_make_sell_rejects_non_positive_buy_price():
         )
 
 
-def test_trade_hfq_cash_profit_ignores_fees():
-    assert Trade.hfq_cash_profit(100, buy_price=20.0, roi=0.1) == 200.0
-    assert Trade.equivalent_exit_value(100, buy_price=20.0, roi=0.1) == 2200.0
-    assert Trade.purchase_share_value(100, 20.0) == 2000.0
+def test_trade_make_sell_profit_excludes_fees():
+    sell = Trade.make_sell(
+        date="20240110",
+        entity_id="600000.SH",
+        investment_id="1",
+        shares=100,
+        buy_price=20.0,
+        roi=0.1,
+        fees=5.0,
+    )
+    assert sell.profit == pytest.approx(200.0)
+    assert sell.amount == pytest.approx(2200.0)
+    assert sell.net_proceeds == pytest.approx(2195.0)
 
 
 def test_trade_make_sell_split_zero_roi_returns_principal():

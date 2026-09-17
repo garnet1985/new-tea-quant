@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
+import { STRATEGY_DESIGN_DEFAULT_STEP, STRATEGY_DESIGN_STEP_KEYS } from './constants/strategyDesignSteps';
 import {
   createEmptyStrategyDesignSession,
   readCachedStrategyDesignStep,
@@ -15,7 +15,7 @@ import {
 
 const StrategyDesignContext = createContext(null);
 
-const VALID_STEPS = new Set(['enum', 'price', 'portfolio']);
+const VALID_STEPS = STRATEGY_DESIGN_STEP_KEYS;
 
 export function StrategyDesignProvider({ strategyName, initialStep = '', children }) {
   const [session, setSession] = useState(() => {

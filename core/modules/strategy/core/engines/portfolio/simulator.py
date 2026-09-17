@@ -3,13 +3,14 @@
 本文件:
 - PortfolioSimulator: 按 PortfolioEvent 序更新 Account、生成 Trade / equity_curve
 - PortfolioSimResult / OpenLot: 回放结果与在途 lot
-  边界: 负责资金层事件回放；不负责选仓（EnterSelection）或 enum 读盘
+  边界: 负责资金层事件回放；不负责选仓（EnterSelection）或 enum 读盘。
+    卖出流动性由枚举拆段，本层按 ``exit_ratio`` 兑现并取整到手，最后一笔清空零股。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
@@ -21,6 +22,7 @@ from core.modules.strategy.core.engines.portfolio.data_class import (
     Trade,
 )
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 
 
 @dataclass
@@ -33,6 +35,8 @@ class OpenLot:
     buy_price: float
     buy_date: str
     entry_price_hfq: float = 0.0
+    initial_shares: int = 0
+    fired_goal_names: Tuple[str, ...] = ()
 
 
 def _lot_key(entity_id: str, investment_id: str) -> str:
@@ -99,7 +103,7 @@ class PortfolioSimulator:
         open_lots: Dict[str, OpenLot] = {}
         current_date = ""
 
-        for event in events:
+        for index, event in enumerate(events):
             date = str(event.date or "").strip()
             if self.save_equity_curve and current_date and date != current_date:
                 self._append_equity(result, current_date)
@@ -109,7 +113,13 @@ class PortfolioSimulator:
             if event.is_buy():
                 self._handle_buy(event, account, open_lots, result)
             elif event.is_sell():
-                self._handle_sell(event, account, open_lots, result)
+                self._handle_sell(
+                    event,
+                    account,
+                    open_lots,
+                    result,
+                    is_last=_is_last_sell(events, index, event),
+                )
 
         if self.save_equity_curve and current_date:
             self._append_equity(result, current_date)
@@ -197,6 +207,7 @@ class PortfolioSimulator:
             buy_price=price,
             buy_date=str(event.date or ""),
             entry_price_hfq=float(getattr(event, "entry_price_hfq", 0.0) or 0.0),
+            initial_shares=shares,
         )
         trade.cash_after = account.cash
         trade.equity_after = account.equity({entity_id: price})
@@ -208,6 +219,8 @@ class PortfolioSimulator:
         account: Account,
         open_lots: Dict[str, OpenLot],
         result: PortfolioSimResult,
+        *,
+        is_last: bool = True,
     ) -> None:
         inv_id = str(event.investment_id or "").strip()
         entity_id = str(event.entity_id or "").strip()
@@ -227,27 +240,20 @@ class PortfolioSimulator:
         if buy_price <= 0:
             result.skipped_sells += 1
             return
-        shares = int(position.shares)
-        shares, part_tag = self.allocation.apply_participation(
-            shares,
-            bar_volume=event.bar_volume,
+        remaining = int(position.shares)
+        shares = self.allocation.size_sell_shares(
+            remaining=remaining,
+            initial_shares=int(lot.initial_shares or remaining),
+            exit_ratio=getattr(event, "exit_ratio", 1.0),
             entity_id=entity_id,
+            is_last=is_last,
         )
-        if part_tag in (
-            self.allocation.liquidity.TAG_SKIP,
-            self.allocation.liquidity.TAG_CLIP_ZERO,
-        ):
-            result.sell_participation_skip += 1
-            result.skipped_sells += 1
-            return
-        if part_tag == self.allocation.liquidity.TAG_CLIPPED:
-            result.sell_participation_clipped += 1
         if shares <= 0:
             result.skipped_sells += 1
             return
 
-        roi = Trade.finite_roi(event.roi)
-        proceeds = Trade.equivalent_exit_value(shares, buy_price, roi)
+        roi = HfqRoi.to_finite(event.roi)
+        proceeds = HfqRoi.mark_value(shares, buy_price, roi)
         fees = self.fee_calculator.calculate_fees(proceeds, "sell")
         trade = Trade.make_sell(
             date=event.date,
@@ -261,7 +267,7 @@ class PortfolioSimulator:
         net = float(trade.net_proceeds if trade.net_proceeds is not None else trade.amount - fees)
         account.cash += net
         position.realized_profit += float(trade.profit or 0.0)
-        position.shares = max(0, int(position.shares) - shares)
+        position.shares = max(0, remaining - shares)
         if position.shares <= 0:
             position.current_investment_id = None
             open_lots.pop(lot_key, None)
@@ -269,7 +275,6 @@ class PortfolioSimulator:
             if float(trade.profit or 0.0) > 0:
                 result.win_count += 1
         else:
-            # 参与率砍量后仍有剩余仓位：更新 open lot，等后续卖出事件（若有）
             lot.shares = int(position.shares)
 
         trade.cash_after = account.cash
@@ -291,6 +296,18 @@ class PortfolioSimulator:
                 "open_positions": int(account.open_position_count()),
             }
         )
+
+
+def _is_last_sell(
+    events: Sequence[PortfolioEvent],
+    index: int,
+    event: PortfolioEvent,
+) -> bool:
+    key = _lot_key(event.entity_id, event.investment_id)
+    for later in events[index + 1 :]:
+        if later.is_sell() and _lot_key(later.entity_id, later.investment_id) == key:
+            return False
+    return True
 
 
 __all__ = ["OpenLot", "PortfolioSimResult", "PortfolioSimulator"]

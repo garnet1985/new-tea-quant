@@ -18,7 +18,7 @@ python -m core.infra.setup.core.scripts.init_data --help
 | 项 | 值 |
 |----|-----|
 | 股票抽样 | 300 只（分层）；`TARGET_STOCK_COUNT <= 0` 或 `--stock-count 0` 为全市场 |
-| 日期窗 | 20250101 ~ 20260101 |
+| 日期窗 | 20250101 ~ 20260101（K 线等点时序按日 BETWEEN；**ST 时段按与窗相交**，窗口前已戴帽的行会留下） |
 | 季度窗 | 2025Q1 ~ 2025Q4 |
 
 ## 不导出的表

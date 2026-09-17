@@ -1,0 +1,45 @@
+.ntq-meta-clip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 20px;
+  width: 100%;
+  min-width: 0;
+  align-items: start;
+}
+
+.ntq-meta-clip-col {
+  min-width: 0;
+}
+
+.ntq-meta-clip-col + .ntq-meta-clip-col {
+  padding-left: 20px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ntq-meta-clip-col__label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.ntq-meta-clip-col__body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  cursor: default;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.62);
+  white-space: pre-line;
+}
+
+.ntq-meta-clip-col__tip {
+  white-space: pre-line;
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 1.5;
+}

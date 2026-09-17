@@ -1,76 +1,65 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Box, Stack, Typography } from '@mui/material';
-import StrategyDescriptionText from '../strategyDescriptionText/strategyDescriptionText';
+import { Box, Tooltip, Typography } from '@mui/material';
+import './strategyMetaDetailText.scss';
+
+function clipTitle(lines) {
+  return lines.length ? lines.join('\n') : '';
+}
+
+function MetaClipColumn({ label, lines, empty }) {
+  const items = Array.isArray(lines)
+    ? lines.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  const full = clipTitle(items);
+  const body = items.length ? items : [empty];
+
+  return (
+    <Box className="ntq-meta-clip-col">
+      <Typography className="ntq-meta-clip-col__label" variant="caption">
+        {label}
+      </Typography>
+      <Tooltip
+        title={full ? (
+          <Box className="ntq-meta-clip-col__tip">{full}</Box>
+        ) : ''}
+        placement="bottom-start"
+        disableHoverListener={!full}
+      >
+        <Box className="ntq-meta-clip-col__body">
+          {body.join('\n')}
+        </Box>
+      </Tooltip>
+    </Box>
+  );
+}
 
 function StrategyMetaDetailText({
-  description = '',
   entryConditions = [],
-  variant = 'body2',
-  color = 'text.secondary',
+  goalLines = [],
   className = '',
-  empty = '暂无策略描述',
-  maxLines = null,
+  empty = '暂无',
 }) {
   const entries = Array.isArray(entryConditions)
     ? entryConditions.map((item) => String(item || '').trim()).filter(Boolean)
     : [];
-
-  const hasDescription = Boolean(String(description || '').trim());
-  const hasEntries = entries.length > 0;
-
-  if (!hasDescription && !hasEntries) {
-    if (empty == null || empty === '') return null;
-    return (
-      <Typography variant={variant} color={color} className={className}>
-        {empty}
-      </Typography>
-    );
-  }
+  const goals = Array.isArray(goalLines)
+    ? goalLines.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
 
   return (
-    <Stack spacing={0.75} className={className}>
-      {hasDescription ? (
-        <StrategyDescriptionText
-          text={description}
-          variant={variant}
-          color={color}
-          empty=""
-          maxLines={maxLines}
-        />
-      ) : null}
-      {hasEntries ? (
-        <Box>
-          <Typography variant={variant} color={color} fontWeight={600} sx={{ mb: 0.25 }}>
-            入场条件：
-          </Typography>
-          <Box component="ul" sx={{ m: 0, pl: 2.25 }}>
-            {entries.map((line) => (
-              <Typography
-                key={line}
-                component="li"
-                variant={variant}
-                color={color}
-                sx={{ mb: 0.25 }}
-              >
-                {line}
-              </Typography>
-            ))}
-          </Box>
-        </Box>
-      ) : null}
-    </Stack>
+    <Box className={`ntq-meta-clip ${className}`.trim()}>
+      <MetaClipColumn label="入场条件" lines={entries} empty={empty} />
+      <MetaClipColumn label="目标" lines={goals} empty={empty} />
+    </Box>
   );
 }
 
 StrategyMetaDetailText.propTypes = {
-  description: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.array]),
   entryConditions: PropTypes.arrayOf(PropTypes.string),
-  variant: PropTypes.string,
-  color: PropTypes.string,
+  goalLines: PropTypes.arrayOf(PropTypes.string),
   className: PropTypes.string,
-  empty: PropTypes.node,
-  maxLines: PropTypes.number,
+  empty: PropTypes.string,
 };
 
 export default StrategyMetaDetailText;

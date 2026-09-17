@@ -79,8 +79,8 @@ def test_equal_capital_skips_when_cash_below_slot():
     assert shares == 0
 
 
-def test_equal_capital_star_suggestion_leaves_fee_room():
-    """科创板步长 1，不能把整笔预算用满后再因佣金被 skip 成 0 股。"""
+def test_equal_capital_suggestion_is_budget_over_price():
+    """建议买入 = 每笔预算 ÷ 买价再折手，不因佣金变成 —。"""
     alloc = AllocationStrategy.create(
         settings=_strategy_settings(
             allocation={
@@ -99,8 +99,8 @@ def test_equal_capital_star_suggestion_leaves_fee_room():
     account = Account(initial_cash=1_000_000, cash=1_000_000)
     price = 18.51
     shares = alloc.suggest_shares(account, price, "688005.SH")
+    assert shares == alloc.floor_shares(int(100_000 / price), "688005.SH")
     assert shares >= 200
-    assert alloc.fee_calculator.buy_total_cost(shares * price) <= alloc.per_trade_capital
 
 
 def test_equal_shares_uses_lots_per_trade():

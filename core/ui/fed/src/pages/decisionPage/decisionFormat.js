@@ -151,18 +151,36 @@ export function listOpenDaysAfter(fromDate, toDate) {
   return out;
 }
 
-/** as-of 之前（含当天）已发生的出场 / 机会，供月历标注。未来日不进入。 */
-export function collectEventMarks(days, asOf) {
-  const marks = {};
-  const add = (date, key) => {
-    if (!date || date > asOf) return;
-    if (!marks[date]) marks[date] = { exit: false, opp: false };
-    marks[date][key] = true;
-  };
-  (days || []).forEach((snap) => {
-    if (!snap || snap.date > asOf) return;
-    (snap.events || []).forEach((row) => add(row.date, 'exit'));
-    if ((snap.opps || []).length) add(snap.date, 'opp');
+/** as-of 当天及之前的机会数与成交，按 ISO 日期索引。未来日不进入。 */
+export function indexCalendarDays(days, asOf) {
+  const out = {};
+  (days || []).forEach((day) => {
+    const date = String(day?.date || '');
+    if (!date || (asOf && date > asOf)) return;
+    out[date] = {
+      oppCount: Number(day.oppCount) || 0,
+      actions: Array.isArray(day.actions) ? day.actions : [],
+    };
   });
-  return marks;
+  return out;
+}
+
+export function calendarActionLabel(action) {
+  const verb = action?.side === 'sell' ? '卖出' : '买入';
+  const who = String(action?.name || action?.ticker || '标的').trim() || '标的';
+  const shares = Number(action?.shares) || 0;
+  return `${verb}${who} ${shares.toLocaleString()}股，花费${formatMoney(action?.amount)}`;
+}
+
+export function calendarActionDetail(action) {
+  const verb = action?.side === 'sell' ? '卖出' : '买入';
+  const name = String(action?.name || '').trim();
+  const ticker = String(action?.ticker || '').trim();
+  const who = name || ticker || '标的';
+  const shares = Number(action?.shares) || 0;
+  const lines = [`${verb} ${who}`];
+  if (ticker && ticker !== who) lines.push(ticker);
+  lines.push(`${shares.toLocaleString()} 股`);
+  lines.push(`花费 ${formatMoney(action?.amount)}`);
+  return lines.join('\n');
 }

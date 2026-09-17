@@ -74,6 +74,7 @@ def test_session_snapshot_uses_ticker_stats_and_draft():
     assert msg["draft"][0]["notional"] == 1000.0
     assert msg["bill"] == []
     assert msg["exits"] == []
+    assert msg["calendar"] == []
     assert msg["opportunities"][0]["lot_size"] is None
     assert msg["opportunities"][0]["lot_step"] is None
     assert msg["opportunities"][0]["suggested_shares"] is None
@@ -366,3 +367,61 @@ def test_session_list_and_holdings_and_info():
     assert info["indicator_series"][0]["panel"] == "oscillator"
     assert info["indicator_series"][0]["data"] == [None, 24.56]
     json.dumps(info)
+
+
+def test_session_snapshot_calendar_journal():
+    engine = SimpleNamespace(
+        dm_id="1",
+        version_id="3",
+        strategy_key="rsi_v1",
+        status="in_progress",
+        phase="picking",
+        is_completed=False,
+        current_date="20240110",
+        draft={},
+        account=SimpleNamespace(
+            cash=1_000_000.0,
+            initial_cash=1_000_000.0,
+            open_position_count=lambda: 0,
+        ),
+        allocation=None,
+        timeline=SimpleNamespace(
+            start_date="20240101",
+            end_date="20240201",
+            asof_stats=lambda _date: SimpleNamespace(to_dict=lambda: None),
+        ),
+        opportunities=lambda: [],
+        opportunity_by_local=lambda _lid: None,
+        calendar_journal=lambda: [
+            {
+                "date": "20240103",
+                "opp_count": 2,
+                "actions": [
+                    {
+                        "side": "buy",
+                        "entity_id": "600000.SH",
+                        "name": "浦发银行",
+                        "shares": 1000,
+                        "amount": 10_000.0,
+                    }
+                ],
+            },
+            {
+                "date": "20240110",
+                "opp_count": 0,
+                "actions": [
+                    {
+                        "side": "sell",
+                        "entity_id": "600000.SH",
+                        "name": "浦发银行",
+                        "shares": 1000,
+                        "amount": 11_000.0,
+                    }
+                ],
+            },
+        ],
+    )
+    msg = session_snapshot(engine)
+    assert msg["calendar"][0]["opp_count"] == 2
+    assert msg["calendar"][0]["actions"][0]["side"] == "buy"
+    assert msg["calendar"][1]["actions"][0]["amount"] == 11_000.0

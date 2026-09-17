@@ -480,6 +480,46 @@ class DecisionEngine:
             skip_entities=self._held_entity_ids(),
         )
 
+    def calendar_journal(self) -> List[Dict[str, Any]]:
+        """事件回溯：截止当天已发现的机会数 + 已成交买卖（不含佣金）。"""
+        as_of = str(self.current_date or "").strip()
+        if not as_of:
+            return []
+        opp_counts: Dict[str, int] = {}
+        for date in self.timeline.buys_by_date:
+            day = str(date or "").strip()
+            if not day or day > as_of:
+                continue
+            count = len(self.timeline.unique_buys_on(day))
+            if count:
+                opp_counts[day] = count
+        actions_by_date: Dict[str, List[Dict[str, Any]]] = {}
+        for trade in self.trades:
+            day = str(getattr(trade, "date", "") or "").strip()
+            if not day or day > as_of:
+                continue
+            side = "sell" if trade.is_sell() else "buy"
+            entity_id = str(getattr(trade, "entity_id", "") or "")
+            inv_id = str(getattr(trade, "investment_id", "") or "")
+            actions_by_date.setdefault(day, []).append(
+                {
+                    "side": side,
+                    "entity_id": entity_id,
+                    "name": self._name(entity_id, inv_id),
+                    "shares": int(getattr(trade, "shares", 0) or 0),
+                    "amount": float(getattr(trade, "amount", 0.0) or 0.0),
+                }
+            )
+        days = sorted(set(opp_counts) | set(actions_by_date))
+        return [
+            {
+                "date": day,
+                "opp_count": int(opp_counts.get(day) or 0),
+                "actions": list(actions_by_date.get(day) or []),
+            }
+            for day in days
+        ]
+
     def opportunity_by_local(self, local_id: int) -> Optional[DayOpportunity]:
         for opp in self.opportunities():
             if opp.local_id == int(local_id):

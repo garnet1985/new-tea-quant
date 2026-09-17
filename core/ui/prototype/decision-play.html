@@ -166,7 +166,7 @@
         </div>
         <div class="decision-manage-actions" style="margin-top: 16px;">
           <button type="button" class="button" id="btn-confirm-next">确认推进</button>
-          <button type="button" class="button ghost-btn" id="btn-reset">重新下单</button>
+          <button type="button" class="button ghost-btn" id="btn-reset">返回查看</button>
         </div>
       </div>
     </div>
@@ -553,10 +553,7 @@
       els.advance.addEventListener("click", openConfirm);
       document.getElementById("confirm-close").addEventListener("click", closeConfirm);
       document.getElementById("btn-reset").addEventListener("click", () => {
-        picks.clear();
         closeConfirm();
-        renderOpps();
-        toast("已清空草稿，仍停在当天");
       });
       document.getElementById("btn-confirm-next").addEventListener("click", () => {
         closeConfirm();

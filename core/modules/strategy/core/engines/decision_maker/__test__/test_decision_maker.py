@@ -414,6 +414,40 @@ def test_buy_then_exit_log_then_next_decision(tmp_path: Path):
     assert [o.entity_id for o in nxt.opportunities] == ["000001.SZ"]
 
 
+def test_calendar_journal_records_opps_and_fills(tmp_path: Path):
+    engine = _engine(
+        tmp_path,
+        [
+            _buy("20240103", "600000.SH", "a", 10.0),
+            _sell("20240110", "600000.SH", "a", roi=0.1),
+            _buy("20240115", "000001.SZ", "b", 20.0),
+        ],
+        rows=[_row("600000.SH", "a", "20240103", "20240110", 0.1)],
+    )
+    by_date = {row["date"]: row for row in engine.calendar_journal()}
+    assert by_date["20240103"]["opp_count"] == 1
+    assert by_date["20240103"]["actions"] == []
+    assert "20240115" not in by_date
+    engine.set_pick(1, 1000)
+    engine.done()
+    engine.next()
+    by_date = {row["date"]: row for row in engine.calendar_journal()}
+    buys = [row for row in by_date["20240103"]["actions"] if row["side"] == "buy"]
+    assert buys[0]["shares"] == 1000
+    assert buys[0]["amount"] == pytest.approx(10_000)
+    assert buys[0]["name"] == "浦发银行"
+    sells = [row for row in by_date["20240110"]["actions"] if row["side"] == "sell"]
+    assert sells[0]["shares"] == 1000
+    assert sells[0]["amount"] == pytest.approx(11_000)
+    assert by_date["20240110"]["opp_count"] == 0
+    assert "20240115" not in by_date
+    engine.done()
+    engine.next()
+    by_date = {row["date"]: row for row in engine.calendar_journal()}
+    assert by_date["20240115"]["opp_count"] == 1
+    assert by_date["20240115"]["actions"] == []
+
+
 def test_same_day_settles_exits_before_new_buys(tmp_path: Path):
     engine = _engine(
         tmp_path,

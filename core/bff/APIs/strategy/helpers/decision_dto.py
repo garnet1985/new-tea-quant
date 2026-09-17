@@ -335,6 +335,57 @@ def session_list_message(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _calendar_action(raw: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(raw, dict):
+        return None
+    side = str(raw.get("side") or "").strip().lower()
+    if side not in {"buy", "sell"}:
+        return None
+    shares = int(raw.get("shares") or 0)
+    if shares <= 0:
+        return None
+    return {
+        "side": side,
+        "entity_id": str(raw.get("entity_id") or ""),
+        "name": str(raw.get("name") or ""),
+        "shares": shares,
+        "amount": float(raw.get("amount") or 0.0),
+    }
+
+
+def _calendar_days(engine: Any) -> List[Dict[str, Any]]:
+    fn = getattr(engine, "calendar_journal", None)
+    if not callable(fn):
+        return []
+    out: List[Dict[str, Any]] = []
+    try:
+        rows = fn() or []
+    except (TypeError, ValueError):
+        return []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        date = str(row.get("date") or "").strip()
+        if not date:
+            continue
+        actions = [
+            item
+            for item in (_calendar_action(raw) for raw in (row.get("actions") or []))
+            if item is not None
+        ]
+        opp_count = int(row.get("opp_count") or 0)
+        if opp_count <= 0 and not actions:
+            continue
+        out.append(
+            {
+                "date": date,
+                "opp_count": max(opp_count, 0),
+                "actions": actions,
+            }
+        )
+    return out
+
+
 def session_snapshot(
     engine: Any,
     *,
@@ -390,6 +441,7 @@ def session_snapshot(
         "draft": draft,
         "bill": list(draft) if phase == "confirming" else [],
         "exits": [_exit_dict(item) for item in (exits or ())],
+        "calendar": _calendar_days(engine),
         "report_available": completed,
     }
 

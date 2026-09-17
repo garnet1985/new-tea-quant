@@ -154,6 +154,21 @@ function mapOpportunity(row) {
   };
 }
 
+function mapCalendarDay(row) {
+  const raw = row && typeof row === 'object' ? row : {};
+  return {
+    date: formatDecisionDate(raw.date),
+    oppCount: Number(raw.opp_count) || 0,
+    actions: (Array.isArray(raw.actions) ? raw.actions : []).map((item) => ({
+      side: String(item?.side || '').trim().toLowerCase() === 'sell' ? 'sell' : 'buy',
+      ticker: String(item?.entity_id || ''),
+      name: String(item?.name || ''),
+      shares: Number(item?.shares) || 0,
+      amount: Number(item?.amount) || 0,
+    })).filter((item) => item.shares > 0),
+  };
+}
+
 function mapExit(row) {
   const raw = row && typeof row === 'object' ? row : {};
   const profit = Number(raw.profit);
@@ -226,6 +241,7 @@ export function mapDecisionSnapshot(message) {
       notional: Number(line.notional) || 0,
     })),
     events: (m.exits || []).map(mapExit),
+    calendar: (m.calendar || []).map(mapCalendarDay),
     reportAvailable: Boolean(m.report_available),
     hasOpps: opps.length > 0,
   };

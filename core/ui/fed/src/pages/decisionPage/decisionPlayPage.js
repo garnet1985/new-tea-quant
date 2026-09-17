@@ -12,7 +12,6 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  Popover,
   Snackbar,
   Stack,
   Tooltip,
@@ -34,18 +33,19 @@ import {
     holdingsMarketValue,
     nextDecisionDay,
     pickDecisionShares,
-    resetDecisionDraft,
 } from '../../api/decisionApi';
 import { isHttpStatusError } from 'services/request';
 import {
   buildMonthCells,
+  calendarActionLabel,
+  calendarActionDetail,
   canShiftMonth,
-  collectEventMarks,
   countTradingDaysInclusive,
   dateToYearMonth,
   formatMoney,
   formatPct,
   formatSignedMoney,
+  indexCalendarDays,
   listOpenDaysAfter,
   mapStockStatusTags,
   monthTitle,
@@ -71,14 +71,6 @@ function formatDrawdown(value) {
 function errorMessage(err, fallback) {
   if (isHttpStatusError(err) && err.message) return err.message;
   return String(err?.message || fallback);
-}
-
-function markTooltip(mark) {
-  if (!mark) return '';
-  const bits = [];
-  if (mark.exit) bits.push('出场');
-  if (mark.opp) bits.push('新机会');
-  return bits.join(' · ');
 }
 
 function formatHoldingPnl(unrealized, pnlPct) {
@@ -261,107 +253,91 @@ function SuggestedSharesCell({ suggestedCash, suggestedShares, basis, held, disa
 }
 
 function SharesInvestCell({
-  open,
   disabled,
   draft,
   error,
   notional,
   ticker,
   lotStep,
-  onOpen,
   onDraftChange,
   onCommit,
   onCancel,
   onStep,
 }) {
-  if (!open) {
-    return (
-      <Button
-        size="small"
-        variant="outlined"
-        disabled={disabled}
-        onClick={(event) => {
-          event.stopPropagation();
-          onOpen();
-        }}
-      >
-        投资
-      </Button>
-    );
-  }
   const jump = shareStepJump(lotStep);
   const stopRow = (event) => event.stopPropagation();
   return (
-    <span className="decision-invest-cell">
-      <span className={`decision-shares-capsule${error ? ' is-error' : ''}${disabled ? ' is-disabled' : ''}`}>
-        <button
-          type="button"
-          className="decision-capsule-btn"
-          disabled={disabled}
-          aria-label={`减少 ${jump} 股`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onStep(-1);
-          }}
-          onMouseDown={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-        >
-          −
-        </button>
-        <input
-          className="decision-capsule-input"
-          type="text"
-          inputMode="numeric"
-          autoFocus
-          disabled={disabled}
-          value={draft}
-          placeholder="股数"
-          aria-label={`投资股数 ${ticker}`}
-          onClick={stopRow}
-          onMouseDown={stopRow}
-          onChange={(event) => onDraftChange(event.target.value)}
-          onBlur={(event) => onCommit(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowUp') {
-              event.preventDefault();
-              onStep(1);
-            }
-            if (event.key === 'ArrowDown') {
-              event.preventDefault();
+    <span className="decision-invest-cell" onClick={stopRow} onMouseDown={stopRow}>
+      <span className="decision-invest-row">
+        <span className={`decision-shares-capsule${error ? ' is-error' : ''}${disabled ? ' is-disabled' : ''}`}>
+          <button
+            type="button"
+            className="decision-capsule-btn"
+            disabled={disabled}
+            aria-label={`减少 ${jump} 股`}
+            onClick={(event) => {
+              event.stopPropagation();
               onStep(-1);
-            }
-            if (event.key === 'Enter') {
+            }}
+            onMouseDown={(event) => {
               event.preventDefault();
-              onCommit(event.target.value);
-            }
-            if (event.key === 'Escape') {
+              event.stopPropagation();
+            }}
+          >
+            −
+          </button>
+          <input
+            className="decision-capsule-input"
+            type="text"
+            inputMode="numeric"
+            disabled={disabled}
+            value={draft}
+            placeholder="股数"
+            aria-label={`投资股数 ${ticker}`}
+            onClick={stopRow}
+            onMouseDown={stopRow}
+            onChange={(event) => onDraftChange(event.target.value)}
+            onBlur={(event) => onCommit(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                onStep(1);
+              }
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                onStep(-1);
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                onCommit(event.target.value);
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                onCancel();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="decision-capsule-btn"
+            disabled={disabled}
+            aria-label={`增加 ${jump} 股`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onStep(1);
+            }}
+            onMouseDown={(event) => {
               event.preventDefault();
-              onCancel();
-            }
-          }}
-        />
-        <button
-          type="button"
-          className="decision-capsule-btn"
-          disabled={disabled}
-          aria-label={`增加 ${jump} 股`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onStep(1);
-          }}
-          onMouseDown={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-        >
-          +
-        </button>
+              event.stopPropagation();
+            }}
+          >
+            +
+          </button>
+        </span>
+        <span className="decision-invest-notional">
+          {notional ? `约 ${notional}` : '\u00a0'}
+        </span>
       </span>
-      {notional ? (
-        <span className="decision-invest-notional">约 {notional}</span>
-      ) : null}
       {error ? (
         <span className="decision-invest-hint is-error">{error}</span>
       ) : null}
@@ -445,7 +421,32 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
   );
 }
 
-function MonthGrid({ year, month, clockDate, marks, rangeStart, rangeEnd }) {
+function CalendarEventChip({ className, label, detail }) {
+  return (
+    <Tooltip
+      title={<span className="decision-cal-tip">{detail || label}</span>}
+      placement="top"
+      enterDelay={120}
+      enterNextDelay={60}
+      describeChild
+      slotProps={{
+        popper: { sx: { zIndex: 1600 } },
+        tooltip: {
+          sx: {
+            maxWidth: 360,
+            fontSize: 12,
+            lineHeight: 1.45,
+            whiteSpace: 'pre-wrap',
+          },
+        },
+      }}
+    >
+      <span className={`decision-cal-event ${className || ''}`.trim()}>{label}</span>
+    </Tooltip>
+  );
+}
+
+function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd }) {
   const cells = buildMonthCells(year, month);
   return (
     <Box className="decision-month-grid" role="grid" aria-label={`${monthTitle(year, month)} 交易日历`}>
@@ -460,32 +461,39 @@ function MonthGrid({ year, month, clockDate, marks, rangeStart, rangeEnd }) {
         }
         const outOfRange = (rangeStart && date < rangeStart) || (rangeEnd && date > rangeEnd);
         const future = date > clockDate;
-        const mark = !outOfRange && !future ? marks[date] : null;
-        const cell = (
+        const day = !outOfRange && !future ? days[date] : null;
+        const oppCount = Number(day?.oppCount) || 0;
+        const actions = Array.isArray(day?.actions) ? day.actions : [];
+        const hasEvents = oppCount > 0 || actions.length > 0;
+        return (
           <Box
+            key={date}
             className={[
               'decision-month-cell',
               date === clockDate ? 'is-now' : '',
               outOfRange ? 'is-out' : '',
               future ? 'is-future' : '',
-              mark?.exit ? 'has-exit' : '',
-              mark?.opp ? 'has-opp' : '',
+              hasEvents ? 'has-events' : '',
             ].filter(Boolean).join(' ')}
           >
             <span className="decision-month-cell__num">{Number(date.slice(8))}</span>
-            <span className="decision-month-cell__dots" aria-hidden>
-              {mark?.exit ? <i className="is-exit" /> : null}
-              {mark?.opp ? <i className="is-opp" /> : null}
+            <span className="decision-month-cell__events">
+              {oppCount > 0 ? (
+                <CalendarEventChip
+                  className="is-opp"
+                  label={`发现${oppCount}个机会`}
+                />
+              ) : null}
+              {actions.map((action, actionIndex) => (
+                <CalendarEventChip
+                  key={`${action.side}-${action.ticker}-${actionIndex}`}
+                  className={`is-${action.side}`}
+                  label={calendarActionLabel(action)}
+                  detail={calendarActionDetail(action)}
+                />
+              ))}
             </span>
           </Box>
-        );
-        const tip = markTooltip(mark);
-        return tip ? (
-          <Tooltip key={date} title={tip} placement="top">
-            {cell}
-          </Tooltip>
-        ) : (
-          <React.Fragment key={date}>{cell}</React.Fragment>
         );
       })}
     </Box>
@@ -510,7 +518,6 @@ export function DecisionPlaySession({
   const [holdings, setHoldings] = useState([]);
   const [picks, setPicks] = useState({});
   const [events, setEvents] = useState([]);
-  const [historyDays, setHistoryDays] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [pageReady, setPageReady] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -524,7 +531,7 @@ export function DecisionPlaySession({
   const [advancing, setAdvancing] = useState(false);
   const [displayClockDate, setDisplayClockDate] = useState('');
   const [clockMotion, setClockMotion] = useState('is-landed');
-  const [calendarAnchor, setCalendarAnchor] = useState(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => dateToYearMonth('').year);
   const [viewMonth, setViewMonth] = useState(() => dateToYearMonth('').month);
   const animRef = useRef({ cancelled: false, timer: null });
@@ -533,21 +540,7 @@ export function DecisionPlaySession({
   const runAdvanceRef = useRef(null);
   const spaceLockRef = useRef(false);
   const holdingDetailCacheRef = useRef(null);
-  const calendarOpen = Boolean(calendarAnchor);
   const lobbyHref = decisionLobbyPath(strategyKey);
-
-  const rememberHistory = useCallback((snap, hopEvents) => {
-    if (!snap?.clockDate) return;
-    setHistoryDays((prev) => {
-      const existing = prev.find((row) => row.date === snap.clockDate);
-      const rest = prev.filter((row) => row.date !== snap.clockDate);
-      return [...rest, {
-        date: snap.clockDate,
-        opps: snap.opps || [],
-        events: hopEvents !== undefined ? hopEvents : (existing?.events || []),
-      }];
-    });
-  }, []);
 
   const applyLive = useCallback((snap, nextHoldings, { hopEvents, keepPicks = false } = {}) => {
     setSnapshot(snap);
@@ -557,13 +550,12 @@ export function DecisionPlaySession({
       setShareEditors({});
     }
     if (hopEvents !== undefined) setEvents(hopEvents);
-    rememberHistory(snap, hopEvents);
     const month = dateToYearMonth(snap.clockDate);
     if (snap.clockDate) {
       setViewYear(month.year);
       setViewMonth(month.month);
     }
-  }, [rememberHistory]);
+  }, []);
 
   const loadHoldings = useCallback(async (dmId) => {
     if (!strategyKey || !dmId) return [];
@@ -588,7 +580,6 @@ export function DecisionPlaySession({
       setPageReady(false);
       setLoadError('');
       setEvents([]);
-      setHistoryDays([]);
       try {
         const snap = await fetchDecisionSession(strategyKey, sessionId);
         if (cancelled) return;
@@ -642,9 +633,9 @@ export function DecisionPlaySession({
     if (snapshot?.clockDate) setDisplayClockDate(snapshot.clockDate);
   }, [advancing, snapshot?.clockDate]);
 
-  const eventMarks = useMemo(
-    () => (calendarOpen ? collectEventMarks(historyDays, shownClockDate) : {}),
-    [calendarOpen, historyDays, shownClockDate],
+  const calendarDays = useMemo(
+    () => indexCalendarDays(snapshot?.calendar, shownClockDate),
+    [snapshot?.calendar, shownClockDate],
   );
   const elapsedDays = useMemo(
     () => countTradingDaysInclusive(rangeStart, shownClockDate),
@@ -748,21 +739,6 @@ export function DecisionPlaySession({
         }));
       });
     }, 400);
-  };
-
-  const openShareEditor = (row, preset) => {
-    if (row.held) return;
-    const picked = Number(picks[row.id] || 0) > 0;
-    if (!picked && remainingSlots <= 0) {
-      setToast('已达组合上限');
-      return;
-    }
-    const shares = Number(picks[row.id] || 0);
-    const draft = preset != null ? String(preset) : (shares > 0 ? String(shares) : '');
-    setShareEditors((prev) => ({
-      ...prev,
-      [row.id]: { open: true, draft, error: '' },
-    }));
   };
 
   const updateShareDraft = (rowId, draft) => {
@@ -961,8 +937,8 @@ export function DecisionPlaySession({
     {
       field: 'shares',
       headerName: '投资',
-      width: 168,
-      minWidth: 156,
+      width: 252,
+      minWidth: 252,
       sortable: false,
       renderCell: (grid) => {
         if (grid.row.held) {
@@ -970,7 +946,6 @@ export function DecisionPlaySession({
         }
         const editor = shareEditors[grid.row.id];
         const pickedShares = Number(picks[grid.row.id] || 0);
-        const open = Boolean(editor?.open) || pickedShares > 0;
         const draft = editor?.draft ?? (pickedShares > 0 ? String(pickedShares) : '');
         const parsed = Number(draft);
         const notional = Number.isFinite(parsed) && parsed > 0
@@ -979,14 +954,12 @@ export function DecisionPlaySession({
         const { lotStep } = lotRule(grid.row);
         return (
           <SharesInvestCell
-            open={open}
             disabled={slotLocked(grid.row)}
             draft={draft}
             error={editor?.error || ''}
             notional={notional}
             ticker={grid.row.ticker}
             lotStep={lotStep}
-            onOpen={() => openShareEditor(grid.row)}
             onDraftChange={(value) => updateShareDraft(grid.row.id, value)}
             onCommit={(raw) => commitShareEditor(grid.row, raw)}
             onCancel={() => cancelShareEditor(grid.row)}
@@ -1001,21 +974,19 @@ export function DecisionPlaySession({
     animRef.current.timer = window.setTimeout(resolve, ms);
   });
 
-  const openCalendar = (event) => {
-    if (calendarAnchor) {
-      setCalendarAnchor(null);
+  const openCalendar = () => {
+    if (calendarOpen) {
+      setCalendarOpen(false);
       return;
     }
     const month = dateToYearMonth(clockDate);
     setViewYear(month.year);
     setViewMonth(month.month);
-    setCalendarAnchor(event.currentTarget);
+    setCalendarOpen(true);
   };
 
-  const closeCalendar = (event) => {
-    if (event?.currentTarget?.closest?.('.decision-calendar-toggle')) return;
-    if (event?.target?.closest?.('.decision-calendar-toggle')) return;
-    setCalendarAnchor(null);
+  const closeCalendar = () => {
+    setCalendarOpen(false);
   };
 
   const runAdvance = async () => {
@@ -1066,20 +1037,6 @@ export function DecisionPlaySession({
       return;
     }
     runAdvance();
-  };
-
-  const resetDraft = async () => {
-    if (!strategyKey || !snapshot?.dmId) return;
-    try {
-      pendingPicksRef.current = {};
-      if (pickTimerRef.current) window.clearTimeout(pickTimerRef.current);
-      const snap = await resetDecisionDraft(strategyKey, snapshot.dmId);
-      applyLive(snap, undefined, { keepPicks: false });
-      setConfirmOpen(false);
-      setToast('已清空草稿，仍停在当天');
-    } catch (err) {
-      setToast(errorMessage(err, '无法清空草稿'));
-    }
   };
 
   useEffect(() => {
@@ -1275,14 +1232,11 @@ export function DecisionPlaySession({
       </Card>
       )}
 
-      <Popover
+      <Dialog
         open={calendarOpen}
-        anchorEl={calendarAnchor}
         onClose={closeCalendar}
-        keepMounted={false}
-        disableScrollLock
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        maxWidth={false}
+        scroll="paper"
         PaperProps={{ className: 'decision-month-popover' }}
       >
         <Box className="decision-month">
@@ -1318,19 +1272,20 @@ export function DecisionPlaySession({
               year={viewYear}
               month={viewMonth}
               clockDate={clockDate}
-              marks={eventMarks}
+              days={calendarDays}
               rangeStart={rangeStart}
               rangeEnd={rangeEnd}
             />
           ) : null}
           <Typography className="decision-month-legend" variant="caption">
             <span className="decision-month-legend__now">当前停顿日</span>
-            <span className="decision-month-legend__opp">已出现的机会</span>
-            <span className="decision-month-legend__exit">已发生的出场</span>
+            <span className="decision-month-legend__opp">发现机会</span>
+            <span className="decision-month-legend__buy">买入</span>
+            <span className="decision-month-legend__sell">卖出</span>
             未来日期不标注 · 不能点选跳转
           </Typography>
         </Box>
-      </Popover>
+      </Dialog>
 
       <Box className={`decision-play-split ${advancing ? 'is-advancing' : ''}`}>
         <Box className="decision-left">
@@ -1495,6 +1450,11 @@ export function DecisionPlaySession({
                   localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
                   hideFooter
                   disableRowSelectionOnClick
+                  onCellClick={(params, event) => {
+                    if (event.target.closest('.decision-invest-cell, .decision-suggest-apply')) {
+                      event.stopPropagation();
+                    }
+                  }}
                   getRowClassName={(params) => {
                     const classes = [];
                     if (params.row.held) classes.push('is-held');
@@ -1503,9 +1463,7 @@ export function DecisionPlaySession({
                   }}
                   getRowHeight={(params) => {
                     const row = oppRows.find((item) => item.id === params.id);
-                    if (row?.held) return 64;
-                    if (shareEditors[row?.id]?.open || Number(picks[row?.id] || 0) > 0) return 72;
-                    return 56;
+                    return row?.held ? 64 : 56;
                   }}
                   sx={{
                     border: 0,
@@ -1568,7 +1526,7 @@ export function DecisionPlaySession({
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={resetDraft}>重新下单</Button>
+          <Button onClick={() => setConfirmOpen(false)}>返回查看</Button>
           <Button variant="contained" onClick={runAdvance} disabled={advancing}>确认推进（空格键）</Button>
         </DialogActions>
       </Dialog>

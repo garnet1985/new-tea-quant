@@ -23,6 +23,7 @@ changelog:
       - 决策者现场增加 `allocation_mode` / `suggested_basis`；建议股数按等价 / 等股 / 凯莉
       - 决策者 holdings 增加 `hold_unit`（与到期同一口径）
       - 决策者 pick 仍支持 `cash`；现场增加 `suggested_cash` / `lot_step`
+      - 决策者现场增加 `calendar`：截止当天的发现机会与买入 / 卖出流水
   - version: "0.2.0"
     changes:
       - 从 core/ui 独立为顶层模块；取消 modules 内 launcher，BFF 专有逻辑收口到本目录

@@ -231,13 +231,33 @@ class AllocationStrategy:
         *,
         win_rate: Optional[float] = None,
     ) -> int:
-        """按 ``allocation.mode`` 给出建议股数，与机器下单同一套公式。"""
-        return int(
-            self.calculate_shares_to_buy(
-                account, buy_price, entity_id, win_rate=win_rate
+        """建议股数只按仓位公式折手，不掺佣金。实际下单仍走 ``calculate_shares_to_buy``。"""
+        px = float(buy_price or 0.0)
+        if px <= 0:
+            return 0
+        min_lot = self.min_buy_shares(entity_id)
+        if self.mode == "equal_capital":
+            planned = self.floor_shares(int(self.per_trade_capital / px), entity_id)
+            return planned if planned >= min_lot else 0
+        if self.mode == "equal_shares":
+            lot = self.market_rules.resolve_lot_size(entity_id)
+            planned = self.floor_shares(
+                int(lot.min_lot) * int(self.lots_per_trade), entity_id
             )
-            or 0
-        )
+            return planned if planned >= min_lot else 0
+        if self.mode == "kelly":
+            if win_rate is None:
+                return 0
+            f_raw = 2.0 * float(win_rate) - 1.0
+            if f_raw <= 0:
+                return 0
+            kelly_divisor = (
+                1.0 / self.kelly_fraction if self.kelly_fraction > 0 else 1.0
+            )
+            target_capital = (f_raw / kelly_divisor) * float(account.cash)
+            planned = self.floor_shares(int(target_capital / px), entity_id)
+            return planned if planned >= min_lot else 0
+        return 0
 
     def _resolve_planned(
         self,

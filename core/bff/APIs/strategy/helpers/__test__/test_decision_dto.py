@@ -316,12 +316,19 @@ def test_session_list_and_holdings_and_info():
         hold_days=6,
         close=11.0,
         unrealized=100.0,
-        goals=["止盈 win10%: +10.0%"],
+        roi=0.1,
+        market_value=1100.0,
+        goals=[
+            SimpleNamespace(text="止盈 win10%: +10.0%", kind="take_profit", done=True)
+        ],
     )
     held = holdings_message(engine, [row])
     assert held["holdings"][0]["unrealized"] == 100.0
+    assert held["holdings"][0]["roi"] == 0.1
+    assert held["holdings"][0]["market_value"] == 1100.0
     assert held["holdings"][0]["status_tags"] == ["st"]
-    assert held["holdings"][0]["hold_unit"] == "natural_day"
+    assert held["holdings"][0]["goals"][0]["done"] is True
+    assert held["holdings"][0]["goals"][0]["text"].startswith("止盈")
 
     info = info_message(
         {

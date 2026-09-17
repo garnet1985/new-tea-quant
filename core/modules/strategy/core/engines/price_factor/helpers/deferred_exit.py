@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.modules.strategy.core.engines.price_factor.helpers.holding import (
     position_fully_closed,
 )
+from core.modules.strategy.core.engines.shared.services.hfq_roi import hfq_roi
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
@@ -108,16 +109,11 @@ def _build_executed_goal(
     at_limit_down: Optional[bool],
 ) -> Dict[str, Any]:
     exit_ratio = _goal_exit_ratio(source) or 1.0
+    roi = hfq_roi(enter_price_hfq, exit_price_hfq)
     basis = float(enter_price_hfq or 0.0)
-    sell_hfq = float(exit_price_hfq or 0.0)
-    # 缺合法 hfq（分母须 > 0，卖出价须 > 0）→ 该档 ROI 记 0
-    if basis > 0 and sell_hfq > 0:
-        profit = sell_hfq - basis
-        roi = profit / basis
-    else:
-        profit = 0.0
-        roi = 0.0
+    profit = roi * basis if basis > 0 else 0.0
     weighted_profit = profit * exit_ratio
+    sell_hfq = float(exit_price_hfq or 0.0)
     day = str(bar.get("date") or "").strip()
     return {
         "date": day,

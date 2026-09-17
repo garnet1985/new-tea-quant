@@ -446,6 +446,20 @@ def session_snapshot(
     }
 
 
+def _goal_item(item: Any) -> Dict[str, Any]:
+    if isinstance(item, dict):
+        text = str(item.get("text") or "").strip()
+        return {
+            "text": text,
+            "kind": str(item.get("kind") or "").strip() or "other",
+            "done": bool(item.get("done")),
+        }
+    text = str(getattr(item, "text", "") or item or "").strip()
+    kind = str(getattr(item, "kind", "") or "").strip()
+    done = bool(getattr(item, "done", False))
+    return {"text": text, "kind": kind or "other", "done": done}
+
+
 def holdings_message(engine: Any, rows: Iterable[Any]) -> Dict[str, Any]:
     holdings: List[Dict[str, Any]] = []
     for row in rows or ():
@@ -461,7 +475,9 @@ def holdings_message(engine: Any, rows: Iterable[Any]) -> Dict[str, Any]:
                 "hold_unit": str(getattr(row, "hold_unit", "") or "natural_day"),
                 "close": getattr(row, "close", None),
                 "unrealized": getattr(row, "unrealized", None),
-                "goals": [str(item) for item in (getattr(row, "goals", None) or [])],
+                "roi": getattr(row, "roi", None),
+                "market_value": getattr(row, "market_value", None),
+                "goals": [_goal_item(item) for item in (getattr(row, "goals", None) or [])],
             }
         )
     return {

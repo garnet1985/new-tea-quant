@@ -38,6 +38,10 @@ from core.modules.strategy.core.engines.shared.data_class.investment import (
     TargetCheckStep,
     TradeSide,
 )
+from core.modules.strategy.core.engines.shared.services.hfq_roi import (
+    hfq_roi,
+    hfq_target_hit,
+)
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 
 if TYPE_CHECKING:
@@ -583,7 +587,7 @@ class Investment(Opportunity):
         # 相对收益需 /basis；basis<=0 时本 tick 无法定义，不代表价格非法
         if basis <= 0:
             return False
-        price_return = (monitor - basis) / basis
+        price_return = hfq_roi(basis, monitor)
         if price_return > float(cfg.ratio):
             return False
         exit_ratio = 1.0 if cfg.close_invest else float(cfg.exit_ratio)
@@ -616,7 +620,7 @@ class Investment(Opportunity):
         # 回撤需 /peak；peak<=0 时本 tick 无法定义
         if peak <= 0:
             return False
-        drawdown = (monitor - peak) / peak
+        drawdown = hfq_roi(peak, monitor)
         if drawdown > float(cfg.ratio):
             return False
         exit_ratio = 1.0 if cfg.close_invest else float(cfg.exit_ratio)
@@ -656,8 +660,7 @@ class Investment(Opportunity):
                 ):
                     continue
             else:
-                stop_price = self.settings.goal.exit_price(stage, basis)
-                if low > stop_price:
+                if not hfq_target_hit(basis, low, stage.ratio):
                     continue
             return self._trigger_goal_stage(
                 stage=stage,
@@ -699,8 +702,7 @@ class Investment(Opportunity):
                 ):
                     continue
             else:
-                target_price = self.settings.goal.exit_price(stage, basis)
-                if high < target_price:
+                if not hfq_target_hit(basis, high, stage.ratio):
                     continue
             return self._trigger_goal_stage(
                 stage=stage,
@@ -1127,12 +1129,8 @@ class Investment(Opportunity):
             check_tradability=False,
         )
         basis_hfq = self._hfq_basis()
-        if basis_hfq > 0 and exit_price_hfq is not None:
-            profit = float(exit_price_hfq) - basis_hfq
-            roi = profit / basis_hfq
-        else:
-            profit = 0.0
-            roi = 0.0
+        roi = hfq_roi(basis_hfq, exit_price_hfq)
+        profit = roi * basis_hfq if basis_hfq > 0 else 0.0
         at_limit_down, exit_prev_close = self._eval_limit_down(exit_price, fill_bar)
 
         self.completed_goals.append(
@@ -1430,15 +1428,11 @@ class Investment(Opportunity):
         if self.extreme.highest is None or high > self.extreme.highest:
             self.extreme.highest = high
             self.extreme.highest_date = as_of
-            self.extreme.highest_return = (
-                (high - basis) / basis if basis > 0 else 0.0
-            )
+            self.extreme.highest_return = hfq_roi(basis, high)
         if self.extreme.lowest is None or low < self.extreme.lowest:
             self.extreme.lowest = low
             self.extreme.lowest_date = as_of
-            self.extreme.lowest_return = (
-                (low - basis) / basis if basis > 0 else 0.0
-            )
+            self.extreme.lowest_return = hfq_roi(basis, low)
 
     def _update_holding(self, as_of: str) -> None:
         if self.lifecycle != Lifecycle.OPEN or self.holding.mode is None:

@@ -38,6 +38,8 @@ class PortfolioEvent:
     bar_volume: Optional[float] = None
     # 相对买入股数的绝对份额；1.0 = 卖剩余全部。枚举分档 / 流动性拆段写入。
     exit_ratio: float = 1.0
+    # 该切片对应的目标名（win15% / loss20% / expiration…）；buy 为空
+    goal_name: str = ""
 
     def is_buy(self) -> bool:
         return str(self.kind or "").strip().lower() == "buy"
@@ -63,6 +65,7 @@ class PortfolioEvent:
             entry_price_hfq=float(raw.get("entry_price_hfq") or 0.0),
             bar_volume=_optional_float(raw.get("bar_volume")),
             exit_ratio=_exit_ratio(raw.get("exit_ratio")),
+            goal_name=str(raw.get("goal_name") or "").strip(),
         )
 
     @classmethod
@@ -112,6 +115,7 @@ class PortfolioEvent:
                         exit_price_raw=float(item["price"] or 0.0),
                         entry_price_hfq=entry_price_hfq,
                         exit_ratio=float(item["exit_ratio"]),
+                        goal_name=str(item.get("name") or ""),
                     )
                 )
             return events
@@ -206,5 +210,13 @@ def _exit_slices(row: Any) -> List[Dict[str, Any]]:
             price = float(getattr(goal, "price_raw", 0.0) or 0.0)
         except (TypeError, ValueError):
             price = 0.0
-        out.append({"date": date, "exit_ratio": ratio, "roi": roi, "price": price})
+        out.append(
+            {
+                "date": date,
+                "exit_ratio": ratio,
+                "roi": roi,
+                "price": price,
+                "name": str(getattr(goal, "name", "") or "").strip(),
+            }
+        )
     return out

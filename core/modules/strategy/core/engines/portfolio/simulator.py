@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
@@ -35,6 +35,7 @@ class OpenLot:
     buy_date: str
     entry_price_hfq: float = 0.0
     initial_shares: int = 0
+    fired_goal_names: Tuple[str, ...] = ()
 
 
 def _lot_key(entity_id: str, investment_id: str) -> str:

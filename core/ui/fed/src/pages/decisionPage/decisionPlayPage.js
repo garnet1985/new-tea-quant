@@ -391,7 +391,7 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
           目标
         </Typography>
         <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-          仍持有时目标都未触发。触发即整笔出场，不会留在持仓列表里。
+          已按某档卖出的会标已完成；剩下的股仍按当前浮动盈亏显示，不会因为还在列表里就把该档当成没做过。
         </Typography>
         {row?.goals?.length ? (
           <Box className="decision-goal-list">

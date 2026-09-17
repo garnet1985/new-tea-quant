@@ -169,6 +169,7 @@ class DecisionBroker:
         )
         if shares <= 0:
             return None, "empty"
+        _note_fired_goal(lot, event)
         roi = Trade.finite_roi(event.roi)
         proceeds = Trade.equivalent_exit_value(shares, buy_price, roi)
         fees = self.fee_calculator.calculate_fees(proceeds, "sell")
@@ -262,6 +263,16 @@ class DecisionBroker:
         if tag == self.allocation.liquidity.TAG_CLIPPED and sized < n:
             return 0, BrokerError(f"超过当日流动性，最多 {sized} 股")
         return sized, None
+
+
+def _note_fired_goal(lot: OpenLot, event: PortfolioEvent) -> None:
+    name = str(getattr(event, "goal_name", "") or "").strip()
+    if not name:
+        return
+    fired = [item for item in (lot.fired_goal_names or ()) if item]
+    if name not in fired:
+        fired.append(name)
+    lot.fired_goal_names = tuple(fired)
 
 
 __all__ = ["BrokerError", "BuyPreview", "DecisionBroker"]

@@ -27,6 +27,7 @@ from core.modules.strategy.core.engines.price_factor.helpers import (
     retry_deferred_exits,
 )
 from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
+from core.modules.strategy.core.engines.shared.services.hfq_roi import hfq_roi
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
@@ -459,8 +460,8 @@ def _processed_goals_to_rows(
         except (TypeError, ValueError):
             weighted_profit = 0.0
         if (roi == 0.0 and profit == 0.0) and enter_price_hfq > 0 and price_hfq > 0:
-            profit = price_hfq - enter_price_hfq
-            roi = profit / enter_price_hfq
+            roi = hfq_roi(enter_price_hfq, price_hfq)
+            profit = roi * float(enter_price_hfq)
             weighted_profit = profit * exit_ratio
         out.append(
             {
@@ -501,8 +502,8 @@ def _aggregate_hfq_roi(processed: List[Dict[str, Any]], enter_price_hfq: float) 
             sell_hfq = 0.0
         if sell_hfq <= 0:
             continue
-        weighted_profit += (sell_hfq - basis) * ratio
-    return weighted_profit / basis
+        weighted_profit += hfq_roi(basis, sell_hfq) * ratio
+    return weighted_profit
 
 
 def _to_price_row(

@@ -169,12 +169,27 @@ function mapCalendarDay(row) {
   };
 }
 
+function formatExitWhy(goalNames, reason) {
+  const goal = String(goalNames || '').trim();
+  const raw = String(reason || '').trim();
+  const reasonLabel = {
+    take_profit: '止盈',
+    stop_loss: '止损',
+    expiration: '到期',
+    protect_loss: '保护',
+    dynamic_loss: '动态止损',
+  }[raw] || '';
+  if (goal && reasonLabel) return `${reasonLabel} ${goal}`;
+  if (goal) return goal;
+  return reasonLabel || raw;
+}
+
 function mapExit(row) {
   const raw = row && typeof row === 'object' ? row : {};
   const profit = Number(raw.profit);
   const win = Number.isFinite(profit) ? profit >= 0 : true;
   const shares = Number(raw.shares) || 0;
-  const reason = String(raw.reason || raw.goal_names || '').trim();
+  const why = formatExitWhy(raw.goal_names, raw.reason);
   const ticker = String(raw.entity_id || '');
   const name = String(raw.name || '');
   const date = formatDecisionDate(raw.date);
@@ -190,7 +205,7 @@ function mapExit(row) {
     shares,
     profit: Number.isFinite(profit) ? profit : 0,
     win,
-    text: `出场 ${ticker} ${nameBit}  ${shares.toLocaleString()} 股  盈亏 ${sign}${pnl}${reason ? `  (${reason})` : ''}`,
+    text: `出场 ${ticker} ${nameBit}  ${shares.toLocaleString()} 股  盈亏 ${sign}${pnl}${why ? `  (${why})` : ''}`,
   };
 }
 
@@ -257,10 +272,9 @@ export function mapDecisionHoldings(message) {
     const buyDate = formatDecisionDate(row.buy_date);
     const buyPrice = Number(row.buy_price);
     const cost = Number.isFinite(buyPrice) ? shares * buyPrice : null;
-    const marketValue = close != null && Number.isFinite(close) ? shares * close : null;
-    const pnlPct = cost && Number.isFinite(unrealized) && cost !== 0
-      ? unrealized / cost
-      : null;
+    const roi = row.roi == null ? null : Number(row.roi);
+    const marketValue = row.market_value == null ? null : Number(row.market_value);
+    const pnlPct = roi != null && Number.isFinite(roi) ? roi : null;
     return {
       id: `${row.entity_id || 'h'}-${row.buy_date || index}`,
       ticker: String(row.entity_id || ''),
@@ -273,7 +287,7 @@ export function mapDecisionHoldings(message) {
       holdUnit: String(row.hold_unit || 'natural_day'),
       close: close != null && Number.isFinite(close) ? close : null,
       cost,
-      marketValue,
+      marketValue: marketValue != null && Number.isFinite(marketValue) ? marketValue : null,
       unrealized: unrealized != null && Number.isFinite(unrealized) ? unrealized : null,
       pnlPct,
       goals: (Array.isArray(row.goals) ? row.goals : []).map(mapHoldingGoal),
@@ -281,18 +295,24 @@ export function mapDecisionHoldings(message) {
   });
 }
 
-function mapHoldingGoal(text) {
+function mapHoldingGoal(item) {
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    const text = String(item.text || '').trim();
+    let kind = String(item.kind || '').trim() || 'other';
+    if (kind === 'other') kind = holdingGoalKind(text);
+    return { text, kind, done: Boolean(item.done) };
+  }
+  const raw = String(item || '').trim();
+  return { text: raw, kind: holdingGoalKind(raw), done: false };
+}
+
+function holdingGoalKind(text) {
   const raw = String(text || '').trim();
-  let kind = 'other';
-  if (raw.startsWith('止盈')) kind = 'take_profit';
-  else if (raw.startsWith('止损')) kind = 'stop_loss';
-  else if (raw.startsWith('保护')) kind = 'protect';
-  else if (raw.startsWith('到期')) kind = 'expiry';
-  return {
-    text: raw,
-    kind,
-    done: false,
-  };
+  if (raw.startsWith('止盈')) return 'take_profit';
+  if (raw.startsWith('止损')) return 'stop_loss';
+  if (raw.startsWith('保护')) return 'protect';
+  if (raw.startsWith('到期')) return 'expiry';
+  return 'other';
 }
 
 export function holdingsMarketValue(holdings) {

@@ -39,8 +39,17 @@ class AdvanceResult:
 
 
 @dataclass
+class GoalChip:
+    """持仓目标一行：文案 + 是否已按这档卖过。"""
+
+    text: str
+    kind: str
+    done: bool = False
+
+
+@dataclass
 class HoldingRow:
-    """``holdings`` 一行；目标文案不含本笔未来价/日。"""
+    """``holdings`` 一行；目标文案不含本笔未来价/日。盈亏走 hfq ROI，不是打印价差。"""
 
     entity_id: str
     name: str
@@ -50,14 +59,17 @@ class HoldingRow:
     hold_days: int
     close: Optional[float]
     unrealized: Optional[float]
-    goals: List[str]
+    goals: List[GoalChip]
     status_tags: Tuple[str, ...] = ()
     hold_unit: str = "natural_day"
+    roi: Optional[float] = None
+    market_value: Optional[float] = None
 
 
 __all__ = [
     "AdvanceResult",
     "ExitNotice",
+    "GoalChip",
     "HoldingRow",
     "LoadBars",
     "LoadClose",

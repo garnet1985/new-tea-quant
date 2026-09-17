@@ -48,7 +48,7 @@ pytestmark = pytest.mark.force_run
 _NAMES = {"600000.SH": "浦发银行", "000001.SZ": "平安银行"}
 
 
-def _settings(expiration=None, **allocation) -> StrategySettings:
+def _settings(expiration=None, take_profit=None, **allocation) -> StrategySettings:
     raw = {
         "portfolio": {
             "initial_capital": 1_000_000,
@@ -78,6 +78,8 @@ def _settings(expiration=None, **allocation) -> StrategySettings:
     }
     if expiration:
         raw["goal"]["expiration"] = expiration
+    if take_profit is not None:
+        raw["goal"]["take_profit"] = take_profit
     if allocation:
         raw["portfolio"]["allocation"].update(allocation)
     settings = StrategySettings.from_dict(raw)
@@ -112,7 +114,7 @@ def _buy(date, entity, inv, price, *, volume=None, hfq=None, roi=0.0):
     )
 
 
-def _sell(date, entity, inv, *, roi=0.1, price=0.0):
+def _sell(date, entity, inv, *, roi=0.1, price=0.0, exit_ratio=1.0, goal_name=""):
     return PortfolioEvent(
         kind="sell",
         date=date,
@@ -121,6 +123,8 @@ def _sell(date, entity, inv, *, roi=0.1, price=0.0):
         price=price,
         roi=roi,
         entry_price_raw=10.0,
+        exit_ratio=exit_ratio,
+        goal_name=goal_name,
     )
 
 
@@ -147,9 +151,12 @@ def _engine(
     name_lookup=None,
     expiration=None,
     open_dates=None,
+    load_bars=None,
+    load_close=None,
+    take_profit=None,
     **alloc,
 ):
-    settings = _settings(expiration=expiration, **alloc)
+    settings = _settings(expiration=expiration, take_profit=take_profit, **alloc)
     allocation = _allocation(**alloc)
     timeline = DecisionTimeline.from_events(
         events,
@@ -167,8 +174,8 @@ def _engine(
         strategy_key="demo",
         version_id="3",
         name_lookup=name_lookup or (lambda eid: _NAMES.get(eid, "")),
-        load_bars=lambda *a, **k: [],
-        load_close=lambda *a, **k: 11.0,
+        load_bars=load_bars or (lambda *a, **k: []),
+        load_close=load_close if load_close is not None else (lambda *a, **k: 11.0),
         load_open_dates=lambda *a, **k: list(open_dates or []),
         load_hfq_closes=lambda *a, **k: {},
         load_shibor_overnight=lambda *a, **k: {},
@@ -414,6 +421,72 @@ def test_buy_then_exit_log_then_next_decision(tmp_path: Path):
     assert [o.entity_id for o in nxt.opportunities] == ["000001.SZ"]
 
 
+def test_partial_take_profit_marks_stage_and_labels_event(tmp_path: Path):
+    row = EnumResult(
+        entity_id="600000.SH",
+        investment_id="a",
+        entry_date="20240103",
+        entry_price_raw=10.0,
+        exit_date="20240120",
+        weighted_roi=0.25,
+        completed_goals=(
+            CompletedGoal(
+                name="win15%",
+                date="20240110",
+                reason="take_profit",
+                exit_ratio=0.3,
+                roi=0.15,
+            ),
+            CompletedGoal(
+                name="win25%",
+                date="20240120",
+                reason="take_profit",
+                exit_ratio=0.7,
+                roi=0.25,
+            ),
+        ),
+    )
+    engine = _engine(
+        tmp_path,
+        [
+            _buy("20240103", "600000.SH", "a", 10.0, hfq=10.0),
+            _sell(
+                "20240110",
+                "600000.SH",
+                "a",
+                roi=0.15,
+                exit_ratio=0.3,
+                goal_name="win15%",
+            ),
+            _sell(
+                "20240120",
+                "600000.SH",
+                "a",
+                roi=0.25,
+                exit_ratio=0.7,
+                goal_name="win25%",
+            ),
+        ],
+        rows=[row],
+        take_profit={
+            "stages": [
+                {"ratio": 0.15, "exit_ratio": 0.3},
+                {"ratio": 0.25, "close_invest": True},
+            ]
+        },
+    )
+    engine.set_pick(1, 1000)
+    engine.done()
+    result = engine.next()
+    assert result.current_date == "20240110"
+    assert result.logs[0].goal_names == "win15%"
+    assert result.logs[0].reason == "take_profit"
+    held = engine.holdings()[0]
+    assert held.shares == 700
+    assert any(g.done and "win15%" in g.text for g in held.goals)
+    assert any((not g.done) and "win25%" in g.text for g in held.goals)
+
+
 def test_calendar_journal_records_opps_and_fills(tmp_path: Path):
     engine = _engine(
         tmp_path,
@@ -586,9 +659,10 @@ def test_holdings_show_declared_goals_not_future_date(tmp_path: Path):
     assert len(rows) == 1
     assert rows[0].shares == 100
     assert rows[0].status_tags == ()
-    assert any("止盈" in g and "20240120" not in g for g in rows[0].goals)
-    assert any("止损" in g for g in rows[0].goals)
-    assert all("→" not in g for g in rows[0].goals)
+    assert any("止盈" in g.text and "20240120" not in g.text for g in rows[0].goals)
+    assert any("止损" in g.text for g in rows[0].goals)
+    assert all("→" not in g.text for g in rows[0].goals)
+    assert all(g.done is False for g in rows[0].goals)
 
 
 def test_holdings_trading_day_span_matches_expiration_unit(tmp_path: Path):
@@ -619,7 +693,49 @@ def test_holdings_trading_day_span_matches_expiration_unit(tmp_path: Path):
     assert engine.current_date == "20240115"
     assert rows[0].hold_days == 9
     assert rows[0].hold_unit == "trading_day"
-    assert any("到期 30 个交易日" in g for g in rows[0].goals)
+    assert any("到期 30 个交易日" in g.text for g in rows[0].goals)
+
+
+def test_holdings_roi_uses_hfq_not_qfq_over_raw(tmp_path: Path):
+    bars = [
+        {
+            "date": "20240103",
+            "close": 19.13,
+            "raw": {"close": 15.11},
+            "hfq": {"close": 11.0},
+        }
+    ]
+    engine = _engine(
+        tmp_path,
+        [_buy("20240103", "600000.SH", "a", 10.0, hfq=10.0)],
+        load_bars=lambda *a, **k: bars,
+        load_close=lambda *a, **k: 19.13,
+    )
+    engine.set_pick(1, 100)
+    engine.done()
+    engine._commit_draft()
+    row = engine.holdings()[0]
+    assert row.close == pytest.approx(19.13)
+    assert row.roi == pytest.approx(0.10)
+    assert row.unrealized == pytest.approx(100.0)
+    assert row.market_value == pytest.approx(1100.0)
+    mixed = (19.13 - 10.0) / 10.0
+    assert abs(row.roi - mixed) > 0.5
+
+
+def test_holdings_without_hfq_does_not_mark_print_spread(tmp_path: Path):
+    engine = _engine(
+        tmp_path,
+        [_buy("20240103", "600000.SH", "a", 10.0, hfq=10.0)],
+    )
+    engine.set_pick(1, 100)
+    engine.done()
+    engine._commit_draft()
+    row = engine.holdings()[0]
+    assert row.close == pytest.approx(11.0)
+    assert row.roi is None
+    assert row.unrealized is None
+    assert row.market_value is None
 
 
 def test_info_arg_parse():

@@ -24,6 +24,8 @@ changelog:
       - 决策者 holdings 增加 `hold_unit`（与到期同一口径）
       - 决策者 pick 仍支持 `cash`；现场增加 `suggested_cash` / `lot_step`
       - 决策者现场增加 `calendar`：截止当天的发现机会与买入 / 卖出流水
+      - 决策者 holdings 增加 `roi` / `market_value`（hfq 同股市值，不再用打印价差当收益）
+      - 决策者 holdings 目标带 `done`；出场 `goal_names` 为该次卖掉的那一档
   - version: "0.2.0"
     changes:
       - 从 core/ui 独立为顶层模块；取消 modules 内 launcher，BFF 专有逻辑收口到本目录

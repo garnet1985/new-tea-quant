@@ -19,6 +19,7 @@ from core.modules.strategy.core.engines.decision_maker.broker import DecisionBro
 from core.modules.strategy.core.engines.decision_maker.data_class import (
     AdvanceResult,
     ExitNotice,
+    GoalChip,
     HoldingRow,
     LoadBars,
     LoadClose,
@@ -65,6 +66,14 @@ from core.modules.strategy.core.engines.shared.enum_result_contract.enum_result 
 )
 from core.modules.strategy.core.engines.shared.enum_result_contract.enum_results_manager import (
     EnumResultsManager,
+)
+from core.modules.strategy.core.engines.shared.services.hfq_roi import (
+    cash_profit,
+    hfq_roi,
+    mark_value,
+)
+from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import (
+    SafeBarValue,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -393,6 +402,7 @@ class DecisionEngine:
                     "buy_date": str(lot.buy_date),
                     "entry_price_hfq": float(lot.entry_price_hfq or 0.0),
                     "initial_shares": int(lot.initial_shares or lot.shares),
+                    "fired_goal_names": list(lot.fired_goal_names or ()),
                 }
                 for lot in self.open_lots.values()
             ],
@@ -439,6 +449,11 @@ class DecisionEngine:
                 entry_price_hfq=float(raw.get("entry_price_hfq") or 0.0),
                 initial_shares=int(
                     raw.get("initial_shares") or raw.get("shares") or 0
+                ),
+                fired_goal_names=tuple(
+                    str(item).strip()
+                    for item in (raw.get("fired_goal_names") or ())
+                    if str(item).strip()
                 ),
             )
             self.open_lots[lot_key(lot.entity_id, lot.investment_id)] = lot
@@ -670,10 +685,8 @@ class DecisionEngine:
     def holdings(self) -> List[HoldingRow]:
         rows: List[HoldingRow] = []
         for lot in self.open_lots.values():
-            close = self._close_on(lot.entity_id, self.current_date)
-            unrealized = None
-            if close is not None:
-                unrealized = (float(close) - float(lot.buy_price)) * float(lot.shares)
+            print_close = self._close_on(lot.entity_id, self.current_date)
+            roi, unrealized, market_value = self._holding_mark(lot)
             held_days, held_unit = self._held_span(lot.buy_date, self.current_date)
             rows.append(
                 HoldingRow(
@@ -684,9 +697,11 @@ class DecisionEngine:
                     buy_price=float(lot.buy_price),
                     hold_days=held_days,
                     hold_unit=held_unit,
-                    close=close,
+                    close=print_close,
                     unrealized=unrealized,
-                    goals=self._goal_lines(lot),
+                    roi=roi,
+                    market_value=market_value,
+                    goals=self._goal_chips(lot),
                     status_tags=self._status_tags(lot.entity_id, lot.investment_id),
                 )
             )
@@ -845,7 +860,7 @@ class DecisionEngine:
                 self.completed_count += 1
                 if float(trade.profit or 0.0) > 0:
                     self.win_count += 1
-            goals, reason = self.timeline.exit_label(event.entity_id, event.investment_id)
+            goals, reason = self.timeline.exit_label_for_event(event)
             notices.append(
                 ExitNotice(
                     date=str(event.date or date),
@@ -873,22 +888,56 @@ class DecisionEngine:
         except Exception as exc:
             logger.exception("决策者终局报告写入失败 dm_id=%s: %s", self.dm_id, exc)
 
-    def _goal_lines(self, lot: OpenLot) -> List[str]:
-        _ = lot
+    def _goal_chips(self, lot: OpenLot) -> List[GoalChip]:
+        fired = self._fired_goal_names(lot)
         goal = self.settings.goal
-        lines: List[str] = []
+        chips: List[GoalChip] = []
         for stage in goal.take_profit_stages:
-            lines.append(_stage_line("止盈", stage))
+            chips.append(_stage_chip("take_profit", "止盈", stage, fired))
         for stage in goal.stop_loss_stages:
-            lines.append(_stage_line("止损", stage))
+            chips.append(_stage_chip("stop_loss", "止损", stage, fired))
         protect = goal.protect_loss
         if protect is not None:
-            lines.append(f"保护 {protect.name}: {protect.ratio:+.1%}")
+            chips.append(
+                GoalChip(
+                    text=f"保护 {protect.name}: {protect.ratio:+.1%}",
+                    kind="protect",
+                    done=str(protect.name or "") in fired,
+                )
+            )
         exp = goal.expiration
         if exp is not None:
             unit = _hold_unit_label(str(exp.mode or "natural_day"))
-            lines.append(f"到期 {exp.window_days} {unit}")
-        return [item for item in lines if item]
+            chips.append(
+                GoalChip(
+                    text=f"到期 {exp.window_days} {unit}",
+                    kind="expiry",
+                    done="expiration" in fired,
+                )
+            )
+        return [item for item in chips if item.text]
+
+    def _fired_goal_names(self, lot: OpenLot) -> set:
+        names = {str(item).strip() for item in (lot.fired_goal_names or ()) if str(item).strip()}
+        row = self.timeline.row_for(lot.entity_id, lot.investment_id)
+        if row is None:
+            return names
+        sold_dates = {
+            str(getattr(trade, "date", "") or "").strip()
+            for trade in self.trades
+            if trade.is_sell()
+            and str(trade.entity_id or "") == str(lot.entity_id or "")
+            and str(trade.investment_id or "") == str(lot.investment_id or "")
+        }
+        as_of = str(self.current_date or "")
+        for goal in getattr(row, "completed_goals", ()) or ():
+            day = str(getattr(goal, "date", "") or "").strip()
+            if not day or (as_of and day > as_of) or day not in sold_dates:
+                continue
+            name = str(getattr(goal, "name", "") or "").strip()
+            if name:
+                names.add(name)
+        return names
 
     def _held_span(self, buy_date: str, current: str) -> Tuple[int, str]:
         """持有时长与到期用同一把尺子；日历不可用时退回自然日。"""
@@ -915,6 +964,34 @@ class DecisionEngine:
         if begin not in dates or stop not in dates:
             return 0
         return sum(1 for item in dates if begin <= item <= stop)
+
+    def _holding_mark(
+        self, lot: OpenLot
+    ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """浮动盈亏只走 hfq ROI；缺后复权价则不报百分比。"""
+        bar = self._bar_on(lot.entity_id, self.current_date)
+        hfq_close = (
+            SafeBarValue.optional_float(bar, "close", use_hfq=True) if bar else None
+        )
+        entry_hfq = float(lot.entry_price_hfq or 0.0)
+        if hfq_close is None or hfq_close <= 0 or entry_hfq <= 0:
+            return None, None, None
+        roi = hfq_roi(entry_hfq, hfq_close)
+        shares = float(lot.shares)
+        entry_raw = float(lot.buy_price)
+        return roi, cash_profit(shares, entry_raw, roi), mark_value(shares, entry_raw, roi)
+
+    def _bar_on(self, entity_id: str, date: str) -> Optional[Dict[str, Any]]:
+        try:
+            rows = self._load_bars(entity_id, date, 8)
+        except Exception as exc:
+            logger.debug("持仓 K 线失败 %s %s: %s", entity_id, date, exc)
+            return None
+        chosen: Optional[Dict[str, Any]] = None
+        for row in rows or []:
+            if str(row.get("date") or "") <= str(date or ""):
+                chosen = row
+        return chosen
 
     def _close_on(self, entity_id: str, date: str) -> Optional[float]:
         if self._load_close is not None:
@@ -978,6 +1055,11 @@ class DecisionEngine:
         for key in list(self._kline_cache):
             if key not in keep:
                 self._kline_cache.pop(key, None)
+
+
+def _stage_chip(kind: str, label: str, stage: Any, fired: set) -> GoalChip:
+    name = str(getattr(stage, "name", "") or getattr(stage, "stage_id", "") or label)
+    return GoalChip(text=_stage_line(label, stage), kind=kind, done=name in fired)
 
 
 def _stage_line(kind: str, stage: Any) -> str:
@@ -1054,6 +1136,7 @@ __all__ = [
     "DecisionEngine",
     "DecisionError",
     "ExitNotice",
+    "GoalChip",
     "HoldingRow",
     "PHASE_COMPLETED",
     "PHASE_CONFIRMING",

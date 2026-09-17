@@ -11,6 +11,11 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from core.modules.strategy.core.engines.shared.services.hfq_roi import (
+    cash_profit,
+    mark_value,
+)
+
 
 @dataclass
 class Trade:
@@ -42,19 +47,17 @@ class Trade:
     @staticmethod
     def purchase_share_value(shares: int, buy_price: float) -> float:
         """买入时股份市值（shares × buy_price，不含 fees）。"""
-        return float(shares) * float(buy_price)
+        return mark_value(shares, buy_price, 0.0)
 
     @staticmethod
     def hfq_cash_profit(shares: int, buy_price: float, roi: float) -> float:
         """平仓盈利 = 买入股数 × 买入 raw × hfq ROI（不含 fees）。"""
-        return float(shares) * float(buy_price) * float(roi)
+        return cash_profit(shares, buy_price, roi)
 
     @staticmethod
     def equivalent_exit_value(shares: int, buy_price: float, roi: float) -> float:
         """同股等价卖出额 = 本金 + 盈利；不是交易所 raw 打印价 × 股数。"""
-        return Trade.purchase_share_value(shares, buy_price) + Trade.hfq_cash_profit(
-            shares, buy_price, roi
-        )
+        return mark_value(shares, buy_price, roi)
 
     @staticmethod
     def finite_roi(roi: Any) -> float:

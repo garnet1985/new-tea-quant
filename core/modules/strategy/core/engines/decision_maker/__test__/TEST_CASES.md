@@ -48,6 +48,8 @@
 | `test_skips_buy_day_when_already_holding_same_entity` | `test_decision_maker.py` | 持仓中跳过同标的第二笔买入日，仍在出场日停钟 |
 | `test_holdings_show_declared_goals_not_future_date` | `test_decision_maker.py` | holdings 目标不含未来日 |
 | `test_holdings_trading_day_span_matches_expiration_unit` | `test_decision_maker.py` | 持有时长与到期同为交易日 |
+| `test_holdings_roi_uses_hfq_not_qfq_over_raw` | `test_decision_maker.py` | 持仓 % 走 hfq ROI，不用前复权收盘 / 不复权买价 |
+| `test_partial_take_profit_marks_stage_and_labels_event` | `test_decision_maker.py` | 分档止盈日志写档名；剩余仓位该档标已完成 |
 | `test_info_arg_parse` | `test_decision_maker.py` | info 参数解析 |
 | `test_repl_pick_and_quit` | `test_decision_maker.py` | REPL 选股并 quit 存档 |
 | `test_broker_rejects_non_lot` | `test_decision_maker.py` | broker 拒绝非整手买入 |

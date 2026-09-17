@@ -136,8 +136,10 @@ def test_portfolio_event_splits_sells_from_completed_goals():
     assert events[1].date == "20240110"
     assert events[1].exit_ratio == pytest.approx(0.6)
     assert events[1].roi == pytest.approx(-0.04)
+    assert events[1].goal_name == "expiration"
     assert events[2].date == "20240112"
     assert events[2].exit_ratio == pytest.approx(0.4)
+    assert events[2].goal_name == "expiration"
 
 
 def test_portfolio_event_skips_without_entry_price_raw():

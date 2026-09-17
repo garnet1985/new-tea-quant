@@ -269,7 +269,7 @@ class DecisionTimeline:
         )
 
     def exit_label(self, entity_id: str, investment_id: str) -> Tuple[str, str]:
-        """只读日志用：目标名 / 原因。不含未来价。"""
+        """只读日志用：该笔全部已成交目标名 / 行级原因。不含未来价。"""
         row = self.rows.get(lot_key(entity_id, investment_id))
         if row is None:
             return "", ""
@@ -281,6 +281,44 @@ class DecisionTimeline:
             if name:
                 names.append(name)
         return " / ".join(names), reason
+
+    def exit_label_for_event(self, event: Any) -> Tuple[str, str]:
+        """这一次卖出所对应的目标名 / 原因，不是整笔枚举行的全部档。"""
+        name = str(getattr(event, "goal_name", "") or "").strip()
+        day = str(getattr(event, "date", "") or "").strip()
+        try:
+            ratio = float(getattr(event, "exit_ratio", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            ratio = 0.0
+        row = self.row_for(
+            str(getattr(event, "entity_id", "") or ""),
+            str(getattr(event, "investment_id", "") or ""),
+        )
+        reason = ""
+        if row is not None:
+            reason = str(getattr(row, "exit_reason", "") or "").strip()
+            matched = ""
+            for goal in getattr(row, "completed_goals", ()) or ():
+                goal_day = str(getattr(goal, "date", "") or "").strip()
+                if day and goal_day != day:
+                    continue
+                goal_name = str(getattr(goal, "name", "") or "").strip()
+                try:
+                    goal_ratio = float(getattr(goal, "exit_ratio", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    goal_ratio = 0.0
+                if name and goal_name and goal_name != name:
+                    continue
+                if ratio > 0 and goal_ratio > 0 and abs(goal_ratio - ratio) > 1e-9:
+                    continue
+                matched = goal_name or name
+                slice_reason = str(getattr(goal, "reason", "") or "").strip()
+                if slice_reason:
+                    reason = slice_reason
+                break
+            if matched:
+                name = matched
+        return name, reason
 
     def row_for(self, entity_id: str, investment_id: str) -> Optional[EnumResult]:
         return self.rows.get(lot_key(entity_id, investment_id))

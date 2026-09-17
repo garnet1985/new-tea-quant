@@ -1,0 +1,17 @@
+# 复制本文件为 <id>.yaml，删掉这些注释。
+id: example_term
+kind: term # term | principle | how_to
+title: 显示给用户的名称
+aliases:
+  - 别名
+  - UI 上的叫法
+summary: |
+  两到四句。只写用户需要记住的。
+  第二句补边界或易混点。
+body: |
+  可选。再展开一点步骤或例子。
+  一段或一个短列表就够。不要贴大段代码。
+avoid:
+  - 不要说成……
+see_also:
+  - ntq

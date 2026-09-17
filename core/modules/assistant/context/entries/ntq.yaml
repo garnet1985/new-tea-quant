@@ -1,0 +1,16 @@
+id: ntq
+kind: term
+title: New Tea Quant
+aliases:
+  - NTQ
+summary: |
+  NTQ 是回测与研究框架，不是看盘或自动下单软件。
+  你把交易想法写成规则之后，它做两件事：在历史里验证规则，以及用同一套规则在市场里找机会。
+body: |
+  上手顺序：先把想法收成一条可判断的规则，再写进策略代码，然后在 UI 里跑历史验证，最后用选股看现在有没有机会。
+  策略代码放在 userspace/strategies，每个策略目录至少有 strategy.py 和 settings.py。
+avoid:
+  - 不要说成炒股软件、荐股软件或券商交易终端
+  - 不要说它会替用户下单
+see_also:
+  - has_opportunity

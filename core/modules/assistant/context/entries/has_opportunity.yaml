@@ -1,0 +1,18 @@
+id: has_opportunity
+kind: how_to
+title: has_opportunity
+aliases:
+  - 有没有机会
+  - 量化规则
+summary: |
+  has_opportunity 是策略里那条规则：当前这只股票、当前这个时点，有没有交易机会。
+  只返回 True 或 False。True 表示有机会，False 表示没有。不要在这里自己创建订单或机会对象。
+body: |
+  写在该策略目录的 strategy.py 里。
+  判断要用的阈值、窗口、数据需求放在 settings.py，尤其是希望在 UI 上拧一拧就能重跑的数，放进 settings 的 core。
+  规则要具体，例如「RSI < 20 视为超卖」，而不是「感觉超卖了」。
+avoid:
+  - 不要教用户在 has_opportunity 里手动 new Opportunity
+  - 不要说这个函数负责下单或计算仓位
+see_also:
+  - ntq

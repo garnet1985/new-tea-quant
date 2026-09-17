@@ -12,7 +12,6 @@ import WelcomePage from './pages/welcomePage';
 import StrategyListPage from './pages/strategyListPage';
 import { StrategyDesignLayout } from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
-import { DecisionLobbyPage, DecisionPlayPage } from './pages/decisionPage';
 import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
 import DataSourceListPage from './pages/dataSourcePage';
@@ -183,11 +182,11 @@ function App() {
             />
             <Route
               path="/decision"
-              element={<DecisionLobbyPage />}
+              element={<Navigate to="/strategy-design" replace />}
             />
             <Route
               path="/decision/play"
-              element={<DecisionPlayPage />}
+              element={<Navigate to="/strategy-design" replace />}
             />
             <Route
               path="/advanced/data-sources"

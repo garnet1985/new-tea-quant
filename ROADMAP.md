@@ -44,8 +44,9 @@ Pro版本：
 ### upcoming releases (0.5.x)
 
 目标：增加决策者模式
-- 新加决策者模式
+- 新加决策者模式（单策略：制定策略第四步）
 - 增加决策者模式的report
+- **0.5.1** 跨策略决策模拟（公共 settings 覆盖 + `_decision` 重跑枚举 + 一本账时钟）— 口径见 [`DECISION_MAKER_CROSS.md`](core/modules/strategy/docs/notes/DECISION_MAKER_CROSS.md)
 - 引入AI助理 （辅助代码，解释报告，app小百科）
 - 增加常用统计/金融/分析工具箱
 - Pydantic + Ruff

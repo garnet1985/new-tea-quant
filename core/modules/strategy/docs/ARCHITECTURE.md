@@ -89,3 +89,4 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 - [价格三层：qfq 信号 / hfq ROI / raw 成交](./PRICE_LAYERS.md)
 - [资金层日频盯市风险比（未实现）](../core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md)
 - [决策者模式：资金回测回放](./notes/DECISION_MAKER.md)
+- [跨策略决策模拟（0.5.1）](./notes/DECISION_MAKER_CROSS.md)

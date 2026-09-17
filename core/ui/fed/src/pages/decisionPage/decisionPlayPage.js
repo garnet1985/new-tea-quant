@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -25,7 +25,6 @@ import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadin
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import { buildStockKlineChartOptionFromPayload } from '../strategyWorkbenchPage/panels/strategyReportPanel/lib/stockKlineChart';
 import {
-  decisionLobbyPath,
   doneDecisionDay,
     fetchDecisionHoldings,
     fetchDecisionInfo,
@@ -35,6 +34,7 @@ import {
     pickDecisionShares,
     resetDecisionDraft,
 } from '../../api/decisionApi';
+import { getStrategyDesignPath } from '../../api/strategyApi';
 import { isHttpStatusError } from 'services/request';
 import {
   buildMonthCells,
@@ -510,7 +510,6 @@ export function DecisionPlaySession({
   onCompleted = null,
   render = null,
 } = {}) {
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const strategyKey = String(strategyKeyProp || params.get('strategy') || '').trim();
   const readonlyQuery = readonlyProp != null ? Boolean(readonlyProp) : params.get('readonly') === '1';
@@ -543,7 +542,9 @@ export function DecisionPlaySession({
   const runAdvanceRef = useRef(null);
   const spaceLockRef = useRef(false);
   const holdingDetailCacheRef = useRef(null);
-  const lobbyHref = decisionLobbyPath(strategyKey);
+  const designHref = strategyKey
+    ? getStrategyDesignPath(strategyKey, 'decision')
+    : '/strategy-design';
 
   const applyLive = useCallback((snap, nextHoldings, { hopEvents, keepPicks = false } = {}) => {
     setSnapshot(snap);
@@ -573,7 +574,8 @@ export function DecisionPlaySession({
     animRef.current.cancelled = false;
     if (!strategyKey || !sessionId) {
       if (!embedded) {
-        navigate(strategyKey ? lobbyHref : '/decision', { replace: true });
+        setLoadError('缺少策略或对局');
+        setPageReady(true);
       }
       return undefined;
     }
@@ -602,7 +604,7 @@ export function DecisionPlaySession({
       if (animRef.current.timer) window.clearTimeout(animRef.current.timer);
       if (pickTimerRef.current) window.clearTimeout(pickTimerRef.current);
     };
-  }, [strategyKey, sessionId, embedded, navigate, lobbyHref, applyLive, loadHoldings]);
+  }, [strategyKey, sessionId, embedded, applyLive, loadHoldings]);
 
   const clockDate = snapshot?.clockDate || '';
   const shownClockDate = displayClockDate || clockDate;
@@ -1125,7 +1127,7 @@ export function DecisionPlaySession({
     return (
       <PageLayout
         className="decision-page"
-        breadcrumbsItems={[{ label: '决策者', to: lobbyHref }]}
+        breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
         breadcrumbsCurrent="对局"
         bannerTitle="决策者对局"
         bannerDescription="正在打开这一局。"
@@ -1150,13 +1152,13 @@ export function DecisionPlaySession({
     return (
       <PageLayout
         className="decision-page"
-        breadcrumbsItems={[{ label: '决策者', to: lobbyHref }]}
+        breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
         breadcrumbsCurrent="对局"
         bannerTitle="决策者对局"
         bannerDescription="无法打开这一局。"
         bannerRightSlot={(
-          <Button component={RouterLink} to={lobbyHref} variant="outlined" size="small">
-            返回入口
+          <Button component={RouterLink} to={designHref} variant="outlined" size="small">
+            返回制定策略
           </Button>
         )}
       >
@@ -1687,21 +1689,17 @@ export function DecisionPlaySession({
   return (
     <PageLayout
       className="decision-page"
-      breadcrumbsItems={[{ label: '决策者', to: lobbyHref }]}
+      breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
       breadcrumbsCurrent={`第 ${snapshot.dmId} 局`}
       bannerTitle={`决策模拟 · 第 ${snapshot.dmId} 局`}
       bannerDescription="时钟只显示当前停顿日。推进后总进度前移；月历是只读地图，只标注已经发生的事件。"
       bannerRightSlot={(
-        <Button component={RouterLink} to={lobbyHref} variant="outlined" size="small">
-          返回入口
+        <Button component={RouterLink} to={designHref} variant="outlined" size="small">
+          返回制定策略
         </Button>
       )}
     >
       {playInner}
     </PageLayout>
   );
-}
-
-export default function DecisionPlayPage() {
-  return <DecisionPlaySession />;
 }

@@ -364,6 +364,8 @@ export async function fetchDecisionSessions(strategyName, { versionId } = {}) {
     strategyKey: String(m.strategy_key || ''),
     hasPortfolio: Boolean(m.has_portfolio),
     sessions: (m.sessions || []).map(mapDecisionSessionRow),
+    lastSessionId: String(m.last_session_id || m.lastSessionId || ''),
+    hasCompleted: Boolean(m.has_completed),
   };
 }
 
@@ -418,10 +420,16 @@ export async function doneDecisionDay(strategyName, sessionId, { versionId } = {
   return mapDecisionSnapshot(unwrapMessage(json));
 }
 
-export async function resetDecisionDraft(strategyName, sessionId, { versionId } = {}) {
+export async function resetDecisionDraft(strategyName, sessionId, {
+  versionId,
+  keepDraft = false,
+} = {}) {
+  const body = {};
+  if (versionId) body.version_id = String(versionId);
+  if (keepDraft) body.keep_draft = true;
   const json = await request.postJson(
     `${apiDecisionSessions(strategyName)}/${encodeURIComponent(sessionId)}/reset`,
-    { body: versionId ? { version_id: String(versionId) } : {} },
+    { body },
   );
   return mapDecisionSnapshot(unwrapMessage(json));
 }
@@ -443,6 +451,22 @@ export async function fetchDecisionHoldings(strategyName, sessionId, { versionId
     LONG,
   );
   return mapDecisionHoldings(unwrapMessage(json));
+}
+
+export async function fetchDecisionReport(strategyName, sessionId, { versionId } = {}) {
+  const json = await request.getJson(
+    withVersion(
+      `${apiDecisionSessions(strategyName)}/${encodeURIComponent(sessionId)}/report`,
+      versionId,
+    ),
+    LONG,
+  );
+  const m = unwrapMessage(json);
+  return {
+    dmId: String(m.dm_id || sessionId || ''),
+    versionId: String(m.version_id || versionId || ''),
+    report: m.report && typeof m.report === 'object' ? m.report : {},
+  };
 }
 
 export async function fetchDecisionInfo(strategyName, sessionId, {

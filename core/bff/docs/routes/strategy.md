@@ -12,7 +12,7 @@ core/bff/APIs/strategy/
   helpers/                  # snapshots / report_hydrate / formatting …
   routes/
     catalog/                # V2-02
-    decision/               # D1-01 … D1-10 决策者会话
+    decision/               # D1-01 … D1-11 决策者会话
     package/                # V2-13 … 15
     report/                 # V2-07*
     settings/               # V2-04 / V2-09
@@ -70,21 +70,22 @@ core/bff/APIs/strategy/
 
 | D1 | 方法 | 路由 | 说明 |
 |----|------|------|------|
-| D1-01 | GET | `/v1/strategy/<strategy_key_or_name>/decision/sessions` | 列出该 version 下各局。query：``version`` |
+| D1-01 | GET | `/v1/strategy/<strategy_key_or_name>/decision/sessions` | 列出该 version 下各局。query：``version``。``message`` 含 ``last_session_id``（上次打开的局）与 ``has_completed``（本 version 是否至少有一局走完） |
 | D1-02 | POST | `/v1/strategy/<strategy_key_or_name>/decision/sessions` | 打开或续局。body：``version_id`` / ``session_id`` / ``new_session``。0 局新开；1 局续；≥2 且未指定 session → **409** ``ambiguous_sessions``（``message.sessions``） |
 | D1-03 | GET | `/v1/strategy/<strategy_key_or_name>/decision/sessions/<dm_id>` | 该局现场快照（不推进） |
 | D1-04 | DELETE | `/v1/strategy/<strategy_key_or_name>/decision/sessions/<dm_id>` | 删除一局 |
 | D1-05 | POST | `…/sessions/<dm_id>/pick` | body ``{ local_id, shares }``；也可 ``cash``（金额按手数折股）。同一编号覆盖。返回现场 |
 | D1-06 | POST | `…/sessions/<dm_id>/done` | 看账单，``phase=confirming`` |
-| D1-07 | POST | `…/sessions/<dm_id>/reset` | 清空当天草稿 |
+| D1-07 | POST | `…/sessions/<dm_id>/reset` | 清空当天草稿并回到 picking。body 可带 ``keep_draft=true``：只取消确认，保留已选股数 |
 | D1-08 | POST | `…/sessions/<dm_id>/next` | 须已 done。提交并推进到下一事件日（仓位变化或新机会）；``exits`` 为沿途只读出场 |
 | D1-09 | GET | `…/sessions/<dm_id>/holdings` | 持仓（这一停的收盘 / 浮动 / 策略目标文案） |
 | D1-10 | GET | `…/sessions/<dm_id>/info` | query：``target``（编号或代码，必填）、``n``、``columns``（逗号分隔）。截至 D 的最近 N 根。``message`` 含 CLI 表 ``columns/rows``，以及与 V2-07c 同形的 ``candles`` / ``indicator_series``（NaN → ``null``） |
+| D1-11 | GET | `…/sessions/<dm_id>/report` | 走完后的终局报告，形状与 portfolio ``capitalMetrics`` 相同。未走完 → **400** |
 
 现场 ``message``（D1-02/03/05–08）主要字段：``dm_id`` / ``version_id`` / ``phase``（``picking`` \| ``confirming`` \| ``completed``）/ ``current_date`` / ``start_date`` / ``end_date``（时间线回测区间）/ ``cash`` / ``open_position_count`` / ``max_portfolio_size`` / ``allocation_mode``（``equal_capital`` \| ``equal_shares`` \| ``kelly``）/ ``asof_stats``（整份策略 as-of）/ ``opportunities[].stats``（**该标的** as-of：该标的 ``exit_date < D`` 的已完成枚举）/ ``opportunities[].lot_size`` / ``opportunities[].lot_step``（主板/创业板 100，科创板/北证 1）/ ``opportunities[].suggested_shares``（按 ``allocation_mode`` 的建议股数：等价 / 等股 / 凯莉；下不成或凯莉无样本为 ``null``）/ ``opportunities[].suggested_cash``（建议股数对应金额）/ ``opportunities[].suggested_basis``（建议根据文案）/ ``opportunities[].status_tags``（枚举触发日 ``st`` / ``star_st``，与 ``stock_status_at_trigger`` 同口径）/ ``opportunities[].name``（去掉 ST / ``(退)`` 后的稳定名）/ ``draft`` / ``bill`` / ``exits`` / ``report_available``。``opportunities`` 同一标的同一买入日只留一笔，已持仓标的不再出现。``pick`` 金额或股数为 0 时从当天草稿去掉该编号。
 
 无枚举产物 → **400**（文案与 CLI 相同）。策略不存在 → **404**。
 
-**未注册**：走完后与机器 portfolio 并排对照的 report GET（终局仍写在 ``decision/{dm_id}/``，对照走现有 V2-07 ``report/portfolio/{vid}`` 即可；决策者报告路由后做）。
+工作台 ``step_status.decision.done``：当前仿真 version 至少有一局决策模拟走完（不是「正在看的那一局」）。
 
 **未注册**：V2-10 `versions/range`。

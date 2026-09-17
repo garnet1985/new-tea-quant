@@ -33,6 +33,7 @@ import {
     holdingsMarketValue,
     nextDecisionDay,
     pickDecisionShares,
+    resetDecisionDraft,
 } from '../../api/decisionApi';
 import { isHttpStatusError } from 'services/request';
 import {
@@ -505,6 +506,8 @@ export function DecisionPlaySession({
   sessionId: sessionIdProp,
   readonly: readonlyProp,
   hideStrategyMeta = false,
+  onViewReport = null,
+  onCompleted = null,
   render = null,
 } = {}) {
   const navigate = useNavigate();
@@ -604,6 +607,15 @@ export function DecisionPlaySession({
   const clockDate = snapshot?.clockDate || '';
   const shownClockDate = displayClockDate || clockDate;
   const completed = Boolean(snapshot?.completed || readonlyQuery);
+  const completedNoticeKey = `${strategyKey}:${sessionId}`;
+  const completedNoticeRef = useRef('');
+  useEffect(() => {
+    if (!completed || typeof onCompleted !== 'function') return undefined;
+    if (completedNoticeRef.current === completedNoticeKey) return undefined;
+    completedNoticeRef.current = completedNoticeKey;
+    onCompleted();
+    return undefined;
+  }, [completed, completedNoticeKey, onCompleted]);
   const rangeStart = snapshot?.startDate || '';
   const rangeEnd = snapshot?.endDate || '';
   const holdingsValue = holdingsMarketValue(holdings);
@@ -658,6 +670,8 @@ export function DecisionPlaySession({
     return items;
   }, [snapshot?.opps, picks]);
   const billTotal = bill.reduce((sum, row) => sum + row.notional, 0);
+  const cashOnHand = Number(snapshot?.cash) || 0;
+  const billExceedsCash = billTotal > cashOnHand + 0.005;
   const holdingsByTicker = useMemo(() => {
     const map = {};
     holdings.forEach((row) => {
@@ -857,7 +871,7 @@ export function DecisionPlaySession({
     }
   };
 
-  const shareDisabled = completed || advancing || snapshot?.phase === 'confirming';
+  const shareDisabled = completed || advancing;
   const slotLocked = (row) => {
     if (!row || row.held) return true;
     if (shareDisabled) return true;
@@ -989,20 +1003,39 @@ export function DecisionPlaySession({
     setCalendarOpen(false);
   };
 
+  const resumePicking = useCallback(async () => {
+    const dmId = snapshot?.dmId;
+    if (!strategyKey || !dmId) return null;
+    const snap = await resetDecisionDraft(strategyKey, dmId, { keepDraft: true });
+    applyLive(snap, undefined, { keepPicks: true });
+    return snap;
+  }, [applyLive, snapshot?.dmId, strategyKey]);
+
+  const cancelConfirm = useCallback(() => {
+    setConfirmOpen(false);
+    if (snapshot?.phase !== 'confirming') return;
+    resumePicking().catch((err) => {
+      setToast(errorMessage(err, '无法返回查看'));
+    });
+  }, [resumePicking, snapshot?.phase]);
+
   const runAdvance = async () => {
     if (!strategyKey || !snapshot?.dmId || completed || advancing) return;
-    setConfirmOpen(false);
+    if (billExceedsCash) {
+      setToast(`现金不足，可用 ${formatMoney(cashOnHand)} 元，本单约 ${formatMoney(billTotal)} 元`);
+      return;
+    }
     closeCalendar();
-    const fromDate = snapshot.clockDate || displayClockDate;
-    setAdvancing(true);
-    setClockMotion('is-out');
     try {
       if (snapshot.phase !== 'confirming') {
         await flushPicks();
-        const confirming = await doneDecisionDay(strategyKey, snapshot.dmId);
-        applyLive(confirming, undefined, { keepPicks: true });
+        await doneDecisionDay(strategyKey, snapshot.dmId);
       }
       const nextSnap = await nextDecisionDay(strategyKey, snapshot.dmId);
+      setConfirmOpen(false);
+      const fromDate = snapshot.clockDate || displayClockDate;
+      setAdvancing(true);
+      setClockMotion('is-out');
       const held = await loadHoldings(nextSnap.dmId);
       const hops = listOpenDaysAfter(fromDate, nextSnap.clockDate);
       if (!prefersReducedMotion() && hops.length) {
@@ -1025,6 +1058,11 @@ export function DecisionPlaySession({
     } catch (err) {
       setClockMotion('is-landed');
       setAdvancing(false);
+      try {
+        await resumePicking();
+      } catch {
+        /* 返回可改状态失败时仍提示推进错误 */
+      }
       setToast(errorMessage(err, '推进失败'));
     }
   };
@@ -1146,17 +1184,27 @@ export function DecisionPlaySession({
         </Box>
 
         <Box className="decision-hud-actions">
-          <Button
-            className="decision-advance-btn"
-            variant="contained"
-            disabled={completed || advancing}
-            startIcon={<NtqIcon name="play" size={16} />}
-            onClick={requestAdvance}
-            title="空格也可推进"
-            aria-keyshortcuts="Space"
-          >
-            {advancing ? '推进中' : '下一个事件（空格键）'}
-          </Button>
+          {completed && typeof onViewReport === 'function' ? (
+            <Button
+              className="decision-advance-btn"
+              variant="contained"
+              onClick={onViewReport}
+            >
+              查看报告
+            </Button>
+          ) : (
+            <Button
+              className="decision-advance-btn"
+              variant="contained"
+              disabled={completed || advancing}
+              startIcon={<NtqIcon name="play" size={16} />}
+              onClick={requestAdvance}
+              title="空格也可推进"
+              aria-keyshortcuts="Space"
+            >
+              {advancing ? '推进中' : '下一个事件（空格键）'}
+            </Button>
+          )}
           <Button
             variant="outlined"
             className="decision-calendar-toggle"
@@ -1497,7 +1545,7 @@ export function DecisionPlaySession({
         } : undefined}
       />
 
-      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={confirmOpen} onClose={cancelConfirm} maxWidth="sm" fullWidth>
         <DialogTitle>确认当天选择</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
@@ -1521,13 +1569,30 @@ export function DecisionPlaySession({
             <Typography variant="body2">当前选择：（空，本日不买）</Typography>
           )}
           <Stack direction="row" justifyContent="space-between" sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
-            <Typography fontWeight={700}>合计</Typography>
-            <Typography fontWeight={700}>{formatMoney(billTotal)} 元</Typography>
+            <Typography color="text.secondary">可用资金</Typography>
+            <Typography>{formatMoney(cashOnHand)} 元</Typography>
           </Stack>
+          <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5 }}>
+            <Typography fontWeight={700}>合计（约）</Typography>
+            <Typography fontWeight={700} color={billExceedsCash ? 'error' : 'inherit'}>
+              {formatMoney(billTotal)} 元
+            </Typography>
+          </Stack>
+          {billExceedsCash ? (
+            <Alert severity="warning" variant="outlined" sx={{ mt: 1.5 }}>
+              这几笔加起来超过可用资金。返回查看后减少买入，或卖掉持仓后再买。
+            </Alert>
+          ) : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmOpen(false)}>返回查看</Button>
-          <Button variant="contained" onClick={runAdvance} disabled={advancing}>确认推进（空格键）</Button>
+          <Button onClick={cancelConfirm}>返回查看</Button>
+          <Button
+            variant="contained"
+            onClick={runAdvance}
+            disabled={advancing || billExceedsCash}
+          >
+            确认推进（空格键）
+          </Button>
         </DialogActions>
       </Dialog>
 

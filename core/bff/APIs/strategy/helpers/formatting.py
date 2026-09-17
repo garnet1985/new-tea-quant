@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 from .execution_panel import build_execution_panel_from_result_report
 
-_STEP_KEYS = ("enum", "price_factor", "portfolio")
+_STEP_KEYS = ("enum", "price_factor", "portfolio", "decision")
 
 
 def _step_status_from_result_report(result_report: Dict[str, Any]) -> Dict[str, Any]:

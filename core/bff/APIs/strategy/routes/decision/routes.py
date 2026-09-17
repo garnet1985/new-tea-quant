@@ -180,6 +180,7 @@ def post_strategy_decision_reset(strategy_key_or_name: str, dm_id: str):
             strategy_key_or_name,
             dm_id,
             version_id=_version_id(body.get("version_id"), request.args.get("version")),
+            keep_draft=bool(body.get("keep_draft")),
         )
     except ValueError as exc:
         return _decision_error(exc)
@@ -259,6 +260,26 @@ def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
             target=target,
             n=n,
             columns=columns,
+            version_id=_version_id(request.args.get("version")),
+        )
+    except ValueError as exc:
+        return _decision_error(exc)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
+    return ok(msg)
+
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/decision/sessions/<dm_id>/report",
+    methods=["GET"],
+)
+def get_strategy_decision_report(strategy_key_or_name: str, dm_id: str):
+    """GET …/report — 终局资金报告（与投资模拟同结构）。"""
+    decision = decision_impl.lazy_load()
+    try:
+        msg = decision.get_report(
+            strategy_key_or_name,
+            dm_id,
             version_id=_version_id(request.args.get("version")),
         )
     except ValueError as exc:

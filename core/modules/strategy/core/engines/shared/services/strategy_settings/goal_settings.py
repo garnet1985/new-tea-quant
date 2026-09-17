@@ -19,7 +19,7 @@ class GoalStage:
     """单段止盈/止损。
 
     - 固定比例：``ratio`` 有值，``custom`` 为空
-    - 自定义触发：``custom`` 非空，``ratio`` 为 None（由 hooks 判定）
+    - 自定义触发：``custom`` 非空，``ratio`` 为 None（由 hooks 判定）；须写 ``description``
     """
 
     ratio: Optional[float]
@@ -28,6 +28,7 @@ class GoalStage:
     exit_ratio: float  # 0~1；相对**初始总仓位**的绝对份额；0=不操作仓位；close_invest=True 时为 1.0
     actions: Tuple[str, ...] = ()
     custom: Optional[str] = None
+    description: str = ""  # 给人看的说明；custom 段必填，显示在策略顶栏
     stage_id: str = ""
 
 
@@ -234,6 +235,10 @@ class GoalSettings(SettingsBase):
         if not custom and not has_ratio:
             raise ValueError(f"{field_path} 须指定 ratio 或 custom")
 
+        description = str(item.get("description") or "").strip()
+        if custom and not description:
+            raise ValueError(f"{field_path} 自定义目标须写 description")
+
         ratio: Optional[float] = float(item["ratio"]) if has_ratio else None
 
         # settings 不写 name；ratio 段按比例推断；custom 段默认用 custom 名。
@@ -275,6 +280,7 @@ class GoalSettings(SettingsBase):
             exit_ratio=exit_ratio,
             actions=actions,
             custom=custom,
+            description=description,
             stage_id=stage_id,
         )
 

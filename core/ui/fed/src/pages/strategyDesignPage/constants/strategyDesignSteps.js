@@ -36,19 +36,19 @@ export const STRATEGY_DESIGN_STEPS = [
 export const STRATEGY_DESIGN_STEP_INTRO = {
   enum: {
     title: '枚举机会',
-    summary: '测试股票池中发现交易机会的能力',
+    summary: '测试股票池中发现交易机会的数量与分布',
   },
   price: {
     title: '价格回测',
-    summary: '单股模拟，初步验证策略盈利表现',
+    summary: '模拟股票样本中单只股票对当前策略的普遍表现',
   },
   portfolio: {
     title: '投资模拟',
-    summary: '给定资金下的组合交易与收益评估',
+    summary: '探索资金管理策略在实盘中的表现',
   },
   decision: {
     title: '决策模拟',
-    summary: '在已完成的枚举与投资模拟上，按事件日自己选股下单',
+    summary: '模拟当前策略下的实盘做决策过程',
   },
 };
 

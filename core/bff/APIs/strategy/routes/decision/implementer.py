@@ -136,13 +136,14 @@ class StrategyDecisionImplementer:
         session_id: str,
         *,
         version_id: Optional[str] = None,
+        keep_draft: bool = False,
     ) -> Dict[str, Any]:
         engine = self._open(
             strategy_key_or_name,
             version_id=version_id,
             session_id=str(session_id or "").strip(),
         )
-        engine.reset()
+        engine.reset(keep_draft=bool(keep_draft))
         return session_snapshot(engine)
 
     def next(
@@ -199,6 +200,47 @@ class StrategyDecisionImplementer:
             if keep:
                 tokens.append(",".join(keep))
         return info_message(engine.info(tokens))
+
+    def get_report(
+        self,
+        strategy_key_or_name: str,
+        session_id: str,
+        *,
+        version_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """走完后的终局报告，形状与 portfolio ``capitalMetrics`` 相同。"""
+        from pathlib import Path
+
+        from core.bff.APIs.strategy.helpers.portfolio_event_timeline import (
+            attach_portfolio_event_timeline,
+        )
+        from core.modules.strategy.core.engines.portfolio.report_manager.overall_report import (
+            OverallReport,
+        )
+        from core.modules.strategy.core.services.artifacts.consts import (
+            OVERALL_REPORT_FILE,
+        )
+
+        dm_id = str(session_id or "").strip()
+        if not dm_id:
+            raise ValueError("请指定 session")
+        engine = self._open(
+            strategy_key_or_name,
+            version_id=version_id,
+            session_id=dm_id,
+        )
+        if not engine.is_completed:
+            raise ValueError("本局尚未走完，没有终局报告")
+        session_dir = Path(engine.store.session_dir(engine.dm_id))
+        if not (session_dir / OVERALL_REPORT_FILE).is_file():
+            engine.finalize()
+        slot = OverallReport.load(session_dir).to_ui_dict()
+        slot = attach_portfolio_event_timeline(slot, [session_dir])
+        return {
+            "dm_id": str(engine.dm_id or ""),
+            "version_id": str(engine.version_id or ""),
+            "report": slot if isinstance(slot, dict) else {},
+        }
 
 
 impl = StrategyDecisionImplementer()

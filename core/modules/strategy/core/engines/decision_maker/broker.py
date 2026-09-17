@@ -60,6 +60,7 @@ class DecisionBroker:
         *,
         extra_slots: int = 1,
         draft_entities: Optional[Set[str]] = None,
+        reserved_cash: float = 0.0,
     ) -> Tuple[Optional[BuyPreview], Optional[BrokerError]]:
         err = self._reject_buy(
             event,
@@ -78,8 +79,12 @@ class DecisionBroker:
         notional = float(n) * price
         fees = self.fee_calculator.calculate_fees(notional, "buy")
         total = notional + fees
-        if total > float(account.cash):
-            return None, BrokerError("现金不足（含费用）")
+        available = float(account.cash) - max(float(reserved_cash or 0.0), 0.0)
+        if total > available:
+            return None, BrokerError(
+                f"现金不足（含费用），可用 {max(available, 0.0):.2f} 元，"
+                f"本笔需要 {total:.2f} 元"
+            )
         return (
             BuyPreview(
                 shares=n,

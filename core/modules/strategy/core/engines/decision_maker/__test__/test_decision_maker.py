@@ -11,6 +11,7 @@ from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.decision_maker.broker import DecisionBroker
 from core.modules.strategy.core.engines.decision_maker.engine import (
     PHASE_CONFIRMING,
+    PHASE_PICKING,
     AmbiguousSessionsError,
     DecisionEngine,
     DecisionError,
@@ -18,6 +19,7 @@ from core.modules.strategy.core.engines.decision_maker.engine import (
 from core.modules.strategy.core.engines.decision_maker.info import parse_info_args
 from core.modules.strategy.core.engines.decision_maker.repl import DecisionRepl
 from core.modules.strategy.core.engines.decision_maker.store import (
+    STATUS_COMPLETED,
     STATUS_IN_PROGRESS,
     DecisionStore,
 )
@@ -48,10 +50,15 @@ pytestmark = pytest.mark.force_run
 _NAMES = {"600000.SH": "浦发银行", "000001.SZ": "平安银行"}
 
 
-def _settings(expiration=None, take_profit=None, **allocation) -> StrategySettings:
+def _settings(
+    expiration=None,
+    take_profit=None,
+    initial_capital=1_000_000,
+    **allocation,
+) -> StrategySettings:
     raw = {
         "portfolio": {
-            "initial_capital": 1_000_000,
+            "initial_capital": initial_capital,
             "allocation": {
                 "mode": "equal_capital",
                 "max_portfolio_size": 10,
@@ -154,9 +161,15 @@ def _engine(
     load_bars=None,
     load_close=None,
     take_profit=None,
+    initial_capital=1_000_000,
     **alloc,
 ):
-    settings = _settings(expiration=expiration, take_profit=take_profit, **alloc)
+    settings = _settings(
+        expiration=expiration,
+        take_profit=take_profit,
+        initial_capital=initial_capital,
+        **alloc,
+    )
     allocation = _allocation(**alloc)
     timeline = DecisionTimeline.from_events(
         events,
@@ -353,8 +366,13 @@ def test_pick_done_reset_and_lot_error(tmp_path: Path):
     bill = engine.done()
     assert bill[0][1] == 200
     assert engine.phase == PHASE_CONFIRMING
-    with pytest.raises(DecisionError, match="next"):
-        engine.set_pick(1, 300)
+    engine.set_pick(1, 300)
+    assert engine.phase == PHASE_PICKING
+    assert engine.draft[1] == 300
+    engine.done()
+    engine.reset(keep_draft=True)
+    assert engine.phase == PHASE_PICKING
+    assert engine.draft[1] == 300
     engine.reset()
     assert engine.draft == {}
     assert engine.current_date == "20240103"
@@ -564,6 +582,36 @@ def test_cash_rejected_at_pick(tmp_path: Path):
         engine.set_pick(1, 100)
 
 
+def test_draft_reserves_cash_across_picks(tmp_path: Path):
+    engine = _engine(
+        tmp_path,
+        [
+            _buy("20240103", "600000.SH", "a", 10.0),
+            _buy("20240103", "000001.SZ", "b", 10.0),
+        ],
+        initial_capital=5_000,
+    )
+    engine.set_pick(1, 400)
+    with pytest.raises(DecisionError, match="现金不足"):
+        engine.set_pick(2, 200)
+
+
+def test_next_cash_failure_returns_to_picking(tmp_path: Path):
+    engine = _engine(
+        tmp_path,
+        [_buy("20240103", "600000.SH", "a", 10.0)],
+        initial_capital=5_000,
+    )
+    engine.set_pick(1, 400)
+    engine.done()
+    engine.account.cash = 50
+    with pytest.raises(DecisionError, match="现金不足"):
+        engine.next()
+    assert engine.phase == PHASE_PICKING
+    assert engine.draft[1] == 400
+    assert engine.account.cash == pytest.approx(50)
+
+
 def test_complete_writes_report_without_overwriting_id(tmp_path: Path):
     engine = _engine(
         tmp_path,
@@ -599,6 +647,20 @@ def test_attach_ambiguous_unfinished(tmp_path: Path):
         DecisionEngine._pick_session(store, session_id=None, new_session=False)
     assert DecisionEngine._pick_session(store, session_id=None, new_session=True) == "3"
     assert DecisionEngine._pick_session(store, session_id="1", new_session=False) == "1"
+
+
+def test_store_remembers_last_session(tmp_path: Path):
+    store = DecisionStore.at(tmp_path / "3")
+    first = store.allocate_id()
+    second = store.allocate_id()
+    store.save_session(first, {"status": STATUS_IN_PROGRESS, "current_date": "20240103"})
+    store.save_session(second, {"status": STATUS_COMPLETED, "current_date": "20240110"})
+    assert store.last_session_id() == second
+    store.mark_last(first)
+    assert store.last_session_id() == first
+    store.delete(first)
+    assert store.last_session_id() == second
+    assert store.get_index(first) is None
 
 
 def test_same_entity_one_opportunity_per_day(tmp_path: Path):

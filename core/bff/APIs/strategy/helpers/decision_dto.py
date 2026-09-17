@@ -331,6 +331,8 @@ def session_list_message(payload: Dict[str, Any]) -> Dict[str, Any]:
         "version_id": str(body.get("version_id") or ""),
         "strategy_key": str(body.get("strategy_key") or ""),
         "has_portfolio": bool(body.get("has_portfolio")),
+        "last_session_id": str(body.get("last_session_id") or ""),
+        "has_completed": bool(body.get("has_completed")),
         "sessions": [session_index_row(row) for row in (body.get("sessions") or [])],
     }
 

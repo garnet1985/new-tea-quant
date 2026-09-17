@@ -26,6 +26,10 @@ changelog:
       - 决策者现场增加 `calendar`：截止当天的发现机会与买入 / 卖出流水
       - 决策者 holdings 增加 `roi` / `market_value`（hfq 同股市值，不再用打印价差当收益）
       - 决策者 holdings 目标带 `done`；出场 `goal_names` 为该次卖掉的那一档
+      - 决策会话列表带 `last_session_id`（上次打开的局）
+      - 决策会话列表带 `has_completed`；工作台 `step_status.decision` 认本 version 是否已有走完的局
+      - 决策者 D1-11：`GET …/decision/sessions/<dm_id>/report` 终局报告
+      - 决策者 reset 支持 `keep_draft`：返回查看不丢已选股数
   - version: "0.2.0"
     changes:
       - 从 core/ui 独立为顶层模块；取消 modules 内 launcher，BFF 专有逻辑收口到本目录

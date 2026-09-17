@@ -296,8 +296,8 @@ class WorkbenchSnapshots:
         simulations_root: Path,
         version_id: str,
     ) -> Dict[str, Any]:
-        """步进完成态只认 registry / ``runtime_env.json``，不依赖报告 hydrate。"""
-        return {
+        """步进完成态：三步认 registry；决策模拟认本 version 是否已有走完的局。"""
+        status = {
             slot_key: {
                 "done": VersionMetaStore.step_status(
                     simulations_root, version_id, kind
@@ -306,6 +306,28 @@ class WorkbenchSnapshots:
             }
             for kind, slot_key in _STEP_SLOTS
         }
+        status["decision"] = {
+            "done": cls._decision_step_done(simulations_root, version_id),
+        }
+        return status
+
+    @classmethod
+    def _decision_step_done(
+        cls,
+        simulations_root: Path,
+        version_id: str,
+    ) -> bool:
+        """当前仿真 version 至少有一局决策模拟走完。"""
+        from core.modules.strategy.core.engines.decision_maker.store import (
+            STATUS_COMPLETED,
+            DecisionStore,
+        )
+
+        store = DecisionStore.at(Path(simulations_root) / str(version_id))
+        return any(
+            str(row.get("status") or "") == STATUS_COMPLETED
+            for row in store.list_index()
+        )
 
     @classmethod
     def _result_report_from_disk(

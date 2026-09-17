@@ -124,6 +124,21 @@
   grid-area: exec;
 }
 
+.ntq-design-decision-step.is-report .decision-right {
+  display: none;
+}
+
+.ntq-design-decision-step__report {
+  grid-area: board;
+  min-width: 0;
+}
+
+.ntq-design-decision-step__actions {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ntq-design-decision-step__clock {
   min-width: 0;
 }

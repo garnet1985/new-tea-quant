@@ -1188,7 +1188,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1218,7 +1218,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1246,7 +1246,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1271,7 +1271,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1300,7 +1300,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
                 "take_profit": {
                     "stages": [
                         {"ratio": 0.2, "exit_ratio": 0.5},
-                        {"custom": "bb_upper", "close_invest": True},
+                        {"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"},
                     ]
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
@@ -1333,8 +1333,8 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             goal={
                 "take_profit": {
                     "stages": [
-                        {"custom": "first", "exit_ratio": 0.5},
-                        {"custom": "second", "close_invest": True},
+                        {"custom": "first", "exit_ratio": 0.5, "description": "第一段自定义止盈"},
+                        {"custom": "second", "close_invest": True, "description": "第二段自定义止盈"},
                     ]
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},

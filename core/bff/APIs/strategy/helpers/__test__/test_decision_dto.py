@@ -303,7 +303,22 @@ def test_session_list_and_holdings_and_info():
         }
     )
     assert listed["has_portfolio"] is True
+    assert listed["last_session_id"] == ""
+    assert listed["has_completed"] is False
     assert listed["sessions"][0]["dm_id"] == "1"
+
+    listed_last = session_list_message(
+        {
+            "version_id": "3",
+            "strategy_key": "rsi_v1",
+            "has_portfolio": True,
+            "last_session_id": "2",
+            "has_completed": True,
+            "sessions": [],
+        }
+    )
+    assert listed_last["last_session_id"] == "2"
+    assert listed_last["has_completed"] is True
 
     engine = SimpleNamespace(dm_id="1", current_date="20250407")
     row = SimpleNamespace(

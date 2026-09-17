@@ -187,6 +187,7 @@ class DecisionEngine:
             load_bars=load_bars,
             load_close=load_close,
         )
+        store.mark_last(dm_id)
         if store.exists(dm_id):
             engine._restore(store.load_session(dm_id))
             return engine
@@ -217,6 +218,11 @@ class DecisionEngine:
             "version_id": bundle["version_id"],
             "strategy_key": bundle["strategy_key"],
             "sessions": store.list_index(),
+            "last_session_id": store.last_session_id(),
+            "has_completed": any(
+                str(row.get("status") or "") == STATUS_COMPLETED
+                for row in store.list_index()
+            ),
             "has_portfolio": (Path(bundle["version_dir"]) / "portfolio").is_dir(),
         }
 
@@ -260,6 +266,7 @@ class DecisionEngine:
             fee_calculator=fees,
             **kwargs,
         )
+        store.mark_last(dm_id)
         if store.exists(dm_id):
             engine._restore(store.load_session(dm_id))
             return engine
@@ -552,7 +559,7 @@ class DecisionEngine:
         if self.is_completed:
             raise DecisionError("本局已结束，只能查看报告")
         if self.phase == PHASE_CONFIRMING:
-            raise DecisionError("请输入 next 继续推进，或 reset 重新下单")
+            self.phase = PHASE_PICKING
         opp = self.opportunity_by_local(int(local_id))
         if opp is None:
             raise DecisionError(f"没有编号 [{local_id}]")
@@ -576,6 +583,7 @@ class DecisionEngine:
             self.open_lots,
             extra_slots=extra + len(other_entities),
             draft_entities=other_entities,
+            reserved_cash=self._reserved_draft_cash(exclude_local_id=int(local_id)),
         )
         if err is not None or preview is None:
             raise DecisionError(err.message if err else "无法买入")
@@ -591,7 +599,7 @@ class DecisionEngine:
         if self.is_completed:
             raise DecisionError("本局已结束，只能查看报告")
         if self.phase == PHASE_CONFIRMING:
-            raise DecisionError("请输入 next 继续推进，或 reset 重新下单")
+            self.phase = PHASE_PICKING
         try:
             budget = float(cash)
         except (TypeError, ValueError):
@@ -629,6 +637,7 @@ class DecisionEngine:
     def done(self) -> List[Tuple[DayOpportunity, int, float]]:
         if self.is_completed:
             raise DecisionError("本局已结束，只能查看报告")
+        self._assert_draft_affordable()
         bill: List[Tuple[DayOpportunity, int, float]] = []
         for lid in sorted(self.draft):
             opp = self.opportunity_by_local(int(lid))
@@ -640,10 +649,11 @@ class DecisionEngine:
         self.save()
         return bill
 
-    def reset(self) -> None:
+    def reset(self, *, keep_draft: bool = False) -> None:
         if self.is_completed:
             raise DecisionError("本局已结束，只能查看报告")
-        self.draft = {}
+        if not keep_draft:
+            self.draft = {}
         self.phase = PHASE_PICKING
         self.save()
 
@@ -653,7 +663,12 @@ class DecisionEngine:
         if self.phase != PHASE_CONFIRMING:
             raise DecisionError("请先输入 done 确认选择")
         had_buys = bool(self.draft)
-        logs = self._commit_draft()
+        try:
+            logs = self._commit_draft()
+        except DecisionError:
+            self.phase = PHASE_PICKING
+            self.save()
+            raise
         self.draft = {}
         more = self._walk_to_next_decision(
             after_date=self.current_date,
@@ -781,6 +796,44 @@ class DecisionEngine:
             ):
                 return event
         raise DecisionError("当日机会已失效")
+
+    def _reserved_draft_cash(self, *, exclude_local_id: Optional[int] = None) -> float:
+        """当天其他草稿已经占用的现金（含费用）。"""
+        before = float(self.account.cash)
+        account = deepcopy(self.account)
+        lots = deepcopy(self.open_lots)
+        for lid, shares in sorted(self.draft.items()):
+            if exclude_local_id is not None and int(lid) == int(exclude_local_id):
+                continue
+            opp = self.opportunity_by_local(int(lid))
+            if opp is None:
+                continue
+            trade, err = self.broker.apply_buy(
+                self._buy_event(opp),
+                int(shares),
+                account,
+                lots,
+            )
+            if err is not None or trade is None:
+                continue
+        return max(before - float(account.cash), 0.0)
+
+    def _assert_draft_affordable(self) -> None:
+        """整单预演：多笔加起来也必须买得起，失败不改账户。"""
+        account = deepcopy(self.account)
+        lots = deepcopy(self.open_lots)
+        for lid, shares in sorted(self.draft.items()):
+            opp = self.opportunity_by_local(int(lid))
+            if opp is None:
+                raise DecisionError(f"没有编号 [{lid}]")
+            trade, err = self.broker.apply_buy(
+                self._buy_event(opp),
+                int(shares),
+                account,
+                lots,
+            )
+            if err is not None or trade is None:
+                raise DecisionError(err.message if err else "无法买入")
 
     def _commit_draft(self) -> List[ExitNotice]:
         """提交当天买单；失败则整单回滚。"""

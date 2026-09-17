@@ -1,7 +1,7 @@
 import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
 import logClientError from '../../utils/logClientError';
 
-const IDLE_STEP_STATUS = { enum: 'idle', price: 'idle', portfolio: 'idle' };
+const IDLE_STEP_STATUS = { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' };
 
 /** sessionStorage key 前缀；按策略名区分，便于恢复上次调试步 */
 export const STRATEGY_DESIGN_SESSION_STORAGE_PREFIX = 'ntq-strategy-design-session';

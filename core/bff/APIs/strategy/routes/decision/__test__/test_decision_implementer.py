@@ -104,6 +104,8 @@ def test_list_sessions(mock_list, _resolve):
     mock_list.assert_called_once_with("rsi_v1", version_id="3")
     assert msg["version_id"] == "3"
     assert msg["sessions"] == []
+    assert msg["last_session_id"] == ""
+    assert msg["has_completed"] is False
 
 
 @patch(
@@ -164,3 +166,44 @@ def test_info_builds_tokens(mock_open, _resolve):
     impl = StrategyDecisionImplementer().lazy_load()
     impl.info("rsi_v1", "1", target="1", n=120, columns=["close", "rsi"])
     engine.info.assert_called_once_with(["1", "120", "close,rsi"])
+
+
+@patch(
+    "core.bff.APIs.strategy.routes.decision.implementer.Strategy.resolve",
+    return_value="rsi_v1",
+)
+@patch("core.bff.APIs.strategy.routes.decision.implementer.Strategy.decision_open")
+def test_get_report_requires_completed(mock_open, _resolve):
+    mock_open.return_value = _engine(is_completed=False)
+    impl = StrategyDecisionImplementer().lazy_load()
+    with pytest.raises(ValueError, match="尚未走完"):
+        impl.get_report("rsi_v1", "1")
+
+
+@patch(
+    "core.bff.APIs.strategy.routes.decision.implementer.Strategy.resolve",
+    return_value="rsi_v1",
+)
+@patch("core.bff.APIs.strategy.routes.decision.implementer.Strategy.decision_open")
+def test_get_report_loads_overall(mock_open, _resolve, tmp_path):
+    session_dir = tmp_path / "1"
+    session_dir.mkdir()
+    (session_dir / "overall_report.json").write_text("{}", encoding="utf-8")
+    engine = _engine(is_completed=True)
+    engine.store = SimpleNamespace(session_dir=lambda _dm_id: session_dir)
+    engine.finalize = MagicMock()
+    mock_open.return_value = engine
+    loaded = MagicMock()
+    loaded.to_ui_dict.return_value = {"capitalMetrics": {"roi": 0.12}}
+    impl = StrategyDecisionImplementer().lazy_load()
+    with patch(
+        "core.modules.strategy.core.engines.portfolio.report_manager.overall_report.OverallReport.load",
+        return_value=loaded,
+    ), patch(
+        "core.bff.APIs.strategy.helpers.portfolio_event_timeline.attach_portfolio_event_timeline",
+        side_effect=lambda slot, _dirs: slot,
+    ):
+        msg = impl.get_report("rsi_v1", "1")
+    engine.finalize.assert_not_called()
+    assert msg["dm_id"] == "1"
+    assert msg["report"]["capitalMetrics"]["roi"] == 0.12

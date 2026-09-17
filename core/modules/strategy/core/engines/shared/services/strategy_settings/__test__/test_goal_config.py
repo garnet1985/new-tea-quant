@@ -183,7 +183,7 @@ class TestGoalSettings(unittest.TestCase):
                 "goal": {
                     "take_profit": {
                         "stages": [
-                            {"custom": "bb_upper", "close_invest": True},
+                            {"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"},
                         ]
                     }
                 },
@@ -197,6 +197,22 @@ class TestGoalSettings(unittest.TestCase):
         self.assertEqual(stage.stage_id, "take_profit:0:bb_upper")
         self.assertEqual(stage.exit_ratio, 1.0)
         self.assertTrue(stage.close_invest)
+        self.assertEqual(stage.description, "上破布林上轨")
+
+    def test_rejects_custom_without_description(self) -> None:
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "take_profit": {
+                        "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    }
+                },
+            }
+        )
+        with self.assertRaises(ValueError):
+            _ = settings.goal.take_profit_stages
+        report = settings.validate()
+        self.assertFalse(report.is_valid)
 
     def test_rejects_ratio_and_custom_both(self) -> None:
         settings = StrategySettings(
@@ -218,12 +234,12 @@ class TestGoalSettings(unittest.TestCase):
             raw_settings={
                 "goal": {
                     "stop_loss": {
-                        "stages": [{"custom": "atr_stop", "close_invest": True}]
+                        "stages": [{"custom": "atr_stop", "close_invest": True, "description": "ATR 止损"}]
                     },
                     "take_profit": {
                         "stages": [
-                            {"custom": "bb_upper", "close_invest": True},
-                            {"custom": "atr_stop", "exit_ratio": 0.5},
+                            {"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"},
+                            {"custom": "atr_stop", "exit_ratio": 0.5, "description": "ATR 减仓"},
                         ]
                     },
                 },
@@ -236,7 +252,7 @@ class TestGoalSettings(unittest.TestCase):
             raw_settings={
                 "goal": {
                     "take_profit": {
-                        "stages": [{"custom": "bb_upper", "close_invest": True}],
+                        "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                     }
                 },
             }
@@ -254,6 +270,7 @@ class TestGoalSettings(unittest.TestCase):
                         "stages": [
                             {
                                 "custom": "bb_middle",
+                                "description": "日内最高价触及布林中轨",
                                 "exit_ratio": 0,
                                 "actions": ["set_protect_loss"],
                             }

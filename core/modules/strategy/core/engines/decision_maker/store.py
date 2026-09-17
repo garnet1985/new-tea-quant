@@ -1,7 +1,7 @@
 """决策者会话磁盘：``{vid}/decision/meta.json`` + ``{dm_id}/session.json``。
 
 本文件:
-- DecisionStore: 分配自增 id、列出/读写/删除会话；从不覆盖已完成局
+- DecisionStore: 分配自增 id、列出/读写/删除会话；记下 last_session_id；从不覆盖已完成局
   边界: 只管本 version 下的 decision 目录；不读 enum、不跑资金层
 """
 
@@ -46,16 +46,19 @@ class DecisionStore:
     def session_path(self, dm_id: str) -> Path:
         return self.session_dir(dm_id) / SESSION_FILE
 
+    def _empty_meta(self) -> Dict[str, Any]:
+        return {"next_session_id": 1, "sessions": {}, "last_session_id": ""}
+
     def _read_meta(self) -> Dict[str, Any]:
         path = self.meta_path()
         if not path.is_file():
-            return {"next_session_id": 1, "sessions": {}}
+            return self._empty_meta()
         try:
             raw = ArtifactIO.read_json(path)
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
-            return {"next_session_id": 1, "sessions": {}}
+            return self._empty_meta()
         if not isinstance(raw, dict):
-            return {"next_session_id": 1, "sessions": {}}
+            return self._empty_meta()
         sessions = raw.get("sessions")
         if not isinstance(sessions, dict):
             sessions = {}
@@ -63,7 +66,14 @@ class DecisionStore:
             nxt = max(int(raw.get("next_session_id") or 1), 1)
         except (TypeError, ValueError):
             nxt = 1
-        return {"next_session_id": nxt, "sessions": sessions}
+        last = str(raw.get("last_session_id") or "").strip()
+        if last and last not in sessions:
+            last = ""
+        return {
+            "next_session_id": nxt,
+            "sessions": sessions,
+            "last_session_id": last,
+        }
 
     def _write_meta(self, payload: Dict[str, Any]) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
@@ -88,6 +98,20 @@ class DecisionStore:
             for row in self.list_index()
             if str(row.get("status") or "") == STATUS_IN_PROGRESS
         ]
+
+    def last_session_id(self) -> str:
+        return str(self._read_meta().get("last_session_id") or "").strip()
+
+    def mark_last(self, dm_id: str) -> None:
+        """记下用户上次打开的局；进本 version 时默认续这里。"""
+        vid = str(dm_id or "").strip()
+        if not vid:
+            return
+        meta = self._read_meta()
+        if str(meta.get("last_session_id") or "") == vid:
+            return
+        meta["last_session_id"] = vid
+        self._write_meta(meta)
 
     def get_index(self, dm_id: str) -> Optional[Dict[str, Any]]:
         vid = str(dm_id or "").strip()
@@ -163,6 +187,7 @@ class DecisionStore:
             "updated_at": updated_at,
         }
         meta["sessions"] = sessions
+        meta["last_session_id"] = dm_id
         try:
             nxt = int(meta.get("next_session_id") or 1)
         except (TypeError, ValueError):
@@ -187,8 +212,22 @@ class DecisionStore:
         sessions = dict(meta.get("sessions") or {})
         sessions.pop(vid, None)
         meta["sessions"] = sessions
+        if str(meta.get("last_session_id") or "") == vid:
+            meta["last_session_id"] = _latest_session_id(sessions)
         self._write_meta(meta)
         return existed
+
+
+def _latest_session_id(sessions: Dict[str, Any]) -> str:
+    best_id = ""
+    best_ts = ""
+    for key, raw in (sessions or {}).items():
+        entry = raw if isinstance(raw, dict) else {}
+        stamp = str(entry.get("updated_at") or "")
+        if stamp > best_ts or (stamp == best_ts and str(key) > best_id):
+            best_ts = stamp
+            best_id = str(key)
+    return best_id
 
 
 def _id_sort_key(dm_id: str) -> tuple:

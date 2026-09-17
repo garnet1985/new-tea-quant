@@ -172,7 +172,7 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 - **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤，返回要进入单股判定的股票 id 列表，随后对这些股票调用 `has_opportunity`。
 - **`on_pick_portfolio_member(ctx)`**：处理组合容量。例如最大持股 3 只，当日却扫出 10 个机会，在这里决定选择哪 3 个机会。
 
-另外，您也可以自定义目标：在 `settings.py` 的某一段止盈 / 止损上写 `"custom": "规则名"`，再实现 **`is_take_profit`** / **`is_stop_loss`**，自行决定何时触发、触发后卖多少仓位。
+另外，您也可以自定义目标：在 `settings.py` 的某一段止盈 / 止损上写 `"custom": "规则名"` 和给人看的 `"description"`，再实现 **`is_take_profit`** / **`is_stop_loss`**，自行决定何时触发、触发后卖多少仓位。
 
 <details>
 <summary><strong>strategy.py 钩子示例（点击展开）</strong></summary>
@@ -247,11 +247,11 @@ def on_pick_portfolio_member(self, ctx: StrategyContext):
     return [opp for _, opp in ranked[:n]]
 ```
 
-自定义止盈 / 止损：在 `settings.py` 某一段上写 `"custom": "规则名"`，框架就会来问 `is_take_profit` / `is_stop_loss` 今天要不要触发。
+自定义止盈 / 止损：在 `settings.py` 某一段上写 `"custom": "规则名"` 和 `"description"`，框架就会来问 `is_take_profit` / `is_stop_loss` 今天要不要触发。
 
 ```python
-# settings.py：这一段止盈不写固定比例，交给 strategy.py 自己判断；close_invest 表示全部平仓
-"take_profit": {"stages": [{"custom": "up_20pct", "close_invest": True}]}
+# settings.py：这一段止盈不写固定比例，交给 strategy.py 自己判断；close_invest 表示全部平仓；description 会显示在策略顶栏
+"take_profit": {"stages": [{"custom": "up_20pct", "close_invest": True, "description": "相对买入价涨 20%"}]}
 
 # strategy.py
 # 举例：相对买入价涨了 20% 就止盈

@@ -42,8 +42,11 @@
 | `test_same_day_settles_exits_before_new_buys` | `test_decision_maker.py` | 同日先卖后展示新机会 |
 | `test_max_portfolio_size` | `test_decision_maker.py` | 组合上限在 pick 时拒绝 |
 | `test_cash_rejected_at_pick` | `test_decision_maker.py` | 现金不足在 pick 时拒绝 |
+| `test_draft_reserves_cash_across_picks` | `test_decision_maker.py` | 当天多笔草稿合计占用现金，后一笔超出则拒 |
+| `test_next_cash_failure_returns_to_picking` | `test_decision_maker.py` | next 现金失败后回到 picking，草稿保留 |
 | `test_complete_writes_report_without_overwriting_id` | `test_decision_maker.py` | 出场日停钟后再走完，写报告且不复用 dm_id |
 | `test_attach_ambiguous_unfinished` | `test_decision_maker.py` | 多局未完成须指定 session |
+| `test_store_remembers_last_session` | `test_decision_maker.py` | meta 记下上次打开的局；删掉后改指剩余最新 |
 | `test_same_entity_one_opportunity_per_day` | `test_decision_maker.py` | 同标的同日两笔买入只出示一条 |
 | `test_skips_buy_day_when_already_holding_same_entity` | `test_decision_maker.py` | 持仓中跳过同标的第二笔买入日，仍在出场日停钟 |
 | `test_holdings_show_declared_goals_not_future_date` | `test_decision_maker.py` | holdings 目标不含未来日 |

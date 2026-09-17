@@ -7,14 +7,10 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from core.modules.strategy.core.engines.shared.services.hfq_roi import (
-    cash_profit,
-    mark_value,
-)
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 
 
 @dataclass
@@ -44,31 +40,6 @@ class Trade:
     def is_sell(self) -> bool:
         return str(self.side or "").strip().lower() == "sell"
 
-    @staticmethod
-    def purchase_share_value(shares: int, buy_price: float) -> float:
-        """买入时股份市值（shares × buy_price，不含 fees）。"""
-        return mark_value(shares, buy_price, 0.0)
-
-    @staticmethod
-    def hfq_cash_profit(shares: int, buy_price: float, roi: float) -> float:
-        """平仓盈利 = 买入股数 × 买入 raw × hfq ROI（不含 fees）。"""
-        return cash_profit(shares, buy_price, roi)
-
-    @staticmethod
-    def equivalent_exit_value(shares: int, buy_price: float, roi: float) -> float:
-        """同股等价卖出额 = 本金 + 盈利；不是交易所 raw 打印价 × 股数。"""
-        return mark_value(shares, buy_price, roi)
-
-    @staticmethod
-    def finite_roi(roi: Any) -> float:
-        try:
-            value = float(roi or 0.0)
-        except (TypeError, ValueError):
-            return 0.0
-        if not math.isfinite(value):
-            return 0.0
-        return value
-
     @classmethod
     def make_buy(
         cls,
@@ -88,7 +59,7 @@ class Trade:
             raise ValueError("buy price (raw) 必须 > 0")
         if n <= 0:
             raise ValueError("buy shares 必须 > 0")
-        amount = cls.purchase_share_value(n, px)
+        amount = HfqRoi.mark_value(n, px, 0.0)
         fee = float(fees or 0.0)
         return cls(
             date=str(date or "").strip(),
@@ -127,9 +98,9 @@ class Trade:
             raise ValueError("sell shares 必须 > 0")
         if buy_px <= 0:
             raise ValueError("buy_price (raw) 必须 > 0")
-        roi_value = cls.finite_roi(roi)
-        profit = cls.hfq_cash_profit(n, buy_px, roi_value)
-        amount = cls.equivalent_exit_value(n, buy_px, roi_value)
+        roi_value = HfqRoi.to_finite(roi)
+        profit = HfqRoi.cash_profit(n, buy_px, roi_value)
+        amount = HfqRoi.mark_value(n, buy_px, roi_value)
         px = amount / float(n)
         fee = float(fees or 0.0)
         return cls(

@@ -6,6 +6,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
+
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport
 
@@ -347,7 +349,7 @@ class GoalSettings(SettingsBase):
                 f"custom stage {stage.stage_id!r} 无 ratio，不能计算 exit_price"
             )
         # ratio 基准随调用方；枚举止盈止损传入 hfq
-        return round(float(basis_price) * (1.0 + float(stage.ratio)), 6)
+        return HfqRoi.target_price(basis_price, stage.ratio)
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()

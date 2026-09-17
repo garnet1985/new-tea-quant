@@ -89,7 +89,7 @@ qfq(t) = raw(t) × F(段)/F(最新) + C   # 信号；C 来自腾讯锚
 - 枚举 `_apply_exit` / 比例止盈止损 / 峰谷 / `weighted_roi` 用 hfq；产物带 `*_hfq`
 - price_factor 无顺延吃枚举 `weighted_roi`；跌停顺延用 bar `hfq` 对 `entry_price_hfq` 重算；`roi × enter_hfq` 记均利（不是资金层现金）
 
-算术只许 [`hfq_roi`](../../core/engines/shared/services/hfq_roi/hfq_roi.py)：`hfq_roi` / `hfq_target_hit` / `cash_profit` / `mark_value`。枚举成交与止盈止损、price_factor 顺延、portfolio 盯市与 `Trade`、决策者 holdings 都调它。记录的百分比用 `hfq_roi`；是否触达档位用 `hfq_target_hit`（价格比较，避免 `8/10−1` 浮点漏档）。手续费另扣，不进 ROI 分母。禁止 `(qfq 收盘 − raw 买价) / raw 买价`。
+算术只许 [`HfqRoi`](../../core/engines/shared/services/hfq_roi/hfq_roi.py)：`ratio` / `is_target_hit` / `cash_profit` / `mark_value`。枚举成交与止盈止损、price_factor 顺延、portfolio 盯市与 `Trade`、决策者 holdings 都调它。记录的百分比用 `ratio`；是否触达档位用 `is_target_hit`（`ratio>0` 向上、`ratio<=0` 向下，价格比较，避免 `8/10−1` 浮点漏档）。手续费另扣，不进 ROI 分母。禁止 `(qfq 收盘 − raw 买价) / raw 买价`。
 
 ---
 

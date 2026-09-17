@@ -22,6 +22,7 @@ from core.modules.strategy.core.engines.portfolio.data_class import (
 )
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
 from core.modules.strategy.core.engines.portfolio.simulator import OpenLot
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 
 
 @dataclass(frozen=True)
@@ -170,8 +171,8 @@ class DecisionBroker:
         if shares <= 0:
             return None, "empty"
         _note_fired_goal(lot, event)
-        roi = Trade.finite_roi(event.roi)
-        proceeds = Trade.equivalent_exit_value(shares, buy_price, roi)
+        roi = HfqRoi.to_finite(event.roi)
+        proceeds = HfqRoi.mark_value(shares, buy_price, roi)
         fees = self.fee_calculator.calculate_fees(proceeds, "sell")
         trade = Trade.make_sell(
             date=event.date,

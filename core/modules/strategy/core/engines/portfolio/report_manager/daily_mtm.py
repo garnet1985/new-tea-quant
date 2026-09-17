@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.portfolio.simulator import PortfolioSimResult
-from core.modules.strategy.core.engines.shared.services.hfq_roi import hfq_roi, mark_value
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +229,7 @@ def _mark_value(lot: _OpenLot, hfq_close: Optional[float]) -> float:
     if entry_hfq <= 0:
         lot.entry_hfq = px
         entry_hfq = px
-    return mark_value(shares, entry_raw, hfq_roi(entry_hfq, px))
+    return HfqRoi.mark_value(shares, entry_raw, HfqRoi.ratio(entry_hfq, px))
 
 
 def _hold_windows(

@@ -22,6 +22,7 @@ from core.modules.strategy.core.engines.portfolio.data_class import (
     Trade,
 )
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 
 
 @dataclass
@@ -251,8 +252,8 @@ class PortfolioSimulator:
             result.skipped_sells += 1
             return
 
-        roi = Trade.finite_roi(event.roi)
-        proceeds = Trade.equivalent_exit_value(shares, buy_price, roi)
+        roi = HfqRoi.to_finite(event.roi)
+        proceeds = HfqRoi.mark_value(shares, buy_price, roi)
         fees = self.fee_calculator.calculate_fees(proceeds, "sell")
         trade = Trade.make_sell(
             date=event.date,

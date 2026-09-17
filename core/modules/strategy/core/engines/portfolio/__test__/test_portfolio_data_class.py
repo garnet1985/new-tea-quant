@@ -197,10 +197,19 @@ def test_trade_make_sell_rejects_non_positive_buy_price():
         )
 
 
-def test_trade_hfq_cash_profit_ignores_fees():
-    assert Trade.hfq_cash_profit(100, buy_price=20.0, roi=0.1) == 200.0
-    assert Trade.equivalent_exit_value(100, buy_price=20.0, roi=0.1) == 2200.0
-    assert Trade.purchase_share_value(100, 20.0) == 2000.0
+def test_trade_make_sell_profit_excludes_fees():
+    sell = Trade.make_sell(
+        date="20240110",
+        entity_id="600000.SH",
+        investment_id="1",
+        shares=100,
+        buy_price=20.0,
+        roi=0.1,
+        fees=5.0,
+    )
+    assert sell.profit == pytest.approx(200.0)
+    assert sell.amount == pytest.approx(2200.0)
+    assert sell.net_proceeds == pytest.approx(2195.0)
 
 
 def test_trade_make_sell_split_zero_roi_returns_principal():

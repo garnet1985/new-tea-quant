@@ -67,11 +67,7 @@ from core.modules.strategy.core.engines.shared.enum_result_contract.enum_result 
 from core.modules.strategy.core.engines.shared.enum_result_contract.enum_results_manager import (
     EnumResultsManager,
 )
-from core.modules.strategy.core.engines.shared.services.hfq_roi import (
-    cash_profit,
-    hfq_roi,
-    mark_value,
-)
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import (
     SafeBarValue,
 )
@@ -976,10 +972,14 @@ class DecisionEngine:
         entry_hfq = float(lot.entry_price_hfq or 0.0)
         if hfq_close is None or hfq_close <= 0 or entry_hfq <= 0:
             return None, None, None
-        roi = hfq_roi(entry_hfq, hfq_close)
+        roi = HfqRoi.ratio(entry_hfq, hfq_close)
         shares = float(lot.shares)
         entry_raw = float(lot.buy_price)
-        return roi, cash_profit(shares, entry_raw, roi), mark_value(shares, entry_raw, roi)
+        return (
+            roi,
+            HfqRoi.cash_profit(shares, entry_raw, roi),
+            HfqRoi.mark_value(shares, entry_raw, roi),
+        )
 
     def _bar_on(self, entity_id: str, date: str) -> Optional[Dict[str, Any]]:
         try:

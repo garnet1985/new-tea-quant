@@ -2,6 +2,7 @@ import React from 'react';
 import { Box } from '@mui/material';
 import { Outlet } from 'react-router-dom';
 import AppNavigation from 'components/appNavigation';
+import AssistantChatDock from 'components/assistantChatDock/assistantChatDock';
 import PageBackground from 'components/pageBackground/pageBackground';
 import './mainLayout.scss';
 
@@ -27,6 +28,7 @@ function MainLayout() {
           <Outlet />
         </Box>
       </Box>
+      <AssistantChatDock />
     </Box>
   );
 }

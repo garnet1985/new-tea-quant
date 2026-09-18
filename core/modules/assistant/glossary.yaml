@@ -1,0 +1,55 @@
+# glossary — modules.assistant
+# Version: 0.1.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Assistant。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.assistant_manager"
+      - "deep-import core.provider_catalog"
+      - "deep-import core.openai_compatible_client"
+
+  Assistant:
+    definition: "本模块门面类；公开静态方法 list_providers / get_provider / set_api_key / chat。"
+    aliases: []
+    avoid:
+      - "AI"
+      - "ChatBot"
+      - "把 AssistantManager 当公开入口"
+
+  AssistantManager:
+    definition: "内部编排层：协调供应商发现与调用。不对外导出。"
+    aliases:
+      - "管理器"
+    avoid:
+      - "从包根 import AssistantManager"
+
+  AssistantError:
+    definition: "配置缺失或供应商调用失败。消息中不得包含 api_key。"
+    aliases: []
+    avoid:
+      - "把 HTTP 原始 Authorization 头写进异常"
+
+  Provider:
+    definition: "一个 userspace 供应商目录；系统名 = 相对 userspace/extensions/assistant/providers 的文件夹名。"
+    aliases:
+      - "供应商"
+    avoid:
+      - "model 目录"
+      - "userspace/ai/"
+
+  ProviderInfo:
+    definition: "发现结果快照：provider_id、目录、base_url、model、enabled、是否已配置密钥。不含 api_key 明文。"
+    aliases: []
+    avoid:
+      - "把 api_key 放进返回值"
+
+  api_key.txt:
+    definition: "供应商目录内的密钥文件；打包 userspace 时会剥离，只保留 api_key.txt.example。"
+    aliases:
+      - "API Key"
+    avoid:
+      - "写进 config.py"
+      - "提交到 git"

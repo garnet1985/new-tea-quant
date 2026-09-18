@@ -44,6 +44,8 @@
 | `test_chat_rejects_missing_key` | 待补 | 无密钥时失败 |
 | `test_chat_rejects_unknown_provider` | 待补 | 未知 id 失败 |
 | `test_chat_sends_history_and_system` | 待补 | messages 含系统提示 + 合法 history + 本轮 user |
+| `test_context_discovers_kind_folders` | 待补 | 扫描 global / wiki / know_how 的 md |
+| `test_context_pick_parses_json_ids` | 待补 | 模型输出 JSON 数组映射到合法 doc_id |
 
 ## Scenario：protocol（待补 UT）
 

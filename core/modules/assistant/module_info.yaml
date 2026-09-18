@@ -14,3 +14,4 @@ changelog:
       - 新增 Assistant.chat：用已配置供应商发送一轮非流式对话
       - 密钥只在 Manager 内部读取，不进入 ProviderInfo
       - chat 支持可选 history；请求内置 NTQ 系统提示
+      - chat 注入 context/global、wiki、know_how；文档多时由模型挑选

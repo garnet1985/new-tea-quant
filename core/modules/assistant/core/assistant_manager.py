@@ -1,10 +1,20 @@
-"""助理内部管理器：协调供应商发现与调用。"""
+"""助理内部管理器：协调供应商发现、百科挑选与调用。"""
 
 from __future__ import annotations
 
 from typing import Dict, List, Mapping, Optional, Sequence
 
 from core.modules.assistant.contracts import AssistantError, ProviderInfo
+from core.modules.assistant.core.context_library import (
+    ContextDoc,
+    catalog_text,
+    docs_of_kind,
+    list_context_docs,
+    parse_picked_ids,
+    pick_optional_docs,
+    render_knowledge,
+    should_ask_model_to_pick,
+)
 from core.modules.assistant.core.openai_compatible_client import OpenAICompatibleClient
 from core.modules.assistant.core.provider_catalog import ProviderCatalog
 
@@ -13,7 +23,13 @@ _ALLOWED_ROLES = frozenset({"user", "assistant"})
 _SYSTEM_PROMPT = (
     "你是 New Tea Quant（NTQ）内置助理。"
     "帮助用户理解 NTQ 术语与原则、撰写与修改策略、解读回测或选股报告，并回答金融相关问题。"
-    "回答简洁、准确；不确定时说明不确定。"
+    "回答简洁、准确，使用 Markdown。"
+    "优先依据下方说明书。说明书没有的不要编造，并说明不确定。"
+)
+_SELECT_PROMPT = (
+    "你是 NTQ 文档调度。根据用户问题，从目录中选出最多 3 个最相关的文档 id。"
+    "只输出 JSON 字符串数组，例如 [\"know_how/config_strategy_settings\"]。"
+    "没有相关文档就输出 []。不要解释。\n\n目录：\n"
 )
 
 
@@ -61,8 +77,17 @@ class AssistantManager:
         api_key = self._catalog.load_api_key(provider.directory)
         if not api_key:
             raise AssistantError(f"供应商未配置密钥：{provider.provider_id}")
+        knowledge = self._knowledge_for_question(
+            text,
+            base_url=provider.base_url,
+            api_key=api_key,
+            model=provider.model,
+        )
+        system = _SYSTEM_PROMPT
+        if knowledge:
+            system = _SYSTEM_PROMPT + "\n\n# NTQ 说明书\n\n" + knowledge
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             *_normalize_history(history),
             {"role": "user", "content": text},
         ]
@@ -72,6 +97,58 @@ class AssistantManager:
             model=provider.model,
             messages=messages,
         )
+
+    def _knowledge_for_question(
+        self,
+        question: str,
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+    ) -> str:
+        docs = list_context_docs()
+        global_docs = docs_of_kind(docs, "global")
+        optional = [item for item in docs if item.kind != "global"]
+        picked_ids: Optional[List[str]] = None
+        if should_ask_model_to_pick(optional):
+            picked_ids = self._pick_doc_ids(
+                question,
+                optional,
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+            )
+        selected = pick_optional_docs(question, optional, picked_ids=picked_ids)
+        bundle: List[ContextDoc] = [*global_docs, *selected]
+        return render_knowledge(bundle)
+
+    def _pick_doc_ids(
+        self,
+        question: str,
+        optional: Sequence[ContextDoc],
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+    ) -> List[str]:
+        catalog = catalog_text(optional)
+        if not catalog:
+            return []
+        try:
+            raw = self._client.complete(
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                messages=[
+                    {"role": "system", "content": _SELECT_PROMPT + catalog},
+                    {"role": "user", "content": question},
+                ],
+                max_tokens=256,
+                temperature=0.0,
+            )
+        except AssistantError:
+            return []
+        return parse_picked_ids(raw, {item.doc_id for item in optional})
 
     def _resolve_provider(self, provider_id: Optional[str]) -> ProviderInfo:
         if provider_id:

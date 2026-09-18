@@ -64,7 +64,7 @@ zhipu = Assistant.get_provider("zhipu")
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 发送一句用户消息；未指定 `provider_id` 时使用第一个 `enabled` 且已配置密钥的供应商。请求会附带一段 NTQ 系统提示；`history` 只传此前的 user/assistant 轮次（最多 16 条），不落盘
+- **描述：** 发送一句用户消息；未指定 `provider_id` 时使用第一个 `enabled` 且已配置密钥的供应商。请求会附带 NTQ 系统提示，并注入 `context/global` 以及从 `wiki` / `know_how` 挑出的 markdown
 - **参数：**
 
 | 名字 | 类型 | 说明 |

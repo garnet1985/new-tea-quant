@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IconButton } from '@mui/material';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import LoadingBars from 'components/loadingBars/loadingBars';
+import AssistantMarkdown from './assistantMarkdown';
 import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
 import { isHttpStatusError } from 'services/request';
 import './assistantChatDock.scss';
@@ -88,6 +89,12 @@ function AssistantChatDock() {
     };
   }, [open]);
 
+  const resizeDraft = useCallback((el) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, []);
+
   const send = useCallback(async () => {
     const content = draft.trim();
     if (!content || sending) return;
@@ -95,6 +102,9 @@ function AssistantChatDock() {
     const userId = nextId(idRef);
     const pendingId = nextId(idRef);
     setDraft('');
+    if (inputRef.current) {
+      inputRef.current.style.height = '';
+    }
     setSending(true);
     setMessages((prev) => [
       ...prev,
@@ -120,7 +130,9 @@ function AssistantChatDock() {
   }, [draft, messages, sending]);
 
   const onDraftKeyDown = (event) => {
-    if (event.key !== 'Enter' || event.shiftKey) return;
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (event.key !== 'Enter') return;
+    if (!(event.metaKey || event.ctrlKey)) return;
     event.preventDefault();
     send();
   };
@@ -131,7 +143,7 @@ function AssistantChatDock() {
         <IconButton
           className={['ntq-assistant-dock__fab', open ? 'is-open' : ''].filter(Boolean).join(' ')}
           onClick={toggleOpen}
-          aria-label={open ? '关闭助理' : '打开助理'}
+          aria-label={open ? '关闭新茶' : '打开新茶'}
           aria-expanded={open}
           aria-controls="ntq-assistant-dialog"
           disableRipple
@@ -139,7 +151,15 @@ function AssistantChatDock() {
           <span className="ntq-assistant-dock__fab-glow" aria-hidden />
           <span className="ntq-assistant-dock__fab-ring" aria-hidden />
           <span className="ntq-assistant-dock__fab-icon">
-            <NtqIcon name={open ? 'cancel' : 'chat'} size={22} />
+            {open ? (
+              <NtqIcon name="cancel" size={22} />
+            ) : (
+              <span className="ntq-assistant-dock__fab-ai-wrap" aria-hidden>
+                <span className="ntq-assistant-dock__fab-spark ntq-assistant-dock__fab-spark--a" />
+                <span className="ntq-assistant-dock__fab-spark ntq-assistant-dock__fab-spark--b" />
+                <span className="ntq-assistant-dock__fab-ai">AI</span>
+              </span>
+            )}
           </span>
         </IconButton>
       </div>
@@ -150,17 +170,24 @@ function AssistantChatDock() {
           className="ntq-assistant-dock__panel"
           role="dialog"
           aria-modal="false"
-          aria-label="NTQ 助理"
+          aria-label="新茶"
         >
           <header className="ntq-assistant-dock__head">
-            <div className="ntq-assistant-dock__head-text">
-              <p className="ntq-assistant-dock__title">NTQ 助理</p>
-              <p className="ntq-assistant-dock__subtitle">问术语、策略或报告</p>
+            <div className="ntq-assistant-dock__brand">
+              <img
+                className="ntq-assistant-dock__mascot"
+                src="/logo.png"
+                alt=""
+              />
+              <div className="ntq-assistant-dock__head-text">
+                <p className="ntq-assistant-dock__title">新茶在这里</p>
+                <p className="ntq-assistant-dock__subtitle">有什么问题都可以问新茶哦</p>
+              </div>
             </div>
             <IconButton
               className="ntq-assistant-dock__close"
               onClick={close}
-              aria-label="关闭助理"
+              aria-label="关闭新茶"
               size="small"
               disableRipple
             >
@@ -171,7 +198,7 @@ function AssistantChatDock() {
           <div ref={listRef} className="ntq-assistant-dock__messages">
             {messages.length === 0 ? (
               <p className="ntq-assistant-dock__empty">
-                {hint || '可以问 NTQ 名词、策略怎么写，或报告该怎么看。'}
+                {hint || '新茶在听。'}
               </p>
             ) : null}
             {messages.map((item) => (
@@ -185,7 +212,12 @@ function AssistantChatDock() {
                 ].filter(Boolean).join(' ')}
               >
                 {item.pending ? (
-                  <LoadingBars barCount={4} className="ntq-loading-bars--sm" aria-label="助理正在回复" />
+                  <div className="ntq-assistant-dock__waiting" role="status">
+                    <LoadingBars barCount={4} className="ntq-loading-bars--sm" aria-label="正在联络喵星总部" />
+                    <span>正在联络喵星总部…</span>
+                  </div>
+                ) : item.role === 'assistant' && !item.error ? (
+                  <AssistantMarkdown text={item.content} />
                 ) : (
                   <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
                 )}
@@ -204,12 +236,15 @@ function AssistantChatDock() {
               ref={inputRef}
               className="ntq-assistant-dock__input"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                resizeDraft(event.target);
+              }}
               onKeyDown={onDraftKeyDown}
-              placeholder="输入问题，Enter 发送"
+              placeholder="可以问任何 NTQ 问题，例如：我该怎么制定一个策略？"
               rows={2}
               disabled={sending}
-              aria-label="助理消息"
+              aria-label="给新茶的问题"
             />
             <button
               type="submit"

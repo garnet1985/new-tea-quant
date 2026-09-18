@@ -4,8 +4,10 @@ aliases:
   - decision maker
   - interactive
   - replay
-  - cli
-summary: 使用NTQ在回测中使用决策者模拟。
+  - 决策者
+  - 决策者模式
+  - 第四步
+summary: 在已有枚举结果上交互回放：自己选谁、买多少。
 ---
 
 # 如何使用决策者模式
@@ -18,7 +20,9 @@ summary: 使用NTQ在回测中使用决策者模拟。
 
 ## 前提条件
 
-- 已经完成枚举（`se`）和组合模拟（`so`），决策者基于已有版本回放
+- 已经完成枚举（`se`）。决策者只读枚举结果
+
+- 组合模拟（`so`）用于走完后对比，不是启动前置条件
 
 - 策略的 `goal`、`fees`、`portfolio` 设置在决策者模式中不可更改
 
@@ -32,7 +36,7 @@ summary: 使用NTQ在回测中使用决策者模拟。
 python cli.py sd
 
 # 指定策略
-python cli.py sd --strategy demo/random/random_v1
+python cli.py sd --strategy random_v1
 
 # 指定旧版本
 python cli.py sd --version 3
@@ -55,7 +59,7 @@ python cli.py sd --session 1
 ### 列出会话
 
 ```bash
-python cli.py sdl --strategy demo/random/random_v1
+python cli.py sdl --strategy random_v1
 python cli.py sdl --version 3
 ```
 
@@ -115,7 +119,7 @@ python cli.py sdd --session 2 --version 3
 
 ## 对比报告
 
-走完后产出和组合层同结构的报告，然后对比：
+走完后产出和组合层同结构的报告，再和程序化组合对比（下表为示意数字）：
 
 | 指标   | 你 vs 策略         |
 | ---- | --------------- |
@@ -129,7 +133,7 @@ python cli.py sdd --session 2 --version 3
 
 ## 设计边界
 
-- 决策者模式**不进指纹缓存**——它是交互式回放，不是 `SimulateKind`
+- 决策者模式**不进指纹缓存**——它是基于已有枚举版本的交互回放，不是回测三步之一
 
 - 复用组合层的成交规则（费用、手数、流动性、组合上限）
 

@@ -5,7 +5,9 @@ aliases:
   - backtest
   - run
   - simulate
-summary: 使用NTQ运行一个策略回测。
+  - 回测
+  - 运行回测
+summary: 用 CLI 跑枚举、价格因子、组合模拟（决策者是另一步）。
 ---
 
 # 如何运行回测
@@ -13,107 +15,95 @@ summary: 使用NTQ运行一个策略回测。
 ## 快速开始
 
 ```bash
-# 完整回测（枚举 → 价格因子 → 组合）
+# 完整模拟链路：价格因子 → 组合（没有枚举结果时会先补跑枚举）
 python cli.py s
 
-# 指定策略
-python cli.py s --strategy demo/random/random_v1
+# 指定策略（用 meta.key，或磁盘相对路径）
+python cli.py s --strategy random_v1
 
-# 强制重跑（不复用缓存）
+# 忽略缓存，写入同一 version 目录
 python cli.py s -f
 ```
 
+概念上的四步见 [回测四步流程](../wiki/strategy/backtest_pipeline.md)。CLI `s` **不包含**决策者（`sd`）和单独的归因命令（`sa`）。
+
 ## 分步执行
 
-NTQ 的回测分四步，可以单独跑：
-
-| 命令                                    | 缩写   | 说明       |
+| 命令                                    | 缩写   | 说明 |
 | ------------------------------------- | ---- | -------- |
 | `python cli.py strategy_enumerate`    | `se` | 第一步：枚举机会 |
 | `python cli.py strategy_price_factor` | `sp` | 第二步：单笔模拟 |
 | `python cli.py strategy_portfolio`    | `so` | 第三步：组合模拟 |
-| `python cli.py strategy_simulate`     | `s`  | 全部串行     |
-| `python cli.py strategy_analyze`      | `sa` | 归因分析     |
+| `python cli.py strategy_simulate`     | `s`  | 价格因子 → 组合（缺枚举则先 se） |
+| `python cli.py strategy_analyze`      | `sa` | 归因分析（独立命令） |
+| `python cli.py strategy_decision`     | `sd` | 第四步：决策者回放 |
 
 ### 分步示例
 
 ```bash
-# 只跑枚举
-python cli.py se --strategy demo/random/random_v1
-
-# 只跑价格因子（需要先有枚举结果）
-python cli.py sp --strategy demo/random/random_v1
-
-# 只跑组合模拟（需要先有价格因子结果）
-python cli.py so --strategy demo/random/random_v1
-
-# 强制重跑某一步
-python cli.py sp -f --strategy demo/foo
+python cli.py se --strategy random_v1
+python cli.py sp --strategy random_v1
+python cli.py so --strategy random_v1
+python cli.py sp -f --strategy random_v1
 ```
 
 ## 全局参数
 
-| 参数                | 说明          |
+| 参数                | 说明 |
 | ----------------- | ----------- |
-| `--strategy NAME` | 指定策略路径或 key |
-| `-f`              | 强制刷新/重算/覆盖  |
+| `--strategy NAME` | 策略 `meta.key` 或相对 `userspace/strategies/` 的路径 |
+| `-f`              | 忽略缓存；同指纹仍写入原 version，不是新开一个 |
 | `--verbose`       | 详细日志        |
 
 ## 执行流程
 
 ```
 s (simulate)
-  ├── se (enumerate)     → 枚举结果 → enum/
-  ├── sp (price_factor)  → 单笔模拟 → price/
-  ├── so (portfolio)     → 组合模拟 → portfolio/
-  └── sa (analyze)       → 归因报告 → analysis/
+  ├── 若缺枚举 → se (enumerate)  → enum/
+  ├── sp (price_factor)         → price/
+  └── so (portfolio)            → portfolio/
+        └── analysis.enabled 时顺带写 analysis/
+sa 是单独命令，不是 s 的子步骤。
+sd 是决策者，基于已有枚举版本交互回放。
 ```
 
-每步产出一个子目录，都在同一个版本目录下：
+产物在同一个版本目录下：
 
 ```
 {strategy}/results/simulations/{version_id}/
-  enum/        # 第一步产物
-  price/       # 第二步产物
-  portfolio/   # 第三步产物
-  analysis/    # 归因产物
+  enum/
+  price/
+  portfolio/
+  analysis/
 ```
 
 ## 缓存机制
 
-- 如果指纹没变（settings 白名单 + 股票池 + 环境都一样），直接命中已有版本，秒返回
+- 指纹没变（settings 白名单 + 股票池 + 环境一样）会命中已有版本
 
-- `-f` 强制重跑，不复用缓存
+- `-f` 强制重算，但仍落在同一 version
 
-- 改了非 effective 字段（如 `meta`、`is_enabled`）不会换版本
+- 只改 `meta`、`is_enabled` 等非 effective 字段不会换版本
 
 ## 归因分析
 
-组合模拟完成后，如果 `settings.analysis.enabled = True`，自动生成归因报告：
+组合完成后，若 `settings.analysis.enabled = True`，该次组合会带归因产物。也可事后单独跑：
 
 ```bash
-# 手动触发归因
-python cli.py sa --strategy demo/random/random_v1
-
-# 指定步骤和版本
+python cli.py sa --strategy random_v1
 python cli.py sa --step portfolio --version 3
 ```
 
 ## 输出
 
-每个步骤完成后会在终端输出摘要报告。完整报告保存在版本目录下。查看版本：
-
-```bash
-python cli.py v    # 查看版本信息
-```
+每步结束后终端有摘要，完整报告在版本目录。策略回测 version **没有**列表 CLI；`python cli.py v` 只打印 NTQ 核心版本。目录在 `{strategy}/results/simulations/`，日常在制定策略工作台看图。各步看哪些表见 [如何读回测报告](read_backtest_report.md)。
 
 ## 常见操作
 
-| 场景              | 命令                                           |
+| 场景              | 命令 |
 | --------------- | -------------------------------------------- |
 | 第一次跑策略          | `python cli.py s --strategy my_strategy`     |
 | 改了 settings 后重跑 | `python cli.py s -f --strategy my_strategy`  |
 | 只想看有没有机会        | `python cli.py se --strategy my_strategy`    |
 | 组合结果没变，只重算归因    | `python cli.py sa --strategy my_strategy`    |
 | 删一个版本           | `python cli.py sdv --strategy my_strategy:3` |
-

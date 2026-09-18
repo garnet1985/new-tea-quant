@@ -5,9 +5,11 @@ aliases:
   - stop loss
   - take profit
   - expiration
-  - strategy
   - goal stages
-summary: NTQ的回测目标设置与管理
+  - 止盈止损
+  - 止损止盈
+  - 过期平仓
+summary: 多阶段止盈、止损与过期：字段含义和怎么写 stages。
 ---
 
 # 止盈止损体系（Goal Management）

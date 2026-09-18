@@ -5,12 +5,14 @@ aliases:
   - goal
   - 止盈止损
   - 止损止盈
-summary: 策略 settings.py 的字段与 goal 止盈止损怎么写。
+  - 策略配置
+  - 配置
+summary: 策略 settings.py 各块字段，以及 goal 止盈止损怎么写。
 ---
 
-# NTQ Strategy Settings — LLM Context
+# 策略 settings.py
 
-本文档供 AI Agent 使用，描述 NTQ 策略配置 `settings.py` 的完整结构。所有字段均为 Python 字典格式，大部分时候当 JSON 写即可。
+描述 `settings.py` 的完整结构。字段是 Python 字典，大部分时候当 JSON 写即可。
 
 ## 顶层结构
 
@@ -131,7 +133,6 @@ settings = {
             "abort_enter_when": ["st"],          # 挂单期间变 ST 撤单
         },
     },
-    "retention": {"max_output_versions": 5},     # 保留最近几个版本
 }
 ```
 
@@ -146,10 +147,10 @@ settings = {
 
 | 值          | 说明                  |
 | ---------- | ------------------- |
-| `standard` | 次日开盘买入，收盘卖出         |
-| `strict`   | 涨停不买、跌停不卖、无滑点       |
-| `ideal`    | 任意价格买卖，无限制          |
-| `extreme`  | 最高卖最低买              |
+| `standard` | 限价触及买入，收盘监控；涨停不买、跌停不卖；超参与率裁剪 |
+| `strict`   | 同 standard 的涨跌停限制，超参与率则跳过 |
+| `ideal`    | 涨跌停也可成交，仍有参与率上限（超限裁剪） |
+| `extreme`  | 次日开盘尝试进场，涨跌停可成交，超限跳过 |
 | `custom`   | 自定义 tradability 各字段 |
 | `none`     | 不设假设                |
 

@@ -5,7 +5,9 @@ aliases:
   - philosophy
   - architecture
   - why NTQ
-summary: NTQ 设计理念
+  - 设计理念
+  - 为什么
+summary: 为什么把回测拆成四步，以及 userspace 隔离在解决什么问题。
 ---
 
 # NTQ 设计原理
@@ -44,43 +46,23 @@ NTQ 的核心设计动机是**策略诊断**：把回测拆成四步，每步有
 
 `core/` 是框架代码，升级时被覆盖。`userspace/` 是用户数据，升级时保留。
 
-- 所有用户自定义内容（策略、标签、数据契约、数据源、表、适配器）在 `userspace/extensions/` 下
+- 策略在 `userspace/strategies/`；标签、数据契约、数据源、表、适配器在 `userspace/extensions/`
 
-- 所有系统配置在 `userspace/system/` 下
+- 系统配置在 `userspace/system/`
 
 - 升级方式：下载新代码，保留 userspace，其他文件替换
 
-### 4. Facade 模式统一
+### 4. 对外只暴露稳定入口
 
-每个模块对外只暴露一个入口类：`Strategy`、`Tag`、`ContractIssuer`、`DataManager`、`BacktestEngine`、`Adapter`、`Indicator`、`MarketRulesProxy`、`Assistant`。
+每个业务能力有一个用户可记住的入口（策略、标签、数据契约、数据访问、回测调度、扫描适配器、市场规则、助手）。不要去 import 模块内部的实现文件。类型从各模块的 `contracts.py` 拿。
 
-- 用户不需要知道内部有多少层
+### 5. 用数据键声明依赖，而不是直接 SQL
 
-- 跨模块不 deep-import 内部实现，优先 Facade
+策略里写 `ctx.data("stock.kline.daily")` 这类数据键。框架按键决定是按股票推进、还是一份全局数据、还是一次性静态表。标签和策略可以走同一套调度，只是数据形状不同。
 
-- 契约类型从 `contracts.py` 导入
+### 6. 版本绑定指纹
 
-### 5. 数据合约 + 自动路由
-
-数据不是直接 SQL 查表，而是通过 DataKey 声明数据依赖。DataKey 决定数据路由模式：
-
-- `stock.kline.daily` → 逐股逐日（per\_entity）→ 走 BacktestEngine 多进程
-
-- `market.index.daily` → 全局单份（global）→ 主进程推进
-
-- 静态表 → 不按时间遍历（non\_time\_series）
-
-这让 tag 和 strategy 可以复用同一个回测引擎，只是数据路由不同。
-
-### 6. 版本指纹系统
-
-每次完整回测产生一个版本，版本绑定当时的 effective settings 指纹。指纹分两种：
-
-- `execute_fp`：可逆的执行输入（白名单 settings + 本次股票池）
-
-- `env_fp`：不可逆的执行环境（NTQ 版本、hooks 源码、DB 类型、data\_contract 映射）
-
-环境变了，旧版本变为"仅供查阅"状态。这让用户可以对比不同版本的报告，同时清楚哪些版本还能继续跑、哪些不能。
+每次完整回测对应一个 version。指纹怎么构成、何时变成仅供查阅，见 [生效设置与指纹](effective_settings_fingerprint.md)。
 
 ## 明确不做的事
 

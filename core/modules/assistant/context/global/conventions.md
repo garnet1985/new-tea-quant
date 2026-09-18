@@ -5,20 +5,23 @@ aliases:
   - naming
   - paths
   - rules
-summary: NTQ的命名规范与约定。
+  - 约定
+  - 路径
+  - 命名
+summary: NTQ 的路径、命名、CLI 缩写与配置合并约定。
 ---
 
 # NTQ 命名规范与约定
 
 ## 路径规范
 
-### 用户扩展路径
+### 用户路径
 
-所有用户自定义内容在 `userspace/extensions/` 下：
+策略在 `userspace/strategies/`；扩展（标签、契约、数据源、表、适配器）在 `userspace/extensions/`：
 
 | 类型     | 路径                                                 | 最小文件                           |
 | ------ | -------------------------------------------------- | ------------------------------ |
-| 策略     | `userspace/extensions/strategies/{name}/`          | `strategy.py` + `settings.py`  |
+| 策略     | `userspace/strategies/{name}/`                     | `strategy.py` + `settings.py`  |
 | 标签场景   | `userspace/extensions/tags/{name}/`                | `tag.py` + `settings.py`       |
 | 数据契约   | `userspace/extensions/data_contract/{name}/`       | `declaration.py` + `loader.py` |
 | 数据源    | `userspace/extensions/data_source/`                | `mapping.py`（注册表）              |
@@ -132,7 +135,7 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 | 缩写    | 全称                         | 用途       |
 | ----- | -------------------------- | -------- |
-| `s`   | strategy\_simulate         | 完整模拟链路   |
+| `s`   | strategy\_simulate         | 价格因子→组合（缺枚举才补跑） |
 | `se`  | strategy\_enumerate        | 第一步：枚举   |
 | `sp`  | strategy\_price\_factor    | 第二步：价格因子 |
 | `so`  | strategy\_portfolio        | 第三步：组合模拟 |
@@ -147,7 +150,7 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 | `im`  | import\_strategy           | 导入策略包    |
 | `id`  | import\_data               | 导入数据包    |
 | `u`   | update                     | 升级 core  |
-| `v`   | version                    | 查看版本     |
+| `v`   | version                    | 查看 NTQ 核心版本 |
 | `spn` | strategy\_pin\_version     | 固定版本     |
 | `sup` | strategy\_unpin\_version   | 取消固定     |
 | `sdv` | strategy\_delete\_version  | 删除版本     |

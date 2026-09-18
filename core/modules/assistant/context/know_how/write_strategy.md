@@ -5,7 +5,9 @@ aliases:
   - write
   - settings
   - hooks
-summary: 使用NTQ为一个实体贴上不同的标签。
+  - 写策略
+  - 策略钩子
+summary: 编写策略：strategy.py 钩子与 settings.py 配置。
 ---
 
 # 如何编写策略
@@ -147,12 +149,12 @@ settings = {
 | 字段                               | 说明                             |
 | -------------------------------- | ------------------------------ |
 | `meta.key`                       | 策略唯一标识                         |
-| `data.base.data_key`             | 主数据合约，通常是 `stock.kline.daily`  |
+| `data.base.data_key`             | 主数据契约，通常是 `stock.kline.daily`  |
 | `simulation.execution.mode`      | `entity_based` 或 `slice_based` |
 | `simulation.assumption.template` | 交易假设模板                         |
 | `portfolio.allocation.mode`      | 资金分配模式                         |
 
-详细的 settings 字段参考见 `global/llm_strategy_settings_reference.md`。
+详细的 settings 字段参考见 [配置策略 settings](config_strategy_settings.md)。
 
 ## 执行模式选择
 
@@ -195,9 +197,11 @@ settings.py 中对应配置：
 
 ## 完整流程
 
-1. `python cli.py -n my_strategy` — 从模板创建
+1. `python cli.py -n my_strategy` — 从模板创建（界面列表不能直接「新建」）
 2. 编写 `strategy.py` 的 `has_opportunity`
-3. 配置 `settings.py`
-4. `python cli.py s` — 跑完整回测
+3. 配置 `settings.py`（也可之后在制定策略左侧改参数）
+4. 导航 **制定策略** 分步跑，或 `python cli.py s`
 5. 查看报告，诊断策略问题
+
+界面操作见 [从界面制定策略](use_strategy_workbench.md)。看图见 [如何读回测报告](read_backtest_report.md)。
 

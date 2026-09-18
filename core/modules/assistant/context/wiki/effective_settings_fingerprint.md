@@ -5,7 +5,11 @@ aliases:
   - fingerprint
   - effective settings
   - cache
-summary: NTQ在策略回测过程中使用生效设置的指纹系统来立刻反馈缓存的结果
+  - 版本
+  - 指纹
+  - 缓存
+  - 生效设置
+summary: 回测 version 如何用生效设置指纹命中缓存，以及何时仅供查阅。
 ---
 
 
@@ -30,7 +34,7 @@ settings.py 里的字段不是全部参与指纹。只有**白名单字段**（e
 
 白名单外的字段（如 `meta`、`is_enabled`、`scanner`、`analysis`）不影响回测结果，改了不换版本。
 
-白名单在 `execute_fp_whitelist.py` 中定义。
+白名单由框架维护（含 core / data / goal / simulation / portfolio 等块）。`meta`、`is_enabled`、`scanner`、`analysis` 不进指纹。
 
 ## 何时换版本
 

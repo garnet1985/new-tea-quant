@@ -1,11 +1,12 @@
 ---
 title: NTQ 枚举机会
 aliases:
-  - strategy
   - enumerate
   - first step
-  - concept
-summary: NTQ 回测第一步 机会枚举
+  - 枚举
+  - 第一步
+  - 机会枚举
+summary: 回测第一步：每个交易日对每只股票问有没有机会。
 ---
 
 # 第一步：机会枚举
@@ -40,7 +41,7 @@ summary: NTQ 回测第一步 机会枚举
 
 ## 执行
 
-枚举经 `BacktestEngine` 调度，支持两种模式：
+枚举经回测引擎调度，支持两种模式：
 
 - `entity_based`：按股票分组，每组独立跑完整时间线。适合少股票、长时间窗口
 
@@ -66,7 +67,7 @@ def has_opportunity(self, ctx: StrategyContext) -> bool:
 
 ## 关键设计
 
-- **机会由框架构建**：用户钩子只返回 `True/False`，`Opportunity` 对象由框架自动构建。旧版本中用户手动 `new Opportunity()` 的方式已废弃
+- **机会由框架构建**：钩子只返回 `True/False`，不要自己拼机会对象
 
 - **signal\_snapshot**：命中时的归因记录，通过 `ctx.capture` 写入。不是 `ctx.remember`（那是易失内存袋，不落归因）
 

@@ -5,12 +5,15 @@ aliases:
   - pipeline
   - overview
   - four-steps
-summary: NTQ 回测四步流程介绍
+  - 回测
+  - 四步
+  - 流程
+summary: 回测四步总览：枚举、价格因子、组合、决策者；CLI 对应关系。
 ---
 
 # 回测四步流程
 
-NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串行执行（枚举 → 价格因子 → 组合），第四步是交互式回放（决策者）。
+NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串行执行（枚举 → 价格因子 → 组合），第四步是交互式回放（决策者）。界面上各步看哪些图，见 [如何读回测报告](../../know_how/read_backtest_report.md)。
 
 ## 流程总览
 
@@ -36,15 +39,11 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
   报告：与程序化组合的对比报告
 ```
 
-## 引擎关系
+## 谁调度这些步骤
 
-前三步都经过 `BacktestEngine` 调度（多进程/多线程），但引擎不认识策略、股票这些概念——它只管"给我一批 job，我并行跑完告诉你结果"。
+前两步由回测引擎并行调度（引擎不管策略或股票，只跑一批任务）。第三步是账户层面的单线程模拟，在主进程完成。第四步是人机交互回放，也不走并行调度。
 
-- 第一步和第二步：经 BacktestEngine 的 `RunCallbacks` 挂入回测
-
-- 第三步：不走 BacktestEngine，在主进程内完成（不需要多进程，因为已经是组合层面的模拟）
-
-- 第四步：交互式回放，也不是 BacktestEngine 调度
+止盈止损细节见 [goal management](../goal_management.md)。版本与缓存见 [生效设置与指纹](../effective_settings_fingerprint.md)。
 
 ## 数据流
 
@@ -62,13 +61,7 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
 
 ## 版本系统
 
-一次完整回测 = 一个 version。三步共享同一个 version id。版本绑定指纹：
-
-- 改了 settings 白名单字段 → execute\_fp 变 → 新 version
-
-- 环境变了（NTQ 升级、hooks 源码改了）→ env\_fp 变 → 旧 version 变为"仅供查阅"
-
-- 只改非 effective 字段（如 meta、is\_enabled）→ 不换 version
+一次完整回测（枚举+价格因子+组合）= 一个 version，三步共用 version id。指纹怎么变、何时仅供查阅，见 [生效设置与指纹](../effective_settings_fingerprint.md)。
 
 ## CLI 对应
 
@@ -78,7 +71,7 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
 | 第二步    | `cli.py strategy_price_factor` | `sp` |
 | 第三步    | `cli.py strategy_portfolio`    | `so` |
 | 第四步    | `cli.py strategy_decision`     | `sd` |
-| 全部串行   | `cli.py strategy_simulate`     | `s`  |
+| 价格因子→组合 | `cli.py strategy_simulate`     | `s`  |
 | 扫描实时行情 | `cli.py scan`                  | `c`  |
 | 归因分析   | `cli.py strategy_analyze`      | `sa` |
 

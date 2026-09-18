@@ -6,14 +6,17 @@ aliases:
   - unpin
   - delete
   - cache
-summary: 使用NTQ为一个实体贴上不同的标签。
+  - 版本
+  - 固定版本
+  - 删除版本
+summary: 固定、取消固定和删除策略回测版本。
 ---
 
 # 如何管理版本
 
 ## 基本概念
 
-每次完整回测产生一个版本（version），版本绑定指纹用于缓存判断。详见 [版本与指纹系统](../wiki/strategy/effective_settings_fingerprint.md)。
+每次完整回测产生一个版本（version），版本绑定指纹用于缓存判断。概念说明见 [生效设置与指纹系统](../wiki/effective_settings_fingerprint.md)。
 
 ## CLI 命令
 
@@ -28,7 +31,7 @@ summary: 使用NTQ为一个实体贴上不同的标签。
 ## 删除版本
 
 ```bash
-python cli.py sdv --strategy demo/random/random_v1:3
+python cli.py sdv --strategy random_v1:3
 ```
 
 - 删除该版本的 `enum/`、`price/`、`portfolio/`、`analysis/` 目录
@@ -37,12 +40,12 @@ python cli.py sdv --strategy demo/random/random_v1:3
 
 - `settings.py` 不受影响
 
-- 如果该版本被 pin 了，需要先 unpin
+- 如果该版本被 pin 了，删除时会自动 unpin，不必先 `sup`
 
 ## 固定版本
 
 ```bash
-python cli.py spn --strategy demo/random/random_v1:3
+python cli.py spn --strategy random_v1:3
 ```
 
 - 固定后不被自动清理
@@ -54,7 +57,7 @@ python cli.py spn --strategy demo/random/random_v1:3
 ## 取消固定
 
 ```bash
-python cli.py sup --strategy demo/random/random_v1:3
+python cli.py sup --strategy random_v1:3
 ```
 
 取消固定后，该版本可能被 Keep-N 清理。
@@ -93,15 +96,15 @@ python cli.py sdv --strategy my_strategy:v3     # 带 v 前缀
 
 - 报告仍可打开、对比
 
-- 配置可恢复到 settings.py
+- 配置可在 **制定策略 UI** 里写回 `settings.py`（没有对应 CLI）
 
 - **不能继续跑**（不能补步、不能 cache hit）
 
-- UI 显示"环境已更新 / 仅供查阅"
+- 工作台会显示「环境已更新 / 仅供查阅」
 
-## 恢复旧版本配置
+## 恢复旧版本配置（UI）
 
-恢复版本只把 `settings.json` 写回 `settings.py`，**不**恢复历史股票池。下次 Run 用今天的股票池算指纹，如果池子不同会开新版本。
+在制定策略页把历史 version 的配置写回 `settings.py`。这只恢复当时的 settings，**不**恢复历史股票池。下次 Run 用今天的股票池算指纹，池子不同会开新版本。
 
 ## 常见操作
 
@@ -110,5 +113,5 @@ python cli.py sdv --strategy my_strategy:v3     # 带 v 前缀
 | 固定重要版本 | `python cli.py spn --strategy my_strat:1` |
 | 删除错误版本 | `python cli.py sdv --strategy my_strat:3` |
 | 取消固定   | `python cli.py sup --strategy my_strat:1` |
-| 查看版本信息 | `python cli.py v`                         |
+| 查看 NTQ 核心版本 | `python cli.py v`                         |
 

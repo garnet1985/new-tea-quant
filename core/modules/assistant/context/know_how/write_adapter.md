@@ -5,14 +5,16 @@ aliases:
   - scanner
   - extension
   - post-processing
-summary: 使用NTQ为对扫描出的机会做后续处理。
+  - 适配器
+  - 扫描后处理
+summary: 给扫描结果写后处理适配器，并在策略 settings 里用 scanner.adapters 挂上。
 ---
 
 # 如何编写适配器
 
 ## 什么是适配器
 
-适配器是 Scanner（枚举引擎）的后处理扩展点。扫描结束后，框架将机会列表和上下文交给你写的适配器做进一步处理。
+适配器是扫描结束后的后处理扩展点。框架把机会列表和上下文交给你写的适配器。
 
 典型用途：
 
@@ -84,9 +86,9 @@ settings = {
 
 ```python
 "scanner": {
-    "adapter_names": "my_report",
+    "adapters": "my_report",
     # 多个适配器串联：
-    # "adapter_names": ["my_report", "notification"],
+    # "adapters": ["my_report", "notification"],
 }
 ```
 
@@ -95,13 +97,13 @@ settings = {
 ```
 Scanner 执行完毕，产出 opportunities 列表
     ↓
-AdapterDispatcher 注入 context["price_history"]
+框架注入 context["price_history"]
     ↓
-检查 settings.scanner.adapter_names
-    ├── 无适配器 → 打印 default_output()
+检查 settings.scanner.adapters
+    ├── 无适配器 → 打印默认摘要
     └── 有适配器 → 逐个加载并调用 process()
                     ├── 成功 → 使用适配器输出
-                    └── 全部失败 → 回退到 default_output()
+                    └── 全部失败 → 回退到默认摘要
 ```
 
 ## 验证适配器
@@ -109,7 +111,7 @@ AdapterDispatcher 注入 context["price_history"]
 ```python
 from core.modules.adapter import Adapter
 
-Adapter.validate("my_report")     # True/False
+Adapter.validate("my_report")     # 返回 (是否通过, 说明文字)
 cls = Adapter.load_class("my_report")  # 返回类对象
 ```
 
@@ -122,13 +124,13 @@ cls = Adapter.load_class("my_report")  # 返回类对象
 | 适配器读 context，不导入策略模块 | 保持解耦                          |
 | 适配器输出是静态结果           | 控制台报告或外部集成，不影响回测结果            |
 | 多适配器串联执行             | 按配置顺序依次调用                     |
-| 失败自动回退               | 所有适配器失败时使用 `default_output()` |
+| 失败自动回退               | 所有适配器失败时使用默认摘要 |
 
 ## 多适配器串联
 
 ```python
 "scanner": {
-    "adapter_names": ["industry_report", "notification"],
+    "adapters": ["industry_report", "notification"],
 }
 ```
 

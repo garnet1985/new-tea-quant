@@ -1,11 +1,12 @@
 ---
 title: NTQ 价格因子
 aliases:
-  - strategy
   - price factor
   - second step
-  - concept
-summary: NTQ 回测第二步 价格因子
+  - 价格因子
+  - 第二步
+  - 单笔盈亏
+summary: 回测第二步：每个机会按成交假设和 goal 模拟单笔盈亏。
 ---
 
 # 第二步：价格因子
@@ -44,36 +45,18 @@ summary: NTQ 回测第二步 价格因子
 
 ## 入场/出场假设
 
-价格因子的交易假设由 `simulation.assumption` 配置控制：
+价格因子的成交假设由 `simulation.assumption.template` 控制。模板只定义**怎么成交**（进场价、监控价、涨跌停、流动性），持仓仍按 `goal` 逐日检查，不是当日买当日卖。
 
-| 模板         | 说明                  |
+| 模板         | 说明 |
 | ---------- | ------------------- |
-| `standard` | 次日开盘买入，收盘卖出         |
-| `strict`   | 涨停不买、跌停不卖、无滑点       |
-| `ideal`    | 任意价格买卖，无限制          |
-| `extreme`  | 最高卖最低买              |
-| `custom`   | 自定义 tradability 各字段 |
+| `standard` | 限价触及买入，收盘价监控/成交；涨停不买、跌停不卖；成交量超参与率时裁剪 |
+| `strict`   | 与 standard 相同的涨跌停限制，但流动性超限则跳过这笔 |
+| `ideal`    | 涨跌停也可成交，仍有参与率上限（超限裁剪） |
+| `extreme`  | 次日开盘尝试进场（更乐观），涨跌停可成交，超限则跳过 |
+| `custom`   | 自己写 tradability 各字段 |
 
-## 止盈止损
-
-价格因子阶段使用 `goal` 配置中的止盈止损规则。每个交易机会买入后，每天检查是否触发：
-
-- `ratio`：固定比例触发（如亏 10% 止损）
-
-- `custom`：自定义条件触发（调用 `is_stop_loss` / `is_take_profit` 钩子）
-
-## 价格双层机制
-
-NTQ 的价格处理有一个重要设计：
-
-- **信号用前复权价格（qfq）**：`has_opportunity` 里 `ctx.data()` 拿到的是前复权数据，用于计算技术指标和判断信号
-
-- **ROI 用后复权价格（hfq）**：收益率统一用后复权价格计算，保证分红再投资的影响被正确计入
-
-- **成交用裸价格（raw）**：实际买入卖出记录的是裸价格（真实市场价格）
-
-这个设计确保了信号的一致性和收益计算的准确性。
+止盈止损字段见 [goal management](../goal_management.md)。价格用前复权做信号、后复权算 ROI，见 [价格复权](../price_adjustment.md)。
 
 ## 执行
 
-价格因子经 `BacktestEngine` 调度，和枚举一样支持 `entity_based` / `slice_based` 两种模式。业务逻辑在 BacktestEngine 的 `after_task` 事件中回放。
+价格因子和枚举一样由回测引擎调度，支持按股票或按时间切片。每笔机会在任务结束后按交易日回放成交与止盈止损。

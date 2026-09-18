@@ -3,9 +3,10 @@ title: create tag 创建标签
 aliases:
   - tag
   - create
-  - settings
-  - hooks
-summary: 使用NTQ为一个实体贴上不同的标签。
+  - 标签
+  - 创建标签
+  - 打标签
+summary: 新建标签场景：settings.py + tag.py，以及 CLI `t`。
 ---
 
 

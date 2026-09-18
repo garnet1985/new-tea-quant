@@ -5,7 +5,10 @@ aliases:
   - real time
   - market
   - cli
-summary: 使用NTQ扫描市场中的机会。
+  - 扫描
+  - 策略选股
+  - 扫描选股
+summary: 用界面「策略选股」或 CLI 扫描当天机会；后处理适配器用 scanner.adapters。
 ---
 
 # 如何扫描实时行情
@@ -14,6 +17,8 @@ summary: 使用NTQ扫描市场中的机会。
 
 扫描（Scan）用当前市场数据运行策略的 `has_opportunity` 钩子，找出今天有哪些交易机会。和回测不同，扫描只跑枚举这一步，不做后续的价格因子和组合模拟。
 
+界面入口：导航 **策略选股**。扫描使用策略目录里当前的 `settings.py`，没有单独的发布步骤。要扫「真」市场，数据得够新（需自接数据源）。只想看演示：选「扫描演示」模式，应用会把「今天」当成本地数据最晚交易日的下一天。
+
 ## 基本用法
 
 ```bash
@@ -21,7 +26,7 @@ summary: 使用NTQ扫描市场中的机会。
 python cli.py c
 
 # 指定策略
-python cli.py c --strategy demo/random/random_v1
+python cli.py c --strategy random_v1
 
 # demo 模式（放宽严格交易日门闸）
 python cli.py c --demo
@@ -32,7 +37,7 @@ python cli.py c --demo
 扫描完成后在终端输出每个策略的摘要：
 
 ```
-  [demo/random/random_v1] date=20260918 opportunities=5 universe=300 hit_stocks=5 at_limit_up=1
+  [random_v1] date=20260918 opportunities=5 universe=300 hit_stocks=5 at_limit_up=1
          日期模式=latest_completed；来源=trade_calendar
 ```
 
@@ -46,12 +51,12 @@ python cli.py c --demo
 
 ## 适配器后处理
 
-如果策略配置了 `scanner.adapter_names`，扫描完成后会调用适配器做后处理：
+如果策略配置了 `scanner.adapters`，扫描完成后会调用适配器做后处理：
 
 ```python
 # settings.py
 "scanner": {
-    "adapter_names": "industry_report",
+    "adapters": "industry_report",
 }
 ```
 
@@ -85,18 +90,14 @@ python cli.py c --demo
 | 维度 | 扫描（Scan）            | 回测（Simulate） |
 | -- | ------------------- | ------------ |
 | 时间 | 当天实时                | 历史时间窗口       |
-| 步骤 | 只跑枚举                | 四步全跑         |
+| 步骤 | 只跑枚举                | 价格因子+组合（决策者另跑） |
 | 输出 | 机会列表                | 完整回测报告       |
 | 缓存 | `max_cache_days` 控制 | 版本指纹缓存       |
 | 数据 | 最新行情                | 历史 K 线       |
 
 ## 扫描缓存
 
-扫描结果会缓存 `max_cache_days` 天。重复扫描时如果日期没变，直接返回缓存结果。`-f` 可以强制刷新：
-
-```bash
-python cli.py c -f
-```
+扫描结果会缓存 `max_cache_days` 天。重复扫描且日期没变时可能直接返回缓存。当前 CLI **没有**把 `-f` 传给扫描，不要用 `cli.py c -f` 指望强制刷新。
 
 ## 多策略扫描
 
@@ -114,6 +115,6 @@ python cli.py c
 | ---------- | ---------------------------------------- |
 | 每日扫描所有策略   | `python cli.py c`                        |
 | 只扫描某个策略    | `python cli.py c --strategy my_strategy` |
-| 强制刷新缓存     | `python cli.py c -f`                     |
+| 强制刷新缓存     | 当前扫描 CLI 不支持 `-f`                 |
 | 调试模式（放宽门闸） | `python cli.py c --demo`                 |
 

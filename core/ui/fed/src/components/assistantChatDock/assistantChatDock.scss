@@ -41,7 +41,7 @@ $ntq-assistant-aurora: conic-gradient(
 
 .ntq-assistant-dock__fab-slot {
   position: fixed;
-  top: calc(#{$ntq-header-height} + 14px);
+  top: calc(#{$ntq-header-height} + 28px);
   right: 18px;
   z-index: 1250;
   width: $ntq-assistant-fab-size;
@@ -149,16 +149,16 @@ $ntq-assistant-aurora: conic-gradient(
 }
 
 .ntq-assistant-dock__fab-spark--a {
-  top: -4px;
-  right: -4px;
+  top: 1px;
+  right: 2px;
   width: 8px;
   height: 8px;
   background: var(--ntq-cyan);
 }
 
 .ntq-assistant-dock__fab-spark--b {
-  right: -1px;
-  bottom: 0;
+  right: 4px;
+  bottom: 3px;
   width: 5px;
   height: 5px;
   background: var(--ntq-violet);
@@ -167,13 +167,13 @@ $ntq-assistant-aurora: conic-gradient(
 
 .ntq-assistant-dock__panel {
   position: fixed;
-  top: calc(#{$ntq-header-height} + 14px);
+  top: calc(#{$ntq-header-height} + 28px);
   right: calc(18px + #{$ntq-assistant-fab-size} + 12px);
   z-index: 1250;
   display: flex;
   flex-direction: column;
   width: 460px;
-  height: min(640px, calc(100vh - #{$ntq-header-height} - 28px));
+  height: min(780px, calc(100vh - #{$ntq-header-height} - 52px));
   background: #0a0a18;
   background-image: none;
   border: 1px solid var(--ntq-white-12);
@@ -415,7 +415,13 @@ $ntq-assistant-aurora: conic-gradient(
     margin-bottom: 0;
   }
 
-  code {
+  code,
+  code.hljs {
+    display: block;
+    padding: 0;
+    overflow: visible;
+    background: transparent;
+    color: inherit;
     font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
     white-space: pre;
   }

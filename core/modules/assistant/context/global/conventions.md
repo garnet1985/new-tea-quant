@@ -55,9 +55,9 @@ summary: NTQ 的路径、命名、CLI 缩写与配置合并约定。
 
 ### 策略
 
-- 策略 key：`snake_case`，如 `rsi_v1`、`bollinger_bands`
+- 策略 key：`snake_case`，如 `rsi_v1`、`macd_golden_cross`
 
-- 策略目录名：和 key 一致
+- 策略目录名：和 `meta.key` 一致。`python cli.py -n NAME` 只复制模板，**不会**把已有的 `meta.key` 改成 NAME（模板仍是 `empty_strategy`），创建后立刻改掉
 
 - 类名：`PascalCase`，如 `RsiV1Strategy`
 
@@ -103,9 +103,13 @@ summary: NTQ 的路径、命名、CLI 缩写与配置合并约定。
 
 - `benchmark_stock_index_list`：用户写了就完全替换默认指数列表
 
-### 不合并（策略配置）
+### 策略 settings.py
 
-`settings.py` 是独立文件，不和任何默认配置合并。用户需要对每个策略完整定义配置。
+- 不和 `data.json` 等全局配置合并
+
+- 加载时会对缺块补默认，省略某些块也能跑；新建仍应用模板写全（`data` / `goal` / `simulation` / `portfolio` / `fees`），不要只留 `meta.key`
+
+- 不要写 `data.base.params.adjust`：该字段会被剥掉。钩子里顶层 `open/close` 已是前复权
 
 ## CLI 命令规范
 
@@ -155,6 +159,14 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 | `sup` | strategy\_unpin\_version   | 取消固定     |
 | `sdv` | strategy\_delete\_version  | 删除版本     |
 
+### 易混命令
+
+- 跑回测用 `s` / `se` / `sp` / `so`。`spn` **不是**运行回测，只固定一个已经存在的 version
+
+- `v` 只打印 NTQ 核心版本，不是策略回测 version 列表
+
+- 报告在 `{strategy}/results/simulations/{vid}/`（`enum/` `price/` `portfolio/`），**没有** `reports/` 目录
+
 ## 版本规范
 
 - NTQ 版本在 `core/system.json` 的 `version` 字段
@@ -193,7 +205,9 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 - 数据缺失时返回 `None` 或空列表，不抛异常
 
-- 策略钩子里检查 `None`：`if klines is None or len(klines) < 14: return False`
+- 策略钩子里取数：`data = ctx.data.items_with_meta()`，`klines = data.get(ctx.base_data_key) or []`。`ctx.data` 不是函数
+
+- 指标在 `settings.data.base.indicators` 声明，钩子读 K 线字段。不要手写 EMA，不能对 dict 列表做减法
 
 - CLI 命令失败时返回非零退出码
 

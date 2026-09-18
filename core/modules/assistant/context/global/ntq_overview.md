@@ -49,7 +49,7 @@ new-tea-quant/
 | 策略 | 枚举、价格因子、组合、扫描、归因 |
 | 回测调度 | 按时间轴并行跑任务，不管策略业务含义 |
 | 标签 | 一次计算，多个策略可读 |
-| 数据契约 | 用数据键声明依赖；策略里 `ctx.data(...)` 走这里 |
+| 数据契约 | 用数据键声明依赖；策略里 `ctx.data.items_with_meta()` 按键取数 |
 | 数据源 | 从外部抓行情等 |
 | 数据访问 | 按领域查数：股票 / 指数 / 宏观 / 日历 |
 | 市场画像 | 涨跌停、手数、T+N |
@@ -74,8 +74,8 @@ new-tea-quant/
 - `core/`：框架，升级覆盖
 - `userspace/`：你的策略、扩展、配置、库文件，升级保留
 - 系统配置：`userspace/system/config/`（`data.json`、数据库、可选 `worker.json`）
-- 策略配置：`userspace/strategies/{name}/settings.py`，不和默认配置合并
+- 策略配置：`userspace/strategies/{name}/settings.py`，不和 `data.json` 合并；加载时补缺块默认值。目录名应等于 `meta.key`
 
 ## 版本
 
-一次完整回测（枚举 + 价格因子 + 组合）对应一个 version，绑定时的生效设置指纹。环境变了（升级、钩子源码改了），旧版本变成仅供查阅。`spn` / `sup` / `sdv` 固定、取消固定、删除版本。
+一次完整回测（枚举 + 价格因子 + 组合）对应一个 version，绑定时的生效设置指纹。环境变了（升级、钩子源码改了），旧版本变成仅供查阅。产物在 `{strategy}/results/simulations/{vid}/`，没有 `reports/`。`spn` / `sup` / `sdv` 固定、取消固定、删除版本——`spn` 不是跑回测。

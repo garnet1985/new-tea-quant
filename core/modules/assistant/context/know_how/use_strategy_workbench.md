@@ -25,7 +25,7 @@ summary: 从导航「制定策略」选策略、改参数、分步回测；逻�
 python cli.py -n my_rsi_strategy
 ```
 
-会在 `userspace/strategies/my_rsi_strategy/` 放下 `strategy.py` 和 `settings.py`。刷新制定策略列表即可看到。写钩子见 [如何编写策略](write_strategy.md)。
+会在 `userspace/strategies/my_rsi_strategy/` 放下 `strategy.py` 和 `settings.py`。把 `meta.key` 从 `empty_strategy` 改成 `my_rsi_strategy`。刷新制定策略列表即可看到。写钩子见 [如何编写策略](write_strategy.md)。MACD / RSI 见 [用技术指标](use_indicators.md)。
 
 ## 选策略
 

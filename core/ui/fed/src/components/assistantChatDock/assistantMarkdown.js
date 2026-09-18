@@ -1,5 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { highlightFence } from './assistantHighlight';
 
 function splitFences(text) {
   const source = String(text || '');
@@ -212,7 +213,10 @@ function AssistantMarkdown({ text }) {
       {chunks.map((chunk, index) => (
         chunk.type === 'code' ? (
           <pre key={`c${index}`} className="ntq-assistant-md__pre">
-            <code>{chunk.text}</code>
+            <code
+              className={['hljs', chunk.lang ? `language-${chunk.lang}` : ''].filter(Boolean).join(' ')}
+              dangerouslySetInnerHTML={{ __html: highlightFence(chunk.text, chunk.lang) }}
+            />
           </pre>
         ) : (
           <React.Fragment key={`m${index}`}>

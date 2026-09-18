@@ -19,7 +19,7 @@ summary: 数据库怎么连、股票数据从哪查；换库只改配置。
 | 数据库 | 连接、schema、建表。不认识股票或策略 |
 | 数据访问 | 按领域查数：股票 / 宏观 / 日历 / 指数 |
 
-换库只改配置，代码不动。操作步骤见 [切换数据库](../know_how/switch_database.md)。策略钩子里用 `ctx.data("stock.kline.daily")`，不要自己连库。
+换库只改配置，代码不动。操作步骤见 [切换数据库](../know_how/switch_database.md)。策略钩子里用 `ctx.data.items_with_meta()` 按数据键取数，不要自己连库。
 
 ## DuckDB 三个文件
 

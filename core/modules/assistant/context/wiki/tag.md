@@ -50,4 +50,4 @@ summary: 配置驱动的标签：一次计算，多个策略可读。
 | `refresh` | 删标签值和进度后重算 |
 | `recompute=True` | 全量重建（值、定义、进度都删） |
 
-CLI：`python cli.py t`。策略侧用 `ctx.data("tag")` 读已算好的标签。
+CLI：`python cli.py t`。策略侧在 `data.required` 声明 `tag` 后，用 `ctx.data.items_with_meta().get("tag")` 读已算好的标签。

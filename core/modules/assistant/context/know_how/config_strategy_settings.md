@@ -33,7 +33,7 @@ settings = {
 }
 ```
 
-必须字段：`meta.key`。其余均可省略，有默认值。
+必须字段：`meta.key`（应与策略目录名一致）。加载时会对缺块补默认，所以省略某些块也能跑；新建策略请用模板写全 `data` / `goal` / `simulation` / `portfolio` / `fees`，不要只留 `meta`。settings **不和** `data.json` 合并。
 
 ## meta
 
@@ -71,8 +71,9 @@ settings = {
 "data": {
     "base": {
         "data_key": "stock.kline.daily",   # str, 基础 K 线数据
-        "params": {"adjust": "qfq"},        # dict, 前复权
-        "indicators": {                      # dict, 可选, 自动计算并注入到 K 线
+        "params": {},                       # dict, 不要写 adjust；顶层 OHLC 已是前复权
+        "indicators": {                      # dict, 可选, 框架写入每根 K 线
+            "rsi": [{"length": 14}],         # 当天 bar：rsi14
             "macd": [{"fast": 12, "slow": 26, "signal": 9}],
         },
     },
@@ -92,7 +93,17 @@ settings = {
 
 - 静态表（如行业映射）→ 不按时间遍历（non\_time\_series）
 
-在钩子里读取：`ctx.data("stock.kline.daily")`、`ctx.data("stock.finance.quarterly")`。返回当天及之前的数据序列，前复权价格，不需要关心复权逻辑。
+`ctx.data` 不是函数。钩子里：
+
+```python
+data = ctx.data.items_with_meta()
+klines = data.get(ctx.base_data_key) or []          # 当天及之前，前复权
+finance = data.get("stock.finance.quarterly") or [] # required 里声明的键
+today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+rsi14 = today.get("rsi14") if today else None       # 单列注入字段 {name}{length}
+```
+
+不要写 `params.adjust`（会被剥掉）。指标在 `data.base.indicators` 声明，钩子读 K 线上的字段，不要钩子里再手算一遍。RSI 字段是 `{name}{length}`（`rsi14`）。MACD 是三列长名字，见 [用技术指标](use_indicators.md)。
 
 ## simulation
 
@@ -348,8 +359,8 @@ settings = {
 | ---------------------------------- | --------------------------------------------------------------- | ----------------------- |
 | `goal.stop_loss.stages[].custom`   | `is_stop_loss(ctx, custom, stage)`                              | stage 用 custom 而非 ratio |
 | `goal.take_profit.stages[].custom` | `is_take_profit(ctx, custom, stage)`                            | stage 用 custom 而非 ratio |
-| `data.base`                        | `has_opportunity(ctx)` 里 `ctx.data(base.data_key)`              | 每日每股调用                  |
-| `data.required[]`                  | `has_opportunity(ctx)` 里 `ctx.data(data_key)`                   | 每日每股调用                  |
+| `data.base`                        | `has_opportunity` 里 `data.get(ctx.base_data_key)` | 每日每股调用 |
+| `data.required[]`                  | `has_opportunity` 里 `data.get(data_key)` | 每日每股调用 |
 | `core` 里的字段                        | 钩子里 `self.core_int(ctx.settings, key)` / `self.core_float(...)` | 手动读取                    |
 
 ## 常见配置模式速查
@@ -406,18 +417,18 @@ strategy.py:
 ```python
 def is_stop_loss(self, ctx, *, custom, stage):
     if custom == "below_ma20":
-        klines = ctx.data("stock.kline.daily")
-        if klines and len(klines) >= 20:
+        data = ctx.data.items_with_meta()
+        klines = data.get(ctx.base_data_key) or []
+        if len(klines) >= 20:
             ma20 = sum(b["close"] for b in klines[-20:]) / 20
             return klines[-1]["close"] < ma20
     return False
 
 def is_take_profit(self, ctx, *, custom, stage):
     if custom == "rsi_overbought":
-        klines = ctx.data("stock.kline.daily")
-        if klines and len(klines) >= 14:
-            closes = [b["close"] for b in klines]
-            rsi = self._calc_rsi(closes, 14)
-            return rsi > 70
+        data = ctx.data.items_with_meta()
+        today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+        rsi = None if today is None else today.get("rsi14")
+        return rsi is not None and rsi > 70
     return False
 ```

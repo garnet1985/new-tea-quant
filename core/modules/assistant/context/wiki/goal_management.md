@@ -98,8 +98,9 @@ NTQ 的止盈止损不只是一个固定的盈亏比例，而是一个多阶段�
 ```python
 def is_stop_loss(self, ctx, *, custom, stage) -> bool:
     if custom == "below_ma20":
-        klines = ctx.data("stock.kline.daily")
-        if klines and len(klines) >= 20:
+        data = ctx.data.items_with_meta()
+        klines = data.get(ctx.base_data_key) or []
+        if len(klines) >= 20:
             ma20 = sum(b["close"] for b in klines[-20:]) / 20
             return klines[-1]["close"] < ma20
     return False

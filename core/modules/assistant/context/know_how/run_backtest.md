@@ -25,6 +25,8 @@ python cli.py s --strategy random_v1
 python cli.py s -f
 ```
 
+`s` 才是跑回测。`spn` 只固定已有 version。报告在 `{strategy}/results/simulations/`，没有 `reports/`。
+
 概念上的四步见 [回测四步流程](../wiki/strategy/backtest_pipeline.md)。CLI `s` **不包含**决策者（`sd`）和单独的归因命令（`sa`）。
 
 ## 分步执行
@@ -67,7 +69,7 @@ sa 是单独命令，不是 s 的子步骤。
 sd 是决策者，基于已有枚举版本交互回放。
 ```
 
-产物在同一个版本目录下：
+产物在同一个版本目录下（**没有** `reports/`）：
 
 ```
 {strategy}/results/simulations/{version_id}/
@@ -107,3 +109,6 @@ python cli.py sa --step portfolio --version 3
 | 只想看有没有机会        | `python cli.py se --strategy my_strategy`    |
 | 组合结果没变，只重算归因    | `python cli.py sa --strategy my_strategy`    |
 | 删一个版本           | `python cli.py sdv --strategy my_strategy:3` |
+| 固定一个已有 version | `python cli.py spn --strategy my_strategy:3`（不是跑回测） |
+
+MACD / RSI 怎么写再怎么跑，见 [用技术指标](use_indicators.md)。新建策略见 [编写策略](write_strategy.md)。

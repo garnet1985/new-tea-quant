@@ -53,17 +53,19 @@ summary: 回测第一步：每个交易日对每只股票问有没有机会。
 
 ```python
 def has_opportunity(self, ctx: StrategyContext) -> bool:
-    klines = ctx.data("stock.kline.daily")
-    if klines is None or len(klines) < 14:
+    data = ctx.data.items_with_meta()
+    today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+    if today is None:
         return False
-    close = [bar["close"] for bar in klines]
-    rsi = self._calc_rsi(close, 14)
+    rsi = today.get("rsi14")  # 来自 settings.data.base.indicators
+    if rsi is None:
+        return False
     ctx.capture("rsi", rsi)
-    ctx.capture("close", close[-1])
+    ctx.capture("close", today.get("close"))
     return rsi < 30
 ```
 
-`ctx.data()` 返回当天及之前的数据序列（前复权），不是只有当天一根 K 线。`ctx.capture()` 记录的值会在报告的信号快照里保存，用于事后分析"策略在什么条件下触发了"。
+`ctx.data` 不是函数。序列是当天及之前的历史（前复权）。指标在 settings 声明后写在 K 线上，见 [用技术指标](../../know_how/use_indicators.md)。`ctx.capture()` 记入报告的信号快照。
 
 ## 关键设计
 

@@ -199,4 +199,4 @@ tag.execute(scenario_name="market_cap_tier")
 }
 ```
 
-策略钩子中通过 `ctx.data("tag")` 读取标签数据。
+策略钩子中通过 `ctx.data.items_with_meta().get("tag")` 读取标签数据。

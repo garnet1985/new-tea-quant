@@ -98,5 +98,28 @@ class ProviderCatalog:
         return key or None
 
     @staticmethod
+    def save_api_key(directory: Path, api_key: str) -> None:
+        """把密钥写入供应商目录内的 ``api_key.txt``；不回传明文。"""
+        key = str(api_key or "").strip()
+        if not key:
+            raise ValueError("empty api key")
+        if len(key) > 4096:
+            raise ValueError("api key too long")
+        providers_root = ProjectContext.path.get_assistant_providers_directory().resolve()
+        target = Path(directory).resolve()
+        try:
+            target.relative_to(providers_root)
+        except ValueError as exc:
+            raise OSError("invalid provider directory") from exc
+        if not target.is_dir() or not (target / _CONFIG_FILE).is_file():
+            raise OSError("invalid provider directory")
+        key_path = target / _API_KEY_FILE
+        key_path.write_text(f"{key}\n", encoding="utf-8")
+        try:
+            key_path.chmod(0o600)
+        except OSError:
+            pass
+
+    @staticmethod
     def _has_api_key(directory: Path) -> bool:
         return ProviderCatalog.load_api_key(directory) is not None

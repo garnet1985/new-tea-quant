@@ -248,6 +248,20 @@ $ntq-assistant-aurora: conic-gradient(
   color: var(--ntq-text-muted);
 }
 
+.ntq-assistant-dock__settings-link {
+  color: var(--ntq-cyan);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.ntq-assistant-dock__bubble .ntq-assistant-dock__settings-link {
+  display: inline-block;
+  margin-top: 6px;
+}
+
 .ntq-assistant-dock__bubble {
   max-width: 88%;
   padding: 8px 12px;
@@ -299,6 +313,28 @@ $ntq-assistant-aurora: conic-gradient(
   line-height: 1.6;
   color: var(--ntq-text);
   word-break: break-word;
+}
+
+.ntq-assistant-typewriter {
+  min-height: 1.4em;
+}
+
+.ntq-assistant-typewriter.is-typing {
+  cursor: pointer;
+}
+
+.ntq-assistant-typewriter.is-typing .ntq-assistant-md::after {
+  content: '▍';
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--ntq-cyan);
+  animation: ntq-assistant-caret 0.9s step-end infinite;
+}
+
+@keyframes ntq-assistant-caret {
+  50% {
+    opacity: 0;
+  }
 }
 
 .ntq-assistant-md__p {

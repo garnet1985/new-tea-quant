@@ -24,6 +24,11 @@ class Assistant:
         return Assistant._manager.get_provider(provider_id)
 
     @staticmethod
+    def set_api_key(provider_id: str, api_key: str) -> ProviderInfo:
+        """写入已发现供应商的密钥，返回不含明文的快照。"""
+        return Assistant._manager.set_api_key(provider_id, api_key)
+
+    @staticmethod
     def chat(
         content: str,
         *,

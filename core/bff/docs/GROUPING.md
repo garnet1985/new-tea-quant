@@ -10,7 +10,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 | platform | `APIs/platform/runtime` | `/api/v1/runtime/pipeline` |
 | platform | `APIs/platform/setup` | `/api/v1/setup/*` |
 | platform | `APIs/platform/app_settings` | `/api/v1/settings/*`（含 database / data / cache / **trace**） |
-| platform | `APIs/platform/assistant` | `/api/v1/assistant/providers`、`/api/v1/assistant/chat` |
+| platform | `APIs/platform/assistant` | `/api/v1/assistant/providers`、`/api/v1/assistant/chat`、`PUT …/providers/<id>/api-key` |
 | data | `APIs/data/sources` | `/api/v1/data-sources/*` |
 | data | `APIs/data/contracts` | `/api/v1/data-contracts/*` |
 | strategy | `APIs/strategy/`（`routes/` + `helpers/`） | `/api/v1/strategy/*` |

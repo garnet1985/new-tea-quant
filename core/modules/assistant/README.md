@@ -5,6 +5,7 @@
 ## 适用场景
 
 - 列出本机已配置的供应商（是否启用、是否已填 Key）
+- 把 API Key 写入已发现供应商的 `api_key.txt`（不回传明文）
 - 发送一句用户消息并拿到助手回复
 - 在 `userspace/extensions/assistant/providers/<id>/` 增加新的 OpenAI 兼容供应商
 

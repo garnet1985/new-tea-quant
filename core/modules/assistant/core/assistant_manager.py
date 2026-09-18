@@ -8,11 +8,11 @@ from core.modules.assistant.contracts import AssistantError, ProviderInfo
 from core.modules.assistant.core.context_library import (
     ContextDoc,
     catalog_text,
+    compose_knowledge,
     docs_of_kind,
     list_context_docs,
     parse_picked_ids,
     pick_optional_docs,
-    render_knowledge,
     should_ask_model_to_pick,
 )
 from core.modules.assistant.core.openai_compatible_client import OpenAICompatibleClient
@@ -61,6 +61,25 @@ class AssistantManager:
     def get_provider(self, provider_id: str) -> Optional[ProviderInfo]:
         """按目录名取供应商；找不到返回 ``None``。"""
         return self._catalog.get_provider(provider_id)
+
+    def set_api_key(self, provider_id: str, api_key: str) -> ProviderInfo:
+        """把密钥写入已发现供应商的 ``api_key.txt``，返回更新后的快照。"""
+        key = str(api_key or "").strip()
+        if not key:
+            raise AssistantError("密钥不能为空")
+        if len(key) > 4096:
+            raise AssistantError("密钥过长")
+        info = self.get_provider(str(provider_id or "").strip())
+        if info is None:
+            raise AssistantError(f"未找到供应商：{provider_id}")
+        try:
+            self._catalog.save_api_key(info.directory, key)
+        except (OSError, ValueError):
+            raise AssistantError(f"无法写入供应商密钥：{info.provider_id}") from None
+        updated = self.get_provider(info.provider_id)
+        if updated is None or not updated.has_api_key:
+            raise AssistantError(f"密钥已写入但未能读取：{info.provider_id}")
+        return updated
 
     def chat(
         self,
@@ -119,8 +138,7 @@ class AssistantManager:
                 model=model,
             )
         selected = pick_optional_docs(question, optional, picked_ids=picked_ids)
-        bundle: List[ContextDoc] = [*global_docs, *selected]
-        return render_knowledge(bundle)
+        return compose_knowledge(global_docs, selected)
 
     def _pick_doc_ids(
         self,
@@ -163,7 +181,7 @@ class AssistantManager:
             ]
             if not ready:
                 raise AssistantError(
-                    "没有可用的供应商：请配置 enabled 且已填写 api_key.txt"
+                    "没有可用的供应商：请在设置中填写 API Key"
                 )
             info = ready[0]
         if not info.enabled:

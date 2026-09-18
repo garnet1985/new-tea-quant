@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { IconButton } from '@mui/material';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import LoadingBars from 'components/loadingBars/loadingBars';
-import AssistantMarkdown from './assistantMarkdown';
+import AssistantTypewriter from './assistantTypewriter';
 import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
 import { isHttpStatusError } from 'services/request';
 import './assistantChatDock.scss';
@@ -35,9 +36,25 @@ function AssistantChatDock() {
   const [messages, setMessages] = useState([]);
   const [sending, setSending] = useState(false);
   const [hint, setHint] = useState('');
+  const [needsKey, setNeedsKey] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const idRef = useRef(1);
+  const typedIdsRef = useRef(new Set());
+
+  const latestAssistantId = [...messages].reverse().find((item) => (
+    item.role === 'assistant' && !item.error && !item.pending && item.content
+  ))?.id ?? null;
+
+  const markTyped = useCallback((id) => {
+    if (id != null) typedIdsRef.current.add(id);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
 
   const toggleOpen = useCallback(() => {
     setOpen((value) => !value);
@@ -67,8 +84,8 @@ function AssistantChatDock() {
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, open]);
+    scrollToBottom();
+  }, [messages, open, scrollToBottom]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -79,10 +96,14 @@ function AssistantChatDock() {
         const ready = (Array.isArray(items) ? items : []).some(
           (item) => item.enabled && item.hasApiKey,
         );
+        setNeedsKey(!ready);
         setHint(ready ? '' : '还没有可用的 AI 供应商。');
       })
       .catch((err) => {
-        if (!cancelled) setHint(errorMessage(err, '无法连接助理服务。'));
+        if (!cancelled) {
+          setNeedsKey(false);
+          setHint(errorMessage(err, '无法连接助理服务。'));
+        }
       });
     return () => {
       cancelled = true;
@@ -180,7 +201,7 @@ function AssistantChatDock() {
                 alt=""
               />
               <div className="ntq-assistant-dock__head-text">
-                <p className="ntq-assistant-dock__title">新茶在这里</p>
+                <p className="ntq-assistant-dock__title">您好，我是新茶，有什么可以帮到您？</p>
                 <p className="ntq-assistant-dock__subtitle">有什么问题都可以问新茶哦</p>
               </div>
             </div>
@@ -199,6 +220,18 @@ function AssistantChatDock() {
             {messages.length === 0 ? (
               <p className="ntq-assistant-dock__empty">
                 {hint || '新茶在听。'}
+                {needsKey ? (
+                  <>
+                    {' '}
+                    <RouterLink
+                      className="ntq-assistant-dock__settings-link"
+                      to="/settings/assistant"
+                      onClick={close}
+                    >
+                      去设置填写 API Key
+                    </RouterLink>
+                  </>
+                ) : null}
               </p>
             ) : null}
             {messages.map((item) => (
@@ -217,9 +250,25 @@ function AssistantChatDock() {
                     <span>正在联络喵星总部…</span>
                   </div>
                 ) : item.role === 'assistant' && !item.error ? (
-                  <AssistantMarkdown text={item.content} />
+                  <AssistantTypewriter
+                    text={item.content}
+                    animate={item.id === latestAssistantId && !typedIdsRef.current.has(item.id)}
+                    onProgress={scrollToBottom}
+                    onDone={() => markTyped(item.id)}
+                  />
                 ) : (
-                  <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
+                  <>
+                    <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
+                    {item.error && /密钥|供应商/.test(item.content) ? (
+                      <RouterLink
+                        className="ntq-assistant-dock__settings-link"
+                        to="/settings/assistant"
+                        onClick={close}
+                      >
+                        去设置填写 API Key
+                      </RouterLink>
+                    ) : null}
+                  </>
                 )}
               </div>
             ))}

@@ -14,7 +14,8 @@ _CONTEXT_ROOT = Path(__file__).resolve().parents[1] / "context"
 _KIND_DIRS = ("global", "wiki", "know_how")
 _SKIP_NAMES = frozenset({"readme.md"})
 _MAX_PICK = 3
-_MAX_CHARS = 24000
+_MAX_CHARS = 32000
+_PICKED_RESERVE = 12000
 _ATTACH_ALL_IF_FEWER_THAN = 2
 
 
@@ -126,21 +127,33 @@ def should_ask_model_to_pick(optional_docs: Sequence[ContextDoc]) -> bool:
     return len(optional_docs) >= _ATTACH_ALL_IF_FEWER_THAN
 
 
-def render_knowledge(docs: Sequence[ContextDoc]) -> str:
+def render_knowledge(docs: Sequence[ContextDoc], *, budget: int = _MAX_CHARS) -> str:
     parts: List[str] = []
     used = 0
+    limit = max(0, int(budget))
     for item in docs:
         block = f"# {item.title}\n\n{item.body}".strip()
         if not block:
             continue
-        if used + len(block) > _MAX_CHARS:
-            remain = _MAX_CHARS - used
+        if used + len(block) > limit:
+            remain = limit - used
             if remain > 200:
                 parts.append(block[:remain] + "\n\n[文档已截断]")
             break
         parts.append(block)
         used += len(block) + 2
     return "\n\n".join(parts).strip()
+
+
+def compose_knowledge(
+    global_docs: Sequence[ContextDoc],
+    selected: Sequence[ContextDoc],
+) -> str:
+    """先放挑中的 wiki/know_how，再填 global，避免 global 把预算占满后丢掉正文。"""
+    picked = render_knowledge(selected, budget=_PICKED_RESERVE)
+    remain = max(_MAX_CHARS - len(picked), 2000)
+    globe = render_knowledge(_global_attach_order(global_docs), budget=remain)
+    return "\n\n".join(part for part in (picked, globe) if part)
 
 
 def pick_optional_docs(
@@ -198,7 +211,29 @@ def _string_tuple(value: object) -> tuple:
     return ()
 
 
+def _global_attach_order(docs: Sequence[ContextDoc]) -> List[ContextDoc]:
+    def sort_key(item: ContextDoc) -> tuple:
+        name = item.doc_id.rsplit("/", 1)[-1]
+        if name == "system_role":
+            return (0, 0, item.doc_id)
+        return (1, len(item.body), item.doc_id)
+
+    return sorted(docs, key=sort_key)
+
+
 def _tokens(text: str) -> List[str]:
     lowered = str(text or "").lower()
-    parts = re.findall(r"[a-z0-9_]{2,}|[\u4e00-\u9fff]{2,}", lowered)
-    return parts[:24]
+    parts: List[str] = re.findall(r"[a-z0-9_]{2,}", lowered)
+    seen = set(parts)
+    for block in re.findall(r"[\u4e00-\u9fff]+", lowered):
+        if len(block) < 2:
+            continue
+        candidates = [block]
+        for size in (2, 3, 4):
+            if len(block) >= size:
+                candidates.extend(block[i : i + size] for i in range(len(block) - size + 1))
+        for token in candidates:
+            if token not in seen:
+                seen.add(token)
+                parts.append(token)
+    return parts[:48]

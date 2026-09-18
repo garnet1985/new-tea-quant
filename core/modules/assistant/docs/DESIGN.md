@@ -51,7 +51,7 @@ PROVIDER = {
 
 ### 4. 快照不含密钥
 
-公开 `ProviderInfo.has_api_key`。真正读 Key 只发生在 `AssistantManager.chat` 内部，且不得进入 BFF 响应或异常字符串。
+公开 `ProviderInfo.has_api_key`。真正读 Key 只发生在 `AssistantManager.chat` 内部；`set_api_key` 只写 `api_key.txt`，快照与 BFF 响应不得包含明文。
 
 ### 5. Facade / Manager / Catalog 三层
 

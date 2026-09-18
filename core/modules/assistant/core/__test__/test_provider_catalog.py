@@ -69,6 +69,29 @@ def test_discovers_valid_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert ProviderCatalog.get_provider("zhipu") == item
 
 
+def test_save_api_key_writes_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / "providers"
+    directory = _write_provider(
+        root,
+        "zhipu",
+        body=(
+            "PROVIDER = {\n"
+            '    "base_url": "https://open.bigmodel.cn/api/paas/v4",\n'
+            '    "model": "glm-4-flash",\n'
+            "}\n"
+        ),
+    )
+    _patch_providers_root(monkeypatch, root)
+
+    assert ProviderCatalog.get_provider("zhipu").has_api_key is False
+    ProviderCatalog.save_api_key(directory, "  secret-key  ")
+    item = ProviderCatalog.get_provider("zhipu")
+    assert item is not None
+    assert item.has_api_key is True
+    assert ProviderCatalog.load_api_key(directory) == "secret-key"
+    assert "secret-key" not in str(item)
+
+
 def test_skips_incomplete_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "providers"
     _write_provider(

@@ -19,6 +19,7 @@
 from core.modules.assistant import Assistant
 
 print(Assistant.list_providers())
+print(Assistant.set_api_key("zhipu", "your-key").has_api_key)
 print(Assistant.chat("只回复 pong", provider_id="zhipu"))
 ```
 

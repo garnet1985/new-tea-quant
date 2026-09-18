@@ -41,3 +41,7 @@ def chat_request(payload: Mapping[str, Any]) -> Dict[str, Any]:
         "provider_id": provider_id or None,
         "history": history,
     }
+
+
+def api_key_write_request(payload: Mapping[str, Any]) -> str:
+    return str(payload.get("apiKey") or payload.get("api_key") or "").strip()

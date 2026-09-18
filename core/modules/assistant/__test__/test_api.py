@@ -28,6 +28,7 @@ class TestAssistantApi(unittest.TestCase):
     def test_list_and_get_callable(self) -> None:
         self.assertTrue(callable(Assistant.list_providers))
         self.assertTrue(callable(Assistant.get_provider))
+        self.assertTrue(callable(Assistant.set_api_key))
         self.assertTrue(callable(Assistant.chat))
         self.assertIsNone(Assistant.get_provider(""))
         self.assertIsNone(Assistant.get_provider("../secret"))

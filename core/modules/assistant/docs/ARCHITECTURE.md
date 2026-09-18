@@ -13,6 +13,7 @@
 - 经 `ProjectContext.path` 定位 `userspace/extensions/assistant/providers/`
 - 扫描各供应商 `config.py`，组装 `ProviderInfo`
 - 在 Manager 内读取 `api_key.txt` 并发送非流式 chat/completions
+- 经门面把密钥写入已发现供应商的 `api_key.txt`（不回传明文）
 - 判断是否已配置密钥（不回传明文）
 
 **不负责**
@@ -44,9 +45,9 @@ core/modules/assistant/
 
 ```text
 Caller
-  → Assistant.list_providers / get_provider / chat
+  → Assistant.list_providers / get_provider / set_api_key / chat
        → AssistantManager（编排，不导出）
-            → ProviderCatalog（扫描 / 解析 / 读密钥）
+            → ProviderCatalog（扫描 / 解析 / 读密钥 / 写密钥）
             → OpenAICompatibleClient（chat/completions）
        → ProviderInfo 或 str（无 api_key 明文）
 ```

@@ -57,6 +57,32 @@ from core.modules.assistant import Assistant
 zhipu = Assistant.get_provider("zhipu")
 ```
 
+### set_api_key
+
+`Assistant.set_api_key(provider_id: str, api_key: str) -> ProviderInfo`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 将密钥写入已发现供应商目录的 ``api_key.txt``；返回更新后的快照，不含明文
+- **参数：**
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| `provider_id` | `str` | 与 `providers/` 下文件夹名一致 |
+| `api_key` | `str` | 密钥；空白则失败 |
+
+- **返回值：** `ProviderInfo` — `has_api_key` 为真；不含 api_key 明文
+- **错误与异常：** `AssistantError` — 未知供应商、空白密钥、写入失败
+- **举例：**
+
+```python
+from core.modules.assistant import Assistant
+
+info = Assistant.set_api_key("zhipu", "your-key")
+print(info.has_api_key)
+```
+
 ### chat
 
 `Assistant.chat(content: str, *, provider_id: Optional[str] = None, history: Optional[list[dict]] = None) -> str`

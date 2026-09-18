@@ -9,7 +9,10 @@ from core.bff.APIs.platform.assistant.helpers import chat_item, provider_item
 
 def _status_for_assistant_error(exc: Exception) -> int:
     msg = str(exc)
-    if any(token in msg for token in ("空", "未找到", "没有可用", "未配置", "已禁用")):
+    if any(
+        token in msg
+        for token in ("空", "未找到", "没有可用", "未配置", "已禁用", "无法写入", "过长")
+    ):
         return 400
     return 502
 
@@ -54,6 +57,19 @@ class AssistantImplementer:
             return None, str(exc), _status_for_assistant_error(exc)
         return chat_item(reply=reply, provider=provider), None, 200
 
+    def set_api_key(
+        self,
+        provider_id: str,
+        api_key: str,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str], int]:
+        assert self._Assistant is not None
+        assert self._AssistantError is not None
+        try:
+            info = self._Assistant.set_api_key(provider_id, api_key)
+        except self._AssistantError as exc:
+            return None, str(exc), _status_for_assistant_error(exc)
+        return provider_item(info), None, 200
+
     def _resolve_provider(self, provider_id: Optional[str]):
         assert self._Assistant is not None
         if provider_id:
@@ -68,7 +84,7 @@ class AssistantImplementer:
         ]
         if not ready:
             raise self._AssistantError(
-                "没有可用的供应商：请配置 enabled 且已填写 api_key.txt"
+                "没有可用的供应商：请在设置中填写 API Key"
             )
         return ready[0]
 

@@ -9,7 +9,7 @@ function StrategyDesignReportPanel() {
   const { session } = useStrategyDesignSession();
 
   return (
-    <Box className="ntq-design-step-report">
+    <Box className="ntq-design-step-report" data-ntq-help="design-report">
       <StrategyReportPanel
         key={`design-report-${wb.strategyName || ''}-${session.panelsResetEpoch}-${wb.activeStep}`}
         strategyName={wb.strategyName}

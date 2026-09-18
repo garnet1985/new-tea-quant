@@ -341,3 +341,19 @@ def feedback_prompt_action(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, 
             return None, "关闭反馈弹窗失败"
         return {"status": "ok", "action": "disable"}, None
     return None, "action 须为 snooze 或 disable"
+
+
+def get_ui_helper() -> Dict[str, Any]:
+    """Global helper 关闭账本（``ui_helper.json``）。"""
+    from .ui_helper import get_ui_helper as _get
+
+    return _get()
+
+
+def save_ui_helper(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """关闭一份 global helper。未知 helpId 仍写入。"""
+    from .ui_helper import save_ui_helper as _save
+
+    if not isinstance(payload, dict):
+        return None, "请求体须为 JSON 对象"
+    return _save(payload)

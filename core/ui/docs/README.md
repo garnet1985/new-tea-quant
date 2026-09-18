@@ -9,6 +9,7 @@
 
 ## 业务设计与契约
 
+- `global-helper.md`：全页引导（catalog 在代码、关闭账本在 userspace、找不到 DOM 的行为）
 - `setup-api-design.md`：Setup 流程 API 契约（definition/status/start/submit/retry 等）
 - `launcher-and-setup-runtime-design.md`：launcher + setup runtime 的单入口方案设计
 - `strategy-workbench-settings-schema-v1.md`：策略工作台 settings 的 V1 schema 约定

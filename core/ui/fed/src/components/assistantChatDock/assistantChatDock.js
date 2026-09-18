@@ -6,6 +6,7 @@ import LoadingBars from 'components/loadingBars/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
 import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
 import { isHttpStatusError } from 'services/request';
+import { GLOBAL_HELPER_SESSION_EVENT } from 'components/globalHelper/helpTarget';
 import './assistantChatDock.scss';
 
 function errorMessage(err, fallback) {
@@ -62,6 +63,14 @@ function AssistantChatDock() {
 
   const close = useCallback(() => {
     setOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const onHelper = (event) => {
+      if (event?.detail?.open) setOpen(false);
+    };
+    window.addEventListener(GLOBAL_HELPER_SESSION_EVENT, onHelper);
+    return () => window.removeEventListener(GLOBAL_HELPER_SESSION_EVENT, onHelper);
   }, []);
 
   useEffect(() => {

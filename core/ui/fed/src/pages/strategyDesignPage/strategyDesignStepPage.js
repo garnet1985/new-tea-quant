@@ -71,6 +71,7 @@ function StrategyDesignStepPage() {
               <Grid item xs={12} md={3}>
                 <Box
                   className="ntq-design-step-page__settings"
+                  data-ntq-help="design-settings"
                   onFocusCapture={wb.handleSettingsFocus}
                 >
                   <StrategyDesignSettingsPanel

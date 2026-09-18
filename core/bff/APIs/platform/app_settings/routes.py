@@ -134,3 +134,21 @@ def post_feedback_prompt_action():
     if err:
         return error(err, 400)
     return ok(body)
+
+
+@settings_api_bp.route("/v1/settings/ui-helper", methods=["GET"])
+def get_ui_helper():
+    """读取 global helper 关闭账本（不校验 FED 目录）。"""
+    return ok(settings_service.get_ui_helper())
+
+
+@settings_api_bp.route("/v1/settings/ui-helper", methods=["POST"])
+def post_ui_helper():
+    """关闭一份 help（``helpId`` + ``version`` + ``source``）。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_ui_helper(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)

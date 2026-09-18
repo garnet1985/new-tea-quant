@@ -115,7 +115,7 @@ function StrategyDesignExecutionPanel() {
   const showPinToggle = Boolean(wb.hasPersistedSnapshot && String(wb.currentVersionDisplay || '').startsWith('v'));
 
   return (
-    <Box className="ntq-design-exec-panel">
+    <Box className="ntq-design-exec-panel" data-ntq-help="design-execution">
       <Box className="ntq-design-exec-panel__title-row">
         <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
           {panelTitle}

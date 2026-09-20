@@ -3,8 +3,8 @@
 
 ``python devcli.py ex`` 默认行为（本文件为唯一配置源）：
 - 股票池：``TARGET_STOCK_COUNT > 0`` 时分层抽样（默认 **300**）；``<= 0`` 为全市场
-- 时序日期窗：**20250101** ~ **20260101**（``DEFAULT_START_DATE`` / ``DEFAULT_END_DATE``）
-- 季度窗：**2025Q1** ~ **2025Q4**（财报等季度表）
+- 时序日期窗：**20230101** ~ **20251231**（``DEFAULT_START_DATE`` / ``DEFAULT_END_DATE``，约三年）
+- 季度窗：**2023Q1** ~ **2025Q4**（财报等季度表）
 - 输出（进 Git / 安装）：``initialization/data/data_demo.zip``（固定名，每次覆盖）
 - 可选 ``--tagged``：额外写一份带版本号的 ``data_v*`` 副本（不提交 Git）
 - 仅导出行情/财报/宏观等**数据表**；不含 cache、meta、tag、工作台快照等运行时生成表
@@ -30,13 +30,13 @@ GIT_DATA_META_NAME = "data_demo.meta.json"
 PACKAGE_NAME_PREFIX = "data"
 
 # 时间窗（YYYYMMDD / 季度与日期窗对齐）
-DEFAULT_START_DATE = "20250101"
-DEFAULT_END_DATE = "20260101"
-DEFAULT_START_QUARTER = "2025Q1"
+DEFAULT_START_DATE = "20230101"
+DEFAULT_END_DATE = "20251231"
+DEFAULT_START_QUARTER = "2023Q1"
 DEFAULT_END_QUARTER = "2025Q4"
 
 # 分层抽样目标股票数；<= 0 表示不抽样，导出全市场股票
-TARGET_STOCK_COUNT = 500
+TARGET_STOCK_COUNT = 300
 SAMPLE_RANDOM_SEED = 20250525
 
 # 每个非空分层至少保留 1 只（在目标总数允许时）

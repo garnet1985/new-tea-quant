@@ -18,8 +18,8 @@ python -m core.infra.setup.core.scripts.init_data --help
 | 项 | 值 |
 |----|-----|
 | 股票抽样 | 300 只（分层）；`TARGET_STOCK_COUNT <= 0` 或 `--stock-count 0` 为全市场 |
-| 日期窗 | 20250101 ~ 20260101（K 线等点时序按日 BETWEEN；**ST 时段按与窗相交**，窗口前已戴帽的行会留下） |
-| 季度窗 | 2025Q1 ~ 2025Q4 |
+| 日期窗 | 20230101 ~ 20251231（K 线等点时序按日 BETWEEN；**ST 时段按与窗相交**，窗口前已戴帽的行会留下） |
+| 季度窗 | 2023Q1 ~ 2025Q4 |
 
 ## 不导出的表
 
@@ -34,7 +34,7 @@ python -m core.infra.setup.core.scripts.init_data --help
 
 `data_v{core_version}_{stock_count}_{from_date}_{to_date}.zip`
 
-例如 `data_v0.3.2_300_20250101_20260101.zip`（版本来自 `core/system.json`）。
+例如 `data_v0.5.0_300_20230101_20251231.zip`（版本来自 `core/system.json`）。
 
 ## 常用参数
 

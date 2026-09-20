@@ -30,14 +30,16 @@ function nextFrame() {
   });
 }
 
+export function liveStepsNow(steps) {
+  return (Array.isArray(steps) ? steps : []).filter((step) => queryHelpTarget(step?.target));
+}
+
 export async function resolveLiveSteps(steps, timeoutMs = HELP_TARGET_WAIT_MS) {
-  const list = Array.isArray(steps) ? steps : [];
   const deadline = Date.now() + Math.max(0, Number(timeoutMs) || 0);
-  const pick = () => list.filter((step) => queryHelpTarget(step?.target));
-  let live = pick();
+  let live = liveStepsNow(steps);
   while (!live.length && Date.now() < deadline) {
     await nextFrame();
-    live = pick();
+    live = liveStepsNow(steps);
   }
   return live;
 }

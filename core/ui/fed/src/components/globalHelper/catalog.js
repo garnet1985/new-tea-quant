@@ -1,57 +1,47 @@
-const WORKBENCH_STEPS = new Set(['enum', 'price', 'portfolio']);
+import {
+  STRATEGY_LAYOUT_HELP,
+  STRATEGY_REPORT_COMPARE_HELP,
+  STRATEGY_VERSION_AND_REPORT_HELP,
+} from './helps/strategyDesign';
+import { STRATEGY_DESIGN_DECISION_HELP } from './helps/strategyDesignDecision';
 
-export function matchStrategyDesignWorkbench(pathname) {
-  const segs = String(pathname || '').split('/').filter(Boolean);
-  if (segs[0] !== 'strategy-design' || segs.length < 3) return false;
-  const step = decodeURIComponent(segs[segs.length - 1] || '');
-  return WORKBENCH_STEPS.has(step);
+export {
+  matchStrategyDesignWorkbench,
+  STRATEGY_LAYOUT_HELP,
+  STRATEGY_REPORT_COMPARE_HELP,
+  STRATEGY_VERSION_AND_REPORT_HELP,
+} from './helps/strategyDesign';
+export {
+  matchStrategyDesignDecision,
+  STRATEGY_DESIGN_DECISION_HELP,
+} from './helps/strategyDesignDecision';
+
+/** 所有页面的 help。新页面：在 helps/ 加文件，再推进这个数组。 */
+export const GLOBAL_HELPER_CATALOG = [
+  STRATEGY_LAYOUT_HELP,
+  STRATEGY_VERSION_AND_REPORT_HELP,
+  STRATEGY_REPORT_COMPARE_HELP,
+  STRATEGY_DESIGN_DECISION_HELP,
+];
+
+export function helpTrigger(help) {
+  return help?.trigger === 'appear' ? 'appear' : 'enter';
 }
 
-/** 制定策略内页（枚举 / 价格 / 投资组合）三栏简介。 */
-export const STRATEGY_DESIGN_HELP = {
-  id: 'strategy-design',
-  version: 1,
-  legacyIds: [],
-  match: matchStrategyDesignWorkbench,
-  steps: [
-    {
-      target: 'design-settings',
-      pages: [
-        {
-          title: '设置栏',
-          body: '左边这一栏是当前策略的设置。目标、采样、费率和模拟参数都在这里改，会作用在这次回测上。',
-        },
-        {
-          title: '先改再跑',
-          body: '不同步骤看到的设置项不一样。改完不用另存，点右侧模拟就会用当前这些值。',
-        },
-      ],
-    },
-    {
-      target: 'design-execution',
-      pages: [
-        {
-          title: '执行栏',
-          body: '这里启动当前这一步的回测，看进度，并进入下一步。',
-        },
-      ],
-    },
-    {
-      target: 'design-report',
-      pages: [
-        {
-          title: '报告栏',
-          body: '回测结果出现在这里。还没跑时是空的，跑完就能看分布、收益和明细。',
-        },
-      ],
-    },
-  ],
-};
-
-export const GLOBAL_HELPER_CATALOG = [STRATEGY_DESIGN_HELP];
+export function findHelpsForPath(pathname) {
+  return GLOBAL_HELPER_CATALOG.filter((help) => (
+    help && typeof help.match === 'function' && help.match(pathname)
+  ));
+}
 
 export function findHelpForPath(pathname) {
-  return GLOBAL_HELPER_CATALOG.find((help) => help.match(pathname)) || null;
+  return findHelpsForPath(pathname)[0] || null;
+}
+
+export function pickHelpForManualOpen(helps) {
+  const list = Array.isArray(helps) ? helps : [];
+  const enter = list.find((item) => helpTrigger(item) === 'enter');
+  return enter || list[0] || null;
 }
 
 export function isHelpDismissed(help, dismissed = {}) {

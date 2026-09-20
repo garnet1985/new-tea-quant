@@ -622,6 +622,7 @@ function StrategyReportPanel({
               size="small"
               variant="outlined"
               className="ntq-attention-btn ntq-report-panel__embedded-compare"
+              data-ntq-help="strategy-report-compare"
               onClick={() => {
                 setCompareDialogSubTab('report');
                 setCompareDialogOpen(true);

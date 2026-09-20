@@ -2,6 +2,7 @@
 
 $ntq-helper-fab-size: 52px;
 $ntq-helper-z: 1320;
+$ntq-helper-spot-move: 320ms cubic-bezier(0.22, 1, 0.36, 1);
 
 .ntq-global-helper {
   position: fixed;
@@ -25,6 +26,11 @@ $ntq-helper-z: 1320;
     0 0 0 2px rgba(34, 211, 238, 0.95),
     0 0 22px rgba(34, 211, 238, 0.28),
     0 0 0 9999px rgba(4, 10, 36, 0.82);
+  transition:
+    left $ntq-helper-spot-move,
+    top $ntq-helper-spot-move,
+    width $ntq-helper-spot-move,
+    height $ntq-helper-spot-move;
 }
 
 .ntq-global-helper__dim {
@@ -48,6 +54,9 @@ $ntq-helper-z: 1320;
     0 18px 48px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.96);
+  transition:
+    left $ntq-helper-spot-move,
+    top $ntq-helper-spot-move;
 }
 
 .ntq-global-helper__card-head {
@@ -184,6 +193,11 @@ $ntq-helper-z: 1320;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ntq-global-helper__spot,
+  .ntq-global-helper__card {
+    transition: none;
+  }
+
   .ntq-global-helper__fab:hover {
     transform: none;
   }

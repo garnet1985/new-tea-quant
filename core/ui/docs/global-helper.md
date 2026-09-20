@@ -37,19 +37,21 @@ userspace **不存** 路由、文案、DOM 选择器。JSON 过时指的是账�
 
 ## 3. 何时出现
 
-- 当前 pathname **匹配到** 某条 catalog help → 显示 help 按钮；若该 help **未关闭** 则自动弹。
-- **匹配不到** → 按钮没有、不弹、什么都不做。landing / 策略列表等默认不配。
-- 匹配按 **路由类**：路径变量、query 不拆份。`/strategy-design/foo/enum` 与 `/strategy-design/bar/price` 可以是同一 `helpId`。
-- 自动弹必须等关闭账本 GET 回来，且页面不在整页 loading、没有更高优先级 overlay（setup 同意、welcome intro）。
-- 高亮期间 **不能** 点被高亮的控件；遮罩吃掉交互。
-- 「我知道了 / 跳过」只关 **当前这份** help，其它 help 不受影响。
+- 当前 pathname **匹配到** 至少一份 catalog help → 显示 help 按钮。
+- **匹配不到** → 按钮没有、不弹、什么都不做。
+- `trigger`（缺省 `enter`）：
+  - **`enter`**：进这类页且未关闭 → 自动弹（只试一次）。
+  - **`appear`**：进页不弹。等 step 的 `target` **第一次出现在 DOM 里**再自动弹。锚点必须打在动作之后才挂上的节点（例如跑完才有的版本胶囊），不能打在进页就在的空壳上。
+- 同一类路由可以挂多份 help（进页一份、跑完一份），各记各的 `helpId`。
+- 问号按钮重开 **enter** 那份；`appear` 那份在目标出现且未关闭时自动弹。
+- 高亮期间 **不能** 点被高亮的控件。
 
 制定策略按 **当时 DOM 是否还在** 切 help，不按「四步必须一份」：
 
 | helpId（示例） | 匹配 | 原因 |
 |----------------|------|------|
 | `strategy-design` | `/strategy-design/:name/(enum\|price\|portfolio)` | 设置栏 / 执行区 / 报告区同一套壳 |
-| `strategy-design-decision` | `/strategy-design/:name/decision` | 对局 DOM 与上表不同时存在；需要时再加 |
+| `strategy-design-decision` | `/strategy-design/:name/decision` | 对局 DOM 与工作台不同时存在；对局现场挂上后 appear |
 
 第一刀引擎只用占位 help 验证闭环，不写正式文案。
 
@@ -120,7 +122,11 @@ BFF 不认识 catalog。多出来的 `helpId` 原样保存。FED 读到不在目
 
 ### 5.4 编写约束
 
-step 只指向该路由类 **进页就稳定存在** 的节点。不要指折叠面板内部、跑完才出现的报告块、未打开的对话框。某 step 的 DOM 与另一 step 互斥（工作台 vs 对局），应拆成不同 `helpId`，而不是写进同一份再指望运行时跳过。
+`enter` 的 step 只指向该路由类 **进页就稳定存在** 的节点。不要指折叠面板内部、跑完才出现的报告块、未打开的对话框。
+
+`appear` 相反：锚点必须打在 **动作之后才挂上** 的节点上，不能打在进页就在的空壳上（例如报告区外框进页就有，版本胶囊 `strategy-version` 要有 snapshot 才挂）。同一份 appear 里若某步更晚才出现（例如对比要两个版本），应拆成另一份 `helpId`，否则第一次引导时会被跳过，ack 之后不再弹。
+
+某 step 的 DOM 与另一 step 互斥（工作台 vs 对局），应拆成不同 `helpId`，而不是写进同一份再指望运行时跳过。
 
 ---
 
@@ -186,8 +192,9 @@ POST 请求：
 {
   id: 'strategy-design',
   version: 1,
+  trigger: 'enter', // 或 'appear'
   legacyIds: [],
-  match: (pathname) => boolean, // 一类路由
+  match: (pathname) => boolean,
   steps: [
     {
       target: 'design-stepper',
@@ -199,9 +206,18 @@ POST 请求：
 }
 ```
 
+文件分工：
+
+| 文件 | 职责 |
+|------|------|
+| `helps/<page>.js` | 这一类页的文案、steps、`match`、`trigger` |
+| `catalog.js` | 把各页 help **推进数组**，以及匹配 / 关闭判断（不含文案） |
+| 页面组件 | 给 DOM 打 `data-ntq-help` |
+
+新页面要 help：新建 `helps/foo.js` → `export` 一份 help 对象 → 推进 `GLOBAL_HELPER_CATALOG` → 在目标控件上写 `data-ntq-help="…"`。Host 已挂在 `MainLayout`，不用再接一遍引擎。
+
 - `id` 稳定、kebab-case、产品面命名，不是 path。
 - 未匹配任何 help 的页面：host 存在但不渲染按钮/遮罩。
-- 占位 help 只为打通自动弹、翻页、关闭、换浏览器不再弹；正式文案后补。
 
 锚点：`data-ntq-help="design-stepper"`。不靠 CSS class 或可见文案。
 

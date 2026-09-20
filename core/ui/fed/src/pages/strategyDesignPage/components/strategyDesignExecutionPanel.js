@@ -121,17 +121,19 @@ function StrategyDesignExecutionPanel() {
           {panelTitle}
         </Typography>
         {showPinToggle ? (
-          <VersionPinToggle
-            version={{
-              ...currentVersion,
-              id: wb.currentVersionDisplay,
-              pinned: wb.currentVersionPinned,
-            }}
-            versions={wb.configVersions}
-            disabled={wb.disablePinActions}
-            onToggle={wb.toggleVersionPinned}
-            showLabel
-          />
+          <Box data-ntq-help="strategy-version-pin">
+            <VersionPinToggle
+              version={{
+                ...currentVersion,
+                id: wb.currentVersionDisplay,
+                pinned: wb.currentVersionPinned,
+              }}
+              versions={wb.configVersions}
+              disabled={wb.disablePinActions}
+              onToggle={wb.toggleVersionPinned}
+              showLabel
+            />
+          </Box>
         ) : null}
       </Box>
 
@@ -148,6 +150,7 @@ function StrategyDesignExecutionPanel() {
             disabled={wb.disableMetaActions || wb.executionBusy}
             onClick={wb.handleRunCurrentStep}
             compact
+            helpTarget="start-simulation"
           />
           {prevStep ? (
             <Button

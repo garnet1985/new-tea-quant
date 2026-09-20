@@ -211,7 +211,7 @@ function AssistantChatDock() {
               />
               <div className="ntq-assistant-dock__head-text">
                 <p className="ntq-assistant-dock__title">您好，我是新茶，有什么可以帮到您？</p>
-                <p className="ntq-assistant-dock__subtitle">有什么问题都可以问新茶哦</p>
+                <p className="ntq-assistant-dock__subtitle">我现在还只能帮助您回答一些基础问题，之后的版本喵星还会赋予我更强大的能力哦</p>
               </div>
             </div>
             <IconButton

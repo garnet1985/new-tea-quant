@@ -9,7 +9,10 @@ function StrategyDesignReportPanel() {
   const { session } = useStrategyDesignSession();
 
   return (
-    <Box className="ntq-design-step-report" data-ntq-help="design-report">
+    <Box
+      className="ntq-design-step-report"
+      data-ntq-help={wb.hasPersistedSnapshot ? 'strategy-report' : undefined}
+    >
       <StrategyReportPanel
         key={`design-report-${wb.strategyName || ''}-${session.panelsResetEpoch}-${wb.activeStep}`}
         strategyName={wb.strategyName}

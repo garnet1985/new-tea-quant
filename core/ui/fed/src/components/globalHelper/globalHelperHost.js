@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { dismissUiHelper, fetchUiHelper } from 'api/uiHelperApi';
-import { findHelpForPath, isHelpDismissed } from './catalog';
+import {
+  findHelpsForPath,
+  helpTrigger,
+  isHelpDismissed,
+  pickHelpForManualOpen,
+} from './catalog';
 import {
   emitGlobalHelperSession,
+  liveStepsNow,
   measureHole,
   placeCard,
   queryHelpTarget,
@@ -25,9 +31,13 @@ function prefersReducedMotion() {
 
 function GlobalHelperHost() {
   const location = useLocation();
-  const help = useMemo(() => findHelpForPath(location.pathname), [location.pathname]);
+  const matchingHelps = useMemo(
+    () => findHelpsForPath(location.pathname),
+    [location.pathname],
+  );
   const [ledger, setLedger] = useState({ ready: false, ok: false, dismissed: {} });
   const [sessionDismissed, setSessionDismissed] = useState(() => new Set());
+  const [activeHelp, setActiveHelp] = useState(null);
   const [open, setOpen] = useState(false);
   const [liveSteps, setLiveSteps] = useState([]);
   const [stepIndex, setStepIndex] = useState(0);
@@ -36,8 +46,10 @@ function GlobalHelperHost() {
   const [holeReady, setHoleReady] = useState(false);
   const [cardSize, setCardSize] = useState(CARD_FALLBACK);
   const cardRef = useRef(null);
-  const autoTriedRef = useRef('');
+  const autoTriedRef = useRef(new Set());
   const openRef = useRef(false);
+  const activeHelpRef = useRef(null);
+  const [enterSettled, setEnterSettled] = useState(false);
 
   const step = liveSteps[stepIndex] || null;
   const pages = step?.pages || [];
@@ -49,10 +61,22 @@ function GlobalHelperHost() {
   ) + pageIndex + 1;
   const isFirst = stepIndex === 0 && pageIndex === 0;
   const isLast = stepIndex >= liveSteps.length - 1 && pageIndex >= pages.length - 1;
+  const buttonHelp = pickHelpForManualOpen(matchingHelps);
+
+  const isDismissed = useCallback((help) => (
+    Boolean(help) && (
+      sessionDismissed.has(help.id)
+      || (ledger.ok && isHelpDismissed(help, ledger.dismissed))
+    )
+  ), [ledger.dismissed, ledger.ok, sessionDismissed]);
 
   useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  useEffect(() => {
+    activeHelpRef.current = activeHelp;
+  }, [activeHelp]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,8 +93,9 @@ function GlobalHelperHost() {
   }, []);
 
   const closeOverlay = useCallback((persistSource) => {
-    const current = help;
+    const current = activeHelpRef.current;
     setOpen(false);
+    setActiveHelp(null);
     setLiveSteps([]);
     setStepIndex(0);
     setPageIndex(0);
@@ -87,10 +112,12 @@ function GlobalHelperHost() {
       version: current.version || 1,
       source: persistSource,
     }).catch(() => {});
-  }, [help]);
+  }, []);
 
-  const startTour = useCallback((steps) => {
-    if (!steps.length) return false;
+  const startTour = useCallback((help, steps) => {
+    if (!help || !steps.length || openRef.current) return false;
+    autoTriedRef.current.add(help.id);
+    setActiveHelp(help);
     setLiveSteps(steps);
     setStepIndex(0);
     setPageIndex(0);
@@ -105,36 +132,85 @@ function GlobalHelperHost() {
     return true;
   }, []);
 
-  const openTour = useCallback(async (waitMs) => {
+  const openTour = useCallback(async (help, waitMs) => {
     if (!help) return;
     const steps = await resolveLiveSteps(help.steps, waitMs);
     if (!steps.length) return;
-    startTour(steps);
-  }, [help, startTour]);
+    startTour(help, steps);
+  }, [startTour]);
 
   useEffect(() => {
-    if (!help) {
-      autoTriedRef.current = '';
-      if (openRef.current) {
-        setOpen(false);
-        setLiveSteps([]);
-        emitGlobalHelperSession(false);
-      }
+    autoTriedRef.current = new Set();
+    setEnterSettled(!matchingHelps.some((help) => helpTrigger(help) === 'enter'));
+    if (openRef.current) {
+      setOpen(false);
+      setActiveHelp(null);
+      setLiveSteps([]);
+      emitGlobalHelperSession(false);
+    }
+  }, [matchingHelps]);
+
+  useEffect(() => {
+    if (!ledger.ready || !ledger.ok) return undefined;
+    const pending = matchingHelps.filter((help) => (
+      helpTrigger(help) === 'enter'
+      && !isDismissed(help)
+      && !autoTriedRef.current.has(help.id)
+    ));
+    if (!pending.length) {
+      setEnterSettled(true);
       return undefined;
     }
-    if (!ledger.ready || !ledger.ok) return undefined;
-    if (sessionDismissed.has(help.id) || isHelpDismissed(help, ledger.dismissed)) return undefined;
-    if (autoTriedRef.current === help.id) return undefined;
-    autoTriedRef.current = help.id;
     let cancelled = false;
-    resolveLiveSteps(help.steps, 1500).then((steps) => {
-      if (cancelled || !steps.length) return;
-      startTour(steps);
+    Promise.all(pending.map((help) => {
+      autoTriedRef.current.add(help.id);
+      return resolveLiveSteps(help.steps, 1500).then((steps) => {
+        if (cancelled || !steps.length) return;
+        startTour(help, steps);
+      });
+    })).finally(() => {
+      if (!cancelled) setEnterSettled(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [help, ledger, sessionDismissed, startTour]);
+  }, [isDismissed, ledger, matchingHelps, startTour]);
+
+  useEffect(() => {
+    if (!ledger.ready || !ledger.ok || open || !enterSettled) return undefined;
+    const pending = matchingHelps.filter((help) => (
+      helpTrigger(help) === 'appear'
+      && !isDismissed(help)
+      && !autoTriedRef.current.has(help.id)
+    ));
+    if (!pending.length) return undefined;
+
+    const tryFire = () => {
+      if (openRef.current) return;
+      pending.forEach((help) => {
+        if (autoTriedRef.current.has(help.id) || isDismissed(help)) return;
+        const steps = liveStepsNow(help.steps);
+        if (!steps.length) return;
+        startTour(help, steps);
+      });
+    };
+
+    tryFire();
+    let frame = 0;
+    const kick = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        tryFire();
+      });
+    };
+    const observer = new MutationObserver(kick);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [enterSettled, isDismissed, ledger, matchingHelps, open, startTour]);
 
   const targetId = step?.target || '';
 
@@ -194,6 +270,7 @@ function GlobalHelperHost() {
       return;
     }
     setOpen(false);
+    setActiveHelp(null);
     setLiveSteps([]);
     emitGlobalHelperSession(false);
   }, [hole, holeReady, liveSteps, open, stepIndex]);
@@ -238,11 +315,11 @@ function GlobalHelperHost() {
     closeOverlay('ack');
   }, [closeOverlay, isLast, pageIndex, pages.length]);
 
-  if (!help) return null;
+  if (!matchingHelps.length) return null;
 
   return (
     <>
-      <GlobalHelperButton onClick={() => openTour(400)} />
+      <GlobalHelperButton onClick={() => openTour(buttonHelp, 400)} />
       {open && page ? (
         <GlobalHelperOverlay
           hole={hole}

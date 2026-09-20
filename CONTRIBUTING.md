@@ -9,7 +9,7 @@
 - **Python 版本**：建议使用 Python 3.9 及以上版本；
 - **虚拟环境**：推荐使用 `venv`。
 
-快速步骤（简化版，详细可参考 `docs/getting-started/installation.md` 和 `docs/getting-started/venv-usage.md`）：
+快速步骤（简化版，详细可参考根目录 `README.md` 中的「快速安装 + 运行一个策略」）：
 
 ```bash
 git clone <repository-url>
@@ -23,10 +23,7 @@ venv\Scripts\activate     # Windows
 pip install -r requirements-dev.txt
 ```
 
-数据库和配置请参考：
-
-- `docs/getting-started/configuration.md`
-- 根目录 `README.md` 中的「快速开始」与「数据库配置」章节。
+数据库和配置请参考根目录 `README.md` 中的「快速安装」与「数据说明」章节。
 
 ---
 
@@ -68,7 +65,7 @@ style: 代码格式调整（不影响逻辑）
 3. **运行基本检查**
    - 至少确保项目可以在本地正常导入与启动帮助：
      ```bash
-     python start.py --help
+     python cli.py --help
      ```
    - 如你修改了某个子模块（例如 `core/modules/data_manager`），尽量编写或补充相应的测试/示例脚本。
 
@@ -83,14 +80,14 @@ style: 代码格式调整（不影响逻辑）
 
 当前项目仍在活跃演进中，测试体系处于逐步完善阶段：
 
-- 已有：以 `pytest` 为主的测试框架和部分核心模块测试（见 `docs/development/testing.md`）；
+- 已有：以 `pytest` 为主的测试框架和部分核心模块测试（见各模块 `__test__/` 目录）；
 - 新增：基础 CI 流水线（GitHub Actions）会在 PR 和 main/master 分支上自动运行导入检查 + 可用的核心测试；
 - 规划中：更系统的单元测试与端到端测试覆盖。
 
 **如果你愿意贡献测试用例，非常欢迎：**
 
 - 为新增/修改的模块补充单元测试；
-- 为关键回测链路（机会枚举 → 价格因子模拟 → 资金分配模拟）补充集成测试；
+- 为关键回测链路（枚举 → 价格因子 → 组合模拟 → 决策者）补充集成测试；
 - 在 PR 描述中说明如何在本地重现实验与验证步骤。
 
 ---
@@ -99,14 +96,14 @@ style: 代码格式调整（不影响逻辑）
 
 框架有较为完整的架构文档，建议在进行较大改动前先阅读：
 
-- `docs/architecture/project_overview.md`
-- `docs/architecture/core_modules/*/architecture.md`
-- `docs/architecture/infra/*/architecture.md`
+- `docs/project_overview.md`
+- `CORE_MODULE_STANDARDS.md`
+- 各模块根目录的 `README.md` 与 `docs/` 子目录
 
 如果你的改动会影响：
 
 - 公共 API（对 `userspace/` 用户可见的接口）；
-- 默认配置结构（`core/default_config` 与 `userspace/config` 的兼容性）；
+- 默认配置结构（`core/default_config` 与 `userspace/system/config` 的兼容性）；
 - 数据库 Schema 或数据迁移逻辑；
 
 请在 issue 或 PR 中明确说明，并优先发起设计讨论，避免破坏已有用户项目。

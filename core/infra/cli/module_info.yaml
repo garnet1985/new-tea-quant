@@ -1,7 +1,7 @@
 # 模块元数据
 name: infra.cli
 version: "0.4.1"
-compatible_core_versions: ">=0.4.1"
+compatible_core_versions: ">=0.5.0"
 description: "客户端模块：在命令行工具内为用户或开发者提供一系列边界操作命令的模块。"
 dependencies:
   - infra.project_context

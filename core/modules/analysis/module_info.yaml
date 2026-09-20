@@ -1,6 +1,6 @@
 name: modules.analysis
 version: "0.1.0"
-compatible_core_versions: ">=0.4.4"
+compatible_core_versions: ">=0.5.0"
 description: "分析模块：回测完成后，解释策略 inputs 与 outputs 的关系（骨架，行为 API 未定）。"
 dependencies: []
 changelog:

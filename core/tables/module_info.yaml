@@ -1,6 +1,6 @@
 name: tables
 version: 0.4.1
-compatible_core_versions: ">=0.4.1"
+compatible_core_versions: ">=0.5.0"
 description: "数据表定义：统一 schema.py 发现与注册，按领域（stock/macro/calendar/index/db_cache）组织。"
 dependencies: []
 changelog:

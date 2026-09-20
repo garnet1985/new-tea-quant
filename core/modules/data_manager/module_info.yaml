@@ -1,6 +1,6 @@
 name: modules.data_manager
 version: "0.2.1"
-compatible_core_versions: ">=0.4.1"
+compatible_core_versions: ">=0.5.0"
 description: "数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。"
 dependencies:
   - infra.db

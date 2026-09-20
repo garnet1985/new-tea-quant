@@ -1,6 +1,6 @@
 name: modules.market_profile
 version: "0.2.0"
-compatible_core_versions: ">=0.4.1"
+compatible_core_versions: ">=0.5.0"
 description: "市场制度规则模块：提供市场制度规则的查询服务，支持查询涨跌停、最小申报单位、板块手数等规则。"
 dependencies: []
 changelog:

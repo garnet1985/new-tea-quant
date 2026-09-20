@@ -1,6 +1,6 @@
 # Strategy（`modules.strategy`）
 
-为 NTQ 提供策略执行：扫描、枚举、价格因子与组合模拟，以及策略发现。对外门面为 `Strategy`；hooks / 枚举 / 共享类型见 `contracts`。
+为 NTQ 提供策略执行：扫描、枚举、价格因子、组合模拟与决策者模式，以及策略发现。对外门面为 `Strategy`；hooks / 枚举 / 共享类型见 `contracts`。
 
 ## 适用场景
 
@@ -11,7 +11,7 @@
 ## 模块依赖
 
 见 `module_info.yaml`（data_manager、data_contract、indicator、backtest_engine、project_context）。  
-兼容 core：`>=0.4.4`。
+兼容 core：`>=0.5.0`。
 
 ## 设计初衷
 

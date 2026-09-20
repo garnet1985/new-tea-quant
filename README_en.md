@@ -24,24 +24,19 @@ Author: Garnet Xin & his AI companions
 
 Skip the intro and install now? See [Quick install + run a strategy](#quick-start). Other jumps: [Why NTQ](#why) · [Star the project](#star) · [CLI](#cli) · [Tutorials](https://new-tea.cn/zh-hans/more-examples) · [Website](https://new-tea.cn)
 
-## Current version (v0.4.x)
+## Current version (v0.5.0)
 
 Recent updates:
 
-**[v0.4.5](CHANGELOG.md)**
+**[v0.5.0](CHANGELOG.md)**
 
-- **Backtest attribution:** explain how single factors (statistics) and multiple factors (machine learning) contributed to a run.
+- **Fourth backtest layer is live: decision simulation.** Sit inside a backtest, make the investment calls yourself, and compare with the machine run.
+- **AI assistant:** in-app chat; you bring your own API key. It can use the built-in NTQ docs.
 - Full list: [CHANGELOG.md](CHANGELOG.md).
-
-**Next**
-
-- **[v0.5.x](ROADMAP.md):** Decision-maker mode (fourth backtest layer: replay trading days and pick opportunities yourself) plus its reports.
-- **[v0.5.x](ROADMAP.md):** AI assistant (help write strategy code, explain reports, in-app handbook).
-- See [ROADMAP.md](ROADMAP.md).
 
 ## What is NTQ?
 
-**New Tea Quant** (NTQ) is a personal-developer-friendly, lightweight, high-performance framework for quantitative strategy backtesting and research. (**New Tea** is named after the author’s British Shorthair; her name is “新茶” / New Tea.)
+**New Tea Quant** (NTQ) is a personal-developer-friendly, lightweight, high-performance framework for quantitative strategy backtesting and research. (**New Tea** is named after the author’s British Shorthair; her name is “新茶” / New Tea, and she will also be the name of NTQ’s in-app AI assistant.)
 
 NTQ does two things:
 
@@ -74,11 +69,11 @@ The author wanted to do his own quant research. Off-the-shelf tools did not fit 
 
   - **Even if the strategy is profitable, is it a handful of extreme names — or is everyone grinding up?** How do you choose when several opportunities appear on the same day? Can you persist intermediate data and inspect it later? After a run, do you know the shape of the return distribution? Without that, you cannot really find a strategy that fits you.
 
-  - **Even a “working” strategy may not fit you.** What if it needs an 80% drawdown to chase 200%? Can you live with that? Can you still follow the rules when only 20% of capital is left? Or would you rather risk 10% to make 20%? NTQ’s decision-maker mode (**[v0.5.x](ROADMAP.md)**, coming soon) replays dates and positions so you can sit in the seat and pick something you can actually stick with.
+  - **Even a “working” strategy may not fit you.** What if it needs an 80% drawdown to chase 200%? Can you live with that? Can you still follow the rules when only 20% of capital is left? Or would you rather risk 10% to make 20%? NTQ’s decision-maker mode replays dates and positions so you can sit in the seat and pick something you can actually stick with.
 
   - **Many tools backtest each stock on its own.** What if stocks depend on each other — e.g. invest in today’s top-5 volume names? Per-stock loops get messy and slow. NTQ supports both independent per-stock runs and calendar **slice** mode: no cross-name dependency, and it runs like most frameworks; if there is dependency, add one filter function and slice mode still keeps it efficient.
 
-  - **Is one backtest pass enough?** Return, win rate, and Sharpe are not a verdict. NTQ plans **four layers**. Layer 1 — **opportunity enumeration**: how many hits in a huge universe, scattered or concentrated? Layer 2 — **price-factor backtest**: can the rules capture a name’s price move under some risk? Layer 3 — **portfolio simulation**: starting capital, human-like trading, final P&L and its distribution. Layer 4 — **decision-maker** (**[v0.5.x](ROADMAP.md)**): replay the calendar, pick daily opportunities yourself, and see if you can keep discipline, live with the risk, and still finish in profit. The UI can run the first three layers today.
+  - **Is one backtest pass enough?** Return, win rate, and Sharpe are not a verdict. NTQ has **four layers**. Layer 1 — **opportunity enumeration**: how many hits in a huge universe, scattered or concentrated? Layer 2 — **price-factor backtest**: can the rules capture a name’s price move under some risk? Layer 3 — **portfolio simulation**: starting capital, human-like trading, final P&L and its distribution. Layer 4 — **decision-maker**: replay the calendar, pick daily opportunities yourself, and see if you can keep discipline, live with the risk, and still finish in profit. The UI can run all four layers today.
 
 There are many smaller traps. NTQ’s engine ships tradability modules so you get a result you can trust — not a script thrown at random data.
 
@@ -286,7 +281,7 @@ Compared with common open-source backtesters (any market): [Backtrader](https://
 | Signal vs fill price | Adjusted for signals, raw for fills | Uses whatever you feed | Often adjusted series; dual track is DIY | Uses whatever you feed | Uses whatever you feed |
 | Cross-section (e.g. Top-N) | Native slice mode | Usually loop the universe | Pipeline can; not easy | Matrices shine; tradability is extra | Weak at full-market cross-section |
 | How the backtest is split | Enumerate → price → capital → decision-maker | Typically one NAV curve | Typically one research run | One vectorized run | Typically one NAV curve |
-| Decision-maker (sit in the seat) | **[v0.5.x](ROADMAP.md)** coming | No | No | No | No |
+| Decision-maker (sit in the seat) | Live | No | No | No | No |
 | Web reports / per-stock path | Built-in workbench | Draw it yourself | Research notebooks | Jupyter / DIY | Simple charts included |
 
 <a id="participate"></a>
@@ -306,9 +301,9 @@ When you file an issue, **OS (Win / macOS / Linux), Python version, which step, 
 NTQ helps you test your ideas. You will likely need:
 
 - Know basic financial terms and market rules
-- A way to turn “this looks like a promising name” into an algorithm (**[v0.5.x](ROADMAP.md)** AI help; not in this version)
-- Enough Python to turn that idea into code (**[v0.5.x](ROADMAP.md)** AI coding help; not in this version)
-- Enough stats to read a basic backtest report (**[v0.5.x](ROADMAP.md)** AI report help; not yet)
+- A way to turn “this looks like a promising name” into an algorithm (the in-app AI assistant can help you look up docs; you bring your own API key)
+- Enough Python to turn that idea into code
+- Enough stats to read a basic backtest report (the AI assistant can help explain reports too; same API-key requirement)
 
 ## What NTQ cannot do
 
@@ -342,6 +337,7 @@ Full walkthrough: [Quick install + run a strategy](#quick-start).
 - **Attribute a backtest:** which parameters actually moved the result, and by how much? The ML attribution module speaks to that. It only explains **this** run; a different universe, window, or layer can tell a different story — watch the scope so you do not overfit. Shortest UI path: [Quick Start](#attribution).
 - **Adapters:** after a scan, wire [`adapter`](core/modules/adapter/README.md) to your own downstream (notifications, a trading app, anything). You get standard opportunity payloads plus backtest history if you have run one.
 - **Web UI:** use it in the browser. Visualize results and compare inputs/outputs across runs so you can tune the strategy on purpose.
+- **AI assistant:** in-app chat; fill in a vendor API key in settings. Requests include NTQ documentation context.
 - **CLI:** [`python cli.py`](#cli) lists commands.
 - **Markets:** China A-shares are fully supported today. [`market_profile`](core/modules/market_profile/README.md) is the door to other markets; more will come.
 
@@ -440,12 +436,13 @@ Four main areas:
 
 - **Strategy info:** top full-width block — name, description, version capsule, pin / restore.
 - **Strategy settings:** left panel; changes with each backtest step. Saving writes `settings.py`. A new disk version is allocated when the execute fingerprint changes.  
-  **Note:** Strategy **logic** cannot be edited in the UI — only under `userspace/strategies/`. The UI only tunes parameters exposed in code. (**[v0.5.x](ROADMAP.md)** will add AI assistance.)
-- **Execution panel:** run the current step. Three stages today (decision-maker is **[v0.5.x](ROADMAP.md)**):  
+  **Note:** Strategy **logic** cannot be edited in the UI — only under `userspace/strategies/`. The UI only tunes parameters exposed in code. The in-app AI assistant (bring your own API key) can help look up docs and explain results.
+- **Execution panel:** run the current step. Backtest has four stages:  
   - **Enumerate:** find historical opportunities;  
   - **Price backtest:** 1 share, ignore costs — price-capture quality;  
-  - **Portfolio:** starting capital, sizing, risk controls — closer to real trading.
-- **Reports:** auto-generated per step.
+  - **Portfolio:** starting capital, sizing, risk controls — closer to real trading;  
+  - **Decision simulation:** replay trading days and pick each day’s opportunities yourself.
+- **Reports:** auto-generated after each step; the first three stages have their own reports, and decision simulation has a separate end-of-run report.
 
 <a id="attribution"></a>
 For **attribution write-ups:** install ML extras in the wizard (or later under **设置 → 安装与维护**), turn on **归因分析** in global settings, then run. The write-up appears under the report. More: [More examples](https://new-tea.cn/zh-hans/more-examples).
@@ -482,6 +479,10 @@ Closer to real trading: capital, positions, risk settings, and a historical simu
 ![Fig. 9: Portfolio global report](docs/images/demo/9.jpg)
 
 ![Fig. 10: Equity / drawdown style curves](docs/images/demo/10.jpg)
+
+#### Stage 4: Decision simulation
+
+After the portfolio run, you can enter decision-maker mode: replay trading days, pick that day’s opportunities yourself, and inspect holdings, cash, and the end-of-run report. Use it to check whether you can actually follow the strategy with discipline.
 
 #### Strategy scan: finding live-market opportunities
 

@@ -5,6 +5,12 @@
 */
 
 /*!
+  Highlight.js v11.11.1 (git: 08cb242e7d)
+  (c) 2006-2025 Josh Goebel <hello@joshgoebel.com> and other contributors
+  License: BSD-3-Clause
+ */
+
+/*!
 * ZRender, a high performance 2d drawing library.
 *
 * Copyright (c) 2013, Baidu Inc.
@@ -28,6 +34,14 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
+
+/*! `json` grammar compiled for Highlight.js 11.11.1 */
+
+/*! `python` grammar compiled for Highlight.js 11.11.1 */
+
+/*! `sql` grammar compiled for Highlight.js 11.11.1 */
+
+/*! `yaml` grammar compiled for Highlight.js 11.11.1 */
 
 /**
  * @license React

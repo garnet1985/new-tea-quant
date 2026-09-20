@@ -571,7 +571,8 @@ export function DecisionPlaySession({
   }, [strategyKey]);
 
   useEffect(() => {
-    animRef.current.cancelled = false;
+    const anim = animRef.current;
+    anim.cancelled = false;
     if (!strategyKey || !sessionId) {
       if (!embedded) {
         setLoadError('缺少策略或对局');
@@ -600,8 +601,8 @@ export function DecisionPlaySession({
 
     return () => {
       cancelled = true;
-      animRef.current.cancelled = true;
-      if (animRef.current.timer) window.clearTimeout(animRef.current.timer);
+      anim.cancelled = true;
+      if (anim.timer) window.clearTimeout(anim.timer);
       if (pickTimerRef.current) window.clearTimeout(pickTimerRef.current);
     };
   }, [strategyKey, sessionId, embedded, applyLive, loadHoldings]);

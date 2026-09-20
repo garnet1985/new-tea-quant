@@ -222,6 +222,25 @@ class TraceNamespace:
         SetupTrace.install_complete(success=success, entry=entry, error_code=error_code)
 
     @staticmethod
+    def install_step_failed(
+        *,
+        step: str,
+        entry: InstallEntry,
+        message: str = "",
+        exc: Optional[BaseException] = None,
+        extra: Optional[dict] = None,
+    ) -> None:
+        from core.infra.setup.core.trace_events import SetupTrace
+
+        SetupTrace.install_step_failed(
+            step=step,
+            entry=entry,
+            message=message,
+            exc=exc,
+            extra=extra,
+        )
+
+    @staticmethod
     def app_start(*, entry: AppEntry, command: Optional[str] = None) -> None:
         from core.infra.setup.core.trace_events import SetupTrace
 

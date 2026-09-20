@@ -84,17 +84,33 @@ def install_cli_runtime(force: bool = False) -> None:
         steps = _ordered_cli_steps()
         print(f"开始 CLI 应用安装（共 {len(steps)} 步）…", flush=True)
 
+    SetupTrace.ensure_install_id()
     for i, step_id in enumerate(steps, start=1):
         NewTeaQuantSetup.print_check_item("running", f"[{i}/{len(steps)}] {step_id}")
         code = _run_step(step_id)
         if code != 0:
             mark_runtime("cli", success=False, failed_step_id=step_id)
+            extra = {"exit_code": int(code)}
+            SetupTrace.install_step_failed(
+                step=step_id,
+                entry="cli",
+                message=f"exit={code}",
+                extra=extra,
+            )
             SetupTrace.install_complete(
                 success=False,
                 entry="cli",
                 error_code=f"step_failed:{step_id}",
             )
             raise RuntimeError(f"安装步骤失败: {step_id} (exit={code})")
+        if step_id == "init_userspace":
+            try:
+                from core.infra.project_context import ProjectContext
+
+                ProjectContext.cache.clear_userspace_cache()
+            except Exception:
+                pass
+            SetupTrace.ensure_install_id()
         NewTeaQuantSetup.print_check_item("done", f"[{i}/{len(steps)}] {step_id}")
 
     mark_runtime(

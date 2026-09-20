@@ -1,6 +1,6 @@
 # Trace API 文档
 
-**版本：** `0.1.0`  
+**版本：** `0.1.1`  
 **最低支持核心版本：** `>=0.4.4`
 
 > 须与 `module_info.yaml` 一致。  
@@ -35,6 +35,15 @@
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
 - **描述：** 构造事件后立刻 POST；失败则写入本地 queue 待重试
+
+#### track_setup
+
+`Trace.track_setup(event: str, body: Mapping | None = None) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 安装流水线事件（`install.complete` / `install.step_failed`）
 
 #### queue
 

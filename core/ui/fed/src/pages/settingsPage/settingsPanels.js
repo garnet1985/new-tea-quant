@@ -21,6 +21,7 @@ import {
   Switch,
   TextField,
   Typography,
+  Chip,
 } from '@mui/material';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
@@ -816,6 +817,17 @@ export function SettingsAssistantPanel() {
       .finally(() => setSavingId(''));
   };
 
+  const sortedProviders = useMemo(() => {
+    const items = Array.isArray(providers) ? [...providers] : [];
+    items.sort((a, b) => {
+      const aKey = Boolean(a?.hasApiKey);
+      const bKey = Boolean(b?.hasApiKey);
+      if (aKey !== bKey) return aKey ? -1 : 1;
+      return String(a?.providerId || '').localeCompare(String(b?.providerId || ''));
+    });
+    return items;
+  }, [providers]);
+
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1" fontWeight={700}>
@@ -840,32 +852,39 @@ export function SettingsAssistantPanel() {
         <PageLoadingState message="正在加载 AI 供应商…" minHeight="36vh" />
       ) : (
         <Stack spacing={2} sx={{ maxWidth: 560 }}>
-          {providers.length === 0 ? (
+          {sortedProviders.length === 0 ? (
             <Alert severity="info">
               还没有发现 AI 供应商。需要先在 userspace 里放好供应商目录和 config.py。
             </Alert>
-          ) : providers.map((item) => {
+          ) : sortedProviders.map((item) => {
             const draft = drafts[item.providerId] || '';
             const busy = savingId === item.providerId;
+            const configured = Boolean(item.hasApiKey);
             return (
               <Box
                 key={item.providerId}
                 sx={{
                   p: 2,
                   border: '1px solid',
-                  borderColor: 'divider',
+                  borderColor: configured ? 'success.main' : 'divider',
+                  bgcolor: configured ? 'action.hover' : 'transparent',
                   borderRadius: 1,
                 }}
               >
-                <Typography variant="body2" fontWeight={700}>
-                  {item.providerId}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
+                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                  <Typography variant="body2" fontWeight={700}>
+                    {item.providerId}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    color={configured ? 'success' : 'default'}
+                    variant={configured ? 'filled' : 'outlined'}
+                    label={configured ? '已配置 API Key' : '尚未配置 API Key'}
+                  />
+                </Stack>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                   {item.model}
                   {item.baseUrl ? ` · ${item.baseUrl}` : ''}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                  {item.hasApiKey ? '已配置 API Key' : '尚未配置 API Key'}
                   {item.enabled ? '' : ' · 已禁用'}
                 </Typography>
                 <TextField
@@ -878,7 +897,7 @@ export function SettingsAssistantPanel() {
                   size="small"
                   sx={{ mt: 1.5 }}
                   disabled={Boolean(savingId)}
-                  placeholder={item.hasApiKey ? '输入新密钥可覆盖' : '粘贴 API Key'}
+                  placeholder={configured ? '输入新密钥可覆盖' : '粘贴 API Key'}
                 />
                 <Box sx={{ mt: 1.5 }}>
                   <Button

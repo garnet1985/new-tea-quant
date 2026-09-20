@@ -1,6 +1,6 @@
 # Architecture — infra.trace
 
-**版本：** `0.1.0`
+**版本：** `0.1.1`
 
 ## 分层
 

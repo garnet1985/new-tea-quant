@@ -1,11 +1,15 @@
 name: infra.trace
-version: 0.1.0
+version: 0.1.1
 compatible_core_versions: ">=0.4.4"
 description: "使用追踪模块：追踪一些重要事件的模块，用于改善用户体验，统计分析错误的模块。"
 dependencies:
   - infra.project_context
   - infra.machine_capacity
 changelog:
+  - version: "0.1.1"
+    changes:
+      - 新增 Trace.track_setup：安装流水线事件（install.complete / install.step_failed）
+      - 安装 id 尽早生成，先写入仓库 .ntq，userspace 就绪后再落入 userspace/.ntq
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能

@@ -8,9 +8,7 @@ import pytest
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
-    EntityInvestmentCsv,
     EnumerateStore,
-    InvestmentRow,
 )
 
 pytestmark = pytest.mark.force_run
@@ -39,21 +37,6 @@ def _write_runtime(
 
 def test_load_enum_output_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
-    # entities CSV 存在也不应被 open 时加载
-    EnumerateStore.at(tmp_path).write_investments(
-        EntityInvestmentCsv(
-            entity_id="000001.SZ",
-            rows=[
-                InvestmentRow(
-                    investment_id="opp-1",
-                    trigger_date="20240102",
-                    entry_date="20240103",
-                    entry_price=10.0,
-                    lifecycle="complete",
-                )
-            ],
-        )
-    )
 
     data = EnumerateStore.open(tmp_path, version_id="7")
 

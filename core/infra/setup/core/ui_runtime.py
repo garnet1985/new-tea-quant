@@ -8,7 +8,7 @@ import time
 import urllib.error
 import urllib.request
 import webbrowser
-from typing import Tuple
+from typing import Optional, Tuple
 
 from core.system import python_minimum
 from core.ui.process_cleanup import (
@@ -120,10 +120,17 @@ def install_ui_runtime(force: bool = False) -> None:
         return
 
     traced_failure = False
+    SetupTrace.ensure_install_id()
 
-    def _fail(error_code: str) -> None:
+    def _fail(error_code: str, exc: Optional[BaseException] = None) -> None:
         nonlocal traced_failure
         mark_runtime("ui", success=False, failed_step_id=error_code)
+        SetupTrace.install_step_failed(
+            step=error_code,
+            entry="ui",
+            message=str(exc or error_code),
+            exc=exc,
+        )
         SetupTrace.install_complete(success=False, entry="ui", error_code=error_code)
         traced_failure = True
 
@@ -131,8 +138,8 @@ def install_ui_runtime(force: bool = False) -> None:
         _bootstrap_pip()
         try:
             _pip_install_bff()
-        except Exception:
-            _fail("pip_bff")
+        except Exception as exc:
+            _fail("pip_bff", exc)
             raise
 
         fingerprints: dict = {
@@ -146,8 +153,8 @@ def install_ui_runtime(force: bool = False) -> None:
             print("安装 UI 开发依赖（BFF + node_modules）…", flush=True)
             try:
                 _npm_install_fed()
-            except Exception:
-                _fail("npm_fed")
+            except Exception as exc:
+                _fail("npm_fed", exc)
                 raise
             fingerprints["node"] = {
                 "fedLockHash": sha256_file(FED_LOCKFILE),
@@ -157,17 +164,18 @@ def install_ui_runtime(force: bool = False) -> None:
             print("安装 UI 运行依赖（BFF + fed/build）…", flush=True)
             if not fed_build_ready():
                 if not _node_toolchain_available():
-                    _fail("missing_node")
-                    raise RuntimeError("缺少 fed/build 且未检测到 Node.js")
+                    missing = RuntimeError("缺少 fed/build 且未检测到 Node.js")
+                    _fail("missing_node", missing)
+                    raise missing
                 try:
                     _npm_install_fed()
-                except Exception:
-                    _fail("npm_fed")
+                except Exception as exc:
+                    _fail("npm_fed", exc)
                     raise
                 try:
                     _npm_build_fed()
-                except Exception:
-                    _fail("fed_build")
+                except Exception as exc:
+                    _fail("fed_build", exc)
                     raise
             fingerprints["fedBuild"] = {
                 "buildFingerprint": fed_build_fingerprint(),
@@ -175,11 +183,10 @@ def install_ui_runtime(force: bool = False) -> None:
             }
 
         mark_runtime("ui", success=True, fingerprints=fingerprints)
-        SetupTrace.install_complete(success=True, entry="ui")
         print("UI 运行依赖安装完成。", flush=True)
-    except Exception:
+    except Exception as exc:
         if not traced_failure:
-            _fail("unknown")
+            _fail("unknown", exc)
         raise
 
 

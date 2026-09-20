@@ -1,0 +1,204 @@
+@use '../../assets/scss/variables' as *;
+
+$ntq-helper-fab-size: 52px;
+$ntq-helper-z: 1320;
+$ntq-helper-spot-move: 320ms cubic-bezier(0.22, 1, 0.36, 1);
+
+.ntq-global-helper {
+  position: fixed;
+  inset: 0;
+  z-index: $ntq-helper-z;
+  overflow: hidden;
+}
+
+.ntq-global-helper__blocker {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.ntq-global-helper__spot {
+  position: fixed;
+  z-index: 1;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.95),
+    0 0 22px rgba(34, 211, 238, 0.28),
+    0 0 0 9999px rgba(4, 10, 36, 0.82);
+  transition:
+    left $ntq-helper-spot-move,
+    top $ntq-helper-spot-move,
+    width $ntq-helper-spot-move,
+    height $ntq-helper-spot-move;
+}
+
+.ntq-global-helper__dim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(4, 10, 36, 0.82);
+}
+
+.ntq-global-helper__card {
+  position: fixed;
+  z-index: 2;
+  width: min(360px, calc(100vw - 32px));
+  padding: 16px 16px 14px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.42);
+  background: #1c2244;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.96);
+  transition:
+    left $ntq-helper-spot-move,
+    top $ntq-helper-spot-move;
+}
+
+.ntq-global-helper__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 8px;
+}
+
+.ntq-global-helper__step {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.ntq-global-helper__close {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.ntq-global-helper__title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.ntq-global-helper__body {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.ntq-global-helper__image {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  margin: 0 0 14px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.ntq-global-helper__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ntq-global-helper__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ntq-global-helper__skip {
+  color: rgba(255, 255, 255, 0.62) !important;
+  text-transform: none !important;
+  min-width: auto !important;
+  padding: 6px 4px !important;
+}
+
+.ntq-global-helper__prev,
+.ntq-global-helper__next {
+  text-transform: none !important;
+}
+
+.ntq-global-helper__fab-slot {
+  position: fixed;
+  top: calc(#{$ntq-header-height} + 28px + #{$ntq-helper-fab-size} + 12px);
+  right: 18px;
+  z-index: 1250;
+  width: $ntq-helper-fab-size;
+  height: $ntq-helper-fab-size;
+}
+
+.ntq-global-helper__fab {
+  width: $ntq-helper-fab-size;
+  height: $ntq-helper-fab-size;
+  padding: 0 !important;
+  border: none;
+  border-radius: 999px;
+  background: #0a0a18 !important;
+  overflow: visible;
+
+  &:hover {
+    background: #101028 !important;
+    transform: scale(1.04);
+  }
+}
+
+.ntq-global-helper__fab-ring {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  padding: 1.5px;
+  background: linear-gradient(
+    135deg,
+    var(--ntq-cyan) 0%,
+    var(--ntq-violet) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.ntq-global-helper__fab-mark {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  transform: skewX(-8deg);
+  background: var(--ntq-brand-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-global-helper__spot,
+  .ntq-global-helper__card {
+    transition: none;
+  }
+
+  .ntq-global-helper__fab:hover {
+    transform: none;
+  }
+}

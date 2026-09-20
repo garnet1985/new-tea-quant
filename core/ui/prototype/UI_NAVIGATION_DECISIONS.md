@@ -1,6 +1,6 @@
 # NTQ Prototype 导航决策记录
 
-更新时间：2026-04-23（setup-first 版本）
+更新时间：2026-09-17（拿掉主导航决策者入口，跨策略推迟到 0.5.1）
 
 ## 背景
 
@@ -52,8 +52,9 @@
 - **列表页**（`workbench.html`）：展示策略与状态，点选进入单策略验证。
 - **验证页**（`workbench-detail.html`）：双栏布局，顶栏支持当前策略动作（保存、克隆、启用/禁用、删除；占位）。
   - 页顶展示回测数据区间（显眼位置）
-  - 三层执行计划：枚举机会 → 价格回测 → 资金模拟
-  - 依赖关系：仅枚举为底座；价格与资金互不依赖
+  - 四层执行计划：枚举机会 → 价格回测 → 投资模拟 → 决策模拟
+  - 决策模拟依赖枚举 + 投资模拟完成；价格回测不是前置
+  - 跨策略决策模拟推迟到 0.5.1，不占主导航
   - 样本股票位于执行计划下方，三层完成后解锁
 - **单股 K 线**（`workbench-stock.html`）：独立页，三 Tab 对应三层标注意图（占位）
 
@@ -62,6 +63,11 @@
 - 基于已启用策略批量扫描市场机会
 - 支持严格模式 / 扫描演示模式
 - 展示进度、报告、策略机会数与弹窗明细（占位）
+
+### 决策模拟（制定策略第四步）
+
+- 产品入口在工作台验证页第四步，不占主导航。
+- 对局交互见 `decision-play.html`（历史原型）。跨策略见 0.5.1 口径文档。
 
 ### 高级功能（新分组）
 
@@ -94,6 +100,8 @@
 - `prototype/workbench-detail.html`
 - `prototype/workbench-stock.html`
 - `prototype/scan.html`
+- `prototype/decision.html`
+- `prototype/decision-play.html`
 - `prototype/advanced.html`
 - `prototype/settings.html`
 - `prototype/setup.html`（新增：首次安装引导原型页）

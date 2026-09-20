@@ -154,7 +154,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 | 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
 |------|------------|------|------|------|
 | `data_class/opportunity` | S E O | contracts, hooks | **keep** | ≥3 |
-| `data_class/investment` | E（+ contracts） | — | **keep** | 信号生命周期；P/O 用私有 `InvestmentRow`，勿与 `PortfolioInvestment` 混淆 |
+| `data_class/investment` | E（+ contracts） | — | **keep** | 信号生命周期；P/O 读 `EnumResult`，勿与 `PortfolioInvestment` 混淆 |
 | `data_class/simulate_session` | E P O | Facade | **keep** | ≥3 |
 | `data_class/calendar_as_of` | E | contracts, hooks | **keep** | 仅 `CalendarAsOfResult` |
 | `strategy_settings` 整包 | S E P O | hooks, core.services | **keep（整块）** | period 挂在 settings |

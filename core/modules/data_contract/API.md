@@ -1,7 +1,7 @@
 # Data Contract API 文档
 
-**版本：** `0.4.0`  
-**最低支持核心版本：** `>=0.4.4`
+**版本：** `0.4.1`  
+**最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
 > 本文档是本模块公开调用面的**唯一人读 API 文档**。  
@@ -27,7 +27,7 @@
 - **参数：**
   - `key`：`DATA_KEY.*` 或等价字符串
   - `entity_ids`：`PER_ENTITY` 必填；`GLOBAL` 可不传
-  - `runtime`：其余 runtime/params（如 `start_time` / `adjust`）；会与 `entity_ids` 合并
+  - `runtime`：其余 runtime/params（如 `start_time` / `end_time`）；会与 `entity_ids` 合并
   - `fill_in_data`：是否立即调 loader 取数（默认 `False`）
 - **返回：** `BaseDataContract`（时序则为 `BaseTimeSeriesContract` 子类）
 - **举例：**
@@ -42,9 +42,11 @@ rows = contract.get_data()
 kline = ContractIssuer.issue(
     DATA_KEY.STOCK_KLINE_DAILY,
     entity_ids=["600000.SH"],
-    runtime={"start_time": "20200101", "end_time": "20201231", "adjust": "qfq"},
+    runtime={"start_time": "20200101", "end_time": "20201231"},
     fill_in_data=True,
 )
+# 每行：顶层 OHLC = qfq；row["raw"] / row["hfq"] / row["adj_factor"]
+# 不必传 adjust；传入也会被 loader 忽略
 ```
 
 ### discover / get_contract / list_available_keys / …

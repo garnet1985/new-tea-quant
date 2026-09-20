@@ -33,6 +33,9 @@ backup
 .pytest_cache/
 .ntq/
 
+# 性能测试临时数据库（__performance__ 下自动生成，非源码）
+**/__performance__/.db/
+
 # initialization/data：固定名 data_demo.zip 进库（每次 -ex 覆盖）；带版本号的 data_v*.zip 勿提交
 initialization/data/*
 !initialization/data/README.md
@@ -94,6 +97,7 @@ secrets.json
 # Auth tokens
 **/auth_token.txt
 **/token.txt
+**/api_key.txt
 .pgpass
 
 

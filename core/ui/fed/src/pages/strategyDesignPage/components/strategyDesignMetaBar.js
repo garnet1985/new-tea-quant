@@ -10,6 +10,7 @@ import NtqIcon from 'components/ntqIcon/ntqIcon';
 import StrategyMetaDetailText from 'components/strategyMetaDetailText/strategyMetaDetailText';
 import { getStrategyListPath } from '../../../api/strategyApi';
 import { resolveStrategyShortLabel } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
+import { formatGoalSummaryLines } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyGoal';
 import { STRATEGY_DESIGN_STEP_INTRO } from '../constants/strategyDesignSteps';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 import StrategyDesignStepper from './strategyDesignStepper';
@@ -22,6 +23,11 @@ function StrategyDesignMetaBar() {
     key: wb.strategyKey,
     name: wb.strategyName,
   });
+
+  const goalLines = useMemo(
+    () => formatGoalSummaryLines(wb.draftSettings?.goal || wb.initialSettings?.goal),
+    [wb.draftSettings, wb.initialSettings],
+  );
 
   const stepIntro = useMemo(() => {
     const intro = STRATEGY_DESIGN_STEP_INTRO[wb.activeStep];
@@ -45,19 +51,19 @@ function StrategyDesignMetaBar() {
             </>
           ) : null}
         </Typography>
-        <Box className="ntq-design-meta__page-title-stepper">
+        <Box className="ntq-design-meta__page-title-stepper" data-ntq-help="strategy-steps">
           <StrategyDesignStepper />
         </Box>
       </Box>
 
-      <Box className="ntq-design-meta__body">
+      <Box className="ntq-design-meta__body" data-ntq-help="strategy-intro">
         <Box className="ntq-design-meta__info">
           <Box className="ntq-design-meta__title-row">
             <Typography variant="h6" fontWeight={700} className="ntq-design-meta__strategy-name">
               {strategyLabel}
             </Typography>
             {wb.hasPersistedSnapshot ? (
-              <Box className="ntq-design-meta__version-capsule-wrap">
+              <Box className="ntq-design-meta__version-capsule-wrap" data-ntq-help="strategy-version">
                 <Box
                   className={[
                     'ntq-design-meta__version-capsule',
@@ -83,7 +89,13 @@ function StrategyDesignMetaBar() {
             ) : null}
           </Box>
 
-          <Stack direction="row" spacing={0} alignItems="center" className="ntq-design-meta__admin">
+          <Stack
+            direction="row"
+            spacing={0}
+            alignItems="center"
+            className="ntq-design-meta__admin"
+            data-ntq-help="strategy-actions"
+          >
             <Button
               component={RouterLink}
               to={getStrategyListPath()}
@@ -106,6 +118,7 @@ function StrategyDesignMetaBar() {
                   className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
                   startIcon={<NtqIcon name="folderOpen" size={16} tone="muted" />}
                   title="在文件管理器中打开策略目录"
+                  data-ntq-help="strategy-open"
                 >
                   打开文件夹
                 </Button>
@@ -123,6 +136,7 @@ function StrategyDesignMetaBar() {
                   onClick={wb.openMoreVersionsDialog}
                   className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
                   startIcon={<NtqIcon name="history" size={16} tone="muted" />}
+                  data-ntq-help="strategy-history"
                 >
                   恢复到历史版本
                 </Button>
@@ -140,6 +154,7 @@ function StrategyDesignMetaBar() {
                   onClick={wb.handleExportStrategyPackage}
                   className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
                   startIcon={<NtqIcon name="download" size={16} tone="muted" />}
+                  data-ntq-help="strategy-export"
                 >
                   {wb.packageExporting ? '导出中…' : '导出策略'}
                 </Button>
@@ -169,12 +184,9 @@ function StrategyDesignMetaBar() {
 
         <Box className="ntq-design-meta__description-col">
           <StrategyMetaDetailText
-            description={wb.strategyDescription}
             entryConditions={wb.strategyEntryConditions}
-            variant="body2"
-            color="text.secondary"
-            empty="暂无策略描述"
-            maxLines={6}
+            goalLines={goalLines}
+            empty="暂无"
             className="ntq-design-meta__description"
           />
         </Box>

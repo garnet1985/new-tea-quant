@@ -80,7 +80,7 @@ class DataSettings(SettingsBase):
         if "base" not in data or not isinstance(data.get("base"), dict):
             data["base"] = {
                 "data_key": "stock.kline.daily",
-                "params": {"adjust": "qfq"},
+                "params": {},
                 "indicators": {},
             }
         base = data["base"]
@@ -88,10 +88,15 @@ class DataSettings(SettingsBase):
             base["data_key"] = "stock.kline.daily"
         if "params" not in base or not isinstance(base.get("params"), dict):
             base["params"] = {}
+        else:
+            base["params"].pop("adjust", None)
         if "indicators" not in base or not isinstance(base.get("indicators"), dict):
             base["indicators"] = {}
         if "required" not in data or not isinstance(data.get("required"), list):
             data["required"] = []
+        for item in data["required"]:
+            if isinstance(item, dict) and isinstance(item.get("params"), dict):
+                item["params"].pop("adjust", None)
         if "min_required_records" not in data:
             data["min_required_records"] = 0
 
@@ -171,7 +176,7 @@ class DataSettings(SettingsBase):
             raise ValueError("data.base 缺少 data_key")
         return {
             "data_key": data_key,
-            "params": dict(block.get("params") or {}),
+            "params": self._params_without_adjust(block.get("params")),
             "indicators": self.normalize_indicators(block.get("indicators")),
         }
 
@@ -183,9 +188,15 @@ class DataSettings(SettingsBase):
             raise ValueError("data.required 条目缺少 data_key")
         return {
             "data_key": data_key,
-            "params": dict(item.get("params") or {}),
+            "params": self._params_without_adjust(item.get("params")),
             "indicators": self.normalize_indicators(item.get("indicators")),
         }
+
+    @staticmethod
+    def _params_without_adjust(raw: Any) -> Dict[str, Any]:
+        params = dict(raw) if isinstance(raw, dict) else {}
+        params.pop("adjust", None)
+        return params
 
     def issue_declarations(self) -> List[Dict[str, Any]]:
         """返回 [base] + required（去重；含已展开的 to_dict 形态）。"""

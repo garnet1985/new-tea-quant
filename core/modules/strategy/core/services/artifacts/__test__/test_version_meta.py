@@ -173,12 +173,16 @@ def test_clear_downstream_steps_deletes_price_and_portfolio(tmp_path: Path) -> N
         step_dir.mkdir(parents=True)
         (step_dir / RUNTIME_ENV_FILE).write_text("{}", encoding="utf-8")
         VersionMetaStore.mark_step_complete(root, "6", kind)
+    decision_dir = root / "6" / "decision" / "1"
+    decision_dir.mkdir(parents=True)
+    (decision_dir / "session.json").write_text("{}", encoding="utf-8")
 
     VersionMetaStore.clear_downstream_steps(root, "6", SimulateKind.ENUMERATE)
 
     assert (root / "6" / "enum" / RUNTIME_ENV_FILE).is_file()
     assert not (root / "6" / "price").exists()
     assert not (root / "6" / "portfolio").exists()
+    assert not (root / "6" / "decision").exists()
     entry = VersionMetaStore.get_registry_entry(root, "6")
     assert entry is not None
     assert entry["steps"] == {"enumerate": "ok"}

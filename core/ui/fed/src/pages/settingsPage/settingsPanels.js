@@ -21,6 +21,7 @@ import {
   Switch,
   TextField,
   Typography,
+  Chip,
 } from '@mui/material';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
@@ -28,6 +29,7 @@ import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import { formatDateTime } from '../../utils/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
+import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
 import { getMlExtrasStatus, installMlExtras, resetSetupStatus } from '../../api/setupApi';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useFakeProgress } from '../../hooks/useFakeProgress';
@@ -753,6 +755,165 @@ export function SettingsFeedbackPanel() {
           </Box>
           <Box>
             <Button variant="text" onClick={load} disabled={saveAction.busy || loading}>
+              重新读取
+            </Button>
+          </Box>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+export function SettingsAssistantPanel() {
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saveOk, setSaveOk] = useState('');
+  const [providers, setProviders] = useState([]);
+  const [drafts, setDrafts] = useState({});
+  const [savingId, setSavingId] = useState('');
+
+  const load = useCallback(() => {
+    setLoadError('');
+    setLoading(true);
+    listAssistantProviders()
+      .then((items) => {
+        setProviders(Array.isArray(items) ? items : []);
+      })
+      .catch((e) => {
+        setLoadError(e?.message || '读取 AI 供应商失败');
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleDraftChange = (providerId) => (event) => {
+    const value = event.target.value;
+    setDrafts((prev) => ({ ...prev, [providerId]: value }));
+    setSaveOk('');
+    setSaveError('');
+  };
+
+  const handleSave = (providerId) => {
+    const apiKey = String(drafts[providerId] || '').trim();
+    if (!apiKey || savingId) return;
+    setSavingId(providerId);
+    setSaveError('');
+    setSaveOk('');
+    saveAssistantProviderApiKey(providerId, apiKey)
+      .then((updated) => {
+        setProviders((prev) => prev.map((item) => (
+          item.providerId === updated.providerId ? { ...item, ...updated } : item
+        )));
+        setDrafts((prev) => ({ ...prev, [providerId]: '' }));
+        setSaveOk(`已保存 ${updated.providerId} 的 API Key。`);
+      })
+      .catch((e) => {
+        setSaveError(e?.message || '保存失败');
+      })
+      .finally(() => setSavingId(''));
+  };
+
+  const sortedProviders = useMemo(() => {
+    const items = Array.isArray(providers) ? [...providers] : [];
+    items.sort((a, b) => {
+      const aKey = Boolean(a?.hasApiKey);
+      const bKey = Boolean(b?.hasApiKey);
+      if (aKey !== bKey) return aKey ? -1 : 1;
+      return String(a?.providerId || '').localeCompare(String(b?.providerId || ''));
+    });
+    return items;
+  }, [providers]);
+
+  return (
+    <Stack spacing={2}>
+      <Typography variant="subtitle1" fontWeight={700}>
+        AI 助理
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        把密钥写入本机已发现的供应商。页面不会回读明文，只会显示是否已配置。
+      </Typography>
+
+      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
+      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+      {saveOk ? (
+        <Alert
+          severity="success"
+          icon={<NtqIcon name="success" size={22} tone="success" />}
+        >
+          {saveOk}
+        </Alert>
+      ) : null}
+
+      {loading ? (
+        <PageLoadingState message="正在加载 AI 供应商…" minHeight="36vh" />
+      ) : (
+        <Stack spacing={2} sx={{ maxWidth: 560 }}>
+          {sortedProviders.length === 0 ? (
+            <Alert severity="info">
+              还没有发现 AI 供应商。需要先在 userspace 里放好供应商目录和 config.py。
+            </Alert>
+          ) : sortedProviders.map((item) => {
+            const draft = drafts[item.providerId] || '';
+            const busy = savingId === item.providerId;
+            const configured = Boolean(item.hasApiKey);
+            return (
+              <Box
+                key={item.providerId}
+                sx={{
+                  p: 2,
+                  border: '1px solid',
+                  borderColor: configured ? 'success.main' : 'divider',
+                  bgcolor: configured ? 'action.hover' : 'transparent',
+                  borderRadius: 1,
+                }}
+              >
+                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                  <Typography variant="body2" fontWeight={700}>
+                    {item.providerId}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    color={configured ? 'success' : 'default'}
+                    variant={configured ? 'filled' : 'outlined'}
+                    label={configured ? '已配置 API Key' : '尚未配置 API Key'}
+                  />
+                </Stack>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  {item.model}
+                  {item.baseUrl ? ` · ${item.baseUrl}` : ''}
+                  {item.enabled ? '' : ' · 已禁用'}
+                </Typography>
+                <TextField
+                  type="password"
+                  label="API Key"
+                  value={draft}
+                  onChange={handleDraftChange(item.providerId)}
+                  autoComplete="off"
+                  fullWidth
+                  size="small"
+                  sx={{ mt: 1.5 }}
+                  disabled={Boolean(savingId)}
+                  placeholder={configured ? '输入新密钥可覆盖' : '粘贴 API Key'}
+                />
+                <Box sx={{ mt: 1.5 }}>
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    disabled={!draft.trim() || Boolean(savingId)}
+                    onClick={() => handleSave(item.providerId)}
+                  >
+                    {busy ? '保存中…' : '保存'}
+                  </Button>
+                </Box>
+              </Box>
+            );
+          })}
+          <Box>
+            <Button variant="outlined" onClick={load} disabled={Boolean(savingId) || loading}>
               重新读取
             </Button>
           </Box>

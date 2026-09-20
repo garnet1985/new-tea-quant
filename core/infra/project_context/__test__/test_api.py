@@ -46,6 +46,9 @@ class TestApi(unittest.TestCase):
             "coerce_strategy_folder",
             "get_backup_data_directory",
             "get_strategy_simulations_directory",
+            "get_assistant_root",
+            "get_assistant_providers_directory",
+            "get_assistant_provider_directory",
         ]
         for method_name in methods:
             method = getattr(ProjectContext.path, method_name)

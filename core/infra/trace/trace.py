@@ -55,6 +55,11 @@ class Trace:
         TraceTrackService.track(event, body)
 
     @staticmethod
+    def track_setup(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
+        """Setup-pipeline events (install complete / step failure)."""
+        TraceTrackService.track_setup(event, body)
+
+    @staticmethod
     def queue(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
         """Enqueue one event to the local file queue (no network I/O)."""
         TraceTrackService.queue(event, body)

@@ -82,6 +82,13 @@ class TestKlineLoadOutput(unittest.TestCase):
         for field in ("open", "high", "low", "close"):
             self.assertEqual(qfq["raw"][field], raw[field])
         self.assertNotEqual(qfq["close"], qfq["raw"]["close"])
+        self.assertIn("hfq", qfq)
+        self.assertIn("adj_factor", qfq)
+        self.assertAlmostEqual(
+            qfq["hfq"]["close"],
+            qfq["raw"]["close"] * float(qfq["adj_factor"]),
+            places=6,
+        )
 
     def test_load_raw_matches_db_ohlc(self):
         dm = DataManager()
@@ -103,6 +110,24 @@ class TestKlineLoadOutput(unittest.TestCase):
             {"open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5},
         )
         self.assertEqual(kline["close"], 10.5)
+        self.assertEqual(kline["hfq"]["close"], 10.5)
+        self.assertEqual(kline["adj_factor"], 1.0)
+
+    def test_attach_hfq_is_raw_times_factor(self):
+        kline = {"date": "20250102", "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.0}
+        KlineService._apply_qfq_from_event_info(
+            KlineService.__new__(KlineService),
+            kline,
+            {
+                "event": {"factor": 2.0, "qfq_anchor": 10.0, "raw_anchor": 10.0},
+                "qfq_diff": 0.0,
+                "is_adjusted": True,
+            },
+            factor_latest=2.0,
+        )
+        self.assertEqual(kline["raw"]["close"], 10.0)
+        self.assertEqual(kline["hfq"]["close"], 20.0)
+        self.assertEqual(kline["adj_factor"], 2.0)
 
     def test_global_offset_resolves_from_latest_anchor(self):
         events = [

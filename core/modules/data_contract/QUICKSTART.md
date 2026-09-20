@@ -1,6 +1,6 @@
 # Data Contract — 快速开始
 
-**模块：** `modules.data_contract` · **版本：** `0.4.0`
+**模块：** `modules.data_contract` · **版本：** `0.4.1`
 
 ```python
 from core.modules.data_contract import ContractIssuer
@@ -9,10 +9,11 @@ from core.modules.data_contract.contracts import DATA_KEY
 contract = ContractIssuer.issue(
     DATA_KEY.STOCK_KLINE_DAILY,
     entity_ids=["600000.SH"],
-    runtime={"start_time": "20200101", "end_time": "20201231", "adjust": "qfq"},
+    runtime={"start_time": "20200101", "end_time": "20201231"},
     fill_in_data=True,
 )
 data = contract.get_data()
+# 顶层 close 为前复权；行内 raw / hfq / adj_factor
 ```
 
 ```bash

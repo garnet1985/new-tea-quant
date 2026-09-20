@@ -254,6 +254,30 @@ class MarketBaseRules(ABC):
         resolved = LotSizeService.resolve(stock_id, self._lot_entries, self._default_min_lot, self._default_lot_step)
         return LotSizeService.floor_quantity(target_quantity, resolved)
 
+    def is_valid_sell_quantity_for_stock(
+        self,
+        quantity: int,
+        remaining: int,
+        stock_id: str,
+    ) -> bool:
+        """特定股票的卖出数量是否符合申报规则。"""
+        resolved = LotSizeService.resolve(
+            stock_id, self._lot_entries, self._default_min_lot, self._default_lot_step
+        )
+        return LotSizeService.is_valid_sell_quantity(quantity, remaining, resolved)
+
+    def floor_sell_quantity_for_stock(
+        self,
+        target_quantity: int,
+        remaining: int,
+        stock_id: str,
+    ) -> int:
+        """特定股票符合卖出申报规则的最大股数（含零股一次清完）。"""
+        resolved = LotSizeService.resolve(
+            stock_id, self._lot_entries, self._default_min_lot, self._default_lot_step
+        )
+        return LotSizeService.floor_sell_quantity(target_quantity, remaining, resolved)
+
     def resolve_lot_size(self, stock_id: str) -> LotSizeResolved:
         """解析特定股票的整手规则"""
         return LotSizeService.resolve(stock_id, self._lot_entries, self._default_min_lot, self._default_lot_step)

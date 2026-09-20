@@ -1,7 +1,7 @@
 # 测试用例 — `modules.data_contract`
 
 **模块：** `modules.data_contract`  
-**版本：** `0.4.0`  
+**版本：** `0.4.1`  
 ## Scope
 
 验证门面 `ContractIssuer` 公开逻辑（对齐 `API.md`）。
@@ -16,3 +16,4 @@
 |------|------|
 | `../core/discovery/__test__/test_contract_issuer.py` | discover / get_contract / register |
 | `../core/base/__test__/test_base_contract.py` | fill_in_data / until / to_df / clear 等 |
+| `../core/data_contracts/__test__/test_st_periods_loader.py` | ST 时段与回测窗相交裁剪 |

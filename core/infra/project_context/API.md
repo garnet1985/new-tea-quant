@@ -1,7 +1,7 @@
 # Project Context API 文档
 
 **版本：** `0.2.0`  
-**最低支持核心版本：** `>=0.4.0`
+**最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
 > 本文档是本模块公开调用面的**唯一人读 API 文档**。  
@@ -106,7 +106,7 @@
 
 #### 其他 path 辅助
 
-同命名空间还提供系统库、备份、tmp、data_source / data_contract、策略仿真与扫描结果等路径构造（见 `core/namespaces.py` 中 `PathNamespace`）。状态均为 **`beta`**。
+同命名空间还提供系统库、备份、tmp、data_source / data_contract、assistant providers、策略仿真与扫描结果等路径构造（见 `core/namespaces.py` 中 `PathNamespace`）。状态均为 **`beta`**。
 
 ```python
 from core.infra.project_context import ProjectContext

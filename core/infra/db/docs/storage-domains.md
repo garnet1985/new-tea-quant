@@ -87,7 +87,7 @@ schema = {
 **磁盘（userspace，与 workbench 并列）：**
 
 - `results/simulations/...` — 自动模拟大结果（已有）
-- `decision_sessions/<session_id>/...`（规划）— 每日完整账户快照、决策者 report 成品；机会列表优先 **读 enum 磁盘产物 + data**，不必重复落库
+- `{strategy}/results/simulations/{vid}/decision/{dm_id}/` — 决策者会话与走完后的报告（口径见 strategy `docs/notes/DECISION_MAKER.md`）；机会列表读该 version 的 `enum/`，不必再存一份
 
 **写入注意：** 工作台批量写 snapshot 与决策者「下一天」autosave 同属 strategy 域，共用写管道并支持 **交互写高优先级**（见 §4.1）。
 
@@ -347,15 +347,17 @@ DuckdbEngine（duckdb 时）
 
 ## 9. 决策者模式与存储域（定案）
 
-ROADMAP 核心功能：用户沿交易日手动推进，查看每日机会池、自行分配仓位，累积盈利/回撤曲线。与自动 `capital_allocation` 同属策略模拟最后一环，但为 **人在回路** 的长会话。
+ROADMAP 核心功能：用户沿交易日手动推进，查看机会池、自行分配仓位。与自动 portfolio 同属策略模拟最后一环，但是 **人在回路** 的长会话。口径 SSOT：[`DECISION_MAKER.md`](../../modules/strategy/docs/notes/DECISION_MAKER.md)。
 
 | 问题 | 定案 |
 |------|------|
 | 是否新建 `decision` domain？ | **否**，归入 **strategy** |
-| 行情与机会从哪读？ | **data**（K 线、日历）；机会池来自 **enum 结果**（磁盘或 workbench 元数据），一般不写入 data 域 |
-| DB 存什么？ | 会话、游标、每日决策、曲线点（可查询、可恢复） |
-| 盘存什么？ | 大快照、决策者 report（对齐现有「DB 索引 + 磁盘正文」） |
-| 与 UI 域关系 | 无独立 UI 域；非界面配置，是 strategy 运行时状态 |
+| 行情与机会从哪读？ | **data**（K 线、日历）；机会池来自该 version 的 **enum 磁盘产物** |
+| 会话落哪？ | `{strategy}/results/simulations/{vid}/decision/{dm_id}/`（游标、草稿、走完后的报告）。不另起 `results/decision_making/` |
+| DB 表 | 若以后要索引再定；**不**单独拆 domain |
+| 与 UI 域关系 | 无独立 UI 域 |
+
+不新增第四种 duckdb 文件；`TableDomainRegistry` 与三域枚举保持不变。
 
 不新增第四种 duckdb 文件；`TableDomainRegistry` 与三域枚举保持不变。
 
@@ -367,3 +369,4 @@ ROADMAP 核心功能：用户沿交易日手动推进，查看每日机会池、
 - [Database 决策](./DESIGN.md) — 决策 6
 - [Data Manager 架构](../../modules/data_manager/docs/ARCHITECTURE.md)
 - [ROADMAP 0.5.x 决策者模式](../../../../ROADMAP.md)
+- [决策者模式口径](../../modules/strategy/docs/notes/DECISION_MAKER.md)

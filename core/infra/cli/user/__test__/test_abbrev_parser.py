@@ -25,6 +25,9 @@ pytestmark = pytest.mark.force_run
         ),
         (["se", "--strategy", "demo"], ["strategy_enumerate", "--strategy", "demo"]),
         (["so"], ["strategy_portfolio"]),
+        (["sd"], ["strategy_decision"]),
+        (["sdl"], ["strategy_decision_list"]),
+        (["sdd", "--session", "1"], ["strategy_decision_delete", "--session", "1"]),
         (["sdv", "--strategy", "rsi_v1:3"], ["strategy_delete_version", "--strategy", "rsi_v1:3"]),
         (["spn", "--strategy", "rsi_v1:3"], ["strategy_pin_version", "--strategy", "rsi_v1:3"]),
         (["sup", "--strategy", "rsi_v1:v3"], ["strategy_unpin_version", "--strategy", "rsi_v1:v3"]),
@@ -74,6 +77,39 @@ def test_parse_tag_list_and_dry_run() -> None:
     assert args.list is True
     assert args.dry_run is True
     assert args.entity_limit == 10
+
+
+def test_parse_sd_new_session() -> None:
+    args = UserParser.parse_args(["sd", "--new-session", "--strategy", "demo/foo"])
+    assert args.command == "strategy_decision"
+    assert args.new_session is True
+    assert args.strategy == "demo/foo"
+    assert args.session_id is None
+
+
+def test_parse_sd_session_and_version() -> None:
+    args = UserParser.parse_args(
+        ["sd", "--session", "2", "--version", "3", "--strategy", "rsi_v1"]
+    )
+    assert args.command == "strategy_decision"
+    assert args.session_id == "2"
+    assert args.version == "3"
+
+
+def test_parse_sdd_requires_session() -> None:
+    with pytest.raises(SystemExit):
+        UserParser.parse_args(["sdd"])
+
+
+def test_parse_sdd_session() -> None:
+    args = UserParser.parse_args(["sdd", "--session", "1", "--strategy", "rsi_v1"])
+    assert args.command == "strategy_decision_delete"
+    assert args.session_id == "1"
+
+
+def test_parse_sdl() -> None:
+    args = UserParser.parse_args(["sdl"])
+    assert args.command == "strategy_decision_list"
 
 
 def test_parse_sdv_strategy_version() -> None:
@@ -214,3 +250,27 @@ def test_run_strategy_unpin_version_ok(monkeypatch, capsys) -> None:
     monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
     UserHandlers._run_strategy_set_pinned(Namespace(strategy="rsi_v1:3"), False)
     assert "已取消固定 rsi_v1 v3" in capsys.readouterr().out
+
+
+def test_execute_dispatches_decision_commands(monkeypatch) -> None:
+    from argparse import Namespace
+
+    from core.infra.cli.user.handlers import UserHandlers
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        UserHandlers,
+        "_handle_strategy",
+        staticmethod(lambda cmd, app, args: seen.append(cmd)),
+    )
+    for cmd in (
+        "strategy_decision",
+        "strategy_decision_list",
+        "strategy_decision_delete",
+    ):
+        UserHandlers.execute(Namespace(command=cmd), app=None)
+    assert seen == [
+        "strategy_decision",
+        "strategy_decision_list",
+        "strategy_decision_delete",
+    ]

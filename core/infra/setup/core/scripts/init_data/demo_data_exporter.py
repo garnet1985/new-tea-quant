@@ -96,6 +96,12 @@ def build_date_condition(
     col, kind = date_filter
     if kind == "yyyymmdd":
         return f"{col} >= %s AND {col} <= %s", (start_date, end_date)
+    if kind == "yyyymmdd_overlap":
+        from core.tables.stock.stock_st_periods.st_period_rules import (
+            overlapping_window_sql,
+        )
+
+        return overlapping_window_sql(start_col=col), (end_date, start_date)
     if kind == "quarter":
         return f"{col} >= %s AND {col} <= %s", (start_quarter, end_quarter)
     raise ValueError(f"未知日期过滤类型: {kind}")

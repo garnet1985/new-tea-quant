@@ -8,7 +8,7 @@
     from core.modules.data_manager import DataManager
 
     data_mgr = DataManager(is_verbose=True)
-    klines = data_mgr.stock.kline.load("000001.SZ", term="daily", adjust="qfq")
+    klines = data_mgr.stock.kline.load("000001.SZ", term="daily")
 """
 
 from core.modules.data_manager.core.data_manager import DataManager

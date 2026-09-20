@@ -12,7 +12,7 @@ describe('mergeHydratedStepStatus', () => {
       { enum: 'done', price: 'done', portfolio: 'done' },
       { enum: 'done', price: 'idle', portfolio: 'idle' },
       { versionChanged: true },
-    )).toEqual({ enum: 'done', price: 'idle', portfolio: 'idle' });
+    )).toEqual({ enum: 'done', price: 'idle', portfolio: 'idle', decision: 'idle' });
   });
 
   it('applies D18 idle downgrade on the same version', () => {
@@ -20,7 +20,14 @@ describe('mergeHydratedStepStatus', () => {
       { enum: 'done', price: 'done', portfolio: 'done' },
       { enum: 'done', price: 'idle', portfolio: 'idle' },
       { versionChanged: false },
-    )).toEqual({ enum: 'done', price: 'idle', portfolio: 'idle' });
+    )).toEqual({ enum: 'done', price: 'idle', portfolio: 'idle', decision: 'idle' });
+  });
+
+  it('takes decision done from disk even if the current session is still idle', () => {
+    expect(mergeHydratedStepStatus(
+      { enum: 'done', price: 'done', portfolio: 'done', decision: 'idle' },
+      { enum: 'done', price: 'done', portfolio: 'done', decision: 'done' },
+    )).toEqual({ enum: 'done', price: 'done', portfolio: 'done', decision: 'done' });
   });
 });
 
@@ -57,6 +64,15 @@ describe('mapWorkbenchStepStatusToExecutionCards', () => {
       enum: { done: true },
       price: { done: true },
       portfolio: { done: false },
-    })).toEqual({ enum: 'done', price: 'done', portfolio: 'idle' });
+    })).toEqual({ enum: 'done', price: 'done', portfolio: 'idle', decision: 'idle' });
+  });
+
+  it('marks decision done when the snapshot says so', () => {
+    expect(mapWorkbenchStepStatusToExecutionCards({
+      enum: { done: true },
+      price_factor: { done: true },
+      portfolio: { done: true },
+      decision: { done: true },
+    })).toEqual({ enum: 'done', price: 'done', portfolio: 'done', decision: 'done' });
   });
 });

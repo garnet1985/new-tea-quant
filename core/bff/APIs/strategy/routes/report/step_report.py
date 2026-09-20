@@ -12,7 +12,10 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.services.artifacts import ArtifactStore, EnumerateStore, PriceFactorStore
+from core.modules.strategy.core.services.artifacts import ArtifactStore, PriceFactorStore
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResultsManager,
+)
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     attach_enum_opportunities_field,
@@ -291,10 +294,7 @@ class WorkbenchReports:
         eid = str(entity_id or "").strip()
         if not eid:
             return False
-        store = EnumerateStore.at(output_dir)
-        if not store.has_investments(eid):
-            return False
-        return bool(store.investments(eid).rows)
+        return bool(EnumResultsManager.at(output_dir).results(eid))
 
     @classmethod
     def _price_entity_has_data(cls, output_dir: Path, entity_id: str) -> bool:

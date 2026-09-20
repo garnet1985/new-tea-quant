@@ -50,42 +50,6 @@ function buildTargetArrowStyle(type) {
   return buildMarkerItemStyle(color, shadow);
 }
 
-/** 自下方向上指向 K 线最低价（机会 / 买入） */
-function buildUpwardArrowMarkPoint(item, candleByDate) {
-  const date = String(item?.date || '').trim();
-  const bar = candleByDate?.get(date);
-  const low = Number(bar?.low);
-  if (!date || !Number.isFinite(low)) return null;
-
-  return {
-    name: item.label || item.type || '标记',
-    coord: [date, low],
-    symbol: MARKER_BELOW_CANDLE_SYMBOL,
-    symbolSize: UP_MARKER_SIZE,
-    symbolOffset: [0, UP_MARKER_OFFSET_Y],
-    itemStyle: buildCyanUpArrowStyle(),
-    _markerMeta: item,
-  };
-}
-
-/** 自上方向下指向 K 线最高价（目标完成：红胜 / 绿负） */
-function buildTargetMarkPoint(item, candleByDate) {
-  const date = String(item?.date || '').trim();
-  const bar = candleByDate?.get(date);
-  const high = Number(bar?.high);
-  if (!date || !Number.isFinite(high)) return null;
-
-  return {
-    name: item.label || item.type || '目标',
-    coord: [date, high],
-    symbol: MARKER_ABOVE_CANDLE_SYMBOL,
-    symbolSize: DOWN_MARKER_SIZE,
-    symbolOffset: [0, DOWN_MARKER_OFFSET_Y],
-    itemStyle: buildTargetArrowStyle(item.type),
-    _markerMeta: item,
-  };
-}
-
 const MARKER_LEGEND_DEFS = {
   opportunity: { label: '机会', symbol: MARKER_BELOW_CANDLE_SYMBOL, style: buildCyanUpArrowStyle },
   buy: { label: '买入', symbol: MARKER_BELOW_CANDLE_SYMBOL, style: buildCyanUpArrowStyle },
@@ -93,26 +57,115 @@ const MARKER_LEGEND_DEFS = {
   target_loss: { label: '目标负', symbol: MARKER_ABOVE_CANDLE_SYMBOL, style: () => buildTargetArrowStyle('target_loss') },
 };
 
-function buildMarkerLegendSeries(markers) {
-  const types = new Set(
-    (markers || []).map((item) => String(item?.type || '').trim()).filter(Boolean),
-  );
-  return [...types]
-    .filter((type) => MARKER_LEGEND_DEFS[type])
-    .map((type) => {
-      const def = MARKER_LEGEND_DEFS[type];
-      return {
-        name: def.label,
-        type: 'scatter',
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        data: [],
-        symbol: def.symbol,
-        symbolSize: type === 'target_win' || type === 'target_loss' ? DOWN_MARKER_SIZE : UP_MARKER_SIZE,
-        itemStyle: def.style(),
-        tooltip: { show: false },
+function markerYValue(item, candleByDate) {
+  const date = String(item?.date || '').trim();
+  const bar = candleByDate?.get(date);
+  const type = String(item?.type || '').trim();
+  if (type === 'opportunity' || type === 'buy') {
+    const low = Number(bar?.low);
+    return Number.isFinite(low) ? low : null;
+  }
+  if (type === 'target_win' || type === 'target_loss') {
+    const high = Number(bar?.high);
+    return Number.isFinite(high) ? high : null;
+  }
+  const px = Number(item?.price);
+  return Number.isFinite(px) ? px : null;
+}
+
+function uniqueDetailParts(values) {
+  const out = [];
+  values.forEach((value) => {
+    if (value == null || value === '') return;
+    const text = String(value).trim();
+    if (text && !out.includes(text)) out.push(text);
+  });
+  return out;
+}
+
+function mergeMarkerDetail(base, extra) {
+  const a = base && typeof base === 'object' ? { ...base } : {};
+  const b = extra && typeof extra === 'object' ? extra : {};
+  const names = uniqueDetailParts([a.goal_name, b.goal_name]);
+  if (names.length) a.goal_name = names.join('、');
+  const ra = Number(a.exit_ratio);
+  const rb = Number(b.exit_ratio);
+  if (Number.isFinite(ra) && ra > 0 && Number.isFinite(rb) && rb > 0) {
+    a.exit_ratio = Math.min(1, ra + rb);
+  } else if (!(Number.isFinite(ra) && ra > 0) && Number.isFinite(rb) && rb > 0) {
+    a.exit_ratio = rb;
+  }
+  const rois = uniqueDetailParts([
+    typeof a.roi === 'number' ? fmtPrice(a.roi) : a.roi,
+    typeof b.roi === 'number' ? fmtPrice(b.roi) : b.roi,
+  ]);
+  if (rois.length) a.roi = rois.join('、');
+  if (b.exit_price != null && b.exit_price !== '') a.exit_price = b.exit_price;
+  const reasons = uniqueDetailParts([a.exit_reason, b.exit_reason]);
+  if (reasons.length) a.exit_reason = reasons.join('、');
+  return a;
+}
+
+/** 同日同类型只留一个点（两档同日止盈会叠在一起）。 */
+function collapseOverlappingMarkers(markers) {
+  const kept = new Map();
+  const order = [];
+  (markers || []).forEach((item) => {
+    const type = String(item?.type || '').trim();
+    const date = String(item?.date || '').trim();
+    if (!type || !date) return;
+    const key = `${type}|${date}`;
+    if (!kept.has(key)) {
+      const copy = {
+        ...item,
+        detail: item.detail && typeof item.detail === 'object' ? { ...item.detail } : {},
       };
+      kept.set(key, copy);
+      order.push(copy);
+      return;
+    }
+    const existing = kept.get(key);
+    existing.detail = mergeMarkerDetail(existing.detail, item.detail);
+  });
+  return order;
+}
+
+/** 真实 scatter 点（不要空 data 图例系列：axis tooltip 滑过会 getRawIndex 崩）。 */
+function buildMarkerScatterSeries(markers, candleByDate) {
+  const byType = new Map();
+  collapseOverlappingMarkers(markers).forEach((item) => {
+    const type = String(item?.type || '').trim();
+    const def = MARKER_LEGEND_DEFS[type];
+    const date = String(item?.date || '').trim();
+    const y = markerYValue(item, candleByDate);
+    if (!def || !date || y == null) return;
+    if (!byType.has(type)) byType.set(type, []);
+    const isTarget = type === 'target_win' || type === 'target_loss';
+    byType.get(type).push({
+      value: [date, y],
+      symbolOffset: isTarget ? [0, DOWN_MARKER_OFFSET_Y] : [0, UP_MARKER_OFFSET_Y],
+      _markerMeta: item,
     });
+  });
+  return [...byType.entries()].map(([type, data]) => {
+    const def = MARKER_LEGEND_DEFS[type];
+    const isTarget = type === 'target_win' || type === 'target_loss';
+    return {
+      name: def.label,
+      type: 'scatter',
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      data,
+      symbol: def.symbol,
+      symbolSize: isTarget ? DOWN_MARKER_SIZE : UP_MARKER_SIZE,
+      itemStyle: def.style(),
+      tooltip: { show: false },
+      legendHoverLink: false,
+      clip: false,
+      z: 12,
+      encode: { x: 0, y: 1 },
+    };
+  });
 }
 
 const DEFAULT_ZOOM_WINDOW = 35;
@@ -151,13 +204,10 @@ function buildPanelDividerGraphic() {
     right: 16,
     top: `${dividerTop}%`,
     z: 4,
+    silent: true,
     shape: { x: 0, y: -1, width: 4000, height: 2 },
     style: { fill: PANEL_DIVIDER_COLOR },
   }];
-}
-
-function markerColor(type) {
-  return MARKER_COLORS[type] || '#90CAF9';
 }
 
 function fmtPrice(value) {
@@ -185,6 +235,8 @@ const MARKER_DETAIL_LABELS = {
   lifecycle: '生命周期',
   result: '结果',
   exit_reason: '出场原因',
+  goal_name: '目标',
+  exit_ratio: '卖出比例',
   roi: '收益率',
 };
 
@@ -197,6 +249,11 @@ const MARKER_DETAIL_DATE_KEYS = new Set([
 function formatMarkerDetailValue(key, value) {
   if (MARKER_DETAIL_DATE_KEYS.has(key)) {
     return formatReportChartDateLabel(String(value));
+  }
+  if (key === 'exit_ratio') {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    return `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%`;
   }
   if (typeof value === 'number') return fmtPrice(value);
   return String(value);
@@ -220,37 +277,6 @@ function initialZoomRange(length) {
   }
   const start = Math.max(0, 100 - Math.round((DEFAULT_ZOOM_WINDOW / length) * 100));
   return { start, end: 100 };
-}
-
-function buildMarkPointData(markers, candleByDate) {
-  if (!Array.isArray(markers)) return [];
-  return markers
-    .map((item) => {
-      const type = String(item?.type || '').trim();
-      if (type === 'opportunity' || type === 'buy') {
-        return buildUpwardArrowMarkPoint(item, candleByDate);
-      }
-      if (type === 'target_win' || type === 'target_loss') {
-        return buildTargetMarkPoint(item, candleByDate);
-      }
-      if (!item?.date || item.price == null || !Number.isFinite(Number(item.price))) {
-        return null;
-      }
-      return {
-        name: item.label || item.type || '标记',
-        coord: [item.date, Number(item.price)],
-        symbol: 'circle',
-        symbolSize: 9,
-        symbolOffset: [0, -5],
-        itemStyle: {
-          color: markerColor(item.type),
-          borderColor: 'rgba(255, 255, 255, 0.35)',
-          borderWidth: 1,
-        },
-        _markerMeta: item,
-      };
-    })
-    .filter(Boolean);
 }
 
 function buildCandleLookup(candles) {
@@ -345,19 +371,18 @@ export function buildStockKlineChartOptionFromPayload(payload) {
   if (!candleData.length) return {};
 
   const candleByDate = buildCandleLookup(payload.candles);
-  const markPointData = buildMarkPointData(payload.markers, candleByDate);
+  const markerSeries = buildMarkerScatterSeries(payload.markers, candleByDate);
   const oscillatorRows = indicatorSeries.filter((row) => row.panel === 'oscillator');
   const overlayRows = indicatorSeries.filter((row) => row.panel !== 'oscillator');
   const hasOscillator = oscillatorRows.length > 0;
   const zoom = initialZoomRange(dates.length);
   const xZoomIndexes = hasOscillator ? [0, 1] : [0];
 
-  const markerLegendSeries = buildMarkerLegendSeries(payload.markers);
   const legendItems = [
     'K线',
     ...overlayRows.map((row) => row.label || row.key),
     ...oscillatorRows.map((row) => row.label || row.key),
-    ...markerLegendSeries.map((row) => row.name),
+    ...markerSeries.map((row) => row.name),
   ];
 
   const overlayLineSeries = overlayRows.map((row) => ({
@@ -484,7 +509,7 @@ export function buildStockKlineChartOptionFromPayload(payload) {
       {
         type: 'slider',
         xAxisIndex: xZoomIndexes,
-        filterMode: 'filter',
+        filterMode: 'none',
         height: 22,
         bottom: 8,
         start: zoom.start,
@@ -505,6 +530,7 @@ export function buildStockKlineChartOptionFromPayload(payload) {
         const arr = Array.isArray(params) ? params : [params];
         if (!arr.length) return '';
         const lines = [formatReportChartDateLabel(arr[0].axisValue)];
+        const seenMarker = new Set();
         arr.forEach((p) => {
           const ohlc = readCandlestickOHLC(p, candleByDate, candleData);
           if (ohlc) {
@@ -512,6 +538,15 @@ export function buildStockKlineChartOptionFromPayload(payload) {
               `开盘 ${fmtPrice(ohlc.open)}　收盘 ${fmtPrice(ohlc.close)}　`
               + `最低 ${fmtPrice(ohlc.low)}　最高 ${fmtPrice(ohlc.high)}`,
             );
+            return;
+          }
+          if (p.seriesType === 'scatter') {
+            const meta = p.data?._markerMeta;
+            const key = meta?.opportunity_id || meta?.date || p.seriesName;
+            if (meta && !seenMarker.has(key)) {
+              seenMarker.add(key);
+              lines.push(formatMarkerTooltip(meta));
+            }
             return;
           }
           if (p.seriesType === 'line' && p.value != null && Number.isFinite(Number(p.value))) {
@@ -534,24 +569,10 @@ export function buildStockKlineChartOptionFromPayload(payload) {
           borderColor: CANDLE_UP_COLOR,
           borderColor0: CANDLE_DOWN_COLOR,
         },
-        markPoint: markPointData.length
-          ? {
-            z: 12,
-            data: markPointData,
-            tooltip: {
-              trigger: 'item',
-              formatter: (params) => {
-                const meta = params?.data?._markerMeta;
-                if (!meta) return params?.name || '';
-                return formatMarkerTooltip(meta);
-              },
-            },
-          }
-          : undefined,
       },
       ...overlayLineSeries,
       ...oscillatorLineSeries,
-      ...markerLegendSeries,
+      ...markerSeries,
     ],
   };
 }

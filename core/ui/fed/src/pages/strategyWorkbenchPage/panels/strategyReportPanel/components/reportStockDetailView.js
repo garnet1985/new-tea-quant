@@ -126,13 +126,11 @@ function ReportStockDetailView({
     return normalizeEnumMetricsFromSummary({ enumMetrics: raw });
   }, [activeLayer, payload]);
 
-  const priceAdjustLabel = useMemo(() => {
-    const adj = String(payload?.kline_params?.adjust || 'qfq').toLowerCase();
-    if (adj === 'qfq') return '前复权 (qfq)';
-    if (adj === 'hfq') return '后复权 (hfq)';
-    if (adj === 'none' || adj === 'nfq') return '不复权';
-    return adj;
-  }, [payload]);
+  const oscillatorCaption = (payload?.indicator_series || [])
+    .filter((s) => s?.panel === 'oscillator')
+    .map((s) => s.label || s.key)
+    .filter(Boolean)
+    .join('、');
 
   return (
     <Stack spacing={1.25} className="ntq-report-stock-detail">
@@ -151,11 +149,8 @@ function ReportStockDetailView({
       <BacktestPeriodBanner slot={periodSlot} />
       {payload?.candles?.length ? (
         <Typography variant="caption" color="text.secondary">
-          K 线：{priceAdjustLabel}
-          {payload?.kline_params?.term ? ` · ${payload.kline_params.term}` : ''}
-          {payload?.indicator_series?.length
-            ? ` · 副图：${payload.indicator_series.map((s) => s.label || s.key).join('、')}`
-            : ''}
+          主图：K线（前复权）
+          {oscillatorCaption ? ` · 副图：${oscillatorCaption}` : ''}
         </Typography>
       ) : null}
 
@@ -186,7 +181,7 @@ function ReportStockDetailView({
               {activeLayer === 'price' ? (
                 <>
                   <br />
-                  标注：青色 Pin 为买入日，橙/紫 Pin 为目标胜/负。
+                  标注：青色 Pin 为买入日，橙/紫 Pin 为目标胜/负；同日重叠只标一个点。
                 </>
               ) : null}
             </Typography>

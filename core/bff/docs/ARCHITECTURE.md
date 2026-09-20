@@ -1,6 +1,6 @@
 # BFF 架构
 
-**版本：** 0.2.0
+**版本：** 0.2.1
 
 `core/bff`：FED 的 Flask HTTP 编排层。领域执行在 `core.modules` / `core.infra`；本模块不做对外 Python Facade / contracts。
 
@@ -24,7 +24,7 @@ core/bff/
   static_ui.py           # 生产模式挂载 core/ui/fed/build
   shared/                # response / request / file_ops（无业务域知识）
   APIs/
-    platform/            # health, runtime, setup, app_settings
+    platform/            # health, runtime, setup, app_settings, assistant
     data/                # sources, contracts
     strategy/            # routes/ + helpers/
     tag/                 # routes/ + helpers/

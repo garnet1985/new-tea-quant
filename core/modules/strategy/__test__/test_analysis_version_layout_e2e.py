@@ -7,11 +7,11 @@ import pytest
 
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.engines.analyzer import Analyzer
-from core.modules.strategy.core.services.artifacts import (
-    ArtifactStore,
-    EntityInvestmentCsv,
-    EnumerateStore,
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResult,
+    EnumResultsManager,
 )
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.artifacts.consts import (
     ANALYSIS_REPORT_JSON,
     ANALYSIS_SUBDIR,
@@ -59,44 +59,45 @@ def _write_runtime(step_dir: Path) -> None:
 
 
 def _write_enum_entity(step_dir: Path) -> None:
-    store = EnumerateStore.at(step_dir, version_id=step_dir.parent.name)
-    store.write_investments(
-        EntityInvestmentCsv.build(
-            "688005.SH",
-            [
-                {
-                    "meta": {"opportunity_id": "1"},
-                    "trigger_date": "20240102",
-                    "trigger_price": 10.0,
-                    "lifecycle": "complete",
-                    "entry": {"date": "20240103", "price": 10.1},
-                    "exit_info": {
-                        "date": "20240201",
-                        "price": 11.0,
-                        "reason": "take_profit",
-                    },
-                    "holding": {"days": 20},
-                    "outcome": {"result": "win", "weighted_roi": 0.08},
-                    "capture": {"rsi": 18.0},
-                },
-                {
-                    "meta": {"opportunity_id": "2"},
-                    "trigger_date": "20240302",
-                    "trigger_price": 9.5,
-                    "lifecycle": "complete",
-                    "entry": {"date": "20240303", "price": 9.6},
-                    "exit_info": {
-                        "date": "20240401",
-                        "price": 10.2,
-                        "reason": "take_profit",
-                    },
-                    "holding": {"days": 18},
-                    "outcome": {"result": "loss", "weighted_roi": -0.03},
-                    "capture": {"rsi": 22.0},
-                },
-            ],
-        )
+    manager = EnumResultsManager.at(step_dir)
+    manager.accept(
+        "688005.SH",
+        [
+            EnumResult(
+                entity_id="688005.SH",
+                investment_id="1",
+                trigger_date="20240102",
+                trigger_price=10.0,
+                lifecycle="complete",
+                entry_date="20240103",
+                entry_price=10.1,
+                exit_date="20240201",
+                exit_price=11.0,
+                exit_reason="take_profit",
+                holding_days=20,
+                result="win",
+                weighted_roi=0.08,
+                signal_snapshot={"rsi": 18.0},
+            ),
+            EnumResult(
+                entity_id="688005.SH",
+                investment_id="2",
+                trigger_date="20240302",
+                trigger_price=9.5,
+                lifecycle="complete",
+                entry_date="20240303",
+                entry_price=9.6,
+                exit_date="20240401",
+                exit_price=10.2,
+                exit_reason="take_profit",
+                holding_days=18,
+                result="loss",
+                weighted_roi=-0.03,
+                signal_snapshot={"rsi": 22.0},
+            ),
+        ],
     )
+    manager.persist("688005.SH")
 
 
 def test_analyzer_run_writes_under_vid_step_layout(tmp_path: Path) -> None:

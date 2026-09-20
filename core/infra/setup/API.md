@@ -1,7 +1,7 @@
 # Setup API 文档
 
 **版本：** `0.1.0`  
-**最低支持核心版本：** `>=0.4.4`
+**最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
 > 本文档是本模块公开调用面的**唯一人读 API 文档**。  
@@ -184,12 +184,13 @@
 ### trace
 
 `Setup.trace.install_complete(*, success: bool, entry: "ui" | "cli", error_code=None) -> None`  
+`Setup.trace.install_step_failed(*, step: str, entry: "ui" | "cli", message="", exc=None, extra=None) -> None`  
 `Setup.trace.app_start(*, entry: "ui" | "cli" | "devcli", command: str | None = None) -> None`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 失败不影响安装；勿上报异常原文。CLI 侧仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
+- **描述：** 失败不影响安装。`install_step_failed` 带稳定 `error_class` 与脱敏 `message_safe`。CLI 侧 `app_start` 仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
 
 ---
 

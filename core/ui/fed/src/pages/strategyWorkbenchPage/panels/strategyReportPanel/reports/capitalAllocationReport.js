@@ -106,6 +106,16 @@ function CapitalAllocationReport({
             titleTip={CAPITAL_METRIC_TIPS.calmarRatio}
             value={formatRiskRatio(metrics.calmarRatio)}
           />
+          <MetricCard
+            title="夏普比率"
+            titleTip={CAPITAL_METRIC_TIPS.sharpeRatio}
+            value={formatRiskRatio(metrics.sharpeRatio)}
+          />
+          <MetricCard
+            title="Sortino"
+            titleTip={CAPITAL_METRIC_TIPS.sortinoRatio}
+            value={formatRiskRatio(metrics.sortinoRatio)}
+          />
         </MetricGrid>
         <ChartPanel
           title="资产与回撤"
@@ -208,7 +218,7 @@ function CapitalAllocationReport({
             value={`${metrics.maxLossStreak} 笔`}
           />
           <MetricCard
-            title="Top3 单笔亏损"
+            title="Top3 最低盈亏"
             titleTip={CAPITAL_METRIC_TIPS.worstTradePnls}
             value={metrics.worstTradePnls.map((value) => formatReportMoney(value)).join(' / ')}
           />

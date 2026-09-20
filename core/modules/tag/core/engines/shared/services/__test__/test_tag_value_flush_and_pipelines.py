@@ -42,7 +42,7 @@ def _settings_dict(*, mode: str = "slice_based") -> dict:
             },
         },
         "data": {
-            "base": {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}},
+            "base": {"data_key": "stock.kline.daily", "params": {}},
             "required": [],
             "min_required_records": 1,
         },

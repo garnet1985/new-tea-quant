@@ -5,24 +5,24 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from core.bff.APIs.strategy.routes.report.stock_detail import WorkbenchStockDetail
+from core.modules.strategy.core.engines.shared.enum_result_contract import EnumResult
 from core.modules.strategy.core.services.artifacts import (
-    InvestmentRow,
+    GoalAchievementRow,
     PriceInvestmentRow,
 )
 
 
 def test_enum_markers_use_trigger_date():
-    inv = InvestmentRow(
+    inv = EnumResult(
         investment_id="opp1",
         trigger_date="20200102",
-        trigger_price="10.5",
+        trigger_price=10.5,
         entry_date="20200103",
         exit_date="20200110",
         lifecycle="complete",
         result="win",
         exit_reason="take_profit",
     )
-    inv.trigger_price = 10.5
     candles = [
         {"date": "20200102", "open": 10, "high": 11, "low": 9, "close": 10.2},
     ]
@@ -56,11 +56,58 @@ def test_price_markers_enter_and_exit():
     assert markers[1]["detail"]["exit_date"] == "20200105"
 
 
+def test_price_markers_emit_each_completed_goal():
+    inv = PriceInvestmentRow(
+        opportunity_id="p1",
+        enter_date="20200102",
+        enter_price=10.0,
+        exit_date="20200105",
+        exit_price=11.0,
+        roi=0.075,
+        lifecycle="complete",
+        result="win",
+        exit_reason="take_profit",
+    )
+    candles = [
+        {"date": "20200102", "open": 10, "high": 11, "low": 9, "close": 10},
+        {"date": "20200104", "open": 10.4, "high": 10.8, "low": 10.2, "close": 10.5},
+        {"date": "20200105", "open": 11, "high": 12, "low": 10, "close": 11},
+    ]
+    goals = [
+        GoalAchievementRow(
+            investment_id="p1",
+            goal_name="win20%",
+            date="20200104",
+            price=10.5,
+            exit_ratio=0.5,
+            reason="take_profit",
+            roi=0.05,
+        ),
+        GoalAchievementRow(
+            investment_id="p1",
+            goal_name="win30%",
+            date="20200105",
+            price=11.0,
+            exit_ratio=0.5,
+            reason="take_profit",
+            roi=0.1,
+        ),
+    ]
+    markers = WorkbenchStockDetail._price_markers([inv], candles, goal_rows=goals)
+    types = [m["type"] for m in markers]
+    dates = [m["date"] for m in markers]
+    assert types == ["buy", "target_win", "target_win"]
+    assert dates == ["20200102", "20200104", "20200105"]
+    assert markers[1]["detail"]["goal_name"] == "win20%"
+    assert markers[1]["detail"]["exit_ratio"] == 0.5
+    assert markers[2]["detail"]["goal_name"] == "win30%"
+
+
 def test_enum_metrics_for_stock():
     rows = [
-        InvestmentRow(lifecycle="complete", result="win", weighted_roi=0.1),
-        InvestmentRow(lifecycle="complete", result="loss", weighted_roi=-0.1),
-        InvestmentRow(lifecycle="open", result="", weighted_roi=0.0),
+        EnumResult(lifecycle="complete", result="win", weighted_roi=0.1),
+        EnumResult(lifecycle="complete", result="loss", weighted_roi=-0.1),
+        EnumResult(lifecycle="open", result="", weighted_roi=0.0),
     ]
     metrics = WorkbenchStockDetail._enum_metrics_for_stock(rows)
     assert metrics["totalOpportunities"] == 3
@@ -102,12 +149,13 @@ def test_build_missing_snapshot(_mock_fetch):
     )
 
 
-def test_resolve_output_dir_requires_entity_csv(tmp_path, monkeypatch):
+def test_resolve_output_dir_accepts_enum_json(tmp_path, monkeypatch):
     out_dir = tmp_path / "9"
     entities = out_dir / "entities"
     entities.mkdir(parents=True)
-    (entities / "000001.SZ_stock_investments.csv").write_text(
-        "investment_id,trigger_date\nx,20200101\n", encoding="utf-8"
+    (entities / "000001.SZ.json").write_text(
+        '{"kind":"enum_results","entity_id":"000001.SZ","results":[]}\n',
+        encoding="utf-8",
     )
     monkeypatch.setattr(
         "core.bff.APIs.strategy.routes.report.stock_detail.Strategy.resolve_simulation_output_dirs",

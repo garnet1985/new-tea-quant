@@ -1,6 +1,6 @@
 name: modules.data_manager
-version: "0.2.0"
-compatible_core_versions: ">=0.4.1"
+version: "0.2.1"
+compatible_core_versions: ">=0.5.0"
 description: "数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。"
 dependencies:
   - infra.db
@@ -8,6 +8,9 @@ dependencies:
   - infra.discovery
   - infra.utils
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 股票 K 线 load/load_batch 默认同时给出 qfq（顶层）、raw、hfq、adj_factor；adjust 参数不再切换序列
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

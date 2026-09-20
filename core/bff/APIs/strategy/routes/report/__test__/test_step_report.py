@@ -81,8 +81,9 @@ def test_build_step_report_ref_from_entity_list(mock_fetch, _mock_enrich, tmp_pa
     out_dir = tmp_path / "7"
     entities = out_dir / "entities"
     entities.mkdir(parents=True)
-    (entities / "000001.SZ_stock_investments.csv").write_text(
-        "a,b\n1,2\n", encoding="utf-8"
+    (entities / "000001.SZ.json").write_text(
+        '{"kind":"enum_results","entity_id":"000001.SZ","results":[{"investment_id":"1"}]}\n',
+        encoding="utf-8",
     )
     entity_list = {
         "strategy_key": "demo",

@@ -1,6 +1,6 @@
 name: infra.project_context
 version: 0.2.0
-compatible_core_versions: ">=0.4.0"
+compatible_core_versions: ">=0.5.0"
 description: "项目上下文模块：提供常用路径，配置，缓存，项目上下文信息的模块。"
 dependencies: []
 changelog:

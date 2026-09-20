@@ -62,6 +62,7 @@ class TestSetupApi(unittest.TestCase):
         self.assertTrue(callable(Setup.artifacts.export_demo_data))
         self.assertTrue(callable(Setup.meta.load_step_meta))
         self.assertTrue(callable(Setup.trace.install_complete))
+        self.assertTrue(callable(Setup.trace.install_step_failed))
         self.assertTrue(callable(Setup.trace.app_start))
 
     def test_types(self):

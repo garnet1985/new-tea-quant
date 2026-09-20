@@ -1,7 +1,7 @@
 # Data Manager API 文档
 
-**版本：** `0.2.0`  
-**最低支持核心版本：** `>=0.4.1`
+**版本：** `0.2.1`  
+**最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
 > 本文档是本模块公开调用面的**唯一人读 API 文档**。  
@@ -104,7 +104,10 @@
 from core.modules.data_manager import DataManager
 
 dm = DataManager(is_verbose=True)
-klines = dm.stock.kline.load("000001.SZ", term="daily", adjust="qfq")
+klines = dm.stock.kline.load("000001.SZ", term="daily")
+# 每行形状见 strategy/docs/PRICE_LAYERS.md §2：
+# 顶层 OHLC = qfq；row["raw"] / row["hfq"]（raw×F）/ row["adj_factor"]
+# load(..., adjust=...) 已忽略；未复权请用 load_raw
 open_dates = dm.calendar.load_open_dates("20240101", "20241231")
 ```
 

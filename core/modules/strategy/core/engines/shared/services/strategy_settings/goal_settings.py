@@ -6,6 +6,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
+
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport
 
@@ -17,7 +19,7 @@ class GoalStage:
     """单段止盈/止损。
 
     - 固定比例：``ratio`` 有值，``custom`` 为空
-    - 自定义触发：``custom`` 非空，``ratio`` 为 None（由 hooks 判定）
+    - 自定义触发：``custom`` 非空，``ratio`` 为 None（由 hooks 判定）；须写 ``description``
     """
 
     ratio: Optional[float]
@@ -26,6 +28,7 @@ class GoalStage:
     exit_ratio: float  # 0~1；相对**初始总仓位**的绝对份额；0=不操作仓位；close_invest=True 时为 1.0
     actions: Tuple[str, ...] = ()
     custom: Optional[str] = None
+    description: str = ""  # 给人看的说明；custom 段必填，显示在策略顶栏
     stage_id: str = ""
 
 
@@ -232,6 +235,10 @@ class GoalSettings(SettingsBase):
         if not custom and not has_ratio:
             raise ValueError(f"{field_path} 须指定 ratio 或 custom")
 
+        description = str(item.get("description") or "").strip()
+        if custom and not description:
+            raise ValueError(f"{field_path} 自定义目标须写 description")
+
         ratio: Optional[float] = float(item["ratio"]) if has_ratio else None
 
         # settings 不写 name；ratio 段按比例推断；custom 段默认用 custom 名。
@@ -273,6 +280,7 @@ class GoalSettings(SettingsBase):
             exit_ratio=exit_ratio,
             actions=actions,
             custom=custom,
+            description=description,
             stage_id=stage_id,
         )
 
@@ -346,8 +354,8 @@ class GoalSettings(SettingsBase):
             raise ValueError(
                 f"custom stage {stage.stage_id!r} 无 ratio，不能计算 exit_price"
             )
-        # qfq 基准可为负/0；目标价=basis*(1+ratio)，不做正负校验
-        return round(float(basis_price) * (1.0 + float(stage.ratio)), 6)
+        # ratio 基准随调用方；枚举止盈止损传入 hfq
+        return HfqRoi.target_price(basis_price, stage.ratio)
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()

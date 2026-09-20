@@ -113,6 +113,20 @@ class AllocationStrategy:
             self.market_rules.floor_quantity_for_stock(max(int(shares), 0), entity_id)
         )
 
+    def shares_from_cash(self, cash: float, buy_price: float, entity_id: str) -> int:
+        """预算金额按成交价换成股数，再向下取整到合法申报数量。"""
+        px = float(buy_price or 0.0)
+        budget = float(cash or 0.0)
+        if px <= 0 or budget <= 0:
+            return 0
+        planned = self.floor_shares(int(budget / px), entity_id)
+        return self._resolve_planned(
+            planned_shares=planned,
+            entity_id=entity_id,
+            cash=budget,
+            buy_price=px,
+        )
+
     def apply_participation(
         self,
         planned_shares: int,
@@ -131,6 +145,36 @@ class AllocationStrategy:
     def min_buy_shares(self, entity_id: str) -> int:
         lot = self.market_rules.resolve_lot_size(entity_id)
         return self.floor_shares(int(lot.min_lot), entity_id)
+
+    def lot_step_for_stock(self, entity_id: str) -> int:
+        """申报数量步长：主板/创业板 100，科创板/北证 1。"""
+        lot = self.market_rules.resolve_lot_size(entity_id)
+        return max(int(lot.lot_step or 1), 1)
+
+    def size_sell_shares(
+        self,
+        *,
+        remaining: int,
+        initial_shares: int,
+        exit_ratio: float,
+        entity_id: str,
+        is_last: bool,
+    ) -> int:
+        """纪律卖出股数：比例由资金层算，合法申报数量问 market profile。"""
+        left = int(remaining)
+        if left <= 0:
+            return 0
+        try:
+            ratio = float(exit_ratio)
+        except (TypeError, ValueError):
+            ratio = 1.0
+        if is_last or ratio >= 1.0 - 1e-12:
+            return self.market_rules.floor_sell_quantity_for_stock(left, left, entity_id)
+        initial = max(int(initial_shares or left), 1)
+        planned = min(left, max(int(initial * max(ratio, 0.0)), 0))
+        return self.market_rules.floor_sell_quantity_for_stock(
+            planned, left, entity_id
+        )
 
     def _equal_capital(self, account: Account, buy_price: float, entity_id: str) -> int:
         if float(account.cash) < self.per_trade_capital:
@@ -179,6 +223,42 @@ class AllocationStrategy:
             buy_price=buy_price,
         )
 
+    def suggest_shares(
+        self,
+        account: Account,
+        buy_price: float,
+        entity_id: str,
+        *,
+        win_rate: Optional[float] = None,
+    ) -> int:
+        """建议股数只按仓位公式折手，不掺佣金。实际下单仍走 ``calculate_shares_to_buy``。"""
+        px = float(buy_price or 0.0)
+        if px <= 0:
+            return 0
+        min_lot = self.min_buy_shares(entity_id)
+        if self.mode == "equal_capital":
+            planned = self.floor_shares(int(self.per_trade_capital / px), entity_id)
+            return planned if planned >= min_lot else 0
+        if self.mode == "equal_shares":
+            lot = self.market_rules.resolve_lot_size(entity_id)
+            planned = self.floor_shares(
+                int(lot.min_lot) * int(self.lots_per_trade), entity_id
+            )
+            return planned if planned >= min_lot else 0
+        if self.mode == "kelly":
+            if win_rate is None:
+                return 0
+            f_raw = 2.0 * float(win_rate) - 1.0
+            if f_raw <= 0:
+                return 0
+            kelly_divisor = (
+                1.0 / self.kelly_fraction if self.kelly_fraction > 0 else 1.0
+            )
+            target_capital = (f_raw / kelly_divisor) * float(account.cash)
+            planned = self.floor_shares(int(target_capital / px), entity_id)
+            return planned if planned >= min_lot else 0
+        return 0
+
     def _resolve_planned(
         self,
         *,
@@ -192,18 +272,55 @@ class AllocationStrategy:
             return 0
         if self.fee_calculator.buy_total_cost(min_lot * buy_price) > cash:
             return 0
-        if self.fee_calculator.buy_total_cost(planned_shares * buy_price) <= cash:
-            return planned_shares
+        fitted = self._fit_shares(
+            planned_shares,
+            cash=cash,
+            buy_price=buy_price,
+            entity_id=entity_id,
+        )
+        if fitted > 0:
+            return fitted
         if self.skip_trade_when_insufficient:
             return 0
-        affordable = self._max_affordable_shares(cash, buy_price)
-        return self.floor_shares(affordable, entity_id)
+        return self._fit_shares(
+            self._max_affordable_shares(cash, buy_price),
+            cash=cash,
+            buy_price=buy_price,
+            entity_id=entity_id,
+        )
+
+    def _fit_shares(
+        self,
+        shares: int,
+        *,
+        cash: float,
+        buy_price: float,
+        entity_id: str,
+    ) -> int:
+        """从计划股数向下取整，直到含费用后仍买得起。"""
+        min_lot = self.min_buy_shares(entity_id)
+        step = self.lot_step_for_stock(entity_id)
+        n = self.floor_shares(int(shares), entity_id)
+        while n >= min_lot:
+            if self.fee_calculator.buy_total_cost(n * buy_price) <= cash:
+                return n
+            overshoot = self.fee_calculator.buy_total_cost(n * buy_price) - cash
+            drop = max(int(overshoot / buy_price) + 1, step)
+            nxt = n - drop
+            n = self.floor_shares(nxt, entity_id) if nxt >= min_lot else 0
+        return 0
 
     def _max_affordable_shares(self, cash: float, buy_price: float) -> int:
         if cash <= 0 or buy_price <= 0:
             return 0
-        denom = buy_price * (1.0 + float(self.fee_calculator.commission_rate or 0.0))
-        return int(cash / denom) if denom > 0 else 0
+        rate = float(self.fee_calculator.commission_rate or 0.0) + float(
+            self.fee_calculator.transfer_fee_rate or 0.0
+        )
+        min_c = float(self.fee_calculator.min_commission or 0.0)
+        cap_rate = cash / (1.0 + rate) if rate > 0 else cash
+        cap_min = cash - min_c
+        amount = min(cap_rate, cap_min)
+        return int(amount / buy_price) if amount > 0 else 0
 
 
 __all__ = ["AllocationStrategy"]

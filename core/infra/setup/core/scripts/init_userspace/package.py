@@ -95,7 +95,7 @@ def _copy_ignore(directory: str, names: list[str]) -> set[str]:
             ignored.add(name)
         if name == "data" and d.name == "backup":
             ignored.add(name)
-        if name == "auth_token.txt":
+        if name in ("auth_token.txt", "api_key.txt"):
             ignored.add(name)
         if name in (".env", "secrets.json", "credentials.json"):
             ignored.add(name)
@@ -187,6 +187,11 @@ def _sanitize_init_userspace(tree: Path) -> List[str]:
 
     for p in sorted(tree.rglob("auth_token.txt")):
         if p.name == "auth_token.txt":
+            p.unlink()
+            notes.append(f"删除 {p.relative_to(tree)}")
+
+    for p in sorted(tree.rglob("api_key.txt")):
+        if p.name == "api_key.txt":
             p.unlink()
             notes.append(f"删除 {p.relative_to(tree)}")
 

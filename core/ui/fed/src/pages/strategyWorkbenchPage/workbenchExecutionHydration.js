@@ -3,7 +3,7 @@
  * 摘要数值由后端 ``execution_panel`` 提供，前端不做指标换算。
  */
 
-const IDLE = { enum: 'idle', price: 'idle', portfolio: 'idle' };
+const IDLE = { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' };
 const RUN_STEP_NAMES = new Set(['enum', 'price', 'portfolio']);
 const DOWNSTREAM_STEPS = {
   enum: ['price', 'portfolio'],
@@ -86,6 +86,7 @@ export function mergeHydratedStepStatus(_prevStatus, hydratedStatus, _opts = {})
     enum: String(hydrated.enum || 'idle'),
     price: String(hydrated.price || 'idle'),
     portfolio: String(hydrated.portfolio || 'idle'),
+    decision: String(hydrated.decision || 'idle'),
   };
 }
 
@@ -96,7 +97,7 @@ function slotDone(entry) {
 
 /**
  * @param {object|null|undefined} apiStepStatus BFF：``enum`` / ``price_factor`` / ``portfolio`` → ``{ done: boolean }``
- * @returns {{ enum: string, price: string, portfolio: string }}
+ * @returns {{ enum: string, price: string, portfolio: string, decision: string }}
  */
 export function mapWorkbenchStepStatusToExecutionCards(apiStepStatus) {
   if (!apiStepStatus || typeof apiStepStatus !== 'object') {
@@ -108,6 +109,7 @@ export function mapWorkbenchStepStatusToExecutionCards(apiStepStatus) {
       ? 'done'
       : 'idle',
     portfolio: slotDone(apiStepStatus.portfolio) ? 'done' : 'idle',
+    decision: slotDone(apiStepStatus.decision) ? 'done' : 'idle',
   };
 }
 

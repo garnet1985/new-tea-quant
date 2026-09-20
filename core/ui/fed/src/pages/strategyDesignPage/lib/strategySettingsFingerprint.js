@@ -26,7 +26,6 @@ export const EXECUTE_SETTINGS_DEFAULTS = {
   data: {
     base: {
       data_key: 'stock.kline.daily',
-      params: { adjust: 'qfq' },
     },
     min_required_records: 100,
     required: [],

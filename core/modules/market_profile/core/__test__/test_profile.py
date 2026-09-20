@@ -42,6 +42,20 @@ class TestMarketProfile:
         assert china.floor_quantity_for_stock(50, "000001.SZ") == 0
         assert china.floor_quantity_for_stock(250, "688981.SH") == 250
 
+    def test_floor_sell_quantity_main_board(self, china):
+        assert china.floor_sell_quantity_for_stock(8194, 52_000, "000488.SZ") == 8100
+        assert china.floor_sell_quantity_for_stock(94, 94, "000488.SZ") == 94
+        assert china.floor_sell_quantity_for_stock(50, 94, "000001.SZ") == 94
+        assert china.is_valid_sell_quantity_for_stock(8100, 52_000, "000488.SZ")
+        assert not china.is_valid_sell_quantity_for_stock(8194, 52_000, "000488.SZ")
+
+    def test_floor_sell_quantity_star_and_bse(self, china):
+        assert china.floor_sell_quantity_for_stock(251, 500, "688981.SH") == 251
+        assert china.floor_sell_quantity_for_stock(100, 150, "688981.SH") == 150
+        assert china.resolve_lot_size("830001.BJ").lot_step == 1
+        assert china.floor_sell_quantity_for_stock(150, 500, "830001.BJ") == 150
+        assert china.floor_sell_quantity_for_stock(80, 80, "830001.BJ") == 80
+
     def test_same_proxy_market_instance(self):
         proxy = MarketRulesProxy()
         assert proxy.get_market("china_a_stock") is proxy.get_market("china_a_stock")

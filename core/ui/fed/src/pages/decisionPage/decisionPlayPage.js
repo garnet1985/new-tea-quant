@@ -1175,7 +1175,7 @@ export function DecisionPlaySession({
   const clockHud = (
     <Box className={`decision-hud${embedded ? ' decision-hud--embedded' : ''}`} aria-label="对局时钟">
       <Box className="decision-hud-main">
-        <Box className="decision-calendar-block">
+        <Box className="decision-calendar-block" data-ntq-help="decision-clock">
           <Typography className="decision-calendar-title" component="h2">
             交易日历
           </Typography>
@@ -1185,7 +1185,7 @@ export function DecisionPlaySession({
           </Box>
         </Box>
 
-        <Box className="decision-hud-actions">
+        <Box className="decision-hud-actions" data-ntq-help="decision-advance">
           {completed && typeof onViewReport === 'function' ? (
             <Button
               className="decision-advance-btn"
@@ -1218,7 +1218,7 @@ export function DecisionPlaySession({
           </Button>
         </Box>
 
-        <Box className="decision-hud-metrics">
+        <Box className="decision-hud-metrics" data-ntq-help="decision-metrics">
           <Box className="decision-hud-metric">
             <Typography variant="caption" color="text.secondary">账户价值</Typography>
             <Typography variant="h6" className="decision-hud-metric__value">
@@ -1361,7 +1361,7 @@ export function DecisionPlaySession({
               </Box>
               )}
 
-              <Box className="decision-aside-section">
+              <Box className="decision-aside-section" data-ntq-help="decision-holdings">
                 <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
                   持仓状态
                 </Typography>
@@ -1447,7 +1447,7 @@ export function DecisionPlaySession({
         </Box>
 
         <Box className="decision-right">
-          <Card variant="outlined">
+          <Card variant="outlined" data-ntq-help="decision-events">
             <CardContent>
               <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>今日事件</Typography>
               {events.length ? (
@@ -1470,7 +1470,11 @@ export function DecisionPlaySession({
             </CardContent>
           </Card>
 
-          <Card variant="outlined" className={hasOpps ? 'decision-opp-card is-hot' : 'decision-opp-card'}>
+          <Card
+            variant="outlined"
+            className={hasOpps ? 'decision-opp-card is-hot' : 'decision-opp-card'}
+            data-ntq-help="decision-opps"
+          >
             <CardContent>
               <Box className="decision-opp-head">
                 <Typography

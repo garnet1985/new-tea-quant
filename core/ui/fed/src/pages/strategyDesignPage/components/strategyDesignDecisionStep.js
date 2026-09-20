@@ -282,13 +282,18 @@ function StrategyDesignDecisionStep() {
         }
         return (
           <Box className={`ntq-design-decision-step${advancing ? ' is-advancing' : ''}${reportOpen ? ' is-report' : ''}`}>
-            <Box className="ntq-design-exec-panel ntq-design-decision-step__exec">
+            <Box className="ntq-design-exec-panel ntq-design-decision-step__exec" data-ntq-help="decision-exec">
               <Box className="ntq-design-exec-panel__title-row">
                 <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
                   {EXECUTION_PANEL_TITLE} - 决策模拟
                   {snapshot?.dmId ? ` · 第 ${snapshot.dmId} 局` : ''}
                 </Typography>
-                <Stack direction="row" spacing={1} className="ntq-design-decision-step__actions">
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  className="ntq-design-decision-step__actions"
+                  data-ntq-help="decision-sessions"
+                >
                   {reportOpen ? (
                     <Button
                       type="button"

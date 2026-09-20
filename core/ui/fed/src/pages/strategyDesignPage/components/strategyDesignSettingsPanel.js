@@ -74,6 +74,7 @@ function SectionAccordion({
   nested = true,
   children,
   context = {},
+  helpTarget = '',
 }) {
   const summaryTitle = tooltip ? (
     <SettingsAccordionTitle title={title} tooltip={tooltip} context={context} />
@@ -89,6 +90,7 @@ function SectionAccordion({
       defaultExpanded={defaultExpanded}
       disableGutters
       TransitionProps={{ timeout: 0, unmountOnExit: false }}
+      data-ntq-help={helpTarget || undefined}
     >
       <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
         {summaryTitle}
@@ -294,7 +296,12 @@ function StrategyDesignSettingsPanel({
 
   return (
     <Stack spacing={0} className="ntq-design-settings-panel">
-      <SectionAccordion title={STRATEGY_DESIGN_SETTINGS_STEP_TITLE} defaultExpanded nested={false}>
+      <SectionAccordion
+        title={STRATEGY_DESIGN_SETTINGS_STEP_TITLE}
+        defaultExpanded
+        nested={false}
+        helpTarget="design-settings-specific"
+      >
         <Stack spacing={1}>{stepSettingsBody}</Stack>
       </SectionAccordion>
       <SectionAccordion
@@ -303,6 +310,7 @@ function StrategyDesignSettingsPanel({
         defaultExpanded
         nested={false}
         context={editorContext}
+        helpTarget="design-settings-global"
       >
         {globalSettingsBody}
       </SectionAccordion>

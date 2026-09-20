@@ -115,15 +115,7 @@ class LotSizeService:
 
     @staticmethod
     def is_valid_quantity(quantity: int, resolved: LotSizeResolved) -> bool:
-        """判断数量是否符合整手规则。
-
-        Args:
-            quantity: 买入数量
-            resolved: 解析后的整手规则
-
-        Returns:
-            True表示符合规则
-        """
+        """判断数量是否符合买入申报规则。"""
         if quantity < resolved.min_lot:
             return False
 
@@ -134,15 +126,7 @@ class LotSizeService:
 
     @staticmethod
     def floor_quantity(target_quantity: int, resolved: LotSizeResolved) -> int:
-        """计算符合整手规则的最大买入数量。
-
-        Args:
-            target_quantity: 目标买入数量
-            resolved: 解析后的整手规则
-
-        Returns:
-            符合规则的实际买入数量
-        """
+        """符合买入申报规则的最大数量；不足一手返回 0。"""
         if target_quantity < resolved.min_lot:
             return 0
 
@@ -150,6 +134,41 @@ class LotSizeService:
         steps = extra // resolved.lot_step
 
         return resolved.min_lot + steps * resolved.lot_step
+
+    @staticmethod
+    def is_valid_sell_quantity(
+        quantity: int,
+        remaining: int,
+        resolved: LotSizeResolved,
+    ) -> bool:
+        """判断卖出数量是否符合该市场申报规则。"""
+        left = int(remaining)
+        qty = int(quantity)
+        if qty <= 0 or left <= 0 or qty > left:
+            return False
+        if left < resolved.min_lot:
+            return qty == left
+        return LotSizeService.is_valid_quantity(qty, resolved)
+
+    @staticmethod
+    def floor_sell_quantity(
+        target_quantity: int,
+        remaining: int,
+        resolved: LotSizeResolved,
+    ) -> int:
+        """符合卖出申报规则的最大股数。
+
+        持仓不足一手（或该板块最小卖出单位）：零股必须一次卖完。
+        否则按 min_lot + n×lot_step 向下取整，不超过 remaining。
+        """
+        left = int(remaining)
+        want = int(target_quantity)
+        if left <= 0 or want <= 0:
+            return 0
+        want = min(want, left)
+        if left < resolved.min_lot:
+            return left
+        return min(LotSizeService.floor_quantity(want, resolved), left)
 
 
 __all__ = ["LotSizeService", "LotSizeEntry", "LotSizeResolved"]

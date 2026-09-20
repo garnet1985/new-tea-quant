@@ -1,25 +1,28 @@
 """PriceFactorJobExecutor._replay_entity_investments：锁仓回放。"""
 from __future__ import annotations
 
-from core.modules.strategy.core.services.artifacts import (
-    InvestmentRow,
-)
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    CompletedGoal,
+    EnumResult,
+)
 
 import pytest
 
 pytestmark = pytest.mark.force_run
 
 
-def _row(**kwargs) -> InvestmentRow:
+def _row(**kwargs) -> EnumResult:
     base = dict(
         investment_id="1",
         trigger_date="20240101",
         trigger_price=10.0,
         entry_date="20240102",
         entry_price=10.0,
+        entry_price_hfq=10.0,
         exit_date="20240110",
         exit_price=11.0,
+        exit_price_hfq=11.0,
         exit_reason="take_profit",
         lifecycle="complete",
         result="win",
@@ -27,7 +30,11 @@ def _row(**kwargs) -> InvestmentRow:
         holding_days=5,
     )
     base.update(kwargs)
-    return InvestmentRow(**base)
+    if "entry_price_hfq" not in kwargs:
+        base["entry_price_hfq"] = float(base.get("entry_price") or 0.0)
+    if "exit_price_hfq" not in kwargs:
+        base["exit_price_hfq"] = float(base.get("exit_price") or 0.0)
+    return EnumResult(**base)
 
 
 def test_replay_keeps_non_overlapping() -> None:
@@ -75,42 +82,67 @@ def test_replay_skips_invalid_entry() -> None:
     assert [r.opportunity_id for r in out] == ["2"]
 
 
-def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
-    """goals CSV 的 exit_ratio 为绝对份额：两腿 0.5+0.5 必须 complete，不能剩 25% open。"""
-    from core.modules.strategy.core.services.artifacts import (
-        GoalAchievementRow,
-    )
-
+def test_replay_uses_enum_hfq_roi_not_qfq_split() -> None:
+    """10 送 10：qfq 腰斩、hfq 持平 → price 层 roi 必须是 0，不能是 −50%。"""
     rows = [
         _row(
             investment_id="1",
             entry_date="20240102",
             entry_price=10.0,
             exit_date="20240110",
-            exit_price=12.0,
-            exit_reason="take_profit",
-            weighted_roi=0.15,
+            exit_price=5.0,
+            entry_price_hfq=10.0,
+            exit_price_hfq=10.0,
+            exit_reason="expiration",
+            weighted_roi=0.0,
+            result="win",
         )
     ]
-    goals = [
-        GoalAchievementRow(
-            investment_id="1",
-            goal_name="take_profit",
-            date="20240108",
-            price=11.0,
-            exit_ratio=0.5,
-            reason="take_profit",
-        ),
-        GoalAchievementRow(
-            investment_id="1",
-            goal_name="take_profit",
-            date="20240110",
-            price=12.0,
-            exit_ratio=0.5,
-            reason="take_profit",
-        ),
-    ]
-    out, _ = PriceFactorJobExecutor._replay_entity_investments(rows, goal_rows=goals)
+    out, _ = PriceFactorJobExecutor._replay_entity_investments(rows)
     assert len(out) == 1
     assert out[0].lifecycle == "complete"
-    assert out[0].roi == pytest.approx(0.15)  # 0.5*0.1 + 0.5*0.2
+    assert out[0].roi == pytest.approx(0.0)
+    assert out[0].result == "win"
+    assert out[0].enter_price == pytest.approx(10.0)
+    assert out[0].exit_price == pytest.approx(5.0)
+    assert out[0].enter_price_hfq == pytest.approx(10.0)
+    assert out[0].exit_price_hfq == pytest.approx(10.0)
+
+
+def test_replay_enum_result_nested_goals() -> None:
+    row = EnumResult(
+        investment_id="1",
+        entry_date="20240102",
+        entry_price=10.0,
+        exit_date="20240110",
+        exit_price=12.0,
+        exit_reason="take_profit",
+        weighted_roi=0.15,
+        result="win",
+        lifecycle="complete",
+        completed_goals=(
+            CompletedGoal(
+                name="take_profit",
+                date="20240108",
+                price=11.0,
+                price_hfq=11.0,
+                exit_ratio=0.5,
+                reason="take_profit",
+            ),
+            CompletedGoal(
+                name="take_profit",
+                date="20240110",
+                price=12.0,
+                price_hfq=12.0,
+                exit_ratio=0.5,
+                reason="take_profit",
+            ),
+        ),
+    )
+    out, _ = PriceFactorJobExecutor._replay_entity_investments([row])
+    assert len(out) == 1
+    assert out[0].lifecycle == "complete"
+    assert out[0].roi == pytest.approx(0.15)
+    assert [goal["date"] for goal in out[0].completed_goals] == ["20240108", "20240110"]
+    assert out[0].completed_goals[0]["exit_ratio"] == pytest.approx(0.5)
+    assert out[0].completed_goals[1]["goal_name"] == "take_profit"

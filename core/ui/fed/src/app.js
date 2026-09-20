@@ -181,6 +181,14 @@ function App() {
               element={<ScanPage />}
             />
             <Route
+              path="/decision"
+              element={<Navigate to="/strategy-design" replace />}
+            />
+            <Route
+              path="/decision/play"
+              element={<Navigate to="/strategy-design" replace />}
+            />
+            <Route
               path="/advanced/data-sources"
               element={<DataSourceListPage />}
             />

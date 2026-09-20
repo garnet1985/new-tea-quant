@@ -666,7 +666,7 @@ class ContractIssuer:
         Args:
             key: Contract 的唯一标识符（字符串，如 DATA_KEY.STOCK_LIST)
             entity_ids: Entity IDs列表（per_entity contract必需，global contract不需要）
-            runtime: Runtime参数字典（params，如 {"start_time": "...", "adjust": "qfq"})
+            runtime: Runtime参数字典（params，如 {"start_time": "...", "end_time": "..."})
             fill_in_data: 是否自动加载数据（默认 False）
 
         Returns:
@@ -684,7 +684,6 @@ class ContractIssuer:
                 runtime={
                     "start_time": "20200101",
                     "end_time": "20201231",
-                    "adjust": "qfq",
                 },
                 fill_in_data=True,
             )

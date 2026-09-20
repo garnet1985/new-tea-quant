@@ -6,7 +6,10 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 from core.modules.data_contract.core.base.base_loader import BaseDataContractLoader
 from core.modules.data_manager import DataManager
-from core.tables.stock.stock_st_periods.st_period_rules import normalize_yyyymmdd
+from core.tables.stock.stock_st_periods.st_period_rules import (
+    normalize_yyyymmdd,
+    period_overlaps_window,
+)
 
 
 class StockStPeriodsLoader(BaseDataContractLoader):
@@ -56,19 +59,23 @@ class StockStPeriodsLoader(BaseDataContractLoader):
         rows: List[Dict[str, Any]],
         params: Mapping[str, Any],
     ) -> List[Dict[str, Any]]:
+        """保留与窗相交的时段；窗口前已生效的，把可见起点收到窗首日（起始值）。
+
+        不把空 ``end_date`` 填成窗尾：仍有效的警示要一直标到摘帽。
+        """
         start = normalize_yyyymmdd(params.get("start") or "")
         end = normalize_yyyymmdd(params.get("end") or "")
         if not start and not end:
             return list(rows)
+        win_start = start or "00010101"
+        win_end = end or "99991231"
         clipped: List[Dict[str, Any]] = []
         for row in rows:
-            row_start = normalize_yyyymmdd(row.get("start_date"))
-            row_end = normalize_yyyymmdd(row.get("end_date")) or None
-            if end and row_start and row_start > end:
-                continue
-            if start and row_end and row_end < start:
+            if not period_overlaps_window(row, win_start, win_end):
                 continue
             item = dict(row)
+            row_start = normalize_yyyymmdd(item.get("start_date"))
+            row_end = normalize_yyyymmdd(item.get("end_date"))
             if start and row_start and row_start < start:
                 item["start_date"] = start
             if end and row_end and row_end > end:

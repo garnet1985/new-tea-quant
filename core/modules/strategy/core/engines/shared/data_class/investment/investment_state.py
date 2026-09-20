@@ -15,10 +15,14 @@ from .enums import ExpirationMode, InvestmentResult, Lifecycle, TradeSide
 
 @dataclass
 class FillState:
-    """进场/出场成交共用字段。"""
+    """进场/出场成交共用字段。
+
+    ``price`` = qfq（图 / 信号对账）；``price_raw`` = 成交；``price_hfq`` = ROI / 比例目标。
+    """
 
     price: float = 0.0
     price_raw: float = 0.0
+    price_hfq: float = 0.0
     date: str = ""
     prev_close: Optional[float] = None
     at_limit: Optional[bool] = None
@@ -74,6 +78,8 @@ class PendingExit:
     fill_bar: Optional[Dict[str, Any]] = None
     kind: str = ""
     armed_as_of: str = ""
+    # 本指令还剩多少「相对初始仓位」未成交；流动性砍量后跨 bar 继续扣
+    unfilled_ratio: float = 0.0
 
 
 @dataclass
@@ -95,6 +101,8 @@ class InvestmentState:
     triggered_stop_loss_ids: List[str] = field(default_factory=list)
     triggered_take_profit_ids: List[str] = field(default_factory=list)
     remaining_ratio: float = 1.0
+    # 入场当日可参与上限股数；出场按 cap/basis 把比例拆到后续 bar，直到 remaining=0
+    liquidity_share_basis: Optional[float] = None
     protect_loss_active: bool = False
     dynamic_loss_active: bool = False
     dynamic_loss_peak: Optional[float] = None

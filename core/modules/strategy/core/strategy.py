@@ -1,8 +1,9 @@
-"""Strategy 模块 Facade — scan / enumerate / price / portfolio / simulate / discovery。
+"""Strategy 模块 Facade — scan / enumerate / price / portfolio / decision / simulate / discovery。
 
 本文件:
 - Strategy: 对外 API（扫描委托 ScannerPipeline；simulate 指纹→磁盘 registry→Pipeline）
   边界: 负责公开入口与 simulate 跨 step 编排；scan 领域逻辑在 ScannerPipeline
+  决策者不是 SimulateKind，不进指纹缓存；挂在已有 enum version 下
 - BackTestPipelines: SimulateKind → Pipeline 懒加载映射
 """
 
@@ -204,6 +205,68 @@ class Strategy:
             ignore_cache=ignore_cache,
             runtime_settings=runtime_settings,
         )
+
+    @staticmethod
+    def decision_open(
+        key_or_id: str,
+        *,
+        version_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        new_session: bool = False,
+    ):
+        """打开或续上一局决策者（须已有 enum version）。"""
+        from .engines.decision_maker import DecisionEngine
+
+        return DecisionEngine.open(
+            key_or_id,
+            version_id=version_id,
+            session_id=session_id,
+            new_session=new_session,
+        )
+
+    @staticmethod
+    def decision_list(
+        key_or_id: str,
+        *,
+        version_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """列出当前 settings 命中 version（或指定 version）下的决策者会话。"""
+        from .engines.decision_maker import DecisionEngine
+
+        return DecisionEngine.list_sessions(key_or_id, version_id=version_id)
+
+    @staticmethod
+    def decision_delete(
+        key_or_id: str,
+        session_id: str,
+        *,
+        version_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """删除一局决策者存档（进行中 / 已完成均可）。"""
+        from .engines.decision_maker import DecisionEngine
+
+        return DecisionEngine.delete_session(
+            key_or_id, session_id, version_id=version_id
+        )
+
+    @staticmethod
+    def decision_repl(
+        key_or_id: str,
+        *,
+        version_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        new_session: bool = False,
+    ) -> int:
+        """进入决策者命令行 SQL 模式。"""
+        from .engines.decision_maker.repl import DecisionRepl
+
+        engine = Strategy.decision_open(
+            key_or_id,
+            version_id=version_id,
+            session_id=session_id,
+            new_session=new_session,
+        )
+        return DecisionRepl(engine).run()
 
     @staticmethod
     def simulate(

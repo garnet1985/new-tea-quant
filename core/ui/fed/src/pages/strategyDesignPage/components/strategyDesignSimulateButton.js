@@ -13,6 +13,7 @@ function StrategyDesignSimulateButton({
   rerunLabel = '重新模拟',
   compact = false,
   className = '',
+  helpTarget = '',
 }) {
   const label = done ? rerunLabel : runLabel;
   const glyphClass = done
@@ -31,6 +32,7 @@ function StrategyDesignSimulateButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={label}
+      data-ntq-help={helpTarget || undefined}
     >
       <span className="ntq-design-simulate-btn__aurora" aria-hidden />
       <span className="ntq-design-simulate-btn__inner">
@@ -51,6 +53,7 @@ StrategyDesignSimulateButton.propTypes = {
   rerunLabel: PropTypes.string,
   compact: PropTypes.bool,
   className: PropTypes.string,
+  helpTarget: PropTypes.string,
 };
 
 export default StrategyDesignSimulateButton;

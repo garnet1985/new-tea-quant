@@ -16,7 +16,7 @@ settings = {
     "data": {
         "base": {
             "data_key": "stock.kline.daily",
-            "params": {"adjust": "none"},
+            "params": {},
             "indicators": {},
         },
         "required": [],

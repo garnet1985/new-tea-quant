@@ -441,7 +441,7 @@ class VersionMetaStore:
         """D18：同 vid 复写上游步时删除下游产物，并去掉 registry ``steps`` 标记。"""
         vid = str(version_id or "").strip()
         downstream = _DOWNSTREAM_KINDS.get(kind, ())
-        if not vid or not downstream:
+        if not vid:
             return
         root = Path(simulations_root)
         root_meta = cls.read_root_meta(root)
@@ -456,6 +456,11 @@ class VersionMetaStore:
                 changed = True
             if ds.value in steps:
                 steps.pop(ds.value, None)
+                changed = True
+        if kind == SimulateKind.ENUMERATE:
+            decision_dir = root / vid / "decision"
+            if decision_dir.is_dir():
+                shutil.rmtree(decision_dir, ignore_errors=True)
                 changed = True
         if not changed:
             return

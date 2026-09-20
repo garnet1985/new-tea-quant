@@ -355,6 +355,8 @@ export function normalizeCapitalMetricsFromSummary(slot) {
   }
 
   const calmarRatio = num('calmarRatio');
+  const sharpeRatio = num('sharpeRatio');
+  const sortinoRatio = num('sortinoRatio');
   const drawdownCurveValues = toNumberList(m.drawdownCurveValues);
   const eventCurveLabels = toStringList(m.eventCurveLabels);
   const eventCurveValues = toNumberList(m.eventCurveValues);
@@ -384,6 +386,8 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     totalReturnPct: Number(totalReturnPct.toFixed(2)),
     maxDrawdownPct: Number(maxDrawdownPct.toFixed(2)),
     calmarRatio: Number.isFinite(calmarRatio) ? Number(calmarRatio.toFixed(4)) : NaN,
+    sharpeRatio: Number.isFinite(sharpeRatio) ? Number(sharpeRatio.toFixed(4)) : NaN,
+    sortinoRatio: Number.isFinite(sortinoRatio) ? Number(sortinoRatio.toFixed(4)) : NaN,
     totalTrades: Math.round(totalTrades),
     buyTrades: Math.round(buyTrades),
     sellTrades: Math.round(sellTrades),

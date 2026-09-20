@@ -79,6 +79,30 @@ def test_equal_capital_skips_when_cash_below_slot():
     assert shares == 0
 
 
+def test_equal_capital_suggestion_is_budget_over_price():
+    """建议买入 = 每笔预算 ÷ 买价再折手，不因佣金变成 —。"""
+    alloc = AllocationStrategy.create(
+        settings=_strategy_settings(
+            allocation={
+                "max_portfolio_size": 10,
+                "skip_trade_when_insufficient": True,
+            }
+        ),
+        market_rules=MarketRulesProxy.for_market("china_a_stock"),
+        fee_calculator=FeeCalculator(
+            commission_rate=0.00025,
+            min_commission=5.0,
+            stamp_duty_rate=0.001,
+            transfer_fee_rate=0.0,
+        ),
+    )
+    account = Account(initial_cash=1_000_000, cash=1_000_000)
+    price = 18.51
+    shares = alloc.suggest_shares(account, price, "688005.SH")
+    assert shares == alloc.floor_shares(int(100_000 / price), "688005.SH")
+    assert shares >= 200
+
+
 def test_equal_shares_uses_lots_per_trade():
     alloc = _allocation(
         allocation={"mode": "equal_shares", "lots_per_trade": 2, "max_portfolio_size": 10}
@@ -88,7 +112,22 @@ def test_equal_shares_uses_lots_per_trade():
     assert shares == 200
 
 
-def test_simulator_buy_sell_realizes_share_value_profit():
+def test_suggest_shares_follows_allocation_mode():
+    account = Account(initial_cash=1_000_000, cash=1_000_000)
+    equal_cap = _allocation(allocation={"mode": "equal_capital", "max_portfolio_size": 10})
+    assert equal_cap.suggest_shares(account, 10.0, "600000.SH") == 10_000
+    equal_sh = _allocation(
+        allocation={"mode": "equal_shares", "lots_per_trade": 2, "max_portfolio_size": 10}
+    )
+    assert equal_sh.suggest_shares(account, 10.0, "600000.SH") == 200
+    kelly = _allocation(
+        allocation={"mode": "kelly", "kelly_fraction": 0.5, "max_portfolio_size": 10}
+    )
+    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=None) == 0
+    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=0.75) > 0
+
+
+def test_simulator_buy_sell_realizes_hfq_roi_profit():
     alloc = _allocation(allocation={"max_portfolio_size": 2})
     fees = FeeCalculator(
         commission_rate=0.0,
@@ -106,6 +145,7 @@ def test_simulator_buy_sell_realizes_share_value_profit():
             entity_id="600000.SH",
             investment_id="a",
             price=10.0,
+            entry_price_hfq=10.0,
         ),
         PortfolioEvent(
             kind="sell",
@@ -124,10 +164,94 @@ def test_simulator_buy_sell_realizes_share_value_profit():
     assert buy.is_buy()
     assert sell.is_sell()
     assert buy.shares == 50_000  # 500_000 / 10
+    assert buy.entry_price_hfq == pytest.approx(10.0)
     assert sell.profit == pytest.approx(50_000.0)  # 50k * 1
     assert result.account.cash == pytest.approx(1_050_000.0)
     assert result.account.open_position_count() == 0
     assert len(result.equity_curve) >= 1
+
+
+def test_simulator_goal_slices_flatten_without_leftover():
+    alloc = _allocation(allocation={"max_portfolio_size": 2})
+    fees = FeeCalculator(
+        commission_rate=0.0,
+        min_commission=0.0,
+        stamp_duty_rate=0.0,
+        transfer_fee_rate=0.0,
+    )
+    sim = PortfolioSimulator.create(
+        allocation=alloc, fee_calculator=fees, save_equity_curve=False
+    )
+    events = [
+        PortfolioEvent(
+            kind="buy",
+            date="20240103",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=10.0,
+            bar_volume=10_000_000,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240110",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=9.0,
+            roi=-0.04,
+            exit_ratio=0.6,
+            bar_volume=100,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240112",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=8.5,
+            roi=-0.06,
+            exit_ratio=0.4,
+            bar_volume=100,
+        ),
+    ]
+    result = sim.run(events, initial_capital=1_000_000)
+    sells = [t for t in result.trades if t.is_sell()]
+    assert len(sells) == 2
+    assert sells[0].shares + sells[1].shares == result.trades[0].shares
+    assert result.completed_count == 1
+    assert result.account.open_position_count() == 0
+
+
+def test_size_sell_shares_floors_to_lot_then_flattens_odd_lot():
+    alloc = _allocation()
+    assert (
+        alloc.size_sell_shares(
+            remaining=52_000,
+            initial_shares=52_000,
+            exit_ratio=8194 / 52_000,
+            entity_id="000488.SZ",
+            is_last=False,
+        )
+        == 8100
+    )
+    assert (
+        alloc.size_sell_shares(
+            remaining=94,
+            initial_shares=52_000,
+            exit_ratio=0.01,
+            entity_id="000488.SZ",
+            is_last=False,
+        )
+        == 94
+    )
+    assert (
+        alloc.size_sell_shares(
+            remaining=43_900,
+            initial_shares=52_000,
+            exit_ratio=0.15,
+            entity_id="000488.SZ",
+            is_last=True,
+        )
+        == 43_900
+    )
 
 
 def test_simulator_same_investment_id_does_not_cross_entity_sell():
@@ -172,11 +296,77 @@ def test_simulator_same_investment_id_does_not_cross_entity_sell():
     sells = [t for t in result.trades if t.is_sell()]
     assert len(sells) == 1
     assert sells[0].entity_id == "600000.SH"
-    assert sells[0].price == pytest.approx(11.0)
+    assert sells[0].price == pytest.approx(11.0)  # 同股等价价 = 10 * (1 + 0.1)
     assert sells[0].profit == pytest.approx(result.trades[0].shares * 1.0)
 
 
-def test_simulator_skips_non_positive_sell_and_keeps_lot():
+def test_simulator_sell_uses_hfq_roi_not_event_price():
+    """exit_raw 腰斩但 hfq ROI=0 → 现金回到本金，不是腰斩。"""
+    alloc = _allocation(allocation={"max_portfolio_size": 2})
+    fees = FeeCalculator(
+        commission_rate=0.0, min_commission=0.0, stamp_duty_rate=0.0, transfer_fee_rate=0.0
+    )
+    sim = PortfolioSimulator.create(allocation=alloc, fee_calculator=fees)
+    events = [
+        PortfolioEvent(
+            kind="buy",
+            date="20240103",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=10.0,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240110",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=5.0,
+            roi=0.0,
+            exit_price_raw=5.0,
+        ),
+    ]
+    result = sim.run(events, initial_capital=1_000_000)
+    assert result.completed_count == 1
+    assert result.win_count == 0
+    buy, sell = result.trades
+    assert sell.profit == pytest.approx(0.0)
+    assert sell.price == pytest.approx(10.0)
+    assert sell.amount == pytest.approx(buy.amount)
+    assert result.account.cash == pytest.approx(1_000_000.0)
+
+
+def test_simulator_sell_follows_roi_even_when_exit_raw_disagrees():
+    alloc = _allocation(allocation={"max_portfolio_size": 2})
+    fees = FeeCalculator(
+        commission_rate=0.0, min_commission=0.0, stamp_duty_rate=0.0, transfer_fee_rate=0.0
+    )
+    sim = PortfolioSimulator.create(allocation=alloc, fee_calculator=fees)
+    events = [
+        PortfolioEvent(
+            kind="buy",
+            date="20240103",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=20.0,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240110",
+            entity_id="600000.SH",
+            investment_id="a",
+            price=22.0,
+            roi=0.5,
+            exit_price_raw=22.0,
+        ),
+    ]
+    result = sim.run(events, initial_capital=1_000_000)
+    buy, sell = result.trades
+    assert sell.profit == pytest.approx(buy.shares * 20.0 * 0.5)
+    assert sell.price == pytest.approx(30.0)
+    assert result.account.cash == pytest.approx(1_000_000.0 + buy.shares * 10.0)
+
+
+def test_simulator_non_positive_event_price_still_closes_on_roi():
     alloc = _allocation(allocation={"max_portfolio_size": 2})
     fees = FeeCalculator(
         commission_rate=0.0, min_commission=0.0, stamp_duty_rate=0.0, transfer_fee_rate=0.0
@@ -196,15 +386,16 @@ def test_simulator_skips_non_positive_sell_and_keeps_lot():
             entity_id="600000.SH",
             investment_id="a",
             price=-8.72,
+            roi=0.0,
         ),
     ]
     result = sim.run(events, initial_capital=1_000_000)
-    assert result.skipped_sells == 1
-    assert result.completed_count == 0
-    assert len(result.trades) == 1
-    assert result.trades[0].is_buy()
-    assert result.account.cash < 1_000_000
-    assert result.account.open_position_count() == 1
+    assert result.skipped_sells == 0
+    assert result.completed_count == 1
+    assert len(result.trades) == 2
+    assert result.trades[1].profit == pytest.approx(0.0)
+    assert result.account.cash == pytest.approx(1_000_000.0)
+    assert result.account.open_position_count() == 0
 
 
 def test_simulator_skips_sell_without_open_lot():
@@ -240,6 +431,7 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
                 entity_id="600000.SH",
                 investment_id="a",
                 price=10.0,
+                entry_price_hfq=10.0,
             ),
             PortfolioEvent(
                 kind="sell",
@@ -247,6 +439,7 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
                 entity_id="600000.SH",
                 investment_id="a",
                 price=11.0,
+                roi=0.1,
             ),
         ],
         initial_capital=1_000_000,
@@ -257,7 +450,13 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
         strategy_path="demo/rsi",
         version_id=1,
         enum_version_id="3",
-    ).finalize(result, period={"start_date": "20240101", "end_date": "20240131"})
+    ).finalize(
+        result,
+        period={"start_date": "20240101", "end_date": "20240131"},
+        # 空日历 → 盯市跳过，本测只断言成交落盘与成本曲线期末
+        load_open_dates=lambda *_args, **_kwargs: [],
+        load_shibor_overnight=lambda *_args, **_kwargs: {},
+    )
     assert report["success"] is True
     assert report["version_id"] == 1
     assert report["capitalMetrics"]["totalTrades"] >= 2
@@ -271,3 +470,6 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
     assert report["summary"]["completed_investments"] == 1
     assert report["summary"]["total_return"] == pytest.approx(0.05)
     assert report["summary"]["final_total_equity"] == pytest.approx(1_050_000.0)
+    assert report["summary"]["sharpe_ratio"] is None
+    assert report["summary"]["sortino_ratio"] is None
+    assert report["capitalMetrics"]["sharpeRatio"] is None

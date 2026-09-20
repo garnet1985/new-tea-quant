@@ -1,0 +1,403 @@
+/* Decision-maker prototype: lobby + play HUD */
+
+.decision-page,
+.decision-play-page {
+  display: grid;
+  gap: 16px;
+}
+
+.decision-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 6px;
+}
+
+.decision-context .pill {
+  font-size: 12px;
+}
+
+.decision-lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.decision-entry-card {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  min-height: 240px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.decision-entry-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(142, 197, 255, 0.35);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+}
+
+.decision-entry-card.is-disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.decision-entry-index {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: rgba(229, 231, 235, 0.55);
+}
+
+.decision-entry-card h2 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 0.02em;
+}
+
+.decision-entry-card p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.decision-entry-meta {
+  margin-top: auto;
+  padding-top: 18px;
+  font-size: 13px;
+  color: rgba(229, 231, 235, 0.78);
+}
+
+.decision-manage-card[hidden] {
+  display: none;
+}
+
+.decision-manage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.decision-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 80;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(16, 19, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+  color: rgba(246, 248, 252, 0.94);
+  font-size: 13px;
+}
+
+.decision-toast[hidden] {
+  display: none;
+}
+
+/* Play HUD */
+
+.decision-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+  align-items: center;
+  position: sticky;
+  top: 68px;
+  z-index: 8;
+}
+
+.decision-calendar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.decision-cal-cell {
+  min-width: 86px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.decision-cal-cell span {
+  display: block;
+  color: rgba(229, 231, 235, 0.55);
+}
+
+.decision-cal-cell strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.decision-cal-cell.is-past {
+  opacity: 0.62;
+}
+
+.decision-cal-cell.is-now {
+  border-color: rgba(142, 197, 255, 0.55);
+  background: rgba(142, 197, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.decision-cal-cell.is-locked {
+  opacity: 0.42;
+}
+
+.decision-hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.decision-hud-cash {
+  text-align: right;
+}
+
+.decision-hud-cash span {
+  display: block;
+  font-size: 12px;
+  color: rgba(229, 231, 235, 0.62);
+}
+
+.decision-hud-cash strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.decision-play-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.decision-left,
+.decision-right {
+  display: grid;
+  gap: 14px;
+}
+
+.decision-capital-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.decision-capital-grid div {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.decision-capital-grid span {
+  display: block;
+  font-size: 12px;
+  color: rgba(229, 231, 235, 0.58);
+}
+
+.decision-capital-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.decision-event-list {
+  display: grid;
+  gap: 8px;
+}
+
+.decision-event {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.decision-event.is-win {
+  border-color: rgba(127, 227, 174, 0.28);
+}
+
+.decision-event.is-loss {
+  border-color: rgba(255, 142, 142, 0.28);
+}
+
+.decision-event time {
+  display: block;
+  font-size: 12px;
+  color: rgba(229, 231, 235, 0.55);
+}
+
+.decision-opp-table input[type="number"] {
+  width: 92px;
+  background: rgba(10, 13, 18, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(242, 245, 249, 0.94);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 13px;
+}
+
+.decision-opp-table tr.is-picked {
+  background: rgba(142, 197, 255, 0.08);
+}
+
+.decision-opp-table tr.is-clickable {
+  cursor: pointer;
+}
+
+.decision-opp-table tr.is-clickable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.decision-readonly-banner {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 210, 138, 0.28);
+  background: rgba(255, 210, 138, 0.1);
+  color: rgba(255, 232, 196, 0.95);
+}
+
+.decision-confirm-panel {
+  width: min(560px, 92vw);
+}
+
+.decision-bill {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.decision-bill li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.decision-bill-total {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+}
+
+.decision-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  grid-template-columns: 1fr min(560px, 92vw);
+  background: rgba(8, 11, 16, 0.55);
+}
+
+.decision-drawer[hidden] {
+  display: none;
+}
+
+.decision-drawer-panel {
+  background: linear-gradient(145deg, rgba(21, 24, 31, 0.96), rgba(16, 19, 26, 0.92));
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.4);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+.decision-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.decision-drawer-head h3 {
+  margin: 0;
+}
+
+.decision-drawer-body {
+  padding: 16px;
+  overflow: auto;
+}
+
+.decision-kline {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 120px;
+  margin: 12px 0 16px;
+  padding: 8px 10px 0;
+  border-radius: 10px;
+  background: rgba(10, 13, 18, 0.5);
+}
+
+.decision-kbar {
+  flex: 1;
+  min-width: 8px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, rgba(127, 227, 174, 0.9), rgba(127, 227, 174, 0.35));
+}
+
+.decision-kbar.is-down {
+  background: linear-gradient(180deg, rgba(255, 142, 142, 0.9), rgba(255, 142, 142, 0.35));
+}
+
+.decision-picker-list {
+  display: grid;
+  gap: 8px;
+}
+
+.decision-picker-list a,
+.decision-picker-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  font: inherit;
+}
+
+.decision-picker-list a:hover,
+.decision-picker-list button:hover {
+  border-color: rgba(142, 197, 255, 0.4);
+  background: rgba(142, 197, 255, 0.1);
+}
+
+@media (max-width: 800px) {
+  .decision-hud {
+    grid-template-columns: 1fr;
+    position: static;
+  }
+}

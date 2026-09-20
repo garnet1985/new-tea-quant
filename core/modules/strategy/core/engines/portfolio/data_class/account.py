@@ -26,12 +26,6 @@ class Position:
     def market_value(self, current_price: float) -> float:
         return float(self.shares) * float(current_price)
 
-    def unrealized_profit(self, current_price: float) -> float:
-        """未实现盈亏：按现价相对 average_cost 的浮动盈亏。"""
-        if self.shares <= 0:
-            return 0.0
-        return (float(current_price) - float(self.average_cost)) * float(self.shares)
-
 
 @dataclass
 class Account:

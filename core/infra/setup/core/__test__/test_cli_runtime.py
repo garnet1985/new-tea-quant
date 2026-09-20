@@ -61,6 +61,8 @@ def test_install_does_not_ask_trace_permission(
     monkeypatch.setattr(cr, "mark_runtime", lambda *a, **k: None)
     monkeypatch.setattr(cr, "sha256_file", lambda _p: "hash")
     monkeypatch.setattr(cr.SetupTrace, "install_complete", lambda **k: None)
+    monkeypatch.setattr(cr.SetupTrace, "install_step_failed", lambda **k: None)
+    monkeypatch.setattr(cr.SetupTrace, "ensure_install_id", lambda: None)
     monkeypatch.setattr(cr, "_run_step", lambda _step_id: 0)
 
     def _ask(*, source=""):

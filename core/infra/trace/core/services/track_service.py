@@ -31,6 +31,16 @@ class TraceTrackService:
             return
 
     @staticmethod
+    def track_setup(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
+        try:
+            if TraceConfigService._env_truthy("NTQ_TRACE_SKIP") is True:
+                return
+            cfg = TraceConfigService.load()
+            TraceTrackService._emit(event, body, cfg=cfg, enqueue_on_fail=True)
+        except Exception:
+            return
+
+    @staticmethod
     def queue(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
         """Build one event and enqueue locally (no network I/O)."""
         try:

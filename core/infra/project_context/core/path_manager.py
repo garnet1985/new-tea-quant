@@ -351,3 +351,20 @@ class PathManager:
     def get_adapters_directory() -> Path:
         """获取扫描适配器目录：userspace/extensions/adapters/"""
         return PathManager.get_extensions_root() / "adapters"
+
+    # ========== extensions: Assistant ==========
+
+    @staticmethod
+    def get_assistant_root() -> Path:
+        """获取 Assistant 根目录：userspace/extensions/assistant/"""
+        return PathManager.get_extensions_root() / "assistant"
+
+    @staticmethod
+    def get_assistant_providers_directory() -> Path:
+        """获取 Assistant providers 目录：.../assistant/providers/"""
+        return PathManager.get_assistant_root() / "providers"
+
+    @staticmethod
+    def get_assistant_provider_directory(provider_id: str) -> Path:
+        """获取指定 Assistant provider 目录：.../assistant/providers/{provider_id}/"""
+        return PathManager.get_assistant_providers_directory() / provider_id

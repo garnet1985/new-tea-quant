@@ -1,7 +1,7 @@
 # 测试用例 — `modules.strategy`
 
 **模块：** `modules.strategy`  
-**版本：** `0.8.0`  
+**版本：** `0.9.0`  
 ## Scope
 
 验证门面 `Strategy` 与 `contracts` 公开面（对齐 `API.md`）。
@@ -10,4 +10,4 @@
 
 | 文件 | 说明 |
 |------|------|
-| `test_api.py` | 公开 API 契约与轻量行为（`force_run`） |
+| `test_api.py` | 公开 API 契约与轻量行为（含 `decision_*` 可调用、`force_run`） |

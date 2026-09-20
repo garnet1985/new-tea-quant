@@ -1,6 +1,6 @@
 name: infra.feedback
 version: 0.1.0
-compatible_core_versions: ">=0.4.4"
+compatible_core_versions: ">=0.5.0"
 description: "应用内软反馈：点赞/点踩与可选短文上报；不依赖 Trace.consent。"
 dependencies:
   - infra.project_context

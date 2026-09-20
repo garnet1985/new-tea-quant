@@ -15,6 +15,7 @@ ROAD MAPs
 - 引入更多经典策略 ✅
 - 加强analysis的report(机器学习归因) ✅
 - 让模块更容易按照sass方式部署 （❌暂不考虑）
+- 安装失败 Trace 要能排障（现在只有 `step_failed:import_data`，看不见表名/异常类型）— 见 [`INSTALL_TRACE_TODO.md`](core/infra/setup/docs/notes/INSTALL_TRACE_TODO.md)
 
 提高系统效率
 - 将单进程单股回测变成单进程多股回测，自动设置股票bundle size，从而大幅度提高回测效率 ✅
@@ -43,8 +44,9 @@ Pro版本：
 ### upcoming releases (0.5.x)
 
 目标：增加决策者模式
-- 新加决策者模式
+- 新加决策者模式（单策略：制定策略第四步）
 - 增加决策者模式的report
+- **0.5.1** 跨策略决策模拟（公共 settings 覆盖 + `_decision` 重跑枚举 + 一本账时钟）— 口径见 [`DECISION_MAKER_CROSS.md`](core/modules/strategy/docs/notes/DECISION_MAKER_CROSS.md)
 - 引入AI助理 （辅助代码，解释报告，app小百科）
 - 增加常用统计/金融/分析工具箱
 - Pydantic + Ruff

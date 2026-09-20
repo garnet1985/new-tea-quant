@@ -35,12 +35,19 @@ def _bar(
     c: float,
     pre_close: float | None = None,
     raw: dict | None = None,
+    hfq: dict | None = None,
+    adj_factor: float | None = None,
+    volume: float | None = None,
 ) -> dict:
     row = {"date": date, "open": o, "high": h, "low": l, "close": c}
     if pre_close is not None:
         row["pre_close"] = pre_close
-    if raw is not None:
-        row["raw"] = raw
+    if volume is not None:
+        row["volume"] = volume
+    ohlc = {k: row[k] for k in ("open", "high", "low", "close", "pre_close") if k in row}
+    row["raw"] = dict(raw) if raw is not None else dict(ohlc)
+    row["hfq"] = dict(hfq) if hfq is not None else dict(ohlc)
+    row["adj_factor"] = 1.0 if adj_factor is None else float(adj_factor)
     return row
 
 
@@ -53,9 +60,23 @@ def _tick(
     c: float,
     pre_close: float | None = None,
     raw: dict | None = None,
+    hfq: dict | None = None,
+    adj_factor: float | None = None,
+    volume: float | None = None,
 ):
     """返回 (as_of, bar)。"""
-    return date, _bar(date, o=o, h=h, l=l, c=c, pre_close=pre_close, raw=raw)
+    return date, _bar(
+        date,
+        o=o,
+        h=h,
+        l=l,
+        c=c,
+        pre_close=pre_close,
+        raw=raw,
+        hfq=hfq,
+        adj_factor=adj_factor,
+        volume=volume,
+    )
 
 
 def _react(inv: Investment, tick) -> bool:
@@ -213,6 +234,63 @@ class TestInvestmentExpiration(unittest.TestCase):
         self.assertFalse(_react(inv, _tick("20240104", o=10.2, h=10.5, l=10.0, c=10.3)))
         self.assertEqual(inv.exit_info.reason, "expired")
 
+    def test_liquidity_clip_retries_until_flat_then_sets_result(self) -> None:
+        """流动性砍量后跨 bar 继续卖；持仓归零才有 result。"""
+        settings = _settings(
+            simulation={
+                "assumption": {
+                    "template": "none",
+                    "tradability": {
+                        "enter_price": "next_open",
+                        "exit_price": "close",
+                        "liquidity": {
+                            "max_participation_rate": 0.1,
+                            "participation_on_exceed": "clip",
+                        },
+                    },
+                },
+            },
+            goal={
+                "stop_loss": {"stages": [{"ratio": -0.9, "close_invest": True}]},
+                "take_profit": {"stages": [{"ratio": 0.9, "close_invest": True}]},
+                "expiration": {"fixed_window_in_days": 2, "mode": "open_day"},
+            },
+        )
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10, volume=10_000),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        self.assertTrue(
+            _react(inv, _tick("20240103", o=10, h=10.5, l=9.8, c=10.2, volume=10_000))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(inv.runtime_state.liquidity_share_basis, 1000.0)
+
+        still_live = _react(
+            inv, _tick("20240104", o=10.2, h=10.5, l=10.0, c=10.3, volume=5_000)
+        )
+        self.assertTrue(still_live)
+        self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
+        self.assertIsNone(inv.outcome.result)
+        self.assertEqual(len(inv.completed_goals), 1)
+        self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
+        self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 0.5)
+
+        self.assertFalse(
+            _react(inv, _tick("20240105", o=10.3, h=10.6, l=10.1, c=10.4, volume=5_000))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.reason, "expired")
+        self.assertEqual(len(inv.completed_goals), 2)
+        self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 0.0)
+        self.assertIsNotNone(inv.outcome.result)
+        self.assertAlmostEqual(
+            sum(float(g["exit_ratio"]) for g in inv.completed_goals), 1.0
+        )
+
 
 class TestInvestmentToOpportunity(unittest.TestCase):
     def test_to_opportunity_strips_runtime_results(self) -> None:
@@ -276,6 +354,7 @@ class TestInvestmentRawPrices(unittest.TestCase):
         )
         self.assertEqual(inv.entry.price, 10.5)
         self.assertEqual(inv.entry.price_raw, 21.0)
+        self.assertEqual(inv.entry.price_hfq, 10.5)
 
         self.assertFalse(
             _react(inv, 
@@ -291,16 +370,88 @@ class TestInvestmentRawPrices(unittest.TestCase):
         )
         self.assertEqual(inv.exit_info.price, 8.0)
         self.assertEqual(inv.exit_info.price_raw, 16.0)
+        self.assertEqual(inv.exit_info.price_hfq, 8.0)
         self.assertEqual(inv.completed_goals[0]["price_raw"], 16.0)
+        self.assertEqual(inv.completed_goals[0]["price_hfq"], 8.0)
 
-        from core.modules.strategy.core.services.artifacts import (
-            InvestmentRow,
+        from core.modules.strategy.core.engines.shared.enum_result_contract import (
+            EnumResult,
         )
 
-        row = InvestmentRow.from_payload(inv.to_dict())
+        row = EnumResult.from_investment(inv)
         self.assertEqual(row.trigger_price_raw, 20.0)
         self.assertEqual(row.entry_price_raw, 21.0)
         self.assertEqual(row.exit_price_raw, 16.0)
+        self.assertEqual(row.entry_price_hfq, 10.5)
+        self.assertEqual(row.exit_price_hfq, 8.0)
+
+
+class TestInvestmentHfqRoiAndStops(unittest.TestCase):
+    def test_split_does_not_trip_ratio_stop_or_fake_loss(self) -> None:
+        """10 送 10：qfq/raw 腰斩，hfq 持平 → 不止损，ROI=0。"""
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+            trigger_price_raw=10.0,
+            trigger_price_hfq=10.0,
+        )
+        inv = _inv(opp, settings)
+
+        self.assertTrue(
+            _react(
+                inv,
+                _tick(
+                    "20240103",
+                    o=10.0,
+                    h=10.5,
+                    l=9.8,
+                    c=10.2,
+                    raw={"open": 10.0, "high": 10.5, "low": 9.8, "close": 10.2},
+                    hfq={"open": 10.0, "high": 10.5, "low": 9.8, "close": 10.2},
+                    adj_factor=1.0,
+                ),
+            )
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(inv.entry.price, 10.0)
+        self.assertEqual(inv.entry.price_raw, 10.0)
+        self.assertEqual(inv.entry.price_hfq, 10.0)
+
+        still_open = _react(
+            inv,
+            _tick(
+                "20240104",
+                o=5.0,
+                h=5.2,
+                l=4.8,
+                c=5.0,
+                raw={"open": 5.0, "high": 5.2, "low": 4.8, "close": 5.0},
+                hfq={"open": 10.0, "high": 10.4, "low": 9.6, "close": 10.0},
+                adj_factor=2.0,
+            ),
+        )
+        self.assertTrue(still_open)
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+
+        inv.settle("20240104", _bar(
+            "20240104",
+            o=5.0,
+            h=5.2,
+            l=4.8,
+            c=5.0,
+            raw={"open": 5.0, "high": 5.2, "low": 4.8, "close": 5.0},
+            hfq={"open": 10.0, "high": 10.4, "low": 9.6, "close": 10.0},
+            adj_factor=2.0,
+        ))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.price, 5.0)
+        self.assertEqual(inv.exit_info.price_raw, 5.0)
+        self.assertEqual(inv.exit_info.price_hfq, 10.0)
+        self.assertAlmostEqual(inv.outcome.weighted_roi, 0.0, places=6)
+        self.assertEqual(inv.outcome.result.value, "win")
 
 
 class TestGoalSettingsExpiration(unittest.TestCase):
@@ -438,19 +589,13 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         self.assertTrue(inv.exit_info.at_limit)
         self.assertEqual(inv.exit_info.prev_close, 10.0)
 
-        from core.modules.strategy.core.services.artifacts import (
-            InvestmentRow,
+        from core.modules.strategy.core.engines.shared.enum_result_contract import (
+            EnumResult,
         )
 
-        row = InvestmentRow.from_payload(inv.to_dict())
+        row = EnumResult.from_investment(inv)
         self.assertTrue(row.enter_at_limit)
         self.assertTrue(row.exit_at_limit)
-        csv_row = row.to_csv_row()
-        self.assertEqual(csv_row["enter_at_limit"], "1")
-        self.assertEqual(csv_row["exit_at_limit"], "1")
-        roundtrip = InvestmentRow.from_csv_row(csv_row)
-        self.assertTrue(roundtrip.enter_at_limit)
-        self.assertTrue(roundtrip.exit_at_limit)
 
 
 class _FixedStatusTags:
@@ -556,19 +701,15 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         # 源 Opportunity 同步打标
         self.assertEqual(opp.status_tags_at_trigger(), ("st", "star_st"))
 
-        from core.modules.strategy.core.services.artifacts import (
-            InvestmentRow,
+        from core.modules.strategy.core.engines.shared.enum_result_contract import (
+            EnumResult,
         )
 
         # 需 entry/exit 结构：走一轮最小成交
         _react(inv, _tick("20240103", o=10.0, h=10.5, l=9.8, c=10.2, pre_close=10.0))
-        row = InvestmentRow.from_payload(inv.to_dict())
+        row = EnumResult.from_investment(inv)
         self.assertEqual(row.stock_status_at_trigger, ("st", "star_st"))
-        csv_row = row.to_csv_row()
-        self.assertEqual(csv_row["stock_status_at_trigger"], '["st", "star_st"]')
-        roundtrip = InvestmentRow.from_csv_row(csv_row)
-        self.assertEqual(roundtrip.stock_status_at_trigger, ("st", "star_st"))
-        projected = roundtrip.to_opportunity("600000.SH")
+        projected = row.to_opportunity()
         self.assertEqual(projected.status_tags_at_trigger(), ("st", "star_st"))
 
     def test_without_provider_does_not_stamp_status_key(self) -> None:
@@ -1047,7 +1188,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1077,7 +1218,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1105,7 +1246,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1130,7 +1271,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             simulation={"enter_price": "close", "exit_price": "close"},
             goal={
                 "take_profit": {
-                    "stages": [{"custom": "bb_upper", "close_invest": True}],
+                    "stages": [{"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"}],
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
             },
@@ -1159,7 +1300,7 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
                 "take_profit": {
                     "stages": [
                         {"ratio": 0.2, "exit_ratio": 0.5},
-                        {"custom": "bb_upper", "close_invest": True},
+                        {"custom": "bb_upper", "close_invest": True, "description": "上破布林上轨"},
                     ]
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
@@ -1192,8 +1333,8 @@ class TestInvestmentCustomGoalHooks(unittest.TestCase):
             goal={
                 "take_profit": {
                     "stages": [
-                        {"custom": "first", "exit_ratio": 0.5},
-                        {"custom": "second", "close_invest": True},
+                        {"custom": "first", "exit_ratio": 0.5, "description": "第一段自定义止盈"},
+                        {"custom": "second", "close_invest": True, "description": "第二段自定义止盈"},
                     ]
                 },
                 "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},

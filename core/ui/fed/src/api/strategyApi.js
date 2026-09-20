@@ -143,12 +143,12 @@ export async function fetchStrategyScanProgress(strategyName, jobId) {
   return json?.message || {};
 }
 
-/** 构建制定策略页路径（可选 step：enum | price | portfolio） */
+/** 构建制定策略页路径（可选 step：enum | price | portfolio | decision） */
 export function getStrategyDesignPath(strategyName, step = '') {
   const encoded = encodeStrategyPathSegments(strategyName);
   const base = `/strategy-design/${encoded}`;
   const seg = String(step || '').trim();
-  if (seg === 'enum' || seg === 'price' || seg === 'portfolio') {
+  if (seg === 'enum' || seg === 'price' || seg === 'portfolio' || seg === 'decision') {
     return `${base}/${seg}`;
   }
   return base;

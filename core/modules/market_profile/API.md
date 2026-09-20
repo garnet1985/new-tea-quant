@@ -1,7 +1,7 @@
 # Market Profile API 文档
 
 **版本：** `0.2.0`  
-**最低支持核心版本：** `>=0.4.1`
+**最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
 > 本文档是本模块公开调用面的**唯一人读 API 文档**。  
@@ -73,7 +73,8 @@
 | `get_limit_ratio()` / `get_limit_ratio_for_stock(stock_id, status_tags=None)` | 默认 / 按票涨跌幅比例 |
 | `compute_limit_prices(prev_close)` / `compute_limit_prices_for_stock(...)` | 涨跌停价 |
 | `is_at_limit_up` / `is_at_limit_down` | 贴涨停 / 贴跌停 |
-| `get_min_lot` / `resolve_lot_size` / `floor_quantity_for_stock` | 整手 |
+| `get_min_lot` / `resolve_lot_size` / `floor_quantity_for_stock` | 买入整手 |
+| `is_valid_sell_quantity_for_stock` / `floor_sell_quantity_for_stock` | 卖出申报（整手 + 零股一次清完） |
 | `get_settlement_period` / `is_allowed_to_sell` | T+N 交收 |
 
 - **状态：** `beta`

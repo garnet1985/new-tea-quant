@@ -1,6 +1,6 @@
 # Data Manager 架构文档
 
-**模块：** `modules.data_manager` · **版本：** `0.2.0`
+**模块：** `modules.data_manager` · **版本：** `0.2.1`
 
 ---
 

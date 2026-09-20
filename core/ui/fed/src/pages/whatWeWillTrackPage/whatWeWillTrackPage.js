@@ -68,14 +68,10 @@ function WhatWeWillTrackPage() {
             仅在你同意后发送；关闭同意后本地排队事件会被清空且不再上报。
           </Typography>
           <Typography variant="subtitle2" sx={{ mt: 1 }}>
-            安装与启动
+            启动与同意
           </Typography>
           <Typography variant="body2" color="text.secondary" component="div">
             <ul className="what-we-will-track-page__list">
-              <li>
-                <code>install.complete</code>
-                ：安装是否成功、入口（UI / CLI）、稳定错误码（不含异常原文）
-              </li>
               <li>
                 <code>app.start</code>
                 ：应用启动入口（UI / DevCLI；用户 CLI 仅策略/Tag 的 run 类命令，并带

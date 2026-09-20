@@ -1,6 +1,6 @@
 name: infra.setup
 version: "0.1.0"
-compatible_core_versions: ">=0.4.4"
+compatible_core_versions: ">=0.5.0"
 description: "安装域：venv/依赖/userspace/演示数据与 CLI·UI 安装编排。产物工厂与安装步骤均属本模块；CLI 只调用门面。"
 dependencies:
   - infra.cmd_layout

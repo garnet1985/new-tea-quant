@@ -232,6 +232,63 @@ def test_ask_noop_does_not_reemit_decision(
     assert TraceConfigService.is_enabled() is False
 
 
+def test_track_setup_without_consent(
+    consent_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.contracts import TraceEvent
+    from core.infra.trace.core.services import (
+        client_service,
+        identity_service,
+        queue_service,
+        track_service,
+    )
+
+    posts = []
+    enqueued = []
+
+    def fake_post(url, event, *, timeout_sec):
+        posts.append(event.to_wire_dict() if isinstance(event, TraceEvent) else event)
+        return True
+
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(fake_post),
+    )
+    monkeypatch.setattr(
+        queue_service.TraceQueueService,
+        "enqueue",
+        staticmethod(lambda event, **kwargs: enqueued.append(event) or True),
+    )
+    fake_id = "ntq_i_" + "a" * 32
+    monkeypatch.setattr(
+        identity_service.TraceIdentityService,
+        "get_or_create",
+        staticmethod(lambda: fake_id),
+    )
+    monkeypatch.setattr(
+        track_service.TraceIdentityService,
+        "get_or_create",
+        staticmethod(lambda: fake_id),
+    )
+
+    Trace.track("install.complete", {"success": True})
+    assert posts == []
+    assert enqueued == []
+
+    Trace.track_setup("install.complete", {"success": False, "entry": "cli"})
+    assert len(posts) == 1
+    assert posts[0]["event"] == "install.complete"
+    assert posts[0]["installation_id"] == fake_id
+    assert posts[0]["body"]["success"] is False
+    assert enqueued == []
+
+    monkeypatch.setenv("NTQ_TRACE_SKIP", "1")
+    Trace.track_setup("install.step_failed", {"step": "import_data"})
+    assert len(posts) == 1
+
+
 def test_malformed_consent_file_is_treated_as_undecided(consent_env: Path) -> None:
     from core.infra.trace.core.services.consent_service import TraceConsentService
 

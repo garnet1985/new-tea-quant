@@ -50,6 +50,9 @@ class UserParser:
         UserParser._p_strategy_enumerate(sub)
         UserParser._p_strategy_price_factor(sub)
         UserParser._p_strategy_portfolio(sub)
+        UserParser._p_strategy_decision(sub)
+        UserParser._p_strategy_decision_list(sub)
+        UserParser._p_strategy_decision_delete(sub)
         UserParser._p_strategy_analyze(sub)
         UserParser._p_strategy_simulate(sub)
         UserParser._p_strategy_delete_version(sub)
@@ -110,6 +113,59 @@ class UserParser:
             help="组合/资金回测（portfolio）",
         )
         UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _add_decision_flags(p: argparse.ArgumentParser, *, require_session: bool = False) -> None:
+        UserParser._add_strategy_target(p)
+        p.add_argument(
+            "--version",
+            type=str,
+            default=None,
+            help="回测 version id（默认当前 settings.py 命中的 vid，与 so 相同）",
+        )
+        p.add_argument(
+            "--session",
+            dest="session_id",
+            type=str,
+            default=None,
+            required=require_session,
+            help="决策者会话 id（该 version 下的 {dm_id}）",
+        )
+
+    @staticmethod
+    def _p_strategy_decision(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_decision",
+            aliases=UserCommands.aliases_for("strategy_decision"),
+            help="进入决策者模式（SQL REPL）",
+        )
+        UserParser._add_decision_flags(p)
+        p.add_argument(
+            "--new-session",
+            action="store_true",
+            help="无论有几局未完成都新开一局（不要用全局 -n）",
+        )
+
+    @staticmethod
+    def _p_strategy_decision_list(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_decision_list",
+            aliases=UserCommands.aliases_for("strategy_decision_list"),
+            help="列出该 version 下的决策者会话",
+        )
+        UserParser._add_decision_flags(p)
+
+    @staticmethod
+    def _p_strategy_decision_delete(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_decision_delete",
+            aliases=UserCommands.aliases_for("strategy_decision_delete"),
+            help="删除一局决策者存档",
+        )
+        UserParser._add_decision_flags(p, require_session=True)
 
     @staticmethod
     def _p_strategy_analyze(sub: argparse._SubParsersAction) -> None:

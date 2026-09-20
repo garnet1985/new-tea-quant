@@ -8,6 +8,10 @@ from unittest.mock import MagicMock, patch
 
 from core.bff.APIs.strategy.helpers.formatting import workbench_snapshot_to_message
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
+from core.modules.strategy.core.engines.decision_maker.store import (
+    STATUS_COMPLETED,
+    DecisionStore,
+)
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts.consts import (
     EFFECTIVE_SETTINGS_FILE,
@@ -293,7 +297,52 @@ def test_step_status_from_artifacts_even_if_cache_payload_missing(
         "enum": {"done": True},
         "price_factor": {"done": True},
         "portfolio": {"done": True},
+        "decision": {"done": False},
     }
     msg = workbench_snapshot_to_message(row)
     assert msg["step_status"]["price_factor"]["done"] is True
     assert msg["step_status"]["portfolio"]["done"] is True
+    assert msg["step_status"]["decision"]["done"] is False
+
+
+@patch.object(WorkbenchSnapshots, "_find_strategy")
+def test_step_status_decision_done_when_any_session_completed(
+    mock_find, tmp_path: Path
+):
+    """第四步变绿：当前仿真 version 至少有一局走完，不要求正在看的那一局。"""
+    info = _info()
+    mock_find.return_value = info
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "6", execute_fp="s", env_fp="e")
+    for name, kind in (
+        ("enum", SimulateKind.ENUMERATE),
+        ("price", SimulateKind.PRICE_FACTOR),
+        ("portfolio", SimulateKind.PORTFOLIO),
+    ):
+        step_dir = root / "6" / name
+        step_dir.mkdir(parents=True)
+        (step_dir / RUNTIME_ENV_FILE).write_text("{}", encoding="utf-8")
+        VersionMetaStore.mark_step_complete(root, "6", kind)
+    DecisionStore.at(root / "6").save_session(
+        "1",
+        {"status": STATUS_COMPLETED, "current_date": "20250407"},
+    )
+    DecisionStore.at(root / "6").save_session(
+        "2",
+        {"status": "in_progress", "current_date": "20250408"},
+    )
+
+    with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root), patch.object(
+        WorkbenchSnapshots, "_strategy_folder", return_value=info.folder
+    ), patch.object(
+        WorkbenchSnapshots,
+        "_enrich_row",
+        side_effect=lambda name, _info, row: row,
+    ), patch(
+        "core.bff.APIs.strategy.helpers.workbench_snapshots.SimulationVersionStore.get_cache_by_version_id",
+        return_value=None,
+    ):
+        row = WorkbenchSnapshots.fetch_latest("demo/random/random_v1_null_baseline")
+
+    assert row["step_status"]["decision"]["done"] is True
+    assert workbench_snapshot_to_message(row)["step_status"]["decision"]["done"] is True

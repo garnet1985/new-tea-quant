@@ -1,9 +1,10 @@
 name: bff
-version: "0.2.0"
-compatible_core_versions: ">=0.4.4"
+version: "0.2.1"
+compatible_core_versions: ">=0.5.0"
 description: "FED 的 Flask BFF：HTTP 编排与 DTO；领域执行在 core.modules / core.infra。"
 dependencies:
   - modules.strategy
+  - modules.assistant
   - modules.tag
   - modules.data_manager
   - modules.data_source
@@ -17,6 +18,10 @@ dependencies:
   - infra.db
   - ui
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 增加决策者模式的API接口
+      - 增加AI provider API接口
   - version: "0.2.0"
     changes:
       - 从 core/ui 独立为顶层模块；取消 modules 内 launcher，BFF 专有逻辑收口到本目录

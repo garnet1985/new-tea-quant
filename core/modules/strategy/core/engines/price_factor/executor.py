@@ -1,4 +1,4 @@
-"""价格回测 PriceFactorJobExecutor — worker 读 enum CSV + 成交回放落盘。
+"""价格回测 PriceFactorJobExecutor — worker 读枚举结果 + 成交回放落盘。
 
 本文件:
 - PriceFactorJobExecutor: RunCallbacks；task 结束写 price entities CSV
@@ -12,10 +12,11 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.market_profile import MarketRulesProxy
+from core.modules.strategy.core.engines.shared.enum_result_contract import (
+    EnumResult,
+    EnumResultsManager,
+)
 from core.modules.strategy.core.services.artifacts import (
-    EnumerateStore,
-    GoalAchievementRow,
-    InvestmentRow,
     PriceFactorStore,
     PriceInvestmentRow,
 )
@@ -26,6 +27,7 @@ from core.modules.strategy.core.engines.price_factor.helpers import (
     retry_deferred_exits,
 )
 from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
+from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
@@ -39,7 +41,7 @@ class PriceFactorJobExecutor:
     """价格回测唯一对外钩子面（生命周期 + 日历推进）。
 
     边界:
-    - 负责: 读本 batch 枚举 CSV；task 结束时按锁仓规则回放并写 price entities CSV
+    - 负责: 读本 batch 枚举结果；task 结束时按锁仓规则回放并写 price entities CSV
     - 不负责: BE 调度/切 batch、overall 汇总（ReportManager.finalize）
     - 调用方: PriceFactorPipeline → ``callbacks=PriceFactorJobExecutor.build_run_callbacks()``
 
@@ -118,7 +120,7 @@ class PriceFactorJobExecutor:
 
     @classmethod
     def _load_batch_enum_data(cls, job_context: Any) -> Dict[str, Any]:
-        """读本 batch entity 的枚举 CSV → ``job_context.init``。"""
+        """读本 batch entity 的枚举结果 → ``job_context.init``。"""
         payload = job_context.payload or {}
         meta = PriceFactorJobBuilder.price_factor_meta(payload)
         enum_dir = Path(str(meta.get("enum_output_dir") or "")).expanduser()
@@ -127,19 +129,18 @@ class PriceFactorJobExecutor:
 
         entity_ids = cls._entity_ids_from_payload(payload)
         logger.info(
-            "%s 加载枚举 CSV：job_id=%s entities=%d dir=%s",
+            "%s 加载枚举结果：job_id=%s entities=%d dir=%s",
             cls.task_log_label,
             job_context.job_id,
             len(entity_ids),
             enum_dir,
         )
 
-        enum_store = EnumerateStore.at(enum_dir)
+        manager = EnumResultsManager.at(enum_dir)
         entities: Dict[str, Dict[str, Any]] = {}
         for entity_id in entity_ids:
             entities[entity_id] = {
-                "investments": enum_store.investments(entity_id),
-                "goals": enum_store.goals(entity_id),
+                "results": manager.results(entity_id),
             }
 
         return {
@@ -198,20 +199,24 @@ class PriceFactorJobExecutor:
         for entity_id, pack in entities.items():
             if not isinstance(pack, dict):
                 continue
-            stock_inv = pack.get("investments")
-            rows = list(getattr(stock_inv, "rows", None) or [])
-            goals_pack = pack.get("goals")
-            goal_rows = list(getattr(goals_pack, "rows", None) or [])
+            rows = list(pack.get("results") or [])
             price_rows, skip_sell = cls._replay_entity_investments(
                 rows,
                 entity_id=str(entity_id),
                 backtest_end=end_date,
                 settings=strategy,
-                goal_rows=goal_rows,
                 market_rules=market_rules,
             )
-            PriceFactorStore.at(out_dir).write_investments(
-                str(entity_id), price_rows
+            store = PriceFactorStore.at(out_dir)
+            store.write_investments(str(entity_id), price_rows)
+            store.write_goals(
+                str(entity_id),
+                [
+                    goal
+                    for row in price_rows
+                    for goal in (row.completed_goals or [])
+                    if isinstance(goal, dict)
+                ],
             )
             total_inv += len(price_rows)
             skipped_exit_at_limit += skip_sell
@@ -234,28 +239,28 @@ class PriceFactorJobExecutor:
 
     @staticmethod
     def _replay_entity_investments(
-        investments: Sequence[InvestmentRow],
+        investments: Sequence[EnumResult],
         *,
         entity_id: str = "",
         backtest_end: str = "",
         settings: Optional[StrategySettings] = None,
-        goal_rows: Optional[Sequence[GoalAchievementRow]] = None,
         market_rules: Any = None,
         load_klines=None,
     ) -> Tuple[List[PriceInvestmentRow], int]:
-        """单 entity：枚举 investments → 买 1 / 锁仓 / 跌停顺延卖出 → PriceInvestmentRow。
-
-        返回 ``(rows, skipped_exit_at_limit)``。
-        """
+        """单 entity：枚举结果 → 买 1 / 锁仓 / 跌停顺延卖出 → PriceInvestmentRow。"""
         strategy = settings or StrategySettings.from_dict({})
         sim = strategy.simulation
         control = sim.risk_control
         allow_enter_at_limit_up = bool(sim.allow_enter_at_limit_up)
         allow_exit_at_limit_down = bool(sim.allow_exit_at_limit_down)
         kline_loader = load_klines or load_stock_klines
-        goals_by_inv = _index_goals_by_investment(goal_rows or [])
+        sid = str(entity_id or "").strip()
+        enum_rows = [
+            item.with_entity_id(sid) if sid and not item.entity_id else item
+            for item in investments or ()
+        ]
         ordered = sorted(
-            list(investments or []),
+            enum_rows,
             key=lambda row: (
                 str(row.entry_date or row.trigger_date or "").strip(),
                 str(row.investment_id or "").strip(),
@@ -265,7 +270,6 @@ class PriceFactorJobExecutor:
         out: List[PriceInvestmentRow] = []
         end = str(backtest_end or "").strip()
         skipped_sell = 0
-        sid = str(entity_id or "").strip()
 
         for row in ordered:
             if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
@@ -273,6 +277,7 @@ class PriceFactorJobExecutor:
 
             enter_date = str(row.entry_date or "").strip()
             enter_price = float(row.entry_price or 0.0)
+            enter_price_hfq = float(row.entry_price_hfq or 0.0)
             # entry_price 为 qfq（可为负/0）；只要求有进场日
             if not enter_date:
                 continue
@@ -284,22 +289,22 @@ class PriceFactorJobExecutor:
                 continue
 
             inv_id = str(row.investment_id or "").strip()
-            legs = _build_exit_legs(row, goals_by_inv.get(inv_id) or [])
+            goals = _build_completed_goals(row)
 
             processed: List[Dict[str, Any]] = []
-            skipped_legs: List[Dict[str, Any]] = []
-            for leg in legs:
+            skipped_goals: List[Dict[str, Any]] = []
+            for goal in goals:
                 if (
-                    leg.get("exit_at_limit") is True
+                    goal.get("exit_at_limit") is True
                     and not allow_exit_at_limit_down
                 ):
                     skipped_sell += 1
-                    skipped_legs.append(leg)
+                    skipped_goals.append(goal)
                     continue
-                processed.append(leg)
+                processed.append(goal)
 
             pending = None
-            if skipped_legs and not position_fully_closed(processed):
+            if skipped_goals and not position_fully_closed(processed):
                 klines = kline_loader(
                     sid,
                     start_date=enter_date,
@@ -307,8 +312,9 @@ class PriceFactorJobExecutor:
                 )
                 processed, pending, defer_skips = retry_deferred_exits(
                     enter_price=enter_price,
-                    processed_legs=processed,
-                    skipped_legs=skipped_legs,
+                    enter_price_hfq=enter_price_hfq,
+                    processed_goals=processed,
+                    skipped_goals=skipped_goals,
                     klines=klines,
                     entity_id=sid,
                     settings=strategy,
@@ -316,21 +322,29 @@ class PriceFactorJobExecutor:
                 )
                 skipped_sell += int(defer_skips or 0)
 
+            used_deferred = any(bool(goal.get("deferred")) for goal in processed)
+
             holding_until = resolve_holding_until(
-                processed_legs=processed,
+                processed_goals=processed,
                 enter_date=enter_date,
                 backtest_end_date=end,
             )
 
-            out.append(
-                _to_price_row(
-                    row=row,
-                    enter_date=enter_date,
-                    enter_price=enter_price,
-                    processed=processed,
-                    pending=pending,
-                )
+            price_row = _to_price_row(
+                row=row,
+                enter_date=enter_date,
+                enter_price=enter_price,
+                enter_price_hfq=enter_price_hfq,
+                processed=processed,
+                pending=pending,
+                used_deferred=used_deferred,
             )
+            price_row.completed_goals = _processed_goals_to_rows(
+                investment_id=inv_id,
+                processed=processed,
+                enter_price_hfq=enter_price_hfq,
+            )
+            out.append(price_row)
 
         return out, skipped_sell
 
@@ -349,115 +363,181 @@ class PriceFactorJobExecutor:
         return out
 
 
-def _index_goals_by_investment(
-    goal_rows: Sequence[GoalAchievementRow],
-) -> Dict[str, List[GoalAchievementRow]]:
-    out: Dict[str, List[GoalAchievementRow]] = {}
-    for g in goal_rows or []:
-        inv_id = str(getattr(g, "investment_id", "") or "").strip()
-        if not inv_id:
-            continue
-        out.setdefault(inv_id, []).append(g)
-    for legs in out.values():
-        legs.sort(key=lambda r: str(r.date or ""))
-    return out
-
-
-def _build_exit_legs(
-    row: InvestmentRow,
-    goal_legs: Sequence[GoalAchievementRow],
-) -> List[Dict[str, Any]]:
-    """goals 非空按腿；否则退化为单笔 InvestmentRow exit。"""
-    if goal_legs:
-        legs: List[Dict[str, Any]] = []
+def _build_completed_goals(row: EnumResult) -> List[Dict[str, Any]]:
+    """嵌套 completed_goals；否则退化为单笔 exit。"""
+    completed = list(row.completed_goals or ())
+    if completed:
+        goals: List[Dict[str, Any]] = []
         exit_date = str(row.exit_date or "").strip()
-        for g in goal_legs:
+        for g in completed:
             day = str(g.date or "").strip()
             flag: Optional[bool] = None
-            if len(goal_legs) == 1 or (exit_date and day == exit_date):
+            if len(completed) == 1 or (exit_date and day == exit_date):
                 flag = row.exit_at_limit
-            legs.append(
+            goals.append(
                 {
                     "date": day,
                     "exit_date": day,
                     "exit_price": float(g.price or 0.0),
+                    "exit_price_hfq": float(g.price_hfq or 0.0),
+                    "price_raw": float(g.price_raw or 0.0),
                     "exit_ratio": float(g.exit_ratio or 0.0) or 1.0,
                     "reason": str(g.reason or "").strip(),
+                    "goal_name": str(g.name or "").strip(),
+                    "profit": float(g.profit or 0.0),
+                    "weighted_profit": float(g.weighted_profit or 0.0),
+                    "roi": float(g.roi or 0.0),
                     "exit_at_limit": flag,
                 }
             )
-        return legs
+        return goals
 
     exit_date = str(row.exit_date or "").strip()
     if not exit_date:
         return []
+    reason = str(row.exit_reason or "").strip()
     return [
         {
             "date": exit_date,
             "exit_date": exit_date,
             "exit_price": float(row.exit_price or 0.0),
+            "exit_price_hfq": float(row.exit_price_hfq or 0.0),
+            "price_raw": float(row.exit_price_raw or 0.0),
             "exit_ratio": 1.0,
-            "reason": str(row.exit_reason or "").strip(),
+            "reason": reason,
+            "goal_name": reason or "exit",
             "exit_at_limit": row.exit_at_limit,
         }
     ]
 
 
-def _leg_date(leg: Dict[str, Any]) -> str:
-    return str(leg.get("date") or leg.get("exit_date") or "").strip()
+def _goal_date(goal: Dict[str, Any]) -> str:
+    return str(goal.get("date") or goal.get("exit_date") or "").strip()
 
 
-def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float:
-    basis = float(enter_price or 0.0)
-    if not processed:
-        return 0.0
-    # basis=0 时相对 ROI 无定义 → 记 0
-    if basis == 0:
+def _processed_goals_to_rows(
+    *,
+    investment_id: str,
+    processed: List[Dict[str, Any]],
+    enter_price_hfq: float,
+) -> List[Dict[str, Any]]:
+    inv_id = str(investment_id or "").strip()
+    if not inv_id:
+        return []
+    out: List[Dict[str, Any]] = []
+    for goal in sorted(processed or [], key=_goal_date):
+        day = _goal_date(goal)
+        if not day:
+            continue
+        reason = str(goal.get("reason") or "").strip() or "exit"
+        name = str(goal.get("goal_name") or "").strip() or reason
+        try:
+            exit_ratio = float(goal.get("exit_ratio") or 0.0) or 1.0
+        except (TypeError, ValueError):
+            exit_ratio = 1.0
+        try:
+            price = float(goal.get("exit_price") or 0.0)
+        except (TypeError, ValueError):
+            price = 0.0
+        try:
+            price_hfq = float(goal.get("exit_price_hfq") or 0.0)
+        except (TypeError, ValueError):
+            price_hfq = 0.0
+        try:
+            price_raw = float(goal.get("price_raw") or 0.0)
+        except (TypeError, ValueError):
+            price_raw = 0.0
+        try:
+            roi = float(goal.get("roi") or 0.0)
+        except (TypeError, ValueError):
+            roi = 0.0
+        try:
+            profit = float(goal.get("profit") or 0.0)
+        except (TypeError, ValueError):
+            profit = 0.0
+        try:
+            weighted_profit = float(goal.get("weighted_profit") or 0.0)
+        except (TypeError, ValueError):
+            weighted_profit = 0.0
+        if (roi == 0.0 and profit == 0.0) and enter_price_hfq > 0 and price_hfq > 0:
+            roi = HfqRoi.ratio(enter_price_hfq, price_hfq)
+            profit = HfqRoi.cash_profit(1.0, enter_price_hfq, roi)
+            weighted_profit = profit * exit_ratio
+        out.append(
+            {
+                "investment_id": inv_id,
+                "goal_name": name,
+                "date": day,
+                "price": price,
+                "price_raw": price_raw,
+                "price_hfq": price_hfq,
+                "exit_ratio": exit_ratio,
+                "profit": profit,
+                "weighted_profit": weighted_profit,
+                "reason": reason,
+                "roi": roi,
+            }
+        )
+    return out
+
+
+def _aggregate_hfq_roi(processed: List[Dict[str, Any]], enter_price_hfq: float) -> float:
+    """跌停顺延后按腿用 hfq 重算加权 ROI。缺合法 hfq 的腿贡献 0。"""
+    basis = float(enter_price_hfq or 0.0)
+    if not processed or basis <= 0:
         return 0.0
     weighted_profit = 0.0
-    # exit_ratio = 相对初始仓位的绝对份额（与 enum completed_goals / goals CSV 一致）
-    ordered = sorted(processed, key=_leg_date)
-    for leg in ordered:
+    ordered = sorted(processed, key=_goal_date)
+    for goal in ordered:
         try:
-            ratio = float(leg.get("exit_ratio") or 0.0)
+            ratio = float(goal.get("exit_ratio") or 0.0)
         except (TypeError, ValueError):
             ratio = 0.0
         if ratio <= 0:
             continue
         ratio = min(ratio, 1.0)
         try:
-            sell_px = float(leg.get("exit_price") or 0.0)
+            sell_hfq = float(goal.get("exit_price_hfq") or 0.0)
         except (TypeError, ValueError):
-            sell_px = 0.0
-        weighted_profit += (sell_px - basis) * ratio
-    return weighted_profit / basis
+            sell_hfq = 0.0
+        if sell_hfq <= 0:
+            continue
+        weighted_profit += HfqRoi.ratio(basis, sell_hfq) * ratio
+    return weighted_profit
 
 
 def _to_price_row(
     *,
-    row: InvestmentRow,
+    row: EnumResult,
     enter_date: str,
     enter_price: float,
+    enter_price_hfq: float,
     processed: List[Dict[str, Any]],
     pending: Any,
+    used_deferred: bool,
 ) -> PriceInvestmentRow:
     closed = position_fully_closed(processed)
     if closed:
-        last = max(processed, key=_leg_date)
-        exit_date = _leg_date(last)
+        last = max(processed, key=_goal_date)
+        exit_date = _goal_date(last)
         exit_price = float(last.get("exit_price") or 0.0)
-        roi = _aggregate_roi(processed, enter_price)
+        exit_price_hfq = float(last.get("exit_price_hfq") or 0.0)
+        if used_deferred:
+            roi = _aggregate_hfq_roi(processed, enter_price_hfq)
+        else:
+            roi = float(row.weighted_roi or 0.0)
         exit_reason = str(last.get("reason") or row.exit_reason or "").strip()
         lifecycle = "complete"
-        if roi > 0:
-            result = "win"
-        elif roi < 0:
-            result = "loss"
+        if used_deferred:
+            result = "win" if roi >= 0 else "loss"
         else:
             result = str(row.result or "").strip()
+            if not result:
+                result = "win" if roi >= 0 else "loss"
     else:
         exit_date = ""
         exit_price = 0.0
+        exit_price_hfq = 0.0
         roi = 0.0
         if pending is not None:
             exit_reason = str(getattr(pending, "reason", "") or row.exit_reason or "").strip()
@@ -481,8 +561,10 @@ def _to_price_row(
         opportunity_id=str(row.investment_id or "").strip(),
         enter_date=enter_date,
         enter_price=enter_price,
+        enter_price_hfq=enter_price_hfq,
         exit_date=exit_date,
         exit_price=exit_price,
+        exit_price_hfq=exit_price_hfq,
         roi=roi,
         holding_days=holding_days,
         holding_trading_days=holding_days,

@@ -1,6 +1,6 @@
 name: infra.task_guard
 version: "0.2.0"
-compatible_core_versions: ">=0.4.2"
+compatible_core_versions: ">=0.5.0"
 description: "长任务互斥守卫：忙闲查询与全局单任务租约（非 job queue / pipeline 调度）。"
 dependencies:
   - infra.project_context

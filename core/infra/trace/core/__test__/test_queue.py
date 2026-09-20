@@ -84,6 +84,17 @@ def test_sanitize_body_allows_flexible_fields() -> None:
     assert out["nested"]["ok"] == 1
 
 
+def test_message_safe_strips_home_and_user() -> None:
+    from core.infra.trace.core.services.sanitize_service import TraceSanitizeService
+
+    out = TraceSanitizeService.message_safe(
+        "数据库不可用 /Users/secret/project/data.duckdb token=abc"
+    )
+    assert "secret" not in out
+    assert "/Users/<user>" in out
+    assert "数据库不可用" in out
+
+
 def test_sanitize_event_name() -> None:
     from core.infra.trace.core.services.sanitize_service import TraceSanitizeService
 

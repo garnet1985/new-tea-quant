@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import platform
+import re
+from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
 _MAX_STRING_LEN = 256
@@ -126,6 +128,30 @@ class TraceSanitizeService:
                 return kind if kind in {"ssd", "hdd", "unknown"} else "unknown"
             except Exception:
                 return None
+
+    @staticmethod
+    def message_safe(text: Any, *, max_len: int = 256) -> str:
+        raw = str(text or "").strip()
+        if not raw:
+            return ""
+        try:
+            home = str(Path.home())
+            if home:
+                raw = raw.replace(home, "~")
+        except Exception:
+            pass
+        try:
+            from core.infra.project_context import ProjectContext
+
+            root = str(ProjectContext.path.get_project_root())
+            if root:
+                raw = raw.replace(root, "<repo>")
+        except Exception:
+            pass
+        raw = re.sub(r"/Users/[^/\s\"']+", "/Users/<user>", raw)
+        raw = re.sub(r"/home/[^/\s\"']+", "/home/<user>", raw)
+        raw = re.sub(r"(?i)C:\\Users\\[^\\]+", r"C:\\Users\\<user>", raw)
+        return raw[: max(1, int(max_len))]
 
     @staticmethod
     def body(

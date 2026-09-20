@@ -19,11 +19,14 @@ def test_install_ui_runtime_tracks_success(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(ur, "_npm_install_fed", lambda: None)
     monkeypatch.setattr(ur, "sha256_file", lambda _p: "hash")
     monkeypatch.setattr(ur, "mark_runtime", lambda *a, **k: None)
+    monkeypatch.setattr(ur.SetupTrace, "ensure_install_id", lambda: None)
 
-    with patch.object(ur.SetupTrace, "install_complete") as track:
-        ur.install_ui_runtime(force=True)
+    with patch.object(ur.SetupTrace, "install_complete") as complete:
+        with patch.object(ur.SetupTrace, "install_step_failed") as failed:
+            ur.install_ui_runtime(force=True)
 
-    track.assert_called_once_with(success=True, entry="ui")
+    complete.assert_not_called()
+    failed.assert_not_called()
 
 
 def test_install_ui_runtime_tracks_pip_bff_failure(
@@ -37,12 +40,17 @@ def test_install_ui_runtime_tracks_pip_bff_failure(
 
     monkeypatch.setattr(ur, "_pip_install_bff", _boom)
     monkeypatch.setattr(ur, "mark_runtime", lambda *a, **k: None)
+    monkeypatch.setattr(ur.SetupTrace, "ensure_install_id", lambda: None)
 
-    with patch.object(ur.SetupTrace, "install_complete") as track:
-        with pytest.raises(RuntimeError):
-            ur.install_ui_runtime(force=True)
+    with patch.object(ur.SetupTrace, "install_complete") as complete:
+        with patch.object(ur.SetupTrace, "install_step_failed") as failed:
+            with pytest.raises(RuntimeError):
+                ur.install_ui_runtime(force=True)
 
-    track.assert_called_once_with(
+    failed.assert_called_once()
+    assert failed.call_args.kwargs["step"] == "pip_bff"
+    assert failed.call_args.kwargs["entry"] == "ui"
+    complete.assert_called_once_with(
         success=False,
         entry="ui",
         error_code="pip_bff",

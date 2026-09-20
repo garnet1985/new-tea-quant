@@ -70,7 +70,7 @@ function TraceConsentAskOverlay({
             <p className="trace-consent-ask-overlay__p">
               我们希望收集少量
               <strong>匿名使用数据</strong>
-              ，用来了解安装/运行问题与框架性能（例如操作系统、机器规格、耗时、调度参数、功能是否成功）。
+              ，用来了解功能怎么被使用、以及框架性能（例如操作系统、机器规格、耗时、调度参数、功能是否成功）。
             </p>
             <p className="trace-consent-ask-overlay__p">
               <strong>不会</strong>

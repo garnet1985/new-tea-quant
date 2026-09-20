@@ -20,6 +20,7 @@ class TestTraceApi(unittest.TestCase):
 
         self.assertEqual(pkg.__all__, ["Trace"])
         self.assertTrue(callable(Trace.track))
+        self.assertTrue(callable(Trace.track_setup))
         self.assertTrue(callable(Trace.queue))
         self.assertTrue(callable(Trace.send))
         self.assertTrue(callable(Trace.start_background_drain))

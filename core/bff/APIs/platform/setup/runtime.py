@@ -188,6 +188,9 @@ class SetupRuntimeManager:
         }
 
     def _run_pipeline(self, state: Dict[str, Any], force_step_id: Optional[str] = None) -> Dict[str, Any]:
+        from core.infra.setup.core.trace_events import SetupTrace
+
+        SetupTrace.ensure_install_id()
         definition = self.get_definition()
         by_id = {s["id"]: s for s in definition}
         ordered_ids = [s["id"] for s in definition]
@@ -221,6 +224,16 @@ class SetupRuntimeManager:
             self._bump_version(state)
             self._save_state(state)
             if not ok:
+                Setup.trace.install_step_failed(
+                    step=step_id,
+                    entry="ui",
+                    message=err or f"{step_id} 执行失败",
+                )
+                Setup.trace.install_complete(
+                    success=False,
+                    entry="ui",
+                    error_code=f"step_failed:{step_id}",
+                )
                 return {
                     "status": "ok",
                     "message": {
@@ -234,6 +247,7 @@ class SetupRuntimeManager:
         state["isReady"] = all(self._get_step_state(state, s["id"]) == self.STATUS_SUCCESS for s in definition)
         self._bump_version(state)
         self._save_state(state)
+        Setup.trace.install_complete(success=True, entry="ui")
         return {
             "status": "ok",
             "message": {
@@ -317,6 +331,9 @@ class SetupRuntimeManager:
             self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
             if step_id == "init_userspace":
                 ProjectContext.cache.clear_userspace_cache()
+                from core.infra.setup.core.trace_events import SetupTrace
+
+                SetupTrace.ensure_install_id()
             return True, ""
         except Exception as e:  # pragma: no cover
             msg = str(e)

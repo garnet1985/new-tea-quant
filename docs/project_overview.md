@@ -92,12 +92,12 @@ new-tea-quant/
 | [`data_source`](../core/modules/data_source/) | 拉取与落库编排 | [README](../core/modules/data_source/README.md) |
 | [`indicator`](../core/modules/indicator/) | 指标计算 | [README](../core/modules/indicator/README.md) |
 | [`tag`](../core/modules/tag/) | 标签扫描与结果 | [README](../core/modules/tag/README.md) |
-| [`strategy`](../core/modules/strategy/) | 策略发现与模拟（scan / enumerate / price_factor / portfolio） | [README](../core/modules/strategy/README.md) |
+| [`strategy`](../core/modules/strategy/) | 策略发现与模拟（scan / enumerate / price_factor / portfolio / decision） | [README](../core/modules/strategy/README.md) |
 | [`analysis`](../core/modules/analysis/) | 回测后解释 inputs 与 outputs 的关系（骨架） | [README](../core/modules/analysis/README.md) |
 | [`backtest_engine`](../core/modules/backtest_engine/) | 回测时间轴与执行引擎 | [README](../core/modules/backtest_engine/README.md) |
 | [`market_profile`](../core/modules/market_profile/) | 市场画像相关 | [README](../core/modules/market_profile/README.md) |
 | [`adapter`](../core/modules/adapter/) | `Strategy.scan` 机会列表的后处理回调（userspace adapters） | [README](../core/modules/adapter/README.md) |
-| [`assistant`](../core/modules/assistant/) | AI 助理：发现 userspace 供应商配置（聊天调用后续接入） | [README](../core/modules/assistant/README.md) |
+| [`assistant`](../core/modules/assistant/) | AI 助理：发现 userspace 供应商配置，注入 NTQ 文档上下文，发送 OpenAI 兼容聊天 | [README](../core/modules/assistant/README.md) |
 
 策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/adapters/`。细节以各模块 README 与 `docs/` 为准。
 

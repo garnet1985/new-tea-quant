@@ -216,10 +216,20 @@ class TraceNamespace:
         success: bool,
         entry: InstallEntry,
         error_code: Optional[str] = None,
+        elapsed_seconds: Optional[float] = None,
+        step_seconds: Optional[dict] = None,
+        skipped: Optional[list] = None,
     ) -> None:
         from core.infra.setup.core.trace_events import SetupTrace
 
-        SetupTrace.install_complete(success=success, entry=entry, error_code=error_code)
+        SetupTrace.install_complete(
+            success=success,
+            entry=entry,
+            error_code=error_code,
+            elapsed_seconds=elapsed_seconds,
+            step_seconds=step_seconds,
+            skipped=skipped,
+        )
 
     @staticmethod
     def install_step_failed(

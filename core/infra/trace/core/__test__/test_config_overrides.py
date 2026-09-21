@@ -53,6 +53,13 @@ def test_env_beats_userspace_file(
     assert cfg.target_url == "https://from-env.example/traces"
 
 
+def test_github_actions_skips_trace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NTQ_TRACE_SKIP", raising=False)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert TraceConfigService.should_skip() is True
+    assert TraceConfigService.is_enabled() is False
+
+
 def test_defaults_single_source() -> None:
     assert TraceDefaults.TARGET_URL.startswith("https://")
     assert "target_url" in TraceDefaults.as_dict()

@@ -24,6 +24,25 @@ def test_install_complete_success_body() -> None:
     mock_trace.track.assert_not_called()
 
 
+def test_install_complete_includes_step_timings() -> None:
+    mock_trace = MagicMock()
+    with patch("core.infra.trace.Trace", mock_trace):
+        SetupTrace.install_complete(
+            success=True,
+            entry="ui",
+            elapsed_seconds=91.234,
+            step_seconds={"resolve_deps": 12.04, "resolve_ml_deps": 78.9},
+            skipped=["import_data"],
+        )
+
+    name, body = mock_trace.track_setup.call_args.args
+    assert name == "install.complete"
+    assert body["elapsed_seconds"] == 91.23
+    assert body["step_seconds"]["resolve_deps"] == 12.04
+    assert body["step_seconds"]["resolve_ml_deps"] == 78.9
+    assert body["skipped"] == ["import_data"]
+
+
 def test_install_complete_failure_includes_error_code() -> None:
     mock_trace = MagicMock()
     with patch("core.infra.trace.Trace", mock_trace):

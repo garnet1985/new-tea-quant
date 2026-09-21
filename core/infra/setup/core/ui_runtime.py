@@ -206,6 +206,18 @@ def install_ui_runtime(force: bool = False) -> None:
 
     traced_failure = False
     SetupTrace.ensure_install_id()
+    started = time.monotonic()
+    step_seconds: dict = {}
+
+    def _elapsed() -> float:
+        return time.monotonic() - started
+
+    def _run_timed(name: str, fn):
+        t0 = time.monotonic()
+        try:
+            return fn()
+        finally:
+            step_seconds[name] = round(max(0.0, time.monotonic() - t0), 2)
 
     def _fail(error_code: str, exc: Optional[BaseException] = None) -> None:
         nonlocal traced_failure
@@ -216,13 +228,19 @@ def install_ui_runtime(force: bool = False) -> None:
             message=str(exc or error_code),
             exc=exc,
         )
-        SetupTrace.install_complete(success=False, entry="ui", error_code=error_code)
+        SetupTrace.install_complete(
+            success=False,
+            entry="ui",
+            error_code=error_code,
+            elapsed_seconds=_elapsed(),
+            step_seconds=step_seconds,
+        )
         traced_failure = True
 
     try:
-        _bootstrap_pip()
+        _run_timed("pip_bootstrap", _bootstrap_pip)
         try:
-            _pip_install_bff()
+            _run_timed("pip_bff", _pip_install_bff)
         except Exception as exc:
             _fail("pip_bff", exc)
             raise
@@ -237,7 +255,7 @@ def install_ui_runtime(force: bool = False) -> None:
         if ui_dev_mode():
             print("安装 UI 开发依赖（BFF + node_modules）…", flush=True)
             try:
-                _npm_install_fed()
+                _run_timed("npm_fed", _npm_install_fed)
             except Exception as exc:
                 _fail("npm_fed", exc)
                 raise
@@ -253,12 +271,12 @@ def install_ui_runtime(force: bool = False) -> None:
                     _fail("missing_node", missing)
                     raise missing
                 try:
-                    _npm_install_fed()
+                    _run_timed("npm_fed", _npm_install_fed)
                 except Exception as exc:
                     _fail("npm_fed", exc)
                     raise
                 try:
-                    _npm_build_fed()
+                    _run_timed("fed_build", _npm_build_fed)
                 except Exception as exc:
                     _fail("fed_build", exc)
                     raise
@@ -268,6 +286,12 @@ def install_ui_runtime(force: bool = False) -> None:
             }
 
         mark_runtime("ui", success=True, fingerprints=fingerprints)
+        SetupTrace.install_complete(
+            success=True,
+            entry="ui",
+            elapsed_seconds=_elapsed(),
+            step_seconds=step_seconds,
+        )
         print("UI 运行依赖安装完成。", flush=True)
     except Exception as exc:
         if not traced_failure:

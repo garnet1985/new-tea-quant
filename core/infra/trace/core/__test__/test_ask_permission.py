@@ -24,6 +24,7 @@ def consent_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.delenv("NTQ_TRACE_ENABLED", raising=False)
     monkeypatch.delenv("NTQ_TRACE_SKIP", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     # grant/revoke emit track.decision; never hit production from unit tests.
     monkeypatch.setattr(
         client_service.TraceClientService,

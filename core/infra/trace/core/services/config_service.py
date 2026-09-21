@@ -107,8 +107,17 @@ class TraceConfigService:
         return out
 
     @staticmethod
-    def _resolve_enabled() -> bool:
+    def should_skip() -> bool:
+        """Hard off: explicit skip, or GitHub Actions (CI must not hit the collector)."""
         if TraceConfigService._env_truthy("NTQ_TRACE_SKIP") is True:
+            return True
+        if TraceConfigService._env_truthy("GITHUB_ACTIONS") is True:
+            return True
+        return False
+
+    @staticmethod
+    def _resolve_enabled() -> bool:
+        if TraceConfigService.should_skip():
             return False
         env_enabled = TraceConfigService._env_truthy("NTQ_TRACE_ENABLED")
         if env_enabled is not None:

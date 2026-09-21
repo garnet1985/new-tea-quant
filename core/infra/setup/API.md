@@ -183,14 +183,14 @@
 
 ### trace
 
-`Setup.trace.install_complete(*, success: bool, entry: "ui" | "cli", error_code=None) -> None`  
+`Setup.trace.install_complete(*, success: bool, entry: "ui" | "cli", error_code=None, elapsed_seconds=None, step_seconds=None, skipped=None) -> None`  
 `Setup.trace.install_step_failed(*, step: str, entry: "ui" | "cli", message="", exc=None, extra=None) -> None`  
 `Setup.trace.app_start(*, entry: "ui" | "cli" | "devcli", command: str | None = None) -> None`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 失败不影响安装。`install_step_failed` 带稳定 `error_class` 与脱敏 `message_safe`。CLI 侧 `app_start` 仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
+- **描述：** 失败不影响安装。`install_complete` 可带 `elapsed_seconds` 与各步 `step_seconds`（如 `resolve_deps` / `resolve_ml_deps`）。`install_step_failed` 带稳定 `error_class` 与脱敏 `message_safe`。CLI 侧 `app_start` 仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
 
 ---
 

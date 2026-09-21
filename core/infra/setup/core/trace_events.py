@@ -77,6 +77,43 @@ def _import_progress_hint() -> dict[str, Any]:
         return {}
 
 
+def round_elapsed_seconds(value: float) -> float:
+    return round(max(0.0, float(value)), 2)
+
+
+def install_timing_fields(
+    *,
+    elapsed_seconds: Optional[float] = None,
+    step_seconds: Optional[Mapping[str, Any]] = None,
+    skipped: Optional[Any] = None,
+) -> dict[str, Any]:
+    """Numeric install timings for ``install.complete`` (no paths / no secrets)."""
+    body: dict[str, Any] = {}
+    if elapsed_seconds is not None:
+        body["elapsed_seconds"] = round_elapsed_seconds(elapsed_seconds)
+    if step_seconds:
+        cleaned: dict[str, float] = {}
+        for key, raw in dict(step_seconds).items():
+            name = str(key or "").strip()[:64]
+            if not name:
+                continue
+            try:
+                cleaned[name] = round_elapsed_seconds(float(raw))
+            except (TypeError, ValueError):
+                continue
+        if cleaned:
+            body["step_seconds"] = cleaned
+    if skipped:
+        names = []
+        for item in list(skipped)[:20]:
+            name = str(item or "").strip()[:64]
+            if name and name not in names:
+                names.append(name)
+        if names:
+            body["skipped"] = names
+    return body
+
+
 class SetupTrace:
     """Setup / runtime Trace helpers（静态 API，勿实例化）。"""
 
@@ -95,6 +132,9 @@ class SetupTrace:
         success: bool,
         entry: InstallEntry,
         error_code: Optional[str] = None,
+        elapsed_seconds: Optional[float] = None,
+        step_seconds: Optional[Mapping[str, Any]] = None,
+        skipped: Optional[Any] = None,
     ) -> None:
         try:
             from core.infra.trace import Trace
@@ -105,6 +145,13 @@ class SetupTrace:
             }
             if error_code:
                 body["error_code"] = str(error_code)[:128]
+            body.update(
+                install_timing_fields(
+                    elapsed_seconds=elapsed_seconds,
+                    step_seconds=step_seconds,
+                    skipped=skipped,
+                )
+            )
             Trace.track_setup("install.complete", body)
         except Exception:
             pass

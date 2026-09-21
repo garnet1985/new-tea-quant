@@ -10,6 +10,9 @@ on:
     branches: [main, develop]
   workflow_dispatch:  # 手动触发
 
+env:
+  NTQ_TRACE_SKIP: "1"
+
 jobs:
   check-dependency-risk:
     runs-on: ${{ matrix.os }}

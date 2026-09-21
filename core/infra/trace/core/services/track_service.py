@@ -33,7 +33,7 @@ class TraceTrackService:
     @staticmethod
     def track_setup(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
         try:
-            if TraceConfigService._env_truthy("NTQ_TRACE_SKIP") is True:
+            if TraceConfigService.should_skip():
                 return
             cfg = TraceConfigService.load()
             TraceTrackService._emit(event, body, cfg=cfg, enqueue_on_fail=True)
@@ -64,7 +64,7 @@ class TraceTrackService:
         (revoke purges the queue immediately after).
         """
         try:
-            if TraceConfigService._env_truthy("NTQ_TRACE_SKIP") is True:
+            if TraceConfigService.should_skip():
                 return
             cfg = TraceConfigService.load()
             body = {

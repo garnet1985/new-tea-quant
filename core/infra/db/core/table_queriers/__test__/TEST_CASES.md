@@ -15,3 +15,4 @@
 | Case 文件 | 说明 |
 |-----------|------|
 | `test_db_base_model.py` | DbBaseModel |
+| `test_csv_bulk_import.py` | 归档 CSV 直接装入 DuckDB |

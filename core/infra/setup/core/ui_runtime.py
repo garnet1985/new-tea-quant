@@ -46,17 +46,94 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
+_PIP_TIMEOUT_SEC = 15
+_PIP_RETRIES = 1
+_BOOTSTRAP_MIN = (
+    ("pip", (24, 0)),
+    ("setuptools", (65,)),
+    ("wheel", (0,)),
+)
+
+
+def _pip_network_hint() -> str:
+    return (
+        "无法连接 PyPI（或超时）。国内网络可先配镜像再重试，例如：\n"
+        "  python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple"
+    )
+
+
+def _pip_net_flags() -> list:
+    flags = [
+        "--disable-pip-version-check",
+        "--timeout",
+        str(_PIP_TIMEOUT_SEC),
+        "--retries",
+        str(_PIP_RETRIES),
+    ]
+    if _env_truthy("NTQ_PIP_NO_CACHE"):
+        flags.append("--no-cache-dir")
+    return flags
+
+
+def _parse_pkg_version(raw: str) -> tuple:
+    nums = []
+    for part in str(raw).split("."):
+        digits = ""
+        for ch in part:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        if not digits:
+            break
+        nums.append(int(digits))
+    return tuple(nums) if nums else (0,)
+
+
+def _installed_version(name: str) -> str:
+    try:
+        from importlib.metadata import version
+        return version(name)
+    except Exception:
+        return ""
+
+
+def _version_meets(installed: str, minimum: tuple) -> bool:
+    if not installed:
+        return False
+    got = _parse_pkg_version(installed)
+    n = max(len(got), len(minimum))
+    got = got + (0,) * (n - len(got))
+    need = minimum + (0,) * (n - len(minimum))
+    return got >= need
+
+
+def _bootstrap_pip_ready() -> bool:
+    for name, minimum in _BOOTSTRAP_MIN:
+        if not _version_meets(_installed_version(name), minimum):
+            return False
+    return True
+
+
 def _bootstrap_pip() -> None:
     if _env_truthy("NTQ_SKIP_PIP_BOOTSTRAP"):
         return
-    cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
-    if _env_truthy("NTQ_PIP_NO_CACHE"):
-        cmd.append("--no-cache-dir")
+    if _bootstrap_pip_ready():
+        print("pip / setuptools / wheel 已满足最低版本，跳过联网自升级。", flush=True)
+        return
+    cmd = [sys.executable, "-m", "pip", "install", *_pip_net_flags()]
     cmd.extend(["pip>=24.0", "setuptools>=65", "wheel"])
-    print("正在升级 pip / setuptools / wheel…", flush=True)
+    print("正在安装 pip / setuptools / wheel…", flush=True)
     ret = subprocess.run(cmd, cwd=str(REPO_ROOT))
     if ret.returncode != 0:
-        print(f"{CmdLayout.icon.get('warning')} pip 自升级失败，将继续尝试安装 BFF 依赖", flush=True)
+        if _bootstrap_pip_ready():
+            print(
+                f"{CmdLayout.icon.get('warning')} pip 工具包联网安装失败，本地版本已可用，继续。",
+                flush=True,
+            )
+            return
+        print(f"{CmdLayout.icon.get('warning')} pip 工具包安装失败，将继续尝试安装 BFF 依赖", flush=True)
+        print(_pip_network_hint(), flush=True)
 
 
 def _node_toolchain_available() -> bool:
@@ -93,12 +170,20 @@ def check_runtime_prerequisites() -> Tuple[bool, str]:
 
 
 def _pip_install_bff() -> None:
-    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile", "--only-binary", "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil"]
-    if _env_truthy("NTQ_PIP_NO_CACHE"):
-        pip_cmd.append("--no-cache-dir")
-    pip_cmd.extend(["-r", str(BFF_REQUIREMENTS)])
+    pip_cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--no-compile",
+        "--only-binary",
+        "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+        *_pip_net_flags(),
+        "-r",
+        str(BFF_REQUIREMENTS),
+    ]
     if subprocess.run(pip_cmd, cwd=str(REPO_ROOT)).returncode != 0:
-        raise RuntimeError("安装 BFF Python 依赖失败")
+        raise RuntimeError("安装 BFF Python 依赖失败\n" + _pip_network_hint())
 
 
 def _npm_install_fed() -> None:

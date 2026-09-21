@@ -55,3 +55,20 @@ def test_install_ui_runtime_tracks_pip_bff_failure(
         entry="ui",
         error_code="pip_bff",
     )
+
+
+def test_bootstrap_pip_skips_network_when_minimums_met(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = []
+    monkeypatch.delenv("NTQ_SKIP_PIP_BOOTSTRAP", raising=False)
+    monkeypatch.setattr(ur, "_bootstrap_pip_ready", lambda: True)
+    monkeypatch.setattr(ur.subprocess, "run", lambda *a, **k: called.append(True))
+    ur._bootstrap_pip()
+    assert called == []
+
+
+def test_bootstrap_pip_ready_accepts_current_toolchain() -> None:
+    assert ur._version_meets("26.0.1", (24, 0)) is True
+    assert ur._version_meets("64.0", (65,)) is False
+    assert ur._version_meets("65.0.0", (65,)) is True

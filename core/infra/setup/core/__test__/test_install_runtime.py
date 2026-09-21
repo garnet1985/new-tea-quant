@@ -140,3 +140,74 @@ def test_needs_install_ui_false_when_ready_production_build(
         encoding="utf-8",
     )
     assert ir.needs_install("ui") is False
+
+
+def test_needs_install_ui_false_when_production_build_fingerprint_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fed_build = repo / "fed_build"
+    fed_build.mkdir()
+    (fed_build / "index.html").write_text("<html></html>", encoding="utf-8")
+    (fed_build / "asset-manifest.json").write_text("{}", encoding="utf-8")
+
+    state_dir = repo / ".ntq"
+    state_dir.mkdir()
+    state_file = state_dir / "install-state.json"
+    bff_req = repo / "bff-req.txt"
+    bff_req.write_text("flask\n", encoding="utf-8")
+
+    monkeypatch.delenv("NTQ_UI_DEV", raising=False)
+    monkeypatch.setattr(ir, "STATE_FILE", state_file)
+    monkeypatch.setattr(ir, "UI_BFF_REQUIREMENTS", bff_req)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_DIR", fed_build)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_INDEX", fed_build / "index.html")
+    monkeypatch.setattr(ir, "userspace_ready", lambda: True)
+
+    state_file.write_text(
+        json.dumps(
+            {
+                "coreVersion": ir.system_meta.version,
+                "python": {"uiRequirementsHash": ir.sha256_file(bff_req)},
+                "uiRuntime": {"lastStatus": "success", "lastFailedStepId": ""},
+                "fedBuild": {"buildFingerprint": "stale-from-previous-build"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert ir.needs_install("ui") is False
+
+
+def test_needs_install_ui_true_when_production_build_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fed_build = repo / "fed_build"
+    fed_build.mkdir()
+
+    state_dir = repo / ".ntq"
+    state_dir.mkdir()
+    state_file = state_dir / "install-state.json"
+    bff_req = repo / "bff-req.txt"
+    bff_req.write_text("flask\n", encoding="utf-8")
+
+    monkeypatch.delenv("NTQ_UI_DEV", raising=False)
+    monkeypatch.setattr(ir, "STATE_FILE", state_file)
+    monkeypatch.setattr(ir, "UI_BFF_REQUIREMENTS", bff_req)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_DIR", fed_build)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_INDEX", fed_build / "index.html")
+    monkeypatch.setattr(ir, "userspace_ready", lambda: True)
+
+    state_file.write_text(
+        json.dumps(
+            {
+                "coreVersion": ir.system_meta.version,
+                "python": {"uiRequirementsHash": ir.sha256_file(bff_req)},
+                "uiRuntime": {"lastStatus": "success", "lastFailedStepId": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert ir.needs_install("ui") is True

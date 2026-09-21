@@ -228,7 +228,7 @@ def main() -> int:
         return 1
 
     # 文件存在性校验通过后，再按系统规则加载最终合并配置（默认 + userspace + env vars）
-    config = ctx.load_database_config(db_type)
+    config = ProjectContext.config.load_database_config(db_type)
 
     db_cfg = config.get(db_type) or {}
     if isinstance(db_cfg, dict):

@@ -53,6 +53,8 @@ class TestSetupApi(unittest.TestCase):
             "set_ui_dev_mode",
             "fed_build_ready",
             "userspace_ready",
+            "pipeline_ready",
+            "mark_cli_ready",
             "mark",
         ):
             self.assertTrue(callable(getattr(Setup.runtime, name)))

@@ -1,6 +1,6 @@
 # Setup API 文档
 
-**版本：** `0.1.0`  
+**版本：** `0.1.1`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
@@ -104,13 +104,13 @@
 
 #### install_cli / ensure_cli_install
 
-`Setup.runtime.install_cli(*, force: bool = False) -> None`  
+`Setup.runtime.install_cli(*, force: bool = False, userspace=None, userspace_conflict=None, db=None, db_host=None, db_port=None, db_name=None, db_user=None, db_password=None, db_schema=None) -> None`  
 `Setup.runtime.ensure_cli_install() -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.1.0`
-- **描述：** 跑 CLI 安装步骤。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发，未就绪才装）
+- **引入版本：** `0.1.0`（`userspace` / `db` 参数：`0.1.1`）
+- **描述：** 跑 CLI 安装步骤，不询问。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发，未就绪才装）。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
 
 #### import_init_data
 
@@ -132,15 +132,18 @@
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
 
-#### fed_build_ready / userspace_ready / mark
+#### fed_build_ready / userspace_ready / pipeline_ready / mark_cli_ready / mark
 
 `Setup.runtime.fed_build_ready() -> bool`  
 `Setup.runtime.userspace_ready() -> bool`  
+`Setup.runtime.pipeline_ready() -> bool`  
+`Setup.runtime.mark_cli_ready() -> None`  
 `Setup.runtime.mark(profile, *, success: bool, failed_step_id="", fingerprints=None) -> None`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.1.0`
+- **引入版本：** `0.1.0`（`pipeline_ready` / `mark_cli_ready`：`0.1.1`）
+- **描述：** `pipeline_ready` 读取 `.ntq/setup-runtime.json` 的 `isReady`（CLI 与 UI 向导共用）。UI 向导完成后调用 `mark_cli_ready` 写入 CLI 指纹，避免两边状态分叉。
 
 ---
 

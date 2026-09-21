@@ -21,14 +21,9 @@ class UserRunner:
     @staticmethod
     def _setup_wizard_ready() -> bool:
         try:
-            import json
+            from core.infra.setup import Setup
 
-            from core.infra.setup.core.env import NewTeaQuantSetup
-
-            path = NewTeaQuantSetup.repo_root / ".ntq" / "setup-runtime.json"
-            if not path.is_file():
-                return False
-            return bool(json.loads(path.read_text(encoding="utf-8")).get("isReady"))
+            return Setup.runtime.pipeline_ready()
         except Exception:
             return False
 

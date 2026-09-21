@@ -10,16 +10,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.contracts import (
-    DEFAULT_DUCKDB_DOMAINS,
-    DUCKDB_DOMAIN_FILES,
-)
+from core.infra.project_context.contracts import DUCKDB_DOMAIN_FILES
 from core.infra.setup import Setup
-from core.infra.setup.core.pipeline_state import sync_definition_into_state, wants_skip_input
+from core.infra.setup.core.db_install_config import write_database_install_config
+from core.infra.setup.core.pipeline_state import wants_skip_input
+from core.infra.setup.core import setup_session
 from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
+STATE_FILE = setup_session.STATE_FILE
 # 这些步骤会在子进程里打开 DuckDB；BFF 若仍握着同一文件会 Conflicting lock。
 _STEPS_NEED_EXCLUSIVE_DUCKDB = frozenset({"db_connection", "import_data"})
 
@@ -79,6 +78,8 @@ class SetupRuntimeManager:
             self._record_step_seconds(state, "resolve_ml_deps", elapsed)
             self._bump_version(state)
             self._save_state(state)
+        if state.get("isReady"):
+            Setup.runtime.mark_cli_ready()
         payload = self._ml_extras_payload()
         payload["installedNow"] = True
         Setup.trace.install_complete(
@@ -262,8 +263,11 @@ class SetupRuntimeManager:
                 }
 
         state["isReady"] = all(self._get_step_state(state, s["id"]) == self.STATUS_SUCCESS for s in definition)
+        state["installSource"] = "ui"
         self._bump_version(state)
         self._save_state(state)
+        if state["isReady"]:
+            Setup.runtime.mark_cli_ready()
         Setup.trace.install_complete(success=True, entry="ui", **self._timing_kwargs(state))
         return {
             "status": "ok",
@@ -372,54 +376,10 @@ class SetupRuntimeManager:
     def _prepare_inputs_for_step(self, state: Dict[str, Any], step_id: str, inputs: Dict[str, Any]) -> None:
         if step_id != "db_connection":
             return
-        db_type = str((inputs or {}).get("dbType", "duckdb")).strip().lower() or "duckdb"
-        if db_type not in ("postgresql", "mysql", "duckdb"):
-            db_type = "duckdb"
-
-        userspace_root = self._resolve_userspace_root(state)
-        db_cfg_dir = userspace_root / "system" / "config" / "database"
-        db_cfg_dir.mkdir(parents=True, exist_ok=True)
-
-        common_json = db_cfg_dir / "common.json"
-        common_payload = {"database_type": db_type}
-        common_json.write_text(json.dumps(common_payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        detail_json = db_cfg_dir / f"{db_type}.json"
-        if db_type == "duckdb":
-            if not detail_json.is_file():
-                detail_json.write_text(
-                    json.dumps({"domains": dict(DEFAULT_DUCKDB_DOMAINS)}, ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
-            return
-
-        wrapper: Dict[str, Any] = {
-            db_type: {
-                "host": (inputs or {}).get("host", ""),
-                "port": int((inputs or {}).get("port", 5432 if db_type == "postgresql" else 3306)),
-                "database": (inputs or {}).get("database", ""),
-                "user": (inputs or {}).get("user", ""),
-                "password": (inputs or {}).get("password", ""),
-            }
-        }
-        if db_type == "postgresql":
-            wrapper[db_type]["default_pgsql_schema"] = (inputs or {}).get("defaultPgsqlSchema", "public") or "public"
-        detail_json.write_text(json.dumps(wrapper, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_database_install_config(self._resolve_userspace_root(state), inputs or {})
 
     def _new_state(self, definition: List[Dict[str, Any]]) -> Dict[str, Any]:
-        return {
-            "sessionId": f"setup_{int(time.time())}",
-            "version": 1,
-            "isReady": False,
-            "stepStates": [
-                {"stepId": step["id"], "status": self.STATUS_NOT_STARTED, "errorMessage": ""}
-                for step in definition
-            ],
-            "inputsByStep": {},
-            "noticesByStep": {},
-            "stepSeconds": {},
-            "skippedSteps": [],
-        }
+        return setup_session.new_state(definition)
 
     def _build_snapshot(self, state: Dict[str, Any]) -> Dict[str, Any]:
         return {
@@ -432,22 +392,15 @@ class SetupRuntimeManager:
         }
 
     def _load_state(self) -> Dict[str, Any]:
-        if not STATE_FILE.is_file():
-            return self._new_state(self.get_definition())
         try:
-            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            return setup_session.load_state(self.get_definition())
         except Exception as exc:
             log_degraded("setup.runtimeStateRead", exc, str(STATE_FILE))
             return self._new_state(self.get_definition())
-        state, mutated = sync_definition_into_state(self.get_definition(), state)
-        if mutated:
-            self._save_state(state)
-        return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
         with self._lock:
-            STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            setup_session.save_state(state)
 
     def _set_step_state(self, state: Dict[str, Any], step_id: str, status: str, err: str) -> None:
         for item in state.get("stepStates", []):

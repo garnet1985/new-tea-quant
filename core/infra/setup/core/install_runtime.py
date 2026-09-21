@@ -5,7 +5,8 @@
 - ``python install.py`` → ``install_cli_runtime(force=True)``
 - ``cli.py`` / ``install.py --if-needed`` → ``needs_install("cli")`` + ``install_cli_runtime``
 
-状态文件：``.ntq/install-state.json``（结构见 ``launcher-and-setup-runtime-design.md``）。
+状态文件：``.ntq/install-state.json``（依赖指纹 / cliRuntime / uiRuntime）。
+向导完成态：``.ntq/setup-runtime.json``（``isReady``，CLI 与 UI 共用）。
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional
 
@@ -220,3 +222,17 @@ def mark_runtime(
     if profile == "ui":
         state.pop("setupRuntime", None)
     save_state(state)
+
+
+def mark_cli_success_fingerprint() -> None:
+    """CLI 流水线或 UI 向导完成后，写入同一份 install-state cliRuntime 指纹。"""
+    mark_runtime(
+        "cli",
+        success=True,
+        fingerprints={
+            "cli": {
+                "requirementsHash": sha256_file(REQUIREMENTS),
+                "lastInstallAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+        },
+    )

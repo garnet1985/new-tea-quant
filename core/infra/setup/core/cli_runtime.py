@@ -144,5 +144,8 @@ def ensure_cli_install_via_install_py() -> int:
     if not script.is_file():
         print(f"{CmdLayout.icon.get('error')} 未找到安装入口: {script}", flush=True)
         return 1
-    proc = subprocess.run([sys.executable, str(script)], cwd=str(REPO_ROOT))
+    proc = subprocess.run(
+        [sys.executable, str(script), "--if-needed"],
+        cwd=str(REPO_ROOT),
+    )
     return int(proc.returncode)

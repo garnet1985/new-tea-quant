@@ -1,6 +1,6 @@
 # Utils API 文档
 
-**版本：** `0.2.0`  
+**版本：** `0.2.1`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -16,7 +16,7 @@
 
 ## Utils
 
-**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math` / `markdown`
+**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math` / `markdown` / `locale`
 
 ### date
 
@@ -90,6 +90,24 @@ from core.infra.utils import Utils
 mgr = Utils.markdown.load_template("REPORT_TEMPLATE.md")
 mgr.fill("wall_clock_seconds", "3s")
 mgr.save("out/REPORT.md")
+```
+
+### locale
+
+`Utils.locale.is_china() -> bool`（同 `Utils.is_china()`）
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 本机是否在中国大陆。只认大陆时区地名（`Asia/Shanghai` 等）或 `zh_CN`，**不用** UTC+8（Perth / Singapore 为假）。不含网络探测。
+- **举例：**
+
+```python
+from core.infra.utils import Utils
+
+if Utils.locale.is_china():
+    ...
+# 或 Utils.is_china()
 ```
 
 ---

@@ -1,6 +1,6 @@
 # Utils 架构文档
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 ## 模块介绍
 
@@ -14,13 +14,14 @@ Utils
   ├── types     → core/type_utils.TypeUtils
   ├── io        → core/io（CsvIo / FileIo）
   ├── math      → core/math/DeterministicRandom
-  └── markdown  → core/markdown/MarkdownMgr
+  ├── markdown  → core/markdown/MarkdownMgr
+  └── locale    → core/locale/LocaleUtils（is_china）
 contracts       → PERIOD_* / PeriodType / ArchiveFormat
 ```
 
 ## 边界
 
-**In scope：** 日期、类型判断、CSV/归档、确定性随机、MD 模版填充  
+**In scope：** 日期、类型判断、CSV/归档、确定性随机、MD 模版填充、本机区域（`is_china`）  
 **Out of scope：** 配置合并（`ProjectContext`）、默认业务起止日（`ProjectContext.config.get_default_start_date`）、CLI 图标（`CmdLayout`）、业务日历规则（`CalendarService`）
 
 ## 相关文档

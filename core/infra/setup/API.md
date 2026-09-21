@@ -110,7 +110,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 跑 CLI 安装步骤；`ensure_cli_install` 经根目录 `install.py`（user CLI 自动触发）
+- **描述：** 跑 CLI 安装步骤。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发，未就绪才装）
 
 #### import_init_data
 

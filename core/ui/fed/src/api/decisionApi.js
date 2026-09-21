@@ -145,6 +145,7 @@ function mapCalendarDay(row) {
       name: String(item?.name || ''),
       shares: Number(item?.shares) || 0,
       amount: Number(item?.amount) || 0,
+      note: String(item?.note || '').trim(),
     })).filter((item) => item.shares > 0),
   };
 }
@@ -191,14 +192,17 @@ function mapExit(row) {
 
 function picksFromDraft(draft) {
   const picks = {};
+  const notes = {};
   (Array.isArray(draft) ? draft : []).forEach((line) => {
     const lid = Number(line?.local_id);
     const shares = Number(line?.shares);
     if (Number.isFinite(lid) && lid > 0 && Number.isFinite(shares) && shares > 0) {
       picks[lid] = shares;
+      const note = String(line?.note || '').trim();
+      if (note) notes[lid] = note;
     }
   });
-  return picks;
+  return { picks, notes };
 }
 
 export function mapDecisionSnapshot(message) {
@@ -208,6 +212,7 @@ export function mapDecisionSnapshot(message) {
   const draft = Array.isArray(m.draft) ? m.draft : [];
   const bill = Array.isArray(m.bill) ? m.bill : [];
   const completed = Boolean(m.completed) || m.phase === 'completed';
+  const { picks, notes: pickNotes } = picksFromDraft(draft);
   return {
     dmId: String(m.dm_id || ''),
     versionId: String(m.version_id || ''),
@@ -226,7 +231,8 @@ export function mapDecisionSnapshot(message) {
     asof,
     opps,
     draft,
-    picks: picksFromDraft(draft),
+    picks,
+    pickNotes,
     bill: bill.map((line) => ({
       id: Number(line.local_id) || 0,
       ticker: String(line.entity_id || ''),
@@ -234,6 +240,7 @@ export function mapDecisionSnapshot(message) {
       shares: Number(line.shares) || 0,
       price: Number(line.entry_price) || 0,
       notional: Number(line.notional) || 0,
+      note: String(line.note || '').trim(),
     })),
     events: (m.exits || []).map(mapExit),
     calendar: (m.calendar || []).map(mapCalendarDay),
@@ -270,6 +277,7 @@ export function mapDecisionHoldings(message) {
       marketValue: marketValue != null && Number.isFinite(marketValue) ? marketValue : null,
       unrealized: unrealized != null && Number.isFinite(unrealized) ? unrealized : null,
       pnlPct,
+      note: String(row.note || '').trim(),
       goals: (Array.isArray(row.goals) ? row.goals : []).map(mapHoldingGoal),
     };
   });
@@ -377,7 +385,9 @@ export async function deleteDecisionSession(strategyName, sessionId, { versionId
   return unwrapMessage(json);
 }
 
-export async function pickDecisionShares(strategyName, sessionId, { localId, cash, shares, versionId } = {}) {
+export async function pickDecisionShares(strategyName, sessionId, {
+  localId, cash, shares, note, versionId,
+} = {}) {
   const body = {
     local_id: Number(localId),
     ...(versionId ? { version_id: String(versionId) } : {}),
@@ -385,6 +395,7 @@ export async function pickDecisionShares(strategyName, sessionId, { localId, cas
   if (shares != null) body.shares = Number(shares) || 0;
   else if (cash != null) body.cash = Number(cash) || 0;
   else body.shares = 0;
+  if (note !== undefined) body.note = String(note ?? '');
   const json = await request.postJson(
     `${apiDecisionSessions(strategyName)}/${encodeURIComponent(sessionId)}/pick`,
     { body },

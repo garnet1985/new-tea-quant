@@ -64,6 +64,7 @@ class HoldingRow:
     hold_unit: str = "natural_day"
     roi: Optional[float] = None
     market_value: Optional[float] = None
+    note: str = ""
 
 
 __all__ = [

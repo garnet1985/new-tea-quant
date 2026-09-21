@@ -14,6 +14,7 @@ import {
   IconButton,
   Snackbar,
   Stack,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -40,6 +41,7 @@ import {
   buildMonthCells,
   calendarActionLabel,
   calendarActionDetail,
+  calendarActionNote,
   canShiftMonth,
   countTradingDaysInclusive,
   dateToYearMonth,
@@ -58,6 +60,7 @@ import './decisionPage.scss';
 const WEEKDAY_HEADS = ['一', '二', '三', '四', '五', '六', '日'];
 const CLOCK_STEP_MS = 300;
 const CLOCK_FADE_OUT_MS = 100;
+const NOTE_MAX = 2000;
 
 function prefersReducedMotion() {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -207,28 +210,19 @@ function headerWithTooltip(label, title) {
 
 function suggestedBuyTooltip(mode) {
   if (mode === 'equal_shares') {
-    return '点按填入建议股数。等股：每次买入手数 × 最小交易单位。';
+    return '等股：每次买入手数 × 最小交易单位。投资弹窗里可填入该建议。';
   }
   if (mode === 'kelly') {
-    return '点按填入建议股数。凯莉：当前现金 × 该标的 as-of 胜率 × 凯莉折扣。无已完成样本为 —。';
+    return '凯莉：当前现金 × 该标的 as-of 胜率 × 凯莉折扣。无已完成样本为 —。投资弹窗里可填入该建议。';
   }
-  return '点按填入建议股数。等价资金：初始资金 ÷ 最大持股数，再按手数折股。';
+  return '等价资金：初始资金 ÷ 最大持股数，再按手数折股。投资弹窗里可填入该建议。';
 }
 
-function SuggestedSharesCell({ suggestedCash, suggestedShares, basis, held, disabled, onApply }) {
+function SuggestedSharesCell({ suggestedCash, suggestedShares, basis, held }) {
   if (held) return '—';
   const hasCash = suggestedCash != null && suggestedCash > 0;
   const hasShares = suggestedShares != null && suggestedShares > 0;
   const basisEl = basis ? <span className="decision-suggest-basis">{basis}</span> : null;
-  const body = (
-    <span className="decision-suggest-cell">
-      {hasShares ? `${Number(suggestedShares).toLocaleString()} 股` : '—'}
-      {hasShares && hasCash ? (
-        <span className="decision-suggest-shares">约 {Number(suggestedCash).toLocaleString()} 元</span>
-      ) : null}
-      {basisEl}
-    </span>
-  );
   if (!hasShares) {
     return (
       <span className="decision-suggest-cell">
@@ -237,112 +231,296 @@ function SuggestedSharesCell({ suggestedCash, suggestedShares, basis, held, disa
       </span>
     );
   }
-  if (disabled) return body;
   return (
-    <Button
-      size="small"
-      variant="text"
-      className="decision-suggest-apply"
-      onClick={(event) => {
-        event.stopPropagation();
-        onApply();
-      }}
-    >
-      {body}
-    </Button>
+    <span className="decision-suggest-cell">
+      {`${Number(suggestedShares).toLocaleString()} 股`}
+      {hasCash ? (
+        <span className="decision-suggest-shares">约 {Number(suggestedCash).toLocaleString()} 元</span>
+      ) : null}
+      {basisEl}
+    </span>
   );
 }
 
-function SharesInvestCell({
+function ShareCapsule({
   disabled,
   draft,
   error,
-  notional,
-  ticker,
   lotStep,
+  ticker,
   onDraftChange,
-  onCommit,
-  onCancel,
   onStep,
 }) {
   const jump = shareStepJump(lotStep);
   const stopRow = (event) => event.stopPropagation();
   return (
-    <span className="decision-invest-cell" onClick={stopRow} onMouseDown={stopRow}>
-      <span className="decision-invest-row">
-        <span className={`decision-shares-capsule${error ? ' is-error' : ''}${disabled ? ' is-disabled' : ''}`}>
-          <button
-            type="button"
-            className="decision-capsule-btn"
-            disabled={disabled}
-            aria-label={`减少 ${jump} 股`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onStep(-1);
-            }}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
+    <span className={`decision-shares-capsule${error ? ' is-error' : ''}${disabled ? ' is-disabled' : ''}`}>
+      <button
+        type="button"
+        className="decision-capsule-btn"
+        disabled={disabled}
+        aria-label={`减少 ${jump} 股`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onStep(-1);
+        }}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
+        −
+      </button>
+      <input
+        className="decision-capsule-input"
+        type="text"
+        inputMode="numeric"
+        disabled={disabled}
+        value={draft}
+        placeholder="股数"
+        aria-label={`投资股数 ${ticker || ''}`}
+        onClick={stopRow}
+        onMouseDown={stopRow}
+        onChange={(event) => onDraftChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            onStep(1);
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            onStep(-1);
+          }
+        }}
+      />
+      <button
+        type="button"
+        className="decision-capsule-btn"
+        disabled={disabled}
+        aria-label={`增加 ${jump} 股`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onStep(1);
+        }}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
+        +
+      </button>
+    </span>
+  );
+}
+
+function InvestOpenCell({ disabled, shares, note, onOpen }) {
+  const n = Number(shares) || 0;
+  const noteText = String(note || '').trim();
+  return (
+    <span className="decision-invest-cell">
+      <Button
+        size="small"
+        variant={n > 0 ? 'outlined' : 'contained'}
+        className="decision-invest-open"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}
+      >
+        {n > 0 ? `已投 ${n.toLocaleString()} 股` : '投资'}
+      </Button>
+      {n > 0 && noteText ? (
+        <Tooltip
+          title={<span className="decision-invest-note-tip">{noteText}</span>}
+          placement="top"
+          enterDelay={120}
+          enterNextDelay={60}
+          slotProps={{
+            tooltip: {
+              sx: {
+                maxWidth: 320,
+                fontSize: 12,
+                lineHeight: 1.45,
+                whiteSpace: 'pre-wrap',
+              },
+            },
+          }}
+        >
+          <span
+            className="decision-invest-note-icon"
+            aria-label="买入笔记"
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
           >
-            −
-          </button>
-          <input
-            className="decision-capsule-input"
-            type="text"
-            inputMode="numeric"
-            disabled={disabled}
-            value={draft}
-            placeholder="股数"
-            aria-label={`投资股数 ${ticker}`}
-            onClick={stopRow}
-            onMouseDown={stopRow}
-            onChange={(event) => onDraftChange(event.target.value)}
-            onBlur={(event) => onCommit(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                onStep(1);
-              }
-              if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                onStep(-1);
-              }
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                onCommit(event.target.value);
-              }
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                onCancel();
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="decision-capsule-btn"
-            disabled={disabled}
-            aria-label={`增加 ${jump} 股`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onStep(1);
-            }}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          >
-            +
-          </button>
-        </span>
-        <span className="decision-invest-notional">
-          {notional ? `约 ${notional}` : '\u00a0'}
-        </span>
-      </span>
-      {error ? (
-        <span className="decision-invest-hint is-error">{error}</span>
+            <NtqIcon name="chat" size={16} />
+          </span>
+        </Tooltip>
       ) : null}
     </span>
+  );
+}
+
+function InvestDialog({
+  row,
+  open,
+  shares,
+  note,
+  error,
+  submitting,
+  onSharesChange,
+  onNoteChange,
+  onStep,
+  onApplySuggested,
+  onClear,
+  onCancel,
+  onConfirm,
+}) {
+  const { lotStep } = lotRule(row || {});
+  const parsed = Number(shares);
+  const notional = Number.isFinite(parsed) && parsed > 0
+    ? formatMoney(cashFromShares(parsed, row?.price))
+    : '';
+  const hasSuggested = row?.suggestedShares != null && Number(row.suggestedShares) > 0;
+  const suggestedCash = row?.suggestedCash != null && Number(row.suggestedCash) > 0
+    ? Number(row.suggestedCash)
+    : null;
+  const picked = Number(row?.pickedShares || 0) > 0;
+  return (
+    <Dialog open={open} onClose={onCancel} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        投资
+        {row ? ` ${opportunityStockLabel(row)}` : ''}
+      </DialogTitle>
+      <DialogContent dividers>
+        {row ? (
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              成交价 {formatMoney(row.price)}
+              {notional ? ` · 约 ${notional}` : ''}
+            </Typography>
+            {hasSuggested ? (
+              <Box>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+                  推荐买入
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={onApplySuggested}
+                  disabled={submitting}
+                >
+                  {`${Number(row.suggestedShares).toLocaleString()} 股`}
+                  {suggestedCash != null ? `（约 ${Number(suggestedCash).toLocaleString()} 元）` : ''}
+                </Button>
+                {row.suggestedBasis ? (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                    {row.suggestedBasis}
+                  </Typography>
+                ) : null}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">暂无推荐买入</Typography>
+            )}
+            <Box>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
+                股数
+              </Typography>
+              <ShareCapsule
+                disabled={submitting}
+                draft={shares}
+                error={error}
+                lotStep={lotStep}
+                ticker={row.ticker}
+                onDraftChange={onSharesChange}
+                onStep={onStep}
+              />
+              {error ? (
+                <Typography variant="caption" color="error" display="block" sx={{ mt: 0.75 }}>
+                  {error}
+                </Typography>
+              ) : null}
+            </Box>
+            <TextField
+              label="买入笔记（可选）"
+              placeholder="为什么买、仓位想法、风险…"
+              value={note}
+              onChange={(event) => onNoteChange(event.target.value)}
+              multiline
+              minRows={3}
+              fullWidth
+              disabled={submitting}
+              inputProps={{ maxLength: NOTE_MAX }}
+              helperText={`${String(note || '').length}/${NOTE_MAX}`}
+            />
+          </Stack>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        {picked ? (
+          <Button color="inherit" onClick={onClear} disabled={submitting}>
+            取消本次投资
+          </Button>
+        ) : null}
+        <Box sx={{ flex: 1 }} />
+        <Button onClick={onCancel} disabled={submitting}>取消</Button>
+        <Button variant="contained" onClick={onConfirm} disabled={submitting}>
+          确认
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function CalendarActionDialog({ action, open, onClose }) {
+  if (!action) {
+    return (
+      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+        <DialogTitle>成交</DialogTitle>
+        <DialogActions>
+          <Button onClick={onClose}>关闭</Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+  const note = String(action.note || '').trim();
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{action.side === 'sell' ? '卖出' : '买入'}明细</DialogTitle>
+      <DialogContent dividers>
+        <Typography className="decision-kv" variant="body2">
+          <span className="decision-kv__label">标的</span>
+          <span className="decision-kv__value">{action.name || action.ticker || '—'}</span>
+        </Typography>
+        {action.ticker && action.ticker !== action.name ? (
+          <Typography className="decision-kv" variant="body2">
+            <span className="decision-kv__label">代码</span>
+            <span className="decision-kv__value">{action.ticker}</span>
+          </Typography>
+        ) : null}
+        <Typography className="decision-kv" variant="body2">
+          <span className="decision-kv__label">股数</span>
+          <span className="decision-kv__value">{Number(action.shares || 0).toLocaleString()} 股</span>
+        </Typography>
+        <Typography className="decision-kv" variant="body2">
+          <span className="decision-kv__label">金额</span>
+          <span className="decision-kv__value">{formatMoney(action.amount)}</span>
+        </Typography>
+        {note ? (
+          <>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, mb: 0.75 }}>
+              买入笔记
+            </Typography>
+            <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
+              {note}
+            </Typography>
+          </>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button variant="contained" onClick={onClose}>关闭</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -377,6 +555,7 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
     ['持有时长', formatHoldSpan(row.holdDays, row.holdUnit)],
     ['仓位占比', weight == null ? '—' : `${(weight * 100).toFixed(1)}%`],
   ] : [];
+  const buyNote = String(row?.note || '').trim();
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -388,6 +567,16 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
             <span className="decision-kv__value">{value}</span>
           </Typography>
         ))}
+        {buyNote ? (
+          <>
+            <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
+              买入笔记
+            </Typography>
+            <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
+              {buyNote}
+            </Typography>
+          </>
+        ) : null}
         <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
           目标
         </Typography>
@@ -422,10 +611,25 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
   );
 }
 
-function CalendarEventChip({ className, label, detail }) {
+function CalendarEventChip({ className, label, detail, note, onClick }) {
+  const chipClass = `decision-cal-event ${className || ''}`.trim();
+  const noteText = String(note || '').trim();
+  const body = onClick ? (
+    <button type="button" className={chipClass} onClick={onClick}>
+      {label}
+    </button>
+  ) : (
+    <span className={chipClass}>{label}</span>
+  );
+  const tip = (
+    <span className="decision-cal-tip">
+      <span className="decision-cal-tip__info">{detail || label}</span>
+      {noteText ? <span className="decision-cal-tip__note">{noteText}</span> : null}
+    </span>
+  );
   return (
     <Tooltip
-      title={<span className="decision-cal-tip">{detail || label}</span>}
+      title={tip}
       placement="top"
       enterDelay={120}
       enterNextDelay={60}
@@ -442,12 +646,12 @@ function CalendarEventChip({ className, label, detail }) {
         },
       }}
     >
-      <span className={`decision-cal-event ${className || ''}`.trim()}>{label}</span>
+      {body}
     </Tooltip>
   );
 }
 
-function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd }) {
+function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd, onActionClick }) {
   const cells = buildMonthCells(year, month);
   return (
     <Box className="decision-month-grid" role="grid" aria-label={`${monthTitle(year, month)} 交易日历`}>
@@ -491,6 +695,8 @@ function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd }) {
                   className={`is-${action.side}`}
                   label={calendarActionLabel(action)}
                   detail={calendarActionDetail(action)}
+                  note={calendarActionNote(action)}
+                  onClick={onActionClick ? () => onActionClick(action) : undefined}
                 />
               ))}
             </span>
@@ -519,6 +725,7 @@ export function DecisionPlaySession({
   const [snapshot, setSnapshot] = useState(null);
   const [holdings, setHoldings] = useState([]);
   const [picks, setPicks] = useState({});
+  const [pickNotes, setPickNotes] = useState({});
   const [events, setEvents] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [pageReady, setPageReady] = useState(false);
@@ -527,7 +734,12 @@ export function DecisionPlaySession({
   const [infoOpp, setInfoOpp] = useState(null);
   const [infoPayload, setInfoPayload] = useState(null);
   const [infoLoading, setInfoLoading] = useState(false);
-  const [shareEditors, setShareEditors] = useState({});
+  const [investRow, setInvestRow] = useState(null);
+  const [investShares, setInvestShares] = useState('');
+  const [investNote, setInvestNote] = useState('');
+  const [investError, setInvestError] = useState('');
+  const [investBusy, setInvestBusy] = useState(false);
+  const [calendarAction, setCalendarAction] = useState(null);
   const [positionOpen, setPositionOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [advancing, setAdvancing] = useState(false);
@@ -537,8 +749,6 @@ export function DecisionPlaySession({
   const [viewYear, setViewYear] = useState(() => dateToYearMonth('').year);
   const [viewMonth, setViewMonth] = useState(() => dateToYearMonth('').month);
   const animRef = useRef({ cancelled: false, timer: null });
-  const pickTimerRef = useRef(null);
-  const pendingPicksRef = useRef({});
   const runAdvanceRef = useRef(null);
   const spaceLockRef = useRef(false);
   const holdingDetailCacheRef = useRef(null);
@@ -551,7 +761,7 @@ export function DecisionPlaySession({
     if (Array.isArray(nextHoldings)) setHoldings(nextHoldings);
     if (!keepPicks) {
       setPicks(snap.picks || {});
-      setShareEditors({});
+      setPickNotes(snap.pickNotes || {});
     }
     if (hopEvents !== undefined) setEvents(hopEvents);
     const month = dateToYearMonth(snap.clockDate);
@@ -603,7 +813,6 @@ export function DecisionPlaySession({
       cancelled = true;
       anim.cancelled = true;
       if (anim.timer) window.clearTimeout(anim.timer);
-      if (pickTimerRef.current) window.clearTimeout(pickTimerRef.current);
     };
   }, [strategyKey, sessionId, embedded, applyLive, loadHoldings]);
 
@@ -634,12 +843,8 @@ export function DecisionPlaySession({
     Object.entries(picks || {}).forEach(([id, shares]) => {
       if (Number(shares) > 0) ids.add(String(id));
     });
-    Object.entries(shareEditors || {}).forEach(([id, editor]) => {
-      const n = Number(String(editor?.draft ?? '').trim());
-      if (Number.isFinite(n) && n > 0) ids.add(String(id));
-    });
     return ids;
-  }, [picks, shareEditors]);
+  }, [picks]);
   const remainingSlots = Math.max(0, maxPortfolioSize - openPositionCount - activePickIds.size);
   const showEquityDelta = typeof equityDelta === 'number' && equityDelta !== 0;
 
@@ -668,10 +873,15 @@ export function DecisionPlaySession({
     const items = [];
     (snapshot?.opps || []).forEach((row) => {
       const shares = Number(picks[row.id] || 0);
-      if (shares > 0) items.push({ ...row, shares, notional: shares * row.price });
+      if (shares > 0) items.push({
+        ...row,
+        shares,
+        notional: shares * row.price,
+        note: String(pickNotes[row.id] || '').trim(),
+      });
     });
     return items;
-  }, [snapshot?.opps, picks]);
+  }, [snapshot?.opps, picks, pickNotes]);
   const billTotal = bill.reduce((sum, row) => sum + row.notional, 0);
   const cashOnHand = Number(snapshot?.cash) || 0;
   const billExceedsCash = billTotal > cashOnHand + 0.005;
@@ -719,142 +929,61 @@ export function DecisionPlaySession({
   if (holdingDetail) holdingDetailCacheRef.current = holdingDetail;
   const holdingDialogRow = holdingDetail || holdingDetailCacheRef.current;
 
-  const flushPicks = useCallback(async () => {
-    if (pickTimerRef.current) {
-      window.clearTimeout(pickTimerRef.current);
-      pickTimerRef.current = null;
-    }
-    const pending = pendingPicksRef.current;
-    pendingPicksRef.current = {};
-    const dmId = snapshot?.dmId;
-    if (!strategyKey || !dmId) return;
-    const ids = Object.keys(pending);
-    let last = snapshot;
-    for (const id of ids) {
-      last = await pickDecisionShares(strategyKey, dmId, {
-        localId: Number(id),
-        shares: Number(pending[id]) || 0,
-      });
-    }
-    if (last && last !== snapshot) applyLive(last, undefined, { keepPicks: false });
-  }, [applyLive, snapshot, strategyKey]);
+  const closeInvestDialog = useCallback(() => {
+    setInvestRow(null);
+    setInvestShares('');
+    setInvestNote('');
+    setInvestError('');
+    setInvestBusy(false);
+  }, []);
 
-  const schedulePick = (localId, shares) => {
-    pendingPicksRef.current[localId] = shares;
-    if (pickTimerRef.current) window.clearTimeout(pickTimerRef.current);
-    pickTimerRef.current = window.setTimeout(() => {
-      flushPicks().catch((err) => {
-        const message = errorMessage(err, '无法下单');
-        setToast(message);
-        setShareEditors((prev) => ({
-          ...prev,
-          [localId]: {
-            open: true,
-            draft: prev[localId]?.draft ?? String(shares || ''),
-            error: message,
-          },
-        }));
-      });
-    }, 400);
-  };
-
-  const updateShareDraft = (rowId, draft) => {
-    setShareEditors((prev) => ({
-      ...prev,
-      [rowId]: { open: true, draft, error: '' },
-    }));
-  };
-
-  const commitShareEditor = (row, rawValue) => {
-    if (row.held) return;
-    const editor = shareEditors[row.id];
+  const openInvestDialog = (row) => {
+    if (!row || row.held) return;
     const picked = Number(picks[row.id] || 0);
-    const raw = rawValue != null ? rawValue : (editor?.draft ?? (picked > 0 ? String(picked) : ''));
+    setInvestRow({ ...row, pickedShares: picked });
+    setInvestShares(picked > 0 ? String(picked) : '');
+    setInvestNote(String(pickNotes[row.id] || ''));
+    setInvestError('');
+  };
+
+  const submitInvest = async ({ shares, note, clear = false } = {}) => {
+    const row = investRow;
+    if (!row || !strategyKey || !snapshot?.dmId) return;
     const { minLot, lotStep } = lotRule(row);
-    const result = validateShareDraft(raw, minLot, lotStep);
-    if (!result.ok) {
-      setShareEditors((prev) => ({
-        ...prev,
-        [row.id]: { open: true, draft: raw, error: result.message },
-      }));
-      setToast(result.message);
-      return;
+    if (!clear) {
+      const result = validateShareDraft(shares, minLot, lotStep);
+      if (!result.ok) {
+        setInvestError(result.message);
+        setToast(result.message);
+        return;
+      }
+      if (result.shares <= 0) {
+        setInvestError('请填写股数');
+        setToast('请填写股数');
+        return;
+      }
+      const occupying = Number(picks[row.id] || 0) > 0;
+      if (!occupying && remainingSlots <= 0) {
+        setInvestError('已达组合上限');
+        setToast('已达组合上限');
+        return;
+      }
     }
-    if (result.shares <= 0) {
-      setShareEditors((prev) => {
-        const next = { ...prev };
-        delete next[row.id];
-        return next;
+    setInvestBusy(true);
+    try {
+      const snap = await pickDecisionShares(strategyKey, snapshot.dmId, {
+        localId: row.id,
+        shares: clear ? 0 : Number(shares) || 0,
+        note: clear ? '' : String(note ?? ''),
       });
-      setPicks((prev) => {
-        const next = { ...prev };
-        delete next[row.id];
-        return next;
-      });
-      schedulePick(row.id, 0);
-      return;
+      applyLive(snap, undefined, { keepPicks: false });
+      closeInvestDialog();
+    } catch (err) {
+      const message = errorMessage(err, '无法下单');
+      setInvestError(message);
+      setToast(message);
+      setInvestBusy(false);
     }
-    const occupying = Number(picks[row.id] || 0) > 0 || activePickIds.has(String(row.id));
-    if (!occupying && remainingSlots <= 0) {
-      setShareEditors((prev) => ({
-        ...prev,
-        [row.id]: { open: true, draft: raw, error: '已达组合上限' },
-      }));
-      setToast('已达组合上限');
-      return;
-    }
-    setShareEditors((prev) => ({
-      ...prev,
-      [row.id]: { open: true, draft: String(result.shares), error: '' },
-    }));
-    schedulePick(row.id, result.shares);
-  };
-
-  const cancelShareEditor = (row) => {
-    const picked = Number(picks[row.id] || 0);
-    if (picked > 0) {
-      setShareEditors((prev) => ({
-        ...prev,
-        [row.id]: { open: true, draft: String(picked), error: '' },
-      }));
-      return;
-    }
-    setShareEditors((prev) => {
-      const next = { ...prev };
-      delete next[row.id];
-      return next;
-    });
-  };
-
-  const stepShareEditor = (row, direction) => {
-    if (row.held) return;
-    const { minLot, lotStep } = lotRule(row);
-    const editor = shareEditors[row.id];
-    const current = editor?.draft != null && String(editor.draft).trim() !== ''
-      ? editor.draft
-      : (picks[row.id] || 0);
-    const next = stepShares(current, direction, minLot, lotStep);
-    const draft = next > 0 ? String(next) : '';
-    setShareEditors((prev) => ({
-      ...prev,
-      [row.id]: { open: true, draft, error: '' },
-    }));
-    commitShareEditor(row, draft);
-  };
-
-  const applySuggestedShares = (row) => {
-    const shares = Number(row.suggestedShares) || 0;
-    if (row.held || shares <= 0) return;
-    const occupying = Number(picks[row.id] || 0) > 0 || activePickIds.has(String(row.id));
-    if (!occupying && remainingSlots <= 0) {
-      setToast('已达组合上限');
-      return;
-    }
-    setShareEditors((prev) => ({
-      ...prev,
-      [row.id]: { open: true, draft: String(shares), error: '' },
-    }));
-    schedulePick(row.id, shares);
   };
 
   const openInfo = async (row) => {
@@ -946,41 +1075,25 @@ export function DecisionPlaySession({
           suggestedShares={grid.row.suggestedShares}
           basis={grid.row.suggestedBasis}
           held={grid.row.held}
-          disabled={slotLocked(grid.row)}
-          onApply={() => applySuggestedShares(grid.row)}
         />
       ),
     },
     {
       field: 'shares',
       headerName: '投资',
-      width: 252,
-      minWidth: 252,
+      width: 196,
+      minWidth: 176,
       sortable: false,
       renderCell: (grid) => {
         if (grid.row.held) {
           return <Chip size="small" variant="outlined" label="已持有" />;
         }
-        const editor = shareEditors[grid.row.id];
-        const pickedShares = Number(picks[grid.row.id] || 0);
-        const draft = editor?.draft ?? (pickedShares > 0 ? String(pickedShares) : '');
-        const parsed = Number(draft);
-        const notional = Number.isFinite(parsed) && parsed > 0
-          ? formatMoney(cashFromShares(parsed, grid.row.price))
-          : '';
-        const { lotStep } = lotRule(grid.row);
         return (
-          <SharesInvestCell
+          <InvestOpenCell
             disabled={slotLocked(grid.row)}
-            draft={draft}
-            error={editor?.error || ''}
-            notional={notional}
-            ticker={grid.row.ticker}
-            lotStep={lotStep}
-            onDraftChange={(value) => updateShareDraft(grid.row.id, value)}
-            onCommit={(raw) => commitShareEditor(grid.row, raw)}
-            onCancel={() => cancelShareEditor(grid.row)}
-            onStep={(direction) => stepShareEditor(grid.row, direction)}
+            shares={picks[grid.row.id]}
+            note={pickNotes[grid.row.id]}
+            onOpen={() => openInvestDialog(grid.row)}
           />
         );
       },
@@ -1031,7 +1144,6 @@ export function DecisionPlaySession({
     closeCalendar();
     try {
       if (snapshot.phase !== 'confirming') {
-        await flushPicks();
         await doneDecisionDay(strategyKey, snapshot.dmId);
       }
       const nextSnap = await nextDecisionDay(strategyKey, snapshot.dmId);
@@ -1087,7 +1199,7 @@ export function DecisionPlaySession({
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target;
       if (target?.closest?.('input, textarea, [contenteditable="true"]')) return;
-      if (infoOpp || holdingDetailId) return;
+      if (infoOpp || holdingDetailId || investRow || calendarAction) return;
       if (completed || advancing) {
         event.preventDefault();
         return;
@@ -1111,7 +1223,7 @@ export function DecisionPlaySession({
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-  }, [advancing, completed, confirmOpen, hasOpps, holdingDetailId, infoOpp]);
+  }, [advancing, calendarAction, completed, confirmOpen, hasOpps, holdingDetailId, infoOpp, investRow]);
 
   if (!pageReady && !loadError) {
     if (embedded) {
@@ -1326,6 +1438,7 @@ export function DecisionPlaySession({
               days={calendarDays}
               rangeStart={rangeStart}
               rangeEnd={rangeEnd}
+              onActionClick={setCalendarAction}
             />
           ) : null}
           <Typography className="decision-month-legend" variant="caption">
@@ -1506,7 +1619,7 @@ export function DecisionPlaySession({
                   hideFooter
                   disableRowSelectionOnClick
                   onCellClick={(params, event) => {
-                    if (event.target.closest('.decision-invest-cell, .decision-suggest-apply')) {
+                    if (event.target.closest('.decision-invest-cell, .decision-invest-open')) {
                       event.stopPropagation();
                     }
                   }}
@@ -1552,6 +1665,43 @@ export function DecisionPlaySession({
         } : undefined}
       />
 
+      <InvestDialog
+        open={Boolean(investRow)}
+        row={investRow}
+        shares={investShares}
+        note={investNote}
+        error={investError}
+        submitting={investBusy}
+        onSharesChange={(value) => {
+          setInvestShares(value);
+          setInvestError('');
+        }}
+        onNoteChange={(value) => setInvestNote(String(value || '').slice(0, NOTE_MAX))}
+        onStep={(direction) => {
+          if (!investRow) return;
+          const { minLot, lotStep } = lotRule(investRow);
+          const next = stepShares(investShares, direction, minLot, lotStep);
+          setInvestShares(next > 0 ? String(next) : '');
+          setInvestError('');
+        }}
+        onApplySuggested={() => {
+          const shares = Number(investRow?.suggestedShares) || 0;
+          if (shares > 0) {
+            setInvestShares(String(shares));
+            setInvestError('');
+          }
+        }}
+        onClear={() => submitInvest({ clear: true })}
+        onCancel={closeInvestDialog}
+        onConfirm={() => submitInvest({ shares: investShares, note: investNote })}
+      />
+
+      <CalendarActionDialog
+        open={Boolean(calendarAction)}
+        action={calendarAction}
+        onClose={() => setCalendarAction(null)}
+      />
+
       <Dialog open={confirmOpen} onClose={cancelConfirm} maxWidth="sm" fullWidth>
         <DialogTitle>确认当天选择</DialogTitle>
         <DialogContent dividers>
@@ -1568,6 +1718,9 @@ export function DecisionPlaySession({
               >
                 <Typography variant="body2" component="div" className="decision-stock-with-status">
                   [{row.id}] {row.name} <StockStatusChips tags={row.statusTags} /> {row.shares.toLocaleString()} 股
+                  {row.note ? (
+                    <span className="decision-bill-note"> · {row.note}</span>
+                  ) : null}
                 </Typography>
                 <Typography variant="body2">约 {formatMoney(row.notional)}</Typography>
               </Stack>

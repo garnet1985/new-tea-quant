@@ -21,7 +21,8 @@ if Setup.runtime.needs_install("cli"):
 根目录入口等价于：
 
 ```bash
-python install.py      # CLI 安装
+python install.py      # CLI 安装（显式执行；已装过也会再跑步骤）
+# 国内自动走清华 PyPI 镜像；可用 USE_CHINA_MIRROR=1/0 强制
 python launcher.py     # UI 安装 + 启动
 ```
 

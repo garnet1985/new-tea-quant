@@ -2,6 +2,7 @@
 name: infra.cli
 version: "0.4.1"
 compatible_core_versions: ">=0.5.0"
+package: core.infra
 description: "客户端模块：在命令行工具内为用户或开发者提供一系列边界操作命令的模块。"
 dependencies:
   - infra.project_context

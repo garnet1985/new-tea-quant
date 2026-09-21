@@ -2,6 +2,7 @@
 name: infra.discovery
 version: "0.2.1"
 compatible_core_versions: ">=0.5.0"
+package: core.infra
 description: "发现模块：自动发现一些带有特征的文件/类/文件夹的模块，用来服务于用户自定义的功能文件和类。"
 dependencies: []
 changelog:

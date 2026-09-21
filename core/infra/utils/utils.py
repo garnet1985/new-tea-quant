@@ -1,4 +1,4 @@
-"""Utils 门面 — date / types / io / math / markdown。"""
+"""Utils 门面 — date / types / io / math / markdown / locale。"""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 from core.infra.utils.core.date.date_utils import DateUtils
 from core.infra.utils.core.io.csv_io import CsvIo
 from core.infra.utils.core.io.file_io import FileIo
+from core.infra.utils.core.locale.locale_utils import LocaleUtils
 from core.infra.utils.core.markdown import MarkdownMgr
 from core.infra.utils.core.math.deterministic_random import DeterministicRandom
 from core.infra.utils.core.type_utils import TypeUtils
@@ -39,6 +40,12 @@ class Utils:
     io = Io
     math = Math
     markdown = MarkdownMgr
+    locale = LocaleUtils
+
+    @staticmethod
+    def is_china() -> bool:
+        """本机是否在中国大陆。同 ``Utils.locale.is_china()``。"""
+        return LocaleUtils.is_china()
 
 
 __all__ = ["Utils"]

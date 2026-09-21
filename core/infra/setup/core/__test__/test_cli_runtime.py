@@ -72,3 +72,41 @@ def test_install_does_not_ask_trace_permission(
     monkeypatch.setattr("core.infra.trace.Trace.ask_permission", staticmethod(_ask))
     cr.install_cli_runtime(force=True)
     assert asked == []
+
+
+def test_ensure_cli_install_passes_if_needed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.infra.setup.core import cli_runtime as cr
+
+    recorded: dict = {}
+
+    def _run(cmd, cwd=None):
+        recorded["cmd"] = list(cmd)
+        return type("Proc", (), {"returncode": 0})()
+
+    monkeypatch.setattr(cr.subprocess, "run", _run)
+    assert cr.ensure_cli_install_via_install_py() == 0
+    assert recorded["cmd"][-2:] == [str(cr.REPO_ROOT / "install.py"), "--if-needed"]
+
+
+def test_install_py_default_runs_even_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "ntq_install_entry", ir.REPO_ROOT / "install.py"
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    monkeypatch.setattr(mod.Setup.env, "to_root_dir", lambda: None)
+    monkeypatch.setattr(mod.Setup.env, "ensure_venv", lambda **_k: None)
+    monkeypatch.setattr(mod.Setup.runtime, "needs_install", lambda _profile: False)
+    called: list = []
+    monkeypatch.setattr(
+        mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
+    )
+    assert mod.main([]) == 0
+    assert called == [{"force": True}]
+    called.clear()
+    assert mod.main(["--if-needed"]) == 0
+    assert called == []

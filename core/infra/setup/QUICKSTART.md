@@ -24,7 +24,7 @@ if Setup.runtime.needs_install("cli"):
 python install.py      # CLI 安装（显式执行；已装过也会再跑步骤）
 python install.py --userspace /data/ntq --db duckdb
 python install.py --db postgresql --db-host 127.0.0.1 --db-name ntq --db-user postgres --db-password secret
-# 国内自动走清华 PyPI 镜像；可用 USE_CHINA_MIRROR=1/0 强制
+# 国内自动走清华 PyPI / npmmirror；可用 USE_CHINA_MIRROR=1/0 强制（实现：Utils.pkg）
 python launcher.py     # UI 安装 + 启动
 ```
 

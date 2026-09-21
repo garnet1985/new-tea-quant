@@ -15,14 +15,14 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from core.infra.setup.core.env import NewTeaQuantSetup
-from core.infra.setup.core.pip_index import announce_pip_index, pip_net_flags
+from core.infra.utils import Utils
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
 
 def main() -> int:
     print(f"当前机器学习依赖安装解释器: {sys.executable}", file=sys.stderr)
-    announce_pip_index()
+    Utils.pkg.announce()
 
     req = _REPO_ROOT / "requirements-ml.txt"
     if not req.is_file():
@@ -35,7 +35,7 @@ def main() -> int:
         "pip",
         "install",
         "--no-compile",
-        *pip_net_flags(),
+        *Utils.pkg.pip_args(),
         "-r",
         str(req),
     ]

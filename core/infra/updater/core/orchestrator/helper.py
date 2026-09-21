@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.infra.utils import Utils
+
 REMOTE_REPO = ("https://gitee.com/garnet/new-tea-quant", "https://github.com/garnet1985/new-tea-quant")
 VERSION_FILE = "core/system.json"
 UPDATE_PLAN_FILE = "update_plan.json"
@@ -1458,9 +1460,19 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
     skip_root = os.environ.get("NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS", "").strip().lower() in ("1", "true", "yes")
     req = repo_root / "requirements.txt"
     if req.is_file() and not skip_root:
-        cmd: List[str] = [str(py), "-m", "pip", "install", "--no-compile", "--only-binary", "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil", "-r", str(req)]
-        if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
-            cmd.insert(-2, "--no-cache-dir")
+        cmd: List[str] = [
+            str(py),
+            "-m",
+            "pip",
+            "install",
+            "--no-compile",
+            "--only-binary",
+            "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+            *Utils.pkg.pip_args(),
+            "-r",
+            str(req),
+        ]
+        Utils.pkg.announce()
         r = subprocess.run(cmd, cwd=str(repo_root), env=env)
         if r.returncode != 0:
             raise RuntimeError("NTQ updater: pip install -r requirements.txt failed")

@@ -29,6 +29,7 @@ from core.infra.cli.dev.scripts.publish_prep.module_versions import (
 )
 from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
+from core.infra.utils import Utils
 
 REPO_ROOT = ProjectContext.path.get_project_root()
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
@@ -120,7 +121,12 @@ def run_fed_build() -> int:
         return 1
     if not (fed_root / "node_modules").is_dir():
         print("  正在安装 FED 依赖（npm install）…", flush=True)
-        install = subprocess.run(["npm", "install"], cwd=str(fed_root))
+        Utils.pkg.announce()
+        install = subprocess.run(
+            ["npm", "install"],
+            cwd=str(fed_root),
+            env=Utils.pkg.npm_env(),
+        )
         if install.returncode != 0:
             return int(install.returncode or 1)
     env = {**os.environ, "CI": "true"}

@@ -17,29 +17,24 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from core.infra.setup.core.env import NewTeaQuantSetup
-from core.infra.setup.core.pip_index import (
-    announce_pip_index,
-    pip_meets_minimum,
-    pip_net_flags,
-    pip_network_hint,
-)
+from core.infra.utils import Utils
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
 
 def main() -> int:
     print(f"当前依赖安装解释器: {sys.executable}", file=sys.stderr)
-    announce_pip_index()
-    flags = pip_net_flags()
+    Utils.pkg.announce()
+    flags = Utils.pkg.pip_args()
 
-    if pip_meets_minimum((24, 0)):
+    if Utils.pkg.pip_meets_minimum((24, 0)):
         print("pip 已满足最低版本，跳过联网自升级。", file=sys.stderr)
     else:
         print("升级 pip …", file=sys.stderr)
         upgrade = [sys.executable, "-m", "pip", "install", "--upgrade", "pip", *flags]
         upgraded = subprocess.run(upgrade)
-        if upgraded.returncode != 0 and not pip_meets_minimum((21, 0)):
-            print(pip_network_hint(), file=sys.stderr)
+        if upgraded.returncode != 0 and not Utils.pkg.pip_meets_minimum((21, 0)):
+            print(Utils.pkg.pip_hint(), file=sys.stderr)
 
     print("清除 pip cache …", file=sys.stderr)
     subprocess.run([sys.executable, "-m", "pip", "cache", "purge"], check=False)

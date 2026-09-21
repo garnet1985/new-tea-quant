@@ -1,5 +1,5 @@
 # glossary — infra.utils
-# Version: 0.2.1
+# Version: 0.2.2
 
 terms:
   Facade:
@@ -7,10 +7,10 @@ terms:
     aliases:
       - "门面"
     avoid:
-      - "deep-import core.date / core.io / core.math / core.markdown / core.locale"
+      - "deep-import core.date / core.io / core.math / core.markdown / core.locale / core.pkg_index"
 
   Utils:
-    definition: "本模块门面类；挂载 date / types / io / math / markdown / locale。"
+    definition: "本模块门面类；挂载 date / types / io / math / markdown / locale / pkg。"
     aliases: []
     avoid:
       - "DateUtils 当公开入口"

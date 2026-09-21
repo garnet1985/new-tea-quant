@@ -24,6 +24,7 @@ from pathlib import Path
 from core.infra.cmd_layout import CmdLayout
 from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
+from core.infra.utils import Utils
 
 REPO_ROOT = ProjectContext.path.get_project_root()
 BFF_REQUIREMENTS = Setup.env.ui_bff_requirements()
@@ -118,24 +119,55 @@ def _venv_python(venv_dir: Path) -> Path:
     return venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
+def _venv_pip_version(python: Path) -> str:
+    proc = subprocess.run(
+        [str(python), "-c", "from importlib.metadata import version; print(version('pip'))"],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return ""
+    return (proc.stdout or "").strip()
+
+
 def _ensure_venv(venv_dir: Path) -> Path:
     vpy = _venv_python(venv_dir)
     if not vpy.is_file():
         print(f"创建最小环境 venv: {venv_dir}", flush=True)
         builder = venv.EnvBuilder(with_pip=True, clear=True)
         builder.create(venv_dir)
-    pip = venv_dir / ("Scripts/pip.exe" if os.name == "nt" else "bin/pip")
     print(f"安装 BFF 依赖: {BFF_REQUIREMENTS}", flush=True)
     if not BFF_REQUIREMENTS.is_file():
         raise FileNotFoundError(BFF_REQUIREMENTS)
-    subprocess.run(
-        [str(pip), "install", "--upgrade", "pip"],
-        check=True,
+    Utils.pkg.announce()
+    net = Utils.pkg.pip_args()
+    pip_ver = _venv_pip_version(vpy)
+    if Utils.pkg.version_meets(pip_ver, (24, 0)):
+        print(f"pip {pip_ver} 已满足，跳过升级。", flush=True)
+    else:
+        print("正在升级 pip…", flush=True)
+        upgrade = subprocess.run(
+            [str(vpy), "-m", "pip", "install", *net, "--upgrade", "pip"],
+        )
+        if upgrade.returncode != 0:
+            raise RuntimeError("升级 pip 失败\n" + Utils.pkg.pip_hint())
+    print("正在安装 BFF 依赖（已装过会很快）…", flush=True)
+    install = subprocess.run(
+        [
+            str(vpy),
+            "-m",
+            "pip",
+            "install",
+            "--no-compile",
+            "--only-binary",
+            "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+            *net,
+            "-r",
+            str(BFF_REQUIREMENTS),
+        ],
     )
-    subprocess.run(
-        [str(pip), "install", "-r", str(BFF_REQUIREMENTS)],
-        check=True,
-    )
+    if install.returncode != 0:
+        raise RuntimeError("安装 BFF 依赖失败\n" + Utils.pkg.pip_hint())
     return vpy
 
 

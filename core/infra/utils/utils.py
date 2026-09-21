@@ -1,4 +1,4 @@
-"""Utils 门面 — date / types / io / math / markdown / locale。"""
+"""Utils 门面 — date / types / io / math / markdown / locale / pkg。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from core.infra.utils.core.date.date_utils import DateUtils
 from core.infra.utils.core.io.csv_io import CsvIo
 from core.infra.utils.core.io.file_io import FileIo
 from core.infra.utils.core.locale.locale_utils import LocaleUtils
+from core.infra.utils.core.pkg_index import PkgIndex
 from core.infra.utils.core.markdown import MarkdownMgr
 from core.infra.utils.core.math.deterministic_random import DeterministicRandom
 from core.infra.utils.core.type_utils import TypeUtils
@@ -41,6 +42,7 @@ class Utils:
     math = Math
     markdown = MarkdownMgr
     locale = LocaleUtils
+    pkg = PkgIndex
 
     @staticmethod
     def is_china() -> bool:

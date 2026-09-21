@@ -7,6 +7,7 @@ dependencies:
   - infra.cmd_layout
   - infra.project_context
   - infra.trace
+  - infra.utils
 changelog:
   - version: "0.1.1"
     changes:
@@ -14,6 +15,7 @@ changelog:
       - CLI 与 UI 向导共用 .ntq/setup-runtime.json 作为安装完成状态的单一事实来源
       - needs_install 探测当前 venv 是否真有 flask/pandas，避免重建 venv 后仍跳过 pip
       - install.step_failed 区分 db_auth / db_connect / db_config
+      - 依赖声明补上 infra.utils（安装拉包走 Utils.pkg）
   - version: "0.1.0"
     changes:
       - 标准化模块：公开门面 Setup（env / runtime / artifacts / meta / trace / types）

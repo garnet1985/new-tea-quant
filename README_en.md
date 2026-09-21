@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.0-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.1-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -24,15 +24,16 @@ Author: Garnet Xin & his AI companions
 
 Skip the intro and install now? See [Quick install + run a strategy](#quick-start). Other jumps: [Why NTQ](#why) · [Star the project](#star) · [CLI](#cli) · [Tutorials](https://new-tea.cn/zh-hans/more-examples) · [Website](https://new-tea.cn)
 
-## Current version (v0.5.0)
+## Current version (v0.5.1)
 
 Recent updates:
 
-**[v0.5.0](CHANGELOG.md)**
+**[v0.5.1](CHANGELOG.md)**
 
-- **Fourth backtest layer is live: decision simulation.** Sit inside a backtest, make the investment calls yourself, and compare with the machine run.
-- **AI assistant:** in-app chat; you bring your own API key. It can use the built-in NTQ docs.
-- Full list: [CHANGELOG.md](CHANGELOG.md).
+- **Decision notes:** write why you took a position; see it again on the calendar and in holdings.
+- **Faster installs in China:** pip uses the Tsinghua mirror and npm uses npmmirror; elsewhere the official registries are used.
+- **One install status:** `python install.py` and the UI wizard share the same completion state. Pass flags to choose userspace and the database.
+- Full list: [CHANGELOG.md](CHANGELOG.md). Decision simulation and the AI assistant shipped in v0.5.0.
 
 ## What is NTQ?
 
@@ -550,7 +551,7 @@ Prefer an explicit `--strategy`; add `-f` to force recalculation. Demo Tag scena
 ## Upgrade
 
 1. Pull latest **master**, **keep** `userspace/` (created at install — do not overwrite it on upgrade); overwrite the rest.  
-2. Daily UI: `python launcher.py` (installs UI deps if needed). CLI / Python deps only: [`python install.py`](install.py). Upgrade an installed app: `python cli.py u`. If [release notes](CHANGELOG.md) ask for a data re-import, see [Data notes](#data).
+2. Daily UI: `python launcher.py` (installs UI deps if needed; China uses mirrors automatically). CLI / Python deps only: [`python install.py`](install.py) (`--userspace` / `--db` optional). Upgrade an installed app: `python cli.py u`. If [release notes](CHANGELOG.md) ask for a data re-import, see [Data notes](#data). This release has no breaking changes.
 
 ---
 

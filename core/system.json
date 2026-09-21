@@ -1,6 +1,6 @@
 {
-  "version": "0.5.0",
-  "release_date": "2026-09-20",
+  "version": "0.5.1",
+  "release_date": "2026-09-21",
   "description": "版本发布",
   "python": {
     "minimum": [
@@ -9,11 +9,9 @@
     ]
   },
   "new_features": [
-    "全新模拟回测的第四步：决策模拟",
-    "集成AI模型和必要文档（需要自己加入API key进行运行）",
-    "对策略内页加入帮助引导",
-    "资金模拟（第三层内）加入Sharpe和Sortino比率",
-    "Bugfix：修复了一些小的bug"
+    "给决策者模式的每次投资加入笔记的功能，在回溯日历里能看到当时的笔记",
+    "改进了安装或者打包依赖，现在如果发现是国内就使用镜像，大大增加安装速度",
+    "修复了py与python install.py与python launder.py行为和状态不一致的问题"
   ],
   "update_plan": {
     "managed_scope": [

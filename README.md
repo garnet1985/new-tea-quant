@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.0-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.1-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -24,15 +24,16 @@
 
 想跳过介绍、直接安装？请看 [快速安装 + 运行一个策略](#quick-start)。其他入口：[为什么用 NTQ](#why) · [常用命令](#cli) · [教程](https://new-tea.cn/zh-hans/more-examples) · [官网](https://new-tea.cn)
 
-## 当前版本（v0.5.0）
+## 当前版本（v0.5.1）
 
 最近更新摘要：
 
-**[v0.5.0](CHANGELOG.md)**
+**[v0.5.1](CHANGELOG.md)**
 
-- **正式加入回测第四步：决策模拟**：让用户置身于回测过程中来做出投资决策并且和机器回测模拟进行对比。
-- **AI 助理**：应用内对话，需自行配置 API Key；可参考内置 NTQ 文档。
-- 更多更新请参见 [CHANGELOG.md](CHANGELOG.md)。
+- **决策者笔记**：每次投资可写下当时的理由，日历和持仓里能再看到。
+- **安装更快**：国内自动走依赖镜像（pip 清华、npm npmmirror），国外仍走官方源。
+- **安装状态一致**：`python install.py` 与 UI 向导共用同一份完成状态；可用参数指定 userspace 和数据库。
+- 更多更新请参见 [CHANGELOG.md](CHANGELOG.md)。v0.5.0 起已包含决策模拟与 AI 助理。
 
 ## NTQ 是什么？
 
@@ -553,7 +554,7 @@ python cli.py t  --scenario demo/market_cap_tier   # 特征标签
 ## 升级
 
 1. 拉取最新 **master**，**保留** `userspace/`（安装后生成，升级时不要覆盖），其余覆盖。  
-2. 日常打开 UI：`python launcher.py`（会按需补 UI 依赖）。只更新 CLI / Python 依赖：[`python install.py`](install.py)。升级已安装的应用：`python cli.py u`。若[发布说明](CHANGELOG.md)要求重导数据，见上文 [数据说明](#data)。
+2. 日常打开 UI：`python launcher.py`（会按需补 UI 依赖；国内自动走镜像）。只更新 CLI / Python 依赖：[`python install.py`](install.py)（可加 `--userspace` / `--db`）。升级已安装的应用：`python cli.py u`。若[发布说明](CHANGELOG.md)要求重导数据，见上文 [数据说明](#data)。本版无破坏性改动。
 
 ---
 

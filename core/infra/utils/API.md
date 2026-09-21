@@ -1,6 +1,6 @@
 # Utils API 文档
 
-**版本：** `0.2.1`  
+**版本：** `0.2.2`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -108,6 +108,27 @@ from core.infra.utils import Utils
 if Utils.locale.is_china():
     ...
 # 或 Utils.is_china()
+```
+
+### pkg
+
+`Utils.pkg.use_china_mirror() -> bool`  
+`Utils.pkg.pip_args() -> list[str]`  
+`Utils.pkg.npm_env(base: Mapping[str, str] | None = None) -> dict`  
+`Utils.pkg.announce() -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.2`
+- **描述：** pip 与 npm 拉外部依赖的唯一网络策略。优先级：`USE_CHINA_MIRROR=1/0` → `Utils.is_china()` → pypi.org 两秒探不通则镜像。国内：pip 清华、npm npmmirror。`pip_args` 含超时；`npm_env` 写入 `npm_config_registry` 与 fetch 超时。
+- **举例：**
+
+```python
+from core.infra.utils import Utils
+
+Utils.pkg.announce()
+pip_cmd = [sys.executable, "-m", "pip", "install", *Utils.pkg.pip_args(), "-r", "requirements.txt"]
+npm_env = Utils.pkg.npm_env()
 ```
 
 ---

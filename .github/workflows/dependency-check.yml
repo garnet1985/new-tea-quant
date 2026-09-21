@@ -33,9 +33,21 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        # 先尝试安装，看看是否会失败
-        pip install -r requirements.txt || echo "INSTALL_FAILED=true" >> $GITHUB_ENV
+        python - << 'PY'
+        import os
+        import subprocess
+        import sys
+        from core.infra.utils import Utils
+        flags = Utils.pkg.pip_args()
+        code = subprocess.call([sys.executable, "-m", "pip", "install", *flags, "--upgrade", "pip"])
+        if code != 0:
+            raise SystemExit(code)
+        code = subprocess.call([sys.executable, "-m", "pip", "install", *flags, "-r", "requirements.txt"])
+        if code != 0:
+            with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
+                fh.write("INSTALL_FAILED=true\n")
+        PY
+      shell: bash
 
     - name: Run dependency risk detector
       run: |
@@ -49,8 +61,7 @@ jobs:
         Write-Host "Testing Windows installation..."
         python -m venv test-venv
         .\test-venv\Scripts\Activate.ps1
-        pip install --upgrade pip
-        pip install -r requirements.txt --only-binary=:all:
+        python -c "import subprocess,sys; from core.infra.utils import Utils; f=Utils.pkg.pip_args(); raise SystemExit(subprocess.call([sys.executable,'-m','pip','install',*f,'--upgrade','pip']) or subprocess.call([sys.executable,'-m','pip','install',*f,'--only-binary',':all:','-r','requirements.txt']))"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "::error::Windows installation failed with --only-binary mode"
           exit 1

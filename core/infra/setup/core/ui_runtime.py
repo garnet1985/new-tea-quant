@@ -21,6 +21,7 @@ from core.ui.process_cleanup import (
 )
 from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
 from core.infra.cmd_layout import CmdLayout
+from core.infra.utils import Utils
 
 from core.infra.setup.core.install_runtime import (
     REPO_ROOT,
@@ -37,11 +38,6 @@ from core.infra.setup.core.install_runtime import (
     ui_dev_mode,
 )
 from core.infra.setup.core.trace_events import SetupTrace
-from core.infra.setup.core.pip_index import (
-    announce_pip_index,
-    pip_net_flags as _pip_net_flags,
-    pip_network_hint as _pip_network_hint,
-)
 
 FED_ROOT = UI_FED_ROOT
 BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
@@ -105,8 +101,8 @@ def _bootstrap_pip() -> None:
     if _bootstrap_pip_ready():
         print("pip / setuptools / wheel 已满足最低版本，跳过联网自升级。", flush=True)
         return
-    announce_pip_index()
-    cmd = [sys.executable, "-m", "pip", "install", *_pip_net_flags()]
+    Utils.pkg.announce()
+    cmd = [sys.executable, "-m", "pip", "install", *Utils.pkg.pip_args()]
     cmd.extend(["pip>=24.0", "setuptools>=65", "wheel"])
     print("正在安装 pip / setuptools / wheel…", flush=True)
     ret = subprocess.run(cmd, cwd=str(REPO_ROOT))
@@ -118,7 +114,7 @@ def _bootstrap_pip() -> None:
             )
             return
         print(f"{CmdLayout.icon.get('warning')} pip 工具包安装失败，将继续尝试安装 BFF 依赖", flush=True)
-        print(_pip_network_hint(), flush=True)
+        print(Utils.pkg.pip_hint(), flush=True)
 
 
 def _node_toolchain_available() -> bool:
@@ -155,7 +151,7 @@ def check_runtime_prerequisites() -> Tuple[bool, str]:
 
 
 def _pip_install_bff() -> None:
-    announce_pip_index()
+    Utils.pkg.announce()
     pip_cmd = [
         sys.executable,
         "-m",
@@ -164,16 +160,21 @@ def _pip_install_bff() -> None:
         "--no-compile",
         "--only-binary",
         "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
-        *_pip_net_flags(),
+        *Utils.pkg.pip_args(),
         "-r",
         str(BFF_REQUIREMENTS),
     ]
     if subprocess.run(pip_cmd, cwd=str(REPO_ROOT)).returncode != 0:
-        raise RuntimeError("安装 BFF Python 依赖失败\n" + _pip_network_hint())
+        raise RuntimeError("安装 BFF Python 依赖失败\n" + Utils.pkg.pip_hint())
 
 
 def _npm_install_fed() -> None:
-    if subprocess.run(["npm", "install"], cwd=str(FED_ROOT)).returncode != 0:
+    Utils.pkg.announce()
+    if subprocess.run(
+        ["npm", "install"],
+        cwd=str(FED_ROOT),
+        env=Utils.pkg.npm_env(),
+    ).returncode != 0:
         raise RuntimeError("安装 FED Node 依赖失败")
 
 

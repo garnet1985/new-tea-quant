@@ -1,5 +1,5 @@
 # glossary — infra.utils
-# Version: 0.2.0
+# Version: 0.2.1
 
 terms:
   Facade:
@@ -7,10 +7,10 @@ terms:
     aliases:
       - "门面"
     avoid:
-      - "deep-import core.date / core.io / core.math / core.markdown"
+      - "deep-import core.date / core.io / core.math / core.markdown / core.locale"
 
   Utils:
-    definition: "本模块门面类；挂载 date / types / io / math / markdown。"
+    definition: "本模块门面类；挂载 date / types / io / math / markdown / locale。"
     aliases: []
     avoid:
       - "DateUtils 当公开入口"
@@ -23,6 +23,14 @@ terms:
       - "PERIOD_MONTH"
       - "PeriodType"
     avoid: []
+
+  is_china:
+    definition: "本机是否在中国大陆；公开入口 Utils.locale.is_china / Utils.is_china。按时区地名 / zh_CN，不用 UTC+8。"
+    aliases:
+      - "Utils.locale"
+      - "LocaleUtils"
+    avoid:
+      - "按 UTC+8 / CST-8 判断国内"
 
   MarkdownMgr:
     definition: "Markdown 模版 ``{{:token}}`` 填充器；公开入口 Utils.markdown。"

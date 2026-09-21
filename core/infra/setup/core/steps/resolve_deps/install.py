@@ -4,7 +4,6 @@
 """
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,24 +17,30 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.pip_index import (
+    announce_pip_index,
+    pip_meets_minimum,
+    pip_net_flags,
+    pip_network_hint,
+)
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
 
-def _use_china_mirror() -> bool:
-    raw = os.environ.get("USE_CHINA_MIRROR", "").strip().lower()
-    return raw in ("1", "true", "yes")
-
-
 def main() -> int:
     print(f"当前依赖安装解释器: {sys.executable}", file=sys.stderr)
+    announce_pip_index()
+    flags = pip_net_flags()
 
-    # 先升级 pip（确保支持 --only-binary :all:）
-    print("升级 pip …", file=sys.stderr)
-    upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
-    subprocess.run(upgrade_cmd, check=False)
+    if pip_meets_minimum((24, 0)):
+        print("pip 已满足最低版本，跳过联网自升级。", file=sys.stderr)
+    else:
+        print("升级 pip …", file=sys.stderr)
+        upgrade = [sys.executable, "-m", "pip", "install", "--upgrade", "pip", *flags]
+        upgraded = subprocess.run(upgrade)
+        if upgraded.returncode != 0 and not pip_meets_minimum((21, 0)):
+            print(pip_network_hint(), file=sys.stderr)
 
-    # 清除 pip cache（避免使用旧的源码包 metadata）
     print("清除 pip cache …", file=sys.stderr)
     subprocess.run([sys.executable, "-m", "pip", "cache", "purge"], check=False)
 
@@ -50,23 +55,13 @@ def main() -> int:
         "pip",
         "install",
         "--no-compile",
-        "--only-binary", "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+        "--only-binary",
+        "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+        *flags,
         "-r",
         str(req),
     ]
-    if _use_china_mirror():
-        print("使用清华 PyPI 镜像（USE_CHINA_MIRROR=1）", file=sys.stderr)
-        cmd.extend(
-            [
-                "-i",
-                "https://pypi.tuna.tsinghua.edu.cn/simple",
-                "--trusted-host",
-                "pypi.tuna.tsinghua.edu.cn",
-            ]
-        )
-
-    r = subprocess.run(cmd, cwd=str(_REPO_ROOT))
-    return int(r.returncode)
+    return int(subprocess.run(cmd, cwd=str(_REPO_ROOT)).returncode)
 
 
 if __name__ == "__main__":

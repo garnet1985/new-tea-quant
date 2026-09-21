@@ -185,11 +185,19 @@ class NewTeaQuantSetup:
         return Path(__file__).resolve().parent / "steps" / step_name / "install.py"
 
     @classmethod
-    def run_install_script(cls, step_name: str, script_args: Sequence[str] = ()) -> int:
+    def run_install_script(
+        cls,
+        step_name: str,
+        script_args: Sequence[str] = (),
+        extra_env: dict | None = None,
+    ) -> int:
         script = cls.install_script_path(step_name)
         if not script.is_file():
             cls.print_check_item("fail", f"未找到步骤脚本: {script}")
             return 1
+        env = os.environ.copy()
+        if extra_env:
+            env.update({str(key): str(value) for key, value in extra_env.items()})
         cmd = [sys.executable, str(script), *script_args]
-        r = subprocess.run(cmd, cwd=str(cls.repo_root), env=os.environ.copy())
+        r = subprocess.run(cmd, cwd=str(cls.repo_root), env=env)
         return int(r.returncode)

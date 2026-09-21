@@ -113,7 +113,7 @@ function SetupPage() {
     setBootstrapError('');
     Promise.all([getSetupDefinition(), getSetupStatus()])
       .then(([defs, current]) => {
-        if (reinstallAutoStart || !current?.isReady) {
+        if (reinstallAutoStart) {
           return resetSetupStatus()
             .then((fresh) => {
               setDefinition(defs);
@@ -124,7 +124,11 @@ function SetupPage() {
 
         setDefinition(defs);
         setStatus(current);
-        navigate('/welcome', { replace: true });
+        if (current?.isReady) {
+          navigate('/welcome', { replace: true });
+          return undefined;
+        }
+        restoreFlowStage(defs, current);
         return undefined;
       })
       .catch((err) => {

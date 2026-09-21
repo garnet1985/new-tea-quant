@@ -25,6 +25,11 @@ class TestUtilsApi(unittest.TestCase):
         self.assertTrue(hasattr(Utils, "io"))
         self.assertTrue(hasattr(Utils, "math"))
         self.assertTrue(hasattr(Utils, "markdown"))
+        self.assertTrue(hasattr(Utils, "locale"))
+        self.assertTrue(callable(Utils.locale.is_china))
+        self.assertTrue(callable(Utils.is_china))
+        self.assertIsInstance(Utils.locale.is_china(), bool)
+        self.assertEqual(Utils.is_china(), Utils.locale.is_china())
 
     def test_markdown_template_fill(self):
         mgr = Utils.markdown.from_text("t={{:wall_clock_seconds}}")

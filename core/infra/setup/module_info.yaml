@@ -1,12 +1,19 @@
 name: infra.setup
-version: "0.1.0"
+version: "0.1.1"
 compatible_core_versions: ">=0.5.0"
+package: core.infra
 description: "安装域：venv/依赖/userspace/演示数据与 CLI·UI 安装编排。产物工厂与安装步骤均属本模块；CLI 只调用门面。"
 dependencies:
   - infra.cmd_layout
   - infra.project_context
   - infra.trace
 changelog:
+  - version: "0.1.1"
+    changes:
+      - install.py 支持 --userspace / --db 等参数（省略走默认，带了必须按参数执行，失败即停）
+      - CLI 与 UI 向导共用 .ntq/setup-runtime.json 作为安装完成状态的单一事实来源
+      - needs_install 探测当前 venv 是否真有 flask/pandas，避免重建 venv 后仍跳过 pip
+      - install.step_failed 区分 db_auth / db_connect / db_config
   - version: "0.1.0"
     changes:
       - 标准化模块：公开门面 Setup（env / runtime / artifacts / meta / trace / types）

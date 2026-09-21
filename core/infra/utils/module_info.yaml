@@ -1,9 +1,13 @@
 name: infra.utils
-version: 0.2.0
+version: 0.2.1
 compatible_core_versions: ">=0.5.0"
-description: "工具函数模块：提供一些通用的业务无关的工具函数。例如日期处理，类型转换，CSV/归档 IO，确定性随机，Markdown 模版填充等等。"
+package: core.infra
+description: "工具函数模块：提供一些通用的业务无关的工具函数。例如日期处理，类型转换，CSV/归档 IO，确定性随机，Markdown 模版填充，本机区域判断等等。"
 dependencies: []
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 增加 Utils.locale.is_china() / Utils.is_china()：按大陆时区地名 / zh_CN 判断，不用 UTC+8
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

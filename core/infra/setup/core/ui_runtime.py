@@ -32,10 +32,16 @@ from core.infra.setup.core.install_runtime import (
     fed_build_ready,
     mark_runtime,
     needs_install,
+    python_env_id,
     sha256_file,
     ui_dev_mode,
 )
 from core.infra.setup.core.trace_events import SetupTrace
+from core.infra.setup.core.pip_index import (
+    announce_pip_index,
+    pip_net_flags as _pip_net_flags,
+    pip_network_hint as _pip_network_hint,
+)
 
 FED_ROOT = UI_FED_ROOT
 BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
@@ -46,33 +52,11 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
-_PIP_TIMEOUT_SEC = 15
-_PIP_RETRIES = 1
 _BOOTSTRAP_MIN = (
     ("pip", (24, 0)),
     ("setuptools", (65,)),
     ("wheel", (0,)),
 )
-
-
-def _pip_network_hint() -> str:
-    return (
-        "无法连接 PyPI（或超时）。国内网络可先配镜像再重试，例如：\n"
-        "  python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple"
-    )
-
-
-def _pip_net_flags() -> list:
-    flags = [
-        "--disable-pip-version-check",
-        "--timeout",
-        str(_PIP_TIMEOUT_SEC),
-        "--retries",
-        str(_PIP_RETRIES),
-    ]
-    if _env_truthy("NTQ_PIP_NO_CACHE"):
-        flags.append("--no-cache-dir")
-    return flags
 
 
 def _parse_pkg_version(raw: str) -> tuple:
@@ -121,6 +105,7 @@ def _bootstrap_pip() -> None:
     if _bootstrap_pip_ready():
         print("pip / setuptools / wheel 已满足最低版本，跳过联网自升级。", flush=True)
         return
+    announce_pip_index()
     cmd = [sys.executable, "-m", "pip", "install", *_pip_net_flags()]
     cmd.extend(["pip>=24.0", "setuptools>=65", "wheel"])
     print("正在安装 pip / setuptools / wheel…", flush=True)
@@ -170,6 +155,7 @@ def check_runtime_prerequisites() -> Tuple[bool, str]:
 
 
 def _pip_install_bff() -> None:
+    announce_pip_index()
     pip_cmd = [
         sys.executable,
         "-m",
@@ -248,6 +234,7 @@ def install_ui_runtime(force: bool = False) -> None:
         fingerprints: dict = {
             "python": {
                 "uiRequirementsHash": sha256_file(BFF_REQUIREMENTS),
+                "venvId": python_env_id(),
                 "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
         }

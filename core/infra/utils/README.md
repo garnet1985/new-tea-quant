@@ -1,6 +1,6 @@
 # Utils（`infra.utils`）
 
-与业务无关的通用工具：日期、类型/DataFrame、CSV/归档 IO、确定性随机、Markdown 模版填充。
+与业务无关的通用工具：日期、类型/DataFrame、CSV/归档 IO、确定性随机、Markdown 模版填充、本机区域。
 
 ## 布局
 
@@ -13,7 +13,8 @@ core/infra/utils/
 │   ├── type_utils.py   # Utils.types
 │   ├── io/             # Utils.io（CsvIo / FileIo）
 │   ├── math/           # Utils.math
-│   └── markdown/       # Utils.markdown
+│   ├── markdown/       # Utils.markdown
+│   └── locale/         # Utils.locale
 ├── API.md / QUICKSTART.md / glossary.yaml
 ├── __test__/           # 仅 test_api.py
 └── docs/
@@ -27,6 +28,7 @@ core/infra/utils/
 from core.infra.utils import Utils
 
 Utils.date.today()
+Utils.locale.is_china()
 Utils.io.write_dicts_to_csv(path, rows)
 ```
 

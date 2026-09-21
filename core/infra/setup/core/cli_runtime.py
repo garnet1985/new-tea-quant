@@ -85,9 +85,13 @@ def install_cli_runtime(force: bool = False) -> None:
         print(f"开始 CLI 应用安装（共 {len(steps)} 步）…", flush=True)
 
     SetupTrace.ensure_install_id()
+    started = time.monotonic()
+    step_seconds: dict = {}
     for i, step_id in enumerate(steps, start=1):
         NewTeaQuantSetup.print_check_item("running", f"[{i}/{len(steps)}] {step_id}")
+        step_started = time.monotonic()
         code = _run_step(step_id)
+        step_seconds[step_id] = round(max(0.0, time.monotonic() - step_started), 2)
         if code != 0:
             mark_runtime("cli", success=False, failed_step_id=step_id)
             extra = {"exit_code": int(code)}
@@ -101,6 +105,8 @@ def install_cli_runtime(force: bool = False) -> None:
                 success=False,
                 entry="cli",
                 error_code=f"step_failed:{step_id}",
+                elapsed_seconds=time.monotonic() - started,
+                step_seconds=step_seconds,
             )
             raise RuntimeError(f"安装步骤失败: {step_id} (exit={code})")
         if step_id == "init_userspace":
@@ -123,7 +129,12 @@ def install_cli_runtime(force: bool = False) -> None:
             },
         },
     )
-    SetupTrace.install_complete(success=True, entry="cli")
+    SetupTrace.install_complete(
+        success=True,
+        entry="cli",
+        elapsed_seconds=time.monotonic() - started,
+        step_seconds=step_seconds,
+    )
     print("CLI 应用安装完成。", flush=True)
 
 

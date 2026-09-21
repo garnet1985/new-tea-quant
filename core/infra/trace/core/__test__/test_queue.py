@@ -20,6 +20,7 @@ def trace_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.setenv("NTQ_TRACE_ENABLED", "1")
     monkeypatch.delenv("NTQ_TRACE_SKIP", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
     from core.infra.trace.contracts import TraceConfig
     from core.infra.trace.core.services import (

@@ -387,7 +387,12 @@ function InvestDialog({
     : null;
   const picked = Number(row?.pickedShares || 0) > 0;
   return (
-    <Dialog open={open} onClose={onCancel} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={submitting ? undefined : onCancel}
+      maxWidth="sm"
+      fullWidth
+    >
       <DialogTitle>
         投资
         {row ? ` ${opportunityStockLabel(row)}` : ''}
@@ -457,13 +462,12 @@ function InvestDialog({
         ) : null}
       </DialogContent>
       <DialogActions>
+        <Box sx={{ flex: 1 }} />
         {picked ? (
-          <Button color="inherit" onClick={onClear} disabled={submitting}>
+          <Button variant="outlined" onClick={onClear} disabled={submitting}>
             取消本次投资
           </Button>
         ) : null}
-        <Box sx={{ flex: 1 }} />
-        <Button onClick={onCancel} disabled={submitting}>取消</Button>
         <Button variant="contained" onClick={onConfirm} disabled={submitting}>
           确认
         </Button>
@@ -950,7 +954,8 @@ export function DecisionPlaySession({
     const row = investRow;
     if (!row || !strategyKey || !snapshot?.dmId) return;
     const { minLot, lotStep } = lotRule(row);
-    if (!clear) {
+    let clearing = Boolean(clear);
+    if (!clearing) {
       const result = validateShareDraft(shares, minLot, lotStep);
       if (!result.ok) {
         setInvestError(result.message);
@@ -958,23 +963,22 @@ export function DecisionPlaySession({
         return;
       }
       if (result.shares <= 0) {
-        setInvestError('请填写股数');
-        setToast('请填写股数');
-        return;
-      }
-      const occupying = Number(picks[row.id] || 0) > 0;
-      if (!occupying && remainingSlots <= 0) {
-        setInvestError('已达组合上限');
-        setToast('已达组合上限');
-        return;
+        clearing = true;
+      } else {
+        const occupying = Number(picks[row.id] || 0) > 0;
+        if (!occupying && remainingSlots <= 0) {
+          setInvestError('已达组合上限');
+          setToast('已达组合上限');
+          return;
+        }
       }
     }
     setInvestBusy(true);
     try {
       const snap = await pickDecisionShares(strategyKey, snapshot.dmId, {
         localId: row.id,
-        shares: clear ? 0 : Number(shares) || 0,
-        note: clear ? '' : String(note ?? ''),
+        shares: clearing ? 0 : Number(shares) || 0,
+        note: clearing ? '' : String(note ?? ''),
       });
       applyLive(snap, undefined, { keepPicks: false });
       closeInvestDialog();

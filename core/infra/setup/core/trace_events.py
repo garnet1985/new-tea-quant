@@ -24,6 +24,22 @@ def _classify_error(message: str, *, exc: Optional[BaseException] = None) -> str
         return "bad_zip"
     if "未找到 .zip" in text or "未找到任何" in text:
         return "empty_archive"
+    if "password authentication" in lower or "access denied for user" in lower:
+        return "db_auth"
+    if "your_password_here" in lower or "未配置数据库密码" in text:
+        return "db_config"
+    if any(
+        token in lower
+        for token in (
+            "connection refused",
+            "could not connect",
+            "can't connect",
+            "server closed the connection",
+            "connection timed out",
+            "timeout expired",
+        )
+    ):
+        return "db_connect"
     if "数据库不可用" in text:
         return "db_unavailable"
     if "部分表导入失败" in text:

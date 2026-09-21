@@ -102,3 +102,17 @@ def test_install_step_failed_classifies_lock_and_interrupt() -> None:
     assert bodies[0]["error_class"] == "lock"
     assert bodies[1]["error_class"] == "interrupt"
     assert bodies[1]["exc_type"] == "KeyboardInterrupt"
+
+
+def test_install_step_failed_classifies_postgres_auth() -> None:
+    mock_trace = MagicMock()
+    with patch("core.infra.trace.Trace", mock_trace):
+        SetupTrace.install_step_failed(
+            step="db_connection",
+            entry="ui",
+            message="psycopg2.OperationalError: password authentication failed for user \"postgres\"",
+        )
+
+    body = mock_trace.track_setup.call_args.args[1]
+    assert body["error_class"] == "db_auth"
+    assert "password authentication failed" in body["message_safe"]

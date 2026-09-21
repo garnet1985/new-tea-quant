@@ -92,7 +92,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 状态文件、core 版本、userspace、runtime 成功标记、依赖指纹
+- **描述：** 状态文件、core 版本、userspace、runtime 成功标记、依赖指纹；并确认当前解释器能导入关键包（UI: flask，CLI: pandas）。venv 重建后即使旧 `install-state.json` 仍记成功，也会重新安装。
 
 #### cli_install_scope
 
@@ -193,7 +193,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 失败不影响安装。`install_complete` 可带 `elapsed_seconds` 与各步 `step_seconds`（如 `resolve_deps` / `resolve_ml_deps`）。`install_step_failed` 带稳定 `error_class` 与脱敏 `message_safe`。CLI 侧 `app_start` 仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
+- **描述：** 失败不影响安装。`install_complete` 可带 `elapsed_seconds` 与各步 `step_seconds`（如 `resolve_deps` / `resolve_ml_deps`）。`install_step_failed` 带稳定 `error_class`（含 `db_auth` / `db_connect` / `db_config`）与脱敏 `message_safe`（去掉 traceback 栈帧，保留末尾异常行）。CLI 侧 `app_start` 仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
 
 ---
 

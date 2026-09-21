@@ -15,7 +15,7 @@
 | `exc_type` | `RuntimeError` / `OSError` / DuckDB 锁相关类名 |
 | `failed_table` | 当时 `in_progress_table` 或 `部分表导入失败` 列表里的逻辑表名 |
 | `error_class` | 粗分：`lock` / `bad_zip` / `multi_zip` / `empty_archive` / `db_unavailable` / `table_import` / `interrupt` / `other` |
-| `message_safe` | 截断、去路径后的短文案（sanitize 已有长度上限） |
+| `message_safe` | 截断、去路径后的短文案；去掉 traceback 栈帧，优先保留末尾异常行 |
 
 可选：zip 个数、是否 `force`、导入已完成表数 / 总表数。
 

@@ -42,6 +42,7 @@ def test_needs_install_cli_false_when_marked_success(
     monkeypatch.setattr(ir, "STATE_FILE", state_file)
     monkeypatch.setattr(ir, "REQUIREMENTS", req)
     monkeypatch.setattr(ir, "userspace_ready", lambda: True)
+    monkeypatch.setattr(ir, "cli_python_ready", lambda: True)
     assert ir.needs_install("cli") is False
 
 

@@ -12,6 +12,7 @@ _MAX_STRING_LEN = 256
 _MAX_EVENT_NAME_LEN = 64
 _MAX_BODY_DEPTH = 3
 _MAX_BODY_KEYS = 40
+_CARET_LINE = re.compile(r"^[~^ \t]+$")
 
 _BLOCKED_BODY_KEYS = frozenset(
     {
@@ -130,6 +131,34 @@ class TraceSanitizeService:
                 return None
 
     @staticmethod
+    def _compact_diagnostic(text: str) -> str:
+        """Drop traceback frames; keep the exception / check-fail lines.
+
+        Python tracebacks put the useful ``Type: message`` at the end. Taking the
+        first 256 characters of a traceback only keeps ``File … raise SystemExit``.
+        """
+        useful: list[str] = []
+        for raw_line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+            line = raw_line.strip()
+            if not line:
+                continue
+            lower = line.lower()
+            if lower.startswith("traceback (most recent call last)"):
+                continue
+            if lower.startswith("--- traceback"):
+                continue
+            if lower.startswith("file "):
+                continue
+            if _CARET_LINE.fullmatch(line):
+                continue
+            useful.append(line)
+        if not useful:
+            collapsed = " ".join(text.split())
+            return collapsed
+        # Exception / fail line first so a later length cap keeps the cause.
+        return " | ".join(reversed(useful[-4:]))
+
+    @staticmethod
     def message_safe(text: Any, *, max_len: int = 256) -> str:
         raw = str(text or "").strip()
         if not raw:
@@ -151,7 +180,9 @@ class TraceSanitizeService:
         raw = re.sub(r"/Users/[^/\s\"']+", "/Users/<user>", raw)
         raw = re.sub(r"/home/[^/\s\"']+", "/home/<user>", raw)
         raw = re.sub(r"(?i)C:\\Users\\[^\\]+", r"C:\\Users\\<user>", raw)
-        return raw[: max(1, int(max_len))]
+        raw = TraceSanitizeService._compact_diagnostic(raw)
+        limit = max(1, int(max_len))
+        return raw[:limit]
 
     @staticmethod
     def body(

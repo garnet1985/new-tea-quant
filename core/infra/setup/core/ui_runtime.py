@@ -32,6 +32,7 @@ from core.infra.setup.core.install_runtime import (
     fed_build_ready,
     mark_runtime,
     needs_install,
+    python_env_id,
     sha256_file,
     ui_dev_mode,
 )
@@ -233,6 +234,7 @@ def install_ui_runtime(force: bool = False) -> None:
         fingerprints: dict = {
             "python": {
                 "uiRequirementsHash": sha256_file(BFF_REQUIREMENTS),
+                "venvId": python_env_id(),
                 "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
         }

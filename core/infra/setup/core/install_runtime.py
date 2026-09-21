@@ -128,9 +128,7 @@ def _ui_extra_needs(state: Dict[str, Any]) -> bool:
             return True
         return False
 
-    fed_build_state = state.get("fedBuild", {})
-    if fed_build_state.get("buildFingerprint") != fed_build_fingerprint():
-        return True
+    # 生产模式只看产物在不在。指纹变化（例如本地 npm run build）不必重装 pip。
     if not fed_build_ready():
         return True
     return False
@@ -176,7 +174,7 @@ def needs_install(profile: InstallProfileName) -> bool:
     2. ``coreVersion`` 与当前 core 不一致
     3. userspace 未就绪
     4. 对应 profile 的 runtime ``lastStatus`` 非 ``success``
-    5. profile 专有依赖指纹（UI: BFF/FED；CLI: requirements.txt）
+    5. profile 专有依赖指纹（UI 生产：BFF hash + fed/build 存在；UI 开发：lock/node_modules；CLI: requirements.txt）
     """
     state = load_state()
     if not state:

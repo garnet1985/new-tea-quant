@@ -48,7 +48,7 @@ _SKIP_DIR_NAMES = frozenset(
 _SCAN_ROOTS: Tuple[Path, ...] = (
     REPO_ROOT / "core",
     REPO_ROOT / "ci",
-    REPO_ROOT / "userspace",
+    ProjectContext.path.get_userspace_root(),
 )
 
 _ROOT_PY_FILES: Tuple[Path, ...] = (
@@ -66,7 +66,10 @@ class CompatIssue:
     message: str
 
     def format(self) -> str:
-        rel = self.path.relative_to(REPO_ROOT).as_posix()
+        try:
+            rel = self.path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            rel = self.path.as_posix()
         return f"  {rel}:{self.line}: [{self.rule}] {self.message}"
 
 

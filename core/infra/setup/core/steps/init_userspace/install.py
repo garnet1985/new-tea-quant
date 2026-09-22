@@ -4,7 +4,7 @@
 
 行为：
 - 从 initialization/userspace 自动读取唯一 zip 包（没有或有多个都报错）
-- 解压到目标目录（默认 <repo>/userspace）
+- 解压到目标目录（默认 <repo>/userspace，或沿用已有 .ntq/userspace-path.json）
 - 写入 .ntq/userspace-path.json 供 ProjectContext 读取
 """
 from __future__ import annotations
@@ -29,18 +29,10 @@ from core.infra.setup.core.env import NewTeaQuantSetup
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
+from core.infra.project_context.core.path_manager import PathManager
+
 INIT_USERSPACE_DIR = _REPO_ROOT / "initialization" / "userspace"
 STATE_FILE = _REPO_ROOT / ".ntq" / "userspace-path.json"
-
-
-def _default_target_path() -> Path:
-    return (_REPO_ROOT / "userspace").resolve()
-
-
-def _safe_target_path(raw: str | None) -> Path:
-    if not raw or not str(raw).strip():
-        return _default_target_path()
-    return Path(raw).expanduser().resolve()
 
 
 def _resolve_zip() -> Path:
@@ -56,9 +48,10 @@ def _resolve_zip() -> Path:
 def _write_userspace_state(userspace_path: Path) -> None:
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "userspacePath": str(userspace_path),
+        "userspacePath": str(userspace_path.resolve()),
     }
     STATE_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    PathManager.clear_userspace_cache()
 
 
 def _is_userspace_structure_ready(target: Path) -> bool:
@@ -118,7 +111,10 @@ def main() -> int:
     if conflict_policy not in ("skip", "overwrite"):
         conflict_policy = "skip"
     zip_path = _resolve_zip()
-    target = _safe_target_path(target_path)
+    try:
+        target = PathManager.resolve_userspace_target(target_path or None)
+    except (ValueError, PermissionError, OSError) as exc:
+        raise RuntimeError(f"userspace 路径非法或无权限: {exc}") from exc
     if target.exists():
         if conflict_policy == "skip":
             if not _is_userspace_structure_ready(target):

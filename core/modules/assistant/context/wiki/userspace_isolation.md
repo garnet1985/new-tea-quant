@@ -36,7 +36,7 @@ userspace/
     └── updater/
 ```
 
-userspace 根目录按顺序找：环境变量 `NEW_TEA_QUANT_USERSPACE_ROOT` 或 `NTQ_USERSPACE_ROOT` → `.ntq/userspace-path.json` → 项目下的 `userspace/`。
+userspace 根目录按顺序找：环境变量 `NEW_TEA_QUANT_USERSPACE_ROOT` 或 `NTQ_USERSPACE_ROOT` → `.ntq/userspace-path.json` → 项目下的 `userspace/`。已配置路径即使目录尚不存在也按该路径用，不会静默改回项目内 `userspace/`。安装时用 `resolve_userspace_target` 校验可写；路径可含中文与空格。
 
 ## 配置合并
 

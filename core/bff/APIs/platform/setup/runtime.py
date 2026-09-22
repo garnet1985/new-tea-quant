@@ -145,17 +145,19 @@ class SetupRuntimeManager:
     def precheck_userspace_path(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         payload = inputs or {}
         raw_target = str(payload.get("userspaceTargetPath", "")).strip()
-        if raw_target:
-            target = Path(raw_target).expanduser()
-        else:
-            target = ProjectContext.path.get_userspace_root()
+        try:
+            target = ProjectContext.path.resolve_userspace_target(raw_target or None)
+        except (ValueError, PermissionError, OSError) as exc:
+            return {
+                "status": "error",
+                "message": str(exc),
+            }
 
-        exists = target.exists()
         return {
             "status": "ok",
             "message": {
-                "userspacePath": str(target.resolve()),
-                "pathExists": bool(exists),
+                "userspacePath": str(target),
+                "pathExists": bool(target.exists()),
             },
         }
 

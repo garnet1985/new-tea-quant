@@ -70,13 +70,15 @@ class TestPathManager:
         """测试获取 userspace 目录（默认 <root>/userspace；仓库可不自带，由安装创建）"""
         from core.infra.project_context.core.path_manager import PathManager
         fake_root = _fake_repo_with_userspace(tmp_path, with_strategies=True)
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.delenv("NTQ_USERSPACE_ROOT", raising=False)
         monkeypatch.setattr(PathManager, "_root_cache", fake_root)
         ProjectContext.cache.clear_userspace_cache()
         try:
             userspace_dir = ProjectContext.path.get_userspace_root()
 
             assert isinstance(userspace_dir, Path)
-            assert userspace_dir == fake_root / "userspace"
+            assert userspace_dir == (fake_root / "userspace").resolve()
             assert userspace_dir.exists()
             assert (userspace_dir / "strategies").exists()
         finally:
@@ -86,13 +88,17 @@ class TestPathManager:
         """测试获取 config 目录（userspace/system/config）"""
         from core.infra.project_context.core.path_manager import PathManager
         fake_root = _fake_repo_with_userspace(tmp_path, with_strategies=False, with_config=True)
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.delenv("NTQ_USERSPACE_ROOT", raising=False)
         monkeypatch.setattr(PathManager, "_root_cache", fake_root)
         ProjectContext.cache.clear_userspace_cache()
         try:
             config_dir = ProjectContext.path.get_user_config_root()
 
             assert isinstance(config_dir, Path)
-            assert config_dir == fake_root / "userspace" / "system" / "config"
+            assert config_dir == (
+                fake_root / "userspace" / "system" / "config"
+            ).resolve()
             assert config_dir.exists()
         finally:
             ProjectContext.cache.clear_userspace_cache()
@@ -133,12 +139,118 @@ class TestPathManager:
         ntq_tmp = us / ".ntq" / "tmp"
         ntq_tmp.mkdir(parents=True)
 
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.delenv("NTQ_USERSPACE_ROOT", raising=False)
         monkeypatch.setattr(PathManager, "_root_cache", fake_root)
         ProjectContext.cache.clear_userspace_cache()
         try:
             ntq = ProjectContext.path.get_userspace_ntq_directory()
-            assert ntq == us / ".ntq"
+            assert ntq == (us / ".ntq").resolve()
             assert ntq.is_dir()
             assert ProjectContext.path.get_userspace_tmp_directory() == ntq / "tmp"
+        finally:
+            ProjectContext.cache.clear_userspace_cache()
+
+    def test_userspace_missing_configured_path_no_fallback(self, tmp_path, monkeypatch):
+        """已配置但目录不存在时不静默回落。"""
+        import json
+
+        from core.infra.project_context.core.path_manager import PathManager
+
+        fake_root = tmp_path / "repo"
+        fake_root.mkdir()
+        (fake_root / "README.md").touch()
+        external = tmp_path / "外部 目录" / "my us"
+        state = fake_root / ".ntq"
+        state.mkdir()
+        (state / "userspace-path.json").write_text(
+            json.dumps({"userspacePath": str(external)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.delenv("NTQ_USERSPACE_ROOT", raising=False)
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        ProjectContext.cache.clear_userspace_cache()
+        try:
+            got = ProjectContext.path.get_userspace_root()
+            assert got == external.resolve()
+            assert not got.exists()
+            assert got != (fake_root / "userspace").resolve()
+        finally:
+            ProjectContext.cache.clear_userspace_cache()
+
+    def test_userspace_env_and_chinese_space(self, tmp_path, monkeypatch):
+        from core.infra.project_context.core.path_manager import PathManager
+
+        fake_root = tmp_path / "repo"
+        fake_root.mkdir()
+        (fake_root / "README.md").touch()
+        external = tmp_path / "数据空间" / "my userspace"
+        external.mkdir(parents=True)
+        monkeypatch.setenv("NTQ_USERSPACE_ROOT", str(external))
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        ProjectContext.cache.clear_userspace_cache()
+        try:
+            assert ProjectContext.path.get_userspace_root() == external.resolve()
+        finally:
+            ProjectContext.cache.clear_userspace_cache()
+
+    def test_resolve_userspace_target_empty_uses_state(self, tmp_path, monkeypatch):
+        import json
+
+        from core.infra.project_context.core.path_manager import PathManager
+
+        fake_root = tmp_path / "repo"
+        fake_root.mkdir()
+        (fake_root / "README.md").touch()
+        external = tmp_path / "kept us"
+        external.mkdir()
+        state = fake_root / ".ntq"
+        state.mkdir()
+        (state / "userspace-path.json").write_text(
+            json.dumps({"userspacePath": str(external)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.delenv("NTQ_USERSPACE_ROOT", raising=False)
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        ProjectContext.cache.clear_userspace_cache()
+        try:
+            got = ProjectContext.path.resolve_userspace_target(None)
+            assert got == external.resolve()
+        finally:
+            ProjectContext.cache.clear_userspace_cache()
+
+    def test_resolve_userspace_target_rejects_file(self, tmp_path, monkeypatch):
+        from core.infra.project_context.core.path_manager import PathManager
+
+        fake_root = tmp_path / "repo"
+        fake_root.mkdir()
+        (fake_root / "README.md").touch()
+        not_dir = tmp_path / "not_a_dir.txt"
+        not_dir.write_text("x", encoding="utf-8")
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        with pytest.raises(ValueError, match="不是目录"):
+            ProjectContext.path.resolve_userspace_target(not_dir)
+
+    def test_userspace_bad_json_falls_back_default(self, tmp_path, monkeypatch):
+        from core.infra.project_context.core.path_manager import PathManager
+
+        fake_root = tmp_path / "repo"
+        fake_root.mkdir()
+        (fake_root / "README.md").touch()
+        (fake_root / "userspace").mkdir()
+        state = fake_root / ".ntq"
+        state.mkdir()
+        (state / "userspace-path.json").write_text("{not json", encoding="utf-8")
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.delenv("NTQ_USERSPACE_ROOT", raising=False)
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        ProjectContext.cache.clear_userspace_cache()
+        try:
+            assert ProjectContext.path.get_userspace_root() == (
+                fake_root / "userspace"
+            ).resolve()
         finally:
             ProjectContext.cache.clear_userspace_cache()

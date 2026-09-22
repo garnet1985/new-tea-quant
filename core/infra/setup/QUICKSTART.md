@@ -28,7 +28,15 @@ python install.py --db postgresql --db-host 127.0.0.1 --db-name ntq --db-user po
 python launcher.py     # UI 安装 + 启动
 ```
 
-省略 `--userspace` / `--db` 走默认（仓库根下 `userspace/` + DuckDB）。带了参数就必须按参数执行，失败则停止并报错。不询问。
+省略 `--userspace` / `--db` 走默认（已有 `.ntq/userspace-path.json` 则沿用该路径，否则仓库根下 `userspace/` + DuckDB）。带了参数就必须按参数执行，失败则停止并报错。不询问。
+
+含空格或中文的路径请加引号，例如：
+
+```bash
+python install.py --userspace "/data/我的 NTQ/userspace" --db duckdb
+```
+
+`--userspace` 非法或不可写时安装失败，且**不会**写入坏的 `userspace-path.json`。
 
 ---
 

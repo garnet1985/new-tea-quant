@@ -53,8 +53,10 @@ class UserHandlers:
 
     @staticmethod
     def run_app_update() -> int:
-        repo_root = Path(__file__).resolve().parents[4]
-        updater_dir = repo_root / "userspace" / "system" / "updater"
+        from core.infra.project_context import ProjectContext
+
+        repo_root = ProjectContext.path.get_project_root()
+        updater_dir = ProjectContext.path.get_updater_directory()
         if not (updater_dir / "upgrade_entry.py").is_file():
             sys.stderr.write(
                 "未找到升级器 userspace/system/updater。"

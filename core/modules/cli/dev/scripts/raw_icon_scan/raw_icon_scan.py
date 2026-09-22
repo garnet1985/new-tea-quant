@@ -117,7 +117,7 @@ _SKIP_PATH_SUBSTR = (
 
 _SCAN_ROOTS: Tuple[Path, ...] = (
     REPO_ROOT / "core",
-    REPO_ROOT / "userspace",
+    ProjectContext.path.get_userspace_root(),
 )
 
 _ROOT_PY_FILES: Tuple[Path, ...] = (

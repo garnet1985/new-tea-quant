@@ -146,10 +146,10 @@ is_take_profit(ctx, records, *, custom, stage) -> bool
 ## 6. 实施改动面（备忘；除 sample-list 外不实施）
 
 - ~~simulate 指纹前路径 + `to_sample_list`~~ → **已做**
+- ~~Tag 平行 `to_entity_list`（per_entity）~~ → **已做**（不跟 0.6.0 改名绑死）
 - hooks 改名、enumerator/scanner/portfolio/investment 跟名
 - 新建：`Records` / `CalendarSlice` / `Opportunities`；Context 内建 `state`；钩子专用数据不进 ctx
 - userspace demos + 文档；CHANGELOG Breaking + 迁移说明
-- Tag 平行钩子是否跟名：另开
 
 ---
 

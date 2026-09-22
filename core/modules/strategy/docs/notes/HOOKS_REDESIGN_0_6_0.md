@@ -1,7 +1,8 @@
 # StrategyHooks / Context 重构（目标 0.6.0）
 
-**状态：** 设计中，**不在当前版本实施**（破坏性改动）。  
-**范围：** 用户可见钩子改名/删减/新增 + Context 分类（含 `state`）与钩子专用载荷分离。  
+**状态：** 设计中；**钩子改名 / Context 拆分仍不在当前版本实施**。  
+**已提前落地（本轮）：** `to_sample_list` + 指纹前 `SampleListResolver`（DB → sampling → 钩子 → sorted → `execute_fp.scope`）。  
+**范围（0.6.0）：** 用户可见钩子改名/删减 + Context 分类（含 `state`）与钩子专用载荷分离。  
 **相关讨论：** 2026-09 会话（随机策略简化 → 钩子表面 → ctx 与当次数据分离）。
 
 ---
@@ -9,7 +10,7 @@
 ## 1. 为什么等到 0.6.0
 
 - 钩子方法改名 / 删除 / 改签名，所有 userspace `strategy.py` 与文档同步炸裂。
-- 新增 `to_sample_list` 改变指纹前 `entity_ids` 解析路径（`execute_fp.scope`）。
+- ~~新增 `to_sample_list` 改变指纹前 `entity_ids` 解析路径~~ → **已在本轮实现**（见 §5）；完整 `ctx.sample_list` 命名等仍跟 0.6.0。
 - 需与 Context 分类 + 钩子载荷分离一并设计，避免 0.5.x 连改两次。
 
 ---
@@ -134,17 +135,18 @@ is_take_profit(ctx, records, *, custom, stage) -> bool
 - 指纹前按区间查「是否有 bar」成本高，且数据补齐会让 **同 settings 换号**（像环境漂移），不宜塞进 `execute_fp.scope`。
 - 若将来要「只跑有完整数据的票」，做成显式、可配置的预检，并想清楚是进 scope 还是仅运行时跳过。
 
-**现状缺口（实施时要改）**
+**本轮已落地**
 
-今天 `simulate` 用**全市场** list 算指纹，`sampling` 在 enumerator pipeline 里才缩池——scope 与真实扫描池不一致。0.6.0 应把「sampling + `to_sample_list`」挪到**指纹之前**，使 `execute_fp.scope.entity_ids` = 实入池。
+`Strategy.simulate` / DecisionMaker 找 vid：经 `SampleListResolver` 后再算指纹；enumerator 在 `ctx.entity_ids` 非空时**不再**二次 sampling。钩子源码仍进 `env_fp`，`sampling`/`core` 进 `execute_fp`。
 
-约束：钩子确定性；指纹只放实入池；钩子源码→`env_fp`，`sampling`/`core`→`execute_fp`。
+约束：钩子须确定性；返回值与入参取交后排序写入 scope。
 
 ---
 
-## 6. 实施改动面（备忘，不实施）
+## 6. 实施改动面（备忘；除 sample-list 外不实施）
 
-- hooks base、enumerator/scanner/portfolio/investment、simulate 指纹前路径
+- ~~simulate 指纹前路径 + `to_sample_list`~~ → **已做**
+- hooks 改名、enumerator/scanner/portfolio/investment 跟名
 - 新建：`Records` / `CalendarSlice` / `Opportunities`；Context 内建 `state`；钩子专用数据不进 ctx
 - userspace demos + 文档；CHANGELOG Breaking + 迁移说明
 - Tag 平行钩子是否跟名：另开

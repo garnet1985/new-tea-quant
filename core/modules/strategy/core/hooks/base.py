@@ -19,6 +19,17 @@ from core.modules.strategy.core.hooks.hook_params import StrategyContext
 class StrategyHooks(ABC):
     """用户策略 hooks 基类。"""
 
+    def to_sample_list(
+        self, ctx: StrategyContext, stock_list: Sequence[str]
+    ) -> Sequence[str]:
+        """回测开始前调用一次（指纹生成之前）。
+
+        入参 ``stock_list`` 已是 DB 宇宙经 ``settings.sampling`` 过滤后的列表。
+        默认原样返回；覆盖时可做语义过滤（须确定性）。返回值会与入参取交后排序写入指纹。
+        """
+        _ = ctx
+        return list(stock_list or [])
+
     def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
         """Calendar as-of hook（slice_based 使用；entity_based 默认空）。"""
         return CalendarAsOfResult(as_of_date=str(ctx.data.now or ""), stocks=[])
@@ -33,10 +44,6 @@ class StrategyHooks(ABC):
         _ = ctx
         return True
 
-    def on_before_scan(self, ctx: StrategyContext) -> None:
-        """scan 前 hook。"""
-        return None
-
     @abstractmethod
     def has_opportunity(self, ctx: StrategyContext) -> bool:
         """当日该实体是否有交易机会（用户必须实现）。
@@ -45,10 +52,6 @@ class StrategyHooks(ABC):
         逻辑层归因输入用 ``ctx.capture(key, value)``；跨日内存状态用 ``remember`` / ``recall`` / ``forget``。
         """
         pass
-
-    def on_after_scan(self, ctx: StrategyContext) -> None:
-        """scan 后 hook。"""
-        return None
 
     def on_pick_portfolio_member(
         self, ctx: StrategyContext

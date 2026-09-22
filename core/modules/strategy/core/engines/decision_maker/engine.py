@@ -84,6 +84,9 @@ from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
+from core.modules.strategy.core.services.entity_loader.sample_list_resolver import (
+    SampleListResolver,
+)
 from core.modules.strategy.core.services.fingerprint import FingerprintCalculator
 
 logger = logging.getLogger(__name__)
@@ -318,11 +321,17 @@ class DecisionEngine:
         folder = DiscoveryService.resolve_strategy_folder(key_or_id)
         vid = str(version_id or "").strip()
         if not vid:
-            stock_list = GlobalEntityCache.get_stock_list()
+            merged, _ = FingerprintCalculator.merge_settings(info, None)
+            usable = StrategySettings.to_usable(merged)
+            entity_ids = SampleListResolver.resolve(
+                info,
+                usable,
+                universe=GlobalEntityCache.get_stock_list(),
+            )
             fp_res = FingerprintCalculator.calculate_fingerprints(
                 info,
                 None,
-                entity_ids=stock_list,
+                entity_ids=entity_ids,
             )
             found = SimulationVersionStore.find_enum_version(folder, fp_res)
             if not found:

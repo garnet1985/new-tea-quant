@@ -86,6 +86,10 @@ def test_simulate_returns_price_slot_on_cache_hit():
     info = MagicMock()
     info.id.return_value = "demo/rsi"
     info.relative_path = "demo/rsi"
+    info.settings = {}
+    info.hooks_class = None
+    info.hooks_module_path = ""
+    info.key = "demo/rsi"
     cached = {"price_factor": {"version_id": 9, "success": True}}
 
     with patch.object(
@@ -104,6 +108,10 @@ def test_simulate_returns_price_slot_on_cache_hit():
         strategy_module.GlobalEntityCache,
         "get_latest_completed_trading_date",
         return_value="2024-01-01",
+    ), patch.object(
+        strategy_module.SampleListResolver,
+        "resolve",
+        return_value=[],
     ), patch.object(
         strategy_module.FingerprintCalculator,
         "calculate_fingerprints",
@@ -156,6 +164,9 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
     info.unique_relative_path = "demo/rsi"
     info.key = "demo/rsi"
     info.relative_path = "demo/rsi"
+    info.settings = {"core": {"n": 1}}
+    info.hooks_class = None
+    info.hooks_module_path = ""
     step_res = {
         "success": True,
         "version_id": "3",
@@ -179,6 +190,10 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
         strategy_module.GlobalEntityCache,
         "get_latest_completed_trading_date",
         return_value="20240110",
+    ), patch.object(
+        strategy_module.SampleListResolver,
+        "resolve",
+        return_value=["000001.SZ"],
     ), patch.object(
         strategy_module.FingerprintCalculator,
         "calculate_fingerprints",

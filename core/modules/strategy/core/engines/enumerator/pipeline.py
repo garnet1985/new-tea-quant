@@ -100,12 +100,14 @@ class EnumeratorPipeline:
         )
 
         if not stock_ids:
+            # 未走 Strategy.simulate 指纹前解析时的兜底：全宇宙 + sampling
             stock_ids = cls.global_entity_cache.get_stock_ids()
-        stock_ids = cls._resolve_entity_ids(
-            stock_ids,
-            effective_settings_obj,
-            strategy_info.key,
-        )
+            stock_ids = cls._resolve_entity_ids(
+                stock_ids,
+                effective_settings_obj,
+                strategy_info.key,
+            )
+        # else: ctx.entity_ids 已是 sampling + to_sample_list 后的实入池，禁止再采样
 
         report_manager = cls._step_to_begin_report_manager(
             strategy_info=strategy_info,

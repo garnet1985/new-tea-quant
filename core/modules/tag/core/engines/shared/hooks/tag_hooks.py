@@ -3,14 +3,14 @@
 消费者: discovery.TagHooksLoader, TagHookRuntime, slice/entity engines
 
 本文件:
-- TagHooks: calculate_tag / on_calendar_asof
+- TagHooks: to_entity_list / calculate_tag / on_calendar_asof
   边界: 定义 hooks 契约；不负责加载、settings 或引擎编排
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, Sequence, TYPE_CHECKING
 
 from core.modules.tag.core.engines.shared.data_class.calendar_as_of import (
     TagCalendarAsOfResult,
@@ -22,6 +22,18 @@ if TYPE_CHECKING:
 
 class TagHooks(ABC):
     """用户 Tag hooks 基类。"""
+
+    def to_entity_list(
+        self, ctx: "TagContext", entity_list: Sequence[str]
+    ) -> Sequence[str]:
+        """per_entity 开跑前调用一次。
+
+        入参 ``entity_list`` 已是 base ``list_data_key`` 宇宙。
+        默认原样返回；覆盖时可做语义过滤（须确定性）。
+        返回值与入参取交后排序，再套 ``entity_limit``。
+        """
+        _ = ctx
+        return list(entity_list or [])
 
     @abstractmethod
     def calculate_tag(self, ctx: "TagContext") -> Optional[Dict[str, Any]]:

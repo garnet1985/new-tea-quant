@@ -79,7 +79,7 @@ Tag().execute(scenario_name="market_cap_tier")
 
 | 符号 | 说明 |
 |------|------|
-| `TagHooks` / `TagContext` / `TagData` / `TagInfo` | userspace hook 契约 |
+| `TagHooks` / `TagContext` / `TagData` / `TagInfo` | userspace hook 契约（含 `to_entity_list` / `calculate_tag` / `on_calendar_asof`） |
 | `TagCalendarAsOfResult` | slice_based 横截面返回 |
 | `TagUpdateMode` / `TagExecutionMode` | 更新与执行模式枚举 |
 

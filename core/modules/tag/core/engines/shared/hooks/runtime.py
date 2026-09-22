@@ -78,7 +78,7 @@ class TagHookRuntime:
             hooks_cls = getattr(tag_info, "hooks_class", None)
             class_name = str(getattr(tag_info, "hooks_class_name", "") or "").strip()
             if not class_name and hooks_cls is not None:
-                class_name = hooks_cls.__name__
+                class_name = str(getattr(hooks_cls, "__name__", "") or "")
             file_path = str(
                 getattr(tag_info, "hooks_file_path", None)
                 or getattr(tag_info, "tag_file", "")
@@ -122,12 +122,12 @@ class TagHookRuntime:
             return True
         return getattr(impl, "__func__", impl) is not base
 
-    def call(self, method: str, ctx: TagContext) -> Any:
+    def call(self, method: str, ctx: TagContext, **kwargs: Any) -> Any:
         hook = getattr(self.hooks, method, None)
         if not callable(hook):
             raise AttributeError(f"TagHooks has no method {method!r}")
         try:
-            result = hook(ctx)
+            result = hook(ctx, **kwargs) if kwargs else hook(ctx)
             if method == "on_calendar_asof" and not isinstance(
                 result, TagCalendarAsOfResult
             ):
@@ -146,10 +146,10 @@ class TagHookRuntime:
             )
             raise
 
-    def call_if_overridden(self, method: str, ctx: TagContext) -> Any:
+    def call_if_overridden(self, method: str, ctx: TagContext, **kwargs: Any) -> Any:
         if not self.is_overridden(method):
             return None
-        return self.call(method, ctx)
+        return self.call(method, ctx, **kwargs)
 
 
 __all__ = ["TagHookRuntime"]

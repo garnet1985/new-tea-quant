@@ -53,8 +53,7 @@ summary: 回测第一步：每个交易日对每只股票问有没有机会。
 
 ```python
 def has_opportunity(self, ctx: StrategyContext) -> bool:
-    data = ctx.data.items_with_meta()
-    today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+    today = ctx.record_of_today
     if today is None:
         return False
     rsi = today.get("rsi14")  # 来自 settings.data.base.indicators

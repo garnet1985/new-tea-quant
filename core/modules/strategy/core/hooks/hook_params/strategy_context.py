@@ -102,6 +102,15 @@ class StrategyContext:
     def base_data_key(self) -> str:
         return self.settings.data.base_data_key
 
+    @property
+    def record_of_today(self) -> Optional[Dict[str, Any]]:
+        """当日 base bar：``data.items[base_data_key]`` 最后一行；无则 ``None``。"""
+        rows = self.data.items.get(self.base_data_key) or []
+        if not isinstance(rows, list) or not rows:
+            return None
+        record = rows[-1]
+        return record if isinstance(record, dict) else None
+
     def effective_settings_dict(self) -> Dict[str, Any]:
         """settings 的 dict 视图（缓存；热路径勿每 tick 调 ``settings.to_dict()``）。"""
         cached = self._cached_settings_dict

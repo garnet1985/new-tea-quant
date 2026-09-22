@@ -99,7 +99,7 @@ settings = {
 data = ctx.data.items_with_meta()
 klines = data.get(ctx.base_data_key) or []          # 当天及之前，前复权
 finance = data.get("stock.finance.quarterly") or [] # required 里声明的键
-today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+today = ctx.record_of_today
 rsi14 = today.get("rsi14") if today else None       # 单列注入字段 {name}{length}
 ```
 
@@ -426,8 +426,7 @@ def is_stop_loss(self, ctx, *, custom, stage):
 
 def is_take_profit(self, ctx, *, custom, stage):
     if custom == "rsi_overbought":
-        data = ctx.data.items_with_meta()
-        today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+        today = ctx.record_of_today
         rsi = None if today is None else today.get("rsi14")
         return rsi is not None and rsi > 70
     return False

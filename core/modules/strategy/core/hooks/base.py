@@ -89,15 +89,7 @@ class StrategyHooks(ABC):
         )
 
     # ── scan 辅助原语 ──
-
-    @staticmethod
-    def get_record_of_today(
-        data: Dict[str, Any],
-        *,
-        base_data_key: str,
-    ) -> Optional[Dict[str, Any]]:
-        rows = data.get(base_data_key) or []
-        return rows[-1] if rows else None
+    # 当日 bar 用 ``ctx.record_of_today``（见 StrategyContext）。
 
     @staticmethod
     def signal_date(record_of_today: Dict[str, Any]) -> str:

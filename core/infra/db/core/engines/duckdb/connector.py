@@ -282,6 +282,7 @@ class _DuckDBTransactionCursor:
     def __init__(self, conn: Any) -> None:
         self._conn = conn
         self.rowcount = 0
+        self._result = None
 
     def execute(self, query: str, params: Any = None) -> None:
         q = query.replace("%s", "?") if "%s" in query else query
@@ -289,10 +290,16 @@ class _DuckDBTransactionCursor:
             rel = self._conn.execute(q, params)
         else:
             rel = self._conn.execute(q)
+        self._result = rel
         try:
             self.rowcount = int(rel.rowcount) if rel is not None else 0
         except Exception:
             self.rowcount = 0
+
+    def fetchone(self):
+        if self._result is None:
+            return None
+        return self._result.fetchone()
 
 
 class _DuckDBConnectionWrapper:

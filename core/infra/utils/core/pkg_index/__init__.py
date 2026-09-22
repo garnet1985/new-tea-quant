@@ -1,20 +1,28 @@
 """pip / npm 源：国内走镜像，国外走官方。
 
 优先级：``USE_CHINA_MIRROR=1/0`` → ``LocaleUtils.is_china()`` → pypi.org 短探不通则镜像。
+国内 pip 默认中科大，失败再试清华 / 阿里云，最后回退官方 PyPI。
 公开入口：``Utils.pkg``。
 """
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import urllib.error
 import urllib.request
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Sequence
 
 from core.infra.utils.core.locale.locale_utils import LocaleUtils
 
-PYPI_MIRROR = "https://pypi.tuna.tsinghua.edu.cn/simple"
-PYPI_MIRROR_HOST = "pypi.tuna.tsinghua.edu.cn"
+# (index_url, trusted_host, 展示名)
+CHINA_PIP_INDEXES: tuple[tuple[str, str, str], ...] = (
+    ("https://pypi.mirrors.ustc.edu.cn/simple", "pypi.mirrors.ustc.edu.cn", "中科大"),
+    ("https://pypi.tuna.tsinghua.edu.cn/simple", "pypi.tuna.tsinghua.edu.cn", "清华"),
+    ("https://mirrors.aliyun.com/pypi/simple", "mirrors.aliyun.com", "阿里云"),
+)
+PYPI_MIRROR = CHINA_PIP_INDEXES[0][0]
+PYPI_MIRROR_HOST = CHINA_PIP_INDEXES[0][1]
 PYPI_PROBE_URL = "https://pypi.org/simple/pip/"
 NPM_MIRROR = "https://registry.npmmirror.com"
 NPM_OFFICIAL = "https://registry.npmjs.org"
@@ -30,6 +38,7 @@ class PkgIndex:
 
     PYPI_MIRROR = PYPI_MIRROR
     PYPI_MIRROR_HOST = PYPI_MIRROR_HOST
+    CHINA_PIP_INDEXES = CHINA_PIP_INDEXES
     NPM_MIRROR = NPM_MIRROR
     NPM_OFFICIAL = NPM_OFFICIAL
 
@@ -74,7 +83,7 @@ class PkgIndex:
         return bool(PkgIndex._auto_cache)
 
     @staticmethod
-    def pip_args() -> list:
+    def _base_pip_flags() -> list:
         flags = [
             "--disable-pip-version-check",
             "--timeout",
@@ -84,9 +93,63 @@ class PkgIndex:
         ]
         if PkgIndex._env_flag("NTQ_PIP_NO_CACHE") is True:
             flags.append("--no-cache-dir")
-        if PkgIndex.use_china_mirror():
+        return flags
+
+    @staticmethod
+    def pip_args(
+        *,
+        index_url: Optional[str] = None,
+        trusted_host: Optional[str] = None,
+    ) -> list:
+        """单次 pip 的网络参数。默认国内用主镜像；也可传入指定 ``index_url``。"""
+        flags = PkgIndex._base_pip_flags()
+        if index_url:
+            host = trusted_host or index_url.split("//", 1)[-1].split("/", 1)[0]
+            flags.extend(["-i", index_url, "--trusted-host", host])
+        elif PkgIndex.use_china_mirror():
             flags.extend(["-i", PYPI_MIRROR, "--trusted-host", PYPI_MIRROR_HOST])
         return flags
+
+    @staticmethod
+    def _pip_attempt_labels() -> list[tuple[str, list]]:
+        """``(label, net_flags)``；国内按镜像列表再加官方，国外仅官方。"""
+        base = PkgIndex._base_pip_flags()
+        if not PkgIndex.use_china_mirror():
+            return [("官方 PyPI", base)]
+        out: list[tuple[str, list]] = []
+        for url, host, name in CHINA_PIP_INDEXES:
+            out.append((f"国内镜像（{name}）", base + ["-i", url, "--trusted-host", host]))
+        out.append(("官方 PyPI", base))
+        return out
+
+    @staticmethod
+    def run_pip(
+        pip_argv: Sequence[str],
+        *,
+        cwd: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+        python: Optional[str] = None,
+    ) -> int:
+        """
+        执行 ``python -m pip <pip_argv>``，并注入超时等网络参数。
+
+        ``pip_argv`` 不要自带 ``-i`` / ``--trusted-host`` / ``--timeout`` / ``--retries``。
+        国内环境会按中科大 → 清华 → 阿里云 → 官方依次重试。
+        """
+        exe = python or sys.executable
+        last = 1
+        run_env = dict(env) if env is not None else None
+        for idx, (label, net) in enumerate(PkgIndex._pip_attempt_labels()):
+            if pip_argv and pip_argv[0] in ("install", "download", "wheel", "list", "index"):
+                cmd = [exe, "-m", "pip", pip_argv[0], *net, *pip_argv[1:]]
+            else:
+                cmd = [exe, "-m", "pip", *net, *pip_argv]
+            if idx > 0:
+                print(f"上一个源失败，改用 {label} 重试…", file=sys.stderr, flush=True)
+            last = int(subprocess.run(cmd, cwd=cwd, env=run_env).returncode or 0)
+            if last == 0:
+                return 0
+        return last
 
     @staticmethod
     def npm_env(base: Optional[Mapping[str, str]] = None) -> dict:
@@ -117,7 +180,7 @@ class PkgIndex:
         forced = PkgIndex._env_flag("USE_CHINA_MIRROR")
         if forced is True:
             print(
-                "使用国内镜像（pip: 清华，npm: npmmirror）（USE_CHINA_MIRROR=1）",
+                "使用国内镜像（pip: 中科大等，npm: npmmirror）（USE_CHINA_MIRROR=1）",
                 file=sys.stderr,
                 flush=True,
             )
@@ -128,7 +191,7 @@ class PkgIndex:
         if PkgIndex.use_china_mirror():
             if LocaleUtils.is_china():
                 print(
-                    "检测到国内环境，pip 使用清华镜像，npm 使用 npmmirror",
+                    "检测到国内环境，pip 使用中科大镜像（失败会自动换源），npm 使用 npmmirror",
                     file=sys.stderr,
                     flush=True,
                 )

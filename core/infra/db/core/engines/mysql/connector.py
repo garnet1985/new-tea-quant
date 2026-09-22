@@ -71,6 +71,8 @@ class MysqlConnector:
             'charset': self.config.get('charset', 'utf8mb4'),
             'autocommit': self.config.get('autocommit', True),
             'cursorclass': DictCursor,
+            # 覆盖导入走 LOAD DATA LOCAL INFILE，需客户端显式打开。
+            'local_infile': True,
         }
         return pymysql.connect(**conn_params)
 

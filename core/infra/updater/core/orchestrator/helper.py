@@ -1460,21 +1460,21 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
     skip_root = os.environ.get("NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS", "").strip().lower() in ("1", "true", "yes")
     req = repo_root / "requirements.txt"
     if req.is_file() and not skip_root:
-        cmd: List[str] = [
-            str(py),
-            "-m",
-            "pip",
-            "install",
-            "--no-compile",
-            "--only-binary",
-            "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
-            *Utils.pkg.pip_args(),
-            "-r",
-            str(req),
-        ]
         Utils.pkg.announce()
-        r = subprocess.run(cmd, cwd=str(repo_root), env=env)
-        if r.returncode != 0:
+        r = Utils.pkg.run_pip(
+            [
+                "install",
+                "--no-compile",
+                "--only-binary",
+                "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+                "-r",
+                str(req),
+            ],
+            cwd=str(repo_root),
+            env=env,
+            python=str(py),
+        )
+        if r != 0:
             raise RuntimeError("NTQ updater: pip install -r requirements.txt failed")
 
     snippet = (

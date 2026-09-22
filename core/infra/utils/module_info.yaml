@@ -7,7 +7,7 @@ dependencies: []
 changelog:
   - version: "0.2.2"
     changes:
-      - Utils.pkg 统一 pip / npm 依赖源：国内清华与 npmmirror，国外官方；USE_CHINA_MIRROR 可强制
+      - Utils.pkg 统一 pip / npm 依赖源：国内默认中科大（失败自动换清华/阿里云/官方），npm 用 npmmirror；USE_CHINA_MIRROR 可强制
   - version: "0.2.1"
     changes:
       - 增加 Utils.locale.is_china() / Utils.is_china()：按大陆时区地名 / zh_CN 判断，不用 UTC+8

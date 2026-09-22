@@ -31,7 +31,7 @@ Recent updates:
 **[v0.5.1](CHANGELOG.md)**
 
 - **Decision notes:** write why you took a position; see it again on the calendar and in holdings.
-- **Faster installs in China:** pip uses the Tsinghua mirror and npm uses npmmirror; elsewhere the official registries are used.
+- **Faster installs in China:** pip uses China mirrors (USTC first, with fallbacks) and npm uses npmmirror; elsewhere the official registries are used.
 - **One install status:** `python install.py` and the UI wizard share the same completion state. Pass flags to choose userspace and the database.
 - Full list: [CHANGELOG.md](CHANGELOG.md). Decision simulation and the AI assistant shipped in v0.5.0.
 

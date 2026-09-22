@@ -109,18 +109,36 @@ is_take_profit(ctx, records, *, custom, stage) -> bool
 
 ---
 
-## 5. `to_sample_list` 与指纹（已拍板）
+## 5. `to_sample_list` 与指纹（流水线定稿）
+
+与现有 `settings.sampling`（`StockSampler`：uniform / pool / blacklist / …）的关系：
 
 ```text
-GlobalEntityCache / DB 宇宙
-  → to_sample_list(ctx, stock_list)
-  → ∩ DB 真实可进回测
-  → sorted unique
-  → ctx.sample_list + execute_fp.scope.entity_ids
+1. DB / GlobalEntityCache 得到全市场 stock_list
+2. settings.sampling 过滤（use_sampling=False 则跳过）
+3. to_sample_list(ctx, stock_list)     # 回测只调一次；语义过滤
+4. （可选）∩「DB 有数据」——默认不做，见下
+5. sorted unique → 钉进 scope / ctx.sample_list → 算 execute_fp
 ```
 
-约束：确定性；指纹只放实入池；源码→env_fp，参数→execute_fp；与 `on_calendar_slice` 分工不变。  
-`watch_list` 叠加顺序：**仍待定**。
+**分工**
+
+| 步 | 谁 | 干什么 |
+|----|-----|--------|
+| sampling | 配置声明 | 机械缩池：抽 N 只、白名单、黑名单、seed 随机 |
+| `to_sample_list` | 策略代码 | 语义过滤：板块、规则、演示宇宙等（须确定性） |
+
+**关于第 4 步「和 DB 有数据取交」：建议默认不做。**
+
+- `GlobalEntityCache.get_stock_list()` 已是库侧可用宇宙；扫到无 K 线时引擎本就会跳过。
+- 指纹前按区间查「是否有 bar」成本高，且数据补齐会让 **同 settings 换号**（像环境漂移），不宜塞进 `execute_fp.scope`。
+- 若将来要「只跑有完整数据的票」，做成显式、可配置的预检，并想清楚是进 scope 还是仅运行时跳过。
+
+**现状缺口（实施时要改）**
+
+今天 `simulate` 用**全市场** list 算指纹，`sampling` 在 enumerator pipeline 里才缩池——scope 与真实扫描池不一致。0.6.0 应把「sampling + `to_sample_list`」挪到**指纹之前**，使 `execute_fp.scope.entity_ids` = 实入池。
+
+约束：钩子确定性；指纹只放实入池；钩子源码→`env_fp`，`sampling`/`core`→`execute_fp`。
 
 ---
 
@@ -137,8 +155,9 @@ GlobalEntityCache / DB 宇宙
 
 - [x] ~~核心 UX~~ → **「我知道的」= 稳定 ctx；「要我操作的」= 显式入参**；禁止 ctx 里按钩子时有时无的 data 口袋
 - [x] ~~State 是否独立于 Context~~ → **否**；`ctx.state` 是 Context 的一类
+- [x] ~~`watch_list` / sampling ↔ `to_sample_list` 顺序~~ → **DB → settings.sampling → 钩子 →（默认不做有数据交）→ 指纹**
+- [ ] `scanner.watch_list` 是否并入 sampling 之前的配置过滤（与 pool 策略如何并存）
 - [ ] `ctx.state` 与现有 `remember` / `capture` 的边界（state 存跨日；capture 仍归因？）
 - [ ] `on_calendar_slice` 是否完全放弃 `session_state`（现 `CalendarAsOfResult`）？
-- [ ] `watch_list` ↔ `to_sample_list` 顺序
 - [ ] `is_stop_loss`：保留 `custom`/`stage` 还是引入 `GoalCheck`？
 - [ ] 类型命名：`Records` vs `data`；`sample_list` vs `stock_list`

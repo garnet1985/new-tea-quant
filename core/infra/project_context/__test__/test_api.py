@@ -39,6 +39,7 @@ class TestApi(unittest.TestCase):
             "get_python",
             "get_core_root",
             "get_userspace_root",
+            "resolve_userspace_target",
             "get_strategies_root",
             "get_tags_root",
             "get_strategy_directory",

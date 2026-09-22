@@ -64,6 +64,12 @@ class PathNamespace:
         return PathManager.get_userspace_root()
 
     @staticmethod
+    def resolve_userspace_target(raw: Optional[Union[str, Path]] = None) -> Path:
+        """安装 / precheck：规范化并校验可写性"""
+        from .path_manager import PathManager
+        return PathManager.resolve_userspace_target(raw)
+
+    @staticmethod
     def get_extensions_root() -> Path:
         """获取 extensions 目录"""
         from .path_manager import PathManager

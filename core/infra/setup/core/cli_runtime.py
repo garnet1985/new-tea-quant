@@ -55,7 +55,9 @@ def _run_step(step_id: str, options: Optional[CliInstallOptions] = None) -> int:
 
 
 def _default_userspace_path() -> str:
-    return str((REPO_ROOT / "userspace").resolve())
+    from core.infra.project_context import ProjectContext
+
+    return str(ProjectContext.path.resolve_userspace_target(None))
 
 
 def _userspace_root_after_init(options: CliInstallOptions) -> Path:

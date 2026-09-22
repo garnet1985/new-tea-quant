@@ -72,8 +72,13 @@ def remote_repo_label(repo_base: str) -> str:
 
 
 def update_bundle_dir(repo_root: Path) -> Path:
-    """缓存 zip、staging 等：``<repo>/userspace/.ntq/update``。"""
-    return (repo_root / "userspace" / ".ntq" / "update").resolve()
+    """缓存 zip、staging 等：``userspace/.ntq/update``（经 ProjectContext）。"""
+    try:
+        from core.infra.project_context import ProjectContext
+
+        return (ProjectContext.path.get_userspace_ntq_directory() / "update").resolve()
+    except Exception:
+        return (repo_root / "userspace" / ".ntq" / "update").resolve()
 
 
 PRE_MIRROR_CORE_TABLE_SCHEMAS_FILE = "pre_mirror_core_table_schemas.json"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# NTQ 用户 CLI。与 python cli.py -h 相同；维护请改 core/infra/cli/user/help_text.py
+# NTQ 用户 CLI。与 python cli.py -h 相同；维护请改 core/modules/cli/user/help_text.py
 #
 # 规则: xx=命令  -f/-n=全局  --xx=对象参数
 #
@@ -23,7 +23,7 @@ _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from core.infra.cli import Cli
+from core.modules.cli import Cli
 
 # venv 重入尽量在导入重依赖之前（Cli.user.* 为 lazy import）
 Cli.user.ensure_venv(__file__)

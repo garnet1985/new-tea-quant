@@ -28,9 +28,10 @@
 ## 2. 路径
 
 - **项目根：** 自包路径向上查找根标记（`.git`、`pyproject.toml` 等），命中后缓存；否则 fallback 父链。
-- **userspace 优先级：** `NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。
+- **userspace 优先级：** `NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。已配置路径不要求目录已存在，禁止静默回落。
+- **安装校验：** `resolve_userspace_target(raw)`（仅安装 / precheck）做 `expanduser().resolve()` + 可写性检查；失败抛错且不写坏 json。空 `raw` 沿用已有 json。中文 / 空格路径经 pathlib 支持；json 写盘 `ensure_ascii=False`。
 - **策略根：** `coerce_strategy_folder` — 绝对 discovered folder 原样返回；相对 id 拼到 `userspace/strategies/`。
-- **命名：** `get_xxx_root` / `get_xxx_directory` / `get_xxx_path`；仿真目录用 `get_strategy_simulation_{price,portfolio,enum}_directory`；Tag 门面用 `get_tag_directory`。
+- **命名：** 运行时只用 `get_userspace_root`；安装校验只用 `resolve_userspace_target`。不另设近义别名。其余仍 `get_xxx_root` / `get_xxx_directory` / `get_xxx_path`。
 - **备份数据：** `get_backup_data_directory` → `userspace/system/backup/data/`。
 
 ---

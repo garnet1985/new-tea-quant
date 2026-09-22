@@ -783,8 +783,8 @@ class DbBaseModel:
     ) -> int:
         """在已清空的目标表上逐文件导入。
 
-        DuckDB / PostgreSQL 且表里没有 JSON 列时，把 CSV 直接交给数据库。
-        MySQL 的 LOAD DATA 会隐式提交，含 JSON 列的归档仍可能是 Python repr，这两类继续走批量 INSERT。
+        DuckDB / PostgreSQL / MySQL 且表里没有 JSON 列时，把 CSV 直接交给数据库。
+        含 JSON 列的归档仍可能是 Python repr，继续走批量 INSERT。
         """
         db_type = db_dialect.normalize_database_type(self.db.config)
         from core.infra.db.core.table_queriers.csv_bulk_import import (
@@ -793,7 +793,7 @@ class DbBaseModel:
             schema_has_json,
         )
 
-        if db_type != "mysql" and not schema_has_json(self.schema):
+        if not schema_has_json(self.schema):
             return import_archives(
                 cursor,
                 database_type=db_type,
@@ -951,8 +951,8 @@ class DbBaseModel:
     ) -> None:
         """
         overwrite：按需建目标表、TRUNCATE（或回退 DELETE）清空，再把 CSV 交给数据库装入。
-        DuckDB 用 read_csv，PostgreSQL 用 COPY。MySQL，以及含 JSON 列的表，仍走批量 INSERT。
-        target 与源不同名时见 `_ensure_import_target_with_cursor`。
+        DuckDB 用 read_csv，PostgreSQL 用 COPY，MySQL 用 LOAD DATA LOCAL INFILE。
+        含 JSON 列的表仍走批量 INSERT。target 与源不同名时见 `_ensure_import_target_with_cursor`。
         """
         if mode not in ("overwrite", "replace"):
             raise ValueError(f"未知导入模式: {mode}")

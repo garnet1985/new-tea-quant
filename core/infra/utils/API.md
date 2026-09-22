@@ -114,20 +114,21 @@ if Utils.locale.is_china():
 
 `Utils.pkg.use_china_mirror() -> bool`  
 `Utils.pkg.pip_args() -> list[str]`  
+`Utils.pkg.run_pip(pip_argv, *, cwd=None, env=None, python=None) -> int`  
 `Utils.pkg.npm_env(base: Mapping[str, str] | None = None) -> dict`  
 `Utils.pkg.announce() -> None`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.2`
-- **描述：** pip 与 npm 拉外部依赖的唯一网络策略。优先级：`USE_CHINA_MIRROR=1/0` → `Utils.is_china()` → pypi.org 两秒探不通则镜像。国内：pip 清华、npm npmmirror。`pip_args` 含超时；`npm_env` 写入 `npm_config_registry` 与 fetch 超时。
+- **描述：** pip 与 npm 拉外部依赖的唯一网络策略。优先级：`USE_CHINA_MIRROR=1/0` → `Utils.is_china()` → pypi.org 两秒探不通则镜像。国内：pip 默认中科大（`run_pip` 失败会换清华 / 阿里云 / 官方）、npm npmmirror。`pip_args` 含超时；`npm_env` 写入 `npm_config_registry` 与 fetch 超时。
 - **举例：**
 
 ```python
 from core.infra.utils import Utils
 
 Utils.pkg.announce()
-pip_cmd = [sys.executable, "-m", "pip", "install", *Utils.pkg.pip_args(), "-r", "requirements.txt"]
+code = Utils.pkg.run_pip(["install", "-r", "requirements.txt"])
 npm_env = Utils.pkg.npm_env()
 ```
 

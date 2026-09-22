@@ -25,15 +25,13 @@ NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 def main() -> int:
     print(f"当前依赖安装解释器: {sys.executable}", file=sys.stderr)
     Utils.pkg.announce()
-    flags = Utils.pkg.pip_args()
 
     if Utils.pkg.pip_meets_minimum((24, 0)):
         print("pip 已满足最低版本，跳过联网自升级。", file=sys.stderr)
     else:
         print("升级 pip …", file=sys.stderr)
-        upgrade = [sys.executable, "-m", "pip", "install", "--upgrade", "pip", *flags]
-        upgraded = subprocess.run(upgrade)
-        if upgraded.returncode != 0 and not Utils.pkg.pip_meets_minimum((21, 0)):
+        upgraded = Utils.pkg.run_pip(["install", "--upgrade", "pip"])
+        if upgraded != 0 and not Utils.pkg.pip_meets_minimum((21, 0)):
             print(Utils.pkg.pip_hint(), file=sys.stderr)
 
     print("清除 pip cache …", file=sys.stderr)
@@ -44,19 +42,17 @@ def main() -> int:
         print(f"错误: 未找到 requirements.txt: {req}", file=sys.stderr)
         return 1
 
-    cmd: list[str] = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--no-compile",
-        "--only-binary",
-        "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
-        *flags,
-        "-r",
-        str(req),
-    ]
-    return int(subprocess.run(cmd, cwd=str(_REPO_ROOT)).returncode)
+    return Utils.pkg.run_pip(
+        [
+            "install",
+            "--no-compile",
+            "--only-binary",
+            "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+            "-r",
+            str(req),
+        ],
+        cwd=str(_REPO_ROOT),
+    )
 
 
 if __name__ == "__main__":

@@ -28,26 +28,22 @@ def test_ensure_venv_skips_pip_upgrade_and_uses_index_flags(
     monkeypatch.setattr(mic, "BFF_REQUIREMENTS", req)
     monkeypatch.setattr(mic, "_venv_pip_version", lambda _python: "26.0.1")
     monkeypatch.setattr(mic.Utils.pkg, "announce", staticmethod(lambda: None))
-    monkeypatch.setattr(
-        mic.Utils.pkg,
-        "pip_args",
-        staticmethod(lambda: ["--timeout", "15", "-i", "https://mirror/simple"]),
-    )
 
-    calls: list[list[str]] = []
+    calls: list[tuple] = []
 
-    def _run(cmd, **_kwargs):
-        calls.append(list(cmd))
-        return type("Proc", (), {"returncode": 0})()
+    def _run_pip(argv, **kwargs):
+        calls.append((list(argv), kwargs.get("python")))
+        return 0
 
-    monkeypatch.setattr(mic.subprocess, "run", _run)
+    monkeypatch.setattr(mic.Utils.pkg, "run_pip", staticmethod(_run_pip))
     assert mic._ensure_venv(venv_dir) == python
     assert len(calls) == 1
-    assert calls[0][0].endswith("python")
-    assert "--upgrade" not in calls[0]
-    assert "--timeout" in calls[0]
-    assert "-r" in calls[0]
-    assert str(req) in calls[0]
+    argv, py = calls[0]
+    assert argv[0] == "install"
+    assert "--upgrade" not in argv
+    assert "-r" in argv
+    assert str(req) in argv
+    assert py == str(python)
 
 
 def test_ui_minimal_import_smoke() -> None:

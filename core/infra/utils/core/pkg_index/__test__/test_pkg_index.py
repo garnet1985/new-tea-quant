@@ -65,3 +65,20 @@ def test_overseas_falls_back_to_mirror_when_pypi_blocked(
     monkeypatch.setattr(PkgIndex, "pypi_reachable", staticmethod(lambda: False))
     assert PkgIndex.use_china_mirror() is True
     assert PkgIndex.npm_env({})["npm_config_registry"] == PkgIndex.NPM_MIRROR
+
+
+def test_run_pip_retries_next_china_mirror(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("USE_CHINA_MIRROR", "1")
+    calls: list[list[str]] = []
+
+    def _run(cmd, **_kwargs):
+        calls.append(list(cmd))
+        # first attempt fails, second succeeds
+        code = 0 if len(calls) > 1 else 1
+        return type("Proc", (), {"returncode": code})()
+
+    monkeypatch.setattr("core.infra.utils.core.pkg_index.subprocess.run", _run)
+    assert PkgIndex.run_pip(["install", "xgboost>=2.0"]) == 0
+    assert len(calls) == 2
+    assert "pypi.mirrors.ustc.edu.cn" in " ".join(calls[0])
+    assert "pypi.tuna.tsinghua.edu.cn" in " ".join(calls[1])

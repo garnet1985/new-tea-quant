@@ -102,11 +102,9 @@ def _bootstrap_pip() -> None:
         print("pip / setuptools / wheel 已满足最低版本，跳过联网自升级。", flush=True)
         return
     Utils.pkg.announce()
-    cmd = [sys.executable, "-m", "pip", "install", *Utils.pkg.pip_args()]
-    cmd.extend(["pip>=24.0", "setuptools>=65", "wheel"])
     print("正在安装 pip / setuptools / wheel…", flush=True)
-    ret = subprocess.run(cmd, cwd=str(REPO_ROOT))
-    if ret.returncode != 0:
+    ret = Utils.pkg.run_pip(["install", "pip>=24.0", "setuptools>=65", "wheel"], cwd=str(REPO_ROOT))
+    if ret != 0:
         if _bootstrap_pip_ready():
             print(
                 f"{CmdLayout.icon.get('warning')} pip 工具包联网安装失败，本地版本已可用，继续。",
@@ -152,19 +150,20 @@ def check_runtime_prerequisites() -> Tuple[bool, str]:
 
 def _pip_install_bff() -> None:
     Utils.pkg.announce()
-    pip_cmd = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--no-compile",
-        "--only-binary",
-        "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
-        *Utils.pkg.pip_args(),
-        "-r",
-        str(BFF_REQUIREMENTS),
-    ]
-    if subprocess.run(pip_cmd, cwd=str(REPO_ROOT)).returncode != 0:
+    if (
+        Utils.pkg.run_pip(
+            [
+                "install",
+                "--no-compile",
+                "--only-binary",
+                "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+                "-r",
+                str(BFF_REQUIREMENTS),
+            ],
+            cwd=str(REPO_ROOT),
+        )
+        != 0
+    ):
         raise RuntimeError("安装 BFF Python 依赖失败\n" + Utils.pkg.pip_hint())
 
 

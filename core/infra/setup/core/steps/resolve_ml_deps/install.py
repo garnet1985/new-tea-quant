@@ -2,7 +2,6 @@
 """安装可选机器学习依赖（requirements-ml.txt：xgboost、shap）。"""
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
@@ -29,17 +28,10 @@ def main() -> int:
         print(f"错误: 未找到 requirements-ml.txt: {req}", file=sys.stderr)
         return 1
 
-    cmd: list[str] = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--no-compile",
-        *Utils.pkg.pip_args(),
-        "-r",
-        str(req),
-    ]
-    return int(subprocess.run(cmd, cwd=str(_REPO_ROOT)).returncode)
+    return Utils.pkg.run_pip(
+        ["install", "--no-compile", "-r", str(req)],
+        cwd=str(_REPO_ROOT),
+    )
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ changelog:
       - 标准化模块，标准化文档以及对外API
       - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
       - 正式版本之前所有API标注beta状态
-      - 覆盖导入：DuckDB / PostgreSQL 直接读 CSV，不再先转成 Python 字典；MySQL 与含 JSON 列的表仍批量 INSERT
+      - 覆盖导入：DuckDB / PostgreSQL / MySQL 均直接读 CSV（read_csv / COPY / LOAD DATA LOCAL INFILE）；含 JSON 列的表仍批量 INSERT
   - version: "0.3.0"
     changes:
       - 引擎引入duckdb以及一系列解析器

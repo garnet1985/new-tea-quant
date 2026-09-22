@@ -30,6 +30,7 @@ class TestUtilsApi(unittest.TestCase):
         self.assertTrue(callable(Utils.locale.is_china))
         self.assertTrue(callable(Utils.pkg.use_china_mirror))
         self.assertTrue(callable(Utils.pkg.pip_args))
+        self.assertTrue(callable(Utils.pkg.run_pip))
         self.assertTrue(callable(Utils.pkg.npm_env))
         self.assertTrue(callable(Utils.is_china))
         self.assertIsInstance(Utils.locale.is_china(), bool)

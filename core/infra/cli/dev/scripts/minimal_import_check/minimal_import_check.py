@@ -140,33 +140,28 @@ def _ensure_venv(venv_dir: Path) -> Path:
     if not BFF_REQUIREMENTS.is_file():
         raise FileNotFoundError(BFF_REQUIREMENTS)
     Utils.pkg.announce()
-    net = Utils.pkg.pip_args()
     pip_ver = _venv_pip_version(vpy)
     if Utils.pkg.version_meets(pip_ver, (24, 0)):
         print(f"pip {pip_ver} 已满足，跳过升级。", flush=True)
     else:
         print("正在升级 pip…", flush=True)
-        upgrade = subprocess.run(
-            [str(vpy), "-m", "pip", "install", *net, "--upgrade", "pip"],
-        )
-        if upgrade.returncode != 0:
+        if Utils.pkg.run_pip(["install", "--upgrade", "pip"], python=str(vpy)) != 0:
             raise RuntimeError("升级 pip 失败\n" + Utils.pkg.pip_hint())
     print("正在安装 BFF 依赖（已装过会很快）…", flush=True)
-    install = subprocess.run(
-        [
-            str(vpy),
-            "-m",
-            "pip",
-            "install",
-            "--no-compile",
-            "--only-binary",
-            "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
-            *net,
-            "-r",
-            str(BFF_REQUIREMENTS),
-        ],
-    )
-    if install.returncode != 0:
+    if (
+        Utils.pkg.run_pip(
+            [
+                "install",
+                "--no-compile",
+                "--only-binary",
+                "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+                "-r",
+                str(BFF_REQUIREMENTS),
+            ],
+            python=str(vpy),
+        )
+        != 0
+    ):
         raise RuntimeError("安装 BFF 依赖失败\n" + Utils.pkg.pip_hint())
     return vpy
 

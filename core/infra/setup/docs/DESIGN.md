@@ -12,7 +12,7 @@
 
 - 安装逻辑只写在 `core/infra/setup/`
 - `cli.py` / `devcli.py` 安装相关只调用 `Setup.*`；应用升级走 `userspace/system/updater` / `Updater`
-- 禁止 `infra.setup` import `core.infra.cli`
+- 禁止 `infra.setup` import `core.modules.cli`
 - 禁止 setup 实现升级编排（见 `infra.updater`）
 - 产物 zip 落在 `initialization/userspace/`、`initialization/data/`
 

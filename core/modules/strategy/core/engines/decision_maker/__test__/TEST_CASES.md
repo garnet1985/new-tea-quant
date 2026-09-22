@@ -19,7 +19,7 @@
 **不负责**
 
 - `Strategy` 公开 Facade（见模块根 `__test__/test_api.py`）
-- CLI 缩写解析（见 `core/infra/cli/user/__test__`）
+- CLI 缩写解析（见 `core/modules/cli/user/__test__`）
 - 连 DuckDB 的现场 K 线 / 名称查找
 
 **允许的测试类型（本目录）：** `unit`

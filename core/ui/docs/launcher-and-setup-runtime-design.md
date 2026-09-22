@@ -36,10 +36,10 @@
 
 ### UI 最小依赖 import 冒烟（CI / 本地）
 
-`python -m core.infra.cli.dev.scripts.minimal_import_check`（或 `python devcli.py ic`）在**仅安装**
+`python -m core.modules.cli.dev.scripts.minimal_import_check`（或 `python devcli.py ic`）在**仅安装**
 `core/bff/requirements.txt` 的隔离 venv 中，逐条 import launcher 与 BFF 冷启动链。CI：`minimal-ui-imports`。
 
-开发快捷入口：`devcli.py`；脚本位于 `core/infra/cli/dev/scripts/`。清理：`devcli.py uk`、`cgc`（仅 userspace/.ntq）、`csc`。
+开发快捷入口：`devcli.py`；脚本位于 `core/modules/cli/dev/scripts/`。清理：`devcli.py uk`、`cgc`（仅 userspace/.ntq）、`csc`。
 
 ## 3.1 launcher.py（唯一入口）
 

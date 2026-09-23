@@ -1,6 +1,6 @@
 # Utils API 文档
 
-**版本：** `0.2.0`  
+**版本：** `0.2.2`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -16,7 +16,7 @@
 
 ## Utils
 
-**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math` / `markdown`
+**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math` / `markdown` / `locale`
 
 ### date
 
@@ -90,6 +90,46 @@ from core.infra.utils import Utils
 mgr = Utils.markdown.load_template("REPORT_TEMPLATE.md")
 mgr.fill("wall_clock_seconds", "3s")
 mgr.save("out/REPORT.md")
+```
+
+### locale
+
+`Utils.locale.is_china() -> bool`（同 `Utils.is_china()`）
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 本机是否在中国大陆。只认大陆时区地名（`Asia/Shanghai` 等）或 `zh_CN`，**不用** UTC+8（Perth / Singapore 为假）。不含网络探测。
+- **举例：**
+
+```python
+from core.infra.utils import Utils
+
+if Utils.locale.is_china():
+    ...
+# 或 Utils.is_china()
+```
+
+### pkg
+
+`Utils.pkg.use_china_mirror() -> bool`  
+`Utils.pkg.pip_args() -> list[str]`  
+`Utils.pkg.run_pip(pip_argv, *, cwd=None, env=None, python=None) -> int`  
+`Utils.pkg.npm_env(base: Mapping[str, str] | None = None) -> dict`  
+`Utils.pkg.announce() -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.2`
+- **描述：** pip 与 npm 拉外部依赖的唯一网络策略。优先级：`USE_CHINA_MIRROR=1/0` → `Utils.is_china()` → pypi.org 两秒探不通则镜像。国内：pip 默认中科大（`run_pip` 失败会换清华 / 阿里云 / 官方）、npm npmmirror。`pip_args` 含超时；`npm_env` 写入 `npm_config_registry` 与 fetch 超时。
+- **举例：**
+
+```python
+from core.infra.utils import Utils
+
+Utils.pkg.announce()
+code = Utils.pkg.run_pip(["install", "-r", "requirements.txt"])
+npm_env = Utils.pkg.npm_env()
 ```
 
 ---

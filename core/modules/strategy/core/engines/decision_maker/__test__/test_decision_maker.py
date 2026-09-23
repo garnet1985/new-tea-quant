@@ -519,7 +519,7 @@ def test_calendar_journal_records_opps_and_fills(tmp_path: Path):
     assert by_date["20240103"]["opp_count"] == 1
     assert by_date["20240103"]["actions"] == []
     assert "20240115" not in by_date
-    engine.set_pick(1, 1000)
+    engine.set_pick(1, 1000, note="  看好放量  ")
     engine.done()
     engine.next()
     by_date = {row["date"]: row for row in engine.calendar_journal()}
@@ -527,9 +527,11 @@ def test_calendar_journal_records_opps_and_fills(tmp_path: Path):
     assert buys[0]["shares"] == 1000
     assert buys[0]["amount"] == pytest.approx(10_000)
     assert buys[0]["name"] == "浦发银行"
+    assert buys[0]["note"] == "看好放量"
     sells = [row for row in by_date["20240110"]["actions"] if row["side"] == "sell"]
     assert sells[0]["shares"] == 1000
     assert sells[0]["amount"] == pytest.approx(11_000)
+    assert "note" not in sells[0]
     assert by_date["20240110"]["opp_count"] == 0
     assert "20240115" not in by_date
     engine.done()
@@ -701,11 +703,34 @@ def test_skips_buy_day_when_already_holding_same_entity(tmp_path: Path):
 def test_resume_same_id_after_quit(tmp_path: Path):
     events = [_buy("20240103", "600000.SH", "a", 10.0)]
     engine = _engine(tmp_path, events)
-    engine.set_pick(1, 200)
+    engine.set_pick(1, 200, note="试仓")
     engine.save()
     again = _engine(tmp_path, events, dm_id="1")
     assert again.draft[1] == 200
+    assert again.draft_notes[1] == "试仓"
     assert again.current_date == "20240103"
+
+
+def test_buy_note_stays_on_draft_then_trade_and_holdings(tmp_path: Path):
+    engine = _engine(tmp_path, [_buy("20240103", "600000.SH", "a", 10.0)], dm_id="note")
+    engine.set_pick(1, 100, note="第一印象")
+    engine.set_pick(1, 200)
+    assert engine.draft[1] == 200
+    assert engine.draft_notes[1] == "第一印象"
+    engine.set_pick(1, 200, note="  ")
+    assert 1 not in engine.draft_notes
+    engine.set_pick(1, 200, note="分批")
+    engine.reset()
+    assert engine.draft == {}
+    assert engine.draft_notes == {}
+    engine.set_pick(1, 200, note="分批")
+    engine.done()
+    engine.reset(keep_draft=True)
+    assert engine.draft_notes[1] == "分批"
+    engine._commit_draft()
+    buy = next(item for item in engine.trades if item.is_buy())
+    assert buy.note == "分批"
+    assert engine.holdings()[0].note == "分批"
 
 
 def test_holdings_show_declared_goals_not_future_date(tmp_path: Path):

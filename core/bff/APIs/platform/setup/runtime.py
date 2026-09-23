@@ -10,16 +10,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.contracts import (
-    DEFAULT_DUCKDB_DOMAINS,
-    DUCKDB_DOMAIN_FILES,
-)
+from core.infra.project_context.contracts import DUCKDB_DOMAIN_FILES
 from core.infra.setup import Setup
-from core.infra.setup.core.pipeline_state import sync_definition_into_state, wants_skip_input
+from core.infra.setup.core.db_install_config import write_database_install_config
+from core.infra.setup.core.pipeline_state import wants_skip_input
+from core.infra.setup.core import setup_session
 from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
+STATE_FILE = setup_session.STATE_FILE
 # 这些步骤会在子进程里打开 DuckDB；BFF 若仍握着同一文件会 Conflicting lock。
 _STEPS_NEED_EXCLUSIVE_DUCKDB = frozenset({"db_connection", "import_data"})
 
@@ -49,14 +48,23 @@ class SetupRuntimeManager:
         script = REPO_ROOT / "core" / "infra" / "setup" / "core" / "steps" / "resolve_ml_deps" / "install.py"
         if not script.is_file():
             return self._error("SETUP_ML_EXTRAS_MISSING", f"脚本不存在: {script}")
+        started = time.monotonic()
         proc = subprocess.run(
             [sys_executable(), str(script)],
             cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
         )
+        elapsed = time.monotonic() - started
         if proc.returncode != 0:
             msg = (proc.stderr or proc.stdout or "").strip()[-600:] or "机器学习依赖安装失败"
+            Setup.trace.install_complete(
+                success=False,
+                entry="ui",
+                error_code="step_failed:resolve_ml_deps",
+                elapsed_seconds=elapsed,
+                step_seconds={"resolve_ml_deps": elapsed},
+            )
             return self._error("SETUP_ML_EXTRAS_FAILED", msg)
 
         with self._lock:
@@ -67,10 +75,19 @@ class SetupRuntimeManager:
                 self._get_step_state(state, step["id"]) == self.STATUS_SUCCESS
                 for step in definition
             )
+            self._record_step_seconds(state, "resolve_ml_deps", elapsed)
             self._bump_version(state)
             self._save_state(state)
+        if state.get("isReady"):
+            Setup.runtime.mark_cli_ready()
         payload = self._ml_extras_payload()
         payload["installedNow"] = True
+        Setup.trace.install_complete(
+            success=True,
+            entry="ui",
+            elapsed_seconds=elapsed,
+            step_seconds={"resolve_ml_deps": elapsed},
+        )
         return {"status": "ok", "message": payload}
 
     def start(self) -> Dict[str, Any]:
@@ -128,17 +145,19 @@ class SetupRuntimeManager:
     def precheck_userspace_path(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         payload = inputs or {}
         raw_target = str(payload.get("userspaceTargetPath", "")).strip()
-        if raw_target:
-            target = Path(raw_target).expanduser()
-        else:
-            target = ProjectContext.path.get_userspace_root()
+        try:
+            target = ProjectContext.path.resolve_userspace_target(raw_target or None)
+        except (ValueError, PermissionError, OSError) as exc:
+            return {
+                "status": "error",
+                "message": str(exc),
+            }
 
-        exists = target.exists()
         return {
             "status": "ok",
             "message": {
-                "userspacePath": str(target.resolve()),
-                "pathExists": bool(exists),
+                "userspacePath": str(target),
+                "pathExists": bool(target.exists()),
             },
         }
 
@@ -233,6 +252,7 @@ class SetupRuntimeManager:
                     success=False,
                     entry="ui",
                     error_code=f"step_failed:{step_id}",
+                    **self._timing_kwargs(state),
                 )
                 return {
                     "status": "ok",
@@ -245,9 +265,12 @@ class SetupRuntimeManager:
                 }
 
         state["isReady"] = all(self._get_step_state(state, s["id"]) == self.STATUS_SUCCESS for s in definition)
+        state["installSource"] = "ui"
         self._bump_version(state)
         self._save_state(state)
-        Setup.trace.install_complete(success=True, entry="ui")
+        if state["isReady"]:
+            Setup.runtime.mark_cli_ready()
+        Setup.trace.install_complete(success=True, entry="ui", **self._timing_kwargs(state))
         return {
             "status": "ok",
             "message": {
@@ -260,12 +283,14 @@ class SetupRuntimeManager:
         step_id = step["id"]
         step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
         if wants_skip_input(step_inputs):
+            self._mark_step_skipped(state, step_id)
             self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
             self._save_state(state)
             return True, ""
 
         self._set_step_state(state, step_id, self.STATUS_RUNNING, "")
         self._save_state(state)
+        step_started = time.monotonic()
 
         try:
             db_existed_before = None
@@ -303,6 +328,7 @@ class SetupRuntimeManager:
                 capture_output=True,
                 text=True,
             )
+            self._record_step_seconds(state, step_id, time.monotonic() - step_started)
             if proc.returncode != 0:
                 msg = (proc.stderr or proc.stdout or "").strip()[-600:] or f"{step_id} 执行失败"
                 self._set_step_state(state, step_id, self.STATUS_FAILED, msg)
@@ -336,6 +362,7 @@ class SetupRuntimeManager:
                 SetupTrace.ensure_install_id()
             return True, ""
         except Exception as e:  # pragma: no cover
+            self._record_step_seconds(state, step_id, time.monotonic() - step_started)
             msg = str(e)
             log_degraded("setup.executeStep", e, step_id)
             self._set_step_state(state, step_id, self.STATUS_FAILED, msg)
@@ -351,52 +378,10 @@ class SetupRuntimeManager:
     def _prepare_inputs_for_step(self, state: Dict[str, Any], step_id: str, inputs: Dict[str, Any]) -> None:
         if step_id != "db_connection":
             return
-        db_type = str((inputs or {}).get("dbType", "duckdb")).strip().lower() or "duckdb"
-        if db_type not in ("postgresql", "mysql", "duckdb"):
-            db_type = "duckdb"
-
-        userspace_root = self._resolve_userspace_root(state)
-        db_cfg_dir = userspace_root / "system" / "config" / "database"
-        db_cfg_dir.mkdir(parents=True, exist_ok=True)
-
-        common_json = db_cfg_dir / "common.json"
-        common_payload = {"database_type": db_type}
-        common_json.write_text(json.dumps(common_payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        detail_json = db_cfg_dir / f"{db_type}.json"
-        if db_type == "duckdb":
-            if not detail_json.is_file():
-                detail_json.write_text(
-                    json.dumps({"domains": dict(DEFAULT_DUCKDB_DOMAINS)}, ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
-            return
-
-        wrapper: Dict[str, Any] = {
-            db_type: {
-                "host": (inputs or {}).get("host", ""),
-                "port": int((inputs or {}).get("port", 5432 if db_type == "postgresql" else 3306)),
-                "database": (inputs or {}).get("database", ""),
-                "user": (inputs or {}).get("user", ""),
-                "password": (inputs or {}).get("password", ""),
-            }
-        }
-        if db_type == "postgresql":
-            wrapper[db_type]["default_pgsql_schema"] = (inputs or {}).get("defaultPgsqlSchema", "public") or "public"
-        detail_json.write_text(json.dumps(wrapper, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_database_install_config(self._resolve_userspace_root(state), inputs or {})
 
     def _new_state(self, definition: List[Dict[str, Any]]) -> Dict[str, Any]:
-        return {
-            "sessionId": f"setup_{int(time.time())}",
-            "version": 1,
-            "isReady": False,
-            "stepStates": [
-                {"stepId": step["id"], "status": self.STATUS_NOT_STARTED, "errorMessage": ""}
-                for step in definition
-            ],
-            "inputsByStep": {},
-            "noticesByStep": {},
-        }
+        return setup_session.new_state(definition)
 
     def _build_snapshot(self, state: Dict[str, Any]) -> Dict[str, Any]:
         return {
@@ -409,22 +394,15 @@ class SetupRuntimeManager:
         }
 
     def _load_state(self) -> Dict[str, Any]:
-        if not STATE_FILE.is_file():
-            return self._new_state(self.get_definition())
         try:
-            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            return setup_session.load_state(self.get_definition())
         except Exception as exc:
             log_degraded("setup.runtimeStateRead", exc, str(STATE_FILE))
             return self._new_state(self.get_definition())
-        state, mutated = sync_definition_into_state(self.get_definition(), state)
-        if mutated:
-            self._save_state(state)
-        return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
         with self._lock:
-            STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            setup_session.save_state(state)
 
     def _set_step_state(self, state: Dict[str, Any], step_id: str, status: str, err: str) -> None:
         for item in state.get("stepStates", []):
@@ -444,6 +422,28 @@ class SetupRuntimeManager:
 
     def _bump_version(self, state: Dict[str, Any]) -> None:
         state["version"] = int(state.get("version", 1)) + 1
+
+    def _record_step_seconds(self, state: Dict[str, Any], step_id: str, elapsed: float) -> None:
+        timings = state.setdefault("stepSeconds", {})
+        timings[str(step_id)] = round(max(0.0, float(elapsed)), 2)
+
+    def _mark_step_skipped(self, state: Dict[str, Any], step_id: str) -> None:
+        skipped = state.setdefault("skippedSteps", [])
+        name = str(step_id)
+        if name and name not in skipped:
+            skipped.append(name)
+
+    @staticmethod
+    def _timing_kwargs(state: Dict[str, Any]) -> Dict[str, Any]:
+        steps = dict(state.get("stepSeconds") or {})
+        skipped = list(state.get("skippedSteps") or [])
+        elapsed = sum(float(v) for v in steps.values() if isinstance(v, (int, float)))
+        out: Dict[str, Any] = {"elapsed_seconds": round(max(0.0, elapsed), 2)}
+        if steps:
+            out["step_seconds"] = steps
+        if skipped:
+            out["skipped"] = skipped
+        return out
 
     def _release_bff_duckdb_for_setup_subprocess(self) -> None:
         """安装子进程写库前，关掉 BFF 进程里已打开的 DuckDB，避免文件锁冲突。"""

@@ -30,11 +30,8 @@ class OpportunityFactory:
         signal_snapshot: Optional[Dict[str, Any]] = None,
     ) -> Optional[Opportunity]:
         """当日无 base bar 返回 None。"""
-        rows = ctx.data.items.get(ctx.base_data_key) or []
-        if not isinstance(rows, list) or not rows:
-            return None
-        record = rows[-1]
-        if not isinstance(record, dict) or not record:
+        record = ctx.record_of_today
+        if not record:
             return None
         stock_info = dict(ctx.data.entity_info) if ctx.data.entity_info else {}
         snapshot = dict(signal_snapshot) if isinstance(signal_snapshot, dict) else {}

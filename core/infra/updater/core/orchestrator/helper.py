@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.infra.utils import Utils
+
 REMOTE_REPO = ("https://gitee.com/garnet/new-tea-quant", "https://github.com/garnet1985/new-tea-quant")
 VERSION_FILE = "core/system.json"
 UPDATE_PLAN_FILE = "update_plan.json"
@@ -70,8 +72,20 @@ def remote_repo_label(repo_base: str) -> str:
 
 
 def update_bundle_dir(repo_root: Path) -> Path:
-    """缓存 zip、staging 等：``<repo>/userspace/.ntq/update``。"""
-    return (repo_root / "userspace" / ".ntq" / "update").resolve()
+    """缓存 zip、staging 等：``userspace/.ntq/update``。
+
+    仅当 ``repo_root`` 即当前 ProjectContext 项目根时走自定义 userspace；
+    否则（单测 / 异根）回退 ``<repo_root>/userspace/.ntq/update``。
+    """
+    root = repo_root.resolve()
+    try:
+        from core.infra.project_context import ProjectContext
+
+        if ProjectContext.path.get_project_root().resolve() == root:
+            return (ProjectContext.path.get_userspace_ntq_directory() / "update").resolve()
+    except Exception:
+        pass
+    return (root / "userspace" / ".ntq" / "update").resolve()
 
 
 PRE_MIRROR_CORE_TABLE_SCHEMAS_FILE = "pre_mirror_core_table_schemas.json"
@@ -1458,11 +1472,21 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
     skip_root = os.environ.get("NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS", "").strip().lower() in ("1", "true", "yes")
     req = repo_root / "requirements.txt"
     if req.is_file() and not skip_root:
-        cmd: List[str] = [str(py), "-m", "pip", "install", "--no-compile", "--only-binary", "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil", "-r", str(req)]
-        if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
-            cmd.insert(-2, "--no-cache-dir")
-        r = subprocess.run(cmd, cwd=str(repo_root), env=env)
-        if r.returncode != 0:
+        Utils.pkg.announce()
+        r = Utils.pkg.run_pip(
+            [
+                "install",
+                "--no-compile",
+                "--only-binary",
+                "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+                "-r",
+                str(req),
+            ],
+            cwd=str(repo_root),
+            env=env,
+            python=str(py),
+        )
+        if r != 0:
             raise RuntimeError("NTQ updater: pip install -r requirements.txt failed")
 
     snippet = (

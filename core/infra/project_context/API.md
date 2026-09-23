@@ -45,15 +45,18 @@
   - `get_sys_python`：系统解释器（`sys._base_executable` / `base_prefix`；当前不在 venv 内时即本进程解释器）。
   - `get_python`：优先已存在的 venv 解释器。`allow_sys_fallback=True`（默认）时回退 `get_sys_python()`；`False` 且 venv 不存在时抛 `FileNotFoundError`。
 
-#### get_core_root / get_userspace_root
+#### get_core_root / get_userspace_root / resolve_userspace_target
 
 `ProjectContext.path.get_core_root() -> Path`  
-`ProjectContext.path.get_userspace_root() -> Path`
+`ProjectContext.path.get_userspace_root() -> Path`  
+`ProjectContext.path.resolve_userspace_target(raw: str | Path | None = None) -> Path`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.2.0`
-- **描述：** `core/`；userspace（优先级：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`）
+- **引入版本：** `0.2.0`（`resolve_userspace_target`：`0.6.x`）
+- **描述：**
+  - `get_userspace_root`：运行时 SOT。优先级：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。已配置路径即使目录尚不存在也直接返回，**不**静默回落。
+  - `resolve_userspace_target`：仅安装 / BFF precheck。规范化为绝对路径并校验可写；`raw` 为空时沿用已有 json，否则默认 `<repo>/userspace`；失败抛 `ValueError` / `PermissionError`。
 
 #### coerce_strategy_folder
 

@@ -288,17 +288,20 @@ def _draft_lines(engine: Any) -> List[Dict[str, Any]]:
         if opp is None:
             continue
         price = float(getattr(opp, "entry_price_raw", 0.0) or 0.0)
-        lines.append(
-            {
-                "local_id": int(getattr(opp, "local_id", lid) or lid),
-                "entity_id": str(getattr(opp, "entity_id", "") or ""),
-                "name": str(getattr(opp, "name", "") or ""),
-                "status_tags": _status_tags(getattr(opp, "status_tags", None)),
-                "shares": shares,
-                "entry_price": price,
-                "notional": float(shares) * price,
-            }
-        )
+        notes = dict(getattr(engine, "draft_notes", None) or {})
+        note = str(notes.get(int(lid), "") or "").strip()
+        line = {
+            "local_id": int(getattr(opp, "local_id", lid) or lid),
+            "entity_id": str(getattr(opp, "entity_id", "") or ""),
+            "name": str(getattr(opp, "name", "") or ""),
+            "status_tags": _status_tags(getattr(opp, "status_tags", None)),
+            "shares": shares,
+            "entry_price": price,
+            "notional": float(shares) * price,
+        }
+        if note:
+            line["note"] = note
+        lines.append(line)
     return lines
 
 
@@ -346,13 +349,17 @@ def _calendar_action(raw: Any) -> Optional[Dict[str, Any]]:
     shares = int(raw.get("shares") or 0)
     if shares <= 0:
         return None
-    return {
+    item = {
         "side": side,
         "entity_id": str(raw.get("entity_id") or ""),
         "name": str(raw.get("name") or ""),
         "shares": shares,
         "amount": float(raw.get("amount") or 0.0),
     }
+    note = str(raw.get("note") or "").strip()
+    if side == "buy" and note:
+        item["note"] = note
+    return item
 
 
 def _calendar_days(engine: Any) -> List[Dict[str, Any]]:
@@ -479,6 +486,7 @@ def holdings_message(engine: Any, rows: Iterable[Any]) -> Dict[str, Any]:
                 "unrealized": getattr(row, "unrealized", None),
                 "roi": getattr(row, "roi", None),
                 "market_value": getattr(row, "market_value", None),
+                "note": str(getattr(row, "note", "") or "").strip(),
                 "goals": [_goal_item(item) for item in (getattr(row, "goals", None) or [])],
             }
         )

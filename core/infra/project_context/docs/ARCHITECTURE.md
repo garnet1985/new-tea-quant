@@ -73,6 +73,8 @@ NEW_TEA_QUANT_USERSPACE_ROOT
   -> {project_root}/userspace
 ```
 
+已配置路径不要求 `exists()`；安装用 `resolve_userspace_target` 做可写校验。
+
 ---
 
 ## 使用方式

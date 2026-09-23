@@ -20,6 +20,14 @@ def resolve_updater_dir(start: Optional[Path] = None) -> Path:
         here = Path(__file__).resolve().parent
         candidates = [here]
     if not candidates[0].joinpath("pipeline.py").is_file():
+        try:
+            from core.infra.project_context import ProjectContext
+
+            via_pc = ProjectContext.path.get_updater_directory()
+            if (via_pc / "pipeline.py").is_file():
+                return via_pc.resolve()
+        except Exception:
+            pass
         repo = candidates[0]
         for _ in range(8):
             for sub in (

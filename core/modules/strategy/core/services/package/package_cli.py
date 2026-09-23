@@ -1,4 +1,4 @@
-"""策略交流包 CLI 入口（类方法；供 infra.cli 调用）。"""
+"""策略交流包 CLI 入口（类方法；供 modules.cli 调用）。"""
 
 from __future__ import annotations
 

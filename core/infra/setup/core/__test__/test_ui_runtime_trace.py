@@ -25,8 +25,13 @@ def test_install_ui_runtime_tracks_success(monkeypatch: pytest.MonkeyPatch) -> N
         with patch.object(ur.SetupTrace, "install_step_failed") as failed:
             ur.install_ui_runtime(force=True)
 
-    complete.assert_not_called()
     failed.assert_not_called()
+    complete.assert_called_once()
+    kwargs = complete.call_args.kwargs
+    assert kwargs["success"] is True
+    assert kwargs["entry"] == "ui"
+    assert "pip_bff" in kwargs["step_seconds"]
+    assert "elapsed_seconds" in kwargs
 
 
 def test_install_ui_runtime_tracks_pip_bff_failure(
@@ -50,11 +55,11 @@ def test_install_ui_runtime_tracks_pip_bff_failure(
     failed.assert_called_once()
     assert failed.call_args.kwargs["step"] == "pip_bff"
     assert failed.call_args.kwargs["entry"] == "ui"
-    complete.assert_called_once_with(
-        success=False,
-        entry="ui",
-        error_code="pip_bff",
-    )
+    complete.assert_called_once()
+    kwargs = complete.call_args.kwargs
+    assert kwargs["success"] is False
+    assert kwargs["error_code"] == "pip_bff"
+    assert "pip_bff" in kwargs["step_seconds"]
 
 
 def test_bootstrap_pip_skips_network_when_minimums_met(

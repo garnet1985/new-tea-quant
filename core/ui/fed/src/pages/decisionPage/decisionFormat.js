@@ -184,3 +184,7 @@ export function calendarActionDetail(action) {
   lines.push(`花费 ${formatMoney(action?.amount)}`);
   return lines.join('\n');
 }
+
+export function calendarActionNote(action) {
+  return String(action?.note || '').trim();
+}

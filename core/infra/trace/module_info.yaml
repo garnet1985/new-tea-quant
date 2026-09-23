@@ -1,11 +1,15 @@
 name: infra.trace
-version: 0.1.1
+version: 0.1.2
 compatible_core_versions: ">=0.5.0"
+package: core.infra
 description: "使用追踪模块：追踪一些重要事件的模块，用于改善用户体验，统计分析错误的模块。"
 dependencies:
   - infra.project_context
   - infra.machine_capacity
 changelog:
+  - version: "0.1.2"
+    changes:
+      - message_safe 去掉 traceback 栈帧，保留末尾异常/失败行，避免 256 字截在 SystemExit 外壳上
   - version: "0.1.1"
     changes:
       - 新增 Trace.track_setup：安装流水线事件（install.complete / install.step_failed）

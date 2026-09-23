@@ -4,20 +4,31 @@
 
 - ``data.base`` scope=global（含非时序 list / 时序 macro）→ 哨兵 ``GLOBAL_ENTITY_ID``
 - ``data.base`` per_entity → ``meta.list_data_key`` 对应 list（stock.list / index.list）
+- per_entity：可选 ``TagHooks.to_entity_list`` → 与入参取交 → 排序 → ``entity_limit``
 """
 
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional, Sequence, TYPE_CHECKING
 
 from core.modules.data_contract import ContractIssuer
 from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_ID
+from core.modules.tag.core.engines.shared.hooks.hook_params import TagContext
+from core.modules.tag.core.engines.shared.hooks.runtime import TagHookRuntime
 from core.modules.tag.core.engines.shared.tag_settings.data_settings import (
     DataSettings,
 )
+
+if TYPE_CHECKING:
+    from core.modules.tag.core.engines.shared.tag_settings.tag_settings import (
+        TagSettings,
+    )
+    from core.modules.tag.core.services.discovery.data.discovered_tag import (
+        DiscoveredTagInfo,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +42,21 @@ class TagEntityListResolver:
         scenario: Scenario,
         *,
         entity_limit: Optional[int] = None,
+        tag_info: Optional["DiscoveredTagInfo"] = None,
+        settings: Optional["TagSettings"] = None,
+        apply_hook: bool = False,
     ) -> List[str]:
         base_key = cls._base_data_key(scenario)
         if base_key and DataSettings.is_global(base_key):
             return [GLOBAL_ENTITY_ID]
 
         list_key = cls.resolve_list_data_key(scenario)
-        entity_ids = cls._load_entity_ids(list_key)
+        entity_ids = cls._normalize_ids(cls._load_entity_ids(list_key))
+
+        if apply_hook and tag_info is not None and settings is not None:
+            entity_ids = cls._apply_hook(tag_info, settings, entity_ids)
+
+        entity_ids = sorted(entity_ids)
 
         if entity_limit is not None and len(entity_ids) > int(entity_limit):
             logger.warning(
@@ -48,6 +67,59 @@ class TagEntityListResolver:
             )
             entity_ids = entity_ids[: int(entity_limit)]
         return entity_ids
+
+    @classmethod
+    def _apply_hook(
+        cls,
+        tag_info: "DiscoveredTagInfo",
+        settings: "TagSettings",
+        entity_list: List[str],
+    ) -> List[str]:
+        runtime, err = TagHookRuntime.from_tag_info(tag_info, settings)
+        if runtime is None:
+            logger.error(
+                "to_entity_list: hooks 加载失败，使用全表结果 tag=%s err=%s",
+                getattr(tag_info, "key", "") or getattr(tag_info, "unique_relative_path", ""),
+                (err or {}).get("error"),
+            )
+            return entity_list
+
+        tag_key = str(
+            getattr(tag_info, "key", None)
+            or getattr(tag_info, "unique_relative_path", "")
+            or ""
+        ).strip()
+        tag_path = str(
+            getattr(tag_info, "unique_relative_path", "") or tag_key
+        ).strip()
+        ctx = TagContext.assemble(
+            tag_key=tag_key,
+            settings=settings,
+            entity_list=entity_list,
+            tag_path=tag_path,
+        )
+        allowed = set(entity_list)
+        try:
+            raw = runtime.call(
+                "to_entity_list", ctx, entity_list=list(entity_list)
+            )
+        except Exception:
+            logger.error(
+                "to_entity_list 失败 tag=%s，回退全表结果",
+                tag_key,
+                exc_info=True,
+            )
+            return entity_list
+
+        out: List[str] = []
+        seen = set()
+        for item in raw or []:
+            eid = str(item).strip()
+            if not eid or eid not in allowed or eid in seen:
+                continue
+            seen.add(eid)
+            out.append(eid)
+        return out
 
     @classmethod
     def resolve_list_data_key(cls, scenario: Scenario) -> str:
@@ -106,6 +178,18 @@ class TagEntityListResolver:
             )
             return []
         return [str(row.get("id")).strip() for row in rows if row.get("id")]
+
+    @staticmethod
+    def _normalize_ids(ids: Optional[Sequence[Any]]) -> List[str]:
+        out: List[str] = []
+        seen = set()
+        for item in ids or []:
+            eid = str(item).strip()
+            if not eid or eid in seen:
+                continue
+            seen.add(eid)
+            out.append(eid)
+        return out
 
 
 __all__ = ["TagEntityListResolver"]

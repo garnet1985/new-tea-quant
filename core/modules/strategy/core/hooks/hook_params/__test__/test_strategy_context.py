@@ -37,6 +37,26 @@ def test_assemble_builds_shell_with_stock_list() -> None:
     assert ctx.base_data_key == "stock.kline.daily"
 
 
+def test_record_of_today_reads_last_base_bar() -> None:
+    base = StrategyContext.assemble(
+        strategy_key="demo",
+        settings=_settings(),
+        stock_list=["000001.SZ"],
+    )
+    assert base.record_of_today is None
+    filled = StrategyContext.fill(
+        base,
+        now="20240110",
+        items={
+            "stock.kline.daily": [
+                {"date": "20240109", "close": 10},
+                {"date": "20240110", "close": 11},
+            ]
+        },
+    )
+    assert filled.record_of_today == {"date": "20240110", "close": 11}
+
+
 def test_fill_requires_assembled_stock_list() -> None:
     bare = StrategyContext.assemble(
         strategy_key="demo",

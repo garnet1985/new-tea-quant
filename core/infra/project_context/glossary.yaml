@@ -62,11 +62,13 @@ terms:
       - "from core.infra.project_context import OverridableConfigNotFoundError（优先 contracts 或 ProjectContext.types）"
 
   userspace_root:
-    definition: "userspace 目录；优先级 NEW_TEA_QUANT_USERSPACE_ROOT → NTQ_USERSPACE_ROOT → {project_root}/.ntq/userspace-path.json → {project_root}/userspace。"
+    definition: "userspace 目录；优先级 NEW_TEA_QUANT_USERSPACE_ROOT → NTQ_USERSPACE_ROOT → {project_root}/.ntq/userspace-path.json → {project_root}/userspace。已配置不静默回落；安装校验用 resolve_userspace_target。"
     aliases:
       - "get_userspace_root"
+      - "resolve_userspace_target"
     avoid:
       - "硬编码 userspace 相对路径"
+      - "get_userspace_path（近义别名，勿新增）"
 
   overridable_config:
     definition: "core/default_config 默认 + userspace/config 覆盖的可合并配置；两侧皆无有效文件时 load_overridable_config 抛 OverridableConfigNotFoundError。"

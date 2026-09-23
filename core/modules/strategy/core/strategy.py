@@ -18,6 +18,7 @@ from .services.discovery import DiscoveryService
 from .services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
+from .services.entity_loader.sample_list_resolver import SampleListResolver
 from .engines.shared.data_class.simulate_session import SimulateSession
 from .engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -301,10 +302,19 @@ class Strategy:
         latest_completed_trading_date = (
             GlobalEntityCache.get_latest_completed_trading_date()
         )
+        merged, _diff = FingerprintCalculator.merge_settings(
+            strategy_info, runtime_settings
+        )
+        usable = StrategySettings.to_usable(merged)
+        entity_ids = SampleListResolver.resolve(
+            strategy_info,
+            usable,
+            universe=stock_list,
+        )
         fp_res = FingerprintCalculator.calculate_fingerprints(
             strategy_info,
             runtime_settings,
-            entity_ids=stock_list,
+            entity_ids=entity_ids,
         )
 
         ctx = SimulateSession.create(
@@ -343,7 +353,7 @@ class Strategy:
             )
 
         ctx.prepare_entity_cache(
-            stock_list=stock_list,
+            stock_list=list(fp_res.entity_ids),
             latest_completed_trading_date=latest_completed_trading_date,
         )
         Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)

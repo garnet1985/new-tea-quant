@@ -10,10 +10,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# 多数依赖有 wheel；若 pip 在部分平台需编译，再安装 build-essential / libpq-dev
+# 依赖安装走 Utils.pkg（国内清华 / npmmirror，国外官方源）。
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+COPY core/__init__.py /app/core/__init__.py
+COPY core/infra/__init__.py /app/core/infra/__init__.py
+COPY core/infra/utils /app/core/infra/utils
+RUN python -c "import subprocess,sys; from core.infra.utils import Utils; f=Utils.pkg.pip_args(); raise SystemExit(subprocess.call([sys.executable,'-m','pip','install',*f,'--upgrade','pip']) or subprocess.call([sys.executable,'-m','pip','install',*f,'-r','requirements.txt']))"
 
 COPY . .
 

@@ -1,6 +1,6 @@
 # Architecture — infra.trace
 
-**版本：** `0.1.1`
+**版本：** `0.1.2`
 
 ## 分层
 
@@ -18,7 +18,7 @@ Trace (Facade, static API)
 ## 开关来源（enabled）
 
 ```text
-NTQ_TRACE_SKIP=1  >  NTQ_TRACE_ENABLED=0/1  >  userspace/system/config/trace_consent.json  >  false
+NTQ_TRACE_SKIP=1  /  GITHUB_ACTIONS=true  >  NTQ_TRACE_ENABLED=0/1  >  userspace/system/config/trace_consent.json  >  false
 ```
 
 ## Tunables（target_url 等）

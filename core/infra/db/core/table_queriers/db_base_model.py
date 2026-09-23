@@ -781,6 +781,45 @@ class DbBaseModel:
         *,
         pg_execute_values: bool,
     ) -> int:
+        """在已清空的目标表上逐文件导入。
+
+        DuckDB / PostgreSQL / MySQL 且表里没有 JSON 列时，把 CSV 直接交给数据库。
+        含 JSON 列的归档仍可能是 Python repr，继续走批量 INSERT。
+        """
+        db_type = db_dialect.normalize_database_type(self.db.config)
+        from core.infra.db.core.table_queriers.csv_bulk_import import (
+            field_types,
+            import_archives,
+            schema_has_json,
+        )
+
+        if not schema_has_json(self.schema):
+            return import_archives(
+                cursor,
+                database_type=db_type,
+                target_sql=target_sql,
+                archives=[Path(p) for p in files],
+                table_name=self.table_name,
+                type_by_name=field_types(self.schema),
+                quote=lambda name: db_dialect.quote_identifier(self.db.config, name),
+            )
+        return self._import_data_file_loop_rows(
+            cursor,
+            target_sql,
+            files,
+            insert_batch_size,
+            pg_execute_values=pg_execute_values,
+        )
+
+    def _import_data_file_loop_rows(
+        self,
+        cursor,
+        target_sql: str,
+        files: List[str | Path],
+        insert_batch_size: Optional[int],
+        *,
+        pg_execute_values: bool,
+    ) -> int:
         """在已清空的目标表上逐文件读 CSV 并批量插入。"""
         _LARGE_IMPORT_HINT = 20_000
         field_names: Optional[List[str]] = None
@@ -911,10 +950,9 @@ class DbBaseModel:
         insert_batch_size: Optional[int] = None,
     ) -> None:
         """
-        overwrite：按需建目标表、TRUNCATE（或回退 DELETE）清空、再导入。target 与源不同名时见
-        `_ensure_import_target_with_cursor`。insert_batch_size 默认按列数与驱动占位符上限估算。
-
-        PG：adapter 事务 + execute_values；MySQL：事务 + 多行 VALUES。
+        overwrite：按需建目标表、TRUNCATE（或回退 DELETE）清空，再把 CSV 交给数据库装入。
+        DuckDB 用 read_csv，PostgreSQL 用 COPY，MySQL 用 LOAD DATA LOCAL INFILE。
+        含 JSON 列的表仍走批量 INSERT。target 与源不同名时见 `_ensure_import_target_with_cursor`。
         """
         if mode not in ("overwrite", "replace"):
             raise ValueError(f"未知导入模式: {mode}")

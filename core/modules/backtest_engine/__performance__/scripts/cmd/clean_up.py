@@ -128,12 +128,9 @@ def clean_local_results() -> None:
             print(f"cleaned {results}")
 
     # Legacy mistaken dumps under userspace/strategies/{entity,slice}_based/
-    try:
-        from core.infra.project_context import ProjectContext
+    from core.infra.project_context import ProjectContext
 
-        strategies_root = ProjectContext.path.get_strategies_root()
-    except Exception:
-        strategies_root = repo_root() / "userspace" / "strategies"
+    strategies_root = ProjectContext.path.get_strategies_root()
     for legacy_name in ("entity_based", "slice_based"):
         legacy = strategies_root / legacy_name
         if not legacy.is_dir():

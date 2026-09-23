@@ -1,6 +1,7 @@
 name: modules.assistant
 version: "0.1.0"
 compatible_core_versions: ">=0.5.0"
+package: core.modules
 description: "AI 助理模块：发现 userspace 供应商配置，并发送 OpenAI 兼容聊天。"
 dependencies:
   - infra.project_context

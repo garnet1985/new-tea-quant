@@ -30,7 +30,7 @@ results/simulations/portfolio/N/
 | 固定 / 取消固定 | CLI `spn` / `sup`，BFF `POST\|DELETE …/version/:id/pin` |
 | devcli 勾选 backtest results | `TempCleanup.run(clear_backtest_results=True)` |
 
-路径：`core/infra/cli/dev/scripts/temp_cleanup/temp_cleanup.py`、`core/modules/strategy/core/services/artifacts/retention.py`
+路径：`core/modules/cli/dev/scripts/temp_cleanup/temp_cleanup.py`、`core/modules/strategy/core/services/artifacts/retention.py`
 
 ---
 

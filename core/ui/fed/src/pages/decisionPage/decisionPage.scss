@@ -331,18 +331,45 @@
 
 .decision-cal-event {
   display: block;
+  width: 100%;
   padding: 2px 5px;
+  border: 0;
   border-radius: 3px;
+  font: inherit;
   font-size: 11px;
   line-height: 1.3;
+  text-align: left;
+  color: inherit;
+  background: transparent;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: default;
 }
 
+button.decision-cal-event {
+  cursor: pointer;
+}
+
+button.decision-cal-event:hover,
+button.decision-cal-event:focus-visible {
+  filter: brightness(1.12);
+}
+
 .decision-cal-tip {
   display: block;
+  white-space: pre-wrap;
+}
+
+.decision-cal-tip__info {
+  display: block;
+}
+
+.decision-cal-tip__note {
+  display: block;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
   white-space: pre-wrap;
 }
 
@@ -739,10 +766,51 @@
 .decision-invest-cell {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+  width: 100%;
   line-height: 1.2;
+}
+
+.decision-invest-open {
+  min-width: 108px;
+  flex: 0 1 auto;
+}
+
+.decision-invest-note-icon {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: 1px solid rgba(34, 211, 238, 0.55);
+  border-radius: 50%;
+  color: var(--ntq-cyan);
+  background: transparent;
+  cursor: default;
+}
+
+.decision-invest-note-icon:hover {
+  border-color: var(--ntq-cyan);
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.decision-invest-note-tip {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.decision-buy-note {
+  color: var(--ntq-text);
+}
+
+.decision-bill-note {
+  color: var(--ntq-text-muted);
+  font-weight: 400;
 }
 
 .decision-invest-row {

@@ -1,6 +1,7 @@
 name: modules.data_source
 version: "0.2.0"
 compatible_core_versions: ">=0.5.0"
+package: core.modules
 description: "数据源模块：提供配置驱动的数据抓取，支持按照不同模式和不同数据供应商请求并加载数据。"
 dependencies:
   - modules.data_manager

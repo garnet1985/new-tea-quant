@@ -12,6 +12,7 @@ __pycache__/
 
 .venv
 venv/
+test-venv/
 env/
 ENV/
 env.bak/

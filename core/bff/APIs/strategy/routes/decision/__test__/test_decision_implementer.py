@@ -207,3 +207,16 @@ def test_get_report_loads_overall(mock_open, _resolve, tmp_path):
     engine.finalize.assert_not_called()
     assert msg["dm_id"] == "1"
     assert msg["report"]["capitalMetrics"]["roi"] == 0.12
+
+
+@patch(
+    "core.bff.APIs.strategy.routes.decision.implementer.Strategy.resolve",
+    return_value="rsi_v1",
+)
+@patch("core.bff.APIs.strategy.routes.decision.implementer.Strategy.decision_open")
+def test_set_pick_forwards_note(mock_open, _resolve):
+    engine = _engine()
+    mock_open.return_value = engine
+    impl = StrategyDecisionImplementer().lazy_load()
+    impl.set_pick("rsi_v1", "1", local_id=1, shares=100, note="试仓")
+    engine.set_pick.assert_called_once_with(1, 100, note="试仓")

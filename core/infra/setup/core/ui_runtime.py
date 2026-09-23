@@ -21,6 +21,7 @@ from core.ui.process_cleanup import (
 )
 from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
 from core.infra.cmd_layout import CmdLayout
+from core.infra.utils import Utils
 
 from core.infra.setup.core.install_runtime import (
     REPO_ROOT,
@@ -32,6 +33,7 @@ from core.infra.setup.core.install_runtime import (
     fed_build_ready,
     mark_runtime,
     needs_install,
+    python_env_id,
     sha256_file,
     ui_dev_mode,
 )
@@ -46,33 +48,11 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
-_PIP_TIMEOUT_SEC = 15
-_PIP_RETRIES = 1
 _BOOTSTRAP_MIN = (
     ("pip", (24, 0)),
     ("setuptools", (65,)),
     ("wheel", (0,)),
 )
-
-
-def _pip_network_hint() -> str:
-    return (
-        "无法连接 PyPI（或超时）。国内网络可先配镜像再重试，例如：\n"
-        "  python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple"
-    )
-
-
-def _pip_net_flags() -> list:
-    flags = [
-        "--disable-pip-version-check",
-        "--timeout",
-        str(_PIP_TIMEOUT_SEC),
-        "--retries",
-        str(_PIP_RETRIES),
-    ]
-    if _env_truthy("NTQ_PIP_NO_CACHE"):
-        flags.append("--no-cache-dir")
-    return flags
 
 
 def _parse_pkg_version(raw: str) -> tuple:
@@ -121,11 +101,10 @@ def _bootstrap_pip() -> None:
     if _bootstrap_pip_ready():
         print("pip / setuptools / wheel 已满足最低版本，跳过联网自升级。", flush=True)
         return
-    cmd = [sys.executable, "-m", "pip", "install", *_pip_net_flags()]
-    cmd.extend(["pip>=24.0", "setuptools>=65", "wheel"])
+    Utils.pkg.announce()
     print("正在安装 pip / setuptools / wheel…", flush=True)
-    ret = subprocess.run(cmd, cwd=str(REPO_ROOT))
-    if ret.returncode != 0:
+    ret = Utils.pkg.run_pip(["install", "pip>=24.0", "setuptools>=65", "wheel"], cwd=str(REPO_ROOT))
+    if ret != 0:
         if _bootstrap_pip_ready():
             print(
                 f"{CmdLayout.icon.get('warning')} pip 工具包联网安装失败，本地版本已可用，继续。",
@@ -133,7 +112,7 @@ def _bootstrap_pip() -> None:
             )
             return
         print(f"{CmdLayout.icon.get('warning')} pip 工具包安装失败，将继续尝试安装 BFF 依赖", flush=True)
-        print(_pip_network_hint(), flush=True)
+        print(Utils.pkg.pip_hint(), flush=True)
 
 
 def _node_toolchain_available() -> bool:
@@ -170,24 +149,31 @@ def check_runtime_prerequisites() -> Tuple[bool, str]:
 
 
 def _pip_install_bff() -> None:
-    pip_cmd = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--no-compile",
-        "--only-binary",
-        "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
-        *_pip_net_flags(),
-        "-r",
-        str(BFF_REQUIREMENTS),
-    ]
-    if subprocess.run(pip_cmd, cwd=str(REPO_ROOT)).returncode != 0:
-        raise RuntimeError("安装 BFF Python 依赖失败\n" + _pip_network_hint())
+    Utils.pkg.announce()
+    if (
+        Utils.pkg.run_pip(
+            [
+                "install",
+                "--no-compile",
+                "--only-binary",
+                "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil",
+                "-r",
+                str(BFF_REQUIREMENTS),
+            ],
+            cwd=str(REPO_ROOT),
+        )
+        != 0
+    ):
+        raise RuntimeError("安装 BFF Python 依赖失败\n" + Utils.pkg.pip_hint())
 
 
 def _npm_install_fed() -> None:
-    if subprocess.run(["npm", "install"], cwd=str(FED_ROOT)).returncode != 0:
+    Utils.pkg.announce()
+    if subprocess.run(
+        ["npm", "install"],
+        cwd=str(FED_ROOT),
+        env=Utils.pkg.npm_env(),
+    ).returncode != 0:
         raise RuntimeError("安装 FED Node 依赖失败")
 
 
@@ -206,6 +192,18 @@ def install_ui_runtime(force: bool = False) -> None:
 
     traced_failure = False
     SetupTrace.ensure_install_id()
+    started = time.monotonic()
+    step_seconds: dict = {}
+
+    def _elapsed() -> float:
+        return time.monotonic() - started
+
+    def _run_timed(name: str, fn):
+        t0 = time.monotonic()
+        try:
+            return fn()
+        finally:
+            step_seconds[name] = round(max(0.0, time.monotonic() - t0), 2)
 
     def _fail(error_code: str, exc: Optional[BaseException] = None) -> None:
         nonlocal traced_failure
@@ -216,13 +214,19 @@ def install_ui_runtime(force: bool = False) -> None:
             message=str(exc or error_code),
             exc=exc,
         )
-        SetupTrace.install_complete(success=False, entry="ui", error_code=error_code)
+        SetupTrace.install_complete(
+            success=False,
+            entry="ui",
+            error_code=error_code,
+            elapsed_seconds=_elapsed(),
+            step_seconds=step_seconds,
+        )
         traced_failure = True
 
     try:
-        _bootstrap_pip()
+        _run_timed("pip_bootstrap", _bootstrap_pip)
         try:
-            _pip_install_bff()
+            _run_timed("pip_bff", _pip_install_bff)
         except Exception as exc:
             _fail("pip_bff", exc)
             raise
@@ -230,6 +234,7 @@ def install_ui_runtime(force: bool = False) -> None:
         fingerprints: dict = {
             "python": {
                 "uiRequirementsHash": sha256_file(BFF_REQUIREMENTS),
+                "venvId": python_env_id(),
                 "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
         }
@@ -237,7 +242,7 @@ def install_ui_runtime(force: bool = False) -> None:
         if ui_dev_mode():
             print("安装 UI 开发依赖（BFF + node_modules）…", flush=True)
             try:
-                _npm_install_fed()
+                _run_timed("npm_fed", _npm_install_fed)
             except Exception as exc:
                 _fail("npm_fed", exc)
                 raise
@@ -253,12 +258,12 @@ def install_ui_runtime(force: bool = False) -> None:
                     _fail("missing_node", missing)
                     raise missing
                 try:
-                    _npm_install_fed()
+                    _run_timed("npm_fed", _npm_install_fed)
                 except Exception as exc:
                     _fail("npm_fed", exc)
                     raise
                 try:
-                    _npm_build_fed()
+                    _run_timed("fed_build", _npm_build_fed)
                 except Exception as exc:
                     _fail("fed_build", exc)
                     raise
@@ -268,6 +273,12 @@ def install_ui_runtime(force: bool = False) -> None:
             }
 
         mark_runtime("ui", success=True, fingerprints=fingerprints)
+        SetupTrace.install_complete(
+            success=True,
+            entry="ui",
+            elapsed_seconds=_elapsed(),
+            step_seconds=step_seconds,
+        )
         print("UI 运行依赖安装完成。", flush=True)
     except Exception as exc:
         if not traced_failure:

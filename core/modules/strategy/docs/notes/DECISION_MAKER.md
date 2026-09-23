@@ -1,7 +1,7 @@
 # 决策者模式：资金回测回放
 
 **状态：** 口径已锁定（2026-09-12）。会话引擎 + CLI REPL（`sd` / `sdl` / `sdd`）+ 走完 `finalize` 已落地。BFF D1 已挂（`/api/v1/strategy/.../decision/sessions`）。单策略 **决策模拟** 是制定策略第四步。跨策略（多策略一本账）**推迟到 0.5.1**，口径见 [DECISION_MAKER_CROSS.md](./DECISION_MAKER_CROSS.md)。  
-**一句话：** 决策模拟是 **当前策略** 的 `portfolio` 回放。用户唯一能改的是 **选谁**（`on_pick_portfolio_member`）和 **买多少股**；其余全部沿用资金回测。  
+**一句话：** 决策模拟是 **当前策略** 的 `portfolio` 回放。用户唯一能改的是 **选谁**（`on_pick_portfolio_member`）、**买多少股**，以及可选的买入笔记；其余全部沿用资金回测。  
 **位置：** NTQ 第四层；与 enumerate / price_factor / portfolio 同一 version。代码在 `core/engines/decision_maker/`。UI 步在制定策略 `/strategy-design/:strategy/decision`，不进入 `WorkbenchStep` / `simulate()`。
 
 ---
@@ -139,7 +139,7 @@ enum 机会 → 入场事件
 - **不要覆盖上一局。** 走完再开 = 新 `{dm_id}`，旧目录留下对照。中途 `quit` / Ctrl+C 再进 = **续同一局**（写回该 id 的存档，不是新号）。
 - **未完成也可以再开新局。** 旧的未完成局照留。命令行怎么选见 §6。
 - 想丢掉某局：显式删除，不要靠覆盖。中途存档，进程退出（含 Ctrl+C）必须先写存档。
-- 存档两层：**游标**（已提交的日期、账户、成交）和 **当天草稿**（还没确认的 picks）。
+- 存档两层：**游标**（已提交的日期、账户、成交）和 **当天草稿**（还没确认的 picks，含可选买入笔记）。买入笔记写在 buy `Trade.note` 上，日历 / 持仓回看。空笔记允许。卖出腿不写用户笔记。
 - **时间不能倒退。** 只有 `next` 会提交当天并往前走；提交后这一天冻结。想重来只能新开 session。`next` 之前可以改草稿、可以 `reset` 整单重录。
 - 上游枚举作废：会话停在旧 version，不偷偷跟到新号。
 

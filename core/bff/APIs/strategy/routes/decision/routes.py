@@ -106,7 +106,7 @@ def post_strategy_decision_pick(strategy_key_or_name: str, dm_id: str):
     """
     POST /api/v1/strategy/:strategy_key_or_name/decision/sessions/:dm_id/pick
 
-    D1-05：录入 ``{ local_id, shares }``；也可 ``cash``（金额按手数折股）。同一编号覆盖。
+    D1-05：录入 ``{ local_id, shares }``；也可 ``cash``（金额按手数折股）。可选 ``note``（买入笔记，空字符串会清掉）。同一编号覆盖。
     """
     decision = decision_impl.lazy_load()
     body = json_payload()
@@ -130,6 +130,10 @@ def post_strategy_decision_pick(strategy_key_or_name: str, dm_id: str):
             return error("shares 须为整数", 400)
     else:
         return error("请指定 cash 或 shares", 400)
+    note = None
+    if "note" in body:
+        raw_note = body.get("note")
+        note = "" if raw_note is None else str(raw_note)
     try:
         msg = decision.set_pick(
             strategy_key_or_name,
@@ -137,6 +141,7 @@ def post_strategy_decision_pick(strategy_key_or_name: str, dm_id: str):
             local_id=local_id,
             shares=shares,
             cash=cash,
+            note=note,
             version_id=_version_id(body.get("version_id"), request.args.get("version")),
         )
     except ValueError as exc:

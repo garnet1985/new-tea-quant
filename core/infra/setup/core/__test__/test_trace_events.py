@@ -24,6 +24,25 @@ def test_install_complete_success_body() -> None:
     mock_trace.track.assert_not_called()
 
 
+def test_install_complete_includes_step_timings() -> None:
+    mock_trace = MagicMock()
+    with patch("core.infra.trace.Trace", mock_trace):
+        SetupTrace.install_complete(
+            success=True,
+            entry="ui",
+            elapsed_seconds=91.234,
+            step_seconds={"resolve_deps": 12.04, "resolve_ml_deps": 78.9},
+            skipped=["import_data"],
+        )
+
+    name, body = mock_trace.track_setup.call_args.args
+    assert name == "install.complete"
+    assert body["elapsed_seconds"] == 91.23
+    assert body["step_seconds"]["resolve_deps"] == 12.04
+    assert body["step_seconds"]["resolve_ml_deps"] == 78.9
+    assert body["skipped"] == ["import_data"]
+
+
 def test_install_complete_failure_includes_error_code() -> None:
     mock_trace = MagicMock()
     with patch("core.infra.trace.Trace", mock_trace):
@@ -83,3 +102,17 @@ def test_install_step_failed_classifies_lock_and_interrupt() -> None:
     assert bodies[0]["error_class"] == "lock"
     assert bodies[1]["error_class"] == "interrupt"
     assert bodies[1]["exc_type"] == "KeyboardInterrupt"
+
+
+def test_install_step_failed_classifies_postgres_auth() -> None:
+    mock_trace = MagicMock()
+    with patch("core.infra.trace.Trace", mock_trace):
+        SetupTrace.install_step_failed(
+            step="db_connection",
+            entry="ui",
+            message="psycopg2.OperationalError: password authentication failed for user \"postgres\"",
+        )
+
+    body = mock_trace.track_setup.call_args.args[1]
+    assert body["error_class"] == "db_auth"
+    assert "password authentication failed" in body["message_safe"]

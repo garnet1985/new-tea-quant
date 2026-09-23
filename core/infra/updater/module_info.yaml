@@ -1,8 +1,10 @@
 name: infra.updater
 version: 0.1.0
 compatible_core_versions: ">=0.5.0"
+package: core.infra
 description: "应用升级：编排源码、数据迁移脚本注册表、post-upgrade 收尾、同步 userspace updater。"
-dependencies: []
+dependencies:
+  - infra.utils
 changelog:
   - version: "0.1.0"
     changes:
@@ -12,3 +14,4 @@ changelog:
       - 正式版本之前所有API标注beta状态
       - 编排源码迁入 core/orchestrator；Setup 不再包含 updater
       - 增加 Updater.runtime.sync_orchestrator 与内置 post-upgrade sync_userspace_updater
+      - 依赖声明补上 infra.utils（升级时重装依赖走 Utils.pkg）

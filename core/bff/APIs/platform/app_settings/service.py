@@ -236,7 +236,7 @@ def run_cache_clear(payload: Dict[str, Any]) -> Dict[str, Any]:
     def _flag(key: str) -> bool:
         return bool(payload.get(key))
 
-    from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
+    from core.modules.cli.dev.scripts.temp_cleanup import TempCleanup
 
     return TempCleanup.run(
         clear_backtest_results=_flag("clear_backtest_results"),

@@ -16,6 +16,7 @@ def consent_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.delenv("NTQ_TRACE_ENABLED", raising=False)
     monkeypatch.delenv("NTQ_TRACE_SKIP", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
     from core.infra.trace.core.services import client_service, consent_service
 
@@ -287,6 +288,25 @@ def test_track_setup_without_consent(
     monkeypatch.setenv("NTQ_TRACE_SKIP", "1")
     Trace.track_setup("install.step_failed", {"step": "import_data"})
     assert len(posts) == 1
+
+
+def test_track_setup_skipped_on_github_actions(
+    consent_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service
+    from core.infra.trace.core.services.config_service import TraceConfigService
+
+    posts = []
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(lambda *args, **kwargs: posts.append(args) or True),
+    )
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert TraceConfigService.should_skip() is True
+    Trace.track_setup("install.complete", {"success": True, "entry": "cli"})
+    assert posts == []
 
 
 def test_malformed_consent_file_is_treated_as_undecided(consent_env: Path) -> None:

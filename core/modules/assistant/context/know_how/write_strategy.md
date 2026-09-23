@@ -42,8 +42,7 @@ from core.modules.strategy.contracts import (
 
 class RsiStrategy(StrategyHooks):
     def has_opportunity(self, ctx: StrategyContext) -> bool:
-        data = ctx.data.items_with_meta()
-        today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+        today = ctx.record_of_today
         if today is None:
             return False
         rsi = today.get("rsi14")  # settings.data.base.indicators 声明后写入
@@ -71,7 +70,7 @@ class RsiStrategy(StrategyHooks):
 | --- | --- |
 | `ctx.data.items_with_meta()` | 按数据键取序列；`ctx.data` **不是函数** |
 | `ctx.base_data_key` | 主数据键，通常 `stock.kline.daily` |
-| `self.get_record_of_today(data, base_data_key=...)` | 当天最后一根 K 线 |
+| `ctx.record_of_today` | 当天最后一根 base K 线（无则 `None`） |
 | `ctx.capture(key, value)` | 记录信号快照，落报告（事后分析用） |
 | `ctx.remember(key, value)` | 钩子间传递的易失内存（不落报告） |
 | `ctx.recall(key, default)` | 取出 remember 的值 |
@@ -173,8 +172,7 @@ def is_stop_loss(self, ctx, *, custom, stage) -> bool:
 
 def is_take_profit(self, ctx, *, custom, stage) -> bool:
     if custom == "rsi_overbought":
-        data = ctx.data.items_with_meta()
-        today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+        today = ctx.record_of_today
         rsi = None if today is None else today.get("rsi14")
         return rsi is not None and rsi > 70
     return False

@@ -1,6 +1,6 @@
 # Setup 架构文档
 
-**版本：** `0.1.0`
+**版本：** `0.1.1`
 
 ## 模块介绍
 
@@ -18,15 +18,16 @@
 ```text
 core/infra/setup/         # 执行层
   setup.py / contracts.py
-  core/{env, install_runtime, cli_runtime, ui_runtime, steps, scripts}
+  core/{env, install_runtime, cli_runtime, ui_runtime, setup_session, steps, scripts}
 
 initialization/userspace/ initialization/data/   # 仓库根产物
+.ntq/setup-runtime.json                          # CLI 与 UI 向导共用的完成态（isReady）
 ```
 
 ```text
 Setup
   ├── env        → core.env.NewTeaQuantSetup + 路径常量
-  ├── runtime    → core.install_runtime / cli_runtime / ui_runtime
+  ├── runtime    → core.install_runtime / cli_runtime / ui_runtime / setup_session
   ├── artifacts  → core.scripts.init_userspace / init_data
   ├── meta       → core.meta_loader
   ├── trace      → core.trace_events.SetupTrace

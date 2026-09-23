@@ -20,6 +20,7 @@ def trace_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.setenv("NTQ_TRACE_ENABLED", "1")
     monkeypatch.delenv("NTQ_TRACE_SKIP", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
     from core.infra.trace.contracts import TraceConfig
     from core.infra.trace.core.services import (
@@ -93,6 +94,27 @@ def test_message_safe_strips_home_and_user() -> None:
     assert "secret" not in out
     assert "/Users/<user>" in out
     assert "数据库不可用" in out
+
+
+def test_message_safe_keeps_exception_not_traceback_header() -> None:
+    from core.infra.trace.core.services.sanitize_service import TraceSanitizeService
+
+    raw = (
+        "Traceback (most recent call last):\n"
+        '  File "<repo>\\core\\infra\\setup\\core\\steps\\db_connection\\install.py", '
+        "line 333, in <module>\n"
+        "    raise SystemExit(main())\n"
+        "    ~~~~^^\n"
+        '  File "<repo>\\core\\infra\\setup\\core\\steps\\db_connection\\install.py", '
+        "line 231, in main\n"
+        "    config = ctx.load_database_config(db_type)\n"
+        "NameError: name 'ctx' is not defined\n"
+    )
+    out = TraceSanitizeService.message_safe(raw)
+    assert "NameError" in out
+    assert "ctx" in out
+    assert "Traceback (most recent call last)" not in out
+    assert "line 333" not in out
 
 
 def test_sanitize_event_name() -> None:

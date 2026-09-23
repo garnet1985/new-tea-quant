@@ -2,6 +2,7 @@
 name: infra.cmd_layout
 version: "0.1.2"
 compatible_core_versions: ">=0.5.0"
+package: core.infra
 description: "命令行UI模块：给命令行工具提供一套通用的UI组件，方便其他模块展示结果。"
 dependencies: []
 changelog:

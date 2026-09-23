@@ -1,5 +1,5 @@
 # Setup 术语表
-# Version: 0.1.0
+# Version: 0.1.1
 
 terms:
   NTQ:
@@ -43,3 +43,11 @@ terms:
     aliases: []
     avoid:
       - "把步骤脚本放到 cli 模块"
+
+  setup_runtime:
+    definition: "安装向导会话文件 .ntq/setup-runtime.json；isReady 是 CLI install.py 与 UI 向导共用的完成状态。"
+    aliases:
+      - "setup-runtime.json"
+      - "pipeline_ready"
+    avoid:
+      - "CLI 只写 install-state.json、UI 另写一份互不相通的进度"

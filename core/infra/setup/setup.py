@@ -103,10 +103,36 @@ class RuntimeNamespace:
         return cli_install_scope()
 
     @staticmethod
-    def install_cli(*, force: bool = False) -> None:
+    def install_cli(
+        *,
+        force: bool = False,
+        userspace: str | None = None,
+        userspace_conflict: str | None = None,
+        db: str | None = None,
+        db_host: str | None = None,
+        db_port: str | int | None = None,
+        db_name: str | None = None,
+        db_user: str | None = None,
+        db_password: str | None = None,
+        db_schema: str | None = None,
+    ) -> None:
+        from core.infra.setup.core.cli_install_options import CliInstallOptions
         from core.infra.setup.core.cli_runtime import install_cli_runtime
 
-        install_cli_runtime(force=force)
+        install_cli_runtime(
+            force=force,
+            options=CliInstallOptions(
+                userspace=userspace,
+                userspace_conflict=userspace_conflict,
+                db=db,
+                db_host=db_host,
+                db_port=None if db_port is None else str(db_port),
+                db_name=db_name,
+                db_user=db_user,
+                db_password=db_password,
+                db_schema=db_schema,
+            ),
+        )
 
     @staticmethod
     def ensure_cli_install() -> int:
@@ -164,6 +190,18 @@ class RuntimeNamespace:
         return userspace_ready()
 
     @staticmethod
+    def pipeline_ready() -> bool:
+        from core.infra.setup.core.setup_session import is_ready
+
+        return is_ready()
+
+    @staticmethod
+    def mark_cli_ready() -> None:
+        from core.infra.setup.core.install_runtime import mark_cli_success_fingerprint
+
+        mark_cli_success_fingerprint()
+
+    @staticmethod
     def mark(
         profile: InstallProfileName,
         *,
@@ -216,10 +254,20 @@ class TraceNamespace:
         success: bool,
         entry: InstallEntry,
         error_code: Optional[str] = None,
+        elapsed_seconds: Optional[float] = None,
+        step_seconds: Optional[dict] = None,
+        skipped: Optional[list] = None,
     ) -> None:
         from core.infra.setup.core.trace_events import SetupTrace
 
-        SetupTrace.install_complete(success=success, entry=entry, error_code=error_code)
+        SetupTrace.install_complete(
+            success=success,
+            entry=entry,
+            error_code=error_code,
+            elapsed_seconds=elapsed_seconds,
+            step_seconds=step_seconds,
+            skipped=skipped,
+        )
 
     @staticmethod
     def install_step_failed(

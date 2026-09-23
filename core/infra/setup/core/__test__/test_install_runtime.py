@@ -21,6 +21,11 @@ def _write_ready_state(path: Path, *, req: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _packages_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ir, "bff_python_ready", lambda: True)
+    monkeypatch.setattr(ir, "cli_python_ready", lambda: True)
+
+
 def test_needs_install_common_when_state_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -46,6 +51,7 @@ def test_needs_install_cli_false_when_ready(
     monkeypatch.setattr(ir, "STATE_FILE", state_file)
     monkeypatch.setattr(ir, "REQUIREMENTS", repo / "requirements.txt")
     monkeypatch.setattr(ir, "userspace_ready", lambda: True)
+    _packages_ready(monkeypatch)
     assert ir.needs_install("cli") is False
 
 
@@ -139,6 +145,7 @@ def test_needs_install_ui_false_when_ready_production_build(
         ),
         encoding="utf-8",
     )
+    _packages_ready(monkeypatch)
     assert ir.needs_install("ui") is False
 
 
@@ -176,6 +183,7 @@ def test_needs_install_ui_false_when_production_build_fingerprint_stale(
         ),
         encoding="utf-8",
     )
+    _packages_ready(monkeypatch)
     assert ir.needs_install("ui") is False
 
 
@@ -205,6 +213,83 @@ def test_needs_install_ui_true_when_production_build_missing(
             {
                 "coreVersion": ir.system_meta.version,
                 "python": {"uiRequirementsHash": ir.sha256_file(bff_req)},
+                "uiRuntime": {"lastStatus": "success", "lastFailedStepId": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert ir.needs_install("ui") is True
+
+
+def test_needs_install_ui_true_when_flask_missing_even_if_state_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fed_build = repo / "fed_build"
+    fed_build.mkdir()
+    (fed_build / "index.html").write_text("<html></html>", encoding="utf-8")
+
+    state_dir = repo / ".ntq"
+    state_dir.mkdir()
+    state_file = state_dir / "install-state.json"
+    bff_req = repo / "bff-req.txt"
+    bff_req.write_text("flask\n", encoding="utf-8")
+
+    monkeypatch.delenv("NTQ_UI_DEV", raising=False)
+    monkeypatch.setattr(ir, "STATE_FILE", state_file)
+    monkeypatch.setattr(ir, "UI_BFF_REQUIREMENTS", bff_req)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_DIR", fed_build)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_INDEX", fed_build / "index.html")
+    monkeypatch.setattr(ir, "userspace_ready", lambda: True)
+    monkeypatch.setattr(ir, "bff_python_ready", lambda: False)
+    monkeypatch.setattr(ir, "cli_python_ready", lambda: True)
+
+    state_file.write_text(
+        json.dumps(
+            {
+                "coreVersion": ir.system_meta.version,
+                "python": {"uiRequirementsHash": ir.sha256_file(bff_req)},
+                "uiRuntime": {"lastStatus": "success", "lastFailedStepId": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert ir.needs_install("ui") is True
+
+
+def test_needs_install_ui_true_when_venv_id_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fed_build = repo / "fed_build"
+    fed_build.mkdir()
+    (fed_build / "index.html").write_text("<html></html>", encoding="utf-8")
+
+    state_dir = repo / ".ntq"
+    state_dir.mkdir()
+    state_file = state_dir / "install-state.json"
+    bff_req = repo / "bff-req.txt"
+    bff_req.write_text("flask\n", encoding="utf-8")
+
+    monkeypatch.delenv("NTQ_UI_DEV", raising=False)
+    monkeypatch.setattr(ir, "STATE_FILE", state_file)
+    monkeypatch.setattr(ir, "UI_BFF_REQUIREMENTS", bff_req)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_DIR", fed_build)
+    monkeypatch.setattr(ir, "UI_FED_BUILD_INDEX", fed_build / "index.html")
+    monkeypatch.setattr(ir, "userspace_ready", lambda: True)
+    _packages_ready(monkeypatch)
+    monkeypatch.setattr(ir, "python_env_id", lambda: "current-venv")
+
+    state_file.write_text(
+        json.dumps(
+            {
+                "coreVersion": ir.system_meta.version,
+                "python": {
+                    "uiRequirementsHash": ir.sha256_file(bff_req),
+                    "venvId": "old-venv",
+                },
                 "uiRuntime": {"lastStatus": "success", "lastFailedStepId": ""},
             }
         ),

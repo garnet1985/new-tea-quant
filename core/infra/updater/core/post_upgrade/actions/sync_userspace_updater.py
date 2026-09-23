@@ -12,5 +12,10 @@ from core.infra.updater.core.post_upgrade.registry import PostUpgradeRegistry
     description="将 core/infra/updater/core/orchestrator 同步到 userspace/system/updater",
 )
 def sync_userspace_updater(repo_root: Path, context: dict) -> None:
-    dest = repo_root.resolve() / "userspace" / "system" / "updater"
+    try:
+        from core.infra.project_context import ProjectContext
+
+        dest = ProjectContext.path.get_updater_directory()
+    except Exception:
+        dest = repo_root.resolve() / "userspace" / "system" / "updater"
     sync_orchestrator(dest)

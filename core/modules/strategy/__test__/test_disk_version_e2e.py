@@ -66,6 +66,8 @@ def test_simulate_miss_writes_disk_registry_and_version_dirs(tmp_path: Path) -> 
     info.key = "test_strategy"
     info.relative_path = "demo/test_strategy"
     info.settings = {"meta": {"key": "test_strategy"}, "core": {"n": 1}}
+    info.hooks_class = None
+    info.hooks_module_path = ""
 
     with patch.object(
         strategy_module.DiscoveryService,
@@ -83,6 +85,10 @@ def test_simulate_miss_writes_disk_registry_and_version_dirs(tmp_path: Path) -> 
         strategy_module.GlobalEntityCache,
         "get_latest_completed_trading_date",
         return_value="20240110",
+    ), patch.object(
+        strategy_module.SampleListResolver,
+        "resolve",
+        return_value=["000001.SZ"],
     ), patch.object(
         strategy_module.FingerprintCalculator,
         "calculate_fingerprints",
@@ -145,6 +151,9 @@ def test_simulate_hit_skips_pipeline(tmp_path: Path) -> None:
 
     info = MagicMock()
     info.id.return_value = "demo/test_strategy"
+    info.settings = {}
+    info.hooks_class = None
+    info.hooks_module_path = ""
 
     with patch.object(
         strategy_module.DiscoveryService,
@@ -162,6 +171,10 @@ def test_simulate_hit_skips_pipeline(tmp_path: Path) -> None:
         strategy_module.GlobalEntityCache,
         "get_latest_completed_trading_date",
         return_value="20240110",
+    ), patch.object(
+        strategy_module.SampleListResolver,
+        "resolve",
+        return_value=[],
     ), patch.object(
         strategy_module.FingerprintCalculator,
         "calculate_fingerprints",

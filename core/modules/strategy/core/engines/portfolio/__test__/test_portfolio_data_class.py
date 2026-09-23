@@ -226,6 +226,32 @@ def test_trade_make_sell_split_zero_roi_returns_principal():
     assert sell.amount == pytest.approx(1000.0)
 
 
+def test_trade_buy_note_roundtrips_and_sell_drops_it():
+    buy = Trade.make_buy(
+        date="20240103",
+        entity_id="600000.SH",
+        investment_id="1",
+        shares=100,
+        price=20.0,
+    )
+    buy.note = "  看好放量  "
+    payload = buy.to_dict()
+    assert payload["note"] == "看好放量"
+    restored = Trade.from_dict(payload)
+    assert restored.note == "看好放量"
+    sell = Trade.make_sell(
+        date="20240110",
+        entity_id="600000.SH",
+        investment_id="1",
+        shares=100,
+        buy_price=20.0,
+        roi=0.1,
+    )
+    sell.note = "不该留下"
+    assert "note" not in sell.to_dict()
+    assert Trade.from_dict({**sell.to_dict(), "note": "忽略"}).note is None
+
+
 def test_portfolio_settings_defaults_and_validate():
     settings = PortfolioSettings(raw_settings={})
     report = settings.validate()

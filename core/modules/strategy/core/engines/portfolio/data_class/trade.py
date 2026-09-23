@@ -33,6 +33,8 @@ class Trade:
     equity_after: Optional[float] = None
     # 买入成交后复权价；日频盯市 ROI 分母。卖出腿可空。
     entry_price_hfq: float = 0.0
+    # 决策者买入笔记；机器资金回测不写。卖出腿忽略。
+    note: Optional[str] = None
 
     def is_buy(self) -> bool:
         return str(self.side or "").strip().lower() == "buy"
@@ -139,6 +141,9 @@ class Trade:
             out["equity_after"] = float(self.equity_after)
         if self.is_buy() or float(self.entry_price_hfq or 0.0) > 0:
             out["entry_price_hfq"] = float(self.entry_price_hfq or 0.0)
+        note = str(self.note or "").strip()
+        if self.is_buy() and note:
+            out["note"] = note
         return out
 
     @classmethod
@@ -159,7 +164,15 @@ class Trade:
             cash_after=cls._optional_float(raw.get("cash_after")),
             equity_after=cls._optional_float(raw.get("equity_after")),
             entry_price_hfq=float(raw.get("entry_price_hfq") or 0.0),
+            note=cls._optional_note(raw.get("note"), side=str(raw.get("side") or "buy")),
         )
+
+    @staticmethod
+    def _optional_note(value: Any, *, side: str) -> Optional[str]:
+        if str(side or "").strip().lower() != "buy":
+            return None
+        text = str(value or "").strip()
+        return text or None
 
     @staticmethod
     def _optional_float(value: Any) -> Optional[float]:

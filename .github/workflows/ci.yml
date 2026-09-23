@@ -7,6 +7,9 @@ on:
     branches: [ main, master, dev ]
   workflow_dispatch:
 
+env:
+  NTQ_TRACE_SKIP: "1"
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -26,8 +29,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          python - << 'PY'
+          import subprocess
+          import sys
+          from core.infra.utils import Utils
+          flags = Utils.pkg.pip_args()
+          subprocess.check_call([sys.executable, "-m", "pip", "install", *flags, "--upgrade", "pip"])
+          subprocess.check_call([sys.executable, "-m", "pip", "install", *flags, "-r", "requirements-dev.txt"])
+          PY
 
       - name: Bootstrap DuckDB demo data for integration tests
         run: |
@@ -42,7 +51,7 @@ jobs:
           import importlib
           modules = [
               "core.infra.project_context",
-              "core.infra.cli",
+              "core.modules.cli",
               "core.infra.utils",
               "core.infra.trace",
               "core.modules.strategy",
@@ -73,7 +82,7 @@ jobs:
           python-version: "3.9"
 
       - name: UI minimal import smoke
-        run: python -m core.infra.cli.dev.scripts.minimal_import_check
+        run: python -m core.modules.cli.dev.scripts.minimal_import_check
 
   # 确保 Dockerfile 可构建（不跑完整 install，避免 CI 时间过长）
   docker-build:

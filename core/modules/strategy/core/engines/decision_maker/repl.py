@@ -2,7 +2,7 @@
 
 本文件:
 - DecisionRepl: 录入中 / 账单中 / 已结束；Ctrl+C 存档离开
-  边界: 不跑 ``cli.py s``；短命令在 infra.cli 注册
+  边界: 不跑 ``cli.py s``；短命令在 modules.cli 注册
 """
 
 from __future__ import annotations

@@ -25,7 +25,7 @@ K 线是 dict 列表。`ctx.data` **不是函数**：
 ```python
 data = ctx.data.items_with_meta()
 klines = data.get(ctx.base_data_key) or []
-today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+today = ctx.record_of_today
 ```
 
 顶层 `close` 已是前复权，不要写 `params.adjust`。图表和决策者默认只带 **声明过的** 指标。
@@ -113,7 +113,7 @@ class MacdGoldenCrossStrategy(StrategyHooks):
 settings 的 `data.base.indicators`：`{"rsi": [{"length": 14}]}`。钩子：
 
 ```python
-today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
+today = ctx.record_of_today
 if today is None:
     return False
 rsi = today.get("rsi14")

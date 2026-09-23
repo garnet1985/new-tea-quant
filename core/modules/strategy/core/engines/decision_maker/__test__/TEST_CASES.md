@@ -19,7 +19,7 @@
 **不负责**
 
 - `Strategy` 公开 Facade（见模块根 `__test__/test_api.py`）
-- CLI 缩写解析（见 `core/infra/cli/user/__test__`）
+- CLI 缩写解析（见 `core/modules/cli/user/__test__`）
 - 连 DuckDB 的现场 K 线 / 名称查找
 
 **允许的测试类型（本目录）：** `unit`
@@ -53,6 +53,8 @@
 | `test_holdings_trading_day_span_matches_expiration_unit` | `test_decision_maker.py` | 持有时长与到期同为交易日 |
 | `test_holdings_roi_uses_hfq_not_qfq_over_raw` | `test_decision_maker.py` | 持仓 % 走 hfq ROI，不用前复权收盘 / 不复权买价 |
 | `test_partial_take_profit_marks_stage_and_labels_event` | `test_decision_maker.py` | 分档止盈日志写档名；剩余仓位该档标已完成 |
+| `test_calendar_journal_records_opps_and_fills` | `test_decision_maker.py` | 日历记机会数与已成交买卖；买入带笔记、卖出不带 |
+| `test_buy_note_stays_on_draft_then_trade_and_holdings` | `test_decision_maker.py` | 草稿笔记覆盖/清空后随买入成交和持仓 |
 | `test_info_arg_parse` | `test_decision_maker.py` | info 参数解析 |
 | `test_repl_pick_and_quit` | `test_decision_maker.py` | REPL 选股并 quit 存档 |
 | `test_broker_rejects_non_lot` | `test_decision_maker.py` | broker 拒绝非整手买入 |

@@ -105,7 +105,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 |------|------|----|
 | `module_info.yaml` | `version` / `changelog[0].version` | `0.4.0` |
 | `module_info.yaml` | `compatible_core_versions` | `>=0.4.5` |
-| `module_info.yaml` | `name` | `modules.strategy` / `infra.cli` / `ui` / `bff` / `tables` |
+| `module_info.yaml` | `name` | `modules.strategy` / `modules.cli` / `ui` / `bff` / `tables` |
 | Markdown 文首 | `**版本：**` | `**版本：** 0.4.0` |
 | `API.md` 文首另须 | `**最低支持核心版本：**` | `**最低支持核心版本：** >=0.4.5` |
 | `glossary.yaml` 头注释 | `# Version:` | `# Version: 0.4.0` |

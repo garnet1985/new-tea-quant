@@ -84,6 +84,9 @@ from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
+from core.modules.strategy.core.services.entity_loader.sample_list_resolver import (
+    SampleListResolver,
+)
 from core.modules.strategy.core.services.fingerprint import FingerprintCalculator
 
 logger = logging.getLogger(__name__)
@@ -92,6 +95,14 @@ PHASE_PICKING = "picking"
 PHASE_CONFIRMING = "confirming"
 PHASE_COMPLETED = "completed"
 _KLINE_LRU = 16
+_NOTE_MAX = 2000
+
+
+def _note_text(value: Any) -> str:
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if len(text) > _NOTE_MAX:
+        return text[:_NOTE_MAX]
+    return text
 
 
 class DecisionEngine:
@@ -143,6 +154,7 @@ class DecisionEngine:
         self.open_lots: Dict[str, OpenLot] = {}
         self.trades: List[Trade] = []
         self.draft: Dict[int, int] = {}
+        self.draft_notes: Dict[int, str] = {}
         self.status = STATUS_IN_PROGRESS
         self.phase = PHASE_PICKING
         self.current_date = ""
@@ -309,11 +321,17 @@ class DecisionEngine:
         folder = DiscoveryService.resolve_strategy_folder(key_or_id)
         vid = str(version_id or "").strip()
         if not vid:
-            stock_list = GlobalEntityCache.get_stock_list()
+            merged, _ = FingerprintCalculator.merge_settings(info, None)
+            usable = StrategySettings.to_usable(merged)
+            entity_ids = SampleListResolver.resolve(
+                info,
+                usable,
+                universe=GlobalEntityCache.get_stock_list(),
+            )
             fp_res = FingerprintCalculator.calculate_fingerprints(
                 info,
                 None,
-                entity_ids=stock_list,
+                entity_ids=entity_ids,
             )
             found = SimulationVersionStore.find_enum_version(folder, fp_res)
             if not found:
@@ -385,6 +403,11 @@ class DecisionEngine:
             "cash": float(self.account.cash),
             "initial_cash": float(self.account.initial_cash),
             "draft": {str(k): int(v) for k, v in self.draft.items()},
+            "draft_notes": {
+                str(k): str(v)
+                for k, v in self.draft_notes.items()
+                if int(k) in self.draft and str(v).strip()
+            },
             "positions": [
                 {
                     "entity_id": pos.entity_id,
@@ -466,11 +489,22 @@ class DecisionEngine:
             if isinstance(item, dict)
         ]
         self.draft = {}
+        self.draft_notes = {}
         for key, value in dict(payload.get("draft") or {}).items():
             try:
                 self.draft[int(key)] = int(value)
             except (TypeError, ValueError):
                 continue
+        for key, value in dict(payload.get("draft_notes") or {}).items():
+            try:
+                lid = int(key)
+            except (TypeError, ValueError):
+                continue
+            if lid not in self.draft:
+                continue
+            text = _note_text(value)
+            if text:
+                self.draft_notes[lid] = text
         self.completed_count = int(payload.get("completed_count") or 0)
         self.win_count = int(payload.get("win_count") or 0)
         if self.status == STATUS_COMPLETED:
@@ -519,15 +553,18 @@ class DecisionEngine:
             side = "sell" if trade.is_sell() else "buy"
             entity_id = str(getattr(trade, "entity_id", "") or "")
             inv_id = str(getattr(trade, "investment_id", "") or "")
-            actions_by_date.setdefault(day, []).append(
-                {
-                    "side": side,
-                    "entity_id": entity_id,
-                    "name": self._name(entity_id, inv_id),
-                    "shares": int(getattr(trade, "shares", 0) or 0),
-                    "amount": float(getattr(trade, "amount", 0.0) or 0.0),
-                }
-            )
+            action = {
+                "side": side,
+                "entity_id": entity_id,
+                "name": self._name(entity_id, inv_id),
+                "shares": int(getattr(trade, "shares", 0) or 0),
+                "amount": float(getattr(trade, "amount", 0.0) or 0.0),
+            }
+            if side == "buy":
+                note = _note_text(getattr(trade, "note", ""))
+                if note:
+                    action["note"] = note
+            actions_by_date.setdefault(day, []).append(action)
         days = sorted(set(opp_counts) | set(actions_by_date))
         return [
             {
@@ -555,7 +592,9 @@ class DecisionEngine:
 
     # ------------------------------------------------------------------ 命令
 
-    def set_pick(self, local_id: int, shares: int) -> Tuple[DayOpportunity, int, float]:
+    def set_pick(
+        self, local_id: int, shares: int, *, note: Optional[str] = None
+    ) -> Tuple[DayOpportunity, int, float]:
         if self.is_completed:
             raise DecisionError("本局已结束，只能查看报告")
         if self.phase == PHASE_CONFIRMING:
@@ -565,6 +604,7 @@ class DecisionEngine:
             raise DecisionError(f"没有编号 [{local_id}]")
         if int(shares) <= 0:
             self.draft.pop(int(local_id), None)
+            self.draft_notes.pop(int(local_id), None)
             self.phase = PHASE_PICKING
             self.save()
             return opp, 0, 0.0
@@ -588,12 +628,18 @@ class DecisionEngine:
         if err is not None or preview is None:
             raise DecisionError(err.message if err else "无法买入")
         self.draft[int(local_id)] = int(preview.shares)
+        if note is not None:
+            text = _note_text(note)
+            if text:
+                self.draft_notes[int(local_id)] = text
+            else:
+                self.draft_notes.pop(int(local_id), None)
         self.phase = PHASE_PICKING
         self.save()
         return opp, preview.shares, preview.notional
 
     def set_pick_cash(
-        self, local_id: int, cash: float
+        self, local_id: int, cash: float, *, note: Optional[str] = None
     ) -> Tuple[DayOpportunity, int, float]:
         """UI 填金额：按成交价与市场手数折成可买股数。"""
         if self.is_completed:
@@ -605,7 +651,7 @@ class DecisionEngine:
         except (TypeError, ValueError):
             raise DecisionError("金额须为非负数") from None
         if budget <= 0:
-            return self.set_pick(int(local_id), 0)
+            return self.set_pick(int(local_id), 0, note=note)
         opp = self.opportunity_by_local(int(local_id))
         if opp is None:
             raise DecisionError(f"没有编号 [{local_id}]")
@@ -632,7 +678,7 @@ class DecisionEngine:
             self.allocation.liquidity.TAG_CLIP_ZERO,
         ) or sized <= 0:
             raise DecisionError("超过当日流动性，下不成")
-        return self.set_pick(int(local_id), int(sized))
+        return self.set_pick(int(local_id), int(sized), note=note)
 
     def done(self) -> List[Tuple[DayOpportunity, int, float]]:
         if self.is_completed:
@@ -654,6 +700,7 @@ class DecisionEngine:
             raise DecisionError("本局已结束，只能查看报告")
         if not keep_draft:
             self.draft = {}
+            self.draft_notes = {}
         self.phase = PHASE_PICKING
         self.save()
 
@@ -670,6 +717,7 @@ class DecisionEngine:
             self.save()
             raise
         self.draft = {}
+        self.draft_notes = {}
         more = self._walk_to_next_decision(
             after_date=self.current_date,
             include_sells_on_after=had_buys,
@@ -714,6 +762,7 @@ class DecisionEngine:
                     market_value=market_value,
                     goals=self._goal_chips(lot),
                     status_tags=self._status_tags(lot.entity_id, lot.investment_id),
+                    note=self._buy_note_for_lot(lot),
                 )
             )
         rows.sort(key=lambda row: (row.entity_id, row.buy_date))
@@ -858,6 +907,9 @@ class DecisionEngine:
                 )
                 if err is not None or trade is None:
                     raise DecisionError(err.message if err else "无法买入")
+                text = _note_text(self.draft_notes.get(int(lid), ""))
+                if text:
+                    trade.note = text
                 self.trades.append(trade)
         except DecisionError:
             self.account = saved_account
@@ -926,10 +978,23 @@ class DecisionEngine:
             )
         return notices
 
+    def _buy_note_for_lot(self, lot: OpenLot) -> str:
+        entity_id = str(getattr(lot, "entity_id", "") or "")
+        inv_id = str(getattr(lot, "investment_id", "") or "")
+        for trade in reversed(self.trades):
+            if (
+                trade.is_buy()
+                and str(trade.entity_id or "") == entity_id
+                and str(trade.investment_id or "") == inv_id
+            ):
+                return _note_text(getattr(trade, "note", ""))
+        return ""
+
     def _complete(self) -> None:
         self.status = STATUS_COMPLETED
         self.phase = PHASE_COMPLETED
         self.draft = {}
+        self.draft_notes = {}
         if not self.current_date:
             self.current_date = self.timeline.end_date or self.timeline.first_buy_date()
         try:

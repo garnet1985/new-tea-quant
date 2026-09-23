@@ -88,49 +88,106 @@ class PathManager:
         return PathManager.get_project_root() / "core"
 
     @staticmethod
+    def _userspace_state_file() -> Path:
+        return PathManager.get_project_root() / ".ntq" / "userspace-path.json"
+
+    @staticmethod
+    def _read_userspace_path_from_state() -> Optional[Path]:
+        """读 ``.ntq/userspace-path.json``；坏文件或空路径返回 None。"""
+        state_file = PathManager._userspace_state_file()
+        if not state_file.is_file():
+            return None
+        try:
+            import json
+
+            payload = json.loads(state_file.read_text(encoding="utf-8"))
+            state_path = str(payload.get("userspacePath", "")).strip()
+            if not state_path:
+                return None
+            return Path(state_path).expanduser().resolve()
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _assert_userspace_target_writable(target: Path) -> None:
+        """安装 / precheck：目标须为目录（或尚不存在），且最近已存在祖先可写。"""
+        if target.exists() and not target.is_dir():
+            raise ValueError(f"userspace 路径已存在但不是目录: {target}")
+
+        probe = target if target.exists() else target.parent
+        while not probe.exists() and probe != probe.parent:
+            probe = probe.parent
+        if not probe.exists():
+            raise ValueError(f"无法解析 userspace 路径的父目录: {target}")
+        if not os.access(probe, os.W_OK | os.X_OK):
+            raise PermissionError(f"userspace 路径非法或无权限（不可写）: {target}")
+
+        import tempfile
+
+        try:
+            fd, name = tempfile.mkstemp(prefix=".ntq_us_probe_", dir=str(probe))
+            os.close(fd)
+            os.unlink(name)
+        except OSError as exc:
+            raise PermissionError(
+                f"userspace 路径非法或无权限（不可写）: {target}"
+            ) from exc
+
+    @staticmethod
     def get_userspace_root() -> Path:
         """
-        获取 userspace 目录的绝对路径（支持环境变量覆盖）
+        获取 userspace 目录的绝对路径（运行时 SOT）。
 
         优先级：
             1. 环境变量 NEW_TEA_QUANT_USERSPACE_ROOT（最高优先级）
             2. 环境变量 NTQ_USERSPACE_ROOT
             3. 配置文件 .ntq/userspace-path.json
             4. 项目根目录/userspace（默认）
+
+        已配置路径即使目录尚不存在也直接返回，禁止静默回落到项目内 userspace。
         """
         if PathManager._userspace_cache is not None:
             return PathManager._userspace_cache
-
-        root = PathManager.get_project_root()
 
         for env_path in (
             os.getenv("NEW_TEA_QUANT_USERSPACE_ROOT"),
             os.getenv("NTQ_USERSPACE_ROOT"),
         ):
-            if env_path:
-                p = Path(env_path).expanduser().resolve()
-                if p.exists():
-                    PathManager._userspace_cache = p
-                    return p
+            text = (env_path or "").strip()
+            if text:
+                p = Path(text).expanduser().resolve()
+                PathManager._userspace_cache = p
+                return p
 
-        state_file = root / ".ntq" / "userspace-path.json"
-        if state_file.is_file():
-            try:
-                import json
+        from_state = PathManager._read_userspace_path_from_state()
+        if from_state is not None:
+            PathManager._userspace_cache = from_state
+            return from_state
 
-                payload = json.loads(state_file.read_text(encoding="utf-8"))
-                state_path = str(payload.get("userspacePath", "")).strip()
-                if state_path:
-                    p = Path(state_path).expanduser().resolve()
-                    if p.exists():
-                        PathManager._userspace_cache = p
-                        return p
-            except (OSError, json.JSONDecodeError, TypeError, ValueError):
-                pass
-
-        new_path = root / "userspace"
+        new_path = (PathManager.get_project_root() / "userspace").resolve()
         PathManager._userspace_cache = new_path
         return new_path
+
+    @staticmethod
+    def resolve_userspace_target(raw: Optional[Union[str, Path]] = None) -> Path:
+        """
+        安装 / BFF precheck 专用：规范化并校验可写性，失败抛错。
+
+        - ``raw`` 有内容：``expanduser().resolve()`` 后做可写性检查。
+        - ``raw`` 为空：沿用已有 json 指针，否则默认 ``<repo>/userspace``，再校验。
+        """
+        text = "" if raw is None else str(raw).strip()
+        if text:
+            target = Path(text).expanduser().resolve()
+        else:
+            from_state = PathManager._read_userspace_path_from_state()
+            if from_state is not None:
+                target = from_state
+            else:
+                target = (PathManager.get_project_root() / "userspace").resolve()
+
+        PathManager._assert_userspace_target_writable(target)
+        return target
 
     @staticmethod
     def get_strategies_root() -> Path:

@@ -42,6 +42,7 @@ def test_session_snapshot_uses_ticker_stats_and_draft():
         is_completed=False,
         current_date="20250407",
         draft={1: 100},
+        draft_notes={1: "试仓"},
         account=SimpleNamespace(
             cash=999_000.0,
             initial_cash=1_000_000.0,
@@ -72,6 +73,7 @@ def test_session_snapshot_uses_ticker_stats_and_draft():
     assert msg["asof_stats"]["sample_size"] == 4
     assert msg["draft"][0]["shares"] == 100
     assert msg["draft"][0]["notional"] == 1000.0
+    assert msg["draft"][0]["note"] == "试仓"
     assert msg["bill"] == []
     assert msg["exits"] == []
     assert msg["calendar"] == []
@@ -333,6 +335,7 @@ def test_session_list_and_holdings_and_info():
         unrealized=100.0,
         roi=0.1,
         market_value=1100.0,
+        note="分批",
         goals=[
             SimpleNamespace(text="止盈 win10%: +10.0%", kind="take_profit", done=True)
         ],
@@ -341,6 +344,7 @@ def test_session_list_and_holdings_and_info():
     assert held["holdings"][0]["unrealized"] == 100.0
     assert held["holdings"][0]["roi"] == 0.1
     assert held["holdings"][0]["market_value"] == 1100.0
+    assert held["holdings"][0]["note"] == "分批"
     assert held["holdings"][0]["status_tags"] == ["st"]
     assert held["holdings"][0]["goals"][0]["done"] is True
     assert held["holdings"][0]["goals"][0]["text"].startswith("止盈")
@@ -425,6 +429,7 @@ def test_session_snapshot_calendar_journal():
                         "name": "浦发银行",
                         "shares": 1000,
                         "amount": 10_000.0,
+                        "note": "看好放量",
                     }
                 ],
             },
@@ -446,4 +451,6 @@ def test_session_snapshot_calendar_journal():
     msg = session_snapshot(engine)
     assert msg["calendar"][0]["opp_count"] == 2
     assert msg["calendar"][0]["actions"][0]["side"] == "buy"
+    assert msg["calendar"][0]["actions"][0]["note"] == "看好放量"
     assert msg["calendar"][1]["actions"][0]["amount"] == 11_000.0
+    assert "note" not in msg["calendar"][1]["actions"][0]

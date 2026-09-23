@@ -222,15 +222,18 @@ class Tag:
         MetadataEnsureService(self.tag_data_service).ensure(scenario)
 
         entity_limit = self._dispatch_overrides.get("entity_limit")
+        route = ts.data.base_route()
         entity_ids = TagEntityListResolver.resolve(
             scenario,
             entity_limit=int(entity_limit) if entity_limit is not None else None,
+            tag_info=tag_info,
+            settings=ts,
+            apply_hook=(route == "per_entity"),
         )
         if not entity_ids:
             logger.info("无法获取实体列表，跳过执行: %s", tag_key)
             return None
 
-        route = ts.data.base_route()
         run_kwargs = dict(
             tag_info=tag_info,
             scenario=scenario,

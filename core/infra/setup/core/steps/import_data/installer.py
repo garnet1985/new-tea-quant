@@ -4,7 +4,7 @@ Init Data 导入流程（必跑步骤的执行体）。
 约定：
 - 数据包目录：initialization/data
 - 导入逻辑目录：core/infra/setup/core/steps/import_data
-- 导入方式：目标表 DELETE 再 INSERT（沿用现有 import_data 逻辑）
+- 导入方式：目标表清空后，由数据库直接读 CSV（DuckDB read_csv / PostgreSQL COPY）
 """
 from __future__ import annotations
 

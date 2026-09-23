@@ -74,7 +74,11 @@ class StrategyHookRuntime:
         else:
             module_path = str(getattr(strategy_info, "hooks_module_path", "") or "").strip()
             hooks_cls = getattr(strategy_info, "hooks_class", None)
-            class_name = hooks_cls.__name__ if hooks_cls is not None else ""
+            class_name = (
+                str(getattr(hooks_cls, "__name__", "") or "")
+                if hooks_cls is not None
+                else ""
+            )
             file_path = str(getattr(strategy_info, "strategy_file", "") or "")
             strategy_name = str(
                 getattr(strategy_info, "key", None)

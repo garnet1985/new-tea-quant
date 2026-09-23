@@ -27,8 +27,8 @@ new-tea-quant/
 ├── ci/                     # CI 专用（如 smoke_fresh_install）；非产品 runtime
 ├── docs/                   # 仓库级文档（本目录）
 ├── core/
-│   ├── infra/              # 基础设施（DB、CLI、TaskGuard、trace…）
-│   ├── modules/            # 业务模块（数据、标签、策略、回测…）
+│   ├── infra/              # 基础设施（DB、TaskGuard、trace、setup…）
+│   ├── modules/            # 业务与能力扩展（数据、策略、回测、cli…）
 │   ├── bff/                # Flask BFF（HTTP 编排；托管 FED build）
 │   ├── ui/                 # 工作台前端（fed/：React）
 │   ├── system.json         # 发行元数据 SSOT（SystemMeta 只读此文件）
@@ -51,9 +51,9 @@ new-tea-quant/
 | 层 | 目录 | 职责 |
 |----|------|------|
 | 展示 | `core/ui/fed/` | 工作台 UI（React） |
-| 接入 | `core/bff/`、`cli.py`、`launcher.py` | HTTP / CLI / 一键启动 |
-| 业务模块 | `core/modules/` | 数据、标签、策略、回测、适配器… |
-| 基础设施 | `core/infra/` | DB、CLI 框架、发现、TaskGuard、trace、updater… |
+| 接入 | `core/bff/`、`cli.py`（实现见 `modules.cli`）、`launcher.py` | HTTP / CLI / 一键启动 |
+| 业务与能力 | `core/modules/` | 数据、标签、策略、回测、适配器、CLI… |
+| 基础设施 | `core/infra/` | DB、发现、TaskGuard、trace、updater、setup… |
 | 用户落盘 | `userspace/` | 配置、库文件、策略与扩展源码 |
 
 **依赖方向（硬约束）：** 上层可依赖下层；**infra 不得依赖 modules**；modules 之间只经公开门面与 `module_info.yaml` 声明依赖。细则见根目录 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
@@ -66,7 +66,6 @@ new-tea-quant/
 
 | 包 | 一句话 |
 |----|--------|
-| [`cli`](../core/infra/cli/) | 用户 CLI（`cli.py`）与开发 CLI（`devcli.py`） |
 | [`cmd_layout`](../core/infra/cmd_layout/) | 命令布局 / 帮助结构 |
 | [`db`](../core/infra/db/) | 数据库连接与访问约定 |
 | [`discovery`](../core/infra/discovery/) | 模块 / 命令发现 |
@@ -83,10 +82,11 @@ new-tea-quant/
 
 ---
 
-## 5. `core/modules`（业务模块）
+## 5. `core/modules`（业务与能力扩展）
 
 | 模块 | 一句话 | 文档入口 |
 |------|--------|----------|
+| [`cli`](../core/modules/cli/) | 用户 / 开发 CLI（`cli.py` / `devcli.py`）；可选 access 能力 | [README](../core/modules/cli/README.md) |
 | [`data_contract`](../core/modules/data_contract/) | 表结构 / 合同定义 | [README](../core/modules/data_contract/README.md) |
 | [`data_manager`](../core/modules/data_manager/) | 读路径、样本股池（`sample_universe`）等 | [README](../core/modules/data_manager/README.md) |
 | [`data_source`](../core/modules/data_source/) | 拉取与落库编排 | [README](../core/modules/data_source/README.md) |

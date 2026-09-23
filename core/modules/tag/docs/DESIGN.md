@@ -63,10 +63,19 @@ global：哨兵实体（如 `__global__`）。详见下文「设计决策」。
 
 userspace `tag.py` 继承 `TagHooks`：
 
+- `to_entity_list(ctx, entity_list)` — **仅 per_entity**，开跑前一次；过滤 `list_data_key` 宇宙后与入参取交、排序，再套运维 `entity_limit`
 - `calculate_tag(ctx)` — per_entity 的 entity_based；global 主进程推进也复用（哨兵 `entity_id`）
 - `on_calendar_asof(ctx)` — per_entity 的 slice_based（可选）；返回 ``TagCalendarAsOfResult``
 
 旧 `BaseTagWorker` / `tag_worker.py` 生命周期钩子已移除。
+
+实体池解析顺序（per_entity）：
+
+```text
+list_data_key 全表 → to_entity_list → sorted unique → entity_limit（可选）
+```
+
+global / non_time_series **不调** `to_entity_list`。
 
 ---
 

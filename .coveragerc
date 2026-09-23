@@ -18,7 +18,7 @@ omit =
     */core/ui/*
     */core/bff/*
     # Maintainer toolbox (devcli scripts) — tested ad hoc; not product facade stats
-    */core/infra/cli/dev/scripts/*
+    */core/modules/cli/dev/scripts/*
     # Install/upgrade plumbing — FS-heavy; covered by install/CI smoke, not unit suite
     */core/infra/setup/core/steps/*
     */core/infra/setup/core/scripts/*

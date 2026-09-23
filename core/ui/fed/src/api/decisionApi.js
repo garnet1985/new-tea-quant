@@ -322,21 +322,32 @@ export function infoRowsToCandles(rows) {
       hi = lo;
       lo = tmp;
     }
-    return { date, open, close, high: hi, low: lo };
+    const out = { date, open, close, high: hi, low: lo };
+    const volume = Number(row.volume);
+    if (Number.isFinite(volume)) out.volume = volume;
+    return out;
   }).filter(Boolean);
 }
 
 function mapIndicatorSeries(raw) {
   if (!Array.isArray(raw)) return [];
-  return raw.map((row) => ({
-    key: String(row?.key || ''),
-    label: String(row?.label || row?.key || ''),
-    panel: row?.panel === 'oscillator' ? 'oscillator' : 'overlay',
-    color: row?.color || undefined,
-    data: Array.isArray(row?.data)
-      ? row.data.map((value) => (value == null || !Number.isFinite(Number(value)) ? null : Number(value)))
-      : [],
-  })).filter((row) => row.key);
+  const subPanels = new Set(['oscillator', 'macd', 'volume']);
+  return raw.map((row) => {
+    const panel = String(row?.panel || 'overlay');
+    return {
+      key: String(row?.key || ''),
+      label: String(row?.label || row?.key || ''),
+      panel: subPanels.has(panel) ? panel : 'overlay',
+      kind: row?.kind === 'bar' ? 'bar' : 'line',
+      pane_group: row?.pane_group || row?.paneGroup || undefined,
+      y_axis: row?.y_axis || row?.yAxis || undefined,
+      signed: Boolean(row?.signed),
+      color: row?.color || undefined,
+      data: Array.isArray(row?.data)
+        ? row.data.map((value) => (value == null || !Number.isFinite(Number(value)) ? null : Number(value)))
+        : [],
+    };
+  }).filter((row) => row.key);
 }
 
 const LONG = { timeoutMs: HTTP_TIMEOUT_MS.LONG };
@@ -477,13 +488,18 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
     );
     const m = unwrapMessage(json);
     const candles = Array.isArray(m.candles) && m.candles.length
-      ? m.candles.map((row) => ({
-        date: String(row?.date || '').replace(/-/g, ''),
-        open: Number(row.open),
-        close: Number(row.close),
-        high: Number(row.high),
-        low: Number(row.low),
-      })).filter((row) => row.date && [row.open, row.close, row.high, row.low].every(Number.isFinite))
+      ? m.candles.map((row) => {
+        const date = String(row?.date || '').replace(/-/g, '');
+        const open = Number(row.open);
+        const close = Number(row.close);
+        const high = Number(row.high);
+        const low = Number(row.low);
+        if (!date || ![open, close, high, low].every(Number.isFinite)) return null;
+        const out = { date, open, close, high, low };
+        const volume = Number(row.volume);
+        if (Number.isFinite(volume)) out.volume = volume;
+        return out;
+      }).filter(Boolean)
       : infoRowsToCandles(m.rows);
     return {
       entityId: String(m.entity_id || ''),

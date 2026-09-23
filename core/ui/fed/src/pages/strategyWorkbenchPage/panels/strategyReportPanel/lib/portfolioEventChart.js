@@ -1,13 +1,13 @@
 import { formatReportMoney } from './formatReportMoney';
 import { formatReportChartDateLabel } from './reportDateFormat';
 import {
-  REPORT_MARKER_PIN_DOWN,
-  REPORT_MARKER_PIN_OFFSET_DOWN,
-  REPORT_MARKER_PIN_OFFSET_UP,
-  REPORT_MARKER_PIN_SIZE,
-  REPORT_MARKER_PIN_UP,
-  reportMarkerPinStyle,
-} from './reportChartMarkers';
+  MARKET_MARKER_PIN_DOWN,
+  MARKET_MARKER_PIN_OFFSET_DOWN,
+  MARKET_MARKER_PIN_OFFSET_UP,
+  MARKET_MARKER_PIN_SIZE,
+  MARKET_MARKER_PIN_UP,
+  marketMarkerPinStyle,
+} from 'components/marketChart';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
@@ -252,13 +252,13 @@ export function buildPortfolioEventChartOption(metrics) {
       xAxisIndex: 0,
       yAxisIndex: 0,
       color: BUY_COLOR,
-      symbol: REPORT_MARKER_PIN_UP,
+      symbol: MARKET_MARKER_PIN_UP,
       symbolSize: (val) => {
         const n = val?.events?.length || 1;
-        return Math.min(18, REPORT_MARKER_PIN_SIZE + Math.max(0, n - 1) * 2);
+        return Math.min(18, MARKET_MARKER_PIN_SIZE + Math.max(0, n - 1) * 2);
       },
-      symbolOffset: [0, REPORT_MARKER_PIN_OFFSET_UP],
-      itemStyle: reportMarkerPinStyle(BUY_COLOR, '0, 229, 255'),
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
+      itemStyle: marketMarkerPinStyle(BUY_COLOR, '0, 229, 255'),
       tooltip: { show: false },
       z: 5,
     });
@@ -271,13 +271,13 @@ export function buildPortfolioEventChartOption(metrics) {
       xAxisIndex: 0,
       yAxisIndex: 0,
       color: SELL_COLOR,
-      symbol: REPORT_MARKER_PIN_DOWN,
+      symbol: MARKET_MARKER_PIN_DOWN,
       symbolSize: (val) => {
         const n = val?.events?.length || 1;
-        return Math.min(18, REPORT_MARKER_PIN_SIZE + Math.max(0, n - 1) * 2);
+        return Math.min(18, MARKET_MARKER_PIN_SIZE + Math.max(0, n - 1) * 2);
       },
-      symbolOffset: [0, REPORT_MARKER_PIN_OFFSET_DOWN],
-      itemStyle: reportMarkerPinStyle(SELL_COLOR, '255, 145, 0'),
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      itemStyle: marketMarkerPinStyle(SELL_COLOR, '255, 145, 0'),
       tooltip: { show: false },
       z: 5,
     });

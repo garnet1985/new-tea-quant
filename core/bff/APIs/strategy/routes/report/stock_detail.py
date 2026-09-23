@@ -33,22 +33,16 @@ from core.modules.strategy.core.services.artifacts import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
+from core.bff.APIs.strategy.helpers.indicator_chart_catalog import (
+    apply_render_fields,
+    format_indicator_label,
+    next_indicator_color,
+    resolve_indicator_render,
+    should_skip_chart_series,
+)
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
-
-_OSCILLATOR_INDICATORS = frozenset(
-    {"rsi", "stoch", "stochrsi", "willr", "mfi", "cmo", "cci", "uo", "aroon"}
-)
-_BBANDS_OVERLAY_PREFIXES = frozenset({"bbl", "bbm", "bbu"})
-_INDICATOR_LINE_COLORS = (
-    "#64B5F6",
-    "#BA68C8",
-    "#4DD0E1",
-    "#AED581",
-    "#FF8A65",
-    "#F06292",
-)
 
 
 class WorkbenchStockDetail:
@@ -717,13 +711,17 @@ class WorkbenchStockDetail:
             low = close
         if high is not None and low is not None and high < low:
             high, low = low, high
-        return {
+        volume = cls._float_or_none(row.get("volume"))
+        out: Dict[str, Any] = {
             "date": date_key,
             "open": open_,
             "close": close,
             "high": high,
             "low": low,
         }
+        if volume is not None:
+            out["volume"] = volume
+        return out
 
     @staticmethod
     def _float_or_none(value: Any) -> Optional[float]:
@@ -766,40 +764,57 @@ class WorkbenchStockDetail:
             if not isinstance(cfg, dict):
                 cfg = {}
             if isinstance(result, list):
-                series_out.append(
-                    {
-                        "key": cls._indicator_field_name(name, cfg),
-                        "label": cls._indicator_label(name, cfg),
-                        "panel": cls._indicator_panel(name),
-                        "color": _INDICATOR_LINE_COLORS[
-                            color_idx % len(_INDICATOR_LINE_COLORS)
-                        ],
-                        "data": cls._align_indicator_values(result, len(klines)),
-                    }
+                field_key = cls._indicator_field_name(name, cfg)
+                render = resolve_indicator_render(
+                    name, field_key=field_key, params=cfg
                 )
+                row = {
+                    "key": field_key,
+                    "label": format_indicator_label(
+                        name, field_key=field_key, params=cfg
+                    ),
+                    "color": next_indicator_color(color_idx),
+                    "data": cls._align_indicator_values(result, len(klines)),
+                }
+                apply_render_fields(row, render)
+                if render.get("signed") and row.get("kind") == "bar":
+                    row["color"] = "signed"
+                series_out.append(row)
                 color_idx += 1
                 continue
             if isinstance(result, dict):
                 for sub_key, sub_values in result.items():
                     if not isinstance(sub_values, list):
                         continue
-                    series_out.append(
-                        {
-                            "key": cls._indicator_field_name(f"{name}_{sub_key}", cfg),
-                            "label": cls._indicator_label(
-                                name, cfg, suffix=str(sub_key)
-                            ),
-                            "panel": cls._indicator_panel_for_series(
-                                name, sub_key=str(sub_key)
-                            ),
-                            "color": _INDICATOR_LINE_COLORS[
-                                color_idx % len(_INDICATOR_LINE_COLORS)
-                            ],
-                            "data": cls._align_indicator_values(
-                                sub_values, len(klines)
-                            ),
-                        }
+                    # 用 pandas-ta 列名作 key，避免 name+length 再拼一次变成 vtxp_1414
+                    field_key = str(sub_key).strip().lower()
+                    if should_skip_chart_series(
+                        name=name, sub_key=str(sub_key), field_key=field_key
+                    ):
+                        continue
+                    render = resolve_indicator_render(
+                        name,
+                        sub_key=str(sub_key),
+                        field_key=field_key,
+                        params=cfg,
                     )
+                    row = {
+                        "key": field_key,
+                        "label": format_indicator_label(
+                            name,
+                            sub_key=str(sub_key),
+                            field_key=field_key,
+                            params=cfg,
+                        ),
+                        "color": next_indicator_color(color_idx),
+                        "data": cls._align_indicator_values(
+                            sub_values, len(klines)
+                        ),
+                    }
+                    apply_render_fields(row, render)
+                    if render.get("signed") and row.get("kind") == "bar":
+                        row["color"] = "signed"
+                    series_out.append(row)
                     color_idx += 1
         return [
             row for row in series_out if any(v is not None for v in row.get("data") or [])
@@ -822,31 +837,6 @@ class WorkbenchStockDetail:
             if isinstance(value, (int, float, str)):
                 parts.append(f"{key}{value}")
         return "_".join(parts)
-
-    @staticmethod
-    def _indicator_panel(name: str) -> str:
-        base = str(name or "").lower().split("_")[0]
-        return "oscillator" if base in _OSCILLATOR_INDICATORS else "overlay"
-
-    @classmethod
-    def _indicator_panel_for_series(cls, name: str, *, sub_key: str = "") -> str:
-        base = str(name or "").lower()
-        if base == "bbands" and sub_key:
-            prefix = str(sub_key).lower().split("_")[0]
-            return "overlay" if prefix in _BBANDS_OVERLAY_PREFIXES else "oscillator"
-        return cls._indicator_panel(name)
-
-    @staticmethod
-    def _indicator_label(name: str, params: Dict[str, Any], *, suffix: str = "") -> str:
-        base = str(name or "").upper()
-        length = params.get("length")
-        if suffix:
-            return (
-                f"{base} {suffix.upper()}({length})"
-                if length is not None
-                else f"{base} {suffix.upper()}"
-            )
-        return f"{base}({int(length)})" if length is not None else base
 
     @classmethod
     def _align_indicator_values(

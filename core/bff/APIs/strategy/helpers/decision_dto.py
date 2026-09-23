@@ -5,25 +5,15 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from core.bff.APIs.strategy.helpers.indicator_chart_catalog import (
+    apply_render_fields,
+    format_indicator_label,
+    next_indicator_color,
+    resolve_indicator_render_from_column,
+    should_skip_chart_series,
+)
+
 _OHLCV_KEYS = ("date", "open", "high", "low", "close", "volume")
-_OSCILLATOR_PREFIXES = (
-    "rsi",
-    "stoch",
-    "willr",
-    "mfi",
-    "cmo",
-    "cci",
-    "uo",
-    "aroon",
-)
-_INDICATOR_LINE_COLORS = (
-    "#64B5F6",
-    "#BA68C8",
-    "#4DD0E1",
-    "#AED581",
-    "#FF8A65",
-    "#F06292",
-)
 
 
 def _json_number(raw: Any) -> Optional[float]:
@@ -81,12 +71,17 @@ def _candle_from_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         low = close
     if high < low:
         high, low = low, high
-    return {"date": date, "open": open_, "close": close, "high": high, "low": low}
-
-
-def _indicator_panel(column: str) -> str:
-    key = str(column or "").lower()
-    return "oscillator" if any(key.startswith(prefix) for prefix in _OSCILLATOR_PREFIXES) else "overlay"
+    volume = _json_number(row.get("volume"))
+    out: Dict[str, Any] = {
+        "date": date,
+        "open": open_,
+        "close": close,
+        "high": high,
+        "low": low,
+    }
+    if volume is not None:
+        out["volume"] = volume
+    return out
 
 
 def _indicator_series_from_rows(
@@ -100,18 +95,22 @@ def _indicator_series_from_rows(
     ]
     series: List[Dict[str, Any]] = []
     for index, col in enumerate(extra):
+        if should_skip_chart_series(field_key=col):
+            continue
         data = [_json_number(row.get(col)) for row in rows]
         if not any(value is not None for value in data):
             continue
-        series.append(
-            {
-                "key": col,
-                "label": col.upper(),
-                "panel": _indicator_panel(col),
-                "color": _INDICATOR_LINE_COLORS[index % len(_INDICATOR_LINE_COLORS)],
-                "data": data,
-            }
-        )
+        render = resolve_indicator_render_from_column(col)
+        row: Dict[str, Any] = {
+            "key": col,
+            "label": format_indicator_label("", field_key=col),
+            "color": next_indicator_color(index),
+            "data": data,
+        }
+        apply_render_fields(row, render)
+        if render.get("signed") and row.get("kind") == "bar":
+            row["color"] = "signed"
+        series.append(row)
     return series
 
 

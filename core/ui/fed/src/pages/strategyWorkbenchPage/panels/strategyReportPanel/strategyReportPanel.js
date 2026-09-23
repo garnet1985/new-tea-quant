@@ -79,7 +79,6 @@ function StrategyReportPanel({
 
   const [activeTab, setActiveTab] = useState('');
   const [selectedStock, setSelectedStock] = useState(null);
-  const [reportStockView, setReportStockView] = useState('list');
 
   const {
     enumRefStatus,
@@ -164,7 +163,10 @@ function StrategyReportPanel({
 
   const handleTabChange = (_event, nextValue) => {
     setActiveTab(nextValue);
-    setReportStockView('list');
+    setSelectedStock(null);
+  };
+
+  const closeStockDetail = () => {
     setSelectedStock(null);
   };
 
@@ -265,7 +267,6 @@ function StrategyReportPanel({
   const showSectionHead = Boolean(
     resolvedActiveTab
     && activeTabSectionTitle
-    && !(reportStockView === 'detail' && selectedStock)
     && !(embedded && lockedTab),
   );
 
@@ -292,22 +293,6 @@ function StrategyReportPanel({
     }
 
     if (resolvedActiveTab === 'enum') {
-      if (reportStockView === 'detail' && selectedStock) {
-        return (
-          <ReportStockDetailView
-            strategyName={strategyName}
-            versionId={activeWorkbenchVersionId}
-            stock={selectedStock}
-            initialStep="enum"
-            stepStatus={executionState?.stepStatus || {}}
-            onBack={() => {
-              setReportStockView('list');
-              setSelectedStock(null);
-            }}
-          />
-        );
-      }
-
       let stockGridOverlay = null;
       if (activeWorkbenchVersionId && enumRefStatus === 'missing' && typeof onForceEnumerate === 'function') {
         stockGridOverlay = (
@@ -354,29 +339,12 @@ function StrategyReportPanel({
           stockLinkEnabled: executionState?.stepStatus?.enum === 'done' && enumRefStatus === 'ok',
           onStockSelect: (row) => {
             setSelectedStock(row);
-            setReportStockView('detail');
           },
         },
       );
     }
 
     if (resolvedActiveTab === 'price') {
-      if (reportStockView === 'detail' && selectedStock) {
-        return (
-          <ReportStockDetailView
-            strategyName={strategyName}
-            versionId={activeWorkbenchVersionId}
-            stock={selectedStock}
-            initialStep="price"
-            stepStatus={executionState?.stepStatus || {}}
-            onBack={() => {
-              setReportStockView('list');
-              setSelectedStock(null);
-            }}
-          />
-        );
-      }
-
       return renderReportByTab(
         'price',
         buildMetricsPayloadForTab('price'),
@@ -388,7 +356,6 @@ function StrategyReportPanel({
           stockLinkEnabled: executionState?.stepStatus?.price === 'done' && priceRefStatus === 'ok',
           onStockSelect: (row) => {
             setSelectedStock(row);
-            setReportStockView('detail');
           },
         },
       );
@@ -441,20 +408,28 @@ function StrategyReportPanel({
           ) : null}
         </Stack>
       ) : null}
-      {resolvedActiveTab && !(reportStockView === 'detail' && selectedStock) ? (
+      {resolvedActiveTab ? (
         <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
       ) : null}
       {renderTabContent()}
       {resolvedActiveTab
         && analysisEnabled
-        && executionState?.stepStatus?.[resolvedActiveTab] === 'done'
-        && !(reportStockView === 'detail' && selectedStock) ? (
+        && executionState?.stepStatus?.[resolvedActiveTab] === 'done' ? (
           <StepAnalysisInsights
             status={analysisStatus}
             analysis={analysisPayload}
             error={analysisError}
           />
         ) : null}
+      <ReportStockDetailView
+        open={Boolean(selectedStock)}
+        strategyName={strategyName}
+        versionId={activeWorkbenchVersionId}
+        stock={selectedStock}
+        initialStep={resolvedActiveTab === 'price' ? 'price' : 'enum'}
+        stepStatus={executionState?.stepStatus || {}}
+        onClose={closeStockDetail}
+      />
     </Stack>
   );
 

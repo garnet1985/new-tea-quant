@@ -24,7 +24,7 @@ import PageLayout from '../../components/pageLayout/pageLayout';
 import ChartPanel from '../../components/chartPanel/chartPanel';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { buildStockKlineChartOptionFromPayload } from '../strategyWorkbenchPage/panels/strategyReportPanel/lib/stockKlineChart';
+import { buildMarketChartOptionFromStockPayload } from 'components/marketChart';
 import {
   doneDecisionDay,
     fetchDecisionHoldings,
@@ -922,7 +922,7 @@ export function DecisionPlaySession({
     if (clockYmd && clockYmd !== buyYmd) {
       markers.push({ type: 'opportunity', date: clockYmd, label: '当前日' });
     }
-    return buildStockKlineChartOptionFromPayload({
+    return buildMarketChartOptionFromStockPayload({
       candles: infoPayload.candles,
       indicator_series: infoPayload.indicatorSeries || [],
       markers,
@@ -1780,13 +1780,17 @@ export function DecisionPlaySession({
             <>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                 as-of {clockDate} · 前复权 K 线停在当前日，不含未来
-                {infoPayload?.indicatorSeries?.some((row) => row.panel === 'oscillator')
-                  ? ` · 副图：${infoPayload.indicatorSeries
-                    .filter((row) => row.panel === 'oscillator')
-                    .map((row) => row.label || row.key)
-                    .filter(Boolean)
-                    .join('、')}`
-                  : ''}
+                {(() => {
+                  const panels = new Set(
+                    (infoPayload?.indicatorSeries || [])
+                      .map((row) => row.panel)
+                      .filter((p) => p && p !== 'overlay'),
+                  );
+                  const names = [];
+                  if (panels.has('macd')) names.push('MACD');
+                  if (panels.has('oscillator')) names.push('振荡指标');
+                  return names.length ? ` · 副图：${names.join(' / ')}` : '';
+                })()}
               </Typography>
               <Stack spacing={0.75} sx={{ mb: 2 }}>
                 <Stack direction="row" justifyContent="space-between">

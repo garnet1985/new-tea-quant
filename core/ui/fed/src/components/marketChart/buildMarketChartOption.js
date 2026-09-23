@@ -6,6 +6,8 @@ import {
   MARKET_CHART_AXIS_LINE,
   MARKET_CHART_BAR_NEG,
   MARKET_CHART_BAR_POS,
+  MARKET_CHART_GRID_LEFT,
+  MARKET_CHART_GRID_RIGHT,
   MARKET_CHART_LEGEND_TEXT,
   MARKET_CHART_PANEL_DIVIDER,
   MARKET_CHART_SPLIT_LINE,
@@ -14,8 +16,8 @@ import {
 } from './theme';
 
 const DEFAULT_ZOOM_WINDOW = 180;
-const GRID_LEFT = 52;
-const GRID_RIGHT = 16;
+const GRID_LEFT = MARKET_CHART_GRID_LEFT;
+const GRID_RIGHT = MARKET_CHART_GRID_RIGHT;
 /** 图例占位；附图紧挨排列，只用 grid 细边框分隔，不再画黑色缝 */
 const LEGEND_TOP_PAD = 12;
 const BOTTOM_PAD = 11;
@@ -341,17 +343,28 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData) {
   }
 
   if (spec.type === 'line') {
+    const lineStyle = {
+      width: spec.lineWidth != null ? Number(spec.lineWidth) : 1.5,
+      color: spec.color || undefined,
+    };
+    if (spec.lineDash) {
+      lineStyle.type = Array.isArray(spec.lineDash) ? spec.lineDash : 'dashed';
+    }
     return {
       name,
       type: 'line',
       xAxisIndex: paneIndex,
       yAxisIndex: paneIndex,
-      showSymbol: false,
+      showSymbol: Boolean(spec.showSymbol),
+      symbol: spec.symbol || 'circle',
+      symbolSize: spec.symbolSize != null ? Number(spec.symbolSize) : 6,
       smooth: false,
-      lineStyle: { width: 1.5, color: spec.color || undefined },
+      step: spec.step || false,
+      lineStyle,
       itemStyle: { color: spec.color || undefined },
+      areaStyle: spec.areaStyle || undefined,
       data: Array.isArray(spec.data) ? spec.data : [],
-      connectNulls: false,
+      connectNulls: Boolean(spec.connectNulls),
     };
   }
 

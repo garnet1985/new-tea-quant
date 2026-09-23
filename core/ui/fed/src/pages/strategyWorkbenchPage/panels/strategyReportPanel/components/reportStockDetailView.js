@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Dialog,
@@ -13,7 +13,7 @@ import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import { fetchStrategyStockDetail } from '../../../../../api/strategyApi';
 import BacktestPeriodBanner from './backtestPeriodBanner';
-import { buildMarketChartOptionFromStockPayload } from 'components/marketChart';
+import { buildMarketChartOptionFromStockPayload, pickFinanceSnapshot, stockKlinePayloadToMarketChartModel, MARKET_CHART_GRID_LEFT, MARKET_CHART_GRID_RIGHT } from 'components/marketChart';
 import {
   buildStockKlineCacheKey,
   findStockKlineCacheByStock,
@@ -38,6 +38,9 @@ function ReportStockDetailView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
+  /** 财报 PIT：仅十字线悬停时填数；未悬停方块常驻显示 — */
+  const [pointerAsOf, setPointerAsOf] = useState('');
+  const zoomEndDateRef = useRef('');
 
   const stockCode = stock?.stockCode || '';
   const stockName = stock?.stockName || stockCode;
@@ -132,13 +135,94 @@ function ReportStockDetailView({
   }, [open, activeLayer, loadDetail, layerEnabled]);
 
   useEffect(() => {
-    if (!open) setPayload(null);
+    if (!open) {
+      setPayload(null);
+      setPointerAsOf('');
+    }
   }, [open]);
+
+  useEffect(() => {
+    setPointerAsOf('');
+    const dates = (payload?.candles || [])
+      .map((c) => String(c?.date || '').trim())
+      .filter(Boolean);
+    zoomEndDateRef.current = dates.length ? dates[dates.length - 1] : '';
+  }, [payload]);
 
   const chartOption = useMemo(
     () => buildMarketChartOptionFromStockPayload(payload),
     [payload],
   );
+
+  const chartModel = useMemo(
+    () => stockKlinePayloadToMarketChartModel(payload),
+    [payload],
+  );
+
+  const candleDates = useMemo(
+    () => (payload?.candles || []).map((c) => String(c?.date || '').trim()).filter(Boolean),
+    [payload],
+  );
+
+  const hasFinanceLayer = useMemo(() => {
+    if ((chartModel?.financeEvents || []).length > 0) return true;
+    return (payload?.chart_layers || []).some((l) => String(l?.role || '') === 'event_pins');
+  }, [chartModel, payload]);
+
+  const financeSnapshot = useMemo(() => {
+    const events = chartModel?.financeEvents;
+    if (!pointerAsOf || !events?.length) return null;
+    return pickFinanceSnapshot(events, pointerAsOf);
+  }, [chartModel, pointerAsOf]);
+
+  const financeLive = Boolean(pointerAsOf && financeSnapshot);
+
+  const resolveDateFromAxisEvent = useCallback((params) => {
+    const axes = params?.axesInfo || params?.batch?.[0]?.axesInfo;
+    if (Array.isArray(axes)) {
+      for (let i = 0; i < axes.length; i += 1) {
+        const v = axes[i]?.value ?? axes[i]?.axisValue;
+        const d = String(v ?? '').trim();
+        if (d) return d;
+      }
+    }
+    const direct = String(params?.value ?? params?.axisValue ?? '').trim();
+    return direct || '';
+  }, []);
+
+  const resolveDateFromDataZoom = useCallback((params) => {
+    const batch = Array.isArray(params?.batch) && params.batch.length
+      ? params.batch[0]
+      : params;
+    if (!candleDates.length) return '';
+    const n = candleDates.length;
+    const endPct = Number(batch?.end);
+    const pct = Number.isFinite(endPct) ? endPct : 100;
+    const idx = Math.min(n - 1, Math.max(0, Math.round((pct / 100) * (n - 1))));
+    return candleDates[idx] || '';
+  }, [candleDates]);
+
+  const chartEvents = useMemo(() => ({
+    updateAxisPointer: (params) => {
+      const d = resolveDateFromAxisEvent(params);
+      if (d) setPointerAsOf(d);
+    },
+    datazoom: (params) => {
+      const d = resolveDateFromDataZoom(params);
+      if (d) zoomEndDateRef.current = d;
+      // 缩放不自动填财报；保持未悬停的 — 态，避免布局抖动以外的误读
+      setPointerAsOf('');
+    },
+    globalout: () => {
+      setPointerAsOf('');
+    },
+  }), [resolveDateFromAxisEvent, resolveDateFromDataZoom]);
+
+  const layerHints = useMemo(() => {
+    const layers = payload?.chart_layers || [];
+    if (!layers.length) return '';
+    return layers.map((l) => l.label || l.role).filter(Boolean).join(' · ');
+  }, [payload]);
 
   const periodSlot = useMemo(() => {
     if (!payload?.backtest_period) return null;
@@ -213,6 +297,7 @@ function ReportStockDetailView({
             <Box component="div">
               主图：K线（前复权）
               {hasVolume ? ' · 成交量' : ''}
+              {layerHints ? ` · 分层：${layerHints}` : ''}
             </Box>
             <Box component="div">
               {subPanelSummary ? `副图：${subPanelSummary} · ` : ''}
@@ -241,6 +326,7 @@ function ReportStockDetailView({
                   style={{ height: '100%', width: '100%', minHeight: 520 }}
                   notMerge
                   lazyUpdate
+                  onEvents={chartEvents}
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">
@@ -248,9 +334,83 @@ function ReportStockDetailView({
                 </Typography>
               )}
             </Box>
+            {hasFinanceLayer ? (
+              <Box
+                sx={{
+                  ml: `${MARKET_CHART_GRID_LEFT}px`,
+                  mr: `${MARKET_CHART_GRID_RIGHT}px`,
+                  px: 1.25,
+                  py: 1,
+                  borderRadius: 0,
+                  bgcolor: 'rgba(255,255,255,0.045)',
+                  border: '1px solid rgba(255,255,255,0.16)',
+                }}
+              >
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                  {financeLive
+                    ? [
+                      '财报快照（PIT）',
+                      pointerAsOf ? `as-of ${pointerAsOf}` : '',
+                      financeSnapshot?.quarter || '',
+                      financeSnapshot?.date ? `公告 ${financeSnapshot.date}` : '',
+                    ].filter(Boolean).join(' · ')
+                    : '财报快照（悬停 K 线查看 PIT）'}
+                </Typography>
+                <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1}>
+                  {[
+                    ['ROE', financeLive ? financeSnapshot?.snapshot?.roe : null],
+                    ['EPS', financeLive ? financeSnapshot?.snapshot?.eps : null],
+                    ['毛利率', financeLive ? financeSnapshot?.snapshot?.gross_profit_margin : null],
+                    ['营收同比', financeLive ? financeSnapshot?.snapshot?.or_yoy : null],
+                    ['净利同比', financeLive ? financeSnapshot?.snapshot?.netprofit_yoy : null],
+                  ].map(([name, raw]) => {
+                    const n = Number(raw);
+                    const live = financeLive && raw != null && Number.isFinite(n);
+                    const text = live ? n.toFixed(2) : '--';
+                    return (
+                      <Box
+                        key={name}
+                        sx={{
+                          minWidth: 72,
+                          px: 1,
+                          py: 0.75,
+                          borderRadius: 0.75,
+                          border: '1px solid rgba(255,255,255,0.14)',
+                          bgcolor: 'rgba(0,0,0,0.22)',
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                          sx={{ lineHeight: 1.2, mb: 0.35, fontSize: 10 }}
+                        >
+                          {name}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          sx={{
+                            fontVariantNumeric: 'tabular-nums',
+                            lineHeight: 1.2,
+                            color: !live
+                              ? 'text.secondary'
+                              : n < 0
+                                ? 'error.light'
+                                : 'text.primary',
+                          }}
+                        >
+                          {text}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Box>
+            ) : null}
             {hasChart && activeLayer === 'price' ? (
               <Typography variant="caption" color="text.secondary" component="div">
-                标注：青色 Pin 为买入日，橙/紫 Pin 为目标胜/负；同日重叠只标一个点。
+                标注：青色 Pin 为买入日，橙/紫 Pin 为目标胜/负；菱形为财报公告日。
               </Typography>
             ) : null}
           </>

@@ -39,6 +39,10 @@ export const MARKET_CHART_PANEL_DIVIDER = 'rgba(255, 255, 255, 0.42)';
 /** 副图略提亮，和主图底区分开，边框才看得清 */
 export const MARKET_CHART_SUB_PANE_BG = 'rgba(255, 255, 255, 0.07)';
 
+/** 与 ECharts grid 左右对齐，信息卡 / 图例共用 */
+export const MARKET_CHART_GRID_LEFT = 52;
+export const MARKET_CHART_GRID_RIGHT = 16;
+
 export const MARKET_CHART_LEGEND_TEXT = {
   color: 'rgba(255,255,255,0.72)',
   fontSize: 11,

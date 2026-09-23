@@ -153,6 +153,48 @@ describe('stockKlinePayload adapter', () => {
     expect(model.series.find((s) => s.key === 'macdh').type).toBe('bar');
   });
 
+  it('applies linked_ohlcv and macro_step chart layers', () => {
+    const model = stockKlinePayloadToMarketChartModel(
+      payload({
+        indicator_series: [],
+        chart_layers: [
+          {
+            role: 'linked_ohlcv',
+            data_key: 'stock.kline.weekly',
+            label: '周收',
+            points: [
+              { date: '20240103', close: 10.2 },
+              { date: '20240105', close: 11.5 },
+            ],
+          },
+          {
+            role: 'macro_step',
+            data_key: 'macro.gdp',
+            label: 'GDP YoY',
+            points: [{ date: '20240101', value: 5.2 }],
+          },
+          {
+            role: 'event_pins',
+            data_key: 'stock.finance.quarterly',
+            label: '财报',
+            events: [
+              {
+                date: '20240105',
+                label: '财报',
+                quarter: '2023Q4',
+                snapshot: { roe: 12.3 },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(model.series.some((s) => s.key === 'layer:stock.kline.weekly')).toBe(true);
+    expect(model.panes.some((p) => String(p.id).startsWith('macro:'))).toBe(true);
+    expect(model.markers.some((m) => m.key === 'finance')).toBe(true);
+    expect(model.financeEvents).toHaveLength(1);
+  });
+
   it('drops SuperTrend/PSAR auxiliary columns before painting', () => {
     const model = stockKlinePayloadToMarketChartModel(
       payload({

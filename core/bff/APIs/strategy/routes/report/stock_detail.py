@@ -40,6 +40,17 @@ from core.bff.APIs.strategy.helpers.indicator_chart_catalog import (
     resolve_indicator_render,
     should_skip_chart_series,
 )
+from core.bff.APIs.strategy.helpers.chart_layer_catalog import (
+    VIZ_EVENT_PINS,
+    VIZ_LINKED_OHLCV,
+    VIZ_MACRO_STEP,
+    VIZ_STATE_LANE,
+    date_to_quarter,
+    layer_envelope,
+    layer_label,
+    quarter_to_end_date,
+    resolve_viz_role,
+)
 from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
@@ -133,6 +144,9 @@ class WorkbenchStockDetail:
         candles, indicator_series, kline_params = cls._load_chart(
             sid, settings, backtest_period
         )
+        chart_layers = cls._load_chart_layers(
+            sid, settings, backtest_period, strategy_name=strategy_name
+        )
         markers = cls._enum_markers(investments, candles)
         enum_metrics = cls._enum_metrics_for_stock(investments)
 
@@ -147,6 +161,7 @@ class WorkbenchStockDetail:
             "candles": candles,
             "markers": markers,
             "indicator_series": indicator_series,
+            "chart_layers": chart_layers,
             "report": {
                 "available": bool(enum_metrics),
                 "enumMetrics": enum_metrics,
@@ -192,6 +207,9 @@ class WorkbenchStockDetail:
         candles, indicator_series, kline_params = cls._load_chart(
             sid, settings, backtest_period
         )
+        chart_layers = cls._load_chart_layers(
+            sid, settings, backtest_period, strategy_name=strategy_name
+        )
         goal_rows = cls._load_price_completed_goals(
             price_dir=output_dir,
             entity_id=sid,
@@ -213,6 +231,7 @@ class WorkbenchStockDetail:
             "candles": candles,
             "markers": markers,
             "indicator_series": indicator_series,
+            "chart_layers": chart_layers,
             "report": {"available": False, "message": "价格回测单股指标报告即将支持"},
         }
 
@@ -236,6 +255,7 @@ class WorkbenchStockDetail:
             "candles": [],
             "markers": [],
             "indicator_series": [],
+            "chart_layers": [],
             "report": {"available": False, "message": message},
         }
 
@@ -364,6 +384,269 @@ class WorkbenchStockDetail:
             "data_id": data_key,
             "term": term,
         }
+
+    @classmethod
+    def _load_chart_layers(
+        cls,
+        stock_id: str,
+        settings: Optional[StrategySettings],
+        backtest_period: Dict[str, str],
+        *,
+        strategy_name: str = "",
+    ) -> List[Dict[str, Any]]:
+        """按 settings.data.required 装载分层数据（失败单层跳过，不拖垮主图）。"""
+        start = str(backtest_period.get("start_date") or "").strip()
+        end = str(backtest_period.get("end_date") or "").strip()
+        if not start or not end:
+            return []
+
+        settings, required = cls._settings_and_required_for_layers(
+            settings, strategy_name=strategy_name
+        )
+        if settings is None or not required:
+            return []
+
+        layers: List[Dict[str, Any]] = []
+        for raw in required:
+            if not isinstance(raw, dict):
+                continue
+            try:
+                item = settings.data.normalize_declaration_item(raw)
+            except ValueError:
+                continue
+            data_key = str(item.get("data_key") or "").strip()
+            role = resolve_viz_role(data_key)
+            if not role:
+                continue
+            try:
+                layer = cls._build_one_chart_layer(
+                    stock_id=stock_id,
+                    data_key=data_key,
+                    role=role,
+                    start=start,
+                    end=end,
+                    indicators_cfg=item.get("indicators") or {},
+                )
+            except Exception:
+                logger.exception("加载 chart layer 失败: %s %s", stock_id, data_key)
+                continue
+            if layer:
+                layers.append(layer)
+        return layers
+
+    @classmethod
+    def _settings_and_required_for_layers(
+        cls,
+        settings: Optional[StrategySettings],
+        *,
+        strategy_name: str,
+    ) -> Tuple[Optional[StrategySettings], List[Any]]:
+        """优先 snapshot；若无 required 则回退磁盘 settings.py（方便试分层）。"""
+        required: List[Any] = []
+        if settings is not None:
+            try:
+                required = list(settings.data.data.get("required") or [])
+            except Exception:
+                required = []
+        if required:
+            return settings, required
+
+        name = str(strategy_name or "").strip()
+        if not name:
+            return settings, []
+        try:
+            info = Strategy.find(name)
+            if isinstance(info, dict):
+                raw = dict(info.get("settings") or {})
+            else:
+                raw = dict(getattr(info, "settings", None) or {})
+            if not raw:
+                return settings, []
+            live = StrategySettings.from_dict(raw)
+            live_required = list(live.data.data.get("required") or [])
+            if live_required:
+                return live, live_required
+        except Exception:
+            logger.debug("磁盘 settings 回退失败: %s", name, exc_info=True)
+        return settings, []
+
+    @classmethod
+    def _build_one_chart_layer(
+        cls,
+        *,
+        stock_id: str,
+        data_key: str,
+        role: str,
+        start: str,
+        end: str,
+        indicators_cfg: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        label = layer_label(data_key)
+        dm = DataManager()
+
+        if role == VIZ_LINKED_OHLCV:
+            term = data_key.rsplit(".", 1)[-1] or "weekly"
+            rows = list(
+                dm.stock.kline.load_qfq_split(
+                    stock_id, term=term, start_date=start, end_date=end
+                )
+                or []
+            )
+            points = []
+            for row in rows:
+                date = Utils.date.normalize_str(str(row.get("date") or "")) or ""
+                close = cls._round_price(cls._float_or_none(row.get("close")))
+                if not date or close is None:
+                    continue
+                points.append({"date": date, "close": close})
+            if not points:
+                return None
+            return layer_envelope(
+                role=role,
+                data_key=data_key,
+                label=label,
+                points=points,
+            )
+
+        if role == VIZ_MACRO_STEP:
+            return cls._layer_macro_step(dm, data_key=data_key, start=start, end=end)
+
+        if role == VIZ_STATE_LANE and data_key == "stock.st_periods":
+            grouped = dm.stock.st.load_overlapping(
+                [stock_id], period_start=start, period_end=end
+            )
+            periods = list(grouped.get(stock_id) or [])
+            segments = []
+            for row in periods:
+                seg_start = Utils.date.normalize_str(str(row.get("start_date") or "")) or ""
+                seg_end = Utils.date.normalize_str(str(row.get("end_date") or "")) or end
+                if not seg_start:
+                    continue
+                if seg_start > end or (seg_end and seg_end < start):
+                    continue
+                segments.append(
+                    {
+                        "start": max(seg_start, start),
+                        "end": min(seg_end or end, end),
+                        "level": str(row.get("level") or "ST"),
+                    }
+                )
+            if not segments:
+                return None
+            return layer_envelope(
+                role=role,
+                data_key=data_key,
+                label=label,
+                lanes=[
+                    {
+                        "key": "st",
+                        "label": "ST",
+                        "color": "#EF9A9A",
+                        "segments": segments,
+                    }
+                ],
+            )
+
+        if role == VIZ_EVENT_PINS and data_key == "stock.finance.quarterly":
+            q_start = date_to_quarter(start)
+            q_end = date_to_quarter(end)
+            if not q_start or not q_end:
+                return None
+            # 略放宽季度窗，避免公告日滞后丢首尾
+            rows = list(
+                dm.stock.corporate_finance.load_trend(
+                    stock_id,
+                    q_start,
+                    q_end,
+                    indicators=[
+                        "ann_date",
+                        "quarter",
+                        "roe",
+                        "eps",
+                        "gross_profit_margin",
+                        "or_yoy",
+                        "netprofit_yoy",
+                        "pe_ttm",
+                    ],
+                )
+                or []
+            )
+            events = []
+            for row in rows:
+                ann = Utils.date.normalize_str(str(row.get("ann_date") or "")) or ""
+                if not ann or ann < start or ann > end:
+                    continue
+                events.append(
+                    {
+                        "date": ann,
+                        "label": "财报",
+                        "quarter": str(row.get("quarter") or "").strip(),
+                        "snapshot": {
+                            "roe": cls._float_or_none(row.get("roe")),
+                            "eps": cls._float_or_none(row.get("eps")),
+                            "gross_profit_margin": cls._float_or_none(
+                                row.get("gross_profit_margin")
+                            ),
+                            "or_yoy": cls._float_or_none(row.get("or_yoy")),
+                            "netprofit_yoy": cls._float_or_none(row.get("netprofit_yoy")),
+                            "pe_ttm": cls._float_or_none(row.get("pe_ttm")),
+                        },
+                    }
+                )
+            if not events:
+                return None
+            return layer_envelope(
+                role=role,
+                data_key=data_key,
+                label=label,
+                events=events,
+            )
+
+        return None
+
+    @classmethod
+    def _layer_macro_step(
+        cls,
+        dm: DataManager,
+        *,
+        data_key: str,
+        start: str,
+        end: str,
+    ) -> Optional[Dict[str, Any]]:
+        if data_key != "macro.gdp":
+            # v1：先打通 GDP；其它宏观同形后续补 loader
+            return None
+        q_start = date_to_quarter(start)
+        q_end = date_to_quarter(end)
+        rows = list(dm.macro.load_gdp(start_quarter=q_start or None, end_quarter=q_end or None) or [])
+        points = []
+        for row in rows:
+            quarter = str(row.get("quarter") or "").strip()
+            date = quarter_to_end_date(quarter)
+            value = cls._float_or_none(row.get("gdp_yoy"))
+            if not date or value is None:
+                continue
+            if date < start or date > end:
+                # 发布日可能在窗外，仍保留窗前最近一点供阶梯起点
+                if date > end:
+                    continue
+            points.append(
+                {
+                    "date": date,
+                    "value": round(float(value), 2),
+                    "quarter": quarter,
+                }
+            )
+        if not points:
+            return None
+        points.sort(key=lambda p: p["date"])
+        return layer_envelope(
+            role=VIZ_MACRO_STEP,
+            data_key=data_key,
+            label=layer_label(data_key),
+            points=points,
+            unit="%",
+        )
 
     @classmethod
     def _enum_markers(

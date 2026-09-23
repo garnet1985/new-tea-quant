@@ -59,6 +59,13 @@ const MARKER_LEGEND_DEFS = {
     symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
     style: () => buildTargetArrowStyle('target_loss'),
   },
+  finance: {
+    label: '财报',
+    symbol: 'diamond',
+    y: 'high',
+    symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+    style: () => marketMarkerPinStyle('#CE93D8', '206, 147, 216'),
+  },
 };
 
 const MARKER_DETAIL_LABELS = {
@@ -320,7 +327,7 @@ function businessMarkersToSpecs(markers) {
     const date = String(item?.date || '').trim();
     if (!def || !date) return;
     let y = def.y;
-    if (type !== 'buy' && type !== 'opportunity' && type !== 'target_win' && type !== 'target_loss') {
+    if (type !== 'buy' && type !== 'opportunity' && type !== 'target_win' && type !== 'target_loss' && type !== 'finance') {
       const px = Number(item?.price);
       if (Number.isFinite(px)) y = px;
     }
@@ -331,7 +338,7 @@ function businessMarkersToSpecs(markers) {
       paneId: 'price',
       y,
       symbol: def.symbol,
-      symbolSize: MARKET_MARKER_PIN_SIZE,
+      symbolSize: type === 'finance' ? 10 : MARKET_MARKER_PIN_SIZE,
       symbolOffset: def.symbolOffset,
       itemStyle: def.style(),
       tooltipHtml: formatMarkerTooltipHtml({ ...item, label: item.label || def.label }),
@@ -339,6 +346,182 @@ function businessMarkersToSpecs(markers) {
     });
   });
   return out;
+}
+
+function normDate(value) {
+  return String(value || '').trim();
+}
+
+/** 稀疏点 → 与 categories 等长；仅命中日有值。 */
+function sparseAlign(categories, points, valueKey) {
+  const map = new Map();
+  (points || []).forEach((p) => {
+    const d = normDate(p?.date);
+    const v = Number(p?.[valueKey]);
+    if (d && Number.isFinite(v)) map.set(d, v);
+  });
+  return (categories || []).map((d) => (map.has(d) ? map.get(d) : null));
+}
+
+/** 阶梯：按 categories 前向填充（发布后保持到下一次）。 */
+function forwardFillAlign(categories, points, valueKey) {
+  const sorted = [...(points || [])]
+    .map((p) => ({ date: normDate(p?.date), value: Number(p?.[valueKey]) }))
+    .filter((p) => p.date && Number.isFinite(p.value))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const out = [];
+  let i = 0;
+  let cur = null;
+  (categories || []).forEach((d) => {
+    while (i < sorted.length && sorted[i].date <= d) {
+      cur = sorted[i].value;
+      i += 1;
+    }
+    out.push(cur);
+  });
+  return out;
+}
+
+/** 时段 segments → 0/1 序列（落在 [start,end] 内为 1）。 */
+function segmentsToMask(categories, segments) {
+  const segs = (segments || [])
+    .map((s) => ({ start: normDate(s.start), end: normDate(s.end) }))
+    .filter((s) => s.start);
+  return (categories || []).map((d) => {
+    const on = segs.some((s) => d >= s.start && (!s.end || d <= s.end));
+    return on ? 1 : 0;
+  });
+}
+
+function applyChartLayers(model, layers, baseMarkers) {
+  const categories = model.categories || [];
+  const series = [...(model.series || [])];
+  const panes = [...(model.panes || [])];
+  const markers = [...(baseMarkers || [])];
+  const financeEvents = [];
+
+  (layers || []).forEach((layer) => {
+    const role = String(layer?.role || '');
+    const label = String(layer?.label || layer?.data_key || role);
+    const key = String(layer?.data_key || role);
+
+    if (role === 'linked_ohlcv') {
+      const data = sparseAlign(categories, layer.points, 'close');
+      if (!data.some((v) => v != null)) return;
+      series.push({
+        type: 'line',
+        paneId: 'price',
+        key: `layer:${key}`,
+        label,
+        color: '#4FC3F7',
+        data,
+        lineDash: [6, 4],
+        lineWidth: 1.6,
+        showSymbol: true,
+        symbolSize: 5,
+        connectNulls: true,
+      });
+      return;
+    }
+
+    if (role === 'macro_step') {
+      const data = forwardFillAlign(categories, layer.points, 'value');
+      if (!data.some((v) => v != null)) return;
+      const paneId = `macro:${key}`;
+      if (!panes.some((p) => p.id === paneId)) {
+        panes.push({
+          id: paneId,
+          title: label,
+          heightRatio: 0.12,
+          yAxis: { scale: true },
+        });
+      }
+      series.push({
+        type: 'line',
+        paneId,
+        key: `layer:${key}`,
+        label,
+        color: '#FFB74D',
+        data,
+        step: 'end',
+        lineWidth: 1.4,
+        areaStyle: { color: 'rgba(255, 183, 77, 0.18)' },
+        connectNulls: true,
+      });
+      return;
+    }
+
+    if (role === 'state_lane') {
+      (layer.lanes || []).forEach((lane) => {
+        const laneKey = String(lane?.key || 'lane');
+        const laneLabel = String(lane?.label || laneKey);
+        const data = segmentsToMask(categories, lane.segments);
+        if (!data.some((v) => v === 1)) return;
+        const paneId = `lane:${key}:${laneKey}`;
+        if (!panes.some((p) => p.id === paneId)) {
+          panes.push({
+            id: paneId,
+            title: laneLabel,
+            heightRatio: 0.06,
+            yAxis: { min: 0, max: 1, scale: false },
+          });
+        }
+        series.push({
+          type: 'line',
+          paneId,
+          key: `layer:${paneId}`,
+          label: laneLabel,
+          color: lane.color || '#EF9A9A',
+          data,
+          step: 'end',
+          lineWidth: 0,
+          areaStyle: { color: lane.color || '#EF9A9A' },
+          connectNulls: true,
+          showSymbol: false,
+        });
+      });
+      return;
+    }
+
+    if (role === 'event_pins') {
+      (layer.events || []).forEach((ev) => {
+        const date = normDate(ev?.date);
+        if (!date) return;
+        financeEvents.push(ev);
+        markers.push({
+          type: 'finance',
+          date,
+          label: ev.label || '财报',
+          detail: {
+            quarter: ev.quarter,
+            ...(ev.snapshot || {}),
+          },
+        });
+      });
+    }
+  });
+
+  // 按插入顺序重算 heightRatio：主图仍最大，lane/macro 更矮
+  const ids = panes.map((p) => p.id);
+  const weights = ids.map((id) => {
+    if (id === 'price') return 5.2;
+    if (String(id).startsWith('lane:')) return 0.45;
+    if (String(id).startsWith('macro:')) return 0.9;
+    return 1;
+  });
+  const sum = weights.reduce((a, b) => a + b, 0) || 1;
+  const nextPanes = panes.map((p, i) => ({
+    ...p,
+    heightRatio: weights[i] / sum,
+  }));
+
+  return {
+    ...model,
+    panes: nextPanes,
+    series,
+    markers: businessMarkersToSpecs(markers),
+    financeEvents,
+  };
 }
 
 /**
@@ -429,13 +612,15 @@ export function stockKlinePayloadToMarketChartModel(payload) {
     });
   });
 
-  return {
+  const baseModel = {
     categories: dates,
     panes,
     series,
-    markers: businessMarkersToSpecs(payload.markers),
+    markers: [],
     interaction: { dataZoom: true },
   };
+
+  return applyChartLayers(baseModel, payload.chart_layers, payload.markers || []);
 }
 
 /** 报告 / 决策 K 线 payload → ECharts option。 */
@@ -443,4 +628,13 @@ export function buildMarketChartOptionFromStockPayload(payload) {
   const model = stockKlinePayloadToMarketChartModel(payload);
   if (!model) return {};
   return buildMarketChartOption(model);
+}
+
+/** PIT 财报快照：取 categories 末尾（或传入 asOf）可见的最近一次事件。 */
+export function pickFinanceSnapshot(events, asOf) {
+  const limit = normDate(asOf) || '99999999';
+  const sorted = [...(events || [])]
+    .filter((e) => normDate(e?.date) && normDate(e.date) <= limit)
+    .sort((a, b) => (normDate(a.date) < normDate(b.date) ? -1 : 1));
+  return sorted.length ? sorted[sorted.length - 1] : null;
 }

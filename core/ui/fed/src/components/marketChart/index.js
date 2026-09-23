@@ -2,11 +2,14 @@ export { default as MarketChart } from './marketChart';
 export { buildMarketChartOption } from './buildMarketChartOption';
 export {
   buildMarketChartOptionFromStockPayload,
+  pickFinanceSnapshot,
   stockKlinePayloadToMarketChartModel,
 } from './adapters/stockKlinePayload';
 export {
   MARKET_CANDLE_UP_COLOR,
   MARKET_CANDLE_DOWN_COLOR,
+  MARKET_CHART_GRID_LEFT,
+  MARKET_CHART_GRID_RIGHT,
   MARKET_CHART_TOOLTIP,
 } from './theme';
 export {

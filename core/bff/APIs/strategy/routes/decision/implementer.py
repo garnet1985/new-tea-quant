@@ -200,7 +200,51 @@ class StrategyDecisionImplementer:
             keep = [str(item).strip() for item in columns if str(item).strip()]
             if keep:
                 tokens.append(",".join(keep))
-        return info_message(engine.info(tokens))
+        payload = engine.info(tokens)
+        msg = info_message(payload)
+        msg["chart_layers"] = self._chart_layers_for_info(
+            engine,
+            strategy_key_or_name=strategy_key_or_name,
+            entity_id=str(msg.get("entity_id") or ""),
+            as_of=str(msg.get("as_of") or ""),
+            candles=msg.get("candles") or [],
+        )
+        return msg
+
+    @staticmethod
+    def _chart_layers_for_info(
+        engine: Any,
+        *,
+        strategy_key_or_name: str,
+        entity_id: str,
+        as_of: str,
+        candles: List[Any],
+    ) -> List[Dict[str, Any]]:
+        """与报告单股图同形的 required 分层；失败不影响主 K。"""
+        sid = str(entity_id or "").strip()
+        if not sid:
+            return []
+        end = str(as_of or "").strip()
+        start = ""
+        if candles and isinstance(candles[0], dict):
+            start = str(candles[0].get("date") or "").strip()
+        if not end and candles and isinstance(candles[-1], dict):
+            end = str(candles[-1].get("date") or "").strip()
+        if not start or not end:
+            return []
+        try:
+            from core.bff.APIs.strategy.routes.report.stock_detail import (
+                WorkbenchStockDetail,
+            )
+
+            return WorkbenchStockDetail._load_chart_layers(
+                sid,
+                getattr(engine, "settings", None),
+                {"start_date": start, "end_date": end},
+                strategy_name=str(strategy_key_or_name or "").strip(),
+            )
+        except Exception:
+            return []
 
     def get_report(
         self,
@@ -231,7 +275,7 @@ class StrategyDecisionImplementer:
             session_id=dm_id,
         )
         if not engine.is_completed:
-            raise ValueError("本局尚未走完，没有终局报告")
+            raise ValueError("本次模拟回测尚未走完，没有报告")
         session_dir = Path(engine.store.session_dir(engine.dm_id))
         if not (session_dir / OVERALL_REPORT_FILE).is_file():
             engine.finalize()

@@ -51,7 +51,7 @@ userspace **不存** 路由、文案、DOM 选择器。JSON 过时指的是账�
 | helpId（示例） | 匹配 | 原因 |
 |----------------|------|------|
 | `strategy-design` | `/strategy-design/:name/(enum\|price\|portfolio)` | 设置栏 / 执行区 / 报告区同一套壳 |
-| `strategy-design-decision` | `/strategy-design/:name/decision` | 对局 DOM 与工作台不同时存在；对局现场挂上后 appear |
+| `strategy-design-decision` | `/strategy-design/:name/decision` | 模拟回测 DOM 与工作台不同时存在；回测现场挂上后 appear |
 
 第一刀引擎只用占位 help 验证闭环，不写正式文案。
 
@@ -126,7 +126,7 @@ BFF 不认识 catalog。多出来的 `helpId` 原样保存。FED 读到不在目
 
 `appear` 相反：锚点必须打在 **动作之后才挂上** 的节点上，不能打在进页就在的空壳上（例如报告区外框进页就有，版本胶囊 `strategy-version` 要有 snapshot 才挂）。同一份 appear 里若某步更晚才出现（例如对比要两个版本），应拆成另一份 `helpId`，否则第一次引导时会被跳过，ack 之后不再弹。
 
-某 step 的 DOM 与另一 step 互斥（工作台 vs 对局），应拆成不同 `helpId`，而不是写进同一份再指望运行时跳过。
+某 step 的 DOM 与另一 step 互斥（工作台 vs 模拟回测），应拆成不同 `helpId`，而不是写进同一份再指望运行时跳过。
 
 ---
 

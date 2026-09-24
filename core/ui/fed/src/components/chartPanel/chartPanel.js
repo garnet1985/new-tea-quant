@@ -13,6 +13,7 @@ function ChartPanel({
   fallback,
   sx,
   framed = true,
+  onEvents,
 }) {
   if (!option && fallback == null) return null;
   return (
@@ -45,6 +46,7 @@ function ChartPanel({
           style={{ height, width: '100%' }}
           notMerge
           lazyUpdate
+          onEvents={onEvents}
         />
       ) : fallback}
     </Box>

@@ -1,4 +1,5 @@
 export { default as MarketChart } from './marketChart';
+export { default as FinancePitCard } from './financePitCard';
 export { buildMarketChartOption } from './buildMarketChartOption';
 export {
   buildMarketChartOptionFromStockPayload,

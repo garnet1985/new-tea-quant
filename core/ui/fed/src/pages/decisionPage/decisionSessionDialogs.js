@@ -41,7 +41,7 @@ export default function DecisionSessionDialogs({
 
   const columns = useMemo(() => {
     const base = [
-      { field: 'dmId', headerName: '局', width: 72 },
+      { field: 'dmId', headerName: '#', width: 72 },
       {
         field: 'status',
         headerName: '状态',
@@ -121,7 +121,7 @@ export default function DecisionSessionDialogs({
       <DialogTitle>
         <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2}>
           <Typography variant="h6" component="span">
-            {panel === 'continue' ? '选择要继续的一局' : '管理对局'}
+            {panel === 'continue' ? '选择要继续的模拟回测' : '管理模拟回测'}
           </Typography>
           <Button size="small" onClick={onClose}>关闭</Button>
         </Stack>
@@ -129,8 +129,8 @@ export default function DecisionSessionDialogs({
       <DialogContent dividers>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
           {panel === 'continue'
-            ? '只能选进行中的局接着下。时钟停在该局上次停留的交易日。'
-            : '进入或回看会打开该局当时的时钟；删除不可恢复。'}
+            ? '只能选进行中的模拟回测接着下。时钟停在该次回测上次停留的交易日。'
+            : '进入或回看会打开该次回测当时的时钟；删除不可恢复。'}
         </Typography>
         <DataGrid
           autoHeight

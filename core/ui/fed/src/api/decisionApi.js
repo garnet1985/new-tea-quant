@@ -512,6 +512,7 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
       rows: Array.isArray(m.rows) ? m.rows : [],
       candles,
       indicatorSeries: mapIndicatorSeries(m.indicator_series),
+      chartLayers: Array.isArray(m.chart_layers) ? m.chart_layers : [],
     };
   };
   try {

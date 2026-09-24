@@ -144,7 +144,7 @@ function StrategyDesignDecisionStep() {
       setReportOpen(false);
       await reloadListed();
     } catch (err) {
-      setBootError(errorMessage(err, '无法新开一局'));
+      setBootError(errorMessage(err, '无法新建模拟回测'));
     } finally {
       setBusy(false);
     }
@@ -175,7 +175,7 @@ function StrategyDesignDecisionStep() {
       }
       setPanel('continue');
     } catch (err) {
-      setBootError(errorMessage(err, '无法加载对局'));
+      setBootError(errorMessage(err, '无法加载模拟回测'));
     } finally {
       setBusy(false);
     }
@@ -188,7 +188,7 @@ function StrategyDesignDecisionStep() {
       await reloadListed();
       setPanel('manage');
     } catch (err) {
-      setBootError(errorMessage(err, '无法加载对局'));
+      setBootError(errorMessage(err, '无法加载模拟回测'));
     } finally {
       setBusy(false);
     }
@@ -199,7 +199,7 @@ function StrategyDesignDecisionStep() {
     setBusy(true);
     try {
       await deleteDecisionSession(strategyName, row.dmId, versionQuery);
-      setToast(`已删除第 ${row.dmId} 局`);
+      setToast(`已删除模拟回测 #${row.dmId}`);
       const { listed } = await reloadListed();
       if (String(row.dmId) !== String(sessionId)) return;
       const next = pickRememberedSession(listed);
@@ -261,7 +261,7 @@ function StrategyDesignDecisionStep() {
   if (!sessionId) {
     return (
       <Alert severity="warning" variant="outlined">
-        没有可用的决策对局。
+        没有可用的模拟回测。
       </Alert>
     );
   }
@@ -274,7 +274,7 @@ function StrategyDesignDecisionStep() {
       onViewReport={() => setReportOpen(true)}
       onCompleted={handleCompleted}
       render={({ loading, error, inner, hud, snapshot, advancing }) => {
-        if (loading) return <InlineLoadingState block message="正在加载对局现场…" />;
+        if (loading) return <InlineLoadingState block message="正在加载模拟回测…" />;
         if (error) {
           return (
             <Alert severity="error" variant="outlined">{error}</Alert>
@@ -286,7 +286,7 @@ function StrategyDesignDecisionStep() {
               <Box className="ntq-design-exec-panel__title-row">
                 <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
                   {EXECUTION_PANEL_TITLE} - 决策模拟
-                  {snapshot?.dmId ? ` · 第 ${snapshot.dmId} 局` : ''}
+                  {snapshot?.dmId ? ` · 模拟回测 #${snapshot.dmId}` : ''}
                 </Typography>
                 <Stack
                   direction="row"
@@ -301,7 +301,7 @@ function StrategyDesignDecisionStep() {
                       size="small"
                       onClick={() => setReportOpen(false)}
                     >
-                      返回对局
+                      返回模拟回测
                     </Button>
                   ) : null}
                   <Button
@@ -329,7 +329,7 @@ function StrategyDesignDecisionStep() {
                     disabled={busy}
                     onClick={startFresh}
                   >
-                    新开一局
+                    新建模拟回测
                   </Button>
                 </Stack>
               </Box>

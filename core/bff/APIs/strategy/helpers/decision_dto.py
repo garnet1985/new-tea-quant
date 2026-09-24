@@ -497,11 +497,14 @@ def holdings_message(engine: Any, rows: Iterable[Any]) -> Dict[str, Any]:
 
 
 def info_message(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """CLI 表 + 与 V2-07c 同形的 candles / indicator_series；NaN 收成 null。"""
+    """CLI 表 + 与 V2-07c 同形的 candles / indicator_series / chart_layers；NaN 收成 null。"""
     body = dict(payload or {})
     columns = [str(col) for col in (body.get("columns") or [])]
     rows = [_sanitize_row(row) for row in (body.get("rows") or [])]
     candles = [item for row in rows if (item := _candle_from_row(row)) is not None]
+    layers = body.get("chart_layers")
+    if not isinstance(layers, list):
+        layers = []
     return {
         "entity_id": str(body.get("entity_id") or ""),
         "name": str(body.get("name") or ""),
@@ -513,6 +516,7 @@ def info_message(payload: Dict[str, Any]) -> Dict[str, Any]:
         "rows": rows,
         "candles": candles,
         "indicator_series": _indicator_series_from_rows(columns, rows),
+        "chart_layers": layers,
     }
 
 

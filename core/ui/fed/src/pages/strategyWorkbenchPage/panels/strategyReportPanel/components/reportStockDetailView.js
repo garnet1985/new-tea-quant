@@ -5,7 +5,6 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  Stack,
   Typography,
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
@@ -13,7 +12,12 @@ import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import { fetchStrategyStockDetail } from '../../../../../api/strategyApi';
 import BacktestPeriodBanner from './backtestPeriodBanner';
-import { buildMarketChartOptionFromStockPayload, pickFinanceSnapshot, stockKlinePayloadToMarketChartModel, MARKET_CHART_GRID_LEFT, MARKET_CHART_GRID_RIGHT } from 'components/marketChart';
+import {
+  buildMarketChartOptionFromStockPayload,
+  FinancePitCard,
+  pickFinanceSnapshot,
+  stockKlinePayloadToMarketChartModel,
+} from 'components/marketChart';
 import {
   buildStockKlineCacheKey,
   findStockKlineCacheByStock,
@@ -335,78 +339,12 @@ function ReportStockDetailView({
               )}
             </Box>
             {hasFinanceLayer ? (
-              <Box
-                sx={{
-                  ml: `${MARKET_CHART_GRID_LEFT}px`,
-                  mr: `${MARKET_CHART_GRID_RIGHT}px`,
-                  px: 1.25,
-                  py: 1,
-                  borderRadius: 0,
-                  bgcolor: 'rgba(255,255,255,0.045)',
-                  border: '1px solid rgba(255,255,255,0.16)',
-                }}
-              >
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                  {financeLive
-                    ? [
-                      '财报快照（PIT）',
-                      pointerAsOf ? `as-of ${pointerAsOf}` : '',
-                      financeSnapshot?.quarter || '',
-                      financeSnapshot?.date ? `公告 ${financeSnapshot.date}` : '',
-                    ].filter(Boolean).join(' · ')
-                    : '财报快照（悬停 K 线查看 PIT）'}
-                </Typography>
-                <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1}>
-                  {[
-                    ['ROE', financeLive ? financeSnapshot?.snapshot?.roe : null],
-                    ['EPS', financeLive ? financeSnapshot?.snapshot?.eps : null],
-                    ['毛利率', financeLive ? financeSnapshot?.snapshot?.gross_profit_margin : null],
-                    ['营收同比', financeLive ? financeSnapshot?.snapshot?.or_yoy : null],
-                    ['净利同比', financeLive ? financeSnapshot?.snapshot?.netprofit_yoy : null],
-                  ].map(([name, raw]) => {
-                    const n = Number(raw);
-                    const live = financeLive && raw != null && Number.isFinite(n);
-                    const text = live ? n.toFixed(2) : '--';
-                    return (
-                      <Box
-                        key={name}
-                        sx={{
-                          minWidth: 72,
-                          px: 1,
-                          py: 0.75,
-                          borderRadius: 0.75,
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          bgcolor: 'rgba(0,0,0,0.22)',
-                        }}
-                      >
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          display="block"
-                          sx={{ lineHeight: 1.2, mb: 0.35, fontSize: 10 }}
-                        >
-                          {name}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          fontWeight={600}
-                          sx={{
-                            fontVariantNumeric: 'tabular-nums',
-                            lineHeight: 1.2,
-                            color: !live
-                              ? 'text.secondary'
-                              : n < 0
-                                ? 'error.light'
-                                : 'text.primary',
-                          }}
-                        >
-                          {text}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Stack>
-              </Box>
+              <FinancePitCard
+                visible
+                live={financeLive}
+                pointerAsOf={pointerAsOf}
+                snapshot={financeSnapshot}
+              />
             ) : null}
             {hasChart && activeLayer === 'price' ? (
               <Typography variant="caption" color="text.secondary" component="div">

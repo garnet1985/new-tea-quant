@@ -69,7 +69,7 @@ export default function DecisionReportPanel({
   const compareOptions = useMemo(() => {
     const rows = [{ id: PORTFOLIO_COMPARE_ID, label: '投资模拟' }];
     completedOthers.forEach((row) => {
-      rows.push({ id: `session:${row.dmId}`, label: `第 ${row.dmId} 局` });
+      rows.push({ id: `session:${row.dmId}`, label: `模拟回测 #${row.dmId}` });
     });
     return rows;
   }, [completedOthers]);
@@ -160,7 +160,7 @@ export default function DecisionReportPanel({
     <Box className="ntq-design-step-report ntq-design-decision-report">
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
         <Typography variant="subtitle2" fontWeight={600}>
-          决策模拟报告 · 第 {sessionId} 局
+          决策模拟回测报告 · #{sessionId}
         </Typography>
         {canCompare ? (
           <Button
@@ -203,7 +203,7 @@ export default function DecisionReportPanel({
           <Box className="ntq-report-compare__grid">
             <Box>
               <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                当前局（第 {sessionId} 局）
+                当前模拟回测（#{sessionId}）
               </Typography>
               <CapitalAllocationReport
                 hideTitle

@@ -1,4 +1,4 @@
-/** 制定策略四步。前三步对齐后端 WorkbenchStep；第四步决策模拟是交互对局，不走 simulate()。 */
+/** 制定策略四步。前三步对齐后端 WorkbenchStep；第四步决策模拟是交互式模拟回测，不走 simulate()。 */
 export const STRATEGY_DESIGN_STEPS = [
   {
     key: 'enum',

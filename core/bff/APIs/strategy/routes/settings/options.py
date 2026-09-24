@@ -99,10 +99,15 @@ class StrategySettingsOptions:
         """根级 ``market_profile`` 可选值。"""
         out: List[Dict[str, Any]] = []
         for pid in MarketRulesProxy.available_ids():
+            try:
+                polarity = MarketRulesProxy.for_market(pid).pnl_polarity()
+            except Exception:
+                polarity = "cn" if pid == "china_a_stock" else "intl"
             out.append(
                 {
                     "value": pid,
                     "label": MARKET_RULES_LABELS.get(pid, pid),
+                    "pnl_polarity": polarity,
                 }
             )
         return out

@@ -30,6 +30,7 @@ import {
   pickFinanceSnapshot,
   stockKlinePayloadToMarketChartModel,
 } from 'components/marketChart';
+import { resolveAxisPointerDate } from 'components/marketChart/dateFormat';
 import {
   doneDecisionDay,
     fetchDecisionHoldings,
@@ -972,17 +973,9 @@ export function DecisionPlaySession({
       : '';
   }, [infoPayload, infoCandleDates]);
 
-  const resolveInfoAxisDate = useCallback((params) => {
-    const axes = params?.axesInfo || params?.batch?.[0]?.axesInfo;
-    if (Array.isArray(axes)) {
-      for (let i = 0; i < axes.length; i += 1) {
-        const v = axes[i]?.value ?? axes[i]?.axisValue;
-        const d = String(v ?? '').trim();
-        if (d) return d;
-      }
-    }
-    return String(params?.value ?? params?.axisValue ?? '').trim();
-  }, []);
+  const resolveInfoAxisDate = useCallback((params) => (
+    resolveAxisPointerDate(params, infoCandleDates)
+  ), [infoCandleDates]);
 
   const resolveInfoZoomDate = useCallback((params) => {
     const batch = Array.isArray(params?.batch) && params.batch.length

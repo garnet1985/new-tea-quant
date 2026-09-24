@@ -14,6 +14,11 @@ import {
   MARKET_CHART_SUB_PANE_BG,
   MARKET_CHART_TOOLTIP,
 } from './theme';
+import { DEFAULT_MARKET_PNL_PALETTE } from 'theme/marketPnlColors';
+import { MARKET_MARKER_PIN_SIZE } from './markers';
+
+/** hover 同笔投资时 pin 放大倍数 */
+export const MARKER_GROUP_HIGHLIGHT_SCALE = 1.55;
 
 const DEFAULT_ZOOM_WINDOW = 180;
 const GRID_LEFT = MARKET_CHART_GRID_LEFT;
@@ -208,7 +213,14 @@ function resolveMarkerY(marker, candleByDate) {
   return null;
 }
 
-function buildMarkerScatterSeries(markers, categories, candleByDate, paneIndexById) {
+function buildMarkerScatterSeries(
+  markers,
+  categories,
+  candleByDate,
+  paneIndexById,
+  highlightGroupId,
+) {
+  const activeGroup = String(highlightGroupId || '').trim();
   const byKey = new Map();
   (markers || []).forEach((item) => {
     const key = String(item?.key || '').trim();
@@ -238,35 +250,56 @@ function buildMarkerScatterSeries(markers, categories, candleByDate, paneIndexBy
 
   return [...byKey.values()]
     .filter((row) => row.data.length > 0)
-    .map((row) => ({
-      name: row.label,
-      type: 'scatter',
-      xAxisIndex: row.paneIndex,
-      yAxisIndex: row.paneIndex,
-      data: row.data,
-      symbol: row.symbol,
-      symbolSize: row.symbolSize,
-      itemStyle: row.itemStyle,
-      tooltip: { show: false },
-      legendHoverLink: false,
-      clip: false,
-      z: 12,
-      encode: { x: 0, y: 1 },
-    }));
+    .map((row) => {
+      const baseSize = Number(row.symbolSize) || MARKET_MARKER_PIN_SIZE;
+      return {
+        name: row.label,
+        type: 'scatter',
+        xAxisIndex: row.paneIndex,
+        yAxisIndex: row.paneIndex,
+        data: row.data,
+        symbol: row.symbol,
+        symbolSize: (dataItem, params) => {
+          const meta = dataItem?._markerMeta
+            || params?.data?._markerMeta
+            || null;
+          const size = Number(meta?.symbolSize) || baseSize;
+          const gid = String(meta?.groupId || '').trim();
+          if (activeGroup && gid && gid === activeGroup) {
+            return Math.round(size * MARKER_GROUP_HIGHLIGHT_SCALE);
+          }
+          return size;
+        },
+        itemStyle: row.itemStyle,
+        emphasis: {
+          scale: false,
+          itemStyle: {
+            shadowBlur: 16,
+          },
+        },
+        tooltip: { show: false },
+        legendHoverLink: false,
+        clip: false,
+        z: 12,
+        // 不用 encode：object data + encode 在 mousemove 取 getDataParams 时易踩空
+      };
+    });
 }
 
-function colorizeVolumeBars(values, candleData) {
+function colorizeVolumeBars(values, candleData, palette) {
+  const up = palette?.candleUp || MARKET_CANDLE_UP_COLOR;
+  const down = palette?.candleDown || MARKET_CANDLE_DOWN_COLOR;
   return (values || []).map((raw, index) => {
     const n = Number(raw);
     if (!Number.isFinite(n)) return null;
     const ohlc = candleData?.[index];
     const open = Number(ohlc?.[0]);
     const close = Number(ohlc?.[1]);
-    const up = Number.isFinite(open) && Number.isFinite(close) ? close >= open : true;
+    const isUp = Number.isFinite(open) && Number.isFinite(close) ? close >= open : true;
     return {
       value: n,
       itemStyle: {
-        color: up ? MARKET_CANDLE_UP_COLOR : MARKET_CANDLE_DOWN_COLOR,
+        color: isUp ? up : down,
         opacity: 0.72,
       },
     };
@@ -315,11 +348,13 @@ function readCandlestickOHLC(param, candleByDate, candleData) {
   return { open, close, low, high };
 }
 
-function buildSeriesFromSpec(spec, paneIndexById, candleData) {
+function buildSeriesFromSpec(spec, paneIndexById, candleData, palette) {
   const paneId = String(spec?.paneId || '');
   const paneIndex = paneIndexById.get(paneId);
   if (paneIndex == null) return null;
   const name = spec.label || spec.key || paneId;
+  const candleUp = palette?.candleUp || MARKET_CANDLE_UP_COLOR;
+  const candleDown = palette?.candleDown || MARKET_CANDLE_DOWN_COLOR;
 
   if (spec.type === 'candlestick') {
     return {
@@ -333,12 +368,13 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData) {
       barMinWidth: 4,
       barCategoryGap: '18%',
       itemStyle: {
-        color: MARKET_CANDLE_UP_COLOR,
-        color0: MARKET_CANDLE_DOWN_COLOR,
-        borderColor: MARKET_CANDLE_UP_COLOR,
-        borderColor0: MARKET_CANDLE_DOWN_COLOR,
+        color: candleUp,
+        color0: candleDown,
+        borderColor: candleUp,
+        borderColor0: candleDown,
         borderWidth: 1,
       },
+      markLine: spec.markLine || undefined,
     };
   }
 
@@ -371,7 +407,7 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData) {
   if (spec.type === 'bar') {
     let data = Array.isArray(spec.data) ? spec.data : [];
     if (spec.color === 'candle') {
-      data = colorizeVolumeBars(data, candleData);
+      data = colorizeVolumeBars(data, candleData, palette);
     } else if (spec.color === 'signed') {
       data = colorizeSignedBars(data);
     } else if (spec.color) {
@@ -417,6 +453,63 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData) {
   return null;
 }
 
+function buildPriceMarkLine({ goalLevels, financeDates, palette }) {
+  const data = [];
+  (Array.isArray(goalLevels) ? goalLevels : []).forEach((row) => {
+    const price = Number(row?.price);
+    if (!Number.isFinite(price)) return;
+    const kind = String(row?.kind || '').trim();
+    const isTp = kind === 'take_profit';
+    const color = isTp
+      ? (palette?.profit || MARKET_CANDLE_UP_COLOR)
+      : (palette?.loss || MARKET_CANDLE_DOWN_COLOR);
+    const label = String(row?.label || (isTp ? '止盈' : '止损')).trim();
+    data.push({
+      yAxis: price,
+      name: label,
+      lineStyle: {
+        color,
+        type: 'dashed',
+        width: 1.4,
+      },
+      label: {
+        formatter: `${label} ${price.toFixed(2)}`,
+        color,
+        fontSize: 10,
+        position: 'insideEndTop',
+      },
+    });
+  });
+  (Array.isArray(financeDates) ? financeDates : []).forEach((date) => {
+    const d = String(date || '').trim();
+    if (!d) return;
+    data.push({
+      xAxis: d,
+      name: '财报',
+      lineStyle: {
+        color: 'rgba(206, 147, 216, 0.72)',
+        type: 'dashed',
+        width: 1.2,
+      },
+      label: {
+        show: true,
+        formatter: '财报',
+        color: 'rgba(206, 147, 216, 0.95)',
+        fontSize: 10,
+        position: 'insideEndTop',
+        distance: 4,
+      },
+    });
+  });
+  if (!data.length) return null;
+  return {
+    symbol: 'none',
+    silent: true,
+    animation: false,
+    data,
+  };
+}
+
 /**
  * 业务无关：MarketChartModel → ECharts option。
  *
@@ -425,6 +518,9 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData) {
  *   panes: Array<{ id: string, heightRatio: number, yAxis?: object }>,
  *   series: Array<object>,
  *   markers?: Array<object>,
+ *   palette?: object,
+ *   hoverGoalLevels?: Array<object>|null,
+ *   financeDates?: string[],
  *   interaction?: { dataZoom?: boolean },
  * }} model
  */
@@ -436,15 +532,26 @@ export function buildMarketChartOption(model) {
 
   const categories = model.categories;
   const panes = model.panes;
+  const palette = model.palette || DEFAULT_MARKET_PNL_PALETTE;
   const paneIndexById = new Map(panes.map((pane, index) => [String(pane.id), index]));
 
   const candleSpec = (model.series || []).find((row) => row?.type === 'candlestick');
   const candleData = Array.isArray(candleSpec?.data) ? candleSpec.data : [];
   const candleByDate = buildCandleLookupFromSeries(categories, candleData);
+  const hoverLevels = Array.isArray(model.hoverGoalLevels) ? model.hoverGoalLevels : null;
+  const financeDates = Array.isArray(model.financeDates) ? model.financeDates : [];
+  const priceMarkLine = buildPriceMarkLine({
+    goalLevels: hoverLevels,
+    financeDates,
+    palette,
+  });
 
   const series = [];
   (model.series || []).forEach((spec) => {
-    const built = buildSeriesFromSpec(spec, paneIndexById, candleData);
+    const nextSpec = spec?.type === 'candlestick' && priceMarkLine
+      ? { ...spec, markLine: priceMarkLine }
+      : spec;
+    const built = buildSeriesFromSpec(nextSpec, paneIndexById, candleData, palette);
     if (built) series.push(built);
   });
 
@@ -453,6 +560,7 @@ export function buildMarketChartOption(model) {
     categories,
     candleByDate,
     paneIndexById,
+    model.highlightGroupId,
   );
   series.push(...markerSeries);
 

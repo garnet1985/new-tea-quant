@@ -21,5 +21,9 @@ settings = {
     "lot_size": {
         "default_min_lot": 100000,
         "default_lot_step": 100000
-    }
+    },
+
+    "ui": {
+        "pnl_polarity": "intl",
+    },
 }

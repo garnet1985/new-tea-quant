@@ -121,7 +121,7 @@ export const PRICE_METRIC_TIPS = {
 
   totalOpenInvestments:
     '回测结束日仍未平仓的笔数。'
-    + '数值越大，截止日截断的未了结越多；越小则大多已平仓。'
+    + '数值越大，截止日截断的未平仓越多；越小则大多已平仓。'
     + '通常宜较少，以便结论更完整。',
 
   winLossCount:

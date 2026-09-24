@@ -51,9 +51,12 @@ def test_price_markers_enter_and_exit():
     ]
     markers = WorkbenchStockDetail._price_markers([inv], candles)
     types = [m["type"] for m in markers]
-    assert types == ["buy", "target_win"]
+    assert types == ["buy", "exit_end"]
     assert markers[0]["detail"]["entry_date"] == "20200102"
     assert markers[1]["detail"]["exit_date"] == "20200105"
+    assert markers[1]["detail"]["is_final"] is True
+    assert markers[1]["detail"]["is_profit"] is True
+    assert markers[1]["label"] == "平仓·盈"
 
 
 def test_price_markers_emit_each_completed_goal():
@@ -96,11 +99,14 @@ def test_price_markers_emit_each_completed_goal():
     markers = WorkbenchStockDetail._price_markers([inv], candles, goal_rows=goals)
     types = [m["type"] for m in markers]
     dates = [m["date"] for m in markers]
-    assert types == ["buy", "target_win", "target_win"]
+    assert types == ["buy", "take_profit", "exit_end"]
     assert dates == ["20200102", "20200104", "20200105"]
     assert markers[1]["detail"]["goal_name"] == "win20%"
     assert markers[1]["detail"]["exit_ratio"] == 0.5
+    assert markers[1]["detail"]["is_final"] is False
     assert markers[2]["detail"]["goal_name"] == "win30%"
+    assert markers[2]["detail"]["is_final"] is True
+    assert markers[2]["detail"]["is_profit"] is True
 
 
 def test_enum_metrics_for_stock():

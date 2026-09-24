@@ -149,6 +149,7 @@ class WorkbenchStockDetail:
         )
         markers = cls._enum_markers(investments, candles)
         enum_metrics = cls._enum_metrics_for_stock(investments)
+        market_profile = cls._market_profile_id(settings)
 
         return {
             **common,
@@ -156,6 +157,7 @@ class WorkbenchStockDetail:
             "detail_available": bool(candles),
             "message": "" if candles else "K 线数据为空，请检查数据导入与回测区间",
             "stock_name": stock_name,
+            "market_profile": market_profile,
             "backtest_period": backtest_period,
             "kline_params": kline_params,
             "candles": candles,
@@ -218,7 +220,10 @@ class WorkbenchStockDetail:
             snapshot_row=row,
             version=version,
         )
-        markers = cls._price_markers(investments, candles, goal_rows=goal_rows)
+        markers = cls._price_markers(
+            investments, candles, goal_rows=goal_rows, settings=settings
+        )
+        market_profile = cls._market_profile_id(settings)
 
         return {
             **common,
@@ -226,6 +231,7 @@ class WorkbenchStockDetail:
             "detail_available": bool(candles),
             "message": "" if candles else "K 线数据为空，请检查数据导入与回测区间",
             "stock_name": stock_name,
+            "market_profile": market_profile,
             "backtest_period": backtest_period,
             "kline_params": kline_params,
             "candles": candles,
@@ -342,6 +348,67 @@ class WorkbenchStockDetail:
         except Exception:
             logger.debug("StrategySettings.from_dict failed", exc_info=True)
             return None
+
+    @staticmethod
+    def _market_profile_id(settings: Optional[StrategySettings]) -> str:
+        if settings is None:
+            return "china_a_stock"
+        raw = settings.raw_settings if isinstance(settings.raw_settings, dict) else {}
+        key = str(raw.get("market_profile") or "").strip()
+        return key or "china_a_stock"
+
+    @classmethod
+    def _planned_goal_levels(
+        cls,
+        settings: Optional[StrategySettings],
+        entry_price: float,
+    ) -> List[Dict[str, Any]]:
+        """买入图钉价 × (1+ratio) 的计划止盈/止损线（忽略 custom / protect / dynamic）。"""
+        basis = float(entry_price or 0.0)
+        if settings is None or not math.isfinite(basis) or basis <= 0:
+            return []
+        out: List[Dict[str, Any]] = []
+        try:
+            goal = settings.goal
+        except Exception:
+            return []
+        for stage in list(goal.take_profit_stages or ()):
+            ratio = getattr(stage, "ratio", None)
+            if ratio is None or getattr(stage, "custom", None):
+                continue
+            try:
+                price = float(goal.exit_price(stage, basis))
+            except Exception:
+                continue
+            if not math.isfinite(price):
+                continue
+            out.append(
+                {
+                    "kind": "take_profit",
+                    "ratio": float(ratio),
+                    "price": cls._round_price(price),
+                    "label": str(getattr(stage, "name", "") or "").strip() or "止盈",
+                }
+            )
+        for stage in list(goal.stop_loss_stages or ()):
+            ratio = getattr(stage, "ratio", None)
+            if ratio is None or getattr(stage, "custom", None):
+                continue
+            try:
+                price = float(goal.exit_price(stage, basis))
+            except Exception:
+                continue
+            if not math.isfinite(price):
+                continue
+            out.append(
+                {
+                    "kind": "stop_loss",
+                    "ratio": float(ratio),
+                    "price": cls._round_price(price),
+                    "label": str(getattr(stage, "name", "") or "").strip() or "止损",
+                }
+            )
+        return out
 
     @classmethod
     def _load_chart(
@@ -763,40 +830,55 @@ class WorkbenchStockDetail:
         investments: List[PriceInvestmentRow],
         candles: List[Dict[str, Any]],
         goal_rows: Optional[Sequence[GoalAchievementRow]] = None,
+        settings: Optional[StrategySettings] = None,
     ) -> List[Dict[str, Any]]:
         by_date = cls._candle_index_by_date(candles)
         goals_by_inv = cls._index_completed_goals(goal_rows or [])
         markers: List[Dict[str, Any]] = []
         for inv in investments:
             enter = Utils.date.normalize_str(str(inv.enter_date or "")) or ""
+            entry_price = cls._round_price(inv.enter_price)
             if enter and enter in by_date:
                 bar = by_date[enter]
+                detail: Dict[str, Any] = {
+                    "opportunity_id": str(inv.opportunity_id or "").strip(),
+                    "entry_date": enter,
+                    "entry_price": entry_price,
+                    "lifecycle": str(inv.lifecycle or "").strip(),
+                    "result": str(inv.result or "").strip(),
+                }
+                planned = cls._planned_goal_levels(
+                    settings, float(inv.enter_price or 0.0)
+                )
+                if planned:
+                    detail["planned_levels"] = planned
                 markers.append(
                     {
                         "date": enter,
                         "price": cls._round_price(cls._float_or_none(bar.get("low"))),
                         "type": "buy",
                         "label": "买入",
-                        "detail": {
-                            "opportunity_id": str(inv.opportunity_id or "").strip(),
-                            "entry_date": enter,
-                            "entry_price": cls._round_price(inv.enter_price),
-                            "lifecycle": str(inv.lifecycle or "").strip(),
-                            "result": str(inv.result or "").strip(),
-                        },
+                        "detail": detail,
                     }
                 )
             inv_id = str(inv.opportunity_id or "").strip()
             goals = list(goals_by_inv.get(inv_id) or [])
+            exits: List[Dict[str, Any]] = []
             if goals:
                 for goal in goals:
-                    cls._append_price_exit_marker(
-                        markers, inv=inv, candles_by_date=by_date, goal=goal
+                    marker = cls._build_price_exit_marker(
+                        inv=inv, candles_by_date=by_date, goal=goal
                     )
-                continue
-            cls._append_price_exit_marker(
-                markers, inv=inv, candles_by_date=by_date, goal=None
-            )
+                    if marker is not None:
+                        exits.append(marker)
+            else:
+                marker = cls._build_price_exit_marker(
+                    inv=inv, candles_by_date=by_date, goal=None
+                )
+                if marker is not None:
+                    exits.append(marker)
+            cls._finalize_investment_exit_markers(exits, inv)
+            markers.extend(exits)
         return markers
 
     @staticmethod
@@ -815,14 +897,50 @@ class WorkbenchStockDetail:
         return out
 
     @classmethod
-    def _append_price_exit_marker(
+    def _normalize_exit_reason(cls, reason: str) -> str:
+        hint = str(reason or "").strip().lower()
+        if not hint:
+            return ""
+        if "protect_loss" in hint or hint.startswith("protect"):
+            return "protect_loss"
+        if "dynamic_loss" in hint or hint.startswith("dynamic"):
+            return "dynamic_loss"
+        if "take_profit" in hint or hint.startswith("win"):
+            return "take_profit"
+        if "stop_loss" in hint or hint.startswith("loss"):
+            return "stop_loss"
+        if "expir" in hint:
+            return "expired"
+        if "simulate_end" in hint or hint == "simulate_end":
+            return "simulate_end"
+        if "period_end" in hint:
+            return "period_end"
+        return hint
+
+    @classmethod
+    def _exit_marker_type_label(cls, reason: str) -> Tuple[str, str]:
+        key = cls._normalize_exit_reason(reason)
+        mapping = {
+            "take_profit": ("take_profit", "止盈"),
+            "stop_loss": ("stop_loss", "止损"),
+            "protect_loss": ("protect_loss", "保护止损"),
+            "dynamic_loss": ("dynamic_loss", "动态止损"),
+            "expired": ("expired", "到期"),
+            "simulate_end": ("simulate_end", "回测结束"),
+            "period_end": ("period_end", "换仓清仓"),
+        }
+        if key in mapping:
+            return mapping[key]
+        return ("period_end", "出场")
+
+    @classmethod
+    def _build_price_exit_marker(
         cls,
-        markers: List[Dict[str, Any]],
         *,
         inv: PriceInvestmentRow,
         candles_by_date: Dict[str, Dict[str, Any]],
         goal: Optional[GoalAchievementRow],
-    ) -> None:
+    ) -> Optional[Dict[str, Any]]:
         if goal is not None:
             exit_d = Utils.date.normalize_str(str(goal.date or "")) or ""
             exit_price = float(goal.price or 0.0)
@@ -838,15 +956,15 @@ class WorkbenchStockDetail:
             goal_name = ""
             exit_ratio = 0.0
         if not exit_d or exit_d not in candles_by_date:
-            return
+            return None
         bar = candles_by_date[exit_d]
-        is_win = cls._price_exit_is_win(
-            reason=exit_reason, roi=roi, inv=inv
-        )
+        marker_type, label = cls._exit_marker_type_label(exit_reason)
         detail: Dict[str, Any] = {
             "opportunity_id": str(inv.opportunity_id or "").strip(),
             "exit_date": exit_d,
-            "exit_price": cls._round_price(exit_price or cls._float_or_none(bar.get("high"))),
+            "exit_price": cls._round_price(
+                exit_price or cls._float_or_none(bar.get("high"))
+            ),
             "exit_reason": exit_reason,
             "roi": cls._round_price(roi),
             "lifecycle": str(inv.lifecycle or "").strip(),
@@ -856,43 +974,53 @@ class WorkbenchStockDetail:
             detail["goal_name"] = goal_name
         if exit_ratio > 0:
             detail["exit_ratio"] = exit_ratio
-        markers.append(
-            {
-                "date": exit_d,
-                "price": cls._round_price(cls._float_or_none(bar.get("high"))),
-                "type": "target_win" if is_win else "target_loss",
-                "label": "目标胜" if is_win else "目标负",
-                "detail": detail,
-            }
-        )
+        return {
+            "date": exit_d,
+            "price": cls._round_price(cls._float_or_none(bar.get("high"))),
+            "type": marker_type,
+            "label": label,
+            "detail": detail,
+        }
 
     @classmethod
-    def _price_exit_is_win(
+    def _finalize_investment_exit_markers(
         cls,
-        *,
-        reason: str,
-        roi: float,
+        exits: List[Dict[str, Any]],
         inv: PriceInvestmentRow,
-    ) -> bool:
-        hint = str(reason or "").strip().lower()
-        if any(key in hint for key in ("stop_loss", "protect_loss", "dynamic_loss")):
-            return False
-        if "take_profit" in hint:
-            return True
-        if roi > 0:
-            return True
-        if roi < 0:
-            return False
-        return cls._price_row_is_win(inv)
+    ) -> None:
+        """最后一笔：到期/边界保持中性；其余按整笔投资盈亏标红绿平仓。"""
+        if not exits:
+            return
+        last = exits[-1]
+        reason = cls._normalize_exit_reason(
+            str((last.get("detail") or {}).get("exit_reason") or "")
+        )
+        detail = last.setdefault("detail", {})
+        detail["is_final"] = True
+        for earlier in exits[:-1]:
+            earlier.setdefault("detail", {})["is_final"] = False
+        if reason in ("expired", "simulate_end"):
+            if reason == "expired":
+                last["type"] = "expired"
+                last["label"] = "到期"
+            else:
+                last["type"] = "simulate_end"
+                last["label"] = "回测结束"
+            return
+        is_profit = cls._price_row_is_profit(inv)
+        last["type"] = "exit_end"
+        last["label"] = "平仓·盈" if is_profit else "平仓·亏"
+        detail["is_profit"] = is_profit
 
     @staticmethod
-    def _price_row_is_win(inv: PriceInvestmentRow) -> bool:
+    def _price_row_is_profit(inv: PriceInvestmentRow) -> bool:
+        """平仓色：ROI≥0 或 result=win 算赚（0 算赚）。"""
         result = str(inv.result or "").strip().lower()
         if result == "win":
             return True
         if result == "loss":
             return False
-        return float(inv.roi or 0.0) > 0
+        return float(inv.roi or 0.0) >= 0.0
 
     @staticmethod
     def _enum_metrics_for_stock(investments: Sequence[EnumResult]) -> Dict[str, Any]:

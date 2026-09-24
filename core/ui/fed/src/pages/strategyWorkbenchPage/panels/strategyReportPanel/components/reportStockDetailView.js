@@ -18,6 +18,7 @@ import {
   pickFinanceSnapshot,
   stockKlinePayloadToMarketChartModel,
 } from 'components/marketChart';
+import { resolveAxisPointerDate } from 'components/marketChart/dateFormat';
 import {
   buildStockKlineCacheKey,
   findStockKlineCacheByStock,
@@ -45,6 +46,12 @@ function ReportStockDetailView({
   /** 财报 PIT：仅十字线悬停时填数；未悬停方块常驻显示 — */
   const [pointerAsOf, setPointerAsOf] = useState('');
   const zoomEndDateRef = useRef('');
+  const chartRef = useRef(null);
+  const payloadRef = useRef(null);
+  const hoverGoalLevelsRef = useRef(null);
+  const highlightGroupIdRef = useRef(null);
+  const syncRafRef = useRef(null);
+  const clearHighlightTimerRef = useRef(null);
 
   const stockCode = stock?.stockCode || '';
   const stockName = stock?.stockName || stockCode;
@@ -142,21 +149,102 @@ function ReportStockDetailView({
     if (!open) {
       setPayload(null);
       setPointerAsOf('');
+      hoverGoalLevelsRef.current = null;
+      highlightGroupIdRef.current = null;
+      if (clearHighlightTimerRef.current) {
+        clearTimeout(clearHighlightTimerRef.current);
+        clearHighlightTimerRef.current = null;
+      }
     }
   }, [open]);
 
   useEffect(() => {
     setPointerAsOf('');
+    hoverGoalLevelsRef.current = null;
+    highlightGroupIdRef.current = null;
+    if (clearHighlightTimerRef.current) {
+      clearTimeout(clearHighlightTimerRef.current);
+      clearHighlightTimerRef.current = null;
+    }
     const dates = (payload?.candles || [])
       .map((c) => String(c?.date || '').trim())
       .filter(Boolean);
     zoomEndDateRef.current = dates.length ? dates[dates.length - 1] : '';
   }, [payload]);
 
+  useEffect(() => {
+    payloadRef.current = payload;
+  }, [payload]);
+
+  useEffect(() => () => {
+    if (syncRafRef.current != null) cancelAnimationFrame(syncRafRef.current);
+    if (clearHighlightTimerRef.current) clearTimeout(clearHighlightTimerRef.current);
+  }, []);
+
+  const buyLevelsByDate = useMemo(() => {
+    const map = new Map();
+    (payload?.markers || []).forEach((m) => {
+      if (String(m?.type || '') !== 'buy') return;
+      const date = String(m?.date || '').trim();
+      const levels = m?.detail?.planned_levels;
+      if (!date || !Array.isArray(levels) || !levels.length) return;
+      map.set(date, levels);
+    });
+    return map;
+  }, [payload]);
+
+  // 基础 option 只跟 payload；hover 叠加用 setOption 合并，避免 mousemove 中 notMerge 拆 series
   const chartOption = useMemo(
     () => buildMarketChartOptionFromStockPayload(payload),
     [payload],
   );
+
+  const syncHoverOverlay = useCallback(() => {
+    const instance = chartRef.current?.getEchartsInstance?.();
+    if (!instance || instance.isDisposed?.() || !payloadRef.current) return;
+    const nextOption = buildMarketChartOptionFromStockPayload({
+      ...payloadRef.current,
+      hoverGoalLevels: hoverGoalLevelsRef.current,
+      highlightGroupId: highlightGroupIdRef.current,
+    });
+    const candle = (nextOption.series || []).find((row) => row?.type === 'candlestick');
+    const series = [];
+    if (candle) {
+      series.push({
+        name: candle.name || 'K线',
+        type: 'candlestick',
+        markLine: candle.markLine || { symbol: 'none', data: [] },
+      });
+    }
+    (nextOption.series || []).forEach((row) => {
+      if (row?.type !== 'scatter') return;
+      series.push({
+        name: row.name,
+        type: 'scatter',
+        symbolSize: row.symbolSize,
+      });
+    });
+    try {
+      instance.setOption({ series }, { lazyUpdate: true, silent: true });
+    } catch (_err) {
+      // mousemove 途中偶发；下一帧可再试
+    }
+  }, []);
+
+  const scheduleHoverOverlaySync = useCallback(() => {
+    if (syncRafRef.current != null) cancelAnimationFrame(syncRafRef.current);
+    syncRafRef.current = requestAnimationFrame(() => {
+      syncRafRef.current = null;
+      syncHoverOverlay();
+    });
+  }, [syncHoverOverlay]);
+
+  const setHighlightGroup = useCallback((groupId) => {
+    const nextId = String(groupId || '').trim() || null;
+    if (highlightGroupIdRef.current === nextId) return;
+    highlightGroupIdRef.current = nextId;
+    scheduleHoverOverlaySync();
+  }, [scheduleHoverOverlaySync]);
 
   const chartModel = useMemo(
     () => stockKlinePayloadToMarketChartModel(payload),
@@ -181,18 +269,9 @@ function ReportStockDetailView({
 
   const financeLive = Boolean(pointerAsOf && financeSnapshot);
 
-  const resolveDateFromAxisEvent = useCallback((params) => {
-    const axes = params?.axesInfo || params?.batch?.[0]?.axesInfo;
-    if (Array.isArray(axes)) {
-      for (let i = 0; i < axes.length; i += 1) {
-        const v = axes[i]?.value ?? axes[i]?.axisValue;
-        const d = String(v ?? '').trim();
-        if (d) return d;
-      }
-    }
-    const direct = String(params?.value ?? params?.axisValue ?? '').trim();
-    return direct || '';
-  }, []);
+  const resolveDateFromAxisEvent = useCallback((params) => (
+    resolveAxisPointerDate(params, candleDates)
+  ), [candleDates]);
 
   const resolveDateFromDataZoom = useCallback((params) => {
     const batch = Array.isArray(params?.batch) && params.batch.length
@@ -209,18 +288,64 @@ function ReportStockDetailView({
   const chartEvents = useMemo(() => ({
     updateAxisPointer: (params) => {
       const d = resolveDateFromAxisEvent(params);
-      if (d) setPointerAsOf(d);
+      if (!d) return;
+      setPointerAsOf(d);
+      const levels = buyLevelsByDate.get(d) || null;
+      const prev = hoverGoalLevelsRef.current;
+      const same = (prev == null && levels == null)
+        || (Array.isArray(prev) && Array.isArray(levels)
+          && prev.length === levels.length
+          && prev.every((row, i) => row?.price === levels[i]?.price && row?.kind === levels[i]?.kind));
+      if (!same) {
+        hoverGoalLevelsRef.current = levels;
+        scheduleHoverOverlaySync();
+      }
+    },
+    mouseover: (params) => {
+      if (params?.seriesType !== 'scatter') return;
+      if (clearHighlightTimerRef.current) {
+        clearTimeout(clearHighlightTimerRef.current);
+        clearHighlightTimerRef.current = null;
+      }
+      const gid = String(params?.data?._markerMeta?.groupId || '').trim();
+      setHighlightGroup(gid || null);
+    },
+    mouseout: (params) => {
+      if (params?.seriesType !== 'scatter') return;
+      // 多段止盈同 series 点间移动会先 out 再 over；延迟清除避免拆 series
+      if (clearHighlightTimerRef.current) clearTimeout(clearHighlightTimerRef.current);
+      clearHighlightTimerRef.current = setTimeout(() => {
+        clearHighlightTimerRef.current = null;
+        setHighlightGroup(null);
+      }, 80);
     },
     datazoom: (params) => {
       const d = resolveDateFromDataZoom(params);
       if (d) zoomEndDateRef.current = d;
-      // 缩放不自动填财报；保持未悬停的 — 态，避免布局抖动以外的误读
       setPointerAsOf('');
+      hoverGoalLevelsRef.current = null;
+      if (clearHighlightTimerRef.current) {
+        clearTimeout(clearHighlightTimerRef.current);
+        clearHighlightTimerRef.current = null;
+      }
+      setHighlightGroup(null);
     },
     globalout: () => {
       setPointerAsOf('');
+      hoverGoalLevelsRef.current = null;
+      if (clearHighlightTimerRef.current) {
+        clearTimeout(clearHighlightTimerRef.current);
+        clearHighlightTimerRef.current = null;
+      }
+      setHighlightGroup(null);
     },
-  }), [resolveDateFromAxisEvent, resolveDateFromDataZoom]);
+  }), [
+    buyLevelsByDate,
+    resolveDateFromAxisEvent,
+    resolveDateFromDataZoom,
+    scheduleHoverOverlaySync,
+    setHighlightGroup,
+  ]);
 
   const layerHints = useMemo(() => {
     const layers = payload?.chart_layers || [];
@@ -326,6 +451,7 @@ function ReportStockDetailView({
             >
               {hasChart ? (
                 <ReactECharts
+                  ref={chartRef}
                   option={chartOption}
                   style={{ height: '100%', width: '100%', minHeight: 520 }}
                   notMerge
@@ -346,9 +472,15 @@ function ReportStockDetailView({
                 snapshot={financeSnapshot}
               />
             ) : null}
+            {hasChart && activeLayer === 'enum' ? (
+              <Typography variant="caption" color="text.secondary" component="div">
+                标注：青 pin 为机会触发日；淡紫虚竖线为财报公告日（详情见下方 PIT 卡）。
+              </Typography>
+            ) : null}
             {hasChart && activeLayer === 'price' ? (
               <Typography variant="caption" color="text.secondary" component="div">
-                标注：青色 Pin 为买入日，橙/紫 Pin 为目标胜/负；菱形为财报公告日。
+                标注：青 pin 买入；中间止盈/止损/保护/动态分色；平仓按盈亏红绿（随 market profile）；
+                到期/回测结束为中性。十字线停在买入日时显示计划止盈/止损虚线；淡紫竖线为财报日。
               </Typography>
             ) : null}
           </>

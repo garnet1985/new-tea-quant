@@ -101,7 +101,12 @@ describe('stockKlinePayload adapter', () => {
       ],
       markers: [
         { type: 'buy', date: '20240103', label: '买入', detail: { entry_price: 10.1 } },
-        { type: 'target_win', date: '20240105', label: '目标胜', detail: { roi: 0.1 } },
+        {
+          type: 'exit_end',
+          date: '20240105',
+          label: '平仓·盈',
+          detail: { roi: 0.1, is_profit: true, is_final: true },
+        },
       ],
       ...overrides,
     };
@@ -191,8 +196,12 @@ describe('stockKlinePayload adapter', () => {
     );
     expect(model.series.some((s) => s.key === 'layer:stock.kline.weekly')).toBe(true);
     expect(model.panes.some((p) => String(p.id).startsWith('macro:'))).toBe(true);
-    expect(model.markers.some((m) => m.key === 'finance')).toBe(true);
+    expect(model.markers.some((m) => m.key === 'finance')).toBe(false);
     expect(model.financeEvents).toHaveLength(1);
+    expect(model.financeDates).toEqual(['20240105']);
+    const option = buildMarketChartOption(model);
+    const kline = option.series.find((s) => s.type === 'candlestick');
+    expect(kline.markLine.data.some((row) => row.xAxis === '20240105' && row.label?.formatter === '财报')).toBe(true);
   });
 
   it('drops SuperTrend/PSAR auxiliary columns before painting', () => {
@@ -270,10 +279,10 @@ describe('stockKlinePayload adapter', () => {
   it('preserves business marker scatter semantics via option builder', () => {
     const option = buildMarketChartOptionFromStockPayload(payload());
     const buy = option.series.find((s) => s.name === '买入');
-    const win = option.series.find((s) => s.name === '目标胜');
+    const end = option.series.find((s) => s.name === '平仓·盈');
     expect(buy.type).toBe('scatter');
     expect(buy.data[0].value).toEqual(['20240103', 9.5]);
-    expect(win.data[0].value).toEqual(['20240105', 12.1]);
+    expect(end.data[0].value).toEqual(['20240105', 12.1]);
     expect(option.dataZoom[0].filterMode).toBe('filter');
 
     const html = option.tooltip.formatter([
@@ -303,30 +312,38 @@ describe('stockKlinePayload adapter', () => {
         markers: [
           { type: 'buy', date: '20240103', label: '买入', detail: { entry_price: 10.1 } },
           {
-            type: 'target_win',
+            type: 'take_profit',
             date: '20240104',
-            label: '目标胜',
-            detail: { goal_name: 'win20%', exit_ratio: 0.5, roi: 0.05 },
+            label: '止盈',
+            detail: { goal_name: 'win20%', exit_ratio: 0.5, roi: 0.05, is_final: false },
           },
           {
-            type: 'target_win',
+            type: 'exit_end',
             date: '20240105',
-            label: '目标胜',
-            detail: { goal_name: 'win30%', exit_ratio: 0.5, roi: 0.1 },
+            label: '平仓·盈',
+            detail: {
+              goal_name: 'win30%',
+              exit_ratio: 0.5,
+              roi: 0.1,
+              is_profit: true,
+              is_final: true,
+            },
           },
         ],
       }),
     );
-    const win = option.series.find((s) => s.name === '目标胜');
-    expect(win.data.map((d) => d.value[0])).toEqual(['20240104', '20240105']);
+    const mid = option.series.find((s) => s.name === '止盈');
+    const end = option.series.find((s) => s.name === '平仓·盈');
+    expect(mid.data.map((d) => d.value[0])).toEqual(['20240104']);
+    expect(end.data.map((d) => d.value[0])).toEqual(['20240105']);
     const html = option.tooltip.formatter([
       {
         seriesType: 'scatter',
-        seriesName: '目标胜',
+        seriesName: '止盈',
         axisValue: '20240104',
         data: {
           value: ['20240104', 11.4],
-          _markerMeta: win.data[0]._markerMeta,
+          _markerMeta: mid.data[0]._markerMeta,
         },
       },
     ]);
@@ -340,24 +357,65 @@ describe('stockKlinePayload adapter', () => {
         markers: [
           { type: 'buy', date: '20240103', label: '买入', detail: { entry_price: 10.1 } },
           {
-            type: 'target_win',
+            type: 'take_profit',
             date: '20240105',
-            label: '目标胜',
+            label: '止盈',
             detail: { goal_name: 'win20%', exit_ratio: 0.5, roi: 0.05 },
           },
           {
-            type: 'target_win',
+            type: 'take_profit',
             date: '20240105',
-            label: '目标胜',
+            label: '止盈',
             detail: { goal_name: 'win30%', exit_ratio: 0.5, roi: 0.1 },
           },
         ],
       }),
     );
-    const win = option.series.find((s) => s.name === '目标胜');
-    expect(win.data).toHaveLength(1);
-    expect(win.data[0].value).toEqual(['20240105', 12.1]);
-    expect(win.data[0]._markerMeta.tooltipHtml).toContain('win20%、win30%');
-    expect(win.data[0]._markerMeta.tooltipHtml).toContain('100%');
+    const mid = option.series.find((s) => s.name === '止盈');
+    expect(mid.data).toHaveLength(1);
+    expect(mid.data[0].value).toEqual(['20240105', 12.1]);
+    expect(mid.data[0]._markerMeta.tooltipHtml).toContain('win20%、win30%');
+    expect(mid.data[0]._markerMeta.tooltipHtml).toContain('100%');
+  });
+
+  it('scales all pins in the hovered investment group', () => {
+    const option = buildMarketChartOptionFromStockPayload(
+      payload({
+        markers: [
+          {
+            type: 'buy',
+            date: '20240103',
+            label: '买入',
+            detail: { opportunity_id: 'inv-a', entry_price: 10.1 },
+          },
+          {
+            type: 'take_profit',
+            date: '20240104',
+            label: '止盈',
+            detail: { opportunity_id: 'inv-a', goal_name: 'win20%', exit_ratio: 0.5 },
+          },
+          {
+            type: 'exit_end',
+            date: '20240105',
+            label: '平仓·盈',
+            detail: { opportunity_id: 'inv-a', is_profit: true, is_final: true },
+          },
+          {
+            type: 'buy',
+            date: '20240105',
+            label: '买入',
+            detail: { opportunity_id: 'inv-b', entry_price: 11 },
+          },
+        ],
+        highlightGroupId: 'inv-a',
+      }),
+    );
+    const buy = option.series.find((s) => s.name === '买入');
+    const mid = option.series.find((s) => s.name === '止盈');
+    const end = option.series.find((s) => s.name === '平仓·盈');
+    expect(typeof buy.symbolSize).toBe('function');
+    expect(buy.symbolSize(buy.data[0])).toBeGreaterThan(buy.symbolSize(buy.data[1]));
+    expect(mid.symbolSize(mid.data[0])).toBe(buy.symbolSize(buy.data[0]));
+    expect(end.symbolSize(end.data[0])).toBe(buy.symbolSize(buy.data[0]));
   });
 });

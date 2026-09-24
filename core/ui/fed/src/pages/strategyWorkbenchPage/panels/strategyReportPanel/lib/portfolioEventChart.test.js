@@ -16,7 +16,7 @@ describe('portfolioEventChart', () => {
     expect(byDate.get('20240110').sells).toHaveLength(1);
   });
 
-  it('uses the full event curve and does not paint trade markers', () => {
+  it('uses the full event curve and paints trade markers when enabled', () => {
     const option = buildPortfolioEventChartOption({
       initialCapital: 1000000,
       finalEquity: 1100000,
@@ -33,16 +33,16 @@ describe('portfolioEventChart', () => {
     });
     expect(option.xAxis[0].data).toEqual(['20240103', '20240110', '20240117']);
     expect(option.grid).toHaveLength(2);
-    expect(option.series.map((s) => s.name)).toEqual(['总资产', '回撤']);
-    expect(option.legend.data).toEqual(['总资产']);
+    expect(option.series.map((s) => s.name)).toEqual(['总资产', '回撤', '买入', '卖出']);
+    expect(option.legend.data).toEqual(['总资产', '买入', '卖出']);
     expect(option.series.find((s) => s.name === '回撤').xAxisIndex).toBe(1);
     const html = option.tooltip.formatter([
       { seriesName: '总资产', axisValue: '20240103', data: 1000000 },
     ]);
     expect(html).toContain('回撤：0.00%');
     expect(html).toContain('总资产');
-    expect(html).not.toContain('买入');
-    expect(html).not.toContain('卖出');
+    expect(html).toContain('买入');
+    expect(html).toContain('平安银行');
     expect(option.grid[0].height).toBe(option.grid[1].height);
     expect(option.dataZoom[0].type).toBe('slider');
     expect(option.toolbox.feature.restore).toBeTruthy();

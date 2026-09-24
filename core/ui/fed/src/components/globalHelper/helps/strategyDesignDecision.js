@@ -6,7 +6,7 @@ export function matchStrategyDesignDecision(pathname) {
 }
 
 /**
- * 决策模拟对局现场。枚举/投资未完成时只有闸门，对局 DOM 还没挂上，
+ * 决策模拟回测现场。枚举/投资未完成时只有闸门，回测 DOM 还没挂上，
  * 所以用 appear：等执行栏出现再弹。
  */
 export const STRATEGY_DESIGN_DECISION_HELP = {
@@ -41,8 +41,8 @@ export const STRATEGY_DESIGN_DECISION_HELP = {
       target: 'decision-sessions',
       pages: [
         {
-          title: '模拟局',
-          body: '同一版本的回测可以开多局。「继续」回到未完成的局，「管理」里可以删除旧局，「新开一局」从回测起点重新开始。',
+          title: '模拟回测',
+          body: '同一版本的回测可以开多局。「继续」回到未完成的局，「管理」里可以删除旧局，「新建模拟回测」从回测起点重新开始。',
         },
       ],
     },

@@ -596,7 +596,7 @@ class DecisionEngine:
         self, local_id: int, shares: int, *, note: Optional[str] = None
     ) -> Tuple[DayOpportunity, int, float]:
         if self.is_completed:
-            raise DecisionError("本局已结束，只能查看报告")
+            raise DecisionError("本次模拟回测已结束，只能查看报告")
         if self.phase == PHASE_CONFIRMING:
             self.phase = PHASE_PICKING
         opp = self.opportunity_by_local(int(local_id))
@@ -643,7 +643,7 @@ class DecisionEngine:
     ) -> Tuple[DayOpportunity, int, float]:
         """UI 填金额：按成交价与市场手数折成可买股数。"""
         if self.is_completed:
-            raise DecisionError("本局已结束，只能查看报告")
+            raise DecisionError("本次模拟回测已结束，只能查看报告")
         if self.phase == PHASE_CONFIRMING:
             self.phase = PHASE_PICKING
         try:
@@ -682,7 +682,7 @@ class DecisionEngine:
 
     def done(self) -> List[Tuple[DayOpportunity, int, float]]:
         if self.is_completed:
-            raise DecisionError("本局已结束，只能查看报告")
+            raise DecisionError("本次模拟回测已结束，只能查看报告")
         self._assert_draft_affordable()
         bill: List[Tuple[DayOpportunity, int, float]] = []
         for lid in sorted(self.draft):
@@ -697,7 +697,7 @@ class DecisionEngine:
 
     def reset(self, *, keep_draft: bool = False) -> None:
         if self.is_completed:
-            raise DecisionError("本局已结束，只能查看报告")
+            raise DecisionError("本次模拟回测已结束，只能查看报告")
         if not keep_draft:
             self.draft = {}
             self.draft_notes = {}
@@ -706,7 +706,7 @@ class DecisionEngine:
 
     def next(self) -> AdvanceResult:
         if self.is_completed:
-            raise DecisionError("本局已结束，只能查看报告")
+            raise DecisionError("本次模拟回测已结束，只能查看报告")
         if self.phase != PHASE_CONFIRMING:
             raise DecisionError("请先输入 done 确认选择")
         had_buys = bool(self.draft)
@@ -816,7 +816,7 @@ class DecisionEngine:
 
     def finalize(self, **kwargs: Any) -> Dict[str, Any]:
         if not self.is_completed:
-            raise DecisionError("区间尚未走完，不出终局报告")
+            raise DecisionError("区间尚未走完，不出模拟回测报告")
         extra = dict(kwargs)
         if self._load_open_dates is not None and "load_open_dates" not in extra:
             extra["load_open_dates"] = self._load_open_dates

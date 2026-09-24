@@ -392,6 +392,7 @@ def test_session_list_and_holdings_and_info():
     assert info["indicator_series"][0]["key"] == "rsi14"
     assert info["indicator_series"][0]["panel"] == "oscillator"
     assert info["indicator_series"][0]["data"] == [None, 24.56]
+    assert info["chart_layers"] == []
     json.dumps(info)
 
 

@@ -24,7 +24,12 @@ import PageLayout from '../../components/pageLayout/pageLayout';
 import ChartPanel from '../../components/chartPanel/chartPanel';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { buildStockKlineChartOptionFromPayload } from '../strategyWorkbenchPage/panels/strategyReportPanel/lib/stockKlineChart';
+import {
+  buildMarketChartOptionFromStockPayload,
+  FinancePitCard,
+  pickFinanceSnapshot,
+  stockKlinePayloadToMarketChartModel,
+} from 'components/marketChart';
 import {
   doneDecisionDay,
     fetchDecisionHoldings,
@@ -608,7 +613,7 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
         )}
       </DialogContent>
       <DialogActions>
-        {onOpenKline ? <Button onClick={onOpenKline}>查看 K 线</Button> : null}
+        {onOpenKline ? <Button onClick={onOpenKline}>查看数据</Button> : null}
         <Button variant="contained" onClick={onClose}>关闭</Button>
       </DialogActions>
     </Dialog>
@@ -738,6 +743,8 @@ export function DecisionPlaySession({
   const [infoOpp, setInfoOpp] = useState(null);
   const [infoPayload, setInfoPayload] = useState(null);
   const [infoLoading, setInfoLoading] = useState(false);
+  const [infoPointerAsOf, setInfoPointerAsOf] = useState('');
+  const infoZoomEndRef = useRef('');
   const [investRow, setInvestRow] = useState(null);
   const [investShares, setInvestShares] = useState('');
   const [investNote, setInvestNote] = useState('');
@@ -789,7 +796,7 @@ export function DecisionPlaySession({
     anim.cancelled = false;
     if (!strategyKey || !sessionId) {
       if (!embedded) {
-        setLoadError('缺少策略或对局');
+        setLoadError('缺少策略或模拟回测');
         setPageReady(true);
       }
       return undefined;
@@ -807,7 +814,7 @@ export function DecisionPlaySession({
         if (cancelled) return;
         applyLive(snap, held, { hopEvents: [], keepPicks: false });
       } catch (err) {
-        if (!cancelled) setLoadError(errorMessage(err, '无法打开对局'));
+        if (!cancelled) setLoadError(errorMessage(err, '无法打开模拟回测'));
       } finally {
         if (!cancelled) setPageReady(true);
       }
@@ -922,12 +929,85 @@ export function DecisionPlaySession({
     if (clockYmd && clockYmd !== buyYmd) {
       markers.push({ type: 'opportunity', date: clockYmd, label: '当前日' });
     }
-    return buildStockKlineChartOptionFromPayload({
+    return buildMarketChartOptionFromStockPayload({
       candles: infoPayload.candles,
       indicator_series: infoPayload.indicatorSeries || [],
+      chart_layers: infoPayload.chartLayers || [],
       markers,
     });
   }, [infoPayload, clockDate, infoOpp]);
+
+  const infoChartModel = useMemo(
+    () => stockKlinePayloadToMarketChartModel({
+      candles: infoPayload?.candles || [],
+      indicator_series: infoPayload?.indicatorSeries || [],
+      chart_layers: infoPayload?.chartLayers || [],
+      markers: [],
+    }),
+    [infoPayload],
+  );
+
+  const infoHasFinanceLayer = useMemo(() => {
+    if ((infoChartModel?.financeEvents || []).length > 0) return true;
+    return (infoPayload?.chartLayers || []).some((l) => String(l?.role || '') === 'event_pins');
+  }, [infoChartModel, infoPayload]);
+
+  const infoFinanceSnapshot = useMemo(() => {
+    const events = infoChartModel?.financeEvents;
+    if (!infoPointerAsOf || !events?.length) return null;
+    return pickFinanceSnapshot(events, infoPointerAsOf);
+  }, [infoChartModel, infoPointerAsOf]);
+
+  const infoFinanceLive = Boolean(infoPointerAsOf && infoFinanceSnapshot);
+
+  const infoCandleDates = useMemo(
+    () => (infoPayload?.candles || []).map((c) => String(c?.date || '').trim()).filter(Boolean),
+    [infoPayload],
+  );
+
+  useEffect(() => {
+    setInfoPointerAsOf('');
+    infoZoomEndRef.current = infoCandleDates.length
+      ? infoCandleDates[infoCandleDates.length - 1]
+      : '';
+  }, [infoPayload, infoCandleDates]);
+
+  const resolveInfoAxisDate = useCallback((params) => {
+    const axes = params?.axesInfo || params?.batch?.[0]?.axesInfo;
+    if (Array.isArray(axes)) {
+      for (let i = 0; i < axes.length; i += 1) {
+        const v = axes[i]?.value ?? axes[i]?.axisValue;
+        const d = String(v ?? '').trim();
+        if (d) return d;
+      }
+    }
+    return String(params?.value ?? params?.axisValue ?? '').trim();
+  }, []);
+
+  const resolveInfoZoomDate = useCallback((params) => {
+    const batch = Array.isArray(params?.batch) && params.batch.length
+      ? params.batch[0]
+      : params;
+    if (!infoCandleDates.length) return '';
+    const n = infoCandleDates.length;
+    const endPct = Number(batch?.end);
+    const pct = Number.isFinite(endPct) ? endPct : 100;
+    const idx = Math.min(n - 1, Math.max(0, Math.round((pct / 100) * (n - 1))));
+    return infoCandleDates[idx] || '';
+  }, [infoCandleDates]);
+
+  const infoChartEvents = useMemo(() => ({
+    updateAxisPointer: (params) => {
+      const d = resolveInfoAxisDate(params);
+      if (d) setInfoPointerAsOf(d);
+    },
+    datazoom: (params) => {
+      const d = resolveInfoZoomDate(params);
+      if (d) infoZoomEndRef.current = d;
+      setInfoPointerAsOf('');
+    },
+    globalout: () => setInfoPointerAsOf(''),
+  }), [resolveInfoAxisDate, resolveInfoZoomDate]);
 
   const holdingDetail = holdings.find((row) => row.id === holdingDetailId) || null;
   if (holdingDetail) holdingDetailCacheRef.current = holdingDetail;
@@ -993,6 +1073,7 @@ export function DecisionPlaySession({
   const openInfo = async (row) => {
     setInfoOpp(row);
     setInfoPayload(null);
+    setInfoPointerAsOf('');
     if (!strategyKey || !snapshot?.dmId || !row) return;
     setInfoLoading(true);
     try {
@@ -1001,7 +1082,7 @@ export function DecisionPlaySession({
       });
       setInfoPayload(payload);
     } catch (err) {
-      setToast(errorMessage(err, '无法加载 info'));
+      setToast(errorMessage(err, '无法加载数据'));
     } finally {
       setInfoLoading(false);
     }
@@ -1173,7 +1254,7 @@ export function DecisionPlaySession({
       applyLive(nextSnap, held, { hopEvents: nextSnap.events || [], keepPicks: false });
       setClockMotion('is-landed');
       setAdvancing(false);
-      setToast(nextSnap.completed ? '本局已走完' : '已提交当天，停在下一事件日');
+      setToast(nextSnap.completed ? '本次模拟回测已走完' : '已提交当天，停在下一事件日');
     } catch (err) {
       setClockMotion('is-landed');
       setAdvancing(false);
@@ -1245,11 +1326,11 @@ export function DecisionPlaySession({
       <PageLayout
         className="decision-page"
         breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
-        breadcrumbsCurrent="对局"
-        bannerTitle="决策者对局"
-        bannerDescription="正在打开这一局。"
+        breadcrumbsCurrent="模拟回测"
+        bannerTitle="决策模拟回测"
+        bannerDescription="正在打开本次模拟回测。"
       >
-        <InlineLoadingState block message="正在加载对局现场…" />
+        <InlineLoadingState block message="正在加载模拟回测…" />
       </PageLayout>
     );
   }
@@ -1258,7 +1339,7 @@ export function DecisionPlaySession({
     if (embedded) {
       return render({
         loading: false,
-        error: loadError || '对局不存在',
+        error: loadError || '模拟回测不存在',
         hud: null,
         status: null,
         board: null,
@@ -1270,16 +1351,16 @@ export function DecisionPlaySession({
       <PageLayout
         className="decision-page"
         breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
-        breadcrumbsCurrent="对局"
-        bannerTitle="决策者对局"
-        bannerDescription="无法打开这一局。"
+        breadcrumbsCurrent="模拟回测"
+        bannerTitle="决策模拟回测"
+        bannerDescription="无法打开本次模拟回测。"
         bannerRightSlot={(
           <Button component={RouterLink} to={designHref} variant="outlined" size="small">
             返回制定策略
           </Button>
         )}
       >
-        <Alert severity="error" variant="outlined">{loadError || '对局不存在'}</Alert>
+        <Alert severity="error" variant="outlined">{loadError || '模拟回测不存在'}</Alert>
       </PageLayout>
     );
   }
@@ -1290,7 +1371,7 @@ export function DecisionPlaySession({
   const rangeLabel = rangeStart && rangeEnd ? `${rangeStart} → ${rangeEnd}` : '—';
 
   const clockHud = (
-    <Box className={`decision-hud${embedded ? ' decision-hud--embedded' : ''}`} aria-label="对局时钟">
+    <Box className={`decision-hud${embedded ? ' decision-hud--embedded' : ''}`} aria-label="模拟回测时钟">
       <Box className="decision-hud-main">
         <Box className="decision-calendar-block" data-ntq-help="decision-clock">
           <Typography className="decision-calendar-title" component="h2">
@@ -1387,7 +1468,7 @@ export function DecisionPlaySession({
     <>
       {completed ? (
         <Alert severity="warning" variant="outlined" sx={{ mb: 2 }}>
-          本局已走完，只读回看。不能改股数，也不能再推进。
+          本次模拟回测已走完，只读回看。不能改股数，也不能再推进。
         </Alert>
       ) : null}
 
@@ -1467,7 +1548,7 @@ export function DecisionPlaySession({
                 {[
                   ['策略', snapshot.strategyKey || strategyKey],
                   ['版本', snapshot.versionId || '—'],
-                  ['对局', String(snapshot.dmId)],
+                  ['模拟回测', String(snapshot.dmId)],
                   ['回测区间', rangeLabel],
                   ['最大同时持有数', String(snapshot.maxPortfolioSize || '—')],
                 ].map(([label, value]) => (
@@ -1762,33 +1843,72 @@ export function DecisionPlaySession({
 
       <Dialog
         open={Boolean(infoOpp)}
-        onClose={() => setInfoOpp(null)}
-        maxWidth="lg"
-        fullWidth
+        onClose={() => {
+          setInfoOpp(null);
+          setInfoPointerAsOf('');
+        }}
+        fullScreen
+        className="decision-info-chart-dialog"
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, pr: 1 }}>
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 2,
+            py: 1.25,
+            pr: 1,
+          }}
+        >
           <span className="decision-stock-with-status">
-            {infoOpp ? opportunityStockLabel(infoOpp) : 'K 线'}
+            {infoOpp ? opportunityStockLabel(infoOpp) : '市场数据'}
             {infoOpp ? <StockStatusChips tags={infoOpp.statusTags} /> : null}
+            <Typography
+              component="span"
+              variant="caption"
+              color="text.secondary"
+              sx={{ ml: 1.5 }}
+            >
+              查看数据
+            </Typography>
           </span>
-          <IconButton aria-label="关闭" onClick={() => setInfoOpp(null)}>
+          <IconButton
+            aria-label="关闭"
+            onClick={() => {
+              setInfoOpp(null);
+              setInfoPointerAsOf('');
+            }}
+            edge="end"
+          >
             <NtqIcon name="cancel" size={18} />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent
+          dividers
+          sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, pt: 1.5 }}
+        >
           {infoOpp ? (
             <>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                as-of {clockDate} · 前复权 K 线停在当前日，不含未来
-                {infoPayload?.indicatorSeries?.some((row) => row.panel === 'oscillator')
-                  ? ` · 副图：${infoPayload.indicatorSeries
-                    .filter((row) => row.panel === 'oscillator')
-                    .map((row) => row.label || row.key)
-                    .filter(Boolean)
-                    .join('、')}`
-                  : ''}
+                as-of {clockDate} · 前复权数据停在当前日，不含未来
+                {(() => {
+                  const panels = new Set(
+                    (infoPayload?.indicatorSeries || [])
+                      .map((row) => row.panel)
+                      .filter((p) => p && p !== 'overlay'),
+                  );
+                  const names = [];
+                  if (panels.has('macd')) names.push('MACD');
+                  if (panels.has('oscillator')) names.push('振荡指标');
+                  const layerNames = (infoPayload?.chartLayers || [])
+                    .map((l) => l.label || l.role)
+                    .filter(Boolean);
+                  if (names.length) return ` · 副图：${names.join(' / ')}`;
+                  if (layerNames.length) return ` · 分层：${layerNames.join(' · ')}`;
+                  return '';
+                })()}
               </Typography>
-              <Stack spacing={0.75} sx={{ mb: 2 }}>
+              <Stack spacing={0.75}>
                 <Stack direction="row" justifyContent="space-between">
                   <Typography variant="body2" color="text.secondary">策略 as-of</Typography>
                   <Typography variant="body2">
@@ -1806,16 +1926,35 @@ export function DecisionPlaySession({
                 </Stack>
               </Stack>
               {infoLoading ? (
-                <InlineLoadingState block message="正在加载 K 线…" />
+                <InlineLoadingState block message="正在加载市场数据…" />
               ) : (
-                <ChartPanel
-                  title="K 线"
-                  option={infoChart}
-                  height={560}
-                  note={infoPayload?.candles?.length
-                    ? '主图：K线（前复权）与策略声明指标。买入日有标记。使用底部滑块调整可见区间。'
-                    : '没有截至当前日的 K 线。'}
-                />
+                <Stack spacing={1.25} sx={{ flex: '1 1 auto', minHeight: 0 }}>
+                  <Box
+                    sx={{
+                      flex: '1 1 auto',
+                      minHeight: { xs: 420, sm: 560, md: 'calc(100vh - 280px)' },
+                      width: '100%',
+                    }}
+                  >
+                    <ChartPanel
+                      title=""
+                      option={infoChart}
+                      height="100%"
+                      framed={false}
+                      onEvents={infoChartEvents}
+                      sx={{ height: '100%', minHeight: 520 }}
+                      note={infoPayload?.candles?.length
+                        ? '主图：K线（前复权）与策略声明指标 / 分层数据。悬停查看财报 PIT。使用底部滑块调整可见区间。'
+                        : '没有截至当前日的市场数据。'}
+                    />
+                  </Box>
+                  <FinancePitCard
+                    visible={infoHasFinanceLayer}
+                    live={infoFinanceLive}
+                    pointerAsOf={infoPointerAsOf}
+                    snapshot={infoFinanceSnapshot}
+                  />
+                </Stack>
               )}
             </>
           ) : null}
@@ -1852,8 +1991,8 @@ export function DecisionPlaySession({
     <PageLayout
       className="decision-page"
       breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
-      breadcrumbsCurrent={`第 ${snapshot.dmId} 局`}
-      bannerTitle={`决策模拟 · 第 ${snapshot.dmId} 局`}
+      breadcrumbsCurrent={`模拟回测 #${snapshot.dmId}`}
+      bannerTitle={`决策模拟回测 · #${snapshot.dmId}`}
       bannerDescription="时钟只显示当前停顿日。推进后总进度前移；月历是只读地图，只标注已经发生的事件。"
       bannerRightSlot={(
         <Button component={RouterLink} to={designHref} variant="outlined" size="small">

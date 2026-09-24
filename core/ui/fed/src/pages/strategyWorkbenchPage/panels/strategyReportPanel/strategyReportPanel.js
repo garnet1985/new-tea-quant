@@ -250,6 +250,7 @@ function StrategyReportPanel({
           stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          showTradeChart={options.showTradeChart !== false}
           hideTitle={Boolean(options.hideTitle)}
         />
       );
@@ -511,7 +512,7 @@ function StrategyReportPanel({
                           resolvedActiveTab,
                           buildMetricsPayloadForTab(resolvedActiveTab),
                           compareDialogReportKindLabel,
-                          { showStockGrid: false },
+                          { showStockGrid: false, showTradeChart: false },
                         )}
                       </Stack>
                       <Stack spacing={1} className="ntq-report-compare__col">
@@ -537,6 +538,7 @@ function StrategyReportPanel({
                                 compareDialogReportKindLabel,
                                 {
                                   showStockGrid: false,
+                                  showTradeChart: false,
                                   unavailableHintZh: COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
                                 },
                               )

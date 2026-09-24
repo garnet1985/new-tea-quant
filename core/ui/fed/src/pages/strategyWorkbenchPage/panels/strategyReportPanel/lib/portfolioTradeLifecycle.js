@@ -616,3 +616,286 @@ export function buildPortfolioTradeLifecycleChartOption(metrics, overlay = {}) {
     ],
   };
 }
+
+function stockLabelFromLife(life) {
+  const code = String(life?.entityId || '').trim();
+  const name = String(life?.stockName || '').trim();
+  if (name && code && name !== code) return `${name}(${code})`;
+  return name || code || '未知';
+}
+
+/** 整表事件图开仓点：三档大小（按合并后盈亏金额绝对值） */
+export const OVERVIEW_DOT_SIZE = {
+  small: 8,
+  medium: 13,
+  large: 18,
+};
+
+/**
+ * 同日合并后的总盈亏（金额，非 ROI）。
+ * 仅累加已平仓笔；全未平仓 → profit null / outcome open。
+ */
+export function summarizeOverviewDayLives(lives) {
+  let sum = 0;
+  let closed = 0;
+  let openCount = 0;
+  (lives || []).forEach((life) => {
+    const p = Number(life?.profit);
+    if (life?.outcome === 'open' || !Number.isFinite(p)) {
+      openCount += 1;
+      return;
+    }
+    closed += 1;
+    sum += p;
+  });
+  if (!closed) {
+    return {
+      profit: null,
+      absProfit: 0,
+      outcome: 'open',
+      closedCount: 0,
+      openCount,
+      count: (lives || []).length,
+    };
+  }
+  let outcome = 'flat';
+  if (sum > 0) outcome = 'profit';
+  else if (sum < 0) outcome = 'loss';
+  return {
+    profit: sum,
+    absProfit: Math.abs(sum),
+    outcome,
+    closedCount: closed,
+    openCount,
+    count: (lives || []).length,
+  };
+}
+
+/** 相对本图最大 |盈亏| 切成小 / 中 / 大三档 */
+export function overviewDotSizeForAbsProfit(absProfit, maxAbs) {
+  const abs = Number(absProfit);
+  const max = Number(maxAbs);
+  if (!Number.isFinite(abs) || abs <= 0 || !Number.isFinite(max) || max <= 0) {
+    return OVERVIEW_DOT_SIZE.small;
+  }
+  if (abs <= max / 3) return OVERVIEW_DOT_SIZE.small;
+  if (abs <= (2 * max) / 3) return OVERVIEW_DOT_SIZE.medium;
+  return OVERVIEW_DOT_SIZE.large;
+}
+
+function overviewDayColor(outcome, palette) {
+  if (outcome === 'loss') return palette.loss;
+  if (outcome === 'profit') return palette.profit;
+  return palette.neutral;
+}
+
+function overviewDayShadow(outcome, palette) {
+  if (outcome === 'loss') return palette.shadow.loss;
+  if (outcome === 'profit') return palette.shadow.profit;
+  return palette.shadow.neutral;
+}
+
+function formatOverviewDayTooltip(point, palette) {
+  const lives = Array.isArray(point?.lifecycles) ? point.lifecycles : [];
+  const date = point?.value?.[0];
+  const summary = point?.summary || summarizeOverviewDayLives(lives);
+  let head = `${formatReportChartDateLabel(date)} · 开仓 ${lives.length} 笔`;
+  if (summary.outcome === 'open') {
+    head += ' · 未平仓';
+  } else if (Number.isFinite(Number(summary.profit))) {
+    const sign = summary.profit > 0 ? '+' : '';
+    const color = overviewDayColor(summary.outcome, palette);
+    head += ` · <span style="color:${color}">合计 ${sign}${formatReportMoney(summary.profit)}</span>`;
+  }
+  const lines = [head];
+  lives.slice(0, 12).forEach((life) => {
+    const shares = Number(life?.buy?.shares);
+    const shareText = Number.isFinite(shares) ? `${shares.toLocaleString()}股` : '—股';
+    const px = formatReportMoney(life?.buy?.price);
+    let tail = '';
+    if (life.outcome === 'open') {
+      tail = '未平仓';
+    } else if (Number.isFinite(Number(life.profit))) {
+      const sign = life.profit >= 0 ? '+' : '';
+      const color = outcomeColor(life.outcome, palette);
+      tail = `<span style="color:${color}">${sign}${formatReportMoney(life.profit)}</span>`;
+    }
+    lines.push(
+      `${escapeHtml(stockLabelFromLife(life))} · ${escapeHtml(shareText)} · ${escapeHtml(px)}`
+      + (tail ? ` · ${tail}` : ''),
+    );
+  });
+  if (lives.length > 12) {
+    lines.push(`…另有 ${lives.length - 12} 笔`);
+  }
+  return lines.join('<br/>');
+}
+
+/**
+ * 整表事件图：净值曲线 + 仅开仓起点；同日多笔合并。
+ * 点色按合并后总盈亏（赚红亏绿），点大小按 |盈亏金额| 三档。
+ */
+export function buildPortfolioTradeOverviewChartOption(metrics) {
+  const { labels, values } = pickCurve(metrics);
+  if (labels.length < 2) return null;
+
+  const palette = resolveMarketPnlPalette(metrics?.marketProfile || metrics?.market_profile);
+  const lifecycles = pairTradeLifecycles(metrics?.tradeEvents);
+  if (!lifecycles.length) return null;
+
+  const labelIndex = new Map(labels.map((d, i) => [String(d), i]));
+  const { min: yMin, max: yMax } = equityAxisMinMax(values);
+  // 资金线用中性灰白，避开红/绿盈亏点与买卖色
+  const lineColor = 'rgba(226, 232, 240, 0.88)';
+  const areaColor = 'rgba(226, 232, 240, 0.08)';
+
+  const byDate = new Map();
+  lifecycles.forEach((life) => {
+    const start = String(life.buy?.date || '').trim();
+    if (!start || !labelIndex.has(start)) return;
+    let bucket = byDate.get(start);
+    if (!bucket) {
+      bucket = [];
+      byDate.set(start, bucket);
+    }
+    bucket.push(life);
+  });
+
+  const drafts = [];
+  let maxAbs = 0;
+  byDate.forEach((lives, date) => {
+    const y = valueAt(labels, values, date);
+    if (y == null) return;
+    const summary = summarizeOverviewDayLives(lives);
+    if (summary.absProfit > maxAbs) maxAbs = summary.absProfit;
+    drafts.push({ date, y, lives, summary });
+  });
+
+  const startData = drafts.map(({ date, y, lives, summary }) => {
+    const color = overviewDayColor(summary.outcome, palette);
+    const symbolSize = overviewDotSizeForAbsProfit(summary.absProfit, maxAbs);
+    return {
+      value: [date, y],
+      lifecycles: lives,
+      summary,
+      count: summary.count,
+      profit: summary.profit,
+      absProfit: summary.absProfit,
+      outcome: summary.outcome,
+      symbolSize,
+      itemStyle: {
+        color,
+        borderColor: 'rgba(255,255,255,0.9)',
+        borderWidth: 1.5,
+        shadowBlur: symbolSize >= OVERVIEW_DOT_SIZE.large ? 8 : 0,
+        shadowColor: `rgba(${overviewDayShadow(summary.outcome, palette)}, 0.55)`,
+      },
+    };
+  });
+
+  if (!startData.length) return null;
+
+  return {
+    animation: false,
+    grid: {
+      left: 48,
+      right: 20,
+      top: 36,
+      bottom: 52,
+    },
+    legend: {
+      data: ['总资产', '开仓'],
+      top: 0,
+      left: 0,
+      itemWidth: 14,
+      itemHeight: 14,
+      textStyle: { color: 'rgba(255, 255, 255, 0.72)', fontSize: 11 },
+    },
+    toolbox: {
+      right: 8,
+      top: 0,
+      itemSize: 14,
+      iconStyle: { borderColor: 'rgba(255, 255, 255, 0.72)' },
+      feature: {
+        restore: { title: '还原缩放' },
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisTick: { show: false },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: {
+        ...REPORT_CHART_AXIS_LABEL,
+        formatter: (v) => formatReportChartDateLabel(v),
+      },
+      axisPointer: { show: true, label: { show: false } },
+    },
+    yAxis: {
+      type: 'value',
+      ...((yMin !== undefined && yMax !== undefined) ? { min: yMin, max: yMax } : {}),
+      splitNumber: 4,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        ...REPORT_CHART_AXIS_LABEL,
+        formatter: (value) => formatEquityAxisWan(value, yMin, yMax),
+      },
+      splitLine: REPORT_CHART_SPLIT_LINE,
+    },
+    dataZoom: [
+      {
+        type: 'slider',
+        xAxisIndex: 0,
+        height: 18,
+        bottom: 8,
+        brushSelect: false,
+        filterMode: 'none',
+        borderColor: 'rgba(255, 255, 255, 0.14)',
+        fillerColor: 'rgba(255, 255, 255, 0.14)',
+        handleStyle: { color: 'rgba(255, 255, 255, 0.72)' },
+        textStyle: { color: 'rgba(255, 255, 255, 0.58)', fontSize: 10 },
+      },
+      {
+        type: 'inside',
+        xAxisIndex: 0,
+        filterMode: 'none',
+        zoomOnMouseWheel: false,
+        moveOnMouseWheel: false,
+        moveOnMouseMove: false,
+      },
+    ],
+    tooltip: {
+      ...REPORT_CHART_TOOLTIP,
+      trigger: 'item',
+      confine: true,
+      formatter: (params) => {
+        if (String(params?.seriesName || '') !== '开仓') return '';
+        return formatOverviewDayTooltip(params?.data, palette);
+      },
+    },
+    series: [
+      {
+        name: '总资产',
+        type: 'line',
+        data: values,
+        smooth: true,
+        symbol: 'none',
+        color: lineColor,
+        lineStyle: { width: 2, color: lineColor, opacity: 0.9 },
+        areaStyle: { color: areaColor },
+        tooltip: { show: false },
+        z: 1,
+      },
+      {
+        name: '开仓',
+        type: 'scatter',
+        data: startData,
+        symbol: 'circle',
+        symbolSize: (val) => val?.symbolSize || START_DOT_SIZE,
+        color: palette.buy,
+        z: 5,
+      },
+    ],
+  };
+}

@@ -29,6 +29,7 @@ function CapitalAllocationReport({
   stockRows,
   title = '投资模拟报告',
   showStockGrid = true,
+  showTradeChart = true,
   hideTitle = false,
 }) {
   const { stockSearch, setStockSearch, derivedStockRows, filteredRows } = useReportStockSearch(stockRows);
@@ -70,7 +71,10 @@ function CapitalAllocationReport({
         <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
       ) : null}
 
-      <PortfolioTradeLifecycleTable metrics={metrics} />
+      <PortfolioTradeLifecycleTable
+        metrics={metrics}
+        showChartAction={showTradeChart}
+      />
 
       {showStockSampleGrid ? (
         <ReportStockGridSection

@@ -1,5 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Box, IconButton, Stack, Typography } from '@mui/material';
+import {
+  Box,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Stack,
+  Typography,
+} from '@mui/material';
+import ReactECharts from 'echarts-for-react';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
@@ -8,7 +17,10 @@ import { CAPITAL_CHART_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from './reportUnavailableHint';
 import { formatReportMoney } from '../lib/formatReportMoney';
 import { formatReportChartDateLabel } from '../lib/reportDateFormat';
-import { buildTradeLifecycleTableRows } from '../lib/portfolioTradeLifecycle';
+import {
+  buildPortfolioTradeOverviewChartOption,
+  buildTradeLifecycleTableRows,
+} from '../lib/portfolioTradeLifecycle';
 
 function outcomeColor(row, palette) {
   if (row.open) return undefined;
@@ -25,25 +37,38 @@ function emptyLastComparator(a, b) {
   return String(a).localeCompare(String(b));
 }
 
-function ChartPlaceholderButton() {
+function TradeChartOpenButton({ onClick, disabled = false }) {
   return (
     <IconButton
       size="small"
-      disabled
-      aria-label="逐笔事件图（即将提供）"
-      title="整表事件图即将提供"
+      disabled={disabled}
+      aria-label="打开逐笔事件图"
+      title="打开逐笔事件图"
+      onClick={onClick}
+      sx={{
+        border: '1px solid',
+        borderColor: disabled ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.42)',
+        borderRadius: 1,
+        px: 0.75,
+        py: 0.5,
+        bgcolor: disabled ? 'transparent' : 'rgba(255,255,255,0.04)',
+        '&:hover': disabled ? undefined : {
+          borderColor: 'rgba(255,255,255,0.72)',
+          bgcolor: 'rgba(255,255,255,0.10)',
+        },
+      }}
     >
-      <NtqIcon name="monitoring" size={18} tone="muted" />
+      <NtqIcon name="monitoring" size={18} tone={disabled ? 'muted' : ''} />
     </IconButton>
   );
 }
 
 /**
- * 逐笔投资表：数据来自 capitalMetrics.tradeEvents（trades.json）。
- * 整表事件图入口为标题栏右侧占位（尚未实施）。
+ * 逐笔投资表；主报告可打开整表事件图（对比窗不显示入口）。
  */
-function PortfolioTradeLifecycleTable({ metrics }) {
+function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
   const [search, setSearch] = useState('');
+  const [chartOpen, setChartOpen] = useState(false);
 
   const palette = useMemo(
     () => resolveMarketPnlPalette(metrics?.marketProfile || metrics?.market_profile),
@@ -64,6 +89,11 @@ function PortfolioTradeLifecycleTable({ metrics }) {
       return name.includes(q) || code.includes(q);
     });
   }, [rows, search]);
+
+  const overviewOption = useMemo(() => {
+    if (!chartOpen || !metrics) return null;
+    return buildPortfolioTradeOverviewChartOption(metrics);
+  }, [chartOpen, metrics]);
 
   const columns = useMemo(() => [
     {
@@ -206,34 +236,102 @@ function PortfolioTradeLifecycleTable({ metrics }) {
     },
   ], [palette]);
 
+  const chartAction = showChartAction
+    ? (
+      <TradeChartOpenButton
+        disabled={!rows.length}
+        onClick={() => setChartOpen(true)}
+      />
+    )
+    : null;
+
+  const chartDialog = showChartAction ? (
+    <Dialog
+      open={chartOpen}
+      onClose={() => setChartOpen(false)}
+      fullScreen
+      className="ntq-report-trade-overview-dialog"
+    >
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          py: 1.25,
+          pr: 1,
+        }}
+      >
+        <Typography variant="subtitle1" fontWeight={700} component="span">
+          逐笔投资事件图
+          <Typography
+            component="span"
+            variant="caption"
+            color="text.secondary"
+            sx={{ ml: 1.5 }}
+          >
+            净值曲线 · 仅标开仓起点（同日合并 · 赚红亏绿 · 按金额分三档大小）
+          </Typography>
+        </Typography>
+        <IconButton aria-label="关闭" onClick={() => setChartOpen(false)} edge="end">
+          <NtqIcon name="cancel" size={18} />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          与表格同源。同日多笔开仓合并为一点：总盈亏金额为正红、为负绿；点大小按 |金额| 分小/中/大。
+          悬停看当日明细。底部滑条缩放。
+        </Typography>
+        {overviewOption ? (
+          <ReactECharts
+            option={overviewOption}
+            style={{ height: 'min(72vh, 640px)', width: '100%' }}
+            notMerge
+            lazyUpdate
+          />
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            暂无曲线或成交数据，无法绘制事件图。
+          </Typography>
+        )}
+      </DialogContent>
+    </Dialog>
+  ) : null;
+
   if (!rows.length) {
     return (
-      <SectionBlock
-        title="逐笔投资"
-        tip={CAPITAL_CHART_TIPS.tradeLifecycle}
-        action={<ChartPlaceholderButton />}
-      >
-        <Box sx={{ py: 0.5 }}>
-          <ReportUnavailableHint message="暂无成交记录" />
-        </Box>
-      </SectionBlock>
+      <>
+        <SectionBlock
+          title="逐笔投资"
+          tip={CAPITAL_CHART_TIPS.tradeLifecycle}
+          action={chartAction}
+        >
+          <Box sx={{ py: 0.5 }}>
+            <ReportUnavailableHint message="暂无成交记录" />
+          </Box>
+        </SectionBlock>
+        {chartDialog}
+      </>
     );
   }
 
   return (
-    <ReportStockSampleGrid
-      title="逐笔投资"
-      tip={CAPITAL_CHART_TIPS.tradeLifecycle}
-      headerAction={<ChartPlaceholderButton />}
-      searchValue={search}
-      onSearchChange={setSearch}
-      searchPlaceholder="搜索代码或名称..."
-      rows={filteredRows}
-      columns={columns}
-      gridHeight={360}
-      defaultPageSize={10}
-      initialSortModel={[{ field: 'startDate', sort: 'desc' }]}
-    />
+    <>
+      <ReportStockSampleGrid
+        title="逐笔投资"
+        tip={CAPITAL_CHART_TIPS.tradeLifecycle}
+        headerAction={chartAction}
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="搜索代码或名称..."
+        rows={filteredRows}
+        columns={columns}
+        gridHeight={360}
+        defaultPageSize={10}
+        initialSortModel={[{ field: 'startDate', sort: 'desc' }]}
+      />
+      {chartDialog}
+    </>
   );
 }
 

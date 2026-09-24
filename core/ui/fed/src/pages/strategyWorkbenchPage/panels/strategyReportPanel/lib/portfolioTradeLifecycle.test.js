@@ -1,9 +1,13 @@
 import {
+  OVERVIEW_DOT_SIZE,
   buildPortfolioTradeLifecycleChartOption,
+  buildPortfolioTradeOverviewChartOption,
   buildTradeLifecycleTableRows,
   formatHoldingPeriodLabel,
   holdingCalendarDays,
+  overviewDotSizeForAbsProfit,
   pairTradeLifecycles,
+  summarizeOverviewDayLives,
 } from './portfolioTradeLifecycle';
 
 describe('pairTradeLifecycles', () => {
@@ -280,5 +284,150 @@ describe('buildTradeLifecycleTableRows', () => {
     expect(rows[1].cost).toBe(400);
     expect(rows[1].returnPct).toBeNull();
     expect(rows[1].profit).toBeNull();
+  });
+});
+
+describe('summarizeOverviewDayLives / overviewDotSizeForAbsProfit', () => {
+  it('sums closed profit money and ignores open lots', () => {
+    expect(summarizeOverviewDayLives([
+      { outcome: 'profit', profit: 200 },
+      { outcome: 'loss', profit: -50 },
+      { outcome: 'open', profit: null },
+    ])).toMatchObject({
+      profit: 150,
+      absProfit: 150,
+      outcome: 'profit',
+      closedCount: 2,
+      openCount: 1,
+    });
+    expect(summarizeOverviewDayLives([
+      { outcome: 'open', profit: null },
+    ]).outcome).toBe('open');
+    expect(summarizeOverviewDayLives([
+      { outcome: 'profit', profit: 0 },
+    ]).outcome).toBe('flat');
+  });
+
+  it('maps abs profit into three size tiers vs chart max', () => {
+    expect(overviewDotSizeForAbsProfit(0, 900)).toBe(OVERVIEW_DOT_SIZE.small);
+    expect(overviewDotSizeForAbsProfit(100, 900)).toBe(OVERVIEW_DOT_SIZE.small);
+    expect(overviewDotSizeForAbsProfit(400, 900)).toBe(OVERVIEW_DOT_SIZE.medium);
+    expect(overviewDotSizeForAbsProfit(800, 900)).toBe(OVERVIEW_DOT_SIZE.large);
+  });
+});
+
+describe('buildPortfolioTradeOverviewChartOption', () => {
+  const labels = ['20240102', '20240103', '20240104', '20240105'];
+  const values = [100000, 101000, 102000, 103000];
+
+  it('merges same-day opens and colors/sizes by total money PnL', () => {
+    const option = buildPortfolioTradeOverviewChartOption({
+      equityCurveLabels: labels,
+      equityCurveValues: values,
+      marketProfile: 'china_a_stock',
+      tradeEvents: [
+        {
+          date: '20240103',
+          side: 'buy',
+          investmentId: '1',
+          entityId: '000001.SZ',
+          stockName: '平安银行',
+          shares: 100,
+          price: 10,
+        },
+        {
+          date: '20240103',
+          side: 'buy',
+          investmentId: '2',
+          entityId: '000002.SZ',
+          stockName: '万科A',
+          shares: 50,
+          price: 8,
+        },
+        {
+          date: '20240104',
+          side: 'buy',
+          investmentId: '3',
+          entityId: '000003.SZ',
+          shares: 10,
+          price: 5,
+        },
+        {
+          date: '20240105',
+          side: 'buy',
+          investmentId: '4',
+          entityId: '000001.SZ',
+          stockName: '平安银行',
+          shares: 80,
+          price: 11,
+        },
+        {
+          date: '20240104',
+          side: 'sell',
+          investmentId: '1',
+          entityId: '000001.SZ',
+          shares: 100,
+          price: 11,
+          profit: 900,
+        },
+        {
+          date: '20240104',
+          side: 'sell',
+          investmentId: '2',
+          entityId: '000002.SZ',
+          shares: 50,
+          price: 7,
+          profit: -100,
+        },
+        {
+          date: '20240105',
+          side: 'sell',
+          investmentId: '3',
+          entityId: '000003.SZ',
+          shares: 10,
+          price: 4,
+          profit: -50,
+        },
+      ],
+    });
+
+    expect(option).toBeTruthy();
+    const opens = option.series[1].data;
+    expect(opens).toHaveLength(3);
+
+    // 1/3: +900 + (-100) = +800 → 赚红、大点（相对 maxAbs=800）
+    const dayMerge = opens.find((d) => d.value[0] === '20240103');
+    expect(dayMerge.count).toBe(2);
+    expect(dayMerge.profit).toBe(800);
+    expect(dayMerge.outcome).toBe('profit');
+    expect(dayMerge.itemStyle.color).toBe('#FF4D67');
+    expect(dayMerge.symbolSize).toBe(OVERVIEW_DOT_SIZE.large);
+
+    // 4日开仓、亏 50 → 绿、小点
+    const dayLoss = opens.find((d) => d.value[0] === '20240104');
+    expect(dayLoss.profit).toBe(-50);
+    expect(dayLoss.outcome).toBe('loss');
+    expect(dayLoss.itemStyle.color).toBe('#00D9A5');
+    expect(dayLoss.symbolSize).toBe(OVERVIEW_DOT_SIZE.small);
+
+    // 5日未平仓 → 中性、小点
+    const dayOpen = opens.find((d) => d.value[0] === '20240105');
+    expect(dayOpen.outcome).toBe('open');
+    expect(dayOpen.profit).toBeNull();
+    expect(dayOpen.symbolSize).toBe(OVERVIEW_DOT_SIZE.small);
+  });
+
+  it('returns null without curve or without trade starts on curve', () => {
+    expect(buildPortfolioTradeOverviewChartOption({
+      equityCurveLabels: ['20240102'],
+      equityCurveValues: [1],
+      tradeEvents: [{ date: '20240102', side: 'buy', investmentId: '1', entityId: 'A' }],
+    })).toBeNull();
+
+    expect(buildPortfolioTradeOverviewChartOption({
+      equityCurveLabels: labels,
+      equityCurveValues: values,
+      tradeEvents: [],
+    })).toBeNull();
   });
 });

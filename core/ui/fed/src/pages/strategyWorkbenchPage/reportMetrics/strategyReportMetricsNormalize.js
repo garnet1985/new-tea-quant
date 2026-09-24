@@ -50,6 +50,7 @@ function normalizeTradeEvent(row) {
   if (!date || (side !== 'buy' && side !== 'sell')) return null;
   const entityId = String(row.entityId || '').trim();
   const stockName = String(row.stockName || entityId).trim();
+  const investmentId = String(row.investmentId || '').trim();
   const shares = Number(row.shares);
   const price = Number(row.price);
   const cost = Number(row.cost);
@@ -60,6 +61,7 @@ function normalizeTradeEvent(row) {
     side,
     entityId,
     stockName: stockName || entityId,
+    investmentId: investmentId || null,
     shares: Number.isFinite(shares) ? shares : 0,
     price: Number.isFinite(price) && price >= 0 ? price : 0,
     cost: Number.isFinite(cost) ? cost : null,

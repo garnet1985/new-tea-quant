@@ -17,6 +17,7 @@ import { SectionBlock } from '../sectionBlock/sectionBlock';
 function ReportStockSampleGrid({
   title,
   tip,
+  headerAction,
   searchValue,
   onSearchChange,
   searchPlaceholder = '搜索代码或名称...',
@@ -95,7 +96,7 @@ function ReportStockSampleGrid({
     : Math.min(240, gridHeight);
 
   return (
-    <SectionBlock title={title} tip={tip}>
+    <SectionBlock title={title} tip={tip} action={headerAction}>
       <Stack spacing={1}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
           <TextField
@@ -121,7 +122,7 @@ function ReportStockSampleGrid({
             </FormControl>
           ) : null}
         </Stack>
-        <Box className="ntq-report-grid" sx={{ height: effectiveGridHeight }}>
+        <Box className="ntq-report-grid" sx={{ height: effectiveGridHeight, width: '100%', minWidth: 0 }}>
           <DataGrid
             rows={rows}
             columns={columns}
@@ -130,6 +131,11 @@ function ReportStockSampleGrid({
             disableRowSelectionOnClick
             sortingOrder={['desc', 'asc']}
             sortingMode={sortingMode}
+            sx={{
+              width: '100%',
+              border: 0,
+              '& .MuiDataGrid-virtualScroller': { overflowX: 'auto' },
+            }}
             {...(pagination
               ? {
                 pagination: true,

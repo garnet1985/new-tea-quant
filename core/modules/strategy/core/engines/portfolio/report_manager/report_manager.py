@@ -305,6 +305,27 @@ class ReportManager(BaseReportManager):
         payload["summary"] = overall.summary.to_dict()
         if entity is not None:
             payload["stockRows"] = entity.to_ui_rows()
+        # 逐笔投资表：trades.json → capitalMetrics.tradeEvents（与 BFF hydrate 同源）
+        try:
+            from core.modules.strategy.core.engines.portfolio.report_manager.event_timeline import (
+                build_portfolio_event_timeline,
+            )
+
+            metrics = payload.get("capitalMetrics")
+            initial = 0.0
+            if isinstance(metrics, dict):
+                try:
+                    initial = float(metrics.get("initialCapital") or 0.0)
+                except (TypeError, ValueError):
+                    initial = 0.0
+            timeline = build_portfolio_event_timeline(
+                Path(self.output_dir),
+                initial_capital=initial,
+            )
+            if timeline and isinstance(metrics, dict):
+                payload["capitalMetrics"] = {**metrics, **timeline}
+        except Exception:
+            pass
         return payload
 
     def present(self, stream: Optional[TextIO] = None) -> None:

@@ -17,6 +17,7 @@ import { useReportStockSearch } from '../hooks/useReportStockSearch';
 import { STOCK_NAME_COLUMN, stockCodeColumn } from '../lib/reportStockColumns';
 import { formatReportMoney } from '../lib/formatReportMoney';
 import { buildPortfolioEventChartOption } from '../lib/portfolioEventChart';
+import PortfolioTradeLifecycleTable from '../components/portfolioTradeLifecycleTable';
 
 function formatRiskRatio(value) {
   if (!Number.isFinite(value)) return '—';
@@ -68,6 +69,8 @@ function CapitalAllocationReport({
       {!hideTitle ? (
         <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
       ) : null}
+
+      <PortfolioTradeLifecycleTable metrics={metrics} />
 
       {showStockSampleGrid ? (
         <ReportStockGridSection

@@ -179,8 +179,11 @@ function scatterPoints(labels, values, byDate, sideKey) {
 
 const EQUAL_PANEL_HEIGHT = '38%';
 
-/** 分红双账户结算完成前不在资金图画买卖点。见 CORPORATE_ACTION_CASH_ACCOUNTS.md */
-export const PORTFOLIO_CHART_SHOW_TRADE_EVENTS = true;
+/**
+ * 净值图默认不画买卖钉（太密也易卡）。买卖生命周期见单独事件图。
+ * 见 CORPORATE_ACTION_CASH_ACCOUNTS.md
+ */
+export const PORTFOLIO_CHART_SHOW_TRADE_EVENTS = false;
 
 function sharedCategoryAxis(labels, { showLabels }) {
   return {

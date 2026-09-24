@@ -2,6 +2,8 @@ import {
   calendarActionDetail,
   calendarActionLabel,
   calendarActionNote,
+  mapStockStatusTags,
+  statusChipClassName,
 } from './decisionFormat';
 
 describe('calendarActionDetail', () => {
@@ -31,5 +33,17 @@ describe('calendarActionDetail', () => {
     };
     expect(calendarActionDetail(action)).not.toContain('笔记');
     expect(calendarActionNote(action)).toBe('');
+  });
+});
+
+describe('mapStockStatusTags', () => {
+  it('maps st / star_st / delisted labels', () => {
+    expect(mapStockStatusTags(['st', 'star_st', 'delisted', 'st'])).toEqual([
+      { tag: 'st', label: 'ST' },
+      { tag: 'star_st', label: '*ST' },
+      { tag: 'delisted', label: '退' },
+    ]);
+    expect(statusChipClassName('star_st')).toBe('is-star-st');
+    expect(statusChipClassName('delisted')).toBe('is-delisted');
   });
 });

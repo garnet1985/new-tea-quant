@@ -595,7 +595,7 @@ class WorkbenchStockDetail:
                     {
                         "start": max(seg_start, start),
                         "end": min(seg_end or end, end),
-                        "level": str(row.get("level") or "ST"),
+                        "level": str(row.get("st_level") or row.get("level") or "ST"),
                     }
                 )
             if not segments:

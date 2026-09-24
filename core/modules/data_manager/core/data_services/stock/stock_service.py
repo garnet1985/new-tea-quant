@@ -12,6 +12,7 @@
 子服务：
 - list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / load_all）
 - st: ST/*ST 风险警示时段（is_on / load_overlapping）
+- query_status_by_ids: 批量某日状态（st / star_st / delisted）
 - kline: K线数据服务（data_mgr.stock.kline.load_qfq()）
 - tags: 标签数据服务（data_mgr.stock.tags.load_scenario()）
 - corporate_finance: 财务数据服务（data_mgr.stock.corporate_finance.load()）
@@ -30,7 +31,7 @@
     # 跨表查询
     stock_with_price = data_mgr.stock.load_with_latest_price('000001.SZ')
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Sequence
 import logging
 
 from .. import BaseDataService
@@ -90,6 +91,53 @@ class StockService(BaseDataService):
             Optional[Dict[str, Any]]: 股票信息字典，如果不存在返回 None
         """
         return self.list.load_single(stock_id)
+
+    def query_status_by_ids(
+        self,
+        stock_ids: Sequence[str],
+        date: str,
+    ) -> Dict[str, List[str]]:
+        """批量查询某日股票状态标签（``st`` / ``star_st`` / ``delisted``）。
+
+        - ST/*ST：``sys_stock_st_periods`` 区间命中
+        - 退市：``delist_date`` 已生效（``date >= delist_date``）；与风控强平同口径
+        - 返回每个 id 的标签列表（可为空）；未知 id 也占位为 ``[]``
+        """
+        from core.modules.data_manager import DataManager
+        from core.tables.stock.stock_st_periods.st_period_rules import (
+            TAG_DELISTED,
+            active_status_tags,
+            normalize_yyyymmdd,
+        )
+
+        day = normalize_yyyymmdd(date)
+        ids: List[str] = []
+        seen = set()
+        for raw in stock_ids or ():
+            sid = str(raw or "").strip()
+            if not sid or sid in seen:
+                continue
+            seen.add(sid)
+            ids.append(sid)
+        out: Dict[str, List[str]] = {sid: [] for sid in ids}
+        if not day or not ids:
+            return out
+
+        grouped = self.st.load_overlapping(ids, period_start=day, period_end=day)
+        for sid in ids:
+            tags = active_status_tags(list(grouped.get(sid) or []), day)
+            if tags:
+                out[sid] = list(tags)
+
+        rows = list(self._stock_list.load_by_ids(ids) or [])
+        for row in rows:
+            sid = str(row.get("id") or "").strip()
+            if not sid or sid not in out:
+                continue
+            delist = DataManager.normalize_delist_date(row.get("delist_date"))
+            if delist and day >= delist and TAG_DELISTED not in out[sid]:
+                out[sid] = list(out[sid]) + [TAG_DELISTED]
+        return out
     
     # ==================== 跨表查询 ====================
     

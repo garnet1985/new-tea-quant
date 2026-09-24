@@ -15,7 +15,7 @@ ROAD MAPs
 - 引入更多经典策略 ✅
 - 加强analysis的report(机器学习归因) ✅
 - 让模块更容易按照sass方式部署 （❌暂不考虑）
-- 安装失败 Trace 要能排障（现在只有 `step_failed:import_data`，看不见表名/异常类型）— 见 [`INSTALL_TRACE_TODO.md`](core/infra/setup/docs/notes/INSTALL_TRACE_TODO.md)
+- 安装失败 Trace 要能排障 ✅
 
 提高系统效率
 - 将单进程单股回测变成单进程多股回测，自动设置股票bundle size，从而大幅度提高回测效率 ✅
@@ -29,35 +29,42 @@ ROAD MAPs
 - 拓展db模块，开始支持文件存储 ✅
 - 将数据中间产物变成可选，再需要的时候才产生（❌暂不考虑，性价比不高）
 - 降级tag变成只对股票进行标签分类（❌暂不考虑）
-
-
-Pro版本：
-- 引入AI评价结果
-- 引入AI辅助策略代码
-- 增加因子挖掘模块
-- 增加一些基本结论并且变成金融工具箱
+- 引入AI辅助策略代码 ✅
+- 引入AI agent
+- 增加因子挖掘模块（❌暂不考虑）
 
 ---
 
 ---
 
-### upcoming releases (0.5.x)
+目标：AI agent
+### upcoming releases (0.6.x) ✅ 已完成
+- Pydantic + Ruff
+- 增加常用统计/金融/分析工具箱
+- 全新hooks的API，全新ctx，简化API
+- 前端性能和模块化优化
+- 重新整理股票的类别数据
+
+---
+
+---
 
 目标：增加决策者模式
+### releases (0.5.x) 
 - 新加决策者模式（单策略：制定策略第四步）
 - 增加决策者模式的report
-- **0.5.1** 跨策略决策模拟（公共 settings 覆盖 + `_decision` 重跑枚举 + 一本账时钟）— 口径见 [`DECISION_MAKER_CROSS.md`](core/modules/strategy/docs/notes/DECISION_MAKER_CROSS.md)
 - 引入AI助理 （辅助代码，解释报告，app小百科）
-- 增加常用统计/金融/分析工具箱
-- Pydantic + Ruff
 - Sharpe | Sortino ratio
+- 增强report的可视化
+- 增加用例
+- provide AI proxy
 
 ---
 
 ---
 
 目标：降低使用认知成本
-### upcoming releases (0.4.x) ✅ 已完成
+### releases (0.4.x) ✅ 已完成
 - 引入duckdb，消除数据库安装成本
 - 增加report里K线的点击界面
 - 为新版本的更新增加清除缓存的步骤

@@ -246,6 +246,31 @@ class StrategyDecisionImplementer:
         except Exception:
             return []
 
+    def query_stock_status(
+        self,
+        *,
+        stock_ids: Optional[List[str]] = None,
+        date: str = "",
+    ) -> Dict[str, Any]:
+        """批量查询某日股票状态（DataManager.stock.query_status_by_ids）。"""
+        from core.modules.data_manager import DataManager
+        from core.tables.stock.stock_st_periods.st_period_rules import (
+            normalize_yyyymmdd,
+        )
+
+        day = normalize_yyyymmdd(date)
+        if not day:
+            raise ValueError("date 须为 YYYYMMDD 或 YYYY-MM-DD")
+        ids = [str(x or "").strip() for x in (stock_ids or []) if str(x or "").strip()]
+        statuses = DataManager().stock.query_status_by_ids(ids, day)
+        return {
+            "date": day,
+            "statuses": {
+                sid: list(statuses.get(sid) or [])
+                for sid in ids
+            },
+        }
+
     def get_report(
         self,
         strategy_key_or_name: str,

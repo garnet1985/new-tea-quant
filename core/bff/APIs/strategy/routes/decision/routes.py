@@ -275,6 +275,37 @@ def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
 
 
 @strategy_api_bp.route(
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/decision/stock-status",
+    methods=["POST"],
+)
+def post_strategy_decision_stock_status(strategy_key_or_name: str):
+    """
+    POST …/decision/stock-status
+
+    D1-12：批量查询某日股票状态。body：``{ stock_ids: [...], date }``。
+    ``message``：``{ date, statuses: { "<id>": ["st"|"star_st"|"delisted", ...] } }``。
+    """
+    _ = strategy_key_or_name  # 路由对齐决策域；查询本身不依赖策略产物
+    decision = decision_impl.lazy_load()
+    body = json_payload()
+    raw_ids = body.get("stock_ids")
+    if raw_ids is None:
+        raw_ids = body.get("entity_ids")
+    if raw_ids is None:
+        return error("请指定 stock_ids", 400)
+    if not isinstance(raw_ids, list):
+        return error("stock_ids 须为数组", 400)
+    try:
+        msg = decision.query_stock_status(
+            stock_ids=[str(x) for x in raw_ids],
+            date=str(body.get("date") or ""),
+        )
+    except ValueError as exc:
+        return _decision_error(exc)
+    return ok(msg)
+
+
+@strategy_api_bp.route(
     f"{API_BASE_PATH}/<path:strategy_key_or_name>/decision/sessions/<dm_id>/report",
     methods=["GET"],
 )

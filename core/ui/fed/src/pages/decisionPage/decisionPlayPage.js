@@ -36,6 +36,7 @@ import {
     fetchDecisionHoldings,
     fetchDecisionInfo,
     fetchDecisionSession,
+    fetchDecisionStockStatus,
     holdingsMarketValue,
     nextDecisionDay,
     pickDecisionShares,
@@ -59,6 +60,7 @@ import {
   mapStockStatusTags,
   monthTitle,
   shiftMonth,
+  statusChipClassName,
   weekdayLabel,
 } from './decisionFormat';
 import './decisionPage.scss';
@@ -71,6 +73,15 @@ const NOTE_MAX = 2000;
 function prefersReducedMotion() {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function resolveLiveStatus(ticker, liveById, loading) {
+  const id = String(ticker || '').trim();
+  if (!id) return { tags: [], loading: false };
+  if (Object.prototype.hasOwnProperty.call(liveById || {}, id)) {
+    return { tags: liveById[id] || [], loading: false };
+  }
+  return { tags: [], loading: Boolean(loading) };
 }
 
 function formatDrawdown(value) {
@@ -118,7 +129,14 @@ function formatMarketValueWithPnl(marketValue, unrealized) {
   );
 }
 
-function StockStatusChips({ tags }) {
+function StockStatusChips({ tags, loading = false }) {
+  if (loading) {
+    return (
+      <span className="decision-status-chips is-loading" aria-busy="true" title="状态确认中">
+        <span className="decision-status-chip-skeleton" />
+      </span>
+    );
+  }
   const items = mapStockStatusTags(tags);
   if (!items.length) return null;
   return (
@@ -129,7 +147,7 @@ function StockStatusChips({ tags }) {
           size="small"
           variant="outlined"
           label={item.label}
-          className={`decision-status-chip is-${item.tag === 'star_st' ? 'star-st' : item.tag}`}
+          className={`decision-status-chip ${statusChipClassName(item.tag)}`}
         />
       ))}
     </span>
@@ -541,7 +559,15 @@ function formatHoldSpan(days, unit) {
   return `${n} 个自然日`;
 }
 
-function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
+function HoldingDetailDialog({
+  row,
+  open,
+  equity,
+  onClose,
+  onOpenKline,
+  statusTags = [],
+  statusLoading = false,
+}) {
   const weight = row?.marketValue != null
     && Number.isFinite(Number(row.marketValue))
     && Number.isFinite(Number(equity))
@@ -552,7 +578,7 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
     ['股票', (
       <span className="decision-stock-with-status">
         {holdingStockLabel(row)}
-        <StockStatusChips tags={row.statusTags} />
+        <StockStatusChips tags={statusTags} loading={statusLoading} />
       </span>
     )],
     ['持有', `${Number(row.shares).toLocaleString()} 股`],
@@ -734,6 +760,8 @@ export function DecisionPlaySession({
 
   const [snapshot, setSnapshot] = useState(null);
   const [holdings, setHoldings] = useState([]);
+  const [liveStatusById, setLiveStatusById] = useState({});
+  const [statusLoading, setStatusLoading] = useState(false);
   const [picks, setPicks] = useState({});
   const [pickNotes, setPickNotes] = useState({});
   const [events, setEvents] = useState([]);
@@ -830,6 +858,54 @@ export function DecisionPlaySession({
 
   const clockDate = snapshot?.clockDate || '';
   const shownClockDate = displayClockDate || clockDate;
+  const statusEntityIds = useMemo(() => {
+    const ids = new Set();
+    (snapshot?.opps || []).forEach((row) => {
+      const id = String(row?.ticker || '').trim();
+      if (id) ids.add(id);
+    });
+    (holdings || []).forEach((row) => {
+      const id = String(row?.ticker || '').trim();
+      if (id) ids.add(id);
+    });
+    (snapshot?.bill || []).forEach((row) => {
+      const id = String(row?.ticker || '').trim();
+      if (id) ids.add(id);
+    });
+    const infoId = String(infoOpp?.ticker || infoPayload?.entityId || '').trim();
+    if (infoId) ids.add(infoId);
+    return Array.from(ids).sort();
+  }, [snapshot?.opps, snapshot?.bill, holdings, infoOpp?.ticker, infoPayload?.entityId]);
+  const statusEntityKey = statusEntityIds.join(',');
+
+  useEffect(() => {
+    if (!strategyKey || !clockDate || !statusEntityIds.length) {
+      setLiveStatusById({});
+      setStatusLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setLiveStatusById({});
+    setStatusLoading(true);
+    (async () => {
+      try {
+        const result = await fetchDecisionStockStatus(strategyKey, {
+          stockIds: statusEntityIds,
+          date: clockDate,
+        });
+        if (cancelled) return;
+        setLiveStatusById(result.statuses || {});
+      } catch {
+        if (!cancelled) setLiveStatusById({});
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [strategyKey, clockDate, statusEntityKey]);
+
   const completed = Boolean(snapshot?.completed || readonlyQuery);
   const completedNoticeKey = `${strategyKey}:${sessionId}`;
   const completedNoticeRef = useRef('');
@@ -1106,7 +1182,9 @@ export function DecisionPlaySession({
             >
               {opportunityStockLabel(grid.row)}
             </button>
-            <StockStatusChips tags={grid.row.statusTags} />
+            <StockStatusChips
+              {...resolveLiveStatus(grid.row.ticker, liveStatusById, statusLoading)}
+            />
           </span>
           {grid.row.held ? (
             <span className="decision-opp-held">
@@ -1579,7 +1657,9 @@ export function DecisionPlaySession({
                           <span className="decision-holding-row__stock">
                             <strong>
                               {row.name || row.ticker || '—'}
-                              <StockStatusChips tags={row.statusTags} />
+                              <StockStatusChips
+                                {...resolveLiveStatus(row.ticker, liveStatusById, statusLoading)}
+                              />
                             </strong>
                             {row.name && row.ticker ? <span>{row.ticker}</span> : null}
                           </span>
@@ -1729,6 +1809,16 @@ export function DecisionPlaySession({
         open={Boolean(holdingDetail)}
         row={holdingDialogRow}
         equity={equity}
+        statusTags={resolveLiveStatus(
+          holdingDialogRow?.ticker,
+          liveStatusById,
+          statusLoading,
+        ).tags}
+        statusLoading={resolveLiveStatus(
+          holdingDialogRow?.ticker,
+          liveStatusById,
+          statusLoading,
+        ).loading}
         onClose={() => setHoldingDetailId(null)}
         onOpenKline={holdingDialogRow ? () => {
           const row = holdingDialogRow;
@@ -1795,7 +1885,11 @@ export function DecisionPlaySession({
                 sx={{ py: 0.5 }}
               >
                 <Typography variant="body2" component="div" className="decision-stock-with-status">
-                  [{row.id}] {row.name} <StockStatusChips tags={row.statusTags} /> {row.shares.toLocaleString()} 股
+                  [{row.id}] {row.name}{' '}
+                  <StockStatusChips
+                    {...resolveLiveStatus(row.ticker, liveStatusById, statusLoading)}
+                  />{' '}
+                  {row.shares.toLocaleString()} 股
                   {row.note ? (
                     <span className="decision-bill-note"> · {row.note}</span>
                   ) : null}
@@ -1855,7 +1949,15 @@ export function DecisionPlaySession({
         >
           <span className="decision-stock-with-status">
             {infoOpp ? opportunityStockLabel(infoOpp) : '市场数据'}
-            {infoOpp ? <StockStatusChips tags={infoOpp.statusTags} /> : null}
+            {infoOpp ? (
+              <StockStatusChips
+                {...resolveLiveStatus(
+                  infoOpp.ticker || infoPayload?.entityId,
+                  liveStatusById,
+                  statusLoading,
+                )}
+              />
+            ) : null}
             <Typography
               component="span"
               variant="caption"

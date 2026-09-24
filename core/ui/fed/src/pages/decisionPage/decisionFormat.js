@@ -46,9 +46,10 @@ export function formatAvgRoi(roi, sampleSize) {
 const STOCK_STATUS_LABELS = {
   st: 'ST',
   star_st: '*ST',
+  delisted: '退',
 };
 
-/** 枚举触发日状态：``st`` / ``star_st`` → 展示标签。 */
+/** 现场状态：``st`` / ``star_st`` / ``delisted`` → 展示标签。 */
 export function mapStockStatusTags(raw) {
   const seen = new Set();
   const out = [];
@@ -60,6 +61,14 @@ export function mapStockStatusTags(raw) {
     out.push({ tag, label });
   });
   return out;
+}
+
+export function statusChipClassName(tag) {
+  const key = String(tag || '').trim().toLowerCase();
+  if (key === 'star_st') return 'is-star-st';
+  if (key === 'delisted') return 'is-delisted';
+  if (key === 'st') return 'is-st';
+  return '';
 }
 
 function parseIsoDate(value) {

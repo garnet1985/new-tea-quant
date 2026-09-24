@@ -220,3 +220,29 @@ def test_set_pick_forwards_note(mock_open, _resolve):
     impl = StrategyDecisionImplementer().lazy_load()
     impl.set_pick("rsi_v1", "1", local_id=1, shares=100, note="试仓")
     engine.set_pick.assert_called_once_with(1, 100, note="试仓")
+
+
+def test_query_stock_status_batches_via_data_manager():
+    impl = StrategyDecisionImplementer().lazy_load()
+    with pytest.raises(ValueError, match="date"):
+        impl.query_stock_status(stock_ids=["600000.SH"], date="")
+
+    dm = MagicMock()
+    dm.stock.query_status_by_ids.return_value = {
+        "600000.SH": ["st", "delisted"],
+    }
+
+    class _DM:
+        def __new__(cls, *args, **kwargs):
+            return dm
+
+    with patch("core.modules.data_manager.DataManager", _DM):
+        msg = impl.query_stock_status(
+            stock_ids=["600000.SH", ""],
+            date="2024-01-15",
+        )
+    assert msg["date"] == "20240115"
+    assert msg["statuses"] == {"600000.SH": ["st", "delisted"]}
+    dm.stock.query_status_by_ids.assert_called_once_with(
+        ["600000.SH"], "20240115"
+    )

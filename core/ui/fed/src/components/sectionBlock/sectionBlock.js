@@ -11,7 +11,7 @@ function SectionTitle({ title, tip }) {
   );
 }
 
-function SectionBlock({ title, tip, children }) {
+function SectionBlock({ title, tip, action, children }) {
   return (
     <Box
       sx={{
@@ -23,7 +23,17 @@ function SectionBlock({ title, tip, children }) {
       }}
     >
       <Stack spacing={1}>
-        <SectionTitle title={title} tip={tip} />
+        {(title || tip || action) ? (
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            spacing={1}
+          >
+            <SectionTitle title={title} tip={tip} />
+            {action || null}
+          </Stack>
+        ) : null}
         {children}
       </Stack>
     </Box>

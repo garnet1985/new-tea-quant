@@ -46,9 +46,10 @@ export function formatAvgRoi(roi, sampleSize) {
 const STOCK_STATUS_LABELS = {
   st: 'ST',
   star_st: '*ST',
+  delisted: '退',
 };
 
-/** 枚举触发日状态：``st`` / ``star_st`` → 展示标签。 */
+/** 现场状态：``st`` / ``star_st`` / ``delisted`` → 展示标签。 */
 export function mapStockStatusTags(raw) {
   const seen = new Set();
   const out = [];
@@ -60,6 +61,14 @@ export function mapStockStatusTags(raw) {
     out.push({ tag, label });
   });
   return out;
+}
+
+export function statusChipClassName(tag) {
+  const key = String(tag || '').trim().toLowerCase();
+  if (key === 'star_st') return 'is-star-st';
+  if (key === 'delisted') return 'is-delisted';
+  if (key === 'st') return 'is-st';
+  return '';
 }
 
 function parseIsoDate(value) {
@@ -187,4 +196,57 @@ export function calendarActionDetail(action) {
 
 export function calendarActionNote(action) {
   return String(action?.note || '').trim();
+}
+
+/**
+ * 持仓目标 → 主图止盈/止损虚线价位。
+ * 基准优先买入日 K 线收盘（与前复权主图同尺度）；没有对应 K 线时退回 buyPrice。
+ * 比例从目标文案 ``: +20.0%`` 解析；kind 缺失时按「止盈/止损」前缀推断。
+ */
+export function plannedGoalLevelsForChart({
+  candles,
+  buyDate,
+  goals,
+  buyPrice,
+} = {}) {
+  const ymd = String(buyDate || '').replace(/-/g, '');
+  if (!/^\d{8}$/.test(ymd) && !(Number(buyPrice) > 0)) return null;
+
+  let basis = null;
+  if (/^\d{8}$/.test(ymd)) {
+    const bar = (Array.isArray(candles) ? candles : []).find(
+      (row) => String(row?.date || '').replace(/-/g, '') === ymd,
+    );
+    const close = Number(bar?.close);
+    if (Number.isFinite(close) && close > 0) basis = close;
+  }
+  if (basis == null) {
+    const fallback = Number(buyPrice);
+    if (Number.isFinite(fallback) && fallback > 0) basis = fallback;
+  }
+  if (basis == null || !(basis > 0)) return null;
+
+  const levels = [];
+  (Array.isArray(goals) ? goals : []).forEach((goal) => {
+    const text = String(goal?.text || '');
+    let kind = String(goal?.kind || '').trim();
+    if (kind !== 'take_profit' && kind !== 'stop_loss') {
+      if (text.startsWith('止盈')) kind = 'take_profit';
+      else if (text.startsWith('止损')) kind = 'stop_loss';
+      else return;
+    }
+    const match = text.match(/:\s*([+-]?\d+(?:\.\d+)?)\s*%/);
+    if (!match) return;
+    const ratio = Number(match[1]) / 100;
+    if (!Number.isFinite(ratio)) return;
+    const price = Number((basis * (1 + ratio)).toFixed(2));
+    if (!Number.isFinite(price) || price <= 0) return;
+    levels.push({
+      kind,
+      ratio,
+      price,
+      label: kind === 'take_profit' ? '止盈' : '止损',
+    });
+  });
+  return levels.length ? levels : null;
 }

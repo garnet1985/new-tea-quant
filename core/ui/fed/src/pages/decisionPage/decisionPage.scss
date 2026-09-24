@@ -933,13 +933,44 @@ button.decision-cal-event:focus-visible {
 }
 
 .decision-status-chip.is-st {
-  color: #fbbf24 !important;
-  border-color: rgba(251, 191, 36, 0.55) !important;
+  color: #f59e0b !important;
+  border-color: rgba(245, 158, 11, 0.6) !important;
+  background: rgba(245, 158, 11, 0.12) !important;
 }
 
 .decision-status-chip.is-star-st {
-  color: #fb7185 !important;
-  border-color: rgba(251, 113, 133, 0.65) !important;
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.65) !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
+.decision-status-chip.is-delisted {
+  color: #9ca3af !important;
+  border-color: rgba(156, 163, 175, 0.55) !important;
+  background: rgba(156, 163, 175, 0.14) !important;
+}
+
+.decision-status-chips.is-loading {
+  min-height: 18px;
+}
+
+.decision-status-chip-skeleton {
+  display: inline-block;
+  width: 28px;
+  height: 14px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.35);
+  animation: decision-status-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes decision-status-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .decision-opp-held {

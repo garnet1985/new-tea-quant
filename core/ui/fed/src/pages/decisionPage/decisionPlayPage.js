@@ -30,11 +30,13 @@ import {
   pickFinanceSnapshot,
   stockKlinePayloadToMarketChartModel,
 } from 'components/marketChart';
+import { resolveAxisPointerDate } from 'components/marketChart/dateFormat';
 import {
   doneDecisionDay,
     fetchDecisionHoldings,
     fetchDecisionInfo,
     fetchDecisionSession,
+    fetchDecisionStockStatus,
     holdingsMarketValue,
     nextDecisionDay,
     pickDecisionShares,
@@ -57,7 +59,9 @@ import {
   listOpenDaysAfter,
   mapStockStatusTags,
   monthTitle,
+  plannedGoalLevelsForChart,
   shiftMonth,
+  statusChipClassName,
   weekdayLabel,
 } from './decisionFormat';
 import './decisionPage.scss';
@@ -70,6 +74,15 @@ const NOTE_MAX = 2000;
 function prefersReducedMotion() {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function resolveLiveStatus(ticker, liveById, loading) {
+  const id = String(ticker || '').trim();
+  if (!id) return { tags: [], loading: false };
+  if (Object.prototype.hasOwnProperty.call(liveById || {}, id)) {
+    return { tags: liveById[id] || [], loading: false };
+  }
+  return { tags: [], loading: Boolean(loading) };
 }
 
 function formatDrawdown(value) {
@@ -117,7 +130,14 @@ function formatMarketValueWithPnl(marketValue, unrealized) {
   );
 }
 
-function StockStatusChips({ tags }) {
+function StockStatusChips({ tags, loading = false }) {
+  if (loading) {
+    return (
+      <span className="decision-status-chips is-loading" aria-busy="true" title="状态确认中">
+        <span className="decision-status-chip-skeleton" />
+      </span>
+    );
+  }
   const items = mapStockStatusTags(tags);
   if (!items.length) return null;
   return (
@@ -128,7 +148,7 @@ function StockStatusChips({ tags }) {
           size="small"
           variant="outlined"
           label={item.label}
-          className={`decision-status-chip is-${item.tag === 'star_st' ? 'star-st' : item.tag}`}
+          className={`decision-status-chip ${statusChipClassName(item.tag)}`}
         />
       ))}
     </span>
@@ -540,7 +560,15 @@ function formatHoldSpan(days, unit) {
   return `${n} 个自然日`;
 }
 
-function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
+function HoldingDetailDialog({
+  row,
+  open,
+  equity,
+  onClose,
+  onOpenKline,
+  statusTags = [],
+  statusLoading = false,
+}) {
   const weight = row?.marketValue != null
     && Number.isFinite(Number(row.marketValue))
     && Number.isFinite(Number(equity))
@@ -551,7 +579,7 @@ function HoldingDetailDialog({ row, open, equity, onClose, onOpenKline }) {
     ['股票', (
       <span className="decision-stock-with-status">
         {holdingStockLabel(row)}
-        <StockStatusChips tags={row.statusTags} />
+        <StockStatusChips tags={statusTags} loading={statusLoading} />
       </span>
     )],
     ['持有', `${Number(row.shares).toLocaleString()} 股`],
@@ -733,6 +761,8 @@ export function DecisionPlaySession({
 
   const [snapshot, setSnapshot] = useState(null);
   const [holdings, setHoldings] = useState([]);
+  const [liveStatusById, setLiveStatusById] = useState({});
+  const [statusLoading, setStatusLoading] = useState(false);
   const [picks, setPicks] = useState({});
   const [pickNotes, setPickNotes] = useState({});
   const [events, setEvents] = useState([]);
@@ -829,6 +859,54 @@ export function DecisionPlaySession({
 
   const clockDate = snapshot?.clockDate || '';
   const shownClockDate = displayClockDate || clockDate;
+  const statusEntityIds = useMemo(() => {
+    const ids = new Set();
+    (snapshot?.opps || []).forEach((row) => {
+      const id = String(row?.ticker || '').trim();
+      if (id) ids.add(id);
+    });
+    (holdings || []).forEach((row) => {
+      const id = String(row?.ticker || '').trim();
+      if (id) ids.add(id);
+    });
+    (snapshot?.bill || []).forEach((row) => {
+      const id = String(row?.ticker || '').trim();
+      if (id) ids.add(id);
+    });
+    const infoId = String(infoOpp?.ticker || infoPayload?.entityId || '').trim();
+    if (infoId) ids.add(infoId);
+    return Array.from(ids).sort();
+  }, [snapshot?.opps, snapshot?.bill, holdings, infoOpp?.ticker, infoPayload?.entityId]);
+  const statusEntityKey = statusEntityIds.join(',');
+
+  useEffect(() => {
+    if (!strategyKey || !clockDate || !statusEntityIds.length) {
+      setLiveStatusById({});
+      setStatusLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setLiveStatusById({});
+    setStatusLoading(true);
+    (async () => {
+      try {
+        const result = await fetchDecisionStockStatus(strategyKey, {
+          stockIds: statusEntityIds,
+          date: clockDate,
+        });
+        if (cancelled) return;
+        setLiveStatusById(result.statuses || {});
+      } catch {
+        if (!cancelled) setLiveStatusById({});
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [strategyKey, clockDate, statusEntityKey]);
+
   const completed = Boolean(snapshot?.completed || readonlyQuery);
   const completedNoticeKey = `${strategyKey}:${sessionId}`;
   const completedNoticeRef = useRef('');
@@ -918,6 +996,58 @@ export function DecisionPlaySession({
     [snapshot?.opps, holdingsByTicker],
   );
 
+  const infoHoldingGoals = useMemo(() => {
+    if (Array.isArray(infoOpp?.goals) && infoOpp.goals.length) return infoOpp.goals;
+    const ticker = String(infoOpp?.ticker || '').trim();
+    if (!ticker) return null;
+    const buyDate = String(infoOpp?.buyDate || infoOpp?.heldBuyDate || '').trim();
+    const matched = (holdings || []).find((row) => {
+      if (String(row.ticker || '') !== ticker) return false;
+      if (!buyDate) return true;
+      return String(row.buyDate || '') === buyDate
+        || String(row.buyDate || '').replace(/-/g, '') === buyDate.replace(/-/g, '');
+    });
+    return matched?.goals || holdingsByTicker[ticker]?.goals || null;
+  }, [infoOpp, holdings, holdingsByTicker]);
+
+  const infoBuyPrice = useMemo(() => {
+    if (infoOpp?.buyPrice != null && Number.isFinite(Number(infoOpp.buyPrice))) {
+      return Number(infoOpp.buyPrice);
+    }
+    if (infoOpp?.heldBuyPrice != null && Number.isFinite(Number(infoOpp.heldBuyPrice))) {
+      return Number(infoOpp.heldBuyPrice);
+    }
+    const ticker = String(infoOpp?.ticker || '').trim();
+    const held = ticker ? holdingsByTicker[ticker] : null;
+    return held?.buyPrice != null && Number.isFinite(Number(held.buyPrice))
+      ? Number(held.buyPrice)
+      : null;
+  }, [infoOpp, holdingsByTicker]);
+
+  const infoChartHeight = useMemo(() => {
+    let panes = 1;
+    const candles = infoPayload?.candles || [];
+    if (candles.some((row) => row?.volume != null && Number.isFinite(Number(row.volume)))) {
+      panes += 1;
+    }
+    const subKeys = new Set();
+    (infoPayload?.indicatorSeries || []).forEach((row) => {
+      const panel = String(row?.panel || 'overlay');
+      if (!panel || panel === 'overlay') return;
+      subKeys.add(String(row?.pane_group || row?.paneGroup || panel));
+    });
+    panes += subKeys.size;
+    (infoPayload?.chartLayers || []).forEach((layer) => {
+      const role = String(layer?.role || '');
+      if (role === 'macro_step') panes += 1;
+      if (role === 'state_lane') {
+        panes += Math.max(1, (layer?.lanes || []).length || 1);
+      }
+    });
+    // 主图 + 每张附图留足高度，避免 CMF / GDP 被压成一条缝
+    return Math.max(560, 280 + panes * 130);
+  }, [infoPayload]);
+
   const infoChart = useMemo(() => {
     if (!infoPayload?.candles?.length) return {};
     const markers = [];
@@ -927,15 +1057,25 @@ export function DecisionPlaySession({
       markers.push({ type: 'buy', date: buyYmd, label: '买入' });
     }
     if (clockYmd && clockYmd !== buyYmd) {
-      markers.push({ type: 'opportunity', date: clockYmd, label: '当前日' });
+      markers.push({ type: 'current_day', date: clockYmd, label: '当前日' });
     }
+    const fromApi = Array.isArray(infoPayload.plannedLevels) && infoPayload.plannedLevels.length
+      ? infoPayload.plannedLevels
+      : null;
+    const fromGoals = plannedGoalLevelsForChart({
+      candles: infoPayload.candles,
+      buyDate: buyYmd,
+      goals: infoHoldingGoals,
+      buyPrice: infoBuyPrice,
+    });
     return buildMarketChartOptionFromStockPayload({
       candles: infoPayload.candles,
       indicator_series: infoPayload.indicatorSeries || [],
       chart_layers: infoPayload.chartLayers || [],
       markers,
+      hoverGoalLevels: fromApi || fromGoals,
     });
-  }, [infoPayload, clockDate, infoOpp]);
+  }, [infoPayload, clockDate, infoOpp, infoHoldingGoals, infoBuyPrice]);
 
   const infoChartModel = useMemo(
     () => stockKlinePayloadToMarketChartModel({
@@ -972,17 +1112,9 @@ export function DecisionPlaySession({
       : '';
   }, [infoPayload, infoCandleDates]);
 
-  const resolveInfoAxisDate = useCallback((params) => {
-    const axes = params?.axesInfo || params?.batch?.[0]?.axesInfo;
-    if (Array.isArray(axes)) {
-      for (let i = 0; i < axes.length; i += 1) {
-        const v = axes[i]?.value ?? axes[i]?.axisValue;
-        const d = String(v ?? '').trim();
-        if (d) return d;
-      }
-    }
-    return String(params?.value ?? params?.axisValue ?? '').trim();
-  }, []);
+  const resolveInfoAxisDate = useCallback((params) => (
+    resolveAxisPointerDate(params, infoCandleDates)
+  ), [infoCandleDates]);
 
   const resolveInfoZoomDate = useCallback((params) => {
     const batch = Array.isArray(params?.batch) && params.batch.length
@@ -1077,8 +1209,12 @@ export function DecisionPlaySession({
     if (!strategyKey || !snapshot?.dmId || !row) return;
     setInfoLoading(true);
     try {
+      const buyDate = String(row.buyDate || row.heldBuyDate || '').trim();
       const payload = await fetchDecisionInfo(strategyKey, snapshot.dmId, {
         target: String(row.ticker || row.id || ''),
+        // 持仓买入日可能早于默认 60 根窗口；拉满上限保证止盈/止损基准与买入钉同在图上
+        n: buyDate ? 252 : undefined,
+        buyDate: buyDate || undefined,
       });
       setInfoPayload(payload);
     } catch (err) {
@@ -1113,7 +1249,9 @@ export function DecisionPlaySession({
             >
               {opportunityStockLabel(grid.row)}
             </button>
-            <StockStatusChips tags={grid.row.statusTags} />
+            <StockStatusChips
+              {...resolveLiveStatus(grid.row.ticker, liveStatusById, statusLoading)}
+            />
           </span>
           {grid.row.held ? (
             <span className="decision-opp-held">
@@ -1586,7 +1724,9 @@ export function DecisionPlaySession({
                           <span className="decision-holding-row__stock">
                             <strong>
                               {row.name || row.ticker || '—'}
-                              <StockStatusChips tags={row.statusTags} />
+                              <StockStatusChips
+                                {...resolveLiveStatus(row.ticker, liveStatusById, statusLoading)}
+                              />
                             </strong>
                             {row.name && row.ticker ? <span>{row.ticker}</span> : null}
                           </span>
@@ -1736,6 +1876,16 @@ export function DecisionPlaySession({
         open={Boolean(holdingDetail)}
         row={holdingDialogRow}
         equity={equity}
+        statusTags={resolveLiveStatus(
+          holdingDialogRow?.ticker,
+          liveStatusById,
+          statusLoading,
+        ).tags}
+        statusLoading={resolveLiveStatus(
+          holdingDialogRow?.ticker,
+          liveStatusById,
+          statusLoading,
+        ).loading}
         onClose={() => setHoldingDetailId(null)}
         onOpenKline={holdingDialogRow ? () => {
           const row = holdingDialogRow;
@@ -1746,6 +1896,8 @@ export function DecisionPlaySession({
             wr: '—',
             roi: '—',
             buyDate: row.buyDate,
+            buyPrice: row.buyPrice,
+            goals: row.goals,
           });
         } : undefined}
       />
@@ -1802,7 +1954,11 @@ export function DecisionPlaySession({
                 sx={{ py: 0.5 }}
               >
                 <Typography variant="body2" component="div" className="decision-stock-with-status">
-                  [{row.id}] {row.name} <StockStatusChips tags={row.statusTags} /> {row.shares.toLocaleString()} 股
+                  [{row.id}] {row.name}{' '}
+                  <StockStatusChips
+                    {...resolveLiveStatus(row.ticker, liveStatusById, statusLoading)}
+                  />{' '}
+                  {row.shares.toLocaleString()} 股
                   {row.note ? (
                     <span className="decision-bill-note"> · {row.note}</span>
                   ) : null}
@@ -1862,7 +2018,15 @@ export function DecisionPlaySession({
         >
           <span className="decision-stock-with-status">
             {infoOpp ? opportunityStockLabel(infoOpp) : '市场数据'}
-            {infoOpp ? <StockStatusChips tags={infoOpp.statusTags} /> : null}
+            {infoOpp ? (
+              <StockStatusChips
+                {...resolveLiveStatus(
+                  infoOpp.ticker || infoPayload?.entityId,
+                  liveStatusById,
+                  statusLoading,
+                )}
+              />
+            ) : null}
             <Typography
               component="span"
               variant="caption"
@@ -1939,10 +2103,10 @@ export function DecisionPlaySession({
                     <ChartPanel
                       title=""
                       option={infoChart}
-                      height="100%"
+                      height={infoChartHeight}
                       framed={false}
                       onEvents={infoChartEvents}
-                      sx={{ height: '100%', minHeight: 520 }}
+                      sx={{ height: infoChartHeight, minHeight: infoChartHeight }}
                       note={infoPayload?.candles?.length
                         ? '主图：K线（前复权）与策略声明指标 / 分层数据。悬停查看财报 PIT。使用底部滑块调整可见区间。'
                         : '没有截至当前日的市场数据。'}

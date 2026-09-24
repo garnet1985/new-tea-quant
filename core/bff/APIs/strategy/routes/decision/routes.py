@@ -241,7 +241,7 @@ def get_strategy_decision_holdings(strategy_key_or_name: str, dm_id: str):
 )
 def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
     """
-    GET …/info?target=&n=&columns=
+    GET …/info?target=&n=&columns=&buy_date=
 
     D1-10：截至 D 的最近 N 根（默认 60）。``target`` 为当天编号或代码。
     """
@@ -258,6 +258,7 @@ def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
             return error("n 须为正整数", 400)
     raw_cols = str(request.args.get("columns") or "").strip()
     columns = [item.strip() for item in raw_cols.split(",") if item.strip()] or None
+    buy_date = str(request.args.get("buy_date") or "").strip()
     try:
         msg = decision.info(
             strategy_key_or_name,
@@ -265,12 +266,44 @@ def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
             target=target,
             n=n,
             columns=columns,
+            buy_date=buy_date,
             version_id=_version_id(request.args.get("version")),
         )
     except ValueError as exc:
         return _decision_error(exc)
     except FileNotFoundError as exc:
         return error(str(exc), 404)
+    return ok(msg)
+
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/decision/stock-status",
+    methods=["POST"],
+)
+def post_strategy_decision_stock_status(strategy_key_or_name: str):
+    """
+    POST …/decision/stock-status
+
+    D1-12：批量查询某日股票状态。body：``{ stock_ids: [...], date }``。
+    ``message``：``{ date, statuses: { "<id>": ["st"|"star_st"|"delisted", ...] } }``。
+    """
+    _ = strategy_key_or_name  # 路由对齐决策域；查询本身不依赖策略产物
+    decision = decision_impl.lazy_load()
+    body = json_payload()
+    raw_ids = body.get("stock_ids")
+    if raw_ids is None:
+        raw_ids = body.get("entity_ids")
+    if raw_ids is None:
+        return error("请指定 stock_ids", 400)
+    if not isinstance(raw_ids, list):
+        return error("stock_ids 须为数组", 400)
+    try:
+        msg = decision.query_stock_status(
+            stock_ids=[str(x) for x in raw_ids],
+            date=str(body.get("date") or ""),
+        )
+    except ValueError as exc:
+        return _decision_error(exc)
     return ok(msg)
 
 

@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  IconButton,
   Stack,
   Tab,
   Tabs,
@@ -249,6 +250,7 @@ function StrategyReportPanel({
           stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          showTradeChart={options.showTradeChart !== false}
           hideTitle={Boolean(options.hideTitle)}
         />
       );
@@ -435,10 +437,45 @@ function StrategyReportPanel({
 
   const reportPanelDialogs = (
     <>
-      <Dialog open={compareDialogOpen} onClose={() => setCompareDialogOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>报告对比</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2}>
+      <Dialog
+        open={compareDialogOpen}
+        onClose={() => setCompareDialogOpen(false)}
+        fullScreen
+        className="ntq-report-compare-dialog"
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 2,
+            py: 1.25,
+            pr: 1,
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight={700} component="span">
+            报告对比
+          </Typography>
+          <IconButton
+            aria-label="关闭"
+            onClick={() => setCompareDialogOpen(false)}
+            edge="end"
+          >
+            <NtqIcon name="cancel" size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          dividers
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+            pt: 1.5,
+            minHeight: 0,
+            flex: 1,
+          }}
+        >
+          <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
               <Typography variant="caption" color="text.secondary">对比版本</Typography>
               <Button
@@ -452,7 +489,7 @@ function StrategyReportPanel({
                   : '选择对比版本'}
               </Button>
             </Stack>
-            <Box className="ntq-report-compare">
+            <Box className="ntq-report-compare" sx={{ flex: 1, minHeight: 0 }}>
               <Tabs
                 value={compareDialogSubTab}
                 onChange={(_e, v) => setCompareDialogSubTab(v)}
@@ -467,7 +504,7 @@ function StrategyReportPanel({
                 <Box className="ntq-report-compare__scroll">
                   {compareDialogSubTab === 'report' ? (
                     <Box className="ntq-report-compare__grid">
-                      <Stack spacing={1}>
+                      <Stack spacing={1} className="ntq-report-compare__col">
                         <Typography variant="body2" color="text.primary">
                           {`当前版本（${activeWorkbenchVersionId || '—'}）`}
                         </Typography>
@@ -475,10 +512,10 @@ function StrategyReportPanel({
                           resolvedActiveTab,
                           buildMetricsPayloadForTab(resolvedActiveTab),
                           compareDialogReportKindLabel,
-                          { showStockGrid: false },
+                          { showStockGrid: false, showTradeChart: false },
                         )}
                       </Stack>
-                      <Stack spacing={1}>
+                      <Stack spacing={1} className="ntq-report-compare__col">
                         <Typography variant="body2" color="text.primary">
                           {`对比版本（${compareVersion || '—'}）`}
                         </Typography>
@@ -501,6 +538,7 @@ function StrategyReportPanel({
                                 compareDialogReportKindLabel,
                                 {
                                   showStockGrid: false,
+                                  showTradeChart: false,
                                   unavailableHintZh: COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
                                 },
                               )

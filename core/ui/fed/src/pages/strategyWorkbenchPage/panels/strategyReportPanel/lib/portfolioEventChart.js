@@ -14,15 +14,14 @@ import {
   REPORT_CHART_SPLIT_LINE,
   REPORT_CHART_TOOLTIP,
 } from './reportChartsTheme';
+import { resolveMarketPnlPalette } from 'theme/marketPnlColors';
 
-const EQUITY_LINE_POS = '#4CAF50';
-const EQUITY_LINE_NEG = '#EF5350';
-const EQUITY_AREA_POS = 'rgba(76, 175, 80, 0.16)';
-const EQUITY_AREA_NEG = 'rgba(239, 83, 80, 0.16)';
 const DRAWDOWN_LINE = '#EF5350';
 const DRAWDOWN_AREA = 'rgba(239, 83, 80, 0.10)';
-const BUY_COLOR = '#00E5FF';
-const SELL_COLOR = '#FF9100';
+
+function equityPalette(metrics) {
+  return resolveMarketPnlPalette(metrics?.marketProfile || metrics?.market_profile);
+}
 
 export function equityResultIsPositive(metrics) {
   const initial = Number(metrics?.initialCapital);
@@ -121,8 +120,9 @@ function stockLabel(row) {
   return name || code || '未知';
 }
 
-function tooltipPinSvg(isSell) {
-  const color = isSell ? SELL_COLOR : BUY_COLOR;
+function tooltipPinSvg(isSell, palette) {
+  const p = palette || resolveMarketPnlPalette();
+  const color = isSell ? p.sell : p.buy;
   const d = isSell
     ? 'M6,15 L1,6 C1,2 3.5,0 6,0 C8.5,0 11,2 11,6 L6,15 Z'
     : 'M6,0 L1,9 C1,13 3.5,15 6,15 C8.5,15 11,13 11,9 L6,0 Z';
@@ -133,7 +133,7 @@ function tooltipPinSvg(isSell) {
   );
 }
 
-function formatEventLine(row) {
+function formatEventLine(row, palette) {
   const isSell = String(row?.side || '').toLowerCase() === 'sell';
   const shares = Number(row?.shares);
   const shareText = Number.isFinite(shares) ? `${shares.toLocaleString()}股` : '—股';
@@ -158,7 +158,7 @@ function formatEventLine(row) {
     }
   }
   return (
-    `<span style="white-space:nowrap">${tooltipPinSvg(isSell)}${escapeHtml(parts.join(' | '))}</span>`
+    `<span style="white-space:nowrap">${tooltipPinSvg(isSell, palette)}${escapeHtml(parts.join(' | '))}</span>`
   );
 }
 
@@ -179,7 +179,10 @@ function scatterPoints(labels, values, byDate, sideKey) {
 
 const EQUAL_PANEL_HEIGHT = '38%';
 
-/** 分红双账户结算完成前不在资金图画买卖点。见 CORPORATE_ACTION_CASH_ACCOUNTS.md */
+/**
+ * 净值图默认不画买卖钉（太密也易卡）。买卖生命周期见单独事件图。
+ * 见 CORPORATE_ACTION_CASH_ACCOUNTS.md
+ */
 export const PORTFOLIO_CHART_SHOW_TRADE_EVENTS = false;
 
 function sharedCategoryAxis(labels, { showLabels }) {
@@ -202,9 +205,14 @@ export function buildPortfolioEventChartOption(metrics) {
   const { labels, values, drawdown } = pickCurve(metrics);
   if (!labels.length || values.length !== labels.length) return null;
 
+  const palette = equityPalette(metrics);
   const positive = equityResultIsPositive(metrics);
-  const lineColor = positive ? EQUITY_LINE_POS : EQUITY_LINE_NEG;
-  const areaColor = positive ? EQUITY_AREA_POS : EQUITY_AREA_NEG;
+  const lineColor = positive ? palette.profit : palette.loss;
+  const areaColor = positive
+    ? (palette.polarity === 'cn' ? 'rgba(255, 77, 103, 0.16)' : 'rgba(0, 217, 165, 0.16)')
+    : (palette.polarity === 'cn' ? 'rgba(0, 217, 165, 0.16)' : 'rgba(255, 77, 103, 0.16)');
+  const buyColor = palette.buy;
+  const sellColor = palette.sell;
   const { min: yMin, max: yMax } = equityAxisMinMax(values);
   const byDate = PORTFOLIO_CHART_SHOW_TRADE_EVENTS
     ? groupTradeEventsByDate(metrics?.tradeEvents)
@@ -251,14 +259,14 @@ export function buildPortfolioEventChartOption(metrics) {
       data: buyData,
       xAxisIndex: 0,
       yAxisIndex: 0,
-      color: BUY_COLOR,
+      color: buyColor,
       symbol: MARKET_MARKER_PIN_UP,
       symbolSize: (val) => {
         const n = val?.events?.length || 1;
         return Math.min(18, MARKET_MARKER_PIN_SIZE + Math.max(0, n - 1) * 2);
       },
       symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
-      itemStyle: marketMarkerPinStyle(BUY_COLOR, '0, 229, 255'),
+      itemStyle: marketMarkerPinStyle(buyColor, palette.shadow.buy),
       tooltip: { show: false },
       z: 5,
     });
@@ -270,14 +278,14 @@ export function buildPortfolioEventChartOption(metrics) {
       data: sellData,
       xAxisIndex: 0,
       yAxisIndex: 0,
-      color: SELL_COLOR,
+      color: sellColor,
       symbol: MARKET_MARKER_PIN_DOWN,
       symbolSize: (val) => {
         const n = val?.events?.length || 1;
         return Math.min(18, MARKET_MARKER_PIN_SIZE + Math.max(0, n - 1) * 2);
       },
       symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
-      itemStyle: marketMarkerPinStyle(SELL_COLOR, '255, 145, 0'),
+      itemStyle: marketMarkerPinStyle(sellColor, palette.shadow.sell),
       tooltip: { show: false },
       z: 5,
     });
@@ -404,7 +412,7 @@ export function buildPortfolioEventChartOption(metrics) {
         const events = [...(day?.buys || []), ...(day?.sells || [])];
         if (events.length) {
           lines.push('');
-          lines.push(events.map(formatEventLine).join(EVENT_ROW_DIVIDER));
+          lines.push(events.map((row) => formatEventLine(row, palette)).join(EVENT_ROW_DIVIDER));
         }
         return lines.join('<br/>');
       },

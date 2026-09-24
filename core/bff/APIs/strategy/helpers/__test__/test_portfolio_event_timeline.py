@@ -20,7 +20,7 @@ def _write_json(path: Path, payload) -> None:
 
 def test_build_timeline_from_curve_and_trades(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.helpers.portfolio_event_timeline._enrich_stock_names",
+        "core.modules.strategy.core.engines.portfolio.report_manager.event_timeline._enrich_stock_names",
         lambda events: None,
     )
     out_dir = tmp_path / "3"
@@ -69,16 +69,18 @@ def test_build_timeline_from_curve_and_trades(tmp_path: Path, monkeypatch):
     assert sides == {"buy", "sell"}
     assert timeline["tradeEvents"][0]["date"] == "20240103"
     assert timeline["tradeEvents"][0]["entityId"] == "000001.SZ"
+    assert timeline["tradeEvents"][0]["investmentId"] == "1"
     assert timeline["tradeEvents"][0]["shares"] == 100
     assert timeline["tradeEvents"][0]["price"] == 10.5
     assert timeline["tradeEvents"][0]["cost"] == 1051.0
+    assert timeline["tradeEvents"][1]["investmentId"] == "1"
     assert timeline["tradeEvents"][1]["profit"] == 150.0
     assert timeline["tradeEvents"][1]["buyPrice"] == 10.5
 
 
 def test_build_timeline_clamps_negative_sell_price(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.helpers.portfolio_event_timeline._enrich_stock_names",
+        "core.modules.strategy.core.engines.portfolio.report_manager.event_timeline._enrich_stock_names",
         lambda events: None,
     )
     out_dir = tmp_path / "4"
@@ -126,11 +128,54 @@ def test_attach_skips_when_already_present(tmp_path: Path):
     }
     out = attach_portfolio_event_timeline(slot, [tmp_path])
     assert out["capitalMetrics"]["eventCurveLabels"] == ["20240101", "20240102"]
+    assert out["capitalMetrics"]["tradeEvents"] == []
+
+
+def test_attach_fills_trades_when_curve_present_but_trades_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "core.modules.strategy.core.engines.portfolio.report_manager.event_timeline._enrich_stock_names",
+        lambda events: None,
+    )
+    out_dir = tmp_path / "curve_only"
+    out_dir.mkdir()
+    _write_json(
+        out_dir / "equity_curve.json",
+        [
+            {"date": "20240103", "cash": 1, "equity": 100.0, "open_positions": 0},
+            {"date": "20240104", "cash": 1, "equity": 110.0, "open_positions": 0},
+        ],
+    )
+    _write_json(
+        out_dir / "trades.json",
+        [
+            {
+                "date": "20240103",
+                "entity_id": "688005.SH",
+                "investment_id": "9",
+                "side": "buy",
+                "shares": 200,
+                "price": 10.0,
+                "total_cost": 2000.0,
+            },
+        ],
+    )
+    slot = {
+        "capitalMetrics": {
+            "initialCapital": 100.0,
+            "eventCurveLabels": ["20240103", "20240104"],
+            "eventCurveValues": [100.0, 110.0],
+            "eventDrawdownValues": [0.0, 0.0],
+        }
+    }
+    out = attach_portfolio_event_timeline(slot, [out_dir])
+    assert out["capitalMetrics"]["eventCurveLabels"] == ["20240103", "20240104"]
+    assert out["capitalMetrics"]["tradeEvents"][0]["entityId"] == "688005.SH"
+    assert out["capitalMetrics"]["tradeEvents"][0]["investmentId"] == "9"
 
 
 def test_hydrate_attaches_timeline_when_metrics_already_present(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.helpers.portfolio_event_timeline._enrich_stock_names",
+        "core.modules.strategy.core.engines.portfolio.report_manager.event_timeline._enrich_stock_names",
         lambda events: None,
     )
     out_dir = tmp_path / "3"

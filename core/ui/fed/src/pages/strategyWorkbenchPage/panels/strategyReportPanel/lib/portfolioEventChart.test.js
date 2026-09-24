@@ -16,7 +16,7 @@ describe('portfolioEventChart', () => {
     expect(byDate.get('20240110').sells).toHaveLength(1);
   });
 
-  it('uses the full event curve and does not paint trade markers', () => {
+  it('uses the full event curve without trade markers on the equity chart', () => {
     const option = buildPortfolioEventChartOption({
       initialCapital: 1000000,
       finalEquity: 1100000,
@@ -42,7 +42,6 @@ describe('portfolioEventChart', () => {
     expect(html).toContain('回撤：0.00%');
     expect(html).toContain('总资产');
     expect(html).not.toContain('买入');
-    expect(html).not.toContain('卖出');
     expect(option.grid[0].height).toBe(option.grid[1].height);
     expect(option.dataZoom[0].type).toBe('slider');
     expect(option.toolbox.feature.restore).toBeTruthy();

@@ -16,6 +16,15 @@ function ChartPanel({
   onEvents,
 }) {
   if (!option && fallback == null) return null;
+  const minHeight = sx?.minHeight;
+  const chartStyle = {
+    height,
+    width: '100%',
+    // 百分比高度时父级常只有 minHeight；给 ECharts 明确下限，避免多附图被压成一条缝
+    ...(typeof height === 'string' && String(height).includes('%') && minHeight != null
+      ? { minHeight }
+      : {}),
+  };
   return (
     <Box
       className="ntq-report-chart-panel"
@@ -43,7 +52,7 @@ function ChartPanel({
       {option ? (
         <ReactECharts
           option={option}
-          style={{ height, width: '100%' }}
+          style={chartStyle}
           notMerge
           lazyUpdate
           onEvents={onEvents}

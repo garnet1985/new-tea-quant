@@ -80,7 +80,24 @@ def should_skip_chart_series(
     sub_key: str = "",
     field_key: str = "",
 ) -> bool:
-    """辅助列不进图：Supertrend 方向/长短轨副本、PSAR 加速因子与反转标记。"""
+    """辅助列 / 行情元数据不进图。"""
+    field = str(field_key or "").strip().lower()
+    if field in {
+        "amount",
+        "turnover",
+        "turnover_rate",
+        "turnover_value",
+        "pre_close",
+        "preclose",
+        "change",
+        "pct_chg",
+        "pct_change",
+        "factor",
+        "adj_factor",
+        "hfq_factor",
+        "qfq_factor",
+    }:
+        return True
     base = str(name or "").strip().lower()
     token = _first_token(sub_key) or _first_token(field_key)
     if not base and field_key:

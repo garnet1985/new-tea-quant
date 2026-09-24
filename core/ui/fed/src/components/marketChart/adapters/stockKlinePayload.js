@@ -1,4 +1,4 @@
-import { formatMarketChartDateLabel } from '../dateFormat';
+import { formatMarketChartDateLabel, normalizeMarketChartDateToken } from '../dateFormat';
 import {
   MARKET_MARKER_PIN_DOWN,
   MARKET_MARKER_PIN_OFFSET_DOWN,
@@ -8,65 +8,114 @@ import {
   marketMarkerPinStyle,
 } from '../markers';
 import { buildMarketChartOption } from '../buildMarketChartOption';
-
-const MARKER_COLORS = {
-  buy: '#00E5FF',
-  sell: '#C62828',
-  opportunity: '#00E5FF',
-  target_win: '#FF9100',
-  target_loss: '#B388FF',
-};
+import {
+  DEFAULT_MARKET_PNL_PALETTE,
+  resolveMarketPnlPalette,
+} from 'theme/marketPnlColors';
 
 const MARKER_BELOW = MARKET_MARKER_PIN_UP;
 const MARKER_ABOVE = MARKET_MARKER_PIN_DOWN;
 
-function buildCyanUpArrowStyle() {
-  return marketMarkerPinStyle(MARKER_COLORS.opportunity, '0, 229, 255');
+function pinStyle(color, shadowRgb) {
+  return marketMarkerPinStyle(color, shadowRgb);
 }
 
-function buildTargetArrowStyle(type) {
-  const color = type === 'target_win' ? MARKER_COLORS.target_win : MARKER_COLORS.target_loss;
-  const shadow = type === 'target_win' ? '255, 145, 0' : '179, 136, 255';
-  return marketMarkerPinStyle(color, shadow);
+/** 按 market profile 调色的图例定义。 */
+function markerLegendDefs(palette) {
+  const p = palette || DEFAULT_MARKET_PNL_PALETTE;
+  const buyStyle = () => pinStyle(p.buy, p.shadow.buy);
+  return {
+    opportunity: {
+      label: '机会',
+      symbol: MARKER_BELOW,
+      y: 'low',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
+      style: buyStyle,
+    },
+    buy: {
+      label: '买入',
+      symbol: MARKER_BELOW,
+      y: 'low',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
+      style: buyStyle,
+    },
+    current_day: {
+      label: '当前日',
+      symbol: MARKER_BELOW,
+      y: 'low',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
+      style: () => pinStyle(p.neutral, p.shadow.neutral),
+    },
+    take_profit: {
+      label: '止盈',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.profit, p.shadow.profit),
+    },
+    dynamic_loss: {
+      label: '动态止损',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.profitMuted, p.shadow.profitMuted),
+    },
+    stop_loss: {
+      label: '止损',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.loss, p.shadow.loss),
+    },
+    protect_loss: {
+      label: '保护止损',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.lossMuted, p.shadow.lossMuted),
+    },
+    exit_end: {
+      label: '交易完成',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: (item) => {
+        const profit = item?.detail?.is_profit === true;
+        return profit
+          ? pinStyle(p.profit, p.shadow.profit)
+          : pinStyle(p.loss, p.shadow.loss);
+      },
+    },
+    expired: {
+      label: '到期',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.neutral, p.shadow.neutral),
+    },
+    simulate_end: {
+      label: '回测结束',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.neutral, p.shadow.neutral),
+    },
+    period_end: {
+      label: '换仓清仓',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.sell, p.shadow.sell),
+    },
+    sell: {
+      label: '卖出',
+      symbol: MARKER_ABOVE,
+      y: 'high',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
+      style: () => pinStyle(p.sell, p.shadow.sell),
+    },
+  };
 }
-
-const MARKER_LEGEND_DEFS = {
-  opportunity: {
-    label: '机会',
-    symbol: MARKER_BELOW,
-    y: 'low',
-    symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
-    style: buildCyanUpArrowStyle,
-  },
-  buy: {
-    label: '买入',
-    symbol: MARKER_BELOW,
-    y: 'low',
-    symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
-    style: buildCyanUpArrowStyle,
-  },
-  target_win: {
-    label: '目标胜',
-    symbol: MARKER_ABOVE,
-    y: 'high',
-    symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
-    style: () => buildTargetArrowStyle('target_win'),
-  },
-  target_loss: {
-    label: '目标负',
-    symbol: MARKER_ABOVE,
-    y: 'high',
-    symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
-    style: () => buildTargetArrowStyle('target_loss'),
-  },
-  finance: {
-    label: '财报',
-    symbol: 'diamond',
-    y: 'high',
-    symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
-    style: () => marketMarkerPinStyle('#CE93D8', '206, 147, 216'),
-  },
-};
 
 const MARKER_DETAIL_LABELS = {
   investment_id: '投资 ID',
@@ -84,6 +133,8 @@ const MARKER_DETAIL_LABELS = {
   goal_name: '目标',
   exit_ratio: '卖出比例',
   roi: '收益率',
+  is_final: '是否平仓',
+  is_profit: '是否盈利',
 };
 
 /** pandas-ta 辅助列：方向/长短轨副本、加速因子、反转标记 — 不进图 */
@@ -181,6 +232,8 @@ function formatMarkerTooltipHtml(marker) {
   const detail = marker.detail && typeof marker.detail === 'object' ? marker.detail : {};
   Object.entries(detail).forEach(([k, v]) => {
     if (v == null || v === '') return;
+    if (k === 'planned_levels') return;
+    if (k === 'is_final' || k === 'is_profit') return;
     const label = MARKER_DETAIL_LABELS[k] || k;
     lines.push(`${label}: ${formatMarkerDetailValue(k, v)}`);
   });
@@ -319,30 +372,42 @@ function titleForPane(paneId, rows) {
   return '副图';
 }
 
-function businessMarkersToSpecs(markers) {
+function businessMarkersToSpecs(markers, palette) {
+  const defs = markerLegendDefs(palette);
   const out = [];
   collapseOverlappingMarkers(markers).forEach((item) => {
     const type = String(item?.type || '').trim();
-    const def = MARKER_LEGEND_DEFS[type];
+    const def = defs[type];
     const date = String(item?.date || '').trim();
     if (!def || !date) return;
-    let y = def.y;
-    if (type !== 'buy' && type !== 'opportunity' && type !== 'target_win' && type !== 'target_loss' && type !== 'finance') {
-      const px = Number(item?.price);
-      if (Number.isFinite(px)) y = px;
-    }
+    const fallbackLabel = type === 'exit_end'
+      ? (item?.detail?.is_profit === true ? '交易完成·盈利' : '交易完成·亏损')
+      : def.label;
     out.push({
-      key: type,
-      label: def.label,
+      key: type === 'exit_end'
+        ? (item?.detail?.is_profit ? 'exit_end_profit' : 'exit_end_loss')
+        : type,
+      label: item.label || fallbackLabel,
       date,
       paneId: 'price',
-      y,
+      y: def.y,
       symbol: def.symbol,
-      symbolSize: type === 'finance' ? 10 : MARKET_MARKER_PIN_SIZE,
+      symbolSize: MARKET_MARKER_PIN_SIZE,
       symbolOffset: def.symbolOffset,
-      itemStyle: def.style(),
+      itemStyle: typeof def.style === 'function' ? def.style(item) : def.style,
       tooltipHtml: formatMarkerTooltipHtml({ ...item, label: item.label || def.label }),
-      tooltipKey: item.opportunity_id || `${type}|${date}`,
+      tooltipKey: item.detail?.opportunity_id || item.detail?.investment_id
+        || item.opportunity_id || `${type}|${date}`,
+      groupId: String(
+        item.detail?.opportunity_id
+        || item.detail?.investment_id
+        || item.opportunity_id
+        || item.investment_id
+        || '',
+      ).trim(),
+      plannedLevels: Array.isArray(item?.detail?.planned_levels)
+        ? item.detail.planned_levels
+        : undefined,
     });
   });
   return out;
@@ -393,7 +458,7 @@ function segmentsToMask(categories, segments) {
   });
 }
 
-function applyChartLayers(model, layers, baseMarkers) {
+function applyChartLayers(model, layers, baseMarkers, palette) {
   const categories = model.categories || [];
   const series = [...(model.series || [])];
   const panes = [...(model.panes || [])];
@@ -484,19 +549,11 @@ function applyChartLayers(model, layers, baseMarkers) {
     }
 
     if (role === 'event_pins') {
+      // 财报等事件：只收集日期供竖线 + PIT 卡，不占 pin（pin 留给机会/买卖）
       (layer.events || []).forEach((ev) => {
         const date = normDate(ev?.date);
         if (!date) return;
         financeEvents.push(ev);
-        markers.push({
-          type: 'finance',
-          date,
-          label: ev.label || '财报',
-          detail: {
-            quarter: ev.quarter,
-            ...(ev.snapshot || {}),
-          },
-        });
       });
     }
   });
@@ -515,12 +572,17 @@ function applyChartLayers(model, layers, baseMarkers) {
     heightRatio: weights[i] / sum,
   }));
 
+  const financeDates = [...new Set(
+    financeEvents.map((ev) => normDate(ev?.date)).filter(Boolean),
+  )];
+
   return {
     ...model,
     panes: nextPanes,
     series,
-    markers: businessMarkersToSpecs(markers),
+    markers: businessMarkersToSpecs(markers, palette),
     financeEvents,
+    financeDates,
   };
 }
 
@@ -531,6 +593,9 @@ export function stockKlinePayloadToMarketChartModel(payload) {
   if (!payload || !Array.isArray(payload.candles) || payload.candles.length === 0) {
     return null;
   }
+  const palette = resolveMarketPnlPalette(
+    payload.pnl_polarity || payload.market_profile,
+  );
   const {
     dates,
     candleData,
@@ -617,10 +682,20 @@ export function stockKlinePayloadToMarketChartModel(payload) {
     panes,
     series,
     markers: [],
+    palette,
+    hoverGoalLevels: Array.isArray(payload.hoverGoalLevels)
+      ? payload.hoverGoalLevels
+      : null,
+    highlightGroupId: String(payload.highlightGroupId || '').trim() || null,
     interaction: { dataZoom: true },
   };
 
-  return applyChartLayers(baseModel, payload.chart_layers, payload.markers || []);
+  return applyChartLayers(
+    baseModel,
+    payload.chart_layers,
+    payload.markers || [],
+    palette,
+  );
 }
 
 /** 报告 / 决策 K 线 payload → ECharts option。 */
@@ -630,11 +705,17 @@ export function buildMarketChartOptionFromStockPayload(payload) {
   return buildMarketChartOption(model);
 }
 
-/** PIT 财报快照：取 categories 末尾（或传入 asOf）可见的最近一次事件。 */
+/** PIT 财报快照：取 asOf（含）之前最近一次公告；asOf 非法则无快照。 */
 export function pickFinanceSnapshot(events, asOf) {
-  const limit = normDate(asOf) || '99999999';
+  const limit = normalizeMarketChartDateToken(asOf);
+  if (!limit) return null;
   const sorted = [...(events || [])]
-    .filter((e) => normDate(e?.date) && normDate(e.date) <= limit)
-    .sort((a, b) => (normDate(a.date) < normDate(b.date) ? -1 : 1));
+    .filter((e) => {
+      const d = normalizeMarketChartDateToken(e?.date);
+      return d && d <= limit;
+    })
+    .sort((a, b) => (
+      normalizeMarketChartDateToken(a.date) < normalizeMarketChartDateToken(b.date) ? -1 : 1
+    ));
   return sorted.length ? sorted[sorted.length - 1] : null;
 }

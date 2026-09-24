@@ -36,6 +36,11 @@ function apiDecisionSessions(strategyName) {
   return `${API_VERSION_PREFIX}/strategy/${encoded}/decision/sessions`;
 }
 
+function apiDecisionStockStatus(strategyName) {
+  const encoded = encodeStrategyPathSegments(strategyName);
+  return `${API_VERSION_PREFIX}/strategy/${encoded}/decision/stock-status`;
+}
+
 function withVersion(url, versionId) {
   const vid = String(versionId || '').trim();
   if (!vid) return url;
@@ -96,7 +101,7 @@ function mapStatusTags(raw) {
     .filter((tag, index, all) => tag && all.indexOf(tag) === index);
 }
 
-const STATUS_LABELS = { st: 'ST', star_st: '*ST' };
+const STATUS_LABELS = { st: 'ST', star_st: '*ST', delisted: '退' };
 
 function statusLabelText(raw) {
   return mapStatusTags(raw)
@@ -113,7 +118,8 @@ function mapOpportunity(row) {
     id: localId,
     ticker: String(raw.entity_id || ''),
     name: String(raw.name || ''),
-    statusTags: mapStatusTags(raw.status_tags),
+    // 现场 chip 走 D1-12 live 查询；枚举触发日戳不用于展示
+    statusTags: [],
     price: Number(raw.entry_price) || 0,
     wr: stats ? stats.winRateLabel : '—',
     roi: stats ? stats.avgRoiLabel : '—',
@@ -266,7 +272,8 @@ export function mapDecisionHoldings(message) {
       id: `${row.entity_id || 'h'}-${row.buy_date || index}`,
       ticker: String(row.entity_id || ''),
       name: String(row.name || ''),
-      statusTags: mapStatusTags(row.status_tags),
+      // 现场 chip 走 D1-12；持仓枚举触发日戳不用于展示
+      statusTags: [],
       shares,
       buyDate,
       buyPrice: Number.isFinite(buyPrice) ? buyPrice : null,
@@ -476,12 +483,15 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
   n,
   columns,
   versionId,
+  buyDate,
 } = {}) {
   const load = async (columnFilter) => {
     const params = new URLSearchParams({ target: String(target || '').trim() });
     if (n != null) params.set('n', String(n));
     if (columnFilter) params.set('columns', String(columnFilter));
     if (versionId) params.set('version', String(versionId));
+    const buyYmd = String(buyDate || '').replace(/-/g, '').trim();
+    if (/^\d{8}$/.test(buyYmd)) params.set('buy_date', buyYmd);
     const json = await request.getJson(
       `${apiDecisionSessions(strategyName)}/${encodeURIComponent(sessionId)}/info?${params.toString()}`,
       LONG,
@@ -504,7 +514,7 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
     return {
       entityId: String(m.entity_id || ''),
       name: String(m.name || ''),
-      statusTags: mapStatusTags(m.status_tags),
+      statusTags: [],
       asOf: formatDecisionDate(m.as_of),
       stats: mapStats(m.stats),
       tickerStats: mapStats(m.ticker_stats),
@@ -513,6 +523,18 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
       candles,
       indicatorSeries: mapIndicatorSeries(m.indicator_series),
       chartLayers: Array.isArray(m.chart_layers) ? m.chart_layers : [],
+      plannedLevels: Array.isArray(m.planned_levels)
+        ? m.planned_levels.map((row) => ({
+          kind: String(row?.kind || '').trim(),
+          ratio: Number(row?.ratio),
+          price: Number(row?.price),
+          label: String(row?.label || '').trim(),
+        })).filter((row) => (
+          (row.kind === 'take_profit' || row.kind === 'stop_loss')
+          && Number.isFinite(row.price)
+          && row.price > 0
+        ))
+        : [],
     };
   };
   try {
@@ -521,4 +543,28 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
     if (columns) throw err;
     return load('open,high,low,close,volume');
   }
+}
+
+/** D1-12：按 ``date`` 批量查 ``st`` / ``star_st`` / ``delisted``。 */
+export async function fetchDecisionStockStatus(strategyName, { stockIds, date } = {}) {
+  const ids = (Array.isArray(stockIds) ? stockIds : [])
+    .map((id) => String(id || '').trim())
+    .filter(Boolean);
+  const day = String(date || '').replace(/-/g, '').trim();
+  const json = await request.postJson(apiDecisionStockStatus(strategyName), {
+    body: { stock_ids: ids, date: day },
+  });
+  const m = unwrapMessage(json);
+  const raw = m.statuses && typeof m.statuses === 'object' ? m.statuses : {};
+  const statuses = {};
+  ids.forEach((id) => {
+    statuses[id] = mapStatusTags(raw[id]);
+  });
+  Object.keys(raw).forEach((id) => {
+    if (!(id in statuses)) statuses[id] = mapStatusTags(raw[id]);
+  });
+  return {
+    date: String(m.date || day),
+    statuses,
+  };
 }

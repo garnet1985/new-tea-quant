@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import { MARKET_CHART_GRID_LEFT, MARKET_CHART_GRID_RIGHT } from './theme';
+import { formatMarketChartDateLabel } from './dateFormat';
 
 const METRIC_DEFS = [
   ['ROE', 'roe'],
@@ -21,6 +22,8 @@ export default function FinancePitCard({
 }) {
   if (!visible) return null;
   const snap = snapshot?.snapshot || {};
+  const asOfLabel = formatMarketChartDateLabel(pointerAsOf);
+  const annLabel = formatMarketChartDateLabel(snapshot?.date);
   return (
     <Box
       sx={{
@@ -37,9 +40,9 @@ export default function FinancePitCard({
         {live
           ? [
             '财报快照（PIT）',
-            pointerAsOf ? `as-of ${pointerAsOf}` : '',
+            asOfLabel ? `as-of ${asOfLabel}` : '',
             snapshot?.quarter || '',
-            snapshot?.date ? `公告 ${snapshot.date}` : '',
+            annLabel ? `公告 ${annLabel}` : '',
           ].filter(Boolean).join(' · ')
           : '财报快照（悬停 K 线查看 PIT）'}
       </Typography>

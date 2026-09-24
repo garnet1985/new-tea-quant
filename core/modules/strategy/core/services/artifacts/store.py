@@ -497,10 +497,23 @@ class ArtifactStore:
     ) -> Tuple[Path, int]:
         simulations_root.mkdir(parents=True, exist_ok=True)
         cap = _resolve_max_versions(max_versions)
+        # 触顶：先清未 pin 的旧号腾出 1 个空位（pin 的留着）；仍满则说明全固定
         if _count_version_dirs(simulations_root) >= cap:
-            raise ValueError(
-                f"仿真 version 已达上限 {cap}；请先 prune 或提高 max_versions，系统不会静默删除旧版本"
-            )
+            if cap <= 1:
+                cls.prune_root(simulations_root, max_versions=1)
+            else:
+                cls.prune_root(simulations_root, max_versions=cap - 1)
+            if _count_version_dirs(simulations_root) >= cap:
+                pinned = list(VersionMetaStore.read_pinned_ids(simulations_root))
+                if pinned:
+                    raise ValueError(
+                        f"仿真 version 已达上限 {cap}，且现有版本均已固定"
+                        f"（已固定 {len(pinned)} 个）；请取消部分固定或提高 max_versions"
+                    )
+                raise ValueError(
+                    f"仿真 version 已达上限 {cap}，无法腾出空位；"
+                    f"请提高 max_versions 或手动删除旧版本"
+                )
         meta_path = simulations_root / "meta.json"
         if meta_path.is_file():
             try:

@@ -179,20 +179,46 @@ def test_allocate_reuses_version_id_for_step(tmp_path: Path, monkeypatch) -> Non
     assert meta["next_version_id"] == 2
 
 
-def test_allocate_rejects_when_at_cap(tmp_path: Path, monkeypatch) -> None:
+def test_allocate_prunes_unpinned_when_at_cap(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "simulations"
     for i in (1, 2, 3):
         (root / str(i)).mkdir(parents=True)
+    (root / "meta.json").write_text(
+        json.dumps({"next_version_id": 4}),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(
         PortfolioStore,
         "simulations_root",
         classmethod(lambda cls, folder: root),
     )
-    with pytest.raises(ValueError, match="已达上限"):
+    store = PortfolioStore.allocate(tmp_path, strategy_id="demo", max_versions=3)
+    remaining = sorted(
+        int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit()
+    )
+    assert 1 not in remaining
+    assert store.version_id == "4"
+    assert remaining == [2, 3, 4]
+
+
+def test_allocate_rejects_when_all_pinned_at_cap(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "simulations"
+    for i in (1, 2, 3):
+        (root / str(i)).mkdir(parents=True)
+    (root / "meta.json").write_text(
+        json.dumps({"next_version_id": 4, "pinned": ["1", "2", "3"]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        PortfolioStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    with pytest.raises(ValueError, match="均已固定"):
         PortfolioStore.allocate(tmp_path, strategy_id="demo", max_versions=3)
 
 
-def test_allocate_increments_without_auto_prune(tmp_path: Path, monkeypatch) -> None:
+def test_allocate_keep_n_prunes_oldest_unpinned(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "simulations"
     monkeypatch.setattr(
         PortfolioStore,
@@ -200,25 +226,25 @@ def test_allocate_increments_without_auto_prune(tmp_path: Path, monkeypatch) -> 
         classmethod(lambda cls, folder: root),
     )
     ids = []
-    for _ in range(3):
+    for _ in range(4):
         store = PortfolioStore.allocate(
             tmp_path,
             strategy_id="demo/s",
             max_versions=3,
         )
         ids.append(int(store.version_id))
-    assert ids == [1, 2, 3]
+    assert ids == [1, 2, 3, 4]
     remaining = sorted(
         int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit()
     )
-    assert remaining == [1, 2, 3]
-    assert (root / "3" / "portfolio").is_dir()
+    assert remaining == [2, 3, 4]
+    assert (root / "4" / "portfolio").is_dir()
     deleted = ArtifactStore.prune_root(root, max_versions=2)
     assert deleted == 1
     remaining = sorted(
         int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit()
     )
-    assert remaining == [2, 3]
+    assert remaining == [3, 4]
 
 
 def test_latest_reads_meta(tmp_path: Path, monkeypatch) -> None:

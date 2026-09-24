@@ -386,6 +386,10 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData, palette) {
     if (spec.lineDash) {
       lineStyle.type = Array.isArray(spec.lineDash) ? spec.lineDash : 'dashed';
     }
+    const rawData = Array.isArray(spec.data) ? spec.data : [];
+    const data = paneId === 'price'
+      ? sanitizePriceOverlayLineData(rawData)
+      : rawData;
     return {
       name,
       type: 'line',
@@ -399,7 +403,7 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData, palette) {
       lineStyle,
       itemStyle: { color: spec.color || undefined },
       areaStyle: spec.areaStyle || undefined,
-      data: Array.isArray(spec.data) ? spec.data : [],
+      data,
       connectNulls: Boolean(spec.connectNulls),
     };
   }
@@ -453,6 +457,66 @@ function buildSeriesFromSpec(spec, paneIndexById, candleData, palette) {
   return null;
 }
 
+function scanCandlePriceExtent(candleData) {
+  let lo = Infinity;
+  let hi = -Infinity;
+  (candleData || []).forEach((row) => {
+    if (!Array.isArray(row) || row.length < 4) return;
+    row.slice(0, 4).forEach((raw) => {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) return;
+      if (n < lo) lo = n;
+      if (n > hi) hi = n;
+    });
+  });
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+  return { min: lo, max: hi };
+}
+
+/** 主图叠加线：0 视为缺测（PSAR 未触发侧常写 0），避免把 Y 轴拉到 0。 */
+function sanitizePriceOverlayLineData(data) {
+  return (Array.isArray(data) ? data : []).map((raw) => {
+    if (raw == null) return null;
+    if (typeof raw === 'object' && raw !== null && 'value' in raw) {
+      const n = Number(raw.value);
+      if (!Number.isFinite(n) || n === 0) return null;
+      return raw;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n === 0) return null;
+    return n;
+  });
+}
+
+function padPriceAxisBound(lo, hi, which) {
+  const span = hi - lo;
+  const pad = span > 1e-9 ? span * 0.08 : Math.max(Math.abs(hi) * 0.08, 0.05);
+  return which === 'min' ? lo - pad : hi + pad;
+}
+
+function buildPriceAxisMinMax(extent, goalPrices, candleData) {
+  const parts = [];
+  const eMin = Number(extent?.min);
+  const eMax = Number(extent?.max);
+  if (Number.isFinite(eMin) && eMin > 0) parts.push(eMin);
+  if (Number.isFinite(eMax) && eMax > 0) parts.push(eMax);
+  (goalPrices || []).forEach((p) => {
+    if (Number.isFinite(p) && p > 0) parts.push(p);
+  });
+  // 叠加序列仍把 extent.min 拉到 ≤0 时，退回 K 线自身量程
+  if (!(eMin > 0)) {
+    const fromCandles = scanCandlePriceExtent(candleData);
+    if (fromCandles) {
+      parts.push(fromCandles.min, fromCandles.max);
+    }
+  }
+  if (!parts.length) return null;
+  return {
+    min: Math.min(...parts),
+    max: Math.max(...parts),
+  };
+}
+
 function buildPriceMarkLine({ goalLevels, financeDates, palette }) {
   const data = [];
   (Array.isArray(goalLevels) ? goalLevels : []).forEach((row) => {
@@ -463,6 +527,7 @@ function buildPriceMarkLine({ goalLevels, financeDates, palette }) {
     const color = isTp
       ? (palette?.profit || MARKET_CANDLE_UP_COLOR)
       : (palette?.loss || MARKET_CANDLE_DOWN_COLOR);
+    // 价位是推算的，标签只留档位名（win20% / 止盈），不展示价格
     const label = String(row?.label || (isTp ? '止盈' : '止损')).trim();
     data.push({
       yAxis: price,
@@ -473,7 +538,7 @@ function buildPriceMarkLine({ goalLevels, financeDates, palette }) {
         width: 1.4,
       },
       label: {
-        formatter: `${label} ${price.toFixed(2)}`,
+        formatter: label,
         color,
         fontSize: 10,
         position: 'insideEndTop',
@@ -577,6 +642,10 @@ export function buildMarketChartOption(model) {
     if (pane?.title && name) paneTitleBySeriesName.set(name, pane.title);
   });
 
+  const goalPrices = (hoverLevels || [])
+    .map((row) => Number(row?.price))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
   const xAxis = panes.map((_, index) => ({
     type: 'category',
     gridIndex: index,
@@ -595,10 +664,27 @@ export function buildMarketChartOption(model) {
       : { show: false },
   }));
 
-  const yAxis = panes.map((pane) => ({
-    gridIndex: paneIndexById.get(String(pane.id)),
-    ...resolveYAxisOption(pane),
-  }));
+  const yAxis = panes.map((pane) => {
+    const axis = {
+      gridIndex: paneIndexById.get(String(pane.id)),
+      ...resolveYAxisOption(pane),
+    };
+    // 主图量程：忽略 ≤0 的叠加噪声，并纳入止盈/止损；一开始就贴近 K 线（图2）
+    if (String(pane.id) === 'price') {
+      axis.scale = true;
+      axis.min = (extent) => {
+        const bounds = buildPriceAxisMinMax(extent, goalPrices, candleData);
+        if (!bounds) return extent?.min;
+        return padPriceAxisBound(bounds.min, bounds.max, 'min');
+      };
+      axis.max = (extent) => {
+        const bounds = buildPriceAxisMinMax(extent, goalPrices, candleData);
+        if (!bounds) return extent?.max;
+        return padPriceAxisBound(bounds.min, bounds.max, 'max');
+      };
+    }
+    return axis;
+  });
 
   const graphics = [
     ...(buildPanelDividers(panes, grids) || []),

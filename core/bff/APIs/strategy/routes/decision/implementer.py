@@ -185,6 +185,7 @@ class StrategyDecisionImplementer:
         n: Optional[int] = None,
         columns: Optional[List[str]] = None,
         version_id: Optional[str] = None,
+        buy_date: str = "",
     ) -> Dict[str, Any]:
         engine = self._open(
             strategy_key_or_name,
@@ -209,7 +210,105 @@ class StrategyDecisionImplementer:
             as_of=str(msg.get("as_of") or ""),
             candles=msg.get("candles") or [],
         )
+        msg["planned_levels"] = self._planned_levels_for_info(
+            engine,
+            entity_id=str(msg.get("entity_id") or ""),
+            candles=msg.get("candles") or [],
+            buy_date=str(buy_date or ""),
+        )
         return msg
+
+    @staticmethod
+    def _planned_levels_for_info(
+        engine: Any,
+        *,
+        entity_id: str,
+        candles: List[Any],
+        buy_date: str = "",
+    ) -> List[Dict[str, Any]]:
+        """持仓未平仓时，按策略 goal × 买入日 K 线收盘给出止盈/止损价（与报告单股图同形）。"""
+        sid = str(entity_id or "").strip()
+        if not sid:
+            return []
+        lots = [
+            lot
+            for lot in (getattr(engine, "open_lots", None) or {}).values()
+            if str(getattr(lot, "entity_id", "") or "").strip() == sid
+        ]
+        if not lots:
+            return []
+        prefer = str(buy_date or "").replace("-", "").strip()
+        lots.sort(key=lambda item: str(getattr(item, "buy_date", "") or ""))
+        lot = lots[0]
+        if prefer:
+            for item in lots:
+                day = str(getattr(item, "buy_date", "") or "").replace("-", "").strip()
+                if day == prefer:
+                    lot = item
+                    break
+        buy_day = str(getattr(lot, "buy_date", "") or "").replace("-", "").strip()
+        basis = StrategyDecisionImplementer._qfq_basis_for_buy(
+            engine, sid=sid, buy_day=buy_day, candles=candles
+        )
+        if basis is None or basis <= 0:
+            return []
+        try:
+            from core.bff.APIs.strategy.routes.report.stock_detail import (
+                WorkbenchStockDetail,
+            )
+
+            return WorkbenchStockDetail._planned_goal_levels(
+                getattr(engine, "settings", None),
+                float(basis),
+            )
+        except Exception:
+            return []
+
+    @staticmethod
+    def _qfq_basis_for_buy(
+        engine: Any,
+        *,
+        sid: str,
+        buy_day: str,
+        candles: List[Any],
+    ) -> Optional[float]:
+        """止盈/止损基准必须与主图前复权同尺度；不用打印价兜底（会偏轴看不见）。"""
+        day = str(buy_day or "").replace("-", "").strip()
+        if not day:
+            return None
+        for row in candles or []:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("date") or "").replace("-", "").strip() != day:
+                continue
+            try:
+                close = float(row.get("close"))
+            except (TypeError, ValueError):
+                return None
+            return close if close > 0 else None
+        bar_fn = getattr(engine, "_bar_on", None)
+        if not callable(bar_fn):
+            return None
+        try:
+            bar = bar_fn(sid, day)
+        except Exception:
+            return None
+        if not isinstance(bar, dict):
+            return None
+        try:
+            from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import (
+                SafeBarValue,
+            )
+
+            close = SafeBarValue.optional_float(bar, "close", use_hfq=False)
+        except Exception:
+            try:
+                close = float(bar.get("close"))
+            except (TypeError, ValueError):
+                close = None
+        if close is None or close <= 0:
+            return None
+        return float(close)
 
     @staticmethod
     def _chart_layers_for_info(

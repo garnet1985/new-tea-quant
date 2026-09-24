@@ -1009,7 +1009,7 @@ class WorkbenchStockDetail:
             return
         is_profit = cls._price_row_is_profit(inv)
         last["type"] = "exit_end"
-        last["label"] = "平仓·盈" if is_profit else "平仓·亏"
+        last["label"] = "交易完成·盈利" if is_profit else "交易完成·亏损"
         detail["is_profit"] = is_profit
 
     @staticmethod

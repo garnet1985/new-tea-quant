@@ -241,7 +241,7 @@ def get_strategy_decision_holdings(strategy_key_or_name: str, dm_id: str):
 )
 def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
     """
-    GET …/info?target=&n=&columns=
+    GET …/info?target=&n=&columns=&buy_date=
 
     D1-10：截至 D 的最近 N 根（默认 60）。``target`` 为当天编号或代码。
     """
@@ -258,6 +258,7 @@ def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
             return error("n 须为正整数", 400)
     raw_cols = str(request.args.get("columns") or "").strip()
     columns = [item.strip() for item in raw_cols.split(",") if item.strip()] or None
+    buy_date = str(request.args.get("buy_date") or "").strip()
     try:
         msg = decision.info(
             strategy_key_or_name,
@@ -265,6 +266,7 @@ def get_strategy_decision_info(strategy_key_or_name: str, dm_id: str):
             target=target,
             n=n,
             columns=columns,
+            buy_date=buy_date,
             version_id=_version_id(request.args.get("version")),
         )
     except ValueError as exc:

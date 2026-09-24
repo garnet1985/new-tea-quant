@@ -59,6 +59,7 @@ import {
   listOpenDaysAfter,
   mapStockStatusTags,
   monthTitle,
+  plannedGoalLevelsForChart,
   shiftMonth,
   statusChipClassName,
   weekdayLabel,
@@ -995,6 +996,58 @@ export function DecisionPlaySession({
     [snapshot?.opps, holdingsByTicker],
   );
 
+  const infoHoldingGoals = useMemo(() => {
+    if (Array.isArray(infoOpp?.goals) && infoOpp.goals.length) return infoOpp.goals;
+    const ticker = String(infoOpp?.ticker || '').trim();
+    if (!ticker) return null;
+    const buyDate = String(infoOpp?.buyDate || infoOpp?.heldBuyDate || '').trim();
+    const matched = (holdings || []).find((row) => {
+      if (String(row.ticker || '') !== ticker) return false;
+      if (!buyDate) return true;
+      return String(row.buyDate || '') === buyDate
+        || String(row.buyDate || '').replace(/-/g, '') === buyDate.replace(/-/g, '');
+    });
+    return matched?.goals || holdingsByTicker[ticker]?.goals || null;
+  }, [infoOpp, holdings, holdingsByTicker]);
+
+  const infoBuyPrice = useMemo(() => {
+    if (infoOpp?.buyPrice != null && Number.isFinite(Number(infoOpp.buyPrice))) {
+      return Number(infoOpp.buyPrice);
+    }
+    if (infoOpp?.heldBuyPrice != null && Number.isFinite(Number(infoOpp.heldBuyPrice))) {
+      return Number(infoOpp.heldBuyPrice);
+    }
+    const ticker = String(infoOpp?.ticker || '').trim();
+    const held = ticker ? holdingsByTicker[ticker] : null;
+    return held?.buyPrice != null && Number.isFinite(Number(held.buyPrice))
+      ? Number(held.buyPrice)
+      : null;
+  }, [infoOpp, holdingsByTicker]);
+
+  const infoChartHeight = useMemo(() => {
+    let panes = 1;
+    const candles = infoPayload?.candles || [];
+    if (candles.some((row) => row?.volume != null && Number.isFinite(Number(row.volume)))) {
+      panes += 1;
+    }
+    const subKeys = new Set();
+    (infoPayload?.indicatorSeries || []).forEach((row) => {
+      const panel = String(row?.panel || 'overlay');
+      if (!panel || panel === 'overlay') return;
+      subKeys.add(String(row?.pane_group || row?.paneGroup || panel));
+    });
+    panes += subKeys.size;
+    (infoPayload?.chartLayers || []).forEach((layer) => {
+      const role = String(layer?.role || '');
+      if (role === 'macro_step') panes += 1;
+      if (role === 'state_lane') {
+        panes += Math.max(1, (layer?.lanes || []).length || 1);
+      }
+    });
+    // 主图 + 每张附图留足高度，避免 CMF / GDP 被压成一条缝
+    return Math.max(560, 280 + panes * 130);
+  }, [infoPayload]);
+
   const infoChart = useMemo(() => {
     if (!infoPayload?.candles?.length) return {};
     const markers = [];
@@ -1004,15 +1057,25 @@ export function DecisionPlaySession({
       markers.push({ type: 'buy', date: buyYmd, label: '买入' });
     }
     if (clockYmd && clockYmd !== buyYmd) {
-      markers.push({ type: 'opportunity', date: clockYmd, label: '当前日' });
+      markers.push({ type: 'current_day', date: clockYmd, label: '当前日' });
     }
+    const fromApi = Array.isArray(infoPayload.plannedLevels) && infoPayload.plannedLevels.length
+      ? infoPayload.plannedLevels
+      : null;
+    const fromGoals = plannedGoalLevelsForChart({
+      candles: infoPayload.candles,
+      buyDate: buyYmd,
+      goals: infoHoldingGoals,
+      buyPrice: infoBuyPrice,
+    });
     return buildMarketChartOptionFromStockPayload({
       candles: infoPayload.candles,
       indicator_series: infoPayload.indicatorSeries || [],
       chart_layers: infoPayload.chartLayers || [],
       markers,
+      hoverGoalLevels: fromApi || fromGoals,
     });
-  }, [infoPayload, clockDate, infoOpp]);
+  }, [infoPayload, clockDate, infoOpp, infoHoldingGoals, infoBuyPrice]);
 
   const infoChartModel = useMemo(
     () => stockKlinePayloadToMarketChartModel({
@@ -1146,8 +1209,12 @@ export function DecisionPlaySession({
     if (!strategyKey || !snapshot?.dmId || !row) return;
     setInfoLoading(true);
     try {
+      const buyDate = String(row.buyDate || row.heldBuyDate || '').trim();
       const payload = await fetchDecisionInfo(strategyKey, snapshot.dmId, {
         target: String(row.ticker || row.id || ''),
+        // 持仓买入日可能早于默认 60 根窗口；拉满上限保证止盈/止损基准与买入钉同在图上
+        n: buyDate ? 252 : undefined,
+        buyDate: buyDate || undefined,
       });
       setInfoPayload(payload);
     } catch (err) {
@@ -1829,6 +1896,8 @@ export function DecisionPlaySession({
             wr: '—',
             roi: '—',
             buyDate: row.buyDate,
+            buyPrice: row.buyPrice,
+            goals: row.goals,
           });
         } : undefined}
       />
@@ -2034,10 +2103,10 @@ export function DecisionPlaySession({
                     <ChartPanel
                       title=""
                       option={infoChart}
-                      height="100%"
+                      height={infoChartHeight}
                       framed={false}
                       onEvents={infoChartEvents}
-                      sx={{ height: '100%', minHeight: 520 }}
+                      sx={{ height: infoChartHeight, minHeight: infoChartHeight }}
                       note={infoPayload?.candles?.length
                         ? '主图：K线（前复权）与策略声明指标 / 分层数据。悬停查看财报 PIT。使用底部滑块调整可见区间。'
                         : '没有截至当前日的市场数据。'}

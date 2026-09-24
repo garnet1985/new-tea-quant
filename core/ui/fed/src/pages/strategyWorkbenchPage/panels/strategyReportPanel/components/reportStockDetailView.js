@@ -479,7 +479,7 @@ function ReportStockDetailView({
             ) : null}
             {hasChart && activeLayer === 'price' ? (
               <Typography variant="caption" color="text.secondary" component="div">
-                标注：青 pin 买入；中间止盈/止损/保护/动态分色；平仓按盈亏红绿（随 market profile）；
+                标注：青 pin 买入；中间止盈/止损/保护/动态分色；交易完成按盈亏红绿（随 market profile）；
                 到期/回测结束为中性。十字线停在买入日时显示计划止盈/止损虚线；淡紫竖线为财报日。
               </Typography>
             ) : null}

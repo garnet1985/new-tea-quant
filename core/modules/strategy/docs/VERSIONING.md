@@ -110,7 +110,7 @@
 
 - 固定：列表置顶；自动清理与「即将清理」标记跳过 pinned。
 - **不** 改 settings、**不** 绑定 Run、**不** 禁止手动删除。
-- keep-N 上限：`data.json` → `retention.simulation_results_max_versions`（可被 `userspace/config/data.json` 覆盖）。触顶时 **allocate 拒绝**，不静默删。删未 pin 且号更靠前的。不因 `env_invalid` 加塞。
+- keep-N 上限：`data.json` → `retention.simulation_results_max_versions`（可被 `userspace/config/data.json` 覆盖）。触顶再开新号时 **自动 prune 未 pin 的最旧版本** 腾出空位；只有「现有版本全被固定」才拒绝，并提示取消固定或提高上限。不因 `env_invalid` 加塞。
 - CLI：`spn` / `sup` / `sdv`。BFF：`POST|DELETE …/version/:id/pin`，删除 `DELETE …/version/:id/cache`。
 
 ---

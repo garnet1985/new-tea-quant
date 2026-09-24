@@ -56,7 +56,29 @@ def test_price_markers_enter_and_exit():
     assert markers[1]["detail"]["exit_date"] == "20200105"
     assert markers[1]["detail"]["is_final"] is True
     assert markers[1]["detail"]["is_profit"] is True
-    assert markers[1]["label"] == "平仓·盈"
+    assert markers[1]["label"] == "交易完成·盈利"
+
+
+def test_price_markers_exit_end_loss_label():
+    inv = PriceInvestmentRow(
+        opportunity_id="p-loss",
+        enter_date="20200102",
+        enter_price=10.0,
+        exit_date="20200105",
+        exit_price=9.0,
+        roi=-0.1,
+        lifecycle="complete",
+        result="loss",
+        exit_reason="stop_loss",
+    )
+    candles = [
+        {"date": "20200102", "open": 10, "high": 11, "low": 9, "close": 10},
+        {"date": "20200105", "open": 9.5, "high": 9.8, "low": 8.8, "close": 9},
+    ]
+    markers = WorkbenchStockDetail._price_markers([inv], candles)
+    assert markers[-1]["type"] == "exit_end"
+    assert markers[-1]["label"] == "交易完成·亏损"
+    assert markers[-1]["detail"]["is_profit"] is False
 
 
 def test_price_markers_emit_each_completed_goal():

@@ -151,6 +151,7 @@ def test_get_session_requires_id(_resolve):
 @patch("core.bff.APIs.strategy.routes.decision.implementer.Strategy.decision_open")
 def test_info_builds_tokens(mock_open, _resolve):
     engine = _engine()
+    engine.open_lots = {}
     engine.info = MagicMock(
         return_value={
             "entity_id": "000001.SZ",
@@ -164,8 +165,83 @@ def test_info_builds_tokens(mock_open, _resolve):
     )
     mock_open.return_value = engine
     impl = StrategyDecisionImplementer().lazy_load()
-    impl.info("rsi_v1", "1", target="1", n=120, columns=["close", "rsi"])
+    out = impl.info("rsi_v1", "1", target="1", n=120, columns=["close", "rsi"])
     engine.info.assert_called_once_with(["1", "120", "close,rsi"])
+    assert out.get("planned_levels") == []
+
+
+def test_planned_levels_for_info_uses_buy_day_close():
+    from types import SimpleNamespace
+
+    from core.bff.APIs.strategy.routes.decision.implementer import (
+        StrategyDecisionImplementer,
+    )
+
+    class _Goal:
+        take_profit_stages = (
+            SimpleNamespace(ratio=0.2, custom=None, name="win20%"),
+        )
+        stop_loss_stages = (
+            SimpleNamespace(ratio=-0.2, custom=None, name="loss20%"),
+        )
+
+        def exit_price(self, stage, basis):
+            return float(basis) * (1.0 + float(stage.ratio))
+
+    engine = SimpleNamespace(
+        open_lots={
+            "a": SimpleNamespace(
+                entity_id="002531.SZ",
+                buy_date="20230404",
+                buy_price=14.69,
+            )
+        },
+        settings=SimpleNamespace(goal=_Goal()),
+    )
+    levels = StrategyDecisionImplementer._planned_levels_for_info(
+        engine,
+        entity_id="002531.SZ",
+        candles=[{"date": "20230404", "close": 5.0}],
+    )
+    assert levels == [
+        {"kind": "take_profit", "ratio": 0.2, "price": 6.0, "label": "win20%"},
+        {"kind": "stop_loss", "ratio": -0.2, "price": 4.0, "label": "loss20%"},
+    ]
+
+
+def test_planned_levels_skips_print_price_fallback():
+    from types import SimpleNamespace
+
+    from core.bff.APIs.strategy.routes.decision.implementer import (
+        StrategyDecisionImplementer,
+    )
+
+    class _Goal:
+        take_profit_stages = (
+            SimpleNamespace(ratio=0.2, custom=None, name="win20%"),
+        )
+        stop_loss_stages = ()
+
+        def exit_price(self, stage, basis):
+            return float(basis) * (1.0 + float(stage.ratio))
+
+    engine = SimpleNamespace(
+        open_lots={
+            "a": SimpleNamespace(
+                entity_id="002890.SZ",
+                buy_date="20230101",
+                buy_price=14.69,
+            )
+        },
+        settings=SimpleNamespace(goal=_Goal()),
+    )
+    # 买入日不在窗口且无 _bar_on：不得用打印价，否则前复权主图上看不见
+    levels = StrategyDecisionImplementer._planned_levels_for_info(
+        engine,
+        entity_id="002890.SZ",
+        candles=[{"date": "20230601", "close": 8.0}],
+    )
+    assert levels == []
 
 
 @patch(

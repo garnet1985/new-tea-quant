@@ -483,12 +483,15 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
   n,
   columns,
   versionId,
+  buyDate,
 } = {}) {
   const load = async (columnFilter) => {
     const params = new URLSearchParams({ target: String(target || '').trim() });
     if (n != null) params.set('n', String(n));
     if (columnFilter) params.set('columns', String(columnFilter));
     if (versionId) params.set('version', String(versionId));
+    const buyYmd = String(buyDate || '').replace(/-/g, '').trim();
+    if (/^\d{8}$/.test(buyYmd)) params.set('buy_date', buyYmd);
     const json = await request.getJson(
       `${apiDecisionSessions(strategyName)}/${encodeURIComponent(sessionId)}/info?${params.toString()}`,
       LONG,
@@ -520,6 +523,18 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
       candles,
       indicatorSeries: mapIndicatorSeries(m.indicator_series),
       chartLayers: Array.isArray(m.chart_layers) ? m.chart_layers : [],
+      plannedLevels: Array.isArray(m.planned_levels)
+        ? m.planned_levels.map((row) => ({
+          kind: String(row?.kind || '').trim(),
+          ratio: Number(row?.ratio),
+          price: Number(row?.price),
+          label: String(row?.label || '').trim(),
+        })).filter((row) => (
+          (row.kind === 'take_profit' || row.kind === 'stop_loss')
+          && Number.isFinite(row.price)
+          && row.price > 0
+        ))
+        : [],
     };
   };
   try {

@@ -39,6 +39,13 @@ function markerLegendDefs(palette) {
       symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
       style: buyStyle,
     },
+    current_day: {
+      label: '当前日',
+      symbol: MARKER_BELOW,
+      y: 'low',
+      symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_UP],
+      style: () => pinStyle(p.neutral, p.shadow.neutral),
+    },
     take_profit: {
       label: '止盈',
       symbol: MARKER_ABOVE,
@@ -68,7 +75,7 @@ function markerLegendDefs(palette) {
       style: () => pinStyle(p.lossMuted, p.shadow.lossMuted),
     },
     exit_end: {
-      label: '平仓',
+      label: '交易完成',
       symbol: MARKER_ABOVE,
       y: 'high',
       symbolOffset: [0, MARKET_MARKER_PIN_OFFSET_DOWN],
@@ -373,11 +380,14 @@ function businessMarkersToSpecs(markers, palette) {
     const def = defs[type];
     const date = String(item?.date || '').trim();
     if (!def || !date) return;
+    const fallbackLabel = type === 'exit_end'
+      ? (item?.detail?.is_profit === true ? '交易完成·盈利' : '交易完成·亏损')
+      : def.label;
     out.push({
       key: type === 'exit_end'
         ? (item?.detail?.is_profit ? 'exit_end_profit' : 'exit_end_loss')
         : type,
-      label: item.label || def.label,
+      label: item.label || fallbackLabel,
       date,
       paneId: 'price',
       y: def.y,

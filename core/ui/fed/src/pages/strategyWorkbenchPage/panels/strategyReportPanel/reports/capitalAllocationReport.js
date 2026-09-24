@@ -197,9 +197,14 @@ function CapitalAllocationReport({
             value={`${metrics.avgCashRatio}%`}
           />
           <MetricCard
-            title="资金利用率"
+            title="平均资金利用率"
             titleTip={CAPITAL_METRIC_TIPS.capitalUtilization}
             value={`${metrics.capitalUtilizationRatio}%`}
+          />
+          <MetricCard
+            title="最高资金利用率"
+            titleTip={CAPITAL_METRIC_TIPS.peakCapitalUtilization}
+            value={`${metrics.peakCapitalUtilizationRatio}%`}
           />
         </MetricGrid>
       </SectionBlock>

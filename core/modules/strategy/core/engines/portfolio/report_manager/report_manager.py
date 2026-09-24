@@ -76,6 +76,8 @@ class ReportManager(BaseReportManager):
     version_id: int = 0
     enum_version_id: str = ""
     market_profile: str = _DEFAULT_MARKET_PROFILE
+    # feature.run action：资金层 ``strategy.portfolio``；决策模拟 ``strategy.decision``
+    feature_action: str = "strategy.portfolio"
     overall: OverallReportHandle = field(init=False, repr=False)
     entity_list: EntityListReportHandle = field(init=False, repr=False)
     performance: PerformanceReportHandle = field(init=False, repr=False)
@@ -231,13 +233,27 @@ class ReportManager(BaseReportManager):
         success = True
         if self._sim is not None:
             success = bool(getattr(self._sim, "success", True))
+        util_avg = None
+        util_peak = None
+        try:
+            from core.modules.strategy.core.engines.portfolio.report_manager.overall_report import (
+                OverallReport,
+            )
+
+            curves = OverallReport.load(self.output_dir).summary.curves
+            util_avg = float(curves.capital_utilization_ratio_pct or 0.0)
+            util_peak = float(curves.peak_capital_utilization_ratio_pct or 0.0)
+        except Exception:
+            pass
         self.trace_feature_run(
-            action="strategy.portfolio",
+            action=str(self.feature_action or "").strip() or "strategy.portfolio",
             key=str(self.strategy_key or ""),
             mode=mode,
             success=success,
             elapsed_seconds=float(snap.elapsed_seconds or 0.0),
             entity_count=int(entity_count),
+            capital_utilization_ratio_pct=util_avg,
+            peak_capital_utilization_ratio_pct=util_peak,
         )
 
     def finalize(

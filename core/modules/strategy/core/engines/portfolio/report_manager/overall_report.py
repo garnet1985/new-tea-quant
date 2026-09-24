@@ -353,6 +353,7 @@ class OverallReport:
                 "fullExposureDaysRatio": c.full_exposure_days_ratio_pct,
                 "avgCashRatio": c.average_cash_ratio_pct,
                 "capitalUtilizationRatio": c.capital_utilization_ratio_pct,
+                "peakCapitalUtilizationRatio": c.peak_capital_utilization_ratio_pct,
                 "maxLossStreak": q.max_consecutive_losing_sells,
                 "maxDrawdownDurationDays": c.max_drawdown_duration_days,
                 "worstTradePnls": list(q.worst_sell_pnls),

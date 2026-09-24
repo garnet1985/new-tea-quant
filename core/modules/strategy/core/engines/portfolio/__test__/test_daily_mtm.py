@@ -65,6 +65,26 @@ def _sim_with_round_trip(
     )
 
 
+def test_equity_curves_avg_and_peak_capital_utilization():
+    from core.modules.strategy.core.engines.portfolio.report_manager.capital_metrics import (
+        EquityCurves,
+    )
+
+    curves = EquityCurves.compute(
+        [
+            {"date": "d1", "cash": 100.0, "equity": 100.0, "open_positions": 0},
+            {"date": "d2", "cash": 20.0, "equity": 100.0, "open_positions": 2},
+            {"date": "d3", "cash": 50.0, "equity": 100.0, "open_positions": 1},
+        ],
+        initial_capital=100.0,
+    )
+    assert curves.average_cash_ratio_pct == pytest.approx(56.67, abs=0.01)
+    assert curves.capital_utilization_ratio_pct == pytest.approx(43.33, abs=0.01)
+    assert curves.peak_capital_utilization_ratio_pct == pytest.approx(80.0, abs=0.01)
+    roundtrip = EquityCurves.from_dict(curves.to_dict())
+    assert roundtrip.peak_capital_utilization_ratio_pct == pytest.approx(80.0)
+
+
 def test_hfq_close_from_bar_prefers_nested_hfq():
     assert hfq_close_from_bar({"hfq": {"close": 12.5}, "raw": {"close": 6.0}, "adj_factor": 2.0}) == 12.5
     assert hfq_close_from_bar({"raw": {"close": 5.0}, "adj_factor": 2.0}) == pytest.approx(10.0)
@@ -282,6 +302,11 @@ def test_report_manager_finalize_writes_daily_mtm_curve(tmp_path):
     assert len(report["summary"]["equity_curve_labels"]) >= 2
     assert report["summary"]["final_total_equity"] == pytest.approx(100_000.0)
     assert report["capitalMetrics"]["sharpeRatio"] is None  # 净值全平，波动为 0
+    assert "capitalUtilizationRatio" in report["capitalMetrics"]
+    assert "peakCapitalUtilizationRatio" in report["capitalMetrics"]
+    assert report["capitalMetrics"]["peakCapitalUtilizationRatio"] >= report[
+        "capitalMetrics"
+    ]["capitalUtilizationRatio"]
     curve_path = tmp_path / "1" / "equity_curve.json"
     assert curve_path.is_file()
     import json

@@ -402,6 +402,9 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     fullExposureDaysRatio: num('fullExposureDaysRatio'),
     avgCashRatio: num('avgCashRatio'),
     capitalUtilizationRatio: num('capitalUtilizationRatio'),
+    peakCapitalUtilizationRatio: Number.isFinite(num('peakCapitalUtilizationRatio'))
+      ? num('peakCapitalUtilizationRatio')
+      : 0,
     maxLossStreak: num('maxLossStreak'),
     maxDrawdownDurationDays: num('maxDrawdownDurationDays'),
     worstTradePnls: worstTradePnls.slice(0, 3),

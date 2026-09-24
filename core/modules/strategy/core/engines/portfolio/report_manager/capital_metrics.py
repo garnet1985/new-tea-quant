@@ -113,7 +113,10 @@ class EquityCurves:
     peak_open_positions: int = 0
     full_exposure_days_ratio_pct: float = 0.0
     average_cash_ratio_pct: float = 0.0
+    # 平均资金利用率 = 100 − 平均现金占比（按日）
     capital_utilization_ratio_pct: float = 0.0
+    # 最高资金利用率 = max(100 − 当日现金占比)
+    peak_capital_utilization_ratio_pct: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -127,6 +130,9 @@ class EquityCurves:
             "full_exposure_days_ratio_pct": self.full_exposure_days_ratio_pct,
             "average_cash_ratio_pct": self.average_cash_ratio_pct,
             "capital_utilization_ratio_pct": self.capital_utilization_ratio_pct,
+            "peak_capital_utilization_ratio_pct": (
+                self.peak_capital_utilization_ratio_pct
+            ),
         }
 
     @classmethod
@@ -150,6 +156,9 @@ class EquityCurves:
             average_cash_ratio_pct=float(data.get("average_cash_ratio_pct") or 0.0),
             capital_utilization_ratio_pct=float(
                 data.get("capital_utilization_ratio_pct") or 0.0
+            ),
+            peak_capital_utilization_ratio_pct=float(
+                data.get("peak_capital_utilization_ratio_pct") or 0.0
             ),
         )
 
@@ -232,7 +241,11 @@ class EquityCurves:
             else 0
         )
         avg_cash = sum(cash_ratio_full) / len(cash_ratio_full) if cash_ratio_full else 0.0
-        cap_util = max(0.0, min(100.0, 100.0 - avg_cash))
+        util_full = [
+            max(0.0, min(100.0, 100.0 - ratio)) for ratio in cash_ratio_full
+        ]
+        avg_util = sum(util_full) / len(util_full) if util_full else 0.0
+        peak_util = max(util_full) if util_full else 0.0
 
         max_dd_duration = 0
         run_len = 0
@@ -255,7 +268,8 @@ class EquityCurves:
                 (full_exp_days / n_days * 100.0) if n_days else 0.0, 2
             ),
             average_cash_ratio_pct=round(avg_cash, 2),
-            capital_utilization_ratio_pct=round(cap_util, 2),
+            capital_utilization_ratio_pct=round(avg_util, 2),
+            peak_capital_utilization_ratio_pct=round(peak_util, 2),
         )
 
 

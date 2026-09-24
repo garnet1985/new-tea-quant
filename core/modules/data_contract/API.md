@@ -1,6 +1,6 @@
 # Data Contract API 文档
 
-**版本：** `0.4.1`  
+**版本：** `0.4.2`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -49,13 +49,30 @@ kline = ContractIssuer.issue(
 # 不必传 adjust；传入也会被 loader 忽略
 ```
 
-### discover / get_contract / list_available_keys / …
+### discover / get_contract / list_available_keys / reload / …
 
 实例 API（先 `ContractIssuer()` 再 `discover()`）用于检查声明、注册自定义 declaration 等。
 
 - **状态：** `beta`
 
 常用：`get_contract`、`list_available_keys`、`list_system_keys`、`is_available`、`get_list_data_key`、`register_custom_declaration`、`get_declaration`、`system_registry_source_path`。
+
+#### reload
+
+`ContractIssuer.reload(user_space_path=None) -> int`
+
+- **类型：** `classmethod`
+- **状态：** `beta`
+- **描述：** 强制重新扫描系统 + userspace 契约，清空并重建进程内类级缓存（无需重启 NTQ）。userspace 的 `data_keys.py` / `declaration.py` / `loader.py` 会重新读盘。
+- **返回：** 发现到的有效 key 数量
+- **举例：**
+
+```python
+from core.modules.data_contract import ContractIssuer
+
+n = ContractIssuer.reload()
+keys = ContractIssuer.get_all_keys()
+```
 
 ---
 

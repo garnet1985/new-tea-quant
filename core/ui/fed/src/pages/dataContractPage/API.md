@@ -1,6 +1,6 @@
 # Data Contract 列表 API（MVP）
 
-只读目录，便于查找 **DataKey**。无 run / 编辑交互。
+目录浏览 + 重新发现。便于查找 **DataKey**；新增 userspace 契约后可热加载，无需重启 NTQ。
 
 ## DC-01 `GET /api/v1/data-contracts/list`
 
@@ -21,11 +21,28 @@
 
 | 字段 | 类型 | 来源 |
 |------|------|------|
-| `key` | string | `DataKey.value` |
-| `display_name` | string | `DataSpec.display_name`，缺省为 key |
+| `key` | string | DataKey |
+| `display_name` | string | declaration `meta.display_name`，缺省为 key |
 | `is_time_series` | boolean | `ContractType.TIME_SERIES` |
 | `is_per_entity` | boolean | `ContractScope.PER_ENTITY` |
-| `origin` | string | `system`（core `default_map`）或 `userspace`（userspace 扩展） |
+| `origin` | string | `system` 或 `userspace` |
 | `is_custom` | boolean | `origin === "userspace"` |
 
-**实现**：`core/modules/data_contract/launcher/contract_catalog.py` — 合并 `default_map` + userspace `discover_userspace_map()`，按 key 排序。
+## DC-02 `POST /api/v1/data-contracts/reload`
+
+强制 `ContractIssuer.reload()`（清类级缓存、重读 userspace 模块），再返回与 list 相同形状的目录页。
+
+| Query | 说明 |
+|-------|------|
+| `page` / `limit` | 同 list，用于回传刷新后的分页结果 |
+
+**Response `message`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `reloaded` | boolean | 恒为 `true` |
+| `total` | number | 发现后的全量条数 |
+| `items[]` | array | 当前页（字段同 DC-01） |
+| `page` / `limit` | number | 回显 |
+
+**实现**：`core/bff/APIs/data/contracts/helpers/contract_catalog.py`

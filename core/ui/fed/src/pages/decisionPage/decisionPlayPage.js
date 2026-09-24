@@ -877,7 +877,6 @@ export function DecisionPlaySession({
     if (infoId) ids.add(infoId);
     return Array.from(ids).sort();
   }, [snapshot?.opps, snapshot?.bill, holdings, infoOpp?.ticker, infoPayload?.entityId]);
-  const statusEntityKey = statusEntityIds.join(',');
 
   useEffect(() => {
     if (!strategyKey || !clockDate || !statusEntityIds.length) {
@@ -905,7 +904,7 @@ export function DecisionPlaySession({
     return () => {
       cancelled = true;
     };
-  }, [strategyKey, clockDate, statusEntityKey]);
+  }, [strategyKey, clockDate, statusEntityIds]);
 
   const completed = Boolean(snapshot?.completed || readonlyQuery);
   const completedNoticeKey = `${strategyKey}:${sessionId}`;

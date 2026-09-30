@@ -2,7 +2,7 @@
 
 组号是短数字；``env_fp`` 只写在 ``meta.json`` / ``group_meta.json`` 里。
 平时 Run 经 ``AttributionGroupStore.record_version`` 记账（含样本窗）。
-战役结束时合并 ``tasks``，并保留已有 ``samples``。本期任务目录只有 ``parameter/``。
+战役结束时合并 ``tasks``，并保留已有 ``samples``。任务目录 ``parameter/`` 或 ``rolling/``。
 """
 from __future__ import annotations
 
@@ -15,11 +15,11 @@ from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.services.artifacts.io import ArtifactIO
 from core.modules.strategy.core.services.fingerprint import FingerprintCalculator
 
-from .config import AttributionSettings
 from .execute import ExecuteStep
 from .groups import AttributionGroupStore
 
 PARAMETER_TASK_ID = "parameter"
+ROLLING_TASK_ID = "rolling"
 GROUP_META_FILE = "group_meta.json"
 REPORT_FILE = "report.json"
 TABLE_FILE = "table.json"
@@ -34,10 +34,12 @@ class PersistStep:
     def run(
         cls,
         folder: Path,
-        config: AttributionSettings,
+        config: Any,
         report: Mapping[str, Any],
         *,
         executed: Optional[Mapping[str, Any]] = None,
+        task_id: str = PARAMETER_TASK_ID,
+        task_kind: str = "parameter",
     ) -> Dict[str, Any]:
         out = dict(report)
         env_fp = cls._resolve_env_fp(folder, executed or {})
@@ -50,21 +52,24 @@ class PersistStep:
 
         root = ProjectContext.path.get_strategy_attribution_directory(folder)
         group_id = AttributionGroupStore.resolve(root, env_fp)
-        task_id = PARAMETER_TASK_ID
+        task_key = str(task_id or PARAMETER_TASK_ID).strip() or PARAMETER_TASK_ID
+        kind_key = str(task_kind or task_key).strip() or "parameter"
         group_dir = root / group_id
-        task_dir = group_dir / task_id
+        task_dir = group_dir / task_key
         task_dir.mkdir(parents=True, exist_ok=True)
 
         generated_at = datetime.now().isoformat()
         report_path = _write_json(
             task_dir / REPORT_FILE,
-            cls._report_payload(out, group_id, env_fp, task_id, generated_at),
+            cls._report_payload(out, group_id, env_fp, task_key, generated_at),
         )
         _write_json(task_dir / TABLE_FILE, out.get("table") or [])
         _write_json(task_dir / ATTRIBUTE_FILE, out.get("attribute") or {})
         _write_json(
             task_dir / TASK_META_FILE,
-            cls._task_meta(out, config, group_id, env_fp, task_id, generated_at),
+            cls._task_meta(
+                out, config, group_id, env_fp, task_key, generated_at, kind=kind_key
+            ),
         )
         group_meta_path = _write_json(
             group_dir / GROUP_META_FILE,
@@ -72,15 +77,16 @@ class PersistStep:
                 group_dir / GROUP_META_FILE,
                 group_id,
                 env_fp,
-                task_id,
+                task_key,
                 out,
                 generated_at,
+                kind=kind_key,
             ),
         )
 
         out["group_id"] = group_id
         out["env_fp"] = env_fp
-        out["task_id"] = task_id
+        out["task_id"] = task_key
         out["group_dir"] = str(group_dir.resolve())
         out["task_dir"] = str(task_dir.resolve())
         out["report_path"] = str(report_path.resolve())
@@ -88,7 +94,7 @@ class PersistStep:
             "status": "ok",
             "group_id": group_id,
             "env_fp": env_fp,
-            "task_id": task_id,
+            "task_id": task_key,
             "group_dir": str(group_dir.resolve()),
             "task_dir": str(task_dir.resolve()),
             "group_meta_path": str(group_meta_path.resolve()),
@@ -147,11 +153,13 @@ class PersistStep:
     def _task_meta(
         cls,
         report: Mapping[str, Any],
-        config: AttributionSettings,
+        config: Any,
         group_id: str,
         env_fp: str,
         task_id: str,
         generated_at: str,
+        *,
+        kind: str,
     ) -> Dict[str, Any]:
         cells: List[Dict[str, Any]] = []
         for cell in report.get("cells") or []:
@@ -167,7 +175,7 @@ class PersistStep:
             "group_id": group_id,
             "env_fp": env_fp,
             "task_id": task_id,
-            "kind": "parameter",
+            "kind": kind,
             "mode": report.get("mode"),
             "steps": list(report.get("steps") or []),
             "simulate_kind": config.simulate_kind.value,
@@ -188,6 +196,8 @@ class PersistStep:
         task_id: str,
         report: Mapping[str, Any],
         generated_at: str,
+        *,
+        kind: str,
     ) -> Dict[str, Any]:
         existing: Dict[str, Any] = {}
         if path.is_file():
@@ -211,7 +221,7 @@ class PersistStep:
                 tasks_by_id[existing_id] = dict(item)
         tasks_by_id[task_id] = {
             "task_id": task_id,
-            "kind": "parameter",
+            "kind": kind,
             "mode": report.get("mode"),
             "updated_at": generated_at,
             "headline": report.get("headline"),

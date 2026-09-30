@@ -55,6 +55,8 @@ class UserParser:
         UserParser._p_strategy_decision_delete(sub)
         UserParser._p_strategy_simulate(sub)
         UserParser._p_strategy_attribution(sub)
+        UserParser._p_strategy_analyze(sub)
+        UserParser._p_strategy_rolling(sub)
         UserParser._p_strategy_delete_version(sub)
         UserParser._p_strategy_pin_version(sub)
         UserParser._p_strategy_unpin_version(sub)
@@ -184,6 +186,32 @@ class UserParser:
             "strategy_attribution",
             aliases=UserCommands.aliases_for("strategy_attribution"),
             help="归因战役（读 attribution.py，对照旋钮）",
+        )
+        UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_analyze(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_analyze",
+            aliases=UserCommands.aliases_for("strategy_analyze"),
+            help="单 version 机会表切片（as-of → Analyzer.run）",
+        )
+        UserParser._add_strategy_target(p)
+        p.add_argument(
+            "--kind",
+            type=str,
+            default=None,
+            help="enumerate / price_factor / portfolio；默认取该 version 最深已有一步",
+        )
+
+    @staticmethod
+    def _p_strategy_rolling(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_rolling",
+            aliases=UserCommands.aliases_for("strategy_rolling"),
+            help="滚动验证（读 attribution.py 的 rolling.windows）",
         )
         UserParser._add_strategy_target(p)
 

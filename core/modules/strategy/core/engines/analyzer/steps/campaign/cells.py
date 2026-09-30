@@ -45,7 +45,7 @@ class AttributionTask:
     def from_cells(
         cls,
         cells: Sequence[AttributionCell],
-        config: AttributionSettings,
+        config: Any,
     ) -> List["AttributionTask"]:
         kind = config.simulate_kind
         return [

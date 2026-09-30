@@ -31,7 +31,6 @@ from core.modules.strategy.core.services.package.settings_loader import (
 )
 
 from .cells import AttributionTask
-from .config import AttributionSettings
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ class ExecuteStep:
         cls,
         folder: Path,
         tasks: Sequence[AttributionTask],
-        config: AttributionSettings,
+        config: Any,
     ) -> Dict[str, Any]:
         strategy_info = cls._resolve_strategy_info(folder)
         snapshot_sample = None

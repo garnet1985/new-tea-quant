@@ -9,10 +9,11 @@ from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.artifacts.consts import ANALYSIS_SUBDIR
 
 from .consts import report_ready
-from .pipeline import AttributionPipeline
+from .pipeline import AttributionPipeline, RollingPipeline
 from .steps import AnalyzeStep, PrepareStep, ReportStep
 from .steps.campaign.present import CampaignPresenter
 from .steps.report import AnalysisReportPresenter
+from .steps.rolling.present import RollingPresenter
 
 
 class Analyzer:
@@ -21,7 +22,9 @@ class Analyzer:
     Report = ReportStep
     Presenter = AnalysisReportPresenter
     Campaign = AttributionPipeline
+    Rolling = RollingPipeline
     CampaignPresenter = CampaignPresenter
+    RollingPresenter = RollingPresenter
 
     @classmethod
     def run(
@@ -101,3 +104,13 @@ class Analyzer:
         ``fill_missing`` 非空时覆盖 attribution.py（CLI ``-f`` 用来补跑缺失格子）。
         """
         return AttributionPipeline.run(key_or_id, fill_missing=fill_missing)
+
+    @classmethod
+    def rolling(
+        cls,
+        key_or_id: Union[str, Path],
+        *,
+        fill_missing: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """读 attribution.py 的 rolling 窗口，写出滚动总结。"""
+        return RollingPipeline.run(key_or_id, fill_missing=fill_missing)

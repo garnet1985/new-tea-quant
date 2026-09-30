@@ -15,6 +15,8 @@ class UserCommands:
         "so": "strategy_portfolio",
         "s": "strategy_simulate",
         "sa": "strategy_attribution",
+        "sz": "strategy_analyze",
+        "sw": "strategy_rolling",
         "sd": "strategy_decision",
         "sdl": "strategy_decision_list",
         "sdd": "strategy_decision_delete",
@@ -41,6 +43,8 @@ class UserCommands:
             "strategy_decision_delete",
             "strategy_simulate",
             "strategy_attribution",
+            "strategy_analyze",
+            "strategy_rolling",
             "strategy_delete_version",
             "strategy_pin_version",
             "strategy_unpin_version",
@@ -64,6 +68,8 @@ class UserCommands:
             "strategy_portfolio",
             "strategy_simulate",
             "strategy_attribution",
+            "strategy_analyze",
+            "strategy_rolling",
             "tag",
         }
     )

@@ -117,6 +117,30 @@
 - **状态：** `beta`
 - **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
 
+### campaign / present_campaign
+
+`Strategy.campaign(key_or_id: str | Path, *, fill_missing: bool | None = None) -> dict`  
+`Strategy.present_campaign(report: dict | str | Path, *, stream=None) -> None`
+
+- **状态：** `beta`
+- **描述：** 读 `attribution.py` 对照旋钮，写 `results/attribution/{n}/parameter/`。CLI `sa`（`-f` 补跑）。勿 deep-import analyzer pipeline。
+
+### analyze / present_analyze
+
+`Strategy.analyze(key_or_id: str | Path, *, version: int | str | None = None, kind: SimulateKind | str | None = None, force: bool = False) -> dict`  
+`Strategy.present_analyze(output_dir: str | Path, *, stream=None) -> None`
+
+- **状态：** `beta`
+- **描述：** 对一份 version 的机会表跑 `Analyzer.run`（as-of 切片）。`version` 空则取最新号；`kind` 空则取该号最深已有一步。CLI `sz`。
+
+### rolling / present_rolling
+
+`Strategy.rolling(key_or_id: str | Path, *, fill_missing: bool | None = None) -> dict`  
+`Strategy.present_rolling(report: dict | str | Path, *, stream=None) -> None`
+
+- **状态：** `beta`
+- **描述：** 读 `attribution.py` 的 `rolling.windows` 对照声明窗口，写 `results/attribution/{n}/rolling/`。CLI `sw`（`-f` 补跑）。不和参数战役混在一份报告里。
+
 ### resolve_simulation_output_dirs
 
 `Strategy.resolve_simulation_output_dirs(strategy_name: str, *, step: str, slot: dict | None = None, workbench_version: int = 0) -> list[Path]`

@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, Sequence
 
 from .cells import AttributionCell, AttributionTask
-from .config import AttributionSettings
 
 
 class CampaignReportStep:
@@ -15,7 +14,7 @@ class CampaignReportStep:
     def run(
         cls,
         folder: Path,
-        config: AttributionSettings,
+        config: Any,
         cells: Sequence[AttributionCell],
         tasks: Sequence[AttributionTask],
         *,

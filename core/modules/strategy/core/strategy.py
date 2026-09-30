@@ -785,6 +785,109 @@ class Strategy:
         Analyzer.CampaignPresenter.load(report).present(stream=stream)
 
     @staticmethod
+    def rolling(
+        key_or_id: Union[str, Path],
+        *,
+        fill_missing: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """读 attribution.py 跑滚动验证（对照窗口，写 ``results/attribution/{n}/rolling/``）。"""
+        from .engines.analyzer import Analyzer
+
+        return Analyzer.rolling(key_or_id, fill_missing=fill_missing)
+
+    @staticmethod
+    def present_rolling(
+        report: Union[Dict[str, Any], str, Path],
+        *,
+        stream: Optional[TextIO] = None,
+    ) -> None:
+        """展示滚动报告（内存返回体或 ``rolling/`` 目录）。"""
+        from .engines.analyzer import Analyzer
+
+        Analyzer.RollingPresenter.load(report).present(stream=stream)
+
+    @staticmethod
+    def analyze(
+        key_or_id: Union[str, Path],
+        *,
+        version: Optional[Union[int, str]] = None,
+        kind: Optional[Union[SimulateKind, str]] = None,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """对一份 version 的机会表跑 Analyzer.run（as-of 切片）。"""
+        from .engines.analyzer import Analyzer
+        from .services.artifacts import ArtifactStore
+
+        folder = Strategy.resolve_folder(str(key_or_id))
+        vid = Strategy._analyze_version_id(folder, version)
+        sim_kind = Strategy._analyze_kind(folder, vid, kind)
+        store = ArtifactStore.resolve(folder, kind=sim_kind, version_id=vid)
+        return Analyzer.run(store, strategy_folder=folder, force=force)
+
+    @staticmethod
+    def present_analyze(
+        output_dir: Union[str, Path],
+        *,
+        stream: Optional[TextIO] = None,
+    ) -> None:
+        """展示单 version 切片报告（``{step}/analysis/report.json``）。"""
+        from .engines.analyzer import Analyzer
+
+        Analyzer.Presenter.load(output_dir).present(stream=stream)
+
+    @staticmethod
+    def _analyze_version_id(
+        folder: Path,
+        version: Optional[Union[int, str]],
+    ) -> str:
+        from .helpers.version_id import WorkbenchVersionId
+        from .services.artifacts import ArtifactStore
+
+        if version is not None:
+            if isinstance(version, bool):
+                raise ValueError(f"无效 version: {version!r}")
+            if isinstance(version, int):
+                if version <= 0:
+                    raise ValueError(f"无效 version: {version}")
+                return str(version)
+            parsed = WorkbenchVersionId.parse(version)
+            if parsed is None:
+                raise ValueError(f"无效 version: {version}")
+            return str(parsed)
+        for sim_kind in (
+            SimulateKind.PORTFOLIO,
+            SimulateKind.PRICE_FACTOR,
+            SimulateKind.ENUMERATE,
+        ):
+            store = ArtifactStore.latest(folder, kind=sim_kind)
+            if store is not None:
+                return str(store.version_id)
+        raise FileNotFoundError(f"没有可分析的回测产物: {folder}")
+
+    @staticmethod
+    def _analyze_kind(
+        folder: Path,
+        version_id: str,
+        kind: Optional[Union[SimulateKind, str]],
+    ) -> SimulateKind:
+        from .services.artifacts import ArtifactStore
+
+        if kind is not None:
+            if isinstance(kind, SimulateKind):
+                return kind
+            return SimulateKind(str(kind).strip().lower())
+        root = ArtifactStore.simulations_root(folder)
+        for sim_kind in (
+            SimulateKind.PORTFOLIO,
+            SimulateKind.PRICE_FACTOR,
+            SimulateKind.ENUMERATE,
+        ):
+            step_dir = root / str(version_id) / ArtifactStore.step_dir_name(sim_kind)
+            if step_dir.is_dir():
+                return sim_kind
+        raise FileNotFoundError(f"version {version_id} 没有可分析的步骤目录")
+
+    @staticmethod
     def is_valid_path(relative_path: str) -> bool:
         """脚手架路径段是否机器可读（ASCII 标识符段）。"""
         from .services.discovery.path_rules import StrategyPathRules

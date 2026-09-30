@@ -1,7 +1,7 @@
-"""``attribution.py`` 战役外壳（steps / fill_missing / versions|matrix）。
+"""``attribution.py`` 战役外壳（steps / fill_missing / versions|matrix / rolling）。
 
 和 ``settings.py`` 一样：raw dict → dataclass → ``apply_defaults`` / ``validate``。
-不进 execute_fp / env_fp。matrix 行是稀疏 overlay，不是一份完整 StrategySettings。
+不进 execute_fp / env_fp。matrix 行是稀疏 overlay；rolling.windows 是区间，报告仍分开写。
 """
 from __future__ import annotations
 
@@ -147,6 +147,21 @@ class AttributionSettings(SettingsBase):
         return bool(self.versions)
 
     @property
+    def has_parameter(self) -> bool:
+        return bool(self.versions) or bool(self.matrix)
+
+    def rolling_payload(self) -> Dict[str, Any]:
+        """顶层 steps / fill_missing 与 ``rolling`` 块合并，给滚动任务用。"""
+        block = self.raw_settings.get("rolling")
+        nested = dict(block) if isinstance(block, Mapping) else {}
+        out: Dict[str, Any] = {
+            "steps": list(self.raw_settings.get("steps") or []),
+            "fill_missing": self.fill_missing,
+        }
+        out.update(nested)
+        return out
+
+    @property
     def simulate_kind(self) -> SimulateKind:
         """取 steps 最后一步；写到 ``portfolio`` 时下面各层仍会跑。"""
         steps = self.steps
@@ -278,16 +293,84 @@ class AttributionSettings(SettingsBase):
                 "versions",
                 "versions 与 matrix 不要同时写；versions 非空即选号",
             )
-        if not has_versions and not has_matrix:
+        has_rolling = self._validate_rolling(report)
+        if not has_versions and not has_matrix and not has_rolling:
             SettingsBase.add_critical(
                 report,
                 "matrix",
-                "versions 与 matrix 不能都空",
-                suggested_fix="写 matrix 若干 overlay，或写 versions 选号",
+                "versions、matrix、rolling.windows 不能都空",
+                suggested_fix="写 matrix / versions 做参数战役，或写 rolling.windows 做滚动验证",
             )
 
         self._validated = report.is_usable()
         return report
+
+    def _validate_rolling(self, report: ValidationReport) -> bool:
+        raw = self.raw_settings.get("rolling")
+        if raw is None:
+            return False
+        if not isinstance(raw, Mapping):
+            SettingsBase.add_critical(
+                report,
+                "rolling",
+                "attribution.rolling 须为 dict",
+                suggested_fix='Set rolling to {"windows": [{"start": "20230101", "end": "20231231"}]}',
+            )
+            return False
+        extra = set(raw) - {"windows", "steps", "fill_missing"}
+        if extra:
+            SettingsBase.add_critical(
+                report,
+                "rolling",
+                f"attribution.rolling 不能写 {sorted(extra)}",
+                suggested_fix="rolling 只放 windows；steps / fill_missing 可省略（继承顶层）",
+            )
+        windows = raw.get("windows")
+        if not isinstance(windows, Sequence) or isinstance(windows, (str, bytes)) or not windows:
+            SettingsBase.add_critical(
+                report,
+                "rolling.windows",
+                "attribution.rolling.windows 须为非空 list",
+                suggested_fix='Set rolling.windows to [{"start": "20230101", "end": "20231231"}]',
+            )
+            return False
+        seen: list[tuple[str, str]] = []
+        for i, item in enumerate(windows):
+            if not isinstance(item, Mapping):
+                SettingsBase.add_critical(
+                    report,
+                    f"rolling.windows[{i}]",
+                    "须为含 start / end 的 dict",
+                )
+                continue
+            start = str(item.get("start") or "").strip()
+            end = str(item.get("end") or "").strip()
+            if not start or not end:
+                SettingsBase.add_critical(
+                    report,
+                    f"rolling.windows[{i}]",
+                    "start 与 end 必填",
+                    suggested_fix="写 YYYYMMDD",
+                )
+                continue
+            if start > end:
+                SettingsBase.add_critical(
+                    report,
+                    f"rolling.windows[{i}]",
+                    f"start {start} > end {end}",
+                    suggested_fix="Ensure start <= end",
+                )
+                continue
+            pair = (start, end)
+            if pair in seen:
+                SettingsBase.add_critical(
+                    report,
+                    f"rolling.windows[{i}]",
+                    f"窗口重复 {start}-{end}",
+                )
+                continue
+            seen.append(pair)
+        return bool(seen)
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()

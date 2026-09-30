@@ -17,7 +17,7 @@
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
 | ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
 
-Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是单 version 库入口；``Analyzer.campaign`` 走 ``AttributionPipeline``（编排已串到落盘）。
+Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是单 version 库入口；``Analyzer.campaign`` 走 ``AttributionPipeline``；``Analyzer.rolling`` 走 ``RollingPipeline``；``Analyzer.run`` 是单 version 机会表切片。
 
 ### Report 步结构
 
@@ -56,14 +56,15 @@ pipeline/
 ```text
 Analyzer.run(store)      → PrepareStep → AnalyzeStep → ReportStep
 Analyzer.campaign(key)   → AttributionPipeline → steps/campaign/
+Analyzer.rolling(key)    → RollingPipeline → steps/rolling/
 ```
 
-``Strategy.simulate`` **不再**调用 Analyzer。战役报告写在 ``results/attribution/{n}/parameter/``（短编号；``env_fp`` 在 meta 里）。命中/补跑的 version 钉住。平时 Run 把 version 记进 ``group_meta``（按区间 + 股票池索引）。CLI ``sa``。
+``Strategy.simulate`` **不再**调用 Analyzer。战役报告写在 ``results/attribution/{n}/parameter/``，滚动写 ``rolling/``。命中/补跑的 version 钉住。平时 Run 把 version 记进 ``group_meta``。CLI ``sa`` / ``sz`` / ``sw``。
 
 ## 依赖方向
 
 ```text
-Analyzer.campaign / Analyzer.run → AttributionPipeline / 单 version 三步 → modules.analysis
+Analyzer.campaign / Analyzer.rolling / Analyzer.run → AttributionPipeline / RollingPipeline / 单 version 三步 → modules.analysis
 ```
 
 ``modules.analysis`` 禁止 import strategy。

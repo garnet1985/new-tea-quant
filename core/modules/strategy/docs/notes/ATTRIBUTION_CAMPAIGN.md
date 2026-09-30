@@ -95,7 +95,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
       table.json
       attribute.json
       task_meta.json
-    rolling/             # 滚动验证，尚未做
+    rolling/             # 滚动验证（读 attribution.rolling）
 ```
 
 每个 version 仍各写各的 `{vid}/`。enum / price / portfolio 继续共享这个号。一次战役、一份报告，里面三栏（用户可以只扫到某一层来省时间，报告结构不变）：
@@ -143,7 +143,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 这只对之后的 Run 生效。已经跑完、snapshot 里没有这些列的旧 version，补不出当日读数。
 
-当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`（base 最后一根含指标列，加上各 required 最后一行标量）。用户 `capture` 同名覆盖。`rsi_length` / 阈值那种 capture 仍然多余。旧 version 补不出当日读数。
+当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`。用户 `capture` 同名覆盖，且只应收钩子自己算的量。`Analyzer.run` / CLI `sz` 从这份袋做单次内部切片。滚动验证读同一份 `attribution.py` 里的 `rolling.windows`（CLI `sw`），报告仍写在 `rolling/`，不和参数战役混表。
 
 ---
 
@@ -168,10 +168,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 ## 9. 本轮明确不做
 
-- 战役 BFF / UI 入口（CLI `sa` 已接）
-- 滚动验证任务
-- 把 `capture` 改成只收自定义量（示例策略可后清）
-- 把 `Analyzer.run` 接到有 as-of 的机会表上（单次内部切片）
+- 战役 BFF / UI 入口（CLI `sa` / `sz` / `sw` 已接）
 
 ---
 
@@ -179,7 +176,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 单独文件，与 `settings.py` 并列。Workbench 保存 settings 时不要改它。不进 `execute_fp` / `env_fp`。
 
-没有 `mode`：`versions` 非空就是选号；没有或 `[]` 就走 `matrix`。两者都空则非法。不提供「空 versions = 当前窗口全选」。
+没有 `mode`：`versions` 非空就是选号；没有或 `[]` 就走 `matrix`。`rolling.windows` 是另一项任务，和 matrix 可以写在同一文件里，但 `sa` / `sw` 分开跑、报告分开写。`versions`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
 
 ```python
 attribution = {
@@ -212,6 +209,12 @@ attribution = {
             },
         },
     ],
+    "rolling": {
+        "windows": [
+            {"start": "20230101", "end": "20231231"},
+            {"start": "20240101", "end": "20241231"},
+        ],
+    },
 }
 ```
 
@@ -227,6 +230,6 @@ attribution = {
 - 独立旋钮（`core` 里各 key）各算各的位置，所以可以只 override `rsi_oversold_threshold`。
 - **list 整段替换。** 写了 `stop_loss.stages` 就换整张 stages；每一档必须把 effective 里该种对象的字段写全。
 
-`fill_missing` 默认 `False`。`kind: rolling` 不进这份文件。
+`fill_missing` 默认 `False`。滚动窗口写在 `attribution.rolling.windows`，不另开 `rolling.py`。
 
 相关现行契约：[VERSIONING.md](../VERSIONING.md)、[DECISIONS.md](../DECISIONS.md)、analyzer [BOUNDARY.md](../../core/engines/analyzer/docs/BOUNDARY.md)。

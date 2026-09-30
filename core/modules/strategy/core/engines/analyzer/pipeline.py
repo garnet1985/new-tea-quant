@@ -20,9 +20,16 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import ExecuteStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import GatherStep
-from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import PersistStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import (
+    PARAMETER_TASK_ID,
+    ROLLING_TASK_ID,
+    PersistStep,
+)
 from core.modules.strategy.core.engines.analyzer.steps.campaign.report import CampaignReportStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import SummarizeStep
+from core.modules.strategy.core.engines.analyzer.steps.rolling.config import RollingSettings
+from core.modules.strategy.core.engines.analyzer.steps.rolling.summarize import RollingSummarizeStep
+from core.modules.strategy.core.engines.analyzer.steps.rolling.windows import WindowExpander
 from core.modules.strategy.core.services.discovery import DiscoveryService
 
 
@@ -38,6 +45,10 @@ class AttributionPipeline:
     ) -> Dict[str, Any]:
         folder = cls._resolve_folder(key_or_id)
         config = AttributionSettings.load(folder)
+        if not config.has_parameter:
+            raise ValueError(
+                "attribution.py 没有 matrix / versions；参数战役请写这两项之一，滚动窗口用 CLI sw"
+            )
         if fill_missing is not None:
             config.raw_settings["fill_missing"] = bool(fill_missing)
         cells = CellExpander.expand_from_folder(folder, config)
@@ -56,7 +67,67 @@ class AttributionPipeline:
             attributed=attributed,
             summarized=summarized,
         )
-        return PersistStep.run(folder, config, assembled, executed=executed)
+        return PersistStep.run(
+            folder,
+            config,
+            assembled,
+            executed=executed,
+            task_id=PARAMETER_TASK_ID,
+            task_kind="parameter",
+        )
+
+    @staticmethod
+    def _resolve_folder(key_or_id: Union[str, Path]) -> Path:
+        path = Path(key_or_id)
+        if path.is_dir() and (path / ATTRIBUTION_FILE_NAME).is_file():
+            return path
+        return DiscoveryService.resolve_strategy_folder(str(key_or_id))
+
+
+class RollingPipeline:
+    """滚动验证：同一套旋钮，对照声明窗口。"""
+
+    @classmethod
+    def run(
+        cls,
+        key_or_id: Union[str, Path],
+        *,
+        fill_missing: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        folder = cls._resolve_folder(key_or_id)
+        config = RollingSettings.load(folder)
+        if fill_missing is not None:
+            config.raw_settings["fill_missing"] = bool(fill_missing)
+        cells = WindowExpander.expand_from_folder(folder, config)
+        tasks = AttributionTask.from_cells(cells, config)
+        executed = ExecuteStep.run(folder, tasks, config)
+        gathered = GatherStep.run(folder, tasks, executed)
+        summarized = RollingSummarizeStep.run(gathered)
+        assembled = CampaignReportStep.run(
+            folder,
+            config,
+            cells,
+            tasks,
+            executed=executed,
+            gathered=gathered,
+            attributed={
+                "status": summarized.get("status"),
+                "n": summarized.get("n", 0),
+                "layers": {},
+                "contributions": {},
+            },
+            summarized=summarized,
+        )
+        assembled["mode"] = "rolling"
+        assembled["headline"] = summarized.get("headline")
+        return PersistStep.run(
+            folder,
+            config,
+            assembled,
+            executed=executed,
+            task_id=ROLLING_TASK_ID,
+            task_kind="rolling",
+        )
 
     @staticmethod
     def _resolve_folder(key_or_id: Union[str, Path]) -> Path:

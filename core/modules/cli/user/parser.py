@@ -54,6 +54,7 @@ class UserParser:
         UserParser._p_strategy_decision_list(sub)
         UserParser._p_strategy_decision_delete(sub)
         UserParser._p_strategy_simulate(sub)
+        UserParser._p_strategy_attribution(sub)
         UserParser._p_strategy_delete_version(sub)
         UserParser._p_strategy_pin_version(sub)
         UserParser._p_strategy_unpin_version(sub)
@@ -173,6 +174,16 @@ class UserParser:
             "strategy_simulate",
             aliases=UserCommands.aliases_for("strategy_simulate"),
             help="完整模拟链路（price → portfolio）",
+        )
+        UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_attribution(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_attribution",
+            aliases=UserCommands.aliases_for("strategy_attribution"),
+            help="归因战役（读 attribution.py，对照旋钮）",
         )
         UserParser._add_strategy_target(p)
 

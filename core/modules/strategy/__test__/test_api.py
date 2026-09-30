@@ -60,6 +60,8 @@ class TestStrategyApi(unittest.TestCase):
             "load_price_entity_investments",
             "price_overall_report_path",
             "present_report",
+            "campaign",
+            "present_campaign",
             "resolve_simulation_output_dirs",
             "is_valid_path",
             "prune_simulation_results",

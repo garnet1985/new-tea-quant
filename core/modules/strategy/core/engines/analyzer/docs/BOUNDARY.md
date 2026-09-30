@@ -11,11 +11,13 @@
 | 包 | 职责 |
 |----|------|
 | ``analyzer.py`` | Facade / API 暴露 |
+| ``pipeline.py`` | 战役编排（``AttributionPipeline`` 只串步骤） |
+| ``steps/campaign/`` | attribution 配置 / overlay / 展开 / 查缓存 / 钉住 / 拼表 / 相对基准贡献度 / 总结 / 落盘 / 展示 |
 | ``steps/prepare/`` | 回测产物 → ``source.json``（编排；I/O 走 ``ArtifactStore``） |
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
 | ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
 
-Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是库入口，战役落地后由它调度。
+Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是单 version 库入口；``Analyzer.campaign`` 走 ``AttributionPipeline``（编排已串到落盘）。
 
 ### Report 步结构
 
@@ -52,15 +54,16 @@ pipeline/
 ## 入口（当前）
 
 ```text
-Analyzer.run(store) → PrepareStep → AnalyzeStep → ReportStep
+Analyzer.run(store)      → PrepareStep → AnalyzeStep → ReportStep
+Analyzer.campaign(key)   → AttributionPipeline → steps/campaign/
 ```
 
-``Strategy.simulate`` **不再**调用 Analyzer。战役入口未落地。
+``Strategy.simulate`` **不再**调用 Analyzer。战役报告写在 ``results/attribution/{n}/parameter/``（短编号；``env_fp`` 在 meta 里）。命中/补跑的 version 钉住。平时 Run 不写 ``group_meta``。CLI ``sa``。
 
 ## 依赖方向
 
 ```text
-战役入口（待做） / 库调用 → Analyzer → modules.analysis
+Analyzer.campaign / Analyzer.run → AttributionPipeline / 单 version 三步 → modules.analysis
 ```
 
 ``modules.analysis`` 禁止 import strategy。

@@ -14,6 +14,7 @@ class UserCommands:
         "sp": "strategy_price_factor",
         "so": "strategy_portfolio",
         "s": "strategy_simulate",
+        "sa": "strategy_attribution",
         "sd": "strategy_decision",
         "sdl": "strategy_decision_list",
         "sdd": "strategy_decision_delete",
@@ -39,6 +40,7 @@ class UserCommands:
             "strategy_decision_list",
             "strategy_decision_delete",
             "strategy_simulate",
+            "strategy_attribution",
             "strategy_delete_version",
             "strategy_pin_version",
             "strategy_unpin_version",
@@ -61,6 +63,7 @@ class UserCommands:
             "strategy_price_factor",
             "strategy_portfolio",
             "strategy_simulate",
+            "strategy_attribution",
             "tag",
         }
     )

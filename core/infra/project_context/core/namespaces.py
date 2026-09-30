@@ -185,6 +185,12 @@ class PathNamespace:
         from .path_manager import PathManager
         return PathManager.get_strategy_scan_results_directory(strategy_name)
 
+    @staticmethod
+    def get_strategy_attribution_directory(strategy_name: str) -> Path:
+        """战役产物根目录（``results/attribution/``）。"""
+        from .path_manager import PathManager
+        return PathManager.get_strategy_attribution_directory(strategy_name)
+
     # ========== 扩展路径 API ==========
 
     @staticmethod

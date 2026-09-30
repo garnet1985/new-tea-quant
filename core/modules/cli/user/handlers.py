@@ -200,6 +200,7 @@ class UserHandlers:
             "strategy_decision_list",
             "strategy_decision_delete",
             "strategy_simulate",
+            "strategy_attribution",
             "strategy_delete_version",
             "strategy_pin_version",
             "strategy_unpin_version",
@@ -554,6 +555,37 @@ class UserHandlers:
             raise SystemExit(1)
 
     @staticmethod
+    def _run_strategy_attribution(args: argparse.Namespace) -> None:
+        import time
+
+        from core.modules.strategy import Strategy
+
+        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
+        force = bool(getattr(args, "force", False))
+        fill_missing = True if force else None
+
+        print(f"{i('chart')} 归因战役…", flush=True)
+        print(f"  策略: {strategy_key}", flush=True)
+        print("  配置: attribution.py（不进指纹）", flush=True)
+        if force:
+            print("  --force: 缓存未命中的格子会补跑", flush=True)
+
+        t0 = time.perf_counter()
+        result = Strategy.campaign(strategy_key, fill_missing=fill_missing)
+        wall_sec = time.perf_counter() - t0
+
+        try:
+            Strategy.present_campaign(result)
+        except Exception as exc:
+            logger.warning("展示战役报告失败: %s", exc)
+            print(f"  headline: {result.get('headline')}", flush=True)
+            print(f"  report_path: {result.get('report_path')}", flush=True)
+
+        print(f"  总耗时: {wall_sec:.2f}s", flush=True)
+        if not result.get("success", True):
+            raise SystemExit(1)
+
+    @staticmethod
     def _run_strategy_delete_version(args: argparse.Namespace) -> None:
         from core.modules.strategy import Strategy
 
@@ -721,6 +753,10 @@ class UserHandlers:
 
         if cmd == "strategy_simulate":
             UserHandlers._run_strategy_simulate(args)
+            return
+
+        if cmd == "strategy_attribution":
+            UserHandlers._run_strategy_attribution(args)
             return
 
         if cmd == "strategy_delete_version":

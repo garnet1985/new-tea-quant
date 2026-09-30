@@ -25,6 +25,8 @@ pytestmark = pytest.mark.force_run
         ),
         (["se", "--strategy", "demo"], ["strategy_enumerate", "--strategy", "demo"]),
         (["so"], ["strategy_portfolio"]),
+        (["s"], ["strategy_simulate"]),
+        (["sa", "--strategy", "rsi_v1"], ["strategy_attribution", "--strategy", "rsi_v1"]),
         (["sd"], ["strategy_decision"]),
         (["sdl"], ["strategy_decision_list"]),
         (["sdd", "--session", "1"], ["strategy_decision_delete", "--session", "1"]),
@@ -112,6 +114,18 @@ def test_parse_sdl() -> None:
     assert args.command == "strategy_decision_list"
 
 
+def test_parse_sa_strategy() -> None:
+    args = UserParser.parse_args(["sa", "--strategy", "rsi_v1"])
+    assert args.command == "strategy_attribution"
+    assert args.strategy == "rsi_v1"
+
+
+def test_parse_sa_force() -> None:
+    args = UserParser.parse_args(["sa", "-f", "--strategy", "rsi_v1"])
+    assert args.command == "strategy_attribution"
+    assert args.force is True
+
+
 def test_parse_sdv_strategy_version() -> None:
     args = UserParser.parse_args(["sdv", "--strategy", "rsi_v1:3"])
     assert args.command == "strategy_delete_version"
@@ -152,6 +166,48 @@ def test_parse_strategy_version_spec() -> None:
 def test_is_help_argv() -> None:
     assert UserAbbrev.is_help_argv(["-h"]) is True
     assert UserAbbrev.is_help_argv([]) is False
+
+
+def test_run_strategy_attribution_ok(monkeypatch, capsys) -> None:
+    from argparse import Namespace
+
+    from core.modules.cli.user.handlers import UserHandlers
+
+    seen: dict = {}
+
+    class FakeStrategy:
+        @staticmethod
+        def campaign(key: str, *, fill_missing=None):
+            seen["key"] = key
+            seen["fill_missing"] = fill_missing
+            return {
+                "success": True,
+                "headline": "没有可对照的格子（缓存未命中，且未补跑）。",
+                "report_path": "/tmp/report.json",
+            }
+
+        @staticmethod
+        def present_campaign(report):
+            seen["presented"] = report.get("headline")
+
+        @staticmethod
+        def resolve(spec: str) -> str:
+            return spec
+
+    monkeypatch.setattr(
+        UserHandlers,
+        "_resolve_strategy_key",
+        staticmethod(lambda name: "rsi_v1"),
+    )
+    monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
+    UserHandlers._run_strategy_attribution(
+        Namespace(strategy="rsi_v1", force=True)
+    )
+    out = capsys.readouterr().out
+    assert seen["key"] == "rsi_v1"
+    assert seen["fill_missing"] is True
+    assert seen["presented"]
+    assert "归因战役" in out
 
 
 def test_run_strategy_delete_version_ok(monkeypatch, capsys) -> None:

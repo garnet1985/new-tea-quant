@@ -326,6 +326,16 @@ class PathManager:
         """扫描结果：``{strategy_root}/results/scan/``。"""
         return PathManager.get_strategy_results_directory(strategy_folder_or_rel) / "scan"
 
+    @staticmethod
+    def get_strategy_attribution_directory(
+        strategy_folder_or_rel: Union[str, Path],
+    ) -> Path:
+        """战役产物：``{strategy_root}/results/attribution/``。"""
+        return (
+            PathManager.get_strategy_results_directory(strategy_folder_or_rel)
+            / "attribution"
+        )
+
     # ========== extensions: Tag ==========
 
     @staticmethod

@@ -9,7 +9,9 @@ from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.artifacts.consts import ANALYSIS_SUBDIR
 
 from .consts import report_ready
+from .pipeline import AttributionPipeline
 from .steps import AnalyzeStep, PrepareStep, ReportStep
+from .steps.campaign.present import CampaignPresenter
 from .steps.report import AnalysisReportPresenter
 
 
@@ -18,6 +20,8 @@ class Analyzer:
     Analyze = AnalyzeStep
     Report = ReportStep
     Presenter = AnalysisReportPresenter
+    Campaign = AttributionPipeline
+    CampaignPresenter = CampaignPresenter
 
     @classmethod
     def run(
@@ -84,3 +88,16 @@ class Analyzer:
             "entity_count": prepare_out.entity_count,
             "investment_count": prepare_out.investment_count,
         }
+
+    @classmethod
+    def campaign(
+        cls,
+        key_or_id: Union[str, Path],
+        *,
+        fill_missing: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """读 attribution.py，对照各格旋钮，写出战役总结。
+
+        ``fill_missing`` 非空时覆盖 attribution.py（CLI ``-f`` 用来补跑缺失格子）。
+        """
+        return AttributionPipeline.run(key_or_id, fill_missing=fill_missing)

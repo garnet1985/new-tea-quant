@@ -11,9 +11,10 @@
 | 场景 | 入口 |
 |------|------|
 | 库 | ``Analyzer.run(store)``：Prepare → Analyze → Report |
+| 战役 | ``Analyzer.campaign(key)`` / CLI ``sa``：对照旋钮并写出 ``results/attribution/`` |
 | 终端展示 | ``Analyzer.Presenter.load(output_dir).present(...)`` |
 
-单次 ``simulate`` 不再自动归因。无 CLI ``sa``。战役入口未落地。
+单次 ``simulate`` 不再自动归因。战役 CLI 为 ``sa``（``-f`` 覆盖 ``fill_missing=True``）。
 
 ---
 
@@ -33,10 +34,12 @@ ReportStep   →  summarize → InsightBuilder → analysis/report.json
 
 ```text
 analyzer/
-├── analyzer.py              # Facade: Analyzer.run()
+├── analyzer.py              # Facade: Analyzer.run() / Analyzer.campaign()
 ├── consts.py
 ├── docs/BOUNDARY.md
+├── pipeline.py              # AttributionPipeline（只串步骤）
 └── steps/
+    ├── campaign/            # 战役实施：config / overlay / execute / persist / present…
     ├── prepare/prepare.py
     ├── analyze/
     │   ├── analyze.py

@@ -698,6 +698,28 @@ class Strategy:
         ReportManager.from_output_dir(path).present(stream=stream)
 
     @staticmethod
+    def campaign(
+        key_or_id: Union[str, Path],
+        *,
+        fill_missing: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """读 attribution.py 跑归因战役（对照旋钮，写 ``results/attribution/``）。"""
+        from .engines.analyzer import Analyzer
+
+        return Analyzer.campaign(key_or_id, fill_missing=fill_missing)
+
+    @staticmethod
+    def present_campaign(
+        report: Union[Dict[str, Any], str, Path],
+        *,
+        stream: Optional[TextIO] = None,
+    ) -> None:
+        """展示战役报告（内存返回体或 ``parameter/`` 目录）。"""
+        from .engines.analyzer import Analyzer
+
+        Analyzer.CampaignPresenter.load(report).present(stream=stream)
+
+    @staticmethod
     def is_valid_path(relative_path: str) -> bool:
         """脚手架路径段是否机器可读（ASCII 标识符段）。"""
         from .services.discovery.path_rules import StrategyPathRules

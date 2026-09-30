@@ -1,0 +1,66 @@
+"""战役编排：读 attribution.py → 展开格子 → 查缓存/补跑 → 拼表 → 归因 → 总结 → 落盘。
+
+边界:
+- 负责: 步骤顺序
+- 不负责: overlay、settings 解析、单 version 的 Prepare→Analyze→Report
+"""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import AttributeStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.cells import (
+    AttributionTask,
+    CellExpander,
+)
+from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
+    ATTRIBUTION_FILE_NAME,
+    AttributionSettings,
+)
+from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import ExecuteStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import GatherStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import PersistStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.report import CampaignReportStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import SummarizeStep
+from core.modules.strategy.core.services.discovery import DiscoveryService
+
+
+class AttributionPipeline:
+    """战役流程入口。"""
+
+    @classmethod
+    def run(
+        cls,
+        key_or_id: Union[str, Path],
+        *,
+        fill_missing: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        folder = cls._resolve_folder(key_or_id)
+        config = AttributionSettings.load(folder)
+        if fill_missing is not None:
+            config.raw_settings["fill_missing"] = bool(fill_missing)
+        cells = CellExpander.expand_from_folder(folder, config)
+        tasks = AttributionTask.from_cells(cells, config)
+        executed = ExecuteStep.run(folder, tasks, config)
+        gathered = GatherStep.run(folder, tasks, executed)
+        attributed = AttributeStep.run(gathered)
+        summarized = SummarizeStep.run(attributed)
+        assembled = CampaignReportStep.run(
+            folder,
+            config,
+            cells,
+            tasks,
+            executed=executed,
+            gathered=gathered,
+            attributed=attributed,
+            summarized=summarized,
+        )
+        return PersistStep.run(folder, config, assembled, executed=executed)
+
+    @staticmethod
+    def _resolve_folder(key_or_id: Union[str, Path]) -> Path:
+        path = Path(key_or_id)
+        if path.is_dir() and (path / ATTRIBUTION_FILE_NAME).is_file():
+            return path
+        return DiscoveryService.resolve_strategy_folder(str(key_or_id))

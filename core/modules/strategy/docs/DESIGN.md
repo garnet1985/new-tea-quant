@@ -6,7 +6,7 @@
 
 仿真 version / 指纹 / 固定 / keep-N 见 [VERSIONING.md](./VERSIONING.md)。  
 编号决策：[notes/DECISIONS.md](./notes/DECISIONS.md)。  
-矩阵归因战役（未落地）：[notes/ATTRIBUTION_CAMPAIGN.md](./notes/ATTRIBUTION_CAMPAIGN.md)。
+矩阵归因战役（pipeline / CLI `sa` 已接；Run 时 group 索引 / as-of 未做）：[notes/ATTRIBUTION_CAMPAIGN.md](./notes/ATTRIBUTION_CAMPAIGN.md)。
 
 ---
 

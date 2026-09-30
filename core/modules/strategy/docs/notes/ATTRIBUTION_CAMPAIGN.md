@@ -1,6 +1,6 @@
 # 矩阵归因（战役）
 
-**状态：** 口径已锁定（2026-09-30）。本轮只记下方案，并去掉「每次 simulate 顺带归因」。战役入口、group 索引、自动 as-of 快照 **尚未落地**。  
+**状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。命中/补跑的 version 立刻钉住。CLI `sa`。Run 时 group 索引 / as-of 快照 **尚未接线**。  
 **一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 驱动一份 matrix，复用已有 version 缓存。  
 **位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。
 
@@ -78,7 +78,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
   → 算 execute_fp，在 group 里找缓存
   → 命中则直接读该 {vid}/
   → 不命中且 fill_missing 再 Strategy.simulate
-  → 拼表交给 modules.analysis
+  → 拼表：相对基准差分（贡献度）+ 旋钮相关
 ```
 
 配置是策略旁的 `attribution.py`，不是 `settings.analysis` 开关，不进指纹。
@@ -86,9 +86,16 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 磁盘：
 
 ```text
-{strategy}/results/attribution/{group_id}/
-  group_meta.json
-  {task_id}/          # 参数归因与滚动验证分开
+{strategy}/results/attribution/
+  meta.json              # next_group_id；env_fp → 1、2、3…
+  {n}/                   # 组号，不是指纹
+    group_meta.json      # 含 env_fp
+    parameter/           # 参数归因（matrix / select）
+      report.json
+      table.json
+      attribute.json
+      task_meta.json
+    rolling/             # 滚动验证，尚未做
 ```
 
 每个 version 仍各写各的 `{vid}/`。enum / price / portfolio 继续共享这个号。一次战役、一份报告，里面三栏（用户可以只扫到某一层来省时间，报告结构不变）：
@@ -97,7 +104,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 - 价格：单笔赚不赚
 - 资金层（最接近账户）：收益、回撤、利用率
 
-扫描开始时给这批 registry 行记同一个 cohort / group id。清理规则要认这个 id：这一批要么一起留，要么一起删，不能按「最旧的未固定版本」拆开。战役用的 version 需要显式留下来。
+扫描开始时给这批 registry 行记同一个 cohort / group id。清理规则要认这个 id：这一批要么一起留，要么一起删，不能按「最旧的未固定版本」拆开。战役命中或补跑的 version **立刻钉住**（`meta.pinned`），keep-N 不会清掉。选号路径会丢掉与当前快照区间/股票池不同的号。
 
 ---
 
@@ -143,10 +150,12 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 ## 8. 模块边界
 
 ```text
-战役入口（analyzer，待做）
-  → strategy（group 索引 / 拼表 / 复用 Strategy.simulate）
+战役入口 Analyzer.campaign / CLI sa
+  → strategy（指纹缓存 / 钉住 version / 复用 Strategy.simulate）
   → modules.analysis（分桶、相关、对照；无业务、无 I/O）
 ```
+
+战役格子的「每个因子贡献了多少」是 **相对表里第一套基准的差分**。一次只动一个旋钮的行才能算到那个因子头上；一套里同时改多个旋钮就拆不开。报告再补三件不靠 ML 的对照：按旋钮取值排序的边际（水平值 + 相对上一档；≥3 档若回落会写最好档）、格子铺满矩形才出的交叉表、旋钮在机会层和账户层是否同向。OLS / 逻辑回归 / XGB+SHAP 是给单笔机会用的（要几十到几百行）；几套回测不够拟合，战役不算这些。
 
 - **不要**并进 `modules.analysis`：它不能调度、不能读盘、不能开 N 次回测
 - **不要**再开一个和 strategy 平级的 `modules.attribution`：group、指纹、version 缓存、枚举落盘都已经在 strategy；拆出去只会再实现一遍
@@ -159,7 +168,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 ## 9. 本轮明确不做
 
-- 战役 CLI / BFF / UI 入口
+- 战役 BFF / UI 入口（CLI `sa` 已接）
 - Run 时写 `results/attribution/{group}/group_meta.json`
 - 机会成立时自动写入 as-of 当日那一片
 - 滚动验证任务

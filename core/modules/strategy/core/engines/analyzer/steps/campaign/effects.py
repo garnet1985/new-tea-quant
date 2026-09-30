@@ -18,27 +18,32 @@ _OUTCOMES = (
 )
 
 
-def enrich_contributions(
-    rows: Sequence[Mapping[str, Any]],
-    varying_knobs: Sequence[str],
-    contributions: Mapping[str, Any],
-) -> Dict[str, Any]:
-    out = dict(contributions)
-    items = [
-        item
-        for item in (contributions.get("items") or [])
-        if isinstance(item, dict)
-    ]
-    baseline = contributions.get("baseline")
-    if not isinstance(baseline, dict):
-        baseline = {}
-    out["marginals"] = build_marginals(rows, items, baseline)
-    out["interactions"] = build_interactions(rows, varying_knobs)
-    out["cross_layer"] = build_cross_layer(items)
-    return out
+class CampaignEffects:
+    """战役格子上的派生对照：边际、交叉矩形、跨层。不算 ML。"""
+
+    @classmethod
+    def enrich(
+        cls,
+        rows: Sequence[Mapping[str, Any]],
+        varying_knobs: Sequence[str],
+        contributions: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        out = dict(contributions)
+        items = [
+            item
+            for item in (contributions.get("items") or [])
+            if isinstance(item, dict)
+        ]
+        baseline = contributions.get("baseline")
+        if not isinstance(baseline, dict):
+            baseline = {}
+        out["marginals"] = _build_marginals(rows, items, baseline)
+        out["interactions"] = _build_interactions(rows, varying_knobs)
+        out["cross_layer"] = _build_cross_layer(items)
+        return out
 
 
-def build_marginals(
+def _build_marginals(
     rows: Sequence[Mapping[str, Any]],
     items: Sequence[Mapping[str, Any]],
     baseline: Mapping[str, Any],
@@ -78,7 +83,7 @@ def build_marginals(
     return out
 
 
-def build_interactions(
+def _build_interactions(
     rows: Sequence[Mapping[str, Any]],
     varying_knobs: Sequence[str],
 ) -> Dict[str, Any]:
@@ -97,7 +102,7 @@ def build_interactions(
     return {"status": "ok", "grids": grids[:1]}
 
 
-def build_cross_layer(items: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+def _build_cross_layer(items: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
     grouped: Dict[str, List[Mapping[str, Any]]] = {}
     order: List[str] = []
     for item in items:
@@ -509,11 +514,3 @@ def _num_key(value: Any) -> Optional[float]:
     if number is None:
         return None
     return round(float(number), 10)
-
-
-__all__ = [
-    "build_cross_layer",
-    "build_interactions",
-    "build_marginals",
-    "enrich_contributions",
-]

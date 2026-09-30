@@ -1,11 +1,12 @@
 """归因组号：``results/attribution/{n}/``，env_fp 只写进 meta，不当目录名。"""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Set
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +102,111 @@ class AttributionGroupStore:
         _write_json(root / ROOT_META_FILE, meta)
 
     @classmethod
+    def record_version(
+        cls,
+        attribution_root: Path,
+        env_fp: str,
+        version_id: str,
+        *,
+        start_date: str = "",
+        end_date: str = "",
+        entity_ids: Optional[Sequence[str]] = None,
+    ) -> Dict[str, Any]:
+        """平时 Run / 战役共用：把一个 version 记进组，并按样本窗索引。"""
+        vid = str(version_id or "").strip().lstrip("vV")
+        if not vid:
+            return {}
+        group_id = cls.resolve(attribution_root, env_fp)
+        group_dir = Path(attribution_root) / group_id
+        group_dir.mkdir(parents=True, exist_ok=True)
+        path = group_dir / GROUP_META_FILE
+        existing = _read_json(path)
+        versions = _union_version_ids(existing.get("versions"), [vid])
+        samples = _merge_sample(
+            existing.get("samples"),
+            vid,
+            start_date=str(start_date or "").strip(),
+            end_date=str(end_date or "").strip(),
+            entity_ids=list(entity_ids or []),
+        )
+        payload = {
+            "group_id": group_id,
+            "env_fp": str(env_fp or "").strip(),
+            "updated_at": datetime.now().isoformat(),
+            "versions": versions,
+            "samples": samples,
+            "tasks": list(existing.get("tasks") or []),
+        }
+        _write_json(path, payload)
+        return payload
+
+    @classmethod
     def _read_meta(cls, root: Path) -> Dict[str, Any]:
         return _read_json(root / ROOT_META_FILE)
+
+
+def _union_version_ids(*groups: Any) -> List[str]:
+    seen: List[str] = []
+    for group in groups:
+        if not isinstance(group, Sequence) or isinstance(group, (str, bytes)):
+            continue
+        for item in group:
+            vid = str(item or "").strip().lstrip("vV")
+            if vid and vid not in seen:
+                seen.append(vid)
+    return sorted(seen, key=_version_sort_key)
+
+
+def _merge_sample(
+    existing: Any,
+    version_id: str,
+    *,
+    start_date: str,
+    end_date: str,
+    entity_ids: Sequence[str],
+) -> List[Dict[str, Any]]:
+    samples: List[Dict[str, Any]] = []
+    if isinstance(existing, list):
+        for item in existing:
+            if isinstance(item, dict):
+                samples.append(dict(item))
+    if not start_date and not end_date and not entity_ids:
+        return samples
+    universe_fp = _universe_fp(entity_ids)
+    match = None
+    for item in samples:
+        if str(item.get("start_date") or "") != start_date:
+            continue
+        if str(item.get("end_date") or "") != end_date:
+            continue
+        if str(item.get("universe_fp") or "") != universe_fp:
+            continue
+        match = item
+        break
+    if match is None:
+        match = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "universe_fp": universe_fp,
+            "n_entities": len([str(x).strip() for x in entity_ids if str(x).strip()]),
+            "versions": [],
+        }
+        samples.append(match)
+    match["versions"] = _union_version_ids(match.get("versions"), [version_id])
+    return samples
+
+
+def _universe_fp(entity_ids: Sequence[str]) -> str:
+    ids = sorted({str(item).strip() for item in entity_ids if str(item).strip()})
+    raw = json.dumps(ids, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _version_sort_key(vid: str) -> Any:
+    try:
+        return (0, int(vid))
+    except (TypeError, ValueError):
+        return (1, vid)
 
 
 def _used_ids(root: Path, meta: Mapping[str, Any]) -> Set[str]:

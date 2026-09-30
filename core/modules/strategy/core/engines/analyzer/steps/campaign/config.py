@@ -54,8 +54,33 @@ class AttributionSettings(SettingsBase):
         strategy_key: Optional[str] = None,
     ) -> "AttributionSettings":
         return cls.to_usable(
-            load_attribution_dict_from_folder(strategy_folder, strategy_key=strategy_key)
+            cls._load_dict_from_folder(strategy_folder, strategy_key=strategy_key)
         )
+
+    @classmethod
+    def _load_dict_from_folder(
+        cls,
+        strategy_folder: Path,
+        *,
+        strategy_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        folder = Path(strategy_folder)
+        attr_file = folder / ATTRIBUTION_FILE_NAME
+        if not attr_file.is_file():
+            raise FileNotFoundError(f"attribution.py not found: {attr_file}")
+
+        key = str(strategy_key or folder.name).strip() or folder.name
+        module_name = StrategyPathRules.strategy_module_id(key, suffix="attribution")
+        spec = importlib.util.spec_from_file_location(module_name, attr_file)
+        if spec is None or spec.loader is None:
+            raise ValueError(f"cannot load attribution module: {attr_file}")
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        payload = getattr(module, "attribution", None)
+        if not isinstance(payload, dict):
+            raise ValueError(f"attribution.py 必须定义 dict attribution: {attr_file}")
+        return dict(payload)
 
     @classmethod
     def to_usable(
@@ -275,27 +300,3 @@ class AttributionSettings(SettingsBase):
         else:
             out["matrix"] = [row.to_dict() for row in self.matrix]
         return out
-
-
-def load_attribution_dict_from_folder(
-    strategy_folder: Path,
-    *,
-    strategy_key: Optional[str] = None,
-) -> Dict[str, Any]:
-    folder = Path(strategy_folder)
-    attr_file = folder / ATTRIBUTION_FILE_NAME
-    if not attr_file.is_file():
-        raise FileNotFoundError(f"attribution.py not found: {attr_file}")
-
-    key = str(strategy_key or folder.name).strip() or folder.name
-    module_name = StrategyPathRules.strategy_module_id(key, suffix="attribution")
-    spec = importlib.util.spec_from_file_location(module_name, attr_file)
-    if spec is None or spec.loader is None:
-        raise ValueError(f"cannot load attribution module: {attr_file}")
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    payload = getattr(module, "attribution", None)
-    if not isinstance(payload, dict):
-        raise ValueError(f"attribution.py 必须定义 dict attribution: {attr_file}")
-    return dict(payload)

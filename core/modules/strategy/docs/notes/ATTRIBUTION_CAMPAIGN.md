@@ -1,6 +1,6 @@
 # 矩阵归因（战役）
 
-**状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。命中/补跑的 version 立刻钉住。CLI `sa`。Run 时 group 索引 / as-of 快照 **尚未接线**。  
+**状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。命中/补跑的 version 立刻钉住。CLI `sa`。平时 Run 把 version 记进 group（含样本窗索引）。as-of 当日一片写入 `signal_snapshot`。  
 **一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 驱动一份 matrix，复用已有 version 缓存。  
 **位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。
 
@@ -143,7 +143,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 这只对之后的 Run 生效。已经跑完、snapshot 里没有这些列的旧 version，补不出当日读数。
 
-当前代码还没做完自动快照：命中时当日 bar 已在 `Opportunity.record_of_today`，落盘时被丢掉，归因又只读 `signal_snapshot`（来自 `ctx.take_captures()`）。所以 `rsi_v1` 才手写 `capture("rsi", rsi)`。`rsi_length` / 阈值那种 capture 是多余的。
+当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`（base 最后一根含指标列，加上各 required 最后一行标量）。用户 `capture` 同名覆盖。`rsi_length` / 阈值那种 capture 仍然多余。旧 version 补不出当日读数。
 
 ---
 
@@ -169,10 +169,9 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 ## 9. 本轮明确不做
 
 - 战役 BFF / UI 入口（CLI `sa` 已接）
-- Run 时写 `results/attribution/{group}/group_meta.json`
-- 机会成立时自动写入 as-of 当日那一片
 - 滚动验证任务
 - 把 `capture` 改成只收自定义量（示例策略可后清）
+- 把 `Analyzer.run` 接到有 as-of 的机会表上（单次内部切片）
 
 ---
 

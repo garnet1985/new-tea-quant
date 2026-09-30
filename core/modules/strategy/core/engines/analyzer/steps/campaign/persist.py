@@ -1,7 +1,8 @@
 """把战役报告写到 ``results/attribution/{n}/{task}/``。
 
 组号是短数字；``env_fp`` 只写在 ``meta.json`` / ``group_meta.json`` 里。
-平时 Run 不写 group_meta；只在战役结束时更新。本期任务目录只有 ``parameter/``。
+平时 Run 经 ``AttributionGroupStore.record_version`` 记账（含样本窗）。
+战役结束时合并 ``tasks``，并保留已有 ``samples``。本期任务目录只有 ``parameter/``。
 """
 from __future__ import annotations
 
@@ -222,6 +223,7 @@ class PersistStep:
             "env_fp": env_fp,
             "updated_at": generated_at,
             "versions": versions,
+            "samples": list(existing.get("samples") or []),
             "tasks": list(tasks_by_id.values()),
         }
 

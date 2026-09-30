@@ -339,7 +339,13 @@ class Strategy:
                     ctx.kind.value,
                     cache_key,
                 )
-                return Strategy._attach_version_id(dict(cached), ctx.kind)
+                payload = Strategy._attach_version_id(dict(cached), ctx.kind)
+                Strategy._index_attribution_group(
+                    strategy_folder,
+                    fp_res,
+                    payload.get("version_id"),
+                )
+                return payload
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
                 ctx.kind.value,
@@ -516,7 +522,66 @@ class Strategy:
                 ctx.strategy_key,
                 step_res.get("version_id"),
             )
-        return Strategy._attach_version_id(consolidated, ctx.kind)
+        payload = Strategy._attach_version_id(consolidated, ctx.kind)
+        Strategy._index_attribution_group(
+            folder,
+            ctx.fp_res,
+            payload.get("version_id"),
+            start_date=start_date,
+            end_date=end_date,
+            entity_ids=list(ctx.entity_ids or []),
+        )
+        return payload
+
+    @staticmethod
+    def _index_attribution_group(
+        strategy_folder: Union[str, Path],
+        fp_res: Any,
+        version_id: Any,
+        *,
+        start_date: str = "",
+        end_date: str = "",
+        entity_ids: Optional[List[str]] = None,
+    ) -> None:
+        """平时 Run 把 version 记进 attribution group（不另开回测）。"""
+        vid = str(version_id or "").strip()
+        if not vid or fp_res is None:
+            return
+        env_fp = str(getattr(fp_res, "env_fp", "") or "").strip()
+        if not env_fp:
+            return
+        if not start_date or not end_date:
+            settings = getattr(fp_res, "effective_settings", None)
+            if settings is not None:
+                try:
+                    period = settings.resolve_period()
+                    start_date = start_date or str(period.start_date or "")
+                    end_date = end_date or str(period.end_date or "")
+                except Exception:
+                    pass
+        if entity_ids is None:
+            entity_ids = list(getattr(fp_res, "entity_ids", None) or [])
+        try:
+            from core.infra.project_context import ProjectContext
+            from .engines.analyzer.steps.campaign.groups import AttributionGroupStore
+
+            root = ProjectContext.path.get_strategy_attribution_directory(
+                Path(strategy_folder)
+            )
+            AttributionGroupStore.record_version(
+                root,
+                env_fp,
+                vid,
+                start_date=start_date,
+                end_date=end_date,
+                entity_ids=entity_ids,
+            )
+        except Exception:
+            logger.warning(
+                "attribution group index skipped: version=%s",
+                vid,
+                exc_info=True,
+            )
 
     @staticmethod
     def _attach_version_id(

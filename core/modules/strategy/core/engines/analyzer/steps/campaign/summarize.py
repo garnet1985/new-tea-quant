@@ -5,15 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from ...consts import SCHEMA_VERSION
-from .labels import (
-    direction_phrase,
-    format_delta,
-    format_number,
-    knob_label,
-    layer_label,
-    maybe_float,
-    outcome_label,
-)
+from .labels import CampaignLabels
 
 _CONTRIB_HEADLINE_OUTCOMES = (
     ("portfolio", "total_return"),
@@ -71,11 +63,11 @@ class SummarizeStep:
             return top_marginal
         top_contrib = _top_contribution(attributed)
         if top_contrib is not None:
-            knob = knob_label(top_contrib.get("knob"))
-            from_text = format_number(top_contrib.get("knob"), top_contrib.get("from"))
-            to_text = format_number(top_contrib.get("knob"), top_contrib.get("to"))
-            result = outcome_label(top_contrib.get("outcome"))
-            delta_text = format_delta(
+            knob = CampaignLabels.knob_label(top_contrib.get("knob"))
+            from_text = CampaignLabels.format_number(top_contrib.get("knob"), top_contrib.get("from"))
+            to_text = CampaignLabels.format_number(top_contrib.get("knob"), top_contrib.get("to"))
+            result = CampaignLabels.outcome_label(top_contrib.get("outcome"))
+            delta_text = CampaignLabels.format_delta(
                 top_contrib.get("outcome"), top_contrib.get("delta")
             )
             return (
@@ -85,13 +77,13 @@ class SummarizeStep:
         if not highlights:
             return f"对照了 {n} 套设置，旋钮和结果之间没有清楚的方向。"
         top = highlights[0]
-        rho = maybe_float(top.get("rho")) or 0.0
-        knob = knob_label(top.get("knob"))
-        outcome = outcome_label(top.get("outcome"))
-        phrase = direction_phrase(str(top.get("outcome") or ""), rho)
+        rho = CampaignLabels.maybe_float(top.get("rho")) or 0.0
+        knob = CampaignLabels.knob_label(top.get("knob"))
+        outcome = CampaignLabels.outcome_label(top.get("outcome"))
+        phrase = CampaignLabels.direction_phrase(str(top.get("outcome") or ""), rho)
         knob_path = str(top.get("knob") or "")
         if "stop_loss" in knob_path and "ratio" in knob_path:
-            phrase = direction_phrase(str(top.get("outcome") or ""), -rho)
+            phrase = CampaignLabels.direction_phrase(str(top.get("outcome") or ""), -rho)
             return f"止损越深，{outcome}{phrase}。"
         return f"{knob}越大，{outcome}{phrase}。"
 
@@ -119,7 +111,7 @@ class SummarizeStep:
                     corr = field.get("correlation") or {}
                     if corr.get("status") != "ok":
                         continue
-                    rho = maybe_float(corr.get("rho"))
+                    rho = CampaignLabels.maybe_float(corr.get("rho"))
                     if rho is None:
                         continue
                     rows.append(
@@ -173,7 +165,7 @@ class SummarizeStep:
         elif joint_count:
             hints.append("每套同时动了多个旋钮，贡献度拆不开，只剩相关方向。")
         elif len(varying) >= 2:
-            names = "、".join(knob_label(item) for item in varying[:4])
+            names = "、".join(CampaignLabels.knob_label(item) for item in varying[:4])
             hints.append(
                 f"这张表里变过 {names}。请按行看哪一列在动；"
                 "相关是把所有行混在一起算的，不是「只动了这一个」。"
@@ -192,7 +184,7 @@ class SummarizeStep:
                 layer_reason = str(block.get("reason") or "")
                 note = _SKIP_REASONS.get(layer_reason)
                 if note:
-                    hints.append(f"{layer_label(str(layer))}：{note}")
+                    hints.append(f"{CampaignLabels.layer_label(str(layer))}：{note}")
         if not varying and status != "skipped":
             hints.append("各套旋钮取值相同，对照看不出差别。")
         return hints
@@ -221,7 +213,7 @@ def _delta_of(
             continue
         if str(part.get("outcome") or "") != outcome:
             continue
-        return maybe_float(part.get("delta"))
+        return CampaignLabels.maybe_float(part.get("delta"))
     return None
 
 
@@ -278,10 +270,10 @@ def _headline_marginal(attributed: Mapping[str, Any]) -> Optional[str]:
     if picked is None:
         return None
     block, base, champ, delta = picked
-    knob = knob_label(block.get("knob"))
-    from_text = format_number(block.get("knob"), base.get("value"))
-    to_text = format_number(block.get("knob"), champ.get("value"))
-    delta_text = format_delta("total_return", delta)
+    knob = CampaignLabels.knob_label(block.get("knob"))
+    from_text = CampaignLabels.format_number(block.get("knob"), base.get("value"))
+    to_text = CampaignLabels.format_number(block.get("knob"), champ.get("value"))
+    delta_text = CampaignLabels.format_delta("total_return", delta)
     if str(block.get("note") or "") == "pullback":
         return (
             f"相对基准，{knob}放到 {to_text} 时账户收益最好（{delta_text}）；"
@@ -297,11 +289,11 @@ def _level_by_value(
     levels: Sequence[Mapping[str, Any]],
     value: Any,
 ) -> Optional[Mapping[str, Any]]:
-    target = maybe_float(value)
+    target = CampaignLabels.maybe_float(value)
     if target is None:
         return None
     for item in levels:
-        current = maybe_float(item.get("value"))
+        current = CampaignLabels.maybe_float(item.get("value"))
         if current is None:
             continue
         if abs(current - target) < 1e-12:
@@ -317,5 +309,5 @@ def _outcome_value(parts: Sequence[Any], layer: str, outcome: str) -> Optional[f
             continue
         if str(part.get("outcome") or "") != outcome:
             continue
-        return maybe_float(part.get("value"))
+        return CampaignLabels.maybe_float(part.get("value"))
     return None

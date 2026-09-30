@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.analysis import Analysis
 
-from .effects import enrich_contributions
+from .effects import CampaignEffects
 
 _READY = frozenset({"hit", "simulated"})
 _LAYERS = ("enumerate", "price_factor", "portfolio")
@@ -63,7 +63,7 @@ class AttributeStep:
         for layer in _LAYERS:
             layers[layer] = cls._attribute_layer(rows, layer, varying_knobs)
 
-        contributions = enrich_contributions(
+        contributions = CampaignEffects.enrich(
             rows,
             varying_knobs,
             cls._contributions(rows, varying_knobs),

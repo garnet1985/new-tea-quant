@@ -8,16 +8,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Union
 
 from core.infra.cmd_layout import CmdLayout
 
-from .labels import (
-    cross_layer_phrase,
-    direction_phrase,
-    format_delta,
-    format_number,
-    is_display_knob,
-    knob_label,
-    maybe_float,
-    outcome_label,
-)
+from .labels import CampaignLabels
 
 _SECTION_WIDTH = 64
 
@@ -140,8 +131,8 @@ class CampaignPresenter:
 
         knob_keys = _knob_columns(rows)
         outcome_keys = _outcome_columns(rows)
-        headers = ["回测"] + [knob_label(key) for key in knob_keys]
-        headers += [outcome_label(key) for _, key in outcome_keys]
+        headers = ["回测"] + [CampaignLabels.knob_label(key) for key in knob_keys]
+        headers += [CampaignLabels.outcome_label(key) for _, key in outcome_keys]
 
         body: List[List[str]] = []
         for row in rows:
@@ -151,11 +142,11 @@ class CampaignPresenter:
             line = [label]
             knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
             for key in knob_keys:
-                line.append(format_number(key, knobs.get(key)))
+                line.append(CampaignLabels.format_number(key, knobs.get(key)))
             layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
             for layer, key in outcome_keys:
                 block = layers.get(layer) if isinstance(layers.get(layer), dict) else {}
-                line.append(format_number(key, block.get(key) if isinstance(block, dict) else None))
+                line.append(CampaignLabels.format_number(key, block.get(key) if isinstance(block, dict) else None))
             body.append(line)
         _print_table(headers, body, out)
 
@@ -210,39 +201,39 @@ class CampaignPresenter:
                 order.append(knob)
             grouped[knob].append(item)
         for knob in order:
-            print(f"   {knob_label(knob)}", file=out, flush=True)
+            print(f"   {CampaignLabels.knob_label(knob)}", file=out, flush=True)
             for item in grouped[knob]:
                 bits = [
-                    f"{format_number(knob, item.get('from'))} → "
-                    f"{format_number(knob, item.get('to'))}"
+                    f"{CampaignLabels.format_number(knob, item.get('from'))} → "
+                    f"{CampaignLabels.format_number(knob, item.get('to'))}"
                 ]
                 for layer, outcome in _CONTRIB_SHOW:
                     delta = _item_delta(item, layer, outcome)
                     if delta is None:
                         continue
                     bits.append(
-                        f"{outcome_label(outcome)} {format_delta(outcome, delta)}"
+                        f"{CampaignLabels.outcome_label(outcome)} {CampaignLabels.format_delta(outcome, delta)}"
                     )
                 print(f"      {'   '.join(bits)}", file=out, flush=True)
 
     def _present_marginal_knob(self, out: TextIO, block: Mapping[str, Any]) -> None:
         knob = str(block.get("knob") or "")
-        print(f"   {knob_label(knob)}", file=out, flush=True)
+        print(f"   {CampaignLabels.knob_label(knob)}", file=out, flush=True)
         for level in block.get("levels") or []:
             if not isinstance(level, dict):
                 continue
-            bits = [format_number(knob, level.get("value"))]
+            bits = [CampaignLabels.format_number(knob, level.get("value"))]
             for layer, outcome in _CONTRIB_SHOW:
                 value = _outcome_value(level.get("outcomes") or [], layer, outcome)
                 if value is None:
                     continue
-                bits.append(f"{outcome_label(outcome)} {format_number(outcome, value)}")
+                bits.append(f"{CampaignLabels.outcome_label(outcome)} {CampaignLabels.format_number(outcome, value)}")
             step = _step_label(level)
             if step:
                 bits.append(step)
             print(f"      {'   '.join(bits)}", file=out, flush=True)
         if str(block.get("note") or "") == "pullback":
-            best = format_number(knob, block.get("best_value"))
+            best = CampaignLabels.format_number(knob, block.get("best_value"))
             print(
                 f"      放到 {best} 最好，再往上调账户收益回落。",
                 file=out,
@@ -263,8 +254,8 @@ class CampaignPresenter:
         CmdLayout.title.print_section(f"{icon('target')} 跨层", stream=out)
         for item in rows:
             print(
-                f"   · {knob_label(item.get('knob'))}："
-                f"{cross_layer_phrase(item.get('verdict'))}",
+                f"   · {CampaignLabels.knob_label(item.get('knob'))}："
+                f"{CampaignLabels.cross_layer_phrase(item.get('verdict'))}",
                 file=out,
                 flush=True,
             )
@@ -284,24 +275,24 @@ class CampaignPresenter:
         row_knob = str(grid.get("row_knob") or "")
         col_knob = str(grid.get("col_knob") or "")
         print(
-            f"   {knob_label(row_knob)} × {knob_label(col_knob)}（账户收益）",
+            f"   {CampaignLabels.knob_label(row_knob)} × {CampaignLabels.knob_label(col_knob)}（账户收益）",
             file=out,
             flush=True,
         )
         col_values = list(grid.get("col_values") or [])
-        headers = [""] + [format_number(col_knob, value) for value in col_values]
+        headers = [""] + [CampaignLabels.format_number(col_knob, value) for value in col_values]
         best = grid.get("best") if isinstance(grid.get("best"), dict) else {}
         body: List[List[str]] = []
         for line in grid.get("cells") or []:
             if not isinstance(line, list) or not line:
                 continue
             first = line[0] if isinstance(line[0], dict) else {}
-            row = [format_number(row_knob, first.get("row_value"))]
+            row = [CampaignLabels.format_number(row_knob, first.get("row_value"))]
             for cell in line:
                 if not isinstance(cell, dict):
                     row.append("-")
                     continue
-                text = format_number("total_return", cell.get("total_return"))
+                text = CampaignLabels.format_number("total_return", cell.get("total_return"))
                 if _same_number(cell.get("row_value"), best.get("row_value")) and _same_number(
                     cell.get("col_value"), best.get("col_value")
                 ):
@@ -397,7 +388,7 @@ def _knob_columns(rows: Sequence[Mapping[str, Any]]) -> List[str]:
         knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
         for key, value in knobs.items():
             text = str(key)
-            if text in seen or not is_display_knob(text, value):
+            if text in seen or not CampaignLabels.is_display_knob(text, value):
                 continue
             seen.add(text)
             keys.append(text)
@@ -448,7 +439,7 @@ def _item_delta(
             continue
         if str(part.get("outcome") or "") != outcome:
             continue
-        return maybe_float(part.get("delta"))
+        return CampaignLabels.maybe_float(part.get("delta"))
     return None
 
 
@@ -460,7 +451,7 @@ def _outcome_value(parts: Sequence[Any], layer: str, outcome: str) -> Optional[f
             continue
         if str(part.get("outcome") or "") != outcome:
             continue
-        return maybe_float(part.get("value"))
+        return CampaignLabels.maybe_float(part.get("value"))
     return None
 
 
@@ -469,18 +460,18 @@ def _step_label(level: Mapping[str, Any]) -> str:
         return "基准"
     prev = _item_delta({"deltas": level.get("vs_prev") or []}, "portfolio", "total_return")
     if prev is not None:
-        return f"相对上一档 {format_delta('total_return', prev)}"
+        return f"相对上一档 {CampaignLabels.format_delta('total_return', prev)}"
     base = _item_delta(
         {"deltas": level.get("vs_baseline") or []}, "portfolio", "total_return"
     )
     if base is not None:
-        return f"相对基准 {format_delta('total_return', base)}"
+        return f"相对基准 {CampaignLabels.format_delta('total_return', base)}"
     return ""
 
 
 def _same_number(left: Any, right: Any) -> bool:
-    a = maybe_float(left)
-    b = maybe_float(right)
+    a = CampaignLabels.maybe_float(left)
+    b = CampaignLabels.maybe_float(right)
     if a is None or b is None:
         return False
     return abs(a - b) < 1e-12
@@ -489,13 +480,13 @@ def _same_number(left: Any, right: Any) -> bool:
 def _highlight_line(item: Mapping[str, Any]) -> str:
     knob = str(item.get("knob") or "")
     outcome = str(item.get("outcome") or "")
-    rho = maybe_float(item.get("rho")) or 0.0
-    result = outcome_label(outcome)
+    rho = CampaignLabels.maybe_float(item.get("rho")) or 0.0
+    result = CampaignLabels.outcome_label(outcome)
     if "stop_loss" in knob and "ratio" in knob:
-        phrase = direction_phrase(outcome, -rho)
+        phrase = CampaignLabels.direction_phrase(outcome, -rho)
         return f"止损越深，{result}{phrase}"
-    phrase = direction_phrase(outcome, rho)
-    return f"{knob_label(knob)}越大，{result}{phrase}"
+    phrase = CampaignLabels.direction_phrase(outcome, rho)
+    return f"{CampaignLabels.knob_label(knob)}越大，{result}{phrase}"
 
 
 def _print_table(headers: Sequence[str], rows: Sequence[Sequence[str]], out: TextIO) -> None:

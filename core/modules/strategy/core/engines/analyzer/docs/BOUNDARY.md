@@ -58,7 +58,7 @@ Analyzer.run(store)      → PrepareStep → AnalyzeStep → ReportStep
 Analyzer.campaign(key)   → AttributionPipeline → steps/campaign/
 ```
 
-``Strategy.simulate`` **不再**调用 Analyzer。战役报告写在 ``results/attribution/{n}/parameter/``（短编号；``env_fp`` 在 meta 里）。命中/补跑的 version 钉住。平时 Run 不写 ``group_meta``。CLI ``sa``。
+``Strategy.simulate`` **不再**调用 Analyzer。战役报告写在 ``results/attribution/{n}/parameter/``（短编号；``env_fp`` 在 meta 里）。命中/补跑的 version 钉住。平时 Run 把 version 记进 ``group_meta``（按区间 + 股票池索引）。CLI ``sa``。
 
 ## 依赖方向
 

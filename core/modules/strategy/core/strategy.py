@@ -365,46 +365,6 @@ class Strategy:
         )
 
     @staticmethod
-    def _maybe_run_analysis(
-        step: SimulateKind,
-        step_res: Dict[str, Any],
-        ctx: SimulateSession,
-        strategy_folder: Path,
-        *,
-        force: bool = False,
-    ) -> Optional[Dict[str, Any]]:
-        """``settings.analysis.enabled`` 时在 report 步内、complete 之前跑 analyze。"""
-        if step != ctx.kind:
-            return None
-        if step_res.get("success") is False:
-            return {"skipped": True, "reason": "simulate_failed"}
-        if not ctx.effective_settings.analysis.enabled:
-            return {"skipped": True, "reason": "disabled"}
-
-        output_dir = str(step_res.get("output_dir") or "").strip()
-        version_id = str(step_res.get("version_id") or "").strip()
-        if not output_dir:
-            return {"skipped": True, "reason": "missing_output_dir"}
-
-        from .engines.analyzer import Analyzer
-        from .services.artifacts import ArtifactStore
-
-        store = ArtifactStore.open(
-            Path(output_dir),
-            kind=step,
-            version_id=version_id or None,
-        )
-        try:
-            return Analyzer.run(store, strategy_folder=strategy_folder, force=force)
-        except Exception as exc:
-            logger.exception(
-                "analysis step failed: strategy=%s step=%s",
-                ctx.strategy_key,
-                step.value,
-            )
-            return {"skipped": True, "reason": "error", "error": str(exc)}
-
-    @staticmethod
     def _resolve_simulation_output_dir_candidates(
         strategy_name: str,
         *,
@@ -548,15 +508,6 @@ class Strategy:
                     end_date=end_date,
                 )
 
-            analysis_out = Strategy._maybe_run_analysis(
-                step,
-                step_res,
-                ctx,
-                folder,
-                force=ignore_cache,
-            )
-            if analysis_out is not None:
-                step_res["analysis"] = analysis_out
             PipelineProgress.complete_step_bound("report")
 
             logger.info(
@@ -708,42 +659,6 @@ class Strategy:
         return PriceFactorStore.at(version_dir).file("overall_report")
 
     @staticmethod
-    def step_analysis_from_output_dir(output_dir: Union[str, Path]) -> Dict[str, Any]:
-        """Read ``analysis/report.json`` facts/insights payload for one step output dir."""
-        from .engines.analyzer.steps.report import ReportStep
-
-        return ReportStep.load_payload(Path(output_dir))
-
-    @staticmethod
-    def resolve_step_analysis(
-        strategy_name: str,
-        step: str,
-        slot: Optional[Dict[str, Any]] = None,
-        *,
-        workbench_version: int = 0,
-    ) -> Dict[str, Any]:
-        """Resolve step output dir(s) and load attribution facts/insights payload."""
-        from .engines.analyzer.steps.report import ReportStep
-
-        for output_dir in Strategy._resolve_simulation_output_dir_candidates(
-            strategy_name,
-            step=str(step or "").strip(),
-            slot=slot if isinstance(slot, dict) else {},
-            workbench_version=int(workbench_version or 0),
-        ):
-            if not output_dir.is_dir():
-                continue
-            payload = ReportStep.load_payload(output_dir)
-            if payload.get("available"):
-                return payload
-        return {
-            "available": False,
-            "report_path": "",
-            "insights": None,
-            "facts": None,
-        }
-
-    @staticmethod
     def resolve_simulation_output_dirs(
         strategy_name: str,
         *,
@@ -781,17 +696,6 @@ class Strategy:
         else:
             raise ValueError(f"unsupported present_report kind: {kind!r}")
         ReportManager.from_output_dir(path).present(stream=stream)
-
-    @staticmethod
-    def present_analysis_report(
-        output_dir: Union[str, Path],
-        *,
-        stream: Optional[TextIO] = None,
-    ) -> None:
-        """从仿真 ``output_dir`` 展示归因 ``analysis/report.json`` 终端摘要。"""
-        from .engines.analyzer import Analyzer
-
-        Analyzer.Presenter.load(output_dir).present(stream=stream)
 
     @staticmethod
     def is_valid_path(relative_path: str) -> bool:

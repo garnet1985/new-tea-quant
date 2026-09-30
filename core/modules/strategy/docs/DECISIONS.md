@@ -52,7 +52,7 @@ D15 收紧 D3。D17 修正「已完成步骤一律 `force` → 新 vid」。
 | D23 | 执行与指纹 **只使用** 这份 canonical effective。胶囊「设置已变更」也只比它，不比对原始 JSON 外形、不比对切步填的非 effective 字段。 |
 | D24 | `settings → effective` 是投影（丢掉「其他」字段）。`effective → settings` 是把白名单字段 **merge 回** 完整 settings，「其他」保留。不是双射。 |
 | D25 | `{vid}/` **必须归档当时完整 settings**（运行时 + 其他）。canonical effective 可另存作缓存；core/env 变了不得用新算法重算旧 effective 去命中。 |
-| D26 | 不影响回测结果的字段进非 effective（现有方向：`meta` / `is_enabled` / `scanner` / `enumerator` / `analysis`）。白名单 section 内的 UI 草稿 key 必须从投影剔除。 |
+| D26 | 不影响回测结果的字段进非 effective（现有方向：`meta` / `is_enabled` / `scanner` / `enumerator`）。白名单 section 内的 UI 草稿 key 必须从投影剔除。`analysis` 已退役，残留块不进指纹。 |
 
 D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 

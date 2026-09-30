@@ -5,7 +5,8 @@
 硬约束摘要如下；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
 仿真 version / 指纹 / 固定 / keep-N 见 [VERSIONING.md](./VERSIONING.md)。  
-编号决策：[notes/DECISIONS.md](./notes/DECISIONS.md)。
+编号决策：[notes/DECISIONS.md](./notes/DECISIONS.md)。  
+矩阵归因战役（未落地）：[notes/ATTRIBUTION_CAMPAIGN.md](./notes/ATTRIBUTION_CAMPAIGN.md)。
 
 ---
 
@@ -49,3 +50,4 @@ Strategy 主业：把用户策略钩子经 BE `RunCallbacks` 挂进回测器。*
 - [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
 - [DECISIONS.md](./notes/DECISIONS.md)
+- [ATTRIBUTION_CAMPAIGN.md](./notes/ATTRIBUTION_CAMPAIGN.md)

@@ -61,11 +61,10 @@ results/simulations/portfolio/N/
 |----------|------|
 | `__test__/test_disk_version_e2e.py` | simulate miss/hit + registry |
 | `__test__/test_versioning_regression.py` | env_invalid、共享 vid、ignore_cache 同 vid |
-| `__test__/test_analysis_version_layout_e2e.py` | `{vid}/{step}/analysis/` |
+| `__test__/test_analysis_version_layout_e2e.py` | `{vid}/{step}/analysis/`（Analyzer 库） |
 | `services/artifacts/__test__/test_artifact_store.py` | allocate / prune / pin skip |
 | `services/artifacts/__test__/test_version_meta.py` | registry + 根上 `pinned` |
 | `services/artifacts/__test__/test_retention.py` | keep-N + 删 version 同步 unpin |
-| BFF step report `analysis` 字段 | `Strategy.resolve_step_analysis` + `enabled` / `facts` |
 
 ---
 

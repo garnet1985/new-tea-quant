@@ -7,7 +7,7 @@ function mdTemplate(columns) {
   return '1fr 1fr';
 }
 
-/** MetricCard 网格：报告区块与归因共用。 */
+/** MetricCard 网格：报告区块共用。 */
 function MetricGrid({ columns = 2, denseXs = false, children }) {
   return (
     <Box

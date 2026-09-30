@@ -15,13 +15,15 @@
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
 | ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
 
+Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是库入口，战役落地后由它调度。
+
 ### Report 步结构
 
 ```text
 report.py              # 入口：总结 → insight → 持久化
 summarize.py           # 总结：整理 analyze 结果为 report 主体
 insight.py             # CLI 叙事（InsightBuilder）
-facts.py               # BFF / FED 结构化 facts（无 CLI 文案）
+facts.py               # 结构化 facts（无 CLI 文案）
 present.py             # 终端展示
 ```
 
@@ -47,19 +49,18 @@ pipeline/
 |-------------------------------|-------------------------------|
 | ``DecisionSpaceBuilder``、``CaptureDataset``、stages | 分桶、相关、回归、XGB |
 
-## Pipeline（simulate 内嵌 analyze）
+## 入口（当前）
 
 ```text
-Strategy.simulate → BackTestPipeline.run → (若 analysis.enabled) Analyzer.run
-PrepareStep → AnalyzeStep → ReportStep
+Analyzer.run(store) → PrepareStep → AnalyzeStep → ReportStep
 ```
 
-``settings.analysis.enabled=false`` 时不跑 analyze 步。
+``Strategy.simulate`` **不再**调用 Analyzer。战役入口未落地。
 
 ## 依赖方向
 
 ```text
-BFF / CLI → Strategy → Analyzer → modules.analysis
+战役入口（待做） / 库调用 → Analyzer → modules.analysis
 ```
 
 ``modules.analysis`` 禁止 import strategy。

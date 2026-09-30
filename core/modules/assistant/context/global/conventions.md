@@ -146,7 +146,6 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 | `sd`  | strategy\_decision         | 第四步：决策者  |
 | `sdl` | strategy\_decision\_list   | 列出决策者会话  |
 | `sdd` | strategy\_decision\_delete | 删除决策者会话  |
-| `sa`  | strategy\_analyze          | 归因分析     |
 | `c`   | scan                       | 扫描机会     |
 | `r`   | renew                      | 更新数据     |
 | `t`   | tag                        | 执行标签     |

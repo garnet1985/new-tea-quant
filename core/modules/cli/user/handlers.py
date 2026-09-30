@@ -200,7 +200,6 @@ class UserHandlers:
             "strategy_decision_list",
             "strategy_decision_delete",
             "strategy_simulate",
-            "strategy_analyze",
             "strategy_delete_version",
             "strategy_pin_version",
             "strategy_unpin_version",
@@ -261,14 +260,6 @@ class UserHandlers:
                 enabled[0].get("unique_relative_path"),
             )
         return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
-
-    @staticmethod
-    def _print_analysis_from_step(step_result: dict) -> None:
-        analysis = step_result.get("analysis") if isinstance(step_result, dict) else None
-        if isinstance(analysis, dict) and not analysis.get("skipped"):
-            print(f"  归因: report={analysis.get('report_path')}", flush=True)
-        elif isinstance(analysis, dict) and analysis.get("reason") not in (None, "disabled"):
-            print(f"  归因: skip ({analysis.get('reason')})", flush=True)
 
     @staticmethod
     def _print_simulate_version(result: dict, step_key: str) -> None:
@@ -356,8 +347,6 @@ class UserHandlers:
                 print(f"  failed: {failed[0].get('error')}")
             raise SystemExit(1)
 
-        UserHandlers._print_analysis_from_step(enum_result)
-
     @staticmethod
     def _run_strategy_price_factor(args: argparse.Namespace) -> None:
         import time
@@ -411,8 +400,6 @@ class UserHandlers:
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
 
-        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
-
     @staticmethod
     def _run_strategy_portfolio(args: argparse.Namespace) -> None:
         import time
@@ -465,8 +452,6 @@ class UserHandlers:
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
             raise SystemExit(1)
-
-        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
 
     @staticmethod
     def _run_strategy_scan(args: argparse.Namespace) -> None:
@@ -567,63 +552,6 @@ class UserHandlers:
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)
         if not (po.get("success", True) if isinstance(po, dict) else True):
             raise SystemExit(1)
-
-        UserHandlers._print_analysis_from_step(pf if isinstance(pf, dict) else {})
-        UserHandlers._print_analysis_from_step(po if isinstance(po, dict) else {})
-
-    @staticmethod
-    def _run_strategy_analyze(args: argparse.Namespace) -> None:
-        from pathlib import Path
-
-        from core.modules.strategy import Strategy
-        from core.modules.strategy.core.enums import WorkbenchStep
-        from core.modules.strategy.core.services.artifacts import ArtifactStore
-
-        output_dir = getattr(args, "output_dir", None)
-        if output_dir:
-            UserHandlers._present_analysis_or_exit(Path(output_dir))
-            return
-
-        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
-        step = str(getattr(args, "step", None) or "enum").strip().lower()
-        version_id = str(getattr(args, "version", None) or "").strip()
-
-        if not version_id:
-            folder = Strategy.resolve_folder(strategy_key)
-            kind = WorkbenchStep.parse(step).to_simulate_kind()
-            store = ArtifactStore.latest(folder, kind)
-            if store is None:
-                print(
-                    f"未找到 {strategy_key} 的 {step} 回测产物。"
-                    "请先运行 se / sp / so（并开启 settings.analysis.enabled）。",
-                    flush=True,
-                )
-                raise SystemExit(1)
-            UserHandlers._present_analysis_or_exit(store.output_dir)
-            return
-
-        for candidate in Strategy.resolve_simulation_output_dirs(
-            strategy_key,
-            step=step,
-            slot={"version_id": version_id},
-        ):
-            if not candidate.is_dir():
-                continue
-            UserHandlers._present_analysis_or_exit(candidate)
-            return
-
-        print(f"未找到 version {version_id!r} 的 {step} 归因报告。", flush=True)
-        raise SystemExit(1)
-
-    @staticmethod
-    def _present_analysis_or_exit(output_dir: Path) -> None:
-        from core.modules.strategy import Strategy
-
-        try:
-            Strategy.present_analysis_report(output_dir)
-        except FileNotFoundError as exc:
-            print(str(exc), flush=True)
-            raise SystemExit(1) from exc
 
     @staticmethod
     def _run_strategy_delete_version(args: argparse.Namespace) -> None:
@@ -793,10 +721,6 @@ class UserHandlers:
 
         if cmd == "strategy_simulate":
             UserHandlers._run_strategy_simulate(args)
-            return
-
-        if cmd == "strategy_analyze":
-            UserHandlers._run_strategy_analyze(args)
             return
 
         if cmd == "strategy_delete_version":

@@ -5,7 +5,6 @@ import io
 import json
 from pathlib import Path
 
-from core.modules.strategy import Strategy
 from core.modules.strategy.core.engines.analyzer import Analyzer
 
 import pytest
@@ -200,8 +199,8 @@ def test_analysis_report_presenter_missing_report_raises(tmp_path: Path) -> None
         Analyzer.Presenter.load(tmp_path)
 
 
-def test_strategy_present_analysis_report_delegates(tmp_path: Path) -> None:
+def test_analyzer_presenter_prints_report(tmp_path: Path) -> None:
     _write_report(tmp_path, _sample_report())
     buf = io.StringIO()
-    Strategy.present_analysis_report(tmp_path, stream=buf)
+    Analyzer.Presenter.load(tmp_path).present(stream=buf)
     assert "一句话结论" in buf.getvalue()

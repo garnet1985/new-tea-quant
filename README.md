@@ -183,8 +183,9 @@ def has_opportunity(self, ctx: StrategyContext) -> bool:
     kline_today = klines_daily[-1]
     # 从今日的K线中读取RSI参数
     rsi = kline_today.get("rsi14")  
-    # （可选步骤）把当日的RSI数值记录下来，后续会对结果进行归因的时候使用
-    ctx.capture("rsi", rsi)  
+    # 可选：记下自定义现场量。settings 里已有的阈值、已声明的指标列不必再 capture
+
+    ctx.capture("rsi", rsi) 
 
     # 如果 RSI 存在且小于 20 就返回 True 代表有机会 
     # 通常来说，这个20是定义在settings.core里的，这样UI就可以看到并通过修改参数得到不同的结果
@@ -337,7 +338,7 @@ NTQ 还可以：
 - **快捷操作数据库：** NTQ 支持 [DuckDB](https://duckdb.org/)、[MySQL](https://dev.mysql.com/) 和 [PostgreSQL](https://www.postgresql.org/)，并且配有一套轻量级的 [ORM 操作 API](core/infra/db/README.md)。
 - **自定义数据源：** NTQ 有接入外部数据源的一套完整工具。一个数据源（比如公司财务数据）可以接入多个数据供应商，并且默认带有限流、等待等模式，支持多种数据存入（增量、覆盖、滚动刷新）模式。说明见 [core/modules/data_source/README.md](core/modules/data_source/README.md)。
 - **自定义数据契约：** NTQ 大部分操作是配置完成的，代码较少。那假如我新增加了一张数据表，想通过声明的方式注入回测流程，我该怎么办？NTQ 提供了[数据契约](core/modules/data_contract/README.md)模块：您只需要给您的新数据定义一个唯一的名字（`data_key`），然后定义一个加载逻辑（loader），接下来框架会在回测过程中自动通过名字找到您的 loader 进行数据加载，就可以注入回测了。
-- **对回测归因：** 您肯定很想知道您得到当前的结果是什么参数起了作用？它们的作用大不大？是不是决定性的？NTQ 带有机器学习的归因模块，能直接回答您的上述问题。当然，归因只是对于您当前回测的解释，放入不同的股票池或者不同的时间段归因解释可能会不同，不同回测阶段归因解释也可能不同，您需要注意归因解释的范围从而避免过拟合。Quick Start 里有[最短操作路径](#attribution)。
+- **对回测归因：** 参数级对照走矩阵战役（同一策略环境、多样本窗归档；一次任务只拿区间和股票池相同的号）。入口尚未开放，平时 Run 不再自动归因。口径见 [`ATTRIBUTION_CAMPAIGN.md`](core/modules/strategy/docs/notes/ATTRIBUTION_CAMPAIGN.md)。
 - **适配器：** 扫描出机会后，用 [`adapter`](core/modules/adapter/README.md) 接到您自己的下游（通知、交易软件或其他程序）。框架会提供标准的机会信息，以及回测历史（如果您回测过）。
 - **用户界面（UI）：** NTQ 标配了一款 Web UI，可以在您的浏览器里使用。很多结果和操作可以可视化，还可以比较您多次回测的输入参数和输出结果的不同，从而对策略进行针对性微调。
 - **AI 助理：** 应用内可对话，需自行在设置中填写供应商 API Key；请求会带上 NTQ 文档上下文。
@@ -410,7 +411,7 @@ python3 launcher.py
 2. 初始化 `userspace`
 3. 配置数据库（默认 **DuckDB**；开发者可改 MySQL / PostgreSQL，库不存在时程序会尝试新建，与已有库重名会提示）
 4. **询问是否导入演示数据**（可跳过；跳过后再自行接入数据源）
-5. **询问是否安装机器学习依赖**（归因分析用，可跳过；之后可在「设置 → 安装与维护」补装）
+5. **询问是否安装机器学习依赖**（分析库用，可跳过；之后可在「设置 → 安装与维护」补装）
 6. 使用统计（允许或暂不分享都会继续）
 
 完成后进入**欢迎页**。再点导航「制定策略」即可。
@@ -445,9 +446,6 @@ NTQ 自带以下演示资产：
   - **投资组合**：带起始资金、仓位与风控等，更接近真实交易环境；  
   - **决策模拟**：按交易日回放，自己挑选每日机会。
 - **策略报告**：各步骤执行后自动生成；前三步各有对应报告，决策模拟另有终局报告。
-
-<a id="attribution"></a>
-想看**归因解读**：向导里安装机器学习依赖（或之后在「设置 → 安装与维护」补装），在全局设置打开「归因分析」，再跑回测。报告下方会出现解读。更多说明见官网 [更多用例](https://new-tea.cn/zh-hans/more-examples)。
 
 #### 第一步：机会枚举
 
@@ -527,7 +525,6 @@ python cli.py se --strategy rsi_v1   # 机会枚举
 python cli.py sp --strategy rsi_v1   # 价格层
 python cli.py so --strategy rsi_v1   # 资金层
 python cli.py s  --strategy rsi_v1   # 三层一次跑完
-python cli.py sa --strategy rsi_v1   # 展示该 step 最近一次归因（可加 --version）
 python cli.py c  --strategy rsi_v1   # 全市场扫描
 python cli.py t  --scenario demo/market_cap_tier   # 特征标签
 ```

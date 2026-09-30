@@ -27,7 +27,7 @@ python cli.py s -f
 
 `s` 才是跑回测。`spn` 只固定已有 version。报告在 `{strategy}/results/simulations/`，没有 `reports/`。
 
-概念上的四步见 [回测四步流程](../wiki/strategy/backtest_pipeline.md)。CLI `s` **不包含**决策者（`sd`）和单独的归因命令（`sa`）。
+概念上的四步见 [回测四步流程](../wiki/strategy/backtest_pipeline.md)。CLI `s` **不包含**决策者（`sd`）。
 
 ## 分步执行
 
@@ -37,7 +37,6 @@ python cli.py s -f
 | `python cli.py strategy_price_factor` | `sp` | 第二步：单笔模拟 |
 | `python cli.py strategy_portfolio`    | `so` | 第三步：组合模拟 |
 | `python cli.py strategy_simulate`     | `s`  | 价格因子 → 组合（缺枚举则先 se） |
-| `python cli.py strategy_analyze`      | `sa` | 归因分析（独立命令） |
 | `python cli.py strategy_decision`     | `sd` | 第四步：决策者回放 |
 
 ### 分步示例
@@ -64,8 +63,6 @@ s (simulate)
   ├── 若缺枚举 → se (enumerate)  → enum/
   ├── sp (price_factor)         → price/
   └── so (portfolio)            → portfolio/
-        └── analysis.enabled 时顺带写 analysis/
-sa 是单独命令，不是 s 的子步骤。
 sd 是决策者，基于已有枚举版本交互回放。
 ```
 
@@ -76,7 +73,6 @@ sd 是决策者，基于已有枚举版本交互回放。
   enum/
   price/
   portfolio/
-  analysis/
 ```
 
 ## 缓存机制
@@ -86,15 +82,6 @@ sd 是决策者，基于已有枚举版本交互回放。
 - `-f` 强制重算，但仍落在同一 version
 
 - 只改 `meta`、`is_enabled` 等非 effective 字段不会换版本
-
-## 归因分析
-
-组合完成后，若 `settings.analysis.enabled = True`，该次组合会带归因产物。也可事后单独跑：
-
-```bash
-python cli.py sa --strategy random_v1
-python cli.py sa --step portfolio --version 3
-```
 
 ## 输出
 
@@ -107,7 +94,6 @@ python cli.py sa --step portfolio --version 3
 | 第一次跑策略          | `python cli.py s --strategy my_strategy`     |
 | 改了 settings 后重跑 | `python cli.py s -f --strategy my_strategy`  |
 | 只想看有没有机会        | `python cli.py se --strategy my_strategy`    |
-| 组合结果没变，只重算归因    | `python cli.py sa --strategy my_strategy`    |
 | 删一个版本           | `python cli.py sdv --strategy my_strategy:3` |
 | 固定一个已有 version | `python cli.py spn --strategy my_strategy:3`（不是跑回测） |
 

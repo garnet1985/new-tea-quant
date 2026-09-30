@@ -53,7 +53,6 @@ class UserParser:
         UserParser._p_strategy_decision(sub)
         UserParser._p_strategy_decision_list(sub)
         UserParser._p_strategy_decision_delete(sub)
-        UserParser._p_strategy_analyze(sub)
         UserParser._p_strategy_simulate(sub)
         UserParser._p_strategy_delete_version(sub)
         UserParser._p_strategy_pin_version(sub)
@@ -166,35 +165,6 @@ class UserParser:
             help="删除一局决策者存档",
         )
         UserParser._add_decision_flags(p, require_session=True)
-
-    @staticmethod
-    def _p_strategy_analyze(sub: argparse._SubParsersAction) -> None:
-        p = UserParser._cmd(
-            sub,
-            "strategy_analyze",
-            aliases=UserCommands.aliases_for("strategy_analyze"),
-            help="收集归因产物并打印终端摘要（analysis/report.json）",
-        )
-        UserParser._add_strategy_target(p)
-        p.add_argument(
-            "--step",
-            type=str,
-            default="enum",
-            choices=("enum", "enumerate", "price", "price_factor", "portfolio"),
-            help="回测 step（默认 enum）",
-        )
-        p.add_argument(
-            "--version",
-            type=str,
-            default=None,
-            help="version id（默认该 kind 最新）",
-        )
-        p.add_argument(
-            "--baseline-version",
-            type=str,
-            default=None,
-            help="run_comparison 对照的 baseline version id",
-        )
 
     @staticmethod
     def _p_strategy_simulate(sub: argparse._SubParsersAction) -> None:

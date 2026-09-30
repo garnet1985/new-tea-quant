@@ -1,4 +1,4 @@
-"""Strategy attribution analyzer — Facade（由 simulate 在 analysis.enabled 时调用）。"""
+"""Strategy attribution analyzer — Facade（战役库入口；simulate 不再自动调用）。"""
 from __future__ import annotations
 
 from pathlib import Path

@@ -26,7 +26,7 @@ class AnalysisReportPresenter:
         report_path = ArtifactStore.named_path(output_dir, "analysis_report")
         if not report_path.is_file():
             raise FileNotFoundError(
-                f"归因报告不存在: {report_path}（请先运行 simulate 并启用 analysis.enabled）"
+                f"归因报告不存在: {report_path}"
             )
         payload = ArtifactStore.read_json_at(output_dir, "analysis_report")
         if not isinstance(payload, dict):

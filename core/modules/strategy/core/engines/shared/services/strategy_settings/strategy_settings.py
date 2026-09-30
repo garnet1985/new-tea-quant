@@ -17,7 +17,6 @@ from typing import Any, Dict, Tuple, Union
 from core.infra.utils import Utils
 from core.modules.backtest_engine.contracts import BacktestMode
 
-from .analysis_settings import AnalysisSettings
 from .execute_fp_whitelist import EXECUTE_NESTED_DROP_KEYS, EXECUTE_SETTINGS_FIELDS
 from .data_settings import DataSettings
 from .fees_settings import FeesSettings
@@ -54,7 +53,6 @@ class StrategySettings:
             self, "portfolio", PortfolioSettings(raw_settings=self.raw_settings)
         )
         object.__setattr__(self, "scanner", ScannerSettings(raw_settings=self.raw_settings))
-        object.__setattr__(self, "analysis", AnalysisSettings(raw_settings=self.raw_settings))
 
     @classmethod
     def from_dict(cls, settings: Dict[str, Any]) -> "StrategySettings":
@@ -250,7 +248,7 @@ class StrategySettings:
         self.simulation.apply_defaults()
         self.portfolio.apply_defaults()
         self.scanner.apply_defaults()
-        self.analysis.apply_defaults()
+        self.raw_settings.pop("analysis", None)
 
     def validate(self) -> ValidationReport:
         report = ValidationReport(is_valid=True)
@@ -275,7 +273,6 @@ class StrategySettings:
             self.simulation,
             self.portfolio,
             self.scanner,
-            self.analysis,
         ):
             sub_report = sub.validate()
             report.errors.extend(sub_report.errors)
@@ -313,8 +310,7 @@ class StrategySettings:
             out["portfolio"] = clone.portfolio.to_dict()
         if clone.scanner.scanner:
             out["scanner"] = clone.scanner.to_dict()
-        if clone.analysis.enabled or "analysis" in clone.raw_settings:
-            out["analysis"] = clone.analysis.to_dict()
+        out.pop("analysis", None)
         return out
 
 

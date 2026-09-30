@@ -420,12 +420,12 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
 }
 
 /**
- * V2-07：步骤报告 + 归因 facts（同一次 GET）。
+ * V2-07：步骤报告。
  * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
  * @param {string} strategyKeyOrName
  * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId
- * @returns {Promise<{ report: object, analysis: object, version_id: string, step: string }>}
+ * @returns {Promise<{ report: object, version_id: string, step: string }>}
  */
 export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId) {
   const base = apiStrategyPath(strategyKeyOrName);

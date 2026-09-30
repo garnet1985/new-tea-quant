@@ -150,7 +150,7 @@ export function SettingsSystemPanel() {
         机器学习组件
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        策略设置里的「回测后归因」开关需要这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
+        分析库的统计 / ML 原语会用到这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
       </Typography>
       {mlLoadError ? <Alert severity="error">{mlLoadError}</Alert> : null}
       {mlOk ? <Alert severity="success">{mlOk}</Alert> : null}
@@ -160,7 +160,7 @@ export function SettingsSystemPanel() {
         <Typography variant="body2" color="text.secondary">
           {mlInstalled
             ? `已安装${mlStatus?.shap ? '（含 SHAP）' : '（XGBoost）'}。`
-            : '尚未安装。未安装时，策略设置里的归因开关不可用。'}
+            : '尚未安装。分析库的机器学习阶段在未安装时会跳过。'}
         </Typography>
       )}
       {installing ? (

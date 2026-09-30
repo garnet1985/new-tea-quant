@@ -117,22 +117,12 @@
 - **状态：** `beta`
 - **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
 
-### present_analysis_report
+### resolve_simulation_output_dirs
 
-`Strategy.present_analysis_report(output_dir: str | Path, *, stream=None) -> None`
-
-- **状态：** `beta`
-- **描述：** 从仿真 `output_dir` 读取 `analysis/report.json` 并打印归因终端摘要（`sa` 生成后调用）；内部为 `AnalysisReportPresenter.load(...).present(...)`；缺失文件则 `FileNotFoundError`
-
-### step_analysis_from_output_dir / resolve_step_analysis / resolve_simulation_output_dirs
-
-`Strategy.step_analysis_from_output_dir(output_dir: str | Path) -> dict`  
-`Strategy.resolve_step_analysis(strategy_name: str, step: str, slot: dict | None = None, *, workbench_version: int = 0) -> dict`  
 `Strategy.resolve_simulation_output_dirs(strategy_name: str, *, step: str, slot: dict | None = None, workbench_version: int = 0) -> list[Path]`
 
 - **状态：** `beta`
-- **描述：** 归因读取与 step 产物目录解析（BFF step report / hydrate 用）。`step_analysis_from_output_dir` 读单目录 `analysis/report.json` → `{available, report_path, facts, insights}`（`facts` 给 UI 数字，`insights` 给 CLI 叙事）；`resolve_step_analysis` 按 slot + workbench version 候选目录解析；`resolve_simulation_output_dirs` 返回 enum / price / portfolio 的绝对 version-dir 候选列表。BFF `GET …/report/:step/:version` 的 `analysis` 含 `enabled`、`facts`（含科学 `buckets` 与合成 `tiers`）和 `conclusion`（headline / key_findings / explains，来自 insights 切片），不下发完整 `insights`
-- **生成：** simulate 且 `settings.analysis.enabled=true` 时在主 simulate 步结束后自动生成 report；无独立 `Strategy.analyze`
+- **描述：** 返回 enum / price / portfolio 的绝对 version-dir 候选列表（BFF hydrate / 报告 ref 用）
 
 ### prune_simulation_results / prune_scan_results
 

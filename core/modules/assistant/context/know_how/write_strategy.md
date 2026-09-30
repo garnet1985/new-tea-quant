@@ -133,7 +133,6 @@ settings = {
     "scanner": {
         "adapters": ["console"],
     },
-    "analysis": {"enabled": True},
 }
 ```
 

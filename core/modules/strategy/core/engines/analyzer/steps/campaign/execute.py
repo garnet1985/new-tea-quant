@@ -52,7 +52,7 @@ class CellExecuteResult:
 
 
 class ExecuteStep:
-        """战役执行：先复用磁盘 version，默认不补跑。"""
+    """战役执行：先复用磁盘 version，默认不补跑。"""
 
     @classmethod
     def run(

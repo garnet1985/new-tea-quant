@@ -315,11 +315,11 @@ export function SettingsDataPanel({
   defaultStartDate,
   asOfLatestCompletedDate,
   useSampleStockList,
-  simulationResultsMaxVersions,
+  simulationResultsMaxStaleEnvs,
   onDefaultStartDateChange,
   onAsOfLatestCompletedDateChange,
   onUseSampleStockListChange,
-  onSimulationResultsMaxVersionsChange,
+  onSimulationResultsMaxStaleEnvsChange,
   onSave,
   onReload,
 }) {
@@ -384,13 +384,13 @@ export function SettingsDataPanel({
           />
           <Box id="settings-retention">
             <TextField
-              label="回测结果保留份数"
+              label="过时回测环境保留组数"
               size="small"
               fullWidth
-              value={simulationResultsMaxVersions}
-              onChange={(e) => onSimulationResultsMaxVersionsChange(e.target.value)}
-              placeholder="10"
-              helperText="按份数保留，不是按日历过期。制定策略额度满时会先拒绝新回测；扫描会按上限自动裁剪。已固定的版本不会被自动清理，仍可手动删除。改小后已有结果不会立刻删除。"
+              value={simulationResultsMaxStaleEnvs}
+              onChange={(e) => onSimulationResultsMaxStaleEnvsChange(e.target.value)}
+              placeholder="5"
+              helperText="改代码或核心后旧环境不能再跑，最多留这么多组档案。超出则整组删除。当前环境不限份数。"
             />
           </Box>
           <Box>

@@ -192,7 +192,7 @@ settings.py 中对应配置：
 2. 把 `settings.py` 的 `meta.key` 改成 `my_strategy`（与目录名一致）
 3. 编写 `strategy.py` 的 `has_opportunity`（指标见 [用技术指标](use_indicators.md)）
 4. 配齐 `settings.py`（也可之后在制定策略左侧改参数）
-5. 导航 **制定策略** 分步跑，或 `python cli.py s --strategy my_strategy`（**不要**用 `spn`）
+5. 导航 **制定策略** 分步跑，或 `python cli.py s --strategy my_strategy`
 6. 报告在 `{strategy}/results/simulations/{vid}/`，看图诊断
 
 界面操作见 [从界面制定策略](use_strategy_workbench.md)。看图见 [如何读回测报告](read_backtest_report.md)。

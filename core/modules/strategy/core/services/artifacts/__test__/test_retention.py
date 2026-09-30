@@ -1,4 +1,4 @@
-"""ArtifactRetention：keep-N prune 与显式删除。"""
+"""ArtifactRetention：过时 env 整组 prune 与显式删除。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -19,10 +19,13 @@ _RESOLVE = (
 )
 
 
-def test_prune_simulation_results_per_kind(tmp_path: Path) -> None:
+def test_prune_simulation_results_drops_stale_env(tmp_path: Path) -> None:
     sim_root = tmp_path / "simulations"
-    for i in (1, 2, 3, 4):
-        (sim_root / str(i) / "enum").mkdir(parents=True)
+    for vid, env in (("1", "old-a"), ("2", "old-b"), ("3", "live")):
+        (sim_root / vid).mkdir(parents=True)
+        VersionMetaStore.register_version(
+            sim_root, vid, execute_fp="s", env_fp=env
+        )
 
     with patch.object(
         ArtifactRetention,
@@ -32,18 +35,22 @@ def test_prune_simulation_results_per_kind(tmp_path: Path) -> None:
         ArtifactStore,
         "simulations_root",
         classmethod(lambda cls, folder: sim_root),
+    ), patch.object(
+        ArtifactStore,
+        "_delete_attribution_env",
+        classmethod(lambda cls, folder, env_fp: None),
     ):
         out = ArtifactRetention.prune_simulation_results(
-            "demo/x", kind="enum", max_versions=2
+            "demo/x", env_fp="live", max_stale_envs=1
         )
 
     assert out["ok"] is True
-    assert out["deleted_count"] == 2
-    assert out["per_kind"]["enumerate"] == 2
+    assert out["deleted_count"] == 1
+    assert out["pruned_envs"] == ["old-a"]
     remaining = sorted(
         int(p.name) for p in sim_root.iterdir() if p.is_dir() and p.name.isdigit()
     )
-    assert remaining == [3, 4]
+    assert remaining == [2, 3]
 
 
 def test_prune_scan_results_keeps_newest_dates(tmp_path: Path) -> None:
@@ -75,12 +82,6 @@ def test_retention_does_not_import_engines() -> None:
     text = Path(mod.__file__).read_text(encoding="utf-8")
     assert "engines" not in text
     assert "ScanCacheManager" not in text
-
-
-def test_prune_rejects_unknown_kind(tmp_path: Path) -> None:
-    with patch.object(ArtifactRetention, "_resolve_folder", return_value=tmp_path):
-        with pytest.raises(ValueError, match="unsupported"):
-            ArtifactRetention.prune_simulation_results("demo/x", kind="full")
 
 
 @patch(_DISCOVER)
@@ -125,44 +126,8 @@ def test_clear_by_version_success(mock_resolve, tmp_path: Path):
     assert out["ok"] is True
     assert out["deleted"] is True
     assert out["version_id"] == "v2"
-    assert out.get("was_pinned") is False
     assert not (root / "2").exists()
     assert VersionMetaStore.get_registry_entry(root, "2") is None
-
-
-@patch(_RESOLVE)
-def test_clear_by_version_reports_was_pinned(mock_resolve, tmp_path: Path):
-    strategy_folder = tmp_path / "strategy"
-    strategy_folder.mkdir()
-    root = strategy_folder / "results" / "simulations"
-    (root / "2").mkdir(parents=True)
-    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
-    VersionMetaStore.set_version_pinned(root, "2", True)
-    mock_resolve.return_value = strategy_folder
-
-    out = ArtifactRetention.clear_by_version("demo/x", 2)
-    assert out["ok"] is True
-    assert out["was_pinned"] is True
-    assert VersionMetaStore.read_pinned_ids(root) == []
-
-
-@patch(_RESOLVE)
-def test_set_pinned_roundtrip(mock_resolve, tmp_path: Path):
-    strategy_folder = tmp_path / "strategy"
-    strategy_folder.mkdir()
-    root = strategy_folder / "results" / "simulations"
-    (root / "3").mkdir(parents=True)
-    VersionMetaStore.register_version(root, "3", execute_fp="s", env_fp="e")
-    mock_resolve.return_value = strategy_folder
-
-    out = ArtifactRetention.set_pinned("demo/x", 3, True)
-    assert out["ok"] is True
-    assert out["pinned"] is True
-    assert out["pinned_ids"] == ["v3"]
-    assert VersionMetaStore.read_pinned_ids(root) == ["3"]
-    out = ArtifactRetention.set_pinned("demo/x", 3, False)
-    assert out["pinned"] is False
-    assert out["pinned_ids"] == []
 
 
 @patch(_RESOLVE)

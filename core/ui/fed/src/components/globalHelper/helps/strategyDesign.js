@@ -145,16 +145,7 @@ export const STRATEGY_VERSION_AND_REPORT_HELP = {
         },
         {
           title: '回测版本清理',
-          body: '另外，回测版本会自动被清理，系统将标注即将被清理的版本。',
-        },
-      ],
-    },
-    {
-      target: 'strategy-version-pin',
-      pages: [
-        {
-          title: '版本固定',
-          body: '您可以在这里固定一个版本，固定的版本将不会被自动清理。但您还是可以在界面内手动清理。',
+          body: '过时环境最多留几组，超出则整组删除。当前环境不限份数。系统会标注即将被清理的过时环境。',
         },
       ],
     },

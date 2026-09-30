@@ -1,6 +1,6 @@
 # 矩阵归因（战役）
 
-**状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。命中/补跑的 version 立刻钉住。CLI `sa`。平时 Run 把 version 记进 group（含样本窗索引）。as-of 当日一片写入 `signal_snapshot`。  
+**状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。CLI `sa`。平时 Run 把 version 记进 group（含样本窗索引）。as-of 当日一片写入 `signal_snapshot`。  
 **一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 驱动一份 matrix，复用已有 version 缓存。  
 **位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。
 
@@ -104,7 +104,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 - 价格：单笔赚不赚
 - 资金层（最接近账户）：收益、回撤、利用率
 
-扫描开始时给这批 registry 行记同一个 cohort / group id。清理规则要认这个 id：这一批要么一起留，要么一起删，不能按「最旧的未固定版本」拆开。战役命中或补跑的 version **立刻钉住**（`meta.pinned`），keep-N 不会清掉。选号路径会丢掉与当前快照区间/股票池不同的号。
+扫描开始时给这批 registry 行记同一个 cohort / group id。清理按 `env_fp` 整组：当前环境不拆；过时环境超出 N 组则最旧一组的 simulation 与归因目录一起删。选号路径会丢掉与当前快照区间/股票池不同的号。
 
 ---
 

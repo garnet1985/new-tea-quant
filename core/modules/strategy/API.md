@@ -53,7 +53,7 @@
 - **返回：** 目标 step 槽位 dict（如 `enumerate` / `price_factor` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（`success` / `output_dir` / `version_id`）；UI 指标由 BFF `report_hydrate` 从 `overall_report.json` 补全。
 - **环境失效：** registry 中 `env_fp` 与当前运行环境不一致时不可 cache hit（配置相同也会 miss 并新建 version）；BFF 读 version 时返回 `env_invalid: true`。
 - **强制重跑：** `ignore_cache=True`（CLI `--force`）跳过 cache 命中，price/portfolio **不复用**已有 enum 产物（会重跑 enum）。命中键 `(execute_fp, env_fp)` 不变则 **写入同一 `version_id`**，复写上游步时清下游。禁止为同一双指纹再 allocate 一个号。
-- **磁盘布局：** `{strategy}/results/simulations/{version_id}/{enum|price|portfolio}/`；索引在 `simulations/meta.json`（`registry` + `next_version_id` + 根上 `pinned`）；`{version_id}/` 归档 `settings.json` / `effective_settings.json` / `scope.json`。
+- **磁盘布局：** `{strategy}/results/simulations/{version_id}/{enum|price|portfolio}/`；索引在 `simulations/meta.json`（`registry` + `next_version_id`）；`{version_id}/` 归档 `settings.json` / `effective_settings.json` / `scope.json`。过时 `env_fp` 超出 `retention.simulation_results_max_stale_envs` 时整组删除（含对应归因组）。
 
 ### enumerate / price_factor / portfolio
 
@@ -150,13 +150,12 @@
 
 ### prune_simulation_results / prune_scan_results
 
-`Strategy.prune_simulation_results(key_or_id: str, *, kind: str | None = None, max_versions: int | None = None) -> dict`  
+`Strategy.prune_simulation_results(key_or_id: str, *, env_fp: str, max_stale_envs: int | None = None) -> dict`  
 `Strategy.prune_scan_results(key_or_id: str, *, max_versions: int | None = None) -> dict`  
-`Strategy.delete_simulation_version(key_or_id: str, version: int | str) -> dict`  
-`Strategy.set_simulation_version_pinned(key_or_id: str, version: int | str, pinned: bool) -> dict`
+`Strategy.delete_simulation_version(key_or_id: str, version: int | str) -> dict`
 
 - **状态：** `beta`
-- **描述：** 磁盘 simulation keep-N（按 **version 目录** 粒度）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示整个 version 目录 prune。删单 version 用 `delete_simulation_version`（CLI `sdv`、BFF `DELETE …/version/:id/cache`，内部 `ArtifactRetention.clear_by_version`）；批量清磁盘用 `TempCleanup.clear_backtest_results_disk` 或 `ArtifactRetention.clear_all`。触顶时 **allocate 拒绝**，不静默删。`delete_simulation_version` 的 `version` 接受 `3` / `v3`，只删产物目录与 registry，不改 `settings.py`；已固定的也可删，并同步从 meta.`pinned` 拿掉。`set_simulation_version_pinned` 只改 `simulations/meta.json` 根上的 `pinned` 列表（CLI `spn` / `sup`，BFF `POST|DELETE …/version/:id/pin`）。自动清理与「即将清理」标记都先读 `pinned`。
+- **描述：** 仿真清理按 **过时 `env_fp` 整组**。当前环境不拆组、不设份数上限。过时环境最多留 `data.json` → `retention.simulation_results_max_stale_envs`（可被 `userspace/config/data.json` 覆盖），超出则删最旧一组的全部 `{vid}/` 以及对应 `results/attribution/{n}/`。`simulate` / 战役结束时自动 prune。Scan 仍按日期目录 keep-N（`scan_results_max_versions`）。删单 version 用 `delete_simulation_version`（CLI `sdv`、BFF `DELETE …/version/:id/cache`）；批量清磁盘用 `TempCleanup.clear_backtest_results_disk` 或 `ArtifactRetention.clear_all`。`delete_simulation_version` 的 `version` 接受 `3` / `v3`，只删产物目录与 registry，不改 `settings.py`。
 
 ### export_package / import_package
 

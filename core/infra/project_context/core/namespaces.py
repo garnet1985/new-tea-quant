@@ -497,10 +497,10 @@ class ConfigNamespace:
         return ConfigManager.get_database_type()
 
     @staticmethod
-    def get_simulation_results_max_versions() -> int:
-        """``data.json`` → ``retention.simulation_results_max_versions``（默认 10）。"""
+    def get_simulation_results_max_stale_envs() -> int:
+        """``data.json`` → ``retention.simulation_results_max_stale_envs``（默认 5）。"""
         from .config_manager import ConfigManager
-        return ConfigManager.get_simulation_results_max_versions()
+        return ConfigManager.get_simulation_results_max_stale_envs()
 
     @staticmethod
     def get_workbench_db_max_versions() -> int:

@@ -56,7 +56,6 @@ describe('findHelpForPath / isHelpDismissed', () => {
     expect(helps[1].steps.map((step) => step.target)).toEqual([
       'strategy-version',
       'strategy-history',
-      'strategy-version-pin',
       'strategy-report',
     ]);
     expect(helps[2].steps[0].target).toBe('strategy-report-compare');

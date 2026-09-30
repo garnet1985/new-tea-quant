@@ -762,10 +762,10 @@ class ConfigManager:
         return value
 
     @staticmethod
-    def get_simulation_results_max_versions() -> int:
-        """``data.json`` → ``retention.simulation_results_max_versions``（缺省/非法则报错）。"""
+    def get_simulation_results_max_stale_envs() -> int:
+        """``data.json`` → ``retention.simulation_results_max_stale_envs``（缺省/非法则报错）。"""
         return ConfigManager._retention_positive_int(
-            "simulation_results_max_versions"
+            "simulation_results_max_stale_envs"
         )
 
     @staticmethod

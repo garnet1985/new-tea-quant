@@ -27,7 +27,7 @@ results/simulations/portfolio/N/
 | 删某策略整个 `results/` | `TempCleanup.clear_strategy_results_disk(...)` |
 | 删全部策略 simulation 磁盘 | `ArtifactRetention.clear_all()` 或 BFF `DELETE /version/cache` |
 | 删单策略单 version | `ArtifactRetention.clear_by_version`、CLI `sdv`、或 BFF `DELETE …/version/:id/cache` |
-| 固定 / 取消固定 | CLI `spn` / `sup`，BFF `POST\|DELETE …/version/:id/pin` |
+| 过时环境整组清理 | `ArtifactRetention.prune_simulation_results`（`simulate` / 战役结束时自动跑） |
 | devcli 勾选 backtest results | `TempCleanup.run(clear_backtest_results=True)` |
 
 路径：`core/modules/cli/dev/scripts/temp_cleanup/temp_cleanup.py`、`core/modules/strategy/core/services/artifacts/retention.py`
@@ -62,9 +62,9 @@ results/simulations/portfolio/N/
 | `__test__/test_disk_version_e2e.py` | simulate miss/hit + registry |
 | `__test__/test_versioning_regression.py` | env_invalid、共享 vid、ignore_cache 同 vid |
 | `__test__/test_analysis_version_layout_e2e.py` | `{vid}/{step}/analysis/`（Analyzer 库） |
-| `services/artifacts/__test__/test_artifact_store.py` | allocate / prune / pin skip |
-| `services/artifacts/__test__/test_version_meta.py` | registry + 根上 `pinned` |
-| `services/artifacts/__test__/test_retention.py` | keep-N + 删 version 同步 unpin |
+| `services/artifacts/__test__/test_artifact_store.py` | allocate / 过时 env 整组 prune |
+| `services/artifacts/__test__/test_version_meta.py` | registry + `env_fp` 分桶 |
+| `services/artifacts/__test__/test_retention.py` | 过时 env prune + 删 version |
 
 ---
 

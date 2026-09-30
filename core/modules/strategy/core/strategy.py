@@ -23,7 +23,6 @@ from .engines.shared.data_class.simulate_session import SimulateSession
 from .engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from .services.artifacts import SimulationVersionStore
 from .services.fingerprint import (
     FingerprintCalculator,
 )
@@ -328,6 +327,8 @@ class Strategy:
         strategy_folder = DiscoveryService.resolve_strategy_folder(key_or_id)
 
         if not ignore_cache:
+            from .services.artifacts import SimulationVersionStore
+
             cached = SimulationVersionStore.get_cache(
                 strategy_folder,
                 fp_res,
@@ -345,6 +346,7 @@ class Strategy:
                     fp_res,
                     payload.get("version_id"),
                 )
+                Strategy._prune_stale_envs(key_or_id, fp_res.env_fp)
                 return payload
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
@@ -531,7 +533,20 @@ class Strategy:
             end_date=end_date,
             entity_ids=list(ctx.entity_ids or []),
         )
+        Strategy._prune_stale_envs(ctx.strategy_key or str(folder), ctx.env_fp)
         return payload
+
+    @staticmethod
+    def _prune_stale_envs(key_or_id: str, env_fp: str) -> None:
+        from .services.artifacts import ArtifactRetention
+
+        fp = str(env_fp or "").strip()
+        if not fp:
+            return
+        try:
+            ArtifactRetention.prune_simulation_results(key_or_id, env_fp=fp)
+        except Exception:
+            logger.exception("prune stale simulation envs failed")
 
     @staticmethod
     def _index_attribution_group(
@@ -898,18 +913,17 @@ class Strategy:
     def prune_simulation_results(
         key_or_id: str,
         *,
-        kind: Optional[str] = None,
-        max_versions: Optional[int] = None,
+        env_fp: str,
+        max_stale_envs: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """按 retention 清理策略 ``results/simulations/`` 旧 version 目录。
+        """按过时 ``env_fp`` 整组清理策略 ``results/simulations/``。
 
-        ``kind`` 为 ``enum`` / ``price`` / ``portfolio``（或 enumerate/price_factor）；
-        ``None`` 表示三步都 prune。上限默认读 ``data.json`` retention。
+        当前环境整组保留。上限默认读 ``data.json`` retention。
         """
         from .services.artifacts import ArtifactRetention
 
         return ArtifactRetention.prune_simulation_results(
-            key_or_id, kind=kind, max_versions=max_versions
+            key_or_id, env_fp=env_fp, max_stale_envs=max_stale_envs
         )
 
     @staticmethod
@@ -948,27 +962,6 @@ class Strategy:
                 "deleted": False,
             }
         return ArtifactRetention.clear_by_version(key_or_id, sid)
-
-    @staticmethod
-    def set_simulation_version_pinned(
-        key_or_id: str,
-        version: Union[int, str],
-        pinned: bool,
-    ) -> Dict[str, Any]:
-        """固定 / 取消固定一份 simulation version（只改 meta.pinned）。
-
-        ``version`` 接受 ``3`` / ``v3``。不改 ``settings.py``。
-        """
-        from .helpers.version_id import WorkbenchVersionId
-        from .services.artifacts import ArtifactRetention
-
-        if isinstance(version, int):
-            sid = version if version > 0 else None
-        else:
-            sid = WorkbenchVersionId.parse(str(version))
-        if sid is None:
-            return {"ok": False, "error": "version_id 无效"}
-        return ArtifactRetention.set_pinned(key_or_id, sid, bool(pinned))
 
     @staticmethod
     def export_package(

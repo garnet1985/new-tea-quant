@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
@@ -139,6 +140,27 @@ class AttributionGroupStore:
         }
         _write_json(path, payload)
         return payload
+
+    @classmethod
+    def remove(cls, attribution_root: Path, env_fp: str) -> bool:
+        """删除一个过时环境对应的归因组目录与 registry 条目。"""
+        fp = str(env_fp or "").strip()
+        if not fp:
+            return False
+        root = Path(attribution_root)
+        group_id = cls._find_id(root, fp)
+        if not group_id:
+            return False
+        group_dir = root / group_id
+        if group_dir.is_dir():
+            shutil.rmtree(group_dir)
+        meta = cls._read_meta(root)
+        registry = dict(meta.get("registry") or {})
+        registry.pop(group_id, None)
+        meta["registry"] = registry
+        _write_json(root / ROOT_META_FILE, meta)
+        logger.info("pruned attribution group=%s env=%s", group_id, fp[:8])
+        return True
 
     @classmethod
     def _read_meta(cls, root: Path) -> Dict[str, Any]:

@@ -3,8 +3,7 @@
 根 meta 职责（索引层）:
 - ``next_version_id``
 - ``registry``：``{ vid: { created_at, execute_fp, env_fp, steps, ... } }``
-- ``pinned``：固定的 version id 列表（``["3", "6"]``）。version 条目不感知；
-  清理 / 列表标记前先读此字段。缺省或 ``[]`` 表示没有固定。
+清理按 ``env_fp`` 整组淘汰过时环境；当前环境不拆组。
 
 ``{vid}/`` 归档（三步共享，只写一次）:
 - ``settings.json``：当时完整运行 settings
@@ -90,7 +89,9 @@ class VersionMetaStore:
     def write_root_meta(
         cls, simulations_root: Path, payload: Dict[str, Any]
     ) -> None:
-        write_json(cls.root_meta_path(simulations_root), payload)
+        data = dict(payload or {})
+        data.pop("pinned", None)
+        write_json(cls.root_meta_path(simulations_root), data)
 
     @classmethod
     def read_settings(
@@ -240,74 +241,6 @@ class VersionMetaStore:
         return dict(reg) if isinstance(reg, dict) else {}
 
     @staticmethod
-    def _normalize_pinned_vid(value: Any) -> Optional[str]:
-        text = str(value or "").strip()
-        if not text:
-            return None
-        if text.lower().startswith("v") and text[1:].isdigit():
-            text = text[1:]
-        if not text.isdigit():
-            return None
-        n = int(text)
-        return str(n) if n > 0 else None
-
-    @classmethod
-    def _parse_pinned_raw(cls, raw: Any) -> List[str]:
-        if not isinstance(raw, list):
-            return []
-        seen: set[str] = set()
-        out: List[str] = []
-        for item in raw:
-            vid = cls._normalize_pinned_vid(item)
-            if not vid or vid in seen:
-                continue
-            seen.add(vid)
-            out.append(vid)
-        return out
-
-    @classmethod
-    def read_pinned_ids(cls, simulations_root: Path) -> List[str]:
-        """读 meta.pinned，并丢掉 registry/磁盘上已经不存在的 id。"""
-        root = Path(simulations_root)
-        root_meta = cls.read_root_meta(root)
-        existing = set(cls.list_version_ids(root))
-        return [
-            vid
-            for vid in cls._parse_pinned_raw(root_meta.get("pinned"))
-            if vid in existing
-        ]
-
-    @classmethod
-    def set_version_pinned(
-        cls,
-        simulations_root: Path,
-        version_id: str,
-        pinned: bool,
-    ) -> List[str]:
-        """固定 / 取消固定。只改根 ``pinned``，不写 registry 条目。"""
-        vid = cls._normalize_pinned_vid(version_id)
-        if not vid:
-            raise ValueError("version_id 无效")
-        root = Path(simulations_root)
-        existing = set(cls.list_version_ids(root))
-        if vid not in existing:
-            raise FileNotFoundError("快照不存在")
-        root_meta = cls.read_root_meta(root)
-        current = [
-            item
-            for item in cls._parse_pinned_raw(root_meta.get("pinned"))
-            if item in existing
-        ]
-        if pinned:
-            if vid not in current:
-                current.append(vid)
-        else:
-            current = [item for item in current if item != vid]
-        root_meta["pinned"] = current
-        cls.write_root_meta(root, root_meta)
-        return list(current)
-
-    @staticmethod
     def _entry_execute_fp(entry: Dict[str, Any]) -> str:
         return str(entry.get("execute_fp") or "").strip()
 
@@ -347,6 +280,30 @@ class VersionMetaStore:
                 seen.add(vid)
                 out.append(vid)
         return out
+
+    @classmethod
+    def group_version_ids_by_env_fp(
+        cls,
+        simulations_root: Path,
+    ) -> Dict[str, List[str]]:
+        """registry + 磁盘目录按 ``env_fp`` 分桶；缺指纹的号进空键。"""
+        root = Path(simulations_root)
+        groups: Dict[str, List[str]] = {}
+        seen: set[str] = set()
+        for vid, entry in cls._registry(cls.read_root_meta(root)).items():
+            key = str(vid).strip()
+            if not key.isdigit():
+                continue
+            env = cls._entry_env_fp(entry) if isinstance(entry, dict) else ""
+            groups.setdefault(env, []).append(key)
+            seen.add(key)
+        if root.is_dir():
+            for child in root.iterdir():
+                if child.is_dir() and child.name.isdigit() and child.name not in seen:
+                    groups.setdefault("", []).append(child.name)
+        for env, vids in groups.items():
+            groups[env] = sorted(vids, key=int)
+        return groups
 
     @classmethod
     def ensure_registry_entry(
@@ -595,9 +552,6 @@ class VersionMetaStore:
         registry = cls._registry(root_meta)
         registry.pop(vid, None)
         root_meta["registry"] = registry
-        pinned = cls._parse_pinned_raw(root_meta.get("pinned"))
-        if vid in pinned:
-            root_meta["pinned"] = [item for item in pinned if item != vid]
         cls.write_root_meta(simulations_root, root_meta)
 
 

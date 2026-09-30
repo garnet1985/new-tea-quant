@@ -87,7 +87,7 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
 
 ```
 {strategy}/results/simulations/
-  meta.json                    # 索引：next_version_id + registry + pinned
+  meta.json                    # 索引：next_version_id + registry
   {vid}/
     settings.json              # 当时完整 settings（恢复用）
     effective_settings.json    # 白名单投影
@@ -99,5 +99,5 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
     decision/{dm_id}/           # 第四步会话
 ```
 
-没有 `reports/` 目录。`spn` 固定某个 `{vid}`，不是运行回测。
+没有 `reports/` 目录。
 

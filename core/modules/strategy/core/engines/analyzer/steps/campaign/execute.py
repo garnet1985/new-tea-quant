@@ -11,6 +11,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 )
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
+    ArtifactRetention,
     ArtifactStore,
     SimulationVersionStore,
 )
@@ -51,7 +52,7 @@ class CellExecuteResult:
 
 
 class ExecuteStep:
-    """战役执行：先复用磁盘 version，默认不补跑。命中/补跑的号立刻钉住。"""
+        """战役执行：先复用磁盘 version，默认不补跑。"""
 
     @classmethod
     def run(
@@ -71,6 +72,7 @@ class ExecuteStep:
         hits = [row.index for row in rows if row.status == "hit"]
         simulated = [row.index for row in rows if row.status == "simulated"]
         skipped = [row.index for row in rows if row.status == "skipped"]
+        cls._prune_stale_envs(folder, strategy_info)
         return {
             "status": "ok",
             "folder": str(Path(folder).resolve()),
@@ -95,7 +97,7 @@ class ExecuteStep:
             result = cls._lookup_selected_version(folder, task, snapshot_sample)
         else:
             result = cls._lookup_or_fill(folder, strategy_info, task)
-        return cls._pin_ready(folder, result)
+        return result
 
     @classmethod
     def _lookup_selected_version(
@@ -250,28 +252,20 @@ class ExecuteStep:
         )
 
     @classmethod
-    def _pin_ready(
+    def _prune_stale_envs(
         cls,
         folder: Path,
-        result: CellExecuteResult,
-    ) -> CellExecuteResult:
-        if result.status not in ("hit", "simulated"):
-            return result
-        vid = str(result.version_id or "").strip()
-        if not vid:
-            return result
+        strategy_info: Optional[EnabledStrategyInfo],
+    ) -> None:
+        if strategy_info is None:
+            return
+        env_fp = str(FingerprintCalculator.to_env_fingerprint(strategy_info) or "")
+        if not env_fp:
+            return
         try:
-            VersionMetaStore.set_version_pinned(
-                ArtifactStore.simulations_root(folder),
-                vid,
-                True,
-            )
-            logger.info("campaign pin version=%s", vid)
-        except FileNotFoundError:
-            logger.warning("campaign pin skipped, version missing: %s", vid)
-        except ValueError:
-            logger.warning("campaign pin skipped, invalid version: %s", vid)
-        return result
+            ArtifactRetention.prune_simulation_results(str(folder), env_fp=env_fp)
+        except Exception:
+            logger.exception("campaign prune stale envs failed")
 
     @classmethod
     def _snapshot_sample(

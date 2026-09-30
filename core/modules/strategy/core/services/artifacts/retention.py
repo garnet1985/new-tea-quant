@@ -1,6 +1,7 @@
-"""产物生命周期：keep-N prune 与显式删除。
+"""产物生命周期：按过时 ``env_fp`` 整组 prune，以及显式删除。
 
-- prune_*：按 retention 上限裁剪 simulations / scan
+- prune_simulation_results：当前环境整组保留；过时环境超出上限则整组删
+- prune_scan_results：scan 日期目录 keep-N
 - clear_*：用户/BFF 主动删（单 version 或全策略 simulations）
 """
 from __future__ import annotations
@@ -27,17 +28,13 @@ class ArtifactRetention:
         cls,
         key_or_id: str,
         *,
-        kind: Optional[str] = None,
-        max_versions: Optional[int] = None,
+        env_fp: str,
+        max_stale_envs: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """对单个策略的 simulations 目录做 keep-N。
-
-        ``kind`` 为 ``enumerate`` / ``price_factor`` / ``portfolio``
-        （缩写 ``enum`` / ``price`` 也可）；``None`` 表示三步都清。
-        """
+        """对单个策略的 simulations 按过时环境整组裁剪。"""
         folder = cls._resolve_folder(key_or_id)
         return ArtifactStore.prune(
-            folder, kind=kind, max_versions=max_versions
+            folder, env_fp=env_fp, max_stale_envs=max_stale_envs
         )
 
     @classmethod
@@ -82,7 +79,6 @@ class ArtifactRetention:
 
         vid = str(sid)
         removed_disk = False
-        was_pinned = False
         if folder is not None:
             root = ArtifactStore.simulations_root(folder)
             version_dir = Path(root) / vid
@@ -96,7 +92,6 @@ class ArtifactRetention:
                     "strategy_name": name,
                     "version": sid,
                 }
-            was_pinned = vid in set(VersionMetaStore.read_pinned_ids(root))
             VersionMetaStore.remove_version_from_registry(root, vid)
             if had_dir:
                 shutil.rmtree(version_dir)
@@ -116,42 +111,6 @@ class ArtifactRetention:
             "deleted": True,
             "strategy_name": name,
             "version_id": f"v{sid}",
-            "was_pinned": was_pinned,
-        }
-
-    @classmethod
-    def set_pinned(
-        cls,
-        strategy_name: str,
-        version: int,
-        pinned: bool,
-    ) -> Dict[str, Any]:
-        """固定 / 取消固定一份 simulation version（只改 meta.pinned）。"""
-        name = str(strategy_name or "").strip()
-        sid = int(version)
-        if not name or sid <= 0:
-            return {"ok": False, "error": "参数无效"}
-
-        try:
-            folder = DiscoveryService.resolve_strategy_folder(name)
-        except Exception:
-            folder = None
-        if folder is None:
-            return {"ok": False, "error": "策略不存在"}
-
-        root = ArtifactStore.simulations_root(folder)
-        try:
-            ids = VersionMetaStore.set_version_pinned(root, str(sid), bool(pinned))
-        except ValueError as exc:
-            return {"ok": False, "error": str(exc) or "version_id 无效"}
-        except FileNotFoundError:
-            return {"ok": False, "error": "快照不存在"}
-        return {
-            "ok": True,
-            "pinned": bool(pinned),
-            "strategy_name": name,
-            "version_id": f"v{sid}",
-            "pinned_ids": [f"v{item}" for item in ids],
         }
 
     @staticmethod

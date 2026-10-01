@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -35,11 +35,11 @@ class AttributionCell:
 
 @dataclass(frozen=True)
 class AttributionTask:
-    """一格对应的可执行任务（查缓存 / 补跑）。"""
+    """一格对应的可执行任务（交给 ``Strategy.simulate`` 或按号读取）。"""
 
     cell: AttributionCell
     kind: SimulateKind
-    fill_missing: bool
+    steps: Tuple[SimulateKind, ...] = ()
 
     @classmethod
     def from_cells(
@@ -47,11 +47,9 @@ class AttributionTask:
         cells: Sequence[AttributionCell],
         config: Any,
     ) -> List["AttributionTask"]:
+        steps = tuple(config.steps)
         kind = config.simulate_kind
-        return [
-            cls(cell=cell, kind=kind, fill_missing=config.fill_missing)
-            for cell in cells
-        ]
+        return [cls(cell=cell, kind=kind, steps=steps) for cell in cells]
 
 
 class CellExpander:

@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.analysis import Analysis
 
+from .contrasts import KnobContrasts
+
 _EQUAL_EPS = 1e-12
 _ACCOUNT_FLAT = 0.005
 _OPP_FLAT = 2.0
@@ -510,7 +512,7 @@ def _layer_number(
 
 
 def _num_key(value: Any) -> Optional[float]:
-    number = Analysis.Classical.coerce_float(value)
+    number = KnobContrasts.scalar(value)
     if number is None:
         return None
     return round(float(number), 10)

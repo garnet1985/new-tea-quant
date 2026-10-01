@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from .contrasts import KnobContrasts
+
 _LAYER_LABELS = {
     "enumerate": "机会",
     "price_factor": "价格",
@@ -85,9 +87,9 @@ class CampaignLabels:
         last = text.split(".")[-1]
         if last in _KNOB_LAST:
             return _KNOB_LAST[last]
-        if "stop_loss" in text and last == "ratio":
+        if "stop_loss" in text:
             return "止损"
-        if "take_profit" in text and last == "ratio":
+        if "take_profit" in text:
             return "止盈"
         return last
 
@@ -111,7 +113,10 @@ class CampaignLabels:
             number = float(value)
         except (TypeError, ValueError):
             return str(value)
-        if last in _RATIO_KEYS or last == "ratio" or last.endswith("_yoy"):
+        if last in _RATIO_KEYS or last == "ratio" or last.endswith("_yoy") or last in (
+            "stop_loss",
+            "take_profit",
+        ):
             signed = "+" if number > 0 and last in ("total_return", "avg_roi", "total_profit") else ""
             return f"{signed}{number * 100:.1f}%"
         if last.endswith("_pct"):
@@ -123,6 +128,18 @@ class CampaignLabels:
         return f"{number:.2f}"
 
     @classmethod
+    def format_knob(cls, key: Any, value: Any) -> str:
+        """对照表 / 两章里的旋钮取值：None 是「无」，goal 块显示有(比例)。"""
+        if value is None or value == "":
+            return "无"
+        scalar = KnobContrasts.scalar(value)
+        if isinstance(value, dict) and scalar is not None:
+            return f"有({cls.format_number(key, scalar)})"
+        if isinstance(value, dict):
+            return "有"
+        return cls.format_number(key, value)
+
+    @classmethod
     def format_delta(cls, outcome: Any, delta: Any) -> str:
         """相对基准的差分文案。比例类用百分点，避免和水平值混淆。"""
         number = cls.maybe_float(delta)
@@ -132,7 +149,10 @@ class CampaignLabels:
             return "没变"
         last = str(outcome or "").split(".")[-1]
         sign = "+" if number > 0 else ""
-        if last in _RATIO_KEYS or last == "ratio" or last.endswith("_yoy"):
+        if last in _RATIO_KEYS or last == "ratio" or last.endswith("_yoy") or last in (
+            "stop_loss",
+            "take_profit",
+        ):
             if abs(number) * 100 < 0.05:
                 return "没变"
             return f"{sign}{number * 100:.1f}个百分点"

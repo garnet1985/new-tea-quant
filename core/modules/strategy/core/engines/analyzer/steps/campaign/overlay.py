@@ -1,7 +1,7 @@
 """稀疏 execute_fp overlay。合并到快照后，结果才是 StrategySettings。
 
 Overlay 行不是完整 settings：不能拿 GoalSettings 去 parse（会补 name / exit_ratio，
-等于字段级继承）。dict 兄弟键留下，list 整段替换；合并后再 ``StrategySettings.to_usable``。
+等于字段级继承）。dict 兄弟键留下，list 整段替换；写成 None 关掉该位置；合并后再 ``StrategySettings.to_usable``。
 """
 from __future__ import annotations
 

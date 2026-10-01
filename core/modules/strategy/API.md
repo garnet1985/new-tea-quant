@@ -119,11 +119,11 @@
 
 ### campaign / present_campaign
 
-`Strategy.campaign(key_or_id: str | Path, *, fill_missing: bool | None = None) -> dict`  
+`Strategy.campaign(key_or_id: str | Path, *, ignore_cache: bool = False) -> dict`  
 `Strategy.present_campaign(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 对照旋钮，写 `results/attribution/{n}/parameter/`。CLI `sa`（`-f` 补跑）。勿 deep-import analyzer pipeline。
+- **描述：** 读 `attribution.py` 对照旋钮，写 `results/attribution/{n}/parameter/`。每格按 `steps` 逐层 `Strategy.simulate`（缓存由回测层判断；资金层不会自动跑价格层）。CLI `sa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。
 
 ### analyze / present_analyze
 
@@ -135,11 +135,11 @@
 
 ### rolling / present_rolling
 
-`Strategy.rolling(key_or_id: str | Path, *, fill_missing: bool | None = None) -> dict`  
+`Strategy.rolling(key_or_id: str | Path, *, ignore_cache: bool = False) -> dict`  
 `Strategy.present_rolling(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 的 `rolling.windows` 对照声明窗口，写 `results/attribution/{n}/rolling/`。CLI `sw`（`-f` 补跑）。不和参数战役混在一份报告里。
+- **描述：** 读 `attribution.py` 的 `rolling.windows` 对照声明窗口，写 `results/attribution/{n}/rolling/`。每窗按 `steps` 逐层 `Strategy.simulate`。CLI `sw`（`-f` 即 `ignore_cache`）。不和参数战役混在一份报告里。
 
 ### resolve_simulation_output_dirs
 

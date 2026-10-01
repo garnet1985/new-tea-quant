@@ -1,4 +1,4 @@
-"""``attribution.rolling``：滚动窗口外壳（windows；steps / fill_missing 可继承顶层）。
+"""``attribution.rolling``：滚动窗口外壳（windows；steps 可继承顶层）。
 
 不进 execute_fp / env_fp。窗口只动 ``simulation.execution`` 起止日。
 """
@@ -81,15 +81,12 @@ class RollingSettings(SettingsBase):
         return tuple(out)
 
     @property
-    def fill_missing(self) -> bool:
-        return bool(self.raw_settings.get("fill_missing", False))
-
-    @property
     def is_select(self) -> bool:
         return False
 
     @property
     def simulate_kind(self) -> SimulateKind:
+        """steps 最后一步：选号 lookup 用。窗口格按 ``steps`` 逐层 simulate。"""
         steps = self.steps
         if not steps:
             raise ValueError("attribution.steps 不能为空")
@@ -111,8 +108,7 @@ class RollingSettings(SettingsBase):
         return tuple(out)
 
     def apply_defaults(self) -> None:
-        if "fill_missing" not in self.raw_settings:
-            self.raw_settings["fill_missing"] = False
+        self.raw_settings.pop("fill_missing", None)
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
@@ -143,15 +139,6 @@ class RollingSettings(SettingsBase):
                         f"未知 step {item!r}",
                         suggested_fix=f"允许 {sorted(_ALLOWED_STEPS)}",
                     )
-
-        fill = self.raw_settings.get("fill_missing", False)
-        if fill is not None and not isinstance(fill, bool):
-            SettingsBase.add_critical(
-                report,
-                "fill_missing",
-                "attribution.fill_missing 须为 bool",
-                suggested_fix="Set fill_missing to true or false",
-            )
 
         raw_windows = self.raw_settings.get("windows")
         if not isinstance(raw_windows, Sequence) or isinstance(raw_windows, (str, bytes)) or not raw_windows:
@@ -212,6 +199,5 @@ class RollingSettings(SettingsBase):
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
         out["steps"] = [k.value for k in self.steps]
-        out["fill_missing"] = self.fill_missing
         out["windows"] = [dict(item) for item in self.windows]
         return out

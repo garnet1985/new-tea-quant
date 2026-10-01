@@ -562,16 +562,15 @@ class UserHandlers:
 
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
-        fill_missing = True if force else None
 
         print(f"{i('chart')} 归因战役…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         print("  配置: attribution.py（不进指纹）", flush=True)
         if force:
-            print("  --force: 缓存未命中的格子会补跑", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
 
         t0 = time.perf_counter()
-        result = Strategy.campaign(strategy_key, fill_missing=fill_missing)
+        result = Strategy.campaign(strategy_key, ignore_cache=force)
         wall_sec = time.perf_counter() - t0
 
         try:
@@ -639,16 +638,15 @@ class UserHandlers:
 
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
-        fill_missing = True if force else None
 
         print(f"{i('chart')} 滚动验证…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         print("  配置: attribution.py → rolling（不进指纹）", flush=True)
         if force:
-            print("  --force: 缓存未命中的窗口会补跑", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
 
         t0 = time.perf_counter()
-        result = Strategy.rolling(strategy_key, fill_missing=fill_missing)
+        result = Strategy.rolling(strategy_key, ignore_cache=force)
         wall_sec = time.perf_counter() - t0
 
         try:

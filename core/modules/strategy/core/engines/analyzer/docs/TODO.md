@@ -14,7 +14,7 @@
 | 战役 | ``Analyzer.campaign(key)`` / CLI ``sa``：对照旋钮并写出 ``results/attribution/`` |
 | 终端展示 | ``Analyzer.Presenter.load(output_dir).present(...)`` |
 
-单次 ``simulate`` 不再自动归因。战役 CLI 为 ``sa``（``-f`` 覆盖 ``fill_missing=True``）。
+单次 ``simulate`` 不再自动归因。战役 CLI 为 ``sa``（``-f`` 即回测 ``ignore_cache``）。
 
 ---
 

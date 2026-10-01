@@ -163,12 +163,12 @@ def test_run_strategy_attribution_ok(monkeypatch, capsys) -> None:
 
     class FakeStrategy:
         @staticmethod
-        def campaign(key: str, *, fill_missing=None):
+        def campaign(key: str, *, ignore_cache=False):
             seen["key"] = key
-            seen["fill_missing"] = fill_missing
+            seen["ignore_cache"] = ignore_cache
             return {
                 "success": True,
-                "headline": "没有可对照的格子（缓存未命中，且未补跑）。",
+                "headline": "对照了 3 套设置。",
                 "report_path": "/tmp/report.json",
             }
 
@@ -191,7 +191,7 @@ def test_run_strategy_attribution_ok(monkeypatch, capsys) -> None:
     )
     out = capsys.readouterr().out
     assert seen["key"] == "rsi_v1"
-    assert seen["fill_missing"] is True
+    assert seen["ignore_cache"] is True
     assert seen["presented"]
     assert "归因战役" in out
 

@@ -1,4 +1,4 @@
-"""战役编排：读 attribution.py → 展开格子 → 查缓存/补跑 → 拼表 → 归因 → 总结 → 落盘。
+"""战役编排：读 attribution.py → 展开格子 → simulate → 拼表 → 归因 → 总结 → 落盘。
 
 边界:
 - 负责: 步骤顺序
@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import AttributeStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.cells import (
@@ -41,7 +41,7 @@ class AttributionPipeline:
         cls,
         key_or_id: Union[str, Path],
         *,
-        fill_missing: Optional[bool] = None,
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         folder = cls._resolve_folder(key_or_id)
         config = AttributionSettings.load(folder)
@@ -49,11 +49,9 @@ class AttributionPipeline:
             raise ValueError(
                 "attribution.py 没有 matrix / versions；参数战役请写这两项之一，滚动窗口用 CLI sw"
             )
-        if fill_missing is not None:
-            config.raw_settings["fill_missing"] = bool(fill_missing)
         cells = CellExpander.expand_from_folder(folder, config)
         tasks = AttributionTask.from_cells(cells, config)
-        executed = ExecuteStep.run(folder, tasks, config)
+        executed = ExecuteStep.run(folder, tasks, ignore_cache=ignore_cache)
         gathered = GatherStep.run(folder, tasks, executed)
         attributed = AttributeStep.run(gathered)
         summarized = SummarizeStep.run(attributed)
@@ -92,15 +90,13 @@ class RollingPipeline:
         cls,
         key_or_id: Union[str, Path],
         *,
-        fill_missing: Optional[bool] = None,
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         folder = cls._resolve_folder(key_or_id)
         config = RollingSettings.load(folder)
-        if fill_missing is not None:
-            config.raw_settings["fill_missing"] = bool(fill_missing)
         cells = WindowExpander.expand_from_folder(folder, config)
         tasks = AttributionTask.from_cells(cells, config)
-        executed = ExecuteStep.run(folder, tasks, config)
+        executed = ExecuteStep.run(folder, tasks, ignore_cache=ignore_cache)
         gathered = GatherStep.run(folder, tasks, executed)
         summarized = RollingSummarizeStep.run(gathered)
         assembled = CampaignReportStep.run(

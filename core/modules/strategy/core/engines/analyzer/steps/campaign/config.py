@@ -1,4 +1,4 @@
-"""``attribution.py`` 战役外壳（steps / fill_missing / versions|matrix / rolling）。
+"""``attribution.py`` 战役外壳（steps / versions|matrix / rolling）。
 
 和 ``settings.py`` 一样：raw dict → dataclass → ``apply_defaults`` / ``validate``。
 不进 execute_fp / env_fp。matrix 行是稀疏 overlay；rolling.windows 是区间，报告仍分开写。
@@ -110,10 +110,6 @@ class AttributionSettings(SettingsBase):
         return tuple(out)
 
     @property
-    def fill_missing(self) -> bool:
-        return bool(self.raw_settings.get("fill_missing", False))
-
-    @property
     def versions(self) -> Tuple[int, ...]:
         raw = self.raw_settings.get("versions")
         if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
@@ -151,27 +147,31 @@ class AttributionSettings(SettingsBase):
         return bool(self.versions) or bool(self.matrix)
 
     def rolling_payload(self) -> Dict[str, Any]:
-        """顶层 steps / fill_missing 与 ``rolling`` 块合并，给滚动任务用。"""
+        """顶层 steps 与 ``rolling`` 块合并，给滚动任务用。"""
         block = self.raw_settings.get("rolling")
         nested = dict(block) if isinstance(block, Mapping) else {}
         out: Dict[str, Any] = {
             "steps": list(self.raw_settings.get("steps") or []),
-            "fill_missing": self.fill_missing,
         }
         out.update(nested)
         return out
 
     @property
     def simulate_kind(self) -> SimulateKind:
-        """取 steps 最后一步；写到 ``portfolio`` 时下面各层仍会跑。"""
+        """steps 最后一步：选号 lookup 用。matrix 格按 ``steps`` 逐层 simulate。
+
+        ``simulate(kind=portfolio)`` 只保证枚举依赖，不会自动跑 price_factor。
+        """
         steps = self.steps
         if not steps:
             raise ValueError("attribution.steps 不能为空")
         return steps[-1]
 
     def apply_defaults(self) -> None:
-        if "fill_missing" not in self.raw_settings:
-            self.raw_settings["fill_missing"] = False
+        self.raw_settings.pop("fill_missing", None)
+        rolling = self.raw_settings.get("rolling")
+        if isinstance(rolling, dict):
+            rolling.pop("fill_missing", None)
         if self.raw_settings.get("versions") is None:
             self.raw_settings["versions"] = []
 
@@ -204,15 +204,6 @@ class AttributionSettings(SettingsBase):
                         f"未知 step {item!r}",
                         suggested_fix=f"允许 {sorted(_ALLOWED_STEPS)}",
                     )
-
-        fill = self.raw_settings.get("fill_missing", False)
-        if fill is not None and not isinstance(fill, bool):
-            SettingsBase.add_critical(
-                report,
-                "fill_missing",
-                "attribution.fill_missing 须为 bool",
-                suggested_fix="Set fill_missing to true or false",
-            )
 
         raw_versions = self.raw_settings.get("versions")
         if raw_versions is None:
@@ -317,13 +308,13 @@ class AttributionSettings(SettingsBase):
                 suggested_fix='Set rolling to {"windows": [{"start": "20230101", "end": "20231231"}]}',
             )
             return False
-        extra = set(raw) - {"windows", "steps", "fill_missing"}
+        extra = set(raw) - {"windows", "steps"}
         if extra:
             SettingsBase.add_critical(
                 report,
                 "rolling",
                 f"attribution.rolling 不能写 {sorted(extra)}",
-                suggested_fix="rolling 只放 windows；steps / fill_missing 可省略（继承顶层）",
+                suggested_fix="rolling 只放 windows；steps 可省略（继承顶层）",
             )
         windows = raw.get("windows")
         if not isinstance(windows, Sequence) or isinstance(windows, (str, bytes)) or not windows:
@@ -376,7 +367,6 @@ class AttributionSettings(SettingsBase):
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
         out["steps"] = [k.value for k in self.steps]
-        out["fill_missing"] = self.fill_missing
         out["versions"] = list(self.versions)
         if self.is_select:
             out.pop("matrix", None)

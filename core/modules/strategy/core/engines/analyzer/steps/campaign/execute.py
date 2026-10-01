@@ -1,4 +1,9 @@
-"""按 execute_fp 查已有 version；miss 且 fill_missing 时再 Strategy.simulate。"""
+"""每格按 ``attribution.steps`` 逐层 ``Strategy.simulate``；命中/补跑由回测层判断。
+
+资金层不依赖价格层产物，所以只 simulate 最后一步会漏掉 price_factor。
+``ignore_cache`` 只加在该格第一层，避免 -f 把后面刚写下的价格产物清掉。
+选号按 version_id 取已有产物，不补层。
+"""
 from __future__ import annotations
 
 import logging
@@ -52,21 +57,28 @@ class CellExecuteResult:
 
 
 class ExecuteStep:
-    """战役执行：先复用磁盘 version，默认不补跑。"""
+    """战役执行：matrix / 滚动交给 simulate；选号只读已有 version。"""
 
     @classmethod
     def run(
         cls,
         folder: Path,
         tasks: Sequence[AttributionTask],
-        config: Any,
+        *,
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         strategy_info = cls._resolve_strategy_info(folder)
         snapshot_sample = None
         if any(task.cell.is_select for task in tasks):
             snapshot_sample = cls._snapshot_sample(folder, strategy_info)
         rows: List[CellExecuteResult] = [
-            cls._run_one(folder, strategy_info, task, snapshot_sample)
+            cls._run_one(
+                folder,
+                strategy_info,
+                task,
+                snapshot_sample,
+                ignore_cache=ignore_cache,
+            )
             for task in tasks
         ]
         hits = [row.index for row in rows if row.status == "hit"]
@@ -76,7 +88,7 @@ class ExecuteStep:
         return {
             "status": "ok",
             "folder": str(Path(folder).resolve()),
-            "fill_missing": config.fill_missing,
+            "ignore_cache": ignore_cache,
             "task_count": len(tasks),
             "hits": hits,
             "simulated": simulated,
@@ -92,12 +104,12 @@ class ExecuteStep:
         strategy_info: Optional[EnabledStrategyInfo],
         task: AttributionTask,
         snapshot_sample: Optional[_SampleKey],
+        *,
+        ignore_cache: bool,
     ) -> CellExecuteResult:
         if task.cell.is_select:
-            result = cls._lookup_selected_version(folder, task, snapshot_sample)
-        else:
-            result = cls._lookup_or_fill(folder, strategy_info, task)
-        return result
+            return cls._lookup_selected_version(folder, task, snapshot_sample)
+        return cls._simulate(strategy_info, task, ignore_cache=ignore_cache)
 
     @classmethod
     def _lookup_selected_version(
@@ -134,11 +146,12 @@ class ExecuteStep:
         return cls._from_cache(task.cell.index, task.kind, cached)
 
     @classmethod
-    def _lookup_or_fill(
+    def _simulate(
         cls,
-        folder: Path,
         strategy_info: Optional[EnabledStrategyInfo],
         task: AttributionTask,
+        *,
+        ignore_cache: bool,
     ) -> CellExecuteResult:
         if strategy_info is None:
             return CellExecuteResult(
@@ -147,59 +160,40 @@ class ExecuteStep:
                 reason="strategy_not_enabled",
             )
         fp_res = cls._fingerprints(strategy_info, task)
-        cached = SimulationVersionStore.get_cache(folder, fp_res, task.kind)
-        if cached:
-            logger.info(
-                "campaign cache hit: index=%s kind=%s version=%s",
-                task.cell.index,
-                task.kind.value,
-                (cached.get(task.kind.value) or {}).get("version_id"),
-            )
-            return cls._from_cache(
-                task.cell.index, task.kind, cached, fp_res=fp_res
-            )
-        if not task.fill_missing:
-            logger.info(
-                "campaign cache miss: index=%s kind=%s fill_missing=false",
-                task.cell.index,
-                task.kind.value,
-            )
-            return CellExecuteResult(
-                index=task.cell.index,
-                status="skipped",
-                execute_fp=fp_res.execute_fp,
-                env_fp=fp_res.env_fp,
-                reason="fill_missing_false",
-            )
-        return cls._simulate_missing(strategy_info, task, fp_res)
-
-    @classmethod
-    def _simulate_missing(
-        cls,
-        strategy_info: EnabledStrategyInfo,
-        task: AttributionTask,
-        fp_res: FingerprintResult,
-    ) -> CellExecuteResult:
         from core.modules.strategy.core.strategy import Strategy
 
-        logger.info(
-            "campaign fill_missing: index=%s kind=%s strategy=%s",
-            task.cell.index,
-            task.kind.value,
-            strategy_info.key,
-        )
-        payload = Strategy.simulate(
-            strategy_info.key,
-            kind=task.kind,
-            runtime_settings=task.cell.runtime_settings,
-        )
-        slot = payload.get(task.kind.value) if isinstance(payload, dict) else None
+        steps = tuple(task.steps) or (task.kind,)
+        payload: Any = None
+        any_miss = False
+        for i, kind in enumerate(steps):
+            force = bool(ignore_cache) and i == 0
+            logger.info(
+                "campaign simulate: index=%s kind=%s strategy=%s ignore_cache=%s",
+                task.cell.index,
+                kind.value,
+                strategy_info.key,
+                force,
+            )
+            payload = Strategy.simulate(
+                strategy_info.key,
+                kind=kind,
+                ignore_cache=force,
+                runtime_settings=task.cell.runtime_settings,
+            )
+            if not (isinstance(payload, dict) and payload.get("cache_hit")):
+                any_miss = True
+        last_kind = steps[-1]
+        slot = payload.get(last_kind.value) if isinstance(payload, dict) else None
         slot_dict = slot if isinstance(slot, dict) else {}
-        vid = str(payload.get("version_id") or slot_dict.get("version_id") or "").strip()
+        vid = ""
+        if isinstance(payload, dict):
+            vid = str(
+                payload.get("version_id") or slot_dict.get("version_id") or ""
+            ).strip()
         output_dir = str(slot_dict.get("output_dir") or "").strip() or None
         return CellExecuteResult(
             index=task.cell.index,
-            status="simulated",
+            status="simulated" if any_miss else "hit",
             version_id=vid or None,
             execute_fp=fp_res.execute_fp,
             env_fp=fp_res.env_fp,

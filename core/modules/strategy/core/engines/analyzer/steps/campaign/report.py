@@ -34,7 +34,7 @@ class CampaignReportStep:
             "mode": "select" if config.is_select else "matrix",
             "steps": [k.value for k in config.steps],
             "kind": config.simulate_kind.value,
-            "fill_missing": config.fill_missing,
+            "ignore_cache": executed.get("ignore_cache"),
             "cell_count": len(cells),
             "headline": summarized.get("headline"),
             "report": summarized,

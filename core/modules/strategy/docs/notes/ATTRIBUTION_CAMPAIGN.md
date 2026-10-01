@@ -75,10 +75,10 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 ```text
 读当前 settings 快照 + attribution.py
   → versions 非空则选号；否则按 matrix 每一行 overlay 成一格
-  → 算 execute_fp，在 group 里找缓存
-  → 命中则直接读该 {vid}/
-  → 不命中且 fill_missing 再 Strategy.simulate
-  → 拼表：相对基准差分（贡献度）+ 旋钮相关
+  → 每格按 attribution.steps 逐层 Strategy.simulate(runtime_settings=overlay)
+    （资金层只吃枚举，不会自动跑 price_factor；声明了哪一层就补哪一层产物）
+  → 命中/补跑由回测层按双指纹判断
+  → 拼表：一份报告两章——参数贡献度（有/无）+ 参数敏感度（取值变化）
 ```
 
 配置是策略旁的 `attribution.py`，不是 `settings.analysis` 开关，不进指纹。
@@ -98,7 +98,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
     rolling/             # 滚动验证（读 attribution.rolling）
 ```
 
-每个 version 仍各写各的 `{vid}/`。enum / price / portfolio 继续共享这个号。一次战役、一份报告，里面三栏（用户可以只扫到某一层来省时间，报告结构不变）：
+每个 version 仍各写各的 `{vid}/`。enum / price / portfolio 继续共享这个号。一次战役、一份报告，里面三栏（`attribution.steps` 写到哪一层就补哪一层；只写 `portfolio` 不会凭空出现价格栏）：
 
 - 枚举：机会够不够、密不密
 - 价格：单笔赚不赚
@@ -155,7 +155,12 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
   → modules.analysis（分桶、相关、对照；无业务、无 I/O）
 ```
 
-战役格子的「每个因子贡献了多少」是 **相对表里第一套基准的差分**。一次只动一个旋钮的行才能算到那个因子头上；一套里同时改多个旋钮就拆不开。报告再补三件不靠 ML 的对照：按旋钮取值排序的边际（水平值 + 相对上一档；≥3 档若回落会写最好档）、格子铺满矩形才出的交叉表、旋钮在机会层和账户层是否同向。OLS / 逻辑回归 / XGB+SHAP 是给单笔机会用的（要几十到几百行）；几套回测不够拟合，战役不算这些。
+战役格子的「每个因子贡献了多少」分两章，写在同一份报告里，不要为此跑两次 `sa`：
+
+- **参数贡献度（有/无）**：某一格把该位置写成 `None`（关），对照开着的格子。基准是关掉的那一格。
+- **参数敏感度（取值）**：只在开着的格子之间比数字；基准是开着的第一套，不是全局表头（表头若是关着的，不算敏感度基准）。
+
+一次只动一个旋钮的行才能算到那个因子头上；一套里同时改多个旋钮就拆不开。报告再补三件不靠 ML 的对照（写在敏感度章）：按旋钮取值排序的边际、格子铺满矩形才出的交叉表、旋钮在机会层和账户层是否同向。OLS / 逻辑回归 / XGB+SHAP 是给单笔机会用的（要几十到几百行）；几套回测不够拟合，战役不算这些。
 
 - **不要**并进 `modules.analysis`：它不能调度、不能读盘、不能开 N 次回测
 - **不要**再开一个和 strategy 平级的 `modules.attribution`：group、指纹、version 缓存、枚举落盘都已经在 strategy；拆出去只会再实现一遍
@@ -181,32 +186,18 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 ```python
 attribution = {
     "steps": ["enumerate", "price_factor", "portfolio"],
-    "fill_missing": False,
-    # "versions": [3, 5, 7],
     "matrix": [
         {
             "core": {"rsi_oversold_threshold": 20},
-            "goal": {
-                "stop_loss": {
-                    "stages": [{"ratio": -0.1, "close_invest": True}],
-                }
-            },
         },
         {
             "core": {"rsi_oversold_threshold": 25},
-            "goal": {
-                "stop_loss": {
-                    "stages": [{"ratio": -0.2, "close_invest": True}],
-                }
-            },
         },
         {
-            "core": {"rsi_oversold_threshold": 30},
-            "goal": {
-                "stop_loss": {
-                    "stages": [{"ratio": -0.3, "close_invest": True}],
-                }
-            },
+            "core": {"max_pe_percentile": None},
+        },
+        {
+            "goal": {"stop_loss": None},
         },
     ],
     "rolling": {
@@ -218,7 +209,8 @@ attribution = {
 }
 ```
 
-上例是 **3 格**（三套配套设置），不是 3×3。笛卡尔积不是语法；要交叉就自己写够行。
+上例是 **4 格**（RSI 取值两档 + 关掉 PE 门槛 + 关掉止损、留着止盈），不是笛卡尔积。要交叉就自己写够行。
+
 
 ### Overlay
 
@@ -228,8 +220,10 @@ attribution = {
 - **一格声明一次要动的位置。** 没写到的兄弟键（只改 `stop_loss` 时的 `take_profit`）留在快照里。
 - **动到 effective 的哪个位置，就换掉那个位置上的整份值**（该位置在 effective 里的全部字段）。不要字段级深合并：不能只写一档的 `ratio` 却继承同一档里的 `close_invest`。
 - 独立旋钮（`core` 里各 key）各算各的位置，所以可以只 override `rsi_oversold_threshold`。
+- **省略键 = 继承快照；写成 `None` = 关掉这个位置。** 空 `stages: []` 仍然非法。关止损时留着止盈（不要两头一起关，否则只剩期末强平）。框架不会替 `strategy.py` 跳过 `core` 门槛；作者要把 `None` 当成跳过。`None` 会换 `execute_fp`，和改数字一样是新号。
+- 分类看 **effective 在 overlay 声明路径上的值**，不看 overlay 叶子 flatten（`goal.stop_loss: None` 和 `stages.0.ratio` 对不上）。
 - **list 整段替换。** 写了 `stop_loss.stages` 就换整张 stages；每一档必须把 effective 里该种对象的字段写全。
 
-`fill_missing` 默认 `False`。滚动窗口写在 `attribution.rolling.windows`，不另开 `rolling.py`。
+滚动窗口写在 `attribution.rolling.windows`，不另开 `rolling.py`。CLI `sa` / `sw` 的 `-f` 与 `s -f` 相同：回测层 `ignore_cache`，同指纹写回原号。
 
 相关现行契约：[VERSIONING.md](../VERSIONING.md)、[DECISIONS.md](../DECISIONS.md)、analyzer [BOUNDARY.md](../../core/engines/analyzer/docs/BOUNDARY.md)。

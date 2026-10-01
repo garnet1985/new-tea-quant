@@ -111,7 +111,8 @@ class CampaignPresenter:
         CmdLayout.title.print_section(f"{icon('target')} 一句话", stream=out)
         print(f"   {report.get('headline') or '-'}", file=out, flush=True)
 
-        self._present_contributions(out)
+        self._present_presence(out)
+        self._present_sensitivity(out)
         self._present_cross_layer(out)
         self._present_interaction(out)
         self._present_table(out, table)
@@ -142,7 +143,7 @@ class CampaignPresenter:
             line = [label]
             knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
             for key in knob_keys:
-                line.append(CampaignLabels.format_number(key, knobs.get(key)))
+                line.append(CampaignLabels.format_knob(key, knobs.get(key)))
             layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
             for layer, key in outcome_keys:
                 block = layers.get(layer) if isinstance(layers.get(layer), dict) else {}
@@ -150,8 +151,23 @@ class CampaignPresenter:
             body.append(line)
         _print_table(headers, body, out)
 
-    def _present_contributions(self, out: TextIO) -> None:
-        contrib = _contributions_block(self._report)
+    def _present_presence(self, out: TextIO) -> None:
+        contrib = _chapter_block(self._report, "presence")
+        items = [
+            item
+            for item in (contrib.get("items") or [])
+            if isinstance(item, dict) and item.get("kind") == "one_at_a_time"
+        ]
+        if not items:
+            return
+        icon = CmdLayout.icon.get
+        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
+        CmdLayout.title.print_section(f"{icon('rocket')} 参数贡献度", stream=out)
+        print("   有 / 无。基准是关掉这一项的那一格。", file=out, flush=True)
+        self._present_item_groups(out, items)
+
+    def _present_sensitivity(self, out: TextIO) -> None:
+        contrib = _chapter_block(self._report, "sensitivity")
         marginals = [
             block
             for block in (contrib.get("marginals") or [])
@@ -160,13 +176,13 @@ class CampaignPresenter:
         if marginals:
             icon = CmdLayout.icon.get
             CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-            CmdLayout.title.print_section(f"{icon('rocket')} 贡献度", stream=out)
+            CmdLayout.title.print_section(f"{icon('rocket')} 参数敏感度", stream=out)
             baseline = (
                 contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
             )
             vid = str(baseline.get("version_id") or "").strip()
             print(
-                f"   相对基准 {('v' + vid) if vid else '表里第一套'}，按旋钮取值从小到大",
+                f"   取值变化。相对基准 {('v' + vid) if vid else '开着的第一套'}，按旋钮取值从小到大",
                 file=out,
                 flush=True,
             )
@@ -182,19 +198,28 @@ class CampaignPresenter:
             return
         icon = CmdLayout.icon.get
         CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('rocket')} 贡献度", stream=out)
+        CmdLayout.title.print_section(f"{icon('rocket')} 参数敏感度", stream=out)
         baseline = (
             contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
         )
         vid = str(baseline.get("version_id") or "").strip()
         print(
-            f"   相对基准 {('v' + vid) if vid else '表里第一套'}",
+            f"   取值变化。相对基准 {('v' + vid) if vid else '开着的第一套'}",
             file=out,
             flush=True,
         )
+        self._present_item_groups(out, items)
+
+    def _present_item_groups(
+        self,
+        out: TextIO,
+        items: Sequence[Mapping[str, Any]],
+    ) -> None:
         grouped: Dict[str, List[Dict[str, Any]]] = {}
         order: List[str] = []
         for item in items:
+            if not isinstance(item, dict):
+                continue
             knob = str(item.get("knob") or "")
             if knob not in grouped:
                 grouped[knob] = []
@@ -204,8 +229,8 @@ class CampaignPresenter:
             print(f"   {CampaignLabels.knob_label(knob)}", file=out, flush=True)
             for item in grouped[knob]:
                 bits = [
-                    f"{CampaignLabels.format_number(knob, item.get('from'))} → "
-                    f"{CampaignLabels.format_number(knob, item.get('to'))}"
+                    f"{CampaignLabels.format_knob(knob, item.get('from'))} → "
+                    f"{CampaignLabels.format_knob(knob, item.get('to'))}"
                 ]
                 for layer, outcome in _CONTRIB_SHOW:
                     delta = _item_delta(item, layer, outcome)
@@ -241,7 +266,7 @@ class CampaignPresenter:
             )
 
     def _present_cross_layer(self, out: TextIO) -> None:
-        contrib = _contributions_block(self._report)
+        contrib = _chapter_block(self._report, "sensitivity")
         rows = [
             item
             for item in (contrib.get("cross_layer") or [])
@@ -261,7 +286,7 @@ class CampaignPresenter:
             )
 
     def _present_interaction(self, out: TextIO) -> None:
-        contrib = _contributions_block(self._report)
+        contrib = _chapter_block(self._report, "sensitivity")
         block = contrib.get("interactions")
         if not isinstance(block, dict) or str(block.get("status") or "") != "ok":
             return
@@ -302,7 +327,9 @@ class CampaignPresenter:
         _print_table(headers, body, out)
 
     def _present_highlights(self, out: TextIO) -> None:
-        if _contributions_block(self._report).get("one_at_a_time_count"):
+        presence = _chapter_block(self._report, "presence")
+        sensitivity = _chapter_block(self._report, "sensitivity")
+        if presence.get("one_at_a_time_count") or sensitivity.get("one_at_a_time_count"):
             return
         summarized = self._report.get("report")
         highlights = []
@@ -412,6 +439,18 @@ def _outcome_columns(rows: Sequence[Mapping[str, Any]]) -> List[tuple]:
     return sorted(available)[:3]
 
 
+def _chapter_block(report: Mapping[str, Any], name: str) -> Dict[str, Any]:
+    block = _contributions_block(report)
+    nested = block.get(name)
+    if isinstance(nested, dict):
+        return nested
+    if name == "sensitivity" and (
+        block.get("items") or block.get("marginals") or block.get("one_at_a_time_count")
+    ):
+        return block
+    return {}
+
+
 def _contributions_block(report: Mapping[str, Any]) -> Dict[str, Any]:
     nested = report.get("report")
     if isinstance(nested, dict) and isinstance(nested.get("contributions"), dict):
@@ -482,7 +521,7 @@ def _highlight_line(item: Mapping[str, Any]) -> str:
     outcome = str(item.get("outcome") or "")
     rho = CampaignLabels.maybe_float(item.get("rho")) or 0.0
     result = CampaignLabels.outcome_label(outcome)
-    if "stop_loss" in knob and "ratio" in knob:
+    if "stop_loss" in knob:
         phrase = CampaignLabels.direction_phrase(outcome, -rho)
         return f"止损越深，{result}{phrase}"
     phrase = CampaignLabels.direction_phrase(outcome, rho)

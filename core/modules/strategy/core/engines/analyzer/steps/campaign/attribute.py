@@ -1,7 +1,7 @@
 """把战役表交给 ``modules.analysis``（table in → struct out）。
 
 一格一行：旋钮列 vs 三层摘要列。不跑单 version 的 FactorAnalysisPipeline。
-战役格子很少，贡献度用相对基准差分，不用 OLS / XGB。
+战役格子很少，贡献度 / 敏感度用相对基准差分，不用 OLS / XGB。
 """
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.analysis import Analysis
 
+from .contrasts import KnobContrasts
 from .effects import CampaignEffects
 
 _READY = frozenset({"hit", "simulated"})
@@ -20,11 +21,17 @@ _CONTRIBUTION_OUTCOMES = (
     ("price_factor", "win_rate"),
     ("price_factor", "avg_roi"),
 )
-_EQUAL_EPS = 1e-12
+_SKIPPED_CHAPTER = {
+    "status": "skipped",
+    "reason": "insufficient_ready_rows",
+    "items": [],
+    "one_at_a_time_count": 0,
+    "joint_count": 0,
+}
 
 
 class AttributeStep:
-    """战役归因：相对基准贡献度 + 旋钮相关 / 分桶。"""
+    """战役归因：有/无贡献度 + 取值敏感度 + 旋钮相关 / 分桶。"""
 
     @classmethod
     def run(cls, gathered: Mapping[str, Any]) -> Dict[str, Any]:
@@ -42,40 +49,160 @@ class AttributeStep:
                 "knobs": {},
                 "layers": {},
                 "contributions": {
-                    "status": "skipped",
-                    "reason": "insufficient_ready_rows",
-                    "items": [],
+                    "presence": dict(_SKIPPED_CHAPTER),
+                    "sensitivity": dict(_SKIPPED_CHAPTER),
                 },
             }
 
+        contrasts = KnobContrasts.classify(rows)
+        presence_paths = list(contrasts.get("presence") or [])
+        sensitivity_paths = list(contrasts.get("sensitivity") or [])
+        presence = cls._presence_chapter(rows, presence_paths)
+
+        sensitivity_rows = [
+            row
+            for row in rows
+            if not any(
+                KnobContrasts.is_off((row.get("knobs") or {}).get(path))
+                for path in presence_paths
+            )
+        ]
         knob_keys = _union_keys(row.get("knobs") or {} for row in rows)
         knob_profiles = {
-            key: Analysis.Classical.summarize_column(_series(rows, "knobs", key))
+            key: Analysis.Classical.summarize_column(_knob_scalars(rows, key))
             for key in knob_keys
         }
         varying_knobs = [
             key
-            for key, profile in knob_profiles.items()
-            if profile.get("role") == "varying" and profile.get("dtype") == "numeric"
+            for key in sensitivity_paths
+            if _is_numeric_series(_knob_scalars(sensitivity_rows, key))
+            and Analysis.Classical.summarize_column(
+                _knob_scalars(sensitivity_rows, key)
+            ).get("role")
+            == "varying"
         ]
 
         layers: Dict[str, Any] = {}
         for layer in _LAYERS:
-            layers[layer] = cls._attribute_layer(rows, layer, varying_knobs)
+            layers[layer] = cls._attribute_layer(
+                sensitivity_rows, layer, varying_knobs
+            )
 
-        contributions = CampaignEffects.enrich(
-            rows,
-            varying_knobs,
-            cls._contributions(rows, varying_knobs),
+        sensitivity = cls._sensitivity_chapter(
+            sensitivity_rows, varying_knobs
         )
+        contributions = {
+            "presence": presence,
+            "sensitivity": sensitivity,
+        }
         return {
             "status": _overall_status(layers, contributions),
             "n": n,
             "knobs": knob_profiles,
             "varying_knobs": varying_knobs,
-            "layers": layers,
+            "presence_paths": presence_paths,
+            "sensitivity_paths": sensitivity_paths,
             "contributions": contributions,
         }
+
+    @classmethod
+    def _presence_chapter(
+        cls,
+        rows: Sequence[Mapping[str, Any]],
+        presence_paths: Sequence[str],
+    ) -> Dict[str, Any]:
+        if not presence_paths:
+            return {
+                "status": "skipped",
+                "reason": "no_presence_paths",
+                "items": [],
+                "one_at_a_time_count": 0,
+                "joint_count": 0,
+            }
+        compare_keys = _union_keys(row.get("knobs") or {} for row in rows)
+        items: List[Dict[str, Any]] = []
+        baselines: Dict[str, Any] = {}
+        for path in presence_paths:
+            off_rows = [
+                row
+                for row in rows
+                if KnobContrasts.is_off((row.get("knobs") or {}).get(path))
+            ]
+            on_rows = [
+                row
+                for row in rows
+                if not KnobContrasts.is_off((row.get("knobs") or {}).get(path))
+            ]
+            if not off_rows or not on_rows:
+                continue
+            baseline = off_rows[0]
+            base_knobs = (
+                baseline.get("knobs") if isinstance(baseline.get("knobs"), dict) else {}
+            )
+            baselines[path] = {
+                "version_id": baseline.get("version_id"),
+                "knobs": {key: base_knobs.get(key) for key in compare_keys},
+            }
+            for row in on_rows:
+                knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
+                changed = [
+                    key
+                    for key in compare_keys
+                    if not KnobContrasts.values_equal(base_knobs.get(key), knobs.get(key))
+                ]
+                if path not in changed:
+                    continue
+                if changed == [path]:
+                    kind = "one_at_a_time"
+                else:
+                    kind = "joint"
+                items.append(
+                    {
+                        "kind": kind,
+                        "version_id": row.get("version_id"),
+                        "baseline_version_id": baseline.get("version_id"),
+                        "changed": changed,
+                        "knob": path,
+                        "from": None,
+                        "to": knobs.get(path),
+                        "deltas": _row_deltas(baseline, row),
+                    }
+                )
+        one_count = sum(1 for item in items if item.get("kind") == "one_at_a_time")
+        joint_count = sum(1 for item in items if item.get("kind") == "joint")
+        if one_count:
+            status = "ok"
+        elif joint_count:
+            status = "partial"
+        else:
+            status = "skipped"
+        return {
+            "status": status,
+            "baselines": baselines,
+            "items": items,
+            "one_at_a_time_count": one_count,
+            "joint_count": joint_count,
+        }
+
+    @classmethod
+    def _sensitivity_chapter(
+        cls,
+        rows: Sequence[Mapping[str, Any]],
+        varying_knobs: Sequence[str],
+    ) -> Dict[str, Any]:
+        if len(rows) < 2:
+            return {
+                "status": "skipped",
+                "reason": "insufficient_on_rows",
+                "items": [],
+                "one_at_a_time_count": 0,
+                "joint_count": 0,
+            }
+        return CampaignEffects.enrich(
+            rows,
+            varying_knobs,
+            cls._contributions(rows, varying_knobs),
+        )
 
     @classmethod
     def _contributions(
@@ -102,7 +229,7 @@ class AttributeStep:
             changed = [
                 key
                 for key in compare_keys
-                if not _values_equal(base_knobs.get(key), knobs.get(key))
+                if not KnobContrasts.values_equal(base_knobs.get(key), knobs.get(key))
             ]
             if len(changed) == 1:
                 kind = "one_at_a_time"
@@ -224,7 +351,7 @@ class AttributeStep:
 
         fields: Dict[str, Any] = {}
         for knob in varying_knobs:
-            x_raw = _series(rows, "knobs", knob)
+            x_raw = _knob_scalars(rows, knob)
             xs, ys = _aligned_numeric(x_raw, y_raw)
             wins = [value > 0.0 for value in ys]
             fields[knob] = {
@@ -254,13 +381,24 @@ def _series(
     out: List[Any] = []
     for row in rows:
         if group == "knobs":
-            block = row.get("knobs") or {}
-            out.append(block.get(key) if isinstance(block, dict) else None)
+            out.append(_knob_scalar(row, key))
             continue
         layers = row.get("layers") or {}
         block = layers.get(layer) if layer else None
         out.append(block.get(key) if isinstance(block, dict) else None)
     return out
+
+
+def _knob_scalar(row: Mapping[str, Any], key: str) -> Optional[float]:
+    block = row.get("knobs") or {}
+    raw = block.get(key) if isinstance(block, dict) else None
+    if KnobContrasts.is_off(raw):
+        return None
+    return KnobContrasts.scalar(raw)
+
+
+def _knob_scalars(rows: Sequence[Mapping[str, Any]], key: str) -> List[Any]:
+    return [_knob_scalar(row, key) for row in rows]
 
 
 def _union_keys(blocks: Sequence[Any]) -> List[str]:
@@ -335,14 +473,6 @@ def _layer_number(
     return Analysis.Classical.coerce_float(block.get(outcome))
 
 
-def _values_equal(left: Any, right: Any) -> bool:
-    left_n = Analysis.Classical.coerce_float(left)
-    right_n = Analysis.Classical.coerce_float(right)
-    if left_n is not None and right_n is not None:
-        return abs(left_n - right_n) < _EQUAL_EPS
-    return left == right
-
-
 def _overall_status(
     layers: Mapping[str, Any],
     contributions: Mapping[str, Any],
@@ -352,9 +482,10 @@ def _overall_status(
         for part in layers.values()
         if isinstance(part, dict)
     ]
-    contrib_status = str(contributions.get("status") or "")
-    if contrib_status:
-        statuses.append(contrib_status)
+    for name in ("presence", "sensitivity"):
+        chapter = contributions.get(name)
+        if isinstance(chapter, dict) and chapter.get("status"):
+            statuses.append(chapter.get("status"))
     if any(status == "ok" for status in statuses):
         return "ok" if all(status == "ok" for status in statuses) else "partial"
     return "skipped"

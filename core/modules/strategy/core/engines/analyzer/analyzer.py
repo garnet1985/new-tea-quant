@@ -97,20 +97,20 @@ class Analyzer:
         cls,
         key_or_id: Union[str, Path],
         *,
-        fill_missing: Optional[bool] = None,
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """读 attribution.py，对照各格旋钮，写出战役总结。
 
-        ``fill_missing`` 非空时覆盖 attribution.py（CLI ``-f`` 用来补跑缺失格子）。
+        每格 ``Strategy.simulate``；``ignore_cache`` 与 CLI ``-f`` 相同（命中也重跑）。
         """
-        return AttributionPipeline.run(key_or_id, fill_missing=fill_missing)
+        return AttributionPipeline.run(key_or_id, ignore_cache=ignore_cache)
 
     @classmethod
     def rolling(
         cls,
         key_or_id: Union[str, Path],
         *,
-        fill_missing: Optional[bool] = None,
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """读 attribution.py 的 rolling 窗口，写出滚动总结。"""
-        return RollingPipeline.run(key_or_id, fill_missing=fill_missing)
+        return RollingPipeline.run(key_or_id, ignore_cache=ignore_cache)

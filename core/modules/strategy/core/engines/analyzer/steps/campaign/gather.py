@@ -1,16 +1,17 @@
-"""从命中的 {vid}/ 读 overall_report，拼成 N 行一张表。
+"""从命中的 {vid}/ 读 overall_report 和 effective_settings，拼成 N 行一张表。
 
-不跑 N 次 Analyzer.run；不把每格展开成投资明细。归因要的旋钮对照在 version 层。
+不跑 N 次 Analyzer.run；不把每格展开成投资明细。旋钮以磁盘有效设置为准。
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
-
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import ArtifactStore
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 
 from .cells import AttributionTask
+from .contrasts import KnobContrasts
 
 _LAYERS = (
     (SimulateKind.ENUMERATE, "enumerate"),
@@ -51,6 +52,9 @@ class GatherStep:
         executed: Mapping[str, Any],
     ) -> Dict[str, Any]:
         by_index = {task.cell.index: task for task in tasks}
+        paths = KnobContrasts.union_paths(
+            task.cell.overlay for task in tasks
+        )
         rows: List[Dict[str, Any]] = []
         for raw in executed.get("cells") or []:
             if not isinstance(raw, dict):
@@ -60,12 +64,19 @@ class GatherStep:
             overlay = dict(task.cell.overlay) if task is not None else {}
             status = str(raw.get("status") or "")
             vid = str(raw.get("version_id") or "").strip() or None
+            source: Any = task.cell.effective if task is not None else None
+            if status in _READY and vid:
+                disk = VersionMetaStore.read_effective_settings(
+                    ArtifactStore.simulations_root(folder), vid
+                )
+                if disk:
+                    source = disk
             row: Dict[str, Any] = {
                 "index": index,
                 "status": status,
                 "version_id": vid,
                 "overlay": overlay,
-                "knobs": _flatten_overlay(overlay),
+                "knobs": KnobContrasts.read(source, paths),
                 "layers": {},
             }
             if status in _READY and vid:
@@ -119,21 +130,19 @@ def _compact_summary(kind: SimulateKind, summary: Mapping[str, Any]) -> Dict[str
         keys = _PRICE_KEYS
     else:
         keys = _PORTFOLIO_KEYS
-    return {key: summary.get(key) for key in keys}
+    out = {key: summary.get(key) for key in keys}
+    if kind is SimulateKind.PRICE_FACTOR:
+        # price_factor overall_report 把胜率写成 72.2（百分数）；战役表和资金层一样用 0–1。
+        out["win_rate"] = _percent_to_ratio(out.get("win_rate"))
+    return out
 
 
-def _flatten_overlay(value: Any, prefix: str = "") -> Dict[str, Any]:
-    if isinstance(value, Mapping):
-        out: Dict[str, Any] = {}
-        for key, item in value.items():
-            path = f"{prefix}.{key}" if prefix else str(key)
-            out.update(_flatten_overlay(item, path))
-        return out
-    if isinstance(value, list):
-        out = {}
-        for i, item in enumerate(value):
-            out.update(_flatten_overlay(item, f"{prefix}.{i}"))
-        return out
-    if not prefix:
-        return {}
-    return {prefix: value}
+def _percent_to_ratio(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value) / 100.0
+    except (TypeError, ValueError):
+        return None
+
+

@@ -55,17 +55,28 @@ class SummarizeStep:
             reason = str(attributed.get("reason") or "")
             if reason == "insufficient_ready_rows":
                 if n <= 0:
-                    return "没有可对照的回测（缓存未命中，这次也没补跑）。"
+                    return "没有可对照的回测。"
                 return f"只有 {n} 套回测有结果，还不够对照。"
             return "这次旋钮没有变化，无法对照。"
+        top_presence = _top_presence_contribution(attributed)
+        if top_presence is not None:
+            knob = CampaignLabels.knob_label(top_presence.get("knob"))
+            to_text = CampaignLabels.format_knob(
+                top_presence.get("knob"), top_presence.get("to")
+            )
+            result = CampaignLabels.outcome_label(top_presence.get("outcome"))
+            delta_text = CampaignLabels.format_delta(
+                top_presence.get("outcome"), top_presence.get("delta")
+            )
+            return f"相对关掉{knob}，打开到 {to_text} 时{result} {delta_text}。"
         top_marginal = _headline_marginal(attributed)
         if top_marginal is not None:
             return top_marginal
         top_contrib = _top_contribution(attributed)
         if top_contrib is not None:
             knob = CampaignLabels.knob_label(top_contrib.get("knob"))
-            from_text = CampaignLabels.format_number(top_contrib.get("knob"), top_contrib.get("from"))
-            to_text = CampaignLabels.format_number(top_contrib.get("knob"), top_contrib.get("to"))
+            from_text = CampaignLabels.format_knob(top_contrib.get("knob"), top_contrib.get("from"))
+            to_text = CampaignLabels.format_knob(top_contrib.get("knob"), top_contrib.get("to"))
             result = CampaignLabels.outcome_label(top_contrib.get("outcome"))
             delta_text = CampaignLabels.format_delta(
                 top_contrib.get("outcome"), top_contrib.get("delta")
@@ -82,7 +93,7 @@ class SummarizeStep:
         outcome = CampaignLabels.outcome_label(top.get("outcome"))
         phrase = CampaignLabels.direction_phrase(str(top.get("outcome") or ""), rho)
         knob_path = str(top.get("knob") or "")
-        if "stop_loss" in knob_path and "ratio" in knob_path:
+        if "stop_loss" in knob_path:
             phrase = CampaignLabels.direction_phrase(str(top.get("outcome") or ""), -rho)
             return f"止损越深，{outcome}{phrase}。"
         return f"{knob}越大，{outcome}{phrase}。"
@@ -145,21 +156,28 @@ class SummarizeStep:
         if reason in _SKIP_REASONS:
             hints.append(_SKIP_REASONS[reason])
         varying = [str(item) for item in (attributed.get("varying_knobs") or [])]
-        contrib = (
-            attributed.get("contributions")
-            if isinstance(attributed.get("contributions"), dict)
-            else {}
+        presence = _chapter(attributed, "presence")
+        sensitivity = _chapter(attributed, "sensitivity")
+        one_count = int(presence.get("one_at_a_time_count") or 0) + int(
+            sensitivity.get("one_at_a_time_count") or 0
         )
-        one_count = int(contrib.get("one_at_a_time_count") or 0)
-        joint_count = int(contrib.get("joint_count") or 0)
-        if one_count:
+        joint_count = int(presence.get("joint_count") or 0) + int(
+            sensitivity.get("joint_count") or 0
+        )
+        if presence.get("one_at_a_time_count") and sensitivity.get("one_at_a_time_count"):
+            hints.append("同一份报告两章：参数贡献度是有/无，参数敏感度是取值变化。")
+        if presence.get("one_at_a_time_count"):
+            hints.append("贡献度的基准是关掉该项的那一格；一次只动这一项，才能算到它头上。")
+        elif sensitivity.get("one_at_a_time_count"):
             baseline = (
-                contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
+                sensitivity.get("baseline")
+                if isinstance(sensitivity.get("baseline"), dict)
+                else {}
             )
             vid = str(baseline.get("version_id") or "").strip()
-            base_label = f"v{vid}" if vid else "表里第一套"
+            base_label = f"v{vid}" if vid else "开着的第一套"
             hints.append(
-                f"贡献度是相对基准 {base_label} 的差分："
+                f"敏感度是相对基准 {base_label} 的差分："
                 "一次只动一个旋钮，才能算到这个因子头上。"
             )
         elif joint_count:
@@ -190,10 +208,20 @@ class SummarizeStep:
         return hints
 
 
-def _contribution_items(attributed: Mapping[str, Any]) -> List[Dict[str, Any]]:
+def _chapter(attributed: Mapping[str, Any], name: str) -> Dict[str, Any]:
     block = attributed.get("contributions")
     if not isinstance(block, dict):
-        return []
+        return {}
+    nested = block.get(name)
+    if isinstance(nested, dict):
+        return nested
+    if name == "sensitivity":
+        return block
+    return {}
+
+
+def _contribution_items(attributed: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    block = _chapter(attributed, "sensitivity")
     items: List[Dict[str, Any]] = []
     for item in block.get("items") or []:
         if isinstance(item, dict) and item.get("kind") == "one_at_a_time":
@@ -217,8 +245,20 @@ def _delta_of(
     return None
 
 
+def _top_presence_contribution(attributed: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    block = _chapter(attributed, "presence")
+    items: List[Dict[str, Any]] = []
+    for item in block.get("items") or []:
+        if isinstance(item, dict) and item.get("kind") == "one_at_a_time":
+            items.append(item)
+    return _best_delta_item(items)
+
+
 def _top_contribution(attributed: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
-    items = _contribution_items(attributed)
+    return _best_delta_item(_contribution_items(attributed))
+
+
+def _best_delta_item(items: Sequence[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
     for layer, outcome in _CONTRIB_HEADLINE_OUTCOMES:
         best: Optional[Dict[str, Any]] = None
         best_abs = -1.0
@@ -245,9 +285,7 @@ def _top_contribution(attributed: Mapping[str, Any]) -> Optional[Dict[str, Any]]
 
 
 def _headline_marginal(attributed: Mapping[str, Any]) -> Optional[str]:
-    contrib = attributed.get("contributions")
-    if not isinstance(contrib, dict):
-        return None
+    contrib = _chapter(attributed, "sensitivity")
     picked = None
     best_span = -1.0
     for block in contrib.get("marginals") or []:

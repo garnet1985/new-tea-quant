@@ -341,6 +341,7 @@ class Strategy:
                     cache_key,
                 )
                 payload = Strategy._attach_version_id(dict(cached), ctx.kind)
+                payload["cache_hit"] = True
                 Strategy._index_attribution_group(
                     strategy_folder,
                     fp_res,
@@ -366,11 +367,14 @@ class Strategy:
         )
         Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
         ctx.validate_for_run()
-        return Strategy._run_steps(
+        payload = Strategy._run_steps(
             ctx,
             strategy_folder=strategy_folder,
             ignore_cache=ignore_cache,
         )
+        if isinstance(payload, dict):
+            payload["cache_hit"] = False
+        return payload
 
     @staticmethod
     def _resolve_simulation_output_dir_candidates(
@@ -781,12 +785,12 @@ class Strategy:
     def campaign(
         key_or_id: Union[str, Path],
         *,
-        fill_missing: Optional[bool] = None,
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """读 attribution.py 跑归因战役（对照旋钮，写 ``results/attribution/``）。"""
         from .engines.analyzer import Analyzer
 
-        return Analyzer.campaign(key_or_id, fill_missing=fill_missing)
+        return Analyzer.campaign(key_or_id, ignore_cache=ignore_cache)
 
     @staticmethod
     def present_campaign(
@@ -803,12 +807,12 @@ class Strategy:
     def rolling(
         key_or_id: Union[str, Path],
         *,
-        fill_missing: Optional[bool] = None,
+        ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """读 attribution.py 跑滚动验证（对照窗口，写 ``results/attribution/{n}/rolling/``）。"""
         from .engines.analyzer import Analyzer
 
-        return Analyzer.rolling(key_or_id, fill_missing=fill_missing)
+        return Analyzer.rolling(key_or_id, ignore_cache=ignore_cache)
 
     @staticmethod
     def present_rolling(

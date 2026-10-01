@@ -29,6 +29,9 @@ class CampaignEffects:
         rows: Sequence[Mapping[str, Any]],
         varying_knobs: Sequence[str],
         contributions: Mapping[str, Any],
+        *,
+        grid_rows: Optional[Sequence[Mapping[str, Any]]] = None,
+        grid_knobs: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
         out = dict(contributions)
         items = [
@@ -40,7 +43,10 @@ class CampaignEffects:
         if not isinstance(baseline, dict):
             baseline = {}
         out["marginals"] = _build_marginals(rows, items, baseline)
-        out["interactions"] = _build_interactions(rows, varying_knobs)
+        out["interactions"] = _build_interactions(
+            grid_rows if grid_rows is not None else rows,
+            list(grid_knobs) if grid_knobs is not None else varying_knobs,
+        )
         out["cross_layer"] = _build_cross_layer(items)
         return out
 

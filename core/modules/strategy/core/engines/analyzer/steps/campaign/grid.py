@@ -1,6 +1,6 @@
 """因子矩阵：各轴取值的笛卡尔积，展开成 overlay 行。
 
-``attribution.overlays`` 是逐项对照（一行动一处）。``attribution.matrix`` 是多轴网格。
+``attribution.overlays`` 是逐项对照；``attribution.matrix`` 是多轴网格。二者可同时写。
 """
 from __future__ import annotations
 

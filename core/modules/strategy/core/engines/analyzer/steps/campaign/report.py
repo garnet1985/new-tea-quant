@@ -1,10 +1,16 @@
-"""战役报告：N 个 version 一张表。"""
+"""战役报告：N 个 version 一张表。overlays 与 matrix 各一张，最后并排。"""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, Mapping, Sequence
 
 from .cells import AttributionCell, AttributionTask
+
+_FAMILY_LABELS = {
+    "overlays": "单因子",
+    "matrix": "交叉",
+    "select": "选号",
+}
 
 
 class CampaignReportStep:
@@ -22,16 +28,19 @@ class CampaignReportStep:
         gathered: Dict[str, Any],
         attributed: Dict[str, Any],
         summarized: Dict[str, Any],
+        family: str = "",
     ) -> Dict[str, Any]:
         by_index = {
             int(row["index"]): row
             for row in executed.get("cells") or []
             if isinstance(row, dict) and "index" in row
         }
+        mode = family or config.parameter_mode
         return {
             "success": True,
             "folder": str(Path(folder).resolve()),
-            "mode": config.parameter_mode,
+            "family": family,
+            "mode": mode,
             "steps": [k.value for k in config.steps],
             "kind": config.simulate_kind.value,
             "ignore_cache": executed.get("ignore_cache"),
@@ -41,6 +50,7 @@ class CampaignReportStep:
             "cells": [
                 {
                     "index": cell.index,
+                    "family": cell.family or family,
                     "version_id": (by_index.get(cell.index) or {}).get("version_id")
                     or cell.version_id,
                     "overlay": cell.overlay,
@@ -72,3 +82,94 @@ class CampaignReportStep:
                 "contributions": attributed.get("contributions") or {},
             },
         }
+
+    @classmethod
+    def merge(
+        cls,
+        config: Any,
+        executed: Mapping[str, Any],
+        families: Mapping[str, Mapping[str, Any]],
+    ) -> Dict[str, Any]:
+        items = [
+            (name, dict(block))
+            for name, block in families.items()
+            if isinstance(block, Mapping)
+        ]
+        if len(items) == 1:
+            out = dict(items[0][1])
+            out["mode"] = config.parameter_mode
+            return out
+        views: Dict[str, Dict[str, Any]] = {}
+        headlines: list[str] = []
+        all_cells: list[Any] = []
+        tables: Dict[str, Any] = {}
+        attributes: Dict[str, Any] = {}
+        ready = 0
+        cell_count = 0
+        folder = ""
+        for name, block in items:
+            views[name] = _family_view(block)
+            label = _FAMILY_LABELS.get(name, name)
+            text = str(block.get("headline") or "").strip()
+            if text:
+                headlines.append(f"{label}：{text}")
+            all_cells.extend(block.get("cells") or [])
+            tables[name] = block.get("table") or []
+            attributes[name] = block.get("attribute") or {}
+            ready += int((block.get("gather") or {}).get("ready_count") or 0)
+            cell_count += int(block.get("cell_count") or 0)
+            folder = str(block.get("folder") or folder)
+        headline = "；".join(headlines) if headlines else ""
+        first = items[0][1]
+        return {
+            "success": True,
+            "folder": folder or str(first.get("folder") or ""),
+            "mode": config.parameter_mode,
+            "steps": list(first.get("steps") or []),
+            "kind": first.get("kind"),
+            "ignore_cache": executed.get("ignore_cache"),
+            "cell_count": cell_count,
+            "headline": headline,
+            "families": views,
+            "report": {
+                "headline": headline,
+                "status": first.get("report", {}).get("status") if isinstance(first.get("report"), dict) else "ok",
+                "overlays": views.get("overlays") or {},
+                "matrix": views.get("matrix") or {},
+            },
+            "cells": all_cells,
+            "task_count": int(executed.get("task_count") or 0),
+            "execute": {
+                "status": executed.get("status"),
+                "hits": executed.get("hits") or [],
+                "simulated": executed.get("simulated") or [],
+                "skipped": executed.get("skipped") or [],
+            },
+            "gather": {
+                "status": "ok" if ready else "empty",
+                "row_count": cell_count,
+                "ready_count": ready,
+            },
+            "table": tables,
+            "attribute": attributes,
+        }
+
+
+def _family_view(block: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        "family": block.get("family"),
+        "mode": block.get("mode"),
+        "headline": block.get("headline"),
+        "cell_count": block.get("cell_count"),
+        "report": block.get("report") or {},
+        "table": block.get("table") or [],
+        "attribute": block.get("attribute") or {},
+        "cells": block.get("cells") or [],
+        "gather": block.get("gather") or {},
+        "execute": block.get("execute") or {},
+        "highlights": (block.get("report") or {}).get("highlights") or [],
+        "hints": (block.get("report") or {}).get("hints") or [],
+        "contributions": (block.get("report") or {}).get("contributions")
+        or (block.get("attribute") or {}).get("contributions")
+        or {},
+    }

@@ -58,6 +58,9 @@ class SummarizeStep:
                     return "没有可对照的回测。"
                 return f"只有 {n} 套回测有结果，还不够对照。"
             return "这次旋钮没有变化，无法对照。"
+        top_grid = _headline_interaction(attributed)
+        if top_grid is not None:
+            return top_grid
         top_presence = _top_presence_contribution(attributed)
         if top_presence is not None:
             knob = CampaignLabels.knob_label(top_presence.get("knob"))
@@ -282,6 +285,30 @@ def _best_delta_item(items: Sequence[Mapping[str, Any]]) -> Optional[Dict[str, A
         if best is not None:
             return best
     return None
+
+
+def _headline_interaction(attributed: Mapping[str, Any]) -> Optional[str]:
+    contrib = _chapter(attributed, "sensitivity")
+    block = contrib.get("interactions")
+    if not isinstance(block, dict) or str(block.get("status") or "") != "ok":
+        return None
+    grids = [grid for grid in (block.get("grids") or []) if isinstance(grid, dict)]
+    if not grids:
+        return None
+    grid = grids[0]
+    best = grid.get("best") if isinstance(grid.get("best"), dict) else {}
+    ret = CampaignLabels.maybe_float(best.get("total_return"))
+    if ret is None:
+        return None
+    row_knob = str(grid.get("row_knob") or "")
+    col_knob = str(grid.get("col_knob") or "")
+    return (
+        f"{CampaignLabels.knob_label(row_knob)} "
+        f"{CampaignLabels.format_knob(row_knob, best.get('row_value'))} × "
+        f"{CampaignLabels.knob_label(col_knob)} "
+        f"{CampaignLabels.format_knob(col_knob, best.get('col_value'))} "
+        f"时账户收益最好（{CampaignLabels.format_number('total_return', ret)}）。"
+    )
 
 
 def _headline_marginal(attributed: Mapping[str, Any]) -> Optional[str]:

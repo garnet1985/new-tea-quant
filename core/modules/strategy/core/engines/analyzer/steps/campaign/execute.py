@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -36,7 +36,7 @@ from core.modules.strategy.core.services.package.settings_loader import (
     load_settings_dict_from_folder,
 )
 
-from .cells import AttributionTask
+from .cells import AttributionCell, AttributionTask, cell_identity
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,78 @@ class CellExecuteResult:
 
 
 class ExecuteStep:
-    """战役执行：overlays / matrix / 滚动交给 simulate；选号只读已有 version。"""
+    """战役执行：overlays / matrix / 滚动交给 simulate；选号只读已有 version。
+
+    overlays 与 matrix 的格子按 ``cell_identity`` 去重后再 simulate；
+    各家族再用 ``bind`` 领回自己的行。
+    """
+
+    @classmethod
+    def unique_tasks(
+        cls, tasks: Sequence[AttributionTask]
+    ) -> List[AttributionTask]:
+        seen: Dict[str, int] = {}
+        unique: List[AttributionTask] = []
+        next_index = 0
+        for task in tasks:
+            key = cell_identity(task.cell)
+            if key in seen:
+                continue
+            cell = replace(task.cell, index=next_index)
+            unique.append(
+                AttributionTask(cell=cell, kind=task.kind, steps=task.steps)
+            )
+            seen[key] = next_index
+            next_index += 1
+        return unique
+
+    @classmethod
+    def bind(
+        cls,
+        executed: Mapping[str, Any],
+        unique_cells: Sequence[AttributionCell],
+        family_cells: Sequence[AttributionCell],
+    ) -> Dict[str, Any]:
+        by_key: Dict[str, Dict[str, Any]] = {}
+        raws = [
+            row for row in executed.get("cells") or [] if isinstance(row, dict)
+        ]
+        for cell, raw in zip(unique_cells, raws):
+            by_key[cell_identity(cell)] = raw
+        out_cells: List[Dict[str, Any]] = []
+        hits: List[int] = []
+        simulated: List[int] = []
+        skipped: List[int] = []
+        for cell in family_cells:
+            raw = by_key.get(cell_identity(cell))
+            if raw is None:
+                out_cells.append(
+                    {
+                        "index": cell.index,
+                        "status": "skipped",
+                        "reason": "execute_identity_missing",
+                    }
+                )
+                skipped.append(cell.index)
+                continue
+            copied = dict(raw)
+            copied["index"] = cell.index
+            out_cells.append(copied)
+            status = str(copied.get("status") or "")
+            if status == "hit":
+                hits.append(cell.index)
+            elif status == "simulated":
+                simulated.append(cell.index)
+            else:
+                skipped.append(cell.index)
+        out = dict(executed)
+        out["task_count"] = len(family_cells)
+        out["hits"] = hits
+        out["simulated"] = simulated
+        out["skipped"] = skipped
+        out["misses"] = skipped
+        out["cells"] = out_cells
+        return out
 
     @classmethod
     def run(

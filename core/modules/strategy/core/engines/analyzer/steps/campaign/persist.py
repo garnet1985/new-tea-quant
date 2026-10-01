@@ -63,7 +63,7 @@ class PersistStep:
             task_dir / REPORT_FILE,
             cls._report_payload(out, group_id, env_fp, task_key, generated_at),
         )
-        _write_json(task_dir / TABLE_FILE, out.get("table") or [])
+        _write_json(task_dir / TABLE_FILE, out.get("table") if out.get("table") is not None else [])
         _write_json(task_dir / ATTRIBUTE_FILE, out.get("attribute") or {})
         _write_json(
             task_dir / TASK_META_FILE,
@@ -132,6 +132,10 @@ class PersistStep:
         generated_at: str,
     ) -> Dict[str, Any]:
         summarized = dict(report.get("report") or {})
+        families = report.get("families")
+        if isinstance(families, dict) and families:
+            summarized["overlays"] = families.get("overlays") or summarized.get("overlays") or {}
+            summarized["matrix"] = families.get("matrix") or summarized.get("matrix") or {}
         summarized.update(
             {
                 "group_id": group_id,
@@ -240,17 +244,40 @@ class PersistStep:
 
 def _ready_version_ids(report: Mapping[str, Any]) -> List[str]:
     ready = set()
-    execute = report.get("execute") or {}
-    hit_or_sim = set(execute.get("hits") or []) | set(execute.get("simulated") or [])
-    for cell in report.get("cells") or []:
-        if not isinstance(cell, dict):
-            continue
-        if cell.get("index") not in hit_or_sim:
+    for cell in _iter_cell_rows(report):
+        status = str(cell.get("execute_status") or cell.get("status") or "")
+        if status not in {"hit", "simulated"}:
             continue
         vid = str(cell.get("version_id") or "").strip()
         if vid:
             ready.add(vid)
     return sorted(ready, key=_version_sort_key)
+
+
+def _iter_cell_rows(report: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for cell in report.get("cells") or []:
+        if isinstance(cell, dict):
+            rows.append(cell)
+    table = report.get("table")
+    if isinstance(table, list):
+        rows.extend(item for item in table if isinstance(item, dict))
+    elif isinstance(table, dict):
+        for group in table.values():
+            if isinstance(group, list):
+                rows.extend(item for item in group if isinstance(item, dict))
+    families = report.get("families")
+    if isinstance(families, dict):
+        for block in families.values():
+            if not isinstance(block, dict):
+                continue
+            for cell in block.get("cells") or []:
+                if isinstance(cell, dict):
+                    rows.append(cell)
+            for row in block.get("table") or []:
+                if isinstance(row, dict):
+                    rows.append(row)
+    return rows
 
 
 def _union_strings(*groups: Any) -> List[str]:

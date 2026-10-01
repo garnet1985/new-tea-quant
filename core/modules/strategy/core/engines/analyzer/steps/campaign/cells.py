@@ -1,7 +1,11 @@
-"""把 attribution.py 展开成格子：overlays 逐项、matrix 笛卡尔积，或 versions 选号。"""
+"""把 attribution.py 展开成格子：overlays 逐项、matrix 笛卡尔积，或 versions 选号。
+
+overlays 与 matrix 各自成表；执行并集按 ``execute_settings`` 去重。
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -28,10 +32,61 @@ class AttributionCell:
     execute_settings: Dict[str, Any]
     effective: Optional[StrategySettings] = None
     version_id: Optional[int] = None
+    family: str = ""
 
     @property
     def is_select(self) -> bool:
         return self.version_id is not None
+
+
+@dataclass(frozen=True)
+class ParameterPlan:
+    """overlays / matrix / 选号各一套格子。"""
+
+    overlays: Tuple[AttributionCell, ...] = ()
+    matrix: Tuple[AttributionCell, ...] = ()
+    selected: Tuple[AttributionCell, ...] = ()
+
+    def families(self) -> List[Tuple[str, List[AttributionCell]]]:
+        out: List[Tuple[str, List[AttributionCell]]] = []
+        if self.selected:
+            out.append(("select", list(self.selected)))
+        if self.overlays:
+            out.append(("overlays", list(self.overlays)))
+        if self.matrix:
+            out.append(("matrix", list(self.matrix)))
+        return out
+
+    def execute_source_cells(self) -> List[AttributionCell]:
+        if self.selected:
+            return list(self.selected)
+        return list(self.overlays) + list(self.matrix)
+
+    def listed_cells(self) -> List[AttributionCell]:
+        """单家族保持原 index；两家族拼在一起时重编，避免撞号。"""
+        parts = [
+            list(group)
+            for group in (self.selected, self.overlays, self.matrix)
+            if group
+        ]
+        if len(parts) <= 1:
+            return list(parts[0] if parts else [])
+        out: List[AttributionCell] = []
+        for i, cell in enumerate(self.execute_source_cells()):
+            out.append(replace(cell, index=i))
+        return out
+
+
+def cell_identity(cell: AttributionCell) -> str:
+    """回测身份：选号用 version；其余用 execute_settings。"""
+    if cell.is_select:
+        return f"select:{cell.version_id}"
+    return json.dumps(
+        cell.execute_settings,
+        sort_keys=True,
+        default=str,
+        ensure_ascii=False,
+    )
 
 
 @dataclass(frozen=True)
@@ -62,9 +117,17 @@ class CellExpander:
         folder: Path,
         config: AttributionSettings,
     ) -> List[AttributionCell]:
+        return cls.plan_from_folder(folder, config).listed_cells()
+
+    @classmethod
+    def plan_from_folder(
+        cls,
+        folder: Path,
+        config: AttributionSettings,
+    ) -> ParameterPlan:
         disk = load_settings_dict_from_folder(folder)
         snapshot = StrategySettings.to_usable(dict(disk))
-        return cls.expand(snapshot, config)
+        return cls.plan(snapshot, config)
 
     @classmethod
     def expand(
@@ -72,8 +135,16 @@ class CellExpander:
         snapshot: StrategySettings,
         config: AttributionSettings,
     ) -> List[AttributionCell]:
+        return cls.plan(snapshot, config).listed_cells()
+
+    @classmethod
+    def plan(
+        cls,
+        snapshot: StrategySettings,
+        config: AttributionSettings,
+    ) -> ParameterPlan:
         if config.is_select:
-            return [
+            selected = tuple(
                 AttributionCell(
                     index=i,
                     overlay={},
@@ -81,20 +152,24 @@ class CellExpander:
                     execute_settings={},
                     effective=None,
                     version_id=vid,
+                    family="select",
                 )
                 for i, vid in enumerate(config.versions)
-            ]
+            )
+            return ParameterPlan(selected=selected)
+        overlays = tuple(
+            cls._from_overlay(i, snapshot, row, family="overlays")
+            for i, row in enumerate(config.overlays)
+        )
+        matrix: Tuple[AttributionCell, ...] = ()
         if config.has_matrix:
             raw = config.raw_settings.get("matrix")
             rows = SettingsMatrix.expand(raw if isinstance(raw, dict) else {})
-            return [
-                cls._from_overlay(i, snapshot, SettingsOverlay.from_dict(row))
+            matrix = tuple(
+                cls._from_overlay(i, snapshot, SettingsOverlay.from_dict(row), family="matrix")
                 for i, row in enumerate(rows)
-            ]
-        return [
-            cls._from_overlay(i, snapshot, row)
-            for i, row in enumerate(config.overlays)
-        ]
+            )
+        return ParameterPlan(overlays=overlays, matrix=matrix)
 
     @classmethod
     def _from_overlay(
@@ -102,6 +177,8 @@ class CellExpander:
         index: int,
         snapshot: StrategySettings,
         row: SettingsOverlay,
+        *,
+        family: str = "",
     ) -> AttributionCell:
         overlay = row.to_dict()
         effective = row.merge_onto(snapshot)
@@ -112,4 +189,5 @@ class CellExpander:
             execute_settings=StrategySettings.extract_execute_settings(effective),
             effective=effective,
             version_id=None,
+            family=family,
         )

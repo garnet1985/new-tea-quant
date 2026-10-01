@@ -1,8 +1,8 @@
-"""``attribution.py`` 战役外壳（steps / versions|overlays|matrix / rolling）。
+"""``attribution.py`` 战役外壳（steps / versions / overlays / matrix / rolling）。
 
 和 ``settings.py`` 一样：raw dict → dataclass → ``apply_defaults`` / ``validate``。
 不进 execute_fp / env_fp。``overlays`` 是逐项对照；``matrix`` 是各轴笛卡尔积。
-rolling.windows 是区间，报告仍分开写。
+二者可同时写，各自成表；只有回测执行按身份去重。rolling.windows 是区间，报告仍分开写。
 """
 from __future__ import annotations
 
@@ -141,6 +141,10 @@ class AttributionSettings(SettingsBase):
         )
 
     @property
+    def has_overlays(self) -> bool:
+        return bool(self.overlays)
+
+    @property
     def has_matrix(self) -> bool:
         raw = self.raw_settings.get("matrix")
         return isinstance(raw, Mapping) and bool(raw)
@@ -151,15 +155,25 @@ class AttributionSettings(SettingsBase):
 
     @property
     def has_parameter(self) -> bool:
-        return bool(self.versions) or bool(self.overlays) or self.has_matrix
+        return bool(self.versions) or self.has_overlays or self.has_matrix
+
+    @property
+    def parameter_modes(self) -> Tuple[str, ...]:
+        if self.is_select:
+            return ("select",)
+        out: list[str] = []
+        if self.has_overlays:
+            out.append("overlays")
+        if self.has_matrix:
+            out.append("matrix")
+        return tuple(out)
 
     @property
     def parameter_mode(self) -> str:
-        if self.is_select:
-            return "select"
-        if self.has_matrix:
-            return "matrix"
-        return "overlays"
+        modes = self.parameter_modes
+        if not modes:
+            return "overlays"
+        return "+".join(modes)
 
     def rolling_payload(self) -> Dict[str, Any]:
         """顶层 steps 与 ``rolling`` 块合并，给滚动任务用。"""
@@ -315,11 +329,11 @@ class AttributionSettings(SettingsBase):
             )
             if flag
         ]
-        if len(chosen) > 1:
+        if has_versions and (has_overlays or has_matrix):
             SettingsBase.add_critical(
                 report,
-                chosen[0],
-                "versions / overlays / matrix 不要同时写；一次战役只选一种点名方式",
+                "versions",
+                "versions 不要和 overlays / matrix 同时写；选号是单独一种点名",
             )
         has_rolling = self._validate_rolling(report)
         if not chosen and not has_rolling:
@@ -327,7 +341,7 @@ class AttributionSettings(SettingsBase):
                 report,
                 "overlays",
                 "versions、overlays、matrix、rolling.windows 不能都空",
-                suggested_fix="写 overlays 做逐项对照，matrix 做交叉网格，versions 选号，或 rolling.windows 做滚动",
+                suggested_fix="写 overlays 做逐项对照，matrix 做交叉网格（可同时写），versions 选号，或 rolling.windows 做滚动",
             )
 
         self._validated = report.is_usable()
@@ -408,9 +422,11 @@ class AttributionSettings(SettingsBase):
         if self.is_select:
             out.pop("overlays", None)
             out.pop("matrix", None)
-        elif self.has_matrix:
-            out.pop("overlays", None)
-        else:
-            out.pop("matrix", None)
+            return out
+        if self.has_overlays:
             out["overlays"] = [row.to_dict() for row in self.overlays]
+        else:
+            out.pop("overlays", None)
+        if not self.has_matrix:
+            out.pop("matrix", None)
         return out

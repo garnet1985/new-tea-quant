@@ -49,22 +49,31 @@ class AttributionPipeline:
             raise ValueError(
                 "attribution.py 没有 overlays / matrix / versions；参数战役请写这三项之一，滚动窗口用 CLI sw"
             )
-        cells = CellExpander.expand_from_folder(folder, config)
-        tasks = AttributionTask.from_cells(cells, config)
-        executed = ExecuteStep.run(folder, tasks, ignore_cache=ignore_cache)
-        gathered = GatherStep.run(folder, tasks, executed)
-        attributed = AttributeStep.run(gathered)
-        summarized = SummarizeStep.run(attributed)
-        assembled = CampaignReportStep.run(
-            folder,
-            config,
-            cells,
-            tasks,
-            executed=executed,
-            gathered=gathered,
-            attributed=attributed,
-            summarized=summarized,
+        plan = CellExpander.plan_from_folder(folder, config)
+        unique_tasks = ExecuteStep.unique_tasks(
+            AttributionTask.from_cells(plan.execute_source_cells(), config)
         )
+        executed = ExecuteStep.run(folder, unique_tasks, ignore_cache=ignore_cache)
+        unique_cells = [task.cell for task in unique_tasks]
+        families = {}
+        for name, cells in plan.families():
+            family_executed = ExecuteStep.bind(executed, unique_cells, cells)
+            tasks = AttributionTask.from_cells(cells, config)
+            gathered = GatherStep.run(folder, tasks, family_executed)
+            attributed = AttributeStep.run(gathered)
+            summarized = SummarizeStep.run(attributed)
+            families[name] = CampaignReportStep.run(
+                folder,
+                config,
+                cells,
+                tasks,
+                executed=family_executed,
+                gathered=gathered,
+                attributed=attributed,
+                summarized=summarized,
+                family=name,
+            )
+        assembled = CampaignReportStep.merge(config, executed, families)
         return PersistStep.run(
             folder,
             config,

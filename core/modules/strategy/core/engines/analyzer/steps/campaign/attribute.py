@@ -88,8 +88,12 @@ class AttributeStep:
                 sensitivity_rows, layer, varying_knobs
             )
 
+        grid_knobs = list(dict.fromkeys([*presence_paths, *sensitivity_paths]))
         sensitivity = cls._sensitivity_chapter(
-            sensitivity_rows, varying_knobs
+            sensitivity_rows,
+            varying_knobs,
+            grid_rows=rows,
+            grid_knobs=grid_knobs,
         )
         contributions = {
             "presence": presence,
@@ -189,19 +193,32 @@ class AttributeStep:
         cls,
         rows: Sequence[Mapping[str, Any]],
         varying_knobs: Sequence[str],
+        *,
+        grid_rows: Optional[Sequence[Mapping[str, Any]]] = None,
+        grid_knobs: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
-        if len(rows) < 2:
-            return {
-                "status": "skipped",
-                "reason": "insufficient_on_rows",
-                "items": [],
-                "one_at_a_time_count": 0,
-                "joint_count": 0,
-            }
+        skipped = {
+            "status": "skipped",
+            "reason": "insufficient_on_rows",
+            "items": [],
+            "one_at_a_time_count": 0,
+            "joint_count": 0,
+        }
+        contributions = (
+            cls._contributions(rows, varying_knobs)
+            if len(rows) >= 2
+            else skipped
+        )
+        grid = grid_rows if grid_rows is not None else rows
+        knobs = list(grid_knobs) if grid_knobs is not None else varying_knobs
+        if len(rows) < 2 and (len(grid) < 4 or len(knobs) < 2):
+            return contributions
         return CampaignEffects.enrich(
             rows,
             varying_knobs,
-            cls._contributions(rows, varying_knobs),
+            contributions,
+            grid_rows=grid,
+            grid_knobs=knobs,
         )
 
     @classmethod

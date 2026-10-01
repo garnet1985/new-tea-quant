@@ -81,6 +81,7 @@ class CampaignPresenter:
                     or {},
                 },
             )
+            _hydrate_families(payload)
         return cls(payload)
 
     def present(self, stream: Optional[TextIO] = None) -> None:
@@ -88,13 +89,14 @@ class CampaignPresenter:
         icon = CmdLayout.icon.get
         report = self._report
         persist = report.get("persist") if isinstance(report.get("persist"), dict) else {}
+        families = _family_blocks(report)
         gather = report.get("gather") if isinstance(report.get("gather"), dict) else {}
-        table = report.get("table") if isinstance(report.get("table"), list) else []
+        tables = _all_table_rows(report)
         ready = int(gather.get("ready_count") or 0)
         group_id = report.get("group_id") or persist.get("group_id")
         vids = [
             str(row.get("version_id"))
-            for row in table
+            for row in tables
             if isinstance(row, dict) and row.get("version_id")
         ]
         vid_text = "、".join(f"v{item}" for item in vids) if vids else "还没有回测号"
@@ -112,6 +114,24 @@ class CampaignPresenter:
         CmdLayout.title.print_section(f"{icon('target')} 一句话", stream=out)
         print(f"   {report.get('headline') or '-'}", file=out, flush=True)
 
+        if len(families) >= 2:
+            for name in ("overlays", "matrix"):
+                block = families.get(name)
+                if not isinstance(block, dict):
+                    continue
+                CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
+                title = "单因子" if name == "overlays" else "交叉"
+                CmdLayout.title.print_section(f"{icon('rocket')} {title}", stream=out)
+                view = CampaignPresenter(_family_present_payload(report, block))
+                view._present_family_body(out)
+        else:
+            self._present_family_body(out)
+
+        self._present_paths(out, persist)
+        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
+
+    def _present_family_body(self, out: TextIO) -> None:
+        table = _table_rows(self._report)
         self._present_presence(out)
         self._present_sensitivity(out)
         self._present_cross_layer(out)
@@ -120,8 +140,6 @@ class CampaignPresenter:
         self._present_highlights(out)
         self._present_skipped(out)
         self._present_hints(out)
-        self._present_paths(out, persist)
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
 
     def _present_table(self, out: TextIO, table: Sequence[Any]) -> None:
         rows = [row for row in table if isinstance(row, dict)]
@@ -407,6 +425,90 @@ class CampaignPresenter:
             print(f"   组 {group_id}", file=out, flush=True)
         if path:
             print(f"   {path}", file=out, flush=True)
+
+
+def _hydrate_families(payload: Dict[str, Any]) -> None:
+    if isinstance(payload.get("families"), dict) and payload.get("families"):
+        return
+    families: Dict[str, Any] = {}
+    table = payload.get("table")
+    attribute = payload.get("attribute")
+    for name in ("overlays", "matrix"):
+        block = payload.get(name)
+        if not isinstance(block, dict) or not (
+            block.get("report")
+            or block.get("contributions")
+            or block.get("headline")
+            or block.get("table")
+        ):
+            continue
+        fam = dict(block)
+        if isinstance(table, dict):
+            fam.setdefault("table", table.get(name) or [])
+        if isinstance(attribute, dict) and isinstance(attribute.get(name), dict):
+            fam.setdefault("attribute", attribute.get(name) or {})
+        families[name] = fam
+    if families:
+        payload["families"] = families
+
+
+def _family_blocks(report: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
+    block = report.get("families")
+    if isinstance(block, dict) and block:
+        return {
+            str(name): dict(item)
+            for name, item in block.items()
+            if isinstance(item, dict)
+        }
+    return {}
+
+
+def _table_rows(report: Mapping[str, Any]) -> List[Any]:
+    table = report.get("table")
+    if isinstance(table, list):
+        return table
+    return []
+
+
+def _all_table_rows(report: Mapping[str, Any]) -> List[Any]:
+    table = report.get("table")
+    if isinstance(table, list):
+        return table
+    rows: List[Any] = []
+    if isinstance(table, dict):
+        for group in table.values():
+            if isinstance(group, list):
+                rows.extend(group)
+    for block in _family_blocks(report).values():
+        nested = block.get("table")
+        if isinstance(nested, list):
+            rows.extend(nested)
+    return rows
+
+
+def _family_present_payload(
+    root: Mapping[str, Any],
+    family: Mapping[str, Any],
+) -> Dict[str, Any]:
+    nested_report = family.get("report")
+    if not isinstance(nested_report, dict):
+        nested_report = {
+            "headline": family.get("headline"),
+            "highlights": family.get("highlights") or [],
+            "hints": family.get("hints") or [],
+            "contributions": family.get("contributions") or {},
+        }
+    out = dict(root)
+    out["headline"] = family.get("headline") or nested_report.get("headline")
+    out["report"] = nested_report
+    out["attribute"] = family.get("attribute") or {}
+    out["table"] = family.get("table") or []
+    out["gather"] = family.get("gather") or {}
+    out["cells"] = family.get("cells") or []
+    out["contributions"] = nested_report.get("contributions") or family.get(
+        "contributions"
+    ) or {}
+    return out
 
 
 def _knob_columns(rows: Sequence[Mapping[str, Any]]) -> List[str]:

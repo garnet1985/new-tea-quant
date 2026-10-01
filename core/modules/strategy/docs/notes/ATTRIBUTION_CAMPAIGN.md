@@ -74,12 +74,11 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 ```text
 读当前 settings 快照 + attribution.py
-  → versions 非空则选号
-  → 否则 matrix 各轴笛卡尔积成格；否则 overlays 每一行一格
-  → 每格按 attribution.steps 逐层 Strategy.simulate(runtime_settings=overlay)
-    （资金层只吃枚举，不会自动跑 price_factor；声明了哪一层就补哪一层产物）
+  → versions 非空则选号（不要和 overlays / matrix 同时写）
+  → overlays 与 matrix 可同时写：各自展开成表
+  → 回测执行按 execute_settings 去重，同一身份只 simulate 一次
+  → 各表自己 gather / 归因 / 总结；报告里单因子一栏、交叉一栏
   → 命中/补跑由回测层按双指纹判断
-  → 拼表：一份报告两章——参数贡献度（有/无）+ 参数敏感度（取值变化）；matrix 另有交叉格
 ```
 
 配置是策略旁的 `attribution.py`，不是 `settings.analysis` 开关，不进指纹。
@@ -182,7 +181,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 单独文件，与 `settings.py` 并列。Workbench 保存 settings 时不要改它。不进 `execute_fp` / `env_fp`。
 
-没有 `mode`：`versions` 非空就是选号；否则 `matrix` 是多轴笛卡尔积；`overlays` 是逐项对照（一行动一处）。三者不要同时写。`rolling.windows` 是另一项任务，和参数战役可以写在同一文件里，但 `sa` / `sw` 分开跑、报告分开写。`versions`、`overlays`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
+没有 `mode`：`versions` 非空就是选号（不要和另外两项同时写）。`overlays` 是逐项对照（一行动一处）；`matrix` 是多轴笛卡尔积。**二者可以同时写**：`sa` 各自成表、报告各占一栏，回测按身份去重。`rolling.windows` 是另一项任务，和参数战役可以写在同一文件里，但 `sa` / `sw` 分开跑、报告分开写。`versions`、`overlays`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
 
 ```python
 attribution = {
@@ -202,7 +201,7 @@ attribution = {
 }
 ```
 
-上例 `overlays` 是 **4 格** 逐项对照。要鉴定两个旋钮一起动，改成 `matrix`（笛卡尔积，每格带齐所有轴）：
+上例 `overlays` 是 **4 格** 逐项对照。要鉴定两个旋钮一起动，加（或改成）`matrix`（笛卡尔积，每格带齐所有轴）。overlays 与 matrix 同时写时，`sa` 两栏都出：
 
 ```python
 attribution = {
@@ -216,7 +215,7 @@ attribution = {
 }
 ```
 
-这是 **4 格**（2×2），不是两行 overlays。`sa` 仍是每格一次 `Strategy.simulate`；交叉从这些格子里减出来，不必另开入口。笛卡尔积上限 128 格。
+这是 **4 格**（2×2），不是两行 overlays。`sa` 仍是每格一次 `Strategy.simulate`（与 overlays 撞上同一身份则复用）；交叉从 matrix 这张表里减出来。笛卡尔积上限 128 格。
 
 
 ### Overlay

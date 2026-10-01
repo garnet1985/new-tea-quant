@@ -17,7 +17,7 @@
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
 | ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
 
-Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是单 version 库入口；``Analyzer.campaign`` 走 ``AttributionPipeline``；``Analyzer.rolling`` 走 ``RollingPipeline``；``Analyzer.run`` 是单 version 机会表切片。
+Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（overlays / matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是单 version 库入口；``Analyzer.campaign`` 走 ``AttributionPipeline``；``Analyzer.rolling`` 走 ``RollingPipeline``；``Analyzer.run`` 是单 version 机会表切片。
 
 ### Report 步结构
 

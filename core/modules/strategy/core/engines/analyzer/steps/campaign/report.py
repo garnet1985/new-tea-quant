@@ -31,7 +31,7 @@ class CampaignReportStep:
         return {
             "success": True,
             "folder": str(Path(folder).resolve()),
-            "mode": "select" if config.is_select else "matrix",
+            "mode": config.parameter_mode,
             "steps": [k.value for k in config.steps],
             "kind": config.simulate_kind.value,
             "ignore_cache": executed.get("ignore_cache"),

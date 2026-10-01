@@ -197,19 +197,19 @@ def test_attribute_two_chapters() -> None:
     assert all(item.get("to") is not None for item in pe_sens)
 
 
-def test_matrix_none_overlay_is_legal() -> None:
+def test_overlay_none_is_legal() -> None:
     snapshot = _snapshot()
     cfg = AttributionSettings.to_usable(
         {
             "steps": ["enumerate", "price_factor", "portfolio"],
-            "matrix": [
+            "overlays": [
                 {"core": {"rsi_oversold_threshold": 20}},
                 {"core": {"max_pe_percentile": None}},
                 {"goal": {"stop_loss": None}},
             ],
         }
     )
-    assert len(cfg.matrix) == 3
+    assert len(cfg.overlays) == 3
     cells = CellExpander.expand(snapshot, cfg)
     pe_off = cells[1]
     sl_off = cells[2]
@@ -230,6 +230,7 @@ def test_matrix_none_overlay_is_legal() -> None:
         SimulateKind.PRICE_FACTOR,
         SimulateKind.PORTFOLIO,
     )
+    assert cfg.parameter_mode == "overlays"
 
 
 def test_attribution_settings_drops_fill_missing() -> None:
@@ -237,7 +238,7 @@ def test_attribution_settings_drops_fill_missing() -> None:
         {
             "steps": ["enumerate", "price_factor", "portfolio"],
             "fill_missing": True,
-            "matrix": [{"core": {"rsi_oversold_threshold": 20}}],
+            "overlays": [{"core": {"rsi_oversold_threshold": 20}}],
             "rolling": {
                 "windows": [{"start": "20230101", "end": "20231231"}],
                 "fill_missing": False,

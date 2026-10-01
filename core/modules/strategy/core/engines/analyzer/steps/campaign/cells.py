@@ -1,4 +1,4 @@
-"""把 attribution.py 展开成格子：matrix 一行一格，或 versions 选号。"""
+"""把 attribution.py 展开成格子：overlays 逐项、matrix 笛卡尔积，或 versions 选号。"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,6 +14,7 @@ from core.modules.strategy.core.services.package.settings_loader import (
 )
 
 from .config import AttributionSettings
+from .grid import SettingsMatrix
 from .overlay import SettingsOverlay
 
 
@@ -83,9 +84,16 @@ class CellExpander:
                 )
                 for i, vid in enumerate(config.versions)
             ]
+        if config.has_matrix:
+            raw = config.raw_settings.get("matrix")
+            rows = SettingsMatrix.expand(raw if isinstance(raw, dict) else {})
+            return [
+                cls._from_overlay(i, snapshot, SettingsOverlay.from_dict(row))
+                for i, row in enumerate(rows)
+            ]
         return [
             cls._from_overlay(i, snapshot, row)
-            for i, row in enumerate(config.matrix)
+            for i, row in enumerate(config.overlays)
         ]
 
     @classmethod

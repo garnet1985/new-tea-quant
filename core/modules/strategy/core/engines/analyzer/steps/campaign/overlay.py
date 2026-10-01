@@ -27,7 +27,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 
 @dataclass
 class SettingsOverlay(SettingsBase):
-    """一格 matrix：只含要动的 execute_fp 位置。"""
+    """一格 overlay：只含要动的 execute_fp 位置。"""
 
     raw_settings: Dict[str, Any]
 
@@ -37,7 +37,7 @@ class SettingsOverlay(SettingsBase):
     @classmethod
     def from_dict(cls, settings: Mapping[str, Any]) -> "SettingsOverlay":
         if not isinstance(settings, Mapping):
-            raise ValueError("matrix 行须为 dict")
+            raise ValueError("overlay 行须为 dict")
         return cls(raw_settings=dict(settings))
 
     def apply_defaults(self) -> None:

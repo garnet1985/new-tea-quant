@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Union
 
 from core.infra.cmd_layout import CmdLayout
 
+from .contrasts import KnobContrasts
 from .labels import CampaignLabels
 
 _SECTION_WIDTH = 64
@@ -305,20 +306,20 @@ class CampaignPresenter:
             flush=True,
         )
         col_values = list(grid.get("col_values") or [])
-        headers = [""] + [CampaignLabels.format_number(col_knob, value) for value in col_values]
+        headers = [""] + [CampaignLabels.format_knob(col_knob, value) for value in col_values]
         best = grid.get("best") if isinstance(grid.get("best"), dict) else {}
         body: List[List[str]] = []
         for line in grid.get("cells") or []:
             if not isinstance(line, list) or not line:
                 continue
             first = line[0] if isinstance(line[0], dict) else {}
-            row = [CampaignLabels.format_number(row_knob, first.get("row_value"))]
+            row = [CampaignLabels.format_knob(row_knob, first.get("row_value"))]
             for cell in line:
                 if not isinstance(cell, dict):
                     row.append("-")
                     continue
                 text = CampaignLabels.format_number("total_return", cell.get("total_return"))
-                if _same_number(cell.get("row_value"), best.get("row_value")) and _same_number(
+                if _same_level(cell.get("row_value"), best.get("row_value")) and _same_level(
                     cell.get("col_value"), best.get("col_value")
                 ):
                     text = f"{text} ←最好"
@@ -506,6 +507,12 @@ def _step_label(level: Mapping[str, Any]) -> str:
     if base is not None:
         return f"相对基准 {CampaignLabels.format_delta('total_return', base)}"
     return ""
+
+
+def _same_level(left: Any, right: Any) -> bool:
+    if KnobContrasts.is_off(left) and KnobContrasts.is_off(right):
+        return True
+    return _same_number(left, right)
 
 
 def _same_number(left: Any, right: Any) -> bool:

@@ -47,7 +47,7 @@ class AttributionPipeline:
         config = AttributionSettings.load(folder)
         if not config.has_parameter:
             raise ValueError(
-                "attribution.py 没有 matrix / versions；参数战役请写这两项之一，滚动窗口用 CLI sw"
+                "attribution.py 没有 overlays / matrix / versions；参数战役请写这三项之一，滚动窗口用 CLI sw"
             )
         cells = CellExpander.expand_from_folder(folder, config)
         tasks = AttributionTask.from_cells(cells, config)

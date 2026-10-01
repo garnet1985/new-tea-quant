@@ -70,15 +70,16 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 平时 Run 只多写一行组成员（落地时），不额外跑回测。
 
-归因是单独入口。点名方式见 [§10](#10-attributionpy)。用当前 `settings.py` 的 effective 当快照，matrix 每一行是一格 overlay：
+归因是单独入口。点名方式见 [§10](#10-attributionpy)。用当前 `settings.py` 的 effective 当快照；`overlays` 一行一格，`matrix` 按轴做笛卡尔积：
 
 ```text
 读当前 settings 快照 + attribution.py
-  → versions 非空则选号；否则按 matrix 每一行 overlay 成一格
+  → versions 非空则选号
+  → 否则 matrix 各轴笛卡尔积成格；否则 overlays 每一行一格
   → 每格按 attribution.steps 逐层 Strategy.simulate(runtime_settings=overlay)
     （资金层只吃枚举，不会自动跑 price_factor；声明了哪一层就补哪一层产物）
   → 命中/补跑由回测层按双指纹判断
-  → 拼表：一份报告两章——参数贡献度（有/无）+ 参数敏感度（取值变化）
+  → 拼表：一份报告两章——参数贡献度（有/无）+ 参数敏感度（取值变化）；matrix 另有交叉格
 ```
 
 配置是策略旁的 `attribution.py`，不是 `settings.analysis` 开关，不进指纹。
@@ -90,7 +91,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
   meta.json              # next_group_id；env_fp → 1、2、3…
   {n}/                   # 组号，不是指纹
     group_meta.json      # 含 env_fp
-    parameter/           # 参数归因（matrix / select）
+    parameter/           # 参数归因（overlays / matrix / select）
       report.json
       table.json
       attribute.json
@@ -181,24 +182,16 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 单独文件，与 `settings.py` 并列。Workbench 保存 settings 时不要改它。不进 `execute_fp` / `env_fp`。
 
-没有 `mode`：`versions` 非空就是选号；没有或 `[]` 就走 `matrix`。`rolling.windows` 是另一项任务，和 matrix 可以写在同一文件里，但 `sa` / `sw` 分开跑、报告分开写。`versions`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
+没有 `mode`：`versions` 非空就是选号；否则 `matrix` 是多轴笛卡尔积；`overlays` 是逐项对照（一行动一处）。三者不要同时写。`rolling.windows` 是另一项任务，和参数战役可以写在同一文件里，但 `sa` / `sw` 分开跑、报告分开写。`versions`、`overlays`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
 
 ```python
 attribution = {
     "steps": ["enumerate", "price_factor", "portfolio"],
-    "matrix": [
-        {
-            "core": {"rsi_oversold_threshold": 20},
-        },
-        {
-            "core": {"rsi_oversold_threshold": 25},
-        },
-        {
-            "core": {"max_pe_percentile": None},
-        },
-        {
-            "goal": {"stop_loss": None},
-        },
+    "overlays": [
+        {"core": {"rsi_oversold_threshold": 20}},
+        {"core": {"rsi_oversold_threshold": 25}},
+        {"core": {"max_pe_percentile": None}},
+        {"goal": {"stop_loss": None}},
     ],
     "rolling": {
         "windows": [
@@ -209,7 +202,21 @@ attribution = {
 }
 ```
 
-上例是 **4 格**（RSI 取值两档 + 关掉 PE 门槛 + 关掉止损、留着止盈），不是笛卡尔积。要交叉就自己写够行。
+上例 `overlays` 是 **4 格** 逐项对照。要鉴定两个旋钮一起动，改成 `matrix`（笛卡尔积，每格带齐所有轴）：
+
+```python
+attribution = {
+    "steps": ["enumerate", "price_factor", "portfolio"],
+    "matrix": {
+        "core": {
+            "rsi_oversold_threshold": [20, 25],
+            "max_pe_percentile": [30, None],
+        },
+    },
+}
+```
+
+这是 **4 格**（2×2），不是两行 overlays。`sa` 仍是每格一次 `Strategy.simulate`；交叉从这些格子里减出来，不必另开入口。笛卡尔积上限 128 格。
 
 
 ### Overlay

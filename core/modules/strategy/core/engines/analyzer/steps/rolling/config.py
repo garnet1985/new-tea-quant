@@ -27,7 +27,7 @@ _ALLOWED_STEPS = frozenset(k.value for k in SimulateKind)
 
 @dataclass
 class RollingSettings(SettingsBase):
-    """滚动验证配置。窗口是起止日，不是 matrix 旋钮。"""
+    """滚动验证配置。窗口是起止日，不是 overlays / matrix 旋钮。"""
 
     raw_settings: Dict[str, Any]
     _validated: bool = field(default=False, repr=False)

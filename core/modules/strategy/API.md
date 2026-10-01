@@ -123,7 +123,7 @@
 `Strategy.present_campaign(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 对照旋钮，写 `results/attribution/{n}/parameter/`。每格按 `steps` 逐层 `Strategy.simulate`（缓存由回测层判断；资金层不会自动跑价格层）。CLI `sa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。
+- **描述：** 读 `attribution.py` 对照旋钮，写 `results/attribution/{n}/parameter/`。`overlays` 逐项对照；`matrix` 各轴笛卡尔积。每格按 `steps` 逐层 `Strategy.simulate`（缓存由回测层判断；资金层不会自动跑价格层）。CLI `sa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。
 
 ### analyze / present_analyze
 

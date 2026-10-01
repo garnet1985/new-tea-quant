@@ -324,7 +324,7 @@ def _rectangle(
     groups: Dict[Tuple[Any, ...], List[Mapping[str, Any]]] = {}
     for row in rows:
         knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
-        freeze = tuple((key, _num_key(knobs.get(key))) for key in others)
+        freeze = tuple((key, _level_key(knobs.get(key))) for key in others)
         groups.setdefault(freeze, []).append(row)
     best: Optional[Dict[str, Any]] = None
     for freeze, group in groups.items():
@@ -342,42 +342,47 @@ def _filled_grid(
     col_knob: str,
     freeze: Sequence[Tuple[str, Any]],
 ) -> Optional[Dict[str, Any]]:
-    cells: Dict[Tuple[float, float], Mapping[str, Any]] = {}
+    cells: Dict[Tuple[Any, Any], Mapping[str, Any]] = {}
+    originals: Dict[Tuple[Any, Any], Tuple[Any, Any]] = {}
     for row in rows:
         knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
-        row_val = _num_key(knobs.get(row_knob))
-        col_val = _num_key(knobs.get(col_knob))
-        if row_val is None or col_val is None:
+        row_raw = knobs.get(row_knob)
+        col_raw = knobs.get(col_knob)
+        row_key = _level_key(row_raw)
+        col_key = _level_key(col_raw)
+        if row_key is None or col_key is None:
             return None
-        key = (row_val, col_val)
+        key = (row_key, col_key)
         if key in cells:
             return None
         cells[key] = row
-    row_vals = sorted({key[0] for key in cells})
-    col_vals = sorted({key[1] for key in cells})
-    if len(row_vals) < 2 or len(col_vals) < 2:
+        originals[key] = (row_raw, col_raw)
+    row_keys = sorted({item[0] for item in cells})
+    col_keys = sorted({item[1] for item in cells})
+    if len(row_keys) < 2 or len(col_keys) < 2:
         return None
-    if len(cells) != len(row_vals) * len(col_vals):
+    if len(cells) != len(row_keys) * len(col_keys):
         return None
-    for rv in row_vals:
-        for cv in col_vals:
-            if (rv, cv) not in cells:
+    for rk in row_keys:
+        for ck in col_keys:
+            if (rk, ck) not in cells:
                 return None
-    matrix: List[List[Dict[str, Any]]] = []
+    grid_cells: List[List[Dict[str, Any]]] = []
     best_cell = None
     best_ret = None
-    for rv in row_vals:
+    for rk in row_keys:
         line: List[Dict[str, Any]] = []
-        for cv in col_vals:
-            row = cells[(rv, cv)]
+        for ck in col_keys:
+            row = cells[(rk, ck)]
+            row_raw, col_raw = originals[(rk, ck)]
             ret = _layer_number(
                 row.get("layers") if isinstance(row.get("layers"), dict) else {},
                 "portfolio",
                 "total_return",
             )
             cell = {
-                "row_value": rv,
-                "col_value": cv,
+                "row_value": row_raw,
+                "col_value": col_raw,
                 "version_id": row.get("version_id"),
                 "total_return": ret,
             }
@@ -387,15 +392,15 @@ def _filled_grid(
             if best_ret is None or ret > best_ret:
                 best_ret = ret
                 best_cell = cell
-        matrix.append(line)
+        grid_cells.append(line)
     held = {key: value for key, value in freeze if value is not None}
     return {
         "row_knob": row_knob,
         "col_knob": col_knob,
-        "row_values": row_vals,
-        "col_values": col_vals,
+        "row_values": [originals[(rk, col_keys[0])][0] for rk in row_keys],
+        "col_values": [originals[(row_keys[0], ck)][1] for ck in col_keys],
         "held": held,
-        "cells": matrix,
+        "cells": grid_cells,
         "n_cells": len(cells),
         "best": None
         if best_cell is None
@@ -509,6 +514,15 @@ def _layer_number(
     if not isinstance(block, dict):
         return None
     return Analysis.Classical.coerce_float(block.get(outcome))
+
+
+def _level_key(value: Any) -> Optional[Tuple[Any, ...]]:
+    if KnobContrasts.is_off(value):
+        return ("off",)
+    number = KnobContrasts.scalar(value)
+    if number is None:
+        return None
+    return ("num", round(float(number), 10))
 
 
 def _num_key(value: Any) -> Optional[float]:

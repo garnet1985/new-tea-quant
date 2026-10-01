@@ -57,7 +57,7 @@ class CellExecuteResult:
 
 
 class ExecuteStep:
-    """战役执行：matrix / 滚动交给 simulate；选号只读已有 version。"""
+    """战役执行：overlays / matrix / 滚动交给 simulate；选号只读已有 version。"""
 
     @classmethod
     def run(

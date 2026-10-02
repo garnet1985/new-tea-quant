@@ -1,6 +1,6 @@
 # Strategy API 文档
 
-**版本：** `0.9.0`  
+**版本：** `0.10.0`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -183,7 +183,7 @@ Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUME
 
 | 符号 | 说明 |
 |------|------|
-| `StrategyHooks` / `StrategyContext` / `StrategyData` / `StrategyInfo` | userspace hook 契约；`has_opportunity() -> bool`；`ctx.remember/recall/forget` 为内存袋，`ctx.capture` 为本笔归因输入 |
+| `StrategyHooks` / `StrategyContext` / `StrategyData` / `StrategyInfo` | userspace hook 契约；`has_opportunity() -> bool`；价格回放 `is_new_opportunity(ctx) -> bool`（仅 price_factor）；`ctx.remember/recall/forget` 为内存袋，`ctx.capture` 为本笔归因输入 |
 | `Opportunity` / `Investment` / `CalendarAsOfResult` | 引擎共享数据类；`Opportunity.signal_snapshot` 为归因用决策现场记录 |
 | `AsOfSlice` / `JobBundleLoader` / `ProgressRecorder` | 跨模块协作面（tag / BE 数据装载与进度落盘） |
 | `ExecutionMode` / `SellReason` / `SimulateKind` / `WorkbenchStep` | 公开枚举 |

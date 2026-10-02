@@ -100,10 +100,10 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
     rolling/             # 滚动验证（读 attribution.rolling）
 ```
 
-每个 version 仍各写各的 `{vid}/`。enum / price / portfolio 继续共享这个号。一次战役、一份报告，里面三栏（`attribution.steps` 写到哪一层就补哪一层；只写 `portfolio` 不会凭空出现价格栏）：
+一次战役、一份报告，里面按 `attribution.steps` 补层（只写 `enumerate` 不会出现价格栏）：
 
 - 枚举：机会够不够、密不密
-- 价格：单笔赚不赚
+- 价格：去噪后的等权机会账赚不赚（段与段可并行）
 - 资金层（最接近账户）：收益、回撤、利用率
 
 扫描开始时给这批 registry 行记同一个 cohort / group id。清理按 `env_fp` 整组：当前环境不拆；过时环境超出 N 组则最旧一组的 simulation 与归因目录一起删。选号路径会丢掉与当前快照区间/股票池不同的号。

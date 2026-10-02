@@ -415,7 +415,6 @@ export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId
   const m = json?.message || {};
   return {
     report: m.report && typeof m.report === 'object' ? m.report : {},
-    analysis: m.analysis && typeof m.analysis === 'object' ? m.analysis : {},
     version_id: String(m.version_id || versionId || '').trim(),
     step: String(m.step || step || '').trim(),
   };

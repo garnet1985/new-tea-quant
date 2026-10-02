@@ -18,14 +18,11 @@ from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts.consts import (
-    ANALYSIS_REPORT_FILE,
-    ANALYSIS_SOURCE_FILE,
     ENTITIES_SUBDIR,
     ENTITY_IDS_FILE,
     ENTITY_LIST_FILE,
     EQUITY_CURVE_FILE,
     GOAL_ACHIEVEMENTS_SUFFIX,
-    LAYER_ATTRIBUTION_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
     PRICE_INVESTMENTS_SUFFIX,
@@ -64,13 +61,10 @@ _NAMED_FILES = {
     "runtime_env": RUNTIME_ENV_FILE,
     "entity_ids": ENTITY_IDS_FILE,
     "overall_report": OVERALL_REPORT_FILE,
-    "layer_attribution": LAYER_ATTRIBUTION_FILE,
     "entity_list": ENTITY_LIST_FILE,
     "performance": PERFORMANCE_FILE,
     "trades": TRADES_FILE,
     "equity_curve": EQUITY_CURVE_FILE,
-    "analysis_source": ANALYSIS_SOURCE_FILE,
-    "analysis_report": ANALYSIS_REPORT_FILE,
 }
 
 

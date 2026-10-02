@@ -10,6 +10,7 @@ from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 
+from .attribute import AttributeStep
 from .cells import AttributionTask
 from .contrasts import KnobContrasts
 
@@ -52,8 +53,11 @@ class GatherStep:
         executed: Mapping[str, Any],
     ) -> Dict[str, Any]:
         by_index = {task.cell.index: task for task in tasks}
-        paths = KnobContrasts.union_paths(
-            task.cell.overlay for task in tasks
+        layer = ""
+        if tasks:
+            layer = str(getattr(tasks[0].kind, "value", tasks[0].kind) or "")
+        paths = AttributeStep.for_layer(layer).filter_knobs(
+            KnobContrasts.union_paths(task.cell.overlay for task in tasks)
         )
         rows: List[Dict[str, Any]] = []
         for raw in executed.get("cells") or []:

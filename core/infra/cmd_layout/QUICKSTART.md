@@ -21,6 +21,7 @@ from core.infra.cmd_layout import CmdLayout, i
 CmdLayout.title.print_h1(f"{i('chart')} 归因对照")
 CmdLayout.title.print_h2("参数贡献度")
 CmdLayout.title.print_h3("有 / 无")
+CmdLayout.title.print_h4("PE分位上限")
 print(CmdLayout.text.meta(["组 3", "对照上 4 套"]))
 print(CmdLayout.text.indent("关 PE 后账户少 12 个点。"))
 CmdLayout.table.print(
@@ -30,7 +31,7 @@ CmdLayout.table.print(
 print(CmdLayout.bar_chart.render([("win", 42), ("loss", 18)], title="胜负"))
 ```
 
-**预期结果：** 终端打印 h1 星号框、h2 下划线、h3 三连 `-`、meta/缩进正文、对照表与条形图。
+**预期结果：** 终端打印 h1 星号框、h2 下划线、h3 三连 `-`、h4 `###`、meta/缩进正文、对照表与条形图。
 
 兼容旧路径：`CmdLayout.title.banner` / `section` 仍可用。
 

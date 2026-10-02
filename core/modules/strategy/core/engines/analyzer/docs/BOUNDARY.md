@@ -12,7 +12,7 @@
 |----|------|
 | ``analyzer.py`` | Facade / API 暴露 |
 | ``pipeline.py`` | 战役编排（``AttributionPipeline`` 只串步骤） |
-| ``steps/campaign/`` | attribution 配置 / overlay / 展开 / 查缓存 / 钉住 / 拼表 / 相对基准贡献度 / 总结 / 落盘 / 展示 |
+| ``steps/campaign/`` | attribution 配置 / overlay / 展开 / 查缓存 / 钉住 / 拼表 / 按层归因（``attribute/`` 下 Enumerate|Price|Portfolio） / 总结 / 落盘 / 展示 |
 | ``steps/layer/`` | 层内诊断库（事实 / 结论 / 建议）；不挂在 simulate / CLI |
 | ``steps/prepare/`` | 回测产物 → ``source.json``（编排；I/O 走 ``ArtifactStore``） |
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |

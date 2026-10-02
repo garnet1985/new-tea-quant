@@ -74,7 +74,7 @@ terms:
     avoid: []
 
   title:
-    definition: "标题命名空间：优先 h1 / h2 / h3；banner / section 为兼容入口。"
+    definition: "标题命名空间：优先 h1 / h2 / h3 / h4；banner / section 为兼容入口。"
     aliases: []
     avoid: []
 
@@ -91,9 +91,15 @@ terms:
     avoid: []
 
   h3:
-    definition: "小节标题，形如 --- 文本 ---；print_h3 后再空行。"
+    definition: "小节标题：前空行 + --- 文本 ---。"
     aliases:
       - "title.h3"
+    avoid: []
+
+  h4:
+    definition: "细节标题：前空行 + ### 文本。"
+    aliases:
+      - "title.h4"
     avoid: []
 
   table:

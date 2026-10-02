@@ -54,13 +54,28 @@ class TestTitle(unittest.TestCase):
         self.assertGreaterEqual(len(lines[2]), Title.display_width("参数贡献度"))
 
     def test_h3_triple_dash(self) -> None:
-        self.assertEqual(Title.h3("事实"), "--- 事实 ---")
+        text = Title.h3("事实")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "")
+        self.assertEqual(lines[1], "--- 事实 ---")
 
-    def test_print_h3_adds_blank(self) -> None:
+    def test_print_h3_leading_blank_only(self) -> None:
         buf = io.StringIO()
         returned = CmdLayout.title.print_h3("结论", stream=buf)
-        self.assertEqual(returned, "--- 结论 ---")
-        self.assertEqual(buf.getvalue(), "--- 结论 ---\n\n")
+        self.assertEqual(returned, "\n--- 结论 ---")
+        self.assertEqual(buf.getvalue(), "\n--- 结论 ---\n")
+
+    def test_h4_hash_prefix(self) -> None:
+        text = Title.h4("PE分位上限")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "")
+        self.assertEqual(lines[1], "### PE分位上限")
+
+    def test_print_h4(self) -> None:
+        buf = io.StringIO()
+        returned = CmdLayout.title.print_h4("止损", stream=buf)
+        self.assertEqual(returned, "\n### 止损")
+        self.assertEqual(buf.getvalue(), "\n### 止损\n")
 
     def test_print_banner(self) -> None:
         buf = io.StringIO()

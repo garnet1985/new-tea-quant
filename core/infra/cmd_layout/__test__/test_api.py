@@ -33,7 +33,7 @@ class TestCmdLayoutApi(unittest.TestCase):
         self.assertEqual(lines[0], lines[2])
         self.assertEqual(CmdLayout.title.section("枚举汇总"), "-- 枚举汇总 --")
 
-    def test_title_h1_h2_h3(self) -> None:
+    def test_title_h1_h2_h3_h4(self) -> None:
         from core.infra.cmd_layout import CmdLayout
 
         h1_lines = CmdLayout.title.h1("归因对照").splitlines()
@@ -46,7 +46,13 @@ class TestCmdLayoutApi(unittest.TestCase):
         self.assertEqual(h2_lines[1], "参数贡献度")
         self.assertTrue(set(h2_lines[2]) <= {"="})
 
-        self.assertEqual(CmdLayout.title.h3("事实"), "--- 事实 ---")
+        h3_lines = CmdLayout.title.h3("事实").splitlines()
+        self.assertEqual(h3_lines[0], "")
+        self.assertEqual(h3_lines[1], "--- 事实 ---")
+
+        h4_lines = CmdLayout.title.h4("PE分位上限").splitlines()
+        self.assertEqual(h4_lines[0], "")
+        self.assertEqual(h4_lines[1], "### PE分位上限")
 
     def test_bar_chart_render_max_bar_and_pct(self) -> None:
         from core.infra.cmd_layout import CmdLayout

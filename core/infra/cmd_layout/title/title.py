@@ -16,6 +16,7 @@ class Title:
     DEFAULT_H2_CHAR = "="
     DEFAULT_H2_MIN_WIDTH = 24
     DEFAULT_H3_CHAR = "-"
+    DEFAULT_H4_PREFIX = "###"
 
     @staticmethod
     def display_width(text: str) -> int:
@@ -101,11 +102,23 @@ class Title:
         *,
         char: str = DEFAULT_H3_CHAR,
     ) -> str:
-        """Minor section: ``--- heading ---``."""
+        """Minor section: blank line + ``--- heading ---``."""
         rule_char = (char or cls.DEFAULT_H3_CHAR)[:1] or "-"
         body = str(text).strip()
         deco = rule_char * 3
-        return f"{deco} {body} {deco}"
+        return f"\n{deco} {body} {deco}"
+
+    @classmethod
+    def h4(
+        cls,
+        text: str,
+        *,
+        prefix: str = DEFAULT_H4_PREFIX,
+    ) -> str:
+        """Detail heading: blank line + ``### text``."""
+        mark = str(prefix or cls.DEFAULT_H4_PREFIX).strip() or cls.DEFAULT_H4_PREFIX
+        body = str(text).strip()
+        return f"\n{mark} {body}"
 
     @classmethod
     def print_banner(
@@ -172,7 +185,18 @@ class Title:
     ) -> str:
         out = cls.h3(text, char=char)
         StreamWriter.write(out, stream=stream)
-        StreamWriter.write("", stream=stream)
+        return out
+
+    @classmethod
+    def print_h4(
+        cls,
+        text: str,
+        *,
+        prefix: str = DEFAULT_H4_PREFIX,
+        stream: Optional[TextIO] = None,
+    ) -> str:
+        out = cls.h4(text, prefix=prefix)
+        StreamWriter.write(out, stream=stream)
         return out
 
 
@@ -225,6 +249,14 @@ class TitleNamespace:
         char: str = Title.DEFAULT_H3_CHAR,
     ) -> str:
         return Title.h3(text, char=char)
+
+    @staticmethod
+    def h4(
+        text: str,
+        *,
+        prefix: str = Title.DEFAULT_H4_PREFIX,
+    ) -> str:
+        return Title.h4(text, prefix=prefix)
 
     @staticmethod
     def print_banner(
@@ -283,3 +315,12 @@ class TitleNamespace:
         stream: Optional[TextIO] = None,
     ) -> str:
         return Title.print_h3(text, char=char, stream=stream)
+
+    @staticmethod
+    def print_h4(
+        text: str,
+        *,
+        prefix: str = Title.DEFAULT_H4_PREFIX,
+        stream: Optional[TextIO] = None,
+    ) -> str:
+        return Title.print_h4(text, prefix=prefix, stream=stream)

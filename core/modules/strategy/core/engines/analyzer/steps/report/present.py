@@ -38,7 +38,7 @@ class AnalysisReportPresenter:
         report = self._report
         insights = InsightBuilder.resolve(report)
 
-        CmdLayout.title.print_h1(f"{icon('chart')} 这次回测怎么读", stream=out)
+        CmdLayout.title.print_h1(f"{icon('chart')} 这次回测怎么解读", stream=out)
         meta = CmdLayout.text.meta(
             [
                 f"策略 {report.get('strategy_key') or '-'}",

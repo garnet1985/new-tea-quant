@@ -309,7 +309,7 @@ class AttributionSettings(SettingsBase):
                 report,
                 "overlays",
                 "versions、overlays、matrix、rolling.windows 不能都空",
-                suggested_fix="写 overlays 做逐项对照，matrix 做交叉网格（可同时写），versions 选号，或 rolling.windows 做滚动",
+                suggested_fix="写 overlays 做逐项对照，matrix 做参数交叉对照（可同时写），versions 选号，或 rolling.windows 做滚动",
             )
 
         self._validated = report.is_usable()

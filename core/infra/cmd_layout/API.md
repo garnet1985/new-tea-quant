@@ -92,7 +92,7 @@ text = CmdLayout.bar_chart.render(
 
 ### title
 
-**描述：** ASCII 标题块。新报告优先 `h1` / `h2` / `h3`；`banner` / `section` 保留兼容。
+**描述：** ASCII 标题块。新报告优先 `h1` / `h2` / `h3` / `h4`；`banner` / `section` 保留兼容。
 
 #### h1
 
@@ -121,15 +121,25 @@ text = CmdLayout.bar_chart.render(
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 小节，形如 `--- 文本 ---`；`print_h3` 后再打一空行
+- **描述：** 小节：前空行 + `--- 文本 ---`
 - **返回值：** `str`
 
-#### print_h1 / print_h2 / print_h3
+#### h4
+
+`CmdLayout.title.h4(text, *, prefix="###") -> str`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 对应 `h1` / `h2` / `h3` 并打印到 `stream`
+- **描述：** 细节标题：前空行 + `### 文本`
+- **返回值：** `str`
+
+#### print_h1 / print_h2 / print_h3 / print_h4
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.0`
+- **描述：** 对应 `h1` / `h2` / `h3` / `h4` 并打印到 `stream`
 
 #### banner
 

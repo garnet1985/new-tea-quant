@@ -81,8 +81,8 @@ class AttributionPipeline:
             family_executed = ExecuteStep.bind(executed, unique_cells, cells)
             tasks = AttributionTask.from_cells(cells, kind=layer)
             gathered = GatherStep.run(folder, tasks, family_executed)
-            attributed = AttributeStep.run(gathered)
-            summarized = SummarizeStep.run(attributed)
+            attributed = AttributeStep.run(gathered, layer=layer.value)
+            summarized = SummarizeStep.run(attributed, layer=layer.value)
             families[name] = CampaignReportStep.run(
                 folder,
                 config,
@@ -98,6 +98,7 @@ class AttributionPipeline:
             config, executed, families, trades=trades or {}
         )
         assembled["layer"] = layer.value
+        assembled["strategy_key"] = Path(folder).name
         task_id = _LAYER_TASK[layer]
         return PersistStep.run(
             folder,

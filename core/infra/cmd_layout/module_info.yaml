@@ -8,9 +8,9 @@ dependencies: []
 changelog:
   - version: "0.2.0"
     changes:
-      - 标题层级 h1 / h2 / h3（报告总标题 / 大节下划线 / --- 小节）
+      - 标题层级 h1 / h2 / h3 / h4（总标题 / 大节 / --- 小节 / ### 细节）
       - 新增 table（ASCII 对照表，CJK 列宽）与 text（meta / kv / indent / 列表）
-      - 保留 banner / section；新报告优先用 h1–h3
+      - 保留 banner / section；新报告优先用 h1–h4
   - version: "0.1.2"
     changes:
       - 将 IconService 收入 cmd_layout.icon（CmdLayout.icon.get / i）

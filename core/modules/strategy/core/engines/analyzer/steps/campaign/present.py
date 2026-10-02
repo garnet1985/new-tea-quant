@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Union
 
 from core.infra.cmd_layout import CmdLayout
 
+from .attribute import AttributeStep
 from .contrasts import KnobContrasts
 from .labels import CampaignLabels
 
@@ -24,18 +25,10 @@ _STATUS_LABELS = {
     "skipped": "跳过",
 }
 
-_PREFERRED_OUTCOMES = (
-    ("portfolio", "total_return"),
-    ("portfolio", "max_drawdown"),
-    ("enumerate", "total_opportunities"),
-    ("price_factor", "win_rate"),
-    ("price_factor", "avg_roi"),
-)
-_CONTRIB_SHOW = (
-    ("portfolio", "total_return"),
-    ("portfolio", "max_drawdown"),
-    ("enumerate", "total_opportunities"),
-)
+_FAMILY_TITLES = {
+    "overlays": "修改参数后的对照(overlays)",
+    "matrix": "多参数组合后的对照(matrix)",
+}
 
 
 class CampaignPresenter:
@@ -88,63 +81,129 @@ class CampaignPresenter:
         report = self._report
         persist = report.get("persist") if isinstance(report.get("persist"), dict) else {}
         families = _family_blocks(report)
-        gather = report.get("gather") if isinstance(report.get("gather"), dict) else {}
+        layer = _report_layer(report)
+        nested = len(families) >= 2
         tables = _all_table_rows(report)
-        ready = int(gather.get("ready_count") or 0)
-        group_id = report.get("group_id") or persist.get("group_id")
-        vids = [
-            str(row.get("version_id"))
-            for row in tables
-            if isinstance(row, dict) and row.get("version_id")
-        ]
+        cells = report.get("cells") if isinstance(report.get("cells"), list) else []
+        vids = _unique_version_ids([*tables, *cells])
+        vid_count = len(vids)
         vid_text = "、".join(f"v{item}" for item in vids) if vids else "还没有回测号"
+        strategy_key = _strategy_key(report)
 
-        CmdLayout.title.print_h1(f"{icon('chart')} 归因对照", stream=out)
-        meta_parts = []
+        CmdLayout.title.print_h1(
+            f"{icon('chart')} {CampaignLabels.report_title(layer)}",
+            stream=out,
+        )
+        CmdLayout.text.print_kv("策略key", strategy_key or "-", sep="：", stream=out)
+        CmdLayout.text.print_kv(
+            f"共产生 {vid_count} 套对照组",
+            vid_text,
+            sep="：",
+            stream=out,
+        )
+        group_id = report.get("group_id") or persist.get("group_id")
         if group_id:
-            meta_parts.append(f"组 {group_id}")
-        meta_parts.append(f"{report.get('cell_count') or 0} 套设置")
-        meta_parts.append(f"对照上 {ready} 套")
-        meta_parts.append(vid_text)
-        print(f"{icon('gear')} {CmdLayout.text.meta(meta_parts)}", file=out, flush=True)
-        CmdLayout.title.print_h2(f"{icon('target')} 一句话", stream=out)
-        CmdLayout.text.print_indent(report.get('headline') or '-', stream=out)
+            CmdLayout.text.print_kv("归因组 ID", group_id, sep="：", stream=out)
 
-        if len(families) >= 2:
+        self._present_conclusion(out, families)
+
+        if nested:
             for name in ("overlays", "matrix"):
                 block = families.get(name)
                 if not isinstance(block, dict):
                     continue
-                title = "单因子" if name == "overlays" else "交叉"
+                title = _FAMILY_TITLES.get(name, name)
                 CmdLayout.title.print_h2(f"{icon('rocket')} {title}", stream=out)
+                if name == "overlays":
+                    CmdLayout.text.print_indent(
+                        "逐项修改参数，比较启用与未启用时的结果差异。",
+                        stream=out,
+                    )
+                else:
+                    CmdLayout.text.print_indent(
+                        "多个参数取不同组合，比较组合变化带来的结果差异。",
+                        stream=out,
+                    )
                 view = CampaignPresenter(_family_present_payload(report, block))
-                view._present_family_body(out)
+                view._present_family_body(out, nested=True)
         else:
-            self._present_family_body(out)
+            self._present_family_body(out, nested=False)
 
         self._present_trades(out)
         self._present_paths(out, persist)
 
-    def _present_family_body(self, out: TextIO) -> None:
-        table = _table_rows(self._report)
-        self._present_presence(out)
-        self._present_sensitivity(out)
-        self._present_cross_layer(out)
-        self._present_interaction(out)
-        self._present_table(out, table)
-        self._present_highlights(out)
-        self._present_skipped(out)
-        self._present_hints(out)
+    def _present_conclusion(
+        self,
+        out: TextIO,
+        families: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        icon = CmdLayout.icon.get
+        CmdLayout.title.print_h2(f"{icon('target')} 结论摘要", stream=out)
+        CmdLayout.text.print_indent(
+            "归因结果快速总结：",
+            stream=out,
+        )
+        lines: List[str] = []
+        if families:
+            for name in ("overlays", "matrix"):
+                block = families.get(name)
+                if not isinstance(block, dict):
+                    continue
+                text = str(block.get("headline") or "").strip()
+                if not text:
+                    nested = block.get("report")
+                    if isinstance(nested, dict):
+                        text = str(nested.get("headline") or "").strip()
+                if text:
+                    lines.append(f"{_FAMILY_TITLES.get(name, name)}：{text}")
+        else:
+            text = str(self._report.get("headline") or "").strip()
+            if not text:
+                nested = self._report.get("report")
+                if isinstance(nested, dict):
+                    text = str(nested.get("headline") or "").strip()
+            if text:
+                lines.append(text)
+        if lines:
+            CmdLayout.text.print_bullets(lines, indent=3, marker="·", stream=out)
+        else:
+            CmdLayout.text.print_indent("这次还没有可写的结论。", stream=out)
 
-    def _present_table(self, out: TextIO, table: Sequence[Any]) -> None:
+    def _present_family_body(self, out: TextIO, *, nested: bool = False) -> None:
+        table = _table_rows(self._report)
+        self._present_presence(out, nested=nested)
+        self._present_sensitivity(out, nested=nested)
+        self._present_cross_layer(out, nested=nested)
+        self._present_interaction(out, nested=nested)
+        self._present_table(out, table, nested=nested)
+        self._present_highlights(out, nested=nested)
+        self._present_skipped(out, nested=nested)
+        self._present_hints(out, nested=nested)
+
+    def _heading(self, title: str, out: TextIO, *, nested: bool) -> None:
+        if nested:
+            CmdLayout.title.print_h3(title, stream=out)
+        else:
+            CmdLayout.title.print_h2(title, stream=out)
+
+    def _contrib_pairs(self) -> Sequence[tuple]:
+        return AttributeStep.for_layer(_report_layer(self._report)).OUTCOMES
+
+    def _present_table(
+        self,
+        out: TextIO,
+        table: Sequence[Any],
+        *,
+        nested: bool = False,
+    ) -> None:
         rows = [row for row in table if isinstance(row, dict)]
         if not rows:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('clipboard')} 数字对照", stream=out)
+        self._heading(f"{icon('clipboard')} 数字对照", out, nested=nested)
 
-        knob_keys = _knob_columns(rows)
-        outcome_keys = _outcome_columns(rows)
+        knob_keys = _knob_columns(rows, layer=_report_layer(self._report))
+        outcome_keys = _outcome_columns(rows, layer=_report_layer(self._report))
         headers = ["回测"] + [CampaignLabels.knob_label(key) for key in knob_keys]
         headers += [CampaignLabels.outcome_label(key) for _, key in outcome_keys]
 
@@ -164,7 +223,7 @@ class CampaignPresenter:
             body.append(line)
         CmdLayout.table.print(headers, body, stream=out)
 
-    def _present_presence(self, out: TextIO) -> None:
+    def _present_presence(self, out: TextIO, *, nested: bool = False) -> None:
         contrib = _chapter_block(self._report, "presence")
         items = [
             item
@@ -174,11 +233,14 @@ class CampaignPresenter:
         if not items:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('rocket')} 参数贡献度", stream=out)
-        CmdLayout.text.print_indent('有 / 无。基准是关掉这一项的那一格。', stream=out)
+        self._heading(f"{icon('rocket')} 参数贡献度", out, nested=nested)
+        CmdLayout.text.print_indent(
+            "定义：一个参数的存在（使用）和不存在（不使用）对于结果的影响。",
+            stream=out,
+        )
         self._present_item_groups(out, items)
 
-    def _present_sensitivity(self, out: TextIO) -> None:
+    def _present_sensitivity(self, out: TextIO, *, nested: bool = False) -> None:
         contrib = _chapter_block(self._report, "sensitivity")
         marginals = [
             block
@@ -187,14 +249,15 @@ class CampaignPresenter:
         ]
         if marginals:
             icon = CmdLayout.icon.get
-            CmdLayout.title.print_h2(f"{icon('rocket')} 参数敏感度", stream=out)
+            self._heading(f"{icon('rocket')} 参数敏感度", out, nested=nested)
             baseline = (
                 contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
             )
             vid = str(baseline.get("version_id") or "").strip()
-            base = f"v{vid}" if vid else "开着的第一套"
+            base = f"v{vid}" if vid else "使用该参数的第一次回测"
             CmdLayout.text.print_indent(
-                f"取值变化。相对基准 {base}，按旋钮取值从小到大",
+                f"定义：同一参数取不同值时，结果会如何变化。"
+                f"对照基准是 {base}，参数取值从小到大。",
                 stream=out,
             )
             for block in marginals:
@@ -208,13 +271,16 @@ class CampaignPresenter:
         if not items:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('rocket')} 参数敏感度", stream=out)
+        self._heading(f"{icon('rocket')} 参数敏感度", out, nested=nested)
         baseline = (
             contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
         )
         vid = str(baseline.get("version_id") or "").strip()
-        base = f"v{vid}" if vid else "开着的第一套"
-        CmdLayout.text.print_indent(f"取值变化。相对基准 {base}", stream=out)
+        base = f"v{vid}" if vid else "使用该参数的第一次回测"
+        CmdLayout.text.print_indent(
+            f"定义：同一参数取不同值时，结果会如何变化。对照基准是 {base}。",
+            stream=out,
+        )
         self._present_item_groups(out, items)
 
     def _present_item_groups(
@@ -233,13 +299,13 @@ class CampaignPresenter:
                 order.append(knob)
             grouped[knob].append(item)
         for knob in order:
-            CmdLayout.title.print_h3(CampaignLabels.knob_label(knob), stream=out)
+            CmdLayout.title.print_h4(CampaignLabels.knob_label(knob), stream=out)
             for item in grouped[knob]:
                 bits = [
                     f"{CampaignLabels.format_knob(knob, item.get('from'))} → "
                     f"{CampaignLabels.format_knob(knob, item.get('to'))}"
                 ]
-                for layer, outcome in _CONTRIB_SHOW:
+                for layer, outcome in self._contrib_pairs():
                     delta = _item_delta(item, layer, outcome)
                     if delta is None:
                         continue
@@ -250,12 +316,12 @@ class CampaignPresenter:
 
     def _present_marginal_knob(self, out: TextIO, block: Mapping[str, Any]) -> None:
         knob = str(block.get("knob") or "")
-        CmdLayout.title.print_h3(CampaignLabels.knob_label(knob), stream=out)
+        CmdLayout.title.print_h4(CampaignLabels.knob_label(knob), stream=out)
         for level in block.get("levels") or []:
             if not isinstance(level, dict):
                 continue
             bits = [CampaignLabels.format_number(knob, level.get("value"))]
-            for layer, outcome in _CONTRIB_SHOW:
+            for layer, outcome in self._contrib_pairs():
                 value = _outcome_value(level.get("outcomes") or [], layer, outcome)
                 if value is None:
                     continue
@@ -266,12 +332,17 @@ class CampaignPresenter:
             CmdLayout.text.print_indent("   ".join(bits), stream=out)
         if str(block.get("note") or "") == "pullback":
             best = CampaignLabels.format_number(knob, block.get("best_value"))
+            primary = self._contrib_pairs()[0][1] if self._contrib_pairs() else "total_return"
             CmdLayout.text.print_indent(
-                f"放到 {best} 最好，再往上调账户收益回落。",
+                f"取 {best} 时最好，再增大该参数，"
+                f"{CampaignLabels.outcome_label(primary)}会回落。",
                 stream=out,
             )
 
-    def _present_cross_layer(self, out: TextIO) -> None:
+    def _present_cross_layer(self, out: TextIO, *, nested: bool = False) -> None:
+        # 跨层叙事由本层归因器决定；枚举层关闭。
+        if not AttributeStep.for_layer(_report_layer(self._report)).ENABLE_CROSS_LAYER:
+            return
         contrib = _chapter_block(self._report, "sensitivity")
         rows = [
             item
@@ -281,7 +352,12 @@ class CampaignPresenter:
         if not rows:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('target')} 跨层", stream=out)
+        self._heading(f"{icon('target')} 机会 vs 下游账户", out, nested=nested)
+        CmdLayout.text.print_indent(
+            "同一回测号上：机会数变了，下游账户收益有没有一起变。"
+            "账户数字来自该号已有产物，不是本层新算的。",
+            stream=out,
+        )
         CmdLayout.text.print_bullets(
             [
                 f"{CampaignLabels.knob_label(item.get('knob'))}："
@@ -293,7 +369,9 @@ class CampaignPresenter:
             stream=out,
         )
 
-    def _present_interaction(self, out: TextIO) -> None:
+    def _present_interaction(self, out: TextIO, *, nested: bool = False) -> None:
+        if not AttributeStep.for_layer(_report_layer(self._report)).ENABLE_INTERACTIONS:
+            return
         contrib = _chapter_block(self._report, "sensitivity")
         block = contrib.get("interactions")
         if not isinstance(block, dict) or str(block.get("status") or "") != "ok":
@@ -303,7 +381,7 @@ class CampaignPresenter:
             return
         grid = grids[0]
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('clipboard')} 交叉", stream=out)
+        self._heading(f"{icon('clipboard')} 参数交叉对照", out, nested=nested)
         row_knob = str(grid.get("row_knob") or "")
         col_knob = str(grid.get("col_knob") or "")
         CmdLayout.text.print_indent(
@@ -332,7 +410,7 @@ class CampaignPresenter:
             body.append(row)
         CmdLayout.table.print(headers, body, stream=out)
 
-    def _present_highlights(self, out: TextIO) -> None:
+    def _present_highlights(self, out: TextIO, *, nested: bool = False) -> None:
         presence = _chapter_block(self._report, "presence")
         sensitivity = _chapter_block(self._report, "sensitivity")
         if presence.get("one_at_a_time_count") or sensitivity.get("one_at_a_time_count"):
@@ -344,7 +422,7 @@ class CampaignPresenter:
         if not isinstance(highlights, list) or not highlights:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('rocket')} 方向", stream=out)
+        self._heading(f"{icon('rocket')} 方向", out, nested=nested)
         seen = set()
         lines = []
         for item in highlights:
@@ -359,7 +437,7 @@ class CampaignPresenter:
                 break
         CmdLayout.text.print_bullets(lines, indent=3, marker="·", stream=out)
 
-    def _present_skipped(self, out: TextIO) -> None:
+    def _present_skipped(self, out: TextIO, *, nested: bool = False) -> None:
         cells = self._report.get("cells") or []
         skipped = [
             cell
@@ -369,7 +447,7 @@ class CampaignPresenter:
         if not skipped:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('warning')} 没对照上的", stream=out)
+        self._heading(f"{icon('warning')} 没对照上的", out, nested=nested)
         CmdLayout.text.print_bullets(
             [
                 f"第 {int(cell.get('index', 0)) + 1} 套："
@@ -381,7 +459,7 @@ class CampaignPresenter:
             stream=out,
         )
 
-    def _present_hints(self, out: TextIO) -> None:
+    def _present_hints(self, out: TextIO, *, nested: bool = False) -> None:
         summarized = self._report.get("report")
         hints = []
         if isinstance(summarized, dict):
@@ -389,7 +467,7 @@ class CampaignPresenter:
         if not isinstance(hints, list) or not hints:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('blue_dot')} 怎么读", stream=out)
+        self._heading(f"{icon('blue_dot')} 解读", out, nested=nested)
         for hint in hints[:4]:
             text = str(hint or "").strip()
             if text:
@@ -456,7 +534,7 @@ class CampaignPresenter:
         CmdLayout.text.print_indent(
             CmdLayout.text.kv(
                 "拟合",
-                "多因子联合（一次模型看全部特征，SHAP 再拆各自贡献）",
+                "多特征联合（一次模型看全部特征，SHAP 再拆各自贡献）",
             ),
             stream=out,
         )
@@ -495,7 +573,7 @@ class CampaignPresenter:
             if isinstance(item, dict)
         ]
         if ranked:
-            CmdLayout.title.print_h3('SHAP 因子重要性（mean |SHAP|）', stream=out)
+            CmdLayout.title.print_h3('SHAP 特征重要性（mean |SHAP|）', stream=out)
             peak = max(
                 (abs(float(item.get("mean_abs_shap") or 0.0)) for item in ranked),
                 default=0.0,
@@ -716,6 +794,47 @@ def _shap_dependence_conclusion(
     return f"峰值在 {peak_text}"
 
 
+
+_KNOWN_LAYERS = frozenset({"enumerate", "price_factor", "portfolio"})
+
+
+def _report_layer(report: Mapping[str, Any]) -> str:
+    for key in ("layer", "kind", "simulate_kind"):
+        text = str(report.get(key) or "").strip()
+        if text in _KNOWN_LAYERS:
+            return text
+    nested = report.get("report")
+    if isinstance(nested, dict):
+        for key in ("layer", "kind"):
+            text = str(nested.get(key) or "").strip()
+            if text in _KNOWN_LAYERS:
+                return text
+    return ""
+
+
+def _strategy_key(report: Mapping[str, Any]) -> str:
+    key = str(report.get("strategy_key") or "").strip()
+    if key:
+        return key
+    folder = str(report.get("folder") or "").strip()
+    if folder:
+        return Path(folder).name
+    return ""
+
+
+def _unique_version_ids(rows: Sequence[Any]) -> List[str]:
+    seen = set()
+    out: List[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        vid = str(row.get("version_id") or "").strip()
+        if not vid or vid in seen:
+            continue
+        seen.add(vid)
+        out.append(vid)
+    return out
+
 def _hydrate_families(payload: Dict[str, Any]) -> None:
     if isinstance(payload.get("families"), dict) and payload.get("families"):
         return
@@ -800,7 +919,8 @@ def _family_present_payload(
     return out
 
 
-def _knob_columns(rows: Sequence[Mapping[str, Any]]) -> List[str]:
+def _knob_columns(rows: Sequence[Mapping[str, Any]], *, layer: str = "") -> List[str]:
+    attributer = AttributeStep.for_layer(layer) if layer else None
     keys: List[str] = []
     seen = set()
     for row in rows:
@@ -809,23 +929,37 @@ def _knob_columns(rows: Sequence[Mapping[str, Any]]) -> List[str]:
             text = str(key)
             if text in seen or not CampaignLabels.is_display_knob(text, value):
                 continue
+            if attributer is not None and not attributer.accepts_knob(text):
+                continue
             seen.add(text)
             keys.append(text)
     return keys
 
 
-def _outcome_columns(rows: Sequence[Mapping[str, Any]]) -> List[tuple]:
+def _outcome_columns(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    layer: str = "",
+) -> List[tuple]:
     available = set()
     for row in rows:
         layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
-        for layer, block in layers.items():
+        for layer_name, block in layers.items():
             if not isinstance(block, dict):
                 continue
             for key, value in block.items():
                 if value is None:
                     continue
-                available.add((str(layer), str(key)))
-    out = [pair for pair in _PREFERRED_OUTCOMES if pair in available]
+                available.add((str(layer_name), str(key)))
+    preferred = list(AttributeStep.for_layer(layer).OUTCOMES)
+    out = [pair for pair in preferred if pair in available]
+    if out:
+        return out
+    if layer:
+        focused = sorted(item for item in available if item[0] == layer)
+        if focused:
+            return focused[:3]
+    out = [pair for pair in preferred if pair in available]
     if out:
         return out
     return sorted(available)[:3]

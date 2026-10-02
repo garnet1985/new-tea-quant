@@ -16,7 +16,10 @@ _EQUAL_EPS = 1e-12
 
 
 class KnobContrasts:
-    """战役旋钮：声明位置、有效值、有/无 vs 取值变化。"""
+    """战役旋钮：声明位置、有效值、有/无 vs 取值变化。
+
+    哪一层收哪些旋钮由各层 AttributeStep 声明，不在这里按层过滤。
+    """
 
     @classmethod
     def declared_positions(cls, overlay: Mapping[str, Any]) -> Dict[str, Any]:

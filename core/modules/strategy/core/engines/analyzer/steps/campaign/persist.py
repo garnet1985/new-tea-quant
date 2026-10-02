@@ -146,6 +146,9 @@ class PersistStep:
                 "mode": report.get("mode"),
                 "layer": report.get("layer") or report.get("kind"),
                 "kind": report.get("kind"),
+                "strategy_key": report.get("strategy_key")
+                or Path(str(report.get("folder") or "")).name
+                or None,
                 "ignore_cache": report.get("ignore_cache"),
                 "cell_count": report.get("cell_count"),
                 "ready_count": (report.get("gather") or {}).get("ready_count", 0),

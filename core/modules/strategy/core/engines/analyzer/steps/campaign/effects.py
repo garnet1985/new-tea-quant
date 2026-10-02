@@ -11,7 +11,7 @@ _EQUAL_EPS = 1e-12
 _ACCOUNT_FLAT = 0.005
 _OPP_FLAT = 2.0
 _PRICE_FLAT = 0.005
-_OUTCOMES = (
+_DEFAULT_OUTCOMES = (
     ("portfolio", "total_return"),
     ("portfolio", "max_drawdown"),
     ("enumerate", "total_opportunities"),
@@ -32,6 +32,9 @@ class CampaignEffects:
         *,
         grid_rows: Optional[Sequence[Mapping[str, Any]]] = None,
         grid_knobs: Optional[Sequence[str]] = None,
+        enable_interactions: bool = True,
+        enable_cross_layer: bool = True,
+        outcomes: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> Dict[str, Any]:
         out = dict(contributions)
         items = [
@@ -43,11 +46,23 @@ class CampaignEffects:
         if not isinstance(baseline, dict):
             baseline = {}
         out["marginals"] = _build_marginals(rows, items, baseline)
-        out["interactions"] = _build_interactions(
-            grid_rows if grid_rows is not None else rows,
-            list(grid_knobs) if grid_knobs is not None else varying_knobs,
-        )
-        out["cross_layer"] = _build_cross_layer(items)
+        if not enable_interactions:
+            out["interactions"] = {
+                "status": "skipped",
+                "reason": "layer_scope",
+                "grids": [],
+            }
+        else:
+            out["interactions"] = _build_interactions(
+                grid_rows if grid_rows is not None else rows,
+                list(grid_knobs) if grid_knobs is not None else varying_knobs,
+            )
+        if not enable_cross_layer:
+            out["cross_layer"] = []
+        else:
+            out["cross_layer"] = _build_cross_layer(items)
+        # outcomes 预留给后续网格按层收窄；当前交互仍用账户口径
+        _ = outcomes or _DEFAULT_OUTCOMES
         return out
 
 
@@ -242,7 +257,7 @@ def _level_from_payload(
 
 def _outcomes_from_layers(layers: Mapping[str, Any]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    for layer, outcome in _OUTCOMES:
+    for layer, outcome in _DEFAULT_OUTCOMES:
         value = _layer_number(layers, layer, outcome)
         if value is None:
             continue

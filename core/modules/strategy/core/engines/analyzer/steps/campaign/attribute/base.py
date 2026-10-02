@@ -1,26 +1,14 @@
-"""把战役表交给 ``modules.analysis``（table in → struct out）。
-
-一格一行：旋钮列 vs 三层摘要列。不跑单 version 的 FactorAnalysisPipeline。
-战役格子很少，贡献度 / 敏感度用相对基准差分，不用 OLS / XGB。
-"""
+"""战役归因基类：presence / sensitivity / 差分共用；旋钮范围与结局由子类声明。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.analysis import Analysis
 
-from .contrasts import KnobContrasts
-from .effects import CampaignEffects
+from ..contrasts import KnobContrasts
+from ..effects import CampaignEffects
 
 _READY = frozenset({"hit", "simulated"})
-_LAYERS = ("enumerate", "price_factor", "portfolio")
-_CONTRIBUTION_OUTCOMES = (
-    ("portfolio", "total_return"),
-    ("portfolio", "max_drawdown"),
-    ("enumerate", "total_opportunities"),
-    ("price_factor", "win_rate"),
-    ("price_factor", "avg_roi"),
-)
 _SKIPPED_CHAPTER = {
     "status": "skipped",
     "reason": "insufficient_ready_rows",
@@ -30,8 +18,44 @@ _SKIPPED_CHAPTER = {
 }
 
 
-class AttributeStep:
-    """战役归因：有/无贡献度 + 取值敏感度 + 旋钮相关 / 分桶。"""
+class AttributeBase:
+    """一层战役归因。子类只声明本层 settings 段、结局与是否做交叉网格。"""
+
+    LAYER: str = ""
+    # 与 StrategySettings 段对齐；空元组 = 不按前缀限制（组合层）
+    KNOB_PREFIXES: Tuple[str, ...] = ()
+    OUTCOMES: Tuple[Tuple[str, str], ...] = ()
+    ENABLE_INTERACTIONS: bool = True
+    ENABLE_CROSS_LAYER: bool = True
+
+    @classmethod
+    def accepts_knob(cls, path: Any) -> bool:
+        """本层该不该收这个旋钮路径。"""
+        text = str(path or "").strip()
+        if not text:
+            return False
+        prefixes = cls.KNOB_PREFIXES
+        if not prefixes:
+            return True
+        for prefix in prefixes:
+            root = prefix[:-1] if prefix.endswith(".") else prefix
+            if text == root or text.startswith(prefix):
+                return True
+        return False
+
+    @classmethod
+    def filter_knobs(cls, paths: Sequence[Any]) -> List[str]:
+        out: List[str] = []
+        seen = set()
+        for path in paths:
+            text = str(path or "").strip()
+            if not text or text in seen:
+                continue
+            if not cls.accepts_knob(text):
+                continue
+            seen.add(text)
+            out.append(text)
+        return out
 
     @classmethod
     def run(cls, gathered: Mapping[str, Any]) -> Dict[str, Any]:
@@ -41,11 +65,13 @@ class AttributeStep:
             if isinstance(row, dict) and row.get("status") in _READY
         ]
         n = len(rows)
+        focus = cls.LAYER
         if n < 2:
             return {
                 "status": "skipped",
                 "reason": "insufficient_ready_rows",
                 "n": n,
+                "layer": focus,
                 "knobs": {},
                 "layers": {},
                 "contributions": {
@@ -55,8 +81,8 @@ class AttributeStep:
             }
 
         contrasts = KnobContrasts.classify(rows)
-        presence_paths = list(contrasts.get("presence") or [])
-        sensitivity_paths = list(contrasts.get("sensitivity") or [])
+        presence_paths = cls.filter_knobs(contrasts.get("presence") or [])
+        sensitivity_paths = cls.filter_knobs(contrasts.get("sensitivity") or [])
         presence = cls._presence_chapter(rows, presence_paths)
 
         sensitivity_rows = [
@@ -67,7 +93,9 @@ class AttributeStep:
                 for path in presence_paths
             )
         ]
-        knob_keys = _union_keys(row.get("knobs") or {} for row in rows)
+        knob_keys = cls.filter_knobs(
+            _union_keys(row.get("knobs") or {} for row in rows)
+        )
         knob_profiles = {
             key: Analysis.Classical.summarize_column(_knob_scalars(rows, key))
             for key in knob_keys
@@ -82,12 +110,9 @@ class AttributeStep:
             == "varying"
         ]
 
-        layers: Dict[str, Any] = {}
-        for layer in _LAYERS:
-            layers[layer] = cls._attribute_layer(
-                sensitivity_rows, layer, varying_knobs
-            )
-
+        layers = {
+            focus: cls._attribute_layer(sensitivity_rows, focus, varying_knobs)
+        }
         grid_knobs = list(dict.fromkeys([*presence_paths, *sensitivity_paths]))
         sensitivity = cls._sensitivity_chapter(
             sensitivity_rows,
@@ -102,7 +127,9 @@ class AttributeStep:
         return {
             "status": _overall_status(layers, contributions),
             "n": n,
+            "layer": focus,
             "knobs": knob_profiles,
+            "layers": layers,
             "varying_knobs": varying_knobs,
             "presence_paths": presence_paths,
             "sensitivity_paths": sensitivity_paths,
@@ -123,7 +150,9 @@ class AttributeStep:
                 "one_at_a_time_count": 0,
                 "joint_count": 0,
             }
-        compare_keys = _union_keys(row.get("knobs") or {} for row in rows)
+        compare_keys = cls.filter_knobs(
+            _union_keys(row.get("knobs") or {} for row in rows)
+        )
         items: List[Dict[str, Any]] = []
         baselines: Dict[str, Any] = {}
         for path in presence_paths:
@@ -147,8 +176,15 @@ class AttributeStep:
                 "version_id": baseline.get("version_id"),
                 "knobs": {key: base_knobs.get(key) for key in compare_keys},
             }
+            # 本层不看的参数被滤掉后，不同 overlay 可能指纹相同（如只改 portfolio）；
+            # 同一指纹只留第一次，避免贡献度重复行。
+            seen_on: set = set()
             for row in on_rows:
                 knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
+                fingerprint = _knob_fingerprint(knobs, compare_keys)
+                if fingerprint in seen_on:
+                    continue
+                seen_on.add(fingerprint)
                 changed = [
                     key
                     for key in compare_keys
@@ -169,7 +205,7 @@ class AttributeStep:
                         "knob": path,
                         "from": None,
                         "to": knobs.get(path),
-                        "deltas": _row_deltas(baseline, row),
+                        "deltas": cls._row_deltas(baseline, row),
                     }
                 )
         one_count = sum(1 for item in items if item.get("kind") == "one_at_a_time")
@@ -205,9 +241,7 @@ class AttributeStep:
             "joint_count": 0,
         }
         contributions = (
-            cls._contributions(rows, varying_knobs)
-            if len(rows) >= 2
-            else skipped
+            cls._contributions(rows, varying_knobs) if len(rows) >= 2 else skipped
         )
         grid = grid_rows if grid_rows is not None else rows
         knobs = list(grid_knobs) if grid_knobs is not None else varying_knobs
@@ -219,6 +253,9 @@ class AttributeStep:
             contributions,
             grid_rows=grid,
             grid_knobs=knobs,
+            enable_interactions=cls.ENABLE_INTERACTIONS,
+            enable_cross_layer=cls.ENABLE_CROSS_LAYER,
+            outcomes=cls.OUTCOMES,
         )
 
     @classmethod
@@ -237,8 +274,8 @@ class AttributeStep:
         base_knobs = (
             baseline.get("knobs") if isinstance(baseline.get("knobs"), dict) else {}
         )
-        compare_keys = list(varying_knobs) or _union_keys(
-            row.get("knobs") or {} for row in rows
+        compare_keys = list(varying_knobs) or cls.filter_knobs(
+            _union_keys(row.get("knobs") or {} for row in rows)
         )
         items: List[Dict[str, Any]] = []
         for row in rows[1:]:
@@ -264,7 +301,7 @@ class AttributeStep:
                     "knob": knob,
                     "from": base_knobs.get(knob) if knob is not None else None,
                     "to": knobs.get(knob) if knob is not None else None,
-                    "deltas": _row_deltas(baseline, row),
+                    "deltas": cls._row_deltas(baseline, row),
                 }
             )
         one_count = sum(1 for item in items if item.get("kind") == "one_at_a_time")
@@ -387,6 +424,52 @@ class AttributeStep:
             "fields": fields,
         }
 
+    @classmethod
+    def _row_deltas(
+        cls,
+        baseline: Mapping[str, Any],
+        row: Mapping[str, Any],
+    ) -> List[Dict[str, Any]]:
+        base_layers = (
+            baseline.get("layers") if isinstance(baseline.get("layers"), dict) else {}
+        )
+        row_layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
+        out: List[Dict[str, Any]] = []
+        for layer_name, outcome in cls.OUTCOMES:
+            before = _layer_number(base_layers, layer_name, outcome)
+            after = _layer_number(row_layers, layer_name, outcome)
+            if before is None or after is None:
+                continue
+            out.append(
+                {
+                    "layer": layer_name,
+                    "outcome": outcome,
+                    "baseline": before,
+                    "value": after,
+                    "delta": after - before,
+                }
+            )
+        return out
+
+
+def _knob_fingerprint(
+    knobs: Mapping[str, Any],
+    keys: Sequence[str],
+) -> Tuple[Any, ...]:
+    """本层对照用的参数指纹；标量按数值，关为 None。"""
+    parts: List[Tuple[str, Any]] = []
+    for key in keys:
+        raw = knobs.get(key)
+        if KnobContrasts.is_off(raw):
+            parts.append((key, None))
+            continue
+        scalar = KnobContrasts.scalar(raw)
+        if scalar is not None:
+            parts.append((key, round(float(scalar), 12)))
+        else:
+            parts.append((key, repr(raw)))
+    return tuple(parts)
+
 
 def _series(
     rows: Sequence[Mapping[str, Any]],
@@ -451,32 +534,6 @@ def _aligned_numeric(
         out_x.append(cx)
         out_y.append(cy)
     return out_x, out_y
-
-
-def _row_deltas(
-    baseline: Mapping[str, Any],
-    row: Mapping[str, Any],
-) -> List[Dict[str, Any]]:
-    base_layers = (
-        baseline.get("layers") if isinstance(baseline.get("layers"), dict) else {}
-    )
-    row_layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
-    out: List[Dict[str, Any]] = []
-    for layer, outcome in _CONTRIBUTION_OUTCOMES:
-        before = _layer_number(base_layers, layer, outcome)
-        after = _layer_number(row_layers, layer, outcome)
-        if before is None or after is None:
-            continue
-        out.append(
-            {
-                "layer": layer,
-                "outcome": outcome,
-                "baseline": before,
-                "value": after,
-                "delta": after - before,
-            }
-        )
-    return out
 
 
 def _layer_number(

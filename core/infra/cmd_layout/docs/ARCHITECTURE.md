@@ -62,7 +62,7 @@ core/infra/cmd_layout/
         ▼
    CmdLayout（门面 / Facade）
    ├── bar_chart → 分布 / 直方图字符串
-   ├── title     → h1 / h2 / h3（及兼容 banner / section）
+   ├── title     → h1 / h2 / h3 / h4（及兼容 banner / section）
    ├── separator → line / thick / star / blank
    ├── table     → ASCII 对照表
    ├── text      → meta / kv / indent / numbered / bullets

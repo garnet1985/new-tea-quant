@@ -292,6 +292,104 @@ def test_overlay_snapshot_baseline_makes_oat() -> None:
     assert "没有变化" not in headline
 
 
+def test_price_layer_dedupes_portfolio_only_overlay() -> None:
+    """spa 不看 portfolio：只改组合容量的回测与基准指纹相同，贡献度不应重复。"""
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import (
+        PriceAttributeStep,
+    )
+
+    sl_on = {"stages": [{"ratio": -0.2, "close_invest": True}]}
+    gathered = {
+        "rows": [
+            _row(
+                "1",
+                {
+                    "core.max_pe_percentile": 30,
+                    "goal.stop_loss": sl_on,
+                    "portfolio.allocation.max_portfolio_size": 10,
+                },
+                ret=0.10,
+                opp=18,
+            ),
+            _row(
+                "1-2",
+                {
+                    "core.max_pe_percentile": None,
+                    "goal.stop_loss": sl_on,
+                    "portfolio.allocation.max_portfolio_size": 10,
+                },
+                ret=0.04,
+                opp=32,
+            ),
+            _row(
+                "1-4",
+                {
+                    "core.max_pe_percentile": 30,
+                    "goal.stop_loss": sl_on,
+                    "portfolio.allocation.max_portfolio_size": 20,
+                },
+                ret=0.10,
+                opp=18,
+            ),
+        ]
+    }
+    out = PriceAttributeStep.run(gathered)
+    pe_oat = [
+        item
+        for item in (out["contributions"]["presence"].get("items") or [])
+        if item.get("kind") == "one_at_a_time"
+        and item.get("knob") == "core.max_pe_percentile"
+    ]
+    assert len(pe_oat) == 1
+    assert pe_oat[0].get("version_id") == "1"
+
+
+def test_enumerate_layer_drops_portfolio_knobs() -> None:
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import (
+        EnumerateAttributeStep,
+    )
+
+    assert not EnumerateAttributeStep.accepts_knob(
+        "portfolio.allocation.max_portfolio_size"
+    )
+    assert EnumerateAttributeStep.accepts_knob("core.rsi_oversold_threshold")
+    assert EnumerateAttributeStep.accepts_knob("goal.stop_loss")
+
+    gathered = {
+        "rows": [
+            _row(
+                "1",
+                {
+                    "core.max_pe_percentile": 30,
+                    "portfolio.allocation.max_portfolio_size": 10,
+                },
+                ret=0.10,
+                opp=18,
+            ),
+            _row(
+                "2",
+                {
+                    "core.max_pe_percentile": None,
+                    "portfolio.allocation.max_portfolio_size": 20,
+                },
+                ret=0.04,
+                opp=32,
+            ),
+        ]
+    }
+    out = EnumerateAttributeStep.run(gathered)
+    assert "core.max_pe_percentile" in out["presence_paths"]
+    assert "portfolio.allocation.max_portfolio_size" not in out["presence_paths"]
+    assert "portfolio.allocation.max_portfolio_size" not in out["sensitivity_paths"]
+    assert "portfolio.allocation.max_portfolio_size" not in (out.get("varying_knobs") or [])
+    assert set(out.get("layers") or {}) == {"enumerate"}
+    deltas = []
+    for item in (out["contributions"]["presence"].get("items") or []):
+        deltas.extend(item.get("deltas") or [])
+    assert deltas
+    assert all(part.get("layer") == "enumerate" for part in deltas)
+
+
 def test_attribution_settings_drops_fill_missing() -> None:
     cfg = AttributionSettings.to_usable(
         {

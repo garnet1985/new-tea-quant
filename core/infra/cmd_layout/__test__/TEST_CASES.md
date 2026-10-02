@@ -41,7 +41,7 @@
 | Case（pytest 函数名） | 文件 | 说明 |
 |----------------------|------|------|
 | `test_title_banner_and_section` | `test_api.py` | banner 星线包裹；section 形如 `-- 文本 --` |
-| `test_title_h1_h2_h3` | `test_api.py` | h1 前空行+星框；h2 前空行+下划线；h3 三连 `-` |
+| `test_title_h1_h2_h3_h4` | `test_api.py` | h1 前空行+星框；h2 前空行+下划线；h3 前空行+三连 `-`；h4 前空行+`###` |
 | `test_bar_chart_render_max_bar_and_pct` | `test_api.py` | 最高柱铺满与占比 |
 | `test_separator_line_variants` | `test_api.py` | line / thick / star / blank |
 | `test_table_render` | `test_api.py` | 表头/分隔/数据行 |

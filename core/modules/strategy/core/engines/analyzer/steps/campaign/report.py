@@ -7,8 +7,8 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 from .cells import AttributionCell, AttributionTask
 
 _FAMILY_LABELS = {
-    "overlays": "单因子",
-    "matrix": "交叉",
+    "overlays": "逐项对照",
+    "matrix": "交叉对照",
     "select": "选号",
 }
 

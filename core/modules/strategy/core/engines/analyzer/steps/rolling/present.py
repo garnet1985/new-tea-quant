@@ -35,7 +35,7 @@ class RollingPresenter:
         report = self._report
         summarized = report.get("report") if isinstance(report.get("report"), dict) else report
 
-        CmdLayout.title.print_h1(f"{icon('chart')} 滚动窗口怎么读", stream=out)
+        CmdLayout.title.print_h1(f"{icon('chart')} 滚动窗口怎么解读", stream=out)
         meta = CmdLayout.text.meta(
             [
                 f"策略 {report.get('folder') or '-'}",

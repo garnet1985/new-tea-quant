@@ -20,9 +20,12 @@ dependencies:
 changelog:
   - version: "0.10.0"
     changes:
-      - 价格回测去掉同股锁仓，改为按 opportunity_merge_gap 去噪后多段并行
-      - 新增价格专用钩子 is_new_opportunity，默认实现为间隔合并
-      - 同股互斥下沉到组合层（账户已持仓则不再买）
+      - 重新定义价格回测层。现在价格回测层是减少机会噪音后等全交易的普遍收益率。
+      - 新增价格专用钩子 is_new_opportunity，默认实现为间隔合并。
+      - 重构三层回测的归因系统，策略需要归因配置矩阵或者归因参数层后才可以运行。
+      - 取消单次回测的归因能力，因为结论没有什么参考性。
+      - 每一层回测结束后单独归因，写出事实 / 结论 / 建议；枚举、价格、组合三层已接
+      - Analyzer.layer 为层诊断入口；Analyzer.run（sz）仍不自动挂在 simulate 上
   - version: "0.9.0"
     changes:
       - 加入决策者模式，支持手动回测

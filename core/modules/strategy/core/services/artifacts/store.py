@@ -25,6 +25,7 @@ from core.modules.strategy.core.services.artifacts.consts import (
     ENTITY_LIST_FILE,
     EQUITY_CURVE_FILE,
     GOAL_ACHIEVEMENTS_SUFFIX,
+    LAYER_ATTRIBUTION_FILE,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
     PRICE_INVESTMENTS_SUFFIX,
@@ -63,6 +64,7 @@ _NAMED_FILES = {
     "runtime_env": RUNTIME_ENV_FILE,
     "entity_ids": ENTITY_IDS_FILE,
     "overall_report": OVERALL_REPORT_FILE,
+    "layer_attribution": LAYER_ATTRIBUTION_FILE,
     "entity_list": ENTITY_LIST_FILE,
     "performance": PERFORMANCE_FILE,
     "trades": TRADES_FILE,
@@ -790,6 +792,10 @@ class PriceFactorStore(ArtifactStore):
         super().__init__(output_dir, version_id=version_id)
         self._investments: Dict[str, List[PriceInvestmentRow]] = {}
         self._goals: Dict[str, List[GoalAchievementRow]] = {}
+
+    def list_investment_entities(self) -> List[str]:
+        """磁盘上已有 ``entities/{id}_investments.csv`` 的 entity。"""
+        return self._scan_suffix(self.entities_dir(), PRICE_INVESTMENTS_SUFFIX)
 
     @classmethod
     def simulation_root(

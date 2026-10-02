@@ -44,7 +44,7 @@
 
 - **类型：** `staticmethod`
 - **状态：** `beta`
-- **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）。规则见 [docs/VERSIONING.md](./docs/VERSIONING.md)。
+- **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）。每一层回测结束后写该层 `{vid}/{enum|price|portfolio}/attribution.json`（事实 / 结论 / 建议）。`Analyzer.run`（CLI `sz`）仍不自动调用。规则见 [docs/VERSIONING.md](./docs/VERSIONING.md)。
 - **参数：**
   - `key_or_id`：策略标识（须已启用）
   - `kind`：`enumerate` / `price_factor` / `portfolio`（或对应 `SimulateKind`）

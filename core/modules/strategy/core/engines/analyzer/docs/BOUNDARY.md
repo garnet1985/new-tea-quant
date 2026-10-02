@@ -13,11 +13,12 @@
 | ``analyzer.py`` | Facade / API 暴露 |
 | ``pipeline.py`` | 战役编排（``AttributionPipeline`` 只串步骤） |
 | ``steps/campaign/`` | attribution 配置 / overlay / 展开 / 查缓存 / 钉住 / 拼表 / 相对基准贡献度 / 总结 / 落盘 / 展示 |
+| ``steps/layer/`` | 一层回测结束后的诊断：事实 / 结论 / 建议 → ``attribution.json`` |
 | ``steps/prepare/`` | 回测产物 → ``source.json``（编排；I/O 走 ``ArtifactStore``） |
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
 | ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
 
-Analyzer 担任归因职责。单次回测顺带归因已去掉；战役（overlays / matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仍是单 version 库入口；``Analyzer.campaign`` 走 ``AttributionPipeline``；``Analyzer.rolling`` 走 ``RollingPipeline``；``Analyzer.run`` 是单 version 机会表切片。
+Analyzer 担任归因职责。``Analyzer.layer`` 在每一层 ``simulate`` 之后写该层诊断（枚举、价格、组合已接）。战役（overlays / matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。展示见 [ATTRIBUTION_PRESENT.md](../../../../docs/notes/ATTRIBUTION_PRESENT.md)。``Analyzer.run`` 仍是单 version 机会表切片（CLI ``sz``），不自动挂在 simulate 上；``Analyzer.campaign`` 走 ``AttributionPipeline``；``Analyzer.rolling`` 走 ``RollingPipeline``。
 
 ### Report 步结构
 
@@ -54,17 +55,18 @@ pipeline/
 ## 入口（当前）
 
 ```text
+Analyzer.layer(store)    → LayerPipeline → {vid}/{enum|price|portfolio}/attribution.json
 Analyzer.run(store)      → PrepareStep → AnalyzeStep → ReportStep
 Analyzer.campaign(key)   → AttributionPipeline → steps/campaign/
 Analyzer.rolling(key)    → RollingPipeline → steps/rolling/
 ```
 
-``Strategy.simulate`` **不再**调用 Analyzer。战役报告写在 ``results/attribution/{n}/parameter/``，滚动写 ``rolling/``。命中/补跑的 version 钉住。平时 Run 把 version 记进 ``group_meta``。CLI ``sa`` / ``sz`` / ``sw``。
+``Strategy.simulate`` 每完成一层调用 ``Analyzer.layer``。``Analyzer.run``（``sz``）不自动调用。战役报告写在 ``results/attribution/{n}/parameter/``，滚动写 ``rolling/``。命中/补跑的 version 钉住。平时 Run 把 version 记进 ``group_meta``。CLI ``sa`` / ``sz`` / ``sw``。
 
 ## 依赖方向
 
 ```text
-Analyzer.campaign / Analyzer.rolling / Analyzer.run → AttributionPipeline / RollingPipeline / 单 version 三步 → modules.analysis
+Analyzer.campaign / Analyzer.rolling / Analyzer.layer / Analyzer.run → 各 pipeline → modules.analysis（切片 / 战役才用）
 ```
 
 ``modules.analysis`` 禁止 import strategy。

@@ -3,7 +3,7 @@
 **状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。CLI `sa`。平时 Run 把 version 记进 group（含样本窗索引）。as-of 当日一片写入 `signal_snapshot`。  
 **一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 驱动一份 matrix，复用已有 version 缓存。  
 **位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。  
-**问什么：** 回测者问题与层内诊断总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。本文只管格子怎么展开、怎么命中 version。
+**问什么：** 回测者问题与层内诊断总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；展示 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)；枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。本文只管格子怎么展开、怎么命中 version。
 
 ---
 
@@ -16,18 +16,19 @@
 因此：
 
 - 删除 `settings.analysis.enabled`
-- `Strategy.simulate` 不再调用 `Analyzer.run`
-- 不再提供 CLI `sa` / 工作台逐步归因区块
+- `Strategy.simulate` 不再调用 `Analyzer.run`（CLI `sz` 的机会表切片 / SHAP）
+- 每一层回测结束后调用 `Analyzer.layer`：该层一份 `attribution.json`（事实 / 结论 / 建议），方便只跑枚举时调试
+- 战役仍是独立入口 CLI `sa`；平时 Run 不自动开多版本
 
-`Analyzer.run` 以及 prepare / analyze / report 流水线作为 **库** 留下，给之后的战役入口用。
+`Analyzer.run` 以及 prepare / analyze / report 流水线作为 **库** 留下，给 `sz` 和战役内部切片用。
 
 ---
 
 ## 2. 默认 Run 是什么
 
-默认跑策略 = 验证这一次的想法：一个 `settings.py`、一个 version。不自动开多版本，不自动归因。
+默认跑策略 = 验证这一次的想法：一个 `settings.py`、一个 version。不自动开多版本战役。每一层回测结束后仍写该层诊断（事实 / 结论 / 建议），见 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)。
 
-专门要归因时再开独立入口。它先读已经留下的号；只有用户明确要补格子、而且现有号盖不住时，才额外调用 `Strategy.simulate`。那是这一次战役自己的事，不改变平时 Run 的含义。
+专门要对照旋钮时再开独立入口。它先读已经留下的号；只有用户明确要补格子、而且现有号盖不住时，才额外调用 `Strategy.simulate`。那是这一次战役自己的事，不改变平时 Run 的含义。
 
 strategy 仍然是「把一个想法跑完」。归因是事后对照，不是因子挖掘器。全市场因子研究（IC / 滚动 / 离开某一条策略）留给以后的 `factor` 产品线。
 

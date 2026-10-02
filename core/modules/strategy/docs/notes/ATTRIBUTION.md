@@ -1,6 +1,6 @@
 # 归因要答什么
 
-**状态：** 总方向已锁定（2026-10-02）。枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md) / 回放 [PRICE_REPLAY.md](./PRICE_REPLAY.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。战役机制仍以 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md) 为准。
+**状态：** 总方向已锁定（2026-10-02）。展示：[ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)（一层一份；事实 / 结论 / 建议）。枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md) / 回放 [PRICE_REPLAY.md](./PRICE_REPLAY.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。战役机制仍以 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md) 为准。
 
 **一句话：** 归因给回测者看「这个结果为什么是这样、下一步改什么」；不是给数据科学家看「哪个特征 SHAP 最大」。
 
@@ -33,9 +33,9 @@
 
 | 回测层 | 诊断 | 状态 |
 |--------|------|------|
-| 枚举 | 机会多不多、两种分散、门有没有干活、目标路径（止损/止盈/过期）合不合理 | **已锁** [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md) |
-| 价格 | 去噪后等权机会账赚不赚钱、结不结实；合并/可交易性有没有偏（可并行，不再锁仓） | **已锁** [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；回放 [PRICE_REPLAY.md](./PRICE_REPLAY.md) |
-| 组合 | 钱有没有买到该买的；买到 vs 漏掉的质量；分组是否同向；改分配须对照格 | **已锁** [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md) |
+| 枚举 | 机会多不多、两种分散、门有没有干活、目标路径（止损/止盈/过期）合不合理 | **已锁** [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；单 version 诊断已接 |
+| 价格 | 去噪后等权机会账赚不赚钱、结不结实；合并/可交易性有没有偏（可并行，不再锁仓） | **已锁** [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；单 version 诊断已接 |
+| 组合 | 钱有没有买到该买的；买到 vs 漏掉的质量；分组是否同向；改分配须对照格 | **已锁** [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)；单 version 诊断已接 |
 | 战役 / 滚动 | 旋钮一动上述指标怎么变；窗口稳不稳 | 机制已有，指标集随各层口径补 |
 
 枚举含重叠、每笔机会独立走完 `goal`。价格按段合并后可并行。组合再受资金与同股持仓约束。三层不要重复报同一个「总收益」。

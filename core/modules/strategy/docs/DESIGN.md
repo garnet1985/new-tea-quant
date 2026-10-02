@@ -6,7 +6,7 @@
 
 仿真 version / 指纹 / 固定 / keep-N 见 [VERSIONING.md](./VERSIONING.md)。  
 编号决策：[notes/DECISIONS.md](./notes/DECISIONS.md)。  
-矩阵归因战役（pipeline / CLI `sa` 已接；Run 写 group 索引；as-of 写入 `signal_snapshot`）：[notes/ATTRIBUTION_CAMPAIGN.md](./notes/ATTRIBUTION_CAMPAIGN.md)。归因要答什么：[notes/ATTRIBUTION.md](./notes/ATTRIBUTION.md)。枚举层：[notes/ATTRIBUTION_ENUM.md](./notes/ATTRIBUTION_ENUM.md)。价格层：[notes/ATTRIBUTION_PRICE.md](./notes/ATTRIBUTION_PRICE.md)。价格回放去噪并行：[notes/PRICE_REPLAY.md](./notes/PRICE_REPLAY.md)。组合层：[notes/ATTRIBUTION_PORTFOLIO.md](./notes/ATTRIBUTION_PORTFOLIO.md)。
+矩阵归因战役（pipeline / CLI `sa` 已接；Run 写 group 索引；as-of 写入 `signal_snapshot`）：[notes/ATTRIBUTION_CAMPAIGN.md](./notes/ATTRIBUTION_CAMPAIGN.md)。归因要答什么：[notes/ATTRIBUTION.md](./notes/ATTRIBUTION.md)。展示（一层一份；事实 / 结论 / 建议）：[notes/ATTRIBUTION_PRESENT.md](./notes/ATTRIBUTION_PRESENT.md)。枚举层：[notes/ATTRIBUTION_ENUM.md](./notes/ATTRIBUTION_ENUM.md)。价格层：[notes/ATTRIBUTION_PRICE.md](./notes/ATTRIBUTION_PRICE.md)。价格回放去噪并行：[notes/PRICE_REPLAY.md](./notes/PRICE_REPLAY.md)。组合层：[notes/ATTRIBUTION_PORTFOLIO.md](./notes/ATTRIBUTION_PORTFOLIO.md)。
 
 ---
 
@@ -52,6 +52,7 @@ Strategy 主业：把用户策略钩子经 BE `RunCallbacks` 挂进回测器。*
 - [DECISIONS.md](./notes/DECISIONS.md)
 - [ATTRIBUTION_CAMPAIGN.md](./notes/ATTRIBUTION_CAMPAIGN.md)
 - [ATTRIBUTION.md](./notes/ATTRIBUTION.md)
+- [ATTRIBUTION_PRESENT.md](./notes/ATTRIBUTION_PRESENT.md)
 - [ATTRIBUTION_ENUM.md](./notes/ATTRIBUTION_ENUM.md)
 - [ATTRIBUTION_PRICE.md](./notes/ATTRIBUTION_PRICE.md)
 - [PRICE_REPLAY.md](./notes/PRICE_REPLAY.md)

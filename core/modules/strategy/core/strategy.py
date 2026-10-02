@@ -26,6 +26,7 @@ from .engines.shared.services.strategy_settings.strategy_settings import (
 from .services.fingerprint import (
     FingerprintCalculator,
 )
+from .services.artifacts import SimulationVersionStore
 
 logger = logging.getLogger(__name__)
 
@@ -348,6 +349,11 @@ class Strategy:
                     payload.get("version_id"),
                 )
                 Strategy._prune_stale_envs(key_or_id, fp_res.env_fp)
+                slot = payload.get(ctx.kind.value)
+                if isinstance(slot, dict):
+                    Strategy._attribute_layer(
+                        slot, ctx.kind, present=True, force=False
+                    )
                 return payload
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
@@ -520,6 +526,7 @@ class Strategy:
                     end_date=end_date,
                 )
 
+            Strategy._attribute_layer(step_res, step, present=True, force=True)
             PipelineProgress.complete_step_bound("report")
 
             logger.info(
@@ -539,6 +546,28 @@ class Strategy:
         )
         Strategy._prune_stale_envs(ctx.strategy_key or str(folder), ctx.env_fp)
         return payload
+
+    @staticmethod
+    def _attribute_layer(
+        step_res: Dict[str, Any],
+        kind: SimulateKind,
+        *,
+        present: bool = True,
+        force: bool = False,
+    ) -> None:
+        """一层回测结束后写该层归因；缺产物则跳过。"""
+        output_dir = str(step_res.get("output_dir") or "").strip()
+        if not output_dir or not Path(output_dir).is_dir():
+            return
+        from .engines.analyzer import Analyzer
+        from .services.artifacts import ArtifactStore
+
+        store = ArtifactStore.at(
+            output_dir,
+            kind=kind,
+            version_id=str(step_res.get("version_id") or ""),
+        )
+        Analyzer.layer(store, present=present, force=force)
 
     @staticmethod
     def _prune_stale_envs(key_or_id: str, env_fp: str) -> None:

@@ -7,6 +7,7 @@ SCOPE_FILE = "scope.json"
 ENTITY_IDS_FILE = "entity_ids.txt"
 PERFORMANCE_FILE = "performance.json"
 OVERALL_REPORT_FILE = "overall_report.json"
+LAYER_ATTRIBUTION_FILE = "attribution.json"
 ENTITY_LIST_FILE = "entity_list.json"
 TRADES_FILE = "trades.json"
 EQUITY_CURVE_FILE = "equity_curve.json"
@@ -61,6 +62,7 @@ __all__ = [
     "ENUM_VERSION_REQUIRED_FILES",
     "EQUITY_CURVE_FILE",
     "GOAL_ACHIEVEMENTS_SUFFIX",
+    "LAYER_ATTRIBUTION_FILE",
     "OVERALL_REPORT_FILE",
     "PERFORMANCE_FILE",
     "PRICE_INVESTMENTS_SUFFIX",

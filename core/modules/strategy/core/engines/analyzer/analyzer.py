@@ -1,4 +1,8 @@
-"""Strategy attribution analyzer — Facade（战役库入口；simulate 不再自动调用）。"""
+"""Strategy attribution analyzer — Facade。
+
+``Analyzer.layer`` 在每一层回测后写出该层诊断。
+``Analyzer.run``（sz 切片）仍不自动挂在 simulate 上。
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,6 +16,7 @@ from .consts import report_ready
 from .pipeline import AttributionPipeline, RollingPipeline
 from .steps import AnalyzeStep, PrepareStep, ReportStep
 from .steps.campaign.present import CampaignPresenter
+from .steps.layer import LayerPipeline, LayerPresenter
 from .steps.report import AnalysisReportPresenter
 from .steps.rolling.present import RollingPresenter
 
@@ -25,6 +30,8 @@ class Analyzer:
     Rolling = RollingPipeline
     CampaignPresenter = CampaignPresenter
     RollingPresenter = RollingPresenter
+    Layer = LayerPipeline
+    LayerPresenter = LayerPresenter
 
     @classmethod
     def run(
@@ -114,3 +121,14 @@ class Analyzer:
     ) -> Dict[str, Any]:
         """读 attribution.py 的 rolling 窗口，写出滚动总结。"""
         return RollingPipeline.run(key_or_id, ignore_cache=ignore_cache)
+
+    @classmethod
+    def layer(
+        cls,
+        store: ArtifactStore,
+        *,
+        present: bool = True,
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """该层回测产物上的事实 / 结论 / 建议。"""
+        return LayerPipeline.run(store, present=present, force=force)

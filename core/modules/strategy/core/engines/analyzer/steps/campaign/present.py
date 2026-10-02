@@ -127,6 +127,7 @@ class CampaignPresenter:
         else:
             self._present_family_body(out)
 
+        self._present_trades(out)
         self._present_paths(out, persist)
         CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
 
@@ -413,6 +414,174 @@ class CampaignPresenter:
             if text:
                 print(f"   {text}", file=out, flush=True)
 
+    def _present_trades(self, out: TextIO) -> None:
+        block = self._report.get("trades")
+        if not isinstance(block, dict):
+            nested = self._report.get("report")
+            if isinstance(nested, dict):
+                block = nested.get("trades")
+        if not isinstance(block, dict) or not block:
+            return
+        icon = CmdLayout.icon.get
+        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
+        CmdLayout.title.print_section(f"{icon('chart')} 单笔 XGBoost + SHAP", stream=out)
+        status = str(block.get("status") or "skipped")
+        if status not in {"ok", "partial"}:
+            reason = str(block.get("reason") or "")
+            if reason == "missing_dependency":
+                print(
+                    f"   未安装 {block.get('dependency') or 'xgboost'}，跳过单笔机器学习。",
+                    file=out,
+                    flush=True,
+                )
+                return
+            if reason == "insufficient_samples":
+                print(
+                    f"   样本 {block.get('n') or 0} 笔不足"
+                    f"（建议 ≥{block.get('min_samples') or 80}），暂不做单笔 SHAP。",
+                    file=out,
+                    flush=True,
+                )
+                return
+            if reason == "insufficient_varying_fields":
+                print("   变化特征不足 2 个，暂不做单笔 SHAP。", file=out, flush=True)
+                return
+            if reason == "insufficient_samples_per_feature":
+                print(
+                    f"   样本 {block.get('n') or 0} 笔、特征 {block.get('n_features') or 0} 个，"
+                    f"平均每特征不到 {block.get('min_ratio') or 10} 笔，暂不做单笔 SHAP。",
+                    file=out,
+                    flush=True,
+                )
+                return
+            print("   这次没做单笔机器学习。", file=out, flush=True)
+            return
+
+        overview = block.get("overview") if isinstance(block.get("overview"), dict) else {}
+        n = overview.get("n") or block.get("n") or 0
+        n_versions = overview.get("n_versions") or block.get("n_versions") or 0
+        n_feat = overview.get("n_features") or block.get("n_features") or 0
+        n_param = overview.get("n_parameter") or block.get("n_parameter") or 0
+        n_opp = overview.get("n_opportunity") or block.get("n_opportunity") or 0
+        n_train = overview.get("n_train") or block.get("n_train") or 0
+        n_test = overview.get("n_test") or block.get("n_test") or 0
+        auc = overview.get("auc")
+        auc_train = overview.get("auc_train")
+        auc_test = overview.get("auc_test") or auc
+        accuracy = overview.get("accuracy")
+        split = overview.get("split") if isinstance(overview.get("split"), dict) else {}
+        if not split:
+            split = block.get("split") if isinstance(block.get("split"), dict) else {}
+        print("   模型概况", file=out, flush=True)
+        print(
+            f"   样本数: {n}（{n_versions} versions）",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"   特征数: {n_feat}（{n_param} 参数级 + {n_opp} 机会级）",
+            file=out,
+            flush=True,
+        )
+        print("   目标: 单笔收益 > 0（二分类）", file=out, flush=True)
+        print(
+            "   拟合: 多因子联合（一次模型看全部特征，SHAP 再拆各自贡献）",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"   训练/测试: {n_train}/{n_test}{_split_phrase(split)}",
+            file=out,
+            flush=True,
+        )
+        if auc_train is not None:
+            print(f"   训练集AUC: {float(auc_train):.2f}", file=out, flush=True)
+        if auc_test is not None:
+            print(f"   测试集AUC: {float(auc_test):.2f}", file=out, flush=True)
+        if accuracy is not None:
+            print(f"   测试集准确率: {float(accuracy) * 100:.0f}%", file=out, flush=True)
+        warning = _auc_warning(auc_train, auc_test, split)
+        if warning:
+            print(f"   {warning}", file=out, flush=True)
+        else:
+            print(
+                "   AUC 0.5 = 随机猜，0.7+ 有预测力。",
+                file=out,
+                flush=True,
+            )
+
+        shap_block = block.get("shap") if isinstance(block.get("shap"), dict) else {}
+        ranked = [
+            item
+            for item in (shap_block.get("mean_abs") or [])
+            if isinstance(item, dict)
+        ]
+        if ranked:
+            print("", file=out, flush=True)
+            print("   SHAP 因子重要性（mean |SHAP|）", file=out, flush=True)
+            peak = max(
+                (abs(float(item.get("mean_abs_shap") or 0.0)) for item in ranked),
+                default=0.0,
+            )
+            for i, item in enumerate(ranked[:8], start=1):
+                name = _feature_label(item.get("feature"))
+                score = float(item.get("mean_abs_shap") or 0.0)
+                bar = _bar(score, peak)
+                print(
+                    f"   {i}. {name:<14} {score:6.3f}  {bar}",
+                    file=out,
+                    flush=True,
+                )
+
+        directions = [
+            item for item in (block.get("directions") or []) if isinstance(item, dict)
+        ]
+        if directions:
+            print("", file=out, flush=True)
+            print("   SHAP 方向", file=out, flush=True)
+            for item in directions[:6]:
+                name = _feature_label(item.get("feature"))
+                sign = str(item.get("sign") or "")
+                low = item.get("low") if isinstance(item.get("low"), dict) else {}
+                high = item.get("high") if isinstance(item.get("high"), dict) else {}
+                print(f"   {name}:", file=out, flush=True)
+                low_shap = float(low.get("mean_shap") or 0.0)
+                high_shap = float(high.get("mean_shap") or 0.0)
+                print(
+                    f"      低值（≤ {CampaignLabels.format_number(item.get('feature'), low.get('threshold'))}）"
+                    f" → {_shap_phrase(low_shap)}",
+                    file=out,
+                    flush=True,
+                )
+                print(
+                    f"      高值（≥ {CampaignLabels.format_number(item.get('feature'), high.get('threshold'))}）"
+                    f" → {_shap_phrase(high_shap)}",
+                    file=out,
+                    flush=True,
+                )
+                conclusion = _shap_direction_conclusion(name, low_shap, high_shap, sign)
+                if conclusion:
+                    print(f"      结论: {conclusion}", file=out, flush=True)
+
+        self._present_dependence(out, block)
+
+    def _present_dependence(self, out: TextIO, block: Mapping[str, Any]) -> None:
+        items = [item for item in (block.get("dependence") or []) if isinstance(item, dict)]
+        if not items:
+            return
+        print("", file=out, flush=True)
+        print("   SHAP 依赖", file=out, flush=True)
+        for item in items[:3]:
+            feature = item.get("feature")
+            name = _feature_label(feature)
+            bins = [row for row in (item.get("bins") or []) if isinstance(row, dict)]
+            print(f"   {name}:", file=out, flush=True)
+            for line in _dependence_ascii(bins, str(feature or "")):
+                print(f"      {line}", file=out, flush=True)
+            note = _shap_dependence_conclusion(str(name), str(feature or ""), bins)
+            if note:
+                print(f"      结论: {note}", file=out, flush=True)
+
     def _present_paths(self, out: TextIO, persist: Mapping[str, Any]) -> None:
         icon = CmdLayout.icon.get
         path = persist.get("report_path") or self._report.get("report_path")
@@ -425,6 +594,143 @@ class CampaignPresenter:
             print(f"   组 {group_id}", file=out, flush=True)
         if path:
             print(f"   {path}", file=out, flush=True)
+
+
+def _feature_label(feature: Any) -> str:
+    return CampaignLabels.knob_label(feature)
+
+
+def _bar(value: float, peak: float, width: int = 16) -> str:
+    if peak <= 0:
+        return ""
+    n = int(round(abs(value) / peak * width))
+    return "█" * max(n, 0)
+
+
+def _shap_phrase(mean_shap: float) -> str:
+    if mean_shap > 0.005:
+        return "正贡献（倾向赚钱）"
+    if mean_shap < -0.005:
+        return "负贡献（倾向亏钱）"
+    return "几乎没贡献"
+
+
+def _shap_direction_conclusion(
+    name: str,
+    low_shap: float,
+    high_shap: float,
+    sign: str,
+) -> str:
+    """两端同号时不要写成「越高/越低越赚钱」。"""
+    low_text = _shap_phrase(low_shap)
+    high_text = _shap_phrase(high_shap)
+    low_pos = "正贡献" in low_text
+    high_pos = "正贡献" in high_text
+    low_neg = "负贡献" in low_text
+    high_neg = "负贡献" in high_text
+    if low_pos and high_neg:
+        return f"{name} 越低越倾向赚钱"
+    if low_neg and high_pos:
+        return f"{name} 越高越倾向赚钱"
+    if low_pos and high_pos:
+        side = "低值" if low_shap > high_shap else "高值"
+        return f"{name} 两端都倾向赚钱，{side}这边贡献更大"
+    if low_neg and high_neg:
+        side = "低值" if low_shap < high_shap else "高值"
+        return f"{name} 两端都倾向亏钱，{side}这边更亏"
+    if sign == "low_positive":
+        return f"{name} 越低越倾向赚钱"
+    if sign == "high_positive":
+        return f"{name} 越高越倾向赚钱"
+    return ""
+
+
+def _split_phrase(split: Mapping[str, Any]) -> str:
+    kind = str(split.get("kind") or "")
+    n_groups = split.get("n_groups")
+    if kind == "grouped":
+        extra = f"，{n_groups} 组" if n_groups else ""
+        return f" 按股票+日期成组{extra}"
+    return " 随机拆行"
+
+
+def _auc_warning(auc_train: Any, auc_test: Any, split: Mapping[str, Any]) -> str:
+    try:
+        test = float(auc_test) if auc_test is not None else None
+    except (TypeError, ValueError):
+        test = None
+    try:
+        train = float(auc_train) if auc_train is not None else None
+    except (TypeError, ValueError):
+        train = None
+    if train is not None and test is not None and train - test >= 0.15:
+        return f"训练 AUC 比测试高 {train - test:.2f}，过拟合，SHAP 方向只当线索。"
+    if test is not None and test >= 0.90:
+        if str(split.get("kind") or "") == "grouped":
+            return "测试集 AUC 仍 ≥ 0.90，即便已成组划分，仍偏乐观。"
+        return "测试集 AUC ≥ 0.90，随机拆行容易把同一笔漏进两边，先看成组划分。"
+    return ""
+
+
+def _dependence_ascii(
+    bins: Sequence[Mapping[str, Any]],
+    feature: str = "",
+    height: int = 5,
+) -> List[str]:
+    rows = [row for row in bins if isinstance(row, dict)]
+    if len(rows) < 3:
+        return []
+    shaps = [float(row.get("mean_shap") or 0.0) for row in rows]
+    peak = max(max(abs(value) for value in shaps), 0.01)
+    width = len(rows)
+    grid = [[" " for _ in range(width)] for _ in range(height)]
+    for x, value in enumerate(shaps):
+        y = int(round((1.0 - (value / peak + 1.0) / 2.0) * (height - 1)))
+        y = min(max(y, 0), height - 1)
+        grid[y][x] = "●"
+    axis = height // 2
+    for x in range(width):
+        if grid[axis][x] == " ":
+            grid[axis][x] = "─"
+    lines: List[str] = []
+    for i, cells in enumerate(grid):
+        tick = peak * (1.0 - 2.0 * i / (height - 1))
+        lines.append(f"{tick:+5.2f} |{'  '.join(cells)}")
+    first = CampaignLabels.format_number(feature or "value", rows[0].get("lo"))
+    last = CampaignLabels.format_number(feature or "value", rows[-1].get("hi"))
+    lines.append(f"       {first} → {last}")
+    return lines
+
+
+def _shap_dependence_conclusion(
+    name: str,
+    feature: str,
+    bins: Sequence[Mapping[str, Any]],
+) -> str:
+    rows = [row for row in bins if isinstance(row, dict)]
+    if len(rows) < 3:
+        return ""
+    shaps = [float(row.get("mean_shap") or 0.0) for row in rows]
+    peak_i = max(range(len(shaps)), key=lambda i: shaps[i])
+    first_pos = shaps[0] > 0.005
+    last_neg = shaps[-1] < -0.005
+    first_neg = shaps[0] < -0.005
+    last_pos = shaps[-1] > 0.005
+    peak = rows[peak_i]
+    peak_text = CampaignLabels.format_number(feature, peak.get("mid"))
+    if 0 < peak_i < len(rows) - 1 and shaps[peak_i] > 0.005:
+        return f"不是单调，{peak_text} 附近正贡献最大"
+    if first_pos and last_neg:
+        cut = CampaignLabels.format_number(feature, rows[0].get("hi"))
+        return f"低于 {cut} 偏正贡献，再高转负"
+    if first_neg and last_pos:
+        cut = CampaignLabels.format_number(feature, rows[-1].get("lo"))
+        return f"高于 {cut} 偏正贡献"
+    if all(value > 0.005 for value in shaps):
+        return f"全程偏正贡献，{peak_text} 附近最大"
+    if all(value < -0.005 for value in shaps):
+        return f"全程偏负贡献，{peak_text} 附近相对没那么亏"
+    return f"峰值在 {peak_text}"
 
 
 def _hydrate_families(payload: Dict[str, Any]) -> None:

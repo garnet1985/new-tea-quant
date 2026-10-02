@@ -2,7 +2,8 @@
 
 **状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。CLI `sa`。平时 Run 把 version 记进 group（含样本窗索引）。as-of 当日一片写入 `signal_snapshot`。  
 **一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 驱动一份 matrix，复用已有 version 缓存。  
-**位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。
+**位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。  
+**问什么：** 回测者问题与层内诊断总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。本文只管格子怎么展开、怎么命中 version。
 
 ---
 
@@ -70,7 +71,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 平时 Run 只多写一行组成员（落地时），不额外跑回测。
 
-归因是单独入口。点名方式见 [§10](#10-attributionpy)。用当前 `settings.py` 的 effective 当快照；`overlays` 一行一格，`matrix` 按轴做笛卡尔积：
+归因是单独入口。点名方式见 [§10](#10-attributionpy)。用当前 `settings.py` 的 effective 当快照；`overlays` 展开时自动加当前 settings 为第 0 格（对照基准），其后每一行一格；`matrix` 按轴做笛卡尔积。
 
 ```text
 读当前 settings 快照 + attribution.py
@@ -78,6 +79,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
   → overlays 与 matrix 可同时写：各自展开成表
   → 回测执行按 execute_settings 去重，同一身份只 simulate 一次
   → 各表自己 gather / 归因 / 总结；报告里单因子一栏、交叉一栏
+  → unique version 的价格层机会铺平，做单笔 XGB+SHAP（第三栏）
   → 命中/补跑由回测层按双指纹判断
 ```
 
@@ -223,6 +225,7 @@ attribution = {
 快照 = 当前 `settings.py` 抽出的 **effective**。每一格 = 快照 + 这一行 override → 再走一遍 `to_usable` / `extract_execute_settings`，和普通 Run 同一套身份。
 
 - Overlay 只允许 `execute_fp` 白名单块。写 `meta` / `scanner` / `is_enabled` 报错。
+- **overlays 表自动带当前 settings 一格当基准**（空 overlay，不写进 `attribution.py`）。后面每一行只声明相对基准要动的位置。
 - **一格声明一次要动的位置。** 没写到的兄弟键（只改 `stop_loss` 时的 `take_profit`）留在快照里。
 - **动到 effective 的哪个位置，就换掉那个位置上的整份值**（该位置在 effective 里的全部字段）。不要字段级深合并：不能只写一档的 `ratio` 却继承同一档里的 `close_invest`。
 - 独立旋钮（`core` 里各 key）各算各的位置，所以可以只 override `rsi_oversold_threshold`。
@@ -232,4 +235,4 @@ attribution = {
 
 滚动窗口写在 `attribution.rolling.windows`，不另开 `rolling.py`。CLI `sa` / `sw` 的 `-f` 与 `s -f` 相同：回测层 `ignore_cache`，同指纹写回原号。
 
-相关现行契约：[VERSIONING.md](../VERSIONING.md)、[DECISIONS.md](../DECISIONS.md)、analyzer [BOUNDARY.md](../../core/engines/analyzer/docs/BOUNDARY.md)。
+相关现行契约：[VERSIONING.md](../VERSIONING.md)、[DECISIONS.md](../DECISIONS.md)、analyzer [BOUNDARY.md](../../core/engines/analyzer/docs/BOUNDARY.md)、归因问题 [ATTRIBUTION.md](./ATTRIBUTION.md)、枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)。

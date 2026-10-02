@@ -42,6 +42,17 @@ _KNOB_LAST = {
     "min_netprofit_yoy": "净利同比门槛",
     "min_pe_history_days": "PE最短历史",
     "pe_metric": "PE口径",
+    "rsi14": "RSI",
+    "rsi": "RSI",
+    "pe_percentile": "PE分位",
+    "pe_value": "PE",
+    "pe": "PE",
+    "pe_ttm": "PE(TTM)",
+    "netprofit_yoy": "净利同比",
+    "volume_ratio": "量比",
+    "macd_hist": "MACD柱",
+    "volume_rank": "成交额分位",
+    "market_regime": "市场状态",
 }
 
 _RATIO_KEYS = frozenset(
@@ -113,13 +124,14 @@ class CampaignLabels:
             number = float(value)
         except (TypeError, ValueError):
             return str(value)
-        if last in _RATIO_KEYS or last == "ratio" or last.endswith("_yoy") or last in (
+        if last in _RATIO_KEYS or last == "ratio" or last in (
             "stop_loss",
             "take_profit",
         ):
             signed = "+" if number > 0 and last in ("total_return", "avg_roi", "total_profit") else ""
             return f"{signed}{number * 100:.1f}%"
-        if last.endswith("_pct"):
+        # Tushare / 财报快照的 *_yoy、以及 *_pct，入库已经是百分数，不要再 ×100。
+        if last.endswith("_yoy") or last.endswith("_pct"):
             return f"{number:.1f}%"
         if abs(number - round(number)) < 1e-9:
             return str(int(round(number)))
@@ -149,14 +161,16 @@ class CampaignLabels:
             return "没变"
         last = str(outcome or "").split(".")[-1]
         sign = "+" if number > 0 else ""
-        if last in _RATIO_KEYS or last == "ratio" or last.endswith("_yoy") or last in (
+        if last in _RATIO_KEYS or last == "ratio" or last in (
             "stop_loss",
             "take_profit",
         ):
             if abs(number) * 100 < 0.05:
                 return "没变"
             return f"{sign}{number * 100:.1f}个百分点"
-        if last.endswith("_pct"):
+        if last.endswith("_yoy") or last.endswith("_pct"):
+            if abs(number) < 0.05:
+                return "没变"
             return f"{sign}{number:.1f}百分点"
         if abs(number - round(number)) < 1e-9:
             return f"{sign}{int(round(number))}"

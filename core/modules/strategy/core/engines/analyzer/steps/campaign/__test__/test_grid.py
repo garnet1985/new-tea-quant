@@ -181,7 +181,8 @@ def test_overlays_and_matrix_coexist() -> None:
     assert dumped.get("overlays")
     assert dumped.get("matrix")
     plan = CellExpander.plan(_snapshot(), cfg)
-    assert len(plan.overlays) == 1
+    assert len(plan.overlays) == 2
+    assert plan.overlays[0].overlay == {}
     assert len(plan.matrix) == 4
     unique = ExecuteStep.unique_tasks(
         AttributionTask.from_cells(plan.execute_source_cells(), cfg)

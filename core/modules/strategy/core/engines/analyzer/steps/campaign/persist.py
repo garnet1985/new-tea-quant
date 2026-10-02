@@ -136,6 +136,8 @@ class PersistStep:
         if isinstance(families, dict) and families:
             summarized["overlays"] = families.get("overlays") or summarized.get("overlays") or {}
             summarized["matrix"] = families.get("matrix") or summarized.get("matrix") or {}
+        if isinstance(report.get("trades"), dict) and report.get("trades"):
+            summarized["trades"] = report.get("trades")
         summarized.update(
             {
                 "group_id": group_id,

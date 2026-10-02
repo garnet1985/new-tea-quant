@@ -51,13 +51,11 @@ class SummarizeStep:
     ) -> str:
         status = str(attributed.get("status") or "skipped")
         n = int(attributed.get("n") or 0)
-        if status == "skipped":
-            reason = str(attributed.get("reason") or "")
-            if reason == "insufficient_ready_rows":
-                if n <= 0:
-                    return "没有可对照的回测。"
-                return f"只有 {n} 套回测有结果，还不够对照。"
-            return "这次旋钮没有变化，无法对照。"
+        reason = str(attributed.get("reason") or "")
+        if reason == "insufficient_ready_rows" or n < 2:
+            if n <= 0:
+                return "没有可对照的回测。"
+            return f"只有 {n} 套回测有结果，还不够对照。"
         top_grid = _headline_interaction(attributed)
         if top_grid is not None:
             return top_grid
@@ -88,6 +86,8 @@ class SummarizeStep:
                 f"相对基准，把{knob}从 {from_text} 调到 {to_text}，"
                 f"{result} {delta_text}。"
             )
+        if status == "skipped":
+            return "这次旋钮没有变化，无法对照。"
         if not highlights:
             return f"对照了 {n} 套设置，旋钮和结果之间没有清楚的方向。"
         top = highlights[0]

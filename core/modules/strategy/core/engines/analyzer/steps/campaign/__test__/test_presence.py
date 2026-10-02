@@ -19,6 +19,9 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.contrasts import
 from core.modules.strategy.core.engines.analyzer.steps.campaign.overlay import (
     SettingsOverlay,
 )
+from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import (
+    SummarizeStep,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -211,8 +214,10 @@ def test_overlay_none_is_legal() -> None:
     )
     assert len(cfg.overlays) == 3
     cells = CellExpander.expand(snapshot, cfg)
-    pe_off = cells[1]
-    sl_off = cells[2]
+    assert len(cells) == 4
+    assert cells[0].overlay == {}
+    pe_off = cells[2]
+    sl_off = cells[3]
     assert KnobContrasts.value_at(pe_off.effective.raw_settings, "core.max_pe_percentile") is None
     assert pe_off.effective.goal.stop_loss is not None
     assert sl_off.effective.goal.stop_loss is None
@@ -231,6 +236,65 @@ def test_overlay_none_is_legal() -> None:
         SimulateKind.PORTFOLIO,
     )
     assert cfg.parameter_mode == "overlays"
+
+
+def test_overlay_snapshot_baseline_makes_oat() -> None:
+    sl_on = {"stages": [{"ratio": -0.2, "close_invest": True}]}
+    gathered = {
+        "rows": [
+            _row(
+                "21",
+                {
+                    "core.rsi_oversold_threshold": 20,
+                    "core.max_pe_percentile": 30,
+                    "goal.stop_loss": sl_on,
+                },
+                ret=0.07,
+                opp=18,
+            ),
+            _row(
+                "22",
+                {
+                    "core.rsi_oversold_threshold": 25,
+                    "core.max_pe_percentile": 30,
+                    "goal.stop_loss": sl_on,
+                },
+                ret=0.50,
+                opp=78,
+            ),
+            _row(
+                "26",
+                {
+                    "core.rsi_oversold_threshold": 20,
+                    "core.max_pe_percentile": None,
+                    "goal.stop_loss": sl_on,
+                },
+                ret=0.20,
+                opp=32,
+            ),
+            _row(
+                "31",
+                {
+                    "core.rsi_oversold_threshold": 20,
+                    "core.max_pe_percentile": 30,
+                    "goal.stop_loss": None,
+                },
+                ret=0.17,
+                opp=16,
+            ),
+        ]
+    }
+    out = AttributeStep.run(gathered)
+    presence = (out.get("contributions") or {}).get("presence") or {}
+    oat = {
+        item.get("knob")
+        for item in presence.get("items") or []
+        if item.get("kind") == "one_at_a_time"
+    }
+    assert "core.max_pe_percentile" in oat
+    assert "goal.stop_loss" in oat
+    headline = str(SummarizeStep.run(out).get("headline") or "")
+    assert "没有变化" not in headline
 
 
 def test_attribution_settings_drops_fill_missing() -> None:

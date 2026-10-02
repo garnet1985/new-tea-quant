@@ -1,6 +1,7 @@
 """把 attribution.py 展开成格子：overlays 逐项、matrix 笛卡尔积，或 versions 选号。
 
-overlays 与 matrix 各自成表；执行并集按 ``execute_settings`` 去重。
+overlays 与 matrix 各自成表；overlays 自动带当前 settings 当基准格。
+执行并集按 ``execute_settings`` 去重。
 """
 from __future__ import annotations
 
@@ -157,10 +158,16 @@ class CellExpander:
                 for i, vid in enumerate(config.versions)
             )
             return ParameterPlan(selected=selected)
-        overlays = tuple(
-            cls._from_overlay(i, snapshot, row, family="overlays")
-            for i, row in enumerate(config.overlays)
-        )
+        overlays: Tuple[AttributionCell, ...] = ()
+        if config.has_overlays:
+            declared = [
+                cls._from_overlay(i + 1, snapshot, row, family="overlays")
+                for i, row in enumerate(config.overlays)
+            ]
+            overlays = (
+                cls._from_snapshot(0, snapshot, family="overlays"),
+                *declared,
+            )
         matrix: Tuple[AttributionCell, ...] = ()
         if config.has_matrix:
             raw = config.raw_settings.get("matrix")
@@ -170,6 +177,25 @@ class CellExpander:
                 for i, row in enumerate(rows)
             )
         return ParameterPlan(overlays=overlays, matrix=matrix)
+
+    @classmethod
+    def _from_snapshot(
+        cls,
+        index: int,
+        snapshot: StrategySettings,
+        *,
+        family: str = "",
+    ) -> AttributionCell:
+        """当前 settings 作为 overlays 对照基准，不写进 attribution.py。"""
+        return AttributionCell(
+            index=index,
+            overlay={},
+            runtime_settings={},
+            execute_settings=StrategySettings.extract_execute_settings(snapshot),
+            effective=snapshot,
+            version_id=None,
+            family=family,
+        )
 
     @classmethod
     def _from_overlay(

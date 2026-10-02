@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from .cells import AttributionCell, AttributionTask
 
@@ -89,6 +89,8 @@ class CampaignReportStep:
         config: Any,
         executed: Mapping[str, Any],
         families: Mapping[str, Mapping[str, Any]],
+        *,
+        trades: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         items = [
             (name, dict(block))
@@ -98,6 +100,8 @@ class CampaignReportStep:
         if len(items) == 1:
             out = dict(items[0][1])
             out["mode"] = config.parameter_mode
+            if trades:
+                out["trades"] = dict(trades)
             return out
         views: Dict[str, Dict[str, Any]] = {}
         headlines: list[str] = []
@@ -133,7 +137,7 @@ class CampaignReportStep:
             "families": views,
             "report": {
                 "headline": headline,
-                "status": first.get("report", {}).get("status") if isinstance(first.get("report"), dict) else "ok",
+                "status": _merge_status(items),
                 "overlays": views.get("overlays") or {},
                 "matrix": views.get("matrix") or {},
             },
@@ -152,6 +156,7 @@ class CampaignReportStep:
             },
             "table": tables,
             "attribute": attributes,
+            "trades": dict(trades) if trades else {},
         }
 
 
@@ -173,3 +178,23 @@ def _family_view(block: Mapping[str, Any]) -> Dict[str, Any]:
         or (block.get("attribute") or {}).get("contributions")
         or {},
     }
+
+
+def _merge_status(items: Sequence[tuple]) -> str:
+    statuses: list[str] = []
+    for _name, block in items:
+        nested = block.get("report") if isinstance(block, Mapping) else None
+        status = None
+        if isinstance(nested, dict):
+            status = nested.get("status")
+        if not status and isinstance(block, Mapping):
+            status = (block.get("attribute") or {}).get("status")
+        if status:
+            statuses.append(str(status))
+    if any(item == "ok" for item in statuses) and all(
+        item in ("ok", "partial") for item in statuses
+    ):
+        return "ok" if all(item == "ok" for item in statuses) else "partial"
+    if any(item in ("ok", "partial") for item in statuses):
+        return "partial"
+    return "skipped"

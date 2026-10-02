@@ -27,6 +27,7 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import (
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.report import CampaignReportStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import SummarizeStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.trades import TradesStep
 from core.modules.strategy.core.engines.analyzer.steps.rolling.config import RollingSettings
 from core.modules.strategy.core.engines.analyzer.steps.rolling.summarize import RollingSummarizeStep
 from core.modules.strategy.core.engines.analyzer.steps.rolling.windows import WindowExpander
@@ -55,6 +56,7 @@ class AttributionPipeline:
         )
         executed = ExecuteStep.run(folder, unique_tasks, ignore_cache=ignore_cache)
         unique_cells = [task.cell for task in unique_tasks]
+        trades = TradesStep.run(folder, unique_cells, executed)
         families = {}
         for name, cells in plan.families():
             family_executed = ExecuteStep.bind(executed, unique_cells, cells)
@@ -73,7 +75,7 @@ class AttributionPipeline:
                 summarized=summarized,
                 family=name,
             )
-        assembled = CampaignReportStep.merge(config, executed, families)
+        assembled = CampaignReportStep.merge(config, executed, families, trades=trades)
         return PersistStep.run(
             folder,
             config,

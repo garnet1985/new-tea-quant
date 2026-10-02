@@ -200,8 +200,9 @@ class UserHandlers:
             "strategy_decision_list",
             "strategy_decision_delete",
             "strategy_simulate",
-            "strategy_attribution",
-            "strategy_analyze",
+            "strategy_attribute_enumerate",
+            "strategy_attribute_price",
+            "strategy_attribute_portfolio",
             "strategy_rolling",
             "strategy_delete_version",
         ):
@@ -555,7 +556,14 @@ class UserHandlers:
             raise SystemExit(1)
 
     @staticmethod
-    def _run_strategy_attribution(args: argparse.Namespace) -> None:
+    def _run_strategy_attribute(
+        args: argparse.Namespace,
+        *,
+        layer: str,
+        api_name: str,
+        title: str,
+        need_cli: str,
+    ) -> None:
         import time
 
         from core.modules.strategy import Strategy
@@ -563,14 +571,21 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print(f"{i('chart')} 归因战役…", flush=True)
+        print(f"{i('chart')} {title}…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
+        print(f"  层: {layer}", flush=True)
         print("  配置: attribution.py（不进指纹）", flush=True)
+        print(f"  须先有主 version（先跑 `{need_cli}`）", flush=True)
         if force:
-            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
+            print("  --force: 忽略缓存，同指纹仍写入原副本号", flush=True)
 
         t0 = time.perf_counter()
-        result = Strategy.campaign(strategy_key, ignore_cache=force)
+        runner = getattr(Strategy, api_name)
+        try:
+            result = runner(strategy_key, ignore_cache=force)
+        except ValueError as exc:
+            print(f"{i('error')} {exc}", flush=True)
+            raise SystemExit(1) from exc
         wall_sec = time.perf_counter() - t0
 
         try:
@@ -578,52 +593,6 @@ class UserHandlers:
         except Exception as exc:
             logger.warning("展示战役报告失败: %s", exc)
             print(f"  headline: {result.get('headline')}", flush=True)
-            print(f"  report_path: {result.get('report_path')}", flush=True)
-
-        print(f"  总耗时: {wall_sec:.2f}s", flush=True)
-        if not result.get("success", True):
-            raise SystemExit(1)
-
-    @staticmethod
-    def _run_strategy_analyze(args: argparse.Namespace) -> None:
-        import time
-
-        from core.modules.strategy import Strategy
-
-        raw = UserHandlers._strategy_name(getattr(args, "strategy", None))
-        version = None
-        if raw and ":" in raw:
-            try:
-                spec, sid = UserHandlers.parse_strategy_version_spec(raw)
-            except ValueError as exc:
-                print(str(exc), flush=True)
-                raise SystemExit(1) from exc
-            strategy_key = UserHandlers._resolve_strategy_key(spec)
-            version = sid
-        else:
-            strategy_key = UserHandlers._resolve_strategy_key(raw)
-        kind = str(getattr(args, "kind", None) or "").strip() or None
-        force = bool(getattr(args, "force", False))
-
-        print(f"{i('chart')} 单次切片…", flush=True)
-        print(f"  策略: {strategy_key}", flush=True)
-        if version is not None:
-            print(f"  version: {version}", flush=True)
-        if kind:
-            print(f"  层: {kind}", flush=True)
-        if force:
-            print("  --force: 重算 analysis 报告", flush=True)
-
-        t0 = time.perf_counter()
-        result = Strategy.analyze(
-            strategy_key, version=version, kind=kind, force=force
-        )
-        wall_sec = time.perf_counter() - t0
-
-        try:
-            Strategy.present_analyze(result.get("output_dir") or "")
-        except Exception as exc:
-            logger.warning("展示切片报告失败: %s", exc)
             print(f"  report_path: {result.get('report_path')}", flush=True)
 
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)
@@ -804,12 +773,34 @@ class UserHandlers:
             UserHandlers._run_strategy_simulate(args)
             return
 
-        if cmd == "strategy_attribution":
-            UserHandlers._run_strategy_attribution(args)
+        if cmd == "strategy_attribute_enumerate":
+            UserHandlers._run_strategy_attribute(
+                args,
+                layer="enumerate",
+                api_name="attribute_enumerate",
+                title="枚举层归因",
+                need_cli="se",
+            )
             return
 
-        if cmd == "strategy_analyze":
-            UserHandlers._run_strategy_analyze(args)
+        if cmd == "strategy_attribute_price":
+            UserHandlers._run_strategy_attribute(
+                args,
+                layer="price_factor",
+                api_name="attribute_price",
+                title="价格层归因",
+                need_cli="sp",
+            )
+            return
+
+        if cmd == "strategy_attribute_portfolio":
+            UserHandlers._run_strategy_attribute(
+                args,
+                layer="portfolio",
+                api_name="attribute_portfolio",
+                title="组合层归因",
+                need_cli="so",
+            )
             return
 
         if cmd == "strategy_rolling":

@@ -11,8 +11,6 @@ from core.infra.cmd_layout import CmdLayout
 from .contrasts import KnobContrasts
 from .labels import CampaignLabels
 
-_SECTION_WIDTH = 64
-
 _SKIP_REASONS = {
     "fill_missing_false": "没有现成回测，这次也没补跑",
     "version_not_found": "找不到这个回测号",
@@ -101,27 +99,24 @@ class CampaignPresenter:
         ]
         vid_text = "、".join(f"v{item}" for item in vids) if vids else "还没有回测号"
 
-        CmdLayout.title.print_banner(f"{icon('chart')} 归因对照", stream=out)
-        group_bit = f"组 {group_id}  ·  " if group_id else ""
-        print(
-            f"{icon('gear')} {group_bit}{report.get('cell_count') or 0} 套设置  ·  "
-            f"对照上 {ready} 套  ·  {vid_text}",
-            file=out,
-            flush=True,
-        )
-
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('target')} 一句话", stream=out)
-        print(f"   {report.get('headline') or '-'}", file=out, flush=True)
+        CmdLayout.title.print_h1(f"{icon('chart')} 归因对照", stream=out)
+        meta_parts = []
+        if group_id:
+            meta_parts.append(f"组 {group_id}")
+        meta_parts.append(f"{report.get('cell_count') or 0} 套设置")
+        meta_parts.append(f"对照上 {ready} 套")
+        meta_parts.append(vid_text)
+        print(f"{icon('gear')} {CmdLayout.text.meta(meta_parts)}", file=out, flush=True)
+        CmdLayout.title.print_h2(f"{icon('target')} 一句话", stream=out)
+        CmdLayout.text.print_indent(report.get('headline') or '-', stream=out)
 
         if len(families) >= 2:
             for name in ("overlays", "matrix"):
                 block = families.get(name)
                 if not isinstance(block, dict):
                     continue
-                CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
                 title = "单因子" if name == "overlays" else "交叉"
-                CmdLayout.title.print_section(f"{icon('rocket')} {title}", stream=out)
+                CmdLayout.title.print_h2(f"{icon('rocket')} {title}", stream=out)
                 view = CampaignPresenter(_family_present_payload(report, block))
                 view._present_family_body(out)
         else:
@@ -129,7 +124,6 @@ class CampaignPresenter:
 
         self._present_trades(out)
         self._present_paths(out, persist)
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
 
     def _present_family_body(self, out: TextIO) -> None:
         table = _table_rows(self._report)
@@ -147,8 +141,7 @@ class CampaignPresenter:
         if not rows:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('clipboard')} 数字对照", stream=out)
+        CmdLayout.title.print_h2(f"{icon('clipboard')} 数字对照", stream=out)
 
         knob_keys = _knob_columns(rows)
         outcome_keys = _outcome_columns(rows)
@@ -169,7 +162,7 @@ class CampaignPresenter:
                 block = layers.get(layer) if isinstance(layers.get(layer), dict) else {}
                 line.append(CampaignLabels.format_number(key, block.get(key) if isinstance(block, dict) else None))
             body.append(line)
-        _print_table(headers, body, out)
+        CmdLayout.table.print(headers, body, stream=out)
 
     def _present_presence(self, out: TextIO) -> None:
         contrib = _chapter_block(self._report, "presence")
@@ -181,9 +174,8 @@ class CampaignPresenter:
         if not items:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('rocket')} 参数贡献度", stream=out)
-        print("   有 / 无。基准是关掉这一项的那一格。", file=out, flush=True)
+        CmdLayout.title.print_h2(f"{icon('rocket')} 参数贡献度", stream=out)
+        CmdLayout.text.print_indent('有 / 无。基准是关掉这一项的那一格。', stream=out)
         self._present_item_groups(out, items)
 
     def _present_sensitivity(self, out: TextIO) -> None:
@@ -195,16 +187,15 @@ class CampaignPresenter:
         ]
         if marginals:
             icon = CmdLayout.icon.get
-            CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-            CmdLayout.title.print_section(f"{icon('rocket')} 参数敏感度", stream=out)
+            CmdLayout.title.print_h2(f"{icon('rocket')} 参数敏感度", stream=out)
             baseline = (
                 contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
             )
             vid = str(baseline.get("version_id") or "").strip()
-            print(
-                f"   取值变化。相对基准 {('v' + vid) if vid else '开着的第一套'}，按旋钮取值从小到大",
-                file=out,
-                flush=True,
+            base = f"v{vid}" if vid else "开着的第一套"
+            CmdLayout.text.print_indent(
+                f"取值变化。相对基准 {base}，按旋钮取值从小到大",
+                stream=out,
             )
             for block in marginals:
                 self._present_marginal_knob(out, block)
@@ -217,17 +208,13 @@ class CampaignPresenter:
         if not items:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('rocket')} 参数敏感度", stream=out)
+        CmdLayout.title.print_h2(f"{icon('rocket')} 参数敏感度", stream=out)
         baseline = (
             contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
         )
         vid = str(baseline.get("version_id") or "").strip()
-        print(
-            f"   取值变化。相对基准 {('v' + vid) if vid else '开着的第一套'}",
-            file=out,
-            flush=True,
-        )
+        base = f"v{vid}" if vid else "开着的第一套"
+        CmdLayout.text.print_indent(f"取值变化。相对基准 {base}", stream=out)
         self._present_item_groups(out, items)
 
     def _present_item_groups(
@@ -246,7 +233,7 @@ class CampaignPresenter:
                 order.append(knob)
             grouped[knob].append(item)
         for knob in order:
-            print(f"   {CampaignLabels.knob_label(knob)}", file=out, flush=True)
+            CmdLayout.title.print_h3(CampaignLabels.knob_label(knob), stream=out)
             for item in grouped[knob]:
                 bits = [
                     f"{CampaignLabels.format_knob(knob, item.get('from'))} → "
@@ -259,11 +246,11 @@ class CampaignPresenter:
                     bits.append(
                         f"{CampaignLabels.outcome_label(outcome)} {CampaignLabels.format_delta(outcome, delta)}"
                     )
-                print(f"      {'   '.join(bits)}", file=out, flush=True)
+                CmdLayout.text.print_indent("   ".join(bits), stream=out)
 
     def _present_marginal_knob(self, out: TextIO, block: Mapping[str, Any]) -> None:
         knob = str(block.get("knob") or "")
-        print(f"   {CampaignLabels.knob_label(knob)}", file=out, flush=True)
+        CmdLayout.title.print_h3(CampaignLabels.knob_label(knob), stream=out)
         for level in block.get("levels") or []:
             if not isinstance(level, dict):
                 continue
@@ -276,13 +263,12 @@ class CampaignPresenter:
             step = _step_label(level)
             if step:
                 bits.append(step)
-            print(f"      {'   '.join(bits)}", file=out, flush=True)
+            CmdLayout.text.print_indent("   ".join(bits), stream=out)
         if str(block.get("note") or "") == "pullback":
             best = CampaignLabels.format_number(knob, block.get("best_value"))
-            print(
-                f"      放到 {best} 最好，再往上调账户收益回落。",
-                file=out,
-                flush=True,
+            CmdLayout.text.print_indent(
+                f"放到 {best} 最好，再往上调账户收益回落。",
+                stream=out,
             )
 
     def _present_cross_layer(self, out: TextIO) -> None:
@@ -295,15 +281,17 @@ class CampaignPresenter:
         if not rows:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('target')} 跨层", stream=out)
-        for item in rows:
-            print(
-                f"   · {CampaignLabels.knob_label(item.get('knob'))}："
-                f"{CampaignLabels.cross_layer_phrase(item.get('verdict'))}",
-                file=out,
-                flush=True,
-            )
+        CmdLayout.title.print_h2(f"{icon('target')} 跨层", stream=out)
+        CmdLayout.text.print_bullets(
+            [
+                f"{CampaignLabels.knob_label(item.get('knob'))}："
+                f"{CampaignLabels.cross_layer_phrase(item.get('verdict'))}"
+                for item in rows
+            ],
+            indent=3,
+            marker="·",
+            stream=out,
+        )
 
     def _present_interaction(self, out: TextIO) -> None:
         contrib = _chapter_block(self._report, "sensitivity")
@@ -315,14 +303,12 @@ class CampaignPresenter:
             return
         grid = grids[0]
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('clipboard')} 交叉", stream=out)
+        CmdLayout.title.print_h2(f"{icon('clipboard')} 交叉", stream=out)
         row_knob = str(grid.get("row_knob") or "")
         col_knob = str(grid.get("col_knob") or "")
-        print(
-            f"   {CampaignLabels.knob_label(row_knob)} × {CampaignLabels.knob_label(col_knob)}（账户收益）",
-            file=out,
-            flush=True,
+        CmdLayout.text.print_indent(
+            f"{CampaignLabels.knob_label(row_knob)} × {CampaignLabels.knob_label(col_knob)}（账户收益）",
+            stream=out,
         )
         col_values = list(grid.get("col_values") or [])
         headers = [""] + [CampaignLabels.format_knob(col_knob, value) for value in col_values]
@@ -344,7 +330,7 @@ class CampaignPresenter:
                     text = f"{text} ←最好"
                 row.append(text)
             body.append(row)
-        _print_table(headers, body, out)
+        CmdLayout.table.print(headers, body, stream=out)
 
     def _present_highlights(self, out: TextIO) -> None:
         presence = _chapter_block(self._report, "presence")
@@ -358,9 +344,9 @@ class CampaignPresenter:
         if not isinstance(highlights, list) or not highlights:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('rocket')} 方向", stream=out)
+        CmdLayout.title.print_h2(f"{icon('rocket')} 方向", stream=out)
         seen = set()
+        lines = []
         for item in highlights:
             if not isinstance(item, dict):
                 continue
@@ -368,13 +354,10 @@ class CampaignPresenter:
             if key in seen:
                 continue
             seen.add(key)
-            print(
-                f"   · {_highlight_line(item)}",
-                file=out,
-                flush=True,
-            )
+            lines.append(_highlight_line(item))
             if len(seen) >= 3:
                 break
+        CmdLayout.text.print_bullets(lines, indent=3, marker="·", stream=out)
 
     def _present_skipped(self, out: TextIO) -> None:
         cells = self._report.get("cells") or []
@@ -386,18 +369,17 @@ class CampaignPresenter:
         if not skipped:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('warning')} 没对照上的", stream=out)
-        for cell in skipped:
-            reason = _SKIP_REASONS.get(
-                str(cell.get("execute_reason") or ""),
-                str(cell.get("execute_reason") or "").strip() or "跳过",
-            )
-            print(
-                f"   · 第 {int(cell.get('index', 0)) + 1} 套：{reason}",
-                file=out,
-                flush=True,
-            )
+        CmdLayout.title.print_h2(f"{icon('warning')} 没对照上的", stream=out)
+        CmdLayout.text.print_bullets(
+            [
+                f"第 {int(cell.get('index', 0)) + 1} 套："
+                f"{_SKIP_REASONS.get(str(cell.get('execute_reason') or ''), str(cell.get('execute_reason') or '').strip() or '跳过')}"
+                for cell in skipped
+            ],
+            indent=3,
+            marker="·",
+            stream=out,
+        )
 
     def _present_hints(self, out: TextIO) -> None:
         summarized = self._report.get("report")
@@ -407,12 +389,11 @@ class CampaignPresenter:
         if not isinstance(hints, list) or not hints:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('blue_dot')} 怎么读", stream=out)
+        CmdLayout.title.print_h2(f"{icon('blue_dot')} 怎么读", stream=out)
         for hint in hints[:4]:
             text = str(hint or "").strip()
             if text:
-                print(f"   {text}", file=out, flush=True)
+                CmdLayout.text.print_indent(text, stream=out)
 
     def _present_trades(self, out: TextIO) -> None:
         block = self._report.get("trades")
@@ -423,38 +404,34 @@ class CampaignPresenter:
         if not isinstance(block, dict) or not block:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('chart')} 单笔 XGBoost + SHAP", stream=out)
+        CmdLayout.title.print_h2(f"{icon('chart')} 单笔 XGBoost + SHAP", stream=out)
         status = str(block.get("status") or "skipped")
         if status not in {"ok", "partial"}:
             reason = str(block.get("reason") or "")
             if reason == "missing_dependency":
-                print(
-                    f"   未安装 {block.get('dependency') or 'xgboost'}，跳过单笔机器学习。",
-                    file=out,
-                    flush=True,
+                CmdLayout.text.print_indent(
+                    f"未安装 {block.get('dependency') or 'xgboost'}，跳过单笔机器学习。",
+                    stream=out,
                 )
                 return
             if reason == "insufficient_samples":
-                print(
-                    f"   样本 {block.get('n') or 0} 笔不足"
+                CmdLayout.text.print_indent(
+                    f"样本 {block.get('n') or 0} 笔不足"
                     f"（建议 ≥{block.get('min_samples') or 80}），暂不做单笔 SHAP。",
-                    file=out,
-                    flush=True,
+                    stream=out,
                 )
                 return
             if reason == "insufficient_varying_fields":
-                print("   变化特征不足 2 个，暂不做单笔 SHAP。", file=out, flush=True)
+                CmdLayout.text.print_indent('变化特征不足 2 个，暂不做单笔 SHAP。', stream=out)
                 return
             if reason == "insufficient_samples_per_feature":
-                print(
-                    f"   样本 {block.get('n') or 0} 笔、特征 {block.get('n_features') or 0} 个，"
+                CmdLayout.text.print_indent(
+                    f"样本 {block.get('n') or 0} 笔、特征 {block.get('n_features') or 0} 个，"
                     f"平均每特征不到 {block.get('min_ratio') or 10} 笔，暂不做单笔 SHAP。",
-                    file=out,
-                    flush=True,
+                    stream=out,
                 )
                 return
-            print("   这次没做单笔机器学习。", file=out, flush=True)
+            CmdLayout.text.print_indent('这次没做单笔机器学习。', stream=out)
             return
 
         overview = block.get("overview") if isinstance(block.get("overview"), dict) else {}
@@ -472,43 +449,44 @@ class CampaignPresenter:
         split = overview.get("split") if isinstance(overview.get("split"), dict) else {}
         if not split:
             split = block.get("split") if isinstance(block.get("split"), dict) else {}
-        print("   模型概况", file=out, flush=True)
-        print(
-            f"   样本数: {n}（{n_versions} versions）",
-            file=out,
-            flush=True,
+        CmdLayout.title.print_h3('模型概况', stream=out)
+        CmdLayout.text.print_indent(CmdLayout.text.kv("样本数", f"{n}（{n_versions} versions）"), stream=out)
+        CmdLayout.text.print_indent(CmdLayout.text.kv("特征数", f"{n_feat}（{n_param} 参数级 + {n_opp} 机会级）"), stream=out)
+        CmdLayout.text.print_indent(CmdLayout.text.kv("目标", "单笔收益 > 0（二分类）"), stream=out)
+        CmdLayout.text.print_indent(
+            CmdLayout.text.kv(
+                "拟合",
+                "多因子联合（一次模型看全部特征，SHAP 再拆各自贡献）",
+            ),
+            stream=out,
         )
-        print(
-            f"   特征数: {n_feat}（{n_param} 参数级 + {n_opp} 机会级）",
-            file=out,
-            flush=True,
-        )
-        print("   目标: 单笔收益 > 0（二分类）", file=out, flush=True)
-        print(
-            "   拟合: 多因子联合（一次模型看全部特征，SHAP 再拆各自贡献）",
-            file=out,
-            flush=True,
-        )
-        print(
-            f"   训练/测试: {n_train}/{n_test}{_split_phrase(split)}",
-            file=out,
-            flush=True,
+        CmdLayout.text.print_indent(
+            CmdLayout.text.kv(
+                "训练/测试",
+                f"{n_train}/{n_test}{_split_phrase(split)}",
+            ),
+            stream=out,
         )
         if auc_train is not None:
-            print(f"   训练集AUC: {float(auc_train):.2f}", file=out, flush=True)
+            CmdLayout.text.print_indent(
+                CmdLayout.text.kv("训练集AUC", f"{float(auc_train):.2f}"),
+                stream=out,
+            )
         if auc_test is not None:
-            print(f"   测试集AUC: {float(auc_test):.2f}", file=out, flush=True)
+            CmdLayout.text.print_indent(
+                CmdLayout.text.kv("测试集AUC", f"{float(auc_test):.2f}"),
+                stream=out,
+            )
         if accuracy is not None:
-            print(f"   测试集准确率: {float(accuracy) * 100:.0f}%", file=out, flush=True)
+            CmdLayout.text.print_indent(
+                CmdLayout.text.kv("测试集准确率", f"{float(accuracy) * 100:.0f}%"),
+                stream=out,
+            )
         warning = _auc_warning(auc_train, auc_test, split)
         if warning:
-            print(f"   {warning}", file=out, flush=True)
+            CmdLayout.text.print_indent(warning, stream=out)
         else:
-            print(
-                "   AUC 0.5 = 随机猜，0.7+ 有预测力。",
-                file=out,
-                flush=True,
-            )
+            CmdLayout.text.print_indent("AUC 0.5 = 随机猜，0.7+ 有预测力。", stream=out)
 
         shap_block = block.get("shap") if isinstance(block.get("shap"), dict) else {}
         ranked = [
@@ -517,51 +495,54 @@ class CampaignPresenter:
             if isinstance(item, dict)
         ]
         if ranked:
-            print("", file=out, flush=True)
-            print("   SHAP 因子重要性（mean |SHAP|）", file=out, flush=True)
+            CmdLayout.title.print_h3('SHAP 因子重要性（mean |SHAP|）', stream=out)
             peak = max(
                 (abs(float(item.get("mean_abs_shap") or 0.0)) for item in ranked),
                 default=0.0,
             )
-            for i, item in enumerate(ranked[:8], start=1):
-                name = _feature_label(item.get("feature"))
-                score = float(item.get("mean_abs_shap") or 0.0)
-                bar = _bar(score, peak)
-                print(
-                    f"   {i}. {name:<14} {score:6.3f}  {bar}",
-                    file=out,
-                    flush=True,
-                )
+            CmdLayout.text.print_numbered(
+                [
+                    f"{_feature_label(item.get('feature')):<14} "
+                    f"{float(item.get('mean_abs_shap') or 0.0):6.3f}  "
+                    f"{_bar(float(item.get('mean_abs_shap') or 0.0), peak)}"
+                    for item in ranked[:8]
+                ],
+                indent=3,
+                stream=out,
+            )
 
         directions = [
             item for item in (block.get("directions") or []) if isinstance(item, dict)
         ]
         if directions:
-            print("", file=out, flush=True)
-            print("   SHAP 方向", file=out, flush=True)
+            CmdLayout.title.print_h3('SHAP 方向', stream=out)
             for item in directions[:6]:
                 name = _feature_label(item.get("feature"))
                 sign = str(item.get("sign") or "")
                 low = item.get("low") if isinstance(item.get("low"), dict) else {}
                 high = item.get("high") if isinstance(item.get("high"), dict) else {}
-                print(f"   {name}:", file=out, flush=True)
+                CmdLayout.text.print_indent(f"{name}:", stream=out)
                 low_shap = float(low.get("mean_shap") or 0.0)
                 high_shap = float(high.get("mean_shap") or 0.0)
-                print(
-                    f"      低值（≤ {CampaignLabels.format_number(item.get('feature'), low.get('threshold'))}）"
+                CmdLayout.text.print_indent(
+                    f"低值（≤ {CampaignLabels.format_number(item.get('feature'), low.get('threshold'))}）"
                     f" → {_shap_phrase(low_shap)}",
-                    file=out,
-                    flush=True,
+                    spaces=6,
+                    stream=out,
                 )
-                print(
-                    f"      高值（≥ {CampaignLabels.format_number(item.get('feature'), high.get('threshold'))}）"
+                CmdLayout.text.print_indent(
+                    f"高值（≥ {CampaignLabels.format_number(item.get('feature'), high.get('threshold'))}）"
                     f" → {_shap_phrase(high_shap)}",
-                    file=out,
-                    flush=True,
+                    spaces=6,
+                    stream=out,
                 )
                 conclusion = _shap_direction_conclusion(name, low_shap, high_shap, sign)
                 if conclusion:
-                    print(f"      结论: {conclusion}", file=out, flush=True)
+                    CmdLayout.text.print_indent(
+                        CmdLayout.text.kv("结论", conclusion),
+                        spaces=6,
+                        stream=out,
+                    )
 
         self._present_dependence(out, block)
 
@@ -569,18 +550,21 @@ class CampaignPresenter:
         items = [item for item in (block.get("dependence") or []) if isinstance(item, dict)]
         if not items:
             return
-        print("", file=out, flush=True)
-        print("   SHAP 依赖", file=out, flush=True)
+        CmdLayout.title.print_h3('SHAP 依赖', stream=out)
         for item in items[:3]:
             feature = item.get("feature")
             name = _feature_label(feature)
             bins = [row for row in (item.get("bins") or []) if isinstance(row, dict)]
-            print(f"   {name}:", file=out, flush=True)
+            CmdLayout.text.print_indent(f"{name}:", stream=out)
             for line in _dependence_ascii(bins, str(feature or "")):
-                print(f"      {line}", file=out, flush=True)
+                CmdLayout.text.print_indent(line, spaces=6, stream=out)
             note = _shap_dependence_conclusion(str(name), str(feature or ""), bins)
             if note:
-                print(f"      结论: {note}", file=out, flush=True)
+                CmdLayout.text.print_indent(
+                    CmdLayout.text.kv("结论", note),
+                    spaces=6,
+                    stream=out,
+                )
 
     def _present_paths(self, out: TextIO, persist: Mapping[str, Any]) -> None:
         icon = CmdLayout.icon.get
@@ -588,12 +572,11 @@ class CampaignPresenter:
         group_id = persist.get("group_id") or self._report.get("group_id")
         if not path and not group_id:
             return
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('gear')} 产物", stream=out)
+        CmdLayout.title.print_h2(f"{icon('gear')} 产物", stream=out)
         if group_id:
-            print(f"   组 {group_id}", file=out, flush=True)
+            CmdLayout.text.print_indent(f"组 {group_id}", stream=out)
         if path:
-            print(f"   {path}", file=out, flush=True)
+            CmdLayout.text.print_indent(path, stream=out)
 
 
 def _feature_label(feature: Any) -> str:
@@ -941,27 +924,6 @@ def _highlight_line(item: Mapping[str, Any]) -> str:
         return f"止损越深，{result}{phrase}"
     phrase = CampaignLabels.direction_phrase(outcome, rho)
     return f"{CampaignLabels.knob_label(knob)}越大，{result}{phrase}"
-
-
-def _print_table(headers: Sequence[str], rows: Sequence[Sequence[str]], out: TextIO) -> None:
-    if not headers:
-        return
-    widths = [len(str(header)) for header in headers]
-    for row in rows:
-        for i, cell in enumerate(row):
-            if i < len(widths):
-                widths[i] = max(widths[i], len(str(cell)))
-    def fmt(row: Sequence[str]) -> str:
-        parts = []
-        for i, cell in enumerate(row):
-            width = widths[i] if i < len(widths) else len(str(cell))
-            parts.append(str(cell).rjust(width) if i else str(cell).ljust(width))
-        return "   " + "  ".join(parts)
-
-    print(fmt(headers), file=out, flush=True)
-    print("   " + "  ".join("-" * width for width in widths), file=out, flush=True)
-    for row in rows:
-        print(fmt(row), file=out, flush=True)
 
 
 def _read_json_object(path: Path) -> Dict[str, Any]:

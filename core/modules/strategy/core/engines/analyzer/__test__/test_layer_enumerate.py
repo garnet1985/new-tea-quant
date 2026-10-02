@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.analyzer import Analyzer
+from core.modules.strategy.core.engines.analyzer.steps.layer import LayerPipeline
 from core.modules.strategy.core.engines.shared.enum_result_contract import (
     EnumResult,
     EnumResultsManager,
@@ -132,7 +132,7 @@ def test_enumerate_layer_reports_concentration_and_stop_loss(tmp_path, capsys):
         summary={"cv": 0.9, "dispersion_conclusion": "较集中"},
         goal={"take_profit": {"stages": [{"ratio": 0.2, "close_invest": True}]}},
     )
-    report = Analyzer.layer(store, present=True, force=True)
+    report = LayerPipeline.run(store, present=True, force=True)
     assert report["success"] is True
     assert report["layer"] == "enumerate"
     facts = report["facts"]
@@ -163,12 +163,12 @@ def test_enumerate_layer_skips_when_report_exists(tmp_path):
         tmp_path,
         {"AAA.SH": [_result("AAA.SH", trigger_date="20230101", exit_reason="take_profit")]},
     )
-    Analyzer.layer(store, present=False, force=True)
+    LayerPipeline.run(store, present=False, force=True)
     store.write_json(
         "layer_attribution",
         {"layer": "enumerate", "facts": {"marker": True}, "conclusions": [], "suggestions": []},
     )
-    again = Analyzer.layer(store, present=False, force=False)
+    again = LayerPipeline.run(store, present=False, force=False)
     assert again.get("facts", {}).get("marker") is True
     assert again.get("reason") == "exists"
 
@@ -186,7 +186,7 @@ def test_leftover_measurable_with_staged_take_profit(tmp_path):
             }
         },
     )
-    report = Analyzer.layer(store, present=False, force=True)
+    report = LayerPipeline.run(store, present=False, force=True)
     assert report["facts"]["leftover_upside"]["measurable"] is True
     assert report["facts"]["leftover_upside"]["mode"] == "staged"
     ids = {item["id"] for item in report["conclusions"]}

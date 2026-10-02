@@ -1,6 +1,6 @@
 # 命令行布局 — 快速开始
 
-**模块：** `infra.cmd_layout` · **版本：** `0.1.2`
+**模块：** `infra.cmd_layout` · **版本：** `0.2.0`
 
 最短路径：用门面类 `CmdLayout` 生成可打印字符串。
 
@@ -18,14 +18,21 @@
 ```python
 from core.infra.cmd_layout import CmdLayout, i
 
-print(CmdLayout.title.banner("枚举报告"))
-print(CmdLayout.title.section("汇总"))
-print(CmdLayout.separator.line(width=40))
+CmdLayout.title.print_h1(f"{i('chart')} 归因对照")
+CmdLayout.title.print_h2("参数贡献度")
+CmdLayout.title.print_h3("有 / 无")
+print(CmdLayout.text.meta(["组 3", "对照上 4 套"]))
+print(CmdLayout.text.indent("关 PE 后账户少 12 个点。"))
+CmdLayout.table.print(
+    ["旋钮", "收益"],
+    [["止损", "12%"], ["PE", "3%"]],
+)
 print(CmdLayout.bar_chart.render([("win", 42), ("loss", 18)], title="胜负"))
-print(i("success"))  # 或 CmdLayout.icon.get("success")
 ```
 
-**预期结果：** 终端打印 ASCII 标题块、小节、分割线、条形图，以及成功图标（UTF-8 下为 emoji，部分 Windows 终端为 `[OK]`）。
+**预期结果：** 终端打印 h1 星号框、h2 下划线、h3 三连 `-`、meta/缩进正文、对照表与条形图。
+
+兼容旧路径：`CmdLayout.title.banner` / `section` 仍可用。
 
 ---
 

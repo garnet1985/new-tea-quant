@@ -14,8 +14,9 @@ CLI_COMMAND_REFERENCE = """
   python cli.py sdl                     列出决策者会话 同 strategy_decision_list [--strategy NAME] [--version ID]
   python cli.py sdd --session N         删除一局决策者 同 strategy_decision_delete --session N
   python cli.py s                       完整模拟链路  同 strategy_simulate
-  python cli.py sa                      归因战役      同 strategy_attribution [--strategy NAME]（-f 忽略缓存重跑）
-  python cli.py sz                      单次切片      同 strategy_analyze [--strategy NAME[:VERSION]] [--kind STEP]（-f 重算）
+  python cli.py sea                     枚举层归因    同 strategy_attribute_enumerate [--strategy NAME]（须先 se；-f 忽略缓存）
+  python cli.py spa                     价格层归因    同 strategy_attribute_price [--strategy NAME]（须先 sp）
+  python cli.py soa                     组合层归因    同 strategy_attribute_portfolio [--strategy NAME]（须先 so）
   python cli.py sw                      滚动验证      同 strategy_rolling [--strategy NAME]（读 attribution.rolling；-f 忽略缓存重跑）
   python cli.py sdv --strategy rsi_v1:3 删一份回测产物 同 strategy_delete_version（策略:版本）
 

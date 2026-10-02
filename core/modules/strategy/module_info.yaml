@@ -22,10 +22,9 @@ changelog:
     changes:
       - 重新定义价格回测层。现在价格回测层是减少机会噪音后等全交易的普遍收益率。
       - 新增价格专用钩子 is_new_opportunity，默认实现为间隔合并。
-      - 重构三层回测的归因系统，策略需要归因配置矩阵或者归因参数层后才可以运行。
-      - 取消单次回测的归因能力，因为结论没有什么参考性。
-      - 每一层回测结束后单独归因，写出事实 / 结论 / 建议；枚举、价格、组合三层已接
-      - Analyzer.layer 为层诊断入口；Analyzer.run（sz）仍不自动挂在 simulate 上
+      - 归因与回测拆开：CLI sea/spa/soa 按层战役；须先有主 version（se/sp/so）。
+      - 对照格写入副本 {vid}-{r}；取消单次回测自动归因与 sa/sz。
+      - attribution.py 不再写 steps；层由 CLI 选定；Trades/XGB 仅 spa。  
   - version: "0.9.0"
     changes:
       - 加入决策者模式，支持手动回测

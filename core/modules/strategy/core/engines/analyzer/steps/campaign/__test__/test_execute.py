@@ -1,4 +1,4 @@
-"""战役 execute / gather：按 steps 逐层 simulate；旋钮读磁盘有效设置。"""
+"""战役 execute / gather：按单层 simulate；旋钮读磁盘有效设置。"""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -20,79 +20,111 @@ from core.modules.strategy.core.services.artifacts.version_meta import VersionMe
 
 pytestmark = pytest.mark.force_run
 
-_STEPS = (
-    SimulateKind.ENUMERATE,
-    SimulateKind.PRICE_FACTOR,
-    SimulateKind.PORTFOLIO,
-)
 
-
-def _task() -> AttributionTask:
+def _task(kind: SimulateKind = SimulateKind.PRICE_FACTOR) -> AttributionTask:
     cell = AttributionCell(
         index=0,
         overlay={"core": {"rsi_oversold_threshold": 20}},
         runtime_settings={"core": {"rsi_oversold_threshold": 20}},
         execute_settings={},
     )
-    return AttributionTask(cell=cell, kind=SimulateKind.PORTFOLIO, steps=_STEPS)
+    return AttributionTask(cell=cell, kind=kind, steps=(kind,))
 
 
-def _payload(kind: SimulateKind, *, hit: bool) -> dict:
+def _payload(kind: SimulateKind, *, hit: bool, version_id: str = "21-1") -> dict:
     return {
         "cache_hit": hit,
-        "version_id": "21",
-        kind.value: {"version_id": "21", "output_dir": "/tmp/v21"},
+        "version_id": version_id,
+        kind.value: {"version_id": version_id, "output_dir": f"/tmp/{version_id}"},
     }
 
 
-def test_simulate_each_declared_step_force_only_first() -> None:
+def test_simulate_single_layer_force_on_first() -> None:
     info = MagicMock()
     info.key = "demo/rsi"
     calls = []
 
-    def fake_simulate(key, *, kind, ignore_cache, runtime_settings):
-        calls.append((kind, ignore_cache, dict(runtime_settings)))
+    def fake_simulate(key, *, kind, ignore_cache, runtime_settings, version_id=None):
+        calls.append((kind, ignore_cache, dict(runtime_settings), version_id))
         return _payload(kind, hit=True)
 
-    fp = SimpleNamespace(execute_fp="e", env_fp="n")
+    fp = SimpleNamespace(execute_fp="e-overlay", env_fp="n")
     with patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
         "core.modules.strategy.core.strategy.Strategy.simulate",
         side_effect=fake_simulate,
+    ), patch.object(
+        VersionMetaStore, "allocate_replica_id", return_value="21-1"
     ):
-        result = ExecuteStep._simulate(info, _task(), ignore_cache=True)
-    assert [(kind, force) for kind, force, _ in calls] == [
-        (SimulateKind.ENUMERATE, True),
-        (SimulateKind.PRICE_FACTOR, False),
-        (SimulateKind.PORTFOLIO, False),
+        result = ExecuteStep._simulate(
+            MagicMock(),
+            info,
+            _task(SimulateKind.PRICE_FACTOR),
+            parent_version_id="21",
+            baseline_execute_fp="e-baseline",
+            ignore_cache=True,
+        )
+    assert [(kind, force, vid) for kind, force, _, vid in calls] == [
+        (SimulateKind.PRICE_FACTOR, True, "21-1"),
     ]
     assert all(
         runtime == {"core": {"rsi_oversold_threshold": 20}}
-        for _, _, runtime in calls
+        for _, _, runtime, _ in calls
     )
     assert result.status == "hit"
-    assert result.version_id == "21"
+    assert result.version_id == "21-1"
 
 
-def test_simulate_status_simulated_when_price_layer_misses() -> None:
+def test_simulate_baseline_reuses_primary() -> None:
     info = MagicMock()
     info.key = "demo/rsi"
-    hits = {
-        SimulateKind.ENUMERATE: True,
-        SimulateKind.PRICE_FACTOR: False,
-        SimulateKind.PORTFOLIO: True,
-    }
+    calls = []
 
-    def fake_simulate(key, *, kind, ignore_cache, runtime_settings):
-        return _payload(kind, hit=hits[kind])
+    def fake_simulate(key, *, kind, ignore_cache, runtime_settings, version_id=None):
+        calls.append(version_id)
+        return _payload(kind, hit=True, version_id="21")
 
-    fp = SimpleNamespace(execute_fp="e", env_fp="n")
+    fp = SimpleNamespace(execute_fp="e-baseline", env_fp="n")
     with patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
         "core.modules.strategy.core.strategy.Strategy.simulate",
         side_effect=fake_simulate,
     ):
-        result = ExecuteStep._simulate(info, _task(), ignore_cache=False)
-    assert result.status == "simulated"
+        result = ExecuteStep._simulate(
+            MagicMock(),
+            info,
+            _task(SimulateKind.ENUMERATE),
+            parent_version_id="21",
+            baseline_execute_fp="e-baseline",
+            ignore_cache=False,
+        )
+    assert calls == ["21"]
     assert result.version_id == "21"
+    assert result.status == "hit"
+
+
+def test_simulate_status_simulated_on_miss() -> None:
+    info = MagicMock()
+    info.key = "demo/rsi"
+
+    def fake_simulate(key, *, kind, ignore_cache, runtime_settings, version_id=None):
+        return _payload(kind, hit=False, version_id=version_id or "21-2")
+
+    fp = SimpleNamespace(execute_fp="e-overlay", env_fp="n")
+    with patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
+        "core.modules.strategy.core.strategy.Strategy.simulate",
+        side_effect=fake_simulate,
+    ), patch.object(
+        VersionMetaStore, "allocate_replica_id", return_value="21-2"
+    ):
+        result = ExecuteStep._simulate(
+            MagicMock(),
+            info,
+            _task(SimulateKind.PORTFOLIO),
+            parent_version_id="21",
+            baseline_execute_fp="e-baseline",
+            ignore_cache=False,
+        )
+    assert result.status == "simulated"
+    assert result.version_id == "21-2"
 
 
 def test_gather_knobs_prefer_disk_effective(tmp_path, monkeypatch) -> None:
@@ -109,7 +141,7 @@ def test_gather_knobs_prefer_disk_effective(tmp_path, monkeypatch) -> None:
         execute_settings={},
     )
     task = AttributionTask(
-        cell=cell, kind=SimulateKind.PORTFOLIO, steps=_STEPS
+        cell=cell, kind=SimulateKind.PORTFOLIO, steps=(SimulateKind.PORTFOLIO,)
     )
     monkeypatch.setattr(
         VersionMetaStore,
@@ -197,10 +229,11 @@ def test_unique_tasks_share_execute_identity() -> None:
         execute_settings={"core": {"rsi_oversold_threshold": 25, "max_pe_percentile": 30}},
         family="matrix",
     )
+    kind = SimulateKind.PORTFOLIO
     tasks = [
-        AttributionTask(cell=overlay, kind=SimulateKind.PORTFOLIO, steps=_STEPS),
-        AttributionTask(cell=matrix_same, kind=SimulateKind.PORTFOLIO, steps=_STEPS),
-        AttributionTask(cell=matrix_other, kind=SimulateKind.PORTFOLIO, steps=_STEPS),
+        AttributionTask(cell=overlay, kind=kind, steps=(kind,)),
+        AttributionTask(cell=matrix_same, kind=kind, steps=(kind,)),
+        AttributionTask(cell=matrix_other, kind=kind, steps=(kind,)),
     ]
     unique = ExecuteStep.unique_tasks(tasks)
     assert len(unique) == 2
@@ -208,7 +241,7 @@ def test_unique_tasks_share_execute_identity() -> None:
         "status": "ok",
         "cells": [
             {"index": 0, "status": "hit", "version_id": "21"},
-            {"index": 1, "status": "simulated", "version_id": "22"},
+            {"index": 1, "status": "simulated", "version_id": "21-1"},
         ],
     }
     unique_cells = [task.cell for task in unique]
@@ -218,5 +251,4 @@ def test_unique_tasks_share_execute_identity() -> None:
     matrix_bound = ExecuteStep.bind(
         executed, unique_cells, [matrix_same, matrix_other]
     )
-    assert [row["version_id"] for row in matrix_bound["cells"]] == ["21", "22"]
-    assert [row["index"] for row in matrix_bound["cells"]] == [0, 1]
+    assert [row["version_id"] for row in matrix_bound["cells"]] == ["21", "21-1"]

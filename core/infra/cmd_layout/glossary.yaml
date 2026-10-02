@@ -1,5 +1,5 @@
 # 命令行布局术语表
-# Version: 0.1.2
+# Version: 0.2.0
 #
 # 缩写与生僻英文优先在此说明；正文首次出现宜括注或链到本表
 
@@ -19,7 +19,7 @@ terms:
       - "跨模块直接 import Title / BarChart / IconService"
 
   CmdLayout:
-    definition: "本模块门面类；挂载 bar_chart / title / separator / icon。"
+    definition: "本模块门面类；挂载 bar_chart / title / separator / table / text / icon。"
     aliases:
       - "命令行布局门面"
     avoid: []
@@ -46,8 +46,7 @@ terms:
   ASCII:
     definition: "美国信息交换标准代码；此处指条形与分割线默认只用常见英文可打印字符（如 #、-、=、*），以降低跨终端乱码风险。"
     aliases: []
-    avoid:
-      - "默认用 █ / ░ / Unicode 盒线画条或分割线"
+    avoid: []
 
   emoji:
     definition: "彩色表情符号图标；UTF-8 终端可用，部分 Windows 终端回退为 ASCII 文本标签。"
@@ -66,18 +65,45 @@ terms:
     aliases:
       - "条形图"
       - "分布图"
-    avoid:
-      - "histogram widget / GUI chart"
+    avoid: []
 
   histogram:
     definition: "本模块语境下指 from_values 对连续样本等宽分桶后再 render 的直方图；公开入口仍挂在 bar_chart 下。"
     aliases:
       - "from_values 直方图"
-    avoid:
-      - "把 histogram 当成独立于 CmdLayout.bar_chart 的公开 namespace"
+    avoid: []
 
   title:
-    definition: "标题命名空间：banner（主标题）/ section（小节）。"
+    definition: "标题命名空间：优先 h1 / h2 / h3；banner / section 为兼容入口。"
+    aliases: []
+    avoid: []
+
+  h1:
+    definition: "报告总标题：前空行 + 星号框；print 后再空行。"
+    aliases:
+      - "title.h1"
+    avoid: []
+
+  h2:
+    definition: "大节标题：正文 + 等号下划线。"
+    aliases:
+      - "title.h2"
+    avoid: []
+
+  h3:
+    definition: "小节标题，形如 --- 文本 ---；print_h3 后再空行。"
+    aliases:
+      - "title.h3"
+    avoid: []
+
+  table:
+    definition: "ASCII 对照表命名空间：render / print；首列左齐、其余右齐；列宽按显示宽度。"
+    aliases:
+      - "对照表"
+    avoid: []
+
+  text:
+    definition: "行内排版命名空间：meta / kv / indent / numbered / bullets。"
     aliases: []
     avoid: []
 
@@ -114,11 +140,10 @@ terms:
     avoid: []
 
   i:
-    definition: "CmdLayout.icon.i：get 的简写，行为完全相同。"
+    definition: "CmdLayout.icon.i：get 的简写；包根也可 from core.infra.cmd_layout import i。"
     aliases:
       - "icon.i"
-    avoid:
-      - "从包根 import i"
+    avoid: []
 
   IconService:
     definition: "icon 包内部实现类（双表 emoji/ASCII）；跨模块应只走 CmdLayout.icon。"
@@ -134,19 +159,19 @@ terms:
     avoid: []
 
   banner:
-    definition: "上下规则线包裹的主标题块。"
+    definition: "上下规则线包裹的主标题块（无前后空行）；新代码优先 h1。"
     aliases:
       - "主标题"
     avoid: []
 
   section:
-    definition: "小节标题，形如 -- 文本 --。"
+    definition: "小节标题，形如 -- 文本 --；新代码优先 h3。"
     aliases:
       - "小节"
     avoid: []
 
   pad:
-    definition: "banner 在未指定 width 时，在正文终端列宽之外附加的边距列数（默认模块内置）。"
+    definition: "banner / h1 在未指定 width 时，在正文终端列宽之外附加的边距列数（默认模块内置）。"
     aliases:
       - "banner pad"
       - "DEFAULT_BANNER_PAD"
@@ -172,8 +197,7 @@ terms:
   fill_char:
     definition: "条形填充字符，固定为 #（纯 ASCII）。"
     aliases: []
-    avoid:
-      - "█ / ░ / emoji 作为默认条形填充"
+    avoid: []
 
   empty_char:
     definition: "条形空白字符，固定为空格。"

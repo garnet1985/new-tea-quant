@@ -30,6 +30,7 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+from core.modules.strategy.core.enums import SimulateKind
 
 pytestmark = pytest.mark.force_run
 
@@ -77,8 +78,7 @@ def test_expand_cartesian_includes_all_axes() -> None:
 def test_cell_expander_matrix_mode() -> None:
     cfg = AttributionSettings.to_usable(
         {
-            "steps": ["enumerate", "price_factor", "portfolio"],
-            "matrix": {
+                        "matrix": {
                 "core": {
                     "rsi_oversold_threshold": [20, 25],
                     "max_pe_percentile": [30, None],
@@ -106,8 +106,7 @@ def test_legacy_matrix_list_is_rejected() -> None:
     with pytest.raises(ValueError, match="overlays"):
         AttributionSettings.to_usable(
             {
-                "steps": ["enumerate"],
-                "matrix": [{"core": {"rsi_oversold_threshold": 20}}],
+                                "matrix": [{"core": {"rsi_oversold_threshold": 20}}],
             }
         )
 
@@ -116,8 +115,7 @@ def test_single_axis_is_rejected() -> None:
     with pytest.raises(ValueError, match="至少 2 轴"):
         AttributionSettings.to_usable(
             {
-                "steps": ["enumerate"],
-                "matrix": {"core": {"rsi_oversold_threshold": [20, 25, 30]}},
+                                "matrix": {"core": {"rsi_oversold_threshold": [20, 25, 30]}},
             }
         )
 
@@ -166,7 +164,6 @@ def test_matrix_rectangle_keeps_off_axis() -> None:
 def test_overlays_and_matrix_coexist() -> None:
     cfg = AttributionSettings.to_usable(
         {
-            "steps": ["enumerate"],
             "overlays": [{"core": {"rsi_oversold_threshold": 25}}],
             "matrix": {
                 "core": {
@@ -185,7 +182,7 @@ def test_overlays_and_matrix_coexist() -> None:
     assert plan.overlays[0].overlay == {}
     assert len(plan.matrix) == 4
     unique = ExecuteStep.unique_tasks(
-        AttributionTask.from_cells(plan.execute_source_cells(), cfg)
+        AttributionTask.from_cells(plan.execute_source_cells(), kind=SimulateKind.ENUMERATE)
     )
     assert len(unique) == 4
 
@@ -194,7 +191,6 @@ def test_versions_exclusive_with_overlays() -> None:
     with pytest.raises(ValueError, match="versions"):
         AttributionSettings.to_usable(
             {
-                "steps": ["enumerate"],
                 "versions": [1],
                 "overlays": [{"core": {"rsi_oversold_threshold": 20}}],
             }

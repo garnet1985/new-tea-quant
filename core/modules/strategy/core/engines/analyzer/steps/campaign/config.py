@@ -1,5 +1,6 @@
-"""``attribution.py`` 战役外壳（steps / versions / overlays / matrix / rolling）。
+"""``attribution.py`` 战役外壳（versions / overlays / matrix / rolling）。
 
+层由 CLI（sea / spa / soa）选定，本文件不再读 ``steps``。
 和 ``settings.py`` 一样：raw dict → dataclass → ``apply_defaults`` / ``validate``。
 不进 execute_fp / env_fp。``overlays`` 是逐项对照；``matrix`` 是各轴笛卡尔积。
 二者可同时写，各自成表；只有回测执行按身份去重。rolling.windows 是区间，报告仍分开写。
@@ -176,63 +177,30 @@ class AttributionSettings(SettingsBase):
         return "+".join(modes)
 
     def rolling_payload(self) -> Dict[str, Any]:
-        """顶层 steps 与 ``rolling`` 块合并，给滚动任务用。"""
+        """``rolling`` 块；层由 CLI / RollingPipeline 决定，不再读 steps。"""
         block = self.raw_settings.get("rolling")
         nested = dict(block) if isinstance(block, Mapping) else {}
-        out: Dict[str, Any] = {
-            "steps": list(self.raw_settings.get("steps") or []),
-        }
-        out.update(nested)
-        return out
+        nested.pop("steps", None)
+        return nested
 
     @property
     def simulate_kind(self) -> SimulateKind:
-        """steps 最后一步：选号 lookup 用。参数格按 ``steps`` 逐层 simulate。
-
-        ``simulate(kind=portfolio)`` 只保证枚举依赖，不会自动跑 price_factor。
-        """
-        steps = self.steps
-        if not steps:
-            raise ValueError("attribution.steps 不能为空")
-        return steps[-1]
+        """兼容旧报告字段；层实际由 sea/spa/soa 决定。"""
+        return SimulateKind.PORTFOLIO
 
     def apply_defaults(self) -> None:
         self.raw_settings.pop("fill_missing", None)
+        self.raw_settings.pop("steps", None)
         rolling = self.raw_settings.get("rolling")
         if isinstance(rolling, dict):
             rolling.pop("fill_missing", None)
+            rolling.pop("steps", None)
         if self.raw_settings.get("versions") is None:
             self.raw_settings["versions"] = []
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
         self.apply_defaults()
-
-        raw_steps = self.raw_settings.get("steps")
-        if raw_steps is None:
-            SettingsBase.add_critical(
-                report,
-                "steps",
-                "attribution.steps 必填",
-                suggested_fix='Set steps to ["enumerate", "price_factor", "portfolio"]',
-            )
-        elif not isinstance(raw_steps, Sequence) or isinstance(raw_steps, (str, bytes)) or not raw_steps:
-            SettingsBase.add_critical(
-                report,
-                "steps",
-                "attribution.steps 须为非空 list",
-                suggested_fix='Set steps to ["enumerate", "price_factor", "portfolio"]',
-            )
-        else:
-            for i, item in enumerate(raw_steps):
-                text = str(item or "").strip()
-                if text not in _ALLOWED_STEPS:
-                    SettingsBase.add_critical(
-                        report,
-                        f"steps[{i}]",
-                        f"未知 step {item!r}",
-                        suggested_fix=f"允许 {sorted(_ALLOWED_STEPS)}",
-                    )
 
         raw_versions = self.raw_settings.get("versions")
         if raw_versions is None:
@@ -417,7 +385,7 @@ class AttributionSettings(SettingsBase):
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
-        out["steps"] = [k.value for k in self.steps]
+        out.pop("steps", None)
         out["versions"] = list(self.versions)
         if self.is_select:
             out.pop("overlays", None)

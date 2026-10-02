@@ -1,7 +1,7 @@
 # 矩阵归因（战役）
 
-**状态：** 口径已锁定（2026-09-30）。单次归因已去掉。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查 version → 拼表 → 旋钮对照 → 总结 → 落盘）。战役结束时写 `results/attribution/{n}/`（短编号；`env_fp` 在 meta 里）。CLI `sa`。平时 Run 把 version 记进 group（含样本窗索引）。as-of 当日一片写入 `signal_snapshot`。  
-**一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 驱动一份 matrix，复用已有 version 缓存。  
+**状态：** 口径已锁定（2026-10-02）。回测与归因拆开。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查/补 version → 拼表 → 旋钮对照 → 总结 → 落盘）。报告写 `results/attribution/{n}/{enumerate|price_factor|portfolio}/`。CLI `sea` / `spa` / `soa`（须先有主 version）。平时 Run 把 version 记进 group。as-of 当日一片写入 `signal_snapshot`。  
+**一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 按层驱动 matrix，对照格写副本 `{vid}-{r}`。  
 **位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。  
 **问什么：** 回测者问题与层内诊断总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；展示 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)；枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。本文只管格子怎么展开、怎么命中 version。
 
@@ -11,23 +11,20 @@
 
 一次 Run 里 settings 旋钮是常数。对「把止盈从 20% 改成 30%，账户变好了没有」这个问题，单次回测内部的共变回答不了，报告看起来会像在玩。
 
-单次还能看的，只剩另一问：在这套已经定死的参数下，各笔机会当时的 RSI / MACD 和这笔盈亏有没有一起动。这是交易层面的探查，不是参数归因。不要再和战役叫成同一件事，也不要挂在每次 `simulate` 上。
-
 因此：
 
-- 删除 `settings.analysis.enabled`
-- `Strategy.simulate` 不再调用 `Analyzer.run`（CLI `sz` 的机会表切片 / SHAP）
-- 每一层回测结束后调用 `Analyzer.layer`：该层一份 `attribution.json`（事实 / 结论 / 建议），方便只跑枚举时调试
-- 战役仍是独立入口 CLI `sa`；平时 Run 不自动开多版本
+- `Strategy.simulate` 只回测，不写归因
+- 取消 CLI `sa` / `sz`；归因按层拆成 `sea` / `spa` / `soa`
+- 无当前 settings 对应主 version 时拒绝归因（提示先 `se` / `sp` / `so`）
+- 对照格写入副本 `{vid}-{r}`，不占用主号序列
 
-`Analyzer.run` 以及 prepare / analyze / report 流水线作为 **库** 留下，给 `sz` 和战役内部切片用。
+`Analyzer.run` 以及 prepare / analyze / report 流水线作为 **库** 留下，给战役内部切片（如 spa trades）用。
 
 ---
 
 ## 2. 默认 Run 是什么
 
-默认跑策略 = 验证这一次的想法：一个 `settings.py`、一个 version。不自动开多版本战役。每一层回测结束后仍写该层诊断（事实 / 结论 / 建议），见 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)。
-
+默认跑策略 = 验证这一次的想法：一个 `settings.py`、一个主 version。不自动开多版本战役，也不在回测后自动归因。
 专门要对照旋钮时再开独立入口。它先读已经留下的号；只有用户明确要补格子、而且现有号盖不住时，才额外调用 `Strategy.simulate`。那是这一次战役自己的事，不改变平时 Run 的含义。
 
 strategy 仍然是「把一个想法跑完」。归因是事后对照，不是因子挖掘器。全市场因子研究（IC / 滚动 / 离开某一条策略）留给以后的 `factor` 产品线。
@@ -91,9 +88,9 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 ```text
 {strategy}/results/attribution/
   meta.json              # next_group_id；env_fp → 1、2、3…
-  {n}/                   # 组号，不是指纹
+    {n}/                   # 组号，不是指纹
     group_meta.json      # 含 env_fp
-    parameter/           # 参数归因（overlays / matrix / select）
+    enumerate/ | price_factor/ | portfolio/   # 按 CLI 层分目录
       report.json
       table.json
       attribute.json
@@ -101,10 +98,10 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
     rolling/             # 滚动验证（读 attribution.rolling）
 ```
 
-一次战役、一份报告，里面按 `attribution.steps` 补层（只写 `enumerate` 不会出现价格栏）：
+一次只跑一层（`sea` / `spa` / `soa`），报告只含该层指标：
 
 - 枚举：机会够不够、密不密
-- 价格：去噪后的等权机会账赚不赚（段与段可并行）
+- 价格：去噪后的等权机会账赚不赚（段与段可并行）；可附 Trades/XGB
 - 资金层（最接近账户）：收益、回撤、利用率
 
 扫描开始时给这批 registry 行记同一个 cohort / group id。清理按 `env_fp` 整组：当前环境不拆；过时环境超出 N 组则最旧一组的 simulation 与归因目录一起删。选号路径会丢掉与当前快照区间/股票池不同的号。
@@ -146,19 +143,19 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 这只对之后的 Run 生效。已经跑完、snapshot 里没有这些列的旧 version，补不出当日读数。
 
-当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`。用户 `capture` 同名覆盖，且只应收钩子自己算的量。`Analyzer.run` / CLI `sz` 从这份袋做单次内部切片。滚动验证读同一份 `attribution.py` 里的 `rolling.windows`（CLI `sw`），报告仍写在 `rolling/`，不和参数战役混表。
+当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`。用户 `capture` 同名覆盖，且只应收钩子自己算的量。`Analyzer.run` 从这份袋做战役内部切片（如 spa trades）。滚动验证读同一份 `attribution.py` 里的 `rolling.windows`（CLI `sw`），报告仍写在 `rolling/`，不和参数战役混表。
 
 ---
 
 ## 8. 模块边界
 
 ```text
-战役入口 Analyzer.campaign / CLI sa
-  → strategy（指纹缓存 / 钉住 version / 复用 Strategy.simulate）
+战役入口 Analyzer.attribute_* / CLI sea|spa|soa
+  → strategy（指纹缓存 / 主号校验 / 副本 allocate / 复用 Strategy.simulate）
   → modules.analysis（分桶、相关、对照；无业务、无 I/O）
 ```
 
-战役格子的「每个因子贡献了多少」分两章，写在同一份报告里，不要为此跑两次 `sa`：
+战役格子的「每个因子贡献了多少」分两章，写在同一份报告里，不要为此跑两次同一层 CLI：
 
 - **参数贡献度（有/无）**：某一格把该位置写成 `None`（关），对照开着的格子。基准是关掉的那一格。
 - **参数敏感度（取值）**：只在开着的格子之间比数字；基准是开着的第一套，不是全局表头（表头若是关着的，不算敏感度基准）。
@@ -170,13 +167,13 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 - **不要**做成四层后面的第五层回测：扫描是旁边一种跑法，每个 version 仍按原来的层往下跑
 - **不要**把这次扫描塞回「跑一次回测顺便归因」的开关
 
-`Analyzer` 继续担任归因的职责：现在是单 version 的 prepare → analyze → report 库；战役落地后由它读 group / 展开 matrix / 调 analysis。
+`Analyzer` 继续担任归因的职责：`attribute_*` 读 group / 展开 matrix；`run` 仍是切片库。
 
 ---
 
 ## 9. 本轮明确不做
 
-- 战役 BFF / UI 入口（CLI `sa` / `sz` / `sw` 已接）
+- 战役 BFF / UI 入口（CLI `sea` / `spa` / `soa` / `sw` 已接）
 
 ---
 
@@ -184,11 +181,10 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 单独文件，与 `settings.py` 并列。Workbench 保存 settings 时不要改它。不进 `execute_fp` / `env_fp`。
 
-没有 `mode`：`versions` 非空就是选号（不要和另外两项同时写）。`overlays` 是逐项对照（一行动一处）；`matrix` 是多轴笛卡尔积。**二者可以同时写**：`sa` 各自成表、报告各占一栏，回测按身份去重。`rolling.windows` 是另一项任务，和参数战役可以写在同一文件里，但 `sa` / `sw` 分开跑、报告分开写。`versions`、`overlays`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
+没有 `mode`：`versions` 非空就是选号（不要和另外两项同时写）。`overlays` 是逐项对照（一行动一处）；`matrix` 是多轴笛卡尔积。**二者可以同时写**：各自成表、报告各占一栏，回测按身份去重。**不要写 `steps`**——层由 CLI（`sea` / `spa` / `soa`）决定。`rolling.windows` 是另一项任务，和参数战役可以写在同一文件里，但归因 CLI / `sw` 分开跑、报告分开写。`versions`、`overlays`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
 
 ```python
 attribution = {
-    "steps": ["enumerate", "price_factor", "portfolio"],
     "overlays": [
         {"core": {"rsi_oversold_threshold": 20}},
         {"core": {"rsi_oversold_threshold": 25}},
@@ -204,11 +200,10 @@ attribution = {
 }
 ```
 
-上例 `overlays` 是 **4 格** 逐项对照。要鉴定两个旋钮一起动，加（或改成）`matrix`（笛卡尔积，每格带齐所有轴）。overlays 与 matrix 同时写时，`sa` 两栏都出：
+上例 `overlays` 是 **4 格** 逐项对照。要鉴定两个旋钮一起动，加（或改成）`matrix`（笛卡尔积，每格带齐所有轴）。overlays 与 matrix 同时写时，两栏都出：
 
 ```python
 attribution = {
-    "steps": ["enumerate", "price_factor", "portfolio"],
     "matrix": {
         "core": {
             "rsi_oversold_threshold": [20, 25],
@@ -218,7 +213,7 @@ attribution = {
 }
 ```
 
-这是 **4 格**（2×2），不是两行 overlays。`sa` 仍是每格一次 `Strategy.simulate`（与 overlays 撞上同一身份则复用）；交叉从 matrix 这张表里减出来。笛卡尔积上限 128 格。
+这是 **4 格**（2×2），不是两行 overlays。每层 CLI 仍是每格一次 `Strategy.simulate`（与 overlays 撞上同一身份则复用；对照格写 `{vid}-{r}`）；交叉从 matrix 这张表里减出来。笛卡尔积上限 128 格。
 
 
 ### Overlay
@@ -234,6 +229,6 @@ attribution = {
 - 分类看 **effective 在 overlay 声明路径上的值**，不看 overlay 叶子 flatten（`goal.stop_loss: None` 和 `stages.0.ratio` 对不上）。
 - **list 整段替换。** 写了 `stop_loss.stages` 就换整张 stages；每一档必须把 effective 里该种对象的字段写全。
 
-滚动窗口写在 `attribution.rolling.windows`，不另开 `rolling.py`。CLI `sa` / `sw` 的 `-f` 与 `s -f` 相同：回测层 `ignore_cache`，同指纹写回原号。
+滚动窗口写在 `attribution.rolling.windows`，不另开 `rolling.py`。CLI `sea`/`spa`/`soa`/`sw` 的 `-f` 与 `s -f` 相同：回测层 `ignore_cache`，同指纹写回原号（副本同理）。
 
 相关现行契约：[VERSIONING.md](../VERSIONING.md)、[DECISIONS.md](../DECISIONS.md)、analyzer [BOUNDARY.md](../../core/engines/analyzer/docs/BOUNDARY.md)、归因问题 [ATTRIBUTION.md](./ATTRIBUTION.md)、枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)。

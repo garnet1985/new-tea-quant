@@ -210,6 +210,12 @@ def test_find_version_by_execute_fp(tmp_path: Path) -> None:
     VersionMetaStore.register_version(root, "2", execute_fp="sfp", env_fp="efp-old")
     assert VersionMetaStore.find_version_by_execute_fp(root, "sfp") == "2"
     assert VersionMetaStore.find_version_by_execute_fp(root, "other") is None
+    VersionMetaStore.allocate_replica_id(
+        root, "2", execute_fp="overlay", env_fp="efp-old"
+    )
+    # 副本入 registry 后仍只扫主号，且不因 int('2-1') 炸掉
+    assert VersionMetaStore.find_version_by_execute_fp(root, "sfp") == "2"
+    assert VersionMetaStore.find_version_by_execute_fp(root, "overlay") is None
 
 
 def test_group_version_ids_by_env_fp(tmp_path: Path) -> None:
@@ -228,4 +234,52 @@ def test_group_version_ids_by_env_fp(tmp_path: Path) -> None:
         {**VersionMetaStore.read_root_meta(root), "pinned": ["2"]},
     )
     assert "pinned" not in VersionMetaStore.read_root_meta(root)
+
+
+def test_list_version_ids_skips_replicas(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "5", execute_fp="base", env_fp="e")
+    VersionMetaStore.allocate_replica_id(
+        root, "5", execute_fp="overlay", env_fp="e"
+    )
+    assert VersionMetaStore.list_version_ids(root) == ["5"]
+    assert VersionMetaStore.is_replica_version_id("5-1")
+    assert VersionMetaStore.parent_version_id("5-1") == "5"
+
+
+def test_allocate_replica_reuses_fingerprint(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "3", execute_fp="base", env_fp="e")
+    first = VersionMetaStore.allocate_replica_id(
+        root, "3", execute_fp="o1", env_fp="e"
+    )
+    again = VersionMetaStore.allocate_replica_id(
+        root, "3", execute_fp="o1", env_fp="e"
+    )
+    other = VersionMetaStore.allocate_replica_id(
+        root, "3", execute_fp="o2", env_fp="e"
+    )
+    assert first == "3-1"
+    assert again == "3-1"
+    assert other == "3-2"
+
+
+def test_require_primary_version_refuses_missing(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    with pytest.raises(ValueError, match="主 version"):
+        VersionMetaStore.require_primary_version(
+            root, "missing", "e", kind=SimulateKind.ENUMERATE
+        )
+    VersionMetaStore.register_version(root, "1", execute_fp="base", env_fp="e")
+    with pytest.raises(ValueError, match="缺少 enumerate"):
+        VersionMetaStore.require_primary_version(
+            root, "base", "e", kind=SimulateKind.ENUMERATE
+        )
+    VersionMetaStore.mark_step_complete(root, "1", SimulateKind.ENUMERATE)
+    assert (
+        VersionMetaStore.require_primary_version(
+            root, "base", "e", kind=SimulateKind.ENUMERATE
+        )
+        == "1"
+    )
 

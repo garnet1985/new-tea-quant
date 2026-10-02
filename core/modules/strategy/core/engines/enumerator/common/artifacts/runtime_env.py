@@ -87,7 +87,7 @@ class RuntimeEnv:
     RUNTIME_ENV_FILE = RUNTIME_ENV_FILE
 
     strategy_key: str
-    version_id: int
+    version_id: Any
     execution_mode: str
     market_profile: str
     entity_ids: List[str]
@@ -108,7 +108,7 @@ class RuntimeEnv:
         cls,
         *,
         strategy_key: str,
-        version_id: int,
+        version_id: Any,
         entity_ids: List[str],
         execute_fp: str,
         env_fp: str,
@@ -120,7 +120,7 @@ class RuntimeEnv:
     ) -> "RuntimeEnv":
         return cls(
             strategy_key=strategy_key,
-            version_id=int(version_id),
+            version_id=str(version_id or "").strip(),
             execution_mode=str(execution_mode or "").strip(),
             market_profile=str(market_profile or "").strip(),
             entity_ids=cls._normalize_entity_ids(entity_ids),
@@ -206,7 +206,7 @@ class RuntimeEnv:
 
         return cls(
             strategy_key=strategy_key,
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             execution_mode=str(data.get("execution_mode") or ""),
             market_profile=str(data.get("market_profile") or ""),
             entity_ids=cls._normalize_entity_ids(

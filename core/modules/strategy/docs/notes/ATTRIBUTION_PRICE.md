@@ -1,6 +1,6 @@
 # 价格层归因口径
 
-**状态：** 回放口径已改（2026-10-02）：去噪并行，不再锁仓。单 version 层诊断已接 `Analyzer.layer`。引擎决策见 [PRICE_REPLAY.md](./PRICE_REPLAY.md)。总方向 [ATTRIBUTION.md](./ATTRIBUTION.md)；枚举 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)。战役格子仍以 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md) 为准。
+**状态：** 回放口径已改（2026-10-02）：去噪并行，不再锁仓。战役入口 CLI `spa`（须先 `sp`）。引擎决策见 [PRICE_REPLAY.md](./PRICE_REPLAY.md)。总方向 [ATTRIBUTION.md](./ATTRIBUTION.md)；枚举 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)。战役格子仍以 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md) 为准。
 
 **一句话：** 价格层是枚举去噪后的等权机会账：近的并成一段、远的各走各的（可重叠）。回答这本账赚不赚钱、结不结实。枚举回答找没找到；组合回答钱够不够用、同股能不能再买。
 

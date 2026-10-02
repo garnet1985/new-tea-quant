@@ -40,16 +40,17 @@
 
 ### simulate
 
-`Strategy.simulate(key_or_id: str, *, kind: SimulateKind | str = SimulateKind.ENUMERATE, ignore_cache: bool = False, runtime_settings: dict | None = None) -> dict`
+`Strategy.simulate(key_or_id: str, *, kind: SimulateKind | str = SimulateKind.ENUMERATE, ignore_cache: bool = False, runtime_settings: dict | None = None, version_id: str | None = None) -> dict`
 
 - **类型：** `staticmethod`
 - **状态：** `beta`
-- **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）。每一层回测结束后写该层 `{vid}/{enum|price|portfolio}/attribution.json`（事实 / 结论 / 建议）。`Analyzer.run`（CLI `sz`）仍不自动调用。规则见 [docs/VERSIONING.md](./docs/VERSIONING.md)。
+- **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）。只做回测，不写归因。主号由回测分配；`version_id` 可钉到主号或归因副本 `{vid}-{r}`。规则见 [docs/VERSIONING.md](./docs/VERSIONING.md)。
 - **参数：**
   - `key_or_id`：策略标识（须已启用）
   - `kind`：`enumerate` / `price_factor` / `portfolio`（或对应 `SimulateKind`）
   - `ignore_cache`：跳过磁盘 cache 命中（仍按双指纹写入已有 vid，不新开号）
   - `runtime_settings`：运行时覆盖 settings（参与指纹）
+  - `version_id`：可选；战役归因写入副本时传入
 - **返回：** 目标 step 槽位 dict（如 `enumerate` / `price_factor` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（`success` / `output_dir` / `version_id`）；UI 指标由 BFF `report_hydrate` 从 `overall_report.json` 补全。
 - **环境失效：** registry 中 `env_fp` 与当前运行环境不一致时不可 cache hit（配置相同也会 miss 并新建 version）；BFF 读 version 时返回 `env_invalid: true`。
 - **强制重跑：** `ignore_cache=True`（CLI `--force`）跳过 cache 命中，price/portfolio **不复用**已有 enum 产物（会重跑 enum）。命中键 `(execute_fp, env_fp)` 不变则 **写入同一 `version_id`**，复写上游步时清下游。禁止为同一双指纹再 allocate 一个号。
@@ -117,21 +118,15 @@
 - **状态：** `beta`
 - **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
 
-### campaign / present_campaign
+### attribute_enumerate / attribute_price / attribute_portfolio / present_campaign
 
-`Strategy.campaign(key_or_id: str | Path, *, ignore_cache: bool = False) -> dict`  
+`Strategy.attribute_enumerate(key_or_id: str | Path, *, ignore_cache: bool = False) -> dict`  
+`Strategy.attribute_price(key_or_id: str | Path, *, ignore_cache: bool = False) -> dict`  
+`Strategy.attribute_portfolio(key_or_id: str | Path, *, ignore_cache: bool = False) -> dict`  
 `Strategy.present_campaign(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 对照旋钮，写 `results/attribution/{n}/parameter/`。`overlays` 逐项对照，`matrix` 各轴笛卡尔积，可同时写（各自成表，回测去重）。unique version 的价格层机会再铺平做单笔 XGB+SHAP（需 `requirements-ml.txt`）。每格按 `steps` 逐层 `Strategy.simulate`。CLI `sa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。
-
-### analyze / present_analyze
-
-`Strategy.analyze(key_or_id: str | Path, *, version: int | str | None = None, kind: SimulateKind | str | None = None, force: bool = False) -> dict`  
-`Strategy.present_analyze(output_dir: str | Path, *, stream=None) -> None`
-
-- **状态：** `beta`
-- **描述：** 对一份 version 的机会表跑 `Analyzer.run`（as-of 切片）。`version` 空则取最新号；`kind` 空则取该号最深已有一步。CLI `sz`。
+- **描述：** 读 `attribution.py` 对照旋钮，按层归因。须已有当前 settings 对应的主 version（先 `se` / `sp` / `so`），否则拒绝。对照格写入副本 `{vid}-{r}`，不 bump `next_version_id`。报告写 `results/attribution/{n}/enumerate|price_factor|portfolio/`。`overlays` 逐项、`matrix` 笛卡尔积，可同时写。单笔 XGB+SHAP 仅价格层（`spa`，需 `requirements-ml.txt`）。CLI：`sea` / `spa` / `soa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。
 
 ### rolling / present_rolling
 
@@ -139,7 +134,7 @@
 `Strategy.present_rolling(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 的 `rolling.windows` 对照声明窗口，写 `results/attribution/{n}/rolling/`。每窗按 `steps` 逐层 `Strategy.simulate`。CLI `sw`（`-f` 即 `ignore_cache`）。不和参数战役混在一份报告里。
+- **描述：** 读 `attribution.py` 的 `rolling.windows` 对照声明窗口，默认每窗跑到 `portfolio`，写 `results/attribution/{n}/rolling/`。CLI `sw`（`-f` 即 `ignore_cache`）。不和参数战役混在一份报告里。
 
 ### resolve_simulation_output_dirs
 

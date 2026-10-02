@@ -26,7 +26,9 @@ pytestmark = pytest.mark.force_run
         (["se", "--strategy", "demo"], ["strategy_enumerate", "--strategy", "demo"]),
         (["so"], ["strategy_portfolio"]),
         (["s"], ["strategy_simulate"]),
-        (["sa", "--strategy", "rsi_v1"], ["strategy_attribution", "--strategy", "rsi_v1"]),
+        (["sea", "--strategy", "rsi_v1"], ["strategy_attribute_enumerate", "--strategy", "rsi_v1"]),
+        (["spa"], ["strategy_attribute_price"]),
+        (["soa"], ["strategy_attribute_portfolio"]),
         (["sd"], ["strategy_decision"]),
         (["sdl"], ["strategy_decision_list"]),
         (["sdd", "--session", "1"], ["strategy_decision_delete", "--session", "1"]),
@@ -112,16 +114,22 @@ def test_parse_sdl() -> None:
     assert args.command == "strategy_decision_list"
 
 
-def test_parse_sa_strategy() -> None:
-    args = UserParser.parse_args(["sa", "--strategy", "rsi_v1"])
-    assert args.command == "strategy_attribution"
+def test_parse_sea_strategy() -> None:
+    args = UserParser.parse_args(["sea", "--strategy", "rsi_v1"])
+    assert args.command == "strategy_attribute_enumerate"
     assert args.strategy == "rsi_v1"
 
 
-def test_parse_sa_force() -> None:
-    args = UserParser.parse_args(["sa", "-f", "--strategy", "rsi_v1"])
-    assert args.command == "strategy_attribution"
+def test_parse_spa_force() -> None:
+    args = UserParser.parse_args(["spa", "-f", "--strategy", "rsi_v1"])
+    assert args.command == "strategy_attribute_price"
     assert args.force is True
+
+
+def test_parse_soa() -> None:
+    args = UserParser.parse_args(["soa", "--strategy", "rsi_v1"])
+    assert args.command == "strategy_attribute_portfolio"
+    assert args.strategy == "rsi_v1"
 
 
 def test_parse_sdv_strategy_version() -> None:
@@ -154,7 +162,7 @@ def test_is_help_argv() -> None:
     assert UserAbbrev.is_help_argv([]) is False
 
 
-def test_run_strategy_attribution_ok(monkeypatch, capsys) -> None:
+def test_run_strategy_attribute_enumerate_ok(monkeypatch, capsys) -> None:
     from argparse import Namespace
 
     from core.modules.cli.user.handlers import UserHandlers
@@ -163,7 +171,7 @@ def test_run_strategy_attribution_ok(monkeypatch, capsys) -> None:
 
     class FakeStrategy:
         @staticmethod
-        def campaign(key: str, *, ignore_cache=False):
+        def attribute_enumerate(key: str, *, ignore_cache=False):
             seen["key"] = key
             seen["ignore_cache"] = ignore_cache
             return {
@@ -186,14 +194,18 @@ def test_run_strategy_attribution_ok(monkeypatch, capsys) -> None:
         staticmethod(lambda name: "rsi_v1"),
     )
     monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
-    UserHandlers._run_strategy_attribution(
-        Namespace(strategy="rsi_v1", force=True)
+    UserHandlers._run_strategy_attribute(
+        Namespace(strategy="rsi_v1", force=True),
+        layer="enumerate",
+        api_name="attribute_enumerate",
+        title="枚举层归因",
+        need_cli="se",
     )
     out = capsys.readouterr().out
     assert seen["key"] == "rsi_v1"
     assert seen["ignore_cache"] is True
     assert seen["presented"]
-    assert "归因战役" in out
+    assert "枚举层归因" in out
 
 
 def test_run_strategy_delete_version_ok(monkeypatch, capsys) -> None:

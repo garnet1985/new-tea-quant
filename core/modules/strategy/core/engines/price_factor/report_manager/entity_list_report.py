@@ -65,7 +65,7 @@ class EntityListReport:
     ENTITY_LIST_FILE = ENTITY_LIST_FILE
 
     strategy_key: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     rows: List[EntityListRow] = field(default_factory=list)
     created_at: str = ""
 
@@ -120,7 +120,7 @@ class EntityListReport:
         *,
         entity_ids: Optional[List[str]] = None,
         strategy_key: str = "",
-        version_id: int = 0,
+        version_id: Any = "",
     ) -> "EntityListReport":
         scan = PriceCsvScan.collect(
             output_dir,
@@ -141,7 +141,7 @@ class EntityListReport:
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         n = len(self.rows)
-        CmdLayout.title.print_section(f"{icon('search')} 逐股样本", stream=out)
+        CmdLayout.title.print_h2(f"{icon('search')} 逐股样本", stream=out)
         print(f"{icon('green_dot')} 有仓股票 {n} 只", file=out, flush=True)
         top = self.rows[:5]
         if not top:
@@ -186,7 +186,7 @@ class EntityListReport:
         ]
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             rows=rows,
             created_at=str(data.get("created_at") or ""),
         )

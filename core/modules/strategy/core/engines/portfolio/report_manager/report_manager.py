@@ -73,7 +73,7 @@ class ReportManager(BaseReportManager):
 
     strategy_key: str = ""
     strategy_path: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     enum_version_id: str = ""
     market_profile: str = _DEFAULT_MARKET_PROFILE
     # feature.run action：资金层 ``strategy.portfolio``；决策模拟 ``strategy.decision``
@@ -130,14 +130,14 @@ class ReportManager(BaseReportManager):
             version_id=str(data.version_id),
         )
         output_dir = store.output_dir
-        version_id = int(store.version_id)
+        version_id = str(store.version_id)
         market_profile = (
             str(data.runtime.market_profile or "").strip() or _DEFAULT_MARKET_PROFILE
         )
         runtime = PortfolioRuntimeEnv(
             strategy_key=strategy_key or strategy_path,
             strategy_path=strategy_path,
-            version_id=int(version_id),
+            version_id=version_id,
             enum_version_id=str(data.version_id),
             enum_output_dir=str(data.output_dir),
             execute_fp=str(ctx.execute_fp or ""),
@@ -154,7 +154,7 @@ class ReportManager(BaseReportManager):
             output_dir=output_dir,
             strategy_key=runtime.strategy_key,
             strategy_path=strategy_path,
-            version_id=int(version_id),
+            version_id=str(version_id or "").strip(),
             enum_version_id=str(data.version_id),
             market_profile=market_profile,
         )
@@ -166,7 +166,7 @@ class ReportManager(BaseReportManager):
             output_dir=Path(output_dir),
             strategy_key=runtime.strategy_key,
             strategy_path=runtime.strategy_path or runtime.strategy_key,
-            version_id=int(runtime.version_id),
+            version_id=str(runtime.version_id or "").strip(),
             enum_version_id=str(runtime.enum_version_id),
             market_profile=str(runtime.market_profile or _DEFAULT_MARKET_PROFILE),
         )
@@ -348,20 +348,16 @@ class ReportManager(BaseReportManager):
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         OverallReport.load(self.output_dir).present(stream=out)
-        CmdLayout.separator.print_line(width=60, stream=out)
         EntityListReport.load(self.output_dir).present(stream=out)
-        CmdLayout.separator.print_line(width=60, stream=out)
         try:
             PerformanceReport.load(self.output_dir).present(stream=out)
         except Exception:
-            CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+            CmdLayout.title.print_h2(f"{icon('clock')} 性能", stream=out)
             print(f"{icon('warning')} 缺少 {PERFORMANCE_FILE}", file=out, flush=True)
-        CmdLayout.separator.print_line(width=60, stream=out)
         print(f"{icon('info')} 产物: {self.output_dir}", file=out, flush=True)
-        print(
-            f"   reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
-            file=out,
-            flush=True,
+        CmdLayout.text.print_indent(
+            f"reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
+            stream=out,
         )
 
 

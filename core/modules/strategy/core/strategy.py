@@ -276,8 +276,11 @@ class Strategy:
         kind: Union[SimulateKind, str] = SimulateKind.ENUMERATE,
         ignore_cache: bool = False,
         runtime_settings: Optional[Dict[str, Any]] = None,
+        version_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """统一模拟入口：枚举 / 价格 / 资金。
+
+        ``version_id``：归因副本写入指定号（如 ``5-1``）；普通回测勿传，由指纹分配主号。
 
         缓存与指纹流程（磁盘单轨）::
 
@@ -323,6 +326,10 @@ class Strategy:
             kind=step,
             seed_entity_cache=False,
         )
+        forced = str(version_id or "").strip()
+        if forced:
+            ctx.forced_version_id = forced
+            ctx.enum_version = forced
         cache_key = ctx.strategy_key or key_or_id
 
         strategy_folder = DiscoveryService.resolve_strategy_folder(key_or_id)
@@ -330,11 +337,16 @@ class Strategy:
         if not ignore_cache:
             from .services.artifacts import SimulationVersionStore
 
-            cached = SimulationVersionStore.get_cache(
-                strategy_folder,
-                fp_res,
-                ctx.kind,
-            )
+            if forced:
+                cached = SimulationVersionStore.get_cache_by_version_id(
+                    strategy_folder, forced, ctx.kind
+                )
+            else:
+                cached = SimulationVersionStore.get_cache(
+                    strategy_folder,
+                    fp_res,
+                    ctx.kind,
+                )
             if cached:
                 logger.info(
                     "simulate cache hit: kind=%s strategy=%s",
@@ -349,11 +361,6 @@ class Strategy:
                     payload.get("version_id"),
                 )
                 Strategy._prune_stale_envs(key_or_id, fp_res.env_fp)
-                slot = payload.get(ctx.kind.value)
-                if isinstance(slot, dict):
-                    Strategy._attribute_layer(
-                        slot, ctx.kind, present=True, force=False
-                    )
                 return payload
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
@@ -526,7 +533,6 @@ class Strategy:
                     end_date=end_date,
                 )
 
-            Strategy._attribute_layer(step_res, step, present=True, force=True)
             PipelineProgress.complete_step_bound("report")
 
             logger.info(
@@ -546,28 +552,6 @@ class Strategy:
         )
         Strategy._prune_stale_envs(ctx.strategy_key or str(folder), ctx.env_fp)
         return payload
-
-    @staticmethod
-    def _attribute_layer(
-        step_res: Dict[str, Any],
-        kind: SimulateKind,
-        *,
-        present: bool = True,
-        force: bool = False,
-    ) -> None:
-        """一层回测结束后写该层归因；缺产物则跳过。"""
-        output_dir = str(step_res.get("output_dir") or "").strip()
-        if not output_dir or not Path(output_dir).is_dir():
-            return
-        from .engines.analyzer import Analyzer
-        from .services.artifacts import ArtifactStore
-
-        store = ArtifactStore.at(
-            output_dir,
-            kind=kind,
-            version_id=str(step_res.get("version_id") or ""),
-        )
-        Analyzer.layer(store, present=present, force=force)
 
     @staticmethod
     def _prune_stale_envs(key_or_id: str, env_fp: str) -> None:
@@ -811,15 +795,37 @@ class Strategy:
         ReportManager.from_output_dir(path).present(stream=stream)
 
     @staticmethod
-    def campaign(
+    def attribute_enumerate(
         key_or_id: Union[str, Path],
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """读 attribution.py 跑归因战役（对照旋钮，写 ``results/attribution/``）。"""
+        """枚举层归因（CLI ``sea``）。须已有主 version；对照格写 ``{vid}-{r}`` 副本。"""
         from .engines.analyzer import Analyzer
 
-        return Analyzer.campaign(key_or_id, ignore_cache=ignore_cache)
+        return Analyzer.attribute_enumerate(key_or_id, ignore_cache=ignore_cache)
+
+    @staticmethod
+    def attribute_price(
+        key_or_id: Union[str, Path],
+        *,
+        ignore_cache: bool = False,
+    ) -> Dict[str, Any]:
+        """价格层归因（CLI ``spa``）。"""
+        from .engines.analyzer import Analyzer
+
+        return Analyzer.attribute_price(key_or_id, ignore_cache=ignore_cache)
+
+    @staticmethod
+    def attribute_portfolio(
+        key_or_id: Union[str, Path],
+        *,
+        ignore_cache: bool = False,
+    ) -> Dict[str, Any]:
+        """组合层归因（CLI ``soa``）。"""
+        from .engines.analyzer import Analyzer
+
+        return Analyzer.attribute_portfolio(key_or_id, ignore_cache=ignore_cache)
 
     @staticmethod
     def present_campaign(
@@ -827,7 +833,7 @@ class Strategy:
         *,
         stream: Optional[TextIO] = None,
     ) -> None:
-        """展示战役报告（内存返回体或 ``parameter/`` 目录）。"""
+        """展示战役报告（内存返回体或层目录）。"""
         from .engines.analyzer import Analyzer
 
         Analyzer.CampaignPresenter.load(report).present(stream=stream)
@@ -853,35 +859,6 @@ class Strategy:
         from .engines.analyzer import Analyzer
 
         Analyzer.RollingPresenter.load(report).present(stream=stream)
-
-    @staticmethod
-    def analyze(
-        key_or_id: Union[str, Path],
-        *,
-        version: Optional[Union[int, str]] = None,
-        kind: Optional[Union[SimulateKind, str]] = None,
-        force: bool = False,
-    ) -> Dict[str, Any]:
-        """对一份 version 的机会表跑 Analyzer.run（as-of 切片）。"""
-        from .engines.analyzer import Analyzer
-        from .services.artifacts import ArtifactStore
-
-        folder = Strategy.resolve_folder(str(key_or_id))
-        vid = Strategy._analyze_version_id(folder, version)
-        sim_kind = Strategy._analyze_kind(folder, vid, kind)
-        store = ArtifactStore.resolve(folder, kind=sim_kind, version_id=vid)
-        return Analyzer.run(store, strategy_folder=folder, force=force)
-
-    @staticmethod
-    def present_analyze(
-        output_dir: Union[str, Path],
-        *,
-        stream: Optional[TextIO] = None,
-    ) -> None:
-        """展示单 version 切片报告（``{step}/analysis/report.json``）。"""
-        from .engines.analyzer import Analyzer
-
-        Analyzer.Presenter.load(output_dir).present(stream=stream)
 
     @staticmethod
     def _analyze_version_id(

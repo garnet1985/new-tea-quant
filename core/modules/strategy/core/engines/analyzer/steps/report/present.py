@@ -10,8 +10,6 @@ from core.modules.strategy.core.services.artifacts import ArtifactStore
 
 from .insight import InsightBuilder
 
-_SECTION_WIDTH = 64
-
 
 class AnalysisReportPresenter:
     """Conclusion-first CMD view of one step's attribution report."""
@@ -40,14 +38,15 @@ class AnalysisReportPresenter:
         report = self._report
         insights = InsightBuilder.resolve(report)
 
-        CmdLayout.title.print_banner(f"{icon('chart')} 这次回测怎么读", stream=out)
-        print(
-            f"{icon('gear')} 策略 {report.get('strategy_key') or '-'}  ·  "
-            f"{_step_label(report.get('step'))}  ·  "
-            f"当前版本 v{report.get('version_id') or '-'}",
-            file=out,
-            flush=True,
+        CmdLayout.title.print_h1(f"{icon('chart')} 这次回测怎么读", stream=out)
+        meta = CmdLayout.text.meta(
+            [
+                f"策略 {report.get('strategy_key') or '-'}",
+                _step_label(report.get('step')),
+                f"当前版本 v{report.get('version_id') or '-'}",
+            ]
         )
+        print(f"{icon('gear')} {meta}", file=out, flush=True)
 
         self._present_headline(out, insights)
         self._present_chart(out, insights)
@@ -58,13 +57,11 @@ class AnalysisReportPresenter:
         self._present_explains(out, insights)
         self._present_next_steps(out, insights)
         self._present_technical(out, insights)
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
 
     def _present_headline(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('target')} 一句话结论", stream=out)
-        print(f"   {insights.get('headline') or '-'}", file=out, flush=True)
+        CmdLayout.title.print_h2(f"{icon('target')} 一句话结论", stream=out)
+        CmdLayout.text.print_indent(insights.get('headline') or '-', stream=out)
 
     def _present_chart(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
@@ -73,11 +70,9 @@ class AnalysisReportPresenter:
         has_tiers = isinstance(tiers, list) and len(tiers) >= 1
         if not has_tiers and not note:
             return
-
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('bar_chart')} 证据（看差距）", stream=out)
+        CmdLayout.title.print_h2(f"{icon('bar_chart')} 证据（看差距）", stream=out)
         if note:
-            print(f"   {note}", file=out, flush=True)
+            CmdLayout.text.print_indent(note, stream=out)
         if not has_tiers:
             return
 
@@ -102,13 +97,12 @@ class AnalysisReportPresenter:
         if len(tiers) == 2:
             cut = tiers[1].get("min") if isinstance(tiers[1], dict) else None
             if cut is not None:
-                print(
-                    f"   ┊ 明显的分水岭 ≈ {_fmt_num(cut)}",
-                    file=out,
-                    flush=True,
+                CmdLayout.text.print_indent(
+                    f"┊ 明显的分水岭 ≈ {_fmt_num(cut)}",
+                    stream=out,
                 )
 
-        print("", file=out, flush=True)
+        lines = []
         for tier in tiers:
             if not isinstance(tier, dict):
                 continue
@@ -117,48 +111,48 @@ class AnalysisReportPresenter:
             count = tier.get("count")
             roi_text = f"{float(mean_roi) * 100:.1f}%" if mean_roi is not None else "-"
             win_text = f"{float(win_rate) * 100:.0f}%" if win_rate is not None else "-"
-            print(
-                f"   · {tier.get('label')}: 平均收益 {roi_text}  ·  "
-                f"{count} 笔  ·  胜率 {win_text}",
-                file=out,
-                flush=True,
+            lines.append(
+                f"{tier.get('label')}: 平均收益 {roi_text}  ·  "
+                f"{count} 笔  ·  胜率 {win_text}"
             )
+        if lines:
+            print("", file=out, flush=True)
+            CmdLayout.text.print_bullets(lines, indent=3, marker="·", stream=out)
 
         how = _how_to_read(tiers)
         if how:
-            print(f"\n   怎么看：{how}", file=out, flush=True)
+            print("", file=out, flush=True)
+            CmdLayout.text.print_indent(f"怎么看：{how}", stream=out)
 
     def _present_key_findings(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
         findings = insights.get("key_findings") or []
         if not isinstance(findings, list) or not findings:
             return
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('rocket')} 关键发现", stream=out)
-        for item in findings:
-            if not isinstance(item, dict):
-                continue
-            print(
-                f"   [{item.get('value')}]  {item.get('caption')}",
-                file=out,
-                flush=True,
-            )
+        CmdLayout.title.print_h2(f"{icon('rocket')} 关键发现", stream=out)
+        CmdLayout.text.print_indent(
+            "\n".join(
+                f"[{item.get('value')}]  {item.get('caption')}"
+                for item in findings
+                if isinstance(item, dict)
+            ),
+            stream=out,
+        )
 
     def _present_other_fields(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
         items = insights.get("other_fields") or []
         if not isinstance(items, list) or not items:
             return
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('clipboard')} 其他变化条件", stream=out)
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            print(
-                f"   [{item.get('value')}]  {item.get('caption')}",
-                file=out,
-                flush=True,
-            )
+        CmdLayout.title.print_h2(f"{icon('clipboard')} 其他变化条件", stream=out)
+        CmdLayout.text.print_indent(
+            "\n".join(
+                f"[{item.get('value')}]  {item.get('caption')}"
+                for item in items
+                if isinstance(item, dict)
+            ),
+            stream=out,
+        )
 
     def _present_multivariate(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
@@ -175,81 +169,77 @@ class AnalysisReportPresenter:
             pass
         else:
             return
-
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('line_chart')} 多指标一起看", stream=out)
+        CmdLayout.title.print_h2(f"{icon('line_chart')} 多指标一起看", stream=out)
         headline = str(block.get("headline") or "").strip()
         if headline:
-            print(f"   {headline}", file=out, flush=True)
+            CmdLayout.text.print_indent(headline, stream=out)
         if isinstance(ranking, list) and ranking:
             print("", file=out, flush=True)
-            print("   相对重要性:", file=out, flush=True)
-            for item in ranking[:4]:
-                if not isinstance(item, dict):
-                    continue
-                print(
-                    f"     · {item.get('key')}: {item.get('caption')}  [{item.get('value')}]",
-                    file=out,
-                    flush=True,
-                )
+            CmdLayout.title.print_h3("相对重要性", stream=out)
+            CmdLayout.text.print_bullets(
+                [
+                    f"{item.get('key')}: {item.get('caption')}  [{item.get('value')}]"
+                    for item in ranking[:4]
+                    if isinstance(item, dict)
+                ],
+                indent=3,
+                marker="·",
+                stream=out,
+            )
         explains = block.get("explains") or []
         does_not = block.get("does_not_explain") or []
         if explains or does_not:
             print("", file=out, flush=True)
         if explains:
-            for line in explains:
-                print(f"     ✓ {line}", file=out, flush=True)
+            CmdLayout.text.print_bullets(explains, indent=5, marker="✓", stream=out)
         if does_not:
-            for line in does_not:
-                print(f"     ✗ {line}", file=out, flush=True)
+            CmdLayout.text.print_bullets(does_not, indent=5, marker="✗", stream=out)
 
         ml = insights.get("ml") if isinstance(insights.get("ml"), dict) else {}
         if ml.get("status") in ("ok", "partial") and ml.get("headline"):
             print("", file=out, flush=True)
-            print(f"   机器学习补充：{ml.get('headline')}", file=out, flush=True)
+            CmdLayout.text.print_indent(f"机器学习补充：{ml.get('headline')}", stream=out)
 
     def _present_run_comparison(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
         block = insights.get("run_comparison")
         if not isinstance(block, dict) or block.get("status") != "ok":
             return
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('eyes')} 两次回测对照", stream=out)
+        CmdLayout.title.print_h2(f"{icon('eyes')} 两次回测对照", stream=out)
         headline = str(block.get("headline") or "").strip()
         if headline:
-            print(f"   {headline}", file=out, flush=True)
+            CmdLayout.text.print_indent(headline, stream=out)
         baseline = block.get("baseline_version_id")
         current = block.get("current_version_id")
         if baseline or current:
-            print(
-                f"   当前 v{current or '-'}  vs  对照 v{baseline or '-'}",
-                file=out,
-                flush=True,
+            CmdLayout.text.print_indent(
+                f"当前 v{current or '-'}  vs  对照 v{baseline or '-'}",
+                stream=out,
             )
         changes = block.get("changes") or []
         if isinstance(changes, list) and changes:
             print("", file=out, flush=True)
-            print("   改了什么:", file=out, flush=True)
-            for item in changes[:6]:
-                if not isinstance(item, dict):
-                    continue
-                print(
-                    f"     · {item.get('label')}: {item.get('detail')}",
-                    file=out,
-                    flush=True,
-                )
+            CmdLayout.title.print_h3("改了什么", stream=out)
+            CmdLayout.text.print_bullets(
+                [
+                    f"{item.get('label')}: {item.get('detail')}"
+                    for item in changes[:6]
+                    if isinstance(item, dict)
+                ],
+                indent=3,
+                marker="·",
+                stream=out,
+            )
         explains = block.get("explains") or []
         does_not = block.get("does_not_explain") or []
         if explains or does_not:
             print("", file=out, flush=True)
         if explains:
-            print("   能说的:", file=out, flush=True)
-            for line in explains:
-                print(f"     ✓ {line}", file=out, flush=True)
+            CmdLayout.title.print_h3("能说的", stream=out)
+            CmdLayout.text.print_bullets(explains, indent=3, marker="✓", stream=out)
         if does_not:
-            print("   不能说的:", file=out, flush=True)
-            for line in does_not:
-                print(f"     ✗ {line}", file=out, flush=True)
+            CmdLayout.title.print_h3("不能说的", stream=out)
+            CmdLayout.text.print_bullets(does_not, indent=3, marker="✗", stream=out)
 
     def _present_explains(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
@@ -257,35 +247,29 @@ class AnalysisReportPresenter:
         does_not = insights.get("does_not_explain") or []
         if not explains and not does_not:
             return
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(
+        CmdLayout.title.print_h2(
             f"{icon('blue_dot')} 说明了什么 / 没说明什么",
             stream=out,
         )
         if explains:
-            print("   能说的:", file=out, flush=True)
-            for line in explains:
-                print(f"     ✓ {line}", file=out, flush=True)
+            CmdLayout.title.print_h3("能说的", stream=out)
+            CmdLayout.text.print_bullets(explains, indent=3, marker="✓", stream=out)
         if does_not:
-            print("   不能说的:", file=out, flush=True)
-            for line in does_not:
-                print(f"     ✗ {line}", file=out, flush=True)
+            CmdLayout.title.print_h3("不能说的", stream=out)
+            CmdLayout.text.print_bullets(does_not, indent=3, marker="✗", stream=out)
 
     def _present_next_steps(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
         steps = insights.get("next_steps") or []
         if not isinstance(steps, list) or not steps:
             return
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('success')} 建议下一步", stream=out)
-        for index, step in enumerate(steps, start=1):
-            print(f"   {index}. {step}", file=out, flush=True)
+        CmdLayout.title.print_h2(f"{icon('success')} 建议下一步", stream=out)
+        CmdLayout.text.print_numbered(steps, indent=3, stream=out)
 
     def _present_technical(self, out: TextIO, insights: Dict[str, Any]) -> None:
         icon = CmdLayout.icon.get
         tech = insights.get("technical") if isinstance(insights.get("technical"), dict) else {}
-        CmdLayout.separator.print_line(width=_SECTION_WIDTH, stream=out)
-        CmdLayout.title.print_section(f"{icon('gear')} 技术细节", stream=out)
+        CmdLayout.title.print_h2(f"{icon('gear')} 技术细节", stream=out)
         parts: List[str] = []
         if tech.get("sample_size") is not None:
             parts.append(f"样本 {tech.get('sample_size')} 笔")
@@ -295,14 +279,14 @@ class AnalysisReportPresenter:
         if tech.get("binning"):
             parts.append(str(tech.get("binning")))
         if parts:
-            print(f"   {' · '.join(parts)}", file=out, flush=True)
+            CmdLayout.text.print_indent(CmdLayout.text.meta(parts), stream=out)
         if tech.get("correlation"):
-            print(f"   统计：{tech.get('correlation')}", file=out, flush=True)
+            CmdLayout.text.print_indent(f"统计：{tech.get('correlation')}", stream=out)
         if tech.get("skip_summary"):
-            print(f"   跳过：{tech.get('skip_summary')}", file=out, flush=True)
+            CmdLayout.text.print_indent(f"跳过：{tech.get('skip_summary')}", stream=out)
         if tech.get("disclaimer"):
-            print(f"   免责：{tech.get('disclaimer')}", file=out, flush=True)
-        print(f"   文件：{self._report_path}", file=out, flush=True)
+            CmdLayout.text.print_indent(f"免责：{tech.get('disclaimer')}", stream=out)
+        CmdLayout.text.print_indent(f"文件：{self._report_path}", stream=out)
 
 
 def _how_to_read(tiers: List[Any]) -> str:

@@ -4,13 +4,11 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Union
+from typing import Any, Dict, List, Mapping, Optional, TextIO, Union
 
 from core.infra.cmd_layout import CmdLayout
 
 from ..campaign.labels import CampaignLabels
-
-_SECTION_WIDTH = 64
 
 
 class RollingPresenter:
@@ -37,21 +35,22 @@ class RollingPresenter:
         report = self._report
         summarized = report.get("report") if isinstance(report.get("report"), dict) else report
 
-        CmdLayout.title.print_banner(f"{icon('chart')} 滚动窗口怎么读", stream=out)
-        print(
-            f"{icon('gear')} 策略 {report.get('folder') or '-'}  ·  "
-            f"{int(summarized.get('n') or report.get('cell_count') or 0)} 段窗口",
-            file=out,
-            flush=True,
+        CmdLayout.title.print_h1(f"{icon('chart')} 滚动窗口怎么读", stream=out)
+        meta = CmdLayout.text.meta(
+            [
+                f"策略 {report.get('folder') or '-'}",
+                f"{int(summarized.get('n') or report.get('cell_count') or 0)} 段窗口",
+            ]
         )
+        print(f"{icon('gear')} {meta}", file=out, flush=True)
         headline = str(summarized.get("headline") or report.get("headline") or "").strip()
         if headline:
-            print(f"   {headline}", file=out, flush=True)
+            CmdLayout.text.print_indent(headline, stream=out)
         self._print_table(summarized, out)
         persist = report.get("persist") if isinstance(report.get("persist"), dict) else {}
         path = persist.get("report_path") or report.get("report_path")
         if path:
-            print(f"   报告: {path}", file=out, flush=True)
+            CmdLayout.text.print_indent(f"报告: {path}", stream=out)
 
     def _print_table(self, summarized: Mapping[str, Any], out: TextIO) -> None:
         windows = [
@@ -60,7 +59,7 @@ class RollingPresenter:
             if isinstance(item, dict)
         ]
         if not windows:
-            print("   没有可展示的窗口。", file=out, flush=True)
+            CmdLayout.text.print_indent("没有可展示的窗口。", stream=out)
             return
         headers = ["窗口", "回测", "账户收益", "相对首段", "机会数"]
         rows: List[List[str]] = []
@@ -86,13 +85,4 @@ class RollingPresenter:
                     ),
                 ]
             )
-        widths = [len(h) for h in headers]
-        for row in rows:
-            for i, cell in enumerate(row):
-                widths[i] = max(widths[i], len(cell))
-        line = "  ".join(h.ljust(widths[i]) for i, h in enumerate(headers))
-        print(f"   {line}", file=out, flush=True)
-        print(f"   {'─' * min(_SECTION_WIDTH, sum(widths) + 8)}", file=out, flush=True)
-        for row in rows:
-            line = "  ".join(row[i].ljust(widths[i]) for i in range(len(headers)))
-            print(f"   {line}", file=out, flush=True)
+        CmdLayout.table.print(headers, rows, stream=out)

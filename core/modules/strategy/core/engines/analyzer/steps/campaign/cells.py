@@ -102,10 +102,10 @@ class AttributionTask:
     def from_cells(
         cls,
         cells: Sequence[AttributionCell],
-        config: Any,
+        *,
+        kind: SimulateKind,
     ) -> List["AttributionTask"]:
-        steps = tuple(config.steps)
-        kind = config.simulate_kind
+        steps = (kind,)
         return [cls(cell=cell, kind=kind, steps=steps) for cell in cells]
 
 

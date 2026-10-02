@@ -72,7 +72,7 @@ class PriceFactorJobBuilder:
         }
         if report is not None:
             price_meta["price_output_dir"] = str(report.output_dir)
-            price_meta["price_version_id"] = int(report.version_id)
+            price_meta["price_version_id"] = str(report.version_id or "").strip()
 
         payload: Dict[str, Any] = {
             "entity_specified": [{"id": entity_id} for entity_id in entity_ids],

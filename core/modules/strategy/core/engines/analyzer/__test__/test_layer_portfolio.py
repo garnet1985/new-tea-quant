@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.analyzer import Analyzer
+from core.modules.strategy.core.engines.analyzer.steps.layer import LayerPipeline
 from core.modules.strategy.core.engines.shared.enum_result_contract import (
     EnumResult,
     EnumResultsManager,
@@ -189,7 +189,7 @@ def test_portfolio_layer_leftover_better_and_slots_cap(tmp_path, capsys):
         slots=10,
         util_avg=25.0,
     )
-    report = Analyzer.layer(store, present=True, force=True)
+    report = LayerPipeline.run(store, present=True, force=True)
     assert report["layer"] == "portfolio"
     fill = report["facts"]["fill"]
     assert fill["price_completed"] == 5
@@ -227,7 +227,7 @@ def test_portfolio_layer_leftover_worse_does_not_blame_slots(tmp_path):
         slots=10,
         util_avg=80.0,
     )
-    report = Analyzer.layer(store, present=False, force=True)
+    report = LayerPipeline.run(store, present=False, force=True)
     ids = {item["id"] for item in report["conclusions"]}
     assert "leftover_worse" in ids
     assert "slots_at_cap" not in ids
@@ -241,7 +241,7 @@ def test_portfolio_layer_without_price_does_not_invent_leftover(tmp_path):
         buys=[("AAA.SH", "1")],
         write_price=False,
     )
-    report = Analyzer.layer(store, present=False, force=True)
+    report = LayerPipeline.run(store, present=False, force=True)
     assert report["facts"]["price_available"] is False
     ids = {item["id"] for item in report["conclusions"]}
     assert "no_price_contrast" in ids
@@ -284,7 +284,7 @@ def test_portfolio_layer_rsi_grouping_mismatch(tmp_path):
         slots=10,
         util_avg=70.0,
     )
-    report = Analyzer.layer(store, present=False, force=True)
+    report = LayerPipeline.run(store, present=False, force=True)
     rsi_groups = {
         item["name"]: item
         for item in report["facts"]["groups"]

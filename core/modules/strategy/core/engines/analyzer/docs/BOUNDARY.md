@@ -13,12 +13,12 @@
 | ``analyzer.py`` | Facade / API 暴露 |
 | ``pipeline.py`` | 战役编排（``AttributionPipeline`` 只串步骤） |
 | ``steps/campaign/`` | attribution 配置 / overlay / 展开 / 查缓存 / 钉住 / 拼表 / 相对基准贡献度 / 总结 / 落盘 / 展示 |
-| ``steps/layer/`` | 一层回测结束后的诊断：事实 / 结论 / 建议 → ``attribution.json`` |
+| ``steps/layer/`` | 层内诊断库（事实 / 结论 / 建议）；不挂在 simulate / CLI |
 | ``steps/prepare/`` | 回测产物 → ``source.json``（编排；I/O 走 ``ArtifactStore``） |
 | ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
 | ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
 
-Analyzer 担任归因职责。``Analyzer.layer`` 在每一层 ``simulate`` 之后写该层诊断（枚举、价格、组合已接）。战役（overlays / matrix、group、``results/attribution/``）口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。展示见 [ATTRIBUTION_PRESENT.md](../../../../docs/notes/ATTRIBUTION_PRESENT.md)。``Analyzer.run`` 仍是单 version 机会表切片（CLI ``sz``），不自动挂在 simulate 上；``Analyzer.campaign`` 走 ``AttributionPipeline``；``Analyzer.rolling`` 走 ``RollingPipeline``。
+Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。战役口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.run`` 仅战役内部切片（如 spa trades），无 CLI。``Analyzer.rolling`` 走 ``RollingPipeline``。
 
 ### Report 步结构
 
@@ -55,18 +55,18 @@ pipeline/
 ## 入口（当前）
 
 ```text
-Analyzer.layer(store)    → LayerPipeline → {vid}/{enum|price|portfolio}/attribution.json
-Analyzer.run(store)      → PrepareStep → AnalyzeStep → ReportStep
-Analyzer.campaign(key)   → AttributionPipeline → steps/campaign/
-Analyzer.rolling(key)    → RollingPipeline → steps/rolling/
+Analyzer.attribute_*(key) → AttributionPipeline(kind=…) → steps/campaign/
+Analyzer.rolling(key)     → RollingPipeline → steps/rolling/
+Analyzer.run(store)       → PrepareStep → AnalyzeStep → ReportStep（战役内部）
+LayerPipeline.run(store)  → 层内诊断库（无公开 CLI）
 ```
 
-``Strategy.simulate`` 每完成一层调用 ``Analyzer.layer``。``Analyzer.run``（``sz``）不自动调用。战役报告写在 ``results/attribution/{n}/parameter/``，滚动写 ``rolling/``。命中/补跑的 version 钉住。平时 Run 把 version 记进 ``group_meta``。CLI ``sa`` / ``sz`` / ``sw``。
+``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enumerate|price_factor|portfolio}/``，滚动写 ``rolling/``。CLI ``sea`` / ``spa`` / ``soa`` / ``sw``。
 
 ## 依赖方向
 
 ```text
-Analyzer.campaign / Analyzer.rolling / Analyzer.layer / Analyzer.run → 各 pipeline → modules.analysis（切片 / 战役才用）
+Analyzer.attribute_* / Analyzer.rolling / Analyzer.run → 各 pipeline → modules.analysis（切片 / 战役才用）
 ```
 
 ``modules.analysis`` 禁止 import strategy。

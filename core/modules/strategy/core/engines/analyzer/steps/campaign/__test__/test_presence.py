@@ -204,7 +204,6 @@ def test_overlay_none_is_legal() -> None:
     snapshot = _snapshot()
     cfg = AttributionSettings.to_usable(
         {
-            "steps": ["enumerate", "price_factor", "portfolio"],
             "overlays": [
                 {"core": {"rsi_oversold_threshold": 20}},
                 {"core": {"max_pe_percentile": None}},
@@ -228,13 +227,9 @@ def test_overlay_none_is_legal() -> None:
     )
     assert knobs["core.max_pe_percentile"] is None
     assert knobs["goal.stop_loss"] is not None
-    tasks = AttributionTask.from_cells(cells, cfg)
+    tasks = AttributionTask.from_cells(cells, kind=SimulateKind.PORTFOLIO)
     assert tasks[0].kind is SimulateKind.PORTFOLIO
-    assert tasks[0].steps == (
-        SimulateKind.ENUMERATE,
-        SimulateKind.PRICE_FACTOR,
-        SimulateKind.PORTFOLIO,
-    )
+    assert tasks[0].steps == (SimulateKind.PORTFOLIO,)
     assert cfg.parameter_mode == "overlays"
 
 
@@ -300,7 +295,6 @@ def test_overlay_snapshot_baseline_makes_oat() -> None:
 def test_attribution_settings_drops_fill_missing() -> None:
     cfg = AttributionSettings.to_usable(
         {
-            "steps": ["enumerate", "price_factor", "portfolio"],
             "fill_missing": True,
             "overlays": [{"core": {"rsi_oversold_threshold": 20}}],
             "rolling": {
@@ -312,3 +306,4 @@ def test_attribution_settings_drops_fill_missing() -> None:
     dumped = cfg.to_dict()
     assert "fill_missing" not in dumped
     assert "fill_missing" not in (dumped.get("rolling") or {})
+    assert "steps" not in dumped

@@ -1,14 +1,14 @@
 """Strategy attribution analyzer — Facade。
 
-``Analyzer.layer`` 在每一层回测后写出该层诊断。
-``Analyzer.run``（sz 切片）仍不自动挂在 simulate 上。
+归因入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``。
+回测不再自动归因；单号切片 ``run`` 仅供战役内部（如价格层 trades）使用。
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.core.enums import SimulateKind, WorkbenchStep
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.artifacts.consts import ANALYSIS_SUBDIR
 
@@ -16,7 +16,6 @@ from .consts import report_ready
 from .pipeline import AttributionPipeline, RollingPipeline
 from .steps import AnalyzeStep, PrepareStep, ReportStep
 from .steps.campaign.present import CampaignPresenter
-from .steps.layer import LayerPipeline, LayerPresenter
 from .steps.report import AnalysisReportPresenter
 from .steps.rolling.present import RollingPresenter
 
@@ -30,8 +29,6 @@ class Analyzer:
     Rolling = RollingPipeline
     CampaignPresenter = CampaignPresenter
     RollingPresenter = RollingPresenter
-    Layer = LayerPipeline
-    LayerPresenter = LayerPresenter
 
     @classmethod
     def run(
@@ -42,7 +39,7 @@ class Analyzer:
         strategy_folder: Optional[Union[str, Path]] = None,
         force: bool = False,
     ) -> Dict[str, Any]:
-        """Prepare → Analyze → Report。"""
+        """Prepare → Analyze → Report（战役内部切片，不对外 CLI）。"""
         if not force and report_ready(store.output_dir):
             report_path = store.file("analysis_report")
             return {
@@ -100,17 +97,50 @@ class Analyzer:
         }
 
     @classmethod
-    def campaign(
+    def attribute(
+        cls,
+        key_or_id: Union[str, Path],
+        *,
+        kind: Union[SimulateKind, str],
+        ignore_cache: bool = False,
+    ) -> Dict[str, Any]:
+        """读 attribution.py，按层对照旋钮，写出战役总结。"""
+        return AttributionPipeline.run(
+            key_or_id, kind=kind, ignore_cache=ignore_cache
+        )
+
+    @classmethod
+    def attribute_enumerate(
         cls,
         key_or_id: Union[str, Path],
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """读 attribution.py，对照各格旋钮，写出战役总结。
+        return cls.attribute(
+            key_or_id, kind=SimulateKind.ENUMERATE, ignore_cache=ignore_cache
+        )
 
-        每格 ``Strategy.simulate``；``ignore_cache`` 与 CLI ``-f`` 相同（命中也重跑）。
-        """
-        return AttributionPipeline.run(key_or_id, ignore_cache=ignore_cache)
+    @classmethod
+    def attribute_price(
+        cls,
+        key_or_id: Union[str, Path],
+        *,
+        ignore_cache: bool = False,
+    ) -> Dict[str, Any]:
+        return cls.attribute(
+            key_or_id, kind=SimulateKind.PRICE_FACTOR, ignore_cache=ignore_cache
+        )
+
+    @classmethod
+    def attribute_portfolio(
+        cls,
+        key_or_id: Union[str, Path],
+        *,
+        ignore_cache: bool = False,
+    ) -> Dict[str, Any]:
+        return cls.attribute(
+            key_or_id, kind=SimulateKind.PORTFOLIO, ignore_cache=ignore_cache
+        )
 
     @classmethod
     def rolling(
@@ -121,14 +151,3 @@ class Analyzer:
     ) -> Dict[str, Any]:
         """读 attribution.py 的 rolling 窗口，写出滚动总结。"""
         return RollingPipeline.run(key_or_id, ignore_cache=ignore_cache)
-
-    @classmethod
-    def layer(
-        cls,
-        store: ArtifactStore,
-        *,
-        present: bool = True,
-        force: bool = False,
-    ) -> Dict[str, Any]:
-        """该层回测产物上的事实 / 结论 / 建议。"""
-        return LayerPipeline.run(store, present=present, force=force)

@@ -1,6 +1,7 @@
-"""``attribution.rolling``：滚动窗口外壳（windows；steps 可继承顶层）。
+"""``attribution.rolling``：滚动窗口外壳（windows）。
 
 不进 execute_fp / env_fp。窗口只动 ``simulation.execution`` 起止日。
+层由 RollingPipeline 固定跑到 portfolio，不再读 steps。
 """
 from __future__ import annotations
 
@@ -21,8 +22,6 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 from core.modules.strategy.core.enums import SimulateKind
 
 from ..campaign.config import AttributionSettings
-
-_ALLOWED_STEPS = frozenset(k.value for k in SimulateKind)
 
 
 @dataclass
@@ -69,16 +68,11 @@ class RollingSettings(SettingsBase):
 
     @property
     def steps(self) -> Tuple[SimulateKind, ...]:
-        raw = self.raw_settings.get("steps")
-        if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
-            return ()
-        out: list[SimulateKind] = []
-        for item in raw:
-            text = str(item or "").strip()
-            if text not in _ALLOWED_STEPS:
-                continue
-            out.append(SimulateKind(text))
-        return tuple(out)
+        return (
+            SimulateKind.ENUMERATE,
+            SimulateKind.PRICE_FACTOR,
+            SimulateKind.PORTFOLIO,
+        )
 
     @property
     def is_select(self) -> bool:
@@ -86,11 +80,7 @@ class RollingSettings(SettingsBase):
 
     @property
     def simulate_kind(self) -> SimulateKind:
-        """steps 最后一步：选号 lookup 用。窗口格按 ``steps`` 逐层 simulate。"""
-        steps = self.steps
-        if not steps:
-            raise ValueError("attribution.steps 不能为空")
-        return steps[-1]
+        return SimulateKind.PORTFOLIO
 
     @property
     def windows(self) -> Tuple[Dict[str, str], ...]:
@@ -109,36 +99,11 @@ class RollingSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         self.raw_settings.pop("fill_missing", None)
+        self.raw_settings.pop("steps", None)
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
         self.apply_defaults()
-
-        raw_steps = self.raw_settings.get("steps")
-        if raw_steps is None:
-            SettingsBase.add_critical(
-                report,
-                "steps",
-                "attribution.steps 必填",
-                suggested_fix='Set steps to ["enumerate", "price_factor", "portfolio"]',
-            )
-        elif not isinstance(raw_steps, Sequence) or isinstance(raw_steps, (str, bytes)) or not raw_steps:
-            SettingsBase.add_critical(
-                report,
-                "steps",
-                "attribution.steps 须为非空 list",
-                suggested_fix='Set steps to ["enumerate", "price_factor", "portfolio"]',
-            )
-        else:
-            for i, item in enumerate(raw_steps):
-                text = str(item or "").strip()
-                if text not in _ALLOWED_STEPS:
-                    SettingsBase.add_critical(
-                        report,
-                        f"steps[{i}]",
-                        f"未知 step {item!r}",
-                        suggested_fix=f"允许 {sorted(_ALLOWED_STEPS)}",
-                    )
 
         raw_windows = self.raw_settings.get("windows")
         if not isinstance(raw_windows, Sequence) or isinstance(raw_windows, (str, bytes)) or not raw_windows:
@@ -198,6 +163,5 @@ class RollingSettings(SettingsBase):
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
-        out["steps"] = [k.value for k in self.steps]
         out["windows"] = [dict(item) for item in self.windows]
         return out

@@ -19,8 +19,8 @@ class TestCmdLayoutApi(unittest.TestCase):
         import core.infra.cmd_layout as pkg
 
         self.assertEqual(pkg.__all__, ["CmdLayout", "i"])
-        for name in ("bar_chart", "title", "separator", "icon"):
-            self.assertTrue(hasattr(CmdLayout, name))
+        for name in ("bar_chart", "title", "separator", "table", "text", "icon"):
+            self.assertTrue(hasattr(CmdLayout, name), name)
 
     def test_title_banner_and_section(self) -> None:
         from core.infra.cmd_layout import CmdLayout
@@ -32,6 +32,21 @@ class TestCmdLayoutApi(unittest.TestCase):
         self.assertTrue(set(lines[0]) <= {"*"})
         self.assertEqual(lines[0], lines[2])
         self.assertEqual(CmdLayout.title.section("枚举汇总"), "-- 枚举汇总 --")
+
+    def test_title_h1_h2_h3(self) -> None:
+        from core.infra.cmd_layout import CmdLayout
+
+        h1_lines = CmdLayout.title.h1("归因对照").splitlines()
+        self.assertEqual(h1_lines[0], "")
+        self.assertTrue(set(h1_lines[1]) <= {"*"})
+        self.assertEqual(h1_lines[2], "归因对照")
+
+        h2_lines = CmdLayout.title.h2("参数贡献度").splitlines()
+        self.assertEqual(h2_lines[0], "")
+        self.assertEqual(h2_lines[1], "参数贡献度")
+        self.assertTrue(set(h2_lines[2]) <= {"="})
+
+        self.assertEqual(CmdLayout.title.h3("事实"), "--- 事实 ---")
 
     def test_bar_chart_render_max_bar_and_pct(self) -> None:
         from core.infra.cmd_layout import CmdLayout
@@ -54,6 +69,31 @@ class TestCmdLayoutApi(unittest.TestCase):
         self.assertEqual(CmdLayout.separator.thick(width=6), "=" * 6)
         self.assertEqual(CmdLayout.separator.star(width=4), "*" * 4)
         self.assertEqual(CmdLayout.separator.blank(), "")
+
+    def test_table_render(self) -> None:
+        from core.infra.cmd_layout import CmdLayout
+
+        text = CmdLayout.table.render(
+            ["旋钮", "收益"],
+            [["止损", "12%"]],
+        )
+        lines = text.splitlines()
+        self.assertEqual(len(lines), 3)
+        self.assertIn("旋钮", lines[0])
+        self.assertIn("止损", lines[2])
+
+    def test_text_meta_and_numbered(self) -> None:
+        from core.infra.cmd_layout import CmdLayout
+
+        self.assertEqual(
+            CmdLayout.text.meta(["组 1", "对照上 2 套"]),
+            "组 1 · 对照上 2 套",
+        )
+        self.assertEqual(
+            CmdLayout.text.numbered(["先看机会", "再看资金"]),
+            "1. 先看机会\n2. 再看资金",
+        )
+        self.assertEqual(CmdLayout.text.indent("结论"), "   结论")
 
     def test_icon_emoji_and_ascii_fallback(self) -> None:
         from core.infra.cmd_layout import CmdLayout

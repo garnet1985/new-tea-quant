@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.analyzer import Analyzer
+from core.modules.strategy.core.engines.analyzer.steps.layer import LayerPipeline
 from core.modules.strategy.core.engines.shared.enum_result_contract import (
     EnumResult,
     EnumResultsManager,
@@ -122,7 +122,7 @@ def test_price_layer_has_edge_and_keeps_chapter_when_counts_match(tmp_path, caps
         ]
     }
     store = _price_store(tmp_path, rows, enum_rows=enum_rows)
-    report = Analyzer.layer(store, present=True, force=True)
+    report = LayerPipeline.run(store, present=True, force=True)
     assert report["layer"] == "price_factor"
     assert report["facts"]["book"]["completed_count"] == 12
     assert report["facts"]["book"]["avg_roi"] == pytest.approx(0.03)
@@ -157,7 +157,7 @@ def test_price_layer_profit_fragile_and_merged_worse(tmp_path):
         ]
     }
     store = _price_store(tmp_path, {"AAA.SH": book}, enum_rows=enum_rows)
-    report = Analyzer.layer(store, present=False, force=True)
+    report = LayerPipeline.run(store, present=False, force=True)
     facts = report["facts"]
     assert facts["book"]["avg_roi"] > 0
     assert facts["concentration"]["still_positive_without_top5_trades"] is False
@@ -186,7 +186,7 @@ def test_price_layer_limit_up_skip_and_yearly_flip(tmp_path):
         ]
     }
     store = _price_store(tmp_path, rows, enum_rows=enum_rows)
-    report = Analyzer.layer(store, present=False, force=True)
+    report = LayerPipeline.run(store, present=False, force=True)
     years = {item["year"]: item for item in report["facts"]["yearly"]}
     assert years["2023"]["avg_roi"] < 0
     assert years["2024"]["avg_roi"] > 0
@@ -201,7 +201,7 @@ def test_price_layer_without_enum_does_not_invent_merge_bias(tmp_path):
         tmp_path,
         {"AAA.SH": [_price_row("1", roi=0.04)]},
     )
-    report = Analyzer.layer(store, present=False, force=True)
+    report = LayerPipeline.run(store, present=False, force=True)
     assert report["facts"]["denoising"]["enum_available"] is False
     ids = {item["id"] for item in report["conclusions"]}
     assert "no_enum_contrast" in ids

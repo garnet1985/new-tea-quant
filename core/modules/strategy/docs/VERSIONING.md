@@ -12,13 +12,14 @@
 
 | 动作 | 改 `settings.py`？ | 写哪个 `{vid}/`？ | 说明 |
 |------|-------------------|-------------------|------|
-| 打开 / 对比 version | 否 | 不写 | 只换报告。选中号 **不** 绑定 Run |
+| 打开 / 对比 version | 否 | 不写 | 只换报告。列表只暴露主号（纯数字） |
 | 恢复配置 | 是（显式确认） | 不写产物 | 把 `{vid}/settings.json` 写回 `settings.py`；**不** 把 `scope.json` 的股票池写回运行时 |
-| Run（非强制） | 工作台会先 Persist 草稿 | `(当前 execute_fp, 当前 env_fp)` 命中或新建 | 与选中号无关 |
-| 强制重跑（`ignore_cache` / `--force`） | 同上 | **同一 vid**（命中键不变时） | 跳过 cache、不复用已有 enum 产物；复写上游则清下游。**不** 为同一双指纹再开号 |
-| 手动删除 | 否 | 删该 `{vid}/` | CLI `sdv` / BFF `DELETE …/cache` |
+| Run（`se`/`sp`/`so`） | 工作台会先 Persist 草稿 | 主号 `(execute_fp, env_fp)` 命中或新建 | 只分配整数主号；与选中号无关 |
+| 归因（`sea`/`spa`/`soa`） | 否 | 主号或副本 `{vid}-{r}` | 须先有主 version；对照格写副本，不 bump `next_version_id` |
+| 强制重跑（`ignore_cache` / `--force`） | 同上 | **同一 id**（命中键不变时） | 跳过 cache；主号/副本各自复写。**不** 为同一双指纹再开号 |
+| 手动删除 | 否 | 删该 `{vid}/`（可含副本） | CLI `sdv` / BFF `DELETE …/cache` |
 
-主叙事：老 version 目录在当前环境下只读；Run 永远读当前 `settings.py` + 今天的股票池。要复现某号的配置，先恢复再跑。
+主叙事：老 version 目录在当前环境下只读；Run 永远读当前 `settings.py` + 今天的股票池。归因与回测分开；无主号则拒绝归因。
 
 ---
 
@@ -27,14 +28,15 @@
 ```text
 {strategy}/results/simulations/
   meta.json                         # 索引：next_version_id + registry
-  {vid}/
+  {vid}/                            # 主号：纯数字；仅 se/sp/so 分配
     settings.json                   # 当时完整运行 settings（恢复用）
     effective_settings.json         # 白名单投影；不含 entity_ids
     scope.json                      # { entity_ids, start_date, end_date }
     enum/ | price/ | portfolio/
       runtime_env.json              # 该步完成标记
-      analysis/                     # 与该步同生共死
-```
+      analysis/                     # 与该步同生共死（战役内部切片）
+  {vid}-{r}/                        # 归因副本：不进 UI 列表、不 bump next_version_id
+    …同上…```
 
 `meta.json`：
 
@@ -58,7 +60,9 @@
 
 约定：
 
-- registry key 即 version id（`"3"`，不是 `"v3"`）。条目内不重复存 `version_id`。
+- registry key 即 version id（`"3"` 或副本 `"3-1"`，不是 `"v3"`）。条目内不重复存 `version_id`。
+- 主号：`isdigit()`；副本：`{parent}-{r}`（`r≥1`），registry 可带 `kind=replica` / `parent_version_id`。
+- UI / `list_version_ids` 只暴露主号；指纹匹配主号也只扫主号。
 - 指纹平铺为 `execute_fp` / `env_fp`；无 `fingerprint_index`，命中时线性扫 registry。
 - `{vid}/` 身份归档三步共享、同身份只写一次（force / 补步不覆盖归档文件）。
 - 步骤完成：registry `steps.{kind} = "ok"`；磁盘兜底 `{vid}/{step}/runtime_env.json`。

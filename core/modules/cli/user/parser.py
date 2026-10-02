@@ -54,8 +54,9 @@ class UserParser:
         UserParser._p_strategy_decision_list(sub)
         UserParser._p_strategy_decision_delete(sub)
         UserParser._p_strategy_simulate(sub)
-        UserParser._p_strategy_attribution(sub)
-        UserParser._p_strategy_analyze(sub)
+        UserParser._p_strategy_attribute_enumerate(sub)
+        UserParser._p_strategy_attribute_price(sub)
+        UserParser._p_strategy_attribute_portfolio(sub)
         UserParser._p_strategy_rolling(sub)
         UserParser._p_strategy_delete_version(sub)
         UserParser._p_renew(sub)
@@ -178,30 +179,34 @@ class UserParser:
         UserParser._add_strategy_target(p)
 
     @staticmethod
-    def _p_strategy_attribution(sub: argparse._SubParsersAction) -> None:
+    def _p_strategy_attribute_enumerate(sub: argparse._SubParsersAction) -> None:
         p = UserParser._cmd(
             sub,
-            "strategy_attribution",
-            aliases=UserCommands.aliases_for("strategy_attribution"),
-            help="归因战役（读 attribution.py，对照旋钮）",
+            "strategy_attribute_enumerate",
+            aliases=UserCommands.aliases_for("strategy_attribute_enumerate"),
+            help="枚举层归因（读 attribution.py；须先 se）",
         )
         UserParser._add_strategy_target(p)
 
     @staticmethod
-    def _p_strategy_analyze(sub: argparse._SubParsersAction) -> None:
+    def _p_strategy_attribute_price(sub: argparse._SubParsersAction) -> None:
         p = UserParser._cmd(
             sub,
-            "strategy_analyze",
-            aliases=UserCommands.aliases_for("strategy_analyze"),
-            help="单 version 机会表切片（as-of → Analyzer.run）",
+            "strategy_attribute_price",
+            aliases=UserCommands.aliases_for("strategy_attribute_price"),
+            help="价格层归因（读 attribution.py；须先 sp）",
         )
         UserParser._add_strategy_target(p)
-        p.add_argument(
-            "--kind",
-            type=str,
-            default=None,
-            help="enumerate / price_factor / portfolio；默认取该 version 最深已有一步",
+
+    @staticmethod
+    def _p_strategy_attribute_portfolio(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_attribute_portfolio",
+            aliases=UserCommands.aliases_for("strategy_attribute_portfolio"),
+            help="组合层归因（读 attribution.py；须先 so）",
         )
+        UserParser._add_strategy_target(p)
 
     @staticmethod
     def _p_strategy_rolling(sub: argparse._SubParsersAction) -> None:

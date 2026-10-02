@@ -435,6 +435,7 @@ class VersionMetaStore:
         execute_fp: str,
         env_fp: str,
     ) -> Optional[str]:
+        """只查主 version（整数号）。归因副本 ``{vid}-{r}`` 不参与回测命中。"""
         execute = str(execute_fp or "").strip()
         efp = str(env_fp or "").strip()
         if not execute or not efp:
@@ -445,7 +446,12 @@ class VersionMetaStore:
 
         # 同指纹若留下多号（旧 force 新开号），复写最新号，避免写回更早的 vid
         root_meta = cls.read_root_meta(root)
-        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x), reverse=True):
+        primaries = [
+            vid
+            for vid in cls._registry(root_meta)
+            if str(vid).strip().isdigit()
+        ]
+        for vid in sorted(primaries, key=lambda x: int(x), reverse=True):
             entry = cls._registry(root_meta).get(vid)
             if not isinstance(entry, dict):
                 continue
@@ -455,6 +461,143 @@ class VersionMetaStore:
             ):
                 return str(vid).strip()
         return None
+
+    @classmethod
+    def is_primary_version_id(cls, version_id: str) -> bool:
+        return str(version_id or "").strip().isdigit()
+
+    @classmethod
+    def is_replica_version_id(cls, version_id: str) -> bool:
+        text = str(version_id or "").strip()
+        if not text or "-" not in text:
+            return False
+        parent, _, rest = text.partition("-")
+        return parent.isdigit() and rest.isdigit() and int(rest) > 0
+
+    @classmethod
+    def parent_version_id(cls, version_id: str) -> Optional[str]:
+        text = str(version_id or "").strip()
+        if cls.is_primary_version_id(text):
+            return text
+        if not cls.is_replica_version_id(text):
+            return None
+        return text.partition("-")[0]
+
+    @classmethod
+    def require_primary_version(
+        cls,
+        simulations_root: Path,
+        execute_fp: str,
+        env_fp: str,
+        *,
+        kind: SimulateKind,
+    ) -> str:
+        """归因入口：当前 settings 必须已有主 version，且该层产物齐全。"""
+        vid = cls.find_version_by_fingerprints(
+            simulations_root, execute_fp, env_fp
+        )
+        layer = kind.value
+        cli = {
+            SimulateKind.ENUMERATE: "se",
+            SimulateKind.PRICE_FACTOR: "sp",
+            SimulateKind.PORTFOLIO: "so",
+        }.get(kind, "se/sp/so")
+        if not vid:
+            raise ValueError(
+                f"归因需要先有回测主 version。请先跑 `{cli}`（当前 settings 尚无对应主号）。"
+            )
+        if cls.step_status(simulations_root, vid, kind) != "ok":
+            raise ValueError(
+                f"主 version {vid} 缺少 {layer} 产物。请先跑 `{cli}` 再归因。"
+            )
+        return vid
+
+    @classmethod
+    def find_replica_by_fingerprints(
+        cls,
+        simulations_root: Path,
+        parent_version_id: str,
+        execute_fp: str,
+        env_fp: str,
+    ) -> Optional[str]:
+        parent = str(parent_version_id or "").strip()
+        execute = str(execute_fp or "").strip()
+        efp = str(env_fp or "").strip()
+        if not parent or not execute or not efp:
+            return None
+        root_meta = cls.read_root_meta(simulations_root)
+        matches: List[str] = []
+        for vid, entry in cls._registry(root_meta).items():
+            key = str(vid).strip()
+            if not cls.is_replica_version_id(key):
+                continue
+            if cls.parent_version_id(key) != parent:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            if (
+                cls._entry_execute_fp(entry) == execute
+                and cls._entry_env_fp(entry) == efp
+            ):
+                matches.append(key)
+        if not matches:
+            return None
+        return sorted(matches, key=lambda x: int(x.partition("-")[2]))[-1]
+
+    @classmethod
+    def allocate_replica_id(
+        cls,
+        simulations_root: Path,
+        parent_version_id: str,
+        *,
+        execute_fp: str,
+        env_fp: str,
+    ) -> str:
+        """同一主号下按指纹复用副本，否则分配下一个 ``{vid}-{r}``。不 bump next_version_id。"""
+        parent = str(parent_version_id or "").strip()
+        if not cls.is_primary_version_id(parent):
+            raise ValueError(f"parent_version_id 须为主 version 整数号，收到 {parent!r}")
+        existing = cls.find_replica_by_fingerprints(
+            simulations_root, parent, execute_fp, env_fp
+        )
+        if existing:
+            return existing
+        root_meta = cls.read_root_meta(simulations_root)
+        max_r = 0
+        prefix = f"{parent}-"
+        for vid in cls._registry(root_meta):
+            key = str(vid).strip()
+            if not key.startswith(prefix):
+                continue
+            rest = key[len(prefix) :]
+            if rest.isdigit():
+                max_r = max(max_r, int(rest))
+        root = Path(simulations_root)
+        if root.is_dir():
+            for child in root.iterdir():
+                if not child.is_dir():
+                    continue
+                key = child.name
+                if not key.startswith(prefix):
+                    continue
+                rest = key[len(prefix) :]
+                if rest.isdigit():
+                    max_r = max(max_r, int(rest))
+        replica = f"{parent}-{max_r + 1}"
+        entry = cls.ensure_registry_entry(simulations_root, replica)
+        root_meta = cls.read_root_meta(simulations_root)
+        registry = cls._registry(root_meta)
+        entry = dict(registry.get(replica) or entry)
+        entry["parent_version_id"] = parent
+        entry["kind"] = "replica"
+        if str(execute_fp or "").strip():
+            entry["execute_fp"] = str(execute_fp).strip()
+        if str(env_fp or "").strip():
+            entry["env_fp"] = str(env_fp).strip()
+        registry[replica] = entry
+        root_meta["registry"] = registry
+        cls.write_root_meta(simulations_root, root_meta)
+        return replica
 
     @classmethod
     def resolve_version(
@@ -508,7 +651,12 @@ class VersionMetaStore:
         if not execute:
             return None
         root_meta = cls.read_root_meta(Path(simulations_root))
-        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x), reverse=True):
+        primaries = [
+            vid
+            for vid in cls._registry(root_meta)
+            if str(vid).strip().isdigit()
+        ]
+        for vid in sorted(primaries, key=lambda x: int(x), reverse=True):
             entry = cls._registry(root_meta).get(vid)
             if not isinstance(entry, dict):
                 continue

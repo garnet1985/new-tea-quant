@@ -1,8 +1,8 @@
-"""每格按 ``attribution.steps`` 逐层 ``Strategy.simulate``；命中/补跑由回测层判断。
+"""每格 ``Strategy.simulate``；命中/补跑由回测层判断。
 
-资金层不依赖价格层产物，所以只 simulate 最后一步会漏掉 price_factor。
+归因只写主号下的副本 ``{vid}-{r}``；baseline 复用主号。
 ``ignore_cache`` 只加在该格第一层，避免 -f 把后面刚写下的价格产物清掉。
-选号按 version_id 取已有产物，不补层。
+选号按 version_id 取已有主号产物，不补层。
 """
 from __future__ import annotations
 
@@ -136,9 +136,20 @@ class ExecuteStep:
         folder: Path,
         tasks: Sequence[AttributionTask],
         *,
+        kind: SimulateKind,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         strategy_info = cls._resolve_strategy_info(folder)
+        if strategy_info is None:
+            raise ValueError(f"当前策略不存在或未启用: {folder}")
+        baseline_fp = cls._baseline_fingerprints(strategy_info)
+        root = ArtifactStore.simulations_root(folder)
+        parent_vid = VersionMetaStore.require_primary_version(
+            root,
+            baseline_fp.execute_fp,
+            baseline_fp.env_fp,
+            kind=kind,
+        )
         snapshot_sample = None
         if any(task.cell.is_select for task in tasks):
             snapshot_sample = cls._snapshot_sample(folder, strategy_info)
@@ -148,6 +159,8 @@ class ExecuteStep:
                 strategy_info,
                 task,
                 snapshot_sample,
+                parent_version_id=parent_vid,
+                baseline_execute_fp=str(baseline_fp.execute_fp or ""),
                 ignore_cache=ignore_cache,
             )
             for task in tasks
@@ -160,6 +173,7 @@ class ExecuteStep:
             "status": "ok",
             "folder": str(Path(folder).resolve()),
             "ignore_cache": ignore_cache,
+            "parent_version_id": parent_vid,
             "task_count": len(tasks),
             "hits": hits,
             "simulated": simulated,
@@ -176,11 +190,20 @@ class ExecuteStep:
         task: AttributionTask,
         snapshot_sample: Optional[_SampleKey],
         *,
+        parent_version_id: str,
+        baseline_execute_fp: str,
         ignore_cache: bool,
     ) -> CellExecuteResult:
         if task.cell.is_select:
             return cls._lookup_selected_version(folder, task, snapshot_sample)
-        return cls._simulate(strategy_info, task, ignore_cache=ignore_cache)
+        return cls._simulate(
+            folder,
+            strategy_info,
+            task,
+            parent_version_id=parent_version_id,
+            baseline_execute_fp=baseline_execute_fp,
+            ignore_cache=ignore_cache,
+        )
 
     @classmethod
     def _lookup_selected_version(
@@ -219,9 +242,12 @@ class ExecuteStep:
     @classmethod
     def _simulate(
         cls,
+        folder: Path,
         strategy_info: Optional[EnabledStrategyInfo],
         task: AttributionTask,
         *,
+        parent_version_id: str,
+        baseline_execute_fp: str,
         ignore_cache: bool,
     ) -> CellExecuteResult:
         if strategy_info is None:
@@ -233,16 +259,28 @@ class ExecuteStep:
         fp_res = cls._fingerprints(strategy_info, task)
         from core.modules.strategy.core.strategy import Strategy
 
+        root = ArtifactStore.simulations_root(folder)
+        if str(fp_res.execute_fp or "") == str(baseline_execute_fp or ""):
+            target_vid = str(parent_version_id)
+        else:
+            target_vid = VersionMetaStore.allocate_replica_id(
+                root,
+                parent_version_id,
+                execute_fp=str(fp_res.execute_fp or ""),
+                env_fp=str(fp_res.env_fp or ""),
+            )
+
         steps = tuple(task.steps) or (task.kind,)
         payload: Any = None
         any_miss = False
         for i, kind in enumerate(steps):
             force = bool(ignore_cache) and i == 0
             logger.info(
-                "campaign simulate: index=%s kind=%s strategy=%s ignore_cache=%s",
+                "campaign simulate: index=%s kind=%s strategy=%s version=%s ignore_cache=%s",
                 task.cell.index,
                 kind.value,
                 strategy_info.key,
+                target_vid,
                 force,
             )
             payload = Strategy.simulate(
@@ -250,6 +288,7 @@ class ExecuteStep:
                 kind=kind,
                 ignore_cache=force,
                 runtime_settings=task.cell.runtime_settings,
+                version_id=target_vid,
             )
             if not (isinstance(payload, dict) and payload.get("cache_hit")):
                 any_miss = True
@@ -259,16 +298,35 @@ class ExecuteStep:
         vid = ""
         if isinstance(payload, dict):
             vid = str(
-                payload.get("version_id") or slot_dict.get("version_id") or ""
+                payload.get("version_id") or slot_dict.get("version_id") or target_vid or ""
             ).strip()
         output_dir = str(slot_dict.get("output_dir") or "").strip() or None
         return CellExecuteResult(
             index=task.cell.index,
             status="simulated" if any_miss else "hit",
-            version_id=vid or None,
+            version_id=vid or target_vid,
             execute_fp=fp_res.execute_fp,
             env_fp=fp_res.env_fp,
             output_dir=output_dir,
+        )
+
+    @classmethod
+    def _baseline_fingerprints(
+        cls, strategy_info: EnabledStrategyInfo
+    ) -> FingerprintResult:
+        stock_list = GlobalEntityCache.get_stock_list()
+        usable = StrategySettings.to_usable(
+            FingerprintCalculator.merge_settings(strategy_info, None)[0]
+        )
+        entity_ids = SampleListResolver.resolve(
+            strategy_info,
+            usable,
+            universe=stock_list,
+        )
+        return FingerprintCalculator.calculate_fingerprints(
+            strategy_info,
+            None,
+            entity_ids=entity_ids,
         )
 
     @classmethod

@@ -1,8 +1,8 @@
 # 命令行布局 — 架构
 
-**版本：** `0.1.2`
+**版本：** `0.2.0`
 
-为终端报告提供纯文本排版片段：标题、分割线、图标、水平条形图。对外唯一入口为门面类 `CmdLayout`。词条见 [glossary.yaml](../glossary.yaml)。
+为终端报告提供纯文本排版片段：标题层级、分割线、表格、行内文本、图标、水平条形图。对外唯一入口为门面类 `CmdLayout`。词条见 [glossary.yaml](../glossary.yaml)。
 
 ---
 
@@ -10,9 +10,9 @@
 
 **负责**
 
-- 门面类 `CmdLayout` 与命名空间：`bar_chart` / `title` / `separator` / `icon`
+- 门面类 `CmdLayout` 与命名空间：`bar_chart` / `title` / `separator` / `table` / `text` / `icon`
 - 生成可打印字符串（及可选直接打印到流）
-- 跨平台默认：条形 / 分割用 ASCII；图标按终端能力在 emoji 与 ASCII 间切换
+- 跨平台默认：条形 / 分割 / 表线用 ASCII；图标按终端能力在 emoji 与 ASCII 间切换
 
 **不负责**
 
@@ -28,7 +28,7 @@
 ```text
 core/infra/cmd_layout/
 ├── cmd_layout.py          # 门面类 CmdLayout
-├── __init__.py            # 仅导出 CmdLayout
+├── __init__.py            # 仅导出 CmdLayout / i
 ├── API.md
 ├── QUICKSTART.md
 ├── glossary.yaml
@@ -39,6 +39,10 @@ core/infra/cmd_layout/
 ├── title/
 │   └── __test__/
 ├── separator/
+│   └── __test__/
+├── table/
+│   └── __test__/
+├── text/
 │   └── __test__/
 ├── icon/
 │   └── __test__/
@@ -58,8 +62,10 @@ core/infra/cmd_layout/
         ▼
    CmdLayout（门面 / Facade）
    ├── bar_chart → 分布 / 直方图字符串
-   ├── title     → banner / section
+   ├── title     → h1 / h2 / h3（及兼容 banner / section）
    ├── separator → line / thick / star / blank
+   ├── table     → ASCII 对照表
+   ├── text      → meta / kv / indent / numbered / bullets
    └── icon      → get / i / supports_emoji
 ```
 
@@ -69,6 +75,8 @@ flowchart LR
   CmdLayout --> BarChart
   CmdLayout --> Title
   CmdLayout --> Separator
+  CmdLayout --> Table
+  CmdLayout --> Text
   CmdLayout --> Icon
 ```
 
@@ -77,7 +85,7 @@ flowchart LR
 ## 数据流（若有）
 
 ```text
-分桶或连续样本 / 标题文本 / 图标名
+分桶或连续样本 / 标题文本 / 表头行 / 图标名
   → CmdLayout.<namespace>.*
   → str（可选 print 到 stdout 或指定 stream）
 ```

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.strategy.core.engines.enumerator.common.artifacts.runtime_env import (
     RuntimeEnv,
@@ -22,7 +22,7 @@ class EnumScan:
     investments_by_entity: Dict[str, List[EnumResult]] = field(default_factory=dict)
     strategy_key: str = ""
     strategy_path: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     execution_mode: str = ""
     backtest_period: Dict[str, str] = field(default_factory=dict)
 
@@ -40,7 +40,7 @@ class EnumScan:
         *,
         total_entities: Optional[int] = None,
         strategy_key: str = "",
-        version_id: int = 0,
+        version_id: Any = "",
     ) -> "EnumScan":
         runtime = RuntimeEnv.load(output_dir)
         entity_ids_in_run = list(runtime.entity_ids or [])
@@ -64,7 +64,7 @@ class EnumScan:
             investments_by_entity=investments_by_entity,
             strategy_key=str(strategy_key or runtime.strategy_key or ""),
             strategy_path=str(runtime.strategy_path or runtime.strategy_key or ""),
-            version_id=int(version_id or runtime.version_id or 0),
+            version_id=str(version_id or runtime.version_id or "").strip(),
             execution_mode=str(runtime.execution_mode or ""),
             backtest_period=period_dict,
         )

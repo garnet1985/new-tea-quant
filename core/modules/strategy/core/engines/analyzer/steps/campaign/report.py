@@ -36,13 +36,14 @@ class CampaignReportStep:
             if isinstance(row, dict) and "index" in row
         }
         mode = family or config.parameter_mode
+        layer = tasks[0].kind.value if tasks else config.simulate_kind.value
         return {
             "success": True,
             "folder": str(Path(folder).resolve()),
             "family": family,
             "mode": mode,
-            "steps": [k.value for k in config.steps],
-            "kind": config.simulate_kind.value,
+            "layer": layer,
+            "kind": layer,
             "ignore_cache": executed.get("ignore_cache"),
             "cell_count": len(cells),
             "headline": summarized.get("headline"),
@@ -129,7 +130,7 @@ class CampaignReportStep:
             "success": True,
             "folder": folder or str(first.get("folder") or ""),
             "mode": config.parameter_mode,
-            "steps": list(first.get("steps") or []),
+            "layer": first.get("layer") or first.get("kind"),
             "kind": first.get("kind"),
             "ignore_cache": executed.get("ignore_cache"),
             "cell_count": cell_count,

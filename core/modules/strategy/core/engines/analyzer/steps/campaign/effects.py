@@ -1,4 +1,4 @@
-"""战役格子上的派生对照：边际、交叉矩形、跨层。不算 ML。"""
+"""战役派生对照：边际、交叉矩形、跨层。不算 ML。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from core.modules.analysis import Analysis
 
 from .contrasts import KnobContrasts
+from .metrics import item_delta, layer_number, outcome_value, part_value
 
 _EQUAL_EPS = 1e-12
 _ACCOUNT_FLAT = 0.005
 _OPP_FLAT = 2.0
-_PRICE_FLAT = 0.005
 _DEFAULT_OUTCOMES = (
     ("portfolio", "total_return"),
     ("portfolio", "max_drawdown"),
@@ -21,7 +21,7 @@ _DEFAULT_OUTCOMES = (
 
 
 class CampaignEffects:
-    """战役格子上的派生对照：边际、交叉矩形、跨层。不算 ML。"""
+    """战役格子上的派生对照：边际、交叉矩形、跨层。"""
 
     @classmethod
     def enrich(
@@ -36,6 +36,7 @@ class CampaignEffects:
         enable_cross_layer: bool = True,
         outcomes: Optional[Sequence[Tuple[str, str]]] = None,
     ) -> Dict[str, Any]:
+        scoped = tuple(outcomes) if outcomes else _DEFAULT_OUTCOMES
         out = dict(contributions)
         items = [
             item
@@ -45,31 +46,34 @@ class CampaignEffects:
         baseline = contributions.get("baseline")
         if not isinstance(baseline, dict):
             baseline = {}
-        out["marginals"] = _build_marginals(rows, items, baseline)
-        if not enable_interactions:
+        out["marginals"] = _build_marginals(rows, items, baseline, scoped)
+        if enable_interactions:
+            out["interactions"] = _build_interactions(
+                grid_rows if grid_rows is not None else rows,
+                list(grid_knobs) if grid_knobs is not None else varying_knobs,
+                scoped,
+            )
+        else:
             out["interactions"] = {
                 "status": "skipped",
                 "reason": "layer_scope",
                 "grids": [],
             }
-        else:
-            out["interactions"] = _build_interactions(
-                grid_rows if grid_rows is not None else rows,
-                list(grid_knobs) if grid_knobs is not None else varying_knobs,
-            )
-        if not enable_cross_layer:
-            out["cross_layer"] = []
-        else:
-            out["cross_layer"] = _build_cross_layer(items)
-        # outcomes 预留给后续网格按层收窄；当前交互仍用账户口径
-        _ = outcomes or _DEFAULT_OUTCOMES
+        out["cross_layer"] = (
+            _build_cross_layer(items) if enable_cross_layer else []
+        )
         return out
+
+
+def _primary(outcomes: Sequence[Tuple[str, str]]) -> Tuple[str, str]:
+    return outcomes[0] if outcomes else ("portfolio", "total_return")
 
 
 def _build_marginals(
     rows: Sequence[Mapping[str, Any]],
     items: Sequence[Mapping[str, Any]],
     baseline: Mapping[str, Any],
+    outcomes: Sequence[Tuple[str, str]],
 ) -> List[Dict[str, Any]]:
     base_row = _row_by_version(rows, baseline.get("version_id"))
     if base_row is None and rows:
@@ -89,18 +93,19 @@ def _build_marginals(
             order.append(knob)
         grouped[knob].append(item)
     out: List[Dict[str, Any]] = []
+    primary = _primary(outcomes)
     for knob in order:
-        levels = _knob_levels(knob, grouped[knob], base_row, rows)
+        levels = _knob_levels(knob, grouped[knob], base_row, rows, outcomes)
         if len(levels) < 2:
             continue
-        best = _best_level(levels)
+        best = _best_level(levels, primary)
         out.append(
             {
                 "knob": knob,
                 "levels": levels,
                 "best_value": None if best is None else best.get("value"),
                 "best_version_id": None if best is None else best.get("version_id"),
-                "note": _marginal_note(levels, best),
+                "note": _marginal_note(levels, best, primary),
             }
         )
     return out
@@ -109,14 +114,16 @@ def _build_marginals(
 def _build_interactions(
     rows: Sequence[Mapping[str, Any]],
     varying_knobs: Sequence[str],
+    outcomes: Sequence[Tuple[str, str]],
 ) -> Dict[str, Any]:
     knobs = [str(key) for key in varying_knobs]
     if len(knobs) < 2 or len(rows) < 4:
         return {"status": "skipped", "reason": "no_rectangle", "grids": []}
+    primary = _primary(outcomes)
     grids: List[Dict[str, Any]] = []
     for i, row_knob in enumerate(knobs):
         for col_knob in knobs[i + 1 :]:
-            grid = _rectangle(rows, knobs, row_knob, col_knob)
+            grid = _rectangle(rows, knobs, row_knob, col_knob, primary)
             if grid is not None:
                 grids.append(grid)
     if not grids:
@@ -143,20 +150,14 @@ def _build_cross_layer(items: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any
         pick = _pick_cross_item(grouped[knob])
         if pick is None:
             continue
-        opp = _delta_of(pick, "enumerate", "total_opportunities")
-        acc = _delta_of(pick, "portfolio", "total_return")
-        price = _delta_of(pick, "price_factor", "avg_roi")
-        if price is None:
-            price = _delta_of(pick, "price_factor", "win_rate")
         raw.append(
             {
                 "knob": knob,
                 "from": pick.get("from"),
                 "to": pick.get("to"),
                 "version_id": pick.get("version_id"),
-                "opp": opp,
-                "acc": acc,
-                "price": price,
+                "opp": item_delta(pick, "enumerate", "total_opportunities"),
+                "acc": item_delta(pick, "portfolio", "total_return"),
             }
         )
     max_acc = 0.0
@@ -169,11 +170,6 @@ def _build_cross_layer(items: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any
     for item in raw:
         opp_dir = _direction(item.get("opp"), _OPP_FLAT)
         acc_dir = _direction(item.get("acc"), acc_flat)
-        price_dir = (
-            "missing"
-            if item.get("price") is None
-            else _direction(item.get("price"), _PRICE_FLAT)
-        )
         out.append(
             {
                 "knob": item["knob"],
@@ -182,7 +178,6 @@ def _build_cross_layer(items: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any
                 "version_id": item.get("version_id"),
                 "opportunity": opp_dir,
                 "account": acc_dir,
-                "price": price_dir,
                 "verdict": _verdict(opp_dir, acc_dir),
             }
         )
@@ -194,13 +189,14 @@ def _knob_levels(
     items: Sequence[Mapping[str, Any]],
     base_row: Mapping[str, Any],
     rows: Sequence[Mapping[str, Any]],
+    outcomes: Sequence[Tuple[str, str]],
 ) -> List[Dict[str, Any]]:
     base_knobs = base_row.get("knobs") if isinstance(base_row.get("knobs"), dict) else {}
     by_value: Dict[float, Dict[str, Any]] = {}
     base_key = _num_key(base_knobs.get(knob))
     if base_key is not None:
         by_value[base_key] = _level_from_row(
-            knob, base_key, base_row, is_baseline=True
+            knob, base_key, base_row, outcomes, is_baseline=True
         )
     for item in items:
         key = _num_key(item.get("to"))
@@ -209,19 +205,20 @@ def _knob_levels(
         row = _row_by_version(rows, item.get("version_id"))
         if row is None:
             continue
-        by_value[key] = _level_from_row(knob, key, row, is_baseline=False)
+        by_value[key] = _level_from_row(
+            knob, key, row, outcomes, is_baseline=False
+        )
     ordered = [by_value[key] for key in sorted(by_value)]
+    base_outcomes = next(
+        (level.get("outcomes") or [] for level in ordered if level.get("is_baseline")),
+        None,
+    )
     prev_outcomes: Optional[List[Dict[str, Any]]] = None
-    base_outcomes = None
     for level in ordered:
-        if level.get("is_baseline"):
-            base_outcomes = level.get("outcomes") or []
-            break
-    for level in ordered:
-        outcomes = level.get("outcomes") or []
-        level["vs_baseline"] = _outcome_delta_list(base_outcomes, outcomes)
-        level["vs_prev"] = _outcome_delta_list(prev_outcomes, outcomes)
-        prev_outcomes = outcomes
+        outcomes_now = level.get("outcomes") or []
+        level["vs_baseline"] = _outcome_delta_list(base_outcomes, outcomes_now)
+        level["vs_prev"] = _outcome_delta_list(prev_outcomes, outcomes_now)
+        prev_outcomes = outcomes_now
     return ordered
 
 
@@ -229,36 +226,27 @@ def _level_from_row(
     knob: str,
     value: float,
     row: Mapping[str, Any],
+    outcomes: Sequence[Tuple[str, str]],
     *,
     is_baseline: bool,
 ) -> Dict[str, Any]:
     layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
-    return _level_from_payload(
-        knob, value, row.get("version_id"), layers, is_baseline=is_baseline
-    )
-
-
-def _level_from_payload(
-    knob: str,
-    value: float,
-    version_id: Any,
-    layers: Mapping[str, Any],
-    *,
-    is_baseline: bool,
-) -> Dict[str, Any]:
     return {
         "knob": knob,
         "value": value,
-        "version_id": version_id,
+        "version_id": row.get("version_id"),
         "is_baseline": is_baseline,
-        "outcomes": _outcomes_from_layers(layers),
+        "outcomes": _outcomes_from_layers(layers, outcomes),
     }
 
 
-def _outcomes_from_layers(layers: Mapping[str, Any]) -> List[Dict[str, Any]]:
+def _outcomes_from_layers(
+    layers: Mapping[str, Any],
+    outcomes: Sequence[Tuple[str, str]],
+) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    for layer, outcome in _DEFAULT_OUTCOMES:
-        value = _layer_number(layers, layer, outcome)
+    for layer, outcome in outcomes:
+        value = layer_number(layers, layer, outcome)
         if value is None:
             continue
         out.append({"layer": layer, "outcome": outcome, "value": value})
@@ -286,21 +274,19 @@ def _outcome_delta_list(
         previous = before_map.get((layer, outcome))
         if current is None or previous is None:
             continue
-        out.append(
-            {
-                "layer": layer,
-                "outcome": outcome,
-                "delta": current - previous,
-            }
-        )
+        out.append({"layer": layer, "outcome": outcome, "delta": current - previous})
     return out
 
 
-def _best_level(levels: Sequence[Mapping[str, Any]]) -> Optional[Mapping[str, Any]]:
+def _best_level(
+    levels: Sequence[Mapping[str, Any]],
+    primary: Tuple[str, str],
+) -> Optional[Mapping[str, Any]]:
+    layer, outcome = primary
     best = None
     best_ret = None
     for level in levels:
-        ret = _level_outcome(level, "portfolio", "total_return")
+        ret = outcome_value(level.get("outcomes") or [], layer, outcome)
         if ret is None:
             continue
         if best_ret is None or ret > best_ret:
@@ -312,14 +298,18 @@ def _best_level(levels: Sequence[Mapping[str, Any]]) -> Optional[Mapping[str, An
 def _marginal_note(
     levels: Sequence[Mapping[str, Any]],
     best: Optional[Mapping[str, Any]],
+    primary: Tuple[str, str],
 ) -> str:
     if len(levels) < 3 or best is None:
         return ""
+    layer, outcome = primary
     last = levels[-1]
-    last_step = _list_delta(last.get("vs_prev") or [], "portfolio", "total_return")
-    first_step = None
-    if len(levels) >= 2:
-        first_step = _list_delta(levels[1].get("vs_prev") or [], "portfolio", "total_return")
+    last_step = part_value(last.get("vs_prev") or [], layer, outcome, field="delta")
+    first_step = (
+        part_value(levels[1].get("vs_prev") or [], layer, outcome, field="delta")
+        if len(levels) >= 2
+        else None
+    )
     last_value = _num_key(last.get("value"))
     best_value = _num_key(best.get("value"))
     if last_value is None or best_value is None:
@@ -340,6 +330,7 @@ def _rectangle(
     all_knobs: Sequence[str],
     row_knob: str,
     col_knob: str,
+    primary: Tuple[str, str],
 ) -> Optional[Dict[str, Any]]:
     others = [key for key in all_knobs if key not in (row_knob, col_knob)]
     groups: Dict[Tuple[Any, ...], List[Mapping[str, Any]]] = {}
@@ -349,7 +340,7 @@ def _rectangle(
         groups.setdefault(freeze, []).append(row)
     best: Optional[Dict[str, Any]] = None
     for freeze, group in groups.items():
-        grid = _filled_grid(group, row_knob, col_knob, freeze)
+        grid = _filled_grid(group, row_knob, col_knob, freeze, primary)
         if grid is None:
             continue
         if best is None or int(grid.get("n_cells") or 0) > int(best.get("n_cells") or 0):
@@ -362,6 +353,7 @@ def _filled_grid(
     row_knob: str,
     col_knob: str,
     freeze: Sequence[Tuple[str, Any]],
+    primary: Tuple[str, str],
 ) -> Optional[Dict[str, Any]]:
     cells: Dict[Tuple[Any, Any], Mapping[str, Any]] = {}
     originals: Dict[Tuple[Any, Any], Tuple[Any, Any]] = {}
@@ -384,10 +376,7 @@ def _filled_grid(
         return None
     if len(cells) != len(row_keys) * len(col_keys):
         return None
-    for rk in row_keys:
-        for ck in col_keys:
-            if (rk, ck) not in cells:
-                return None
+    layer, outcome = primary
     grid_cells: List[List[Dict[str, Any]]] = []
     best_cell = None
     best_ret = None
@@ -396,22 +385,22 @@ def _filled_grid(
         for ck in col_keys:
             row = cells[(rk, ck)]
             row_raw, col_raw = originals[(rk, ck)]
-            ret = _layer_number(
-                row.get("layers") if isinstance(row.get("layers"), dict) else {},
-                "portfolio",
-                "total_return",
-            )
+            layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
+            score = layer_number(layers, layer, outcome)
+            # present / 旧测试仍读 total_return；主结局另存 score
+            account = layer_number(layers, "portfolio", "total_return")
             cell = {
                 "row_value": row_raw,
                 "col_value": col_raw,
                 "version_id": row.get("version_id"),
-                "total_return": ret,
+                "total_return": account if account is not None else score,
+                "score": score,
             }
             line.append(cell)
-            if ret is None:
+            if score is None:
                 continue
-            if best_ret is None or ret > best_ret:
-                best_ret = ret
+            if best_ret is None or score > best_ret:
+                best_ret = score
                 best_cell = cell
         grid_cells.append(line)
     held = {key: value for key, value in freeze if value is not None}
@@ -440,8 +429,8 @@ def _pick_cross_item(
     best = None
     best_abs = -1.0
     for item in items:
-        acc = _delta_of(item, "portfolio", "total_return")
-        opp = _delta_of(item, "enumerate", "total_opportunities")
+        acc = item_delta(item, "portfolio", "total_return")
+        opp = item_delta(item, "enumerate", "total_opportunities")
         score = 0.0
         if acc is not None:
             score = max(score, abs(acc))
@@ -477,42 +466,6 @@ def _direction(delta: Optional[float], flat: float) -> str:
     return "up" if delta > 0 else "down"
 
 
-def _delta_of(
-    item: Mapping[str, Any],
-    layer: str,
-    outcome: str,
-) -> Optional[float]:
-    return _list_delta(item.get("deltas") or [], layer, outcome)
-
-
-def _list_delta(parts: Sequence[Any], layer: str, outcome: str) -> Optional[float]:
-    for part in parts:
-        if not isinstance(part, dict):
-            continue
-        if str(part.get("layer") or "") != layer:
-            continue
-        if str(part.get("outcome") or "") != outcome:
-            continue
-        return Analysis.Classical.coerce_float(part.get("delta"))
-    return None
-
-
-def _level_outcome(
-    level: Mapping[str, Any],
-    layer: str,
-    outcome: str,
-) -> Optional[float]:
-    for part in level.get("outcomes") or []:
-        if not isinstance(part, dict):
-            continue
-        if str(part.get("layer") or "") != layer:
-            continue
-        if str(part.get("outcome") or "") != outcome:
-            continue
-        return Analysis.Classical.coerce_float(part.get("value"))
-    return None
-
-
 def _row_by_version(
     rows: Sequence[Mapping[str, Any]],
     version_id: Any,
@@ -524,17 +477,6 @@ def _row_by_version(
         if str(row.get("version_id") or "").strip() == vid:
             return row
     return None
-
-
-def _layer_number(
-    layers: Mapping[str, Any],
-    layer: str,
-    outcome: str,
-) -> Optional[float]:
-    block = layers.get(layer)
-    if not isinstance(block, dict):
-        return None
-    return Analysis.Classical.coerce_float(block.get(outcome))
 
 
 def _level_key(value: Any) -> Optional[Tuple[Any, ...]]:

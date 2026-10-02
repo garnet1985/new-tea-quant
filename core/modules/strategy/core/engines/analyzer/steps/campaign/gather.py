@@ -13,6 +13,7 @@ from core.modules.strategy.core.services.artifacts.version_meta import VersionMe
 from .attribute import AttributeStep
 from .cells import AttributionTask
 from .contrasts import KnobContrasts
+from .metrics import READY
 
 _LAYERS = (
     (SimulateKind.ENUMERATE, "enumerate"),
@@ -38,8 +39,6 @@ _PORTFOLIO_KEYS = (
     "max_drawdown",
     "capital_utilization_ratio_pct",
 )
-
-_READY = frozenset({"hit", "simulated"})
 
 
 class GatherStep:
@@ -69,7 +68,7 @@ class GatherStep:
             status = str(raw.get("status") or "")
             vid = str(raw.get("version_id") or "").strip() or None
             source: Any = task.cell.effective if task is not None else None
-            if status in _READY and vid:
+            if status in READY and vid:
                 disk = VersionMetaStore.read_effective_settings(
                     ArtifactStore.simulations_root(folder), vid
                 )
@@ -83,10 +82,10 @@ class GatherStep:
                 "knobs": KnobContrasts.read(source, paths),
                 "layers": {},
             }
-            if status in _READY and vid:
+            if status in READY and vid:
                 row["layers"] = cls._load_layers(folder, vid)
             rows.append(row)
-        ready = [row for row in rows if row.get("status") in _READY]
+        ready = [row for row in rows if row.get("status") in READY]
         return {
             "status": "ok" if ready else "empty",
             "row_count": len(rows),

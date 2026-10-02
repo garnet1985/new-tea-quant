@@ -1,4 +1,4 @@
-"""价格层战役归因：去噪账，仍不含组合资金旋钮。"""
+"""价格层战役归因：去噪账，仍不含组合资金参数。"""
 from __future__ import annotations
 
 from .base import AttributeBase
@@ -14,5 +14,3 @@ class PriceAttributeStep(AttributeBase):
         ("price_factor", "win_rate"),
         ("enumerate", "total_opportunities"),
     )
-    ENABLE_INTERACTIONS = True
-    ENABLE_CROSS_LAYER = True

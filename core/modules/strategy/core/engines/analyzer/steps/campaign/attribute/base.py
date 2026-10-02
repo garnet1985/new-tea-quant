@@ -7,9 +7,9 @@ from core.modules.analysis import Analysis
 
 from ..contrasts import KnobContrasts
 from ..effects import CampaignEffects
+from ..metrics import READY, layer_number
 
-_READY = frozenset({"hit", "simulated"})
-_SKIPPED_CHAPTER = {
+_SKIPPED = {
     "status": "skipped",
     "reason": "insufficient_ready_rows",
     "items": [],
@@ -19,10 +19,9 @@ _SKIPPED_CHAPTER = {
 
 
 class AttributeBase:
-    """一层战役归因。子类只声明本层 settings 段、结局与是否做交叉网格。"""
+    """一层战役归因。子类只声明本层 settings 段、结局与是否做交叉对照。"""
 
     LAYER: str = ""
-    # 与 StrategySettings 段对齐；空元组 = 不按前缀限制（组合层）
     KNOB_PREFIXES: Tuple[str, ...] = ()
     OUTCOMES: Tuple[Tuple[str, str], ...] = ()
     ENABLE_INTERACTIONS: bool = True
@@ -30,14 +29,12 @@ class AttributeBase:
 
     @classmethod
     def accepts_knob(cls, path: Any) -> bool:
-        """本层该不该收这个旋钮路径。"""
         text = str(path or "").strip()
         if not text:
             return False
-        prefixes = cls.KNOB_PREFIXES
-        if not prefixes:
+        if not cls.KNOB_PREFIXES:
             return True
-        for prefix in prefixes:
+        for prefix in cls.KNOB_PREFIXES:
             root = prefix[:-1] if prefix.endswith(".") else prefix
             if text == root or text.startswith(prefix):
                 return True
@@ -49,9 +46,7 @@ class AttributeBase:
         seen = set()
         for path in paths:
             text = str(path or "").strip()
-            if not text or text in seen:
-                continue
-            if not cls.accepts_knob(text):
+            if not text or text in seen or not cls.accepts_knob(text):
                 continue
             seen.add(text)
             out.append(text)
@@ -62,7 +57,7 @@ class AttributeBase:
         rows = [
             row
             for row in gathered.get("rows") or []
-            if isinstance(row, dict) and row.get("status") in _READY
+            if isinstance(row, dict) and row.get("status") in READY
         ]
         n = len(rows)
         focus = cls.LAYER
@@ -72,11 +67,10 @@ class AttributeBase:
                 "reason": "insufficient_ready_rows",
                 "n": n,
                 "layer": focus,
-                "knobs": {},
                 "layers": {},
                 "contributions": {
-                    "presence": dict(_SKIPPED_CHAPTER),
-                    "sensitivity": dict(_SKIPPED_CHAPTER),
+                    "presence": dict(_SKIPPED),
+                    "sensitivity": dict(_SKIPPED),
                 },
             }
 
@@ -93,26 +87,12 @@ class AttributeBase:
                 for path in presence_paths
             )
         ]
-        knob_keys = cls.filter_knobs(
-            _union_keys(row.get("knobs") or {} for row in rows)
-        )
-        knob_profiles = {
-            key: Analysis.Classical.summarize_column(_knob_scalars(rows, key))
-            for key in knob_keys
-        }
         varying_knobs = [
             key
             for key in sensitivity_paths
-            if _is_numeric_series(_knob_scalars(sensitivity_rows, key))
-            and Analysis.Classical.summarize_column(
-                _knob_scalars(sensitivity_rows, key)
-            ).get("role")
-            == "varying"
+            if _is_varying(_knob_scalars(sensitivity_rows, key))
         ]
-
-        layers = {
-            focus: cls._attribute_layer(sensitivity_rows, focus, varying_knobs)
-        }
+        layers = {focus: cls._attribute_layer(sensitivity_rows, varying_knobs)}
         grid_knobs = list(dict.fromkeys([*presence_paths, *sensitivity_paths]))
         sensitivity = cls._sensitivity_chapter(
             sensitivity_rows,
@@ -120,15 +100,11 @@ class AttributeBase:
             grid_rows=rows,
             grid_knobs=grid_knobs,
         )
-        contributions = {
-            "presence": presence,
-            "sensitivity": sensitivity,
-        }
+        contributions = {"presence": presence, "sensitivity": sensitivity}
         return {
             "status": _overall_status(layers, contributions),
             "n": n,
             "layer": focus,
-            "knobs": knob_profiles,
             "layers": layers,
             "varying_knobs": varying_knobs,
             "presence_paths": presence_paths,
@@ -176,8 +152,6 @@ class AttributeBase:
                 "version_id": baseline.get("version_id"),
                 "knobs": {key: base_knobs.get(key) for key in compare_keys},
             }
-            # 本层不看的参数被滤掉后，不同 overlay 可能指纹相同（如只改 portfolio）；
-            # 同一指纹只留第一次，避免贡献度重复行。
             seen_on: set = set()
             for row in on_rows:
                 knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
@@ -192,10 +166,7 @@ class AttributeBase:
                 ]
                 if path not in changed:
                     continue
-                if changed == [path]:
-                    kind = "one_at_a_time"
-                else:
-                    kind = "joint"
+                kind = "one_at_a_time" if changed == [path] else "joint"
                 items.append(
                     {
                         "kind": kind,
@@ -208,21 +179,7 @@ class AttributeBase:
                         "deltas": cls._row_deltas(baseline, row),
                     }
                 )
-        one_count = sum(1 for item in items if item.get("kind") == "one_at_a_time")
-        joint_count = sum(1 for item in items if item.get("kind") == "joint")
-        if one_count:
-            status = "ok"
-        elif joint_count:
-            status = "partial"
-        else:
-            status = "skipped"
-        return {
-            "status": status,
-            "baselines": baselines,
-            "items": items,
-            "one_at_a_time_count": one_count,
-            "joint_count": joint_count,
-        }
+        return _chapter_result(items, baselines=baselines)
 
     @classmethod
     def _sensitivity_chapter(
@@ -233,15 +190,16 @@ class AttributeBase:
         grid_rows: Optional[Sequence[Mapping[str, Any]]] = None,
         grid_knobs: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
-        skipped = {
-            "status": "skipped",
-            "reason": "insufficient_on_rows",
-            "items": [],
-            "one_at_a_time_count": 0,
-            "joint_count": 0,
-        }
         contributions = (
-            cls._contributions(rows, varying_knobs) if len(rows) >= 2 else skipped
+            cls._contributions(rows, varying_knobs)
+            if len(rows) >= 2
+            else {
+                "status": "skipped",
+                "reason": "insufficient_on_rows",
+                "items": [],
+                "one_at_a_time_count": 0,
+                "joint_count": 0,
+            }
         )
         grid = grid_rows if grid_rows is not None else rows
         knobs = list(grid_knobs) if grid_knobs is not None else varying_knobs
@@ -265,11 +223,7 @@ class AttributeBase:
         varying_knobs: Sequence[str],
     ) -> Dict[str, Any]:
         if len(rows) < 2:
-            return {
-                "status": "skipped",
-                "reason": "insufficient_ready_rows",
-                "items": [],
-            }
+            return {"status": "skipped", "reason": "insufficient_ready_rows", "items": []}
         baseline = rows[0]
         base_knobs = (
             baseline.get("knobs") if isinstance(baseline.get("knobs"), dict) else {}
@@ -285,12 +239,9 @@ class AttributeBase:
                 for key in compare_keys
                 if not KnobContrasts.values_equal(base_knobs.get(key), knobs.get(key))
             ]
-            if len(changed) == 1:
-                kind = "one_at_a_time"
-            elif changed:
-                kind = "joint"
-            else:
-                kind = "unchanged"
+            if not changed:
+                continue
+            kind = "one_at_a_time" if len(changed) == 1 else "joint"
             knob = changed[0] if len(changed) == 1 else None
             items.append(
                 {
@@ -304,32 +255,20 @@ class AttributeBase:
                     "deltas": cls._row_deltas(baseline, row),
                 }
             )
-        one_count = sum(1 for item in items if item.get("kind") == "one_at_a_time")
-        joint_count = sum(1 for item in items if item.get("kind") == "joint")
-        if one_count:
-            status = "ok"
-        elif joint_count:
-            status = "partial"
-        else:
-            status = "skipped"
-        return {
-            "status": status,
-            "baseline": {
-                "version_id": baseline.get("version_id"),
-                "knobs": {key: base_knobs.get(key) for key in compare_keys},
-            },
-            "items": items,
-            "one_at_a_time_count": one_count,
-            "joint_count": joint_count,
+        result = _chapter_result(items)
+        result["baseline"] = {
+            "version_id": baseline.get("version_id"),
+            "knobs": {key: base_knobs.get(key) for key in compare_keys},
         }
+        return result
 
     @classmethod
     def _attribute_layer(
         cls,
         rows: Sequence[Mapping[str, Any]],
-        layer: str,
         varying_knobs: Sequence[str],
     ) -> Dict[str, Any]:
+        layer = cls.LAYER
         usable = [
             row
             for row in rows
@@ -342,51 +281,34 @@ class AttributeBase:
                 "n": len(usable),
                 "outcomes": {},
             }
-
-        sample = usable[0].get("layers", {}).get(layer) or {}
-        outcome_keys = [
-            key
-            for key in sample.keys()
-            if _is_numeric_series(_series(usable, "layers", key, layer=layer))
-        ]
-        if not outcome_keys:
-            return {
-                "status": "skipped",
-                "reason": "no_numeric_outcomes",
-                "n": len(usable),
-                "outcomes": {},
-            }
-
+        wanted = [outcome for layer_name, outcome in cls.OUTCOMES if layer_name == layer]
+        if not wanted:
+            sample = usable[0].get("layers", {}).get(layer) or {}
+            wanted = [
+                key
+                for key in sample.keys()
+                if _is_numeric_series(_layer_series(usable, layer, key))
+            ]
         outcomes: Dict[str, Any] = {}
-        for outcome in outcome_keys:
-            outcomes[outcome] = cls._attribute_outcome(
-                usable, layer, outcome, varying_knobs
-            )
-
+        for outcome in wanted:
+            outcomes[outcome] = cls._attribute_outcome(usable, outcome, varying_knobs)
         statuses = [
-            part.get("status")
-            for part in outcomes.values()
-            if isinstance(part, dict)
+            part.get("status") for part in outcomes.values() if isinstance(part, dict)
         ]
         if any(s == "ok" for s in statuses):
             status = "ok" if all(s == "ok" for s in statuses) else "partial"
         else:
             status = "skipped"
-        return {
-            "status": status,
-            "n": len(usable),
-            "outcomes": outcomes,
-        }
+        return {"status": status, "n": len(usable), "outcomes": outcomes}
 
     @classmethod
     def _attribute_outcome(
         cls,
         rows: Sequence[Mapping[str, Any]],
-        layer: str,
         outcome: str,
         varying_knobs: Sequence[str],
     ) -> Dict[str, Any]:
-        y_raw = _series(rows, "layers", outcome, layer=layer)
+        y_raw = _layer_series(rows, cls.LAYER, outcome)
         profile = Analysis.Classical.summarize_column(y_raw)
         if profile.get("role") != "varying" or profile.get("dtype") != "numeric":
             return {
@@ -402,18 +324,13 @@ class AttributeBase:
                 "profile": profile,
                 "fields": {},
             }
-
         fields: Dict[str, Any] = {}
         for knob in varying_knobs:
-            x_raw = _knob_scalars(rows, knob)
-            xs, ys = _aligned_numeric(x_raw, y_raw)
-            wins = [value > 0.0 for value in ys]
+            xs, ys = _aligned_numeric(_knob_scalars(rows, knob), y_raw)
             fields[knob] = {
                 "n": len(xs),
                 "correlation": Analysis.Classical.spearman_correlation(xs, ys),
-                "buckets": Analysis.Classical.quantile_buckets(xs, ys, wins),
             }
-
         field_ok = any(
             (part.get("correlation") or {}).get("status") == "ok"
             for part in fields.values()
@@ -436,8 +353,8 @@ class AttributeBase:
         row_layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
         out: List[Dict[str, Any]] = []
         for layer_name, outcome in cls.OUTCOMES:
-            before = _layer_number(base_layers, layer_name, outcome)
-            after = _layer_number(row_layers, layer_name, outcome)
+            before = layer_number(base_layers, layer_name, outcome)
+            after = layer_number(row_layers, layer_name, outcome)
             if before is None or after is None:
                 continue
             out.append(
@@ -452,39 +369,38 @@ class AttributeBase:
         return out
 
 
-def _knob_fingerprint(
-    knobs: Mapping[str, Any],
-    keys: Sequence[str],
-) -> Tuple[Any, ...]:
-    """本层对照用的参数指纹；标量按数值，关为 None。"""
-    parts: List[Tuple[str, Any]] = []
-    for key in keys:
-        raw = knobs.get(key)
-        if KnobContrasts.is_off(raw):
-            parts.append((key, None))
-            continue
-        scalar = KnobContrasts.scalar(raw)
-        if scalar is not None:
-            parts.append((key, round(float(scalar), 12)))
-        else:
-            parts.append((key, repr(raw)))
-    return tuple(parts)
-
-
-def _series(
-    rows: Sequence[Mapping[str, Any]],
-    group: str,
-    key: str,
+def _chapter_result(
+    items: Sequence[Mapping[str, Any]],
     *,
-    layer: Optional[str] = None,
+    baselines: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    one_count = sum(1 for item in items if item.get("kind") == "one_at_a_time")
+    joint_count = sum(1 for item in items if item.get("kind") == "joint")
+    if one_count:
+        status = "ok"
+    elif joint_count:
+        status = "partial"
+    else:
+        status = "skipped"
+    out: Dict[str, Any] = {
+        "status": status,
+        "items": list(items),
+        "one_at_a_time_count": one_count,
+        "joint_count": joint_count,
+    }
+    if baselines is not None:
+        out["baselines"] = baselines
+    return out
+
+
+def _layer_series(
+    rows: Sequence[Mapping[str, Any]],
+    layer: str,
+    key: str,
 ) -> List[Any]:
     out: List[Any] = []
     for row in rows:
-        if group == "knobs":
-            out.append(_knob_scalar(row, key))
-            continue
-        layers = row.get("layers") or {}
-        block = layers.get(layer) if layer else None
+        block = (row.get("layers") or {}).get(layer)
         out.append(block.get(key) if isinstance(block, dict) else None)
     return out
 
@@ -508,16 +424,24 @@ def _union_keys(blocks: Sequence[Any]) -> List[str]:
         if not isinstance(block, dict):
             continue
         for key in block:
-            if key in seen:
+            text = str(key)
+            if text in seen:
                 continue
-            seen.add(key)
-            keys.append(str(key))
+            seen.add(text)
+            keys.append(text)
     return keys
 
 
-def _is_numeric_series(values: Sequence[Any]) -> bool:
+def _is_varying(values: Sequence[Any]) -> bool:
     profile = Analysis.Classical.summarize_column(values)
-    return profile.get("dtype") == "numeric"
+    return (
+        profile.get("dtype") == "numeric"
+        and profile.get("role") == "varying"
+    )
+
+
+def _is_numeric_series(values: Sequence[Any]) -> bool:
+    return Analysis.Classical.summarize_column(values).get("dtype") == "numeric"
 
 
 def _aligned_numeric(
@@ -536,15 +460,22 @@ def _aligned_numeric(
     return out_x, out_y
 
 
-def _layer_number(
-    layers: Mapping[str, Any],
-    layer: str,
-    outcome: str,
-) -> Optional[float]:
-    block = layers.get(layer)
-    if not isinstance(block, dict):
-        return None
-    return Analysis.Classical.coerce_float(block.get(outcome))
+def _knob_fingerprint(
+    knobs: Mapping[str, Any],
+    keys: Sequence[str],
+) -> Tuple[Any, ...]:
+    parts: List[Tuple[str, Any]] = []
+    for key in keys:
+        raw = knobs.get(key)
+        if KnobContrasts.is_off(raw):
+            parts.append((key, None))
+            continue
+        scalar = KnobContrasts.scalar(raw)
+        if scalar is not None:
+            parts.append((key, round(float(scalar), 12)))
+        else:
+            parts.append((key, repr(raw)))
+    return tuple(parts)
 
 
 def _overall_status(
@@ -552,9 +483,7 @@ def _overall_status(
     contributions: Mapping[str, Any],
 ) -> str:
     statuses = [
-        part.get("status")
-        for part in layers.values()
-        if isinstance(part, dict)
+        part.get("status") for part in layers.values() if isinstance(part, dict)
     ]
     for name in ("presence", "sensitivity"):
         chapter = contributions.get(name)

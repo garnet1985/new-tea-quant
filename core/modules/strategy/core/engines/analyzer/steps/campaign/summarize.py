@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from ...consts import SCHEMA_VERSION
 from .attribute import AttributeStep
 from .labels import CampaignLabels
+from .metrics import item_delta, outcome_value
 
 _LAYER_RANK = {"portfolio": 0, "price_factor": 1, "enumerate": 2}
 
@@ -29,12 +30,11 @@ class SummarizeStep:
         *,
         layer: str = "",
     ) -> Dict[str, Any]:
-        status = str(attributed.get("status") or "skipped")
         focus = str(layer or "").strip()
         highlights = cls._highlights(attributed, layer=focus)
         return {
             "schema_version": SCHEMA_VERSION,
-            "status": status,
+            "status": str(attributed.get("status") or "skipped"),
             "n": int(attributed.get("n") or 0),
             "layer": focus,
             "generated_at": datetime.now().isoformat(),
@@ -64,36 +64,15 @@ class SummarizeStep:
             top_grid = _headline_interaction(attributed)
             if top_grid is not None:
                 return top_grid
-        top_presence = _top_presence_contribution(attributed, layer=layer)
+        top_presence = _best_oat(_chapter(attributed, "presence"), layer=layer)
         if top_presence is not None:
-            knob = CampaignLabels.knob_label(top_presence.get("knob"))
-            from_text = CampaignLabels.format_knob(
-                top_presence.get("knob"), top_presence.get("from")
-            )
-            to_text = CampaignLabels.format_knob(
-                top_presence.get("knob"), top_presence.get("to")
-            )
-            result = CampaignLabels.outcome_label(top_presence.get("outcome"))
-            delta_text = CampaignLabels.format_delta(
-                top_presence.get("outcome"), top_presence.get("delta")
-            )
-            return f"把{knob}从 {from_text} 改为 {to_text}，{result} {delta_text}。"
+            return _oat_line(top_presence)
         top_marginal = _headline_marginal(attributed, layer=layer)
         if top_marginal is not None:
             return top_marginal
-        top_contrib = _top_contribution(attributed, layer=layer)
+        top_contrib = _best_oat(_chapter(attributed, "sensitivity"), layer=layer)
         if top_contrib is not None:
-            knob = CampaignLabels.knob_label(top_contrib.get("knob"))
-            from_text = CampaignLabels.format_knob(top_contrib.get("knob"), top_contrib.get("from"))
-            to_text = CampaignLabels.format_knob(top_contrib.get("knob"), top_contrib.get("to"))
-            result = CampaignLabels.outcome_label(top_contrib.get("outcome"))
-            delta_text = CampaignLabels.format_delta(
-                top_contrib.get("outcome"), top_contrib.get("delta")
-            )
-            return (
-                f"相对基准回测，把{knob}从 {from_text} 改为 {to_text}，"
-                f"{result} {delta_text}。"
-            )
+            return f"相对基准回测，{_oat_line(top_contrib)}"
         if status == "skipped":
             return "这次参数没有变化，无法对照。"
         if not highlights:
@@ -102,10 +81,10 @@ class SummarizeStep:
         rho = CampaignLabels.maybe_float(top.get("rho")) or 0.0
         knob = CampaignLabels.knob_label(top.get("knob"))
         outcome = CampaignLabels.outcome_label(top.get("outcome"))
-        phrase = CampaignLabels.direction_phrase(str(top.get("outcome") or ""), rho)
         knob_path = str(top.get("knob") or "")
+        signed = -rho if "stop_loss" in knob_path else rho
+        phrase = CampaignLabels.direction_phrase(str(top.get("outcome") or ""), signed)
         if "stop_loss" in knob_path:
-            phrase = CampaignLabels.direction_phrase(str(top.get("outcome") or ""), -rho)
             return f"止损越深，{outcome}{phrase}。"
         return f"{knob}越大，{outcome}{phrase}。"
 
@@ -121,8 +100,8 @@ class SummarizeStep:
         if not isinstance(layers, dict):
             return []
         focus = str(layer or "").strip()
-        for layer, layer_block in layers.items():
-            if focus and str(layer) != focus:
+        for layer_name, layer_block in layers.items():
+            if focus and str(layer_name) != focus:
                 continue
             if not isinstance(layer_block, dict):
                 continue
@@ -146,12 +125,10 @@ class SummarizeStep:
                         continue
                     rows.append(
                         {
-                            "layer": str(layer),
+                            "layer": str(layer_name),
                             "outcome": str(outcome),
                             "knob": str(knob),
                             "rho": rho,
-                            "p_value": corr.get("p_value"),
-                            "n": corr.get("n"),
                         }
                     )
         rows.sort(
@@ -183,38 +160,12 @@ class SummarizeStep:
         joint_count = int(presence.get("joint_count") or 0) + int(
             sensitivity.get("joint_count") or 0
         )
-        if presence.get("one_at_a_time_count") and sensitivity.get("one_at_a_time_count"):
-            hints.append(
-                "报告里有两类："
-                "参数贡献度比较「启用 / 未启用」对结果的影响；"
-                "参数敏感度比较「同一参数取不同值」对结果的影响。"
-            )
-        if presence.get("one_at_a_time_count"):
-            hints.append(
-                "贡献度的对照基准是未启用该参数的那次回测；"
-                "只有这一次回测相对基准只改了这一项参数，差额才能归因到它。"
-            )
-        elif sensitivity.get("one_at_a_time_count"):
-            baseline = (
-                sensitivity.get("baseline")
-                if isinstance(sensitivity.get("baseline"), dict)
-                else {}
-            )
-            vid = str(baseline.get("version_id") or "").strip()
-            base_label = f"v{vid}" if vid else "第一组已启用参数的回测"
-            hints.append(
-                f"敏感度的对照基准是 {base_label}；"
-                "只有相对基准只改了一个参数取值，差额才能归因到该参数。"
-            )
-        elif joint_count:
-            hints.append(
-                "有些回测一次改了多个参数，贡献度拆不开，只能看相关方向。"
-            )
-        elif len(varying) >= 2:
+        if joint_count and not one_count:
+            hints.append("有些回测一次改了多个参数，贡献度拆不开，只能看相关方向。")
+        elif len(varying) >= 2 and not one_count:
             names = "、".join(CampaignLabels.knob_label(item) for item in varying[:4])
             hints.append(
-                f"对照表里变过 {names}。请按行看哪一列在变；"
-                "相关是把所有回测混在一起算的，不是「只改了这一个参数」。"
+                f"对照表里变过 {names}。相关是把所有回测混在一起算的，不是只改了一个参数。"
             )
         if n > 0 and n < 5:
             hints.append(f"只有 {n} 次回测，只看方向，数量太少谈不上统计。")
@@ -222,15 +173,12 @@ class SummarizeStep:
             hints.append("相关不是因果。换一段行情未必如此。")
         layers = attributed.get("layers") or {}
         if isinstance(layers, dict):
-            for layer, block in layers.items():
-                if not isinstance(block, dict):
+            for layer_name, block in layers.items():
+                if not isinstance(block, dict) or block.get("status") != "skipped":
                     continue
-                if block.get("status") != "skipped":
-                    continue
-                layer_reason = str(block.get("reason") or "")
-                note = _SKIP_REASONS.get(layer_reason)
+                note = _SKIP_REASONS.get(str(block.get("reason") or ""))
                 if note:
-                    hints.append(f"{CampaignLabels.layer_label(str(layer))}：{note}")
+                    hints.append(f"{CampaignLabels.layer_label(str(layer_name))}：{note}")
         if not varying and status != "skipped":
             hints.append("各次回测的参数取值相同，对照看不出差别。")
         return hints
@@ -241,57 +189,29 @@ def _chapter(attributed: Mapping[str, Any], name: str) -> Dict[str, Any]:
     if not isinstance(block, dict):
         return {}
     nested = block.get(name)
-    if isinstance(nested, dict):
-        return nested
-    if name == "sensitivity":
-        return block
-    return {}
+    return nested if isinstance(nested, dict) else {}
 
 
-def _contribution_items(attributed: Mapping[str, Any]) -> List[Dict[str, Any]]:
-    block = _chapter(attributed, "sensitivity")
-    items: List[Dict[str, Any]] = []
-    for item in block.get("items") or []:
-        if isinstance(item, dict) and item.get("kind") == "one_at_a_time":
-            items.append(item)
-    return items
+def _oat_line(item: Mapping[str, Any]) -> str:
+    knob = CampaignLabels.knob_label(item.get("knob"))
+    from_text = CampaignLabels.format_knob(item.get("knob"), item.get("from"))
+    to_text = CampaignLabels.format_knob(item.get("knob"), item.get("to"))
+    result = CampaignLabels.outcome_label(item.get("outcome"))
+    delta_text = CampaignLabels.format_delta(item.get("outcome"), item.get("delta"))
+    return f"把{knob}从 {from_text} 改为 {to_text}，{result} {delta_text}。"
 
 
-def _delta_of(
-    item: Mapping[str, Any],
-    layer: str,
-    outcome: str,
-) -> Optional[float]:
-    for part in item.get("deltas") or []:
-        if not isinstance(part, dict):
-            continue
-        if str(part.get("layer") or "") != layer:
-            continue
-        if str(part.get("outcome") or "") != outcome:
-            continue
-        return CampaignLabels.maybe_float(part.get("delta"))
-    return None
-
-
-def _top_presence_contribution(
-    attributed: Mapping[str, Any],
+def _best_oat(
+    chapter: Mapping[str, Any],
     *,
     layer: str = "",
 ) -> Optional[Dict[str, Any]]:
-    block = _chapter(attributed, "presence")
-    items: List[Dict[str, Any]] = []
-    for item in block.get("items") or []:
-        if isinstance(item, dict) and item.get("kind") == "one_at_a_time":
-            items.append(item)
+    items = [
+        item
+        for item in (chapter.get("items") or [])
+        if isinstance(item, dict) and item.get("kind") == "one_at_a_time"
+    ]
     return _best_delta_item(items, layer=layer)
-
-
-def _top_contribution(
-    attributed: Mapping[str, Any],
-    *,
-    layer: str = "",
-) -> Optional[Dict[str, Any]]:
-    return _best_delta_item(_contribution_items(attributed), layer=layer)
 
 
 def _headline_outcomes(layer: str = "") -> Sequence[tuple]:
@@ -307,7 +227,7 @@ def _best_delta_item(
         best: Optional[Dict[str, Any]] = None
         best_abs = -1.0
         for item in items:
-            delta = _delta_of(item, layer_name, outcome)
+            delta = item_delta(item, layer_name, outcome)
             if delta is None:
                 continue
             magnitude = abs(delta)
@@ -329,8 +249,7 @@ def _best_delta_item(
 
 
 def _headline_interaction(attributed: Mapping[str, Any]) -> Optional[str]:
-    contrib = _chapter(attributed, "sensitivity")
-    block = contrib.get("interactions")
+    block = _chapter(attributed, "sensitivity").get("interactions")
     if not isinstance(block, dict) or str(block.get("status") or "") != "ok":
         return None
     grids = [grid for grid in (block.get("grids") or []) if isinstance(grid, dict)]
@@ -359,6 +278,8 @@ def _headline_marginal(
 ) -> Optional[str]:
     contrib = _chapter(attributed, "sensitivity")
     outcomes = list(_headline_outcomes(layer))
+    if not outcomes:
+        return None
     primary_layer, primary_outcome = outcomes[0]
     picked = None
     best_span = -1.0
@@ -370,8 +291,10 @@ def _headline_marginal(
         champ = _level_by_value(levels, block.get("best_value"))
         if base is None or champ is None:
             continue
-        base_ret = _outcome_value(base.get("outcomes") or [], primary_layer, primary_outcome)
-        champ_ret = _outcome_value(champ.get("outcomes") or [], primary_layer, primary_outcome)
+        base_ret = outcome_value(base.get("outcomes") or [], primary_layer, primary_outcome)
+        champ_ret = outcome_value(
+            champ.get("outcomes") or [], primary_layer, primary_outcome
+        )
         if base_ret is None or champ_ret is None:
             continue
         span = abs(champ_ret - base_ret)
@@ -411,16 +334,4 @@ def _level_by_value(
             continue
         if abs(current - target) < 1e-12:
             return item
-    return None
-
-
-def _outcome_value(parts: Sequence[Any], layer: str, outcome: str) -> Optional[float]:
-    for part in parts:
-        if not isinstance(part, dict):
-            continue
-        if str(part.get("layer") or "") != layer:
-            continue
-        if str(part.get("outcome") or "") != outcome:
-            continue
-        return CampaignLabels.maybe_float(part.get("value"))
     return None

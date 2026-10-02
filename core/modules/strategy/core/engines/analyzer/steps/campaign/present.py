@@ -11,6 +11,7 @@ from core.infra.cmd_layout import CmdLayout
 from .attribute import AttributeStep
 from .contrasts import KnobContrasts
 from .labels import CampaignLabels
+from .metrics import item_delta, outcome_value
 
 _SKIP_REASONS = {
     "fill_missing_false": "没有现成回测，这次也没补跑",
@@ -235,7 +236,7 @@ class CampaignPresenter:
         icon = CmdLayout.icon.get
         self._heading(f"{icon('rocket')} 参数贡献度", out, nested=nested)
         CmdLayout.text.print_indent(
-            "定义：一个参数的存在（使用）和不存在（不使用）对于结果的影响。",
+            "比较：使用 / 未使用该参数时，结果差多少。",
             stream=out,
         )
         self._present_item_groups(out, items)
@@ -247,28 +248,12 @@ class CampaignPresenter:
             for block in (contrib.get("marginals") or [])
             if isinstance(block, dict) and (block.get("levels") or [])
         ]
-        if marginals:
-            icon = CmdLayout.icon.get
-            self._heading(f"{icon('rocket')} 参数敏感度", out, nested=nested)
-            baseline = (
-                contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
-            )
-            vid = str(baseline.get("version_id") or "").strip()
-            base = f"v{vid}" if vid else "使用该参数的第一次回测"
-            CmdLayout.text.print_indent(
-                f"定义：同一参数取不同值时，结果会如何变化。"
-                f"对照基准是 {base}，参数取值从小到大。",
-                stream=out,
-            )
-            for block in marginals:
-                self._present_marginal_knob(out, block)
-            return
         items = [
             item
             for item in (contrib.get("items") or [])
             if isinstance(item, dict) and item.get("kind") == "one_at_a_time"
         ]
-        if not items:
+        if not marginals and not items:
             return
         icon = CmdLayout.icon.get
         self._heading(f"{icon('rocket')} 参数敏感度", out, nested=nested)
@@ -278,9 +263,13 @@ class CampaignPresenter:
         vid = str(baseline.get("version_id") or "").strip()
         base = f"v{vid}" if vid else "使用该参数的第一次回测"
         CmdLayout.text.print_indent(
-            f"定义：同一参数取不同值时，结果会如何变化。对照基准是 {base}。",
+            f"比较：同一参数取不同值时结果怎么变。对照基准 {base}。",
             stream=out,
         )
+        if marginals:
+            for block in marginals:
+                self._present_marginal_knob(out, block)
+            return
         self._present_item_groups(out, items)
 
     def _present_item_groups(
@@ -306,7 +295,7 @@ class CampaignPresenter:
                     f"{CampaignLabels.format_knob(knob, item.get('to'))}"
                 ]
                 for layer, outcome in self._contrib_pairs():
-                    delta = _item_delta(item, layer, outcome)
+                    delta = item_delta(item, layer, outcome)
                     if delta is None:
                         continue
                     bits.append(
@@ -322,7 +311,7 @@ class CampaignPresenter:
                 continue
             bits = [CampaignLabels.format_number(knob, level.get("value"))]
             for layer, outcome in self._contrib_pairs():
-                value = _outcome_value(level.get("outcomes") or [], layer, outcome)
+                value = outcome_value(level.get("outcomes") or [], layer, outcome)
                 if value is None:
                     continue
                 bits.append(f"{CampaignLabels.outcome_label(outcome)} {CampaignLabels.format_number(outcome, value)}")
@@ -354,8 +343,7 @@ class CampaignPresenter:
         icon = CmdLayout.icon.get
         self._heading(f"{icon('target')} 机会 vs 下游账户", out, nested=nested)
         CmdLayout.text.print_indent(
-            "同一回测号上：机会数变了，下游账户收益有没有一起变。"
-            "账户数字来自该号已有产物，不是本层新算的。",
+            "同一回测号上：机会数与下游账户收益是否同向变化。",
             stream=out,
         )
         CmdLayout.text.print_bullets(
@@ -992,41 +980,13 @@ def _contributions_block(report: Mapping[str, Any]) -> Dict[str, Any]:
     return {}
 
 
-def _item_delta(
-    item: Mapping[str, Any],
-    layer: str,
-    outcome: str,
-) -> Optional[float]:
-    for part in item.get("deltas") or []:
-        if not isinstance(part, dict):
-            continue
-        if str(part.get("layer") or "") != layer:
-            continue
-        if str(part.get("outcome") or "") != outcome:
-            continue
-        return CampaignLabels.maybe_float(part.get("delta"))
-    return None
-
-
-def _outcome_value(parts: Sequence[Any], layer: str, outcome: str) -> Optional[float]:
-    for part in parts:
-        if not isinstance(part, dict):
-            continue
-        if str(part.get("layer") or "") != layer:
-            continue
-        if str(part.get("outcome") or "") != outcome:
-            continue
-        return CampaignLabels.maybe_float(part.get("value"))
-    return None
-
-
 def _step_label(level: Mapping[str, Any]) -> str:
     if level.get("is_baseline"):
         return "基准"
-    prev = _item_delta({"deltas": level.get("vs_prev") or []}, "portfolio", "total_return")
+    prev = item_delta({"deltas": level.get("vs_prev") or []}, "portfolio", "total_return")
     if prev is not None:
         return f"相对上一档 {CampaignLabels.format_delta('total_return', prev)}"
-    base = _item_delta(
+    base = item_delta(
         {"deltas": level.get("vs_baseline") or []}, "portfolio", "total_return"
     )
     if base is not None:

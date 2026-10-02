@@ -1,13 +1,10 @@
-# analyzer 层诊断测试索引
+# analyzer 测试索引
 
-| 文件 | 覆盖 |
+单 version / 层内诊断测试已随 prepare / analyze / report / layer 删除。
+
+战役与落盘见：
+
+| 位置 | 覆盖 |
 |------|------|
-| `test_layer_enumerate.py` | 枚举层事实 / 结论 / 建议；一档全平不可测；分档可测 |
-| `test_layer_price.py` | 价格层去噪账边、利润头部、合并偏、涨停跳过 |
-| `test_layer_portfolio.py` | 组合层买到/漏掉、槽位顶满、无价格不编差、RSI 分组错位 |
-| `test_prepare.py` | as-of 切片 Prepare |
-| `test_present.py` | sz `analysis/report.json` 展示 |
-| `test_ui_facts.py` | UI facts |
-| `test_report_narrative.py` | 切片报告叙事 |
-| `test_insights.py` | 切片 insight |
-| `test_factor_analysis_pipeline.py` | 因素分析 pipeline |
+| `steps/campaign/__test__/` | plan / execute / gather / attribute / summarize / trades / labels / group store |
+| `strategy/__test__/test_api.py` | Strategy 公开 API（含 sea/spa/soa/sw） |

@@ -5,7 +5,10 @@ from typing import Any
 
 import pytest
 
-from core.modules.strategy.core.engines.analyzer.steps.campaign.trades import TradesStep
+from core.modules.strategy.core.engines.analyzer.steps.campaign.trades import (
+    TradesBase,
+    TradesStep,
+)
 
 pytestmark = pytest.mark.force_run
 
@@ -123,7 +126,7 @@ def test_trades_keeps_knob_off_and_drops_ohlcv() -> None:
                 "win": i % 2 == 0,
             }
         )
-    names, kinds = TradesStep._feature_spec(
+    names, kinds = TradesBase._feature_spec(
         rows,
         ["core.max_pe_percentile", "core.rsi_oversold_threshold"],
     )

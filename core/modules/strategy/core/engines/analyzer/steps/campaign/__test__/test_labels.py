@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from core.modules.strategy.core.engines.analyzer.steps.campaign.labels import CampaignLabels
-from core.modules.strategy.core.engines.analyzer.steps.campaign.present import (
+from core.modules.strategy.core.engines.analyzer.steps.campaign.report.present import (
     _shap_direction_conclusion,
 )
 
@@ -48,7 +48,7 @@ def test_shap_same_sign_does_not_say_lower_is_better() -> None:
 
 
 def test_auc_warning_flags_train_test_gap() -> None:
-    from core.modules.strategy.core.engines.analyzer.steps.campaign.present import (
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.report.present import (
         _auc_warning,
         _shap_dependence_conclusion,
     )

@@ -10,23 +10,20 @@
 
 | 场景 | 入口 |
 |------|------|
-| 库 | ``Analyzer.run(store)``：Prepare → Analyze → Report |
-| 战役 | ``Analyzer.campaign(key)`` / CLI ``sa``：对照旋钮并写出 ``results/attribution/`` |
-| 终端展示 | ``Analyzer.Presenter.load(output_dir).present(...)`` |
+| 战役 | ``Analyzer.attribute_*(key)`` / CLI ``sea`` ``spa`` ``soa`` |
+| 滚动 | ``Analyzer.rolling(key)`` / CLI ``sw`` |
+| 终端展示 | ``Analyzer.CampaignPresenter`` / ``Analyzer.RollingPresenter`` |
 
-单次 ``simulate`` 不再自动归因。战役 CLI 为 ``sa``（``-f`` 即回测 ``ignore_cache``）。
+单次 ``simulate`` 不归因。须先有主 version；``-f`` 即回测 ``ignore_cache``。
 
 ---
 
-## 三步流水线
+## 战役主链路
 
 ```text
-PrepareStep  →  analysis/source.json
-AnalyzeStep  →  FactorAnalysisPipeline（stages: univariate / multivariate / run_comparison / ml）
-ReportStep   →  summarize → InsightBuilder → analysis/report.json
+config → plan → execute → gather → attribute → summarize → report → persist
+（spa 另跑 trades）
 ```
-
-展示：``AnalysisReportPresenter``（``present.py``）。
 
 ---
 
@@ -34,21 +31,11 @@ ReportStep   →  summarize → InsightBuilder → analysis/report.json
 
 ```text
 analyzer/
-├── analyzer.py              # Facade: Analyzer.run() / Analyzer.campaign()
-├── consts.py
+├── analyzer.py              # Facade: attribute_* / rolling
+├── consts.py                # SCHEMA_VERSION
 ├── docs/BOUNDARY.md
-├── pipeline.py              # AttributionPipeline（只串步骤）
+├── pipeline.py              # AttributionPipeline / RollingPipeline
 └── steps/
-    ├── campaign/            # 战役实施：config / overlay / execute / persist / present…
-    ├── prepare/prepare.py
-    ├── analyze/
-    │   ├── analyze.py
-    │   ├── data/
-    │   └── pipeline/
-    └── report/
-        ├── report.py
-        ├── summarize.py
-        ├── insight.py
-        ├── facts.py
-        └── present.py
+    ├── campaign/            # 同构包：config/plan/execute/gather/attribute/summarize/report/persist/trades
+    └── rolling/             # 滚动：config / windows / summarize / present
 ```

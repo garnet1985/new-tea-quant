@@ -6,12 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.modules.strategy.core.engines.analyzer.steps.campaign.cells import (
+from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
     AttributionCell,
     AttributionTask,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import ExecuteStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import (
+    GatherBase,
     GatherStep,
     _compact_summary,
 )
@@ -160,7 +161,7 @@ def test_gather_knobs_prefer_disk_effective(tmp_path, monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(
-        GatherStep,
+        GatherBase,
         "_load_layers",
         classmethod(
             lambda cls, folder, vid: {

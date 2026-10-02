@@ -1,1 +1,1 @@
-"""战役实施层：配置、overlay、展开、查缓存、拼表、对照、总结、落盘、展示。"""
+"""战役实施层：config → plan → execute → gather → attribute → summarize → report → persist（+ spa trades）。"""

@@ -1,7 +1,7 @@
 """AttributionGroupStore.record_version 按样本窗记账。"""
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.analyzer.steps.campaign.groups import (
+from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import (
     AttributionGroupStore,
 )
 

@@ -184,8 +184,11 @@ class TestStrategyApi(unittest.TestCase):
             self.assertEqual(out.get("error"), "version_id 无效")
 
     def test_delete_simulation_version_delegates(self) -> None:
-        with patch(
-            "core.modules.strategy.core.services.artifacts.ArtifactRetention.clear_by_version",
+        import core.modules.strategy.core.services.artifacts as artifacts_mod
+
+        with patch.object(
+            artifacts_mod.ArtifactRetention,
+            "clear_by_version",
             return_value={"ok": True, "deleted": True, "version_id": "v3"},
         ) as clear:
             out = Strategy.delete_simulation_version("demo/x", "v3")

@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import AttributeStep
-from core.modules.strategy.core.engines.analyzer.steps.campaign.cells import (
-    AttributionTask,
-    CellExpander,
-)
 from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
     ATTRIBUTION_FILE_NAME,
-    AttributionSettings,
+    AttributionConfig,
+)
+from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
+    AttributionPlan,
+    AttributionTask,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import ExecuteStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import GatherStep
@@ -32,12 +32,6 @@ from core.modules.strategy.core.engines.analyzer.steps.rolling.summarize import 
 from core.modules.strategy.core.engines.analyzer.steps.rolling.windows import WindowExpander
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.discovery import DiscoveryService
-
-_LAYER_TASK = {
-    SimulateKind.ENUMERATE: "enumerate",
-    SimulateKind.PRICE_FACTOR: "price_factor",
-    SimulateKind.PORTFOLIO: "portfolio",
-}
 
 
 class AttributionPipeline:
@@ -56,31 +50,36 @@ class AttributionPipeline:
             if isinstance(kind, SimulateKind)
             else SimulateKind(str(kind).strip().lower())
         )
-        if layer not in _LAYER_TASK:
+        if layer not in {
+            SimulateKind.ENUMERATE,
+            SimulateKind.PRICE_FACTOR,
+            SimulateKind.PORTFOLIO,
+        }:
             raise ValueError(f"不支持的归因层: {kind!r}")
         folder = cls._resolve_folder(key_or_id)
-        config = AttributionSettings.load(folder)
-        if not config.has_parameter:
-            raise ValueError(
-                "attribution.py 没有 overlays / matrix / versions；"
-                "请先配置对照格，再跑 sea / spa / soa"
-            )
-        plan = CellExpander.plan_from_folder(folder, config)
-        unique_tasks = ExecuteStep.unique_tasks(
+        config = AttributionConfig.load(folder, layer=layer.value)
+        config.require_parameter()
+        plan = AttributionPlan.plan_from_folder(folder, config, layer=layer.value)
+        executor = ExecuteStep.for_layer(layer)
+        unique_tasks = executor.unique_tasks(
             AttributionTask.from_cells(plan.execute_source_cells(), kind=layer)
         )
-        executed = ExecuteStep.run(
+        executed = executor.run(
             folder, unique_tasks, kind=layer, ignore_cache=ignore_cache
         )
         unique_cells = [task.cell for task in unique_tasks]
         trades: Optional[Dict[str, Any]] = None
         if layer == SimulateKind.PRICE_FACTOR:
-            trades = TradesStep.run(folder, unique_cells, executed)
+            trades = TradesStep.run(
+                folder, unique_cells, executed, layer=layer.value
+            )
         families = {}
         for name, cells in plan.families():
-            family_executed = ExecuteStep.bind(executed, unique_cells, cells)
+            family_executed = executor.bind(executed, unique_cells, cells)
             tasks = AttributionTask.from_cells(cells, kind=layer)
-            gathered = GatherStep.run(folder, tasks, family_executed)
+            gathered = GatherStep.run(
+                folder, tasks, family_executed, layer=layer.value
+            )
             attributed = AttributeStep.run(gathered, layer=layer.value)
             summarized = SummarizeStep.run(attributed, layer=layer.value)
             families[name] = CampaignReportStep.run(
@@ -93,20 +92,22 @@ class AttributionPipeline:
                 attributed=attributed,
                 summarized=summarized,
                 family=name,
+                layer=layer.value,
             )
         assembled = CampaignReportStep.merge(
-            config, executed, families, trades=trades or {}
+            config,
+            executed,
+            families,
+            trades=trades or {},
+            layer=layer.value,
         )
         assembled["layer"] = layer.value
         assembled["strategy_key"] = Path(folder).name
-        task_id = _LAYER_TASK[layer]
-        return PersistStep.run(
+        return PersistStep.for_layer(layer).run(
             folder,
             config,
             assembled,
             executed=executed,
-            task_id=task_id,
-            task_kind=task_id,
         )
 
     @staticmethod
@@ -132,10 +133,12 @@ class RollingPipeline:
         cells = WindowExpander.expand_from_folder(folder, config)
         layer = SimulateKind.PORTFOLIO
         tasks = AttributionTask.from_cells(cells, kind=layer)
-        executed = ExecuteStep.run(
+        executed = ExecuteStep.for_layer(layer).run(
             folder, tasks, kind=layer, ignore_cache=ignore_cache
         )
-        gathered = GatherStep.run(folder, tasks, executed)
+        gathered = GatherStep.run(
+            folder, tasks, executed, layer=layer.value
+        )
         summarized = RollingSummarizeStep.run(gathered)
         assembled = CampaignReportStep.run(
             folder,
@@ -151,6 +154,7 @@ class RollingPipeline:
                 "contributions": {},
             },
             summarized=summarized,
+            layer=layer.value,
         )
         assembled["mode"] = "rolling"
         assembled["headline"] = summarized.get("headline")

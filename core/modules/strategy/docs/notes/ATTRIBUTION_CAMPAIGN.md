@@ -17,8 +17,7 @@
 - 取消 CLI `sa` / `sz`；归因按层拆成 `sea` / `spa` / `soa`
 - 无当前 settings 对应主 version 时拒绝归因（提示先 `se` / `sp` / `so`）
 - 对照格写入副本 `{vid}-{r}`，不占用主号序列
-
-`Analyzer.run` 以及 prepare / analyze / report 流水线作为 **库** 留下，给战役内部切片（如 spa trades）用。
+- 单 version 的 prepare / analyze / report / layer 已删除；spa 单笔铺平走 `campaign/trades`
 
 ---
 
@@ -143,7 +142,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 这只对之后的 Run 生效。已经跑完、snapshot 里没有这些列的旧 version，补不出当日读数。
 
-当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`。用户 `capture` 同名覆盖，且只应收钩子自己算的量。`Analyzer.run` 从这份袋做战役内部切片（如 spa trades）。滚动验证读同一份 `attribution.py` 里的 `rolling.windows`（CLI `sw`），报告仍写在 `rolling/`，不和参数战役混表。
+当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`。用户 `capture` 同名覆盖，且只应收钩子自己算的量。spa trades 从这份袋铺平做 XGB+SHAP。滚动验证读同一份 `attribution.py` 里的 `rolling.windows`（CLI `sw`），报告仍写在 `rolling/`，不和参数战役混表。
 
 ---
 

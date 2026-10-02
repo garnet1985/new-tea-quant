@@ -595,7 +595,7 @@ class Strategy:
             entity_ids = list(getattr(fp_res, "entity_ids", None) or [])
         try:
             from core.infra.project_context import ProjectContext
-            from .engines.analyzer.steps.campaign.groups import AttributionGroupStore
+            from .engines.analyzer.steps.campaign.persist import AttributionGroupStore
 
             root = ProjectContext.path.get_strategy_attribution_directory(
                 Path(strategy_folder)

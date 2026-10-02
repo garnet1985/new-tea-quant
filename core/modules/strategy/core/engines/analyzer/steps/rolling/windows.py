@@ -11,8 +11,8 @@ from core.modules.strategy.core.services.package.settings_loader import (
     load_settings_dict_from_folder,
 )
 
-from ..campaign.cells import AttributionCell
-from ..campaign.overlay import SettingsOverlay
+from ..campaign.config import SettingsOverlay
+from ..campaign.plan import AttributionCell
 from .config import RollingSettings
 
 

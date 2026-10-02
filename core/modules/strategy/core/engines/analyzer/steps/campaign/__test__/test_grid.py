@@ -8,21 +8,19 @@ import pytest
 from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import (
     AttributeStep,
 )
-from core.modules.strategy.core.engines.analyzer.steps.campaign.cells import (
+from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
+    AttributionPlan,
     AttributionTask,
-    CellExpander,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
-    AttributionSettings,
+    AttributionConfig,
+    SettingsMatrix,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.contrasts import (
     KnobContrasts,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import (
     ExecuteStep,
-)
-from core.modules.strategy.core.engines.analyzer.steps.campaign.grid import (
-    SettingsMatrix,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import (
     SummarizeStep,
@@ -76,7 +74,7 @@ def test_expand_cartesian_includes_all_axes() -> None:
 
 
 def test_cell_expander_matrix_mode() -> None:
-    cfg = AttributionSettings.to_usable(
+    cfg = AttributionConfig.to_usable(
         {
                         "matrix": {
                 "core": {
@@ -87,7 +85,7 @@ def test_cell_expander_matrix_mode() -> None:
         }
     )
     assert cfg.parameter_mode == "matrix"
-    cells = CellExpander.expand(_snapshot(), cfg)
+    cells = AttributionPlan.expand(_snapshot(), cfg)
     assert len(cells) == 4
     pe_off = [
         cell
@@ -104,7 +102,7 @@ def test_cell_expander_matrix_mode() -> None:
 
 def test_legacy_matrix_list_is_rejected() -> None:
     with pytest.raises(ValueError, match="overlays"):
-        AttributionSettings.to_usable(
+        AttributionConfig.to_usable(
             {
                                 "matrix": [{"core": {"rsi_oversold_threshold": 20}}],
             }
@@ -113,7 +111,7 @@ def test_legacy_matrix_list_is_rejected() -> None:
 
 def test_single_axis_is_rejected() -> None:
     with pytest.raises(ValueError, match="至少 2 轴"):
-        AttributionSettings.to_usable(
+        AttributionConfig.to_usable(
             {
                                 "matrix": {"core": {"rsi_oversold_threshold": [20, 25, 30]}},
             }
@@ -162,7 +160,7 @@ def test_matrix_rectangle_keeps_off_axis() -> None:
 
 
 def test_overlays_and_matrix_coexist() -> None:
-    cfg = AttributionSettings.to_usable(
+    cfg = AttributionConfig.to_usable(
         {
             "overlays": [{"core": {"rsi_oversold_threshold": 25}}],
             "matrix": {
@@ -177,7 +175,7 @@ def test_overlays_and_matrix_coexist() -> None:
     dumped = cfg.to_dict()
     assert dumped.get("overlays")
     assert dumped.get("matrix")
-    plan = CellExpander.plan(_snapshot(), cfg)
+    plan = AttributionPlan.plan(_snapshot(), cfg)
     assert len(plan.overlays) == 2
     assert plan.overlays[0].overlay == {}
     assert len(plan.matrix) == 4
@@ -189,7 +187,7 @@ def test_overlays_and_matrix_coexist() -> None:
 
 def test_versions_exclusive_with_overlays() -> None:
     with pytest.raises(ValueError, match="versions"):
-        AttributionSettings.to_usable(
+        AttributionConfig.to_usable(
             {
                 "versions": [1],
                 "overlays": [{"core": {"rsi_oversold_threshold": 20}}],

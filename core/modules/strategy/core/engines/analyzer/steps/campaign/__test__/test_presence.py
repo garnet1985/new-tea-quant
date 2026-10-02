@@ -6,18 +6,16 @@ import pytest
 from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import (
     AttributeStep,
 )
-from core.modules.strategy.core.engines.analyzer.steps.campaign.cells import (
+from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
+    AttributionPlan,
     AttributionTask,
-    CellExpander,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
-    AttributionSettings,
+    AttributionConfig,
+    SettingsOverlay,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.contrasts import (
     KnobContrasts,
-)
-from core.modules.strategy.core.engines.analyzer.steps.campaign.overlay import (
-    SettingsOverlay,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import (
     SummarizeStep,
@@ -202,7 +200,7 @@ def test_attribute_two_chapters() -> None:
 
 def test_overlay_none_is_legal() -> None:
     snapshot = _snapshot()
-    cfg = AttributionSettings.to_usable(
+    cfg = AttributionConfig.to_usable(
         {
             "overlays": [
                 {"core": {"rsi_oversold_threshold": 20}},
@@ -212,7 +210,7 @@ def test_overlay_none_is_legal() -> None:
         }
     )
     assert len(cfg.overlays) == 3
-    cells = CellExpander.expand(snapshot, cfg)
+    cells = AttributionPlan.expand(snapshot, cfg)
     assert len(cells) == 4
     assert cells[0].overlay == {}
     pe_off = cells[2]
@@ -391,7 +389,7 @@ def test_enumerate_layer_drops_portfolio_knobs() -> None:
 
 
 def test_attribution_settings_drops_fill_missing() -> None:
-    cfg = AttributionSettings.to_usable(
+    cfg = AttributionConfig.to_usable(
         {
             "fill_missing": True,
             "overlays": [{"core": {"rsi_oversold_threshold": 20}}],

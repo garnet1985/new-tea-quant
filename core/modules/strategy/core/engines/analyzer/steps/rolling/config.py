@@ -21,7 +21,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 )
 from core.modules.strategy.core.enums import SimulateKind
 
-from ..campaign.config import AttributionSettings
+from ..campaign.config import AttributionConfig
 
 
 @dataclass
@@ -47,7 +47,7 @@ class RollingSettings(SettingsBase):
         *,
         strategy_key: Optional[str] = None,
     ) -> "RollingSettings":
-        parent = AttributionSettings.load(
+        parent = AttributionConfig.load(
             strategy_folder, strategy_key=strategy_key
         )
         return cls.to_usable(parent.rolling_payload())

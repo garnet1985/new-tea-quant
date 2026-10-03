@@ -8,7 +8,8 @@ dependencies:
 changelog:
   - version: "0.2.3"
     changes:
-      - 清理单归因 UI 残留（步骤报告不再带 analysis；待接入战役归因）
+      - 清理单归因 UI 残留（步骤报告不再带 analysis）
+      - 制定策略：战役归因按钮（显隐/禁用 tooltip）+ 进度 + 回测|归因报告 Tab
   - version: "0.2.2"
     changes:
       - 增加AI provider页面

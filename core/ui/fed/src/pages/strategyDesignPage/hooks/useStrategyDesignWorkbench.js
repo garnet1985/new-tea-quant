@@ -54,6 +54,7 @@ import {
   writeCachedStrategyLabel,
   writeCachedWorkbenchVersion,
 } from '../strategyDesignSessionState';
+import { useStrategyDesignAttribution } from './useStrategyDesignAttribution';
 import { useStrategyDesignExecution } from './useStrategyDesignExecution';
 
 function deepClone(value) {
@@ -526,10 +527,19 @@ export function useStrategyDesignWorkbench() {
     getExecutionState,
   });
 
-  const disableMetaActions = isSavingSettings || isDeletingVersion || isLoadingSettings || !hasValidSettings || !strategyName || executionBusy;
+  const attribution = useStrategyDesignAttribution({
+    strategyName,
+    activeStep: session.activeStep,
+    isLoadingSettings,
+    executionBusy,
+    stepStatus: session.executionState?.stepStatus || {},
+  });
+
+  const panelBusy = Boolean(executionBusy || attribution.attributeBusy);
+  const disableMetaActions = isSavingSettings || isDeletingVersion || isLoadingSettings || !hasValidSettings || !strategyName || panelBusy;
 
   const handleSettingsFocus = useCallback(() => {
-    if (!strategyName || isLoadingSettings || executionBusy || diskConflict || occupancyCheckRef.current) {
+    if (!strategyName || isLoadingSettings || panelBusy || diskConflict || occupancyCheckRef.current) {
       return;
     }
     occupancyCheckRef.current = true;
@@ -551,7 +561,7 @@ export function useStrategyDesignWorkbench() {
       .finally(() => {
         occupancyCheckRef.current = false;
       });
-  }, [diskConflict, executionBusy, fillEditorFromDisk, isLoadingSettings, strategyName]);
+  }, [diskConflict, fillEditorFromDisk, isLoadingSettings, panelBusy, strategyName]);
 
   const closeDiskConflict = useCallback(() => {
     setDiskConflict(null);
@@ -853,9 +863,11 @@ export function useStrategyDesignWorkbench() {
     stepProgress: session.stepProgress || {},
     runningStep: session.executionState?.runningStep || '',
     executionBusy,
+    panelBusy,
     runError,
     progressDetail,
     forceEnumerate,
+    ...attribution,
     handleDraftDrivenReset,
     suppressDraftDrivenPanelResetRef,
     strategyDisplayName,

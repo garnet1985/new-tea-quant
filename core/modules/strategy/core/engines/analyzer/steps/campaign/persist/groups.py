@@ -19,6 +19,14 @@ class AttributionGroupStore:
     """env_fp → 从 1 起的短编号。同一环境复用同一号。"""
 
     @classmethod
+    def find(cls, attribution_root: Path, env_fp: str) -> Optional[str]:
+        """只查组号，不分配。"""
+        fp = str(env_fp or "").strip()
+        if not fp:
+            return None
+        return cls._find_id(Path(attribution_root), fp)
+
+    @classmethod
     def resolve(cls, attribution_root: Path, env_fp: str) -> str:
         root = Path(attribution_root)
         root.mkdir(parents=True, exist_ok=True)
@@ -26,7 +34,7 @@ class AttributionGroupStore:
         if not fp:
             raise ValueError("env_fp 不能为空")
 
-        existing = cls._find_id(root, fp)
+        existing = cls.find(root, fp)
         if existing:
             return existing
 

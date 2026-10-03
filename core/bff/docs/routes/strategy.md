@@ -19,6 +19,7 @@ core/bff/APIs/strategy/
     version/                # V2-01/03/08 + cache
     folder/                 # 打开策略目录
     runner/                 # V2-05/06* + scan 薄壳；进度落盘在 strategy core
+    attribution/            # A1-00/01/02/04 战役归因（sea/spa/soa）
 ```
 
 ## 原则
@@ -61,6 +62,17 @@ core/bff/APIs/strategy/
 | scan | GET | `/v1/strategy/scan/context` | `routes/runner/` |
 | scan | GET/POST | `/v1/strategy/<strategy_key_or_name>/scan` | `routes/runner/` |
 | scan | GET | `/v1/strategy/<strategy_key_or_name>/scan/progress` | `routes/runner/` |
+
+## A1 战役归因
+
+对标回测 run → progress → report。层参数与工作台一致：``enum`` / ``price`` / ``portfolio`` → CLI ``sea`` / ``spa`` / ``soa``。读策略目录 ``attribution.py``；报告键为 ``group_id`` + step。本轮不做 rolling。
+
+| A1 | 方法 | 路由 | 说明 |
+|----|------|------|------|
+| A1-00 | GET | `/v1/strategy/<strategy_key_or_name>/<step>/attribute/status` | 按钮显隐 / enable；``visible``=本层有主 version；``enabled``=配置可 `require_parameter`；禁用时 ``tooltip`` + ``example_path`` |
+| A1-01 | POST | `/v1/strategy/<strategy_key_or_name>/<step>/attribute/run` | body ``{ force_refresh? }``；与 simulate 共用策略单飞；成功返回 ``job_id`` / ``pipeline_kind=attribute`` |
+| A1-02 | GET | `/v1/strategy/<strategy_key_or_name>/attribute/run/progress?job_id=` | 同 V2-06b 进度形；完成 ``result`` 含 ``group_id`` / ``headline`` / ``task_dir`` |
+| A1-04 | GET | `/v1/strategy/<strategy_key_or_name>/attribute/report/<step>/<group_id>` | 读 ``results/attribution/{n}/{enumerate\|price_factor\|portfolio}/``；不做版本对比 |
 
 ## D1 决策者
 

@@ -69,15 +69,10 @@ class WorkbenchRunLauncher:
                 "reason": f"系统任务进行中（{kind}），请稍后再试",
             }
 
-        with cls._LOCK:
-            active = str(cls._ACTIVE_BY_STRATEGY.get(name) or "").strip()
-            if active:
-                return {
-                    "is_triggered": False,
-                    "reason": "该策略已有任务在运行中，请稍后重试",
-                }
-            jid = f"wb-run-{uuid.uuid4().hex[:12]}"
-            cls._ACTIVE_BY_STRATEGY[name] = jid
+        jid = f"wb-run-{uuid.uuid4().hex[:12]}"
+        busy = cls.claim_active(name, jid)
+        if busy:
+            return {"is_triggered": False, "reason": busy}
 
         occupancy: Dict[str, Any] = {}
         try:
@@ -88,7 +83,7 @@ class WorkbenchRunLauncher:
                 force=bool(force_settings_write),
             )
         except Exception as persist_exc:
-            cls._clear_active(name, jid)
+            cls.release_active(name, jid)
             from core.bff.APIs.strategy.helpers.settings_occupancy import (
                 SettingsFileConflict,
             )
@@ -104,7 +99,7 @@ class WorkbenchRunLauncher:
 
         persist_err = occupancy.pop("_error", None) if occupancy else None
         if persist_err:
-            cls._clear_active(name, jid)
+            cls.release_active(name, jid)
             return {
                 "is_triggered": False,
                 "persist_error": True,
@@ -133,6 +128,24 @@ class WorkbenchRunLauncher:
             "pipeline_description": PipelineProgress.pipeline_description(norm),
             "settings_rev": str((occupancy or {}).get("settings_rev") or ""),
         }
+
+    @classmethod
+    def claim_active(cls, strategy_name: str, job_id: str) -> Optional[str]:
+        """占用策略单飞槽；忙则返回 reason。"""
+        name = str(strategy_name or "").strip()
+        jid = str(job_id or "").strip()
+        if not name or not jid:
+            return "strategy_name 无效"
+        with cls._LOCK:
+            active = str(cls._ACTIVE_BY_STRATEGY.get(name) or "").strip()
+            if active:
+                return "该策略已有任务在运行中，请稍后重试"
+            cls._ACTIVE_BY_STRATEGY[name] = jid
+        return None
+
+    @classmethod
+    def release_active(cls, strategy_name: str, job_id: str) -> None:
+        cls._clear_active(strategy_name, job_id)
 
     @classmethod
     def get_run_progress(

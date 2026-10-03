@@ -32,6 +32,10 @@ from core.modules.strategy.core.engines.analyzer.steps.rolling.summarize import 
 from core.modules.strategy.core.engines.analyzer.steps.rolling.windows import WindowExpander
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.discovery import DiscoveryService
+from core.modules.strategy.core.services.progress import (
+    ATTRIBUTE_PIPELINE,
+    PipelineProgress,
+)
 
 
 class AttributionPipeline:
@@ -56,6 +60,9 @@ class AttributionPipeline:
             SimulateKind.PORTFOLIO,
         }:
             raise ValueError(f"不支持的归因层: {kind!r}")
+        drive = PipelineProgress.drives_pipeline(ATTRIBUTE_PIPELINE)
+        if drive:
+            PipelineProgress.enter_step_bound("load")
         folder = cls._resolve_folder(key_or_id)
         config = AttributionConfig.load(folder, layer=layer.value)
         config.require_parameter()
@@ -64,9 +71,16 @@ class AttributionPipeline:
         unique_tasks = executor.unique_tasks(
             AttributionTask.from_cells(plan.execute_source_cells(), kind=layer)
         )
+        if drive:
+            PipelineProgress.complete_step_bound("load")
+            PipelineProgress.enter_step_bound("execute")
+            PipelineProgress.tick_execute_bound(0, len(unique_tasks))
         executed = executor.run(
             folder, unique_tasks, kind=layer, ignore_cache=ignore_cache
         )
+        if drive:
+            PipelineProgress.complete_step_bound("execute")
+            PipelineProgress.enter_step_bound("report")
         unique_cells = [task.cell for task in unique_tasks]
         trades: Optional[Dict[str, Any]] = None
         if layer == SimulateKind.PRICE_FACTOR:
@@ -103,12 +117,15 @@ class AttributionPipeline:
         )
         assembled["layer"] = layer.value
         assembled["strategy_key"] = Path(folder).name
-        return PersistStep.for_layer(layer).run(
+        persisted = PersistStep.for_layer(layer).run(
             folder,
             config,
             assembled,
             executed=executed,
         )
+        if drive:
+            PipelineProgress.complete_step_bound("report")
+        return persisted
 
     @staticmethod
     def _resolve_folder(key_or_id: Union[str, Path]) -> Path:

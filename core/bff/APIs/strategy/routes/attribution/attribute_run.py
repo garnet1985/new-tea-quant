@@ -17,7 +17,10 @@ from core.infra.task_guard.contracts import TaskLeaseBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.progress import PipelineProgress
+from core.modules.strategy.core.services.progress import (
+    ATTRIBUTE_PIPELINE,
+    PipelineProgress,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +83,7 @@ class AttributeRunLauncher:
         PipelineProgress.seed(
             name,
             jid,
-            pipeline_name=norm,
+            pipeline_name=ATTRIBUTE_PIPELINE,
             pipeline_description=desc,
         )
         thread = threading.Thread(
@@ -95,7 +98,7 @@ class AttributeRunLauncher:
             "job_id": jid,
             "run_id": jid,
             "pipeline_id": jid,
-            "pipeline_name": norm,
+            "pipeline_name": ATTRIBUTE_PIPELINE,
             "pipeline_kind": "attribute",
             "pipeline_description": desc,
         }

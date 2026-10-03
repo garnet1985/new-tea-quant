@@ -533,7 +533,15 @@ class Strategy:
                     end_date=end_date,
                 )
 
-            PipelineProgress.complete_step_bound("report")
+            # 仅本层回测管线收尾；战役归因绑定 attribute 时勿误关 report 步
+            if PipelineProgress.drives_pipeline(
+                {
+                    SimulateKind.ENUMERATE: "enum",
+                    SimulateKind.PRICE_FACTOR: "price",
+                    SimulateKind.PORTFOLIO: "portfolio",
+                }.get(step, "")
+            ):
+                PipelineProgress.complete_step_bound("report")
 
             logger.info(
                 "simulate step complete: kind=%s strategy=%s version_id=%s",

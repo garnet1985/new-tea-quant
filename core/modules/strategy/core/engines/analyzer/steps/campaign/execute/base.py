@@ -35,6 +35,10 @@ from core.modules.strategy.core.services.fingerprint import FingerprintCalculato
 from core.modules.strategy.core.services.package.settings_loader import (
     load_settings_dict_from_folder,
 )
+from core.modules.strategy.core.services.progress import (
+    ATTRIBUTE_PIPELINE,
+    PipelineProgress,
+)
 
 from ..plan import AttributionCell, AttributionTask, cell_identity
 from .models import CellExecuteResult
@@ -145,18 +149,23 @@ class ExecuteBase:
         snapshot_sample = None
         if any(task.cell.is_select for task in tasks):
             snapshot_sample = cls._snapshot_sample(folder, strategy_info)
-        rows: List[CellExecuteResult] = [
-            cls._run_one(
-                folder,
-                strategy_info,
-                task,
-                snapshot_sample,
-                parent_version_id=parent_vid,
-                baseline_execute_fp=str(baseline_fp.execute_fp or ""),
-                ignore_cache=ignore_cache,
+        drive = PipelineProgress.drives_pipeline(ATTRIBUTE_PIPELINE)
+        total = len(tasks)
+        rows: List[CellExecuteResult] = []
+        for idx, task in enumerate(tasks, start=1):
+            rows.append(
+                cls._run_one(
+                    folder,
+                    strategy_info,
+                    task,
+                    snapshot_sample,
+                    parent_version_id=parent_vid,
+                    baseline_execute_fp=str(baseline_fp.execute_fp or ""),
+                    ignore_cache=ignore_cache,
+                )
             )
-            for task in tasks
-        ]
+            if drive:
+                PipelineProgress.tick_execute_bound(idx, total)
         hits = [row.index for row in rows if row.status == "hit"]
         simulated = [row.index for row in rows if row.status == "simulated"]
         skipped = [row.index for row in rows if row.status == "skipped"]

@@ -1,4 +1,4 @@
-"""战役报告：N 个 version 一张表。overlays 与 matrix 各一张，最后并排。"""
+"""战役报告：N 个 version 一张表（按层 inputs / cross / 选号）。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,8 +9,8 @@ from core.modules.strategy.core.enums import SimulateKind
 from ..plan import AttributionCell, AttributionTask
 
 _FAMILY_LABELS = {
-    "overlays": "逐项对照",
-    "matrix": "交叉对照",
+    "inputs": "参数对照",
+    "cross": "交叉对照",
     "select": "选号",
 }
 
@@ -136,22 +136,36 @@ class ReportBase:
             folder = str(block.get("folder") or folder)
         headline = "；".join(headlines) if headlines else ""
         first = items[0][1]
+        sections, scope_note, analysis_mode = _merge_sections(items)
+        if not analysis_mode:
+            analysis_mode = (
+                "cross" if str(config.parameter_mode or "") == "cross" else "oaat"
+            )
+        report_body: Dict[str, Any] = {
+            "headline": headline,
+            "status": _merge_status(items),
+            "inputs": views.get("inputs") or views.get("cross") or {},
+            "cross": views.get("cross") or {},
+            "analysis_mode": analysis_mode,
+        }
+        if scope_note:
+            report_body["scope_note"] = scope_note
+        if sections:
+            report_body["sections"] = sections
         return {
             "success": True,
             "folder": folder or str(first.get("folder") or ""),
             "mode": config.parameter_mode,
+            "analysis_mode": analysis_mode,
+            "scope_note": scope_note,
+            "sections": sections,
             "layer": first.get("layer") or first.get("kind") or cls.LAYER,
             "kind": first.get("kind") or cls.LAYER,
             "ignore_cache": executed.get("ignore_cache"),
             "cell_count": cell_count,
             "headline": headline,
             "families": views,
-            "report": {
-                "headline": headline,
-                "status": _merge_status(items),
-                "overlays": views.get("overlays") or {},
-                "matrix": views.get("matrix") or {},
-            },
+            "report": report_body,
             "cells": all_cells,
             "task_count": int(executed.get("task_count") or 0),
             "execute": {
@@ -172,23 +186,58 @@ class ReportBase:
 
 
 def _family_view(block: Mapping[str, Any]) -> Dict[str, Any]:
+    nested = block.get("report") if isinstance(block.get("report"), dict) else {}
     return {
         "family": block.get("family"),
         "mode": block.get("mode"),
         "headline": block.get("headline"),
         "cell_count": block.get("cell_count"),
-        "report": block.get("report") or {},
+        "report": nested,
         "table": block.get("table") or [],
         "attribute": block.get("attribute") or {},
         "cells": block.get("cells") or [],
         "gather": block.get("gather") or {},
         "execute": block.get("execute") or {},
-        "highlights": (block.get("report") or {}).get("highlights") or [],
-        "hints": (block.get("report") or {}).get("hints") or [],
-        "contributions": (block.get("report") or {}).get("contributions")
+        "highlights": nested.get("highlights") or [],
+        "hints": nested.get("hints") or [],
+        "scope_note": nested.get("scope_note") or "",
+        "sections": nested.get("sections") or {},
+        "contributions": nested.get("contributions")
         or (block.get("attribute") or {}).get("contributions")
         or {},
     }
+
+
+def _merge_sections(
+    items: Sequence[tuple],
+) -> tuple:
+    """优先 inputs / cross 家族的 sections / scope_note / analysis_mode。"""
+    preferred = ("inputs", "cross", "select")
+    by_name = {str(name): block for name, block in items}
+
+    def _pack(nested: Mapping[str, Any]) -> tuple:
+        sections = nested.get("sections")
+        if not isinstance(sections, dict) or not sections:
+            return {}, "", ""
+        mode = str(nested.get("analysis_mode") or "").strip()
+        return sections, str(nested.get("scope_note") or "").strip(), mode
+
+    for name in preferred:
+        block = by_name.get(name)
+        if not isinstance(block, Mapping):
+            continue
+        nested = block.get("report") if isinstance(block.get("report"), dict) else {}
+        packed = _pack(nested)
+        if packed[0]:
+            return packed
+    for _name, block in items:
+        if not isinstance(block, Mapping):
+            continue
+        nested = block.get("report") if isinstance(block.get("report"), dict) else {}
+        packed = _pack(nested)
+        if packed[0]:
+            return packed
+    return {}, "", ""
 
 
 def _merge_status(items: Sequence[tuple]) -> str:

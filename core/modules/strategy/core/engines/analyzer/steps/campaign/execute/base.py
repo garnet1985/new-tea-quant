@@ -49,9 +49,9 @@ _SampleKey = Tuple[str, str, Tuple[str, ...]]
 
 
 class ExecuteBase:
-    """战役执行基类：overlays / matrix / 滚动交给 simulate；选号只读已有 version。
+    """战役执行基类：inputs 展格 / 滚动交给 simulate；选号只读已有 version。
 
-    overlays 与 matrix 的格子按 ``cell_identity`` 去重后再 simulate；
+    格子按 ``cell_identity`` 去重后再 simulate；
     各家族再用 ``bind`` 领回自己的行。
     """
 

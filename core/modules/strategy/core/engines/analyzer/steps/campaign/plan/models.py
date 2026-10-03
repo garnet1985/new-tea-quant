@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -30,40 +30,28 @@ class AttributionCell:
 
 @dataclass(frozen=True)
 class ParameterPlan:
-    """overlays / matrix / 选号各一套格子。"""
+    """选号或按层 inputs 展开后的格子。"""
 
-    overlays: Tuple[AttributionCell, ...] = ()
-    matrix: Tuple[AttributionCell, ...] = ()
+    cells: Tuple[AttributionCell, ...] = ()
     selected: Tuple[AttributionCell, ...] = ()
+    cost_warning: str = ""
 
     def families(self) -> List[Tuple[str, List[AttributionCell]]]:
         out: List[Tuple[str, List[AttributionCell]]] = []
         if self.selected:
             out.append(("select", list(self.selected)))
-        if self.overlays:
-            out.append(("overlays", list(self.overlays)))
-        if self.matrix:
-            out.append(("matrix", list(self.matrix)))
+        if self.cells:
+            name = self.cells[0].family or "inputs"
+            out.append((name, list(self.cells)))
         return out
 
     def execute_source_cells(self) -> List[AttributionCell]:
         if self.selected:
             return list(self.selected)
-        return list(self.overlays) + list(self.matrix)
+        return list(self.cells)
 
     def listed_cells(self) -> List[AttributionCell]:
-        """单家族保持原 index；两家族拼在一起时重编，避免撞号。"""
-        parts = [
-            list(group)
-            for group in (self.selected, self.overlays, self.matrix)
-            if group
-        ]
-        if len(parts) <= 1:
-            return list(parts[0] if parts else [])
-        out: List[AttributionCell] = []
-        for i, cell in enumerate(self.execute_source_cells()):
-            out.append(replace(cell, index=i))
-        return out
+        return list(self.execute_source_cells())
 
 
 def cell_identity(cell: AttributionCell) -> str:

@@ -202,20 +202,35 @@ def test_overlay_none_is_legal() -> None:
     snapshot = _snapshot()
     cfg = AttributionConfig.to_usable(
         {
-            "overlays": [
-                {"core": {"rsi_oversold_threshold": 20}},
-                {"core": {"max_pe_percentile": None}},
-                {"goal": {"stop_loss": None}},
-            ],
-        }
+            "enumerate": {
+                "inputs": {
+                    "rsi_oversold_threshold": {"values": [20]},
+                    "max_pe_percentile": {"values": [None]},
+                    "stop_loss": {"values": [None]},
+                }
+            }
+        },
+        layer="enumerate",
     )
-    assert len(cfg.overlays) == 3
-    cells = AttributionPlan.expand(snapshot, cfg)
-    assert len(cells) == 4
+    assert cfg.has_layer_inputs
+    cells = AttributionPlan.expand(snapshot, cfg, layer="enumerate")
     assert cells[0].overlay == {}
-    pe_off = cells[2]
-    sl_off = cells[3]
-    assert KnobContrasts.value_at(pe_off.effective.raw_settings, "core.max_pe_percentile") is None
+    pe_off = next(
+        cell
+        for cell in cells
+        if KnobContrasts.value_at(cell.overlay, "core.max_pe_percentile")
+        is None
+        and cell.overlay
+    )
+    sl_off = next(
+        cell
+        for cell in cells
+        if "goal" in (cell.overlay or {})
+        and KnobContrasts.value_at(cell.overlay, "goal.stop_loss") is None
+    )
+    assert KnobContrasts.value_at(
+        pe_off.effective.raw_settings, "core.max_pe_percentile"
+    ) is None
     assert pe_off.effective.goal.stop_loss is not None
     assert sl_off.effective.goal.stop_loss is None
     assert sl_off.effective.goal.take_profit is not None
@@ -228,7 +243,7 @@ def test_overlay_none_is_legal() -> None:
     tasks = AttributionTask.from_cells(cells, kind=SimulateKind.PORTFOLIO)
     assert tasks[0].kind is SimulateKind.PORTFOLIO
     assert tasks[0].steps == (SimulateKind.PORTFOLIO,)
-    assert cfg.parameter_mode == "overlays"
+    assert cfg.parameter_mode == "inputs"
 
 
 def test_overlay_snapshot_baseline_makes_oat() -> None:
@@ -392,14 +407,21 @@ def test_attribution_settings_drops_fill_missing() -> None:
     cfg = AttributionConfig.to_usable(
         {
             "fill_missing": True,
-            "overlays": [{"core": {"rsi_oversold_threshold": 20}}],
+            "enumerate": {
+                "inputs": {
+                    "rsi_oversold_threshold": {"values": [20]},
+                }
+            },
             "rolling": {
                 "windows": [{"start": "20230101", "end": "20231231"}],
                 "fill_missing": False,
             },
-        }
+        },
+        layer="enumerate",
     )
     dumped = cfg.to_dict()
     assert "fill_missing" not in dumped
     assert "fill_missing" not in (dumped.get("rolling") or {})
     assert "steps" not in dumped
+    assert "overlays" not in dumped
+    assert "matrix" not in dumped

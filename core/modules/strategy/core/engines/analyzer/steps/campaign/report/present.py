@@ -27,8 +27,8 @@ _STATUS_LABELS = {
 }
 
 _FAMILY_TITLES = {
-    "overlays": "修改参数后的对照(overlays)",
-    "matrix": "多参数组合后的对照(matrix)",
+    "inputs": "修改参数后的对照",
+    "cross": "多参数交叉对照",
 }
 
 
@@ -105,19 +105,25 @@ class CampaignPresenter:
         group_id = report.get("group_id") or persist.get("group_id")
         if group_id:
             CmdLayout.text.print_kv("归因组 ID", group_id, sep="：", stream=out)
+        cost_warning = str(
+            report.get("cost_warning") or persist.get("cost_warning") or ""
+        ).strip()
+        if cost_warning:
+            CmdLayout.text.print_kv("成本提示", cost_warning, sep="：", stream=out)
 
         self._present_conclusion(out, families)
+        self._present_enum_sections(out)
 
         if nested:
-            for name in ("overlays", "matrix"):
+            for name in ("inputs", "cross"):
                 block = families.get(name)
                 if not isinstance(block, dict):
                     continue
                 title = _FAMILY_TITLES.get(name, name)
                 CmdLayout.title.print_h2(f"{icon('rocket')} {title}", stream=out)
-                if name == "overlays":
+                if name == "inputs":
                     CmdLayout.text.print_indent(
-                        "逐项修改参数，比较启用与未启用时的结果差异。",
+                        "每次只改一个路径，比较相对基准的结果差异。",
                         stream=out,
                     )
                 else:
@@ -133,6 +139,103 @@ class CampaignPresenter:
         self._present_trades(out)
         self._present_paths(out, persist)
 
+    def _present_enum_sections(self, out: TextIO) -> None:
+        """枚举五节问题报告（若 summarize 已写出 sections）。"""
+        report = self._report
+        sections = report.get("sections")
+        scope_note = str(report.get("scope_note") or "").strip()
+        if not isinstance(sections, dict) or not sections:
+            nested = report.get("report") if isinstance(report.get("report"), dict) else {}
+            sections = nested.get("sections") if isinstance(nested, dict) else None
+            if not scope_note and isinstance(nested, dict):
+                scope_note = str(nested.get("scope_note") or "").strip()
+        if not isinstance(sections, dict) or not sections:
+            return
+        icon = CmdLayout.icon.get
+        CmdLayout.title.print_h2(f"{icon('search')} 按问题阅读", stream=out)
+        if scope_note:
+            CmdLayout.text.print_indent(scope_note, stream=out)
+        order = (
+            "opportunity",
+            "stock_distribution",
+            "dispersion",
+            "exit_quality",
+            "after_take_profit",
+        )
+        for key in order:
+            block = sections.get(key)
+            if not isinstance(block, dict):
+                continue
+            if key == "after_take_profit" and not block.get("available"):
+                continue
+            question = str(block.get("question") or key).strip()
+            CmdLayout.title.print_h3(question, stream=out)
+            effects = [
+                item
+                for item in (block.get("effects") or [])
+                if isinstance(item, dict)
+            ]
+            if effects:
+                bullets: List[str] = []
+                for effect in effects:
+                    label = CampaignLabels.knob_label(effect.get("knob"))
+                    bits = [
+                        str(effect.get(name) or "").strip()
+                        for name in ("max_line", "min_line", "trend_line")
+                        if str(effect.get(name) or "").strip()
+                    ]
+                    if bits:
+                        bullets.append(f"{label} — {'；'.join(bits)}")
+                if bullets:
+                    CmdLayout.text.print_indent("结论：", stream=out)
+                    CmdLayout.text.print_bullets(
+                        bullets, indent=3, marker="·", stream=out
+                    )
+                CmdLayout.text.print_indent("具体细节：", stream=out)
+                for effect in effects:
+                    table = [
+                        row
+                        for row in (effect.get("table") or [])
+                        if isinstance(row, dict)
+                    ]
+                    if not table:
+                        continue
+                    title = str(effect.get("title") or "").strip()
+                    if title:
+                        CmdLayout.text.print_indent(title, stream=out)
+                    knob = CampaignLabels.knob_label(effect.get("knob"))
+                    outcome = CampaignLabels.outcome_label(effect.get("outcome"))
+                    headers = [
+                        f"当{knob}为",
+                        outcome,
+                        "与当前策略配置的变化",
+                    ]
+                    body = [
+                        [
+                            str(row.get("value_label") or "—"),
+                            str(row.get("metric_label") or "—"),
+                            str(row.get("delta_label") or "—"),
+                        ]
+                        for row in table
+                    ]
+                    CmdLayout.table.print(headers, body, stream=out)
+            else:
+                facts = [
+                    str(item).strip()
+                    for item in (block.get("facts") or [])
+                    if str(item).strip()
+                ]
+                if facts:
+                    CmdLayout.text.print_indent("结论：", stream=out)
+                    CmdLayout.text.print_bullets(
+                        facts, indent=3, marker="·", stream=out
+                    )
+                else:
+                    conclusion = str(block.get("conclusion") or "").strip()
+                    if conclusion:
+                        CmdLayout.text.print_indent(f"结论：{conclusion}", stream=out)
+            # 枚举层不写建议
+
     def _present_conclusion(
         self,
         out: TextIO,
@@ -146,7 +249,7 @@ class CampaignPresenter:
         )
         lines: List[str] = []
         if families:
-            for name in ("overlays", "matrix"):
+            for name in ("inputs", "cross"):
                 block = families.get(name)
                 if not isinstance(block, dict):
                     continue
@@ -172,7 +275,9 @@ class CampaignPresenter:
 
     def _present_family_body(self, out: TextIO, *, nested: bool = False) -> None:
         table = _table_rows(self._report)
-        self._present_presence(out, nested=nested)
+        # 枚举五节已用取值阶梯回答「什么值最好/最差」时，不再单独讲 presence 开关。
+        if not _has_enum_sections(self._report):
+            self._present_presence(out, nested=nested)
         self._present_sensitivity(out, nested=nested)
         self._present_cross_layer(out, nested=nested)
         self._present_interaction(out, nested=nested)
@@ -829,7 +934,7 @@ def _hydrate_families(payload: Dict[str, Any]) -> None:
     families: Dict[str, Any] = {}
     table = payload.get("table")
     attribute = payload.get("attribute")
-    for name in ("overlays", "matrix"):
+    for name in ("inputs", "cross"):
         block = payload.get(name)
         if not isinstance(block, dict) or not (
             block.get("report")
@@ -951,6 +1056,18 @@ def _outcome_columns(
     if out:
         return out
     return sorted(available)[:3]
+
+
+def _has_enum_sections(report: Mapping[str, Any]) -> bool:
+    sections = report.get("sections")
+    if isinstance(sections, dict) and sections:
+        return True
+    nested = report.get("report")
+    if isinstance(nested, dict):
+        nested_sections = nested.get("sections")
+        if isinstance(nested_sections, dict) and nested_sections:
+            return True
+    return False
 
 
 def _chapter_block(report: Mapping[str, Any], name: str) -> Dict[str, Any]:

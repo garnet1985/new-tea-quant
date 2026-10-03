@@ -1,9 +1,9 @@
 # 矩阵归因（战役）
 
-**状态：** 口径已锁定（2026-10-02）。回测与归因拆开。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → overlay → 查/补 version → 拼表 → 旋钮对照 → 总结 → 落盘）。报告写 `results/attribution/{n}/{enumerate|price_factor|portfolio}/`。CLI `sea` / `spa` / `soa`（须先有主 version）。平时 Run 把 version 记进 group。as-of 当日一片写入 `signal_snapshot`。  
-**一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 按层驱动 matrix，对照格写副本 `{vid}-{r}`。  
+**状态：** 口径已锁定（2026-10-03）。回测与归因拆开。`pipeline.py` 只串步骤；实施在 `steps/campaign/`（读 `attribution.py` → 按层 `inputs` 展格 → 查/补 version → 拼表 → 旋钮对照 → 总结 → 落盘）。报告写 `results/attribution/{n}/{enumerate|price_factor|portfolio}/`。CLI `sea` / `spa` / `soa`（须先有主 version）。平时 Run 把 version 记进 group。as-of 当日一片写入 `signal_snapshot`。  
+**一句话：** 平时 Run 只验证这一份想法；归因是事后对照，由 `engines/analyzer` 按层把 `inputs` 展开为对照格，副本写 `{vid}-{r}`。  
 **位置：** 业务在 `strategy/engines/analyzer`；统计原语仍在 `modules.analysis`。不新开 `factor` 模块，也不把调度并进 `modules.analysis`。  
-**问什么：** 回测者问题与层内诊断总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；展示 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)；枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。本文只管格子怎么展开、怎么命中 version。
+**问什么：** 回测者问题与层内诊断总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；自变量 / 因变量 / 配置格式见 [ATTRIBUTION_INPUTS.md](./ATTRIBUTION_INPUTS.md)；展示 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)；枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。本文只管格子怎么展开、怎么命中 version。
 
 ---
 
@@ -42,7 +42,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 同一对 `(execute_fp, env_fp)` 命中旧号时不要重复记。
 
 **可以归因（某一次任务的样本）**  
-参数 matrix 只收与这次快照 **区间、股票池相同** 的号，真正不同的只有 matrix 里声明的旋钮取值。`core` 字段改名、钩子源码改了 → `env_fp` 变 → 新 group，旧命名空间停在旧组。
+参数战役只收与这次快照 **区间、股票池相同** 的号，真正不同的只有本层 `inputs` 声明路径上的取值。`core` 字段改名、钩子源码改了 → `env_fp` 变 → 新 group，旧命名空间停在旧组。
 
 同组只说明「还是那套策略环境」。进不进这一张表，看这次任务锁的是哪一种样本。
 
@@ -54,8 +54,8 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 | 任务 | 锁什么 | 动什么 | 不要做的 |
 |------|--------|--------|----------|
-| **参数归因（matrix）** | 这次快照的区间和股票池 | `core` / `goal` 等声明旋钮 | 把一年和三年当成同一列的两个取值 |
-| **滚动验证** | 旋钮（或很少几组完整设置） | 声明好的窗口 | 和参数矩阵混在一份报告里 |
+| **参数归因（inputs）** | 这次快照的区间和股票池 | 本层 `inputs` 声明的 settings 路径 | 把一年和三年当成同一轴的两个取值 |
+| **滚动验证** | 旋钮（或很少几组完整设置） | 声明好的窗口 | 和参数战役混在一份报告里 |
 | **单次内部切片** | 这一版已留下的 snapshot | 现场 RSI 等与单笔盈亏 | 每次回测默认跑；不要叫成战役 |
 
 产物可以仍写在同一个 `results/attribution/{group}/` 下，**任务类型分开**。
@@ -68,15 +68,15 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 平时 Run 只多写一行组成员（落地时），不额外跑回测。
 
-归因是单独入口。点名方式见 [§10](#10-attributionpy)。用当前 `settings.py` 的 effective 当快照；`overlays` 展开时自动加当前 settings 为第 0 格（对照基准），其后每一行一格；`matrix` 按轴做笛卡尔积。
+归因是单独入口。点名方式见 [§10](#10-attributionpy) 与 [ATTRIBUTION_INPUTS.md](./ATTRIBUTION_INPUTS.md)。用当前 `settings.py` 的 effective 当快照；按层 `inputs` 展开时自动加当前 settings 为基准格；`cross: false`（默认）每次只改一个路径；`cross: true` 做笛卡尔积。
 
 ```text
 读当前 settings 快照 + attribution.py
-  → versions 非空则选号（不要和 overlays / matrix 同时写）
-  → overlays 与 matrix 可同时写：各自展开成表
+  → versions 非空则选号（不要与参数战役 inputs 混成同一主模式）
+  → 读本层 inputs（加默认轴）→ oaat 或 cross 展格
   → 回测执行按 execute_settings 去重，同一身份只 simulate 一次
-  → 各表自己 gather / 归因 / 总结；报告里单因子一栏、交叉一栏
-  → unique version 的价格层机会铺平，做单笔 XGB+SHAP（第三栏）
+  → gather / 归因 / 总结；报告按层固定结果指标分节
+  → unique version 的价格层机会铺平，做单笔 XGB+SHAP（附录）
   → 命中/补跑由回测层按双指纹判断
 ```
 
@@ -114,7 +114,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 | 指纹 | 里面有什么 | 归因怎么用 |
 |------|------------|------------|
 | `env_fp` | 策略路径、NTQ 版本、DB 类型、hooks 源码、data contract 映射文件哈希 | group 键 |
-| `execute_fp` | 白名单 settings（含 `simulation` 区间）+ 排序后的股票池 | 用「快照 + 一格 matrix」算目标指纹，在 group 里命中 |
+| `execute_fp` | 白名单 settings（含 `simulation` 区间）+ 排序后的股票池 | 用「快照 + 一格 inputs 变更」算目标指纹，在 group 里命中 |
 
 `meta` / `is_enabled` / `scanner` 等本来就不进 `execute_fp`。
 
@@ -128,11 +128,11 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 | 你要解释的 | 自动？ | 从哪来 |
 |------------|--------|--------|
-| 阈值扫 20 / 25 / 30 账户怎么变 | 是 | 各 version 的 `effective_settings.json`（matrix 路径） |
+| 阈值扫 20 / 25 / 30 账户怎么变 | 是 | 各 version 的 `effective_settings.json`（inputs 声明路径） |
 | 这笔买入时 RSI / MACD 是多少 | `settings.data` 声明了该列则是；否则要 `capture` | 该笔 as-of snapshot |
 | 钩子里自己算的、未声明的量 | 否 | 必须 `capture` |
 
-**设置参数**不需要、也不应该再 `capture` 一遍。它们在单次运行里是常数，写进 snapshot 没有新信息。matrix 任务只读 matrix 里写的设置路径。旋钮写死在 `strategy.py`、不在 settings 中，现有产物里没有这个值，matrix 也扫不到；要参与归因，就把它放进 settings。
+**设置参数**不需要、也不应该再 `capture` 一遍。它们在单次运行里是常数，写进 snapshot 没有新信息。参数战役只读本层 `inputs`（及默认轴）上的设置路径。旋钮写死在 `strategy.py`、不在 settings 中，现有产物里没有这个值，也扫不到；要参与归因，就把它放进 settings。
 
 **实时指标**（机会 A 的 RSI 是 17、机会 B 是 19）不在 settings 里。正确做法不是寄希望于用户记得 `capture`：
 
@@ -166,7 +166,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 - **不要**做成四层后面的第五层回测：扫描是旁边一种跑法，每个 version 仍按原来的层往下跑
 - **不要**把这次扫描塞回「跑一次回测顺便归因」的开关
 
-`Analyzer` 继续担任归因的职责：`attribute_*` 读 group / 展开 matrix；`run` 仍是切片库。
+`Analyzer` 继续担任归因的职责：`attribute_*` 读 group / 展开本层 `inputs`；`run` 仍是切片库。
 
 ---
 
@@ -180,16 +180,25 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 单独文件，与 `settings.py` 并列。Workbench 保存 settings 时不要改它。不进 `execute_fp` / `env_fp`。
 
-没有 `mode`：`versions` 非空就是选号（不要和另外两项同时写）。`overlays` 是逐项对照（一行动一处）；`matrix` 是多轴笛卡尔积。**二者可以同时写**：各自成表、报告各占一栏，回测按身份去重。**不要写 `steps`**——层由 CLI（`sea` / `spa` / `soa`）决定。`rolling.windows` 是另一项任务，和参数战役可以写在同一文件里，但归因 CLI / `sw` 分开跑、报告分开写。`versions`、`overlays`、`matrix`、`rolling.windows` 不能都空。不提供「空 versions = 当前窗口全选」。
+参数战役的唯一配置见 [ATTRIBUTION_INPUTS.md](./ATTRIBUTION_INPUTS.md)：按层声明 `inputs`（每轴 `{"values": [...]}`），`cross` 默认 `false`（每次只改一个路径）；`cross: true` 为笛卡尔积（上限 128 格）。**不使用** `overlays` / `matrix`。
+
+没有顶层 `mode`：`versions` 非空就是选号（不要与参数战役 `inputs` 同时当作同一任务的两种主模式混用）。**不要写 `steps`**——层由 CLI（`sea` / `spa` / `soa`）决定；跑哪一层就读哪一层块（并合并该层默认轴）。`rolling.windows` 是另一项任务，可与参数战役写在同一文件，由 `sw` 使用。`versions`、各层 `inputs`、`rolling.windows` 不能都空到无事可做。不提供「空 versions = 当前窗口全选」。
 
 ```python
 attribution = {
-    "overlays": [
-        {"core": {"rsi_oversold_threshold": 20}},
-        {"core": {"rsi_oversold_threshold": 25}},
-        {"core": {"max_pe_percentile": None}},
-        {"goal": {"stop_loss": None}},
-    ],
+    "enumerate": {
+        "inputs": {
+            "rsi_oversold_threshold": {"values": [20, 25]},
+            "max_pe_percentile": {"values": [30, None]},
+            "stop_loss": {
+                "values": [
+                    None,
+                    {"stages": [{"ratio": -0.2, "close_invest": True}]},
+                ],
+            },
+        },
+        "cross": False,
+    },
     "rolling": {
         "windows": [
             {"start": "20230101", "end": "20231231"},
@@ -199,35 +208,21 @@ attribution = {
 }
 ```
 
-上例 `overlays` 是 **4 格** 逐项对照。要鉴定两个旋钮一起动，加（或改成）`matrix`（笛卡尔积，每格带齐所有轴）。overlays 与 matrix 同时写时，两栏都出：
+上例在 `sea`、oaat 下：基准格 + 各轴相对基准的取值变体（与基准相同的去重）。若 `"cross": True` 且仅含 rsi 与 pe 两轴各 2 值，则为 2×2 笛卡尔积。每格一次 `Strategy.simulate`（同身份复用；对照格写 `{vid}-{r}`）。待跑格数与粗算数据量超过阈值时警告或拒绝，见 INPUTS §6。
 
-```python
-attribution = {
-    "matrix": {
-        "core": {
-            "rsi_oversold_threshold": [20, 25],
-            "max_pe_percentile": [30, None],
-        },
-    },
-}
-```
+### 展格后如何作用在 effective 上
 
-这是 **4 格**（2×2），不是两行 overlays。每层 CLI 仍是每格一次 `Strategy.simulate`（与 overlays 撞上同一身份则复用；对照格写 `{vid}-{r}`）；交叉从 matrix 这张表里减出来。笛卡尔积上限 128 格。
+快照 = 当前 `settings.py` 抽出的 **effective**。每一格 = 快照 + 本格路径取值 → 再走一遍 `to_usable` / `extract_execute_settings`，和普通 Run 同一套身份。
 
-
-### Overlay
-
-快照 = 当前 `settings.py` 抽出的 **effective**。每一格 = 快照 + 这一行 override → 再走一遍 `to_usable` / `extract_execute_settings`，和普通 Run 同一套身份。
-
-- Overlay 只允许 `execute_fp` 白名单块。写 `meta` / `scanner` / `is_enabled` 报错。
-- **overlays 表自动带当前 settings 一格当基准**（空 overlay，不写进 `attribution.py`）。后面每一行只声明相对基准要动的位置。
-- **一格声明一次要动的位置。** 没写到的兄弟键（只改 `stop_loss` 时的 `take_profit`）留在快照里。
-- **动到 effective 的哪个位置，就换掉那个位置上的整份值**（该位置在 effective 里的全部字段）。不要字段级深合并：不能只写一档的 `ratio` 却继承同一档里的 `close_invest`。
-- 独立旋钮（`core` 里各 key）各算各的位置，所以可以只 override `rsi_oversold_threshold`。
-- **省略键 = 继承快照；写成 `None` = 关掉这个位置。** 空 `stages: []` 仍然非法。关止损时留着止盈（不要两头一起关，否则只剩期末强平）。框架不会替 `strategy.py` 跳过 `core` 门槛；作者要把 `None` 当成跳过。`None` 会换 `execute_fp`，和改数字一样是新号。
-- 分类看 **effective 在 overlay 声明路径上的值**，不看 overlay 叶子 flatten（`goal.stop_loss: None` 和 `stages.0.ratio` 对不上）。
-- **list 整段替换。** 写了 `stop_loss.stages` 就换整张 stages；每一档必须把 effective 里该种对象的字段写全。
+- 只允许 `execute_fp` 白名单块。写 `meta` / `scanner` / `is_enabled` 报错。
+- **自动带当前 settings 一格当基准**（无路径变更，不写进 `attribution.py`）。
+- **oaat 下一格只变更声明的那一个路径**；未写到的兄弟键（只改 `stop_loss` 时的 `take_profit`）留在快照里。`cross` 下一格带齐各轴在该组合上的取值。
+- **动到 effective 的哪个位置，就换掉那个位置上的整份值**。不要字段级深合并：不能只写一档的 `ratio` 却继承同一档里的 `close_invest`。
+- `core` 里各 key 各算各的位置，可以只改 `rsi_oversold_threshold`。
+- **省略路径 = 继承快照；写成 `None` = 关掉这个位置。** 空 `stages: []` 仍然非法。关止损时留着止盈（不要两头一起关，否则只剩期末强平）。框架不会替 `strategy.py` 跳过 `core` 门槛；作者要把 `None` 当成跳过。`None` 会换 `execute_fp`，和改数字一样是新号。
+- 分类看 **effective 在声明路径上的值**。
+- **list 整段替换。** 写了 `stop_loss.stages` 就换整张 stages；每一档必须把 effective 里该种对象的字段写全。`goal` 轴的 `values` 规则见 INPUTS §4.3。
 
 滚动窗口写在 `attribution.rolling.windows`，不另开 `rolling.py`。CLI `sea`/`spa`/`soa`/`sw` 的 `-f` 与 `s -f` 相同：回测层 `ignore_cache`，同指纹写回原号（副本同理）。
 
-相关现行契约：[VERSIONING.md](../VERSIONING.md)、[DECISIONS.md](../DECISIONS.md)、analyzer [BOUNDARY.md](../../core/engines/analyzer/docs/BOUNDARY.md)、归因问题 [ATTRIBUTION.md](./ATTRIBUTION.md)、枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)。
+相关现行契约：[VERSIONING.md](../VERSIONING.md)、[DECISIONS.md](../DECISIONS.md)、analyzer [BOUNDARY.md](../../core/engines/analyzer/docs/BOUNDARY.md)、归因问题 [ATTRIBUTION.md](./ATTRIBUTION.md)、配置与指标 [ATTRIBUTION_INPUTS.md](./ATTRIBUTION_INPUTS.md)、枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)。

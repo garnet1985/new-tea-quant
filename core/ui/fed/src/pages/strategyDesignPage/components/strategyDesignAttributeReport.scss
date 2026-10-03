@@ -18,48 +18,181 @@
   margin-top: 4px;
 }
 
-.ntq-design-attr-report__headline {
-  margin: 0;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
-  line-height: 1.45;
-}
+.ntq-design-attr-report__scope-alert {
+  border-radius: 8px;
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(37, 99, 235, 0.12);
+  color: rgba(219, 234, 254, 0.95);
 
-.ntq-design-attr-report__hints {
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  .MuiAlert-icon {
+    color: rgba(147, 197, 253, 0.95);
+  }
+
+  .MuiAlert-message {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
 }
 
 .ntq-design-attr-report__section-title {
-  margin: 0 0 6px;
-  color: rgba(255, 255, 255, 0.78);
+  margin: 0;
+  color: rgba(255, 255, 255, 0.94);
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+}
+
+.ntq-design-attr-report__label {
+  margin: 0;
+  color: rgba(186, 198, 220, 0.88);
+  font-weight: 650;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
 }
 
 .ntq-design-attr-report__list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 16px;
 }
 
 .ntq-design-attr-report__list-item {
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(236, 240, 248, 0.9);
+  line-height: 1.45;
+}
+
+.ntq-design-attr-report__sections {
+  gap: 14px !important;
+}
+
+.ntq-design-attr-report__theme {
+  border-radius: 10px !important;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  margin: 0;
+
+  &::before {
+    display: none;
+  }
+}
+
+.ntq-design-attr-report__theme-summary {
+  min-height: 48px;
+  padding: 10px 14px;
+
+  .MuiAccordionSummary-content {
+    margin: 6px 0;
+  }
+}
+
+.ntq-design-attr-report__theme-body {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ntq-design-attr-report__conclusion-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.ntq-design-attr-report__conclusion-list {
+  margin: 0;
+}
+
+.ntq-design-attr-report__effect-conclusion {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.14);
+
+  &:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+}
+
+.ntq-design-attr-report__effect-name {
+  margin: 0;
+  font-weight: 650;
+  color: rgba(224, 231, 255, 0.95);
+}
+
+.ntq-design-attr-report__effect-outcome {
+  margin-left: 4px;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.ntq-design-attr-report__details {
+  border-radius: 8px !important;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.28);
+
+  &::before {
+    display: none;
+  }
+}
+
+.ntq-design-attr-report__details-summary {
+  min-height: 38px;
+  padding: 4px 12px;
+
+  .MuiAccordionSummary-content {
+    margin: 4px 0;
+  }
+}
+
+.ntq-design-attr-report__details-body {
+  padding: 0 12px 12px;
+}
+
+.ntq-design-attr-report__effect-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ntq-design-attr-report__effect-table-title {
+  color: rgba(186, 198, 220, 0.88);
+  font-weight: 600;
+}
+
+.ntq-design-attr-report__table-wrap--effect {
+  margin-top: 0;
+}
+
+.ntq-design-attr-report__row--baseline .MuiTableCell-root {
+  color: rgba(125, 211, 252, 0.98);
+  font-weight: 600;
 }
 
 .ntq-design-attr-report__table-wrap {
   width: 100%;
   overflow: auto;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.35);
 
   .MuiTableCell-root {
     white-space: nowrap;
-    border-color: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.86);
+    border-color: rgba(148, 163, 184, 0.1);
+    color: rgba(226, 232, 240, 0.9);
+    font-size: 0.8125rem;
   }
 
   .MuiTableCell-head {
-    font-weight: 600;
-    background: rgba(12, 12, 28, 0.96);
+    font-weight: 650;
+    color: rgba(186, 198, 220, 0.95);
+    background: rgba(15, 23, 42, 0.92);
   }
 }

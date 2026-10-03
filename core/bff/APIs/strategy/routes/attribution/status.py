@@ -37,7 +37,8 @@ _TOOLTIP_NEED_CONFIG = (
 )
 _TOOLTIP_NEED_RUN = "请先完成本层回测，再运行归因。"
 _TOOLTIP_INVALID = (
-    "attribution.py 存在但无法用于参数归因（需要 overlays / matrix / versions）。"
+    "attribution.py 存在但无法用于参数归因"
+    "（需要本层 inputs / versions）。"
     f"可参考模板：{EXAMPLE_PATH}"
 )
 

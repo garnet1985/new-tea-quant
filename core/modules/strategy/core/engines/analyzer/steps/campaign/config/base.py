@@ -17,14 +17,16 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 )
 from core.modules.strategy.core.enums import SimulateKind
 
-from .grid import SettingsMatrix
+from .inputs import validate_layer_inputs
 from .loader import ATTRIBUTION_FILE_NAME, load_attribution_dict
-from .overlay import SettingsOverlay
+
+_LAYER_KEYS = ("enumerate", "price_factor", "portfolio")
+_REMOVED_KEYS = ("overlays", "matrix")
 
 
 @dataclass
 class AttributionConfigBase(SettingsBase):
-    """参数归因配置（versions / overlays / matrix；rolling 块原样保留给滚动管线）。
+    """参数归因配置（versions / 按层 inputs / rolling）。
 
     边界:
     - 负责: 读取、默认值、校验、标准化视图
@@ -71,8 +73,6 @@ class AttributionConfigBase(SettingsBase):
             raise ValueError(StrategySettings.format_validation_error(report))
         return obj
 
-    # --- 标准化视图 ---------------------------------------------------------
-
     @property
     def layer(self) -> str:
         return self.LAYER
@@ -100,24 +100,22 @@ class AttributionConfigBase(SettingsBase):
         return tuple(out)
 
     @property
-    def overlays(self) -> Tuple[SettingsOverlay, ...]:
-        raw = self.raw_settings.get("overlays")
-        if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
-            return ()
-        return tuple(
-            SettingsOverlay.from_dict(row)
-            for row in raw
-            if isinstance(row, Mapping)
-        )
+    def layer_block(self) -> Dict[str, Any]:
+        block = self.raw_settings.get(self.LAYER)
+        return dict(block) if isinstance(block, Mapping) else {}
 
     @property
-    def has_overlays(self) -> bool:
-        return bool(self.overlays)
+    def layer_inputs(self) -> Dict[str, Any]:
+        raw = self.layer_block.get("inputs")
+        return dict(raw) if isinstance(raw, Mapping) else {}
 
     @property
-    def has_matrix(self) -> bool:
-        raw = self.raw_settings.get("matrix")
-        return isinstance(raw, Mapping) and bool(raw)
+    def cross(self) -> bool:
+        return bool(self.layer_block.get("cross", False))
+
+    @property
+    def has_layer_inputs(self) -> bool:
+        return bool(self.layer_inputs)
 
     @property
     def is_select(self) -> bool:
@@ -125,29 +123,20 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def has_parameter(self) -> bool:
-        """参数归因是否有可对照的声明（不含 rolling）。"""
-        return bool(self.versions) or self.has_overlays or self.has_matrix
-
-    @property
-    def parameter_modes(self) -> Tuple[str, ...]:
-        if self.is_select:
-            return ("select",)
-        out: list[str] = []
-        if self.has_overlays:
-            out.append("overlays")
-        if self.has_matrix:
-            out.append("matrix")
-        return tuple(out)
+        """参数归因是否可跑：选号、本层非空 inputs，或本层块存在（空 inputs→默认轴）。"""
+        if self.versions:
+            return True
+        if self.has_layer_inputs:
+            return True
+        return self.LAYER in self.raw_settings
 
     @property
     def parameter_mode(self) -> str:
-        modes = self.parameter_modes
-        if not modes:
-            return "overlays"
-        return "+".join(modes)
+        if self.is_select:
+            return "select"
+        return "cross" if self.cross else "inputs"
 
     def rolling_payload(self) -> Dict[str, Any]:
-        """交给滚动管线的 ``rolling`` 块。"""
         block = self.raw_settings.get("rolling")
         nested = dict(block) if isinstance(block, Mapping) else {}
         nested.pop("steps", None)
@@ -155,14 +144,20 @@ class AttributionConfigBase(SettingsBase):
         return nested
 
     def require_parameter(self) -> None:
-        """参数归因入口：没有 overlays/matrix/versions 则拒绝。"""
+        if any(
+            key in self.raw_settings
+            and self.raw_settings.get(key) not in (None, [], {})
+            for key in _REMOVED_KEYS
+        ):
+            raise ValueError(
+                "attribution.py 已不支持 overlays / matrix；"
+                "请按层写 inputs，见 ATTRIBUTION_INPUTS.md"
+            )
         if not self.has_parameter:
             raise ValueError(
-                "attribution.py 没有 overlays / matrix / versions；"
+                f"attribution.py 没有 {self.LAYER or '本层'}.inputs / versions；"
                 "请先配置对照，再跑 sea / spa / soa"
             )
-
-    # --- SettingsBase -------------------------------------------------------
 
     def apply_defaults(self) -> None:
         self.raw_settings.pop("fill_missing", None)
@@ -173,28 +168,45 @@ class AttributionConfigBase(SettingsBase):
             rolling.pop("steps", None)
         if self.raw_settings.get("versions") is None:
             self.raw_settings["versions"] = []
+        if self.LAYER and self.LAYER not in self.raw_settings:
+            # 不强制写入空块；缺省表示用默认轴
+            pass
         self._apply_layer_defaults()
 
     def _apply_layer_defaults(self) -> None:
-        """子类可覆盖：本层额外默认值。"""
         return
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
         self.apply_defaults()
+        self._validate_removed_keys(report)
         self._validate_versions(report)
-        self._validate_overlays(report)
-        SettingsMatrix.validate(self.raw_settings.get("matrix"), report)
         self._validate_mode_exclusivity(report)
+        for key in _LAYER_KEYS:
+            if key in self.raw_settings:
+                validate_layer_inputs(
+                    key,
+                    self.raw_settings.get(key),
+                    report,
+                    field_prefix=key,
+                )
         has_rolling = self._validate_rolling(report)
-        if not self.has_parameter and not has_rolling:
+        has_any_layer = any(
+            isinstance(self.raw_settings.get(key), Mapping)
+            for key in _LAYER_KEYS
+        )
+        if (
+            not self.versions
+            and not has_any_layer
+            and not has_rolling
+        ):
             SettingsBase.add_critical(
                 report,
-                "overlays",
-                "versions、overlays、matrix、rolling.windows 不能都空",
+                "enumerate",
+                "versions、各层 inputs、rolling.windows 不能都空",
                 suggested_fix=(
-                    "写 overlays 做逐项对照，matrix 做参数交叉对照（可同时写），"
-                    "versions 选号，或 rolling.windows 做滚动"
+                    '写 enumerate.inputs / price_factor.inputs / '
+                    "portfolio.inputs，或 versions / rolling.windows"
                 ),
             )
         self._validate_layer(report)
@@ -202,14 +214,32 @@ class AttributionConfigBase(SettingsBase):
         return report
 
     def _validate_layer(self, report: ValidationReport) -> None:
-        """子类可覆盖：本层额外约束。"""
         return
+
+    def _validate_removed_keys(self, report: ValidationReport) -> None:
+        for key in _REMOVED_KEYS:
+            if key in self.raw_settings and self.raw_settings.get(key) not in (
+                None,
+                [],
+                {},
+            ):
+                SettingsBase.add_critical(
+                    report,
+                    key,
+                    f"已移除 attribution.{key}；请改用按层 inputs",
+                    suggested_fix=(
+                        'enumerate: {"inputs": {"max_pe_percentile": '
+                        '{"values": [None, 30]}}, "cross": false}'
+                    ),
+                )
 
     def _validate_versions(self, report: ValidationReport) -> None:
         raw_versions = self.raw_settings.get("versions")
         if raw_versions is None:
             raw_versions = []
-        if not isinstance(raw_versions, Sequence) or isinstance(raw_versions, (str, bytes)):
+        if not isinstance(raw_versions, Sequence) or isinstance(
+            raw_versions, (str, bytes)
+        ):
             SettingsBase.add_critical(
                 report,
                 "versions",
@@ -241,52 +271,22 @@ class AttributionConfigBase(SettingsBase):
                     f"须为正整数，收到 {item!r}",
                 )
 
-    def _validate_overlays(self, report: ValidationReport) -> None:
-        raw_overlays = self.raw_settings.get("overlays")
-        if raw_overlays is None:
-            raw_overlays = []
-        if not isinstance(raw_overlays, Sequence) or isinstance(raw_overlays, (str, bytes)):
-            SettingsBase.add_critical(
-                report,
-                "overlays",
-                "attribution.overlays 须为 list",
-                suggested_fix="Set overlays to a list of overlay dicts or []",
-            )
-            return
-        for i, row in enumerate(raw_overlays):
-            if not isinstance(row, Mapping) or not row:
-                SettingsBase.add_critical(
-                    report,
-                    f"overlays[{i}]",
-                    "须为非空 dict overlay",
-                )
-                continue
-            overlay_report = SettingsOverlay.from_dict(row).validate()
-            for err in overlay_report.errors:
-                err = dict(err)
-                err["field_path"] = (
-                    f"overlays[{i}].{err.get('field_path') or ''}"
-                ).rstrip(".")
-                report.errors.append(err)
-                report.is_valid = False
-
     def _validate_mode_exclusivity(self, report: ValidationReport) -> None:
         has_versions = bool(self.versions)
-        has_overlays = self.has_overlays
-        raw_matrix = self.raw_settings.get("matrix")
-        has_matrix = bool(
-            (isinstance(raw_matrix, Mapping) and raw_matrix)
-            or (
-                isinstance(raw_matrix, Sequence)
-                and not isinstance(raw_matrix, (str, bytes, Mapping))
-                and raw_matrix
+        has_inputs = any(
+            isinstance(self.raw_settings.get(key), Mapping)
+            and bool(
+                (self.raw_settings.get(key) or {}).get("inputs")
+                if isinstance(self.raw_settings.get(key), Mapping)
+                else False
             )
+            for key in _LAYER_KEYS
         )
-        if has_versions and (has_overlays or has_matrix):
+        if has_versions and has_inputs:
             SettingsBase.add_critical(
                 report,
                 "versions",
-                "versions 不要和 overlays / matrix 同时写；选号是单独一种点名",
+                "versions 不要和各层 inputs 同时写；选号是单独一种点名",
             )
 
     def _validate_rolling(self, report: ValidationReport) -> bool:
@@ -298,7 +298,10 @@ class AttributionConfigBase(SettingsBase):
                 report,
                 "rolling",
                 "attribution.rolling 须为 dict",
-                suggested_fix='Set rolling to {"windows": [{"start": "20230101", "end": "20231231"}]}',
+                suggested_fix=(
+                    'Set rolling to {"windows": '
+                    '[{"start": "20230101", "end": "20231231"}]}'
+                ),
             )
             return False
         extra = set(raw) - {"windows", "steps"}
@@ -310,12 +313,19 @@ class AttributionConfigBase(SettingsBase):
                 suggested_fix="rolling 只放 windows",
             )
         windows = raw.get("windows")
-        if not isinstance(windows, Sequence) or isinstance(windows, (str, bytes)) or not windows:
+        if (
+            not isinstance(windows, Sequence)
+            or isinstance(windows, (str, bytes))
+            or not windows
+        ):
             SettingsBase.add_critical(
                 report,
                 "rolling.windows",
                 "attribution.rolling.windows 须为非空 list",
-                suggested_fix='Set rolling.windows to [{"start": "20230101", "end": "20231231"}]',
+                suggested_fix=(
+                    'Set rolling.windows to '
+                    '[{"start": "20230101", "end": "20231231"}]'
+                ),
             )
             return False
         seen: list[tuple[str, str]] = []
@@ -360,15 +370,7 @@ class AttributionConfigBase(SettingsBase):
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
         out.pop("steps", None)
+        out.pop("overlays", None)
+        out.pop("matrix", None)
         out["versions"] = list(self.versions)
-        if self.is_select:
-            out.pop("overlays", None)
-            out.pop("matrix", None)
-            return out
-        if self.has_overlays:
-            out["overlays"] = [row.to_dict() for row in self.overlays]
-        else:
-            out.pop("overlays", None)
-        if not self.has_matrix:
-            out.pop("matrix", None)
         return out

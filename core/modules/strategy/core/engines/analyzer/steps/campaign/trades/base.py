@@ -1,6 +1,6 @@
 """把战役各格的价格层机会铺平，做单笔 XGB + SHAP。
 
-格子对照仍走 overlays / matrix；这里只吃 unique version 的投资明细。
+格子对照仍走按层 inputs 展格；这里只吃 unique version 的投资明细。
 spa 专用；其他层门面返回 skipped。
 """
 from __future__ import annotations

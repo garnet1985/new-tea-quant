@@ -4,7 +4,7 @@ pipeline 只调 ``SummarizeStep.run(..., layer=)``；层差异在子类。
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping, Type
+from typing import Any, Dict, Mapping, Optional, Type
 
 from .base import SummarizeBase
 from .enumerate import EnumerateSummarize
@@ -35,8 +35,17 @@ class SummarizeStep:
         attributed: Mapping[str, Any],
         *,
         layer: str = "",
+        folder: Any = None,
+        gathered: Optional[Mapping[str, Any]] = None,
+        executed: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return cls.for_layer(layer).run(attributed, layer=layer)
+        return cls.for_layer(layer).run(
+            attributed,
+            layer=layer,
+            folder=folder,
+            gathered=gathered,
+            executed=executed,
+        )
 
 
 __all__ = [

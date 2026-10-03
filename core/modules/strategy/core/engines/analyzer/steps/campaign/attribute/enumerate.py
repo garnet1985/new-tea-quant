@@ -11,6 +11,11 @@ class EnumerateAttributeStep(AttributeBase):
     KNOB_PREFIXES = ("core.", "goal.", "data.", "sampling.")
     OUTCOMES = (
         ("enumerate", "total_opportunities"),
+        ("enumerate", "trigger_ratio"),
+        ("enumerate", "top_bucket_ratio"),
+        ("enumerate", "cv"),
+        ("enumerate", "stop_loss_ratio"),
+        ("enumerate", "take_profit_ratio"),
     )
     ENABLE_INTERACTIONS = False
     ENABLE_CROSS_LAYER = False

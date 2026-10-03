@@ -8,7 +8,7 @@ from typing import Any, Type
 
 from .base import AttributionConfigBase
 from .enumerate import EnumerateAttributionConfig
-from .grid import SettingsMatrix
+from .inputs import MAX_CELLS, expand_axes, parse_axes
 from .loader import ATTRIBUTION_FILE_NAME
 from .overlay import SettingsOverlay
 from .portfolio import PortfolioAttributionConfig
@@ -43,14 +43,15 @@ class AttributionConfig:
         return cls.for_layer(layer).to_usable(settings)
 
 
-# 旧名已删；对外只用 AttributionConfig / 各层子类。
 __all__ = [
     "ATTRIBUTION_FILE_NAME",
+    "MAX_CELLS",
     "AttributionConfig",
     "AttributionConfigBase",
     "EnumerateAttributionConfig",
     "PriceAttributionConfig",
     "PortfolioAttributionConfig",
-    "SettingsMatrix",
     "SettingsOverlay",
+    "expand_axes",
+    "parse_axes",
 ]

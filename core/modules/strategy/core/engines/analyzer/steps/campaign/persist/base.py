@@ -143,8 +143,13 @@ class PersistBase:
         summarized = dict(report.get("report") or {})
         families = report.get("families")
         if isinstance(families, dict) and families:
-            summarized["overlays"] = families.get("overlays") or summarized.get("overlays") or {}
-            summarized["matrix"] = families.get("matrix") or summarized.get("matrix") or {}
+            summarized["inputs"] = (
+                families.get("inputs")
+                or families.get("cross")
+                or summarized.get("inputs")
+                or {}
+            )
+            summarized["cross"] = families.get("cross") or summarized.get("cross") or {}
         if isinstance(report.get("trades"), dict) and report.get("trades"):
             summarized["trades"] = report.get("trades")
         summarized.update(
@@ -163,6 +168,9 @@ class PersistBase:
                 "ready_count": (report.get("gather") or {}).get("ready_count", 0),
                 "headline": report.get("headline") or summarized.get("headline"),
                 "generated_at": summarized.get("generated_at") or generated_at,
+                "cost_warning": report.get("cost_warning")
+                or summarized.get("cost_warning")
+                or "",
             }
         )
         return summarized

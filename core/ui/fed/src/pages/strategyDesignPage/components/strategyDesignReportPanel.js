@@ -31,8 +31,8 @@ function StrategyDesignReportPanel() {
             variant="standard"
             className="ntq-design-step-report__tabs"
           >
-            <Tab value="backtest" label="回测" disableRipple />
-            <Tab value="attribute" label="归因" disableRipple />
+            <Tab value="backtest" label="回测报告" disableRipple />
+            <Tab value="attribute" label="归因报告" disableRipple />
           </Tabs>
           {viewTab === 'attribute' && wb.attributeLastGroupId ? (
             <Typography variant="caption" color="text.secondary" className="ntq-design-step-report__group">

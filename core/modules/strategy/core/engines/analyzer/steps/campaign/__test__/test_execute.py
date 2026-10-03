@@ -201,40 +201,46 @@ def test_price_factor_win_rate_percent_becomes_ratio() -> None:
 
 
 def test_unique_tasks_share_execute_identity() -> None:
-    overlay = AttributionCell(
+    cell_a = AttributionCell(
         index=0,
         overlay={"core": {"rsi_oversold_threshold": 20}},
         runtime_settings={"core": {"rsi_oversold_threshold": 20}},
-        execute_settings={"core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}},
-        family="overlays",
-    )
-    matrix_same = AttributionCell(
-        index=0,
-        overlay={
+        execute_settings={
             "core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}
         },
-        runtime_settings={
-            "core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}
-        },
-        execute_settings={"core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}},
-        family="matrix",
+        family="inputs",
     )
-    matrix_other = AttributionCell(
+    cell_same = AttributionCell(
         index=1,
         overlay={
+            "core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}
+        },
+        runtime_settings={
+            "core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}
+        },
+        execute_settings={
+            "core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}
+        },
+        family="inputs",
+    )
+    cell_other = AttributionCell(
+        index=2,
+        overlay={
             "core": {"rsi_oversold_threshold": 25, "max_pe_percentile": 30}
         },
         runtime_settings={
             "core": {"rsi_oversold_threshold": 25, "max_pe_percentile": 30}
         },
-        execute_settings={"core": {"rsi_oversold_threshold": 25, "max_pe_percentile": 30}},
-        family="matrix",
+        execute_settings={
+            "core": {"rsi_oversold_threshold": 25, "max_pe_percentile": 30}
+        },
+        family="inputs",
     )
     kind = SimulateKind.PORTFOLIO
     tasks = [
-        AttributionTask(cell=overlay, kind=kind, steps=(kind,)),
-        AttributionTask(cell=matrix_same, kind=kind, steps=(kind,)),
-        AttributionTask(cell=matrix_other, kind=kind, steps=(kind,)),
+        AttributionTask(cell=cell_a, kind=kind, steps=(kind,)),
+        AttributionTask(cell=cell_same, kind=kind, steps=(kind,)),
+        AttributionTask(cell=cell_other, kind=kind, steps=(kind,)),
     ]
     unique = ExecuteStep.unique_tasks(tasks)
     assert len(unique) == 2
@@ -246,10 +252,10 @@ def test_unique_tasks_share_execute_identity() -> None:
         ],
     }
     unique_cells = [task.cell for task in unique]
-    overlay_bound = ExecuteStep.bind(executed, unique_cells, [overlay])
-    assert overlay_bound["cells"][0]["index"] == 0
-    assert overlay_bound["cells"][0]["version_id"] == "21"
-    matrix_bound = ExecuteStep.bind(
-        executed, unique_cells, [matrix_same, matrix_other]
+    bound_a = ExecuteStep.bind(executed, unique_cells, [cell_a])
+    assert bound_a["cells"][0]["index"] == 0
+    assert bound_a["cells"][0]["version_id"] == "21"
+    bound_b = ExecuteStep.bind(
+        executed, unique_cells, [cell_same, cell_other]
     )
-    assert [row["version_id"] for row in matrix_bound["cells"]] == ["21", "21-1"]
+    assert [row["version_id"] for row in bound_b["cells"]] == ["21", "21-1"]

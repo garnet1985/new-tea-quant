@@ -1,6 +1,6 @@
 # 归因要答什么
 
-**状态：** 总方向已锁定（2026-10-02）。展示：[ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)（一层一份；事实 / 结论 / 建议）。枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md) / 回放 [PRICE_REPLAY.md](./PRICE_REPLAY.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。战役机制仍以 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md) 为准。
+**状态：** 总方向已锁定（2026-10-03）。展示：[ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)（一层一份；事实 / 结论 / 建议）。自变量 / 因变量 / `attribution.py` 配置：[ATTRIBUTION_INPUTS.md](./ATTRIBUTION_INPUTS.md)。枚举层 [ATTRIBUTION_ENUM.md](./ATTRIBUTION_ENUM.md)；价格层 [ATTRIBUTION_PRICE.md](./ATTRIBUTION_PRICE.md) / 回放 [PRICE_REPLAY.md](./PRICE_REPLAY.md)；组合层 [ATTRIBUTION_PORTFOLIO.md](./ATTRIBUTION_PORTFOLIO.md)。战役展格仍以 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md) 为准。
 
 **一句话：** 归因给回测者看「这个结果为什么是这样、下一步改什么」；不是给数据科学家看「哪个特征 SHAP 最大」。
 
@@ -22,7 +22,7 @@
 原则：
 
 - 先层内诊断，再跨格对照**同一套诊断指标**，最后才是单笔 ML
-- 诊断只陈述已发生的；「如果改 X」必须对应 overlays/matrix 里真有的格子，没有就只给方向、不编百分比
+- 诊断只陈述已发生的；「如果改 X」必须对应 `inputs` 展开后真有的对照格，没有就只给方向、不编百分比
 - ML 只回答「已经触发的机会里，现场因子还能否把赚和亏分开」，不能替代发现能力、止损、资金
 - 决策模拟（`sd`）不进归因战役；滚动仍走 `sw`，不和参数战役混表
 - 不去 N 个战役格子上做回归

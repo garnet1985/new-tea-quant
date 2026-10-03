@@ -15,6 +15,7 @@ from ..attribute import AttributeStep
 from ..contrasts import KnobContrasts
 from ..metrics import READY
 from ..plan import AttributionTask
+from .enum_exits import exit_ratios_for_version
 
 _ALL_LAYERS: Tuple[Tuple[SimulateKind, str], ...] = (
     (SimulateKind.ENUMERATE, "enumerate"),
@@ -24,9 +25,14 @@ _ALL_LAYERS: Tuple[Tuple[SimulateKind, str], ...] = (
 
 _ENUM_KEYS = (
     "total_opportunities",
+    "trigger_stocks",
     "trigger_ratio",
     "avg_per_stock",
     "completed_ratio",
+    "cv",
+    "mean_gap",
+    "dispersion_conclusion",
+    "opportunity_count_max",
 )
 _PRICE_KEYS = (
     "win_rate",
@@ -104,7 +110,10 @@ class GatherBase:
     def _load_layers(cls, folder: Path, version_id: str) -> Dict[str, Any]:
         layers: Dict[str, Any] = {}
         for kind, key in _ALL_LAYERS:
-            layers[key] = cls._read_layer(folder, version_id, kind)
+            block = cls._read_layer(folder, version_id, kind)
+            if kind is SimulateKind.ENUMERATE:
+                block = attach_enum_exit_ratios(folder, version_id, block)
+            layers[key] = block
         return layers
 
     @classmethod
@@ -139,7 +148,38 @@ def compact_summary(kind: SimulateKind, summary: Mapping[str, Any]) -> Dict[str,
     if kind is SimulateKind.PRICE_FACTOR:
         # price_factor overall_report 把胜率写成 72.2（百分数）；战役表和资金层一样用 0–1。
         out["win_rate"] = _percent_to_ratio(out.get("win_rate"))
+    if kind is SimulateKind.ENUMERATE:
+        out["top_bucket_ratio"] = _top_bucket_ratio(summary)
     return out
+
+
+def attach_enum_exit_ratios(
+    folder: Path,
+    version_id: str,
+    layer_block: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """把出场比率并进 enumerate 层摘要。"""
+    if not isinstance(layer_block, dict):
+        return layer_block
+    ratios = exit_ratios_for_version(folder, version_id)
+    merged = dict(layer_block)
+    for key, value in ratios.items():
+        if key == "n_exits":
+            continue
+        merged[key] = value
+    return merged
+
+
+def _top_bucket_ratio(summary: Mapping[str, Any]) -> Optional[float]:
+    """机会最多的那只票，其机会数占全部机会的比例。"""
+    try:
+        total = float(summary.get("total_opportunities"))
+        top = float(summary.get("opportunity_count_max"))
+    except (TypeError, ValueError):
+        return None
+    if total <= 0 or top < 0:
+        return None
+    return round(min(top, total) / total, 4)
 
 
 def _percent_to_ratio(value: Any) -> Optional[float]:

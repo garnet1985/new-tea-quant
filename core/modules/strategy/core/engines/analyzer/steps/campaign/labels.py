@@ -20,8 +20,15 @@ _LAYER_LABELS = {
 _OUTCOME_LABELS = {
     "total_opportunities": "机会数",
     "trigger_ratio": "触发比例",
+    "trigger_stocks": "覆盖票数",
     "avg_per_stock": "每股机会",
     "completed_ratio": "完成比例",
+    "cv": "间隔离散度",
+    "mean_gap": "平均间隔天数",
+    "top_bucket_ratio": "最多机会那只票的占比",
+    "stop_loss_ratio": "止损占比",
+    "take_profit_ratio": "止盈占比",
+    "expire_ratio": "过期占比",
     "win_rate": "胜率",
     "avg_roi": "平均收益",
     "total_completed_investments": "完成笔数",
@@ -31,14 +38,22 @@ _OUTCOME_LABELS = {
     "capital_utilization_ratio_pct": "资金利用率",
 }
 
-# True = 越大越好；False = 越大越差；None = 只说高低
+# True = 越大越好；False = 越大越差；缺省 = 只说高低
 _OUTCOME_HIGHER_IS_BETTER = {
+    "total_opportunities": True,
+    "trigger_ratio": True,
+    "trigger_stocks": True,
+    "take_profit_ratio": True,
+    "completed_ratio": True,
     "total_return": True,
     "win_rate": True,
     "avg_roi": True,
     "total_profit": True,
-    "completed_ratio": True,
     "max_drawdown": False,
+    "stop_loss_ratio": False,
+    "expire_ratio": False,
+    "top_bucket_ratio": False,
+    "cv": False,
 }
 
 # 系统级旋钮（goal / portfolio / fees / simulation 等）才翻译。
@@ -72,6 +87,10 @@ _RATIO_KEYS = frozenset(
         "max_drawdown",
         "trigger_ratio",
         "completed_ratio",
+        "top_bucket_ratio",
+        "stop_loss_ratio",
+        "take_profit_ratio",
+        "expire_ratio",
     }
 )
 
@@ -203,9 +222,18 @@ class CampaignLabels:
         return f"{sign}{number:.2f}"
 
     @staticmethod
+    def higher_is_better(outcome: Any) -> Optional[bool]:
+        """指标是否越大越好；未知则 None。"""
+        text = str(outcome or "").strip()
+        last = text.split(".")[-1]
+        if last in _OUTCOME_HIGHER_IS_BETTER:
+            return _OUTCOME_HIGHER_IS_BETTER[last]
+        return _OUTCOME_HIGHER_IS_BETTER.get(text)
+
+    @staticmethod
     def direction_phrase(outcome: str, rho: float) -> str:
         """参数越大时，这项怎么变。"""
-        higher = _OUTCOME_HIGHER_IS_BETTER.get(outcome)
+        higher = CampaignLabels.higher_is_better(outcome)
         up = rho > 0
         if higher is True:
             return "往往越好" if up else "往往越差"

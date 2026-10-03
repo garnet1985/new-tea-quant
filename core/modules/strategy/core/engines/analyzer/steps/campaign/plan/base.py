@@ -1,12 +1,12 @@
-"""把 attribution 配置展开成格子：overlays 逐项、matrix 笛卡尔积，或 versions 选号。
+"""把 attribution 按层 inputs 展开成格子：默认 oaat，cross 为笛卡尔积。
 
-overlays 与 matrix 各自成表；overlays 自动带当前 settings 当基准格。
-执行并集按 ``execute_settings`` 去重。
+自动带当前 settings 当基准格。执行并集按 ``execute_settings`` 去重。
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import ClassVar, List, Tuple
+from typing import ClassVar, List
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -16,8 +16,18 @@ from core.modules.strategy.core.services.package.settings_loader import (
     load_settings_dict_from_folder,
 )
 
-from ..config import AttributionConfigBase, SettingsMatrix, SettingsOverlay
+from ..config import AttributionConfigBase, SettingsOverlay
+from ..config.inputs import (
+    MAX_CELLS,
+    cell_count,
+    cost_gate_message,
+    expand_axes,
+    merge_user_and_defaults,
+    parse_axes,
+)
 from .models import AttributionCell, ParameterPlan
+
+_LOG = logging.getLogger(__name__)
 
 
 class AttributionPlanBase:
@@ -72,27 +82,63 @@ class AttributionPlanBase:
                 for i, vid in enumerate(config.versions)
             )
             return ParameterPlan(selected=selected)
-        overlays: Tuple[AttributionCell, ...] = ()
-        if config.has_overlays:
-            declared = [
-                cls._from_overlay(i + 1, snapshot, row, family="overlays")
-                for i, row in enumerate(config.overlays)
-            ]
-            overlays = (
-                cls._from_snapshot(0, snapshot, family="overlays"),
-                *declared,
+
+        layer = str(config.LAYER or cls.LAYER or "").strip()
+        family = "cross" if config.cross else "inputs"
+        snap_raw = dict(snapshot.raw_settings)
+        merged = merge_user_and_defaults(layer, config.layer_inputs, snap_raw)
+        axes = parse_axes(layer, merged, snapshot=snap_raw)
+        nominal = cell_count(axes, cross=config.cross)
+        if nominal > MAX_CELLS:
+            raise ValueError(
+                f"展开约 {nominal} 格超过上限 {MAX_CELLS}；"
+                "请减少 values 或关闭 cross"
             )
-        matrix: Tuple[AttributionCell, ...] = ()
-        if config.has_matrix:
-            raw = config.raw_settings.get("matrix")
-            rows = SettingsMatrix.expand(raw if isinstance(raw, dict) else {})
-            matrix = tuple(
-                cls._from_overlay(
-                    i, snapshot, SettingsOverlay.from_dict(row), family="matrix"
-                )
-                for i, row in enumerate(rows)
+        warning = cost_gate_message(
+            nominal, snap_raw, cross=config.cross
+        )
+        if warning and not warning.startswith("WARNING:"):
+            raise ValueError(warning)
+        if warning:
+            _LOG.warning("%s", warning)
+
+        rows = expand_axes(axes, cross=config.cross)
+        declared = [
+            cls._from_overlay(
+                i + 1, snapshot, SettingsOverlay.from_dict(row), family=family
             )
-        return ParameterPlan(overlays=overlays, matrix=matrix)
+            for i, row in enumerate(rows)
+        ]
+        cells = cls._dedupe_execute(
+            (cls._from_snapshot(0, snapshot, family=family), *declared)
+        )
+        return ParameterPlan(cells=cells, cost_warning=warning or "")
+
+    @classmethod
+    def _dedupe_execute(
+        cls, cells: tuple[AttributionCell, ...]
+    ) -> tuple[AttributionCell, ...]:
+        """按 execute_settings 去重，保留先出现的格（通常是基准）。"""
+        seen: set[str] = set()
+        kept: List[AttributionCell] = []
+        for cell in cells:
+            key = repr(cell.execute_settings)
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(cell)
+        return tuple(
+            AttributionCell(
+                index=i,
+                overlay=cell.overlay,
+                runtime_settings=cell.runtime_settings,
+                execute_settings=cell.execute_settings,
+                effective=cell.effective,
+                version_id=cell.version_id,
+                family=cell.family,
+            )
+            for i, cell in enumerate(kept)
+        )
 
     @classmethod
     def _from_snapshot(
@@ -102,7 +148,6 @@ class AttributionPlanBase:
         *,
         family: str = "",
     ) -> AttributionCell:
-        """当前 settings 作为 overlays 对照基准，不写进 attribution.py。"""
         return AttributionCell(
             index=index,
             overlay={},

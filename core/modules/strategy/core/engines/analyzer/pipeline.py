@@ -95,7 +95,13 @@ class AttributionPipeline:
                 folder, tasks, family_executed, layer=layer.value
             )
             attributed = AttributeStep.run(gathered, layer=layer.value)
-            summarized = SummarizeStep.run(attributed, layer=layer.value)
+            summarized = SummarizeStep.run(
+                attributed,
+                layer=layer.value,
+                folder=folder,
+                gathered=gathered,
+                executed=family_executed,
+            )
             families[name] = CampaignReportStep.run(
                 folder,
                 config,
@@ -117,6 +123,8 @@ class AttributionPipeline:
         )
         assembled["layer"] = layer.value
         assembled["strategy_key"] = Path(folder).name
+        if getattr(plan, "cost_warning", ""):
+            assembled["cost_warning"] = plan.cost_warning
         persisted = PersistStep.for_layer(layer).run(
             folder,
             config,

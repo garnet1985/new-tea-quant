@@ -34,7 +34,11 @@ class SummarizeBase:
         attributed: Mapping[str, Any],
         *,
         layer: str = "",
+        folder: Any = None,
+        gathered: Optional[Mapping[str, Any]] = None,
+        executed: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
+        del folder, gathered, executed  # 子类（如枚举）可选用
         focus = str(layer or cls.LAYER or "").strip()
         highlights = cls._highlights(attributed, layer=focus)
         return {

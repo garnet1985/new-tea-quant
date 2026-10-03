@@ -126,7 +126,7 @@
 `Strategy.present_campaign(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 对照旋钮，按层归因。须已有当前 settings 对应的主 version（先 `se` / `sp` / `so`），否则拒绝。对照格写入副本 `{vid}-{r}`，不 bump `next_version_id`。报告写 `results/attribution/{n}/enumerate|price_factor|portfolio/`。`overlays` 逐项、`matrix` 笛卡尔积，可同时写。单笔 XGB+SHAP 仅价格层（`spa`，需 `requirements-ml.txt`）。CLI：`sea` / `spa` / `soa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。
+- **描述：** 读 `attribution.py` 按层 `inputs` 对照旋钮并归因。须已有当前 settings 对应的主 version（先 `se` / `sp` / `so`），否则拒绝。对照格写入副本 `{vid}-{r}`，不 bump `next_version_id`。报告写 `results/attribution/{n}/enumerate|price_factor|portfolio/`。默认 oaat（每次只改一个路径）；`cross: true` 为笛卡尔积。单笔 XGB+SHAP 仅价格层（`spa`，需 `requirements-ml.txt`）。CLI：`sea` / `spa` / `soa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。详见 `docs/notes/ATTRIBUTION_INPUTS.md`。
 
 ### rolling / present_rolling
 

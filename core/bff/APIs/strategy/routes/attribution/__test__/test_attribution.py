@@ -75,7 +75,8 @@ def test_status_enabled_with_overlays(tmp_path, monkeypatch):
     folder = tmp_path / "strat"
     folder.mkdir()
     (folder / "attribution.py").write_text(
-        "attribution = {'overlays': [{'core': {'rsi_oversold_threshold': 25}}]}\n",
+        "attribution = {'price_factor': {'inputs': {"
+        "'opportunity_merge_gap': {'values': [1, 3]}}}}\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(

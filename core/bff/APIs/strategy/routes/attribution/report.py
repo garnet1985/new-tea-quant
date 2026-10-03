@@ -54,12 +54,31 @@ class AttributeReportReader:
         task_meta = _read_json(task_dir / TASK_META_FILE) or {}
         trades = report.get("trades") if isinstance(report.get("trades"), dict) else {}
         layer = WorkbenchStep.parse(step).to_simulate_kind().value
+        nested = report.get("report") if isinstance(report.get("report"), dict) else {}
+        sections = report.get("sections")
+        if not isinstance(sections, dict) or not sections:
+            sections = nested.get("sections") if isinstance(nested, dict) else {}
+        scope_note = str(
+            report.get("scope_note")
+            or (nested.get("scope_note") if isinstance(nested, dict) else "")
+            or ""
+        ).strip()
+        analysis_mode = str(
+            report.get("analysis_mode")
+            or (nested.get("analysis_mode") if isinstance(nested, dict) else "")
+            or report.get("mode")
+            or ""
+        ).strip()
         return {
             "strategy_name": strategy_name,
             "step": step,
             "group_id": gid,
             "layer": layer,
+            "mode": report.get("mode"),
+            "analysis_mode": analysis_mode,
             "headline": report.get("headline"),
+            "scope_note": scope_note,
+            "sections": sections if isinstance(sections, dict) else {},
             "report": report,
             "table": table,
             "attribute": attribute,

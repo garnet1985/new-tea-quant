@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence, Type
 
 from ..plan import AttributionTask
-from .base import GatherBase, compact_summary
+from .base import GatherBase, attach_enum_exit_ratios, compact_summary
+from .enum_exits import (
+    after_take_profit_probe,
+    baseline_exit_diagnosis,
+    exit_ratios_for_version,
+)
 from .enumerate import EnumerateGather
 from .portfolio import PortfolioGather
 from .price import PriceGather
@@ -55,6 +60,10 @@ __all__ = [
     "GatherStep",
     "PortfolioGather",
     "PriceGather",
+    "after_take_profit_probe",
+    "attach_enum_exit_ratios",
+    "baseline_exit_diagnosis",
     "compact_summary",
+    "exit_ratios_for_version",
     "_compact_summary",
 ]

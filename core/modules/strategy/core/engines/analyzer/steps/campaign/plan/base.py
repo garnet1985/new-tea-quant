@@ -1,6 +1,7 @@
-"""把 attribution 按层 inputs 展开成格子：默认 oaat，cross 为笛卡尔积。
+"""把 attribution 共用 inputs 展开成格子：默认 oaat，cross 为笛卡尔积。
 
-自动带当前 settings 当基准格。执行并集按 ``execute_settings`` 去重。
+三 CLI 同一套副本身份；自动带当前 settings 当基准格。
+执行并集按 ``execute_settings`` 去重。
 """
 from __future__ import annotations
 
@@ -20,8 +21,11 @@ from ..config import AttributionConfigBase, SettingsOverlay
 from ..config.inputs import (
     MAX_CELLS,
     cell_count,
+    collect_joint_sweep,
     cost_gate_message,
     expand_axes,
+    expand_joint_groups,
+    joint_cell_count,
     merge_user_and_defaults,
     parse_axes,
 )
@@ -84,33 +88,55 @@ class AttributionPlanBase:
             return ParameterPlan(selected=selected)
 
         layer = str(config.LAYER or cls.LAYER or "").strip()
-        family = "cross" if config.cross else "inputs"
+        cross = bool(config.cross)
+        family = "cross" if cross else "inputs"
         snap_raw = dict(snapshot.raw_settings)
-        merged = merge_user_and_defaults(layer, config.layer_inputs, snap_raw)
-        axes = parse_axes(layer, merged, snapshot=snap_raw)
-        nominal = cell_count(axes, cross=config.cross)
+        # 共用展格：合并顶层 + 各层块 inputs；与 CLI 层无关
+        merged = merge_user_and_defaults(
+            "campaign", config.campaign_inputs, snap_raw
+        )
+        axes = parse_axes("campaign", merged, snapshot=snap_raw)
+        joint_groups = () if cross else tuple(collect_joint_sweep(config.raw_settings))
+        nominal = cell_count(axes, cross=cross)
+        if joint_groups:
+            nominal += joint_cell_count(axes, joint_groups)
         if nominal > MAX_CELLS:
             raise ValueError(
                 f"展开约 {nominal} 格超过上限 {MAX_CELLS}；"
-                "请减少 values 或关闭 cross"
+                "请减少 values、缩小 joint_sweep 或关闭 cross"
             )
-        warning = cost_gate_message(
-            nominal, snap_raw, cross=config.cross
-        )
+        warning = cost_gate_message(nominal, snap_raw, cross=cross)
         if warning and not warning.startswith("WARNING:"):
             raise ValueError(warning)
         if warning:
             _LOG.warning("%s", warning)
 
-        rows = expand_axes(axes, cross=config.cross)
+        rows = expand_axes(axes, cross=cross)
         declared = [
             cls._from_overlay(
                 i + 1, snapshot, SettingsOverlay.from_dict(row), family=family
             )
             for i, row in enumerate(rows)
         ]
+        joint_declared: List[AttributionCell] = []
+        if joint_groups:
+            joint_rows = expand_joint_groups(axes, joint_groups)
+            base_index = len(declared) + 1
+            joint_declared = [
+                cls._from_overlay(
+                    base_index + i,
+                    snapshot,
+                    SettingsOverlay.from_dict(row),
+                    family="joint",
+                )
+                for i, row in enumerate(joint_rows)
+            ]
         cells = cls._dedupe_execute(
-            (cls._from_snapshot(0, snapshot, family=family), *declared)
+            (
+                cls._from_snapshot(0, snapshot, family=family),
+                *declared,
+                *joint_declared,
+            )
         )
         return ParameterPlan(cells=cells, cost_warning=warning or "")
 

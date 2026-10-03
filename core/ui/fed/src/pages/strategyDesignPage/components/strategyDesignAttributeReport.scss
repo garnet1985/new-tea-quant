@@ -196,3 +196,45 @@
     background: rgba(15, 23, 42, 0.92);
   }
 }
+
+.ntq-design-attr-report__curve {
+  margin: 0.35rem 0 0.75rem;
+  max-width: 360px;
+  color: rgba(147, 197, 253, 0.95);
+}
+
+.ntq-design-attr-report__curve-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ntq-design-attr-report__curve-line {
+  opacity: 0.9;
+}
+
+.ntq-design-attr-report__curve-dot {
+  fill: rgba(147, 197, 253, 0.95);
+}
+
+.ntq-design-attr-report__curve-dot--baseline {
+  fill: rgba(252, 211, 77, 0.95);
+}
+
+.ntq-design-attr-report__curve-labels {
+  margin-top: 0.15rem;
+  gap: 0.25rem;
+
+  .MuiTypography-root {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.ntq-design-attr-report__curve-label--baseline {
+  color: rgba(252, 211, 77, 0.95) !important;
+  font-weight: 650;
+}

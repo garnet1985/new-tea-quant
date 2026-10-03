@@ -1,7 +1,9 @@
 """每格 ``Strategy.simulate``；命中/补跑由回测层判断。
 
 归因只写主号下的副本 ``{vid}-{r}``；baseline 复用主号。
-``ignore_cache`` 只加在该格第一层，避免 -f 把后面刚写下的价格产物清掉。
+任务 ``steps`` 含到本层为止的上游链（见 ``simulate_steps_for_kind``）：
+``sea`` 只枚举，``spa`` 枚举→价格，``soa`` 枚举→价格→组合；已有产物则 cache hit。
+``ignore_cache`` 只加在该格第一层，避免 -f 把后面刚写下的下游清掉。
 选号按 version_id 取已有主号产物，不补层。
 """
 from __future__ import annotations

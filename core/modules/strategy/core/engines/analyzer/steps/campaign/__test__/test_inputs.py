@@ -43,6 +43,34 @@ def _snapshot() -> StrategySettings:
     )
 
 
+def test_joint_sweep_adds_cartesian_cells() -> None:
+    raw = {
+        "inputs": {
+            "stop_loss": {"values": [-0.1, -0.2]},
+            "take_profit": {"values": [0.1, 0.2]},
+            "rsi_oversold_threshold": {"values": [20, 25]},
+        },
+        "joint_sweep": [["stop_loss", "take_profit"]],
+        "cross": False,
+    }
+    cfg = AttributionConfig.to_usable(raw, layer="enumerate")
+    assert cfg.joint_sweep == (("goal.stop_loss", "goal.take_profit"),)
+    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enumerate")
+    # 与基准/单轴 execute_settings 相同的联合格会被去重；至少保留真正新的组合
+    multi = [
+        cell
+        for cell in cells
+        if len(KnobContrasts.union_paths([cell.overlay])) == 2
+    ]
+    assert len(multi) >= 1
+    assert any(cell.family == "joint" for cell in multi)
+    # 单因素格子仍在
+    assert any(
+        KnobContrasts.union_paths([cell.overlay]) == ["core.rsi_oversold_threshold"]
+        for cell in cells
+    )
+
+
 def test_expand_axes_cross() -> None:
     axes = parse_axes(
         "enumerate",
@@ -181,6 +209,97 @@ def test_hook_goal_skipped_in_defaults() -> None:
             {"stop_loss": {"values": [-0.2, None]}},
             snap,
         )
+
+
+def test_shared_campaign_grid_same_for_sea_and_spa() -> None:
+    """sea / spa 展格身份相同（合并各层块 inputs）。"""
+    raw = {
+        "enumerate": {
+            "inputs": {
+                "rsi_oversold_threshold": {"values": [25]},
+            },
+            "cross": False,
+        },
+        "price_factor": {
+            "inputs": {
+                "opportunity_merge_gap": {"values": [3]},
+            },
+        },
+        "portfolio": {
+            "inputs": {
+                "max_portfolio_size": {"values": [20]},
+            },
+        },
+    }
+    cfg_sea = AttributionConfig.to_usable(raw, layer="enumerate")
+    cfg_spa = AttributionConfig.to_usable(raw, layer="price_factor")
+    assert cfg_sea.campaign_inputs == cfg_spa.campaign_inputs
+    assert set(cfg_sea.campaign_inputs) == {
+        "core.rsi_oversold_threshold",
+        "simulation.price.opportunity_merge_gap",
+        "portfolio.allocation.max_portfolio_size",
+    }
+    cells_sea = AttributionPlan.expand(_snapshot(), cfg_sea, layer="enumerate")
+    cells_spa = AttributionPlan.expand(_snapshot(), cfg_spa, layer="price_factor")
+    assert len(cells_sea) == len(cells_spa)
+    sea_overlays = [cell.overlay for cell in cells_sea]
+    spa_overlays = [cell.overlay for cell in cells_spa]
+    assert sea_overlays == spa_overlays
+    # oaat：基准 + 三轴各一变体
+    assert len(cells_sea) == 4
+
+
+def test_demo_style_top_level_attribution_loads() -> None:
+    """demo 顶层 inputs 形态可加载，且三 CLI 身份一致。"""
+    raw = {
+        "inputs": {
+            "rsi_oversold_threshold": {"values": [20, 25]},
+            "max_pe_percentile": {"values": [30, None]},
+            "opportunity_merge_gap": {"values": [1, 3]},
+            "max_portfolio_size": {"values": [10, 20]},
+        },
+        "cross": False,
+    }
+    sea = AttributionConfig.to_usable(raw, layer="enumerate")
+    spa = AttributionConfig.to_usable(raw, layer="price_factor")
+    soa = AttributionConfig.to_usable(raw, layer="portfolio")
+    assert sea.campaign_inputs == spa.campaign_inputs == soa.campaign_inputs
+    cells_spa = AttributionPlan.expand(_snapshot(), spa, layer="price_factor")
+    cells_soa = AttributionPlan.expand(_snapshot(), soa, layer="portfolio")
+    assert [c.overlay for c in cells_spa] == [c.overlay for c in cells_soa]
+
+
+def test_top_level_inputs_shared() -> None:
+    cfg = AttributionConfig.to_usable(
+        {
+            "inputs": {
+                "rsi_oversold_threshold": {"values": [25]},
+                "opportunity_merge_gap": {"values": [3]},
+            },
+            "cross": False,
+        },
+        layer="price_factor",
+    )
+    assert "core.rsi_oversold_threshold" in cfg.campaign_inputs
+    assert "simulation.price.opportunity_merge_gap" in cfg.campaign_inputs
+    cells = AttributionPlan.expand(_snapshot(), cfg, layer="price_factor")
+    assert cells[0].overlay == {}
+    assert len(cells) == 3
+
+
+def test_price_block_may_declare_core_axis() -> None:
+    """共用副本：写在 price_factor 块里的 core 轴合法。"""
+    cfg = AttributionConfig.to_usable(
+        {
+            "price_factor": {
+                "inputs": {
+                    "max_pe_percentile": {"values": [None, 30]},
+                }
+            }
+        },
+        layer="price_factor",
+    )
+    assert "core.max_pe_percentile" in cfg.campaign_inputs
 
 
 def test_goal_scalar_shorthand() -> None:

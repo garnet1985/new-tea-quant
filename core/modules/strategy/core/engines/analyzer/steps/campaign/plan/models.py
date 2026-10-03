@@ -66,6 +66,24 @@ def cell_identity(cell: AttributionCell) -> str:
     )
 
 
+def simulate_steps_for_kind(kind: SimulateKind) -> Tuple[SimulateKind, ...]:
+    """本层 CLI 要补齐的产物链：只到目标层，上游缺则先补（懒执行）。
+
+    ``sea`` → 仅枚举；``spa`` → 枚举+价格；``soa`` → 枚举+价格+组合。
+    """
+    if kind == SimulateKind.ENUMERATE:
+        return (SimulateKind.ENUMERATE,)
+    if kind == SimulateKind.PRICE_FACTOR:
+        return (SimulateKind.ENUMERATE, SimulateKind.PRICE_FACTOR)
+    if kind == SimulateKind.PORTFOLIO:
+        return (
+            SimulateKind.ENUMERATE,
+            SimulateKind.PRICE_FACTOR,
+            SimulateKind.PORTFOLIO,
+        )
+    return (kind,)
+
+
 @dataclass(frozen=True)
 class AttributionTask:
     """一格对应的可执行任务（交给 ``Strategy.simulate`` 或按号读取）。"""
@@ -81,5 +99,5 @@ class AttributionTask:
         *,
         kind: SimulateKind,
     ) -> List["AttributionTask"]:
-        steps = (kind,)
+        steps = simulate_steps_for_kind(kind)
         return [cls(cell=cell, kind=kind, steps=steps) for cell in cells]

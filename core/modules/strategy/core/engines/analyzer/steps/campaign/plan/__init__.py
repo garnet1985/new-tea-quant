@@ -15,6 +15,7 @@ from .models import (
     AttributionTask,
     ParameterPlan,
     cell_identity,
+    simulate_steps_for_kind,
 )
 from .portfolio import PortfolioAttributionPlan
 from .price import PriceAttributionPlan
@@ -76,4 +77,5 @@ __all__ = [
     "PortfolioAttributionPlan",
     "PriceAttributionPlan",
     "cell_identity",
+    "simulate_steps_for_kind",
 ]

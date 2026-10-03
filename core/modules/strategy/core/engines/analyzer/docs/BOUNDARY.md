@@ -24,7 +24,9 @@
 | ``steps/campaign/trades/`` | spa 单笔铺平：``TradesStep.for_layer``（仅价格层有实质工作） |
 | ``steps/rolling/`` | 滚动验证（窗口展开 / 总结 / 展示） |
 
-Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。战役口径见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。``Analyzer.rolling`` 走 ``RollingPipeline``。单 version 的 prepare / analyze / report / layer 已删除。
+Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。
+
+**口径（文档已修订，代码可能仍落后）：** 三入口共用同一套「如果」副本身份与同一套管线形状（解析取值 → 补本层产物 → gather → summarize → report）；CLI 只决定懒执行深度与因变量。详见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md) §0 / §11。``Analyzer.rolling`` 走 ``RollingPipeline``。单 version 的 prepare / analyze / report / layer 已删除。
 
 ## 入口（当前）
 
@@ -33,7 +35,7 @@ Analyzer.attribute_*(key) → AttributionPipeline(kind=…) → steps/campaign/
 Analyzer.rolling(key)     → RollingPipeline → steps/rolling/
 ```
 
-``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enumerate|price_factor|portfolio}/``，滚动写 ``rolling/``。CLI ``sea`` / ``spa`` / ``soa`` / ``sw``。
+``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enumerate|price_factor|portfolio}/``（按层报告目录，不是三套格子），滚动写 ``rolling/``。CLI ``sea`` / ``spa`` / ``soa`` / ``sw``。
 
 ## 依赖方向
 

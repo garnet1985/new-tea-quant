@@ -284,9 +284,19 @@ def test_enumerate_summarize_sections_value_ladders():
     assert "after_take_profit" not in sections
     assert out.get("headline") in {"", None}
     assert out.get("analysis_mode") == "oaat"
-    assert out.get("scope_note") == "当前归因为单个参数对结果的归因"
+    assert "单因素扫描" in (out.get("scope_note") or "")
     assert all(not str(sec.get("suggestion") or "") for sec in sections.values())
     assert "各个参数是如何影响回测找到的机会总数？" in opp["question"]
+    sweeps = out.get("sweeps") or []
+    assert {item["knob"] for item in sweeps} >= {
+        "core.max_pe_percentile",
+        "core.rsi_oversold",
+        "goal.stop_loss",
+    }
+    rank = out.get("sensitivity_rank") or []
+    assert rank
+    assert rank[0]["knob"] == "core.rsi_oversold"
+    assert out.get("sweep_primary_outcome") == "total_opportunities"
 
 
 def test_enumerate_summarize_after_tp_gate_with_settings(tmp_path: Path, monkeypatch):

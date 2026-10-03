@@ -31,11 +31,21 @@ _OUTCOME_LABELS = {
     "expire_ratio": "过期占比",
     "win_rate": "胜率",
     "avg_roi": "平均收益",
+    "payoff_ratio": "盈亏比",
+    "roi_p50": "ROI中位数",
+    "top5_trade_profit_share": "前5笔贡献占比",
+    "top5_stock_profit_share": "前5只票贡献占比",
+    "avg_roi_without_top5": "去掉前5笔后均收益",
+    "take_profit_profit_share": "止盈贡献占比",
+    "stop_loss_profit_share": "止损贡献占比",
+    "expire_profit_share": "到期贡献占比",
     "total_completed_investments": "完成笔数",
     "total_profit": "总盈亏",
+    "avg_profit_per_investment": "单笔平均盈亏",
     "total_return": "账户收益",
     "max_drawdown": "最大回撤",
     "capital_utilization_ratio_pct": "资金利用率",
+    "opportunity_merge_gap": "近邻间隔阈值",
 }
 
 # True = 越大越好；False = 越大越差；缺省 = 只说高低
@@ -48,11 +58,20 @@ _OUTCOME_HIGHER_IS_BETTER = {
     "total_return": True,
     "win_rate": True,
     "avg_roi": True,
+    "avg_roi_without_top5": True,
+    "payoff_ratio": True,
+    "roi_p50": True,
     "total_profit": True,
+    "avg_profit_per_investment": True,
+    "take_profit_profit_share": True,
     "max_drawdown": False,
     "stop_loss_ratio": False,
+    "stop_loss_profit_share": False,
     "expire_ratio": False,
+    "expire_profit_share": False,
     "top_bucket_ratio": False,
+    "top5_trade_profit_share": False,
+    "top5_stock_profit_share": False,
     "cv": False,
 }
 
@@ -61,6 +80,7 @@ _OUTCOME_HIGHER_IS_BETTER = {
 _SYSTEM_KNOB_LABELS = {
     "stop_loss": "止损",
     "take_profit": "止盈",
+    "opportunity_merge_gap": "近邻间隔阈值",
     "max_portfolio_size": "组合容量",
     "max_weight_per_stock": "单票权重上限",
     "initial_capital": "初始资金",
@@ -84,6 +104,7 @@ _RATIO_KEYS = frozenset(
         "total_return",
         "win_rate",
         "avg_roi",
+        "roi_p50",
         "max_drawdown",
         "trigger_ratio",
         "completed_ratio",
@@ -91,6 +112,11 @@ _RATIO_KEYS = frozenset(
         "stop_loss_ratio",
         "take_profit_ratio",
         "expire_ratio",
+        "top5_trade_profit_share",
+        "top5_stock_profit_share",
+        "take_profit_profit_share",
+        "stop_loss_profit_share",
+        "expire_profit_share",
     }
 )
 

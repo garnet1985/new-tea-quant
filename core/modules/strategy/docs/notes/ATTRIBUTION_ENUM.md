@@ -1,8 +1,8 @@
 # 枚举层归因口径
 
-**状态：** 口径已锁定（2026-10-02）。战役入口 CLI `sea`（须先 `se`）。展示见 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)。总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；战役格子 / 指纹见 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md)。价格层、组合层另文。
+**状态：** 口径修订衔接（2026-10-03）。战役入口 CLI `sea`（须先 `se`；只补枚举产物）。展示见 [ATTRIBUTION_PRESENT.md](./ATTRIBUTION_PRESENT.md)。总方向见 [ATTRIBUTION.md](./ATTRIBUTION.md)；**共用副本与管道**见 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md) §0。价格层、组合层另文。
 
-**一句话：** 枚举归因看「策略探测到的全部机会」以及「每笔机会独立走完目标的纸面结局」；不去重、不算资金。
+**一句话：** 枚举归因看「策略探测到的全部机会」以及「每笔机会独立走完目标的纸面结局」；不去重、不算资金。对照身份与后续 `spa` / `soa` 共用，本 CLI 不预跑后两层。
 
 不定义 CLI / UI，不改指纹。
 

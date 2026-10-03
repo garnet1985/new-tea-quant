@@ -16,6 +16,7 @@ from ..contrasts import KnobContrasts
 from ..metrics import READY
 from ..plan import AttributionTask
 from .enum_exits import exit_ratios_for_version
+from .price_ledger import attach_price_ledger
 
 _ALL_LAYERS: Tuple[Tuple[SimulateKind, str], ...] = (
     (SimulateKind.ENUMERATE, "enumerate"),
@@ -39,6 +40,15 @@ _PRICE_KEYS = (
     "avg_roi",
     "total_completed_investments",
     "total_profit",
+    "avg_profit_per_investment",
+    "roi_p50",
+    "payoff_ratio",
+    "top5_trade_profit_share",
+    "top5_stock_profit_share",
+    "avg_roi_without_top5",
+    "take_profit_profit_share",
+    "stop_loss_profit_share",
+    "expire_profit_share",
 )
 _PORTFOLIO_KEYS = (
     "total_return",
@@ -113,6 +123,8 @@ class GatherBase:
             block = cls._read_layer(folder, version_id, kind)
             if kind is SimulateKind.ENUMERATE:
                 block = attach_enum_exit_ratios(folder, version_id, block)
+            if kind is SimulateKind.PRICE_FACTOR:
+                block = attach_price_ledger(folder, version_id, block)
             layers[key] = block
         return layers
 
@@ -146,8 +158,9 @@ def compact_summary(kind: SimulateKind, summary: Mapping[str, Any]) -> Dict[str,
     keys = _KEYS_BY_KIND.get(kind, _PORTFOLIO_KEYS)
     out = {key: summary.get(key) for key in keys}
     if kind is SimulateKind.PRICE_FACTOR:
-        # price_factor overall_report 把胜率写成 72.2（百分数）；战役表和资金层一样用 0–1。
+        # price_factor overall_report：胜率 / ROI 分位为百分数；战役表统一 0–1。
         out["win_rate"] = _percent_to_ratio(out.get("win_rate"))
+        out["roi_p50"] = _percent_to_ratio(out.get("roi_p50"))
     if kind is SimulateKind.ENUMERATE:
         out["top_bucket_ratio"] = _top_bucket_ratio(summary)
     return out

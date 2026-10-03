@@ -110,9 +110,22 @@ class CampaignPresenter:
         ).strip()
         if cost_warning:
             CmdLayout.text.print_kv("成本提示", cost_warning, sep="：", stream=out)
+        bridge = str(
+            report.get("upstream_bridge")
+            or (
+                (report.get("report") or {}).get("upstream_bridge")
+                if isinstance(report.get("report"), dict)
+                else ""
+            )
+            or ""
+        ).strip()
+        if bridge:
+            CmdLayout.text.print_indent(bridge, stream=out)
 
         self._present_conclusion(out, families)
-        self._present_enum_sections(out)
+        self._present_parameter_sweeps(out)
+        self._present_joint_sweeps(out)
+        self._present_question_sections(out)
 
         if nested:
             for name in ("inputs", "cross"):
@@ -139,8 +152,143 @@ class CampaignPresenter:
         self._present_trades(out)
         self._present_paths(out, persist)
 
-    def _present_enum_sections(self, out: TextIO) -> None:
-        """枚举五节问题报告（若 summarize 已写出 sections）。"""
+    def _present_parameter_sweeps(self, out: TextIO) -> None:
+        """敏感度排名 + 每轴扫描档位（参数扫描主产物）。"""
+        report = self._report
+        nested = report.get("report") if isinstance(report.get("report"), dict) else {}
+        rank = report.get("sensitivity_rank")
+        sweeps = report.get("sweeps")
+        if not isinstance(rank, list) or not rank:
+            rank = nested.get("sensitivity_rank") if isinstance(nested, dict) else None
+        if not isinstance(sweeps, list) or not sweeps:
+            sweeps = nested.get("sweeps") if isinstance(nested, dict) else None
+        if not isinstance(rank, list):
+            rank = []
+        if not isinstance(sweeps, list):
+            sweeps = []
+        if not rank and not sweeps:
+            return
+        icon = CmdLayout.icon.get
+        CmdLayout.title.print_h2(f"{icon('chart')} 参数扫描", stream=out)
+        primary = str(
+            report.get("sweep_primary_outcome")
+            or (nested.get("sweep_primary_outcome") if isinstance(nested, dict) else "")
+            or ""
+        ).strip()
+        if primary:
+            CmdLayout.text.print_indent(
+                f"主指标：{CampaignLabels.outcome_label(primary)}（样本内；换窗口请用滚动验证）",
+                stream=out,
+            )
+        if rank:
+            CmdLayout.title.print_h3("敏感度排名", stream=out)
+            bullets = []
+            for item in rank:
+                if not isinstance(item, dict):
+                    continue
+                label = str(item.get("knob_label") or item.get("knob") or "").strip()
+                span = str(item.get("span_label") or item.get("span") or "").strip()
+                impact = str(item.get("impact") or "").strip()
+                best = str(item.get("best_value_label") or item.get("best_value") or "").strip()
+                bits = [f"#{item.get('rank')}", label]
+                if span:
+                    bits.append(f"起伏 {span}")
+                if impact:
+                    bits.append(f"影响{impact}")
+                if best:
+                    bits.append(f"样本内较优 {best}")
+                bullets.append(" · ".join(str(b) for b in bits if b))
+            if bullets:
+                CmdLayout.text.print_bullets(bullets, indent=3, marker="·", stream=out)
+        for sweep in sweeps:
+            if not isinstance(sweep, dict):
+                continue
+            levels = [
+                item for item in (sweep.get("levels") or []) if isinstance(item, dict)
+            ]
+            if len(levels) < 2:
+                continue
+            knob_label = str(sweep.get("knob_label") or sweep.get("knob") or "").strip()
+            outcome = str(
+                sweep.get("primary_outcome_label")
+                or sweep.get("primary_outcome")
+                or primary
+                or "指标"
+            ).strip()
+            CmdLayout.title.print_h3(f"{knob_label} → {outcome}", stream=out)
+            advice = str(sweep.get("advice") or "").strip()
+            if advice:
+                CmdLayout.text.print_indent(advice, stream=out)
+            rows = []
+            for level in levels:
+                metrics = level.get("metrics") if isinstance(level.get("metrics"), dict) else {}
+                key = str(sweep.get("primary_outcome") or primary or "")
+                metric = metrics.get(key)
+                mark = "（当前）" if level.get("is_baseline") else ""
+                rows.append(
+                    [
+                        f"{level.get('value_label')}{mark}",
+                        CampaignLabels.format_number(key, metric)
+                        if metric is not None
+                        else "—",
+                    ]
+                )
+            if rows:
+                CmdLayout.table.print(
+                    ["取值", outcome],
+                    rows,
+                    stream=out,
+                )
+
+    def _present_joint_sweeps(self, out: TextIO) -> None:
+        """联合扫描热力表。"""
+        report = self._report
+        nested = report.get("report") if isinstance(report.get("report"), dict) else {}
+        joints = report.get("joint_sweeps")
+        if not isinstance(joints, list) or not joints:
+            joints = nested.get("joint_sweeps") if isinstance(nested, dict) else None
+        if not isinstance(joints, list) or not joints:
+            return
+        icon = CmdLayout.icon.get
+        CmdLayout.title.print_h2(f"{icon('rocket')} 联合扫描", stream=out)
+        for block in joints:
+            if not isinstance(block, dict):
+                continue
+            labels = block.get("knob_labels") or block.get("knobs") or []
+            title = " × ".join(str(item) for item in labels if item)
+            outcome = str(
+                block.get("primary_outcome_label")
+                or block.get("primary_outcome")
+                or "指标"
+            )
+            CmdLayout.title.print_h3(
+                f"{title} → {outcome}" if title else outcome,
+                stream=out,
+            )
+            advice = str(block.get("advice") or "").strip()
+            if advice:
+                CmdLayout.text.print_indent(advice, stream=out)
+            grid = block.get("grid") if isinstance(block.get("grid"), dict) else None
+            if not grid:
+                continue
+            col_labels = [str(item) for item in (grid.get("col_labels") or [])]
+            headers = [
+                str(grid.get("row_knob_label") or "行"),
+                *[str(item) for item in col_labels],
+            ]
+            body = []
+            row_labels = [str(item) for item in (grid.get("row_labels") or [])]
+            label_matrix = grid.get("label_matrix") or []
+            for i, row_label in enumerate(row_labels):
+                cells = label_matrix[i] if i < len(label_matrix) else []
+                body.append(
+                    [row_label, *[str(item) for item in cells[: len(col_labels)]]]
+                )
+            if body:
+                CmdLayout.table.print(headers, body, stream=out)
+
+    def _present_question_sections(self, out: TextIO) -> None:
+        """按问题分节报告（枚举 / 价格等 summarize 写出的 sections）。"""
         report = self._report
         sections = report.get("sections")
         scope_note = str(report.get("scope_note") or "").strip()
@@ -152,7 +300,7 @@ class CampaignPresenter:
         if not isinstance(sections, dict) or not sections:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('search')} 按问题阅读", stream=out)
+        CmdLayout.title.print_h2(f"{icon('search')} 层内诊断", stream=out)
         if scope_note:
             CmdLayout.text.print_indent(scope_note, stream=out)
         order = (
@@ -161,6 +309,9 @@ class CampaignPresenter:
             "dispersion",
             "exit_quality",
             "after_take_profit",
+            "edge",
+            "profit_concentration",
+            "exit_profit",
         )
         for key in order:
             block = sections.get(key)
@@ -579,6 +730,12 @@ class CampaignPresenter:
         status = str(block.get("status") or "skipped")
         if status not in {"ok", "partial"}:
             reason = str(block.get("reason") or "")
+            if reason == "shap_disabled":
+                CmdLayout.text.print_indent(
+                    "单笔 SHAP 附录默认关闭；需要时在 attribution.py 写 shap: true。",
+                    stream=out,
+                )
+                return
             if reason == "missing_dependency":
                 CmdLayout.text.print_indent(
                     f"未安装 {block.get('dependency') or 'xgboost'}，跳过单笔机器学习。",

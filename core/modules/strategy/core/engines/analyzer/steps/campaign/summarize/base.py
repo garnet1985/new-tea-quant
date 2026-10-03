@@ -37,6 +37,7 @@ class SummarizeBase:
         folder: Any = None,
         gathered: Optional[Mapping[str, Any]] = None,
         executed: Optional[Mapping[str, Any]] = None,
+        joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
         del folder, gathered, executed  # 子类（如枚举）可选用
         focus = str(layer or cls.LAYER or "").strip()

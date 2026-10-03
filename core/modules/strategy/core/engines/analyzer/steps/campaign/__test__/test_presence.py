@@ -242,7 +242,11 @@ def test_overlay_none_is_legal() -> None:
     assert knobs["goal.stop_loss"] is not None
     tasks = AttributionTask.from_cells(cells, kind=SimulateKind.PORTFOLIO)
     assert tasks[0].kind is SimulateKind.PORTFOLIO
-    assert tasks[0].steps == (SimulateKind.PORTFOLIO,)
+    assert tasks[0].steps == (
+        SimulateKind.ENUMERATE,
+        SimulateKind.PRICE_FACTOR,
+        SimulateKind.PORTFOLIO,
+    )
     assert cfg.parameter_mode == "inputs"
 
 
@@ -305,41 +309,57 @@ def test_overlay_snapshot_baseline_makes_oat() -> None:
     assert "没有变化" not in headline
 
 
-def test_price_layer_dedupes_portfolio_only_overlay() -> None:
-    """spa 不看 portfolio：只改组合容量的回测与基准指纹相同，贡献度不应重复。"""
+def test_price_layer_accepts_idea_knobs_ignores_portfolio() -> None:
+    """spa 报告可对照 core/goal/simulation；组合槽位不进价格贡献。"""
     from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import (
         PriceAttributeStep,
     )
 
-    sl_on = {"stages": [{"ratio": -0.2, "close_invest": True}]}
+    assert PriceAttributeStep.accepts_knob("simulation.price.opportunity_merge_gap")
+    assert PriceAttributeStep.accepts_knob("core.max_pe_percentile")
+    assert PriceAttributeStep.accepts_knob("goal.stop_loss")
+    assert not PriceAttributeStep.accepts_knob(
+        "portfolio.allocation.max_portfolio_size"
+    )
+
     gathered = {
         "rows": [
             _row(
                 "1",
                 {
-                    "core.max_pe_percentile": 30,
-                    "goal.stop_loss": sl_on,
+                    "simulation.price.opportunity_merge_gap": 1,
                     "portfolio.allocation.max_portfolio_size": 10,
+                    "core.max_pe_percentile": 30,
                 },
                 ret=0.10,
                 opp=18,
             ),
             _row(
+                "1-1",
+                {
+                    "simulation.price.opportunity_merge_gap": 3,
+                    "portfolio.allocation.max_portfolio_size": 10,
+                    "core.max_pe_percentile": 30,
+                },
+                ret=0.12,
+                opp=14,
+            ),
+            _row(
                 "1-2",
                 {
-                    "core.max_pe_percentile": None,
-                    "goal.stop_loss": sl_on,
+                    "simulation.price.opportunity_merge_gap": 1,
                     "portfolio.allocation.max_portfolio_size": 10,
+                    "core.max_pe_percentile": None,
                 },
-                ret=0.04,
-                opp=32,
+                ret=0.08,
+                opp=22,
             ),
             _row(
                 "1-4",
                 {
-                    "core.max_pe_percentile": 30,
-                    "goal.stop_loss": sl_on,
+                    "simulation.price.opportunity_merge_gap": 1,
                     "portfolio.allocation.max_portfolio_size": 20,
+                    "core.max_pe_percentile": 30,
                 },
                 ret=0.10,
                 opp=18,
@@ -347,14 +367,17 @@ def test_price_layer_dedupes_portfolio_only_overlay() -> None:
         ]
     }
     out = PriceAttributeStep.run(gathered)
-    pe_oat = [
-        item
-        for item in (out["contributions"]["presence"].get("items") or [])
-        if item.get("kind") == "one_at_a_time"
-        and item.get("knob") == "core.max_pe_percentile"
-    ]
-    assert len(pe_oat) == 1
-    assert pe_oat[0].get("version_id") == "1"
+    presence_paths = out.get("presence_paths") or []
+    sensitivity_paths = out.get("sensitivity_paths") or []
+    assert "simulation.price.opportunity_merge_gap" in sensitivity_paths
+    assert "core.max_pe_percentile" in presence_paths
+    items = []
+    for chapter in ("presence", "sensitivity"):
+        block = (out.get("contributions") or {}).get(chapter) or {}
+        items.extend(block.get("items") or [])
+    knobs = {item.get("knob") for item in items if isinstance(item, dict)}
+    assert "portfolio.allocation.max_portfolio_size" not in knobs
+    assert "core.max_pe_percentile" in knobs
 
 
 def test_enumerate_layer_drops_portfolio_knobs() -> None:

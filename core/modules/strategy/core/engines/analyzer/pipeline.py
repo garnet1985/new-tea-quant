@@ -84,9 +84,17 @@ class AttributionPipeline:
         unique_cells = [task.cell for task in unique_tasks]
         trades: Optional[Dict[str, Any]] = None
         if layer == SimulateKind.PRICE_FACTOR:
-            trades = TradesStep.run(
-                folder, unique_cells, executed, layer=layer.value
-            )
+            if getattr(config, "shap_enabled", False):
+                trades = TradesStep.run(
+                    folder, unique_cells, executed, layer=layer.value
+                )
+            else:
+                trades = {
+                    "status": "skipped",
+                    "reason": "shap_disabled",
+                    "n": 0,
+                    "n_versions": len(unique_cells),
+                }
         families = {}
         for name, cells in plan.families():
             family_executed = executor.bind(executed, unique_cells, cells)
@@ -101,6 +109,7 @@ class AttributionPipeline:
                 folder=folder,
                 gathered=gathered,
                 executed=family_executed,
+                joint_groups=getattr(config, "joint_sweep", ()) or (),
             )
             families[name] = CampaignReportStep.run(
                 folder,

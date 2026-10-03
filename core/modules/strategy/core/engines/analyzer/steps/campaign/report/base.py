@@ -136,7 +136,16 @@ class ReportBase:
             folder = str(block.get("folder") or folder)
         headline = "；".join(headlines) if headlines else ""
         first = items[0][1]
-        sections, scope_note, analysis_mode = _merge_sections(items)
+        (
+            sections,
+            scope_note,
+            analysis_mode,
+            sweeps,
+            rank,
+            primary,
+            joints,
+            bridge,
+        ) = _merge_sections(items)
         if not analysis_mode:
             analysis_mode = (
                 "cross" if str(config.parameter_mode or "") == "cross" else "oaat"
@@ -152,6 +161,16 @@ class ReportBase:
             report_body["scope_note"] = scope_note
         if sections:
             report_body["sections"] = sections
+        if sweeps:
+            report_body["sweeps"] = sweeps
+        if rank:
+            report_body["sensitivity_rank"] = rank
+        if primary:
+            report_body["sweep_primary_outcome"] = primary
+        if joints:
+            report_body["joint_sweeps"] = joints
+        if bridge:
+            report_body["upstream_bridge"] = bridge
         return {
             "success": True,
             "folder": folder or str(first.get("folder") or ""),
@@ -159,6 +178,11 @@ class ReportBase:
             "analysis_mode": analysis_mode,
             "scope_note": scope_note,
             "sections": sections,
+            "sweeps": sweeps,
+            "sensitivity_rank": rank,
+            "sweep_primary_outcome": primary,
+            "joint_sweeps": joints,
+            "upstream_bridge": bridge,
             "layer": first.get("layer") or first.get("kind") or cls.LAYER,
             "kind": first.get("kind") or cls.LAYER,
             "ignore_cache": executed.get("ignore_cache"),
@@ -202,6 +226,11 @@ def _family_view(block: Mapping[str, Any]) -> Dict[str, Any]:
         "hints": nested.get("hints") or [],
         "scope_note": nested.get("scope_note") or "",
         "sections": nested.get("sections") or {},
+        "sweeps": nested.get("sweeps") or [],
+        "sensitivity_rank": nested.get("sensitivity_rank") or [],
+        "sweep_primary_outcome": nested.get("sweep_primary_outcome") or "",
+        "joint_sweeps": nested.get("joint_sweeps") or [],
+        "upstream_bridge": nested.get("upstream_bridge") or "",
         "contributions": nested.get("contributions")
         or (block.get("attribute") or {}).get("contributions")
         or {},
@@ -211,16 +240,32 @@ def _family_view(block: Mapping[str, Any]) -> Dict[str, Any]:
 def _merge_sections(
     items: Sequence[tuple],
 ) -> tuple:
-    """优先 inputs / cross 家族的 sections / scope_note / analysis_mode。"""
+    """优先 inputs / cross 家族的 sections / sweeps / scope_note / analysis_mode。"""
     preferred = ("inputs", "cross", "select")
     by_name = {str(name): block for name, block in items}
+    empty = ({}, "", "", [], [], "", [], "")
 
     def _pack(nested: Mapping[str, Any]) -> tuple:
         sections = nested.get("sections")
-        if not isinstance(sections, dict) or not sections:
-            return {}, "", ""
+        sweeps = nested.get("sweeps") if isinstance(nested.get("sweeps"), list) else []
+        rank = (
+            nested.get("sensitivity_rank")
+            if isinstance(nested.get("sensitivity_rank"), list)
+            else []
+        )
+        joints = (
+            nested.get("joint_sweeps")
+            if isinstance(nested.get("joint_sweeps"), list)
+            else []
+        )
+        primary = str(nested.get("sweep_primary_outcome") or "").strip()
         mode = str(nested.get("analysis_mode") or "").strip()
-        return sections, str(nested.get("scope_note") or "").strip(), mode
+        note = str(nested.get("scope_note") or "").strip()
+        bridge = str(nested.get("upstream_bridge") or "").strip()
+        section_map = sections if isinstance(sections, dict) else {}
+        if not section_map and not sweeps and not rank and not joints and not bridge:
+            return empty
+        return section_map, note, mode, sweeps, rank, primary, joints, bridge
 
     for name in preferred:
         block = by_name.get(name)
@@ -228,16 +273,16 @@ def _merge_sections(
             continue
         nested = block.get("report") if isinstance(block.get("report"), dict) else {}
         packed = _pack(nested)
-        if packed[0]:
+        if packed[0] or packed[3] or packed[4] or packed[6] or packed[7]:
             return packed
     for _name, block in items:
         if not isinstance(block, Mapping):
             continue
         nested = block.get("report") if isinstance(block.get("report"), dict) else {}
         packed = _pack(nested)
-        if packed[0]:
+        if packed[0] or packed[3] or packed[4] or packed[6] or packed[7]:
             return packed
-    return {}, "", ""
+    return empty
 
 
 def _merge_status(items: Sequence[tuple]) -> str:

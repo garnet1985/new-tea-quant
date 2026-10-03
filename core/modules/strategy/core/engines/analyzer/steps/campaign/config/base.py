@@ -17,7 +17,11 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 )
 from core.modules.strategy.core.enums import SimulateKind
 
-from .inputs import validate_layer_inputs
+from .inputs import (
+    collect_campaign_user_inputs,
+    collect_joint_sweep,
+    validate_layer_inputs,
+)
 from .loader import ATTRIBUTION_FILE_NAME, load_attribution_dict
 
 _LAYER_KEYS = ("enumerate", "price_factor", "portfolio")
@@ -105,17 +109,39 @@ class AttributionConfigBase(SettingsBase):
         return dict(block) if isinstance(block, Mapping) else {}
 
     @property
+    def campaign_inputs(self) -> Dict[str, Any]:
+        """战役共用用户轴（路径键 → values spec）；三 CLI 同一套。"""
+        inputs, _cross = collect_campaign_user_inputs(self.raw_settings)
+        return inputs
+
+    @property
     def layer_inputs(self) -> Dict[str, Any]:
-        raw = self.layer_block.get("inputs")
-        return dict(raw) if isinstance(raw, Mapping) else {}
+        """兼容旧名：等于 ``campaign_inputs``（不再是「仅本层块」）。"""
+        return self.campaign_inputs
 
     @property
     def cross(self) -> bool:
-        return bool(self.layer_block.get("cross", False))
+        _inputs, cross = collect_campaign_user_inputs(self.raw_settings)
+        return cross
+
+    @property
+    def joint_sweep(self) -> Tuple[Tuple[str, ...], ...]:
+        """可选联合扫描组（路径元组）；全轴 cross 时忽略。"""
+        try:
+            return tuple(collect_joint_sweep(self.raw_settings))
+        except ValueError:
+            return ()
+
+    @property
+    def shap_enabled(self) -> bool:
+        """价格层单笔 SHAP 附录；默认关，显式 ``shap: true`` 才跑。"""
+        if "shap" not in self.raw_settings:
+            return False
+        return bool(self.raw_settings.get("shap"))
 
     @property
     def has_layer_inputs(self) -> bool:
-        return bool(self.layer_inputs)
+        return bool(self.campaign_inputs)
 
     @property
     def is_select(self) -> bool:
@@ -123,12 +149,14 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def has_parameter(self) -> bool:
-        """参数归因是否可跑：选号、本层非空 inputs，或本层块存在（空 inputs→默认轴）。"""
+        """选号、共用非空 inputs，或任一层块 / 顶层 inputs 键存在（空→共用默认轴）。"""
         if self.versions:
             return True
         if self.has_layer_inputs:
             return True
-        return self.LAYER in self.raw_settings
+        if "inputs" in self.raw_settings:
+            return True
+        return any(key in self.raw_settings for key in _LAYER_KEYS)
 
     @property
     def parameter_mode(self) -> str:
@@ -155,8 +183,8 @@ class AttributionConfigBase(SettingsBase):
             )
         if not self.has_parameter:
             raise ValueError(
-                f"attribution.py 没有 {self.LAYER or '本层'}.inputs / versions；"
-                "请先配置对照，再跑 sea / spa / soa"
+                "attribution.py 没有战役 inputs / versions；"
+                "请配置顶层或各层 inputs（共用展格），再跑 sea / spa / soa"
             )
 
     def apply_defaults(self) -> None:
@@ -182,6 +210,17 @@ class AttributionConfigBase(SettingsBase):
         self._validate_removed_keys(report)
         self._validate_versions(report)
         self._validate_mode_exclusivity(report)
+        if "inputs" in self.raw_settings:
+            top_block = {
+                "inputs": self.raw_settings.get("inputs"),
+                "cross": self.raw_settings.get("cross"),
+            }
+            validate_layer_inputs(
+                "campaign",
+                top_block,
+                report,
+                field_prefix="campaign",
+            )
         for key in _LAYER_KEYS:
             if key in self.raw_settings:
                 validate_layer_inputs(
@@ -190,23 +229,36 @@ class AttributionConfigBase(SettingsBase):
                     report,
                     field_prefix=key,
                 )
+        try:
+            collect_campaign_user_inputs(self.raw_settings)
+        except ValueError as exc:
+            SettingsBase.add_critical(
+                report,
+                "inputs",
+                str(exc),
+                suggested_fix="各层 / 顶层同一路径 values 保持一致；cross 只写一处",
+            )
+        self._validate_joint_sweep(report)
         has_rolling = self._validate_rolling(report)
-        has_any_layer = any(
-            isinstance(self.raw_settings.get(key), Mapping)
-            for key in _LAYER_KEYS
+        has_any_inputs = (
+            "inputs" in self.raw_settings
+            or any(
+                isinstance(self.raw_settings.get(key), Mapping)
+                for key in _LAYER_KEYS
+            )
         )
         if (
             not self.versions
-            and not has_any_layer
+            and not has_any_inputs
             and not has_rolling
         ):
             SettingsBase.add_critical(
                 report,
-                "enumerate",
-                "versions、各层 inputs、rolling.windows 不能都空",
+                "inputs",
+                "versions、战役 inputs、rolling.windows 不能都空",
                 suggested_fix=(
-                    '写 enumerate.inputs / price_factor.inputs / '
-                    "portfolio.inputs，或 versions / rolling.windows"
+                    '写顶层 inputs，或 enumerate/price_factor/portfolio.inputs，'
+                    "或 versions / rolling.windows"
                 ),
             )
         self._validate_layer(report)
@@ -226,9 +278,9 @@ class AttributionConfigBase(SettingsBase):
                 SettingsBase.add_critical(
                     report,
                     key,
-                    f"已移除 attribution.{key}；请改用按层 inputs",
+                    f"已移除 attribution.{key}；请改用战役 inputs",
                     suggested_fix=(
-                        'enumerate: {"inputs": {"max_pe_percentile": '
+                        '{"inputs": {"max_pe_percentile": '
                         '{"values": [None, 30]}}, "cross": false}'
                     ),
                 )
@@ -273,7 +325,9 @@ class AttributionConfigBase(SettingsBase):
 
     def _validate_mode_exclusivity(self, report: ValidationReport) -> None:
         has_versions = bool(self.versions)
-        has_inputs = any(
+        top = self.raw_settings.get("inputs")
+        has_top = isinstance(top, Mapping) and bool(top)
+        has_layer = any(
             isinstance(self.raw_settings.get(key), Mapping)
             and bool(
                 (self.raw_settings.get(key) or {}).get("inputs")
@@ -282,12 +336,48 @@ class AttributionConfigBase(SettingsBase):
             )
             for key in _LAYER_KEYS
         )
-        if has_versions and has_inputs:
+        if has_versions and (has_top or has_layer):
             SettingsBase.add_critical(
                 report,
                 "versions",
-                "versions 不要和各层 inputs 同时写；选号是单独一种点名",
+                "versions 不要和战役 inputs 同时写；选号是单独一种点名",
             )
+
+    def _validate_joint_sweep(self, report: ValidationReport) -> None:
+        if "joint_sweep" not in self.raw_settings:
+            return
+        try:
+            groups = collect_joint_sweep(self.raw_settings)
+        except ValueError as exc:
+            SettingsBase.add_critical(
+                report,
+                "joint_sweep",
+                str(exc),
+                suggested_fix='[["stop_loss", "take_profit"]]',
+            )
+            return
+        if not groups:
+            return
+        if self.cross:
+            SettingsBase.add_warning(
+                report,
+                "joint_sweep",
+                "已开启全轴 cross，joint_sweep 将被忽略",
+            )
+            return
+        try:
+            inputs, _cross = collect_campaign_user_inputs(self.raw_settings)
+        except ValueError:
+            return
+        for i, group in enumerate(groups):
+            for path in group:
+                if path not in inputs:
+                    SettingsBase.add_critical(
+                        report,
+                        f"joint_sweep[{i}]",
+                        f"轴 {path} 不在 inputs 中",
+                        suggested_fix="先在 inputs 声明该轴的 values",
+                    )
 
     def _validate_rolling(self, report: ValidationReport) -> bool:
         raw = self.raw_settings.get("rolling")

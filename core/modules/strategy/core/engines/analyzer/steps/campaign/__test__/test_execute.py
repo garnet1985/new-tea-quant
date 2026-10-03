@@ -40,6 +40,77 @@ def _payload(kind: SimulateKind, *, hit: bool, version_id: str = "21-1") -> dict
     }
 
 
+def test_from_cells_steps_include_upstream() -> None:
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
+        simulate_steps_for_kind,
+    )
+
+    assert simulate_steps_for_kind(SimulateKind.ENUMERATE) == (
+        SimulateKind.ENUMERATE,
+    )
+    assert simulate_steps_for_kind(SimulateKind.PRICE_FACTOR) == (
+        SimulateKind.ENUMERATE,
+        SimulateKind.PRICE_FACTOR,
+    )
+    assert simulate_steps_for_kind(SimulateKind.PORTFOLIO) == (
+        SimulateKind.ENUMERATE,
+        SimulateKind.PRICE_FACTOR,
+        SimulateKind.PORTFOLIO,
+    )
+    cell = AttributionCell(
+        index=0,
+        overlay={},
+        runtime_settings={},
+        execute_settings={},
+    )
+    tasks = AttributionTask.from_cells([cell], kind=SimulateKind.PORTFOLIO)
+    assert tasks[0].steps == (
+        SimulateKind.ENUMERATE,
+        SimulateKind.PRICE_FACTOR,
+        SimulateKind.PORTFOLIO,
+    )
+
+
+def test_simulate_price_chain_force_only_first_step() -> None:
+    """spa：steps=枚举→价格；-f 只打在第一层。"""
+    info = MagicMock()
+    info.key = "demo/rsi"
+    calls = []
+
+    def fake_simulate(key, *, kind, ignore_cache, runtime_settings, version_id=None):
+        calls.append((kind, ignore_cache, version_id))
+        return _payload(kind, hit=False)
+
+    fp = SimpleNamespace(execute_fp="e-overlay", env_fp="n")
+    cell = AttributionCell(
+        index=0,
+        overlay={"core": {"rsi_oversold_threshold": 20}},
+        runtime_settings={"core": {"rsi_oversold_threshold": 20}},
+        execute_settings={},
+    )
+    task = AttributionTask.from_cells([cell], kind=SimulateKind.PRICE_FACTOR)[0]
+    with patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
+        "core.modules.strategy.core.strategy.Strategy.simulate",
+        side_effect=fake_simulate,
+    ), patch.object(
+        VersionMetaStore, "allocate_replica_id", return_value="21-1"
+    ):
+        result = ExecuteStep._simulate(
+            MagicMock(),
+            info,
+            task,
+            parent_version_id="21",
+            baseline_execute_fp="e-baseline",
+            ignore_cache=True,
+        )
+    assert [(kind, force) for kind, force, _vid in calls] == [
+        (SimulateKind.ENUMERATE, True),
+        (SimulateKind.PRICE_FACTOR, False),
+    ]
+    assert result.status == "simulated"
+    assert result.version_id == "21-1"
+
+
 def test_simulate_single_layer_force_on_first() -> None:
     info = MagicMock()
     info.key = "demo/rsi"

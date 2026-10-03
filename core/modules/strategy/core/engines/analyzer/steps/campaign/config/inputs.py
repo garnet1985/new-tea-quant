@@ -1,6 +1,6 @@
-"""按层 ``inputs``：校验、短名解析、oaat / cross 展成 overlay 树。
+"""战役共用 ``inputs``：校验、短名解析、oaat / cross 展成 overlay 树。
 
-替换原 ``overlays`` 列表与 ``matrix`` 笛卡尔配置。
+各层块 / 顶层 ``inputs`` 合并为同一套副本身份（见 ATTRIBUTION_CAMPAIGN §0）。
 """
 from __future__ import annotations
 
@@ -22,24 +22,21 @@ from .overlay import SettingsOverlay
 
 MAX_CELLS = 128
 
-_SHORT_NAMES: Dict[str, Dict[str, str]] = {
-    "enumerate": {
-        "stop_loss": "goal.stop_loss",
-        "take_profit": "goal.take_profit",
-        "max_pe_percentile": "core.max_pe_percentile",
-        "rsi_oversold_threshold": "core.rsi_oversold_threshold",
-        "min_netprofit_yoy": "core.min_netprofit_yoy",
-        "min_pe_history_days": "core.min_pe_history_days",
-        "pe_metric": "core.pe_metric",
-    },
-    "price_factor": {
-        "opportunity_merge_gap": "simulation.price.opportunity_merge_gap",
-    },
-    "portfolio": {
-        "max_portfolio_size": "portfolio.allocation.max_portfolio_size",
-        "max_weight_per_stock": "portfolio.allocation.max_weight_per_stock",
-        "mode": "portfolio.allocation.mode",
-    },
+_LAYER_KEYS = ("enumerate", "price_factor", "portfolio")
+
+# 短名全局唯一；展格不按 CLI 层拆分。
+_SHORT_NAMES: Dict[str, str] = {
+    "stop_loss": "goal.stop_loss",
+    "take_profit": "goal.take_profit",
+    "max_pe_percentile": "core.max_pe_percentile",
+    "rsi_oversold_threshold": "core.rsi_oversold_threshold",
+    "min_netprofit_yoy": "core.min_netprofit_yoy",
+    "min_pe_history_days": "core.min_pe_history_days",
+    "pe_metric": "core.pe_metric",
+    "opportunity_merge_gap": "simulation.price.opportunity_merge_gap",
+    "max_portfolio_size": "portfolio.allocation.max_portfolio_size",
+    "max_weight_per_stock": "portfolio.allocation.max_weight_per_stock",
+    "mode": "portfolio.allocation.mode",
 }
 
 _GOAL_STRUCT_PATHS = frozenset({"goal.stop_loss", "goal.take_profit"})
@@ -49,20 +46,21 @@ _HARD_BARS_COST = 200_000_000
 _SOFT_CELLS = 20
 
 
-def resolve_path(layer: str, key: str) -> str:
+def resolve_path(key: str, layer: str = "") -> str:
+    """短名 → settings 路径。``layer`` 仅兼容未知裸名时回落到 ``core.*``。"""
     text = str(key or "").strip()
     if not text:
         raise ValueError("inputs 轴名不能为空")
     if "." in text:
         return text
-    mapped = _SHORT_NAMES.get(str(layer or "").strip(), {}).get(text)
+    mapped = _SHORT_NAMES.get(text)
     if mapped:
         return mapped
-    if str(layer or "").strip() == "enumerate":
+    # 未登记裸名：想法侧常见 core 标量
+    focus = str(layer or "").strip()
+    if focus in ("", "enumerate", "campaign"):
         return f"core.{text}"
-    raise ValueError(
-        f"未知短名 {text!r}（层 {layer}）；请写点号路径或登记短名"
-    )
+    raise ValueError(f"未知短名 {text!r}；请写点号路径或登记短名")
 
 
 def root_section(path: str) -> str:
@@ -130,10 +128,11 @@ def parse_axes(
     snapshot: Optional[Mapping[str, Any]] = None,
     normalize: bool = True,
 ) -> List[Tuple[str, Tuple[Any, ...]]]:
+    """``layer`` 仅用于解析未登记裸名；轴集合本身是战役共用的。"""
     snap = snapshot if isinstance(snapshot, Mapping) else {}
     axes: List[Tuple[str, Tuple[Any, ...]]] = []
     for raw_key, spec in inputs.items():
-        path = resolve_path(layer, str(raw_key))
+        path = resolve_path(str(raw_key), layer=layer)
         if root_section(path) not in EXECUTE_SETTINGS_FIELDS:
             raise ValueError(
                 f"inputs.{raw_key} 路径 {path} 不在 execute_fp 白名单"
@@ -158,6 +157,129 @@ def parse_axes(
             normalized = list(values)
         axes.append((path, tuple(normalized)))
     return axes
+
+
+def collect_campaign_user_inputs(
+    raw: Mapping[str, Any],
+) -> Tuple[Dict[str, Any], bool]:
+    """合并顶层 ``inputs`` 与各层块 ``inputs`` → 路径键 specs + cross。
+
+    同一路径多处声明且 values 不一致则报错；``cross`` 多处不一致则报错。
+    """
+    if not isinstance(raw, Mapping):
+        return {}, False
+
+    merged: Dict[str, Any] = {}
+    cross_flags: List[bool] = []
+
+    if "cross" in raw and raw.get("cross") is not None:
+        cross_flags.append(bool(raw.get("cross")))
+
+    top = raw.get("inputs")
+    if isinstance(top, Mapping):
+        _merge_input_block(merged, top, layer="campaign")
+
+    for layer in _LAYER_KEYS:
+        block = raw.get(layer)
+        if not isinstance(block, Mapping):
+            continue
+        if "cross" in block and block.get("cross") is not None:
+            cross_flags.append(bool(block.get("cross")))
+        nested = block.get("inputs")
+        if isinstance(nested, Mapping):
+            _merge_input_block(merged, nested, layer=layer)
+
+    if len(set(cross_flags)) > 1:
+        raise ValueError(
+            "attribution.cross 在多处声明且不一致；请只在一处写 cross"
+        )
+    cross = cross_flags[0] if cross_flags else False
+    return merged, cross
+
+
+def collect_joint_sweep(raw: Mapping[str, Any]) -> List[Tuple[str, ...]]:
+    """解析 ``joint_sweep``：轴子集笛卡尔；与全轴 ``cross`` 不同。"""
+    if not isinstance(raw, Mapping):
+        return []
+    raw_groups = raw.get("joint_sweep")
+    if raw_groups is None:
+        return []
+    if not isinstance(raw_groups, Sequence) or isinstance(raw_groups, (str, bytes)):
+        raise ValueError(
+            "joint_sweep 须为列表，如 [[\"stop_loss\", \"take_profit\"]]"
+        )
+    groups: List[Tuple[str, ...]] = []
+    for i, group in enumerate(raw_groups):
+        if not isinstance(group, Sequence) or isinstance(group, (str, bytes)):
+            raise ValueError(f"joint_sweep[{i}] 须为轴名列表")
+        paths: List[str] = []
+        seen: set = set()
+        for j, name in enumerate(group):
+            path = resolve_path(str(name), layer="campaign")
+            if path in seen:
+                continue
+            seen.add(path)
+            paths.append(path)
+        if len(paths) < 2:
+            raise ValueError(
+                f"joint_sweep[{i}] 至少需要 2 个不同轴（当前 {len(paths)}）"
+            )
+        if len(paths) > 3:
+            raise ValueError(
+                f"joint_sweep[{i}] 最多 3 个轴（避免组合爆炸）"
+            )
+        groups.append(tuple(paths))
+    return groups
+
+
+def expand_joint_groups(
+    axes: Sequence[Tuple[str, Tuple[Any, ...]]],
+    groups: Sequence[Sequence[str]],
+) -> Tuple[Dict[str, Any], ...]:
+    """对每个联合组做笛卡尔积；其余轴不进这些格子。"""
+    by_path = {path: levels for path, levels in axes}
+    rows: List[Dict[str, Any]] = []
+    for group in groups:
+        selected: List[Tuple[str, Tuple[Any, ...]]] = []
+        for path in group:
+            levels = by_path.get(path)
+            if levels is None:
+                raise ValueError(
+                    f"joint_sweep 轴 {path} 不在 inputs 中；请先声明 values"
+                )
+            selected.append((path, levels))
+        rows.extend(expand_axes(selected, cross=True))
+    return tuple(rows)
+
+
+def joint_cell_count(
+    axes: Sequence[Tuple[str, Tuple[Any, ...]]],
+    groups: Sequence[Sequence[str]],
+) -> int:
+    by_path = {path: levels for path, levels in axes}
+    total = 0
+    for group in groups:
+        n = 1
+        for path in group:
+            levels = by_path.get(path) or ()
+            n *= max(len(levels), 1)
+        total += n
+    return total
+
+
+def _merge_input_block(
+    merged: Dict[str, Any],
+    block: Mapping[str, Any],
+    *,
+    layer: str,
+) -> None:
+    for raw_key, spec in block.items():
+        path = resolve_path(str(raw_key), layer=layer)
+        if path in merged and merged[path] != spec:
+            raise ValueError(
+                f"inputs 路径 {path} 在多处声明且 values 不一致"
+            )
+        merged[path] = spec
 
 
 def expand_axes(
@@ -282,6 +404,7 @@ def goal_path_is_hook(snapshot: Mapping[str, Any], path: str) -> bool:
 def default_axes_for_layer(
     layer: str, snapshot: Mapping[str, Any]
 ) -> Dict[str, Dict[str, List[Any]]]:
+    """单层建议默认轴（合并进共用展格时用）。"""
     focus = str(layer or "").strip()
     out: Dict[str, Dict[str, List[Any]]] = {}
     if focus == "enumerate":
@@ -292,7 +415,7 @@ def default_axes_for_layer(
                 continue
             if goal_path_is_hook(snapshot, path):
                 continue
-            out[path] = {"values": [copy.deepcopy(cur), None]}
+            out[path] = {"values": _goal_ratio_ladder(name, cur)}
         core = snapshot.get("core")
         if isinstance(core, Mapping):
             for key, cur in core.items():
@@ -304,32 +427,43 @@ def default_axes_for_layer(
                     token in key_l
                     for token in ("percentile", "min_", "max_", "threshold")
                 ):
-                    out[path] = {"values": [cur, None]}
+                    out[path] = {"values": _threshold_ladder(cur)}
                 else:
-                    nearby = _nearby_scalar(cur)
-                    values = [cur] if nearby is None else [cur, nearby]
-                    out[path] = {"values": values}
+                    out[path] = {"values": _scalar_ladder(cur)}
     elif focus == "price_factor":
         path = "simulation.price.opportunity_merge_gap"
         cur = value_at(snapshot, path)
         if isinstance(cur, (int, float)) and not isinstance(cur, bool):
-            wider = max(int(cur) + 2, 1)
-            narrower = max(int(cur) - 1, 0)
-            out[path] = {"values": [int(cur), wider, narrower]}
+            base = int(cur)
+            out[path] = {
+                "values": _unique_keep(
+                    [0, max(base - 1, 0), base, max(base + 2, 1), max(base + 4, 3)]
+                )
+            }
     elif focus == "portfolio":
         path_size = "portfolio.allocation.max_portfolio_size"
         cur = value_at(snapshot, path_size)
         if isinstance(cur, (int, float)) and not isinstance(cur, bool):
-            bigger = type(cur)(cur * 2) if cur else cur
-            out[path_size] = {"values": [cur, bigger]}
+            out[path_size] = {"values": _portfolio_size_ladder(cur)}
         path_w = "portfolio.allocation.max_weight_per_stock"
         cur_w = value_at(snapshot, path_w)
         if isinstance(cur_w, (int, float)) and not isinstance(cur_w, bool):
-            out[path_w] = {"values": [cur_w]}
+            out[path_w] = {"values": _weight_ladder(cur_w)}
         mode = value_at(snapshot, "portfolio.allocation.mode")
         if isinstance(mode, str) and mode.strip():
             alt = "kelly" if mode != "kelly" else "equal_capital"
             out["portfolio.allocation.mode"] = {"values": [mode, alt]}
+    return out
+
+
+def default_axes_shared(
+    snapshot: Mapping[str, Any],
+) -> Dict[str, Dict[str, List[Any]]]:
+    """无用户 inputs 时：合并三层默认轴为共用展格。"""
+    out: Dict[str, Dict[str, List[Any]]] = {}
+    for layer in _LAYER_KEYS:
+        for path, spec in default_axes_for_layer(layer, snapshot).items():
+            out.setdefault(path, spec)
     return out
 
 
@@ -338,11 +472,14 @@ def merge_user_and_defaults(
     user_inputs: Mapping[str, Any],
     snapshot: Mapping[str, Any],
 ) -> Dict[str, Dict[str, List[Any]]]:
-    """有用户 ``inputs`` 时只扫声明轴；未声明时用层默认轴。"""
+    """有用户 ``inputs`` 时只扫声明轴；未声明时用**共用**默认轴。
+
+    ``layer`` 仅用于解析裸名；不再表示「只展这一层的轴」。
+    """
     if user_inputs:
         merged: Dict[str, Dict[str, List[Any]]] = {}
         for raw_key, spec in user_inputs.items():
-            path = resolve_path(layer, str(raw_key))
+            path = resolve_path(str(raw_key), layer=layer)
             if not isinstance(spec, Mapping):
                 continue
             values = spec.get("values")
@@ -364,7 +501,7 @@ def merge_user_and_defaults(
             ]
             merged[path] = {"values": list(normalized)}
         return merged
-    return default_axes_for_layer(layer, snapshot)
+    return default_axes_shared(snapshot)
 
 
 def _nearby_scalar(value: Any) -> Any:
@@ -375,6 +512,96 @@ def _nearby_scalar(value: Any) -> Any:
     if isinstance(value, float):
         return value * 1.25 if abs(value) > 1e-9 else 1.0
     return None
+
+
+def _unique_keep(values: Sequence[Any]) -> List[Any]:
+    out: List[Any] = []
+    seen: set = set()
+    for item in values:
+        key = repr(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def _goal_ratio_ladder(name: str, cur: Mapping[str, Any]) -> List[Any]:
+    """止损/止盈多档：裸 ratio + 关闭；单段才可扫。"""
+    stages = cur.get("stages")
+    ratio = None
+    if isinstance(stages, list) and len(stages) == 1 and isinstance(stages[0], Mapping):
+        raw = stages[0].get("ratio")
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            ratio = float(raw)
+    if name == "stop_loss":
+        grid = [-0.10, -0.15, -0.20, -0.25]
+    else:
+        grid = [0.10, 0.15, 0.20, 0.25]
+    values: List[Any] = list(grid)
+    if ratio is not None and all(abs(ratio - float(item)) > 1e-9 for item in grid):
+        values.insert(0, ratio)
+    values.append(None)
+    return _unique_keep(values)
+
+
+def _threshold_ladder(cur: Any) -> List[Any]:
+    if not isinstance(cur, (int, float)) or isinstance(cur, bool):
+        return [cur, None]
+    if isinstance(cur, int):
+        lo = max(int(cur) - 10, 0)
+        mid = max(int(cur) - 5, 0)
+        hi = int(cur) + 5
+        return _unique_keep([None, lo, mid, int(cur), hi])
+    return _unique_keep([None, float(cur) * 0.75, float(cur), float(cur) * 1.25])
+
+
+def _scalar_ladder(cur: Any) -> List[Any]:
+    if isinstance(cur, bool):
+        return [cur]
+    if isinstance(cur, int):
+        step = 5 if abs(cur) < 50 else max(int(abs(cur) * 0.1), 1)
+        return _unique_keep(
+            [max(cur - step, 0), cur, cur + step, cur + 2 * step]
+        )
+    if isinstance(cur, float):
+        return _unique_keep(
+            [cur * 0.75, cur, cur * 1.25, cur * 1.5]
+            if abs(cur) > 1e-9
+            else [0.0, 1.0]
+        )
+    nearby = _nearby_scalar(cur)
+    return [cur] if nearby is None else [cur, nearby]
+
+
+def _portfolio_size_ladder(cur: Any) -> List[Any]:
+    base = int(cur) if isinstance(cur, (int, float)) and not isinstance(cur, bool) else 10
+    grid = [4, 6, 8, 10, 15, 20]
+    values = list(grid)
+    if base not in grid:
+        values.append(base)
+    values.sort()
+    return _unique_keep(values)
+
+
+def _weight_ladder(cur: Any) -> List[Any]:
+    if not isinstance(cur, (int, float)) or isinstance(cur, bool):
+        return [cur]
+    number = float(cur)
+    if number > 1.0:
+        # 百分比写法
+        grid = [10.0, 15.0, 20.0, 25.0, 33.0]
+        values = list(grid)
+        if all(abs(number - item) > 1e-9 for item in grid):
+            values.append(number)
+        values.sort()
+        return _unique_keep([type(cur)(item) for item in values])
+    grid = [0.10, 0.15, 0.20, 0.25, 0.33]
+    values = list(grid)
+    if all(abs(number - item) > 1e-9 for item in grid):
+        values.append(number)
+    values.sort()
+    return _unique_keep([type(cur)(item) for item in values])
 
 
 def estimate_bars_cost(
@@ -458,11 +685,16 @@ __all__ = [
     "MAX_CELLS",
     "assign_path",
     "cell_count",
+    "collect_campaign_user_inputs",
+    "collect_joint_sweep",
     "cost_gate_message",
     "default_axes_for_layer",
+    "default_axes_shared",
     "estimate_bars_cost",
     "expand_axes",
+    "expand_joint_groups",
     "goal_path_is_hook",
+    "joint_cell_count",
     "merge_user_and_defaults",
     "normalize_goal_value",
     "parse_axes",

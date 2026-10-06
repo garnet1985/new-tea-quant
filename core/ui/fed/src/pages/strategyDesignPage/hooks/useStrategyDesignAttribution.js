@@ -30,6 +30,8 @@ export function useStrategyDesignAttribution({
   executionBusy = false,
   /** 回测刚完成时可触发重新 probe */
   stepStatus = null,
+  /** 当前策略版本。换版本后只显示这一版的归因。 */
+  versionId = '',
 }) {
   const [status, setStatus] = useState(EMPTY_STATUS);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -95,8 +97,13 @@ export function useStrategyDesignAttribution({
   }, [activeStep, isLoadingSettings, loadReport, strategyName]);
 
   useEffect(() => {
+    setReport(null);
+    setStatus((prev) => ({ ...prev, last_group_id: '' }));
+  }, [versionId]);
+
+  useEffect(() => {
     refreshStatus();
-  }, [refreshStatus, stepStatus?.[activeStep]]);
+  }, [refreshStatus, stepStatus?.[activeStep], versionId]);
 
   useEffect(() => {
     setReportTab('backtest');

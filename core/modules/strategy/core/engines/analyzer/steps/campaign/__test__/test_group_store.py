@@ -53,6 +53,37 @@ def test_record_version_indexes_sample_window(tmp_path) -> None:
     assert other["samples"][1]["versions"] == ["4"]
 
 
+def test_resolve_keeps_a_group_per_strategy_version(tmp_path) -> None:
+    root = tmp_path / "attribution"
+    first = AttributionGroupStore.resolve(root, "env-a", parent_version_id="1")
+    second = AttributionGroupStore.resolve(root, "env-a", parent_version_id="2")
+    again = AttributionGroupStore.resolve(root, "env-a", parent_version_id="1")
+    assert first == "1"
+    assert second == "2"
+    assert again == "1"
+    assert AttributionGroupStore.find_for_version(root, "env-a", "2") == "2"
+    assert AttributionGroupStore.find_for_version(root, "env-a", "1") == "1"
+
+
+def test_legacy_report_baseline_matches_its_version(tmp_path) -> None:
+    root = tmp_path / "attribution" / "1" / "price_factor"
+    root.mkdir(parents=True)
+    (root / "report.json").write_text(
+        '{"baseline_version_id": "1"}',
+        encoding="utf-8",
+    )
+    (root.parent / "group_meta.json").write_text(
+        '{"env_fp": "env-a", "group_id": "1"}',
+        encoding="utf-8",
+    )
+    attr = root.parent.parent
+    assert AttributionGroupStore.find_for_version(attr, "env-a", "1") == "1"
+    assert AttributionGroupStore.find_for_version(attr, "env-a", "2") is None
+    fresh = AttributionGroupStore.resolve(attr, "env-a", parent_version_id="2")
+    assert fresh == "2"
+    assert AttributionGroupStore.find_for_version(attr, "env-a", "1") == "1"
+
+
 def test_record_version_skips_empty_id(tmp_path) -> None:
     root = tmp_path / "attribution"
     assert AttributionGroupStore.record_version(root, "env-a", "") == {}

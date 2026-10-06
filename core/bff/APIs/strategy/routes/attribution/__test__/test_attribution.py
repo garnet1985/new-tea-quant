@@ -64,7 +64,7 @@ def test_status_disabled_without_attribution_file(tmp_path, monkeypatch):
     monkeypatch.setattr(
         AttributeStatus,
         "_last_group_id",
-        classmethod(lambda cls, folder, name, step: None),
+        classmethod(lambda cls, folder, name, step, primary_vid=None: None),
     )
     out = AttributeStatus.probe("demo/x", "enum")
     assert out["visible"] is True
@@ -93,7 +93,7 @@ def test_status_enabled_with_overlays(tmp_path, monkeypatch):
     monkeypatch.setattr(
         AttributeStatus,
         "_last_group_id",
-        classmethod(lambda cls, folder, name, step: "3"),
+        classmethod(lambda cls, folder, name, step, primary_vid=None: "3"),
     )
     out = AttributeStatus.probe("demo/x", "price")
     assert out["visible"] is True
@@ -122,7 +122,7 @@ def test_status_invalid_when_only_rolling(tmp_path, monkeypatch):
     monkeypatch.setattr(
         AttributeStatus,
         "_last_group_id",
-        classmethod(lambda cls, folder, name, step: None),
+        classmethod(lambda cls, folder, name, step, primary_vid=None: None),
     )
     out = AttributeStatus.probe("demo/x", "portfolio")
     assert out["visible"] is True

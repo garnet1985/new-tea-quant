@@ -533,6 +533,7 @@ export function useStrategyDesignWorkbench() {
     isLoadingSettings,
     executionBusy,
     stepStatus: session.executionState?.stepStatus || {},
+    versionId: appliedVersionId,
   });
 
   const panelBusy = Boolean(executionBusy || attribution.attributeBusy);

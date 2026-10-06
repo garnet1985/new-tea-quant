@@ -56,7 +56,10 @@ class PersistBase:
             return out
 
         root = ProjectContext.path.get_strategy_attribution_directory(folder)
-        group_id = AttributionGroupStore.resolve(root, env_fp)
+        parent_version_id = _parent_version_id(executed or {}, out)
+        group_id = AttributionGroupStore.resolve(
+            root, env_fp, parent_version_id=parent_version_id
+        )
         default_task = str(cls.TASK_ID or cls.LAYER or PARAMETER_TASK_ID).strip()
         task_key = str(task_id or default_task).strip() or default_task
         kind_key = str(task_kind or task_key).strip() or "parameter"
@@ -90,6 +93,7 @@ class PersistBase:
                 out,
                 generated_at,
                 kind=kind_key,
+                parent_version_id=parent_version_id,
             ),
         )
 
@@ -227,6 +231,7 @@ class PersistBase:
         generated_at: str,
         *,
         kind: str,
+        parent_version_id: str = "",
     ) -> Dict[str, Any]:
         existing: Dict[str, Any] = {}
         if path.is_file():
@@ -257,7 +262,7 @@ class PersistBase:
             "cell_count": report.get("cell_count"),
             "ready_count": (report.get("gather") or {}).get("ready_count", 0),
         }
-        return {
+        payload = {
             "group_id": group_id,
             "env_fp": env_fp,
             "updated_at": generated_at,
@@ -265,6 +270,23 @@ class PersistBase:
             "samples": list(existing.get("samples") or []),
             "tasks": list(tasks_by_id.values()),
         }
+        parent = str(parent_version_id or existing.get("parent_version_id") or "").strip()
+        if parent:
+            payload["parent_version_id"] = parent
+        return payload
+
+
+def _parent_version_id(executed: Mapping[str, Any], report: Mapping[str, Any]) -> str:
+    """战役锚定的策略版本。优先执行结果里的 parent，其次报告 baseline。"""
+    parent = str(executed.get("parent_version_id") or "").strip()
+    if parent:
+        return parent
+    summarized = report.get("report")
+    if isinstance(summarized, Mapping):
+        parent = str(summarized.get("baseline_version_id") or "").strip()
+        if parent:
+            return parent
+    return str(report.get("baseline_version_id") or "").strip()
 
 
 def _ready_version_ids(report: Mapping[str, Any]) -> List[str]:

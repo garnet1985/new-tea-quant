@@ -77,9 +77,11 @@ class AttributeStatus:
         kind = WorkbenchStep.parse(step).to_simulate_kind()
         folder = Strategy.resolve_folder(name)
 
-        has_primary, _vid = cls._has_primary(folder, name, kind)
+        has_primary, primary_vid = cls._has_primary(folder, name, kind)
         config_ok, config_reason = cls._config_ok(folder, kind.value)
-        last_group_id = cls._last_group_id(folder, name, step) if has_primary else None
+        last_group_id = (
+            cls._last_group_id(folder, name, step, primary_vid) if has_primary else None
+        )
 
         visible = bool(has_primary)
         enabled = bool(visible and config_ok)
@@ -158,8 +160,16 @@ class AttributeStatus:
 
     @classmethod
     def _last_group_id(
-        cls, folder: Path, strategy_name: str, norm_step: str
+        cls,
+        folder: Path,
+        strategy_name: str,
+        norm_step: str,
+        primary_version_id: Optional[str],
     ) -> Optional[str]:
+        """只返回锚定在当前策略版本上的归因组。其它版本的报告留在磁盘上。"""
+        parent = str(primary_version_id or "").strip()
+        if not parent:
+            return None
         info = DiscoveryService.find_strategy(strategy_name)
         if info is None:
             return None
@@ -167,7 +177,7 @@ class AttributeStatus:
         if not env_fp:
             return None
         root = ProjectContext.path.get_strategy_attribution_directory(folder)
-        group_id = AttributionGroupStore.find(root, env_fp)
+        group_id = AttributionGroupStore.find_for_version(root, env_fp, parent)
         if not group_id:
             return None
         task = _TASK_BY_STEP.get(norm_step)

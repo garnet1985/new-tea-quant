@@ -27,6 +27,7 @@ _AXES: Dict[str, str] = {
     "max_weight_per_stock": "portfolio.allocation.max_weight_per_stock",
     "kelly_fraction": "portfolio.allocation.kelly_fraction",
     "lots_per_trade": "portfolio.allocation.lots_per_trade",
+    "opportunity_selection": "portfolio.allocation.opportunity_selection",
 }
 
 # 主轴：没写 allocation 时一定尝试生成。伴随轴只在当前 settings 里有值时加入。
@@ -73,7 +74,8 @@ def validate_allocation(raw: Mapping[str, Any], report: ValidationReport) -> Non
                 f"未知资金分配轴 {key!r}",
                 suggested_fix=(
                     "只能写 mode / max_portfolio_size / initial_capital / "
-                    "max_weight_per_stock / kelly_fraction / lots_per_trade"
+                    "max_weight_per_stock / kelly_fraction / lots_per_trade / "
+                    "opportunity_selection"
                 ),
             )
             continue
@@ -223,6 +225,12 @@ def _read_values(spec: Any) -> Optional[List[Any]]:
 
 def _check_values(report: ValidationReport, name: str, values: Sequence[Any]) -> None:
     field = f"allocation.{name}"
+    if name == "opportunity_selection":
+        for item in values:
+            message = _selection_value_error(item)
+            if message:
+                SettingsBase.add_critical(report, field, message)
+        return
     if name == "mode":
         for item in values:
             if item not in _MODES:
@@ -284,6 +292,30 @@ def _check_values(report: ValidationReport, name: str, values: Sequence[Any]) ->
                     field,
                     f"max_weight_per_stock 须为 (0, 1] 或百分数 (0, 100]，收到 {item!r}",
                 )
+
+
+def _selection_value_error(item: Any) -> str:
+    """每个取值是一份选仓列表。``[]`` 表示按到达顺序。"""
+    if isinstance(item, (str, bytes)) or not isinstance(item, Sequence):
+        return f"opportunity_selection 的取值须为列表，收到 {item!r}"
+    from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
+        PortfolioSettings,
+    )
+
+    probe = PortfolioSettings(
+        raw_settings={
+            "portfolio": {
+                "initial_capital": 1_000_000,
+                "allocation": {"opportunity_selection": list(item)},
+            }
+        }
+    )
+    report = probe.validate()
+    for error in report.errors:
+        path = str(error.get("field_path") or "")
+        if "opportunity_selection" in path:
+            return str(error.get("message") or "opportunity_selection 不合法")
+    return ""
 
 
 def _name_of(path: str) -> str:

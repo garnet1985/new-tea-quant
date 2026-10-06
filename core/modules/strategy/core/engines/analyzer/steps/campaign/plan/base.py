@@ -34,11 +34,22 @@ from .models import AttributionCell, ParameterPlan
 _LOG = logging.getLogger(__name__)
 
 
+def _is_price_replay_axis(path: str) -> bool:
+    """``simulation.price`` 只改变价格回放的合并方式，不产生新的枚举。"""
+    text = str(path or "").strip()
+    return text == "simulation.price" or text.startswith("simulation.price.")
+
+
 class AttributionPlanBase:
     """快照 ⊕ overlay → StrategySettings；选号则只带 version_id。"""
 
     LAYER: ClassVar[str] = ""
     KIND: ClassVar[SimulateKind] = SimulateKind.PORTFOLIO
+
+    @classmethod
+    def _skip_price_replay_axes(cls) -> bool:
+        """枚举战役不展开价格回放轴。"""
+        return False
 
     @classmethod
     def expand_from_folder(
@@ -95,8 +106,22 @@ class AttributionPlanBase:
         merged = merge_user_and_defaults(
             "campaign", config.campaign_inputs, snap_raw
         )
-        axes = parse_axes("campaign", merged, snapshot=snap_raw)
         joint_groups = () if cross else tuple(collect_joint_sweep(config.raw_settings))
+        if cls._skip_price_replay_axes():
+            merged = {
+                path: spec
+                for path, spec in merged.items()
+                if not _is_price_replay_axis(path)
+            }
+            kept_groups = []
+            for group in joint_groups:
+                kept = tuple(
+                    path for path in group if not _is_price_replay_axis(path)
+                )
+                if len(kept) >= 2:
+                    kept_groups.append(kept)
+            joint_groups = tuple(kept_groups)
+        axes = parse_axes("campaign", merged, snapshot=snap_raw)
         nominal = cell_count(axes, cross=cross)
         if joint_groups:
             nominal += joint_cell_count(axes, joint_groups)

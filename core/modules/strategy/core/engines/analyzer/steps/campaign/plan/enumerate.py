@@ -9,3 +9,8 @@ from .base import AttributionPlanBase
 class EnumerateAttributionPlan(AttributionPlanBase):
     LAYER = "enumerate"
     KIND = SimulateKind.ENUMERATE
+
+    @classmethod
+    def _skip_price_replay_axes(cls) -> bool:
+        """近邻间隔不改变机会，枚举战役不为其另开版本。"""
+        return True

@@ -82,6 +82,7 @@ _SYSTEM_KNOB_LABELS = {
     "take_profit": "止盈",
     "opportunity_merge_gap": "近邻间隔阈值",
     "mode": "分配方式",
+    "opportunity_selection": "选仓排序",
     "max_portfolio_size": "组合容量",
     "max_weight_per_stock": "单票权重上限",
     "initial_capital": "初始资金",
@@ -130,6 +131,26 @@ _CROSS_LAYER = {
     "worse": "机会变少，同号下游账户也变差",
     "hurts": "机会没变，同号下游账户变差",
 }
+
+
+def _format_opportunity_selection(value: Any) -> str:
+    if not isinstance(value, list) or not value:
+        return "到达顺序"
+    parts = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        field = next((str(key) for key in item if str(key) != "src"), "")
+        if not field:
+            continue
+        src = str(item.get("src") or "").strip()
+        name = f"{src}.{field}" if src else field
+        raw = item.get(field)
+        if isinstance(raw, str):
+            parts.append(f"{name} {raw.upper()}")
+        else:
+            parts.append(f"{name}×{raw}")
+    return "，".join(parts) if parts else "到达顺序"
 
 
 class CampaignLabels:
@@ -208,6 +229,8 @@ class CampaignLabels:
     @classmethod
     def format_knob(cls, key: Any, value: Any) -> str:
         """对照表里的参数取值：None 显示「未使用」。"""
+        if str(key or "").split(".")[-1] == "opportunity_selection":
+            return _format_opportunity_selection(value)
         if value is None or value == "":
             return "未使用"
         scalar = KnobContrasts.scalar(value)

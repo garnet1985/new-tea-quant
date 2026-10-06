@@ -114,10 +114,12 @@ class ReportManager(BaseReportManager):
         if folder is None or not str(folder):
             raise ValueError("strategy_folder 不能为空")
 
+        source_vid = str(data.version_id)
+        forced = str(getattr(ctx, "forced_version_id", None) or "").strip()
         store = PriceFactorStore.allocate(
             folder,
             strategy_id=strategy_path or strategy_key or str(folder),
-            version_id=str(data.version_id),
+            version_id=forced or source_vid,
         )
         output_dir = store.output_dir
         version_id = str(store.version_id)
@@ -126,7 +128,7 @@ class ReportManager(BaseReportManager):
             strategy_key=strategy_key or strategy_path,
             strategy_path=strategy_path,
             version_id=version_id,
-            enum_version_id=str(data.version_id),
+            enum_version_id=source_vid,
             enum_output_dir=str(data.output_dir),
             execute_fp=str(ctx.execute_fp or ""),
             env_fp=str(ctx.env_fp or ""),

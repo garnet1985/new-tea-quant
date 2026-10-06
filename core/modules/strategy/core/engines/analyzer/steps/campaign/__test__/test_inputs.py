@@ -212,7 +212,7 @@ def test_hook_goal_skipped_in_defaults() -> None:
 
 
 def test_shared_campaign_grid_same_for_sea_and_spa() -> None:
-    """sea / spa 展格身份相同（合并各层块 inputs）。"""
+    """sea / spa 共用声明轴；枚举展格去掉只影响回放的近邻间隔。"""
     raw = {
         "enumerate": {
             "inputs": {
@@ -241,12 +241,11 @@ def test_shared_campaign_grid_same_for_sea_and_spa() -> None:
     }
     cells_sea = AttributionPlan.expand(_snapshot(), cfg_sea, layer="enumerate")
     cells_spa = AttributionPlan.expand(_snapshot(), cfg_spa, layer="price_factor")
-    assert len(cells_sea) == len(cells_spa)
-    sea_overlays = [cell.overlay for cell in cells_sea]
-    spa_overlays = [cell.overlay for cell in cells_spa]
-    assert sea_overlays == spa_overlays
-    # oaat：基准 + 三轴各一变体
-    assert len(cells_sea) == 4
+    # oaat：基准 + rsi + 仓位；价格再加近邻间隔
+    assert len(cells_sea) == 3
+    assert len(cells_spa) == 4
+    assert all("simulation" not in cell.overlay for cell in cells_sea)
+    assert any(cell.overlay.get("simulation") for cell in cells_spa)
 
 
 def test_demo_style_top_level_attribution_loads() -> None:

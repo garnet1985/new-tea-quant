@@ -22,9 +22,8 @@ changelog:
     changes:
       - 重新定义价格回测层。现在价格回测层是减少机会噪音后等全交易的普遍收益率。
       - 新增价格专用钩子 is_new_opportunity，默认实现为间隔合并。
-      - 归因与回测拆开：CLI sea/spa/soa 按层战役；须先有主 version（se/sp/so）。
-      - 对照格写入副本 {vid}-{r}；取消单次回测自动归因与 sa/sz。
-      - attribution.py 不再写 steps；层由 CLI 选定；Trades/XGB 仅 spa。  
+      - 全新归因系统：cli加入全新命令 sea/spa/soa，新的归因配置。
+      - 在投资模拟层（portfolio）加入新的机会选择配置，并且纳入归因系统。
   - version: "0.9.0"
     changes:
       - 加入决策者模式，支持手动回测

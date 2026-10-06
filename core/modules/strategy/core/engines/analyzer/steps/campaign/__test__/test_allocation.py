@@ -134,10 +134,66 @@ def test_portfolio_plan_is_allocation_oaat() -> None:
     }
 
 
+def test_opportunity_selection_axis_is_portfolio_only() -> None:
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.contrasts import (
+        KnobContrasts,
+    )
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
+        AttributionPlan,
+    )
+    from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+        StrategySettings,
+    )
+
+    current = [{"rsi": "ASC"}, {"pe_percentile": "ASC"}]
+    snap = StrategySettings.to_usable(
+        {
+            "portfolio": {
+                "initial_capital": 100000,
+                "allocation": {
+                    "mode": "equal_capital",
+                    "max_portfolio_size": 10,
+                    "opportunity_selection": current,
+                },
+            }
+        }
+    )
+    cfg = AttributionConfig.to_usable(
+        {
+            "inputs": {"rsi_oversold_threshold": {"values": [20, 30]}},
+            "allocation": {
+                "opportunity_selection": {
+                    "values": [
+                        current,
+                        [],
+                        [{"rsi": -70}, {"pe_percentile": -30}],
+                    ]
+                }
+            },
+        },
+        layer="portfolio",
+    )
+    cells = AttributionPlan.expand(snap, cfg, layer="portfolio")
+    assert cells[0].overlay == {}
+    variants = [KnobContrasts.union_paths([cell.overlay]) for cell in cells[1:]]
+    assert variants == [
+        ["portfolio.allocation.opportunity_selection"],
+        ["portfolio.allocation.opportunity_selection"],
+    ]
+    assert "core.rsi_oversold_threshold" not in {
+        path for group in variants for path in group
+    }
+
+
 def test_unknown_axis_and_bad_mode_fail() -> None:
     with pytest.raises(ValueError, match="未知资金分配轴"):
         AttributionConfig.to_usable(
             {"allocation": {"stop_loss": {"values": [None]}}},
+            layer="portfolio",
+        )
+    with pytest.raises(ValueError, match="取值须为列表"):
+        AttributionConfig.to_usable(
+            {"allocation": {"opportunity_selection": {"values": ["ASC"]}}},
             layer="portfolio",
         )
     with pytest.raises(ValueError, match="mode 只能是"):

@@ -282,7 +282,7 @@ class Strategy:
         """统一模拟入口：枚举 / 价格 / 资金。
 
         ``version_id``：归因副本写入指定号（如 ``5-1``）；普通回测勿传，由指纹分配主号。
-        ``upstream_version_id``：组合层资金分配对照时，枚举产物读这个号，只重跑组合。
+        ``upstream_version_id``：价格或组合对照时，枚举产物读这个号，只重跑本层。
 
         缓存与指纹流程（磁盘单轨）::
 
@@ -330,8 +330,11 @@ class Strategy:
         )
         forced = str(version_id or "").strip()
         upstream = str(upstream_version_id or "").strip()
-        if upstream and step != SimulateKind.PORTFOLIO:
-            raise ValueError("upstream_version_id 只用于组合层")
+        if upstream and step not in (
+            SimulateKind.PRICE_FACTOR,
+            SimulateKind.PORTFOLIO,
+        ):
+            raise ValueError("upstream_version_id 只用于价格层或组合层")
         if forced:
             ctx.forced_version_id = forced
             if not upstream:
@@ -340,7 +343,7 @@ class Strategy:
             ctx.enum_version = upstream
             if not ctx.forced_version_id:
                 ctx.forced_version_id = upstream
-            ctx.steps = [SimulateKind.PORTFOLIO]
+            ctx.steps = [step]
         cache_key = ctx.strategy_key or key_or_id
 
         strategy_folder = DiscoveryService.resolve_strategy_folder(key_or_id)
@@ -514,7 +517,7 @@ class Strategy:
             output_vid = str(ctx.forced_version_id or "").strip()
             source_vid = str(ctx.enum_version or "").strip()
             if (
-                step == SimulateKind.PORTFOLIO
+                step in (SimulateKind.PRICE_FACTOR, SimulateKind.PORTFOLIO)
                 and output_vid
                 and source_vid
                 and output_vid != source_vid

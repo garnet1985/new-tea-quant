@@ -23,6 +23,25 @@ def test_format_number_ratio_still_scales() -> None:
     assert CampaignLabels.format_number("stop_loss", -0.2) == "-20.0%"
 
 
+def test_opportunity_selection_knob_label() -> None:
+    assert CampaignLabels.knob_label("portfolio.allocation.opportunity_selection") == "选仓排序"
+    assert CampaignLabels.format_knob("opportunity_selection", []) == "到达顺序"
+    assert (
+        CampaignLabels.format_knob(
+            "opportunity_selection",
+            [{"rsi": "ASC"}, {"pe_percentile": "asc"}],
+        )
+        == "rsi ASC，pe_percentile ASC"
+    )
+    assert (
+        CampaignLabels.format_knob(
+            "opportunity_selection",
+            [{"rsi": -70}, {"pe_percentile": -30}],
+        )
+        == "rsi×-70，pe_percentile×-30"
+    )
+
+
 def test_knob_label_keeps_user_core_keys() -> None:
     assert CampaignLabels.knob_label("core.rsi_oversold_threshold") == "rsi_oversold_threshold"
     assert CampaignLabels.knob_label("core.max_pe_percentile") == "max_pe_percentile"

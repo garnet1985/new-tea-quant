@@ -17,6 +17,7 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import (
     _compact_summary,
 )
 from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 
 pytestmark = pytest.mark.force_run
@@ -109,6 +110,86 @@ def test_simulate_price_chain_force_only_first_step() -> None:
     ]
     assert result.status == "simulated"
     assert result.version_id == "21-1"
+
+
+def test_price_gap_reuses_existing_enum(tmp_path) -> None:
+    """只改近邻间隔时读已有枚举，不再为这一格跑枚举。"""
+    root = tmp_path / "sim"
+    primary = root / "21"
+    other = root / "21-1"
+    primary.mkdir(parents=True)
+    other.mkdir()
+    (root / "meta.json").write_text(
+        """{
+          "registry": {
+            "21": {"steps": {"enumerate": "ok"}},
+            "21-1": {"steps": {"enumerate": "ok"}}
+          }
+        }""",
+        encoding="utf-8",
+    )
+    (primary / "effective_settings.json").write_text(
+        """{
+          "core": {"rsi_oversold_threshold": 30},
+          "simulation": {"price": {"opportunity_merge_gap": 1}}
+        }""",
+        encoding="utf-8",
+    )
+    (other / "effective_settings.json").write_text(
+        """{
+          "core": {"rsi_oversold_threshold": 20},
+          "simulation": {"price": {"opportunity_merge_gap": 1}}
+        }""",
+        encoding="utf-8",
+    )
+    cell = AttributionCell(
+        index=2,
+        overlay={"simulation": {"price": {"opportunity_merge_gap": 3}}},
+        runtime_settings={"simulation": {"price": {"opportunity_merge_gap": 3}}},
+        execute_settings={
+            "core": {"rsi_oversold_threshold": 30},
+            "simulation": {"price": {"opportunity_merge_gap": 3}},
+        },
+    )
+    task = AttributionTask.from_cells([cell], kind=SimulateKind.PRICE_FACTOR)[0]
+    info = MagicMock()
+    info.key = "demo/rsi"
+    calls = []
+
+    def fake_simulate(
+        key,
+        *,
+        kind,
+        ignore_cache,
+        runtime_settings,
+        version_id=None,
+        upstream_version_id=None,
+    ):
+        calls.append((kind, version_id, upstream_version_id, ignore_cache))
+        return _payload(kind, hit=False, version_id=str(version_id))
+
+    fp = SimpleNamespace(execute_fp="e-gap", env_fp="n")
+    with patch.object(
+        ArtifactStore, "simulations_root", return_value=root
+    ), patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
+        "core.modules.strategy.core.strategy.Strategy.simulate",
+        side_effect=fake_simulate,
+    ), patch.object(
+        VersionMetaStore, "allocate_replica_id", return_value="21-2"
+    ):
+        result = ExecuteStep._simulate(
+            tmp_path,
+            info,
+            task,
+            parent_version_id="21",
+            baseline_execute_fp="e-baseline",
+            ignore_cache=False,
+        )
+    assert calls == [
+        (SimulateKind.PRICE_FACTOR, "21-2", "21", False),
+    ]
+    assert result.status == "simulated"
+    assert result.version_id == "21-2"
 
 
 def test_simulate_single_layer_force_on_first() -> None:

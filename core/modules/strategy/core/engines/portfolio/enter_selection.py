@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Set
 
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
+from core.modules.strategy.core.engines.portfolio.opportunity_ranker import (
+    OpportunityRanker,
+)
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -221,7 +224,7 @@ class EnterSelection:
         available: Sequence[Opportunity],
         held_entity_ids: Set[str],
     ) -> List[str]:
-        """挑选当日 members：用户 override 钩子，否则 ``EntrySelector``。"""
+        """挑选当日 members。钩子优先；否则按 opportunity_selection 排序后填槽。"""
         opps = list(available or [])
         if not opps:
             return []
@@ -246,6 +249,15 @@ class EnterSelection:
             selected = self.hook_runtime.call("on_pick_portfolio_member", ctx)
             return self.normalize_selected_ids(opps, selected)
 
+        allocation = self.settings.portfolio.allocation
+        if allocation.opportunity_selection_mode:
+            opps = OpportunityRanker.order(
+                opps,
+                allocation.opportunity_selection,
+                mode=allocation.opportunity_selection_mode,
+                base_data_key=self.settings.data.base_data_key,
+                held_entity_ids=held_entity_ids,
+            )
         return self.selector.pick_ids(opps, held_entity_ids=held_entity_ids)
 
     def apply(
@@ -297,9 +309,6 @@ class EnterSelection:
             for buy in day_buys:
                 key = EntrySelector.event_selection_key(buy)
                 opp = opportunities_by_id.get(key)
-                if opp is None:
-                    # 兼容旧索引：裸 investment_id
-                    opp = opportunities_by_id.get(str(buy.investment_id or "").strip())
                 if opp is not None:
                     available.append(opp)
 

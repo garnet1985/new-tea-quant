@@ -201,12 +201,15 @@ def test_entry_selector_skips_already_held_entity():
     ]
 
 
-def test_default_enter_selection_respects_max_portfolio_size():
-    opps = {
-        "a": _opp("a", "600000.SH"),
-        "b": _opp("b", "600001.SH"),
-        "c": _opp("c", "600002.SH"),
+def _keyed(*pairs: tuple) -> dict:
+    return {
+        EntrySelector.selection_key(entity_id, oid): _opp(oid, entity_id)
+        for oid, entity_id in pairs
     }
+
+
+def test_default_enter_selection_respects_max_portfolio_size():
+    opps = _keyed(("a", "600000.SH"), ("b", "600001.SH"), ("c", "600002.SH"))
     events = [
         PortfolioEvent(
             kind="buy", date="20240103", entity_id="600000.SH", investment_id="a", price=10.0
@@ -246,10 +249,7 @@ def test_on_pick_portfolio_member_override_filters_by_id():
         ) -> Sequence[Union[Opportunity, str]]:
             return ["a"]
 
-    opps = {
-        "a": _opp("a", "600000.SH"),
-        "b": _opp("b", "600001.SH"),
-    }
+    opps = _keyed(("a", "600000.SH"), ("b", "600001.SH"))
     events = [
         PortfolioEvent(
             kind="buy", date="20240103", entity_id="600000.SH", investment_id="a", price=10.0

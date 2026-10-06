@@ -38,12 +38,17 @@ def test_missing_allocation_uses_defaults_and_stays_out_of_campaign() -> None:
     assert axes["portfolio.allocation.mode"] == (
         "equal_shares",
         "equal_capital",
-        "kelly",
     )
     assert 10 in axes["portfolio.allocation.max_portfolio_size"]
     assert axes["portfolio.initial_capital"] == (50000, 100000, 200000)
     assert "portfolio.allocation.kelly_fraction" in axes
     assert "portfolio.allocation.max_portfolio_size" not in default_axes_shared(_SNAP)
+    snap = dict(_SNAP)
+    snap["portfolio"] = {
+        **_SNAP["portfolio"],
+        "allocation": {**_SNAP["portfolio"]["allocation"], "default_cash": 10000},
+    }
+    assert "kelly" in cfg.allocation_axes(snap)["portfolio.allocation.mode"]
 
 
 def test_declared_allocation_does_not_fill_omitted_axes() -> None:
@@ -107,6 +112,7 @@ def test_portfolio_plan_is_allocation_oaat() -> None:
                 "allocation": {
                     "mode": "equal_capital",
                     "max_portfolio_size": 10,
+                    "default_cash": 10000,
                 },
             }
         }

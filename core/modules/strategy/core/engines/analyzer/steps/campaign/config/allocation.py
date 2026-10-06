@@ -137,6 +137,8 @@ def _default_values(name: str, snapshot: Mapping[str, Any]) -> List[Any]:
     cur = value_at(snapshot, path)
     if name == "mode":
         modes: List[Any] = list(_MODES)
+        if not _has_kelly_default(snapshot):
+            modes = [item for item in modes if item != "kelly"]
         if isinstance(cur, str) and cur.strip() and cur not in modes:
             modes.insert(0, cur.strip())
         return modes
@@ -151,6 +153,18 @@ def _default_values(name: str, snapshot: Mapping[str, Any]) -> List[Any]:
     if name == "lots_per_trade":
         return _lots_ladder(cur)
     return []
+
+
+def _has_kelly_default(snapshot: Mapping[str, Any]) -> bool:
+    cash = value_at(snapshot, "portfolio.allocation.default_cash")
+    shares = value_at(snapshot, "portfolio.allocation.default_shares")
+    return _positive_number(cash) or _positive_number(shares)
+
+
+def _positive_number(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return float(value) > 0
 
 
 def _size_ladder(cur: Any) -> List[Any]:

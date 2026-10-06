@@ -22,7 +22,7 @@ const ALLOCATION_MODE_META = {
   },
   kelly: {
     label: '凯莉公式',
-    tooltip: '按凯莉公式估算建议仓位，再乘以「凯莉折扣系数」做保守缩放；需策略提供胜率/赔率等输入。',
+    tooltip: '按已平仓机会的胜率和盈亏比估算仓位，再乘以「凯莉折扣系数」。还没有样本时用默认资金或默认股数开仓。',
   },
   custom: {
     label: '自定义',
@@ -111,6 +111,22 @@ export function buildStrategyPortfolioSchema(allocationModeOptions = DEFAULT_ALL
         label: '凯莉折扣系数',
         tooltip: '仅在「凯莉公式」下生效：在理论凯莉仓位上乘以该系数（0～1），默认偏保守。',
         parse: parseNumber,
+        visibleWhen: ({ values }) => values?.allocation?.mode === 'kelly',
+      },
+      {
+        name: 'allocation.default_cash',
+        type: 'number',
+        label: '凯莉默认资金',
+        tooltip: '仅在「凯莉公式」下生效：还没有已平仓样本时，每笔按这个金额开仓。与「默认股数」至少填一个；两个都填时用资金。',
+        parse: parseNumber,
+        visibleWhen: ({ values }) => values?.allocation?.mode === 'kelly',
+      },
+      {
+        name: 'allocation.default_shares',
+        type: 'number',
+        label: '凯莉默认股数',
+        tooltip: '仅在「凯莉公式」下生效：还没有已平仓样本、且没填默认资金时，每笔按这个股数开仓。',
+        parse: parseIntNumber,
         visibleWhen: ({ values }) => values?.allocation?.mode === 'kelly',
       },
     ],

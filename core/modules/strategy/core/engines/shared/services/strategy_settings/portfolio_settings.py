@@ -44,6 +44,8 @@ class AllocationConfig:
     max_weight_per_stock: float = 0.3
     lots_per_trade: int = 1
     kelly_fraction: float = 0.5
+    default_cash: float = 0.0
+    default_shares: int = 0
     skip_trade_when_insufficient: bool = False
     opportunity_selection: Tuple[OpportunitySelectionRule, ...] = ()
 
@@ -148,6 +150,7 @@ class PortfolioSettings(SettingsBase):
                 "portfolio.allocation.max_portfolio_size",
                 "max_portfolio_size 必须 > 0",
             )
+        self._validate_kelly_defaults(report)
         self._validate_opportunity_selection(report)
         return report
 
@@ -183,6 +186,8 @@ class PortfolioSettings(SettingsBase):
             kelly_fraction=self._as_float_clamped(
                 a.get("kelly_fraction"), 0.5, lo=0.0, hi=1.0
             ),
+            default_cash=self._as_non_negative_float(a.get("default_cash")),
+            default_shares=self._as_int(a.get("default_shares"), 0, minimum=0),
             skip_trade_when_insufficient=bool(
                 a.get("skip_trade_when_insufficient", False)
             ),
@@ -197,6 +202,53 @@ class PortfolioSettings(SettingsBase):
             save_trades=bool(o.get("save_trades", True)),
             save_equity_curve=bool(o.get("save_equity_curve", True)),
         )
+
+    def _validate_kelly_defaults(self, report: ValidationReport) -> None:
+        """kelly 模式必须显式给出大于 0 的 default_cash 或 default_shares。"""
+        block = self.portfolio.get("allocation")
+        if not isinstance(block, dict):
+            return
+        mode = str(block.get("mode") or "equal_capital").strip().lower()
+        cash = self._declared_positive(
+            report,
+            "portfolio.allocation.default_cash",
+            block.get("default_cash") if "default_cash" in block else None,
+        )
+        shares = self._declared_positive(
+            report,
+            "portfolio.allocation.default_shares",
+            block.get("default_shares") if "default_shares" in block else None,
+            as_int=True,
+        )
+        if mode != "kelly" or cash > 0 or shares > 0:
+            return
+        SettingsBase.add_critical(
+            report,
+            "portfolio.allocation.default_cash",
+            "kelly 模式须配置 default_cash 或 default_shares，且大于 0",
+            suggested_fix='allocation.default_cash = 10000 或 allocation.default_shares = 100',
+        )
+
+    @staticmethod
+    def _declared_positive(
+        report: ValidationReport,
+        path: str,
+        raw: Any,
+        *,
+        as_int: bool = False,
+    ) -> float:
+        """未写返回 0。写了但不是正数则记错误并返回 0。"""
+        if raw is None:
+            return 0.0
+        try:
+            number = int(raw) if as_int else float(raw)
+        except (TypeError, ValueError):
+            SettingsBase.add_critical(report, path, f"{path.split('.')[-1]} 须为数字")
+            return 0.0
+        if number < 0:
+            SettingsBase.add_critical(report, path, f"{path.split('.')[-1]} 须大于 0")
+            return 0.0
+        return float(number)
 
     def _validate_opportunity_selection(self, report: ValidationReport) -> None:
         block = self.portfolio.get("allocation")
@@ -251,6 +303,14 @@ class PortfolioSettings(SettingsBase):
         if minimum is not None:
             n = max(n, minimum)
         return n
+
+    @staticmethod
+    def _as_non_negative_float(value: Any) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return number if number > 0 else 0.0
 
     @staticmethod
     def _as_float_clamped(

@@ -277,10 +277,12 @@ class Strategy:
         ignore_cache: bool = False,
         runtime_settings: Optional[Dict[str, Any]] = None,
         version_id: Optional[str] = None,
+        upstream_version_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """统一模拟入口：枚举 / 价格 / 资金。
 
         ``version_id``：归因副本写入指定号（如 ``5-1``）；普通回测勿传，由指纹分配主号。
+        ``upstream_version_id``：组合层资金分配对照时，枚举产物读这个号，只重跑组合。
 
         缓存与指纹流程（磁盘单轨）::
 
@@ -327,9 +329,18 @@ class Strategy:
             seed_entity_cache=False,
         )
         forced = str(version_id or "").strip()
+        upstream = str(upstream_version_id or "").strip()
+        if upstream and step != SimulateKind.PORTFOLIO:
+            raise ValueError("upstream_version_id 只用于组合层")
         if forced:
             ctx.forced_version_id = forced
-            ctx.enum_version = forced
+            if not upstream:
+                ctx.enum_version = forced
+        if upstream:
+            ctx.enum_version = upstream
+            if not ctx.forced_version_id:
+                ctx.forced_version_id = upstream
+            ctx.steps = [SimulateKind.PORTFOLIO]
         cache_key = ctx.strategy_key or key_or_id
 
         strategy_folder = DiscoveryService.resolve_strategy_folder(key_or_id)
@@ -378,7 +389,8 @@ class Strategy:
             stock_list=list(fp_res.entity_ids),
             latest_completed_trading_date=latest_completed_trading_date,
         )
-        Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
+        if not upstream:
+            Strategy._resolve_steps(ctx, ignore_cache=ignore_cache)
         ctx.validate_for_run()
         payload = Strategy._run_steps(
             ctx,
@@ -499,7 +511,17 @@ class Strategy:
             start_date = ""
             end_date = ""
         for step in ctx.steps:
-            vid = str(ctx.enum_version or "").strip()
+            output_vid = str(ctx.forced_version_id or "").strip()
+            source_vid = str(ctx.enum_version or "").strip()
+            if (
+                step == SimulateKind.PORTFOLIO
+                and output_vid
+                and source_vid
+                and output_vid != source_vid
+            ):
+                vid = output_vid
+            else:
+                vid = source_vid
             if not vid:
                 vid = str(
                     VersionMetaStore.find_version_by_fingerprints(

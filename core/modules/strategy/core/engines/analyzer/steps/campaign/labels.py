@@ -81,6 +81,7 @@ _SYSTEM_KNOB_LABELS = {
     "stop_loss": "止损",
     "take_profit": "止盈",
     "opportunity_merge_gap": "近邻间隔阈值",
+    "mode": "分配方式",
     "max_portfolio_size": "组合容量",
     "max_weight_per_stock": "单票权重上限",
     "initial_capital": "初始资金",

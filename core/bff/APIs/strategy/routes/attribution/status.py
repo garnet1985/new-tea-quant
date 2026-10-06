@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 EXAMPLE_PATH = "userspace/strategies/_template/empty_strategy/attribution.py"
 
 _TOOLTIP_NEED_CONFIG = (
-    "需要配置 attribution.py 才能做归因。"
+    "需要在策略目录配置 attribution.py 才能开始归因。"
     f"可参考模板：{EXAMPLE_PATH}"
 )
-_TOOLTIP_NEED_RUN = "请先完成本层回测，再运行归因。"
+_TOOLTIP_NEED_RUN = "请先完成本层回测。"
 _TOOLTIP_INVALID = (
     "attribution.py 存在但无法用于参数归因"
     "（需要本层 inputs / versions）。"
@@ -49,8 +49,26 @@ _TASK_BY_STEP = {
 }
 
 
+def _readiness_tooltip(has_primary: bool, config_ok: bool, config_reason: str) -> str:
+    """按钮禁用时说明还缺什么。未跑本层时也要提到 attribution 配置。"""
+    if has_primary and config_ok:
+        return ""
+    if config_ok:
+        return _TOOLTIP_NEED_RUN
+    config_text = (
+        _TOOLTIP_INVALID if config_reason == "invalid" else _TOOLTIP_NEED_CONFIG
+    )
+    if has_primary:
+        return config_text
+    return f"{_TOOLTIP_NEED_RUN}{config_text}"
+
+
 class AttributeStatus:
-    """Probe visible / enabled for the attribution button on a workbench step."""
+    """Probe visible / enabled for the attribution button on a workbench step.
+
+    ``visible`` 仍表示本层主回测已完成（报告页签用）。
+    按钮本身始终渲染，是否可点看 ``enabled``（本层已跑过且 attribution 配置有效）。
+    """
 
     @classmethod
     def probe(cls, strategy_name: str, norm_step: str) -> Dict[str, Any]:
@@ -65,23 +83,17 @@ class AttributeStatus:
 
         visible = bool(has_primary)
         enabled = bool(visible and config_ok)
-        if not visible:
+        if not has_primary:
             reason = "layer_not_run"
-            tooltip = _TOOLTIP_NEED_RUN
         elif not config_ok:
             reason = (
                 "attribution_not_configured"
                 if config_reason == "missing"
                 else "attribution_invalid"
             )
-            tooltip = (
-                _TOOLTIP_NEED_CONFIG
-                if config_reason == "missing"
-                else _TOOLTIP_INVALID
-            )
         else:
             reason = "ok"
-            tooltip = ""
+        tooltip = _readiness_tooltip(has_primary, config_ok, config_reason)
 
         return {
             "step": step,

@@ -459,9 +459,14 @@ def default_axes_for_layer(
 def default_axes_shared(
     snapshot: Mapping[str, Any],
 ) -> Dict[str, Dict[str, List[Any]]]:
-    """无用户 inputs 时：合并三层默认轴为共用展格。"""
+    """无用户 inputs 时：合并枚举 / 价格默认轴为共用展格。
+
+    资金分配不进这套副本，走 ``attribution.allocation``。
+    """
     out: Dict[str, Dict[str, List[Any]]] = {}
     for layer in _LAYER_KEYS:
+        if layer == "portfolio":
+            continue
         for path, spec in default_axes_for_layer(layer, snapshot).items():
             out.setdefault(path, spec)
     return out

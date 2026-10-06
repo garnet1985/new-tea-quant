@@ -5,11 +5,12 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from .availability import missing_ml_packages
 from .xgb_regressor import _validate_inputs
 
 try:
     import xgboost as xgb
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     xgb = None  # type: ignore
 
 _TEST_RATIO = 0.2
@@ -27,19 +28,21 @@ def xgb_win_classifier(
     test_ratio: float = _TEST_RATIO,
     groups: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
+    missing = missing_ml_packages()
+    if missing or xgb is None:
+        names = missing or ["xgboost"]
+        return {
+            "status": "skipped",
+            "reason": "missing_dependency",
+            "dependency": "、".join(names),
+        }
+
     validation = _validate_inputs(
         feature_matrix, feature_names, [1.0 if flag else 0.0 for flag in is_win],
         min_samples=min_samples,
     )
     if not validation.get("ok"):
         return {key: value for key, value in validation.items() if key != "ok"}
-
-    if xgb is None:
-        return {
-            "status": "skipped",
-            "reason": "missing_dependency",
-            "dependency": "xgboost",
-        }
 
     n = int(validation["n"])
     p = int(validation["n_features"])
@@ -242,7 +245,7 @@ def _roc_auc(y_true: np.ndarray, y_score: np.ndarray) -> Optional[float]:
 def _shap_matrix(model: Any, features: np.ndarray) -> Optional[np.ndarray]:
     try:
         import shap
-    except ImportError:
+    except Exception:
         return None
     try:
         explainer = shap.TreeExplainer(model)

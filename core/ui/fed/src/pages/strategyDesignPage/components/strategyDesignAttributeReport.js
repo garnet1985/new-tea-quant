@@ -15,7 +15,15 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
+import ChartPanel from 'components/chartPanel/chartPanel';
+import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
+import {
+  REPORT_CHART_AXIS_LABEL,
+  REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_SPLIT_LINE,
+  REPORT_CHART_TOOLTIP,
+} from '../../strategyWorkbenchPage/panels/strategyReportPanel/lib/reportChartsTheme';
 import './strategyDesignAttributeReport.scss';
 
 const SECTION_ORDER = [
@@ -64,6 +72,22 @@ function resolveSections(payload, summary) {
     return summary.sections;
   }
   return {};
+}
+
+const PORTFOLIO_SCOPE_NOTE = (
+  '本层只归因资金分配（槽位、单票上限、分配方式）。'
+  + '策略参数是否普遍能赚钱，看上一层价格报告；'
+  + '这里看这些分配设置有没有让账户抓住价格层里能赚钱的机会。'
+);
+const PORTFOLIO_SKIPPED_STRATEGY = '信号、过滤、止盈止损的对照不在本层排名。';
+
+function isPortfolioReport(payload) {
+  const step = String(payload?.step || payload?.layer || '').trim();
+  return step === 'portfolio';
+}
+
+function isAllocationKnob(knob) {
+  return String(knob || '').startsWith('portfolio.');
 }
 
 function resolveScopeNote(payload, summary) {
@@ -300,6 +324,204 @@ ThemeSection.propTypes = {
   block: PropTypes.object.isRequired,
 };
 
+function displayKnobValue(value) {
+  const text = value == null ? '' : String(value).trim();
+  if (text === '未使用') return '不使用';
+  return text || '—';
+}
+
+function sweepKey(knob, outcome) {
+  return `${String(knob || '')}::${String(outcome || '')}`;
+}
+
+function trendForSweep(sweep, sections) {
+  const knob = String(sweep?.knob || '');
+  const outcome = String(sweep?.primary_outcome || '');
+  if (!knob || !sections || typeof sections !== 'object') return '';
+  const blocks = Object.values(sections);
+  for (let i = 0; i < blocks.length; i += 1) {
+    const block = blocks[i];
+    if (!block || typeof block !== 'object') continue;
+    const hit = asList(block.effects).find((effect) => (
+      String(effect?.knob || '') === knob
+      && String(effect?.outcome || '') === outcome
+      && String(effect?.trend_line || '').trim()
+    ));
+    if (hit) {
+      return String(hit.trend_line).trim().split('未使用').join('不使用');
+    }
+  }
+  return '';
+}
+
+function omitSweepEffects(block, sweeps) {
+  const covered = new Set(
+    asList(sweeps)
+      .filter((item) => item && item.knob && item.primary_outcome)
+      .map((item) => sweepKey(item.knob, item.primary_outcome)),
+  );
+  if (!covered.size) return block;
+  const effects = asList(block?.effects);
+  const remaining = effects.filter(
+    (effect) => !covered.has(sweepKey(effect?.knob, effect?.outcome)),
+  );
+  if (remaining.length === effects.length) return block;
+  const facts = asList(block?.facts)
+    .map((item) => String(item || '').trim())
+    .filter((line) => (
+      line
+      && !line.includes('最好情况')
+      && !line.includes('最差情况')
+      && !line.includes('趋势：')
+    ));
+  return {
+    ...block,
+    effects: remaining,
+    facts,
+    conclusion: remaining.length ? block.conclusion : '',
+  };
+}
+
+function sectionHasContent(block) {
+  if (!block || typeof block !== 'object') return false;
+  if (asList(block.effects).length) return true;
+  if (asList(block.facts).some((item) => String(item || '').trim())) return true;
+  if (String(block.conclusion || '').trim()) return true;
+  if (block.baseline && typeof block.baseline === 'object' && Object.keys(block.baseline).length) {
+    return true;
+  }
+  return false;
+}
+
+function isBestLevel(level, best) {
+  if (!level || !best || typeof best !== 'object') return false;
+  const levelLabel = level.value_label;
+  const bestLabel = best.value_label;
+  if (levelLabel != null && bestLabel != null && String(levelLabel) !== '' && String(bestLabel) !== '') {
+    return String(levelLabel) === String(bestLabel);
+  }
+  return Object.is(level.value, best.value);
+}
+
+function levelMark(level, best) {
+  if (isBestLevel(level, best)) return 'best';
+  if (level?.is_baseline) return 'baseline';
+  return '';
+}
+
+const SWEEP_LINE = '#93c5fd';
+const SWEEP_CURRENT = '#fcd34d';
+const SWEEP_BEST = '#4ade80';
+
+function buildSweepChartOption(sweep, levels, outcome) {
+  const metricLabel = sweep?.primary_outcome_label || outcome || '指标';
+  const lineData = [];
+  const currentData = [];
+  const bestData = [];
+  levels.forEach((level) => {
+    const value = Number(level.metrics[outcome]);
+    const mark = levelMark(level, sweep.best);
+    lineData.push({ value, symbolSize: mark ? 0 : 8 });
+    currentData.push(mark === 'baseline' ? value : null);
+    bestData.push(mark === 'best' ? value : null);
+  });
+
+  return {
+    animation: false,
+    grid: { left: 48, right: 16, top: 36, bottom: 28 },
+    legend: {
+      top: 0,
+      right: 8,
+      itemWidth: 8,
+      itemHeight: 8,
+      icon: 'circle',
+      selectedMode: false,
+      textStyle: { color: 'rgba(255, 255, 255, 0.84)', fontSize: 12 },
+      data: ['当前取值', '最佳取值'],
+    },
+    tooltip: {
+      ...REPORT_CHART_TOOLTIP,
+      trigger: 'axis',
+      formatter: (params) => {
+        const list = Array.isArray(params) ? params : [params];
+        const point = list.find((item) => item && item.seriesType === 'line')
+          || list.find((item) => item && item.value != null);
+        if (!point) return '';
+        const level = levels[point.dataIndex];
+        if (!level) return '';
+        const mark = levelMark(level, sweep.best);
+        let tag = '';
+        if (mark === 'best' && level.is_baseline) tag = '（当前，最佳）';
+        else if (mark === 'best') tag = '（最佳）';
+        else if (mark === 'baseline') tag = '（当前）';
+        const raw = point.value && typeof point.value === 'object' ? point.value.value : point.value;
+        return `${displayKnobValue(level.value_label)}${tag}<br/>${metricLabel}：${raw}`;
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: levels.map((_, index) => String(index)),
+      axisTick: { show: false },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: {
+        ...REPORT_CHART_AXIS_LABEL,
+        formatter: (raw) => {
+          const level = levels[Number(raw)];
+          if (!level) return '';
+          const text = displayKnobValue(level.value_label);
+          const mark = levelMark(level, sweep.best);
+          if (mark === 'best') return `{best|${text}}`;
+          if (mark === 'baseline') return `{current|${text}}`;
+          return text;
+        },
+        rich: {
+          best: { color: SWEEP_BEST, fontSize: 11, fontWeight: 650 },
+          current: { color: SWEEP_CURRENT, fontSize: 11, fontWeight: 650 },
+        },
+      },
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      splitNumber: 3,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: REPORT_CHART_AXIS_LABEL,
+      splitLine: REPORT_CHART_SPLIT_LINE,
+    },
+    series: [
+      {
+        name: metricLabel,
+        type: 'line',
+        data: lineData,
+        symbol: 'circle',
+        showSymbol: true,
+        lineStyle: { width: 2, color: SWEEP_LINE },
+        itemStyle: { color: SWEEP_LINE },
+        z: 2,
+      },
+      {
+        name: '当前取值',
+        type: 'scatter',
+        data: currentData,
+        symbol: 'circle',
+        symbolSize: 11,
+        itemStyle: { color: SWEEP_CURRENT },
+        z: 3,
+      },
+      {
+        name: '最佳取值',
+        type: 'scatter',
+        data: bestData,
+        symbol: 'circle',
+        symbolSize: 11,
+        itemStyle: { color: SWEEP_BEST },
+        z: 4,
+      },
+    ],
+  };
+}
+
 function SweepCurve({ sweep }) {
   const outcome = sweep?.primary_outcome || '';
   const levels = asList(sweep?.levels).filter((level) => {
@@ -308,67 +530,12 @@ function SweepCurve({ sweep }) {
   });
   if (levels.length < 2) return null;
 
-  const values = levels.map((level) => Number(level.metrics[outcome]));
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const width = 320;
-  const height = 96;
-  const padX = 12;
-  const padY = 14;
-  const points = levels.map((level, index) => {
-    const x = padX + (index / Math.max(levels.length - 1, 1)) * (width - padX * 2);
-    const y = padY + (1 - (Number(level.metrics[outcome]) - min) / span) * (height - padY * 2);
-    return { x, y, level, value: Number(level.metrics[outcome]) };
-  });
-  const polyline = points.map((point) => `${point.x},${point.y}`).join(' ');
-
   return (
-    <Box className="ntq-design-attr-report__curve" aria-hidden={false}>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="ntq-design-attr-report__curve-svg"
-        role="img"
-        aria-label={`${sweep.knob_label || sweep.knob || '参数'} 扫描曲线`}
-      >
-        <polyline
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          points={polyline}
-          className="ntq-design-attr-report__curve-line"
-        />
-        {points.map((point) => (
-          <circle
-            key={`${point.x}-${point.y}-${point.level.value_label}`}
-            cx={point.x}
-            cy={point.y}
-            r={point.level.is_baseline ? 4.5 : 3.2}
-            className={
-              point.level.is_baseline
-                ? 'ntq-design-attr-report__curve-dot ntq-design-attr-report__curve-dot--baseline'
-                : 'ntq-design-attr-report__curve-dot'
-            }
-          />
-        ))}
-      </svg>
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        className="ntq-design-attr-report__curve-labels"
-      >
-        {levels.map((level) => (
-          <Typography
-            key={String(level.value_label)}
-            variant="caption"
-            color="text.secondary"
-            className={level.is_baseline ? 'ntq-design-attr-report__curve-label--baseline' : undefined}
-          >
-            {level.value_label ?? '—'}
-          </Typography>
-        ))}
-      </Stack>
-    </Box>
+    <ChartPanel
+      option={buildSweepChartOption(sweep, levels, outcome)}
+      height={200}
+      framed={false}
+    />
   );
 }
 
@@ -376,15 +543,31 @@ SweepCurve.propTypes = {
   sweep: PropTypes.object.isRequired,
 };
 
-function SweepPanel({ rank, sweeps, scopeNote }) {
+function SweepPanel({ rank, sweeps, scopeNote, sections }) {
   const usableRank = asList(rank).filter((item) => item && typeof item === 'object');
   const usableSweeps = asList(sweeps).filter(
     (item) => item && typeof item === 'object' && asList(item.levels).length >= 2,
   );
-  if (!usableRank.length && !usableSweeps.length) return null;
+  if (!usableRank.length && !usableSweeps.length) {
+    if (!scopeNote) return null;
+    return (
+      <Alert
+        severity="info"
+        variant="outlined"
+        className="ntq-design-attr-report__scope-alert"
+      >
+        {scopeNote}
+      </Alert>
+    );
+  }
+
+  const outcomeLabel = String(
+    usableSweeps.find((item) => item.primary_outcome_label)?.primary_outcome_label
+    || '',
+  ).trim() || '主指标';
 
   return (
-    <Stack spacing={1.5} className="ntq-design-attr-report__sweeps">
+    <Stack spacing={2.5} className="ntq-design-attr-report__sweeps">
       {scopeNote ? (
         <Alert
           severity="info"
@@ -396,18 +579,30 @@ function SweepPanel({ rank, sweeps, scopeNote }) {
       ) : null}
       {usableRank.length ? (
         <Box>
-          <Typography variant="subtitle2" className="ntq-design-attr-report__section-title">
-            敏感度排名
-          </Typography>
+          <Stack
+            direction="row"
+            spacing={0.75}
+            alignItems="center"
+            className="ntq-design-attr-report__rank-heading-row"
+          >
+            <Typography component="h3" className="ntq-design-attr-report__rank-heading">
+              敏感度排名
+            </Typography>
+            <NtqHelpTooltip
+              title={`当其余参数不变，只变动当前的参数时，「${outcomeLabel}」在不同取值间的差异，影响程度以及最优的取值。`}
+              shine
+              placement="top"
+            />
+          </Stack>
           <Box className="ntq-design-attr-report__table-wrap">
             <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>#</TableCell>
                   <TableCell>参数</TableCell>
-                  <TableCell>起伏</TableCell>
-                  <TableCell>影响</TableCell>
-                  <TableCell>样本内较优</TableCell>
+                  <TableCell>{`${outcomeLabel}的差异`}</TableCell>
+                  <TableCell>{`对${outcomeLabel}的影响`}</TableCell>
+                  <TableCell>{`${outcomeLabel}最优取值`}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -417,7 +612,9 @@ function SweepPanel({ rank, sweeps, scopeNote }) {
                     <TableCell>{item.knob_label || item.knob || '—'}</TableCell>
                     <TableCell>{item.span_label ?? item.span ?? '—'}</TableCell>
                     <TableCell>{item.impact || '—'}</TableCell>
-                    <TableCell>{item.best_value_label ?? item.best_value ?? '—'}</TableCell>
+                    <TableCell>
+                      {displayKnobValue(item.best_value_label ?? item.best_value)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -425,28 +622,41 @@ function SweepPanel({ rank, sweeps, scopeNote }) {
           </Box>
         </Box>
       ) : null}
-      {usableSweeps.map((sweep) => {
+      {usableSweeps.map((sweep, index) => {
         const outcome = sweep.primary_outcome || '';
         const levels = asList(sweep.levels);
+        const knobLabel = sweep.knob_label || sweep.knob || '参数';
+        const metricLabel = sweep.primary_outcome_label || outcome || outcomeLabel;
+        const trend = trendForSweep(sweep, sections);
         return (
-          <Box key={sweep.knob || sweep.knob_label}>
-            <Typography variant="subtitle2" className="ntq-design-attr-report__section-title">
-              {`${sweep.knob_label || sweep.knob || '参数'} → ${
-                sweep.primary_outcome_label || outcome || '指标'
-              }`}
-            </Typography>
-            {sweep.advice ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
-                {sweep.advice}
+          <Box key={sweep.knob || sweep.knob_label} className="ntq-design-attr-report__sweep-block">
+            <Stack
+              direction="row"
+              spacing={0.75}
+              alignItems="center"
+              className="ntq-design-attr-report__sweep-head"
+            >
+              <Typography component="h3" className="ntq-design-attr-report__sweep-title">
+                {`参数 ${index + 1}: ${knobLabel}`}
+              </Typography>
+              <NtqHelpTooltip
+                title={`只改这个参数时，「${metricLabel}」怎么变`}
+                shine
+                placement="top"
+              />
+            </Stack>
+            <SweepCurve sweep={sweep} />
+            {trend ? (
+              <Typography variant="body2" className="ntq-design-attr-report__sweep-trend">
+                {trend}
               </Typography>
             ) : null}
-            <SweepCurve sweep={sweep} />
             <Box className="ntq-design-attr-report__table-wrap">
               <Table size="small">
                 <TableHead>
                   <TableRow>
                     <TableCell>取值</TableCell>
-                    <TableCell>{sweep.primary_outcome_label || outcome || '指标'}</TableCell>
+                    <TableCell>{metricLabel}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -455,14 +665,19 @@ function SweepPanel({ rank, sweeps, scopeNote }) {
                       ? level.metrics
                       : {};
                     const metric = metrics[outcome];
+                    const mark = levelMark(level, sweep.best);
+                    let tag = '';
+                    if (mark === 'best' && level.is_baseline) tag = '（当前，最佳）';
+                    else if (mark === 'best') tag = '（最佳）';
+                    else if (mark === 'baseline') tag = '（当前）';
                     return (
                       <TableRow
                         key={`${String(level.value_label)}-${String(metric)}`}
-                        className={level.is_baseline ? 'ntq-design-attr-report__row--baseline' : undefined}
+                        className={mark ? `ntq-design-attr-report__row--${mark}` : undefined}
                       >
                         <TableCell>
-                          {level.value_label ?? '—'}
-                          {level.is_baseline ? '（当前）' : ''}
+                          {displayKnobValue(level.value_label)}
+                          {tag}
                         </TableCell>
                         <TableCell>{metric == null ? '—' : String(metric)}</TableCell>
                       </TableRow>
@@ -482,20 +697,21 @@ SweepPanel.propTypes = {
   rank: PropTypes.array,
   sweeps: PropTypes.array,
   scopeNote: PropTypes.string,
+  sections: PropTypes.object,
 };
 
-function QuestionSections({ sections }) {
+function QuestionSections({ sections, sweeps }) {
   const known = SECTION_ORDER
-    .map((key) => ({ key, block: sections[key] }))
+    .map((key) => ({ key, block: omitSweepEffects(sections[key], sweeps) }))
     .filter(({ key, block }) => {
       if (!block || typeof block !== 'object') return false;
       if (key === 'after_take_profit' && block.available !== true) return false;
-      return true;
+      return sectionHasContent(block);
     });
   const extras = Object.keys(sections || {})
     .filter((key) => !SECTION_ORDER.includes(key))
-    .map((key) => ({ key, block: sections[key] }))
-    .filter(({ block }) => block && typeof block === 'object');
+    .map((key) => ({ key, block: omitSweepEffects(sections[key], sweeps) }))
+    .filter(({ block }) => sectionHasContent(block));
   const ordered = [...known, ...extras];
 
   if (!ordered.length) return null;
@@ -514,6 +730,7 @@ function QuestionSections({ sections }) {
 
 QuestionSections.propTypes = {
   sections: PropTypes.object.isRequired,
+  sweeps: PropTypes.array,
 };
 
 /**
@@ -526,22 +743,29 @@ function StrategyDesignAttributeReport({
   busy = false,
 }) {
   const summary = useMemo(() => nestedReport(payload), [payload]);
-  const scopeNote = useMemo(
-    () => resolveScopeNote(payload, summary),
-    [payload, summary],
-  );
+  const portfolioLayer = isPortfolioReport(payload);
+  const scopeNote = useMemo(() => {
+    if (!portfolioLayer) return resolveScopeNote(payload, summary);
+    const rawRank = resolveSensitivityRank(payload, summary);
+    const dropped = rawRank.some((item) => item && !isAllocationKnob(item.knob));
+    return dropped
+      ? `${PORTFOLIO_SCOPE_NOTE}${PORTFOLIO_SKIPPED_STRATEGY}`
+      : PORTFOLIO_SCOPE_NOTE;
+  }, [payload, portfolioLayer, summary]);
   const sections = useMemo(
     () => resolveSections(payload, summary),
     [payload, summary],
   );
-  const sweeps = useMemo(
-    () => resolveSweeps(payload, summary),
-    [payload, summary],
-  );
-  const rank = useMemo(
-    () => resolveSensitivityRank(payload, summary),
-    [payload, summary],
-  );
+  const sweeps = useMemo(() => {
+    const rows = resolveSweeps(payload, summary);
+    if (!portfolioLayer) return rows;
+    return rows.filter((item) => isAllocationKnob(item?.knob));
+  }, [payload, portfolioLayer, summary]);
+  const rank = useMemo(() => {
+    const rows = resolveSensitivityRank(payload, summary);
+    if (!portfolioLayer) return rows;
+    return rows.filter((item) => isAllocationKnob(item?.knob));
+  }, [payload, portfolioLayer, summary]);
   const hasSections = Object.keys(sections).length > 0;
   const hasSweeps = sweeps.length > 0 || rank.length > 0;
   const upstreamBridge = String(
@@ -588,11 +812,16 @@ function StrategyDesignAttributeReport({
           {upstreamBridge}
         </Alert>
       ) : null}
-      {hasSweeps ? (
-        <SweepPanel rank={rank} sweeps={sweeps} scopeNote={scopeNote} />
+      {hasSweeps || (portfolioLayer && scopeNote) ? (
+        <SweepPanel
+          rank={rank}
+          sweeps={sweeps}
+          scopeNote={scopeNote}
+          sections={sections}
+        />
       ) : null}
       {hasSections ? (
-        <QuestionSections sections={sections} />
+        <QuestionSections sections={sections} sweeps={sweeps} />
       ) : null}
       {!hasSweeps && !hasSections ? (
         <Typography variant="body2" color="text.secondary">

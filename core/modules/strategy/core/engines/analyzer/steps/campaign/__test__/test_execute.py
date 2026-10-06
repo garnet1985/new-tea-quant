@@ -146,6 +146,107 @@ def test_simulate_single_layer_force_on_first() -> None:
     assert result.version_id == "21-1"
 
 
+def test_allocation_variant_reuses_upstream_and_skips_enum() -> None:
+    info = MagicMock()
+    info.key = "demo/rsi"
+    calls = []
+
+    def fake_simulate(
+        key,
+        *,
+        kind,
+        ignore_cache,
+        runtime_settings,
+        version_id=None,
+        upstream_version_id=None,
+    ):
+        calls.append((kind, version_id, upstream_version_id, runtime_settings))
+        return _payload(kind, hit=False, version_id=str(version_id))
+
+    cell = AttributionCell(
+        index=1,
+        overlay={"portfolio": {"allocation": {"max_portfolio_size": 20}}},
+        runtime_settings={"portfolio": {"allocation": {"max_portfolio_size": 20}}},
+        execute_settings={},
+        family="allocation",
+    )
+    task = AttributionTask(
+        cell=cell, kind=SimulateKind.PORTFOLIO, steps=(SimulateKind.PORTFOLIO,)
+    )
+    fp = SimpleNamespace(execute_fp="e-alloc", env_fp="n")
+    with patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
+        "core.modules.strategy.core.strategy.Strategy.simulate",
+        side_effect=fake_simulate,
+    ), patch.object(
+        VersionMetaStore,
+        "allocate_replica_id",
+        return_value="9-1",
+    ):
+        result = ExecuteStep._simulate(
+            MagicMock(),
+            info,
+            task,
+            parent_version_id="9",
+            baseline_execute_fp="e-baseline",
+            ignore_cache=False,
+        )
+    assert calls == [
+        (
+            SimulateKind.PORTFOLIO,
+            "9-1",
+            "9",
+            {"portfolio": {"allocation": {"max_portfolio_size": 20}}},
+        )
+    ]
+    assert result.version_id == "9-1"
+    assert result.status == "simulated"
+
+
+def test_allocation_baseline_stays_on_primary() -> None:
+    info = MagicMock()
+    info.key = "demo/rsi"
+    calls = []
+
+    def fake_simulate(
+        key,
+        *,
+        kind,
+        ignore_cache,
+        runtime_settings,
+        version_id=None,
+        upstream_version_id=None,
+    ):
+        calls.append((kind, version_id, upstream_version_id))
+        return _payload(kind, hit=True, version_id="9")
+
+    cell = AttributionCell(
+        index=0,
+        overlay={},
+        runtime_settings={},
+        execute_settings={},
+        family="allocation",
+    )
+    task = AttributionTask(
+        cell=cell, kind=SimulateKind.PORTFOLIO, steps=(SimulateKind.PORTFOLIO,)
+    )
+    fp = SimpleNamespace(execute_fp="e-baseline", env_fp="n")
+    with patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
+        "core.modules.strategy.core.strategy.Strategy.simulate",
+        side_effect=fake_simulate,
+    ):
+        result = ExecuteStep._simulate(
+            MagicMock(),
+            info,
+            task,
+            parent_version_id="9",
+            baseline_execute_fp="e-baseline",
+            ignore_cache=False,
+        )
+    assert calls == [(SimulateKind.PORTFOLIO, "9", "9")]
+    assert result.status == "hit"
+    assert result.version_id == "9"
+
+
 def test_simulate_baseline_reuses_primary() -> None:
     info = MagicMock()
     info.key = "demo/rsi"

@@ -11,13 +11,15 @@ from .bridge import upstream_bridge
 from .joint_sweeps import build_joint_heatmaps
 from .sweeps import build_parameter_sweeps
 
-_SCOPE_NOTE_OAAT = (
-    "单因素扫描：每次只改一个参数，其余保持当前配置；"
-    "看曲线与敏感度排名决定该调多少。"
+_SCOPE_NOTE = (
+    "本层只归因资金分配（槽位、单票上限、分配方式）。"
+    "策略参数是否普遍能赚钱，看上一层价格报告；"
+    "这里看这些分配设置有没有让账户抓住价格层里能赚钱的机会。"
 )
-_SCOPE_NOTE_CROSS = "联合/交叉扫描：多个参数同时变化时的共同影响。"
+_SCOPE_NOTE_SKIPPED_STRATEGY = "信号、过滤、止盈止损的对照不在本层排名。"
 
 _LAYER = "portfolio"
+_ALLOCATION_PREFIX = "portfolio."
 
 
 class PortfolioSummarize(SummarizeBase):
@@ -46,20 +48,38 @@ class PortfolioSummarize(SummarizeBase):
                 "win_rate",
                 "capital_utilization_ratio_pct",
             ),
-            knob_prefixes=("portfolio.", "core.", "goal."),
+            knob_prefixes=(_ALLOCATION_PREFIX,),
         )
-        base["scope_note"] = _SCOPE_NOTE_CROSS if cross else _SCOPE_NOTE_OAAT
+        rows = ladders.ready_rows(gathered, layer=_LAYER)
+        strategy_axes = [
+            path
+            for path in ladders.ladder_knobs(rows)
+            if not str(path).startswith(_ALLOCATION_PREFIX)
+        ]
+        note = _SCOPE_NOTE
+        if strategy_axes:
+            note = f"{note}{_SCOPE_NOTE_SKIPPED_STRATEGY}"
+        base["scope_note"] = note
         base["analysis_mode"] = "cross" if cross else "oaat"
         base["sections"] = {}
         base["sweeps"] = sweep_pack.get("sweeps") or []
         base["sensitivity_rank"] = sweep_pack.get("sensitivity_rank") or []
         base["sweep_primary_outcome"] = "total_return"
-        base["joint_sweeps"] = build_joint_heatmaps(
+        joints = build_joint_heatmaps(
             gathered,
             layer=_LAYER,
             primary_outcome="total_return",
             groups=joint_groups,
         )
+        base["joint_sweeps"] = [
+            block
+            for block in joints
+            if block
+            and all(
+                str(path).startswith(_ALLOCATION_PREFIX)
+                for path in (block.get("knobs") or [])
+            )
+        ]
         base["upstream_bridge"] = upstream_bridge(gathered, layer=_LAYER)
         base["baseline_version_id"] = ladders.baseline_version_id(
             executed, gathered, layer=_LAYER

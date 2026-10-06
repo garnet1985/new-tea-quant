@@ -2,11 +2,16 @@ import React, { useCallback, useMemo } from 'react';
 import { Box, Button, LinearProgress, Tooltip, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
-import { STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
+import {
+  STRATEGY_DESIGN_RUN_STEP_KEYS,
+  STRATEGY_DESIGN_STEPS,
+} from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from '../../strategyWorkbenchPage/panels/strategyExecutionPanel/executionSectionMeta';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 import StrategyDesignSimulateButton from './strategyDesignSimulateButton';
 import './strategyDesignExecutionPanel.scss';
+
+const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
 
 function resolveExecutionStatusCopy({
   activeStep,
@@ -136,7 +141,11 @@ function StrategyDesignExecutionPanel() {
     return stepTitle ? `${EXECUTION_PANEL_TITLE} - ${stepTitle}` : EXECUTION_PANEL_TITLE;
   }, [wb.activeStep]);
 
-  const attributeButton = wb.attributeVisible ? (
+  const showAttributeButton = STRATEGY_DESIGN_RUN_STEP_KEYS.has(wb.activeStep);
+  const attributeHowTo = !wb.attributeEnabled
+    ? (wb.attributeTooltip || ATTRIBUTE_IDLE_TOOLTIP)
+    : '';
+  const attributeButton = showAttributeButton ? (
     <StrategyDesignSimulateButton
       done={attributeDone}
       disabled={wb.disableMetaActions || panelBusy || !wb.attributeEnabled}
@@ -148,8 +157,8 @@ function StrategyDesignExecutionPanel() {
     />
   ) : null;
 
-  const attributeControl = attributeButton && !wb.attributeEnabled && wb.attributeTooltip ? (
-    <Tooltip title={wb.attributeTooltip} placement="top">
+  const attributeControl = attributeButton && attributeHowTo ? (
+    <Tooltip title={attributeHowTo} placement="top">
       <span className="ntq-design-exec-panel__attr-tip-wrap">
         {attributeButton}
       </span>

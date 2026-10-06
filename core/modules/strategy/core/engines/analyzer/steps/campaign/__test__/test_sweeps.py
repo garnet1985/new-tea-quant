@@ -161,6 +161,64 @@ def test_portfolio_summarize_emits_sweeps():
     assert len(out["sweeps"]) == 1
     assert out["sweeps"][0]["best"]["value"] == 20
     assert out["sensitivity_rank"][0]["impact"] in {"小", "中", "大"}
+    assert "资金分配" in out["scope_note"]
+
+
+def test_portfolio_summarize_does_not_rank_strategy_knobs():
+    attributed = {
+        "status": "ok",
+        "n": 3,
+        "varying_knobs": [
+            "portfolio.allocation.max_portfolio_size",
+            "core.rsi_oversold_threshold",
+        ],
+        "layers": {},
+        "contributions": {},
+    }
+    gathered = {
+        "rows": [
+            {
+                "version_id": "1",
+                "status": "hit",
+                "overlay": {},
+                "knobs": {
+                    "portfolio.allocation.max_portfolio_size": 10,
+                    "core.rsi_oversold_threshold": 20,
+                    "goal.stop_loss": -0.1,
+                },
+                "layers": {"portfolio": {"total_return": 0.10, "max_drawdown": 0.2}},
+            },
+            {
+                "version_id": "1-1",
+                "status": "hit",
+                "overlay": {"portfolio": {"allocation": {"max_portfolio_size": 4}}},
+                "knobs": {
+                    "portfolio.allocation.max_portfolio_size": 4,
+                    "core.rsi_oversold_threshold": 20,
+                    "goal.stop_loss": -0.1,
+                },
+                "layers": {"portfolio": {"total_return": 0.04, "max_drawdown": 0.1}},
+            },
+            {
+                "version_id": "1-2",
+                "status": "hit",
+                "overlay": {"core": {"rsi_oversold_threshold": 35}},
+                "knobs": {
+                    "portfolio.allocation.max_portfolio_size": 10,
+                    "core.rsi_oversold_threshold": 35,
+                    "goal.stop_loss": -0.1,
+                },
+                "layers": {"portfolio": {"total_return": 0.40, "max_drawdown": 0.3}},
+            },
+        ]
+    }
+    out = SummarizeStep.run(
+        attributed, layer="portfolio", folder=None, gathered=gathered
+    )
+    knobs = [item["knob"] for item in out["sensitivity_rank"]]
+    assert knobs == ["portfolio.allocation.max_portfolio_size"]
+    assert "资金分配" in out["scope_note"]
+    assert "不在本层排名" in out["scope_note"]
 
 
 def test_joint_heatmap_from_multi_path_overlays():

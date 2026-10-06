@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from core.modules.analysis.core.ml.availability import ml_appendix_skip
 from core.modules.strategy.core.engines.analyzer.steps.campaign.attribute import AttributeStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
     ATTRIBUTION_FILE_NAME,
@@ -84,17 +85,19 @@ class AttributionPipeline:
         unique_cells = [task.cell for task in unique_tasks]
         trades: Optional[Dict[str, Any]] = None
         if layer == SimulateKind.PRICE_FACTOR:
-            if getattr(config, "shap_enabled", False):
-                trades = TradesStep.run(
-                    folder, unique_cells, executed, layer=layer.value
-                )
-            else:
+            if not getattr(config, "shap_enabled", False):
                 trades = {
                     "status": "skipped",
                     "reason": "shap_disabled",
                     "n": 0,
                     "n_versions": len(unique_cells),
                 }
+            else:
+                trades = ml_appendix_skip(len(unique_cells))
+                if trades is None:
+                    trades = TradesStep.run(
+                        folder, unique_cells, executed, layer=layer.value
+                    )
         families = {}
         for name, cells in plan.families():
             family_executed = executor.bind(executed, unique_cells, cells)

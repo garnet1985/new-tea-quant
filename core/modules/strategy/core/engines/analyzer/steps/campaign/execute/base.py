@@ -259,6 +259,15 @@ class ExecuteBase:
                 status="skipped",
                 reason="strategy_not_enabled",
             )
+        if task.cell.family == "allocation":
+            return cls._simulate_allocation(
+                folder,
+                strategy_info,
+                task,
+                parent_version_id=parent_version_id,
+                baseline_execute_fp=baseline_execute_fp,
+                ignore_cache=ignore_cache,
+            )
         fp_res = cls._fingerprints(strategy_info, task)
         from core.modules.strategy.core.strategy import Strategy
 
@@ -307,6 +316,71 @@ class ExecuteBase:
         return CellExecuteResult(
             index=task.cell.index,
             status="simulated" if any_miss else "hit",
+            version_id=vid or target_vid,
+            execute_fp=fp_res.execute_fp,
+            env_fp=fp_res.env_fp,
+            output_dir=output_dir,
+        )
+
+    @classmethod
+    def _simulate_allocation(
+        cls,
+        folder: Path,
+        strategy_info: Optional[EnabledStrategyInfo],
+        task: AttributionTask,
+        *,
+        parent_version_id: str,
+        baseline_execute_fp: str,
+        ignore_cache: bool,
+    ) -> CellExecuteResult:
+        """只重跑组合。枚举产物用主 version，不按新指纹重算枚举和价格。"""
+        if strategy_info is None:
+            return CellExecuteResult(
+                index=task.cell.index,
+                status="skipped",
+                reason="strategy_not_enabled",
+            )
+        fp_res = cls._fingerprints(strategy_info, task)
+        from core.modules.strategy.core.strategy import Strategy
+
+        parent = str(parent_version_id or "").strip()
+        if str(fp_res.execute_fp or "") == str(baseline_execute_fp or ""):
+            target_vid = parent
+        else:
+            root = ArtifactStore.simulations_root(folder)
+            target_vid = VersionMetaStore.allocate_replica_id(
+                root,
+                parent,
+                execute_fp=str(fp_res.execute_fp or ""),
+                env_fp=str(fp_res.env_fp or ""),
+            )
+        logger.info(
+            "allocation simulate: index=%s strategy=%s version=%s upstream=%s",
+            task.cell.index,
+            strategy_info.key,
+            target_vid,
+            parent,
+        )
+        payload = Strategy.simulate(
+            strategy_info.key,
+            kind=SimulateKind.PORTFOLIO,
+            ignore_cache=ignore_cache,
+            runtime_settings=task.cell.runtime_settings,
+            version_id=target_vid,
+            upstream_version_id=parent,
+        )
+        slot = payload.get(SimulateKind.PORTFOLIO.value) if isinstance(payload, dict) else None
+        slot_dict = slot if isinstance(slot, dict) else {}
+        vid = ""
+        if isinstance(payload, dict):
+            vid = str(
+                payload.get("version_id") or slot_dict.get("version_id") or target_vid or ""
+            ).strip()
+        output_dir = str(slot_dict.get("output_dir") or "").strip() or None
+        hit = bool(isinstance(payload, dict) and payload.get("cache_hit"))
+        return CellExecuteResult(
+            index=task.cell.index,
+            status="hit" if hit else "simulated",
             version_id=vid or target_vid,
             execute_fp=fp_res.execute_fp,
             env_fp=fp_res.env_fp,

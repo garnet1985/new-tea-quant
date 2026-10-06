@@ -44,6 +44,8 @@ def test_status_hidden_without_primary(tmp_path, monkeypatch):
     assert out["visible"] is False
     assert out["enabled"] is False
     assert out["reason"] == "layer_not_run"
+    assert "完成本层回测" in out["tooltip"]
+    assert "attribution.py" in out["tooltip"]
     assert EXAMPLE_PATH in out["example_path"]
 
 

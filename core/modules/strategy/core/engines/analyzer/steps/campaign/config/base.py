@@ -17,6 +17,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 )
 from core.modules.strategy.core.enums import SimulateKind
 
+from .allocation import resolve_allocation_axes, validate_allocation
 from .inputs import (
     collect_campaign_user_inputs,
     collect_joint_sweep,
@@ -156,6 +157,9 @@ class AttributionConfigBase(SettingsBase):
             return True
         if "inputs" in self.raw_settings:
             return True
+        allocation = self.raw_settings.get("allocation")
+        if isinstance(allocation, Mapping) and allocation:
+            return True
         return any(key in self.raw_settings for key in _LAYER_KEYS)
 
     @property
@@ -163,6 +167,12 @@ class AttributionConfigBase(SettingsBase):
         if self.is_select:
             return "select"
         return "cross" if self.cross else "inputs"
+
+    def allocation_axes(
+        self, snapshot: Optional[Mapping[str, Any]] = None
+    ) -> Dict[str, Tuple[Any, ...]]:
+        """资金分配对照轴。未写 ``allocation`` 时按 snapshot 生成默认档。"""
+        return resolve_allocation_axes(self.raw_settings, snapshot)
 
     def rolling_payload(self) -> Dict[str, Any]:
         block = self.raw_settings.get("rolling")
@@ -239,6 +249,7 @@ class AttributionConfigBase(SettingsBase):
                 suggested_fix="各层 / 顶层同一路径 values 保持一致；cross 只写一处",
             )
         self._validate_joint_sweep(report)
+        validate_allocation(self.raw_settings, report)
         has_rolling = self._validate_rolling(report)
         has_any_inputs = (
             "inputs" in self.raw_settings
@@ -247,10 +258,14 @@ class AttributionConfigBase(SettingsBase):
                 for key in _LAYER_KEYS
             )
         )
+        has_allocation = isinstance(self.raw_settings.get("allocation"), Mapping) and bool(
+            self.raw_settings.get("allocation")
+        )
         if (
             not self.versions
             and not has_any_inputs
             and not has_rolling
+            and not has_allocation
         ):
             SettingsBase.add_critical(
                 report,

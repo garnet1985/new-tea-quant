@@ -266,7 +266,14 @@ def test_demo_style_top_level_attribution_loads() -> None:
     assert sea.campaign_inputs == spa.campaign_inputs == soa.campaign_inputs
     cells_spa = AttributionPlan.expand(_snapshot(), spa, layer="price_factor")
     cells_soa = AttributionPlan.expand(_snapshot(), soa, layer="portfolio")
-    assert [c.overlay for c in cells_spa] == [c.overlay for c in cells_soa]
+    assert cells_soa[0].family == "allocation"
+    assert cells_soa[0].overlay == {}
+    assert all(
+        path.startswith("portfolio.")
+        for cell in cells_soa
+        for path in KnobContrasts.union_paths([cell.overlay])
+    )
+    assert [cell.overlay for cell in cells_spa] != [cell.overlay for cell in cells_soa]
 
 
 def test_top_level_inputs_shared() -> None:

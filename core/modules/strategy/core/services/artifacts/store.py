@@ -18,8 +18,6 @@ from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts.consts import (
-    ANALYSIS_REPORT_FILE,
-    ANALYSIS_SOURCE_FILE,
     ENTITIES_SUBDIR,
     ENTITY_IDS_FILE,
     ENTITY_LIST_FILE,
@@ -67,18 +65,7 @@ _NAMED_FILES = {
     "performance": PERFORMANCE_FILE,
     "trades": TRADES_FILE,
     "equity_curve": EQUITY_CURVE_FILE,
-    "analysis_source": ANALYSIS_SOURCE_FILE,
-    "analysis_report": ANALYSIS_REPORT_FILE,
 }
-
-
-def _count_version_dirs(simulation_root: Path) -> int:
-    root = Path(simulation_root)
-    if not root.is_dir():
-        return 0
-    return sum(
-        1 for d in root.iterdir() if d.is_dir() and d.name.isdigit()
-    )
 
 
 def _read_next_version_id(meta: Dict[str, Any]) -> int:
@@ -92,24 +79,26 @@ def _resolve_positive_cap(
     max_versions: Optional[int],
     *,
     default: int,
+    name: str = "max_versions",
 ) -> int:
     if max_versions is not None:
         try:
             value = int(max_versions)
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                f"max_versions 必须是正整数，收到: {max_versions!r}"
+                f"{name} 必须是正整数，收到: {max_versions!r}"
             ) from exc
         if value < 1:
-            raise ValueError(f"max_versions 必须 >= 1，收到: {value}")
+            raise ValueError(f"{name} 必须 >= 1，收到: {value}")
         return value
     return int(default)
 
 
-def _resolve_max_versions(max_versions: Optional[int] = None) -> int:
+def _resolve_max_stale_envs(max_stale_envs: Optional[int] = None) -> int:
     return _resolve_positive_cap(
-        max_versions,
-        default=ProjectContext.config.get_simulation_results_max_versions(),
+        max_stale_envs,
+        default=ProjectContext.config.get_simulation_results_max_stale_envs(),
+        name="max_stale_envs",
     )
 
 
@@ -117,6 +106,7 @@ def _resolve_scan_max_versions(max_versions: Optional[int] = None) -> int:
     return _resolve_positive_cap(
         max_versions,
         default=ProjectContext.config.get_scan_results_max_versions(),
+        name="max_versions",
     )
 
 
@@ -249,7 +239,6 @@ class ArtifactStore:
         *,
         strategy_id: str = "",
         version_id: Optional[Union[str, int]] = None,
-        max_versions: Optional[int] = None,
     ) -> "ArtifactStore":
         parsed = cls._require_kind(kind)
         impl = cls.for_kind(parsed)
@@ -264,7 +253,6 @@ class ArtifactStore:
             str(strategy_id or strategy_folder),
             root,
             step_dir,
-            max_versions=max_versions,
         )
         return impl.at(output_dir, version_id=str(new_vid))
 
@@ -388,26 +376,35 @@ class ArtifactStore:
         cls,
         strategy_folder: Union[str, Path],
         *,
-        kind: Optional[_KindLike] = None,
-        max_versions: Optional[int] = None,
+        env_fp: str,
+        max_stale_envs: Optional[int] = None,
     ) -> Dict[str, Any]:
+        """当前 ``env_fp`` 整组保留；过时环境超出上限则整组删除（含归因组）。"""
         folder = Path(strategy_folder)
-        root = cls.simulations_root(folder)
-        deleted = cls.prune_root(root, max_versions=max_versions)
-        if kind is None or str(kind).strip() == "":
-            kinds = (
-                SimulateKind.ENUMERATE,
-                SimulateKind.PRICE_FACTOR,
-                SimulateKind.PORTFOLIO,
-            )
-        else:
-            kinds = (cls.parse_kind(kind),)
-        per_kind = {parsed.value: deleted for parsed in kinds}
+        current = str(env_fp or "").strip()
+        cap = _resolve_max_stale_envs(max_stale_envs)
+        if not current:
+            return {
+                "ok": True,
+                "strategy_folder": str(folder),
+                "deleted_count": 0,
+                "pruned_envs": [],
+                "stale_envs": 0,
+                "max_stale_envs": cap,
+            }
+        deleted, pruned_envs, stale_count = cls.prune_root(
+            cls.simulations_root(folder),
+            env_fp=current,
+            max_stale_envs=cap,
+            strategy_folder=folder,
+        )
         return {
             "ok": True,
             "strategy_folder": str(folder),
             "deleted_count": deleted,
-            "per_kind": per_kind,
+            "pruned_envs": pruned_envs,
+            "stale_envs": stale_count,
+            "max_stale_envs": cap,
         }
 
     @classmethod
@@ -415,36 +412,113 @@ class ArtifactStore:
         cls,
         simulation_root: Path,
         *,
-        max_versions: Optional[int] = None,
-    ) -> int:
+        env_fp: str,
+        max_stale_envs: Optional[int] = None,
+        strategy_folder: Optional[Union[str, Path]] = None,
+    ) -> Tuple[int, List[str], int]:
         root = Path(simulation_root)
-        if not root.is_dir():
-            return 0
-        cap = _resolve_max_versions(max_versions)
-        pinned = set(VersionMetaStore.read_pinned_ids(root))
-        version_dirs = [
-            d for d in root.iterdir() if d.is_dir() and d.name.isdigit()
+        current = str(env_fp or "").strip()
+        cap = _resolve_max_stale_envs(max_stale_envs)
+        if not root.is_dir() or not current:
+            return 0, [], 0
+        groups = VersionMetaStore.group_version_ids_by_env_fp(root)
+        stale = [
+            (env, vids)
+            for env, vids in groups.items()
+            if env != current
         ]
-        excess = len(version_dirs) - cap
+        stale.sort(key=lambda item: int(item[1][0]) if item[1] else 0)
+        excess = len(stale) - cap
         if excess <= 0:
-            return 0
-        unpinned_oldest_first = sorted(
-            (d for d in version_dirs if d.name not in pinned),
-            key=lambda d: int(d.name),
-        )
+            return 0, [], len(stale)
         deleted = 0
-        for old_dir in unpinned_oldest_first:
-            if deleted >= excess:
-                break
-            try:
-                VersionMetaStore.remove_version_from_registry(root, old_dir.name)
-                shutil.rmtree(old_dir)
-                deleted += 1
-                logger.info("Pruned simulation version dir: %s", old_dir)
-            except Exception:
-                logger.exception("Failed to prune simulation version dir: %s", old_dir)
+        pruned_envs: List[str] = []
+        folder = Path(strategy_folder) if strategy_folder else None
+        for env, vids in stale[:excess]:
+            deleted += cls._delete_env_group(root, vids)
+            if folder is not None:
+                cls._delete_attribution_env(folder, env)
+            pruned_envs.append(env)
         cls.clear_cache()
+        return deleted, pruned_envs, len(stale)
+
+    @classmethod
+    def _delete_env_group(cls, simulations_root: Path, vids: Sequence[str]) -> int:
+        deleted = 0
+        root = Path(simulations_root)
+        for vid in vids:
+            VersionMetaStore.remove_version_from_registry(root, vid)
+            version_dir = root / str(vid)
+            if not version_dir.is_dir():
+                continue
+            try:
+                shutil.rmtree(version_dir)
+                deleted += 1
+                logger.info("Pruned simulation version dir: %s", version_dir)
+            except Exception:
+                logger.exception(
+                    "Failed to prune simulation version dir: %s", version_dir
+                )
         return deleted
+
+    @classmethod
+    def _delete_attribution_env(
+        cls,
+        strategy_folder: Union[str, Path],
+        env_fp: str,
+    ) -> None:
+        fp = str(env_fp or "").strip()
+        if not fp:
+            return
+        root = ProjectContext.path.get_strategy_attribution_directory(
+            Path(strategy_folder)
+        )
+        if not root.is_dir():
+            return
+        meta_path = root / "meta.json"
+        meta: Dict[str, Any] = {}
+        if meta_path.is_file():
+            try:
+                raw = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                raw = {}
+            if isinstance(raw, dict):
+                meta = raw
+        registry = dict(meta.get("registry") or {}) if isinstance(meta.get("registry"), dict) else {}
+        group_id = ""
+        for gid, entry in registry.items():
+            if isinstance(entry, dict) and str(entry.get("env_fp") or "").strip() == fp:
+                group_id = str(gid).strip()
+                break
+        if not group_id:
+            for child in root.iterdir():
+                if not child.is_dir() or not child.name.isdigit():
+                    continue
+                payload = {}
+                group_meta = child / "group_meta.json"
+                if group_meta.is_file():
+                    try:
+                        loaded = json.loads(group_meta.read_text(encoding="utf-8"))
+                    except Exception:
+                        loaded = {}
+                    if isinstance(loaded, dict):
+                        payload = loaded
+                if str(payload.get("env_fp") or "").strip() == fp:
+                    group_id = child.name
+                    break
+        if not group_id:
+            return
+        group_dir = root / group_id
+        if group_dir.is_dir():
+            shutil.rmtree(group_dir)
+        registry.pop(group_id, None)
+        meta["registry"] = registry
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        logger.info("pruned attribution group=%s env=%s", group_id, fp[:8])
 
     @classmethod
     def prune_scan(
@@ -492,28 +566,8 @@ class ArtifactStore:
         strategy_id: str,
         simulations_root: Path,
         step_dir: str,
-        *,
-        max_versions: Optional[int] = None,
     ) -> Tuple[Path, int]:
         simulations_root.mkdir(parents=True, exist_ok=True)
-        cap = _resolve_max_versions(max_versions)
-        # 触顶：先清未 pin 的旧号腾出 1 个空位（pin 的留着）；仍满则说明全固定
-        if _count_version_dirs(simulations_root) >= cap:
-            if cap <= 1:
-                cls.prune_root(simulations_root, max_versions=1)
-            else:
-                cls.prune_root(simulations_root, max_versions=cap - 1)
-            if _count_version_dirs(simulations_root) >= cap:
-                pinned = list(VersionMetaStore.read_pinned_ids(simulations_root))
-                if pinned:
-                    raise ValueError(
-                        f"仿真 version 已达上限 {cap}，且现有版本均已固定"
-                        f"（已固定 {len(pinned)} 个）；请取消部分固定或提高 max_versions"
-                    )
-                raise ValueError(
-                    f"仿真 version 已达上限 {cap}，无法腾出空位；"
-                    f"请提高 max_versions 或手动删除旧版本"
-                )
         meta_path = simulations_root / "meta.json"
         if meta_path.is_file():
             try:
@@ -528,6 +582,7 @@ class ArtifactStore:
         meta["next_version_id"] = version_id + 1
         meta["last_updated"] = datetime.now().isoformat()
         meta["strategy_name"] = strategy_id
+        meta.pop("pinned", None)
         meta_path.write_text(
             json.dumps(meta, indent=2, ensure_ascii=False),
             encoding="utf-8",
@@ -731,6 +786,10 @@ class PriceFactorStore(ArtifactStore):
         super().__init__(output_dir, version_id=version_id)
         self._investments: Dict[str, List[PriceInvestmentRow]] = {}
         self._goals: Dict[str, List[GoalAchievementRow]] = {}
+
+    def list_investment_entities(self) -> List[str]:
+        """磁盘上已有 ``entities/{id}_investments.csv`` 的 entity。"""
+        return self._scan_suffix(self.entities_dir(), PRICE_INVESTMENTS_SUFFIX)
 
     @classmethod
     def simulation_root(

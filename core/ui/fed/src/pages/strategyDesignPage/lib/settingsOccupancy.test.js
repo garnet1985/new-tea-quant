@@ -16,9 +16,9 @@ describe('settingsOccupancy', () => {
     expect(isDraftDirty(draft, loaded)).toBe(true);
   });
 
-  it('flags dirty when analysis.enabled changes (persisted, not fingerprint)', () => {
-    const loaded = persistComparable({ core: { n: 1 }, analysis: { enabled: false } });
-    const draft = persistComparable({ core: { n: 1 }, analysis: { enabled: true } });
+  it('flags dirty when scanner config changes (persisted, not fingerprint)', () => {
+    const loaded = persistComparable({ core: { n: 1 }, scanner: { adapters: ['console'] } });
+    const draft = persistComparable({ core: { n: 1 }, scanner: { adapters: ['webhook'] } });
     expect(isDraftDirty(draft, loaded)).toBe(true);
   });
 });

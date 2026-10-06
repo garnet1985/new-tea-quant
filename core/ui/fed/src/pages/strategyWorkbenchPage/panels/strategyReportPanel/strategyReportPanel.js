@@ -47,7 +47,6 @@ import {
 } from './reportSectionMeta';
 import BacktestPeriodBanner from './components/backtestPeriodBanner';
 import ReportStockDetailView from './components/reportStockDetailView';
-import StepAnalysisInsights from './components/stepAnalysisInsights';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({
@@ -72,7 +71,6 @@ function StrategyReportPanel({
     [workbenchSnapshot],
   );
   const resultReport = workbenchSnapshot?.result_report ?? null;
-  const analysisEnabled = workbenchSnapshot?.settings?.analysis?.enabled === true;
 
   const comparePickerEmptyHint = (Array.isArray(configVersions) && configVersions.length > 0)
     ? '没有其它可对比版本（已排除当前工作台快照）。'
@@ -86,9 +84,6 @@ function StrategyReportPanel({
     enumRefRows,
     priceRefStatus,
     priceRefRows,
-    analysisStatus,
-    analysisPayload,
-    analysisError,
     availableTabs,
     resolvedActiveTab,
   } = useStrategyReportRemoteData({
@@ -99,7 +94,6 @@ function StrategyReportPanel({
     resultReport,
     reportTabFocusRequest,
     lockedTab,
-    analysisEnabled,
   });
 
   const {
@@ -414,15 +408,6 @@ function StrategyReportPanel({
         <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
       ) : null}
       {renderTabContent()}
-      {resolvedActiveTab
-        && analysisEnabled
-        && executionState?.stepStatus?.[resolvedActiveTab] === 'done' ? (
-          <StepAnalysisInsights
-            status={analysisStatus}
-            analysis={analysisPayload}
-            error={analysisError}
-          />
-        ) : null}
       <ReportStockDetailView
         open={Boolean(selectedStock)}
         strategyName={strategyName}

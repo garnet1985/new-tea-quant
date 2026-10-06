@@ -11,7 +11,6 @@ import {
   persistStrategySettings,
   restoreStrategyVersion,
   deleteStrategyVersion,
-  setStrategyVersionPinned,
   revealStrategyFolder,
 } from '../../../api/strategyApi';
 import {
@@ -55,6 +54,7 @@ import {
   writeCachedStrategyLabel,
   writeCachedWorkbenchVersion,
 } from '../strategyDesignSessionState';
+import { useStrategyDesignAttribution } from './useStrategyDesignAttribution';
 import { useStrategyDesignExecution } from './useStrategyDesignExecution';
 
 function deepClone(value) {
@@ -109,7 +109,6 @@ function mapConfigVersionRows(verRes) {
     version: Number(version.version || 0),
     envInvalid: Boolean(version.env_invalid),
     expiresSoon: Boolean(version.expires_soon),
-    pinned: Boolean(version.pinned),
     retentionMax: Number(version.retention_max || 0),
   }));
 }
@@ -162,7 +161,6 @@ export function useStrategyDesignWorkbench() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [pendingDeleteVersionId, setPendingDeleteVersionId] = useState('');
   const [isDeletingVersion, setIsDeletingVersion] = useState(false);
-  const [isPinningVersion, setIsPinningVersion] = useState(false);
   const [moreVersionsOpen, setMoreVersionsOpen] = useState(false);
   const [packageExporting, setPackageExporting] = useState(false);
   const [packageExportError, setPackageExportError] = useState('');
@@ -172,7 +170,6 @@ export function useStrategyDesignWorkbench() {
 
   const lastRunSyncedVersionRef = useRef('');
   const snapshotSyncGenRef = useRef(0);
-  const pinningLockRef = useRef(false);
   const suppressDraftDrivenPanelResetRef = useRef(false);
   const loadedRevRef = useRef('');
   const loadedSettingsRef = useRef(buildMergeBaseSettings());
@@ -482,13 +479,6 @@ export function useStrategyDesignWorkbench() {
     return applied;
   }, [appliedVersionId]);
 
-  const currentVersionPinned = useMemo(() => {
-    const vid = String(currentVersionDisplay || '').trim();
-    const row = configVersions.find((item) => item.id === vid);
-    if (row) return Boolean(row.pinned);
-    return Boolean(session.workbenchSnapshot?.pinned);
-  }, [configVersions, currentVersionDisplay, session.workbenchSnapshot?.pinned]);
-
   const marketProfileLabel = useMemo(() => {
     const mp = draftSettings?.market_profile || initialSettings?.market_profile || '';
     const row = marketProfileOptions.find((o) => o.value === mp);
@@ -537,11 +527,20 @@ export function useStrategyDesignWorkbench() {
     getExecutionState,
   });
 
-  const disableMetaActions = isSavingSettings || isDeletingVersion || isLoadingSettings || !hasValidSettings || !strategyName || executionBusy;
-  const disablePinActions = isPinningVersion || isLoadingSettings || !strategyName || executionBusy;
+  const attribution = useStrategyDesignAttribution({
+    strategyName,
+    activeStep: session.activeStep,
+    isLoadingSettings,
+    executionBusy,
+    stepStatus: session.executionState?.stepStatus || {},
+    versionId: appliedVersionId,
+  });
+
+  const panelBusy = Boolean(executionBusy || attribution.attributeBusy);
+  const disableMetaActions = isSavingSettings || isDeletingVersion || isLoadingSettings || !hasValidSettings || !strategyName || panelBusy;
 
   const handleSettingsFocus = useCallback(() => {
-    if (!strategyName || isLoadingSettings || executionBusy || diskConflict || occupancyCheckRef.current) {
+    if (!strategyName || isLoadingSettings || panelBusy || diskConflict || occupancyCheckRef.current) {
       return;
     }
     occupancyCheckRef.current = true;
@@ -563,7 +562,7 @@ export function useStrategyDesignWorkbench() {
       .finally(() => {
         occupancyCheckRef.current = false;
       });
-  }, [diskConflict, executionBusy, fillEditorFromDisk, isLoadingSettings, strategyName]);
+  }, [diskConflict, fillEditorFromDisk, isLoadingSettings, panelBusy, strategyName]);
 
   const closeDiskConflict = useCallback(() => {
     setDiskConflict(null);
@@ -637,44 +636,6 @@ export function useStrategyDesignWorkbench() {
     setPendingDeleteVersionId(versionId);
     setDeleteConfirmOpen(true);
   }, []);
-
-  const toggleVersionPinned = useCallback(async (versionId) => {
-    const targetId = normalizeWorkbenchVersionId(versionId);
-    if (!targetId || !strategyName || pinningLockRef.current) return;
-    const current = configVersions.find((row) => row.id === targetId);
-    const currentlyPinned = Boolean(current?.pinned);
-    const nextPinned = !currentlyPinned;
-    pinningLockRef.current = true;
-    setIsPinningVersion(true);
-    setSaveError('');
-    setConfigVersions((prev) => {
-      const next = prev.map((row) => (
-        row.id === targetId
-          ? { ...row, pinned: nextPinned, expiresSoon: nextPinned ? false : row.expiresSoon }
-          : row
-      ));
-      return [...next.filter((row) => row.pinned), ...next.filter((row) => !row.pinned)];
-    });
-    try {
-      await setStrategyVersionPinned(strategyName, targetId, nextPinned);
-      const verRes = await fetchStrategyVersions(strategyName);
-      setConfigVersions(mapConfigVersionRows(verRes));
-    } catch (err) {
-      try {
-        const verRes = await fetchStrategyVersions(strategyName);
-        setConfigVersions(mapConfigVersionRows(verRes));
-      } catch (reloadErr) {
-        setConfigVersions((prev) => prev.map((row) => (
-          row.id === targetId ? { ...row, pinned: currentlyPinned } : row
-        )));
-        logClientError('design.reloadVersionsAfterPin', reloadErr);
-      }
-      setSaveError(err?.message || (nextPinned ? '固定失败' : '取消固定失败'));
-    } finally {
-      pinningLockRef.current = false;
-      setIsPinningVersion(false);
-    }
-  }, [configVersions, strategyName]);
 
   const confirmDeleteVersion = useCallback(async () => {
     const targetId = normalizeWorkbenchVersionId(pendingDeleteVersionId);
@@ -903,9 +864,11 @@ export function useStrategyDesignWorkbench() {
     stepProgress: session.stepProgress || {},
     runningStep: session.executionState?.runningStep || '',
     executionBusy,
+    panelBusy,
     runError,
     progressDetail,
     forceEnumerate,
+    ...attribution,
     handleDraftDrivenReset,
     suppressDraftDrivenPanelResetRef,
     strategyDisplayName,
@@ -916,14 +879,12 @@ export function useStrategyDesignWorkbench() {
     marketProfileOptionsError,
     isEnabled: Boolean(draftSettings?.is_enabled ?? initialSettings?.is_enabled),
     currentVersionDisplay,
-    currentVersionPinned,
     isAppliedSettings,
     envInvalid,
     capsuleStatus,
     hasPersistedSnapshot,
     hasOtherVersions,
     disableMetaActions,
-    disablePinActions,
     packageExporting,
     packageExportError,
     folderRevealError,
@@ -941,7 +902,6 @@ export function useStrategyDesignWorkbench() {
     setDeleteConfirmOpen,
     pendingDeleteVersionId,
     isDeletingVersion,
-    isPinningVersion,
     moreVersionsOpen,
     setMoreVersionsOpen,
     configVersions,
@@ -952,7 +912,6 @@ export function useStrategyDesignWorkbench() {
     closeVersionsDialog,
     requestApplyVersion,
     requestDeleteVersion,
-    toggleVersionPinned,
     confirmDeleteVersion,
     confirmRestoreVersion,
     handleRunCurrentStep,

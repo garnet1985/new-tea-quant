@@ -16,9 +16,10 @@ core/bff/APIs/strategy/
     package/                # V2-13 … 15
     report/                 # V2-07*
     settings/               # V2-04 / V2-09
-    version/                # V2-01/03/08 + cache + pin
+    version/                # V2-01/03/08 + cache
     folder/                 # 打开策略目录
     runner/                 # V2-05/06* + scan 薄壳；进度落盘在 strategy core
+    attribution/            # A1-00/01/02/04 战役归因（sea/spa/soa）
 ```
 
 ## 原则
@@ -28,7 +29,7 @@ core/bff/APIs/strategy/
 - **routes/<area>/routes.py**：解析 HTTP → `impl.lazy_load()` → `ok` / `error`。
 - **routes/<area>/implementer.py**：领域编排 / DTO；lazy-import strategy core 与本包 helpers。
 - **Snapshot**：前端概念（多 version settings）；读模型在 ``helpers/workbench_snapshots``（磁盘 registry）。后端 run 经 ``Strategy.simulate`` 写 ``simulations/{vid}/``，BFF 不做 cache 命中判断。
-- 不再保留独立的 ``cache`` 路由模块；磁盘 version 清理与固定挂在 **version**。
+- 不再保留独立的 ``cache`` 路由模块；磁盘 version 清理挂在 **version**。
 - Version / 指纹规则见 ``modules.strategy`` [VERSIONING.md](../../modules/strategy/docs/VERSIONING.md)。
 - BFF 不做缓存命中判断。
 - 工作台三步 ``enum | price | portfolio`` 与核心共用 ``WorkbenchStep``（``core.modules.strategy.contracts``）。制定策略 UI 另有第四步 **决策模拟**（``/strategy-design/.../decision``），不进入 ``WorkbenchStep``。
@@ -45,7 +46,7 @@ core/bff/APIs/strategy/
 | V2-05 | POST | `/v1/strategy/<strategy_key_or_name>/<step>/run` | `routes/runner/` |
 | V2-06b | GET | `/v1/strategy/<strategy_key_or_name>/run/progress` | `routes/runner/` |
 | V2-06 | GET | `/v1/strategy/<strategy_key_or_name>/<step>/progress` | `routes/runner/` |
-| V2-07 | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>` | `routes/report/` — 含 ``report`` + ``analysis``（``enabled`` / ``available`` / ``facts`` / ``conclusion``）。portfolio ``capitalMetrics`` 另附完整 ``eventCurveLabels/Values``、``eventDrawdownValues``、``tradeEvents``（买卖点；来自 ``equity_curve.json`` / ``trades.json``，非 ≤80 抽稀序列） |
+| V2-07 | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>` | `routes/report/` — 含 ``report``。portfolio ``capitalMetrics`` 另附完整 ``eventCurveLabels/Values``、``eventDrawdownValues``、``tradeEvents``（买卖点；来自 ``equity_curve.json`` / ``trades.json``，非 ≤80 抽稀序列） |
 | V2-07b | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/ref` | `routes/report/` |
 | V2-07c | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/stock/<stock_id>` | `routes/report/` |
 | V2-08 | GET | `/v1/strategy/<strategy_key_or_name>/version/<version_id>` | `routes/version/` |
@@ -54,8 +55,6 @@ core/bff/APIs/strategy/
 | V2-09 | POST | `/v1/strategy/<strategy_key_or_name>/settings/apply/<version_id>` | `routes/settings/` — 恢复历史 version 配置到 ``settings.py``；同样 If-Match |
 | V2-11 | DELETE | `/v1/strategy/version/cache` | `routes/version/` |
 | V2-12 | DELETE | `/v1/strategy/<strategy_key_or_name>/version/<version_id>/cache` | `routes/version/` |
-| pin | POST | `/v1/strategy/<strategy_key_or_name>/version/<version_id>/pin` | `routes/version/` — 固定（只改 `meta.json` 根上 `pinned`） |
-| pin | DELETE | `/v1/strategy/<strategy_key_or_name>/version/<version_id>/pin` | `routes/version/` — 取消固定 |
 | folder | POST | `/v1/strategy/<strategy_key_or_name>/folder/reveal` | `routes/folder/` — 本机打开策略目录 |
 | V2-13 | GET | `/v1/strategy/<strategy_key_or_name>/package/export` | `routes/package/` |
 | V2-14 | POST | `/v1/strategy/package/import/preview` | `routes/package/` |
@@ -63,6 +62,17 @@ core/bff/APIs/strategy/
 | scan | GET | `/v1/strategy/scan/context` | `routes/runner/` |
 | scan | GET/POST | `/v1/strategy/<strategy_key_or_name>/scan` | `routes/runner/` |
 | scan | GET | `/v1/strategy/<strategy_key_or_name>/scan/progress` | `routes/runner/` |
+
+## A1 战役归因
+
+对标回测 run → progress → report。层参数与工作台一致：``enum`` / ``price`` / ``portfolio`` → CLI ``sea`` / ``spa`` / ``soa``。读策略目录 ``attribution.py``；报告键为 ``group_id`` + step。本轮不做 rolling。
+
+| A1 | 方法 | 路由 | 说明 |
+|----|------|------|------|
+| A1-00 | GET | `/v1/strategy/<strategy_key_or_name>/<step>/attribute/status` | 按钮显隐 / enable；``visible``=本层有主 version；``enabled``=配置可 `require_parameter`；禁用时 ``tooltip`` + ``example_path`` |
+| A1-01 | POST | `/v1/strategy/<strategy_key_or_name>/<step>/attribute/run` | body ``{ force_refresh? }``；与 simulate 共用策略单飞；成功返回 ``job_id`` / ``pipeline_kind=attribute`` |
+| A1-02 | GET | `/v1/strategy/<strategy_key_or_name>/attribute/run/progress?job_id=` | 同 V2-06b 进度形；完成 ``result`` 含 ``group_id`` / ``headline`` / ``task_dir`` |
+| A1-04 | GET | `/v1/strategy/<strategy_key_or_name>/attribute/report/<step>/<group_id>` | 读 ``results/attribution/{n}/{enumerate\|price_factor\|portfolio}/``；不做版本对比 |
 
 ## D1 决策者
 

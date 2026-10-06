@@ -2,10 +2,7 @@ import { formatDateTime, formatVersionPickTime } from '../../utils/formatDateTim
 
 export const VERSION_MARK_READONLY = '仅供查阅';
 export const VERSION_MARK_EXPIRES_SOON = '即将清理';
-export const VERSION_MARK_PINNED = '已固定';
 export const SETTINGS_RETENTION_HREF = '/settings/data#retention';
-export const VERSION_PIN_HINT = '固定后不会被自动清理，仍可手动删除。';
-export const VERSION_PIN_CAP_WARN = '固定后当前额度内将没有可自动清理的版本，新回测会先被拒绝。';
 
 export const VERSION_MARK_READONLY_HINT = [
   '当前版本是在以前的运行环境中生成的并且已经无法在当前环境继续使用。',
@@ -16,14 +13,13 @@ export const VERSION_MARK_READONLY_HINT = [
 export function versionMarkExpiresHint(retentionMax) {
   const n = Number(retentionMax);
   const capText = Number.isFinite(n) && n > 0
-    ? `系统目前最多保留 ${n} 份回测结果。`
-    : '系统只保留有限数量的回测结果。';
+    ? `系统目前最多保留 ${n} 组过时回测环境。`
+    : '系统只保留有限组数的过时回测环境。';
   return [
-    '不是按日历过期，而是按保留份数。',
+    '不是按日历过期，也不是按单个 version 号抽。',
     capText,
-    '额度用满后再产生新版本并触发清理时，更旧、未固定的版本会优先被删掉。已固定的不会进入即将清理。',
-    '当前在制定策略里新回测额度满时会先拒绝写入，避免悄悄删掉结果；扫描等流程会按上限自动裁剪。',
-    '调整保留份数请到设置 → 数据范围。',
+    '当前环境整组保留。过时环境累计到上限后再出现新环境时，最旧的那一组会先被删掉。',
+    'simulate 和战役结束时会自动清理。调整保留组数请到设置 → 数据范围。',
   ].join('');
 }
 
@@ -38,40 +34,13 @@ export function retentionCapFromVersions(versions) {
 
 export function formatRetentionCapLabel(retentionMax) {
   const n = Number(retentionMax);
-  if (Number.isFinite(n) && n > 0) return `当前设置最多保留 「${n}」个版本`;
-  return '当前设置按份数保留版本';
-}
-
-export function pinWouldBlockAllocate(versions, versionId) {
-  const rows = Array.isArray(versions) ? versions : [];
-  const cap = retentionCapFromVersions(rows);
-  if (cap <= 0 || rows.length < cap) return false;
-  const target = String(versionId || '').trim();
-  const unpinnedAfter = rows.filter((row) => {
-    if (row?.pinned) return false;
-    return String(row?.id || '').trim() !== target;
-  });
-  return unpinnedAfter.length === 0;
-}
-
-export function versionPinHint(version, versions) {
-  const parts = [VERSION_PIN_HINT];
-  if (!version?.pinned && pinWouldBlockAllocate(versions, version?.id)) {
-    parts.push(VERSION_PIN_CAP_WARN);
-  }
-  return parts.join('');
+  if (Number.isFinite(n) && n > 0) return `当前设置最多保留 「${n}」组过时环境`;
+  return '当前设置按组保留过时环境';
 }
 
 export function versionPickMarks(version) {
   if (!version || typeof version !== 'object') return [];
   const marks = [];
-  if (version.pinned) {
-    marks.push({
-      key: 'pinned',
-      label: VERSION_MARK_PINNED,
-      hint: VERSION_PIN_HINT,
-    });
-  }
   if (version.envInvalid) {
     marks.push({
       key: 'readonly',
@@ -79,7 +48,7 @@ export function versionPickMarks(version) {
       hint: VERSION_MARK_READONLY_HINT,
     });
   }
-  if (version.expiresSoon && !version.pinned) {
+  if (version.expiresSoon) {
     marks.push({
       key: 'expires',
       label: VERSION_MARK_EXPIRES_SOON,

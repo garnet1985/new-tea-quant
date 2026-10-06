@@ -80,11 +80,6 @@ function StrategyDesignMetaBar() {
                     {wb.capsuleStatus}
                   </Box>
                 </Box>
-                {wb.currentVersionPinned ? (
-                  <span className="ntq-design-meta__version-capsule-pin" title="已固定">
-                    <NtqIcon name="pinFilled" size={20} />
-                  </span>
-                ) : null}
               </Box>
             ) : null}
           </Box>

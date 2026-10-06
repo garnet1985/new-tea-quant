@@ -182,7 +182,7 @@ def has_opportunity(self, ctx: StrategyContext) -> bool:
     kline_today = klines_daily[-1]
     # RSI from today's bar
     rsi = kline_today.get("rsi14")
-    # Optional: record today's RSI for later attribution
+    # Optional: record a custom live value. Settings knobs and declared indicator columns need not be captured
     ctx.capture("rsi", rsi)
 
     # True = there is an opportunity when RSI exists and is below 20
@@ -334,7 +334,7 @@ Full walkthrough: [Quick install + run a strategy](#quick-start).
 - **Talk to the database quickly:** [DuckDB](https://duckdb.org/), [MySQL](https://dev.mysql.com/), and [PostgreSQL](https://www.postgresql.org/), plus a small [ORM API](core/infra/db/README.md).
 - **Custom data sources:** a full ingest toolkit. One logical source (e.g. company fundamentals) can have several vendors, with rate limits, waits, and write modes (incremental, overwrite, rolling refresh). See [core/modules/data_source/README.md](core/modules/data_source/README.md).
 - **Custom data contracts:** most of the run is config. If you add a table and want it in the backtest by declaration, give it a unique `data_key` and a loader; the framework finds the loader by name. See [data contracts](core/modules/data_contract/README.md).
-- **Attribute a backtest:** which parameters actually moved the result, and by how much? The ML attribution module speaks to that. It only explains **this** run; a different universe, window, or layer can tell a different story — watch the scope so you do not overfit. Shortest UI path: [Quick Start](#attribution).
+- **Attribute a backtest:** parameter-level contrast is a matrix campaign (same strategy environment, sample windows archived separately; a task only takes versions with the same interval and universe). The entry is not open yet; a normal Run no longer auto-attributes. Spec: [`ATTRIBUTION_CAMPAIGN.md`](core/modules/strategy/docs/notes/ATTRIBUTION_CAMPAIGN.md).
 - **Adapters:** after a scan, wire [`adapter`](core/modules/adapter/README.md) to your own downstream (notifications, a trading app, anything). You get standard opportunity payloads plus backtest history if you have run one.
 - **Web UI:** use it in the browser. Visualize results and compare inputs/outputs across runs so you can tune the strategy on purpose.
 - **AI assistant:** in-app chat; fill in a vendor API key in settings. Requests include NTQ documentation context.
@@ -408,7 +408,7 @@ Follow the prompts; defaults are usually enough. Order is roughly:
 2. Initialize `userspace`
 3. Configure the database (default **DuckDB**; developers can pick MySQL / PostgreSQL — the app will try to create a missing database and warn on name clashes)
 4. **Ask whether to import demo data** (skippable; you can connect your own source later)
-5. **Ask whether to install ML extras** (for attribution; skippable; later: **设置 → 安装与维护**)
+5. **Ask whether to install ML extras** (for the analysis library; skippable; later: **设置 → 安装与维护**)
 6. Usage stats (allow or decline; both continue)
 
 You land on the **welcome page**. Then use the nav item **制定策略** (Strategy Design).
@@ -443,9 +443,6 @@ Four main areas:
   - **Portfolio:** starting capital, sizing, risk controls — closer to real trading;  
   - **Decision simulation:** replay trading days and pick each day’s opportunities yourself.
 - **Reports:** auto-generated after each step; the first three stages have their own reports, and decision simulation has a separate end-of-run report.
-
-<a id="attribution"></a>
-For **attribution write-ups:** install ML extras in the wizard (or later under **设置 → 安装与维护**), turn on **归因分析** in global settings, then run. The write-up appears under the report. More: [More examples](https://new-tea.cn/zh-hans/more-examples).
 
 #### Stage 1: Opportunity enumeration
 
@@ -524,7 +521,6 @@ python cli.py se --strategy rsi_v1   # Enumerate
 python cli.py sp --strategy rsi_v1   # Price layer
 python cli.py so --strategy rsi_v1   # Portfolio layer
 python cli.py s  --strategy rsi_v1   # All three layers
-python cli.py sa --strategy rsi_v1   # Latest attribution for that step (--version optional)
 python cli.py c  --strategy rsi_v1   # Market scan
 python cli.py t  --scenario demo/market_cap_tier   # Feature tags
 ```

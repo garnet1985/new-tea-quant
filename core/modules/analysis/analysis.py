@@ -11,6 +11,7 @@ from core.modules.analysis.core.classical.univariate import (
     quantile_buckets,
     spearman_correlation,
 )
+from core.modules.analysis.core.ml.xgb_classifier import xgb_win_classifier
 from core.modules.analysis.core.ml.xgb_regressor import xgb_feature_importance
 
 
@@ -28,9 +29,10 @@ class Classical:
 
 
 class ML:
-    """Machine-learning attribution primitives (later track)."""
+    """Machine-learning attribution primitives."""
 
     xgb_feature_importance = staticmethod(xgb_feature_importance)
+    xgb_win_classifier = staticmethod(xgb_win_classifier)
 
 
 class Analysis:

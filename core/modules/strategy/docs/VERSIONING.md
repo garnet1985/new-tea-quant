@@ -1,7 +1,7 @@
 # Simulation versioning
 
 **状态：** 现行规格（2026-09-03）  
-**编号决策：** [notes/DECISIONS.md](./notes/DECISIONS.md)（D1–D39）  
+**编号决策：** [notes/DECISIONS.md](./notes/DECISIONS.md)（D1–D40）  
 **旧盘清理：** [notes/VERSIONING_CLEANUP.md](./notes/VERSIONING_CLEANUP.md)
 
 一次完整回测 = 一个 version（enum / price / portfolio 共享该号）。日常编辑 SOT 是 `settings.py`；没有「发布策略」、没有工作台 DB 与磁盘双轨。
@@ -12,14 +12,14 @@
 
 | 动作 | 改 `settings.py`？ | 写哪个 `{vid}/`？ | 说明 |
 |------|-------------------|-------------------|------|
-| 打开 / 对比 version | 否 | 不写 | 只换报告。选中号 **不** 绑定 Run |
+| 打开 / 对比 version | 否 | 不写 | 只换报告。列表只暴露主号（纯数字） |
 | 恢复配置 | 是（显式确认） | 不写产物 | 把 `{vid}/settings.json` 写回 `settings.py`；**不** 把 `scope.json` 的股票池写回运行时 |
-| Run（非强制） | 工作台会先 Persist 草稿 | `(当前 execute_fp, 当前 env_fp)` 命中或新建 | 与选中号无关 |
-| 强制重跑（`ignore_cache` / `--force`） | 同上 | **同一 vid**（命中键不变时） | 跳过 cache、不复用已有 enum 产物；复写上游则清下游。**不** 为同一双指纹再开号 |
-| 固定 / 取消固定 | 否 | 不写 `{vid}/` | 只改 `meta.json` 根上的 `pinned` 列表 |
-| 手动删除 | 否 | 删该 `{vid}/` | 已固定的也可删；并从 `pinned` 拿掉 |
+| Run（`se`/`sp`/`so`） | 工作台会先 Persist 草稿 | 主号 `(execute_fp, env_fp)` 命中或新建 | 只分配整数主号；与选中号无关 |
+| 归因（`sea`/`spa`/`soa`） | 否 | 主号或副本 `{vid}-{r}` | 须先有主 version；对照格写副本，不 bump `next_version_id` |
+| 强制重跑（`ignore_cache` / `--force`） | 同上 | **同一 id**（命中键不变时） | 跳过 cache；主号/副本各自复写。**不** 为同一双指纹再开号 |
+| 手动删除 | 否 | 删该 `{vid}/`（可含副本） | CLI `sdv` / BFF `DELETE …/cache` |
 
-主叙事：老 version 目录在当前环境下只读；Run 永远读当前 `settings.py` + 今天的股票池。要复现某号的配置，先恢复再跑。
+主叙事：老 version 目录在当前环境下只读；Run 永远读当前 `settings.py` + 今天的股票池。归因与回测分开；无主号则拒绝归因。
 
 ---
 
@@ -27,15 +27,16 @@
 
 ```text
 {strategy}/results/simulations/
-  meta.json                         # 索引：next_version_id + registry + pinned
-  {vid}/
+  meta.json                         # 索引：next_version_id + registry
+  {vid}/                            # 主号：纯数字；仅 se/sp/so 分配
     settings.json                   # 当时完整运行 settings（恢复用）
     effective_settings.json         # 白名单投影；不含 entity_ids
     scope.json                      # { entity_ids, start_date, end_date }
     enum/ | price/ | portfolio/
       runtime_env.json              # 该步完成标记
-      analysis/                     # 与该步同生共死
-```
+      analysis/                     # 与该步同生共死（战役内部切片）
+  {vid}-{r}/                        # 归因副本：不进 UI 列表、不 bump next_version_id
+    …同上…```
 
 `meta.json`：
 
@@ -44,7 +45,6 @@
   "next_version_id": 4,
   "strategy_name": "demo/regression/rsi/rsi_v1_baseline",
   "last_updated": "...",
-  "pinned": ["3", "6"],
   "registry": {
     "1": {
       "created_at": "...",
@@ -60,8 +60,9 @@
 
 约定：
 
-- registry key 即 version id（`"3"`，不是 `"v3"`）。条目内不重复存 `version_id`。
-- **`pinned` 只在根上**，不在 registry 行、不在 `{vid}/`。
+- registry key 即 version id（`"3"` 或副本 `"3-1"`，不是 `"v3"`）。条目内不重复存 `version_id`。
+- 主号：`isdigit()`；副本：`{parent}-{r}`（`r≥1`），registry 可带 `kind=replica` / `parent_version_id`。
+- UI / `list_version_ids` 只暴露主号；指纹匹配主号也只扫主号。
 - 指纹平铺为 `execute_fp` / `env_fp`；无 `fingerprint_index`，命中时线性扫 registry。
 - `{vid}/` 身份归档三步共享、同身份只写一次（force / 补步不覆盖归档文件）。
 - 步骤完成：registry `steps.{kind} = "ok"`；磁盘兜底 `{vid}/{step}/runtime_env.json`。
@@ -106,12 +107,12 @@
 
 ---
 
-## 5. 固定（pin）与 keep-N
+## 5. 清理（按 `env_fp` 整组）
 
-- 固定：列表置顶；自动清理与「即将清理」标记跳过 pinned。
-- **不** 改 settings、**不** 绑定 Run、**不** 禁止手动删除。
-- keep-N 上限：`data.json` → `retention.simulation_results_max_versions`（可被 `userspace/config/data.json` 覆盖）。触顶再开新号时 **自动 prune 未 pin 的最旧版本** 腾出空位；只有「现有版本全被固定」才拒绝，并提示取消固定或提高上限。不因 `env_invalid` 加塞。
-- CLI：`spn` / `sup` / `sdv`。BFF：`POST|DELETE …/version/:id/pin`，删除 `DELETE …/version/:id/cache`。
+- **当前 `env_fp`：** 工作集。组内所有 version 都留着，不按号抽。
+- **过时 `env_fp`：** 档案。最多留 `data.json` → `retention.simulation_results_max_stale_envs`（可被 `userspace/config/data.json` 覆盖，默认 5）。超出则删 **最旧的那一组**（按组内最小 version 号），simulation `{vid}/` 与对应 `results/attribution/{n}/` 一起走。
+- `simulate` 与战役结束时自动 prune。开新号不再因为份数触顶而拒绝。
+- 手动删除：CLI `sdv` / BFF `DELETE …/version/:id/cache`。没有 pin。
 
 ---
 
@@ -128,9 +129,9 @@
 | 指纹 | `core/services/fingerprint/fingerprint.py` |
 | 白名单 | `engines/shared/services/strategy_settings/execute_fp_whitelist.py` |
 | simulate / 强制重跑 | `core/strategy.py` → `Strategy.simulate` |
-| registry / `{vid}/` / pin | `core/services/artifacts/version_meta.py` |
+| registry / `{vid}/` | `core/services/artifacts/version_meta.py` |
 | cache hit | `core/services/artifacts/version_cache.py` |
-| keep-N / 删除 | `core/services/artifacts/retention.py` |
+| 过时 env 整组清理 / 删除 | `core/services/artifacts/retention.py` |
 | 工作台 Run | `core/bff/APIs/strategy/routes/runner/workbench_run.py` |
 | 恢复 settings | `core/bff/APIs/strategy/routes/settings/apply.py` |
 | 快照读模型 | `core/bff/APIs/strategy/helpers/workbench_snapshots.py` |

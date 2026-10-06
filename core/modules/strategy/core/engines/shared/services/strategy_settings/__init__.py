@@ -32,13 +32,19 @@ from .simulation_settings import (
     ForceExitRule,
     ForceExitWhenPolicy,
     LiquidityConfig,
+    PriceReplaySettings,
     RiskControl,
     SimulationSettings,
     SlippageConfig,
     StatusTagPolicy,
     TradabilityConfig,
 )
-from .portfolio_settings import AllocationConfig, OutputConfig, PortfolioSettings
+from .portfolio_settings import (
+    AllocationConfig,
+    OpportunitySelectionRule,
+    OutputConfig,
+    PortfolioSettings,
+)
 from .scanner_settings import ScannerSettings
 from .strategy_settings import StrategySettings
 
@@ -62,12 +68,14 @@ __all__ = [
     "ForceExitRule",
     "ForceExitWhenPolicy",
     "LiquidityConfig",
+    "PriceReplaySettings",
     "RiskControl",
     "SimulationSettings",
     "SlippageConfig",
     "StatusTagPolicy",
     "TradabilityConfig",
     "AllocationConfig",
+    "OpportunitySelectionRule",
     "OutputConfig",
     "PortfolioSettings",
     "ScannerSettings",

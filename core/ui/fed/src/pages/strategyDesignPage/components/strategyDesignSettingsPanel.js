@@ -25,13 +25,10 @@ import {
 } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/settingsEditorSections';
 import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
 import {
-  STRATEGY_DESIGN_SETTINGS_ANALYSIS_TITLE,
-  STRATEGY_DESIGN_SETTINGS_ANALYSIS_TOOLTIP,
   STRATEGY_DESIGN_SETTINGS_GLOBAL_TITLE,
   STRATEGY_DESIGN_SETTINGS_GLOBAL_TOOLTIP,
   STRATEGY_DESIGN_SETTINGS_STEP_TITLE,
 } from '../constants/strategyDesignSettingsLayout';
-import StrategyDesignAnalysisSettings from './strategyDesignAnalysisSettings';
 import StrategyDesignPeerStrategies from './strategyDesignPeerStrategies';
 
 function buildMarketProfileOnlySchema(marketProfileOptions) {
@@ -277,17 +274,6 @@ function StrategyDesignSettingsPanel({
           errors={simulationEditorErrors}
           onValidate={validateSimulationDates}
           onValidationChange={setSimulationEditorErrors}
-          context={editorContext}
-        />
-      </SectionAccordion>
-      <SectionAccordion
-        title={STRATEGY_DESIGN_SETTINGS_ANALYSIS_TITLE}
-        tooltip={STRATEGY_DESIGN_SETTINGS_ANALYSIS_TOOLTIP}
-        context={editorContext}
-      >
-        <StrategyDesignAnalysisSettings
-          settings={settings}
-          onSettingsChange={onSettingsChange}
           context={editorContext}
         />
       </SectionAccordion>

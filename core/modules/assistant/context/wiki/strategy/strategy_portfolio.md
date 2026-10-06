@@ -88,13 +88,3 @@ summary: 回测第三步：资金分配、纪律出场、账户净值与回撤�
 
 组合模拟在主进程单线程完成，不走多进程回测引擎。
 
-## 归因分析
-
-组合跑完后，如果 `analysis.enabled = True`，自动生成归因报告：
-
-- `facts`：给 UI 的数字（分桶、合成 tiers）
-
-- `insights`：给 CLI 的叙事（headline、key\_findings、explains）
-
-- 归因与该步同生共死——删了组合产物，归因也一起删
-

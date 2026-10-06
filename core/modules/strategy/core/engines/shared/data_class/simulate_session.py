@@ -40,6 +40,7 @@ class SimulateSession:
     kind: SimulateKind
     global_entity_cache: Optional[Any] = None
     enum_version: Optional[str] = None
+    forced_version_id: Optional[str] = None
     steps: List[SimulateKind] = field(default_factory=list)
 
     @classmethod

@@ -12,7 +12,6 @@ import {
   Typography,
 } from '@mui/material';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
-import VersionPinToggle from 'components/versionPickLabel/versionPinToggle';
 import VersionPickerDialog from 'components/versionPickLabel/versionPickerDialog';
 import {
   SETTINGS_RETENTION_HREF,
@@ -45,9 +44,9 @@ function StrategyDesignMetaDialogs() {
               该版本产物仅供查阅。恢复配置后运行会按当前环境查找或新建 version，不会写回此目录。
             </Typography>
           ) : null}
-          {pendingVersion.expiresSoon && !pendingVersion.pinned ? (
+          {pendingVersion.expiresSoon ? (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              该版本在保留额度触顶后会优先被清理。恢复配置不受影响。
+              该版本所在的过时环境已接近保留上限，下次再出现新环境时可能整组被清理。恢复配置不受影响。
             </Typography>
           ) : null}
         </DialogContent>
@@ -83,8 +82,8 @@ function StrategyDesignMetaDialogs() {
             >
               {retentionCap > 0 ? retentionCap : '—'}
             </Box>
-            」个版本
-            {' · 已固定的不会自动清理 · '}
+            」组过时环境
+            {' · '}
             <Link
               href={SETTINGS_RETENTION_HREF}
               target="_blank"
@@ -101,12 +100,6 @@ function StrategyDesignMetaDialogs() {
         onSelect={(versionId) => wb.requestApplyVersion(versionId)}
         renderSecondaryAction={(version) => (
           <Stack direction="row" className="ntq-version-row-actions" alignItems="center">
-            <VersionPinToggle
-              version={version}
-              versions={wb.configVersions}
-              disabled={wb.disablePinActions}
-              onToggle={wb.toggleVersionPinned}
-            />
             <IconButton
               size="small"
               color="error"
@@ -143,11 +136,6 @@ function StrategyDesignMetaDialogs() {
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
             不会改 settings.py，也不会改当前编辑器里的配置。
           </Typography>
-          {pendingDeleteVersion.pinned ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              该版本已固定。固定只跳过自动清理，仍可以手动删除。
-            </Typography>
-          ) : null}
         </DialogContent>
         <DialogActions>
           <Button

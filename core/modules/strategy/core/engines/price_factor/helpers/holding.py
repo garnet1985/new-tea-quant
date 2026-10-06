@@ -1,8 +1,8 @@
-"""价格回测持仓闭合判定（同股互斥门闩）。
+"""价格回测持仓闭合判定（单笔仓位数学）。
 
 本文件:
-- position_fully_closed / remaining_position_ratio / resolve_holding_until 等
-  边界: 负责已成交 completed_goals 仓位数学；不负责 tradability 或 CSV 写盘
+- position_fully_closed / remaining_position_ratio / latest_executed_exit_date
+  边界: 负责已成交 completed_goals 仓位数学；不负责 tradability、合并或 CSV 写盘
 """
 
 from __future__ import annotations
@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 _POSITION_EPS = 1e-9
-_OPEN_HOLDING_FALLBACK_END = "99991231"
 
 
 def _goal_exit_ratio(goal: Dict[str, Any]) -> float:
@@ -53,22 +52,8 @@ def latest_executed_exit_date(executed_goals: List[Dict[str, Any]]) -> str:
     return max(dates) if dates else ""
 
 
-def resolve_holding_until(
-    *,
-    processed_goals: List[Dict[str, Any]],
-    enter_date: str,
-    backtest_end_date: str,
-) -> str:
-    """平仓后释放至最后成交日；未平仓则锁至回测结束。"""
-    if position_fully_closed(processed_goals):
-        return latest_executed_exit_date(processed_goals) or str(enter_date or "").strip()
-    end = str(backtest_end_date or "").strip()
-    return end or _OPEN_HOLDING_FALLBACK_END
-
-
 __all__ = [
     "latest_executed_exit_date",
     "position_fully_closed",
     "remaining_position_ratio",
-    "resolve_holding_until",
 ]

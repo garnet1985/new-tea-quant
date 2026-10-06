@@ -150,7 +150,7 @@ export function SettingsSystemPanel() {
         机器学习组件
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        策略设置里的「回测后归因」开关需要这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
+        分析库的统计 / ML 原语会用到这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
       </Typography>
       {mlLoadError ? <Alert severity="error">{mlLoadError}</Alert> : null}
       {mlOk ? <Alert severity="success">{mlOk}</Alert> : null}
@@ -160,7 +160,7 @@ export function SettingsSystemPanel() {
         <Typography variant="body2" color="text.secondary">
           {mlInstalled
             ? `已安装${mlStatus?.shap ? '（含 SHAP）' : '（XGBoost）'}。`
-            : '尚未安装。未安装时，策略设置里的归因开关不可用。'}
+            : '尚未安装。分析库的机器学习阶段在未安装时会跳过。'}
         </Typography>
       )}
       {installing ? (
@@ -315,11 +315,11 @@ export function SettingsDataPanel({
   defaultStartDate,
   asOfLatestCompletedDate,
   useSampleStockList,
-  simulationResultsMaxVersions,
+  simulationResultsMaxStaleEnvs,
   onDefaultStartDateChange,
   onAsOfLatestCompletedDateChange,
   onUseSampleStockListChange,
-  onSimulationResultsMaxVersionsChange,
+  onSimulationResultsMaxStaleEnvsChange,
   onSave,
   onReload,
 }) {
@@ -384,13 +384,13 @@ export function SettingsDataPanel({
           />
           <Box id="settings-retention">
             <TextField
-              label="回测结果保留份数"
+              label="过时回测环境保留组数"
               size="small"
               fullWidth
-              value={simulationResultsMaxVersions}
-              onChange={(e) => onSimulationResultsMaxVersionsChange(e.target.value)}
-              placeholder="10"
-              helperText="按份数保留，不是按日历过期。制定策略额度满时会先拒绝新回测；扫描会按上限自动裁剪。已固定的版本不会被自动清理，仍可手动删除。改小后已有结果不会立刻删除。"
+              value={simulationResultsMaxStaleEnvs}
+              onChange={(e) => onSimulationResultsMaxStaleEnvsChange(e.target.value)}
+              placeholder="5"
+              helperText="改代码或核心后旧环境不能再跑，最多留这么多组档案。超出则整组删除。当前环境不限份数。"
             />
           </Box>
           <Box>

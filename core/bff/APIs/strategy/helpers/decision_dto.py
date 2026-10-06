@@ -201,6 +201,12 @@ def _suggested_basis(alloc: Any, *, win_rate: Optional[float]) -> str:
     if mode == "kelly":
         frac = float(getattr(alloc, "kelly_fraction", 0.5) or 0.0)
         if win_rate is None:
+            cash = float(getattr(alloc, "default_cash", 0.0) or 0.0)
+            shares = int(getattr(alloc, "default_shares", 0) or 0)
+            if cash > 0:
+                return f"凯莉（尚无样本，默认 {cash:,.0f} 元）"
+            if shares > 0:
+                return f"凯莉（尚无样本，默认 {shares} 股）"
             return "凯莉（无 as-of 样本）"
         return f"凯莉（胜率 {win_rate * 100:.0f}% × 折扣 {frac:g}）"
     return ""
@@ -214,8 +220,6 @@ def _suggested_shares(engine: Any, opp: Any) -> Optional[int]:
     if not callable(fn) or account is None or not mode:
         return None
     win_rate = _ticker_win_rate(opp)
-    if mode == "kelly" and win_rate is None:
-        return None
     try:
         n = int(
             fn(

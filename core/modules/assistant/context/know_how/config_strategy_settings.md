@@ -29,7 +29,6 @@ settings = {
     "portfolio": {...},           # 资金管理
     "scanner": {...},              # 扫描配置
     "fees": {...},                 # 手续费
-    "analysis": {...},             # 归因分析
 }
 ```
 
@@ -312,14 +311,6 @@ rsi14 = today.get("rsi14") if today else None       # 单列注入字段 {name}{
     "min_commission": 5.0,         # float, 最低佣金（元）
     "stamp_duty_rate": 0.001,      # float, 印花税（千一，卖出收）
     "transfer_fee_rate": 0.00001,  # float, 过户费（万零点一）
-}
-```
-
-## analysis
-
-```python
-"analysis": {
-    "enabled": False,    # bool, True 则回测后自动收集归因数据
 }
 ```
 

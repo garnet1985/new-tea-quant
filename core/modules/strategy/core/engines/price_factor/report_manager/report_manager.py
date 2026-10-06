@@ -68,7 +68,7 @@ class ReportManager(BaseReportManager):
 
     strategy_key: str = ""
     strategy_path: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     runtime: PriceRuntimeEnv = field(default=None)  # type: ignore[assignment]
     entity_ids: List[str] = field(default_factory=list)
     overall: OverallReportHandle = field(init=False, repr=False)
@@ -114,19 +114,21 @@ class ReportManager(BaseReportManager):
         if folder is None or not str(folder):
             raise ValueError("strategy_folder 不能为空")
 
+        source_vid = str(data.version_id)
+        forced = str(getattr(ctx, "forced_version_id", None) or "").strip()
         store = PriceFactorStore.allocate(
             folder,
             strategy_id=strategy_path or strategy_key or str(folder),
-            version_id=str(data.version_id),
+            version_id=forced or source_vid,
         )
         output_dir = store.output_dir
-        version_id = int(store.version_id)
+        version_id = str(store.version_id)
         entity_ids = list(data.entity_ids)
         runtime = PriceRuntimeEnv(
             strategy_key=strategy_key or strategy_path,
             strategy_path=strategy_path,
-            version_id=int(version_id),
-            enum_version_id=str(data.version_id),
+            version_id=version_id,
+            enum_version_id=source_vid,
             enum_output_dir=str(data.output_dir),
             execute_fp=str(ctx.execute_fp or ""),
             env_fp=str(ctx.env_fp or ""),
@@ -141,7 +143,7 @@ class ReportManager(BaseReportManager):
             output_dir=output_dir,
             strategy_key=runtime.strategy_key,
             strategy_path=strategy_path,
-            version_id=int(version_id),
+            version_id=str(version_id or "").strip(),
             runtime=runtime,
             entity_ids=entity_ids,
         )
@@ -153,7 +155,7 @@ class ReportManager(BaseReportManager):
             output_dir=Path(output_dir),
             strategy_key=runtime.strategy_key,
             strategy_path=runtime.strategy_path or runtime.strategy_key,
-            version_id=int(runtime.version_id),
+            version_id=str(runtime.version_id or "").strip(),
             runtime=runtime,
             entity_ids=list(runtime.entity_ids),
         )
@@ -268,20 +270,16 @@ class ReportManager(BaseReportManager):
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         OverallReport.load(self.output_dir).present(stream=out)
-        CmdLayout.separator.print_line(width=60, stream=out)
         EntityListReport.load(self.output_dir).present(stream=out)
-        CmdLayout.separator.print_line(width=60, stream=out)
         try:
             PerformanceReport.load(self.output_dir).present(stream=out)
         except Exception:
-            CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+            CmdLayout.title.print_h2(f"{icon('clock')} 性能", stream=out)
             print(f"{icon('warning')} 缺少 {PERFORMANCE_FILE}", file=out, flush=True)
-        CmdLayout.separator.print_line(width=60, stream=out)
         print(f"{icon('info')} 产物: {self.output_dir}", file=out, flush=True)
-        print(
-            f"   reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
-            file=out,
-            flush=True,
+        CmdLayout.text.print_indent(
+            f"reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
+            stream=out,
         )
 
 

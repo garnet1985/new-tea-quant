@@ -116,6 +116,7 @@ class EnumeratorPipeline:
             env_fp=ctx.env_fp,
             effective_settings_obj=effective_settings_obj,
             settings_diff=ctx.settings_diff,
+            version_id=str(ctx.forced_version_id or "").strip() or None,
         )
 
         if drive:
@@ -292,6 +293,7 @@ class EnumeratorPipeline:
         env_fp: str,
         effective_settings_obj: StrategySettings,
         settings_diff: Dict[str, Any],
+        version_id: Optional[str] = None,
     ) -> ReportManager:
         return ReportManager.begin(
             strategy_info.key,
@@ -307,6 +309,7 @@ class EnumeratorPipeline:
                 effective_settings_obj.raw_settings.get("market_profile")
                 or ProjectContext.config.get_default_market_profile_key()
             ),
+            version_id=version_id,
         )
 
     @classmethod

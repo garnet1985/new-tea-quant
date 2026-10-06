@@ -146,7 +146,6 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 | `sd`  | strategy\_decision         | 第四步：决策者  |
 | `sdl` | strategy\_decision\_list   | 列出决策者会话  |
 | `sdd` | strategy\_decision\_delete | 删除决策者会话  |
-| `sa`  | strategy\_analyze          | 归因分析     |
 | `c`   | scan                       | 扫描机会     |
 | `r`   | renew                      | 更新数据     |
 | `t`   | tag                        | 执行标签     |
@@ -155,13 +154,11 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 | `id`  | import\_data               | 导入数据包    |
 | `u`   | update                     | 升级 core  |
 | `v`   | version                    | 查看 NTQ 核心版本 |
-| `spn` | strategy\_pin\_version     | 固定版本     |
-| `sup` | strategy\_unpin\_version   | 取消固定     |
 | `sdv` | strategy\_delete\_version  | 删除版本     |
 
 ### 易混命令
 
-- 跑回测用 `s` / `se` / `sp` / `so`。`spn` **不是**运行回测，只固定一个已经存在的 version
+- 跑回测用 `s` / `se` / `sp` / `so`。
 
 - `v` 只打印 NTQ 核心版本，不是策略回测 version 列表
 

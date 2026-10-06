@@ -41,7 +41,7 @@ class PriceFactorPipeline:
         if drive:
             PipelineProgress.complete_step_bound("load")
             PipelineProgress.enter_step_bound("dispatch")
-        jobs = cls.build_jobs(data, report=report)
+        jobs = cls.build_jobs(data, report=report, strategy_info=ctx.strategy_info)
         if drive:
             PipelineProgress.complete_step_bound("dispatch")
             PipelineProgress.enter_step_bound("execute")
@@ -74,9 +74,12 @@ class PriceFactorPipeline:
         data: EnumerateStore,
         *,
         report: ReportManager,
+        strategy_info=None,
     ) -> List[Dict[str, Any]]:
         """组装 BacktestEngine entity_based bundle jobs。"""
-        return PriceFactorJobBuilder.build_jobs(data, report=report)
+        return PriceFactorJobBuilder.build_jobs(
+            data, report=report, strategy_info=strategy_info
+        )
 
     @classmethod
     def execute_backtest(

@@ -8,12 +8,31 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport
 
 _VALID_MODES = frozenset({"equal_capital", "equal_shares", "kelly", "custom"})
+_ORDER_WORDS = frozenset({"ASC", "DESC"})
+
+
+@dataclass(frozen=True)
+class OpportunitySelectionRule:
+    """一条选仓规则。``direction`` 与 ``weight`` 互斥，由列表整体决定。"""
+
+    field: str
+    src: str = ""
+    direction: str = ""
+    weight: float = 0.0
+
+    def snapshot_key(self, base_data_key: str = "") -> str:
+        """主数据字段不带前缀；其他数据源为 ``data_key.field``。"""
+        src = str(self.src or "").strip()
+        base = str(base_data_key or "").strip()
+        if not src or (base and src == base):
+            return self.field
+        return f"{src}.{self.field}"
 
 
 @dataclass
@@ -25,7 +44,19 @@ class AllocationConfig:
     max_weight_per_stock: float = 0.3
     lots_per_trade: int = 1
     kelly_fraction: float = 0.5
+    default_cash: float = 0.0
+    default_shares: int = 0
     skip_trade_when_insufficient: bool = False
+    opportunity_selection: Tuple[OpportunitySelectionRule, ...] = ()
+
+    @property
+    def opportunity_selection_mode(self) -> str:
+        """``""`` 不排序；``order`` 多关键字；``weight`` 加权。"""
+        if not self.opportunity_selection:
+            return ""
+        if self.opportunity_selection[0].direction:
+            return "order"
+        return "weight"
 
 
 @dataclass
@@ -119,6 +150,8 @@ class PortfolioSettings(SettingsBase):
                 "portfolio.allocation.max_portfolio_size",
                 "max_portfolio_size 必须 > 0",
             )
+        self._validate_kelly_defaults(report)
+        self._validate_opportunity_selection(report)
         return report
 
     def to_dict(self) -> Dict[str, Any]:
@@ -153,9 +186,12 @@ class PortfolioSettings(SettingsBase):
             kelly_fraction=self._as_float_clamped(
                 a.get("kelly_fraction"), 0.5, lo=0.0, hi=1.0
             ),
+            default_cash=self._as_non_negative_float(a.get("default_cash")),
+            default_shares=self._as_int(a.get("default_shares"), 0, minimum=0),
             skip_trade_when_insufficient=bool(
                 a.get("skip_trade_when_insufficient", False)
             ),
+            opportunity_selection=self._selection_rules(a.get("opportunity_selection")),
         )
 
     def _parse_output(self) -> OutputConfig:
@@ -167,6 +203,97 @@ class PortfolioSettings(SettingsBase):
             save_equity_curve=bool(o.get("save_equity_curve", True)),
         )
 
+    def _validate_kelly_defaults(self, report: ValidationReport) -> None:
+        """kelly 模式必须显式给出大于 0 的 default_cash 或 default_shares。"""
+        block = self.portfolio.get("allocation")
+        if not isinstance(block, dict):
+            return
+        mode = str(block.get("mode") or "equal_capital").strip().lower()
+        cash = self._declared_positive(
+            report,
+            "portfolio.allocation.default_cash",
+            block.get("default_cash") if "default_cash" in block else None,
+        )
+        shares = self._declared_positive(
+            report,
+            "portfolio.allocation.default_shares",
+            block.get("default_shares") if "default_shares" in block else None,
+            as_int=True,
+        )
+        if mode != "kelly" or cash > 0 or shares > 0:
+            return
+        SettingsBase.add_critical(
+            report,
+            "portfolio.allocation.default_cash",
+            "kelly 模式须配置 default_cash 或 default_shares，且大于 0",
+            suggested_fix='allocation.default_cash = 10000 或 allocation.default_shares = 100',
+        )
+
+    @staticmethod
+    def _declared_positive(
+        report: ValidationReport,
+        path: str,
+        raw: Any,
+        *,
+        as_int: bool = False,
+    ) -> float:
+        """未写返回 0。写了但不是正数则记错误并返回 0。"""
+        if raw is None:
+            return 0.0
+        try:
+            number = int(raw) if as_int else float(raw)
+        except (TypeError, ValueError):
+            SettingsBase.add_critical(report, path, f"{path.split('.')[-1]} 须为数字")
+            return 0.0
+        if number < 0:
+            SettingsBase.add_critical(report, path, f"{path.split('.')[-1]} 须大于 0")
+            return 0.0
+        return float(number)
+
+    def _validate_opportunity_selection(self, report: ValidationReport) -> None:
+        block = self.portfolio.get("allocation")
+        if not isinstance(block, dict) or "opportunity_selection" not in block:
+            return
+        canonical, error = _canonicalize_opportunity_selection(
+            block.get("opportunity_selection")
+        )
+        if error:
+            SettingsBase.add_critical(
+                report,
+                "portfolio.allocation.opportunity_selection",
+                error,
+                suggested_fix=(
+                    '[{"close": "DESC"}, {"pe": "ASC"}] 或 '
+                    '[{"close": 20}, {"pe": -80}]'
+                ),
+            )
+            return
+        block["opportunity_selection"] = list(canonical or [])
+
+    @staticmethod
+    def _selection_rules(raw: Any) -> Tuple[OpportunitySelectionRule, ...]:
+        canonical, error = _canonicalize_opportunity_selection(raw)
+        if error or not canonical:
+            return ()
+        rules: List[OpportunitySelectionRule] = []
+        for item in canonical:
+            field = next(key for key in item if key != "src")
+            src = str(item.get("src") or "")
+            value = item[field]
+            if isinstance(value, str):
+                rules.append(
+                    OpportunitySelectionRule(
+                        field=field, src=src, direction=value
+                    )
+                )
+            else:
+                rules.append(
+                    OpportunitySelectionRule(
+                        field=field, src=src, weight=float(value)
+                    )
+                )
+        return tuple(rules)
+
     @staticmethod
     def _as_int(value: Any, default: int, *, minimum: Optional[int] = None) -> int:
         try:
@@ -176,6 +303,14 @@ class PortfolioSettings(SettingsBase):
         if minimum is not None:
             n = max(n, minimum)
         return n
+
+    @staticmethod
+    def _as_non_negative_float(value: Any) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return number if number > 0 else 0.0
 
     @staticmethod
     def _as_float_clamped(
@@ -192,8 +327,80 @@ class PortfolioSettings(SettingsBase):
         return max(min(x, hi), lo)
 
 
+def _canonicalize_opportunity_selection(
+    raw: Any,
+) -> Tuple[Optional[List[Dict[str, Any]]], str]:
+    """缺省返回 ``(None, "")``。合法时返回规范列表；非法时第二项为错误说明。"""
+    if raw is None:
+        return None, ""
+    if isinstance(raw, (str, bytes)) or not isinstance(raw, Sequence):
+        return None, "opportunity_selection 须为 list"
+    items = list(raw)
+    if not items:
+        return [], ""
+
+    canonical: List[Dict[str, Any]] = []
+    kinds: List[str] = []
+    seen: List[Tuple[str, str]] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict) or not item:
+            return None, f"opportunity_selection[{index}] 须为非空 dict"
+        src_raw = item.get("src") if "src" in item else ""
+        if "src" in item:
+            if not isinstance(src_raw, str) or not src_raw.strip():
+                return None, f"opportunity_selection[{index}].src 须为非空字符串"
+            src = src_raw.strip()
+        else:
+            src = ""
+        fields = [str(key).strip() for key in item.keys() if str(key) != "src"]
+        if len(fields) != 1 or not fields[0]:
+            return None, (
+                f"opportunity_selection[{index}] 恰好写一个字段，"
+                "src 只能作为可选项"
+            )
+        field = fields[0]
+        if field == "src":
+            return None, f"opportunity_selection[{index}] 字段名不能是 src"
+        pair = (field, src)
+        if pair in seen:
+            return None, f"opportunity_selection 重复字段 {field}" + (
+                f"（src={src}）" if src else ""
+            )
+        seen.append(pair)
+        value = next(item[key] for key in item if str(key).strip() == field)
+        kind, normalized, error = _normalize_selection_value(value)
+        if error:
+            return None, f"opportunity_selection[{index}].{field} {error}"
+        kinds.append(kind)
+        row: Dict[str, Any] = {field: normalized}
+        if src:
+            row["src"] = src
+        canonical.append(row)
+
+    if len(set(kinds)) > 1:
+        return None, "opportunity_selection 不能同时写 ASC/DESC 和权重"
+    if kinds and kinds[0] == "weight" and all(
+        float(row[next(key for key in row if key != "src")]) == 0.0
+        for row in canonical
+    ):
+        return [], ""
+    return canonical, ""
+
+
+def _normalize_selection_value(value: Any) -> Tuple[str, Any, str]:
+    if isinstance(value, str):
+        word = value.strip().upper()
+        if word in _ORDER_WORDS:
+            return "order", word, ""
+        return "", None, "须为 ASC、DESC 或数字权重"
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "", None, "须为 ASC、DESC 或数字权重"
+    return "weight", value, ""
+
+
 __all__ = [
     "AllocationConfig",
+    "OpportunitySelectionRule",
     "OutputConfig",
     "PortfolioSettings",
 ]

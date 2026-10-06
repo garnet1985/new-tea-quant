@@ -1,7 +1,7 @@
 # Settings / Version / Effective — 决策记录
 
 更新时间：2026-09-03  
-状态：已落地。现行叙事见 [VERSIONING.md](./notes/VERSIONING.md)；本文只保留编号决策（D1–D39）。
+状态：已落地。现行叙事见 [VERSIONING.md](./notes/VERSIONING.md)；本文只保留编号决策（D1–D40）。
 
 过程稿已归档：[VERSIONING_REDESIGN.md](./notes//VERSIONING_REDESIGN.md)、[SETTINGS_VERSION_IDENTITY.md](./notes/SETTINGS_VERSION_IDENTITY.md)。
 
@@ -52,7 +52,7 @@ D15 收紧 D3。D17 修正「已完成步骤一律 `force` → 新 vid」。
 | D23 | 执行与指纹 **只使用** 这份 canonical effective。胶囊「设置已变更」也只比它，不比对原始 JSON 外形、不比对切步填的非 effective 字段。 |
 | D24 | `settings → effective` 是投影（丢掉「其他」字段）。`effective → settings` 是把白名单字段 **merge 回** 完整 settings，「其他」保留。不是双射。 |
 | D25 | `{vid}/` **必须归档当时完整 settings**（运行时 + 其他）。canonical effective 可另存作缓存；core/env 变了不得用新算法重算旧 effective 去命中。 |
-| D26 | 不影响回测结果的字段进非 effective（现有方向：`meta` / `is_enabled` / `scanner` / `enumerator` / `analysis`）。白名单 section 内的 UI 草稿 key 必须从投影剔除。 |
+| D26 | 不影响回测结果的字段进非 effective（现有方向：`meta` / `is_enabled` / `scanner` / `enumerator`）。白名单 section 内的 UI 草稿 key 必须从投影剔除。`analysis` 已退役，残留块不进指纹。 |
 
 D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 
@@ -80,8 +80,9 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 | D28 | **禁止**因 env 变化原地覆盖 `{vid}/` 产物。 |
 | D29 | 运行始终 D33。查找 `(execute_fp, 当前 env_fp)`，命中或新建；**绝不写回**失效目录。 |
 | D30 | UI：失效 version 标「环境已更新 / 仅供查阅」——指 **这份产物只读**。主展示按 settings 身份聚合。 |
-| D31 | env 一变 **不批量删**。keep-N 满了：删 **未 pin 且 version 号更靠前（更旧）** 的；不因 `env_invalid` 加塞。UI 后期：快到期打「即将过期」。 |
+| D31 | **已由 D40 取代。** 旧口径：env 一变不批量删；keep-N 按未 pin 的旧 version 号切。 |
 | D37 | **当前 execute 身份在当前 env 下还没有 version：** 胶囊可挂最近一次同 settings 的旧号（如 v4）+「环境已更新」+「当前环境尚无结果」。主按钮「在当前环境回测」。0.x 可不做自动迁移。**大版本若旧报告格式也读不了，这套 UI 可能走不通，不阻塞当前实施。** |
+| D40 | **清理主键是 `env_fp`。** 当前环境整组保留。过时环境最多留 N 组（`retention.simulation_results_max_stale_envs`），超出删最旧一组（simulation 号 + 对应归因组）。没有 pin。环境变了不立刻物理删除。 |
 
 ---
 
@@ -97,7 +98,7 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 
 | # | 决策 |
 |---|------|
-| D39 | **固定是列表开关，不是身份。** 只改 `simulations/meta.json` 根字段 `pinned: ["3","6"]`（registry key，不是 `v3`）。不写 registry 行、不写 `{vid}/`、不改 `settings.py`、不绑定 Run。效果：列表置顶；keep-N 与「即将清理」跳过 pinned。不阻止手动删除（UI / `sdv` / BFF `DELETE …/cache`）；删除时从 `pinned` 拿掉。 |
+| D39 | **已由 D40 取消。** 旧口径：`meta.pinned` 挡 keep-N。清理改按环境整组后不再需要 pin。 |
 
 ---
 
@@ -125,7 +126,6 @@ D25 修订 D7：冻结不再只靠 `effective_settings.json` 子集。
 - 用「是否点过控件」判断主动改设置；只认 canonical effective 是否变
 - 因正在浏览 `env_invalid` version 就让 Run 直接报错（产物只读 ≠ 禁止在当前环境跑）
 - 同一 `(execute_fp, env_fp)` 因强制重跑而新开第二个 vid
-- pin 写在 registry 行或 `{vid}/` 上
-- pin 改写 settings、绑定 Run、或禁止手动删除
+- 用 pin 挡自动清理，或按 version 号从当前环境里抽走几格
 - 恢复配置时把 `scope.json` 的股票池写回运行时（恢复只写 `settings.py`）
 - 独立 Replay 动作（要复现历史配置：先恢复再 Run）

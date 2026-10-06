@@ -188,7 +188,6 @@ export async function fetchStrategySettings(strategyKeyOrName) {
     has_persisted_snapshot: Boolean(m.has_persisted_snapshot),
     has_other_versions: Boolean(m.has_other_versions),
     env_invalid: Boolean(m.env_invalid),
-    pinned: Boolean(m.pinned),
   };
 }
 
@@ -276,7 +275,7 @@ export async function persistStrategySettings(strategyKeyOrName, settings, opts 
 /**
  * V2-03：读取策略工作台版本列表（至多 10 条）。
  * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
- * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string, env_invalid: boolean, expires_soon: boolean, pinned: boolean }> }>}
+ * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string, env_invalid: boolean, expires_soon: boolean }> }>}
  */
 export async function fetchStrategyVersions(strategyKeyOrName) {
   const json = await request.getJson(
@@ -291,7 +290,6 @@ export async function fetchStrategyVersions(strategyKeyOrName) {
       updated_at: row.updated_at || '',
       env_invalid: Boolean(row.env_invalid),
       expires_soon: Boolean(row.expires_soon),
-      pinned: Boolean(row.pinned),
       retention_max: Number(row.retention_max || 0),
     })),
   };
@@ -325,7 +323,6 @@ export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
     result_report: m.result_report,
     execution_panel: m.execution_panel ?? null,
     env_invalid: Boolean(m.env_invalid),
-    pinned: Boolean(m.pinned),
   };
 }
 
@@ -359,26 +356,6 @@ export async function deleteStrategyVersion(strategyKeyOrName, versionId) {
     deleted: Boolean(m.deleted),
     version_id: m.version_id || versionId,
     strategy_name: m.strategy_name || '',
-  };
-}
-
-/**
- * 固定 / 取消固定一份 simulation version（只改 meta.pinned）。
- * @param {string} strategyKeyOrName
- * @param {string} versionId
- * @param {boolean} pinned
- */
-export async function setStrategyVersionPinned(strategyKeyOrName, versionId, pinned) {
-  const path = `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}/pin`;
-  const json = pinned
-    ? await request.postJson(path)
-    : await request.deleteJson(path);
-  const m = json?.message || {};
-  return {
-    pinned: Boolean(m.pinned),
-    version_id: m.version_id || versionId,
-    strategy_name: m.strategy_name || '',
-    pinned_ids: Array.isArray(m.pinned_ids) ? m.pinned_ids : [],
   };
 }
 
@@ -420,12 +397,12 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
 }
 
 /**
- * V2-07：步骤报告 + 归因 facts（同一次 GET）。
+ * V2-07：步骤报告。
  * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
  * @param {string} strategyKeyOrName
  * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId
- * @returns {Promise<{ report: object, analysis: object, version_id: string, step: string }>}
+ * @returns {Promise<{ report: object, version_id: string, step: string }>}
  */
 export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId) {
   const base = apiStrategyPath(strategyKeyOrName);
@@ -438,7 +415,6 @@ export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId
   const m = json?.message || {};
   return {
     report: m.report && typeof m.report === 'object' ? m.report : {},
-    analysis: m.analysis && typeof m.analysis === 'object' ? m.analysis : {},
     version_id: String(m.version_id || versionId || '').trim(),
     step: String(m.step || step || '').trim(),
   };
@@ -597,6 +573,121 @@ export async function fetchStrategyRunStatus(strategyName, jobId) {
     };
   }
   return mapWorkbenchRunProgressToPanel(envelope);
+}
+
+/**
+ * A1-00：归因按钮显隐 / enable。
+ * GET /api/v1/strategy/:key/:step/attribute/status
+ * @param {string} strategyName
+ * @param {'enum'|'price'|'portfolio'} step
+ */
+export async function fetchAttributeStatus(strategyName, step) {
+  const base = apiStrategyPath(strategyName);
+  if (!base) throw new Error('缺少 strategy_key_or_name');
+  const json = await request.getJson(
+    `${base}/${encodeURIComponent(step)}/attribute/status`,
+  );
+  const m = json?.message || {};
+  return {
+    step: String(m.step || step || '').trim(),
+    visible: Boolean(m.visible),
+    enabled: Boolean(m.enabled),
+    reason: String(m.reason || '').trim(),
+    tooltip: String(m.tooltip || '').trim(),
+    example_path: String(m.example_path || '').trim(),
+    has_primary: Boolean(m.has_primary),
+    config_ok: Boolean(m.config_ok),
+    last_group_id: m.last_group_id != null ? String(m.last_group_id).trim() : '',
+  };
+}
+
+/**
+ * A1-01：启动本层归因。
+ * POST /api/v1/strategy/:key/:step/attribute/run
+ * @param {string} strategyName
+ * @param {'enum'|'price'|'portfolio'} step
+ * @param {{ force_refresh?: boolean }} [options]
+ */
+export async function startAttributeRun(strategyName, step, options = {}) {
+  const base = apiStrategyPath(strategyName);
+  if (!base) throw new Error('缺少 strategy_key_or_name');
+  const json = await request.postJson(
+    `${base}/${encodeURIComponent(step)}/attribute/run`,
+    { body: { force_refresh: Boolean(options?.force_refresh) } },
+  );
+  const m = json?.message || {};
+  if (!m.is_triggered) {
+    const reason = m.reason;
+    throw new Error(typeof reason === 'string' ? reason : '启动归因失败');
+  }
+  const jid = String(m.job_id || '').trim();
+  return {
+    run_id: String(m.run_id || jid).trim(),
+    job_id: jid,
+    pipeline_name: String(m.pipeline_name || step).trim(),
+    pipeline_kind: String(m.pipeline_kind || 'attribute').trim(),
+    pipeline_description: String(m.pipeline_description || '').trim(),
+  };
+}
+
+/**
+ * A1-02：归因进度（对标 V2-06b）。
+ * @param {string} strategyName
+ * @param {string} jobId
+ */
+export async function fetchAttributeRunProgress(strategyName, jobId) {
+  const json = await request.getJson(
+    `${apiStrategyPath(strategyName)}/attribute/run/progress?job_id=${encodeURIComponent(jobId)}`,
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+  );
+  return json?.message || null;
+}
+
+/**
+ * 轮询归因进度 → 面板字段；完成时附带 ``group_id``。
+ * @param {string} strategyName
+ * @param {string} jobId
+ */
+export async function fetchAttributeRunStatus(strategyName, jobId) {
+  const envelope = await fetchAttributeRunProgress(strategyName, jobId);
+  if (!envelope) {
+    return {
+      run_id: jobId,
+      progress_pct: 0,
+      state: 'failed',
+      running_step: '',
+      fail_reason: '无归因进度数据',
+      group_id: '',
+      headline: '',
+    };
+  }
+  const mapped = mapWorkbenchRunProgressToPanel(envelope);
+  const result = envelope.result && typeof envelope.result === 'object' ? envelope.result : {};
+  return {
+    ...mapped,
+    group_id: String(result.group_id || '').trim(),
+    headline: String(result.headline || '').trim(),
+    task_dir: String(result.task_dir || '').trim(),
+  };
+}
+
+/**
+ * A1-04：读取战役归因报告。
+ * GET /api/v1/strategy/:key/attribute/report/:step/:group_id
+ * @param {string} strategyName
+ * @param {'enum'|'price'|'portfolio'} step
+ * @param {string} groupId
+ */
+export async function fetchAttributeReport(strategyName, step, groupId) {
+  const base = apiStrategyPath(strategyName);
+  const gid = encodeURIComponent(String(groupId || '').trim());
+  if (!base || !gid) {
+    throw new Error('缺少 strategy_key_or_name 或 group_id');
+  }
+  const json = await request.getJson(
+    `${base}/attribute/report/${encodeURIComponent(step)}/${gid}`,
+  );
+  return json?.message || {};
 }
 
 /**

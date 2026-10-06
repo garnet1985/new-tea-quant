@@ -164,11 +164,11 @@ def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
         sample_out = sample
     sim_max: Optional[int] = None
     try:
-        sim_max = int(ProjectContext.config.get_simulation_results_max_versions())
+        sim_max = int(ProjectContext.config.get_simulation_results_max_stale_envs())
     except Exception:
         raw = cfg.get("retention") if isinstance(cfg.get("retention"), dict) else {}
         try:
-            sim_max = int(raw.get("simulation_results_max_versions"))
+            sim_max = int(raw.get("simulation_results_max_stale_envs"))
         except (TypeError, ValueError):
             sim_max = None
         if sim_max is not None and sim_max < 1:
@@ -177,7 +177,7 @@ def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
         "default_start_date": str(cfg.get("default_start_date") or "").strip(),
         "as_of_latest_completed_trading_date": _get_as_of_latest_completed_trading_date(),
         "use_sample_stock_list": sample_out,
-        "simulation_results_max_versions": sim_max,
+        "simulation_results_max_stale_envs": sim_max,
         "config_path": str(ProjectContext.path.get_user_config_root() / "data.json"),
     }
 
@@ -200,10 +200,10 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
         )
         sample = normalize_sample_pool(payload.get("use_sample_stock_list"))
         sim_max = None
-        if "simulation_results_max_versions" in payload:
+        if "simulation_results_max_stale_envs" in payload:
             sim_max = normalize_positive_int(
-                payload.get("simulation_results_max_versions"),
-                "simulation_results_max_versions",
+                payload.get("simulation_results_max_stale_envs"),
+                "simulation_results_max_stale_envs",
             )
     except ValueError as exc:
         return None, str(exc)
@@ -223,7 +223,7 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
     if sim_max is not None:
         retention = existing.get("retention")
         retention = dict(retention) if isinstance(retention, dict) else {}
-        retention["simulation_results_max_versions"] = sim_max
+        retention["simulation_results_max_stale_envs"] = sim_max
         existing["retention"] = retention
     _write_json(path, existing)
     logger.info("[bff.settings] wrote data settings to %s", path)

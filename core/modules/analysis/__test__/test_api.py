@@ -23,6 +23,7 @@ class TestAnalysisApi(unittest.TestCase):
         self.assertIs(Analysis.Classical, Classical)
         self.assertTrue(callable(Analysis.Classical.quantile_buckets))
         self.assertTrue(callable(Analysis.ML.xgb_feature_importance))
+        self.assertTrue(callable(Analysis.ML.xgb_win_classifier))
 
     def test_quantile_buckets_ok(self) -> None:
         out = Analysis.Classical.quantile_buckets(

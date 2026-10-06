@@ -347,6 +347,7 @@ class EnumResult:
                 scan_date=self.trigger_date,
             ),
             metadata=metadata,
+            signal_snapshot=dict(self.signal_snapshot),
         )
 
 

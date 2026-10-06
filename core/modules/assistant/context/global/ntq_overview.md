@@ -78,4 +78,4 @@ new-tea-quant/
 
 ## 版本
 
-一次完整回测（枚举 + 价格因子 + 组合）对应一个 version，绑定时的生效设置指纹。环境变了（升级、钩子源码改了），旧版本变成仅供查阅。产物在 `{strategy}/results/simulations/{vid}/`，没有 `reports/`。`spn` / `sup` / `sdv` 固定、取消固定、删除版本——`spn` 不是跑回测。
+一次完整回测（枚举 + 价格因子 + 组合）对应一个 version，绑定时的生效设置指纹。环境变了（升级、钩子源码改了），旧版本变成仅供查阅。产物在 `{strategy}/results/simulations/{vid}/`，没有 `reports/`。删单个 version 用 `sdv`。过时环境按组保留，没有 pin。

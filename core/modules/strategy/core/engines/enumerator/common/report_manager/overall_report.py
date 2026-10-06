@@ -92,7 +92,7 @@ class OverallReport:
 
     strategy_key: str = ""
     strategy_path: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     execution_mode: str = ""
     backtest_period: Dict[str, str] = field(default_factory=dict)
     summary: OverallSummary = field(default_factory=OverallSummary)
@@ -163,7 +163,7 @@ class OverallReport:
         output_dir: Path,
         *,
         strategy_key: str = "",
-        version_id: int = 0,
+        version_id: Any = "",
         total_entities: Optional[int] = None,
     ) -> "OverallReport":
         scan = EnumScan.collect(
@@ -190,7 +190,7 @@ class OverallReport:
         start = str(period.get("start_date") or "")
         end = str(period.get("end_date") or "")
 
-        CmdLayout.title.print_banner(f"{icon('search')} 枚举报告", stream=out)
+        CmdLayout.title.print_h1(f"{icon('search')} 枚举报告", stream=out)
         print(
             f"{icon('gear')} {self.strategy_key or '-'} "
             f"v{self.version_id}  "
@@ -213,9 +213,7 @@ class OverallReport:
         buckets = summary.opportunity_buckets
         timing = summary.timing
         tradability = summary.tradability
-
-        CmdLayout.separator.print_line(width=60, stream=out)
-        CmdLayout.title.print_section(f"{icon('target')} 机会概览", stream=out)
+        CmdLayout.title.print_h2(f"{icon('target')} 机会概览", stream=out)
         print(
             f"{icon('rocket')} 机会总数 {opportunities}（共 {total} 只股票）",
             file=out,
@@ -240,7 +238,7 @@ class OverallReport:
         )
 
         if buckets.labels:
-            CmdLayout.title.print_section(
+            CmdLayout.title.print_h2(
                 f"{icon('bar_chart')} 每股机会数分布 "
                 f"[{buckets.min_count}~{buckets.max_count}] "
                 f"（{max(1, buckets.bucket_count)} 档）",
@@ -261,7 +259,7 @@ class OverallReport:
                 stream=out,
             )
 
-        CmdLayout.title.print_section(f"{icon('warning')} 可交易性", stream=out)
+        CmdLayout.title.print_h2(f"{icon('warning')} 可交易性", stream=out)
         print(
             f"{icon('triangle_up')} 涨停无法买入: {tradability.buy_at_limit_up_count}/"
             f"{tradability.buy_tradability_sample_count} "
@@ -277,7 +275,7 @@ class OverallReport:
             flush=True,
         )
 
-        CmdLayout.title.print_section(f"{icon('clock')} 节奏与分散度", stream=out)
+        CmdLayout.title.print_h2(f"{icon('clock')} 节奏与分散度", stream=out)
         print(
             f"{icon('timer')} 平均每股机会间隔: {timing.mean_gap} 天",
             file=out,
@@ -358,7 +356,7 @@ class OverallReport:
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
             strategy_path=str(data.get("strategy_path") or ""),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             execution_mode=str(data.get("execution_mode") or ""),
             backtest_period=dict(data.get("backtest_period") or {}),
             summary=OverallSummary.from_dict(summary_raw),

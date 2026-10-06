@@ -53,8 +53,6 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
 价格因子报告 + 逐股 investments
     ↓ 组合引擎消费
 组合报告 + 净值曲线 + 逐笔成交
-    ↓ 归因分析（可选）
-归因报告（facts + insights）
 ```
 
 枚举结果是**契约**——后续三个引擎（价格因子、组合、决策者）都消费同一份枚举结果，不重复计算。
@@ -73,7 +71,6 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
 | 第四步    | `cli.py strategy_decision`     | `sd` |
 | 价格因子→组合 | `cli.py strategy_simulate`     | `s`  |
 | 扫描实时行情 | `cli.py scan`                  | `c`  |
-| 归因分析   | `cli.py strategy_analyze`      | `sa` |
 
 ## 执行模式
 
@@ -90,7 +87,7 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
 
 ```
 {strategy}/results/simulations/
-  meta.json                    # 索引：next_version_id + registry + pinned
+  meta.json                    # 索引：next_version_id + registry
   {vid}/
     settings.json              # 当时完整 settings（恢复用）
     effective_settings.json    # 白名单投影
@@ -102,5 +99,5 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
     decision/{dm_id}/           # 第四步会话
 ```
 
-没有 `reports/` 目录。`spn` 固定某个 `{vid}`，不是运行回测。
+没有 `reports/` 目录。
 

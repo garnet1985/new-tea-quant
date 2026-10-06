@@ -53,6 +53,27 @@ class StrategyHooks(ABC):
         """
         pass
 
+    def is_new_opportunity(self, ctx: StrategyContext) -> bool:
+        """价格回放：本笔枚举机会是否开新段。仅 price_factor 调用。
+
+        ``True`` 开新段（本笔当主机会）；其它值视为与上一笔同段。
+        无上一笔时必须 ``True``。默认按 ``simulation.price.opportunity_merge_gap``。
+        ``ctx.data.items["previous_opportunity"]`` 为上一笔 EnumResult 或 None；
+        ``opportunity_gap`` 为 base 轴步数（相邻为 1），算不出则为 None。
+        """
+        previous = ctx.data.items.get("previous_opportunity")
+        if previous is None:
+            return True
+        gap = ctx.data.items.get("opportunity_gap")
+        if gap is None:
+            return True
+        try:
+            steps = int(gap)
+        except (TypeError, ValueError):
+            return True
+        limit = ctx.settings.simulation.price.opportunity_merge_gap
+        return steps > int(limit)
+
     def on_pick_portfolio_member(
         self, ctx: StrategyContext
     ) -> Sequence[Union[Opportunity, str]]:

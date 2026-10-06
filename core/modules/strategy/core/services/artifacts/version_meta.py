@@ -3,8 +3,7 @@
 根 meta 职责（索引层）:
 - ``next_version_id``
 - ``registry``：``{ vid: { created_at, execute_fp, env_fp, steps, ... } }``
-- ``pinned``：固定的 version id 列表（``["3", "6"]``）。version 条目不感知；
-  清理 / 列表标记前先读此字段。缺省或 ``[]`` 表示没有固定。
+清理按 ``env_fp`` 整组淘汰过时环境；当前环境不拆组。
 
 ``{vid}/`` 归档（三步共享，只写一次）:
 - ``settings.json``：当时完整运行 settings
@@ -90,7 +89,9 @@ class VersionMetaStore:
     def write_root_meta(
         cls, simulations_root: Path, payload: Dict[str, Any]
     ) -> None:
-        write_json(cls.root_meta_path(simulations_root), payload)
+        data = dict(payload or {})
+        data.pop("pinned", None)
+        write_json(cls.root_meta_path(simulations_root), data)
 
     @classmethod
     def read_settings(
@@ -240,74 +241,6 @@ class VersionMetaStore:
         return dict(reg) if isinstance(reg, dict) else {}
 
     @staticmethod
-    def _normalize_pinned_vid(value: Any) -> Optional[str]:
-        text = str(value or "").strip()
-        if not text:
-            return None
-        if text.lower().startswith("v") and text[1:].isdigit():
-            text = text[1:]
-        if not text.isdigit():
-            return None
-        n = int(text)
-        return str(n) if n > 0 else None
-
-    @classmethod
-    def _parse_pinned_raw(cls, raw: Any) -> List[str]:
-        if not isinstance(raw, list):
-            return []
-        seen: set[str] = set()
-        out: List[str] = []
-        for item in raw:
-            vid = cls._normalize_pinned_vid(item)
-            if not vid or vid in seen:
-                continue
-            seen.add(vid)
-            out.append(vid)
-        return out
-
-    @classmethod
-    def read_pinned_ids(cls, simulations_root: Path) -> List[str]:
-        """读 meta.pinned，并丢掉 registry/磁盘上已经不存在的 id。"""
-        root = Path(simulations_root)
-        root_meta = cls.read_root_meta(root)
-        existing = set(cls.list_version_ids(root))
-        return [
-            vid
-            for vid in cls._parse_pinned_raw(root_meta.get("pinned"))
-            if vid in existing
-        ]
-
-    @classmethod
-    def set_version_pinned(
-        cls,
-        simulations_root: Path,
-        version_id: str,
-        pinned: bool,
-    ) -> List[str]:
-        """固定 / 取消固定。只改根 ``pinned``，不写 registry 条目。"""
-        vid = cls._normalize_pinned_vid(version_id)
-        if not vid:
-            raise ValueError("version_id 无效")
-        root = Path(simulations_root)
-        existing = set(cls.list_version_ids(root))
-        if vid not in existing:
-            raise FileNotFoundError("快照不存在")
-        root_meta = cls.read_root_meta(root)
-        current = [
-            item
-            for item in cls._parse_pinned_raw(root_meta.get("pinned"))
-            if item in existing
-        ]
-        if pinned:
-            if vid not in current:
-                current.append(vid)
-        else:
-            current = [item for item in current if item != vid]
-        root_meta["pinned"] = current
-        cls.write_root_meta(root, root_meta)
-        return list(current)
-
-    @staticmethod
     def _entry_execute_fp(entry: Dict[str, Any]) -> str:
         return str(entry.get("execute_fp") or "").strip()
 
@@ -347,6 +280,30 @@ class VersionMetaStore:
                 seen.add(vid)
                 out.append(vid)
         return out
+
+    @classmethod
+    def group_version_ids_by_env_fp(
+        cls,
+        simulations_root: Path,
+    ) -> Dict[str, List[str]]:
+        """registry + 磁盘目录按 ``env_fp`` 分桶；缺指纹的号进空键。"""
+        root = Path(simulations_root)
+        groups: Dict[str, List[str]] = {}
+        seen: set[str] = set()
+        for vid, entry in cls._registry(cls.read_root_meta(root)).items():
+            key = str(vid).strip()
+            if not key.isdigit():
+                continue
+            env = cls._entry_env_fp(entry) if isinstance(entry, dict) else ""
+            groups.setdefault(env, []).append(key)
+            seen.add(key)
+        if root.is_dir():
+            for child in root.iterdir():
+                if child.is_dir() and child.name.isdigit() and child.name not in seen:
+                    groups.setdefault("", []).append(child.name)
+        for env, vids in groups.items():
+            groups[env] = sorted(vids, key=int)
+        return groups
 
     @classmethod
     def ensure_registry_entry(
@@ -478,6 +435,7 @@ class VersionMetaStore:
         execute_fp: str,
         env_fp: str,
     ) -> Optional[str]:
+        """只查主 version（整数号）。归因副本 ``{vid}-{r}`` 不参与回测命中。"""
         execute = str(execute_fp or "").strip()
         efp = str(env_fp or "").strip()
         if not execute or not efp:
@@ -488,7 +446,12 @@ class VersionMetaStore:
 
         # 同指纹若留下多号（旧 force 新开号），复写最新号，避免写回更早的 vid
         root_meta = cls.read_root_meta(root)
-        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x), reverse=True):
+        primaries = [
+            vid
+            for vid in cls._registry(root_meta)
+            if str(vid).strip().isdigit()
+        ]
+        for vid in sorted(primaries, key=lambda x: int(x), reverse=True):
             entry = cls._registry(root_meta).get(vid)
             if not isinstance(entry, dict):
                 continue
@@ -498,6 +461,143 @@ class VersionMetaStore:
             ):
                 return str(vid).strip()
         return None
+
+    @classmethod
+    def is_primary_version_id(cls, version_id: str) -> bool:
+        return str(version_id or "").strip().isdigit()
+
+    @classmethod
+    def is_replica_version_id(cls, version_id: str) -> bool:
+        text = str(version_id or "").strip()
+        if not text or "-" not in text:
+            return False
+        parent, _, rest = text.partition("-")
+        return parent.isdigit() and rest.isdigit() and int(rest) > 0
+
+    @classmethod
+    def parent_version_id(cls, version_id: str) -> Optional[str]:
+        text = str(version_id or "").strip()
+        if cls.is_primary_version_id(text):
+            return text
+        if not cls.is_replica_version_id(text):
+            return None
+        return text.partition("-")[0]
+
+    @classmethod
+    def require_primary_version(
+        cls,
+        simulations_root: Path,
+        execute_fp: str,
+        env_fp: str,
+        *,
+        kind: SimulateKind,
+    ) -> str:
+        """归因入口：当前 settings 必须已有主 version，且该层产物齐全。"""
+        vid = cls.find_version_by_fingerprints(
+            simulations_root, execute_fp, env_fp
+        )
+        layer = kind.value
+        cli = {
+            SimulateKind.ENUMERATE: "se",
+            SimulateKind.PRICE_FACTOR: "sp",
+            SimulateKind.PORTFOLIO: "so",
+        }.get(kind, "se/sp/so")
+        if not vid:
+            raise ValueError(
+                f"归因需要先有回测主 version。请先跑 `{cli}`（当前 settings 尚无对应主号）。"
+            )
+        if cls.step_status(simulations_root, vid, kind) != "ok":
+            raise ValueError(
+                f"主 version {vid} 缺少 {layer} 产物。请先跑 `{cli}` 再归因。"
+            )
+        return vid
+
+    @classmethod
+    def find_replica_by_fingerprints(
+        cls,
+        simulations_root: Path,
+        parent_version_id: str,
+        execute_fp: str,
+        env_fp: str,
+    ) -> Optional[str]:
+        parent = str(parent_version_id or "").strip()
+        execute = str(execute_fp or "").strip()
+        efp = str(env_fp or "").strip()
+        if not parent or not execute or not efp:
+            return None
+        root_meta = cls.read_root_meta(simulations_root)
+        matches: List[str] = []
+        for vid, entry in cls._registry(root_meta).items():
+            key = str(vid).strip()
+            if not cls.is_replica_version_id(key):
+                continue
+            if cls.parent_version_id(key) != parent:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            if (
+                cls._entry_execute_fp(entry) == execute
+                and cls._entry_env_fp(entry) == efp
+            ):
+                matches.append(key)
+        if not matches:
+            return None
+        return sorted(matches, key=lambda x: int(x.partition("-")[2]))[-1]
+
+    @classmethod
+    def allocate_replica_id(
+        cls,
+        simulations_root: Path,
+        parent_version_id: str,
+        *,
+        execute_fp: str,
+        env_fp: str,
+    ) -> str:
+        """同一主号下按指纹复用副本，否则分配下一个 ``{vid}-{r}``。不 bump next_version_id。"""
+        parent = str(parent_version_id or "").strip()
+        if not cls.is_primary_version_id(parent):
+            raise ValueError(f"parent_version_id 须为主 version 整数号，收到 {parent!r}")
+        existing = cls.find_replica_by_fingerprints(
+            simulations_root, parent, execute_fp, env_fp
+        )
+        if existing:
+            return existing
+        root_meta = cls.read_root_meta(simulations_root)
+        max_r = 0
+        prefix = f"{parent}-"
+        for vid in cls._registry(root_meta):
+            key = str(vid).strip()
+            if not key.startswith(prefix):
+                continue
+            rest = key[len(prefix) :]
+            if rest.isdigit():
+                max_r = max(max_r, int(rest))
+        root = Path(simulations_root)
+        if root.is_dir():
+            for child in root.iterdir():
+                if not child.is_dir():
+                    continue
+                key = child.name
+                if not key.startswith(prefix):
+                    continue
+                rest = key[len(prefix) :]
+                if rest.isdigit():
+                    max_r = max(max_r, int(rest))
+        replica = f"{parent}-{max_r + 1}"
+        entry = cls.ensure_registry_entry(simulations_root, replica)
+        root_meta = cls.read_root_meta(simulations_root)
+        registry = cls._registry(root_meta)
+        entry = dict(registry.get(replica) or entry)
+        entry["parent_version_id"] = parent
+        entry["kind"] = "replica"
+        if str(execute_fp or "").strip():
+            entry["execute_fp"] = str(execute_fp).strip()
+        if str(env_fp or "").strip():
+            entry["env_fp"] = str(env_fp).strip()
+        registry[replica] = entry
+        root_meta["registry"] = registry
+        cls.write_root_meta(simulations_root, root_meta)
+        return replica
 
     @classmethod
     def resolve_version(
@@ -551,7 +651,12 @@ class VersionMetaStore:
         if not execute:
             return None
         root_meta = cls.read_root_meta(Path(simulations_root))
-        for vid in sorted(cls._registry(root_meta), key=lambda x: int(x), reverse=True):
+        primaries = [
+            vid
+            for vid in cls._registry(root_meta)
+            if str(vid).strip().isdigit()
+        ]
+        for vid in sorted(primaries, key=lambda x: int(x), reverse=True):
             entry = cls._registry(root_meta).get(vid)
             if not isinstance(entry, dict):
                 continue
@@ -595,9 +700,6 @@ class VersionMetaStore:
         registry = cls._registry(root_meta)
         registry.pop(vid, None)
         root_meta["registry"] = registry
-        pinned = cls._parse_pinned_raw(root_meta.get("pinned"))
-        if vid in pinned:
-            root_meta["pinned"] = [item for item in pinned if item != vid]
         cls.write_root_meta(simulations_root, root_meta)
 
 

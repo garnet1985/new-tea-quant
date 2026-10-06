@@ -18,7 +18,6 @@ def test_step_status_prefers_disk_row_over_empty_result_report():
                 "price_factor": {"done": True},
                 "portfolio": {"done": True},
             },
-            "pinned": True,
         }
     )
     assert msg["step_status"] == {
@@ -27,7 +26,6 @@ def test_step_status_prefers_disk_row_over_empty_result_report():
         "portfolio": {"done": True},
         "decision": {"done": False},
     }
-    assert msg["pinned"] is True
 
 
 def test_step_status_falls_back_to_result_report_when_row_omits_it():

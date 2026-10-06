@@ -141,3 +141,44 @@ def test_mysql_copy_uses_load_data_local_infile(tmp_path):
     assert "CREATE TEMPORARY TABLE" in blob
     assert "INSERT INTO demo" in blob
     assert "CAST(NULLIF(`close`, '') AS DOUBLE)" in blob
+
+
+def test_mysql_falls_back_when_local_infile_disabled(tmp_path):
+    from core.infra.db.core.table_queriers.csv_bulk_import import copy_csv_file
+
+    csv_path = tmp_path / "demo.csv"
+    csv_path.write_text("id,close,note\na,1.5,\nb,,x\n", encoding="utf-8")
+    executed: list[str] = []
+    many: list[tuple] = []
+    counts = iter([0, 2])
+
+    class FakeCursor:
+        def execute(self, sql, params=None):
+            if sql.startswith("LOAD DATA LOCAL INFILE"):
+                raise Exception(
+                    (3948, "Loading local data is disabled; this must be enabled "
+                     "on both the client and server sides")
+                )
+            executed.append(sql)
+            if sql.startswith("SELECT COUNT(*)"):
+                self._row = {"cnt": next(counts)}
+
+        def executemany(self, sql, seq):
+            many.append((sql, list(seq)))
+
+        def fetchone(self):
+            return getattr(self, "_row", None)
+
+    n = copy_csv_file(
+        FakeCursor(),
+        database_type="mysql",
+        target_sql="demo",
+        csv_path=csv_path,
+        type_by_name={"id": "varchar", "close": "float", "note": "varchar"},
+        quote=lambda name: f"`{name}`",
+    )
+    assert n == 2
+    assert many
+    assert "INSERT INTO `ntq_csv_import`" in many[0][0]
+    assert len(many[0][1]) == 2
+    assert "INSERT INTO demo" in "\n".join(executed)

@@ -1,25 +1,47 @@
 import React, { useCallback, useMemo } from 'react';
-import { Box, Button, LinearProgress, Typography } from '@mui/material';
+import { Box, Button, LinearProgress, Tooltip, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
-import VersionPinToggle from 'components/versionPickLabel/versionPinToggle';
-import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
-import { STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
+import {
+  STRATEGY_DESIGN_RUN_STEP_KEYS,
+  STRATEGY_DESIGN_STEPS,
+} from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from '../../strategyWorkbenchPage/panels/strategyExecutionPanel/executionSectionMeta';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 import StrategyDesignSimulateButton from './strategyDesignSimulateButton';
 import './strategyDesignExecutionPanel.scss';
 
+const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
+
 function resolveExecutionStatusCopy({
   activeStep,
   stepStatus,
   executionBusy,
+  attributeBusy,
   runningStep,
   stepProgress,
   progressDetail,
+  attributeProgressDetail,
+  attributeProgressPct,
 }) {
   const step = STRATEGY_DESIGN_STEPS.find((item) => item.key === activeStep);
   const stepLabel = step?.label || activeStep;
+
+  if (attributeBusy) {
+    const detailText = [
+      attributeProgressDetail?.label,
+      attributeProgressDetail?.stageLabel,
+      attributeProgressDetail?.counterText,
+    ].filter(Boolean).join(' · ');
+    const pct = Math.min(100, Math.max(0, Math.round(Number(attributeProgressPct ?? 0))));
+    return {
+      primary: `正在归因「${stepLabel}」`,
+      secondary: detailText || (pct > 0 ? `进度 ${pct}%` : '准备中…'),
+      showProgress: true,
+      progress: pct,
+    };
+  }
+
   const status = stepStatus?.[activeStep] || 'idle';
   const pct = Math.min(100, Math.max(0, Math.round(Number(stepProgress?.[activeStep] ?? 0))));
   const isRunning = executionBusy
@@ -75,18 +97,26 @@ function StrategyDesignExecutionPanel() {
   }, [wb.activeStep]);
 
   const currentStepDone = wb.stepStatus?.[wb.activeStep] === 'done';
+  const attributeDone = Boolean(wb.attributeLastGroupId || wb.attributeReport);
+  const panelBusy = Boolean(wb.panelBusy);
 
   const statusCopy = useMemo(
     () => resolveExecutionStatusCopy({
       activeStep: wb.activeStep,
       stepStatus: wb.stepStatus,
       executionBusy: wb.executionBusy,
+      attributeBusy: wb.attributeBusy,
       runningStep: wb.runningStep,
       stepProgress: wb.stepProgress,
       progressDetail: wb.progressDetail,
+      attributeProgressDetail: wb.attributeProgressDetail,
+      attributeProgressPct: wb.attributeProgressPct,
     }),
     [
       wb.activeStep,
+      wb.attributeBusy,
+      wb.attributeProgressDetail,
+      wb.attributeProgressPct,
       wb.executionBusy,
       wb.progressDetail,
       wb.runningStep,
@@ -96,14 +126,14 @@ function StrategyDesignExecutionPanel() {
   );
 
   const handleGoPrevStep = useCallback(() => {
-    if (!prevStep || !wb.strategyName || wb.executionBusy) return;
+    if (!prevStep || !wb.strategyName || panelBusy) return;
     navigate(getStrategyDesignPath(wb.strategyName, prevStep.key), { state: location.state });
-  }, [location.state, navigate, prevStep, wb.executionBusy, wb.strategyName]);
+  }, [location.state, navigate, panelBusy, prevStep, wb.strategyName]);
 
   const handleGoNextStep = useCallback(() => {
-    if (!nextStep || !wb.strategyName || !currentStepDone) return;
+    if (!nextStep || !wb.strategyName || !currentStepDone || panelBusy) return;
     navigate(getStrategyDesignPath(wb.strategyName, nextStep.key), { state: location.state });
-  }, [currentStepDone, location.state, navigate, nextStep, wb.strategyName]);
+  }, [currentStepDone, location.state, navigate, nextStep, panelBusy, wb.strategyName]);
 
   const panelTitle = useMemo(() => {
     const step = STRATEGY_DESIGN_STEPS.find((item) => item.key === wb.activeStep);
@@ -111,8 +141,29 @@ function StrategyDesignExecutionPanel() {
     return stepTitle ? `${EXECUTION_PANEL_TITLE} - ${stepTitle}` : EXECUTION_PANEL_TITLE;
   }, [wb.activeStep]);
 
-  const currentVersion = lookupVersionById(wb.configVersions, wb.currentVersionDisplay);
-  const showPinToggle = Boolean(wb.hasPersistedSnapshot && String(wb.currentVersionDisplay || '').startsWith('v'));
+  const showAttributeButton = STRATEGY_DESIGN_RUN_STEP_KEYS.has(wb.activeStep);
+  const attributeHowTo = !wb.attributeEnabled
+    ? (wb.attributeTooltip || ATTRIBUTE_IDLE_TOOLTIP)
+    : '';
+  const attributeButton = showAttributeButton ? (
+    <StrategyDesignSimulateButton
+      done={attributeDone}
+      disabled={wb.disableMetaActions || panelBusy || !wb.attributeEnabled}
+      onClick={wb.handleAttributeRun}
+      runLabel="开始归因"
+      rerunLabel="重新归因"
+      compact
+      helpTarget="start-attribution"
+    />
+  ) : null;
+
+  const attributeControl = attributeButton && attributeHowTo ? (
+    <Tooltip title={attributeHowTo} placement="top">
+      <span className="ntq-design-exec-panel__attr-tip-wrap">
+        {attributeButton}
+      </span>
+    </Tooltip>
+  ) : attributeButton;
 
   return (
     <Box className="ntq-design-exec-panel" data-ntq-help="design-execution">
@@ -120,21 +171,6 @@ function StrategyDesignExecutionPanel() {
         <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
           {panelTitle}
         </Typography>
-        {showPinToggle ? (
-          <Box data-ntq-help="strategy-version-pin">
-            <VersionPinToggle
-              version={{
-                ...currentVersion,
-                id: wb.currentVersionDisplay,
-                pinned: wb.currentVersionPinned,
-              }}
-              versions={wb.configVersions}
-              disabled={wb.disablePinActions}
-              onToggle={wb.toggleVersionPinned}
-              showLabel
-            />
-          </Box>
-        ) : null}
       </Box>
 
       {wb.runError ? (
@@ -142,23 +178,29 @@ function StrategyDesignExecutionPanel() {
           {wb.runError}
         </Typography>
       ) : null}
+      {wb.attrError ? (
+        <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">
+          {wb.attrError}
+        </Typography>
+      ) : null}
 
       <Box className="ntq-design-exec-panel__body">
         <Box className="ntq-design-exec-panel__actions">
           <StrategyDesignSimulateButton
             done={currentStepDone}
-            disabled={wb.disableMetaActions || wb.executionBusy}
+            disabled={wb.disableMetaActions || panelBusy}
             onClick={wb.handleRunCurrentStep}
             compact
             helpTarget="start-simulation"
           />
+          {attributeControl}
           {prevStep ? (
             <Button
               type="button"
               variant="outlined"
               size="small"
               className="ntq-design-exec-panel__step-nav-btn"
-              disabled={wb.disableMetaActions || wb.executionBusy}
+              disabled={wb.disableMetaActions || panelBusy}
               onClick={handleGoPrevStep}
             >
               上一步
@@ -170,7 +212,7 @@ function StrategyDesignExecutionPanel() {
               variant="outlined"
               size="small"
               className="ntq-design-exec-panel__step-nav-btn"
-              disabled={!currentStepDone}
+              disabled={!currentStepDone || panelBusy}
               onClick={handleGoNextStep}
             >
               下一步

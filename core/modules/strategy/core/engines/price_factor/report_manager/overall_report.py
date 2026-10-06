@@ -201,7 +201,7 @@ class OverallReport:
 
     strategy_key: str = ""
     strategy_path: str = ""
-    version_id: int = 0
+    version_id: Any = 0
     enum_version_id: str = ""
     backtest_period: Dict[str, str] = field(default_factory=dict)
     summary: OverallSummary = field(default_factory=OverallSummary)
@@ -226,7 +226,7 @@ class OverallReport:
         *,
         entity_ids: Optional[List[str]] = None,
         strategy_key: str = "",
-        version_id: int = 0,
+        version_id: Any = 0,
     ) -> "OverallReport":
         scan = PriceCsvScan.collect(
             output_dir,
@@ -249,17 +249,15 @@ class OverallReport:
         s = self.summary
         period = self.backtest_period or {}
 
-        CmdLayout.title.print_banner(f"{icon('line_chart')} 价格回测报告", stream=out)
+        CmdLayout.title.print_h1(f"{icon('line_chart')} 价格回测报告", stream=out)
         print(
             f"{icon('gear')} {self.strategy_key} v{self.version_id}  "
             f"{icon('calendar')} {period.get('start_date', '')}~{period.get('end_date', '')}",
             file=out,
             flush=True,
         )
-        print(f"   path={self.strategy_path or '-'}", file=out, flush=True)
-
-        CmdLayout.separator.print_line(width=60, stream=out)
-        CmdLayout.title.print_section(f"{icon('target')} 回测总体", stream=out)
+        CmdLayout.text.print_indent(f"path={self.strategy_path or '-'}", stream=out)
+        CmdLayout.title.print_h2(f"{icon('target')} 回测总体", stream=out)
         wr_icon = icon("success") if s.win_rate >= 50.0 else icon("warning")
         roi_icon = icon("line_chart") if s.avg_roi >= 0 else icon("downward_trend")
         print(
@@ -271,15 +269,20 @@ class OverallReport:
             flush=True,
         )
 
-        CmdLayout.title.print_section(f"{icon('search')} 样本与覆盖", stream=out)
-        print(
-            f"投资 {s.total_investments} · 有仓股票 {s.stocks_have_opportunities} · "
-            f"均每股 {s.avg_investments_per_stock:.2f} · 未平 {s.total_open_investments}",
-            file=out,
-            flush=True,
+        CmdLayout.title.print_h2(f"{icon('search')} 样本与覆盖", stream=out)
+        CmdLayout.text.print_indent(
+            CmdLayout.text.meta(
+                [
+                    f"投资 {s.total_investments}",
+                    f"有仓股票 {s.stocks_have_opportunities}",
+                    f"均每股 {s.avg_investments_per_stock:.2f}",
+                    f"未平 {s.total_open_investments}",
+                ]
+            ),
+            stream=out,
         )
 
-        CmdLayout.title.print_section(f"{icon('bar_chart')} 盈亏结构", stream=out)
+        CmdLayout.title.print_h2(f"{icon('bar_chart')} 盈亏结构", stream=out)
         if s.total_win_investments or s.total_loss_investments:
             CmdLayout.bar_chart.print(
                 [("win", s.total_win_investments), ("loss", s.total_loss_investments)],
@@ -294,7 +297,7 @@ class OverallReport:
         )
 
         skips = s.skips
-        CmdLayout.title.print_section(f"{icon('warning')} 成交跳过", stream=out)
+        CmdLayout.title.print_h2(f"{icon('warning')} 成交跳过", stream=out)
         print(
             f"涨停无法买 {skips.skipped_buy_at_limit_up} · "
             f"跌停无法卖 {skips.skipped_sell_at_limit_down} · "
@@ -305,27 +308,30 @@ class OverallReport:
 
         roi = s.roi
         if roi.roi_percentile_values:
-            CmdLayout.title.print_section(f"{icon('chart')} ROI 分布", stream=out)
-            print(
-                f"样本 {roi.roi_distribution_sample_count} · "
-                f"强平剔除 {roi.roi_truncated_exit_count} · "
-                f"SD {roi.roi_std_pct}% · {roi.roi_conclusion or '—'}",
-                file=out,
-                flush=True,
+            CmdLayout.title.print_h2(f"{icon('chart')} ROI 分布", stream=out)
+            CmdLayout.text.print_indent(
+                CmdLayout.text.meta(
+                    [
+                        f"样本 {roi.roi_distribution_sample_count}",
+                        f"强平剔除 {roi.roi_truncated_exit_count}",
+                        f"SD {roi.roi_std_pct}%",
+                        roi.roi_conclusion or "—",
+                    ]
+                ),
+                stream=out,
             )
-            # 分位可为负；BarChart 会钳成 0，且占比列对分位无意义 → 直接打印带符号数值
-            print(f"{icon('chart')} ROI 分位", file=out, flush=True)
+            # 分位可为负；BarChart 会钳成 0，且占比列对分位无意义 → 用 table 打带符号数值
+            CmdLayout.title.print_h3(f"{icon('chart')} ROI 分位", stream=out)
             labels = list(roi.roi_percentile_labels or [])
             values = list(roi.roi_percentile_values or [])
-            label_w = max((len(str(lb)) for lb in labels), default=6)
-            label_w = max(label_w, len("分位"))
-            print(f"  {'分位':<{label_w}}      ROI", file=out, flush=True)
-            for label, value in zip(labels, values):
-                print(
-                    f"  {str(label):<{label_w}}  {float(value):+7.2f}%",
-                    file=out,
-                    flush=True,
-                )
+            CmdLayout.table.print(
+                ["分位", "ROI"],
+                [
+                    [str(label), f"{float(value):+.2f}%"]
+                    for label, value in zip(labels, values)
+                ],
+                stream=out,
+            )
             if roi.roi_bucket_labels and roi.roi_bucket_counts:
                 CmdLayout.bar_chart.print(
                     list(zip(roi.roi_bucket_labels, roi.roi_bucket_counts)),
@@ -410,7 +416,7 @@ class OverallReport:
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
             strategy_path=str(data.get("strategy_path") or ""),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             enum_version_id=str(data.get("enum_version_id") or ""),
             backtest_period=dict(data.get("backtest_period") or {}),
             summary=OverallSummary.from_dict(summary_raw),

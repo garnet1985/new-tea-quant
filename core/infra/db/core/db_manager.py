@@ -63,6 +63,11 @@ class DatabaseManager:
         logger.debug(f"{i('success')} DatabaseManager 已设置为默认实例")
 
     @classmethod
+    def peek_default(cls) -> Optional["DatabaseManager"]:
+        """已挂上的默认实例。没有则返回 None，不自动创建。"""
+        return cls._default_instance
+
+    @classmethod
     def get_default(cls, auto_init: bool = True) -> "DatabaseManager":
         if cls._default_instance is None:
             if auto_init and cls._auto_init_enabled:

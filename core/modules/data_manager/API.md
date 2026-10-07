@@ -86,6 +86,13 @@
 - **状态：** `beta`
 - **描述：** DuckDB pool resume 后把本实例挂回进程单例（供 infra duck-type 调用）
 
+### bind_prepared_database
+
+`DataManager.bind_prepared_database(db, *, is_verbose=False) -> DataManager`（classmethod）
+
+- **状态：** `beta`
+- **描述：** 用已经连好的 `DatabaseManager` 建本进程门面并挂成单例。不建表、不等待主进程 DuckDB、不同步指数列表。回测 worker 只读连接走这里，不走 `initialize`。
+
 ### 领域服务（属性）
 
 | 属性 | 说明 |

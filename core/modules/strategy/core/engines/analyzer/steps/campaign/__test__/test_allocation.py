@@ -191,6 +191,33 @@ def test_opportunity_selection_axis_is_portfolio_only() -> None:
     }
 
 
+def test_allocation_range_expands_before_checks() -> None:
+    cfg = AttributionConfig.to_usable(
+        {
+            "allocation": {
+                "max_portfolio_size": {"values": {"range": [4, 8], "step": 2}},
+            }
+        },
+        layer="portfolio",
+    )
+    assert cfg.allocation_axes()["portfolio.allocation.max_portfolio_size"] == (
+        4,
+        6,
+        8,
+    )
+    with pytest.raises(ValueError, match="网格"):
+        AttributionConfig.to_usable(
+            {
+                "allocation": {
+                    "max_portfolio_size": {
+                        "values": {"range": [4, 7], "step": 2}
+                    },
+                }
+            },
+            layer="portfolio",
+        )
+
+
 def test_unknown_axis_and_bad_mode_fail() -> None:
     with pytest.raises(ValueError, match="未知资金分配轴"):
         AttributionConfig.to_usable(

@@ -173,7 +173,7 @@ attribution = {
 规则摘要：
 
 - 参数战役只认 `inputs`（顶层或各层块）、可选 `cross`、可选 `joint_sweep`。**不认** `overlays`、`matrix`。
-- 每个轴的取值声明**只有** `{"values": [...]}` 一种形式。
+- 每个轴的取值可以是 `{"values": [...]}`，也可以是 `{"values": {"range": [start, end], "step": n}}`。`range` 两端包含且须升序，`step` 为正，终点必须落在步长上；读配置时展开成列表。`None`、结构体和不均匀档位仍用列表。
 - `cross` 默认 `false`（单因素多档）。`true` 时对**合并后的**各轴做笛卡尔积（一般不推荐）。
 - `joint_sweep` 为轴子集小矩阵；优先于「全轴 cross」用于交互排查。
 - `shap`：价格层单笔 XGB+SHAP 附录，**默认 `false`**；需要时写 `shap: true`。

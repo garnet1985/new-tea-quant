@@ -15,7 +15,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
     ValidationReport,
 )
 
-from .inputs import value_at
+from .inputs import expand_declared_values, value_at
 
 _MODES = ("equal_shares", "equal_capital", "kelly")
 
@@ -79,12 +79,17 @@ def validate_allocation(raw: Mapping[str, Any], report: ValidationReport) -> Non
                 ),
             )
             continue
-        values = _read_values(spec)
+        try:
+            values = _read_values(spec, label=f"allocation.{name}.values")
+        except ValueError as exc:
+            SettingsBase.add_critical(report, f"allocation.{name}", str(exc))
+            continue
         if values is None:
             SettingsBase.add_critical(
                 report,
                 f"allocation.{name}",
-                "须为 {\"values\": [...]}，且 values 非空",
+                "须为 {\"values\": [...]} 或 "
+                "{\"values\": {\"range\": [start, end], \"step\": n}}，且展开后非空",
             )
             continue
         _check_values(report, name, values)
@@ -113,7 +118,7 @@ def resolve_allocation_axes(
             path = name
         if path is None:
             continue
-        values = _read_values(spec)
+        values = _read_values(spec, label=f"allocation.{name}.values")
         if not values:
             continue
         out[path] = tuple(values)
@@ -225,11 +230,14 @@ def _lots_ladder(cur: Any) -> List[Any]:
     return _unique([1, base, max(base * 2, 2)])
 
 
-def _read_values(spec: Any) -> Optional[List[Any]]:
+def _read_values(spec: Any, *, label: str) -> Optional[List[Any]]:
     if isinstance(spec, Mapping):
         values = spec.get("values")
     else:
         values = None
+    if isinstance(values, Mapping):
+        expanded = expand_declared_values(values, label=label)
+        return expanded or None
     if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
         return None
     if not values:

@@ -8,6 +8,7 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.config.inputs import (
     expand_axes,
+    expand_declared_values,
     parse_axes,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.contrasts import (
@@ -332,3 +333,56 @@ def test_goal_scalar_shorthand() -> None:
             ratios.append(stages[0].get("ratio") if stages else None)
     assert None in ratios
     assert -0.15 in ratios
+
+
+def test_range_expands_inclusive_integers() -> None:
+    assert expand_declared_values(
+        {"range": [1, 3], "step": 1}, label="values"
+    ) == [1, 2, 3]
+    axes = parse_axes(
+        "enumerate",
+        {"rsi_oversold_threshold": {"values": {"range": [20, 30], "step": 5}}},
+        snapshot=_snapshot().raw_settings,
+    )
+    assert axes == [("core.rsi_oversold_threshold", (20, 25, 30))]
+
+
+def test_range_keeps_float_grid_and_rejects_miss() -> None:
+    assert expand_declared_values(
+        {"range": [-0.25, -0.10], "step": 0.05}, label="values"
+    ) == [-0.25, -0.2, -0.15, -0.1]
+    with pytest.raises(ValueError, match="网格"):
+        expand_declared_values(
+            {"range": [0, 1], "step": 0.3}, label="values"
+        )
+    with pytest.raises(ValueError, match="升序"):
+        expand_declared_values(
+            {"range": [3, 1], "step": 1}, label="values"
+        )
+    with pytest.raises(ValueError, match="正数"):
+        expand_declared_values(
+            {"range": [1, 3], "step": 0}, label="values"
+        )
+
+
+def test_range_matches_the_same_list_across_blocks() -> None:
+    cfg = AttributionConfig.to_usable(
+        {
+            "inputs": {
+                "rsi_oversold_threshold": {"values": [20, 25, 30]},
+            },
+            "enumerate": {
+                "inputs": {
+                    "rsi_oversold_threshold": {
+                        "values": {"range": [20, 30], "step": 5}
+                    },
+                }
+            },
+        },
+        layer="enumerate",
+    )
+    assert cfg.campaign_inputs["core.rsi_oversold_threshold"]["values"] == [
+        20,
+        25,
+        30,
+    ]

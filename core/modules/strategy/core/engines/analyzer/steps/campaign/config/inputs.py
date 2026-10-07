@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import itertools
+from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.execute_fp_whitelist import (
@@ -121,6 +122,83 @@ def normalize_goal_value(
     return wrapped
 
 
+def expand_declared_values(values: Any, *, label: str) -> List[Any]:
+    """把 values 列表或 ``{range, step}`` 展开成取值列表。"""
+    if isinstance(values, Mapping):
+        return _expand_range(values, label=label)
+    if isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+        return list(values)
+    raise ValueError(
+        f"{label} 须为非空 list，或 {{'range': [start, end], 'step': n}}"
+    )
+
+
+def _canonical_axis_spec(spec: Any) -> Any:
+    """能展开时把 values 收成列表，便于列表和 range 对照是否同一组取值。"""
+    if not isinstance(spec, Mapping):
+        return spec
+    try:
+        values = expand_declared_values(spec.get("values"), label="values")
+    except ValueError:
+        return spec
+    stored = dict(spec)
+    stored["values"] = values
+    return stored
+
+
+def _expand_range(spec: Mapping[str, Any], *, label: str) -> List[Any]:
+    extra = set(spec) - {"range", "step"}
+    if extra:
+        raise ValueError(f"{label} 只能含 range 和 step，不能写 {sorted(extra)}")
+    if "range" not in spec or "step" not in spec:
+        raise ValueError(f"{label} 须同时写 range 和 step")
+    span = spec.get("range")
+    if (
+        not isinstance(span, Sequence)
+        or isinstance(span, (str, bytes))
+        or len(span) != 2
+    ):
+        raise ValueError(f"{label}.range 须为 [start, end]")
+    start_raw, end_raw = span[0], span[1]
+    step_raw = spec.get("step")
+    start = _as_decimal(start_raw, f"{label}.range[0]")
+    end = _as_decimal(end_raw, f"{label}.range[1]")
+    step = _as_decimal(step_raw, f"{label}.step")
+    if step <= 0:
+        raise ValueError(f"{label}.step 须为正数，收到 {step_raw!r}")
+    if end < start:
+        raise ValueError(f"{label}.range 须升序，收到 [{start_raw!r}, {end_raw!r}]")
+    steps = (end - start) / step
+    if steps != steps.to_integral_value():
+        raise ValueError(
+            f"{label} 的终点 {end_raw!r} 不在 step {step_raw!r} 的网格上"
+        )
+    count = int(steps) + 1
+    if count > MAX_CELLS:
+        raise ValueError(f"{label} 展开为 {count} 个取值，超过上限 {MAX_CELLS}")
+    as_int = _is_int(start_raw) and _is_int(end_raw) and _is_int(step_raw)
+    out: List[Any] = []
+    for index in range(count):
+        number = start + step * index
+        if as_int or number == number.to_integral_value():
+            out.append(int(number))
+        else:
+            out.append(float(number))
+    return out
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _as_decimal(value: Any, label: str) -> Decimal:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} 须为数字，收到 {value!r}")
+    if isinstance(value, int):
+        return Decimal(value)
+    return Decimal(str(value))
+
+
 def parse_axes(
     layer: str,
     inputs: Mapping[str, Any],
@@ -144,9 +222,9 @@ def parse_axes(
             raise ValueError(
                 f"inputs.{raw_key} 只能含 values，不能写 {sorted(extra)}"
             )
-        values = spec.get("values")
-        if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
-            raise ValueError(f"inputs.{raw_key}.values 须为非空 list")
+        values = expand_declared_values(
+            spec.get("values"), label=f"inputs.{raw_key}.values"
+        )
         if not values:
             raise ValueError(f"inputs.{raw_key}.values 不能为空")
         if normalize:
@@ -275,11 +353,12 @@ def _merge_input_block(
 ) -> None:
     for raw_key, spec in block.items():
         path = resolve_path(str(raw_key), layer=layer)
-        if path in merged and merged[path] != spec:
+        stored = _canonical_axis_spec(spec)
+        if path in merged and merged[path] != stored:
             raise ValueError(
                 f"inputs 路径 {path} 在多处声明且 values 不一致"
             )
-        merged[path] = spec
+        merged[path] = stored
 
 
 def expand_axes(
@@ -487,10 +566,10 @@ def merge_user_and_defaults(
             path = resolve_path(str(raw_key), layer=layer)
             if not isinstance(spec, Mapping):
                 continue
-            values = spec.get("values")
-            if not isinstance(values, Sequence) or isinstance(
-                values, (str, bytes)
-            ):
+            values = expand_declared_values(
+                spec.get("values"), label=f"inputs.{raw_key}.values"
+            )
+            if not values:
                 continue
             if path in _GOAL_STRUCT_PATHS and goal_path_is_hook(snapshot, path):
                 if any(
@@ -697,6 +776,7 @@ __all__ = [
     "default_axes_shared",
     "estimate_bars_cost",
     "expand_axes",
+    "expand_declared_values",
     "expand_joint_groups",
     "goal_path_is_hook",
     "joint_cell_count",

@@ -47,6 +47,7 @@ class AttributionGroupStore:
         env_fp: str,
         parent_version_id: str = "",
     ) -> str:
+        """按环境和策略版本取得或分配组号。"""
         root = Path(attribution_root)
         root.mkdir(parents=True, exist_ok=True)
         fp = str(env_fp or "").strip()

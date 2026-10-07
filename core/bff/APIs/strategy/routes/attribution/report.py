@@ -1,4 +1,4 @@
-"""Load persisted attribution campaign reports (A1-04)."""
+"""读取已落盘的归因战役报告。"""
 
 from __future__ import annotations
 
@@ -24,6 +24,8 @@ _TASK_BY_STEP = {
 
 
 class AttributeReportReader:
+    """按策略、层和组号组装报告响应。"""
+
     @classmethod
     def build(
         cls,
@@ -32,6 +34,7 @@ class AttributeReportReader:
         normalized_step: str,
         group_id: str,
     ) -> Dict[str, Any]:
+        """读取一组战役的报告、表和元数据。"""
         gid = str(group_id or "").strip()
         if not gid.isdigit():
             raise ValueError("group_id 无效")

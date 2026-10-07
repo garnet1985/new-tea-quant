@@ -40,6 +40,7 @@ class GatherStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[GatherBase]:
+        """按层返回收集类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioGather)
 
     @classmethod
@@ -51,6 +52,7 @@ class GatherStep:
         *,
         layer: str = "",
     ) -> Dict[str, Any]:
+        """把该层已执行格子收成表。"""
         focus = layer
         if not focus and tasks:
             focus = str(getattr(tasks[0].kind, "value", tasks[0].kind) or "")

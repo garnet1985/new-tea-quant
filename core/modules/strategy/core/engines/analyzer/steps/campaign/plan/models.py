@@ -25,6 +25,7 @@ class AttributionCell:
 
     @property
     def is_select(self) -> bool:
+        """这一格是否只选已有版本。"""
         return self.version_id is not None
 
 
@@ -37,6 +38,7 @@ class ParameterPlan:
     cost_warning: str = ""
 
     def families(self) -> List[Tuple[str, List[AttributionCell]]]:
+        """按家族列出格子。"""
         out: List[Tuple[str, List[AttributionCell]]] = []
         if self.selected:
             out.append(("select", list(self.selected)))
@@ -46,11 +48,13 @@ class ParameterPlan:
         return out
 
     def execute_source_cells(self) -> List[AttributionCell]:
+        """返回真正要执行的格子。"""
         if self.selected:
             return list(self.selected)
         return list(self.cells)
 
     def listed_cells(self) -> List[AttributionCell]:
+        """返回计划里列出的全部格子。"""
         return list(self.execute_source_cells())
 
 
@@ -99,5 +103,6 @@ class AttributionTask:
         *,
         kind: SimulateKind,
     ) -> List["AttributionTask"]:
+        """由格子生成执行任务。"""
         steps = simulate_steps_for_kind(kind)
         return [cls(cell=cell, kind=kind, steps=steps) for cell in cells]

@@ -39,6 +39,7 @@ class PersistStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[PersistBase]:
+        """按层返回落盘类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioPersist)
 
     @classmethod
@@ -53,6 +54,7 @@ class PersistStep:
         task_kind: str = "",
         layer: str = "",
     ) -> Dict[str, Any]:
+        """把该层报告写入归因目录。"""
         focus = layer or str(report.get("layer") or report.get("kind") or "")
         return cls.for_layer(focus).run(
             folder,

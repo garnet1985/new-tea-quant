@@ -35,6 +35,7 @@ class ReportBase:
         summarized: Dict[str, Any],
         family: str = "",
     ) -> Dict[str, Any]:
+        """组装本层战役报告。"""
         by_index = {
             int(row["index"]): row
             for row in executed.get("cells") or []
@@ -103,6 +104,7 @@ class ReportBase:
         *,
         trades: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
+        """把各家族结果合成一份报告。"""
         items = [
             (name, dict(block))
             for name, block in families.items()

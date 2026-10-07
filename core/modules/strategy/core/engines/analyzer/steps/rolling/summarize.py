@@ -20,6 +20,7 @@ class RollingSummarizeStep:
 
     @classmethod
     def run(cls, gathered: Mapping[str, Any]) -> Dict[str, Any]:
+        """按窗口排序并写出相对差分。"""
         rows = [
             row
             for row in gathered.get("rows") or []

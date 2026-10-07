@@ -24,6 +24,7 @@ class SummarizeStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[SummarizeBase]:
+        """按层返回总结类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioSummarize)
 
     @classmethod
@@ -37,6 +38,7 @@ class SummarizeStep:
         executed: Optional[Mapping[str, Any]] = None,
         joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
+        """生成本层总结。"""
         return cls.for_layer(layer).run(
             attributed,
             layer=layer,

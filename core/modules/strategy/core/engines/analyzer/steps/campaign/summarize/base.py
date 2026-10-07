@@ -35,6 +35,7 @@ class SummarizeBase:
         executed: Optional[Mapping[str, Any]] = None,
         joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
+        """生成本层总结。"""
         del folder, gathered, executed  # 子类（如枚举）可选用
         focus = str(layer or cls.LAYER or "").strip()
         return {

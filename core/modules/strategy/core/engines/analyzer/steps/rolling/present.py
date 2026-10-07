@@ -19,6 +19,7 @@ class RollingPresenter:
 
     @classmethod
     def load(cls, report: Union[Mapping[str, Any], str, Path]) -> "RollingPresenter":
+        """从字典或已落盘目录载入展示器。"""
         if isinstance(report, Mapping):
             return cls(report)
         path = Path(report)
@@ -30,6 +31,7 @@ class RollingPresenter:
         return cls(payload)
 
     def present(self, stream: Optional[TextIO] = None) -> None:
+        """把滚动窗口表打到终端。"""
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         report = self._report

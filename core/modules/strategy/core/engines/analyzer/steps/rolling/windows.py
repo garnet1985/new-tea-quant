@@ -25,6 +25,7 @@ class WindowExpander:
         folder: Path,
         config: RollingSettings,
     ) -> List[AttributionCell]:
+        """读策略目录并按窗口展开格子。"""
         disk = load_settings_dict_from_folder(folder)
         snapshot = StrategySettings.to_usable(dict(disk))
         return cls.expand(snapshot, config)
@@ -35,6 +36,7 @@ class WindowExpander:
         snapshot: StrategySettings,
         config: RollingSettings,
     ) -> List[AttributionCell]:
+        """把每个窗口收成一格覆盖。"""
         return [
             cls._from_window(i, snapshot, window)
             for i, window in enumerate(config.windows)

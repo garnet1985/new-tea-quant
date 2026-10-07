@@ -22,15 +22,17 @@ class PriceSource:
 
     def __init__(self, store: ArtifactStore) -> None:
         if not isinstance(store, PriceFactorStore):
-            raise TypeError("PriceSource requires PriceFactorStore")
+            raise TypeError("PriceSource 需要价格层产物")
         self.store = store
         self._runtime_raw = store.read_json("runtime_env")
 
     @classmethod
     def load(cls, store: ArtifactStore) -> Dict[str, Any]:
+        """从价格层产物读出单笔样本。"""
         return cls(store).build()
 
     def build(self) -> Dict[str, Any]:
+        """组装单笔样本。"""
         enum_store = self._open_upstream_enum_store()
         return {"entities": self._collect_entities(self.store, enum_store)}
 

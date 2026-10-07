@@ -41,6 +41,7 @@ class AttributionPlan:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributionPlanBase]:
+        """按层返回计划类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioAttributionPlan)
 
     @classmethod
@@ -51,6 +52,7 @@ class AttributionPlan:
         *,
         layer: str = "",
     ) -> ParameterPlan:
+        """读策略目录里的当前设置并展开成计划。"""
         return cls.for_layer(layer or config.layer).plan_from_folder(folder, config)
 
     @classmethod
@@ -61,14 +63,17 @@ class AttributionPlan:
         *,
         layer: str = "",
     ) -> List[AttributionCell]:
+        """读策略目录里的当前设置并返回格子。"""
         return cls.for_layer(layer or config.layer).expand_from_folder(folder, config)
 
     @classmethod
     def plan(cls, snapshot, config: AttributionConfigBase, *, layer: str = ""):
+        """把当前设置展开成计划。"""
         return cls.for_layer(layer or config.layer).plan(snapshot, config)
 
     @classmethod
     def expand(cls, snapshot, config: AttributionConfigBase, *, layer: str = ""):
+        """把当前设置展开成格子。"""
         return cls.for_layer(layer or config.layer).expand(snapshot, config)
 
 

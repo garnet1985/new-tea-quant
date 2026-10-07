@@ -1,8 +1,4 @@
-"""overlay 声明的位置：在 effective 上读值，区分有/无与取值变化。
-
-省略 overlay 键 = 继承快照。写成 None = 关掉这个位置。
-分类看有效值，不看 overlay 叶子 flatten（``goal.stop_loss: None`` 和 stages 路径对不上）。
-"""
+"""在有效设置上区分旋钮的有无和取值变化。写成 None 表示关掉，省略键表示继承快照。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence
@@ -16,18 +12,11 @@ _EQUAL_EPS = 1e-12
 
 
 class KnobContrasts:
-    """战役旋钮：声明位置、有效值、有/无 vs 取值变化。
-
-    哪一层收哪些旋钮由各层 AttributeStep 声明，不在这里按层过滤。
-    """
+    """读取旋钮的有效值，并区分关掉和改取值。不按层过滤。"""
 
     @classmethod
     def declared_positions(cls, overlay: Mapping[str, Any]) -> Dict[str, Any]:
-        """一格 overlay 动到的 effective 位置。
-
-        ``core`` 的每个 key 各算各的；``goal`` 的直接孩子（stop_loss / take_profit）整块替换。
-        其它块递归到标量 / None / list。
-        """
+        """展开一格 overlay 动到的有效位置。goal 的直接子键整块替换。"""
         out: Dict[str, Any] = {}
         if not isinstance(overlay, Mapping):
             return out
@@ -41,10 +30,12 @@ class KnobContrasts:
 
     @classmethod
     def declared_paths(cls, overlay: Mapping[str, Any]) -> List[str]:
+        """返回一格覆盖动到的路径。"""
         return list(cls.declared_positions(overlay).keys())
 
     @classmethod
     def value_at(cls, raw: Any, path: str) -> Any:
+        """读取点分路径上的值。"""
         cur = raw
         for part in str(path).split("."):
             if not isinstance(cur, Mapping) or part not in cur:
@@ -58,6 +49,7 @@ class KnobContrasts:
         source: Any,
         paths: Sequence[str],
     ) -> Dict[str, Any]:
+        """一次读取多条路径的有效值。"""
         if isinstance(source, StrategySettings):
             raw: Any = source.raw_settings
         elif isinstance(source, Mapping):
@@ -68,6 +60,7 @@ class KnobContrasts:
 
     @classmethod
     def union_paths(cls, overlays: Sequence[Mapping[str, Any]]) -> List[str]:
+        """合并多格覆盖动到的路径，保持首次出现顺序。"""
         paths: List[str] = []
         seen = set()
         for overlay in overlays:
@@ -82,10 +75,12 @@ class KnobContrasts:
 
     @classmethod
     def is_off(cls, value: Any) -> bool:
+        """该值是否表示关掉。"""
         return value is None
 
     @classmethod
     def scalar(cls, value: Any) -> Optional[float]:
+        """把旋钮值收成可比较的数。"""
         if value is None:
             return None
         number = Analysis.Classical.coerce_float(value)
@@ -103,6 +98,7 @@ class KnobContrasts:
 
     @classmethod
     def values_equal(cls, left: Any, right: Any) -> bool:
+        """两个旋钮值是否相同。"""
         left_n = cls.scalar(left)
         right_n = cls.scalar(right)
         if left_n is not None and right_n is not None:

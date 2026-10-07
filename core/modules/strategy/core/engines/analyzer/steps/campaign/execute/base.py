@@ -1,11 +1,4 @@
-"""每格 ``Strategy.simulate``；命中/补跑由回测层判断。
-
-归因只写主号下的副本 ``{vid}-{r}``；baseline 复用主号。
-任务 ``steps`` 含到本层为止的上游链（见 ``simulate_steps_for_kind``）：
-``sea`` 只枚举，``spa`` 枚举→价格，``soa`` 枚举→价格→组合；已有产物则 cache hit。
-``ignore_cache`` 只加在该格第一层，避免 -f 把后面刚写下的下游清掉。
-选号按 version_id 取已有主号产物，不补层。
-"""
+"""按格调用模拟。副本写在主版本下，基准格复用主版本。"""
 from __future__ import annotations
 
 import json
@@ -85,11 +78,7 @@ def _prefer_version_id(version_ids: Sequence[str]) -> str:
 
 
 class ExecuteBase:
-    """战役执行基类：inputs 展格 / 滚动交给 simulate；选号只读已有 version。
-
-    格子按 ``cell_identity`` 去重后再 simulate；
-    各家族再用 ``bind`` 领回自己的行。
-    """
+    """执行战役格子。相同执行身份先去重，各家族再领回自己的行。"""
 
     LAYER: ClassVar[str] = ""
     KIND: ClassVar[SimulateKind] = SimulateKind.PORTFOLIO
@@ -98,6 +87,7 @@ class ExecuteBase:
     def unique_tasks(
         cls, tasks: Sequence[AttributionTask]
     ) -> List[AttributionTask]:
+        """按执行身份去掉重复任务。"""
         seen: Dict[str, int] = {}
         unique: List[AttributionTask] = []
         next_index = 0
@@ -120,6 +110,7 @@ class ExecuteBase:
         unique_cells: Sequence[AttributionCell],
         family_cells: Sequence[AttributionCell],
     ) -> Dict[str, Any]:
+        """把去重后的结果领回各家族的行。"""
         by_key: Dict[str, Dict[str, Any]] = {}
         raws = [
             row for row in executed.get("cells") or [] if isinstance(row, dict)
@@ -170,6 +161,7 @@ class ExecuteBase:
         kind: Optional[SimulateKind] = None,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
+        """模拟本层格子。选号只读已有版本。"""
         layer = kind if isinstance(kind, SimulateKind) else cls.KIND
         strategy_info = cls._resolve_strategy_info(folder)
         if strategy_info is None:

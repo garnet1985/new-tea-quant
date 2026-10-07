@@ -1,7 +1,4 @@
-"""战役共用 ``inputs``：校验、短名解析、oaat / cross 展成 overlay 树。
-
-各层块 / 顶层 ``inputs`` 合并为同一套副本身份（见 ATTRIBUTION_CAMPAIGN §0）。
-"""
+"""战役共用 inputs：校验、短名解析，并展开成 overlay。"""
 from __future__ import annotations
 
 import copy
@@ -65,10 +62,12 @@ def resolve_path(key: str, layer: str = "") -> str:
 
 
 def root_section(path: str) -> str:
+    """返回路径的第一段。"""
     return str(path or "").split(".", 1)[0]
 
 
 def assign_path(tree: Dict[str, Any], path: str, value: Any) -> None:
+    """把值写到点分路径上。"""
     parts = [part for part in str(path).split(".") if part]
     if not parts:
         return
@@ -83,6 +82,7 @@ def assign_path(tree: Dict[str, Any], path: str, value: Any) -> None:
 
 
 def value_at(mapping: Mapping[str, Any], path: str) -> Any:
+    """读取点分路径上的值。"""
     cur: Any = mapping
     for part in str(path).split("."):
         if not part:
@@ -96,6 +96,7 @@ def value_at(mapping: Mapping[str, Any], path: str) -> Any:
 def normalize_goal_value(
     path: str, value: Any, snapshot: Mapping[str, Any]
 ) -> Any:
+    """把止盈止损的标量补成结构。"""
     if path not in _GOAL_STRUCT_PATHS:
         return value
     if value is None or isinstance(value, Mapping):
@@ -334,6 +335,7 @@ def joint_cell_count(
     axes: Sequence[Tuple[str, Tuple[Any, ...]]],
     groups: Sequence[Sequence[str]],
 ) -> int:
+    """估算联合扫描会展开多少格。"""
     by_path = {path: levels for path, levels in axes}
     total = 0
     for group in groups:
@@ -366,6 +368,7 @@ def expand_axes(
     *,
     cross: bool,
 ) -> Tuple[Dict[str, Any], ...]:
+    """把轴展开成覆盖。"""
     if not axes:
         return ()
     if cross:
@@ -390,6 +393,7 @@ def expand_axes(
 def cell_count(
     axes: Sequence[Tuple[str, Tuple[Any, ...]]], *, cross: bool
 ) -> int:
+    """估算展开后的格子数。"""
     if not axes:
         return 1
     if cross:
@@ -407,6 +411,7 @@ def validate_layer_inputs(
     *,
     field_prefix: str,
 ) -> None:
+    """校验一层的 inputs。"""
     if block is None:
         return
     if not isinstance(block, Mapping):
@@ -649,6 +654,7 @@ def estimate_bars_cost(
     pending_cells: int,
     snapshot: Mapping[str, Any],
 ) -> Tuple[int, int, int]:
+    """估算待跑格子的 K 线成本。"""
     n = max(int(pending_cells), 0)
     start, end = _period_bounds(snapshot)
     trading_days = max(_approx_trading_days(start, end), 1)
@@ -663,6 +669,7 @@ def cost_gate_message(
     *,
     cross: bool,
 ) -> Optional[str]:
+    """成本过高时返回提示，否则返回 None。"""
     n, per_run, cost = estimate_bars_cost(pending_cells, snapshot)
     if n > MAX_CELLS:
         return f"待跑 {n} 格超过上限 {MAX_CELLS}"

@@ -26,6 +26,7 @@ class AttributeBase:
 
     @classmethod
     def accepts_knob(cls, path: Any) -> bool:
+        """该路径是否属于本层要看的旋钮。"""
         text = str(path or "").strip()
         if not text:
             return False
@@ -39,6 +40,7 @@ class AttributeBase:
 
     @classmethod
     def filter_knobs(cls, paths: Sequence[Any]) -> List[str]:
+        """留下本层接受的旋钮路径。"""
         out: List[str] = []
         seen = set()
         for path in paths:
@@ -51,6 +53,7 @@ class AttributeBase:
 
     @classmethod
     def run(cls, gathered: Mapping[str, Any]) -> Dict[str, Any]:
+        """对本层已完成的格子做归因。"""
         rows = [
             row
             for row in gathered.get("rows") or []

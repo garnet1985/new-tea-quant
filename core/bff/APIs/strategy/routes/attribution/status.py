@@ -1,4 +1,4 @@
-"""Attribution button readiness (A1-00)."""
+"""归因按钮是否可点。"""
 
 from __future__ import annotations
 
@@ -64,14 +64,11 @@ def _readiness_tooltip(has_primary: bool, config_ok: bool, config_reason: str) -
 
 
 class AttributeStatus:
-    """Probe visible / enabled for the attribution button on a workbench step.
-
-    ``visible`` 仍表示本层主回测已完成（报告页签用）。
-    按钮本身始终渲染，是否可点看 ``enabled``（本层已跑过且 attribution 配置有效）。
-    """
+    """判断工作台归因按钮是否可点。visible 表示本层主回测已完成。"""
 
     @classmethod
     def probe(cls, strategy_name: str, norm_step: str) -> Dict[str, Any]:
+        """检查本层按钮是否可见、是否可点。"""
         name = str(strategy_name or "").strip()
         step = str(norm_step or "").strip()
         kind = WorkbenchStep.parse(step).to_simulate_kind()

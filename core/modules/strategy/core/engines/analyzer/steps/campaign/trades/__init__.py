@@ -35,6 +35,7 @@ class TradesStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[TradesBase]:
+        """按层返回单笔步骤类。"""
         return pick_layer(_BY_LAYER, layer, PriceTrades)
 
     @classmethod
@@ -46,6 +47,7 @@ class TradesStep:
         *,
         layer: str = "price_factor",
     ) -> Dict[str, Any]:
+        """铺平该层机会并做单笔模型。"""
         return cls.for_layer(layer).run(folder, unique_cells, executed)
 
     @classmethod
@@ -57,6 +59,7 @@ class TradesStep:
         knob_paths: Optional[Sequence[str]] = None,
         layer: str = "price_factor",
     ) -> Dict[str, Any]:
+        """用已有行做单笔模型。"""
         return cls.for_layer(layer).from_rows(
             rows, versions=versions, knob_paths=knob_paths
         )

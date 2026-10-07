@@ -38,6 +38,7 @@ class CampaignPresenter:
 
     @classmethod
     def load(cls, report: Union[Mapping[str, Any], str, Path]) -> "CampaignPresenter":
+        """从字典或已落盘目录载入展示器。"""
         if isinstance(report, Mapping):
             return cls(report)
         path = Path(report)
@@ -75,6 +76,7 @@ class CampaignPresenter:
         return cls(payload)
 
     def present(self, stream: Optional[TextIO] = None) -> None:
+        """把战役报告打到终端。"""
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         report = self._report

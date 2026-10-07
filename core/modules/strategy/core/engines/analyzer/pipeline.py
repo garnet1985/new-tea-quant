@@ -1,9 +1,4 @@
-"""战役编排：读 attribution.py → 展开格子 → 按层 simulate → 拼表 → 归因 → 总结 → 落盘。
-
-边界:
-- 负责: 步骤顺序；层由调用方选定（sea / spa / soa）
-- 不负责: overlay、settings 解析、单 version 切片
-"""
+"""按层编排归因：读配置、展开、模拟、汇总并落盘。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,15 +10,15 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
     ATTRIBUTION_FILE_NAME,
     AttributionConfig,
 )
-from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
-    AttributionPlan,
-    AttributionTask,
-)
 from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import ExecuteStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import GatherStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import (
     ROLLING_TASK_ID,
     PersistStep,
+)
+from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
+    AttributionPlan,
+    AttributionTask,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.report import CampaignReportStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import SummarizeStep
@@ -50,6 +45,7 @@ class AttributionPipeline:
         kind: Union[SimulateKind, str],
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
+        """按层跑完一场归因并返回报告。"""
         layer = (
             kind
             if isinstance(kind, SimulateKind)
@@ -165,6 +161,7 @@ class RollingPipeline:
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
+        """按声明窗口跑滚动验证并返回报告。"""
         folder = cls._resolve_folder(key_or_id)
         config = RollingSettings.load(folder)
         cells = WindowExpander.expand_from_folder(folder, config)

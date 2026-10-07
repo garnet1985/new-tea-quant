@@ -1,8 +1,4 @@
-"""把战役各格的价格层机会铺平，做单笔 XGB + SHAP。
-
-格子对照仍走按层 inputs 展格；这里只吃 unique version 的投资明细。
-spa 专用；其他层门面返回 skipped。
-"""
+"""把价格层机会铺成单笔特征，做 XGBoost 和 SHAP。只在价格层运行。"""
 from __future__ import annotations
 
 import logging
@@ -77,6 +73,7 @@ class TradesBase:
         unique_cells: Sequence[AttributionCell],
         executed: Mapping[str, Any],
     ) -> Dict[str, Any]:
+        """铺平价格层机会并做单笔模型。其他层跳过。"""
         if cls.LAYER != "price_factor":
             return {
                 "status": "skipped",
@@ -98,6 +95,7 @@ class TradesBase:
         versions: Optional[Sequence[str]] = None,
         knob_paths: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
+        """用已有行做单笔模型，不再读磁盘。"""
         n = len(rows)
         names, kinds = cls._feature_spec(rows, knob_paths or [])
         if len(names) < _MIN_FEATURES:

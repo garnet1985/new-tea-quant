@@ -1,7 +1,4 @@
-"""价格层战役总结（spa）：去噪后等权账能不能赚 / 是否普遍 / 出场结构。
-
-对照轴来自战役共用副本（core/goal/simulation）；不去噪规则本身当主问题。
-"""
+"""价格层总结：去噪后等权能不能赚、是否普遍、钱从哪种出场来。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence
@@ -9,8 +6,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from core.modules.strategy.core.enums import SimulateKind
 
 from ..labels import CampaignLabels
-from .base import SummarizeBase
 from . import value_ladders as ladders
+from .base import SummarizeBase
 from .bridge import upstream_bridge
 from .joint_sweeps import build_joint_heatmaps
 from .sweeps import build_parameter_sweeps
@@ -54,6 +51,8 @@ _SECTION_META = (
 
 
 class PriceSummarize(SummarizeBase):
+    """价格层总结：去噪后等权是否普遍能赚。"""
+
     LAYER = "price_factor"
     KIND = SimulateKind.PRICE_FACTOR
 
@@ -68,6 +67,7 @@ class PriceSummarize(SummarizeBase):
         executed: Optional[Mapping[str, Any]] = None,
         joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
+        """生成价格层总结。"""
         base = super().run(attributed, layer=layer or cls.LAYER)
         cross = ladders.is_cross(executed, gathered, layer=_LAYER)
         sections = cls._build_sections(gathered=gathered)

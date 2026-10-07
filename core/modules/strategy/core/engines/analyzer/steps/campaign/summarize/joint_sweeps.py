@@ -16,6 +16,7 @@ def build_joint_heatmaps(
     primary_outcome: str,
     groups: Sequence[Sequence[str]] = (),
 ) -> List[Dict[str, Any]]:
+    """把多轴联合扫描收成热力图。"""
     rows = ladders.ready_rows(gathered, layer=layer)
     resolved_groups = [tuple(group) for group in groups if len(group) >= 2]
     if not resolved_groups:

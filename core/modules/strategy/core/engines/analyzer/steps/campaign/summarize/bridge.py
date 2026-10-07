@@ -11,6 +11,7 @@ def upstream_bridge(
     *,
     layer: str,
 ) -> str:
+    """用基准格写出指向上一层的一句说明。"""
     rows = ladders.ready_rows(gathered, layer=layer)
     baseline = ladders.baseline_row(rows)
     layers = (

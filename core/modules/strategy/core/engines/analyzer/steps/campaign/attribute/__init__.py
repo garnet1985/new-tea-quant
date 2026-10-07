@@ -21,6 +21,7 @@ class AttributeStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributeBase]:
+        """按层返回归因步骤类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioAttributeStep)
 
     @classmethod
@@ -30,6 +31,7 @@ class AttributeStep:
         *,
         layer: str = "",
     ) -> Dict[str, Any]:
+        """跑该层的归因。"""
         return cls.for_layer(layer).run(gathered)
 
 

@@ -1,8 +1,4 @@
-"""Attribution async run for UI (A1-01 / A1-02).
-
-Runs ``Strategy.attribute_*`` in a daemon thread; progress via
-``PipelineProgress``. Shares per-strategy single-flight with workbench simulate.
-"""
+"""界面上的异步归因。后台跑战役，进度走 PipelineProgress，同一策略同时只跑一个任务。"""
 
 from __future__ import annotations
 
@@ -32,15 +28,17 @@ _ATTR_DESC = {
 
 
 class AttributeRunLauncher:
-    """UI async attribution: lease / PipelineProgress / Strategy.attribute_*."""
+    """申请任务租约并在后台启动归因。"""
 
     @staticmethod
     def normalize_step(step: str) -> Optional[str]:
+        """把步骤收成 enum、price 或 portfolio。"""
         parsed = WorkbenchStep.try_parse(step)
         return parsed.value if parsed is not None else None
 
     @staticmethod
     def pipeline_description(norm_step: str) -> str:
+        """返回该层任务的中文说明。"""
         return _ATTR_DESC.get(str(norm_step or "").strip(), "归因")
 
     @classmethod
@@ -51,6 +49,7 @@ class AttributeRunLauncher:
         step: str,
         force_refresh: bool,
     ) -> Dict[str, Any]:
+        """申请租约并在后台启动归因。"""
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
         if not name:
@@ -110,13 +109,14 @@ class AttributeRunLauncher:
         strategy_name: str,
         job_id: str,
     ) -> Optional[Dict[str, Any]]:
+        """读取一次归因任务的进度。"""
         return WorkbenchRunLauncher.get_run_progress(
             strategy_name=strategy_name, job_id=job_id
         )
 
     @classmethod
     def _gate(cls, strategy_name: str, norm_step: str) -> Optional[str]:
-        """None if runnable; else human reason."""
+        """可跑则返回 None，否则返回给人看的原因。"""
         from core.bff.APIs.strategy.routes.attribution.status import (
             AttributeStatus,
         )

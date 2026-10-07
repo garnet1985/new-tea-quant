@@ -45,16 +45,19 @@ class AttributionConfig:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributionConfigBase]:
+        """按层返回配置类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioAttributionConfig)
 
     @classmethod
     def load(cls, strategy_folder, *, layer: str = "", strategy_key=None):
+        """从策略目录读取该层配置。"""
         return cls.for_layer(layer).load(
             strategy_folder, strategy_key=strategy_key
         )
 
     @classmethod
     def to_usable(cls, settings, *, layer: str = ""):
+        """校验并返回该层可用配置。"""
         return cls.for_layer(layer).to_usable(settings)
 
 

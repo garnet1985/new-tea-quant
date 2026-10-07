@@ -36,6 +36,7 @@ class ExecuteStep(ExecuteBase):
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[ExecuteBase]:
+        """按层返回执行类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioExecute)
 
     @classmethod
@@ -47,6 +48,7 @@ class ExecuteStep(ExecuteBase):
         kind: Optional[SimulateKind] = None,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
+        """执行该层的格子。"""
         layer = kind if kind is not None else cls.KIND
         return cls.for_layer(layer).run(
             folder, tasks, kind=layer, ignore_cache=ignore_cache
@@ -56,6 +58,7 @@ class ExecuteStep(ExecuteBase):
     def unique_tasks(
         cls, tasks: Sequence[AttributionTask]
     ) -> List[AttributionTask]:
+        """按执行身份去掉重复任务。"""
         return ExecuteBase.unique_tasks(tasks)
 
     @classmethod
@@ -65,6 +68,7 @@ class ExecuteStep(ExecuteBase):
         unique_cells: Sequence[AttributionCell],
         family_cells: Sequence[AttributionCell],
     ) -> Dict[str, Any]:
+        """把去重后的结果领回各家族的行。"""
         return ExecuteBase.bind(executed, unique_cells, family_cells)
 
 

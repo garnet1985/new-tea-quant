@@ -1,4 +1,4 @@
-"""Attribution implementer: status / run / progress / report."""
+"""归因接口的实现：状态、启动、进度、报告。"""
 
 from __future__ import annotations
 
@@ -9,12 +9,15 @@ from core.modules.strategy.contracts import WorkbenchStep
 
 
 class StrategyAttributionImplementer:
+    """延迟加载归因的状态、启动和报告。"""
+
     def __init__(self) -> None:
         self._AttributeRunLauncher = None
         self._AttributeStatus = None
         self._AttributeReportReader = None
 
     def lazy_load(self) -> "StrategyAttributionImplementer":
+        """第一次调用时载入具体实现。"""
         if self._AttributeRunLauncher is None:
             from core.bff.APIs.strategy.routes.attribution.attribute_run import (
                 AttributeRunLauncher,
@@ -33,12 +36,14 @@ class StrategyAttributionImplementer:
 
     @staticmethod
     def normalize_step(step: str) -> Optional[str]:
+        """把步骤收成 enum、price 或 portfolio。"""
         parsed = WorkbenchStep.try_parse(step)
         return parsed.value if parsed is not None else None
 
     def status(
         self, *, strategy_key_or_name: str, step: str
     ) -> Dict[str, Any]:
+        """查询本层归因按钮是否可点。"""
         assert self._AttributeStatus is not None
         name = Strategy.resolve(strategy_key_or_name)
         norm = self.normalize_step(step)
@@ -53,6 +58,7 @@ class StrategyAttributionImplementer:
         step: str,
         force_refresh: bool,
     ) -> Dict[str, Any]:
+        """启动本层归因。"""
         assert self._AttributeRunLauncher is not None
         name = Strategy.resolve(strategy_key_or_name)
         return self._AttributeRunLauncher.submit(
@@ -64,6 +70,7 @@ class StrategyAttributionImplementer:
     def get_run_progress(
         self, *, strategy_key_or_name: str, job_id: str
     ) -> Optional[Dict[str, Any]]:
+        """读取一次归因任务的进度。"""
         assert self._AttributeRunLauncher is not None
         name = Strategy.resolve(strategy_key_or_name)
         return self._AttributeRunLauncher.get_run_progress(
@@ -77,6 +84,7 @@ class StrategyAttributionImplementer:
         step: str,
         group_id: str,
     ) -> Dict[str, Any]:
+        """读取已落盘的战役报告。"""
         assert self._AttributeReportReader is not None
         name = Strategy.resolve(strategy_key_or_name)
         norm = self.normalize_step(step)

@@ -31,12 +31,7 @@ _REMOVED_KEYS = ("overlays", "matrix")
 
 @dataclass
 class AttributionConfigBase(SettingsBase):
-    """参数归因配置（versions / 按层 inputs / rolling）。
-
-    边界:
-    - 负责: 读取、默认值、校验、标准化视图
-    - 不负责: 展开格子、simulate、归因计算
-    """
+    """读取并校验 attribution.py。不展开格子，也不跑模拟。"""
 
     LAYER: ClassVar[str] = ""
     KIND: ClassVar[SimulateKind] = SimulateKind.PORTFOLIO
@@ -49,6 +44,7 @@ class AttributionConfigBase(SettingsBase):
 
     @classmethod
     def from_dict(cls, settings: Mapping[str, Any]) -> "AttributionConfigBase":
+        """从字典构造配置，尚未校验。"""
         if not isinstance(settings, Mapping):
             raise ValueError("attribution 须为 dict")
         return cls(raw_settings=dict(settings))
@@ -60,6 +56,7 @@ class AttributionConfigBase(SettingsBase):
         *,
         strategy_key: Optional[str] = None,
     ) -> "AttributionConfigBase":
+        """从策略目录读取并校验配置。"""
         return cls.to_usable(
             load_attribution_dict(strategy_folder, strategy_key=strategy_key)
         )
@@ -69,6 +66,7 @@ class AttributionConfigBase(SettingsBase):
         cls,
         settings: Union[Mapping[str, Any], "AttributionConfigBase", None],
     ) -> "AttributionConfigBase":
+        """补默认值、校验并返回可用配置。"""
         if isinstance(settings, cls):
             obj = settings
         else:
@@ -80,14 +78,17 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def layer(self) -> str:
+        """返回配置对应的层名。"""
         return self.LAYER
 
     @property
     def kind(self) -> SimulateKind:
+        """返回配置对应的模拟种类。"""
         return self.KIND
 
     @property
     def versions(self) -> Tuple[int, ...]:
+        """返回声明要复用的版本号。"""
         raw = self.raw_settings.get("versions")
         if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
             return ()
@@ -106,6 +107,7 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def layer_block(self) -> Dict[str, Any]:
+        """返回当前层自己的配置块。"""
         block = self.raw_settings.get(self.LAYER)
         return dict(block) if isinstance(block, Mapping) else {}
 
@@ -122,6 +124,7 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def cross(self) -> bool:
+        """是否把多个轴做成笛卡尔积。"""
         _inputs, cross = collect_campaign_user_inputs(self.raw_settings)
         return cross
 
@@ -142,10 +145,12 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def has_layer_inputs(self) -> bool:
+        """是否写了要展开的参数。"""
         return bool(self.campaign_inputs)
 
     @property
     def is_select(self) -> bool:
+        """是否只选已有版本。"""
         return bool(self.versions)
 
     @property
@@ -164,6 +169,7 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def parameter_mode(self) -> str:
+        """返回 select、cross 或 inputs。"""
         if self.is_select:
             return "select"
         return "cross" if self.cross else "inputs"
@@ -175,6 +181,7 @@ class AttributionConfigBase(SettingsBase):
         return resolve_allocation_axes(self.raw_settings, snapshot)
 
     def rolling_payload(self) -> Dict[str, Any]:
+        """返回滚动窗口配置。"""
         block = self.raw_settings.get("rolling")
         nested = dict(block) if isinstance(block, Mapping) else {}
         nested.pop("steps", None)
@@ -182,6 +189,7 @@ class AttributionConfigBase(SettingsBase):
         return nested
 
     def require_parameter(self) -> None:
+        """要求当前是参数展开，而不是选号。"""
         if any(
             key in self.raw_settings
             and self.raw_settings.get(key) not in (None, [], {})
@@ -198,6 +206,7 @@ class AttributionConfigBase(SettingsBase):
             )
 
     def apply_defaults(self) -> None:
+        """去掉已废弃字段并补滚动缺省。"""
         self.raw_settings.pop("fill_missing", None)
         self.raw_settings.pop("steps", None)
         rolling = self.raw_settings.get("rolling")
@@ -208,6 +217,7 @@ class AttributionConfigBase(SettingsBase):
             self.raw_settings["versions"] = []
 
     def validate(self) -> ValidationReport:
+        """校验配置并返回报告。"""
         report = SettingsBase.new_validation()
         self.apply_defaults()
         self._validate_removed_keys(report)
@@ -461,6 +471,7 @@ class AttributionConfigBase(SettingsBase):
         return bool(seen)
 
     def to_dict(self) -> Dict[str, Any]:
+        """导出标准化后的配置字典。"""
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
         out.pop("steps", None)

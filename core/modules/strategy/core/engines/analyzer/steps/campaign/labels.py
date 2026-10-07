@@ -147,21 +147,25 @@ class CampaignLabels:
 
     @staticmethod
     def layer_label(layer: Any) -> str:
+        """返回层的中文名。"""
         text = str(layer or "").strip()
         return _LAYER_LABELS.get(text, text or "这一层")
 
     @staticmethod
     def report_title(layer: Any) -> str:
+        """返回该层报告标题。"""
         text = str(layer or "").strip()
         return _LAYER_REPORT_TITLE.get(text, "归因报告")
 
     @staticmethod
     def outcome_label(outcome: Any) -> str:
+        """返回指标的中文名。"""
         text = str(outcome or "").strip()
         return _OUTCOME_LABELS.get(text, text or "这项")
 
     @staticmethod
     def knob_label(knob: Any) -> str:
+        """返回旋钮的中文名。自定义参数保持原名。"""
         text = str(knob or "").strip()
         if not text:
             return "参数"
@@ -185,6 +189,7 @@ class CampaignLabels:
 
     @staticmethod
     def format_number(key: Any, value: Any) -> str:
+        """按指标类型格式化数字。"""
         if value is None or value == "":
             return "-"
         if isinstance(value, bool):
@@ -271,6 +276,7 @@ class CampaignLabels:
 
     @staticmethod
     def maybe_float(value: Any) -> Optional[float]:
+        """能转成数就返回浮点，否则返回 None。"""
         try:
             return float(value)
         except (TypeError, ValueError):

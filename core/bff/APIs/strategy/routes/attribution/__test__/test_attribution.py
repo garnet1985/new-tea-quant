@@ -1,4 +1,4 @@
-"""Tests for attribution BFF (A1-00 / A1-01 / A1-04)."""
+"""归因接口测试：按钮状态、启动和报告。"""
 
 from __future__ import annotations
 

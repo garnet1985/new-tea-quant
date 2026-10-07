@@ -1,8 +1,4 @@
-"""组合层资金分配配置。
-
-只读 ``attribution.allocation``。不并入战役共用 ``inputs``，也不生成
-``{vid}-{r}`` 副本。缺省时按当前 settings 生成默认档；写了就只扫声明的轴。
-"""
+"""组合层资金分配轴。只读 attribution.allocation，不并入共用 inputs。"""
 from __future__ import annotations
 
 import copy
@@ -91,12 +87,7 @@ def resolve_allocation_axes(
     raw: Mapping[str, Any],
     snapshot: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Tuple[Any, ...]]:
-    """路径 → 取值。
-
-    未写 ``allocation``：用 snapshot 生成默认档。
-    ``allocation: null`` 或 ``{}``：不扫。
-    写了轴：只返回声明的轴，不补未写的默认轴。
-    """
+    """返回要扫的分配轴。未写 allocation 时用当前设置生成默认档。"""
     if not isinstance(raw, Mapping) or "allocation" not in raw:
         return _default_axes(snapshot or {})
     block = raw.get("allocation")

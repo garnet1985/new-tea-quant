@@ -36,6 +36,7 @@ class CampaignReportStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[ReportBase]:
+        """按层返回报告类。"""
         return pick_layer(_BY_LAYER, layer, PortfolioReport)
 
     @classmethod
@@ -53,6 +54,7 @@ class CampaignReportStep:
         family: str = "",
         layer: str = "",
     ) -> Dict[str, Any]:
+        """组装该层的战役报告。"""
         focus = layer
         if not focus and tasks:
             focus = str(getattr(tasks[0].kind, "value", tasks[0].kind) or "")
@@ -80,6 +82,7 @@ class CampaignReportStep:
         trades: Optional[Mapping[str, Any]] = None,
         layer: str = "",
     ) -> Dict[str, Any]:
+        """把各家族结果合成一份报告。"""
         focus = layer or str(getattr(config, "layer", "") or "")
         return cls.for_layer(focus).merge(
             config, executed, families, trades=trades

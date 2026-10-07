@@ -203,5 +203,3 @@ def test_attribution_settings_drops_fill_missing() -> None:
     assert "fill_missing" not in dumped
     assert "fill_missing" not in (dumped.get("rolling") or {})
     assert "steps" not in dumped
-    assert "overlays" not in dumped
-    assert "matrix" not in dumped

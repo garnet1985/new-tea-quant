@@ -22,9 +22,7 @@ def test_workbench_version_id_parse():
 def test_workbench_step_try_parse():
     assert WorkbenchStep.try_parse("PRICE") is WorkbenchStep.PRICE
     assert WorkbenchStep.try_parse("enum") is WorkbenchStep.ENUM
-    assert WorkbenchStep.try_parse("enumerate") is None
-    assert WorkbenchStep.try_parse("price_factor") is None
-    assert WorkbenchStep.try_parse("capital") is None
+    assert WorkbenchStep.try_parse("nope") is None
 
 
 def test_discovery_resolve_strategy_path():

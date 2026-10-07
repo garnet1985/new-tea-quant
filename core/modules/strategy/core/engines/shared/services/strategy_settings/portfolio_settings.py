@@ -112,13 +112,6 @@ class PortfolioSettings(SettingsBase):
                 suggested_fix="Set portfolio to {} or omit",
             )
             return report
-        if "capital_simulator" in self.raw_settings:
-            SettingsBase.add_critical(
-                report,
-                "capital_simulator",
-                "capital_simulator renamed to portfolio",
-                suggested_fix='Rename settings key "capital_simulator" → "portfolio"',
-            )
 
         self.apply_defaults()
         block = self.raw_settings.setdefault("portfolio", {})

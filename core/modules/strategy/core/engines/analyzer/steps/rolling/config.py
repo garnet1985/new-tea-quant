@@ -23,7 +23,7 @@ from ..campaign.config import AttributionConfig
 
 @dataclass
 class RollingSettings(SettingsBase):
-    """滚动验证配置。窗口是起止日，不是 overlays / matrix 旋钮。"""
+    """滚动验证配置。窗口是起止日。"""
 
     raw_settings: Dict[str, Any]
     _validated: bool = field(default=False, repr=False)

@@ -80,7 +80,6 @@ class DataSettings(SettingsBase):
             self.normalize_base(self.base)
         except ValueError as exc:
             SettingsBase.add_critical(report, "data.base", str(exc))
-        self._reject_adjust(report, self.base.get("params"), "data.base.params.adjust")
 
         required = self.data.get("required")
         if required is not None and not isinstance(required, list):
@@ -89,14 +88,6 @@ class DataSettings(SettingsBase):
                 "data.required",
                 "data.required must be list",
             )
-        elif isinstance(required, list):
-            for index, item in enumerate(required):
-                if isinstance(item, dict):
-                    self._reject_adjust(
-                        report,
-                        item.get("params"),
-                        f"data.required[{index}].params.adjust",
-                    )
 
         if report.is_valid:
             try:
@@ -141,15 +132,6 @@ class DataSettings(SettingsBase):
     @staticmethod
     def _params(raw: Any) -> Dict[str, Any]:
         return dict(raw) if isinstance(raw, dict) else {}
-
-    @staticmethod
-    def _reject_adjust(report: ValidationReport, params: Any, field_path: str) -> None:
-        if isinstance(params, dict) and "adjust" in params:
-            SettingsBase.add_critical(
-                report,
-                field_path,
-                "data params 不再接受 adjust",
-            )
 
     @staticmethod
     def storage_key_for(data_key: Any, *, is_base: bool) -> str:

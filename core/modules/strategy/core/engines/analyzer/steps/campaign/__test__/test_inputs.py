@@ -139,26 +139,6 @@ def test_plan_oaat_baseline() -> None:
     assert len(cells) == 3  # 基准 + rsi25 + pe None
 
 
-def test_reject_legacy_overlays() -> None:
-    with pytest.raises(ValueError, match="overlays"):
-        AttributionConfig.to_usable(
-            {"overlays": [{"core": {"rsi_oversold_threshold": 20}}]},
-            layer="enum",
-        )
-
-
-def test_reject_legacy_matrix() -> None:
-    with pytest.raises(ValueError, match="matrix"):
-        AttributionConfig.to_usable(
-            {
-                "matrix": {
-                    "core": {"rsi_oversold_threshold": [20, 25]},
-                }
-            },
-            layer="enum",
-        )
-
-
 def test_reject_versions_and_layer_blocks() -> None:
     with pytest.raises(ValueError, match="versions"):
         AttributionConfig.to_usable(

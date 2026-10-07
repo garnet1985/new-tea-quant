@@ -56,26 +56,12 @@ def test_extract_empty_matches_canonical_defaults() -> None:
     """FED ``EXECUTE_SETTINGS_DEFAULTS`` 必须与这份投影对齐。"""
     out = StrategySettings.extract_execute_settings({})
     assert out["data"]["base"]["data_key"] == "stock.kline.daily"
-    assert "adjust" not in (out["data"]["base"].get("params") or {})
     assert out["simulation"]["execution"]["mode"] == "entity_based"
     assert out["simulation"]["risk_control"]["pending_enter"]["max_wait_open_days"] == 5
     assert out["portfolio"]["initial_capital"] == 1_000_000
     assert "meta" not in out
     assert "scanner" not in out
     assert "analysis" not in out
-
-
-def test_extract_rejects_kline_adjust() -> None:
-    with_adj = {
-        "data": {
-            "base": {
-                "data_key": "stock.kline.daily",
-                "params": {"adjust": "qfq"},
-            }
-        }
-    }
-    with pytest.raises(ValueError, match="adjust"):
-        StrategySettings.extract_execute_settings(with_adj)
 
 
 def test_extract_keeps_whitelist_drops_others() -> None:

@@ -32,7 +32,7 @@ class TestExecutionMode(unittest.TestCase):
 
     def test_rejects_unknown_mode(self) -> None:
         settings = StrategySettings(
-            raw_settings={"simulation": {"execution": {"mode": "calendar_slice"}}}
+            raw_settings={"simulation": {"execution": {"mode": "nope"}}}
         )
         with self.assertRaises(ValueError):
             _ = settings.execution_mode

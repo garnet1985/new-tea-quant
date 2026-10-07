@@ -3,7 +3,7 @@ import {
   FAKE_PROGRESS_STEP,
   clampFakeProgress,
   nextFakeProgress,
-} from 'service/fakeProgress';
+} from 'service/progress/fakeProgress';
 
 export {
   FAKE_PROGRESS_CAP,

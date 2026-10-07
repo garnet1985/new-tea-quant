@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { feedbackPromptAction, submitFeedback } from 'api/feedbackApi';
 import FeedbackPromptOverlay from 'views/feedbackPromptOverlay';
-import { subscribeFeedbackPrompt } from 'service/utils/feedbackPromptBus';
+import { subscribeFeedbackPrompt } from 'service/feedbackPromptBus';
 
 /**
  * Listens for soft-prompt requests after successful tasks.

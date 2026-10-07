@@ -1,12 +1,12 @@
 import React, { useCallback } from 'react';
 import { Alert, Box, Grid, Stack } from '@mui/material';
-import StrategyDesignExecutionPanel from './components/strategyDesignExecutionPanel';
-import StrategyDesignReportPanel from './components/strategyDesignReportPanel';
+import StrategyDesignExecutionPanel from './executionPanel';
+import StrategyDesignReportPanel from './reportPanel';
 import { StrategySettingsContainer } from 'containers/strategySettings';
-import StrategyDesignDraftSync from './components/strategyDesignDraftSync';
-import StrategyDesignDraftChangeBridge from './components/strategyDesignDraftChangeBridge';
-import StrategyDesignDecisionStep from './components/strategyDesignDecisionStep';
-import StrategyDesignSettingsPanel from './components/strategyDesignSettingsPanel';
+import StrategyDesignDraftSync from './hooks/draftSync';
+import StrategyDesignDraftChangeBridge from './hooks/draftChangeBridge';
+import StrategyDesignDecisionStep from './decisionStep';
+import StrategyDesignSettingsPanel from './settingsPanel';
 import { useStrategyDesignSettingsOptions } from './hooks/useStrategyDesignSettingsOptions';
 import { useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
 import './strategyDesignStepPage.scss';

@@ -34,8 +34,8 @@ import {
   buildWorkbenchExecutionHydrationFromSnapshot,
   mergeHydratedStepStatus,
 } from 'containers/strategyExecution';
-import { normalizeWorkbenchVersionId, parseWorkbenchVersionNumber } from '../../../service/utils/workbenchVersionId';
-import logClientError from '../../../service/utils/logClientError';
+import { normalizeWorkbenchVersionId, parseWorkbenchVersionNumber } from '../../../service/workbenchVersionId';
+import logClientError from '../../../service/logClientError';
 import {
   buildWorkbenchSnapshotFromVersionDetail,
   workbenchPageStateFromVersionDetail,

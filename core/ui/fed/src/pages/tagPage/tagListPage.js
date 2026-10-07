@@ -32,7 +32,7 @@ import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
 import { showToast } from 'containers/toast';
-import { notifyTaskSuccess } from '../../service/utils/feedbackPromptBus';
+import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import './tagListPage.scss';
 
 function clearRowProgress(rows) {

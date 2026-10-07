@@ -1,5 +1,5 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
-import logClientError from '../service/utils/logClientError';
+import logClientError from '../service/logClientError';
 
 const API_BASE = `${API_VERSION_PREFIX}/setup`;
 const STEP_STATUS_SUCCESS = 'success';

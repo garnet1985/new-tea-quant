@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import VersionPickLabel from './versionPickLabel';
 import { versionPickSearchText } from './versionPickMarks';
-import { formatVersionPickTime } from 'service/utils/formatDateTime';
+import { formatVersionPickTime } from 'service/format/formatDateTime';
 import './style.scss';
 
 export const VERSION_PICKER_PAGE_SIZE = 8;

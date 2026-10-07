@@ -15,9 +15,9 @@ import {
   persistDesignActiveRun,
 } from '../lib/strategyDesignActiveRunPersistence';
 import { isSettingsConflictError } from '../lib/settingsOccupancy';
-import { notifyTaskSuccess } from '../../../service/utils/feedbackPromptBus';
-import logClientError from '../../../service/utils/logClientError';
-import { normalizeWorkbenchVersionId } from '../../../service/utils/workbenchVersionId';
+import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
+import logClientError from '../../../service/logClientError';
+import { normalizeWorkbenchVersionId } from '../../../service/workbenchVersionId';
 
 const RUN_STEPS = new Set(['enum', 'price', 'portfolio']);
 

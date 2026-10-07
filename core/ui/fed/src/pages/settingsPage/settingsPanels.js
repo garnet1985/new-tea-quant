@@ -26,13 +26,13 @@ import {
 import InlineLoadingState from '../../views/inlineLoadingState';
 import PageLoadingState from '../../views/pageLoadingState';
 import NtqIcon from '../../views/ntqIcon';
-import { formatDateTime } from '../../service/utils/formatDateTime';
+import { formatDateTime } from '../../service/format/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
 import { getMlExtrasStatus, installMlExtras, resetSetupStatus } from '../../api/setupApi';
 import { useAsyncAction } from 'service/useAsyncAction';
-import { useFakeProgress } from 'service/useFakeProgress';
+import { useFakeProgress } from 'service/progress/useFakeProgress';
 
 export function SettingsSystemPanel() {
   const navigate = useNavigate();

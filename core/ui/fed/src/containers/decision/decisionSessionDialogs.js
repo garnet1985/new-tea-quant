@@ -11,7 +11,7 @@ import {
 import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import { formatDateTime } from '../../service/utils/formatDateTime';
+import { formatDateTime } from '../../service/format/formatDateTime';
 import { unfinishedSessions } from './decisionSessionPick';
 
 function statusChip(status) {

@@ -1,7 +1,7 @@
 import './strategyReportPanel.scss';
 
 export { default as StrategyReportPanel } from './strategyReportPanel';
-export { default as CapitalAllocationReport } from './reports/capitalAllocationReport';
+export { default as CapitalAllocationReport } from './capitalAllocationReport';
 export {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,

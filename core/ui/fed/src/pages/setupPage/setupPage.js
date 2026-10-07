@@ -47,7 +47,7 @@ import SetupDialogs from './setupDialogs';
 import SetupExecutionPanel from './setupExecutionPanel';
 import SetupProgressBar from './setupProgressBar';
 import SetupStepper from './setupStepper';
-import logClientError from '../../service/utils/logClientError';
+import logClientError from '../../service/logClientError';
 import './setupPage.scss';
 
 /** 安装向导表单：统一尺寸、描边标签始终上浮，避免部分字段像 placeholder */

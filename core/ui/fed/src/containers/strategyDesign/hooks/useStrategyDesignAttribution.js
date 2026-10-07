@@ -5,8 +5,8 @@ import {
   fetchAttributeStatus,
   startAttributeRun,
 } from '../../../api/strategyApi';
-import { notifyTaskSuccess } from '../../../service/utils/feedbackPromptBus';
-import logClientError from '../../../service/utils/logClientError';
+import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
+import logClientError from '../../../service/logClientError';
 
 const ATTR_STEPS = new Set(['enum', 'price', 'portfolio']);
 

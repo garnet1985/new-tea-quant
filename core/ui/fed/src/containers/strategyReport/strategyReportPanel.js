@@ -18,16 +18,16 @@ import {
 import SettingsAccordionTitle from 'views/settingsAccordionTitle';
 import NtqButton from 'views/ntqButton';
 import { VersionPickLabel, VersionPickerDialog, lookupVersionById } from 'containers/versionPick';
-import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
-import PriceFactorReport from './reports/priceFactorReport';
-import CapitalAllocationReport from './reports/capitalAllocationReport';
+import OpportunityEnumrateReport from './opportunityEnumerateReport';
+import PriceFactorReport from './priceFactorReport';
+import CapitalAllocationReport from './capitalAllocationReport';
 import {
   normalizeCapitalMetricsFromSummary,
   normalizeEnumMetricsFromSummary,
   normalizePriceMetricsFromSummary,
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from './mocks/strategyReportMetrics';
-import SettingsJsonDiff from './components/settingsJsonDiff';
+import SettingsJsonDiff from './settingsJsonDiff';
 import InlineLoadingState from 'views/inlineLoadingState';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -44,8 +44,8 @@ import {
   REPORT_PANEL_TOOLTIP,
   REPORT_TAB_SECTION_TITLES,
 } from './reportSectionMeta';
-import BacktestPeriodBanner from './components/backtestPeriodBanner';
-import ReportStockDetailView from './components/reportStockDetailView';
+import BacktestPeriodBanner from './backtestPeriodBanner';
+import ReportStockDetailView from './reportStockDetailView';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({

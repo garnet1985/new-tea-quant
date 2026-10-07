@@ -1,6 +1,6 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
-import { coerceMetaDescription } from '../service/utils/formatStrategyDescription';
-import { normalizeWorkbenchVersionId } from '../service/utils/workbenchVersionId';
+import { coerceMetaDescription } from '../service/format/formatStrategyDescription';
+import { normalizeWorkbenchVersionId } from '../service/workbenchVersionId';
 import { mapDataEnd } from 'service/dataEnd';
 
 /** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */

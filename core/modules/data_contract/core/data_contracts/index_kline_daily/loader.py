@@ -45,7 +45,7 @@ class IndexKlineDailyLoader(BaseDataContractLoader):
             if not eid_str:
                 continue
             single_params = self.build_batch_load_params(eid_str, params)
-            single_params["index_id"] = eid_str  # 添加 index_id 兼容
+            single_params["index_id"] = eid_str
             try:
                 result[eid_str] = self.load(single_params)
             except Exception:

@@ -13,9 +13,6 @@ terms:
     definition: "发现与签发 Facade；推荐 ContractIssuer.issue(...)。"
     aliases:
       - "Issuer"
-    avoid:
-      - "DataContracts"
-      - "DataContractManager"
 
   DataContract:
     definition: "已签发的数据契约句柄（BaseDataContract）：含 meta/runtime/specific，可选已填充 data。"
@@ -74,8 +71,6 @@ terms:
     definition: "PER_ENTITY meta 字段：所属实体宇宙的 GLOBAL list data_key。"
     aliases:
       - "entity list data key"
-    avoid:
-      - "entity_list_data_id"
 
   Entity:
     definition: "实体：股票、指数等；宇宙由 list_data_key 指向的 list 决定。"
@@ -129,9 +124,6 @@ terms:
     definition: "时序游标概念；实现为 BaseTimeSeriesContract 内 CursorState。"
     aliases:
       - "CursorState"
-    avoid:
-      - "modules.data_cursor"
-      - "DataCursor 独立包"
 
   Fill_in_Data:
     definition: "对契约调用 loader 填充 data。"

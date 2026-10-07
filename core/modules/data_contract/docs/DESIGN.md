@@ -22,7 +22,7 @@ API 以根目录 [API.md](../API.md) 为准。名词见 [CONCEPTS.md](./CONCEPTS
 | **runtime** | 签发后：entity_ids、时间窗等参数 |
 | **specific** | 契约特有扩展字段 |
 
-时序句柄为 `BaseTimeSeriesContract`：`until(as_of)` 推进内置 `CursorState`（无独立 data_cursor 包）。
+时序句柄为 `BaseTimeSeriesContract`：`until(as_of)` 推进内置 `CursorState`。
 
 ---
 

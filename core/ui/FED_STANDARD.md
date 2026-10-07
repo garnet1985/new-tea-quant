@@ -20,11 +20,26 @@
 
 NTQ 图标的 SVG 留在图标组件目录里，不进 `assets`。小页面可以先是一个文件，变大再拆。
 
+## 谁引用谁
+
+`views` 只接收数据，不引用 `api`、`containers`、`pages`。`containers` 可以引用 `views`、`api`、`service`，不引用 `pages`。`pages` 引用容器来拼这一页，自己不调用 `api`。`service` 不引用界面。
+
+没有界面的公共 hook 放进 `service`。跟某一块能力走的 hook 放在那个容器旁边。
+
 ## 源文件命名
 
-目录、`.js` / `.jsx` 用小写开头的驼峰，例如 `strategyListPage.js`、`appNavigation.js`。不用帕斯卡式文件名，以免和组件符号混在一起。
+目录和 `.js` 文件用小写开头的驼峰，例如 `strategyListPage.js`。不用帕斯卡式文件名，以免和组件符号混在一起。
 
-同一功能拆成多个文件时，用点号连接职责，主体名仍是小写驼峰：`strategy.test.js`、`strategy.helper.js`。页面主文件默认合并成一个驼峰词，例如 `strategyListPage.js`，不写成 `strategyList.page.js`。
+一个组件目录里，主文件和它的测试、服务同名，用点号标明职责：
+
+- `abc.js`：编排。页面的进页接线、容器如何拼 view，都写在这里。
+- `abc.test.js`：测 `abc.js`。
+- `abc.service.js`：给这个编排提供的逻辑，不返回界面。
+- `abc.service.test.js`：测这份服务。
+
+样式固定叫 `style.scss`，不叫 `abc.scss`。view 通常只有 `abc.js` 和 `style.scss`。服务只有一个文件时跟 `abc.js` 放在一起；拆成多个文件时再放进该目录下的 `service/`。测试跟在被测文件旁边，不另开测试目录。
+
+目录对外只从 `index.js` 转出主组件。外面不要引用目录里的内部文件。
 
 类、类型、枚举，以及在 JSX 里使用的函数组件名，用帕斯卡。普通函数、变量、hook 用驼峰。文件名不必和组件名逐字相同：`strategyListPage.js` 里导出 `StrategyListPage` 是正常写法。
 

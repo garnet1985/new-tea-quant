@@ -9,10 +9,10 @@ import {
   Typography,
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import { SectionBlock } from 'components/sectionBlock/sectionBlock';
-import { resolveMarketPnlPalette } from 'theme/marketPnlColors';
+import { SectionBlock } from 'views/sectionBlock';
+import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
 import { CAPITAL_CHART_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from './reportUnavailableHint';
 import { formatReportMoney } from '../lib/formatReportMoney';

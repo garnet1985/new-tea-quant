@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -15,7 +15,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
+import SettingsAccordionTitle from 'views/settingsAccordionTitle';
 import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
 import VersionPickerDialog from 'components/versionPickLabel/versionPickerDialog';
 import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
@@ -29,7 +29,7 @@ import {
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
 import SettingsJsonDiff from './components/settingsJsonDiff';
-import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
+import InlineLoadingState from 'views/inlineLoadingState';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
   COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,

@@ -15,9 +15,9 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import ChartPanel from 'components/chartPanel/chartPanel';
-import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
+import ChartPanel from 'views/chartPanel';
+import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import NtqIcon from 'views/ntqIcon';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,

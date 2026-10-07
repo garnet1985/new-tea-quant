@@ -23,10 +23,10 @@ import {
   readStrategyListCategoryQuery,
   STRATEGY_LIST_CATEGORY_PARAM,
 } from '../../api/strategyApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 import StrategyPackageImportDialog from '../../components/strategyPackageImportDialog/strategyPackageImportDialog';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import NtqIcon from '../../views/ntqIcon';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
 import './strategyListPage.scss';

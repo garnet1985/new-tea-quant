@@ -11,7 +11,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 import VersionPickerDialog from 'components/versionPickLabel/versionPickerDialog';
 import {
   SETTINGS_RETENTION_HREF,

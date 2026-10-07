@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqHelpTooltip from '../../ntqHelpTooltip/ntqHelpTooltip';
+import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import { Stack, Typography } from '@mui/material';
 
 /** 标签与下方控件（Select / Input 等）的间距（theme spacing 单位） */

@@ -11,7 +11,7 @@ import { buildMarketChartOption } from '../buildMarketChartOption';
 import {
   DEFAULT_MARKET_PNL_PALETTE,
   resolveMarketPnlPalette,
-} from 'theme/marketPnlColors';
+} from 'styles/marketPnlColors';
 
 const MARKER_BELOW = MARKET_MARKER_PIN_UP;
 const MARKER_ABOVE = MARKET_MARKER_PIN_DOWN;

@@ -23,10 +23,10 @@ import {
   Typography,
   Chip,
 } from '@mui/material';
-import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
-import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { formatDateTime } from '../../services/utils/formatDateTime';
+import InlineLoadingState from '../../views/inlineLoadingState';
+import PageLoadingState from '../../views/pageLoadingState';
+import NtqIcon from '../../views/ntqIcon';
+import { formatDateTime } from '../../service/utils/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';

@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Button, IconButton } from '@mui/material';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 
 function GlobalHelperOverlay({
   hole = null,

@@ -37,8 +37,9 @@ core/ui/
     ├── components/
     ├── layouts/
     ├── pages/
-    ├── services/
-    └── theme/
+    ├── service/
+    ├── styles/
+    └── views/
 ```
 
 `fed/src` 的目标目录和写法见模块根 [FED_STANDARD.md](../FED_STANDARD.md)。上面是现在的源码树。

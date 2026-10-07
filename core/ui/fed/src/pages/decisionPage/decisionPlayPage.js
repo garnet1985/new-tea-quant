@@ -20,10 +20,10 @@ import {
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
-import PageLayout from '../../components/pageLayout/pageLayout';
-import ChartPanel from '../../components/chartPanel/chartPanel';
-import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
+import PageLayout from '../../views/pageLayout';
+import ChartPanel from '../../views/chartPanel';
+import InlineLoadingState from '../../views/inlineLoadingState';
+import NtqIcon from '../../views/ntqIcon';
 import {
   buildMarketChartOptionFromStockPayload,
   FinancePitCard,
@@ -43,7 +43,7 @@ import {
     resetDecisionDraft,
 } from '../../api/decisionApi';
 import { getStrategyDesignPath } from '../../api/strategyApi';
-import { isHttpStatusError } from 'services/request';
+import { isHttpStatusError } from 'service/request';
 import {
   buildMonthCells,
   calendarActionLabel,

@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX } from 'services/request';
+import request, { API_VERSION_PREFIX } from 'service/request';
 import { mapDataEnd } from './mappers/dataEnd';
 import { getUpdateModeIcon } from './mappers/updateModeIcon';
 

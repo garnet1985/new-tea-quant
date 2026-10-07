@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { stripRuntimeStrategySettings } from '../../../../../services/utils/stripRuntimeStrategySettings';
+import { stripRuntimeStrategySettings } from '../../../../../service/utils/stripRuntimeStrategySettings';
 import JSON5 from 'json5';
 
 function stripHashComments(text) {

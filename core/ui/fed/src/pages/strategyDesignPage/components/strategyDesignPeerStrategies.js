@@ -8,8 +8,8 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
-import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
+import NtqIcon from 'views/ntqIcon';
+import SettingsAccordionTitle from 'views/settingsAccordionTitle';
 import {
   fetchStrategyList,
   getStrategyDesignPath,

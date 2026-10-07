@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import { buildMarketChartOption } from './buildMarketChartOption';
 
 /**

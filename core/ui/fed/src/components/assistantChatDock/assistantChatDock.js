@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { IconButton } from '@mui/material';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
-import LoadingBars from 'components/loadingBars/loadingBars';
+import NtqIcon from 'views/ntqIcon';
+import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
 import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
-import { isHttpStatusError } from 'services/request';
+import { isHttpStatusError } from 'service/request';
 import { GLOBAL_HELPER_SESSION_EVENT } from 'components/globalHelper/helpTarget';
 import './assistantChatDock.scss';
 

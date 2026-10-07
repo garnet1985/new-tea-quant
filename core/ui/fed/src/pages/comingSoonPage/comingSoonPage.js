@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, Chip, Stack, Typography } from '@mui/material';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 
 /**
  * 导航中尚未实装的入口页：全宽由 MainLayout 的 main 已套 ntq-content-inner

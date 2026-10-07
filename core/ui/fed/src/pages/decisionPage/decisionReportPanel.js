@@ -12,8 +12,8 @@ import {
   Typography,
 } from '@mui/material';
 import { fetchDecisionReport } from '../../api/decisionApi';
-import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
-import { isHttpStatusError } from 'services/request';
+import InlineLoadingState from '../../views/inlineLoadingState';
+import { isHttpStatusError } from 'service/request';
 import CapitalAllocationReport from '../strategyWorkbenchPage/panels/strategyReportPanel/reports/capitalAllocationReport';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,

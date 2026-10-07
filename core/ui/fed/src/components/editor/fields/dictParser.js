@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import NtqIcon from '../../ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 import {
   Alert,
   Box,

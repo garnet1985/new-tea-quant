@@ -8,7 +8,7 @@ import {
   Link,
   Typography,
 } from '@mui/material';
-import { ReactComponent as FallbackLogo } from '../ntqIcon/icons/tactic.svg';
+import { ReactComponent as FallbackLogo } from 'views/ntqIcon/icons/tactic.svg';
 import './traceConsentAskOverlay.scss';
 
 /**

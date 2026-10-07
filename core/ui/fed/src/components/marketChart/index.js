@@ -25,7 +25,7 @@ export {
   resolveMarketPnlPalette,
   resolvePnlPolarity,
   DEFAULT_MARKET_PNL_PALETTE,
-} from 'theme/marketPnlColors';
+} from 'styles/marketPnlColors';
 export {
   formatMarketChartDateLabel,
   normalizeMarketChartDateToken,

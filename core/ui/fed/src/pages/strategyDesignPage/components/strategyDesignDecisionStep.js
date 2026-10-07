@@ -7,7 +7,7 @@ import {
   fetchDecisionSessions,
   openDecisionSession,
 } from '../../../api/decisionApi';
-import InlineLoadingState from '../../../components/inlineLoadingState/inlineLoadingState';
+import InlineLoadingState from '../../../views/inlineLoadingState';
 import { DecisionPlaySession } from '../../decisionPage/decisionPlayPage';
 import DecisionSessionDialogs from '../../decisionPage/decisionSessionDialogs';
 import {
@@ -15,7 +15,7 @@ import {
   unfinishedSessions,
 } from '../../decisionPage/decisionSessionPick';
 import { EXECUTION_PANEL_TITLE } from '../../strategyWorkbenchPage/panels/strategyExecutionPanel/executionSectionMeta';
-import { isHttpStatusError } from 'services/request';
+import { isHttpStatusError } from 'service/request';
 import { isDecisionStepReady } from '../constants/strategyDesignSteps';
 import { useStrategyDesignSession } from '../strategyDesignContext';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';

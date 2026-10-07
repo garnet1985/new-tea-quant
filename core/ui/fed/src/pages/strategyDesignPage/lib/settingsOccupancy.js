@@ -1,4 +1,4 @@
-import { stripRuntimeStrategySettings } from '../../../services/utils/stripRuntimeStrategySettings';
+import { stripRuntimeStrategySettings } from '../../../service/utils/stripRuntimeStrategySettings';
 import { stableStringify } from './strategySettingsFingerprint';
 
 export const SETTINGS_CONFLICT_CODE = 'settings_conflict';

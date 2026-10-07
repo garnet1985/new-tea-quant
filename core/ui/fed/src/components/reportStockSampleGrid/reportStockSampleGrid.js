@@ -9,7 +9,7 @@ import {
   TextField,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import { SectionBlock } from '../sectionBlock/sectionBlock';
+import { SectionBlock } from 'views/sectionBlock';
 
 /**
  * 搜索 + 排序 + DataGrid（行数据与列定义由调用方传入）

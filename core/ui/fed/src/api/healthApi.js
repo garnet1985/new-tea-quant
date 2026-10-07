@@ -1,4 +1,4 @@
-import request, { HTTP_TIMEOUT_MS } from 'services/request';
+import request, { HTTP_TIMEOUT_MS } from 'service/request';
 
 /**
  * BFF 健康检查；版本号来自 ``core/system.json``（``GET /api/health``）。

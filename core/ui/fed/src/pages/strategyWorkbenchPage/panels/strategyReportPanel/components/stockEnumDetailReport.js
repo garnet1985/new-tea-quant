@@ -1,7 +1,7 @@
 import React from 'react';
-import MetricCard from 'components/metricCard/metricCard';
-import MetricGrid from 'components/metricGrid/metricGrid';
-import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import MetricCard from 'views/metricCard';
+import MetricGrid from 'views/metricGrid';
+import { SectionBlock } from 'views/sectionBlock';
 import { ENUM_METRIC_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from './reportUnavailableHint';
 

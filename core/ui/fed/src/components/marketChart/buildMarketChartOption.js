@@ -14,7 +14,7 @@ import {
   MARKET_CHART_SUB_PANE_BG,
   MARKET_CHART_TOOLTIP,
 } from './theme';
-import { DEFAULT_MARKET_PNL_PALETTE } from 'theme/marketPnlColors';
+import { DEFAULT_MARKET_PNL_PALETTE } from 'styles/marketPnlColors';
 import { MARKET_MARKER_PIN_SIZE } from './markers';
 
 /** hover 同笔投资时 pin 放大倍数 */

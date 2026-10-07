@@ -1,6 +1,6 @@
 import React from 'react';
 import { Typography } from '@mui/material';
-import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import {
   BACKTEST_PERIOD_TOOLTIP,
   formatBacktestPeriodLine,

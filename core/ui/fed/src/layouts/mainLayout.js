@@ -4,7 +4,7 @@ import { Outlet } from 'react-router-dom';
 import AppNavigation from 'components/appNavigation';
 import AssistantChatDock from 'components/assistantChatDock/assistantChatDock';
 import GlobalHelperHost from 'components/globalHelper/globalHelperHost';
-import PageBackground from 'components/pageBackground/pageBackground';
+import PageBackground from 'views/pageBackground';
 import './mainLayout.scss';
 
 function MainLayout() {

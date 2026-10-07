@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { isRequestError } from 'services/request';
+import { isRequestError } from 'service/request';
 
 /**
  * 包装异步 API 调用：保证 busy 在 finally 释放，错误写入 state。

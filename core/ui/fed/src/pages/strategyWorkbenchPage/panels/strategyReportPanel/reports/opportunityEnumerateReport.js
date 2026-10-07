@@ -1,9 +1,9 @@
 import React from 'react';
 import { Stack, Typography } from '@mui/material';
-import ChartPanel from 'components/chartPanel/chartPanel';
-import MetricCard from 'components/metricCard/metricCard';
-import MetricGrid from 'components/metricGrid/metricGrid';
-import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import ChartPanel from 'views/chartPanel';
+import MetricCard from 'views/metricCard';
+import MetricGrid from 'views/metricGrid';
+import { SectionBlock } from 'views/sectionBlock';
 import {
   ENUM_CHART_TIPS,
   ENUM_METRIC_TIPS,

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -23,7 +23,7 @@ import {
   SettingsSchemaEditor,
   SimulationSettingsEditor,
 } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/settingsEditorSections';
-import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
+import SettingsAccordionTitle from 'views/settingsAccordionTitle';
 import {
   STRATEGY_DESIGN_SETTINGS_GLOBAL_TITLE,
   STRATEGY_DESIGN_SETTINGS_GLOBAL_TOOLTIP,

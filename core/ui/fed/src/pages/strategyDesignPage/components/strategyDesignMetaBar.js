@@ -6,8 +6,8 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
-import StrategyMetaDetailText from 'components/strategyMetaDetailText/strategyMetaDetailText';
+import NtqIcon from 'views/ntqIcon';
+import StrategyMetaDetailText from 'views/strategyMetaDetailText';
 import { getStrategyListPath } from '../../../api/strategyApi';
 import { resolveStrategyShortLabel } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import { formatGoalSummaryLines } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyGoal';

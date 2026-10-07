@@ -1,6 +1,6 @@
 import React from 'react';
-import MetricCard from 'components/metricCard/metricCard';
-import MetricGrid from 'components/metricGrid/metricGrid';
+import MetricCard from 'views/metricCard';
+import MetricGrid from 'views/metricGrid';
 
 const BASE_SKIP_ITEMS = [
   { key: 'skippedBuyAtLimitUp', title: '涨停跳过买入' },

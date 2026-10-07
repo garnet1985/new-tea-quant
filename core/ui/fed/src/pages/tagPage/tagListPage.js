@@ -24,15 +24,15 @@ import {
   getTagUpdateModeLabel,
   startTagRun,
 } from '../../api/tagApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
-import NtqHelpTooltip from '../../components/ntqHelpTooltip/ntqHelpTooltip';
+import NtqHelpTooltip from '../../views/ntqHelpTooltip';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import NtqRainbowRunButton from '../../components/ntqRainbowRunButton/ntqRainbowRunButton';
-import FreshnessStatusChip from '../../components/freshnessStatusChip/freshnessStatusChip';
-import { notifyTaskSuccess } from '../../services/utils/feedbackPromptBus';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import NtqIcon from '../../views/ntqIcon';
+import NtqRainbowRunButton from '../../views/ntqRainbowRunButton';
+import FreshnessStatusChip from '../../views/freshnessStatusChip';
+import { notifyTaskSuccess } from '../../service/utils/feedbackPromptBus';
 import './tagListPage.scss';
 
 function clearRowProgress(rows) {

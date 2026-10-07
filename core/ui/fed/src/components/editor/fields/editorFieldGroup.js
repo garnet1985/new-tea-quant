@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import NtqHelpTooltip from '../../ntqHelpTooltip/ntqHelpTooltip';
+import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import { Stack, Typography } from '@mui/material';
 import './editorFieldGroup.scss';
 

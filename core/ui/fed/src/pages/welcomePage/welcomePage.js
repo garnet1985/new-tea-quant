@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 import WelcomeIntroCanvas from './welcomeIntroCanvas';
 import './welcomePage.scss';
 

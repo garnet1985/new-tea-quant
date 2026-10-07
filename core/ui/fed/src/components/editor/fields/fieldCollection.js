@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqIcon from '../../ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 import EditorFieldLabel from './editorFieldLabel';
 import {
   Box,

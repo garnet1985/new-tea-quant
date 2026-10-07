@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import JSON5 from 'json5';
 import PythonDictInputPanel from 'components/pythonDictInputPanel';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 
 const defaultInput = JSON.stringify(
   {

@@ -10,8 +10,8 @@ import {
   Typography,
   Stack,
 } from '@mui/material';
-import { ReactComponent as FallbackLogo } from './ntqIcon/icons/tactic.svg';
-import NtqIcon from './ntqIcon/ntqIcon';
+import { ReactComponent as FallbackLogo } from 'views/ntqIcon/icons/tactic.svg';
+import NtqIcon from 'views/ntqIcon';
 import { useAppVersion } from '../hooks/useAppVersion';
 import './appNavigation.scss';
 

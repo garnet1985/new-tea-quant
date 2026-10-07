@@ -9,7 +9,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import NtqIcon from '../ntqIcon/ntqIcon';
+import NtqIcon from 'views/ntqIcon';
 import './feedbackPromptOverlay.scss';
 
 /**

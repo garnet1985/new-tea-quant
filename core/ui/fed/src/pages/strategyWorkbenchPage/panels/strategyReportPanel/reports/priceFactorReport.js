@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
-import ChartPanel from 'components/chartPanel/chartPanel';
-import MetricCard from 'components/metricCard/metricCard';
-import MetricGrid from 'components/metricGrid/metricGrid';
-import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import ChartPanel from 'views/chartPanel';
+import MetricCard from 'views/metricCard';
+import MetricGrid from 'views/metricGrid';
+import { SectionBlock } from 'views/sectionBlock';
 import {
   PRICE_CHART_TIPS,
   PRICE_METRIC_TIPS,

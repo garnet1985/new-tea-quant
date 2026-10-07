@@ -2,7 +2,7 @@
 
 前端在 `fed/src`。这里是写法和目录的约定。产品结构见 `docs/`，不在本文。
 
-现有的 `components/`、`layouts/`、`theme/`、`services/` 在迁完之前还在。新文件不要再放进去。
+`service/`、`styles/` 和 `views/` 已经就位。`components/` 里剩下带请求或页面能力的部分，`layouts/` 仍是整页壳。这两处迁到 `containers/` 之前还在。新文件不要再放进这两个目录。
 
 ## 目录
 

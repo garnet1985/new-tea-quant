@@ -8,8 +8,8 @@ import {
   Typography,
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
-import NtqIcon from 'components/ntqIcon/ntqIcon';
+import InlineLoadingState from 'views/inlineLoadingState';
+import NtqIcon from 'views/ntqIcon';
 import { fetchStrategyStockDetail } from '../../../../../api/strategyApi';
 import BacktestPeriodBanner from './backtestPeriodBanner';
 import {

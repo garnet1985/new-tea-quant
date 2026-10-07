@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 import { mapDataEnd } from './mappers/dataEnd';
 import { getUpdateModeIcon } from './mappers/updateModeIcon';
 

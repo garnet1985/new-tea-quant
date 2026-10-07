@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX } from 'services/request';
+import request, { API_VERSION_PREFIX } from 'service/request';
 
 const API_SETTINGS_FEEDBACK = `${API_VERSION_PREFIX}/settings/feedback`;
 const API_FEEDBACK = `${API_VERSION_PREFIX}/feedback`;

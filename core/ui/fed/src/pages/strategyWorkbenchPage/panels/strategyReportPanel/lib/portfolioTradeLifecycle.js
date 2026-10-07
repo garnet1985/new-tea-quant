@@ -14,7 +14,7 @@ import {
   REPORT_CHART_SPLIT_LINE,
   REPORT_CHART_TOOLTIP,
 } from './reportChartsTheme';
-import { resolveMarketPnlPalette } from 'theme/marketPnlColors';
+import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
 import {
   equityAxisMinMax,
   equityResultIsPositive,

@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import { versionPickMarks } from './versionPickMarks';
 import './versionPickLabel.scss';
 

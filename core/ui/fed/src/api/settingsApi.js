@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 
 const API_SETTINGS_DB = `${API_VERSION_PREFIX}/settings/database`;
 const API_SETTINGS_DATA = `${API_VERSION_PREFIX}/settings/data`;

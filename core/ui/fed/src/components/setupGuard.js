@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { Alert, Button, Stack } from '@mui/material';
 import { getSetupStatus } from '../api/setupApi';
 import { fetchTraceSettings } from '../api/settingsApi';
-import PageLoadingState from './pageLoadingState/pageLoadingState';
+import PageLoadingState from 'views/pageLoadingState';
 
 function SetupGuard({ children }) {
   const [loading, setLoading] = useState(true);

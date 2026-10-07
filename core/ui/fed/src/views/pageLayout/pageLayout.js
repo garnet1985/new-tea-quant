@@ -1,0 +1,59 @@
+import React from 'react';
+import PropTypes from 'prop-types';
+import { Box } from '@mui/material';
+import AppBreadcrumbs from 'views/appBreadcrumbs';
+import PageBanner from 'views/pageBanner';
+import PageLoadingState from 'views/pageLoadingState';
+import './style.scss';
+
+function PageLayout({
+  breadcrumbsItems = [],
+  breadcrumbsCurrent,
+  bannerTitle,
+  bannerDescription = null,
+  bannerRightSlot = null,
+  children = null,
+  className = '',
+  loading = false,
+  loadingMessage = '正在加载…',
+  showBreadcrumbs = true,
+  showBanner = true,
+}) {
+  return (
+    <Box className={['ntq-page', className].filter(Boolean).join(' ')}>
+      <Box className="ntq-page__shell">
+        {showBreadcrumbs ? (
+          <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
+        ) : null}
+        {showBanner ? (
+          <PageBanner
+            title={bannerTitle}
+            description={bannerDescription}
+            rightSlot={bannerRightSlot}
+          />
+        ) : null}
+        <Box className={['ntq-page__body', loading ? 'is-loading' : ''].filter(Boolean).join(' ')}>
+          {loading ? (
+            <PageLoadingState message={loadingMessage} minHeight="48vh" />
+          ) : children}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+PageLayout.propTypes = {
+  breadcrumbsItems: PropTypes.arrayOf(PropTypes.shape({ label: PropTypes.string.isRequired, to: PropTypes.string.isRequired })),
+  breadcrumbsCurrent: PropTypes.node,
+  bannerTitle: PropTypes.string,
+  bannerDescription: PropTypes.node,
+  bannerRightSlot: PropTypes.node,
+  children: PropTypes.node,
+  className: PropTypes.string,
+  loading: PropTypes.bool,
+  loadingMessage: PropTypes.string,
+  showBreadcrumbs: PropTypes.bool,
+  showBanner: PropTypes.bool,
+};
+
+export default PageLayout;

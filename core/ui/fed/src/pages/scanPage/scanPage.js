@@ -32,14 +32,14 @@ import {
   groupStrategiesByCategory,
   startStrategyScan,
 } from '../../api/strategyApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
-import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
+import InlineLoadingState from '../../views/inlineLoadingState';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
-import { notifyTaskSuccess } from '../../services/utils/feedbackPromptBus';
-import { formatDateTime } from '../../services/utils/formatDateTime';
+import { notifyTaskSuccess } from '../../service/utils/feedbackPromptBus';
+import { formatDateTime } from '../../service/utils/formatDateTime';
 import './scanPage.scss';
 
 const SHOW_REPORT_GENERATED_AT = false;

@@ -559,13 +559,7 @@ class Strategy:
                 )
 
             # 仅本层回测管线收尾；战役归因绑定 attribute 时勿误关 report 步
-            if PipelineProgress.drives_pipeline(
-                {
-                    SimulateKind.ENUMERATE: "enum",
-                    SimulateKind.PRICE_FACTOR: "price",
-                    SimulateKind.PORTFOLIO: "portfolio",
-                }.get(step, "")
-            ):
+            if PipelineProgress.drives_pipeline(step.value):
                 PipelineProgress.complete_step_bound("report")
 
             logger.info(
@@ -811,7 +805,7 @@ class Strategy:
         *,
         stream: Optional[TextIO] = None,
     ) -> None:
-        """从 ``output_dir`` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 入口）。"""
+        """从 ``output_dir`` 展示 enum / price / portfolio 终局摘要（CLI 入口）。"""
         if isinstance(kind, SimulateKind):
             key = kind
         else:

@@ -5,7 +5,7 @@
 /** UI Tab key → ``result_report`` 槽位键 */
 export const TAB_TO_RESULT_REPORT_SLOT = {
   enum: 'enum',
-  price: 'price_factor',
+  price: 'price',
   portfolio: 'portfolio',
 };
 

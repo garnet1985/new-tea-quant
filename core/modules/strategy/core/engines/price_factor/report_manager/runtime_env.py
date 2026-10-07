@@ -42,7 +42,7 @@ class PriceRuntimeEnv:
             "market_profile": self.market_profile,
             "engine_version": self.engine_version or get_version(),
             "created_at": self.created_at or datetime.now().isoformat(),
-            "kind": "price_factor",
+            "kind": "price",
         }
 
     @classmethod

@@ -12,7 +12,7 @@ class PortfolioAttributeStep(AttributeBase):
     OUTCOMES = (
         ("portfolio", "total_return"),
         ("portfolio", "max_drawdown"),
-        ("enumerate", "total_opportunities"),
-        ("price_factor", "win_rate"),
-        ("price_factor", "avg_roi"),
+        ("enum", "total_opportunities"),
+        ("price", "win_rate"),
+        ("price", "avg_roi"),
     )

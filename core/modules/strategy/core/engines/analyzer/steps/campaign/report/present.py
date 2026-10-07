@@ -515,7 +515,7 @@ class CampaignPresenter:
             CmdLayout.text.print_indent(path, stream=out)
 
 
-_KNOWN_LAYERS = frozenset({"enumerate", "price_factor", "portfolio"})
+_KNOWN_LAYERS = frozenset({"enum", "price", "portfolio"})
 
 
 def _report_layer(report: Mapping[str, Any]) -> str:

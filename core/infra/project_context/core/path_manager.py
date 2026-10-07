@@ -298,13 +298,7 @@ class PathManager:
     ) -> Path:
         """单步产物目录：``{strategy_root}/results/simulations/{version_id}/{step}/``。"""
         step_key = str(step or "").strip().lower()
-        step_dir = {
-            "enumerate": "enum",
-            "enum": "enum",
-            "price_factor": "price",
-            "price": "price",
-            "portfolio": "portfolio",
-        }.get(step_key)
+        step_dir = step_key if step_key in {"enum", "price", "portfolio"} else None
         if step_dir is None:
             raise ValueError(
                 f"unsupported simulation step: {step!r} "

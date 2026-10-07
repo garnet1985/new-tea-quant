@@ -16,8 +16,8 @@ from .enum_exits import exit_ratios_for_version
 from .price_ledger import attach_price_ledger
 
 _ALL_LAYERS: Tuple[Tuple[SimulateKind, str], ...] = (
-    (SimulateKind.ENUMERATE, "enumerate"),
-    (SimulateKind.PRICE_FACTOR, "price_factor"),
+    (SimulateKind.ENUMERATE, "enum"),
+    (SimulateKind.PRICE_FACTOR, "price"),
     (SimulateKind.PORTFOLIO, "portfolio"),
 )
 

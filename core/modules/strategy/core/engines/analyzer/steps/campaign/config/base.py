@@ -25,7 +25,7 @@ from .inputs import (
 )
 from .loader import ATTRIBUTION_FILE_NAME, load_attribution_dict
 
-_LAYER_KEYS = ("enumerate", "price_factor", "portfolio")
+_LAYER_KEYS = ("enum", "price", "portfolio")
 _REMOVED_KEYS = ("overlays", "matrix")
 
 

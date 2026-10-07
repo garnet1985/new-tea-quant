@@ -196,7 +196,7 @@ def test_run_strategy_attribute_enumerate_ok(monkeypatch, capsys) -> None:
     monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
     UserHandlers._run_strategy_attribute(
         Namespace(strategy="rsi_v1", force=True),
-        layer="enumerate",
+        layer="enum",
         api_name="attribute_enumerate",
         title="枚举层归因",
         need_cli="se",

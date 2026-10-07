@@ -437,11 +437,10 @@ module_name/
 │   ├── __init__.py
 │   ├── test_xxx.py
 │   └── test_yyy.py
-├── docs/                  # 文档（推荐）
-│   ├── API.md
+├── docs/                  # 文档（推荐；清单见 docs/module-doc-standard.md）
 │   ├── ARCHITECTURE.md
-│   ├── DECISIONS.md
-│   └── DESIGN.md
+│   ├── DESIGN.md
+│   └── CONCEPTS.md
 ├── sub_module_1/          # 子模块
 │   ├── __init__.py
 │   └── ...
@@ -1223,9 +1222,7 @@ class BacktestEngine:
 
 ### 9.3 模块文档
 
-**核心模块（`core/modules/*`）：** 根目录 `OVERVIEW.md`（使用者入门）+ `docs/ARCHITECTURE.md` / `docs/DECISIONS.md` + `api.yaml`。不强制 `README.md`。
-
-**其他模块：** 可按需保留简短 `README.md` 或 `OVERVIEW.md`，指向 `api.yaml`。
+**核心模块（`core/modules/*`）：** 清单与放置以 [`docs/module-doc-standard.md`](docs/module-doc-standard.md) 为准。根目录 `README.md` / `API.md` / `glossary.yaml`，设计选型写在 `docs/DESIGN.md`，不再单独维护 `DECISIONS.md` 或 `api.yaml`。
 
 ---
 

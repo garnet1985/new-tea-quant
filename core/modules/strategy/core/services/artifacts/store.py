@@ -42,19 +42,10 @@ logger = logging.getLogger(__name__)
 
 _KindLike = Union[SimulateKind, str]
 
-# 全称 ↔ 缩写；不要把不同名词互连（例如 capital 不是 portfolio）。
-_KIND_ALIASES = {
-    "enumerate": SimulateKind.ENUMERATE,
+_KIND_VALUES = {
     "enum": SimulateKind.ENUMERATE,
-    "price_factor": SimulateKind.PRICE_FACTOR,
     "price": SimulateKind.PRICE_FACTOR,
     "portfolio": SimulateKind.PORTFOLIO,
-}
-
-_STEP_DIR_BY_KIND: Dict[SimulateKind, str] = {
-    SimulateKind.ENUMERATE: "enum",
-    SimulateKind.PRICE_FACTOR: "price",
-    SimulateKind.PORTFOLIO: "portfolio",
 }
 
 _NAMED_FILES = {
@@ -168,11 +159,11 @@ class ArtifactStore:
             if kind is SimulateKind.FULL:
                 raise ValueError("ArtifactStore 不支持 kind=full")
             return kind
-        mapped = _KIND_ALIASES.get(str(kind or "").strip().lower())
+        mapped = _KIND_VALUES.get(str(kind or "").strip().lower())
         if mapped is None:
             raise ValueError(
                 f"unsupported simulation kind: {kind!r} "
-                f"(expected enumerate / price_factor / portfolio)"
+                f"(expected enum / price / portfolio)"
             )
         return mapped
 
@@ -215,7 +206,7 @@ class ArtifactStore:
     @classmethod
     def step_dir_name(cls, kind: Optional[_KindLike] = None) -> str:
         parsed = cls._require_kind(kind)
-        return _STEP_DIR_BY_KIND[parsed]
+        return parsed.value
 
     @classmethod
     def simulation_root(

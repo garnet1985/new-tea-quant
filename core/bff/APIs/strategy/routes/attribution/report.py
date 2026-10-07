@@ -17,8 +17,8 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.persist.base imp
 )
 
 _TASK_BY_STEP = {
-    "enum": "enumerate",
-    "price": "price_factor",
+    "enum": "enum",
+    "price": "price",
     "portfolio": "portfolio",
 }
 

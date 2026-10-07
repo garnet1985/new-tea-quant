@@ -59,7 +59,7 @@ describe('mergeStepStatusFromRunProgress', () => {
 });
 
 describe('mapWorkbenchStepStatusToExecutionCards', () => {
-  it('treats price and price_factor as the same slot', () => {
+  it('maps price done onto the price card', () => {
     expect(mapWorkbenchStepStatusToExecutionCards({
       enum: { done: true },
       price: { done: true },
@@ -70,7 +70,7 @@ describe('mapWorkbenchStepStatusToExecutionCards', () => {
   it('marks decision done when the snapshot says so', () => {
     expect(mapWorkbenchStepStatusToExecutionCards({
       enum: { done: true },
-      price_factor: { done: true },
+      price: { done: true },
       portfolio: { done: true },
       decision: { done: true },
     })).toEqual({ enum: 'done', price: 'done', portfolio: 'done', decision: 'done' });

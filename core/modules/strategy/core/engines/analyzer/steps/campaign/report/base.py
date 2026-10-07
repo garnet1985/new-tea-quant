@@ -1,4 +1,4 @@
-"""战役报告：N 个 version 一张表（按层 oaat / cross / 选号）。"""
+"""战役报告：N 个 version 一张表（按层 oaat / cross）。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,7 +11,6 @@ from ..plan import AttributionCell, AttributionTask
 _FAMILY_LABELS = {
     "oaat": "参数对照",
     "cross": "交叉对照",
-    "select": "选号",
 }
 
 
@@ -239,7 +238,7 @@ def _merge_sections(
     items: Sequence[tuple],
 ) -> tuple:
     """优先 oaat / cross 家族的 sections / sweeps / scope_note / analysis_mode。"""
-    preferred = ("oaat", "cross", "select")
+    preferred = ("oaat", "cross")
     by_name = {str(name): block for name, block in items}
     empty = ({}, "", "", [], [], "", [], "")
 

@@ -7,13 +7,13 @@ from .base import AttributeBase
 class EnumerateAttributeStep(AttributeBase):
     """sea：只问机会与 goal 纸面结局，对应 settings 的 core/goal/data/sampling。"""
 
-    LAYER = "enumerate"
+    LAYER = "enum"
     KNOB_PREFIXES = ("core.", "goal.", "data.", "sampling.")
     OUTCOMES = (
-        ("enumerate", "total_opportunities"),
-        ("enumerate", "trigger_ratio"),
-        ("enumerate", "top_bucket_ratio"),
-        ("enumerate", "cv"),
-        ("enumerate", "stop_loss_ratio"),
-        ("enumerate", "take_profit_ratio"),
+        ("enum", "total_opportunities"),
+        ("enum", "trigger_ratio"),
+        ("enum", "top_bucket_ratio"),
+        ("enum", "cv"),
+        ("enum", "stop_loss_ratio"),
+        ("enum", "take_profit_ratio"),
     )

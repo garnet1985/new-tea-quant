@@ -43,8 +43,8 @@ _TOOLTIP_INVALID = (
 )
 
 _TASK_BY_STEP = {
-    "enum": "enumerate",
-    "price": "price_factor",
+    "enum": "enum",
+    "price": "price",
     "portfolio": "portfolio",
 }
 

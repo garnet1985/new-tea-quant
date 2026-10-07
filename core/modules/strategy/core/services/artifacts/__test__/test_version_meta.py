@@ -121,7 +121,7 @@ def test_write_version_archive_splits_settings_and_scope(tmp_path: Path) -> None
 
     entry = VersionMetaStore.get_registry_entry(root, "2")
     assert entry is not None
-    assert entry["steps"]["enumerate"] == "ok"
+    assert entry["steps"]["enum"] == "ok"
 
 
 def test_write_version_archive_is_write_once(tmp_path: Path) -> None:
@@ -185,7 +185,7 @@ def test_clear_downstream_steps_deletes_price_and_portfolio(tmp_path: Path) -> N
     assert not (root / "6" / "decision").exists()
     entry = VersionMetaStore.get_registry_entry(root, "6")
     assert entry is not None
-    assert entry["steps"] == {"enumerate": "ok"}
+    assert entry["steps"] == {"enum": "ok"}
     assert VersionMetaStore.step_status(root, "6", SimulateKind.PRICE_FACTOR) == "missing"
     assert VersionMetaStore.step_status(root, "6", SimulateKind.PORTFOLIO) == "missing"
 
@@ -271,7 +271,7 @@ def test_require_primary_version_refuses_missing(tmp_path: Path) -> None:
             root, "missing", "e", kind=SimulateKind.ENUMERATE
         )
     VersionMetaStore.register_version(root, "1", execute_fp="base", env_fp="e")
-    with pytest.raises(ValueError, match="缺少 enumerate"):
+    with pytest.raises(ValueError, match="缺少 enum"):
         VersionMetaStore.require_primary_version(
             root, "base", "e", kind=SimulateKind.ENUMERATE
         )

@@ -19,14 +19,14 @@ def upstream_bridge(
         if isinstance(baseline, Mapping) and isinstance(baseline.get("layers"), dict)
         else {}
     )
-    enum = layers.get("enumerate") if isinstance(layers.get("enumerate"), dict) else {}
+    enum = layers.get("enum") if isinstance(layers.get("enum"), dict) else {}
     price = (
-        layers.get("price_factor")
-        if isinstance(layers.get("price_factor"), dict)
+        layers.get("price")
+        if isinstance(layers.get("price"), dict)
         else {}
     )
 
-    if layer == "enumerate":
+    if layer == "enum":
         opp = _fmt_int(enum.get("total_opportunities"))
         if opp:
             return (
@@ -38,7 +38,7 @@ def upstream_bridge(
             "不是去噪账，也不是组合资金。"
         )
 
-    if layer == "price_factor":
+    if layer == "price":
         opp = _fmt_int(enum.get("total_opportunities"))
         done = _fmt_int(
             price.get("total_completed_investments")

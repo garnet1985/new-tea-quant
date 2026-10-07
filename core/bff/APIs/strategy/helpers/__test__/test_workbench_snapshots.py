@@ -105,7 +105,7 @@ def test_fetch_latest_reads_disk_version(mock_find, tmp_path: Path):
     assert row["disk_settings"]["core"]["seed"] == 1
     assert row["effective_settings"]["core"]["seed"] == 99
     assert row["step_status"]["enum"]["done"] is True
-    assert row["step_status"]["price_factor"]["done"] is False
+    assert row["step_status"]["price"]["done"] is False
     assert row["step_status"]["portfolio"]["done"] is False
 
 
@@ -286,12 +286,12 @@ def test_step_status_from_artifacts_even_if_cache_payload_missing(
     assert row is not None
     assert row["step_status"] == {
         "enum": {"done": True},
-        "price_factor": {"done": True},
+        "price": {"done": True},
         "portfolio": {"done": True},
         "decision": {"done": False},
     }
     msg = workbench_snapshot_to_message(row)
-    assert msg["step_status"]["price_factor"]["done"] is True
+    assert msg["step_status"]["price"]["done"] is True
     assert msg["step_status"]["portfolio"]["done"] is True
     assert msg["step_status"]["decision"]["done"] is False
 

@@ -90,7 +90,7 @@ def test_simulate_returns_price_slot_on_cache_hit():
     info.hooks_class = None
     info.hooks_module_path = ""
     info.key = "demo/rsi"
-    cached = {"price_factor": {"version_id": 9, "success": True}}
+    cached = {"price": {"version_id": 9, "success": True}}
 
     with patch.object(
         strategy_module.DiscoveryService,
@@ -125,7 +125,7 @@ def test_simulate_returns_price_slot_on_cache_hit():
     ) as run_steps:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.PRICE_FACTOR)
 
-    assert out["price_factor"] == cached["price_factor"]
+    assert out["price"] == cached["price"]
     assert out["version_id"] == "9"
     assert out["cache_hit"] is True
     get_cache.assert_called_once()
@@ -214,7 +214,7 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
     ) as record:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.ENUMERATE)
 
-    assert out["enumerate"]["version_id"] == "3"
+    assert out["enum"]["version_id"] == "3"
     assert out["version_id"] == "3"
     assert out["cache_hit"] is False
     run.assert_called_once()

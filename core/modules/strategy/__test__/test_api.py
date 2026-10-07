@@ -12,12 +12,10 @@ from core.modules.strategy.core import strategy as strategy_mod
 from core.modules.strategy.contracts import (
     AsOfSlice,
     CalendarAsOfResult,
-    ExecutionMode,
     Investment,
     JobBundleLoader,
     Opportunity,
     ProgressRecorder,
-    SellReason,
     SimulateKind,
     StrategyContext,
     StrategyHooks,
@@ -80,11 +78,10 @@ class TestStrategyApi(unittest.TestCase):
         self.assertFalse(hasattr(Strategy, "set_simulation_version_pinned"))
 
     def test_contracts_enums(self) -> None:
-        self.assertEqual(SimulateKind.ENUMERATE.value, "enumerate")
-        self.assertEqual(SimulateKind.PRICE_FACTOR.value, "price_factor")
+        self.assertEqual(SimulateKind.ENUMERATE.value, "enum")
+        self.assertEqual(SimulateKind.PRICE_FACTOR.value, "price")
         self.assertEqual(SimulateKind.PORTFOLIO.value, "portfolio")
-        self.assertEqual(ExecutionMode.SCAN.value, "scan")
-        self.assertEqual(SellReason.STOP_LOSS.value, "stop_loss")
+        self.assertEqual(SimulateKind.FULL.value, "full")
         self.assertEqual(WorkbenchStep.ENUM.value, "enum")
         self.assertEqual(
             WorkbenchStep.PRICE.to_simulate_kind(), SimulateKind.PRICE_FACTOR

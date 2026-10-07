@@ -59,7 +59,7 @@ def test_declared_allocation_does_not_fill_omitted_axes() -> None:
             "initial_capital": {"values": [100000, 300000]},
         },
     }
-    cfg = AttributionConfig.to_usable(raw, layer="enumerate")
+    cfg = AttributionConfig.to_usable(raw, layer="enum")
     axes = cfg.allocation_axes(_SNAP)
     assert set(axes) == {
         "portfolio.allocation.mode",

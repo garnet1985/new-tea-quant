@@ -76,11 +76,6 @@ class RollingSettings(SettingsBase):
         )
 
     @property
-    def is_select(self) -> bool:
-        """滚动不选已有版本。"""
-        return False
-
-    @property
     def simulate_kind(self) -> SimulateKind:
         """滚动固定跑到组合层。"""
         return SimulateKind.PORTFOLIO

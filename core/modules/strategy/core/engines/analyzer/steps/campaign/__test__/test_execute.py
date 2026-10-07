@@ -122,8 +122,8 @@ def test_price_gap_reuses_existing_enum(tmp_path) -> None:
     (root / "meta.json").write_text(
         """{
           "registry": {
-            "21": {"steps": {"enumerate": "ok"}},
-            "21-1": {"steps": {"enumerate": "ok"}}
+            "21": {"steps": {"enum": "ok"}},
+            "21-1": {"steps": {"enum": "ok"}}
           }
         }""",
         encoding="utf-8",
@@ -418,8 +418,8 @@ def test_gather_knobs_prefer_disk_effective(tmp_path, monkeypatch) -> None:
         "_load_layers",
         classmethod(
             lambda cls, folder, vid: {
-                "enumerate": {"total_opportunities": 18},
-                "price_factor": {"win_rate": 0.5, "avg_roi": 0.01},
+                "enum": {"total_opportunities": 18},
+                "price": {"win_rate": 0.5, "avg_roi": 0.01},
                 "portfolio": {"total_return": 0.07},
             }
         ),
@@ -432,7 +432,7 @@ def test_gather_knobs_prefer_disk_effective(tmp_path, monkeypatch) -> None:
     knobs = out["rows"][0]["knobs"]
     assert knobs["core.max_pe_percentile"] == 99
     assert knobs["goal.stop_loss"] is None
-    assert out["rows"][0]["layers"]["price_factor"]["win_rate"] == 0.5
+    assert out["rows"][0]["layers"]["price"]["win_rate"] == 0.5
 
 
 def test_price_factor_win_rate_percent_becomes_ratio() -> None:

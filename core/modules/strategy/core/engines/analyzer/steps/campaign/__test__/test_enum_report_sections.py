@@ -170,7 +170,7 @@ def test_enumerate_summarize_sections_value_ladders():
                     "goal.stop_loss": stop_on,
                 },
                 "layers": {
-                    "enumerate": {
+                    "enum": {
                         "total_opportunities": 18,
                         "trigger_ratio": 0.05,
                         "top_bucket_ratio": 0.4,
@@ -190,7 +190,7 @@ def test_enumerate_summarize_sections_value_ladders():
                     "goal.stop_loss": stop_on,
                 },
                 "layers": {
-                    "enumerate": {
+                    "enum": {
                         "total_opportunities": 32,
                         "trigger_ratio": 0.08,
                         "top_bucket_ratio": 0.35,
@@ -210,7 +210,7 @@ def test_enumerate_summarize_sections_value_ladders():
                     "goal.stop_loss": stop_on,
                 },
                 "layers": {
-                    "enumerate": {
+                    "enum": {
                         "total_opportunities": 78,
                         "trigger_ratio": 0.15,
                         "top_bucket_ratio": 0.5,
@@ -230,7 +230,7 @@ def test_enumerate_summarize_sections_value_ladders():
                     "goal.stop_loss": None,
                 },
                 "layers": {
-                    "enumerate": {
+                    "enum": {
                         "total_opportunities": 18,
                         "trigger_ratio": 0.05,
                         "top_bucket_ratio": 0.4,
@@ -243,7 +243,7 @@ def test_enumerate_summarize_sections_value_ladders():
         ]
     }
     out = SummarizeStep.run(
-        attributed, layer="enumerate", folder=None, gathered=gathered
+        attributed, layer="enum", folder=None, gathered=gathered
     )
     assert out["scope_note"]
     sections = out["sections"]
@@ -316,7 +316,7 @@ def test_enumerate_summarize_after_tp_gate_with_settings(tmp_path: Path, monkeyp
     )
     out = SummarizeStep.run(
         attributed,
-        layer="enumerate",
+        layer="enum",
         folder=tmp_path,
         gathered={
             "rows": [
@@ -325,7 +325,7 @@ def test_enumerate_summarize_after_tp_gate_with_settings(tmp_path: Path, monkeyp
                     "overlay": {},
                     "status": "hit",
                     "knobs": {},
-                    "layers": {"enumerate": {"total_opportunities": 1}},
+                    "layers": {"enum": {"total_opportunities": 1}},
                 }
             ]
         },

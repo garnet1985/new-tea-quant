@@ -132,7 +132,7 @@ def test_status_invalid_when_only_rolling(tmp_path, monkeypatch):
 
 def test_report_reader_loads_artifacts(tmp_path, monkeypatch):
     folder = tmp_path / "strat"
-    task_dir = tmp_path / "attr" / "3" / "enumerate"
+    task_dir = tmp_path / "attr" / "3" / "enum"
     task_dir.mkdir(parents=True)
     (task_dir / REPORT_FILE).write_text(
         json.dumps({"headline": "hello", "trades": {}}),
@@ -157,7 +157,7 @@ def test_report_reader_loads_artifacts(tmp_path, monkeypatch):
     )
     assert msg["headline"] == "hello"
     assert msg["group_id"] == "3"
-    assert msg["layer"] == "enumerate"
+    assert msg["layer"] == "enum"
     assert msg["step"] == "enum"
 
 

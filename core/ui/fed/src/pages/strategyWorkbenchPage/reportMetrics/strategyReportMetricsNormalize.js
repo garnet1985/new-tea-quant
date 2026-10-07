@@ -196,7 +196,7 @@ export function normalizeEnumMetricsFromSummary(slot) {
   };
 }
 
-/** ``result_report.price_factor``：``{ priceMetrics: { … } }`` camelCase。 */
+/** ``result_report.price``：``{ priceMetrics: { … } }`` camelCase。 */
 export function normalizePriceMetricsFromSummary(slot) {
   const m = readPriceMetrics(slot);
   if (!m) return null;

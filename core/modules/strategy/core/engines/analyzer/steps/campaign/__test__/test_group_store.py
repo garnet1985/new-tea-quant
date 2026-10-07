@@ -66,7 +66,7 @@ def test_resolve_keeps_a_group_per_strategy_version(tmp_path) -> None:
 
 
 def test_legacy_report_baseline_matches_its_version(tmp_path) -> None:
-    root = tmp_path / "attribution" / "1" / "price_factor"
+    root = tmp_path / "attribution" / "1" / "price"
     root.mkdir(parents=True)
     (root / "report.json").write_text(
         '{"baseline_version_id": "1"}',

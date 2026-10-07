@@ -22,7 +22,7 @@ _SCOPE_NOTE_OAAT = (
 )
 _SCOPE_NOTE_CROSS = "联合/交叉扫描：多个参数同时变化时的共同影响。"
 
-_LAYER = "enumerate"
+_LAYER = "enum"
 
 _SECTION_KNOB_PREFIXES = {
     "opportunity": ("core.", "data.", "sampling."),
@@ -58,7 +58,7 @@ _SECTION_META = (
 class EnumerateSummarize(SummarizeBase):
     """枚举层总结：机会数和出场结构。"""
 
-    LAYER = "enumerate"
+    LAYER = "enum"
     KIND = SimulateKind.ENUMERATE
 
     @classmethod

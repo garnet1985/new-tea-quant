@@ -27,14 +27,21 @@ API 不在这里。安装门面见 `core/infra/setup`，路由见 `core/bff/docs
 ```text
 core/ui/
 ├── README.md
+├── FED_STANDARD.md
 ├── module_info.yaml
 ├── docs/
 └── fed/src/
-    ├── app.js                 # 路由
-    ├── components/            # 导航、引导、图表
-    ├── pages/                 # 制定策略、选股、高级功能、设置、Setup
-    └── api/                   # 调 BFF
+    ├── app.js
+    ├── api/
+    ├── assets/
+    ├── components/
+    ├── layouts/
+    ├── pages/
+    ├── services/
+    └── theme/
 ```
+
+`fed/src` 的目标目录和写法见模块根 [FED_STANDARD.md](../FED_STANDARD.md)。上面是现在的源码树。
 
 生产构建产物在 `fed/build`，由 BFF 静态托管。
 

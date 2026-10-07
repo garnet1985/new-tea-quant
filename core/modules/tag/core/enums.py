@@ -1,4 +1,4 @@
-"""Tag 模块枚举（新 core 包）。
+"""Tag 模块枚举。
 
 消费者: tag_settings, discovery, engines
 """
@@ -10,7 +10,7 @@ from enum import Enum
 
 class FileName(Enum):
     SETTINGS = "settings.py"
-    TAG = "tag.py"  # 用户 hooks 主文件（非子进程 worker）
+    TAG = "tag.py"
 
 
 class TagUpdateMode(Enum):

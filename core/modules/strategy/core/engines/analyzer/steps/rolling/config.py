@@ -23,7 +23,7 @@ from ..campaign.config import AttributionConfig
 
 @dataclass
 class RollingSettings(SettingsBase):
-    """滚动验证配置。窗口是起止日，不是 overlays / matrix 旋钮。"""
+    """滚动验证配置。窗口是起止日。"""
 
     raw_settings: Dict[str, Any]
     _validated: bool = field(default=False, repr=False)
@@ -74,11 +74,6 @@ class RollingSettings(SettingsBase):
             SimulateKind.PRICE_FACTOR,
             SimulateKind.PORTFOLIO,
         )
-
-    @property
-    def is_select(self) -> bool:
-        """滚动不选已有版本。"""
-        return False
 
     @property
     def simulate_kind(self) -> SimulateKind:

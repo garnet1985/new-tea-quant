@@ -11,7 +11,7 @@
       "_comment_dispatch": "entities_per_job 等见 dispatch；代码 fallback 见 backtest_engine.performance.worker_profile.constants",
       "calendar_slice": {
         "reader_workers": "auto",
-        "queue_depth": "auto",
+        "preload_depth": "auto",
         "prefetch_enabled": true
       },
       "dispatch": {
@@ -41,7 +41,7 @@
       },
       "calendar_slice": {
         "reader_workers": "auto",
-        "queue_depth": "auto",
+        "preload_depth": "auto",
         "prefetch_enabled": true,
         "slice_open_days": "auto"
       }

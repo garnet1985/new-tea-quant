@@ -71,7 +71,7 @@ TAG_DISPATCH_DEFAULTS: Dict[str, Any] = {
 
 CALENDAR_SLICE_RUNTIME_DEFAULTS: Dict[str, Any] = {
     "reader_workers": "auto",
-    "queue_depth": "auto",
+    "preload_depth": "auto",
     "prefetch_enabled": True,
 }
 

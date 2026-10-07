@@ -26,7 +26,6 @@ _STATUS_LABELS = {
 
 _FAMILY_TITLES = {
     "oaat": "修改参数后的对照",
-    "inputs": "修改参数后的对照",
     "cross": "多参数交叉对照",
 }
 
@@ -68,9 +67,6 @@ class CampaignPresenter:
                     "highlights": payload.get("highlights") or [],
                     "hints": payload.get("hints") or [],
                     "varying_knobs": payload.get("varying_knobs") or [],
-                    "contributions": payload.get("contributions")
-                    or (payload.get("attribute") or {}).get("contributions")
-                    or {},
                 },
             )
             _hydrate_families(payload)
@@ -519,7 +515,7 @@ class CampaignPresenter:
             CmdLayout.text.print_indent(path, stream=out)
 
 
-_KNOWN_LAYERS = frozenset({"enumerate", "price_factor", "portfolio"})
+_KNOWN_LAYERS = frozenset({"enum", "price", "portfolio"})
 
 
 def _report_layer(report: Mapping[str, Any]) -> str:
@@ -560,11 +556,8 @@ def _unique_version_ids(rows: Sequence[Any]) -> List[str]:
     return out
 
 def _family_named(families: Mapping[str, Any], name: str) -> Any:
-    """按家族名取块。已落盘的单因素家族曾用 inputs。"""
-    block = families.get(name)
-    if name == "oaat" and not isinstance(block, dict):
-        block = families.get("inputs")
-    return block
+    """按家族名取块。"""
+    return families.get(name)
 
 
 def _hydrate_families(payload: Dict[str, Any]) -> None:
@@ -575,19 +568,14 @@ def _hydrate_families(payload: Dict[str, Any]) -> None:
     attribute = payload.get("attribute")
     for name in ("oaat", "cross"):
         block = payload.get(name)
-        if name == "oaat" and not isinstance(block, dict):
-            block = payload.get("inputs")
         if not isinstance(block, dict) or not (
             block.get("report")
-            or block.get("contributions")
             or block.get("headline")
             or block.get("table")
         ):
             continue
         fam = dict(block)
         source = name
-        if name == "oaat" and not isinstance(payload.get("oaat"), dict):
-            source = "inputs"
         if isinstance(table, dict):
             fam.setdefault("table", table.get(source) or [])
         if isinstance(attribute, dict) and isinstance(attribute.get(source), dict):
@@ -641,7 +629,6 @@ def _family_present_payload(
             "headline": family.get("headline"),
             "highlights": family.get("highlights") or [],
             "hints": family.get("hints") or [],
-            "contributions": family.get("contributions") or {},
         }
     out = dict(root)
     out["headline"] = family.get("headline") or nested_report.get("headline")
@@ -650,9 +637,6 @@ def _family_present_payload(
     out["table"] = family.get("table") or []
     out["gather"] = family.get("gather") or {}
     out["cells"] = family.get("cells") or []
-    out["contributions"] = nested_report.get("contributions") or family.get(
-        "contributions"
-    ) or {}
     return out
 
 

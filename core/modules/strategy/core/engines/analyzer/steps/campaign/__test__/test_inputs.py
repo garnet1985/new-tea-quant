@@ -54,9 +54,9 @@ def test_joint_sweep_adds_cartesian_cells() -> None:
         "joint_sweep": [["stop_loss", "take_profit"]],
         "cross": False,
     }
-    cfg = AttributionConfig.to_usable(raw, layer="enumerate")
+    cfg = AttributionConfig.to_usable(raw, layer="enum")
     assert cfg.joint_sweep == (("goal.stop_loss", "goal.take_profit"),)
-    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enumerate")
+    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enum")
     # 与基准/单轴 execute_settings 相同的联合格会被去重；至少保留真正新的组合
     multi = [
         cell
@@ -74,7 +74,7 @@ def test_joint_sweep_adds_cartesian_cells() -> None:
 
 def test_expand_axes_cross() -> None:
     axes = parse_axes(
-        "enumerate",
+        "enum",
         {
             "rsi_oversold_threshold": {"values": [20, 25]},
             "max_pe_percentile": {"values": [30, None]},
@@ -102,10 +102,10 @@ def test_plan_cross_mode() -> None:
             },
             "cross": True,
         },
-        layer="enumerate",
+        layer="enum",
     )
     assert cfg.parameter_mode == "cross"
-    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enumerate")
+    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enum")
     # 基准 + 去重后的组合（与基准相同的 20/30 会并进基准）
     assert len(cells) >= 4
     pe_off = [
@@ -131,32 +131,12 @@ def test_plan_oaat_baseline() -> None:
             },
             "cross": False,
         },
-        layer="enumerate",
+        layer="enum",
     )
     assert cfg.parameter_mode == "oaat"
-    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enumerate")
+    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enum")
     assert cells[0].overlay == {}
     assert len(cells) == 3  # 基准 + rsi25 + pe None
-
-
-def test_reject_legacy_overlays() -> None:
-    with pytest.raises(ValueError, match="overlays"):
-        AttributionConfig.to_usable(
-            {"overlays": [{"core": {"rsi_oversold_threshold": 20}}]},
-            layer="enumerate",
-        )
-
-
-def test_reject_legacy_matrix() -> None:
-    with pytest.raises(ValueError, match="matrix"):
-        AttributionConfig.to_usable(
-            {
-                "matrix": {
-                    "core": {"rsi_oversold_threshold": [20, 25]},
-                }
-            },
-            layer="enumerate",
-        )
 
 
 def test_reject_versions_and_layer_blocks() -> None:
@@ -168,18 +148,18 @@ def test_reject_versions_and_layer_blocks() -> None:
                     "rsi_oversold_threshold": {"values": [20]},
                 },
             },
-            layer="enumerate",
+            layer="enum",
         )
-    with pytest.raises(ValueError, match="enumerate"):
+    with pytest.raises(ValueError, match="enum"):
         AttributionConfig.to_usable(
             {
-                "enumerate": {
+                "enum": {
                     "inputs": {
                         "rsi_oversold_threshold": {"values": [20]},
                     }
                 },
             },
-            layer="enumerate",
+            layer="enum",
         )
 
 
@@ -206,12 +186,12 @@ def test_hook_goal_skipped_in_defaults() -> None:
         },
         "core": {"rsi_oversold_threshold": 20},
     }
-    defaults = default_axes_for_layer("enumerate", snap)
+    defaults = default_axes_for_layer("enum", snap)
     assert "goal.stop_loss" not in defaults
     assert "goal.take_profit" in defaults
     with pytest.raises(ValueError, match="钩子"):
         merge_user_and_defaults(
-            "enumerate",
+            "enum",
             {"stop_loss": {"values": [-0.2, None]}},
             snap,
         )
@@ -227,16 +207,16 @@ def test_shared_campaign_grid_same_for_sea_and_spa() -> None:
         },
         "cross": False,
     }
-    cfg_sea = AttributionConfig.to_usable(raw, layer="enumerate")
-    cfg_spa = AttributionConfig.to_usable(raw, layer="price_factor")
+    cfg_sea = AttributionConfig.to_usable(raw, layer="enum")
+    cfg_spa = AttributionConfig.to_usable(raw, layer="price")
     assert cfg_sea.campaign_inputs == cfg_spa.campaign_inputs
     assert set(cfg_sea.campaign_inputs) == {
         "core.rsi_oversold_threshold",
         "simulation.price.opportunity_merge_gap",
         "portfolio.allocation.max_portfolio_size",
     }
-    cells_sea = AttributionPlan.expand(_snapshot(), cfg_sea, layer="enumerate")
-    cells_spa = AttributionPlan.expand(_snapshot(), cfg_spa, layer="price_factor")
+    cells_sea = AttributionPlan.expand(_snapshot(), cfg_sea, layer="enum")
+    cells_spa = AttributionPlan.expand(_snapshot(), cfg_spa, layer="price")
     # oaat：基准 + rsi + 仓位；价格再加近邻间隔
     assert len(cells_sea) == 3
     assert len(cells_spa) == 4
@@ -255,11 +235,11 @@ def test_demo_style_top_level_attribution_loads() -> None:
         },
         "cross": False,
     }
-    sea = AttributionConfig.to_usable(raw, layer="enumerate")
-    spa = AttributionConfig.to_usable(raw, layer="price_factor")
+    sea = AttributionConfig.to_usable(raw, layer="enum")
+    spa = AttributionConfig.to_usable(raw, layer="price")
     soa = AttributionConfig.to_usable(raw, layer="portfolio")
     assert sea.campaign_inputs == spa.campaign_inputs == soa.campaign_inputs
-    cells_spa = AttributionPlan.expand(_snapshot(), spa, layer="price_factor")
+    cells_spa = AttributionPlan.expand(_snapshot(), spa, layer="price")
     cells_soa = AttributionPlan.expand(_snapshot(), soa, layer="portfolio")
     assert cells_soa[0].family == "allocation"
     assert cells_soa[0].overlay == {}
@@ -280,11 +260,11 @@ def test_top_level_inputs_shared() -> None:
             },
             "cross": False,
         },
-        layer="price_factor",
+        layer="price",
     )
     assert "core.rsi_oversold_threshold" in cfg.campaign_inputs
     assert "simulation.price.opportunity_merge_gap" in cfg.campaign_inputs
-    cells = AttributionPlan.expand(_snapshot(), cfg, layer="price_factor")
+    cells = AttributionPlan.expand(_snapshot(), cfg, layer="price")
     assert cells[0].overlay == {}
     assert len(cells) == 3
 
@@ -296,9 +276,9 @@ def test_goal_scalar_shorthand() -> None:
                 "stop_loss": {"values": [None, -0.15]},
             }
         },
-        layer="enumerate",
+        layer="enum",
     )
-    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enumerate")
+    cells = AttributionPlan.expand(_snapshot(), cfg, layer="enum")
     ratios = []
     for cell in cells:
         if not cell.overlay:
@@ -318,7 +298,7 @@ def test_range_expands_inclusive_integers() -> None:
         {"range": [1, 3], "step": 1}, label="values"
     ) == [1, 2, 3]
     axes = parse_axes(
-        "enumerate",
+        "enum",
         {"rsi_oversold_threshold": {"values": {"range": [20, 30], "step": 5}}},
         snapshot=_snapshot().raw_settings,
     )
@@ -352,7 +332,7 @@ def test_range_matches_the_same_list() -> None:
                 },
             },
         },
-        layer="enumerate",
+        layer="enum",
     )
     assert cfg.campaign_inputs["core.rsi_oversold_threshold"]["values"] == [
         20,

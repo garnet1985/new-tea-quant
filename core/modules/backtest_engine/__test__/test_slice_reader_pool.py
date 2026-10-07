@@ -80,3 +80,13 @@ def test_from_plan_reads_preload_depth() -> None:
 def test_window_key_orders_bounds() -> None:
     key = SliceReaderPool.window_key("20240201", "20240101")
     assert key == SliceWindowKey(start="20240101", end="20240201")
+
+
+def test_result_from_raw_requires_wire() -> None:
+    key = SliceWindowKey(start="20240101", end="20240110")
+    result = SliceReaderPool._result_from_raw(
+        key,
+        {"entity_contracts": {"k": object()}, "load_sec": 0.2},
+    )
+    assert result.error == "reader result missing entity_contracts_wire"
+    assert result.entity_contracts == {}

@@ -22,7 +22,7 @@ class NormalizationService:
         schema = context.get("schema")
 
         if not config or not isinstance(config, DataSourceConfig):
-            # 没有有效配置时，保持兼容行为：尝试使用 DataSourceHandlerHelper 的默认 normalize
+            # 没有 DataSourceConfig 时，用 normalization_helper 的默认标准化。
             if not fetched_data:
                 return {"data": []}
             # 回退：直接使用 normalization_helper 的简单实现
@@ -63,7 +63,7 @@ class NormalizationService:
 
             target_format = Utils.date.normalize_period_type(date_format or Utils.date.PERIOD_DAY)
         except Exception:
-            # 极端情况下（例如循环依赖），回退为按天标准化，保持兼容
+            # 日期工具导入失败时按天标准化。
             target_format = "day"
 
         if target_format and target_format != "none":

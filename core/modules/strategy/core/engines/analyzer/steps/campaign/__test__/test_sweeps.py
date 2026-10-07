@@ -28,8 +28,8 @@ def test_upstream_bridge_price_mentions_enum_and_denoised():
                 "overlay": {},
                 "knobs": {},
                 "layers": {
-                    "enumerate": {"total_opportunities": 120},
-                    "price_factor": {
+                    "enum": {"total_opportunities": 120},
+                    "price": {
                         "avg_roi": 0.04,
                         "total_completed_investments": 40,
                     },
@@ -37,7 +37,7 @@ def test_upstream_bridge_price_mentions_enum_and_denoised():
             }
         ]
     }
-    text = upstream_bridge(gathered, layer="price_factor")
+    text = upstream_bridge(gathered, layer="price")
     assert "120" in text
     assert "40" in text
 
@@ -116,10 +116,6 @@ def test_portfolio_summarize_emits_sweeps():
         "n": 2,
         "varying_knobs": ["portfolio.allocation.max_portfolio_size"],
         "layers": {},
-        "contributions": {
-            "presence": {"status": "skipped", "items": []},
-            "sensitivity": {"status": "ok", "items": []},
-        },
     }
     gathered = {
         "rows": [
@@ -173,7 +169,6 @@ def test_portfolio_summarize_does_not_rank_strategy_knobs():
             "core.rsi_oversold_threshold",
         ],
         "layers": {},
-        "contributions": {},
     }
     gathered = {
         "rows": [
@@ -229,7 +224,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                 "status": "hit",
                 "overlay": {},
                 "knobs": {"goal.stop_loss": -0.2, "goal.take_profit": 0.2},
-                "layers": {"price_factor": {"avg_roi": 0.05}},
+                "layers": {"price": {"avg_roi": 0.05}},
             },
             {
                 "version_id": "1-1",
@@ -241,7 +236,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                     }
                 },
                 "knobs": {"goal.stop_loss": -0.1, "goal.take_profit": 0.1},
-                "layers": {"price_factor": {"avg_roi": 0.03}},
+                "layers": {"price": {"avg_roi": 0.03}},
             },
             {
                 "version_id": "1-2",
@@ -253,7 +248,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                     }
                 },
                 "knobs": {"goal.stop_loss": -0.1, "goal.take_profit": 0.2},
-                "layers": {"price_factor": {"avg_roi": 0.06}},
+                "layers": {"price": {"avg_roi": 0.06}},
             },
             {
                 "version_id": "1-3",
@@ -265,7 +260,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                     }
                 },
                 "knobs": {"goal.stop_loss": -0.2, "goal.take_profit": 0.1},
-                "layers": {"price_factor": {"avg_roi": 0.04}},
+                "layers": {"price": {"avg_roi": 0.04}},
             },
             {
                 "version_id": "1-4",
@@ -277,12 +272,12 @@ def test_joint_heatmap_from_multi_path_overlays():
                     }
                 },
                 "knobs": {"goal.stop_loss": -0.2, "goal.take_profit": 0.2},
-                "layers": {"price_factor": {"avg_roi": 0.07}},
+                "layers": {"price": {"avg_roi": 0.07}},
             },
         ]
     }
     joints = build_joint_heatmaps(
-        gathered, layer="price_factor", primary_outcome="avg_roi"
+        gathered, layer="price", primary_outcome="avg_roi"
     )
     assert len(joints) == 1
     assert joints[0]["knobs"] == ["goal.stop_loss", "goal.take_profit"]

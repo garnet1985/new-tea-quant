@@ -37,7 +37,7 @@ def _is_price_replay_axis(path: str) -> bool:
 
 
 class AttributionPlanBase:
-    """快照 ⊕ overlay → StrategySettings；选号则只带 version_id。"""
+    """快照 ⊕ overlay → StrategySettings。"""
 
     LAYER: ClassVar[str] = ""
     KIND: ClassVar[SimulateKind] = SimulateKind.PORTFOLIO

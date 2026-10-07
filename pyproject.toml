@@ -1,0 +1,32 @@
+# 工具配置。运行时依赖仍在 requirements.in / requirements-dev.in。
+# 本文件不描述可安装包，也不接管 pytest 或 coverage。
+
+[tool.ruff]
+target-version = "py39"
+extend-exclude = [
+    "userspace",
+    "experiments",
+]
+
+[tool.ruff.lint]
+# 当前仓库已经能通过的一小套。只检查，不格式化。
+# 未打开：F401 / F841（未使用 import 与变量）、I（导入排序）、
+# E/W（格式与行宽）、UP（pyupgrade）、ruff format。
+# 这些会让现有代码立刻全红，留到瘦身之后再收。
+select = [
+    "E722", # 裸 except
+    "F601", # dict 字面量重复键
+    "F602", # dict 键在构造时被覆盖
+    "F631", # assert 的对象是元组
+    "F704", # yield 出现在函数外
+    "F706", # return 出现在函数外
+    "F707", # except 写在裸 except 后面，永远走不到
+    "F823", # 局部变量使用前未定义
+    "B006", # 可变对象当默认参数
+    "B008", # 默认参数里调用函数（dataclass 字段除外）
+    "B015", # 比较语句没有用在判断里
+    "B018", # 无用表达式
+    "B020", # 循环变量覆盖了外层同名变量
+    "B023", # 闭包绑了循环变量
+    "B033", # set 字面量里有重复元素
+]

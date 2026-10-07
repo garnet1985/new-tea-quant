@@ -81,10 +81,6 @@ class RenewCommonHelper:
         Returns:
             转换后的日期字符串
         """
-        # 支持枚举和字符串两种格式（兼容性）
-        if isinstance(date_format, TermType):
-            date_format = date_format.value
-        
         if date_format == TermType.QUARTERLY.value:
             year = int(date_str[:4])
             month = int(date_str[4:6])
@@ -219,7 +215,7 @@ class RenewCommonHelper:
                     if config:
                         group_fields = config.get_group_fields()
                 
-                # 如果未配置 group_fields，从主键推断（向后兼容）
+                # 未配置 group_fields 时，用主键里除日期字段以外的列分组。
                 if not group_fields:
                     primary_keys = model.get_primary_keys()
                     group_fields = [k for k in primary_keys if k != date_field]
@@ -254,7 +250,7 @@ class RenewCommonHelper:
                         composite_key = "::".join(composite_key_parts)
                         result[composite_key] = latest_date
                     else:
-                        # 单字段分组：使用单个字段值作为 key（向后兼容）
+                        # 单字段分组：用该字段的值做 key。
                         entity_id = record.get(group_fields[0])
                         if entity_id is not None:
                             result[str(entity_id)] = latest_date

@@ -62,10 +62,6 @@ def test_price_summarize_sections_baseline_and_ladder():
         "n": 2,
         "varying_knobs": ["simulation.price.opportunity_merge_gap"],
         "layers": {},
-        "contributions": {
-            "presence": {"status": "skipped", "items": []},
-            "sensitivity": {"status": "ok", "items": []},
-        },
     }
     gathered = {
         "rows": [
@@ -75,7 +71,7 @@ def test_price_summarize_sections_baseline_and_ladder():
                 "overlay": {},
                 "knobs": {"simulation.price.opportunity_merge_gap": 1},
                 "layers": {
-                    "price_factor": {
+                    "price": {
                         "win_rate": 0.55,
                         "avg_roi": 0.04,
                         "payoff_ratio": 1.6,
@@ -97,7 +93,7 @@ def test_price_summarize_sections_baseline_and_ladder():
                 "overlay": {"simulation": {"price": {"opportunity_merge_gap": 3}}},
                 "knobs": {"simulation.price.opportunity_merge_gap": 3},
                 "layers": {
-                    "price_factor": {
+                    "price": {
                         "win_rate": 0.6,
                         "avg_roi": 0.06,
                         "payoff_ratio": 1.9,
@@ -116,7 +112,7 @@ def test_price_summarize_sections_baseline_and_ladder():
         ]
     }
     out = SummarizeStep.run(
-        attributed, layer="price_factor", folder=None, gathered=gathered
+        attributed, layer="price", folder=None, gathered=gathered
     )
     assert out["analysis_mode"] == "oaat"
     assert "单因素扫描" in (out.get("scope_note") or "")

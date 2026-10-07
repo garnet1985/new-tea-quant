@@ -94,6 +94,26 @@ class TradeCalendarModel(DbBaseModel):
             return ""
         return str(rows[0].get("max_date") or "").strip()
 
+    def load_next_open_date_after(
+        self,
+        after_date: str,
+        *,
+        market: str = DEFAULT_MARKET,
+    ) -> str:
+        """``> after_date`` 的最近一个开市日（``is_open=1``）。"""
+        d = str(after_date or "").strip()
+        if not d:
+            return ""
+        sql = """
+            SELECT MIN(cal_date) AS min_date
+            FROM sys_trade_calendar
+            WHERE market = %s AND is_open = 1 AND cal_date > %s
+        """
+        rows = self.db.execute_sync_query(sql, (market, d)) or []
+        if not rows:
+            return ""
+        return str(rows[0].get("min_date") or "").strip()
+
     def load_db_latest_completed_trading_date(
         self,
         *,

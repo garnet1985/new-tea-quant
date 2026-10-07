@@ -1,0 +1,20 @@
+.ntq-section-block {
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 4px;
+  padding: 10px;
+  background: var(--ntq-white-06);
+}
+
+.ntq-section-block__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ntq-section-block__head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

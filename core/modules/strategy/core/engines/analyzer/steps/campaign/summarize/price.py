@@ -18,7 +18,7 @@ _SCOPE_NOTE_OAAT = (
 )
 _SCOPE_NOTE_CROSS = "联合/交叉扫描：多个参数同时变化时的共同影响。"
 
-_LAYER = "price_factor"
+_LAYER = "price"
 
 # 共用副本上：边/结实程度看想法与去噪轴；出场结构优先 goal
 _SECTION_KNOB_PREFIXES = {
@@ -53,7 +53,7 @@ _SECTION_META = (
 class PriceSummarize(SummarizeBase):
     """价格层总结：去噪后等权是否普遍能赚。"""
 
-    LAYER = "price_factor"
+    LAYER = "price"
     KIND = SimulateKind.PRICE_FACTOR
 
     @classmethod

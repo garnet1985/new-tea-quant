@@ -144,21 +144,7 @@ class SimulationSettings(SettingsBase):
             if not part_report.is_valid:
                 report.is_valid = False
 
-        self._warn_legacy_sampling_dates(report)
         return report
-
-    def _warn_legacy_sampling_dates(self, report: ValidationReport) -> None:
-        sampling = SettingsBase.ensure_dict_block(self.raw_settings, "sampling")
-        if not str(sampling.get("start_date") or "").strip() and not str(
-            sampling.get("end_date") or ""
-        ).strip():
-            return
-        SettingsBase.add_warning(
-            report,
-            "sampling.start_date/end_date",
-            "dates under sampling are ignored; use simulation.execution.start_date/end_date",
-            suggested_fix="Move start_date/end_date into settings.simulation.execution",
-        )
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()

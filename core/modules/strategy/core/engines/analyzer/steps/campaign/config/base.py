@@ -25,8 +25,7 @@ from .inputs import (
 )
 from .loader import ATTRIBUTION_FILE_NAME, load_attribution_dict
 
-_LAYER_KEYS = ("enumerate", "price_factor", "portfolio")
-_REMOVED_KEYS = ("overlays", "matrix")
+_LAYER_KEYS = ("enum", "price", "portfolio")
 
 
 @dataclass
@@ -143,15 +142,6 @@ class AttributionConfigBase(SettingsBase):
 
     def require_parameter(self) -> None:
         """要求当前配置能展开参数。"""
-        if any(
-            key in self.raw_settings
-            and self.raw_settings.get(key) not in (None, [], {})
-            for key in _REMOVED_KEYS
-        ):
-            raise ValueError(
-                "attribution.py 已不支持 overlays / matrix；"
-                "请写顶层 inputs"
-            )
         if not self.has_parameter:
             raise ValueError(
                 "attribution.py 没有战役 inputs；"
@@ -170,7 +160,6 @@ class AttributionConfigBase(SettingsBase):
         """校验配置并返回报告。"""
         report = SettingsBase.new_validation()
         self.apply_defaults()
-        self._validate_removed_keys(report)
         self._validate_dropped_features(report)
         if "inputs" in self.raw_settings:
             top_block = {
@@ -209,23 +198,6 @@ class AttributionConfigBase(SettingsBase):
             )
         self._validated = report.is_usable()
         return report
-
-    def _validate_removed_keys(self, report: ValidationReport) -> None:
-        for key in _REMOVED_KEYS:
-            if key in self.raw_settings and self.raw_settings.get(key) not in (
-                None,
-                [],
-                {},
-            ):
-                SettingsBase.add_critical(
-                    report,
-                    key,
-                    f"已移除 attribution.{key}；请改用战役 inputs",
-                    suggested_fix=(
-                        '{"inputs": {"max_pe_percentile": '
-                        '{"values": [None, 30]}}, "cross": false}'
-                    ),
-                )
 
     def _validate_dropped_features(self, report: ValidationReport) -> None:
         """拒绝已删除的选号、单笔 SHAP 和分层 inputs。"""
@@ -370,8 +342,6 @@ class AttributionConfigBase(SettingsBase):
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
         out.pop("steps", None)
-        out.pop("overlays", None)
-        out.pop("matrix", None)
         out.pop("versions", None)
         out.pop("shap", None)
         return out

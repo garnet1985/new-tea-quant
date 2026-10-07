@@ -54,7 +54,7 @@ class CompletedGoal:
     @classmethod
     def from_dict(cls, raw: Any) -> "CompletedGoal":
         data = raw if isinstance(raw, dict) else {}
-        name = ValueCoerce.as_str(data.get("name") or data.get("goal_name"))
+        name = ValueCoerce.as_str(data.get("name"))
         return cls(
             name=name,
             date=ValueCoerce.as_str(data.get("date")),

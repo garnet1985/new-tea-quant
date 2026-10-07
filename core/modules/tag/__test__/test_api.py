@@ -46,7 +46,6 @@ class TestTagApi(unittest.TestCase):
         import core.modules.tag as pkg
 
         self.assertEqual(pkg.__all__, ["Tag"])
-        self.assertFalse(hasattr(pkg, "TagManager"))
         self.assertFalse(hasattr(pkg, "DiscoveryService"))
 
     def test_public_methods(self) -> None:

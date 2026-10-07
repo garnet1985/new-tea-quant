@@ -10,12 +10,12 @@ terms:
       - "deep-import core.engines.* / core.services.*（跨模块优先 Facade）"
 
   Strategy:
-    definition: "策略执行 Facade：scan / simulate（enumerate·price_factor·portfolio）/ decision / discovery 列表。"
+    definition: "策略执行 Facade：scan / simulate（enum·price·portfolio）/ decision / discovery 列表。"
     aliases: []
     avoid: []
 
   simulate:
-    definition: "统一模拟入口：execute_fp + env_fp → 磁盘 simulations/meta.json registry → Pipeline；enumerate/price_factor/portfolio 为其薄封装。"
+    definition: "统一模拟入口：execute_fp + env_fp → 磁盘 simulations/meta.json registry → Pipeline；enum/price/portfolio 为其薄封装。"
     aliases:
       - "回测步骤"
     avoid:
@@ -52,7 +52,7 @@ terms:
       - "把 pinned 写在 registry 行或 {vid}/ 上"
 
   SimulateKind:
-    definition: "模拟子步骤枚举：enumerate / price_factor / portfolio / full；从 contracts 导入。"
+    definition: "模拟子步骤枚举：enum / price / portfolio / full。与工作台步骤同名。从 contracts 导入。"
     aliases: []
     avoid: []
 
@@ -98,7 +98,7 @@ terms:
       - "TimelineBuilder（禁止在 strategy 侧引入）"
 
   WorkbenchStep:
-    definition: "工作台三步 enum / price / portfolio；与 SimulateKind 互转；从 contracts 导入。"
+    definition: "工作台三步 enum / price / portfolio；与 SimulateKind 同值；从 contracts 导入。"
     aliases: []
     avoid: []
 

@@ -14,7 +14,7 @@ changelog:
       - 首次 auto-discovery 同步扫描 userspace；BFF 提供 POST /v1/data-contracts/reload
   - version: "0.4.1"
     changes:
-      - stock.kline 不再用 adjust 切换序列；一律返回前复权顶层 + raw / hfq / adj_factor
+      - stock.kline 一律返回前复权顶层，以及 raw、hfq、adj_factor
   - version: "0.4.0"
     changes:
       - 标准化模块，标准化文档以及对外API

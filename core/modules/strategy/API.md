@@ -15,7 +15,7 @@
 
 ## Strategy
 
-**描述：** 策略 Facade — scan / simulate（enumerate · price_factor · portfolio）/ decision / discovery
+**描述：** 策略 Facade — scan / simulate（enum · price · portfolio）/ decision / discovery
 
 ### scan
 
@@ -47,11 +47,11 @@
 - **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）。只做回测，不写归因。主号由回测分配；`version_id` 可钉到主号或归因副本 `{vid}-{r}`。规则见 [docs/VERSIONING.md](./docs/VERSIONING.md)。
 - **参数：**
   - `key_or_id`：策略标识（须已启用）
-  - `kind`：`enumerate` / `price_factor` / `portfolio`（或对应 `SimulateKind`）
+  - `kind`：`enum` / `price` / `portfolio`（或对应 `SimulateKind`）
   - `ignore_cache`：跳过磁盘 cache 命中（仍按双指纹写入已有 vid，不新开号）
   - `runtime_settings`：运行时覆盖 settings（参与指纹）
   - `version_id`：可选；战役归因写入副本时传入
-- **返回：** 目标 step 槽位 dict（如 `enumerate` / `price_factor` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（`success` / `output_dir` / `version_id`）；UI 指标由 BFF `report_hydrate` 从 `overall_report.json` 补全。
+- **返回：** 目标 step 槽位 dict（如 `enum` / `price` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（`success` / `output_dir` / `version_id`）；UI 指标由 BFF `report_hydrate` 从 `overall_report.json` 补全。
 - **环境失效：** registry 中 `env_fp` 与当前运行环境不一致时不可 cache hit（配置相同也会 miss 并新建 version）；BFF 读 version 时返回 `env_invalid: true`。
 - **强制重跑：** `ignore_cache=True`（CLI `--force`）跳过 cache 命中，price/portfolio **不复用**已有 enum 产物（会重跑 enum）。命中键 `(execute_fp, env_fp)` 不变则 **写入同一 `version_id`**，复写上游步时清下游。禁止为同一双指纹再 allocate 一个号。
 - **磁盘布局：** `{strategy}/results/simulations/{version_id}/{enum|price|portfolio}/`；索引在 `simulations/meta.json`（`registry` + `next_version_id`）；`{version_id}/` 归档 `settings.json` / `effective_settings.json` / `scope.json`。过时 `env_fp` 超出 `retention.simulation_results_max_stale_envs` 时整组删除（含对应归因组）。
@@ -116,7 +116,7 @@
 `Strategy.present_report(kind: SimulateKind | str, output_dir: str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
+- **描述：** 从 `output_dir` 展示 enum / price / portfolio 终局摘要（CLI 模拟结束后）；勿 deep-import 各引擎 `ReportManager`
 
 ### attribute_enumerate / attribute_price / attribute_portfolio / present_campaign
 
@@ -126,7 +126,7 @@
 `Strategy.present_campaign(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 按层对照旋钮并归因。须已有当前 settings 对应的主 version（先 `se` / `sp` / `so`），否则拒绝。对照格写入副本 `{vid}-{r}`，不 bump `next_version_id`。报告写 `results/attribution/{n}/enumerate|price_factor|portfolio/`。默认每次只改一个路径；`joint_sweep` 为指定轴的小矩阵。CLI：`sea` / `spa` / `soa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。运作见 `docs/CONCEPTS.md`。
+- **描述：** 读 `attribution.py` 按层对照旋钮并归因。须已有当前 settings 对应的主 version（先 `se` / `sp` / `so`），否则拒绝。对照格写入副本 `{vid}-{r}`，不 bump `next_version_id`。报告写 `results/attribution/{n}/enum|price|portfolio/`。默认每次只改一个路径；`joint_sweep` 为指定轴的小矩阵。CLI：`sea` / `spa` / `soa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。运作见 `docs/CONCEPTS.md`。
 
 ### rolling / present_rolling
 
@@ -181,7 +181,7 @@ Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUME
 | `StrategyHooks` / `StrategyContext` / `StrategyData` / `StrategyInfo` | userspace hook 契约；`has_opportunity() -> bool`；价格回放 `is_new_opportunity(ctx) -> bool`（仅 price_factor）；`ctx.remember/recall/forget` 为内存袋，`ctx.capture` 为本笔归因输入 |
 | `Opportunity` / `Investment` / `CalendarAsOfResult` | 引擎共享数据类；`Opportunity.signal_snapshot` 为归因用决策现场记录 |
 | `AsOfSlice` / `JobBundleLoader` / `ProgressRecorder` | 跨模块协作面（tag / BE 数据装载与进度落盘） |
-| `ExecutionMode` / `SellReason` / `SimulateKind` / `WorkbenchStep` | 公开枚举 |
+| `SimulateKind` / `WorkbenchStep` | 公开枚举 |
 
 ### latest_completed_trading_date
 

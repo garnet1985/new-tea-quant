@@ -15,18 +15,18 @@ from .base import ReportBase
 from .present import CampaignPresenter
 
 EnumerateReport = declare_layer(
-    "EnumerateReport", ReportBase, "enumerate", SimulateKind.ENUMERATE
+    "EnumerateReport", ReportBase, "enum", SimulateKind.ENUMERATE
 )
 PriceReport = declare_layer(
-    "PriceReport", ReportBase, "price_factor", SimulateKind.PRICE_FACTOR
+    "PriceReport", ReportBase, "price", SimulateKind.PRICE_FACTOR
 )
 PortfolioReport = declare_layer(
     "PortfolioReport", ReportBase, "portfolio", SimulateKind.PORTFOLIO
 )
 
 _BY_LAYER: dict[str, Type[ReportBase]] = {
-    "enumerate": EnumerateReport,
-    "price_factor": PriceReport,
+    "enum": EnumerateReport,
+    "price": PriceReport,
     "portfolio": PortfolioReport,
 }
 

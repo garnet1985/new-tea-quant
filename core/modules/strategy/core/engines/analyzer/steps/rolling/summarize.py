@@ -11,7 +11,7 @@ from ..campaign.labels import CampaignLabels
 _PREFERRED = (
     ("portfolio", "total_return"),
     ("portfolio", "max_drawdown"),
-    ("enumerate", "total_opportunities"),
+    ("enum", "total_opportunities"),
 )
 _READY = frozenset({"hit", "simulated"})
 

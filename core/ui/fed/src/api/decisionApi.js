@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 
 function formatMoney(value) {
   const n = Number(value);

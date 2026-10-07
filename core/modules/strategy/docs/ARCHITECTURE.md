@@ -2,7 +2,7 @@
 
 **版本：** `0.10.0`
 
-`modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enumerate / price_factor / portfolio）、决策者回放、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
+`modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enum / price / portfolio）、决策者回放、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
 
 ---
 
@@ -92,7 +92,7 @@ attribution.py + 当前 settings
   meta.json                         # env_fp + parent_version_id → 组号
   {n}/
     group_meta.json
-    enumerate/ | price_factor/ | portfolio/
+    enum/ | price/ | portfolio/
       report.json  table.json  attribute.json  task_meta.json
     rolling/                        # sw；口径未定
 ```
@@ -120,8 +120,7 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 - [CONCEPTS.md](./CONCEPTS.md)
 - [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
-- [DECISIONS.md](./notes/DECISIONS.md)
-- [价格三层：qfq 信号 / hfq ROI / raw 成交](./PRICE_LAYERS.md)
+- [价格三层：qfq 信号 / hfq ROI / raw 成交](./notes/PRICE_LAYERS.md)
 - [资金层日频盯市风险比（未实现）](../core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md)
 - [决策者模式：资金回测回放](./notes/DECISION_MAKER.md)
 - [跨策略决策模拟（0.5.1）](./notes/DECISION_MAKER_CROSS.md)

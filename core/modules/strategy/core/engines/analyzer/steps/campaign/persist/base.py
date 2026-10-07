@@ -145,10 +145,8 @@ class PersistBase:
         if isinstance(families, dict) and families:
             summarized["oaat"] = (
                 families.get("oaat")
-                or families.get("inputs")
                 or families.get("cross")
                 or summarized.get("oaat")
-                or summarized.get("inputs")
                 or {}
             )
             summarized["cross"] = families.get("cross") or summarized.get("cross") or {}

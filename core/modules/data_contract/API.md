@@ -46,7 +46,6 @@ kline = ContractIssuer.issue(
     fill_in_data=True,
 )
 # 每行：顶层 OHLC = qfq；row["raw"] / row["hfq"] / row["adj_factor"]
-# 不必传 adjust；传入也会被 loader 忽略
 ```
 
 ### discover / get_contract / list_available_keys / reload / …

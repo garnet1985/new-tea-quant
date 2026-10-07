@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX } from 'services/request';
+import request, { API_VERSION_PREFIX } from 'service/request';
 
 const API_DATA_CONTRACTS_LIST = `${API_VERSION_PREFIX}/data-contracts/list`;
 const API_DATA_CONTRACTS_RELOAD = `${API_VERSION_PREFIX}/data-contracts/reload`;

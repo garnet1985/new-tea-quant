@@ -28,11 +28,6 @@ from core.modules.strategy.core.services.artifacts.consts import (
 from core.system import get_version
 
 _ROOT_META = "meta.json"
-_STEP_DIRS = {
-    SimulateKind.ENUMERATE: "enum",
-    SimulateKind.PRICE_FACTOR: "price",
-    SimulateKind.PORTFOLIO: "portfolio",
-}
 _DOWNSTREAM_KINDS: Dict[SimulateKind, Tuple[SimulateKind, ...]] = {
     SimulateKind.ENUMERATE: (SimulateKind.PRICE_FACTOR, SimulateKind.PORTFOLIO),
     SimulateKind.PRICE_FACTOR: (SimulateKind.PORTFOLIO,),
@@ -407,7 +402,7 @@ class VersionMetaStore:
         steps = dict(entry.get("steps") or {})
         changed = False
         for ds in downstream:
-            step_dir = root / vid / _STEP_DIRS[ds]
+            step_dir = root / vid / ds.value
             if step_dir.is_dir():
                 shutil.rmtree(step_dir, ignore_errors=True)
                 changed = True
@@ -623,7 +618,7 @@ class VersionMetaStore:
         version_id: str,
         kind: SimulateKind,
     ) -> bool:
-        step_dir = _STEP_DIRS.get(kind, "")
+        step_dir = kind.value
         path = Path(simulations_root) / str(version_id).strip() / step_dir
         return path.is_dir() and (path / RUNTIME_ENV_FILE).is_file()
 
@@ -678,16 +673,6 @@ class VersionMetaStore:
         if not stored or not current:
             return False
         return stored != current
-
-    @classmethod
-    def env_invalid_for_version(
-        cls,
-        simulations_root: Path,
-        version_id: str,
-        current_env_fp: str,
-    ) -> bool:
-        entry = cls.get_registry_entry(simulations_root, version_id)
-        return cls.is_env_invalid(entry, current_env_fp)
 
     @classmethod
     def remove_version_from_registry(

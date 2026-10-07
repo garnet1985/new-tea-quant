@@ -86,6 +86,13 @@
 - **状态：** `beta`
 - **描述：** DuckDB pool resume 后把本实例挂回进程单例（供 infra duck-type 调用）
 
+### bind_prepared_database
+
+`DataManager.bind_prepared_database(db, *, is_verbose=False) -> DataManager`（classmethod）
+
+- **状态：** `beta`
+- **描述：** 用已经连好的 `DatabaseManager` 建本进程门面并挂成单例。不建表、不等待主进程 DuckDB、不同步指数列表。回测 worker 只读连接走这里，不走 `initialize`。
+
 ### 领域服务（属性）
 
 | 属性 | 说明 |
@@ -107,7 +114,7 @@ dm = DataManager(is_verbose=True)
 klines = dm.stock.kline.load("000001.SZ", term="daily")
 # 每行形状见 strategy/docs/PRICE_LAYERS.md §2：
 # 顶层 OHLC = qfq；row["raw"] / row["hfq"]（raw×F）/ row["adj_factor"]
-# load(..., adjust=...) 已忽略；未复权请用 load_raw
+# 未复权用 load_raw
 open_dates = dm.calendar.load_open_dates("20240101", "20241231")
 ```
 

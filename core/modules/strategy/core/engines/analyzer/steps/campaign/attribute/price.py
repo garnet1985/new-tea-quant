@@ -7,20 +7,20 @@ from .base import AttributeBase
 class PriceAttributeStep(AttributeBase):
     """看去噪后的收益和利润是否普遍。不含组合槽位。"""
 
-    LAYER = "price_factor"
+    LAYER = "price"
     KNOB_PREFIXES = ("core.", "goal.", "simulation.")
     OUTCOMES = (
-        ("price_factor", "avg_roi"),
-        ("price_factor", "win_rate"),
-        ("price_factor", "total_profit"),
-        ("price_factor", "payoff_ratio"),
-        ("price_factor", "roi_p50"),
-        ("price_factor", "top5_trade_profit_share"),
-        ("price_factor", "top5_stock_profit_share"),
-        ("price_factor", "avg_roi_without_top5"),
-        ("price_factor", "take_profit_profit_share"),
-        ("price_factor", "stop_loss_profit_share"),
-        ("price_factor", "expire_profit_share"),
+        ("price", "avg_roi"),
+        ("price", "win_rate"),
+        ("price", "total_profit"),
+        ("price", "payoff_ratio"),
+        ("price", "roi_p50"),
+        ("price", "top5_trade_profit_share"),
+        ("price", "top5_stock_profit_share"),
+        ("price", "avg_roi_without_top5"),
+        ("price", "take_profit_profit_share"),
+        ("price", "stop_loss_profit_share"),
+        ("price", "expire_profit_share"),
     )
 
 

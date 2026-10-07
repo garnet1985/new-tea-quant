@@ -166,11 +166,11 @@ class AttributeRunLauncher:
                 prog.mark_running()
                 WorkbenchRunLauncher._duckdb_prepare()
                 kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
-                if kind.value == "enumerate":
+                if kind.value == "enum":
                     result = Strategy.attribute_enumerate(
                         strategy_name, ignore_cache=force_refresh
                     )
-                elif kind.value == "price_factor":
+                elif kind.value == "price":
                     result = Strategy.attribute_price(
                         strategy_name, ignore_cache=force_refresh
                     )

@@ -19,18 +19,18 @@ from .enum_exits import (
 )
 
 EnumerateGather = declare_layer(
-    "EnumerateGather", GatherBase, "enumerate", SimulateKind.ENUMERATE
+    "EnumerateGather", GatherBase, "enum", SimulateKind.ENUMERATE
 )
 PriceGather = declare_layer(
-    "PriceGather", GatherBase, "price_factor", SimulateKind.PRICE_FACTOR
+    "PriceGather", GatherBase, "price", SimulateKind.PRICE_FACTOR
 )
 PortfolioGather = declare_layer(
     "PortfolioGather", GatherBase, "portfolio", SimulateKind.PORTFOLIO
 )
 
 _BY_LAYER: dict[str, Type[GatherBase]] = {
-    "enumerate": EnumerateGather,
-    "price_factor": PriceGather,
+    "enum": EnumerateGather,
+    "price": PriceGather,
     "portfolio": PortfolioGather,
 }
 

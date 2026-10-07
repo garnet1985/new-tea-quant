@@ -70,7 +70,7 @@ settings = {
 "data": {
     "base": {
         "data_key": "stock.kline.daily",   # str, 基础 K 线数据
-        "params": {},                       # dict, 不要写 adjust；顶层 OHLC 已是前复权
+        "params": {},                       # dict；顶层 OHLC 已是前复权
         "indicators": {                      # dict, 可选, 框架写入每根 K 线
             "rsi": [{"length": 14}],         # 当天 bar：rsi14
             "macd": [{"fast": 12, "slow": 26, "signal": 9}],
@@ -102,7 +102,7 @@ today = ctx.record_of_today
 rsi14 = today.get("rsi14") if today else None       # 单列注入字段 {name}{length}
 ```
 
-不要写 `params.adjust`（会被剥掉）。指标在 `data.base.indicators` 声明，钩子读 K 线上的字段，不要钩子里再手算一遍。RSI 字段是 `{name}{length}`（`rsi14`）。MACD 是三列长名字，见 [用技术指标](use_indicators.md)。
+指标在 `data.base.indicators` 声明，钩子读 K 线上的字段，不要钩子里再手算一遍。顶层 OHLC 已是前复权。RSI 字段是 `{name}{length}`（`rsi14`）。MACD 是三列长名字，见 [用技术指标](use_indicators.md)。
 
 ## simulation
 

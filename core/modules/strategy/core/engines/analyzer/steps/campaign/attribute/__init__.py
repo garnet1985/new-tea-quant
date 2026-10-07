@@ -17,7 +17,7 @@ _BY_LAYER: Dict[str, Type[AttributeBase]] = {
 
 
 class AttributeStep:
-    """兼容门面：``run(..., layer=)`` → 对应层归因器。"""
+    """``run(..., layer=)`` 分发到对应层的归因器。"""
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributeBase]:

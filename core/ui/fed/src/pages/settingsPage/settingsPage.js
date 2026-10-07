@@ -7,7 +7,7 @@ import {
   saveDatabaseSettings,
   saveDataSettings,
 } from '../../api/settingsApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 import {
   SettingsAssistantPanel,
   SettingsCachePanel,

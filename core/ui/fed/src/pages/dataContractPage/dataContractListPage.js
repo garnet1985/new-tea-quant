@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Box,
-  Button,
   Chip,
-  InputAdornment,
   Paper,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
@@ -18,9 +14,12 @@ import {
   getDataContractOriginLabel,
   reloadDataContractCatalog,
 } from '../../api/dataContractApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
+import PageLayout from '../../views/pageLayout';
+import SearchField from '../../views/searchField';
+import NtqButton from '../../views/ntqButton';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import Message from '../../views/message';
+import { showToast } from 'containers/toast';
 import './dataContractListPage.scss';
 
 function BoolChip({ value, trueLabel, falseLabel }) {
@@ -37,7 +36,6 @@ function DataContractListPage() {
   const [rediscovering, setRediscovering] = useState(false);
   const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [reloadNotice, setReloadNotice] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
@@ -72,12 +70,14 @@ function DataContractListPage() {
     setRediscovering(true);
     setLoading(true);
     setLoadError('');
-    setReloadNotice('');
     reloadDataContractCatalog({ page: 1, limit: 500 })
       .then((res) => {
         setRows(Array.isArray(res?.data) ? res.data : []);
         const total = Number(res?.total) || 0;
-        setReloadNotice(`已重新发现 ${total} 个数据契约（无需重启 NTQ）`);
+        showToast({
+          severity: 'success',
+          content: `已重新发现 ${total} 个数据契约（无需重启 NTQ）`,
+        });
       })
       .catch((e) => {
         setLoadError(e?.message || '重新发现数据契约失败');
@@ -164,16 +164,7 @@ function DataContractListPage() {
       loading={!pageReady}
       loadingMessage="正在加载数据契约…"
     >
-      {loadError ? <Alert severity="error" className="data-contract-list-alert">{loadError}</Alert> : null}
-      {reloadNotice ? (
-        <Alert
-          severity="success"
-          className="data-contract-list-alert"
-          onClose={() => setReloadNotice('')}
-        >
-          {reloadNotice}
-        </Alert>
-      ) : null}
+      {loadError ? <Message severity="error" className="data-contract-list-alert">{loadError}</Message> : null}
 
       <Paper className="data-contract-list-grid">
         <Stack
@@ -182,31 +173,21 @@ function DataContractListPage() {
           spacing={1.5}
           className="data-contract-list-grid-toolbar"
         >
-          <TextField
-            size="small"
+          <SearchField
+            fluid
             placeholder="搜索名称或 Key"
+            label="搜索数据契约"
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
-            inputProps={{ 'aria-label': '搜索数据契约' }}
-            className="data-contract-list-search"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <NtqIcon name="search" size={22} tone="muted" />
-                </InputAdornment>
-              ),
-            }}
           />
-          <Button
-            variant="outlined"
-            size="small"
+          <NtqButton
+            variant="glass"
+            icon="refresh"
             onClick={rediscover}
             disabled={busy}
-            className="ntq-glass-outline-btn"
-            startIcon={<NtqIcon name="refresh" size={22} tone="muted" />}
           >
             {rediscovering ? '发现中…' : '重新发现'}
-          </Button>
+          </NtqButton>
         </Stack>
 
         <Box className="data-contract-list-grid-body">

@@ -38,7 +38,7 @@
 
 滚动窗口写在同一份 `attribution.rolling.windows`，CLI `sw` 另跑，报告落在 `rolling/`，不和参数战役混在一张表里。产品口径未定。
 
-配置不进执行指纹，也不进环境指纹。工作台保存 `settings.py` 时不要改 `attribution.py`。轴只写顶层 `inputs`。不要写 `versions`、`shap`、`overlays`、`matrix`，也不要把轴放进 `enumerate` / `price_factor` / `portfolio` 块。
+配置不进执行指纹，也不进环境指纹。工作台保存 `settings.py` 时不要改 `attribution.py`。轴只写顶层 `inputs`。不要写 `versions`、`shap`、`overlays`、`matrix`，也不要把轴放进 `enum` / `price` / `portfolio` 块。
 
 ---
 

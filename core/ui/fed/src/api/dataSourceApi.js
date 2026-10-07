@@ -1,6 +1,6 @@
-import request, { API_VERSION_PREFIX } from 'services/request';
-import { mapDataEnd } from './mappers/dataEnd';
-import { getUpdateModeIcon } from './mappers/updateModeIcon';
+import request, { API_VERSION_PREFIX } from 'service/request';
+import { mapDataEnd } from 'service/dataEnd';
+import { getUpdateModeIcon } from 'service/updateModeIcon';
 
 const API_DATA_SOURCES_LIST = `${API_VERSION_PREFIX}/data-sources/list`;
 const API_DATA_SOURCES_FRESHNESS = `${API_VERSION_PREFIX}/data-sources/freshness`;

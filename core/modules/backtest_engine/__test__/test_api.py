@@ -50,11 +50,6 @@ def test_mode_normalize() -> None:
     assert BacktestEngine.Mode.normalize("slice_based") == "slice_based"
 
 
-def test_mode_normalize_rejects_legacy_alias() -> None:
-    with pytest.raises(ValueError, match="unknown backtest mode"):
-        BacktestEngine.Mode.normalize("timeline")
-
-
 def test_run_accepts_mode_enum() -> None:
     result = BacktestEngine.run(
         BacktestEngine.Mode.ENTITY_BASED,

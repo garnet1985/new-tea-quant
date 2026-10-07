@@ -180,10 +180,6 @@ class RuntimeEnv:
             runtime_env_path=runtime_env_path,
         )
 
-    def to_entity_ids_txt(self) -> str:
-        ids = self._normalize_entity_ids(self.entity_ids)
-        return "\n".join(ids) + ("\n" if ids else "")
-
     def to_dict(self) -> Dict[str, Any]:
         return {
             "strategy_key": self.strategy_key,

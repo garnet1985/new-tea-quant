@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # BE entity_based 切 batch 时只保留固定字段；自定义元数据必须放进 global / entity_shared / settings。
-PRICE_FACTOR_GLOBAL_KEY = "price_factor"
+PRICE_FACTOR_GLOBAL_KEY = "price"
 
 
 class PriceFactorJobBuilder:
@@ -93,7 +93,7 @@ class PriceFactorJobBuilder:
             end,
             data.output_dir,
         )
-        return [{"id": "price_factor_run", "payload": payload}]
+        return [{"id": "price_run", "payload": payload}]
 
     @staticmethod
     def _strategy_info_payload(
@@ -126,13 +126,13 @@ class PriceFactorJobBuilder:
 
     @classmethod
     def price_factor_meta(cls, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """从 job payload 取出 ``global.price_factor``（worker / hooks 用）。"""
+        """从 job payload 取出 ``global.price``（worker / hooks 用）。"""
         global_block = payload.get("global") if isinstance(payload, dict) else None
         if not isinstance(global_block, dict):
-            raise ValueError("price_factor payload 缺少 global")
+            raise ValueError("price payload 缺少 global")
         meta = global_block.get(PRICE_FACTOR_GLOBAL_KEY)
         if not isinstance(meta, dict) or not meta:
-            raise ValueError(f"price_factor payload 缺少 global.{PRICE_FACTOR_GLOBAL_KEY}")
+            raise ValueError(f"price payload 缺少 global.{PRICE_FACTOR_GLOBAL_KEY}")
         return dict(meta)
 
 

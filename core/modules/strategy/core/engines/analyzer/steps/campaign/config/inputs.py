@@ -20,7 +20,7 @@ from .overlay import SettingsOverlay
 
 MAX_CELLS = 128
 
-_LAYER_KEYS = ("enumerate", "price_factor", "portfolio")
+_LAYER_KEYS = ("enum", "price", "portfolio")
 
 # 短名全局唯一；展格不按 CLI 层拆分。
 _SHORT_NAMES: Dict[str, str] = {
@@ -45,7 +45,7 @@ _SOFT_CELLS = 20
 
 
 def resolve_path(key: str, layer: str = "") -> str:
-    """短名 → settings 路径。``layer`` 仅兼容未知裸名时回落到 ``core.*``。"""
+    """短名 → settings 路径。未登记的裸名在枚举层回落到 ``core.*``。"""
     text = str(key or "").strip()
     if not text:
         raise ValueError("inputs 轴名不能为空")
@@ -56,7 +56,7 @@ def resolve_path(key: str, layer: str = "") -> str:
         return mapped
     # 未登记裸名：想法侧常见 core 标量
     focus = str(layer or "").strip()
-    if focus in ("", "enumerate", "campaign"):
+    if focus in ("", "enum", "campaign"):
         return f"core.{text}"
     raise ValueError(f"未知短名 {text!r}；请写点号路径或登记短名")
 
@@ -472,7 +472,7 @@ def default_axes_for_layer(
     """单层建议默认轴（合并进共用展格时用）。"""
     focus = str(layer or "").strip()
     out: Dict[str, Dict[str, List[Any]]] = {}
-    if focus == "enumerate":
+    if focus == "enum":
         for name in ("stop_loss", "take_profit"):
             path = f"goal.{name}"
             cur = value_at(snapshot, path)
@@ -495,7 +495,7 @@ def default_axes_for_layer(
                     out[path] = {"values": _threshold_ladder(cur)}
                 else:
                     out[path] = {"values": _scalar_ladder(cur)}
-    elif focus == "price_factor":
+    elif focus == "price":
         path = "simulation.price.opportunity_merge_gap"
         cur = value_at(snapshot, path)
         if isinstance(cur, (int, float)) and not isinstance(cur, bool):

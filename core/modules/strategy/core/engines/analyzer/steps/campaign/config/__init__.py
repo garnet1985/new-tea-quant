@@ -17,13 +17,13 @@ from .overlay import SettingsOverlay
 EnumerateAttributionConfig = declare_layer(
     "EnumerateAttributionConfig",
     AttributionConfigBase,
-    "enumerate",
+    "enum",
     SimulateKind.ENUMERATE,
 )
 PriceAttributionConfig = declare_layer(
     "PriceAttributionConfig",
     AttributionConfigBase,
-    "price_factor",
+    "price",
     SimulateKind.PRICE_FACTOR,
 )
 PortfolioAttributionConfig = declare_layer(
@@ -34,8 +34,8 @@ PortfolioAttributionConfig = declare_layer(
 )
 
 _BY_LAYER: dict[str, Type[AttributionConfigBase]] = {
-    "enumerate": EnumerateAttributionConfig,
-    "price_factor": PriceAttributionConfig,
+    "enum": EnumerateAttributionConfig,
+    "price": PriceAttributionConfig,
     "portfolio": PortfolioAttributionConfig,
 }
 

@@ -34,7 +34,7 @@ Analyzer.attribute_*(key) → AttributionPipeline(kind=…) → steps/campaign/
 Analyzer.rolling(key)     → RollingPipeline → steps/rolling/
 ```
 
-``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enumerate|price_factor|portfolio}/``（按层报告目录，不是三套格子），滚动写 ``rolling/``。CLI ``sea`` / ``spa`` / ``soa`` / ``sw``。
+``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enum|price|portfolio}/``（按层报告目录，不是三套格子），滚动写 ``rolling/``。CLI ``sea`` / ``spa`` / ``soa`` / ``sw``。
 
 ## 依赖方向
 

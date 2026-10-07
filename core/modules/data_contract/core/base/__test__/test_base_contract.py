@@ -80,7 +80,7 @@ class TestBaseDataContractBasics:
             "start_time": "20200101",
             "end_time": "20201231",
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         }
 
         result = contract.add_runtime(runtime)
@@ -94,8 +94,8 @@ class TestBaseDataContractBasics:
         assert contract.runtime.entity_ids == ["600000.SH"]
 
         # 验证动态字段
-        assert hasattr(contract.runtime, "adjust")
-        assert contract.runtime.adjust == "qfq"
+        assert hasattr(contract.runtime, "nope")
+        assert contract.runtime.nope == "a"
 
     def test_is_global(self):
         """测试 is_global()：检查 scope。"""
@@ -138,7 +138,7 @@ class TestBaseDataContractBasics:
             "start_time": "20200101",
             "end_time": "20201231",
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         # 验证 fingerprint 已更新
@@ -156,7 +156,7 @@ class TestBaseDataContractBasics:
             "start_time": "20210101",
             "end_time": "20211231",
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
         fingerprint3 = contract._calculate_runtime_fingerprint()
         assert fingerprint3 != fingerprint
@@ -218,7 +218,7 @@ class TestBaseDataContractFillInData:
         # 添加 runtime（单个 entity）
         contract.add_runtime({
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         # 加载数据
@@ -256,7 +256,7 @@ class TestBaseDataContractFillInData:
         entity_ids = ["600000.SH", "600001.SH"]
         contract.add_runtime({
             "entity_ids": entity_ids,
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         # 加载数据
@@ -268,7 +268,7 @@ class TestBaseDataContractFillInData:
         # 验证参数
         call_args = mock_loader_instance.load_batch.call_args
         assert call_args[0][0] == entity_ids  # 第一个位置参数
-        assert call_args[0][1]["adjust"] == "qfq"  # 第二个位置参数
+        assert call_args[0][1]["nope"] == "a"
 
         # 验证数据已加载
         assert contract.data is not None
@@ -292,7 +292,7 @@ class TestBaseDataContractFillInData:
         # 通过参数传递 runtime
         contract.fill_in_data(runtime={
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         # 验证 loader 被调用
@@ -318,7 +318,7 @@ class TestBaseDataContractFillInData:
         # 第一次加载
         contract.fill_in_data(runtime={
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         assert mock_loader_instance.load.call_count == 1
@@ -346,7 +346,7 @@ class TestBaseDataContractFillInData:
         # 第一次加载
         contract.fill_in_data(runtime={
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         assert mock_loader_instance.load.call_count == 1
@@ -658,7 +658,7 @@ class TestEdgeCases:
         # 添加包含额外字段的 runtime
         contract.add_runtime({
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
             "custom_field": "custom_value",
         })
 
@@ -666,8 +666,8 @@ class TestEdgeCases:
         assert contract.runtime.entity_ids == ["600000.SH"]
 
         # 验证额外字段
-        assert hasattr(contract.runtime, "adjust")
-        assert contract.runtime.adjust == "qfq"
+        assert hasattr(contract.runtime, "nope")
+        assert contract.runtime.nope == "a"
         assert hasattr(contract.runtime, "custom_field")
         assert contract.runtime.custom_field == "custom_value"
 
@@ -766,14 +766,14 @@ class TestIntegration:
             "start_time": "20200101",
             "end_time": "20201231",
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         # 4. 验证 runtime
         assert contract.runtime.start_time == "20200101"
         assert contract.runtime.end_time == "20201231"
-        assert hasattr(contract.runtime, "adjust")
-        assert contract.runtime.adjust == "qfq"
+        assert hasattr(contract.runtime, "nope")
+        assert contract.runtime.nope == "a"
 
         # 5. 获取时间窗口
         window = contract.get_time_window()
@@ -828,7 +828,7 @@ class TestIntegration:
         # 第一次加载
         contract.fill_in_data(runtime={
             "entity_ids": ["600000.SH"],
-            "adjust": "qfq",
+            "nope": "a",
         })
 
         assert mock_loader_instance.load.call_count == 1
@@ -836,7 +836,7 @@ class TestIntegration:
         # 更改 runtime
         contract.add_runtime({
             "entity_ids": ["600000.SH"],
-            "adjust": "hfq",  # 不同的复权方式
+            "nope": "b",
         })
 
         # 再次加载（runtime 已更新，应该重新加载）

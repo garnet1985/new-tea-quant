@@ -1,19 +1,7 @@
-import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
-import { coerceMetaDescription } from '../utils/formatStrategyDescription';
-import { normalizeWorkbenchVersionId } from '../utils/workbenchVersionId';
-import { mapDataEnd } from './mappers/dataEnd';
-
-export {
-  UNKNOWN_STRATEGY_CATEGORY,
-  UNKNOWN_STRATEGY_CATEGORY_QUERY,
-  STRATEGY_LIST_CATEGORY_PARAM,
-  getStrategyCategoryLabel,
-  getStrategyCategoryQueryValue,
-  getStrategyListPath,
-  groupStrategiesByCategory,
-  listPeerStrategies,
-  readStrategyListCategoryQuery,
-} from './strategyCategory';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
+import { coerceMetaDescription } from '../service/format/formatStrategyDescription';
+import { normalizeWorkbenchVersionId } from '../service/workbenchVersionId';
+import { mapDataEnd } from 'service/dataEnd';
 
 /** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
 const API_STRATEGY_CATALOG = (page, limit) =>
@@ -60,7 +48,7 @@ export async function fetchStrategyList() {
     data: list.map((item) => {
       const pathName = String(item.name || '').trim();
       const key = String(item.key || '').trim();
-      // API / 路由身份：优先 meta.key；无 key 时回落 path（兼容旧策略）
+      // 列表身份用 meta.key；这一行没有 key 时用 path，与发现服务一致。
       const identity = key || pathName;
       return {
         id: identity,

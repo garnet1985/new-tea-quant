@@ -75,7 +75,6 @@ def test_should_run_respects_dispatch_probe_flag() -> None:
         }
     ]
     assert SliceProbe.should_run(jobs, {"dispatch_probe": False}) is False
-    assert SliceProbe.should_run(jobs, {"slice_probe": False}) is False
     assert SliceProbe.should_run(jobs, {"preload_depth": 4}) is False
     assert SliceProbe.should_run(jobs, {"preload_depth": "auto"}) is True
 

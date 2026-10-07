@@ -6,14 +6,14 @@ from typing import Any, Optional
 from .contrasts import KnobContrasts
 
 _LAYER_REPORT_TITLE = {
-    "enumerate": "枚举归因报告",
-    "price_factor": "价格归因报告",
+    "enum": "枚举归因报告",
+    "price": "价格归因报告",
     "portfolio": "组合归因报告",
 }
 
 _LAYER_LABELS = {
-    "enumerate": "机会",
-    "price_factor": "价格",
+    "enum": "机会",
+    "price": "价格",
     "portfolio": "账户",
 }
 

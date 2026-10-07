@@ -145,10 +145,10 @@ def test_overlay_none_is_legal() -> None:
                 "stop_loss": {"values": [None]},
             }
         },
-        layer="enumerate",
+        layer="enum",
     )
     assert cfg.has_layer_inputs
-    cells = AttributionPlan.expand(snapshot, cfg, layer="enumerate")
+    cells = AttributionPlan.expand(snapshot, cfg, layer="enum")
     assert cells[0].overlay == {}
     pe_off = next(
         cell
@@ -197,11 +197,9 @@ def test_attribution_settings_drops_fill_missing() -> None:
                 "fill_missing": False,
             },
         },
-        layer="enumerate",
+        layer="enum",
     )
     dumped = cfg.to_dict()
     assert "fill_missing" not in dumped
     assert "fill_missing" not in (dumped.get("rolling") or {})
     assert "steps" not in dumped
-    assert "overlays" not in dumped
-    assert "matrix" not in dumped

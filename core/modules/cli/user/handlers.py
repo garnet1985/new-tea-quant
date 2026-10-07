@@ -316,8 +316,8 @@ class UserHandlers:
         )
         wall_sec = time.perf_counter() - t0
 
-        enum_result = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else result
-        UserHandlers._print_simulate_version(result, "enumerate")
+        enum_result = result.get("enum") if isinstance(result.get("enum"), dict) else result
+        UserHandlers._print_simulate_version(result, "enum")
 
         # 终局摘要统一走 Strategy.present_report
         if enum_result.get("output_dir"):
@@ -372,9 +372,9 @@ class UserHandlers:
         )
         wall_sec = time.perf_counter() - t0
 
-        pf = result.get("price_factor") if isinstance(result.get("price_factor"), dict) else result
-        enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
-        UserHandlers._print_simulate_version(result, "price_factor")
+        pf = result.get("price") if isinstance(result.get("price"), dict) else result
+        enum_part = result.get("enum") if isinstance(result.get("enum"), dict) else None
+        UserHandlers._print_simulate_version(result, "price")
         if enum_part:
             print(
                 f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
@@ -426,7 +426,7 @@ class UserHandlers:
         wall_sec = time.perf_counter() - t0
 
         pf = result.get("portfolio") if isinstance(result.get("portfolio"), dict) else result
-        enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+        enum_part = result.get("enum") if isinstance(result.get("enum"), dict) else None
         UserHandlers._print_simulate_version(result, "portfolio")
         if enum_part:
             print(
@@ -515,8 +515,8 @@ class UserHandlers:
         t0 = time.perf_counter()
         pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)
         pf = (
-            pf_result.get("price_factor")
-            if isinstance(pf_result.get("price_factor"), dict)
+            pf_result.get("price")
+            if isinstance(pf_result.get("price"), dict)
             else pf_result
         )
         if not (pf.get("success", True) if isinstance(pf, dict) else True):
@@ -777,7 +777,7 @@ class UserHandlers:
         if cmd == "strategy_attribute_enumerate":
             UserHandlers._run_strategy_attribute(
                 args,
-                layer="enumerate",
+                layer="enum",
                 api_name="attribute_enumerate",
                 title="枚举层归因",
                 need_cli="se",
@@ -787,7 +787,7 @@ class UserHandlers:
         if cmd == "strategy_attribute_price":
             UserHandlers._run_strategy_attribute(
                 args,
-                layer="price_factor",
+                layer="price",
                 api_name="attribute_price",
                 title="价格层归因",
                 need_cli="sp",

@@ -1,4 +1,8 @@
-"""Analysis Facade — stats/ML primitives for attribution (no I/O)."""
+"""Analysis Facade — stats/ML primitives for attribution (no I/O).
+
+# TODO: 归因统计的产品口径还没定。战役目前只用 coerce_float。
+# 分桶、相关、回归、两次 run 对照和 xgb 先留着，不要当已完成功能。
+"""
 from __future__ import annotations
 
 from core.modules.analysis.core.classical.column_profile import ColumnProfiler

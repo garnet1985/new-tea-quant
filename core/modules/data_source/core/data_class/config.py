@@ -170,7 +170,7 @@ class DataSourceConfig:
             default_date_range_years=default_date_range_years,
         )
 
-    # ========== 兼容访问方法（读取内部强类型） ==========
+    # 读取内部强类型。
 
     def get_table_name(self) -> str:
         return self._table

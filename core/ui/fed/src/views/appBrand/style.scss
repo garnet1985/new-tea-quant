@@ -1,0 +1,49 @@
+.ntq-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: none;
+  }
+}
+
+.ntq-brand__logo {
+  width: auto;
+  height: 50px;
+  object-fit: contain;
+  display: block;
+}
+
+.ntq-brand__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ntq-brand__name {
+  display: inline-block;
+  font-size: 1.3rem !important;
+  font-weight: 800 !important;
+  line-height: 1;
+  letter-spacing: -0.1em;
+  text-transform: uppercase;
+  background: var(--ntq-brand-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  text-shadow: var(--ntq-brand-text-glow);
+
+  &.MuiTypography-root {
+    background: var(--ntq-brand-text-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent;
+  }
+}

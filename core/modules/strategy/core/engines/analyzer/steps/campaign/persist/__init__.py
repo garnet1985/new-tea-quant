@@ -18,18 +18,18 @@ from .base import (
 from .groups import AttributionGroupStore
 
 EnumeratePersist = declare_layer(
-    "EnumeratePersist", PersistBase, "enumerate", SimulateKind.ENUMERATE
+    "EnumeratePersist", PersistBase, "enum", SimulateKind.ENUMERATE
 )
 PricePersist = declare_layer(
-    "PricePersist", PersistBase, "price_factor", SimulateKind.PRICE_FACTOR
+    "PricePersist", PersistBase, "price", SimulateKind.PRICE_FACTOR
 )
 PortfolioPersist = declare_layer(
     "PortfolioPersist", PersistBase, "portfolio", SimulateKind.PORTFOLIO
 )
 
 _BY_LAYER: dict[str, Type[PersistBase]] = {
-    "enumerate": EnumeratePersist,
-    "price_factor": PricePersist,
+    "enum": EnumeratePersist,
+    "price": PricePersist,
     "portfolio": PortfolioPersist,
 }
 

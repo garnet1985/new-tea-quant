@@ -25,13 +25,13 @@ from .portfolio import PortfolioAttributionPlan
 PriceAttributionPlan = declare_layer(
     "PriceAttributionPlan",
     AttributionPlanBase,
-    "price_factor",
+    "price",
     SimulateKind.PRICE_FACTOR,
 )
 
 _BY_LAYER: dict[str, Type[AttributionPlanBase]] = {
     EnumerateAttributionPlan.LAYER: EnumerateAttributionPlan,
-    "price_factor": PriceAttributionPlan,
+    "price": PriceAttributionPlan,
     PortfolioAttributionPlan.LAYER: PortfolioAttributionPlan,
 }
 

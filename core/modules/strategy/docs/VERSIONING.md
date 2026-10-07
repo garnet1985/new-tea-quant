@@ -1,8 +1,7 @@
 # Simulation versioning
 
 **状态：** 现行规格（2026-09-03）  
-**编号决策：** [notes/DECISIONS.md](./notes/DECISIONS.md)（D1–D40）  
-**旧盘清理：** [notes/VERSIONING_CLEANUP.md](./notes/VERSIONING_CLEANUP.md)
+**编号决策：** [DESIGN.md](./DESIGN.md) 文末（D15–D40）
 
 一次完整回测 = 一个 version（enum / price / portfolio 共享该号）。日常编辑 SOT 是 `settings.py`；没有「发布策略」、没有工作台 DB 与磁盘双轨。
 
@@ -52,7 +51,7 @@
       "execute_fp": "...",
       "env_fp": "...",
       "engine_version": "...",
-      "steps": {"enumerate": "ok"}
+      "steps": {"enum": "ok"}
     }
   }
 }
@@ -67,7 +66,7 @@
 - `{vid}/` 身份归档三步共享、同身份只写一次（force / 补步不覆盖归档文件）。
 - 步骤完成：registry `steps.{kind} = "ok"`；磁盘兜底 `{vid}/{step}/runtime_env.json`。
 
-旧布局 `simulations/enum/N/` **不迁移**，见 [VERSIONING_CLEANUP.md](./notes/VERSIONING_CLEANUP.md)。
+旧布局 `simulations/enum/N/` 不读、不迁移。删掉 `results/simulations/` 后重新跑。工作台快照只认磁盘 `meta.json`，不再读已删除的 `sys_strategy_workbench_snapshot`。
 
 ---
 
@@ -145,7 +144,4 @@
 | 文件 | 角色 |
 |------|------|
 | 本文 | **现行叙事 SOT** |
-| [notes/DECISIONS.md](./notes/DECISIONS.md) | 编号决策日志（D1–D39） |
-| [notes/VERSIONING_CLEANUP.md](./notes/VERSIONING_CLEANUP.md) | 旧 `enum/N` 布局与 legacy DB 一次性清理 |
-| [notes/VERSIONING_REDESIGN.md](./notes/VERSIONING_REDESIGN.md) | 已归档过程稿 |
-| [notes/SETTINGS_VERSION_IDENTITY.md](./notes/SETTINGS_VERSION_IDENTITY.md) | 已归档讨论纪要 |
+| [DESIGN.md](./DESIGN.md) | 编号决策（D15–D40） |

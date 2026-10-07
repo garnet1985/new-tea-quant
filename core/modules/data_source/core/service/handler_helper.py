@@ -308,14 +308,14 @@ class DataSourceHandlerHelper:
                 key = str(entity_id)
                 raw_last = raw_last_update_map.get(key)
                 start_date = drh.calc_last_update_based_on_renew_mode(
-                    context, entity_id=key, last_update=raw_last
+                    context, last_update=raw_last
                 )
                 result[key] = start_date
         else:
             # 没有显式 entity_list，就直接对 DB 返回的 key 做转换
             for key, raw_last in raw_last_update_map.items():
                 start_date = drh.calc_last_update_based_on_renew_mode(
-                    context, entity_id=str(key), last_update=raw_last
+                    context, last_update=raw_last
                 )
                 result[str(key)] = start_date
 
@@ -339,7 +339,7 @@ class DataSourceHandlerHelper:
         raw_map = drh.compute_last_update_map(context)
         raw_last = raw_map.get("_global")
         return drh.calc_last_update_based_on_renew_mode(
-            context, entity_id=None, last_update=raw_last
+            context, last_update=raw_last
         )
 
 

@@ -153,7 +153,7 @@ class SimulateSession:
             and SimulateKind.ENUMERATE not in self.steps
         ):
             raise ValueError(
-                f"{self.kind.value} 需要 enum_version 或 steps 中包含 enumerate"
+                f"{self.kind.value} 需要 enum_version 或 steps 中包含 enum"
             )
 
 

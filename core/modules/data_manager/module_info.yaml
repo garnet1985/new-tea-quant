@@ -8,10 +8,11 @@ dependencies:
   - infra.project_context
   - infra.discovery
   - infra.utils
+  - infra.cmd_layout
 changelog:
   - version: "0.2.1"
     changes:
-      - 股票 K 线 load/load_batch 默认同时给出 qfq（顶层）、raw、hfq、adj_factor；adjust 参数不再切换序列
+      - 股票 K 线 load/load_batch 一律给出前复权顶层，以及 raw、hfq、adj_factor
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

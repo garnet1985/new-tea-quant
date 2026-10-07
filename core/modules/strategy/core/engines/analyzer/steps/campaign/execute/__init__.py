@@ -1,4 +1,4 @@
-"""战役执行步：格子 → simulate / 选号读取。
+"""战役执行步：格子 → simulate。
 
 pipeline 只调 ``ExecuteStep.run(..., kind=)``；层差异在子类。
 """
@@ -15,18 +15,18 @@ from .base import ExecuteBase
 from .models import CellExecuteResult
 
 EnumerateExecute = declare_layer(
-    "EnumerateExecute", ExecuteBase, "enumerate", SimulateKind.ENUMERATE
+    "EnumerateExecute", ExecuteBase, "enum", SimulateKind.ENUMERATE
 )
 PriceExecute = declare_layer(
-    "PriceExecute", ExecuteBase, "price_factor", SimulateKind.PRICE_FACTOR
+    "PriceExecute", ExecuteBase, "price", SimulateKind.PRICE_FACTOR
 )
 PortfolioExecute = declare_layer(
     "PortfolioExecute", ExecuteBase, "portfolio", SimulateKind.PORTFOLIO
 )
 
 _BY_LAYER: dict[str, Type[ExecuteBase]] = {
-    "enumerate": EnumerateExecute,
-    "price_factor": PriceExecute,
+    "enum": EnumerateExecute,
+    "price": PriceExecute,
     "portfolio": PortfolioExecute,
 }
 

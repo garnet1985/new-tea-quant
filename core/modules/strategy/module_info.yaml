@@ -12,6 +12,7 @@ dependencies:
   - modules.analysis
   - modules.market_profile
   - modules.data_source
+  - infra.db
   - infra.project_context
   - infra.discovery
   - infra.export_import

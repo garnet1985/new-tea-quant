@@ -1,7 +1,7 @@
 import React from 'react';
 import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import { versionPickMarks } from './versionPickMarks';
-import './versionPickLabel.scss';
+import './style.scss';
 
 function stopRowAction(event) {
   event.preventDefault();

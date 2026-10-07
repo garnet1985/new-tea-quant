@@ -24,7 +24,7 @@ import {
   getDataSourceUpdateStatusLabel,
 } from '../../api/dataSourceApi';
 import PageLayout from '../../views/pageLayout';
-import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
+import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import NtqIcon from '../../views/ntqIcon';
 import NtqRainbowRunButton from '../../views/ntqRainbowRunButton';

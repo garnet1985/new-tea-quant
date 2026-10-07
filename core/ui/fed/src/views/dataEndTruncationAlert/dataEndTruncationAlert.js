@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Typography } from '@mui/material';
+import './style.scss';
 
 /**
  * 当 ``data.json`` 配置了 as-of 截断时，在列表页顶部展示统一说明。
@@ -19,7 +20,7 @@ export default function DataEndTruncationAlert({ dataEnd, className = '' }) {
           <Typography
             component={RouterLink}
             to={dataEnd.truncation_settings_path}
-            sx={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}
+            className="ntq-data-end-truncation-alert__link"
           >
             前往设置 → 数据范围
           </Typography>

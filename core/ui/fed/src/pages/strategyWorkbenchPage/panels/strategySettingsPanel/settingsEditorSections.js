@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import Editor from 'components/editor/editor';
+import Editor from 'containers/editor';
 import strategyGoalSchema from './editorSchemas/strategyGoal';
 import {
   applyGoalActions,

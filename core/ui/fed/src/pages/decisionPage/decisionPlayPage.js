@@ -28,9 +28,9 @@ import {
   buildMarketChartOptionFromStockPayload,
   FinancePitCard,
   pickFinanceSnapshot,
+  resolveAxisPointerDate,
   stockKlinePayloadToMarketChartModel,
-} from 'components/marketChart';
-import { resolveAxisPointerDate } from 'components/marketChart/dateFormat';
+} from 'containers/marketChart';
 import {
   doneDecisionDay,
     fetchDecisionHoldings,

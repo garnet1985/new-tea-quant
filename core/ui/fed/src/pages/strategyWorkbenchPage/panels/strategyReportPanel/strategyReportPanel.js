@@ -16,9 +16,7 @@ import {
   Typography,
 } from '@mui/material';
 import SettingsAccordionTitle from 'views/settingsAccordionTitle';
-import VersionPickLabel from 'components/versionPickLabel/versionPickLabel';
-import VersionPickerDialog from 'components/versionPickLabel/versionPickerDialog';
-import { lookupVersionById } from 'components/versionPickLabel/versionPickMarks';
+import { VersionPickLabel, VersionPickerDialog, lookupVersionById } from 'containers/versionPick';
 import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
 import PriceFactorReport from './reports/priceFactorReport';
 import CapitalAllocationReport from './reports/capitalAllocationReport';

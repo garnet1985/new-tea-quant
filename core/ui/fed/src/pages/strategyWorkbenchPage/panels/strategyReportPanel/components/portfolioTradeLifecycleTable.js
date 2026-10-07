@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import NtqIcon from 'views/ntqIcon';
-import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
+import ReportStockSampleGrid from 'views/reportStockSampleGrid';
 import { SectionBlock } from 'views/sectionBlock';
 import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
 import { CAPITAL_CHART_TIPS } from '../reportMetricTips';

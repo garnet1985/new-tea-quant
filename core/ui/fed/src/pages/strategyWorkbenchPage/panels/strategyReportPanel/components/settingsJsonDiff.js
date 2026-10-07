@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued';
 import { Box, Chip, Stack, Typography } from '@mui/material';
-import { DICT_PARSER_TEXT_FONT } from 'components/editor/fields/dictParser';
+import { DICT_PARSER_TEXT_FONT } from 'containers/editor';
 
 /** 与常见编辑器一致；过大缩进会加重横向滚动 */
 const JSON_INDENT = 2;

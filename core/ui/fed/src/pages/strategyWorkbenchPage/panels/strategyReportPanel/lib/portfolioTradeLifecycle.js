@@ -7,7 +7,7 @@ import {
   MARKET_MARKER_PIN_SIZE,
   MARKET_MARKER_PIN_UP,
   marketMarkerPinStyle,
-} from 'components/marketChart';
+} from 'containers/marketChart';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Divider } from '@mui/material';
-import './editorFieldGroup.scss';
+import './style.scss';
 
 function DividerField({ node }) {
   return (

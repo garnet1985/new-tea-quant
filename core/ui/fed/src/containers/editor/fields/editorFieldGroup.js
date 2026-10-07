@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import { Stack, Typography } from '@mui/material';
-import './editorFieldGroup.scss';
+import './style.scss';
 
 /**
  * 编辑器内轻量分组：区块标题在上，字段在下。

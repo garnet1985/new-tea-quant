@@ -8,7 +8,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import Editor from 'components/editor/editor';
+import Editor from 'containers/editor';
 import strategyCoreSchema from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyCore';
 import strategyDataSchema from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyData';
 import { buildStrategyMetaSchema } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';

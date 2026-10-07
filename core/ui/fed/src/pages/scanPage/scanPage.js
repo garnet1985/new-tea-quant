@@ -33,8 +33,8 @@ import {
   startStrategyScan,
 } from '../../api/strategyApi';
 import PageLayout from '../../views/pageLayout';
-import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
-import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
+import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
+import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import InlineLoadingState from '../../views/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';

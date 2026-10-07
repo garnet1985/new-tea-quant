@@ -12,12 +12,12 @@ import {
   Typography,
 } from '@mui/material';
 import NtqIcon from 'views/ntqIcon';
-import VersionPickerDialog from 'components/versionPickLabel/versionPickerDialog';
 import {
+  VersionPickerDialog,
   SETTINGS_RETENTION_HREF,
   lookupVersionById,
   retentionCapFromVersions,
-} from 'components/versionPickLabel/versionPickMarks';
+} from 'containers/versionPick';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 
 function StrategyDesignMetaDialogs() {

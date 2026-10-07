@@ -34,7 +34,6 @@ core/ui/
     ├── app.js
     ├── api/
     ├── assets/
-    ├── components/
     ├── containers/
     ├── pages/
     ├── service/

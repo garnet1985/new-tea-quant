@@ -2,7 +2,7 @@
 
 前端在 `fed/src`。这里是写法和目录的约定。产品结构见 `docs/`，不在本文。
 
-`service/`、`styles/`、`views/` 和 `containers/` 已经就位。`components/` 里剩下 K 线、设置编辑器、报告表格、版本选择、策略包导入，以及还绑在编辑器上的几块展示。新文件不要再放进 `components/`。
+`service/`、`styles/`、`views/` 和 `containers/` 已经就位。展示放 `views/`，能力放 `containers/`。不要再新建 `components/`。
 
 ## 目录
 

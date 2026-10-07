@@ -21,9 +21,9 @@ import {
 import {
   importStrategyPackage,
   previewStrategyPackageImport,
-} from '../../api/strategyApi';
-import { useAsyncAction } from '../../hooks/useAsyncAction';
-import './strategyPackageImportDialog.scss';
+} from 'api/strategyApi';
+import { useAsyncAction } from 'hooks/useAsyncAction';
+import './style.scss';
 
 const POLICY_OPTIONS = [
   { value: 'reject', label: '重名拒绝' },

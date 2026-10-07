@@ -1,5 +1,5 @@
 import React from 'react';
-import EditorFieldLabel from '../editor/fields/editorFieldLabel';
+import EditorFieldLabel from './fields/editorFieldLabel';
 import {
   Box,
   Stack,

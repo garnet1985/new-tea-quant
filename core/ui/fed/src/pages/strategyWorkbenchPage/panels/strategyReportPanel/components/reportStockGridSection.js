@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import InlineLoadingState from 'views/inlineLoadingState';
-import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
+import ReportStockSampleGrid from 'views/reportStockSampleGrid';
 import ReportUnavailableHint, {
   REPORT_EMPTY_MATCH_ZH,
 } from './reportUnavailableHint';

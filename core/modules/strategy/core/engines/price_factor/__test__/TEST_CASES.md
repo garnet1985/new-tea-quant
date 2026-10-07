@@ -1,5 +1,8 @@
 # price_factor 测试索引
 
+**模块：** `modules.strategy`  
+**版本：** `0.10.0`
+
 | 文件 | 覆盖 |
 |------|------|
 | `test_opportunity_merge.py` | base 轴间隔、默认是否开新段 |

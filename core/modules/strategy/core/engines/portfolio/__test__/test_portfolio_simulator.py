@@ -466,7 +466,7 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
         load_shibor_overnight=lambda *_args, **_kwargs: {},
     )
     assert report["success"] is True
-    assert report["version_id"] == 1
+    assert report["version_id"] == "1"
     assert report["capitalMetrics"]["totalTrades"] >= 2
     assert report["capitalMetrics"]["winTrades"] == 1
     assert len(report["capitalMetrics"]["equityCurveLabels"]) >= 2

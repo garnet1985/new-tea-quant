@@ -1,5 +1,8 @@
 # analyzer 测试索引
 
+**模块：** `modules.strategy`  
+**版本：** `0.10.0`
+
 单 version / 层内诊断测试已随 prepare / analyze / report / layer 删除。
 
 战役与落盘见：

@@ -7,20 +7,30 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
+from ..layers import declare_layer, pick_layer
 from .base import (
     PARAMETER_TASK_ID,
     ROLLING_TASK_ID,
     PersistBase,
 )
-from .enumerate import EnumeratePersist
 from .groups import AttributionGroupStore
-from .portfolio import PortfolioPersist
-from .price import PricePersist
+
+EnumeratePersist = declare_layer(
+    "EnumeratePersist", PersistBase, "enumerate", SimulateKind.ENUMERATE
+)
+PricePersist = declare_layer(
+    "PricePersist", PersistBase, "price_factor", SimulateKind.PRICE_FACTOR
+)
+PortfolioPersist = declare_layer(
+    "PortfolioPersist", PersistBase, "portfolio", SimulateKind.PORTFOLIO
+)
 
 _BY_LAYER: dict[str, Type[PersistBase]] = {
-    EnumeratePersist.LAYER: EnumeratePersist,
-    PricePersist.LAYER: PricePersist,
-    PortfolioPersist.LAYER: PortfolioPersist,
+    "enumerate": EnumeratePersist,
+    "price_factor": PricePersist,
+    "portfolio": PortfolioPersist,
 }
 
 
@@ -29,11 +39,7 @@ class PersistStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[PersistBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioPersist
-        return step
+        return pick_layer(_BY_LAYER, layer, PortfolioPersist)
 
     @classmethod
     def run(

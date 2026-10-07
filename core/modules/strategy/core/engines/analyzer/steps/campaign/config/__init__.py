@@ -6,18 +6,37 @@ from __future__ import annotations
 
 from typing import Any, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
+from ..layers import declare_layer, pick_layer
 from .base import AttributionConfigBase
-from .enumerate import EnumerateAttributionConfig
 from .inputs import MAX_CELLS, expand_axes, parse_axes
 from .loader import ATTRIBUTION_FILE_NAME
 from .overlay import SettingsOverlay
-from .portfolio import PortfolioAttributionConfig
-from .price import PriceAttributionConfig
+
+EnumerateAttributionConfig = declare_layer(
+    "EnumerateAttributionConfig",
+    AttributionConfigBase,
+    "enumerate",
+    SimulateKind.ENUMERATE,
+)
+PriceAttributionConfig = declare_layer(
+    "PriceAttributionConfig",
+    AttributionConfigBase,
+    "price_factor",
+    SimulateKind.PRICE_FACTOR,
+)
+PortfolioAttributionConfig = declare_layer(
+    "PortfolioAttributionConfig",
+    AttributionConfigBase,
+    "portfolio",
+    SimulateKind.PORTFOLIO,
+)
 
 _BY_LAYER: dict[str, Type[AttributionConfigBase]] = {
-    EnumerateAttributionConfig.LAYER: EnumerateAttributionConfig,
-    PriceAttributionConfig.LAYER: PriceAttributionConfig,
-    PortfolioAttributionConfig.LAYER: PortfolioAttributionConfig,
+    "enumerate": EnumerateAttributionConfig,
+    "price_factor": PriceAttributionConfig,
+    "portfolio": PortfolioAttributionConfig,
 }
 
 
@@ -26,11 +45,7 @@ class AttributionConfig:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributionConfigBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioAttributionConfig
-        return step
+        return pick_layer(_BY_LAYER, layer, PortfolioAttributionConfig)
 
     @classmethod
     def load(cls, strategy_folder, *, layer: str = "", strategy_key=None):

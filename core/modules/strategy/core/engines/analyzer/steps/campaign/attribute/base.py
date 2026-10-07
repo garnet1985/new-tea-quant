@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from core.modules.analysis import Analysis
 
 from ..contrasts import KnobContrasts
-from ..effects import CampaignEffects
 from ..metrics import READY, layer_number
 
 _SKIPPED = {
@@ -24,8 +23,6 @@ class AttributeBase:
     LAYER: str = ""
     KNOB_PREFIXES: Tuple[str, ...] = ()
     OUTCOMES: Tuple[Tuple[str, str], ...] = ()
-    ENABLE_INTERACTIONS: bool = True
-    ENABLE_CROSS_LAYER: bool = True
 
     @classmethod
     def accepts_knob(cls, path: Any) -> bool:
@@ -93,13 +90,7 @@ class AttributeBase:
             if _is_varying(_knob_scalars(sensitivity_rows, key))
         ]
         layers = {focus: cls._attribute_layer(sensitivity_rows, varying_knobs)}
-        grid_knobs = list(dict.fromkeys([*presence_paths, *sensitivity_paths]))
-        sensitivity = cls._sensitivity_chapter(
-            sensitivity_rows,
-            varying_knobs,
-            grid_rows=rows,
-            grid_knobs=grid_knobs,
-        )
+        sensitivity = cls._sensitivity_chapter(sensitivity_rows, varying_knobs)
         contributions = {"presence": presence, "sensitivity": sensitivity}
         return {
             "status": _overall_status(layers, contributions),
@@ -186,35 +177,16 @@ class AttributeBase:
         cls,
         rows: Sequence[Mapping[str, Any]],
         varying_knobs: Sequence[str],
-        *,
-        grid_rows: Optional[Sequence[Mapping[str, Any]]] = None,
-        grid_knobs: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
-        contributions = (
-            cls._contributions(rows, varying_knobs)
-            if len(rows) >= 2
-            else {
+        if len(rows) < 2:
+            return {
                 "status": "skipped",
                 "reason": "insufficient_on_rows",
                 "items": [],
                 "one_at_a_time_count": 0,
                 "joint_count": 0,
             }
-        )
-        grid = grid_rows if grid_rows is not None else rows
-        knobs = list(grid_knobs) if grid_knobs is not None else varying_knobs
-        if len(rows) < 2 and (len(grid) < 4 or len(knobs) < 2):
-            return contributions
-        return CampaignEffects.enrich(
-            rows,
-            varying_knobs,
-            contributions,
-            grid_rows=grid,
-            grid_knobs=knobs,
-            enable_interactions=cls.ENABLE_INTERACTIONS,
-            enable_cross_layer=cls.ENABLE_CROSS_LAYER,
-            outcomes=cls.OUTCOMES,
-        )
+        return cls._contributions(rows, varying_knobs)
 
     @classmethod
     def _contributions(
@@ -268,6 +240,7 @@ class AttributeBase:
         rows: Sequence[Mapping[str, Any]],
         varying_knobs: Sequence[str],
     ) -> Dict[str, Any]:
+        del varying_knobs
         layer = cls.LAYER
         usable = [
             row
@@ -281,65 +254,7 @@ class AttributeBase:
                 "n": len(usable),
                 "outcomes": {},
             }
-        wanted = [outcome for layer_name, outcome in cls.OUTCOMES if layer_name == layer]
-        if not wanted:
-            sample = usable[0].get("layers", {}).get(layer) or {}
-            wanted = [
-                key
-                for key in sample.keys()
-                if _is_numeric_series(_layer_series(usable, layer, key))
-            ]
-        outcomes: Dict[str, Any] = {}
-        for outcome in wanted:
-            outcomes[outcome] = cls._attribute_outcome(usable, outcome, varying_knobs)
-        statuses = [
-            part.get("status") for part in outcomes.values() if isinstance(part, dict)
-        ]
-        if any(s == "ok" for s in statuses):
-            status = "ok" if all(s == "ok" for s in statuses) else "partial"
-        else:
-            status = "skipped"
-        return {"status": status, "n": len(usable), "outcomes": outcomes}
-
-    @classmethod
-    def _attribute_outcome(
-        cls,
-        rows: Sequence[Mapping[str, Any]],
-        outcome: str,
-        varying_knobs: Sequence[str],
-    ) -> Dict[str, Any]:
-        y_raw = _layer_series(rows, cls.LAYER, outcome)
-        profile = Analysis.Classical.summarize_column(y_raw)
-        if profile.get("role") != "varying" or profile.get("dtype") != "numeric":
-            return {
-                "status": "skipped",
-                "reason": "outcome_not_varying",
-                "profile": profile,
-                "fields": {},
-            }
-        if not varying_knobs:
-            return {
-                "status": "skipped",
-                "reason": "no_varying_knobs",
-                "profile": profile,
-                "fields": {},
-            }
-        fields: Dict[str, Any] = {}
-        for knob in varying_knobs:
-            xs, ys = _aligned_numeric(_knob_scalars(rows, knob), y_raw)
-            fields[knob] = {
-                "n": len(xs),
-                "correlation": Analysis.Classical.spearman_correlation(xs, ys),
-            }
-        field_ok = any(
-            (part.get("correlation") or {}).get("status") == "ok"
-            for part in fields.values()
-        )
-        return {
-            "status": "ok" if field_ok else "skipped",
-            "profile": profile,
-            "fields": fields,
-        }
+        return {"status": "ok", "n": len(usable), "outcomes": {}}
 
     @classmethod
     def _row_deltas(
@@ -393,18 +308,6 @@ def _chapter_result(
     return out
 
 
-def _layer_series(
-    rows: Sequence[Mapping[str, Any]],
-    layer: str,
-    key: str,
-) -> List[Any]:
-    out: List[Any] = []
-    for row in rows:
-        block = (row.get("layers") or {}).get(layer)
-        out.append(block.get(key) if isinstance(block, dict) else None)
-    return out
-
-
 def _knob_scalar(row: Mapping[str, Any], key: str) -> Optional[float]:
     block = row.get("knobs") or {}
     raw = block.get(key) if isinstance(block, dict) else None
@@ -438,26 +341,6 @@ def _is_varying(values: Sequence[Any]) -> bool:
         profile.get("dtype") == "numeric"
         and profile.get("role") == "varying"
     )
-
-
-def _is_numeric_series(values: Sequence[Any]) -> bool:
-    return Analysis.Classical.summarize_column(values).get("dtype") == "numeric"
-
-
-def _aligned_numeric(
-    xs: Sequence[Any],
-    ys: Sequence[Any],
-) -> Tuple[List[float], List[float]]:
-    out_x: List[float] = []
-    out_y: List[float] = []
-    for x, y in zip(xs, ys):
-        cx = Analysis.Classical.coerce_float(x)
-        cy = Analysis.Classical.coerce_float(y)
-        if cx is None or cy is None:
-            continue
-        out_x.append(cx)
-        out_y.append(cy)
-    return out_x, out_y
 
 
 def _knob_fingerprint(

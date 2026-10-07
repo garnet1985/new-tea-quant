@@ -122,17 +122,6 @@ _RATIO_KEYS = frozenset(
     }
 )
 
-_CROSS_LAYER = {
-    "aligned": "机会变多，同号下游账户也变好",
-    "finds_not_pays": "机会变多了，但同号下游账户没跟上",
-    "pays_not_finds": "机会几乎没变，同号下游账户却变好了",
-    "filter": "机会变少，同号下游账户更好（更像过滤）",
-    "idle": "机会和下游账户几乎都没动",
-    "worse": "机会变少，同号下游账户也变差",
-    "hurts": "机会没变，同号下游账户变差",
-}
-
-
 def _format_opportunity_selection(value: Any) -> str:
     if not isinstance(value, list) or not value:
         return "到达顺序"
@@ -279,21 +268,6 @@ class CampaignLabels:
         if last in _OUTCOME_HIGHER_IS_BETTER:
             return _OUTCOME_HIGHER_IS_BETTER[last]
         return _OUTCOME_HIGHER_IS_BETTER.get(text)
-
-    @staticmethod
-    def direction_phrase(outcome: str, rho: float) -> str:
-        """参数越大时，这项怎么变。"""
-        higher = CampaignLabels.higher_is_better(outcome)
-        up = rho > 0
-        if higher is True:
-            return "往往越好" if up else "往往越差"
-        if higher is False:
-            return "往往越差" if up else "往往越好"
-        return "往往越高" if up else "往往越低"
-
-    @staticmethod
-    def cross_layer_phrase(verdict: Any) -> str:
-        return _CROSS_LAYER.get(str(verdict or "").strip(), "方向不清楚")
 
     @staticmethod
     def maybe_float(value: Any) -> Optional[float]:

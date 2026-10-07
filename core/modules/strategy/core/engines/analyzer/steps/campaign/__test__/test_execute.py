@@ -14,7 +14,7 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import E
 from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import (
     GatherBase,
     GatherStep,
-    _compact_summary,
+    compact_summary,
 )
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import ArtifactStore
@@ -436,7 +436,7 @@ def test_gather_knobs_prefer_disk_effective(tmp_path, monkeypatch) -> None:
 
 
 def test_price_factor_win_rate_percent_becomes_ratio() -> None:
-    out = _compact_summary(
+    out = compact_summary(
         SimulateKind.PRICE_FACTOR,
         {
             "win_rate": 72.2,
@@ -448,7 +448,7 @@ def test_price_factor_win_rate_percent_becomes_ratio() -> None:
     assert out["win_rate"] == pytest.approx(0.722)
     assert out["avg_roi"] == 0.1121
     assert out["total_completed_investments"] == 18
-    assert _compact_summary(SimulateKind.PORTFOLIO, {"win_rate": 0.666667})[
+    assert compact_summary(SimulateKind.PORTFOLIO, {"win_rate": 0.666667})[
         "win_rate"
     ] == pytest.approx(0.666667)
 

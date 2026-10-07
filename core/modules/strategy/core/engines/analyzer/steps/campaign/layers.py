@@ -1,0 +1,21 @@
+"""按层挑子类。各步门面共用，避免每层一个空文件。"""
+from __future__ import annotations
+
+from typing import Any, Type, TypeVar
+
+_T = TypeVar("_T")
+
+
+def layer_key(layer: Any) -> str:
+    return str(getattr(layer, "value", layer) or "").strip()
+
+
+def pick_layer(mapping: dict, layer: Any, default: Type[_T]) -> Type[_T]:
+    found = mapping.get(layer_key(layer))
+    return default if found is None else found
+
+
+def declare_layer(name: str, base: type, layer: str, kind: Any, **attrs: Any) -> type:
+    namespace = {"LAYER": layer, "KIND": kind}
+    namespace.update(attrs)
+    return type(name, (base,), namespace)

@@ -7,17 +7,27 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
+from ..layers import declare_layer, pick_layer
 from ..plan import AttributionCell, AttributionTask
 from .base import ReportBase
-from .enumerate import EnumerateReport
-from .portfolio import PortfolioReport
 from .present import CampaignPresenter
-from .price import PriceReport
+
+EnumerateReport = declare_layer(
+    "EnumerateReport", ReportBase, "enumerate", SimulateKind.ENUMERATE
+)
+PriceReport = declare_layer(
+    "PriceReport", ReportBase, "price_factor", SimulateKind.PRICE_FACTOR
+)
+PortfolioReport = declare_layer(
+    "PortfolioReport", ReportBase, "portfolio", SimulateKind.PORTFOLIO
+)
 
 _BY_LAYER: dict[str, Type[ReportBase]] = {
-    EnumerateReport.LAYER: EnumerateReport,
-    PriceReport.LAYER: PriceReport,
-    PortfolioReport.LAYER: PortfolioReport,
+    "enumerate": EnumerateReport,
+    "price_factor": PriceReport,
+    "portfolio": PortfolioReport,
 }
 
 
@@ -26,11 +36,7 @@ class CampaignReportStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[ReportBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioReport
-        return step
+        return pick_layer(_BY_LAYER, layer, PortfolioReport)
 
     @classmethod
     def run(

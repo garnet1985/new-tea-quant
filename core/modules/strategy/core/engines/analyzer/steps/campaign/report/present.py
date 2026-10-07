@@ -9,9 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Union
 from core.infra.cmd_layout import CmdLayout
 
 from ..attribute import AttributeStep
-from ..contrasts import KnobContrasts
 from ..labels import CampaignLabels
-from ..metrics import item_delta, outcome_value
 
 _SKIP_REASONS = {
     "fill_missing_false": "没有现成回测，这次也没补跑",
@@ -425,15 +423,7 @@ class CampaignPresenter:
             CmdLayout.text.print_indent("这次还没有可写的结论。", stream=out)
 
     def _present_family_body(self, out: TextIO, *, nested: bool = False) -> None:
-        table = _table_rows(self._report)
-        # 枚举五节已用取值阶梯回答「什么值最好/最差」时，不再单独讲 presence 开关。
-        if not _has_enum_sections(self._report):
-            self._present_presence(out, nested=nested)
-        self._present_sensitivity(out, nested=nested)
-        self._present_cross_layer(out, nested=nested)
-        self._present_interaction(out, nested=nested)
-        self._present_table(out, table, nested=nested)
-        self._present_highlights(out, nested=nested)
+        self._present_table(out, _table_rows(self._report), nested=nested)
         self._present_skipped(out, nested=nested)
         self._present_hints(out, nested=nested)
 
@@ -442,9 +432,6 @@ class CampaignPresenter:
             CmdLayout.title.print_h3(title, stream=out)
         else:
             CmdLayout.title.print_h2(title, stream=out)
-
-    def _contrib_pairs(self) -> Sequence[tuple]:
-        return AttributeStep.for_layer(_report_layer(self._report)).OUTCOMES
 
     def _present_table(
         self,
@@ -479,207 +466,6 @@ class CampaignPresenter:
                 line.append(CampaignLabels.format_number(key, block.get(key) if isinstance(block, dict) else None))
             body.append(line)
         CmdLayout.table.print(headers, body, stream=out)
-
-    def _present_presence(self, out: TextIO, *, nested: bool = False) -> None:
-        contrib = _chapter_block(self._report, "presence")
-        items = [
-            item
-            for item in (contrib.get("items") or [])
-            if isinstance(item, dict) and item.get("kind") == "one_at_a_time"
-        ]
-        if not items:
-            return
-        icon = CmdLayout.icon.get
-        self._heading(f"{icon('rocket')} 参数贡献度", out, nested=nested)
-        CmdLayout.text.print_indent(
-            "比较：使用 / 未使用该参数时，结果差多少。",
-            stream=out,
-        )
-        self._present_item_groups(out, items)
-
-    def _present_sensitivity(self, out: TextIO, *, nested: bool = False) -> None:
-        contrib = _chapter_block(self._report, "sensitivity")
-        marginals = [
-            block
-            for block in (contrib.get("marginals") or [])
-            if isinstance(block, dict) and (block.get("levels") or [])
-        ]
-        items = [
-            item
-            for item in (contrib.get("items") or [])
-            if isinstance(item, dict) and item.get("kind") == "one_at_a_time"
-        ]
-        if not marginals and not items:
-            return
-        icon = CmdLayout.icon.get
-        self._heading(f"{icon('rocket')} 参数敏感度", out, nested=nested)
-        baseline = (
-            contrib.get("baseline") if isinstance(contrib.get("baseline"), dict) else {}
-        )
-        vid = str(baseline.get("version_id") or "").strip()
-        base = f"v{vid}" if vid else "使用该参数的第一次回测"
-        CmdLayout.text.print_indent(
-            f"比较：同一参数取不同值时结果怎么变。对照基准 {base}。",
-            stream=out,
-        )
-        if marginals:
-            for block in marginals:
-                self._present_marginal_knob(out, block)
-            return
-        self._present_item_groups(out, items)
-
-    def _present_item_groups(
-        self,
-        out: TextIO,
-        items: Sequence[Mapping[str, Any]],
-    ) -> None:
-        grouped: Dict[str, List[Dict[str, Any]]] = {}
-        order: List[str] = []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            knob = str(item.get("knob") or "")
-            if knob not in grouped:
-                grouped[knob] = []
-                order.append(knob)
-            grouped[knob].append(item)
-        for knob in order:
-            CmdLayout.title.print_h4(CampaignLabels.knob_label(knob), stream=out)
-            for item in grouped[knob]:
-                bits = [
-                    f"{CampaignLabels.format_knob(knob, item.get('from'))} → "
-                    f"{CampaignLabels.format_knob(knob, item.get('to'))}"
-                ]
-                for layer, outcome in self._contrib_pairs():
-                    delta = item_delta(item, layer, outcome)
-                    if delta is None:
-                        continue
-                    bits.append(
-                        f"{CampaignLabels.outcome_label(outcome)} {CampaignLabels.format_delta(outcome, delta)}"
-                    )
-                CmdLayout.text.print_indent("   ".join(bits), stream=out)
-
-    def _present_marginal_knob(self, out: TextIO, block: Mapping[str, Any]) -> None:
-        knob = str(block.get("knob") or "")
-        CmdLayout.title.print_h4(CampaignLabels.knob_label(knob), stream=out)
-        for level in block.get("levels") or []:
-            if not isinstance(level, dict):
-                continue
-            bits = [CampaignLabels.format_number(knob, level.get("value"))]
-            for layer, outcome in self._contrib_pairs():
-                value = outcome_value(level.get("outcomes") or [], layer, outcome)
-                if value is None:
-                    continue
-                bits.append(f"{CampaignLabels.outcome_label(outcome)} {CampaignLabels.format_number(outcome, value)}")
-            step = _step_label(level)
-            if step:
-                bits.append(step)
-            CmdLayout.text.print_indent("   ".join(bits), stream=out)
-        if str(block.get("note") or "") == "pullback":
-            best = CampaignLabels.format_number(knob, block.get("best_value"))
-            primary = self._contrib_pairs()[0][1] if self._contrib_pairs() else "total_return"
-            CmdLayout.text.print_indent(
-                f"取 {best} 时最好，再增大该参数，"
-                f"{CampaignLabels.outcome_label(primary)}会回落。",
-                stream=out,
-            )
-
-    def _present_cross_layer(self, out: TextIO, *, nested: bool = False) -> None:
-        # 跨层叙事由本层归因器决定；枚举层关闭。
-        if not AttributeStep.for_layer(_report_layer(self._report)).ENABLE_CROSS_LAYER:
-            return
-        contrib = _chapter_block(self._report, "sensitivity")
-        rows = [
-            item
-            for item in (contrib.get("cross_layer") or [])
-            if isinstance(item, dict)
-        ]
-        if not rows:
-            return
-        icon = CmdLayout.icon.get
-        self._heading(f"{icon('target')} 机会 vs 下游账户", out, nested=nested)
-        CmdLayout.text.print_indent(
-            "同一回测号上：机会数与下游账户收益是否同向变化。",
-            stream=out,
-        )
-        CmdLayout.text.print_bullets(
-            [
-                f"{CampaignLabels.knob_label(item.get('knob'))}："
-                f"{CampaignLabels.cross_layer_phrase(item.get('verdict'))}"
-                for item in rows
-            ],
-            indent=3,
-            marker="·",
-            stream=out,
-        )
-
-    def _present_interaction(self, out: TextIO, *, nested: bool = False) -> None:
-        if not AttributeStep.for_layer(_report_layer(self._report)).ENABLE_INTERACTIONS:
-            return
-        contrib = _chapter_block(self._report, "sensitivity")
-        block = contrib.get("interactions")
-        if not isinstance(block, dict) or str(block.get("status") or "") != "ok":
-            return
-        grids = [grid for grid in (block.get("grids") or []) if isinstance(grid, dict)]
-        if not grids:
-            return
-        grid = grids[0]
-        icon = CmdLayout.icon.get
-        self._heading(f"{icon('clipboard')} 参数交叉对照", out, nested=nested)
-        row_knob = str(grid.get("row_knob") or "")
-        col_knob = str(grid.get("col_knob") or "")
-        CmdLayout.text.print_indent(
-            f"{CampaignLabels.knob_label(row_knob)} × {CampaignLabels.knob_label(col_knob)}（账户收益）",
-            stream=out,
-        )
-        col_values = list(grid.get("col_values") or [])
-        headers = [""] + [CampaignLabels.format_knob(col_knob, value) for value in col_values]
-        best = grid.get("best") if isinstance(grid.get("best"), dict) else {}
-        body: List[List[str]] = []
-        for line in grid.get("cells") or []:
-            if not isinstance(line, list) or not line:
-                continue
-            first = line[0] if isinstance(line[0], dict) else {}
-            row = [CampaignLabels.format_knob(row_knob, first.get("row_value"))]
-            for cell in line:
-                if not isinstance(cell, dict):
-                    row.append("-")
-                    continue
-                text = CampaignLabels.format_number("total_return", cell.get("total_return"))
-                if _same_level(cell.get("row_value"), best.get("row_value")) and _same_level(
-                    cell.get("col_value"), best.get("col_value")
-                ):
-                    text = f"{text} ←最好"
-                row.append(text)
-            body.append(row)
-        CmdLayout.table.print(headers, body, stream=out)
-
-    def _present_highlights(self, out: TextIO, *, nested: bool = False) -> None:
-        presence = _chapter_block(self._report, "presence")
-        sensitivity = _chapter_block(self._report, "sensitivity")
-        if presence.get("one_at_a_time_count") or sensitivity.get("one_at_a_time_count"):
-            return
-        summarized = self._report.get("report")
-        highlights = []
-        if isinstance(summarized, dict):
-            highlights = summarized.get("highlights") or []
-        if not isinstance(highlights, list) or not highlights:
-            return
-        icon = CmdLayout.icon.get
-        self._heading(f"{icon('rocket')} 方向", out, nested=nested)
-        seen = set()
-        lines = []
-        for item in highlights:
-            if not isinstance(item, dict):
-                continue
-            key = (item.get("layer"), item.get("outcome"), item.get("knob"))
-            if key in seen:
-                continue
-            seen.add(key)
-            lines.append(_highlight_line(item))
-            if len(seen) >= 3:
-                break
-        CmdLayout.text.print_bullets(lines, indent=3, marker="·", stream=out)
 
     def _present_skipped(self, out: TextIO, *, nested: bool = False) -> None:
         cells = self._report.get("cells") or []
@@ -1214,84 +1000,6 @@ def _outcome_columns(
         return out
     return sorted(available)[:3]
 
-
-def _has_enum_sections(report: Mapping[str, Any]) -> bool:
-    sections = report.get("sections")
-    if isinstance(sections, dict) and sections:
-        return True
-    nested = report.get("report")
-    if isinstance(nested, dict):
-        nested_sections = nested.get("sections")
-        if isinstance(nested_sections, dict) and nested_sections:
-            return True
-    return False
-
-
-def _chapter_block(report: Mapping[str, Any], name: str) -> Dict[str, Any]:
-    block = _contributions_block(report)
-    nested = block.get(name)
-    if isinstance(nested, dict):
-        return nested
-    if name == "sensitivity" and (
-        block.get("items") or block.get("marginals") or block.get("one_at_a_time_count")
-    ):
-        return block
-    return {}
-
-
-def _contributions_block(report: Mapping[str, Any]) -> Dict[str, Any]:
-    nested = report.get("report")
-    if isinstance(nested, dict) and isinstance(nested.get("contributions"), dict):
-        block = nested.get("contributions") or {}
-        if block:
-            return block
-    top = report.get("contributions")
-    if isinstance(top, dict) and top:
-        return top
-    attribute = report.get("attribute")
-    if isinstance(attribute, dict) and isinstance(attribute.get("contributions"), dict):
-        return attribute.get("contributions") or {}
-    return {}
-
-
-def _step_label(level: Mapping[str, Any]) -> str:
-    if level.get("is_baseline"):
-        return "基准"
-    prev = item_delta({"deltas": level.get("vs_prev") or []}, "portfolio", "total_return")
-    if prev is not None:
-        return f"相对上一档 {CampaignLabels.format_delta('total_return', prev)}"
-    base = item_delta(
-        {"deltas": level.get("vs_baseline") or []}, "portfolio", "total_return"
-    )
-    if base is not None:
-        return f"相对基准 {CampaignLabels.format_delta('total_return', base)}"
-    return ""
-
-
-def _same_level(left: Any, right: Any) -> bool:
-    if KnobContrasts.is_off(left) and KnobContrasts.is_off(right):
-        return True
-    return _same_number(left, right)
-
-
-def _same_number(left: Any, right: Any) -> bool:
-    a = CampaignLabels.maybe_float(left)
-    b = CampaignLabels.maybe_float(right)
-    if a is None or b is None:
-        return False
-    return abs(a - b) < 1e-12
-
-
-def _highlight_line(item: Mapping[str, Any]) -> str:
-    knob = str(item.get("knob") or "")
-    outcome = str(item.get("outcome") or "")
-    rho = CampaignLabels.maybe_float(item.get("rho")) or 0.0
-    result = CampaignLabels.outcome_label(outcome)
-    if "stop_loss" in knob:
-        phrase = CampaignLabels.direction_phrase(outcome, -rho)
-        return f"止损越深，{result}{phrase}"
-    phrase = CampaignLabels.direction_phrase(outcome, rho)
-    return f"{CampaignLabels.knob_label(knob)}越大，{result}{phrase}"
 
 
 def _read_json_object(path: Path) -> Dict[str, Any]:

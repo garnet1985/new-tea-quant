@@ -206,13 +206,6 @@ class AttributionConfigBase(SettingsBase):
             rolling.pop("steps", None)
         if self.raw_settings.get("versions") is None:
             self.raw_settings["versions"] = []
-        if self.LAYER and self.LAYER not in self.raw_settings:
-            # 不强制写入空块；缺省表示用默认轴
-            pass
-        self._apply_layer_defaults()
-
-    def _apply_layer_defaults(self) -> None:
-        return
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
@@ -276,12 +269,8 @@ class AttributionConfigBase(SettingsBase):
                     "或 versions / rolling.windows"
                 ),
             )
-        self._validate_layer(report)
         self._validated = report.is_usable()
         return report
-
-    def _validate_layer(self, report: ValidationReport) -> None:
-        return
 
     def _validate_removed_keys(self, report: ValidationReport) -> None:
         for key in _REMOVED_KEYS:

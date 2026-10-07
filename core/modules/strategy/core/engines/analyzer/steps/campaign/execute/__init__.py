@@ -9,17 +9,25 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Type
 
 from core.modules.strategy.core.enums import SimulateKind
 
+from ..layers import declare_layer, pick_layer
 from ..plan import AttributionCell, AttributionTask
 from .base import ExecuteBase
-from .enumerate import EnumerateExecute
 from .models import CellExecuteResult
-from .portfolio import PortfolioExecute
-from .price import PriceExecute
+
+EnumerateExecute = declare_layer(
+    "EnumerateExecute", ExecuteBase, "enumerate", SimulateKind.ENUMERATE
+)
+PriceExecute = declare_layer(
+    "PriceExecute", ExecuteBase, "price_factor", SimulateKind.PRICE_FACTOR
+)
+PortfolioExecute = declare_layer(
+    "PortfolioExecute", ExecuteBase, "portfolio", SimulateKind.PORTFOLIO
+)
 
 _BY_LAYER: dict[str, Type[ExecuteBase]] = {
-    EnumerateExecute.LAYER: EnumerateExecute,
-    PriceExecute.LAYER: PriceExecute,
-    PortfolioExecute.LAYER: PortfolioExecute,
+    "enumerate": EnumerateExecute,
+    "price_factor": PriceExecute,
+    "portfolio": PortfolioExecute,
 }
 
 
@@ -28,11 +36,7 @@ class ExecuteStep(ExecuteBase):
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[ExecuteBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioExecute
-        return step
+        return pick_layer(_BY_LAYER, layer, PortfolioExecute)
 
     @classmethod
     def run(

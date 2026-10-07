@@ -7,7 +7,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
 from ..config import AttributionConfigBase
+from ..layers import declare_layer, pick_layer
 from .base import AttributionPlanBase
 from .enumerate import EnumerateAttributionPlan
 from .models import (
@@ -18,11 +21,17 @@ from .models import (
     simulate_steps_for_kind,
 )
 from .portfolio import PortfolioAttributionPlan
-from .price import PriceAttributionPlan
+
+PriceAttributionPlan = declare_layer(
+    "PriceAttributionPlan",
+    AttributionPlanBase,
+    "price_factor",
+    SimulateKind.PRICE_FACTOR,
+)
 
 _BY_LAYER: dict[str, Type[AttributionPlanBase]] = {
     EnumerateAttributionPlan.LAYER: EnumerateAttributionPlan,
-    PriceAttributionPlan.LAYER: PriceAttributionPlan,
+    "price_factor": PriceAttributionPlan,
     PortfolioAttributionPlan.LAYER: PortfolioAttributionPlan,
 }
 
@@ -32,11 +41,7 @@ class AttributionPlan:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributionPlanBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioAttributionPlan
-        return step
+        return pick_layer(_BY_LAYER, layer, PortfolioAttributionPlan)
 
     @classmethod
     def plan_from_folder(

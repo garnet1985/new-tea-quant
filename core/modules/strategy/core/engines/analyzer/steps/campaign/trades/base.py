@@ -77,6 +77,13 @@ class TradesBase:
         unique_cells: Sequence[AttributionCell],
         executed: Mapping[str, Any],
     ) -> Dict[str, Any]:
+        if cls.LAYER != "price_factor":
+            return {
+                "status": "skipped",
+                "reason": "trades_not_applicable",
+                "layer": cls.LAYER,
+                "n": 0,
+            }
         knob_paths = KnobContrasts.union_paths(
             cell.overlay for cell in unique_cells
         )

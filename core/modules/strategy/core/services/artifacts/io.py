@@ -18,7 +18,7 @@ class ArtifactIO:
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
+            json.dumps(payload, indent=2, ensure_ascii=False, default=str),
             encoding="utf-8",
         )
         return target

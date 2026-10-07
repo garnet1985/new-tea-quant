@@ -347,10 +347,6 @@ def _version_sort_key(vid: str) -> Any:
 
 
 def _write_json(path: Path, payload: Any) -> Path:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False, default=str),
-        encoding="utf-8",
-    )
-    return target
+    from core.modules.strategy.core.services.artifacts.io import ArtifactIO
+
+    return ArtifactIO.write_json(path, payload)

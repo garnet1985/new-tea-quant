@@ -7,16 +7,26 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
+from ..layers import declare_layer, pick_layer
 from ..plan import AttributionCell
 from .base import TradesBase
-from .enumerate import EnumerateTrades
-from .portfolio import PortfolioTrades
-from .price import PriceTrades
+
+EnumerateTrades = declare_layer(
+    "EnumerateTrades", TradesBase, "enumerate", SimulateKind.ENUMERATE
+)
+PriceTrades = declare_layer(
+    "PriceTrades", TradesBase, "price_factor", SimulateKind.PRICE_FACTOR
+)
+PortfolioTrades = declare_layer(
+    "PortfolioTrades", TradesBase, "portfolio", SimulateKind.PORTFOLIO
+)
 
 _BY_LAYER: dict[str, Type[TradesBase]] = {
-    EnumerateTrades.LAYER: EnumerateTrades,
-    PriceTrades.LAYER: PriceTrades,
-    PortfolioTrades.LAYER: PortfolioTrades,
+    "enumerate": EnumerateTrades,
+    "price_factor": PriceTrades,
+    "portfolio": PortfolioTrades,
 }
 
 
@@ -25,11 +35,7 @@ class TradesStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[TradesBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PriceTrades
-        return step
+        return pick_layer(_BY_LAYER, layer, PriceTrades)
 
     @classmethod
     def run(

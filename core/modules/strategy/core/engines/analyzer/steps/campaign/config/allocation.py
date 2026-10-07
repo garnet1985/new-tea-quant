@@ -35,14 +35,6 @@ _PRIMARY = ("mode", "max_portfolio_size", "initial_capital")
 _COMPANION = ("max_weight_per_stock", "kelly_fraction", "lots_per_trade")
 
 
-def allocation_paths() -> Tuple[str, ...]:
-    return tuple(_AXES.values())
-
-
-def is_allocation_path(path: str) -> bool:
-    return str(path or "") in _AXES.values()
-
-
 def validate_allocation(raw: Mapping[str, Any], report: ValidationReport) -> None:
     """``allocation`` 缺省合法。写了就必须是已知轴 + 非空 values。"""
     if "allocation" not in raw:

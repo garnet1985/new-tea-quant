@@ -519,19 +519,6 @@ def default_axes_for_layer(
                     [0, max(base - 1, 0), base, max(base + 2, 1), max(base + 4, 3)]
                 )
             }
-    elif focus == "portfolio":
-        path_size = "portfolio.allocation.max_portfolio_size"
-        cur = value_at(snapshot, path_size)
-        if isinstance(cur, (int, float)) and not isinstance(cur, bool):
-            out[path_size] = {"values": _portfolio_size_ladder(cur)}
-        path_w = "portfolio.allocation.max_weight_per_stock"
-        cur_w = value_at(snapshot, path_w)
-        if isinstance(cur_w, (int, float)) and not isinstance(cur_w, bool):
-            out[path_w] = {"values": _weight_ladder(cur_w)}
-        mode = value_at(snapshot, "portfolio.allocation.mode")
-        if isinstance(mode, str) and mode.strip():
-            alt = "kelly" if mode != "kelly" else "equal_capital"
-            out["portfolio.allocation.mode"] = {"values": [mode, alt]}
     return out
 
 
@@ -658,36 +645,6 @@ def _scalar_ladder(cur: Any) -> List[Any]:
     return [cur] if nearby is None else [cur, nearby]
 
 
-def _portfolio_size_ladder(cur: Any) -> List[Any]:
-    base = int(cur) if isinstance(cur, (int, float)) and not isinstance(cur, bool) else 10
-    grid = [4, 6, 8, 10, 15, 20]
-    values = list(grid)
-    if base not in grid:
-        values.append(base)
-    values.sort()
-    return _unique_keep(values)
-
-
-def _weight_ladder(cur: Any) -> List[Any]:
-    if not isinstance(cur, (int, float)) or isinstance(cur, bool):
-        return [cur]
-    number = float(cur)
-    if number > 1.0:
-        # 百分比写法
-        grid = [10.0, 15.0, 20.0, 25.0, 33.0]
-        values = list(grid)
-        if all(abs(number - item) > 1e-9 for item in grid):
-            values.append(number)
-        values.sort()
-        return _unique_keep([type(cur)(item) for item in values])
-    grid = [0.10, 0.15, 0.20, 0.25, 0.33]
-    values = list(grid)
-    if all(abs(number - item) > 1e-9 for item in grid):
-        values.append(number)
-    values.sort()
-    return _unique_keep([type(cur)(item) for item in values])
-
-
 def estimate_bars_cost(
     pending_cells: int,
     snapshot: Mapping[str, Any],
@@ -741,13 +698,11 @@ def _approx_trading_days(start: str, end: str) -> int:
     e = end.replace("-", "")[:8]
     if len(s) == 8 and len(e) == 8 and s.isdigit() and e.isdigit():
         try:
-            from datetime import datetime
+            from core.infra.utils import Utils
 
-            d0 = datetime.strptime(s, "%Y%m%d")
-            d1 = datetime.strptime(e, "%Y%m%d")
-            calendar = max((d1 - d0).days, 0) + 1
+            calendar = max(Utils.date.diff_days(s, e), 0) + 1
             return max(int(calendar * 0.7), 1)
-        except ValueError:
+        except (TypeError, ValueError):
             pass
     return 252
 

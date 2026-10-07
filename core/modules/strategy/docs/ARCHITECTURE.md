@@ -20,6 +20,8 @@
 
 - 不另起平行于 BacktestEngine 的调度 / Timeline / JobSession
 - 不 deep-export 引擎实现（跨模块优先 `Strategy` + `contracts`）
+- 不把归因拆成与 strategy 平级的模块；统计原语在 `modules.analysis`，无调度、无读盘
+- 不在单次回测里顺便归因
 
 硬约束细节见 [DESIGN.md](./DESIGN.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
@@ -45,6 +47,7 @@ strategy/
         ├── price_factor/
         ├── portfolio/       # 不走 BE
         ├── decision_maker/  # 资金回放；人替换选谁/买多少；不进 SimulateKind
+        ├── analyzer/        # 归因编排：pipeline + steps/campaign、steps/rolling
         └── shared/
 ```
 
@@ -63,7 +66,38 @@ flowchart TB
   Enum --> BE[BacktestEngine]
   Price --> BE
   Facade --> Disc[DiscoveryService]
+  Facade --> Attr[AttributionPipeline]
+  Attr --> Camp[steps/campaign]
+  Camp --> Sim
+  Camp --> Analysis[modules.analysis]
 ```
+
+---
+
+## 归因数据流
+
+`sea` / `spa` / `soa` 共用一条管道。差别是补到哪一层、总结哪一层指标。运作见 [CONCEPTS.md](./CONCEPTS.md)。
+
+```text
+attribution.py + 当前 settings
+  → plan（顶层 inputs 展成一套副本；soa 另展 allocation）
+  → execute（只补本层；上游缺则先补；命中走双指纹）
+  → gather → summarize → report → persist
+```
+
+磁盘：
+
+```text
+{strategy}/results/attribution/
+  meta.json                         # env_fp + parent_version_id → 组号
+  {n}/
+    group_meta.json
+    enumerate/ | price_factor/ | portfolio/
+      report.json  table.json  attribute.json  task_meta.json
+    rolling/                        # sw；口径未定
+```
+
+副本号是 `{主号}-{r}`，不推进主号序列。组跟着策略 version 走：同一环境、不同主 version 各用一组。
 
 ---
 
@@ -83,6 +117,7 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
 - [DESIGN.md](./DESIGN.md)
+- [CONCEPTS.md](./CONCEPTS.md)
 - [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
 - [DECISIONS.md](./notes/DECISIONS.md)

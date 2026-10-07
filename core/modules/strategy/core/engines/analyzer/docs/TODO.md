@@ -2,7 +2,7 @@
 
 归因编排在 ``strategy/engines/analyzer``；统计 / ML 原语在 ``modules/analysis``。
 
-边界详见 [docs/BOUNDARY.md](./BOUNDARY.md)。战役口径详见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md)。
+边界详见 [docs/BOUNDARY.md](./BOUNDARY.md)。战役口径详见 [CONCEPTS.md](../../../../docs/CONCEPTS.md)。
 
 ---
 

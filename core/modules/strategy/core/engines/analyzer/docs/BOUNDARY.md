@@ -25,7 +25,7 @@
 
 Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。
 
-**口径（文档已修订，代码可能仍落后）：** 三入口共用同一套「如果」副本身份与同一套管线形状（解析取值 → 补本层产物 → gather → summarize → report）；CLI 只决定懒执行深度与因变量。详见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md) §0 / §11。``Analyzer.rolling`` 走 ``RollingPipeline``。单 version 的 prepare / analyze / report / layer 已删除。
+**口径：** 三入口共用同一套「如果」副本身份与同一套管线（解析取值 → 补本层产物 → gather → summarize → report）。CLI 只决定懒执行深度与因变量。见 [CONCEPTS.md](../../../../docs/CONCEPTS.md)。``Analyzer.rolling`` 走 ``RollingPipeline``，口径未定。单 version 的 prepare / analyze / report / layer 已删除。
 
 ## 入口（当前）
 

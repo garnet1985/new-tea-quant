@@ -150,7 +150,7 @@ class AttributionConfigBase(SettingsBase):
         ):
             raise ValueError(
                 "attribution.py 已不支持 overlays / matrix；"
-                "请写顶层 inputs，见 ATTRIBUTION_INPUTS.md"
+                "请写顶层 inputs"
             )
         if not self.has_parameter:
             raise ValueError(

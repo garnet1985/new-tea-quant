@@ -41,7 +41,7 @@ core/ui/
     └── views/
 ```
 
-`fed/src` 的目标目录和写法见模块根 [FED_STANDARD.md](../FED_STANDARD.md)。上面是现在的源码树。
+`fed/src` 的目标目录和写法见模块根 [FED_STANDARD.md](../FED_STANDARD.md)。上面是现在的源码树。设置、报告、执行、策略选股、决策模拟在 `containers/`。`pages/` 里制定策略和选股只读路由并挂上这些容器。
 
 生产构建产物在 `fed/build`，由 BFF 静态托管。
 

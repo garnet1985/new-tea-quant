@@ -1,19 +1,7 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 import { coerceMetaDescription } from '../service/utils/formatStrategyDescription';
 import { normalizeWorkbenchVersionId } from '../service/utils/workbenchVersionId';
-import { mapDataEnd } from './mappers/dataEnd';
-
-export {
-  UNKNOWN_STRATEGY_CATEGORY,
-  UNKNOWN_STRATEGY_CATEGORY_QUERY,
-  STRATEGY_LIST_CATEGORY_PARAM,
-  getStrategyCategoryLabel,
-  getStrategyCategoryQueryValue,
-  getStrategyListPath,
-  groupStrategiesByCategory,
-  listPeerStrategies,
-  readStrategyListCategoryQuery,
-} from './strategyCategory';
+import { mapDataEnd } from 'service/dataEnd';
 
 /** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
 const API_STRATEGY_CATALOG = (page, limit) =>

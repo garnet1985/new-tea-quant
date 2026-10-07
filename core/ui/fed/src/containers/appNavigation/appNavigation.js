@@ -11,7 +11,7 @@ import {
   Stack,
 } from '@mui/material';
 import NtqIcon from 'views/ntqIcon';
-import { useAppVersion } from 'hooks/useAppVersion';
+import { useAppVersion } from './useAppVersion';
 import './style.scss';
 
 /** 主流程导航（不含高级下拉 / 反馈外链） */

@@ -22,7 +22,7 @@ import {
   importStrategyPackage,
   previewStrategyPackageImport,
 } from 'api/strategyApi';
-import { useAsyncAction } from 'hooks/useAsyncAction';
+import { useAsyncAction } from 'service/useAsyncAction';
 import './style.scss';
 
 const POLICY_OPTIONS = [

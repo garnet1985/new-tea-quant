@@ -1,6 +1,6 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
-import { mapDataEnd } from './mappers/dataEnd';
-import { getUpdateModeIcon } from './mappers/updateModeIcon';
+import { mapDataEnd } from 'service/dataEnd';
+import { getUpdateModeIcon } from 'service/updateModeIcon';
 
 const API_TAGS_LIST = `${API_VERSION_PREFIX}/tags/list`;
 const API_RUNTIME_PIPELINE = `${API_VERSION_PREFIX}/runtime/pipeline`;

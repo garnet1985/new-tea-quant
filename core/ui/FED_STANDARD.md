@@ -2,7 +2,7 @@
 
 前端在 `fed/src`。这里是写法和目录的约定。产品结构见 `docs/`，不在本文。
 
-`service/`、`styles/`、`views/` 和 `containers/` 已经就位。展示放 `views/`，能力放 `containers/`。不要再新建 `components/`。
+`service/`、`styles/`、`views/` 和 `containers/` 已经就位。制定策略的设置、报告、执行，以及选股、决策模拟，都在 `containers/`，对外只从各自的 `index.js` 引出。`pages/` 里制定策略和选股只做进页接线。不要再新建 `components/`。
 
 ## 目录
 

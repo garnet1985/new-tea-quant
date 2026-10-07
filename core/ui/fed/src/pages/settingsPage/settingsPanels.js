@@ -31,8 +31,8 @@ import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../..
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
 import { getMlExtrasStatus, installMlExtras, resetSetupStatus } from '../../api/setupApi';
-import { useAsyncAction } from '../../hooks/useAsyncAction';
-import { useFakeProgress } from '../../hooks/useFakeProgress';
+import { useAsyncAction } from 'service/useAsyncAction';
+import { useFakeProgress } from 'service/useFakeProgress';
 
 export function SettingsSystemPanel() {
   const navigate = useNavigate();

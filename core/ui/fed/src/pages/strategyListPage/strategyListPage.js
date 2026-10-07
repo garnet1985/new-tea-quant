@@ -19,16 +19,18 @@ import {
   fetchStrategyList,
   getStrategyDesignPath,
   getStrategyDisplayLabel,
+} from '../../api/strategyApi';
+import {
   groupStrategiesByCategory,
   readStrategyListCategoryQuery,
   STRATEGY_LIST_CATEGORY_PARAM,
-} from '../../api/strategyApi';
+} from 'containers/strategyCategory';
 import PageLayout from '../../views/pageLayout';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import NtqIcon from '../../views/ntqIcon';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
-import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
+import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import './strategyListPage.scss';
 
 /**

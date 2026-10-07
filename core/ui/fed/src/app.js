@@ -10,7 +10,7 @@ import FeedbackPromptGuard from 'containers/feedbackPrompt';
 import AppShell from 'containers/appShell';
 import WelcomePage from './pages/welcomePage';
 import StrategyListPage from './pages/strategyListPage';
-import { StrategyDesignLayout } from './pages/strategyDesignPage';
+import StrategyDesignPage from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
 import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
@@ -50,7 +50,7 @@ function App() {
             />
             <Route path="/strategy-design">
               <Route index element={<StrategyListPage />} />
-              <Route path="*" element={<StrategyDesignLayout />} />
+              <Route path="*" element={<StrategyDesignPage />} />
             </Route>
             <Route
               path="/scan"

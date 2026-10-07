@@ -2105,7 +2105,6 @@ export function DecisionPlaySession({
                       height={infoChartHeight}
                       framed={false}
                       onEvents={infoChartEvents}
-                      sx={{ height: infoChartHeight, minHeight: infoChartHeight }}
                       note={infoPayload?.candles?.length
                         ? '主图：K线（前复权）与策略声明指标 / 分层数据。悬停查看财报 PIT。使用底部滑块调整可见区间。'
                         : '没有截至当前日的市场数据。'}

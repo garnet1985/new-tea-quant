@@ -1,42 +1,31 @@
 import React from 'react';
+import { Typography } from '@mui/material';
 import NtqHelpTooltip from 'views/ntqHelpTooltip';
-import { Box, Stack, Typography } from '@mui/material';
+import './style.scss';
 
 function SectionTitle({ title, tip }) {
   return (
-    <Stack direction="row" spacing={0.5} alignItems="center">
-      <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
+    <div className="ntq-section-title">
+      <Typography variant="subtitle2" className="ntq-section-title__text">{title}</Typography>
       {tip ? <NtqHelpTooltip title={tip} /> : null}
-    </Stack>
+    </div>
   );
 }
 
-function SectionBlock({ title, tip, action, children }) {
+function SectionBlock({ title, tip, action, children, className = '' }) {
+  const rootClass = ['ntq-section-block', className].filter(Boolean).join(' ');
   return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 1,
-        p: 1.25,
-        backgroundColor: 'background.paper',
-      }}
-    >
-      <Stack spacing={1}>
+    <section className={rootClass}>
+      <div className="ntq-section-block__body">
         {(title || tip || action) ? (
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            spacing={1}
-          >
+          <div className="ntq-section-block__head">
             <SectionTitle title={title} tip={tip} />
             {action || null}
-          </Stack>
+          </div>
         ) : null}
         {children}
-      </Stack>
-    </Box>
+      </div>
+    </section>
   );
 }
 

@@ -4,8 +4,6 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Dialog,
   DialogActions,
@@ -33,6 +31,7 @@ import {
 } from '../../api/strategyApi';
 import { groupStrategiesByCategory } from 'containers/strategyCategory';
 import PageLayout from '../../views/pageLayout';
+import { SectionBlock } from '../../views/sectionBlock';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import InlineLoadingState from '../../views/inlineLoadingState';
@@ -374,7 +373,7 @@ function Scan() {
               state={buildStrategyDesignNavState(params.row)}
               underline="hover"
               onClick={(e) => e.stopPropagation()}
-              sx={{ fontSize: 13 }}
+              className="scan-design-link"
             >
               调试策略
             </Link>
@@ -481,12 +480,13 @@ function Scan() {
       loadingMessage="正在加载策略选股…"
     >
 
-      <Card variant="outlined" sx={{ mb: 2 }}>
-        <CardContent>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} sx={{ mb: 1 }}>
-            <Typography variant="subtitle1" fontWeight={700}>扫描模式</Typography>
-            <Typography variant="caption" color="text.secondary">接入数据服务后由服务端校验</Typography>
-          </Stack>
+      <SectionBlock
+        className="scan-section"
+        title="扫描模式"
+        action={(
+          <Typography variant="caption" color="text.secondary">接入数据服务后由服务端校验</Typography>
+        )}
+      >
           <FormControl component="fieldset" disabled={running}>
             <RadioGroup
               value={mode}
@@ -517,7 +517,6 @@ function Scan() {
                   mode === 'strict' ? 'scan-mode-option--active' : '',
                   running ? 'scan-mode-option--disabled' : '',
                 ].filter(Boolean).join(' ')}
-                sx={{ alignItems: 'flex-start' }}
               />
               <FormControlLabel
                 value="demo"
@@ -539,21 +538,18 @@ function Scan() {
                   mode === 'demo' ? 'scan-mode-option--active' : '',
                   running ? 'scan-mode-option--disabled' : '',
                 ].filter(Boolean).join(' ')}
-                sx={{ alignItems: 'flex-start' }}
               />
             </RadioGroup>
           </FormControl>
-        </CardContent>
-      </Card>
+      </SectionBlock>
 
-      <Card variant="outlined" sx={{ mb: 2 }}>
-        <CardContent>
+      <SectionBlock className="scan-section">
           <Stack
             direction={{ xs: 'column', md: 'row' }}
             alignItems={{ xs: 'stretch', md: 'center' }}
             justifyContent="space-between"
             spacing={1.5}
-            sx={{ mb: 1 }}
+            className="scan-toolbar"
           >
             <Stack direction="row" alignItems="center" spacing={1.25} flexWrap="wrap">
               <Button
@@ -569,36 +565,36 @@ function Scan() {
             </Typography>
           </Stack>
 
-          {loadError ? <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert> : null}
+          {loadError ? <Alert severity="error" className="scan-alert">{loadError}</Alert> : null}
           {readinessError ? (
-            <Alert severity="warning" sx={{ mb: 1.5 }} onClose={() => setReadinessError('')}>
+            <Alert severity="warning" className="scan-alert" onClose={() => setReadinessError('')}>
               {readinessError}
             </Alert>
           ) : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
           {!readinessLoading && mode === 'strict' && strictBlockReason ? (
-            <Alert severity="warning" sx={{ mb: 1.5 }}>
+            <Alert severity="warning" className="scan-alert">
               {strictBlockReason}
             </Alert>
           ) : null}
           {runError && runError !== strictBlockReason ? (
-            <Alert severity="error" sx={{ mb: 1.5 }}>{runError}</Alert>
+            <Alert severity="error" className="scan-alert">{runError}</Alert>
           ) : null}
 
           {running ? (
-            <Box sx={{ mb: 1.5 }}>
+            <div className="scan-progress">
               <div className="scan-progress-row">
-                <div style={{ flex: 1 }}>
+                <div className="scan-progress__bar">
                   <LinearProgress variant="determinate" value={progress.pct} />
                 </div>
                 <Typography variant="caption" color="text.secondary" className="scan-progress-label">
                   {progress.label}
                 </Typography>
               </div>
-            </Box>
+            </div>
           ) : null}
 
-          <Box sx={{ width: '100%', minHeight: loading && groupedRows.length === 0 ? 160 : undefined }}>
+          <Box className={['scan-strategy-list', loading && groupedRows.length === 0 ? 'scan-strategy-list--loading' : ''].filter(Boolean).join(' ')}>
             {loading && groupedRows.length === 0 ? (
               <InlineLoadingState
                 block
@@ -609,31 +605,16 @@ function Scan() {
               <Stack spacing={2.5}>
                 {groupedRows.map(({ category, rows: categoryRows }) => (
                   <Box key={category}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                    <Stack direction="row" alignItems="center" spacing={1} className="scan-category">
                       <Typography variant="subtitle1" fontWeight={700}>
                         {category}
                       </Typography>
-                      <Box
-                        component="span"
+                      <span
+                        className="scan-category__count"
                         aria-label={`${categoryRows.length} 个策略`}
-                        sx={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          minWidth: 22,
-                          height: 22,
-                          px: 0.75,
-                          borderRadius: '999px',
-                          boxSizing: 'border-box',
-                          fontSize: 12,
-                          lineHeight: 1,
-                          fontWeight: 600,
-                          color: 'rgba(255, 255, 255, 0.82)',
-                          bgcolor: 'rgba(255, 255, 255, 0.14)',
-                        }}
                       >
                         {categoryRows.length}
-                      </Box>
+                      </span>
                     </Stack>
                     <DataGrid
                       autoHeight
@@ -645,40 +626,32 @@ function Scan() {
                       localeText={zhCN}
                       hideFooter
                       disableRowSelectionOnClick
-                      sx={{
-                        '& .MuiDataGrid-cell': {
-                          py: 1.25,
-                          alignItems: 'flex-start',
-                          whiteSpace: 'normal',
-                          lineHeight: 1.5,
-                        },
-                      }}
+                      className="scan-strategy-grid"
                     />
                   </Box>
                 ))}
               </Stack>
             )}
           </Box>
-        </CardContent>
-      </Card>
+      </SectionBlock>
 
       {reportVisible ? (
-      <Card variant="outlined">
-          <CardContent>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} sx={{ mb: 1 }}>
-              <Typography variant="subtitle1" fontWeight={700}>扫描报告</Typography>
-              <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
-                <Typography variant="caption" color="text.secondary">
-                  扫描当日：{scanTriggeredAt || reportGeneratedAt || '—'}
-                </Typography>
-                {SHOW_REPORT_GENERATED_AT ? (
-                  <Typography variant="caption" color="text.secondary">
-                    报告日期：{reportGeneratedAt || '—'}
-                  </Typography>
-                ) : null}
-              </Stack>
-            </Stack>
-            <Typography variant="body2" sx={{ mb: 0.75 }}>
+      <SectionBlock
+        title="扫描报告"
+        action={(
+          <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+            <Typography variant="caption" color="text.secondary">
+              扫描当日：{scanTriggeredAt || reportGeneratedAt || '—'}
+            </Typography>
+            {SHOW_REPORT_GENERATED_AT ? (
+              <Typography variant="caption" color="text.secondary">
+                报告日期：{reportGeneratedAt || '—'}
+              </Typography>
+            ) : null}
+          </Stack>
+        )}
+      >
+            <Typography variant="body2" className="scan-report__lead">
               使用策略
               {' '}
               <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
@@ -688,7 +661,7 @@ function Scan() {
               <Button
                 size="small"
                 variant="text"
-                sx={{ minWidth: 'unset', px: 0.5, fontWeight: 700, lineHeight: 1.2 }}
+                className="scan-report__count"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!reportStrategyId) return;
@@ -700,32 +673,31 @@ function Scan() {
               {' '}
               个机会
             </Typography>
-            <Box sx={{ pl: 1 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+            <div className="scan-report__facts">
+              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
                 - 扫描日期：{formatScanDate(reportPayload?.date) || '—'}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
                 - 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
               </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            </div>
+            <Typography variant="caption" color="text.secondary" className="scan-report__hint">
               请点击表格里的机会数量查看详情。
             </Typography>
-          </CardContent>
-        </Card>
+      </SectionBlock>
       ) : null}
 
       <Dialog open={detailOpen} onClose={closeDetail} maxWidth="md" fullWidth>
         <DialogTitle>
           机会明细 · {detailStrategyName || '—'}
         </DialogTitle>
-        <DialogContent dividers sx={{ height: 520 }}>
+        <DialogContent dividers className="scan-detail__body">
           {detailPayload ? (
             <>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              <Typography variant="body2" color="text.secondary" className="scan-detail__note">
                 机会明细与 CLI 输出对齐；可分页查看。
               </Typography>
               {(() => {
@@ -739,12 +711,12 @@ function Scan() {
                 dates.sort();
                 const label = dates.length === 1 ? dates[0] : `${dates[0]} ~ ${dates[dates.length - 1]}（多日）`;
                 return (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                  <Typography variant="body2" color="text.secondary" className="scan-detail__dates">
                     触发日期：{label}
                   </Typography>
                 );
               })()}
-              <Box sx={{ width: '100%', height: 420 }}>
+              <Box className="scan-detail__grid">
                 <DataGrid
                   rows={(() => {
                     const ops = Array.isArray(detailPayload?.opportunities) ? detailPayload.opportunities : null;
@@ -800,7 +772,7 @@ function Scan() {
                         <Typography
                           variant="body2"
                           color="text.secondary"
-                          sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          className="scan-detail__snapshot"
                         >
                           {params.value || '—'}
                         </Typography>

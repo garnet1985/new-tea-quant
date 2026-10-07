@@ -357,7 +357,7 @@ function PriceFactorReport({
             option={buildRoiDistributionOption(metrics)}
             height={170}
             note={roiTruncatedNote}
-            sx={{ mt: 1 }}
+            spaced
           />
         )}
         {!avail.roiBucketViz ? (
@@ -376,7 +376,7 @@ function PriceFactorReport({
             option={buildRoiBucketOption(metrics)}
             height={190}
             note={roiTruncatedNote}
-            sx={{ mt: 1 }}
+            spaced
           />
         )}
       </SectionBlock>

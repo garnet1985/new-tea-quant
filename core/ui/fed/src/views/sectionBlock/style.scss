@@ -1,0 +1,32 @@
+.ntq-section-block {
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 4px;
+  padding: 10px;
+  background: var(--ntq-white-06);
+}
+
+.ntq-section-block__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ntq-section-block__head,
+.ntq-section-title {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.ntq-section-block__head {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ntq-section-title {
+  gap: 4px;
+}
+
+.ntq-section-title__text {
+  font-weight: 700;
+}

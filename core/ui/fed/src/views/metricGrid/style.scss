@@ -1,0 +1,23 @@
+.ntq-metric-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.ntq-metric-grid--dense {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (min-width: 900px) {
+  .ntq-metric-grid--cols-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ntq-metric-grid--cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .ntq-metric-grid--cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

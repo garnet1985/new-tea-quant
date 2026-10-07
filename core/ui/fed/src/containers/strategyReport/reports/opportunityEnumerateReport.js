@@ -204,7 +204,7 @@ function OpportunityEnumrateReport({
           option={avail.distribution ? buildStockDistributionOption(metrics) : null}
           height={170}
           fallback={<ReportUnavailableHint />}
-          sx={{ mt: avail.stockStats ? 1 : 0 }}
+          spaced={Boolean(avail.stockStats)}
         />
       </SectionBlock>
 

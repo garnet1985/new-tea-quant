@@ -1,27 +1,23 @@
 import React from 'react';
-import { Box } from '@mui/material';
+import './style.scss';
 
-function mdTemplate(columns) {
-  if (columns === 4) return 'repeat(4, 1fr)';
-  if (columns === 3) return 'repeat(3, 1fr)';
-  return '1fr 1fr';
+function columnClass(columns) {
+  if (columns === 4) return 'ntq-metric-grid--cols-4';
+  if (columns === 3) return 'ntq-metric-grid--cols-3';
+  return 'ntq-metric-grid--cols-2';
 }
 
 /** MetricCard 网格：报告区块共用。 */
 function MetricGrid({ columns = 2, denseXs = false, children }) {
+  const rootClass = [
+    'ntq-metric-grid',
+    columnClass(columns),
+    denseXs ? 'ntq-metric-grid--dense' : '',
+  ].filter(Boolean).join(' ');
   return (
-    <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: {
-          xs: denseXs ? '1fr 1fr' : '1fr',
-          md: mdTemplate(columns),
-        },
-        gap: 1,
-      }}
-    >
+    <div className={rootClass}>
       {children}
-    </Box>
+    </div>
   );
 }
 

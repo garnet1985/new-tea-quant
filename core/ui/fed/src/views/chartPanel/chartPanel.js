@@ -1,7 +1,8 @@
 import React from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import { Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import './style.scss';
 
 /** 带标题 / 说明的报告内嵌图。无 option 且无 fallback 时不渲染。 */
 function ChartPanel({
@@ -11,54 +12,41 @@ function ChartPanel({
   height = 180,
   note,
   fallback,
-  sx,
   framed = true,
+  spaced = false,
   onEvents,
 }) {
   if (!option && fallback == null) return null;
-  const minHeight = sx?.minHeight;
-  const chartStyle = {
-    height,
-    width: '100%',
-    // 百分比高度时父级常只有 minHeight；给 ECharts 明确下限，避免多附图被压成一条缝
-    ...(typeof height === 'string' && String(height).includes('%') && minHeight != null
-      ? { minHeight }
-      : {}),
-  };
+  const rootClass = [
+    'ntq-chart-panel',
+    framed ? 'ntq-chart-panel--framed' : '',
+    spaced ? 'ntq-chart-panel--spaced' : '',
+  ].filter(Boolean).join(' ');
   return (
-    <Box
-      className="ntq-report-chart-panel"
-      sx={{
-        ...(framed
-          ? { border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75 }
-          : {}),
-        minWidth: 0,
-        ...sx,
-      }}
-    >
+    <div className={rootClass}>
       {title || tip ? (
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
+        <div className="ntq-chart-panel__title">
           {title ? (
             <Typography variant="caption" color="text.secondary">{title}</Typography>
           ) : null}
           {tip ? <NtqHelpTooltip title={tip} /> : null}
-        </Stack>
+        </div>
       ) : null}
       {note ? (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+        <Typography variant="caption" color="text.secondary" className="ntq-chart-panel__note">
           {note}
         </Typography>
       ) : null}
       {option ? (
         <ReactECharts
           option={option}
-          style={chartStyle}
+          style={{ height, width: '100%' }}
           notMerge
           lazyUpdate
           onEvents={onEvents}
         />
       ) : fallback}
-    </Box>
+    </div>
   );
 }
 

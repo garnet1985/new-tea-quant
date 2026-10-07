@@ -1,38 +1,26 @@
 import React from 'react';
+import { Typography } from '@mui/material';
 import NtqHelpTooltip from 'views/ntqHelpTooltip';
-import { Box, Stack, Typography } from '@mui/material';
+import './style.scss';
 
 function MetricCard({ title, value, hint, titleTip }) {
   return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 1,
-        p: 1.25,
-        backgroundColor: 'background.paper',
-      }}
-    >
-      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-        <Stack direction="row" spacing={0.5} alignItems="center">
+    <div className="ntq-metric-card">
+      <div className="ntq-metric-card__body">
+        <div className="ntq-metric-card__title">
           <Typography variant="caption" color="text.secondary">{title}</Typography>
           {titleTip ? <NtqHelpTooltip title={titleTip} /> : null}
-        </Stack>
-        <Typography
-          variant="h6"
-          fontWeight={700}
-          lineHeight={1.2}
-          sx={{ mt: .75 }}
-        >
+        </div>
+        <Typography variant="h6" className="ntq-metric-card__value">
           {value}
         </Typography>
         {hint ? (
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="caption" color="text.secondary" className="ntq-metric-card__hint">
             {hint}
           </Typography>
         ) : null}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 

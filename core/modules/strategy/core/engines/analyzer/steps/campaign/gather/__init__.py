@@ -7,6 +7,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
+from ..layers import declare_layer, pick_layer
 from ..plan import AttributionTask
 from .base import GatherBase, attach_enum_exit_ratios, compact_summary
 from .enum_exits import (
@@ -14,14 +17,21 @@ from .enum_exits import (
     baseline_exit_diagnosis,
     exit_ratios_for_version,
 )
-from .enumerate import EnumerateGather
-from .portfolio import PortfolioGather
-from .price import PriceGather
+
+EnumerateGather = declare_layer(
+    "EnumerateGather", GatherBase, "enumerate", SimulateKind.ENUMERATE
+)
+PriceGather = declare_layer(
+    "PriceGather", GatherBase, "price_factor", SimulateKind.PRICE_FACTOR
+)
+PortfolioGather = declare_layer(
+    "PortfolioGather", GatherBase, "portfolio", SimulateKind.PORTFOLIO
+)
 
 _BY_LAYER: dict[str, Type[GatherBase]] = {
-    EnumerateGather.LAYER: EnumerateGather,
-    PriceGather.LAYER: PriceGather,
-    PortfolioGather.LAYER: PortfolioGather,
+    "enumerate": EnumerateGather,
+    "price_factor": PriceGather,
+    "portfolio": PortfolioGather,
 }
 
 
@@ -30,11 +40,8 @@ class GatherStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[GatherBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioGather
-        return step
+        """按层返回收集类。"""
+        return pick_layer(_BY_LAYER, layer, PortfolioGather)
 
     @classmethod
     def run(
@@ -45,14 +52,12 @@ class GatherStep:
         *,
         layer: str = "",
     ) -> Dict[str, Any]:
+        """把该层已执行格子收成表。"""
         focus = layer
         if not focus and tasks:
             focus = str(getattr(tasks[0].kind, "value", tasks[0].kind) or "")
         return cls.for_layer(focus).run(folder, tasks, executed)
 
-
-# 测试仍可按旧名导入
-_compact_summary = compact_summary
 
 __all__ = [
     "EnumerateGather",
@@ -65,5 +70,4 @@ __all__ = [
     "baseline_exit_diagnosis",
     "compact_summary",
     "exit_ratios_for_version",
-    "_compact_summary",
 ]

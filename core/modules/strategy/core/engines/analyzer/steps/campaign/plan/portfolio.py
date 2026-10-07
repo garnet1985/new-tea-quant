@@ -1,7 +1,4 @@
-"""组合层计划：只展开资金分配，锚定当前 settings。
-
-不跟枚举 / 价格共用副本身份。每一格只改一个分配轴。
-"""
+"""组合层只展开资金分配，每一格只改一个轴。"""
 from __future__ import annotations
 
 from typing import Any, List
@@ -18,6 +15,8 @@ from .models import AttributionCell, ParameterPlan
 
 
 class PortfolioAttributionPlan(AttributionPlanBase):
+    """组合层计划，只扫资金分配。"""
+
     LAYER = "portfolio"
     KIND = SimulateKind.PORTFOLIO
 
@@ -27,6 +26,7 @@ class PortfolioAttributionPlan(AttributionPlanBase):
         snapshot: StrategySettings,
         config: AttributionConfigBase,
     ) -> ParameterPlan:
+        """按资金分配轴展开，每格只改一个轴。"""
         snap = dict(snapshot.raw_settings)
         axes = config.allocation_axes(snap)
         if not axes:

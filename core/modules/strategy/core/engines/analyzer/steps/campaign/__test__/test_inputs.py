@@ -1,4 +1,4 @@
-"""按层 inputs：oaat / cross 展格。"""
+"""按顶层 inputs：oaat / cross 展格。"""
 from __future__ import annotations
 
 import pytest
@@ -96,13 +96,11 @@ def test_expand_axes_cross() -> None:
 def test_plan_cross_mode() -> None:
     cfg = AttributionConfig.to_usable(
         {
-            "enumerate": {
-                "inputs": {
-                    "rsi_oversold_threshold": {"values": [20, 25]},
-                    "max_pe_percentile": {"values": [30, None]},
-                },
-                "cross": True,
-            }
+            "inputs": {
+                "rsi_oversold_threshold": {"values": [20, 25]},
+                "max_pe_percentile": {"values": [30, None]},
+            },
+            "cross": True,
         },
         layer="enumerate",
     )
@@ -127,17 +125,15 @@ def test_plan_cross_mode() -> None:
 def test_plan_oaat_baseline() -> None:
     cfg = AttributionConfig.to_usable(
         {
-            "enumerate": {
-                "inputs": {
-                    "rsi_oversold_threshold": {"values": [25]},
-                    "max_pe_percentile": {"values": [None]},
-                },
-                "cross": False,
-            }
+            "inputs": {
+                "rsi_oversold_threshold": {"values": [25]},
+                "max_pe_percentile": {"values": [None]},
+            },
+            "cross": False,
         },
         layer="enumerate",
     )
-    assert cfg.parameter_mode == "inputs"
+    assert cfg.parameter_mode == "oaat"
     cells = AttributionPlan.expand(_snapshot(), cfg, layer="enumerate")
     assert cells[0].overlay == {}
     assert len(cells) == 3  # 基准 + rsi25 + pe None
@@ -163,11 +159,20 @@ def test_reject_legacy_matrix() -> None:
         )
 
 
-def test_versions_exclusive_with_inputs() -> None:
+def test_reject_versions_and_layer_blocks() -> None:
     with pytest.raises(ValueError, match="versions"):
         AttributionConfig.to_usable(
             {
                 "versions": [3],
+                "inputs": {
+                    "rsi_oversold_threshold": {"values": [20]},
+                },
+            },
+            layer="enumerate",
+        )
+    with pytest.raises(ValueError, match="enumerate"):
+        AttributionConfig.to_usable(
+            {
                 "enumerate": {
                     "inputs": {
                         "rsi_oversold_threshold": {"values": [20]},
@@ -215,22 +220,12 @@ def test_hook_goal_skipped_in_defaults() -> None:
 def test_shared_campaign_grid_same_for_sea_and_spa() -> None:
     """sea / spa 共用声明轴；枚举展格去掉只影响回放的近邻间隔。"""
     raw = {
-        "enumerate": {
-            "inputs": {
-                "rsi_oversold_threshold": {"values": [25]},
-            },
-            "cross": False,
+        "inputs": {
+            "rsi_oversold_threshold": {"values": [25]},
+            "opportunity_merge_gap": {"values": [3]},
+            "max_portfolio_size": {"values": [20]},
         },
-        "price_factor": {
-            "inputs": {
-                "opportunity_merge_gap": {"values": [3]},
-            },
-        },
-        "portfolio": {
-            "inputs": {
-                "max_portfolio_size": {"values": [20]},
-            },
-        },
+        "cross": False,
     }
     cfg_sea = AttributionConfig.to_usable(raw, layer="enumerate")
     cfg_spa = AttributionConfig.to_usable(raw, layer="price_factor")
@@ -294,28 +289,11 @@ def test_top_level_inputs_shared() -> None:
     assert len(cells) == 3
 
 
-def test_price_block_may_declare_core_axis() -> None:
-    """共用副本：写在 price_factor 块里的 core 轴合法。"""
-    cfg = AttributionConfig.to_usable(
-        {
-            "price_factor": {
-                "inputs": {
-                    "max_pe_percentile": {"values": [None, 30]},
-                }
-            }
-        },
-        layer="price_factor",
-    )
-    assert "core.max_pe_percentile" in cfg.campaign_inputs
-
-
 def test_goal_scalar_shorthand() -> None:
     cfg = AttributionConfig.to_usable(
         {
-            "enumerate": {
-                "inputs": {
-                    "stop_loss": {"values": [None, -0.15]},
-                }
+            "inputs": {
+                "stop_loss": {"values": [None, -0.15]},
             }
         },
         layer="enumerate",
@@ -365,18 +343,13 @@ def test_range_keeps_float_grid_and_rejects_miss() -> None:
         )
 
 
-def test_range_matches_the_same_list_across_blocks() -> None:
+def test_range_matches_the_same_list() -> None:
     cfg = AttributionConfig.to_usable(
         {
             "inputs": {
-                "rsi_oversold_threshold": {"values": [20, 25, 30]},
-            },
-            "enumerate": {
-                "inputs": {
-                    "rsi_oversold_threshold": {
-                        "values": {"range": [20, 30], "step": 5}
-                    },
-                }
+                "rsi_oversold_threshold": {
+                    "values": {"range": [20, 30], "step": 5}
+                },
             },
         },
         layer="enumerate",

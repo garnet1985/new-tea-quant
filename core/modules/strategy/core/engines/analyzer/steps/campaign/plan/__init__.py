@@ -7,7 +7,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
 from ..config import AttributionConfigBase
+from ..layers import declare_layer, pick_layer
 from .base import AttributionPlanBase
 from .enumerate import EnumerateAttributionPlan
 from .models import (
@@ -18,11 +21,17 @@ from .models import (
     simulate_steps_for_kind,
 )
 from .portfolio import PortfolioAttributionPlan
-from .price import PriceAttributionPlan
+
+PriceAttributionPlan = declare_layer(
+    "PriceAttributionPlan",
+    AttributionPlanBase,
+    "price_factor",
+    SimulateKind.PRICE_FACTOR,
+)
 
 _BY_LAYER: dict[str, Type[AttributionPlanBase]] = {
     EnumerateAttributionPlan.LAYER: EnumerateAttributionPlan,
-    PriceAttributionPlan.LAYER: PriceAttributionPlan,
+    "price_factor": PriceAttributionPlan,
     PortfolioAttributionPlan.LAYER: PortfolioAttributionPlan,
 }
 
@@ -32,11 +41,8 @@ class AttributionPlan:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributionPlanBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioAttributionPlan
-        return step
+        """按层返回计划类。"""
+        return pick_layer(_BY_LAYER, layer, PortfolioAttributionPlan)
 
     @classmethod
     def plan_from_folder(
@@ -46,6 +52,7 @@ class AttributionPlan:
         *,
         layer: str = "",
     ) -> ParameterPlan:
+        """读策略目录里的当前设置并展开成计划。"""
         return cls.for_layer(layer or config.layer).plan_from_folder(folder, config)
 
     @classmethod
@@ -56,14 +63,17 @@ class AttributionPlan:
         *,
         layer: str = "",
     ) -> List[AttributionCell]:
+        """读策略目录里的当前设置并返回格子。"""
         return cls.for_layer(layer or config.layer).expand_from_folder(folder, config)
 
     @classmethod
     def plan(cls, snapshot, config: AttributionConfigBase, *, layer: str = ""):
+        """把当前设置展开成计划。"""
         return cls.for_layer(layer or config.layer).plan(snapshot, config)
 
     @classmethod
     def expand(cls, snapshot, config: AttributionConfigBase, *, layer: str = ""):
+        """把当前设置展开成格子。"""
         return cls.for_layer(layer or config.layer).expand(snapshot, config)
 
 

@@ -21,12 +21,11 @@
 | ``steps/campaign/summarize/`` | 总结步：``SummarizeStep.for_layer`` |
 | ``steps/campaign/report/`` | 报告步：``CampaignReportStep.for_layer`` + ``CampaignPresenter`` |
 | ``steps/campaign/persist/`` | 落盘步：``PersistStep.for_layer`` + ``AttributionGroupStore`` |
-| ``steps/campaign/trades/`` | spa 单笔铺平：``TradesStep.for_layer``（仅价格层有实质工作） |
-| ``steps/rolling/`` | 滚动验证（窗口展开 / 总结 / 展示） |
+| ``steps/rolling/`` | 滚动验证（窗口展开 / 总结 / 展示；口径未定） |
 
 Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。
 
-**口径（文档已修订，代码可能仍落后）：** 三入口共用同一套「如果」副本身份与同一套管线形状（解析取值 → 补本层产物 → gather → summarize → report）；CLI 只决定懒执行深度与因变量。详见 [ATTRIBUTION_CAMPAIGN.md](../../../../docs/notes/ATTRIBUTION_CAMPAIGN.md) §0 / §11。``Analyzer.rolling`` 走 ``RollingPipeline``。单 version 的 prepare / analyze / report / layer 已删除。
+**口径：** 三入口共用同一套「如果」副本身份与同一套管线（解析取值 → 补本层产物 → gather → summarize → report）。CLI 只决定懒执行深度与因变量。见 [CONCEPTS.md](../../../../docs/CONCEPTS.md)。``Analyzer.rolling`` 走 ``RollingPipeline``，口径未定。单 version 的 prepare / analyze / report / layer 已删除。
 
 ## 入口（当前）
 
@@ -40,7 +39,7 @@ Analyzer.rolling(key)     → RollingPipeline → steps/rolling/
 ## 依赖方向
 
 ```text
-Analyzer.attribute_* / Analyzer.rolling → pipeline → campaign/rolling → modules.analysis（spa trades / 统计）
+Analyzer.attribute_* / Analyzer.rolling → pipeline → campaign/rolling → modules.analysis（统计）
 ```
 
 ``modules.analysis`` 禁止 import strategy。

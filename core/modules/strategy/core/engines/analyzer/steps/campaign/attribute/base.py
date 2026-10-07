@@ -1,34 +1,21 @@
-"""战役归因基类：presence / sensitivity / 差分共用；旋钮范围与结局由子类声明。"""
+"""战役归因基类：按层声明旋钮范围与结局，供收集和报告列使用。"""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
-from core.modules.analysis import Analysis
-
-from ..contrasts import KnobContrasts
-from ..effects import CampaignEffects
-from ..metrics import READY, layer_number
-
-_SKIPPED = {
-    "status": "skipped",
-    "reason": "insufficient_ready_rows",
-    "items": [],
-    "one_at_a_time_count": 0,
-    "joint_count": 0,
-}
+from ..metrics import READY
 
 
 class AttributeBase:
-    """一层战役归因。子类只声明本层 settings 段、结局与是否做交叉对照。"""
+    """一层战役归因。子类声明本层旋钮前缀与结局列。"""
 
     LAYER: str = ""
     KNOB_PREFIXES: Tuple[str, ...] = ()
     OUTCOMES: Tuple[Tuple[str, str], ...] = ()
-    ENABLE_INTERACTIONS: bool = True
-    ENABLE_CROSS_LAYER: bool = True
 
     @classmethod
     def accepts_knob(cls, path: Any) -> bool:
+        """该路径是否属于本层要看的旋钮。"""
         text = str(path or "").strip()
         if not text:
             return False
@@ -42,6 +29,7 @@ class AttributeBase:
 
     @classmethod
     def filter_knobs(cls, paths: Sequence[Any]) -> List[str]:
+        """留下本层接受的旋钮路径。"""
         out: List[str] = []
         seen = set()
         for path in paths:
@@ -54,6 +42,7 @@ class AttributeBase:
 
     @classmethod
     def run(cls, gathered: Mapping[str, Any]) -> Dict[str, Any]:
+        """返回本层是否有足够格子可对照。"""
         rows = [
             row
             for row in gathered.get("rows") or []
@@ -68,427 +57,28 @@ class AttributeBase:
                 "n": n,
                 "layer": focus,
                 "layers": {},
-                "contributions": {
-                    "presence": dict(_SKIPPED),
-                    "sensitivity": dict(_SKIPPED),
-                },
             }
-
-        contrasts = KnobContrasts.classify(rows)
-        presence_paths = cls.filter_knobs(contrasts.get("presence") or [])
-        sensitivity_paths = cls.filter_knobs(contrasts.get("sensitivity") or [])
-        presence = cls._presence_chapter(rows, presence_paths)
-
-        sensitivity_rows = [
-            row
-            for row in rows
-            if not any(
-                KnobContrasts.is_off((row.get("knobs") or {}).get(path))
-                for path in presence_paths
-            )
-        ]
-        varying_knobs = [
-            key
-            for key in sensitivity_paths
-            if _is_varying(_knob_scalars(sensitivity_rows, key))
-        ]
-        layers = {focus: cls._attribute_layer(sensitivity_rows, varying_knobs)}
-        grid_knobs = list(dict.fromkeys([*presence_paths, *sensitivity_paths]))
-        sensitivity = cls._sensitivity_chapter(
-            sensitivity_rows,
-            varying_knobs,
-            grid_rows=rows,
-            grid_knobs=grid_knobs,
-        )
-        contributions = {"presence": presence, "sensitivity": sensitivity}
-        return {
-            "status": _overall_status(layers, contributions),
-            "n": n,
-            "layer": focus,
-            "layers": layers,
-            "varying_knobs": varying_knobs,
-            "presence_paths": presence_paths,
-            "sensitivity_paths": sensitivity_paths,
-            "contributions": contributions,
-        }
-
-    @classmethod
-    def _presence_chapter(
-        cls,
-        rows: Sequence[Mapping[str, Any]],
-        presence_paths: Sequence[str],
-    ) -> Dict[str, Any]:
-        if not presence_paths:
-            return {
-                "status": "skipped",
-                "reason": "no_presence_paths",
-                "items": [],
-                "one_at_a_time_count": 0,
-                "joint_count": 0,
-            }
-        compare_keys = cls.filter_knobs(
-            _union_keys(row.get("knobs") or {} for row in rows)
-        )
-        items: List[Dict[str, Any]] = []
-        baselines: Dict[str, Any] = {}
-        for path in presence_paths:
-            off_rows = [
-                row
-                for row in rows
-                if KnobContrasts.is_off((row.get("knobs") or {}).get(path))
-            ]
-            on_rows = [
-                row
-                for row in rows
-                if not KnobContrasts.is_off((row.get("knobs") or {}).get(path))
-            ]
-            if not off_rows or not on_rows:
-                continue
-            baseline = off_rows[0]
-            base_knobs = (
-                baseline.get("knobs") if isinstance(baseline.get("knobs"), dict) else {}
-            )
-            baselines[path] = {
-                "version_id": baseline.get("version_id"),
-                "knobs": {key: base_knobs.get(key) for key in compare_keys},
-            }
-            seen_on: set = set()
-            for row in on_rows:
-                knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
-                fingerprint = _knob_fingerprint(knobs, compare_keys)
-                if fingerprint in seen_on:
-                    continue
-                seen_on.add(fingerprint)
-                changed = [
-                    key
-                    for key in compare_keys
-                    if not KnobContrasts.values_equal(base_knobs.get(key), knobs.get(key))
-                ]
-                if path not in changed:
-                    continue
-                kind = "one_at_a_time" if changed == [path] else "joint"
-                items.append(
-                    {
-                        "kind": kind,
-                        "version_id": row.get("version_id"),
-                        "baseline_version_id": baseline.get("version_id"),
-                        "changed": changed,
-                        "knob": path,
-                        "from": None,
-                        "to": knobs.get(path),
-                        "deltas": cls._row_deltas(baseline, row),
-                    }
-                )
-        return _chapter_result(items, baselines=baselines)
-
-    @classmethod
-    def _sensitivity_chapter(
-        cls,
-        rows: Sequence[Mapping[str, Any]],
-        varying_knobs: Sequence[str],
-        *,
-        grid_rows: Optional[Sequence[Mapping[str, Any]]] = None,
-        grid_knobs: Optional[Sequence[str]] = None,
-    ) -> Dict[str, Any]:
-        contributions = (
-            cls._contributions(rows, varying_knobs)
-            if len(rows) >= 2
-            else {
-                "status": "skipped",
-                "reason": "insufficient_on_rows",
-                "items": [],
-                "one_at_a_time_count": 0,
-                "joint_count": 0,
-            }
-        )
-        grid = grid_rows if grid_rows is not None else rows
-        knobs = list(grid_knobs) if grid_knobs is not None else varying_knobs
-        if len(rows) < 2 and (len(grid) < 4 or len(knobs) < 2):
-            return contributions
-        return CampaignEffects.enrich(
-            rows,
-            varying_knobs,
-            contributions,
-            grid_rows=grid,
-            grid_knobs=knobs,
-            enable_interactions=cls.ENABLE_INTERACTIONS,
-            enable_cross_layer=cls.ENABLE_CROSS_LAYER,
-            outcomes=cls.OUTCOMES,
-        )
-
-    @classmethod
-    def _contributions(
-        cls,
-        rows: Sequence[Mapping[str, Any]],
-        varying_knobs: Sequence[str],
-    ) -> Dict[str, Any]:
-        if len(rows) < 2:
-            return {"status": "skipped", "reason": "insufficient_ready_rows", "items": []}
-        baseline = rows[0]
-        base_knobs = (
-            baseline.get("knobs") if isinstance(baseline.get("knobs"), dict) else {}
-        )
-        compare_keys = list(varying_knobs) or cls.filter_knobs(
-            _union_keys(row.get("knobs") or {} for row in rows)
-        )
-        items: List[Dict[str, Any]] = []
-        for row in rows[1:]:
-            knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
-            changed = [
-                key
-                for key in compare_keys
-                if not KnobContrasts.values_equal(base_knobs.get(key), knobs.get(key))
-            ]
-            if not changed:
-                continue
-            kind = "one_at_a_time" if len(changed) == 1 else "joint"
-            knob = changed[0] if len(changed) == 1 else None
-            items.append(
-                {
-                    "kind": kind,
-                    "version_id": row.get("version_id"),
-                    "baseline_version_id": baseline.get("version_id"),
-                    "changed": changed,
-                    "knob": knob,
-                    "from": base_knobs.get(knob) if knob is not None else None,
-                    "to": knobs.get(knob) if knob is not None else None,
-                    "deltas": cls._row_deltas(baseline, row),
-                }
-            )
-        result = _chapter_result(items)
-        result["baseline"] = {
-            "version_id": baseline.get("version_id"),
-            "knobs": {key: base_knobs.get(key) for key in compare_keys},
-        }
-        return result
-
-    @classmethod
-    def _attribute_layer(
-        cls,
-        rows: Sequence[Mapping[str, Any]],
-        varying_knobs: Sequence[str],
-    ) -> Dict[str, Any]:
-        layer = cls.LAYER
         usable = [
             row
             for row in rows
-            if isinstance((row.get("layers") or {}).get(layer), dict)
+            if isinstance((row.get("layers") or {}).get(focus), dict)
         ]
-        if len(usable) < 2:
-            return {
+        if focus and len(usable) < 2:
+            skipped = {
                 "status": "skipped",
                 "reason": "insufficient_layer_rows",
                 "n": len(usable),
-                "outcomes": {},
             }
-        wanted = [outcome for layer_name, outcome in cls.OUTCOMES if layer_name == layer]
-        if not wanted:
-            sample = usable[0].get("layers", {}).get(layer) or {}
-            wanted = [
-                key
-                for key in sample.keys()
-                if _is_numeric_series(_layer_series(usable, layer, key))
-            ]
-        outcomes: Dict[str, Any] = {}
-        for outcome in wanted:
-            outcomes[outcome] = cls._attribute_outcome(usable, outcome, varying_knobs)
-        statuses = [
-            part.get("status") for part in outcomes.values() if isinstance(part, dict)
-        ]
-        if any(s == "ok" for s in statuses):
-            status = "ok" if all(s == "ok" for s in statuses) else "partial"
-        else:
-            status = "skipped"
-        return {"status": status, "n": len(usable), "outcomes": outcomes}
-
-    @classmethod
-    def _attribute_outcome(
-        cls,
-        rows: Sequence[Mapping[str, Any]],
-        outcome: str,
-        varying_knobs: Sequence[str],
-    ) -> Dict[str, Any]:
-        y_raw = _layer_series(rows, cls.LAYER, outcome)
-        profile = Analysis.Classical.summarize_column(y_raw)
-        if profile.get("role") != "varying" or profile.get("dtype") != "numeric":
             return {
                 "status": "skipped",
-                "reason": "outcome_not_varying",
-                "profile": profile,
-                "fields": {},
+                "reason": "insufficient_layer_rows",
+                "n": n,
+                "layer": focus,
+                "layers": {focus: skipped},
             }
-        if not varying_knobs:
-            return {
-                "status": "skipped",
-                "reason": "no_varying_knobs",
-                "profile": profile,
-                "fields": {},
-            }
-        fields: Dict[str, Any] = {}
-        for knob in varying_knobs:
-            xs, ys = _aligned_numeric(_knob_scalars(rows, knob), y_raw)
-            fields[knob] = {
-                "n": len(xs),
-                "correlation": Analysis.Classical.spearman_correlation(xs, ys),
-            }
-        field_ok = any(
-            (part.get("correlation") or {}).get("status") == "ok"
-            for part in fields.values()
-        )
         return {
-            "status": "ok" if field_ok else "skipped",
-            "profile": profile,
-            "fields": fields,
+            "status": "ok",
+            "n": n,
+            "layer": focus,
+            "layers": {focus: {"status": "ok", "n": n}} if focus else {},
         }
-
-    @classmethod
-    def _row_deltas(
-        cls,
-        baseline: Mapping[str, Any],
-        row: Mapping[str, Any],
-    ) -> List[Dict[str, Any]]:
-        base_layers = (
-            baseline.get("layers") if isinstance(baseline.get("layers"), dict) else {}
-        )
-        row_layers = row.get("layers") if isinstance(row.get("layers"), dict) else {}
-        out: List[Dict[str, Any]] = []
-        for layer_name, outcome in cls.OUTCOMES:
-            before = layer_number(base_layers, layer_name, outcome)
-            after = layer_number(row_layers, layer_name, outcome)
-            if before is None or after is None:
-                continue
-            out.append(
-                {
-                    "layer": layer_name,
-                    "outcome": outcome,
-                    "baseline": before,
-                    "value": after,
-                    "delta": after - before,
-                }
-            )
-        return out
-
-
-def _chapter_result(
-    items: Sequence[Mapping[str, Any]],
-    *,
-    baselines: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    one_count = sum(1 for item in items if item.get("kind") == "one_at_a_time")
-    joint_count = sum(1 for item in items if item.get("kind") == "joint")
-    if one_count:
-        status = "ok"
-    elif joint_count:
-        status = "partial"
-    else:
-        status = "skipped"
-    out: Dict[str, Any] = {
-        "status": status,
-        "items": list(items),
-        "one_at_a_time_count": one_count,
-        "joint_count": joint_count,
-    }
-    if baselines is not None:
-        out["baselines"] = baselines
-    return out
-
-
-def _layer_series(
-    rows: Sequence[Mapping[str, Any]],
-    layer: str,
-    key: str,
-) -> List[Any]:
-    out: List[Any] = []
-    for row in rows:
-        block = (row.get("layers") or {}).get(layer)
-        out.append(block.get(key) if isinstance(block, dict) else None)
-    return out
-
-
-def _knob_scalar(row: Mapping[str, Any], key: str) -> Optional[float]:
-    block = row.get("knobs") or {}
-    raw = block.get(key) if isinstance(block, dict) else None
-    if KnobContrasts.is_off(raw):
-        return None
-    return KnobContrasts.scalar(raw)
-
-
-def _knob_scalars(rows: Sequence[Mapping[str, Any]], key: str) -> List[Any]:
-    return [_knob_scalar(row, key) for row in rows]
-
-
-def _union_keys(blocks: Sequence[Any]) -> List[str]:
-    keys: List[str] = []
-    seen = set()
-    for block in blocks:
-        if not isinstance(block, dict):
-            continue
-        for key in block:
-            text = str(key)
-            if text in seen:
-                continue
-            seen.add(text)
-            keys.append(text)
-    return keys
-
-
-def _is_varying(values: Sequence[Any]) -> bool:
-    profile = Analysis.Classical.summarize_column(values)
-    return (
-        profile.get("dtype") == "numeric"
-        and profile.get("role") == "varying"
-    )
-
-
-def _is_numeric_series(values: Sequence[Any]) -> bool:
-    return Analysis.Classical.summarize_column(values).get("dtype") == "numeric"
-
-
-def _aligned_numeric(
-    xs: Sequence[Any],
-    ys: Sequence[Any],
-) -> Tuple[List[float], List[float]]:
-    out_x: List[float] = []
-    out_y: List[float] = []
-    for x, y in zip(xs, ys):
-        cx = Analysis.Classical.coerce_float(x)
-        cy = Analysis.Classical.coerce_float(y)
-        if cx is None or cy is None:
-            continue
-        out_x.append(cx)
-        out_y.append(cy)
-    return out_x, out_y
-
-
-def _knob_fingerprint(
-    knobs: Mapping[str, Any],
-    keys: Sequence[str],
-) -> Tuple[Any, ...]:
-    parts: List[Tuple[str, Any]] = []
-    for key in keys:
-        raw = knobs.get(key)
-        if KnobContrasts.is_off(raw):
-            parts.append((key, None))
-            continue
-        scalar = KnobContrasts.scalar(raw)
-        if scalar is not None:
-            parts.append((key, round(float(scalar), 12)))
-        else:
-            parts.append((key, repr(raw)))
-    return tuple(parts)
-
-
-def _overall_status(
-    layers: Mapping[str, Any],
-    contributions: Mapping[str, Any],
-) -> str:
-    statuses = [
-        part.get("status") for part in layers.values() if isinstance(part, dict)
-    ]
-    for name in ("presence", "sensitivity"):
-        chapter = contributions.get(name)
-        if isinstance(chapter, dict) and chapter.get("status"):
-            statuses.append(chapter.get("status"))
-    if any(status == "ok" for status in statuses):
-        return "ok" if all(status == "ok" for status in statuses) else "partial"
-    return "skipped"

@@ -1,8 +1,4 @@
-"""Strategy attribution analyzer — Facade。
-
-归因入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``。
-滚动验证：``rolling``。只保留战役与滚动，不再支持单 version 切片。
-"""
+"""归因入口。按层跑战役，或做滚动验证。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,6 +12,8 @@ from .steps.rolling.present import RollingPresenter
 
 
 class Analyzer:
+    """按层归因和滚动验证的入口。"""
+
     Campaign = AttributionPipeline
     Rolling = RollingPipeline
     CampaignPresenter = CampaignPresenter
@@ -41,6 +39,7 @@ class Analyzer:
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
+        """跑枚举层归因。"""
         return cls.attribute(
             key_or_id, kind=SimulateKind.ENUMERATE, ignore_cache=ignore_cache
         )
@@ -52,6 +51,7 @@ class Analyzer:
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
+        """跑价格层归因。"""
         return cls.attribute(
             key_or_id, kind=SimulateKind.PRICE_FACTOR, ignore_cache=ignore_cache
         )
@@ -63,11 +63,13 @@ class Analyzer:
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
+        """跑组合层归因。"""
         return cls.attribute(
             key_or_id, kind=SimulateKind.PORTFOLIO, ignore_cache=ignore_cache
         )
 
     @classmethod
+    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def rolling(
         cls,
         key_or_id: Union[str, Path],

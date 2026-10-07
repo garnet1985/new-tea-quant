@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.1-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.2-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -338,7 +338,7 @@ NTQ 还可以：
 - **快捷操作数据库：** NTQ 支持 [DuckDB](https://duckdb.org/)、[MySQL](https://dev.mysql.com/) 和 [PostgreSQL](https://www.postgresql.org/)，并且配有一套轻量级的 [ORM 操作 API](core/infra/db/README.md)。
 - **自定义数据源：** NTQ 有接入外部数据源的一套完整工具。一个数据源（比如公司财务数据）可以接入多个数据供应商，并且默认带有限流、等待等模式，支持多种数据存入（增量、覆盖、滚动刷新）模式。说明见 [core/modules/data_source/README.md](core/modules/data_source/README.md)。
 - **自定义数据契约：** NTQ 大部分操作是配置完成的，代码较少。那假如我新增加了一张数据表，想通过声明的方式注入回测流程，我该怎么办？NTQ 提供了[数据契约](core/modules/data_contract/README.md)模块：您只需要给您的新数据定义一个唯一的名字（`data_key`），然后定义一个加载逻辑（loader），接下来框架会在回测过程中自动通过名字找到您的 loader 进行数据加载，就可以注入回测了。
-- **对回测归因：** 参数级对照走矩阵战役（同一策略环境、多样本窗归档；一次任务只拿区间和股票池相同的号）。入口尚未开放，平时 Run 不再自动归因。口径见 [`ATTRIBUTION_CAMPAIGN.md`](core/modules/strategy/docs/notes/ATTRIBUTION_CAMPAIGN.md)。
+- **对回测归因：** `sea` / `spa` / `soa` 用同一套副本对照设置，分别看枚举、价格和组合。平时 Run 不自动归因。见 [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md)。
 - **适配器：** 扫描出机会后，用 [`adapter`](core/modules/adapter/README.md) 接到您自己的下游（通知、交易软件或其他程序）。框架会提供标准的机会信息，以及回测历史（如果您回测过）。
 - **用户界面（UI）：** NTQ 标配了一款 Web UI，可以在您的浏览器里使用。很多结果和操作可以可视化，还可以比较您多次回测的输入参数和输出结果的不同，从而对策略进行针对性微调。
 - **AI 助理：** 应用内可对话，需自行在设置中填写供应商 API Key；请求会带上 NTQ 文档上下文。

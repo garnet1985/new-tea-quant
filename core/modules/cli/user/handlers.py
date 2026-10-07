@@ -600,6 +600,7 @@ class UserHandlers:
             raise SystemExit(1)
 
     @staticmethod
+    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def _run_strategy_rolling(args: argparse.Namespace) -> None:
         import time
 

@@ -1,3 +1,4 @@
+# TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
 """滚动验证的终端展示：窗口表，不是旋钮战役。"""
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ class RollingPresenter:
 
     @classmethod
     def load(cls, report: Union[Mapping[str, Any], str, Path]) -> "RollingPresenter":
+        """从字典或已落盘目录载入展示器。"""
         if isinstance(report, Mapping):
             return cls(report)
         path = Path(report)
@@ -30,6 +32,7 @@ class RollingPresenter:
         return cls(payload)
 
     def present(self, stream: Optional[TextIO] = None) -> None:
+        """把滚动窗口表打到终端。"""
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         report = self._report

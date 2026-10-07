@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional, Sequence, Type
 
+from ..layers import pick_layer
 from .base import SummarizeBase
 from .enumerate import EnumerateSummarize
 from .portfolio import PortfolioSummarize
@@ -23,11 +24,8 @@ class SummarizeStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[SummarizeBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioSummarize
-        return step
+        """按层返回总结类。"""
+        return pick_layer(_BY_LAYER, layer, PortfolioSummarize)
 
     @classmethod
     def run(
@@ -40,6 +38,7 @@ class SummarizeStep:
         executed: Optional[Mapping[str, Any]] = None,
         joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
+        """生成本层总结。"""
         return cls.for_layer(layer).run(
             attributed,
             layer=layer,

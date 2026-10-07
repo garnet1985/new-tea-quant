@@ -1,8 +1,5 @@
-"""``attribution.rolling``：滚动窗口外壳（windows）。
-
-不进 execute_fp / env_fp。窗口只动 ``simulation.execution`` 起止日。
-层由 RollingPipeline 固定跑到 portfolio，不再读 steps。
-"""
+# TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
+"""滚动窗口配置。窗口只改模拟起止日，不进执行指纹。"""
 from __future__ import annotations
 
 import copy
@@ -36,6 +33,7 @@ class RollingSettings(SettingsBase):
 
     @classmethod
     def from_dict(cls, settings: Mapping[str, Any]) -> "RollingSettings":
+        """从字典构造滚动配置，尚未校验。"""
         if not isinstance(settings, Mapping):
             raise ValueError("rolling 须为 dict")
         return cls(raw_settings=dict(settings))
@@ -47,6 +45,7 @@ class RollingSettings(SettingsBase):
         *,
         strategy_key: Optional[str] = None,
     ) -> "RollingSettings":
+        """从策略目录读取滚动配置。"""
         parent = AttributionConfig.load(
             strategy_folder, strategy_key=strategy_key
         )
@@ -57,6 +56,7 @@ class RollingSettings(SettingsBase):
         cls,
         settings: Union[Mapping[str, Any], "RollingSettings", None],
     ) -> "RollingSettings":
+        """校验并返回可用的滚动配置。"""
         if isinstance(settings, cls):
             obj = settings
         else:
@@ -68,6 +68,7 @@ class RollingSettings(SettingsBase):
 
     @property
     def steps(self) -> Tuple[SimulateKind, ...]:
+        """返回滚动要跑到组合层的上游链。"""
         return (
             SimulateKind.ENUMERATE,
             SimulateKind.PRICE_FACTOR,
@@ -76,14 +77,17 @@ class RollingSettings(SettingsBase):
 
     @property
     def is_select(self) -> bool:
+        """滚动不选已有版本。"""
         return False
 
     @property
     def simulate_kind(self) -> SimulateKind:
+        """滚动固定跑到组合层。"""
         return SimulateKind.PORTFOLIO
 
     @property
     def windows(self) -> Tuple[Dict[str, str], ...]:
+        """返回声明的窗口列表。"""
         raw = self.raw_settings.get("windows")
         if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
             return ()
@@ -98,10 +102,12 @@ class RollingSettings(SettingsBase):
         return tuple(out)
 
     def apply_defaults(self) -> None:
+        """补上滚动缺省。"""
         self.raw_settings.pop("fill_missing", None)
         self.raw_settings.pop("steps", None)
 
     def validate(self) -> ValidationReport:
+        """校验窗口并返回报告。"""
         report = SettingsBase.new_validation()
         self.apply_defaults()
 
@@ -161,6 +167,7 @@ class RollingSettings(SettingsBase):
         return report
 
     def to_dict(self) -> Dict[str, Any]:
+        """导出滚动配置字典。"""
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
         out["windows"] = [dict(item) for item in self.windows]

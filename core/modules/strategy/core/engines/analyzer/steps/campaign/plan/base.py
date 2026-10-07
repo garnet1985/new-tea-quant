@@ -1,8 +1,4 @@
-"""把 attribution 共用 inputs 展开成格子：默认 oaat，cross 为笛卡尔积。
-
-三 CLI 同一套副本身份；自动带当前 settings 当基准格。
-执行并集按 ``execute_settings`` 去重。
-"""
+"""把共用 inputs 展开成格子。默认一次只改一个轴。"""
 from __future__ import annotations
 
 import logging
@@ -57,6 +53,7 @@ class AttributionPlanBase:
         folder: Path,
         config: AttributionConfigBase,
     ) -> List[AttributionCell]:
+        """读策略目录里的当前设置并返回格子。"""
         return cls.plan_from_folder(folder, config).listed_cells()
 
     @classmethod
@@ -65,6 +62,7 @@ class AttributionPlanBase:
         folder: Path,
         config: AttributionConfigBase,
     ) -> ParameterPlan:
+        """读策略目录里的当前设置并展开成计划。"""
         disk = load_settings_dict_from_folder(folder)
         snapshot = StrategySettings.to_usable(dict(disk))
         return cls.plan(snapshot, config)
@@ -75,6 +73,7 @@ class AttributionPlanBase:
         snapshot: StrategySettings,
         config: AttributionConfigBase,
     ) -> List[AttributionCell]:
+        """把当前设置展开成格子。"""
         return cls.plan(snapshot, config).listed_cells()
 
     @classmethod
@@ -83,26 +82,12 @@ class AttributionPlanBase:
         snapshot: StrategySettings,
         config: AttributionConfigBase,
     ) -> ParameterPlan:
-        if config.is_select:
-            selected = tuple(
-                AttributionCell(
-                    index=i,
-                    overlay={},
-                    runtime_settings={},
-                    execute_settings={},
-                    effective=None,
-                    version_id=vid,
-                    family="select",
-                )
-                for i, vid in enumerate(config.versions)
-            )
-            return ParameterPlan(selected=selected)
-
-        layer = str(config.LAYER or cls.LAYER or "").strip()
+        """把当前设置展开成计划。"""
+        # TODO: 全轴 cross 能展开，但报告仍按单因素讲，产品还没完成。
         cross = bool(config.cross)
-        family = "cross" if cross else "inputs"
+        family = "cross" if cross else "oaat"
         snap_raw = dict(snapshot.raw_settings)
-        # 共用展格：合并顶层 + 各层块 inputs；与 CLI 层无关
+        # 共用展格：只读顶层 inputs；与 CLI 层无关
         merged = merge_user_and_defaults(
             "campaign", config.campaign_inputs, snap_raw
         )

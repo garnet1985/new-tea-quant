@@ -17,5 +17,3 @@ class EnumerateAttributeStep(AttributeBase):
         ("enumerate", "stop_loss_ratio"),
         ("enumerate", "take_profit_ratio"),
     )
-    ENABLE_INTERACTIONS = False
-    ENABLE_CROSS_LAYER = False

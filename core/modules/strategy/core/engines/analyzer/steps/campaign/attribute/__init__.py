@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Type
 
+from ..layers import pick_layer
 from .base import AttributeBase
 from .enumerate import EnumerateAttributeStep
 from .portfolio import PortfolioAttributeStep
@@ -20,12 +21,8 @@ class AttributeStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[AttributeBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            # 未点名时默认组合层（滚动等宽口径）
-            return PortfolioAttributeStep
-        return step
+        """按层返回归因步骤类。"""
+        return pick_layer(_BY_LAYER, layer, PortfolioAttributeStep)
 
     @classmethod
     def run(
@@ -34,6 +31,7 @@ class AttributeStep:
         *,
         layer: str = "",
     ) -> Dict[str, Any]:
+        """跑该层的归因。"""
         return cls.for_layer(layer).run(gathered)
 
 

@@ -31,12 +31,7 @@ _REMOVED_KEYS = ("overlays", "matrix")
 
 @dataclass
 class AttributionConfigBase(SettingsBase):
-    """参数归因配置（versions / 按层 inputs / rolling）。
-
-    边界:
-    - 负责: 读取、默认值、校验、标准化视图
-    - 不负责: 展开格子、simulate、归因计算
-    """
+    """读取并校验 attribution.py。不展开格子，也不跑模拟。"""
 
     LAYER: ClassVar[str] = ""
     KIND: ClassVar[SimulateKind] = SimulateKind.PORTFOLIO
@@ -49,6 +44,7 @@ class AttributionConfigBase(SettingsBase):
 
     @classmethod
     def from_dict(cls, settings: Mapping[str, Any]) -> "AttributionConfigBase":
+        """从字典构造配置，尚未校验。"""
         if not isinstance(settings, Mapping):
             raise ValueError("attribution 须为 dict")
         return cls(raw_settings=dict(settings))
@@ -60,6 +56,7 @@ class AttributionConfigBase(SettingsBase):
         *,
         strategy_key: Optional[str] = None,
     ) -> "AttributionConfigBase":
+        """从策略目录读取并校验配置。"""
         return cls.to_usable(
             load_attribution_dict(strategy_folder, strategy_key=strategy_key)
         )
@@ -69,6 +66,7 @@ class AttributionConfigBase(SettingsBase):
         cls,
         settings: Union[Mapping[str, Any], "AttributionConfigBase", None],
     ) -> "AttributionConfigBase":
+        """补默认值、校验并返回可用配置。"""
         if isinstance(settings, cls):
             obj = settings
         else:
@@ -80,34 +78,13 @@ class AttributionConfigBase(SettingsBase):
 
     @property
     def layer(self) -> str:
+        """返回配置对应的层名。"""
         return self.LAYER
 
     @property
     def kind(self) -> SimulateKind:
+        """返回配置对应的模拟种类。"""
         return self.KIND
-
-    @property
-    def versions(self) -> Tuple[int, ...]:
-        raw = self.raw_settings.get("versions")
-        if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
-            return ()
-        out: list[int] = []
-        for item in raw:
-            if isinstance(item, bool) or not isinstance(item, (int, str)):
-                continue
-            try:
-                vid = int(item)
-            except (TypeError, ValueError):
-                continue
-            if vid <= 0 or str(vid) != str(item).strip():
-                continue
-            out.append(vid)
-        return tuple(out)
-
-    @property
-    def layer_block(self) -> Dict[str, Any]:
-        block = self.raw_settings.get(self.LAYER)
-        return dict(block) if isinstance(block, Mapping) else {}
 
     @property
     def campaign_inputs(self) -> Dict[str, Any]:
@@ -116,12 +93,9 @@ class AttributionConfigBase(SettingsBase):
         return inputs
 
     @property
-    def layer_inputs(self) -> Dict[str, Any]:
-        """兼容旧名：等于 ``campaign_inputs``（不再是「仅本层块」）。"""
-        return self.campaign_inputs
-
-    @property
     def cross(self) -> bool:
+        """是否把多个轴做成笛卡尔积。"""
+        # TODO: 全轴 cross 能展开，但报告仍按单因素讲，产品还没完成。
         _inputs, cross = collect_campaign_user_inputs(self.raw_settings)
         return cross
 
@@ -134,39 +108,24 @@ class AttributionConfigBase(SettingsBase):
             return ()
 
     @property
-    def shap_enabled(self) -> bool:
-        """价格层单笔 SHAP 附录；默认关，显式 ``shap: true`` 才跑。"""
-        if "shap" not in self.raw_settings:
-            return False
-        return bool(self.raw_settings.get("shap"))
-
-    @property
     def has_layer_inputs(self) -> bool:
+        """是否写了要展开的参数。"""
         return bool(self.campaign_inputs)
 
     @property
-    def is_select(self) -> bool:
-        return bool(self.versions)
-
-    @property
     def has_parameter(self) -> bool:
-        """选号、共用非空 inputs，或任一层块 / 顶层 inputs 键存在（空→共用默认轴）。"""
-        if self.versions:
-            return True
+        """共用非空 inputs，或顶层 inputs 键存在（空则用共用默认轴）。"""
         if self.has_layer_inputs:
             return True
         if "inputs" in self.raw_settings:
             return True
         allocation = self.raw_settings.get("allocation")
-        if isinstance(allocation, Mapping) and allocation:
-            return True
-        return any(key in self.raw_settings for key in _LAYER_KEYS)
+        return isinstance(allocation, Mapping) and bool(allocation)
 
     @property
     def parameter_mode(self) -> str:
-        if self.is_select:
-            return "select"
-        return "cross" if self.cross else "inputs"
+        """返回 cross 或 oaat。"""
+        return "cross" if self.cross else "oaat"
 
     def allocation_axes(
         self, snapshot: Optional[Mapping[str, Any]] = None
@@ -175,6 +134,7 @@ class AttributionConfigBase(SettingsBase):
         return resolve_allocation_axes(self.raw_settings, snapshot)
 
     def rolling_payload(self) -> Dict[str, Any]:
+        """返回滚动窗口配置。"""
         block = self.raw_settings.get("rolling")
         nested = dict(block) if isinstance(block, Mapping) else {}
         nested.pop("steps", None)
@@ -182,6 +142,7 @@ class AttributionConfigBase(SettingsBase):
         return nested
 
     def require_parameter(self) -> None:
+        """要求当前配置能展开参数。"""
         if any(
             key in self.raw_settings
             and self.raw_settings.get(key) not in (None, [], {})
@@ -189,37 +150,28 @@ class AttributionConfigBase(SettingsBase):
         ):
             raise ValueError(
                 "attribution.py 已不支持 overlays / matrix；"
-                "请按层写 inputs，见 ATTRIBUTION_INPUTS.md"
+                "请写顶层 inputs"
             )
         if not self.has_parameter:
             raise ValueError(
-                "attribution.py 没有战役 inputs / versions；"
-                "请配置顶层或各层 inputs（共用展格），再跑 sea / spa / soa"
+                "attribution.py 没有战役 inputs；"
+                "请配置顶层 inputs，再跑 sea / spa / soa"
             )
 
     def apply_defaults(self) -> None:
+        """去掉已废弃字段并补滚动缺省。"""
         self.raw_settings.pop("fill_missing", None)
         self.raw_settings.pop("steps", None)
         rolling = self.raw_settings.get("rolling")
         if isinstance(rolling, dict):
             rolling.pop("fill_missing", None)
             rolling.pop("steps", None)
-        if self.raw_settings.get("versions") is None:
-            self.raw_settings["versions"] = []
-        if self.LAYER and self.LAYER not in self.raw_settings:
-            # 不强制写入空块；缺省表示用默认轴
-            pass
-        self._apply_layer_defaults()
-
-    def _apply_layer_defaults(self) -> None:
-        return
-
     def validate(self) -> ValidationReport:
+        """校验配置并返回报告。"""
         report = SettingsBase.new_validation()
         self.apply_defaults()
         self._validate_removed_keys(report)
-        self._validate_versions(report)
-        self._validate_mode_exclusivity(report)
+        self._validate_dropped_features(report)
         if "inputs" in self.raw_settings:
             top_block = {
                 "inputs": self.raw_settings.get("inputs"),
@@ -231,14 +183,6 @@ class AttributionConfigBase(SettingsBase):
                 report,
                 field_prefix="campaign",
             )
-        for key in _LAYER_KEYS:
-            if key in self.raw_settings:
-                validate_layer_inputs(
-                    key,
-                    self.raw_settings.get(key),
-                    report,
-                    field_prefix=key,
-                )
         try:
             collect_campaign_user_inputs(self.raw_settings)
         except ValueError as exc:
@@ -246,42 +190,25 @@ class AttributionConfigBase(SettingsBase):
                 report,
                 "inputs",
                 str(exc),
-                suggested_fix="各层 / 顶层同一路径 values 保持一致；cross 只写一处",
+                suggested_fix="轴写在顶层 inputs；cross 只写一处",
             )
         self._validate_joint_sweep(report)
         validate_allocation(self.raw_settings, report)
+        # TODO: rolling.windows 仍算一份有效归因配置；口径定了再决定要不要留。
         has_rolling = self._validate_rolling(report)
-        has_any_inputs = (
-            "inputs" in self.raw_settings
-            or any(
-                isinstance(self.raw_settings.get(key), Mapping)
-                for key in _LAYER_KEYS
-            )
-        )
+        has_any_inputs = "inputs" in self.raw_settings
         has_allocation = isinstance(self.raw_settings.get("allocation"), Mapping) and bool(
             self.raw_settings.get("allocation")
         )
-        if (
-            not self.versions
-            and not has_any_inputs
-            and not has_rolling
-            and not has_allocation
-        ):
+        if not has_any_inputs and not has_rolling and not has_allocation:
             SettingsBase.add_critical(
                 report,
                 "inputs",
-                "versions、战役 inputs、rolling.windows 不能都空",
-                suggested_fix=(
-                    '写顶层 inputs，或 enumerate/price_factor/portfolio.inputs，'
-                    "或 versions / rolling.windows"
-                ),
+                "战役 inputs、rolling.windows 不能都空",
+                suggested_fix="写顶层 inputs，或 rolling.windows",
             )
-        self._validate_layer(report)
         self._validated = report.is_usable()
         return report
-
-    def _validate_layer(self, report: ValidationReport) -> None:
-        return
 
     def _validate_removed_keys(self, report: ValidationReport) -> None:
         for key in _REMOVED_KEYS:
@@ -300,63 +227,29 @@ class AttributionConfigBase(SettingsBase):
                     ),
                 )
 
-    def _validate_versions(self, report: ValidationReport) -> None:
-        raw_versions = self.raw_settings.get("versions")
-        if raw_versions is None:
-            raw_versions = []
-        if not isinstance(raw_versions, Sequence) or isinstance(
-            raw_versions, (str, bytes)
-        ):
+    def _validate_dropped_features(self, report: ValidationReport) -> None:
+        """拒绝已删除的选号、单笔 SHAP 和分层 inputs。"""
+        if "versions" in self.raw_settings:
             SettingsBase.add_critical(
                 report,
                 "versions",
-                "attribution.versions 须为 list",
-                suggested_fix="Set versions to [3, 5] or []",
+                "已移除 attribution.versions 选号；请改用顶层 inputs",
+                suggested_fix='{"inputs": {"max_pe_percentile": {"values": [None, 30]}}}',
             )
-            return
-        for i, item in enumerate(raw_versions):
-            if isinstance(item, bool) or not isinstance(item, (int, str)):
-                SettingsBase.add_critical(
-                    report,
-                    f"versions[{i}]",
-                    f"须为正整数，收到 {item!r}",
-                )
-                continue
-            try:
-                vid = int(item)
-            except (TypeError, ValueError):
-                SettingsBase.add_critical(
-                    report,
-                    f"versions[{i}]",
-                    f"须为正整数，收到 {item!r}",
-                )
-                continue
-            if vid <= 0 or str(vid) != str(item).strip():
-                SettingsBase.add_critical(
-                    report,
-                    f"versions[{i}]",
-                    f"须为正整数，收到 {item!r}",
-                )
-
-    def _validate_mode_exclusivity(self, report: ValidationReport) -> None:
-        has_versions = bool(self.versions)
-        top = self.raw_settings.get("inputs")
-        has_top = isinstance(top, Mapping) and bool(top)
-        has_layer = any(
-            isinstance(self.raw_settings.get(key), Mapping)
-            and bool(
-                (self.raw_settings.get(key) or {}).get("inputs")
-                if isinstance(self.raw_settings.get(key), Mapping)
-                else False
-            )
-            for key in _LAYER_KEYS
-        )
-        if has_versions and (has_top or has_layer):
+        if "shap" in self.raw_settings:
             SettingsBase.add_critical(
                 report,
-                "versions",
-                "versions 不要和战役 inputs 同时写；选号是单独一种点名",
+                "shap",
+                "已移除单笔 SHAP 附录",
             )
+        for key in _LAYER_KEYS:
+            if key in self.raw_settings:
+                SettingsBase.add_critical(
+                    report,
+                    key,
+                    f"已不支持把轴写在 {key} 块下；请改到顶层 inputs",
+                    suggested_fix='{"inputs": {"rsi_oversold_threshold": {"values": [20, 25]}}}',
+                )
 
     def _validate_joint_sweep(self, report: ValidationReport) -> None:
         if "joint_sweep" not in self.raw_settings:
@@ -394,6 +287,7 @@ class AttributionConfigBase(SettingsBase):
                         suggested_fix="先在 inputs 声明该轴的 values",
                     )
 
+    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def _validate_rolling(self, report: ValidationReport) -> bool:
         raw = self.raw_settings.get("rolling")
         if raw is None:
@@ -472,10 +366,12 @@ class AttributionConfigBase(SettingsBase):
         return bool(seen)
 
     def to_dict(self) -> Dict[str, Any]:
+        """导出标准化后的配置字典。"""
         self.apply_defaults()
         out = copy.deepcopy(self.raw_settings)
         out.pop("steps", None)
         out.pop("overlays", None)
         out.pop("matrix", None)
-        out["versions"] = list(self.versions)
+        out.pop("versions", None)
+        out.pop("shap", None)
         return out

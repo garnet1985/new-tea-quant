@@ -23,41 +23,32 @@ class AttributionCell:
     version_id: Optional[int] = None
     family: str = ""
 
-    @property
-    def is_select(self) -> bool:
-        return self.version_id is not None
-
 
 @dataclass(frozen=True)
 class ParameterPlan:
-    """选号或按层 inputs 展开后的格子。"""
+    """按层 inputs 展开后的格子。"""
 
     cells: Tuple[AttributionCell, ...] = ()
-    selected: Tuple[AttributionCell, ...] = ()
     cost_warning: str = ""
 
     def families(self) -> List[Tuple[str, List[AttributionCell]]]:
-        out: List[Tuple[str, List[AttributionCell]]] = []
-        if self.selected:
-            out.append(("select", list(self.selected)))
-        if self.cells:
-            name = self.cells[0].family or "inputs"
-            out.append((name, list(self.cells)))
-        return out
+        """按家族列出格子。"""
+        if not self.cells:
+            return []
+        name = self.cells[0].family or "oaat"
+        return [(name, list(self.cells))]
 
     def execute_source_cells(self) -> List[AttributionCell]:
-        if self.selected:
-            return list(self.selected)
+        """返回真正要执行的格子。"""
         return list(self.cells)
 
     def listed_cells(self) -> List[AttributionCell]:
+        """返回计划里列出的全部格子。"""
         return list(self.execute_source_cells())
 
 
 def cell_identity(cell: AttributionCell) -> str:
-    """回测身份：选号用 version；其余用 execute_settings。"""
-    if cell.is_select:
-        return f"select:{cell.version_id}"
+    """回测身份：用 execute_settings。"""
     return json.dumps(
         cell.execute_settings,
         sort_keys=True,
@@ -99,5 +90,6 @@ class AttributionTask:
         *,
         kind: SimulateKind,
     ) -> List["AttributionTask"]:
+        """由格子生成执行任务。"""
         steps = simulate_steps_for_kind(kind)
         return [cls(cell=cell, kind=kind, steps=steps) for cell in cells]

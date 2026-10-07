@@ -103,6 +103,7 @@ function resolveScopeNote(payload, summary) {
     || '',
   ).trim();
   if (mode === 'cross') {
+    // TODO: 全轴 cross 能展开，但报告仍按单因素讲，产品还没完成。
     return '联合/交叉扫描：多个参数同时变化时的共同影响。';
   }
   return '单因素扫描：每次只改一个参数，其余保持当前配置；看曲线与敏感度排名决定该调多少。';

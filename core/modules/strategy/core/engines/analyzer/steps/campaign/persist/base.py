@@ -1,9 +1,4 @@
-"""把战役报告写到 ``results/attribution/{n}/{task}/``。
-
-组号是短数字；``env_fp`` 只写在 ``meta.json`` / ``group_meta.json`` 里。
-平时 Run 经 ``AttributionGroupStore.record_version`` 记账（含样本窗）。
-战役结束时合并 ``tasks``，并保留已有 ``samples``。
-"""
+"""把战役报告写到 results/attribution 的短组号目录。"""
 from __future__ import annotations
 
 import json
@@ -46,6 +41,7 @@ class PersistBase:
         task_id: str = "",
         task_kind: str = "",
     ) -> Dict[str, Any]:
+        """把报告写入当前环境对应的组目录。"""
         out = dict(report)
         env_fp = cls._resolve_env_fp(folder, executed or {})
         if not env_fp:
@@ -147,9 +143,11 @@ class PersistBase:
         summarized = dict(report.get("report") or {})
         families = report.get("families")
         if isinstance(families, dict) and families:
-            summarized["inputs"] = (
-                families.get("inputs")
+            summarized["oaat"] = (
+                families.get("oaat")
+                or families.get("inputs")
                 or families.get("cross")
+                or summarized.get("oaat")
                 or summarized.get("inputs")
                 or {}
             )
@@ -347,10 +345,6 @@ def _version_sort_key(vid: str) -> Any:
 
 
 def _write_json(path: Path, payload: Any) -> Path:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False, default=str),
-        encoding="utf-8",
-    )
-    return target
+    from core.modules.strategy.core.services.artifacts.io import ArtifactIO
+
+    return ArtifactIO.write_json(path, payload)

@@ -7,17 +7,27 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Type
 
+from core.modules.strategy.core.enums import SimulateKind
+
+from ..layers import declare_layer, pick_layer
 from ..plan import AttributionCell, AttributionTask
 from .base import ReportBase
-from .enumerate import EnumerateReport
-from .portfolio import PortfolioReport
 from .present import CampaignPresenter
-from .price import PriceReport
+
+EnumerateReport = declare_layer(
+    "EnumerateReport", ReportBase, "enumerate", SimulateKind.ENUMERATE
+)
+PriceReport = declare_layer(
+    "PriceReport", ReportBase, "price_factor", SimulateKind.PRICE_FACTOR
+)
+PortfolioReport = declare_layer(
+    "PortfolioReport", ReportBase, "portfolio", SimulateKind.PORTFOLIO
+)
 
 _BY_LAYER: dict[str, Type[ReportBase]] = {
-    EnumerateReport.LAYER: EnumerateReport,
-    PriceReport.LAYER: PriceReport,
-    PortfolioReport.LAYER: PortfolioReport,
+    "enumerate": EnumerateReport,
+    "price_factor": PriceReport,
+    "portfolio": PortfolioReport,
 }
 
 
@@ -26,11 +36,8 @@ class CampaignReportStep:
 
     @classmethod
     def for_layer(cls, layer: Any) -> Type[ReportBase]:
-        focus = str(getattr(layer, "value", layer) or "").strip()
-        step = _BY_LAYER.get(focus)
-        if step is None:
-            return PortfolioReport
-        return step
+        """按层返回报告类。"""
+        return pick_layer(_BY_LAYER, layer, PortfolioReport)
 
     @classmethod
     def run(
@@ -47,6 +54,7 @@ class CampaignReportStep:
         family: str = "",
         layer: str = "",
     ) -> Dict[str, Any]:
+        """组装该层的战役报告。"""
         focus = layer
         if not focus and tasks:
             focus = str(getattr(tasks[0].kind, "value", tasks[0].kind) or "")
@@ -74,6 +82,7 @@ class CampaignReportStep:
         trades: Optional[Mapping[str, Any]] = None,
         layer: str = "",
     ) -> Dict[str, Any]:
+        """把各家族结果合成一份报告。"""
         focus = layer or str(getattr(config, "layer", "") or "")
         return cls.for_layer(focus).merge(
             config, executed, families, trades=trades

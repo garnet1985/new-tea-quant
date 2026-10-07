@@ -17,7 +17,7 @@ CLI_COMMAND_REFERENCE = """
   python cli.py sea                     枚举层归因    同 strategy_attribute_enumerate [--strategy NAME]（须先 se；-f 忽略缓存）
   python cli.py spa                     价格层归因    同 strategy_attribute_price [--strategy NAME]（须先 sp）
   python cli.py soa                     组合层归因    同 strategy_attribute_portfolio [--strategy NAME]（须先 so）
-  python cli.py sw                      滚动验证      同 strategy_rolling [--strategy NAME]（读 attribution.rolling；-f 忽略缓存重跑）
+  python cli.py sw                      滚动验证（待定） 同 strategy_rolling [--strategy NAME]（读 attribution.rolling；-f 忽略缓存重跑）
   python cli.py sdv --strategy rsi_v1:3 删一份回测产物 同 strategy_delete_version（策略:版本）
 
   python cli.py r [SOURCE]              更新数据      同 renew [SOURCE]

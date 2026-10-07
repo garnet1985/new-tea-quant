@@ -5,10 +5,7 @@ from .base import AttributeBase
 
 
 class PriceAttributeStep(AttributeBase):
-    """spa：问去近邻后的 ROI / 胜率 / 利润是否普遍。
-
-    格子身份与 sea/soa 共用；报告可对照 core/goal/simulation，不含组合槽位。
-    """
+    """看去噪后的收益和利润是否普遍。不含组合槽位。"""
 
     LAYER = "price_factor"
     KNOB_PREFIXES = ("core.", "goal.", "simulation.")

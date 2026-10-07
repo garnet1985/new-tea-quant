@@ -5,8 +5,8 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 
 from core.modules.strategy.core.enums import SimulateKind
 
-from .base import SummarizeBase
 from . import value_ladders as ladders
+from .base import SummarizeBase
 from .bridge import upstream_bridge
 from .joint_sweeps import build_joint_heatmaps
 from .sweeps import build_parameter_sweeps
@@ -23,6 +23,8 @@ _ALLOCATION_PREFIX = "portfolio."
 
 
 class PortfolioSummarize(SummarizeBase):
+    """组合层总结：资金分配扫描。"""
+
     LAYER = "portfolio"
     KIND = SimulateKind.PORTFOLIO
 
@@ -37,6 +39,7 @@ class PortfolioSummarize(SummarizeBase):
         executed: Optional[Mapping[str, Any]] = None,
         joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
+        """生成组合层总结。"""
         base = super().run(attributed, layer=layer or cls.LAYER)
         cross = ladders.is_cross(executed, gathered, layer=_LAYER)
         sweep_pack = build_parameter_sweeps(

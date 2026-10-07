@@ -13,6 +13,7 @@ def ready_rows(
     *,
     layer: str,
 ) -> List[Dict[str, Any]]:
+    """留下该层已完成的格子。"""
     if not isinstance(gathered, Mapping):
         return []
     out: List[Dict[str, Any]] = []
@@ -29,6 +30,7 @@ def ready_rows(
 
 
 def baseline_row(rows: Sequence[Mapping[str, Any]]) -> Optional[Mapping[str, Any]]:
+    """找出没有改旋钮的基准格。"""
     for row in rows:
         overlay = row.get("overlay")
         if isinstance(overlay, dict) and not overlay:
@@ -41,6 +43,7 @@ def baseline_metrics(
     *,
     layer: str,
 ) -> Dict[str, float]:
+    """读取基准格在该层的指标。"""
     row = baseline_row(rows)
     if row is None:
         return {}
@@ -62,6 +65,7 @@ def baseline_version_id(
     *,
     layer: str,
 ) -> str:
+    """返回基准格的版本号。"""
     if isinstance(executed, Mapping):
         parent = str(executed.get("parent_version_id") or "").strip()
         if parent:
@@ -86,6 +90,7 @@ def is_cross(
     *,
     layer: str,
 ) -> bool:
+    """这场扫描是否是多轴笛卡尔积。"""
     if isinstance(executed, Mapping):
         for key in ("family", "mode", "parameter_mode"):
             if str(executed.get(key) or "").strip() == "cross":
@@ -100,6 +105,7 @@ def is_cross(
 
 
 def ladder_knobs(rows: Sequence[Mapping[str, Any]]) -> List[str]:
+    """按出现顺序列出有取值阶梯的旋钮。"""
     order: List[str] = []
     seen: set = set()
     for row in rows:
@@ -125,6 +131,7 @@ def ladder_knobs(rows: Sequence[Mapping[str, Any]]) -> List[str]:
 
 
 def row_is_ladder_point(row: Mapping[str, Any], knob: str) -> bool:
+    """这一行是否只改了该旋钮。"""
     overlay = row.get("overlay")
     if not isinstance(overlay, dict) or not overlay:
         return True
@@ -138,6 +145,7 @@ def value_ladder(
     knob: str,
     outcome: str,
 ) -> Dict[str, Any]:
+    """抽出一个旋钮在该指标上的取值阶梯。"""
     by_key: Dict[Any, Dict[str, Any]] = {}
     baseline = baseline_row(rows)
     baseline_value = None
@@ -188,6 +196,7 @@ def value_ladder(
 
 
 def sort_levels_display(levels: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """按取值把阶梯排成展示顺序。"""
     def sort_key(item: Mapping[str, Any]) -> Tuple[int, Any]:
         value = item.get("value")
         if value is None:
@@ -205,6 +214,7 @@ def effect_block(
     *,
     baseline_metric: Optional[float],
 ) -> Optional[Dict[str, Any]]:
+    """把阶梯收成相对基准的效应。"""
     levels = [dict(item) for item in (ladder.get("levels") or []) if isinstance(item, dict)]
     if len(levels) < 2:
         return None
@@ -263,6 +273,7 @@ def trend_line(
     outcome: str,
     levels: Sequence[Mapping[str, Any]],
 ) -> str:
+    """用一句话描述取值升高时指标怎么走。"""
     outcome_label = CampaignLabels.outcome_label(outcome)
     numeric: List[Tuple[float, float]] = []
     for level in levels:
@@ -311,6 +322,7 @@ def trend_line(
 
 
 def trend_eps(outcome: str, metrics: Sequence[float]) -> float:
+    """返回判断趋势时忽略的微小起伏。"""
     if not metrics:
         return 1e-9
     peak = max(abs(float(item)) for item in metrics) or 1.0
@@ -327,6 +339,7 @@ def trend_eps(outcome: str, metrics: Sequence[float]) -> float:
 
 
 def facts_from_effects(effects: Sequence[Mapping[str, Any]]) -> List[str]:
+    """把各旋钮效应写成短句。"""
     facts: List[str] = []
     for effect in effects:
         label = str(effect.get("knob_label") or effect.get("knob") or "").strip()
@@ -343,10 +356,12 @@ def facts_from_effects(effects: Sequence[Mapping[str, Any]]) -> List[str]:
 
 
 def conclusion_from_effects(effects: Sequence[Mapping[str, Any]]) -> str:
+    """把效应短句连成结论。"""
     return " ".join(facts_from_effects(effects))
 
 
 def knob_allowed(knob: Any, prefixes: Optional[Sequence[str]]) -> bool:
+    """该旋钮是否属于本层前缀。"""
     if not prefixes:
         return True
     text = str(knob or "").strip()
@@ -354,6 +369,7 @@ def knob_allowed(knob: Any, prefixes: Optional[Sequence[str]]) -> bool:
 
 
 def value_key(value: Any) -> Any:
+    """把旋钮值收成可比较的键。"""
     if value is None:
         return ("off",)
     scalar = KnobContrasts.scalar(value)

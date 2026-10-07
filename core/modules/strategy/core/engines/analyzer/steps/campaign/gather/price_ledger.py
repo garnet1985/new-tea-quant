@@ -5,11 +5,11 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.engines.price_factor.report_manager.report_scan import (
     PriceCsvScan,
 )
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.services.artifacts import ArtifactStore
 
 _TOP_N = 5
 
@@ -38,7 +38,7 @@ def ledger_metrics_for_version(folder: Path, version_id: str) -> Dict[str, Any]:
 def metrics_from_scan(scan: PriceCsvScan) -> Dict[str, Any]:
     """占比分母 = 各笔盈亏绝对值之和，避免净利润对冲后出现 >100%。"""
     trades: List[Tuple[float, float, str, str]] = []
-    # (profit, roi, entity_id, exit_key)
+    # 盈亏、收益率、标的、出场键
     for entity_id, rows in (scan.investments_by_entity or {}).items():
         eid = str(entity_id or "").strip()
         for row in rows or []:
@@ -130,6 +130,7 @@ def attach_price_ledger(
     version_id: str,
     layer_block: Optional[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
+    """把价格账本指标写进行里。"""
     if not isinstance(layer_block, dict):
         return layer_block
     metrics = ledger_metrics_for_version(folder, version_id)

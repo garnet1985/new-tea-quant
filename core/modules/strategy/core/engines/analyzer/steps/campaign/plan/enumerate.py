@@ -7,6 +7,8 @@ from .base import AttributionPlanBase
 
 
 class EnumerateAttributionPlan(AttributionPlanBase):
+    """枚举层计划。近邻间隔不另开版本。"""
+
     LAYER = "enumerate"
     KIND = SimulateKind.ENUMERATE
 

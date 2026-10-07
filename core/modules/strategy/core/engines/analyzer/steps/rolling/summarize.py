@@ -1,3 +1,4 @@
+# TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
 """滚动窗口对照：同一套旋钮，不同区间。"""
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ class RollingSummarizeStep:
 
     @classmethod
     def run(cls, gathered: Mapping[str, Any]) -> Dict[str, Any]:
+        """按窗口排序并写出相对差分。"""
         rows = [
             row
             for row in gathered.get("rows") or []

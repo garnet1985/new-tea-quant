@@ -43,6 +43,7 @@ A：`enumerate` / `price_factor` / `portfolio` 都是 `Strategy.simulate(..., ki
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
+- [概念与运作](./docs/CONCEPTS.md)
 - [设计](./docs/DESIGN.md)
 - [Version / 指纹](./docs/VERSIONING.md)
 - [边界笔记](./docs/notes/BOUNDARY_NOTES.md)

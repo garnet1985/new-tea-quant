@@ -1,7 +1,4 @@
-"""从命中的 {vid}/ 读 overall_report 和 effective_settings，拼成 N 行一张表。
-
-不把每格展开成投资明细。旋钮以磁盘有效设置为准。
-"""
+"""把各格的总报告收成一张表。旋钮以磁盘上的有效设置为准。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -77,6 +74,7 @@ class GatherBase:
         tasks: Sequence[AttributionTask],
         executed: Mapping[str, Any],
     ) -> Dict[str, Any]:
+        """从产物读出各格摘要。"""
         by_index = {task.cell.index: task for task in tasks}
         paths = AttributeStep.for_layer(cls.LAYER).filter_knobs(
             KnobContrasts.union_paths(task.cell.overlay for task in tasks)
@@ -155,6 +153,7 @@ class GatherBase:
 
 
 def compact_summary(kind: SimulateKind, summary: Mapping[str, Any]) -> Dict[str, Any]:
+    """按层抽出报告要用的指标。"""
     keys = _KEYS_BY_KIND.get(kind, _PORTFOLIO_KEYS)
     out = {key: summary.get(key) for key in keys}
     if kind is SimulateKind.PRICE_FACTOR:

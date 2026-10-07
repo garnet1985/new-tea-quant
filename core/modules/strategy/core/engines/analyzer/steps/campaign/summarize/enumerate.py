@@ -10,8 +10,8 @@ from core.modules.strategy.core.services.artifacts.version_meta import VersionMe
 
 from ..gather.enum_exits import after_take_profit_probe, baseline_exit_diagnosis
 from ..labels import CampaignLabels
-from .base import SummarizeBase
 from . import value_ladders as ladders
+from .base import SummarizeBase
 from .bridge import upstream_bridge
 from .joint_sweeps import build_joint_heatmaps
 from .sweeps import build_parameter_sweeps
@@ -56,6 +56,8 @@ _SECTION_META = (
 
 
 class EnumerateSummarize(SummarizeBase):
+    """枚举层总结：机会数和出场结构。"""
+
     LAYER = "enumerate"
     KIND = SimulateKind.ENUMERATE
 
@@ -70,6 +72,7 @@ class EnumerateSummarize(SummarizeBase):
         executed: Optional[Mapping[str, Any]] = None,
         joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
+        """生成枚举层总结。"""
         base = super().run(attributed, layer=layer or cls.LAYER)
         root = Path(folder) if folder is not None else None
         baseline_vid = ladders.baseline_version_id(

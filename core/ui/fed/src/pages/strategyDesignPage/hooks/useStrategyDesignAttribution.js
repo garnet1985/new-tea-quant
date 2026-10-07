@@ -37,6 +37,7 @@ export function useStrategyDesignAttribution({
   const [statusLoading, setStatusLoading] = useState(false);
   const [attrError, setAttrError] = useState('');
   const [activeJobId, setActiveJobId] = useState('');
+  const [attributeStarting, setAttributeStarting] = useState(false);
   const [progressDetail, setProgressDetail] = useState({
     label: '',
     stageLabel: '',
@@ -49,8 +50,9 @@ export function useStrategyDesignAttribution({
 
   const pollStepRef = useRef('');
   const pctHighWaterRef = useRef(0);
+  const attributeStartLockRef = useRef(false);
 
-  const attributeBusy = Boolean(activeJobId);
+  const attributeBusy = Boolean(activeJobId) || attributeStarting;
   const panelBusy = Boolean(executionBusy || attributeBusy);
 
   const loadReport = useCallback(async (step, groupId) => {
@@ -113,8 +115,11 @@ export function useStrategyDesignAttribution({
   }, [activeStep, strategyName]);
 
   const handleAttributeRun = useCallback(async () => {
+    if (attributeStartLockRef.current) return;
     if (!strategyName || !ATTR_STEPS.has(activeStep) || panelBusy) return;
     if (!status.enabled) return;
+    attributeStartLockRef.current = true;
+    setAttributeStarting(true);
     const isForce = Boolean(status.last_group_id || report);
     setAttrError('');
     pctHighWaterRef.current = 0;
@@ -132,6 +137,9 @@ export function useStrategyDesignAttribution({
     } catch (err) {
       setAttrError(err?.message || '启动归因失败');
       setActiveJobId('');
+    } finally {
+      attributeStartLockRef.current = false;
+      setAttributeStarting(false);
     }
   }, [
     activeStep,

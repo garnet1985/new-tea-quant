@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.1-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.2-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -334,7 +334,7 @@ Full walkthrough: [Quick install + run a strategy](#quick-start).
 - **Talk to the database quickly:** [DuckDB](https://duckdb.org/), [MySQL](https://dev.mysql.com/), and [PostgreSQL](https://www.postgresql.org/), plus a small [ORM API](core/infra/db/README.md).
 - **Custom data sources:** a full ingest toolkit. One logical source (e.g. company fundamentals) can have several vendors, with rate limits, waits, and write modes (incremental, overwrite, rolling refresh). See [core/modules/data_source/README.md](core/modules/data_source/README.md).
 - **Custom data contracts:** most of the run is config. If you add a table and want it in the backtest by declaration, give it a unique `data_key` and a loader; the framework finds the loader by name. See [data contracts](core/modules/data_contract/README.md).
-- **Attribute a backtest:** parameter-level contrast is a matrix campaign (same strategy environment, sample windows archived separately; a task only takes versions with the same interval and universe). The entry is not open yet; a normal Run no longer auto-attributes. Spec: [`ATTRIBUTION_CAMPAIGN.md`](core/modules/strategy/docs/notes/ATTRIBUTION_CAMPAIGN.md).
+- **Attribute a backtest:** `sea` / `spa` / `soa` contrast one shared set of replicas, then read enumerate, price, and portfolio in turn. A normal Run does not attribute. See [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md).
 - **Adapters:** after a scan, wire [`adapter`](core/modules/adapter/README.md) to your own downstream (notifications, a trading app, anything). You get standard opportunity payloads plus backtest history if you have run one.
 - **Web UI:** use it in the browser. Visualize results and compare inputs/outputs across runs so you can tune the strategy on purpose.
 - **AI assistant:** in-app chat; fill in a vendor API key in settings. Requests include NTQ documentation context.

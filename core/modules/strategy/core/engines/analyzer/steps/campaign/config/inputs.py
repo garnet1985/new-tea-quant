@@ -1,7 +1,4 @@
-"""战役共用 ``inputs``：校验、短名解析、oaat / cross 展成 overlay 树。
-
-各层块 / 顶层 ``inputs`` 合并为同一套副本身份（见 ATTRIBUTION_CAMPAIGN §0）。
-"""
+"""战役共用 inputs：校验、短名解析，并展开成 overlay。"""
 from __future__ import annotations
 
 import copy
@@ -65,10 +62,12 @@ def resolve_path(key: str, layer: str = "") -> str:
 
 
 def root_section(path: str) -> str:
+    """返回路径的第一段。"""
     return str(path or "").split(".", 1)[0]
 
 
 def assign_path(tree: Dict[str, Any], path: str, value: Any) -> None:
+    """把值写到点分路径上。"""
     parts = [part for part in str(path).split(".") if part]
     if not parts:
         return
@@ -83,6 +82,7 @@ def assign_path(tree: Dict[str, Any], path: str, value: Any) -> None:
 
 
 def value_at(mapping: Mapping[str, Any], path: str) -> Any:
+    """读取点分路径上的值。"""
     cur: Any = mapping
     for part in str(path).split("."):
         if not part:
@@ -96,6 +96,7 @@ def value_at(mapping: Mapping[str, Any], path: str) -> Any:
 def normalize_goal_value(
     path: str, value: Any, snapshot: Mapping[str, Any]
 ) -> Any:
+    """把止盈止损的标量补成结构。"""
     if path not in _GOAL_STRUCT_PATHS:
         return value
     if value is None or isinstance(value, Mapping):
@@ -240,38 +241,19 @@ def parse_axes(
 def collect_campaign_user_inputs(
     raw: Mapping[str, Any],
 ) -> Tuple[Dict[str, Any], bool]:
-    """合并顶层 ``inputs`` 与各层块 ``inputs`` → 路径键 specs + cross。
-
-    同一路径多处声明且 values 不一致则报错；``cross`` 多处不一致则报错。
-    """
+    """读取顶层 ``inputs`` 与 ``cross``。分层块已删除。"""
     if not isinstance(raw, Mapping):
         return {}, False
-
+    for layer in _LAYER_KEYS:
+        if layer in raw:
+            raise ValueError(
+                f"attribution.py 已不支持把轴写在 {layer} 块下；请改到顶层 inputs"
+            )
     merged: Dict[str, Any] = {}
-    cross_flags: List[bool] = []
-
-    if "cross" in raw and raw.get("cross") is not None:
-        cross_flags.append(bool(raw.get("cross")))
-
     top = raw.get("inputs")
     if isinstance(top, Mapping):
         _merge_input_block(merged, top, layer="campaign")
-
-    for layer in _LAYER_KEYS:
-        block = raw.get(layer)
-        if not isinstance(block, Mapping):
-            continue
-        if "cross" in block and block.get("cross") is not None:
-            cross_flags.append(bool(block.get("cross")))
-        nested = block.get("inputs")
-        if isinstance(nested, Mapping):
-            _merge_input_block(merged, nested, layer=layer)
-
-    if len(set(cross_flags)) > 1:
-        raise ValueError(
-            "attribution.cross 在多处声明且不一致；请只在一处写 cross"
-        )
-    cross = cross_flags[0] if cross_flags else False
+    cross = bool(raw.get("cross")) if raw.get("cross") is not None else False
     return merged, cross
 
 
@@ -334,6 +316,7 @@ def joint_cell_count(
     axes: Sequence[Tuple[str, Tuple[Any, ...]]],
     groups: Sequence[Sequence[str]],
 ) -> int:
+    """估算联合扫描会展开多少格。"""
     by_path = {path: levels for path, levels in axes}
     total = 0
     for group in groups:
@@ -366,6 +349,7 @@ def expand_axes(
     *,
     cross: bool,
 ) -> Tuple[Dict[str, Any], ...]:
+    """把轴展开成覆盖。"""
     if not axes:
         return ()
     if cross:
@@ -390,6 +374,7 @@ def expand_axes(
 def cell_count(
     axes: Sequence[Tuple[str, Tuple[Any, ...]]], *, cross: bool
 ) -> int:
+    """估算展开后的格子数。"""
     if not axes:
         return 1
     if cross:
@@ -407,6 +392,7 @@ def validate_layer_inputs(
     *,
     field_prefix: str,
 ) -> None:
+    """校验一层的 inputs。"""
     if block is None:
         return
     if not isinstance(block, Mapping):
@@ -519,19 +505,6 @@ def default_axes_for_layer(
                     [0, max(base - 1, 0), base, max(base + 2, 1), max(base + 4, 3)]
                 )
             }
-    elif focus == "portfolio":
-        path_size = "portfolio.allocation.max_portfolio_size"
-        cur = value_at(snapshot, path_size)
-        if isinstance(cur, (int, float)) and not isinstance(cur, bool):
-            out[path_size] = {"values": _portfolio_size_ladder(cur)}
-        path_w = "portfolio.allocation.max_weight_per_stock"
-        cur_w = value_at(snapshot, path_w)
-        if isinstance(cur_w, (int, float)) and not isinstance(cur_w, bool):
-            out[path_w] = {"values": _weight_ladder(cur_w)}
-        mode = value_at(snapshot, "portfolio.allocation.mode")
-        if isinstance(mode, str) and mode.strip():
-            alt = "kelly" if mode != "kelly" else "equal_capital"
-            out["portfolio.allocation.mode"] = {"values": [mode, alt]}
     return out
 
 
@@ -658,40 +631,11 @@ def _scalar_ladder(cur: Any) -> List[Any]:
     return [cur] if nearby is None else [cur, nearby]
 
 
-def _portfolio_size_ladder(cur: Any) -> List[Any]:
-    base = int(cur) if isinstance(cur, (int, float)) and not isinstance(cur, bool) else 10
-    grid = [4, 6, 8, 10, 15, 20]
-    values = list(grid)
-    if base not in grid:
-        values.append(base)
-    values.sort()
-    return _unique_keep(values)
-
-
-def _weight_ladder(cur: Any) -> List[Any]:
-    if not isinstance(cur, (int, float)) or isinstance(cur, bool):
-        return [cur]
-    number = float(cur)
-    if number > 1.0:
-        # 百分比写法
-        grid = [10.0, 15.0, 20.0, 25.0, 33.0]
-        values = list(grid)
-        if all(abs(number - item) > 1e-9 for item in grid):
-            values.append(number)
-        values.sort()
-        return _unique_keep([type(cur)(item) for item in values])
-    grid = [0.10, 0.15, 0.20, 0.25, 0.33]
-    values = list(grid)
-    if all(abs(number - item) > 1e-9 for item in grid):
-        values.append(number)
-    values.sort()
-    return _unique_keep([type(cur)(item) for item in values])
-
-
 def estimate_bars_cost(
     pending_cells: int,
     snapshot: Mapping[str, Any],
 ) -> Tuple[int, int, int]:
+    """估算待跑格子的 K 线成本。"""
     n = max(int(pending_cells), 0)
     start, end = _period_bounds(snapshot)
     trading_days = max(_approx_trading_days(start, end), 1)
@@ -706,6 +650,7 @@ def cost_gate_message(
     *,
     cross: bool,
 ) -> Optional[str]:
+    """成本过高时返回提示，否则返回 None。"""
     n, per_run, cost = estimate_bars_cost(pending_cells, snapshot)
     if n > MAX_CELLS:
         return f"待跑 {n} 格超过上限 {MAX_CELLS}"
@@ -741,13 +686,11 @@ def _approx_trading_days(start: str, end: str) -> int:
     e = end.replace("-", "")[:8]
     if len(s) == 8 and len(e) == 8 and s.isdigit() and e.isdigit():
         try:
-            from datetime import datetime
+            from core.infra.utils import Utils
 
-            d0 = datetime.strptime(s, "%Y%m%d")
-            d1 = datetime.strptime(e, "%Y%m%d")
-            calendar = max((d1 - d0).days, 0) + 1
+            calendar = max(Utils.date.diff_days(s, e), 0) + 1
             return max(int(calendar * 0.7), 1)
-        except ValueError:
+        except (TypeError, ValueError):
             pass
     return 252
 

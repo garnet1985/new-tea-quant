@@ -85,7 +85,7 @@ def test_after_take_profit_available_for_multi_stage(tmp_path: Path):
             }
         }
     }
-    # empty entities → available but no multi-stage hits
+    # 空标的：有产物，但没有多段命中
     out = after_take_profit_probe(tmp_path, "1", settings)
     assert out["available"] is True
 
@@ -137,7 +137,7 @@ def test_baseline_exit_diagnosis_from_entities(tmp_path: Path):
         ),
         encoding="utf-8",
     )
-    # bypass runtime_env requirement of ArtifactStore.open
+    # 绕过 ArtifactStore.open 对 runtime_env 的要求
     (enum_dir.parent / "runtime_env.json").write_text("{}", encoding="utf-8")
     diagnosis = baseline_exit_diagnosis(tmp_path, "1", top_n=3)
     assert diagnosis["n"] == 3

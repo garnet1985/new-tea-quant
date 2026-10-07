@@ -1,8 +1,4 @@
-"""稀疏 execute_fp overlay。合并到快照后，结果才是 StrategySettings。
-
-Overlay 行不是完整 settings：不能拿 GoalSettings 去 parse（会补 name / exit_ratio，
-等于字段级继承）。dict 兄弟键留下，list 整段替换；写成 None 关掉该位置；合并后再 ``StrategySettings.to_usable``。
-"""
+"""稀疏 execute_fp 覆盖。dict 留下兄弟键，list 整段替换，None 关掉该位置。"""
 from __future__ import annotations
 
 import copy
@@ -36,14 +32,17 @@ class SettingsOverlay(SettingsBase):
 
     @classmethod
     def from_dict(cls, settings: Mapping[str, Any]) -> "SettingsOverlay":
+        """从字典构造覆盖行。"""
         if not isinstance(settings, Mapping):
             raise ValueError("overlay 行须为 dict")
         return cls(raw_settings=dict(settings))
 
     def apply_defaults(self) -> None:
+        """覆盖行没有可补的缺省。"""
         return
 
     def validate(self) -> ValidationReport:
+        """校验覆盖行。"""
         report = SettingsBase.new_validation()
         if not self.raw_settings:
             SettingsBase.add_critical(
@@ -64,6 +63,7 @@ class SettingsOverlay(SettingsBase):
         return report
 
     def to_dict(self) -> Dict[str, Any]:
+        """导出覆盖字典。"""
         return copy.deepcopy(self.raw_settings)
 
     def merge_onto(self, snapshot: StrategySettings) -> StrategySettings:

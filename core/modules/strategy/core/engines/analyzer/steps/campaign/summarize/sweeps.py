@@ -131,7 +131,7 @@ def _one_sweep(
             for item in levels
         ]
     )
-    # reattach full metrics in display order
+    # 按展示顺序补回完整指标
     keyed = {ladders.value_key(item["value"]): item for item in levels}
     ordered: List[Dict[str, Any]] = []
     for item in display:
@@ -252,7 +252,7 @@ def _impact_bucket(span: float, outcome: str) -> str:
     if abs(span) <= eps * 5:
         return "小"
     peak = abs(span)
-    # rough: relative to typical scale
+    # 按这类指标的常见量级粗分
     last = str(outcome or "").split(".")[-1]
     if last in {"total_opportunities", "trigger_stocks", "total_completed_investments"}:
         if peak >= 500:
@@ -266,7 +266,7 @@ def _impact_bucket(span: float, outcome: str) -> str:
         if peak >= 10:
             return "中"
         return "小"
-    # ratios / roi
+    # 比率和收益率
     if peak >= 0.08:
         return "大"
     if peak >= 0.02:

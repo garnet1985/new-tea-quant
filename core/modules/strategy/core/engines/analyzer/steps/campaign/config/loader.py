@@ -15,16 +15,17 @@ def load_attribution_dict(
     *,
     strategy_key: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """执行策略目录里的 attribution.py 并读出字典。"""
     folder = Path(strategy_folder)
     attr_file = folder / ATTRIBUTION_FILE_NAME
     if not attr_file.is_file():
-        raise FileNotFoundError(f"attribution.py not found: {attr_file}")
+        raise FileNotFoundError(f"找不到 attribution.py: {attr_file}")
 
     key = str(strategy_key or folder.name).strip() or folder.name
     module_name = StrategyPathRules.strategy_module_id(key, suffix="attribution")
     spec = importlib.util.spec_from_file_location(module_name, attr_file)
     if spec is None or spec.loader is None:
-        raise ValueError(f"cannot load attribution module: {attr_file}")
+        raise ValueError(f"无法加载 attribution.py: {attr_file}")
 
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

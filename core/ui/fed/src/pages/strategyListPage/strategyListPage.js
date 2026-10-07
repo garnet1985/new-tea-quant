@@ -4,12 +4,9 @@ import {
   Alert,
   Box,
   Chip,
-  InputAdornment,
   Link,
   Paper,
   Stack,
-  Button,
-  TextField,
   Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
@@ -26,9 +23,12 @@ import {
   STRATEGY_LIST_CATEGORY_PARAM,
 } from 'containers/strategyCategory';
 import PageLayout from '../../views/pageLayout';
+import SearchField from '../../views/searchField';
+import NtqButton from '../../views/ntqButton';
+import CountTab from '../../views/countTab';
+import CountBadge from '../../views/countBadge';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import NtqIcon from '../../views/ntqIcon';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import './strategyListPage.scss';
@@ -309,42 +309,28 @@ function StrategyListPage({
           spacing={1.5}
           className="strategy-list-grid-toolbar"
         >
-          <TextField
-            size="small"
+          <SearchField
             placeholder="输入策略名称搜索"
+            label="按策略名搜索"
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
-            inputProps={{ 'aria-label': '按策略名搜索' }}
-            className="strategy-list-search"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <NtqIcon name="search" size={22} tone="muted" />
-                </InputAdornment>
-              ),
-            }}
           />
-          <Button
-            variant="outlined"
-            size="small"
+          <NtqButton
+            variant="glass"
+            icon="refresh"
             onClick={load}
             disabled={loading}
-            className="ntq-glass-outline-btn"
-            startIcon={<NtqIcon name="refresh" size={22} tone="muted" />}
           >
             刷新策略
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
+          </NtqButton>
+          <NtqButton
+            variant="primary"
+            icon="uploadFile"
             onClick={() => setImportOpen(true)}
             disabled={loading}
-            className="ntq-cyan-fill-btn"
-            startIcon={<NtqIcon name="uploadFile" size={22} />}
           >
             导入策略包
-          </Button>
+          </NtqButton>
         </Stack>
 
         {catalogGroups.length > 0 ? (
@@ -355,33 +341,23 @@ function StrategyListPage({
             role="group"
             aria-label="按归类筛选"
           >
-            <Chip
-              size="small"
-              clickable
-              label={`全部 ${rows.length}`}
-              className={[
-                'strategy-list-category-chip',
-                'strategy-list-category-chip--all',
-                categoryQuery ? '' : 'is-selected',
-              ].filter(Boolean).join(' ')}
-              aria-pressed={!categoryQuery}
+            <CountTab
+              wide
+              label="全部"
+              count={rows.length}
+              selected={!categoryQuery}
               onClick={() => setCategoryQuery('')}
             />
             <Box className="strategy-list-category-chips-scroller">
               {catalogGroups.map(({ category, queryValue, rows: categoryRows }) => {
                 const selected = categoryQuery === queryValue;
                 return (
-                  <Chip
+                  <CountTab
                     key={queryValue}
-                    size="small"
-                    clickable
+                    label={category}
+                    count={categoryRows.length}
                     title={category}
-                    label={`${category} ${categoryRows.length}`}
-                    className={[
-                      'strategy-list-category-chip',
-                      selected ? 'is-selected' : '',
-                    ].filter(Boolean).join(' ')}
-                    aria-pressed={selected}
+                    selected={selected}
                     ref={selected ? selectedChipRef : undefined}
                     onClick={() => toggleCategoryQuery(queryValue)}
                   />
@@ -438,13 +414,10 @@ function StrategyListPage({
                       >
                         {category}
                       </Typography>
-                      <Box
-                        component="span"
-                        className="strategy-list-category-count"
-                        aria-label={`${categoryRows.length} 个策略`}
-                      >
-                        {categoryRows.length}
-                      </Box>
+                      <CountBadge
+                        count={categoryRows.length}
+                        label={`${categoryRows.length} 个策略`}
+                      />
                     </Box>
                   </Stack>
                   <DataGrid

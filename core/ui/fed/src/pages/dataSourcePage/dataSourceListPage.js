@@ -2,12 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Chip,
-  InputAdornment,
   Paper,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -24,6 +21,8 @@ import {
   getDataSourceUpdateStatusLabel,
 } from '../../api/dataSourceApi';
 import PageLayout from '../../views/pageLayout';
+import SearchField from '../../views/searchField';
+import NtqButton from '../../views/ntqButton';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import NtqIcon from '../../views/ntqIcon';
@@ -295,31 +294,21 @@ function DataSourceListPage() {
           spacing={1.5}
           className="data-source-list-grid-toolbar"
         >
-          <TextField
-            size="small"
+          <SearchField
+            fluid
             placeholder="搜索名称、Key 或 Provider"
+            label="搜索数据源"
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
-            inputProps={{ 'aria-label': '搜索数据源' }}
-            className="data-source-list-search"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <NtqIcon name="search" size={22} tone="muted" />
-                </InputAdornment>
-              ),
-            }}
           />
-          <Button
-            variant="outlined"
-            size="small"
+          <NtqButton
+            variant="glass"
+            icon="refresh"
             onClick={load}
             disabled={loading || freshnessLoading}
-            className="ntq-glass-outline-btn"
-            startIcon={<NtqIcon name="refresh" size={22} tone="muted" />}
           >
             刷新列表
-          </Button>
+          </NtqButton>
         </Stack>
 
         <Box className="data-source-list-grid-body">

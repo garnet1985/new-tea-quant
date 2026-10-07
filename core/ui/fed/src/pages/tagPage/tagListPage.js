@@ -2,12 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Box,
-  Button,
   Chip,
-  InputAdornment,
   Paper,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -25,6 +22,8 @@ import {
   startTagRun,
 } from '../../api/tagApi';
 import PageLayout from '../../views/pageLayout';
+import SearchField from '../../views/searchField';
+import NtqButton from '../../views/ntqButton';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
 import NtqHelpTooltip from '../../views/ntqHelpTooltip';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
@@ -434,31 +433,21 @@ function TagListPage() {
           spacing={1.5}
           className="tag-list-grid-toolbar"
         >
-          <TextField
-            size="small"
+          <SearchField
+            fluid
             placeholder="搜索场景名或 Tag"
+            label="搜索 Tag 场景"
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
-            inputProps={{ 'aria-label': '搜索 Tag 场景' }}
-            className="tag-list-search"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <NtqIcon name="search" size={22} tone="muted" />
-                </InputAdornment>
-              ),
-            }}
           />
-          <Button
-            variant="outlined"
-            size="small"
+          <NtqButton
+            variant="glass"
+            icon="refresh"
             onClick={load}
             disabled={loading || Boolean(runningTagId)}
-            className="ntq-glass-outline-btn"
-            startIcon={<NtqIcon name="refresh" size={22} tone="muted" />}
           >
             刷新列表
-          </Button>
+          </NtqButton>
         </Stack>
 
         <Box className="tag-list-grid-body">

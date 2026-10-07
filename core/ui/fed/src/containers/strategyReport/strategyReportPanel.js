@@ -16,6 +16,7 @@ import {
   Typography,
 } from '@mui/material';
 import SettingsAccordionTitle from 'views/settingsAccordionTitle';
+import NtqButton from 'views/ntqButton';
 import { VersionPickLabel, VersionPickerDialog, lookupVersionById } from 'containers/versionPick';
 import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
 import PriceFactorReport from './reports/priceFactorReport';
@@ -388,17 +389,16 @@ function StrategyReportPanel({
             {activeTabSectionTitle}
           </Typography>
           {showReportCompare ? (
-            <Button
-              size="small"
-              variant="outlined"
-              className="ntq-attention-btn ntq-report-section-head__compare"
+            <NtqButton
+              variant="attention"
+              className="ntq-report-section-head__compare"
               onClick={() => {
                 setCompareDialogSubTab('report');
                 setCompareDialogOpen(true);
               }}
             >
               对比结果
-            </Button>
+            </NtqButton>
           ) : null}
         </Stack>
       ) : null}
@@ -614,10 +614,9 @@ function StrategyReportPanel({
             context={{ defaultTooltipShine: true }}
           />
           {showReportCompare && lockedTab ? (
-            <Button
-              size="small"
-              variant="outlined"
-              className="ntq-attention-btn ntq-report-panel__embedded-compare"
+            <NtqButton
+              variant="attention"
+              className="ntq-report-panel__embedded-compare"
               data-ntq-help="strategy-report-compare"
               onClick={() => {
                 setCompareDialogSubTab('report');
@@ -625,7 +624,7 @@ function StrategyReportPanel({
               }}
             >
               对比结果
-            </Button>
+            </NtqButton>
           ) : null}
         </Stack>
         {reportPanelBody}

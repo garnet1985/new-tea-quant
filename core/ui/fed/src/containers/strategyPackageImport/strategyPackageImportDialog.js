@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   Alert,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -23,6 +22,7 @@ import {
   previewStrategyPackageImport,
 } from 'api/strategyApi';
 import { useAsyncAction } from 'service/useAsyncAction';
+import NtqButton from 'views/ntqButton';
 import './style.scss';
 
 const POLICY_OPTIONS = [
@@ -113,16 +113,15 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
           <Typography variant="body2" color="text.secondary">
             仅支持策略交流包（策略目录及依赖的 tag / adapter），文件格式为 .zip。
           </Typography>
-          <Button
-            variant="outlined"
+          <NtqButton
+            variant="glass"
             component="label"
             disabled={busy}
-            className="ntq-glass-outline-btn"
-            sx={{ alignSelf: 'flex-start' }}
+            className="strategy-package-import-dialog__file"
           >
             选择策略包文件
             <input type="file" accept=".zip,application/zip" hidden onChange={handleFileChange} />
-          </Button>
+          </NtqButton>
           {file ? (
             <Typography variant="body2" color="text.secondary">
               已选：
@@ -174,34 +173,30 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
         </Stack>
       </DialogContent>
       <DialogActions className="strategy-package-import-dialog__actions">
-        <Button
-          variant="text"
-          size="small"
+        <NtqButton
+          variant="ghost"
           onClick={onClose}
           disabled={busy}
-          className="strategy-package-import-dialog__btn strategy-package-import-dialog__btn--ghost"
+          className="strategy-package-import-dialog__btn"
         >
           取消
-        </Button>
-        <Button
-          variant="outlined"
-          size="small"
+        </NtqButton>
+        <NtqButton
+          variant="glass"
           onClick={handlePreview}
           disabled={!file || busy}
-          className="strategy-package-import-dialog__btn ntq-glass-outline-btn"
+          className="strategy-package-import-dialog__btn"
         >
           预览
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          size="small"
+        </NtqButton>
+        <NtqButton
+          variant="primary"
           onClick={handleImport}
           disabled={!file || busy}
-          className="strategy-package-import-dialog__btn strategy-package-import-dialog__btn--primary ntq-cyan-fill-btn"
+          className="strategy-package-import-dialog__btn strategy-package-import-dialog__btn--primary"
         >
           导入策略包
-        </Button>
+        </NtqButton>
       </DialogActions>
     </Dialog>
   );

@@ -9,7 +9,7 @@ export function formatAppVersionLabel(version) {
 }
 
 /**
- * Header 等处的系统版本：优先 ``GET /api/health``，失败时保留空串（不展示占位假版本）。
+ * 系统版本：优先 ``GET /api/health``，失败时保留空串（不展示占位假版本）。
  */
 export function useAppVersion() {
   const [versionLabel, setVersionLabel] = useState('');

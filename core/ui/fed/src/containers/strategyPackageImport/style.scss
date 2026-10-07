@@ -12,27 +12,14 @@
     }
   }
 
-  .strategy-package-import-dialog__btn {
-    height: 40px;
-    min-height: 40px;
-    min-width: 88px;
-    border-radius: 5px !important;
-    padding: 0 16px !important;
-    line-height: 1 !important;
-    box-shadow: none !important;
-    margin: 0 !important;
-    flex-shrink: 0;
+  .strategy-package-import-dialog__file {
+    align-self: flex-start;
   }
 
-  .strategy-package-import-dialog__btn--ghost {
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    color: var(--ntq-text-muted) !important;
-
-    &:hover {
-      background: var(--ntq-white-03) !important;
-      border-color: transparent !important;
-    }
+  .strategy-package-import-dialog__btn {
+    min-width: 88px;
+    margin: 0 !important;
+    flex-shrink: 0;
   }
 
   .strategy-package-import-dialog__btn--primary {

@@ -2,6 +2,9 @@
   "name": "stocks-fed",
   "version": "0.3.0",
   "private": true,
+  "engines": {
+    "node": ">=22.11.0"
+  },
   "dependencies": {
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
@@ -16,7 +19,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.0.0",
     "react-scripts": "5.0.1",
-    "sass": "^1.99.0",
+    "sass": "^1.105.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
@@ -52,6 +55,7 @@
     "serialize-javascript": "^6.0.2",
     "underscore": "^1.13.7",
     "react": "$react",
-    "react-dom": "$react-dom"
+    "react-dom": "$react-dom",
+    "sass-loader": "^17.0.1"
   }
 }

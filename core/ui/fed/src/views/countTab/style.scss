@@ -1,0 +1,26 @@
+.ntq-count-tab {
+  flex: 0 0 auto;
+  max-width: 11.5em;
+  height: 28px !important;
+  padding: 0 10px !important;
+  cursor: pointer;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  .MuiChip-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &.is-selected {
+    border-color: var(--ntq-cyan) !important;
+    background: rgba(61, 221, 243, 0.16) !important;
+    color: var(--ntq-text) !important;
+  }
+}
+
+.ntq-count-tab--wide {
+  max-width: none;
+}

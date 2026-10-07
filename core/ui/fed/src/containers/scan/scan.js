@@ -32,6 +32,7 @@ import {
 import { groupStrategiesByCategory } from 'containers/strategyCategory';
 import PageLayout from '../../views/pageLayout';
 import { SectionBlock } from '../../views/sectionBlock';
+import CountBadge from '../../views/countBadge';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import InlineLoadingState from '../../views/inlineLoadingState';
@@ -609,12 +610,10 @@ function Scan() {
                       <Typography variant="subtitle1" fontWeight={700}>
                         {category}
                       </Typography>
-                      <span
-                        className="scan-category__count"
-                        aria-label={`${categoryRows.length} 个策略`}
-                      >
-                        {categoryRows.length}
-                      </span>
+                      <CountBadge
+                        count={categoryRows.length}
+                        label={`${categoryRows.length} 个策略`}
+                      />
                     </Stack>
                     <DataGrid
                       autoHeight

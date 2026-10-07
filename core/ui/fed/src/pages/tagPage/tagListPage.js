@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Box,
   Chip,
   Paper,
@@ -31,6 +30,8 @@ import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay'
 import NtqIcon from '../../views/ntqIcon';
 import NtqRainbowRunButton from '../../views/ntqRainbowRunButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
+import Message from '../../views/message';
+import { showToast } from 'containers/toast';
 import { notifyTaskSuccess } from '../../service/utils/feedbackPromptBus';
 import './tagListPage.scss';
 
@@ -69,7 +70,6 @@ function TagListPage() {
   const [runningTagId, setRunningTagId] = useState('');
   const [runningTagKey, setRunningTagKey] = useState('');
   const [runningJobId, setRunningJobId] = useState('');
-  const [runError, setRunError] = useState('');
 
   const pollRef = useRef({ timeoutId: null });
   const runningTagIdRef = useRef('');
@@ -236,7 +236,6 @@ function TagListPage() {
                 ariaLabel="运行 Tag 计算"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setRunError('');
                   setRunningTagId(id);
                   setRunningTagKey(params.row.name);
                   setRunningJobId('');
@@ -249,7 +248,7 @@ function TagListPage() {
                       setRunningJobId(jobId);
                     })
                     .catch((err) => {
-                      setRunError(err?.message || '启动 Tag 计算失败');
+                      showToast({ severity: 'error', content: err?.message || '启动 Tag 计算失败' });
                       setRunningTagId('');
                       setRunningTagKey('');
                       setRunningJobId('');
@@ -356,7 +355,10 @@ function TagListPage() {
             return;
           }
           if (status === 'failed') {
-            setRunError(String(p?.reason || p?.label || 'Tag 计算失败'));
+            showToast({
+              severity: 'error',
+              content: String(p?.reason || p?.label || 'Tag 计算失败'),
+            });
             setRunningTagId('');
             setRunningTagKey('');
             setRunningJobId('');
@@ -369,7 +371,7 @@ function TagListPage() {
         })
         .catch((err) => {
           if (cancelled) return;
-          setRunError(err?.message || '轮询进度失败');
+          showToast({ severity: 'error', content: err?.message || '轮询进度失败' });
           setRunningTagId('');
           setRunningTagKey('');
           setRunningJobId('');
@@ -408,22 +410,17 @@ function TagListPage() {
       loading={!pageReady}
       loadingMessage="正在加载标签列表…"
     >
-      {loadError ? <Alert severity="error" className="tag-list-alert">{loadError}</Alert> : null}
+      {loadError ? <Message severity="error" className="tag-list-alert">{loadError}</Message> : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="tag-list-alert" />
-      {runError ? (
-        <Alert severity="error" className="tag-list-alert" onClose={() => setRunError('')}>
-          {runError}
-        </Alert>
-      ) : null}
       {pipelineError ? (
-        <Alert severity="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
+        <Message severity="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
           {pipelineError}
-        </Alert>
+        </Message>
       ) : null}
       {pipelineBusy && pipelineLabel ? (
-        <Alert severity="info" className="tag-list-alert">
+        <Message severity="info" className="tag-list-alert">
           当前有其它任务占用数据管道（{pipelineLabel}），Tag 运行已暂时禁用。
-        </Alert>
+        </Message>
       ) : null}
 
       <Paper className="tag-list-grid">

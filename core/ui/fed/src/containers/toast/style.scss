@@ -1,0 +1,12 @@
+.ntq-toast-host {
+  position: fixed;
+  z-index: 1400;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.ntq-toast-host .ntq-message {
+  pointer-events: auto;
+}

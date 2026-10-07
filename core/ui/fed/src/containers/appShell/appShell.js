@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom';
 import AppNavigation from 'containers/appNavigation';
 import AssistantChatDock from 'containers/assistantChatDock';
 import GlobalHelperHost from 'containers/globalHelper';
+import ToastHost from 'containers/toast';
 import PageBackground from 'views/pageBackground';
 import './style.scss';
 
@@ -19,6 +20,7 @@ function AppShell() {
       </Box>
       <AssistantChatDock />
       <GlobalHelperHost />
+      <ToastHost />
     </Box>
   );
 }

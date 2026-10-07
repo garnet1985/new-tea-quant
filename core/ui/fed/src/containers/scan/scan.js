@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -34,6 +33,7 @@ import PageLayout from '../../views/pageLayout';
 import { SectionBlock } from '../../views/sectionBlock';
 import CountBadge from '../../views/countBadge';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
+import Message from 'views/message';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import InlineLoadingState from '../../views/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
@@ -566,20 +566,20 @@ function Scan() {
             </Typography>
           </Stack>
 
-          {loadError ? <Alert severity="error" className="scan-alert">{loadError}</Alert> : null}
+          {loadError ? <Message severity="error" className="scan-alert">{loadError}</Message> : null}
           {readinessError ? (
-            <Alert severity="warning" className="scan-alert" onClose={() => setReadinessError('')}>
+            <Message severity="warning" className="scan-alert" onClose={() => setReadinessError('')}>
               {readinessError}
-            </Alert>
+            </Message>
           ) : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
           {!readinessLoading && mode === 'strict' && strictBlockReason ? (
-            <Alert severity="warning" className="scan-alert">
+            <Message severity="warning" className="scan-alert">
               {strictBlockReason}
-            </Alert>
+            </Message>
           ) : null}
           {runError && runError !== strictBlockReason ? (
-            <Alert severity="error" className="scan-alert">{runError}</Alert>
+            <Message severity="error" className="scan-alert">{runError}</Message>
           ) : null}
 
           {running ? (

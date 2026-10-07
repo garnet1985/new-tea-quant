@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Box,
   Chip,
   Paper,
@@ -28,6 +27,8 @@ import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay'
 import NtqIcon from '../../views/ntqIcon';
 import NtqRainbowRunButton from '../../views/ntqRainbowRunButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
+import Message from '../../views/message';
+import { showToast } from 'containers/toast';
 import './dataSourceListPage.scss';
 
 function UpdateStatusChip({ row }) {
@@ -49,7 +50,6 @@ function DataSourceListPage() {
   const [freshnessLoading, setFreshnessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [freshnessError, setFreshnessError] = useState('');
-  const [updateNotice, setUpdateNotice] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
@@ -167,7 +167,7 @@ function DataSourceListPage() {
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!canUpdate) return;
-                  setUpdateNotice('更新执行接口开发中，下一版接入。');
+                  showToast({ severity: 'info', content: '更新执行接口开发中，下一版接入。' });
                 }}
               />
             </span>
@@ -266,26 +266,17 @@ function DataSourceListPage() {
       loading={!pageReady}
       loadingMessage="正在加载数据源…"
     >
-      {loadError ? <Alert severity="error" className="data-source-list-alert">{loadError}</Alert> : null}
+      {loadError ? <Message severity="error" className="data-source-list-alert">{loadError}</Message> : null}
       {freshnessError ? (
-        <Alert
+        <Message
           severity="warning"
           className="data-source-list-alert"
           onClose={() => setFreshnessError('')}
         >
           {freshnessError}
-        </Alert>
+        </Message>
       ) : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="data-source-list-alert" />
-      {updateNotice ? (
-        <Alert
-          severity="info"
-          className="data-source-list-alert"
-          onClose={() => setUpdateNotice('')}
-        >
-          {updateNotice}
-        </Alert>
-      ) : null}
 
       <Paper className="data-source-list-grid">
         <Stack

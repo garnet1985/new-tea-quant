@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Alert,
   Box,
   Chip,
   Link,
@@ -27,6 +26,8 @@ import SearchField from '../../views/searchField';
 import NtqButton from '../../views/ntqButton';
 import CountTab from '../../views/countTab';
 import CountBadge from '../../views/countBadge';
+import Message from '../../views/message';
+import { showToast } from 'containers/toast';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
@@ -60,9 +61,7 @@ function StrategyListPage({
   const [loadError, setLoadError] = useState(null);
   const [nameQuery, setNameQuery] = useState('');
   const [importOpen, setImportOpen] = useState(false);
-  const [importNotice, setImportNotice] = useState(null);
   const [exportingName, setExportingName] = useState('');
-  const [exportError, setExportError] = useState('');
 
   const categoryQuery = readStrategyListCategoryQuery(searchParams);
   const selectedChipRef = useRef(null);
@@ -156,11 +155,10 @@ function StrategyListPage({
   const handleExportStrategyPackage = useCallback(async (strategyName) => {
     if (!strategyName || exportingName) return;
     setExportingName(strategyName);
-    setExportError('');
     try {
       await downloadStrategyPackage(strategyName, { scope: 'bundle' });
     } catch (e) {
-      setExportError(e?.message || '导出失败');
+      showToast({ severity: 'error', content: e?.message || '导出失败' });
     } finally {
       setExportingName('');
     }
@@ -282,25 +280,7 @@ function StrategyListPage({
       loading={!pageReady}
       loadingMessage="正在加载策略列表…"
     >
-      {loadError ? <Alert severity="error" className="strategy-list-alert">{loadError}</Alert> : null}
-      {importNotice ? (
-        <Alert
-          severity="success"
-          className="strategy-list-alert"
-          onClose={() => setImportNotice(null)}
-        >
-          {importNotice}
-        </Alert>
-      ) : null}
-      {exportError ? (
-        <Alert
-          severity="error"
-          className="strategy-list-alert"
-          onClose={() => setExportError('')}
-        >
-          {exportError}
-        </Alert>
-      ) : null}
+      {loadError ? <Message severity="error" className="strategy-list-alert">{loadError}</Message> : null}
 
       <Paper className="strategy-list-grid">
         <Stack
@@ -449,7 +429,7 @@ function StrategyListPage({
         onClose={() => setImportOpen(false)}
         onSuccess={(result) => {
           const name = result?.strategy_name || '策略包';
-          setImportNotice(`已导入 ${name}，列表已刷新`);
+          showToast({ severity: 'success', content: `已导入 ${name}，列表已刷新` });
           load();
         }}
       />

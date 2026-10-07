@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Alert, Typography } from '@mui/material';
+import { Typography } from '@mui/material';
+import Message from 'views/message';
 import './style.scss';
 
 /**
@@ -12,7 +13,7 @@ export default function DataEndTruncationAlert({ dataEnd, className = '' }) {
   }
 
   return (
-    <Alert severity="warning" className={className}>
+    <Message severity="warning" className={className}>
       {dataEnd.truncation_hint}
       {dataEnd.truncation_settings_path ? (
         <>
@@ -28,6 +29,6 @@ export default function DataEndTruncationAlert({ dataEnd, className = '' }) {
           修改。
         </>
       ) : null}
-    </Alert>
+    </Message>
   );
 }

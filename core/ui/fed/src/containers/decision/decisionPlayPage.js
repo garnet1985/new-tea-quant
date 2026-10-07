@@ -12,7 +12,6 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  Snackbar,
   Stack,
   TextField,
   Tooltip,
@@ -23,6 +22,7 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import PageLayout from '../../views/pageLayout';
 import ChartPanel from '../../views/chartPanel';
 import InlineLoadingState from '../../views/inlineLoadingState';
+import { showToast } from 'containers/toast';
 import NtqIcon from '../../views/ntqIcon';
 import {
   buildMarketChartOptionFromStockPayload,
@@ -782,7 +782,6 @@ export function DecisionPlaySession({
   const [investBusy, setInvestBusy] = useState(false);
   const [calendarAction, setCalendarAction] = useState(null);
   const [positionOpen, setPositionOpen] = useState(false);
-  const [toast, setToast] = useState('');
   const [advancing, setAdvancing] = useState(false);
   const [displayClockDate, setDisplayClockDate] = useState('');
   const [clockMotion, setClockMotion] = useState('is-landed');
@@ -1170,7 +1169,7 @@ export function DecisionPlaySession({
       const result = validateShareDraft(shares, minLot, lotStep);
       if (!result.ok) {
         setInvestError(result.message);
-        setToast(result.message);
+        showToast({ severity: 'warning', content: result.message });
         return;
       }
       if (result.shares <= 0) {
@@ -1179,7 +1178,7 @@ export function DecisionPlaySession({
         const occupying = Number(picks[row.id] || 0) > 0;
         if (!occupying && remainingSlots <= 0) {
           setInvestError('已达组合上限');
-          setToast('已达组合上限');
+          showToast({ severity: 'warning', content: '已达组合上限' });
           return;
         }
       }
@@ -1196,7 +1195,7 @@ export function DecisionPlaySession({
     } catch (err) {
       const message = errorMessage(err, '无法下单');
       setInvestError(message);
-      setToast(message);
+      showToast({ severity: 'error', content: message });
       setInvestBusy(false);
     }
   };
@@ -1217,7 +1216,7 @@ export function DecisionPlaySession({
       });
       setInfoPayload(payload);
     } catch (err) {
-      setToast(errorMessage(err, '无法加载数据'));
+      showToast({ severity: 'error', content: errorMessage(err, '无法加载数据') });
     } finally {
       setInfoLoading(false);
     }
@@ -1353,14 +1352,17 @@ export function DecisionPlaySession({
     setConfirmOpen(false);
     if (snapshot?.phase !== 'confirming') return;
     resumePicking().catch((err) => {
-      setToast(errorMessage(err, '无法返回查看'));
+      showToast({ severity: 'error', content: errorMessage(err, '无法返回查看') });
     });
   }, [resumePicking, snapshot?.phase]);
 
   const runAdvance = async () => {
     if (!strategyKey || !snapshot?.dmId || completed || advancing) return;
     if (billExceedsCash) {
-      setToast(`现金不足，可用 ${formatMoney(cashOnHand)} 元，本单约 ${formatMoney(billTotal)} 元`);
+      showToast({
+        severity: 'warning',
+        content: `现金不足，可用 ${formatMoney(cashOnHand)} 元，本单约 ${formatMoney(billTotal)} 元`,
+      });
       return;
     }
     closeCalendar();
@@ -1391,7 +1393,10 @@ export function DecisionPlaySession({
       applyLive(nextSnap, held, { hopEvents: nextSnap.events || [], keepPicks: false });
       setClockMotion('is-landed');
       setAdvancing(false);
-      setToast(nextSnap.completed ? '本次模拟回测已走完' : '已提交当天，停在下一事件日');
+      showToast({
+        severity: nextSnap.completed ? 'success' : 'info',
+        content: nextSnap.completed ? '本次模拟回测已走完' : '已提交当天，停在下一事件日',
+      });
     } catch (err) {
       setClockMotion('is-landed');
       setAdvancing(false);
@@ -1400,7 +1405,7 @@ export function DecisionPlaySession({
       } catch {
         /* 返回可改状态失败时仍提示推进错误 */
       }
-      setToast(errorMessage(err, '推进失败'));
+      showToast({ severity: 'error', content: errorMessage(err, '推进失败') });
     }
   };
   runAdvanceRef.current = runAdvance;
@@ -2122,17 +2127,6 @@ export function DecisionPlaySession({
           ) : null}
         </DialogContent>
       </Dialog>
-
-      <Snackbar
-        open={Boolean(toast)}
-        autoHideDuration={2800}
-        onClose={() => setToast('')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert severity="info" variant="outlined" onClose={() => setToast('')}>
-          {toast}
-        </Alert>
-      </Snackbar>
     </>
   );
 

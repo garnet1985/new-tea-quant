@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Snackbar, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Stack, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import {
@@ -8,6 +8,7 @@ import {
   openDecisionSession,
 } from '../../../api/decisionApi';
 import InlineLoadingState from '../../../views/inlineLoadingState';
+import { showToast } from 'containers/toast';
 import {
   DecisionPlaySession,
   DecisionReportPanel,
@@ -48,7 +49,6 @@ function StrategyDesignDecisionStep() {
   const [bootError, setBootError] = useState('');
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState(null);
-  const [toast, setToast] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
 
   const versionQuery = useMemo(
@@ -199,7 +199,7 @@ function StrategyDesignDecisionStep() {
     setBusy(true);
     try {
       await deleteDecisionSession(strategyName, row.dmId, versionQuery);
-      setToast(`已删除模拟回测 #${row.dmId}`);
+      showToast({ severity: 'success', content: `已删除模拟回测 #${row.dmId}` });
       const { listed } = await reloadListed();
       if (String(row.dmId) !== String(sessionId)) return;
       const next = pickRememberedSession(listed);
@@ -363,16 +363,6 @@ function StrategyDesignDecisionStep() {
               onDelete={deleteSession}
               busy={busy}
             />
-            <Snackbar
-              open={Boolean(toast)}
-              autoHideDuration={2800}
-              onClose={() => setToast('')}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-              <Alert severity="info" variant="outlined" onClose={() => setToast('')}>
-                {toast}
-              </Alert>
-            </Snackbar>
           </Box>
         );
       }}

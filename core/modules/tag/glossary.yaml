@@ -84,8 +84,6 @@ terms:
     definition: "global / non_ts 场景落库 / progress 用的哨兵 entity_id（__global__）"
     aliases:
       - "__global__"
-    avoid:
-      - "__general__（旧 stub 名，已收敛到同一哨兵）"
 
   list_data_key:
     definition: "per_entity contract meta：所属 GLOBAL list 的 data_key（如 stock.list）"
@@ -118,14 +116,10 @@ terms:
 
   DiscoveredTagInfo:
     definition: "discovery 校验通过后的场景元数据（settings + hooks_class）；Tag.find 返回此类型"
-    aliases:
-      - "discovery TagInfo（旧名，已改名）"
+    aliases: []
     avoid:
       - "与 hooks TagInfo 同名混用"
 
   TagCalendarAsOfResult:
     definition: "slice_based on_calendar_asof 返回：entity_tags + session_state（同 strategy）"
     aliases: []
-    avoid:
-      - "CalendarAsOfContext（旧名）"
-      - "carry（已改为 session_state）"

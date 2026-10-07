@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class Scenario:
-    """运行时 scenario（对应旧 ScenarioModel，无 DB ensure）。"""
+    """运行时 scenario。校验在 settings，落库在 MetadataEnsureService。"""
 
     # 系统路径 ID（directory tag_key），写入 DB scenario.name
     name: str
@@ -185,10 +185,6 @@ class Scenario:
             "tag_definitions": [d.to_dict() for d in self.tag_definitions],
             "settings": deepcopy(self.settings),
         }
-
-    @property
-    def identifier(self) -> str:
-        return self.name
 
     @property
     def is_persisted(self) -> bool:

@@ -146,10 +146,5 @@ class TagHookRuntime:
             )
             raise
 
-    def call_if_overridden(self, method: str, ctx: TagContext, **kwargs: Any) -> Any:
-        if not self.is_overridden(method):
-            return None
-        return self.call(method, ctx, **kwargs)
-
 
 __all__ = ["TagHookRuntime"]

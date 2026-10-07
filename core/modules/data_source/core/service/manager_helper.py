@@ -200,7 +200,7 @@ class DataSourceManagerHelper:
         """
         Create the handler.
 
-        schema: 表 schema 字典（来自 DataManager.get_table(name).load_schema()），非 DataSourceSchema。
+        schema: 表 schema 字典（来自 DataManager.get_table(name).load_schema()）。
         """
         if depend_on_data_source_names is None:
             depend_on_data_source_names = []

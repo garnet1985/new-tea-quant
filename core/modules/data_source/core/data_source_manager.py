@@ -25,13 +25,8 @@ class DataSourceManager:
     """
     DataSource Manager class
     """
-    def __init__(self, is_verbose: bool = False):
-        """
-        初始化 DataSource Manager
-        
-        Args:
-            is_verbose: 是否显示详细日志（保留参数以兼容现有代码）
-        """
+    def __init__(self):
+        """初始化 DataSource Manager。"""
         self._all_valid_configs_cache: Dict[str, DataSourceConfig] = {}
         self._all_valid_handlers_cache: Dict[str, Any] = {}
 
@@ -102,7 +97,7 @@ class DataSourceManager:
     @classmethod
     def format_renew_targets_help(cls) -> str:
         """格式化 renew 可选表名，供 CLI 报错提示。"""
-        mgr = cls(is_verbose=False)
+        mgr = cls()
         lines = ["可选表名 / data source key："]
         for row in mgr.list_renew_targets():
             table = row.get("table") or "?"
@@ -464,14 +459,6 @@ class DataSourceManager:
     def discover_provider_classes() -> Dict[str, Any]:
         """发现全部 Provider 类（UI catalog）。"""
         return DataSourceProviderHelper.discover_provider_classes()
-
-    @staticmethod
-    def group_stock_list_dimension_values(raw_records: List[Dict[str, Any]]):
-        from core.modules.data_source.core.service.utils.stock_list_dimension_values import (
-            group_stock_list_dimension_values,
-        )
-
-        return group_stock_list_dimension_values(raw_records)
 
     @staticmethod
     def evaluate_update_status(*, source_key, config, mappings, data_manager):

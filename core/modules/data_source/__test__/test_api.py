@@ -23,7 +23,7 @@ class TestDataSourceApi(unittest.TestCase):
     def test_public_methods_present(self):
         from core.modules.data_source import DataSourceManager
 
-        mgr = DataSourceManager(is_verbose=False)
+        mgr = DataSourceManager()
         for name in (
             "renew",
             "resolve_renew_target",
@@ -55,8 +55,6 @@ class TestDataSourceApi(unittest.TestCase):
             BaseHandler,
             BaseProvider,
             DataSourceConfig,
-            DataSourceField,
-            DataSourceSchema,
             NormalizationHelper,
             UpdateMode,
         )
@@ -67,22 +65,20 @@ class TestDataSourceApi(unittest.TestCase):
         self.assertTrue(ApiJobBundle is not None)
         self.assertTrue(DataSourceConfig is not None)
         self.assertTrue(ApiConfig is not None)
-        self.assertTrue(DataSourceField is not None)
-        self.assertTrue(DataSourceSchema is not None)
         self.assertTrue(hasattr(NormalizationHelper, "apply_field_mapping"))
         self.assertEqual(UpdateMode.INCREMENTAL.value, "incremental")
 
     def test_resolve_renew_target_empty_raises(self):
         from core.modules.data_source import DataSourceManager
 
-        mgr = DataSourceManager(is_verbose=False)
+        mgr = DataSourceManager()
         with self.assertRaises(ValueError):
             mgr.resolve_renew_target("")
 
     def test_renew_delegates_to_execute(self):
         from core.modules.data_source import DataSourceManager
 
-        mgr = DataSourceManager(is_verbose=False)
+        mgr = DataSourceManager()
         with patch.object(mgr, "resolve_renew_target", return_value="stock_klines") as resolve:
             with patch.object(mgr, "execute") as execute:
                 mgr.renew(table_name="sys_stock_klines", force=True)
@@ -92,7 +88,7 @@ class TestDataSourceApi(unittest.TestCase):
     def test_renew_all_delegates_to_execute(self):
         from core.modules.data_source import DataSourceManager
 
-        mgr = DataSourceManager(is_verbose=False)
+        mgr = DataSourceManager()
         with patch.object(mgr, "execute") as execute:
             mgr.renew(table_name=None, force=False)
         execute.assert_called_once_with(sources=None, force=False)
@@ -101,7 +97,7 @@ class TestDataSourceApi(unittest.TestCase):
         from core.modules.data_source import DataSourceManager
         from core.modules.data_source.core.data_class.handler_mapping import HandlerMapping
 
-        mgr = DataSourceManager(is_verbose=False)
+        mgr = DataSourceManager()
         mapping = HandlerMapping(
             {"stock_klines": {"is_enabled": True, "handler": "StockKlinesHandler"}}
         )

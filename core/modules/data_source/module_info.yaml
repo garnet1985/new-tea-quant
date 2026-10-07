@@ -9,6 +9,7 @@ dependencies:
   - infra.discovery
   - infra.db
   - infra.utils
+  - infra.cmd_layout
 changelog:
   - version: "0.2.0"
     changes:

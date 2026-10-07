@@ -143,9 +143,11 @@ class PersistBase:
         summarized = dict(report.get("report") or {})
         families = report.get("families")
         if isinstance(families, dict) and families:
-            summarized["inputs"] = (
-                families.get("inputs")
+            summarized["oaat"] = (
+                families.get("oaat")
+                or families.get("inputs")
                 or families.get("cross")
+                or summarized.get("oaat")
                 or summarized.get("inputs")
                 or {}
             )

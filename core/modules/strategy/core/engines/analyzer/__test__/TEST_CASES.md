@@ -6,5 +6,5 @@
 
 | 位置 | 覆盖 |
 |------|------|
-| `steps/campaign/__test__/` | plan / execute / gather / attribute / summarize / trades / labels / group store |
+| `steps/campaign/__test__/` | plan / execute / gather / attribute / summarize / labels / group store |
 | `strategy/__test__/test_api.py` | Strategy 公开 API（含 sea/spa/soa/sw） |

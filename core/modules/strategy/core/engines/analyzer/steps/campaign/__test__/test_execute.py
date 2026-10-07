@@ -461,7 +461,7 @@ def test_unique_tasks_share_execute_identity() -> None:
         execute_settings={
             "core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}
         },
-        family="inputs",
+        family="oaat",
     )
     cell_same = AttributionCell(
         index=1,
@@ -474,7 +474,7 @@ def test_unique_tasks_share_execute_identity() -> None:
         execute_settings={
             "core": {"rsi_oversold_threshold": 20, "max_pe_percentile": 30}
         },
-        family="inputs",
+        family="oaat",
     )
     cell_other = AttributionCell(
         index=2,
@@ -487,7 +487,7 @@ def test_unique_tasks_share_execute_identity() -> None:
         execute_settings={
             "core": {"rsi_oversold_threshold": 25, "max_pe_percentile": 30}
         },
-        family="inputs",
+        family="oaat",
     )
     kind = SimulateKind.PORTFOLIO
     tasks = [

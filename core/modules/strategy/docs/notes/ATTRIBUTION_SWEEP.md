@@ -141,7 +141,7 @@ attribution = {
 | P1 | 层报告头上游规模衔接句 | `upstream_bridge` 已写入三层 summarize / CLI / UI | done |
 | P1 | 文案：样本内较优 + 稳健区间；禁用贡献度默认句 | advice 带条件句 + 稳健区间 + 滚动提示 | done |
 | P2 | UI：曲线图（非仅表格） | 排名表 + SVG 扫档曲线 + 档位表 | done |
-| P2 | SHAP 默认降级为可开关附录 | 默认跳过；`shap: true` 才训练 | done |
+| P2 | 单笔 SHAP 附录 | 已删除 | removed |
 | P2 | 滚动验证曲线落点（`sw` 与扫描衔接） | 滚动独立，未挂到扫描较优点 | 后做 |
 | 已有 | 共用展格身份 | P0 战役共用 inputs 已落地 | done |
 | 已有 | 懒执行上游链 | `simulate_steps_for_kind` 已落地 | done |

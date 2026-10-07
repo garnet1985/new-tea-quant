@@ -73,12 +73,12 @@ def test_status_disabled_without_attribution_file(tmp_path, monkeypatch):
     assert "attribution.py" in out["tooltip"]
 
 
-def test_status_enabled_with_overlays(tmp_path, monkeypatch):
+def test_status_enabled_with_inputs(tmp_path, monkeypatch):
     folder = tmp_path / "strat"
     folder.mkdir()
     (folder / "attribution.py").write_text(
-        "attribution = {'price_factor': {'inputs': {"
-        "'opportunity_merge_gap': {'values': [1, 3]}}}}\n",
+        "attribution = {'inputs': {"
+        "'opportunity_merge_gap': {'values': [1, 3]}}}\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(

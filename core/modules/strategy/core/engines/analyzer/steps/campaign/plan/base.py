@@ -83,26 +83,11 @@ class AttributionPlanBase:
         config: AttributionConfigBase,
     ) -> ParameterPlan:
         """把当前设置展开成计划。"""
-        if config.is_select:
-            selected = tuple(
-                AttributionCell(
-                    index=i,
-                    overlay={},
-                    runtime_settings={},
-                    execute_settings={},
-                    effective=None,
-                    version_id=vid,
-                    family="select",
-                )
-                for i, vid in enumerate(config.versions)
-            )
-            return ParameterPlan(selected=selected)
-
-        layer = str(config.LAYER or cls.LAYER or "").strip()
+        # TODO: 全轴 cross 能展开，但报告仍按单因素讲，产品还没完成。
         cross = bool(config.cross)
-        family = "cross" if cross else "inputs"
+        family = "cross" if cross else "oaat"
         snap_raw = dict(snapshot.raw_settings)
-        # 共用展格：合并顶层 + 各层块 inputs；与 CLI 层无关
+        # 共用展格：只读顶层 inputs；与 CLI 层无关
         merged = merge_user_and_defaults(
             "campaign", config.campaign_inputs, snap_raw
         )

@@ -77,7 +77,7 @@
 - 取消 CLI `sa` / `sz`；归因入口按层拆成 `sea` / `spa` / `soa`（**懒补产物**，见 §0.2）
 - 无当前 settings 对应主 version 时拒绝归因（提示先 `se` / `sp` / `so`）
 - 对照格写入副本 `{vid}-{r}`，不占用主号序列
-- 单 version 的 prepare / analyze / report / layer 已删除；spa 单笔铺平走 `campaign/trades`
+- 单 version 的 prepare / analyze / report / layer 已删除；单笔 SHAP 附录已删除。
 
 ---
 
@@ -132,11 +132,10 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 ```text
 读当前 settings 快照 + attribution.py
-  → versions 非空则选号（不要与参数战役 inputs 混成同一主模式）
-  → 解析共用「如果」轴（合并各层块或顶层 inputs + 默认轴）→ oaat / cross 展格
+  → 解析顶层 inputs（未声明时用共用默认轴）→ oaat 展格
+  → 全轴 cross 仍可展开，报告口径未定
   → 同一身份只分配一个副本号；execute 只补「当前 CLI 层」产物（上游缺则先补上游）
   → gather / 归因 / 总结；报告只含该层固定结果指标
-  → spa 可对 unique version 铺平做单笔 XGB+SHAP（附录）
   → 命中 / 补跑由回测层按双指纹判断
 ```
 
@@ -163,7 +162,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 - `spa`：去噪后等权机会账；可附 Trades/XGB
 - `soa`：资金折损、买到 vs 漏掉、仓位结构
 
-扫描开始时给这批 registry 行记同一个 cohort / group id。清理按 `env_fp` 整组：当前环境不拆；过时环境超出 N 组则最旧一组的 simulation 与归因目录一起删。选号路径会丢掉与当前快照区间/股票池不同的号。
+扫描开始时给这批 registry 行记同一个 cohort / group id。清理按 `env_fp` 整组：当前环境不拆；过时环境超出 N 组则最旧一组的 simulation 与归因目录一起删。
 
 ---
 
@@ -202,7 +201,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 这只对之后的 Run 生效。已经跑完、snapshot 里没有这些列的旧 version，补不出当日读数。
 
-当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`。用户 `capture` 同名覆盖，且只应收钩子自己算的量。spa trades 从这份袋铺平做 XGB+SHAP。滚动验证读同一份 `attribution.py` 里的 `rolling.windows`（CLI `sw`），报告仍写在 `rolling/`，不和参数战役混表。
+当前代码：命中时把 **as-of 当日那一片** 写入 `signal_snapshot`。用户 `capture` 同名覆盖，且只应收钩子自己算的量。滚动验证读同一份 `attribution.py` 里的 `rolling.windows`（CLI `sw`），报告仍写在 `rolling/`，不和参数战役混表。口径未定。
 
 ---
 
@@ -243,7 +242,7 @@ strategy 仍然是「把一个想法跑完」。归因是事后对照，不是�
 
 参数战役配置见 [ATTRIBUTION_INPUTS.md](./ATTRIBUTION_INPUTS.md)：声明共用对照轴（每轴 `{"values": [...]}`），`cross` 默认 `false`；`cross: true` 为笛卡尔积（上限 128 格）。**不使用** `overlays` / `matrix`。
 
-没有顶层 `mode`：`versions` 非空就是选号（不要与参数战役 `inputs` 同时当作同一任务的两种主模式混用）。**不要写 `steps`**——层由 CLI（`sea` / `spa` / `soa`）决定执行深度与报告因变量，**不**决定「另一套副本」。`rolling.windows` 是另一项任务，可与参数战役写在同一文件，由 `sw` 使用。`versions`、战役 `inputs`、`rolling.windows` 不能都空到无事可做。不提供「空 versions = 当前窗口全选」。
+没有顶层 `mode`。**不要写 `steps`**——层由 CLI（`sea` / `spa` / `soa`）决定执行深度与报告因变量，**不**决定「另一套副本」。轴只写顶层 `inputs`。`rolling.windows` 是另一项任务，可与参数战役写在同一文件，由 `sw` 使用，口径未定。战役 `inputs`、`rolling.windows` 不能都空到无事可做。不要写 `versions` 选号、分层 inputs 或 `shap`。
 
 目标形态（一份共用轴）：
 

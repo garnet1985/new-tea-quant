@@ -69,6 +69,7 @@ class Analyzer:
         )
 
     @classmethod
+    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def rolling(
         cls,
         key_or_id: Union[str, Path],

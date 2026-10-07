@@ -14,7 +14,6 @@ from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.artifacts import (
     ArtifactRetention,
     ArtifactStore,
-    SimulationVersionStore,
 )
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.services.discovery import DiscoveryService
@@ -40,8 +39,6 @@ from ..plan import AttributionCell, AttributionTask, cell_identity
 from .models import CellExecuteResult
 
 logger = logging.getLogger(__name__)
-
-_SampleKey = Tuple[str, str, Tuple[str, ...]]
 
 
 def _without_price_replay(settings: Mapping[str, Any]) -> Dict[str, Any]:
@@ -161,7 +158,7 @@ class ExecuteBase:
         kind: Optional[SimulateKind] = None,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """模拟本层格子。选号只读已有版本。"""
+        """模拟本层格子。"""
         layer = kind if isinstance(kind, SimulateKind) else cls.KIND
         strategy_info = cls._resolve_strategy_info(folder)
         if strategy_info is None:
@@ -174,9 +171,6 @@ class ExecuteBase:
             baseline_fp.env_fp,
             kind=layer,
         )
-        snapshot_sample = None
-        if any(task.cell.is_select for task in tasks):
-            snapshot_sample = cls._snapshot_sample(folder, strategy_info)
         drive = PipelineProgress.drives_pipeline(ATTRIBUTE_PIPELINE)
         total = len(tasks)
         rows: List[CellExecuteResult] = []
@@ -186,7 +180,6 @@ class ExecuteBase:
                     folder,
                     strategy_info,
                     task,
-                    snapshot_sample,
                     parent_version_id=parent_vid,
                     baseline_execute_fp=str(baseline_fp.execute_fp or ""),
                     ignore_cache=ignore_cache,
@@ -217,14 +210,11 @@ class ExecuteBase:
         folder: Path,
         strategy_info: Optional[EnabledStrategyInfo],
         task: AttributionTask,
-        snapshot_sample: Optional[_SampleKey],
         *,
         parent_version_id: str,
         baseline_execute_fp: str,
         ignore_cache: bool,
     ) -> CellExecuteResult:
-        if task.cell.is_select:
-            return cls._lookup_selected_version(folder, task, snapshot_sample)
         return cls._simulate(
             folder,
             strategy_info,
@@ -233,40 +223,6 @@ class ExecuteBase:
             baseline_execute_fp=baseline_execute_fp,
             ignore_cache=ignore_cache,
         )
-
-    @classmethod
-    def _lookup_selected_version(
-        cls,
-        folder: Path,
-        task: AttributionTask,
-        snapshot_sample: Optional[_SampleKey],
-    ) -> CellExecuteResult:
-        vid = str(task.cell.version_id or "").strip()
-        cached = SimulationVersionStore.get_cache_by_version_id(
-            folder, vid, task.kind
-        )
-        if not cached:
-            return CellExecuteResult(
-                index=task.cell.index,
-                status="skipped",
-                version_id=vid or None,
-                reason="version_not_found",
-            )
-        if snapshot_sample is not None:
-            actual = cls._version_sample(folder, vid)
-            if actual != snapshot_sample:
-                logger.info(
-                    "campaign sample mismatch: index=%s version=%s",
-                    task.cell.index,
-                    vid,
-                )
-                return CellExecuteResult(
-                    index=task.cell.index,
-                    status="skipped",
-                    version_id=vid or None,
-                    reason="sample_mismatch",
-                )
-        return cls._from_cache(task.cell.index, task.kind, cached)
 
     @classmethod
     def _simulate(
@@ -560,49 +516,6 @@ class ExecuteBase:
             logger.exception("campaign prune stale envs failed")
 
     @classmethod
-    def _snapshot_sample(
-        cls,
-        folder: Path,
-        strategy_info: Optional[EnabledStrategyInfo],
-    ) -> Optional[_SampleKey]:
-        if strategy_info is None:
-            return None
-        try:
-            disk = load_settings_dict_from_folder(folder)
-            usable = StrategySettings.to_usable(dict(disk))
-            start, end = _resolved_dates(usable)
-            entity_ids = SampleListResolver.resolve(
-                strategy_info,
-                usable,
-                universe=GlobalEntityCache.get_stock_list(),
-            )
-            return (start, end, tuple(entity_ids))
-        except Exception:
-            logger.warning("campaign snapshot sample unavailable", exc_info=True)
-            return None
-
-    @classmethod
-    def _version_sample(cls, folder: Path, version_id: str) -> Optional[_SampleKey]:
-        scope = VersionMetaStore.read_scope(
-            ArtifactStore.simulations_root(folder),
-            version_id,
-        )
-        if not isinstance(scope, dict):
-            return None
-        ids = tuple(
-            sorted(
-                str(item).strip()
-                for item in (scope.get("entity_ids") or [])
-                if str(item).strip()
-            )
-        )
-        return (
-            str(scope.get("start_date") or "").strip(),
-            str(scope.get("end_date") or "").strip(),
-            ids,
-        )
-
-    @classmethod
     def _resolve_strategy_info(
         cls, folder: Path
     ) -> Optional[EnabledStrategyInfo]:
@@ -618,16 +531,3 @@ class ExecuteBase:
                 return info
         return None
 
-
-def _resolved_dates(usable: StrategySettings) -> Tuple[str, str]:
-    start = str(usable.start_date or "").strip()
-    end = str(usable.end_date or "").strip()
-    try:
-        period = usable.resolve_period()
-        if getattr(period, "start_date", None):
-            start = str(period.start_date).strip() or start
-        if getattr(period, "end_date", None):
-            end = str(period.end_date).strip() or end
-    except Exception:
-        pass
-    return start, end

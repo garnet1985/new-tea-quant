@@ -1,4 +1,4 @@
-"""战役报告的终端展示：先看贡献度，再看对照表。"""
+"""战役报告的终端展示：参数扫描、联合扫描和问题章节。"""
 from __future__ import annotations
 
 import json
@@ -25,6 +25,7 @@ _STATUS_LABELS = {
 }
 
 _FAMILY_TITLES = {
+    "oaat": "修改参数后的对照",
     "inputs": "修改参数后的对照",
     "cross": "多参数交叉对照",
 }
@@ -128,18 +129,19 @@ class CampaignPresenter:
         self._present_question_sections(out)
 
         if nested:
-            for name in ("inputs", "cross"):
-                block = families.get(name)
+            for name in ("oaat", "cross"):
+                block = _family_named(families, name)
                 if not isinstance(block, dict):
                     continue
                 title = _FAMILY_TITLES.get(name, name)
                 CmdLayout.title.print_h2(f"{icon('rocket')} {title}", stream=out)
-                if name == "inputs":
+                if name == "oaat":
                     CmdLayout.text.print_indent(
                         "每次只改一个路径，比较相对基准的结果差异。",
                         stream=out,
                     )
                 else:
+                    # TODO: 全轴 cross 能展开，但报告仍按单因素讲，产品还没完成。
                     CmdLayout.text.print_indent(
                         "多个参数取不同组合，比较组合变化带来的结果差异。",
                         stream=out,
@@ -149,7 +151,6 @@ class CampaignPresenter:
         else:
             self._present_family_body(out, nested=False)
 
-        self._present_trades(out)
         self._present_paths(out, persist)
 
     def _present_parameter_sweeps(self, out: TextIO) -> None:
@@ -400,8 +401,8 @@ class CampaignPresenter:
         )
         lines: List[str] = []
         if families:
-            for name in ("inputs", "cross"):
-                block = families.get(name)
+            for name in ("oaat", "cross"):
+                block = _family_named(families, name)
                 if not isinstance(block, dict):
                     continue
                 text = str(block.get("headline") or "").strip()
@@ -505,183 +506,6 @@ class CampaignPresenter:
             if text:
                 CmdLayout.text.print_indent(text, stream=out)
 
-    def _present_trades(self, out: TextIO) -> None:
-        block = self._report.get("trades")
-        if not isinstance(block, dict):
-            nested = self._report.get("report")
-            if isinstance(nested, dict):
-                block = nested.get("trades")
-        if not isinstance(block, dict) or not block:
-            return
-        icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('chart')} 单笔 XGBoost + SHAP", stream=out)
-        status = str(block.get("status") or "skipped")
-        if status not in {"ok", "partial"}:
-            reason = str(block.get("reason") or "")
-            if reason == "shap_disabled":
-                CmdLayout.text.print_indent(
-                    "单笔 SHAP 附录默认关闭；需要时在 attribution.py 写 shap: true。",
-                    stream=out,
-                )
-                return
-            if reason == "missing_dependency":
-                CmdLayout.text.print_indent(
-                    f"未安装 {block.get('dependency') or 'xgboost'}，跳过单笔机器学习。",
-                    stream=out,
-                )
-                return
-            if reason == "insufficient_samples":
-                CmdLayout.text.print_indent(
-                    f"样本 {block.get('n') or 0} 笔不足"
-                    f"（建议 ≥{block.get('min_samples') or 80}），暂不做单笔 SHAP。",
-                    stream=out,
-                )
-                return
-            if reason == "insufficient_varying_fields":
-                CmdLayout.text.print_indent('变化特征不足 2 个，暂不做单笔 SHAP。', stream=out)
-                return
-            if reason == "insufficient_samples_per_feature":
-                CmdLayout.text.print_indent(
-                    f"样本 {block.get('n') or 0} 笔、特征 {block.get('n_features') or 0} 个，"
-                    f"平均每特征不到 {block.get('min_ratio') or 10} 笔，暂不做单笔 SHAP。",
-                    stream=out,
-                )
-                return
-            CmdLayout.text.print_indent('这次没做单笔机器学习。', stream=out)
-            return
-
-        overview = block.get("overview") if isinstance(block.get("overview"), dict) else {}
-        n = overview.get("n") or block.get("n") or 0
-        n_versions = overview.get("n_versions") or block.get("n_versions") or 0
-        n_feat = overview.get("n_features") or block.get("n_features") or 0
-        n_param = overview.get("n_parameter") or block.get("n_parameter") or 0
-        n_opp = overview.get("n_opportunity") or block.get("n_opportunity") or 0
-        n_train = overview.get("n_train") or block.get("n_train") or 0
-        n_test = overview.get("n_test") or block.get("n_test") or 0
-        auc = overview.get("auc")
-        auc_train = overview.get("auc_train")
-        auc_test = overview.get("auc_test") or auc
-        accuracy = overview.get("accuracy")
-        split = overview.get("split") if isinstance(overview.get("split"), dict) else {}
-        if not split:
-            split = block.get("split") if isinstance(block.get("split"), dict) else {}
-        CmdLayout.title.print_h3('模型概况', stream=out)
-        CmdLayout.text.print_indent(CmdLayout.text.kv("样本数", f"{n}（{n_versions} versions）"), stream=out)
-        CmdLayout.text.print_indent(CmdLayout.text.kv("特征数", f"{n_feat}（{n_param} 参数级 + {n_opp} 机会级）"), stream=out)
-        CmdLayout.text.print_indent(CmdLayout.text.kv("目标", "单笔收益 > 0（二分类）"), stream=out)
-        CmdLayout.text.print_indent(
-            CmdLayout.text.kv(
-                "拟合",
-                "多特征联合（一次模型看全部特征，SHAP 再拆各自贡献）",
-            ),
-            stream=out,
-        )
-        CmdLayout.text.print_indent(
-            CmdLayout.text.kv(
-                "训练/测试",
-                f"{n_train}/{n_test}{_split_phrase(split)}",
-            ),
-            stream=out,
-        )
-        if auc_train is not None:
-            CmdLayout.text.print_indent(
-                CmdLayout.text.kv("训练集AUC", f"{float(auc_train):.2f}"),
-                stream=out,
-            )
-        if auc_test is not None:
-            CmdLayout.text.print_indent(
-                CmdLayout.text.kv("测试集AUC", f"{float(auc_test):.2f}"),
-                stream=out,
-            )
-        if accuracy is not None:
-            CmdLayout.text.print_indent(
-                CmdLayout.text.kv("测试集准确率", f"{float(accuracy) * 100:.0f}%"),
-                stream=out,
-            )
-        warning = _auc_warning(auc_train, auc_test, split)
-        if warning:
-            CmdLayout.text.print_indent(warning, stream=out)
-        else:
-            CmdLayout.text.print_indent("AUC 0.5 = 随机猜，0.7+ 有预测力。", stream=out)
-
-        shap_block = block.get("shap") if isinstance(block.get("shap"), dict) else {}
-        ranked = [
-            item
-            for item in (shap_block.get("mean_abs") or [])
-            if isinstance(item, dict)
-        ]
-        if ranked:
-            CmdLayout.title.print_h3('SHAP 特征重要性（mean |SHAP|）', stream=out)
-            peak = max(
-                (abs(float(item.get("mean_abs_shap") or 0.0)) for item in ranked),
-                default=0.0,
-            )
-            CmdLayout.text.print_numbered(
-                [
-                    f"{_feature_label(item.get('feature')):<14} "
-                    f"{float(item.get('mean_abs_shap') or 0.0):6.3f}  "
-                    f"{_bar(float(item.get('mean_abs_shap') or 0.0), peak)}"
-                    for item in ranked[:8]
-                ],
-                indent=3,
-                stream=out,
-            )
-
-        directions = [
-            item for item in (block.get("directions") or []) if isinstance(item, dict)
-        ]
-        if directions:
-            CmdLayout.title.print_h3('SHAP 方向', stream=out)
-            for item in directions[:6]:
-                name = _feature_label(item.get("feature"))
-                sign = str(item.get("sign") or "")
-                low = item.get("low") if isinstance(item.get("low"), dict) else {}
-                high = item.get("high") if isinstance(item.get("high"), dict) else {}
-                CmdLayout.text.print_indent(f"{name}:", stream=out)
-                low_shap = float(low.get("mean_shap") or 0.0)
-                high_shap = float(high.get("mean_shap") or 0.0)
-                CmdLayout.text.print_indent(
-                    f"低值（≤ {CampaignLabels.format_number(item.get('feature'), low.get('threshold'))}）"
-                    f" → {_shap_phrase(low_shap)}",
-                    spaces=6,
-                    stream=out,
-                )
-                CmdLayout.text.print_indent(
-                    f"高值（≥ {CampaignLabels.format_number(item.get('feature'), high.get('threshold'))}）"
-                    f" → {_shap_phrase(high_shap)}",
-                    spaces=6,
-                    stream=out,
-                )
-                conclusion = _shap_direction_conclusion(name, low_shap, high_shap, sign)
-                if conclusion:
-                    CmdLayout.text.print_indent(
-                        CmdLayout.text.kv("结论", conclusion),
-                        spaces=6,
-                        stream=out,
-                    )
-
-        self._present_dependence(out, block)
-
-    def _present_dependence(self, out: TextIO, block: Mapping[str, Any]) -> None:
-        items = [item for item in (block.get("dependence") or []) if isinstance(item, dict)]
-        if not items:
-            return
-        CmdLayout.title.print_h3('SHAP 依赖', stream=out)
-        for item in items[:3]:
-            feature = item.get("feature")
-            name = _feature_label(feature)
-            bins = [row for row in (item.get("bins") or []) if isinstance(row, dict)]
-            CmdLayout.text.print_indent(f"{name}:", stream=out)
-            for line in _dependence_ascii(bins, str(feature or "")):
-                CmdLayout.text.print_indent(line, spaces=6, stream=out)
-            note = _shap_dependence_conclusion(str(name), str(feature or ""), bins)
-            if note:
-                CmdLayout.text.print_indent(
-                    CmdLayout.text.kv("结论", note),
-                    spaces=6,
-                    stream=out,
-                )
-
     def _present_paths(self, out: TextIO, persist: Mapping[str, Any]) -> None:
         icon = CmdLayout.icon.get
         path = persist.get("report_path") or self._report.get("report_path")
@@ -693,144 +517,6 @@ class CampaignPresenter:
             CmdLayout.text.print_indent(f"组 {group_id}", stream=out)
         if path:
             CmdLayout.text.print_indent(path, stream=out)
-
-
-def _feature_label(feature: Any) -> str:
-    return CampaignLabels.knob_label(feature)
-
-
-def _bar(value: float, peak: float, width: int = 16) -> str:
-    if peak <= 0:
-        return ""
-    n = int(round(abs(value) / peak * width))
-    return "█" * max(n, 0)
-
-
-def _shap_phrase(mean_shap: float) -> str:
-    if mean_shap > 0.005:
-        return "正贡献（倾向赚钱）"
-    if mean_shap < -0.005:
-        return "负贡献（倾向亏钱）"
-    return "几乎没贡献"
-
-
-def _shap_direction_conclusion(
-    name: str,
-    low_shap: float,
-    high_shap: float,
-    sign: str,
-) -> str:
-    """两端同号时不要写成「越高/越低越赚钱」。"""
-    low_text = _shap_phrase(low_shap)
-    high_text = _shap_phrase(high_shap)
-    low_pos = "正贡献" in low_text
-    high_pos = "正贡献" in high_text
-    low_neg = "负贡献" in low_text
-    high_neg = "负贡献" in high_text
-    if low_pos and high_neg:
-        return f"{name} 越低越倾向赚钱"
-    if low_neg and high_pos:
-        return f"{name} 越高越倾向赚钱"
-    if low_pos and high_pos:
-        side = "低值" if low_shap > high_shap else "高值"
-        return f"{name} 两端都倾向赚钱，{side}这边贡献更大"
-    if low_neg and high_neg:
-        side = "低值" if low_shap < high_shap else "高值"
-        return f"{name} 两端都倾向亏钱，{side}这边更亏"
-    if sign == "low_positive":
-        return f"{name} 越低越倾向赚钱"
-    if sign == "high_positive":
-        return f"{name} 越高越倾向赚钱"
-    return ""
-
-
-def _split_phrase(split: Mapping[str, Any]) -> str:
-    kind = str(split.get("kind") or "")
-    n_groups = split.get("n_groups")
-    if kind == "grouped":
-        extra = f"，{n_groups} 组" if n_groups else ""
-        return f" 按股票+日期成组{extra}"
-    return " 随机拆行"
-
-
-def _auc_warning(auc_train: Any, auc_test: Any, split: Mapping[str, Any]) -> str:
-    try:
-        test = float(auc_test) if auc_test is not None else None
-    except (TypeError, ValueError):
-        test = None
-    try:
-        train = float(auc_train) if auc_train is not None else None
-    except (TypeError, ValueError):
-        train = None
-    if train is not None and test is not None and train - test >= 0.15:
-        return f"训练 AUC 比测试高 {train - test:.2f}，过拟合，SHAP 方向只当线索。"
-    if test is not None and test >= 0.90:
-        if str(split.get("kind") or "") == "grouped":
-            return "测试集 AUC 仍 ≥ 0.90，即便已成组划分，仍偏乐观。"
-        return "测试集 AUC ≥ 0.90，随机拆行容易把同一笔漏进两边，先看成组划分。"
-    return ""
-
-
-def _dependence_ascii(
-    bins: Sequence[Mapping[str, Any]],
-    feature: str = "",
-    height: int = 5,
-) -> List[str]:
-    rows = [row for row in bins if isinstance(row, dict)]
-    if len(rows) < 3:
-        return []
-    shaps = [float(row.get("mean_shap") or 0.0) for row in rows]
-    peak = max(max(abs(value) for value in shaps), 0.01)
-    width = len(rows)
-    grid = [[" " for _ in range(width)] for _ in range(height)]
-    for x, value in enumerate(shaps):
-        y = int(round((1.0 - (value / peak + 1.0) / 2.0) * (height - 1)))
-        y = min(max(y, 0), height - 1)
-        grid[y][x] = "●"
-    axis = height // 2
-    for x in range(width):
-        if grid[axis][x] == " ":
-            grid[axis][x] = "─"
-    lines: List[str] = []
-    for i, cells in enumerate(grid):
-        tick = peak * (1.0 - 2.0 * i / (height - 1))
-        lines.append(f"{tick:+5.2f} |{'  '.join(cells)}")
-    first = CampaignLabels.format_number(feature or "value", rows[0].get("lo"))
-    last = CampaignLabels.format_number(feature or "value", rows[-1].get("hi"))
-    lines.append(f"       {first} → {last}")
-    return lines
-
-
-def _shap_dependence_conclusion(
-    name: str,
-    feature: str,
-    bins: Sequence[Mapping[str, Any]],
-) -> str:
-    rows = [row for row in bins if isinstance(row, dict)]
-    if len(rows) < 3:
-        return ""
-    shaps = [float(row.get("mean_shap") or 0.0) for row in rows]
-    peak_i = max(range(len(shaps)), key=lambda i: shaps[i])
-    first_pos = shaps[0] > 0.005
-    last_neg = shaps[-1] < -0.005
-    first_neg = shaps[0] < -0.005
-    last_pos = shaps[-1] > 0.005
-    peak = rows[peak_i]
-    peak_text = CampaignLabels.format_number(feature, peak.get("mid"))
-    if 0 < peak_i < len(rows) - 1 and shaps[peak_i] > 0.005:
-        return f"不是单调，{peak_text} 附近正贡献最大"
-    if first_pos and last_neg:
-        cut = CampaignLabels.format_number(feature, rows[0].get("hi"))
-        return f"低于 {cut} 偏正贡献，再高转负"
-    if first_neg and last_pos:
-        cut = CampaignLabels.format_number(feature, rows[-1].get("lo"))
-        return f"高于 {cut} 偏正贡献"
-    if all(value > 0.005 for value in shaps):
-        return f"全程偏正贡献，{peak_text} 附近最大"
-    if all(value < -0.005 for value in shaps):
-        return f"全程偏负贡献，{peak_text} 附近相对没那么亏"
-    return f"峰值在 {peak_text}"
-
 
 
 _KNOWN_LAYERS = frozenset({"enumerate", "price_factor", "portfolio"})
@@ -873,14 +559,24 @@ def _unique_version_ids(rows: Sequence[Any]) -> List[str]:
         out.append(vid)
     return out
 
+def _family_named(families: Mapping[str, Any], name: str) -> Any:
+    """按家族名取块。已落盘的单因素家族曾用 inputs。"""
+    block = families.get(name)
+    if name == "oaat" and not isinstance(block, dict):
+        block = families.get("inputs")
+    return block
+
+
 def _hydrate_families(payload: Dict[str, Any]) -> None:
     if isinstance(payload.get("families"), dict) and payload.get("families"):
         return
     families: Dict[str, Any] = {}
     table = payload.get("table")
     attribute = payload.get("attribute")
-    for name in ("inputs", "cross"):
+    for name in ("oaat", "cross"):
         block = payload.get(name)
+        if name == "oaat" and not isinstance(block, dict):
+            block = payload.get("inputs")
         if not isinstance(block, dict) or not (
             block.get("report")
             or block.get("contributions")
@@ -889,10 +585,13 @@ def _hydrate_families(payload: Dict[str, Any]) -> None:
         ):
             continue
         fam = dict(block)
+        source = name
+        if name == "oaat" and not isinstance(payload.get("oaat"), dict):
+            source = "inputs"
         if isinstance(table, dict):
-            fam.setdefault("table", table.get(name) or [])
-        if isinstance(attribute, dict) and isinstance(attribute.get(name), dict):
-            fam.setdefault("attribute", attribute.get(name) or {})
+            fam.setdefault("table", table.get(source) or [])
+        if isinstance(attribute, dict) and isinstance(attribute.get(source), dict):
+            fam.setdefault("attribute", attribute.get(source) or {})
         families[name] = fam
     if families:
         payload["families"] = families

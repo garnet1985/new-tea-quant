@@ -1,4 +1,4 @@
-"""战役报告：N 个 version 一张表（按层 inputs / cross / 选号）。"""
+"""战役报告：N 个 version 一张表（按层 oaat / cross / 选号）。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,6 +9,7 @@ from core.modules.strategy.core.enums import SimulateKind
 from ..plan import AttributionCell, AttributionTask
 
 _FAMILY_LABELS = {
+    "oaat": "参数对照",
     "inputs": "参数对照",
     "cross": "交叉对照",
     "select": "选号",
@@ -155,7 +156,7 @@ class ReportBase:
         report_body: Dict[str, Any] = {
             "headline": headline,
             "status": _merge_status(items),
-            "inputs": views.get("inputs") or views.get("cross") or {},
+            "oaat": views.get("oaat") or views.get("inputs") or views.get("cross") or {},
             "cross": views.get("cross") or {},
             "analysis_mode": analysis_mode,
         }
@@ -242,8 +243,8 @@ def _family_view(block: Mapping[str, Any]) -> Dict[str, Any]:
 def _merge_sections(
     items: Sequence[tuple],
 ) -> tuple:
-    """优先 inputs / cross 家族的 sections / sweeps / scope_note / analysis_mode。"""
-    preferred = ("inputs", "cross", "select")
+    """优先 oaat / cross 家族的 sections / sweeps / scope_note / analysis_mode。"""
+    preferred = ("oaat", "inputs", "cross", "select")
     by_name = {str(name): block for name, block in items}
     empty = ({}, "", "", [], [], "", [], "")
 

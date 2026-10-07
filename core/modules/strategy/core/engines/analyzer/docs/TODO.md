@@ -22,7 +22,6 @@
 
 ```text
 config → plan → execute → gather → attribute → summarize → report → persist
-（spa 另跑 trades）
 ```
 
 ---
@@ -36,6 +35,6 @@ analyzer/
 ├── docs/BOUNDARY.md
 ├── pipeline.py              # AttributionPipeline / RollingPipeline
 └── steps/
-    ├── campaign/            # 同构包：config/plan/execute/gather/attribute/summarize/report/persist/trades
+    ├── campaign/            # 同构包：config/plan/execute/gather/attribute/summarize/report/persist
     └── rolling/             # 滚动：config / windows / summarize / present
 ```

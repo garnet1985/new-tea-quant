@@ -241,38 +241,19 @@ def parse_axes(
 def collect_campaign_user_inputs(
     raw: Mapping[str, Any],
 ) -> Tuple[Dict[str, Any], bool]:
-    """合并顶层 ``inputs`` 与各层块 ``inputs`` → 路径键 specs + cross。
-
-    同一路径多处声明且 values 不一致则报错；``cross`` 多处不一致则报错。
-    """
+    """读取顶层 ``inputs`` 与 ``cross``。分层块已删除。"""
     if not isinstance(raw, Mapping):
         return {}, False
-
+    for layer in _LAYER_KEYS:
+        if layer in raw:
+            raise ValueError(
+                f"attribution.py 已不支持把轴写在 {layer} 块下；请改到顶层 inputs"
+            )
     merged: Dict[str, Any] = {}
-    cross_flags: List[bool] = []
-
-    if "cross" in raw and raw.get("cross") is not None:
-        cross_flags.append(bool(raw.get("cross")))
-
     top = raw.get("inputs")
     if isinstance(top, Mapping):
         _merge_input_block(merged, top, layer="campaign")
-
-    for layer in _LAYER_KEYS:
-        block = raw.get(layer)
-        if not isinstance(block, Mapping):
-            continue
-        if "cross" in block and block.get("cross") is not None:
-            cross_flags.append(bool(block.get("cross")))
-        nested = block.get("inputs")
-        if isinstance(nested, Mapping):
-            _merge_input_block(merged, nested, layer=layer)
-
-    if len(set(cross_flags)) > 1:
-        raise ValueError(
-            "attribution.cross 在多处声明且不一致；请只在一处写 cross"
-        )
-    cross = cross_flags[0] if cross_flags else False
+    cross = bool(raw.get("cross")) if raw.get("cross") is not None else False
     return merged, cross
 
 

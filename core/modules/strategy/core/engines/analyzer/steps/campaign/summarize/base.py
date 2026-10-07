@@ -48,33 +48,15 @@ class SummarizeBase:
             "highlights": [],
             "hints": cls._hints(attributed),
             "varying_knobs": list(attributed.get("varying_knobs") or []),
-            "contributions": attributed.get("contributions") or {},
         }
 
     @classmethod
     def _hints(cls, attributed: Mapping[str, Any]) -> List[str]:
         hints: List[str] = []
         n = int(attributed.get("n") or 0)
-        status = str(attributed.get("status") or "skipped")
         reason = str(attributed.get("reason") or "")
         if reason in _SKIP_REASONS:
             hints.append(_SKIP_REASONS[reason])
-        varying = [str(item) for item in (attributed.get("varying_knobs") or [])]
-        presence = _chapter(attributed, "presence")
-        sensitivity = _chapter(attributed, "sensitivity")
-        one_count = int(presence.get("one_at_a_time_count") or 0) + int(
-            sensitivity.get("one_at_a_time_count") or 0
-        )
-        joint_count = int(presence.get("joint_count") or 0) + int(
-            sensitivity.get("joint_count") or 0
-        )
-        if joint_count and not one_count:
-            hints.append("有些回测一次改了多个参数，贡献度拆不开，只能看相关方向。")
-        elif len(varying) >= 2 and not one_count:
-            names = "、".join(CampaignLabels.knob_label(item) for item in varying[:4])
-            hints.append(
-                f"对照表里变过 {names}。相关是把所有回测混在一起算的，不是只改了一个参数。"
-            )
         if n > 0 and n < 5:
             hints.append(f"只有 {n} 次回测，只看方向，数量太少谈不上统计。")
         layers = attributed.get("layers") or {}
@@ -85,15 +67,5 @@ class SummarizeBase:
                 note = _SKIP_REASONS.get(str(block.get("reason") or ""))
                 if note:
                     hints.append(f"{CampaignLabels.layer_label(str(layer_name))}：{note}")
-        if not varying and status != "skipped":
-            hints.append("各次回测的参数取值相同，对照看不出差别。")
         return hints
-
-
-def _chapter(attributed: Mapping[str, Any], name: str) -> Dict[str, Any]:
-    block = attributed.get("contributions")
-    if not isinstance(block, dict):
-        return {}
-    nested = block.get(name)
-    return nested if isinstance(nested, dict) else {}
 

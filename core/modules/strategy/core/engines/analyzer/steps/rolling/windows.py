@@ -1,3 +1,4 @@
+# TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
 """把 attribution.rolling 的窗口展开成格子：每一段区间一份 overlay。"""
 from __future__ import annotations
 

@@ -23,34 +23,23 @@ class AttributionCell:
     version_id: Optional[int] = None
     family: str = ""
 
-    @property
-    def is_select(self) -> bool:
-        """这一格是否只选已有版本。"""
-        return self.version_id is not None
-
 
 @dataclass(frozen=True)
 class ParameterPlan:
-    """选号或按层 inputs 展开后的格子。"""
+    """按层 inputs 展开后的格子。"""
 
     cells: Tuple[AttributionCell, ...] = ()
-    selected: Tuple[AttributionCell, ...] = ()
     cost_warning: str = ""
 
     def families(self) -> List[Tuple[str, List[AttributionCell]]]:
         """按家族列出格子。"""
-        out: List[Tuple[str, List[AttributionCell]]] = []
-        if self.selected:
-            out.append(("select", list(self.selected)))
-        if self.cells:
-            name = self.cells[0].family or "inputs"
-            out.append((name, list(self.cells)))
-        return out
+        if not self.cells:
+            return []
+        name = self.cells[0].family or "oaat"
+        return [(name, list(self.cells))]
 
     def execute_source_cells(self) -> List[AttributionCell]:
         """返回真正要执行的格子。"""
-        if self.selected:
-            return list(self.selected)
         return list(self.cells)
 
     def listed_cells(self) -> List[AttributionCell]:
@@ -59,9 +48,7 @@ class ParameterPlan:
 
 
 def cell_identity(cell: AttributionCell) -> str:
-    """回测身份：选号用 version；其余用 execute_settings。"""
-    if cell.is_select:
-        return f"select:{cell.version_id}"
+    """回测身份：用 execute_settings。"""
     return json.dumps(
         cell.execute_settings,
         sort_keys=True,

@@ -872,6 +872,7 @@ class Strategy:
         Analyzer.CampaignPresenter.load(report).present(stream=stream)
 
     @staticmethod
+    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def rolling(
         key_or_id: Union[str, Path],
         *,
@@ -883,6 +884,7 @@ class Strategy:
         return Analyzer.rolling(key_or_id, ignore_cache=ignore_cache)
 
     @staticmethod
+    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def present_rolling(
         report: Union[Dict[str, Any], str, Path],
         *,

@@ -12,7 +12,7 @@
    改止损、改因子、改 merge_gap、改槽位，都是同一战役里的「如果」分支；三层归因共用这些 version 号。
 2. **CLI 决定执行深度与因变量，不另起展格。**  
    `sea` 只补枚举；`spa` 再补价格；`soa` 再补组合。管道形状相同，见 CAMPAIGN §0.3。
-3. **错误写法：** 「跑 `spa` 时只展开 `price_factor.inputs`、跑 `sea` 时只展开 `enumerate.inputs`」。那会变成三套副本，本末倒置。
+3. **错误写法：** 把轴分别写进 `enumerate` / `price_factor` / `portfolio` 配置块。轴只写顶层 `inputs`。
 
 ---
 
@@ -79,7 +79,7 @@
 
 ## 3. 默认对照轴（合并进共用展格）
 
-未声明任何战役 `inputs`（或合并后为空）时，若下列默认路径在当前 effective 中可解析，系统自动加入默认对照。一旦用户声明了非空 `inputs`（顶层或各层块合并后非空），则**只扫声明的轴**，不再自动追加未写的默认轴。
+未声明任何战役 `inputs` 时，若下列默认路径在当前 effective 中可解析，系统自动加入默认对照。一旦用户声明了非空 `inputs`，则**只扫声明的轴**，不再自动追加未写的默认轴。
 
 | 来源（便于阅读） | 默认轴 | 默认取值策略 |
 |------------------|--------|--------------|
@@ -137,48 +137,18 @@ attribution = {
 - `joint_sweep`：每组 2～3 个轴；轴须已在 `inputs` 声明 `values`；在默认单因素格子之外**额外**跑该子集笛卡尔。  
 - 全轴 `cross: true` 时忽略 `joint_sweep`（并告警）。
 
-### 4.2 过渡形状（按层分块存放轴）
+### 4.2 轴只写在顶层
 
-仍允许把轴写在 `enumerate` / `price_factor` / `portfolio` 块下，便于阅读或标注默认轴归属：
-
-```python
-attribution = {
-    "enumerate": {
-        "inputs": {
-            "rsi_oversold_threshold": {"values": [20, 25]},
-            "stop_loss": {
-                "values": [
-                    None,
-                    {"stages": [{"ratio": -0.2, "close_invest": True}]},
-                ],
-            },
-        },
-        "cross": False,
-    },
-    "price_factor": {
-        "inputs": {
-            "opportunity_merge_gap": {"values": [1, 3]},
-        },
-    },
-    "portfolio": {
-        "inputs": {
-            "max_portfolio_size": {"values": [10, 20]},
-        },
-    },
-}
-```
-
-**硬规则：** 无论轴写在哪一块，`sea` / `spa` / `soa` **必须合并为同一套副本身份**再 plan / execute。`cross` 若分块出现，以战役级一次展格为准（建议只在一处声明；冲突则校验失败）。
+轴写在顶层 `inputs`。不要写 `enumerate` / `price_factor` / `portfolio` 配置块，也不要写 `versions` 选号或 `shap`。
 
 规则摘要：
 
-- 参数战役只认 `inputs`（顶层或各层块）、可选 `cross`、可选 `joint_sweep`。**不认** `overlays`、`matrix`。
+- 参数战役只认顶层 `inputs`、可选 `cross`、可选 `joint_sweep`。**不认** `overlays`、`matrix`、分层 inputs、`versions`、`shap`。
 - 每个轴的取值可以是 `{"values": [...]}`，也可以是 `{"values": {"range": [start, end], "step": n}}`。`range` 两端包含且须升序，`step` 为正，终点必须落在步长上；读配置时展开成列表。`None`、结构体和不均匀档位仍用列表。
-- `cross` 默认 `false`（单因素多档）。`true` 时对**合并后的**各轴做笛卡尔积（一般不推荐）。
-- `joint_sweep` 为轴子集小矩阵；优先于「全轴 cross」用于交互排查。
-- `shap`：价格层单笔 XGB+SHAP 附录，**默认 `false`**；需要时写 `shap: true`。
+- `cross` 默认 `false`（单因素多档）。`true` 时对各轴做笛卡尔积。全轴 cross 的报告口径还没定，先不要当完成功能。
+- `joint_sweep` 为轴子集小矩阵，用来看两个轴一起变。
 - 现场量不必在 `attribution.py` 再声明。
-- `versions` 选号、`rolling.windows` 滚动仍见 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md)。
+- `rolling.windows` 滚动仍见 [ATTRIBUTION_CAMPAIGN.md](./ATTRIBUTION_CAMPAIGN.md)，口径未定。
 - 不要写 `steps`；层由 CLI 决定执行深度与因变量，不决定另一套副本。
 
 ### 4.3 短名与路径

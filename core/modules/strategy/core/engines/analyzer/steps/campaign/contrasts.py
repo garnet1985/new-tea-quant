@@ -1,4 +1,4 @@
-"""在有效设置上区分旋钮的有无和取值变化。写成 None 表示关掉，省略键表示继承快照。"""
+"""读取旋钮有效值。写成 None 表示关掉，省略键表示继承快照。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence
@@ -12,7 +12,7 @@ _EQUAL_EPS = 1e-12
 
 
 class KnobContrasts:
-    """读取旋钮的有效值，并区分关掉和改取值。不按层过滤。"""
+    """读取旋钮的有效值。不按层过滤。"""
 
     @classmethod
     def declared_positions(cls, overlay: Mapping[str, Any]) -> Dict[str, Any]:
@@ -106,27 +106,6 @@ class KnobContrasts:
         return left == right
 
     @classmethod
-    def classify(cls, rows: Sequence[Mapping[str, Any]]) -> Dict[str, List[str]]:
-        """在有效值上分类：有/无 → 贡献度；取值变化 → 敏感度。可同属两章。"""
-        paths = cls._union_knob_keys(rows)
-        presence: List[str] = []
-        sensitivity: List[str] = []
-        for path in paths:
-            values = [
-                (row.get("knobs") or {}).get(path)
-                if isinstance(row.get("knobs"), dict)
-                else None
-                for row in rows
-            ]
-            offs = [cls.is_off(value) for value in values]
-            if any(offs) and not all(offs):
-                presence.append(path)
-            on_values = [value for value, off in zip(values, offs) if not off]
-            if cls._distinct_count(on_values) >= 2:
-                sensitivity.append(path)
-        return {"presence": presence, "sensitivity": sensitivity}
-
-    @classmethod
     def _walk_leaves(cls, obj: Any, prefix: str, out: Dict[str, Any]) -> None:
         if isinstance(obj, Mapping):
             if not obj:
@@ -136,26 +115,3 @@ class KnobContrasts:
                 cls._walk_leaves(val, f"{prefix}.{key}", out)
             return
         out[prefix] = obj
-
-    @classmethod
-    def _union_knob_keys(cls, rows: Sequence[Mapping[str, Any]]) -> List[str]:
-        keys: List[str] = []
-        seen = set()
-        for row in rows:
-            knobs = row.get("knobs") if isinstance(row.get("knobs"), dict) else {}
-            for key in knobs:
-                text = str(key)
-                if text in seen:
-                    continue
-                seen.add(text)
-                keys.append(text)
-        return keys
-
-    @classmethod
-    def _distinct_count(cls, values: Sequence[Any]) -> int:
-        unique: List[Any] = []
-        for value in values:
-            if any(cls.values_equal(value, seen) for seen in unique):
-                continue
-            unique.append(value)
-        return len(unique)

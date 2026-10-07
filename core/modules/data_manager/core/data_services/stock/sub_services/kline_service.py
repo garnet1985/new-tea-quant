@@ -371,7 +371,7 @@ class KlineService(BaseDataService):
         
         Args:
             stock_id: 股票代码
-            settings: 配置字典，包含 terms、allow_negative_records 等（``adjust`` 已忽略）
+            settings: 配置字典，包含 terms、allow_negative_records 等
             
         Returns:
             Dict[term, List[Dict]]: 各周期的K线数据
@@ -405,7 +405,6 @@ class KlineService(BaseDataService):
         term: str = 'daily',
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        adjust: str = 'qfq',
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         批量加载多个股票的K线数据（优化：一次查询所有股票）
@@ -415,14 +414,12 @@ class KlineService(BaseDataService):
             term: 周期（daily/weekly/monthly）
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
-            adjust: 已忽略（兼容旧调用）。一律返回前复权顶层 + ``raw`` / ``hfq`` / ``adj_factor``
             
         Returns:
-            Dict[stock_id, List[Dict]]: 每只股票的K线数据字典
+            Dict[stock_id, List[Dict]]: 每只股票的前复权 K 线，行内带 ``raw`` / ``hfq`` / ``adj_factor``
         """
         if not stock_ids:
             return {}
-        _ = adjust
         
         # 统一日期格式
         start_date = self._normalize_date(start_date)
@@ -582,7 +579,6 @@ class KlineService(BaseDataService):
         term: str = 'daily', 
         start_date: Optional[str] = None, 
         end_date: Optional[str] = None,
-        adjust: str = 'qfq', 
         as_dataframe: bool = False
     ) -> Union[List[Dict], Any]:
         """
@@ -593,14 +589,12 @@ class KlineService(BaseDataService):
             term: 周期（daily/weekly/monthly）
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
-            adjust: 已忽略（兼容旧调用）。只要未复权请用 ``load_raw``
             as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
             
         Returns:
-            DataFrame or List[Dict]: K线数据
+            DataFrame or List[Dict]: K线数据。未复权用 ``load_raw``。
         """
         result = self.load_qfq(stock_id, term, start_date, end_date)
-        _ = adjust
         
         if as_dataframe:
             import pandas as pd

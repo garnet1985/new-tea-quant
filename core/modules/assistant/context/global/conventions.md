@@ -109,7 +109,7 @@ summary: NTQ 的路径、命名、CLI 缩写与配置合并约定。
 
 - 加载时会对缺块补默认，省略某些块也能跑；新建仍应用模板写全（`data` / `goal` / `simulation` / `portfolio` / `fees`），不要只留 `meta.key`
 
-- 不要写 `data.base.params.adjust`：该字段会被剥掉。钩子里顶层 `open/close` 已是前复权
+- 钩子里顶层 `open/close` 已是前复权
 
 ## CLI 命令规范
 

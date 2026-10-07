@@ -31,9 +31,6 @@ from pathlib import Path
 
 from core.infra.db.contracts import DatabaseManager
 from core.infra.discovery import Discovery
-
-# Loaders 已废弃，不再导入
-# 所有功能已迁移到 data_services
 from core.infra.project_context import ProjectContext
 from core.modules.data_manager.core.sample_universe.sample_universe import SampleUniverse
 

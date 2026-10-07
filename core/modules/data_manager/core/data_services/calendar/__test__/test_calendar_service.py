@@ -72,6 +72,38 @@ def test_get_latest_completed_falls_back_without_config():
         assert svc.get_latest_completed_trading_date(as_of_date="20250524") == "20250520"
 
 
+def test_get_next_trading_date_reads_calendar():
+    cal = MagicMock()
+    cal.load_next_open_date_after.return_value = "20240103"
+    svc = _service_with_calendar(cal)
+
+    assert svc.get_next_trading_date("20240102") == "20240103"
+    cal.load_next_open_date_after.assert_called_once_with("20240102", market="SSE")
+
+
+def test_get_next_trading_date_raises_when_calendar_has_no_later_open_day():
+    cal = MagicMock()
+    cal.load_next_open_date_after.return_value = ""
+    svc = _service_with_calendar(cal)
+
+    with pytest.raises(ValueError, match="没有 20240102 之后的开市日"):
+        svc.get_next_trading_date("20240102")
+
+
+def test_tag_next_trading_date_uses_calendar():
+    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
+        TagDataService,
+    )
+
+    dm = MagicMock()
+    dm.calendar.get_next_trading_date.return_value = "20240103"
+    svc = TagDataService.__new__(TagDataService)
+    svc.data_manager = dm
+
+    assert svc.get_next_trading_date("20240102") == "20240103"
+    dm.calendar.get_next_trading_date.assert_called_once_with("20240102")
+
+
 def test_fetch_with_fallback_uses_registered_fetcher():
     cal = MagicMock()
     svc = _service_with_calendar(cal)

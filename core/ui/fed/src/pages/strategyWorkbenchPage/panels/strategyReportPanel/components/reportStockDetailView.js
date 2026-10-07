@@ -75,7 +75,6 @@ function ReportStockDetailView({
         versionId,
         stockId: stockCode,
         term: params.term,
-        adjust: params.adjust,
         startDate: bp.start_date,
         endDate: bp.end_date,
       });

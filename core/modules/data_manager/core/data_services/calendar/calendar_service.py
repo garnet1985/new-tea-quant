@@ -242,6 +242,20 @@ class CalendarService(BaseDataService):
                 out.append(d)
         return out
 
+    def get_next_trading_date(self, date: str, *, market: str = "SSE") -> str:
+        """``date`` 之后的下一个开市日（``sys_trade_calendar``，``is_open=1``）。"""
+        anchor = str(date or "").strip()
+        if not anchor:
+            raise ValueError("获取下一个交易日失败：日期为空")
+        if not self._trade_calendar:
+            raise RuntimeError("sys_trade_calendar 未注册")
+        nxt = str(
+            self._trade_calendar.load_next_open_date_after(anchor, market=market) or ""
+        ).strip()
+        if not nxt:
+            raise ValueError(f"sys_trade_calendar 中没有 {anchor} 之后的开市日")
+        return nxt
+
     def get_real_world_latest_completed_trading_date(self) -> str:
         """
         真实世界最新已完成交易日（网络侧，不读 ``sys_trade_calendar``）。

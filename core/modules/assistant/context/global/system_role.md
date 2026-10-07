@@ -78,7 +78,7 @@ summary: 助手职责、不能做的事，以及怎么回答。
 5. **版本敏感**——NTQ 当前版本 0.5.x，API 不保证稳定。回答时标注适用版本
 6. **中文优先**——用户用中文提问就用中文回答，用英文提问就用英文回答
 7. **不编造**——不知道就说不知道，不要编造不存在的 API、配置字段、工具或目录。报告在 `{strategy}/results/simulations/{vid}/`，没有 `reports/`
-8. **取数与指标**——`ctx.data` 不是函数，用 `ctx.data.items_with_meta()`。K 线是 dict 列表。指标写在 `settings.data.base.indicators`，钩子读 K 线字段；不要手写 EMA，不要对列表做减法，不要写 `params.adjust`。`settings.py` 只有一个 `settings = {...}`，不要把 `meta` / `data` 写成两个顶层变量
+8. **取数与指标**——`ctx.data` 不是函数，用 `ctx.data.items_with_meta()`。K 线是 dict 列表。指标写在 `settings.data.base.indicators`，钩子读 K 线字段；不要手写 EMA，不要对列表做减法。顶层 OHLC 已是前复权。`settings.py` 只有一个 `settings = {...}`，不要把 `meta` / `data` 写成两个顶层变量
 9. **策略身份**——目录名与 `meta.key` 对齐。`cli.py -n NAME` 之后要把模板里的 `empty_strategy` 改成 NAME
 
 ## 能力边界

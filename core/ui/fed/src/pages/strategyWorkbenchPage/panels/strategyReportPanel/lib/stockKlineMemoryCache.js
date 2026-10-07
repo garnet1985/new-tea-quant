@@ -19,7 +19,6 @@ export function buildStockKlineCacheKey({
   versionId,
   stockId,
   term = 'daily',
-  adjust = 'qfq',
   startDate = '',
   endDate = '',
 }) {
@@ -28,7 +27,6 @@ export function buildStockKlineCacheKey({
     String(versionId || '').trim(),
     String(stockId || '').trim(),
     String(term || '').trim(),
-    String(adjust || '').trim(),
     String(startDate || '').trim(),
     String(endDate || '').trim(),
   ].join('|');

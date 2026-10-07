@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
-import { Stack, Typography } from '@mui/material';
+import TipLabel from 'views/tipLabel';
 import './style.scss';
 
 /**
@@ -32,17 +31,15 @@ export default function EditorFieldGroup({
   return (
     <div className={rootClass}>
       {label ? (
-        <Stack
-          direction="row"
-          spacing={0.5}
-          alignItems="center"
+        <TipLabel
+          tip={tooltip}
+          shine={shine}
+          component="h3"
           className="ntq-editor-field-group__title"
+          textClassName="ntq-editor-field-group__title-text"
         >
-          <Typography component="h3" className="ntq-editor-field-group__title-text">
-            {label}
-          </Typography>
-          {tooltip ? <NtqHelpTooltip title={tooltip} shine={shine} /> : null}
-        </Stack>
+          {label}
+        </TipLabel>
       ) : null}
       <div className={bodyClass}>{children}</div>
     </div>

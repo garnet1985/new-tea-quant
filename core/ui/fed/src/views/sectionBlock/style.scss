@@ -11,22 +11,10 @@
   gap: 8px;
 }
 
-.ntq-section-block__head,
-.ntq-section-title {
+.ntq-section-block__head {
   display: flex;
   flex-direction: row;
   align-items: center;
-}
-
-.ntq-section-block__head {
   justify-content: space-between;
   gap: 8px;
-}
-
-.ntq-section-title {
-  gap: 4px;
-}
-
-.ntq-section-title__text {
-  font-weight: 700;
 }

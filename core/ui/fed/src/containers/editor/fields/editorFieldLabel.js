@@ -1,6 +1,6 @@
 import React from 'react';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
-import { Stack, Typography } from '@mui/material';
+import { Stack } from '@mui/material';
+import TipLabel from 'views/tipLabel';
 
 /** 标签与下方控件（Select / Input 等）的间距（theme spacing 单位） */
 export const EDITOR_FIELD_LABEL_MB = 1;
@@ -17,9 +17,10 @@ export default function EditorFieldLabel({
   const shine = field.tooltipShine ?? context?.defaultTooltipShine ?? false;
 
   return (
-    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: EDITOR_FIELD_LABEL_MB, ...sx }}>
-      <Typography variant="body2">{field.label}</Typography>
-      {title ? <NtqHelpTooltip title={title} shine={shine} /> : null}
+    <Stack sx={{ mb: EDITOR_FIELD_LABEL_MB, ...sx }}>
+      <TipLabel variant="field" tip={title} shine={shine}>
+        {field.label}
+      </TipLabel>
     </Stack>
   );
 }

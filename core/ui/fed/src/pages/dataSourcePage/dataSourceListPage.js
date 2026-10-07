@@ -25,7 +25,7 @@ import NtqButton from '../../views/ntqButton';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import NtqIcon from '../../views/ntqIcon';
-import NtqRainbowRunButton from '../../views/ntqRainbowRunButton';
+import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
 import { showToast } from 'containers/toast';
@@ -161,9 +161,10 @@ function DataSourceListPage() {
         return (
           <Tooltip title={title}>
             <span className="data-source-list-update-btn-wrap">
-              <NtqRainbowRunButton
+              <RainbowButton
+                icon="play"
                 disabled={!canUpdate}
-                ariaLabel="更新数据源"
+                aria-label="更新数据源"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!canUpdate) return;

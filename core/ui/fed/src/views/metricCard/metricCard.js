@@ -1,16 +1,15 @@
 import React from 'react';
 import { Typography } from '@mui/material';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import TipLabel from 'views/tipLabel';
 import './style.scss';
 
 function MetricCard({ title, value, hint, titleTip }) {
   return (
     <div className="ntq-metric-card">
       <div className="ntq-metric-card__body">
-        <div className="ntq-metric-card__title">
-          <Typography variant="caption" color="text.secondary">{title}</Typography>
-          {titleTip ? <NtqHelpTooltip title={titleTip} /> : null}
-        </div>
+        <TipLabel variant="caption" tip={titleTip}>
+          {title}
+        </TipLabel>
         <Typography variant="h6" className="ntq-metric-card__value">
           {value}
         </Typography>

@@ -73,12 +73,8 @@ function SectionAccordion({
   context = {},
   helpTarget = '',
 }) {
-  const summaryTitle = tooltip ? (
+  const summaryTitle = (
     <SettingsAccordionTitle title={title} tooltip={tooltip} context={context} />
-  ) : (
-    <Typography component="span" fontWeight={600}>
-      {title}
-    </Typography>
   );
 
   return (

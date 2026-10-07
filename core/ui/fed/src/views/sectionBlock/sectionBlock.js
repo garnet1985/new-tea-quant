@@ -1,14 +1,12 @@
 import React from 'react';
-import { Typography } from '@mui/material';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import TipLabel from 'views/tipLabel';
 import './style.scss';
 
 function SectionTitle({ title, tip }) {
   return (
-    <div className="ntq-section-title">
-      <Typography variant="subtitle2" className="ntq-section-title__text">{title}</Typography>
-      {tip ? <NtqHelpTooltip title={tip} /> : null}
-    </div>
+    <TipLabel variant="section" tip={tip}>
+      {title}
+    </TipLabel>
   );
 }
 

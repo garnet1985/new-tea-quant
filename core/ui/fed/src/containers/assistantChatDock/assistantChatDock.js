@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { IconButton } from '@mui/material';
 import NtqIcon from 'views/ntqIcon';
+import RainbowButton from 'views/rainbowButton';
 import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
 import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
@@ -170,28 +171,17 @@ function AssistantChatDock() {
   return (
     <div className="ntq-assistant-dock">
       <div className="ntq-assistant-dock__fab-slot">
-        <IconButton
-          className={['ntq-assistant-dock__fab', open ? 'is-open' : ''].filter(Boolean).join(' ')}
+        <RainbowButton
+          size="lg"
+          glow
+          quiet={open}
+          mark={open ? '' : 'ai'}
+          icon={open ? 'cancel' : ''}
           onClick={toggleOpen}
           aria-label={open ? '关闭新茶' : '打开新茶'}
           aria-expanded={open}
           aria-controls="ntq-assistant-dialog"
-          disableRipple
-        >
-          <span className="ntq-assistant-dock__fab-glow" aria-hidden />
-          <span className="ntq-assistant-dock__fab-ring" aria-hidden />
-          <span className="ntq-assistant-dock__fab-icon">
-            {open ? (
-              <NtqIcon name="cancel" size={22} />
-            ) : (
-              <span className="ntq-assistant-dock__fab-ai-wrap" aria-hidden>
-                <span className="ntq-assistant-dock__fab-spark ntq-assistant-dock__fab-spark--a" />
-                <span className="ntq-assistant-dock__fab-spark ntq-assistant-dock__fab-spark--b" />
-                <span className="ntq-assistant-dock__fab-ai">AI</span>
-              </span>
-            )}
-          </span>
-        </IconButton>
+        />
       </div>
 
       {open ? (

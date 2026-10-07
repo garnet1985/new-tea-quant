@@ -112,28 +112,3 @@
   }
 }
 
-.ntq-design-exec-panel__step-nav-btn {
-  flex: 0 0 auto;
-  height: 44px;
-  min-width: 88px;
-  padding: 0 16px !important;
-  border-radius: 14px !important;
-  text-transform: none;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1;
-  border: 2px solid rgba(255, 255, 255, 0.32) !important;
-  color: rgba(255, 255, 255, 0.88) !important;
-  box-shadow: none !important;
-
-  &:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.38) !important;
-    background: rgba(12, 12, 28, 0.96) !important;
-  }
-
-  &.Mui-disabled {
-    color: rgba(255, 255, 255, 0.28) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    background: rgba(6, 6, 18, 0.72) !important;
-  }
-}

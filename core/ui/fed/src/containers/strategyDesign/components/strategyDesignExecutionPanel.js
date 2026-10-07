@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { Box, Button, LinearProgress, Tooltip, Typography } from '@mui/material';
+import { Box, LinearProgress, Tooltip, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import {
@@ -8,7 +8,7 @@ import {
 } from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from 'containers/strategyExecution';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
-import StrategyDesignSimulateButton from './strategyDesignSimulateButton';
+import RainbowButton from 'views/rainbowButton';
 import './strategyDesignExecutionPanel.scss';
 
 const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
@@ -146,15 +146,17 @@ function StrategyDesignExecutionPanel() {
     ? (wb.attributeTooltip || ATTRIBUTE_IDLE_TOOLTIP)
     : '';
   const attributeButton = showAttributeButton ? (
-    <StrategyDesignSimulateButton
-      done={attributeDone}
+    <RainbowButton
+      shape="pill"
+      icon={attributeDone ? 'refresh' : 'play'}
+      shimmer
       disabled={wb.disableMetaActions || panelBusy || !wb.attributeEnabled}
       onClick={wb.handleAttributeRun}
-      runLabel="开始归因"
-      rerunLabel="重新归因"
-      compact
-      helpTarget="start-attribution"
-    />
+      aria-label={attributeDone ? '重新归因' : '开始归因'}
+      data-ntq-help="start-attribution"
+    >
+      {attributeDone ? '重新归因' : '开始归因'}
+    </RainbowButton>
   ) : null;
 
   const attributeControl = attributeButton && attributeHowTo ? (
@@ -186,37 +188,37 @@ function StrategyDesignExecutionPanel() {
 
       <Box className="ntq-design-exec-panel__body">
         <Box className="ntq-design-exec-panel__actions">
-          <StrategyDesignSimulateButton
-            done={currentStepDone}
+          <RainbowButton
+            shape="pill"
+            icon={currentStepDone ? 'refresh' : 'play'}
+            shimmer
             disabled={wb.disableMetaActions || panelBusy}
             onClick={wb.handleRunCurrentStep}
-            compact
-            helpTarget="start-simulation"
-          />
+            aria-label={currentStepDone ? '重新模拟' : '开始模拟'}
+            data-ntq-help="start-simulation"
+          >
+            {currentStepDone ? '重新模拟' : '开始模拟'}
+          </RainbowButton>
           {attributeControl}
           {prevStep ? (
-            <Button
-              type="button"
-              variant="outlined"
-              size="small"
-              className="ntq-design-exec-panel__step-nav-btn"
+            <RainbowButton
+              shape="pill"
+              ring="plain"
               disabled={wb.disableMetaActions || panelBusy}
               onClick={handleGoPrevStep}
             >
               上一步
-            </Button>
+            </RainbowButton>
           ) : null}
           {nextStep ? (
-            <Button
-              type="button"
-              variant="outlined"
-              size="small"
-              className="ntq-design-exec-panel__step-nav-btn"
+            <RainbowButton
+              shape="pill"
+              ring="plain"
               disabled={!currentStepDone || panelBusy}
               onClick={handleGoNextStep}
             >
               下一步
-            </Button>
+            </RainbowButton>
           ) : null}
         </Box>
 

@@ -16,8 +16,8 @@ import {
   Typography,
 } from '@mui/material';
 import ChartPanel from 'views/chartPanel';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
 import NtqIcon from 'views/ntqIcon';
+import TipLabel from 'views/tipLabel';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
@@ -580,21 +580,15 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
       ) : null}
       {usableRank.length ? (
         <Box>
-          <Stack
-            direction="row"
-            spacing={0.75}
-            alignItems="center"
+          <TipLabel
+            tip={`当其余参数不变，只变动当前的参数时，「${outcomeLabel}」在不同取值间的差异，影响程度以及最优的取值。`}
+            shine
+            component="h3"
             className="ntq-design-attr-report__rank-heading-row"
+            textClassName="ntq-design-attr-report__rank-heading"
           >
-            <Typography component="h3" className="ntq-design-attr-report__rank-heading">
-              敏感度排名
-            </Typography>
-            <NtqHelpTooltip
-              title={`当其余参数不变，只变动当前的参数时，「${outcomeLabel}」在不同取值间的差异，影响程度以及最优的取值。`}
-              shine
-              placement="top"
-            />
-          </Stack>
+            敏感度排名
+          </TipLabel>
           <Box className="ntq-design-attr-report__table-wrap">
             <Table size="small">
               <TableHead>
@@ -631,21 +625,15 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
         const trend = trendForSweep(sweep, sections);
         return (
           <Box key={sweep.knob || sweep.knob_label} className="ntq-design-attr-report__sweep-block">
-            <Stack
-              direction="row"
-              spacing={0.75}
-              alignItems="center"
+            <TipLabel
+              tip={`只改这个参数时，「${metricLabel}」怎么变`}
+              shine
+              component="h3"
               className="ntq-design-attr-report__sweep-head"
+              textClassName="ntq-design-attr-report__sweep-title"
             >
-              <Typography component="h3" className="ntq-design-attr-report__sweep-title">
-                {`参数 ${index + 1}: ${knobLabel}`}
-              </Typography>
-              <NtqHelpTooltip
-                title={`只改这个参数时，「${metricLabel}」怎么变`}
-                shine
-                placement="top"
-              />
-            </Stack>
+              {`参数 ${index + 1}: ${knobLabel}`}
+            </TipLabel>
             <SweepCurve sweep={sweep} />
             {trend ? (
               <Typography variant="body2" className="ntq-design-attr-report__sweep-trend">

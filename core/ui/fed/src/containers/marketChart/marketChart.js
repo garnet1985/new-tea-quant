@@ -1,7 +1,7 @@
 import React from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import TipLabel from 'views/tipLabel';
 import { buildMarketChartOption } from './buildMarketChartOption';
 
 /**
@@ -32,14 +32,9 @@ function MarketChart({
         ...sx,
       }}
     >
-      {title || tip ? (
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
-          {title ? (
-            <Typography variant="caption" color="text.secondary">{title}</Typography>
-          ) : null}
-          {tip ? <NtqHelpTooltip title={tip} /> : null}
-        </Stack>
-      ) : null}
+      <TipLabel variant="caption" tip={tip} className="ntq-tip-label--below">
+        {title}
+      </TipLabel>
       {note ? (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {note}

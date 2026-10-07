@@ -1,7 +1,7 @@
 import React from 'react';
 import { Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import TipLabel from 'views/tipLabel';
 import './style.scss';
 
 /** 带标题 / 说明的报告内嵌图。无 option 且无 fallback 时不渲染。 */
@@ -24,14 +24,9 @@ function ChartPanel({
   ].filter(Boolean).join(' ');
   return (
     <div className={rootClass}>
-      {title || tip ? (
-        <div className="ntq-chart-panel__title">
-          {title ? (
-            <Typography variant="caption" color="text.secondary">{title}</Typography>
-          ) : null}
-          {tip ? <NtqHelpTooltip title={tip} /> : null}
-        </div>
-      ) : null}
+      <TipLabel variant="caption" tip={tip} className="ntq-tip-label--below">
+        {title}
+      </TipLabel>
       {note ? (
         <Typography variant="caption" color="text.secondary" className="ntq-chart-panel__note">
           {note}

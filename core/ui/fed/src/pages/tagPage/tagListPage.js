@@ -28,7 +28,7 @@ import NtqHelpTooltip from '../../views/ntqHelpTooltip';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import NtqIcon from '../../views/ntqIcon';
-import NtqRainbowRunButton from '../../views/ntqRainbowRunButton';
+import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
 import { showToast } from 'containers/toast';
@@ -231,9 +231,10 @@ function TagListPage() {
         return (
           <Tooltip title={title}>
             <span className="tag-list-run-btn-wrap">
-              <NtqRainbowRunButton
+              <RainbowButton
+                icon="play"
                 disabled={disableRun}
-                ariaLabel="运行 Tag 计算"
+                aria-label="运行 Tag 计算"
                 onClick={(e) => {
                   e.stopPropagation();
                   setRunningTagId(id);

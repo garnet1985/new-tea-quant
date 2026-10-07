@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Stack, Typography } from '@mui/material';
-import { splitStrategyDescription } from '../../utils/formatStrategyDescription';
+import { splitStrategyDescription } from '../../services/utils/formatStrategyDescription';
 
 function StrategyDescriptionText({
   text = '',

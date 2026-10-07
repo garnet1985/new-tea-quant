@@ -38,8 +38,8 @@ import StrategyDescriptionText from '../../components/strategyDescriptionText/st
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
-import { notifyTaskSuccess } from '../../utils/feedbackPromptBus';
-import { formatDateTime } from '../../utils/formatDateTime';
+import { notifyTaskSuccess } from '../../services/utils/feedbackPromptBus';
+import { formatDateTime } from '../../services/utils/formatDateTime';
 import './scanPage.scss';
 
 const SHOW_REPORT_GENERATED_AT = false;

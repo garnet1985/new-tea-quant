@@ -1,4 +1,4 @@
-import logClientError from '../../../utils/logClientError';
+import logClientError from '../../../services/utils/logClientError';
 
 const ACTIVE_RUN_STORAGE_PREFIX = 'ntq-design-active-run';
 

@@ -1,5 +1,5 @@
 import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
-import logClientError from '../../utils/logClientError';
+import logClientError from '../../services/utils/logClientError';
 
 const IDLE_STEP_STATUS = { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' };
 

@@ -1,6 +1,6 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
-import { coerceMetaDescription } from '../utils/formatStrategyDescription';
-import { normalizeWorkbenchVersionId } from '../utils/workbenchVersionId';
+import { coerceMetaDescription } from '../services/utils/formatStrategyDescription';
+import { normalizeWorkbenchVersionId } from '../services/utils/workbenchVersionId';
 import { mapDataEnd } from './mappers/dataEnd';
 
 export {

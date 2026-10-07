@@ -1,5 +1,5 @@
-import hljs from 'vendor/highlight';
-import 'vendor/highlight/atom-one-dark.min.css';
+import hljs from 'assets/vendor/highlight';
+import 'assets/vendor/highlight/atom-one-dark.min.css';
 
 const LANG_ALIAS = {
   py: 'python',

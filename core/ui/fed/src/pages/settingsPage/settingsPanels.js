@@ -26,7 +26,7 @@ import {
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { formatDateTime } from '../../utils/formatDateTime';
+import { formatDateTime } from '../../services/utils/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';

@@ -1,4 +1,4 @@
-import { formatDateTime, formatVersionPickTime } from '../../utils/formatDateTime';
+import { formatDateTime, formatVersionPickTime } from '../../services/utils/formatDateTime';
 
 export const VERSION_MARK_READONLY = '仅供查阅';
 export const VERSION_MARK_EXPIRES_SOON = '即将清理';

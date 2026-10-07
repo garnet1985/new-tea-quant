@@ -13,7 +13,7 @@ import {
   deleteStrategyVersion,
   revealStrategyFolder,
 } from '../../../api/strategyApi';
-import { stripRuntimeStrategySettings } from '../../../utils/stripRuntimeStrategySettings';
+import { stripRuntimeStrategySettings } from '../../../services/utils/stripRuntimeStrategySettings';
 import { isFingerprintEqual } from '../lib/strategySettingsFingerprint';
 import {
   isDraftDirty,
@@ -32,12 +32,12 @@ import {
   buildWorkbenchExecutionHydrationFromSnapshot,
   mergeHydratedStepStatus,
 } from '../../strategyWorkbenchPage/workbenchExecutionHydration';
-import { normalizeWorkbenchVersionId, parseWorkbenchVersionNumber } from '../../../utils/workbenchVersionId';
+import { normalizeWorkbenchVersionId, parseWorkbenchVersionNumber } from '../../../services/utils/workbenchVersionId';
 import {
   buildWorkbenchSnapshotFromSettingsResponse,
   emptyWorkbenchSnapshot,
 } from '../../strategyWorkbenchPage/workbenchSnapshot';
-import logClientError from '../../../utils/logClientError';
+import logClientError from '../../../services/utils/logClientError';
 import {
   buildWorkbenchSnapshotFromVersionDetail,
   workbenchPageStateFromVersionDetail,

@@ -1,4 +1,4 @@
-import { coerceMetaDescription } from '../../../../../utils/formatStrategyDescription';
+import { coerceMetaDescription } from '../../../../../services/utils/formatStrategyDescription';
 
 export function normalizeMeta(rawMeta, rootSettings = {}) {
   const meta = rawMeta && typeof rawMeta === 'object' ? rawMeta : {};

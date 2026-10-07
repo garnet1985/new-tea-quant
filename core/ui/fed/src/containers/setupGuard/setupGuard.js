@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Alert, Button, Stack } from '@mui/material';
-import { getSetupStatus } from '../api/setupApi';
-import { fetchTraceSettings } from '../api/settingsApi';
+import { Alert, Button } from '@mui/material';
+import { getSetupStatus } from 'api/setupApi';
+import { fetchTraceSettings } from 'api/settingsApi';
 import PageLoadingState from 'views/pageLoadingState';
+import './style.scss';
 
 function SetupGuard({ children }) {
   const [loading, setLoading] = useState(true);
@@ -49,12 +50,12 @@ function SetupGuard({ children }) {
 
   if (loadError) {
     return (
-      <Stack spacing={2} sx={{ maxWidth: 480, mx: 'auto', py: 8, px: 2 }}>
+      <div className="ntq-setup-guard-error">
         <Alert severity="error">{loadError}</Alert>
-        <Button variant="contained" onClick={retry} sx={{ alignSelf: 'flex-start' }}>
+        <Button variant="contained" onClick={retry} className="ntq-setup-guard-error__retry">
           重试
         </Button>
-      </Stack>
+      </div>
     );
   }
 

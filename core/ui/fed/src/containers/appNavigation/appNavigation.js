@@ -10,10 +10,9 @@ import {
   Typography,
   Stack,
 } from '@mui/material';
-import { ReactComponent as FallbackLogo } from 'views/ntqIcon/icons/tactic.svg';
 import NtqIcon from 'views/ntqIcon';
-import { useAppVersion } from '../hooks/useAppVersion';
-import './appNavigation.scss';
+import { useAppVersion } from 'hooks/useAppVersion';
+import './style.scss';
 
 /** 主流程导航（不含高级下拉 / 反馈外链） */
 const primaryNavItems = [
@@ -107,7 +106,6 @@ function AppNavigation() {
       color="transparent"
       elevation={0}
       className="ntq-app-header"
-      sx={{ overflow: 'visible' }}
     >
       <Toolbar disableGutters className="ntq-app-header__toolbar">
         <Box className="ntq-content-inner">
@@ -119,7 +117,7 @@ function AppNavigation() {
               aria-label="返回 New Tea Quant 首页"
             >
               {logoFailed ? (
-                <FallbackLogo className="ntq-brand__logo" />
+                <NtqIcon name="tactic" size={50} />
               ) : (
                 <Box
                   component="img"

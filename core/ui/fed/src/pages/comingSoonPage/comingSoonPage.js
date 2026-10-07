@@ -3,7 +3,7 @@ import { Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import PageLayout from '../../views/pageLayout';
 
 /**
- * 导航中尚未实装的入口页：全宽由 MainLayout 的 main 已套 ntq-content-inner
+ * 导航中尚未实装的入口页：全宽由 AppShell 的 main 已套 ntq-content-inner
  */
 function ComingSoonPage({ title, description }) {
   const desc = description || '该功能正在规划中，即将与桌面端工作流对接。';

@@ -8,8 +8,8 @@ import {
   Link,
   Typography,
 } from '@mui/material';
-import { ReactComponent as FallbackLogo } from 'views/ntqIcon/icons/tactic.svg';
-import './traceConsentAskOverlay.scss';
+import NtqIcon from 'views/ntqIcon';
+import './style.scss';
 
 /**
  * 全屏询问是否同意匿名使用统计。安装最后一步 `/setup/trace` 复用此面板。
@@ -39,7 +39,7 @@ function TraceConsentAskOverlay({
       <Box className="trace-consent-ask-overlay__panel">
         <Box className="trace-consent-ask-overlay__brand">
           {logoFailed ? (
-            <FallbackLogo className="trace-consent-ask-overlay__logo" aria-hidden />
+            <NtqIcon name="tactic" size={64} />
           ) : (
             <Box
               component="img"

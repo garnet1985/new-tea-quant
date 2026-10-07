@@ -35,7 +35,7 @@ core/ui/
     ├── api/
     ├── assets/
     ├── components/
-    ├── layouts/
+    ├── containers/
     ├── pages/
     ├── service/
     ├── styles/

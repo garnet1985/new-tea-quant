@@ -5,9 +5,9 @@ import { CssBaseline } from '@mui/material';
 import theme from './styles/theme';
 import SetupPage from './pages/setupPage';
 import SetupTracePage from './pages/setupPage/setupTracePage';
-import SetupGuard from 'components/setupGuard';
-import FeedbackPromptGuard from 'components/feedbackPromptGuard';
-import MainLayout from './layouts/mainLayout';
+import SetupGuard from 'containers/setupGuard';
+import FeedbackPromptGuard from 'containers/feedbackPrompt';
+import AppShell from 'containers/appShell';
 import WelcomePage from './pages/welcomePage';
 import StrategyListPage from './pages/strategyListPage';
 import { StrategyDesignLayout } from './pages/strategyDesignPage';
@@ -34,7 +34,7 @@ function App() {
             element={(
               <SetupGuard>
                 <FeedbackPromptGuard>
-                  <MainLayout />
+                  <AppShell />
                 </FeedbackPromptGuard>
               </SetupGuard>
             )}

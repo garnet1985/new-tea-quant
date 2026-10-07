@@ -17,7 +17,7 @@ import {
 } from './helpTarget';
 import GlobalHelperButton from './globalHelperButton';
 import GlobalHelperOverlay from './globalHelperOverlay';
-import './globalHelper.scss';
+import './style.scss';
 
 const CARD_FALLBACK = { width: 360, height: 220 };
 

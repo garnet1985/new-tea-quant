@@ -6,8 +6,8 @@ import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
 import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
 import { isHttpStatusError } from 'service/request';
-import { GLOBAL_HELPER_SESSION_EVENT } from 'components/globalHelper/helpTarget';
-import './assistantChatDock.scss';
+import { GLOBAL_HELPER_SESSION_EVENT } from 'containers/globalHelper';
+import './style.scss';
 
 function errorMessage(err, fallback) {
   if (isHttpStatusError(err) && err.message) return err.message;

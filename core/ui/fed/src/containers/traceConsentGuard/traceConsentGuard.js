@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { fetchTraceSettings, saveTraceSettings } from '../api/settingsApi';
-import TraceConsentAskOverlay from './traceConsentAskOverlay';
+import { fetchTraceSettings, saveTraceSettings } from 'api/settingsApi';
+import TraceConsentAskOverlay from 'views/traceConsentAskOverlay';
 
 /**
  * 尚未决定使用统计时全屏询问（挡住下方）。

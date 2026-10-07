@@ -212,7 +212,7 @@ POST 请求：
 | `catalog.js` | 把各页 help **推进数组**，以及匹配 / 关闭判断（不含文案） |
 | 页面组件 | 给 DOM 打 `data-ntq-help` |
 
-新页面要 help：新建 `helps/foo.js` → `export` 一份 help 对象 → 推进 `GLOBAL_HELPER_CATALOG` → 在目标控件上写 `data-ntq-help="…"`。Host 已挂在 `MainLayout`，不用再接一遍引擎。
+新页面要 help：新建 `helps/foo.js` → `export` 一份 help 对象 → 推进 `GLOBAL_HELPER_CATALOG` → 在目标控件上写 `data-ntq-help="…"`。Host 已挂在 `AppShell`，不用再接一遍引擎。
 
 - `id` 稳定、kebab-case、产品面命名，不是 path。
 - 未匹配任何 help 的页面：host 存在但不渲染按钮/遮罩。
@@ -223,7 +223,7 @@ POST 请求：
 
 ## 8. UI 行为
 
-- Host 挂在 `MainLayout`，与 `AssistantChatDock` 并列，不进 assistant 模块。
+- Host 挂在 `AppShell`，与 `AssistantChatDock` 并列，不进 assistant 模块。
 - Help 按钮：AI FAB 下方，同尺寸圆钮，无 glow / 无 aurora，图标 `help`。
 - 遮罩 z-index：高于导航与 AI（1250），低于 setup 同意（1400）。
 - 挖洞随 `getBoundingClientRect()`，resize / scroll 重算。

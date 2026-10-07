@@ -10,7 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import NtqIcon from 'views/ntqIcon';
-import './feedbackPromptOverlay.scss';
+import './style.scss';
 
 /**
  * Lightweight soft-feedback toast (bottom-right; not a consent gate).

@@ -1,4 +1,4 @@
-import { stripLegacyStrategySettingsForRun } from '../../../utils/stripLegacyStrategySettings';
+import { stripRuntimeStrategySettings } from '../../../utils/stripRuntimeStrategySettings';
 import { stableStringify } from './strategySettingsFingerprint';
 
 export const SETTINGS_CONFLICT_CODE = 'settings_conflict';
@@ -9,7 +9,7 @@ function cloneJson(value) {
 
 /** Persist / 脏检查用的可写回形态（与 Run 提交同一套 strip）。 */
 export function persistComparable(settings) {
-  return stripLegacyStrategySettingsForRun(
+  return stripRuntimeStrategySettings(
     cloneJson(settings && typeof settings === 'object' ? settings : {}),
   );
 }

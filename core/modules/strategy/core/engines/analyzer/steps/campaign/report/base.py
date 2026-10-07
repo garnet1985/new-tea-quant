@@ -10,7 +10,6 @@ from ..plan import AttributionCell, AttributionTask
 
 _FAMILY_LABELS = {
     "oaat": "参数对照",
-    "inputs": "参数对照",
     "cross": "交叉对照",
     "select": "选号",
 }
@@ -92,7 +91,6 @@ class ReportBase:
                 "n": attributed.get("n", 0),
                 "varying_knobs": attributed.get("varying_knobs") or [],
                 "layers": attributed.get("layers") or {},
-                "contributions": attributed.get("contributions") or {},
             },
         }
 
@@ -156,7 +154,7 @@ class ReportBase:
         report_body: Dict[str, Any] = {
             "headline": headline,
             "status": _merge_status(items),
-            "oaat": views.get("oaat") or views.get("inputs") or views.get("cross") or {},
+            "oaat": views.get("oaat") or views.get("cross") or {},
             "cross": views.get("cross") or {},
             "analysis_mode": analysis_mode,
         }
@@ -234,9 +232,6 @@ def _family_view(block: Mapping[str, Any]) -> Dict[str, Any]:
         "sweep_primary_outcome": nested.get("sweep_primary_outcome") or "",
         "joint_sweeps": nested.get("joint_sweeps") or [],
         "upstream_bridge": nested.get("upstream_bridge") or "",
-        "contributions": nested.get("contributions")
-        or (block.get("attribute") or {}).get("contributions")
-        or {},
     }
 
 
@@ -244,7 +239,7 @@ def _merge_sections(
     items: Sequence[tuple],
 ) -> tuple:
     """优先 oaat / cross 家族的 sections / sweeps / scope_note / analysis_mode。"""
-    preferred = ("oaat", "inputs", "cross", "select")
+    preferred = ("oaat", "cross", "select")
     by_name = {str(name): block for name, block in items}
     empty = ({}, "", "", [], [], "", [], "")
 

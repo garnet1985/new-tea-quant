@@ -14,7 +14,7 @@ _POSITION_EPS = 1e-9
 
 def _goal_exit_ratio(goal: Dict[str, Any]) -> float:
     try:
-        return float(goal.get("exit_ratio", goal.get("sell_ratio")) or 0.0)
+        return float(goal.get("exit_ratio") or 0.0)
     except (TypeError, ValueError):
         return 0.0
 

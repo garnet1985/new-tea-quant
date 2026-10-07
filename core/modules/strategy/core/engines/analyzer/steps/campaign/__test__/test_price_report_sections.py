@@ -62,10 +62,6 @@ def test_price_summarize_sections_baseline_and_ladder():
         "n": 2,
         "varying_knobs": ["simulation.price.opportunity_merge_gap"],
         "layers": {},
-        "contributions": {
-            "presence": {"status": "skipped", "items": []},
-            "sensitivity": {"status": "ok", "items": []},
-        },
     }
     gathered = {
         "rows": [

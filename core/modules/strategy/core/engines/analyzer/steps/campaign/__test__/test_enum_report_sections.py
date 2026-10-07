@@ -156,10 +156,6 @@ def test_enumerate_summarize_sections_value_ladders():
             "goal.stop_loss",
         ],
         "layers": {},
-        "contributions": {
-            "presence": {"status": "ok", "items": []},
-            "sensitivity": {"status": "skipped", "items": []},
-        },
     }
     stop_on = {"stages": [{"ratio": -0.2, "close_invest": True}]}
     gathered = {
@@ -305,10 +301,6 @@ def test_enumerate_summarize_after_tp_gate_with_settings(tmp_path: Path, monkeyp
         "n": 2,
         "varying_knobs": [],
         "layers": {},
-        "contributions": {
-            "presence": {"status": "ok", "items": []},
-            "sensitivity": {"status": "skipped", "items": []},
-        },
     }
     executed = {"parent_version_id": "1"}
     monkeypatch.setattr(

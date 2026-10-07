@@ -57,7 +57,7 @@
 | fieldPath | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
 | `goal.expiration.fixed_window_in_days` | 到期窗口天数 | number | true | 默认 30 |
-| `goal.expiration.is_trading_days` | 按交易日计数 | switch | true | 默认 true |
+| `goal.expiration.mode` | 到期计数方式 | enum | true | `natural_day` / `trading_day` / `open_day`，默认 `open_day` |
 
 ### 2) stop_loss.stages（数组）
 
@@ -68,8 +68,8 @@
 | fieldPath (item) | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
 | `ratio` | 触发比例 | number | true | 必填，止损为负数；运行期名按 ratio 推断（-0.1→`loss10%`） |
-| `close_invest` | 触发清仓 | switch | true | 与 `sell_ratio` 二选一 |
-| `sell_ratio` | 卖出比例 | number | true | 可选，0~1 |
+| `close_invest` | 触发清仓 | switch | true | 与 `exit_ratio` 二选一 |
+| `exit_ratio` | 卖出比例 | number | true | 可选，0~1 |
 
 > 无 `name` 字段（不由 settings 配置）。支持动态新增/删除 stage。
 
@@ -82,8 +82,8 @@
 | fieldPath (item) | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
 | `ratio` | 触发比例 | number | true | 必填，止盈为正数；运行期名按 ratio 推断（0.1→`win10%`） |
-| `close_invest` | 触发清仓 | switch | true | 与 `sell_ratio` 二选一 |
-| `sell_ratio` | 卖出比例 | number | true | 可选，0~1 |
+| `close_invest` | 触发清仓 | switch | true | 与 `exit_ratio` 二选一 |
+| `exit_ratio` | 卖出比例 | number | true | 可选，0~1 |
 | `actions` | 触发动作 | select(multi) | true | 可选值：`set_protect_loss`、`set_dynamic_loss` |
 
 > 无 `name` 字段（不由 settings 配置）。支持动态新增/删除 stage。
@@ -167,7 +167,7 @@ UI 交互：
 | `portfolio.allocation.lots_per_trade` | 每次手数 | number | `mode == equal_shares` |
 | `portfolio.allocation.kelly_fraction` | Kelly 折扣系数 | number | `mode == kelly` |
 
-> 费率仅根级 `fees`；勿在 `portfolio` 下再写 `fees`。旧 key `capital_simulator` 已废弃。
+> 费率仅根级 `fees`；勿在 `portfolio` 下再写 `fees`。
 
 ---
 

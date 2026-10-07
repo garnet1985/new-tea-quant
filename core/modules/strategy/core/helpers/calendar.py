@@ -1,32 +1,18 @@
-"""交易日历纯工具（open_dates 过滤与月首/末判定）。
+"""交易日历纯工具（月首/末、年首/末判定）。
 
 本文件:
-- CalendarOpenDateHelper: 区间过滤、is_first/last_open_of_month 等
+- CalendarOpenDateHelper: is_first/last_open_of_month 等
   边界: 负责无 IO 的日历集合运算；不负责 DataManager 加载或 job 构建
 """
 
 from __future__ import annotations
 
 from bisect import bisect_left
-from typing import List, Sequence
+from typing import Sequence
 
 
 class CalendarOpenDateHelper:
-    """open_dates 过滤与边界判定（无 DataManager 依赖）。"""
-
-    @staticmethod
-    def filter_in_range(
-        open_dates: List[str],
-        start_date: str,
-        end_date: str,
-    ) -> List[str]:
-        start = str(start_date or "").strip()
-        end = str(end_date or "").strip()
-        if not start or not end:
-            return []
-        if start > end:
-            start, end = end, start
-        return [d for d in open_dates if start <= str(d).strip() <= end]
+    """open_dates 边界判定（无 DataManager 依赖）。"""
 
     @staticmethod
     def is_first_open_of_month(as_of_date: str, open_dates: Sequence[str]) -> bool:

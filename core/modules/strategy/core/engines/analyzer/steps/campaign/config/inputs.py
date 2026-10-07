@@ -45,7 +45,7 @@ _SOFT_CELLS = 20
 
 
 def resolve_path(key: str, layer: str = "") -> str:
-    """短名 → settings 路径。``layer`` 仅兼容未知裸名时回落到 ``core.*``。"""
+    """短名 → settings 路径。未登记的裸名在枚举层回落到 ``core.*``。"""
     text = str(key or "").strip()
     if not text:
         raise ValueError("inputs 轴名不能为空")

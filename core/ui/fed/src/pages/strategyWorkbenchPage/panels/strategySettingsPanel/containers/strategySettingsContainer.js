@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { stripLegacyStrategySettingsForRun, migrateLegacyStrategySettings } from '../../../../../utils/stripLegacyStrategySettings';
+import { stripRuntimeStrategySettings } from '../../../../../utils/stripRuntimeStrategySettings';
 import JSON5 from 'json5';
 
 function stripHashComments(text) {
@@ -208,7 +208,7 @@ function formatCoreToDisplayText(core) {
 
 function StrategySettingsContainer({ initialSettings, children }) {
   const normalizedInitial = useMemo(
-    () => migrateLegacyStrategySettings(initialSettings || {}),
+    () => initialSettings || {},
     [initialSettings],
   );
   const [draftSettings, setDraftSettings] = useState(normalizedInitial);
@@ -353,7 +353,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreErrorColumn(0);
       setCoreErrorPosition(-1);
       setCoreParseMode(result.mode);
-      return stripLegacyStrategySettingsForRun({
+      return stripRuntimeStrategySettings({
         ...draftSettings,
         core: result.parsed,
       });

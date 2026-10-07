@@ -13,10 +13,7 @@ import {
   deleteStrategyVersion,
   revealStrategyFolder,
 } from '../../../api/strategyApi';
-import {
-  migrateLegacyStrategySettings,
-  stripLegacyStrategySettingsForRun,
-} from '../../../utils/stripLegacyStrategySettings';
+import { stripRuntimeStrategySettings } from '../../../utils/stripRuntimeStrategySettings';
 import { isFingerprintEqual } from '../lib/strategySettingsFingerprint';
 import {
   isDraftDirty,
@@ -95,10 +92,10 @@ function buildMergeBaseSettings() {
 function editorSettingsFromDisk(serverSettings, extraMeta = {}) {
   const src = serverSettings && typeof serverSettings === 'object' ? serverSettings : {};
   const incomingMeta = src.meta && typeof src.meta === 'object' ? src.meta : {};
-  return migrateLegacyStrategySettings(mergeShapeOnly(buildMergeBaseSettings(), {
+  return mergeShapeOnly(buildMergeBaseSettings(), {
     ...src,
     meta: normalizeMeta({ ...incomingMeta, ...extraMeta }, src),
-  }));
+  });
 }
 
 function mapConfigVersionRows(verRes) {
@@ -486,7 +483,7 @@ export function useStrategyDesignWorkbench() {
   }, [draftSettings, initialSettings, marketProfileOptions]);
 
   const getDraftSettingsForSubmit = useCallback(
-    () => stripLegacyStrategySettingsForRun(deepClone(draftSettings)),
+    () => stripRuntimeStrategySettings(deepClone(draftSettings)),
     [draftSettings],
   );
 

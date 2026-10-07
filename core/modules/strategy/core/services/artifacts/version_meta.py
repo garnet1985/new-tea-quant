@@ -680,16 +680,6 @@ class VersionMetaStore:
         return stored != current
 
     @classmethod
-    def env_invalid_for_version(
-        cls,
-        simulations_root: Path,
-        version_id: str,
-        current_env_fp: str,
-    ) -> bool:
-        entry = cls.get_registry_entry(simulations_root, version_id)
-        return cls.is_env_invalid(entry, current_env_fp)
-
-    @classmethod
     def remove_version_from_registry(
         cls,
         simulations_root: Path,

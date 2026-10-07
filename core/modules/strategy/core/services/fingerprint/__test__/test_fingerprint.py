@@ -65,7 +65,7 @@ def test_extract_empty_matches_canonical_defaults() -> None:
     assert "analysis" not in out
 
 
-def test_extract_drops_legacy_kline_adjust() -> None:
+def test_extract_rejects_kline_adjust() -> None:
     with_adj = {
         "data": {
             "base": {
@@ -74,11 +74,8 @@ def test_extract_drops_legacy_kline_adjust() -> None:
             }
         }
     }
-    without = {"data": {"base": {"data_key": "stock.kline.daily"}}}
-    a = StrategySettings.extract_execute_settings(with_adj)
-    b = StrategySettings.extract_execute_settings(without)
-    assert a["data"]["base"] == b["data"]["base"]
-    assert "adjust" not in (a["data"]["base"].get("params") or {})
+    with pytest.raises(ValueError, match="adjust"):
+        StrategySettings.extract_execute_settings(with_adj)
 
 
 def test_extract_keeps_whitelist_drops_others() -> None:

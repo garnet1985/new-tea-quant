@@ -168,7 +168,6 @@ class RollingPipeline:
                 "status": summarized.get("status"),
                 "n": summarized.get("n", 0),
                 "layers": {},
-                "contributions": {},
             },
             summarized=summarized,
             layer=layer.value,

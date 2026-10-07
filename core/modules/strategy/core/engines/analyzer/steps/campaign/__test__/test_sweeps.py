@@ -116,10 +116,6 @@ def test_portfolio_summarize_emits_sweeps():
         "n": 2,
         "varying_knobs": ["portfolio.allocation.max_portfolio_size"],
         "layers": {},
-        "contributions": {
-            "presence": {"status": "skipped", "items": []},
-            "sensitivity": {"status": "ok", "items": []},
-        },
     }
     gathered = {
         "rows": [
@@ -173,7 +169,6 @@ def test_portfolio_summarize_does_not_rank_strategy_knobs():
             "core.rsi_oversold_threshold",
         ],
         "layers": {},
-        "contributions": {},
     }
     gathered = {
         "rows": [

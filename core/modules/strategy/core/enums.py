@@ -86,15 +86,6 @@ class WorkbenchStep(Enum):
             WorkbenchStep.PORTFOLIO: SimulateKind.PORTFOLIO,
         }[self]
 
-    @classmethod
-    def from_simulate_kind(cls, kind: SimulateKind) -> Optional["WorkbenchStep"]:
-        mapping = {
-            SimulateKind.ENUMERATE: cls.ENUM,
-            SimulateKind.PRICE_FACTOR: cls.PRICE,
-            SimulateKind.PORTFOLIO: cls.PORTFOLIO,
-        }
-        return mapping.get(kind)
-
     @property
     def report_slot(self) -> str:
         """``result_report`` 槽位 key。"""

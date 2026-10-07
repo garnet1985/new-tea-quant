@@ -2,11 +2,10 @@
  * 与 ``EXECUTE_SETTINGS_FIELDS`` 对齐：胶囊「设置已变更」只比这些功能块。
  * enumerator / price_simulator / meta / analysis 不参与。
  *
- * 比较前：migrate → 白名单切片 → 去草稿/空对象 → 填 Python ``to_usable`` 默认值。
+ * 比较前：白名单切片 → 去草稿/空对象 → 填 Python ``to_usable`` 默认值。
  * 默认值快照 = ``StrategySettings.extract_execute_settings({})``，与哈希同一套投影。
  */
 
-import { migrateLegacyStrategySettings } from '../../../utils/stripLegacyStrategySettings';
 
 export const EXECUTE_SETTINGS_FIELDS = [
   'core',
@@ -154,7 +153,7 @@ export function deepMergeDefaults(defaults, overlay) {
 
 export function fingerprintSignature(settings) {
   const sliced = pruneEmptyObjects(fingerprintSlice(
-    migrateLegacyStrategySettings(settings || {}),
+    settings || {},
   ));
   return stableStringify(pruneEmptyObjects(
     deepMergeDefaults(EXECUTE_SETTINGS_DEFAULTS, sliced),

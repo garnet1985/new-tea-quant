@@ -1,7 +1,8 @@
-# Global Helper（全页引导）
+# UI 运作说明
 
-**版本：** `0.2.3`  
-**状态：** 文档、存储、UI 引擎已落地；第一份 help 为制定策略内页三栏
+**模块：** `ui` · **版本：** `0.2.3`
+
+结构见 [ARCHITECTURE.md](./ARCHITECTURE.md)。下面是全页引导：黑遮罩加挖洞，按一类路由一份 help 介绍控件。不是字段旁的 `NtqHelpTooltip`，也不是 AI 百科。
 
 全页黑遮罩 + 挖洞高亮，按「一类路由一份 help」引导用户（尤其是首次）认识页面上的控件。不是字段旁的 `NtqHelpTooltip`，也不是 AI 百科。
 
@@ -53,8 +54,6 @@ userspace **不存** 路由、文案、DOM 选择器。JSON 过时指的是账�
 | `strategy-design` | `/strategy-design/:name/(enum\|price\|portfolio)` | 设置栏 / 执行区 / 报告区同一套壳 |
 | `strategy-design-decision` | `/strategy-design/:name/decision` | 模拟回测 DOM 与工作台不同时存在；回测现场挂上后 appear |
 
-第一刀引擎只用占位 help 验证闭环，不写正式文案。
-
 ---
 
 ## 4. 路由变了、JSON 过时、新页面要 help
@@ -70,7 +69,7 @@ userspace **不存** 路由、文案、DOM 选择器。JSON 过时指的是账�
 | 同一类页改路径 / 改 query | 只改 `match`，`helpId` 不动 | 仍关闭 |
 | 新复杂页需要引导 | 目录新增 `helpId` | 新 id 不在账本里 → **自动弹** |
 | 某页不再需要引导 | 从目录删掉该 help | 按钮/自动都没了；账本里的旧 key **保留、读时忽略** |
-| 一份 help 拆成两份 | 新 id 进目录；旧 id 可删或留作 `legacyIds` | 新 id 会弹；旧账本不算新 id 已关 |
+| 一份 help 拆成两份 | 新 id 进目录，旧 id 从目录删掉 | 新 id 会弹；账本里的旧 key 读时忽略 |
 
 禁止：把当前路由字符串写进 userspace。禁止：启动时按目录「重写/清空」整个账本（会丢掉仍有效的关闭记录）。
 
@@ -86,7 +85,7 @@ userspace **不存** 路由、文案、DOM 选择器。JSON 过时指的是账�
 
 ### 4.4 改名
 
-尽量不改 `helpId`。若必须改，目录上写 `legacyIds`：账本里旧 id（且 version 有效）也算已关闭。写入只用新 id。
+改 `helpId` 就是新的一条。账本里的旧 id 不再算已关闭，下次会按新 id 再弹。
 
 ### 4.5 账本里的未知 key
 
@@ -130,7 +129,7 @@ BFF 不认识 catalog。多出来的 `helpId` 原样保存。FED 读到不在目
 
 ---
 
-## 6. 关闭账本（下一阶段实现）
+## 6. 关闭账本
 
 路径：`userspace/system/config/ui_helper.json`（经 `ProjectContext.path.get_user_config_root()`，禁止硬编码）。与 `feedback_prefs.json` 同类：升级保留 userspace，换浏览器仍有效。
 
@@ -182,22 +181,21 @@ POST 请求：
 - GET 失败：不自动弹；按钮在匹配到 help 时仍显示，手动打开不依赖账本。
 - POST 失败：本会话内存视为已关（避免连点），下次进页若文件没写上会再自动弹。
 
-字段 camelCase，信封遵循 `global-api-rules.md`。
+这一路字段用 camelCase，响应是 `status` / `message` 信封。
 
 ---
 
-## 7. 目录形状（FED，UI 阶段）
+## 7. 目录形状
 
 ```js
 {
   id: 'strategy-design',
   version: 1,
   trigger: 'enter', // 或 'appear'
-  legacyIds: [],
   match: (pathname) => boolean,
   steps: [
     {
-      target: 'design-stepper',
+      target: 'strategy-intro',
       pages: [
         { title: '…', body: '…', image: '/help/optional.png' },
       ],
@@ -219,11 +217,11 @@ POST 请求：
 - `id` 稳定、kebab-case、产品面命名，不是 path。
 - 未匹配任何 help 的页面：host 存在但不渲染按钮/遮罩。
 
-锚点：`data-ntq-help="design-stepper"`。不靠 CSS class 或可见文案。
+锚点：`data-ntq-help="strategy-intro"`。不靠 CSS class 或可见文案。
 
 ---
 
-## 8. UI 行为（再后一阶段）
+## 8. UI 行为
 
 - Host 挂在 `MainLayout`，与 `AssistantChatDock` 并列，不进 assistant 模块。
 - Help 按钮：AI FAB 下方，同尺寸圆钮，无 glow / 无 aurora，图标 `help`。
@@ -233,14 +231,3 @@ POST 请求：
 - 进行中不要同时打开 AI 面板。
 
 ---
-
-## 9. 实现顺序
-
-1. **文档**（本文件）
-2. **存储**：账本读写 + GET/POST + 单测（坏文件、幂等、未知 helpId）— 已做
-3. **UI**：遮罩、挖洞、内容翻页、按钮 — 已做
-4. **集成**：MainLayout + `strategy-design` 占位 help（设置 / 执行 / 报告）— 已做
-
-未到的阶段不要提前给所有页面打锚点。
-
-未到的阶段不要提前铺文案或给所有页面打锚点。

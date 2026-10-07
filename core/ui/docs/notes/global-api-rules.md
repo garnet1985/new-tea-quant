@@ -1,5 +1,7 @@
 # 全局 API 规范
 
+过程稿，不是现行契约。分页现行是 `page` / `limit`，不是 `pageSize`。各路由以 `core/bff/docs/routes` 为准。`status` / `message` 信封仍常见，第 9 节之后多条没有落地。
+
 ## 1) 路径与版本
 
 - 路径模式：`/api/{version}/...`

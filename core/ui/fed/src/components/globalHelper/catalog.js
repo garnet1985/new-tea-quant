@@ -47,10 +47,7 @@ export function pickHelpForManualOpen(helps) {
 export function isHelpDismissed(help, dismissed = {}) {
   if (!help) return false;
   const catalogVersion = Number(help.version) > 0 ? Number(help.version) : 1;
-  const ids = [help.id, ...(Array.isArray(help.legacyIds) ? help.legacyIds : [])];
-  return ids.some((id) => {
-    const row = dismissed[id];
-    if (!row) return false;
-    return Number(row.version || 0) >= catalogVersion;
-  });
+  const row = dismissed[help.id];
+  if (!row) return false;
+  return Number(row.version || 0) >= catalogVersion;
 }

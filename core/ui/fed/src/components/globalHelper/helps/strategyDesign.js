@@ -12,7 +12,6 @@ export const STRATEGY_LAYOUT_HELP = {
   id: 'strategy-design',
   version: 1,
   trigger: 'enter',
-  legacyIds: [],
   match: matchStrategyDesignWorkbench,
   steps: [
     {
@@ -124,7 +123,6 @@ export const STRATEGY_VERSION_AND_REPORT_HELP = {
   id: 'strategy-version-and-report',
   version: 1,
   trigger: 'appear',
-  legacyIds: [],
   match: matchStrategyDesignWorkbench,
   steps: [
     {
@@ -173,7 +171,6 @@ export const STRATEGY_REPORT_COMPARE_HELP = {
   id: 'strategy-report-compare',
   version: 1,
   trigger: 'appear',
-  legacyIds: [],
   match: matchStrategyDesignWorkbench,
   steps: [
     {

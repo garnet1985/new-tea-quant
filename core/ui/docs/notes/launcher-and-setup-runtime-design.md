@@ -1,5 +1,7 @@
 # Launcher 与 Setup Runtime 设计（单入口方案）
 
+过程稿，不是现行契约。用户入口仍是仓库根的 `launcher.py`。文末分阶段清单不要当成还要做的任务。
+
 ## 1. 目标
 
 用一个统一入口 `launcher.py` 解决：

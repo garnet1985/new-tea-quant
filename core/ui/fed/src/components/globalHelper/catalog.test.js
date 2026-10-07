@@ -80,13 +80,4 @@ describe('findHelpForPath / isHelpDismissed', () => {
     expect(isHelpDismissed(help, { 'strategy-design': { version: 1 } })).toBe(true);
     expect(isHelpDismissed(help, { 'strategy-design': { version: 0 } })).toBe(false);
   });
-
-  it('honors legacyIds', () => {
-    const help = {
-      id: 'strategy-design',
-      version: 1,
-      legacyIds: ['old-design'],
-    };
-    expect(isHelpDismissed(help, { 'old-design': { version: 1 } })).toBe(true);
-  });
 });

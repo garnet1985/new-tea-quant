@@ -13,7 +13,6 @@ export const STRATEGY_DESIGN_DECISION_HELP = {
   id: 'strategy-design-decision',
   version: 1,
   trigger: 'appear',
-  legacyIds: [],
   match: matchStrategyDesignDecision,
   steps: [
     {

@@ -1,5 +1,7 @@
 # Setup API 设计
 
+过程稿，不是现行契约。安装门面见 `core/infra/setup/API.md`，HTTP 在 `core/bff/APIs/platform/setup`。
+
 ## Section A：API 契约
 
 ### 目标

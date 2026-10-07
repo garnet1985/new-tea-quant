@@ -1,5 +1,7 @@
 # 策略工作台设置 Schema（V1）
 
+过程稿，不是现行契约。时间窗现在在 `simulation.execution`，表单以 `editorSchemas/` 为准。见 [DESIGN.md](../DESIGN.md)。
+
 ## 目标
 
 为策略调试页提供前端可执行的字段模型（非 `core` 强模型 + `core` raw dict）。

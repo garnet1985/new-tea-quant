@@ -33,7 +33,7 @@ CLI_COMMAND_REFERENCE = """
 
   -f                                    全局：强制刷新 / 重算 / 覆盖
   -n PATH                               全局：从模版新建到 PATH
-  --verbose                             详细日志
+  --verbose                             开发日志（DEBUG，默认关闭）
 
   例: python cli.py sp -f --strategy demo/foo
       同 python cli.py strategy_price_factor -f --strategy demo/foo

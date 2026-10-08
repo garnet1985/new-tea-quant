@@ -1,12 +1,9 @@
 """Backtest Engine run progress — phased percent + optional CMD display."""
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Optional
-
-logger = logging.getLogger(__name__)
 
 PHASE_PREP_WEIGHT = 0.05
 PHASE_PLAN_WEIGHT = 0.10
@@ -123,7 +120,6 @@ class RunProgressReporter:
         else:
             line = total_line
         print(line, flush=True)
-        logger.info(line)
 
 
 __all__ = [

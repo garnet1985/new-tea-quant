@@ -22,12 +22,9 @@ class UserHandlers:
 
     @staticmethod
     def setup_logging(verbose: bool = False) -> None:
-        level = logging.DEBUG if verbose else logging.INFO
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        from core.modules.cli.shared.logging_setup import setup_cli_logging
+
+        setup_cli_logging(verbose=verbose)
 
     @staticmethod
     def _strategy_name(raw: object) -> Optional[str]:
@@ -122,10 +119,8 @@ class UserHandlers:
 
             UserHandlers.setup_logging(verbose=args.verbose)
             force = bool(getattr(args, "force", False))
-            logger.info(
-                i("ongoing") + " 导入 initialization/data 数据包%s",
-                " [force]" if force else "",
-            )
+            suffix = " [force]" if force else ""
+            print(f"{i('ongoing')} 导入 initialization/data 数据包{suffix}", flush=True)
             return Setup.runtime.import_init_data(force=force)
 
         return None
@@ -147,12 +142,12 @@ class UserHandlers:
             else:
                 result = CreateFromTemplate.create_strategy(path)
                 label = "策略"
-            logger.info(i('success') + " 已新建 %s: %s", label, result.key)
-            logger.info("   目录: %s", result.dest)
-            logger.info("   请编辑 settings.py 与 worker，然后运行回测或打标。")
+            print(f"{i('success')} 已新建 {label}: {result.key}", flush=True)
+            print(f"   目录: {result.dest}", flush=True)
+            print("   请编辑 settings.py 与 worker，然后运行回测或打标。", flush=True)
             return 0
         except CreateFromTemplate.Error as exc:
-            logger.error(i('error') + " %s", exc)
+            print(f"{i('error')} {exc}", flush=True)
             return 1
 
     @staticmethod
@@ -164,7 +159,7 @@ class UserHandlers:
             return
 
         if cmd == "export_adj_factor":
-            logger.info(f"{i('upload')} 手动导出复权因子事件季度 CSV...")
+            print(f"{i('upload')} 手动导出复权因子事件季度 CSV...", flush=True)
             app.export_adj_factor_csv(base_date=getattr(args, "base_date", None))
             return
 
@@ -180,10 +175,10 @@ class UserHandlers:
                 for name in names:
                     print(f"  - {name}")
                 return
-            logger.info(f"{i('tag')}  执行标签计算...")
+            print(f"{i('tag')}  执行标签计算...", flush=True)
             dry_run = getattr(args, "dry_run", False)
             if dry_run:
-                logger.info(f"{i('warning')}  DRY RUN 模式：计算结果不会写入数据库")
+                print(f"{i('warning')}  DRY RUN 模式：计算结果不会写入数据库", flush=True)
             app.tag(
                 scenario_name=getattr(args, "scenario", None),
                 dry_run=dry_run,
@@ -219,18 +214,20 @@ class UserHandlers:
         if source and source.lower() == "list":
             from core.modules.data_source import DataSourceManager
 
-            logger.info("%s", DataSourceManager.format_renew_targets_help())
+            print(DataSourceManager.format_renew_targets_help(), flush=True)
             return
 
         if source:
-            logger.info(i('ongoing') + " 更新数据: %s%s", source, " [force refresh]" if force else "")
+            refresh = " [force refresh]" if force else ""
+            print(f"{i('ongoing')} 更新数据: {source}{refresh}", flush=True)
         else:
-            logger.info(i('ongoing') + " 更新全部已启用数据源%s", " [force]" if force else "")
+            refresh = " [force]" if force else ""
+            print(f"{i('ongoing')} 更新全部已启用数据源{refresh}", flush=True)
 
         try:
             asyncio.run(app.renew_data(table_name=source, force=force))
         except ValueError as exc:
-            logger.error(i('error') + " %s", exc)
+            print(f"{i('error')} {exc}", flush=True)
             raise SystemExit(1) from exc
 
     @staticmethod
@@ -242,24 +239,27 @@ class UserHandlers:
             info = Strategy.find(explicit, enabled_only=True)
             if info is None:
                 keys = Strategy.list_enabled_keys()
-                logger.error("策略不存在或未启用: %s", explicit)
+                print(f"策略不存在或未启用: {explicit}", flush=True)
                 if keys:
-                    logger.error("可用 meta.key: %s", ", ".join(sorted(keys)))
+                    print(f"可用 meta.key: {', '.join(sorted(keys))}", flush=True)
                 raise SystemExit(1)
             return str(info.get("key") or explicit)
 
         enabled = Strategy.list_strategy_infos(enabled_only=True)
         if not enabled:
-            logger.error(
+            print(
                 "未指定 --strategy，且 userspace/strategies 下没有 is_enabled=True 的合法策略。"
-                "请检查 settings.py 含 meta.key 与 is_enabled=True。"
+                "请检查 settings.py 含 meta.key 与 is_enabled=True。",
+                flush=True,
             )
             raise SystemExit(1)
         if len(enabled) > 1:
-            logger.warning(
-                "多个启用策略，默认使用 key=%s（%s）；可用 --strategy <meta.key> 指定",
-                enabled[0].get("key"),
-                enabled[0].get("unique_relative_path"),
+            chosen = enabled[0]
+            print(
+                "多个启用策略，默认使用 "
+                f"key={chosen.get('key')}（{chosen.get('unique_relative_path')}）；"
+                "可用 --strategy <meta.key> 指定",
+                flush=True,
             )
         return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
 
@@ -331,11 +331,12 @@ class UserHandlers:
                     SimulateKind.ENUMERATE, Path(enum_result["output_dir"])
                 )
             except FileNotFoundError as exc:
-                logger.warning("展示枚举汇总失败（缺产物）: %s", exc)
+                print(f"  展示枚举汇总失败（缺产物）: {exc}", flush=True)
                 print(f"  success: {enum_result.get('success')}", flush=True)
                 print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
             except Exception as exc:
-                logger.warning("展示枚举汇总失败: %s", exc)
+                print(f"  展示枚举汇总失败: {exc}", flush=True)
+                logger.warning("展示枚举汇总失败", exc_info=True)
                 print(f"  success: {enum_result.get('success')}", flush=True)
                 print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
         else:
@@ -388,11 +389,12 @@ class UserHandlers:
 
                 Strategy.present_report(SimulateKind.PRICE_FACTOR, Path(pf["output_dir"]))
             except FileNotFoundError as exc:
-                logger.warning("展示价格回测汇总失败（缺产物）: %s", exc)
+                print(f"  展示价格回测汇总失败（缺产物）: {exc}", flush=True)
                 print(f"  success: {pf.get('success')}", flush=True)
                 print(f"  output_dir: {pf.get('output_dir')}", flush=True)
             except Exception as exc:
-                logger.warning("展示价格回测汇总失败: %s", exc)
+                print(f"  展示价格回测汇总失败: {exc}", flush=True)
+                logger.warning("展示价格回测汇总失败", exc_info=True)
                 print(f"  success: {pf.get('success')}", flush=True)
                 print(f"  output_dir: {pf.get('output_dir')}", flush=True)
         else:
@@ -441,11 +443,12 @@ class UserHandlers:
 
                 Strategy.present_report(SimulateKind.PORTFOLIO, Path(pf["output_dir"]))
             except FileNotFoundError as exc:
-                logger.warning("展示组合回测汇总失败（缺产物）: %s", exc)
+                print(f"  展示组合回测汇总失败（缺产物）: {exc}", flush=True)
                 print(f"  success: {pf.get('success')}", flush=True)
                 print(f"  output_dir: {pf.get('output_dir')}", flush=True)
             except Exception as exc:
-                logger.warning("展示组合回测汇总失败: %s", exc)
+                print(f"  展示组合回测汇总失败: {exc}", flush=True)
+                logger.warning("展示组合回测汇总失败", exc_info=True)
                 print(f"  success: {pf.get('success')}", flush=True)
                 print(f"  output_dir: {pf.get('output_dir')}", flush=True)
         else:
@@ -543,7 +546,8 @@ class UserHandlers:
 
                 Strategy.present_report(SimulateKind.PORTFOLIO, Path(po["output_dir"]))
             except Exception as exc:
-                logger.warning("展示组合回测汇总失败: %s", exc)
+                print(f"  展示组合回测汇总失败: {exc}", flush=True)
+                logger.warning("展示组合回测汇总失败", exc_info=True)
                 print(f"  portfolio success: {po.get('success')}", flush=True)
         else:
             print(
@@ -591,7 +595,8 @@ class UserHandlers:
         try:
             Strategy.present_campaign(result)
         except Exception as exc:
-            logger.warning("展示战役报告失败: %s", exc)
+            print(f"  展示战役报告失败: {exc}", flush=True)
+            logger.warning("展示战役报告失败", exc_info=True)
             print(f"  headline: {result.get('headline')}", flush=True)
             print(f"  report_path: {result.get('report_path')}", flush=True)
 
@@ -622,7 +627,8 @@ class UserHandlers:
         try:
             Strategy.present_rolling(result)
         except Exception as exc:
-            logger.warning("展示滚动报告失败: %s", exc)
+            print(f"  展示滚动报告失败: {exc}", flush=True)
+            logger.warning("展示滚动报告失败", exc_info=True)
             print(f"  headline: {result.get('headline')}", flush=True)
             print(f"  report_path: {result.get('report_path')}", flush=True)
 
@@ -645,7 +651,7 @@ class UserHandlers:
         try:
             strategy_key = Strategy.resolve(spec)
         except FileNotFoundError:
-            logger.error("策略不存在: %s", spec)
+            print(f"策略不存在: {spec}", flush=True)
             raise SystemExit(1)
         out = Strategy.delete_simulation_version(strategy_key, sid)
         if not out.get("ok"):

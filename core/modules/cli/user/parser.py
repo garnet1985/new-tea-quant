@@ -37,7 +37,11 @@ class UserParser:
             help_text=CLI_COMMAND_REFERENCE,
             parents=[UserParser._GLOBAL_FLAGS],
         )
-        parser.add_argument("--verbose", action="store_true", help="详细日志（DEBUG）")
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            help="开发日志（DEBUG）。默认不输出，只保留命令结果和警告",
+        )
 
         sub = parser.add_subparsers(
             dest="command",

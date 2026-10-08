@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { feedbackPromptAction, submitFeedback } from 'api/feedbackApi';
+import { submitFeedback } from 'api/feedbackApi';
 import FeedbackPromptOverlay from 'views/feedbackPromptOverlay';
 import { subscribeFeedbackPrompt } from 'service/feedbackPromptBus';
 
@@ -23,13 +23,7 @@ function FeedbackPromptGuard({ children = null }) {
 
   const onLater = useCallback(() => {
     close();
-    feedbackPromptAction({ action: 'snooze', source }).catch(() => {});
-  }, [close, source]);
-
-  const onNever = useCallback(() => {
-    close();
-    feedbackPromptAction({ action: 'disable', source }).catch(() => {});
-  }, [close, source]);
+  }, [close]);
 
   const onSubmit = useCallback(({ rating, text }) => {
     // Always dismiss immediately; network result must not block UX.
@@ -44,7 +38,6 @@ function FeedbackPromptGuard({ children = null }) {
         open={open}
         onSubmit={onSubmit}
         onLater={onLater}
-        onNever={onNever}
       />
     </>
   );

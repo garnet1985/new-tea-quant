@@ -19,7 +19,6 @@ function FeedbackPromptOverlay({
   open = false,
   onSubmit,
   onLater,
-  onNever,
 }) {
   const [rating, setRating] = useState('');
   const [text, setText] = useState('');
@@ -111,11 +110,7 @@ function FeedbackPromptOverlay({
           helperText={`${text.length}/2000`}
         />
 
-        <Stack direction="row" spacing={1} className="feedback-prompt-overlay__actions" flexWrap="wrap">
-          <Button variant="text" onClick={onNever}>
-            不再询问
-          </Button>
-          <Box sx={{ flex: 1 }} />
+        <Stack direction="row" spacing={1} className="feedback-prompt-overlay__actions" justifyContent="flex-end" flexWrap="wrap">
           <Button variant="text" onClick={onLater}>
             以后再说
           </Button>
@@ -137,7 +132,6 @@ FeedbackPromptOverlay.propTypes = {
   open: PropTypes.bool,
   onSubmit: PropTypes.func.isRequired,
   onLater: PropTypes.func.isRequired,
-  onNever: PropTypes.func.isRequired,
 };
 
 export default FeedbackPromptOverlay;

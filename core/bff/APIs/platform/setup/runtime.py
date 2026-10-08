@@ -14,6 +14,7 @@ from core.infra.project_context.contracts import DUCKDB_DOMAIN_FILES
 from core.infra.setup import Setup
 from core.infra.setup.core.db_install_config import write_database_install_config
 from core.infra.setup.core.pipeline_state import wants_skip_input
+from core.infra.setup.core.step_errors import setup_failure_message
 from core.infra.setup.core import setup_session
 from core.bff.shared.client_log import log_degraded
 
@@ -89,6 +90,54 @@ class SetupRuntimeManager:
             step_seconds={"resolve_ml_deps": elapsed},
         )
         return {"status": "ok", "message": payload}
+
+    def import_demo_data(self) -> Dict[str, Any]:
+        """设置页补导入演示数据。不重跑整次安装。"""
+        script = (
+            REPO_ROOT
+            / "core"
+            / "infra"
+            / "setup"
+            / "core"
+            / "steps"
+            / "import_data"
+            / "install.py"
+        )
+        if not script.is_file():
+            return self._error("SETUP_IMPORT_DATA_MISSING", f"脚本不存在: {script}")
+        self._release_bff_duckdb_for_setup_subprocess()
+        started = time.monotonic()
+        proc = subprocess.run(
+            [sys_executable(), str(script)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        elapsed = time.monotonic() - started
+        user_message, trace_message = self._process_failure_messages(
+            proc,
+            "演示数据导入失败",
+        )
+        missing_package = "未发现任何初始化数据包" in trace_message
+        if proc.returncode != 0 or missing_package:
+            if missing_package and proc.returncode == 0:
+                user_message = "未找到演示数据包，无法导入。"
+            Setup.trace.install_step_failed(
+                step="import_data",
+                entry="ui",
+                message=trace_message or user_message,
+            )
+            return self._error("SETUP_IMPORT_DATA_FAILED", user_message)
+
+        with self._lock:
+            state = self._load_state()
+            self._set_step_state(state, "import_data", self.STATUS_SUCCESS, "")
+            self._unmark_step_skipped(state, "import_data")
+            state.setdefault("inputsByStep", {})["import_data"] = {"skip": False}
+            self._record_step_seconds(state, "import_data", elapsed)
+            self._bump_version(state)
+            self._save_state(state)
+        return {"status": "ok", "message": {"imported": True}}
 
     def start(self) -> Dict[str, Any]:
         definition = self.get_definition()
@@ -239,14 +288,14 @@ class SetupRuntimeManager:
                     },
                 }
 
-            ok, err = self._execute_step(state, step)
+            ok, err, trace_err = self._execute_step(state, step)
             self._bump_version(state)
             self._save_state(state)
             if not ok:
                 Setup.trace.install_step_failed(
                     step=step_id,
                     entry="ui",
-                    message=err or f"{step_id} 执行失败",
+                    message=trace_err or err or f"{step_id} 执行失败",
                 )
                 Setup.trace.install_complete(
                     success=False,
@@ -279,14 +328,14 @@ class SetupRuntimeManager:
             },
         }
 
-    def _execute_step(self, state: Dict[str, Any], step: Dict[str, Any]) -> Tuple[bool, str]:
+    def _execute_step(self, state: Dict[str, Any], step: Dict[str, Any]) -> Tuple[bool, str, str]:
         step_id = step["id"]
         step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
         if wants_skip_input(step_inputs):
             self._mark_step_skipped(state, step_id)
             self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
             self._save_state(state)
-            return True, ""
+            return True, "", ""
 
         self._set_step_state(state, step_id, self.STATUS_RUNNING, "")
         self._save_state(state)
@@ -301,11 +350,12 @@ class SetupRuntimeManager:
             script_rel = str(step.get("scriptEntry", "")).strip()
             if not script_rel:
                 self._set_step_state(state, step_id, self.STATUS_FAILED, "缺少 scriptEntry")
-                return False, "缺少 scriptEntry"
+                return False, "缺少 scriptEntry", "缺少 scriptEntry"
             script = (REPO_ROOT / script_rel).resolve()
             if not script.is_file():
-                self._set_step_state(state, step_id, self.STATUS_FAILED, f"脚本不存在: {script_rel}")
-                return False, f"脚本不存在: {script_rel}"
+                missing = f"脚本不存在: {script_rel}"
+                self._set_step_state(state, step_id, self.STATUS_FAILED, missing)
+                return False, missing, missing
 
             if step_id in _STEPS_NEED_EXCLUSIVE_DUCKDB:
                 self._release_bff_duckdb_for_setup_subprocess()
@@ -330,9 +380,9 @@ class SetupRuntimeManager:
             )
             self._record_step_seconds(state, step_id, time.monotonic() - step_started)
             if proc.returncode != 0:
-                msg = (proc.stderr or proc.stdout or "").strip()[-600:] or f"{step_id} 执行失败"
+                msg, trace_msg = self._process_failure_messages(proc, f"{step_id} 执行失败")
                 self._set_step_state(state, step_id, self.STATUS_FAILED, msg)
-                return False, msg
+                return False, msg, trace_msg
 
             notices = state.setdefault("noticesByStep", {})
             if step_id == "db_connection":
@@ -360,13 +410,14 @@ class SetupRuntimeManager:
                 from core.infra.setup.core.trace_events import SetupTrace
 
                 SetupTrace.ensure_install_id()
-            return True, ""
+            return True, "", ""
         except Exception as e:  # pragma: no cover
             self._record_step_seconds(state, step_id, time.monotonic() - step_started)
-            msg = str(e)
+            raw = str(e)
+            msg = setup_failure_message(raw) or raw or f"{step_id} 执行失败"
             log_degraded("setup.executeStep", e, step_id)
             self._set_step_state(state, step_id, self.STATUS_FAILED, msg)
-            return False, msg
+            return False, msg, raw
 
     def _resolve_userspace_root(self, state: Dict[str, Any]) -> Path:
         init_inputs = (state.get("inputsByStep", {}) or {}).get("init_userspace", {}) or {}
@@ -432,6 +483,19 @@ class SetupRuntimeManager:
         name = str(step_id)
         if name and name not in skipped:
             skipped.append(name)
+
+    @staticmethod
+    def _unmark_step_skipped(state: Dict[str, Any], step_id: str) -> None:
+        name = str(step_id)
+        state["skippedSteps"] = [
+            item for item in (state.get("skippedSteps") or []) if item != name
+        ]
+
+    @staticmethod
+    def _process_failure_messages(proc: subprocess.CompletedProcess, fallback: str) -> Tuple[str, str]:
+        combined = f"{proc.stderr or ''}\n{proc.stdout or ''}".strip()
+        user_message = setup_failure_message(combined) or fallback
+        return user_message, combined or user_message
 
     @staticmethod
     def _timing_kwargs(state: Dict[str, Any]) -> Dict[str, Any]:

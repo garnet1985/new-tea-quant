@@ -27,7 +27,7 @@ export const CHOICE_STEP_IDS = new Set(['import_data', 'resolve_ml_deps']);
 export const SETUP_CHOICE_COPY = {
   import_data: {
     title: '数据库配置已经成功',
-    body: '要不要导入演示数据？导入后可以直接在策略实验室里试用示例。不导入也可以稍后自行接入数据源。',
+    body: '要不要导入演示数据？导入后可以直接在策略实验室里试用示例。如果现在跳过，之后仍可在「设置 → 安装与维护」里导入。',
     confirmLabel: '导入演示数据',
     skipLabel: '跳过',
   },

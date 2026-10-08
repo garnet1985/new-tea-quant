@@ -83,6 +83,24 @@ def run_minimal_import_check() -> int:
     return int(proc.returncode or 0)
 
 
+def run_ruff() -> int:
+    """按仓库 ``pyproject.toml`` 跑 ``ruff check``（只检查，不改文件）。"""
+    print("\n[检查] ruff…", flush=True)
+    py = ProjectContext.path.get_python()
+    try:
+        py_label = py.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        py_label = str(py)
+    print(f"  解释器: {py_label}", flush=True)
+    proc = subprocess.run(
+        [str(py), "-m", "ruff", "check"],
+        cwd=str(REPO_ROOT),
+    )
+    if proc.returncode == 0:
+        print(f"  {CmdLayout.icon.i('success')} ruff check 通过", flush=True)
+    return int(proc.returncode or 0)
+
+
 def run_pytest() -> int:
     print("\n[检查] pytest…", flush=True)
     py = ProjectContext.path.get_python()
@@ -239,6 +257,9 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             return _stop("Python 3.9 兼容性检查未通过")
     else:
         print("\n[跳过] Python 3.9 兼容性检查", flush=True)
+
+    if run_ruff() != 0:
+        return _stop("ruff check 未通过")
 
     if not opts.skip_ic:
         if run_minimal_import_check() != 0:

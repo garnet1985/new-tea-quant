@@ -203,6 +203,16 @@ export async function getMlExtrasStatus() {
   };
 }
 
+export async function importDemoData() {
+  const json = await request.postJson(`${API_BASE}/import-data`, {
+    body: {},
+    timeoutMs: HTTP_TIMEOUT_MS.SETUP,
+  });
+  return {
+    imported: Boolean(json?.message?.imported),
+  };
+}
+
 export async function installMlExtras() {
   const json = await request.postJson(`${API_BASE}/ml-extras`, {
     body: {},

@@ -47,7 +47,7 @@ strategy/
         ├── price_factor/
         ├── portfolio/       # 不走 BE
         ├── decision_maker/  # 资金回放；人替换选谁/买多少；不进 SimulateKind
-        ├── analyzer/        # 归因编排：pipeline + steps/campaign、steps/rolling
+        ├── analyzer/        # 归因编排：pipeline + steps/campaign；steps/rolling 仍是旧实现，口径见 notes/ROLLING.md
         └── shared/
 ```
 
@@ -94,7 +94,7 @@ attribution.py + 当前 settings
     group_meta.json
     enum/ | price/ | portfolio/
       report.json  table.json  attribute.json  task_meta.json
-    rolling/                        # sw；口径未定
+    rolling/                        # sw；旧实现，口径见 notes/ROLLING.md
 ```
 
 副本号是 `{主号}-{r}`，不推进主号序列。组跟着策略 version 走：同一环境、不同主 version 各用一组。

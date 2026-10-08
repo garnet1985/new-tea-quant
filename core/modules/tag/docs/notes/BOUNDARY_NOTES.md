@@ -32,7 +32,7 @@ tag/
 ```
 
 - CLI 在 **`core/modules/cli`**（`cli.py tag`），模块内不放 `__main__` / `run_tag`
-- **禁止**再引入 BaseTagWorker / JobPipeline / 旧 timeline|sliced 编排
+- 模块内不另做调度器，也不再按 timeline 模式编排
 - global / non_ts：**不**把 `execution.mode` 映射到 BE，不设 mode 探针
 - non_ts：主进程 **一次** `calculate_tag`；落库 `as_of` = 计算窗 `end_date`（无日历循环）
 - incremental 水位：``sys_tag_calc_progress.last_calculated_end``（DB），**不是** max(as_of) / calculated_at / scenario.updated_at

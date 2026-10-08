@@ -109,38 +109,49 @@ def test_open_hydrates_runtime_from_version_archive(tmp_path: Path) -> None:
     assert opened.runtime.settings_snapshot.effective_settings == {"core": {"n": 1}}
 
 
-def test_prune_root_keeps_newest(tmp_path: Path) -> None:
+def test_prune_drops_oldest_stale_env_group(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "simulations"
-    for i in range(1, 5):
-        (root / str(i)).mkdir(parents=True)
-    deleted = ArtifactStore.prune_root(root, max_versions=2)
-    assert deleted == 2
-    assert sorted(p.name for p in root.iterdir() if p.is_dir()) == ["3", "4"]
+    monkeypatch.setattr(
+        ArtifactStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    monkeypatch.setattr(
+        ArtifactStore,
+        "_delete_attribution_env",
+        classmethod(lambda cls, folder, env_fp: None),
+    )
+    for vid, env in (("1", "old-a"), ("2", "old-a"), ("3", "old-b"), ("4", "live")):
+        (root / vid).mkdir(parents=True)
+        VersionMetaStore.register_version(root, vid, execute_fp="s", env_fp=env)
+    out = ArtifactStore.prune(tmp_path, env_fp="live", max_stale_envs=1)
+    assert out["ok"] is True
+    assert out["deleted_count"] == 2
+    assert out["pruned_envs"] == ["old-a"]
+    remaining = sorted(
+        p.name for p in root.iterdir() if p.is_dir() and p.name.isdigit()
+    )
+    assert remaining == ["3", "4"]
 
 
-def test_prune_root_skips_pinned(tmp_path: Path) -> None:
+def test_prune_keeps_live_env_even_when_many_versions(
+    tmp_path: Path, monkeypatch
+) -> None:
     root = tmp_path / "simulations"
-    for i in range(1, 5):
+    monkeypatch.setattr(
+        ArtifactStore,
+        "simulations_root",
+        classmethod(lambda cls, folder: root),
+    )
+    for i in range(1, 6):
         (root / str(i)).mkdir(parents=True)
-        VersionMetaStore.register_version(root, str(i), execute_fp="s", env_fp="e")
-    VersionMetaStore.set_version_pinned(root, "1", True)
-    deleted = ArtifactStore.prune_root(root, max_versions=2)
-    assert deleted == 2
-    remaining = sorted(p.name for p in root.iterdir() if p.is_dir())
-    assert remaining == ["1", "4"]
-    assert VersionMetaStore.read_pinned_ids(root) == ["1"]
-
-
-def test_prune_root_keeps_pinned_excess(tmp_path: Path) -> None:
-    root = tmp_path / "simulations"
-    for i in range(1, 4):
-        (root / str(i)).mkdir(parents=True)
-        VersionMetaStore.register_version(root, str(i), execute_fp="s", env_fp="e")
-        VersionMetaStore.set_version_pinned(root, str(i), True)
-    deleted = ArtifactStore.prune_root(root, max_versions=1)
-    assert deleted == 0
-    remaining = sorted(p.name for p in root.iterdir() if p.is_dir())
-    assert remaining == ["1", "2", "3"]
+        VersionMetaStore.register_version(root, str(i), execute_fp="s", env_fp="live")
+    out = ArtifactStore.prune(tmp_path, env_fp="live", max_stale_envs=1)
+    assert out["deleted_count"] == 0
+    remaining = sorted(
+        p.name for p in root.iterdir() if p.is_dir() and p.name.isdigit()
+    )
+    assert remaining == ["1", "2", "3", "4", "5"]
 
 
 def test_prune_scan_root_keeps_newest_dates(tmp_path: Path) -> None:
@@ -179,20 +190,7 @@ def test_allocate_reuses_version_id_for_step(tmp_path: Path, monkeypatch) -> Non
     assert meta["next_version_id"] == 2
 
 
-def test_allocate_rejects_when_at_cap(tmp_path: Path, monkeypatch) -> None:
-    root = tmp_path / "simulations"
-    for i in (1, 2, 3):
-        (root / str(i)).mkdir(parents=True)
-    monkeypatch.setattr(
-        PortfolioStore,
-        "simulations_root",
-        classmethod(lambda cls, folder: root),
-    )
-    with pytest.raises(ValueError, match="已达上限"):
-        PortfolioStore.allocate(tmp_path, strategy_id="demo", max_versions=3)
-
-
-def test_allocate_increments_without_auto_prune(tmp_path: Path, monkeypatch) -> None:
+def test_allocate_does_not_cap_live_versions(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "simulations"
     monkeypatch.setattr(
         PortfolioStore,
@@ -200,25 +198,15 @@ def test_allocate_increments_without_auto_prune(tmp_path: Path, monkeypatch) -> 
         classmethod(lambda cls, folder: root),
     )
     ids = []
-    for _ in range(3):
-        store = PortfolioStore.allocate(
-            tmp_path,
-            strategy_id="demo/s",
-            max_versions=3,
-        )
+    for _ in range(4):
+        store = PortfolioStore.allocate(tmp_path, strategy_id="demo/s")
         ids.append(int(store.version_id))
-    assert ids == [1, 2, 3]
+    assert ids == [1, 2, 3, 4]
     remaining = sorted(
         int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit()
     )
-    assert remaining == [1, 2, 3]
-    assert (root / "3" / "portfolio").is_dir()
-    deleted = ArtifactStore.prune_root(root, max_versions=2)
-    assert deleted == 1
-    remaining = sorted(
-        int(p.name) for p in root.iterdir() if p.is_dir() and p.name.isdigit()
-    )
-    assert remaining == [2, 3]
+    assert remaining == [1, 2, 3, 4]
+    assert (root / "4" / "portfolio").is_dir()
 
 
 def test_latest_reads_meta(tmp_path: Path, monkeypatch) -> None:

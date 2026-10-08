@@ -20,22 +20,14 @@
 
 ## 用户策略 import（公开面）
 
-```python
-from core.modules.strategy import Strategy
-from core.modules.strategy.contracts import (
-    StrategyHooks,
-    StrategyContext,
-    Opportunity,
-    SimulateKind,
-)
-```
+从 `Strategy` 进门面，从 `contracts` 进钩子和共享类型（`StrategyHooks`、`StrategyContext`、`Opportunity`、`SimulateKind`）。最短可运行路径见 [快速开始](./QUICKSTART.md)。
 
 勿 deep-import `core.modules.strategy.core.engines.*`（实现位于 `core/`，包根只导出 `Strategy`）。
 
 ## 常见问题
 
 **Q：enumerate 和 simulate 什么关系？**  
-A：`enumerate` / `price_factor` / `portfolio` 都是 `Strategy.simulate(..., kind=...)` 的薄封装。
+A：`Strategy.enumerate` / `Strategy.price_factor` / `Strategy.portfolio` 都是 `Strategy.simulate(..., kind=...)` 的薄封装。kind 为 `enum` / `price` / `portfolio`。
 
 ## 相关文档
 
@@ -43,6 +35,7 @@ A：`enumerate` / `price_factor` / `portfolio` 都是 `Strategy.simulate(..., ki
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
+- [概念与运作](./docs/CONCEPTS.md)
 - [设计](./docs/DESIGN.md)
 - [Version / 指纹](./docs/VERSIONING.md)
 - [边界笔记](./docs/notes/BOUNDARY_NOTES.md)

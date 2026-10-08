@@ -7,12 +7,12 @@ import numpy as np
 
 try:
     import xgboost as xgb
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     xgb = None  # type: ignore
 
 try:
     import shap
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     shap = None  # type: ignore
 
 _MIN_SAMPLES_PER_FEATURE = 10

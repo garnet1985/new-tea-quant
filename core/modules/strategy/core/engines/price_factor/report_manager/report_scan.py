@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.modules.strategy.core.services.artifacts import PriceFactorStore, PriceInvestmentRow
 from core.modules.strategy.core.engines.price_factor.report_manager.runtime_env import (
@@ -19,7 +19,7 @@ class PriceCsvScan:
     investments_by_entity: Dict[str, List[PriceInvestmentRow]] = field(default_factory=dict)
     strategy_key: str = ""
     strategy_path: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     enum_version_id: str = ""
     backtest_period: Dict[str, str] = field(default_factory=dict)
 
@@ -37,7 +37,7 @@ class PriceCsvScan:
         *,
         entity_ids: Optional[List[str]] = None,
         strategy_key: str = "",
-        version_id: int = 0,
+        version_id: Any = "",
     ) -> "PriceCsvScan":
         runtime = PriceRuntimeEnv.load(output_dir)
         ids = list(entity_ids) if entity_ids is not None else list(runtime.entity_ids or [])
@@ -49,7 +49,7 @@ class PriceCsvScan:
             investments_by_entity=by_entity,
             strategy_key=str(strategy_key or runtime.strategy_key or ""),
             strategy_path=str(runtime.strategy_path or runtime.strategy_key or ""),
-            version_id=int(version_id or runtime.version_id or 0),
+            version_id=str(version_id or runtime.version_id or "").strip(),
             enum_version_id=str(runtime.enum_version_id or ""),
             backtest_period={
                 "start_date": str(period.get("start_date") or "").strip(),

@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 import WelcomeIntroCanvas from './welcomeIntroCanvas';
 import './welcomePage.scss';
 
@@ -168,7 +168,7 @@ function WelcomePage() {
                 <Term>UI</Term>
                 上会显示出这些数值，您只要修改并运行就能看到阈值变化对结果的影响。
                 {' '}
-                每个步骤完成时会有一份详尽的报告，告诉您当前想法把握机会的能力、抓住价格波动的能力，以及实盘模拟，并且对您的参数进行归因。调试到您觉得合理的区间后，就可以使用这个策略了。
+                每个步骤完成时会有一份详尽的报告，告诉您当前想法把握机会的能力、抓住价格波动的能力，以及实盘模拟。调试到您觉得合理的区间后，就可以使用这个策略了。
               </li>
               <li>
                 <strong>第四步：在最新市场里寻找机会。</strong>

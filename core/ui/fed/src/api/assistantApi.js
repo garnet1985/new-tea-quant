@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 
 const API_ASSISTANT_PROVIDERS = `${API_VERSION_PREFIX}/assistant/providers`;
 const API_ASSISTANT_CHAT = `${API_VERSION_PREFIX}/assistant/chat`;

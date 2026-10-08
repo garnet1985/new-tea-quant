@@ -60,23 +60,15 @@ settings.py 里的字段不是全部参与指纹。只有**白名单字段**（e
 
 - UI 显示"环境已更新 / 仅供查阅"
 
-## Pin / Unpin
+## 清理
 
-- `pin`：固定版本，不被自动清理。只改 `meta.json` 的 `pinned` 列表
-
-- `unpin`：取消固定
-
-- pin 不改 settings、不绑定 Run、不禁止手动删除
-
-## Keep-N
-
-版本数量有上限（`data.json` → `retention.simulation_results_max_versions`）。触顶时**拒绝分配新版本**，不静默删除。删未 pin 且号更靠前的版本。
+过时环境（`env_fp` 与当前不一致）最多留 N 组（`data.json` → `retention.simulation_results_max_stale_envs`）。超出则删最旧一组。当前环境整组保留。没有 pin。
 
 ## 磁盘布局
 
 ```
 {strategy}/results/simulations/
-  meta.json                     # 索引：next_version_id + registry + pinned
+  meta.json                     # 索引：next_version_id + registry
   {vid}/
     settings.json               # 当时完整 settings（恢复用）
     effective_settings.json     # 白名单投影（不含 entity_ids）
@@ -94,7 +86,5 @@ settings.py 里的字段不是全部参与指纹。只有**白名单字段**（e
 
 | 缩写    | 全称                        | 用途   |
 | ----- | ------------------------- | ---- |
-| `spn` | strategy\_pin\_version    | 固定版本 |
-| `sup` | strategy\_unpin\_version  | 取消固定 |
 | `sdv` | strategy\_delete\_version | 删除版本 |
 

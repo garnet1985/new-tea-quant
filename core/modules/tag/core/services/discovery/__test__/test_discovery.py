@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.project_context.core.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 from core.modules.tag.core.services.discovery import DiscoveryService
 
 
@@ -41,10 +41,7 @@ def tags_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     us = tmp_path / "userspace"
     root = us / "extensions" / "tags"
     root.mkdir(parents=True)
-    monkeypatch.setattr(
-        PathManager, "get_extensions_root", staticmethod(lambda: us / "extensions")
-    )
-    monkeypatch.setattr(PathManager, "get_tags_root", staticmethod(lambda: root))
+    monkeypatch.setattr(ProjectContext.path, "get_tags_root", lambda: root)
     return root
 
 

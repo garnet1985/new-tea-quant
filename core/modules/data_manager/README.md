@@ -1,47 +1,11 @@
-# Data Manager 模块（`modules.data_manager`）· **版本 0.4.0**
+# Data Manager
 
-> 公开 API：[API.md](./API.md) · 快速开始：[QUICKSTART.md](./QUICKSTART.md)  
-> 包根仅 `DataManager`；`BaseTableNames` → `contracts.py`；领域服务经 `DataManager.*` 属性访问
+**模块：** `modules.data_manager` · **版本：** `0.2.1`
 
-进程内 **统一数据访问门面**：持有 **`DatabaseManager`**，发现 **`core/tables`** 与 **`userspace/extensions/tables`**，装配 **`DataService`**。
+进程内统一数据访问门面。持有 `DatabaseManager`，发现 `core/tables` 与 `userspace/extensions/tables`，装配 `DataService`。
 
-## 快速开始
+公开入口是 `DataManager`。`BaseTableNames` 从 `contracts` 导入。领域服务经 `DataManager` 的属性访问，例如 `stock`、`calendar`。最短示例见 [QUICKSTART.md](./QUICKSTART.md)，调用面见 [API.md](./API.md)。
 
-```python
-from core.modules.data_manager import DataManager
+依赖：`infra.db`、`infra.project_context`、`infra.discovery`、`infra.utils`、`infra.cmd_layout`。
 
-dm = DataManager(is_verbose=True)
-rows = dm.stock.kline.load("000001.SZ", term="daily", start_date="20240101", end_date="20241231")
-```
-
-## 目录结构
-
-```text
-core/modules/data_manager/
-├── module_info.yaml / API.md / QUICKSTART.md / README.md
-├── contracts.py
-├── core/
-│   ├── data_manager.py
-│   ├── enums.py
-│   ├── sample_universe/
-│   ├── dev/sample_stock_list/
-│   └── data_services/
-├── __test__/
-└── docs/
-```
-
-## 依赖
-
-- **`infra.db`**
-- **`infra.project_context`**
-
-## 测试
-
-见 [`__test__/TEST_CASES.md`](__test__/TEST_CASES.md)。
-
-## 相关文档
-
-- [架构](docs/ARCHITECTURE.md)
-- [设计](docs/DESIGN.md)
-- [API](API.md)
-- [glossary](glossary.yaml)
+测试见 [`__test__/TEST_CASES.md`](__test__/TEST_CASES.md)。架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，设计见 [docs/DESIGN.md](docs/DESIGN.md)，名词见 [glossary.yaml](glossary.yaml)。

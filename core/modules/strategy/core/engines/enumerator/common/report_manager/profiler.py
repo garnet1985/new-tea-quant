@@ -413,7 +413,7 @@ class ProfilerPerformance:
     PERFORMANCE_FILE = PERFORMANCE_FILE
 
     strategy_key: str
-    version_id: int
+    version_id: Any
     elapsed_seconds: float
     total_jobs: int
     completed_jobs: int
@@ -439,7 +439,7 @@ class ProfilerPerformance:
         cls,
         *,
         strategy_key: str,
-        version_id: int,
+        version_id: Any,
         elapsed_seconds: float,
         total_jobs: int,
         completed_jobs: int,
@@ -466,7 +466,7 @@ class ProfilerPerformance:
         wall = float(phases.get("wall") or 0.0) or float(elapsed_seconds or 0.0)
         return cls(
             strategy_key=str(strategy_key or ""),
-            version_id=int(version_id or 0),
+            version_id=str(version_id or "").strip(),
             elapsed_seconds=max(0.0, wall),
             total_jobs=max(0, int(total_jobs or 0)),
             completed_jobs=max(0, int(completed_jobs or 0)),
@@ -487,7 +487,7 @@ class ProfilerPerformance:
         cls,
         *,
         strategy_key: str,
-        version_id: int,
+        version_id: Any,
         entity_count: int,
         opportunities_count: int,
         run_result: Any,
@@ -538,7 +538,7 @@ class ProfilerPerformance:
         summary = dict(payload.get("summary") or {})
         glance = dict(payload.get("quick_summary") or {})
 
-        CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+        CmdLayout.title.print_h2(f"{icon('clock')} 性能", stream=out)
         elapsed = float(
             glance.get("total_sec_spent") or summary.get("elapsed_seconds") or 0.0
         )
@@ -718,7 +718,7 @@ class ProfilerPerformance:
             planner_raw["mode"] = mode
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             elapsed_seconds=float(glance.get("total_sec_spent") or 0.0),
             total_jobs=int(batches.get("total") or 0),
             completed_jobs=int(batches.get("success") or 0),
@@ -760,9 +760,9 @@ class _ProfilerCollectSession:
     - 调用方: ProfilerReport
     """
 
-    def __init__(self, *, strategy_key: str, version_id: int, entity_count: int) -> None:
+    def __init__(self, *, strategy_key: str, version_id: Any, entity_count: int) -> None:
         self.strategy_key = str(strategy_key or "")
-        self.version_id = int(version_id or 0)
+        self.version_id = str(version_id or "").strip()
         self.entity_count = max(0, int(entity_count))
         self._jobs: List[JobPerformance] = []
 

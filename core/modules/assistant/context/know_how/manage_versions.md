@@ -2,14 +2,11 @@
 title: manage version 策略版本管理
 aliases:
   - version
-  - pin
-  - unpin
   - delete
   - cache
   - 版本
-  - 固定版本
   - 删除版本
-summary: 固定、取消固定和删除策略回测版本。
+summary: 删除策略回测版本。
 ---
 
 # 如何管理版本
@@ -23,8 +20,6 @@ summary: 固定、取消固定和删除策略回测版本。
 | 命令                                      | 缩写    | 说明     |
 | --------------------------------------- | ----- | ------ |
 | `python cli.py strategy_delete_version` | `sdv` | 删除一个版本 |
-| `python cli.py strategy_pin_version`    | `spn` | 固定一个版本 |
-| `python cli.py strategy_unpin_version`  | `sup` | 取消固定   |
 
 所有命令都需要 `--strategy` 参数，格式为 `策略key:版本号`。
 
@@ -40,28 +35,6 @@ python cli.py sdv --strategy random_v1:3
 
 - `settings.py` 不受影响
 
-- 如果该版本被 pin 了，删除时会自动 unpin，不必先 `sup`
-
-## 固定版本
-
-```bash
-python cli.py spn --strategy random_v1:3
-```
-
-- 固定后不被自动清理
-
-- 只改 `meta.json` 的 `pinned` 列表
-
-- 不改 settings、不绑定 Run
-
-## 取消固定
-
-```bash
-python cli.py sup --strategy random_v1:3
-```
-
-取消固定后，该版本可能被 Keep-N 清理。
-
 ## 版本号格式
 
 `--strategy` 参数的版本号部分支持两种写法：
@@ -71,15 +44,15 @@ python cli.py sdv --strategy my_strategy:3      # 数字
 python cli.py sdv --strategy my_strategy:v3     # 带 v 前缀
 ```
 
-## Keep-N 自动清理
+## 过时环境自动清理
 
-版本数量有上限（`data.json` → `retention.simulation_results_max_versions`）。
+过时 `env_fp` 最多留几组（`data.json` → `retention.simulation_results_max_stale_envs`，默认 5）。
 
-- 触顶时**拒绝分配新版本**，不静默删除
+- 当前环境整组保留，不按 version 号抽
 
-- 清理时删未 pin 且号更靠前的版本
+- 超出则删最旧的那一组（含对应归因报告）
 
-- pin 的版本不会被清理
+- 开新号不会因为份数触顶而拒绝
 
 ## 什么时候会换版本
 
@@ -110,8 +83,6 @@ python cli.py sdv --strategy my_strategy:v3     # 带 v 前缀
 
 | 场景     | 命令                                        |
 | ------ | ----------------------------------------- |
-| 固定重要版本 | `python cli.py spn --strategy my_strat:1` |
 | 删除错误版本 | `python cli.py sdv --strategy my_strat:3` |
-| 取消固定   | `python cli.py sup --strategy my_strat:1` |
 | 查看 NTQ 核心版本 | `python cli.py v`                         |
 

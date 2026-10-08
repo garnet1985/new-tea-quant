@@ -13,7 +13,6 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import date
-from typing import List
 
 from core.infra.cmd_layout import CmdLayout
 from core.modules.cli.dev.scripts.publish_prep.changelog_sync import (
@@ -84,6 +83,24 @@ def run_minimal_import_check() -> int:
     return int(proc.returncode or 0)
 
 
+def run_ruff() -> int:
+    """按仓库 ``pyproject.toml`` 跑 ``ruff check``（只检查，不改文件）。"""
+    print("\n[检查] ruff…", flush=True)
+    py = ProjectContext.path.get_python()
+    try:
+        py_label = py.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        py_label = str(py)
+    print(f"  解释器: {py_label}", flush=True)
+    proc = subprocess.run(
+        [str(py), "-m", "ruff", "check"],
+        cwd=str(REPO_ROOT),
+    )
+    if proc.returncode == 0:
+        print(f"  {CmdLayout.icon.i('success')} ruff check 通过", flush=True)
+    return int(proc.returncode or 0)
+
+
 def run_pytest() -> int:
     print("\n[检查] pytest…", flush=True)
     py = ProjectContext.path.get_python()
@@ -144,10 +161,18 @@ def run_fed_build() -> int:
     return 0
 
 
+def _stop(title: str, details: list | None = None) -> int:
+    """打印本步失败原因并中断后续检查。"""
+    print(f"{CmdLayout.icon.i('error')} 未通过: {title}", flush=True)
+    for line in details or []:
+        print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+    print("已中断，后续检查与前端构建未执行。", flush=True)
+    return 1
+
+
 def run_publish_prep(opts: PublishPrepOptions) -> int:
     version = normalize_version(opts.version)
     release_date = date.today().isoformat()
-    failures: List[str] = []
 
     print(f"发布准备: v{version}  check_only={opts.check_only}", flush=True)
 
@@ -160,8 +185,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
                 flush=True,
             )
         except (FileNotFoundError, ValueError) as exc:
-            print(f"{CmdLayout.icon.i('error')} CHANGELOG → system 同步失败: {exc}", flush=True)
-            return 1
+            return _stop(f"CHANGELOG → system 同步失败: {exc}")
         sync_readme_version_badges(version)
     else:
         cur = json.loads(SYSTEM_JSON.read_text(encoding="utf-8"))
@@ -174,9 +198,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     print("\n[检查] CHANGELOG → system.json new_features …", flush=True)
     meta_issues = compare_system_new_features(version)
     if meta_issues:
-        failures.append("CHANGELOG/system new_features 未同步")
-        for line in meta_issues:
-            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+        return _stop("CHANGELOG/system new_features 未同步", meta_issues)
     else:
         print(
             f"  {CmdLayout.icon.i('success')} CHANGELOG v{version} 与 system.json new_features 一致",
@@ -186,9 +208,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     print("\n[检查] module_info.yaml 是否齐全…", flush=True)
     missing = check_module_info_files()
     if missing:
-        failures.append("module_info 缺失")
-        for line in missing:
-            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+        return _stop("module_info 缺失", missing)
     else:
         print(
             f"  {CmdLayout.icon.i('success')} core/modules/*、core/infra/*、core/ui、core/bff、core/tables 均已具备 module_info.yaml",
@@ -197,18 +217,14 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
 
     changelog_issues = validate_module_info_changelog()
     if changelog_issues:
-        failures.append("module_info changelog 校验未通过")
-        for line in changelog_issues:
-            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+        return _stop("module_info changelog 校验未通过", changelog_issues)
     else:
         print(f"  {CmdLayout.icon.i('success')} 各 module_info changelog 与 version 一致", flush=True)
 
     print("\n[检查] module_info.name 是否符合目录约定…", flush=True)
     name_issues = validate_module_info_names()
     if name_issues:
-        failures.append("module_info.name 校验未通过")
-        for line in name_issues:
-            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+        return _stop("module_info.name 校验未通过", name_issues)
     else:
         print(
             f"  {CmdLayout.icon.i('success')} name = modules.* / infra.* / ui / bff / tables",
@@ -227,9 +243,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     print("\n[检查] 模块文档版本字段是否与 module_info 一致…", flush=True)
     doc_issues = validate_module_doc_versions()
     if doc_issues:
-        failures.append("模块文档版本校验未通过")
-        for line in doc_issues:
-            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
+        return _stop("模块文档版本校验未通过", doc_issues)
     else:
         print(
             f"  {CmdLayout.icon.i('success')} **版本：** / # Version: / 最低支持核心版本 与 module_info 一致",
@@ -240,25 +254,22 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         from core.modules.cli.dev.scripts.py39_compat_check import run_py39_compat_check
 
         if run_py39_compat_check() != 0:
-            failures.append("Python 3.9 兼容性检查未通过")
+            return _stop("Python 3.9 兼容性检查未通过")
     else:
         print("\n[跳过] Python 3.9 兼容性检查", flush=True)
 
+    if run_ruff() != 0:
+        return _stop("ruff check 未通过")
+
     if not opts.skip_ic:
         if run_minimal_import_check() != 0:
-            failures.append("minimal import check 失败")
+            return _stop("minimal import check 失败")
     else:
         print("\n[跳过] UI 最小依赖 import", flush=True)
 
-    if not opts.skip_fed_build:
-        if run_fed_build() != 0:
-            failures.append("FED npm run build 失败")
-    else:
-        print("\n[跳过] FED 前端构建", flush=True)
-
     if not opts.skip_tests:
         if run_pytest() != 0:
-            failures.append("pytest 失败")
+            return _stop("pytest 失败")
     else:
         print("\n[跳过] pytest", flush=True)
 
@@ -269,7 +280,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
 
         dep_check_result = run_dependency_check(verbose=True)
         if dep_check_result == 1:
-            failures.append("依赖风险检测发现关键问题")
+            return _stop("依赖风险检测发现关键问题")
         elif dep_check_result == 2:
             print(f"  {CmdLayout.icon.i('warning')} 发现高危依赖项，建议修复但允许继续", flush=True)
             # 高危不阻止打包，只警告
@@ -280,17 +291,9 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         from core.modules.cli.dev.scripts.raw_icon_scan import run_raw_icon_scan
 
         if run_raw_icon_scan(verbose=True) != 0:
-            failures.append("裸状态 emoji 扫描未通过（请改用 IconService / i()）")
+            return _stop("裸状态 emoji 扫描未通过（请改用 IconService / i()）")
     else:
         print("\n[跳过] 裸状态 emoji 扫描", flush=True)
-
-    print("\n---", flush=True)
-    if failures:
-        print(f"{CmdLayout.icon.i('error')} 未通过: " + ", ".join(failures), flush=True)
-        print("请处理 CHANGELOG 发布清单中的手工项（Changelog、module 文档、gitignore 等）。", flush=True)
-        return 1
-
-    print(f"{CmdLayout.icon.i('success')} 自动化项已通过。", flush=True)
 
     if opts.package_userspace:
         if opts.check_only:
@@ -304,8 +307,15 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             dest = ProjectContext.path.get_updater_directory()
             Updater.runtime.sync_orchestrator(dest)
             if Setup.artifacts.package_userspace() != 0:
-                return 1
+                return _stop("init userspace 打包失败")
 
+    if not opts.skip_fed_build:
+        if run_fed_build() != 0:
+            return _stop("FED npm run build 失败")
+    else:
+        print("\n[跳过] FED 前端构建", flush=True)
+
+    print(f"{CmdLayout.icon.i('success')} 自动化项已通过。", flush=True)
     if not opts.check_only:
         print(
             f"请继续：更新 CHANGELOG v{version}、按需更新模块文档与 module_info 依赖项，然后提交/打 tag。",

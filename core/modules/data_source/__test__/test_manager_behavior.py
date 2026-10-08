@@ -3,7 +3,7 @@ from core.modules.data_source import DataSourceManager
 
 
 def test_init():
-    manager = DataSourceManager(is_verbose=False)
+    manager = DataSourceManager()
 
     assert hasattr(manager, "_all_valid_configs_cache")
     assert hasattr(manager, "_all_valid_handlers_cache")
@@ -12,7 +12,7 @@ def test_init():
 
 
 def test_flush_cache():
-    manager = DataSourceManager(is_verbose=False)
+    manager = DataSourceManager()
     manager._flush_cache()
     assert len(manager._all_valid_configs_cache) == 0
     assert len(manager._all_valid_handlers_cache) == 0

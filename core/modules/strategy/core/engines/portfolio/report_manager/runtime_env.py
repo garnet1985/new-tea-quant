@@ -16,7 +16,7 @@ class PortfolioRuntimeEnv:
 
     strategy_key: str
     strategy_path: str
-    version_id: int
+    version_id: Any
     enum_version_id: str
     enum_output_dir: str
     execute_fp: str
@@ -31,7 +31,7 @@ class PortfolioRuntimeEnv:
         return {
             "strategy_key": self.strategy_key,
             "strategy_path": self.strategy_path,
-            "version_id": int(self.version_id),
+            "version_id": str(self.version_id or "").strip(),
             "enum_version_id": self.enum_version_id,
             "enum_output_dir": self.enum_output_dir,
             "market_profile": self.market_profile,
@@ -50,7 +50,7 @@ class PortfolioRuntimeEnv:
         return cls(
             strategy_key=str(data.get("strategy_key") or "").strip(),
             strategy_path=str(data.get("strategy_path") or "").strip(),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             enum_version_id=str(data.get("enum_version_id") or "").strip(),
             enum_output_dir=str(data.get("enum_output_dir") or "").strip(),
             execute_fp=str(data.get("execute_fp") or "").strip(),

@@ -63,8 +63,12 @@ class ContractIssuer:
         """发现所有 contract（系统 + 用户）。
 
         Args:
-            user_space_path: 用户空间路径（可选）
+            user_space_path: 用户空间路径（可选）。传入真值时扫描 userspace。
         """
+        self._declarations = {}
+        self._validation_errors = {}
+        self._data_keys = []
+
         # Step 1: 加载并合并 data_keys（系统 + 用户）
         self._load_data_keys(user_space_path)
         
@@ -135,9 +139,15 @@ class ContractIssuer:
             return []
         
         try:
-            # 动态导入用户 data_keys.py
-            spec = importlib.util.spec_from_file_location("user_data_keys", user_data_keys_file)
+            # 动态导入用户 data_keys.py（每次重新执行，避免进程内旧定义）
+            import sys
+
+            module_name = "user_data_keys"
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+            spec = importlib.util.spec_from_file_location(module_name, user_data_keys_file)
             module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
             spec.loader.exec_module(module)
             
             # 检查USER_DATA_KEY类是否存在
@@ -238,6 +248,10 @@ class ContractIssuer:
             if spec is None or spec.loader is None:
                 raise ImportError(f"无法加载 {path}")
             module = importlib.util.module_from_spec(spec)
+            # 写入 sys.modules，便于 reload() 清掉后再读磁盘
+            import sys
+
+            sys.modules[module_name] = module
             spec.loader.exec_module(module)
             return module
         module_name = f"core.modules.data_contract.core.data_contracts.{sub_dir.name}.{stem}"
@@ -787,25 +801,42 @@ class ContractIssuer:
         return list_key
 
     @classmethod
-    def _auto_discover(cls) -> None:
-        """自动 discovery（只执行一次）。
+    def reload(cls, user_space_path: Optional[Path] = None) -> int:
+        """强制重新发现系统 + userspace contract，并刷新类级缓存。
 
-        内部方法：
-        - 创建临时 instance
-        - 调用 discover()
-        - 缓存 declarations 到类属性
+        供 UI「重新发现」与进程内热加载使用，无需重启 NTQ。
+
+        Returns:
+            发现到的有效 key 数量。
         """
-        # 创建临时 instance
+        import sys
+
+        for name in list(sys.modules):
+            if name == "user_data_keys" or name.startswith("userspace_data_contract_"):
+                del sys.modules[name]
+
+        cls._discovered = False
+        cls._declarations_cache = {}
+
+        root = (
+            Path(user_space_path)
+            if user_space_path is not None
+            else ProjectContext.path.get_data_contract_root()
+        )
         issuer = ContractIssuer()
-        
-        # 调用 discover()（系统 contract）
-        issuer.discover()
-        
-        # 缓存到类属性
-        cls._declarations_cache = issuer._declarations
+        issuer.discover(user_space_path=root)
+        cls._declarations_cache = dict(issuer._declarations)
         cls._discovered = True
-        
-        logger.info(f"Auto-discovery 完成：发现 {len(cls._declarations_cache)} 个 contract")
+        logger.info(
+            "ContractIssuer.reload 完成：发现 %s 个 contract",
+            len(cls._declarations_cache),
+        )
+        return len(cls._declarations_cache)
+
+    @classmethod
+    def _auto_discover(cls) -> None:
+        """自动 discovery（只执行一次；含 userspace）。"""
+        cls.reload()
 
     @classmethod
     def _create_contract_from_declaration_static(

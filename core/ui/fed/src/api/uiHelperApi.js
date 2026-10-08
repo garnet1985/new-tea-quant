@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX } from 'services/request';
+import request, { API_VERSION_PREFIX } from 'service/request';
 
 const API_UI_HELPER = `${API_VERSION_PREFIX}/settings/ui-helper`;
 

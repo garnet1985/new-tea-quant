@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { useFakeProgress } from '../../hooks/useFakeProgress';
+import { useFakeProgress } from 'service/progress/useFakeProgress';
 import {
   fakeProgressTickSize,
   setupFakeProgressBounds,

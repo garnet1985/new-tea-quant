@@ -1,0 +1,490 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { stripRuntimeStrategySettings } from '../stripRuntimeStrategySettings';
+import JSON5 from 'json5';
+
+function stripHashComments(text) {
+  let out = '';
+  let inSingle = false;
+  let inDouble = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (!inDouble && ch === '\'') {
+      inSingle = !inSingle;
+      out += ch;
+      continue;
+    }
+    if (!inSingle && ch === '"') {
+      inDouble = !inDouble;
+      out += ch;
+      continue;
+    }
+    if (!inSingle && !inDouble && ch === '#') {
+      while (i < text.length && text[i] !== '\n') i += 1;
+      if (i < text.length) out += '\n';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function replacePythonLiterals(text) {
+  let out = '';
+  let inSingle = false;
+  let inDouble = false;
+  let escaped = false;
+  let token = '';
+
+  const flushToken = () => {
+    if (!token) return;
+    if (token === 'True') out += 'true';
+    else if (token === 'False') out += 'false';
+    else if (token === 'None') out += 'null';
+    else out += token;
+    token = '';
+  };
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (escaped) {
+      flushToken();
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      flushToken();
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (!inDouble && ch === '\'') {
+      flushToken();
+      inSingle = !inSingle;
+      out += ch;
+      continue;
+    }
+    if (!inSingle && ch === '"') {
+      flushToken();
+      inDouble = !inDouble;
+      out += ch;
+      continue;
+    }
+    if (!inSingle && !inDouble && /[A-Za-z_]/.test(ch)) {
+      token += ch;
+      continue;
+    }
+    flushToken();
+    out += ch;
+  }
+  flushToken();
+  return out;
+}
+
+function tryParsePythonDictLike(text) {
+  const noComments = stripHashComments(text);
+  const normalized = replacePythonLiterals(noComments);
+  const parsed = JSON5.parse(normalized);
+  return {
+    parsed,
+    pretty: JSON.stringify(parsed, null, 2),
+    mode: 'Python dict 兼容',
+  };
+}
+
+function extractErrorPosition(errMsg) {
+  const m = String(errMsg).match(/position\s+(\d+)/i);
+  if (!m) return -1;
+  const pos = Number(m[1]);
+  return Number.isNaN(pos) ? -1 : pos;
+}
+
+function extractErrorLineColumn(errMsg) {
+  const m1 = String(errMsg).match(/\bat\s+(\d+)\s*:\s*(\d+)\b/i);
+  if (m1) {
+    const line = Number(m1[1]);
+    const column = Number(m1[2]);
+    if (!Number.isNaN(line) && !Number.isNaN(column)) return { line, column };
+  }
+  const m2 = String(errMsg).match(/line\s+(\d+)\D+column\s+(\d+)/i);
+  if (m2) {
+    const line = Number(m2[1]);
+    const column = Number(m2[2]);
+    if (!Number.isNaN(line) && !Number.isNaN(column)) return { line, column };
+  }
+  return { line: 0, column: 0 };
+}
+
+function getLineColumnByPosition(text, position) {
+  if (position < 0) return { line: 0, column: 0 };
+  const lines = text.split('\n');
+  let cursor = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const lineLen = lines[i].length;
+    if (position <= cursor + lineLen) {
+      return { line: i + 1, column: position - cursor + 1 };
+    }
+    cursor += lineLen + 1;
+  }
+  return { line: lines.length, column: (lines[lines.length - 1] || '').length + 1 };
+}
+
+function getPositionByLineColumn(text, line, column) {
+  if (line <= 0 || column <= 0) return -1;
+  const lines = text.split('\n');
+  let pos = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const lineNo = i + 1;
+    if (lineNo === line) {
+      return pos + Math.max(0, Math.min(column - 1, lines[i].length));
+    }
+    pos += lines[i].length + 1;
+  }
+  return -1;
+}
+
+function getErrorContextLines(text, line, radius = 2) {
+  if (!line) return [];
+  const lines = text.split('\n');
+  const start = Math.max(1, line - radius);
+  const end = Math.min(lines.length, line + radius);
+  const out = [];
+  for (let ln = start; ln <= end; ln += 1) {
+    out.push({ lineNo: ln, text: lines[ln - 1], isError: ln === line });
+  }
+  return out;
+}
+
+function parseCoreInput(text) {
+  let result;
+  try {
+    const parsed = JSON.parse(text);
+    result = {
+      parsed,
+      pretty: JSON.stringify(parsed, null, 2),
+      mode: 'JSON',
+    };
+  } catch (_jsonErr) {
+    result = tryParsePythonDictLike(text);
+  }
+  if (!result?.parsed || typeof result.parsed !== 'object' || Array.isArray(result.parsed)) {
+    throw new Error('core 必须是 dict/object');
+  }
+  return result;
+}
+
+/** 展示用 pretty JSON；``core`` 为对象或 JSON/Python dict 字符串均可。 */
+function formatCoreToDisplayText(core) {
+  if (core === undefined || core === null) return '{\n}';
+  if (typeof core === 'string') {
+    const trimmed = core.trim();
+    if (!trimmed) return '{\n}';
+    try {
+      return parseCoreInput(trimmed).pretty;
+    } catch {
+      return core;
+    }
+  }
+  if (typeof core === 'object' && !Array.isArray(core)) {
+    try {
+      return parseCoreInput(JSON.stringify(core)).pretty;
+    } catch {
+      return JSON.stringify(core, null, 2);
+    }
+  }
+  return '{\n}';
+}
+
+function StrategySettingsContainer({ initialSettings, children }) {
+  const normalizedInitial = useMemo(
+    () => initialSettings || {},
+    [initialSettings],
+  );
+  const [draftSettings, setDraftSettings] = useState(normalizedInitial);
+  const defaultCoreText = useMemo(
+    () => formatCoreToDisplayText(normalizedInitial?.core),
+    [normalizedInitial],
+  );
+  const [coreInputText, setCoreInputText] = useState(() => formatCoreToDisplayText(normalizedInitial?.core));
+  const [coreParseError, setCoreParseError] = useState('');
+  const [coreLineHint, setCoreLineHint] = useState('');
+  const [coreErrorLine, setCoreErrorLine] = useState(0);
+  const [coreErrorColumn, setCoreErrorColumn] = useState(0);
+  const [coreErrorPosition, setCoreErrorPosition] = useState(-1);
+  const [coreParseMode, setCoreParseMode] = useState('');
+  const coreInputRef = useRef(null);
+  const coreFullscreenInputRef = useRef(null);
+  const coreFormatTimerRef = useRef(null);
+
+  const getActiveCoreInputEl = () => coreFullscreenInputRef.current || coreInputRef.current;
+
+  useEffect(() => () => {
+    if (coreFormatTimerRef.current) clearTimeout(coreFormatTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const text = formatCoreToDisplayText(normalizedInitial?.core);
+    setDraftSettings(normalizedInitial);
+    setCoreInputText(text);
+    try {
+      const result = parseCoreInput(text);
+      setCoreParseError('');
+      setCoreLineHint('');
+      setCoreErrorLine(0);
+      setCoreErrorColumn(0);
+      setCoreErrorPosition(-1);
+      setCoreParseMode(result.mode);
+    } catch (err) {
+      const msg = err?.message || '解析失败';
+      let pos = extractErrorPosition(msg);
+      let loc = getLineColumnByPosition(text, pos);
+      if (loc.line <= 0 || loc.column <= 0) {
+        const lc = extractErrorLineColumn(msg);
+        if (lc.line > 0 && lc.column > 0) {
+          loc = lc;
+          pos = getPositionByLineColumn(text, lc.line, lc.column);
+        }
+      }
+      setCoreParseError(msg);
+      setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
+      setCoreErrorLine(loc.line);
+      setCoreErrorColumn(loc.column);
+      setCoreErrorPosition(-1);
+      setCoreParseMode('');
+    }
+  }, [normalizedInitial]);
+
+  const updateSection = useCallback((sectionKey, nextSectionValue) => {
+    setDraftSettings((prev) => ({
+      ...prev,
+      [sectionKey]: nextSectionValue,
+    }));
+  }, []);
+
+  const applyCoreSourceFailure = useCallback((text, err, focusOnError) => {
+    const msg = err?.message || '解析失败';
+    let pos = extractErrorPosition(msg);
+    let loc = getLineColumnByPosition(text, pos);
+    if (loc.line <= 0 || loc.column <= 0) {
+      const lc = extractErrorLineColumn(msg);
+      if (lc.line > 0 && lc.column > 0) {
+        loc = lc;
+        pos = getPositionByLineColumn(text, lc.line, lc.column);
+      }
+    }
+    setCoreParseError(msg);
+    setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
+    setCoreErrorLine(loc.line);
+    setCoreErrorColumn(loc.column);
+    setCoreErrorPosition(focusOnError ? pos : -1);
+    setCoreParseMode('');
+  }, []);
+
+  /** 解析 ``text`` 并写入草稿；可选失焦时 pretty-print。keyup / blur / 粘贴后同步用 DOM 当前值，避免仅依赖闭包里的 ``coreInputText``。 */
+  const applyCoreSourceText = useCallback((
+    text,
+    { formatOnSuccess = false, focusOnError = false } = {},
+  ) => {
+    try {
+      const result = parseCoreInput(text);
+      if (formatOnSuccess) {
+        setCoreInputText(result.pretty);
+      }
+      setDraftSettings((prev) => ({ ...prev, core: result.parsed }));
+      setCoreParseError('');
+      setCoreLineHint('');
+      setCoreErrorLine(0);
+      setCoreErrorColumn(0);
+      setCoreErrorPosition(-1);
+      setCoreParseMode(result.mode);
+    } catch (err) {
+      applyCoreSourceFailure(text, err, focusOnError);
+    }
+  }, [applyCoreSourceFailure]);
+
+  const applyCoreAndFormat = useCallback(({ focusOnError = true } = {}) => {
+    applyCoreSourceText(coreInputText, { formatOnSuccess: true, focusOnError });
+  }, [applyCoreSourceText, coreInputText]);
+
+  const scheduleCoreFormat = useCallback(() => {
+    if (coreFormatTimerRef.current) clearTimeout(coreFormatTimerRef.current);
+    coreFormatTimerRef.current = setTimeout(() => {
+      const el = getActiveCoreInputEl();
+      if (!el) return;
+      applyCoreSourceText(el.value, { formatOnSuccess: true, focusOnError: false });
+    }, 500);
+  }, [applyCoreSourceText]);
+
+  const onCoreEditorLiveSync = useCallback((e) => {
+    applyCoreSourceText(e.target.value, { formatOnSuccess: false, focusOnError: false });
+    scheduleCoreFormat();
+  }, [applyCoreSourceText, scheduleCoreFormat]);
+
+  const onCoreEditorPaste = useCallback(() => {
+    requestAnimationFrame(() => {
+      const el = getActiveCoreInputEl();
+      if (!el) return;
+      applyCoreSourceText(el.value, { formatOnSuccess: false, focusOnError: false });
+      scheduleCoreFormat();
+    });
+  }, [applyCoreSourceText, scheduleCoreFormat]);
+
+  const resetCoreToDefault = useCallback(() => {
+    applyCoreSourceText(defaultCoreText, { formatOnSuccess: true, focusOnError: false });
+  }, [applyCoreSourceText, defaultCoreText]);
+
+  const getDraftSettingsForSubmit = useCallback(() => {
+    try {
+      const result = parseCoreInput(coreInputText);
+      setCoreParseError('');
+      setCoreLineHint('');
+      setCoreErrorLine(0);
+      setCoreErrorColumn(0);
+      setCoreErrorPosition(-1);
+      setCoreParseMode(result.mode);
+      return stripRuntimeStrategySettings({
+        ...draftSettings,
+        core: result.parsed,
+      });
+    } catch (err) {
+      const msg = err?.message || '解析失败';
+      let pos = extractErrorPosition(msg);
+      let loc = getLineColumnByPosition(coreInputText, pos);
+      if (loc.line <= 0 || loc.column <= 0) {
+        const lc = extractErrorLineColumn(msg);
+        if (lc.line > 0 && lc.column > 0) {
+          loc = lc;
+          pos = getPositionByLineColumn(coreInputText, lc.line, lc.column);
+        }
+      }
+      setCoreParseError(msg);
+      setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
+      setCoreErrorLine(loc.line);
+      setCoreErrorColumn(loc.column);
+      setCoreErrorPosition(pos);
+      setCoreParseMode('');
+      throw new Error(`core 参数格式不合法：${msg}`);
+    }
+  }, [coreInputText, draftSettings]);
+
+  const coreErrorContext = useMemo(
+    () => getErrorContextLines(coreInputText, coreErrorLine, 2),
+    [coreInputText, coreErrorLine],
+  );
+
+  useEffect(() => {
+    if (coreErrorPosition < 0) return;
+    const textarea = getActiveCoreInputEl();
+    if (!textarea) return;
+    const pos = Math.max(0, Math.min(coreErrorPosition, coreInputText.length));
+    textarea.focus();
+    textarea.setSelectionRange(pos, Math.min(pos + 1, coreInputText.length));
+    const lineNo = coreInputText.slice(0, pos).split('\n').length;
+    const lineHeight = 22;
+    textarea.scrollTop = Math.max(0, (lineNo - 2) * lineHeight);
+  }, [coreErrorPosition, coreInputText]);
+
+  const onCoreTextChange = useCallback((nextText) => {
+    setCoreInputText(nextText);
+  }, []);
+
+  const onCoreBlur = useCallback(() => {
+    if (coreFormatTimerRef.current) {
+      clearTimeout(coreFormatTimerRef.current);
+      coreFormatTimerRef.current = null;
+    }
+    const el = getActiveCoreInputEl();
+    const text = el?.value ?? coreInputText;
+    applyCoreSourceText(text, { formatOnSuccess: true, focusOnError: false });
+  }, [coreInputText, applyCoreSourceText]);
+
+  const coreEditor = useMemo(
+    () => ({
+      value: coreInputText,
+      onChange: onCoreTextChange,
+      onKeyUp: onCoreEditorLiveSync,
+      onPaste: onCoreEditorPaste,
+      onBlur: onCoreBlur,
+      onApply: applyCoreAndFormat,
+      onResetToDefault: resetCoreToDefault,
+      defaultCoreText,
+      inputRef: coreInputRef,
+      fullscreenInputRef: coreFullscreenInputRef,
+      parseError: coreParseError,
+      lineHint: coreLineHint,
+      errorLine: coreErrorLine,
+      errorColumn: coreErrorColumn,
+      errorContext: coreErrorContext,
+      parseMode: coreParseMode,
+      getDraftSettingsForSubmit,
+    }),
+    [
+      coreInputText,
+      onCoreTextChange,
+      onCoreEditorLiveSync,
+      onCoreEditorPaste,
+      onCoreBlur,
+      applyCoreAndFormat,
+      resetCoreToDefault,
+      defaultCoreText,
+      coreParseError,
+      coreLineHint,
+      coreErrorLine,
+      coreErrorColumn,
+      coreErrorContext,
+      coreParseMode,
+      getDraftSettingsForSubmit,
+    ],
+  );
+
+  const onGoalChange = useCallback(
+    (nextGoal) => updateSection('goal', nextGoal),
+    [updateSection],
+  );
+  const onSamplingChange = useCallback(
+    (nextSampling) => updateSection('sampling', nextSampling),
+    [updateSection],
+  );
+  const onFeesChange = useCallback(
+    (nextFees) => updateSection('fees', nextFees),
+    [updateSection],
+  );
+  const onSimulationChange = useCallback(
+    (nextSimulation) => updateSection('simulation', nextSimulation),
+    [updateSection],
+  );
+  const onPriceSimulatorChange = useCallback(
+    (nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator),
+    [updateSection],
+  );
+  const onPortfolioChange = useCallback(
+    (nextPortfolio) => updateSection('portfolio', nextPortfolio),
+    [updateSection],
+  );
+
+  return children({
+    draftSettings,
+    updateSection,
+    setDraftSettings,
+    coreEditor,
+    onGoalChange,
+    onSamplingChange,
+    onFeesChange,
+    onSimulationChange,
+    onPriceSimulatorChange,
+    onPortfolioChange,
+  });
+}
+
+export default StrategySettingsContainer;

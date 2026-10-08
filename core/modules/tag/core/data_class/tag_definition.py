@@ -23,7 +23,7 @@ from core.modules.tag.core.engines.shared.tag_settings.tag_definition_settings i
 
 @dataclass
 class TagDefinition:
-    """运行时 tag 定义（对应旧 TagModel，无 DB ensure）。"""
+    """运行时 tag 定义。校验在 settings，落库在 MetadataEnsureService。"""
 
     name: str
     display_name: str = ""
@@ -92,20 +92,6 @@ class TagDefinition:
             "description": self.description,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
-        }
-
-    def to_settings_dict(self) -> Dict[str, Any]:
-        """回写 userspace 形态（无 DB 字段）。"""
-        if self.settings:
-            out = deepcopy(self.settings)
-            out["name"] = self.name
-            out.setdefault("display_name", self.display_name or self.name)
-            out.setdefault("description", self.description)
-            return out
-        return {
-            "name": self.name,
-            "display_name": self.display_name or self.name,
-            "description": self.description,
         }
 
     @property

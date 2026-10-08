@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 from core.modules.market_profile.contracts import MarketBaseRules
 from core.modules.strategy.core.engines.portfolio.data_class.account import Account
@@ -77,6 +77,14 @@ class AllocationStrategy:
         return float(self.settings.portfolio.allocation.kelly_fraction)
 
     @property
+    def default_cash(self) -> float:
+        return float(self.settings.portfolio.allocation.default_cash or 0.0)
+
+    @property
+    def default_shares(self) -> int:
+        return int(self.settings.portfolio.allocation.default_shares or 0)
+
+    @property
     def skip_trade_when_insufficient(self) -> bool:
         return bool(self.settings.portfolio.allocation.skip_trade_when_insufficient)
 
@@ -96,6 +104,7 @@ class AllocationStrategy:
         entity_id: str,
         *,
         win_rate: Optional[float] = None,
+        payoff: Optional[float] = None,
     ) -> int:
         px = float(buy_price or 0.0)
         if px <= 0 or account.cash <= 0:
@@ -105,7 +114,7 @@ class AllocationStrategy:
         if self.mode == "equal_shares":
             return self._equal_shares(account, px, entity_id)
         if self.mode == "kelly":
-            return self._kelly(account, px, entity_id, win_rate)
+            return self._kelly(account, px, entity_id, win_rate, payoff)
         return 0
 
     def floor_shares(self, shares: int, entity_id: str) -> int:
@@ -205,16 +214,15 @@ class AllocationStrategy:
         buy_price: float,
         entity_id: str,
         win_rate: Optional[float],
+        payoff: Optional[float],
     ) -> int:
         if win_rate is None:
-            return 0
-        f_raw = 2.0 * float(win_rate) - 1.0
+            return self._default_invest(account, buy_price, entity_id)
+        f_raw = kelly_raw_fraction(win_rate, 1.0 if payoff is None else payoff)
         if f_raw <= 0:
             return 0
-        kelly_divisor = (
-            1.0 / self.kelly_fraction if self.kelly_fraction > 0 else 1.0
-        )
-        target_capital = (f_raw / kelly_divisor) * float(account.cash)
+        scale = self.kelly_fraction if self.kelly_fraction > 0 else 1.0
+        target_capital = f_raw * scale * float(account.cash)
         planned = self.floor_shares(int(target_capital / buy_price), entity_id)
         return self._resolve_planned(
             planned_shares=planned,
@@ -223,6 +231,27 @@ class AllocationStrategy:
             buy_price=buy_price,
         )
 
+    def _default_invest(self, account: Account, buy_price: float, entity_id: str) -> int:
+        """没有已平仓样本时按 default_cash，否则按 default_shares。"""
+        if self.default_cash > 0:
+            budget = min(float(account.cash), self.default_cash)
+            planned = self.floor_shares(int(budget / buy_price), entity_id)
+            return self._resolve_planned(
+                planned_shares=planned,
+                entity_id=entity_id,
+                cash=budget,
+                buy_price=buy_price,
+            )
+        if self.default_shares > 0:
+            planned = self.floor_shares(self.default_shares, entity_id)
+            return self._resolve_planned(
+                planned_shares=planned,
+                entity_id=entity_id,
+                cash=float(account.cash),
+                buy_price=buy_price,
+            )
+        return 0
+
     def suggest_shares(
         self,
         account: Account,
@@ -230,6 +259,7 @@ class AllocationStrategy:
         entity_id: str,
         *,
         win_rate: Optional[float] = None,
+        payoff: Optional[float] = None,
     ) -> int:
         """建议股数只按仓位公式折手，不掺佣金。实际下单仍走 ``calculate_shares_to_buy``。"""
         px = float(buy_price or 0.0)
@@ -247,15 +277,22 @@ class AllocationStrategy:
             return planned if planned >= min_lot else 0
         if self.mode == "kelly":
             if win_rate is None:
-                return 0
-            f_raw = 2.0 * float(win_rate) - 1.0
+                return self._suggest_default(px, entity_id, min_lot)
+            f_raw = kelly_raw_fraction(win_rate, 1.0 if payoff is None else payoff)
             if f_raw <= 0:
                 return 0
-            kelly_divisor = (
-                1.0 / self.kelly_fraction if self.kelly_fraction > 0 else 1.0
-            )
-            target_capital = (f_raw / kelly_divisor) * float(account.cash)
+            scale = self.kelly_fraction if self.kelly_fraction > 0 else 1.0
+            target_capital = f_raw * scale * float(account.cash)
             planned = self.floor_shares(int(target_capital / px), entity_id)
+            return planned if planned >= min_lot else 0
+        return 0
+
+    def _suggest_default(self, buy_price: float, entity_id: str, min_lot: int) -> int:
+        if self.default_cash > 0:
+            planned = self.floor_shares(int(self.default_cash / buy_price), entity_id)
+            return planned if planned >= min_lot else 0
+        if self.default_shares > 0:
+            planned = self.floor_shares(self.default_shares, entity_id)
             return planned if planned >= min_lot else 0
         return 0
 
@@ -323,4 +360,31 @@ class AllocationStrategy:
         return int(amount / buy_price) if amount > 0 else 0
 
 
-__all__ = ["AllocationStrategy"]
+def kelly_raw_fraction(win_rate: float, payoff: float) -> float:
+    """凯利仓位 f = p - (1-p)/b。没有亏损样本时 f = p。"""
+    p = min(max(float(win_rate), 0.0), 1.0)
+    if payoff == float("inf"):
+        return p
+    b = float(payoff)
+    if b <= 0:
+        return 0.0
+    return p - (1.0 - p) / b
+
+
+def payoff_ratio(rois: Sequence[float]) -> Tuple[float, float]:
+    """已平仓 ROI 列表 → ``(胜率, 盈亏比)``。盈亏比是平均盈利 / 平均亏损绝对值。"""
+    sample = [float(item) for item in rois]
+    if not sample:
+        return 0.0, 0.0
+    wins = [item for item in sample if item > 0]
+    losses = [item for item in sample if item < 0]
+    p = len(wins) / float(len(sample))
+    if wins and not losses:
+        return p, float("inf")
+    if not wins or not losses:
+        return p, 0.0
+    b = (sum(wins) / len(wins)) / (sum(-item for item in losses) / len(losses))
+    return p, b
+
+
+__all__ = ["AllocationStrategy", "kelly_raw_fraction", "payoff_ratio"]

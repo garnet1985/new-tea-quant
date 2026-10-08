@@ -40,6 +40,7 @@ class SimulateSession:
     kind: SimulateKind
     global_entity_cache: Optional[Any] = None
     enum_version: Optional[str] = None
+    forced_version_id: Optional[str] = None
     steps: List[SimulateKind] = field(default_factory=list)
 
     @classmethod
@@ -152,7 +153,7 @@ class SimulateSession:
             and SimulateKind.ENUMERATE not in self.steps
         ):
             raise ValueError(
-                f"{self.kind.value} 需要 enum_version 或 steps 中包含 enumerate"
+                f"{self.kind.value} 需要 enum_version 或 steps 中包含 enum"
             )
 
 

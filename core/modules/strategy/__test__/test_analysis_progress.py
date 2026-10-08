@@ -1,4 +1,4 @@
-"""归因并进 report 步：Pipeline 离开时 report 仍 open，analyze 之后才 complete。"""
+"""Pipeline 离开时 report 仍 open，``_run_steps`` 之后才 complete。"""
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -37,7 +37,7 @@ class _FakePipeline:
         }
 
 
-def test_run_steps_completes_report_after_analysis(tmp_path, monkeypatch):
+def test_run_steps_completes_report_after_pipeline(tmp_path, monkeypatch):
     _patch_recorder(tmp_path, monkeypatch)
     monkeypatch.setattr(
         strategy_mod.BackTestPipelines,
@@ -55,18 +55,6 @@ def test_run_steps_completes_report_after_analysis(tmp_path, monkeypatch):
         lambda _settings: {},
     )
 
-    seen = {}
-
-    def _fake_analysis(step, step_res, ctx, folder, *, force=False):
-        cur = PipelineProgress.current()
-        assert cur is not None
-        doc = cur.to_dict()
-        seen["step"] = (doc.get("step") or {}).get("name")
-        seen["progress"] = float(doc.get("progress") or 0.0)
-        return {"skipped": True, "reason": "disabled"}
-
-    monkeypatch.setattr(Strategy, "_maybe_run_analysis", staticmethod(_fake_analysis))
-
     ctx = MagicMock()
     ctx.steps = [SimulateKind.ENUMERATE]
     ctx.kind = SimulateKind.ENUMERATE
@@ -82,8 +70,6 @@ def test_run_steps_completes_report_after_analysis(tmp_path, monkeypatch):
         Strategy._run_steps(ctx, strategy_folder=tmp_path)
         after = PipelineProgress.current().to_dict()
 
-    assert seen["step"] == "report"
-    assert seen["progress"] < 100.0
     assert after["step"] is None
     assert [x["name"] for x in after["completed_steps"]] == [
         "load",

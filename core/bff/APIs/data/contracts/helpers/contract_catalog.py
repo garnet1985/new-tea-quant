@@ -1,4 +1,4 @@
-"""Data contract catalog for UI (read-only list)."""
+"""Data contract catalog for UI (read-only list + reload)."""
 
 from __future__ import annotations
 
@@ -29,20 +29,32 @@ def _summary(key: str, declaration: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _catalog_entries() -> List[Tuple[str, Dict[str, Any]]]:
-    issuer = ContractIssuer()
-    # Truthy path enables userspace discovery; root comes from ProjectContext.
-    issuer.discover(user_space_path=ProjectContext.path.get_data_contract_root())
+def _catalog_entries(*, force_reload: bool = False) -> List[Tuple[str, Dict[str, Any]]]:
+    if force_reload or not ContractIssuer._discovered:
+        ContractIssuer.reload(
+            user_space_path=ProjectContext.path.get_data_contract_root()
+        )
     entries = [
-        (key, issuer.get_declaration(key)) for key in issuer.list_available_keys()
+        (key, declaration)
+        for key, declaration in ContractIssuer._declarations_cache.items()
     ]
     entries.sort(key=lambda item: item[0])
     return entries
 
 
-def fetch_data_contract_catalog_page(page: int, limit: int) -> Tuple[List[Dict[str, Any]], int]:
+def reload_data_contract_catalog() -> Dict[str, Any]:
+    """强制重新发现并刷新类级注册表；返回摘要供 UI。"""
+    total = ContractIssuer.reload(
+        user_space_path=ProjectContext.path.get_data_contract_root()
+    )
+    return {"total": int(total)}
+
+
+def fetch_data_contract_catalog_page(
+    page: int, limit: int, *, force_reload: bool = False
+) -> Tuple[List[Dict[str, Any]], int]:
     """Paginated data contract catalog; ``page`` is 1-based, sorted by ``key``."""
-    ordered = _catalog_entries()
+    ordered = _catalog_entries(force_reload=force_reload)
     total = len(ordered)
     if total == 0:
         return [], 0

@@ -29,10 +29,20 @@ _STALE_AFTER_SEC = 30 * 60
 
 _STEPS: tuple[str, ...] = ("load", "dispatch", "execute", "report")
 
+# 战役归因专用名：须与 enum/price/portfolio 区分，避免嵌套 simulate 抢进度。
+ATTRIBUTE_PIPELINE = "attribute"
+
 _STEP_WEIGHTS: Dict[str, Dict[str, float]] = {
     "enum": {"load": 0.05, "dispatch": 0.03, "execute": 0.9, "report": 0.02},
     "price": {"load": 0.1, "dispatch": 0.03, "execute": 0.85, "report": 0.02},
     "portfolio": {"load": 0.2, "dispatch": 0.1, "execute": 0.6, "report": 0.1},
+    # 准备 5% · 对照回测 85% · 归因/报告 10%（dispatch 权重 0，不单独占阶段）
+    ATTRIBUTE_PIPELINE: {
+        "load": 0.05,
+        "dispatch": 0.0,
+        "execute": 0.85,
+        "report": 0.10,
+    },
 }
 
 _STEP_LABELS: Dict[str, str] = {
@@ -42,10 +52,20 @@ _STEP_LABELS: Dict[str, str] = {
     "report": "生成报告",
 }
 
+_STEP_LABELS_BY_PIPELINE: Dict[str, Dict[str, str]] = {
+    ATTRIBUTE_PIPELINE: {
+        "load": "准备任务",
+        "dispatch": "准备任务",
+        "execute": "对照回测",
+        "report": "归因与报告",
+    },
+}
+
 _PIPELINE_LABELS: Dict[str, str] = {
     "enum": "枚举",
     "price": "价格回测",
     "portfolio": "资金模拟",
+    ATTRIBUTE_PIPELINE: "归因",
 }
 
 _TERMINAL = frozenset({"completed", "failed", "cancelled"})
@@ -104,8 +124,12 @@ class PipelineProgress:
         return _PIPELINE_LABELS.get(key, key)
 
     @staticmethod
-    def step_description(step_name: str) -> str:
+    def step_description(step_name: str, *, pipeline_name: str = "") -> str:
         key = str(step_name or "").strip()
+        pname = str(pipeline_name or "").strip()
+        by_pipe = _STEP_LABELS_BY_PIPELINE.get(pname) or {}
+        if key in by_pipe:
+            return by_pipe[key]
         return _STEP_LABELS.get(key, key)
 
     # ── seed / terminal writes (always keyed; no bind required) ───
@@ -157,10 +181,11 @@ class PipelineProgress:
         if not name:
             return
         self._finalize_current_step()
+        pname = str(self._doc.get("pipeline_name") or "").strip()
         self._doc["status"] = "running"
         self._doc["step"] = {
             "name": name,
-            "description": self.step_description(name),
+            "description": self.step_description(name, pipeline_name=pname),
             "progress": 0.0,
             "counters": None,
         }
@@ -219,7 +244,10 @@ class PipelineProgress:
             old_pct = 0.0
         cur["progress"] = max(old_pct, new_pct)
         cur["counters"] = {"done": d, "total": t}
-        cur["description"] = self.step_description("execute")
+        cur["description"] = self.step_description(
+            "execute",
+            pipeline_name=str(self._doc.get("pipeline_name") or ""),
+        )
         self._doc["step"] = cur
         self._doc["status"] = "running"
         self._recompute_pipeline_progress()
@@ -235,10 +263,16 @@ class PipelineProgress:
             for x in (self._doc.get("completed_steps") or [])
             if isinstance(x, dict)
         }
+        pname = str(self._doc.get("pipeline_name") or "").strip()
         for name in _STEPS:
             if name not in done_names:
                 self._doc.setdefault("completed_steps", []).append(
-                    {"name": name, "description": self.step_description(name)}
+                    {
+                        "name": name,
+                        "description": self.step_description(
+                            name, pipeline_name=pname
+                        ),
+                    }
                 )
                 done_names.add(name)
         self._doc["step"] = None
@@ -356,7 +390,13 @@ class PipelineProgress:
                 {
                     "name": name,
                     "description": str(
-                        cur.get("description") or self.step_description(name)
+                        cur.get("description")
+                        or self.step_description(
+                            name,
+                            pipeline_name=str(
+                                self._doc.get("pipeline_name") or ""
+                            ),
+                        )
                     ),
                 }
             )
@@ -417,4 +457,4 @@ class PipelineProgress:
         ).record(self._doc)
 
 
-__all__ = ["PipelineProgress"]
+__all__ = ["ATTRIBUTE_PIPELINE", "PipelineProgress"]

@@ -4,7 +4,7 @@
 
 ## 范围
 
-在 Tag MVP 完成后实施。原型参考 `prototype/data-acquire.html` 的 **Data Source** Tab（不含 Data Contract / Tables）。
+在 Tag MVP 完成后实施。范围是数据源列表与 Renew，不含数据契约和库表。
 
 | 包含（Phase 2 MVP） | 不包含 |
 |---------------------|--------|

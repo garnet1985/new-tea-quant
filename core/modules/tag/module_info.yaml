@@ -44,5 +44,5 @@ changelog:
     changes:
       - 初始化模块，完成基础功能
       - 场景（Scenario） 发现
-      - TagWorker 多进程
+      - 多进程计算
       - 支持增量式标签计算

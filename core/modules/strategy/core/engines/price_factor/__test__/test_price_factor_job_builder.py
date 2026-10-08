@@ -54,7 +54,7 @@ def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
     BacktestJob.validate_many(jobs, mode="entity_based")
 
     assert len(jobs) == 1
-    assert jobs[0]["id"] == "price_factor_run"
+    assert jobs[0]["id"] == "price_run"
     payload = jobs[0]["payload"]
     assert payload["entities_count"] == 2
     assert payload["entity_specified"] == [

@@ -18,3 +18,4 @@ core/bff/APIs/data/contracts/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/v1/data-contracts/list` | 分页契约目录（UI DTO） |
+| POST | `/v1/data-contracts/reload` | 重新发现系统 + userspace，刷新进程内注册表 |

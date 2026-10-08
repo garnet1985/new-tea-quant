@@ -215,7 +215,7 @@ class OverallReport:
 
     strategy_key: str = ""
     strategy_path: str = ""
-    version_id: int = 0
+    version_id: Any = 0
     enum_version_id: str = ""
     backtest_period: Dict[str, str] = field(default_factory=dict)
     summary: OverallSummary = field(default_factory=OverallSummary)
@@ -228,7 +228,7 @@ class OverallReport:
         *,
         strategy_key: str = "",
         strategy_path: str = "",
-        version_id: int = 0,
+        version_id: Any = 0,
         enum_version_id: str = "",
         backtest_period: Optional[Dict[str, str]] = None,
         shibor_overnight: Optional[Dict[str, float]] = None,
@@ -236,7 +236,7 @@ class OverallReport:
         return cls(
             strategy_key=strategy_key,
             strategy_path=strategy_path,
-            version_id=version_id,
+            version_id=str(version_id or "").strip(),
             enum_version_id=enum_version_id,
             backtest_period=dict(backtest_period or {}),
             summary=OverallSummary.build_from_sim(sim, shibor_overnight=shibor_overnight),
@@ -257,17 +257,15 @@ class OverallReport:
         q = s.quality
         period = self.backtest_period or {}
 
-        CmdLayout.title.print_banner(f"{icon('money')} 投资组合报告", stream=out)
+        CmdLayout.title.print_h1(f"{icon('money')} 投资组合报告", stream=out)
         print(
             f"{icon('gear')} {self.strategy_key} v{self.version_id}  "
             f"{icon('calendar')} {period.get('start_date', '')}~{period.get('end_date', '')}",
             file=out,
             flush=True,
         )
-        print(f"   path={self.strategy_path or '-'}", file=out, flush=True)
-
-        CmdLayout.separator.print_line(width=60, stream=out)
-        CmdLayout.title.print_section(f"{icon('target')} 资金结果", stream=out)
+        CmdLayout.text.print_indent(f"path={self.strategy_path or '-'}", stream=out)
+        CmdLayout.title.print_h2(f"{icon('target')} 资金结果", stream=out)
         ret_icon = icon("line_chart") if s.total_return >= 0 else icon("downward_trend")
         wr_pct = s.win_rate * 100.0 if abs(s.win_rate) <= 1 else s.win_rate
         print(
@@ -304,14 +302,18 @@ class OverallReport:
             )
 
         sk = s.skips
-        CmdLayout.title.print_section(f"{icon('warning')} 成交跳过", stream=out)
-        print(
-            f"涨停买 {sk.skipped_buy_at_limit_up} · 跌停卖 {sk.skipped_sell_at_limit_down} · "
-            f"状态 {sk.skipped_stock_status} · "
-            f"参与率跳过买/卖 {sk.skipped_buy_participation}/{sk.skipped_sell_participation} · "
-            f"砍量 {sk.clipped_buy_participation}/{sk.clipped_sell_participation}",
-            file=out,
-            flush=True,
+        CmdLayout.title.print_h2(f"{icon('warning')} 成交跳过", stream=out)
+        CmdLayout.text.print_indent(
+            CmdLayout.text.meta(
+                [
+                    f"涨停买 {sk.skipped_buy_at_limit_up}",
+                    f"跌停卖 {sk.skipped_sell_at_limit_down}",
+                    f"状态 {sk.skipped_stock_status}",
+                    f"参与率跳过买/卖 {sk.skipped_buy_participation}/{sk.skipped_sell_participation}",
+                    f"砍量 {sk.clipped_buy_participation}/{sk.clipped_sell_participation}",
+                ]
+            ),
+            stream=out,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -353,6 +355,7 @@ class OverallReport:
                 "fullExposureDaysRatio": c.full_exposure_days_ratio_pct,
                 "avgCashRatio": c.average_cash_ratio_pct,
                 "capitalUtilizationRatio": c.capital_utilization_ratio_pct,
+                "peakCapitalUtilizationRatio": c.peak_capital_utilization_ratio_pct,
                 "maxLossStreak": q.max_consecutive_losing_sells,
                 "maxDrawdownDurationDays": c.max_drawdown_duration_days,
                 "worstTradePnls": list(q.worst_sell_pnls),
@@ -389,7 +392,7 @@ class OverallReport:
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
             strategy_path=str(data.get("strategy_path") or ""),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             enum_version_id=str(data.get("enum_version_id") or ""),
             backtest_period=dict(data.get("backtest_period") or {}),
             summary=OverallSummary.from_dict(summary_raw),

@@ -9,12 +9,14 @@
     assumption_templates.py — AssumptionTemplate
     tradability.py          — TradabilityConfig / Edges / Liquidity / Slippage
     risk_control.py         — RiskControl（settings + 判定 API）
+    price.py                — PriceReplaySettings（opportunity_merge_gap）
     simulation_settings.py  — SimulationSettings 门面
 """
 
 from .assumption import AssumptionSettings
 from .assumption_templates import AssumptionTemplate
 from .execution import BacktestPeriod, ExecutionSettings
+from .price import DEFAULT_OPPORTUNITY_MERGE_GAP, PriceReplaySettings
 from .risk_control import (
     ForceExitDecision,
     ForceExitRule,
@@ -36,7 +38,9 @@ __all__ = [
     "ForceExitRule",
     "ForceExitWhenPolicy",
     "PendingEnterPolicy",
+    "PriceReplaySettings",
     "LiquidityConfig",
+    "DEFAULT_OPPORTUNITY_MERGE_GAP",
     "RiskControl",
     "SimulationSettings",
     "SlippageConfig",

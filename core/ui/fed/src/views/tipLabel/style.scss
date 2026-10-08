@@ -1,0 +1,14 @@
+.ntq-tip-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.ntq-tip-label--below {
+  margin-bottom: 6px;
+}
+
+.ntq-tip-label__text--title {
+  font-weight: 600;
+}

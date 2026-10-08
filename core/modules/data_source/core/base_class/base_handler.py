@@ -401,11 +401,9 @@ class BaseHandler:
         return normalized_data
 
     def _normalize_data(self, context: Dict[str, Any], fetched_data: Any):
-        """
-        标准化阶段默认实现。
-        
-        为兼容现有行为，内部委托给 NormalizationService 完成公共标准化流程，
-        再在 BaseHandler 层调用 on_after_mapping 钩子。
+        """标准化阶段默认实现。
+
+        交给 NormalizationService 做字段映射和日期标准化，再调用 on_after_mapping，最后套用表 schema。
         """
         from core.modules.data_source.core.service.normalization.normalization_service import NormalizationService
         from core.modules.data_source.core.service.normalization import normalization_helper as nh
@@ -417,13 +415,12 @@ class BaseHandler:
         # 注意：NormalizatonService 内部已经做了字段覆盖校验、日期标准化等。
         normalized = NormalizationService.normalize(context, fetched_data)
 
-        # NormalizationService 已经返回 {"data": [...]} 结构；为了保持与旧实现兼容，
-        # 在这里拆出 records，交给 on_after_mapping 进行二次处理后再重新 apply_schema。
+        # NormalizationService 返回 {"data": [...]}。拆出记录交给 on_after_mapping，再套用表 schema。
         data_list = normalized.get("data") if isinstance(normalized, dict) else None
         if not data_list:
             return {"data": []}
 
-        # 在 mapping 后、schema 应用前调用 hook（行为与旧实现保持一致）
+        # 在 mapping 之后、套用 schema 之前调用 hook。
         mapped_records = self.on_after_mapping(context, data_list)
         if not mapped_records:
             return {"data": []}

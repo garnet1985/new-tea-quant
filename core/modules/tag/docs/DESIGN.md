@@ -67,8 +67,6 @@ userspace `tag.py` 继承 `TagHooks`：
 - `calculate_tag(ctx)` — per_entity 的 entity_based；global 主进程推进也复用（哨兵 `entity_id`）
 - `on_calendar_asof(ctx)` — per_entity 的 slice_based（可选）；返回 ``TagCalendarAsOfResult``
 
-旧 `BaseTagWorker` / `tag_worker.py` 生命周期钩子已移除。
-
 实体池解析顺序（per_entity）：
 
 ```text

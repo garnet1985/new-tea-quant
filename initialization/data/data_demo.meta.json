@@ -1,8 +1,8 @@
 {
-  "core_version": "v0.5.0",
+  "core_version": "v0.5.1",
   "stock_count": 300,
   "start_date": "20230101",
   "end_date": "20251231",
   "zip_file": "data_demo.zip",
-  "built_at": "2026-08-14T06:27:10Z"
+  "built_at": "2026-09-24T06:54:59Z"
 }

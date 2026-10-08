@@ -57,4 +57,9 @@ settings = {
             }
         ]
     },
+
+    # cn：红赚绿亏；intl：绿赚红亏（UI / 图标注）
+    "ui": {
+        "pnl_polarity": "cn",
+    },
 }

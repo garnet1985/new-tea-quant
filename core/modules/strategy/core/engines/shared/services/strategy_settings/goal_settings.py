@@ -75,13 +75,13 @@ class GoalSettings(SettingsBase):
 
     @property
     def stop_loss(self) -> Optional[GoalStage]:
-        """首阶段（兼容旧调用）；完整列表见 ``stop_loss_stages``。"""
+        """第一档。完整列表见 ``stop_loss_stages``。"""
         stages = self.stop_loss_stages
         return stages[0] if stages else None
 
     @property
     def take_profit(self) -> Optional[GoalStage]:
-        """首阶段（兼容旧调用）；完整列表见 ``take_profit_stages``。"""
+        """第一档。完整列表见 ``take_profit_stages``。"""
         stages = self.take_profit_stages
         return stages[0] if stages else None
 
@@ -252,7 +252,7 @@ class GoalSettings(SettingsBase):
             name = cls._to_stage_name(label=label, ratio=ratio)
 
         close_invest = item.get("close_invest") is True
-        raw_exit = item.get("exit_ratio", item.get("sell_ratio"))
+        raw_exit = item.get("exit_ratio")
         if close_invest:
             exit_ratio = 1.0
         elif raw_exit is not None and raw_exit != "":
@@ -262,7 +262,6 @@ class GoalSettings(SettingsBase):
         else:
             raise ValueError(
                 f"{field_path} 须指定 close_invest=True 或 exit_ratio"
-                "（settings 仍可读 legacy sell_ratio）"
             )
 
         actions = cls._parse_actions(
@@ -320,7 +319,7 @@ class GoalSettings(SettingsBase):
             raise ValueError(f"{label} 缺少 ratio")
         ratio = float(block["ratio"])
         close_invest = block.get("close_invest") is True
-        raw_exit = block.get("exit_ratio", block.get("sell_ratio"))
+        raw_exit = block.get("exit_ratio")
         if close_invest:
             exit_ratio = 1.0
         elif raw_exit is not None and raw_exit != "":

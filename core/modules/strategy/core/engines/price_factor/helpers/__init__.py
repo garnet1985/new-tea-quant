@@ -5,16 +5,24 @@ from .holding import (
     latest_executed_exit_date,
     position_fully_closed,
     remaining_position_ratio,
-    resolve_holding_until,
 )
 from .klines_loader import load_stock_klines
+from .opportunity_merge import (
+    axis_from_klines,
+    is_new_by_merge_gap,
+    opportunity_axis_gap,
+    trigger_stamp,
+)
 
 __all__ = [
     "DeferredPendingExit",
+    "axis_from_klines",
+    "is_new_by_merge_gap",
     "latest_executed_exit_date",
     "load_stock_klines",
+    "opportunity_axis_gap",
     "position_fully_closed",
     "remaining_position_ratio",
-    "resolve_holding_until",
     "retry_deferred_exits",
+    "trigger_stamp",
 ]

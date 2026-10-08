@@ -140,11 +140,11 @@ def test_json_roundtrip_keeps_nested_goals_and_snapshot() -> None:
     assert restored.signal_snapshot == {"rsi": 28.0}
 
 
-def test_from_dict_accepts_goal_name_alias() -> None:
+def test_from_dict_reads_completed_goal_name() -> None:
     row = EnumResult.from_dict(
         {
             "investment_id": "1",
-            "completed_goals": [{"goal_name": "expiration", "date": "20240110", "reason": "expired"}],
+            "completed_goals": [{"name": "expiration", "date": "20240110", "reason": "expired"}],
         },
         entity_id="000488.SZ",
     )

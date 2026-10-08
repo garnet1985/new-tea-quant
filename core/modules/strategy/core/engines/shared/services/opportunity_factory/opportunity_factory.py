@@ -14,12 +14,14 @@ from typing import Any, Dict, Optional
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.hooks.hook_params import StrategyContext
 
+from .as_of_snapshot import AsOfSnapshot
+
 
 class OpportunityFactory:
     """``has_opportunity is True`` 之后建机会。
 
     边界:
-    - 负责: 严格 ``True`` 判定、从当日 bar 构建 Opportunity、提交 capture 袋
+    - 负责: 严格 ``True`` 判定、从当日 bar 构建 Opportunity、as-of 快照 + capture 袋
     - 不负责: on_before_scan / on_after_scan、Investment 登记、scan 贴板
     - 调用方: scanner / entity / slice Enumerator 的 Executor
     """
@@ -34,7 +36,10 @@ class OpportunityFactory:
         if not record:
             return None
         stock_info = dict(ctx.data.entity_info) if ctx.data.entity_info else {}
-        snapshot = dict(signal_snapshot) if isinstance(signal_snapshot, dict) else {}
+        snapshot = AsOfSnapshot.merge(
+            AsOfSnapshot.build(ctx),
+            signal_snapshot,
+        )
         return Opportunity(
             stock=stock_info,
             record_of_today=dict(record),

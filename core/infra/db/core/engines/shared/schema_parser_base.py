@@ -99,7 +99,9 @@ class SchemaParserBase:
         return f"PRIMARY KEY ({pk_fields})"
 
     def generate_create_index_sql(self, table_name: str, index: Dict) -> str:
-        index_name = index["name"]
+        # DuckDB / PostgreSQL 的索引名在 schema 内全局唯一。
+        # 各表复用 idx_date 时，IF NOT EXISTS 会撞上已有名字并跳过，索引不会落到当前表。
+        index_name = f"{table_name}__{index['name']}"
         index_fields = index["fields"]
         is_unique = index.get("unique", False)
 

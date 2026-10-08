@@ -28,7 +28,7 @@ NON_EXECUTE_SETTINGS_FIELDS: FrozenSet[str] = frozenset(
         "is_enabled",
         "scanner",
         "enumerator",
-        "analysis",
+        "analysis",  # 已退役；旧 settings 残留不进指纹
         "price_simulator",
     }
 )

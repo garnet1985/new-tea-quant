@@ -90,7 +90,7 @@ def test_simulate_returns_price_slot_on_cache_hit():
     info.hooks_class = None
     info.hooks_module_path = ""
     info.key = "demo/rsi"
-    cached = {"price_factor": {"version_id": 9, "success": True}}
+    cached = {"price": {"version_id": 9, "success": True}}
 
     with patch.object(
         strategy_module.DiscoveryService,
@@ -116,9 +116,8 @@ def test_simulate_returns_price_slot_on_cache_hit():
         strategy_module.FingerprintCalculator,
         "calculate_fingerprints",
         return_value=_fps(),
-    ), patch.object(
-        strategy_module.SimulationVersionStore,
-        "get_cache",
+    ), patch(
+        "core.modules.strategy.core.services.artifacts.SimulationVersionStore.get_cache",
         return_value=cached,
     ) as get_cache, patch.object(
         Strategy,
@@ -126,8 +125,9 @@ def test_simulate_returns_price_slot_on_cache_hit():
     ) as run_steps:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.PRICE_FACTOR)
 
-    assert out["price_factor"] == cached["price_factor"]
+    assert out["price"] == cached["price"]
     assert out["version_id"] == "9"
+    assert out["cache_hit"] is True
     get_cache.assert_called_once()
     run_steps.assert_not_called()
 
@@ -198,9 +198,8 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
         strategy_module.FingerprintCalculator,
         "calculate_fingerprints",
         return_value=_fps(),
-    ), patch.object(
-        strategy_module.SimulationVersionStore,
-        "get_cache",
+    ), patch(
+        "core.modules.strategy.core.services.artifacts.SimulationVersionStore.get_cache",
         return_value=None,
     ), patch.object(
         SimulateSession,
@@ -210,14 +209,14 @@ def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
         EnumeratorPipeline,
         "run",
         return_value=step_res,
-    ) as run, patch.object(
-        strategy_module.SimulationVersionStore,
-        "record_step_complete",
+    ) as run, patch(
+        "core.modules.strategy.core.services.artifacts.SimulationVersionStore.record_step_complete",
     ) as record:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.ENUMERATE)
 
-    assert out["enumerate"]["version_id"] == "3"
+    assert out["enum"]["version_id"] == "3"
     assert out["version_id"] == "3"
+    assert out["cache_hit"] is False
     run.assert_called_once()
     record.assert_called_once()
     assert record.call_args.kwargs["full_settings"]["core"]["n"] == 1

@@ -1,6 +1,6 @@
 # Data Contract — 快速开始
 
-**模块：** `modules.data_contract` · **版本：** `0.4.1`
+**模块：** `modules.data_contract` · **版本：** `0.4.2`
 
 ```python
 from core.modules.data_contract import ContractIssuer

@@ -31,9 +31,6 @@ from pathlib import Path
 
 from core.infra.db.contracts import DatabaseManager
 from core.infra.discovery import Discovery
-
-# Loaders 已废弃，不再导入
-# 所有功能已迁移到 data_services
 from core.infra.project_context import ProjectContext
 from core.modules.data_manager.core.sample_universe.sample_universe import SampleUniverse
 
@@ -441,6 +438,33 @@ class DataManager:
     def bind_as_default_instance(self) -> None:
         """DuckDB pool resume 后把本实例挂回进程单例（供 infra duck-type 调用）。"""
         DataManager._instance = self
+
+    @classmethod
+    def bind_prepared_database(
+        cls, db: DatabaseManager, *, is_verbose: bool = False
+    ) -> "DataManager":
+        """用已经连好的 DatabaseManager 建本进程门面。
+
+        不走 ``initialize``：不建表、不等待主进程 DuckDB、不同步指数列表。
+        回测 worker 的只读连接用这条路径。
+        """
+        dm = super().__new__(cls)
+        dm.is_verbose = is_verbose
+        dm.db = db
+        dm._initialized = False
+        dm._table_cache = {}
+        dm._data_service = None
+        engine = getattr(db, "engine", None)
+        restore_engine = engine is not None and hasattr(engine, "_initialized")
+        if restore_engine:
+            engine._initialized = False
+        dm._discover_tables()
+        dm.attach_data_service()
+        dm._initialized = True
+        if restore_engine:
+            engine._initialized = True
+        dm.bind_as_default_instance()
+        return dm
 
     @classmethod
     def ensure_duckdb_pool_holder_resolver(cls) -> None:

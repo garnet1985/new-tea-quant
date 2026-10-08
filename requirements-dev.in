@@ -3,3 +3,4 @@
 pytest
 black
 flake8
+ruff

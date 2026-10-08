@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Box,
-  Button,
   Chip,
-  InputAdornment,
   Paper,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
@@ -16,10 +12,14 @@ import {
   fetchDataContractList,
   getDataContractDisplayLabel,
   getDataContractOriginLabel,
+  reloadDataContractCatalog,
 } from '../../api/dataContractApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
+import PageLayout from '../../views/pageLayout';
+import SearchField from '../../views/searchField';
+import NtqButton from '../../views/ntqButton';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import Message from '../../views/message';
+import { showToast } from 'containers/toast';
 import './dataContractListPage.scss';
 
 function BoolChip({ value, trueLabel, falseLabel }) {
@@ -33,6 +33,7 @@ function BoolChip({ value, trueLabel, falseLabel }) {
 function DataContractListPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rediscovering, setRediscovering] = useState(false);
   const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [nameQuery, setNameQuery] = useState('');
@@ -60,6 +61,29 @@ function DataContractListPage() {
         setLoadError(e?.message || '加载数据契约列表失败');
       })
       .finally(() => {
+        setLoading(false);
+        setPageReady(true);
+      });
+  }, []);
+
+  const rediscover = useCallback(() => {
+    setRediscovering(true);
+    setLoading(true);
+    setLoadError('');
+    reloadDataContractCatalog({ page: 1, limit: 500 })
+      .then((res) => {
+        setRows(Array.isArray(res?.data) ? res.data : []);
+        const total = Number(res?.total) || 0;
+        showToast({
+          severity: 'success',
+          content: `已重新发现 ${total} 个数据契约（无需重启 NTQ）`,
+        });
+      })
+      .catch((e) => {
+        setLoadError(e?.message || '重新发现数据契约失败');
+      })
+      .finally(() => {
+        setRediscovering(false);
         setLoading(false);
         setPageReady(true);
       });
@@ -128,17 +152,19 @@ function DataContractListPage() {
     },
   ]), []);
 
+  const busy = loading || rediscovering;
+
   return (
     <PageLayout
       className="data-contract-list-page"
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="数据契约"
       bannerTitle="数据契约"
-      bannerDescription="列出 core 与 userspace 合并后的 DataKey 目录，便于在策略与 Tag 配置中查找 data key。"
+      bannerDescription="列出 core 与 userspace 合并后的 DataKey 目录，便于在策略与 Tag 配置中查找 data key。新增或修改 userspace 契约后点「重新发现」，无需重启 NTQ。"
       loading={!pageReady}
       loadingMessage="正在加载数据契约…"
     >
-      {loadError ? <Alert severity="error" className="data-contract-list-alert">{loadError}</Alert> : null}
+      {loadError ? <Message severity="error" className="data-contract-list-alert">{loadError}</Message> : null}
 
       <Paper className="data-contract-list-grid">
         <Stack
@@ -147,31 +173,21 @@ function DataContractListPage() {
           spacing={1.5}
           className="data-contract-list-grid-toolbar"
         >
-          <TextField
-            size="small"
+          <SearchField
+            fluid
             placeholder="搜索名称或 Key"
+            label="搜索数据契约"
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
-            inputProps={{ 'aria-label': '搜索数据契约' }}
-            className="data-contract-list-search"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <NtqIcon name="search" size={22} tone="muted" />
-                </InputAdornment>
-              ),
-            }}
           />
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={load}
-            disabled={loading}
-            className="ntq-glass-outline-btn"
-            startIcon={<NtqIcon name="refresh" size={22} tone="muted" />}
+          <NtqButton
+            variant="glass"
+            icon="refresh"
+            onClick={rediscover}
+            disabled={busy}
           >
-            刷新列表
-          </Button>
+            {rediscovering ? '发现中…' : '重新发现'}
+          </NtqButton>
         </Stack>
 
         <Box className="data-contract-list-grid-body">
@@ -179,7 +195,7 @@ function DataContractListPage() {
             autoHeight
             rows={displayRows}
             columns={columns}
-            loading={loading}
+            loading={busy}
             disableRowSelectionOnClick
             pageSizeOptions={[10, 25, 50, 100]}
             paginationModel={paginationModel}

@@ -11,55 +11,35 @@
 | 包 | 职责 |
 |----|------|
 | ``analyzer.py`` | Facade / API 暴露 |
-| ``steps/prepare/`` | 回测产物 → ``source.json``（编排；I/O 走 ``ArtifactStore``） |
-| ``steps/analyze/`` | 读 source → 因素分析 pipeline → ``AnalyzeOutput`` |
-| ``steps/report/`` | summarize + insight + persist ``report.json``；``present.py`` 终端展示 |
+| ``pipeline.py`` | 战役编排（``AttributionPipeline`` / ``RollingPipeline`` 只串步骤） |
+| ``steps/campaign/`` | 战役归因主链路包 |
+| ``steps/campaign/config/`` | 配置步：``AttributionConfig.for_layer`` |
+| ``steps/campaign/plan/`` | 计划步：``AttributionPlan.for_layer`` |
+| ``steps/campaign/execute/`` | 执行步：``ExecuteStep.for_layer`` |
+| ``steps/campaign/gather/`` | 收集步：``GatherStep.for_layer`` |
+| ``steps/campaign/attribute/`` | 归因步：``AttributeStep.for_layer`` |
+| ``steps/campaign/summarize/`` | 总结步：``SummarizeStep.for_layer`` |
+| ``steps/campaign/report/`` | 报告步：``CampaignReportStep.for_layer`` + ``CampaignPresenter`` |
+| ``steps/campaign/persist/`` | 落盘步：``PersistStep.for_layer`` + ``AttributionGroupStore`` |
+| ``steps/rolling/`` | 滚动验证（窗口展开 / 总结 / 展示；口径未定） |
 
-### Report 步结构
+Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。
 
-```text
-report.py              # 入口：总结 → insight → 持久化
-summarize.py           # 总结：整理 analyze 结果为 report 主体
-insight.py             # CLI 叙事（InsightBuilder）
-facts.py               # BFF / FED 结构化 facts（无 CLI 文案）
-present.py             # 终端展示
-```
+**口径：** 三入口共用同一套「如果」副本身份与同一套管线（解析取值 → 补本层产物 → gather → summarize → report）。CLI 只决定懒执行深度与因变量。见 [CONCEPTS.md](../../../../docs/CONCEPTS.md)。``Analyzer.rolling`` 走 ``RollingPipeline``，口径未定。单 version 的 prepare / analyze / report / layer 已删除。
 
-### Analyze 步结构
-
-```text
-analyze.py              # 入口：读 source → 调 pipeline
-data/                   # strategy 侧：为 analysis 模块准备输入
-  decision_space.py     # 决定空间
-  capture_dataset.py    # source.json → 数值序列 / 特征矩阵
-  outcome.py            # enum/price/portfolio 的 ROI / win 字段映射
-pipeline/
-  pipeline.py           # FactorAnalysisPipeline：遍历 stages，收集结果
-  context.py            # StageInput + AnalysisStage 协议
-  stages/               # 各因素分析成员（加新分析 = 加 stage + 注册 DEFAULT_STAGES）
-    univariate.py       # 单因素
-    multivariate.py     # 多因素
-    run_comparison.py   # 对比
-    ml.py               # ML
-```
-
-| 留在 analyze step（strategy） | 在 modules.analysis（可复用） |
-|-------------------------------|-------------------------------|
-| ``DecisionSpaceBuilder``、``CaptureDataset``、stages | 分桶、相关、回归、XGB |
-
-## Pipeline（simulate 内嵌 analyze）
+## 入口（当前）
 
 ```text
-Strategy.simulate → BackTestPipeline.run → (若 analysis.enabled) Analyzer.run
-PrepareStep → AnalyzeStep → ReportStep
+Analyzer.attribute_*(key) → AttributionPipeline(kind=…) → steps/campaign/
+Analyzer.rolling(key)     → RollingPipeline → steps/rolling/
 ```
 
-``settings.analysis.enabled=false`` 时不跑 analyze 步。
+``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enum|price|portfolio}/``（按层报告目录，不是三套格子），滚动写 ``rolling/``。CLI ``sea`` / ``spa`` / ``soa`` / ``sw``。
 
 ## 依赖方向
 
 ```text
-BFF / CLI → Strategy → Analyzer → modules.analysis
+Analyzer.attribute_* / Analyzer.rolling → pipeline → campaign/rolling → modules.analysis（统计）
 ```
 
 ``modules.analysis`` 禁止 import strategy。

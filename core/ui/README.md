@@ -1,26 +1,11 @@
-# UI 模块（`core/ui`）
+# UI
 
-`core/ui` 是 NTQ 的前端子系统，包含：
+**模块：** `ui` · **版本：** `0.2.3` · **最低核心版本：** `>=0.5.0`
 
-- `fed/`：前端（React；含 `prototype/` 与 `src/`）
-- `docs/`：UI 侧设计与接口约定文档
-- `module_info.yaml`：UI 模块元信息与依赖声明
+浏览器里的 NTQ。React 应用在 `fed/`。HTTP 在 `core/bff`，不在本模块。
 
-BFF（Flask）已独立为 [`core/bff`](../bff/README.md)，不再放在本目录下。
+依赖：`modules.strategy`、`infra.project_context`。
 
-## 如何启动
+日常从仓库根的 `launcher.py` 启动。单独拉起 BFF 用 `python -m core.bff.app`。前端脚本在 `fed/package.json`。
 
-推荐使用仓库根目录的 `launcher.py` 一键启动与安装引导（见根目录 `README.md`）。
-
-如需单独启动 BFF（在仓库根目录）：
-
-```bash
-python -m core.bff.app
-```
-
-FED 的开发/构建方式见 `core/ui/fed/package.json`。
-
-## 文档入口
-
-- BFF 说明：`core/bff/README.md`
-- UI 设计草案与约定：`core/ui/docs/`
+前端写法见 [FED_STANDARD.md](FED_STANDARD.md)。架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，设计见 [docs/DESIGN.md](docs/DESIGN.md)，全页引导见 [docs/CONCEPTS.md](docs/CONCEPTS.md)。

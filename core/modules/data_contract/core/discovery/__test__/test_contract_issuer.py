@@ -128,6 +128,19 @@ class TestContractIssuerDiscovery:
         # 验证返回类型
         assert isinstance(errors, dict)
 
+    def test_reload_refreshes_class_cache(self):
+        """reload() 清空并重建类级缓存，含系统 key。"""
+        ContractIssuer._discovered = False
+        ContractIssuer._declarations_cache = {"stale.key": {"meta": {"key": "stale.key"}}}
+        n = ContractIssuer.reload()
+        assert n >= 1
+        assert ContractIssuer._discovered is True
+        assert "stale.key" not in ContractIssuer.get_all_keys()
+        assert "stock.list" in ContractIssuer.get_all_keys()
+        # issue 应命中新缓存
+        contract = ContractIssuer.issue("stock.list", fill_in_data=False)
+        assert contract.meta.key == "stock.list"
+
 
 class TestContractIssuerGetContract:
     """测试 ContractIssuer 的获取 contract 功能。"""

@@ -1,5 +1,5 @@
 name: modules.data_contract
-version: "0.4.1"
+version: "0.4.2"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据契约模块：提供一套可扩展的数据声明到数据加载的契约，主要目的是为了实现回测过程中的声明式数据注入。"
@@ -8,9 +8,13 @@ dependencies:
   - infra.project_context
   - infra.utils
 changelog:
+  - version: "0.4.2"
+    changes:
+      - 新增 ContractIssuer.reload：可热重新发现系统与 userspace 契约，无需重启 NTQ
+      - 首次 auto-discovery 同步扫描 userspace；BFF 提供 POST /v1/data-contracts/reload
   - version: "0.4.1"
     changes:
-      - stock.kline 不再用 adjust 切换序列；一律返回前复权顶层 + raw / hfq / adj_factor
+      - stock.kline 一律返回前复权顶层，以及 raw、hfq、adj_factor
   - version: "0.4.0"
     changes:
       - 标准化模块，标准化文档以及对外API

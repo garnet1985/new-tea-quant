@@ -22,5 +22,5 @@
 | `../core/service/pipeline/__test__/test_*.py` | JobPipeline / runner / buffer |
 | `../core/service/executor/__test__/test_*.py` | save batch / fetched helper |
 | `../core/service/__test__/test_*.py` | rate limiter / real-world date |
-| `../core/service/utils/__test__/test_stock_list_dimension_fields.py` | 维度字段 |
 | `../core/catalog/__test__/test_freshness_probe.py` | freshness |
+| `../core/catalog/__test__/test_provider_probe.py` | Provider 鉴权与限速 |

@@ -134,7 +134,6 @@ def compute_last_update_map(context: Dict[str, Any]) -> Dict[str, Optional[str]]
 
 def calc_last_update_based_on_renew_mode(
     context: Dict[str, Any],
-    entity_id: Optional[str] = None,  # 保留签名以兼容旧接口（当前未使用）
     last_update: Optional[str] = None,
 ) -> Optional[str]:
     """
@@ -198,28 +197,24 @@ def calc_last_update_based_on_renew_mode(
             except Exception:
                 return default_start_date
 
-        # 支持 TermType / str 两种形式
-        _rolling_unit = rolling_unit.value if isinstance(rolling_unit, TermType) else rolling_unit
-        _date_format = date_format
-
-        # 将 rolling_length 转换为与 date_format 对齐的“周期数”
+        # 将 rolling_length 转换为与 date_format 对齐的周期数
         def _convert_rolling_length_to_periods() -> int:
-            if _rolling_unit == TermType.QUARTERLY.value:
-                if _date_format == TermType.QUARTERLY.value:
+            if rolling_unit == TermType.QUARTERLY.value:
+                if date_format == TermType.QUARTERLY.value:
                     return rolling_length
-                if _date_format == TermType.MONTHLY.value:
+                if date_format == TermType.MONTHLY.value:
                     return rolling_length * 3
                 return rolling_length * 90  # daily
-            if _rolling_unit == TermType.MONTHLY.value:
-                if _date_format == TermType.QUARTERLY.value:
+            if rolling_unit == TermType.MONTHLY.value:
+                if date_format == TermType.QUARTERLY.value:
                     return (rolling_length + 2) // 3
-                if _date_format == TermType.MONTHLY.value:
+                if date_format == TermType.MONTHLY.value:
                     return rolling_length
                 return rolling_length * 30  # daily
             # DAILY
-            if _date_format == TermType.QUARTERLY.value:
+            if date_format == TermType.QUARTERLY.value:
                 return (rolling_length + 90) // 90
-            if _date_format == TermType.MONTHLY.value:
+            if date_format == TermType.MONTHLY.value:
                 return (rolling_length + 30) // 30
             return rolling_length
 
@@ -421,31 +416,24 @@ def compute_entity_date_ranges(
                 # 未配置滚动窗口时，退化为增量模式
                 return compute_start_for_mode(last_update=None if not last_update else last_update)
 
-            # 计算 rolling_periods
-            # 支持 TermType / str 两种形式
-            _rolling_unit = (
-                rolling_unit.value if isinstance(rolling_unit, TermType) else rolling_unit
-            )
-            _date_format = date_format
-
             # 将 rolling_unit 转为与 date_format 对齐的周期数
             def _convert_rolling_length_to_periods() -> int:
-                if _rolling_unit == TermType.QUARTERLY.value:
-                    if _date_format == TermType.QUARTERLY.value:
+                if rolling_unit == TermType.QUARTERLY.value:
+                    if date_format == TermType.QUARTERLY.value:
                         return rolling_length
-                    if _date_format == TermType.MONTHLY.value:
+                    if date_format == TermType.MONTHLY.value:
                         return rolling_length * 3
                     return rolling_length * 90
-                if _date_format == TermType.MONTHLY.value:
-                    if _date_format == TermType.QUARTERLY.value:
+                if date_format == TermType.MONTHLY.value:
+                    if date_format == TermType.QUARTERLY.value:
                         return (rolling_length + 2) // 3
-                    if _date_format == TermType.MONTHLY.value:
+                    if date_format == TermType.MONTHLY.value:
                         return rolling_length
                     return rolling_length * 30
                 # DAILY
-                if _date_format == TermType.QUARTERLY.value:
+                if date_format == TermType.QUARTERLY.value:
                     return (rolling_length + 90) // 90
-                if _date_format == TermType.MONTHLY.value:
+                if date_format == TermType.MONTHLY.value:
                     return (rolling_length + 30) // 30
                 return rolling_length
 

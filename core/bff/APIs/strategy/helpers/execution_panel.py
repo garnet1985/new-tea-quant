@@ -27,7 +27,7 @@ def _enum_line_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]
 
 
 def _price_line_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    raw = rr.get("price_factor")
+    raw = rr.get("price")
     if not isinstance(raw, dict) or not raw:
         return None
     metrics = raw.get("priceMetrics") if isinstance(raw.get("priceMetrics"), dict) else {}

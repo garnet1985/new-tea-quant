@@ -241,8 +241,6 @@ class SliceProbe:
     ) -> bool:
         if performance.get("dispatch_probe") is False:
             return False
-        if performance.get("slice_probe") is False:
-            return False
         # Skip when preload depth is already fixed (no need to sample for queue size).
         if performance.get("preload_depth") not in (None, "", "auto"):
             return False
@@ -320,8 +318,7 @@ class SliceProbe:
                 safety_factor
                 if safety_factor is not None
                 else (
-                    performance.get("slice_probe_safety_factor")
-                    or performance.get("dispatch_probe_safety_factor")
+                    performance.get("dispatch_probe_safety_factor")
                     or DEFAULT_PROBE_SAFETY_FACTOR
                 )
             ),

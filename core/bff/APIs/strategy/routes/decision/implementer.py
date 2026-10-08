@@ -185,6 +185,7 @@ class StrategyDecisionImplementer:
         n: Optional[int] = None,
         columns: Optional[List[str]] = None,
         version_id: Optional[str] = None,
+        buy_date: str = "",
     ) -> Dict[str, Any]:
         engine = self._open(
             strategy_key_or_name,
@@ -200,7 +201,174 @@ class StrategyDecisionImplementer:
             keep = [str(item).strip() for item in columns if str(item).strip()]
             if keep:
                 tokens.append(",".join(keep))
-        return info_message(engine.info(tokens))
+        payload = engine.info(tokens)
+        msg = info_message(payload)
+        msg["chart_layers"] = self._chart_layers_for_info(
+            engine,
+            strategy_key_or_name=strategy_key_or_name,
+            entity_id=str(msg.get("entity_id") or ""),
+            as_of=str(msg.get("as_of") or ""),
+            candles=msg.get("candles") or [],
+        )
+        msg["planned_levels"] = self._planned_levels_for_info(
+            engine,
+            entity_id=str(msg.get("entity_id") or ""),
+            candles=msg.get("candles") or [],
+            buy_date=str(buy_date or ""),
+        )
+        return msg
+
+    @staticmethod
+    def _planned_levels_for_info(
+        engine: Any,
+        *,
+        entity_id: str,
+        candles: List[Any],
+        buy_date: str = "",
+    ) -> List[Dict[str, Any]]:
+        """持仓未平仓时，按策略 goal × 买入日 K 线收盘给出止盈/止损价（与报告单股图同形）。"""
+        sid = str(entity_id or "").strip()
+        if not sid:
+            return []
+        lots = [
+            lot
+            for lot in (getattr(engine, "open_lots", None) or {}).values()
+            if str(getattr(lot, "entity_id", "") or "").strip() == sid
+        ]
+        if not lots:
+            return []
+        prefer = str(buy_date or "").replace("-", "").strip()
+        lots.sort(key=lambda item: str(getattr(item, "buy_date", "") or ""))
+        lot = lots[0]
+        if prefer:
+            for item in lots:
+                day = str(getattr(item, "buy_date", "") or "").replace("-", "").strip()
+                if day == prefer:
+                    lot = item
+                    break
+        buy_day = str(getattr(lot, "buy_date", "") or "").replace("-", "").strip()
+        basis = StrategyDecisionImplementer._qfq_basis_for_buy(
+            engine, sid=sid, buy_day=buy_day, candles=candles
+        )
+        if basis is None or basis <= 0:
+            return []
+        try:
+            from core.bff.APIs.strategy.routes.report.stock_detail import (
+                WorkbenchStockDetail,
+            )
+
+            return WorkbenchStockDetail._planned_goal_levels(
+                getattr(engine, "settings", None),
+                float(basis),
+            )
+        except Exception:
+            return []
+
+    @staticmethod
+    def _qfq_basis_for_buy(
+        engine: Any,
+        *,
+        sid: str,
+        buy_day: str,
+        candles: List[Any],
+    ) -> Optional[float]:
+        """止盈/止损基准必须与主图前复权同尺度；不用打印价兜底（会偏轴看不见）。"""
+        day = str(buy_day or "").replace("-", "").strip()
+        if not day:
+            return None
+        for row in candles or []:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("date") or "").replace("-", "").strip() != day:
+                continue
+            try:
+                close = float(row.get("close"))
+            except (TypeError, ValueError):
+                return None
+            return close if close > 0 else None
+        bar_fn = getattr(engine, "_bar_on", None)
+        if not callable(bar_fn):
+            return None
+        try:
+            bar = bar_fn(sid, day)
+        except Exception:
+            return None
+        if not isinstance(bar, dict):
+            return None
+        try:
+            from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import (
+                SafeBarValue,
+            )
+
+            close = SafeBarValue.optional_float(bar, "close", use_hfq=False)
+        except Exception:
+            try:
+                close = float(bar.get("close"))
+            except (TypeError, ValueError):
+                close = None
+        if close is None or close <= 0:
+            return None
+        return float(close)
+
+    @staticmethod
+    def _chart_layers_for_info(
+        engine: Any,
+        *,
+        strategy_key_or_name: str,
+        entity_id: str,
+        as_of: str,
+        candles: List[Any],
+    ) -> List[Dict[str, Any]]:
+        """与报告单股图同形的 required 分层；失败不影响主 K。"""
+        sid = str(entity_id or "").strip()
+        if not sid:
+            return []
+        end = str(as_of or "").strip()
+        start = ""
+        if candles and isinstance(candles[0], dict):
+            start = str(candles[0].get("date") or "").strip()
+        if not end and candles and isinstance(candles[-1], dict):
+            end = str(candles[-1].get("date") or "").strip()
+        if not start or not end:
+            return []
+        try:
+            from core.bff.APIs.strategy.routes.report.stock_detail import (
+                WorkbenchStockDetail,
+            )
+
+            return WorkbenchStockDetail._load_chart_layers(
+                sid,
+                getattr(engine, "settings", None),
+                {"start_date": start, "end_date": end},
+                strategy_name=str(strategy_key_or_name or "").strip(),
+            )
+        except Exception:
+            return []
+
+    def query_stock_status(
+        self,
+        *,
+        stock_ids: Optional[List[str]] = None,
+        date: str = "",
+    ) -> Dict[str, Any]:
+        """批量查询某日股票状态（DataManager.stock.query_status_by_ids）。"""
+        from core.modules.data_manager import DataManager
+        from core.tables.stock.stock_st_periods.st_period_rules import (
+            normalize_yyyymmdd,
+        )
+
+        day = normalize_yyyymmdd(date)
+        if not day:
+            raise ValueError("date 须为 YYYYMMDD 或 YYYY-MM-DD")
+        ids = [str(x or "").strip() for x in (stock_ids or []) if str(x or "").strip()]
+        statuses = DataManager().stock.query_status_by_ids(ids, day)
+        return {
+            "date": day,
+            "statuses": {
+                sid: list(statuses.get(sid) or [])
+                for sid in ids
+            },
+        }
 
     def get_report(
         self,
@@ -231,7 +399,7 @@ class StrategyDecisionImplementer:
             session_id=dm_id,
         )
         if not engine.is_completed:
-            raise ValueError("本局尚未走完，没有终局报告")
+            raise ValueError("本次模拟回测尚未走完，没有报告")
         session_dir = Path(engine.store.session_dir(engine.dm_id))
         if not (session_dir / OVERALL_REPORT_FILE).is_file():
             engine.finalize()

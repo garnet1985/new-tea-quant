@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
+    payoff_ratio,
 )
 from core.modules.strategy.core.engines.portfolio.data_class import (
     Account,
@@ -102,6 +103,9 @@ class PortfolioSimulator:
         result = PortfolioSimResult(account=account)
         open_lots: Dict[str, OpenLot] = {}
         current_date = ""
+        closed = (
+            index_closed_rois(events) if self.allocation.mode == "kelly" else []
+        )
 
         for index, event in enumerate(events):
             date = str(event.date or "").strip()
@@ -111,7 +115,7 @@ class PortfolioSimulator:
                 current_date = date
 
             if event.is_buy():
-                self._handle_buy(event, account, open_lots, result)
+                self._handle_buy(event, account, open_lots, result, closed)
             elif event.is_sell():
                 self._handle_sell(
                     event,
@@ -131,6 +135,7 @@ class PortfolioSimulator:
         account: Account,
         open_lots: Dict[str, OpenLot],
         result: PortfolioSimResult,
+        closed: Sequence[Tuple[str, float]] = (),
     ) -> None:
         entity_id = str(event.entity_id or "").strip()
         inv_id = str(event.investment_id or "").strip()
@@ -149,12 +154,13 @@ class PortfolioSimulator:
             result.skipped_buys += 1
             return
 
-        win_rate = self._win_rate(result)
+        win_rate, payoff = self._kelly_sample(event.date, closed)
         shares = self.allocation.calculate_shares_to_buy(
             account,
             price,
             entity_id,
-            win_rate=win_rate if self.allocation.mode == "kelly" else None,
+            win_rate=win_rate,
+            payoff=payoff,
         )
         if shares <= 0:
             result.skipped_buys += 1
@@ -281,10 +287,20 @@ class PortfolioSimulator:
         trade.equity_after = account.equity({entity_id: float(trade.price or 0.0)})
         result.trades.append(trade)
 
-    def _win_rate(self, result: PortfolioSimResult) -> float:
-        if result.completed_count <= 0:
-            return 0.5
-        return float(result.win_count) / float(result.completed_count)
+    def _kelly_sample(
+        self,
+        buy_date: str,
+        closed: Sequence[Tuple[str, float]],
+    ) -> Tuple[Optional[float], Optional[float]]:
+        """买入日之前已平仓机会的胜率和盈亏比。没有样本时返回空，改走默认仓位。"""
+        if self.allocation.mode != "kelly":
+            return None, None
+        day = str(buy_date or "").strip()
+        rois = [roi for exit_day, roi in closed if exit_day and exit_day < day]
+        if not rois:
+            return None, None
+        win_rate, payoff = payoff_ratio(rois)
+        return win_rate, payoff
 
     def _append_equity(self, result: PortfolioSimResult, date: str) -> None:
         account = result.account
@@ -296,6 +312,37 @@ class PortfolioSimulator:
                 "open_positions": int(account.open_position_count()),
             }
         )
+
+
+def index_closed_rois(events: Sequence[PortfolioEvent]) -> List[Tuple[str, float]]:
+    """每笔已完全平仓的机会 → (最后卖出日, 按卖出比例加权的 ROI)。"""
+    grouped: Dict[str, List[PortfolioEvent]] = {}
+    for event in events:
+        if not event.is_sell():
+            continue
+        key = str(event.investment_id or "").strip()
+        if not key:
+            continue
+        grouped.setdefault(key, []).append(event)
+    closed: List[Tuple[str, float]] = []
+    for sells in grouped.values():
+        ratio = 0.0
+        weighted = 0.0
+        exit_day = ""
+        for sell in sells:
+            part = float(sell.exit_ratio or 0.0)
+            if part <= 0:
+                part = 1.0
+            ratio += part
+            weighted += part * float(sell.roi or 0.0)
+            day = str(sell.date or "").strip()
+            if day > exit_day:
+                exit_day = day
+        if not exit_day or ratio < 1.0 - 1e-9:
+            continue
+        closed.append((exit_day, weighted))
+    closed.sort()
+    return closed
 
 
 def _is_last_sell(

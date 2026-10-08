@@ -203,6 +203,8 @@ def consolidate_st_periods(periods: List[Dict[str, Any]]) -> List[Dict[str, Any]
 
 TIER_ST = "st"
 TIER_STAR_ST = "star_st"
+# 退市不是 namechange 戴帽档，但与 ST 标签共用口语 status tag 空间
+TAG_DELISTED = "delisted"
 
 _LEVEL_TO_TIER: Dict[str, str] = {
     ST_LEVEL_ST: TIER_ST,
@@ -210,6 +212,32 @@ _LEVEL_TO_TIER: Dict[str, str] = {
     ST_LEVEL_STAR_ST: TIER_STAR_ST,
     ST_LEVEL_S_STAR_ST: TIER_STAR_ST,
 }
+
+
+def active_status_tags(
+    periods: Sequence[Dict[str, Any]],
+    trade_date: str,
+) -> List[str]:
+    """某日生效的 ST 口语标签（``st`` / ``star_st``）；顺序固定，可同时存在。"""
+    day = normalize_yyyymmdd(trade_date)
+    if not day:
+        return []
+    found = set()
+    for row in periods:
+        if not is_active_on(row, day):
+            continue
+        tag = _LEVEL_TO_TIER.get(str(row.get("st_level") or "").strip())
+        if tag:
+            found.add(tag)
+        level = str(row.get("st_level") or "").strip().lower()
+        if level in (TIER_ST, TIER_STAR_ST):
+            found.add(level)
+    out: List[str] = []
+    if TIER_ST in found:
+        out.append(TIER_ST)
+    if TIER_STAR_ST in found:
+        out.append(TIER_STAR_ST)
+    return out
 
 
 def _merge_interval_bounds(

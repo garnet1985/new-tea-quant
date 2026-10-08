@@ -1,0 +1,399 @@
+$ntq-rainbow-aurora: conic-gradient(
+  from 0deg,
+  var(--ntq-violet) 0deg,
+  var(--ntq-cyan) 120deg,
+  var(--ntq-green) 240deg,
+  var(--ntq-violet) 360deg
+);
+$ntq-rainbow-still: linear-gradient(135deg, var(--ntq-cyan) 0%, var(--ntq-violet) 100%);
+$ntq-rainbow-text: var(--ntq-brand-text-gradient, linear-gradient(
+  90deg,
+  var(--ntq-violet),
+  var(--ntq-cyan),
+  var(--ntq-green)
+));
+$ntq-rainbow-mask-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M340-236.16v-487.68L723.07-480 340-236.16Z'/%3E%3C/svg%3E");
+$ntq-rainbow-mask-refresh: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M483.08-200q-117.25 0-198.63-81.34-81.37-81.34-81.37-198.54 0-117.2 81.37-198.66Q365.83-760 483.08-760q71.3 0 133.54 33.88 62.23 33.89 100.3 94.58V-760h40v209.23H547.69v-40h148q-31.23-59.85-87.88-94.54Q551.15-720 483.08-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h42.46Q725.08-310.15 651-255.08 576.92-200 483.08-200Z'/%3E%3C/svg%3E");
+
+@keyframes ntq-rainbow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ntq-rainbow-clip-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes ntq-rainbow-shimmer {
+  0%,
+  100% {
+    background-position: 0% center;
+  }
+  50% {
+    background-position: 100% center;
+  }
+}
+
+@keyframes ntq-rainbow-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+.ntq-rainbow-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  box-sizing: border-box;
+  overflow: hidden;
+
+  &:disabled {
+    cursor: not-allowed;
+
+    .ntq-rainbow-button__ring,
+    .ntq-rainbow-button__aurora,
+    .ntq-rainbow-button__glyph-aurora,
+    .ntq-rainbow-button__glow,
+    .ntq-rainbow-button__label--shimmer {
+      animation: none;
+    }
+  }
+}
+
+.ntq-rainbow-button--circle {
+  border-radius: 999px;
+
+  &:hover:not(:disabled) {
+    transform: scale(1.04);
+  }
+}
+
+.ntq-rainbow-button--circle.ntq-rainbow-button--sm {
+  width: 32px;
+  height: 32px;
+  background: rgba(6, 6, 18, 0.55);
+
+  &:hover:not(:disabled) {
+    background: rgba(6, 6, 18, 0.65);
+  }
+
+  .ntq-rainbow-button__ring {
+    padding: 1px;
+  }
+
+  .ntq-rainbow-button__glyph {
+    width: 20px;
+    height: 20px;
+    -webkit-mask-size: 20px 20px;
+    mask-size: 20px 20px;
+  }
+}
+
+.ntq-rainbow-button--circle.ntq-rainbow-button--lg {
+  width: 52px;
+  height: 52px;
+  overflow: visible;
+  background: #0a0a18;
+
+  &:hover:not(:disabled) {
+    background: #101028;
+  }
+
+  .ntq-rainbow-button__ring {
+    padding: 1.5px;
+  }
+}
+
+.ntq-rainbow-button--ring-spin:disabled,
+.ntq-rainbow-button--ring-still:disabled {
+  opacity: 0.42;
+}
+
+.ntq-rainbow-button__ring {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.ntq-rainbow-button--ring-spin .ntq-rainbow-button__ring {
+  background: $ntq-rainbow-aurora;
+  transform-origin: center center;
+  animation: ntq-rainbow-spin 3.6s linear infinite;
+}
+
+.ntq-rainbow-button--ring-still .ntq-rainbow-button__ring {
+  background: $ntq-rainbow-still;
+}
+
+.ntq-rainbow-button__glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    rgba(34, 211, 238, 0.38) 0%,
+    rgba(168, 85, 247, 0.22) 42%,
+    transparent 70%
+  );
+  animation: ntq-rainbow-glow-pulse 2.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ntq-rainbow-button--glow {
+  box-shadow:
+    0 0 12px rgba(34, 211, 238, 0.42),
+    0 0 28px rgba(168, 85, 247, 0.32);
+}
+
+.ntq-rainbow-button--glow.ntq-rainbow-button--quiet {
+  box-shadow:
+    0 0 10px rgba(34, 211, 238, 0.28),
+    0 0 18px rgba(168, 85, 247, 0.22);
+}
+
+.ntq-rainbow-button__face {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.ntq-rainbow-button__glyph {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  overflow: hidden;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+.ntq-rainbow-button__glyph--play {
+  -webkit-mask-image: $ntq-rainbow-mask-play;
+  mask-image: $ntq-rainbow-mask-play;
+}
+
+.ntq-rainbow-button__glyph--refresh {
+  -webkit-mask-image: $ntq-rainbow-mask-refresh;
+  mask-image: $ntq-rainbow-mask-refresh;
+}
+
+.ntq-rainbow-button__glyph-aurora {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  margin-top: -24px;
+  background: $ntq-rainbow-aurora;
+  transform-origin: center center;
+  animation: ntq-rainbow-spin 3.6s linear infinite;
+}
+
+.ntq-rainbow-button__mark,
+.ntq-rainbow-button__ai-text {
+  background: $ntq-rainbow-text;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.ntq-rainbow-button__mark {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  transform: skewX(-8deg);
+}
+
+.ntq-rainbow-button__ai {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 26px;
+}
+
+.ntq-rainbow-button__ai-text {
+  font-size: 20px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  transform: skewX(-8deg);
+}
+
+.ntq-rainbow-button__spark {
+  position: absolute;
+  clip-path: polygon(50% 0%, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  pointer-events: none;
+}
+
+.ntq-rainbow-button__spark--a {
+  top: 1px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: var(--ntq-cyan);
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.9));
+}
+
+.ntq-rainbow-button__spark--b {
+  right: 4px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  background: var(--ntq-violet);
+  filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.9));
+}
+
+// 圆角矩形的色带不能用圆形 mask，转一块大方块再裁切。
+.ntq-rainbow-button--pill.ntq-rainbow-button--ring-spin {
+  width: auto;
+  min-width: 148px;
+  min-height: 44px;
+  padding: 1.5px;
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+
+  .ntq-rainbow-button__inner {
+    min-height: calc(44px - 3px);
+    gap: 8px;
+    padding: 0 16px;
+  }
+
+  .ntq-rainbow-button__glyph {
+    width: 20px;
+    height: 20px;
+    -webkit-mask-size: 20px 20px;
+    mask-size: 20px 20px;
+  }
+
+  .ntq-rainbow-button__label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+.ntq-rainbow-button__aurora {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 340%;
+  aspect-ratio: 1;
+  height: auto;
+  transform: translate(-50%, -50%);
+  background: $ntq-rainbow-aurora;
+  transform-origin: center center;
+  animation: ntq-rainbow-clip-spin 3.6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ntq-rainbow-button__inner {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: calc(14px - 1.5px);
+  background: rgba(6, 6, 18, 0.92);
+}
+
+.ntq-rainbow-button__label {
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: $ntq-rainbow-text;
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ntq-rainbow-button__label--shimmer {
+  animation: ntq-rainbow-shimmer 4.2s ease-in-out infinite;
+}
+
+.ntq-rainbow-button--ring-plain .ntq-rainbow-button__face {
+  color: inherit;
+}
+
+.ntq-rainbow-button--pill.ntq-rainbow-button--ring-plain {
+  height: 44px;
+  min-width: 88px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.32);
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  overflow: hidden;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.38);
+    background: rgba(12, 12, 28, 0.96);
+  }
+
+  &:disabled {
+    color: rgba(255, 255, 255, 0.28);
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(6, 6, 18, 0.72);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-rainbow-button__ring,
+  .ntq-rainbow-button__aurora,
+  .ntq-rainbow-button__glyph-aurora,
+  .ntq-rainbow-button__glow,
+  .ntq-rainbow-button__label--shimmer {
+    animation: none;
+  }
+
+  .ntq-rainbow-button--circle:hover:not(:disabled) {
+    transform: none;
+  }
+}

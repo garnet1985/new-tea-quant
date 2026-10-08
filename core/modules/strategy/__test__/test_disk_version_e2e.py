@@ -111,7 +111,7 @@ def test_simulate_miss_writes_disk_registry_and_version_dirs(tmp_path: Path) -> 
     run.assert_called_once()
 
     assert out["version_id"] == "1"
-    assert out["enumerate"]["version_id"] == "1"
+    assert out["enum"]["version_id"] == "1"
 
     entry = VersionMetaStore.get_registry_entry(sim_root, "1")
     assert entry is not None
@@ -131,7 +131,7 @@ def test_simulate_miss_writes_disk_registry_and_version_dirs(tmp_path: Path) -> 
     assert "entity_ids" not in runtime
     assert "period" not in runtime
     assert "settings" not in runtime
-    assert entry.get("steps", {}).get("enumerate") == "ok"
+    assert entry.get("steps", {}).get("enum") == "ok"
 
     meta = json.loads((sim_root / "meta.json").read_text(encoding="utf-8"))
     assert "1" in meta.get("registry", {})
@@ -142,7 +142,7 @@ def test_simulate_hit_skips_pipeline(tmp_path: Path) -> None:
     strategy_folder = tmp_path / "demo" / "test_strategy"
     strategy_folder.mkdir(parents=True)
     cached = {
-        "enumerate": {
+        "enum": {
             "success": True,
             "version_id": "2",
             "output_dir": str(strategy_folder / "results" / "simulations" / "2" / "enum"),
@@ -189,6 +189,6 @@ def test_simulate_hit_skips_pipeline(tmp_path: Path) -> None:
     ) as run:
         out = Strategy.simulate("demo/test_strategy", kind=SimulateKind.ENUMERATE)
 
-    assert out["enumerate"] == cached["enumerate"]
+    assert out["enum"] == cached["enum"]
     assert out["version_id"] == "2"
     run.assert_not_called()

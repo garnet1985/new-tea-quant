@@ -261,10 +261,40 @@ def test_portfolio_settings_defaults_and_validate():
     assert settings.output.save_trades is True
 
     bad = PortfolioSettings(
-        raw_settings={"portfolio": {"initial_capital": 100}, "capital_simulator": {}}
+        raw_settings={"portfolio": {"initial_capital": 100}}
     )
     bad_report = bad.validate()
     assert not bad_report.is_valid
     paths = {e["field_path"] for e in bad_report.errors}
     assert "portfolio.initial_capital" in paths
-    assert "capital_simulator" in paths
+
+
+def test_kelly_requires_default_cash_or_shares():
+    missing = PortfolioSettings(
+        raw_settings={"portfolio": {"allocation": {"mode": "kelly"}}}
+    )
+    report = missing.validate()
+    assert not report.is_valid
+    paths = {e["field_path"] for e in report.errors}
+    assert "portfolio.allocation.default_cash" in paths
+
+    cash = PortfolioSettings(
+        raw_settings={
+            "portfolio": {
+                "allocation": {"mode": "kelly", "default_cash": 10000},
+            }
+        }
+    )
+    assert cash.validate().is_valid
+    assert cash.allocation.default_cash == 10000
+    assert cash.allocation.default_shares == 0
+
+    shares = PortfolioSettings(
+        raw_settings={
+            "portfolio": {
+                "allocation": {"mode": "kelly", "default_shares": 200},
+            }
+        }
+    )
+    assert shares.validate().is_valid
+    assert shares.allocation.default_shares == 200

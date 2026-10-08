@@ -34,7 +34,7 @@ def _goal_date(goal: Dict[str, Any]) -> str:
 
 def _goal_exit_ratio(goal: Dict[str, Any]) -> float:
     try:
-        return float(goal.get("exit_ratio", goal.get("sell_ratio")) or 0.0)
+        return float(goal.get("exit_ratio") or 0.0)
     except (TypeError, ValueError):
         return 0.0
 

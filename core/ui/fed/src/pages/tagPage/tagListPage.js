@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Box,
-  Button,
   Chip,
-  InputAdornment,
   Paper,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -24,15 +20,19 @@ import {
   getTagUpdateModeLabel,
   startTagRun,
 } from '../../api/tagApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
-import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
-import NtqHelpTooltip from '../../components/ntqHelpTooltip/ntqHelpTooltip';
-import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import NtqRainbowRunButton from '../../components/ntqRainbowRunButton/ntqRainbowRunButton';
-import FreshnessStatusChip from '../../components/freshnessStatusChip/freshnessStatusChip';
-import { notifyTaskSuccess } from '../../utils/feedbackPromptBus';
+import PageLayout from '../../views/pageLayout';
+import SearchField from '../../views/searchField';
+import NtqButton from '../../views/ntqButton';
+import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
+import NtqHelpTooltip from '../../views/ntqHelpTooltip';
+import StrategyDescriptionText from '../../views/strategyDescriptionText';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import NtqIcon from '../../views/ntqIcon';
+import RainbowButton from '../../views/rainbowButton';
+import FreshnessStatusChip from '../../views/freshnessStatusChip';
+import Message from '../../views/message';
+import { showToast } from 'containers/toast';
+import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import './tagListPage.scss';
 
 function clearRowProgress(rows) {
@@ -70,7 +70,6 @@ function TagListPage() {
   const [runningTagId, setRunningTagId] = useState('');
   const [runningTagKey, setRunningTagKey] = useState('');
   const [runningJobId, setRunningJobId] = useState('');
-  const [runError, setRunError] = useState('');
 
   const pollRef = useRef({ timeoutId: null });
   const runningTagIdRef = useRef('');
@@ -232,12 +231,12 @@ function TagListPage() {
         return (
           <Tooltip title={title}>
             <span className="tag-list-run-btn-wrap">
-              <NtqRainbowRunButton
+              <RainbowButton
+                icon="play"
                 disabled={disableRun}
-                ariaLabel="运行 Tag 计算"
+                aria-label="运行 Tag 计算"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setRunError('');
                   setRunningTagId(id);
                   setRunningTagKey(params.row.name);
                   setRunningJobId('');
@@ -250,7 +249,7 @@ function TagListPage() {
                       setRunningJobId(jobId);
                     })
                     .catch((err) => {
-                      setRunError(err?.message || '启动 Tag 计算失败');
+                      showToast({ severity: 'error', content: err?.message || '启动 Tag 计算失败' });
                       setRunningTagId('');
                       setRunningTagKey('');
                       setRunningJobId('');
@@ -357,7 +356,10 @@ function TagListPage() {
             return;
           }
           if (status === 'failed') {
-            setRunError(String(p?.reason || p?.label || 'Tag 计算失败'));
+            showToast({
+              severity: 'error',
+              content: String(p?.reason || p?.label || 'Tag 计算失败'),
+            });
             setRunningTagId('');
             setRunningTagKey('');
             setRunningJobId('');
@@ -370,7 +372,7 @@ function TagListPage() {
         })
         .catch((err) => {
           if (cancelled) return;
-          setRunError(err?.message || '轮询进度失败');
+          showToast({ severity: 'error', content: err?.message || '轮询进度失败' });
           setRunningTagId('');
           setRunningTagKey('');
           setRunningJobId('');
@@ -409,22 +411,17 @@ function TagListPage() {
       loading={!pageReady}
       loadingMessage="正在加载标签列表…"
     >
-      {loadError ? <Alert severity="error" className="tag-list-alert">{loadError}</Alert> : null}
+      {loadError ? <Message severity="error" className="tag-list-alert">{loadError}</Message> : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="tag-list-alert" />
-      {runError ? (
-        <Alert severity="error" className="tag-list-alert" onClose={() => setRunError('')}>
-          {runError}
-        </Alert>
-      ) : null}
       {pipelineError ? (
-        <Alert severity="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
+        <Message severity="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
           {pipelineError}
-        </Alert>
+        </Message>
       ) : null}
       {pipelineBusy && pipelineLabel ? (
-        <Alert severity="info" className="tag-list-alert">
+        <Message severity="info" className="tag-list-alert">
           当前有其它任务占用数据管道（{pipelineLabel}），Tag 运行已暂时禁用。
-        </Alert>
+        </Message>
       ) : null}
 
       <Paper className="tag-list-grid">
@@ -434,31 +431,21 @@ function TagListPage() {
           spacing={1.5}
           className="tag-list-grid-toolbar"
         >
-          <TextField
-            size="small"
+          <SearchField
+            fluid
             placeholder="搜索场景名或 Tag"
+            label="搜索 Tag 场景"
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
-            inputProps={{ 'aria-label': '搜索 Tag 场景' }}
-            className="tag-list-search"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <NtqIcon name="search" size={22} tone="muted" />
-                </InputAdornment>
-              ),
-            }}
           />
-          <Button
-            variant="outlined"
-            size="small"
+          <NtqButton
+            variant="glass"
+            icon="refresh"
             onClick={load}
             disabled={loading || Boolean(runningTagId)}
-            className="ntq-glass-outline-btn"
-            startIcon={<NtqIcon name="refresh" size={22} tone="muted" />}
           >
             刷新列表
-          </Button>
+          </NtqButton>
         </Stack>
 
         <Box className="tag-list-grid-body">

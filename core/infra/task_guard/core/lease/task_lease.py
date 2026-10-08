@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import ProjectContext
 from core.infra.task_guard.contracts import VALID_KINDS, TaskLeaseBusyError
+
+logger = logging.getLogger(__name__)
 
 _LOCK = threading.Lock()
 
@@ -46,16 +49,10 @@ class TaskLease:
 
     @staticmethod
     def read_status() -> Dict[str, Any]:
-        """Return idle or active lease snapshot for runtime busy checks."""
+        """返回空闲或仍由存活进程持有的租约。进程已退出的锁会被删掉。"""
         with _LOCK:
-            path = TaskLease.lease_path()
-            if not path.is_file():
-                return TaskLease._idle_message()
-            try:
-                raw = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
-                return TaskLease._idle_message()
-            if not isinstance(raw, dict) or not raw.get("job_id"):
+            raw = TaskLease._live_lease(TaskLease.lease_path())
+            if raw is None:
                 return TaskLease._idle_message()
             return {
                 "busy": True,
@@ -66,6 +63,47 @@ class TaskLease:
                 "domains": list(raw.get("domains") or []),
                 "started_at": raw.get("started_at"),
             }
+
+    @staticmethod
+    def _holder_alive(payload: Dict[str, Any]) -> bool:
+        """租约里的 pid 仍在运行。没有 pid 的旧文件视为已失效。"""
+        try:
+            pid = int(payload.get("pid"))
+        except (TypeError, ValueError):
+            return False
+        if pid <= 0:
+            return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+        return True
+
+    @staticmethod
+    def _live_lease(path: Path) -> Optional[Dict[str, Any]]:
+        """读租约文件。持有进程已退出时删除文件并返回空。"""
+        if not path.is_file():
+            return None
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(raw, dict) or not raw.get("job_id"):
+            return None
+        if TaskLease._holder_alive(raw):
+            return raw
+        logger.warning(
+            "丢弃过期任务锁 kind=%s job_id=%s pid=%s",
+            raw.get("kind"),
+            raw.get("job_id"),
+            raw.get("pid"),
+        )
+        path.unlink(missing_ok=True)
+        return None
 
     @staticmethod
     def _idle_message() -> Dict[str, Any]:
@@ -103,13 +141,9 @@ class TaskLease:
 
         with _LOCK:
             path = TaskLease.lease_path()
-            if path.is_file():
-                try:
-                    existing = json.loads(path.read_text(encoding="utf-8"))
-                except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
-                    existing = {}
-                if isinstance(existing, dict) and existing.get("job_id"):
-                    raise TaskLeaseBusyError(existing)
+            existing = TaskLease._live_lease(path)
+            if existing is not None:
+                raise TaskLeaseBusyError(existing)
 
             payload = {
                 "kind": self.kind,
@@ -117,6 +151,7 @@ class TaskLease:
                 "resource_key": self.resource_key,
                 "label": self.label or self.resource_key or self.kind,
                 "domains": self.domains,
+                "pid": os.getpid(),
                 "started_at": TaskLease._iso_now(),
             }
             TaskLease._atomic_write(path, payload)

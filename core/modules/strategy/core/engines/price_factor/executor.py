@@ -21,10 +21,13 @@ from core.modules.strategy.core.services.artifacts import (
     PriceInvestmentRow,
 )
 from core.modules.strategy.core.engines.price_factor.helpers import (
+    axis_from_klines,
+    is_new_by_merge_gap,
     load_stock_klines,
+    opportunity_axis_gap,
     position_fully_closed,
-    resolve_holding_until,
     retry_deferred_exits,
+    trigger_stamp,
 )
 from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
 from core.modules.strategy.core.engines.shared.services.hfq_roi import HfqRoi
@@ -41,7 +44,7 @@ class PriceFactorJobExecutor:
     """价格回测唯一对外钩子面（生命周期 + 日历推进）。
 
     边界:
-    - 负责: 读本 batch 枚举结果；task 结束时按锁仓规则回放并写 price entities CSV
+    - 负责: 读本 batch 枚举结果；task 结束时按去噪并行规则回放并写 price entities CSV
     - 不负责: BE 调度/切 batch、overall 汇总（ReportManager.finalize）
     - 调用方: PriceFactorPipeline → ``callbacks=PriceFactorJobExecutor.build_run_callbacks()``
 
@@ -152,7 +155,7 @@ class PriceFactorJobExecutor:
 
     @classmethod
     def _replay_and_save_batch(cls, job_context: Any) -> Dict[str, int]:
-        """对本 batch 各 entity 做锁仓回放并写入 price version ``entities/``。"""
+        """对本 batch 各 entity 做去噪并行回放并写入 price version ``entities/``。"""
         init = job_context.init or {}
         entities = init.get("entities") or {}
         if not isinstance(entities, dict) or not entities:
@@ -194,6 +197,24 @@ class PriceFactorJobExecutor:
             )
             market_rules = None
 
+        hook_runtime = None
+        strategy_info = (job_context.payload or {}).get("strategy_info")
+        if isinstance(strategy_info, dict) and (
+            str(strategy_info.get("hooks_module_path") or "").strip()
+            or strategy_info.get("hooks_class")
+        ):
+            from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
+
+            hook_runtime, err = StrategyHookRuntime.from_strategy_info(
+                strategy_info, strategy
+            )
+            if err:
+                logger.warning(
+                    "price_factor 加载 hooks 失败，使用默认 opportunity_merge_gap: %s",
+                    err.get("error") if isinstance(err, dict) else err,
+                )
+                hook_runtime = None
+
         total_inv = 0
         skipped_exit_at_limit = 0
         for entity_id, pack in entities.items():
@@ -206,6 +227,7 @@ class PriceFactorJobExecutor:
                 backtest_end=end_date,
                 settings=strategy,
                 market_rules=market_rules,
+                hook_runtime=hook_runtime,
             )
             store = PriceFactorStore.at(out_dir)
             store.write_investments(str(entity_id), price_rows)
@@ -246,13 +268,15 @@ class PriceFactorJobExecutor:
         settings: Optional[StrategySettings] = None,
         market_rules: Any = None,
         load_klines=None,
+        hook_runtime: Any = None,
     ) -> Tuple[List[PriceInvestmentRow], int]:
-        """单 entity：枚举结果 → 买 1 / 锁仓 / 跌停顺延卖出 → PriceInvestmentRow。"""
+        """单 entity：枚举去噪并行 / 跌停顺延卖出 → PriceInvestmentRow。"""
         strategy = settings or StrategySettings.from_dict({})
         sim = strategy.simulation
         control = sim.risk_control
         allow_enter_at_limit_up = bool(sim.allow_enter_at_limit_up)
         allow_exit_at_limit_down = bool(sim.allow_exit_at_limit_down)
+        merge_gap = int(sim.price.opportunity_merge_gap)
         kline_loader = load_klines or load_stock_klines
         sid = str(entity_id or "").strip()
         enum_rows = [
@@ -262,89 +286,65 @@ class PriceFactorJobExecutor:
         ordered = sorted(
             enum_rows,
             key=lambda row: (
-                str(row.entry_date or row.trigger_date or "").strip(),
+                trigger_stamp(row),
                 str(row.investment_id or "").strip(),
             ),
         )
-        holding_until: Optional[str] = None
-        out: List[PriceInvestmentRow] = []
         end = str(backtest_end or "").strip()
+        stamps = [trigger_stamp(row) for row in ordered if trigger_stamp(row)]
+        axis: List[str] = []
+        if len(stamps) >= 2 and sid:
+            start_axis = min(stamps)
+            end_axis = max([end] + stamps) if end else max(stamps)
+            axis = axis_from_klines(
+                kline_loader(sid, start_date=start_axis, end_date=end_axis) or []
+            )
+
+        out: List[PriceInvestmentRow] = []
         skipped_sell = 0
+        previous: Optional[EnumResult] = None
+        need_representative = False
 
         for row in ordered:
+            gap = (
+                opportunity_axis_gap(trigger_stamp(previous), trigger_stamp(row), axis)
+                if previous is not None
+                else None
+            )
+            is_new = _decide_is_new(
+                strategy=strategy,
+                merge_gap=merge_gap,
+                previous=previous,
+                row=row,
+                gap=gap,
+                entity_id=sid,
+                hook_runtime=hook_runtime,
+            )
+            previous = row
+            if is_new:
+                need_representative = True
+            if not need_representative:
+                continue
             if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
                 continue
-
             enter_date = str(row.entry_date or "").strip()
-            enter_price = float(row.entry_price or 0.0)
-            enter_price_hfq = float(row.entry_price_hfq or 0.0)
-            # entry_price 为 qfq（可为负/0）；只要求有进场日
             if not enter_date:
                 continue
-
-            if holding_until and enter_date <= holding_until:
-                continue
-
             if row.enter_at_limit is True and not allow_enter_at_limit_up:
                 continue
-
-            inv_id = str(row.investment_id or "").strip()
-            goals = _build_completed_goals(row)
-
-            processed: List[Dict[str, Any]] = []
-            skipped_goals: List[Dict[str, Any]] = []
-            for goal in goals:
-                if (
-                    goal.get("exit_at_limit") is True
-                    and not allow_exit_at_limit_down
-                ):
-                    skipped_sell += 1
-                    skipped_goals.append(goal)
-                    continue
-                processed.append(goal)
-
-            pending = None
-            if skipped_goals and not position_fully_closed(processed):
-                klines = kline_loader(
-                    sid,
-                    start_date=enter_date,
-                    end_date=end or enter_date,
-                )
-                processed, pending, defer_skips = retry_deferred_exits(
-                    enter_price=enter_price,
-                    enter_price_hfq=enter_price_hfq,
-                    processed_goals=processed,
-                    skipped_goals=skipped_goals,
-                    klines=klines,
-                    entity_id=sid,
-                    settings=strategy,
-                    market_rules=market_rules,
-                )
-                skipped_sell += int(defer_skips or 0)
-
-            used_deferred = any(bool(goal.get("deferred")) for goal in processed)
-
-            holding_until = resolve_holding_until(
-                processed_goals=processed,
-                enter_date=enter_date,
-                backtest_end_date=end,
-            )
-
-            price_row = _to_price_row(
+            price_row, extra_skips = _fill_price_investment(
                 row=row,
                 enter_date=enter_date,
-                enter_price=enter_price,
-                enter_price_hfq=enter_price_hfq,
-                processed=processed,
-                pending=pending,
-                used_deferred=used_deferred,
+                end=end,
+                sid=sid,
+                strategy=strategy,
+                market_rules=market_rules,
+                kline_loader=kline_loader,
+                allow_exit_at_limit_down=allow_exit_at_limit_down,
             )
-            price_row.completed_goals = _processed_goals_to_rows(
-                investment_id=inv_id,
-                processed=processed,
-                enter_price_hfq=enter_price_hfq,
-            )
+            skipped_sell += extra_skips
             out.append(price_row)
+            need_representative = False
 
         return out, skipped_sell
 
@@ -361,6 +361,110 @@ class PriceFactorJobExecutor:
             if entity_id:
                 out.append(entity_id)
         return out
+
+
+def _decide_is_new(
+    *,
+    strategy: StrategySettings,
+    merge_gap: int,
+    previous: Optional[EnumResult],
+    row: EnumResult,
+    gap: Optional[int],
+    entity_id: str,
+    hook_runtime: Any,
+) -> bool:
+    if hook_runtime is None:
+        return is_new_by_merge_gap(
+            previous_exists=previous is not None,
+            gap=gap,
+            merge_gap=merge_gap,
+        )
+    from core.modules.strategy.core.hooks.hook_params import (
+        StrategyContext,
+        StrategyData,
+        StrategyInfo,
+    )
+
+    sid = str(entity_id or "").strip()
+    ctx = StrategyContext(
+        strategy=StrategyInfo(
+            key=str(getattr(hook_runtime, "strategy_name", "") or ""),
+            path="",
+        ),
+        settings=strategy,
+        data=StrategyData.build(
+            now=trigger_stamp(row),
+            stock_list=[sid] if sid else ["_"],
+            entity_id=sid,
+            items={
+                "previous_opportunity": previous,
+                "current_opportunity": row,
+                "opportunity_gap": gap,
+            },
+            opportunity=row.to_opportunity(),
+        ),
+    )
+    return hook_runtime.call("is_new_opportunity", ctx) is True
+
+
+def _fill_price_investment(
+    *,
+    row: EnumResult,
+    enter_date: str,
+    end: str,
+    sid: str,
+    strategy: StrategySettings,
+    market_rules: Any,
+    kline_loader: Any,
+    allow_exit_at_limit_down: bool,
+) -> Tuple[PriceInvestmentRow, int]:
+    enter_price = float(row.entry_price or 0.0)
+    enter_price_hfq = float(row.entry_price_hfq or 0.0)
+    inv_id = str(row.investment_id or "").strip()
+    goals = _build_completed_goals(row)
+    processed: List[Dict[str, Any]] = []
+    skipped_goals: List[Dict[str, Any]] = []
+    skipped_sell = 0
+    for goal in goals:
+        if goal.get("exit_at_limit") is True and not allow_exit_at_limit_down:
+            skipped_sell += 1
+            skipped_goals.append(goal)
+            continue
+        processed.append(goal)
+    pending = None
+    if skipped_goals and not position_fully_closed(processed):
+        klines = kline_loader(
+            sid,
+            start_date=enter_date,
+            end_date=end or enter_date,
+        )
+        processed, pending, defer_skips = retry_deferred_exits(
+            enter_price=enter_price,
+            enter_price_hfq=enter_price_hfq,
+            processed_goals=processed,
+            skipped_goals=skipped_goals,
+            klines=klines,
+            entity_id=sid,
+            settings=strategy,
+            market_rules=market_rules,
+        )
+        skipped_sell += int(defer_skips or 0)
+    used_deferred = any(bool(goal.get("deferred")) for goal in processed)
+    price_row = _to_price_row(
+        row=row,
+        enter_date=enter_date,
+        enter_price=enter_price,
+        enter_price_hfq=enter_price_hfq,
+        processed=processed,
+        pending=pending,
+        used_deferred=used_deferred,
+    )
+    price_row.completed_goals = _processed_goals_to_rows(
+        investment_id=inv_id,
+        processed=processed,
+        enter_price_hfq=enter_price_hfq,
+    )
+    return price_row, skipped_sell
 
 
 def _build_completed_goals(row: EnumResult) -> List[Dict[str, Any]]:

@@ -228,6 +228,48 @@ def _insert_from_stage(
     )
 
 
+def _mysql_local_infile_blocked(exc: BaseException) -> bool:
+    """MySQL 3948 / local_infile 未开（Windows 默认常见）。"""
+    args = getattr(exc, "args", ())
+    if args and args[0] == 3948:
+        return True
+    text = str(exc).lower()
+    return (
+        "3948" in text
+        or "loading local data is disabled" in text
+        or "local_infile" in text
+    )
+
+
+def _fill_mysql_stage_from_csv(
+    cursor,
+    *,
+    stage_sql: str,
+    header: List[str],
+    quote: Callable[[str], str],
+    csv_path: Path,
+    batch_size: int = 500,
+) -> None:
+    """不依赖 local_infile：Python 读 CSV → INSERT 临时表。"""
+    col_list = ", ".join(quote(name) for name in header)
+    placeholders = ", ".join(["%s"] * len(header))
+    sql = f"INSERT INTO {stage_sql} ({col_list}) VALUES ({placeholders})"
+    batch: List[List[str]] = []
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.reader(handle)
+        next(reader, None)  # header
+        for row in reader:
+            cells = [
+                (row[i] if i < len(row) else "") for i in range(len(header))
+            ]
+            batch.append(cells)
+            if len(batch) >= batch_size:
+                cursor.executemany(sql, batch)
+                batch.clear()
+        if batch:
+            cursor.executemany(sql, batch)
+
+
 def _load_mysql_csv(
     cursor,
     *,
@@ -238,9 +280,10 @@ def _load_mysql_csv(
     quote: Callable[[str], str],
 ) -> None:
     """
-    MySQL：CSV → 临时 TEXT 表（LOAD DATA LOCAL INFILE）→ 目标表。
+    MySQL：CSV → 临时 TEXT 表 → 目标表。
 
-    LOAD DATA 会隐式提交当前事务；覆盖导入已先清空目标表，与 PostgreSQL 语义一致。
+    优先 ``LOAD DATA LOCAL INFILE``（快）；服务器默认关闭 local_infile（含多数
+    Windows MySQL 8）时回退为 Python 读 CSV + INSERT，无需改 my.ini。
     """
     cols = ", ".join(f"{quote(name)} TEXT" for name in header)
     col_list = ", ".join(quote(name) for name in header)
@@ -248,16 +291,30 @@ def _load_mysql_csv(
     cursor.execute(f"DROP TEMPORARY TABLE IF EXISTS {stage}")
     cursor.execute(f"CREATE TEMPORARY TABLE {stage} ({cols})")
     path_sql = _sql_path_literal(csv_path)
-    cursor.execute(
-        f"LOAD DATA LOCAL INFILE {path_sql} "
-        f"INTO TABLE {stage} "
-        f"CHARACTER SET utf8mb4 "
-        f"FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' "
-        f"ESCAPED BY '\\\\' "
-        f"LINES TERMINATED BY '\\n' "
-        f"IGNORE 1 LINES "
-        f"({col_list})"
-    )
+    try:
+        cursor.execute(
+            f"LOAD DATA LOCAL INFILE {path_sql} "
+            f"INTO TABLE {stage} "
+            f"CHARACTER SET utf8mb4 "
+            f"FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '\"' "
+            f"ESCAPED BY '\\\\' "
+            f"LINES TERMINATED BY '\\n' "
+            f"IGNORE 1 LINES "
+            f"({col_list})"
+        )
+    except Exception as exc:
+        if not _mysql_local_infile_blocked(exc):
+            raise
+        # 临时表可能已被 LOAD DATA 部分写入；重建后走兼容路径
+        cursor.execute(f"DROP TEMPORARY TABLE IF EXISTS {stage}")
+        cursor.execute(f"CREATE TEMPORARY TABLE {stage} ({cols})")
+        _fill_mysql_stage_from_csv(
+            cursor,
+            stage_sql=stage,
+            header=header,
+            quote=quote,
+            csv_path=csv_path,
+        )
     _insert_from_stage(
         cursor,
         target_sql=target_sql,

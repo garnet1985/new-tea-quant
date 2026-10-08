@@ -61,23 +61,7 @@ def create_worker_data_manager() -> Any:
     else:
         db.initialize()
     DatabaseManager.set_default(db)
-
-    dm = DataManager.__new__(DataManager)
-    dm.is_verbose = False
-    dm.db = db
-    dm._initialized = False
-    dm._table_cache = {}
-    dm._data_service = None
-    if hasattr(db.engine, "_initialized"):
-        db.engine._initialized = False
-    dm._discover_tables()
-    dm.attach_data_service()
-    dm._initialized = True
-    if hasattr(db.engine, "_initialized"):
-        db.engine._initialized = True
-
-    DataManager._instance = dm
-    return dm
+    return DataManager.bind_prepared_database(db, is_verbose=False)
 
 
 def bootstrap_worker_data_manager() -> Any:
@@ -112,7 +96,7 @@ def bootstrap_worker_data_manager() -> Any:
         return DataManager(is_verbose=False)
 
     pid = os.getpid()
-    default = DatabaseManager._default_instance
+    default = DatabaseManager.peek_default()
     cached = _PID_DATA_MANAGER.get(pid)
     if (
         cached is not None

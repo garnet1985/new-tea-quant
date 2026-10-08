@@ -20,7 +20,7 @@ class CliApp:
         self.is_verbose = is_verbose
         self.data_manager = DataManager(is_verbose=is_verbose)
         self.db = self.data_manager.db
-        self.data_source = DataSourceManager(is_verbose=is_verbose)
+        self.data_source = DataSourceManager()
         self._tag = None
 
     async def renew_data(

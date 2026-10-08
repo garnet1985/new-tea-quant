@@ -189,23 +189,6 @@ class TagSettings:
                 suggested_fix="Set is_enabled to true or false",
             )
 
-        if self.raw_settings.get("performance") is not None:
-            SettingsBase.add_warning(
-                report,
-                "performance",
-                "performance is ignored; tune worker.json → job_pipeline.tag",
-            )
-            self.raw_settings.pop("performance", None)
-
-        if "tag_target_type" in self.raw_settings:
-            SettingsBase.add_critical(
-                report,
-                "tag_target_type",
-                "tag_target_type is removed; entity universe is inferred from data.base",
-                suggested_fix="Delete tag_target_type from settings.py",
-            )
-            self.raw_settings.pop("tag_target_type", None)
-
         for sub in (self.meta, self.data, self.tag_definitions):
             sub_report = sub.validate()
             report.errors.extend(sub_report.errors)
@@ -262,8 +245,6 @@ class TagSettings:
         out["data"]["base"] = decls[0] if decls else out["data"].get("base")
         out["calculation"] = self.calculation.to_dict()
         out["tag_definitions"] = self.tag_definitions.to_dict()
-        out.pop("performance", None)
-        out.pop("tag_target_type", None)
         return out
 
 

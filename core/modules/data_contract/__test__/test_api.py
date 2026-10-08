@@ -36,7 +36,7 @@ class TestContractIssuerIssue:
         contract = ContractIssuer.issue(
             DATA_KEY.STOCK_KLINE_DAILY,
             entity_ids=["600000.SH"],
-            runtime={"start_time": "20200101", "end_time": "20201231", "adjust": "qfq"},
+            runtime={"start_time": "20200101", "end_time": "20201231"},
             fill_in_data=False,
         )
         assert isinstance(contract, BaseTimeSeriesContract)

@@ -1,7 +1,7 @@
 # 测试用例 — `modules.strategy`
 
 **模块：** `modules.strategy`  
-**版本：** `0.9.0`  
+**版本：** `0.10.0`  
 ## Scope
 
 验证门面 `Strategy` 与 `contracts` 公开面（对齐 `API.md`）。

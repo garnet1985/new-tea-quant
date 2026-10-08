@@ -1,5 +1,5 @@
 name: modules.strategy
-version: "0.9.0"
+version: "0.10.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
@@ -9,8 +9,10 @@ dependencies:
   - modules.indicator
   - modules.backtest_engine
   - modules.adapter
+  - modules.analysis
   - modules.market_profile
   - modules.data_source
+  - infra.db
   - infra.project_context
   - infra.discovery
   - infra.export_import
@@ -18,6 +20,13 @@ dependencies:
   - infra.utils
   - infra.trace
 changelog:
+  - version: "0.10.0"
+    changes:
+      - 重新定义价格回测层。现在价格回测层是减少机会噪音后等全交易的普遍收益率。
+      - 新增价格专用钩子 is_new_opportunity，默认实现为间隔合并。
+      - 全新归因系统：cli加入全新命令 sea/spa/soa，新的归因配置。
+      - 在投资模拟层（portfolio）加入新的机会选择配置，并且纳入归因系统。
+      - 声明对 modules.analysis 的依赖（战役统计与单笔模型走分析门面）。
   - version: "0.9.0"
     changes:
       - 加入决策者模式，支持手动回测

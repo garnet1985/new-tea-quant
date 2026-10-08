@@ -9,7 +9,7 @@ from core.infra.utils import Utils
 
 
 class StockKlineLoader(BaseDataContractLoader):
-    """股票 K 线：顶层前复权 OHLC，行内 ``raw`` / ``hfq`` / ``adj_factor``。不读 ``adjust``。"""
+    """股票 K 线：顶层前复权 OHLC，行内 ``raw`` / ``hfq`` / ``adj_factor``。"""
 
     @staticmethod
     def _load_rows(

@@ -77,7 +77,7 @@ class ReportManager(BaseReportManager):
     """
 
     strategy_key: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     strategy_path: str = ""
     runtime: RuntimeReport = field(init=False, repr=False)
     profiler: ProfilerReport = field(init=False, repr=False)
@@ -119,11 +119,13 @@ class ReportManager(BaseReportManager):
         market_profile: str,
         strategy_path: str = "",
         strategy_folder: Optional[Path] = None,
+        version_id: Optional[str] = None,
     ) -> "ReportManager":
         """分配 version 目录并写入 runtime_env.json / entity_ids.txt。
 
         结果根基于 discovered ``strategy_folder``（``{folder}/results/simulations/{version_id}/enum``），
         不再用相对名重拼 userspace/strategies。
+        ``version_id`` 非空时写入该号（归因副本 ``{vid}-{r}``），不新开主号。
         """
         path_id = str(strategy_path or strategy_key or "").strip()
         folder = Path(strategy_folder) if strategy_folder is not None else None
@@ -132,7 +134,8 @@ class ReportManager(BaseReportManager):
                 raise ValueError("strategy_folder / strategy_path / strategy_key 不能为空")
             folder = path_id
         root = ArtifactStore.simulations_root(folder)
-        reuse_vid = VersionMetaStore.find_version_by_fingerprints(
+        forced = str(version_id or "").strip()
+        reuse_vid = forced or VersionMetaStore.find_version_by_fingerprints(
             root,
             str(execute_fp or ""),
             str(env_fp or ""),
@@ -143,11 +146,11 @@ class ReportManager(BaseReportManager):
             version_id=reuse_vid,
         )
         output_dir = store.output_dir
-        version_id = int(store.version_id)
+        vid = str(store.version_id)
         manager = cls(
             output_dir=output_dir,
             strategy_key=str(strategy_key or path_id).strip(),
-            version_id=int(version_id),
+            version_id=vid,
             strategy_path=path_id or str(folder),
         )
         full_settings = dict(effective_settings.raw_settings or {})
@@ -170,7 +173,7 @@ class ReportManager(BaseReportManager):
             end_date = ""
         VersionMetaStore.write_version_archive(
             EnumerateStore.simulations_root(folder),
-            str(version_id),
+            str(vid),
             full_settings=full_settings,
             effective_settings=execute_subset,
             entity_ids=entity_ids,
@@ -185,13 +188,13 @@ class ReportManager(BaseReportManager):
         output_dir: Path,
         *,
         strategy_key: str,
-        version_id: int,
+        version_id: Any,
         strategy_path: str = "",
     ) -> "ReportManager":
         return cls(
             output_dir=Path(output_dir),
             strategy_key=str(strategy_key or "").strip(),
-            version_id=int(version_id or 0),
+            version_id=str(version_id or "").strip(),
             strategy_path=str(strategy_path or strategy_key or "").strip(),
         )
 
@@ -392,20 +395,16 @@ class ReportManager(BaseReportManager):
         icon = CmdLayout.icon.get
 
         OverallReport.load(self.output_dir).present(stream=out)
-        CmdLayout.separator.print_line(width=60, stream=out)
         EntityListReport.load(self.output_dir).present(stream=out)
-        CmdLayout.separator.print_line(width=60, stream=out)
         try:
             ProfilerPerformance.load(self.output_dir).present(stream=out)
         except Exception:
-            CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+            CmdLayout.title.print_h2(f"{icon('clock')} 性能", stream=out)
             print(f"{icon('warning')} 缺少 {PERFORMANCE_FILE}", file=out, flush=True)
-        CmdLayout.separator.print_line(width=60, stream=out)
         print(f"{icon('info')} 产物: {self.output_dir}", file=out, flush=True)
-        print(
-            f"   reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
-            file=out,
-            flush=True,
+        CmdLayout.text.print_indent(
+            f"reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
+            stream=out,
         )
 
     def to_worker_binding(self) -> Dict[str, Any]:

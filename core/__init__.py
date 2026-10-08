@@ -6,3 +6,7 @@ Core package marker.
 - 便于 pytest / 运行时在项目根目录下直接通过绝对导入使用 core 下各模块。
 """
 
+from core.quiet_resource_tracker import install
+
+install()
+

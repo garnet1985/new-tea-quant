@@ -121,7 +121,7 @@ def test_write_version_archive_splits_settings_and_scope(tmp_path: Path) -> None
 
     entry = VersionMetaStore.get_registry_entry(root, "2")
     assert entry is not None
-    assert entry["steps"]["enumerate"] == "ok"
+    assert entry["steps"]["enum"] == "ok"
 
 
 def test_write_version_archive_is_write_once(tmp_path: Path) -> None:
@@ -185,7 +185,7 @@ def test_clear_downstream_steps_deletes_price_and_portfolio(tmp_path: Path) -> N
     assert not (root / "6" / "decision").exists()
     entry = VersionMetaStore.get_registry_entry(root, "6")
     assert entry is not None
-    assert entry["steps"] == {"enumerate": "ok"}
+    assert entry["steps"] == {"enum": "ok"}
     assert VersionMetaStore.step_status(root, "6", SimulateKind.PRICE_FACTOR) == "missing"
     assert VersionMetaStore.step_status(root, "6", SimulateKind.PORTFOLIO) == "missing"
 
@@ -210,34 +210,76 @@ def test_find_version_by_execute_fp(tmp_path: Path) -> None:
     VersionMetaStore.register_version(root, "2", execute_fp="sfp", env_fp="efp-old")
     assert VersionMetaStore.find_version_by_execute_fp(root, "sfp") == "2"
     assert VersionMetaStore.find_version_by_execute_fp(root, "other") is None
+    VersionMetaStore.allocate_replica_id(
+        root, "2", execute_fp="overlay", env_fp="efp-old"
+    )
+    # 副本入 registry 后仍只扫主号，且不因 int('2-1') 炸掉
+    assert VersionMetaStore.find_version_by_execute_fp(root, "sfp") == "2"
+    assert VersionMetaStore.find_version_by_execute_fp(root, "overlay") is None
 
 
-def test_pinned_is_root_meta_not_registry(tmp_path: Path) -> None:
+def test_group_version_ids_by_env_fp(tmp_path: Path) -> None:
     root = tmp_path / "simulations"
     (root / "2").mkdir(parents=True)
     (root / "3").mkdir(parents=True)
-    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
-    VersionMetaStore.register_version(root, "3", execute_fp="s", env_fp="e")
-    assert VersionMetaStore.read_pinned_ids(root) == []
-    ids = VersionMetaStore.set_version_pinned(root, "2", True)
-    assert ids == ["2"]
-    meta = VersionMetaStore.read_root_meta(root)
-    assert meta["pinned"] == ["2"]
-    assert "pinned" not in (VersionMetaStore.get_registry_entry(root, "2") or {})
-    VersionMetaStore.set_version_pinned(root, "3", True)
-    assert VersionMetaStore.read_pinned_ids(root) == ["2", "3"]
-    VersionMetaStore.set_version_pinned(root, "2", False)
-    assert VersionMetaStore.read_pinned_ids(root) == ["3"]
-    VersionMetaStore.remove_version_from_registry(root, "3")
-    assert VersionMetaStore.read_pinned_ids(root) == []
-    assert VersionMetaStore.read_root_meta(root).get("pinned") == []
-    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="e")
-    VersionMetaStore.set_version_pinned(root, "v2", True)
-    assert VersionMetaStore.read_pinned_ids(root) == ["2"]
-    assert VersionMetaStore.set_version_pinned(root, "2", True) == ["2"]
+    (root / "4").mkdir(parents=True)
+    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="old")
+    VersionMetaStore.register_version(root, "3", execute_fp="s", env_fp="live")
+    groups = VersionMetaStore.group_version_ids_by_env_fp(root)
+    assert groups["old"] == ["2"]
+    assert groups["live"] == ["3"]
+    assert groups[""] == ["4"]
     VersionMetaStore.write_root_meta(
         root,
-        {**VersionMetaStore.read_root_meta(root), "pinned": ["2", "99"]},
+        {**VersionMetaStore.read_root_meta(root), "pinned": ["2"]},
     )
-    assert VersionMetaStore.read_pinned_ids(root) == ["2"]
+    assert "pinned" not in VersionMetaStore.read_root_meta(root)
+
+
+def test_list_version_ids_skips_replicas(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "5", execute_fp="base", env_fp="e")
+    VersionMetaStore.allocate_replica_id(
+        root, "5", execute_fp="overlay", env_fp="e"
+    )
+    assert VersionMetaStore.list_version_ids(root) == ["5"]
+    assert VersionMetaStore.is_replica_version_id("5-1")
+    assert VersionMetaStore.parent_version_id("5-1") == "5"
+
+
+def test_allocate_replica_reuses_fingerprint(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "3", execute_fp="base", env_fp="e")
+    first = VersionMetaStore.allocate_replica_id(
+        root, "3", execute_fp="o1", env_fp="e"
+    )
+    again = VersionMetaStore.allocate_replica_id(
+        root, "3", execute_fp="o1", env_fp="e"
+    )
+    other = VersionMetaStore.allocate_replica_id(
+        root, "3", execute_fp="o2", env_fp="e"
+    )
+    assert first == "3-1"
+    assert again == "3-1"
+    assert other == "3-2"
+
+
+def test_require_primary_version_refuses_missing(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    with pytest.raises(ValueError, match="主 version"):
+        VersionMetaStore.require_primary_version(
+            root, "missing", "e", kind=SimulateKind.ENUMERATE
+        )
+    VersionMetaStore.register_version(root, "1", execute_fp="base", env_fp="e")
+    with pytest.raises(ValueError, match="缺少 enum"):
+        VersionMetaStore.require_primary_version(
+            root, "base", "e", kind=SimulateKind.ENUMERATE
+        )
+    VersionMetaStore.mark_step_complete(root, "1", SimulateKind.ENUMERATE)
+    assert (
+        VersionMetaStore.require_primary_version(
+            root, "base", "e", kind=SimulateKind.ENUMERATE
+        )
+        == "1"
+    )
 

@@ -1,4 +1,4 @@
-"""Versioning redesign 回归：磁盘 layout + env_invalid + 归因路径。"""
+"""Versioning redesign 回归：磁盘 layout + env_invalid。"""
 from __future__ import annotations
 
 import json
@@ -24,7 +24,6 @@ pytestmark = pytest.mark.force_run
 
 def _fps(*, execute_fp: str = "sfp", env_fp: str = "efp"):
     settings = MagicMock()
-    settings.analysis.enabled = False
     return SimpleNamespace(
         execute_fp=execute_fp,
         env_fp=env_fp,
@@ -191,8 +190,6 @@ def test_run_steps_clears_downstream_before_overwriting_enum(tmp_path: Path) -> 
         ArtifactStore, "clear_cache"
     ), patch.object(
         SimulationVersionStore, "record_step_complete"
-    ), patch.object(
-        Strategy, "_maybe_run_analysis", return_value=None
     ), patch(
         "core.modules.strategy.core.services.progress.PipelineProgress.complete_step_bound"
     ), patch(

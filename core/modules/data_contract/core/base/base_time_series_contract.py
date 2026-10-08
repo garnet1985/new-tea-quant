@@ -83,7 +83,7 @@ class BaseTimeSeriesContract(BaseDataContract):
             None: 如果未定义时间范围
 
         示例：
-            contract = pool.get_contract("stock.kline.daily")
+            contract = ContractIssuer.issue("stock.kline.daily", fill_in_data=False)
             contract.fill_in_data(runtime={
                 "start_time": "20200101",
                 "end_time": "20201231",
@@ -107,7 +107,7 @@ class BaseTimeSeriesContract(BaseDataContract):
             None: 如果未定义（返回默认 "date"）
 
         示例：
-            contract = pool.get_contract("stock.kline.daily")
+            contract = ContractIssuer.issue("stock.kline.daily", fill_in_data=False)
             field = contract.get_base_time_field()
             # field = "date"（从 specific.time_axis_field 或默认值）
 
@@ -135,7 +135,7 @@ class BaseTimeSeriesContract(BaseDataContract):
             None: 如果未定义
 
         示例：
-            contract = pool.get_contract("stock.kline.daily")
+            contract = ContractIssuer.issue("stock.kline.daily", fill_in_data=False)
             format = contract.get_time_format()
             # format = "YYYYMMDD"
         """
@@ -157,7 +157,7 @@ class BaseTimeSeriesContract(BaseDataContract):
             str: 标准化后的时间字符串（YYYYMMDD 格式）
 
         示例：
-            contract = pool.get_contract("stock.kline.daily")
+            contract = ContractIssuer.issue("stock.kline.daily", fill_in_data=False)
             normalized = contract.normalize_as_of("2020-01-01")
             # normalized = "20200101"
 

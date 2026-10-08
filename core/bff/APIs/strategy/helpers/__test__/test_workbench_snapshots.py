@@ -105,7 +105,7 @@ def test_fetch_latest_reads_disk_version(mock_find, tmp_path: Path):
     assert row["disk_settings"]["core"]["seed"] == 1
     assert row["effective_settings"]["core"]["seed"] == 99
     assert row["step_status"]["enum"]["done"] is True
-    assert row["step_status"]["price_factor"]["done"] is False
+    assert row["step_status"]["price"]["done"] is False
     assert row["step_status"]["portfolio"]["done"] is False
 
 
@@ -169,27 +169,23 @@ def test_list_dropdown_from_registry(mock_find, tmp_path: Path):
     assert items[0]["retention_max"] == 10
 
 
-def test_expires_soon_vids_at_and_over_cap():
-    assert WorkbenchSnapshots.expires_soon_vids(["3", "2", "1"], 10) == set()
-    assert WorkbenchSnapshots.expires_soon_vids(["3", "2", "1"], 3) == {"1"}
-    assert WorkbenchSnapshots.expires_soon_vids(["5", "4", "3", "2", "1"], 3) == {
-        "3",
-        "2",
-        "1",
-    }
-    assert WorkbenchSnapshots.expires_soon_vids(
-        ["5", "4", "3", "2", "1"], 3, ["1"]
-    ) == {"4", "3", "2"}
+def test_expires_soon_vids_marks_oldest_stale_group(tmp_path: Path):
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "1", execute_fp="s", env_fp="old-a")
+    VersionMetaStore.register_version(root, "2", execute_fp="s", env_fp="old-b")
+    VersionMetaStore.register_version(root, "3", execute_fp="s", env_fp="live")
+    assert WorkbenchSnapshots.expires_soon_vids(root, "live", 3) == set()
+    assert WorkbenchSnapshots.expires_soon_vids(root, "live", 2) == {"1"}
+    assert WorkbenchSnapshots.expires_soon_vids(root, "live", 1) == {"1", "2"}
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy")
-def test_list_dropdown_pins_first_and_skips_expires(mock_find, tmp_path: Path):
+def test_list_dropdown_newest_first(mock_find, tmp_path: Path):
     mock_find.return_value = _info()
     root = tmp_path / "simulations"
     VersionMetaStore.write_root_meta(
         root,
         {
-            "pinned": ["1"],
             "registry": {
                 "3": {"created_at": "2024-01-03", "execute_fp": "s", "env_fp": "e"},
                 "2": {"created_at": "2024-01-02", "execute_fp": "s", "env_fp": "e"},
@@ -204,12 +200,8 @@ def test_list_dropdown_pins_first_and_skips_expires(mock_find, tmp_path: Path):
         WorkbenchSnapshots, "_current_env_fp", return_value="e"
     ), patch.object(WorkbenchSnapshots, "_retention_cap", return_value=3):
         items = WorkbenchSnapshots.list_dropdown("demo/x")
-    assert [i["version_id"] for i in items] == ["v1", "v3", "v2"]
-    by_id = {i["version_id"]: i for i in items}
-    assert by_id["v1"]["pinned"] is True
-    assert by_id["v1"]["expires_soon"] is False
-    assert by_id["v2"]["pinned"] is False
-    assert by_id["v2"]["expires_soon"] is True
+    assert [i["version_id"] for i in items] == ["v3", "v2", "v1"]
+    assert all(i["expires_soon"] is False for i in items)
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy")
@@ -220,22 +212,21 @@ def test_list_dropdown_marks_expires_soon(mock_find, tmp_path: Path):
         root,
         {
             "registry": {
-                "3": {"created_at": "2024-01-03", "execute_fp": "s", "env_fp": "e"},
-                "2": {"created_at": "2024-01-02", "execute_fp": "s", "env_fp": "e"},
-                "1": {"created_at": "2024-01-01", "execute_fp": "s", "env_fp": "e"},
+                "3": {"created_at": "2024-01-03", "execute_fp": "s", "env_fp": "live"},
+                "2": {"created_at": "2024-01-02", "execute_fp": "s", "env_fp": "old-b"},
+                "1": {"created_at": "2024-01-01", "execute_fp": "s", "env_fp": "old-a"},
             }
         },
     )
     with patch.object(WorkbenchSnapshots, "_simulations_root", return_value=root), patch.object(
-        WorkbenchSnapshots, "_current_env_fp", return_value="e"
-    ), patch.object(WorkbenchSnapshots, "_retention_cap", return_value=3):
+        WorkbenchSnapshots, "_current_env_fp", return_value="live"
+    ), patch.object(WorkbenchSnapshots, "_retention_cap", return_value=2):
         items = WorkbenchSnapshots.list_dropdown("demo/x")
     by_id = {i["version_id"]: i for i in items}
     assert by_id["v1"]["expires_soon"] is True
     assert by_id["v2"]["expires_soon"] is False
     assert by_id["v3"]["expires_soon"] is False
-    assert by_id["v1"]["retention_max"] == 3
-    assert by_id["v1"]["pinned"] is False
+    assert by_id["v1"]["retention_max"] == 2
 
 
 @patch.object(WorkbenchSnapshots, "_find_strategy", return_value=None)
@@ -295,12 +286,12 @@ def test_step_status_from_artifacts_even_if_cache_payload_missing(
     assert row is not None
     assert row["step_status"] == {
         "enum": {"done": True},
-        "price_factor": {"done": True},
+        "price": {"done": True},
         "portfolio": {"done": True},
         "decision": {"done": False},
     }
     msg = workbench_snapshot_to_message(row)
-    assert msg["step_status"]["price_factor"]["done"] is True
+    assert msg["step_status"]["price"]["done"] is True
     assert msg["step_status"]["portfolio"]["done"] is True
     assert msg["step_status"]["decision"]["done"] is False
 

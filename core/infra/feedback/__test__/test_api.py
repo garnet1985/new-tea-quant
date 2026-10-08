@@ -105,18 +105,35 @@ def test_submit_rejects_bad_rating(feedback_paths):
     assert feedback_paths["posted"] == []
 
 
-def test_prompt_requires_three_successes(feedback_paths, monkeypatch):
+def test_prompt_once_per_local_half_day(feedback_paths, monkeypatch):
+    from datetime import datetime
+
+    import core.infra.feedback.core.services.prefs_service as prefs_mod
     from core.infra.feedback import Feedback
     from core.infra.feedback.core.defaults import FeedbackDefaults
 
+    clock = {"ts": datetime(2026, 10, 8, 10, 0, 0).timestamp()}
+    monkeypatch.setattr(prefs_mod.time, "time", lambda: clock["ts"])
     monkeypatch.setattr(FeedbackDefaults, "PROMPT_PROBABILITY", 1.0)
 
-    r1 = Feedback.note_task_success(source="scan")
-    r2 = Feedback.note_task_success(source="scan")
-    assert r1["should_prompt"] is False
-    assert r2["should_prompt"] is False
-    r3 = Feedback.note_task_success(source="scan")
-    assert r3["should_prompt"] is True
+    morning = Feedback.note_task_success(source="scan")
+    assert morning["should_prompt"] is True
+    again = Feedback.note_task_success(source="scan")
+    assert again["should_prompt"] is False
+    assert again["reason"] == "half_day"
+
+    clock["ts"] = datetime(2026, 10, 8, 12, 0, 0).timestamp()
+    afternoon = Feedback.note_task_success(source="scan")
+    assert afternoon["should_prompt"] is True
+
+    clock["ts"] = datetime(2026, 10, 8, 23, 30, 0).timestamp()
+    late = Feedback.note_task_success(source="scan")
+    assert late["should_prompt"] is False
+    assert late["reason"] == "half_day"
+
+    clock["ts"] = datetime(2026, 10, 9, 0, 5, 0).timestamp()
+    next_morning = Feedback.note_task_success(source="scan")
+    assert next_morning["should_prompt"] is True
 
 
 def test_disable_prompts_blocks_future(feedback_paths, monkeypatch):

@@ -85,7 +85,7 @@ class ContractRuntime:
             "end_quarter": runtime.get("end_quarter"),
         }
 
-        # 额外字段（如 adjust, amount, direction 等）
+        # 额外字段（如 amount、direction）
         extra_fields = {}
         known_fields = set(base_fields.keys())
         for key, value in runtime.items():
@@ -116,7 +116,6 @@ class ContractSpecific:
     # 子类定义特有字段
     # 如果没有特有字段，使用默认空实例
     pass
-    # adjust: str = "qfq"
 
     @classmethod
     def from_dict(cls, specific: Dict[str, Any]) -> ContractSpecific:
@@ -281,7 +280,7 @@ class BaseDataContract:
                 raise ValueError(f"Per entity contract {self.meta.key} 的 runtime 必须包含 entity_ids")
         
         # Time series：可以验证 start_time/end_time（可选）
-        # 其他 runtime 参数（adjust, amount 等）可选
+        # 其他 runtime 参数（amount、direction 等）可选
 
     def get_entity_ids(self) -> Optional[List[str]]:
         """获取所有实体 ID。"""
@@ -573,7 +572,7 @@ class BaseDataContract:
         if self.runtime.end_quarter is not None:
             params["end_quarter"] = self.runtime.end_quarter
 
-        # Runtime 动态字段（如 adjust, amount, direction 等）
+        # Runtime 动态字段（如 amount、direction）
         # 获取所有 runtime 字段，排除基础字段
         base_runtime_fields = {
             "start_time", "end_time", "entity_ids",

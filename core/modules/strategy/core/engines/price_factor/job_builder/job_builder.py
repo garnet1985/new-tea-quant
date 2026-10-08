@@ -13,11 +13,14 @@ from core.modules.strategy.core.services.artifacts import EnumerateStore
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
+    from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
+        EnabledStrategyInfo,
+    )
 
 logger = logging.getLogger(__name__)
 
 # BE entity_based 切 batch 时只保留固定字段；自定义元数据必须放进 global / entity_shared / settings。
-PRICE_FACTOR_GLOBAL_KEY = "price_factor"
+PRICE_FACTOR_GLOBAL_KEY = "price"
 
 
 class PriceFactorJobBuilder:
@@ -35,6 +38,7 @@ class PriceFactorJobBuilder:
         data: EnumerateStore,
         *,
         report: Optional["ReportManager"] = None,
+        strategy_info: Optional["EnabledStrategyInfo"] = None,
     ) -> List[Dict[str, Any]]:
         """返回 ``[{"id", "payload"}, ...]``（通常 1 个 bundle）。"""
         entity_ids = [
@@ -68,17 +72,16 @@ class PriceFactorJobBuilder:
         }
         if report is not None:
             price_meta["price_output_dir"] = str(report.output_dir)
-            price_meta["price_version_id"] = int(report.version_id)
+            price_meta["price_version_id"] = str(report.version_id or "").strip()
 
         payload: Dict[str, Any] = {
             "entity_specified": [{"id": entity_id} for entity_id in entity_ids],
             "entity_shared": {},
             "global": {PRICE_FACTOR_GLOBAL_KEY: price_meta},
             "shm_info": {},
-            "strategy_info": {
-                "key": strategy_key,
-                "unique_relative_path": strategy_path,
-            },
+            "strategy_info": cls._strategy_info_payload(
+                strategy_key, strategy_path, strategy_info
+            ),
             "settings": settings,
             "entities_count": len(entity_ids),
         }
@@ -90,17 +93,46 @@ class PriceFactorJobBuilder:
             end,
             data.output_dir,
         )
-        return [{"id": "price_factor_run", "payload": payload}]
+        return [{"id": "price_run", "payload": payload}]
+
+    @staticmethod
+    def _strategy_info_payload(
+        strategy_key: str,
+        strategy_path: str,
+        strategy_info: Optional["EnabledStrategyInfo"],
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "key": strategy_key,
+            "unique_relative_path": strategy_path,
+        }
+        if strategy_info is None:
+            return payload
+        payload["hooks_module_path"] = str(
+            getattr(strategy_info, "hooks_module_path", "") or ""
+        )
+        hooks_cls = getattr(strategy_info, "hooks_class", None)
+        payload["hooks_class_name"] = (
+            str(getattr(hooks_cls, "__name__", "") or "") if hooks_cls is not None else ""
+        )
+        strategy_file = getattr(strategy_info, "strategy_file", None)
+        file_path = ""
+        if strategy_file is not None:
+            try:
+                file_path = str(strategy_file.resolve())
+            except Exception:
+                file_path = str(strategy_file)
+        payload["hooks_file_path"] = file_path
+        return payload
 
     @classmethod
     def price_factor_meta(cls, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """从 job payload 取出 ``global.price_factor``（worker / hooks 用）。"""
+        """从 job payload 取出 ``global.price``（worker / hooks 用）。"""
         global_block = payload.get("global") if isinstance(payload, dict) else None
         if not isinstance(global_block, dict):
-            raise ValueError("price_factor payload 缺少 global")
+            raise ValueError("price payload 缺少 global")
         meta = global_block.get(PRICE_FACTOR_GLOBAL_KEY)
         if not isinstance(meta, dict) or not meta:
-            raise ValueError(f"price_factor payload 缺少 global.{PRICE_FACTOR_GLOBAL_KEY}")
+            raise ValueError(f"price payload 缺少 global.{PRICE_FACTOR_GLOBAL_KEY}")
         return dict(meta)
 
 

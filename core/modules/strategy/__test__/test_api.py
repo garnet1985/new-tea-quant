@@ -8,15 +8,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.modules.strategy import Strategy
+from core.modules.strategy.core import strategy as strategy_mod
 from core.modules.strategy.contracts import (
     AsOfSlice,
     CalendarAsOfResult,
-    ExecutionMode,
     Investment,
     JobBundleLoader,
     Opportunity,
     ProgressRecorder,
-    SellReason,
     SimulateKind,
     StrategyContext,
     StrategyHooks,
@@ -60,27 +59,29 @@ class TestStrategyApi(unittest.TestCase):
             "load_price_entity_investments",
             "price_overall_report_path",
             "present_report",
-            "present_analysis_report",
-            "step_analysis_from_output_dir",
-            "resolve_step_analysis",
+            "attribute_enumerate",
+            "attribute_price",
+            "attribute_portfolio",
+            "present_campaign",
+            "rolling",
+            "present_rolling",
             "resolve_simulation_output_dirs",
             "is_valid_path",
             "prune_simulation_results",
             "prune_scan_results",
             "delete_simulation_version",
-            "set_simulation_version_pinned",
             "export_package",
             "import_package",
             "latest_completed_trading_date",
         ):
             self.assertTrue(callable(getattr(Strategy, name)), name)
+        self.assertFalse(hasattr(Strategy, "set_simulation_version_pinned"))
 
     def test_contracts_enums(self) -> None:
-        self.assertEqual(SimulateKind.ENUMERATE.value, "enumerate")
-        self.assertEqual(SimulateKind.PRICE_FACTOR.value, "price_factor")
+        self.assertEqual(SimulateKind.ENUMERATE.value, "enum")
+        self.assertEqual(SimulateKind.PRICE_FACTOR.value, "price")
         self.assertEqual(SimulateKind.PORTFOLIO.value, "portfolio")
-        self.assertEqual(ExecutionMode.SCAN.value, "scan")
-        self.assertEqual(SellReason.STOP_LOSS.value, "stop_loss")
+        self.assertEqual(SimulateKind.FULL.value, "full")
         self.assertEqual(WorkbenchStep.ENUM.value, "enum")
         self.assertEqual(
             WorkbenchStep.PRICE.to_simulate_kind(), SimulateKind.PRICE_FACTOR
@@ -108,8 +109,9 @@ class TestStrategyApi(unittest.TestCase):
         info.display_name = "X"
         info.settings = {}
         info.resolved_folder.return_value = "/tmp/x"
-        with patch(
-            "core.modules.strategy.core.strategy.DiscoveryService.discover_strategies",
+        with patch.object(
+            strategy_mod.DiscoveryService,
+            "discover_strategies",
             return_value=[info],
         ) as discover:
             names = Strategy.list_strategies()
@@ -125,8 +127,9 @@ class TestStrategyApi(unittest.TestCase):
         info.display_name = "Y"
         info.settings = {}
         info.resolved_folder.return_value = "/tmp/y"
-        with patch(
-            "core.modules.strategy.core.strategy.DiscoveryService.get_enabled_strategies",
+        with patch.object(
+            strategy_mod.DiscoveryService,
+            "get_enabled_strategies",
             return_value=[info],
         ) as discover:
             names = Strategy.list_enabled_strategies()
@@ -145,8 +148,9 @@ class TestStrategyApi(unittest.TestCase):
         info.folder = "/tmp/z"
         info.settings = {"a": 1}
         info.resolved_folder.return_value = "/tmp/z"
-        with patch(
-            "core.modules.strategy.core.strategy.DiscoveryService.discover_strategies",
+        with patch.object(
+            strategy_mod.DiscoveryService,
+            "discover_strategies",
             return_value=[info],
         ):
             found = Strategy.get_strategy_info("demo/z")
@@ -157,8 +161,9 @@ class TestStrategyApi(unittest.TestCase):
         self.assertEqual(found["display_name"], "Z")
         self.assertEqual(by_key["key"], "z")
         self.assertIsNone(missing)
-        with patch(
-            "core.modules.strategy.core.strategy.DiscoveryService.get_enabled_strategies",
+        with patch.object(
+            strategy_mod.DiscoveryService,
+            "get_enabled_strategies",
             return_value=[info],
         ):
             enabled = Strategy.find("z", enabled_only=True)
@@ -176,32 +181,21 @@ class TestStrategyApi(unittest.TestCase):
             self.assertEqual(out.get("error"), "version_id 无效")
 
     def test_delete_simulation_version_delegates(self) -> None:
-        with patch(
-            "core.modules.strategy.core.services.artifacts.ArtifactRetention.clear_by_version",
+        import core.modules.strategy.core.services.artifacts as artifacts_mod
+
+        with patch.object(
+            artifacts_mod.ArtifactRetention,
+            "clear_by_version",
             return_value={"ok": True, "deleted": True, "version_id": "v3"},
         ) as clear:
             out = Strategy.delete_simulation_version("demo/x", "v3")
         clear.assert_called_once_with("demo/x", 3)
         self.assertTrue(out["ok"])
 
-    def test_set_simulation_version_pinned_invalid(self) -> None:
-        for bad in (0, "v0", "nope", ""):
-            out = Strategy.set_simulation_version_pinned("demo/x", bad, True)
-            self.assertFalse(out.get("ok"), bad)
-            self.assertEqual(out.get("error"), "version_id 无效")
-
-    def test_set_simulation_version_pinned_delegates(self) -> None:
-        with patch(
-            "core.modules.strategy.core.services.artifacts.ArtifactRetention.set_pinned",
-            return_value={"ok": True, "pinned": True, "version_id": "v3"},
-        ) as pin:
-            out = Strategy.set_simulation_version_pinned("demo/x", "v3", True)
-        pin.assert_called_once_with("demo/x", 3, True)
-        self.assertTrue(out["ok"])
-
     def test_simulate_full_raises(self) -> None:
-        with patch(
-            "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
+        with patch.object(
+            strategy_mod.DiscoveryService,
+            "find_strategy",
             return_value=MagicMock(),
         ):
             with self.assertRaises(ValueError):

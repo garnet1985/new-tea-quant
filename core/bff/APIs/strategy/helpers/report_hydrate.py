@@ -192,9 +192,9 @@ def hydrate_workbench_result_report(
             hydrate_enum_slot(sn, en, workbench_version=workbench_version)
         )
 
-    price = rr.get("price_factor")
+    price = rr.get("price")
     if isinstance(price, dict) and price:
-        rr["price_factor"] = hydrate_price_slot(
+        rr["price"] = hydrate_price_slot(
             sn, price, workbench_version=workbench_version
         )
 

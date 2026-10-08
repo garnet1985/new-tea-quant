@@ -91,10 +91,10 @@ class TestConfigManagerInternal:
 
     @pytest.mark.force_run
     def test_retention_defaults(self):
-        assert ConfigManager.get_simulation_results_max_versions() == 10
+        assert ConfigManager.get_simulation_results_max_stale_envs() == 5
         assert ConfigManager.get_workbench_db_max_versions() == 50
         assert ConfigManager.get_scan_results_max_versions() == 10
-        assert ProjectContext.config.get_simulation_results_max_versions() == 10
+        assert ProjectContext.config.get_simulation_results_max_stale_envs() == 5
         assert "retention" in ProjectContext.config.load_data_config()
 
     @pytest.mark.force_run
@@ -106,8 +106,8 @@ class TestConfigManagerInternal:
             "load_data_config",
             return_value={"retention": {}},
         ):
-            with pytest.raises(KeyError, match="simulation_results_max_versions"):
-                ConfigManager.get_simulation_results_max_versions()
+            with pytest.raises(KeyError, match="simulation_results_max_stale_envs"):
+                ConfigManager.get_simulation_results_max_stale_envs()
 
     @pytest.mark.force_run
     def test_required_data_keys_from_defaults(self):

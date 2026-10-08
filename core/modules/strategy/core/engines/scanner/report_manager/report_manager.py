@@ -160,7 +160,7 @@ class ReportManager(BaseReportManager):
         icon = CmdLayout.icon.get
         report = self.to_report_dict()
         summary = report["summary"]
-        CmdLayout.title.print_banner(f"{icon('search')} 扫描报告", stream=out)
+        CmdLayout.title.print_h1(f"{icon('search')} 扫描报告", stream=out)
         print(
             f"{icon('calendar')} {report['date']}  "
             f"{icon('gear')} {self.strategy_key}",

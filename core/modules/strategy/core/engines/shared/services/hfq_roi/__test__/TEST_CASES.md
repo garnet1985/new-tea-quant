@@ -1,7 +1,7 @@
 # 测试用例 — `engines.shared.services.hfq_roi`
 
 **包：** `core.engines.shared.services.hfq_roi`  
-**版本：** `0.9.0`  
+**版本：** `0.10.0`  
 **本文件位置：** `core/engines/shared/services/hfq_roi/__test__/`
 
 ---

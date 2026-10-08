@@ -121,10 +121,18 @@ def test_suggest_shares_follows_allocation_mode():
     )
     assert equal_sh.suggest_shares(account, 10.0, "600000.SH") == 200
     kelly = _allocation(
-        allocation={"mode": "kelly", "kelly_fraction": 0.5, "max_portfolio_size": 10}
+        allocation={
+            "mode": "kelly",
+            "kelly_fraction": 0.5,
+            "max_portfolio_size": 10,
+            "default_cash": 8000,
+            "default_shares": 300,
+        }
     )
-    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=None) == 0
+    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=None) == 800
     assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=0.75) > 0
+    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=0.4, payoff=1.0) == 0
+    assert kelly.suggest_shares(account, 10.0, "600000.SH", win_rate=0.4, payoff=3.0) > 0
 
 
 def test_simulator_buy_sell_realizes_hfq_roi_profit():
@@ -458,7 +466,7 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
         load_shibor_overnight=lambda *_args, **_kwargs: {},
     )
     assert report["success"] is True
-    assert report["version_id"] == 1
+    assert report["version_id"] == "1"
     assert report["capitalMetrics"]["totalTrades"] >= 2
     assert report["capitalMetrics"]["winTrades"] == 1
     assert len(report["capitalMetrics"]["equityCurveLabels"]) >= 2
@@ -473,3 +481,103 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
     assert report["summary"]["sharpe_ratio"] is None
     assert report["summary"]["sortino_ratio"] is None
     assert report["capitalMetrics"]["sharpeRatio"] is None
+
+
+def test_kelly_uses_default_cash_until_a_sample_exists():
+    alloc = _allocation(
+        allocation={
+            "mode": "kelly",
+            "kelly_fraction": 0.5,
+            "default_cash": 5000,
+            "default_shares": 300,
+            "max_portfolio_size": 10,
+        }
+    )
+    fees = FeeCalculator(
+        commission_rate=0.0,
+        min_commission=0.0,
+        stamp_duty_rate=0.0,
+        transfer_fee_rate=0.0,
+    )
+    sim = PortfolioSimulator.create(allocation=alloc, fee_calculator=fees, save_equity_curve=False)
+    result = sim.run(
+        [
+            PortfolioEvent(
+                kind="buy",
+                date="20240103",
+                entity_id="600000.SH",
+                investment_id="a",
+                price=10.0,
+            ),
+            PortfolioEvent(
+                kind="sell",
+                date="20240108",
+                entity_id="600000.SH",
+                investment_id="a",
+                price=12.0,
+                roi=0.2,
+                exit_ratio=1.0,
+            ),
+            PortfolioEvent(
+                kind="buy",
+                date="20240110",
+                entity_id="600001.SH",
+                investment_id="b",
+                price=10.0,
+            ),
+        ],
+        initial_capital=100_000,
+    )
+    buys = [trade for trade in result.trades if trade.is_buy()]
+    assert len(buys) == 2
+    assert buys[0].shares == 500
+    assert buys[1].shares == 5000
+
+
+def test_kelly_does_not_use_default_when_edge_is_not_positive():
+    alloc = _allocation(
+        allocation={
+            "mode": "kelly",
+            "kelly_fraction": 0.5,
+            "default_cash": 5000,
+            "max_portfolio_size": 10,
+        }
+    )
+    fees = FeeCalculator(
+        commission_rate=0.0,
+        min_commission=0.0,
+        stamp_duty_rate=0.0,
+        transfer_fee_rate=0.0,
+    )
+    sim = PortfolioSimulator.create(allocation=alloc, fee_calculator=fees, save_equity_curve=False)
+    result = sim.run(
+        [
+            PortfolioEvent(
+                kind="buy",
+                date="20240103",
+                entity_id="600000.SH",
+                investment_id="a",
+                price=10.0,
+            ),
+            PortfolioEvent(
+                kind="sell",
+                date="20240108",
+                entity_id="600000.SH",
+                investment_id="a",
+                price=8.0,
+                roi=-0.2,
+                exit_ratio=1.0,
+            ),
+            PortfolioEvent(
+                kind="buy",
+                date="20240110",
+                entity_id="600001.SH",
+                investment_id="b",
+                price=10.0,
+            ),
+        ],
+        initial_capital=100_000,
+    )
+    buys = [trade for trade in result.trades if trade.is_buy()]
+    assert len(buys) == 1
+    assert buys[0].shares == 500

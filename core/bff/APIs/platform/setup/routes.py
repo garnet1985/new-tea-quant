@@ -60,6 +60,11 @@ def get_import_data_progress():
     return _setup_service.get_import_data_progress()
 
 
+@setup_api_bp.route('/v1/setup/import-data', methods=['POST'])
+def import_demo_data():
+    return _setup_service.import_demo_data()
+
+
 @setup_api_bp.route('/v1/setup/ml-extras', methods=['GET'])
 def get_ml_extras_status():
     return _setup_service.get_ml_extras_status()

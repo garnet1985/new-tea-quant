@@ -11,6 +11,23 @@ env:
   NTQ_TRACE_SKIP: "1"
 
 jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install ruff
+        run: python -m pip install "$(grep '^ruff==' requirements-dev.txt)"
+
+      - name: Ruff check
+        run: ruff check
+
   tests:
     runs-on: ubuntu-latest
     env:

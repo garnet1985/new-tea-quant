@@ -1,5 +1,6 @@
 """Register strategy route modules onto ``strategy_api_bp``."""
 
+from .attribution import routes as attribution_routes  # noqa: F401
 from .catalog import routes as catalog_routes  # noqa: F401
 from .decision import routes as decision_routes  # noqa: F401
 from .folder import routes as folder_routes  # noqa: F401

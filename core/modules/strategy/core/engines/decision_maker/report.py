@@ -78,6 +78,7 @@ def finalize_decision_report(
         strategy_path=str(strategy_key or "").strip(),
         version_id=vid,
         market_profile=str(market_profile or "").strip() or "china_a_stock",
+        feature_action="strategy.decision",
     )
     extra: Dict[str, Any] = {}
     if load_open_dates is not None:

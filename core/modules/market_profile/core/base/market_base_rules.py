@@ -139,6 +139,16 @@ class MarketBaseRules(ABC):
         """获取市场配置ID"""
         return self.profile_id
 
+    def pnl_polarity(self) -> str:
+        """UI 盈亏色方向：``cn`` 红赚绿亏；``intl`` 绿赚红亏。"""
+        ui = self.settings.get("ui") if isinstance(self.settings, dict) else None
+        raw = ""
+        if isinstance(ui, dict):
+            raw = str(ui.get("pnl_polarity") or "").strip().lower()
+        if raw in ("cn", "intl"):
+            return raw
+        return "cn" if self.profile_id == "china_a_stock" else "intl"
+
     # ==================== 涨跌幅限制（默认实现） ====================
 
     def get_limit_ratio(self) -> float:

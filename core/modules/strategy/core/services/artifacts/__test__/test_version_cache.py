@@ -50,12 +50,12 @@ def test_disk_cache_hit(tmp_path: Path) -> None:
     ):
         cached = SimulationVersionStore.get_cache(tmp_path, fps, SimulateKind.ENUMERATE)
     assert cached is not None
-    assert cached["enumerate"]["version_id"] == "1"
-    assert cached["enumerate"]["success"] is True
-    assert cached["enumerate"]["output_dir"] == str(step_dir)
-    assert "enumMetrics" not in cached["enumerate"]
-    assert "priceMetrics" not in cached["enumerate"]
-    assert "capitalMetrics" not in cached["enumerate"]
+    assert cached["enum"]["version_id"] == "1"
+    assert cached["enum"]["success"] is True
+    assert cached["enum"]["output_dir"] == str(step_dir)
+    assert "enumMetrics" not in cached["enum"]
+    assert "priceMetrics" not in cached["enum"]
+    assert "capitalMetrics" not in cached["enum"]
 
 
 def test_disk_cache_miss_when_env_invalid(tmp_path: Path) -> None:

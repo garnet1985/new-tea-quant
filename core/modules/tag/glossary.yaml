@@ -7,24 +7,17 @@ terms:
     aliases:
       - "门面"
     avoid:
-      - "TagManager"
       - "deep-import core.engines / core.services（跨模块优先 Facade）"
 
   Tag:
     definition: "标签模块 Facade：discovery / execute / list；按 data.base 路由到 per_entity / global / non_time_series 执行器"
     aliases:
       - "tag facade"
-    avoid:
-      - "TagManager"
-      - "TagWorker"
 
   TagHooks:
     definition: "userspace tag.py 钩子基类（calculate_tag / on_calendar_asof）；global / non_ts 复用 calculate_tag"
     aliases:
       - "tag hooks"
-    avoid:
-      - "BaseTagWorker"
-      - "tag_worker.py"
 
   scenario:
     definition: "一个 tag 场景目录；系统名 = 相对 userspace/extensions/tags 的路径"
@@ -45,15 +38,12 @@ terms:
     definition: "由 data.base 的 contract scope×type 推断：per_entity | global | non_time_series"
     aliases:
       - "data.base 路由"
-    avoid:
-      - "手写 tag_target_type 当产品入口"
 
   entity_based:
     definition: "仅 per_entity：各实体按交易日推进；经 BacktestEngine"
     aliases:
       - "entity parallel"
     avoid:
-      - "timeline（旧名）"
       - "用于 global / non_ts base"
 
   slice_based:
@@ -61,7 +51,6 @@ terms:
     aliases:
       - "calendar slice"
     avoid:
-      - "sliced（旧名）"
       - "用于 global / non_ts base"
 
   TagGlobalPipeline:
@@ -84,15 +73,11 @@ terms:
     definition: "global / non_ts 场景落库 / progress 用的哨兵 entity_id（__global__）"
     aliases:
       - "__global__"
-    avoid:
-      - "__general__（旧 stub 名，已收敛到同一哨兵）"
 
   list_data_key:
     definition: "per_entity contract meta：所属 GLOBAL list 的 data_key（如 stock.list）"
     aliases:
       - "entity list data key"
-    avoid:
-      - "entity_list_data_id"
 
   update_mode:
     definition: "incremental=从 last_calculated_end 续算；refresh=目标区间重算语义"
@@ -118,14 +103,10 @@ terms:
 
   DiscoveredTagInfo:
     definition: "discovery 校验通过后的场景元数据（settings + hooks_class）；Tag.find 返回此类型"
-    aliases:
-      - "discovery TagInfo（旧名，已改名）"
+    aliases: []
     avoid:
       - "与 hooks TagInfo 同名混用"
 
   TagCalendarAsOfResult:
     definition: "slice_based on_calendar_asof 返回：entity_tags + session_state（同 strategy）"
     aliases: []
-    avoid:
-      - "CalendarAsOfContext（旧名）"
-      - "carry（已改为 session_state）"

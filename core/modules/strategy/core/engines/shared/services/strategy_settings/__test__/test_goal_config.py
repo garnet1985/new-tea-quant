@@ -45,11 +45,11 @@ class TestGoalSettings(unittest.TestCase):
         with self.assertRaises(ValueError):
             _ = settings.goal.stop_loss
 
-    def test_partial_exit_ratio_from_sell_ratio(self) -> None:
+    def test_partial_exit_ratio(self) -> None:
         settings = StrategySettings(
             raw_settings={
                 "goal": {
-                    "take_profit": {"stages": [{"ratio": 0.1, "sell_ratio": 0.5}]},
+                    "take_profit": {"stages": [{"ratio": 0.1, "exit_ratio": 0.5}]},
                 },
             }
         )

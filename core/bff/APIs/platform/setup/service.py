@@ -76,3 +76,6 @@ class SetupService:
 
     def install_ml_extras(self):
         return from_payload(self._setup_runtime.install_ml_extras())
+
+    def import_demo_data(self):
+        return from_payload(self._setup_runtime.import_demo_data())

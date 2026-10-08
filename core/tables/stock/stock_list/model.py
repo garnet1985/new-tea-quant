@@ -16,6 +16,17 @@ class DataStockListModel(DbBaseModel):
     def load_by_id(self, stock_id: str) -> Optional[Dict[str, Any]]:
         return self.load_one("id = %s", (stock_id,))
 
+    def load_by_ids(self, stock_ids: List[str]) -> List[Dict[str, Any]]:
+        ids = [str(s).strip() for s in (stock_ids or []) if str(s).strip()]
+        if not ids:
+            return []
+        placeholders = ",".join(["%s"] * len(ids))
+        return self.load(
+            f"id IN ({placeholders})",
+            tuple(ids),
+            order_by="id ASC",
+        )
+
     def load_by_name(self, name: str) -> List[Dict[str, Any]]:
         return self.load("name LIKE %s", (f"%{name}%",))
 

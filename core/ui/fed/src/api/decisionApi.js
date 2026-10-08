@@ -1,4 +1,4 @@
-import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 
 function formatMoney(value) {
   const n = Number(value);
@@ -34,6 +34,11 @@ function encodeStrategyPathSegments(strategyName) {
 function apiDecisionSessions(strategyName) {
   const encoded = encodeStrategyPathSegments(strategyName);
   return `${API_VERSION_PREFIX}/strategy/${encoded}/decision/sessions`;
+}
+
+function apiDecisionStockStatus(strategyName) {
+  const encoded = encodeStrategyPathSegments(strategyName);
+  return `${API_VERSION_PREFIX}/strategy/${encoded}/decision/stock-status`;
 }
 
 function withVersion(url, versionId) {
@@ -96,7 +101,7 @@ function mapStatusTags(raw) {
     .filter((tag, index, all) => tag && all.indexOf(tag) === index);
 }
 
-const STATUS_LABELS = { st: 'ST', star_st: '*ST' };
+const STATUS_LABELS = { st: 'ST', star_st: '*ST', delisted: '退' };
 
 function statusLabelText(raw) {
   return mapStatusTags(raw)
@@ -113,7 +118,8 @@ function mapOpportunity(row) {
     id: localId,
     ticker: String(raw.entity_id || ''),
     name: String(raw.name || ''),
-    statusTags: mapStatusTags(raw.status_tags),
+    // 现场 chip 走 D1-12 live 查询；枚举触发日戳不用于展示
+    statusTags: [],
     price: Number(raw.entry_price) || 0,
     wr: stats ? stats.winRateLabel : '—',
     roi: stats ? stats.avgRoiLabel : '—',
@@ -266,7 +272,8 @@ export function mapDecisionHoldings(message) {
       id: `${row.entity_id || 'h'}-${row.buy_date || index}`,
       ticker: String(row.entity_id || ''),
       name: String(row.name || ''),
-      statusTags: mapStatusTags(row.status_tags),
+      // 现场 chip 走 D1-12；持仓枚举触发日戳不用于展示
+      statusTags: [],
       shares,
       buyDate,
       buyPrice: Number.isFinite(buyPrice) ? buyPrice : null,
@@ -322,21 +329,32 @@ export function infoRowsToCandles(rows) {
       hi = lo;
       lo = tmp;
     }
-    return { date, open, close, high: hi, low: lo };
+    const out = { date, open, close, high: hi, low: lo };
+    const volume = Number(row.volume);
+    if (Number.isFinite(volume)) out.volume = volume;
+    return out;
   }).filter(Boolean);
 }
 
 function mapIndicatorSeries(raw) {
   if (!Array.isArray(raw)) return [];
-  return raw.map((row) => ({
-    key: String(row?.key || ''),
-    label: String(row?.label || row?.key || ''),
-    panel: row?.panel === 'oscillator' ? 'oscillator' : 'overlay',
-    color: row?.color || undefined,
-    data: Array.isArray(row?.data)
-      ? row.data.map((value) => (value == null || !Number.isFinite(Number(value)) ? null : Number(value)))
-      : [],
-  })).filter((row) => row.key);
+  const subPanels = new Set(['oscillator', 'macd', 'volume']);
+  return raw.map((row) => {
+    const panel = String(row?.panel || 'overlay');
+    return {
+      key: String(row?.key || ''),
+      label: String(row?.label || row?.key || ''),
+      panel: subPanels.has(panel) ? panel : 'overlay',
+      kind: row?.kind === 'bar' ? 'bar' : 'line',
+      pane_group: row?.pane_group || row?.paneGroup || undefined,
+      y_axis: row?.y_axis || row?.yAxis || undefined,
+      signed: Boolean(row?.signed),
+      color: row?.color || undefined,
+      data: Array.isArray(row?.data)
+        ? row.data.map((value) => (value == null || !Number.isFinite(Number(value)) ? null : Number(value)))
+        : [],
+    };
+  }).filter((row) => row.key);
 }
 
 const LONG = { timeoutMs: HTTP_TIMEOUT_MS.LONG };
@@ -465,30 +483,38 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
   n,
   columns,
   versionId,
+  buyDate,
 } = {}) {
   const load = async (columnFilter) => {
     const params = new URLSearchParams({ target: String(target || '').trim() });
     if (n != null) params.set('n', String(n));
     if (columnFilter) params.set('columns', String(columnFilter));
     if (versionId) params.set('version', String(versionId));
+    const buyYmd = String(buyDate || '').replace(/-/g, '').trim();
+    if (/^\d{8}$/.test(buyYmd)) params.set('buy_date', buyYmd);
     const json = await request.getJson(
       `${apiDecisionSessions(strategyName)}/${encodeURIComponent(sessionId)}/info?${params.toString()}`,
       LONG,
     );
     const m = unwrapMessage(json);
     const candles = Array.isArray(m.candles) && m.candles.length
-      ? m.candles.map((row) => ({
-        date: String(row?.date || '').replace(/-/g, ''),
-        open: Number(row.open),
-        close: Number(row.close),
-        high: Number(row.high),
-        low: Number(row.low),
-      })).filter((row) => row.date && [row.open, row.close, row.high, row.low].every(Number.isFinite))
+      ? m.candles.map((row) => {
+        const date = String(row?.date || '').replace(/-/g, '');
+        const open = Number(row.open);
+        const close = Number(row.close);
+        const high = Number(row.high);
+        const low = Number(row.low);
+        if (!date || ![open, close, high, low].every(Number.isFinite)) return null;
+        const out = { date, open, close, high, low };
+        const volume = Number(row.volume);
+        if (Number.isFinite(volume)) out.volume = volume;
+        return out;
+      }).filter(Boolean)
       : infoRowsToCandles(m.rows);
     return {
       entityId: String(m.entity_id || ''),
       name: String(m.name || ''),
-      statusTags: mapStatusTags(m.status_tags),
+      statusTags: [],
       asOf: formatDecisionDate(m.as_of),
       stats: mapStats(m.stats),
       tickerStats: mapStats(m.ticker_stats),
@@ -496,6 +522,19 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
       rows: Array.isArray(m.rows) ? m.rows : [],
       candles,
       indicatorSeries: mapIndicatorSeries(m.indicator_series),
+      chartLayers: Array.isArray(m.chart_layers) ? m.chart_layers : [],
+      plannedLevels: Array.isArray(m.planned_levels)
+        ? m.planned_levels.map((row) => ({
+          kind: String(row?.kind || '').trim(),
+          ratio: Number(row?.ratio),
+          price: Number(row?.price),
+          label: String(row?.label || '').trim(),
+        })).filter((row) => (
+          (row.kind === 'take_profit' || row.kind === 'stop_loss')
+          && Number.isFinite(row.price)
+          && row.price > 0
+        ))
+        : [],
     };
   };
   try {
@@ -504,4 +543,28 @@ export async function fetchDecisionInfo(strategyName, sessionId, {
     if (columns) throw err;
     return load('open,high,low,close,volume');
   }
+}
+
+/** D1-12：按 ``date`` 批量查 ``st`` / ``star_st`` / ``delisted``。 */
+export async function fetchDecisionStockStatus(strategyName, { stockIds, date } = {}) {
+  const ids = (Array.isArray(stockIds) ? stockIds : [])
+    .map((id) => String(id || '').trim())
+    .filter(Boolean);
+  const day = String(date || '').replace(/-/g, '').trim();
+  const json = await request.postJson(apiDecisionStockStatus(strategyName), {
+    body: { stock_ids: ids, date: day },
+  });
+  const m = unwrapMessage(json);
+  const raw = m.statuses && typeof m.statuses === 'object' ? m.statuses : {};
+  const statuses = {};
+  ids.forEach((id) => {
+    statuses[id] = mapStatusTags(raw[id]);
+  });
+  Object.keys(raw).forEach((id) => {
+    if (!(id in statuses)) statuses[id] = mapStatusTags(raw[id]);
+  });
+  return {
+    date: String(m.date || day),
+    statuses,
+  };
 }

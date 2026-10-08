@@ -17,6 +17,30 @@ logger = logging.getLogger(__name__)
 DEFAULT_N = 60
 MAX_N = 252
 OHLCV = ("date", "open", "high", "low", "close", "volume")
+# K 线行里常带、但不是策略指标的字段（勿当 overlay 画上主图）
+_BAR_META_KEYS = frozenset(
+    {
+        "amount",
+        "turnover",
+        "turnover_rate",
+        "turnover_value",
+        "pre_close",
+        "preclose",
+        "change",
+        "pct_chg",
+        "pct_change",
+        "factor",
+        "adj_factor",
+        "hfq_factor",
+        "qfq_factor",
+        "code",
+        "ts_code",
+        "symbol",
+        "name",
+        "entity_id",
+        "stock_id",
+    }
+)
 
 
 def parse_info_args(tokens: Sequence[str]) -> Tuple[str, int, Optional[List[str]]]:
@@ -65,29 +89,63 @@ def declared_indicator_fields(indicators_cfg: Optional[Dict[str, Any]]) -> List[
     return names
 
 
-def _apply_indicators(rows: List[Dict[str, Any]], indicators_cfg: Dict[str, Any]) -> None:
+def _apply_indicators(
+    rows: List[Dict[str, Any]],
+    indicators_cfg: Dict[str, Any],
+) -> List[str]:
+    """写入指标列，返回实际落盘的字段名（供列发现，避免扫到 amount 等行情元数据）。"""
     if not rows or not indicators_cfg:
-        return
+        return []
     from core.modules.indicator import Indicator
 
+    written: List[str] = []
     try:
         batch = Indicator.compute_batch(rows, indicators_cfg)
     except (TypeError, ValueError, KeyError) as exc:
         logger.debug("决策者指标计算跳过: %s", exc)
-        return
+        return []
     for name, cfg, result in batch:
         try:
             if isinstance(result, list):
                 field = _indicator_field_name(name, cfg)
                 for rec, val in zip(rows, result):
                     rec[field] = val
+                if field and field not in written:
+                    written.append(field)
             elif isinstance(result, dict):
+                # 与报告单股图一致：用 pandas-ta 列名（vtxp_14），勿再拼 name+length
                 for key, series in result.items():
-                    field = _indicator_field_name(f"{name}_{key}", cfg)
+                    if not isinstance(series, list):
+                        continue
+                    field = str(key or "").strip().lower()
+                    if not field:
+                        continue
                     for rec, val in zip(rows, series):
                         rec[field] = val
+                    if field not in written:
+                        written.append(field)
         except (TypeError, ValueError, KeyError) as exc:
             logger.debug("决策者指标写入跳过 %s: %s", name, exc)
+    return written
+
+
+def _discover_indicator_columns(
+    window: Sequence[Dict[str, Any]],
+    declared: Sequence[str],
+    written: Sequence[str],
+) -> List[str]:
+    """只收声明指标 + compute 实际写入列；不扫整行（否则 amount 会当 overlay）。"""
+    ohlcv = set(OHLCV)
+    ordered: List[str] = []
+    seen = set()
+    for col in list(declared) + list(written):
+        key = str(col or "").strip()
+        if not key or key in seen or key in ohlcv or key in _BAR_META_KEYS:
+            continue
+        if any(key in row for row in window):
+            ordered.append(key)
+            seen.add(key)
+    return ordered
 
 
 def load_info_table(
@@ -107,10 +165,11 @@ def load_info_table(
     bars = list(load_bars(eid, cutoff, width + warmup) or [])
     bars = [row for row in bars if str(row.get("date") or "").strip() <= cutoff]
     bars.sort(key=lambda row: str(row.get("date") or ""))
+    written: List[str] = []
     if indicators_cfg:
-        _apply_indicators(bars, dict(indicators_cfg))
+        written = _apply_indicators(bars, dict(indicators_cfg))
     window = bars[-width:] if len(bars) > width else bars
-    default_keep = list(OHLCV) + declared_indicator_fields(indicators_cfg)
+    declared = declared_indicator_fields(indicators_cfg)
     if keep:
         cols = ["date"]
         for col in keep:
@@ -120,9 +179,13 @@ def load_info_table(
             if key not in cols:
                 cols.append(key)
     else:
-        cols = [c for c in default_keep if c == "date" or any(c in row for row in window)]
+        ind_cols = _discover_indicator_columns(window, declared, written)
+        cols = [c for c in OHLCV if c == "date" or any(c in row for row in window)]
         if "date" not in cols:
             cols.insert(0, "date")
+        for col in ind_cols:
+            if col not in cols:
+                cols.append(col)
     slim: List[Dict[str, Any]] = []
     for row in window:
         slim.append({col: row.get(col) for col in cols})

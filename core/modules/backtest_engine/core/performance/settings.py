@@ -130,11 +130,9 @@ class SliceBasedPerformance:
     reserve_cores: int = 1
     max_parallel_jobs_cap: Optional[int] = None
     # Canonical on/off for dispatch probe (same name as entity_based).
-    # Incoming ``slice_probe`` is folded into this in ``from_dict``.
     dispatch_probe: bool = True
     # Head-phase length (formal slices that count toward output).
     probe_slice_count: int = 2
-    slice_probe_safety_factor: Optional[float] = None
     dispatch_probe_safety_factor: float = 1.0
     duckdb_process_pool_scope: str = "auto"
     duckdb_resume_main_after_pool: bool = True
@@ -147,11 +145,6 @@ class SliceBasedPerformance:
     @classmethod
     def from_dict(cls, data: Optional[RawPerformance]) -> SliceBasedPerformance:
         raw = dict(data or {})
-        # Deprecated alias → canonical dispatch_probe (alias wins when present).
-        if "slice_probe" in raw:
-            alias = raw.pop("slice_probe")
-            if alias is not None:
-                raw["dispatch_probe"] = bool(alias)
         known = {f.name for f in fields(cls) if f.name != "extra"}
         kwargs = {key: raw.pop(key) for key in list(raw) if key in known}
         perf = cls(**kwargs)
@@ -183,7 +176,6 @@ class SliceBasedPerformance:
             "max_parallel_jobs_cap": self.max_parallel_jobs_cap,
             "dispatch_probe": self.dispatch_probe,
             "probe_slice_count": self.probe_slice_count,
-            "slice_probe_safety_factor": self.slice_probe_safety_factor,
             "dispatch_probe_safety_factor": self.dispatch_probe_safety_factor,
             "duckdb_process_pool_scope": self.duckdb_process_pool_scope,
             "duckdb_resume_main_after_pool": self.duckdb_resume_main_after_pool,
@@ -193,21 +185,11 @@ class SliceBasedPerformance:
 
     @staticmethod
     def normalize_worker_fields(settings: RawPerformance) -> None:
-        """Canonical depth name is ``preload_depth``.
+        """输入深度只认 ``preload_depth``。
 
-        ``queue_depth`` / ``queue_capacity`` are legacy aliases. If only an
-        alias is set, lift it into ``preload_depth``. At plan time
-        ``queue_capacity`` is forced equal to ``preload_depth``.
-
-        Probe switch: canonical ``dispatch_probe`` (see ``from_dict`` for
-        deprecated ``slice_probe`` alias).
+        ``prefetch_enabled`` 为 false 且深度仍是 auto 时，预读深度为 0。
+        规划器算出深度后，会把同一个数写到 ``queue_capacity`` / ``queue_depth``。
         """
-        if _is_auto(settings.get("preload_depth")):
-            alias = settings.get("queue_capacity")
-            if _is_auto(alias):
-                alias = settings.get("queue_depth")
-            if not _is_auto(alias):
-                settings["preload_depth"] = alias
         if settings.get("prefetch_enabled") is False and _is_auto(
             settings.get("preload_depth")
         ):

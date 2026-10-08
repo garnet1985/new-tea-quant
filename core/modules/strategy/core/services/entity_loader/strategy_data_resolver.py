@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Mapping, TypedDict, Union
 
+from core.infra.project_context import ProjectContext
 from core.modules.data_contract import ContractIssuer
 from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -214,7 +215,9 @@ class StrategyDataResolver:
         per_entity_declarations: List[DataDeclaration] = []
 
         issuer = ContractIssuer()
-        issuer.discover()
+        issuer.discover(
+            user_space_path=ProjectContext.path.get_data_contract_root()
+        )
         available_keys = set(issuer.list_available_keys())
 
         for declaration in self.issue_declarations():

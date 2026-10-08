@@ -43,7 +43,7 @@ hfq(t) = raw(t) × F(t)          # 已有 F，消费时算
 qfq(t) = raw(t) × F(段)/F(最新) + C   # 信号；C 来自腾讯锚
 ```
 
-数据层（已落地）：``load`` / ``load_qfq`` / ``load_qfq_split`` / ``load_batch`` 以及契约 ``stock.kline.*`` 一律给下面这行，**不必也不要**在 settings 里声明 ``adjust``。旧参数若还在会被丢掉，不切换序列。只要未复权请用 ``load_raw``。
+数据层（已落地）：``load`` / ``load_qfq`` / ``load_qfq_split`` / ``load_batch`` 以及契约 ``stock.kline.*`` 一律给下面这行。未复权用 ``load_raw``。
 
 行形状（字段名是 ``high`` / ``low``，不是 highest/lowest；**没有**嵌套 ``qfq``，顶层就是前复权）：
 

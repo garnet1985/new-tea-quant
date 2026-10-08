@@ -209,7 +209,7 @@ class ForceExitWhenPolicy:
                     f"{field_path} 非法 status: {status!r}；允许: {sorted(cls.KNOWN_TAGS)}"
                 )
             close_invest = item.get("close_invest") is True
-            raw_exit = item.get("exit_ratio", item.get("sell_ratio"))
+            raw_exit = item.get("exit_ratio")
             if close_invest:
                 exit_ratio = 1.0
             elif raw_exit is not None and raw_exit != "":

@@ -30,3 +30,14 @@ def test_data_contracts_list_ok(client):
         assert "is_per_entity" in row
         assert "origin" in row
         assert "is_custom" in row
+
+
+def test_data_contracts_reload_ok(client):
+    rv = client.post("/api/v1/data-contracts/reload?page=1&limit=10")
+    assert rv.status_code == 200
+    body = rv.get_json()
+    assert body["status"] == "ok"
+    msg = body["message"]
+    assert msg["reloaded"] is True
+    assert msg["total"] >= 1
+    assert isinstance(msg["items"], list)

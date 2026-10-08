@@ -1,4 +1,4 @@
-"""Price Factor：跌停卖出顺延（deferred exit）与持仓锁。"""
+"""Price Factor：跌停卖出顺延（deferred exit）。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -172,10 +172,11 @@ def test_replay_deferred_exit_moves_sell_date() -> None:
     assert out[0].roi == pytest.approx(-0.05)
 
 
-def test_replay_stuck_at_limit_locks_until_end() -> None:
+def test_replay_stuck_at_limit_keeps_later_episode() -> None:
     rows = [
         _row(
             investment_id="1",
+            trigger_date="20240102",
             entry_date="20240102",
             exit_date="20240110",
             exit_price=9.0,
@@ -183,6 +184,7 @@ def test_replay_stuck_at_limit_locks_until_end() -> None:
         ),
         _row(
             investment_id="2",
+            trigger_date="20240120",
             entry_date="20240120",
             exit_date="20240122",
             exit_price=11.0,
@@ -210,9 +212,10 @@ def test_replay_stuck_at_limit_locks_until_end() -> None:
         load_klines=_loader,
     )
     assert skipped >= 1
-    assert [r.opportunity_id for r in out] == ["1"]
+    assert [r.opportunity_id for r in out] == ["1", "2"]
     assert out[0].lifecycle == "open"
     assert out[0].exit_date == ""
+    assert out[1].opportunity_id == "2"
 
 
 def test_replay_allow_exit_at_limit_down_trusts_enum() -> None:

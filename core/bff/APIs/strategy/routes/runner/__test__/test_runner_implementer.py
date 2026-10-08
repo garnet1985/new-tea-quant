@@ -15,7 +15,8 @@ def test_normalize_step():
     assert StrategyRunnerImplementer.normalize_step("PRICE") == "price"
     assert StrategyRunnerImplementer.normalize_step("portfolio") == "portfolio"
     assert StrategyRunnerImplementer.normalize_step("capital") is None
-    assert WorkbenchStep.try_parse("enumerate") is WorkbenchStep.ENUM
+    assert WorkbenchStep.try_parse("enum") is WorkbenchStep.ENUM
+    assert WorkbenchStep.try_parse("enumerate") is None
     assert StrategyRunnerImplementer.normalize_step("nope") is None
 
 

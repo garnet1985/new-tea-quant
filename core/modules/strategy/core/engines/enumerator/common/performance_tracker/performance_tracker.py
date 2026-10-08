@@ -94,16 +94,6 @@ class EnumJobPerfRecorder:
         until_by_slot[slot_key] = float(until_by_slot.get(slot_key) or 0.0) + elapsed
         self.record("enum_contract_until", elapsed, accumulate=True)
 
-    def record_unified_until(self, seconds: float) -> None:
-        elapsed = max(0.0, float(seconds))
-        self._contract["unified_until_calls"] = int(
-            self._contract.get("unified_until_calls") or 0
-        ) + 1
-        self._contract["unified_until_time_seconds"] = float(
-            self._contract.get("unified_until_time_seconds") or 0.0
-        ) + elapsed
-        self.record("enum_as_of_slice_unified", elapsed, accumulate=True)
-
     def set_calendar_meta(
         self,
         *,

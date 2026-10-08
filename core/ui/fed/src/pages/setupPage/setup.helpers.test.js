@@ -1,5 +1,6 @@
 import {
   FAKE_PROGRESS_CAP,
+  SETUP_CHOICE_COPY,
   clampFakeProgress,
   fakeProgressTickSize,
   isChoicePauseStep,
@@ -18,6 +19,10 @@ const STEPS = [
 ];
 
 describe('setup.helpers fake progress and choice steps', () => {
+  it('points skipped demo import at settings maintenance', () => {
+    expect(SETUP_CHOICE_COPY.import_data.body).toContain('设置 → 安装与维护');
+  });
+
   it('identifies import and ML pause steps', () => {
     expect(isChoicePauseStep('import_data')).toBe(true);
     expect(isChoicePauseStep('resolve_ml_deps')).toBe(true);

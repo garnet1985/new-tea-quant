@@ -51,9 +51,34 @@ def test_price_markers_enter_and_exit():
     ]
     markers = WorkbenchStockDetail._price_markers([inv], candles)
     types = [m["type"] for m in markers]
-    assert types == ["buy", "target_win"]
+    assert types == ["buy", "exit_end"]
     assert markers[0]["detail"]["entry_date"] == "20200102"
     assert markers[1]["detail"]["exit_date"] == "20200105"
+    assert markers[1]["detail"]["is_final"] is True
+    assert markers[1]["detail"]["is_profit"] is True
+    assert markers[1]["label"] == "交易完成·盈利"
+
+
+def test_price_markers_exit_end_loss_label():
+    inv = PriceInvestmentRow(
+        opportunity_id="p-loss",
+        enter_date="20200102",
+        enter_price=10.0,
+        exit_date="20200105",
+        exit_price=9.0,
+        roi=-0.1,
+        lifecycle="complete",
+        result="loss",
+        exit_reason="stop_loss",
+    )
+    candles = [
+        {"date": "20200102", "open": 10, "high": 11, "low": 9, "close": 10},
+        {"date": "20200105", "open": 9.5, "high": 9.8, "low": 8.8, "close": 9},
+    ]
+    markers = WorkbenchStockDetail._price_markers([inv], candles)
+    assert markers[-1]["type"] == "exit_end"
+    assert markers[-1]["label"] == "交易完成·亏损"
+    assert markers[-1]["detail"]["is_profit"] is False
 
 
 def test_price_markers_emit_each_completed_goal():
@@ -96,11 +121,14 @@ def test_price_markers_emit_each_completed_goal():
     markers = WorkbenchStockDetail._price_markers([inv], candles, goal_rows=goals)
     types = [m["type"] for m in markers]
     dates = [m["date"] for m in markers]
-    assert types == ["buy", "target_win", "target_win"]
+    assert types == ["buy", "take_profit", "exit_end"]
     assert dates == ["20200102", "20200104", "20200105"]
     assert markers[1]["detail"]["goal_name"] == "win20%"
     assert markers[1]["detail"]["exit_ratio"] == 0.5
+    assert markers[1]["detail"]["is_final"] is False
     assert markers[2]["detail"]["goal_name"] == "win30%"
+    assert markers[2]["detail"]["is_final"] is True
+    assert markers[2]["detail"]["is_profit"] is True
 
 
 def test_enum_metrics_for_stock():

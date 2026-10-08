@@ -338,23 +338,23 @@ class SliceReaderPool:
                 load_sec=float(raw.get("load_sec") or 0.0),
                 error=str(err),
             )
-        # Prefer pickle-safe wire format from workers.
         wire = raw.get("entity_contracts_wire")
-        if isinstance(wire, dict):
-            try:
-                contracts = SliceReaderPool._contracts_from_wire(wire)
-            except Exception as exc:
-                return SliceWindowResult(
-                    key=key,
-                    entity_contracts={},
-                    load_sec=float(raw.get("load_sec") or 0.0),
-                    error=f"hydrate contracts failed: {exc}",
-                )
-        else:
-            # Sync / legacy path may still pass live contract objects.
-            contracts = raw.get("entity_contracts") or {}
-            if not isinstance(contracts, dict):
-                contracts = {}
+        if not isinstance(wire, dict):
+            return SliceWindowResult(
+                key=key,
+                entity_contracts={},
+                load_sec=float(raw.get("load_sec") or 0.0),
+                error="reader result missing entity_contracts_wire",
+            )
+        try:
+            contracts = SliceReaderPool._contracts_from_wire(wire)
+        except Exception as exc:
+            return SliceWindowResult(
+                key=key,
+                entity_contracts={},
+                load_sec=float(raw.get("load_sec") or 0.0),
+                error=f"hydrate contracts failed: {exc}",
+            )
         return SliceWindowResult(
             key=key,
             entity_contracts=contracts,

@@ -7,7 +7,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
+import NtqIcon from '../../views/ntqIcon';
 
 function stateIcon(row, runningStep) {
   if (runningStep && row.id === runningStep) {

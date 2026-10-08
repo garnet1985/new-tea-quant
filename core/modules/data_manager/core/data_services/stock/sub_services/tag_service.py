@@ -846,20 +846,8 @@ class TagDataService(BaseDataService):
             return {eid: [] for eid in entity_ids}
     
     def get_next_trading_date(self, date: str) -> str:
-        """
-        获取下一个交易日
-        
-        Args:
-            date: 当前日期（YYYYMMDD 格式）
-        
-        Returns:
-            str: 下一个交易日（YYYYMMDD 格式）
-        
-        注意：此方法应该委托给 CalendarService，当前为简单实现（自然日+1）
-        """
-        # TODO: 委托给 CalendarService.get_next_trading_date() 实现
-        # 当前使用简单逻辑：自然日 + 1 天
-        return Utils.date.add_days(date, 1)
+        """下一个开市日，读 ``sys_trade_calendar``。"""
+        return self.data_manager.calendar.get_next_trading_date(date)
     
     # ==================== 私有辅助方法 ====================
     

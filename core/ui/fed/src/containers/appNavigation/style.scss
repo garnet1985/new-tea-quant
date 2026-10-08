@@ -1,0 +1,28 @@
+@use '../../styles/variables' as *;
+
+.ntq-app-header {
+  position: relative;
+  z-index: 1200;
+  width: 100%;
+  overflow: visible;
+  background-color: var(--ntq-ink, #060612);
+  border-bottom: 1px solid var(--ntq-white-12);
+}
+
+.ntq-app-header__toolbar {
+  min-height: $ntq-header-height;
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.ntq-app-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: $ntq-header-height;
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  overflow: visible;
+}

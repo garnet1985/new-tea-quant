@@ -41,7 +41,7 @@ class TestOpportunityBindScanContext(unittest.TestCase):
             raw_settings={
                 "goal": {
                     "take_profit": {
-                        "stages": [{"ratio": 0.2, "sell_ratio": 0.5}],
+                        "stages": [{"ratio": 0.2, "exit_ratio": 0.5}],
                     },
                 },
             }

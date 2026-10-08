@@ -99,7 +99,6 @@ mgr.renew(table_name="stock_klines", force=True)
 | `BaseHandler` | 数据源 Handler 基类 |
 | `ApiJob` / `ApiJobBundle` | 抓取 job 契约 |
 | `DataSourceConfig` / `ApiConfig` | handler config 契约 |
-| `DataSourceField` / `DataSourceSchema` | schema 字段契约 |
 | `NormalizationHelper` | handler 规范化工具模块（`apply_field_mapping` / `result_to_records` 等） |
 | `UpdateMode` | renew 模式枚举 |
 

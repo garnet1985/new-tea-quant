@@ -13,7 +13,13 @@ from __future__ import annotations
 from typing import Any
 
 VALID_KINDS = frozenset(
-    {"tag_run", "strategy_scan", "strategy_run", "data_renew"}
+    {
+        "tag_run",
+        "strategy_scan",
+        "strategy_run",
+        "strategy_attribute",
+        "data_renew",
+    }
 )
 
 

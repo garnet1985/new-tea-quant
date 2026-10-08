@@ -17,10 +17,10 @@ class FeedbackDefaults:
     MAX_TEXT_CODEPOINTS: int = 2000
     BODY_MAX_BYTES: int = 8192
 
-    # Soft prompt frequency
-    MIN_SUCCESS_BEFORE_PROMPT: int = 3
-    PROMPT_COOLDOWN_SEC: int = 2 * 24 * 3600
-    PROMPT_PROBABILITY: float = 0.25
+    # Soft prompt frequency. Closing prompts is settings-only.
+    # At most one prompt per local half-day: 00:00–12:00 and 12:00–24:00.
+    MIN_SUCCESS_BEFORE_PROMPT: int = 1
+    PROMPT_PROBABILITY: float = 1.0
 
     CONTACT_URL: str = "https://new-tea.cn/zh-hans/contact?from=ntq_app"
 
@@ -32,7 +32,6 @@ class FeedbackDefaults:
             "max_text_codepoints": cls.MAX_TEXT_CODEPOINTS,
             "body_max_bytes": cls.BODY_MAX_BYTES,
             "min_success_before_prompt": cls.MIN_SUCCESS_BEFORE_PROMPT,
-            "prompt_cooldown_sec": cls.PROMPT_COOLDOWN_SEC,
             "prompt_probability": cls.PROMPT_PROBABILITY,
             "contact_url": cls.CONTACT_URL,
         }

@@ -122,6 +122,30 @@ export async function startTagRun(tagKey) {
 }
 
 /**
+ * T1-07：标签可视化。
+ * ``entityId`` 仅 per_entity 下钻时传入。
+ */
+export async function fetchTagVisualization(tagKey, entityId) {
+  const params = new URLSearchParams();
+  const entity = String(entityId || '').trim();
+  if (entity) params.set('entity_id', entity);
+  const qs = params.toString();
+  const json = await request.getJson(
+    `${apiTagPath(tagKey)}/visualization${qs ? `?${qs}` : ''}`,
+  );
+  const message = json?.message || {};
+  return {
+    route: String(message.route || '').trim(),
+    tag_key: message.tag_key || tagKey,
+    display_name: String(message.display_name || '').trim(),
+    horizon_end: message.horizon_end || '',
+    entities: Array.isArray(message.entities) ? message.entities : [],
+    intervals: Array.isArray(message.intervals) ? message.intervals : [],
+    snapshots: Array.isArray(message.snapshots) ? message.snapshots : [],
+  };
+}
+
+/**
  * T1-03：轮询 Tag run 进度
  */
 export async function fetchTagRunProgress(tagKey, jobId) {

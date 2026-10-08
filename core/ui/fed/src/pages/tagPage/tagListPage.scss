@@ -18,6 +18,23 @@
     line-height: 0;
   }
 
+  .tag-list-viz-btn.MuiIconButton-root {
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 4px;
+    padding: 4px 6px;
+    background: rgba(255, 255, 255, 0.04);
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.72);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    &.Mui-disabled {
+      border-color: rgba(255, 255, 255, 0.18);
+      background: transparent;
+    }
+  }
+
   .tag-list-grid-body {
     .tag-list-cell--actions {
       align-items: center !important;

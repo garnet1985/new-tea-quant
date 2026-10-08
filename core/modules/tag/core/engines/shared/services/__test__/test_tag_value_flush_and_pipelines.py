@@ -14,6 +14,10 @@ from core.modules.tag.core.engines.per_entity.entity_based import (
     TagEntityJobExecutor,
 )
 from core.modules.tag.core.engines.shared.hooks import TagContext, TagHookRuntime, TagHooks
+from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
+    TagDataService,
+    TagDbUnavailable,
+)
 from core.modules.tag.core.engines.shared.services import TagValueFlushService
 from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
@@ -125,6 +129,90 @@ class TestTagValueFlushService:
             ]
         )
         assert flush.flush() == 1
+
+    def test_defers_write_until_db_returns(self):
+        tags = MagicMock()
+        calls = {"n": 0}
+
+        def save(rows):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise TagDbUnavailable("down")
+            return len(rows)
+
+        tags.save_batch.side_effect = save
+        flush = TagValueFlushService(tags, batch_size=2)
+        row = {
+            "entity_id": "e1",
+            "as_of_date": "20240102",
+            "tag_definition_id": 1,
+            "value": "a",
+        }
+        flush.extend([dict(row, entity_id="e1"), dict(row, entity_id="e2")])
+        assert flush.saved_row_count == 0
+        assert flush.flush() == 2
+        assert calls["n"] == 2
+
+    def test_zero_save_is_not_counted_as_success(self):
+        tags = MagicMock()
+        tags.save_batch.return_value = 0
+        flush = TagValueFlushService(tags, batch_size=10)
+        flush.extend(
+            [
+                {
+                    "entity_id": "e1",
+                    "as_of_date": "20240102",
+                    "tag_definition_id": 1,
+                    "value": "a",
+                }
+            ]
+        )
+        try:
+            flush.flush()
+        except RuntimeError as exc:
+            assert "未落库" in str(exc)
+        else:
+            raise AssertionError("expected write failure")
+        assert flush.saved_row_count == 0
+
+
+class _ReadyDb:
+    def __init__(self, ready: bool = True) -> None:
+        self._initialized = ready
+
+
+class _BoundModel:
+    def __init__(self, db: _ReadyDb) -> None:
+        self.db = db
+
+
+class _FakeManager:
+    def __init__(self, db: Optional[_ReadyDb]) -> None:
+        self.db = db
+
+    def get_table(self, name: str) -> _BoundModel:
+        _ = name
+        return _BoundModel(self.db)
+
+
+class TestTagDataServiceRebind:
+    def test_rebind_waits_for_resumed_manager(self):
+        old = _ReadyDb()
+        manager = _FakeManager(old)
+        service = TagDataService(manager)
+        assert service.rebind_live_db() is True
+
+        manager.db = None
+        with patch(
+            "core.infra.db.core.db_manager.DatabaseManager.peek_default",
+            return_value=None,
+        ):
+            assert service.rebind_live_db() is False
+
+        resumed = _ReadyDb()
+        manager.db = resumed
+        assert service.rebind_live_db() is True
+        assert service._tag_value_model.db is resumed
 
 
 class TestTagEntityJobBuilder:

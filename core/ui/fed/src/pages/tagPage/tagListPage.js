@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box,
   Chip,
+  IconButton,
   Paper,
   Stack,
   Tooltip,
@@ -33,6 +34,7 @@ import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
 import { showToast } from 'containers/toast';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
+import TagVisualization from '../../containers/tagVisualization';
 import './tagListPage.scss';
 
 function clearRowProgress(rows) {
@@ -70,6 +72,7 @@ function TagListPage() {
   const [runningTagId, setRunningTagId] = useState('');
   const [runningTagKey, setRunningTagKey] = useState('');
   const [runningJobId, setRunningJobId] = useState('');
+  const [vizTarget, setVizTarget] = useState(null);
 
   const pollRef = useRef({ timeoutId: null });
   const runningTagIdRef = useRef('');
@@ -264,6 +267,42 @@ function TagListPage() {
       },
     },
     {
+      field: 'visualize',
+      headerName: '可视化',
+      width: 88,
+      sortable: false,
+      filterable: false,
+      align: 'center',
+      headerAlign: 'center',
+      cellClassName: 'tag-list-cell--actions',
+      renderCell: (params) => {
+        const computed = Boolean(String(params.row.last_computed_as_of || '').trim());
+        const title = computed ? '打开标签可视化' : '尚未计算，无法可视化';
+        return (
+          <Tooltip title={title}>
+            <span className="tag-list-run-btn-wrap">
+              <IconButton
+                size="small"
+                disabled={!computed}
+                className="tag-list-viz-btn"
+                aria-label={title}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!computed) return;
+                  setVizTarget({
+                    name: params.row.name,
+                    display_name: params.row.display_name,
+                  });
+                }}
+              >
+                <NtqIcon name="monitoring" size={18} tone={computed ? '' : 'muted'} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        );
+      },
+    },
+    {
       field: 'update_mode',
       headerName: '更新方式',
       width: 110,
@@ -325,7 +364,15 @@ function TagListPage() {
         );
       },
     },
-  ]), [patchRunningRowProgress, pipelineBusy, pipelineLabel, running, runningTagId, refreshPipeline]);
+  ]), [
+    patchRunningRowProgress,
+    pipelineBusy,
+    pipelineLabel,
+    refreshPipeline,
+    running,
+    runningTagId,
+    setVizTarget,
+  ]);
 
   useEffect(() => {
     if (!running || !runningTagKey) return undefined;
@@ -477,6 +524,12 @@ function TagListPage() {
           />
         </Box>
       </Paper>
+      <TagVisualization
+        open={Boolean(vizTarget)}
+        tagKey={vizTarget?.name || ''}
+        displayName={vizTarget?.display_name || ''}
+        onClose={() => setVizTarget(null)}
+      />
     </PageLayout>
   );
 }

@@ -125,6 +125,7 @@ class MetadataEnsureService:
 
         # dry_run 下 recompute 不删重建 definition，仅复用/补齐现有元数据
         recompute = bool(scenario.recompute) and (not scenario.is_dry_run)
+        self._drop_removed_definitions(scenario)
         for definition in scenario.tag_definitions:
             self.ensure_tag_definition(
                 definition,
@@ -185,6 +186,36 @@ class MetadataEnsureService:
             definition.apply_db_meta(existing)
 
         return definition
+
+    def _drop_removed_definitions(self, scenario: Scenario) -> None:
+        """settings 里已经拿掉的标签删掉，并清水位，避免旧纵轴和增量窗口留着。"""
+        if scenario.is_dry_run or scenario.id is None:
+            return
+        rows = self._tags.get_tag_definitions(scenario.id)
+        if not isinstance(rows, list):
+            return
+        wanted = {str(item.name or "").strip() for item in scenario.tag_definitions}
+        removed = [
+            row
+            for row in rows
+            if isinstance(row, dict)
+            and str(row.get("name") or "").strip()
+            and str(row.get("name") or "").strip() not in wanted
+        ]
+        if not removed:
+            return
+        for row in removed:
+            definition_id = TagDefinition._optional_int(row.get("id"))
+            if definition_id is None:
+                continue
+            self._tags.delete_tag_values_by_definition(definition_id)
+            self._tags.delete_tag_definition(definition_id)
+        self._tags.clear_calc_progress_by_scenario(int(scenario.id))
+        logger.info(
+            "removed tag definitions no longer in settings: scenario=%s names=%s",
+            scenario.name,
+            [str(row.get("name") or "") for row in removed],
+        )
 
 
 __all__ = ["MetadataEnsureService"]

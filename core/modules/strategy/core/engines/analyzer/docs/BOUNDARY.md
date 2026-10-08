@@ -11,7 +11,7 @@
 | 包 | 职责 |
 |----|------|
 | ``analyzer.py`` | Facade / API 暴露 |
-| ``pipeline.py`` | 战役编排（``AttributionPipeline`` / ``RollingPipeline`` 只串步骤） |
+| ``pipeline.py`` | 战役编排（``AttributionPipeline`` 只串步骤） |
 | ``steps/campaign/`` | 战役归因主链路包 |
 | ``steps/campaign/config/`` | 配置步：``AttributionConfig.for_layer`` |
 | ``steps/campaign/plan/`` | 计划步：``AttributionPlan.for_layer`` |
@@ -21,25 +21,23 @@
 | ``steps/campaign/summarize/`` | 总结步：``SummarizeStep.for_layer`` |
 | ``steps/campaign/report/`` | 报告步：``CampaignReportStep.for_layer`` + ``CampaignPresenter`` |
 | ``steps/campaign/persist/`` | 落盘步：``PersistStep.for_layer`` + ``AttributionGroupStore`` |
-| ``steps/rolling/`` | 旧的滚动验证（窗口互相比）。新口径见 [ROLLING.md](../../../../docs/notes/ROLLING.md)，尚未按该口径改 |
 
 Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。
 
-**口径：** 三入口共用同一套「如果」副本身份与同一套管线（解析取值 → 补本层产物 → gather → summarize → report）。CLI 只决定懒执行深度与因变量。见 [CONCEPTS.md](../../../../docs/CONCEPTS.md)。``Analyzer.rolling`` 走 ``RollingPipeline``，仍是旧实现。新口径见 [ROLLING.md](../../../../docs/notes/ROLLING.md)。单 version 的 prepare / analyze / report / layer 已删除。
+**口径：** 三入口共用同一套「如果」副本身份与同一套管线（解析取值 → 补本层产物 → gather → summarize → report）。CLI 只决定懒执行深度与因变量。见 [CONCEPTS.md](../../../../docs/CONCEPTS.md)。单 version 的 prepare / analyze / report / layer 已删除。
 
 ## 入口（当前）
 
 ```text
 Analyzer.attribute_*(key) → AttributionPipeline(kind=…) → steps/campaign/
-Analyzer.rolling(key)     → RollingPipeline → steps/rolling/
 ```
 
-``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enum|price|portfolio}/``（按层报告目录，不是三套格子），滚动写 ``rolling/``。CLI ``sea`` / ``spa`` / ``soa`` / ``sw``。
+``Strategy.simulate`` 只回测，不归因。战役报告写在 ``results/attribution/{n}/{enum|price|portfolio}/``。CLI ``sea`` / ``spa`` / ``soa``。
 
 ## 依赖方向
 
 ```text
-Analyzer.attribute_* / Analyzer.rolling → pipeline → campaign/rolling → modules.analysis（统计）
+Analyzer.attribute_* → pipeline → steps/campaign → modules.analysis（统计）
 ```
 
 ``modules.analysis`` 禁止 import strategy。

@@ -174,7 +174,7 @@ class CampaignPresenter:
         ).strip()
         if primary:
             CmdLayout.text.print_indent(
-                f"主指标：{CampaignLabels.outcome_label(primary)}（样本内；换窗口请用滚动验证）",
+                f"主指标：{CampaignLabels.outcome_label(primary)}（样本内）",
                 stream=out,
             )
         if rank:

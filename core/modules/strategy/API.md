@@ -134,7 +134,7 @@
 `Strategy.present_rolling(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 的 `rolling.windows` 对照声明窗口，默认每窗跑到 `portfolio`，写 `results/attribution/{n}/rolling/`。CLI `sw`（`-f` 即 `ignore_cache`）。不和参数战役混在一份报告里。
+- **描述：** 读 `rolling.py` 的窗口，用当前设置再跑枚举、价格和资金。须已有当前 settings 对应的主 version，且三层产物都在，否则拒绝。窗口写入 `{vid}-s{n}`，不 bump `next_version_id`，不进版本列表。一份对照报告写 `results/simulations/{vid}/rolling/report.json`，只和该主 version 比差值。CLI `sw`（`-f` 即 `ignore_cache`）。
 
 ### resolve_simulation_output_dirs
 

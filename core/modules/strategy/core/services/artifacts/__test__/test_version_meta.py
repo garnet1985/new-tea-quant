@@ -247,6 +247,40 @@ def test_list_version_ids_skips_replicas(tmp_path: Path) -> None:
     assert VersionMetaStore.parent_version_id("5-1") == "5"
 
 
+def test_allocate_rolling_id_is_not_a_primary_or_replica(tmp_path: Path) -> None:
+    root = tmp_path / "simulations"
+    VersionMetaStore.register_version(root, "5", execute_fp="base", env_fp="e")
+    VersionMetaStore.allocate_replica_id(root, "5", execute_fp="overlay", env_fp="e")
+    meta = VersionMetaStore.read_root_meta(root)
+    meta["next_version_id"] = 8
+    VersionMetaStore.write_root_meta(root, meta)
+    first = VersionMetaStore.allocate_rolling_id(
+        root, "5", execute_fp="window-a", env_fp="e"
+    )
+    again = VersionMetaStore.allocate_rolling_id(
+        root, "5", execute_fp="window-a", env_fp="e"
+    )
+    other = VersionMetaStore.allocate_rolling_id(
+        root, "5", execute_fp="window-b", env_fp="e"
+    )
+    assert first == "5-s1"
+    assert again == "5-s1"
+    assert other == "5-s2"
+    assert VersionMetaStore.list_version_ids(root) == ["5"]
+    assert VersionMetaStore.is_rolling_version_id("5-s1")
+    assert not VersionMetaStore.is_replica_version_id("5-s1")
+    assert not VersionMetaStore.is_primary_version_id("5-s1")
+    assert VersionMetaStore.rolling_parent_version_id("5-s1") == "5"
+    assert VersionMetaStore.parent_version_id("5-s1") is None
+    entry = VersionMetaStore.get_registry_entry(root, "5-s1") or {}
+    assert entry.get("kind") == "rolling"
+    assert entry.get("parent_version_id") == "5"
+    assert VersionMetaStore.read_root_meta(root)["next_version_id"] == 8
+    assert VersionMetaStore.allocate_replica_id(
+        root, "5", execute_fp="overlay-2", env_fp="e"
+    ) == "5-2"
+
+
 def test_allocate_replica_reuses_fingerprint(tmp_path: Path) -> None:
     root = tmp_path / "simulations"
     VersionMetaStore.register_version(root, "3", execute_fp="base", env_fp="e")

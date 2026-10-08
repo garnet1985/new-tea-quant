@@ -36,8 +36,6 @@
 
 `joint_sweep` 是额外的小矩阵：指定两三个已经声明的轴一起变，其余固定，报告里出热力图。全轴 `cross: true` 仍能把各轴做成笛卡尔积（上限 128 格），但报告仍按单因素讲，口径未定，不要当完成功能。开了全轴 `cross` 时忽略 `joint_sweep`。
 
-滚动对照不是归因：资金回测完成之后另配区间，和这次回测比差值。口径见 [ROLLING.md](./notes/ROLLING.md)。现有 `attribution.rolling` 仍是旧实现。
-
 配置不进执行指纹，也不进环境指纹。工作台保存 `settings.py` 时不要改 `attribution.py`。轴只写顶层 `inputs`。不要写 `versions`、`shap`、`overlays`、`matrix`，也不要把轴放进 `enum` / `price` / `portfolio` 块。
 
 ---

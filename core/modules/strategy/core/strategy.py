@@ -866,28 +866,26 @@ class Strategy:
         Analyzer.CampaignPresenter.load(report).present(stream=stream)
 
     @staticmethod
-    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def rolling(
         key_or_id: Union[str, Path],
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """读 attribution.py 跑滚动验证（对照窗口，写 ``results/attribution/{n}/rolling/``）。"""
-        from .engines.analyzer import Analyzer
+        """读 rolling.py，把窗口挂到当前主 version 上并写出对照报告。"""
+        from .engines.rolling.pipeline import RollingPipeline
 
-        return Analyzer.rolling(key_or_id, ignore_cache=ignore_cache)
+        return RollingPipeline.run(key_or_id, ignore_cache=ignore_cache)
 
     @staticmethod
-    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def present_rolling(
         report: Union[Dict[str, Any], str, Path],
         *,
         stream: Optional[TextIO] = None,
     ) -> None:
-        """展示滚动报告（内存返回体或 ``rolling/`` 目录）。"""
-        from .engines.analyzer import Analyzer
+        """展示滚动对照（内存返回体或主 version 下的 ``rolling/`` 目录）。"""
+        from .engines.rolling.present import RollingPresenter
 
-        Analyzer.RollingPresenter.load(report).present(stream=stream)
+        RollingPresenter.load(report).present(stream=stream)
 
     @staticmethod
     def _analyze_version_id(

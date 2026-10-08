@@ -15,7 +15,6 @@ from ..execute import ExecuteStep
 from .groups import AttributionGroupStore
 
 PARAMETER_TASK_ID = "parameter"
-ROLLING_TASK_ID = "rolling"
 GROUP_META_FILE = "group_meta.json"
 REPORT_FILE = "report.json"
 TABLE_FILE = "table.json"

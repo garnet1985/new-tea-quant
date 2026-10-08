@@ -218,7 +218,7 @@ class UserParser:
             sub,
             "strategy_rolling",
             aliases=UserCommands.aliases_for("strategy_rolling"),
-            help="滚动验证（待定，读 attribution.py 的 rolling.windows）",
+            help="滚动对照（读 rolling.py；须先完成枚举、价格和资金回测）",
         )
         UserParser._add_strategy_target(p)
 

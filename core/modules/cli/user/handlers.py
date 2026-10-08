@@ -605,7 +605,6 @@ class UserHandlers:
             raise SystemExit(1)
 
     @staticmethod
-    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def _run_strategy_rolling(args: argparse.Namespace) -> None:
         import time
 
@@ -614,11 +613,11 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print(f"{i('chart')} 滚动验证…", flush=True)
+        print(f"{i('chart')} 滚动对照…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
-        print("  配置: attribution.py → rolling（不进指纹）", flush=True)
+        print("  配置: rolling.py（不进指纹）", flush=True)
         if force:
-            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
+            print("  --force: 忽略缓存，重跑各窗口", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.rolling(strategy_key, ignore_cache=force)
@@ -629,7 +628,6 @@ class UserHandlers:
         except Exception as exc:
             print(f"  展示滚动报告失败: {exc}", flush=True)
             logger.warning("展示滚动报告失败", exc_info=True)
-            print(f"  headline: {result.get('headline')}", flush=True)
             print(f"  report_path: {result.get('report_path')}", flush=True)
 
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)

@@ -15,6 +15,7 @@
 | 恢复配置 | 是（显式确认） | 不写产物 | 把 `{vid}/settings.json` 写回 `settings.py`；**不** 把 `scope.json` 的股票池写回运行时 |
 | Run（`se`/`sp`/`so`） | 工作台会先 Persist 草稿 | 主号 `(execute_fp, env_fp)` 命中或新建 | 只分配整数主号；与选中号无关 |
 | 归因（`sea`/`spa`/`soa`） | 否 | 主号或副本 `{vid}-{r}` | 须先有主 version；对照格写副本，不 bump `next_version_id` |
+| 滚动对照（`sw`） | 否 | 主号下的 `{vid}-s{n}` | 须三层都完成；窗口不占主号、不占 `{vid}-{r}`；报告在 `{vid}/rolling/` |
 | 强制重跑（`ignore_cache` / `--force`） | 同上 | **同一 id**（命中键不变时） | 跳过 cache；主号/副本各自复写。**不** 为同一双指纹再开号 |
 | 手动删除 | 否 | 删该 `{vid}/`（可含副本） | CLI `sdv` / BFF `DELETE …/cache` |
 
@@ -34,8 +35,12 @@
     enum/ | price/ | portfolio/
       runtime_env.json              # 该步完成标记
       analysis/                     # 与该步同生共死（战役内部切片）
+    rolling/report.json             # 滚动对照，挂在这个主号上
   {vid}-{r}/                        # 归因副本：不进 UI 列表、不 bump next_version_id
-    …同上…```
+    …同上…
+  {vid}-s{n}/                       # 滚动窗口：不进 UI 列表、不 bump next_version_id
+    …同上…
+```
 
 `meta.json`：
 

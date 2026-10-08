@@ -24,14 +24,15 @@
 
 想跳过介绍、直接安装？请看 [快速安装 + 运行一个策略](#quick-start)。其他入口：[为什么用 NTQ](#why) · [常用命令](#cli) · [教程](https://new-tea.cn/zh-hans/more-examples) · [官网](https://new-tea.cn)
 
-## 当前版本（v0.5.1）
+## 当前版本（v0.5.2）
 
 最近更新摘要：
 
-**[v0.5.1](CHANGELOG.md)**
+**[v0.5.2](CHANGELOG.md)**
 
-- **决策者笔记**：每次投资可写下当时的理由，日历和持仓里能再看到。
-- **安装体验**：国内自动使用镜像安装依赖，数据导入直接交给数据库，安装速度大幅度提升。
+- **参数矩阵归因**：去掉贡献有限的单次回测归因。每一步可以单独对照策略目录里 `attribution.py` 的参数，看不同取值对结果的影响。为所有演示策略都加了一份示例。
+- **重构价格回测**：不再在持仓期间锁住同一只股票。挨得太近的机会会去掉，隔开的机会可以并行跟踪，用来看滤掉噪音之后策略的整体盈利能力。
+- **投资模拟选仓**：机会多于持仓额度时，可用 `portfolio.allocation.opportunity_selection` 按字段排序或加权挑选。写了 `on_pick_portfolio_member` 时仍则以钩子函数为准。
 - 更多更新请参见 [CHANGELOG.md](CHANGELOG.md)。v0.5.0 起已包含决策模拟与 AI 助理。
 
 ## NTQ 是什么？
@@ -165,7 +166,7 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 
 - **`has_opportunity(ctx)`**：当日该股票是否有买入机会。能读到「当前日期为止」的数据，做完计算后返回 `True` / `False`（没有机会就 `False`，框架跳过）。
 - **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤，返回要进入单股判定的股票 id 列表，随后对这些股票调用 `has_opportunity`。
-- **`on_pick_portfolio_member(ctx)`**：处理组合容量。例如最大持股 3 只，当日却扫出 10 个机会，在这里决定选择哪 3 个机会。
+- **`on_pick_portfolio_member(ctx)`**：机会多于空位时的挑选。不写钩子时，用 `settings.py` 里的 `portfolio.allocation.opportunity_selection` 按字段排序或加权即可；写了钩子则以钩子为准。
 
 另外，您也可以自定义目标：在 `settings.py` 的某一段止盈 / 止损上写 `"custom": "规则名"` 和给人看的 `"description"`，再实现 **`is_take_profit`** / **`is_stop_loss`**，自行决定何时触发、触发后卖多少仓位。
 
@@ -221,7 +222,7 @@ def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
     return CalendarAsOfResult(as_of_date=today, stocks=top3)
 ```
 
-- **`on_pick_portfolio_member(ctx)`**：处理组合容量。例如最大持股 3 只，当日却扫出 10 个机会，在这里决定选择哪 3 个机会。
+- **`on_pick_portfolio_member(ctx)`**：和上面同一件事。日常用 `opportunity_selection` 配置即可；需要自己写挑选逻辑时再实现这个钩子。
 
 ```python
 # 举例：当日机会很多时，挑价格最高的 3 只买入
@@ -338,7 +339,7 @@ NTQ 还可以：
 - **快捷操作数据库：** NTQ 支持 [DuckDB](https://duckdb.org/)、[MySQL](https://dev.mysql.com/) 和 [PostgreSQL](https://www.postgresql.org/)，并且配有一套轻量级的 [ORM 操作 API](core/infra/db/README.md)。
 - **自定义数据源：** NTQ 有接入外部数据源的一套完整工具。一个数据源（比如公司财务数据）可以接入多个数据供应商，并且默认带有限流、等待等模式，支持多种数据存入（增量、覆盖、滚动刷新）模式。说明见 [core/modules/data_source/README.md](core/modules/data_source/README.md)。
 - **自定义数据契约：** NTQ 大部分操作是配置完成的，代码较少。那假如我新增加了一张数据表，想通过声明的方式注入回测流程，我该怎么办？NTQ 提供了[数据契约](core/modules/data_contract/README.md)模块：您只需要给您的新数据定义一个唯一的名字（`data_key`），然后定义一个加载逻辑（loader），接下来框架会在回测过程中自动通过名字找到您的 loader 进行数据加载，就可以注入回测了。
-- **对回测归因：** `sea` / `spa` / `soa` 用同一套副本对照设置，分别看枚举、价格和组合。平时 Run 不自动归因。见 [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md)。
+- **对回测归因：** 在策略目录的 `attribution.py` 里声明要对照的参数。`sea` / `spa` / `soa` 共用这套轴，分别补枚举、价格和组合。平时 Run 不自动归因。演示策略已各带一份短示例。见 [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md)。
 - **适配器：** 扫描出机会后，用 [`adapter`](core/modules/adapter/README.md) 接到您自己的下游（通知、交易软件或其他程序）。框架会提供标准的机会信息，以及回测历史（如果您回测过）。
 - **用户界面（UI）：** NTQ 标配了一款 Web UI，可以在您的浏览器里使用。很多结果和操作可以可视化，还可以比较您多次回测的输入参数和输出结果的不同，从而对策略进行针对性微调。
 - **AI 助理：** 应用内可对话，需自行在设置中填写供应商 API Key；请求会带上 NTQ 文档上下文。
@@ -410,7 +411,7 @@ python3 launcher.py
 1. 安装核心 Python 依赖
 2. 初始化 `userspace`
 3. 配置数据库（默认 **DuckDB**；开发者可改 MySQL / PostgreSQL，库不存在时程序会尝试新建，与已有库重名会提示）
-4. **询问是否导入演示数据**（可跳过；跳过后再自行接入数据源）
+4. **询问是否导入演示数据**（可跳过。跳过后仍可在「设置 → 安装与维护」导入。若提示 DuckDB 正被其他程序占用，退出那个程序后再试）
 5. **询问是否安装机器学习依赖**（分析库用，可跳过；之后可在「设置 → 安装与维护」补装）
 6. 使用统计（允许或暂不分享都会继续）
 
@@ -427,7 +428,7 @@ NTQ 自带以下演示资产：
 
 #### 进入策略页面
 
-在 UI 点击导航「制定策略」，或打开路径 `/strategy-design/`。列表里选一个 demo（例如 **RSI超跌反弹v1 · 基线**），点标题或「进入调试」：
+在 UI 点击导航「制定策略」，或打开路径 `/strategy-design/`。列表里选一个 demo（例如 **RSI超跌反弹v1 · 作为对比基准的版本**），点标题或「进入调试」：
 
 ![图 1：导航进入制定策略](docs/images/demo/1.jpg)
 
@@ -437,13 +438,13 @@ NTQ 自带以下演示资产：
 
 策略页面大致由四块组成：
 
-- **策略信息**：顶部全宽区域，展示名称、说明、版本胶囊，以及固定 / 恢复等操作。
+- **策略信息**：顶部全宽区域，展示名称、说明、版本，以及恢复历史配置等操作。
 - **策略配置**：左侧面板，随回测步骤变化。保存会写回 `settings.py`；回测指纹变了才会开新磁盘 version，便于对比。  
   **注意**：策略**逻辑**不能在 UI 里改，只能在 `userspace/strategies/` 对应目录改代码；UI 仅能调试代码里暴露的参数。应用内 AI 助理（需自行配置 API Key）可辅助查阅文档与解释。
 - **执行面板**：当前步骤的执行入口。回测分四步：  
-  - **枚举**：在历史数据中找出策略机会；  
-  - **价格回测**：按 1 股、不计成本，看策略对价格波动的捕获；  
-  - **投资组合**：带起始资金、仓位与风控等，更接近真实交易环境；  
+  - **枚举机会**：在历史数据中找出策略机会；  
+  - **价格回测**：去掉挨得太近的重复机会后，按单股规则跟踪剩下的机会（同一只股票上隔开的机会可以并行），看滤掉噪音后的整体盈利能力；  
+  - **投资模拟**：带起始资金、仓位与选仓规则，更接近真实交易环境；  
   - **决策模拟**：按交易日回放，自己挑选每日机会。
 - **策略报告**：各步骤执行后自动生成；前三步各有对应报告，决策模拟另有终局报告。
 
@@ -471,10 +472,10 @@ NTQ 自带以下演示资产：
 
 ![图 8：价格回测全局报告](docs/images/demo/8.jpg)
 
-#### 第三步：投资组合模拟
+#### 第三步：投资模拟
 
-投资组合模拟更接近真实交易：可设置仓位、初始资金等，在历史行情上模拟投资，检验策略是否可能真实获利。  
-（组合报告目前不支持点击单股下钻，枚举和价格回测可以。）
+投资模拟更接近真实交易：可设置仓位、初始资金，以及机会多于空位时的选仓规则，在历史行情上模拟投资。  
+（这一步的报告目前不支持点击单股下钻，枚举和价格回测可以。）
 
 ![图 9：投资组合全局报告](docs/images/demo/9.jpg)
 
@@ -525,11 +526,14 @@ python cli.py se --strategy rsi_v1   # 机会枚举
 python cli.py sp --strategy rsi_v1   # 价格层
 python cli.py so --strategy rsi_v1   # 资金层
 python cli.py s  --strategy rsi_v1   # 三层一次跑完
+python cli.py sea --strategy rsi_v1  # 枚举层归因（须先 se；读 attribution.py）
+python cli.py spa --strategy rsi_v1  # 价格层归因（须先 sp）
+python cli.py soa --strategy rsi_v1  # 组合层归因（须先 so）
 python cli.py c  --strategy rsi_v1   # 全市场扫描
-python cli.py t  --scenario demo/market_cap_tier   # 特征标签
+python cli.py t  --scenario market_cap_tier   # 特征标签
 ```
 
-建议显式指定 `--strategy`；需要强制重算时加 `-f`。演示 Tag 场景安装后见 `userspace/extensions/tags/demo/market_cap_tier/`。
+建议显式指定 `--strategy`（写 `meta.key`）；需要强制重算时加 `-f`。演示 Tag 场景安装后见 `userspace/extensions/tags/demo/market_cap_tier/`。
 
 ---
 
@@ -539,7 +543,7 @@ python cli.py t  --scenario demo/market_cap_tier   # 特征标签
 |------------|----------|
 | **验证「这个信号有没有」** | Web **制定策略**（见 [Quick Start 第 4 步](#quick-start)）→ 选 demo → **枚举机会** → 看触发次数与分布 |
 | **验证「触发后单笔能不能赚」** | 枚举完成后 → **价格回测** → 报告里点单股看买卖点位 |
-| **验证「有限资金下还能不能活」** | 价格层 OK 后 → **投资组合模拟** → 看组合曲线与持仓 |
+| **验证「有限资金下还能不能活」** | 价格层 OK 后 → **投资模拟** → 看组合曲线与持仓 |
 | **每月在全 A 选低价 / Top N** | 参考安装后的 `userspace/strategies/demo/cross_sectional/low_price/`，用 **`slice_based`** 横截面模式 |
 | **多个策略共用同一因子** | 先跑 **[Tag](core/modules/tag/README.md)**（[`cli.py t`](#cli)），策略 settings 里引用 Tag 数据 |
 | **最新行情筛机会** | 数据更新后 [`cli.py c`](#cli) 或 Web 扫描（通知需 [Adapter](core/modules/adapter/README.md) 自接） |
@@ -550,7 +554,7 @@ python cli.py t  --scenario demo/market_cap_tier   # 特征标签
 ## 升级
 
 1. 拉取最新 **master**，**保留** `userspace/`（安装后生成，升级时不要覆盖），其余覆盖。  
-2. 日常打开 UI：`python launcher.py`（会按需补 UI 依赖；国内自动走镜像）。只更新 CLI / Python 依赖：[`python install.py`](install.py)（可加 `--userspace` / `--db`）。升级已安装的应用：`python cli.py u`。若[发布说明](CHANGELOG.md)要求重导数据，见上文 [数据说明](#data)。本版无破坏性改动。
+2. 日常打开 UI：`python launcher.py`（会按需补 UI 依赖；国内自动走镜像）。只更新 CLI / Python 依赖：[`python install.py`](install.py)（可加 `--userspace` / `--db`）。升级已安装的应用：`python cli.py u`。若[发布说明](CHANGELOG.md)要求重导数据，见上文 [数据说明](#data)。本版不要求重导数据。价格回测不再同股锁仓，单次回测归因已换成参数对照；需要归因时，用各策略目录里的 `attribution.py` 跑 `sea` / `spa` / `soa`。
 
 ---
 
@@ -570,7 +574,7 @@ python cli.py t  --scenario demo/market_cap_tier   # 特征标签
 
 **分支：** `master` 发布；从 `dev` 拉 `feature/*` / `bugfix/*`；`hotfix/*` 仅从 rc 拉。勿直接向 `master` 提 PR。
 
-**开发：** `python devcli.py -h`（`ui` 开发 UI · `uk` 释放端口 · `csc` 清缓存）· Docker：[docs/docker.md](docs/docker.md)
+**开发：** `python devcli.py -h`（`ui` 开发 UI · `uk` 释放端口 · `csc` 清缓存 · `p` 发布检查，含 ruff）· Docker：[docs/docker.md](docs/docker.md)
 
 **测试 / 依赖：**
 

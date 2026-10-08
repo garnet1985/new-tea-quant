@@ -24,14 +24,15 @@ Author: Garnet Xin & his AI companions
 
 Skip the intro and install now? See [Quick install + run a strategy](#quick-start). Other jumps: [Why NTQ](#why) · [Star the project](#star) · [CLI](#cli) · [Tutorials](https://new-tea.cn/zh-hans/more-examples) · [Website](https://new-tea.cn)
 
-## Current version (v0.5.1)
+## Current version (v0.5.2)
 
 Recent updates:
 
-**[v0.5.1](CHANGELOG.md)**
+**[v0.5.2](CHANGELOG.md)**
 
-- **Decision notes:** write why you took a position; see it again on the calendar and in holdings.
-- **Install experience:** in mainland China, dependencies install via mirrors automatically; data import is handed straight to the database — install is much faster.
+- **Parameter-matrix attribution:** the old single-run attribution is gone. Each backtest step can contrast the parameters in that strategy’s `attribution.py` and show how different values change the result. Every demo strategy now includes an example.
+- **Price backtest rebuilt:** a name is no longer locked while a position is open. Opportunities that sit too close together are dropped; ones that are far enough apart can be tracked in parallel. This is how you read overall profitability after the noise is filtered out.
+- **Portfolio selection:** when there are more opportunities than slots, `portfolio.allocation.opportunity_selection` can rank or weight them. If you implement `on_pick_portfolio_member`, that hook still wins.
 - Full list: [CHANGELOG.md](CHANGELOG.md). Decision simulation and the AI assistant shipped in v0.5.0.
 
 ## What is NTQ?
@@ -164,7 +165,7 @@ In **`strategy.py`**, entry on a single name is just `has_opportunity` (see the 
 
 - **`has_opportunity(ctx)`:** is there a buy today for this stock? You see data **as of today**. Return `True` / `False` (`False` skips).
 - **`on_calendar_asof(ctx)`:** for **`slice_based`** mode. You see the full universe as of today, filter first, return stock ids; then `has_opportunity` runs on those ids.
-- **`on_pick_portfolio_member(ctx)`:** capacity. E.g. max 3 holdings but 10 hits today — choose which 3.
+- **`on_pick_portfolio_member(ctx)`:** how to choose when there are more hits than open slots. Without the hook, set `portfolio.allocation.opportunity_selection` in `settings.py` to rank or weight fields. If the hook exists, it wins.
 
 You can also customize goals: put `"custom": "rule_name"` and a human-readable `"description"` on a take-profit / stop-loss stage in `settings.py`, then implement **`is_take_profit`** / **`is_stop_loss`**.
 
@@ -219,7 +220,7 @@ def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
     return CalendarAsOfResult(as_of_date=today, stocks=top3)
 ```
 
-- **`on_pick_portfolio_member(ctx)`:** capacity. E.g. max 3 holdings but 10 hits today — choose which 3.
+- **`on_pick_portfolio_member(ctx)`:** same job as above. Day to day, `opportunity_selection` in settings is enough. Implement this hook only when you need custom pick logic.
 
 ```python
 # Example: when there are many hits today, buy the 3 highest-priced names
@@ -334,7 +335,7 @@ Full walkthrough: [Quick install + run a strategy](#quick-start).
 - **Talk to the database quickly:** [DuckDB](https://duckdb.org/), [MySQL](https://dev.mysql.com/), and [PostgreSQL](https://www.postgresql.org/), plus a small [ORM API](core/infra/db/README.md).
 - **Custom data sources:** a full ingest toolkit. One logical source (e.g. company fundamentals) can have several vendors, with rate limits, waits, and write modes (incremental, overwrite, rolling refresh). See [core/modules/data_source/README.md](core/modules/data_source/README.md).
 - **Custom data contracts:** most of the run is config. If you add a table and want it in the backtest by declaration, give it a unique `data_key` and a loader; the framework finds the loader by name. See [data contracts](core/modules/data_contract/README.md).
-- **Attribute a backtest:** `sea` / `spa` / `soa` contrast one shared set of replicas, then read enumerate, price, and portfolio in turn. A normal Run does not attribute. See [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md).
+- **Attribute a backtest:** declare the parameters to contrast in the strategy folder’s `attribution.py`. `sea` / `spa` / `soa` share those axes and fill in enumerate, price, and portfolio. A normal Run does not attribute. Each demo strategy ships a short example. See [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md).
 - **Adapters:** after a scan, wire [`adapter`](core/modules/adapter/README.md) to your own downstream (notifications, a trading app, anything). You get standard opportunity payloads plus backtest history if you have run one.
 - **Web UI:** use it in the browser. Visualize results and compare inputs/outputs across runs so you can tune the strategy on purpose.
 - **AI assistant:** in-app chat; fill in a vendor API key in settings. Requests include NTQ documentation context.
@@ -407,7 +408,7 @@ Follow the prompts; defaults are usually enough. Order is roughly:
 1. Install core Python deps
 2. Initialize `userspace`
 3. Configure the database (default **DuckDB**; developers can pick MySQL / PostgreSQL — the app will try to create a missing database and warn on name clashes)
-4. **Ask whether to import demo data** (skippable; you can connect your own source later)
+4. **Ask whether to import demo data** (skippable. You can still import later under **设置 → 安装与维护** / Settings → Install & maintenance. If DuckDB is reported as in use by another program, quit that program and try again)
 5. **Ask whether to install ML extras** (for the analysis library; skippable; later: **设置 → 安装与维护**)
 6. Usage stats (allow or decline; both continue)
 
@@ -424,7 +425,7 @@ Bundled demo assets:
 
 #### Open the strategy UI
 
-In the UI click **制定策略**, or open `/strategy-design/`. Pick a demo (e.g. **RSI超跌反弹v1 · 基线**), then the title or **进入调试**:
+In the UI click **制定策略**, or open `/strategy-design/`. Pick a demo (e.g. **RSI超跌反弹v1 · 作为对比基准的版本**), then the title or **进入调试**:
 
 ![Fig. 1: Navigate to Strategy Design](docs/images/demo/1.jpg)
 
@@ -434,13 +435,13 @@ In the UI click **制定策略**, or open `/strategy-design/`. Pick a demo (e.g.
 
 Four main areas:
 
-- **Strategy info:** top full-width block — name, description, version capsule, pin / restore.
+- **Strategy info:** top full-width block — name, description, version, and restore-from-history.
 - **Strategy settings:** left panel; changes with each backtest step. Saving writes `settings.py`. A new disk version is allocated when the execute fingerprint changes.  
   **Note:** Strategy **logic** cannot be edited in the UI — only under `userspace/strategies/`. The UI only tunes parameters exposed in code. The in-app AI assistant (bring your own API key) can help look up docs and explain results.
 - **Execution panel:** run the current step. Backtest has four stages:  
   - **Enumerate:** find historical opportunities;  
-  - **Price backtest:** 1 share, ignore costs — price-capture quality;  
-  - **Portfolio:** starting capital, sizing, risk controls — closer to real trading;  
+  - **Price backtest:** drop opportunities that sit too close together, then track the rest with per-stock rules (far-enough hits on the same name can run in parallel) to read overall profitability after the noise is filtered;  
+  - **Portfolio simulation:** starting capital, sizing, and a rule for choosing among extra hits — closer to real trading;  
   - **Decision simulation:** replay trading days and pick each day’s opportunities yourself.
 - **Reports:** auto-generated after each step; the first three stages have their own reports, and decision simulation has a separate end-of-run report.
 
@@ -470,8 +471,8 @@ The global report covers buy/sell price distributions, returns, and more — alw
 
 #### Stage 3: Portfolio simulation
 
-Closer to real trading: capital, positions, risk settings, and a historical simulation of whether the strategy can actually make money.  
-(Portfolio reports do not support per-stock drill-down; enumerate and price backtest do.)
+Closer to real trading: capital, positions, and a rule for choosing when there are more hits than slots, run on historical bars.  
+(This step’s report does not support per-stock drill-down; enumerate and price backtest do.)
 
 ![Fig. 9: Portfolio global report](docs/images/demo/9.jpg)
 
@@ -521,11 +522,14 @@ python cli.py se --strategy rsi_v1   # Enumerate
 python cli.py sp --strategy rsi_v1   # Price layer
 python cli.py so --strategy rsi_v1   # Portfolio layer
 python cli.py s  --strategy rsi_v1   # All three layers
+python cli.py sea --strategy rsi_v1  # Enumerate attribution (run se first; reads attribution.py)
+python cli.py spa --strategy rsi_v1  # Price attribution (run sp first)
+python cli.py soa --strategy rsi_v1  # Portfolio attribution (run so first)
 python cli.py c  --strategy rsi_v1   # Market scan
-python cli.py t  --scenario demo/market_cap_tier   # Feature tags
+python cli.py t  --scenario market_cap_tier   # Feature tags
 ```
 
-Prefer an explicit `--strategy`; add `-f` to force recalculation. Demo Tag scenario after install: `userspace/extensions/tags/demo/market_cap_tier/`.
+Prefer an explicit `--strategy` (use `meta.key`); add `-f` to force recalculation. Demo Tag scenario after install: `userspace/extensions/tags/demo/market_cap_tier/`.
 
 ---
 
@@ -546,7 +550,7 @@ Prefer an explicit `--strategy`; add `-f` to force recalculation. Demo Tag scena
 ## Upgrade
 
 1. Pull latest **master**, **keep** `userspace/` (created at install — do not overwrite it on upgrade); overwrite the rest.  
-2. Daily UI: `python launcher.py` (installs UI deps if needed; mainland China uses mirrors automatically). CLI / Python deps only: [`python install.py`](install.py) (`--userspace` / `--db` optional). Upgrade an installed app: `python cli.py u`. If [release notes](CHANGELOG.md) ask for a data re-import, see [Data notes](#data). This release has no breaking changes.
+2. Daily UI: `python launcher.py` (installs UI deps if needed; mainland China uses mirrors automatically). CLI / Python deps only: [`python install.py`](install.py) (`--userspace` / `--db` optional). Upgrade an installed app: `python cli.py u`. If [release notes](CHANGELOG.md) ask for a data re-import, see [Data notes](#data). This release does not require a data re-import. The price backtest no longer locks a name while it is held, and single-run attribution is now a parameter contrast. To attribute, use each strategy’s `attribution.py` with `sea` / `spa` / `soa`.
 
 ---
 
@@ -566,7 +570,7 @@ Prefer an explicit `--strategy`; add `-f` to force recalculation. Demo Tag scena
 
 **Branches:** `master` for releases; branch `feature/*` / `bugfix/*` from `dev`; `hotfix/*` only from `rc`. Do not PR straight to `master`.
 
-**Dev:** `python devcli.py -h` (`ui` · `uk` · `csc`) · Docker: [docs/docker.md](docs/docker.md)
+**Dev:** `python devcli.py -h` (`ui` · `uk` · `csc` · `p` release check, including ruff) · Docker: [docs/docker.md](docs/docker.md)
 
 **Tests / deps:**
 

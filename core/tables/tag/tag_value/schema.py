@@ -1,7 +1,8 @@
 """
 sys_tag_value 表结构定义（Python，变量名 schema）
 
-标签值（点事实）：某实体在某 as_of 的结果。
+标签值（点事实）：某实体在某 as_of 命中某条标签定义时带上的注解。
+特性在 tag_definition，不在本表的 json_value。
 主键 (entity_id, tag_definition_id, as_of_date)。
 
 SOT 边界：
@@ -55,7 +56,7 @@ schema = {
             "type": "json",
             "isRequired": True,
             "nullable": True,
-            "description": "标签值 JSON",
+            "description": "注解 JSON，业务内容在 value 键",
         },
         {
             "name": "calculated_at",

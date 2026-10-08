@@ -2,3 +2,4 @@
 
 from .catalog import routes as catalog_routes  # noqa: F401
 from .runner import routes as runner_routes  # noqa: F401
+from .visualization import routes as visualization_routes  # noqa: F401

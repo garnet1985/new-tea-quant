@@ -89,31 +89,34 @@ class MarketCapTagHooks(TagHooks):
         last_bar = klines[-1]
         market_cap = last_bar.get("total_market_cap")
 
-        if market_cap is None:
+        if market_cap is None or ctx.data.tag_definition is None:
             return None
 
         if market_cap > 500e8:
-            tier = "large_cap"
+            active = "large_cap"
         elif market_cap > 100e8:
-            tier = "mid_cap"
+            active = "mid_cap"
         else:
-            tier = "small_cap"
+            active = "small_cap"
 
-        return {
-            "value": tier,
-            "start_date": last_bar["date"],
-            "end_date": last_bar["date"],
-        }
+        # 特性是标签本身。只给当前命中的定义写值，value 是当时的注解。
+        if ctx.data.tag_definition.name != active:
+            return None
+        state_key = f"last_tag:{ctx.data.entity_id}"
+        if ctx.custom.get(state_key) == active:
+            return None
+        ctx.custom[state_key] = active
+        return {"value": f"{market_cap / 1e8:.1f}亿元"}
 ```
 
 ### calculate\_tag 返回值
 
 | 返回                                                   | 说明      |
 | ---------------------------------------------------- | ------- |
-| `{"value": ..., "start_date": ..., "end_date": ...}` | 正常写入标签值 |
+| `{"value": ..., "start_date": ..., "end_date": ...}` | 给当前标签写上当时的注解 |
 | `None`                                               | 跳过，不写入  |
 
-`value` 可以是字符串、数字、字典、列表——存为 JSON。
+`value` 可以是字符串、数字、字典、列表——存为 JSON。它是注解，不是分类。高市值 / 中市值 / 低市值这种特性写在 `tag_definitions`，界面上的名字用 `display_name`。互斥特性只在 `definition.name` 等于当前命中的标签时返回，并用 `ctx.custom` 记住上一个标签，避免把分类塞进 `value`。
 
 ### ctx.data 常用字段
 
@@ -140,12 +143,14 @@ settings = {
         "recompute": True,
     },
     "tag_definitions": [
-        {"name": "stock_area_cluster", "display_name": "经济区归类", "description": "..."},
+        {"name": "yangtze", "display_name": "长三角", "description": "上海、江苏、浙江、安徽"},
+        {"name": "pearl", "display_name": "珠三角", "description": "广东、深圳"},
+        {"name": "other", "display_name": "其它", "description": "未命中"},
     ],
 }
 ```
 
-tag.py 的 `calculate_tag` 一次性处理全部股票，返回一个聚合结果。
+框架对每个 `tag_definition` 调用一次 `calculate_tag`。经济区本身是标签；当前定义命中时，`value` 写该区的注解（只数、地区），其它定义返回 `None`。完整例子见 `userspace/extensions/tags/demo/stock_area_cluster/`。
 
 ## 运行标签
 

@@ -59,6 +59,12 @@ global：哨兵实体（如 `__global__`）。详见下文「设计决策」。
 
 ---
 
+## 标签与取值
+
+`tag_definitions` 里的每一条是一个特性，`display_name` 是界面上的名字。`calculate_tag` 返回的 `value` 是该特性当时的注解，落在 `sys_tag_value.json_value`。互斥特性做成多条定义，只给当前命中的定义写值。用户空间说明见 `userspace/extensions/tags/README.md`。
+
+---
+
 ## 钩子面
 
 userspace `tag.py` 继承 `TagHooks`：

@@ -141,9 +141,8 @@ class AttributionConfigBase(SettingsBase):
             )
 
     def apply_defaults(self) -> None:
-        """去掉已废弃字段。"""
-        self.raw_settings.pop("fill_missing", None)
-        self.raw_settings.pop("steps", None)
+        """战役配置不补默认字段。"""
+        return
 
     def validate(self) -> ValidationReport:
         """校验配置并返回报告。"""
@@ -247,10 +246,6 @@ class AttributionConfigBase(SettingsBase):
                     )
 
     def to_dict(self) -> Dict[str, Any]:
-        """导出标准化后的配置字典。"""
+        """导出配置字典。"""
         self.apply_defaults()
-        out = copy.deepcopy(self.raw_settings)
-        out.pop("steps", None)
-        out.pop("versions", None)
-        out.pop("shap", None)
-        return out
+        return copy.deepcopy(self.raw_settings)

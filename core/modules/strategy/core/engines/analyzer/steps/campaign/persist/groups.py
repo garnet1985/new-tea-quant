@@ -65,14 +65,6 @@ class AttributionGroupStore:
             if existing:
                 return existing
             group_id = cls._allocate(root, fp)
-        hash_dir = root / fp
-        dest = root / group_id
-        if hash_dir.is_dir() and hash_dir.resolve() != dest.resolve():
-            if dest.exists():
-                logger.warning("attribution group %s 已存在，留下旧哈希目录", group_id)
-            else:
-                hash_dir.rename(dest)
-                logger.info("attribution group renamed %s → %s", fp[:8], group_id)
         return group_id
 
     @classmethod

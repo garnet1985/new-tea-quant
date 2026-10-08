@@ -81,7 +81,7 @@ def test_compare_window_skips_total_return_delta() -> None:
     row = compare_window(
         baseline,
         window,
-        version_id="1-s1",
+        version_id="1-roll1",
         start="20240101",
         end="20241231",
         baseline_start="20230101",

@@ -12,7 +12,6 @@ from ..attribute import AttributeStep
 from ..labels import CampaignLabels
 
 _SKIP_REASONS = {
-    "fill_missing_false": "没有现成回测，这次也没补跑",
     "version_not_found": "找不到这个回测号",
     "sample_mismatch": "区间或股票池和当前设置不同",
     "strategy_not_enabled": "策略未启用",

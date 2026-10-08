@@ -183,18 +183,3 @@ def test_overlay_none_is_legal() -> None:
         SimulateKind.PORTFOLIO,
     )
     assert cfg.parameter_mode == "oaat"
-
-
-def test_attribution_settings_drops_fill_missing() -> None:
-    cfg = AttributionConfig.to_usable(
-        {
-            "fill_missing": True,
-            "inputs": {
-                "rsi_oversold_threshold": {"values": [20]},
-            },
-        },
-        layer="enum",
-    )
-    dumped = cfg.to_dict()
-    assert "fill_missing" not in dumped
-    assert "steps" not in dumped

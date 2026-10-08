@@ -97,7 +97,7 @@ attribution.py + 当前 settings
       report.json  table.json  attribute.json  task_meta.json
 ```
 
-副本号是 `{主号}-{r}`，不推进主号序列。组跟着策略 version 走：同一环境、不同主 version 各用一组。
+副本号是 `{主号}-attr{n}`，不推进主号序列。组跟着策略 version 走：同一环境、不同主 version 各用一组。
 
 ---
 

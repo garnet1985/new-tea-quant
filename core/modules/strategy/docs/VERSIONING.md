@@ -64,7 +64,7 @@
 
 约定：
 
-- registry key 即 version id（`"3"` 或副本 `"3-1"`，不是 `"v3"`）。条目内不重复存 `version_id`。
+- registry key 即 version id（`"3"` 或归因副本 `"3-attr1"`，不是 `"v3"`）。条目内不重复存 `version_id`。
 - 主号：`isdigit()`；归因副本：`{parent}-attr{n}`（`n≥1`）；滚动窗口：`{parent}-roll{n}`。registry 可带 `kind=replica` 或 `kind=rolling`，以及 `parent_version_id`。删主号时这两组一起删。
 - UI / `list_version_ids` 只暴露主号；指纹匹配主号也只扫主号。
 - 指纹平铺为 `execute_fp` / `env_fp`；无 `fingerprint_index`，命中时线性扫 registry。

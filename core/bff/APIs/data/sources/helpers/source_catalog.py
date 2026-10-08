@@ -83,7 +83,7 @@ def fetch_data_source_catalog_page(
     limit: int,
 ) -> Tuple[List[Dict[str, Any]], int, Dict[str, Any]]:
     """Paginated data source catalog; ``page`` is 1-based, sorted by ``name``."""
-    mgr = DataSourceManager(is_verbose=False)
+    mgr = DataSourceManager()
     mappings = mgr.discover_mappings()
     provider_classes = DataSourceManager.discover_provider_classes()
     data_end = DataSourceManager.get_data_end_meta_light()
@@ -121,7 +121,7 @@ def fetch_data_source_freshness(
 
     Returns ``({source_key: status_fields}, data_end)``.
     """
-    mgr = DataSourceManager(is_verbose=False)
+    mgr = DataSourceManager()
     mappings = mgr.discover_mappings()
 
     data_manager = DataManager.get_instance()

@@ -1,4 +1,8 @@
-"""Analysis Facade — stats/ML primitives for attribution (no I/O)."""
+"""Analysis Facade — stats/ML primitives for attribution (no I/O).
+
+# TODO: 归因统计的产品口径还没定。战役目前只用 coerce_float。
+# 分桶、相关、回归、两次 run 对照和 xgb 先留着，不要当已完成功能。
+"""
 from __future__ import annotations
 
 from core.modules.analysis.core.classical.column_profile import ColumnProfiler
@@ -11,6 +15,7 @@ from core.modules.analysis.core.classical.univariate import (
     quantile_buckets,
     spearman_correlation,
 )
+from core.modules.analysis.core.ml.xgb_classifier import xgb_win_classifier
 from core.modules.analysis.core.ml.xgb_regressor import xgb_feature_importance
 
 
@@ -28,9 +33,10 @@ class Classical:
 
 
 class ML:
-    """Machine-learning attribution primitives (later track)."""
+    """Machine-learning attribution primitives."""
 
     xgb_feature_importance = staticmethod(xgb_feature_importance)
+    xgb_win_classifier = staticmethod(xgb_win_classifier)
 
 
 class Analysis:

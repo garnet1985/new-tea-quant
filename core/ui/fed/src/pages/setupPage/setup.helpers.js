@@ -1,3 +1,17 @@
+import {
+  FAKE_PROGRESS_CAP,
+  FAKE_PROGRESS_STEP,
+  clampFakeProgress,
+  nextFakeProgress,
+} from 'service/progress/fakeProgress';
+
+export {
+  FAKE_PROGRESS_CAP,
+  FAKE_PROGRESS_STEP,
+  clampFakeProgress,
+  nextFakeProgress,
+};
+
 export const STEP_STATUS = {
   NOT_STARTED: 'not_started',
   WAITING_INPUT: 'waiting_input',
@@ -13,21 +27,18 @@ export const CHOICE_STEP_IDS = new Set(['import_data', 'resolve_ml_deps']);
 export const SETUP_CHOICE_COPY = {
   import_data: {
     title: '数据库配置已经成功',
-    body: '要不要导入演示数据？导入后可以直接在策略实验室里试用示例。不导入也可以稍后自行接入数据源。',
+    body: '要不要导入演示数据？导入后可以直接在策略实验室里试用示例。如果现在跳过，之后仍可在「设置 → 安装与维护」里导入。',
     confirmLabel: '导入演示数据',
     skipLabel: '跳过',
   },
   resolve_ml_deps: {
     title: '要安装机器学习依赖吗？',
-    body: '策略设置里的归因开关需要 XGBoost / SHAP，安装可能需要几分钟。跳过后可随时在「设置 → 安装与维护」中补装。',
+    body: '分析库可用 XGBoost / SHAP。安装可能需要几分钟。跳过后可随时在「设置 → 安装与维护」中补装。',
     confirmLabel: '安装（可能需要几分钟）',
     skipLabel: '跳过',
   },
 };
 
-export const FAKE_PROGRESS_CAP = 90;
-/** Default nudge per timer tick (~1%/s at 800ms interval). */
-export const FAKE_PROGRESS_STEP = 0.8;
 export const FAKE_PROGRESS_WITHIN_STEP_RATIO = 0.9;
 export const DEFAULT_STEP_PROGRESS_WEIGHT = 1;
 
@@ -43,12 +54,6 @@ export const DB_SERVER_FIELD_KEYS = new Set(['host', 'port', 'database', 'user',
 
 export function isChoicePauseStep(stepId) {
   return CHOICE_STEP_IDS.has(String(stepId || ''));
-}
-
-export function nextFakeProgress(current, cap = FAKE_PROGRESS_CAP, step = FAKE_PROGRESS_STEP) {
-  const value = Number(current) || 0;
-  if (value >= cap) return cap;
-  return Math.min(cap, value + step);
 }
 
 export function setupStepProgressWeight(step) {
@@ -93,18 +98,6 @@ export function setupFakeProgressBounds(definition, options = {}) {
     capPercent: floorPercent + span * capRatio,
     stepEndPercent,
   };
-}
-
-export function clampFakeProgress(prev, options = {}) {
-  const base = Number(options.basePercent) || 0;
-  const cap = Number(options.cap);
-  const top = Number.isFinite(cap) ? cap : FAKE_PROGRESS_CAP;
-  if (!options.active) return base;
-  const value = Number(prev) || 0;
-  if (value < base) return base;
-  // Ignore sub-percent cap jitter from polling; only clamp when clearly past the slice.
-  if (value > top + 1) return Math.max(base, top);
-  return value;
 }
 
 export function setupStatusSignature(status) {

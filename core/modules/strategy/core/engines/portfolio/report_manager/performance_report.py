@@ -19,7 +19,7 @@ class PerformanceReport:
     PERFORMANCE_FILE = PERFORMANCE_FILE
 
     strategy_key: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     elapsed_seconds: float = 0.0
     created_at: str = ""
 
@@ -28,7 +28,7 @@ class PerformanceReport:
         cls,
         *,
         strategy_key: str = "",
-        version_id: int = 0,
+        version_id: Any = "",
         elapsed_seconds: float = 0.0,
     ) -> "PerformanceReport":
         return cls(
@@ -48,7 +48,7 @@ class PerformanceReport:
     def present(self, stream: Optional[TextIO] = None) -> None:
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+        CmdLayout.title.print_h2(f"{icon('clock')} 性能", stream=out)
         print(
             f"{icon('rocket')} {self.elapsed_seconds:.2f}s",
             file=out,
@@ -68,7 +68,7 @@ class PerformanceReport:
         data = raw or {}
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             elapsed_seconds=float(data.get("elapsed_seconds") or 0.0),
             created_at=str(data.get("created_at") or ""),
         )

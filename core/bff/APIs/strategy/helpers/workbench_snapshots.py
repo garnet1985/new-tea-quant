@@ -100,9 +100,8 @@ class WorkbenchSnapshots:
         """Version catalog for UI pickers: newest first, capped by ``limit``.
 
         Each item includes ``env_invalid`` (artifacts read-only),
-        ``expires_soon`` (keep-N would drop this vid next),
-        ``pinned``, and ``retention_max``.
-        先读 ``pinned``：固定的排在前面；即将清理只在未固定集合里算。
+        ``expires_soon`` (oldest stale env group if at cap),
+        and ``retention_max`` (max stale env groups).
         """
         name = str(strategy_name or "").strip()
         if not name:
@@ -115,12 +114,10 @@ class WorkbenchSnapshots:
         root = cls._simulations_root(info)
         all_vids = cls._sorted_version_ids(root, descending=True)
         cap = cls._retention_cap()
-        pinned_ids = VersionMetaStore.read_pinned_ids(root)
-        pinned_set = set(pinned_ids)
-        at_risk = cls.expires_soon_vids(all_vids, cap, pinned_ids)
-        ordered = cls._order_vids_pinned_first(all_vids, pinned_ids)
+        current_env = cls._current_env_fp(info)
+        at_risk = cls.expires_soon_vids(root, current_env, cap)
         items: List[Dict[str, Any]] = []
-        for vid in ordered[: max(1, int(limit))]:
+        for vid in all_vids[: max(1, int(limit))]:
             entry = VersionMetaStore.get_registry_entry(root, vid) or {}
             sid = int(vid)
             items.append(
@@ -129,10 +126,9 @@ class WorkbenchSnapshots:
                     "version": sid,
                     "env_invalid": VersionMetaStore.is_env_invalid(
                         entry,
-                        cls._current_env_fp(info),
+                        current_env,
                     ),
                     "expires_soon": vid in at_risk,
-                    "pinned": vid in pinned_set,
                     "retention_max": cap,
                     "updated_at": cls._iso(entry.get("updated_at") or entry.get("created_at")),
                     "created_at": cls._iso(entry.get("created_at")),
@@ -141,54 +137,42 @@ class WorkbenchSnapshots:
         return items
 
     @staticmethod
-    def _order_vids_pinned_first(
-        newest_first: List[str],
-        pinned_ids: List[str],
-    ) -> List[str]:
-        pinned = set(pinned_ids)
-        top = [vid for vid in newest_first if vid in pinned]
-        rest = [vid for vid in newest_first if vid not in pinned]
-        return top + rest
-
-    @staticmethod
     def expires_soon_vids(
-        vids_newest_first: List[str],
+        simulations_root: Path,
+        current_env_fp: str,
         cap: int,
-        pinned_ids: Optional[List[str]] = None,
     ) -> Set[str]:
-        """keep-N 触顶后会先删的 version id（更旧、号更靠前、未固定）。
-
-        先读 ``pinned``。``n >= cap`` 时在未固定集合里标记最旧的
-        ``n - cap + 1`` 个。
-        """
-        ids = [str(v).strip() for v in vids_newest_first if str(v).strip()]
-        pinned = {
-            str(v).strip()
-            for v in (pinned_ids or [])
-            if str(v).strip()
-        }
-        unpinned_newest_first = [vid for vid in ids if vid not in pinned]
+        """过时环境已达上限时，最旧那一组的 version 会在下次再增一组时被删。"""
+        current = str(current_env_fp or "").strip()
         try:
             c = int(cap)
         except (TypeError, ValueError):
-            c = 10
+            c = 5
         if c < 1:
             c = 1
-        n = len(ids)
-        if n < c:
+        groups = VersionMetaStore.group_version_ids_by_env_fp(Path(simulations_root))
+        stale = [
+            (env, vids)
+            for env, vids in groups.items()
+            if env != current
+        ]
+        stale.sort(key=lambda item: int(item[1][0]) if item[1] else 0)
+        if len(stale) < c:
             return set()
-        drop = n - c + 1
-        unpinned_oldest_first = list(reversed(unpinned_newest_first))
-        return set(unpinned_oldest_first[:drop])
+        drop = len(stale) - c + 1
+        at_risk: Set[str] = set()
+        for _env, vids in stale[:drop]:
+            at_risk.update(vids)
+        return at_risk
 
     @classmethod
     def _retention_cap(cls) -> int:
         try:
             from core.infra.project_context import ProjectContext
 
-            return int(ProjectContext.config.get_simulation_results_max_versions())
+            return int(ProjectContext.config.get_simulation_results_max_stale_envs())
         except Exception:
-            return 10
+            return 5
 
     @classmethod
     def ui_flags(cls, strategy_name: str, row: Dict[str, Any]) -> Dict[str, bool]:
@@ -253,7 +237,6 @@ class WorkbenchSnapshots:
             "execute_fp": str(entry.get("execute_fp") or ""),
             "env_fingerprint_id": str(entry.get("env_fp") or ""),
             "env_invalid": cls._env_invalid_for_entry(info, entry),
-            "pinned": vid in set(VersionMetaStore.read_pinned_ids(root)),
             "created_at": entry.get("created_at"),
             "updated_at": entry.get("updated_at") or entry.get("created_at"),
         }
@@ -444,7 +427,6 @@ class WorkbenchSnapshots:
             "execute_fp": "",
             "env_fingerprint_id": "",
             "env_invalid": False,
-            "pinned": False,
         }
 
     @staticmethod

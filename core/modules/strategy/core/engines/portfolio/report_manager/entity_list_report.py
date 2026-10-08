@@ -59,7 +59,7 @@ class EntityListReport:
     ENTITY_LIST_FILE = ENTITY_LIST_FILE
 
     strategy_key: str = ""
-    version_id: int = 0
+    version_id: Any = ""
     rows: List[EntityListRow] = field(default_factory=list)
     created_at: str = ""
 
@@ -69,7 +69,7 @@ class EntityListReport:
         trades: List[Any],
         *,
         strategy_key: str = "",
-        version_id: int = 0,
+        version_id: Any = "",
     ) -> "EntityListReport":
         by_entity: Dict[str, Dict[str, float]] = {}
         for t in trades:
@@ -126,19 +126,17 @@ class EntityListReport:
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         n = len(self.rows)
-        CmdLayout.title.print_section(f"{icon('search')} 逐股样本", stream=out)
+        CmdLayout.title.print_h2(f"{icon('search')} 逐股样本", stream=out)
         print(f"{icon('green_dot')} 有成交股票 {n} 只", file=out, flush=True)
         top = self.rows[:5]
         if not top:
             return
-        print(f"{icon('chart')} Top 盈亏", file=out, flush=True)
-        print("  代码              盈亏", file=out, flush=True)
-        for row in top:
-            print(
-                f"  {row.entity_id:<16}  {row.total_profit:+.2f}",
-                file=out,
-                flush=True,
-            )
+        CmdLayout.title.print_h3(f"{icon('chart')} Top 盈亏", stream=out)
+        CmdLayout.table.print(
+            ["代码", "盈亏"],
+            [[row.entity_id, f"{row.total_profit:+.2f}"] for row in top],
+            stream=out,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -172,7 +170,7 @@ class EntityListReport:
         ]
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
-            version_id=int(data.get("version_id") or 0),
+            version_id=str(data.get("version_id") or "").strip(),
             rows=rows,
             created_at=str(data.get("created_at") or ""),
         )

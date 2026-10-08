@@ -1,11 +1,6 @@
 """仿真 / 扫描产物统一入口：读写、version cache、retention。"""
 from .io import ArtifactIO
 from .consts import (
-    ANALYSIS_REPORT_FILE,
-    ANALYSIS_REPORT_JSON,
-    ANALYSIS_SOURCE_FILE,
-    ANALYSIS_SOURCE_JSON,
-    ANALYSIS_SUBDIR,
     ENTITIES_SUBDIR,
     ENTITY_IDS_FILE,
     ENTITY_LIST_FILE,
@@ -44,11 +39,6 @@ from .tables import (
 )
 
 __all__ = [
-    "ANALYSIS_REPORT_FILE",
-    "ANALYSIS_REPORT_JSON",
-    "ANALYSIS_SOURCE_FILE",
-    "ANALYSIS_SOURCE_JSON",
-    "ANALYSIS_SUBDIR",
     "ENTITIES_SUBDIR",
     "ENTITY_IDS_FILE",
     "ENTITY_LIST_FILE",

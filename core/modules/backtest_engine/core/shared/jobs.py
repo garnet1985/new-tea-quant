@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 
-# 严谨契约：不允许 stock_id / symbol / ticker / entities 等别名
+# 契约键：entity_based 用 entity_specified，slice_based 用 entity_ids。
 _ENTITY_BASED_ENTITY_KEY = "entity_specified"
 _SLICE_BASED_ENTITY_KEY = "entity_ids"
 _TIMELINE_POINT_COUNT_KEY = "timeline_point_count"

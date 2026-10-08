@@ -91,7 +91,7 @@ function WhatWeWillTrackPage() {
             ）
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            策略或标签跑完并写出性能报告后发送，用于了解耗时与规模，不含结果数据。
+            策略或标签跑完并写出性能报告后发送，主要用于了解耗时与规模；组合/决策模拟会附带平均与最高资金利用率（不含盈亏金额）。
           </Typography>
           <Typography variant="body2" color="text.secondary" component="div">
             <ul className="what-we-will-track-page__list">
@@ -112,7 +112,17 @@ function WhatWeWillTrackPage() {
               <li>
                 策略枚举额外：任务数、并行效率、时间分布（规划/读数/计算/报告等占比）、调度摘要
               </li>
-              <li>价格因子 / 组合策略：上述公共字段</li>
+              <li>价格因子：上述公共字段</li>
+              <li>
+                组合策略 / 决策模拟：公共字段，另含
+                <code>capital_utilization_ratio_pct</code>
+                （平均资金利用率）与
+                <code>peak_capital_utilization_ratio_pct</code>
+                （最高资金利用率）；决策模拟
+                <code>action</code>
+                为
+                <code>strategy.decision</code>
+              </li>
               <li>标签运行：任务数及执行模式（如 entity / slice / global 等）</li>
             </ul>
           </Typography>

@@ -133,6 +133,8 @@ requests==2.32.5
     #   -r requirements.in
     #   akshare
     #   tushare
+ruff==0.16.10
+    # via -r requirements-dev.in
 simplejson==4.0.1
     # via tushare
 six==1.17.0

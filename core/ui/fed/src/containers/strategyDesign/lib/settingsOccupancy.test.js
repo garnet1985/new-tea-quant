@@ -1,0 +1,24 @@
+import {
+  isDraftDirty,
+  persistComparable,
+} from './settingsOccupancy';
+
+describe('settingsOccupancy', () => {
+  it('treats identical persist payloads as clean regardless of key order', () => {
+    const loaded = { core: { n: 1 }, meta: { key: 'a' } };
+    const draft = { meta: { key: 'a' }, core: { n: 1 } };
+    expect(isDraftDirty(draft, loaded)).toBe(false);
+  });
+
+  it('flags dirty when a persist field changes', () => {
+    const loaded = persistComparable({ core: { n: 1 }, meta: { name: 'a' } });
+    const draft = persistComparable({ core: { n: 1 }, meta: { name: 'b' } });
+    expect(isDraftDirty(draft, loaded)).toBe(true);
+  });
+
+  it('flags dirty when scanner config changes (persisted, not fingerprint)', () => {
+    const loaded = persistComparable({ core: { n: 1 }, scanner: { adapters: ['console'] } });
+    const draft = persistComparable({ core: { n: 1 }, scanner: { adapters: ['webhook'] } });
+    expect(isDraftDirty(draft, loaded)).toBe(true);
+  });
+});

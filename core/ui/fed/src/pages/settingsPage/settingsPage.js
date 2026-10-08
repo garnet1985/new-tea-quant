@@ -7,7 +7,7 @@ import {
   saveDatabaseSettings,
   saveDataSettings,
 } from '../../api/settingsApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLayout from '../../views/pageLayout';
 import {
   SettingsAssistantPanel,
   SettingsCachePanel,
@@ -59,7 +59,7 @@ function SettingsPage() {
   const [defaultStartDate, setDefaultStartDate] = React.useState('');
   const [asOfLatestCompletedDate, setAsOfLatestCompletedDate] = React.useState('');
   const [useSampleStockList, setUseSampleStockList] = React.useState('');
-  const [simulationResultsMaxVersions, setSimulationResultsMaxVersions] = React.useState('');
+  const [simulationResultsMaxStaleEnvs, setSimulationResultsMaxStaleEnvs] = React.useState('');
 
   const loadDatabase = useCallback(() => {
     setLoading(true);
@@ -86,9 +86,9 @@ function SettingsPage() {
         setUseSampleStockList(
           r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
         );
-        setSimulationResultsMaxVersions(
-          r.simulation_results_max_versions != null
-            ? String(r.simulation_results_max_versions)
+        setSimulationResultsMaxStaleEnvs(
+          r.simulation_results_max_stale_envs != null
+            ? String(r.simulation_results_max_stale_envs)
             : '',
         );
       })
@@ -128,7 +128,7 @@ function SettingsPage() {
       default_start_date: defaultStartDate.trim(),
       as_of_latest_completed_trading_date: asOfLatestCompletedDate.trim(),
       use_sample_stock_list: useSampleStockList.trim(),
-      simulation_results_max_versions: simulationResultsMaxVersions.trim(),
+      simulation_results_max_stale_envs: simulationResultsMaxStaleEnvs.trim(),
     })
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
@@ -136,9 +136,9 @@ function SettingsPage() {
         setUseSampleStockList(
           r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
         );
-        setSimulationResultsMaxVersions(
-          r.simulation_results_max_versions != null
-            ? String(r.simulation_results_max_versions)
+        setSimulationResultsMaxStaleEnvs(
+          r.simulation_results_max_stale_envs != null
+            ? String(r.simulation_results_max_stale_envs)
             : '',
         );
         setDataSaveOk('已保存到 userspace/config/data.json。');
@@ -210,11 +210,11 @@ function SettingsPage() {
                   defaultStartDate={defaultStartDate}
                   asOfLatestCompletedDate={asOfLatestCompletedDate}
                   useSampleStockList={useSampleStockList}
-                  simulationResultsMaxVersions={simulationResultsMaxVersions}
+                  simulationResultsMaxStaleEnvs={simulationResultsMaxStaleEnvs}
                   onDefaultStartDateChange={setDefaultStartDate}
                   onAsOfLatestCompletedDateChange={setAsOfLatestCompletedDate}
                   onUseSampleStockListChange={setUseSampleStockList}
-                  onSimulationResultsMaxVersionsChange={setSimulationResultsMaxVersions}
+                  onSimulationResultsMaxStaleEnvsChange={setSimulationResultsMaxStaleEnvs}
                   onSave={handleSaveData}
                   onReload={loadDataSettings}
                 />

@@ -82,9 +82,9 @@ class FeedbackPrefsService:
                 }
 
             last_prompt = float(state.get("last_prompt_at") or 0)
-            cooldown = float(FeedbackDefaults.PROMPT_COOLDOWN_SEC)
-            if last_prompt and (time.time() - last_prompt) < cooldown:
-                return {"should_prompt": False, "reason": "cooldown"}
+            now = time.time()
+            if last_prompt and FeedbackPrefsService._half_day_slot(last_prompt) == FeedbackPrefsService._half_day_slot(now):
+                return {"should_prompt": False, "reason": "half_day"}
 
             if random.random() > float(FeedbackDefaults.PROMPT_PROBABILITY):
                 return {"should_prompt": False, "reason": "probability"}
@@ -103,7 +103,7 @@ class FeedbackPrefsService:
 
     @staticmethod
     def snooze_prompt() -> bool:
-        """Mark prompt dismissed for this cooldown window (already stamped on show)."""
+        """Mark prompt dismissed for the current local half-day (already stamped on show)."""
         try:
             state = FeedbackPrefsService._load_state()
             state["last_prompt_at"] = time.time()
@@ -117,6 +117,13 @@ class FeedbackPrefsService:
     @staticmethod
     def disable_prompts(*, source: str = "popup") -> bool:
         return FeedbackPrefsService.set_prompts_disabled(True, source=source)
+
+    @staticmethod
+    def _half_day_slot(ts: float) -> tuple:
+        """Local calendar half-day: morning is 00:00–12:00, afternoon is 12:00–24:00."""
+        local = datetime.fromtimestamp(float(ts))
+        phase = 0 if local.hour < 12 else 1
+        return (local.date().isoformat(), phase)
 
     @staticmethod
     def _prefs_path() -> Optional[Path]:

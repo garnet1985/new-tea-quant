@@ -102,6 +102,29 @@ class TestDataManagerApi(unittest.TestCase):
         self.assertTrue(callable(DuckdbWorkerPool._holder_resolver))
         self.assertTrue(callable(DataManager.ensure_restored_after_worker_pool))
         self.assertTrue(callable(DataManager.bind_as_default_instance))
+        self.assertTrue(callable(DataManager.bind_prepared_database))
+
+    def test_bind_prepared_database_skips_initialize(self):
+        from unittest.mock import MagicMock, patch
+
+        from core.modules.data_manager import DataManager
+
+        db = MagicMock()
+        db.engine._initialized = True
+        with patch.object(DataManager, "_discover_tables") as discover, patch.object(
+            DataManager, "attach_data_service"
+        ) as attach, patch.object(DataManager, "initialize") as initialize:
+            dm = DataManager.bind_prepared_database(db)
+        try:
+            discover.assert_called_once()
+            attach.assert_called_once()
+            initialize.assert_not_called()
+            self.assertIs(dm.db, db)
+            self.assertTrue(dm._initialized)
+            self.assertTrue(db.engine._initialized)
+            self.assertIs(DataManager.get_instance(), dm)
+        finally:
+            DataManager.reset_instance()
 
     def test_sample_universe_namespace(self):
         from core.modules.data_manager import DataManager

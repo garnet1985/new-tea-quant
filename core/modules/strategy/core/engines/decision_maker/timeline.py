@@ -39,7 +39,7 @@ def _as_ymd(raw: Any) -> str:
     return digits[:8] if len(digits) >= 8 else ""
 
 
-_STATUS_LABELS = {"st": "ST", "star_st": "*ST"}
+_STATUS_LABELS = {"st": "ST", "star_st": "*ST", "delisted": "退"}
 
 
 def normalize_status_tags(raw: Any) -> Tuple[str, ...]:

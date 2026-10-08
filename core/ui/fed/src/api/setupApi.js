@@ -1,5 +1,5 @@
-import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'services/request';
-import logClientError from '../utils/logClientError';
+import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
+import logClientError from '../service/logClientError';
 
 const API_BASE = `${API_VERSION_PREFIX}/setup`;
 const STEP_STATUS_SUCCESS = 'success';
@@ -200,6 +200,16 @@ export async function getMlExtrasStatus() {
     installed: Boolean(json?.message?.installed),
     xgboost: Boolean(json?.message?.xgboost),
     shap: Boolean(json?.message?.shap),
+  };
+}
+
+export async function importDemoData() {
+  const json = await request.postJson(`${API_BASE}/import-data`, {
+    body: {},
+    timeoutMs: HTTP_TIMEOUT_MS.SETUP,
+  });
+  return {
+    imported: Boolean(json?.message?.imported),
   };
 }
 

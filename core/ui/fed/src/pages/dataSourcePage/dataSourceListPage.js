@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Box,
-  Button,
   Chip,
-  InputAdornment,
   Paper,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -23,12 +19,16 @@ import {
   getDataSourceRenewTypeLabel,
   getDataSourceUpdateStatusLabel,
 } from '../../api/dataSourceApi';
-import PageLayout from '../../components/pageLayout/pageLayout';
-import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import NtqRainbowRunButton from '../../components/ntqRainbowRunButton/ntqRainbowRunButton';
-import FreshnessStatusChip from '../../components/freshnessStatusChip/freshnessStatusChip';
+import PageLayout from '../../views/pageLayout';
+import SearchField from '../../views/searchField';
+import NtqButton from '../../views/ntqButton';
+import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import NtqIcon from '../../views/ntqIcon';
+import RainbowButton from '../../views/rainbowButton';
+import FreshnessStatusChip from '../../views/freshnessStatusChip';
+import Message from '../../views/message';
+import { showToast } from 'containers/toast';
 import './dataSourceListPage.scss';
 
 function UpdateStatusChip({ row }) {
@@ -50,7 +50,6 @@ function DataSourceListPage() {
   const [freshnessLoading, setFreshnessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [freshnessError, setFreshnessError] = useState('');
-  const [updateNotice, setUpdateNotice] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
@@ -162,13 +161,14 @@ function DataSourceListPage() {
         return (
           <Tooltip title={title}>
             <span className="data-source-list-update-btn-wrap">
-              <NtqRainbowRunButton
+              <RainbowButton
+                icon="play"
                 disabled={!canUpdate}
-                ariaLabel="更新数据源"
+                aria-label="更新数据源"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!canUpdate) return;
-                  setUpdateNotice('更新执行接口开发中，下一版接入。');
+                  showToast({ severity: 'info', content: '更新执行接口开发中，下一版接入。' });
                 }}
               />
             </span>
@@ -267,26 +267,17 @@ function DataSourceListPage() {
       loading={!pageReady}
       loadingMessage="正在加载数据源…"
     >
-      {loadError ? <Alert severity="error" className="data-source-list-alert">{loadError}</Alert> : null}
+      {loadError ? <Message severity="error" className="data-source-list-alert">{loadError}</Message> : null}
       {freshnessError ? (
-        <Alert
+        <Message
           severity="warning"
           className="data-source-list-alert"
           onClose={() => setFreshnessError('')}
         >
           {freshnessError}
-        </Alert>
+        </Message>
       ) : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="data-source-list-alert" />
-      {updateNotice ? (
-        <Alert
-          severity="info"
-          className="data-source-list-alert"
-          onClose={() => setUpdateNotice('')}
-        >
-          {updateNotice}
-        </Alert>
-      ) : null}
 
       <Paper className="data-source-list-grid">
         <Stack
@@ -295,31 +286,21 @@ function DataSourceListPage() {
           spacing={1.5}
           className="data-source-list-grid-toolbar"
         >
-          <TextField
-            size="small"
+          <SearchField
+            fluid
             placeholder="搜索名称、Key 或 Provider"
+            label="搜索数据源"
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
-            inputProps={{ 'aria-label': '搜索数据源' }}
-            className="data-source-list-search"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <NtqIcon name="search" size={22} tone="muted" />
-                </InputAdornment>
-              ),
-            }}
           />
-          <Button
-            variant="outlined"
-            size="small"
+          <NtqButton
+            variant="glass"
+            icon="refresh"
             onClick={load}
             disabled={loading || freshnessLoading}
-            className="ntq-glass-outline-btn"
-            startIcon={<NtqIcon name="refresh" size={22} tone="muted" />}
           >
             刷新列表
-          </Button>
+          </NtqButton>
         </Stack>
 
         <Box className="data-source-list-grid-body">

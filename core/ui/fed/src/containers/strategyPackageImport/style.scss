@@ -1,0 +1,28 @@
+.strategy-package-import-dialog {
+  .strategy-package-import-dialog__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 8px 20px 18px !important;
+    flex-wrap: nowrap;
+
+    > .MuiButton-root {
+      margin-left: 0 !important;
+    }
+  }
+
+  .strategy-package-import-dialog__file {
+    align-self: flex-start;
+  }
+
+  .strategy-package-import-dialog__btn {
+    min-width: 88px;
+    margin: 0 !important;
+    flex-shrink: 0;
+  }
+
+  .strategy-package-import-dialog__btn--primary {
+    min-width: 132px;
+  }
+}

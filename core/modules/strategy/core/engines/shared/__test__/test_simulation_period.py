@@ -63,11 +63,3 @@ def test_simulation_period_start_after_end() -> None:
     assert not report.is_valid
 
 
-def test_legacy_sampling_dates_warn_only() -> None:
-    raw = _base_simulation(start_date="20240101", end_date="20240630")
-    raw["sampling"] = {"use_sampling": False, "start_date": "20100101", "end_date": "20101231"}
-    settings = StrategySettings.from_dict(raw)
-    report = settings.validate()
-    assert report.is_valid
-    assert any("sampling" in (w.get("field_path") or "") for w in report.warnings)
-    assert settings.start_date == "20240101"

@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 from .execution_panel import build_execution_panel_from_result_report
 
-_STEP_KEYS = ("enum", "price_factor", "portfolio", "decision")
+_STEP_KEYS = ("enum", "price", "portfolio", "decision")
 
 
 def _step_status_from_result_report(result_report: Dict[str, Any]) -> Dict[str, Any]:
@@ -56,5 +56,4 @@ def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
         "result_report": result_report,
         "execution_panel": build_execution_panel_from_result_report(result_report),
         "env_invalid": bool(row.get("env_invalid")),
-        "pinned": bool(row.get("pinned")),
     }

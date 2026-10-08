@@ -27,6 +27,21 @@ from core.infra.db.core.engines.shared.schema_introspection import fetch_column_
 logger = logging.getLogger(__name__)
 
 
+def parse_duckdb_index_expressions(expr: str) -> tuple:
+    """把 duckdb_indexes().expressions 解析成小写列名元组。"""
+    inner = str(expr or "").strip()
+    if inner.startswith("[") and inner.endswith("]"):
+        inner = inner[1:-1]
+    columns = []
+    for part in inner.split(","):
+        name = part.strip()
+        while len(name) >= 2 and name[0] in "'\"" and name[-1] == name[0]:
+            name = name[1:-1].strip()
+        if name:
+            columns.append(name.lower())
+    return tuple(columns)
+
+
 class SchemaManager:
     """
     Schema 管理器
@@ -251,6 +266,29 @@ class SchemaManager:
         with get_connection_func() as conn:
             return fetch_column_names(self.ddl_database_type, table_name, conn)
 
+    def _duckdb_indexed_field_sets(
+        self, table_name: str, get_connection_func: Callable
+    ) -> Set[tuple]:
+        """当前表上已有索引的列组合。同名索引建在别的表上不算覆盖。"""
+        sql = (
+            "SELECT expressions FROM duckdb_indexes() "
+            "WHERE schema_name = 'main' AND table_name = ?"
+        )
+        try:
+            with get_connection_func() as conn:
+                rel = conn.execute(sql, (table_name,))
+                rows = rel.fetchall() if rel is not None else []
+        except Exception as e:
+            logger.debug("读取表 '%s' 已有索引失败: %s", table_name, e)
+            return set()
+        covered: Set[tuple] = set()
+        for row in rows or []:
+            expr = row.get("expressions") if isinstance(row, dict) else row[0]
+            fields = parse_duckdb_index_expressions(str(expr or ""))
+            if fields:
+                covered.add(fields)
+        return covered
+
     def sync_missing_columns(
         self, schema: Dict, get_connection_func: Callable
     ) -> List[str]:
@@ -354,10 +392,27 @@ class SchemaManager:
             except Exception:
                 existing_cols = None
 
+        covered_fields = (
+            self._duckdb_indexed_field_sets(table_name, get_connection_func)
+            if self.ddl_database_type == "duckdb"
+            else set()
+        )
+        existing_lower = {str(c).lower() for c in existing_cols} if existing_cols else set()
+
         for index in indexes:
             index_fields = index.get("fields") or []
-            if existing_cols is not None:
-                missing = [f for f in index_fields if f not in existing_cols]
+            field_key = tuple(str(f).lower() for f in index_fields)
+            if field_key and field_key in covered_fields:
+                logger.debug(
+                    "表 '%s' 已有列 %s 的索引，跳过 '%s'",
+                    table_name,
+                    list(index_fields),
+                    index.get("name"),
+                )
+                continue
+            # 读到了列清单但缺字段才跳过。空清单是 introspection 失败，不能当成「列不存在」。
+            if existing_lower:
+                missing = [f for f in index_fields if str(f).lower() not in existing_lower]
                 if missing:
                     logger.warning(
                         i('skip') + "  跳过索引 '%s'：列 %s 不存在于表 '%s'（请先 sync 列或跑 migrate）",

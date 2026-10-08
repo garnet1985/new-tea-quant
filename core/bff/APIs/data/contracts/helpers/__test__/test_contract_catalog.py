@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from core.modules.data_contract.contracts import SYS_DATA_KEY
+from core.modules.data_contract import ContractIssuer
 from core.bff.APIs.data.contracts.helpers.contract_catalog import (
     fetch_data_contract_catalog_page,
+    reload_data_contract_catalog,
 )
 
 
@@ -36,3 +38,15 @@ def test_pagination():
     if total > 2:
         page2, _ = fetch_data_contract_catalog_page(page=2, limit=2)
         assert page2[0]["key"] != items[0]["key"]
+
+
+def test_reload_refreshes_class_cache():
+    ContractIssuer._discovered = False
+    ContractIssuer._declarations_cache = {}
+    summary = reload_data_contract_catalog()
+    assert summary["total"] >= 1
+    assert ContractIssuer._discovered is True
+    assert SYS_DATA_KEY.STOCK_LIST in ContractIssuer.get_all_keys()
+    items, total = fetch_data_contract_catalog_page(page=1, limit=500, force_reload=True)
+    assert total == summary["total"]
+    assert any(i["key"] == SYS_DATA_KEY.STOCK_LIST for i in items)

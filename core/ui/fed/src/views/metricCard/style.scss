@@ -1,0 +1,21 @@
+.ntq-metric-card {
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 4px;
+  padding: 10px;
+  background: var(--ntq-white-06);
+}
+
+.ntq-metric-card__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.ntq-metric-card__value {
+  margin-top: 6px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ntq-metric-card__hint {
+  margin-top: 4px;
+}

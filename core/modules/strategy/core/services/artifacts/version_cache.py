@@ -14,12 +14,6 @@ from .version_meta import VersionMetaStore
 
 logger = logging.getLogger(__name__)
 
-_KIND_VALUE = {
-    SimulateKind.ENUMERATE: "enumerate",
-    SimulateKind.PRICE_FACTOR: "price_factor",
-    SimulateKind.PORTFOLIO: "portfolio",
-}
-
 
 class SimulationVersionStore:
     """按磁盘 version meta + 产物目录查 simulate cache。"""
@@ -77,7 +71,7 @@ class SimulationVersionStore:
         payload = cls._build_step_payload(store)
         if payload is None:
             return None
-        return {_KIND_VALUE[kind]: payload}
+        return {kind.value: payload}
 
     @classmethod
     def _log_env_invalid_on_execute_match(
@@ -176,7 +170,7 @@ class SimulationVersionStore:
         payload = cls._build_step_payload(store)
         if payload is None:
             return None
-        return {_KIND_VALUE[kind]: payload}
+        return {kind.value: payload}
 
     @staticmethod
     def _step_artifacts_present(output_dir: Path) -> bool:

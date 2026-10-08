@@ -53,11 +53,12 @@ class UserParser:
         UserParser._p_strategy_decision(sub)
         UserParser._p_strategy_decision_list(sub)
         UserParser._p_strategy_decision_delete(sub)
-        UserParser._p_strategy_analyze(sub)
         UserParser._p_strategy_simulate(sub)
+        UserParser._p_strategy_attribute_enumerate(sub)
+        UserParser._p_strategy_attribute_price(sub)
+        UserParser._p_strategy_attribute_portfolio(sub)
+        UserParser._p_strategy_rolling(sub)
         UserParser._p_strategy_delete_version(sub)
-        UserParser._p_strategy_pin_version(sub)
-        UserParser._p_strategy_unpin_version(sub)
         UserParser._p_renew(sub)
         UserParser._p_export_adj_factor(sub)
         UserParser._p_tag(sub)
@@ -168,41 +169,52 @@ class UserParser:
         UserParser._add_decision_flags(p, require_session=True)
 
     @staticmethod
-    def _p_strategy_analyze(sub: argparse._SubParsersAction) -> None:
-        p = UserParser._cmd(
-            sub,
-            "strategy_analyze",
-            aliases=UserCommands.aliases_for("strategy_analyze"),
-            help="收集归因产物并打印终端摘要（analysis/report.json）",
-        )
-        UserParser._add_strategy_target(p)
-        p.add_argument(
-            "--step",
-            type=str,
-            default="enum",
-            choices=("enum", "enumerate", "price", "price_factor", "portfolio"),
-            help="回测 step（默认 enum）",
-        )
-        p.add_argument(
-            "--version",
-            type=str,
-            default=None,
-            help="version id（默认该 kind 最新）",
-        )
-        p.add_argument(
-            "--baseline-version",
-            type=str,
-            default=None,
-            help="run_comparison 对照的 baseline version id",
-        )
-
-    @staticmethod
     def _p_strategy_simulate(sub: argparse._SubParsersAction) -> None:
         p = UserParser._cmd(
             sub,
             "strategy_simulate",
             aliases=UserCommands.aliases_for("strategy_simulate"),
             help="完整模拟链路（price → portfolio）",
+        )
+        UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_attribute_enumerate(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_attribute_enumerate",
+            aliases=UserCommands.aliases_for("strategy_attribute_enumerate"),
+            help="枚举层归因（读 attribution.py；须先 se）",
+        )
+        UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_attribute_price(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_attribute_price",
+            aliases=UserCommands.aliases_for("strategy_attribute_price"),
+            help="价格层归因（读 attribution.py；须先 sp）",
+        )
+        UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_attribute_portfolio(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_attribute_portfolio",
+            aliases=UserCommands.aliases_for("strategy_attribute_portfolio"),
+            help="组合层归因（读 attribution.py；须先 so）",
+        )
+        UserParser._add_strategy_target(p)
+
+    @staticmethod
+    def _p_strategy_rolling(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "strategy_rolling",
+            aliases=UserCommands.aliases_for("strategy_rolling"),
+            help="滚动验证（待定，读 attribution.py 的 rolling.windows）",
         )
         UserParser._add_strategy_target(p)
 
@@ -222,26 +234,6 @@ class UserParser:
             "strategy_delete_version",
             aliases=UserCommands.aliases_for("strategy_delete_version"),
             help="删除指定策略的一份回测产物（settings.py 不动）",
-        )
-        UserParser._add_strategy_version_spec(p)
-
-    @staticmethod
-    def _p_strategy_pin_version(sub: argparse._SubParsersAction) -> None:
-        p = UserParser._cmd(
-            sub,
-            "strategy_pin_version",
-            aliases=UserCommands.aliases_for("strategy_pin_version"),
-            help="固定一份回测产物，避免被自动清理",
-        )
-        UserParser._add_strategy_version_spec(p)
-
-    @staticmethod
-    def _p_strategy_unpin_version(sub: argparse._SubParsersAction) -> None:
-        p = UserParser._cmd(
-            sub,
-            "strategy_unpin_version",
-            aliases=UserCommands.aliases_for("strategy_unpin_version"),
-            help="取消固定一份回测产物",
         )
         UserParser._add_strategy_version_spec(p)
 

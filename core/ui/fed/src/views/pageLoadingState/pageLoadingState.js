@@ -1,0 +1,32 @@
+import React from 'react';
+import PropTypes from 'prop-types';
+import { Typography } from '@mui/material';
+import LoadingBars from 'views/loadingBars';
+import './style.scss';
+
+function PageLoadingState({ message = null, className = '', minHeight = '', barCount = 5 }) {
+  const style = minHeight ? { '--ntq-page-loading-min-height': minHeight } : undefined;
+
+  return (
+    <div
+      className={['ntq-page-loading', className].filter(Boolean).join(' ')}
+      style={style}
+    >
+      <LoadingBars barCount={barCount} />
+      {message ? (
+        <Typography variant="body2" component="p" className="ntq-page-loading__message">
+          {message}
+        </Typography>
+      ) : null}
+    </div>
+  );
+}
+
+PageLoadingState.propTypes = {
+  message: PropTypes.node,
+  className: PropTypes.string,
+  minHeight: PropTypes.string,
+  barCount: PropTypes.number,
+};
+
+export default PageLoadingState;

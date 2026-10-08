@@ -31,7 +31,6 @@ Tag 配置编辑、tag 结果预览等均 **不在 MVP**。
 - **展示名**：`meta.display_name`；缺省回退 `tag_key`（与 strategy 列表一致）。
 - **机器 ID / URL**：discovery 的 `tag_key`（POSIX 路径，如 `demo/market_cap_tier`）。
 - **主导航**：「高级功能 ▾」→「标签」→ `/advanced/tags`（无独立 landing；`/advanced` 重定向至标签页）
-- **原型**：`prototype/tag-console.html` 仅作信息架构参考，不必高保真还原。
 
 ## 与 Strategy / Scan 的对齐
 

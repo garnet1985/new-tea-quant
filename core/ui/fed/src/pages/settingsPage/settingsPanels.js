@@ -23,16 +23,22 @@ import {
   Typography,
   Chip,
 } from '@mui/material';
-import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
-import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
-import NtqIcon from '../../components/ntqIcon/ntqIcon';
-import { formatDateTime } from '../../utils/formatDateTime';
+import InlineLoadingState from '../../views/inlineLoadingState';
+import PageLoadingState from '../../views/pageLoadingState';
+import NtqIcon from '../../views/ntqIcon';
+import { formatDateTime } from '../../service/format/formatDateTime';
 import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
-import { getMlExtrasStatus, installMlExtras, resetSetupStatus } from '../../api/setupApi';
-import { useAsyncAction } from '../../hooks/useAsyncAction';
-import { useFakeProgress } from '../../hooks/useFakeProgress';
+import {
+  getImportDataProgress,
+  getMlExtrasStatus,
+  importDemoData,
+  installMlExtras,
+  resetSetupStatus,
+} from '../../api/setupApi';
+import { useAsyncAction } from 'service/useAsyncAction';
+import { useFakeProgress } from 'service/progress/useFakeProgress';
 
 export function SettingsSystemPanel() {
   const navigate = useNavigate();
@@ -43,6 +49,11 @@ export function SettingsSystemPanel() {
   const [reinstallOpen, setReinstallOpen] = useState(false);
   const [reinstalling, setReinstalling] = useState(false);
   const [reinstallError, setReinstallError] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importOk, setImportOk] = useState('');
+  const [importProgress, setImportProgress] = useState(null);
   const fakePercent = useFakeProgress(installing, 8);
 
   const loadMlStatus = useCallback(() => {
@@ -60,6 +71,24 @@ export function SettingsSystemPanel() {
     loadMlStatus();
   }, [loadMlStatus]);
 
+  useEffect(() => {
+    if (!importing) return undefined;
+    let stopped = false;
+    const tick = () => {
+      getImportDataProgress()
+        .then((next) => {
+          if (!stopped) setImportProgress(next);
+        })
+        .catch(() => {});
+    };
+    tick();
+    const timerId = setInterval(tick, 800);
+    return () => {
+      stopped = true;
+      clearInterval(timerId);
+    };
+  }, [importing]);
+
   const handleInstallMl = async () => {
     setInstalling(true);
     setMlOk('');
@@ -72,6 +101,22 @@ export function SettingsSystemPanel() {
       setMlLoadError(err?.message || '安装失败，请检查网络后重试。');
     } finally {
       setInstalling(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    setImporting(true);
+    setImportError('');
+    setImportOk('');
+    setImportProgress(null);
+    try {
+      await importDemoData();
+      setImportOpen(false);
+      setImportOk('演示数据已导入。');
+    } catch (err) {
+      setImportError(err?.message || '演示数据导入失败，请稍后重试。');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -90,6 +135,12 @@ export function SettingsSystemPanel() {
   };
 
   const mlInstalled = Boolean(mlStatus?.installed);
+  const importBusy = importing || reinstalling;
+  const importProgressText = importProgress?.totalTables
+    ? `正在导入 ${importProgress.completedCount}/${importProgress.totalTables}${
+      importProgress.currentTable ? `：${importProgress.currentTable}` : ''
+    }`
+    : '正在导入演示数据…';
 
   return (
     <Stack spacing={2}>
@@ -104,7 +155,7 @@ export function SettingsSystemPanel() {
         <Button
           variant="contained"
           color="secondary"
-          disabled={reinstalling}
+          disabled={importBusy}
           onClick={() => {
             setReinstallError('');
             setReinstallOpen(true);
@@ -147,10 +198,70 @@ export function SettingsSystemPanel() {
       </Dialog>
 
       <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
+        演示数据
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        安装时如果跳过了演示数据，可以在这里导入。导入会清空数据包中的表再写入，可能覆盖已有数据。
+      </Typography>
+      {importError ? <Alert severity="error">{importError}</Alert> : null}
+      {importOk ? <Alert severity="success">{importOk}</Alert> : null}
+      {importing ? (
+        <Typography variant="body2" color="text.secondary">
+          {importProgressText}
+        </Typography>
+      ) : null}
+      <Box>
+        <Button
+          variant="outlined"
+          disabled={importBusy}
+          onClick={() => {
+            setImportError('');
+            setImportOk('');
+            setImportOpen(true);
+          }}
+        >
+          导入演示数据
+        </Button>
+      </Box>
+      <Dialog
+        open={importOpen}
+        onClose={() => !importing && setImportOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>导入演示数据？</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            演示数据包里的表会被清空后重写，可能覆盖已有行情。请先退出其他正在使用这个数据库的程序，再继续。
+          </DialogContentText>
+          {importError ? (
+            <Alert severity="error" sx={{ mt: 2 }}>{importError}</Alert>
+          ) : null}
+          {importing ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              {importProgressText}
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportOpen(false)} disabled={importing}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmImport}
+            disabled={importing}
+          >
+            {importing ? '正在导入…' : '开始导入'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
         机器学习组件
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        策略设置里的「回测后归因」开关需要这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
+        分析库的统计 / ML 原语会用到这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
       </Typography>
       {mlLoadError ? <Alert severity="error">{mlLoadError}</Alert> : null}
       {mlOk ? <Alert severity="success">{mlOk}</Alert> : null}
@@ -160,7 +271,7 @@ export function SettingsSystemPanel() {
         <Typography variant="body2" color="text.secondary">
           {mlInstalled
             ? `已安装${mlStatus?.shap ? '（含 SHAP）' : '（XGBoost）'}。`
-            : '尚未安装。未安装时，策略设置里的归因开关不可用。'}
+            : '尚未安装。分析库的机器学习阶段在未安装时会跳过。'}
         </Typography>
       )}
       {installing ? (
@@ -315,11 +426,11 @@ export function SettingsDataPanel({
   defaultStartDate,
   asOfLatestCompletedDate,
   useSampleStockList,
-  simulationResultsMaxVersions,
+  simulationResultsMaxStaleEnvs,
   onDefaultStartDateChange,
   onAsOfLatestCompletedDateChange,
   onUseSampleStockListChange,
-  onSimulationResultsMaxVersionsChange,
+  onSimulationResultsMaxStaleEnvsChange,
   onSave,
   onReload,
 }) {
@@ -384,13 +495,13 @@ export function SettingsDataPanel({
           />
           <Box id="settings-retention">
             <TextField
-              label="回测结果保留份数"
+              label="过时回测环境保留组数"
               size="small"
               fullWidth
-              value={simulationResultsMaxVersions}
-              onChange={(e) => onSimulationResultsMaxVersionsChange(e.target.value)}
-              placeholder="10"
-              helperText="按份数保留，不是按日历过期。制定策略额度满时会先拒绝新回测；扫描会按上限自动裁剪。已固定的版本不会被自动清理，仍可手动删除。改小后已有结果不会立刻删除。"
+              value={simulationResultsMaxStaleEnvs}
+              onChange={(e) => onSimulationResultsMaxStaleEnvsChange(e.target.value)}
+              placeholder="5"
+              helperText="改代码或核心后旧环境不能再跑，最多留这么多组档案。超出则整组删除。当前环境不限份数。"
             />
           </Box>
           <Box>
@@ -713,7 +824,7 @@ export function SettingsFeedbackPanel() {
         反馈
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        任务成功后偶尔会弹出简短反馈。你可以随时关闭询问。一旦你主动发送，不会再要求任何本地授权。
+        任务成功后会弹出简短反馈，每个半天（0 点到 12 点、12 点到 24 点）最多一次。关闭询问只在本页。一旦你主动发送，不会再要求任何本地授权。
         更长的问题请走官网联系页。
       </Typography>
 

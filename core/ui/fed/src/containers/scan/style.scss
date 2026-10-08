@@ -1,0 +1,145 @@
+.scan-page {
+  .scan-mode-options {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .scan-mode-option {
+    margin: 0;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 10px;
+    padding: 12px 14px;
+    align-items: flex-start;
+    transition: background-color 120ms ease, border-color 120ms ease;
+    flex: 1 1 320px;
+    min-height: 92px;
+  }
+
+  .scan-mode-option:hover {
+    border-color: rgba(0, 0, 0, 0.28);
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  .scan-mode-option.scan-mode-option--active {
+    border-color: rgba(25, 118, 210, 0.55);
+    background: rgba(25, 118, 210, 0.06);
+  }
+
+  .scan-mode-option.scan-mode-option--disabled {
+    opacity: 0.65;
+  }
+
+  .scan-mode-option-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 1px;
+  }
+
+  .scan-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .scan-progress-label {
+    min-width: 180px;
+    white-space: nowrap;
+  }
+
+  .scan-section {
+    margin-bottom: 16px;
+  }
+
+  .scan-toolbar {
+    margin-bottom: 8px;
+  }
+
+  .scan-alert {
+    margin-bottom: 12px;
+  }
+
+  .scan-design-link {
+    font-size: 13px;
+  }
+
+  .scan-progress {
+    margin-bottom: 12px;
+  }
+
+  .scan-progress__bar {
+    flex: 1;
+  }
+
+  .scan-strategy-list {
+    width: 100%;
+  }
+
+  .scan-strategy-list--loading {
+    min-height: 160px;
+  }
+
+  .scan-category {
+    margin-bottom: 8px;
+  }
+
+  .scan-strategy-grid .MuiDataGrid-cell {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    align-items: flex-start;
+    white-space: normal;
+    line-height: 1.5;
+  }
+
+  .scan-report__lead {
+    margin-bottom: 6px;
+  }
+
+  .scan-report__count {
+    min-width: unset;
+    padding-left: 4px;
+    padding-right: 4px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .scan-report__facts {
+    padding-left: 8px;
+  }
+
+  .scan-report__fact {
+    margin-bottom: 2px;
+  }
+
+  .scan-report__hint {
+    display: block;
+    margin-top: 8px;
+  }
+}
+
+.scan-detail__body {
+  height: 520px;
+}
+
+.scan-detail__note {
+  margin-bottom: 12px;
+}
+
+.scan-detail__dates {
+  margin-bottom: 10px;
+}
+
+.scan-detail__grid {
+  width: 100%;
+  height: 420px;
+}
+
+.scan-detail__snapshot {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

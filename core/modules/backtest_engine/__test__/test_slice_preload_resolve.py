@@ -23,6 +23,21 @@ def test_refine_queue_clipped_by_memory() -> None:
     assert depth == 0
 
 
+def test_resolve_does_not_lift_queue_alias_into_preload() -> None:
+    cap = MachineCapacity(
+        cpu_count=8,
+        memory_budget_mb=8192.0,
+        memory_floor_mb=1024.0,
+        reserve_cores=1,
+    )
+    resolved = SliceBasedPerformance.resolve_for_planning(
+        {"preload_depth": "auto", "queue_capacity": 4},
+        cap,
+        dispatch_slices=10,
+    )
+    assert resolved["preload_depth"] == "auto"
+
+
 def test_resolve_for_planning_fixes_readers_leaves_preload_auto() -> None:
     cap = MachineCapacity(
         cpu_count=8,

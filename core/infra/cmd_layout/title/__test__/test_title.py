@@ -36,6 +36,47 @@ class TestTitle(unittest.TestCase):
         self.assertEqual(Title.section("枚举汇总"), "-- 枚举汇总 --")
         self.assertEqual(Title.section("ROI", char="="), "== ROI ==")
 
+    def test_h1_blank_star_box(self) -> None:
+        text = Title.h1("归因对照")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "")
+        self.assertTrue(set(lines[1]) <= {"*"})
+        self.assertEqual(lines[2], "归因对照")
+        self.assertEqual(lines[3], lines[1])
+
+    def test_h2_underline(self) -> None:
+        text = Title.h2("参数贡献度")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "")
+        self.assertEqual(lines[1], "参数贡献度")
+        self.assertTrue(set(lines[2]) <= {"="})
+        self.assertGreaterEqual(len(lines[2]), Title.DEFAULT_H2_MIN_WIDTH)
+        self.assertGreaterEqual(len(lines[2]), Title.display_width("参数贡献度"))
+
+    def test_h3_triple_dash(self) -> None:
+        text = Title.h3("事实")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "")
+        self.assertEqual(lines[1], "--- 事实 ---")
+
+    def test_print_h3_leading_blank_only(self) -> None:
+        buf = io.StringIO()
+        returned = CmdLayout.title.print_h3("结论", stream=buf)
+        self.assertEqual(returned, "\n--- 结论 ---")
+        self.assertEqual(buf.getvalue(), "\n--- 结论 ---\n")
+
+    def test_h4_hash_prefix(self) -> None:
+        text = Title.h4("PE分位上限")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "")
+        self.assertEqual(lines[1], "### PE分位上限")
+
+    def test_print_h4(self) -> None:
+        buf = io.StringIO()
+        returned = CmdLayout.title.print_h4("止损", stream=buf)
+        self.assertEqual(returned, "\n### 止损")
+        self.assertEqual(buf.getvalue(), "\n### 止损\n")
+
     def test_print_banner(self) -> None:
         buf = io.StringIO()
         returned = CmdLayout.title.print_banner("T", width=5, stream=buf)

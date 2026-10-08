@@ -302,6 +302,21 @@ class _DuckDBTransactionCursor:
         return self._result.fetchone()
 
 
+class _DuckDBBufferedResult:
+    """在锁内取走的查询结果。DuckDB 1.4 的结果挂在连接上，锁外再 fetch 会被别的语句覆盖。"""
+
+    def __init__(self, rows: List[Any], columns: List[str]) -> None:
+        self._rows = rows
+        self.columns = columns
+        self.description = [(name, None, None, None, None, None, None) for name in columns]
+
+    def fetchall(self) -> List[Any]:
+        return list(self._rows)
+
+    def fetchone(self) -> Any:
+        return self._rows[0] if self._rows else None
+
+
 class _DuckDBConnectionWrapper:
     def __init__(self, conn: Any, domain_conn: DuckdbDomainConnection) -> None:
         self._conn = conn
@@ -311,8 +326,16 @@ class _DuckDBConnectionWrapper:
     def execute(self, query: str, params: Any = None) -> Any:
         with self._lock:
             if params is None:
-                return self._conn.execute(query)
-            return self._conn.execute(query, params)
+                self._conn.execute(query)
+            else:
+                self._conn.execute(query, params)
+            description = list(getattr(self._conn, "description", None) or [])
+            columns = [str(col[0]) for col in description if col]
+            try:
+                rows = list(self._conn.fetchall() or [])
+            except Exception:
+                rows = []
+            return _DuckDBBufferedResult(rows, columns)
 
     def commit(self) -> None:
         pass

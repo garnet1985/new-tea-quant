@@ -3,6 +3,7 @@ import unittest
 from core.tables.stock.stock_st_periods.st_period_rules import (
     ST_LEVEL_STAR_ST,
     ST_LEVEL_ST,
+    active_status_tags,
     bare_stock_name,
     classify_st_level,
     consolidate_st_periods,
@@ -107,6 +108,23 @@ class TestStPeriodRules(unittest.TestCase):
         )
         self.assertEqual(len(periods), 2)
         self.assertEqual(periods[0]["end_date"], "20200531")
+
+    def test_active_status_tags(self):
+        periods = [
+            {
+                "st_level": ST_LEVEL_ST,
+                "start_date": "20240101",
+                "end_date": "20240131",
+            },
+            {
+                "st_level": ST_LEVEL_STAR_ST,
+                "start_date": "20240201",
+                "end_date": None,
+            },
+        ]
+        self.assertEqual(active_status_tags(periods, "20240115"), ["st"])
+        self.assertEqual(active_status_tags(periods, "20240210"), ["star_st"])
+        self.assertEqual(active_status_tags(periods, "20231231"), [])
 
 
 if __name__ == "__main__":

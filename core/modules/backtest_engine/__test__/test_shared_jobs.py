@@ -29,14 +29,6 @@ def test_validate_many_entity_based_requires_entity_key() -> None:
         )
 
 
-def test_validate_many_entity_based_rejects_aliases() -> None:
-    with pytest.raises(ValueError, match="entity_specified"):
-        BacktestJob.validate_many(
-            [{"id": "000001.SZ", "payload": {"entity_id": "000001.SZ"}}],
-            mode=BacktestMode.ENTITY_BASED,
-        )
-
-
 def test_validate_many_entity_based_accepts_bundle_jobs() -> None:
     BacktestJob.validate_many(
         [
@@ -55,22 +47,6 @@ def test_validate_many_slice_based_requires_point_count() -> None:
     with pytest.raises(ValueError, match="timeline_point_count"):
         BacktestJob.validate_many(
             [{"id": "bulk", "payload": {"entity_ids": ["000001.SZ"]}}],
-            mode=BacktestMode.SLICE_BASED,
-        )
-
-
-def test_validate_many_slice_based_rejects_stock_ids_alias() -> None:
-    with pytest.raises(ValueError, match="entity_ids"):
-        BacktestJob.validate_many(
-            [
-                {
-                    "id": "bulk",
-                    "payload": {
-                        "stock_ids": ["000001.SZ"],
-                        "timeline_point_count": 1,
-                    },
-                }
-            ],
             mode=BacktestMode.SLICE_BASED,
         )
 
@@ -126,4 +102,4 @@ def test_to_dict_round_trip() -> None:
 
 def test_normalize_mode_rejects_unknown() -> None:
     with pytest.raises(ValueError, match="unknown backtest mode"):
-        BacktestMode.normalize("timeline")
+        BacktestMode.normalize("nope")

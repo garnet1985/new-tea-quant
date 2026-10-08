@@ -1,0 +1,36 @@
+.ntq-design-step-report__view-tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 8px;
+  min-width: 0;
+}
+
+.ntq-design-step-report__tabs {
+  min-height: 36px;
+
+  .MuiTabs-indicator {
+    height: 2px;
+    background: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan));
+  }
+
+  .MuiTab-root {
+    min-height: 36px;
+    padding: 6px 14px;
+    text-transform: none;
+    font-weight: 600;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.55);
+
+    &.Mui-selected {
+      color: rgba(255, 255, 255, 0.92);
+    }
+  }
+}
+
+.ntq-design-step-report__group {
+  flex: 0 0 auto;
+  opacity: 0.78;
+}

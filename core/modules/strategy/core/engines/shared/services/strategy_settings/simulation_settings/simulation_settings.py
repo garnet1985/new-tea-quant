@@ -1,4 +1,4 @@
-"""``settings.simulation`` 门面（execution / assumption / risk_control）。
+"""``settings.simulation`` 门面（execution / assumption / risk_control / price）。
 
 本文件:
 - SimulationSettings: 子 section 聚合与 enter/exit 价解析 API
@@ -19,6 +19,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 
 from .assumption import AssumptionSettings
 from .execution import BacktestPeriod, ExecutionSettings
+from .price import PriceReplaySettings
 from .risk_control import RiskControl
 from .tradability import EdgesConfig, LiquidityConfig, TradabilityConfig
 
@@ -30,12 +31,13 @@ if TYPE_CHECKING:
 
 @dataclass
 class SimulationSettings(SettingsBase):
-    """``settings.simulation`` — 组合 execution / assumption / risk_control。"""
+    """``settings.simulation`` — 组合 execution / assumption / risk_control / price。"""
 
     raw_settings: Dict[str, Any]
     execution: ExecutionSettings = field(init=False, repr=False)
     assumption: AssumptionSettings = field(init=False, repr=False)
     risk_control: RiskControl = field(init=False, repr=False)
+    price: PriceReplaySettings = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -46,6 +48,9 @@ class SimulationSettings(SettingsBase):
         )
         object.__setattr__(
             self, "risk_control", RiskControl(raw_settings=self.raw_settings)
+        )
+        object.__setattr__(
+            self, "price", PriceReplaySettings(raw_settings=self.raw_settings)
         )
 
     @property
@@ -119,6 +124,7 @@ class SimulationSettings(SettingsBase):
         self.execution.apply_defaults()
         self.assumption.apply_defaults()
         self.risk_control.apply_defaults()
+        self.price.apply_defaults()
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
@@ -131,28 +137,14 @@ class SimulationSettings(SettingsBase):
             )
             return report
 
-        for part in (self.execution, self.assumption, self.risk_control):
+        for part in (self.execution, self.assumption, self.risk_control, self.price):
             part_report = part.validate()
             report.errors.extend(part_report.errors)
             report.warnings.extend(part_report.warnings)
             if not part_report.is_valid:
                 report.is_valid = False
 
-        self._warn_legacy_sampling_dates(report)
         return report
-
-    def _warn_legacy_sampling_dates(self, report: ValidationReport) -> None:
-        sampling = SettingsBase.ensure_dict_block(self.raw_settings, "sampling")
-        if not str(sampling.get("start_date") or "").strip() and not str(
-            sampling.get("end_date") or ""
-        ).strip():
-            return
-        SettingsBase.add_warning(
-            report,
-            "sampling.start_date/end_date",
-            "dates under sampling are ignored; use simulation.execution.start_date/end_date",
-            suggested_fix="Move start_date/end_date into settings.simulation.execution",
-        )
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
@@ -160,6 +152,7 @@ class SimulationSettings(SettingsBase):
             "execution": self.execution.to_dict(),
             "assumption": self.assumption.to_dict(),
             "risk_control": self.risk_control.to_dict(),
+            "price": self.price.to_dict(),
         }
 
 

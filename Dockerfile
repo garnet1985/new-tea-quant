@@ -13,6 +13,8 @@ WORKDIR /app
 # 依赖安装走 Utils.pkg（国内清华 / npmmirror，国外官方源）。
 COPY requirements.txt .
 COPY core/__init__.py /app/core/__init__.py
+# core/__init__.py 会安装 quiet tracker；这一层还没 COPY . .，须单独带上。
+COPY core/quiet_resource_tracker.py /app/core/quiet_resource_tracker.py
 COPY core/infra/__init__.py /app/core/infra/__init__.py
 COPY core/infra/utils /app/core/infra/utils
 RUN python -c "import subprocess,sys; from core.infra.utils import Utils; f=Utils.pkg.pip_args(); raise SystemExit(subprocess.call([sys.executable,'-m','pip','install',*f,'--upgrade','pip']) or subprocess.call([sys.executable,'-m','pip','install',*f,'-r','requirements.txt']))"

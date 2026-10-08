@@ -115,31 +115,6 @@ class Opportunity:
         if not self.meta.updated_at:
             self.meta.updated_at = datetime.now().isoformat()
 
-    def add_contributor(
-        self,
-        strategy_name: str,
-        strategy_version: str = "1.0",
-        opportunity_id: Optional[str] = None,
-    ) -> None:
-        self.contributor.strategy_name = strategy_name
-        self.contributor.strategy_version = strategy_version
-        self.meta.scan_date = datetime.now().strftime("%Y%m%d")
-        if not self.meta.opportunity_id and opportunity_id:
-            self.meta.opportunity_id = opportunity_id
-        if not self.trigger_date and self.record_of_today:
-            self.trigger_date = str(self.record_of_today.get("date") or "")
-        if not self.trigger_price and self.record_of_today:
-            self.trigger_price = float(self.record_of_today.get("close") or 0.0)
-        if not self.trigger_price_raw and self.record_of_today:
-            raw = self.record_of_today.get("raw")
-            if isinstance(raw, dict):
-                self.trigger_price_raw = float(raw.get("close") or 0.0)
-        if not self.trigger_price_hfq and self.record_of_today:
-            hfq = self.record_of_today.get("hfq")
-            if isinstance(hfq, dict):
-                self.trigger_price_hfq = float(hfq.get("close") or 0.0)
-        self.meta.updated_at = datetime.now().isoformat()
-
     def bind_scan_context(
         self,
         *,

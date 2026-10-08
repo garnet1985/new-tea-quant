@@ -4,8 +4,8 @@
   "as_of_latest_completed_trading_date": null,
   "use_sample_stock_list": null,
   "retention": {
-    "_comment": "中间值/缓存保留上限（按版本数）。userspace/config/data.json 可用同名键覆盖。simulation_results_max_versions：磁盘 simulations/{vid}/ keep-N（三步共享一个号；pinned 跳过自动清理）。scan_results_max_versions：scan 日期目录。workbench_db_max_versions：遗留键，工作台 DB 快照已退役。",
-    "simulation_results_max_versions": 10,
+    "_comment": "中间值/缓存保留上限。userspace/config/data.json 可用同名键覆盖。simulation_results_max_stale_envs：过时 env_fp 组最多留几组（当前环境整组保留）。scan_results_max_versions：scan 日期目录。workbench_db_max_versions：遗留键，工作台 DB 快照已退役。",
+    "simulation_results_max_stale_envs": 5,
     "workbench_db_max_versions": 50,
     "scan_results_max_versions": 10
   },

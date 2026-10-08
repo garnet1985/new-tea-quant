@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Box } from '@mui/material';
 import { saveTraceSettings } from '../../api/settingsApi';
-import TraceConsentAskOverlay from '../../components/traceConsentAskOverlay';
+import TraceConsentAskOverlay from 'views/traceConsentAskOverlay';
 
 /**
  * 安装流水线之后的最后一步：询问使用统计。允许或暂不分享都会进入欢迎页。

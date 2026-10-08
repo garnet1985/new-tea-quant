@@ -108,14 +108,20 @@ class DataSourcePipelineRunner:
                 return
             bundle_progress.completed = progress.ok
             bundle_progress.failed = progress.fail
-            logger.info(bundle_progress.format_short())
+            line = bundle_progress.format_short()
+            print(line, flush=True)
+            logger.info("%s", line)
             progress_state["last_done"] = finished
             progress_state["last_log_at"] = now
             progress_state["last_pct"] = pct
 
         def on_result(report: JobReport, progress: RunProgress) -> None:
             if not report.success:
-                logger.warning(
+                print(
+                    f"  Bundle 失败: {report.job_id} {report.error}",
+                    flush=True,
+                )
+                logger.info(
                     "Bundle 失败: job_id=%s error=%s",
                     report.job_id,
                     report.error,
@@ -176,6 +182,7 @@ class DataSourcePipelineRunner:
         )
         run_name = f"ds:{data_source_key}"
 
+        print(f"[{data_source_key}] 开始抓取，共 {total_bundles} 个任务", flush=True)
         logger.info("[%s] 开始抓取（线程队列），共 %s 个 bundle", data_source_key, total_bundles)
 
         dispatcher = JobPipeline(
@@ -187,7 +194,8 @@ class DataSourcePipelineRunner:
         try:
             dispatch_result = dispatcher.run(pipeline_jobs, run_name=run_name)
         except KeyboardInterrupt:
-            logger.warning("[%s] 抓取中断", data_source_key)
+            print(f"[{data_source_key}] 抓取中断", flush=True)
+            logger.info("[%s] 抓取中断", data_source_key)
             raise
         finally:
             try:
@@ -197,26 +205,32 @@ class DataSourcePipelineRunner:
             checkpoint_after_batch_save(context)
             snap = bundle_progress.snapshot()
             if snap["failed"]:
-                logger.warning(
-                    "[%s] 抓取结束 %s/%s（%s%%），失败 %s",
-                    data_source_key,
-                    snap["done"],
-                    snap["total"],
-                    snap["pct"],
-                    snap["failed"],
+                print(
+                    f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}"
+                    f"（{snap['pct']}%），失败 {snap['failed']}",
+                    flush=True,
                 )
             else:
-                logger.info(
-                    "[%s] 抓取结束 %s/%s（%s%%）",
-                    data_source_key,
-                    snap["done"],
-                    snap["total"],
-                    snap["pct"],
+                print(
+                    f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}（{snap['pct']}%）",
+                    flush=True,
                 )
+            logger.info(
+                "[%s] 抓取结束 %s/%s（%s%%），失败 %s",
+                data_source_key,
+                snap["done"],
+                snap["total"],
+                snap["pct"],
+                snap["failed"],
+            )
             clear_bundle_progress()
 
         if dispatch_result.failed:
-            logger.warning(
+            print(
+                f"[{data_source_key}] 失败 {dispatch_result.failed}/{dispatch_result.total}",
+                flush=True,
+            )
+            logger.info(
                 "[%s] 线程队列: 失败 %s/%s",
                 data_source_key,
                 dispatch_result.failed,

@@ -224,6 +224,7 @@ class DataSourceManager:
         total = len(sorted_handlers)
         for idx, handler in enumerate(sorted_handlers):
             key = handler.get_key()
+            print(f"执行数据源 [{idx + 1}/{total}]: {key}", flush=True)
             logger.info("执行数据源 [%s/%s]: %s", idx + 1, total, key)
             deps: Dict[str, Any] = {}
             for dep_name in mappings.get_depend_on_data_source_names(key):
@@ -239,6 +240,7 @@ class DataSourceManager:
             if mappings.is_dependency_for_downstream(key):
                 if result and "data" in result:
                     scheduler._dependency_cache[key] = result["data"]
+            print(f"完成: {key}", flush=True)
             logger.info("完成: %s", key)
 
         scheduler._retry_failed_data_sources()

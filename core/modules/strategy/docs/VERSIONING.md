@@ -14,8 +14,8 @@
 | 打开 / 对比 version | 否 | 不写 | 只换报告。列表只暴露主号（纯数字） |
 | 恢复配置 | 是（显式确认） | 不写产物 | 把 `{vid}/settings.json` 写回 `settings.py`；**不** 把 `scope.json` 的股票池写回运行时 |
 | Run（`se`/`sp`/`so`） | 工作台会先 Persist 草稿 | 主号 `(execute_fp, env_fp)` 命中或新建 | 只分配整数主号；与选中号无关 |
-| 归因（`sea`/`spa`/`soa`） | 否 | 主号或副本 `{vid}-{r}` | 须先有主 version；对照格写副本，不 bump `next_version_id` |
-| 滚动对照（`sw`） | 否 | 主号下的 `{vid}-s{n}` | 须三层都完成；窗口不占主号、不占 `{vid}-{r}`；报告在 `{vid}/rolling/` |
+| 归因（`sea`/`spa`/`soa`） | 否 | 主号或副本 `{vid}-attr{n}` | 须先有主 version；对照格写副本，不 bump `next_version_id` |
+| 滚动对照（`sr`） | 否 | 主号下的 `{vid}-roll{n}` | 须三层都完成；窗口不占主号、不占 `{vid}-attr{n}`；报告在 `{vid}/rolling/` |
 | 强制重跑（`ignore_cache` / `--force`） | 同上 | **同一 id**（命中键不变时） | 跳过 cache；主号/副本各自复写。**不** 为同一双指纹再开号 |
 | 手动删除 | 否 | 删该 `{vid}/`（可含副本） | CLI `sdv` / BFF `DELETE …/cache` |
 
@@ -36,9 +36,9 @@
       runtime_env.json              # 该步完成标记
       analysis/                     # 与该步同生共死（战役内部切片）
     rolling/report.json             # 滚动对照，挂在这个主号上
-  {vid}-{r}/                        # 归因副本：不进 UI 列表、不 bump next_version_id
+  {vid}-attr{n}/                    # 归因副本：不进 UI 列表、不 bump next_version_id
     …同上…
-  {vid}-s{n}/                       # 滚动窗口：不进 UI 列表、不 bump next_version_id
+  {vid}-roll{n}/                    # 滚动窗口：不进 UI 列表、不 bump next_version_id
     …同上…
 ```
 
@@ -65,7 +65,7 @@
 约定：
 
 - registry key 即 version id（`"3"` 或副本 `"3-1"`，不是 `"v3"`）。条目内不重复存 `version_id`。
-- 主号：`isdigit()`；副本：`{parent}-{r}`（`r≥1`），registry 可带 `kind=replica` / `parent_version_id`。
+- 主号：`isdigit()`；归因副本：`{parent}-attr{n}`（`n≥1`）；滚动窗口：`{parent}-roll{n}`。registry 可带 `kind=replica` 或 `kind=rolling`，以及 `parent_version_id`。删主号时这两组一起删。
 - UI / `list_version_ids` 只暴露主号；指纹匹配主号也只扫主号。
 - 指纹平铺为 `execute_fp` / `env_fp`；无 `fingerprint_index`，命中时线性扫 registry。
 - `{vid}/` 身份归档三步共享、同身份只写一次（force / 补步不覆盖归档文件）。

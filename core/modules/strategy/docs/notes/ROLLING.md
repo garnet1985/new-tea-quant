@@ -1,6 +1,6 @@
 # 滚动对照（2026-10-08）
 
-**状态：** 产品口径已锁定。入口是 `engines/rolling`，报告挂在主 version 的 `rolling/report.json`。窗口号是 `{主号}-s{n}`。
+**状态：** 产品口径已锁定。入口是 `engines/rolling`，报告挂在主 version 的 `rolling/report.json`。窗口号是 `{主号}-roll{n}`。换版本后，没有这份报告就是未执行。
 
 **一句话：** 资金回测跑完之后，用户另配若干区间，用当前同一套设置再跑，报告只给出每段相对这次回测的差值。过拟合、时效、稳不稳定由用户自己看。
 
@@ -42,8 +42,8 @@
 
 页面和终端都不出现结论句。
 
-窗口模拟写在 `{主号}-s1`、`{主号}-s2`，不进版本列表，不占用归因副本 `{主号}-{r}`，也不推进主号。报告在 `results/simulations/{主号}/rolling/report.json`。没有 `rolling.py`，或枚举、价格、资金三步没有都完成，就不跑。
+窗口模拟写在 `{主号}-roll1`、`{主号}-roll2`，不进版本列表，不占用归因副本 `{主号}-attr{n}`，也不推进主号。报告在 `results/simulations/{主号}/rolling/report.json`。没有 `rolling.py`，或枚举、价格、资金三步没有都完成，就不跑。删这个主号时，窗口目录和这份报告一起删。
 
 ## 5. 还没做的
 
-工作台还没有入口。命令行是 `sw`。
+工作台还没有入口。命令行是 `sr`。工作台快照里的 `rolling_status.done` 只看当前 version 有没有 `rolling/report.json`；设置指纹对不上这个 version 时，界面把它当成未执行。

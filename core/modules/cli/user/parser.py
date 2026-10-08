@@ -178,7 +178,7 @@ class UserParser:
             sub,
             "strategy_simulate",
             aliases=UserCommands.aliases_for("strategy_simulate"),
-            help="完整模拟链路（price → portfolio）",
+            help="一次跑完枚举、价格和资金回测",
         )
         UserParser._add_strategy_target(p)
 

@@ -9,7 +9,9 @@ import './style.scss';
 function StrategyDesignReportPanel() {
   const wb = useStrategyDesignWorkbenchContext();
   const { session } = useStrategyDesignSession();
-  const showAttrTabs = Boolean(wb.attributeVisible);
+  const showAttrTabs = Boolean(
+    wb.isAppliedSettings && (wb.attributeLastGroupId || wb.attributeBusy),
+  );
   const viewTab = showAttrTabs && wb.reportViewTab === 'attribute' ? 'attribute' : 'backtest';
 
   const handleTabChange = useCallback((_event, next) => {

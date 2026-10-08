@@ -59,9 +59,6 @@ class AttributionGroupStore:
             existing = cls.find_for_version(root, fp, parent)
             if existing:
                 return existing
-            claimed = cls._claim_unstamped(root, fp, parent)
-            if claimed:
-                return claimed
             group_id = cls._allocate(root, fp, parent)
         else:
             existing = cls.find(root, fp)
@@ -123,45 +120,44 @@ class AttributionGroupStore:
             if stored == parent:
                 cls._remember(root, child.name, env_fp, parent)
                 return child.name
-            if stored:
-                continue
-            if parent in _report_baselines(child):
-                cls._remember(root, child.name, env_fp, parent)
-                return child.name
         return None
 
     @classmethod
-    def _claim_unstamped(cls, root: Path, env_fp: str, parent: str) -> Optional[str]:
-        """还没有版本锚点、报告也不属于别的版本的组，归到这次的策略版本。"""
-        if not root.is_dir():
-            return None
-        for child in sorted(root.iterdir(), key=_dir_sort_key):
-            if not child.is_dir() or not child.name.isdigit():
+    def delete_for_version(
+        cls,
+        attribution_root: Path,
+        parent_version_id: str,
+    ) -> List[str]:
+        """删掉锚定在这个策略版本上的归因组。其它版本的组留下。"""
+        parent = str(parent_version_id or "").strip()
+        root = Path(attribution_root)
+        if not parent or not root.is_dir():
+            return []
+        meta = cls._read_meta(root)
+        registry = dict(meta.get("registry") or {}) if isinstance(meta.get("registry"), dict) else {}
+        doomed: List[str] = []
+        for gid, entry in registry.items():
+            if not isinstance(entry, dict):
+                continue
+            if str(entry.get("parent_version_id") or "").strip() == parent:
+                doomed.append(str(gid).strip())
+        for child in root.iterdir():
+            if not child.is_dir() or not child.name.isdigit() or child.name in doomed:
                 continue
             payload = _read_json(child / GROUP_META_FILE)
-            meta = cls._read_meta(root)
-            registry = meta.get("registry") if isinstance(meta.get("registry"), dict) else {}
-            entry = registry.get(child.name) if isinstance(registry, dict) else None
-            env = str(
-                (payload.get("env_fp") if payload else "")
-                or (entry.get("env_fp") if isinstance(entry, dict) else "")
-                or ""
-            ).strip()
-            if env != env_fp:
-                continue
-            stored = str(
-                (payload.get("parent_version_id") if payload else "")
-                or (entry.get("parent_version_id") if isinstance(entry, dict) else "")
-                or ""
-            ).strip()
-            if stored:
-                continue
-            baselines = _report_baselines(child)
-            if baselines and parent not in baselines:
-                continue
-            cls._remember(root, child.name, env_fp, parent)
-            return child.name
-        return None
+            if str(payload.get("parent_version_id") or "").strip() == parent:
+                doomed.append(child.name)
+        deleted: List[str] = []
+        for gid in doomed:
+            registry.pop(gid, None)
+            path = root / gid
+            if path.is_dir():
+                shutil.rmtree(path)
+            deleted.append(gid)
+        if deleted:
+            meta["registry"] = registry
+            _write_json(root / ROOT_META_FILE, meta)
+        return deleted
 
     @classmethod
     def _allocate(cls, root: Path, env_fp: str, parent_version_id: str = "") -> str:
@@ -365,20 +361,6 @@ def _registry_ids(meta: Mapping[str, Any]) -> Set[str]:
     if not isinstance(registry, dict):
         return set()
     return {str(key).strip() for key in registry if str(key).strip()}
-
-
-def _report_baselines(group_dir: Path) -> Set[str]:
-    found: Set[str] = set()
-    if not group_dir.is_dir():
-        return found
-    for child in group_dir.iterdir():
-        if not child.is_dir():
-            continue
-        payload = _read_json(child / "report.json")
-        baseline = str(payload.get("baseline_version_id") or "").strip()
-        if baseline:
-            found.add(baseline)
-    return found
 
 
 def _dir_sort_key(path: Path):

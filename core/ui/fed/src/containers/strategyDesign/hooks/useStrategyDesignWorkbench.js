@@ -529,6 +529,7 @@ export function useStrategyDesignWorkbench() {
     executionBusy,
     stepStatus: session.executionState?.stepStatus || {},
     versionId: appliedVersionId,
+    settingsApplied: isAppliedSettings,
   });
 
   const panelBusy = Boolean(executionBusy || attribution.attributeBusy);
@@ -875,6 +876,9 @@ export function useStrategyDesignWorkbench() {
     isEnabled: Boolean(draftSettings?.is_enabled ?? initialSettings?.is_enabled),
     currentVersionDisplay,
     isAppliedSettings,
+    rollingDone: Boolean(
+      isAppliedSettings && session.workbenchSnapshot?.rollingStatus?.done,
+    ),
     envInvalid,
     capsuleStatus,
     hasPersistedSnapshot,

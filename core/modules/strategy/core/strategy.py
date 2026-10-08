@@ -827,7 +827,7 @@ class Strategy:
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """枚举层归因（CLI ``sea``）。须已有主 version；对照格写 ``{vid}-{r}`` 副本。"""
+        """枚举层归因（CLI ``sea``）。须已有主 version；对照格写 ``{vid}-attr{n}`` 副本。"""
         from .engines.analyzer import Analyzer
 
         return Analyzer.attribute_enumerate(key_or_id, ignore_cache=ignore_cache)
@@ -981,7 +981,7 @@ class Strategy:
         key_or_id: str,
         version: Union[int, str],
     ) -> Dict[str, Any]:
-        """删除单个策略的一份 simulation version（目录 + registry）。
+        """删除一个主 version，以及挂在它身上的归因副本、滚动窗口和归因组。
 
         不改 ``settings.py``。``version`` 接受 ``3`` / ``v3``。
         """
@@ -998,7 +998,18 @@ class Strategy:
                 "error": "version_id 无效",
                 "deleted": False,
             }
-        return ArtifactRetention.clear_by_version(key_or_id, sid)
+        out = ArtifactRetention.clear_by_version(key_or_id, sid)
+        if out.get("ok"):
+            from core.infra.project_context import ProjectContext
+            from core.modules.strategy.core.engines.analyzer.steps.campaign.persist.groups import (
+                AttributionGroupStore,
+            )
+            from core.modules.strategy.core.services.discovery import DiscoveryService
+
+            folder = DiscoveryService.resolve_strategy_folder(key_or_id)
+            attr_root = ProjectContext.path.get_strategy_attribution_directory(folder)
+            AttributionGroupStore.delete_for_version(attr_root, str(sid))
+        return out
 
     @staticmethod
     def export_package(

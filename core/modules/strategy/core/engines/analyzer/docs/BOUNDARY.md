@@ -22,7 +22,7 @@
 | ``steps/campaign/report/`` | 报告步：``CampaignReportStep.for_layer`` + ``CampaignPresenter`` |
 | ``steps/campaign/persist/`` | 落盘步：``PersistStep.for_layer`` + ``AttributionGroupStore`` |
 
-Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-{r}``。
+Analyzer 担任归因职责。公开入口按层：``attribute_enumerate`` / ``attribute_price`` / ``attribute_portfolio``（CLI ``sea`` / ``spa`` / ``soa``）。须已有主 version；对照格写副本 ``{vid}-attr{n}``。
 
 **口径：** 三入口共用同一套「如果」副本身份与同一套管线（解析取值 → 补本层产物 → gather → summarize → report）。CLI 只决定懒执行深度与因变量。见 [CONCEPTS.md](../../../../docs/CONCEPTS.md)。单 version 的 prepare / analyze / report / layer 已删除。
 

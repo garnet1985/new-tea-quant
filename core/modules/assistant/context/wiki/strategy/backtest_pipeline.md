@@ -69,7 +69,7 @@ NTQ 的核心设计：回测拆成四步，每步独立产出报告。三步串�
 | 第二步    | `cli.py strategy_price_factor` | `sp` |
 | 第三步    | `cli.py strategy_portfolio`    | `so` |
 | 第四步    | `cli.py strategy_decision`     | `sd` |
-| 价格因子→组合 | `cli.py strategy_simulate`     | `s`  |
+| 枚举→价格→资金 | `cli.py strategy_simulate`     | `sim` |
 | 扫描实时行情 | `cli.py scan`                  | `c`  |
 
 ## 执行模式

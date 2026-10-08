@@ -65,23 +65,14 @@ def test_resolve_keeps_a_group_per_strategy_version(tmp_path) -> None:
     assert AttributionGroupStore.find_for_version(root, "env-a", "1") == "1"
 
 
-def test_legacy_report_baseline_matches_its_version(tmp_path) -> None:
-    root = tmp_path / "attribution" / "1" / "price"
-    root.mkdir(parents=True)
-    (root / "report.json").write_text(
-        '{"baseline_version_id": "1"}',
-        encoding="utf-8",
-    )
-    (root.parent / "group_meta.json").write_text(
-        '{"env_fp": "env-a", "group_id": "1"}',
-        encoding="utf-8",
-    )
-    attr = root.parent.parent
-    assert AttributionGroupStore.find_for_version(attr, "env-a", "1") == "1"
-    assert AttributionGroupStore.find_for_version(attr, "env-a", "2") is None
-    fresh = AttributionGroupStore.resolve(attr, "env-a", parent_version_id="2")
-    assert fresh == "2"
-    assert AttributionGroupStore.find_for_version(attr, "env-a", "1") == "1"
+def test_delete_for_version_keeps_other_versions(tmp_path) -> None:
+    root = tmp_path / "attribution"
+    AttributionGroupStore.resolve(root, "env-a", parent_version_id="1")
+    AttributionGroupStore.resolve(root, "env-a", parent_version_id="2")
+    removed = AttributionGroupStore.delete_for_version(root, "1")
+    assert removed == ["1"]
+    assert AttributionGroupStore.find_for_version(root, "env-a", "1") is None
+    assert AttributionGroupStore.find_for_version(root, "env-a", "2") == "2"
 
 
 def test_record_version_skips_empty_id(tmp_path) -> None:

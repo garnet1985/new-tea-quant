@@ -14,6 +14,17 @@ import './style.scss';
 const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
 const ROLLING_IDLE_TOOLTIP = '请先完成枚举、价格和资金回测。需要在策略目录配置 rolling.py 才能滚动测试。';
 
+function disabledTip(button, howTo) {
+  if (!button || !howTo) return button;
+  return (
+    <Tooltip title={howTo} placement="top">
+      <span className="ntq-design-exec-panel__attr-tip-wrap">
+        {button}
+      </span>
+    </Tooltip>
+  );
+}
+
 function resolveExecutionStatusCopy({
   activeStep,
   stepStatus,
@@ -185,13 +196,7 @@ function StrategyDesignExecutionPanel() {
     </RainbowButton>
   ) : null;
 
-  const attributeControl = attributeButton && attributeHowTo ? (
-    <Tooltip title={attributeHowTo} placement="top">
-      <span className="ntq-design-exec-panel__attr-tip-wrap">
-        {attributeButton}
-      </span>
-    </Tooltip>
-  ) : attributeButton;
+  const attributeControl = disabledTip(attributeButton, attributeHowTo);
 
   const showRollingButton = wb.activeStep === 'portfolio';
   const rollingHowTo = !wb.rollingEnabled
@@ -210,13 +215,7 @@ function StrategyDesignExecutionPanel() {
       {rollingDone ? '重新滚动' : '滚动测试'}
     </RainbowButton>
   ) : null;
-  const rollingControl = rollingButton && rollingHowTo ? (
-    <Tooltip title={rollingHowTo} placement="top">
-      <span className="ntq-design-exec-panel__attr-tip-wrap">
-        {rollingButton}
-      </span>
-    </Tooltip>
-  ) : rollingButton;
+  const rollingControl = disabledTip(rollingButton, rollingHowTo);
 
   return (
     <Box className="ntq-design-exec-panel" data-ntq-help="design-execution">

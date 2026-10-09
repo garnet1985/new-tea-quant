@@ -61,7 +61,7 @@ class RollingPipeline:
             raise ValueError(f"当前策略不存在或未启用: {key_or_id}")
         folder = DiscoveryService.resolve_strategy_folder(str(key_or_id))
         windows = load_rolling_windows(folder, strategy_key=strategy_info.key)
-        baseline_fp = _fingerprints(strategy_info, None)
+        baseline_fp = fingerprints_for_settings(strategy_info, None)
         root = ArtifactStore.simulations_root(folder)
         parent = _require_finished_primary(root, baseline_fp)
         baseline_start, baseline_end = _baseline_period(root, parent, strategy_info)
@@ -139,7 +139,7 @@ class RollingPipeline:
                 }
             }
         }
-        fp_res = _fingerprints(strategy_info, runtime)
+        fp_res = fingerprints_for_settings(strategy_info, runtime)
         label = f"{window['start']}-{window['end']}"
         if (
             str(fp_res.execute_fp or "") == str(baseline_fp.execute_fp or "")
@@ -184,7 +184,7 @@ class RollingPipeline:
                 version_id=version_id,
                 upstream_version_id=version_id,
             )
-        missing = _missing_steps(root, version_id)
+        missing = missing_backtest_steps(root, version_id)
         if missing:
             names = "、".join(_LAYER_LABEL[kind] for kind in missing)
             raise ValueError(f"滚动窗口 {version_id} 没有完成{names}。")
@@ -202,7 +202,7 @@ def _require_finished_primary(root: Path, fp_res: FingerprintResult) -> str:
             "滚动对照需要当前 settings 已经完成枚举、价格和资金回测。"
             "请先跑完这三步。"
         )
-    missing = _missing_steps(root, parent)
+    missing = missing_backtest_steps(root, parent)
     if missing:
         names = "、".join(_LAYER_LABEL[kind] for kind in missing)
         raise ValueError(
@@ -212,7 +212,8 @@ def _require_finished_primary(root: Path, fp_res: FingerprintResult) -> str:
     return parent
 
 
-def _missing_steps(root: Path, version_id: str) -> Tuple[SimulateKind, ...]:
+def missing_backtest_steps(root: Path, version_id: str) -> Tuple[SimulateKind, ...]:
+    """枚举、价格、资金里还没完成的层。"""
     return tuple(
         kind
         for kind in _REQUIRED
@@ -234,10 +235,11 @@ def _baseline_period(
     return usable.start_date, usable.end_date
 
 
-def _fingerprints(
+def fingerprints_for_settings(
     strategy_info: EnabledStrategyInfo,
     runtime_settings: Optional[Dict[str, Any]],
 ) -> FingerprintResult:
+    """当前策略加上可选的运行时覆盖，算出执行指纹和环境指纹。"""
     stock_list = GlobalEntityCache.get_stock_list()
     merged, _diff = FingerprintCalculator.merge_settings(strategy_info, runtime_settings)
     usable = StrategySettings.to_usable(merged)

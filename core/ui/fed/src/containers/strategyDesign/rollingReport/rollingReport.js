@@ -18,29 +18,29 @@ const LAYERS = [
     key: 'enum',
     title: '枚举',
     columns: [
-      ['total_opportunities', '机会数', 'count', true],
-      ['trigger_stocks', '触发股票数', 'count', true],
-      ['cv', '时间分散', 'number', true],
+      { key: 'total_opportunities', label: '机会数', style: 'count', delta: true },
+      { key: 'trigger_stocks', label: '触发股票数', style: 'count', delta: true },
+      { key: 'cv', label: '时间分散', style: 'number', delta: true },
     ],
   },
   {
     key: 'price',
     title: '价格',
     columns: [
-      ['win_rate', '胜率', 'percent', true],
-      ['avg_roi', '平均收益率', 'ratio', true],
-      ['top5_trade_profit_share', '前5笔利润占比', 'ratio', true],
+      { key: 'win_rate', label: '胜率', style: 'percent', delta: true },
+      { key: 'avg_roi', label: '平均收益率', style: 'ratio', delta: true },
+      { key: 'top5_trade_profit_share', label: '前5笔利润占比', style: 'ratio', delta: true },
     ],
   },
   {
     key: 'portfolio',
     title: '资金',
     columns: [
-      ['max_drawdown', '最大回撤', 'ratio', true],
-      ['sharpe_ratio', '夏普', 'number', true],
-      ['sortino_ratio', 'Sortino', 'number', true],
-      ['calmar_ratio', 'Calmar', 'number', true],
-      ['total_return', '账户收益', 'ratio', false],
+      { key: 'max_drawdown', label: '最大回撤', style: 'ratio', delta: true },
+      { key: 'sharpe_ratio', label: '夏普', style: 'number', delta: true },
+      { key: 'sortino_ratio', label: 'Sortino', style: 'number', delta: true },
+      { key: 'calmar_ratio', label: 'Calmar', style: 'number', delta: true },
+      { key: 'total_return', label: '账户收益', style: 'ratio', delta: false },
     ],
   },
 ];
@@ -80,7 +80,13 @@ function reportRows(payload) {
   return baseline ? [baseline, ...windows] : windows;
 }
 
-function MetricTable({ title, columns, rows }) {
+function layerCells(row, layerKey) {
+  const layers = row?.layers && typeof row.layers === 'object' ? row.layers : {};
+  const block = layers[layerKey];
+  return block && typeof block === 'object' ? block : {};
+}
+
+function MetricTable({ title, layerKey, columns, rows }) {
   return (
     <Box className="ntq-design-roll-report__block">
       <Typography variant="subtitle2" className="ntq-design-roll-report__title">
@@ -91,28 +97,32 @@ function MetricTable({ title, columns, rows }) {
           <TableHead>
             <TableRow>
               <TableCell>窗口</TableCell>
-              {columns.map(([, label]) => (
-                <TableCell key={label} align="right">{label}</TableCell>
+              {columns.map((column) => (
+                <TableCell key={column.key} align="right">{column.label}</TableCell>
               ))}
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={`${row.version_id || ''}-${row.label || ''}`}
-                className={row.is_baseline ? 'ntq-design-roll-report__row--baseline' : undefined}
-              >
-                <TableCell>{row.label || '—'}</TableCell>
-                {columns.map(([key, , style, includeDelta]) => {
-                  const cell = rowLayer(row, columns)?.[key];
-                  return (
-                    <TableCell key={key} align="right">
-                      {formatCell(cell, style, includeDelta && !row.is_baseline)}
+            {rows.map((row) => {
+              const cells = layerCells(row, layerKey);
+              return (
+                <TableRow
+                  key={`${layerKey}-${row.version_id || ''}-${row.label || ''}`}
+                  className={row.is_baseline ? 'ntq-design-roll-report__row--baseline' : undefined}
+                >
+                  <TableCell>{row.label || '—'}</TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column.key} align="right">
+                      {formatCell(
+                        cells[column.key],
+                        column.style,
+                        column.delta && !row.is_baseline,
+                      )}
                     </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
+                  ))}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </Box>
@@ -120,14 +130,9 @@ function MetricTable({ title, columns, rows }) {
   );
 }
 
-function rowLayer(row, columns) {
-  const layer = LAYERS.find((item) => item.columns === columns);
-  const layers = row?.layers && typeof row.layers === 'object' ? row.layers : {};
-  return layer ? layers[layer.key] || {} : {};
-}
-
 MetricTable.propTypes = {
   title: PropTypes.string.isRequired,
+  layerKey: PropTypes.string.isRequired,
   columns: PropTypes.array.isRequired,
   rows: PropTypes.array.isRequired,
 };
@@ -215,6 +220,7 @@ function StrategyDesignRollingReport({
         <MetricTable
           key={layer.key}
           title={layer.title}
+          layerKey={layer.key}
           columns={layer.columns}
           rows={rows}
         />

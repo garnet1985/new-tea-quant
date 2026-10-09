@@ -10,8 +10,8 @@ from core.modules.strategy.core.engines.rolling.config import (
     load_rolling_windows,
 )
 from core.modules.strategy.core.engines.rolling.pipeline import (
-    _fingerprints,
-    _missing_steps,
+    fingerprints_for_settings,
+    missing_backtest_steps,
 )
 from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
@@ -66,11 +66,7 @@ def describe_rolling_button(
 
 def probe(key_or_id: str) -> Dict[str, Any]:
     """按当前 settings 判断这一版能不能滚动测试。"""
-    name = str(key_or_id or "").strip()
-    strategy_info = DiscoveryService.find_strategy(name)
-    if strategy_info is None:
-        raise ValueError(f"当前策略不存在或未启用: {name}")
-    folder = DiscoveryService.resolve_strategy_folder(name)
+    strategy_info, folder = _open_strategy(key_or_id)
     config_state, window_count = _config_state(folder, strategy_info.key)
     parent, steps_ready = _finished_primary(strategy_info, folder)
     has_report = bool(parent) and _report_path(folder, parent).is_file()
@@ -85,11 +81,7 @@ def probe(key_or_id: str) -> Dict[str, Any]:
 
 def report_path_for(key_or_id: str) -> Path:
     """当前主 version 的滚动报告路径。没有完成的主 version 时拒绝。"""
-    name = str(key_or_id or "").strip()
-    strategy_info = DiscoveryService.find_strategy(name)
-    if strategy_info is None:
-        raise ValueError(f"当前策略不存在或未启用: {name}")
-    folder = DiscoveryService.resolve_strategy_folder(name)
+    strategy_info, folder = _open_strategy(key_or_id)
     parent, steps_ready = _finished_primary(strategy_info, folder)
     if not parent or not steps_ready:
         raise FileNotFoundError("当前 settings 还没有完成的三层回测，没有滚动报告。")
@@ -97,6 +89,15 @@ def report_path_for(key_or_id: str) -> Path:
     if not path.is_file():
         raise FileNotFoundError(f"还没有滚动报告: {path}")
     return path
+
+
+def _open_strategy(key_or_id: str) -> Tuple[Any, Path]:
+    """找到已启用策略及其目录。"""
+    name = str(key_or_id or "").strip()
+    strategy_info = DiscoveryService.find_strategy(name)
+    if strategy_info is None:
+        raise ValueError(f"当前策略不存在或未启用: {name}")
+    return strategy_info, DiscoveryService.resolve_strategy_folder(name)
 
 
 def _config_state(folder: Path, strategy_key: str) -> Tuple[str, int]:
@@ -112,7 +113,7 @@ def _config_state(folder: Path, strategy_key: str) -> Tuple[str, int]:
 
 def _finished_primary(strategy_info: Any, folder: Path) -> Tuple[str, bool]:
     try:
-        fp_res = _fingerprints(strategy_info, None)
+        fp_res = fingerprints_for_settings(strategy_info, None)
         root = ArtifactStore.simulations_root(folder)
         parent = str(
             VersionMetaStore.find_version_by_fingerprints(
@@ -124,7 +125,7 @@ def _finished_primary(strategy_info: Any, folder: Path) -> Tuple[str, bool]:
         ).strip()
         if not parent:
             return "", False
-        return parent, not _missing_steps(root, parent)
+        return parent, not missing_backtest_steps(root, parent)
     except (OSError, ValueError, TypeError, LookupError):
         logger.exception("rolling readiness probe failed strategy=%s", strategy_info.key)
         return "", False

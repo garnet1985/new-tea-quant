@@ -29,8 +29,9 @@ _STALE_AFTER_SEC = 30 * 60
 
 _STEPS: tuple[str, ...] = ("load", "dispatch", "execute", "report")
 
-# 战役归因专用名：须与 enum/price/portfolio 区分，避免嵌套 simulate 抢进度。
+# 战役归因、滚动对照专用名：须与 enum/price/portfolio 区分，避免嵌套 simulate 抢进度。
 ATTRIBUTE_PIPELINE = "attribute"
+ROLLING_PIPELINE = "rolling"
 
 _STEP_WEIGHTS: Dict[str, Dict[str, float]] = {
     "enum": {"load": 0.05, "dispatch": 0.03, "execute": 0.9, "report": 0.02},
@@ -42,6 +43,13 @@ _STEP_WEIGHTS: Dict[str, Dict[str, float]] = {
         "dispatch": 0.0,
         "execute": 0.85,
         "report": 0.10,
+    },
+    # 窗口里的枚举 / 价格 / 资金各记一次，不跟进单层内部进度。
+    ROLLING_PIPELINE: {
+        "load": 0.0,
+        "dispatch": 0.0,
+        "execute": 0.95,
+        "report": 0.05,
     },
 }
 
@@ -59,6 +67,12 @@ _STEP_LABELS_BY_PIPELINE: Dict[str, Dict[str, str]] = {
         "execute": "对照回测",
         "report": "归因与报告",
     },
+    ROLLING_PIPELINE: {
+        "load": "准备窗口",
+        "dispatch": "准备窗口",
+        "execute": "滚动对照",
+        "report": "写出报告",
+    },
 }
 
 _PIPELINE_LABELS: Dict[str, str] = {
@@ -66,6 +80,7 @@ _PIPELINE_LABELS: Dict[str, str] = {
     "price": "价格回测",
     "portfolio": "资金模拟",
     ATTRIBUTE_PIPELINE: "归因",
+    ROLLING_PIPELINE: "滚动对照",
 }
 
 _TERMINAL = frozenset({"completed", "failed", "cancelled"})
@@ -210,7 +225,13 @@ class PipelineProgress:
         self._recompute_pipeline_progress()
         self._save()
 
-    def tick_execute(self, done: int, total: int) -> None:
+    def tick_execute(
+        self,
+        done: int,
+        total: int,
+        *,
+        description: Optional[str] = None,
+    ) -> None:
         if self._status() in _TERMINAL:
             return
         cur = self._doc.get("step")
@@ -244,7 +265,8 @@ class PipelineProgress:
             old_pct = 0.0
         cur["progress"] = max(old_pct, new_pct)
         cur["counters"] = {"done": d, "total": t}
-        cur["description"] = self.step_description(
+        label = str(description or "").strip()
+        cur["description"] = label or self.step_description(
             "execute",
             pipeline_name=str(self._doc.get("pipeline_name") or ""),
         )
@@ -322,10 +344,16 @@ class PipelineProgress:
             cur.complete_step(step_name)
 
     @classmethod
-    def tick_execute_bound(cls, done: int, total: int) -> None:
+    def tick_execute_bound(
+        cls,
+        done: int,
+        total: int,
+        *,
+        description: Optional[str] = None,
+    ) -> None:
         cur = cls.current()
         if cur is not None:
-            cur.tick_execute(done, total)
+            cur.tick_execute(done, total, description=description)
 
     @classmethod
     def tick_from_run_progress(cls, progress: Any) -> None:

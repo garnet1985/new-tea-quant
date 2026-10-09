@@ -12,20 +12,39 @@ import RainbowButton from 'views/rainbowButton';
 import './style.scss';
 
 const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
+const ROLLING_IDLE_TOOLTIP = '请先完成枚举、价格和资金回测。需要在策略目录配置 rolling.py 才能滚动测试。';
 
 function resolveExecutionStatusCopy({
   activeStep,
   stepStatus,
   executionBusy,
   attributeBusy,
+  rollingBusy,
   runningStep,
   stepProgress,
   progressDetail,
   attributeProgressDetail,
   attributeProgressPct,
+  rollingProgressDetail,
+  rollingProgressPct,
 }) {
   const step = STRATEGY_DESIGN_STEPS.find((item) => item.key === activeStep);
   const stepLabel = step?.label || activeStep;
+
+  if (rollingBusy) {
+    const detailText = [
+      rollingProgressDetail?.label,
+      rollingProgressDetail?.stageLabel,
+      rollingProgressDetail?.counterText,
+    ].filter(Boolean).join(' · ');
+    const pct = Math.min(100, Math.max(0, Math.round(Number(rollingProgressPct ?? 0))));
+    return {
+      primary: '正在滚动对照',
+      secondary: detailText || (pct > 0 ? `进度 ${pct}%` : '准备中…'),
+      showProgress: true,
+      progress: pct,
+    };
+  }
 
   if (attributeBusy) {
     const detailText = [
@@ -98,6 +117,7 @@ function StrategyDesignExecutionPanel() {
 
   const currentStepDone = wb.stepStatus?.[wb.activeStep] === 'done';
   const attributeDone = Boolean(wb.attributeLastGroupId || wb.attributeReport);
+  const rollingDone = Boolean(wb.rollingHasReport);
   const panelBusy = Boolean(wb.panelBusy);
 
   const statusCopy = useMemo(
@@ -106,11 +126,14 @@ function StrategyDesignExecutionPanel() {
       stepStatus: wb.stepStatus,
       executionBusy: wb.executionBusy,
       attributeBusy: wb.attributeBusy,
+      rollingBusy: wb.rollingBusy,
       runningStep: wb.runningStep,
       stepProgress: wb.stepProgress,
       progressDetail: wb.progressDetail,
       attributeProgressDetail: wb.attributeProgressDetail,
       attributeProgressPct: wb.attributeProgressPct,
+      rollingProgressDetail: wb.rollingProgressDetail,
+      rollingProgressPct: wb.rollingProgressPct,
     }),
     [
       wb.activeStep,
@@ -119,6 +142,9 @@ function StrategyDesignExecutionPanel() {
       wb.attributeProgressPct,
       wb.executionBusy,
       wb.progressDetail,
+      wb.rollingBusy,
+      wb.rollingProgressDetail,
+      wb.rollingProgressPct,
       wb.runningStep,
       wb.stepProgress,
       wb.stepStatus,
@@ -167,6 +193,31 @@ function StrategyDesignExecutionPanel() {
     </Tooltip>
   ) : attributeButton;
 
+  const showRollingButton = wb.activeStep === 'portfolio';
+  const rollingHowTo = !wb.rollingEnabled
+    ? (wb.rollingTooltip || ROLLING_IDLE_TOOLTIP)
+    : '';
+  const rollingButton = showRollingButton ? (
+    <RainbowButton
+      shape="pill"
+      icon={rollingDone ? 'refresh' : 'play'}
+      shimmer
+      disabled={wb.disableMetaActions || panelBusy || !wb.rollingEnabled}
+      onClick={wb.handleRollingRun}
+      aria-label={rollingDone ? '重新滚动' : '滚动测试'}
+      data-ntq-help="start-rolling"
+    >
+      {rollingDone ? '重新滚动' : '滚动测试'}
+    </RainbowButton>
+  ) : null;
+  const rollingControl = rollingButton && rollingHowTo ? (
+    <Tooltip title={rollingHowTo} placement="top">
+      <span className="ntq-design-exec-panel__attr-tip-wrap">
+        {rollingButton}
+      </span>
+    </Tooltip>
+  ) : rollingButton;
+
   return (
     <Box className="ntq-design-exec-panel" data-ntq-help="design-execution">
       <Box className="ntq-design-exec-panel__title-row">
@@ -185,6 +236,11 @@ function StrategyDesignExecutionPanel() {
           {wb.attrError}
         </Typography>
       ) : null}
+      {wb.rollingError ? (
+        <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">
+          {wb.rollingError}
+        </Typography>
+      ) : null}
 
       <Box className="ntq-design-exec-panel__body">
         <Box className="ntq-design-exec-panel__actions">
@@ -200,6 +256,7 @@ function StrategyDesignExecutionPanel() {
             {currentStepDone ? '重新模拟' : '开始模拟'}
           </RainbowButton>
           {attributeControl}
+          {rollingControl}
           {prevStep ? (
             <RainbowButton
               shape="pill"

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from core.modules.strategy.core.engines.rolling.config import load_rolling_windows
 from core.modules.strategy.core.engines.rolling.report import (
@@ -29,6 +29,7 @@ from core.modules.strategy.core.services.entity_loader.sample_list_resolver impo
     SampleListResolver,
 )
 from core.modules.strategy.core.services.fingerprint import FingerprintCalculator, FingerprintResult
+from core.modules.strategy.core.services.progress import PipelineProgress
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,18 @@ class RollingPipeline:
         baseline_start, baseline_end = _baseline_period(root, parent, strategy_info)
         baseline_metrics = load_version_metrics(folder, parent)
 
+        total = len(windows) * 3
+        done = 0
+
+        def tick(text: str, steps: int = 1) -> None:
+            nonlocal done
+            done += steps
+            PipelineProgress.tick_execute_bound(
+                min(done, total),
+                total,
+                description=text,
+            )
+
         rows: List[Dict[str, Any]] = []
         for window in windows:
             version_id = cls._run_window(
@@ -75,6 +88,7 @@ class RollingPipeline:
                 baseline_fp,
                 window,
                 ignore_cache=ignore_cache,
+                on_step=tick,
             )
             rows.append(
                 compare_window(
@@ -112,6 +126,7 @@ class RollingPipeline:
         window: Dict[str, str],
         *,
         ignore_cache: bool,
+        on_step: Optional[Callable[[str, int], None]] = None,
     ) -> str:
         from core.modules.strategy.core.strategy import Strategy
 
@@ -125,10 +140,13 @@ class RollingPipeline:
             }
         }
         fp_res = _fingerprints(strategy_info, runtime)
+        label = f"{window['start']}-{window['end']}"
         if (
             str(fp_res.execute_fp or "") == str(baseline_fp.execute_fp or "")
             and str(fp_res.env_fp or "") == str(baseline_fp.env_fp or "")
         ):
+            if on_step is not None:
+                on_step(f"{label} 与基准相同", 3)
             return parent
         version_id = VersionMetaStore.allocate_rolling_id(
             root,
@@ -143,6 +161,8 @@ class RollingPipeline:
             window["end"],
             ignore_cache,
         )
+        if on_step is not None:
+            on_step(f"{label} 枚举")
         Strategy.simulate(
             strategy_key,
             kind=SimulateKind.ENUMERATE,
@@ -150,7 +170,12 @@ class RollingPipeline:
             runtime_settings=runtime,
             version_id=version_id,
         )
-        for kind in (SimulateKind.PRICE_FACTOR, SimulateKind.PORTFOLIO):
+        for kind, layer_name in (
+            (SimulateKind.PRICE_FACTOR, "价格"),
+            (SimulateKind.PORTFOLIO, "资金"),
+        ):
+            if on_step is not None:
+                on_step(f"{label} {layer_name}")
             Strategy.simulate(
                 strategy_key,
                 kind=kind,

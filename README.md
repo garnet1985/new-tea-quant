@@ -525,10 +525,11 @@ NTQ 自带以下演示资产：
 python cli.py se --strategy rsi_v1   # 机会枚举
 python cli.py sp --strategy rsi_v1   # 价格层
 python cli.py so --strategy rsi_v1   # 资金层
-python cli.py s  --strategy rsi_v1   # 三层一次跑完
+python cli.py sim --strategy rsi_v1   # 三层一次跑完
 python cli.py sea --strategy rsi_v1  # 枚举层归因（须先 se；读 attribution.py）
 python cli.py spa --strategy rsi_v1  # 价格层归因（须先 sp）
 python cli.py soa --strategy rsi_v1  # 组合层归因（须先 so）
+python cli.py sr  --strategy rsi_v1   # 滚动对照（须先完成三层；读 rolling.py）
 python cli.py c  --strategy rsi_v1   # 全市场扫描
 python cli.py t  --scenario market_cap_tier   # 特征标签
 ```

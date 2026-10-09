@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -28,6 +29,15 @@ from core.modules.strategy.core.services.artifacts.consts import (
 from core.system import get_version
 
 _ROOT_META = "meta.json"
+_ATTR_VERSION_ID = re.compile(r"^(\d+)-attr([1-9]\d*)$")
+_ROLL_VERSION_ID = re.compile(r"^(\d+)-roll([1-9]\d*)$")
+
+
+def _tagged_index(version_id: str, pattern: "re.Pattern[str]") -> int:
+    match = pattern.match(str(version_id or "").strip())
+    if match is None:
+        return 0
+    return int(match.group(2))
 _DOWNSTREAM_KINDS: Dict[SimulateKind, Tuple[SimulateKind, ...]] = {
     SimulateKind.ENUMERATE: (SimulateKind.PRICE_FACTOR, SimulateKind.PORTFOLIO),
     SimulateKind.PRICE_FACTOR: (SimulateKind.PORTFOLIO,),
@@ -430,7 +440,7 @@ class VersionMetaStore:
         execute_fp: str,
         env_fp: str,
     ) -> Optional[str]:
-        """只查主 version（整数号）。归因副本 ``{vid}-{r}`` 不参与回测命中。"""
+        """只查主 version（整数号）。归因副本 ``{vid}-attr{n}`` 不参与回测命中。"""
         execute = str(execute_fp or "").strip()
         efp = str(env_fp or "").strip()
         if not execute or not efp:
@@ -463,20 +473,18 @@ class VersionMetaStore:
 
     @classmethod
     def is_replica_version_id(cls, version_id: str) -> bool:
-        text = str(version_id or "").strip()
-        if not text or "-" not in text:
-            return False
-        parent, _, rest = text.partition("-")
-        return parent.isdigit() and rest.isdigit() and int(rest) > 0
+        """归因副本号：``{主号}-attr{n}``，n 从 1 起。"""
+        return _ATTR_VERSION_ID.match(str(version_id or "").strip()) is not None
 
     @classmethod
     def parent_version_id(cls, version_id: str) -> Optional[str]:
         text = str(version_id or "").strip()
         if cls.is_primary_version_id(text):
             return text
-        if not cls.is_replica_version_id(text):
+        match = _ATTR_VERSION_ID.match(text)
+        if match is None:
             return None
-        return text.partition("-")[0]
+        return match.group(1)
 
     @classmethod
     def require_primary_version(
@@ -537,7 +545,7 @@ class VersionMetaStore:
                 matches.append(key)
         if not matches:
             return None
-        return sorted(matches, key=lambda x: int(x.partition("-")[2]))[-1]
+        return sorted(matches, key=lambda item: _tagged_index(item, _ATTR_VERSION_ID))[-1]
 
     @classmethod
     def allocate_replica_id(
@@ -548,7 +556,7 @@ class VersionMetaStore:
         execute_fp: str,
         env_fp: str,
     ) -> str:
-        """同一主号下按指纹复用副本，否则分配下一个 ``{vid}-{r}``。不 bump next_version_id。"""
+        """同一主号下按指纹复用副本，否则分配下一个 ``{vid}-attr{n}``。不 bump next_version_id。"""
         parent = str(parent_version_id or "").strip()
         if not cls.is_primary_version_id(parent):
             raise ValueError(f"parent_version_id 须为主 version 整数号，收到 {parent!r}")
@@ -558,27 +566,10 @@ class VersionMetaStore:
         if existing:
             return existing
         root_meta = cls.read_root_meta(simulations_root)
-        max_r = 0
-        prefix = f"{parent}-"
-        for vid in cls._registry(root_meta):
-            key = str(vid).strip()
-            if not key.startswith(prefix):
-                continue
-            rest = key[len(prefix) :]
-            if rest.isdigit():
-                max_r = max(max_r, int(rest))
-        root = Path(simulations_root)
-        if root.is_dir():
-            for child in root.iterdir():
-                if not child.is_dir():
-                    continue
-                key = child.name
-                if not key.startswith(prefix):
-                    continue
-                rest = key[len(prefix) :]
-                if rest.isdigit():
-                    max_r = max(max_r, int(rest))
-        replica = f"{parent}-{max_r + 1}"
+        max_r = cls._max_tagged_index(
+            simulations_root, parent, root_meta, _ATTR_VERSION_ID
+        )
+        replica = f"{parent}-attr{max_r + 1}"
         entry = cls.ensure_registry_entry(simulations_root, replica)
         root_meta = cls.read_root_meta(simulations_root)
         registry = cls._registry(root_meta)
@@ -593,6 +584,144 @@ class VersionMetaStore:
         root_meta["registry"] = registry
         cls.write_root_meta(simulations_root, root_meta)
         return replica
+
+    @classmethod
+    def is_rolling_version_id(cls, version_id: str) -> bool:
+        """滚动窗口号：``{主号}-roll{n}``，n 从 1 起。"""
+        return _ROLL_VERSION_ID.match(str(version_id or "").strip()) is not None
+
+    @classmethod
+    def rolling_parent_version_id(cls, version_id: str) -> Optional[str]:
+        """滚动窗口号的主版本。不是滚动号时返回 None。"""
+        match = _ROLL_VERSION_ID.match(str(version_id or "").strip())
+        if match is None:
+            return None
+        return match.group(1)
+
+    @classmethod
+    def bound_version_ids(
+        cls,
+        simulations_root: Path,
+        parent_version_id: str,
+    ) -> List[str]:
+        """挂在这个主号上的归因副本和滚动窗口。"""
+        parent = str(parent_version_id or "").strip()
+        if not cls.is_primary_version_id(parent):
+            return []
+        root = Path(simulations_root)
+        keys = [str(vid).strip() for vid in cls._registry(cls.read_root_meta(root))]
+        if root.is_dir():
+            keys.extend(child.name for child in root.iterdir() if child.is_dir())
+        found: List[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            attr_parent = cls.parent_version_id(key) if cls.is_replica_version_id(key) else None
+            roll_parent = cls.rolling_parent_version_id(key)
+            if attr_parent == parent or roll_parent == parent:
+                found.append(key)
+        return sorted(
+            found,
+            key=lambda item: (
+                0 if cls.is_replica_version_id(item) else 1,
+                _tagged_index(item, _ATTR_VERSION_ID)
+                or _tagged_index(item, _ROLL_VERSION_ID),
+            ),
+        )
+
+    @classmethod
+    def find_rolling_by_fingerprints(
+        cls,
+        simulations_root: Path,
+        parent_version_id: str,
+        execute_fp: str,
+        env_fp: str,
+    ) -> Optional[str]:
+        """同一主号下，按双指纹找已有滚动窗口号。"""
+        parent = str(parent_version_id or "").strip()
+        execute = str(execute_fp or "").strip()
+        efp = str(env_fp or "").strip()
+        if not parent or not execute or not efp:
+            return None
+        root_meta = cls.read_root_meta(simulations_root)
+        matches: List[str] = []
+        for vid, entry in cls._registry(root_meta).items():
+            key = str(vid).strip()
+            if cls.rolling_parent_version_id(key) != parent:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            if (
+                cls._entry_execute_fp(entry) == execute
+                and cls._entry_env_fp(entry) == efp
+            ):
+                matches.append(key)
+        if not matches:
+            return None
+        return sorted(matches, key=lambda item: _tagged_index(item, _ROLL_VERSION_ID))[-1]
+
+    @classmethod
+    def allocate_rolling_id(
+        cls,
+        simulations_root: Path,
+        parent_version_id: str,
+        *,
+        execute_fp: str,
+        env_fp: str,
+    ) -> str:
+        """同一主号下按指纹复用滚动窗口，否则分配下一个 ``{vid}-roll{n}``。
+
+        不占用主号，也不占用归因副本 ``{vid}-attr{n}``，不 bump ``next_version_id``。
+        """
+        parent = str(parent_version_id or "").strip()
+        if not cls.is_primary_version_id(parent):
+            raise ValueError(f"parent_version_id 须为主 version 整数号，收到 {parent!r}")
+        existing = cls.find_rolling_by_fingerprints(
+            simulations_root, parent, execute_fp, env_fp
+        )
+        if existing:
+            return existing
+        root_meta = cls.read_root_meta(simulations_root)
+        max_s = cls._max_tagged_index(
+            simulations_root, parent, root_meta, _ROLL_VERSION_ID
+        )
+        slot = f"{parent}-roll{max_s + 1}"
+        entry = cls.ensure_registry_entry(simulations_root, slot)
+        root_meta = cls.read_root_meta(simulations_root)
+        registry = cls._registry(root_meta)
+        entry = dict(registry.get(slot) or entry)
+        entry["parent_version_id"] = parent
+        entry["kind"] = "rolling"
+        if str(execute_fp or "").strip():
+            entry["execute_fp"] = str(execute_fp).strip()
+        if str(env_fp or "").strip():
+            entry["env_fp"] = str(env_fp).strip()
+        registry[slot] = entry
+        root_meta["registry"] = registry
+        cls.write_root_meta(simulations_root, root_meta)
+        return slot
+
+    @classmethod
+    def _max_tagged_index(
+        cls,
+        simulations_root: Path,
+        parent: str,
+        root_meta: Dict[str, Any],
+        pattern: "re.Pattern[str]",
+    ) -> int:
+        max_n = 0
+        keys = [str(vid).strip() for vid in cls._registry(root_meta)]
+        root = Path(simulations_root)
+        if root.is_dir():
+            keys.extend(child.name for child in root.iterdir() if child.is_dir())
+        for key in keys:
+            match = pattern.match(key)
+            if match is None or match.group(1) != parent:
+                continue
+            max_n = max(max_n, int(match.group(2)))
+        return max_n
 
     @classmethod
     def resolve_version(

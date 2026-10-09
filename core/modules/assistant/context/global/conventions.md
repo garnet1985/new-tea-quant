@@ -139,10 +139,11 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 | 缩写    | 全称                         | 用途       |
 | ----- | -------------------------- | -------- |
-| `s`   | strategy\_simulate         | 价格因子→组合（缺枚举才补跑） |
+| `sim` | strategy\_simulate         | 一次跑完枚举、价格、资金 |
 | `se`  | strategy\_enumerate        | 第一步：枚举   |
 | `sp`  | strategy\_price\_factor    | 第二步：价格因子 |
 | `so`  | strategy\_portfolio        | 第三步：组合模拟 |
+| `sr`  | strategy\_rolling          | 滚动对照（读 rolling.py，须先完成三层） |
 | `sd`  | strategy\_decision         | 第四步：决策者  |
 | `sdl` | strategy\_decision\_list   | 列出决策者会话  |
 | `sdd` | strategy\_decision\_delete | 删除决策者会话  |
@@ -158,7 +159,7 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 ### 易混命令
 
-- 跑回测用 `s` / `se` / `sp` / `so`。
+- 跑回测用 `sim` / `se` / `sp` / `so`。滚动对照是 `sr`。
 
 - `v` 只打印 NTQ 核心版本，不是策略回测 version 列表
 

@@ -502,62 +502,10 @@ class UserHandlers:
 
     @staticmethod
     def _run_strategy_simulate(args: argparse.Namespace) -> None:
-        """完整模拟链路：price_factor → portfolio（缺失枚举时各自会先补跑）。"""
-        import time
-
-        from core.modules.strategy import Strategy
-
-        strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
-        force = bool(getattr(args, "force", False))
-
-        print(f"{i('game')} 模拟链路 · PriceFactor → Portfolio …", flush=True)
-        print(f"  策略: {strategy_key}", flush=True)
-        if force:
-            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
-
-        t0 = time.perf_counter()
-        pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)
-        pf = (
-            pf_result.get("price")
-            if isinstance(pf_result.get("price"), dict)
-            else pf_result
-        )
-        if not (pf.get("success", True) if isinstance(pf, dict) else True):
-            print(f"  price_factor 失败: {pf}", flush=True)
-            raise SystemExit(1)
-        print(
-            f"  price_factor: success={pf.get('success') if isinstance(pf, dict) else True} "
-            f"version={pf.get('version_id') if isinstance(pf, dict) else None}",
-            flush=True,
-        )
-
-        po_result = Strategy.portfolio(strategy_key, ignore_cache=force)
-        po = (
-            po_result.get("portfolio")
-            if isinstance(po_result.get("portfolio"), dict)
-            else po_result
-        )
-        wall_sec = time.perf_counter() - t0
-        if isinstance(po, dict) and po.get("output_dir"):
-            try:
-                from pathlib import Path
-
-                from core.modules.strategy.contracts import SimulateKind
-
-                Strategy.present_report(SimulateKind.PORTFOLIO, Path(po["output_dir"]))
-            except Exception as exc:
-                print(f"  展示组合回测汇总失败: {exc}", flush=True)
-                logger.warning("展示组合回测汇总失败", exc_info=True)
-                print(f"  portfolio success: {po.get('success')}", flush=True)
-        else:
-            print(
-                f"  portfolio success: {po.get('success') if isinstance(po, dict) else False}",
-                flush=True,
-            )
-
-        print(f"  总耗时: {wall_sec:.2f}s", flush=True)
-        if not (po.get("success", True) if isinstance(po, dict) else True):
-            raise SystemExit(1)
+        """一次跑完枚举、价格和资金。任一层失败即停。"""
+        UserHandlers._run_strategy_enumerate(args)
+        UserHandlers._run_strategy_price_factor(args)
+        UserHandlers._run_strategy_portfolio(args)
 
     @staticmethod
     def _run_strategy_attribute(
@@ -605,7 +553,6 @@ class UserHandlers:
             raise SystemExit(1)
 
     @staticmethod
-    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
     def _run_strategy_rolling(args: argparse.Namespace) -> None:
         import time
 
@@ -614,11 +561,11 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print(f"{i('chart')} 滚动验证…", flush=True)
+        print(f"{i('chart')} 滚动对照…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
-        print("  配置: attribution.py → rolling（不进指纹）", flush=True)
+        print("  配置: rolling.py（不进指纹）", flush=True)
         if force:
-            print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
+            print("  --force: 忽略缓存，重跑各窗口", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.rolling(strategy_key, ignore_cache=force)
@@ -629,7 +576,6 @@ class UserHandlers:
         except Exception as exc:
             print(f"  展示滚动报告失败: {exc}", flush=True)
             logger.warning("展示滚动报告失败", exc_info=True)
-            print(f"  headline: {result.get('headline')}", flush=True)
             print(f"  report_path: {result.get('report_path')}", flush=True)
 
         print(f"  总耗时: {wall_sec:.2f}s", flush=True)

@@ -44,7 +44,7 @@
 
 - **类型：** `staticmethod`
 - **状态：** `beta`
-- **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）。只做回测，不写归因。主号由回测分配；`version_id` 可钉到主号或归因副本 `{vid}-{r}`。规则见 [docs/VERSIONING.md](./docs/VERSIONING.md)。
+- **描述：** 统一模拟入口（指纹 → 磁盘 `simulations/meta.json` registry → Pipeline）；`kind=full` 暂不支持（`ValueError`）。只做回测，不写归因。主号由回测分配；`version_id` 可钉到主号或归因副本 `{vid}-attr{n}`。规则见 [docs/VERSIONING.md](./docs/VERSIONING.md)。
 - **参数：**
   - `key_or_id`：策略标识（须已启用）
   - `kind`：`enum` / `price` / `portfolio`（或对应 `SimulateKind`）
@@ -126,7 +126,7 @@
 `Strategy.present_campaign(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 按层对照旋钮并归因。须已有当前 settings 对应的主 version（先 `se` / `sp` / `so`），否则拒绝。对照格写入副本 `{vid}-{r}`，不 bump `next_version_id`。报告写 `results/attribution/{n}/enum|price|portfolio/`。默认每次只改一个路径；`joint_sweep` 为指定轴的小矩阵。CLI：`sea` / `spa` / `soa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。运作见 `docs/CONCEPTS.md`。
+- **描述：** 读 `attribution.py` 按层对照旋钮并归因。须已有当前 settings 对应的主 version（先 `se` / `sp` / `so`），否则拒绝。对照格写入副本 `{vid}-attr{n}`，不 bump `next_version_id`。报告写 `results/attribution/{n}/enum|price|portfolio/`。默认每次只改一个路径；`joint_sweep` 为指定轴的小矩阵。CLI：`sea` / `spa` / `soa`（`-f` 即 `ignore_cache`）。勿 deep-import analyzer pipeline。运作见 `docs/CONCEPTS.md`。
 
 ### rolling / present_rolling
 
@@ -134,7 +134,7 @@
 `Strategy.present_rolling(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `attribution.py` 的 `rolling.windows` 对照声明窗口，默认每窗跑到 `portfolio`，写 `results/attribution/{n}/rolling/`。CLI `sw`（`-f` 即 `ignore_cache`）。不和参数战役混在一份报告里。
+- **描述：** 读 `rolling.py` 的窗口，用当前设置再跑枚举、价格和资金。须已有当前 settings 对应的主 version，且三层产物都在，否则拒绝。窗口写入 `{vid}-roll{n}`，不 bump `next_version_id`，不进版本列表。一份对照报告写 `results/simulations/{vid}/rolling/report.json`，只和该主 version 比差值。CLI `sr`（`-f` 即 `ignore_cache`）。一次跑完三层回测是 `sim`。
 
 ### resolve_simulation_output_dirs
 

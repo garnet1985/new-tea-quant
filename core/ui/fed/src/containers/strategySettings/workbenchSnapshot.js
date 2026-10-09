@@ -15,6 +15,7 @@ export function emptyWorkbenchSnapshot() {
     executeSettings: null,
     settingsRev: '',
     envInvalid: false,
+    rollingStatus: { done: false },
   };
 }
 
@@ -37,6 +38,9 @@ export function buildWorkbenchSnapshotFromVersionDetail(detail) {
     executeSettings: detail.execute_settings ?? null,
     settingsRev: String(detail.settings_rev || ''),
     envInvalid: Boolean(detail.env_invalid),
+    rollingStatus: detail.rolling_status && typeof detail.rolling_status === 'object'
+      ? { done: Boolean(detail.rolling_status.done) }
+      : { done: false },
   };
 }
 
@@ -61,5 +65,8 @@ export function buildWorkbenchSnapshotFromSettingsResponse(res) {
     executeSettings: res.execute_settings ?? null,
     settingsRev: String(res.settings_rev || ''),
     envInvalid: Boolean(res.env_invalid),
+    rollingStatus: res.rolling_status && typeof res.rolling_status === 'object'
+      ? { done: Boolean(res.rolling_status.done) }
+      : { done: false },
   };
 }

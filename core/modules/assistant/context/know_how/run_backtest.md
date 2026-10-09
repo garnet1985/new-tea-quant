@@ -15,19 +15,19 @@ summary: 用 CLI 跑枚举、价格因子、组合模拟（决策者是另一步
 ## 快速开始
 
 ```bash
-# 完整模拟链路：价格因子 → 组合（没有枚举结果时会先补跑枚举）
-python cli.py s
+# 一次跑完枚举、价格、资金
+python cli.py sim
 
 # 指定策略（用 meta.key，或磁盘相对路径）
-python cli.py s --strategy random_v1
+python cli.py sim --strategy random_v1
 
 # 忽略缓存，写入同一 version 目录
-python cli.py s -f
+python cli.py sim -f
 ```
 
-`s` 才是跑回测。报告在 `{strategy}/results/simulations/`，没有 `reports/`。
+`sim` 才是一次跑完三层回测。报告在 `{strategy}/results/simulations/`，没有 `reports/`。
 
-概念上的四步见 [回测四步流程](../wiki/strategy/backtest_pipeline.md)。CLI `s` **不包含**决策者（`sd`）。
+概念上的四步见 [回测四步流程](../wiki/strategy/backtest_pipeline.md)。CLI `sim` **不包含**决策者（`sd`）。
 
 ## 分步执行
 
@@ -36,7 +36,7 @@ python cli.py s -f
 | `python cli.py strategy_enumerate`    | `se` | 第一步：枚举机会 |
 | `python cli.py strategy_price_factor` | `sp` | 第二步：单笔模拟 |
 | `python cli.py strategy_portfolio`    | `so` | 第三步：组合模拟 |
-| `python cli.py strategy_simulate`     | `s`  | 价格因子 → 组合（缺枚举则先 se） |
+| `python cli.py strategy_simulate`     | `sim` | 枚举 → 价格 → 资金 |
 | `python cli.py strategy_decision`     | `sd` | 第四步：决策者回放 |
 
 ### 分步示例
@@ -91,8 +91,8 @@ sd 是决策者，基于已有枚举版本交互回放。
 
 | 场景              | 命令 |
 | --------------- | -------------------------------------------- |
-| 第一次跑策略          | `python cli.py s --strategy my_strategy`     |
-| 改了 settings 后重跑 | `python cli.py s -f --strategy my_strategy`  |
+| 第一次跑策略          | `python cli.py sim --strategy my_strategy`     |
+| 改了 settings 后重跑 | `python cli.py sim -f --strategy my_strategy`  |
 | 只想看有没有机会        | `python cli.py se --strategy my_strategy`    |
 | 删一个版本           | `python cli.py sdv --strategy my_strategy:3` |
 

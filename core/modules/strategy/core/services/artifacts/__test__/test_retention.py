@@ -131,6 +131,28 @@ def test_clear_by_version_success(mock_resolve, tmp_path: Path):
 
 
 @patch(_RESOLVE)
+def test_clear_by_version_removes_bound_copies(mock_resolve, tmp_path: Path):
+    strategy_folder = tmp_path / "strategy"
+    strategy_folder.mkdir()
+    root = strategy_folder / "results" / "simulations"
+    (root / "2").mkdir(parents=True)
+    VersionMetaStore.register_version(root, "2", execute_fp="base", env_fp="e")
+    VersionMetaStore.allocate_replica_id(root, "2", execute_fp="overlay", env_fp="e")
+    VersionMetaStore.allocate_rolling_id(root, "2", execute_fp="window", env_fp="e")
+    (root / "2-attr1").mkdir(parents=True, exist_ok=True)
+    (root / "2-roll1").mkdir(parents=True, exist_ok=True)
+    mock_resolve.return_value = strategy_folder
+
+    out = ArtifactRetention.clear_by_version("demo/x", 2)
+    assert out["ok"] is True
+    assert not (root / "2").exists()
+    assert not (root / "2-attr1").exists()
+    assert not (root / "2-roll1").exists()
+    assert VersionMetaStore.get_registry_entry(root, "2-attr1") is None
+    assert VersionMetaStore.get_registry_entry(root, "2-roll1") is None
+
+
+@patch(_RESOLVE)
 def test_clear_by_version_missing(mock_resolve, tmp_path: Path):
     strategy_folder = tmp_path / "strategy"
     strategy_folder.mkdir()

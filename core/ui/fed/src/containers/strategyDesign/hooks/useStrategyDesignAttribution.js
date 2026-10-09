@@ -32,6 +32,8 @@ export function useStrategyDesignAttribution({
   stepStatus = null,
   /** 当前策略版本。换版本后只显示这一版的归因。 */
   versionId = '',
+  /** 草稿指纹已离开当前版本时，归因回到未执行。恢复设置或版本后再显示。 */
+  settingsApplied = true,
 }) {
   const [status, setStatus] = useState(EMPTY_STATUS);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -75,6 +77,14 @@ export function useStrategyDesignAttribution({
   }, [strategyName]);
 
   const refreshStatus = useCallback(async () => {
+    if (!settingsApplied) {
+      setStatus({
+        ...EMPTY_STATUS,
+        tooltip: '设置已变更。恢复设置或版本后，这一版的归因才会再出现。',
+      });
+      setReport(null);
+      return;
+    }
     if (!strategyName || !ATTR_STEPS.has(activeStep) || isLoadingSettings) {
       setStatus(EMPTY_STATUS);
       setReport(null);
@@ -96,16 +106,17 @@ export function useStrategyDesignAttribution({
     } finally {
       setStatusLoading(false);
     }
-  }, [activeStep, isLoadingSettings, loadReport, strategyName]);
+  }, [activeStep, isLoadingSettings, loadReport, settingsApplied, strategyName]);
 
   useEffect(() => {
     setReport(null);
-    setStatus((prev) => ({ ...prev, last_group_id: '' }));
-  }, [versionId]);
+    setReportTab('backtest');
+    setStatus(EMPTY_STATUS);
+  }, [versionId, settingsApplied]);
 
   useEffect(() => {
     refreshStatus();
-  }, [refreshStatus, stepStatus?.[activeStep], versionId]);
+  }, [refreshStatus, stepStatus?.[activeStep], versionId, settingsApplied]);
 
   useEffect(() => {
     setReportTab('backtest');

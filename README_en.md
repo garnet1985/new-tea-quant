@@ -521,10 +521,11 @@ Layered backtest and scan (full list: `python cli.py -h`):
 python cli.py se --strategy rsi_v1   # Enumerate
 python cli.py sp --strategy rsi_v1   # Price layer
 python cli.py so --strategy rsi_v1   # Portfolio layer
-python cli.py s  --strategy rsi_v1   # All three layers
+python cli.py sim --strategy rsi_v1   # All three layers
 python cli.py sea --strategy rsi_v1  # Enumerate attribution (run se first; reads attribution.py)
 python cli.py spa --strategy rsi_v1  # Price attribution (run sp first)
 python cli.py soa --strategy rsi_v1  # Portfolio attribution (run so first)
+python cli.py sr  --strategy rsi_v1   # Rolling compare (run all three layers first; reads rolling.py)
 python cli.py c  --strategy rsi_v1   # Market scan
 python cli.py t  --scenario market_cap_tier   # Feature tags
 ```

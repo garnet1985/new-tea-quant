@@ -204,21 +204,33 @@ class DataSourceManager:
             suffix = "（样本）" if DataManager.sample_universe.is_active() else ""
             logger.info("从 DB 注入 stock_list 依赖：%s 只%s", len(rows), suffix)
 
+        need_sw = any(
+            "sw_industry" in mappings.get_depend_on_data_source_names(k)
+            for k in keys
+        )
+        if need_sw and "sw_industry" not in keys:
+            # 分类树已在 sys_sw_industry。单独 renew 日线/成分时不再重拉分类。
+            scheduler._dependency_cache["sw_industry"] = []
+            logger.info("sw_industry 不在本次执行中，下游读取已有分类表")
+
         handlers_for_topo = [by_key[k] for k in keys]
         if need_list and "stock_list" not in keys and "stock_list" in by_key:
             handlers_for_topo = [by_key["stock_list"]] + handlers_for_topo
+        if need_sw and "sw_industry" not in keys and "sw_industry" in by_key:
+            handlers_for_topo = [by_key["sw_industry"]] + handlers_for_topo
 
         sorted_all = scheduler._preprocess(handlers_for_topo)
         sorted_handlers = [h for h in sorted_all if h.get_key() in keys]
 
-        preserved_list = (
-            scheduler._dependency_cache.get("stock_list")
-            if need_list and "stock_list" not in keys
-            else None
-        )
+        preserved = {}
+        if need_list and "stock_list" not in keys:
+            preserved["stock_list"] = scheduler._dependency_cache.get("stock_list")
+        if need_sw and "sw_industry" not in keys:
+            preserved["sw_industry"] = scheduler._dependency_cache.get("sw_industry")
         scheduler._dependency_cache.clear()
-        if preserved_list is not None:
-            scheduler._dependency_cache["stock_list"] = preserved_list
+        for dep_name, dep_value in preserved.items():
+            if dep_value is not None:
+                scheduler._dependency_cache[dep_name] = dep_value
         scheduler._failed_data_sources.clear()
 
         total = len(sorted_handlers)

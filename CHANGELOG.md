@@ -13,6 +13,7 @@
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
 [] (已自动化)npm run build 产生UI资产
 [] (已自动化)检查是不是有py3.9不支持的格式
+[] (已自动化)Ruff lint
 [] (快捷命令)是否需要更新init data，`python devcli.py ex`
 [] (快捷命令)是否需要更新init userspace，`python devcli.py pu`
 [] 检查是不是正确配置了.gitignore
@@ -36,6 +37,7 @@
 
 ### v0.5.3 (TBD)
 
+- 股票行业改为申万 2021：`sys_sw_industry`（分类树）、`sys_sw_stock_industry_map`（当前成分）、`sys_sw_industry_kline`（一级行业日线，含申万 A 指）。不再使用 Tushare `stock_basic.industry` 和 `sys_industries` / `sys_stock_industry_map`。
 - 整理了命令行日志输出：针对用户的日志更加精简，针对开发者的则更加详细。
 - 增加了UI上的标签计算的可视化，现在标签无论是用来分类还是标记时间段，都可以非常直观的在UI上看到了
 - 增加了滚动回测功能，可以额外设置与主回测不同的单个或多个回测时间段用来验证策略是不是在回测时间段以外也同样有效

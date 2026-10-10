@@ -76,6 +76,6 @@ class NormalizationService:
 
         # 注意：调用方（BaseHandler）在 on_after_mapping 之后才会 apply_schema。
         # 此处不得裁剪到表字段，否则 hook 里拿不到 result_mapping 中的维度字段
-        #（如 stock_list 的 industry / board / area / market）。
+        #（如 stock_list 的 board / area / market）。
         return nh.build_normalized_payload(mapped_records)
 

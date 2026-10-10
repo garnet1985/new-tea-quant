@@ -279,7 +279,7 @@ DuckdbEngine（duckdb 时）
 | 模块 | 表 | 域 | 说明 |
 |------|-----|-----|------|
 | `kline_service` | klines + adj_factor_events；list + klines | 均 data | 同域，安全 |
-| `stock_service` | list + map + industries + klines | 均 data | 同域，安全 |
+| `stock_service` | list + 申万行业映射 + klines | 均 data | 同域，安全 |
 | `tag_service` | tag_value + tag_definition | 均 tag | 同域，安全 |
 | `adj_factor_events/model` 等 table model | 单表 + 偶发查 stock_list | 多在同域 | 逐文件核对 |
 

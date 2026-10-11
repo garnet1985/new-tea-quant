@@ -37,6 +37,12 @@ class SYS_DATA_KEY:
     STOCK_ADJ_FACTOR_EVENTLOG = "stock.adj_factor.eventlog" # 复权因子（per_entity）
     STOCK_MONEYFLOW_DAILY = "stock.moneyflow.daily" # 资金流向（per_entity）
     STOCK_ST_PERIODS = "stock.st_periods"           # ST/*ST 警示时段（per_entity）
+    STOCK_SW_INDUSTRY = "stock.sw_industry"         # 股票当前申万行业（per_entity）
+
+    # 申万行业
+    SW_INDUSTRY = "sw.industry"                     # 分类树（全局）
+    SW_INDUSTRY_LIST = "sw.industry.list"           # 一级行业 + 申万 A 指（全局）
+    SW_INDUSTRY_KLINE_DAILY = "sw.industry.kline.daily"  # 一级行业日线（per_entity）
     
     # Index 相关
     INDEX_LIST = "index.list"                    # 指数列表（全局）
@@ -53,6 +59,7 @@ class SYS_DATA_KEY:
     MACRO_PMI = "macro.pmi"                     # PMI数据
     MACRO_LPR = "macro.lpr"                     # LPR数据
     MACRO_SHIBOR = "macro.shibor"               # Shibor数据
+    MACRO_MONEY_SUPPLY = "macro.money_supply"   # 货币供应量
     
     # Tag
     TAG = "tag"                                 # 标签数据（全局）
@@ -70,6 +77,10 @@ class SYS_DATA_KEY:
             cls.STOCK_ADJ_FACTOR_EVENTLOG,
             cls.STOCK_MONEYFLOW_DAILY,
             cls.STOCK_ST_PERIODS,
+            cls.STOCK_SW_INDUSTRY,
+            cls.SW_INDUSTRY,
+            cls.SW_INDUSTRY_LIST,
+            cls.SW_INDUSTRY_KLINE_DAILY,
             cls.INDEX_LIST,
             cls.INDEX_KLINE_DAILY,
             cls.INDEX_WEIGHT_DAILY,
@@ -80,6 +91,7 @@ class SYS_DATA_KEY:
             cls.MACRO_PMI,
             cls.MACRO_LPR,
             cls.MACRO_SHIBOR,
+            cls.MACRO_MONEY_SUPPLY,
             cls.TAG,
         ]
 

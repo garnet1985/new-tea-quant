@@ -540,6 +540,13 @@ class DataManager:
         if not self._data_service:
             raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
         return self._data_service.index
+
+    @property
+    def sw(self):
+        """申万行业分类、成分和一级行业日线。"""
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service.sw
     
     @property
     def db_cache(self):

@@ -24,7 +24,7 @@
 - **状态：** `beta`
 - **描述：** CLI / 脚本统一 renew 入口
 - **参数：**
-  - `table_name`：绑定表名（如 `sys_stock_klines`）或 data source key；`None` = 全部已启用
+  - `table_name`：绑定表名（如 `sys_data_stock_klines`）或 data source key；`None` = 全部已启用
   - `force`：强制从默认起点重拉，跳过日缓存与 `renew_if_over_days`
 
 ### resolve_renew_target
@@ -85,7 +85,7 @@ from core.modules.data_source import DataSourceManager
 
 mgr = DataSourceManager()
 mgr.list_renew_targets()
-mgr.renew(table_name="sys_stock_klines")
+mgr.renew(table_name="sys_data_stock_klines")
 mgr.renew(table_name="stock_klines", force=True)
 ```
 

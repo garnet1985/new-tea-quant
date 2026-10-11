@@ -87,7 +87,7 @@ terms:
       - "用 max(as_of_date) 当 incremental 水位"
 
   last_calculated_end:
-    definition: "每实体上次成功算到的业务日（sys_tag_calc_progress / TagDataService）"
+    definition: "每实体上次成功算到的业务日（sys_meta_tag_calc_progress / TagDataService）"
     aliases:
       - "calc progress watermark"
     avoid:

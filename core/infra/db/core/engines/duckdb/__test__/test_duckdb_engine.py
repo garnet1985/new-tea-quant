@@ -25,7 +25,7 @@ def duckdb_engine():
     meta = EngineConfigMeta.from_raw_config(DUCKDB_CONFIG, is_verbose=False)
     engine = EngineFactory.create(meta)
     assert isinstance(engine, DuckdbEngine)
-    engine.rebuild_table_file_map(table_to_domain={"sys_stock_list": "data"})
+    engine.rebuild_table_file_map(table_to_domain={"sys_data_stock_list": "data"})
     with patch.object(engine.connector, "connect_all_domains"), patch.object(
         engine.connector, "close_all"
     ):
@@ -41,26 +41,26 @@ def duckdb_engine():
 
 
 def test_duckdb_engine_resolve_domain(duckdb_engine):
-    assert duckdb_engine.resolve_domain("sys_stock_list") == "data"
+    assert duckdb_engine.resolve_domain("sys_data_stock_list") == "data"
     with pytest.raises(KeyError):
         duckdb_engine.resolve_domain("unknown_table")
 
 
 def test_duckdb_engine_file_map_for_table(duckdb_engine):
-    fm = duckdb_engine.file_map_for_table("sys_stock_list")
+    fm = duckdb_engine.file_map_for_table("sys_data_stock_list")
     assert fm.domain == "data"
     assert fm.db_path == "data.duckdb"
 
 
 def test_duckdb_table_operator_cached(duckdb_engine):
-    a = duckdb_engine.table_operator("sys_stock_list")
-    b = duckdb_engine.table_operator("sys_stock_list")
+    a = duckdb_engine.table_operator("sys_data_stock_list")
+    b = duckdb_engine.table_operator("sys_data_stock_list")
     assert a is b
     assert isinstance(a, DuckdbTableOperator)
 
 
 def test_duckdb_insert_routes_to_pipeline(duckdb_engine):
-    op = duckdb_engine.table_operator("sys_stock_list")
+    op = duckdb_engine.table_operator("sys_data_stock_list")
     n = op.insert([{"id": "1"}], None)
     assert n == 2
     duckdb_engine._write_pipelines["data"].submit.assert_called()

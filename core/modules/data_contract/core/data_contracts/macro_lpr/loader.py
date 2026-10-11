@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class MacroLprLoader(BaseDataContractLoader):
-    """加载全局 sys_lpr（日度序列）。"""
+    """加载全局 sys_data_lpr（日度序列）。"""
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()

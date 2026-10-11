@@ -1,5 +1,5 @@
 """
-sys_tag_scenario 表 Model
+sys_data_tag_scenario 表 Model
 
 业务场景。
 """
@@ -9,7 +9,7 @@ from core.tables.tag.tag_scenario.schema import schema as _schema
 
 
 class SysTagScenarioModel(DbBaseModel):
-    """业务场景表 Model（表名 sys_tag_scenario）
+    """业务场景表 Model（表名 sys_data_tag_scenario）
 
     设计约定：
     - Model 层只提供“底层表访问 + 通用同步接口”，不承载具体业务规则

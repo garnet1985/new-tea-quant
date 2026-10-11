@@ -32,24 +32,24 @@
 
 ```python
 schema = {
-    "name": "sys_stock_klines",
+    "name": "sys_data_stock_klines",
     "storage_domain": "data",  # data | tag | strategy
     ...
 }
 ```
 
 - **唯一真相：** 路由、建表、备份以 `storage_domain` 为准，不以目录路径猜测。
-- **表名：** 仍全局唯一（`sys_*`），`get_table("sys_tag_value")` 签名不变。
+- **表名：** 仍全局唯一（`sys_*`），`get_table("sys_data_tag_value")` 签名不变。
 
 ### 2.2 缓存表（分散，不集中）
 
-废除全局单表 `sys_cache` 承载所有域的 KV。
+废除全局单表 `sys_cache_kv` 承载所有域的 KV。
 
 | 域 | 建议表名 | 典型 key / 用途 |
 |----|----------|-----------------|
-| data | `sys_data_cache` | `stock_list_last_update`、calendar 日缓存等 |
-| tag | `sys_tag_cache` | tag 批处理断点（若需要） |
-| strategy | `sys_strategy_cache` | 策略侧短效 KV（若需要；/workbench 主缓存仍是 snapshot 表） |
+| data | `sys_cache_data` | `stock_list_last_update`、calendar 日缓存等 |
+| tag | `sys_cache_tag` | tag 批处理断点（若需要） |
+| strategy | `sys_cache_strategy` | 策略侧短效 KV（若需要；/workbench 主缓存仍是 snapshot 表） |
 
 `sys_meta_info` 建议归属 **data**（系统级 JSON KV，量小）。
 
@@ -61,18 +61,18 @@ schema = {
 
 ### data（26 张）
 
-- **股票时序：** `sys_stock_klines`, `sys_stock_indicators`, `sys_adj_factor_events`, `sys_corporate_finance`, `sys_stock_st_periods`
-- **主数据与维度：** `sys_stock_list`, `sys_sw_industry`, `sys_sw_stock_industry_map`, `sys_sw_industry_kline`, `sys_boards`, `sys_markets`, `sys_areas`, `sys_stock_*_map`
-- **指数：** `sys_index_list`, `sys_index_klines`, `sys_index_weight`
-- **日历：** `sys_trade_calendar`
-- **宏观：** `sys_cpi`, `sys_ppi`, `sys_pmi`, `sys_gdp`, `sys_lpr`, `sys_shibor`, `sys_money_supply`
-- **系统：** `sys_meta_info`（建议）, `sys_data_cache`（新建，替代原 `sys_cache` 中 data 相关 key）
+- **股票时序：** `sys_data_stock_klines`, `sys_data_stock_indicators`, `sys_data_adj_factor_events`, `sys_data_corporate_finance`, `sys_data_stock_st_periods`
+- **主数据与维度：** `sys_data_stock_list`, `sys_data_sw_industry`, `sys_map_sw_stock_industry`, `sys_data_sw_industry_kline`, `sys_data_boards`, `sys_data_markets`, `sys_data_areas`, `sys_map_stock_*`
+- **指数：** `sys_data_index_list`, `sys_data_index_klines`, `sys_data_index_weight`
+- **日历：** `sys_data_trade_calendar`
+- **宏观：** `sys_data_cpi`, `sys_data_ppi`, `sys_data_pmi`, `sys_data_gdp`, `sys_data_lpr`, `sys_data_shibor`, `sys_data_money_supply`
+- **系统：** `sys_meta_info`，`sys_cache_kv`
 
 ### tag（3 张）
 
-- `sys_tag_scenario`, `sys_tag_definition`, `sys_tag_value`
-- `sys_tag_calc_progress`（增量 frontier；与 value 不同事实）
-- `sys_tag_cache`（新建，可选）
+- `sys_data_tag_scenario`, `sys_data_tag_definition`, `sys_data_tag_value`
+- `sys_meta_tag_calc_progress`（增量 frontier；与 value 不同事实）
+- `sys_cache_tag`（新建，可选）
 
 ### strategy（core + userspace 默认归此域）
 
@@ -82,7 +82,7 @@ schema = {
   - `sys_decision_session` — 会话主记录（策略名、区间、当前 simulation date、状态）
   - `sys_decision_step`（或按日拆分）— 用户每日仓位决策、权益/回撤曲线点
 - userspace `cust_*` 自定义表默认 **strategy**，除非 schema 显式声明
-- `sys_strategy_cache`（新建，可选）
+- `sys_cache_strategy`（新建，可选）
 
 **磁盘（userspace，与 workbench 并列）：**
 
@@ -163,15 +163,15 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 
 ### 4.3 跨域 JOIN
 
-- **同域内 JOIN**（如 `sys_stock_klines` + `sys_adj_factor_events`）：单库内 SQL，**支持**；与 MySQL 无差别。
-- **跨域读**（如 strategy 域 Model 读 `sys_stock_list`）：技术上 `ATTACH` + qualify（`data.main.sys_stock_list`）；由 duckdb engine **QueryPlanner** 在 `DbBaseModel.query` 路径上自动处理（扫描注册表名 → 映射 domain → ATTACH → qualify）。无法安全解析时 **fail fast**。
+- **同域内 JOIN**（如 `sys_data_stock_klines` + `sys_data_adj_factor_events`）：单库内 SQL，**支持**；与 MySQL 无差别。
+- **跨域读**（如 strategy 域 Model 读 `sys_data_stock_list`）：技术上 `ATTACH` + qualify（`data.main.sys_data_stock_list`）；由 duckdb engine **QueryPlanner** 在 `DbBaseModel.query` 路径上自动处理（扫描注册表名 → 映射 domain → ATTACH → qualify）。无法安全解析时 **fail fast**。
 - **跨域写**（含跨文件 `INSERT … SELECT … JOIN`、`UPDATE`/`DELETE` 跨域等）：**v1 不支持**；当前无产品用例。表 Model 写操作使用单表 `upsert` / `upsert_many`；跨表复杂 JOIN 优先 **DataService**。
 - 实现前：**禁止**假设无前缀表名的裸 SQL 能跨库 JOIN；须走 engine 路由或显式 qualify。
 - 定案详见：[engines/ARCHITECTURE.md §10](../core/engines/ARCHITECTURE.md)、[决策 10](./DESIGN.md)。
 
 ### 4.4 运行时解析（定案）
 
-对外 **`get_table("sys_stock_list")` 等 API 与表名字符串准则不变**；域路由在 `DataManager` / `infra.db` 初始化时一次性建好，进程内只读使用。
+对外 **`get_table("sys_data_stock_list")` 等 API 与表名字符串准则不变**；域路由在 `DataManager` / `infra.db` 初始化时一次性建好，进程内只读使用。
 
 #### 4.4.1 启动时缓存「用户使用的数据库类型」
 
@@ -194,9 +194,9 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 在表发现/注册阶段（`create_all_tables`、`_discover_tables`、`register_table`）读取每张表 `schema.py` 的 `storage_domain`，写入内存注册表，例如：
 
 ```text
-TableDomainRegistry["sys_stock_list"]     → "data"
-TableDomainRegistry["sys_tag_value"]      → "tag"
-TableDomainRegistry["sys_strategy_cache"] → "strategy"   # 示例
+TableDomainRegistry["sys_data_stock_list"]     → "data"
+TableDomainRegistry["sys_data_tag_value"]      → "tag"
+TableDomainRegistry["sys_cache_strategy"] → "strategy"   # 示例
 ```
 
 **构建时机：** 与现有 `register_table` / `_discover_tables` 一致；userspace 晚注册表时**追加**条目并建表，而非仅在首次 init 写死。
@@ -272,7 +272,7 @@ DuckdbEngine（duckdb 时）
 | `DbBaseModel` | 单连接 | **已实现**：按表转发 `engine.table_operator`；裸 SQL 用 `*_for_table` |
 | `SchemaManager.create_all_tables` | 单库建表 | **已实现**：`create_all_base_tables` → engine 按表域 `connection_factory` 建表 |
 | `migration/*` introspection | 单库 information_schema | 每域迁移或主域 catalog + 域版本表 |
-| `DataManager.get_physical_table_name` | 仅 PG schema 前缀 | DuckDB 跨 attach 时改为 `data.sys_stock_list` 等形式 |
+| `DataManager.get_physical_table_name` | 仅 PG schema 前缀 | DuckDB 跨 attach 时改为 `data.sys_data_stock_list` 等形式 |
 
 ### 7.2 裸 SQL `execute_sync_query`（跨表同库假设）
 
@@ -285,13 +285,13 @@ DuckdbEngine（duckdb 时）
 
 **隐患：** 上述服务里 `self.db = DatabaseManager.get_default()` — 若 default 只指向 data，tag/strategy 的 raw SQL 会打错库。
 
-### 7.3 缓存 `sys_cache`（集中 → 分散）
+### 7.3 缓存 `sys_cache_kv`（集中 → 分散）
 
 | 位置 | 现状 | 改造 |
 |------|------|------|
-| `calendar_service` | `get_table("sys_cache")` | 改为 `sys_data_cache` 或 `DbCacheService.for_domain("data")` |
+| `calendar_service` | `get_table("sys_cache_kv")` | 改为 `sys_cache_data` 或 `DbCacheService.for_domain("data")` |
 | `data_source_manager._clear_force_refresh_caches` | `dm.db_cache.delete("stock_list_last_update")` | data 域 cache API |
-| `DbCacheService` | 写死 `sys_cache` | 按域路由或拆三个薄封装 |
+| `DbCacheService` | 写死 `sys_cache_kv` | 按域路由或拆三个薄封装 |
 | `DataService.db_cache` | 单例属性 | 可保留门面，内部按 key 前缀/显式 domain 路由 |
 
 ### 7.4 data_source
@@ -314,7 +314,7 @@ DuckdbEngine（duckdb 时）
 
 | 位置 | 说明 |
 |------|------|
-| `Tag` facade / pipelines / flush | 写 `sys_tag_value` → tag 域管道 |
+| `Tag` facade / pipelines / flush | 写 `sys_data_tag_value` → tag 域管道 |
 | `TagDataService` | 三表均在 tag；raw SQL 安全若连接正确 |
 | `DataManager().stock.tags` | Tag 经 DataManager 访问 tag 域；行情/list 走 DataContract |
 

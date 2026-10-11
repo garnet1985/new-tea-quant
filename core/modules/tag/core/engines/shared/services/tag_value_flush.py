@@ -1,4 +1,4 @@
-"""Tag value 落库（buffer → ``sys_tag_value``）。
+"""Tag value 落库（buffer → ``sys_data_tag_value``）。
 
 消费者: TagSlicePipeline, TagEntityPipeline
 
@@ -43,7 +43,7 @@ class TagValueFlushService:
 
     @classmethod
     def encode_json_value(cls, tag_result: Any) -> str:
-        """编码为 ``sys_tag_value.json_value``。"""
+        """编码为 ``sys_data_tag_value.json_value``。"""
         if isinstance(tag_result, dict):
             payload = {k: v for k, v in tag_result.items() if k != "tag_name"}
             if not payload:

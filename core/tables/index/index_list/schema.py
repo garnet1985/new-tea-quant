@@ -1,12 +1,13 @@
 """
-指数列表（sys_index_list）表结构定义。
+指数列表（sys_data_index_list）表结构定义。
 
 主键 id；运行时由 IndexService.sync_list_from_config() 从 data.json 的 benchmark_stock_index_list 同步写入。
 """
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "index_index_list",
-    "name": "sys_index_list",
+    "kind": "data",
+    "name": "sys_data_index_list",
     "primaryKey": "id",
     "fields": [
         {

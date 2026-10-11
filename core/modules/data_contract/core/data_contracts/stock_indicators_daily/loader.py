@@ -7,7 +7,7 @@ from core.modules.data_contract.core.base.base_loader import BaseDataContractLoa
 from core.modules.data_manager import DataManager
 from core.infra.utils import Utils
 class StockIndicatorsDailyLoader(BaseDataContractLoader):
-    """按股票加载 ``sys_stock_indicators`` 日频序列。"""
+    """按股票加载 ``sys_data_stock_indicators`` 日频序列。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         dm = DataManager()

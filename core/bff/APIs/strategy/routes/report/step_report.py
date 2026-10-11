@@ -229,7 +229,7 @@ class WorkbenchReports:
 
     @staticmethod
     def _batch_load_stock_display_names(codes: List[str]) -> Dict[str, str]:
-        model = DataManager().get_table("sys_stock_list")
+        model = DataManager().get_table("sys_data_stock_list")
         if model is None or not codes:
             return {}
         out: Dict[str, str] = {}

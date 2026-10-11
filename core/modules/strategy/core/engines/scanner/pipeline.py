@@ -63,7 +63,7 @@ class ScannerPipeline:
 
         kline_latest = ScanDateResolver.load_kline_latest_date(dm)
         if not kline_latest:
-            logger.error("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+            logger.error("无法解析 K 线最新日期（sys_data_stock_klines 可能为空）")
             return {}
 
         results: Dict[str, Any] = {}

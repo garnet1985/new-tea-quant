@@ -81,8 +81,8 @@ class TestDataSourceApi(unittest.TestCase):
         mgr = DataSourceManager()
         with patch.object(mgr, "resolve_renew_target", return_value="stock_klines") as resolve:
             with patch.object(mgr, "execute") as execute:
-                mgr.renew(table_name="sys_stock_klines", force=True)
-        resolve.assert_called_once_with("sys_stock_klines")
+                mgr.renew(table_name="sys_data_stock_klines", force=True)
+        resolve.assert_called_once_with("sys_data_stock_klines")
         execute.assert_called_once_with(sources=("stock_klines",), force=True)
 
     def test_renew_all_delegates_to_execute(self):
@@ -102,12 +102,12 @@ class TestDataSourceApi(unittest.TestCase):
             {"stock_klines": {"is_enabled": True, "handler": "StockKlinesHandler"}}
         )
         cfg = MagicMock()
-        cfg.get_table_name.return_value = "sys_stock_klines"
+        cfg.get_table_name.return_value = "sys_data_stock_klines"
         with patch.object(mgr, "_flush_cache"):
             with patch.object(mgr, "_discover_mappings", return_value=mapping):
                 with patch.object(mgr, "_discover_config", return_value=cfg):
                     rows = mgr.list_renew_targets()
-        self.assertEqual(rows, [{"source": "stock_klines", "table": "sys_stock_klines"}])
+        self.assertEqual(rows, [{"source": "stock_klines", "table": "sys_data_stock_klines"}])
 
     def test_contracts_symbols(self):
         from core.modules.data_source.contracts import (

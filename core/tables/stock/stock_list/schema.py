@@ -1,11 +1,11 @@
 """
-股票列表（sys_stock_list）：证券主表，存 L/D/P 全量及 PIT 日期字段。
+股票列表（sys_data_stock_list）：证券主表，存 L/D/P 全量及 PIT 日期字段。
 
 维度属性由定义表 + 映射表维护（stock_list renew 时写入）：
-- 行业：sys_sw_industry + sys_sw_stock_industry_map（申万 2021，由 sw_industry 数据源写入）
-- 板块：sys_boards + sys_stock_board_map（Tushare market）
-- 交易所：sys_markets + sys_stock_market_map（Tushare exchange）
-- 地域：sys_areas + sys_stock_area_map（Tushare area）
+- 行业：sys_data_sw_industry + sys_map_sw_stock_industry（申万 2021，由 sw_industry 数据源写入）
+- 板块：sys_data_boards + sys_map_stock_board（Tushare market）
+- 交易所：sys_data_markets + sys_map_stock_market（Tushare exchange）
+- 地域：sys_data_areas + sys_map_stock_area（Tushare area）
 
 时点回测：list_date、delist_date；list_status 为同步快照（L/D/P）。
 
@@ -14,7 +14,8 @@
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_list",
-    "name": "sys_stock_list",
+    "kind": "data",
+    "name": "sys_data_stock_list",
     "primaryKey": "id",
     "fields": [
         {

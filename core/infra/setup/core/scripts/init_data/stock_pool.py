@@ -40,14 +40,14 @@ def _norm_label(raw: Optional[str], *, fallback: str) -> str:
 
 def load_stock_universe(dm) -> List[StockUniverseRow]:
     """从 DB 加载股票并挂上板块、交易所标签。"""
-    stock_model = dm.get_table("sys_stock_list")
+    stock_model = dm.get_table("sys_data_stock_list")
     if stock_model is None:
-        raise RuntimeError("未注册 sys_stock_list")
+        raise RuntimeError("未注册 sys_data_stock_list")
 
-    board_map_model = dm.get_table("sys_stock_board_map")
-    market_map_model = dm.get_table("sys_stock_market_map")
-    boards_model = dm.get_table("sys_boards")
-    markets_model = dm.get_table("sys_markets")
+    board_map_model = dm.get_table("sys_map_stock_board")
+    market_map_model = dm.get_table("sys_map_stock_market")
+    boards_model = dm.get_table("sys_data_boards")
+    markets_model = dm.get_table("sys_data_markets")
     if not all([board_map_model, market_map_model, boards_model, markets_model]):
         raise RuntimeError("缺少板块/交易所维表，无法分层抽样")
 

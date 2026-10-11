@@ -217,7 +217,7 @@ class DataManager:
                     self._data_service.index.sync_list_from_config()
                 except Exception as e:
                     logger.warning(
-                        "sys_index_list 配置同步失败（可稍后由 renew 重试）: %s", e
+                        "sys_data_index_list 配置同步失败（可稍后由 renew 重试）: %s", e
                     )
 
                 self._initialized = True
@@ -241,7 +241,7 @@ class DataManager:
         
         Args:
             table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/extensions/tables/xxx）
-            from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过
+            from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过。userspace 表须为 cust_{kind}_主题。
         
         Returns:
             Model 类（继承自 DbBaseModel），若校验不通过或加载失败返回 None
@@ -334,7 +334,7 @@ class DataManager:
         配合 PathManager 递归发现 core/tables 与 userspace/extensions/tables 下的表并缓存。
         不依赖目录层级：递归查找所有 schema.py，以其所在目录为表目录并注册。
         - core/tables：仅注册 schema["name"] 以 sys_ 开头的表，否则跳过。
-        - userspace/extensions/tables：表名无限制，全部注册。
+        - userspace/extensions/tables：表名须为 cust_{kind}_主题，kind 见 schema。
         仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
         def _dirs_with_schema(root: Path) -> set:
@@ -348,7 +348,7 @@ class DataManager:
                 for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
                     self.register_table(str(table_folder), from_core=True)
 
-            # 2. userspace/extensions/tables（表名无限制）
+            # 2. userspace/extensions/tables（cust_{kind}_主题）
             userspace_tables_dir = ProjectContext.path.get_extensions_tables_directory()
             if userspace_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
@@ -368,10 +368,10 @@ class DataManager:
         """
         获取指定表对应的 Model 实例（内部方法，仅供 DataService 使用）。
         
-        表名由 DataManager 发现并注册（core 表 sys_ 前缀，userspace 表无限制）。
+        表名由 DataManager 发现并注册（core 表 sys_{kind}_，userspace 表 cust_{kind}_）。
         
         Args:
-            table_name: 实际表名，如 "sys_stock_list"。
+            table_name: 实际表名，如 "sys_data_stock_list"。
             
         Returns:
             对应的 Model 实例（已自动绑定默认 db），如果未找到则返回 None

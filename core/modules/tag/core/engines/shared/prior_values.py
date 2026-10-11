@@ -23,7 +23,7 @@ class TagPriorValues:
                        PARTITION BY entity_id, tag_definition_id
                        ORDER BY as_of_date DESC
                    ) AS rn
-            FROM sys_tag_value
+            FROM sys_data_tag_value
             WHERE entity_id IN ({entity_placeholders})
               AND tag_definition_id IN ({tag_placeholders})
         ) t
@@ -51,7 +51,7 @@ class TagPriorValues:
         params = tuple(ids) + tuple(td_ids)
         try:
             rows = tag_service.db.execute_sync_query_for_table(
-                "sys_tag_value",
+                "sys_data_tag_value",
                 sql,
                 params,
             )

@@ -1,5 +1,5 @@
 """
-个股资金流向（sys_stock_moneyflow）：Tushare moneyflow，按股票+交易日存储。
+个股资金流向（sys_data_stock_moneyflow）：Tushare moneyflow，按股票+交易日存储。
 
 来源：Tushare API moneyflow（doc 170），大/中/小/特大单买卖与净流入。
 主键 id/date nullable=false；其余 nullable=true。
@@ -7,7 +7,8 @@
 schema = {
     "storage_domain": "data",
     "update_key": "stock_moneyflow",
-    "name": "sys_stock_moneyflow",
+    "kind": "data",
+    "name": "sys_data_stock_moneyflow",
     "primaryKey": ["id", "date"],
     "fields": [
         {

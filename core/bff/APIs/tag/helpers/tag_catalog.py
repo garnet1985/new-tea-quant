@@ -163,7 +163,7 @@ class TagCatalog:
 
     @classmethod
     def _last_computed_as_of(cls, tag_key: str, tag_svc: Any) -> Optional[str]:
-        """列表「最后计算至」：优先 ``sys_tag_calc_progress``，不是 MAX(as_of)。
+        """列表「最后计算至」：优先 ``sys_meta_tag_calc_progress``，不是 MAX(as_of)。
 
         变化日写入的 tag（如利率 stance）可能很久才落一条 value；用 max(as_of)
         会误报「需要更新」。取各实体 ``last_calculated_end`` 的最小值作为保守 frontier。

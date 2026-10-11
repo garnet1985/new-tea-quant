@@ -4,7 +4,7 @@ adj_factor_events CSV 冷启动导入：按 dev 契约过滤与校验。
 规则（``data.json``）：
 - ``use_sample_stock_list``：仅保留池内股票；池内缺股允许，renew 补全
 - ``as_of_latest_completed_trading_date``：``event_date`` 截断；已导入股戳 ``last_update`` 至 as_of（除权日稀疏，``max(event)<as_of`` 仍视为 L0 已覆盖）
-- ``default_start_date`` + ``sys_stock_list.list_date``：起点未覆盖的股跳过（renew 全量 refresh），其余照常导入
+- ``default_start_date`` + ``sys_data_stock_list.list_date``：起点未覆盖的股跳过（renew 全量 refresh），其余照常导入
 """
 from __future__ import annotations
 

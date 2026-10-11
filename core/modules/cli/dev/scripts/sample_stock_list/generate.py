@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-从 sys_stock_list 按「上市状态 × 板块 × 交易所」分层抽样，生成固定样本名单文件。
+从 sys_data_stock_list 按「上市状态 × 板块 × 交易所」分层抽样，生成固定样本名单文件。
 
 默认 500 只、种子与 ``setup.core.scripts.init_data.config`` 对齐，便于与演示数据包一致。
 

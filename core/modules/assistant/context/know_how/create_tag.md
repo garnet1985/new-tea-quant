@@ -187,10 +187,10 @@ tag.execute(scenario_name="market_cap_tier")
 
 | 表                       | 内容                                                              |
 | ----------------------- | --------------------------------------------------------------- |
-| `sys_tag_scenario`      | 场景元数据                                                           |
-| `sys_tag_definition`    | 标签定义                                                            |
-| `sys_tag_value`         | 标签值（entity\_id, tag\_definition\_id, as\_of\_date, json\_value） |
-| `sys_tag_calc_progress` | 增量计算水位线                                                         |
+| `sys_data_tag_scenario`      | 场景元数据                                                           |
+| `sys_data_tag_definition`    | 标签定义                                                            |
+| `sys_data_tag_value`         | 标签值（entity\_id, tag\_definition\_id, as\_of\_date, json\_value） |
+| `sys_meta_tag_calc_progress` | 增量计算水位线                                                         |
 
 ## 策略中使用标签
 

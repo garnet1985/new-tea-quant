@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class IndexKlineDailyLoader(BaseDataContractLoader):
-    """按指数加载 sys_index_klines（日线序列）。"""
+    """按指数加载 sys_data_index_klines（日线序列）。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         dm = DataManager()

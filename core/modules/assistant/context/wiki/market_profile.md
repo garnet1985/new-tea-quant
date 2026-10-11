@@ -47,7 +47,7 @@ summary: A 股涨跌停、手数、日历等交易制度；策略按 market_prof
 
 ## 交易日历
 
-日历在 `sys_trade_calendar`：每个自然日一行，`is_open` 标记是否交易。沪深 A 股统一用 `market=SSE`。
+日历在 `sys_data_trade_calendar`：每个自然日一行，`is_open` 标记是否交易。沪深 A 股统一用 `market=SSE`。
 
 策略和标签里用 `ctx.data.calendar` 拿日历，不要自己查库。
 

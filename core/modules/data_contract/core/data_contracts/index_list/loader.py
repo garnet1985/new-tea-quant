@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class IndexListLoader(BaseDataContractLoader):
-    """加载全局 sys_index_list。"""
+    """加载全局 sys_data_index_list。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         dm = DataManager()

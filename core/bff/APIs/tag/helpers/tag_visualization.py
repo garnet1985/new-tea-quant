@@ -1,6 +1,6 @@
 """Tag 可视化读模型（T1-07）。
 
-把 ``sys_tag_value`` 收成三种视图：
+把 ``sys_data_tag_value`` 收成三种视图：
 - 时序全局：按标签展示名分列的区间（甘特）；取值只留在悬停
 - 时序按实体：实体当前标签；指定 entity_id 时改为该实体的区间
 - 非时序：最新一条 JSON 的展示形状（类别表 / 字段表 / 标量）
@@ -22,7 +22,7 @@ from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_I
 from core.modules.tag.core.engines.shared.tag_settings.data_settings import DataSettings
 from core.modules.tag.core.services.discovery import DiscoveryService
 
-_VALUE_TABLE = "sys_tag_value"
+_VALUE_TABLE = "sys_data_tag_value"
 _NAME_CHUNK = 400
 
 _LATEST_SQL = """
@@ -38,9 +38,9 @@ FROM (
             PARTITION BY tv.entity_id, tv.tag_definition_id
             ORDER BY tv.as_of_date DESC
         ) AS rn
-    FROM sys_tag_value tv
-    INNER JOIN sys_tag_definition td ON tv.tag_definition_id = td.id
-    INNER JOIN sys_tag_scenario sc ON td.scenario_id = sc.id
+    FROM sys_data_tag_value tv
+    INNER JOIN sys_data_tag_definition td ON tv.tag_definition_id = td.id
+    INNER JOIN sys_data_tag_scenario sc ON td.scenario_id = sc.id
     WHERE sc.name = %s
 ) t
 WHERE rn = 1
@@ -56,9 +56,9 @@ SELECT
     tv.json_value,
     td.name AS tag_name,
     td.display_name AS tag_display_name
-FROM sys_tag_value tv
-INNER JOIN sys_tag_definition td ON tv.tag_definition_id = td.id
-INNER JOIN sys_tag_scenario sc ON td.scenario_id = sc.id
+FROM sys_data_tag_value tv
+INNER JOIN sys_data_tag_definition td ON tv.tag_definition_id = td.id
+INNER JOIN sys_data_tag_scenario sc ON td.scenario_id = sc.id
 WHERE sc.name = %s AND tv.entity_id = %s
 ORDER BY td.name ASC, tv.as_of_date ASC
 """
@@ -178,7 +178,7 @@ class TagVisualization:
         if not ids:
             return {}
         try:
-            model = data_manager.get_table("sys_stock_list")
+            model = data_manager.get_table("sys_data_stock_list")
         except Exception as exc:
             log_degraded("tag.visualization.stockList", exc)
             return {}

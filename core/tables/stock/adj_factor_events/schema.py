@@ -9,7 +9,8 @@ data_adj_factor_event 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",
     "update_key": "stock_adj_factor_events",
-    "name": "sys_adj_factor_events",
+    "kind": "data",
+    "name": "sys_data_adj_factor_events",
     "primaryKey": ["id", "event_date"],
     "fields": [
         {

@@ -24,9 +24,9 @@ class TagDbUnavailable(RuntimeError):
     """主进程 DuckDB 连接已释放（ProcessPool 期间），调用方应延后写入。"""
 
 
-_TAG_VALUE_TABLE = "sys_tag_value"
-_TAG_DEFINITION_TABLE = "sys_tag_definition"
-_TAG_CALC_PROGRESS_TABLE = "sys_tag_calc_progress"
+_TAG_VALUE_TABLE = "sys_data_tag_value"
+_TAG_DEFINITION_TABLE = "sys_data_tag_definition"
+_TAG_CALC_PROGRESS_TABLE = "sys_meta_tag_calc_progress"
 
 
 class TagDataService(BaseDataService):
@@ -42,11 +42,11 @@ class TagDataService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model（表名由 DataManager 发现并注册）
-        self._tag_scenario_model = data_manager.get_table("sys_tag_scenario")
-        self._tag_definition_model = data_manager.get_table("sys_tag_definition")
-        self._tag_value_model = data_manager.get_table("sys_tag_value")
+        self._tag_scenario_model = data_manager.get_table("sys_data_tag_scenario")
+        self._tag_definition_model = data_manager.get_table("sys_data_tag_definition")
+        self._tag_value_model = data_manager.get_table("sys_data_tag_value")
         self._tag_calc_progress_model = data_manager.get_table(
-            "sys_tag_calc_progress"
+            "sys_meta_tag_calc_progress"
         )
 
         from core.infra.db.contracts import DatabaseManager
@@ -82,12 +82,12 @@ class TagDataService(BaseDataService):
         if dm is None:
             return False
         self.db = db
-        self._tag_scenario_model = dm.get_table("sys_tag_scenario")
-        self._tag_definition_model = dm.get_table("sys_tag_definition")
-        self._tag_value_model = dm.get_table("sys_tag_value")
-        self._tag_calc_progress_model = dm.get_table("sys_tag_calc_progress")
+        self._tag_scenario_model = dm.get_table("sys_data_tag_scenario")
+        self._tag_definition_model = dm.get_table("sys_data_tag_definition")
+        self._tag_value_model = dm.get_table("sys_data_tag_value")
+        self._tag_calc_progress_model = dm.get_table("sys_meta_tag_calc_progress")
         if self._tag_value_model is None or getattr(self._tag_value_model, "db", None) is not db:
-            raise RuntimeError("无法绑定 sys_tag_value")
+            raise RuntimeError("无法绑定 sys_data_tag_value")
         return True
 
     def _require_live_db(self) -> None:
@@ -427,7 +427,7 @@ class TagDataService(BaseDataService):
     
     def delete_tag_values_by_definition(self, tag_definition_id: int) -> None:
         """删除一个标签定义下的全部取值。"""
-        sql = "DELETE FROM sys_tag_value WHERE tag_definition_id = %s"
+        sql = "DELETE FROM sys_data_tag_value WHERE tag_definition_id = %s"
         try:
             with self.db.get_sync_cursor_for_table(_TAG_VALUE_TABLE) as cursor:
                 cursor.execute(sql, (int(tag_definition_id),))
@@ -528,9 +528,9 @@ class TagDataService(BaseDataService):
         """
         # 子查询删除（MySQL / PostgreSQL / DuckDB 均支持；DuckDB 不支持 DELETE alias FROM ... JOIN）
         sql = """
-        DELETE FROM sys_tag_value
+        DELETE FROM sys_data_tag_value
         WHERE tag_definition_id IN (
-            SELECT id FROM sys_tag_definition WHERE scenario_id = %s
+            SELECT id FROM sys_data_tag_definition WHERE scenario_id = %s
         )
         """
         
@@ -567,7 +567,7 @@ class TagDataService(BaseDataService):
         try:
             sql = """
                 SELECT entity_id, last_calculated_end
-                FROM sys_tag_calc_progress
+                FROM sys_meta_tag_calc_progress
                 WHERE scenario_id = %s
             """
             rows = self.db.execute_sync_query_for_table(
@@ -632,7 +632,7 @@ class TagDataService(BaseDataService):
 
     def clear_calc_progress_by_scenario(self, scenario_id: int) -> None:
         """删除指定 scenario 下全部计算水位（refresh / recompute）。"""
-        sql = "DELETE FROM sys_tag_calc_progress WHERE scenario_id = %s"
+        sql = "DELETE FROM sys_meta_tag_calc_progress WHERE scenario_id = %s"
         try:
             with self.db.get_sync_cursor_for_table(_TAG_CALC_PROGRESS_TABLE) as cursor:
                 cursor.execute(sql, (scenario_id,))
@@ -674,7 +674,7 @@ class TagDataService(BaseDataService):
             placeholders = ','.join(['%s'] * len(tag_definition_ids))
             sql = f"""
                 SELECT MAX(as_of_date) as max_date
-                FROM sys_tag_value
+                FROM sys_data_tag_value
                 WHERE tag_definition_id IN ({placeholders})
             """
             
@@ -730,7 +730,7 @@ class TagDataService(BaseDataService):
             SELECT 
                 entity_id,
                 MAX(as_of_date) as max_as_of_date
-            FROM sys_tag_value
+            FROM sys_data_tag_value
             WHERE tag_definition_id IN ({placeholders})
             GROUP BY entity_id
         """
@@ -800,10 +800,10 @@ class TagDataService(BaseDataService):
                     td.display_name AS tag_display_name,
                     td.scenario_id,
                     sc.attach_to_data_key AS attach_to_data_key
-                FROM sys_tag_value tv
-                INNER JOIN sys_tag_definition td
+                FROM sys_data_tag_value tv
+                INNER JOIN sys_data_tag_definition td
                     ON tv.tag_definition_id = td.id
-                INNER JOIN sys_tag_scenario sc
+                INNER JOIN sys_data_tag_scenario sc
                     ON td.scenario_id = sc.id
                 WHERE
                     tv.entity_id = %s
@@ -877,10 +877,10 @@ class TagDataService(BaseDataService):
                     td.display_name AS tag_display_name,
                     td.scenario_id,
                     sc.attach_to_data_key AS attach_to_data_key
-                FROM sys_tag_value tv
-                INNER JOIN sys_tag_definition td
+                FROM sys_data_tag_value tv
+                INNER JOIN sys_data_tag_definition td
                     ON tv.tag_definition_id = td.id
-                INNER JOIN sys_tag_scenario sc
+                INNER JOIN sys_data_tag_scenario sc
                     ON td.scenario_id = sc.id
                 WHERE
                     tv.entity_id IN ({placeholders})
@@ -914,7 +914,7 @@ class TagDataService(BaseDataService):
             return {eid: [] for eid in entity_ids}
     
     def get_next_trading_date(self, date: str) -> str:
-        """下一个开市日，读 ``sys_trade_calendar``。"""
+        """下一个开市日，读 ``sys_data_trade_calendar``。"""
         return self.data_manager.calendar.get_next_trading_date(date)
     
     # ==================== 私有辅助方法 ====================

@@ -135,7 +135,7 @@ class Strategy:
 
             kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
             if not kline_latest:
-                raise ValueError("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+                raise ValueError("无法解析 K 线最新日期（sys_data_stock_klines 可能为空）")
 
             def _on_progress(payload: Dict[str, Any]) -> None:
                 prog.tick(payload)

@@ -12,7 +12,7 @@ dependencies:
 changelog:
   - version: "0.2.2"
     changes:
-      - 股票行业读取改为申万一级（sys_sw_industry / sys_sw_stock_industry_map）
+      - 股票行业读取改为申万一级（sys_data_sw_industry / sys_map_sw_stock_industry）
   - version: "0.2.1"
     changes:
       - 股票 K 线 load/load_batch 一律给出前复权顶层，以及 raw、hfq、adj_factor

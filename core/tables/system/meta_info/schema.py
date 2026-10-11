@@ -1,12 +1,13 @@
 """
 系统元信息（sys_meta_info）：结构化元数据，value 存 JSON。
 
-与 sys_cache 区分：本表 value 为 json；cache 的 value 为 text。二者均有 created_at、last_updated。
+与 sys_cache_kv 区分：本表 value 为 json；cache 的 value 为 text。二者均有 created_at、last_updated。
 主键 id nullable=false；其余 nullable=true。
 """
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "system_meta_info",
+    "kind": "meta",
     "name": "sys_meta_info",
     "primaryKey": "id",
     "fields": [

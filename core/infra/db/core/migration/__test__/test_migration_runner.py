@@ -33,6 +33,7 @@ def _schema(name: str, uk: str, *, with_note: bool = False) -> dict:
         )
     return {
         "update_key": uk,
+        "kind": "data",
         "name": name,
         "storage_domain": "data",
         "primaryKey": "id",
@@ -60,11 +61,11 @@ def test_run_schema_migration_plan_only():
         tables = root / "tables"
         tables.mkdir()
         (tables / "schema.py").write_text(
-            'schema = ' + repr(_schema("sys_t", "uk_t", with_note=True)),
+            'schema = ' + repr(_schema("sys_data_t", "uk_t", with_note=True)),
             encoding="utf-8",
         )
         snap.write_text(
-            json.dumps({"sys_t": _schema("sys_t", "uk_t", with_note=False)}),
+            json.dumps({"sys_data_t": _schema("sys_data_t", "uk_t", with_note=False)}),
             encoding="utf-8",
         )
         result = MigrationRunner.run(
@@ -84,7 +85,7 @@ def test_migrate_cli_plan_subcommand():
         tables = root / "tables"
         tables.mkdir()
         (tables / "schema.py").write_text(
-            'schema = ' + repr(_schema("sys_t", "uk_t")),
+            'schema = ' + repr(_schema("sys_data_t", "uk_t")),
             encoding="utf-8",
         )
         snap.write_text(json.dumps({}), encoding="utf-8")

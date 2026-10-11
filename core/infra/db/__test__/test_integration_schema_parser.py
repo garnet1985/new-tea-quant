@@ -12,7 +12,7 @@ def test_factory_returns_dialect_parser():
 
 def test_schema_manager_delegates_duckdb_create_table():
     schema = {
-        "name": "sys_areas",
+        "name": "sys_data_areas",
         "primaryKey": "id",
         "fields": [
             {"name": "id", "type": "int", "autoIncrement": True, "nullable": False},
@@ -21,4 +21,4 @@ def test_schema_manager_delegates_duckdb_create_table():
     via_manager = SchemaManager(database_type="duckdb").generate_create_table_sql(schema)
     via_parser = DuckdbSchemaParser().generate_create_table_sql(schema)
     assert via_manager == via_parser
-    assert "nextval('seq_sys_areas_id')" in via_parser
+    assert "nextval('seq_sys_data_areas_id')" in via_parser

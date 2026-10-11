@@ -238,7 +238,7 @@ class ScanDateResolver:
         get_table = getattr(self.data_manager, "get_table", None)
         if not callable(get_table):
             return []
-        kline_model = get_table("sys_stock_klines")
+        kline_model = get_table("sys_data_stock_klines")
         if not kline_model:
             return []
         rows = kline_model.load_by_date(date)

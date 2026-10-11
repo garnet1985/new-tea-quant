@@ -278,12 +278,12 @@ Engine 只需实现白名单对应能力；表作者遵守契约即可保证三�
 
 ### 10.2 DuckDB 同 storage_domain（同 `.duckdb` 文件）
 
-- 单域内多表 **JOIN**（如 `sys_stock_klines` ⋈ `sys_adj_factor_events`）：**支持**。
+- 单域内多表 **JOIN**（如 `sys_data_stock_klines` ⋈ `sys_data_adj_factor_events`）：**支持**。
 - 与 MySQL 语义相同，走该域 connector。
 
 ### 10.3 DuckDB 跨 storage_domain（跨 `.duckdb` 文件）— 读
 
-- 技术上可通过 **ATTACH** + 表名 qualify（如 `data.main.sys_stock_list`）执行 **只读** JOIN。
+- 技术上可通过 **ATTACH** + 表名 qualify（如 `data.main.sys_data_stock_list`）执行 **只读** JOIN。
 - 因表名 **全局唯一**，engine 可实现 **QueryPlanner**：扫描 SQL 中注册表名 → 映射 domain → ATTACH → qualify → 执行。
 - **实现优先级：** 随 engines 迁移逐步落地；extension 作者可写不含 domain 前缀的 SQL，由 duckdb engine 负责路由（详见 [storage-domains.md §4.3](../docs/storage-domains.md)）。
 - 复杂 SQL 无法安全解析时：**fail fast**，提示拆查询或改用 Service。

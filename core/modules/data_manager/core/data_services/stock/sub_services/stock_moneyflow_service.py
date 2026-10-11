@@ -1,4 +1,4 @@
-"""个股资金流向服务（``sys_stock_moneyflow``）。"""
+"""个股资金流向服务（``sys_data_stock_moneyflow``）。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ class StockMoneyflowService(BaseDataService):
 
     def _get_model(self):
         if self._model is None:
-            self._model = self.data_manager.get_table("sys_stock_moneyflow")
+            self._model = self.data_manager.get_table("sys_data_stock_moneyflow")
         return self._model
 
     def load_range(

@@ -7,7 +7,7 @@
 
 涉及的表：
 - gdp: GDP数据（季度）
-- sys_cpi / sys_ppi / sys_pmi / sys_money_supply: 价格指数（原 price_indexes 拆分）
+- sys_data_cpi / sys_data_ppi / sys_data_pmi / sys_data_money_supply: 价格指数（原 price_indexes 拆分）
 - shibor: Shibor利率（日度）
 - lpr: LPR利率（日度）
 """
@@ -59,13 +59,13 @@ class MacroService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        self._gdp = data_manager.get_table("sys_gdp")
-        self._cpi = data_manager.get_table("sys_cpi")
-        self._ppi = data_manager.get_table("sys_ppi")
-        self._pmi = data_manager.get_table("sys_pmi")
-        self._money_supply = data_manager.get_table("sys_money_supply")
-        self._shibor = data_manager.get_table("sys_shibor")
-        self._lpr = data_manager.get_table("sys_lpr")
+        self._gdp = data_manager.get_table("sys_data_gdp")
+        self._cpi = data_manager.get_table("sys_data_cpi")
+        self._ppi = data_manager.get_table("sys_data_ppi")
+        self._pmi = data_manager.get_table("sys_data_pmi")
+        self._money_supply = data_manager.get_table("sys_data_money_supply")
+        self._shibor = data_manager.get_table("sys_data_shibor")
+        self._lpr = data_manager.get_table("sys_data_lpr")
         
         from core.infra.db.contracts import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
@@ -134,7 +134,7 @@ class MacroService(BaseDataService):
         fields: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
-        加载价格指数数据（从 sys_cpi / sys_ppi / sys_pmi / sys_money_supply 按需查询或合并）
+        加载价格指数数据（从 sys_data_cpi / sys_data_ppi / sys_data_pmi / sys_data_money_supply 按需查询或合并）
         """
         condition = "1=1"
         params = []
@@ -476,7 +476,7 @@ class MacroService(BaseDataService):
         snapshot = {
             'date': date,
             'gdp': self.load_gdp_by_quarter(quarter),
-            'price_indexes': price_indexes_data,  # 合并自 sys_cpi/ppi/pmi/money_supply
+            'price_indexes': price_indexes_data,  # 合并自 sys_data_cpi/ppi/pmi/money_supply
             'shibor': self.load_shibor_by_date(date, fallback=True),
             'lpr': self.load_lpr_by_date(date, fallback=True),
             'risk_free_rate': self.load_risk_free_rate(date, prefer_shibor=True),
@@ -524,7 +524,7 @@ class MacroService(BaseDataService):
     
     def save_price_indexes_data(self, price_indexes_data: List[Dict[str, Any]]) -> int:
         """
-        批量保存价格指数数据（按字段拆分写入 sys_cpi / sys_ppi / sys_pmi / sys_money_supply，自动去重）
+        批量保存价格指数数据（按字段拆分写入 sys_data_cpi / sys_data_ppi / sys_data_pmi / sys_data_money_supply，自动去重）
         """
         cpi_rows = []
         ppi_rows = []

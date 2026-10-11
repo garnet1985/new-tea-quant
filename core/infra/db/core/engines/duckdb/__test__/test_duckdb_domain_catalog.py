@@ -19,23 +19,23 @@ def _settings():
 
 def test_from_schemas_builds_table_file_map():
     schemas = {
-        "sys_stock_list": {
-            "name": "sys_stock_list",
+        "sys_data_stock_list": {
+            "name": "sys_data_stock_list",
             "storage_domain": "data",
             "fields": [],
         },
-        "sys_tag_value": {
-            "name": "sys_tag_value",
+        "sys_data_tag_value": {
+            "name": "sys_data_tag_value",
             "storage_domain": "tag",
             "fields": [],
         },
     }
     catalog = DuckdbDomainCatalog.from_schemas(_settings(), schemas)
-    fm = catalog.file_map_for_table("sys_tag_value")
+    fm = catalog.file_map_for_table("sys_data_tag_value")
     assert fm.domain == "tag"
     assert fm.db_path == "tag.duckdb"
     assert fm.absolute_path.endswith("tag.duckdb")
-    assert catalog.resolve_domain("sys_stock_list") == "data"
+    assert catalog.resolve_domain("sys_data_stock_list") == "data"
 
 
 def test_unknown_table_raises():

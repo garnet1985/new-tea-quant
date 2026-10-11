@@ -1,5 +1,5 @@
 """
-sys_tag_value 表 Model
+sys_data_tag_value 表 Model
 
 标签值。
 """
@@ -9,7 +9,7 @@ from core.tables.tag.tag_value.schema import schema as _schema
 
 
 class SysTagValueModel(DbBaseModel):
-    """标签值表 Model（表名 sys_tag_value）
+    """标签值表 Model（表名 sys_data_tag_value）
 
     设计约定：
     - Model 只负责底层表访问和通用“批量同步”接口

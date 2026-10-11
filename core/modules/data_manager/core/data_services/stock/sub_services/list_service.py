@@ -39,15 +39,15 @@ class ListService(BaseDataService):
     def __init__(self, data_manager: Any):
         super().__init__(data_manager)
 
-        self._stock_list = data_manager.get_table("sys_stock_list")
-        self._boards = data_manager.get_table("sys_boards")
-        self._markets = data_manager.get_table("sys_markets")
-        self._areas = data_manager.get_table("sys_areas")
-        self._sw_industry = data_manager.get_table("sys_sw_industry")
-        self._sw_stock_industry = data_manager.get_table("sys_sw_stock_industry_map")
-        self._board_map = data_manager.get_table("sys_stock_board_map")
-        self._market_map = data_manager.get_table("sys_stock_market_map")
-        self._area_map = data_manager.get_table("sys_stock_area_map")
+        self._stock_list = data_manager.get_table("sys_data_stock_list")
+        self._boards = data_manager.get_table("sys_data_boards")
+        self._markets = data_manager.get_table("sys_data_markets")
+        self._areas = data_manager.get_table("sys_data_areas")
+        self._sw_industry = data_manager.get_table("sys_data_sw_industry")
+        self._sw_stock_industry = data_manager.get_table("sys_map_sw_stock_industry")
+        self._board_map = data_manager.get_table("sys_map_stock_board")
+        self._market_map = data_manager.get_table("sys_map_stock_market")
+        self._area_map = data_manager.get_table("sys_map_stock_area")
 
     @property
     def sw_industry_model(self):

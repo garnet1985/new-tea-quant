@@ -1,12 +1,13 @@
 """
-股票-市场映射表（sys_stock_market_map）：stock_id、market_id。
-一只股票对应一个市场；与 sys_markets 配合，与 sys_stock_list 解耦。
+股票-市场映射表（sys_map_stock_market）：stock_id、market_id。
+一只股票对应一个市场；与 sys_data_markets 配合，与 sys_data_stock_list 解耦。
 主键 (stock_id, market_id)。
 """
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_market_map",
-    "name": "sys_stock_market_map",
+    "kind": "map",
+    "name": "sys_map_stock_market",
     "primaryKey": ["stock_id", "market_id"],
     "fields": [
         {
@@ -15,14 +16,14 @@ schema = {
             "length": 16,
             "isRequired": True,
             "nullable": False,
-            "description": "股票代码，关联 sys_stock_list.id",
+            "description": "股票代码，关联 sys_data_stock_list.id",
         },
         {
             "name": "market_id",
             "type": "int",
             "isRequired": True,
             "nullable": False,
-            "description": "市场 id，关联 sys_markets.id",
+            "description": "市场 id，关联 sys_data_markets.id",
         },
     ],
     "indexes": [

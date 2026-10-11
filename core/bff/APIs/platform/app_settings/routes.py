@@ -85,6 +85,30 @@ def post_trace_settings():
     return ok(body)
 
 
+@settings_api_bp.route("/v1/settings/membership", methods=["GET"])
+def get_membership_settings():
+    """通用凭证是否已装载。响应不含凭证正文。"""
+    return ok(settings_service.get_membership_settings())
+
+
+@settings_api_bp.route("/v1/settings/membership", methods=["PUT"])
+def put_membership_settings():
+    """把官网通用凭证写入 userspace/system/membership/membership_token.txt。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_membership_settings(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/settings/membership", methods=["DELETE"])
+def delete_membership_settings():
+    """移除已装载的通用凭证。"""
+    return ok(settings_service.clear_membership_settings())
+
+
 @settings_api_bp.route("/v1/settings/feedback", methods=["GET"])
 def get_feedback_settings():
     """读取应用内反馈弹窗偏好（与 Trace.consent 无关）。"""

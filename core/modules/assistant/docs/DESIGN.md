@@ -2,7 +2,7 @@
 
 **版本：** `0.1.0`
 
-**相关文档：** [架构总览](./ARCHITECTURE.md)
+**相关文档：** [架构总览](./ARCHITECTURE.md)、[会员助手调研](./MEMBER_ASSISTANT_PLAN.md)
 
 ---
 

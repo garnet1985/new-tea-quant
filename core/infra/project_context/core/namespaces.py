@@ -82,6 +82,18 @@ class PathNamespace:
         return PathManager.get_system_root()
 
     @staticmethod
+    def get_membership_directory() -> Path:
+        """会员凭证目录：userspace/system/membership/"""
+        from .path_manager import PathManager
+        return PathManager.get_membership_directory()
+
+    @staticmethod
+    def get_membership_token_file() -> Path:
+        """官网通用凭证文件"""
+        from .path_manager import PathManager
+        return PathManager.get_membership_token_file()
+
+    @staticmethod
     def get_default_config_root() -> Path:
         """获取默认配置目录"""
         from .path_manager import PathManager

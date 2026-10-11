@@ -6,6 +6,8 @@ export const HTTP_TIMEOUT_MS = {
   POLL: 20_000,
   /** 文件传输、清缓存、冷启动类 POST */
   LONG: 120_000,
+  /** 助理一轮：挑文档和回答各一次，单次上游约 25 秒 */
+  ASSISTANT: 55_000,
   /** Setup 流水线单步（含数据导入，可能较慢） */
   SETUP: 600_000,
   /** 选装机器学习依赖（xgboost / shap） */

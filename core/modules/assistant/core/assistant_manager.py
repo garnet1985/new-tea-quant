@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Mapping, Optional, Sequence
 
-from core.modules.assistant.contracts import AssistantError, ProviderInfo
+from core.modules.assistant.contracts import AssistantError, ChatResult, ProviderInfo
 from core.modules.assistant.core.context_library import (
     ContextDoc,
     catalog_text,
@@ -14,6 +14,12 @@ from core.modules.assistant.core.context_library import (
     parse_picked_ids,
     pick_optional_docs,
     should_ask_model_to_pick,
+)
+from core.modules.assistant.core.member_channel import (
+    MODEL as MEMBER_MODEL,
+    PROVIDER_ID as MEMBER_PROVIDER_ID,
+    member_base_url,
+    member_token,
 )
 from core.modules.assistant.core.openai_compatible_client import OpenAICompatibleClient
 from core.modules.assistant.core.provider_catalog import ProviderCatalog
@@ -31,6 +37,19 @@ _SELECT_PROMPT = (
     "只输出 JSON 字符串数组，例如 [\"know_how/config_strategy_settings\"]。"
     "没有相关文档就输出 []。不要解释。\n\n目录：\n"
 )
+
+
+def _member_error(message: str) -> str:
+    text = str(message or "").strip()
+    if text.startswith("无法连接"):
+        return "暂时连不上官网。可以先在设置里改用自己的密钥。"
+    if "超时" in text:
+        return "官网应答超时。可以先在设置里改用自己的密钥。"
+    if text.startswith("供应商请求失败"):
+        return "官网暂时不可用。可以先在设置里改用自己的密钥。"
+    if text.startswith("供应商"):
+        return "官网" + text[len("供应商"):]
+    return text or "官网暂时不可用。可以先在设置里改用自己的密钥。"
 
 
 def _normalize_history(history: Optional[Sequence[Mapping[str, str]]]) -> List[Dict[str, str]]:
@@ -87,20 +106,61 @@ class AssistantManager:
         *,
         provider_id: Optional[str] = None,
         history: Optional[Sequence[Mapping[str, str]]] = None,
-    ) -> str:
-        """用已配置供应商完成一轮用户消息。"""
+    ) -> ChatResult:
+        """完成一轮用户消息。未指定供应商且已装载通用凭证时走官网。"""
         text = str(content or "").strip()
         if not text:
             raise AssistantError("消息不能为空")
-        provider = self._resolve_provider(provider_id)
+        route = self._route(provider_id)
+        try:
+            reply = self._answer(text, history, route)
+        except AssistantError as exc:
+            if route["via"] == "member":
+                raise AssistantError(_member_error(str(exc))) from None
+            raise
+        return ChatResult(
+            reply=reply,
+            provider_id=route["provider_id"],
+            model=route["model"],
+        )
+
+    def _route(self, provider_id: Optional[str]) -> Dict[str, str]:
+        explicit = str(provider_id or "").strip()
+        if explicit == MEMBER_PROVIDER_ID or not explicit:
+            token = member_token()
+            if token:
+                return {
+                    "via": "member",
+                    "provider_id": MEMBER_PROVIDER_ID,
+                    "base_url": member_base_url(),
+                    "api_key": token,
+                    "model": MEMBER_MODEL,
+                }
+            if explicit == MEMBER_PROVIDER_ID:
+                raise AssistantError("还没有装载会员通用凭证。请到设置 → 会员装载。")
+        provider = self._resolve_provider(explicit or None)
         api_key = self._catalog.load_api_key(provider.directory)
         if not api_key:
             raise AssistantError(f"供应商未配置密钥：{provider.provider_id}")
+        return {
+            "via": "local",
+            "provider_id": provider.provider_id,
+            "base_url": provider.base_url,
+            "api_key": api_key,
+            "model": provider.model,
+        }
+
+    def _answer(
+        self,
+        text: str,
+        history: Optional[Sequence[Mapping[str, str]]],
+        route: Mapping[str, str],
+    ) -> str:
         knowledge = self._knowledge_for_question(
             text,
-            base_url=provider.base_url,
-            api_key=api_key,
-            model=provider.model,
+            base_url=route["base_url"],
+            api_key=route["api_key"],
+            model=route["model"],
         )
         system = _SYSTEM_PROMPT
         if knowledge:
@@ -111,9 +171,9 @@ class AssistantManager:
             {"role": "user", "content": text},
         ]
         return self._client.complete(
-            base_url=provider.base_url,
-            api_key=api_key,
-            model=provider.model,
+            base_url=route["base_url"],
+            api_key=route["api_key"],
+            model=route["model"],
             messages=messages,
         )
 

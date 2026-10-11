@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from core.modules.assistant.contracts import ProviderInfo
+from core.modules.assistant.contracts import ChatResult, ProviderInfo
 from core.modules.assistant.core.assistant_manager import AssistantManager
 
 
@@ -34,8 +34,8 @@ class Assistant:
         *,
         provider_id: Optional[str] = None,
         history: Optional[List[Dict[str, str]]] = None,
-    ) -> str:
-        """发送一句用户消息，返回助手文本。``history`` 为此前 user/assistant 轮次。"""
+    ) -> ChatResult:
+        """发送一句用户消息。未指定供应商且已装载通用凭证时走官网。"""
         return Assistant._manager.chat(
             content, provider_id=provider_id, history=history
         )

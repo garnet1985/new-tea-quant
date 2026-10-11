@@ -97,6 +97,7 @@ secrets.json
 
 # Auth tokens
 **/auth_token.txt
+**/membership_token.txt
 **/token.txt
 **/api_key.txt
 .pgpass

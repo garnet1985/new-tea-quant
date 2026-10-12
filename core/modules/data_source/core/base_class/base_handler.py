@@ -354,11 +354,11 @@ class BaseHandler:
         )
 
         try:
+            self.context["_bundle_to_frames"] = self.bundle_to_frames
+            self.context["_save_frames"] = self.save_frames
             fetched_data = DataSourcePipelineRunner().run_bundles(
                 self.context,
                 apis_job_bundles,
-                on_after_single_bundle_complete=self.on_after_single_api_job_bundle_complete,
-                on_after_batch_bundles_complete=self.on_after_batch_api_job_bundles_complete,
                 enrich_result_for_batch=self.enrich_result_for_batch,
             )
 
@@ -481,23 +481,19 @@ class BaseHandler:
         on_before_save 若返回非 None，则用其作为即将写入的数据；否则使用传入的 normalized_data。
         is_dry_run 为 True 时不执行任何写入，直接返回 normalized_data。
         
-        如果 save_mode == "per_bundle" 且 normalized_data 为空，跳过保存
-        （数据已在 on_after_single_api_job_bundle_complete 中保存）。
+        抓取过程中已经按缓冲区写入时，这里不再写第二次。
+        返回值仍交给调度器；被下游依赖的源可以据此缓存 data。
         """
+        if self.context.get("buffer_persisted"):
+            logger.debug("[_do_save] 缓冲区已写入，跳过收尾保存")
+            return normalized_data
+
         config = self.context.get("config")
         if not config:
-            raise ValueError("config 必须配置 save_mode")
-        save_mode = config.get_save_mode()
-        
-        # 检查是否按批次保存且数据已保存
-        if save_mode in ["immediate", "batch"]:
-            data_list = normalized_data.get("data", []) if isinstance(normalized_data, dict) else []
-            if not data_list:
-                logger.debug(
-                    "[_do_save] save_mode=%r 且数据为空，跳过统一保存",
-                    save_mode,
-                )
-                return normalized_data
+            raise ValueError("缺少 config")
+        data_list = normalized_data.get("data", []) if isinstance(normalized_data, dict) else []
+        if not data_list:
+            return normalized_data
         
         logger.debug(
             "[_do_save] 保存 %s 条",
@@ -690,48 +686,48 @@ class BaseHandler:
         """
         return raw_result
 
-    def on_after_single_api_job_bundle_complete(
-        self, context: Dict[str, Any], job_bundle: Any, fetched_data: Dict[str, Any]
-    ):
-        """
-        immediate 模式：单 bundle 完成后保存。
+    def bundle_to_frames(self, context: Dict[str, Any], job_bundle: Any, fetched_data: Dict[str, Any]):
+        """把一笔抓取结果变成映射后的表。原始返回不进入缓冲区。"""
+        import pandas as pd
 
-        默认实现委托给 on_after_batch_api_job_bundles_complete（单元素列表）。
-        batch 模式由执行器直接调用 batch 钩子，不会经过本方法。
-        """
-        self.on_after_batch_api_job_bundles_complete(
-            context, [(job_bundle, fetched_data)]
-        )
-        return fetched_data
+        rows = self._extract_normalized_rows_for_bundle(context, job_bundle, fetched_data)
+        if not rows:
+            return []
+        return [pd.DataFrame(rows)]
 
-    def on_after_batch_api_job_bundles_complete(
-        self,
-        context: Dict[str, Any],
-        batch_items: List[Tuple[Any, Dict[str, Any]]],
-    ) -> None:
-        """
-        batch 模式：save_batch_size 个 bundle（或 auto 动态阈值）完成后 **合并一次** 写入绑定表。
-
-        子类可覆盖；默认逐 bundle 标准化后合并 rows，调用 _system_save 一次。
-        """
-        if context.get("is_dry_run") or not batch_items:
+    def save_record_chunk(self, context: Dict[str, Any], rows: List[Dict[str, Any]]) -> None:
+        """写入固定行数的记录。子类可改成自己的保存函数。"""
+        if not rows or context.get("is_dry_run"):
             return
-        all_rows: List[Dict[str, Any]] = []
-        for job_bundle, fetched_data in batch_items:
-            all_rows.extend(
-                self._extract_normalized_rows_for_bundle(
-                    context, job_bundle, fetched_data
-                )
-            )
-        if not all_rows:
-            return
-        self._system_save({"data": all_rows})
-        logger.debug(
-            "[%s] batch 写入 %s bundles / %s 行",
-            context.get("data_source_key"),
-            len(batch_items),
-            len(all_rows),
+        self._system_save({"data": rows})
+
+    def save_frames(self, context: Dict[str, Any], frames: List[Any]) -> None:
+        """按固定行数把多张表写成记录，不把整个缓冲区合成一张表或一份字典。"""
+        from core.modules.data_source.core.service.pipeline.frame_mapping import (
+            WRITE_CHUNK_ROWS,
+            records_from_frame,
         )
+
+        if context.get("is_dry_run") or not frames:
+            return
+        pending: List[Dict[str, Any]] = []
+
+        def flush_pending() -> None:
+            if not pending:
+                return
+            rows = list(pending)
+            pending.clear()
+            self.save_record_chunk(context, rows)
+
+        for frame in frames:
+            if frame is None or getattr(frame, "empty", True):
+                continue
+            total = len(frame)
+            for start in range(0, total, WRITE_CHUNK_ROWS):
+                pending.extend(records_from_frame(frame.iloc[start : start + WRITE_CHUNK_ROWS]))
+                if len(pending) >= WRITE_CHUNK_ROWS:
+                    flush_pending()
+        flush_pending()
 
     def _extract_normalized_rows_for_bundle(
         self,

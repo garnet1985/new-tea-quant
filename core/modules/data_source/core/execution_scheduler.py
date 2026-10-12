@@ -190,6 +190,9 @@ class DataSourceExecutionScheduler:
                     flush=True,
                 )
                 logger.info("执行数据源 [%s/%s]: %s", idx + 1, total, data_source_key)
+                handler_instance.context["retain_results"] = (
+                    self.mappings.is_dependency_for_downstream(data_source_key)
+                )
                 dependencies_data = self._get_dependencies_data(data_source_key)
                 if getattr(self, "_force_refresh", False):
                     dependencies_data = dict(dependencies_data or {})

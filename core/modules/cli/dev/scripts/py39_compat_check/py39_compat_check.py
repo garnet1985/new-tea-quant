@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-扫描 Python 源码在 3.9 下可能不兼容的写法（仅报告，不修改文件）。
+扫描 Python 源码在 3.11 下可能不兼容的写法（仅报告，不修改文件）。
 
 检查项：
-- PEP 604 联合类型注解（``X | Y``）且文件未 ``from __future__ import annotations``
-- ``match`` / ``case``（3.10+）
-- ``except*``（3.11+）
-- 泛型类 ``class C[T]:``（3.12+，运行环境为 3.12+ 时）
-- 若本机存在 ``python3.9``，对无法静态解析的语法再做 ``py_compile``
+- 泛型类 ``class C[T]:``（3.12+）
+- 若本机存在 ``python3.11``，对无法静态解析的语法再做 ``py_compile``
 
 用法::
 
@@ -73,60 +70,6 @@ class CompatIssue:
         return f"  {rel}:{self.line}: [{self.rule}] {self.message}"
 
 
-def _has_future_annotations(tree: ast.Module) -> bool:
-    for node in tree.body:
-        if not isinstance(node, ast.ImportFrom):
-            continue
-        if node.module != "__future__":
-            continue
-        for alias in node.names:
-            if alias.name == "annotations":
-                return True
-    return False
-
-
-def _annotation_uses_pep604_union(node: Optional[ast.AST]) -> bool:
-    if node is None:
-        return False
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
-        return True
-    if isinstance(node, ast.Subscript):
-        return _annotation_uses_pep604_union(node.value) or _annotation_uses_pep604_union(
-            node.slice
-        )
-    if isinstance(node, ast.Tuple):
-        return any(_annotation_uses_pep604_union(elt) for elt in node.elts)
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return False
-    return False
-
-
-def _iter_annotation_nodes(tree: ast.AST) -> Iterator[Tuple[int, ast.AST]]:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            if node.returns is not None:
-                yield node.lineno, node.returns
-            args = list(getattr(node.args, "posonlyargs", []))
-            args += node.args.args + node.args.kwonlyargs
-            if node.args.vararg and node.args.vararg.annotation:
-                yield node.args.vararg.lineno, node.args.vararg.annotation
-            if node.args.kwarg and node.args.kwarg.annotation:
-                yield node.args.kwarg.lineno, node.args.kwarg.annotation
-            for arg in args:
-                if arg.annotation is not None:
-                    yield arg.lineno, arg.annotation
-        elif isinstance(node, ast.AsyncFunctionDef):
-            if node.returns is not None:
-                yield node.lineno, node.returns
-            for arg in node.args.args + node.args.kwonlyargs:
-                if arg.annotation is not None:
-                    yield arg.lineno, arg.annotation
-        elif isinstance(node, ast.AnnAssign) and node.annotation is not None:
-            yield node.lineno, node.annotation
-        elif isinstance(node, ast.arg) and node.annotation is not None:
-            yield node.lineno, node.annotation
-
-
 def _ast_issues_for_file(path: Path, source: str) -> List[CompatIssue]:
     issues: List[CompatIssue] = []
     try:
@@ -145,40 +88,7 @@ def _ast_issues_for_file(path: Path, source: str) -> List[CompatIssue]:
     if not isinstance(tree, ast.Module):
         return issues
 
-    if not _has_future_annotations(tree):
-        for lineno, ann in _iter_annotation_nodes(tree):
-            if _annotation_uses_pep604_union(ann):
-                issues.append(
-                    CompatIssue(
-                        path=path,
-                        line=lineno,
-                        rule="pep604",
-                        message=(
-                            "使用了 ``X | Y`` 类型注解但未 "
-                            "``from __future__ import annotations``（3.9 运行时会报错）"
-                        ),
-                    )
-                )
-
     for node in ast.walk(tree):
-        if type(node).__name__ == "Match":
-            issues.append(
-                CompatIssue(
-                    path=path,
-                    line=int(getattr(node, "lineno", 1) or 1),
-                    rule="match",
-                    message="``match`` 语句需要 Python 3.10+",
-                )
-            )
-        if type(node).__name__ == "TryStar":
-            issues.append(
-                CompatIssue(
-                    path=path,
-                    line=int(getattr(node, "lineno", 1) or 1),
-                    rule="except-star",
-                    message="``except*`` 需要 Python 3.11+",
-                )
-            )
         if isinstance(node, ast.ClassDef) and getattr(node, "type_params", None):
             issues.append(
                 CompatIssue(
@@ -193,7 +103,7 @@ def _ast_issues_for_file(path: Path, source: str) -> List[CompatIssue]:
 
 
 def _find_python39() -> Optional[str]:
-    for name in ("python3.9", "python3.9.exe"):
+    for name in ("python3.11", "python3.11.exe"):
         found = shutil.which(name)
         if found:
             return found
@@ -296,19 +206,19 @@ def collect_py39_compat_issues(
 
 def run_py39_compat_check(*, use_py39_compile: bool = True) -> int:
     """打印报告；有发现问题时返回 1。"""
-    print("\n[检查] Python 3.9 兼容性（仅报告，不自动修改）…", flush=True)
+    print("\n[检查] Python 3.11 兼容性（仅报告，不自动修改）…", flush=True)
     issues = collect_py39_compat_issues(use_py39_compile=use_py39_compile)
     py39 = _find_python39()
     if py39:
         print(f"  已使用 {py39} 做 py_compile 补充检查", flush=True)
     else:
         print(
-            "  未找到 python3.9 可执行文件，跳过 py_compile（仍执行 AST 静态检查）",
+            "  未找到 python3.11 可执行文件，跳过 py_compile（仍执行 AST 静态检查）",
             flush=True,
         )
 
     if not issues:
-        print("  未发现已知的 3.9 不兼容写法。", flush=True)
+        print("  未发现已知的 3.11 不兼容写法。", flush=True)
         return 0
 
     by_file: dict[str, List[CompatIssue]] = {}
@@ -320,7 +230,7 @@ def run_py39_compat_check(*, use_py39_compile: bool = True) -> int:
     for issue in issues:
         print(issue.format(), flush=True)
     print(
-        "\n  说明：带 ``from __future__ import annotations`` 的 ``X | Y`` 注解在 3.9 下通常可运行；"
+        "\n  说明：最低版本是 3.11。``class C[T]:`` 这类 3.12 语法不能用。"
         "请按上表逐项确认。",
         flush=True,
     )
@@ -328,11 +238,11 @@ def run_py39_compat_check(*, use_py39_compile: bool = True) -> int:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Python 3.9 兼容性扫描（只读）")
+    parser = argparse.ArgumentParser(description="Python 3.11 兼容性扫描（只读）")
     parser.add_argument(
         "--no-py39-compile",
         action="store_true",
-        help="不调用本机 python3.9 py_compile",
+        help="不调用本机 python3.11 py_compile",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
     return run_py39_compat_check(use_py39_compile=not args.no_py39_compile)

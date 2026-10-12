@@ -24,6 +24,18 @@ def test_cli_complete_marks_wizard_ready(tmp_path: Path, monkeypatch) -> None:
     assert state["inputsByStep"]["resolve_ml_deps"]["skip"] is True
 
 
+def test_complete_records_skipped_import(tmp_path: Path, monkeypatch) -> None:
+    state_file = tmp_path / "setup-runtime.json"
+    monkeypatch.setattr(setup_session, "STATE_FILE", state_file)
+
+    setup_session.mark_pipeline_complete(source="cli", skipped_step_ids=["import_data"])
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    assert "import_data" in state["skippedSteps"]
+    assert state["inputsByStep"]["import_data"]["skip"] is True
+    by_id = {item["stepId"]: item["status"] for item in state["stepStates"]}
+    assert by_id["import_data"] == "success"
+
+
 def test_ui_and_cli_share_same_state_file(tmp_path: Path, monkeypatch) -> None:
     state_file = tmp_path / "setup-runtime.json"
     monkeypatch.setattr(setup_session, "STATE_FILE", state_file)

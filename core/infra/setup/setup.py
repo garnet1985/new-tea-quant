@@ -115,6 +115,8 @@ class RuntimeNamespace:
         db_user: str | None = None,
         db_password: str | None = None,
         db_schema: str | None = None,
+        skip_import: bool = False,
+        deps_only: bool = False,
     ) -> None:
         from core.infra.setup.core.cli_install_options import CliInstallOptions
         from core.infra.setup.core.cli_runtime import install_cli_runtime
@@ -131,6 +133,8 @@ class RuntimeNamespace:
                 db_user=db_user,
                 db_password=db_password,
                 db_schema=db_schema,
+                skip_import=skip_import,
+                deps_only=deps_only,
             ),
         )
 

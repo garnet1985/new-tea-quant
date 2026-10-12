@@ -133,6 +133,7 @@ def mark_pipeline_complete(
     *,
     source: str,
     inputs_by_step: Optional[Dict[str, Any]] = None,
+    skipped_step_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     definition = _definition()
     state = load_state(definition)
@@ -141,17 +142,20 @@ def mark_pipeline_complete(
         merged.update(inputs_by_step)
         state["inputsByStep"] = merged
     skipped = list(state.get("skippedSteps") or [])
+    extra_skipped = {str(item) for item in (skipped_step_ids or []) if str(item)}
     for step in definition:
         step_id = str(step.get("id") or "")
         if not step_id:
             continue
-        if step.get("cliSkip"):
-            set_step_status(state, step_id, STATUS_SUCCESS)
-            state.setdefault("inputsByStep", {}).setdefault(step_id, {"skip": True})
+        set_step_status(state, step_id, STATUS_SUCCESS)
+        if step.get("cliSkip") or step_id in extra_skipped:
+            bucket = state.setdefault("inputsByStep", {}).setdefault(step_id, {})
+            if step.get("cliSkip") and "skip" not in bucket:
+                bucket["skip"] = True
+            if step_id in extra_skipped:
+                bucket["skip"] = True
             if step_id not in skipped:
                 skipped.append(step_id)
-        else:
-            set_step_status(state, step_id, STATUS_SUCCESS)
     state["skippedSteps"] = skipped
     state["installSource"] = source
     state["isReady"] = True

@@ -254,9 +254,9 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         from core.modules.cli.dev.scripts.py39_compat_check import run_py39_compat_check
 
         if run_py39_compat_check() != 0:
-            return _stop("Python 3.9 兼容性检查未通过")
+            return _stop("Python 3.11 兼容性检查未通过")
     else:
-        print("\n[跳过] Python 3.9 兼容性检查", flush=True)
+        print("\n[跳过] Python 3.11 兼容性检查", flush=True)
 
     if run_ruff() != 0:
         return _stop("ruff check 未通过")

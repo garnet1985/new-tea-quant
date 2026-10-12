@@ -29,6 +29,9 @@ from core.infra.setup.core.trace_events import SetupTrace
 
 INSTALL_PY = REPO_ROOT / "install.py"
 
+# requirements 指纹变化时只跑这两步。userspace、数据库和演示包都不重做。
+_DEP_STEP_IDS = ("sys_req_check", "resolve_deps")
+
 
 def _ordered_cli_steps() -> List[str]:
     metas = load_setup_step_meta(ui_only=False)
@@ -83,6 +86,15 @@ def _session_inputs(options: CliInstallOptions) -> dict:
     return inputs
 
 
+def _steps_for_options(options: CliInstallOptions) -> List[str]:
+    steps = _ordered_cli_steps()
+    if options.deps_only:
+        return [step_id for step_id in steps if step_id in _DEP_STEP_IDS]
+    if options.skip_import:
+        return [step_id for step_id in steps if step_id != "import_data"]
+    return steps
+
+
 def _apply_db_config(options: CliInstallOptions) -> None:
     db_inputs = db_inputs_from_options(options)
     if db_inputs is None:
@@ -116,7 +128,7 @@ def install_cli_runtime(
     print()
 
     try:
-        for step_id in _ordered_cli_steps():
+        for step_id in _steps_for_options(options):
             current_step_id = step_id
             NewTeaQuantSetup.print_check_item("running", f"步骤: {step_id}")
             setup_session.record_step(
@@ -160,7 +172,15 @@ def install_cli_runtime(
         print(f"{CmdLayout.icon.get('error')} 安装失败: {exc}", flush=True)
         raise
 
-    setup_session.mark_pipeline_complete(source="cli", inputs_by_step=session_inputs)
+    skipped_import = ["import_data"] if options.skip_import and not options.deps_only else None
+    if skipped_import:
+        NewTeaQuantSetup.print_check_item("skip", "步骤: import_data（已跳过演示数据）")
+        print("需要演示包时再运行: python cli.py id", flush=True)
+    setup_session.mark_pipeline_complete(
+        source="cli",
+        inputs_by_step=session_inputs,
+        skipped_step_ids=skipped_import,
+    )
     mark_cli_success_fingerprint()
 
     print()

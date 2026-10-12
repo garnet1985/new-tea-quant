@@ -1,0 +1,12 @@
+name: infra.membership
+version: "0.1.0"
+compatible_core_versions: ">=0.5.3"
+package: core.infra
+description: "官网会员通用凭证：设置页写入 userspace，后续会员功能只读状态与凭证。"
+dependencies:
+  - infra.project_context
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 初始化模块：读写 userspace/system/membership/membership_token.txt
+      - 对外只提供 status / save / clear，不回传明文

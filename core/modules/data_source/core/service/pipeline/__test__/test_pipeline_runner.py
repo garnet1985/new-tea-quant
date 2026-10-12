@@ -63,7 +63,43 @@ def test_run_bundles_batch_save_flushes_via_on_result(mock_config_batch):
     finally:
         mod.ApiJobExecutor.execute = original
 
-    assert merged
+    assert merged == {}
     assert len(saved_batches) >= 1
     assert sum(len(b) for b in saved_batches) == 3
     assert not saved_single
+
+
+def test_run_bundles_unified_keeps_results_without_batch_save(mock_config_batch):
+    mock_config_batch.get_save_mode.return_value = "unified"
+    saved_batches = []
+
+    job_a = ApiJob(job_id="a", provider_name="p", method="m", api_name="a")
+    bundle1 = ApiJobBundle(bundle_id="b1", apis=[job_a])
+    context = {
+        "data_source_key": "test_ds",
+        "config": mock_config_batch,
+        "providers": {},
+        "data_manager": Mock(db=Mock(config={"database_type": "duckdb"})),
+    }
+
+    import core.modules.data_source.core.service.api_job_executor as mod
+
+    original = mod.ApiJobExecutor.execute
+
+    async def patched(self, api_jobs):
+        return {api_jobs[0].job_id: [{"x": 1}]}
+
+    mod.ApiJobExecutor.execute = patched
+    try:
+        merged = DataSourcePipelineRunner().run_bundles(
+            context,
+            [bundle1],
+            on_after_single_bundle_complete=lambda *_a: None,
+            on_after_batch_bundles_complete=lambda _ctx, items: saved_batches.append(items),
+            enrich_result_for_batch=lambda _ctx, _b, r: r,
+        )
+    finally:
+        mod.ApiJobExecutor.execute = original
+
+    assert merged
+    assert saved_batches == []

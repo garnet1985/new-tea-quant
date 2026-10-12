@@ -142,7 +142,10 @@ class DataSourcePipelineRunner:
                     result = enriched
 
             if has_actual_data(result):
-                merged.update(result)
+                # unified 等整表结束再标准化、入库。batch / immediate 已按批落库，
+                # 再留全集只会在收尾时多占一份内存，结果随后被丢掉。
+                if save_mode == "unified" or job_bundle is None:
+                    merged.update(result)
                 if save_buffer.saves_enabled and job_bundle is not None:
                     save_buffer.add(job_bundle, result)
 

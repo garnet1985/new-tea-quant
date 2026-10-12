@@ -50,6 +50,7 @@ import {
   writeCachedWorkbenchVersion,
 } from '../strategyDesignSessionState';
 import { useStrategyDesignAttribution } from './useStrategyDesignAttribution';
+import { useStrategyDesignRolling } from './useStrategyDesignRolling';
 import { useStrategyDesignExecution } from './useStrategyDesignExecution';
 
 function deepClone(value) {
@@ -529,9 +530,23 @@ export function useStrategyDesignWorkbench() {
     executionBusy,
     stepStatus: session.executionState?.stepStatus || {},
     versionId: appliedVersionId,
+    settingsApplied: isAppliedSettings,
   });
 
-  const panelBusy = Boolean(executionBusy || attribution.attributeBusy);
+  const rolling = useStrategyDesignRolling({
+    strategyName,
+    isLoadingSettings,
+    executionBusy,
+    attributeBusy: attribution.attributeBusy,
+    stepStatus: session.executionState?.stepStatus || {},
+    versionId: appliedVersionId,
+    settingsApplied: isAppliedSettings,
+    setReportViewTab: attribution.setReportViewTab,
+  });
+
+  const panelBusy = Boolean(
+    executionBusy || attribution.attributeBusy || rolling.rollingBusy,
+  );
   const disableMetaActions = isSavingSettings || isDeletingVersion || isLoadingSettings || !hasValidSettings || !strategyName || panelBusy;
 
   const handleSettingsFocus = useCallback(() => {
@@ -859,11 +874,12 @@ export function useStrategyDesignWorkbench() {
     stepProgress: session.stepProgress || {},
     runningStep: session.executionState?.runningStep || '',
     executionBusy,
-    panelBusy,
     runError,
     progressDetail,
     forceEnumerate,
     ...attribution,
+    ...rolling,
+    panelBusy,
     handleDraftDrivenReset,
     suppressDraftDrivenPanelResetRef,
     strategyDisplayName,
@@ -875,6 +891,9 @@ export function useStrategyDesignWorkbench() {
     isEnabled: Boolean(draftSettings?.is_enabled ?? initialSettings?.is_enabled),
     currentVersionDisplay,
     isAppliedSettings,
+    rollingDone: Boolean(
+      isAppliedSettings && session.workbenchSnapshot?.rollingStatus?.done,
+    ),
     envInvalid,
     capsuleStatus,
     hasPersistedSnapshot,

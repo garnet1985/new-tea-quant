@@ -38,11 +38,10 @@ ROAD MAPs
 ---
 
 目标：AI agent
-### upcoming releases (0.6.x) ✅ 已完成
-- Pydantic + Ruff
+### upcoming releases (0.6.x) 
+- AI agent
 - 增加常用统计/金融/分析工具箱
 - 全新hooks的API，全新ctx，简化API
-- 前端性能和模块化优化
 - 重新整理股票的类别数据
 
 ---
@@ -50,7 +49,7 @@ ROAD MAPs
 ---
 
 目标：增加决策者模式
-### releases (0.5.x) 
+### releases (0.5.x) ✅ 已完成
 - 新加决策者模式（单策略：制定策略第四步）
 - 增加决策者模式的report
 - 引入AI助理 （辅助代码，解释报告，app小百科）
@@ -58,6 +57,8 @@ ROAD MAPs
 - 增强report的可视化
 - 增加用例
 - provide AI proxy
+- 前端性能和模块化优化
+- Ruff
 
 ---
 

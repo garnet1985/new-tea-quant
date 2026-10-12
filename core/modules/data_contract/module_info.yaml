@@ -1,5 +1,5 @@
 name: modules.data_contract
-version: "0.4.2"
+version: "0.4.3"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据契约模块：提供一套可扩展的数据声明到数据加载的契约，主要目的是为了实现回测过程中的声明式数据注入。"
@@ -8,6 +8,10 @@ dependencies:
   - infra.project_context
   - infra.utils
 changelog:
+  - version: "0.4.3"
+    changes:
+      - 申万行业数据键：sw.industry、sw.industry.list、stock.sw_industry、sw.industry.kline.daily
+      - 补上宏观货币供应量 macro.money_supply
   - version: "0.4.2"
     changes:
       - 新增 ContractIssuer.reload：可热重新发现系统与 userspace 契约，无需重启 NTQ

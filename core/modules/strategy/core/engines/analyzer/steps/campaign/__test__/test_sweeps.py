@@ -63,7 +63,7 @@ def test_build_parameter_sweeps_ranks_by_span():
                 },
             },
             {
-                "version_id": "1-1",
+                "version_id": "1-attr1",
                 "status": "hit",
                 "overlay": {"portfolio": {"allocation": {"max_portfolio_size": 20}}},
                 "knobs": {
@@ -80,7 +80,7 @@ def test_build_parameter_sweeps_ranks_by_span():
                 },
             },
             {
-                "version_id": "1-2",
+                "version_id": "1-attr2",
                 "status": "hit",
                 "overlay": {"core": {"rsi_oversold": 30}},
                 "knobs": {
@@ -134,7 +134,7 @@ def test_portfolio_summarize_emits_sweeps():
                 },
             },
             {
-                "version_id": "1-1",
+                "version_id": "1-attr1",
                 "status": "hit",
                 "overlay": {"portfolio": {"allocation": {"max_portfolio_size": 20}}},
                 "knobs": {"portfolio.allocation.max_portfolio_size": 20},
@@ -184,7 +184,7 @@ def test_portfolio_summarize_does_not_rank_strategy_knobs():
                 "layers": {"portfolio": {"total_return": 0.10, "max_drawdown": 0.2}},
             },
             {
-                "version_id": "1-1",
+                "version_id": "1-attr1",
                 "status": "hit",
                 "overlay": {"portfolio": {"allocation": {"max_portfolio_size": 4}}},
                 "knobs": {
@@ -195,7 +195,7 @@ def test_portfolio_summarize_does_not_rank_strategy_knobs():
                 "layers": {"portfolio": {"total_return": 0.04, "max_drawdown": 0.1}},
             },
             {
-                "version_id": "1-2",
+                "version_id": "1-attr2",
                 "status": "hit",
                 "overlay": {"core": {"rsi_oversold_threshold": 35}},
                 "knobs": {
@@ -227,7 +227,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                 "layers": {"price": {"avg_roi": 0.05}},
             },
             {
-                "version_id": "1-1",
+                "version_id": "1-attr1",
                 "status": "hit",
                 "overlay": {
                     "goal": {
@@ -239,7 +239,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                 "layers": {"price": {"avg_roi": 0.03}},
             },
             {
-                "version_id": "1-2",
+                "version_id": "1-attr2",
                 "status": "hit",
                 "overlay": {
                     "goal": {
@@ -251,7 +251,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                 "layers": {"price": {"avg_roi": 0.06}},
             },
             {
-                "version_id": "1-3",
+                "version_id": "1-attr3",
                 "status": "hit",
                 "overlay": {
                     "goal": {
@@ -263,7 +263,7 @@ def test_joint_heatmap_from_multi_path_overlays():
                 "layers": {"price": {"avg_roi": 0.04}},
             },
             {
-                "version_id": "1-4",
+                "version_id": "1-attr4",
                 "status": "hit",
                 "overlay": {
                     "goal": {

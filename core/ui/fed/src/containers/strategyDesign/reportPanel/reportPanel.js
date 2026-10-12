@@ -4,13 +4,22 @@ import { StrategyReportPanel } from 'containers/strategyReport';
 import { useStrategyDesignSession } from '../strategyDesignContext';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 import StrategyDesignAttributeReport from '../attributeReport';
+import StrategyDesignRollingReport from '../rollingReport';
 import './style.scss';
 
 function StrategyDesignReportPanel() {
   const wb = useStrategyDesignWorkbenchContext();
   const { session } = useStrategyDesignSession();
-  const showAttrTabs = Boolean(wb.attributeVisible);
-  const viewTab = showAttrTabs && wb.reportViewTab === 'attribute' ? 'attribute' : 'backtest';
+  const showAttrTabs = Boolean(
+    wb.isAppliedSettings && (wb.attributeLastGroupId || wb.attributeBusy),
+  );
+  const showRollingTab = Boolean(
+    wb.isAppliedSettings && (wb.rollingHasReport || wb.rollingBusy),
+  );
+  const showTabs = showAttrTabs || showRollingTab;
+  let viewTab = 'backtest';
+  if (showTabs && wb.reportViewTab === 'attribute' && showAttrTabs) viewTab = 'attribute';
+  if (showTabs && wb.reportViewTab === 'rolling' && showRollingTab) viewTab = 'rolling';
 
   const handleTabChange = useCallback((_event, next) => {
     if (typeof wb.setReportViewTab === 'function') {
@@ -23,7 +32,7 @@ function StrategyDesignReportPanel() {
       className="ntq-design-step-report"
       data-ntq-help={wb.hasPersistedSnapshot ? 'strategy-report' : undefined}
     >
-      {showAttrTabs ? (
+      {showTabs ? (
         <Box className="ntq-design-step-report__view-tabs">
           <Tabs
             value={viewTab}
@@ -32,7 +41,8 @@ function StrategyDesignReportPanel() {
             className="ntq-design-step-report__tabs"
           >
             <Tab value="backtest" label="回测报告" disableRipple />
-            <Tab value="attribute" label="归因报告" disableRipple />
+            {showAttrTabs ? <Tab value="attribute" label="归因报告" disableRipple /> : null}
+            {showRollingTab ? <Tab value="rolling" label="滚动对照" disableRipple /> : null}
           </Tabs>
           {viewTab === 'attribute' && wb.attributeLastGroupId ? (
             <Typography variant="caption" color="text.secondary" className="ntq-design-step-report__group">
@@ -42,7 +52,14 @@ function StrategyDesignReportPanel() {
         </Box>
       ) : null}
 
-      {viewTab === 'attribute' ? (
+      {viewTab === 'rolling' ? (
+        <StrategyDesignRollingReport
+          payload={wb.rollingReport}
+          loading={wb.rollingReportLoading}
+          error={wb.rollingError && !wb.rollingBusy ? wb.rollingError : ''}
+          busy={wb.rollingBusy}
+        />
+      ) : viewTab === 'attribute' ? (
         <StrategyDesignAttributeReport
           payload={wb.attributeReport}
           loading={wb.attributeReportLoading}

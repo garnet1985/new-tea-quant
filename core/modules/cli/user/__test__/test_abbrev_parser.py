@@ -25,7 +25,7 @@ pytestmark = pytest.mark.force_run
         ),
         (["se", "--strategy", "demo"], ["strategy_enumerate", "--strategy", "demo"]),
         (["so"], ["strategy_portfolio"]),
-        (["s"], ["strategy_simulate"]),
+        (["sim"], ["strategy_simulate"]),
         (["sea", "--strategy", "rsi_v1"], ["strategy_attribute_enumerate", "--strategy", "rsi_v1"]),
         (["spa"], ["strategy_attribute_price"]),
         (["soa"], ["strategy_attribute_portfolio"]),

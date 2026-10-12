@@ -53,7 +53,7 @@ function advance(text, index, unitBudget) {
   return i;
 }
 
-function AssistantTypewriter({ text, animate, onProgress, onDone }) {
+function AssistantTypewriter({ text = '', animate = false, onProgress, onDone }) {
   const source = String(text || '');
   const reduceMotion = useMemo(() => prefersReducedMotion(), []);
   const shouldType = Boolean(animate) && !reduceMotion && source.length > 0;
@@ -126,13 +126,6 @@ AssistantTypewriter.propTypes = {
   animate: PropTypes.bool,
   onProgress: PropTypes.func,
   onDone: PropTypes.func,
-};
-
-AssistantTypewriter.defaultProps = {
-  text: '',
-  animate: false,
-  onProgress: undefined,
-  onDone: undefined,
 };
 
 export default AssistantTypewriter;

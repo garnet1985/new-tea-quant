@@ -129,7 +129,7 @@ enum 机会 → 入场事件
 | 命令行画 K 线 / 倒出回测起点到 \(D\) 的全表 | 否。`info` 用过去 N 根 + 列白名单 |
 | `next` 里逐日盯市写入存档 | 否。终局 `finalize` 按成交回溯 |
 | `results/decision_making/{strategy}/...` 平行根 | 否。挂在 `simulations/{vid}/decision/{dm_id}/` |
-| `python cli.py s` 自动开决策者 | 否。人在回路，单独进 SQL 模式 |
+| `python cli.py sim` 自动开决策者 | 否。人在回路，单独进 SQL 模式 |
 
 ---
 
@@ -149,7 +149,7 @@ enum 机会 → 入场事件
 
 ## 6. 命令行：SQL 模式
 
-用户 CLI 进一个单独 REPL（类似数据库 sql 模式），不是 `se/sp/so` 那种一次跑完，也不是每步新开一条进程。`python cli.py s` **不**自动开决策者。
+用户 CLI 进一个单独 REPL（类似数据库 sql 模式），不是 `se/sp/so` 那种一次跑完，也不是每步新开一条进程。`python cli.py sim` **不**自动开决策者。
 
 进 REPL 时绑 **当前 `settings.py` 命中的 vid**（与 `so` 相同）。该 vid 下必须已有 enum；没有则拒绝进入。portfolio 不强制，建议已跑完以便对照。
 

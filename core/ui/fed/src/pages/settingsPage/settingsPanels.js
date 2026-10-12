@@ -27,7 +27,14 @@ import InlineLoadingState from '../../views/inlineLoadingState';
 import PageLoadingState from '../../views/pageLoadingState';
 import NtqIcon from '../../views/ntqIcon';
 import { formatDateTime } from '../../service/format/formatDateTime';
-import { clearSettingsCache, fetchTraceSettings, saveTraceSettings } from '../../api/settingsApi';
+import {
+  clearMembershipToken,
+  clearSettingsCache,
+  fetchMembershipSettings,
+  fetchTraceSettings,
+  saveMembershipToken,
+  saveTraceSettings,
+} from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
 import {
@@ -875,21 +882,238 @@ export function SettingsFeedbackPanel() {
   );
 }
 
+export function SettingsMembershipPanel() {
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saveOk, setSaveOk] = useState('');
+  const [configured, setConfigured] = useState(false);
+  const [invalid, setInvalid] = useState(false);
+  const [filePath, setFilePath] = useState('userspace/system/membership/membership_token.txt');
+  const [token, setToken] = useState('');
+
+  const saveAction = useAsyncAction(useCallback((value) => saveMembershipToken(value), []));
+  const clearAction = useAsyncAction(useCallback(() => clearMembershipToken(), []));
+
+  const applyState = useCallback((r) => {
+    setConfigured(Boolean(r.configured));
+    setInvalid(Boolean(r.invalid));
+    if (r.path) setFilePath(r.path);
+  }, []);
+
+  const load = useCallback(() => {
+    setLoadError('');
+    setLoading(true);
+    fetchMembershipSettings()
+      .then(applyState)
+      .catch((e) => {
+        setLoadError(e?.message || '读取会员凭证失败');
+      })
+      .finally(() => setLoading(false));
+  }, [applyState]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleSave = async () => {
+    setSaveOk('');
+    saveAction.clearError();
+    try {
+      const r = await saveAction.run(token);
+      applyState(r);
+      setToken('');
+      setSaveOk('通用凭证已装载。');
+    } catch {
+      /* saveAction.error */
+    }
+  };
+
+  const handleClear = async () => {
+    setSaveOk('');
+    clearAction.clearError();
+    try {
+      const r = await clearAction.run();
+      applyState(r);
+      setToken('');
+      setSaveOk('已移除通用凭证。');
+    } catch {
+      /* clearAction.error */
+    }
+  };
+
+  if (loading) {
+    return <InlineLoadingState />;
+  }
+
+  return (
+    <Stack spacing={2}>
+      <Typography variant="subtitle1" fontWeight={700}>
+        会员
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        把官网会员中心的通用凭证贴到这里，或直接把文件放到
+        {' '}
+        {filePath}
+        。文件里是有效凭证后，新茶会通过官网回答。没有这份凭证时，仍使用 AI 助理里自己的密钥。
+      </Typography>
+      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
+      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
+      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
+      {clearAction.error ? <Alert severity="error">{clearAction.error}</Alert> : null}
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Chip
+          size="small"
+          color={configured ? 'success' : 'default'}
+          label={configured ? '已装载' : '尚未装载'}
+        />
+        {invalid ? (
+          <Typography variant="body2" color="error">
+            文件在，但内容不是通用凭证。
+          </Typography>
+        ) : null}
+      </Stack>
+      <TextField
+        className="membership-token-field"
+        label="通用凭证"
+        placeholder="粘贴通用凭证"
+        type="password"
+        size="small"
+        value={token}
+        autoComplete="off"
+        onChange={(e) => setToken(e.target.value)}
+        helperText="只写入文件，页面不会再显示已保存的凭证。"
+        fullWidth
+        InputLabelProps={{ shrink: true }}
+        sx={{
+          '& .MuiInputLabel-root': {
+            position: 'static',
+            transform: 'none !important',
+            marginBottom: '6px',
+            maxWidth: '100%',
+            fontSize: '0.8rem',
+            lineHeight: 1.4,
+            letterSpacing: 'normal',
+            color: 'text.secondary',
+            pointerEvents: 'none',
+          },
+          '& .MuiOutlinedInput-root': {
+            background: 'transparent',
+            minHeight: 0,
+            padding: 0,
+            backdropFilter: 'none',
+          },
+          '& .MuiOutlinedInput-notchedOutline': {
+            display: 'none',
+          },
+          '& .MuiOutlinedInput-input': {
+            boxSizing: 'border-box',
+            height: 40,
+            margin: 0,
+            padding: '0 12px !important',
+            lineHeight: '40px',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '5px',
+            background: 'var(--ntq-white-03)',
+          },
+          '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-input': {
+            borderColor: 'rgba(255, 255, 255, 0.18)',
+          },
+          '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-input': {
+            borderColor: 'rgba(255, 255, 255, 0.28)',
+          },
+        }}
+      />
+      <Stack direction="row" spacing={1}>
+        <Button
+          variant="contained"
+          disabled={saveAction.busy || !token.trim()}
+          onClick={handleSave}
+        >
+          装载
+        </Button>
+        <Button
+          variant="outlined"
+          color="inherit"
+          disabled={clearAction.busy || (!configured && !invalid)}
+          onClick={handleClear}
+        >
+          移除
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+function NtqProxyCard({ configured }) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        border: '1px solid',
+        borderColor: configured ? 'success.main' : 'divider',
+        bgcolor: configured ? 'action.hover' : 'transparent',
+        borderRadius: 1,
+      }}
+    >
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+        <Typography variant="body2" fontWeight={700}>
+          NTQ AI
+        </Typography>
+        <Chip
+          size="small"
+          color={configured ? 'success' : 'default'}
+          variant={configured ? 'filled' : 'outlined'}
+          label={configured ? '已接入' : '尚未装载凭证'}
+        />
+      </Stack>
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+        官网代理 · 每天 30 次回答
+      </Typography>
+      {configured ? (
+        <Typography variant="body2" sx={{ mt: 1.5 }}>
+          通用凭证已装载。对话经官网转发，不用再填模型密钥。
+          {' '}
+          <Link component={RouterLink} to="/settings/membership">
+            查看会员凭证
+          </Link>
+        </Typography>
+      ) : (
+        <Typography variant="body2" sx={{ mt: 1.5 }}>
+          到官网注册会员，在会员中心复制通用凭证，再放到设置 → 会员。
+          {' '}
+          <Link href="https://new-tea.cn/zh-hans/user/register" target="_blank" rel="noreferrer">
+            去官网注册
+          </Link>
+          {' '}
+          <Link component={RouterLink} to="/settings/membership">
+            去装载凭证
+          </Link>
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 export function SettingsAssistantPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [saveOk, setSaveOk] = useState('');
   const [providers, setProviders] = useState([]);
+  const [membershipReady, setMembershipReady] = useState(false);
   const [drafts, setDrafts] = useState({});
   const [savingId, setSavingId] = useState('');
 
   const load = useCallback(() => {
     setLoadError('');
     setLoading(true);
-    listAssistantProviders()
-      .then((items) => {
+    Promise.all([
+      listAssistantProviders(),
+      fetchMembershipSettings().catch(() => ({ configured: false })),
+    ])
+      .then(([items, membership]) => {
         setProviders(Array.isArray(items) ? items : []);
+        setMembershipReady(Boolean(membership?.configured));
       })
       .catch((e) => {
         setLoadError(e?.message || '读取 AI 供应商失败');
@@ -963,6 +1187,7 @@ export function SettingsAssistantPanel() {
         <PageLoadingState message="正在加载 AI 供应商…" minHeight="36vh" />
       ) : (
         <Stack spacing={2} sx={{ maxWidth: 560 }}>
+          <NtqProxyCard configured={membershipReady} />
           {sortedProviders.length === 0 ? (
             <Alert severity="info">
               还没有发现 AI 供应商。需要先在 userspace 里放好供应商目录和 config.py。

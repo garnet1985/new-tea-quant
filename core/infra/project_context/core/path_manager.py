@@ -205,6 +205,16 @@ class PathManager:
         return PathManager.get_userspace_root() / "system"
 
     @staticmethod
+    def get_membership_directory() -> Path:
+        """会员凭证目录：userspace/system/membership/"""
+        return PathManager.get_system_root() / "membership"
+
+    @staticmethod
+    def get_membership_token_file() -> Path:
+        """官网通用凭证：userspace/system/membership/membership_token.txt"""
+        return PathManager.get_membership_directory() / "membership_token.txt"
+
+    @staticmethod
     def get_default_config_root() -> Path:
         """获取默认配置目录：core/default_config/"""
         return PathManager.get_project_root() / "core" / "default_config"

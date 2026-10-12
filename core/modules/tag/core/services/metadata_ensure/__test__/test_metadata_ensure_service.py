@@ -263,3 +263,30 @@ class TestMetadataEnsureService:
         tags.save.assert_not_called()
         assert scenario.id == 10
         assert scenario.tag_definitions[0].id == 20
+
+    def test_drops_definitions_removed_from_settings(self):
+        tags = MagicMock()
+        tags.load_scenario.return_value = {
+            "id": 10,
+            "name": "demo/cap",
+            "display_name": "Demo",
+            "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
+        }
+        tags.get_tag_definitions.return_value = [
+            {"id": 20, "name": "tier", "display_name": "Tier"},
+            {"id": 21, "name": "old_tier", "display_name": "旧市值"},
+        ]
+        tags.load.return_value = {
+            "id": 20,
+            "scenario_id": 10,
+            "display_name": "Tier",
+            "description": "t",
+        }
+
+        MetadataEnsureService(tags).ensure(_scenario())
+
+        tags.delete_tag_values_by_definition.assert_called_once_with(21)
+        tags.delete_tag_definition.assert_called_once_with(21)
+        tags.clear_calc_progress_by_scenario.assert_called_once_with(10)

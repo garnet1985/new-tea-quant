@@ -125,7 +125,7 @@ class ReportManager(BaseReportManager):
 
         结果根基于 discovered ``strategy_folder``（``{folder}/results/simulations/{version_id}/enum``），
         不再用相对名重拼 userspace/strategies。
-        ``version_id`` 非空时写入该号（归因副本 ``{vid}-{r}``），不新开主号。
+        ``version_id`` 非空时写入该号（归因副本 ``{vid}-attr{n}``），不新开主号。
         """
         path_id = str(strategy_path or strategy_key or "").strip()
         folder = Path(strategy_folder) if strategy_folder is not None else None

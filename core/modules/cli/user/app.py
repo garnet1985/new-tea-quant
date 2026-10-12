@@ -3,14 +3,11 @@
 from __future__ import annotations
 from core.infra.cmd_layout import i
 
-import logging
 import os
 from typing import Optional
 
 from core.modules.data_manager import DataManager
 from core.modules.data_source import DataSourceManager
-
-logger = logging.getLogger(__name__)
 
 
 class CliApp:
@@ -81,8 +78,11 @@ class CliApp:
                 adj_model.csv_dir,
                 f"adj_factor_events_{resolved_start or 'earliest'}_{end or 'latest'}.csv",
             )
-        logger.info(i('upload') + " 导出复权因子事件 CSV: %s .. %s -> %s", resolved_start, end or "?", out)
+        print(
+            f"{i('upload')} 导出复权因子事件 CSV: {resolved_start} .. {end or '?'} -> {out}",
+            flush=True,
+        )
         exported = adj_model.export_to_csv(
             file_path=out, start_date=start_date, end_date=end_date
         )
-        logger.info(i('success') + " 导出完成: %s 条 -> %s", exported, out)
+        print(f"{i('success')} 导出完成: {exported} 条 -> {out}", flush=True)

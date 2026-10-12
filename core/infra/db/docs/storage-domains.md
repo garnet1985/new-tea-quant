@@ -62,7 +62,7 @@ schema = {
 ### data（26 张）
 
 - **股票时序：** `sys_stock_klines`, `sys_stock_indicators`, `sys_adj_factor_events`, `sys_corporate_finance`, `sys_stock_st_periods`
-- **主数据与维度：** `sys_stock_list`, `sys_industries`, `sys_boards`, `sys_markets`, `sys_areas`, `sys_stock_*_map`
+- **主数据与维度：** `sys_stock_list`, `sys_sw_industry`, `sys_sw_stock_industry_map`, `sys_sw_industry_kline`, `sys_boards`, `sys_markets`, `sys_areas`, `sys_stock_*_map`
 - **指数：** `sys_index_list`, `sys_index_klines`, `sys_index_weight`
 - **日历：** `sys_trade_calendar`
 - **宏观：** `sys_cpi`, `sys_ppi`, `sys_pmi`, `sys_gdp`, `sys_lpr`, `sys_shibor`, `sys_money_supply`
@@ -279,7 +279,7 @@ DuckdbEngine（duckdb 时）
 | 模块 | 表 | 域 | 说明 |
 |------|-----|-----|------|
 | `kline_service` | klines + adj_factor_events；list + klines | 均 data | 同域，安全 |
-| `stock_service` | list + map + industries + klines | 均 data | 同域，安全 |
+| `stock_service` | list + 申万行业映射 + klines | 均 data | 同域，安全 |
 | `tag_service` | tag_value + tag_definition | 均 tag | 同域，安全 |
 | `adj_factor_events/model` 等 table model | 单表 + 偶发查 stock_list | 多在同域 | 逐文件核对 |
 

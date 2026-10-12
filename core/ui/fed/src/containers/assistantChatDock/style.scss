@@ -327,36 +327,86 @@ $ntq-assistant-fab-size: 52px;
 
 .ntq-assistant-dock__composer {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--ntq-white-12);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin: 0 12px 12px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
   flex-shrink: 0;
 }
 
 .ntq-assistant-dock__input {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   resize: none;
-  border: 1px solid var(--ntq-white-12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: var(--ntq-text);
   font: inherit;
   font-size: var(--ntq-form-control-font-size);
   line-height: var(--ntq-form-control-line-height);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  min-height: 40px;
+  min-height: 44px;
   max-height: 140px;
-  padding: 8px 10px;
+  padding: 4px 4px 0 0;
   overflow-y: auto;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 
   &:focus {
     outline: none;
-    border-color: rgba(34, 211, 238, 0.45);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+  }
+}
+
+.ntq-assistant-dock__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.ntq-assistant-dock__quota {
+  flex: 0 0 auto;
+  color: var(--ntq-text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+}
+
+.ntq-assistant-dock__actions-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.ntq-assistant-dock__picker {
+  max-width: 160px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ntq-text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0 4px;
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    color: var(--ntq-text);
   }
 
   &:disabled {
@@ -366,14 +416,14 @@ $ntq-assistant-fab-size: 52px;
 
 .ntq-assistant-dock__send {
   flex-shrink: 0;
-  height: 36px;
-  padding: 0 14px;
+  height: 28px;
+  padding: 0 12px;
   border: none;
   border-radius: 8px;
   background: var(--ntq-cyan);
   color: #061018;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
 

@@ -17,9 +17,11 @@ class TagReportSaveBuffer:
         save_fn: Callable[[List[Dict[str, Any]]], int],
         *,
         batch_size: int = 5000,
+        defer_exceptions: tuple = (),
     ) -> None:
         self._save_fn = save_fn
         self._batch_size = max(1, int(batch_size))
+        self._defer_exceptions = tuple(defer_exceptions)
         self._buffer: List[Dict[str, Any]] = []
         self.saved_row_count = 0
         self.flush_count = 0
@@ -35,7 +37,10 @@ class TagReportSaveBuffer:
         self._buffer.extend(tag_values)
         save_sec = 0.0
         while len(self._buffer) >= self._batch_size:
+            pending = len(self._buffer)
             save_sec += self._flush_chunk(self._batch_size)
+            if len(self._buffer) >= pending:
+                break
         return save_sec
 
     def extend_in_chunks(self, tag_values: List[Dict[str, Any]]) -> float:
@@ -56,10 +61,17 @@ class TagReportSaveBuffer:
 
     def _flush_chunk(self, count: int) -> float:
         chunk = self._buffer[:count]
-        self._buffer = self._buffer[count:]
         t0 = time.perf_counter()
-        affected = self._save_fn(chunk)
-        self.saved_row_count += affected if affected else len(chunk)
+        try:
+            affected = self._save_fn(chunk)
+        except Exception as exc:
+            if self._defer_exceptions and isinstance(exc, self._defer_exceptions):
+                return time.perf_counter() - t0
+            raise
+        if not affected:
+            raise RuntimeError(f"标签值写入失败，{len(chunk)} 行未落库")
+        self._buffer = self._buffer[count:]
+        self.saved_row_count += int(affected)
         self.flush_count += 1
         return time.perf_counter() - t0
 

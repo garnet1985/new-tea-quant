@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.2-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.3-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -24,16 +24,17 @@
 
 想跳过介绍、直接安装？请看 [快速安装 + 运行一个策略](#quick-start)。其他入口：[为什么用 NTQ](#why) · [常用命令](#cli) · [教程](https://new-tea.cn/zh-hans/more-examples) · [官网](https://new-tea.cn)
 
-## 当前版本（v0.5.2）
+## 当前版本（v0.5.3）
 
 最近更新摘要：
 
-**[v0.5.2](CHANGELOG.md)**
+**[v0.5.3](CHANGELOG.md)**
 
-- **参数矩阵归因**：去掉贡献有限的单次回测归因。每一步可以单独对照策略目录里 `attribution.py` 的参数，看不同取值对结果的影响。为所有演示策略都加了一份示例。
-- **重构价格回测**：不再在持仓期间锁住同一只股票。挨得太近的机会会去掉，隔开的机会可以并行跟踪，用来看滤掉噪音之后策略的整体盈利能力。
-- **投资模拟选仓**：机会多于持仓额度时，可用 `portfolio.allocation.opportunity_selection` 按字段排序或加权挑选。写了 `on_pick_portfolio_member` 时仍则以钩子函数为准。
-- 更多更新请参见 [CHANGELOG.md](CHANGELOG.md)。v0.5.0 起已包含决策模拟与 AI 助理。
+- **新的股票分类**：去掉原来的股票分类，改用统一的申万2021标准。
+- **增加滚动回测功能**：策略可以在不同时间周期上进行滚动测试了。
+- **新的会员机制**：现在在官网注册会员，可以使用会员凭证免费使用AI助理了，但目前每天只有30次额度。
+- 更多更新请参见 [CHANGELOG.md](CHANGELOG.md)。
+- 预告下一个版本0.6.0将带来**破坏性改动**，策略钩子函数，数据库表都会改变。Python支持版本将要从3.9提升到稳定的3.11版本。
 
 ## NTQ 是什么？
 
@@ -312,7 +313,7 @@ NTQ 能帮助您将您的想法进行验证，您可能需要：
 
 NTQ 是一个回测器，无法提供：
 
-- **持续稳定的数据源**（需要您自己对接数据源）。仓库自带约 3 年、**300 只**股票的演示数据；注册后可在[会员页面](https://new-tea.cn/zh-hans/user/)另下全 A 约 3 年包（见 [数据说明](#data)）。
+- **持续稳定的数据源**（需要您自己对接数据源）。仓库自带约 3 年、**300 只**股票的演示数据。全 A 约 3 年包自 **0.5.3** 起暂停下载，**0.6.0** 重新开放（见 [数据说明](#data)）。
 - **实盘交易。** NTQ 不支持实盘，但提供扫描结果的处理接口（[`adapter`](core/modules/adapter/README.md) 模块）。如果您懂得如何接入第三方交易软件或者平台，可以把扫描得到的机会交给下游处理。
 
 ## NTQ 如何跑起来？
@@ -507,7 +508,7 @@ NTQ 自带以下演示资产：
 <a id="data"></a>
 ## 数据说明
  
-1. 如果您想**获取更多（约 3 年，全 A 股市场）演示数据包**：用于更完整的策略验证/回测，请先[注册并登录会员页面](https://new-tea.cn/zh-hans/user/)下载，移走 [`initialization/data/`](initialization/data/) 里原有 zip 后只放入 **1 个** zip，再执行 `python cli.py id`（强制全量重导加 `-f`，见 [常用命令](#cli)）。可另配库名以并存 demo 与全量数据（安装后见 `userspace/system/config/database/`）。  
+1. 如果您想**获取更多（约 3 年，全 A 股市场）演示数据包**：用于更完整的策略验证/回测。**自 0.5.3 起暂停下载，将在 0.6.0 重新开放。** 重新开放后，请先[注册并登录会员页面](https://new-tea.cn/zh-hans/user/)下载，移走 [`initialization/data/`](initialization/data/) 里原有 zip 后只放入 **1 个** zip，再执行 `python cli.py id`（强制全量重导加 `-f`，见 [常用命令](#cli)）。可另配库名以并存 demo 与全量数据（安装后见 `userspace/system/config/database/`）。  
 2. **自有数据源**：也可自行接入（例如 [Tushare](https://tushare.pro)），详见 [core/modules/data_source/README.md](core/modules/data_source/README.md)。
 3. 演示数据与 demo 策略仅供学习研究，请勿用于实盘或商用。
 
@@ -525,10 +526,11 @@ NTQ 自带以下演示资产：
 python cli.py se --strategy rsi_v1   # 机会枚举
 python cli.py sp --strategy rsi_v1   # 价格层
 python cli.py so --strategy rsi_v1   # 资金层
-python cli.py s  --strategy rsi_v1   # 三层一次跑完
+python cli.py sim --strategy rsi_v1   # 三层一次跑完
 python cli.py sea --strategy rsi_v1  # 枚举层归因（须先 se；读 attribution.py）
 python cli.py spa --strategy rsi_v1  # 价格层归因（须先 sp）
 python cli.py soa --strategy rsi_v1  # 组合层归因（须先 so）
+python cli.py sr  --strategy rsi_v1   # 滚动对照（须先完成三层；读 rolling.py）
 python cli.py c  --strategy rsi_v1   # 全市场扫描
 python cli.py t  --scenario market_cap_tier   # 特征标签
 ```

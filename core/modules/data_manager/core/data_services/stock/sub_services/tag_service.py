@@ -19,6 +19,11 @@ from core.infra.utils import Utils
 
 logger = logging.getLogger(__name__)
 
+
+class TagDbUnavailable(RuntimeError):
+    """主进程 DuckDB 连接已释放（ProcessPool 期间），调用方应延后写入。"""
+
+
 _TAG_VALUE_TABLE = "sys_tag_value"
 _TAG_DEFINITION_TABLE = "sys_tag_definition"
 _TAG_CALC_PROGRESS_TABLE = "sys_tag_calc_progress"
@@ -51,7 +56,44 @@ class TagDataService(BaseDataService):
             self.db = dm_db
         else:
             self.db = DatabaseManager.get_default(auto_init=True)
-    
+
+    def rebind_live_db(self) -> bool:
+        """ProcessPool 结束后，把表 Model 重新绑到已恢复的 DatabaseManager。
+
+        释放主库时旧 Model 仍指着已 close 的连接；resume 换了新实例，
+        不重绑则 upsert 打在关闭的连接上并返回 0。
+        连接尚未恢复时返回 False，不调用 get_default（避免在 worker 阶段抢锁）。
+        """
+        dm = self.data_manager
+        db = getattr(dm, "db", None) if dm is not None else None
+        if db is None or not getattr(db, "_initialized", False):
+            from core.infra.db.core.db_manager import DatabaseManager
+
+            db = DatabaseManager.peek_default()
+        if db is None or not getattr(db, "_initialized", False):
+            return False
+        value_model = getattr(self, "_tag_value_model", None)
+        if (
+            getattr(self, "db", None) is db
+            and value_model is not None
+            and getattr(value_model, "db", None) is db
+        ):
+            return True
+        if dm is None:
+            return False
+        self.db = db
+        self._tag_scenario_model = dm.get_table("sys_tag_scenario")
+        self._tag_definition_model = dm.get_table("sys_tag_definition")
+        self._tag_value_model = dm.get_table("sys_tag_value")
+        self._tag_calc_progress_model = dm.get_table("sys_tag_calc_progress")
+        if self._tag_value_model is None or getattr(self._tag_value_model, "db", None) is not db:
+            raise RuntimeError("无法绑定 sys_tag_value")
+        return True
+
+    def _require_live_db(self) -> None:
+        if not self.rebind_live_db():
+            raise TagDbUnavailable("tag 库连接不可用，无法写入")
+
     # ========================================================================
     # Scenario 相关 API
     # ========================================================================
@@ -383,6 +425,20 @@ class TagDataService(BaseDataService):
         # 返回更新后的 tag definitions
         return self._get_updated_entities(updates, self._tag_definition_model)
     
+    def delete_tag_values_by_definition(self, tag_definition_id: int) -> None:
+        """删除一个标签定义下的全部取值。"""
+        sql = "DELETE FROM sys_tag_value WHERE tag_definition_id = %s"
+        try:
+            with self.db.get_sync_cursor_for_table(_TAG_VALUE_TABLE) as cursor:
+                cursor.execute(sql, (int(tag_definition_id),))
+        except Exception as exc:
+            logger.error(
+                "删除 tag values 失败: tag_definition_id=%s, error=%s",
+                tag_definition_id,
+                exc,
+            )
+            raise
+
     def delete_tag_definition(self, tag_definition_id: int) -> None:
         """
         删除指定的 tag definition
@@ -428,9 +484,13 @@ class TagDataService(BaseDataService):
             int: 保存的记录数（通常是 1）
         """
         # 由 DataService 定义唯一键 (entity_id, tag_definition_id, as_of_date)
-        return self._tag_value_model.upsert_many(
-            [tag_value_data],
-            unique_keys=["entity_id", "tag_definition_id", "as_of_date"],
+        self._require_live_db()
+        return int(
+            self._tag_value_model.upsert_many(
+                [tag_value_data],
+                unique_keys=["entity_id", "tag_definition_id", "as_of_date"],
+            )
+            or 0
         )
     
     def save_batch(self, tag_values: List[Dict[str, Any]]) -> int:
@@ -445,9 +505,13 @@ class TagDataService(BaseDataService):
         """
         if not tag_values:
             return 0
-        return self._tag_value_model.upsert_many(
-            tag_values,
-            unique_keys=["entity_id", "tag_definition_id", "as_of_date"],
+        self._require_live_db()
+        return int(
+            self._tag_value_model.upsert_many(
+                tag_values,
+                unique_keys=["entity_id", "tag_definition_id", "as_of_date"],
+            )
+            or 0
         )
     
     def delete_tag_values_by_scenario(self, scenario_id: int) -> None:
@@ -534,6 +598,7 @@ class TagDataService(BaseDataService):
         """将给定 entity 的 last_calculated_end 推进为至少 ``end``（取 max）。"""
         if not entity_ends:
             return 0
+        self._require_live_db()
         scenario = self.load_scenario(scenario_name)
         if not scenario or scenario.get("id") is None:
             logger.warning(
@@ -560,7 +625,10 @@ class TagDataService(BaseDataService):
             )
         if not rows:
             return 0
-        return int(self._tag_calc_progress_model.save_records(rows) or len(rows))
+        written = int(self._tag_calc_progress_model.save_records(rows) or 0)
+        if written <= 0:
+            raise RuntimeError(f"计算水位未落库（{len(rows)} 个实体）")
+        return written
 
     def clear_calc_progress_by_scenario(self, scenario_id: int) -> None:
         """删除指定 scenario 下全部计算水位（refresh / recompute）。"""

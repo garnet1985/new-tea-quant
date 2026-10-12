@@ -13,11 +13,11 @@ CLI_COMMAND_REFERENCE = """
   python cli.py sd                      决策者 REPL   同 strategy_decision [--strategy NAME] [--version ID] [--session N] [--new-session]
   python cli.py sdl                     列出决策者会话 同 strategy_decision_list [--strategy NAME] [--version ID]
   python cli.py sdd --session N         删除一局决策者 同 strategy_decision_delete --session N
-  python cli.py s                       完整模拟链路  同 strategy_simulate
+  python cli.py sim                     三层回测      同 strategy_simulate [--strategy NAME]（枚举 → 价格 → 资金；-f 忽略缓存重跑）
   python cli.py sea                     枚举层归因    同 strategy_attribute_enumerate [--strategy NAME]（须先 se；-f 忽略缓存）
   python cli.py spa                     价格层归因    同 strategy_attribute_price [--strategy NAME]（须先 sp）
   python cli.py soa                     组合层归因    同 strategy_attribute_portfolio [--strategy NAME]（须先 so）
-  python cli.py sw                      滚动验证（待定） 同 strategy_rolling [--strategy NAME]（读 attribution.rolling；-f 忽略缓存重跑）
+  python cli.py sr                      滚动对照      同 strategy_rolling [--strategy NAME]（读 rolling.py；须先完成三层回测；-f 忽略缓存重跑）
   python cli.py sdv --strategy rsi_v1:3 删一份回测产物 同 strategy_delete_version（策略:版本）
 
   python cli.py r [SOURCE]              更新数据      同 renew [SOURCE]
@@ -33,7 +33,7 @@ CLI_COMMAND_REFERENCE = """
 
   -f                                    全局：强制刷新 / 重算 / 覆盖
   -n PATH                               全局：从模版新建到 PATH
-  --verbose                             详细日志
+  --verbose                             开发日志（DEBUG，默认关闭）
 
   例: python cli.py sp -f --strategy demo/foo
       同 python cli.py strategy_price_factor -f --strategy demo/foo

@@ -163,7 +163,7 @@ def _enrich_stock_names(events: List[Dict[str, Any]]) -> None:
     try:
         from core.modules.data_manager import DataManager
 
-        model = DataManager().get_table("sys_stock_list")
+        model = DataManager().get_table("sys_data_stock_list")
         if model is None:
             return
         chunk_size = 500

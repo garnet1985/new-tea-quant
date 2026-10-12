@@ -1,5 +1,5 @@
 """
-个股资金流向表 Model（sys_stock_moneyflow）
+个股资金流向表 Model（sys_data_stock_moneyflow）
 """
 from typing import List, Dict, Any, Optional
 

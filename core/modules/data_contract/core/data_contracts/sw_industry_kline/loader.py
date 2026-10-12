@@ -9,7 +9,7 @@ from core.infra.utils import Utils
 
 
 class SwIndustryKlineDailyLoader(BaseDataContractLoader):
-    """按申万指数代码加载 sys_sw_industry_kline。"""
+    """按申万指数代码加载 sys_data_sw_industry_kline。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         industry_id = params.get("industry_id") or params.get("id") or params.get("entity_id")

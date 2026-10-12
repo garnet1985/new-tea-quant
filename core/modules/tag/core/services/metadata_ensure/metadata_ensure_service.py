@@ -39,7 +39,7 @@ class MetadataEnsureService:
         return scenario
 
     def ensure_scenario(self, scenario: Scenario) -> None:
-        """同步 ``sys_tag_scenario``；recompute 时清值并重建 definitions，保留 scenario.id。
+        """同步 ``sys_data_tag_scenario``；recompute 时清值并重建 definitions，保留 scenario.id。
 
         dry_run 时仍可创建/更新元数据以便拿到 id，但跳过清值、删 definition、清进度水位。
         """
@@ -116,7 +116,7 @@ class MetadataEnsureService:
             scenario.apply_db_meta(existing)
 
     def ensure_tag_definitions(self, scenario: Scenario) -> None:
-        """同步 scenario 下全部 ``sys_tag_definition``。"""
+        """同步 scenario 下全部 ``sys_data_tag_definition``。"""
         scenario_id = scenario.id
         if scenario_id is None:
             raise ValueError(

@@ -9,7 +9,7 @@
 <p align="center">
   <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.3-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
-  <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
+  <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
 </p>
@@ -315,7 +315,7 @@ NTQ is a backtester. It does not provide:
 
 ## How do I run it?
 
-No required third-party services. With [Python](https://new-tea.cn/zh-hans/install-python) ≥ 3.9, clone and run — spend time on strategies, not glue.
+No required third-party services. With [Python](https://new-tea.cn/zh-hans/install-python) ≥ 3.11, clone and run — spend time on strategies, not glue.
 
 For most users: download the code, `cd` to the NTQ root, run:
 
@@ -358,7 +358,7 @@ Goal: **framework up + one demo strategy in about 5 minutes**.
 
 ### Prerequisites
 
-- **Python 3.9+**. If needed: [Install Python](https://new-tea.cn/zh-hans/install-python).
+- **Python 3.11+**. If needed: [Install Python](https://new-tea.cn/zh-hans/install-python).
 - **Developers:** install [Node.js](https://nodejs.org/) (for UI work); prefer [MySQL](https://dev.mysql.com/downloads/) or [PostgreSQL](https://www.postgresql.org/download/). ([DuckDB](https://duckdb.org/) single-writer mode is awkward while debugging.)
 
 ### Step 1: Get the code

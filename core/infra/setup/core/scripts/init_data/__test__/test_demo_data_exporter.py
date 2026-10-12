@@ -8,7 +8,7 @@ from core.infra.setup.core.scripts.init_data.demo_data_exporter import (
 
 
 def test_st_periods_export_spec_is_overlap():
-    spec = EXPORT_TABLES["sys_stock_st_periods"]
+    spec = EXPORT_TABLES["sys_data_stock_st_periods"]
     assert spec.date_filter == ("start_date", "yyyymmdd_overlap")
     assert spec.stock_column == "stock_id"
 
@@ -28,7 +28,7 @@ def test_yyyymmdd_overlap_binds_window_end_then_start():
 
 
 def test_st_table_export_condition_keeps_overlap_and_pool():
-    spec = EXPORT_TABLES["sys_stock_st_periods"]
+    spec = EXPORT_TABLES["sys_data_stock_st_periods"]
     sql, params = build_table_export_condition(
         spec,
         stock_ids=["600070.SH", "000001.SZ"],

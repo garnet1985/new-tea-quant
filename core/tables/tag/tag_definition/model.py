@@ -1,5 +1,5 @@
 """
-sys_tag_definition 表 Model
+sys_data_tag_definition 表 Model
 
 标签定义。
 """
@@ -9,7 +9,7 @@ from core.tables.tag.tag_definition.schema import schema as _schema
 
 
 class SysTagDefinitionModel(DbBaseModel):
-    """标签定义表 Model（表名 sys_tag_definition）
+    """标签定义表 Model（表名 sys_data_tag_definition）
 
     设计约定：
     - Model 层只提供“底层表访问 + 通用同步接口”，不包含领域逻辑

@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class MacroGdpLoader(BaseDataContractLoader):
-    """加载全局 sys_gdp（季度序列）。"""
+    """加载全局 sys_data_gdp（季度序列）。"""
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()

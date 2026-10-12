@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class MacroPmiLoader(BaseDataContractLoader):
-    """加载全局 sys_pmi（月度序列）。"""
+    """加载全局 sys_data_pmi（月度序列）。"""
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()

@@ -44,7 +44,7 @@ def _dm(*, latest: str, rows: List[Dict[str, Any]], strict: str = "20240110") ->
     return SimpleNamespace(
         stock=SimpleNamespace(kline=_FakeKline(latest)),
         service=SimpleNamespace(calendar=_FakeCalendar(strict=strict)),
-        get_table=lambda name: _FakeTable(rows) if name == "sys_stock_klines" else None,
+        get_table=lambda name: _FakeTable(rows) if name == "sys_data_stock_klines" else None,
     )
 
 

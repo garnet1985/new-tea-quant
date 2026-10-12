@@ -1,5 +1,5 @@
 """
-系统缓存（sys_cache）：key-value，value 存文本。
+系统缓存（sys_cache_kv）：key-value，value 存文本。
 
 与 sys_meta_info 区分：本表 value 为 text；meta_info 为 json。二者均有 created_at、last_updated。
 主键 key nullable=false；其余 nullable=true。
@@ -7,7 +7,8 @@
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "system_system_cache",
-    "name": "sys_cache",
+    "kind": "cache",
+    "name": "sys_cache_kv",
     "primaryKey": "key",
     "fields": [
         {

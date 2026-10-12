@@ -519,7 +519,7 @@ class CalendarService:
 
     def __init__(self, data_manager: DataManager):
         super().__init__(data_manager)
-        self._trade_calendar = data_manager.get_table("sys_trade_calendar")
+        self._trade_calendar = data_manager.get_table("sys_data_trade_calendar")
 
     def get_latest_completed_trading_date(self) -> str:
         """返回最新已完成交易日（YYYYMMDD）。"""

@@ -34,7 +34,7 @@ ROI     = (卖出 hfq − 买入 hfq) / 买入 hfq
 
 **不接** Tushare `dividend`，不拆分红 / 送股 / 转增。
 
-表里**没有单独的 hfq 列**，也不需要再爬一种因子。`sys_adj_factor_events.factor` 就是 Tushare `adj_factor` 的绝对 F：一套因子，前复权除以最新 F 并加 C，后复权只乘 F。
+表里**没有单独的 hfq 列**，也不需要再爬一种因子。`sys_data_adj_factor_events.factor` 就是 Tushare `adj_factor` 的绝对 F：一套因子，前复权除以最新 F 并加 C，后复权只乘 F。
 
 当时不用 Tushare 的是 **qfq 行情**（和腾讯差一截平移），不是这根 F。Handler 用腾讯 qfq 锚 `C`，F 链仍来自 Tushare。ROI **不要**去拉 Tushare `pro_bar(adjust=hfq)`，也不要加 `C`。
 

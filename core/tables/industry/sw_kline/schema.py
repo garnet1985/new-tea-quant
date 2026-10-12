@@ -1,5 +1,5 @@
 """
-申万一级行业日线（sys_sw_industry_kline）。
+申万一级行业日线（sys_data_sw_industry_kline）。
 
 只存一级行业，外加申万 A 指 801003.SI（对照，不在分类树里）。
 成交量单位是万股，成交额和市值单位是万元。个股日线成交额是千元，不能直接相加。
@@ -7,7 +7,8 @@
 schema = {
     "storage_domain": "data",
     "update_key": "stock_sw_industry_kline",
-    "name": "sys_sw_industry_kline",
+    "kind": "data",
+    "name": "sys_data_sw_industry_kline",
     "primaryKey": ["id", "date"],
     "fields": [
         {

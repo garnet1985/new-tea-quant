@@ -52,7 +52,7 @@ def _resolve_freshness_end_date(data_manager) -> str:
     Effective renew/freshness end date.
 
     When ``data.json`` sets ``as_of_latest_completed_trading_date``, align to the last
-    open trading day on or before that date (via ``sys_trade_calendar``). Raw as-of can
+    open trading day on or before that date (via ``sys_data_trade_calendar``). Raw as-of can
     fall on a non-trading day (e.g. 20260101), which would otherwise mark caught-up DB
     rows as stale.
     """

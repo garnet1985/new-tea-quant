@@ -1,5 +1,5 @@
 """
-sys_tag_calc_progress 表 Model
+sys_meta_tag_calc_progress 表 Model
 
 Tag 增量计算水位（frontier）。
 """
@@ -9,7 +9,7 @@ from core.tables.tag.tag_calc_progress.schema import schema as _schema
 
 
 class SysTagCalcProgressModel(DbBaseModel):
-    """计算进度表 Model（表名 sys_tag_calc_progress）
+    """计算进度表 Model（表名 sys_meta_tag_calc_progress）
 
     设计约定：
     - Model 只负责底层表访问与通用 upsert

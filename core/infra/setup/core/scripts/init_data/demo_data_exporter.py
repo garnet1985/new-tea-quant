@@ -392,9 +392,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     use_full_universe = args.skip_sample or args.stock_count <= 0
     if use_full_universe:
-        stock_model = dm.get_table("sys_stock_list")
+        stock_model = dm.get_table("sys_data_stock_list")
         if stock_model is None:
-            logger.error("未注册 sys_stock_list")
+            logger.error("未注册 sys_data_stock_list")
             return 1
         stock_ids = sorted(r["id"] for r in stock_model.load("1=1") if r.get("id"))
         logger.info("全市场：共 %d 只股票（未分层抽样）", len(stock_ids))

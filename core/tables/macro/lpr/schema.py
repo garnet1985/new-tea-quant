@@ -6,7 +6,8 @@ data_lpr 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "macro_lpr",
-    "name": "sys_lpr",
+    "kind": "data",
+    "name": "sys_data_lpr",
     "primaryKey": ["date"],
     "fields": [
         {

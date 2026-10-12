@@ -1,5 +1,5 @@
 """
-股票当前申万行业（sys_sw_stock_industry_map）。
+股票当前申万行业（sys_map_sw_stock_industry）。
 
 一只股票一行，同时记下一级、二级、三级指数代码。
 这是最新成分快照，in_date 不是行业变更历史。
@@ -7,7 +7,8 @@
 schema = {
     "storage_domain": "data",
     "update_key": "stock_sw_stock_industry_map",
-    "name": "sys_sw_stock_industry_map",
+    "kind": "map",
+    "name": "sys_map_sw_stock_industry",
     "primaryKey": "stock_id",
     "fields": [
         {
@@ -16,7 +17,7 @@ schema = {
             "length": 16,
             "isRequired": True,
             "nullable": False,
-            "description": "股票代码，关联 sys_stock_list.id",
+            "description": "股票代码，关联 sys_data_stock_list.id",
         },
         {
             "name": "l1_code",
@@ -24,7 +25,7 @@ schema = {
             "length": 16,
             "isRequired": True,
             "nullable": False,
-            "description": "一级行业指数代码，关联 sys_sw_industry.id",
+            "description": "一级行业指数代码，关联 sys_data_sw_industry.id",
         },
         {
             "name": "l2_code",

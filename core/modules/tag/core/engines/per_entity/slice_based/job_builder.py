@@ -4,7 +4,7 @@
 
 本文件:
 - TagSliceJobBuilder: payload + ``timeline_point_count``；
-  incremental 时按 ``sys_tag_calc_progress`` 裁窗
+  incremental 时按 ``sys_meta_tag_calc_progress`` 裁窗
   边界: 喂 jobs；点数用 ``Timeline.from_calendar_window``；不负责执行
 """
 

@@ -11,7 +11,7 @@
 
 网络侧（Scanner 严格模式 / unified API fallback）：
 - ``get_real_world_latest_completed_trading_date()``：经注入的 fetcher（通常由 DS 注册）探测；
-  无 fetcher 或失败时周末猜测。不读 ``sys_trade_calendar``。
+  无 fetcher 或失败时周末猜测。不读 ``sys_data_trade_calendar``。
 """
 from core.infra.cmd_layout import i
 from datetime import datetime, timedelta
@@ -62,7 +62,7 @@ class CalendarService(BaseDataService):
             data_manager: DataManager 实例
         """
         super().__init__(data_manager)
-        self._trade_calendar = data_manager.get_table("sys_trade_calendar")
+        self._trade_calendar = data_manager.get_table("sys_data_trade_calendar")
 
     def get_latest_completed_trading_date(
         self,
@@ -73,7 +73,7 @@ class CalendarService(BaseDataService):
         最新已完成交易日（全系统统一读入口）。
 
         1. ``data.json`` 配置 ``as_of_latest_completed_trading_date`` → 直接作为 as-of，不走 fallback。
-        2. 否则 fallback：``sys_trade_calendar`` → real-world → K 线 MAX → 猜测。
+        2. 否则 fallback：``sys_data_trade_calendar`` → real-world → K 线 MAX → 猜测。
 
         Args:
             as_of_date: 截止自然日（YYYYMMDD），默认今天；仅影响未配置 as-of 时的推导。
@@ -110,7 +110,7 @@ class CalendarService(BaseDataService):
         kline_date = self._fallback_from_kline_max()
         if kline_date:
             logger.warning(
-                "sys_trade_calendar 与 real-world 均不可用，使用 K 线 MAX 兜底: %s",
+                "sys_data_trade_calendar 与 real-world 均不可用，使用 K 线 MAX 兜底: %s",
                 kline_date,
             )
             return kline_date, "kline_max"
@@ -147,7 +147,7 @@ class CalendarService(BaseDataService):
                 return ""
             return cal_max
         except Exception as exc:
-            logger.debug("从 sys_trade_calendar 推导 latest completed 失败: %s", exc)
+            logger.debug("从 sys_data_trade_calendar 推导 latest completed 失败: %s", exc)
             return ""
 
     def _fallback_from_kline_max(self) -> str:
@@ -169,7 +169,7 @@ class CalendarService(BaseDataService):
         self, *, as_of_date: Optional[str] = None
     ) -> str:
         """
-        库内 ``sys_trade_calendar`` 原始最新开市日（``is_open=1``，``<= as_of``）。
+        库内 ``sys_data_trade_calendar`` 原始最新开市日（``is_open=1``，``<= as_of``）。
 
         不含「当天未完成则回退」规则；业务读请用 ``get_latest_completed_trading_date()``。
         """
@@ -183,7 +183,7 @@ class CalendarService(BaseDataService):
                 or ""
             ).strip()
         except Exception as e:
-            logger.debug("读取 sys_trade_calendar 最新开市日失败: %s", e)
+            logger.debug("读取 sys_data_trade_calendar 最新开市日失败: %s", e)
             return ""
 
     def get_db_latest_trading_date(
@@ -193,7 +193,7 @@ class CalendarService(BaseDataService):
         is_open_only: bool = False,
     ) -> str:
         """
-        库内 ``sys_trade_calendar`` 最新日历日。
+        库内 ``sys_data_trade_calendar`` 最新日历日。
 
         默认含开市与休市；``is_open_only=True`` 时等同 ``get_db_latest_completed_trading_date``。
         """
@@ -210,7 +210,7 @@ class CalendarService(BaseDataService):
                 or ""
             ).strip()
         except Exception as e:
-            logger.debug("读取 sys_trade_calendar 最新日历日失败: %s", e)
+            logger.debug("读取 sys_data_trade_calendar 最新日历日失败: %s", e)
             return ""
 
     def load_open_dates(
@@ -233,7 +233,7 @@ class CalendarService(BaseDataService):
                 is_open=1,
             )
         except Exception as e:
-            logger.debug("读取 sys_trade_calendar 开市日区间失败: %s", e)
+            logger.debug("读取 sys_data_trade_calendar 开市日区间失败: %s", e)
             return []
         out: List[str] = []
         for row in rows or []:
@@ -243,22 +243,22 @@ class CalendarService(BaseDataService):
         return out
 
     def get_next_trading_date(self, date: str, *, market: str = "SSE") -> str:
-        """``date`` 之后的下一个开市日（``sys_trade_calendar``，``is_open=1``）。"""
+        """``date`` 之后的下一个开市日（``sys_data_trade_calendar``，``is_open=1``）。"""
         anchor = str(date or "").strip()
         if not anchor:
             raise ValueError("获取下一个交易日失败：日期为空")
         if not self._trade_calendar:
-            raise RuntimeError("sys_trade_calendar 未注册")
+            raise RuntimeError("sys_data_trade_calendar 未注册")
         nxt = str(
             self._trade_calendar.load_next_open_date_after(anchor, market=market) or ""
         ).strip()
         if not nxt:
-            raise ValueError(f"sys_trade_calendar 中没有 {anchor} 之后的开市日")
+            raise ValueError(f"sys_data_trade_calendar 中没有 {anchor} 之后的开市日")
         return nxt
 
     def get_real_world_latest_completed_trading_date(self) -> str:
         """
-        真实世界最新已完成交易日（网络侧，不读 ``sys_trade_calendar``）。
+        真实世界最新已完成交易日（网络侧，不读 ``sys_data_trade_calendar``）。
 
         用于 Scanner 严格模式，以及 ``get_latest_completed_trading_date()`` 的 fallback。
         """
@@ -318,7 +318,7 @@ class CalendarService(BaseDataService):
             Tuple[交易日（YYYYMMDD）, 更新时间（YYYYMMDD）]，如果缓存不存在或过期返回 None
         """
         try:
-            cache_model = self.data_manager.get_table("sys_cache")
+            cache_model = self.data_manager.get_table("sys_cache_kv")
             cache_data = cache_model.load_by_key("latest_completed_trading_date")
 
             if not cache_data:
@@ -374,7 +374,7 @@ class CalendarService(BaseDataService):
             provider: 数据来源（如 'eastmoney', 'sina', 'guess'）
         """
         try:
-            cache_model = self.data_manager.get_table("sys_cache")
+            cache_model = self.data_manager.get_table("sys_cache_kv")
             cache_model.save_by_key(
                 "latest_completed_trading_date",
                 json={

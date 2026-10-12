@@ -13,13 +13,13 @@ SW_A_SHARE_NAME = "申万A指"
 
 
 class SwIndustryService(BaseDataService):
-    """读取 sys_sw_industry / sys_sw_stock_industry_map / sys_sw_industry_kline。"""
+    """读取 sys_data_sw_industry / sys_map_sw_stock_industry / sys_data_sw_industry_kline。"""
 
     def __init__(self, data_manager: Any) -> None:
         super().__init__(data_manager)
-        self._industry = data_manager.get_table("sys_sw_industry")
-        self._stock_map = data_manager.get_table("sys_sw_stock_industry_map")
-        self._kline = data_manager.get_table("sys_sw_industry_kline")
+        self._industry = data_manager.get_table("sys_data_sw_industry")
+        self._stock_map = data_manager.get_table("sys_map_sw_stock_industry")
+        self._kline = data_manager.get_table("sys_data_sw_industry_kline")
 
     def load_tree(self) -> List[Dict[str, Any]]:
         """分类树，含一、二、三级。"""

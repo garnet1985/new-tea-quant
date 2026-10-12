@@ -14,7 +14,7 @@ summary: 用 launcher 走图形化安装向导；完成后从制定策略开始�
 
 ## 前置条件
 
-- Python **3.9 或以上**
+- Python **3.11 或以上**
 - 在能看到 `launcher.py` 的项目根目录操作
 
 开发者若要改 UI，另外需要 Node.js。日常使用只跑 launcher 即可。默认数据库是 DuckDB，不必先装 MySQL / PostgreSQL。
@@ -60,7 +60,8 @@ Windows PowerShell 可用 `python .\launcher.py`。若 `python` 指向旧版本�
 | 场景 | 做法 |
 | --- | --- |
 | 以后打开 UI | 再执行 `python launcher.py` |
-| 只补 CLI / Python 依赖 | `python install.py` |
+| 只补 CLI / Python 依赖 | 已安装过且只是 `requirements.txt` 变了：`python install.py --if-needed`（或直接跑 `python cli.py`）。不会重导演示数据 |
+| 命令行安装且跳过演示数据 | `python install.py --skip-import`。之后要演示包再跑 `python cli.py id` |
 | 升级已安装的应用 | 拉取新代码，**保留** `userspace/`，然后 `python cli.py u` |
 | 从头再走向导 | 设置 → 安装与维护 → 重新安装（可能覆盖库连接；导入演示数据可能覆盖表） |
 | 补装机器学习依赖 | 设置 → 安装与维护，或向导里那一步 |

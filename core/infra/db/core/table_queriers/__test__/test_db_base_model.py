@@ -168,10 +168,10 @@ class TestDbBaseModelEnginePath:
         mock_op.load.return_value = [{"id": "001"}]
         mock_db.engine.table_operator.return_value = mock_op
 
-        model = DbBaseModel("sys_stock_list", db=mock_db)
+        model = DbBaseModel("sys_data_stock_list", db=mock_db)
         rows = model.load("id = %s", ("001",))
 
-        mock_db.engine.table_operator.assert_called_with("sys_stock_list")
+        mock_db.engine.table_operator.assert_called_with("sys_data_stock_list")
         mock_op.load.assert_called_once()
         assert rows == [{"id": "001"}]
     

@@ -43,7 +43,7 @@ class DataSourceManager:
         按配置 renew 数据（CLI / 脚本统一入口）。
 
         Args:
-            table_name: 绑定表名（如 ``sys_stock_klines``）或 data source key（如 ``stock_klines``）。
+            table_name: 绑定表名（如 ``sys_data_stock_klines``）或 data source key（如 ``stock_klines``）。
                 ``None`` 表示所有 ``is_enabled`` 的数据源。
             force: 强制 refresh：从 ``default_start_date`` 重拉，跳过日缓存与 ``renew_if_over_days``。
         """
@@ -159,7 +159,7 @@ class DataSourceManager:
         sources: Optional[Sequence[str]],
         enabled: set,
     ) -> None:
-        """强制刷新时清理会短路 API 的 sys_cache 项。"""
+        """强制刷新时清理会短路 API 的 sys_cache_kv 项。"""
         run_list = sources is None or "stock_list" in set(sources or ())
         if not run_list or "stock_list" not in enabled:
             return
@@ -209,7 +209,7 @@ class DataSourceManager:
             for k in keys
         )
         if need_sw and "sw_industry" not in keys:
-            # 分类树已在 sys_sw_industry。单独 renew 日线/成分时不再重拉分类。
+            # 分类树已在 sys_data_sw_industry。单独 renew 日线/成分时不再重拉分类。
             scheduler._dependency_cache["sw_industry"] = []
             logger.info("sw_industry 不在本次执行中，下游读取已有分类表")
 

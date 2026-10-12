@@ -77,10 +77,10 @@ class TestDataManagerApi(unittest.TestCase):
     def test_contracts_base_table_names(self):
         from core.modules.data_manager.contracts import BaseTableNames
 
-        self.assertEqual(BaseTableNames.STOCK_LIST.value, "sys_stock_list")
-        self.assertEqual(BaseTableNames.STOCK_KLINES.value, "sys_stock_klines")
+        self.assertEqual(BaseTableNames.STOCK_LIST.value, "sys_data_stock_list")
+        self.assertEqual(BaseTableNames.STOCK_KLINES.value, "sys_data_stock_klines")
         self.assertEqual(
-            BaseTableNames.ADJ_FACTOR_EVENTS.value, "sys_adj_factor_events"
+            BaseTableNames.ADJ_FACTOR_EVENTS.value, "sys_data_adj_factor_events"
         )
 
     def test_singleton_helpers(self):

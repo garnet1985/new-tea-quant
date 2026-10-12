@@ -261,7 +261,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         stock_rows = db.execute_sync_query(
             """
             SELECT DISTINCT id
-            FROM sys_stock_klines
+            FROM sys_data_stock_klines
             WHERE date >= %s AND date <= %s
             ORDER BY id ASC
             """,
@@ -372,7 +372,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         """仅更新指定股票的 last_update 时间戳（无复权变化时调用）。"""
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return self.execute_raw_update(
-            "UPDATE sys_adj_factor_events SET last_update = %s WHERE id = %s",
+            "UPDATE sys_data_adj_factor_events SET last_update = %s WHERE id = %s",
             (now, stock_id),
         )
 
@@ -467,7 +467,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             return {}
         placeholders = ",".join(["%s"] * len(ids))
         rows = self.db.execute_sync_query(
-            f"SELECT id, list_date FROM sys_stock_list WHERE id IN ({placeholders})",
+            f"SELECT id, list_date FROM sys_data_stock_list WHERE id IN ({placeholders})",
             tuple(ids),
         )
         out: Dict[str, str] = {}

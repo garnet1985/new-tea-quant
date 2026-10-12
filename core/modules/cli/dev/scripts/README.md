@@ -8,7 +8,7 @@
 | `raw_icon_scan/` | pack 步骤 / `-m …raw_icon_scan` | 裸状态 emoji |
 | `dependency_risk/` | `devcli.py cd` | 依赖风险 |
 | `minimal_import_check/` | `devcli.py ic` | UI 最小 import |
-| `py39_compat_check/` | pack 步骤 | 3.9 语法 |
+| `py39_compat_check/` | pack 步骤 | 3.11 语法 |
 | `sample_stock_list/` | `devcli.py ssp` / `pc` | 分层抽样样本名单（renew 只跑子集） |
 | `temp_cleanup/` | `cgc`/`csc` | 清 .ntq / 策略 results/ |
 

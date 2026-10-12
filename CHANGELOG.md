@@ -12,7 +12,7 @@
 [] (已自动化)确保所有test都能跑过
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
 [] (已自动化)npm run build 产生UI资产
-[] (已自动化)检查是不是有py3.9不支持的格式
+[] (已自动化)检查是不是有py3.11不支持的格式
 [] (已自动化)Ruff lint
 [] (快捷命令)是否需要更新init data，`python devcli.py ex`
 [] (快捷命令)是否需要更新init userspace，`python devcli.py pu`
@@ -24,11 +24,22 @@
 
 ---
 
-
-
 ### v0.6.x (TBD)
 
 目标，AI agent & NTQ skill
+
+---
+
+---
+
+### v0.6.0 (TBD)
+
+- 升级python最小支持到3.11，不再支持3.9和3.10（已在当前代码生效）
+- 升级duckdb到1.5.x
+- 重构数据库表命名，加入kind进入表名内
+- 修改license，从0.6.x开始，商用需要授权
+- 重构strategy hooks，重命名回调函数
+
 
 ---
 

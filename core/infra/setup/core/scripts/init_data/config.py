@@ -51,12 +51,12 @@ DateFilter = Optional[Tuple[str, str]]
 # 运行时 / 框架生成表：永不打入演示数据包（即使用 --tables 指定也会跳过）
 EXCLUDED_GENERATED_TABLES = frozenset(
     {
-        "sys_cache",
+        "sys_cache_kv",
         "sys_meta_info",
-        "sys_tag_value",
-        "sys_tag_scenario",
-        "sys_tag_definition",
-        "sys_tag_calc_progress",
+        "sys_data_tag_value",
+        "sys_data_tag_scenario",
+        "sys_data_tag_definition",
+        "sys_meta_tag_calc_progress",
     }
 )
 
@@ -72,40 +72,40 @@ class TableExportSpec:
 # 逻辑表 -> 导出规格（顺序即导出顺序；仅数据表）
 EXPORT_TABLES: Dict[str, TableExportSpec] = {
     # --- 股票池主表（仅导出抽样结果）---
-    "sys_stock_list": TableExportSpec(stock_column="id"),
+    "sys_data_stock_list": TableExportSpec(stock_column="id"),
     # --- 时序 / 事件（股票 + 日期）---
-    "sys_stock_klines": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
-    "sys_stock_indicators": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
-    "sys_stock_moneyflow": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
-    "sys_adj_factor_events": TableExportSpec(("event_date", "yyyymmdd"), stock_column="id"),
-    "sys_corporate_finance": TableExportSpec(("quarter", "quarter"), stock_column="id"),
+    "sys_data_stock_klines": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
+    "sys_data_stock_indicators": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
+    "sys_data_stock_moneyflow": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
+    "sys_data_adj_factor_events": TableExportSpec(("event_date", "yyyymmdd"), stock_column="id"),
+    "sys_data_corporate_finance": TableExportSpec(("quarter", "quarter"), stock_column="id"),
     # ST 时段按与窗相交导出：窗口前已戴帽、窗内仍有效的行要留下（保留真实 start_date）
-    "sys_stock_st_periods": TableExportSpec(
+    "sys_data_stock_st_periods": TableExportSpec(
         ("start_date", "yyyymmdd_overlap"), stock_column="stock_id"
     ),
     # --- 指数（全市场代表，不按股票池过滤）---
-    "sys_index_klines": TableExportSpec(("date", "yyyymmdd")),
-    "sys_index_weight": TableExportSpec(("date", "yyyymmdd")),
-    "sys_index_list": TableExportSpec(),
+    "sys_data_index_klines": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_index_weight": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_index_list": TableExportSpec(),
     # --- 宏观（仅日期窗）---
-    "sys_gdp": TableExportSpec(("quarter", "quarter")),
-    "sys_cpi": TableExportSpec(("date", "yyyymmdd")),
-    "sys_ppi": TableExportSpec(("date", "yyyymmdd")),
-    "sys_pmi": TableExportSpec(("date", "yyyymmdd")),
-    "sys_money_supply": TableExportSpec(("date", "yyyymmdd")),
-    "sys_shibor": TableExportSpec(("date", "yyyymmdd")),
-    "sys_lpr": TableExportSpec(("date", "yyyymmdd")),
-    "sys_trade_calendar": TableExportSpec(("cal_date", "yyyymmdd")),
+    "sys_data_gdp": TableExportSpec(("quarter", "quarter")),
+    "sys_data_cpi": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_ppi": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_pmi": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_money_supply": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_shibor": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_lpr": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_trade_calendar": TableExportSpec(("cal_date", "yyyymmdd")),
     # --- 维表：字典全量；映射表仅抽样股票 ---
-    "sys_sw_industry": TableExportSpec(),
-    "sys_sw_industry_kline": TableExportSpec(("date", "yyyymmdd")),
-    "sys_boards": TableExportSpec(),
-    "sys_markets": TableExportSpec(),
-    "sys_areas": TableExportSpec(),
-    "sys_sw_stock_industry_map": TableExportSpec(stock_column="stock_id"),
-    "sys_stock_board_map": TableExportSpec(stock_column="stock_id"),
-    "sys_stock_market_map": TableExportSpec(stock_column="stock_id"),
-    "sys_stock_area_map": TableExportSpec(stock_column="stock_id"),
+    "sys_data_sw_industry": TableExportSpec(),
+    "sys_data_sw_industry_kline": TableExportSpec(("date", "yyyymmdd")),
+    "sys_data_boards": TableExportSpec(),
+    "sys_data_markets": TableExportSpec(),
+    "sys_data_areas": TableExportSpec(),
+    "sys_map_sw_stock_industry": TableExportSpec(stock_column="stock_id"),
+    "sys_map_stock_board": TableExportSpec(stock_column="stock_id"),
+    "sys_map_stock_market": TableExportSpec(stock_column="stock_id"),
+    "sys_map_stock_area": TableExportSpec(stock_column="stock_id"),
 }
 
 LIST_STATUS_LABELS = {

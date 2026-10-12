@@ -17,7 +17,7 @@ def test_needs_renew_work_refresh_stock_list_when_table_has_rows():
     config.get_renew_mode.return_value = __import__(
         "core.modules.data_source.core.enums", fromlist=["UpdateMode"]
     ).UpdateMode.REFRESH
-    config.get_table_name.return_value = "sys_stock_list"
+    config.get_table_name.return_value = "sys_data_stock_list"
     config.is_per_entity.return_value = False
     config.get_needs_stock_grouping.return_value = None
 

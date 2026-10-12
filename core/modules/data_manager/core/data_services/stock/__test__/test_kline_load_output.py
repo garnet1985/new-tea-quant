@@ -26,7 +26,7 @@ class TestKlineLoadOutput(unittest.TestCase):
     def _load_qfq_diverged_pair(self, dm: DataManager):
         """找一只在 _DEMO_START 上前复权价 ≠ 原始价的样本（依赖除权事件）。"""
         svc = dm.service.stock.kline
-        adj = dm.get_table("sys_adj_factor_events")
+        adj = dm.get_table("sys_data_adj_factor_events")
         events = []
         if adj is not None:
             events = adj.load(

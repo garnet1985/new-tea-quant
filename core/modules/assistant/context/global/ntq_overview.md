@@ -17,7 +17,7 @@ summary: NTQ 是什么、目录怎么分、回测四步和配置落在哪。
 NTQ（New Tea Quant）是专注于 A 股的量化策略回测框架。核心理念：**把回测拆成四步，每步有独立报告，让你知道策略问题出在哪。**
 
 - 版本：0.5.x（非正式版，API 不保证稳定）
-- 语言：Python 3.9+
+- 语言：Python 3.11+
 - 数据库：DuckDB（默认）/ MySQL / PostgreSQL
 - 入口：`python launcher.py`（安装向导 + UI）、`python cli.py`（用户命令）、`python devcli.py`（开发命令）
 

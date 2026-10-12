@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class IndexWeightDailyLoader(BaseDataContractLoader):
-    """按指数加载 sys_index_weight（日度权重序列）。"""
+    """按指数加载 sys_data_index_weight（日度权重序列）。"""
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()

@@ -9,7 +9,7 @@
 <p align="center">
   <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.3-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
-  <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
+  <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
 </p>
@@ -34,7 +34,7 @@
 - **增加滚动回测功能**：策略可以在不同时间周期上进行滚动测试了。
 - **新的会员机制**：现在在官网注册会员，可以使用会员凭证免费使用AI助理了，但目前每天只有30次额度。
 - 更多更新请参见 [CHANGELOG.md](CHANGELOG.md)。
-- 预告下一个版本0.6.0将带来**破坏性改动**，策略钩子函数，数据库表都会改变。Python支持版本将要从3.9提升到稳定的3.11版本。
+- 预告下一个版本0.6.0将带来**破坏性改动**，策略钩子函数，数据库表都会改变。Python 最低版本已经是 3.11。
 
 ## NTQ 是什么？
 
@@ -318,7 +318,7 @@ NTQ 是一个回测器，无法提供：
 
 ## NTQ 如何跑起来？
 
-NTQ 不需要任何第三方外部服务依赖。只要您的电脑装有 [Python](https://new-tea.cn/zh-hans/install-python)（≥3.9），克隆代码即可一键运行，把时间留给策略，而不是配环境。
+NTQ 不需要任何第三方外部服务依赖。只要您的电脑装有 [Python](https://new-tea.cn/zh-hans/install-python)（≥3.11），克隆代码即可一键运行，把时间留给策略，而不是配环境。
 
 对于一般的使用者，只需要下载代码，在命令行里进入 NTQ 的根目录，运行：
 
@@ -363,7 +363,7 @@ NTQ 本身免费开源，但部分能力依赖您自备资源：
 
 ### 前提条件
 
-- 本机需要有 **Python 3.9 或以上**版本。如果您不知道怎么安装，请参考这篇文档：[安装 Python](https://new-tea.cn/zh-hans/install-python)。
+- 本机需要有 **Python 3.11 或以上**版本。如果您不知道怎么安装，请参考这篇文档：[安装 Python](https://new-tea.cn/zh-hans/install-python)。
 - **注意：如果您是开发者**：需要安装 [Node.js](https://nodejs.org/zh-cn)（主要给 UI 用）；数据库建议使用 [MySQL](https://dev.mysql.com/downloads/) 或 [PostgreSQL](https://www.postgresql.org/download/)。（[DuckDB](https://duckdb.org/) 单写模式调试较麻烦）
 
 ### 第 1 步：获取代码

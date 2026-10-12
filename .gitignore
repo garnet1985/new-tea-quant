@@ -128,3 +128,4 @@ htmlcov/
 .coverage
 coverage.json
 .pytest_cache/
+.ruff_cache/

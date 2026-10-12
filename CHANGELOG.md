@@ -24,11 +24,22 @@
 
 ---
 
-
-
 ### v0.6.x (TBD)
 
 目标，AI agent & NTQ skill
+
+---
+
+---
+
+### v0.6.0 (TBD)
+
+- 升级python最小支持到3.11，不再支持3.9
+- 升级duckdb到1.5.x
+- 重构数据库表命名，加入kind进入表名内
+- 修改license，从0.6.x开始，商用需要授权
+- 重构strategy hooks，重命名回调函数
+
 
 ---
 

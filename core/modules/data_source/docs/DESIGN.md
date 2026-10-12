@@ -1,6 +1,6 @@
 # Data Source 设计说明
 
-**模块：** `modules.data_source` · **版本：** `0.2.1`
+**模块：** `modules.data_source` · **版本：** `0.3.0`
 
 API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_source_manager.py`、`core/service/manager_helper.py` 为准。
 
@@ -72,4 +72,5 @@ API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_source_manage
 ## 相关文档
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [BUFFER_PIPELINE.md](./BUFFER_PIPELINE.md)
 - [API.md](../API.md)

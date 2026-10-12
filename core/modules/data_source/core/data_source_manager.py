@@ -248,6 +248,7 @@ class DataSourceManager:
                     raise ValueError(f"依赖未就绪: {key} -> {dep_name}（请先执行 {dep_name}）")
             if force:
                 deps["_execution"] = {"force_refresh": True}
+            handler.context["retain_results"] = mappings.is_dependency_for_downstream(key)
             result = handler.execute(deps)
             if mappings.is_dependency_for_downstream(key):
                 if result and "data" in result:

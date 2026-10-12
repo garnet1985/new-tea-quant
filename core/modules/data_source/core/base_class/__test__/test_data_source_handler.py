@@ -15,7 +15,6 @@ class TestBaseHandler:
         schema = {"name": "test_table", "fields": [{"name": "id", "type": "string"}]}
         config_dict = {
             "table": "sys_test",
-            "save_mode": "unified",
             "renew": {
                 "type": "incremental",
                 "last_update_info": {"date_field": "date", "date_format": "day"},
@@ -46,7 +45,6 @@ class TestBaseHandler:
         config = DataSourceConfig.from_dict(
             {
                 "table": "t",
-                "save_mode": "unified",
                 "renew": {
                     "type": "incremental",
                     "last_update_info": {"date_field": "date", "date_format": "day"},

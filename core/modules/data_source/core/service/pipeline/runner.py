@@ -7,7 +7,6 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 
 from core.modules.data_source.core.data_class.api_job import ApiJob
 from core.modules.data_source.core.data_class.api_job_bundle import ApiJobBundle
-from core.modules.data_source.core.data_class.config import DataSourceConfig
 from core.modules.data_source.core.service.api_job_executor import ApiJobExecutor
 from core.modules.data_source.core.service.executor.bundle_progress import (
     clear as clear_bundle_progress,
@@ -23,8 +22,8 @@ from core.modules.data_source.core.service.pipeline.job_pipeline import (
     RunProgress,
 )
 from core.modules.data_source.core.service.pipeline.save_buffer import DataSourceSaveBuffer
+from core.modules.data_source.core.service.pipeline.save_memory_budget import SaveMemoryBudget
 from core.modules.data_source.core.service.pipeline.save_utils import (
-    BundleSaveItem,
     checkpoint_after_batch_save,
     has_actual_data,
 )
@@ -45,12 +44,6 @@ class DataSourcePipelineRunner:
         context: Dict[str, Any],
         jobs: List[Union[ApiJobBundle, ApiJob]],
         *,
-        on_after_single_bundle_complete: Callable[
-            [Dict[str, Any], Any, Dict[str, Any]], Any
-        ],
-        on_after_batch_bundles_complete: Callable[
-            [Dict[str, Any], List[BundleSaveItem]], Any
-        ],
         enrich_result_for_batch: Callable[
             [Dict[str, Any], ApiJobBundle, Dict[str, Any]], Dict[str, Any]
         ],
@@ -59,12 +52,7 @@ class DataSourcePipelineRunner:
         if not bundles:
             return {}
 
-        config: DataSourceConfig = context.get("config")
-        if not config:
-            raise ValueError("config 必须配置 save_mode")
-
         data_source_key = str(context.get("data_source_key") or "data_source")
-        save_mode = config.get_save_mode()
         providers = context.get("providers") or {}
         api_executor = ApiJobExecutor(providers=providers)
 
@@ -78,15 +66,21 @@ class DataSourcePipelineRunner:
         }
         total_bundles = len(bundles)
         bundle_progress = install_bundle_progress(data_source_key, total_bundles)
+        budget = context.get("_save_budget")
+        if not isinstance(budget, SaveMemoryBudget):
+            budget = SaveMemoryBudget()
+        to_frames = context.get("_bundle_to_frames")
+        save_frames = context.get("_save_frames")
+        if not callable(to_frames) or not callable(save_frames):
+            raise ValueError("context 缺少 _bundle_to_frames / _save_frames")
         save_buffer = DataSourceSaveBuffer(
             context=context,
-            config=config,
-            save_mode=save_mode,
-            total_bundles=total_bundles,
-            on_single_bundle_complete=on_after_single_bundle_complete,
-            on_batch_bundles_complete=on_after_batch_bundles_complete,
+            budget=budget,
+            to_frames=to_frames,
+            save_frames=save_frames,
             bundle_progress=bundle_progress,
         )
+        context["buffer_persisted"] = True
 
         progress_state = {"last_pct": -1, "last_log_at": time.time(), "last_done": 0}
         merged: Dict[str, Any] = {}
@@ -142,11 +136,9 @@ class DataSourcePipelineRunner:
                     result = enriched
 
             if has_actual_data(result):
-                # unified 等整表结束再标准化、入库。batch / immediate 已按批落库，
-                # 再留全集只会在收尾时多占一份内存，结果随后被丢掉。
-                if save_mode == "unified" or job_bundle is None:
+                if context.get("retain_results"):
                     merged.update(result)
-                if save_buffer.saves_enabled and job_bundle is not None:
+                if job_bundle is not None:
                     save_buffer.add(job_bundle, result)
 
             _log_progress(progress)
@@ -179,9 +171,10 @@ class DataSourcePipelineRunner:
         ]
 
         settings = JobPipelineSettings(
-            max_workers="auto",
+            max_workers=budget.cpu_cap,
             prefetch_ahead=2,
             continue_on_failure=True,
+            in_flight_limit=budget.current_in_flight,
         )
         run_name = f"ds:{data_source_key}"
 

@@ -1,48 +1,43 @@
-"""DataSourceSaveBuffer：DuckDB immediate 攒批 flush。"""
-from unittest.mock import Mock
+"""DataSourceSaveBuffer：按字节封顶，分块前只保留表。"""
+import pandas as pd
 
+from core.modules.data_source.core.service.pipeline.frame_mapping import frame_nbytes
 from core.modules.data_source.core.service.pipeline.save_buffer import DataSourceSaveBuffer
+from core.modules.data_source.core.service.pipeline.save_memory_budget import SaveMemoryBudget
 
 
-def _mock_config(*, save_mode: str, batch_size=32, auto=False):
-    cfg = Mock()
-    cfg.get_save_mode.return_value = save_mode
-    cfg.is_save_batch_size_auto.return_value = auto
-    cfg.get_save_batch_size.return_value = batch_size
-    return cfg
+def _budget(budget_bytes: int) -> SaveMemoryBudget:
+    return SaveMemoryBudget(budget_bytes=budget_bytes, cpu_cap=2, write_reserve_bytes=0)
 
 
-def test_unified_does_not_save():
-    single = Mock()
-    batch = Mock()
+def test_flushes_before_accepting_a_frame_that_would_overflow():
+    saved = []
+    payload = "x" * 2000
+    frame = pd.DataFrame({"x": [payload, payload, payload]})
+    size = frame_nbytes(frame)
     buf = DataSourceSaveBuffer(
-        context={"data_manager": Mock(db=Mock(config={"database_type": "duckdb"}))},
-        config=_mock_config(save_mode="unified"),
-        save_mode="unified",
-        total_bundles=10,
-        on_single_bundle_complete=single,
-        on_batch_bundles_complete=batch,
+        context={"data_manager": None},
+        budget=_budget(size * 2 + 1),
+        to_frames=lambda _ctx, _bundle, result: [result["frame"]],
+        save_frames=lambda _ctx, frames: saved.append(list(frames)),
     )
-    buf.add(Mock(), {"j1": [1]})
+    buf.add(object(), {"frame": frame})
+    assert saved == []
+    buf.add(object(), {"frame": pd.DataFrame({"x": [payload, payload, payload]})})
+    assert len(saved) == 1
+    assert list(saved[0][0]["x"]) == [payload, payload, payload]
     buf.flush_remaining()
-    single.assert_not_called()
-    batch.assert_not_called()
+    assert len(saved) == 2
 
 
-def test_duckdb_immediate_flushes_as_batch_when_threshold_met():
-    single = Mock()
-    batch = Mock()
-    ctx = {"data_manager": Mock(db=Mock(config={"database_type": "duckdb"}))}
+def test_empty_frame_is_not_buffered():
+    saved = []
     buf = DataSourceSaveBuffer(
-        context=ctx,
-        config=_mock_config(save_mode="immediate", batch_size=2),
-        save_mode="immediate",
-        total_bundles=10,
-        on_single_bundle_complete=single,
-        on_batch_bundles_complete=batch,
+        context={"data_manager": None},
+        budget=_budget(100),
+        to_frames=lambda _ctx, _bundle, _result: [pd.DataFrame()],
+        save_frames=lambda _ctx, frames: saved.append(frames),
     )
-    buf.add(Mock(), {"a": 1})
-    batch.assert_not_called()
-    buf.add(Mock(), {"b": 2})
-    batch.assert_called_once()
-    single.assert_not_called()
+    buf.add(object(), {})
+    buf.flush_remaining()
+    assert saved == []

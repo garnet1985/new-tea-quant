@@ -9,9 +9,6 @@ from typing import Any, Dict, Optional
 _ACTIVE: Optional["BundleExecutionProgress"] = None
 _ACTIVE_LOCK = threading.Lock()
 
-# data_source batch 合并写入 auto 模式的上限
-AUTO_MAX_SAVE_BATCH_SIZE = 1000
-
 
 class BundleExecutionProgress:
     """线程安全的 bundle 抓取进度快照。"""

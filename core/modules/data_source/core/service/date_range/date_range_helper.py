@@ -348,7 +348,7 @@ def compute_entity_date_ranges(
                         f"{i('clipboard')} [renew_if_over_days] last_update_map 为空，已单独查询 gate_field={gate_field}，"
                         f"得到 {len(renew_gate_map)} 条用于过滤"
                     )
-                    # 注入 context 供 handler 使用（如 on_after_single_api_job_bundle_complete 中的 last_check）
+                    # 注入 context，供按实体判断上次更新时间。
                     context["_last_update_map"] = renew_gate_map
 
     def should_trigger(last_update: Optional[str], composite_key: Optional[str] = None) -> bool:

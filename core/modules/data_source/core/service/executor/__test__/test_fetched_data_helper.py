@@ -31,7 +31,6 @@ def _ds_config(
         renew["job_execution"] = {"list": "stocks", "key": "id"}
     raw = {
         "table": "t_test",
-        "save_mode": "batch",
         "renew": renew,
         "apis": apis,
     }

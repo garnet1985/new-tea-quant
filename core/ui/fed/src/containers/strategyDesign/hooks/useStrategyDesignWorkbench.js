@@ -874,7 +874,6 @@ export function useStrategyDesignWorkbench() {
     stepProgress: session.stepProgress || {},
     runningStep: session.executionState?.runningStep || '',
     executionBusy,
-    panelBusy,
     runError,
     progressDetail,
     forceEnumerate,

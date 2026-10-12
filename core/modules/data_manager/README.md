@@ -1,6 +1,6 @@
 # Data Manager
 
-**模块：** `modules.data_manager` · **版本：** `0.2.1`
+**模块：** `modules.data_manager` · **版本：** `0.2.2`
 
 进程内统一数据访问门面。持有 `DatabaseManager`，发现 `core/tables` 与 `userspace/extensions/tables`，装配 `DataService`。
 

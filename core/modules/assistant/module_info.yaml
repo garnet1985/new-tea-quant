@@ -5,6 +5,7 @@ package: core.modules
 description: "AI 助理模块：发现 userspace 供应商配置，并发送 OpenAI 兼容聊天。"
 dependencies:
   - infra.project_context
+  - infra.membership
   - infra.discovery
 changelog:
   - version: "0.1.0"

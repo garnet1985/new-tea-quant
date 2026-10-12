@@ -11,6 +11,13 @@ from .implementer import impl as assistant_impl
 assistant_api_bp = Blueprint("assistant_api", __name__)
 
 
+@assistant_api_bp.route("/v1/assistant/ntq-quota", methods=["GET"])
+def get_assistant_ntq_quota():
+    """GET /v1/assistant/ntq-quota — 今日 NTQ AI 剩余回答次数。"""
+    api = assistant_impl.lazy_load()
+    return ok(api.ntq_quota())
+
+
 @assistant_api_bp.route("/v1/assistant/providers", methods=["GET"])
 def get_assistant_providers():
     """GET /v1/assistant/providers — 本机已发现的供应商（不含密钥）。"""

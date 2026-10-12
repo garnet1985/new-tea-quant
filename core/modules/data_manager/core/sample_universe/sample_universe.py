@@ -31,7 +31,7 @@ _PER_STOCK_PRUNE_TABLES: Tuple[Tuple[str, str], ...] = (
     ("sys_stock_st_periods", "stock_id"),
     ("sys_stock_board_map", "stock_id"),
     ("sys_stock_market_map", "stock_id"),
-    ("sys_stock_industry_map", "stock_id"),
+    ("sys_sw_stock_industry_map", "stock_id"),
     ("sys_stock_area_map", "stock_id"),
     ("sys_stock_list", "id"),
 )

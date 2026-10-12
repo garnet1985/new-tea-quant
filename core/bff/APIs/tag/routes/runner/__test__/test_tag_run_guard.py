@@ -28,3 +28,31 @@ def test_trigger_rejects_when_task_busy(monkeypatch):
         out = TagRunLauncher.trigger(tag_key="demo/x")
     assert out["is_triggered"] is False
     assert "进行中" in out["reason"]
+
+
+def test_require_successful_run_rejects_unsaved_values():
+    TagRunLauncher._require_successful_run(
+        {"success": True, "tag_values_count": 3, "saved_tag_values": 3}
+    )
+    try:
+        TagRunLauncher._require_successful_run(
+            {"success": True, "tag_values_count": 3, "saved_tag_values": 0}
+        )
+    except RuntimeError as exc:
+        assert "未全部落库" in str(exc)
+    else:
+        raise AssertionError("expected unsaved values to fail")
+
+    try:
+        TagRunLauncher._require_successful_run({"success": False, "fail": 2})
+    except RuntimeError as exc:
+        assert "2" in str(exc)
+    else:
+        raise AssertionError("expected failed run to raise")
+
+    try:
+        TagRunLauncher._require_successful_run(None)
+    except RuntimeError as exc:
+        assert "未完成" in str(exc)
+    else:
+        raise AssertionError("expected empty result to fail")

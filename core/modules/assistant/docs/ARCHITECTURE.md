@@ -2,7 +2,7 @@
 
 **版本：** `0.1.0`
 
-`modules.assistant` 是 AI 助理的产品模块：发现 userspace 供应商配置，并发送一轮 OpenAI 兼容聊天。NTQ 百科与页面上下文后续再加。
+`modules.assistant` 是 AI 助理的产品模块：发现 userspace 供应商配置，并发送一轮 OpenAI 兼容聊天。NTQ 百科与页面上下文后续再加。会员免费线路的调研见 [会员助手调研](./MEMBER_ASSISTANT_PLAN.md)。
 
 ---
 

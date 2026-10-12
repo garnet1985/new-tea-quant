@@ -181,7 +181,7 @@ def test_enumerate_summarize_sections_value_ladders():
                 },
             },
             {
-                "version_id": "1-1",
+                "version_id": "1-attr1",
                 "status": "hit",
                 "overlay": {"core": {"max_pe_percentile": None}},
                 "knobs": {
@@ -201,7 +201,7 @@ def test_enumerate_summarize_sections_value_ladders():
                 },
             },
             {
-                "version_id": "1-2",
+                "version_id": "1-attr2",
                 "status": "hit",
                 "overlay": {"core": {"rsi_oversold": 25}},
                 "knobs": {
@@ -221,7 +221,7 @@ def test_enumerate_summarize_sections_value_ladders():
                 },
             },
             {
-                "version_id": "1-3",
+                "version_id": "1-attr3",
                 "status": "hit",
                 "overlay": {"goal": {"stop_loss": None}},
                 "knobs": {

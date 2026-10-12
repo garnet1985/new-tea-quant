@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, ClassVar, Dict, Mapping, Optional, Tuple, Union
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.settings_base import (
     SettingsBase,
@@ -132,14 +132,6 @@ class AttributionConfigBase(SettingsBase):
         """资金分配对照轴。未写 ``allocation`` 时按 snapshot 生成默认档。"""
         return resolve_allocation_axes(self.raw_settings, snapshot)
 
-    def rolling_payload(self) -> Dict[str, Any]:
-        """返回滚动窗口配置。"""
-        block = self.raw_settings.get("rolling")
-        nested = dict(block) if isinstance(block, Mapping) else {}
-        nested.pop("steps", None)
-        nested.pop("fill_missing", None)
-        return nested
-
     def require_parameter(self) -> None:
         """要求当前配置能展开参数。"""
         if not self.has_parameter:
@@ -149,13 +141,9 @@ class AttributionConfigBase(SettingsBase):
             )
 
     def apply_defaults(self) -> None:
-        """去掉已废弃字段并补滚动缺省。"""
-        self.raw_settings.pop("fill_missing", None)
-        self.raw_settings.pop("steps", None)
-        rolling = self.raw_settings.get("rolling")
-        if isinstance(rolling, dict):
-            rolling.pop("fill_missing", None)
-            rolling.pop("steps", None)
+        """战役配置不补默认字段。"""
+        return
+
     def validate(self) -> ValidationReport:
         """校验配置并返回报告。"""
         report = SettingsBase.new_validation()
@@ -183,18 +171,16 @@ class AttributionConfigBase(SettingsBase):
             )
         self._validate_joint_sweep(report)
         validate_allocation(self.raw_settings, report)
-        # TODO: rolling.windows 仍算一份有效归因配置；口径定了再决定要不要留。
-        has_rolling = self._validate_rolling(report)
         has_any_inputs = "inputs" in self.raw_settings
         has_allocation = isinstance(self.raw_settings.get("allocation"), Mapping) and bool(
             self.raw_settings.get("allocation")
         )
-        if not has_any_inputs and not has_rolling and not has_allocation:
+        if not has_any_inputs and not has_allocation:
             SettingsBase.add_critical(
                 report,
                 "inputs",
-                "战役 inputs、rolling.windows 不能都空",
-                suggested_fix="写顶层 inputs，或 rolling.windows",
+                "战役 inputs 不能为空",
+                suggested_fix="写顶层 inputs",
             )
         self._validated = report.is_usable()
         return report
@@ -259,89 +245,7 @@ class AttributionConfigBase(SettingsBase):
                         suggested_fix="先在 inputs 声明该轴的 values",
                     )
 
-    # TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
-    def _validate_rolling(self, report: ValidationReport) -> bool:
-        raw = self.raw_settings.get("rolling")
-        if raw is None:
-            return False
-        if not isinstance(raw, Mapping):
-            SettingsBase.add_critical(
-                report,
-                "rolling",
-                "attribution.rolling 须为 dict",
-                suggested_fix=(
-                    'Set rolling to {"windows": '
-                    '[{"start": "20230101", "end": "20231231"}]}'
-                ),
-            )
-            return False
-        extra = set(raw) - {"windows", "steps"}
-        if extra:
-            SettingsBase.add_critical(
-                report,
-                "rolling",
-                f"attribution.rolling 不能写 {sorted(extra)}",
-                suggested_fix="rolling 只放 windows",
-            )
-        windows = raw.get("windows")
-        if (
-            not isinstance(windows, Sequence)
-            or isinstance(windows, (str, bytes))
-            or not windows
-        ):
-            SettingsBase.add_critical(
-                report,
-                "rolling.windows",
-                "attribution.rolling.windows 须为非空 list",
-                suggested_fix=(
-                    'Set rolling.windows to '
-                    '[{"start": "20230101", "end": "20231231"}]'
-                ),
-            )
-            return False
-        seen: list[tuple[str, str]] = []
-        for i, item in enumerate(windows):
-            if not isinstance(item, Mapping):
-                SettingsBase.add_critical(
-                    report,
-                    f"rolling.windows[{i}]",
-                    "须为含 start / end 的 dict",
-                )
-                continue
-            start = str(item.get("start") or "").strip()
-            end = str(item.get("end") or "").strip()
-            if not start or not end:
-                SettingsBase.add_critical(
-                    report,
-                    f"rolling.windows[{i}]",
-                    "start 与 end 必填",
-                    suggested_fix="写 YYYYMMDD",
-                )
-                continue
-            if start > end:
-                SettingsBase.add_critical(
-                    report,
-                    f"rolling.windows[{i}]",
-                    f"start {start} > end {end}",
-                    suggested_fix="Ensure start <= end",
-                )
-                continue
-            pair = (start, end)
-            if pair in seen:
-                SettingsBase.add_critical(
-                    report,
-                    f"rolling.windows[{i}]",
-                    f"窗口重复 {start}-{end}",
-                )
-                continue
-            seen.append(pair)
-        return bool(seen)
-
     def to_dict(self) -> Dict[str, Any]:
-        """导出标准化后的配置字典。"""
+        """导出配置字典。"""
         self.apply_defaults()
-        out = copy.deepcopy(self.raw_settings)
-        out.pop("steps", None)
-        out.pop("versions", None)
-        out.pop("shap", None)
-        return out
+        return copy.deepcopy(self.raw_settings)

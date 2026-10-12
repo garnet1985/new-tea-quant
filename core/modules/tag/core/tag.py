@@ -111,7 +111,7 @@ class Tag:
         if settings is not None:
             key = str(tag_key or scenario_name or "").strip()
             if not key:
-                logger.error("execute(settings=...) 需要 tag_key 或 scenario_name")
+                print("execute(settings=...) 需要 tag_key 或 scenario_name", flush=True)
                 return None
             return self._execute_inline_settings(
                 settings,
@@ -145,11 +145,11 @@ class Tag:
     ) -> Optional[Dict[str, Any]]:
         info = self.find(name_or_key)
         if info is None:
-            logger.info("找不到场景: %s，跳过执行", name_or_key)
+            print(f"找不到场景: {name_or_key}，跳过执行", flush=True)
             return None
         enabled = self._require_enabled(info)
         if enabled is None:
-            logger.info("场景 %s 未开启，跳过执行", info.id())
+            print(f"场景 {info.id()} 未开启，跳过执行", flush=True)
             return None
         return self._execute_tag_info(
             enabled, on_progress=on_progress, dry_run=dry_run
@@ -165,8 +165,9 @@ class Tag:
     ) -> Optional[Dict[str, Any]]:
         info = self.find(tag_key)
         if info is None:
-            logger.error(
-                "inline settings 需要已 discovery 的 tag（含 tag.py）: %s", tag_key
+            print(
+                f"inline settings 需要已 discovery 的 tag（含 tag.py）: {tag_key}",
+                flush=True,
             )
             return None
         # 用调用方 settings 覆盖磁盘 settings，但保留 hooks 定位信息
@@ -186,7 +187,7 @@ class Tag:
         )
         enabled = self._require_enabled(merged_info)
         if enabled is None:
-            logger.info("场景 %s 未开启，跳过执行", info.id())
+            print(f"场景 {info.id()} 未开启，跳过执行", flush=True)
             return None
         return self._execute_tag_info(
             enabled, on_progress=on_progress, dry_run=dry_run
@@ -203,21 +204,18 @@ class Tag:
         ts = TagSettings.from_dict(dict(tag_info.settings or {}), tag_key=tag_key)
         report = ts.validate()
         if not report.is_usable():
-            logger.error(
-                "Tag settings 校验失败: %s errors=%s",
-                tag_key,
-                report.errors,
-            )
+            print(f"Tag settings 校验失败: {tag_key} errors={report.errors}", flush=True)
+            logger.info("Tag settings 校验失败: %s errors=%s", tag_key, report.errors)
             return None
         if not ts.is_enabled:
-            logger.info("场景 %s 未开启，跳过执行", tag_key)
+            print(f"场景 {tag_key} 未开启，跳过执行", flush=True)
             return None
 
         scenario = Scenario.from_tag_settings(ts)
         effective_dry_run = bool(dry_run or ts.is_dry_run)
         scenario.is_dry_run = effective_dry_run
         if not self.tag_data_service:
-            logger.error("无法获取 tag_data_service，跳过执行")
+            print("无法获取 tag_data_service，跳过执行", flush=True)
             return None
         MetadataEnsureService(self.tag_data_service).ensure(scenario)
 
@@ -231,7 +229,7 @@ class Tag:
             apply_hook=(route == "per_entity"),
         )
         if not entity_ids:
-            logger.info("无法获取实体列表，跳过执行: %s", tag_key)
+            print(f"无法获取实体列表，跳过执行: {tag_key}", flush=True)
             return None
 
         run_kwargs = dict(

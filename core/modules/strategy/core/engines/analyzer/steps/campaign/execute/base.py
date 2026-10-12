@@ -61,15 +61,19 @@ def _canonical_settings(settings: Mapping[str, Any]) -> str:
 
 
 def _prefer_version_id(version_ids: Sequence[str]) -> str:
-    """主号优先于副本，同级取编号较小的。"""
+    """主号优先于归因副本，同级取编号较小的。"""
     if not version_ids:
         return ""
 
-    def sort_key(vid: str) -> Tuple[int, int, str]:
-        parent, _, rest = str(vid).partition("-")
-        parent_n = int(parent) if parent.isdigit() else 10**9
-        replica_n = int(rest) if rest.isdigit() else -1
-        return (parent_n, replica_n, vid)
+    def sort_key(vid: str) -> Tuple[int, int, int, str]:
+        text = str(vid).strip()
+        if VersionMetaStore.is_primary_version_id(text):
+            return (int(text), 0, -1, text)
+        parent = VersionMetaStore.parent_version_id(text)
+        if parent and parent.isdigit():
+            index = int(text.rsplit("attr", 1)[-1])
+            return (int(parent), 1, index, text)
+        return (10**9, 2, -1, text)
 
     return sorted(version_ids, key=sort_key)[0]
 
@@ -352,7 +356,7 @@ class ExecuteBase:
             vid = str(raw_vid or "").strip()
             if not vid or not isinstance(entry, dict):
                 continue
-            if parent and vid != parent and not vid.startswith(f"{parent}-"):
+            if parent and vid != parent and VersionMetaStore.parent_version_id(vid) != parent:
                 continue
             if VersionMetaStore.step_status(root, vid, SimulateKind.ENUMERATE) != "ok":
                 continue

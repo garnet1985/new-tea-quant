@@ -68,7 +68,7 @@ def build_parameter_sweeps(
         "sensitivity_rank": sensitivity_rank,
         "scope_note": (
             "单因素扫描：每次只改一个参数，其余保持当前配置。"
-            "较优点为样本内结果，换窗口请用滚动验证。"
+            "较优点为样本内结果。"
         ),
     }
 
@@ -227,8 +227,7 @@ def _advice_line(
     if impact == "小":
         return (
             f"在其余设置保持当前时，改 {CampaignLabels.knob_label(knob)} "
-            f"对「{outcome_label}」影响小；不必优先纠结。"
-            "（样本内；换窗口请用滚动验证。）"
+            f"对「{outcome_label}」影响小；不必优先纠结。（样本内。）"
         )
     plateau = _plateau(
         ordered,
@@ -243,7 +242,6 @@ def _advice_line(
     return (
         f"在其余设置保持当前时，样本内「{outcome_label}」较好的取值约 "
         f"{best_val}（{metric_label}）。影响{impact}。{plateau_bit}"
-        "换窗口请用滚动验证。"
     )
 
 

@@ -276,6 +276,34 @@ def save_trace_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any
     return get_trace_settings(), None
 
 
+def get_membership_settings() -> Dict[str, Any]:
+    """通用凭证是否已装载。不返回明文。"""
+    from core.infra.membership import Membership
+
+    return Membership.status()
+
+
+def save_membership_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """把官网通用凭证写入 userspace。"""
+    token = payload.get("token")
+    if not isinstance(token, str) or not token.strip():
+        return None, "请填入通用凭证"
+    from core.infra.membership import Membership
+
+    err = Membership.save(token)
+    if err:
+        return None, err
+    return Membership.status(), None
+
+
+def clear_membership_settings() -> Dict[str, Any]:
+    """删除 userspace 里的通用凭证文件。"""
+    from core.infra.membership import Membership
+
+    Membership.clear()
+    return Membership.status()
+
+
 def get_feedback_settings() -> Dict[str, Any]:
     """Soft-prompt prefs (independent of Trace.consent)."""
     from core.infra.feedback import Feedback

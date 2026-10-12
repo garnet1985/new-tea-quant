@@ -206,7 +206,7 @@ function renderBlocks(text, keyPrefix) {
   return nodes;
 }
 
-function AssistantMarkdown({ text }) {
+function AssistantMarkdown({ text = '' }) {
   const chunks = splitFences(text);
   return (
     <div className="ntq-assistant-md">
@@ -230,10 +230,6 @@ function AssistantMarkdown({ text }) {
 
 AssistantMarkdown.propTypes = {
   text: PropTypes.string,
-};
-
-AssistantMarkdown.defaultProps = {
-  text: '',
 };
 
 export default AssistantMarkdown;

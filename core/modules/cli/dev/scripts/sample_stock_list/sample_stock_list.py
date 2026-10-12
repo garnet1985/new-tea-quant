@@ -21,8 +21,6 @@ from core.infra.setup.core.scripts.init_data.stock_pool import (
     sample_stratified_stock_pool,
 )
 
-logger = logging.getLogger(__name__)
-
 _DATA_JSON = ProjectContext.path.get_user_config_root() / "data.json"
 _POOL_KEY = "use_sample_stock_list"
 
@@ -136,7 +134,7 @@ class SampleStockList:
         ids_path = out.with_suffix(".ids.txt")
         ids_path.write_text("\n".join(stock_ids) + "\n", encoding="utf-8")
 
-        logger.info("已写入 %s (%d 只)", out, len(rows))
+        print(f"已写入 {out} ({len(rows)} 只)", flush=True)
         return out, stock_ids, report
 
     @classmethod

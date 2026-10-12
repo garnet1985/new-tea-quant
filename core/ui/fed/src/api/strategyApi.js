@@ -679,6 +679,91 @@ export async function fetchAttributeReport(strategyName, step, groupId) {
 }
 
 /**
+ * 滚动测试按钮是否可点。
+ * GET /api/v1/strategy/:key/rolling/status
+ * @param {string} strategyName
+ */
+export async function fetchRollingStatus(strategyName) {
+  const base = apiStrategyPath(strategyName);
+  if (!base) throw new Error('缺少 strategy_key_or_name');
+  const json = await request.getJson(`${base}/rolling/status`);
+  const m = json?.message || {};
+  return {
+    enabled: Boolean(m.enabled),
+    reason: String(m.reason || '').trim(),
+    tooltip: String(m.tooltip || '').trim(),
+    has_report: Boolean(m.has_report),
+    parent_version_id: String(m.parent_version_id || '').trim(),
+    window_count: Number(m.window_count || 0),
+  };
+}
+
+/**
+ * 启动滚动对照。
+ * POST /api/v1/strategy/:key/rolling/run
+ * @param {string} strategyName
+ * @param {{ force_refresh?: boolean }} [options]
+ */
+export async function startRollingRun(strategyName, options = {}) {
+  const base = apiStrategyPath(strategyName);
+  if (!base) throw new Error('缺少 strategy_key_or_name');
+  const json = await request.postJson(
+    `${base}/rolling/run`,
+    { body: { force_refresh: Boolean(options?.force_refresh) } },
+  );
+  const m = json?.message || {};
+  if (!m.is_triggered) {
+    const reason = m.reason;
+    throw new Error(typeof reason === 'string' ? reason : '启动滚动对照失败');
+  }
+  const jid = String(m.job_id || '').trim();
+  return {
+    run_id: String(m.run_id || jid).trim(),
+    job_id: jid,
+    pipeline_name: String(m.pipeline_name || 'rolling').trim(),
+    pipeline_kind: String(m.pipeline_kind || 'rolling').trim(),
+    pipeline_description: String(m.pipeline_description || '').trim(),
+  };
+}
+
+/**
+ * 轮询滚动对照进度。
+ * @param {string} strategyName
+ * @param {string} jobId
+ */
+export async function fetchRollingRunStatus(strategyName, jobId) {
+  const json = await request.getJson(
+    `${apiStrategyPath(strategyName)}/rolling/run/progress?job_id=${encodeURIComponent(jobId)}`,
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+  );
+  const envelope = json?.message || null;
+  if (!envelope) {
+    return {
+      run_id: jobId,
+      progress_pct: 0,
+      state: 'failed',
+      fail_reason: '无滚动进度数据',
+      progress_label: '',
+      progress_stage_label: '',
+      progress_counter_text: '',
+    };
+  }
+  return mapWorkbenchRunProgressToPanel(envelope);
+}
+
+/**
+ * 读取当前主 version 的滚动报告。
+ * GET /api/v1/strategy/:key/rolling/report
+ * @param {string} strategyName
+ */
+export async function fetchRollingReport(strategyName) {
+  const base = apiStrategyPath(strategyName);
+  if (!base) throw new Error('缺少 strategy_key_or_name');
+  const json = await request.getJson(`${base}/rolling/report`);
+  return json?.message || {};
+}
+
+/**
  * 资金分配模式选项 + 联动字段 profile（`portfolio.allocation.mode`）。
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
  */

@@ -70,8 +70,8 @@ class TestAssistantApi(unittest.TestCase):
         if zhipu is None or not zhipu.has_api_key:
             self.skipTest("zhipu 未配置密钥")
         reply = Assistant.chat("只回复 pong", provider_id="zhipu")
-        self.assertTrue(str(reply).strip())
-        self.assertNotIn("Bearer", reply)
+        self.assertTrue(reply.reply.strip())
+        self.assertNotIn("Bearer", reply.reply)
 
 
 if __name__ == "__main__":

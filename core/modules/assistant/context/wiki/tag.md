@@ -28,6 +28,8 @@ summary: 配置驱动的标签：一次计算，多个策略可读。
 
 `settings.py` 声明身份、数据依赖、计算窗口和标签名；`tag.py` 实现 `calculate_tag`，返回 `{value, start_date?, end_date?}`，或 `None` 跳过写入。
 
+标签本身是特性：高市值、宽松、长三角各是一条 `tag_definitions`，展示名出现在界面上。`value` 是这个标签当时带的注解（市值、利率读数、只数），不要把分类写进 value。互斥特性只给当前命中的定义写值，同一次计算用 `ctx.custom` 记住上一个标签。
+
 步骤见 [如何创建标签](../know_how/create_tag.md)。
 
 钩子可选 `on_calendar_asof`（按时间切片时的日历点）。上下文里有当天数据、实体、日历，以及增量时的 `prior_value`。

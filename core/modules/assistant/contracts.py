@@ -11,6 +11,15 @@ class AssistantError(Exception):
 
 
 @dataclass(frozen=True)
+class ChatResult:
+    """一轮对话的回复。不含密钥。"""
+
+    reply: str
+    provider_id: str
+    model: str
+
+
+@dataclass(frozen=True)
 class ProviderInfo:
     """userspace 供应商目录的只读快照（不含密钥明文）。"""
 
@@ -22,4 +31,4 @@ class ProviderInfo:
     has_api_key: bool
 
 
-__all__ = ["AssistantError", "ProviderInfo"]
+__all__ = ["AssistantError", "ChatResult", "ProviderInfo"]

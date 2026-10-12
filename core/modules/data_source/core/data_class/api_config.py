@@ -44,6 +44,29 @@ def _dict_str_str(val: Any, field: str, api_name: str) -> Dict[str, str]:
     return {str(k): str(v) for k, v in val.items() if k is not None and v is not None}
 
 
+def _result_mapping(val: Any, api_name: str, data_source_key: str) -> Dict[str, Any]:
+    """字符串按字段名取值；callable 原样保留，用来清洗代码和常量。"""
+    if val is None:
+        return {}
+    if not isinstance(val, dict):
+        return {}
+    out: Dict[str, Any] = {}
+    for key, item in val.items():
+        if key is None or item is None:
+            continue
+        if callable(item):
+            out[str(key)] = item
+            continue
+        if isinstance(item, str) and item.strip():
+            out[str(key)] = item.strip()
+            continue
+        raise DataSourceConfigError(
+            f"{data_source_key}: apis.{api_name}.result_mapping.{key} "
+            f"必须是字段名或函数，收到: {type(item).__name__}"
+        )
+    return out
+
+
 @dataclass(frozen=True)
 class ApiConfig:
     """
@@ -59,7 +82,7 @@ class ApiConfig:
     provider_name: str
     method: str
     params_mapping: Dict[str, str]
-    result_mapping: Dict[str, str]
+    result_mapping: Dict[str, Any]
     params: Dict[str, Any]
 
     @classmethod
@@ -87,7 +110,7 @@ class ApiConfig:
                 f"请在 Provider '{provider_name}'.api_limits['{method}'] 配置限流"
             )
         params_mapping = _dict_str_str(d.get("params_mapping"), "params_mapping", api_name)
-        result_mapping = _dict_str_str(d.get("result_mapping"), "result_mapping", api_name)
+        result_mapping = _result_mapping(d.get("result_mapping"), api_name, data_source_key)
 
         raw_params = d.get("params")
         params = dict(raw_params) if isinstance(raw_params, dict) else {}

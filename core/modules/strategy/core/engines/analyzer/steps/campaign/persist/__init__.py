@@ -12,7 +12,6 @@ from core.modules.strategy.core.enums import SimulateKind
 from ..layers import declare_layer, pick_layer
 from .base import (
     PARAMETER_TASK_ID,
-    ROLLING_TASK_ID,
     PersistBase,
 )
 from .groups import AttributionGroupStore
@@ -74,5 +73,4 @@ __all__ = [
     "PersistStep",
     "PortfolioPersist",
     "PricePersist",
-    "ROLLING_TASK_ID",
 ]

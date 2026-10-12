@@ -88,7 +88,7 @@ def test_price_summarize_sections_baseline_and_ladder():
                 },
             },
             {
-                "version_id": "1-1",
+                "version_id": "1-attr1",
                 "status": "hit",
                 "overlay": {"simulation": {"price": {"opportunity_merge_gap": 3}}},
                 "knobs": {"simulation.price.opportunity_merge_gap": 3},

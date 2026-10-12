@@ -74,7 +74,7 @@ class TagPriorValues:
     def parse_scalar(
         cls, raw: Any, *, default: Optional[str] = None
     ) -> Optional[str]:
-        """从 json_value 解析标量字符串（如市值档位）。"""
+        """从 json_value 解析注解字符串（业务内容在 value 键）。"""
         if raw is None or raw == "":
             return default
         if isinstance(raw, str):

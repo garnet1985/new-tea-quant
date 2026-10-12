@@ -77,6 +77,9 @@ export const EXECUTE_SETTINGS_DEFAULTS = {
       mode: 'entity_based',
       start_date: '',
     },
+    price: {
+      opportunity_merge_gap: 1,
+    },
     risk_control: {
       force_exit_when: [],
       pending_enter: {

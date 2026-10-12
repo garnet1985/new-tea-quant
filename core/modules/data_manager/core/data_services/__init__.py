@@ -3,7 +3,7 @@ Data Service 子模块
 
 封装跨表 / 领域级数据访问；由 DataManager 创建与管理。
 
-当前挂载：stock / macro / calendar / index / db_cache / backup_restore。
+当前挂载：stock / macro / calendar / index / sw / db_cache / backup_restore。
 """
 
 from typing import Any

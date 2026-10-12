@@ -1,3 +1,3 @@
-"""Analyzer pipeline steps（仅 campaign / rolling）。"""
+"""Analyzer pipeline steps（战役归因）。"""
 
 __all__: list[str] = []

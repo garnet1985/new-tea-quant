@@ -106,7 +106,7 @@ class MacdGoldenCrossStrategy(StrategyHooks):
         return True
 ```
 
-4. 跑回测：`python cli.py s --strategy macd_golden_cross`。或导航 **制定策略**。报告在 `{strategy}/results/simulations/{vid}/`，没有 `reports/`。
+4. 跑回测：`python cli.py sim --strategy macd_golden_cross`。或导航 **制定策略**。报告在 `{strategy}/results/simulations/{vid}/`，没有 `reports/`。
 
 ## RSI 超卖
 
@@ -131,6 +131,6 @@ return rsi < 30
 | `meta = {}`、`data = {}` 当两个顶层变量 | 只有一个 `settings = { "meta": ..., "data": ... }` |
 | `ctx.data("stock.kline.daily")` | `ctx.data.items_with_meta()` |
 | 只改 `meta`，其余删光 | 用模板写全 |
-| 把别的 CLI 缩写当回测 | `python cli.py s --strategy 目录或key` |
+| 把别的 CLI 缩写当回测 | `python cli.py sim --strategy 目录或key` |
 | 报告写在 `reports/` | `{strategy}/results/simulations/{vid}/` |
 | `-n` 之后仍用 `empty_strategy` | 改 `meta.key` 与目录名一致 |

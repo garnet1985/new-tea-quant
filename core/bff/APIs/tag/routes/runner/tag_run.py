@@ -107,6 +107,26 @@ class TagRunLauncher:
         }
         return jid
 
+    @staticmethod
+    def _require_successful_run(result: Optional[Dict[str, Any]]) -> None:
+        """计算未成功或行数对不上时抛错，避免 UI 把未落库标成完成。"""
+        if not isinstance(result, dict) or not result.get("success"):
+            message = ""
+            if isinstance(result, dict):
+                message = str(result.get("message") or "").strip()
+                failed = int(result.get("fail") or 0)
+                if not message and failed:
+                    message = f"标签计算失败（{failed} 个任务）"
+            raise RuntimeError(message or "标签计算未完成")
+        if result.get("dry_run"):
+            return
+        produced = int(result.get("tag_values_count") or 0)
+        saved = int(result.get("saved_tag_values") or 0)
+        if produced > 0 and saved < produced:
+            raise RuntimeError(
+                f"标签值未全部落库（计算 {produced} 行，写入 {saved} 行）"
+            )
+
     @classmethod
     def _background_tag_job(cls, job_id: str, tag_key: str) -> None:
         prog = TagRunProgress.for_job(tag_key, job_id)
@@ -130,10 +150,11 @@ class TagRunLauncher:
 
         try:
             prog.mark_running()
-            Tag(is_verbose=False).execute(
+            result = Tag(is_verbose=False).execute(
                 scenario_name=tag_key,
                 on_pipeline_progress=prog.on_progress_callback(),
             )
+            cls._require_successful_run(result)
             prog.complete()
             with cls._LOCK:
                 row = cls._JOBS.get(job_id)

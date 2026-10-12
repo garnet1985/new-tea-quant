@@ -37,6 +37,12 @@ def _normalize_step_status(
     return _step_status_from_result_report(result_report)
 
 
+def _rolling_status(raw: Any) -> Dict[str, Any]:
+    if isinstance(raw, dict):
+        return {"done": bool(raw.get("done"))}
+    return {"done": False}
+
+
 def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
     """``strategy_snapshot`` row → envelope ``message`` payload for GET …/version/latest."""
     sid = int(row.get("version") or 0)
@@ -53,6 +59,7 @@ def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
         "execute_settings": dict(row.get("execute_settings") or {}),
         "settings_rev": str(row.get("settings_rev") or ""),
         "step_status": _normalize_step_status(row.get("step_status"), result_report),
+        "rolling_status": _rolling_status(row.get("rolling_status")),
         "result_report": result_report,
         "execution_panel": build_execution_panel_from_result_report(result_report),
         "env_invalid": bool(row.get("env_invalid")),

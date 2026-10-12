@@ -101,25 +101,26 @@ class UserRunner:
         app = CliApp(is_verbose=args.verbose)
 
         try:
-            logger.info("=" * 60)
-            logger.info(i('play') + "  执行命令: %s", label)
-            logger.info("=" * 60)
+            print("=" * 60, flush=True)
+            print(f"{i('play')}  执行命令: {label}", flush=True)
+            print("=" * 60, flush=True)
 
             UserHandlers.execute(args, app)
 
-            logger.info("")
-            logger.info("=" * 60)
-            logger.info(f"{i('success')} 命令执行完成")
-            logger.info("=" * 60)
+            print(flush=True)
+            print("=" * 60, flush=True)
+            print(f"{i('success')} 命令执行完成", flush=True)
+            print("=" * 60, flush=True)
             return 0
         except KeyboardInterrupt:
-            logger.warning(f"\n{i('warning')}  用户中断执行")
+            print(f"\n{i('warning')}  用户中断执行", flush=True)
             try:
                 from core.infra.db import Db
 
                 Db.duckdb.worker_pool.recover_after_interrupt()
             except Exception as exc:
-                logger.warning("DuckDB / worker 中断收尾未完全成功: %s", exc)
+                print(f"{i('warning')} DuckDB / worker 中断收尾未完全成功: {exc}", flush=True)
+                logger.warning("DuckDB / worker 中断收尾未完全成功", exc_info=True)
             return 0
         except SystemExit as exc:
             code = exc.code
@@ -128,9 +129,6 @@ class UserRunner:
                 return 1
             return int(code) if isinstance(code, int) else 1
         except Exception as exc:
-            logger.error(i('error') + " 执行失败: %s", exc)
-            if args.verbose:
-                import traceback
-
-                traceback.print_exc()
+            print(f"{i('error')} 执行失败: {exc}", flush=True)
+            logger.exception("执行失败")
             return 1

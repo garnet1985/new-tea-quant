@@ -32,6 +32,8 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     _write(root / "system/config/data.json", "{}")
     _write(root / "extensions/data_source/providers/tushare/auth_token.txt", "secret")
     _write(root / "extensions/data_source/providers/tushare/auth_token.txt.example", "template")
+    _write(root / "system/membership/membership_token.txt", "secret")
+    _write(root / "system/membership/membership_token.txt.example", "template")
     _write(root / "extensions/assistant/providers/zhipu/api_key.txt", "secret")
     _write(root / "extensions/assistant/providers/zhipu/api_key.txt.example", "template")
     _write(root / "extensions/data_source/config.py", "TOKEN='x'")
@@ -53,6 +55,8 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     assert not (root / "system/config/data.json").exists()
     assert not (root / "extensions/data_source/providers/tushare/auth_token.txt").exists()
     assert (root / "extensions/data_source/providers/tushare/auth_token.txt.example").is_file()
+    assert not (root / "system/membership/membership_token.txt").exists()
+    assert (root / "system/membership/membership_token.txt.example").is_file()
     assert not (root / "extensions/assistant/providers/zhipu/api_key.txt").exists()
     assert (root / "extensions/assistant/providers/zhipu/api_key.txt.example").is_file()
     assert not (root / "extensions/data_source/config.py").exists()
@@ -66,6 +70,7 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     assert not (root / "system/db/data.duckdb").exists()
     assert any("auth_token" in n for n in notes)
     assert any("api_key" in n for n in notes)
+    assert any("membership_token" in n for n in notes)
 
 
 def test_copy_ignore_skips_ntq_and_strategy_results(tmp_path: Path):

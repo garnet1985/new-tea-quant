@@ -148,3 +148,18 @@ def test_attribute_pipeline_weights_and_labels(tmp_path, monkeypatch):
         assert float(prog.to_dict()["progress"]) == 90.0
         prog.complete_step("report")
         assert float(prog.to_dict()["progress"]) == 100.0
+
+
+def test_rolling_tick_keeps_window_step_label(tmp_path, monkeypatch):
+    """滚动对照一次只前进一个窗口步骤，说明文字留给界面。"""
+    from core.modules.strategy.core.services.progress import ROLLING_PIPELINE
+
+    _patch_recorder(tmp_path, monkeypatch)
+    PipelineProgress.seed("demo/x", "job-roll", pipeline_name=ROLLING_PIPELINE)
+    with PipelineProgress.bind("demo/x", "job-roll") as prog:
+        prog.mark_running()
+        prog.tick_execute(1, 6, description="20240101-20241231 枚举")
+        assert prog.to_dict()["step"]["description"] == "20240101-20241231 枚举"
+        assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 6}
+        assert PipelineProgress.drives_pipeline("enum") is False
+        assert PipelineProgress.drives_pipeline(ROLLING_PIPELINE) is True

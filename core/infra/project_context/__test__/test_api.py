@@ -50,6 +50,8 @@ class TestApi(unittest.TestCase):
             "get_assistant_root",
             "get_assistant_providers_directory",
             "get_assistant_provider_directory",
+            "get_membership_directory",
+            "get_membership_token_file",
         ]
         for method_name in methods:
             method = getattr(ProjectContext.path, method_name)

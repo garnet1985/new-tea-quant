@@ -11,19 +11,13 @@ from core.modules.strategy.core.engines.analyzer.steps.campaign.config import (
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.execute import ExecuteStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.gather import GatherStep
-from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import (
-    ROLLING_TASK_ID,
-    PersistStep,
-)
+from core.modules.strategy.core.engines.analyzer.steps.campaign.persist import PersistStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.plan import (
     AttributionPlan,
     AttributionTask,
 )
 from core.modules.strategy.core.engines.analyzer.steps.campaign.report import CampaignReportStep
 from core.modules.strategy.core.engines.analyzer.steps.campaign.summarize import SummarizeStep
-from core.modules.strategy.core.engines.analyzer.steps.rolling.config import RollingSettings
-from core.modules.strategy.core.engines.analyzer.steps.rolling.summarize import RollingSummarizeStep
-from core.modules.strategy.core.engines.analyzer.steps.rolling.windows import WindowExpander
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.progress import (
@@ -124,64 +118,6 @@ class AttributionPipeline:
         if drive:
             PipelineProgress.complete_step_bound("report")
         return persisted
-
-    @staticmethod
-    def _resolve_folder(key_or_id: Union[str, Path]) -> Path:
-        path = Path(key_or_id)
-        if path.is_dir() and (path / ATTRIBUTION_FILE_NAME).is_file():
-            return path
-        return DiscoveryService.resolve_strategy_folder(str(key_or_id))
-
-
-# TODO: 滚动验证的产品口径还没定，整段先留着，不要当已完成功能。
-class RollingPipeline:
-    """滚动验证：同一套旋钮，对照声明窗口。默认每窗跑到 portfolio。"""
-
-    @classmethod
-    def run(
-        cls,
-        key_or_id: Union[str, Path],
-        *,
-        ignore_cache: bool = False,
-    ) -> Dict[str, Any]:
-        """按声明窗口跑滚动验证并返回报告。"""
-        folder = cls._resolve_folder(key_or_id)
-        config = RollingSettings.load(folder)
-        cells = WindowExpander.expand_from_folder(folder, config)
-        layer = SimulateKind.PORTFOLIO
-        tasks = AttributionTask.from_cells(cells, kind=layer)
-        executed = ExecuteStep.for_layer(layer).run(
-            folder, tasks, kind=layer, ignore_cache=ignore_cache
-        )
-        gathered = GatherStep.run(
-            folder, tasks, executed, layer=layer.value
-        )
-        summarized = RollingSummarizeStep.run(gathered)
-        assembled = CampaignReportStep.run(
-            folder,
-            config,
-            cells,
-            tasks,
-            executed=executed,
-            gathered=gathered,
-            attributed={
-                "status": summarized.get("status"),
-                "n": summarized.get("n", 0),
-                "layers": {},
-            },
-            summarized=summarized,
-            layer=layer.value,
-        )
-        assembled["mode"] = "rolling"
-        assembled["headline"] = summarized.get("headline")
-        return PersistStep.run(
-            folder,
-            config,
-            assembled,
-            executed=executed,
-            task_id=ROLLING_TASK_ID,
-            task_kind="rolling",
-        )
 
     @staticmethod
     def _resolve_folder(key_or_id: Union[str, Path]) -> Path:

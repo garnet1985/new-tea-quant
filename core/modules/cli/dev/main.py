@@ -34,6 +34,10 @@ class DevRunner:
             DevParser.build_parser().print_help()
             print()
 
+        from core.modules.cli.shared.logging_setup import setup_cli_logging
+
+        setup_cli_logging(verbose=bool(getattr(args, "verbose", False)))
+
         try:
             from core.infra.setup import Setup
 

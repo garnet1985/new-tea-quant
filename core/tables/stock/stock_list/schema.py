@@ -2,7 +2,7 @@
 股票列表（sys_stock_list）：证券主表，存 L/D/P 全量及 PIT 日期字段。
 
 维度属性由定义表 + 映射表维护（stock_list renew 时写入）：
-- 行业：sys_industries + sys_stock_industry_map
+- 行业：sys_sw_industry + sys_sw_stock_industry_map（申万 2021，由 sw_industry 数据源写入）
 - 板块：sys_boards + sys_stock_board_map（Tushare market）
 - 交易所：sys_markets + sys_stock_market_map（Tushare exchange）
 - 地域：sys_areas + sys_stock_area_map（Tushare area）

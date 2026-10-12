@@ -18,7 +18,11 @@ class DevParser:
             prog="devcli.py",
             help_text=DEVCLI_COMMAND_REFERENCE,
         )
-        parser.add_argument("--verbose", action="store_true", help="详细日志（DEBUG）")
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            help="开发日志（DEBUG）。默认不输出，只保留命令结果和警告",
+        )
 
         sub = parser.add_subparsers(
             dest="command",

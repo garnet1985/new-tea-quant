@@ -40,18 +40,22 @@ class ListService(BaseDataService):
         super().__init__(data_manager)
 
         self._stock_list = data_manager.get_table("sys_stock_list")
-        self._industries = data_manager.get_table("sys_industries")
         self._boards = data_manager.get_table("sys_boards")
         self._markets = data_manager.get_table("sys_markets")
         self._areas = data_manager.get_table("sys_areas")
-        self._industry_map = data_manager.get_table("sys_stock_industry_map")
+        self._sw_industry = data_manager.get_table("sys_sw_industry")
+        self._sw_stock_industry = data_manager.get_table("sys_sw_stock_industry_map")
         self._board_map = data_manager.get_table("sys_stock_board_map")
         self._market_map = data_manager.get_table("sys_stock_market_map")
         self._area_map = data_manager.get_table("sys_stock_area_map")
 
     @property
-    def industries_model(self):
-        return self._industries
+    def sw_industry_model(self):
+        return self._sw_industry
+
+    @property
+    def sw_stock_industry_model(self):
+        return self._sw_stock_industry
 
     @property
     def boards_model(self):
@@ -64,10 +68,6 @@ class ListService(BaseDataService):
     @property
     def areas_model(self):
         return self._areas
-
-    @property
-    def industry_map_model(self):
-        return self._industry_map
 
     @property
     def board_map_model(self):
@@ -95,6 +95,7 @@ class ListService(BaseDataService):
         return {
             "id": row.get("id"),
             "name": row.get("name"),
+            "industry": self.industry_name(str(row.get("id") or "")),
             "list_status": row.get("list_status"),
             "list_date": row.get("list_date"),
             "delist_date": delist or "",
@@ -173,7 +174,7 @@ class ListService(BaseDataService):
             return self._sort_stocks(rows, order_by)
 
         if industry is not None:
-            return self._load_by_dimension("industry", industry, order_by)
+            return self._load_by_sw_industry(industry, order_by)
         if board is not None:
             return self._load_by_dimension("board", board, order_by)
         if market is not None:
@@ -269,9 +270,6 @@ class ListService(BaseDataService):
     def save(self, stocks: List[Dict[str, Any]]) -> int:
         return self._stock_list.save_stocks(stocks)
 
-    def ensure_and_sync_industries(self, values: List[str]) -> Dict[str, int]:
-        return self._ensure_and_sync_dimension_batch(self._industries, values) if self._industries else {}
-
     def ensure_and_sync_boards(self, values: List[str]) -> Dict[str, int]:
         return self._ensure_and_sync_dimension_batch(self._boards, values) if self._boards else {}
 
@@ -288,7 +286,6 @@ class ListService(BaseDataService):
         order_by: str,
     ) -> List[Dict[str, Any]]:
         resolvers = {
-            "industry": (self._resolve_industry_id, self._industry_map, "industry_id"),
             "board": (self._resolve_board_id, self._board_map, "board_id"),
             "market": (self._resolve_market_id, self._market_map, "market_id"),
             "area": (self._resolve_area_id, self._area_map, "area_id"),
@@ -318,11 +315,64 @@ class ListService(BaseDataService):
         )
         return self._sort_stocks(stocks, order_by)
 
-    def _resolve_industry_id(self, industry: Union[str, int]) -> Optional[int]:
-        if isinstance(industry, int):
-            return industry
-        row = self._industries.load_one("value = %s", (industry,)) if self._industries else None
-        return int(row["id"]) if row and row.get("id") is not None else None
+    def industry_name(self, stock_id: str) -> str:
+        """股票当前申万一级行业名。没有成分时返回空字符串。"""
+        names = self.industry_name_map([stock_id] if stock_id else [])
+        return names.get(stock_id, "")
+
+    def industry_name_map(self, stock_ids: Optional[Sequence[str]] = None) -> Dict[str, str]:
+        """stock_id → 申万一级行业名。stock_ids 为空时返回全部成分。"""
+        if not self._sw_industry or not self._sw_stock_industry:
+            return {}
+        level1 = self._sw_industry.load("level = %s", ("L1",)) or []
+        code_to_name = {
+            str(row.get("id")): str(row.get("name") or "")
+            for row in level1
+            if row.get("id")
+        }
+        wanted = [str(sid).strip() for sid in (stock_ids or []) if str(sid).strip()]
+        if wanted:
+            placeholders = ",".join(["%s"] * len(wanted))
+            rows = self._sw_stock_industry.load(
+                f"stock_id IN ({placeholders})",
+                tuple(wanted),
+            )
+        else:
+            rows = self._sw_stock_industry.load("1=1")
+        out: Dict[str, str] = {}
+        for row in rows or []:
+            sid = str(row.get("stock_id") or "").strip()
+            if sid:
+                out[sid] = code_to_name.get(str(row.get("l1_code") or ""), "")
+        return out
+
+    def _load_by_sw_industry(self, industry: Union[str, int], order_by: str) -> List[Dict[str, Any]]:
+        code = self._resolve_sw_l1_code(industry)
+        if not code or not self._sw_stock_industry:
+            return []
+        map_rows = self._sw_stock_industry.load("l1_code = %s", (code,)) or []
+        stock_ids = [row["stock_id"] for row in map_rows if row.get("stock_id")]
+        if not stock_ids:
+            return []
+        placeholders = ",".join(["%s"] * len(stock_ids))
+        stocks = self._stock_list.load(
+            f"id IN ({placeholders})",
+            tuple(stock_ids),
+            order_by=f"{order_by} ASC",
+        )
+        return self._sort_stocks(stocks, order_by)
+
+    def _resolve_sw_l1_code(self, industry: Union[str, int]) -> Optional[str]:
+        text = str(industry or "").strip()
+        if not text or not self._sw_industry:
+            return None
+        if text.endswith(".SI"):
+            row = self._sw_industry.load_one("id = %s AND level = %s", (text, "L1"))
+            return text if row else None
+        row = self._sw_industry.load_one("name = %s AND level = %s", (text, "L1"))
+        if row and row.get("id"):
+            return str(row["id"])
+        return None
 
     def _resolve_board_id(self, board: Union[str, int]) -> Optional[int]:
         if isinstance(board, int):

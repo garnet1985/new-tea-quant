@@ -47,21 +47,19 @@ def test_mark_phase_advances_percent_floor() -> None:
     assert finish.percent == 100.0
 
 
-def test_enable_progress_display_false_skips_logging() -> None:
+def test_enable_progress_display_false_skips_output() -> None:
     reporter = RunProgressReporter(
         task_name="demo",
         run_mode=BacktestMode.SLICE_BASED.value,
         enable_progress_display=False,
     )
-    with patch(
-        "core.modules.backtest_engine.core.shared.progress.logger.info"
-    ) as info_mock:
+    with patch("builtins.print") as print_mock:
         reporter.mark_phase(RunPhase.PREP)
         reporter.set_execute_total(2)
         reporter.mark_phase(RunPhase.EXECUTE)
         reporter.mark_execute_unit(1)
 
-    info_mock.assert_not_called()
+    print_mock.assert_not_called()
 
 
 def test_report_from_payload_invokes_hook() -> None:

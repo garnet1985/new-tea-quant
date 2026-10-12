@@ -3,13 +3,10 @@
 """
 from __future__ import annotations
 
-import logging
 import random
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
-
-logger = logging.getLogger(__name__)
 
 StratumKey = Tuple[str, str, str]  # (list_status, board, market)
 
@@ -197,7 +194,7 @@ def sample_stratified_stock_pool(
 def log_sampling_report(report: SamplingReport, *, status_labels: Mapping[str, str]) -> None:
     u = report.universe_size
     s = report.sample_size
-    logger.info("全市场股票 %d 只 → 演示池 %d 只", u, s)
+    print(f"全市场股票 {u} 只 → 演示池 {s} 只", flush=True)
 
     for code in ("L", "D", "P", "?"):
         cu = report.status_counts_universe.get(code, 0)
@@ -207,24 +204,16 @@ def log_sampling_report(report: SamplingReport, *, status_labels: Mapping[str, s
         label = status_labels.get(code, code)
         pct_u = 100.0 * cu / u if u else 0
         pct_s = 100.0 * cs / s if s else 0
-        logger.info(
-            "  状态 %s：全市场 %d (%.1f%%) → 样本 %d (%.1f%%)",
-            label,
-            cu,
-            pct_u,
-            cs,
-            pct_s,
+        print(
+            f"  状态 {label}：全市场 {cu} ({pct_u:.1f}%) → 样本 {cs} ({pct_s:.1f}%)",
+            flush=True,
         )
 
-    logger.info("分层明细（状态 × 板块 × 交易所）：")
+    print("分层明细（状态 × 板块 × 交易所）：", flush=True)
     for row in report.stratum_rows:
-        logger.info(
-            "  %s / %s / %s：%d → %d (占全市场 %.2f%%, 占样本 %.2f%%)",
-            row["list_status"],
-            row["board"],
-            row["market"],
-            row["universe"],
-            row["sample"],
-            row["universe_pct"],
-            row["sample_pct"],
+        print(
+            f"  {row['list_status']} / {row['board']} / {row['market']}："
+            f"{row['universe']} → {row['sample']} "
+            f"(占全市场 {row['universe_pct']:.2f}%, 占样本 {row['sample_pct']:.2f}%)",
+            flush=True,
         )

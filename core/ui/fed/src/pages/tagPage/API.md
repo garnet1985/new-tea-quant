@@ -28,8 +28,9 @@
 | T1-01 | GET | `/tags/list` | 分页 Tag scenario 列表 |
 | T1-02 | POST | `/tag/<path:tag_key>/run` | 启动单 scenario 计算 |
 | T1-03 | GET | `/tag/<path:tag_key>/run/progress` | 轮询 run 进度 |
+| T1-07 | GET | `/tag/<path:tag_key>/visualization` | 标签可视化（区间 / 实体表 / 非时序快照） |
 
-**MVP 未注册**：单 scenario 详情 GET、settings 保存、运行全部、tag 值预览。
+**未注册**：单 scenario 详情 GET、settings 保存、运行全部。
 
 ### 并发（两层）
 
@@ -315,6 +316,29 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 - `is_enabled=false`：展示行，**禁用**运行按钮 + tooltip。
 - MVP **无**详情页；运行按钮在列表行内。
 - API 客户端建议路径：`core/ui/fed/src/api/apis/tagApi.js`（待建）。
+
+## T1-07 标签可视化
+
+`GET /tag/<path:tag_key>/visualization`
+
+可选 query：`entity_id`。仅 `route=per_entity` 时使用；有值则返回该实体的区间，没有则返回实体当前值列表。
+
+**成功响应 `message`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `tag_key` | string | discovery 路径 |
+| `display_name` | string | 展示名 |
+| `route` | string | `per_entity` \| `global` \| `non_time_series`（由 `data.base` 决定） |
+| `horizon_end` | string | 区间右端用的计算水位，`YYYYMMDD`；实体列表时为空 |
+| `lanes` | array | 甘特纵轴，settings 里标签的 `display_name`，按配置顺序 |
+| `entities` | array | 按实体时的当前标签：`entity_id` / `entity_name` / `tag_label` / `value_label` / `value_detail` / `as_of` |
+| `intervals` | array | 甘特区间：`lane`（标签展示名）/ `value_label`（悬停取值）/ `tag_name` / `tag_display_name` / `start` / `end` |
+| `snapshots` | array | 非时序最新值。`kind` 为 `categories` \| `scalar` \| `fields` \| `object` |
+
+纵轴是标签展示名。`value_label` 是该标签当时的注解，只给悬停。区间从一次变化接到下一次任一标签的变化日；最后一段收到 `horizon_end`。`start_date` / `end_date` 都有且终点晚于起点时，用这对日期，不再向后延伸。
+
+标签不在 discovery 中 → **404**。读库失败 → **500**。
 
 ## 后续迭代（非 MVP，预留编号）
 

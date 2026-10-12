@@ -66,7 +66,7 @@ class ArtifactRetention:
 
     @classmethod
     def clear_by_version(cls, strategy_name: str, version: int) -> Dict[str, Any]:
-        """删除单个策略的一个 simulation version 目录 + registry 条目。"""
+        """删除一个主 version，以及挂在它身上的归因副本、滚动窗口和归因组。"""
         name = str(strategy_name or "").strip()
         sid = int(version)
         if not name or sid <= 0:
@@ -92,10 +92,16 @@ class ArtifactRetention:
                     "strategy_name": name,
                     "version": sid,
                 }
+            bound = VersionMetaStore.bound_version_ids(root, vid)
+            for child_id in bound:
+                VersionMetaStore.remove_version_from_registry(root, child_id)
+                child_dir = Path(root) / child_id
+                if child_dir.is_dir():
+                    shutil.rmtree(child_dir)
             VersionMetaStore.remove_version_from_registry(root, vid)
             if had_dir:
                 shutil.rmtree(version_dir)
-            removed_disk = had_entry or had_dir
+            removed_disk = had_entry or had_dir or bool(bound)
 
         if not removed_disk:
             return {

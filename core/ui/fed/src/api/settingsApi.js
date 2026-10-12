@@ -4,6 +4,7 @@ const API_SETTINGS_DB = `${API_VERSION_PREFIX}/settings/database`;
 const API_SETTINGS_DATA = `${API_VERSION_PREFIX}/settings/data`;
 const API_SETTINGS_CACHE_CLEAR = `${API_VERSION_PREFIX}/settings/cache/clear`;
 const API_SETTINGS_TRACE = `${API_VERSION_PREFIX}/settings/trace`;
+const API_SETTINGS_MEMBERSHIP = `${API_VERSION_PREFIX}/settings/membership`;
 
 const SUPPORTED_DB_TYPES = new Set(['postgresql', 'mysql', 'duckdb']);
 
@@ -139,6 +140,48 @@ export async function saveTraceSettings(body) {
     needs_ask: Boolean(m.needs_ask),
     decided_at: String(m.decided_at || '').trim(),
     source: String(m.source || '').trim(),
+  };
+}
+
+/**
+ * @returns {Promise<{ configured: boolean, invalid: boolean, path: string }>}
+ */
+export async function fetchMembershipSettings() {
+  const json = await request.getJson(API_SETTINGS_MEMBERSHIP);
+  const m = json?.message || {};
+  return {
+    configured: Boolean(m.configured),
+    invalid: Boolean(m.invalid),
+    path: String(m.path || 'userspace/system/membership/membership_token.txt'),
+  };
+}
+
+/**
+ * @param {string} token
+ * @returns {Promise<{ configured: boolean, invalid: boolean, path: string }>}
+ */
+export async function saveMembershipToken(token) {
+  const json = await request.putJson(API_SETTINGS_MEMBERSHIP, {
+    body: { token: String(token || '') },
+  });
+  const m = json?.message || {};
+  return {
+    configured: Boolean(m.configured),
+    invalid: Boolean(m.invalid),
+    path: String(m.path || ''),
+  };
+}
+
+/**
+ * @returns {Promise<{ configured: boolean, invalid: boolean, path: string }>}
+ */
+export async function clearMembershipToken() {
+  const json = await request.deleteJson(API_SETTINGS_MEMBERSHIP);
+  const m = json?.message || {};
+  return {
+    configured: Boolean(m.configured),
+    invalid: Boolean(m.invalid),
+    path: String(m.path || ''),
   };
 }
 

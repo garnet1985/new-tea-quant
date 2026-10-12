@@ -24,7 +24,7 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py bps --db pgsql          slice + PostgreSQL
   python devcli.py bpc                     清理 BE 性能临时库 + test_strategies/*/results
 
-  --verbose                                详细日志
+  --verbose                                开发日志（DEBUG，默认关闭）
 
   例: python devcli.py p -core_v0.3.2 --check-only
       同 python devcli.py pack --version 0.3.2 --check-only

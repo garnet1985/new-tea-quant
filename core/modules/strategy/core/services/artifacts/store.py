@@ -438,6 +438,12 @@ class ArtifactStore:
         deleted = 0
         root = Path(simulations_root)
         for vid in vids:
+            for child_id in VersionMetaStore.bound_version_ids(root, str(vid)):
+                VersionMetaStore.remove_version_from_registry(root, child_id)
+                child_dir = root / child_id
+                if child_dir.is_dir():
+                    shutil.rmtree(child_dir, ignore_errors=True)
+                    deleted += 1
             VersionMetaStore.remove_version_from_registry(root, vid)
             version_dir = root / str(vid)
             if not version_dir.is_dir():

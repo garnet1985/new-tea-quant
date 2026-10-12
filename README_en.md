@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.2-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.3-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -310,7 +310,7 @@ NTQ helps you test your ideas. You will likely need:
 
 NTQ is a backtester. It does not provide:
 
-- **A stable live data feed** (you connect your own). The repo ships ~3 years / **300** names of demo data; after you register you can download a ~3-year **full A-share** pack from the [member page](https://new-tea.cn/zh-hans/user/) (see [Data notes](#data)).
+- **A stable live data feed** (you connect your own). The repo ships ~3 years / **300** names of demo data. The ~3-year **full A-share** pack is paused from **0.5.3** and will reopen in **0.6.0** (see [Data notes](#data)).
 - **Live brokerage trading.** There is no broker hook. Scan results go out through the [`adapter`](core/modules/adapter/README.md) module. If you can talk to a third-party trading app or venue, you can pass those opportunities downstream.
 
 ## How do I run it?
@@ -504,7 +504,7 @@ That is a simple path from backtest to scan — there is more in NTQ to explore.
 <a id="data"></a>
 ## Data notes
 
-1. For a **larger (~3 years, full A-share) package**: [register and sign in on the member page](https://new-tea.cn/zh-hans/user/), download it, leave **only one** zip under [`initialization/data/`](initialization/data/) (move the old demo zip aside), then run `python cli.py id` (`-f` forces a full re-import; see [CLI](#cli)). You can point a different DB name to keep demo and full data side by side (after install: `userspace/system/config/database/`).
+1. For a **larger (~3 years, full A-share) package**, useful for a fuller strategy check or backtest: **downloads are paused from 0.5.3 and will reopen in 0.6.0.** When they reopen, [register and sign in on the member page](https://new-tea.cn/zh-hans/user/), download it, leave **only one** zip under [`initialization/data/`](initialization/data/) (move the old demo zip aside), then run `python cli.py id` (`-f` forces a full re-import; see [CLI](#cli)). You can point a different DB name to keep demo and full data side by side (after install: `userspace/system/config/database/`).
 2. **Bring your own data source** (e.g. [Tushare](https://tushare.pro)): see [core/modules/data_source/README.md](core/modules/data_source/README.md).
 3. Demo data and strategies are for learning/research only — not live trading or commercial use.
 
@@ -521,10 +521,11 @@ Layered backtest and scan (full list: `python cli.py -h`):
 python cli.py se --strategy rsi_v1   # Enumerate
 python cli.py sp --strategy rsi_v1   # Price layer
 python cli.py so --strategy rsi_v1   # Portfolio layer
-python cli.py s  --strategy rsi_v1   # All three layers
+python cli.py sim --strategy rsi_v1   # All three layers
 python cli.py sea --strategy rsi_v1  # Enumerate attribution (run se first; reads attribution.py)
 python cli.py spa --strategy rsi_v1  # Price attribution (run sp first)
 python cli.py soa --strategy rsi_v1  # Portfolio attribution (run so first)
+python cli.py sr  --strategy rsi_v1   # Rolling compare (run all three layers first; reads rolling.py)
 python cli.py c  --strategy rsi_v1   # Market scan
 python cli.py t  --scenario market_cap_tier   # Feature tags
 ```

@@ -234,6 +234,7 @@ class WorkbenchSnapshots:
             "reports": result_report,
             "result_report": result_report,
             "step_status": cls._step_status_from_disk(root, vid),
+            "rolling_status": cls._rolling_status_from_disk(root, vid),
             "execute_fp": str(entry.get("execute_fp") or ""),
             "env_fingerprint_id": str(entry.get("env_fp") or ""),
             "env_invalid": cls._env_invalid_for_entry(info, entry),
@@ -293,6 +294,21 @@ class WorkbenchSnapshots:
             "done": cls._decision_step_done(simulations_root, version_id),
         }
         return status
+
+    @classmethod
+    def _rolling_status_from_disk(
+        cls,
+        simulations_root: Path,
+        version_id: str,
+    ) -> Dict[str, Any]:
+        """滚动对照只认这个 version 目录下的报告。没有报告就是未执行。"""
+        report = (
+            Path(simulations_root)
+            / str(version_id).strip()
+            / "rolling"
+            / "report.json"
+        )
+        return {"done": report.is_file()}
 
     @classmethod
     def _decision_step_done(

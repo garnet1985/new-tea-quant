@@ -15,9 +15,11 @@
 core/bff/APIs/tag/
   api_base.py
   helpers/tag_catalog.py
+  helpers/tag_visualization.py
   routes/
     catalog/     # T1-01
     runner/      # T1-02/03 + tag_run 薄壳
+    visualization/  # T1-07
 ```
 
 进度落盘：``TagRunProgress``（``modules.tag.core.services.progress``）；BFF `tag_run.py` 只做锁 / lease / 线程。
@@ -39,3 +41,4 @@ core/bff/APIs/tag/
 | T1-01 | GET | `/v1/tags/list` | `routes/catalog` | `TagCatalog.fetch_page` |
 | T1-02 | POST | `/v1/tag/<path:tag_key>/run` | `routes/runner` | `TagRunLauncher.trigger` → `ok` / **409** |
 | T1-03 | GET | `/v1/tag/<path:tag_key>/run/progress` | `routes/runner` | `TagRunProgress.get_poll_dto` → `ok` / **404** |
+| T1-07 | GET | `/v1/tag/<path:tag_key>/visualization` | `routes/visualization` | `TagVisualization.fetch` → `ok` / **404** / **500** |

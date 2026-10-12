@@ -1,6 +1,6 @@
 # New Tea Quant 代码风格规范
 
-> 最后更新：2026-10-07
+> 最后更新：2026-10-08
 > 适用范围：core/infra, core/modules
 
 ---
@@ -14,6 +14,7 @@
 - [5. API 设计规范](#5-api-设计规范)
 - [6. API 契约规范](#6-api-契约规范)
 - [7. 错误处理](#7-错误处理)
+  - [7.3 日志通道](#73-日志通道)
 - [8. 测试规范](#8-测试规范)
   - [8.4 TEST_CASES.md 测试索引](#84-test_casesmd-测试索引)
 - [9. 文档规范](#9-文档规范)
@@ -1069,7 +1070,57 @@ except requests.RequestException as e:
     raise DataNotFoundError(f"无法获取数据: {url}") from e
 ```
 
-### 7.3 错误日志规范
+### 7.3 日志通道
+
+两套输出，读者不同：
+
+| 通道 | 读者 | 放哪里 |
+|------|------|--------|
+| `print` | 正在看这个终端的人 | `cli` / `devcli` 的命令结果、进度、预期内的失败 |
+| `logger` | 看日志排障的开发者 | 引擎、服务、BFF、worker、数据层 |
+
+`devcli` 的操作者也是开发者，但命令打出来的仍是这条命令的结果，用 `print`。内部诊断用 `logger`。
+
+网页用户看的是接口返回和界面，不看 stdout。BFF 只使用 `logger`。
+
+**命令行级别**（`core/modules/cli/shared/logging_setup.py` 的 `setup_cli_logging`，`cli` 与 `devcli` 共用）：
+
+- 默认 `WARNING`：终端上只有 `print` 的命令结果，以及真正的警告和错误。
+- `--verbose`：`DEBUG`，开发诊断才出现。
+- 操作者必须看到的句子用 `print`，不要只写 `logger.info`。默认级别下 `INFO` 不会出现在终端。
+- 同一句不要再 `logger.warning` / `logger.error` 打一遍，否则终端上会有一条干净输出，再加一条带时间戳的日志。
+- 需要在 `--verbose` 里留底时，另外写 `logger.info` / `logger.debug`。
+- 意外失败：`print` 一句能采取行动的结论，`logger.exception` 记栈。
+
+```python
+# 命令结果
+print(f"已导出: {out.resolve()}", flush=True)
+
+# 预期内的失败（用户能处理）
+print(f"策略不存在: {spec}", flush=True)
+
+# 意外失败：用户看结论，开发者看栈
+print(f"执行失败: {exc}", flush=True)
+logger.exception("执行失败")
+```
+
+**库代码**（引擎、服务、数据层）用模块级 logger，不用 `print`：
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+logger.info("执行数据源 [%s/%s]: %s", idx + 1, total, key)
+logger.warning("数据验证失败: %s", exc)
+logger.error("处理数据失败: %s", exc, exc_info=True)
+```
+
+`logger` 用 `%s` 占位，不要用 f-string，未输出的级别不必先格式化。报告展示、回测进度、探针等待这类专门写给终端的进度，可以 `print`；调度细节、合约加载、共享内存、缓存未命中留在 `logger`。
+
+### 7.4 错误日志规范
+
+库代码里的失败记到 `logger`，再把异常抛出去。命令入口另按 7.3 给操作者 `print` 一句结论。
 
 ```python
 import logging
@@ -1081,10 +1132,10 @@ def process_data(data: dict) -> None:
         validate_data(data)
         save_data(data)
     except ValidationError as e:
-        logger.warning(f"数据验证失败: {e}")
+        logger.warning("数据验证失败: %s", e)
         raise
     except Exception as e:
-        logger.error(f"处理数据失败: {e}", exc_info=True)
+        logger.error("处理数据失败: %s", e, exc_info=True)
         raise
 ```
 
@@ -1332,7 +1383,7 @@ logger = logging.getLogger(__name__)
 ### 错误处理
 - [ ] 使用自定义异常类
 - [ ] 异常信息提供上下文
-- [ ] 关键操作有日志
+- [ ] 操作者要看的结果用 print，开发诊断用 logger
 
 ### 类型注解
 - [ ] 函数参数和返回值有类型注解
@@ -1345,6 +1396,7 @@ logger = logging.getLogger(__name__)
 
 | 版本 | 日期 | 修改内容 |
 |------|------|----------|
+| 1.5 | 2026-10-08 | 第 7.3 节：print 给终端操作者，logger 给开发诊断 |
 | 1.4 | 2026-10-07 | 第 13 节：旧键的拒绝分支和点名旧键的测试一并删除 |
 | 1.2 | 2026-10-07 | 增加第 13 节：定期代码清理 |
 | 1.1 | 2026-09-12 | 1.1：标识符英文；注释与文档中文 |

@@ -14,6 +14,7 @@ import {
   SettingsDataPanel,
   SettingsDatabasePanel,
   SettingsFeedbackPanel,
+  SettingsMembershipPanel,
   SettingsSystemPanel,
   SettingsTracePanel,
 } from './settingsPanels';
@@ -22,6 +23,7 @@ import './settingsPage.scss';
 const SETTINGS_TABS = [
   { id: 'system', label: '安装与维护', path: 'system' },
   { id: 'database', label: '数据库', path: 'database' },
+  { id: 'membership', label: '会员', path: 'membership' },
   { id: 'assistant', label: 'AI 助理', path: 'assistant' },
   { id: 'data', label: '数据范围', path: 'data' },
   { id: 'cache', label: '缓存管理', path: 'cache' },
@@ -159,7 +161,7 @@ function SettingsPage() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装、数据库连接、AI 助理、数据范围、缓存清理、使用统计与反馈。"
+      bannerDescription="系统安装、数据库连接、会员凭证、AI 助理、数据范围、缓存清理、使用统计与反馈。"
     >
       <Box className="settings-page-layout">
         <Paper className="settings-page-nav" elevation={0}>
@@ -220,6 +222,7 @@ function SettingsPage() {
                 />
               )}
             />
+            <Route path="membership" element={<SettingsMembershipPanel />} />
             <Route path="assistant" element={<SettingsAssistantPanel />} />
             <Route path="cache" element={<SettingsCachePanel />} />
             <Route path="trace" element={<SettingsTracePanel />} />

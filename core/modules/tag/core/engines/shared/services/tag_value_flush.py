@@ -13,6 +13,9 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
+    TagDbUnavailable,
+)
 from core.modules.tag.core.engines.shared.services.report_save_buffer import (
     TagReportSaveBuffer,
 )
@@ -35,6 +38,7 @@ class TagValueFlushService:
         self._buffer = TagReportSaveBuffer(
             save_fn=self._save_db_rows,
             batch_size=batch_size,
+            defer_exceptions=(TagDbUnavailable,),
         )
 
     @classmethod
@@ -107,8 +111,16 @@ class TagValueFlushService:
         return len(buffered_rows)
 
     def flush(self) -> int:
-        """刷出剩余缓冲。返回累计已写入行数。"""
+        """刷出剩余缓冲。返回累计已写入行数。
+
+        连接尚未恢复时行仍留在缓冲里，此处改为失败，避免把未落库报成成功。
+        """
         self._buffer.flush()
+        pending = self._buffer.pending_row_count
+        if pending:
+            raise TagDbUnavailable(
+                f"标签值仍有 {pending} 行未落库（数据库连接未恢复）"
+            )
         return int(self._buffer.saved_row_count)
 
     @property
@@ -122,7 +134,7 @@ class TagValueFlushService:
             return len(db_rows)
         if self._tags is None:
             raise ValueError("tag_data_service is required unless dry_run=True")
-        return int(self._tags.save_batch(db_rows) or len(db_rows))
+        return int(self._tags.save_batch(db_rows) or 0)
 
 
 __all__ = ["TagValueFlushService"]

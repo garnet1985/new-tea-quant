@@ -69,6 +69,7 @@ class StockMetaHelper:
 
             dm = DataManager()
             rows = dm.stock.list.load_all() or []
+            industry_names = dm.stock.list.industry_name_map(ids)
             normalize = getattr(dm.stock.list, "_normalize_delist_date", None)
         except Exception as exc:
             logger.warning("批量加载股票元数据失败: error=%s", exc)
@@ -95,7 +96,7 @@ class StockMetaHelper:
             out[sid] = {
                 "id": sid,
                 "name": row.get("name") or sid,
-                "industry": row.get("industry") or "",
+                "industry": industry_names.get(sid) or "",
                 "type": row.get("type") or "",
                 "exchange_center": row.get("exchange_center") or "",
                 "delist_date": delist,

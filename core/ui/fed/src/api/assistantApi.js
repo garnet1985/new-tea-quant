@@ -2,6 +2,7 @@ import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 
 const API_ASSISTANT_PROVIDERS = `${API_VERSION_PREFIX}/assistant/providers`;
 const API_ASSISTANT_CHAT = `${API_VERSION_PREFIX}/assistant/chat`;
+const API_ASSISTANT_NTQ_QUOTA = `${API_VERSION_PREFIX}/assistant/ntq-quota`;
 
 /**
  * @returns {Promise<Array<{
@@ -12,6 +13,21 @@ const API_ASSISTANT_CHAT = `${API_VERSION_PREFIX}/assistant/chat`;
  *   hasApiKey: boolean,
  * }>>}
  */
+/**
+ * @returns {Promise<{ available: boolean, limit: number, remaining: number|null }>}
+ */
+export async function fetchNtqQuota() {
+  const json = await request.getJson(API_ASSISTANT_NTQ_QUOTA);
+  const m = json?.message || {};
+  const limit = Number(m.limit);
+  const remaining = m.remaining == null ? null : Number(m.remaining);
+  return {
+    available: Boolean(m.available) && Number.isFinite(remaining),
+    limit: Number.isFinite(limit) && limit > 0 ? limit : 30,
+    remaining: Number.isFinite(remaining) ? remaining : null,
+  };
+}
+
 export async function listAssistantProviders() {
   const json = await request.getJson(API_ASSISTANT_PROVIDERS);
   const items = json?.message?.items;
@@ -29,7 +45,7 @@ export async function chatWithAssistant(body) {
       .map((item) => ({ role: item.role, content: String(item.content) }))
     : [];
   const json = await request.postJson(API_ASSISTANT_CHAT, {
-    timeoutMs: HTTP_TIMEOUT_MS.LONG,
+    timeoutMs: HTTP_TIMEOUT_MS.ASSISTANT,
     body: {
       content: String(body?.content || ''),
       providerId: String(body?.providerId || '').trim() || undefined,

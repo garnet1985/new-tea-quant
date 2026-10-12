@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.assistant.contracts import AssistantError
 
-_DEFAULT_TIMEOUT_SECONDS = 60.0
+_DEFAULT_TIMEOUT_SECONDS = 25.0
 _DEFAULT_MAX_TOKENS = 2048
 _USER_AGENT = "NTQ-assistant/0.1.0"
 

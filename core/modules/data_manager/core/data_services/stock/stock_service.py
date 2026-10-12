@@ -7,7 +7,7 @@
 3. 作为子服务的入口，提供子服务属性访问
 
 涉及的表：
-- sys_stock_list、sys_industries、sys_stock_industry_map、sys_stock_klines 等（由 DataManager 发现）
+- sys_stock_list、sys_sw_industry、sys_sw_stock_industry_map、sys_stock_klines 等（由 DataManager 发现）
 
 子服务：
 - list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / load_all）
@@ -145,7 +145,7 @@ class StockService(BaseDataService):
         """
         获取股票基本信息和最新价格（使用 JOIN 优化）
         
-        跨表：sys_stock_list + sys_stock_industry_map + sys_industries + sys_stock_klines
+        跨表：sys_stock_list + sys_sw_stock_industry_map + sys_sw_industry + sys_stock_klines
         
         Args:
             stock_id: 股票ID
@@ -176,15 +176,15 @@ class StockService(BaseDataService):
         sql = """
         SELECT
             s.id, s.name, s.list_status, s.list_date, s.delist_date, s.last_update,
-            map.industry_id,
-            ind.value AS industry,
+            map.l1_code AS industry_id,
+            ind.name AS industry,
             k.date AS kline_date,
             k.open, k.high, k.low, k.close, k.volume, k.amount,
             di.turnover_rate,
             di.total_market_value, di.pe, di.pb, di.total_share, di.float_share
         FROM sys_stock_list s
-        LEFT JOIN sys_stock_industry_map map ON s.id = map.stock_id
-        LEFT JOIN sys_industries ind ON map.industry_id = ind.id
+        LEFT JOIN sys_sw_stock_industry_map map ON s.id = map.stock_id
+        LEFT JOIN sys_sw_industry ind ON map.l1_code = ind.id AND ind.level = 'L1'
         LEFT JOIN sys_stock_klines k ON (
             s.id = k.id
             AND k.term = 'daily'
@@ -247,7 +247,7 @@ class StockService(BaseDataService):
                 'industry_id': None,
                 'industry': None,
             }
-            # 回退路径下 industry 需经 list 层按映射表查，此处暂不补
+            # 回退路径不补行业；正常路径从申万一级映射读取
             latest_kline = self.kline.load_latest(stock_id)
             if latest_kline:
                 result.update({

@@ -33,7 +33,7 @@ def _task(kind: SimulateKind = SimulateKind.PRICE_FACTOR) -> AttributionTask:
     return AttributionTask(cell=cell, kind=kind, steps=(kind,))
 
 
-def _payload(kind: SimulateKind, *, hit: bool, version_id: str = "21-1") -> dict:
+def _payload(kind: SimulateKind, *, hit: bool, version_id: str = "21-attr1") -> dict:
     return {
         "cache_hit": hit,
         "version_id": version_id,
@@ -94,7 +94,7 @@ def test_simulate_price_chain_force_only_first_step() -> None:
         "core.modules.strategy.core.strategy.Strategy.simulate",
         side_effect=fake_simulate,
     ), patch.object(
-        VersionMetaStore, "allocate_replica_id", return_value="21-1"
+        VersionMetaStore, "allocate_replica_id", return_value="21-attr1"
     ):
         result = ExecuteStep._simulate(
             MagicMock(),
@@ -109,21 +109,21 @@ def test_simulate_price_chain_force_only_first_step() -> None:
         (SimulateKind.PRICE_FACTOR, False),
     ]
     assert result.status == "simulated"
-    assert result.version_id == "21-1"
+    assert result.version_id == "21-attr1"
 
 
 def test_price_gap_reuses_existing_enum(tmp_path) -> None:
     """只改近邻间隔时读已有枚举，不再为这一格跑枚举。"""
     root = tmp_path / "sim"
     primary = root / "21"
-    other = root / "21-1"
+    other = root / "21-attr1"
     primary.mkdir(parents=True)
     other.mkdir()
     (root / "meta.json").write_text(
         """{
           "registry": {
             "21": {"steps": {"enum": "ok"}},
-            "21-1": {"steps": {"enum": "ok"}}
+            "21-attr1": {"steps": {"enum": "ok"}}
           }
         }""",
         encoding="utf-8",
@@ -175,7 +175,7 @@ def test_price_gap_reuses_existing_enum(tmp_path) -> None:
         "core.modules.strategy.core.strategy.Strategy.simulate",
         side_effect=fake_simulate,
     ), patch.object(
-        VersionMetaStore, "allocate_replica_id", return_value="21-2"
+        VersionMetaStore, "allocate_replica_id", return_value="21-attr2"
     ):
         result = ExecuteStep._simulate(
             tmp_path,
@@ -186,10 +186,10 @@ def test_price_gap_reuses_existing_enum(tmp_path) -> None:
             ignore_cache=False,
         )
     assert calls == [
-        (SimulateKind.PRICE_FACTOR, "21-2", "21", False),
+        (SimulateKind.PRICE_FACTOR, "21-attr2", "21", False),
     ]
     assert result.status == "simulated"
-    assert result.version_id == "21-2"
+    assert result.version_id == "21-attr2"
 
 
 def test_simulate_single_layer_force_on_first() -> None:
@@ -206,7 +206,7 @@ def test_simulate_single_layer_force_on_first() -> None:
         "core.modules.strategy.core.strategy.Strategy.simulate",
         side_effect=fake_simulate,
     ), patch.object(
-        VersionMetaStore, "allocate_replica_id", return_value="21-1"
+        VersionMetaStore, "allocate_replica_id", return_value="21-attr1"
     ):
         result = ExecuteStep._simulate(
             MagicMock(),
@@ -217,14 +217,14 @@ def test_simulate_single_layer_force_on_first() -> None:
             ignore_cache=True,
         )
     assert [(kind, force, vid) for kind, force, _, vid in calls] == [
-        (SimulateKind.PRICE_FACTOR, True, "21-1"),
+        (SimulateKind.PRICE_FACTOR, True, "21-attr1"),
     ]
     assert all(
         runtime == {"core": {"rsi_oversold_threshold": 20}}
         for _, _, runtime, _ in calls
     )
     assert result.status == "hit"
-    assert result.version_id == "21-1"
+    assert result.version_id == "21-attr1"
 
 
 def test_allocation_variant_reuses_upstream_and_skips_enum() -> None:
@@ -261,7 +261,7 @@ def test_allocation_variant_reuses_upstream_and_skips_enum() -> None:
     ), patch.object(
         VersionMetaStore,
         "allocate_replica_id",
-        return_value="9-1",
+        return_value="9-attr1",
     ):
         result = ExecuteStep._simulate(
             MagicMock(),
@@ -274,12 +274,12 @@ def test_allocation_variant_reuses_upstream_and_skips_enum() -> None:
     assert calls == [
         (
             SimulateKind.PORTFOLIO,
-            "9-1",
+            "9-attr1",
             "9",
             {"portfolio": {"allocation": {"max_portfolio_size": 20}}},
         )
     ]
-    assert result.version_id == "9-1"
+    assert result.version_id == "9-attr1"
     assert result.status == "simulated"
 
 
@@ -360,14 +360,14 @@ def test_simulate_status_simulated_on_miss() -> None:
     info.key = "demo/rsi"
 
     def fake_simulate(key, *, kind, ignore_cache, runtime_settings, version_id=None):
-        return _payload(kind, hit=False, version_id=version_id or "21-2")
+        return _payload(kind, hit=False, version_id=version_id or "21-attr2")
 
     fp = SimpleNamespace(execute_fp="e-overlay", env_fp="n")
     with patch.object(ExecuteStep, "_fingerprints", return_value=fp), patch(
         "core.modules.strategy.core.strategy.Strategy.simulate",
         side_effect=fake_simulate,
     ), patch.object(
-        VersionMetaStore, "allocate_replica_id", return_value="21-2"
+        VersionMetaStore, "allocate_replica_id", return_value="21-attr2"
     ):
         result = ExecuteStep._simulate(
             MagicMock(),
@@ -378,7 +378,7 @@ def test_simulate_status_simulated_on_miss() -> None:
             ignore_cache=False,
         )
     assert result.status == "simulated"
-    assert result.version_id == "21-2"
+    assert result.version_id == "21-attr2"
 
 
 def test_gather_knobs_prefer_disk_effective(tmp_path, monkeypatch) -> None:
@@ -501,7 +501,7 @@ def test_unique_tasks_share_execute_identity() -> None:
         "status": "ok",
         "cells": [
             {"index": 0, "status": "hit", "version_id": "21"},
-            {"index": 1, "status": "simulated", "version_id": "21-1"},
+            {"index": 1, "status": "simulated", "version_id": "21-attr1"},
         ],
     }
     unique_cells = [task.cell for task in unique]
@@ -511,4 +511,4 @@ def test_unique_tasks_share_execute_identity() -> None:
     bound_b = ExecuteStep.bind(
         executed, unique_cells, [cell_same, cell_other]
     )
-    assert [row["version_id"] for row in bound_b["cells"]] == ["21", "21-1"]
+    assert [row["version_id"] for row in bound_b["cells"]] == ["21", "21-attr1"]

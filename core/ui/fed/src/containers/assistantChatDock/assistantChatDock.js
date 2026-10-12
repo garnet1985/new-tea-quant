@@ -5,7 +5,8 @@ import NtqIcon from 'views/ntqIcon';
 import RainbowButton from 'views/rainbowButton';
 import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
-import { chatWithAssistant, listAssistantProviders } from 'api/assistantApi';
+import { chatWithAssistant, fetchNtqQuota, listAssistantProviders } from 'api/assistantApi';
+import { fetchMembershipSettings } from 'api/settingsApi';
 import { isHttpStatusError } from 'service/request';
 import { GLOBAL_HELPER_SESSION_EVENT } from 'containers/globalHelper';
 import './style.scss';
@@ -21,6 +22,32 @@ function nextId(idRef) {
   return value;
 }
 
+function settingsLinkFor(content) {
+  const text = String(content || '');
+  if (/凭证/.test(text)) {
+    return { to: '/settings/membership', label: '去设置检查通用凭证' };
+  }
+  if (/自己的密钥|供应商|API Key/.test(text)) {
+    return { to: '/settings/assistant', label: '去设置填写 API Key' };
+  }
+  return null;
+}
+
+const MEMBER_REGISTER_URL = 'https://new-tea.cn/zh-hans/user/register';
+
+function buildAiOptions(items, membership) {
+  const options = [];
+  if (membership?.configured) {
+    options.push({ id: 'ntq', label: 'NTQ AI' });
+  }
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    if (item?.enabled && item?.hasApiKey && item.providerId) {
+      options.push({ id: String(item.providerId), label: String(item.providerId) });
+    }
+  });
+  return options;
+}
+
 function toHistory(messages) {
   return messages
     .filter((item) => (
@@ -32,6 +59,24 @@ function toHistory(messages) {
     .map((item) => ({ role: item.role, content: item.content }));
 }
 
+function BubbleBody({ item, onNavigate }) {
+  const link = item.error ? settingsLinkFor(item.content) : null;
+  return (
+    <>
+      <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
+      {link ? (
+        <RouterLink
+          className="ntq-assistant-dock__settings-link"
+          to={link.to}
+          onClick={onNavigate}
+        >
+          {link.label}
+        </RouterLink>
+      ) : null}
+    </>
+  );
+}
+
 function AssistantChatDock() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
@@ -39,6 +84,9 @@ function AssistantChatDock() {
   const [sending, setSending] = useState(false);
   const [hint, setHint] = useState('');
   const [needsKey, setNeedsKey] = useState(false);
+  const [options, setOptions] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [ntqQuota, setNtqQuota] = useState(null);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const idRef = useRef(1);
@@ -100,14 +148,19 @@ function AssistantChatDock() {
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
-    listAssistantProviders()
-      .then((items) => {
+    Promise.all([
+      listAssistantProviders(),
+      fetchMembershipSettings().catch(() => ({ configured: false })),
+    ])
+      .then(([items, membership]) => {
         if (cancelled) return;
-        const ready = (Array.isArray(items) ? items : []).some(
-          (item) => item.enabled && item.hasApiKey,
-        );
-        setNeedsKey(!ready);
-        setHint(ready ? '' : '还没有可用的 AI 供应商。');
+        const nextOptions = buildAiOptions(items, membership);
+        setOptions(nextOptions);
+        setSelectedId((current) => (
+          nextOptions.some((item) => item.id === current) ? current : (nextOptions[0]?.id || '')
+        ));
+        setNeedsKey(nextOptions.length === 0);
+        setHint('');
       })
       .catch((err) => {
         if (!cancelled) {
@@ -120,6 +173,20 @@ function AssistantChatDock() {
     };
   }, [open]);
 
+  const refreshNtqQuota = useCallback(() => {
+    fetchNtqQuota()
+      .then((quota) => {
+        setNtqQuota(quota?.available ? quota : null);
+      })
+      .catch(() => setNtqQuota(null));
+  }, []);
+
+  useEffect(() => {
+    if (!open || selectedId !== 'ntq') return undefined;
+    refreshNtqQuota();
+    return undefined;
+  }, [open, selectedId, refreshNtqQuota]);
+
   const resizeDraft = useCallback((el) => {
     if (!el) return;
     el.style.height = 'auto';
@@ -128,7 +195,7 @@ function AssistantChatDock() {
 
   const send = useCallback(async () => {
     const content = draft.trim();
-    if (!content || sending) return;
+    if (!content || sending || !selectedId) return;
     const history = toHistory(messages);
     const userId = nextId(idRef);
     const pendingId = nextId(idRef);
@@ -143,7 +210,12 @@ function AssistantChatDock() {
       { id: pendingId, role: 'assistant', content: '', pending: true },
     ]);
     try {
-      const result = await chatWithAssistant({ content, history });
+      const result = await chatWithAssistant({
+        content,
+        history,
+        providerId: selectedId,
+      });
+      if (selectedId === 'ntq') refreshNtqQuota();
       setMessages((prev) => prev.map((item) => (
         item.id === pendingId
           ? { ...item, pending: false, content: result.reply || '（空回复）' }
@@ -158,7 +230,7 @@ function AssistantChatDock() {
     } finally {
       setSending(false);
     }
-  }, [draft, messages, sending]);
+  }, [draft, messages, refreshNtqQuota, selectedId, sending]);
 
   const onDraftKeyDown = (event) => {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -218,19 +290,36 @@ function AssistantChatDock() {
           <div ref={listRef} className="ntq-assistant-dock__messages">
             {messages.length === 0 ? (
               <p className="ntq-assistant-dock__empty">
-                {hint || '新茶在听。'}
                 {needsKey ? (
                   <>
+                    还没有可用的 AI。可以在设置里填写自己的 API Key，或到官网注册会员，把通用凭证放进设置。
                     {' '}
                     <RouterLink
                       className="ntq-assistant-dock__settings-link"
                       to="/settings/assistant"
                       onClick={close}
                     >
-                      去设置填写 API Key
+                      自己配置 AI
+                    </RouterLink>
+                    {' '}
+                    <a
+                      className="ntq-assistant-dock__settings-link"
+                      href={MEMBER_REGISTER_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      去官网注册
+                    </a>
+                    {' '}
+                    <RouterLink
+                      className="ntq-assistant-dock__settings-link"
+                      to="/settings/membership"
+                      onClick={close}
+                    >
+                      放入设置
                     </RouterLink>
                   </>
-                ) : null}
+                ) : (hint || '新茶在听。')}
               </p>
             ) : null}
             {messages.map((item) => (
@@ -256,18 +345,7 @@ function AssistantChatDock() {
                     onDone={() => markTyped(item.id)}
                   />
                 ) : (
-                  <>
-                    <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
-                    {item.error && /密钥|供应商/.test(item.content) ? (
-                      <RouterLink
-                        className="ntq-assistant-dock__settings-link"
-                        to="/settings/assistant"
-                        onClick={close}
-                      >
-                        去设置填写 API Key
-                      </RouterLink>
-                    ) : null}
-                  </>
+                  <BubbleBody item={item} onNavigate={close} />
                 )}
               </div>
             ))}
@@ -294,13 +372,33 @@ function AssistantChatDock() {
               disabled={sending}
               aria-label="给新茶的问题"
             />
-            <button
-              type="submit"
-              className="ntq-assistant-dock__send"
-              disabled={sending || !draft.trim()}
-            >
-              发送
-            </button>
+            <div className="ntq-assistant-dock__actions">
+              <span className="ntq-assistant-dock__quota">
+                {selectedId === 'ntq' && ntqQuota ? `(${ntqQuota.remaining}/${ntqQuota.limit})` : ''}
+              </span>
+              <div className="ntq-assistant-dock__actions-end">
+                {options.length > 0 ? (
+                  <select
+                    className="ntq-assistant-dock__picker"
+                    value={selectedId}
+                    onChange={(event) => setSelectedId(event.target.value)}
+                    disabled={sending}
+                    aria-label="选择 AI"
+                  >
+                    {options.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                ) : null}
+                <button
+                  type="submit"
+                  className="ntq-assistant-dock__send"
+                  disabled={sending || !draft.trim() || !selectedId}
+                >
+                  发送
+                </button>
+              </div>
+            </div>
           </form>
         </section>
       ) : null}

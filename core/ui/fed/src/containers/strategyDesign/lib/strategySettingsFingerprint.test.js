@@ -68,6 +68,30 @@ describe('strategySettingsFingerprint', () => {
     expect(isFingerprintEqual(draft, freeze)).toBe(true);
   });
 
+  it('treats omitted price merge gap as the default written into a version freeze', () => {
+    const draft = {
+      core: { rsi_oversold_threshold: 20 },
+      simulation: {
+        execution: { mode: 'entity_based', start_date: '20230101', end_date: '20231231' },
+      },
+    };
+    const freeze = {
+      core: { rsi_oversold_threshold: 20 },
+      simulation: {
+        execution: { mode: 'entity_based', start_date: '20230101', end_date: '20231231' },
+        price: { opportunity_merge_gap: 1 },
+      },
+    };
+    expect(isFingerprintEqual(draft, freeze)).toBe(true);
+    expect(isFingerprintEqual(draft, {
+      ...freeze,
+      simulation: {
+        ...freeze.simulation,
+        price: { opportunity_merge_gap: 0 },
+      },
+    })).toBe(false);
+  });
+
   it('ignores UI draft keys such as force_exit_when_draft', () => {
     const freeze = {
       core: { n: 1 },

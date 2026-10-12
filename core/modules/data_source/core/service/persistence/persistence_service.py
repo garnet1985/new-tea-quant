@@ -86,6 +86,7 @@ class PersistenceService:
         try:
             affected = model.upsert_many(records, unique_keys)
             data_source_key = context.get("data_source_key") or table_name
+            print(f"  [{data_source_key}] 写入 {table_name}: {affected} 条", flush=True)
             logger.info(
                 "[%s] 写入 %s: upsert %s 条"
                 "（原始 %s 条，去重后 %s 条，unique_keys=%s）",

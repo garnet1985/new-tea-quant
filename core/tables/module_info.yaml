@@ -1,9 +1,13 @@
 name: tables
-version: 0.4.1
+version: 0.4.2
 compatible_core_versions: ">=0.5.0"
-description: "数据表定义：统一 schema.py 发现与注册，按领域（stock/macro/calendar/index/db_cache）组织。"
+description: "数据表定义：统一 schema.py 发现与注册，按领域（stock/industry/macro/calendar/index/tag/system）组织。"
 dependencies: []
 changelog:
+  - version: "0.4.2"
+    changes:
+      - 行业改为申万 2021，表定义放在 core/tables/industry（sw_meta / sw_stock_map / sw_kline）
+      - 移除 sys_industries、sys_stock_industry_map（stock_basic 扁平行业）
   - version: "0.4.1"
     changes:
       - 补齐 module_info 元数据，与核心 0.4.1 对齐

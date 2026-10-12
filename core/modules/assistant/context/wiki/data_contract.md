@@ -30,11 +30,15 @@ summary: 用数据键声明依赖；策略里 ctx.data.items 走契约而不是�
 | `stock.adj_factor.eventlog` | 逐股 | 复权因子事件 |
 | `stock.moneyflow.daily` | 逐股 | 资金流 |
 | `stock.st_periods` | 逐股 | ST/\*ST 时段 |
+| `stock.sw_industry` | 逐股 | 股票当前申万一、二、三级 |
+| `sw.industry` | 全局 | 申万 2021 分类树 |
+| `sw.industry.list` | 全局 | 申万一级行业，外加申万 A 指 |
+| `sw.industry.kline.daily` | 逐行业 | 申万一级行业日线 |
 | `index.list` | 全局 | 指数列表 |
 | `index.kline.daily` | 逐股 | 指数日 K |
 | `index.weight.daily` | 逐股 | 指数权重 |
 | `trade.calendar` | 全局 | 交易日历 |
-| `macro.gdp/cpi/ppi/pmi/lpr/shibor` | 全局 | 宏观 |
+| `macro.gdp/cpi/ppi/pmi/lpr/shibor/money_supply` | 全局 | 宏观 |
 | `tag` | 全局 | 标签 |
 
 用户可在 `userspace/extensions/data_contract/` 下加自己的键，系统会合并进注册表。

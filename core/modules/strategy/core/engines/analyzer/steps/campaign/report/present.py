@@ -12,7 +12,6 @@ from ..attribute import AttributeStep
 from ..labels import CampaignLabels
 
 _SKIP_REASONS = {
-    "fill_missing_false": "没有现成回测，这次也没补跑",
     "version_not_found": "找不到这个回测号",
     "sample_mismatch": "区间或股票池和当前设置不同",
     "strategy_not_enabled": "策略未启用",
@@ -174,7 +173,7 @@ class CampaignPresenter:
         ).strip()
         if primary:
             CmdLayout.text.print_indent(
-                f"主指标：{CampaignLabels.outcome_label(primary)}（样本内；换窗口请用滚动验证）",
+                f"主指标：{CampaignLabels.outcome_label(primary)}（样本内）",
                 stream=out,
             )
         if rank:

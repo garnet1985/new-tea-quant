@@ -10,7 +10,8 @@ psycopg2-binary
 duckdb
 
 # Data
-pandas
+# pandas 3 会拆掉 pandas-ta-classic 现在用的内部接口。指标库换掉之前锁在 3 以下。
+pandas>=2.2,<3
 numpy>=2.0
 scipy
 # xgboost / shap：见 requirements-ml.txt（安装向导或设置中选装）

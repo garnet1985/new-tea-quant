@@ -11,7 +11,7 @@
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-NTQ%20%7C%20commercial%20by%20authorization-007EC6"></a>
 </p>
 
 > For the Chinese introduction, see **[here](README.md)**.
@@ -349,7 +349,7 @@ NTQ itself is free and open source. Some capabilities need **your** resources:
 - **Data:** ingest and storage are in the framework; **paid vendor accounts / tokens are not**. Register and buy those yourself.
 - **Notifications:** SMS / email / push are **not** in the framework. Hook them via an [adapter](core/modules/adapter/README.md).
 
-Fuller tutorials (Chinese): [More examples](https://new-tea.cn/zh-hans/more-examples). License: [Apache 2.0](LICENSE) ([License & support](#license)).
+Fuller tutorials (Chinese): [More examples](https://new-tea.cn/zh-hans/more-examples). License: [NTQ License](LICENSE) ([License & support](#license)).
 
 <a id="quick-start"></a>
 ## Quick install + run a strategy
@@ -558,11 +558,11 @@ Prefer an explicit `--strategy` (use `meta.key`); add `-f` to force recalculatio
 <a id="license"></a>
 ## License & support
 
-- **License:** [Apache 2.0](LICENSE) · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **License:** [NTQ License](LICENSE) (from 0.6.0: non-commercial use follows the Apache 2.0 terms; commercial use needs a separate written license. Releases through 0.5.x stay Apache 2.0.) Section 3 lists the hosted-service clients to remove before commercial use, with file paths. Section 5 covers usage reports and when consent is required. · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **Feedback / contribute:** [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
 - **Website:** [new-tea.cn](https://new-tea.cn) · **Tutorials:** [More examples](https://new-tea.cn/zh-hans/more-examples)
 
-**Disclaimer:** For learning and research only. Not investment advice; backtests do not predict future results.
+**Disclaimer:** NTQ is a strategy research tool and is not an investment decision. Strategies and data shipped with it are demonstrations. The authors are not responsible for any investment action or for any resulting gain or loss. See [NTQ License](LICENSE) section 4.
 
 <details>
 <summary>Developer appendix (branches, devcli, tests, docs)</summary>

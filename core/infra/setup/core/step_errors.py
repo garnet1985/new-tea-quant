@@ -11,8 +11,6 @@ _LOCK_TOKENS = (
     "could not set lock",
     "unique file handle conflict",
     "different configuration than existing connections",
-    "file is already open",
-    "already open in",
     "文件被其他进程占用",
 )
 

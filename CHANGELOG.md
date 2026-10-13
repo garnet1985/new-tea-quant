@@ -36,6 +36,7 @@
 
 - 升级python最小支持到3.11，不再支持3.9和3.10
 - 升级duckdb到1.5.6
+- 升级其他依赖对齐当前稳定版：PyMySQL 1.2.3、psycopg2-binary 2.9.13、requests 2.34.2、urllib3 2.8、Flask-CORS 6.0.5、NumPy 2.4.6、SciPy 1.17.1、pandas-ta-classic 0.8.32。UI 最小依赖改为 Flask 3.1，不再单独锁 Flask 2.3
 - 重构数据库表命名，加入kind进入表名内
 - 修改license，从0.6.x开始，商用需要授权
 - 重构strategy hooks，重命名回调函数

@@ -1,0 +1,64 @@
+.license-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 16px;
+  box-sizing: border-box;
+}
+
+.license-gate__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 6, 18, 0.78);
+}
+
+.license-gate__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(640px, 92vw);
+  padding: 36px 40px 28px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(18, 18, 36, 0.97);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.license-gate__brand {
+  display: flex;
+  justify-content: center;
+}
+
+.license-gate__logo {
+  display: block;
+  width: auto;
+  max-height: 72px;
+  max-width: 220px;
+  object-fit: contain;
+}
+
+.license-gate__title {
+  text-align: center;
+}
+
+.license-gate__copy p {
+  margin: 0 0 12px;
+}
+
+.license-gate__copy p:last-child {
+  margin-bottom: 0;
+}
+
+.license-gate__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}

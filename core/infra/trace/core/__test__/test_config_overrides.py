@@ -60,6 +60,20 @@ def test_github_actions_skips_trace(monkeypatch: pytest.MonkeyPatch) -> None:
     assert TraceConfigService.is_enabled() is False
 
 
-def test_defaults_single_source() -> None:
-    assert TraceDefaults.TARGET_URL.startswith("https://")
-    assert "target_url" in TraceDefaults.as_dict()
+def test_defaults_have_no_website_url() -> None:
+    assert not hasattr(TraceDefaults, "TARGET_URL")
+    assert "target_url" not in TraceDefaults.as_dict()
+
+
+def test_registered_endpoint_supplies_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.modules.ntq_external.conf.endpoints import TRACE_URL
+
+    monkeypatch.delenv("NTQ_TRACE_ENDPOINT", raising=False)
+    monkeypatch.setattr(
+        "core.infra.project_context.core.path_manager.PathManager.get_user_config_root",
+        lambda: tmp_path,
+    )
+    cfg = TraceConfigService.load()
+    assert cfg.target_url == TRACE_URL

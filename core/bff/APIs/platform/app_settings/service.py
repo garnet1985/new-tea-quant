@@ -306,7 +306,7 @@ def clear_membership_settings() -> Dict[str, Any]:
 
 def get_feedback_settings() -> Dict[str, Any]:
     """Soft-prompt prefs (independent of Trace.consent)."""
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     prefs = Feedback.get_prefs()
     return {
@@ -324,7 +324,7 @@ def save_feedback_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, 
     if not isinstance(disabled, bool):
         return None, "prompts_disabled 须为布尔值"
 
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     source = str(payload.get("source") or "settings_ui").strip()[:32] or "settings_ui"
     ok_set = Feedback.set_prompts_disabled(disabled, source=source)
@@ -334,7 +334,7 @@ def save_feedback_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, 
 
 
 def note_feedback_task_success(payload: Dict[str, Any]) -> Dict[str, Any]:
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     source = str((payload or {}).get("source") or "").strip()[:32]
     return Feedback.note_task_success(source=source)
@@ -345,7 +345,7 @@ def submit_feedback(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
     if rating not in {"up", "down"}:
         return None, "rating 须为 up 或 down"
 
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     text = str((payload or {}).get("text") or "")
     source = str((payload or {}).get("source") or "popup").strip()[:32] or "popup"
@@ -357,7 +357,7 @@ def submit_feedback(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
 
 def feedback_prompt_action(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     action = str((payload or {}).get("action") or "").strip().lower()
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     if action == "snooze":
         Feedback.snooze_prompt()

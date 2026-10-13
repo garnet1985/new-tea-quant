@@ -52,6 +52,26 @@ class UserBootstrap:
         return bool(expanded) and expanded[0] in UserCommands.EARLY_COMMANDS
 
     @staticmethod
+    def should_skip_license(argv: list[str]) -> bool:
+        """帮助和版本不要求同意；真正跑命令之前要问。"""
+        if not argv:
+            return True
+        if argv[0] in ("-v", "--version", "-h", "--help", "help"):
+            return True
+        return "-h" in argv or "--help" in argv
+
+    @staticmethod
+    def ensure_license_accepted() -> None:
+        if UserBootstrap.should_skip_license(sys.argv[1:]):
+            return
+        try:
+            from core.infra.setup import Setup
+        except ModuleNotFoundError:
+            return
+        if not Setup.license.ensure_accepted(source="cli"):
+            raise SystemExit(1)
+
+    @staticmethod
     def ensure_app_installed_if_needed() -> None:
         if UserBootstrap.should_skip_auto_install(sys.argv[1:]):
             return

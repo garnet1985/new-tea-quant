@@ -9,6 +9,8 @@ CLI 应用安装入口（与 ``launcher.py`` 对称）：
   python install.py --if-needed  仅未就绪时安装（``cli.py`` 自动触发）。
                                  依赖变化只更新依赖；不带 --import-demo 就不导入演示包。
 
+安装步骤开始前须同意使用条款：交互终端只认 y / Y，其他输入停止。
+无终端时用 ``--accept-license`` 或 ``NTQ_ACCEPT_LICENSE=1``。
 不询问 userspace / 数据库：省略参数走默认（<repo>/userspace + DuckDB）；
 带了参数就必须按参数执行，失败则停止并报错。
 
@@ -29,7 +31,12 @@ from core.infra.setup import Setup
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="New Tea Quant CLI 安装（不询问；可用参数指定 userspace / 数据库）"
+        description="New Tea Quant CLI 安装（须先同意使用条款；可用参数指定 userspace / 数据库）"
+    )
+    parser.add_argument(
+        "--accept-license",
+        action="store_true",
+        help="非交互环境明示同意当前使用条款（否则只在终端里输入 y）",
     )
     parser.add_argument(
         "--if-needed",
@@ -120,6 +127,13 @@ def _install(
     return 0
 
 
+def _ensure_license(args: argparse.Namespace) -> bool:
+    return Setup.license.ensure_accepted(
+        source="install",
+        assume_accepted=bool(args.accept_license),
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     Setup.env.to_root_dir()
@@ -127,8 +141,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.if_needed:
         if not Setup.runtime.needs_install("cli"):
+            if args.accept_license:
+                Setup.license.ensure_accepted(source="install", assume_accepted=True)
             print("CLI 安装状态已就绪。", flush=True)
             return 0
+        if not _ensure_license(args):
+            return 1
         scope = Setup.runtime.cli_install_scope()
         if scope == "deps_only":
             print("检测到 requirements.txt 变更，正在更新 Python 依赖…", flush=True)
@@ -136,6 +154,8 @@ def main(argv: list[str] | None = None) -> int:
         print("检测到需要初始化安装，开始 CLI 安装...", flush=True)
         return _install(args, force=False)
 
+    if not _ensure_license(args):
+        return 1
     print("开始 CLI 安装…", flush=True)
     return _install(args, force=True)
 

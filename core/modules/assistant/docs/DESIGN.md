@@ -59,4 +59,4 @@ PROVIDER = {
 
 ### 6. HTTP 用标准库 urllib
 
-与 `infra.trace` / `infra.feedback` 一致，不新增运行时 HTTP 依赖。本版本只做非流式补全。
+与 `infra.trace` 一致，不新增运行时 HTTP 依赖。官网会员通道在 `modules.ntq_external`。本版本只做非流式补全。

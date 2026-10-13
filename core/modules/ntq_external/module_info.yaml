@@ -1,0 +1,15 @@
+name: modules.ntq_external
+version: "0.1.0"
+compatible_core_versions: ">=0.6.0"
+package: core.modules
+description: "NTQ 官网客户端：会员 AI、反馈，以及 trace 的官网发送端。"
+dependencies:
+  - infra.project_context
+  - infra.membership
+  - infra.trace
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 会员 AI 通道、反馈、trace 官网地址收进本模块
+      - conf 是对外地址的唯一来源
+      - 导入时向 infra.trace 登记发送端；安装事件不看使用统计开关

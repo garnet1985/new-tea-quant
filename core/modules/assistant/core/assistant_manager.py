@@ -15,12 +15,6 @@ from core.modules.assistant.core.context_library import (
     pick_optional_docs,
     should_ask_model_to_pick,
 )
-from core.modules.assistant.core.member_channel import (
-    MODEL as MEMBER_MODEL,
-    PROVIDER_ID as MEMBER_PROVIDER_ID,
-    member_base_url,
-    member_token,
-)
 from core.modules.assistant.core.openai_compatible_client import OpenAICompatibleClient
 from core.modules.assistant.core.provider_catalog import ProviderCatalog
 
@@ -37,6 +31,15 @@ _SELECT_PROMPT = (
     "只输出 JSON 字符串数组，例如 [\"know_how/config_strategy_settings\"]。"
     "没有相关文档就输出 []。不要解释。\n\n目录：\n"
 )
+
+
+def _member_channel():
+    """官网通道。模块不在时返回 None，助理改走本机密钥。"""
+    try:
+        from core.modules.ntq_external.ai import member_channel
+    except ImportError:
+        return None
+    return member_channel
 
 
 def _member_error(message: str) -> str:
@@ -126,17 +129,21 @@ class AssistantManager:
 
     def _route(self, provider_id: Optional[str]) -> Dict[str, str]:
         explicit = str(provider_id or "").strip()
-        if explicit == MEMBER_PROVIDER_ID or not explicit:
-            token = member_token()
-            if token:
+        channel = _member_channel()
+        member_id = channel.PROVIDER_ID if channel is not None else "ntq"
+        if explicit == member_id or not explicit:
+            token = channel.member_token() if channel is not None else None
+            if token and channel is not None:
                 return {
                     "via": "member",
-                    "provider_id": MEMBER_PROVIDER_ID,
-                    "base_url": member_base_url(),
+                    "provider_id": channel.PROVIDER_ID,
+                    "base_url": channel.member_base_url(),
                     "api_key": token,
-                    "model": MEMBER_MODEL,
+                    "model": channel.MODEL,
                 }
-            if explicit == MEMBER_PROVIDER_ID:
+            if explicit == member_id:
+                if channel is None:
+                    raise AssistantError("会员通道不可用。")
                 raise AssistantError("还没有装载会员通用凭证。请到设置 → 会员装载。")
         provider = self._resolve_provider(explicit or None)
         api_key = self._catalog.load_api_key(provider.directory)

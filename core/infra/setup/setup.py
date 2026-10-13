@@ -299,6 +299,34 @@ class TraceNamespace:
         SetupTrace.app_start(entry=entry, command=command)
 
 
+class LicenseNamespace:
+    """使用条款同意（``.ntq/license_acceptance.json``）。"""
+
+    @staticmethod
+    def is_accepted() -> bool:
+        from core.infra.setup.core.license_acceptance import is_accepted
+
+        return is_accepted()
+
+    @staticmethod
+    def ensure_accepted(*, source: str, assume_accepted: bool = False) -> bool:
+        from core.infra.setup.core.license_acceptance import ensure_accepted
+
+        return ensure_accepted(source=source, assume_accepted=assume_accepted)
+
+    @staticmethod
+    def entry_path() -> str:
+        from core.infra.setup.core.license_acceptance import entry_path
+
+        return entry_path()
+
+    @staticmethod
+    def apply_trace_consent() -> None:
+        from core.infra.setup.core.license_acceptance import apply_trace_consent
+
+        apply_trace_consent()
+
+
 class Setup:
     """安装域门面（Facade）。静态 API，勿实例化。"""
 
@@ -307,4 +335,5 @@ class Setup:
     artifacts = ArtifactsNamespace
     meta = MetaNamespace
     trace = TraceNamespace
+    license = LicenseNamespace
     types = TypesNamespace

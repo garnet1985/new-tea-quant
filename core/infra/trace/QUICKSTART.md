@@ -28,7 +28,7 @@ print(Trace.send(budget="standard"))
 
 ## 改上报地址
 
-- **改内置默认：** 编辑 [`core/defaults.py`](./core/defaults.py) 的 `TraceDefaults.TARGET_URL`
+- **改官网地址：** 编辑 `core/modules/ntq_external/conf/endpoints.py` 的 `TRACE_URL`
 - **不改代码覆盖：** 环境变量 `NTQ_TRACE_ENDPOINT`，或 `userspace/system/config/trace.json` 的 `target_url`
 
 ---

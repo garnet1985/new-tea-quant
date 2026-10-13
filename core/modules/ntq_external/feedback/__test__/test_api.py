@@ -39,8 +39,8 @@ def feedback_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         raising=False,
     )
     # Prefs/submit import ProjectContext late; also patch where used.
-    import core.infra.feedback.core.services.prefs_service as prefs_mod
-    import core.infra.feedback.core.services.submit_service as submit_mod
+    import core.modules.ntq_external.feedback.core.services.prefs_service as prefs_mod
+    import core.modules.ntq_external.feedback.core.services.submit_service as submit_mod
 
     monkeypatch.setattr(
         prefs_mod,
@@ -52,11 +52,11 @@ def feedback_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         return _PC
 
     monkeypatch.setattr(
-        "core.infra.feedback.core.services.prefs_service.FeedbackPrefsService._prefs_path",
+        "core.modules.ntq_external.feedback.core.services.prefs_service.FeedbackPrefsService._prefs_path",
         staticmethod(lambda: config_root / "feedback_prefs.json"),
     )
     monkeypatch.setattr(
-        "core.infra.feedback.core.services.prefs_service.FeedbackPrefsService._state_path",
+        "core.modules.ntq_external.feedback.core.services.prefs_service.FeedbackPrefsService._state_path",
         staticmethod(lambda: (ntq_root / "feedback" / "prompt_state.json")),
     )
     (ntq_root / "feedback").mkdir(parents=True, exist_ok=True)
@@ -79,14 +79,14 @@ def feedback_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         return True
 
     monkeypatch.setattr(
-        "core.infra.feedback.core.services.client_service.FeedbackClientService.post",
+        "core.modules.ntq_external.feedback.core.services.client_service.FeedbackClientService.post",
         staticmethod(_post),
     )
     return {"posted": posted, "config_root": config_root, "ntq_root": ntq_root}
 
 
 def test_submit_bypasses_consent_and_posts(feedback_paths):
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     ok = Feedback.submit(rating="up", text="nice", source="popup")
     assert ok is True
@@ -99,7 +99,7 @@ def test_submit_bypasses_consent_and_posts(feedback_paths):
 
 
 def test_submit_rejects_bad_rating(feedback_paths):
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     assert Feedback.submit(rating="meh") is False
     assert feedback_paths["posted"] == []
@@ -108,9 +108,9 @@ def test_submit_rejects_bad_rating(feedback_paths):
 def test_prompt_once_per_local_half_day(feedback_paths, monkeypatch):
     from datetime import datetime
 
-    import core.infra.feedback.core.services.prefs_service as prefs_mod
-    from core.infra.feedback import Feedback
-    from core.infra.feedback.core.defaults import FeedbackDefaults
+    import core.modules.ntq_external.feedback.core.services.prefs_service as prefs_mod
+    from core.modules.ntq_external.feedback import Feedback
+    from core.modules.ntq_external.feedback.core.defaults import FeedbackDefaults
 
     clock = {"ts": datetime(2026, 10, 8, 10, 0, 0).timestamp()}
     monkeypatch.setattr(prefs_mod.time, "time", lambda: clock["ts"])
@@ -137,8 +137,8 @@ def test_prompt_once_per_local_half_day(feedback_paths, monkeypatch):
 
 
 def test_disable_prompts_blocks_future(feedback_paths, monkeypatch):
-    from core.infra.feedback import Feedback
-    from core.infra.feedback.core.defaults import FeedbackDefaults
+    from core.modules.ntq_external.feedback import Feedback
+    from core.modules.ntq_external.feedback.core.defaults import FeedbackDefaults
 
     monkeypatch.setattr(FeedbackDefaults, "PROMPT_PROBABILITY", 1.0)
     Feedback.disable_prompts(source="popup")

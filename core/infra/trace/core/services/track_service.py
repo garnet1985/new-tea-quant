@@ -9,6 +9,7 @@ from typing import Any, Mapping, Optional
 from ...contracts import TraceEvent
 from .client_service import TraceClientService
 from .config_service import TraceConfigService
+from .endpoint_service import TraceEndpointService
 from .identity_service import TraceIdentityService
 from .queue_service import TraceQueueService
 from .sanitize_service import TraceSanitizeService
@@ -24,7 +25,7 @@ class TraceTrackService:
         """Build one event and POST immediately; on failure enqueue for retry."""
         try:
             cfg = TraceConfigService.load()
-            if not cfg.enabled:
+            if not cfg.enabled or not str(cfg.target_url or "").strip():
                 return
             TraceTrackService._emit(event, body, cfg=cfg, enqueue_on_fail=True)
         except Exception:
@@ -32,10 +33,16 @@ class TraceTrackService:
 
     @staticmethod
     def track_setup(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
+        """安装事件。只有发送端声明可以跳过同意时才发。"""
         try:
+            TraceEndpointService.ensure()
             if TraceConfigService.should_skip():
                 return
+            if not TraceEndpointService.setup_without_consent():
+                return
             cfg = TraceConfigService.load()
+            if not str(cfg.target_url or "").strip():
+                return
             TraceTrackService._emit(event, body, cfg=cfg, enqueue_on_fail=True)
         except Exception:
             return
@@ -45,7 +52,7 @@ class TraceTrackService:
         """Build one event and enqueue locally (no network I/O)."""
         try:
             cfg = TraceConfigService.load()
-            if not cfg.enabled:
+            if not cfg.enabled or not str(cfg.target_url or "").strip():
                 return
             built = TraceTrackService._build_event(event, body, cfg=cfg)
             if built is None:

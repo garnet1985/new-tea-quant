@@ -399,7 +399,7 @@ If `python` is an old version:
 python3 launcher.py
 ```
 
-The script switches to the repo root, ensures the venv, then **starts BFF + frontend and opens the browser** into the graphical **Setup wizard** (BFF setup API).
+The script switches to the repo root, ensures the venv, then **starts BFF + frontend and opens the browser**. The first page is the terms. Agree to enter the graphical **Setup wizard**; decline and the process exits. `python install.py` asks before any install step and continues only on `y`.
 
 ### Step 3: Finish initialization in the browser
 
@@ -410,9 +410,8 @@ Follow the prompts; defaults are usually enough. Order is roughly:
 3. Configure the database (default **DuckDB**; developers can pick MySQL / PostgreSQL — the app will try to create a missing database and warn on name clashes)
 4. **Ask whether to import demo data** (skippable. You can still import later under **设置 → 安装与维护** / Settings → Install & maintenance. If DuckDB is reported as in use by another program, quit that program and try again)
 5. **Ask whether to install ML extras** (for the analysis library; skippable; later: **设置 → 安装与维护**)
-6. Usage stats (allow or decline; both continue)
 
-You land on the **welcome page**. Then use the nav item **制定策略** (Strategy Design).
+You land on the **welcome page**. Usage statistics are part of the terms, so there is no separate question; you can turn them off later under **设置 → 使用统计**. Then use the nav item **制定策略** (Strategy Design).
 
 That completes NTQ installation.
 
@@ -558,7 +557,7 @@ Prefer an explicit `--strategy` (use `meta.key`); add `-f` to force recalculatio
 <a id="license"></a>
 ## License & support
 
-- **License:** [NTQ License](LICENSE) (from 0.6.0: non-commercial use follows the Apache 2.0 terms; commercial use needs a separate written license. Releases through 0.5.x stay Apache 2.0.) Section 3 lists the hosted-service clients to remove before commercial use, with file paths. Section 5 covers usage reports and when consent is required. · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **License:** [NTQ License](LICENSE) (from 0.6.0: non-commercial use follows the Apache 2.0 terms; commercial use needs a separate written license. Releases through 0.5.x stay Apache 2.0.) Section 3 requires removing `core/modules/ntq_external` before commercial use. Section 5 covers usage reports and when consent is required. · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **Feedback / contribute:** [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
 - **Website:** [new-tea.cn](https://new-tea.cn) · **Tutorials:** [More examples](https://new-tea.cn/zh-hans/more-examples)
 

@@ -9,7 +9,7 @@ Soft in-app feedback (thumbs + optional short text) is **not** usage telemetry.
 | Once user taps Send | N/A | **POST immediately** (no permission gate) |
 | Endpoint | `POST /api/v1/traces` | `POST /api/v1/feedback` |
 
-Implementation: [`core/infra/feedback`](../../feedback/) (`Feedback.submit`).  
+Implementation: `core/modules/ntq_external/feedback` (`Feedback.submit`).  
 Drupal contract: `new_tea_tools/docs/FEEDBACK_API.md` on the website repo.
 
 Nav “反馈” opens the public contact page and never hits either API.

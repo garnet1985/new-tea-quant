@@ -36,7 +36,7 @@ class AssistantImplementer:
         return self
 
     def ntq_quota(self) -> Dict[str, Any]:
-        from core.modules.assistant.core.member_channel import fetch_member_quota
+        from core.modules.ntq_external.ai.member_channel import fetch_member_quota
 
         snap = fetch_member_quota()
         if not snap:

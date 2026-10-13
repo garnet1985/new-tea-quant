@@ -13,6 +13,7 @@ dependencies:
   - modules.market_profile
   - infra.project_context
   - infra.membership
+  - modules.ntq_external
   - infra.task_guard
   - infra.discovery
   - infra.trace

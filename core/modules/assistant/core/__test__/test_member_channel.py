@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from core.modules.assistant.contracts import AssistantError, ProviderInfo
-from core.modules.assistant.core import assistant_manager as manager_mod
 from core.modules.assistant.core.assistant_manager import AssistantManager
-from core.modules.assistant.core import member_channel
-from core.modules.assistant.core.member_channel import DEFAULT_BASE_URL, member_base_url
+from core.modules.ntq_external.ai import member_channel
+from core.modules.ntq_external.ai.member_channel import member_base_url
+from core.modules.ntq_external.conf.endpoints import AI_BASE_URL
 from core.modules.assistant.core.openai_compatible_client import (
     _DEFAULT_TIMEOUT_SECONDS,
 )
@@ -49,9 +49,9 @@ def _manager(monkeypatch, client: RecordingClient) -> AssistantManager:
 
 
 def test_membership_chat_uses_official_site(monkeypatch):
-    monkeypatch.setattr(manager_mod, "member_token", lambda: TOKEN)
+    monkeypatch.setattr(member_channel, "member_token", lambda: TOKEN)
     monkeypatch.setattr(
-        manager_mod,
+        member_channel,
         "member_base_url",
         lambda: "http://localhost:2026/api/v1/ntq-ai",
     )
@@ -66,9 +66,9 @@ def test_membership_chat_uses_official_site(monkeypatch):
 
 
 def test_explicit_ntq_uses_member_channel(monkeypatch):
-    monkeypatch.setattr(manager_mod, "member_token", lambda: TOKEN)
+    monkeypatch.setattr(member_channel, "member_token", lambda: TOKEN)
     monkeypatch.setattr(
-        manager_mod,
+        member_channel,
         "member_base_url",
         lambda: "http://localhost:2026/api/v1/ntq-ai",
     )
@@ -79,7 +79,7 @@ def test_explicit_ntq_uses_member_channel(monkeypatch):
 
 
 def test_explicit_provider_keeps_local_key(monkeypatch):
-    monkeypatch.setattr(manager_mod, "member_token", lambda: TOKEN)
+    monkeypatch.setattr(member_channel, "member_token", lambda: TOKEN)
     client = RecordingClient()
     result = _manager(monkeypatch, client).chat("你好", provider_id="zhipu")
     assert result.provider_id == "zhipu"
@@ -88,8 +88,8 @@ def test_explicit_provider_keeps_local_key(monkeypatch):
 
 
 def test_member_connection_error_is_rewritten(monkeypatch):
-    monkeypatch.setattr(manager_mod, "member_token", lambda: TOKEN)
-    monkeypatch.setattr(manager_mod, "member_base_url", lambda: DEFAULT_BASE_URL)
+    monkeypatch.setattr(member_channel, "member_token", lambda: TOKEN)
+    monkeypatch.setattr(member_channel, "member_base_url", lambda: AI_BASE_URL)
     client = RecordingClient(fail_with="无法连接供应商：refused")
     try:
         _manager(monkeypatch, client).chat("你好")
@@ -109,7 +109,7 @@ def test_base_url_env_then_userspace_then_default(monkeypatch, tmp_path: Path):
         "get_user_config_root",
         lambda: tmp_path,
     )
-    assert member_base_url() == DEFAULT_BASE_URL
+    assert member_base_url() == AI_BASE_URL
 
     (tmp_path / "membership.json").write_text(
         '{"ai_base_url": "http://localhost:2026/api/v1/ntq-ai"}',

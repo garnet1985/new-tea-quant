@@ -4,7 +4,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import theme from './styles/theme';
 import SetupPage from './pages/setupPage';
-import SetupTracePage from './pages/setupPage/setupTracePage';
+import SetupLicensePage from './pages/setupPage/setupLicensePage';
+import LicenseGuard from 'containers/licenseGuard';
 import SetupGuard from 'containers/setupGuard';
 import FeedbackPromptGuard from 'containers/feedbackPrompt';
 import AppShell from 'containers/appShell';
@@ -24,11 +25,12 @@ function App() {
       <CssBaseline />
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
+          <Route path="/setup/license" element={<SetupLicensePage />} />
+          <Route element={<LicenseGuard />}>
           <Route
             path="/setup"
             element={<SetupPage />}
           />
-          <Route path="/setup/trace" element={<SetupTracePage />} />
           <Route path="/what-we-will-track" element={<WhatWeWillTrackPage />} />
           <Route
             element={(
@@ -87,6 +89,7 @@ function App() {
             <Route path="/settings/*" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/welcome" replace />} />
+          </Route>
         </Routes>
       </Router>
     </ThemeProvider>

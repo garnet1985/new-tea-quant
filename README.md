@@ -403,7 +403,7 @@ python .\launcher.py
 python3 launcher.py
 ```
 
-脚本会：切到仓库根目录、确保虚拟环境、然后**启动 BFF + 前端并打开浏览器**，进入图形化 **Setup 安装向导**（由 BFF setup API 驱动步骤）。
+脚本会：切到仓库根目录、确保虚拟环境、然后**启动 BFF + 前端并打开浏览器**。第一页是使用条款，同意才进入图形化 **Setup 安装向导**；不同意就退出。命令行安装（`python install.py`）在步骤开始前询问，只认 `y`。
 
 ### 第 3 步：在浏览器中按向导完成初始化
 
@@ -414,9 +414,8 @@ python3 launcher.py
 3. 配置数据库（默认 **DuckDB**；开发者可改 MySQL / PostgreSQL，库不存在时程序会尝试新建，与已有库重名会提示）
 4. **询问是否导入演示数据**（可跳过。跳过后仍可在「设置 → 安装与维护」导入。若提示 DuckDB 正被其他程序占用，退出那个程序后再试）
 5. **询问是否安装机器学习依赖**（分析库用，可跳过；之后可在「设置 → 安装与维护」补装）
-6. 使用统计（允许或暂不分享都会继续）
 
-完成后进入**欢迎页**。再点导航「制定策略」即可。
+完成后进入**欢迎页**。使用统计已包含在使用条款里，不再单独询问；之后可在「设置 → 使用统计」关闭。再点导航「制定策略」即可。
 
 至此您已经完成了 NTQ 的安装。
 
@@ -563,7 +562,7 @@ python cli.py t  --scenario market_cap_tier   # 特征标签
 <a id="license"></a>
 ## 许可与支持
 
-- **许可证**：[NTQ 许可证](LICENSE)（0.6.0 起：非商用沿用 Apache 2.0 条款，商用需另行书面授权；0.5.x 已发布版本仍是 Apache 2.0）。商用前要去掉的官网客户端和文件位置见许可证第 3 节。使用报告的范围和同意规则见第 5 节。· **变更**：[CHANGELOG.md](CHANGELOG.md)
+- **许可证**：[NTQ 许可证](LICENSE)（0.6.0 起：非商用沿用 Apache 2.0 条款，商用需另行书面授权；0.5.x 已发布版本仍是 Apache 2.0）。商用前要去掉的官网客户端是 `core/modules/ntq_external`，见许可证第 3 节。使用报告的范围和同意规则见第 5 节。· **变更**：[CHANGELOG.md](CHANGELOG.md)
 - **反馈 / 贡献**：[SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
 - **官网**：[new-tea.cn](https://new-tea.cn) · **教程**：[更多用例](https://new-tea.cn/zh-hans/more-examples)
 

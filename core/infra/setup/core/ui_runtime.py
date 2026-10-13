@@ -448,12 +448,20 @@ def _shutdown_ui_stack_procs(
     _force_shutdown_ui_ports()
 
 
-def _wait_child_interruptible(proc: subprocess.Popen) -> int:
-    """轮询子进程退出；勿用阻塞 ``Popen.wait()``（Windows 上会吞掉 Ctrl+C）。"""
+def _ui_entry_path() -> str:
+    from core.infra.setup.core.license_acceptance import entry_path
+
+    return entry_path()
+
+
+def _wait_any_child(*procs: subprocess.Popen | None) -> int:
+    """任一子进程退出即返回。不同意条款时 BFF 会退出，开发模式也要跟着关掉。"""
+    live = [proc for proc in procs if proc is not None]
     while True:
-        code = proc.poll()
-        if code is not None:
-            return int(code)
+        for proc in live:
+            code = proc.poll()
+            if code is not None:
+                return int(code)
         if interrupt_requested():
             raise KeyboardInterrupt
         try:
@@ -507,7 +515,7 @@ def launch_ui_stack() -> None:
                 env=_fed_dev_env(),
                 **popen_kw,
             )
-            ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-design"
+            ui_url = f"http://localhost:{UI_DEV_PORT}{_ui_entry_path()}"
             print(
                 f"开发模式：浏览器 http://localhost:{UI_DEV_PORT} "
                 f"（共享 BFF :{UI_BFF_PORT} 仅 /api，不挂载 fed/build）",
@@ -520,7 +528,7 @@ def launch_ui_stack() -> None:
         else:
             if not fed_build_ready():
                 raise RuntimeError("缺少 fed/build，请 npm run build 或使用 launcher.py -d")
-            ui_url = f"http://{host}:{UI_BFF_PORT}/strategy-design"
+            ui_url = f"http://{host}:{UI_BFF_PORT}{_ui_entry_path()}"
             print(f"生产模式：入口 {ui_url}", flush=True)
             if not _wait_http_ok(ui_url, timeout_sec=30):
                 raise RuntimeError(f"前端未就绪: {ui_url}")
@@ -535,7 +543,7 @@ def launch_ui_stack() -> None:
             print(f"请手动打开: {ui_url}", flush=True)
 
         try:
-            _wait_child_interruptible(fed_proc or bff_proc)
+            _wait_any_child(bff_proc, fed_proc)
         except KeyboardInterrupt:
             print("\n正在关闭…", flush=True)
     except KeyboardInterrupt:

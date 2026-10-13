@@ -8,7 +8,7 @@
 core/infra/trace/
 ├── trace.py / contracts.py
 ├── core/
-│   ├── defaults.py      # 内置 TARGET_URL 等（唯一源）
+│   ├── defaults.py      # 超时、队列等引擎默认（不含官网地址）
 │   ├── services/
 │   └── __test__/
 ├── __test__/

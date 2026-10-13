@@ -46,7 +46,7 @@ class TraceConfig:
     """Resolved runtime configuration for tracing."""
 
     enabled: bool = False
-    target_url: str = TraceDefaults.TARGET_URL
+    target_url: str = ""
     timeout_sec: float = TraceDefaults.TIMEOUT_SEC
     queue_max: int = TraceDefaults.QUEUE_MAX
     extreme_depth: int = TraceDefaults.EXTREME_DEPTH

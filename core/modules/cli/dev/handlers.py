@@ -275,7 +275,7 @@ class DevHandlers:
                 skip_tests=args.skip_tests,
                 skip_ic=args.skip_ic,
                 skip_fed_build=args.skip_fed_build,
-                skip_py39=args.skip_py39,
+                skip_py311=args.skip_py311,
                 package_userspace=getattr(args, "package_userspace", False),
                 skip_dep_check=getattr(args, "skip_dep_check", False),
                 skip_icon_check=getattr(args, "skip_icon_check", False),

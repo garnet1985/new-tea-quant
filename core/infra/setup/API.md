@@ -58,7 +58,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 不在 venv 中则创建 `venv/` 并用其解释器 `exec` 当前入口脚本
+- **描述：** 不在 venv 中则创建 `venv/` 并用其解释器 `exec` 当前入口脚本。项目 venv 低于 `core.system` 最低 Python 版本时退出
 
 #### ensure_venv_for_setup_step
 
@@ -67,7 +67,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** `core/infra/setup/core/steps/*/install.py` 直接执行时切到项目 venv
+- **描述：** `core/infra/setup/core/steps/*/install.py` 直接执行时切到项目 venv。版本过低时同样退出
 
 #### requirements_txt / ui_bff_requirements / ui_fed_root
 

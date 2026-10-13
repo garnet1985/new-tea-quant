@@ -2,7 +2,7 @@
 # 本文件不描述可安装包，也不接管 pytest 或 coverage。
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py311"
 extend-exclude = [
     "userspace",
     "experiments",

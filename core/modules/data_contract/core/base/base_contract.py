@@ -94,7 +94,7 @@ class ContractRuntime:
 
         if extra_fields:
             # 动态创建包含额外字段的 dataclass（使用 Any 类型注解）
-            # 使用 __annotations__ 方式（Python 3.9兼容）
+            # 动态字段写进 __annotations__，dataclass 才能识别
             annotations = {key: Any for key in extra_fields}
             extra_attrs = {
                 "__annotations__": annotations,

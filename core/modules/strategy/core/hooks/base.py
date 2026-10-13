@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Sequence, Union
+from typing import Any, List, Sequence
 
 from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.hooks.hook_params import (
@@ -71,11 +71,11 @@ class StrategyHooks(ABC):
 
     def select_portfolio_entries(
         self, ctx: StrategyContext, opportunities: Opportunities
-    ) -> Sequence[Union[Opportunity, str]]:
+    ) -> Sequence[Opportunity]:
         """挑选当日进入组合的机会。
 
-        返回 Opportunity，或机会上的 id（``entity_id:investment_id``，即 ``opportunities.to_ids()``）。
-        不返回仓位。未覆盖时，组合层用配置排序填剩余槽位，不会调用本默认实现。
+        返回 ``opportunities`` 里的 Opportunity。不返回仓位，也不返回 id。
+        未覆盖时，组合层用配置排序填剩余槽位，不会调用本默认实现。
         ``opportunities.account`` 含 ``held_entity_ids`` 与 ``remaining_slots``。
         """
         _ = (ctx, opportunities)

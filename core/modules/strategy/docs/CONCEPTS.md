@@ -1,6 +1,6 @@
 # Strategy — 概念与运作
 
-**模块：** `modules.strategy` · **版本：** `0.10.0`
+**模块：** `modules.strategy` · **版本：** `0.11.0`
 
 本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DESIGN.md](./DESIGN.md)。
 

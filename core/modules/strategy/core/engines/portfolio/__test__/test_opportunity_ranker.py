@@ -1,7 +1,7 @@
 """opportunity_selection：排序、加权、钩子优先。"""
 from __future__ import annotations
 
-from typing import Dict, Sequence, Union
+from typing import Dict
 
 import pytest
 
@@ -153,11 +153,13 @@ def test_hook_ignores_selection() -> None:
             _ = records
             return False
 
-        def select_portfolio_entries(
-            self, ctx: StrategyContext, opportunities
-        ) -> Sequence[Union[Opportunity, str]]:
-            _ = (ctx, opportunities)
-            return ["S1:low"]
+        def select_portfolio_entries(self, ctx: StrategyContext, opportunities):
+            _ = ctx
+            return [
+                opp
+                for opp in opportunities
+                if EntrySelector.entity_id(opp) == "S1"
+            ]
 
     opps = [
         _opp("low", "S1", {"close": 1}),

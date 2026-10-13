@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Sequence, Union
 from unittest.mock import MagicMock
 
 import pytest
@@ -245,11 +244,13 @@ def test_select_portfolio_entries_override_filters_by_id():
             _ = records
             return False
 
-        def select_portfolio_entries(
-            self, ctx: StrategyContext, opportunities
-        ) -> Sequence[Union[Opportunity, str]]:
-            _ = (ctx, opportunities)
-            return ["600000.SH:a"]
+        def select_portfolio_entries(self, ctx: StrategyContext, opportunities):
+            _ = ctx
+            return [
+                opp
+                for opp in opportunities
+                if EntrySelector.entity_id(opp) == "600000.SH"
+            ]
 
     opps = _keyed(("a", "600000.SH"), ("b", "600001.SH"))
     events = [
@@ -280,5 +281,5 @@ def test_select_portfolio_entries_override_filters_by_id():
 def test_normalize_selected_ids_rejects_unknown():
     available = [_opp("a", "x")]
     assert EnterSelection.normalize_selected_ids(
-        available, ["x:a", "a", "ghost", "x:a"]
+        available, [available[0], "x:a", available[0]]
     ) == ["x:a"]

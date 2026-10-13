@@ -175,7 +175,7 @@ You can also customize goals: put `"custom": "rule_name"` and a human-readable `
 ```python
 # Example: RSI below 20 counts as an opportunity:
 def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
-    today = records.record_of_today or {}
+    today = records.latest or {}
     rsi = today.get("rsi14")
     ctx.capture("rsi", rsi)
     return rsi is not None and rsi < 20
@@ -188,10 +188,10 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
 def on_calendar_slice(self, ctx: StrategyContext, calendar_slice: CalendarSlice) -> list[str]:
     ranked = []
     for stock_id in calendar_slice.ids():
-        rows = calendar_slice.records_of(stock_id).items.get("stock.indicators.daily") or []
-        if not rows:
+        bar = calendar_slice.records_of(stock_id).series("stock.indicators.daily").latest
+        if bar is None:
             continue
-        turnover = rows[-1].get("turnover_rate")
+        turnover = bar.get("turnover_rate")
         if turnover is None:
             continue
         ranked.append((turnover, stock_id))
@@ -223,7 +223,7 @@ def is_take_profit(self, ctx: StrategyContext, records: Records, *, custom: str,
     if custom != "up_20pct":
         return False
 
-    bar = records.record_of_today or {}
+    bar = records.latest or {}
     close = bar.get("close")
     entry_price = records.position.get("entry_price") or 0
     if close is None or not entry_price:

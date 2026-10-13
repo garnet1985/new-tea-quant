@@ -33,7 +33,7 @@ class OpportunityFactory:
         signal_snapshot: Optional[Dict[str, Any]] = None,
     ) -> Optional[Opportunity]:
         """当日无 base bar 返回 None。"""
-        record = records.record_of_today
+        record = records.latest
         if not record:
             return None
         stock_info = dict(records.entity_info) if records.entity_info else {}

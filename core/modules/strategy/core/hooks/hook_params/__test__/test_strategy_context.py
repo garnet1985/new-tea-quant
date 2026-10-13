@@ -69,11 +69,22 @@ def test_records_shortcuts() -> None:
         items={"k": rows},
         base_data_key="k",
     )
-    assert records.record_of_today == {"date": "20240111", "close": 12}
-    assert records.get_record("20240110")["close"] == 11
-    assert [row["close"] for row in records.get_records("20240110", "20240111")] == [11, 12]
+    assert records.latest == {"date": "20240111", "close": 12}
+    assert records.first == {"date": "20240109", "close": 10}
+    assert records.get_by_date("20240110")["close"] == 11
+    assert records.index_of("20240110") == 1
+    assert records.last_index_of("20240110") == 1
+    duplicated = Records(
+        items={"k": [{"date": "20240110", "close": 1}, {"date": "20240110", "close": 2}]},
+        base_data_key="k",
+    )
+    assert duplicated.index_of("20240110") == 0
+    assert duplicated.last_index_of("20240110") == 1
+    assert duplicated.series().get_by_date("20240110")["close"] == 1
     assert records.last(2) == rows[-2:]
-    assert Records(base_data_key="k").record_of_today is None
+    weekly = records.series("stock.kline.weekly")
+    assert weekly.latest is None
+    assert Records(base_data_key="k").latest is None
 
 
 def test_calendar_slice_loads_on_read() -> None:
@@ -87,6 +98,6 @@ def test_calendar_slice_loads_on_read() -> None:
     assert calendar_slice.is_first_open_of_month is True
     assert loaded["calls"] == 0
     assert calendar_slice.ids() == ["000001.SZ"]
-    assert calendar_slice.records_of("000001.SZ").record_of_today["close"] == 11
+    assert calendar_slice.records_of("000001.SZ").latest["close"] == 11
     assert loaded["calls"] == 1
     assert "as_of_date" not in calendar_slice.flags

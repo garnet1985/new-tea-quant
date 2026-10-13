@@ -1,7 +1,7 @@
 """Strategy 跨模块公开契约（hooks + 共享数据类型 / 运行时协作面 re-export）。
 
 本文件:
-- StrategyHooks / StrategyContext / Records / CalendarSlice / Opportunities: 用户策略 hook 契约
+- StrategyHooks / StrategyContext / Records / Series / CalendarSlice / Opportunities: 用户策略 hook 契约
 - Opportunity / Investment: 引擎共享数据类
 - AsOfSlice / JobBundleLoader / ProgressRecorder: tag / BE 协作面（勿 deep-import）
   边界: 仅类型与协作类导出；编排实现仍在 core/
@@ -20,6 +20,7 @@ from core.modules.strategy.core.hooks.hook_params import (
     CalendarSlice,
     Opportunities,
     Records,
+    Series,
     StrategyContext,
     StrategyInfo,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "Opportunity",
     "ProgressRecorder",
     "Records",
+    "Series",
     "SimulateKind",
     "StrategyContext",
     "StrategyHooks",

@@ -162,9 +162,9 @@ class EnterSelection:
         available: Sequence[Opportunity],
         selected: Optional[Sequence[Any]],
     ) -> List[str]:
-        """将钩子返回值规范为 selection_key 列表（仅保留当日 available 内的 id）。
+        """将钩子返回的 Opportunity 规范为 selection_key 列表。
 
-        字符串必须是机会上的 id（``entity_id:investment_id``）。
+        只认当日 available 里的对象。字符串和其它类型忽略。
         """
         available_ids = {
             EntrySelector.opportunity_selection_key(opp)
@@ -174,12 +174,9 @@ class EnterSelection:
         out: List[str] = []
         seen: Set[str] = set()
         for item in selected or []:
-            if isinstance(item, Opportunity):
-                oid = EntrySelector.opportunity_selection_key(item)
-            elif isinstance(item, str):
-                oid = item.strip()
-            else:
+            if not isinstance(item, Opportunity):
                 continue
+            oid = EntrySelector.opportunity_selection_key(item)
             if not oid or oid not in available_ids or oid in seen:
                 continue
             seen.add(oid)

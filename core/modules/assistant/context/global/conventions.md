@@ -203,7 +203,7 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 - 数据缺失时返回 `None` 或空列表，不抛异常
 
-- 策略钩子里取数：`records.items`，`klines = records.items.get(ctx.base_data_key) or []`，当天用 `records.record_of_today`
+- 策略钩子里取数：base 用 `records.latest`，其它 data key 用 `records.series(data_key)`
 
 - 指标在 `settings.data.base.indicators` 声明，钩子读 K 线字段。不要手写 EMA，不能对 dict 列表做减法
 

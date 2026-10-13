@@ -43,7 +43,7 @@ from core.modules.strategy.contracts import (
 
 class RsiStrategy(StrategyHooks):
     def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
-        today = records.record_of_today
+        today = records.latest
         if today is None:
             return False
         rsi = today.get("rsi14")  # settings.data.base.indicators 声明后写入
@@ -69,9 +69,9 @@ class RsiStrategy(StrategyHooks):
 
 | 取数 | 说明 |
 | --- | --- |
-| `records.record_of_today` | 当天最后一根 base K 线（无则 `None`） |
-| `records.items` | 按数据键取序列 |
-| `records.last(n)` / `get_record(date)` / `get_records(start, end)` | 序列快捷 |
+| `records.latest` / `records.first` | base 序列的最后一行 / 第一行 |
+| `records.series(data_key)` | 其它注入序列，方法与 base 相同 |
+| `get_by_date` / `index_of` / `last_index_of` / `last(n)` | 按日期或末尾取行、取下标 |
 | `ctx.base_data_key` | 主数据键，通常 `stock.kline.daily` |
 | `ctx.state["key"] = value` | 跨日变量 |
 | `ctx.capture(key, value)` | 本笔归因 |
@@ -170,7 +170,7 @@ def is_stop_loss(self, ctx, records, *, custom, stage) -> bool:
 
 def is_take_profit(self, ctx, records, *, custom, stage) -> bool:
     if custom == "rsi_overbought":
-        today = records.record_of_today
+        today = records.latest
         rsi = None if today is None else today.get("rsi14")
         return rsi is not None and rsi > 70
     return False

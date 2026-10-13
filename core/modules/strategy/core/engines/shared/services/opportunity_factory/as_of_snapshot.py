@@ -33,7 +33,7 @@ class AsOfSnapshot:
     def build(cls, records: Records, settings: Any) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
         base_key = str(records.base_data_key or "").strip()
-        base_row = records.record_of_today
+        base_row = records.latest
         if isinstance(base_row, dict):
             cls._absorb(out, base_row, prefix="")
         try:

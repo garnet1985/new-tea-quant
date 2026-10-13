@@ -178,7 +178,7 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 # 举例：如果RSI参数小于20就算是一个机会：
 def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
     # 当日这只股票的日 K（含 settings 里声明的指标）；最后一根就是今天
-    today = records.record_of_today or {}
+    today = records.latest or {}
     rsi = today.get("rsi14")
     # 可选：记下自定义现场量。settings 里已有的阈值、已声明的指标列不必再 capture
     ctx.capture("rsi", rsi)
@@ -196,10 +196,10 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
 def on_calendar_slice(self, ctx: StrategyContext, calendar_slice: CalendarSlice) -> list[str]:
     ranked = []
     for stock_id in calendar_slice.ids():
-        rows = calendar_slice.records_of(stock_id).items.get("stock.indicators.daily") or []
-        if not rows:
+        bar = calendar_slice.records_of(stock_id).series("stock.indicators.daily").latest
+        if bar is None:
             continue
-        turnover = rows[-1].get("turnover_rate")
+        turnover = bar.get("turnover_rate")
         if turnover is None:
             continue
         ranked.append((turnover, stock_id))
@@ -234,7 +234,7 @@ def is_take_profit(self, ctx: StrategyContext, records: Records, *, custom: str,
     if custom != "up_20pct":
         return False
 
-    bar = records.record_of_today or {}
+    bar = records.latest or {}
     close = bar.get("close")
     entry_price = records.position.get("entry_price") or 0
     if close is None or not entry_price:

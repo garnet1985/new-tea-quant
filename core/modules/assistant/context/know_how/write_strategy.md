@@ -27,22 +27,23 @@ python cli.py -n my_rsi_strategy
 
 | 文件            | 职责                                           |
 | ------------- | -------------------------------------------- |
-| `strategy.py` | 策略钩子，继承 `StrategyHooks`，实现 `has_opportunity` |
+| `strategy.py` | 策略钩子，继承 `StrategyHooks`，实现 `is_opportunity` |
 | `settings.py` | 策略配置，一个 Python 字典                            |
 
 ## strategy.py
 
-继承 `StrategyHooks`，**必须实现** `has_opportunity`：
+继承 `StrategyHooks`，**必须实现** `is_opportunity`：
 
 ```python
 from core.modules.strategy.contracts import (
+    Records,
     StrategyContext,
     StrategyHooks,
 )
 
 class RsiStrategy(StrategyHooks):
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
-        today = ctx.record_of_today
+    def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
+        today = records.latest
         if today is None:
             return False
         rsi = today.get("rsi14")  # settings.data.base.indicators 声明后写入
@@ -57,24 +58,23 @@ class RsiStrategy(StrategyHooks):
 
 ### 核心钩子
 
-| 钩子                             | 必须 | 说明                               |
-| ------------------------------ | -- | -------------------------------- |
-| `has_opportunity(ctx) -> bool` | 是  | 每日每股调用一次，返回 True 表示有交易机会         |
-| `on_before_scan(ctx)`          | 否  | 扫描前调用一次，适合预加载数据                  |
-| `on_after_scan(ctx)`           | 否  | 扫描后调用一次，适合输出统计                   |
-| `on_calendar_asof(ctx)`        | 否  | slice\_based 模式下每个日历点调用，可做跨股全局判断 |
+| 钩子 | 必须 | 说明 |
+| --- | -- | --- |
+| `is_opportunity(ctx, records) -> bool` | 是 | 每日每股调用一次，返回 True 表示有交易机会 |
+| `on_calendar_slice(ctx, calendar_slice) -> list[str]` | 否 | slice_based 每个日历日，返回进入单股判定的 id |
+| `select_portfolio_entries(ctx, opportunities)` | 否 | 机会多于空位时挑选 |
+| `is_stop_loss` / `is_take_profit` | 否 | goal 段写了 custom 时调用 |
 
-### ctx 常用方法
+`ctx` 在每个钩子里一样：`ctx.info`、`ctx.sample_list`、`ctx.mode`、`ctx.effective_settings_dict()`、`ctx.state`（跨日）、`ctx.capture`（本笔归因）。当日序列在 `records`，不在 `ctx`。
 
-| 方法 | 说明 |
+| 取数 | 说明 |
 | --- | --- |
-| `ctx.data.items_with_meta()` | 按数据键取序列；`ctx.data` **不是函数** |
+| `records.latest` / `records.first` | base 序列的最后一行 / 第一行 |
+| `records.series(data_key)` | 其它注入序列，方法与 base 相同 |
+| `get_by_date` / `index_of` / `last_index_of` / `last(n)` | 按日期或末尾取行、取下标 |
 | `ctx.base_data_key` | 主数据键，通常 `stock.kline.daily` |
-| `ctx.record_of_today` | 当天最后一根 base K 线（无则 `None`） |
-| `ctx.capture(key, value)` | 记录信号快照，落报告（事后分析用） |
-| `ctx.remember(key, value)` | 钩子间传递的易失内存（不落报告） |
-| `ctx.recall(key, default)` | 取出 remember 的值 |
-| `ctx.effective_settings_dict()` | 获取 effective settings |
+| `ctx.state["key"] = value` | 跨日变量 |
+| `ctx.capture(key, value)` | 本笔归因 |
 
 ### 关键设计
 
@@ -160,18 +160,17 @@ settings = {
 如果 `goal` 中用了 `custom` 触发条件，需要在 strategy.py 中实现：
 
 ```python
-def is_stop_loss(self, ctx, *, custom, stage) -> bool:
+def is_stop_loss(self, ctx, records, *, custom, stage) -> bool:
     if custom == "below_ma20":
-        data = ctx.data.items_with_meta()
-        klines = data.get(ctx.base_data_key) or []
+        klines = records.items.get(ctx.base_data_key) or []
         if len(klines) >= 20:
             ma20 = sum(b["close"] for b in klines[-20:]) / 20
             return klines[-1]["close"] < ma20
     return False
 
-def is_take_profit(self, ctx, *, custom, stage) -> bool:
+def is_take_profit(self, ctx, records, *, custom, stage) -> bool:
     if custom == "rsi_overbought":
-        today = ctx.record_of_today
+        today = records.latest
         rsi = None if today is None else today.get("rsi14")
         return rsi is not None and rsi > 70
     return False
@@ -190,7 +189,7 @@ settings.py 中对应配置：
 
 1. `python cli.py -n my_strategy` — 从模板创建（界面列表不能直接「新建」）
 2. 把 `settings.py` 的 `meta.key` 改成 `my_strategy`（与目录名一致）
-3. 编写 `strategy.py` 的 `has_opportunity`（指标见 [用技术指标](use_indicators.md)）
+3. 编写 `strategy.py` 的 `is_opportunity`（指标见 [用技术指标](use_indicators.md)）
 4. 配齐 `settings.py`（也可之后在制定策略左侧改参数）
 5. 导航 **制定策略** 分步跑，或 `python cli.py sim --strategy my_strategy`
 6. 报告在 `{strategy}/results/simulations/{vid}/`，看图诊断

@@ -1,7 +1,7 @@
 """opportunity_selection：排序、加权、钩子优先。"""
 from __future__ import annotations
 
-from typing import Dict, Sequence, Union
+from typing import Dict
 
 import pytest
 
@@ -149,13 +149,17 @@ def test_held_entity_does_not_take_a_slot() -> None:
 
 def test_hook_ignores_selection() -> None:
     class PickLow(StrategyHooks):
-        def has_opportunity(self, ctx: StrategyContext) -> bool:
+        def is_opportunity(self, ctx: StrategyContext, records) -> bool:
+            _ = records
             return False
 
-        def on_pick_portfolio_member(
-            self, ctx: StrategyContext
-        ) -> Sequence[Union[Opportunity, str]]:
-            return ["low"]
+        def select_portfolio_entries(self, ctx: StrategyContext, opportunities):
+            _ = ctx
+            return [
+                opp
+                for opp in opportunities
+                if EntrySelector.entity_id(opp) == "S1"
+            ]
 
     opps = [
         _opp("low", "S1", {"close": 1}),

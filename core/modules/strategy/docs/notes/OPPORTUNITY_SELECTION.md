@@ -2,13 +2,13 @@
 
 **状态：** 已实施（2026-10-06）。设置在 ``portfolio.allocation.opportunity_selection``；选仓在 ``OpportunityRanker``。
 
-**一句话：** 当天机会多于剩余槽位时，用 `opportunity_selection` 声明排序或打分，再取前 N 个。未写钩子时走这份配置；写了 `on_pick_portfolio_member` 时仍以钩子为准。
+**一句话：** 当天机会多于剩余槽位时，用 `opportunity_selection` 声明排序或打分，再取前 N 个。未写钩子时走这份配置；写了 `select_portfolio_entries` 时仍以钩子为准。
 
 ---
 
 ## 1. 要补的缺口
 
-`EntrySelector` 现在按机会到达顺序填满剩余槽位（`max_portfolio_size` 减去已持有）。20 个机会、只剩 5 个槽时，留下谁完全取决于到达顺序。用户若要按收盘价、PE、GDP 来挑，只能自己实现 `on_pick_portfolio_member`。
+`EntrySelector` 现在按机会到达顺序填满剩余槽位（`max_portfolio_size` 减去已持有）。20 个机会、只剩 5 个槽时，留下谁完全取决于到达顺序。用户若要按收盘价、PE、GDP 来挑，只能自己实现 `select_portfolio_entries`。
 
 本配置放在组合设置里，和槽位、分配方式一起生效。`soa` 的 `allocation` 可以把不同排序放进对照档。
 
@@ -74,7 +74,7 @@
 
 - 主数据（一般是日 K）最后一根的数字字段，不带前缀。K 线收盘价就是 `close`。`date`、`raw`、`hfq` 不收。
 - `settings.data.required` 里的其他数据源，各取截止当天的最后一行，只收数字，键名是 `数据源.字段`。例如 `gdp.close`、`stock.finance.quarterly.netprofit`。
-- `has_opportunity` 里 `capture` 的同名键覆盖自动快照。
+- `is_opportunity` 里 `capture` 的同名键覆盖自动快照。
 - 未声明的数据源、整段历史、非数字字段、策略参数（阈值、止损）不在这片快照里。
 
 同名不会互相覆盖：K 线的 `close` 与 GDP 的 `close` 在快照里是 `close` 和 `gdp.close`。
@@ -117,7 +117,7 @@ N 就是剩余槽位（`max_portfolio_size` 减去已持有），不在配置里
 - 某个机会缺这个键：这一项记 0，排在有值的后面（排序模式下缺键沉底）。不因此丢掉它的槽位资格。
 - 运行时键不存在不让回测失败。
 
-钩子 override 了 `on_pick_portfolio_member` 时，不读这份配置。
+钩子 override 了 `select_portfolio_entries` 时，不读这份配置。
 
 ---
 

@@ -20,7 +20,7 @@
 
 ## 2. 引擎认不出「同一信号源」
 
-`has_opportunity` 只返回 True/False，没有 episode id。`signal_snapshot` 是命中日标量，不是身份。连续几天 RSI&lt;20 只是同一谓词还在成立，证不出因果同源。
+`is_opportunity` 只返回 True/False，没有 episode id。`signal_snapshot` 是命中日标量，不是身份。连续几天 RSI&lt;20 只是同一谓词还在成立，证不出因果同源。
 
 操作定义：**同一标的上，与时间轴上一笔枚举机会在 base 数据轴上还连不连得上。** 连得上 = 同段续命中；空开 = 新段。这是降噪，不是鉴定信号源。
 
@@ -48,11 +48,11 @@
 
 ## 4. 钩子 `is_new_opportunity`
 
-只在价格回放、对每一笔枚举机会调用。`True` 开新段；`False` 与上一笔同段。没有上一笔时必须 `True`。只认严格 `True`（与 `has_opportunity` 相同）。
+只在价格回放、对每一笔枚举机会调用。`True` 开新段；`False` 与上一笔同段。没有上一笔时必须 `True`。只认严格 `True`（与 `is_opportunity` 相同）。
 
-默认实现就是 `opportunity_merge_gap`。override 则整段替换，仍可读该配置。枚举、组合不调。组合选谁继续走 `on_pick_portfolio_member`。
+默认实现就是 `opportunity_merge_gap`。override 则整段替换，仍可读该配置。枚举、组合不调。组合选谁继续走 `select_portfolio_entries`。
 
-入参：`ctx.data.opportunity`（本笔）、`ctx.data.items["previous_opportunity"]`（上一笔 `EnumResult`，可能为 `None`）、`ctx.data.items["opportunity_gap"]`（base 轴步数，算不出则为 `None`）。
+入参：`previous`（上一笔 `EnumResult`，可能为 `None`）、`gap`（base 轴步数，算不出则为 `None`）。
 
 ---
 

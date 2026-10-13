@@ -1,5 +1,5 @@
 name: modules.strategy
-version: "0.10.0"
+version: "0.11.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
@@ -20,6 +20,13 @@ dependencies:
   - infra.utils
   - infra.trace
 changelog:
+  - version: "0.11.0"
+    changes:
+      - 用户钩子改为显式载荷：is_opportunity(ctx, records)、on_calendar_slice(ctx, calendar_slice)、select_portfolio_entries(ctx, opportunities)。注入的数据在 records，不在 ctx。
+      - 跨日状态改为 ctx.state，归因仍用 ctx.capture。
+      - 删除 has_opportunity、on_calendar_asof、on_pick_portfolio_member、calendar_asof_needs_by_entity、on_before_scan / on_after_scan，以及 signal_date / core_int / core_float / deterministic_roll。
+      - select_portfolio_entries 只交回 Opportunity，不接受 id 字符串。
+      - 注入序列统一从 Series 取：latest、first、get_by_date、index_of、last、last_index_of。base 可直接写在 records 上，其它 data key 用 records.series(key)。
   - version: "0.10.0"
     changes:
       - 重新定义价格回测层。现在价格回测层是减少机会噪音后等全交易的普遍收益率。

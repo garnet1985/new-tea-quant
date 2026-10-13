@@ -41,7 +41,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.hook_params import StrategyContext, StrategyData
+from core.modules.strategy.core.hooks.hook_params import Records, StrategyContext, open_context
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class EntityTaskState:
     trackers: Dict[str, InvestmentTracker] = field(init=False)
     _stock_info: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
     _last_bar_by_entity: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
-    _scan_contexts: Dict[str, StrategyContext] = field(init=False, repr=False)
+    _ctx: Optional[StrategyContext] = field(default=None, init=False, repr=False)
     _base_data_key: str = field(init=False, repr=False)
     _min_required: int = field(init=False, repr=False)
     _timeline_points: tuple = field(default_factory=tuple, init=False, repr=False)
@@ -93,7 +93,6 @@ class EntityTaskState:
             list(self.trackers.keys()),
         )
         self._last_bar_by_entity = {}
-        self._scan_contexts = {}
         self._ready_date_by_entity = {}
         self._job_min_ready_date = ""
         self._job_has_work = True
@@ -140,11 +139,6 @@ class EntityTaskState:
         self._timeline_points = tuple(points)
         self._start_date = points[0] if points else timeline.start
         self._end_date = points[-1] if points else timeline.end
-        calendar_dict = {
-            "period_start": self._start_date,
-            "period_end": self._end_date,
-            "open_dates": list(points),
-        }
         if self.perf is not None:
             self.perf.set_calendar_meta(
                 open_dates_count=len(points),
@@ -160,31 +154,11 @@ class EntityTaskState:
         )
         self._job_min_ready_date = AsOfSlice.job_min_ready_date(self._ready_date_by_entity)
         self._job_has_work = bool(self._job_min_ready_date)
-        self._scan_contexts = {}
-        for entity_item in self.entity_specified:
-            entity_id = str(entity_item.get("id") or "").strip()
-            if not entity_id or entity_id not in self.trackers:
-                continue
-            self._scan_contexts[entity_id] = StrategyContext.assemble(
-                strategy_key=self.strategy_name,
-                settings=self.settings,
-                stock_list=[entity_id],
-                entity_id=entity_id,
-                entity_info={
-                    "id": entity_id,
-                    **self._stock_info.get(entity_id, {}),
-                },
-            ).with_data(
-                StrategyData.build(
-                    stock_list=[entity_id],
-                    entity_id=entity_id,
-                    entity_info={
-                        "id": entity_id,
-                        **self._stock_info.get(entity_id, {}),
-                    },
-                    calendar=calendar_dict,
-                )
-            )
+        self._ctx = open_context(
+            strategy_key=self.strategy_name,
+            settings=self.settings,
+            sample_list=list(self.trackers.keys()),
+        )
 
     def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
         """推进时间(point) → 切数据 → 执行业务。"""
@@ -222,8 +196,7 @@ class EntityTaskState:
         for entity_item in self.entity_specified:
             entity_id = str(entity_item.get("id") or "").strip()
             tracker = self.trackers.get(entity_id)
-            scan_ctx = self._scan_contexts.get(entity_id)
-            if tracker is None or scan_ctx is None:
+            if tracker is None or self._ctx is None:
                 continue
 
             ready = self._ready_date_by_entity.get(entity_id) or ""
@@ -257,35 +230,28 @@ class EntityTaskState:
             complete_data = per_entity
             if self.global_data:
                 complete_data = {**self.global_data, **per_entity}
-            try:
-                if perf is not None:
-                    perf.begin("enum_context_fill")
-                scan_ctx.refill(now=now, items=complete_data)
-                if perf is not None:
-                    perf.end("enum_context_fill", accumulate=True)
-            except Exception as exc:
-                if perf is not None:
-                    perf.end("enum_context_fill", accumulate=True)
-                logger.error(
-                    "构建 StrategyContext 失败：entity_id=%s now=%s error=%s",
-                    entity_id,
-                    now,
-                    exc,
-                    exc_info=True,
-                )
-                continue
-
+            records = Records(
+                entity_id=entity_id,
+                entity_info={
+                    "id": entity_id,
+                    **self._stock_info.get(entity_id, {}),
+                },
+                items=complete_data,
+                base_data_key=self._base_data_key,
+            )
             try:
                 if perf is not None:
                     perf.begin("enum_scan")
-                opportunity = OpportunityFactory.resolve(self.hook_runtime, scan_ctx)
+                opportunity = OpportunityFactory.resolve(
+                    self.hook_runtime, self._ctx, records
+                )
                 if perf is not None:
                     perf.end("enum_scan", accumulate=True)
             except Exception as exc:
                 if perf is not None:
                     perf.end("enum_scan", accumulate=True)
                 logger.error(
-                    "has_opportunity 失败：entity_id=%s now=%s error=%s",
+                    "is_opportunity 失败：entity_id=%s now=%s error=%s",
                     entity_id,
                     now,
                     exc,

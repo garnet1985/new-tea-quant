@@ -20,12 +20,11 @@ summary: 指标在 settings.data.base.indicators 声明，框架写入 K 线；�
 
 正路：**在 `settings.py` 的 `data.base.indicators` 里声明**，枚举/扫描时框架算好写回每根 K 线。钩子只读字段，不要手写 EMA，不要对 dict 列表做减法。
 
-K 线是 dict 列表。`ctx.data` **不是函数**：
+K 线是 dict 列表。序列在 `records`：
 
 ```python
-data = ctx.data.items_with_meta()
-klines = data.get(ctx.base_data_key) or []
-today = ctx.record_of_today
+today = records.latest
+klines = list(records.series())
 ```
 
 顶层 `close` 已是前复权。图表和决策者默认只带 **声明过的** 指标。
@@ -78,7 +77,7 @@ MACD 默认参数注入后的键（必须抄对）：
 ```python
 from __future__ import annotations
 
-from core.modules.strategy.contracts import StrategyContext, StrategyHooks
+from core.modules.strategy.contracts import Records, StrategyContext, StrategyHooks
 
 MACD_LINE = "macd_macd_12_26_9_fast12_signal9_slow26"
 MACD_SIGNAL = "macd_macds_12_26_9_fast12_signal9_slow26"
@@ -86,13 +85,12 @@ MACD_HIST = "macd_macdh_12_26_9_fast12_signal9_slow26"
 
 
 class MacdGoldenCrossStrategy(StrategyHooks):
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
-        data = ctx.data.items_with_meta()
-        klines = data.get(ctx.base_data_key) or []
+    def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
+        klines = records.last(2)
         if len(klines) < 2:
             return False
 
-        prev, curr = klines[-2], klines[-1]
+        prev, curr = klines
         prev_hist, curr_hist = prev.get(MACD_HIST), curr.get(MACD_HIST)
         if None in (prev_hist, curr_hist):
             return False
@@ -113,7 +111,7 @@ class MacdGoldenCrossStrategy(StrategyHooks):
 settings 的 `data.base.indicators`：`{"rsi": [{"length": 14}]}`。钩子：
 
 ```python
-today = ctx.record_of_today
+today = records.latest
 if today is None:
     return False
 rsi = today.get("rsi14")
@@ -129,7 +127,7 @@ return rsi < 30
 | --- | --- |
 | 钩子里手写 EMA / `Indicator.macd`，settings 不声明 | `data.base.indicators` 声明，钩子读 K 线字段 |
 | `meta = {}`、`data = {}` 当两个顶层变量 | 只有一个 `settings = { "meta": ..., "data": ... }` |
-| `ctx.data("stock.kline.daily")` | `ctx.data.items_with_meta()` |
+| `ctx.data("stock.kline.daily")` | `records.series()` / `records.latest` |
 | 只改 `meta`，其余删光 | 用模板写全 |
 | 把别的 CLI 缩写当回测 | `python cli.py sim --strategy 目录或key` |
 | 报告写在 `reports/` | `{strategy}/results/simulations/{vid}/` |

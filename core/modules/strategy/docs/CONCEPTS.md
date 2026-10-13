@@ -1,6 +1,6 @@
 # Strategy — 概念与运作
 
-**模块：** `modules.strategy` · **版本：** `0.10.0`
+**模块：** `modules.strategy` · **版本：** `0.11.0`
 
 本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DESIGN.md](./DESIGN.md)。
 
@@ -46,7 +46,7 @@
 
 可以扫的包括分配方式、持仓数、初始资金、单票上限、Kelly 系数、每笔手数、选仓排序。未写 `allocation` 时，按当前 settings 生成默认档。声明了 `allocation` 之后，单票上限、Kelly 系数、每笔手数不会再自动加进默认档，除非自己写上。
 
-选仓排序在 `portfolio.allocation.opportunity_selection`。不写、空列表、或权重全是 0，都是到达顺序。写了 `on_pick_portfolio_member` 时仍以钩子为准。
+选仓排序在 `portfolio.allocation.opportunity_selection`。不写、空列表、或权重全是 0，都是到达顺序。写了 `select_portfolio_entries` 时仍以钩子为准。
 
 ---
 

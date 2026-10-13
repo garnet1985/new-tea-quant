@@ -11,7 +11,7 @@ from typing import Any, List, Optional, Sequence
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.hooks.hook_params import StrategyContext
+from core.modules.strategy.core.hooks.hook_params import open_context
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
@@ -78,15 +78,15 @@ class SampleListResolver:
         strategy_path = str(
             getattr(strategy_info, "unique_relative_path", "") or strategy_key
         ).strip()
-        ctx = StrategyContext.assemble(
+        ctx = open_context(
             strategy_key=strategy_key,
             settings=settings,
-            stock_list=stock_list,
+            sample_list=stock_list,
             strategy_path=strategy_path,
         )
         allowed = set(stock_list)
         try:
-            raw = runtime.call("to_sample_list", ctx, stock_list=list(stock_list))
+            raw = runtime.call("to_sample_list", ctx, list(stock_list))
         except Exception:
             logger.error(
                 "to_sample_list 失败 strategy=%s，回退 sampling 结果",

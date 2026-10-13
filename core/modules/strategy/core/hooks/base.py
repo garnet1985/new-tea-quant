@@ -1,19 +1,20 @@
-"""用户 StrategyHooks 抽象基类（userspace 继承实现）。
+"""用户 StrategyHooks。
 
-本文件:
-- StrategyHooks: has_opportunity / asof / portfolio 等 hook 声明与默认实现
-  边界: 定义用户扩展点；不负责加载、StrategyContext 组装或 BE 调度
+稳定的 ctx 在每个钩子里一样。当日要操作的对象是显式入参。
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Sequence
 
-from core.modules.strategy.core.engines.shared.data_class import (
-    CalendarAsOfResult,
-    Opportunity,
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
+from core.modules.strategy.core.hooks.hook_params import (
+    CalendarSlice,
+    Opportunities,
+    Records,
+    StrategyContext,
 )
-from core.modules.strategy.core.hooks.hook_params import StrategyContext
 
 
 class StrategyHooks(ABC):
@@ -22,133 +23,91 @@ class StrategyHooks(ABC):
     def to_sample_list(
         self, ctx: StrategyContext, stock_list: Sequence[str]
     ) -> Sequence[str]:
-        """回测开始前调用一次（指纹生成之前）。
+        """回测开始前调用一次，在指纹之前。
 
-        入参 ``stock_list`` 已是 DB 宇宙经 ``settings.sampling`` 过滤后的列表。
-        默认原样返回；覆盖时可做语义过滤（须确定性）。返回值会与入参取交后排序写入指纹。
+        ``stock_list`` 已是数据库宇宙经 ``settings.sampling`` 过滤后的列表。
+        默认原样返回。覆盖时做确定性的语义过滤。
+        返回值会与入参取交、排序，写入 ``ctx.sample_list`` 和指纹。
         """
         _ = ctx
         return list(stock_list or [])
 
-    def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
-        """Calendar as-of hook（slice_based 使用；entity_based 默认空）。"""
-        return CalendarAsOfResult(as_of_date=str(ctx.data.now or ""), stocks=[])
-
-    def calendar_asof_needs_by_entity(self, ctx: StrategyContext) -> bool:
-        """``on_calendar_asof`` 是否需要 ``ctx.data.by_entity`` 市况包。
-
-        返回 False 时，enumerator 可用空 ``by_entity`` 调用 asof，跳过全宇宙组包。
-        若仍返回非空 ``stocks``，引擎会回退为全量组包再调一次。
-        默认 True（安全）；纯日历门闩 / null 基准应覆盖为 False。
-        """
-        _ = ctx
-        return True
+    def on_calendar_slice(
+        self, ctx: StrategyContext, calendar_slice: CalendarSlice
+    ) -> List[str]:
+        """``slice_based`` 每个日历日：返回进入 ``is_opportunity`` 的 id。"""
+        _ = (ctx, calendar_slice)
+        return []
 
     @abstractmethod
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
-        """当日该实体是否有交易机会（用户必须实现）。
+    def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
+        """当日该股票是否有机会。只返回 True / False。
 
-        只返回 True / False。命中时由框架根据当日 bar 构建 Opportunity。
-        逻辑层归因输入用 ``ctx.capture(key, value)``；跨日内存状态用 ``remember`` / ``recall`` / ``forget``。
+        命中后框架用当日 bar 建 Opportunity。归因用 ``ctx.capture``。
+        跨日变量放 ``ctx.state``。
         """
-        pass
 
-    def is_new_opportunity(self, ctx: StrategyContext) -> bool:
-        """价格回放：本笔枚举机会是否开新段。仅 price_factor 调用。
+    def is_new_opportunity(
+        self,
+        ctx: StrategyContext,
+        *,
+        previous: Any,
+        gap: Any,
+    ) -> bool:
+        """价格回放：本笔是否开新段。仅 price_factor 调用。
 
-        ``True`` 开新段（本笔当主机会）；其它值视为与上一笔同段。
-        无上一笔时必须 ``True``。默认按 ``simulation.price.opportunity_merge_gap``。
-        ``ctx.data.items["previous_opportunity"]`` 为上一笔 EnumResult 或 None；
-        ``opportunity_gap`` 为 base 轴步数（相邻为 1），算不出则为 None。
+        ``True`` 开新段。没有上一笔时必须 ``True``。
+        ``previous`` 是上一笔结果或 None。``gap`` 是 base 轴步数，算不出则为 None。
+        默认按 ``simulation.price.opportunity_merge_gap``。
         """
-        previous = ctx.data.items.get("previous_opportunity")
-        if previous is None:
-            return True
-        gap = ctx.data.items.get("opportunity_gap")
-        if gap is None:
+        if previous is None or gap is None:
             return True
         try:
             steps = int(gap)
         except (TypeError, ValueError):
             return True
-        limit = ctx.settings.simulation.price.opportunity_merge_gap
+        limit = ctx.effective_settings.simulation.price.opportunity_merge_gap
         return steps > int(limit)
 
-    def on_pick_portfolio_member(
-        self, ctx: StrategyContext
-    ) -> Sequence[Union[Opportunity, str]]:
-        """挑选当日要进入组合的 members（可多个）。
+    def select_portfolio_entries(
+        self, ctx: StrategyContext, opportunities: Opportunities
+    ) -> Sequence[Opportunity]:
+        """挑选当日进入组合的机会。
 
-        ``ctx.data.items["opportunities"]``：当日可用机会（已 ``to_opportunity``，无结果字段）。
-        ``ctx.data.items["account"]``：容量快照（``held_entity_ids`` / ``remaining_slots`` 等）。
-
-        返回选中的 ``Opportunity`` 列表，或 ``opportunity_id`` 字符串列表。
-        **不返回仓位 sizing**（shares/weight 由 AllocationStrategy 按配置计算）。
-
-        未 override 时，portfolio ``EnterSelection`` 直接用 ``EntrySelector``
-        （顺序 + ``max_portfolio_size`` 剩余槽位），不会调用本默认实现。
+        返回 ``opportunities`` 里的 Opportunity。不返回仓位，也不返回 id。
+        未覆盖时，组合层用配置排序填剩余槽位，不会调用本默认实现。
+        ``opportunities.account`` 含 ``held_entity_ids`` 与 ``remaining_slots``。
         """
+        _ = (ctx, opportunities)
         return []
 
-    def is_stop_loss(self, ctx: StrategyContext, *, custom: str, stage: Any) -> bool:
-        """自定义止损段触发判定。
-
-        仅当 settings 中某 ``stop_loss`` stage 声明 ``custom`` 时由引擎调用。
-        默认未实现：子类须 override，否则运行期报错。
-        """
-        _ = (ctx, stage)
+    def is_stop_loss(
+        self,
+        ctx: StrategyContext,
+        records: Records,
+        *,
+        custom: str,
+        stage: Any,
+    ) -> bool:
+        """自定义止损。仅当某 stop_loss 段声明了 ``custom`` 时调用。"""
+        _ = (ctx, records, stage)
         raise NotImplementedError(
             f"unsupported stop_loss custom={str(custom or '').strip()!r}"
         )
 
-    def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage: Any) -> bool:
-        """自定义止盈段触发判定。
-
-        仅当 settings 中某 ``take_profit`` stage 声明 ``custom`` 时由引擎调用。
-        默认未实现：子类须 override，否则运行期报错。
-        """
-        _ = (ctx, stage)
+    def is_take_profit(
+        self,
+        ctx: StrategyContext,
+        records: Records,
+        *,
+        custom: str,
+        stage: Any,
+    ) -> bool:
+        """自定义止盈。仅当某 take_profit 段声明了 ``custom`` 时调用。"""
+        _ = (ctx, records, stage)
         raise NotImplementedError(
             f"unsupported take_profit custom={str(custom or '').strip()!r}"
         )
-
-    # ── scan 辅助原语 ──
-    # 当日 bar 用 ``ctx.record_of_today``（见 StrategyContext）。
-
-    @staticmethod
-    def signal_date(record_of_today: Dict[str, Any]) -> str:
-        if "date" not in record_of_today:
-            raise ValueError("record_of_today 缺少 date")
-        return str(record_of_today["date"])
-
-    @staticmethod
-    def core_int(settings: Dict[str, Any], key: str) -> int:
-        core = settings.get("core")
-        if not isinstance(core, dict) or key not in core:
-            raise ValueError(f"settings.core 缺少 {key!r}")
-        return int(core[key])
-
-    @staticmethod
-    def core_float(
-        settings: Dict[str, Any],
-        key: str,
-        *,
-        clamp: Optional[Tuple[float, float]] = None,
-    ) -> float:
-        core = settings.get("core")
-        if not isinstance(core, dict) or key not in core:
-            raise ValueError(f"settings.core 缺少 {key!r}")
-        value = float(core[key])
-        if clamp is None:
-            return value
-        low, high = clamp
-        return max(low, min(high, value))
-
-    @staticmethod
-    def deterministic_roll(*key_parts: Any) -> float:
-        from core.infra.utils import Utils
-
-        return Utils.math.deterministic_unit_float(*key_parts)
 
 
 __all__ = ["StrategyHooks"]

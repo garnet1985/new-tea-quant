@@ -1,4 +1,4 @@
-"""Portfolio 入场挑选与 ``on_pick_portfolio_member`` 编排。
+"""Portfolio 入场挑选与 ``select_portfolio_entries`` 编排。
 
 本文件:
 - EntrySelector: 按 max_portfolio_size + 顺序选 Opportunity（不算 sizing）
@@ -19,7 +19,7 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.hooks.hook_params import StrategyContext, StrategyData, StrategyInfo
+from core.modules.strategy.core.hooks.hook_params import Opportunities, open_context
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 
@@ -120,7 +120,7 @@ class EntrySelector:
         ]
 
     def account_snapshot(self, held_entity_ids: Set[str]) -> Dict[str, Any]:
-        """供钩子 ctx['account'] 使用的容量快照。"""
+        """供 ``Opportunities.account`` 使用的容量快照。"""
         held = sorted(
             str(x or "").strip() for x in held_entity_ids if str(x or "").strip()
         )
@@ -134,7 +134,7 @@ class EntrySelector:
 
 @dataclass
 class EnterSelection:
-    """``on_pick_portfolio_member`` 编排：按日选仓并过滤事件。"""
+    """``select_portfolio_entries`` 编排：按日选仓并过滤事件。"""
 
     settings: StrategySettings
     strategy_name: str
@@ -162,42 +162,21 @@ class EnterSelection:
         available: Sequence[Opportunity],
         selected: Optional[Sequence[Any]],
     ) -> List[str]:
-        """将钩子返回值规范为 selection_key 列表（仅保留当日 available 内的 id）。"""
+        """将钩子返回的 Opportunity 规范为 selection_key 列表。
+
+        只认当日 available 里的对象。字符串和其它类型忽略。
+        """
         available_ids = {
             EntrySelector.opportunity_selection_key(opp)
             for opp in available
             if EntrySelector.opportunity_selection_key(opp)
         }
-        # 兼容钩子只返回裸 investment_id
-        bare_to_keys: Dict[str, List[str]] = {}
-        for opp in available or []:
-            bare = EntrySelector.opportunity_id(opp)
-            key = EntrySelector.opportunity_selection_key(opp)
-            if bare and key:
-                bare_to_keys.setdefault(bare, []).append(key)
         out: List[str] = []
         seen: Set[str] = set()
         for item in selected or []:
-            oid = ""
-            if isinstance(item, Opportunity):
-                oid = EntrySelector.opportunity_selection_key(item)
-            elif isinstance(item, str):
-                oid = item.strip()
-            elif isinstance(item, dict):
-                meta = item.get("meta") if isinstance(item.get("meta"), dict) else {}
-                oid = str(
-                    meta.get("opportunity_id") or item.get("opportunity_id") or ""
-                ).strip()
-                eid = ""
-                stock = item.get("stock") if isinstance(item.get("stock"), dict) else {}
-                if stock:
-                    eid = str(stock.get("id") or "").strip()
-                if oid and eid and ":" not in oid:
-                    oid = EntrySelector.selection_key(eid, oid)
-            if oid and oid not in available_ids and oid in bare_to_keys:
-                # 裸 id 仅当日唯一时可展开
-                keys = bare_to_keys[oid]
-                oid = keys[0] if len(keys) == 1 else ""
+            if not isinstance(item, Opportunity):
+                continue
+            oid = EntrySelector.opportunity_selection_key(item)
             if not oid or oid not in available_ids or oid in seen:
                 continue
             seen.add(oid)
@@ -232,21 +211,19 @@ class EnterSelection:
         snapshot = self.selector.account_snapshot(held_entity_ids)
         use_hook = (
             self.hook_runtime is not None
-            and self.hook_runtime.is_overridden("on_pick_portfolio_member")
+            and self.hook_runtime.is_overridden("select_portfolio_entries")
         )
         if use_hook:
-            ctx = StrategyContext(
-                strategy=StrategyInfo(key=self.strategy_name),
+            ctx = open_context(
+                strategy_key=self.strategy_name,
                 settings=self.settings,
-                data=StrategyData.build(
-                    now=str(date or "").strip(),
-                    items={
-                        "opportunities": opps,
-                        "account": snapshot,
-                    },
-                ),
+                sample_list=[],
             )
-            selected = self.hook_runtime.call("on_pick_portfolio_member", ctx)
+            selected = self.hook_runtime.call(
+                "select_portfolio_entries",
+                ctx,
+                Opportunities(opps, account=snapshot),
+            )
             return self.normalize_selected_ids(opps, selected)
 
         allocation = self.settings.portfolio.allocation

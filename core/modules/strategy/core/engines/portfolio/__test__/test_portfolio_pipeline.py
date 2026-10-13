@@ -1,10 +1,9 @@
-"""PortfolioPipeline / on_pick_portfolio_member / EntrySelector 单测。"""
+"""PortfolioPipeline / select_portfolio_entries / EntrySelector 单测。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Sequence, Union
 from unittest.mock import MagicMock
 
 import pytest
@@ -239,15 +238,19 @@ def test_default_enter_selection_respects_max_portfolio_size():
     assert ids == {"a", "b"}
 
 
-def test_on_pick_portfolio_member_override_filters_by_id():
+def test_select_portfolio_entries_override_filters_by_id():
     class PickOne(StrategyHooks):
-        def has_opportunity(self, ctx: StrategyContext) -> bool:
+        def is_opportunity(self, ctx: StrategyContext, records) -> bool:
+            _ = records
             return False
 
-        def on_pick_portfolio_member(
-            self, ctx: StrategyContext
-        ) -> Sequence[Union[Opportunity, str]]:
-            return ["a"]
+        def select_portfolio_entries(self, ctx: StrategyContext, opportunities):
+            _ = ctx
+            return [
+                opp
+                for opp in opportunities
+                if EntrySelector.entity_id(opp) == "600000.SH"
+            ]
 
     opps = _keyed(("a", "600000.SH"), ("b", "600001.SH"))
     events = [
@@ -277,6 +280,6 @@ def test_on_pick_portfolio_member_override_filters_by_id():
 
 def test_normalize_selected_ids_rejects_unknown():
     available = [_opp("a", "x")]
-    assert EnterSelection.normalize_selected_ids(available, ["a", "ghost", "a"]) == [
-        "x:a"
-    ]
+    assert EnterSelection.normalize_selected_ids(
+        available, [available[0], "x:a", available[0]]
+    ) == ["x:a"]

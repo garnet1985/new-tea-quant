@@ -1,5 +1,14 @@
-"""用户 hook 回调入参（StrategyContext 壳 + 嵌套块）。"""
+"""用户 hook 入参：稳定 ctx，以及当次载荷。"""
 
-from .strategy_context import StrategyContext, StrategyData, StrategyInfo
+from .payloads import CalendarSlice, Opportunities, Records, Series
+from .strategy_context import StrategyContext, StrategyInfo, open_context
 
-__all__ = ["StrategyContext", "StrategyData", "StrategyInfo"]
+__all__ = [
+    "CalendarSlice",
+    "Opportunities",
+    "Records",
+    "Series",
+    "StrategyContext",
+    "StrategyInfo",
+    "open_context",
+]

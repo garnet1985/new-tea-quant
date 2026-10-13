@@ -379,32 +379,20 @@ def _decide_is_new(
             gap=gap,
             merge_gap=merge_gap,
         )
-    from core.modules.strategy.core.hooks.hook_params import (
-        StrategyContext,
-        StrategyData,
-        StrategyInfo,
-    )
+    from core.modules.strategy.core.hooks.hook_params import open_context
 
     sid = str(entity_id or "").strip()
-    ctx = StrategyContext(
-        strategy=StrategyInfo(
-            key=str(getattr(hook_runtime, "strategy_name", "") or ""),
-            path="",
-        ),
+    ctx = open_context(
+        strategy_key=str(getattr(hook_runtime, "strategy_name", "") or ""),
         settings=strategy,
-        data=StrategyData.build(
-            now=trigger_stamp(row),
-            stock_list=[sid] if sid else ["_"],
-            entity_id=sid,
-            items={
-                "previous_opportunity": previous,
-                "current_opportunity": row,
-                "opportunity_gap": gap,
-            },
-            opportunity=row.to_opportunity(),
-        ),
+        sample_list=[sid] if sid else [],
     )
-    return hook_runtime.call("is_new_opportunity", ctx) is True
+    return hook_runtime.call(
+        "is_new_opportunity",
+        ctx,
+        previous=previous,
+        gap=gap,
+    ) is True
 
 
 def _fill_price_investment(

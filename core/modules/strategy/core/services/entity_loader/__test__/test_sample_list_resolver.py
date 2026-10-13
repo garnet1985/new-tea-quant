@@ -42,7 +42,7 @@ class _FilterHooks(StrategyHooks):
         _ = ctx
         return [sid for sid in stock_list if sid.endswith(".SZ")] + ["ghost.SH"]
 
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
+    def is_opportunity(self, ctx: StrategyContext, records) -> bool:
         _ = ctx
         return False
 

@@ -1,7 +1,7 @@
 # 决策者模式：资金回测回放
 
 **状态：** 口径已锁定（2026-09-12）。会话引擎 + CLI REPL（`sd` / `sdl` / `sdd`）+ 走完 `finalize` 已落地。BFF D1 已挂（`/api/v1/strategy/.../decision/sessions`）。单策略 **决策模拟** 是制定策略第四步。跨策略（多策略一本账）**推迟到 0.5.1**，口径见 [DECISION_MAKER_CROSS.md](./DECISION_MAKER_CROSS.md)。  
-**一句话：** 决策模拟是 **当前策略** 的 `portfolio` 回放。用户唯一能改的是 **选谁**（`on_pick_portfolio_member`）、**买多少股**，以及可选的买入笔记；其余全部沿用资金回测。  
+**一句话：** 决策模拟是 **当前策略** 的 `portfolio` 回放。用户唯一能改的是 **选谁**（`select_portfolio_entries`）、**买多少股**，以及可选的买入笔记；其余全部沿用资金回测。  
 **位置：** NTQ 第四层；与 enumerate / price_factor / portfolio 同一 version。代码在 `core/engines/decision_maker/`。UI 步在制定策略 `/strategy-design/:strategy/decision`，不进入 `WorkbenchStep` / `simulate()`。
 
 ---
@@ -27,7 +27,7 @@
 
 ```text
 enum 机会 → 入场事件
-  → on_pick_portfolio_member / EntrySelector（选谁）
+  → select_portfolio_entries / EntrySelector（选谁）
   → AllocationStrategy（买多少）
   → 现金 / 手数 / 流动性 / 组合上限（硬约束）
   → 成交、止盈止损 / 到期（纪律）
@@ -39,14 +39,14 @@ enum 机会 → 入场事件
 | 谁决定 | 机器 | 决策者 |
 |--------|------|--------|
 | 机会从哪来 | 枚举结果 | 同一份枚举 |
-| 选谁进组合 | `on_pick_portfolio_member`，未 override 则 `EntrySelector` | **用户**（等价于当场 override 该钩子） |
+| 选谁进组合 | `select_portfolio_entries`，未 override 则 `EntrySelector` | **用户**（等价于当场 override 该钩子） |
 | 买多少股 | `AllocationStrategy`（equal_capital / equal_shares / kelly） | **用户提出股数** |
 | 成交价、费用 | 策略 / 资金层 | 不变 |
 | 现金、手数、流动性、`max_portfolio_size` | 硬约束 | **同一把硬尺**，超了下不成 |
 | 入场之后 | 止盈止损 / 到期，不可中途买卖 | **不可干预** |
 | 报告 | 日频盯市曲线 + 夏普 / Sortino / 回撤 / Calmar 等 | **同结构**；走完与机器 portfolio 对照 |
 
-钩子现状：`on_pick_portfolio_member` **不返回 sizing**。决策者不是改这个返回值形状，而是人同时承担「选谁」和「买多少」两步；股数仍过资金层同一套硬约束。
+钩子现状：`select_portfolio_entries` **不返回 sizing**。决策者不是改这个返回值形状，而是人同时承担「选谁」和「买多少」两步；股数仍过资金层同一套硬约束。
 
 ---
 

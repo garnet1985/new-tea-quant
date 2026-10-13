@@ -164,7 +164,7 @@ function WelcomePage() {
                 在您的
                 <Path>strategy.py</Path>
                 中，您需要实现
-                <Path>has_opportunity</Path>
+                <Path>is_opportunity</Path>
                 方法，这个方法就是您抽象出的量化规则：返回
                 <Path>True</Path>
                 代表当前股票当前时间点有机会，

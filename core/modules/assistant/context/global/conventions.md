@@ -177,11 +177,11 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 ## 策略钩子命名
 
-- 方法名：`snake_case`，如 `has_opportunity`、`on_before_scan`
+- 方法名：`snake_case`，如 `is_opportunity`、`on_calendar_slice`
 
 - `is_` 前缀：布尔判断，如 `is_stop_loss`、`is_take_profit`
 
-- `on_` 前缀：事件回调，如 `on_before_scan`、`on_after_scan`、`on_calendar_asof`、`on_pick_portfolio_member`
+- `on_` 前缀：事件回调，如 `on_calendar_slice`
 
 ## 配置字段命名
 
@@ -203,7 +203,7 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 - 数据缺失时返回 `None` 或空列表，不抛异常
 
-- 策略钩子里取数：`data = ctx.data.items_with_meta()`，`klines = data.get(ctx.base_data_key) or []`。`ctx.data` 不是函数
+- 策略钩子里取数：base 用 `records.latest`，其它 data key 用 `records.series(data_key)`
 
 - 指标在 `settings.data.base.indicators` 声明，钩子读 K 线字段。不要手写 EMA，不能对 dict 列表做减法
 

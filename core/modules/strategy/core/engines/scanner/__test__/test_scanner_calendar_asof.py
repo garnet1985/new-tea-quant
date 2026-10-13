@@ -32,13 +32,14 @@ def test_build_calendar_view_year_end() -> None:
 
 def test_filter_stock_ids_passthrough_without_asof_override() -> None:
     class _Hooks(StrategyHooks):
-        def has_opportunity(self, ctx):  # noqa: ANN001
+        def is_opportunity(self, ctx, records):  # noqa: ANN001
+            _ = records
             return False
 
     settings = StrategySettings.from_dict({})
     settings.apply_defaults()
     runtime = StrategyHookRuntime(_Hooks(), strategy_name="demo", settings=settings)
-    assert runtime.is_overridden("on_calendar_asof") is False
+    assert runtime.is_overridden("on_calendar_slice") is False
 
     info = SimpleNamespace(
         key="demo",

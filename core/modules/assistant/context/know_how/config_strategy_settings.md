@@ -92,13 +92,12 @@ settings = {
 
 - 静态表（如行业映射）→ 不按时间遍历（non\_time\_series）
 
-`ctx.data` 不是函数。钩子里：
+注入序列在 `records`，不在 `ctx`。base 直接取，其它 data key 用 `series`：
 
 ```python
-data = ctx.data.items_with_meta()
-klines = data.get(ctx.base_data_key) or []          # 当天及之前，前复权
-finance = data.get("stock.finance.quarterly") or [] # required 里声明的键
-today = ctx.record_of_today
+today = records.latest                              # base 最后一行，前复权
+klines = list(records.series())                     # 当天及之前
+finance = list(records.series("stock.finance.quarterly"))
 rsi14 = today.get("rsi14") if today else None       # 单列注入字段 {name}{length}
 ```
 
@@ -406,18 +405,17 @@ settings:
 strategy.py:
 
 ```python
-def is_stop_loss(self, ctx, *, custom, stage):
+def is_stop_loss(self, ctx, records, *, custom, stage):
     if custom == "below_ma20":
-        data = ctx.data.items_with_meta()
-        klines = data.get(ctx.base_data_key) or []
+        klines = records.last(20)
         if len(klines) >= 20:
-            ma20 = sum(b["close"] for b in klines[-20:]) / 20
+            ma20 = sum(b["close"] for b in klines) / 20
             return klines[-1]["close"] < ma20
     return False
 
-def is_take_profit(self, ctx, *, custom, stage):
+def is_take_profit(self, ctx, records, *, custom, stage):
     if custom == "rsi_overbought":
-        today = ctx.record_of_today
+        today = records.latest
         rsi = None if today is None else today.get("rsi14")
         return rsi is not None and rsi > 70
     return False

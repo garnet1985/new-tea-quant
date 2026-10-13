@@ -1,6 +1,6 @@
 # StrategyHooks / Context 重构（目标 0.6.0）
 
-**状态：** 设计中；**钩子改名 / Context 拆分仍不在当前版本实施**。  
+**状态：** 已落地。用户钩子改为显式载荷；`ctx.state` 是跨日袋；`remember` / `CalendarAsOfResult` / 扫描前后钩子已删除。  
 **已提前落地（本轮）：** `to_sample_list` + 指纹前 `SampleListResolver`（DB → sampling → 钩子 → sorted → `execute_fp.scope`）。  
 **范围（0.6.0）：** 用户可见钩子改名/删减 + Context 分类（含 `state`）与钩子专用载荷分离。  
 **相关讨论：** 2026-09 会话（随机策略简化 → 钩子表面 → ctx 与当次数据分离）。
@@ -21,7 +21,7 @@
 to_sample_list(ctx, stock_list) -> list[str]
 on_calendar_slice(ctx, calendar_slice) -> list[str]
 is_opportunity(ctx, records) -> bool
-select_portfolio_entries(ctx, opportunities) -> Sequence[Opportunity|str]
+select_portfolio_entries(ctx, opportunities) -> Sequence[Opportunity]
 is_stop_loss(ctx, records, *, custom, stage) -> bool    # custom/stage 仍建议保留，见 §4
 is_take_profit(ctx, records, *, custom, stage) -> bool
 ```
@@ -31,7 +31,7 @@ is_take_profit(ctx, records, *, custom, stage) -> bool
 | `to_sample_list` | **新增** | 整个回测 **一次**，**指纹生成之前** | 过滤全局宇宙 → ∩ DB 实可用 → 排序写入 `execute_fp.scope` 并钉进 `ctx.sample_list` |
 | `on_calendar_slice` | `on_calendar_asof` | 仅 `slice_based` 每个日历日 | 入参带当日片；返回进入 `is_opportunity` 的 id 列表；日期藏在 slice 里 |
 | `is_opportunity` | `has_opportunity` | 每实体每日 | `(ctx, records)`；bool；True 后框架建 `Opportunity` |
-| `select_portfolio_entries` | `on_pick_portfolio_member` | 组合入场 | `(ctx, opportunities)` → 机会或 id 列表；未 override 走默认 |
+| `select_portfolio_entries` | `on_pick_portfolio_member` | 组合入场 | `(ctx, opportunities)` → Opportunity 列表；未 override 走默认 |
 | `is_stop_loss` / `is_take_profit` | 同名 | goal 段 `custom` 时 | 见 §4；需要当日 `records` + 明确在评哪一段 custom |
 
 ### 删除（不对用户暴露）
@@ -79,7 +79,7 @@ is_take_profit(ctx, records, *, custom, stage) -> bool
 **`Records`（可叫 `data`）** — `is_opportunity` / stop-take  
 
 - 单只股票、当前 as-of 下各 DataKey 序列  
-- 快捷：`record_of_today`、`get_record(date)`、`get_records(start, end)`、`last(n)` 等  
+- 快捷在 `Series` 上：`latest`、`first`、`get_by_date`、`index_of`、`last`、`last_index_of`。base 直接写在 `records` 上，其它 key 用 `records.series(key)`  
 
 **`CalendarSlice`** — `on_calendar_slice`  
 

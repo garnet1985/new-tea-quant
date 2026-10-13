@@ -1,7 +1,7 @@
 """ScannerJobExecutor — 单日轴 lookback 加载 + scan hooks。
 
 本文件:
-- ScannerJobExecutor: RunCallbacks 面；on_tick 调 has_opportunity、贴板标注
+- ScannerJobExecutor: RunCallbacks 面；on_tick 调 is_opportunity、贴板标注
   边界: 负责 worker 内 scan 业务；不负责 Pipeline 缓存/adapters、BE batch 切分
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.hook_params import StrategyContext
+from core.modules.strategy.core.hooks.hook_params import Records, open_context
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 logger = logging.getLogger(__name__)
@@ -108,16 +108,11 @@ class ScannerJobExecutor:
             or ""
         ).strip()
 
-        scan_contexts: Dict[str, StrategyContext] = {}
-        for eid in entity_ids:
-            ctx = StrategyContext.assemble(
-                strategy_key=strategy_name,
-                settings=settings,
-                stock_list=[eid],
-                entity_id=eid,
-                entity_info={"id": eid, **stock_info.get(eid, {})},
-            )
-            scan_contexts[eid] = ctx
+        ctx = open_context(
+            strategy_key=strategy_name,
+            settings=settings,
+            sample_list=entity_ids,
+        )
 
         return {
             **loaded,
@@ -127,7 +122,7 @@ class ScannerJobExecutor:
                 "hook_runtime": hook_runtime,
                 "market_profile": str(meta.get("market_profile") or "").strip(),
                 "stock_info": stock_info,
-                "scan_contexts": scan_contexts,
+                "ctx": ctx,
                 "opportunities": [],
                 "scanned": False,
             },
@@ -164,30 +159,24 @@ class ScannerJobExecutor:
         sliced_by_entity = AsOfSlice.slice_contracts(entity_contracts, as_of)
         out: List[Opportunity] = runtime.setdefault("opportunities", [])
 
+        ctx = runtime.get("ctx")
+        if ctx is None:
+            runtime["scanned"] = True
+            return
+
         # —— 执行业务 ——
-        for eid, base_ctx in (runtime.get("scan_contexts") or {}).items():
+        for eid in (runtime.get("stock_info") or {}):
             per_entity = sliced_by_entity.get(eid) or {}
             complete = {**global_data, **per_entity} if global_data else dict(per_entity)
+            info = (runtime.get("stock_info") or {}).get(eid, {"id": eid})
+            records = Records(
+                entity_id=eid,
+                entity_info={"id": eid, **info},
+                items=complete,
+                base_data_key=base_key,
+            )
             try:
-                scan_ctx = StrategyContext.fill(
-                    base_ctx,
-                    now=as_of,
-                    items=complete,
-                    entity_id=eid,
-                    entity_info=base_ctx.data.entity_info,
-                )
-            except Exception as exc:
-                logger.error(
-                    "scanner StrategyContext.fill 失败 entity=%s: %s",
-                    eid,
-                    exc,
-                    exc_info=True,
-                )
-                continue
-
-            try:
-                hook_runtime.call_if_overridden("on_before_scan", scan_ctx)
-                opportunity = OpportunityFactory.resolve(hook_runtime, scan_ctx)
+                opportunity = OpportunityFactory.resolve(hook_runtime, ctx, records)
             except Exception as exc:
                 logger.error(
                     "scanner hooks 失败 entity=%s: %s",
@@ -226,24 +215,6 @@ class ScannerJobExecutor:
                         scan_date=as_of,
                     )
                     out.append(opportunity)
-
-            try:
-                after_ctx = StrategyContext.fill(
-                    base_ctx,
-                    now=as_of,
-                    items=complete,
-                    opportunity=opportunity,
-                    entity_id=eid,
-                    entity_info=base_ctx.data.entity_info,
-                )
-                hook_runtime.call_if_overridden("on_after_scan", after_ctx)
-            except Exception as exc:
-                logger.error(
-                    "on_after_scan 失败 entity=%s: %s",
-                    eid,
-                    exc,
-                    exc_info=True,
-                )
 
         runtime["scanned"] = True
 

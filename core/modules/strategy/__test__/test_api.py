@@ -11,7 +11,6 @@ from core.modules.strategy import Strategy
 from core.modules.strategy.core import strategy as strategy_mod
 from core.modules.strategy.contracts import (
     AsOfSlice,
-    CalendarAsOfResult,
     Investment,
     JobBundleLoader,
     Opportunity,
@@ -92,8 +91,6 @@ class TestStrategyApi(unittest.TestCase):
         self.assertEqual(StrategyContext.__name__, "StrategyContext")
         opp = Opportunity(stock={}, record_of_today={"close": 1.0})
         self.assertEqual(opp.trigger_price, 1.0)
-        result = CalendarAsOfResult(as_of_date="20240102", stocks=[])
-        self.assertEqual(result.session_state, {})
         self.assertTrue(Investment is not None)
         self.assertTrue(hasattr(AsOfSlice, "ready_date_by_entity"))
         self.assertTrue(hasattr(AsOfSlice, "slice_contracts"))

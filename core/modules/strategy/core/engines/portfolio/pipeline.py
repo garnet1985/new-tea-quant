@@ -1,7 +1,7 @@
 """Portfolio Pipeline — 资金/组合回放（无 BacktestEngine）。
 
 本文件:
-- PortfolioPipeline: enum → events → on_pick_portfolio_member → simulate → 落盘
+- PortfolioPipeline: enum → events → select_portfolio_entries → simulate → 落盘
   边界: 进程内事件流模拟；不用 BE / Timeline.drive（全局资金约束，无并行收益）
 """
 from __future__ import annotations

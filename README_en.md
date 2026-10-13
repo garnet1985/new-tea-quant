@@ -32,7 +32,7 @@ Recent updates:
 
 - **Parameter-matrix attribution:** the old single-run attribution is gone. Each backtest step can contrast the parameters in that strategy’s `attribution.py` and show how different values change the result. Every demo strategy now includes an example.
 - **Price backtest rebuilt:** a name is no longer locked while a position is open. Opportunities that sit too close together are dropped; ones that are far enough apart can be tracked in parallel. This is how you read overall profitability after the noise is filtered out.
-- **Portfolio selection:** when there are more opportunities than slots, `portfolio.allocation.opportunity_selection` can rank or weight them. If you implement `on_pick_portfolio_member`, that hook still wins.
+- **Portfolio selection:** when there are more opportunities than slots, `portfolio.allocation.opportunity_selection` can rank or weight them. If you implement `select_portfolio_entries`, that hook still wins.
 - Full list: [CHANGELOG.md](CHANGELOG.md). Decision simulation and the AI assistant shipped in v0.5.0.
 
 ## What is NTQ?
@@ -161,11 +161,11 @@ Add MACD on the base K-line:
 
 ---
 
-In **`strategy.py`**, entry on a single name is just `has_opportunity` (see the installed demo **RSI超跌反弹v1**). Slice filters, portfolio picks, and custom goals are optional:
+In **`strategy.py`**, entry on a single name is just `is_opportunity` (see the installed demo **RSI超跌反弹v1**). Slice filters, portfolio picks, and custom goals are optional:
 
-- **`has_opportunity(ctx)`:** is there a buy today for this stock? You see data **as of today**. Return `True` / `False` (`False` skips).
-- **`on_calendar_asof(ctx)`:** for **`slice_based`** mode. You see the full universe as of today, filter first, return stock ids; then `has_opportunity` runs on those ids.
-- **`on_pick_portfolio_member(ctx)`:** how to choose when there are more hits than open slots. Without the hook, set `portfolio.allocation.opportunity_selection` in `settings.py` to rank or weight fields. If the hook exists, it wins.
+- **`is_opportunity(ctx, records)`:** is there a buy today for this stock? `records` is the series as of today. Return `True` / `False` (`False` skips).
+- **`on_calendar_slice(ctx, calendar_slice)`:** for **`slice_based`** mode. You see today's cross-section, filter first, return stock ids; then `is_opportunity` runs on those ids.
+- **`select_portfolio_entries(ctx, opportunities)`:** how to choose when there are more hits than open slots. Without the hook, set `portfolio.allocation.opportunity_selection` in `settings.py` to rank or weight fields. If the hook exists, it wins.
 
 You can also customize goals: put `"custom": "rule_name"` and a human-readable `"description"` on a take-profit / stop-loss stage in `settings.py`, then implement **`is_take_profit`** / **`is_stop_loss`**.
 
@@ -174,69 +174,38 @@ You can also customize goals: put `"custom": "rule_name"` and a human-readable `
 
 ```python
 # Example: RSI below 20 counts as an opportunity:
-def has_opportunity(self, ctx: StrategyContext) -> bool:
-    # Daily bars for this name as of today (plus declared indicators); last row is today
-    klines_daily = ctx.data.items.get("stock.kline.daily") or []
-    if not klines_daily:
-        return False
-    # Last bar in the series is today
-    kline_today = klines_daily[-1]
-    # RSI from today's bar
-    rsi = kline_today.get("rsi14")
-    # Optional: record a custom live value. Settings knobs and declared indicator columns need not be captured
+def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
+    today = records.record_of_today or {}
+    rsi = today.get("rsi14")
     ctx.capture("rsi", rsi)
-
-    # True = there is an opportunity when RSI exists and is below 20
-    # In practice this 20 lives in settings.core so the UI can show it and you can vary the parameter
     return rsi is not None and rsi < 20
 ```
 
-- **`on_calendar_asof(ctx)`:** `slice_based` only. You see the full universe as of today, filter first; put the selected stock ids in `CalendarAsOfResult`, then `has_opportunity` runs on those ids.
+- **`on_calendar_slice(ctx, calendar_slice)`:** `slice_based` only. Filter today's cross-section and return stock ids; `is_opportunity` then runs on those ids.
 
 ```python
-# Example: pick the 3 names with the highest turnover today, then hand them to has_opportunity
-def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
-    today = str(ctx.data.now or "")
+# Example: pick the 3 names with the highest turnover today, then hand them to is_opportunity
+def on_calendar_slice(self, ctx: StrategyContext, calendar_slice: CalendarSlice) -> list[str]:
     ranked = []
-
-    # ctx.data.by_entity: every name in the universe, data as of today
-    for stock_id, payload in (ctx.data.by_entity or {}).items():
-        # Turnover is on daily indicators; declare stock.indicators.daily in settings.data.required
-        rows = payload.get("stock.indicators.daily") or []
+    for stock_id in calendar_slice.ids():
+        rows = calendar_slice.records_of(stock_id).items.get("stock.indicators.daily") or []
         if not rows:
             continue
-        # Last row is today
-        indicator_today = rows[-1]
-        turnover = indicator_today.get("turnover_rate")
+        turnover = rows[-1].get("turnover_rate")
         if turnover is None:
             continue
         ranked.append((turnover, stock_id))
-
-    # Highest turnover first, take top 3
     ranked.sort(reverse=True)
-    top3 = [stock_id for _, stock_id in ranked[:3]]
-
-    # CalendarAsOfResult: tell the framework which names you screened today
-    return CalendarAsOfResult(as_of_date=today, stocks=top3)
+    return [stock_id for _, stock_id in ranked[:3]]
 ```
 
-- **`on_pick_portfolio_member(ctx)`:** same job as above. Day to day, `opportunity_selection` in settings is enough. Implement this hook only when you need custom pick logic.
+- **`select_portfolio_entries(ctx, opportunities)`:** same job as above. Day to day, `opportunity_selection` in settings is enough. Implement this hook only when you need custom pick logic.
 
 ```python
 # Example: when there are many hits today, buy the 3 highest-priced names
-def on_pick_portfolio_member(self, ctx: StrategyContext):
-    # Opportunities scanned today that are not yet in the book
-    opportunities = ctx.data.items.get("opportunities") or []
-    # How many slots are left (open holdings already occupy slots)
-    remaining = (ctx.data.items.get("account") or {}).get("remaining_slots") or 0
-
-    ranked = []
-    for opp in opportunities:
-        # trigger_price: signal price for this name today (usually close)
-        price = opp.trigger_price
-        ranked.append((price, opp))
-
-    # Highest price first, take top 3, and do not exceed remaining slots
+def select_portfolio_entries(self, ctx: StrategyContext, opportunities: Opportunities):
+    remaining = opportunities.account.get("remaining_slots") or 0
+    ranked = [(opp.trigger_price, opp) for opp in opportunities]
     ranked.sort(key=lambda item: item[0], reverse=True)
     n = min(3, remaining)
     return [opp for _, opp in ranked[:n]]
@@ -250,15 +219,13 @@ Custom take-profit / stop-loss: put `"custom": "rule_name"` and `"description"` 
 
 # strategy.py
 # Example: take profit when the name is 20% above entry
-def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
+def is_take_profit(self, ctx: StrategyContext, records: Records, *, custom: str, stage) -> bool:
     if custom != "up_20pct":
         return False
 
-    # While a position is open, the framework hands you today's bar directly
-    bar = ctx.data.items.get("bar") or {}
+    bar = records.record_of_today or {}
     close = bar.get("close")
-    # Fill price at entry
-    entry_price = ctx.data.items.get("entry_price") or 0
+    entry_price = records.position.get("entry_price") or 0
     if close is None or not entry_price:
         return False
 

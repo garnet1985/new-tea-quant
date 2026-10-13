@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, Mapping, Optional
 
-from core.modules.strategy.core.hooks.hook_params import StrategyContext
+from core.modules.strategy.core.hooks.hook_params import Records
 
 _SKIP_FIELDS = frozenset(
     {
@@ -30,17 +30,17 @@ class AsOfSnapshot:
     """命中现场：base 最后一根 + 各 required 最后一行。"""
 
     @classmethod
-    def build(cls, ctx: StrategyContext) -> Dict[str, Any]:
+    def build(cls, records: Records, settings: Any) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
-        base_key = str(ctx.base_data_key or "").strip()
-        base_row = ctx.record_of_today
+        base_key = str(records.base_data_key or "").strip()
+        base_row = records.record_of_today
         if isinstance(base_row, dict):
             cls._absorb(out, base_row, prefix="")
         try:
-            declarations = ctx.settings.data.issue_declarations()
+            declarations = settings.data.issue_declarations()
         except (TypeError, ValueError, AttributeError):
             declarations = []
-        items = ctx.data.items if isinstance(ctx.data.items, Mapping) else {}
+        items = records.items if isinstance(records.items, Mapping) else {}
         for decl in declarations:
             if not isinstance(decl, dict):
                 continue

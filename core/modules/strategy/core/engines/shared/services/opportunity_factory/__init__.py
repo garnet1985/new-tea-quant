@@ -1,4 +1,4 @@
-"""OpportunityFactory — has_opportunity 命中后构建 Opportunity。
+"""OpportunityFactory — is_opportunity 命中后构建 Opportunity。
 
 消费者: scanner, enumerator
 """

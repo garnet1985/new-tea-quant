@@ -1,4 +1,4 @@
-"""Portfolio 入场挑选与 ``on_pick_portfolio_member`` 编排。
+"""Portfolio 入场挑选与 ``select_portfolio_entries`` 编排。
 
 本文件:
 - EntrySelector: 按 max_portfolio_size + 顺序选 Opportunity（不算 sizing）
@@ -19,7 +19,7 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.hooks.hook_params import StrategyContext, StrategyData, StrategyInfo
+from core.modules.strategy.core.hooks.hook_params import Opportunities, open_context
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 
@@ -134,7 +134,7 @@ class EntrySelector:
 
 @dataclass
 class EnterSelection:
-    """``on_pick_portfolio_member`` 编排：按日选仓并过滤事件。"""
+    """``select_portfolio_entries`` 编排：按日选仓并过滤事件。"""
 
     settings: StrategySettings
     strategy_name: str
@@ -232,21 +232,19 @@ class EnterSelection:
         snapshot = self.selector.account_snapshot(held_entity_ids)
         use_hook = (
             self.hook_runtime is not None
-            and self.hook_runtime.is_overridden("on_pick_portfolio_member")
+            and self.hook_runtime.is_overridden("select_portfolio_entries")
         )
         if use_hook:
-            ctx = StrategyContext(
-                strategy=StrategyInfo(key=self.strategy_name),
+            ctx = open_context(
+                strategy_key=self.strategy_name,
                 settings=self.settings,
-                data=StrategyData.build(
-                    now=str(date or "").strip(),
-                    items={
-                        "opportunities": opps,
-                        "account": snapshot,
-                    },
-                ),
+                sample_list=[],
             )
-            selected = self.hook_runtime.call("on_pick_portfolio_member", ctx)
+            selected = self.hook_runtime.call(
+                "select_portfolio_entries",
+                ctx,
+                Opportunities(opps, account=snapshot),
+            )
             return self.normalize_selected_ids(opps, selected)
 
         allocation = self.settings.portfolio.allocation

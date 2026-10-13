@@ -43,7 +43,7 @@ python cli.py -n my_rsi_strategy
 | 执行 | 当前步 **开始模拟** / **重新模拟** |
 | 右侧报告 | 该步跑完后的图和表 |
 
-点 **打开文件夹** 去改 `strategy.py`。UI 只调代码里已经暴露的参数，不能在网页里改 `has_opportunity`。
+点 **打开文件夹** 去改 `strategy.py`。UI 只调代码里已经暴露的参数，不能在网页里改 `is_opportunity`。
 
 ## 四步怎么走
 

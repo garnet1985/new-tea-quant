@@ -13,7 +13,7 @@ summary: 回测第一步：每个交易日对每只股票问有没有机会。
 
 ## 什么是枚举
 
-枚举是回测的第一步。NTQ 在回测时间窗口内，每个交易日对每只股票调用一次策略钩子 `has_opportunity(ctx)`，返回 `True` 表示发现交易机会。
+枚举是回测的第一步。NTQ 在回测时间窗口内，每个交易日对每只股票调用一次策略钩子 `is_opportunity(ctx, records)`，返回 `True` 表示发现交易机会。
 
 简单说：**你的策略在历史每一天、每只股票上，有没有发现机会？**
 
@@ -27,7 +27,7 @@ summary: 回测第一步：每个交易日对每只股票问有没有机会。
 
 - 信号日期
 
-- 信号快照（`signal_snapshot`）：用户在 `has_opportunity` 里通过 `ctx.capture(key, value)` 记录的值
+- 信号快照（`signal_snapshot`）：用户在 `is_opportunity` 里通过 `ctx.capture(key, value)` 记录的值
 
 ## 报告
 
@@ -49,11 +49,11 @@ summary: 回测第一步：每个交易日对每只股票问有没有机会。
 
 ## 钩子
 
-用户只需实现 `has_opportunity(ctx) -> bool`：
+用户只需实现 `is_opportunity(ctx, records) -> bool`：
 
 ```python
-def has_opportunity(self, ctx: StrategyContext) -> bool:
-    today = ctx.record_of_today
+def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
+    today = records.record_of_today
     if today is None:
         return False
     rsi = today.get("rsi14")  # 来自 settings.data.base.indicators
@@ -64,7 +64,7 @@ def has_opportunity(self, ctx: StrategyContext) -> bool:
     return rsi < 30
 ```
 
-`ctx.data` 不是函数。序列是当天及之前的历史（前复权）。指标在 settings 声明后写在 K 线上，见 [用技术指标](../../know_how/use_indicators.md)。`ctx.capture()` 记入报告的信号快照。
+序列在 `records`，是当天及之前的历史（前复权）。指标在 settings 声明后写在 K 线上，见 [用技术指标](../../know_how/use_indicators.md)。`ctx.capture()` 记入报告的信号快照。
 
 ## 关键设计
 

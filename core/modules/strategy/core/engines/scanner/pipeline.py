@@ -324,7 +324,7 @@ class ScannerPipeline:
         store = ArtifactStore.scan_at(strategy_folder, scan_date)
         use_cache = (not force) and store.has_summary()
 
-        # 横截面策略：先 asof 选股再扫，避免 has_opportunity 对全宇宙放行
+        # 横截面策略：先切片选股再扫，避免 is_opportunity 对全宇宙放行
         if not use_cache:
             stock_ids = ScannerCalendarAsof.filter_stock_ids(
                 strategy_info=strategy_info,

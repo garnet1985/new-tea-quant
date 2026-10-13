@@ -149,12 +149,14 @@ def test_held_entity_does_not_take_a_slot() -> None:
 
 def test_hook_ignores_selection() -> None:
     class PickLow(StrategyHooks):
-        def has_opportunity(self, ctx: StrategyContext) -> bool:
+        def is_opportunity(self, ctx: StrategyContext, records) -> bool:
+            _ = records
             return False
 
-        def on_pick_portfolio_member(
-            self, ctx: StrategyContext
+        def select_portfolio_entries(
+            self, ctx: StrategyContext, opportunities
         ) -> Sequence[Union[Opportunity, str]]:
+            _ = (ctx, opportunities)
             return ["low"]
 
     opps = [

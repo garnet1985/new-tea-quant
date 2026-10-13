@@ -22,6 +22,7 @@ dependencies:
 changelog:
   - version: "0.10.0"
     changes:
+      - 用户钩子改为显式载荷：is_opportunity、on_calendar_slice、select_portfolio_entries。跨日状态是 ctx.state。
       - 重新定义价格回测层。现在价格回测层是减少机会噪音后等全交易的普遍收益率。
       - 新增价格专用钩子 is_new_opportunity，默认实现为间隔合并。
       - 全新归因系统：cli加入全新命令 sea/spa/soa，新的归因配置。

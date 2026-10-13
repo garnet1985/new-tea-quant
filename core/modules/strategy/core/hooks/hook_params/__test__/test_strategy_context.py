@@ -1,4 +1,5 @@
-"""StrategyContext assemble / fill / refill 主线（钩子入参壳）。"""
+"""StrategyContext 与钩子载荷。"""
+
 from __future__ import annotations
 
 import pytest
@@ -6,118 +7,86 @@ import pytest
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.hooks.hook_params.strategy_context import (
-    StrategyContext,
-    StrategyData,
-    StrategyInfo,
+from core.modules.strategy.core.hooks.hook_params import (
+    CalendarSlice,
+    Records,
+    open_context,
 )
 
 pytestmark = pytest.mark.force_run
 
 
 def _settings() -> StrategySettings:
-    return StrategySettings.from_dict(
-        {
-            "simulation": {"execution": {"mode": "entity_based"}},
-            "data": {"base": {"data_key": "stock.kline.daily"}},
-        }
-    )
+    settings = StrategySettings.from_dict({})
+    settings.apply_defaults()
+    return settings
 
 
-def test_assemble_builds_shell_with_stock_list() -> None:
-    ctx = StrategyContext.assemble(
+def test_open_context_keeps_sample_list_and_mode() -> None:
+    ctx = open_context(
         strategy_key="demo/rsi",
         settings=_settings(),
-        stock_list=["000001.SZ", ""],
+        sample_list=["000001.SZ"],
         strategy_path="/tmp/demo",
     )
-    assert ctx.strategy.key == "demo/rsi"
-    assert ctx.strategy.path == "/tmp/demo"
-    assert list(ctx.data.stock_list) == ["000001.SZ"]
-    assert ctx.base_data_key == "stock.kline.daily"
+    assert ctx.info.key == "demo/rsi"
+    assert ctx.info.path == "/tmp/demo"
+    assert ctx.sample_list == ("000001.SZ",)
+    assert ctx.mode == "entity_based"
+    assert ctx.base_data_key
 
 
-def test_record_of_today_reads_last_base_bar() -> None:
-    base = StrategyContext.assemble(
+def test_state_is_a_shared_bag() -> None:
+    bag = {}
+    ctx = open_context(
         strategy_key="demo",
         settings=_settings(),
-        stock_list=["000001.SZ"],
+        sample_list=["000001.SZ"],
+        state=bag,
     )
-    assert base.record_of_today is None
-    filled = StrategyContext.fill(
-        base,
-        now="20240110",
-        items={
-            "stock.kline.daily": [
-                {"date": "20240109", "close": 10},
-                {"date": "20240110", "close": 11},
-            ]
-        },
-    )
-    assert filled.record_of_today == {"date": "20240110", "close": 11}
+    ctx.state["last_rsi"] = 28.5
+    assert bag["last_rsi"] == 28.5
+    assert ctx.state.get("missing") is None
 
 
-def test_fill_requires_assembled_stock_list() -> None:
-    bare = StrategyContext.assemble(
+def test_effective_settings_dict_is_cached() -> None:
+    ctx = open_context(
         strategy_key="demo",
         settings=_settings(),
-        stock_list=[],
+        sample_list=["000001.SZ"],
     )
-    with pytest.raises(ValueError, match="assemble"):
-        StrategyContext.fill(bare, now="20240110", items={})
+    assert ctx.effective_settings_dict() is ctx.effective_settings_dict()
 
 
-def test_fill_and_refill_share_custom_and_settings_cache() -> None:
-    base = StrategyContext.assemble(
-        strategy_key="demo",
-        settings=_settings(),
-        stock_list=["000001.SZ"],
-        custom={"flag": 1},
+def test_records_shortcuts() -> None:
+    rows = [
+        {"date": "20240109", "close": 10},
+        {"date": "20240110", "close": 11},
+        {"date": "20240111", "close": 12},
+    ]
+    records = Records(
+        entity_id="000001.SZ",
+        items={"k": rows},
+        base_data_key="k",
     )
-    d1 = base.effective_settings_dict()
-    filled = StrategyContext.fill(base, now="20240110", items={"k": []})
-    assert filled.custom is base.custom
-    assert filled.data.now == "20240110"
-    assert filled.effective_settings_dict() is d1
-
-    filled.refill(now="20240111", items={"k": [1]})
-    assert filled.data.now == "20240111"
-    assert filled.custom["flag"] == 1
+    assert records.record_of_today == {"date": "20240111", "close": 12}
+    assert records.get_record("20240110")["close"] == 11
+    assert [row["close"] for row in records.get_records("20240110", "20240111")] == [11, 12]
+    assert records.last(2) == rows[-2:]
+    assert Records(base_data_key="k").record_of_today is None
 
 
-def test_remember_recall_forget() -> None:
-    ctx = StrategyContext.assemble(
-        strategy_key="demo",
-        settings=_settings(),
-        stock_list=["000001.SZ"],
-    )
-    ctx.remember("last_rsi", 28.5)
-    assert ctx.recall("last_rsi") == 28.5
-    assert ctx.custom["last_rsi"] == 28.5
-    assert ctx.recall("missing") is None
-    assert ctx.recall("missing", 0) == 0
-    ctx.forget("last_rsi")
-    assert ctx.recall("last_rsi") is None
-    ctx.forget("missing")
+def test_calendar_slice_loads_on_read() -> None:
+    loaded = {"calls": 0}
 
+    def loader():
+        loaded["calls"] += 1
+        return {"000001.SZ": {"k": [{"date": "20240110", "close": 11}]}}
 
-def test_fill_shares_captures_bag() -> None:
-    base = StrategyContext.assemble(
-        strategy_key="demo",
-        settings=_settings(),
-        stock_list=["000001.SZ"],
-    )
-    filled = StrategyContext.fill(base, now="20240110", items={"k": []})
-    filled.capture("rsi", 12)
-    assert base.take_captures() == {"rsi": 12}
-    assert filled.take_captures() == {}
-
-
-def test_refill_without_stock_list_raises() -> None:
-    ctx = StrategyContext(
-        strategy=StrategyInfo(key="x"),
-        settings=_settings(),
-        data=StrategyData.build(stock_list=[]),
-    )
-    with pytest.raises(ValueError, match="assemble"):
-        ctx.refill(now="20240110")
+    calendar_slice = CalendarSlice(flags={"is_first_open_of_month": True}, base_data_key="k", loader=loader)
+    assert calendar_slice.is_first_open_of_month is True
+    assert loaded["calls"] == 0
+    assert calendar_slice.ids() == ["000001.SZ"]
+    assert calendar_slice.records_of("000001.SZ").record_of_today["close"] == 11
+    assert loaded["calls"] == 1
+    assert "as_of_date" not in calendar_slice.flags

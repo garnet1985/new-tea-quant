@@ -1,90 +1,35 @@
-"""用户钩子回调入参：StrategyContext 壳 + 嵌套只读块。
+"""用户钩子里全程一样的 ctx：身份、样本、跨日状态、归因。
 
-本文件:
-- StrategyInfo / StrategyData: 只读 dataclass
-- StrategyContext: strategy + settings + data + custom / captures
-  边界: 只读块由引擎组装；用户写口为 remember/recall/forget 与 capture
+当日 K 线、横截面和机会列表不在这里，它们是钩子入参。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
-from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
 
 
-def _freeze_map(raw: Optional[Mapping[str, Any]]) -> Mapping[str, Any]:
-    return MappingProxyType(dict(raw or {}))
-
-
 @dataclass(frozen=True)
 class StrategyInfo:
-    """策略身份（只读）。"""
+    """策略身份。"""
 
     key: str
     path: str = ""
 
 
-@dataclass(frozen=True)
-class StrategyData:
-    """运行数据（只读）。
-
-    - ``has_opportunity``：``items`` 为单实体 DataKey→rows；可带 ``entity_id`` / ``entity_info``
-    - ``on_calendar_asof``：``by_entity`` 为 entity_id→当日 payload；``calendar`` 为日历元数据
-    """
-
-    now: str = ""
-    stock_list: Tuple[str, ...] = ()
-    entity_id: str = ""
-    entity_info: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
-    items: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
-    by_entity: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
-    calendar: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
-    opportunity: Optional[Opportunity] = None
-
-    @staticmethod
-    def build(
-        *,
-        now: str = "",
-        stock_list: Optional[List[str]] = None,
-        entity_id: str = "",
-        entity_info: Optional[Mapping[str, Any]] = None,
-        items: Optional[Mapping[str, Any]] = None,
-        by_entity: Optional[Mapping[str, Any]] = None,
-        calendar: Optional[Mapping[str, Any]] = None,
-        opportunity: Optional[Opportunity] = None,
-    ) -> "StrategyData":
-        return StrategyData(
-            now=str(now or "").strip(),
-            stock_list=tuple(str(x).strip() for x in (stock_list or []) if str(x).strip()),
-            entity_id=str(entity_id or "").strip(),
-            entity_info=_freeze_map(entity_info),
-            items=_freeze_map(items),
-            by_entity=_freeze_map(by_entity),
-            calendar=_freeze_map(calendar),
-            opportunity=opportunity,
-        )
-
-    def items_with_meta(self) -> Dict[str, Any]:
-        """浅拷贝 items，并附带 now / stock_list（供 helpers 只读消费）。"""
-        out = dict(self.items)
-        out["now"] = self.now
-        out["stock_list"] = list(self.stock_list)
-        return out
-
-
 @dataclass
 class StrategyContext:
-    """钩子回调入参壳：只读块 + ``custom``（remember）+ 归因袋（capture）。"""
+    """开跑后相对稳定的上下文。"""
 
-    strategy: StrategyInfo
-    settings: StrategySettings
-    data: StrategyData
-    custom: Dict[str, Any] = field(default_factory=dict)
+    info: StrategyInfo
+    effective_settings: StrategySettings
+    sample_list: Tuple[str, ...] = ()
+    mode: str = ""
+    state: Dict[str, Any] = field(default_factory=dict)
     _cached_settings_dict: Optional[Dict[str, Any]] = field(
         default=None,
         init=False,
@@ -100,43 +45,22 @@ class StrategyContext:
 
     @property
     def base_data_key(self) -> str:
-        return self.settings.data.base_data_key
-
-    @property
-    def record_of_today(self) -> Optional[Dict[str, Any]]:
-        """当日 base bar：``data.items[base_data_key]`` 最后一行；无则 ``None``。"""
-        rows = self.data.items.get(self.base_data_key) or []
-        if not isinstance(rows, list) or not rows:
-            return None
-        record = rows[-1]
-        return record if isinstance(record, dict) else None
+        return self.effective_settings.data.base_data_key
 
     def effective_settings_dict(self) -> Dict[str, Any]:
-        """settings 的 dict 视图（缓存；热路径勿每 tick 调 ``settings.to_dict()``）。"""
+        """settings 的 dict 视图。同一 ctx 上缓存。"""
         cached = self._cached_settings_dict
         if cached is None:
-            cached = self.settings.to_dict()
+            cached = self.effective_settings.to_dict()
             self._cached_settings_dict = cached
         return cached
 
-    def remember(self, key: str, value: Any) -> None:
-        """写入本次回测内存袋（``custom``）；任务结束即释放。"""
-        self.custom[str(key)] = value
-
-    def recall(self, key: str, default: Any = None) -> Any:
-        """读取 ``remember`` 的值；缺 key 返回 ``default``。"""
-        return self.custom.get(str(key), default)
-
-    def forget(self, key: str) -> None:
-        """删除 ``remember`` 的值；缺 key 静默。"""
-        self.custom.pop(str(key), None)
-
     def capture(self, key: str, value: Any) -> None:
-        """记录本笔命中的逻辑层输入（归因）；不进 ``custom``。"""
+        """记下本笔命中的归因输入。"""
         self._captures[str(key)] = value
 
     def clear_captures(self) -> None:
-        """引擎：每次 ``has_opportunity`` 前清空归因袋。"""
+        """引擎：每次机会判定前清空归因袋。"""
         self._captures.clear()
 
     def take_captures(self) -> Dict[str, Any]:
@@ -145,106 +69,31 @@ class StrategyContext:
         self._captures.clear()
         return out
 
-    def with_data(self, data: StrategyData) -> "StrategyContext":
-        """引擎：换 data，共享 ``custom`` / captures 与 settings 缓存。"""
-        ctx = StrategyContext(
-            strategy=self.strategy,
-            settings=self.settings,
-            data=data,
-            custom=self.custom,
-        )
-        ctx._cached_settings_dict = self._cached_settings_dict
-        ctx._captures = self._captures
-        return ctx
 
-    def refill(
-        self,
-        *,
-        now: str,
-        items: Optional[Mapping[str, Any]] = None,
-        calendar: Optional[Mapping[str, Any]] = None,
-        entity_id: Optional[str] = None,
-        entity_info: Optional[Mapping[str, Any]] = None,
-        opportunity: Optional[Opportunity] = None,
-    ) -> "StrategyContext":
-        """热路径：就地替换 ``data``（保留 strategy / settings / custom / captures）。"""
-        stock_list = list(self.data.stock_list)
-        if not stock_list:
-            raise ValueError("StrategyContext.refill 要求已 assemble（含 stock_list）")
-        self.data = StrategyData.build(
-            now=now,
-            stock_list=stock_list,
-            entity_id=self.data.entity_id if entity_id is None else entity_id,
-            entity_info=self.data.entity_info if entity_info is None else entity_info,
-            items=items,
-            by_entity=self.data.by_entity,
-            calendar=self.data.calendar if calendar is None else calendar,
-            opportunity=opportunity,
-        )
-        return self
-
-    @classmethod
-    def assemble(
-        cls,
-        *,
-        strategy_key: str,
-        settings: StrategySettings,
-        stock_list: List[str],
-        strategy_path: str = "",
-        entity_id: str = "",
-        entity_info: Optional[Mapping[str, Any]] = None,
-        custom: Optional[Dict[str, Any]] = None,
-    ) -> "StrategyContext":
-        """0→1：建立壳（尚无当日 items / by_entity）。"""
-        return cls(
-            strategy=StrategyInfo(
-                key=str(strategy_key or "").strip(),
-                path=str(strategy_path or "").strip(),
-            ),
-            settings=settings,
-            data=StrategyData.build(
-                stock_list=stock_list,
-                entity_id=entity_id,
-                entity_info=entity_info,
-            ),
-            custom=dict(custom or {}),
-        )
-
-    @classmethod
-    def fill(
-        cls,
-        base: "StrategyContext",
-        *,
-        now: str,
-        items: Optional[Mapping[str, Any]] = None,
-        by_entity: Optional[Mapping[str, Any]] = None,
-        calendar: Optional[Mapping[str, Any]] = None,
-        entity_id: Optional[str] = None,
-        entity_info: Optional[Mapping[str, Any]] = None,
-        opportunity: Optional[Opportunity] = None,
-    ) -> "StrategyContext":
-        """1→1：基于 base 填当日只读 data（共享 custom / captures）。"""
-        if base is None:
-            raise ValueError("StrategyContext.fill 要求非空 base")
-        stock_list = list(base.data.stock_list)
-        if not stock_list:
-            raise ValueError("StrategyContext.fill 要求 base 已 assemble（含 stock_list）")
-        return base.with_data(
-            StrategyData.build(
-                now=now,
-                stock_list=stock_list,
-                entity_id=base.data.entity_id if entity_id is None else entity_id,
-                entity_info=base.data.entity_info if entity_info is None else entity_info,
-                items=items,
-                by_entity=by_entity if by_entity is not None else base.data.by_entity,
-                calendar=calendar if calendar is not None else base.data.calendar,
-                opportunity=opportunity,
-            )
-        )
+def open_context(
+    *,
+    strategy_key: str,
+    settings: StrategySettings,
+    sample_list: Optional[Sequence[str]] = None,
+    strategy_path: str = "",
+    state: Optional[Dict[str, Any]] = None,
+) -> StrategyContext:
+    """引擎开一个回测 ctx。``state`` 传入同一 dict 时跨调用共享。"""
+    ids = tuple(str(item).strip() for item in (sample_list or []) if str(item).strip())
+    try:
+        mode = str(getattr(settings, "execution_mode", "") or "").strip()
+    except Exception:
+        mode = ""
+    return StrategyContext(
+        info=StrategyInfo(
+            key=str(strategy_key or "").strip(),
+            path=str(strategy_path or "").strip(),
+        ),
+        effective_settings=settings,
+        sample_list=ids,
+        mode=mode,
+        state=state if state is not None else {},
+    )
 
 
-__all__ = [
-    "StrategyContext",
-    "StrategyData",
-    "StrategyInfo",
-]
+__all__ = ["StrategyContext", "StrategyInfo", "open_context"]

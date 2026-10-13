@@ -732,59 +732,44 @@ class Investment(Opportunity):
                 f"goal.{kind} stage custom={custom!r} 要求 override "
                 f"StrategyHooks.{method}"
             )
-        ctx = self._build_goal_hook_ctx(
-            as_of=as_of,
-            bar=bar,
-            stage=stage,
-            stage_index=stage_index,
-            kind=kind,
-        )
-        result = runtime.call(method, ctx, custom=custom, stage=stage)
+        ctx, records = self._goal_hook_args(as_of=as_of, bar=bar)
+        _ = (stage_index, kind)
+        result = runtime.call(method, ctx, records, custom=custom, stage=stage)
         return bool(result)
 
-    def _build_goal_hook_ctx(
-        self,
-        *,
-        as_of: str,
-        bar: Dict[str, Any],
-        stage: Any,
-        stage_index: int,
-        kind: str,
-    ):
-        from core.modules.strategy.core.hooks.hook_params import (
-            StrategyContext,
-            StrategyData,
-            StrategyInfo,
-        )
+    def _goal_hook_args(self, *, as_of: str, bar: Dict[str, Any]):
+        from core.modules.strategy.core.hooks.hook_params import Records, open_context
 
+        _ = as_of
         entity_id = self._entity_id()
         strategy_key = ""
         if self.hook_runtime is not None:
             strategy_key = str(getattr(self.hook_runtime, "strategy_name", "") or "")
         if not strategy_key:
             strategy_key = str((self.metadata or {}).get("strategy_name") or "").strip()
-        items = {
-            "bar": dict(bar),
-            "entry_price": float(self.entry.price or 0.0),
-            "entry_price_hfq": float(self.entry.price_hfq or 0.0),
-            "basis": self._hfq_basis(),
-            "remaining_ratio": float(self.runtime_state.remaining_ratio or 0.0),
-            "stage_index": int(stage_index),
-            "goal_kind": kind,
-            "triggered_stop_loss_ids": list(self.runtime_state.triggered_stop_loss_ids),
-            "triggered_take_profit_ids": list(self.runtime_state.triggered_take_profit_ids),
-        }
-        return StrategyContext(
-            strategy=StrategyInfo(key=strategy_key),
+        try:
+            base_key = str(self.settings.data.base_data_key or "").strip()
+        except Exception:
+            base_key = ""
+        ctx = open_context(
+            strategy_key=strategy_key,
             settings=self.settings,
-            data=StrategyData.build(
-                now=str(as_of or "").strip(),
-                stock_list=[entity_id] if entity_id else [],
-                entity_id=entity_id,
-                items=items,
-            ),
-            custom=self.runtime_state.customized_state,
+            sample_list=[entity_id] if entity_id else [],
+            state=self.runtime_state.customized_state,
         )
+        records = Records(
+            entity_id=entity_id,
+            entity_info={"id": entity_id} if entity_id else {},
+            items={base_key: [dict(bar)]} if base_key else {},
+            base_data_key=base_key,
+            position={
+                "entry_price": float(self.entry.price or 0.0),
+                "entry_price_hfq": float(self.entry.price_hfq or 0.0),
+                "basis": self._hfq_basis(),
+                "remaining_ratio": float(self.runtime_state.remaining_ratio or 0.0),
+            },
+        )
+        return ctx, records
     def _apply_take_profit_actions(self, stage: Any, bar: Dict[str, Any]) -> None:
         actions = tuple(getattr(stage, "actions", ()) or ())
         for action in actions:
@@ -1491,7 +1476,7 @@ class Investment(Opportunity):
     def to_opportunity(self) -> Opportunity:
         """投影为 Opportunity，剥离 lifecycle / entry / exit / goals / outcome 等结果字段。
 
-        供 ``on_pick_portfolio_member`` 等用户钩子使用，避免用结果数据作弊选仓。
+        供 ``select_portfolio_entries`` 等用户钩子使用，避免用结果数据作弊选仓。
         """
         return Opportunity(
             stock=StockInfo.from_dict(self.stock.to_dict()),

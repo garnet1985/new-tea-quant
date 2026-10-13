@@ -1166,19 +1166,19 @@ class _CustomTakeProfitHooks(StrategyHooks):
         self._trigger_keys = trigger_keys
         self.calls: list[str] = []
 
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
-        _ = ctx
+    def is_opportunity(self, ctx: StrategyContext, records) -> bool:
+        _ = (ctx, records)
         return True
 
-    def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage: Any) -> bool:
-        _ = (ctx, stage)
+    def is_take_profit(self, ctx: StrategyContext, records, *, custom: str, stage: Any) -> bool:
+        _ = (ctx, records, stage)
         self.calls.append(custom)
         return custom in self._trigger_keys
 
 
 class _DefaultHooks(StrategyHooks):
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
-        _ = ctx
+    def is_opportunity(self, ctx: StrategyContext, records) -> bool:
+        _ = (ctx, records)
         return True
 
 

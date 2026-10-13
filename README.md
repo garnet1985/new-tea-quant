@@ -163,11 +163,11 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 
 ---
 
-在 **`strategy.py`** 里，单股入场只需实现 `has_opportunity`（可对照安装后的演示策略 **RSI超跌反弹v1**）；切片筛选、组合挑选和自定义目标按需再写：
+在 **`strategy.py`** 里，单股入场只需实现 `is_opportunity`（可对照安装后的演示策略 **RSI超跌反弹v1**）；切片筛选、组合挑选和自定义目标按需再写：
 
-- **`has_opportunity(ctx)`**：当日该股票是否有买入机会。能读到「当前日期为止」的数据，做完计算后返回 `True` / `False`（没有机会就 `False`，框架跳过）。
-- **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤，返回要进入单股判定的股票 id 列表，随后对这些股票调用 `has_opportunity`。
-- **`on_pick_portfolio_member(ctx)`**：机会多于空位时的挑选。不写钩子时，用 `settings.py` 里的 `portfolio.allocation.opportunity_selection` 按字段排序或加权即可；写了钩子则以钩子为准。
+- **`is_opportunity(ctx, records)`**：当日该股票是否有买入机会。`records` 是截至今天的序列，做完计算后返回 `True` / `False`（没有机会就 `False`，框架跳过）。
+- **`on_calendar_slice(ctx, calendar_slice)`**：切片模式（`slice_based`）用。拿到当天的横截面，先做初步过滤，返回要进入单股判定的股票 id 列表，随后对这些股票调用 `is_opportunity`。
+- **`select_portfolio_entries(ctx, opportunities)`**：机会多于空位时的挑选。不写钩子时，用 `settings.py` 里的 `portfolio.allocation.opportunity_selection` 按字段排序或加权即可；写了钩子则以钩子为准。
 
 另外，您也可以自定义目标：在 `settings.py` 的某一段止盈 / 止损上写 `"custom": "规则名"` 和给人看的 `"description"`，再实现 **`is_take_profit`** / **`is_stop_loss`**，自行决定何时触发、触发后卖多少仓位。
 
@@ -176,70 +176,47 @@ NTQ 开发的动机是作者本来想自己研究量化，但是碍于市面上�
 
 ```python
 # 举例：如果RSI参数小于20就算是一个机会：
-def has_opportunity(self, ctx: StrategyContext) -> bool:
+def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
     # 当日这只股票的日 K（含 settings 里声明的指标）；最后一根就是今天
-    klines_daily = ctx.data.items.get("stock.kline.daily") or []
-    if not klines_daily:
-        return False
-    # 从所有K线中取最后一根，也就是今天的
-    kline_today = klines_daily[-1]
-    # 从今日的K线中读取RSI参数
-    rsi = kline_today.get("rsi14")  
+    today = records.record_of_today or {}
+    rsi = today.get("rsi14")
     # 可选：记下自定义现场量。settings 里已有的阈值、已声明的指标列不必再 capture
+    ctx.capture("rsi", rsi)
+    # 跨日变量放 ctx.state，例如 ctx.state["last_rsi"] = rsi
 
-    ctx.capture("rsi", rsi) 
-
-    # 如果 RSI 存在且小于 20 就返回 True 代表有机会 
+    # 如果 RSI 存在且小于 20 就返回 True 代表有机会
     # 通常来说，这个20是定义在settings.core里的，这样UI就可以看到并通过修改参数得到不同的结果
     return rsi is not None and rsi < 20
 ```
 
-- **`on_calendar_asof(ctx)`**：切片模式（`slice_based`）用。拿到当前日期为止、全部股票的数据，先做初步过滤；筛出的股票 id 放进 `CalendarAsOfResult` 返回，随后对这些股票调用 `has_opportunity`。
+- **`on_calendar_slice(ctx, calendar_slice)`**：切片模式（`slice_based`）用。拿到当天横截面，先做初步过滤，返回股票 id 列表，随后对这些股票调用 `is_opportunity`。
 
 ```python
-# 举例：选出当日换手率最高的 3 只股票，再交给 has_opportunity
-def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
-    today = str(ctx.data.now or "")
+# 举例：选出当日换手率最高的 3 只股票，再交给 is_opportunity
+def on_calendar_slice(self, ctx: StrategyContext, calendar_slice: CalendarSlice) -> list[str]:
     ranked = []
-
-    # ctx.data.by_entity：股票池里每一只、截至当天的数据
-    for stock_id, payload in (ctx.data.by_entity or {}).items():
-        # 换手率在日度指标里，需在 settings.data.required 声明 stock.indicators.daily
-        rows = payload.get("stock.indicators.daily") or []
+    for stock_id in calendar_slice.ids():
+        rows = calendar_slice.records_of(stock_id).items.get("stock.indicators.daily") or []
         if not rows:
             continue
-        # 最后一条就是今天
-        indicator_today = rows[-1]
-        turnover = indicator_today.get("turnover_rate")
+        turnover = rows[-1].get("turnover_rate")
         if turnover is None:
             continue
         ranked.append((turnover, stock_id))
 
-    # 按换手率从大到小排，取前 3 只
     ranked.sort(reverse=True)
-    top3 = [stock_id for _, stock_id in ranked[:3]]
-
-    # CalendarAsOfResult：告诉框架「今天筛出了哪些股票」
-    return CalendarAsOfResult(as_of_date=today, stocks=top3)
+    return [stock_id for _, stock_id in ranked[:3]]
 ```
 
-- **`on_pick_portfolio_member(ctx)`**：和上面同一件事。日常用 `opportunity_selection` 配置即可；需要自己写挑选逻辑时再实现这个钩子。
+- **`select_portfolio_entries(ctx, opportunities)`**：和上面同一件事。日常用 `opportunity_selection` 配置即可；需要自己写挑选逻辑时再实现这个钩子。
 
 ```python
 # 举例：当日机会很多时，挑价格最高的 3 只买入
-def on_pick_portfolio_member(self, ctx: StrategyContext):
-    # 当日扫出来、还没进组合的机会
-    opportunities = ctx.data.items.get("opportunities") or []
-    # 组合还剩几个空位（已持仓会占掉槽）
-    remaining = (ctx.data.items.get("account") or {}).get("remaining_slots") or 0
-
+def select_portfolio_entries(self, ctx: StrategyContext, opportunities: Opportunities):
+    remaining = (opportunities.account.get("remaining_slots") or 0)
     ranked = []
     for opp in opportunities:
-        # trigger_price：这只股票当日的信号价（通常是收盘价）
-        price = opp.trigger_price
-        ranked.append((price, opp))
-
-    # 按价格从高到低排，取前 3 只，且不超过剩余空位
+        ranked.append((opp.trigger_price, opp))
     ranked.sort(key=lambda item: item[0], reverse=True)
     n = min(3, remaining)
     return [opp for _, opp in ranked[:n]]
@@ -253,15 +230,13 @@ def on_pick_portfolio_member(self, ctx: StrategyContext):
 
 # strategy.py
 # 举例：相对买入价涨了 20% 就止盈
-def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
+def is_take_profit(self, ctx: StrategyContext, records: Records, *, custom: str, stage) -> bool:
     if custom != "up_20pct":
         return False
 
-    # 持仓监控时，框架直接给你今天这根 K 线
-    bar = ctx.data.items.get("bar") or {}
+    bar = records.record_of_today or {}
     close = bar.get("close")
-    # 买入成交价
-    entry_price = ctx.data.items.get("entry_price") or 0
+    entry_price = records.position.get("entry_price") or 0
     if close is None or not entry_price:
         return False
 

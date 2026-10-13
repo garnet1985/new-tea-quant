@@ -1,4 +1,4 @@
-"""PortfolioPipeline / on_pick_portfolio_member / EntrySelector 单测。"""
+"""PortfolioPipeline / select_portfolio_entries / EntrySelector 单测。"""
 
 from __future__ import annotations
 
@@ -239,14 +239,16 @@ def test_default_enter_selection_respects_max_portfolio_size():
     assert ids == {"a", "b"}
 
 
-def test_on_pick_portfolio_member_override_filters_by_id():
+def test_select_portfolio_entries_override_filters_by_id():
     class PickOne(StrategyHooks):
-        def has_opportunity(self, ctx: StrategyContext) -> bool:
+        def is_opportunity(self, ctx: StrategyContext, records) -> bool:
+            _ = records
             return False
 
-        def on_pick_portfolio_member(
-            self, ctx: StrategyContext
+        def select_portfolio_entries(
+            self, ctx: StrategyContext, opportunities
         ) -> Sequence[Union[Opportunity, str]]:
+            _ = (ctx, opportunities)
             return ["a"]
 
     opps = _keyed(("a", "600000.SH"), ("b", "600001.SH"))

@@ -1,6 +1,6 @@
 # StrategyHooks / Context 重构（目标 0.6.0）
 
-**状态：** 设计中；**钩子改名 / Context 拆分仍不在当前版本实施**。  
+**状态：** 已落地。用户钩子改为显式载荷；`ctx.state` 是跨日袋；`remember` / `CalendarAsOfResult` / 扫描前后钩子已删除。  
 **已提前落地（本轮）：** `to_sample_list` + 指纹前 `SampleListResolver`（DB → sampling → 钩子 → sorted → `execute_fp.scope`）。  
 **范围（0.6.0）：** 用户可见钩子改名/删减 + Context 分类（含 `state`）与钩子专用载荷分离。  
 **相关讨论：** 2026-09 会话（随机策略简化 → 钩子表面 → ctx 与当次数据分离）。

@@ -30,87 +30,39 @@ quota, data, or any right to new-tea.cn or its successor. The website's
 own terms and the credential a caller holds decide whether a call is
 accepted.
 
-Before any commercial use, remove the clients below, or replace their
-default endpoints with services you operate. A later written commercial
-license applies this duty unless that license says otherwise. After you
-edit files under core/ui/fed/src/, rebuild the UI. The bundle in
-core/ui/fed/build/ repeats these defaults and is not a second source.
+The clients that call new-tea.cn are the module
+core/modules/ntq_external. Before any commercial use, remove that
+module. A later written commercial license applies this duty unless
+that license says otherwise. Tests and docs that exist only for that
+module go with it.
 
-Tests and docs that only exist for a module listed here go with that
-module.
+The module contains:
 
-3.1 Member AI and the membership credential
+- conf/endpoints.py — the member-AI, feedback, and usage-report URLs,
+  and the contact-page URL shown by the feedback client
+- ai/ — member AI. When a membership token is present, chat and the
+  quota request go to the website. The token file stays at
+  userspace/system/membership/membership_token.txt. core/infra/membership/
+  only reads and writes that file. It does not call the website
+- feedback/ — a thumbs rating and optional short text posted to the
+  website
+- track/ — registers the usage-report URL with core/infra/trace.
+  Install reports are sent without a separate usage-stats choice.
+  core/infra/trace does not contain the website URL. After this module
+  is removed, Trace.track does not send
 
-Default endpoint: https://www.new-tea.cn/api/v1/ntq-ai
-Local credential file: userspace/system/membership/membership_token.txt
+After the module is removed, the assistant uses only a key configured
+by the user. Strategy, tag, and install code may still call
+Trace.track. That call does not reach the website.
 
-- core/modules/assistant/core/member_channel.py
-  DEFAULT_BASE_URL, and the quota request in fetch_member_quota.
-- core/modules/assistant/core/assistant_manager.py
-  Sends chat to that endpoint when a membership token is present.
-- core/bff/APIs/platform/assistant/implementer.py
-  Calls fetch_member_quota.
-- core/infra/membership/
-  Reads and writes the membership token file.
-- core/bff/APIs/platform/app_settings/routes.py
-  GET, PUT, and DELETE /v1/settings/membership.
-- core/bff/APIs/platform/app_settings/service.py
-  get_membership_settings, save_membership_settings, clear_membership_settings.
-- core/ui/fed/src/pages/settingsPage/settingsPage.js
-  Settings route "membership".
-- core/ui/fed/src/pages/settingsPage/settingsPanels.js
-  Membership panel, NtqProxyCard, and the register link
-  https://new-tea.cn/zh-hans/user/register.
-- core/ui/fed/src/api/settingsApi.js
-  /settings/membership client.
-- core/ui/fed/src/containers/assistantChatDock/assistantChatDock.js
-  MEMBER_REGISTER_URL and the link to /settings/membership.
+The UI is a separate bundle. Removing the module does not remove
+pages. Before commercial use, also remove or replace the screens that
+offer these hosted services: membership, feedback, and usage stats in
+settings; the feedback prompt; and the member-register link in the
+assistant. Then rebuild core/ui/fed. The bundle in core/ui/fed/build/
+repeats those screens and is not a second source.
 
-3.2 Feedback
-
-Default endpoint: POST https://www.new-tea.cn/api/v1/feedback
-
-- core/infra/feedback/core/defaults.py
-  FeedbackDefaults.TARGET_URL and CONTACT_URL.
-- core/infra/feedback/core/services/submit_service.py
-  Sends the request. NTQ_FEEDBACK_ENDPOINT overrides the URL.
-- core/infra/feedback/feedback.py
-- core/bff/APIs/platform/app_settings/service.py
-  get_feedback_settings, save_feedback_settings, note_feedback_task_success,
-  submit_feedback, feedback_prompt_action.
-- core/bff/APIs/platform/app_settings/routes.py
-  /v1/settings/feedback routes.
-- core/ui/fed/src/api/feedbackApi.js
-- core/ui/fed/src/service/feedbackPromptBus.js
-- core/ui/fed/src/containers/feedbackPrompt/feedbackPrompt.js
-- core/ui/fed/src/views/feedbackPromptOverlay/feedbackPromptOverlay.js
-- core/ui/fed/src/pages/settingsPage/settingsPage.js
-  Settings route "feedback".
-- core/ui/fed/src/pages/settingsPage/settingsPanels.js
-  Feedback settings panel.
-
-3.3 Anonymous usage traces
-
-Default endpoint: POST https://www.new-tea.cn/api/v1/traces
-
-- core/infra/trace/core/defaults.py
-  TraceDefaults.TARGET_URL. NTQ_TRACE_ENDPOINT overrides the URL.
-- core/modules/cli/user/main.py
-- core/modules/tag/core/tag.py
-  Both import Trace and can enqueue a report.
-- core/bff/APIs/platform/app_settings/service.py
-  get_trace_settings, save_trace_settings.
-- core/bff/APIs/platform/app_settings/routes.py
-  /v1/settings/trace routes.
-- core/ui/fed/src/views/traceConsentAskOverlay/traceConsentAskOverlay.js
-- core/ui/fed/src/containers/traceConsentGuard/traceConsentGuard.js
-- core/ui/fed/src/pages/setupPage/setupTracePage.js
-- core/ui/fed/src/pages/settingsPage/settingsPage.js
-  Settings route "trace".
-- core/ui/fed/src/api/settingsApi.js
-  /settings/trace client.
-
-3.4 Links that are not clients
+3.1 Links that are not clients
 
 The files below only open pages. Commercial use does not require every
 such string to be deleted. It does require that your product not send

@@ -4,7 +4,7 @@
 
 ## 模块内部分层
 
-- `core/defaults.py`：`TraceDefaults` — 内置 URL / 超时等**唯一源**
+- `core/defaults.py`：`TraceDefaults` — 超时、队列等引擎默认。官网地址在 `modules.ntq_external`
 - `contracts.py`：`TraceEvent` / `TraceConfig` / `TraceConsent` / `SendBudget`（默认值引用 TraceDefaults）
 - `core/services/*Service`：类静态方法
 - Facade `Trace`：唯一公开入口
@@ -15,7 +15,7 @@
 |------|------|------|
 | 入口 | 仅静态 Facade | 无需实例化 |
 | 默认开关 | opt-in，默认关 | 隐私；同意存 `system/config` 而非 `.ntq` |
-| 默认 URL | `TraceDefaults.TARGET_URL` | 单源；易发现 |
+| 默认 URL | `ntq_external` 登记 | trace 不内置官网地址；模块不在则不发送 |
 | 覆盖 | env > `trace.json` > defaults | 运维可改目标站，无需改代码 |
 | track | 立刻 POST；失败入队 | 短进程也能尽量送达 |
 | queue | 只写本地队列 | 非阻塞批量 |

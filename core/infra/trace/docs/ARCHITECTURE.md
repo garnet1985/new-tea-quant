@@ -40,7 +40,7 @@ Trace.track("install.complete", {"success": True})
 Trace.queue("app.session_start", {})
 Trace.send(budget="standard")
 # 内置默认 URL：
-# Trace.types.TraceDefaults.TARGET_URL
+# core.modules.ntq_external.conf.endpoints.TRACE_URL
 ```
 
 ## 数据流

@@ -57,7 +57,7 @@ class TestTraceApi(unittest.TestCase):
         self.assertIs(Trace.types.TraceEvent, TraceEvent)
         self.assertIs(Trace.types.TraceDefaults, TraceDefaults)
         self.assertFalse(hasattr(Trace.types, "FlushBudget"))
-        self.assertEqual(TraceConfig().target_url, TraceDefaults.TARGET_URL)
+        self.assertEqual(TraceConfig().target_url, "")
 
     def test_endpoint_env_override(self) -> None:
         prev = os.environ.get("NTQ_TRACE_ENDPOINT")

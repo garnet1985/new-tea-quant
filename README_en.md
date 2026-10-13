@@ -557,7 +557,7 @@ Prefer an explicit `--strategy` (use `meta.key`); add `-f` to force recalculatio
 <a id="license"></a>
 ## License & support
 
-- **License:** [NTQ License](LICENSE) (from 0.6.0: non-commercial use follows the Apache 2.0 terms; commercial use needs a separate written license. Releases through 0.5.x stay Apache 2.0.) Section 3 lists the hosted-service clients to remove before commercial use, with file paths. Section 5 covers usage reports and when consent is required. · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **License:** [NTQ License](LICENSE) (from 0.6.0: non-commercial use follows the Apache 2.0 terms; commercial use needs a separate written license. Releases through 0.5.x stay Apache 2.0.) Section 3 requires removing `core/modules/ntq_external` before commercial use. Section 5 covers usage reports and when consent is required. · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **Feedback / contribute:** [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
 - **Website:** [new-tea.cn](https://new-tea.cn) · **Tutorials:** [More examples](https://new-tea.cn/zh-hans/more-examples)
 

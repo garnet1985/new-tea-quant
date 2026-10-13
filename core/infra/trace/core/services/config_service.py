@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 from ...contracts import TraceConfig
 from ..defaults import TraceDefaults
 from .consent_service import TraceConsentService
+from .endpoint_service import TraceEndpointService
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +23,15 @@ class TraceConfigService:
 
     @staticmethod
     def load() -> TraceConfig:
+        TraceEndpointService.ensure()
         base = TraceDefaults.as_dict()
         overlay = TraceConfigService._load_userspace_overrides()
         merged = {**base, **overlay}
 
         target_url = (
             TraceConfigService._env_str("NTQ_TRACE_ENDPOINT")
-            or str(merged.get("target_url") or TraceDefaults.TARGET_URL)
+            or str(merged.get("target_url") or "")
+            or TraceEndpointService.url()
         )
         timeout = TraceConfigService._env_float("NTQ_TRACE_TIMEOUT")
         if timeout is None:

@@ -22,7 +22,7 @@ terms:
       - "与 UI 请求排障 traceId 混淆"
 
   TraceDefaults:
-    definition: "模块内置默认值唯一源（含 TARGET_URL）；见 core/defaults.py。"
+    definition: "引擎默认值（超时、队列）。官网地址不在这里，由 modules.ntq_external 登记。"
     aliases:
       - "core/defaults.py"
       - "Trace.types.TraceDefaults"
@@ -30,7 +30,7 @@ terms:
       - "在 config_service / contracts 再硬编码同一 URL"
 
   target_url:
-    definition: "上报 POST 地址。默认 TraceDefaults.TARGET_URL；可被 userspace/system/config/trace.json 或 NTQ_TRACE_ENDPOINT 覆盖。"
+    definition: "上报 POST 地址。由 ntq_external 登记；可被 userspace/system/config/trace.json 或 NTQ_TRACE_ENDPOINT 覆盖。没登记则不发送。"
     aliases:
       - "NTQ_TRACE_ENDPOINT"
       - "ingest endpoint"

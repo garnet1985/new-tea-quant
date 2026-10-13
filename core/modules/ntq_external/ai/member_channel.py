@@ -9,8 +9,8 @@ import urllib.request
 from typing import Optional
 
 from core.infra.project_context import ProjectContext
+from core.modules.ntq_external.conf.endpoints import AI_BASE_URL
 
-DEFAULT_BASE_URL = "https://www.new-tea.cn/api/v1/ntq-ai"
 ENV_BASE_URL = "NTQ_MEMBER_AI_BASE_URL"
 CONFIG_NAME = "membership.json"
 PROVIDER_ID = "ntq"
@@ -25,7 +25,7 @@ def member_token() -> Optional[str]:
 
 
 def member_base_url() -> str:
-    """官网 AI 根地址。环境变量优先，其次 userspace 配置，否则官网。"""
+    """官网 AI 根地址。环境变量优先，其次 userspace 配置，否则 conf。"""
     env = os.environ.get(ENV_BASE_URL, "").strip()
     if env:
         return _clean_base(env)
@@ -39,7 +39,7 @@ def member_base_url() -> str:
             raw = str(data.get("ai_base_url") or "").strip()
             if raw:
                 return _clean_base(raw)
-    return DEFAULT_BASE_URL
+    return AI_BASE_URL
 
 
 def fetch_member_quota() -> Optional[dict]:
@@ -78,4 +78,4 @@ def _clean_base(value: str) -> str:
     text = str(value or "").strip().rstrip("/")
     if text.startswith("http://") or text.startswith("https://"):
         return text
-    return DEFAULT_BASE_URL
+    return AI_BASE_URL

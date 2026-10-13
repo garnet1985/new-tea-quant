@@ -82,7 +82,11 @@ class FeedbackSubmitService:
     @staticmethod
     def _target_url() -> str:
         env = (os.environ.get("NTQ_FEEDBACK_ENDPOINT") or "").strip()
-        return env or FeedbackDefaults.TARGET_URL
+        if env:
+            return env
+        from core.modules.ntq_external.conf.endpoints import FEEDBACK_URL
+
+        return FEEDBACK_URL
 
     @staticmethod
     def _timeout_sec() -> float:

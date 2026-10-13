@@ -562,7 +562,7 @@ python cli.py t  --scenario market_cap_tier   # 特征标签
 <a id="license"></a>
 ## 许可与支持
 
-- **许可证**：[NTQ 许可证](LICENSE)（0.6.0 起：非商用沿用 Apache 2.0 条款，商用需另行书面授权；0.5.x 已发布版本仍是 Apache 2.0）。商用前要去掉的官网客户端和文件位置见许可证第 3 节。使用报告的范围和同意规则见第 5 节。· **变更**：[CHANGELOG.md](CHANGELOG.md)
+- **许可证**：[NTQ 许可证](LICENSE)（0.6.0 起：非商用沿用 Apache 2.0 条款，商用需另行书面授权；0.5.x 已发布版本仍是 Apache 2.0）。商用前要去掉的官网客户端是 `core/modules/ntq_external`，见许可证第 3 节。使用报告的范围和同意规则见第 5 节。· **变更**：[CHANGELOG.md](CHANGELOG.md)
 - **反馈 / 贡献**：[SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
 - **官网**：[new-tea.cn](https://new-tea.cn) · **教程**：[更多用例](https://new-tea.cn/zh-hans/more-examples)
 

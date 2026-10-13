@@ -34,8 +34,9 @@
 
 ### v0.6.0 (TBD)
 
-- 0.6.0 起改用 NTQ 许可证：非商用沿用 Apache 2.0 条款，商用需书面授权，并须去掉会员 AI、反馈、使用统计等打到 new-tea.cn 的客户端。
+- 0.6.0 起改用 NTQ 许可证：非商用沿用 Apache 2.0 条款，商用需书面授权，并须去掉 `core/modules/ntq_external`（会员 AI、反馈、使用统计等打到 new-tea.cn 的客户端）。
 - 在安装集成同意条款的选择，用户必须同意使用条款才能安装使用。使用统计包含在条款里，安装结束不再单独询问；设置里已经关过的保持关闭。
+- 官网客户端收进 `core/modules/ntq_external`：会员 AI 通道、反馈、trace 上报地址。`infra.trace` 不再内置官网地址；这个模块不在时 `Trace.track` 不发送。
 - 升级python最小支持到3.11，不再支持3.9和3.10
 - 升级duckdb到1.5.6
 - 升级其他依赖对齐当前稳定版：PyMySQL 1.2.3、psycopg2-binary 2.9.13、requests 2.34.2、urllib3 2.8、Flask-CORS 6.0.5、NumPy 2.4.6、SciPy 1.17.1、pandas-ta-classic 0.8.32。UI 最小依赖改为 Flask 3.1，不再单独锁 Flask 2.3

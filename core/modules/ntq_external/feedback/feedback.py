@@ -57,7 +57,9 @@ class Feedback:
 
     @staticmethod
     def contact_url() -> str:
-        return str(FeedbackDefaults.CONTACT_URL)
+        from core.modules.ntq_external.conf.endpoints import CONTACT_URL
+
+        return str(CONTACT_URL)
 
 
 __all__ = ["Feedback"]

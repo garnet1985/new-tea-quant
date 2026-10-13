@@ -249,7 +249,7 @@ def test_select_portfolio_entries_override_filters_by_id():
             self, ctx: StrategyContext, opportunities
         ) -> Sequence[Union[Opportunity, str]]:
             _ = (ctx, opportunities)
-            return ["a"]
+            return ["600000.SH:a"]
 
     opps = _keyed(("a", "600000.SH"), ("b", "600001.SH"))
     events = [
@@ -279,6 +279,6 @@ def test_select_portfolio_entries_override_filters_by_id():
 
 def test_normalize_selected_ids_rejects_unknown():
     available = [_opp("a", "x")]
-    assert EnterSelection.normalize_selected_ids(available, ["a", "ghost", "a"]) == [
-        "x:a"
-    ]
+    assert EnterSelection.normalize_selected_ids(
+        available, ["x:a", "a", "ghost", "x:a"]
+    ) == ["x:a"]

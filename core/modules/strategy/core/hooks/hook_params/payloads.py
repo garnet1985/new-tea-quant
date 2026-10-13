@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
-_HIDDEN_FLAGS = frozenset({"as_of_date", "session_state"})
+_HIDDEN_FLAGS = frozenset({"as_of_date"})
 
 
 def _freeze(raw: Optional[Mapping[str, Any]]) -> Mapping[str, Any]:

@@ -157,7 +157,7 @@ def test_hook_ignores_selection() -> None:
             self, ctx: StrategyContext, opportunities
         ) -> Sequence[Union[Opportunity, str]]:
             _ = (ctx, opportunities)
-            return ["low"]
+            return ["S1:low"]
 
     opps = [
         _opp("low", "S1", {"close": 1}),

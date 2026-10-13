@@ -120,7 +120,7 @@ class EntrySelector:
         ]
 
     def account_snapshot(self, held_entity_ids: Set[str]) -> Dict[str, Any]:
-        """供钩子 ctx['account'] 使用的容量快照。"""
+        """供 ``Opportunities.account`` 使用的容量快照。"""
         held = sorted(
             str(x or "").strip() for x in held_entity_ids if str(x or "").strip()
         )
@@ -162,42 +162,24 @@ class EnterSelection:
         available: Sequence[Opportunity],
         selected: Optional[Sequence[Any]],
     ) -> List[str]:
-        """将钩子返回值规范为 selection_key 列表（仅保留当日 available 内的 id）。"""
+        """将钩子返回值规范为 selection_key 列表（仅保留当日 available 内的 id）。
+
+        字符串必须是机会上的 id（``entity_id:investment_id``）。
+        """
         available_ids = {
             EntrySelector.opportunity_selection_key(opp)
             for opp in available
             if EntrySelector.opportunity_selection_key(opp)
         }
-        # 兼容钩子只返回裸 investment_id
-        bare_to_keys: Dict[str, List[str]] = {}
-        for opp in available or []:
-            bare = EntrySelector.opportunity_id(opp)
-            key = EntrySelector.opportunity_selection_key(opp)
-            if bare and key:
-                bare_to_keys.setdefault(bare, []).append(key)
         out: List[str] = []
         seen: Set[str] = set()
         for item in selected or []:
-            oid = ""
             if isinstance(item, Opportunity):
                 oid = EntrySelector.opportunity_selection_key(item)
             elif isinstance(item, str):
                 oid = item.strip()
-            elif isinstance(item, dict):
-                meta = item.get("meta") if isinstance(item.get("meta"), dict) else {}
-                oid = str(
-                    meta.get("opportunity_id") or item.get("opportunity_id") or ""
-                ).strip()
-                eid = ""
-                stock = item.get("stock") if isinstance(item.get("stock"), dict) else {}
-                if stock:
-                    eid = str(stock.get("id") or "").strip()
-                if oid and eid and ":" not in oid:
-                    oid = EntrySelector.selection_key(eid, oid)
-            if oid and oid not in available_ids and oid in bare_to_keys:
-                # 裸 id 仅当日唯一时可展开
-                keys = bare_to_keys[oid]
-                oid = keys[0] if len(keys) == 1 else ""
+            else:
+                continue
             if not oid or oid not in available_ids or oid in seen:
                 continue
             seen.add(oid)

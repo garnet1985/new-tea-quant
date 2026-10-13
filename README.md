@@ -11,7 +11,7 @@
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-NTQ%20%7C%20commercial%20by%20authorization-007EC6"></a>
 </p>
 
 > For an English introduction, please see **[here](README_en.md)**.
@@ -354,7 +354,7 @@ NTQ 本身免费开源，但部分能力依赖您自备资源：
 - **数据**：框架提供接入与存储能力，**不含**数据源的付费账号或 token；需在第三方平台注册/购买后自行配置。
 - **通知**：短信、邮件、推送等**不在框架内**，用[适配器](core/modules/adapter/README.md)自己接。
 
-更完整的教程见官网 [更多用例](https://new-tea.cn/zh-hans/more-examples)（中文）。许可见文末 [Apache 2.0](LICENSE)（[许可与支持](#license)）。
+更完整的教程见官网 [更多用例](https://new-tea.cn/zh-hans/more-examples)（中文）。许可见文末 [NTQ 许可证](LICENSE)（[许可与支持](#license)）。
 
 <a id="quick-start"></a>
 ## 快速安装 + 运行一个策略
@@ -563,11 +563,11 @@ python cli.py t  --scenario market_cap_tier   # 特征标签
 <a id="license"></a>
 ## 许可与支持
 
-- **许可证**：[Apache 2.0](LICENSE) · **变更**：[CHANGELOG.md](CHANGELOG.md)
+- **许可证**：[NTQ 许可证](LICENSE)（0.6.0 起：非商用沿用 Apache 2.0 条款，商用需另行书面授权；0.5.x 已发布版本仍是 Apache 2.0）。商用前要去掉的官网客户端和文件位置见许可证第 3 节。使用报告的范围和同意规则见第 5 节。· **变更**：[CHANGELOG.md](CHANGELOG.md)
 - **反馈 / 贡献**：[SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
 - **官网**：[new-tea.cn](https://new-tea.cn) · **教程**：[更多用例](https://new-tea.cn/zh-hans/more-examples)
 
-**免责声明**：仅供学习与研究，不构成投资建议；回测结果不代表未来表现。
+**免责声明**：NTQ 是策略研究工具，不构成任何投资决策。随软件提供的策略和数据都是演示。作者不对用户的投资行为及盈亏负责。详见 [NTQ 许可证](LICENSE) 第 4 节。
 
 <details>
 <summary>开发者附录（分支、devcli、测试、文档索引）</summary>

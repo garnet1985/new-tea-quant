@@ -1,3 +1,216 @@
+New Tea Quant License
+Applies to version 0.6.0 and later.
+Copyright holder: Garnet Xin
+
+This file is the license for New Tea Quant (NTQ) from version 0.6.0 onward.
+It is not the Apache License. Do not call it Apache-2.0 or Apache License 2.0.
+
+1. Non-commercial use
+
+Personal learning, personal research, academic use, and a person running
+backtests or scans for their own account are non-commercial.
+
+For non-commercial use only, the terms of the Apache License, Version 2.0
+reproduced below apply. Where those terms say "the License", read them as
+this non-commercial grant, not as a grant of commercial use.
+
+2. Commercial use
+
+Commercial use needs a separate written license from the copyright holder
+before that use starts. Commercial use includes a company or other
+organization using the software in its business, and offering the software
+or a service built on it to others for a fee.
+
+Ask for that license at https://new-tea.cn/zh-hans/contact
+
+3. Website and hosted services
+
+This license covers the software only. It does not grant an account, a
+quota, data, or any right to new-tea.cn or its successor. The website's
+own terms and the credential a caller holds decide whether a call is
+accepted.
+
+Before any commercial use, remove the clients below, or replace their
+default endpoints with services you operate. A later written commercial
+license applies this duty unless that license says otherwise. After you
+edit files under core/ui/fed/src/, rebuild the UI. The bundle in
+core/ui/fed/build/ repeats these defaults and is not a second source.
+
+Tests and docs that only exist for a module listed here go with that
+module.
+
+3.1 Member AI and the membership credential
+
+Default endpoint: https://www.new-tea.cn/api/v1/ntq-ai
+Local credential file: userspace/system/membership/membership_token.txt
+
+- core/modules/assistant/core/member_channel.py
+  DEFAULT_BASE_URL, and the quota request in fetch_member_quota.
+- core/modules/assistant/core/assistant_manager.py
+  Sends chat to that endpoint when a membership token is present.
+- core/bff/APIs/platform/assistant/implementer.py
+  Calls fetch_member_quota.
+- core/infra/membership/
+  Reads and writes the membership token file.
+- core/bff/APIs/platform/app_settings/routes.py
+  GET, PUT, and DELETE /v1/settings/membership.
+- core/bff/APIs/platform/app_settings/service.py
+  get_membership_settings, save_membership_settings, clear_membership_settings.
+- core/ui/fed/src/pages/settingsPage/settingsPage.js
+  Settings route "membership".
+- core/ui/fed/src/pages/settingsPage/settingsPanels.js
+  Membership panel, NtqProxyCard, and the register link
+  https://new-tea.cn/zh-hans/user/register.
+- core/ui/fed/src/api/settingsApi.js
+  /settings/membership client.
+- core/ui/fed/src/containers/assistantChatDock/assistantChatDock.js
+  MEMBER_REGISTER_URL and the link to /settings/membership.
+
+3.2 Feedback
+
+Default endpoint: POST https://www.new-tea.cn/api/v1/feedback
+
+- core/infra/feedback/core/defaults.py
+  FeedbackDefaults.TARGET_URL and CONTACT_URL.
+- core/infra/feedback/core/services/submit_service.py
+  Sends the request. NTQ_FEEDBACK_ENDPOINT overrides the URL.
+- core/infra/feedback/feedback.py
+- core/bff/APIs/platform/app_settings/service.py
+  get_feedback_settings, save_feedback_settings, note_feedback_task_success,
+  submit_feedback, feedback_prompt_action.
+- core/bff/APIs/platform/app_settings/routes.py
+  /v1/settings/feedback routes.
+- core/ui/fed/src/api/feedbackApi.js
+- core/ui/fed/src/service/feedbackPromptBus.js
+- core/ui/fed/src/containers/feedbackPrompt/feedbackPrompt.js
+- core/ui/fed/src/views/feedbackPromptOverlay/feedbackPromptOverlay.js
+- core/ui/fed/src/pages/settingsPage/settingsPage.js
+  Settings route "feedback".
+- core/ui/fed/src/pages/settingsPage/settingsPanels.js
+  Feedback settings panel.
+
+3.3 Anonymous usage traces
+
+Default endpoint: POST https://www.new-tea.cn/api/v1/traces
+
+- core/infra/trace/core/defaults.py
+  TraceDefaults.TARGET_URL. NTQ_TRACE_ENDPOINT overrides the URL.
+- core/modules/cli/user/main.py
+- core/modules/tag/core/tag.py
+  Both import Trace and can enqueue a report.
+- core/bff/APIs/platform/app_settings/service.py
+  get_trace_settings, save_trace_settings.
+- core/bff/APIs/platform/app_settings/routes.py
+  /v1/settings/trace routes.
+- core/ui/fed/src/views/traceConsentAskOverlay/traceConsentAskOverlay.js
+- core/ui/fed/src/containers/traceConsentGuard/traceConsentGuard.js
+- core/ui/fed/src/pages/setupPage/setupTracePage.js
+- core/ui/fed/src/pages/settingsPage/settingsPage.js
+  Settings route "trace".
+- core/ui/fed/src/api/settingsApi.js
+  /settings/trace client.
+
+3.4 Links that are not clients
+
+The files below only open pages. Commercial use does not require every
+such string to be deleted. It does require that your product not send
+its users to these pages as its registration, support, contact, or
+data-download channel, and that it not present itself as official NTQ.
+
+- core/ui/fed/src/views/appNav/appNav.js
+  Contact link https://new-tea.cn/zh-hans/contact?from=ntq_app.
+- core/ui/fed/src/pages/welcomePage/welcomePage.js
+  Documentation links under https://new-tea.cn/zh-hans/.
+- README.md and README_en.md
+  Member download, contact, and tutorial links. The larger data pack is
+  not downloaded by code; those files tell the user to fetch it from the
+  member page.
+- docs/README.md
+- core/modules/assistant/context/know_how/configure_ai_key.md
+
+There is no other built-in client in this repository that calls
+new-tea.cn. If you add one, it is covered by this section.
+
+4. Research tool, not an investment decision
+
+NTQ is a strategy research tool. It does not decide, recommend, or
+advise any investment. Nothing the software shows — a scan, a backtest,
+a report, a score, or a chart — is an investment decision or an offer
+to buy or sell any security, futures contract, fund, or other financial
+product.
+
+Every strategy shipped with NTQ is a demonstration. Every dataset
+shipped with NTQ, including the demo pack and any sample series, is a
+demonstration. They show how the tool works. They are not a suggestion
+to trade, and they are not a promise of any result.
+
+You alone decide whether to invest, what to invest in, and when. The
+copyright holder and contributors are not responsible for any investment
+action you take, or for any gain or loss that follows, even if you used
+NTQ while making that decision.
+
+5. Usage reports
+
+NTQ may send anonymous usage reports to the copyright holder's service.
+They show how the tool is used and where it fails, so the software can
+be improved. They are not an investment decision, and they are not a
+record of what you trade.
+
+Reports of how you use the software are sent only after you agree. You
+can turn them off at any time. Turning them off stops later reports of
+that kind and drops reports still waiting on the machine. A launch
+setting on that machine can force reports on or off. The default is off
+until you agree, except for the install report below.
+
+The install report is sent while NTQ is being installed, including when
+you have not been asked yet, and including when you later decline. It
+exists so a failed install can still be seen.
+
+NTQ does not collect strategy source, parameter text, scan or backtest
+detail, universe contents, positions, orders, or trade records. It does
+not collect your name, email, account, password, token, API key, IP
+address, or hostname. A report may still carry the name of a strategy
+or tag you ran, and the text of a CLI run command, as described below.
+
+Each report may include an anonymous installation id created on that
+machine, the operating system, CPU architecture, Python version, NTQ
+version, CPU count, memory size, disk type, and database engine.
+
+5.1 Install
+
+- time spent on the install and on each step, and which steps were skipped
+- whether the install succeeded
+- a failure class, the exception type, and a shortened failure message
+  with home and project paths removed
+- names of tables that failed to import
+
+5.2 After you agree
+
+- which entry started the app: the UI, the user CLI, or the dev CLI. A
+  strategy or tag run on the user CLI may include the command line
+- that you turned usage reports on or off, and where you did that
+- that a strategy or tag run finished: its key, its mode, whether it
+  succeeded, elapsed time, how many entities it covered, and a
+  performance shape such as job count, parallelism, time share across
+  stages, or capital-utilization percentages. Not the profit or loss,
+  and not the strategy contents
+- how often you open parts of the UI, such as which entry you use. This
+  version does not send it. When it is added, this section still applies
+- errors the software itself raises. This version does not send them.
+  When they are added, this section still applies
+
+The client that sends these reports is listed in section 3.3.
+
+6. Earlier versions
+
+Copies of versions through 0.5.x that were already distributed under the
+Apache License 2.0 stay under that license. This file does not take those
+grants back.
+
+----------------------------------------------------------------------
+The Apache License, Version 2.0, follows. It applies only to the
+non-commercial grant in section 1 above.
+
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/

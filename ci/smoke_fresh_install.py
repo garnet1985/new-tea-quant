@@ -55,7 +55,11 @@ def smoke_fresh_install(
         return 1
 
     py = install_python or sys.executable
-    code = _run([py, "install.py", "--import-demo"], cwd=root, label="CLI 安装")
+    code = _run(
+        [py, "install.py", "--import-demo", "--accept-license"],
+        cwd=root,
+        label="CLI 安装",
+    )
     if code != 0:
         return code
 

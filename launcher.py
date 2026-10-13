@@ -59,10 +59,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("依赖已就绪", flush=True)
 
-    try:
-        Setup.trace.app_start(entry="ui")
-    except Exception:
-        pass
+    if Setup.license.is_accepted():
+        try:
+            Setup.license.apply_trace_consent()
+            Setup.trace.app_start(entry="ui")
+        except Exception:
+            pass
 
     try:
         Setup.runtime.launch_ui()

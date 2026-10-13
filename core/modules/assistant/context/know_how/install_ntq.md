@@ -45,9 +45,8 @@ Windows PowerShell 可用 `python .\launcher.py`。若 `python` 指向旧版本�
    3. 配置数据库（默认 DuckDB；可选 MySQL / PostgreSQL）
    4. 是否导入演示数据（可跳过，之后自己接数据源）
    5. 是否安装机器学习依赖（分析库用，可跳过）
-   6. 使用统计（允许或暂不分享都会继续）
 
-4. 进入欢迎页后，点导航 **制定策略**。
+4. 进入欢迎页后，点导航 **制定策略**。使用统计已包含在使用条款里，安装结束不再单独询问。
 
 ## 验证
 
@@ -61,7 +60,7 @@ Windows PowerShell 可用 `python .\launcher.py`。若 `python` 指向旧版本�
 | --- | --- |
 | 以后打开 UI | 再执行 `python launcher.py` |
 | 只补 CLI / Python 依赖 | 已安装过且只是 `requirements.txt` 变了：`python install.py --if-needed`（或直接跑 `python cli.py`）。不会重导演示数据 |
-| 命令行安装并导入演示数据 | `python install.py --import-demo`（会覆盖同名表）。默认 `python install.py` 不导入；需要时再跑 `python cli.py id` |
+| 命令行安装并导入演示数据 | `python install.py --import-demo`（会覆盖同名表）。开始前须输入 `y` 同意使用条款；无终端时加 `--accept-license`。默认 `python install.py` 不导入；需要时再跑 `python cli.py id` |
 | 升级已安装的应用 | 拉取新代码，**保留** `userspace/`，然后 `python cli.py u` |
 | 从头再走向导 | 设置 → 安装与维护 → 重新安装（可能覆盖库连接；导入演示数据可能覆盖表） |
 | 补装机器学习依赖 | 设置 → 安装与维护，或向导里那一步 |

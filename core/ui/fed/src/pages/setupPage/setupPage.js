@@ -203,7 +203,7 @@ function SetupPage() {
       setProgressText('安装完成');
       setFailedStep('');
       setPausedStep('');
-      navigate('/setup/trace', { replace: true, state: { source: 'setup_ui' } });
+      navigate('/welcome', { replace: true });
       return;
     }
     if (result.kind === 'paused') {
@@ -729,7 +729,7 @@ function SetupPage() {
                     <Typography variant="h6">成功</Typography>
                   </Stack>
                   <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-                    安装流程已完成。接下来请选择是否分享匿名使用数据。
+                    安装流程已完成。
                   </Typography>
                   {restartError ? (
                     <Alert severity="error" sx={{ mb: 2 }}>{restartError}</Alert>
@@ -737,8 +737,7 @@ function SetupPage() {
                   <Stack direction="row" spacing={2}>
                     <Button
                       component={RouterLink}
-                      to="/setup/trace"
-                      state={{ source: 'setup_ui' }}
+                      to="/welcome"
                       variant="contained"
                     >
                       继续

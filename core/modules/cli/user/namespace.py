@@ -18,6 +18,7 @@ class UserNamespace:
         from core.modules.cli.user.bootstrap import UserBootstrap
 
         UserBootstrap.ensure_venv_for_cli(entry_file)
+        UserBootstrap.ensure_license_accepted()
         UserBootstrap.ensure_app_installed_if_needed()
 
     @staticmethod

@@ -319,6 +319,7 @@ class SetupRuntimeManager:
         self._save_state(state)
         if state["isReady"]:
             Setup.runtime.mark_cli_ready()
+            Setup.license.apply_trace_consent()
         Setup.trace.install_complete(success=True, entry="ui", **self._timing_kwargs(state))
         return {
             "status": "ok",

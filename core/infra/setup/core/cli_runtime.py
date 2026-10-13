@@ -190,6 +190,12 @@ def install_cli_runtime(
     if not options.import_demo:
         print("  尚未导入演示数据。需要时运行: python cli.py id（会覆盖同名表）")
     print("=" * 60)
+    try:
+        from core.infra.setup.core.license_acceptance import apply_trace_consent
+
+        apply_trace_consent()
+    except Exception:
+        pass
     SetupTrace.install_complete(
         success=True,
         entry="cli",

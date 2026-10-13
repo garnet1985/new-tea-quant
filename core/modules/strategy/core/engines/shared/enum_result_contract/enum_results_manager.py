@@ -86,7 +86,7 @@ class EnumResultsManager:
     def for_entities(self, entity_ids: Sequence[str]) -> List[EnumResult]:
         """这些 entity 的全部结果（先 load）。"""
         rows: List[EnumResult] = []
-        for eid, group in self.load(entity_ids).items():
+        for _, group in self.load(entity_ids).items():
             rows.extend(group)
         return rows
 

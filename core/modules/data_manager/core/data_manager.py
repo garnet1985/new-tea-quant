@@ -305,7 +305,7 @@ class DataManager:
                 spec.loader.exec_module(model_module)
                 
                 model_class = None
-                for name, obj in inspect.getmembers(model_module):
+                for _, obj in inspect.getmembers(model_module):
                     if (inspect.isclass(obj) and issubclass(obj, DbBaseModel) and obj != DbBaseModel):
                         model_class = obj
                         break

@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-扫描 Python 源码在 3.11 下可能不兼容的写法（仅报告，不修改文件）。
+用当前解释器扫描 3.12+ 语法（仅报告，不修改文件）。
 
-检查项：
+当前解释器必须是 Python 3.11+。检查项：
 - 泛型类 ``class C[T]:``（3.12+）
-- 若本机存在 ``python3.11``，对无法静态解析的语法再做 ``py_compile``
+- ``sys.executable -m py_compile``
 
 用法::
 
-    python -m core.modules.cli.dev.scripts.py39_compat_check
+    python -m core.modules.cli.dev.scripts.py311_compat_check
     python devcli.py p -core_v0.3.3   # 发布准备中间步骤
 """
 from __future__ import annotations
 
 import argparse
 import ast
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -102,19 +101,11 @@ def _ast_issues_for_file(path: Path, source: str) -> List[CompatIssue]:
     return issues
 
 
-def _find_python39() -> Optional[str]:
-    for name in ("python3.11", "python3.11.exe"):
-        found = shutil.which(name)
-        if found:
-            return found
-    return None
-
-
-def _py39_compile_issues(paths: Sequence[Path], py39: str) -> List[CompatIssue]:
+def _py311_compile_issues(paths: Sequence[Path]) -> List[CompatIssue]:
     issues: List[CompatIssue] = []
     for path in paths:
         proc = subprocess.run(
-            [py39, "-m", "py_compile", str(path)],
+            [sys.executable, "-m", "py_compile", str(path)],
             capture_output=True,
             text=True,
         )
@@ -133,7 +124,7 @@ def _py39_compile_issues(paths: Sequence[Path], py39: str) -> List[CompatIssue]:
             CompatIssue(
                 path=path,
                 line=line,
-                rule="py39-compile",
+                rule="py311-compile",
                 message=msg,
             )
         )
@@ -169,10 +160,10 @@ def iter_scan_paths() -> Iterator[Path]:
                 yield path
 
 
-def collect_py39_compat_issues(
+def collect_py311_compat_issues(
     *,
     paths: Optional[Iterable[Path]] = None,
-    use_py39_compile: bool = True,
+    use_py311_compile: bool = True,
 ) -> List[CompatIssue]:
     """收集所有兼容性问题；不修改源码。"""
     py_paths = list(paths) if paths is not None else list(iter_scan_paths())
@@ -197,25 +188,24 @@ def collect_py39_compat_issues(
         if not file_issues:
             compile_candidates.append(path)
 
-    py39 = _find_python39() if use_py39_compile else None
-    if py39 and compile_candidates:
-        all_issues.extend(_py39_compile_issues(compile_candidates, py39))
+    if use_py311_compile and compile_candidates:
+        all_issues.extend(_py311_compile_issues(compile_candidates))
 
     return sorted(all_issues, key=lambda i: (i.path.as_posix(), i.line, i.rule))
 
 
-def run_py39_compat_check(*, use_py39_compile: bool = True) -> int:
+def run_py311_compat_check(*, use_py311_compile: bool = True) -> int:
     """打印报告；有发现问题时返回 1。"""
-    print("\n[检查] Python 3.11 兼容性（仅报告，不自动修改）…", flush=True)
-    issues = collect_py39_compat_issues(use_py39_compile=use_py39_compile)
-    py39 = _find_python39()
-    if py39:
-        print(f"  已使用 {py39} 做 py_compile 补充检查", flush=True)
-    else:
+    print("\n[检查] Python 3.11 语法（仅报告，不自动修改）…", flush=True)
+    if sys.version_info < (3, 11):
         print(
-            "  未找到 python3.11 可执行文件，跳过 py_compile（仍执行 AST 静态检查）",
+            f"  当前解释器是 Python {sys.version_info.major}.{sys.version_info.minor}，需要 3.11+",
             flush=True,
         )
+        return 1
+    issues = collect_py311_compat_issues(use_py311_compile=use_py311_compile)
+    if use_py311_compile:
+        print(f"  已使用 {sys.executable} 做 py_compile", flush=True)
 
     if not issues:
         print("  未发现已知的 3.11 不兼容写法。", flush=True)
@@ -240,12 +230,12 @@ def run_py39_compat_check(*, use_py39_compile: bool = True) -> int:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Python 3.11 兼容性扫描（只读）")
     parser.add_argument(
-        "--no-py39-compile",
+        "--no-py311-compile",
         action="store_true",
         help="不调用本机 python3.11 py_compile",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
-    return run_py39_compat_check(use_py39_compile=not args.no_py39_compile)
+    return run_py311_compat_check(use_py311_compile=not args.no_py311_compile)
 
 
 if __name__ == "__main__":

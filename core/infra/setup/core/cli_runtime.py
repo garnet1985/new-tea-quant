@@ -90,7 +90,7 @@ def _steps_for_options(options: CliInstallOptions) -> List[str]:
     steps = _ordered_cli_steps()
     if options.deps_only:
         return [step_id for step_id in steps if step_id in _DEP_STEP_IDS]
-    if options.skip_import:
+    if not options.import_demo:
         return [step_id for step_id in steps if step_id != "import_data"]
     return steps
 
@@ -172,10 +172,9 @@ def install_cli_runtime(
         print(f"{CmdLayout.icon.get('error')} 安装失败: {exc}", flush=True)
         raise
 
-    skipped_import = ["import_data"] if options.skip_import and not options.deps_only else None
+    skipped_import = ["import_data"] if not options.import_demo and not options.deps_only else None
     if skipped_import:
-        NewTeaQuantSetup.print_check_item("skip", "步骤: import_data（已跳过演示数据）")
-        print("需要演示包时再运行: python cli.py id", flush=True)
+        NewTeaQuantSetup.print_check_item("skip", "步骤: import_data（未导入演示数据）")
     setup_session.mark_pipeline_complete(
         source="cli",
         inputs_by_step=session_inputs,
@@ -188,6 +187,8 @@ def install_cli_runtime(
     print()
     print("下一步:")
     print("  python cli.py --help")
+    if not options.import_demo:
+        print("  尚未导入演示数据。需要时运行: python cli.py id（会覆盖同名表）")
     print("=" * 60)
     SetupTrace.install_complete(
         success=True,

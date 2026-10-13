@@ -15,6 +15,24 @@ def test_lock_message_replaces_duckdb_conflict() -> None:
     assert setup_failure_message(raw) == DUCKDB_PROCESS_LOCK_MESSAGE
 
 
+def test_lock_message_matches_different_configuration() -> None:
+    raw = (
+        "Connection Error: Can't open a connection to same database file "
+        "with a different configuration than existing connections"
+    )
+    assert is_duckdb_process_lock(raw) is True
+    assert setup_failure_message(raw) == DUCKDB_PROCESS_LOCK_MESSAGE
+
+
+def test_lock_message_matches_unique_file_handle() -> None:
+    raw = (
+        'Binder Error: Unique file handle conflict: Cannot attach "data" - '
+        "the database file data.duckdb is already attached"
+    )
+    assert is_duckdb_process_lock(raw) is True
+    assert setup_failure_message(raw) == DUCKDB_PROCESS_LOCK_MESSAGE
+
+
 def test_lock_message_matches_chinese_wrapper() -> None:
     raw = "无法打开 DuckDB（文件被其他进程占用）: C:/data.duckdb"
     assert setup_failure_message(raw) == DUCKDB_PROCESS_LOCK_MESSAGE

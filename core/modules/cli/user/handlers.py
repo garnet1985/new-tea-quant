@@ -322,8 +322,6 @@ class UserHandlers:
         # 终局摘要统一走 Strategy.present_report
         if enum_result.get("output_dir"):
             try:
-                from pathlib import Path
-
                 from core.modules.strategy import Strategy
                 from core.modules.strategy.contracts import SimulateKind
 
@@ -353,7 +351,6 @@ class UserHandlers:
     @staticmethod
     def _run_strategy_price_factor(args: argparse.Namespace) -> None:
         import time
-        from pathlib import Path
 
         from core.modules.strategy import Strategy
 
@@ -407,7 +404,6 @@ class UserHandlers:
     @staticmethod
     def _run_strategy_portfolio(args: argparse.Namespace) -> None:
         import time
-        from pathlib import Path
 
         from core.modules.strategy import Strategy
 

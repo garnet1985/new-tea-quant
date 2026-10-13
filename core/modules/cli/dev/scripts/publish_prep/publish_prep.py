@@ -44,7 +44,7 @@ class PublishPrepOptions:
     skip_tests: bool = False
     skip_ic: bool = False
     skip_fed_build: bool = False
-    skip_py39: bool = False
+    skip_py311: bool = False
     package_userspace: bool = False
     skip_dep_check: bool = False  # 跳过依赖风险检测
     skip_icon_check: bool = False  # 跳过裸状态 emoji 扫描
@@ -250,10 +250,10 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
 
-    if not opts.skip_py39:
-        from core.modules.cli.dev.scripts.py39_compat_check import run_py39_compat_check
+    if not opts.skip_py311:
+        from core.modules.cli.dev.scripts.py311_compat_check import run_py311_compat_check
 
-        if run_py39_compat_check() != 0:
+        if run_py311_compat_check() != 0:
             return _stop("Python 3.11 兼容性检查未通过")
     else:
         print("\n[跳过] Python 3.11 兼容性检查", flush=True)

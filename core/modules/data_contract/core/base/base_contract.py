@@ -94,7 +94,7 @@ class ContractRuntime:
 
         if extra_fields:
             # 动态创建包含额外字段的 dataclass（使用 Any 类型注解）
-            # 使用 __annotations__ 方式（Python 3.9兼容）
+            # 动态字段写进 __annotations__，dataclass 才能识别
             annotations = {key: Any for key in extra_fields}
             extra_attrs = {
                 "__annotations__": annotations,
@@ -173,8 +173,6 @@ class BaseDataContract:
         # specific 可选（默认空实例）
         self.specific = ContractSpecific.from_dict(declaration.get("specific", {})) if declaration.get("specific") else ContractSpecific()
         
-        # 生成 contract_id（基于 data_key + 时间戳，可选）
-        import uuid
         # 生成 contract_id（基于 key + uuid，可选）
         if not self.contract_id:
             self.contract_id = f"{self.meta.key}_{uuid.uuid4().hex[:8]}"

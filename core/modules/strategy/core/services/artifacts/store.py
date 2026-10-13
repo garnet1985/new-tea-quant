@@ -12,7 +12,21 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
+
+if TYPE_CHECKING:
+    from core.modules.strategy.core.services.artifacts.scan_store import ScanStore
 
 from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils

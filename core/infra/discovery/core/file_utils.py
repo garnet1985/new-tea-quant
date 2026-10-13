@@ -109,7 +109,7 @@ class FileUtils:
         import os
         depth = 0
 
-        for root, dirs, files in os.walk(start_dir):
+        for root, _dirs, files in os.walk(start_dir):
             # 检查深度
             current_depth = len(Path(root).relative_to(start_dir).parts)
             if current_depth > max_depth:

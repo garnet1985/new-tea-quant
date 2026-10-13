@@ -23,15 +23,12 @@ from core.modules.backtest_engine.core.shared.owned_shared_memory import (
     attach_shared_memory,
     close_and_unlink,
     create_owned_shared_memory,
-    shared_memory_available,
 )
 
 if TYPE_CHECKING:
     from core.modules.backtest_engine.core.shared.types import JobContext, RunCallbacks, TickFn
 
 logger = logging.getLogger(__name__)
-
-_SHM_AVAILABLE = shared_memory_available()
 
 TimelineInput = Union["Timeline", Sequence[str], None]
 _idle_tick_warned = False
@@ -485,9 +482,6 @@ class Timeline:
     @classmethod
     def _publish(cls, timeline: "Timeline") -> None:
         cls._unlink_shm()
-        if not _SHM_AVAILABLE:
-            logger.warning("SharedMemory 不可用：timeline 将整份嵌入 payload.global")
-            return
         blob = pickle.dumps(timeline.to_dict(), protocol=pickle.HIGHEST_PROTOCOL)
         try:
             shm = create_owned_shared_memory(blob)
@@ -538,8 +532,6 @@ class Timeline:
 
     @classmethod
     def _read_shm(cls, shm_info: Dict[str, Any]) -> Optional["Timeline"]:
-        if not _SHM_AVAILABLE:
-            return None
         name = str(shm_info.get("name") or "").strip()
         size = int(shm_info.get("size") or 0)
         if not name or size <= 0:

@@ -54,7 +54,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from contextlib import contextmanager
-from typing import Dict, List, Any, Optional, Literal
+from typing import Dict, List, Any, Optional, Literal, Tuple
 
 from core.infra.db.core.engines.shared import dialect as db_dialect, row_sql
 from core.infra.db.core.table_queriers.services.batch_operation import BatchOperation

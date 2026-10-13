@@ -44,6 +44,40 @@ class NewTeaQuantSetup:
             sys.path.insert(0, r)
 
     @classmethod
+    def interpreter_version(cls, python: Path) -> tuple[int, int]:
+        """读取解释器的主次版本，不启动项目代码。"""
+        proc = subprocess.run(
+            [
+                str(python),
+                "-c",
+                "import sys; print(sys.version_info[0], sys.version_info[1])",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        parts = proc.stdout.split()
+        if proc.returncode != 0 or len(parts) != 2:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            raise SystemExit(f"无法读取 Python 版本: {python}\n{detail}")
+        return int(parts[0]), int(parts[1])
+
+    @classmethod
+    def require_supported_venv(cls, python: Path) -> None:
+        """已有 venv 低于 core.system 最低版本时停止，避免继续沿用旧解释器。"""
+        from core.system import python_minimum
+
+        got = cls.interpreter_version(python)
+        need = python_minimum()
+        if got >= need:
+            return
+        raise SystemExit(
+            f"虚拟环境 {python} 是 Python {got[0]}.{got[1]}，"
+            f"项目最低要求 {need[0]}.{need[1]}。"
+            f"请删除 venv/ 后用 Python {need[0]}.{need[1]} 及以上重新创建。"
+        )
+
+    @classmethod
     def venv_python(cls) -> Path:
         if os.name == "nt":
             return cls.venv_dir / "Scripts" / "python.exe"
@@ -72,10 +106,12 @@ class NewTeaQuantSetup:
         重启时保留**当前入口脚本**（``sys.argv[0]``），避免 ``launcher.py`` 被误换成 ``install.py``。
         """
         if cls.in_virtualenv():
+            cls.require_supported_venv(Path(sys.executable))
             print(f"使用虚拟环境解释器: {sys.executable}", flush=True)
             return
         raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
         if raw in ("1", "true", "yes"):
+            cls.require_supported_venv(Path(sys.executable))
             print(f"已跳过自动 venv，当前解释器: {sys.executable}", flush=True)
             return
 
@@ -89,6 +125,7 @@ class NewTeaQuantSetup:
             )
         else:
             print(f"检测到已有虚拟环境: {vpy}", flush=True)
+        cls.require_supported_venv(vpy)
         entry = cls._resolve_entry_script(entry_script)
         print(f"切换到虚拟环境解释器: {vpy}", flush=True)
         argv = [str(vpy), str(entry)] + sys.argv[1:]
@@ -104,9 +141,11 @@ class NewTeaQuantSetup:
         - 可用 NTQ_SKIP_AUTO_VENV=1 关闭该行为。
         """
         if cls.in_virtualenv():
+            cls.require_supported_venv(Path(sys.executable))
             return
         raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
         if raw in ("1", "true", "yes"):
+            cls.require_supported_venv(Path(sys.executable))
             return
 
         vpy = cls.venv_python()
@@ -118,6 +157,7 @@ class NewTeaQuantSetup:
                 cwd=str(cls.repo_root),
                 check=True,
             )
+        cls.require_supported_venv(vpy)
         sp = Path(script_path).resolve()
         argv = [str(vpy), str(sp)] + sys.argv[1:]
         os.execv(str(vpy), argv)

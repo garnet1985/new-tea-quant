@@ -3,11 +3,11 @@
 """
 CLI 应用安装入口（与 ``launcher.py`` 对称）：
 
-  python install.py              执行 CLI 安装（已装过也会再跑一遍步骤）
-  python install.py --skip-import
-                                 同上，但不导入演示数据包
+  python install.py              执行 CLI 安装，不导入演示数据
+  python install.py --import-demo
+                                 同上，并导入 initialization/data 里的演示包
   python install.py --if-needed  仅未就绪时安装（``cli.py`` 自动触发）。
-                                 依赖变化只更新依赖；任何自动安装都不导入演示包。
+                                 依赖变化只更新依赖；不带 --import-demo 就不导入演示包。
 
 不询问 userspace / 数据库：省略参数走默认（<repo>/userspace + DuckDB）；
 带了参数就必须按参数执行，失败则停止并报错。
@@ -34,12 +34,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--if-needed",
         action="store_true",
-        help="仅在 CLI 未就绪时安装（cli.py 自动触发）。不导入演示数据",
+        help="仅在 CLI 未就绪时安装（cli.py 自动触发）。不带 --import-demo 则不导入演示数据",
     )
     parser.add_argument(
-        "--skip-import",
+        "--import-demo",
         action="store_true",
-        help="跳过演示数据导入。之后需要时运行 python cli.py id",
+        help="导入 initialization/data 里的演示数据包（会覆盖同名表）",
     )
     parser.add_argument(
         "--userspace",
@@ -91,8 +91,8 @@ def _install_kwargs(args: argparse.Namespace) -> dict:
         kwargs["db_password"] = args.db_password
     if args.db_schema is not None:
         kwargs["db_schema"] = args.db_schema
-    if args.skip_import:
-        kwargs["skip_import"] = True
+    if args.import_demo:
+        kwargs["import_demo"] = True
     return kwargs
 
 
@@ -101,14 +101,11 @@ def _install(
     *,
     force: bool,
     deps_only: bool = False,
-    skip_import: bool = False,
 ) -> int:
     kwargs = _install_kwargs(args)
     kwargs["force"] = force
     if deps_only:
         kwargs["deps_only"] = True
-    if skip_import:
-        kwargs["skip_import"] = True
     try:
         Setup.runtime.install_cli(**kwargs)
     except Exception as e:
@@ -135,10 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         scope = Setup.runtime.cli_install_scope()
         if scope == "deps_only":
             print("检测到 requirements.txt 变更，正在更新 Python 依赖…", flush=True)
-            return _install(args, force=False, deps_only=True, skip_import=True)
+            return _install(args, force=False, deps_only=True)
         print("检测到需要初始化安装，开始 CLI 安装...", flush=True)
-        print("自动安装不导入演示数据。需要演示包时再运行: python cli.py id", flush=True)
-        return _install(args, force=False, skip_import=True)
+        return _install(args, force=False)
 
     print("开始 CLI 安装…", flush=True)
     return _install(args, force=True)

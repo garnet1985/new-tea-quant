@@ -3,13 +3,11 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.backtest_engine.core.shared.owned_shared_memory import shared_memory_available
 from core.modules.backtest_engine.core.timeline.timeline import Timeline
 
 pytestmark = pytest.mark.force_run
 
 
-@pytest.mark.skipif(not shared_memory_available(), reason="shared_memory 不可用")
 def test_timeline_shm_readable_after_publish() -> None:
     timeline = Timeline.from_points(["20240101", "20240102"])
     Timeline._publish(timeline)

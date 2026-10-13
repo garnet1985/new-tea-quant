@@ -9,8 +9,8 @@ DUCKDB_PROCESS_LOCK_MESSAGE = (
 _LOCK_TOKENS = (
     "conflicting lock",
     "could not set lock",
-    "file is already open",
-    "already open in",
+    "unique file handle conflict",
+    "different configuration than existing connections",
     "文件被其他进程占用",
 )
 

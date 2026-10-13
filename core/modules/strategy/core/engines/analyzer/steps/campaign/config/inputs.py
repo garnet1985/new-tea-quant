@@ -274,7 +274,7 @@ def collect_joint_sweep(raw: Mapping[str, Any]) -> List[Tuple[str, ...]]:
             raise ValueError(f"joint_sweep[{i}] 须为轴名列表")
         paths: List[str] = []
         seen: set = set()
-        for j, name in enumerate(group):
+        for name in group:
             path = resolve_path(str(name), layer="campaign")
             if path in seen:
                 continue

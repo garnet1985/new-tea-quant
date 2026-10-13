@@ -106,7 +106,7 @@ class DevParser:
         p_pack.add_argument("--skip-tests", action="store_true")
         p_pack.add_argument("--skip-ic", action="store_true")
         p_pack.add_argument("--skip-fed-build", action="store_true")
-        p_pack.add_argument("--skip-py39", action="store_true")
+        p_pack.add_argument("--skip-py311", action="store_true")
         p_pack.add_argument(
             "--package-userspace",
             action="store_true",

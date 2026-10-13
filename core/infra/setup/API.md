@@ -58,7 +58,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 不在 venv 中则创建 `venv/` 并用其解释器 `exec` 当前入口脚本
+- **描述：** 不在 venv 中则创建 `venv/` 并用其解释器 `exec` 当前入口脚本。项目 venv 低于 `core.system` 最低 Python 版本时退出
 
 #### ensure_venv_for_setup_step
 
@@ -67,7 +67,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** `core/infra/setup/core/steps/*/install.py` 直接执行时切到项目 venv
+- **描述：** `core/infra/setup/core/steps/*/install.py` 直接执行时切到项目 venv。版本过低时同样退出
 
 #### requirements_txt / ui_bff_requirements / ui_fed_root
 
@@ -104,13 +104,13 @@
 
 #### install_cli / ensure_cli_install
 
-`Setup.runtime.install_cli(*, force: bool = False, userspace=None, userspace_conflict=None, db=None, db_host=None, db_port=None, db_name=None, db_user=None, db_password=None, db_schema=None, skip_import: bool = False, deps_only: bool = False) -> None`  
+`Setup.runtime.install_cli(*, force: bool = False, userspace=None, userspace_conflict=None, db=None, db_host=None, db_port=None, db_name=None, db_user=None, db_password=None, db_schema=None, import_demo: bool = False, deps_only: bool = False) -> None`  
 `Setup.runtime.ensure_cli_install() -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`（`userspace` / `db` 参数：`0.1.1`）
-- **描述：** 跑 CLI 安装步骤，不询问。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。`skip_import=True` 不导入演示包。`deps_only=True` 只跑系统检查和依赖安装。根目录 `python install.py` 显式执行（已就绪也再跑，可用 `--skip-import`）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发）：依赖指纹变化时只更新依赖；自动安装一律不导入演示包。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
+- **描述：** 跑 CLI 安装步骤，不询问。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。默认不导入演示包；`import_demo=True`（`install.py --import-demo`）才导入，并覆盖同名表。`deps_only=True` 只跑系统检查和依赖安装。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发）：依赖指纹变化时只更新依赖；不带 `--import-demo` 不导入演示包。未导入时结束提示 `python cli.py id`。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
 
 #### import_init_data
 

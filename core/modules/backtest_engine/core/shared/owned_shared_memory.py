@@ -1,6 +1,6 @@
 """进程间 SharedMemory：创建方必须持有句柄直到 cleanup。
 
-跨平台差异（Python 3.9+）：
+跨平台差异：
 
 - **Windows**（``os.name == "nt"``）
   - 不走 resource_tracker；块在最后一个 handle ``close`` 后销毁。
@@ -12,18 +12,14 @@
   - create/attach 都会 ``resource_tracker.register``。
   - 创建方/attach 方立刻 ``unregister``，避免 spawn 子进程退出时误 unlink。
   - cleanup 用 ``_posixshmem.shm_unlink``，**不要**再调会二次
-    ``unregister`` 的 ``SharedMemory.unlink()``（3.9 tracker 会
+    ``unregister`` 的 ``SharedMemory.unlink()``（tracker 会
     ``KeyError: '/psm_…'``）。
 """
 from __future__ import annotations
 
 import os
+from multiprocessing.shared_memory import SharedMemory
 from typing import Optional, Set
-
-try:
-    from multiprocessing.shared_memory import SharedMemory
-except ImportError:  # pragma: no cover
-    SharedMemory = None  # type: ignore[misc, assignment]
 
 _IS_WINDOWS = os.name == "nt"
 
@@ -31,14 +27,8 @@ _IS_WINDOWS = os.name == "nt"
 _UNREGISTERED: Set[str] = set()
 
 
-def shared_memory_available() -> bool:
-    return SharedMemory is not None
-
-
 def create_owned_shared_memory(blob: bytes) -> "SharedMemory":
     """创建一块共享内存并写入 ``blob``；调用方必须持有返回值直到 ``close_and_unlink``。"""
-    if SharedMemory is None:
-        raise RuntimeError("multiprocessing.shared_memory 不可用")
     if not blob:
         raise ValueError("shared memory blob 不能为空")
     shm = SharedMemory(create=True, size=len(blob))
@@ -53,8 +43,6 @@ def create_owned_shared_memory(blob: bytes) -> "SharedMemory":
 
 def attach_shared_memory(name: str) -> "SharedMemory":
     """按名 attach。POSIX 勿传已带 ``/`` 的 ``_name``（会变成 ``//psm_…``）。"""
-    if SharedMemory is None:
-        raise RuntimeError("multiprocessing.shared_memory 不可用")
     text = str(name or "").strip()
     if not _IS_WINDOWS and text.startswith("/"):
         text = text[1:]
@@ -129,5 +117,4 @@ __all__ = [
     "attach_shared_memory",
     "close_and_unlink",
     "create_owned_shared_memory",
-    "shared_memory_available",
 ]

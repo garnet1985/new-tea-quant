@@ -366,8 +366,6 @@ class DataSourceManager:
     
     def _find_config_recursively(self, data_source_key: str) -> Optional[Path]:
         """在 handlers 树中按目录名 key 定位 config.py。"""
-        from core.infra.discovery import Discovery
-
         handlers_dir = ProjectContext.path.get_data_source_handlers_directory()
         return Discovery.file.find_in_tree(handlers_dir, data_source_key, "config.py")
 

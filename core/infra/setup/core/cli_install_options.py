@@ -21,7 +21,7 @@ class CliInstallOptions:
     db_user: Optional[str] = None
     db_password: Optional[str] = None
     db_schema: Optional[str] = None
-    skip_import: bool = False
+    import_demo: bool = False
     deps_only: bool = False
 
     @property

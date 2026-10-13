@@ -349,8 +349,6 @@ class Strategy:
         strategy_folder = DiscoveryService.resolve_strategy_folder(key_or_id)
 
         if not ignore_cache:
-            from .services.artifacts import SimulationVersionStore
-
             if forced:
                 cached = SimulationVersionStore.get_cache_by_version_id(
                     strategy_folder, forced, ctx.kind
@@ -495,7 +493,7 @@ class Strategy:
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
         """依次执行 Pipeline；每步完成后更新磁盘 registry。"""
-        from .services.artifacts import ArtifactStore, SimulationVersionStore
+        from .services.artifacts import ArtifactStore
         from .services.artifacts.version_meta import VersionMetaStore
         from .services.progress import PipelineProgress
 

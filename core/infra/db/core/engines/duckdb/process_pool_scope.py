@@ -138,7 +138,6 @@ class DuckdbWorkerPool:
     def install_config_overlay(cfg: dict[str, Any]) -> None:
         """Publish ``cfg`` via env for spawn workers and ``database_config_read_only``."""
         import json
-        import os
 
         os.environ[DuckdbWorkerPool.CONFIG_OVERLAY_ENV] = json.dumps(cfg, ensure_ascii=False)
 
@@ -146,7 +145,6 @@ class DuckdbWorkerPool:
     @staticmethod
     def database_config_read_only() -> dict[str, Any]:
         import json
-        import os
 
         from core.infra.project_context import ProjectContext
 

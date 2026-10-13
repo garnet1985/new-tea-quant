@@ -111,7 +111,7 @@ def _allocate_sample_sizes(
     alloc = [max(use_min if c > 0 else 0, int(x)) for x, c in zip(ideal, counts)]
 
     def _cap() -> None:
-        for i, k in enumerate(keys):
+        for i, _ in enumerate(keys):
             alloc[i] = min(alloc[i], counts[i])
 
     _cap()

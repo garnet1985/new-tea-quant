@@ -173,8 +173,6 @@ class BaseDataContract:
         # specific 可选（默认空实例）
         self.specific = ContractSpecific.from_dict(declaration.get("specific", {})) if declaration.get("specific") else ContractSpecific()
         
-        # 生成 contract_id（基于 data_key + 时间戳，可选）
-        import uuid
         # 生成 contract_id（基于 key + uuid，可选）
         if not self.contract_id:
             self.contract_id = f"{self.meta.key}_{uuid.uuid4().hex[:8]}"

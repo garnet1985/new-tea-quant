@@ -8,7 +8,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from core.modules.strategy.core.engines.shared.enum_result_contract.enum_result import (
+        EnumResult,
+    )
 
 
 @dataclass

@@ -374,8 +374,8 @@ class DataSourceHandlerHelper:
         # 简单往前查找：从target_date开始往前找，最多找max_days_back天
         # A股的周交易日：周一到周五通常是交易日，周日也可能是交易日（特殊情况下）
         current_date = datetime.strptime(target_date, "%Y%m%d")
-        for i in range(max_days_back):
-            check_date = current_date - timedelta(days=i)
+        for days_back in range(max_days_back):
+            check_date = current_date - timedelta(days=days_back)
             check_date_str = check_date.strftime("%Y%m%d")
             
             # 确保不超过latest_completed_trading_date

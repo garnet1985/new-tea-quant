@@ -244,11 +244,11 @@ def test_deps_only_runs_dependency_steps(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     monkeypatch.setattr(cr, "_run_step", lambda step_id, options=None: ran.append(step_id) or 0)
 
-    cr.install_cli_runtime(force=True, options=CliInstallOptions(deps_only=True, skip_import=True))
+    cr.install_cli_runtime(force=True, options=CliInstallOptions(deps_only=True))
     assert ran == ["sys_req_check", "resolve_deps"]
 
 
-def test_skip_import_omits_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_install_omits_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
     from core.infra.setup.core import cli_runtime as cr
     from core.infra.setup.core.cli_install_options import CliInstallOptions
 
@@ -261,8 +261,31 @@ def test_skip_import_omits_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(cr, "_run_step", lambda step_id, options=None: ran.append(step_id) or 0)
 
-    cr.install_cli_runtime(force=True, options=CliInstallOptions(skip_import=True))
+    cr.install_cli_runtime(force=True, options=CliInstallOptions())
     assert ran == ["sys_req_check", "resolve_deps", "init_userspace", "db_connection"]
+
+
+def test_import_demo_includes_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.infra.setup.core import cli_runtime as cr
+    from core.infra.setup.core.cli_install_options import CliInstallOptions
+
+    ran: list[str] = []
+    _silence_install(monkeypatch)
+    monkeypatch.setattr(
+        cr,
+        "_ordered_cli_steps",
+        lambda: ["sys_req_check", "resolve_deps", "init_userspace", "db_connection", "import_data"],
+    )
+    monkeypatch.setattr(cr, "_run_step", lambda step_id, options=None: ran.append(step_id) or 0)
+
+    cr.install_cli_runtime(force=True, options=CliInstallOptions(import_demo=True))
+    assert ran == [
+        "sys_req_check",
+        "resolve_deps",
+        "init_userspace",
+        "db_connection",
+        "import_data",
+    ]
 
 
 def test_if_needed_deps_only_does_not_request_full_install(
@@ -286,7 +309,7 @@ def test_if_needed_deps_only_does_not_request_full_install(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
     assert mod.main(["--if-needed"]) == 0
-    assert called == [{"force": False, "deps_only": True, "skip_import": True}]
+    assert called == [{"force": False, "deps_only": True}]
 
 
 def test_if_needed_full_still_skips_demo_import(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -308,14 +331,14 @@ def test_if_needed_full_still_skips_demo_import(monkeypatch: pytest.MonkeyPatch)
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
     assert mod.main(["--if-needed"]) == 0
-    assert called == [{"force": False, "skip_import": True}]
+    assert called == [{"force": False}]
 
 
-def test_explicit_skip_import_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_install_does_not_import_demo(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
-        "ntq_install_entry_skip", ir.REPO_ROOT / "install.py"
+        "ntq_install_entry_default", ir.REPO_ROOT / "install.py"
     )
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
@@ -327,5 +350,25 @@ def test_explicit_skip_import_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
-    assert mod.main(["--skip-import"]) == 0
-    assert called == [{"force": True, "skip_import": True}]
+    assert mod.main([]) == 0
+    assert called == [{"force": True}]
+
+
+def test_import_demo_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "ntq_install_entry_demo", ir.REPO_ROOT / "install.py"
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    monkeypatch.setattr(mod.Setup.env, "to_root_dir", lambda: None)
+    monkeypatch.setattr(mod.Setup.env, "ensure_venv", lambda **_k: None)
+    called: list = []
+    monkeypatch.setattr(
+        mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
+    )
+    assert mod.main(["--import-demo"]) == 0
+    assert called == [{"force": True, "import_demo": True}]

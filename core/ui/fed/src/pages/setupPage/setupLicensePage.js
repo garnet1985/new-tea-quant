@@ -11,9 +11,6 @@ import NtqIcon from 'views/ntqIcon';
 import { acceptLicense, declineLicense, fetchLicenseAcceptance } from 'api/licenseApi';
 import './setupLicensePage.scss';
 
-const FALLBACK_DISCLAIMER_URL = 'https://new-tea.cn/zh-hans/disclaimer';
-const FALLBACK_LICENSE_URL = 'https://new-tea.cn/zh-hans/ntq-license';
-
 function SetupLicensePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -21,8 +18,8 @@ function SetupLicensePage() {
   const [exiting, setExiting] = useState(false);
   const [error, setError] = useState('');
   const [logoFailed, setLogoFailed] = useState(false);
-  const [disclaimerUrl, setDisclaimerUrl] = useState(FALLBACK_DISCLAIMER_URL);
-  const [licenseUrl, setLicenseUrl] = useState(FALLBACK_LICENSE_URL);
+  const [disclaimerUrl, setDisclaimerUrl] = useState('');
+  const [licenseUrl, setLicenseUrl] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -90,16 +87,22 @@ function SetupLicensePage() {
         </Typography>
         <Typography variant="body1" color="text.secondary" component="div" className="license-gate__copy">
           <p>只有同意使用条款，才能继续安装和使用 New Tea Quant。不同意将退出。</p>
-          <p>
-            <Link href={disclaimerUrl} target="_blank" rel="noopener noreferrer" underline="always">
-              使用条款
-            </Link>
-            {' · '}
-            <Link href={licenseUrl} target="_blank" rel="noopener noreferrer" underline="always">
-              NTQ 许可证
-            </Link>
-          </p>
-          <p>这两页和仓库里的 DISCLAIMER.md、LICENSE 是同一份正文。条款以后改了，会再问一次。</p>
+          {disclaimerUrl || licenseUrl ? (
+            <p>
+              {disclaimerUrl ? (
+                <Link href={disclaimerUrl} target="_blank" rel="noopener noreferrer" underline="always">
+                  使用条款
+                </Link>
+              ) : null}
+              {disclaimerUrl && licenseUrl ? ' · ' : null}
+              {licenseUrl ? (
+                <Link href={licenseUrl} target="_blank" rel="noopener noreferrer" underline="always">
+                  NTQ 许可证
+                </Link>
+              ) : null}
+            </p>
+          ) : null}
+          <p>全文在仓库根目录的 DISCLAIMER.md 与 LICENSE。条款以后改了，会再问一次。</p>
         </Typography>
         {error ? <Alert severity="error">{error}</Alert> : null}
         {exiting ? <Alert severity="info">未同意，正在退出。</Alert> : null}

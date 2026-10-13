@@ -77,6 +77,16 @@ def install_ml_extras():
     return _setup_service.install_ml_extras()
 
 
+@setup_api_bp.route("/v1/setup/site", methods=["GET"])
+def get_site_urls():
+    try:
+        from core.modules.ntq_external import site_urls
+    except ImportError:
+        return ok({})
+    payload = site_urls()
+    return ok(payload if isinstance(payload, dict) else {})
+
+
 @setup_api_bp.route("/v1/setup/license", methods=["GET"])
 def get_license_acceptance():
     from core.infra.setup.core.license_acceptance import status_payload

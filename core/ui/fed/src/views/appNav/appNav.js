@@ -1,7 +1,8 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { Box, Button, Paper, Popper } from '@mui/material';
 import NtqIcon from 'views/ntqIcon';
+import { fetchSiteUrls } from 'api/siteApi';
 import './style.scss';
 
 const primaryNavItems = [
@@ -47,6 +48,19 @@ function NavButtonLabel({ icon, label, caret = false }) {
 function AppNav() {
   const location = useLocation();
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [contactUrl, setContactUrl] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    fetchSiteUrls()
+      .then((urls) => {
+        if (alive) setContactUrl(urls.contactUrl);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   const closeTimerRef = useRef(null);
   const dropdownAnchorRef = useRef(null);
   const advancedActive = location.pathname.startsWith(ADVANCED_BASE);
@@ -147,16 +161,18 @@ function AppNav() {
         </Paper>
       </Popper>
 
-      <Button
-        component="a"
-        href="https://new-tea.cn/zh-hans/contact?from=ntq_app"
-        target="_blank"
-        rel="noopener noreferrer"
-        variant="text"
-        className="ntq-nav-btn"
-      >
-        <NavButtonLabel icon="chat" label="反馈" />
-      </Button>
+      {contactUrl ? (
+        <Button
+          component="a"
+          href={contactUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="text"
+          className="ntq-nav-btn"
+        >
+          <NavButtonLabel icon="chat" label="反馈" />
+        </Button>
+      ) : null}
 
       <Button
         component={RouterLink}

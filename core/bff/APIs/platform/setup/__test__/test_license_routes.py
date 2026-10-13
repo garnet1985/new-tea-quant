@@ -25,7 +25,7 @@ def acceptance_file(tmp_path, monkeypatch):
 
 def test_accept_writes_revision_and_decline_does_not(acceptance_file, monkeypatch):
     from core.bff.app import create_app
-
+    from core.modules.ntq_external import site_urls
     from core.infra.setup import Setup
 
     exited = []
@@ -37,7 +37,12 @@ def test_accept_writes_revision_and_decline_does_not(acceptance_file, monkeypatc
         status = client.get("/api/v1/setup/license")
         assert status.status_code == 200
         assert status.get_json()["message"]["accepted"] is False
-        assert status.get_json()["message"]["disclaimer_url"] == lic.DISCLAIMER_URL
+        assert status.get_json()["message"]["disclaimer_url"] == site_urls()["disclaimer_url"]
+
+        site = client.get("/api/v1/setup/site")
+        assert site.status_code == 200
+        assert site.get_json()["message"]["license_url"] == site_urls()["license_url"]
+        assert site.get_json()["message"]["contact_url"] == site_urls()["contact_url"]
 
         declined = client.post("/api/v1/setup/license/decline")
         assert declined.status_code == 200

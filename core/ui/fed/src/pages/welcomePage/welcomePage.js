@@ -1,7 +1,8 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import PageLayout from '../../views/pageLayout';
 import WelcomeIntroCanvas from './welcomeIntroCanvas';
+import { fetchSiteUrls } from '../../api/siteApi';
 import './welcomePage.scss';
 
 const LOGO_SRC = '/logo.png';
@@ -39,11 +40,36 @@ function DocLink({ href, children }) {
   );
 }
 
+function DocHint({ href, before, after = '。' }) {
+  if (!href) return null;
+  return (
+    <>
+      {before}
+      {' '}
+      <DocLink href={href}>这篇文档</DocLink>
+      {after.startsWith('。') ? after : ` ${after}`}
+    </>
+  );
+}
+
 function WelcomePage() {
   const logoRef = useRef(null);
   const skipIntro = prefersReducedMotion();
   const [introOn, setIntroOn] = useState(() => !skipIntro);
   const [pageReady, setPageReady] = useState(() => skipIntro);
+  const [docs, setDocs] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    fetchSiteUrls()
+      .then((urls) => {
+        if (alive) setDocs(urls.docs || {});
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const pageClass = [
     'welcome-page',
@@ -149,9 +175,7 @@ function WelcomePage() {
                 <Path>settings.py</Path>
                 中定义一些参数，比如您的回测需要什么数据、什么指标、起点、终点等等。当然还要定义一个明确的交易目标。
                 {' '}
-                更多的帮助可以参考
-                <DocLink href="https://new-tea.cn/zh-hans/using-strategy-example">这篇文档</DocLink>
-                。
+                <DocHint href={docs.strategy} before="更多的帮助可以参考" />
               </li>
               <li>
                 <strong>第三步：在历史数据中验证想法。</strong>
@@ -180,9 +204,7 @@ function WelcomePage() {
                 里看到您所有的策略，然后使用它们去扫描最新市场，找到符合您策略的机会并报告给您。
                 {' '}
                 <Mark>但请注意，这需要您接入自己的数据源才行。</Mark>
-                更多的信息可以参考
-                <DocLink href="https://new-tea.cn/zh-hans/using-strategy-to-find-opportunities">这篇文档</DocLink>
-                。
+                <DocHint href={docs.opportunities} before="更多的信息可以参考" />
               </li>
             </ul>
           </Box>
@@ -213,9 +235,7 @@ function WelcomePage() {
                 <Term>UI</Term>
                 只能告诉您这个标签是不是最新的、它是什么类型，以及快捷开始按钮。
                 {' '}
-                如果您想了解更多关于 tag 的用法，请参考
-                <DocLink href="https://new-tea.cn/zh-hans/using-tag-example">这篇文档</DocLink>
-                。
+                <DocHint href={docs.tag} before="如果您想了解更多关于 tag 的用法，请参考" />
               </li>
               <li>
                 <strong>
@@ -230,9 +250,7 @@ function WelcomePage() {
                 <Mark>但请注意，NTQ 不自带持续的数据源。</Mark>
                 如果您需要不停更新数据（尤其是扫描机会需要使用），您需要自己接入自己的数据源。
                 {' '}
-                您可以通过
-                <DocLink href="https://new-tea.cn/zh-hans/using-datasource-example">这篇文档</DocLink>
-                了解更多。
+                <DocHint href={docs.datasource} before="您可以通过" after="了解更多。" />
               </li>
               <li>
                 <strong>
@@ -248,9 +266,7 @@ function WelcomePage() {
                 <Term>UI</Term>
                 用来帮您看清不同契约的名字、描述和 key，方便在代码中使用。
                 {' '}
-                您可以通过
-                <DocLink href="https://new-tea.cn/zh-hans/using-data-contract-example">这篇文档</DocLink>
-                了解更多。
+                <DocHint href={docs.contract} before="您可以通过" after="了解更多。" />
               </li>
             </ul>
           </Box>

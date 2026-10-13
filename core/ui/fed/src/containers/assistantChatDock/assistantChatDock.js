@@ -7,6 +7,7 @@ import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
 import { chatWithAssistant, fetchNtqQuota, listAssistantProviders } from 'api/assistantApi';
 import { fetchMembershipSettings } from 'api/settingsApi';
+import { fetchSiteUrls } from 'api/siteApi';
 import { isHttpStatusError } from 'service/request';
 import { GLOBAL_HELPER_SESSION_EVENT } from 'containers/globalHelper';
 import './style.scss';
@@ -32,8 +33,6 @@ function settingsLinkFor(content) {
   }
   return null;
 }
-
-const MEMBER_REGISTER_URL = 'https://new-tea.cn/zh-hans/user/register';
 
 function buildAiOptions(items, membership) {
   const options = [];
@@ -87,6 +86,7 @@ function AssistantChatDock() {
   const [options, setOptions] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [ntqQuota, setNtqQuota] = useState(null);
+  const [registerUrl, setRegisterUrl] = useState('');
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const idRef = useRef(1);
@@ -120,6 +120,18 @@ function AssistantChatDock() {
     };
     window.addEventListener(GLOBAL_HELPER_SESSION_EVENT, onHelper);
     return () => window.removeEventListener(GLOBAL_HELPER_SESSION_EVENT, onHelper);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetchSiteUrls()
+      .then((urls) => {
+        if (alive) setRegisterUrl(urls.registerUrl);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -301,16 +313,20 @@ function AssistantChatDock() {
                     >
                       自己配置 AI
                     </RouterLink>
-                    {' '}
-                    <a
-                      className="ntq-assistant-dock__settings-link"
-                      href={MEMBER_REGISTER_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      去官网注册
-                    </a>
-                    {' '}
+                    {registerUrl ? (
+                      <>
+                        {' '}
+                        <a
+                          className="ntq-assistant-dock__settings-link"
+                          href={registerUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          去官网注册
+                        </a>
+                        {' '}
+                      </>
+                    ) : null}
                     <RouterLink
                       className="ntq-assistant-dock__settings-link"
                       to="/settings/membership"

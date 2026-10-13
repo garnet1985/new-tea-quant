@@ -117,5 +117,5 @@ def test_base_url_env_then_userspace_then_default(monkeypatch, tmp_path: Path):
     )
     assert member_base_url() == "http://localhost:2026/api/v1/ntq-ai"
 
-    monkeypatch.setenv("NTQ_MEMBER_AI_BASE_URL", "https://www.new-tea.cn/api/v1/ntq-ai/")
-    assert member_base_url() == "https://www.new-tea.cn/api/v1/ntq-ai"
+    monkeypatch.setenv("NTQ_MEMBER_AI_BASE_URL", "https://example.test/api/v1/ntq-ai/")
+    assert member_base_url() == "https://example.test/api/v1/ntq-ai"

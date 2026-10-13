@@ -36,6 +36,7 @@ import {
   saveTraceSettings,
 } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
+import { fetchSiteUrls } from '../../api/siteApi';
 import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
 import {
   getImportDataProgress,
@@ -785,7 +786,7 @@ export function SettingsFeedbackPanel() {
   const [loadError, setLoadError] = useState('');
   const [saveOk, setSaveOk] = useState('');
   const [promptsDisabled, setPromptsDisabled] = useState(false);
-  const [contactUrl, setContactUrl] = useState('https://new-tea.cn/zh-hans/contact?from=ntq_app');
+  const [contactUrl, setContactUrl] = useState('');
 
   const saveAction = useAsyncAction(
     useCallback((nextDisabled) => saveFeedbackSettings({ prompts_disabled: Boolean(nextDisabled) }), []),
@@ -860,17 +861,19 @@ export function SettingsFeedbackPanel() {
             )}
             label={promptsDisabled ? '已关闭应用内反馈询问' : '允许应用内反馈询问'}
           />
-          <Box>
-            <Button
-              component="a"
-              href={contactUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="outlined"
-            >
-              打开官网联系页
-            </Button>
-          </Box>
+          {contactUrl ? (
+            <Box>
+              <Button
+                component="a"
+                href={contactUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outlined"
+              >
+                打开官网联系页
+              </Button>
+            </Box>
+          ) : null}
           <Box>
             <Button variant="text" onClick={load} disabled={saveAction.busy || loading}>
               重新读取
@@ -1045,6 +1048,20 @@ export function SettingsMembershipPanel() {
 }
 
 function NtqProxyCard({ configured }) {
+  const [registerUrl, setRegisterUrl] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    fetchSiteUrls()
+      .then((urls) => {
+        if (alive) setRegisterUrl(urls.registerUrl);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <Box
       sx={{
@@ -1081,9 +1098,11 @@ function NtqProxyCard({ configured }) {
         <Typography variant="body2" sx={{ mt: 1.5 }}>
           到官网注册会员，在会员中心复制通用凭证，再放到设置 → 会员。
           {' '}
-          <Link href="https://new-tea.cn/zh-hans/user/register" target="_blank" rel="noreferrer">
-            去官网注册
-          </Link>
+          {registerUrl ? (
+            <Link href={registerUrl} target="_blank" rel="noreferrer">
+              去官网注册
+            </Link>
+          ) : null}
           {' '}
           <Link component={RouterLink} to="/settings/membership">
             去装载凭证

@@ -380,10 +380,10 @@ class DataSourceManager:
 
     def _discover_config(self, data_source_key: str) -> Any:
         """
-        发现并加载指定数据源的 Config。仅支持 config.py，其中必须定义 CONFIG 字典。
-        
+        发现并加载指定数据源的配置。仅支持 settings.py，其中必须定义 settings 字典。
+
         支持递归查找：
-        1. 首先尝试 handlers/{data_source_key}/config.py
+        1. 首先尝试 handlers/{data_source_key}/settings.py
         2. 找不到则递归搜索 handlers 下含该 key 的目录
         """
         if data_source_key in self._all_valid_configs_cache:
@@ -391,7 +391,7 @@ class DataSourceManager:
 
         # 首先尝试直接路径
         handler_dir = ProjectContext.path.get_data_source_handler_directory(data_source_key)
-        config_path = handler_dir / "config.py"
+        config_path = handler_dir / "settings.py"
         
         config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
         
@@ -402,7 +402,7 @@ class DataSourceManager:
                 config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
         
         if not config_dict:
-            logger.info(f"Data source {data_source_key} 未找到或无法加载 config.py，跳过")
+            logger.info(f"Data source {data_source_key} 未找到或无法加载 settings.py，跳过")
             return None
 
         try:
@@ -415,9 +415,9 @@ class DataSourceManager:
         return config
     
     def _find_config_recursively(self, data_source_key: str) -> Optional[Path]:
-        """在 handlers 树中按目录名 key 定位 config.py。"""
+        """在 handlers 树中按目录名 key 定位 settings.py。"""
         handlers_dir = ProjectContext.path.get_data_source_handlers_directory()
-        return Discovery.file.find_in_tree(handlers_dir, data_source_key, "config.py")
+        return Discovery.file.find_in_tree(handlers_dir, data_source_key, "settings.py")
 
 
     def _discover_handler(

@@ -11,7 +11,7 @@ API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_source_manage
 | 路径 | 作用 |
 | --- | --- |
 | `userspace/data_source/mapping.py` | **`DATA_SOURCES`** |
-| `userspace/data_source/handlers/<name>/config.py` | 各源 **`CONFIG`**（顶层 **`table`**） |
+| `userspace/extensions/data_source/handlers/<name>/settings.py` | 各源 **`settings`**（顶层 **`table`**） |
 | `userspace/data_source/handlers/.../handler.py` | Handler 实现 |
 | `userspace/data_source/providers/` | Provider 包 |
 

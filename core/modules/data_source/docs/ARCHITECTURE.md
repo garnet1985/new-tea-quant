@@ -45,7 +45,7 @@ modules.data_source/
 flowchart TB
   M[DataSourceManager.execute]
   MAP[mapping DATA_SOURCES]
-  CFG[handlers/.../config.py]
+  CFG[handlers/.../settings.py]
   H[BaseHandler 实例列表]
   S[DataSourceExecutionScheduler.run]
   M --> MAP

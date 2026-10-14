@@ -8,7 +8,7 @@
 
 | 包含（Phase 2 MVP） | 不包含 |
 |---------------------|--------|
-| Source 列表（只读） | 编辑 `mapping.py` / handler `config.py` |
+| Source 列表（只读） | 编辑 `mapping.py` / 各数据源 `settings.py` |
 | 单行 Renew + 可选「Renew 全部」 | Data Contract 调试、Tables CRUD |
 | 进度展示 | Dry-run 独立模式（若 CLI 仅 `is_dry_run` 配置则不做 UI 切换） |
 

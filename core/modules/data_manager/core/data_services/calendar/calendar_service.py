@@ -371,7 +371,7 @@ class CalendarService(BaseDataService):
         Args:
             date: 最新交易日（YYYYMMDD）
             updated_at: 更新时间（YYYYMMDD）
-            provider: 数据来源（如 'eastmoney', 'sina', 'guess'）
+            provider: 数据来源（如 'akshare', 'guess'）
         """
         try:
             cache_model = self.data_manager.get_table("sys_cache_kv")

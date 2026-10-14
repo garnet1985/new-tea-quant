@@ -25,4 +25,5 @@ DEFAULT_DISPLAY_NAMES: Dict[str, str] = {
     "money_supply": "货币供应量",
     "shibor": "Shibor 利率",
     "lpr": "宏观 LPR",
+    "ntq": "官网行情",
 }

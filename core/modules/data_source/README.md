@@ -2,7 +2,7 @@
 
 **模块：** `modules.data_source` · **版本：** `0.4.0`
 
-配置驱动的数据抓取。从 `userspace/data_source/mapping.py` 和各 handler 的 `config.py` 加载表 schema，实例化 Handler 与 Provider，由调度器按依赖顺序执行并写库。`is_dry_run` 为真时跳过写入。
+配置驱动的数据抓取。从 `userspace/extensions/data_source/mapping.py` 和各数据源目录的 `settings.py` 加载表 schema，实例化 Handler 与 Provider，由调度器按依赖顺序执行并写库。`is_dry_run` 为真时跳过写入。
 
 公开入口是 `DataSourceManager`。Provider、Handler、job 和配置类型从 `contracts` 导入。最短示例见 [QUICKSTART.md](./QUICKSTART.md)，调用面见 [API.md](./API.md)。
 

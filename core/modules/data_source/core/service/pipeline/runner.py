@@ -30,6 +30,14 @@ from core.modules.data_source.core.service.pipeline.save_utils import (
 
 logger = logging.getLogger(__name__)
 
+
+def _note_bundle_error(context: Dict[str, Any], job_id: str, error: Any) -> None:
+    text = str(error or "").splitlines()[0][:300]
+    context["_bundle_error_count"] = int(context.get("_bundle_error_count") or 0) + 1
+    lines = context.setdefault("_bundle_errors", [])
+    if isinstance(lines, list) and len(lines) < 200:
+        lines.append(f"{job_id}: {text}")
+
 BundleRow = Tuple[str, List[ApiJob], Any]
 
 PROGRESS_LOG_INTERVAL_SEC = 45
@@ -111,6 +119,7 @@ class DataSourcePipelineRunner:
 
         def on_result(report: JobReport, progress: RunProgress) -> None:
             if not report.success:
+                _note_bundle_error(context, report.job_id, report.error)
                 print(
                     f"  Bundle 失败: {report.job_id} {report.error}",
                     flush=True,

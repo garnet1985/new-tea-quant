@@ -8,16 +8,27 @@ os.environ["TQDM_DISABLE"] = "1"  # 强制禁用，避免 akshare 等依赖的�
 
 from typing import Any, Dict, List, Tuple, Optional
 import logging
+import time
 
 from core.modules.data_source.core.base_class.base_provider import BaseProvider
 from core.modules.data_source.core.service.handler_helper import DataSourceHandlerHelper
 from core.modules.data_source.core.data_class.api_job import ApiJob
 from core.modules.data_source.core.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.core.data_class.config import DataSourceConfig
+from core.modules.data_source.core.enums import UpdateMode
 from core.modules.data_manager import DataManager
 
 
 logger = logging.getLogger(__name__)
+
+
+def format_run_seconds(seconds: float) -> str:
+    """进度日志用的耗时。不足 10 秒保留一位小数。"""
+    seconds = max(0.0, float(seconds))
+    if seconds < 10:
+        text = f"{seconds:.1f}".rstrip("0").rstrip(".")
+        return f"{text}s"
+    return f"{int(round(seconds))}s"
 
 
 class BaseHandler:
@@ -54,6 +65,31 @@ class BaseHandler:
         """获取依赖的数据源名称列表"""
         return self.context.get("depend_on_data_source_names", [])
 
+    def renew_mode_label(self, *, force: bool = False) -> str:
+        """本次实际执行模式。force 覆盖配置，按全量重拉。"""
+        if force:
+            return UpdateMode.REFRESH.value
+        config = self.context.get("config")
+        if config is None:
+            return ""
+        mode = config.get_renew_mode()
+        if isinstance(mode, UpdateMode):
+            return mode.value
+        return str(mode or "")
+
+    def _remember_run_timing(self, started: float, plan_done: float) -> None:
+        now = time.perf_counter()
+        plan = max(0.0, plan_done - started)
+        execute = max(0.0, now - plan_done)
+        self._last_run_timing = {
+            "plan": plan,
+            "execute": execute,
+            "total": plan + execute,
+        }
+
+    def _print_plan_elapsed(self, seconds: float) -> None:
+        print(f"任务规划耗时：{format_run_seconds(seconds)}", flush=True)
+
     # ================================
     # Main entrance: execute
     # ================================
@@ -69,15 +105,23 @@ class BaseHandler:
         4. _do_save：非 is_dry_run 时先调用 on_before_save（用户可返回替代数据），再系统写入绑定表；
         5. 返回标准化后的数据。
         """
+        started = time.perf_counter()
+        self.context["_bundle_errors"] = []
+        self.context["_bundle_error_count"] = 0
         self._inject_dependencies(dependencies_data)
         config = self.context.get("config")
         self.context["is_dry_run"] = config.get_is_dry_run() if config else False
 
         early_result = self.on_before_run(self.context)
         if early_result is not None:
+            plan_done = time.perf_counter()
+            self._print_plan_elapsed(plan_done - started)
+            self._remember_run_timing(started, plan_done)
             return early_result
 
         jobs = self._preprocess(dependencies_data)
+        plan_done = time.perf_counter()
+        self._print_plan_elapsed(plan_done - started)
 
         fetched_data = self._executing(jobs)
 
@@ -85,6 +129,7 @@ class BaseHandler:
 
         normalized_data = self._do_save(normalized_data)
 
+        self._remember_run_timing(started, plan_done)
         return normalized_data
     
 

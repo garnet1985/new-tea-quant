@@ -251,6 +251,16 @@ class UserParser:
             metavar="SOURCE",
             help="表名或 key；省略=全部；list 列出目标",
         )
+        p.add_argument(
+            "--json",
+            action="store_true",
+            help="与 list 合用，输出任务栏 JSON",
+        )
+        p.add_argument(
+            "--clear-logs",
+            action="store_true",
+            help="删除已结束的运行状态目录，留下正在跑的那一次",
+        )
 
     @staticmethod
     def _p_export_adj_factor(sub: argparse._SubParsersAction) -> None:

@@ -65,4 +65,13 @@ class TestBaseHandler:
             "stock_list",
             "latest_completed_trading_date",
         ]
+        assert handler.renew_mode_label() == "incremental"
+        assert handler.renew_mode_label(force=True) == "refresh"
+
+    def test_format_run_seconds(self):
+        from core.modules.data_source.core.base_class.base_handler import format_run_seconds
+
+        assert format_run_seconds(4) == "4s"
+        assert format_run_seconds(4.24) == "4.2s"
+        assert format_run_seconds(16.4) == "16s"
 

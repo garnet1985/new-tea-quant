@@ -1,7 +1,7 @@
 # 测试用例 — `modules.data_source`
 
 **模块：** `modules.data_source`  
-**版本：** `0.3.0`  
+**版本：** `0.4.0`  
 ## Scope
 
 验证门面 `DataSourceManager` 公开逻辑（对齐 `API.md`）。

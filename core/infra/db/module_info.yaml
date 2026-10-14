@@ -1,12 +1,16 @@
 # 模块元数据
 name: infra.db
-version: "0.3.1"
+version: "0.3.2"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "数据库模块：解析用户数据表声明，提供数据库操作接口，对多数据库进行统一管理。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.3.2"
+    changes:
+      - 按分组取最新日期只查分组键和日期，不再回表读取整行
+      - MySQL / MariaDB / PostgreSQL 的读语句默认 300 秒超时，进程退出后服务器也会停掉这条查询
   - version: "0.3.1"
     changes:
       - 标准化模块，标准化文档以及对外API

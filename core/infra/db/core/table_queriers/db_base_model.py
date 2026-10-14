@@ -62,6 +62,18 @@ from core.infra.db.core.table_queriers.services.batch_operation import BatchOper
 
 logger = logging.getLogger(__name__)
 
+
+def latest_group_query(table_name: str, date_field: str, group_fields: List[str]) -> str:
+    """按分组取最大日期。调用方只用这些字段，不能回表读取整行。"""
+    if not group_fields:
+        raise ValueError("group_fields 不能为空，需传入至少一个分组字段")
+    group_fields_str = ", ".join(group_fields)
+    return (
+        f"SELECT {group_fields_str}, MAX({date_field}) AS {date_field} "
+        f"FROM {table_name} "
+        f"GROUP BY {group_fields_str}"
+    )
+
 # MySQL 单条 INSERT 受 max_allowed_packet 限制；在占位符上限之外再限制每批行数
 _MYSQL_INSERT_BATCH_ROW_CAP = 1000
 
@@ -1136,27 +1148,14 @@ class DbBaseModel:
 
     def load_latests(self, date_field: str, group_fields: List[str]) -> List[Dict[str, Any]]:
         """
-        加载每个分组中最新日期的记录
+        每个分组的最大日期。只返回分组字段和该日期，不回表取整行。
 
         Args:
             date_field: 日期字段名（用于取 MAX）
             group_fields: 分组字段列表（GROUP BY 的字段）
         """
-        if not group_fields:
-            raise ValueError("group_fields 不能为空，需传入至少一个分组字段")
-        group_fields_str = ', '.join(group_fields)
-        query = f"""
-            SELECT t1.*
-            FROM {self.table_name} t1
-            INNER JOIN (
-                SELECT {group_fields_str}, MAX({date_field}) as max_date
-                FROM {self.table_name}
-                GROUP BY {group_fields_str}
-            ) t2
-            ON {' AND '.join([f't1.{f} = t2.{f}' for f in group_fields])}
-            AND t1.{date_field} = t2.max_date
-        """
         try:
+            query = latest_group_query(self.table_name, date_field, group_fields)
             return self._table_query(query)
         except Exception as e:
             logger.error(f"加载最新记录失败 [{self.table_name}]: {e}")

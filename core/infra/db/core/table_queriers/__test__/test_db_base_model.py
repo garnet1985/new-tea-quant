@@ -3,7 +3,7 @@ DbBaseModel 单元测试
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from core.infra.db.core.table_queriers.db_base_model import DbBaseModel
+from core.infra.db.core.table_queriers.db_base_model import DbBaseModel, latest_group_query
 from core.infra.db.core.engines.shared import row_sql
 
 
@@ -198,3 +198,21 @@ class TestDbBaseModelEnginePath:
         with patch.object(model, 'batch_insert', return_value=2) as mock_batch:
             model.insert(data_list)
         mock_batch.assert_called_once_with(data_list, None)
+
+
+def test_latest_group_query_reads_only_the_group_key_and_date():
+    sql = latest_group_query("sys_data_stock_indicators", "date", ["id"])
+    assert sql == (
+        "SELECT id, MAX(date) AS date "
+        "FROM sys_data_stock_indicators "
+        "GROUP BY id"
+    )
+    assert "t1.*" not in sql
+
+
+def test_latest_group_query_requires_a_group_field():
+    try:
+        latest_group_query("t", "date", [])
+        assert False, "expected ValueError"
+    except ValueError as error:
+        assert "group_fields" in str(error)

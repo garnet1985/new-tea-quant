@@ -18,6 +18,7 @@ class MysqlSettings:
     autocommit: bool = True
     pool_minconn: int = 1
     pool_maxconn: int = 10
+    statement_timeout_seconds: int = 300
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> MysqlSettings:
@@ -34,6 +35,7 @@ class MysqlSettings:
             autocommit=bool(d.get("autocommit", True)),
             pool_minconn=max(1, int(pool_min)),
             pool_maxconn=max(1, int(pool_max)),
+            statement_timeout_seconds=max(0, int(d.get("statement_timeout_seconds", 300))),
         )
 
     def as_dict(self) -> Dict[str, Any]:
@@ -48,4 +50,5 @@ class MysqlSettings:
             "autocommit": self.autocommit,
             "pool_minconn": self.pool_minconn,
             "pool_maxconn": self.pool_maxconn,
+            "statement_timeout_seconds": self.statement_timeout_seconds,
         }

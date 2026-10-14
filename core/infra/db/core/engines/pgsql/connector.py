@@ -21,6 +21,15 @@ from core.infra.db.core.engines.pgsql.sql_adapter import PgsqlSqlAdapter
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_STATEMENT_TIMEOUT_SECONDS = 300
+
+
+def statement_timeout_sql(seconds: int) -> Optional[str]:
+    """读语句超时，单位毫秒。0 表示不限制。"""
+    if seconds <= 0:
+        return None
+    return f"SET statement_timeout = {int(seconds) * 1000}"
+
 
 class PgsqlConnector:
     """PostgreSQL 连接与执行（engine 包内专用）。"""
@@ -38,6 +47,7 @@ class PgsqlConnector:
         self.is_verbose = is_verbose
         self.sql_adapter = PgsqlSqlAdapter()
         self._connection_pool: Optional[pool.ThreadedConnectionPool] = None
+        self._timeout_unsupported = False
         self._initialized = False
     
     def connect(self, config: Dict[str, Any] = None) -> pool.ThreadedConnectionPool:
@@ -100,6 +110,32 @@ class PgsqlConnector:
             else:
                 raise RuntimeError("PgsqlConnector 未初始化，请先调用 connect()")
         return self._connection_pool.getconn()
+
+    def _statement_timeout_seconds(self) -> int:
+        raw = self.config.get("statement_timeout_seconds", _DEFAULT_STATEMENT_TIMEOUT_SECONDS)
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return _DEFAULT_STATEMENT_TIMEOUT_SECONDS
+
+    def _arm_select_timeout(self, cursor) -> bool:
+        """给接下来的读语句加上限时。statement_timeout 也限制写入，所以读完要清掉。"""
+        seconds = self._statement_timeout_seconds()
+        if seconds <= 0 or self._timeout_unsupported:
+            return False
+        try:
+            cursor.execute(statement_timeout_sql(seconds))
+            return True
+        except Exception:
+            self._timeout_unsupported = True
+            logger.warning("当前数据库不接受语句超时，读语句不再限时")
+            return False
+
+    def _clear_select_timeout(self, cursor) -> None:
+        try:
+            cursor.execute("SET statement_timeout = 0")
+        except Exception:
+            logger.debug("清除语句超时失败", exc_info=True)
     
     def _put_connection(self, conn):
         """将连接归还到连接池"""
@@ -132,8 +168,13 @@ class PgsqlConnector:
             
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(query, params)
-                results = cursor.fetchall()
+                armed = self._arm_select_timeout(cursor)
+                try:
+                    cursor.execute(query, params)
+                    results = cursor.fetchall()
+                finally:
+                    if armed:
+                        self._clear_select_timeout(cursor)
                 # RealDictRow → dict；读出口统一 DECIMAL→float 等标量规范
                 return normalize_query_rows([dict(row) for row in results])
         except Exception as e:

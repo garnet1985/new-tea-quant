@@ -128,6 +128,7 @@ def test_plan_imports_the_cache_and_keeps_the_early_stock(capsys, monkeypatch):
     saved = official_sync.pull_entities(handler, jobs)
     text = capsys.readouterr().out
     assert saved == 10
+    assert "远端计划：缓存 1 个文件（20260920–20261014），导入后再按股票补 1 只" in text
     assert "已导入数据包 9 行，截止 20261014" in text
     assert provider.synced == [("000003.SZ", "20100101", "20260919")]
     assert provider.asked[1][0]["id"] == "000001.SZ"

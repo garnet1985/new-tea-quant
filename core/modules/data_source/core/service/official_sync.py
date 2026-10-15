@@ -110,10 +110,31 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
     try:
         plan = provider.plan_entities(table, ranges, pack)
     except Exception:
+        print(f"[{handler.get_key()}] 远端没有返回更新计划，改为按股票拉取", flush=True)
         logger.warning("官网没有返回更新计划，改为按股票拉取", exc_info=True)
         return jobs, 0
+    files = [item for item in (plan.get("files") or []) if isinstance(item, dict) and item.get("path")]
+    left = []
+    for item in plan.get("stocks") or []:
+        if not isinstance(item, dict):
+            continue
+        entity_id = str(item.get("id") or "")
+        start = str(item.get("start") or "")
+        end = str(item.get("end") or "")
+        if entity_id and start and end:
+            left.append(_planned_job(entity_id, start, end))
+    if not files:
+        print(f"[{handler.get_key()}] 远端计划：没有缓存文件，按股票拉取 {len(left)} 只", flush=True)
+    else:
+        spans = "，".join(
+            f"{item.get('from') or '?'}–{item.get('through') or '?'}" for item in files
+        )
+        print(
+            f"[{handler.get_key()}] 远端计划：缓存 {len(files)} 个文件（{spans}），导入后再按股票补 {len(left)} 只",
+            flush=True,
+        )
     saved = 0
-    for item in plan.get("files") or []:
+    for item in files:
         if not isinstance(item, dict):
             continue
         path = str(item.get("path") or "")
@@ -126,15 +147,6 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
             return jobs, saved
         saved += imported
         print(f"[{handler.get_key()}] 已导入数据包 {imported} 行，截止 {through}", flush=True)
-    left = []
-    for item in plan.get("stocks") or []:
-        if not isinstance(item, dict):
-            continue
-        entity_id = str(item.get("id") or "")
-        start = str(item.get("start") or "")
-        end = str(item.get("end") or "")
-        if entity_id and start and end:
-            left.append(_planned_job(entity_id, start, end))
     return left, saved
 
 

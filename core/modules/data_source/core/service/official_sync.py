@@ -104,11 +104,8 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
             ranges.append({"id": entity_id, "start": start, "end": end})
     if not ranges:
         return jobs, 0
-    from core.modules.data_manager.core.sample_universe.sample_universe import SampleUniverse
-
-    pack = "sample" if SampleUniverse.is_active() else "all"
     try:
-        plan = provider.plan_entities(table, ranges, pack)
+        plan = provider.plan_entities(table, ranges, "all")
     except Exception:
         print(f"[{handler.get_key()}] 远端没有返回更新计划，改为按股票拉取", flush=True)
         logger.warning("官网没有返回更新计划，改为按股票拉取", exc_info=True)
@@ -126,9 +123,12 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
     if not files:
         print(f"[{handler.get_key()}] 远端计划：没有缓存文件，按股票拉取 {len(left)} 只", flush=True)
     else:
-        spans = "，".join(
-            f"{item.get('from') or '?'}–{item.get('through') or '?'}" for item in files
-        )
+        spans = []
+        for item in files:
+            label = f"{item.get('from') or '?'}–{item.get('through') or '?'}"
+            if label not in spans:
+                spans.append(label)
+        spans = "，".join(spans)
         print(
             f"[{handler.get_key()}] 远端计划：缓存 {len(files)} 个文件（{spans}），导入后再按股票补 {len(left)} 只",
             flush=True,

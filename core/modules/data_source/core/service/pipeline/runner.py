@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 from core.modules.data_source.core.data_class.api_job import ApiJob
@@ -30,10 +29,15 @@ from core.modules.data_source.core.service.pipeline.save_utils import (
 
 logger = logging.getLogger(__name__)
 
-BundleRow = Tuple[str, List[ApiJob], Any]
 
-PROGRESS_LOG_INTERVAL_SEC = 45
-PROGRESS_LOG_EVERY_N = 100
+def _note_bundle_error(context: Dict[str, Any], job_id: str, error: Any) -> None:
+    text = str(error or "").splitlines()[0][:300]
+    context["_bundle_error_count"] = int(context.get("_bundle_error_count") or 0) + 1
+    lines = context.setdefault("_bundle_errors", [])
+    if isinstance(lines, list) and len(lines) < 200:
+        lines.append(f"{job_id}: {text}")
+
+BundleRow = Tuple[str, List[ApiJob], Any]
 
 
 class DataSourcePipelineRunner:
@@ -82,35 +86,26 @@ class DataSourcePipelineRunner:
         )
         context["buffer_persisted"] = True
 
-        progress_state = {"last_pct": -1, "last_log_at": time.time(), "last_done": 0}
         merged: Dict[str, Any] = {}
+        sync_progress = context.get("_progress")
 
-        def _log_progress(progress: RunProgress, *, force: bool = False) -> None:
-            finished = progress.finished
-            total = progress.total or total_bundles
-            pct = int(finished * 100 / total) if total else 100
-            now = time.time()
-            should = force or (
-                finished >= progress_state["last_done"] + PROGRESS_LOG_EVERY_N
-                or (
-                    now - progress_state["last_log_at"] >= PROGRESS_LOG_INTERVAL_SEC
-                    and finished > progress_state["last_done"]
-                )
-                or (finished >= total and finished > progress_state["last_done"])
-            )
-            if not should:
-                return
+        def _log_progress(progress: RunProgress) -> None:
             bundle_progress.completed = progress.ok
             bundle_progress.failed = progress.fail
-            line = bundle_progress.format_short()
-            print(line, flush=True)
-            logger.info("%s", line)
-            progress_state["last_done"] = finished
-            progress_state["last_log_at"] = now
-            progress_state["last_pct"] = pct
+            snap = bundle_progress.snapshot()
+            done = progress.finished
+            total = progress.total or total_bundles
+            if sync_progress is not None:
+                sync_progress.bundles(done, total, snap["saved_to_db"], snap["failed"])
+                return
+            print(
+                f"[{data_source_key}] 抓取 {done}/{total}，已写入 {snap['saved_to_db']} 行",
+                flush=True,
+            )
 
         def on_result(report: JobReport, progress: RunProgress) -> None:
             if not report.success:
+                _note_bundle_error(context, report.job_id, report.error)
                 print(
                     f"  Bundle 失败: {report.job_id} {report.error}",
                     flush=True,
@@ -200,17 +195,13 @@ class DataSourcePipelineRunner:
                 pass
             checkpoint_after_batch_save(context)
             snap = bundle_progress.snapshot()
+            end = (
+                f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}，"
+                f"已写入 {snap['saved_to_db']} 行"
+            )
             if snap["failed"]:
-                print(
-                    f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}"
-                    f"（{snap['pct']}%），失败 {snap['failed']}",
-                    flush=True,
-                )
-            else:
-                print(
-                    f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}（{snap['pct']}%）",
-                    flush=True,
-                )
+                end += f"，失败 {snap['failed']}"
+            print(end, flush=True)
             logger.info(
                 "[%s] 抓取结束 %s/%s（%s%%），失败 %s",
                 data_source_key,

@@ -12,8 +12,14 @@ from core.infra.cmd_layout import i
 
 from typing import Dict, Any, List, Set, Optional, Tuple
 import logging
+import time
 
-from core.modules.data_source.core.base_class.base_handler import BaseHandler
+from core.modules.data_source.core.base_class.base_handler import BaseHandler, format_run_seconds
+from core.modules.data_source.core.service.run_status import (
+    RunStatus,
+    call_with_status,
+    ordered_source_keys,
+)
 from core.modules.data_source.core.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.core.reserved_dependencies import (
     RESERVED_DEPENDENCY_KEYS,
@@ -105,64 +111,33 @@ class DataSourceExecutionScheduler:
         Raises:
             ValueError: 如果存在循环依赖或依赖的数据源不存在
         """
-        from collections import defaultdict, deque
-        
-        # 构建 handler 名称到 handler 的映射
         handler_map = {}
-        for handler in handlers:
-            data_source_key = handler.get_key()
-            if data_source_key:
-                handler_map[data_source_key] = handler
-        
-        # 构建依赖图：dep -> [dependent1, dependent2, ...]
-        graph = defaultdict(list)
-        in_degree = {}
-        
-        # 初始化 in_degree
-        for handler in handlers:
-            data_source_key = handler.get_key()
-            if data_source_key:
-                in_degree[data_source_key] = 0
-        
-        # 构建图和计算入度
+        enabled: Dict[str, Any] = {}
         for handler in handlers:
             data_source_key = handler.get_key()
             if not data_source_key:
                 continue
-            
-            depends_on = handler.get_dependency_data_source_names()
-            for dep_name in depends_on:
+            handler_map[data_source_key] = handler
+            info: Dict[str, Any] = {
+                "depends_on": handler.get_dependency_data_source_names(),
+            }
+            if self.mappings is not None:
+                raw = self.mappings.data_sources.get(data_source_key) or {}
+                if "weight" in raw:
+                    info["weight"] = raw.get("weight")
+            enabled[data_source_key] = info
+
+        for data_source_key, info in enabled.items():
+            for dep_name in info["depends_on"]:
                 if dep_name in RESERVED_DEPENDENCY_KEYS:
                     continue
                 if dep_name not in handler_map:
                     raise ValueError(
                         f"数据源 '{data_source_key}' 依赖的数据源 '{dep_name}' 不存在或未启用"
                     )
-                graph[dep_name].append(data_source_key)
-                in_degree[data_source_key] += 1
-        
-        # 拓扑排序
-        sorted_handlers = []
-        queue = deque([name for name, degree in in_degree.items() if degree == 0])
-        
-        while queue:
-            current_name = queue.popleft()
-            sorted_handlers.append(handler_map[current_name])
-            
-            # 更新依赖当前 handler 的其他 handlers 的入度
-            for dependent_name in graph[current_name]:
-                in_degree[dependent_name] -= 1
-                if in_degree[dependent_name] == 0:
-                    queue.append(dependent_name)
-        
-        # 检查是否存在循环依赖
-        # 注意：若所有 handler 的 get_key() 均返回非 None（已验证），
-        # 那么 len(sorted_handlers) != len(handlers) 表示存在循环依赖
-        if len(sorted_handlers) != len(handlers):
-            remaining = set(handler_map.keys()) - {h.get_key() for h in sorted_handlers}
-            raise ValueError(f"检测到循环依赖或未解析的依赖，剩余数据源: {remaining}")
-        
-        return sorted_handlers
+
+        ordered = ordered_source_keys(enabled)
+        return [handler_map[name] for name in ordered]
 
     # ================================
     # execute stage
@@ -179,17 +154,31 @@ class DataSourceExecutionScheduler:
         4. 最后重试失败的 handler
         """
         total = len(sorted_handler_instances)
+        self._run_status = RunStatus.open(
+            sorted_handler_instances,
+            force=getattr(self, "_force_refresh", False),
+        )
         print(f"{i('rocket')} 开始执行 {total} 个数据源", flush=True)
         logger.info("开始执行 %s 个数据源", total)
         
         for idx, handler_instance in enumerate(sorted_handler_instances):
+            data_source_key = handler_instance.get_key()
+            started = time.perf_counter()
             try:
-                data_source_key = handler_instance.get_key()
+                mode = handler_instance.renew_mode_label(
+                    force=getattr(self, "_force_refresh", False)
+                )
                 print(
-                    f"{i('bar_chart')} [{idx+1}/{total}] 执行数据源: {data_source_key}",
+                    f"{i('bar_chart')} [{idx+1}/{total}] 执行数据源: {data_source_key} - 执行模式：{mode}",
                     flush=True,
                 )
-                logger.info("执行数据源 [%s/%s]: %s", idx + 1, total, data_source_key)
+                logger.info(
+                    "执行数据源 [%s/%s]: %s 执行模式：%s",
+                    idx + 1,
+                    total,
+                    data_source_key,
+                    mode,
+                )
                 handler_instance.context["retain_results"] = (
                     self.mappings.is_dependency_for_downstream(data_source_key)
                 )
@@ -197,18 +186,31 @@ class DataSourceExecutionScheduler:
                 if getattr(self, "_force_refresh", False):
                     dependencies_data = dict(dependencies_data or {})
                     dependencies_data["_execution"] = {"force_refresh": True}
-                normalized_data = handler_instance.execute(dependencies_data)
+                normalized_data = call_with_status(
+                    self._run_status,
+                    handler_instance,
+                    lambda handler=handler_instance, deps=dependencies_data: handler.execute(deps),
+                )
                 if self.mappings.is_dependency_for_downstream(data_source_key):
                     self._cache_result(data_source_key, normalized_data)
+                total_s = time.perf_counter() - started
+                execute_s = self._execute_seconds(handler_instance, total_s)
                 print(
-                    f"{i('success')} [{idx+1}/{total}] 数据源 {data_source_key} 执行完成",
+                    f"{i('success')} [{idx+1}/{total}] 数据源 {data_source_key} 执行完成，"
+                    f"执行耗时：{format_run_seconds(execute_s)}，总任务耗时：{format_run_seconds(total_s)}",
                     flush=True,
                 )
-                logger.info("数据源 %s 执行完成", data_source_key)
+                logger.info(
+                    "数据源 %s 执行完成，执行耗时：%s，总任务耗时：%s",
+                    data_source_key,
+                    format_run_seconds(execute_s),
+                    format_run_seconds(total_s),
+                )
                 # 只在成功执行后才清理不再需要的依赖缓存
                 self._clean_up_dependency_cache_if_no_longer_required(sorted_handler_instances, idx)
             except Exception as e:
-                self._handle_execution_error(handler_instance, e)
+                total_s = time.perf_counter() - started
+                self._handle_execution_error(handler_instance, e, elapsed=total_s)
 
         self._retry_failed_data_sources()
     
@@ -254,15 +256,32 @@ class DataSourceExecutionScheduler:
             logger.warning(f"{data_source_key} 返回结果为空，缓存不成功")
     
 
-    def _handle_execution_error(self, handler_instance: BaseHandler, error: Exception):
+    def _execute_seconds(self, handler_instance: BaseHandler, total_s: float) -> float:
+        timing = getattr(handler_instance, "_last_run_timing", None) or {}
+        execute_s = timing.get("execute")
+        if execute_s is None:
+            return total_s
+        return float(execute_s)
+
+    def _handle_execution_error(
+        self,
+        handler_instance: BaseHandler,
+        error: Exception,
+        *,
+        elapsed: float = 0.0,
+    ):
         """
         处理执行错误
         
         注意：handler_instance.get_key() 不会返回 None（已验证），因此不需要检查
         """
         data_source_key = handler_instance.get_key()
-        print(f"{i('error')} 数据源 {data_source_key} 执行失败: {error}", flush=True)
-        logger.info("数据源 %s 执行失败: %s", data_source_key, error)
+        spent = format_run_seconds(elapsed)
+        print(
+            f"{i('error')} 数据源 {data_source_key} 执行失败: {error}，总任务耗时：{spent}",
+            flush=True,
+        )
+        logger.info("数据源 %s 执行失败: %s，总任务耗时：%s", data_source_key, error, spent)
         self._failed_data_sources.append((data_source_key, handler_instance, error))
 
     def _retry_failed_data_sources(self):
@@ -284,30 +303,63 @@ class DataSourceExecutionScheduler:
         retry_failed = []
         
         for data_source_key, handler_instance, _ in self._failed_data_sources:
+            started = time.perf_counter()
             try:
                 # 获取依赖数据（如果依赖也失败了，这里可能会抛出异常）
                 dependencies_data = self._get_dependencies_data(data_source_key)
                 
                 # 执行 handler
-                normalized_data = handler_instance.execute(dependencies_data)
+                normalized_data = call_with_status(
+                    self._run_status,
+                    handler_instance,
+                    lambda handler=handler_instance, deps=dependencies_data: handler.execute(deps),
+                )
                 
                 # 如果需要缓存，则缓存结果
                 # 注意：self.mappings 在 run() 方法中已赋值，不会是 None
                 if self.mappings.is_dependency_for_downstream(data_source_key):
                     self._cache_result(data_source_key, normalized_data)
                 
-                print(f"{i('success')} 数据源 {data_source_key} 重试成功", flush=True)
-                logger.info("数据源 %s 重试成功", data_source_key)
-            except ValueError as e:
+                total_s = time.perf_counter() - started
+                execute_s = self._execute_seconds(handler_instance, total_s)
                 print(
-                    f"{i('warning')}  数据源 {data_source_key} 重试失败：依赖数据缺失 - {e}",
+                    f"{i('success')} 数据源 {data_source_key} 重试成功，"
+                    f"执行耗时：{format_run_seconds(execute_s)}，总任务耗时：{format_run_seconds(total_s)}",
                     flush=True,
                 )
-                logger.info("数据源 %s 重试失败：依赖数据缺失 - %s", data_source_key, e)
+                logger.info(
+                    "数据源 %s 重试成功，执行耗时：%s，总任务耗时：%s",
+                    data_source_key,
+                    format_run_seconds(execute_s),
+                    format_run_seconds(total_s),
+                )
+            except ValueError as e:
+                total_s = time.perf_counter() - started
+                print(
+                    f"{i('warning')}  数据源 {data_source_key} 重试失败：依赖数据缺失 - {e}，"
+                    f"总任务耗时：{format_run_seconds(total_s)}",
+                    flush=True,
+                )
+                logger.info(
+                    "数据源 %s 重试失败：依赖数据缺失 - %s，总任务耗时：%s",
+                    data_source_key,
+                    e,
+                    format_run_seconds(total_s),
+                )
                 retry_failed.append((data_source_key, handler_instance, e))
             except Exception as e:
-                print(f"{i('error')} 数据源 {data_source_key} 重试仍然失败: {e}", flush=True)
-                logger.info("数据源 %s 重试仍然失败: %s", data_source_key, e)
+                total_s = time.perf_counter() - started
+                print(
+                    f"{i('error')} 数据源 {data_source_key} 重试仍然失败: {e}，"
+                    f"总任务耗时：{format_run_seconds(total_s)}",
+                    flush=True,
+                )
+                logger.info(
+                    "数据源 %s 重试仍然失败: %s，总任务耗时：%s",
+                    data_source_key,
+                    e,
+                    format_run_seconds(total_s),
+                )
                 retry_failed.append((data_source_key, handler_instance, e))
         
         # 更新失败列表

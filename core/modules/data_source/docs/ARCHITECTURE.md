@@ -1,6 +1,6 @@
 # Data Source 架构文档
 
-**模块：** `modules.data_source` · **版本：** `0.3.0`
+**模块：** `modules.data_source` · **版本：** `0.4.0`
 
 ---
 
@@ -45,7 +45,7 @@ modules.data_source/
 flowchart TB
   M[DataSourceManager.execute]
   MAP[mapping DATA_SOURCES]
-  CFG[handlers/.../config.py]
+  CFG[handlers/.../settings.py]
   H[BaseHandler 实例列表]
   S[DataSourceExecutionScheduler.run]
   M --> MAP

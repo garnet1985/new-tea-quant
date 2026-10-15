@@ -1,6 +1,6 @@
 # 抓取结果缓冲写入
 
-**模块：** `modules.data_source` · **版本：** `0.3.0`
+**模块：** `modules.data_source` · **版本：** `0.4.0`
 
 记录抓取结果如何进入内存、何时写入数据库。实现以 `core/service/pipeline/` 为准。
 

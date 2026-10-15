@@ -211,9 +211,27 @@ class UserHandlers:
         source = UserHandlers._strategy_name(getattr(args, "source", None))
         force = bool(getattr(args, "force", False))
 
+        if getattr(args, "clear_logs", False):
+            from core.modules.data_source.core.service.run_status import clear_finished_runs
+
+            removed = clear_finished_runs()
+            if not removed:
+                print("没有可清理的运行状态。", flush=True)
+                return
+            print(f"已清理 {len(removed)} 次运行状态。", flush=True)
+            return
+
         if source and source.lower() == "list":
             from core.modules.data_source import DataSourceManager
 
+            if getattr(args, "json", False):
+                import json
+
+                print(
+                    json.dumps(DataSourceManager().task_catalog(force=force), ensure_ascii=False),
+                    flush=True,
+                )
+                return
             print(DataSourceManager.format_renew_targets_help(), flush=True)
             return
 

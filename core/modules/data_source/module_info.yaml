@@ -1,5 +1,5 @@
 name: modules.data_source
-version: "0.3.0"
+version: "0.4.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据源模块：提供配置驱动的数据抓取，支持按照不同模式和不同数据供应商请求并加载数据。"
@@ -11,6 +11,11 @@ dependencies:
   - infra.utils
   - infra.cmd_layout
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 每次运行写入 status.json 任务栏，失败详情另存，页面只读这份状态
+      - renew list --json 输出任务清单；renew --clear-logs 删除已结束的运行目录
+      - namechange 按该 token 的 500 次/分钟限流，频率超限时停一个窗口再试
   - version: "0.3.0"
     changes:
       - 抓取结果统一按字节缓冲区写入，字段映射在表上完成

@@ -19,12 +19,46 @@ _FAILURE_LINE_CAP = 200
 _SUMMARY_LEN = 180
 
 
+def source_weight(data_source_key: str, info: Dict[str, Any]) -> Optional[int]:
+    """mapping.weight。越大越先执行。没写则不参与优先级。"""
+    if "weight" not in info or info.get("weight") is None:
+        return None
+    value = info.get("weight")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"数据源 '{data_source_key}' 的 weight 必须是整数")
+    return value
+
+
+def assert_weights_match_dependencies(sources: Dict[str, Dict[str, Any]]) -> None:
+    """依赖必须不晚于依赖它的源。weight 把方向写反了就停止。"""
+    from core.modules.data_source.core.reserved_dependencies import RESERVED_DEPENDENCY_KEYS
+
+    weights = {key: source_weight(key, info) for key, info in sources.items()}
+    for key, info in sources.items():
+        child = weights[key]
+        if child is None:
+            continue
+        for dep_name in info.get("depends_on") or []:
+            if dep_name in RESERVED_DEPENDENCY_KEYS or dep_name not in weights:
+                continue
+            parent = weights[dep_name]
+            if parent is None or child <= parent:
+                continue
+            raise ValueError(
+                f"数据源 '{key}' 的 weight {child} 高于依赖 '{dep_name}' 的 weight {parent}。"
+                f"weight 越大越先执行，与依赖顺序冲突，已停止。"
+            )
+
+
 def ordered_source_keys(enabled: Dict[str, Dict[str, Any]]) -> List[str]:
-    """按 depends_on 拓扑排序。保留依赖不计入。"""
-    from collections import defaultdict, deque
+    """按 depends_on 拓扑排序。同一批可执行的源里，weight 大的先跑。"""
+    from collections import defaultdict
 
     from core.modules.data_source.core.reserved_dependencies import RESERVED_DEPENDENCY_KEYS
 
+    assert_weights_match_dependencies(enabled)
+    index = {key: pos for pos, key in enumerate(enabled)}
+    weights = {key: source_weight(key, info) for key, info in enabled.items()}
     in_degree = {key: 0 for key in enabled}
     graph: Dict[str, List[str]] = defaultdict(list)
     for key, info in enabled.items():
@@ -33,18 +67,26 @@ def ordered_source_keys(enabled: Dict[str, Dict[str, Any]]) -> List[str]:
                 continue
             graph[dep_name].append(key)
             in_degree[key] += 1
-    queue = deque([key for key, degree in in_degree.items() if degree == 0])
+
+    def ready_key(name: str) -> tuple:
+        weight = weights[name]
+        if weight is None:
+            return (1, 0, index[name])
+        return (0, -weight, index[name])
+
+    ready = [key for key, degree in in_degree.items() if degree == 0]
     ordered: List[str] = []
-    while queue:
-        current = queue.popleft()
+    while ready:
+        ready.sort(key=ready_key)
+        current = ready.pop(0)
         ordered.append(current)
         for dependent in graph[current]:
             in_degree[dependent] -= 1
             if in_degree[dependent] == 0:
-                queue.append(dependent)
+                ready.append(dependent)
     if len(ordered) != len(enabled):
-        missing = [key for key in enabled if key not in ordered]
-        ordered.extend(missing)
+        remaining = [key for key in enabled if key not in ordered]
+        raise ValueError(f"检测到循环依赖或未解析的依赖，剩余数据源: {remaining}")
     return ordered
 
 

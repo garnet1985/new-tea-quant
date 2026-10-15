@@ -15,7 +15,11 @@ import logging
 import time
 
 from core.modules.data_source.core.base_class.base_handler import BaseHandler, format_run_seconds
-from core.modules.data_source.core.service.run_status import RunStatus, call_with_status
+from core.modules.data_source.core.service.run_status import (
+    RunStatus,
+    call_with_status,
+    ordered_source_keys,
+)
 from core.modules.data_source.core.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.core.reserved_dependencies import (
     RESERVED_DEPENDENCY_KEYS,
@@ -107,64 +111,33 @@ class DataSourceExecutionScheduler:
         Raises:
             ValueError: 如果存在循环依赖或依赖的数据源不存在
         """
-        from collections import defaultdict, deque
-        
-        # 构建 handler 名称到 handler 的映射
         handler_map = {}
-        for handler in handlers:
-            data_source_key = handler.get_key()
-            if data_source_key:
-                handler_map[data_source_key] = handler
-        
-        # 构建依赖图：dep -> [dependent1, dependent2, ...]
-        graph = defaultdict(list)
-        in_degree = {}
-        
-        # 初始化 in_degree
-        for handler in handlers:
-            data_source_key = handler.get_key()
-            if data_source_key:
-                in_degree[data_source_key] = 0
-        
-        # 构建图和计算入度
+        enabled: Dict[str, Any] = {}
         for handler in handlers:
             data_source_key = handler.get_key()
             if not data_source_key:
                 continue
-            
-            depends_on = handler.get_dependency_data_source_names()
-            for dep_name in depends_on:
+            handler_map[data_source_key] = handler
+            info: Dict[str, Any] = {
+                "depends_on": handler.get_dependency_data_source_names(),
+            }
+            if self.mappings is not None:
+                raw = self.mappings.data_sources.get(data_source_key) or {}
+                if "weight" in raw:
+                    info["weight"] = raw.get("weight")
+            enabled[data_source_key] = info
+
+        for data_source_key, info in enabled.items():
+            for dep_name in info["depends_on"]:
                 if dep_name in RESERVED_DEPENDENCY_KEYS:
                     continue
                 if dep_name not in handler_map:
                     raise ValueError(
                         f"数据源 '{data_source_key}' 依赖的数据源 '{dep_name}' 不存在或未启用"
                     )
-                graph[dep_name].append(data_source_key)
-                in_degree[data_source_key] += 1
-        
-        # 拓扑排序
-        sorted_handlers = []
-        queue = deque([name for name, degree in in_degree.items() if degree == 0])
-        
-        while queue:
-            current_name = queue.popleft()
-            sorted_handlers.append(handler_map[current_name])
-            
-            # 更新依赖当前 handler 的其他 handlers 的入度
-            for dependent_name in graph[current_name]:
-                in_degree[dependent_name] -= 1
-                if in_degree[dependent_name] == 0:
-                    queue.append(dependent_name)
-        
-        # 检查是否存在循环依赖
-        # 注意：若所有 handler 的 get_key() 均返回非 None（已验证），
-        # 那么 len(sorted_handlers) != len(handlers) 表示存在循环依赖
-        if len(sorted_handlers) != len(handlers):
-            remaining = set(handler_map.keys()) - {h.get_key() for h in sorted_handlers}
-            raise ValueError(f"检测到循环依赖或未解析的依赖，剩余数据源: {remaining}")
-        
-        return sorted_handlers
+
+        ordered = ordered_source_keys(enabled)
+        return [handler_map[name] for name in ordered]
 
     # ================================
     # execute stage

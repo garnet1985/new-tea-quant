@@ -147,7 +147,8 @@ class BaseHandler:
 
             saved = pull_table(self, jobs)
             self._remember_run_timing(started, plan_done)
-            return {"saved": saved}
+            # 行已经写入绑定表。data 留给调度器登记“这个源跑过了”，下游不再按股票拆任务。
+            return {"saved": saved, "data": []}
 
         fetched_data = self._executing(jobs)
 

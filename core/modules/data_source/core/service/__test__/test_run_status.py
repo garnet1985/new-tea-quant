@@ -36,6 +36,26 @@ def test_ordered_source_keys_respects_depends_on() -> None:
     assert ordered_source_keys(enabled) == ["stock_list", "cpi"]
 
 
+def test_ordered_source_keys_runs_larger_weight_first() -> None:
+    enabled = {
+        "cpi": {"weight": 1},
+        "gdp": {"weight": 10},
+        "stock_list": {},
+    }
+    assert ordered_source_keys(enabled) == ["gdp", "cpi", "stock_list"]
+
+
+def test_ordered_source_keys_stops_when_weight_reverses_dependency() -> None:
+    import pytest
+
+    enabled = {
+        "stock_list": {"weight": 1},
+        "stock_klines": {"weight": 10, "depends_on": ["stock_list"]},
+    }
+    with pytest.raises(ValueError, match="已停止"):
+        ordered_source_keys(enabled)
+
+
 def test_status_file_records_plan_and_bundle_error(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("NTQ_RUN_DIR", str(tmp_path / "run-1"))
     monkeypatch.delenv("NTQ_RUNS_DIR", raising=False)

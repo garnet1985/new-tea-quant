@@ -21,11 +21,11 @@ class SyncProgress:
     def table(self, index: int, total: int, table: str, label: str) -> None:
         print(f"[{self.source}] 第 {index}/{total} 张 {table}（{label}）", flush=True)
 
-    def page(self, table: str, label: str, page: int, saved: int) -> None:
-        print(
-            f"[{self.source}] 同步 {table}（{label}）正在读取第 {page} 页，已写入 {saved} 行",
-            flush=True,
-        )
+    def page(self, table: str, label: str, page: int, saved: int, total: int | None = None) -> None:
+        line = f"[{self.source}] 同步 {table}（{label}）正在读取第 {page} 页，已写入 {saved} 行"
+        if total is not None and total > 0:
+            line += f"，{_percent_text(saved, total)}"
+        print(line, flush=True)
 
     def table_done(self, table: str, label: str, saved: int, seconds: float) -> None:
         from core.modules.data_source.core.base_class.base_handler import format_run_seconds
@@ -34,6 +34,14 @@ class SyncProgress:
             f"[{self.source}] 同步完成 {table}（{label}）写入 {saved} 行，耗时 {format_run_seconds(seconds)}",
             flush=True,
         )
+
+
+def _percent_text(saved: int, total: int) -> str:
+    pct = saved * 100.0 / total
+    if pct >= 10:
+        return f"{min(100, int(pct))}%"
+    text = f"{pct:.1f}".rstrip("0").rstrip(".")
+    return f"{text}%"
 
 
 __all__ = ["SyncProgress"]

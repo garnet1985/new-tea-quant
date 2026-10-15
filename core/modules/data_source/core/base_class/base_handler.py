@@ -143,12 +143,14 @@ class BaseHandler:
         self._print_plan_elapsed(plan_done - started)
 
         if _is_official_sync(config):
-            from core.modules.data_source.core.service.official_sync import pull_table
+            from core.modules.data_source.core.service.official_sync import list_rows, pull_entities, pull_table
 
-            saved = pull_table(self, jobs)
+            if config.is_per_entity():
+                saved = pull_entities(self, jobs)
+            else:
+                saved = pull_table(self, jobs)
             self._remember_run_timing(started, plan_done)
-            # 行已经写入绑定表。data 留给调度器登记“这个源跑过了”，下游不再按股票拆任务。
-            return {"saved": saved, "data": []}
+            return {"saved": saved, "data": list_rows(self)}
 
         fetched_data = self._executing(jobs)
 

@@ -130,11 +130,12 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
                 spans.append(label)
         spans = "，".join(spans)
         print(
-            f"[{handler.get_key()}] 远端计划：缓存 {len(files)} 个文件（{spans}），导入后再按股票补 {len(left)} 只",
+            f"[{handler.get_key()}] 远端计划：{len(files)} 个数据包（{spans}），导入后再按股票补 {len(left)} 只",
             flush=True,
         )
     saved = 0
-    for item in files:
+    total_files = len(files)
+    for index, item in enumerate(files, start=1):
         if not isinstance(item, dict):
             continue
         path = str(item.get("path") or "")
@@ -146,7 +147,10 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
             logger.warning("数据包导入失败", exc_info=True)
             return jobs, saved
         saved += imported
-        print(f"[{handler.get_key()}] 已导入数据包 {imported} 行，截止 {through}", flush=True)
+        print(
+            f"[{handler.get_key()}] 数据包 {index}/{total_files} 已导入 {imported} 行，截止 {through}",
+            flush=True,
+        )
     return left, saved
 
 
@@ -215,6 +219,26 @@ def list_rows(handler: Any) -> List[Dict[str, Any]]:
     return list(rows)
 
 
+_BLANK_AS_NULL = {"float", "double", "decimal", "int", "integer", "bigint", "smallint", "tinyint", "date", "datetime"}
+
+
+def _blank_as_null(schema: Dict[str, Any], rows: List[Dict[str, Any]]) -> None:
+    """CSV 里的空单元格是空字符串。数字和日期列要写成 NULL。"""
+    names = set()
+    for field in schema.get("fields") or []:
+        if not isinstance(field, dict):
+            continue
+        if str(field.get("type") or "").lower() in _BLANK_AS_NULL and field.get("name"):
+            names.add(field["name"])
+    if not names:
+        return
+    for row in rows:
+        for name in names:
+            value = row.get(name)
+            if isinstance(value, str) and value.strip() == "":
+                row[name] = None
+
+
 def _upsert(handler: Any, table: str, rows: List[Dict[str, Any]]) -> None:
     manager = handler.context.get("data_manager")
     if manager is None:
@@ -230,4 +254,5 @@ def _upsert(handler: Any, table: str, rows: List[Dict[str, Any]]) -> None:
         unique_keys = list(primary_key)
     else:
         raise ValueError(f"{table} 没有主键，无法同步")
+    _blank_as_null(schema, rows)
     model.upsert_many(rows, unique_keys)

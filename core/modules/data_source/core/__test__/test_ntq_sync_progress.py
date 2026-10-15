@@ -128,8 +128,8 @@ def test_plan_imports_the_cache_and_keeps_the_early_stock(capsys, monkeypatch):
     saved = official_sync.pull_entities(handler, jobs)
     text = capsys.readouterr().out
     assert saved == 10
-    assert "远端计划：缓存 1 个文件（20260920–20261014），导入后再按股票补 1 只" in text
-    assert "已导入数据包 9 行，截止 20261014" in text
+    assert "远端计划：1 个数据包（20260920–20261014），导入后再按股票补 1 只" in text
+    assert "数据包 1/1 已导入 9 行，截止 20261014" in text
     assert provider.synced == [("000003.SZ", "20100101", "20260919")]
     assert provider.asked[1][0]["id"] == "000001.SZ"
     assert provider.asked[1][1]["start"] == "20100101"
@@ -176,6 +176,34 @@ def test_busy_slot_is_waited_out_past_a_handful_of_retries(monkeypatch):
     assert page["rows"] == [{"id": "000001.SZ"}]
     assert calls["n"] == 8
     assert calls["timeout"] == 120.0
+
+
+def test_blank_numbers_become_null():
+    from core.modules.data_source.core.service import official_sync
+
+    row = {
+        "id": "002714.SZ",
+        "date": "20240603",
+        "pe": "",
+        "dv_ttm": "1.515",
+        "name": "",
+    }
+    official_sync._blank_as_null(
+        {
+            "fields": [
+                {"name": "id", "type": "varchar"},
+                {"name": "date", "type": "varchar"},
+                {"name": "pe", "type": "float"},
+                {"name": "dv_ttm", "type": "float"},
+                {"name": "name", "type": "varchar"},
+            ]
+        },
+        [row],
+    )
+    assert row["pe"] is None
+    assert row["dv_ttm"] == "1.515"
+    assert row["id"] == "002714.SZ"
+    assert row["name"] == ""
 
 
 def test_busy_wait_stops_when_the_slot_hold_is_over(monkeypatch):

@@ -10,22 +10,42 @@ class SyncProgress:
         self.source = str(source or "data_source")
 
     def bundles(self, done: int, total: int, saved: int, failed: int = 0) -> None:
-        line = f"[{self.source}] 抓取 {done}/{total}，已写入 {saved} 行"
+        line = f"抓取 {done}/{total}，已写入 {saved} 行"
         if failed:
             line += f"，失败 {failed}"
-        print(line, flush=True)
+        print(f"[{self.source}] {line}", flush=True)
+        self._publish(done=done, total=total, saved=saved, label=line)
 
     def tables(self, total: int) -> None:
-        print(f"[{self.source}] 开始同步，共 {total} 张表", flush=True)
+        label = f"开始同步，共 {total} 张表"
+        print(f"[{self.source}] {label}", flush=True)
+        self._publish(done=0, total=total, saved=0, label=label)
 
     def table(self, index: int, total: int, table: str, label: str) -> None:
-        print(f"[{self.source}] 第 {index}/{total} 张 {table}（{label}）", flush=True)
+        text = f"第 {index}/{total} 张 {table}（{label}）"
+        print(f"[{self.source}] {text}", flush=True)
+        self._publish(done=index, total=total, saved=None, label=text)
 
     def page(self, table: str, label: str, page: int, saved: int, total: int | None = None) -> None:
-        line = f"[{self.source}] 同步 {table}（{label}）正在读取第 {page} 页，已写入 {saved} 行"
+        line = f"同步 {table}（{label}）正在读取第 {page} 页，已写入 {saved} 行"
         if total is not None and total > 0:
             line += f"，{_percent_text(saved, total)}"
-        print(line, flush=True)
+        print(f"[{self.source}] {line}", flush=True)
+        done = saved if total is not None and total > 0 else None
+        whole = total if total is not None and total > 0 else None
+        self._publish(done=done, total=whole, saved=saved, label=line)
+
+    def _publish(
+        self,
+        *,
+        done: int | None,
+        total: int | None,
+        saved: int | None,
+        label: str,
+    ) -> None:
+        from core.modules.data_source.core.service.run_status import publish_progress
+
+        publish_progress(self.source, done=done, total=total, saved=saved, label=label)
 
     def table_done(self, table: str, label: str, saved: int, seconds: float) -> None:
         from core.modules.data_source.core.base_class.base_handler import format_run_seconds

@@ -55,6 +55,34 @@ class DataSourceManager:
             return
         self.execute(sources=None, force=force)
 
+    def sources_needing_renew(self) -> List[str]:
+        """按依赖顺序返回当前需要更新的数据源。已经跟上的不在里面。"""
+        from core.modules.data_manager.core.data_manager import DataManager
+        from core.modules.data_source.core.service.run_status import ordered_source_keys
+
+        self._flush_cache()
+        mappings = self._discover_mappings()
+        enabled = mappings.get_enabled()
+        dm = DataManager.get_instance()
+        if dm is None:
+            dm = DataManager(is_verbose=False)
+        if not getattr(dm, "_initialized", False):
+            dm.initialize()
+        needed: List[str] = []
+        for key in ordered_source_keys(enabled):
+            cfg = self._discover_config(key)
+            if cfg is None:
+                continue
+            status, _, _ = self.evaluate_update_status(
+                source_key=key,
+                config=cfg,
+                mappings=mappings,
+                data_manager=dm,
+            )
+            if status == "needs_update":
+                needed.append(key)
+        return needed
+
     def resolve_renew_target(self, table_or_source: str) -> str:
         """
         将表名或 data source key 解析为 mapping 中的 data source key。
@@ -156,6 +184,10 @@ class DataSourceManager:
         是否写库由各 handler 的 config 顶层 is_dry_run 控制（True 则不执行 DB 写入）。
         """
         self._flush_cache()
+        self._ensure_data_manager()
+        from core.modules.data_source.core.service.renew_progress import ensure_backfill
+
+        ensure_backfill(self._ensure_data_manager())
         mappings = self._discover_mappings()
         providers = self._discover_providers()
         handler_instances = self._discover_handlers(mappings, providers)
@@ -214,12 +246,13 @@ class DataSourceManager:
 
         missing = [k for k in keys if k not in by_key]
         if missing:
+            reasons = getattr(self, "_handler_skip_reasons", {})
+            detail = [reasons[k] for k in missing if reasons.get(k)]
+            if detail:
+                raise ValueError("；".join(detail))
             raise ValueError(f"Handler 未就绪: {missing}")
 
-        dm = DataManager.get_instance()
-        if dm is None:
-            dm = DataManager(is_verbose=False)
-            dm.initialize()
+        dm = self._ensure_data_manager()
 
         scheduler = self._execution_scheduler
         scheduler.mappings = mappings
@@ -239,9 +272,13 @@ class DataSourceManager:
             for k in keys
         )
         if need_sw and "sw_industry" not in keys:
-            # 分类树已在 sys_data_sw_industry。单独 renew 日线/成分时不再重拉分类。
-            scheduler._dependency_cache["sw_industry"] = []
-            logger.info("sw_industry 不在本次执行中，下游读取已有分类表")
+            # 分类树已在 sys_data_sw_industry。单独 renew 日线时不再重拉分类。
+            try:
+                rows = dm.sw.load_quote_list() or []
+            except Exception:
+                rows = []
+            scheduler._dependency_cache["sw_industry"] = rows
+            logger.info("从 DB 注入 sw_industry 依赖：%s 条", len(rows))
 
         handlers_for_topo = [by_key[k] for k in keys]
         if need_list and "stock_list" not in keys and "stock_list" in by_key:
@@ -325,23 +362,40 @@ class DataSourceManager:
         return HandlerMapping(data_sources=mapping)
 
 
+    def _ensure_data_manager(self) -> DataManager:
+        """表结构要从 DataManager 读。单例还没建好时先等它初始化完。"""
+        dm = DataManager.get_instance()
+        if dm is None:
+            dm = DataManager(is_verbose=False)
+        if not getattr(dm, "_initialized", False):
+            dm.initialize()
+        return dm
+
     def _discover_handlers(self, mappings: HandlerMapping, providers: Dict[str, BaseProvider]) -> List[BaseHandler]:
         handler_instances = []
+        self._handler_skip_reasons = {}
 
         for data_source_key in mappings.get_enabled().keys():
             config = self._discover_config(data_source_key)
             if config is None:
-                logger.error(f"Data source config {data_source_key} 没有找到，跳过")
+                reason = f"{data_source_key}：没有找到 settings"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             schema = self._get_schema_for_handler(config)
             if not schema:
-                logger.error(f"Data source {data_source_key} 无法从绑定表加载 schema，跳过")
+                table_name = config.get_table_name() or ""
+                reason = f"{data_source_key}：无法加载表 {table_name} 的结构"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             handler_cls = self._discover_handler(data_source_key, mappings)
             if not handler_cls:
-                logger.error(f"Data source handler {data_source_key} 没有找到，跳过")
+                reason = f"{data_source_key}：没有找到 handler"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             handler_instance = DataSourceManagerHelper.create_handler_instance(
@@ -353,7 +407,9 @@ class DataSourceManager:
                 mappings.get_depend_on_data_source_names(data_source_key),
             )
             if not handler_instance:
-                logger.error(f"Data source handler instance {data_source_key} 创建失败，跳过")
+                reason = f"{data_source_key}：handler 创建失败"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             handler_instances.append(handler_instance)
@@ -368,8 +424,11 @@ class DataSourceManager:
         if not table_name:
             return None
         try:
-            data_manager = DataManager.get_instance()
+            data_manager = self._ensure_data_manager()
             model = data_manager.get_table(table_name)
+            if not model:
+                data_manager._discover_tables()
+                model = data_manager.get_table(table_name)
             if not model:
                 logger.warning(f"表 '{table_name}' 未注册，无法加载 schema")
                 return None

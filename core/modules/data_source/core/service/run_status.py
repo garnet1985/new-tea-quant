@@ -112,7 +112,12 @@ def catalog_from_handlers(handlers: List[Any], *, force: bool = False) -> List[D
                 "status": "pending",
                 "plan_seconds": None,
                 "execute_seconds": None,
+                "total_seconds": None,
                 "started_at": None,
+                "progress_done": None,
+                "progress_total": None,
+                "progress_saved": None,
+                "progress_label": "",
                 "error": "",
                 "error_log": "",
             }
@@ -169,16 +174,20 @@ def prune_runs(
 class RunStatus:
     """把任务栏写进运行目录。写失败不影响抓取。"""
 
+    _current: Optional["RunStatus"] = None
+
     def __init__(self, run_dir: Optional[Path], tasks: List[Dict[str, Any]]):
         self.run_dir = run_dir
         self.tasks = tasks
         self._by_source = {row["source"]: row for row in tasks}
+        self._progress_written_at = 0.0
 
     @classmethod
     def open(cls, handlers: List[Any], *, force: bool = False) -> "RunStatus":
         tasks = catalog_from_handlers(handlers, force=force)
         run_dir = _prepare_run_dir()
         status = cls(run_dir, tasks)
+        cls._current = status
         if run_dir is None:
             return status
         try:
@@ -194,8 +203,37 @@ class RunStatus:
             return
         row["status"] = "running"
         row["started_at"] = int(time.time())
+        row["total_seconds"] = None
+        row["progress_done"] = None
+        row["progress_total"] = None
+        row["progress_saved"] = None
+        row["progress_label"] = "正在获取"
         row["error"] = ""
         row["error_log"] = ""
+        self._progress_written_at = 0.0
+        self._write()
+
+    def note_progress(
+        self,
+        source: str,
+        *,
+        done: Optional[int] = None,
+        total: Optional[int] = None,
+        saved: Optional[int] = None,
+        label: str = "",
+    ) -> None:
+        """把当前数据源的进度写进任务栏。磁盘最多一秒写一次。"""
+        row = self._by_source.get(source)
+        if row is None or row.get("status") != "running":
+            return
+        row["progress_done"] = done
+        row["progress_total"] = total
+        row["progress_saved"] = saved
+        row["progress_label"] = str(label or "")[:_SUMMARY_LEN]
+        now = time.time()
+        if now - self._progress_written_at < 1.0:
+            return
+        self._progress_written_at = now
         self._write()
 
     def mark_done(self, handler: Any) -> None:
@@ -208,6 +246,7 @@ class RunStatus:
         row["status"] = "done"
         row["plan_seconds"] = _seconds(timing.get("plan"))
         row["execute_seconds"] = _seconds(timing.get("execute"))
+        row["total_seconds"] = _elapsed_since(row.get("started_at"))
         count = int(context.get("_bundle_error_count") or 0)
         lines = context.get("_bundle_errors") or []
         if count and isinstance(lines, list):
@@ -225,6 +264,7 @@ class RunStatus:
         row["status"] = "failed"
         row["plan_seconds"] = _seconds(timing.get("plan"))
         row["execute_seconds"] = _seconds(timing.get("execute"))
+        row["total_seconds"] = _elapsed_since(row.get("started_at"))
         row["error"] = message
         row["error_log"] = self._write_failure(source, [message])
         self._write()
@@ -323,6 +363,51 @@ def _pid_alive(pid: int) -> bool:
     except OSError:
         return False
     return True
+
+
+def publish_progress(
+    source: str,
+    *,
+    done: Optional[int] = None,
+    total: Optional[int] = None,
+    saved: Optional[int] = None,
+    label: str = "",
+) -> None:
+    """当前这次 renew 的进度。没有任务栏时什么都不做。"""
+    status = RunStatus._current
+    if status is None:
+        return
+    status.note_progress(source, done=done, total=total, saved=saved, label=label)
+
+
+def read_latest_run_status() -> Dict[str, Any]:
+    """最近一次运行目录里的 status.json。没有则返回空对象。"""
+    root = runs_directory()
+    if root is None or not root.is_dir():
+        return {}
+    runs = [path for path in root.iterdir() if path.is_dir() and path.name.startswith("run-")]
+    runs.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    for path in runs[:5]:
+        status_path = path / "status.json"
+        if not status_path.is_file():
+            continue
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return {}
+
+
+def _elapsed_since(started_at: Any) -> Optional[float]:
+    try:
+        started = int(started_at)
+    except (TypeError, ValueError):
+        return None
+    if started < 1:
+        return None
+    return round(max(0.0, time.time() - started), 1)
 
 
 def _seconds(value: Any) -> Optional[float]:

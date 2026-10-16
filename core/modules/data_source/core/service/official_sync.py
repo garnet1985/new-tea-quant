@@ -56,6 +56,8 @@ def pull_entities(handler: Any, jobs: List[Any]) -> int:
             if rows and not handler.context.get("is_dry_run"):
                 _upsert(handler, table, rows)
                 saved += len(rows)
+            if not page.get("next_start"):
+                _note_settled(handler, entity_id, page)
         handler.progress.bundles(index, total, saved)
     print(f"[{handler.get_key()}] 抓取结束 {total}/{total}，已写入 {saved} 行", flush=True)
     return saved
@@ -84,6 +86,7 @@ def _pull(handler: Any, table: str, start: Optional[str], end: Optional[str]) ->
             saved += len(rows)
         nxt = page.get("next_start")
         if not nxt:
+            _note_settled(handler, None, page)
             break
         cursor = str(nxt)
     progress.table_done(table, label, saved, time.perf_counter() - begun)
@@ -256,3 +259,25 @@ def _upsert(handler: Any, table: str, rows: List[Dict[str, Any]]) -> None:
         raise ValueError(f"{table} 没有主键，无法同步")
     _blank_as_null(schema, rows)
     model.upsert_many(rows, unique_keys)
+    _note_rows(handler, rows)
+
+
+def _note_rows(handler: Any, rows: List[Dict[str, Any]]) -> None:
+    try:
+        from core.modules.data_source.core.service.renew_progress import remember_written_rows
+
+        remember_written_rows(handler, rows)
+    except Exception:
+        logger.warning("写入后没能记下已经更新到的数据日期", exc_info=True)
+
+
+def _note_settled(handler: Any, entity_id: Optional[str], page: Dict[str, Any]) -> None:
+    settled = page.get("settled_through") if isinstance(page, dict) else None
+    if not isinstance(settled, str) or not settled.strip():
+        return
+    try:
+        from core.modules.data_source.core.service.renew_progress import remember_settled
+
+        remember_settled(handler, entity_id, settled)
+    except Exception:
+        logger.warning("没能记下官网已经读完的数据日期", exc_info=True)

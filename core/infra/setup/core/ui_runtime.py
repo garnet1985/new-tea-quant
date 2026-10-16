@@ -372,7 +372,13 @@ def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
         if interrupt_requested():
             raise KeyboardInterrupt
         try:
-            with urllib.request.urlopen(url, timeout=5) as resp:
+            # 开发服务器只对浏览器的 HTML 请求回退到首页。不带 Accept 时
+            # /strategy-design 会是 404，启动就会误判成页面没起来。
+            request = urllib.request.Request(
+                url,
+                headers={"Accept": "text/html,application/json"},
+            )
+            with urllib.request.urlopen(request, timeout=5) as resp:
                 if 200 <= resp.status < 400:
                     return True
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):

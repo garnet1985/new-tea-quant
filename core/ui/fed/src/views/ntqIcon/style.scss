@@ -38,6 +38,10 @@
   opacity: 0.55;
 }
 
+.ntq-icon--cyan {
+  color: var(--ntq-cyan);
+}
+
 .ntq-icon--spin {
   animation: ntq-icon-spin 1s linear infinite;
 }

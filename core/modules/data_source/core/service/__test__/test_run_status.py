@@ -70,9 +70,26 @@ def test_status_file_records_plan_and_bundle_error(tmp_path, monkeypatch) -> Non
     assert task["mode"] == "incremental"
     assert task["plan_seconds"] == 4
     assert task["execute_seconds"] == 2.2
+    assert task["total_seconds"] is not None
+    assert task["total_seconds"] >= 0
     assert task["error"].startswith("失败 2 个任务")
     assert (tmp_path / "run-1" / "failures" / "cpi.log").is_file()
     assert (tmp_path / "run-1" / "tasks.json").is_file()
+
+
+def test_progress_is_written_onto_the_running_task(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("NTQ_RUN_DIR", str(tmp_path / "run-progress"))
+    monkeypatch.delenv("NTQ_RUNS_DIR", raising=False)
+    handler = _Handler("cpi")
+    status = RunStatus.open([handler])
+    status.mark_running("cpi")
+    status.note_progress("cpi", done=1, total=4, saved=2, label="抓取 1/4，已写入 2 行")
+    payload = json.loads((tmp_path / "run-progress" / "status.json").read_text(encoding="utf-8"))
+    task = payload["tasks"][0]
+    assert task["status"] == "running"
+    assert task["progress_done"] == 1
+    assert task["progress_total"] == 4
+    assert task["progress_label"].startswith("抓取 1/4")
 
 
 def test_prune_keeps_live_run_and_drops_finished(tmp_path) -> None:

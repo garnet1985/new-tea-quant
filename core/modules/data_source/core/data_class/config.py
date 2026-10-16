@@ -136,6 +136,9 @@ class DataSourceConfig:
     def get_table_name(self) -> str:
         return self._table
 
+    def get_data_source_key(self) -> str:
+        return self._data_source_key
+
     def get_ignore_fields(self) -> List[str]:
         return self._ignore_fields
 

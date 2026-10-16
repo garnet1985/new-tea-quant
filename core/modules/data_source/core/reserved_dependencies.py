@@ -47,7 +47,7 @@ def _resolve_latest_completed_trading_date() -> List[dict]:
     from core.modules.data_manager import DataManager
 
     data_manager = DataManager.get_instance()
-    if not data_manager or not getattr(data_manager, "service", None):
+    if not data_manager or not getattr(data_manager, "_data_service", None):
         logger.warning(
             "DataManager 或 service 不可用，保留依赖 latest_completed_trading_date 无法解析"
         )
@@ -62,5 +62,11 @@ def _resolve_latest_completed_trading_date() -> List[dict]:
         from core.infra.utils import Utils
         fallback = Utils.date.today()
         return [{"date": fallback}]
-    date_str = calendar.get_latest_completed_trading_date()
+    from core.modules.data_source.core.service.renew_progress import resolve_uptodate_day
+
+    date_str = resolve_uptodate_day(data_manager)
+    if not date_str:
+        from core.infra.utils import Utils
+
+        date_str = Utils.date.today()
     return [{"date": date_str}]

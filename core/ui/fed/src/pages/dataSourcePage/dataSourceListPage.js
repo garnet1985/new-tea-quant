@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Chip,
@@ -7,11 +7,13 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import { DataGrid, GridRow } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
 import {
   fetchDataSourceFreshness,
   fetchDataSourceList,
+  fetchDataSourceRenewStatus,
+  startDataSourceRenew,
   getDataSourceAuthLabel,
   getDataSourceDisplayLabel,
   getDataSourceOriginLabel,
@@ -30,6 +32,58 @@ import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
 import { showToast } from 'containers/toast';
 import './dataSourceListPage.scss';
+
+function RenewAccessTip() {
+  return (
+    <Box className="data-source-renew-tip">
+      <span>未注册：拥有3年300只股票的演示数据（2023-2025年底）。</span>
+      <span>注册后：拥有3年全市场的5000+股票数据（2023-2025年底）。</span>
+      <span>注册并有1000点数：全市场所有股票从2008年开始的所有数据（每日更新）。</span>
+    </Box>
+  );
+}
+
+function formatElapsed(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total < 60) return `${total}秒`;
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  if (minutes < 60) return rest ? `${minutes}分${rest}秒` : `${minutes}分`;
+  const hours = Math.floor(minutes / 60);
+  const min = minutes % 60;
+  return min ? `${hours}小时${min}分` : `${hours}小时`;
+}
+
+function taskPercent(run) {
+  const done = Number(run?.progressDone);
+  const total = Number(run?.progressTotal);
+  if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, Math.min(100, (done / total) * 100));
+}
+
+function elapsedLabel(run, nowSec) {
+  if (!run) return '—';
+  if (run.status === 'running' && run.startedAt > 0) {
+    return formatElapsed(Math.max(0, nowSec - run.startedAt));
+  }
+  if (run.status === 'pending') return '等待';
+  if (run.totalSeconds != null && Number.isFinite(run.totalSeconds)) {
+    return formatElapsed(run.totalSeconds);
+  }
+  return '—';
+}
+
+function settleTasks(status) {
+  const tasks = Array.isArray(status?.tasks) ? status.tasks : [];
+  if (status?.running) return tasks;
+  return tasks.map((task) => {
+    if (task.status === 'pending') return { ...task, status: 'idle' };
+    if (task.status === 'running') {
+      return { ...task, status: task.totalSeconds != null ? 'done' : 'idle' };
+    }
+    return task;
+  });
+}
 
 function UpdateStatusChip({ row }) {
   return (
@@ -52,17 +106,55 @@ function DataSourceListPage() {
   const [freshnessError, setFreshnessError] = useState('');
   const [nameQuery, setNameQuery] = useState('');
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
+  const [renewing, setRenewing] = useState(false);
+  const [renewSource, setRenewSource] = useState('');
+  const [renewTasks, setRenewTasks] = useState([]);
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
+  const expectJobRef = useRef('');
+  const watchRef = useRef(() => {});
+
+  const taskByName = useMemo(() => {
+    const map = {};
+    renewTasks.forEach((task) => {
+      if (task?.source) map[task.source] = task;
+    });
+    return map;
+  }, [renewTasks]);
 
   const displayRows = useMemo(() => {
+    const withRun = rows.map((row) => ({
+      ...row,
+      __run: taskByName[row.name],
+    }));
     const q = nameQuery.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
+    if (!q) return withRun;
+    return withRun.filter((r) => {
       const key = String(r.name || '').toLowerCase();
       const label = String(r.display_name || '').toLowerCase();
       const providers = String(r.providers_label || '').toLowerCase();
       return key.includes(q) || label.includes(q) || providers.includes(q);
     });
-  }, [rows, nameQuery]);
+  }, [rows, nameQuery, taskByName]);
+
+  const DataSourceGridRow = useCallback((rowProps) => {
+    const run = rowProps.row.__run;
+    const isRunning = run?.status === 'running';
+    const pct = taskPercent(run);
+    const extra = [
+      isRunning ? 'data-source-list-row--running' : '',
+      isRunning && pct <= 0 ? 'data-source-list-row--running-indeterminate' : '',
+    ].filter(Boolean).join(' ');
+    return (
+      <GridRow
+        {...rowProps}
+        className={[rowProps.className, extra].filter(Boolean).join(' ')}
+        style={{
+          ...rowProps.style,
+          ...(isRunning ? { '--data-source-run-pct': `${pct}%` } : undefined),
+        }}
+      />
+    );
+  }, []);
 
   const loadFreshness = useCallback((sourceNames) => {
     setFreshnessLoading(true);
@@ -120,6 +212,115 @@ function DataSourceListPage() {
     setPaginationModel((m) => ({ ...m, page: 0 }));
   }, [nameQuery]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let timer = 0;
+    let sawRunning = false;
+    let inFlight = false;
+    const schedule = (ms) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(watch, ms);
+    };
+    const finish = (status) => {
+      sawRunning = false;
+      expectJobRef.current = '';
+      setRenewing(false);
+      setRenewSource('');
+      if (status.error) {
+        showToast({ severity: 'error', content: status.error });
+        return;
+      }
+      showToast({
+        severity: status.message ? 'info' : 'success',
+        content: status.message || '数据更新已结束',
+      });
+      loadFreshness();
+    };
+    const watch = () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      fetchDataSourceRenewStatus()
+        .then((status) => {
+          if (cancelled) return;
+          setRenewTasks(settleTasks(status));
+          if (status.running) {
+            sawRunning = true;
+            setRenewing(true);
+            const current = (status.tasks || []).find((task) => task.status === 'running');
+            setRenewSource(status.source || current?.source || '');
+            schedule(1000);
+            return;
+          }
+          const expected = expectJobRef.current;
+          const finishedThisClick = Boolean(expected) && status.job_id === expected;
+          if (sawRunning || finishedThisClick) {
+            finish(status);
+          }
+          schedule(1500);
+        })
+        .catch((err) => {
+          if (cancelled || err?.status === 404) return;
+          schedule(4000);
+        })
+        .finally(() => {
+          inFlight = false;
+        });
+    };
+    watchRef.current = () => {
+      window.clearTimeout(timer);
+      watch();
+    };
+    watch();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      watchRef.current = () => {};
+    };
+  }, [loadFreshness]);
+
+  useEffect(() => {
+    if (!renewing) return undefined;
+    const id = window.setInterval(() => {
+      setNowSec(Math.floor(Date.now() / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [renewing]);
+
+  const runningTask = renewTasks.find((task) => task.status === 'running') || null;
+  const runningTitle = useMemo(() => {
+    const key = runningTask?.source || renewSource;
+    if (!key) return renewing ? '需要更新的数据源' : '';
+    const row = rows.find((item) => item.name === key);
+    return getDataSourceDisplayLabel(row) || key;
+  }, [renewSource, renewing, rows, runningTask]);
+
+  useEffect(() => {
+    const key = runningTask?.source;
+    if (!key) return;
+    const index = displayRows.findIndex((row) => row.name === key);
+    if (index < 0) return;
+    const page = Math.floor(index / paginationModel.pageSize);
+    setPaginationModel((model) => (model.page === page ? model : { ...model, page }));
+  }, [displayRows, paginationModel.pageSize, runningTask]);
+
+  const beginRenew = useCallback((source = '') => {
+    const key = String(source || '').trim();
+    startDataSourceRenew(key)
+      .then((started) => {
+        expectJobRef.current = started.job_id || '';
+        setRenewing(true);
+        setRenewSource(key);
+        watchRef.current();
+        showToast({
+          severity: 'info',
+          content: key ? '已开始更新这一项' : '已开始更新需要更新的数据源',
+        });
+      })
+      .catch((err) => {
+        showToast({ severity: 'error', content: err?.message || '无法开始更新' });
+      });
+  }, []);
+
   const columns = useMemo(() => ([
     {
       field: 'display_name',
@@ -151,11 +352,16 @@ function DataSourceListPage() {
       sortable: false,
       renderCell: (params) => {
         const row = params.row;
-        const canUpdate = Boolean(row.can_renew);
-        let title = '更新执行接口开发中，下一版接入';
-        if (!canUpdate && row.requires_auth && !row.auth_ready) {
+        const canUpdate = Boolean(row.can_renew) && !renewing;
+        const runningThis = row.__run?.status === 'running';
+        let title = '只更新这一项';
+        if (runningThis) {
+          title = '正在更新这一项';
+        } else if (renewing) {
+          title = renewSource ? '正在更新另一项' : '排队中';
+        } else if (!row.can_renew && row.requires_auth && !row.auth_ready) {
           title = row.auth_hint || '未配置 Token，无法更新';
-        } else if (!canUpdate) {
+        } else if (!row.can_renew) {
           title = '当前不可更新';
         }
         return (
@@ -164,11 +370,11 @@ function DataSourceListPage() {
               <RainbowButton
                 icon="play"
                 disabled={!canUpdate}
-                aria-label="更新数据源"
+                aria-label={`更新${getDataSourceDisplayLabel(row)}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!canUpdate) return;
-                  showToast({ severity: 'info', content: '更新执行接口开发中，下一版接入。' });
+                  beginRenew(row.name);
                 }}
               />
             </span>
@@ -179,9 +385,43 @@ function DataSourceListPage() {
     {
       field: 'update_status',
       headerName: '数据状态',
-      width: 110,
+      width: 220,
       valueGetter: (params) => getDataSourceUpdateStatusLabel(params.row),
-      renderCell: (params) => <UpdateStatusChip row={params.row} />,
+      renderCell: (params) => {
+        const run = params.row.__run;
+        if (run?.status === 'running') {
+          const pct = taskPercent(run);
+          const text = run.progressLabel || '正在获取';
+          const head = pct > 0 ? `${Math.round(pct)}%` : '';
+          return (
+            <Tooltip title={text}>
+              <Typography variant="body2" noWrap className="data-source-list-progress-label">
+                {head ? `${head} ${text}` : text}
+              </Typography>
+            </Tooltip>
+          );
+        }
+        if (run?.status === 'failed') {
+          return (
+            <Tooltip title={run.error || '更新失败'}>
+              <Chip size="small" color="error" label="更新失败" />
+            </Tooltip>
+          );
+        }
+        return <UpdateStatusChip row={params.row} />;
+      },
+    },
+    {
+      field: 'elapsed',
+      headerName: '总耗时',
+      width: 110,
+      sortable: false,
+      valueGetter: (params) => elapsedLabel(params.row.__run, nowSec),
+      renderCell: (params) => (
+        <Typography variant="body2" className="data-source-list-elapsed">
+          {params.value}
+        </Typography>
+      ),
     },
     {
       field: 'origin',
@@ -199,7 +439,7 @@ function DataSourceListPage() {
     {
       field: 'renew_type',
       headerName: '更新方式',
-      width: 120,
+      width: 148,
       valueGetter: (params) => getDataSourceRenewTypeLabel(params.row),
       renderCell: (params) => {
         const mode = params.row.renew_type;
@@ -208,8 +448,8 @@ function DataSourceListPage() {
           <Stack direction="row" spacing={0.75} alignItems="center">
             <NtqIcon
               name={iconName}
-              size={18}
-              tone="muted"
+              size={28}
+              tone="cyan"
             />
             <Typography variant="body2">{params.value}</Typography>
           </Stack>
@@ -255,7 +495,7 @@ function DataSourceListPage() {
         );
       },
     },
-  ]), []);
+  ]), [beginRenew, nowSec, renewing, renewSource]);
 
   return (
     <PageLayout
@@ -263,7 +503,7 @@ function DataSourceListPage() {
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="数据源"
       bannerTitle="数据源"
-      bannerDescription="查看已配置的数据源、Provider 认证与更新策略；Token 未配置时更新按钮不可用。"
+      bannerDescription="一键更新按顺序更新所有需要更新的数据源。正在更新的那一行会显示进度。每一行的按钮只更新那一项。"
       loading={!pageReady}
       loadingMessage="正在加载数据源…"
     >
@@ -293,6 +533,18 @@ function DataSourceListPage() {
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
           />
+          <Tooltip title={<RenewAccessTip />}>
+            <span>
+              <NtqButton
+                variant="primary"
+                icon="play"
+                onClick={() => beginRenew('')}
+                disabled={loading || renewing || rows.every((row) => !row.can_renew)}
+              >
+                {renewing && !renewSource ? '更新中…' : '一键更新'}
+              </NtqButton>
+            </span>
+          </Tooltip>
           <NtqButton
             variant="glass"
             icon="refresh"
@@ -302,6 +554,13 @@ function DataSourceListPage() {
             刷新列表
           </NtqButton>
         </Stack>
+        {renewing ? (
+          <Typography variant="body2" className="data-source-list-live">
+            {`正在更新 ${runningTitle || '…'}`}
+            {runningTask?.progressLabel ? ` · ${runningTask.progressLabel}` : ' · 正在获取'}
+            {runningTask?.startedAt ? ` · ${elapsedLabel(runningTask, nowSec)}` : ''}
+          </Typography>
+        ) : null}
 
         <Box className="data-source-list-grid-body">
           <DataGrid
@@ -314,7 +573,10 @@ function DataSourceListPage() {
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}
             localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-            slots={NTQ_DATA_GRID_LOADING_SLOTS}
+            slots={{
+              ...NTQ_DATA_GRID_LOADING_SLOTS,
+              row: DataSourceGridRow,
+            }}
             getRowId={(row) => row.id}
             sx={{
               border: 'none',

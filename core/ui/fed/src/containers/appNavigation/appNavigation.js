@@ -15,16 +15,14 @@ function AppNavigation() {
       className="ntq-app-header"
     >
       <Toolbar disableGutters className="ntq-app-header__toolbar">
-        <Box className="ntq-content-inner">
+        <Box className="ntq-content-inner ntq-app-header__band">
           <Box className="ntq-app-header__inner">
             <AppBrand version={<AppVersion />} />
             <AppNav />
           </Box>
+          <MemberStrip />
         </Box>
       </Toolbar>
-      <Box className="ntq-content-inner">
-        <MemberStrip />
-      </Box>
     </AppBar>
   );
 }

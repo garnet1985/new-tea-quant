@@ -45,7 +45,7 @@ function MemberStrip() {
   return (
     <Box className="ntq-member-strip">
       {signedIn ? (
-        <Box className="ntq-member-strip__chip" title={`${profile.name} · ${profile.points} 点`}>
+        <Box className="ntq-member-strip__chip" title={`${profile.name} · ${profile.points} 点数`}>
           {showAvatar ? (
             <Box
               component="img"
@@ -63,7 +63,10 @@ function MemberStrip() {
             {profile.name}
           </Box>
           <Box component="span" className="ntq-member-strip__points">
-            {profile.points} 点
+            <Box component="span" className="ntq-member-strip__points-value">
+              {profile.points}
+            </Box>
+            点数
           </Box>
         </Box>
       ) : profile ? (

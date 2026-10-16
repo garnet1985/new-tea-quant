@@ -3,6 +3,7 @@ import { AppBar, Box, Toolbar } from '@mui/material';
 import AppBrand from 'views/appBrand';
 import AppNav from 'views/appNav';
 import AppVersion from 'containers/appVersion';
+import MemberStrip from 'containers/memberStrip';
 import './style.scss';
 
 function AppNavigation() {
@@ -21,6 +22,9 @@ function AppNavigation() {
           </Box>
         </Box>
       </Toolbar>
+      <Box className="ntq-content-inner">
+        <MemberStrip />
+      </Box>
     </AppBar>
   );
 }

@@ -130,7 +130,7 @@ $ntq-helper-spot-move: 320ms cubic-bezier(0.22, 1, 0.36, 1);
 
 .ntq-global-helper__fab-slot {
   position: fixed;
-  top: calc(#{$ntq-header-height} + 28px + #{$ntq-helper-fab-size} + 12px);
+  top: calc(#{$ntq-header-height} + #{$ntq-member-strip-height} + 28px + #{$ntq-helper-fab-size} + 12px);
   right: 18px;
   z-index: 1250;
   width: $ntq-helper-fab-size;

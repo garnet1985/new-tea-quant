@@ -3,6 +3,7 @@
 
 // 视区与主内容
 $ntq-header-height: 64px; // 与 .ntq-app-header__toolbar 一致
+$ntq-member-strip-height: 32px; // header 内容区右下角的会员条
 $ntq-page-bg-height: clamp(350px, 50vh, 450px); // 顶栏下方装饰背景高度
 $ntq-body-min-width: 1280px; // 页面最小宽度（窄于此时出现横向滚动条）
 $ntq-content-width: 88vw; // 主内容区、header inner、footer inner 共用相对视口宽度

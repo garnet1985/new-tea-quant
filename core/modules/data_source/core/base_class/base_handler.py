@@ -628,24 +628,21 @@ class BaseHandler:
 
         if context.get("is_dry_run") or not frames:
             return
-        pending: List[Dict[str, Any]] = []
-
-        def flush_pending() -> None:
-            if not pending:
-                return
-            rows = list(pending)
-            pending.clear()
-            self.hooks.save_record_chunk(context, rows)
-
+        rows: List[Dict[str, Any]] = []
         for frame in frames:
             if frame is None or getattr(frame, "empty", True):
                 continue
-            total = len(frame)
-            for start in range(0, total, WRITE_CHUNK_ROWS):
-                pending.extend(records_from_frame(frame.iloc[start : start + WRITE_CHUNK_ROWS]))
-                if len(pending) >= WRITE_CHUNK_ROWS:
-                    flush_pending()
-        flush_pending()
+            rows.extend(records_from_frame(frame))
+        if not rows:
+            return
+        # 缓冲区写入会跳过收尾的 _do_save。保存前钩子（维度表、清空旧日历）必须在落库前跑一次。
+        resolved = self.hooks.on_before_save(context, {"data": rows})
+        if resolved is not None:
+            rows = list(resolved.get("data") or [])
+        if not rows:
+            return
+        for start in range(0, len(rows), WRITE_CHUNK_ROWS):
+            self.hooks.save_record_chunk(context, rows[start : start + WRITE_CHUNK_ROWS])
 
     def _extract_normalized_rows_for_bundle(
         self,

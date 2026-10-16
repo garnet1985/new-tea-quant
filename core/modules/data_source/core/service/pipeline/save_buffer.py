@@ -77,10 +77,13 @@ class DataSourceSaveBuffer:
         self._write(frames, bundles=count)
 
     def _write(self, frames: List[pd.DataFrame], *, bundles: int) -> None:
+        row_count = sum(len(frame) for frame in frames if frame is not None)
         try:
             self._save_frames(self._context, frames)
         finally:
             self._budget.note_rss()
-            if self._bundle_progress is not None and bundles:
+            if self._bundle_progress is not None and row_count:
+                self._bundle_progress.add_saved(row_count)
+            elif self._bundle_progress is not None and bundles:
                 self._bundle_progress.add_saved(bundles)
             checkpoint_after_batch_save(self._context)

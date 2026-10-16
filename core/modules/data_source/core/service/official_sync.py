@@ -275,6 +275,10 @@ def _note_settled(handler: Any, entity_id: Optional[str], page: Dict[str, Any]) 
     settled = page.get("settled_through") if isinstance(page, dict) else None
     if not isinstance(settled, str) or not settled.strip():
         return
+    rows = page.get("rows") if isinstance(page, dict) else None
+    # 区间被判成空的（一页都没有，total 也是 0）不能当成已经读完。
+    if not rows and page.get("total") == 0:
+        return
     try:
         from core.modules.data_source.core.service.renew_progress import remember_settled
 

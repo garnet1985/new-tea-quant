@@ -178,6 +178,20 @@ def test_busy_slot_is_waited_out_past_a_handful_of_retries(monkeypatch):
     assert calls["timeout"] == 120.0
 
 
+def test_empty_range_does_not_count_as_finished(monkeypatch):
+    from core.modules.data_source.core.service import official_sync
+    from core.modules.data_source.core.service import renew_progress
+
+    called = []
+    monkeypatch.setattr(renew_progress, "remember_settled", lambda *args: called.append(args))
+    official_sync._note_settled(
+        object(),
+        None,
+        {"rows": [], "total": 0, "settled_through": "202512", "next_start": None},
+    )
+    assert called == []
+
+
 def test_blank_numbers_become_null():
     from core.modules.data_source.core.service import official_sync
 

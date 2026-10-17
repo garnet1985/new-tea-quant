@@ -15,6 +15,7 @@ import logging
 import time
 
 from core.modules.data_source.core.base_class.base_handler import BaseHandler, format_run_seconds
+from core.infra.progress import Progress
 from core.modules.data_source.core.service.run_status import (
     RunStatus,
     call_with_status,
@@ -158,11 +159,19 @@ class DataSourceExecutionScheduler:
             sorted_handler_instances,
             force=getattr(self, "_force_refresh", False),
         )
+        first = sorted_handler_instances[0].get_key() if sorted_handler_instances else ""
+        Progress.open(first, total, job="renew")
         print(f"{i('rocket')} 开始执行 {total} 个数据源", flush=True)
         logger.info("开始执行 %s 个数据源", total)
-        
+
+        self._run_sources(sorted_handler_instances)
+        Progress.close()
+
+    def _run_sources(self, sorted_handler_instances: List[BaseHandler]) -> None:
+        total = len(sorted_handler_instances)
         for idx, handler_instance in enumerate(sorted_handler_instances):
             data_source_key = handler_instance.get_key()
+            Progress.step(idx, total, source=data_source_key)
             started = time.perf_counter()
             try:
                 mode = handler_instance.renew_mode_label(
@@ -301,8 +310,12 @@ class DataSourceExecutionScheduler:
         print(f"{i('ongoing')} 开始重试 {n_failed} 个失败的数据源", flush=True)
         logger.info("开始重试 %s 个失败的数据源", n_failed)
         retry_failed = []
-        
-        for data_source_key, handler_instance, _ in self._failed_data_sources:
+        snap = Progress.read()
+        total = int(snap.get("step_total") or n_failed)
+        finished = max(0, total - n_failed)
+
+        for index, (data_source_key, handler_instance, _) in enumerate(self._failed_data_sources):
+            Progress.step(finished + index, total, source=data_source_key)
             started = time.perf_counter()
             try:
                 # 获取依赖数据（如果依赖也失败了，这里可能会抛出异常）

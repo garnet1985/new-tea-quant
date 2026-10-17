@@ -211,8 +211,10 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        progress_file = REPO_ROOT / "initialization" / "data" / ".import_progress.json"
-        if not progress_file.is_file():
+        from core.infra.progress import Progress
+
+        snap = Progress.read()
+        if snap.get("job") != "import":
             return {
                 "status": "ok",
                 "message": {
@@ -220,38 +222,34 @@ class SetupRuntimeManager:
                     "totalTables": 0,
                     "completedCount": 0,
                     "currentTable": "",
-                    "percent": 0,
+                    "step": 0,
+                    "stepTotal": 0,
+                    "sub": 0,
+                    "subTotal": 0,
                     "updatedAt": 0,
                 },
             }
-        try:
-            payload = json.loads(progress_file.read_text(encoding="utf-8"))
-        except Exception as exc:
-            log_degraded("setup.importProgressRead", exc, str(progress_file))
-            payload = {}
-
-        completed_tables = payload.get("completed_tables", {}) or {}
-        total_tables = int(payload.get("total_tables") or 0)
-        if total_tables <= 0:
-            order = payload.get("table_order", []) or []
-            if isinstance(order, list) and order:
-                total_tables = len(order)
-            else:
-                total_tables = max(len(completed_tables), 1)
-
-        completed_count = sum(1 for v in completed_tables.values() if v == "done")
-        current_table = str(payload.get("in_progress_table") or "")
-        running = bool(current_table) or completed_count < total_tables
-        percent = int(round((completed_count / total_tables) * 100)) if total_tables > 0 else 0
+        step = int(snap.get("step") or 0)
+        step_total = int(snap.get("step_total") or 0)
+        running = step_total > 0 and step < step_total
         return {
             "status": "ok",
             "message": {
                 "running": running,
-                "totalTables": total_tables,
-                "completedCount": completed_count,
-                "currentTable": current_table,
-                "percent": max(0, min(percent, 100)),
-                "updatedAt": int(payload.get("updated_at") or 0),
+                "totalTables": step_total,
+                "completedCount": step,
+                "currentTable": str(snap.get("source") or "") if running else "",
+                "step": step,
+                "stepTotal": step_total,
+                "sub": int(snap.get("sub") or 0),
+                "subTotal": int(snap.get("sub_total") or 0),
+                "updatedAt": int(snap.get("updated_at") or 0),
+                "ratio": Progress.fraction(
+                    step,
+                    step_total,
+                    int(snap.get("sub") or 0),
+                    int(snap.get("sub_total") or 0),
+                ),
             },
         }
 
@@ -269,6 +267,11 @@ class SetupRuntimeManager:
         else:
             next_ids = ordered_ids
 
+        from core.infra.progress import Progress
+
+        if next_ids:
+            Progress.open(next_ids[0], len(ordered_ids), job="install")
+
         for step_id in next_ids:
             step = by_id[step_id]
             cur = self._get_step_state(state, step_id)
@@ -279,6 +282,7 @@ class SetupRuntimeManager:
                 self._set_step_state(state, step_id, self.STATUS_WAITING_INPUT, "")
                 self._bump_version(state)
                 self._save_state(state)
+                Progress.step(ordered_ids.index(step_id), len(ordered_ids), source=step_id, job="install")
                 return {
                     "status": "ok",
                     "message": {
@@ -291,6 +295,13 @@ class SetupRuntimeManager:
             ok, err, trace_err = self._execute_step(state, step)
             self._bump_version(state)
             self._save_state(state)
+            if ok:
+                Progress.step(
+                    ordered_ids.index(step_id) + 1,
+                    len(ordered_ids),
+                    source=step_id,
+                    job="install",
+                )
             if not ok:
                 Setup.trace.install_step_failed(
                     step=step_id,
@@ -320,6 +331,7 @@ class SetupRuntimeManager:
         if state["isReady"]:
             Setup.runtime.mark_cli_ready()
             Setup.license.apply_trace_consent()
+            Progress.close()
         Setup.trace.install_complete(success=True, entry="ui", **self._timing_kwargs(state))
         return {
             "status": "ok",

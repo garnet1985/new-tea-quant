@@ -1,4 +1,4 @@
-"""Strategy pipeline progress — weighted steps + disk persistence.
+"""Strategy pipeline progress — shared step ratio + disk persistence.
 
 One submit = one pipeline. Steps are internal phases (load / dispatch /
 execute / report), not enum/price/portfolio (those are pipeline names).
@@ -431,29 +431,37 @@ class PipelineProgress:
         self._doc["completed_steps"] = completed
         self._doc["step"] = None
 
+    def _active_steps(self) -> List[str]:
+        active = [
+            name
+            for name in _STEPS
+            if float(self._weights().get(name) or 0.0) > 0
+        ]
+        return active or list(_STEPS)
+
     def _recompute_pipeline_progress(self) -> None:
-        weights = self._weights()
+        """总进度用公用的步骤比例，不再用各阶段权重。"""
+        from core.infra.progress import Progress
+
+        active = self._active_steps()
         done_names = {
-            str(x.get("name") or "")
-            for x in (self._doc.get("completed_steps") or [])
-            if isinstance(x, dict)
+            str(item.get("name") or "")
+            for item in (self._doc.get("completed_steps") or [])
+            if isinstance(item, dict)
         }
-        acc = 0.0
-        for name in _STEPS:
-            if name in done_names:
-                acc += float(weights.get(name) or 0.0)
-        cur = self._doc.get("step")
-        if isinstance(cur, dict):
-            name = str(cur.get("name") or "").strip()
-            if name and name not in done_names:
-                try:
-                    step_pct = float(cur.get("progress") or 0.0)
-                except (TypeError, ValueError):
-                    step_pct = 0.0
-                acc += float(weights.get(name) or 0.0) * max(
-                    0.0, min(1.0, step_pct / 100.0)
-                )
-        self._doc["progress"] = round(max(0.0, min(100.0, acc * 100.0)), 2)
+        done = sum(1 for name in active if name in done_names)
+        sub = 0
+        sub_total = 0
+        current = self._doc.get("step")
+        if isinstance(current, dict):
+            name = str(current.get("name") or "").strip()
+            if name in active and name not in done_names and name == "execute":
+                counters = current.get("counters") or {}
+                if isinstance(counters, dict):
+                    sub_total = int(counters.get("total") or 0)
+                    sub = int(counters.get("done") or 0)
+        ratio = Progress.fraction(done, len(active), sub, sub_total)
+        self._doc["progress"] = round(ratio * 100.0, 2)
 
     def _maybe_mark_stale(self) -> None:
         if self._status() != "running":
@@ -483,6 +491,46 @@ class PipelineProgress:
         ProgressRecorder.for_strategy_workbench_run(
             self.strategy_key, self.pipeline_id
         ).record(self._doc)
+        self._publish_shared()
+
+    def _publish_shared(self) -> None:
+        """把四个阶段写进公用进度。失败和取消不把进度收成完成。"""
+        from core.infra.progress import Progress
+
+        status = self._status()
+        source = self.strategy_key or self.pipeline_id
+        job = str(self._doc.get("pipeline_name") or "backtest")
+        active = self._active_steps()
+        total = len(active)
+        if status == "completed":
+            Progress.step(total, total, source=source, job=job)
+            Progress.close()
+            return
+        if status in ("failed", "cancelled"):
+            return
+        done_names = {
+            str(item.get("name") or "")
+            for item in (self._doc.get("completed_steps") or [])
+            if isinstance(item, dict)
+        }
+        done = sum(1 for name in active if name in done_names)
+        snap = Progress.read()
+        if (
+            snap.get("job") != job
+            or int(snap.get("step_total") or 0) != total
+            or int(snap.get("step") or -1) != done
+            or snap.get("source") != source
+        ):
+            Progress.step(done, total, source=source, job=job)
+        current = self._doc.get("step")
+        if not isinstance(current, dict) or str(current.get("name") or "") != "execute":
+            return
+        counters = current.get("counters") or {}
+        if not isinstance(counters, dict):
+            return
+        total = int(counters.get("total") or 0)
+        if total > 0:
+            Progress.sub(int(counters.get("done") or 0), total, source=source)
 
 
 __all__ = ["ATTRIBUTE_PIPELINE", "PipelineProgress"]

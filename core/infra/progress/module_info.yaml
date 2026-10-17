@@ -1,0 +1,15 @@
+name: infra.progress
+version: 0.1.0
+compatible_core_versions: ">=0.6.0"
+package: core.infra
+description: "进度模块：记录当前任务的步骤和子步骤，供各业务模块写入、供界面读取。"
+dependencies:
+  - infra.project_context
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 标准化模块，标准化文档以及对外API
+      - 正式版本之前所有API标注beta状态
+      - 提供 Progress.open / step / sub / close / read
+      - 进度文件放在 userspace/.ntq/tmp/progress.json
+      - 同一时间只记录当前这一次任务

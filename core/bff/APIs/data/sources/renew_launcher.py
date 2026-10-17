@@ -79,6 +79,7 @@ class DataRenewLauncher:
                     "error": "",
                     "message": "",
                     "tasks": _public_tasks(),
+                    "progress": _public_progress(),
                 }
             return {
                 "running": False,
@@ -87,6 +88,7 @@ class DataRenewLauncher:
                 "error": "",
                 "message": "",
                 "tasks": _public_tasks(),
+                "progress": _public_progress(),
             }
         return {
             "running": bool(active.get("running")),
@@ -95,6 +97,7 @@ class DataRenewLauncher:
             "error": str(active.get("error") or ""),
             "message": str(active.get("message") or ""),
             "tasks": _public_tasks(),
+            "progress": _public_progress(),
         }
 
     @classmethod
@@ -165,11 +168,23 @@ def _public_tasks() -> list:
                 "status": str(row.get("status") or ""),
                 "started_at": row.get("started_at"),
                 "total_seconds": row.get("total_seconds"),
-                "progress_done": row.get("progress_done"),
-                "progress_total": row.get("progress_total"),
-                "progress_saved": row.get("progress_saved"),
-                "progress_label": str(row.get("progress_label") or ""),
                 "error": str(row.get("error") or ""),
             }
         )
     return tasks
+
+
+def _public_progress() -> dict:
+    """当前任务的步骤。显示层用 step 和 sub 自己算百分比。"""
+    from core.infra.progress import Progress
+
+    snap = Progress.read()
+    return {
+        "job": str(snap.get("job") or ""),
+        "source": str(snap.get("source") or ""),
+        "step": int(snap.get("step") or 0),
+        "step_total": int(snap.get("step_total") or 0),
+        "sub": int(snap.get("sub") or 0),
+        "sub_total": int(snap.get("sub_total") or 0),
+        "updated_at": int(snap.get("updated_at") or 0),
+    }

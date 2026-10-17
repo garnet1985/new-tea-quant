@@ -47,7 +47,10 @@ export const EMPTY_IMPORT_PROGRESS = {
   totalTables: 0,
   completedCount: 0,
   currentTable: '',
-  percent: 0,
+  step: 0,
+  stepTotal: 0,
+  sub: 0,
+  subTotal: 0,
 };
 
 export const DB_SERVER_FIELD_KEYS = new Set(['host', 'port', 'database', 'user', 'password']);

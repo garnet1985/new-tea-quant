@@ -1,0 +1,35 @@
+# Progress 术语表
+# Version: 0.1.0
+#
+# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
+# 与 CONCEPTS：本文件是词条表；运作原理写 docs/CONCEPTS.md（若有）
+
+terms:
+  Step:
+    definition: "已经做完的步骤数。当前正在做的那一步不计入。"
+    aliases:
+      - "步骤"
+    avoid:
+      - "水位"
+      - "百分比"
+
+  Substep:
+    definition: "当前步骤内部已经完成的子步骤。没有子步骤时 sub 与 sub_total 都是 0。"
+    aliases:
+      - "子步骤"
+    avoid:
+      - "把当前步骤再计入 step"
+
+  Source:
+    definition: "正在处理的那一项的名字，由调用方传入，例如一张表或一个策略。"
+    aliases:
+      - "当前项"
+    avoid:
+      - "模块名"
+
+  Job:
+    definition: "这一次任务的种类，由调用方传入，用来区分安装、回测、数据更新等。空字符串表示未标明。"
+    aliases:
+      - "任务种类"
+    avoid:
+      - "数据源键"

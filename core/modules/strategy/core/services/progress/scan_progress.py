@@ -40,6 +40,7 @@ class ScanProgress:
                 "force": bool(force),
             }
         )
+        self._publish(0, 0)
 
     def mark_running(self) -> None:
         base = self._load()
@@ -84,6 +85,7 @@ class ScanProgress:
             }
         )
         self._recorder().record(base)
+        self._publish(done_jobs, total_jobs)
 
     def fail(self, error: str) -> None:
         base = self._load()
@@ -134,6 +136,24 @@ class ScanProgress:
         )
         base.pop("error", None)
         self._recorder().record(base)
+        self._publish(1, 1)
+        from core.infra.progress import Progress
+
+        Progress.close()
+
+    def _publish(self, done: int, total: int) -> None:
+        from core.infra.progress import Progress
+
+        source = self.strategy_key or self.job_id
+        snap = Progress.read()
+        if snap.get("job") != "scan" or snap.get("source") != source or int(snap.get("step_total") or 0) != 1:
+            Progress.open(source, 1, job="scan")
+        if total > 0 and done >= total:
+            Progress.step(1, 1, source=source, job="scan")
+            return
+        Progress.step(0, 1, source=source, job="scan")
+        if total > 0:
+            Progress.sub(done, total, source=source)
 
     @classmethod
     def get_raw(cls, strategy_key: str, job_id: str) -> Optional[Dict[str, Any]]:
@@ -175,7 +195,9 @@ class ScanProgress:
             return out
 
         try:
-            pct = float(disk.get("progress_pct") or 0)
+            pct = _shared_percent("scan", str(strategy_key or "").strip())
+            if pct is None:
+                pct = float(disk.get("progress_pct") or 0)
         except (TypeError, ValueError):
             pct = 0.0
         pct = max(0.0, min(100.0, pct))
@@ -202,3 +224,25 @@ class ScanProgress:
 
 
 __all__ = ["ScanProgress"]
+
+
+def _shared_percent(job: str, source: str) -> Optional[float]:
+    from core.infra.progress import Progress
+
+    snap = Progress.read()
+    if str(snap.get("job") or "") != job:
+        return None
+    if source and str(snap.get("source") or "") not in ("", source):
+        return None
+    if int(snap.get("step_total") or 0) <= 0:
+        return None
+    return round(
+        Progress.fraction(
+            int(snap.get("step") or 0),
+            int(snap.get("step_total") or 0),
+            int(snap.get("sub") or 0),
+            int(snap.get("sub_total") or 0),
+        )
+        * 100,
+        2,
+    )

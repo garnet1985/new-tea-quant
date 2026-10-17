@@ -267,10 +267,15 @@ class SetupDataInstaller:
                 self._clear_progress()
                 return
 
-            total = len(pending)
+            from core.infra.progress import Progress
+
+            total = len(importable)
+            done_count = len(completed)
+            Progress.open(pending[0]["logical"], total, job="import")
+            Progress.step(done_count, total, source=pending[0]["logical"])
             errors: List[Tuple[str, str]] = []
             t_import_loop = time.perf_counter()
-            for idx, r in enumerate(pending, start=1):
+            for r in pending:
                 logical = r["logical"]
                 target = r["target"]
                 paths = r["archives"]
@@ -278,6 +283,9 @@ class SetupDataInstaller:
                 assert model is not None
 
                 try:
+                    finished = len(progress_payload["completed_tables"])
+                    Progress.step(finished, total, source=logical)
+                    position = finished + 1
                     progress_payload["in_progress_table"] = logical
                     progress_payload["updated_at"] = int(time.time())
                     self._save_progress(progress_payload)
@@ -285,13 +293,13 @@ class SetupDataInstaller:
                     t0 = time.perf_counter()
                     NewTeaQuantSetup.print_check_item(
                         "running",
-                        f"[{idx}/{total}] 导入 {logical} -> {target}",
+                        f"[{position}/{total}] 导入 {logical} -> {target}",
                     )
                     model.import_data(paths, target_table=target)
                     dt = time.perf_counter() - t0
                     NewTeaQuantSetup.print_check_item(
                         "done",
-                        f"[{idx}/{total}] {logical} 完成（{dt:.1f}s）",
+                        f"[{position}/{total}] {logical} 完成（{dt:.1f}s）",
                     )
                     progress_payload["completed_tables"][logical] = "done"
                     progress_payload["in_progress_table"] = None
@@ -305,7 +313,7 @@ class SetupDataInstaller:
                     self._save_progress(progress_payload)
                     NewTeaQuantSetup.print_check_item(
                         "fail",
-                        f"[{idx}/{total}] {logical} 被中断（可重跑继续）",
+                        f"[{position}/{total}] {logical} 被中断（可重跑继续）",
                     )
                     raise
                 except Exception as e:
@@ -317,7 +325,7 @@ class SetupDataInstaller:
                     self._save_progress(progress_payload)
                     NewTeaQuantSetup.print_check_item(
                         "fail",
-                        f"[{idx}/{total}] {logical} 失败",
+                        f"[{position}/{total}] {logical} 失败",
                     )
 
             dt_import_tables = time.perf_counter() - t_import_loop
@@ -337,6 +345,7 @@ class SetupDataInstaller:
                 "done",
                 f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；import_data 全程 {dt_setup_all:.1f}s）",
             )
+            Progress.close()
             self._clear_progress()
         finally:
             try:

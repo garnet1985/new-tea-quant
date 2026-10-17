@@ -157,15 +157,27 @@ function mapRenewTask(task) {
     status: String(task?.status || '').trim(),
     startedAt: Number(task?.started_at) || 0,
     totalSeconds: numberOrNull(task?.total_seconds),
-    progressDone: numberOrNull(task?.progress_done),
-    progressTotal: numberOrNull(task?.progress_total),
-    progressLabel: String(task?.progress_label || '').trim(),
     error: String(task?.error || '').trim(),
   };
 }
 
+function mapJobProgress(progress) {
+  const number = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return {
+    job: String(progress?.job || '').trim(),
+    source: String(progress?.source || '').trim(),
+    step: number(progress?.step),
+    stepTotal: number(progress?.step_total),
+    sub: number(progress?.sub),
+    subTotal: number(progress?.sub_total),
+  };
+}
+
 /**
- * @returns {Promise<{ running: boolean, job_id: string, source: string, error: string, message: string, tasks: object[] }>}
+ * @returns {Promise<{ running: boolean, job_id: string, source: string, error: string, message: string, tasks: object[], progress: object }>}
  */
 export async function fetchDataSourceRenewStatus() {
   const json = await request.getJson(API_DATA_SOURCES_RENEW, { silent: true });
@@ -178,5 +190,6 @@ export async function fetchDataSourceRenewStatus() {
     error: String(m.error || '').trim(),
     message: String(m.message || '').trim(),
     tasks: rawTasks.map(mapRenewTask).filter((task) => task.source),
+    progress: mapJobProgress(m.progress),
   };
 }

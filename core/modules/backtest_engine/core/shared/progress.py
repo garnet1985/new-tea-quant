@@ -26,6 +26,21 @@ class RunProgressSnapshot:
     execute_total: int = 0
 
 
+def _phase_percent(phase: RunPhase, *, done: int, total: int) -> float:
+    """四个阶段等权。执行阶段的子步骤加在当前阶段上。"""
+    from core.infra.progress import Progress
+
+    index = {
+        RunPhase.PREP: 0,
+        RunPhase.PLAN: 1,
+        RunPhase.EXECUTE: 2,
+        RunPhase.FINISH: 4,
+    }[phase]
+    sub = done if phase is RunPhase.EXECUTE else 0
+    sub_total = total if phase is RunPhase.EXECUTE else 0
+    return Progress.fraction(index, 4, sub, sub_total) * 100.0
+
+
 class RunProgressReporter:
     """Compute phased run progress; optionally display to CMD (BE-internal)."""
 
@@ -57,29 +72,33 @@ class RunProgressReporter:
         self._execute_total = max(0, total)
 
     def mark_phase(self, phase: RunPhase) -> RunProgressSnapshot:
+        if phase is RunPhase.FINISH:
+            self._execute_completed = self._execute_total
+        self._percent = _phase_percent(
+            phase,
+            done=self._execute_completed,
+            total=self._execute_total,
+        )
         if phase is RunPhase.PREP:
-            self._phase_floor = PHASE_PREP_WEIGHT * 100.0
-            self._percent = self._phase_floor
+            self._phase_floor = self._percent
         elif phase is RunPhase.PLAN:
-            self._phase_floor = (PHASE_PREP_WEIGHT + PHASE_PLAN_WEIGHT) * 100.0
-            self._percent = self._phase_floor
+            self._phase_floor = self._percent
         elif phase is RunPhase.EXECUTE:
-            self._phase_floor = (PHASE_PREP_WEIGHT + PHASE_PLAN_WEIGHT) * 100.0
-            self._percent = self._phase_floor
-        elif phase is RunPhase.FINISH:
-            self._percent = 100.0
+            self._phase_floor = _phase_percent(RunPhase.EXECUTE, done=0, total=0)
         snapshot = self.snapshot(phase)
+        self._publish(phase)
         self._maybe_display(snapshot, detail=False)
         return snapshot
 
     def mark_execute_unit(self, completed: int) -> RunProgressSnapshot:
         self._execute_completed = max(0, min(completed, self._execute_total or completed))
-        if self._execute_total > 0:
-            execute_ratio = self._execute_completed / self._execute_total
-        else:
-            execute_ratio = 1.0 if self._execute_completed > 0 else 0.0
-        self._percent = self._phase_floor + execute_ratio * PHASE_EXECUTE_WEIGHT * 100.0
+        self._percent = _phase_percent(
+            RunPhase.EXECUTE,
+            done=self._execute_completed,
+            total=self._execute_total,
+        )
         snapshot = self.snapshot(RunPhase.EXECUTE)
+        self._publish(RunPhase.EXECUTE)
         self._maybe_display(snapshot, detail=True)
         return snapshot
 
@@ -120,6 +139,23 @@ class RunProgressReporter:
         else:
             line = total_line
         print(line, flush=True)
+
+    def _publish(self, phase: RunPhase) -> None:
+        from core.infra.progress import Progress
+
+        current = str(Progress.read().get("job") or "")
+        if current and current != "backtest":
+            return
+        phases = (RunPhase.PREP, RunPhase.PLAN, RunPhase.EXECUTE, RunPhase.FINISH)
+        index = phases.index(phase)
+        source = self._task_name or "backtest"
+        if phase is RunPhase.FINISH:
+            Progress.step(len(phases), len(phases), source=source, job="backtest")
+            Progress.close()
+            return
+        Progress.step(index, len(phases), source=source, job="backtest")
+        if phase is RunPhase.EXECUTE and self._execute_total > 0:
+            Progress.sub(self._execute_completed, self._execute_total, source=source)
 
 
 __all__ = [

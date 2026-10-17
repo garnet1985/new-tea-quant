@@ -120,6 +120,11 @@ def install_cli_runtime(
     step_seconds: dict = {}
     session_inputs = _session_inputs(options)
     current_step_id = ""
+    steps = list(_steps_for_options(options))
+    from core.infra.progress import Progress
+
+    if steps:
+        Progress.open(steps[0], len(steps), job="install")
 
     print()
     print("=" * 60)
@@ -128,8 +133,9 @@ def install_cli_runtime(
     print()
 
     try:
-        for step_id in _steps_for_options(options):
+        for index, step_id in enumerate(steps):
             current_step_id = step_id
+            Progress.step(index, len(steps), source=step_id, job="install")
             NewTeaQuantSetup.print_check_item("running", f"步骤: {step_id}")
             setup_session.record_step(
                 step_id,
@@ -150,6 +156,7 @@ def install_cli_runtime(
                 inputs=session_inputs.get(step_id),
                 source="cli",
             )
+            Progress.step(index + 1, len(steps), source=step_id, job="install")
     except Exception as exc:
         failed_step = current_step_id
         message = str(exc)
@@ -171,6 +178,9 @@ def install_cli_runtime(
         )
         print(f"{CmdLayout.icon.get('error')} 安装失败: {exc}", flush=True)
         raise
+
+    if steps:
+        Progress.close()
 
     skipped_import = ["import_data"] if not options.import_demo and not options.deps_only else None
     if skipped_import:

@@ -33,6 +33,7 @@ class TagRunProgress:
                 "label": "准备中…",
             }
         )
+        self._publish(0, 0)
 
     def write(self, payload: Dict[str, Any]) -> None:
         base = {
@@ -70,6 +71,7 @@ class TagRunProgress:
                 "label": label,
             }
         )
+        self._publish(finished, total)
 
     def complete(self) -> None:
         self.write(
@@ -81,6 +83,21 @@ class TagRunProgress:
                 "is_success": True,
             }
         )
+        self._publish(1, 1)
+        from core.infra.progress import Progress
+
+        Progress.close()
+
+    def _publish(self, done: int, total: int) -> None:
+        from core.infra.progress import Progress
+
+        source = self.tag_key or self.job_id
+        if total > 0 and done >= total:
+            Progress.step(1, 1, source=source, job="tag")
+            return
+        Progress.step(0, 1, source=source, job="tag")
+        if total > 0:
+            Progress.sub(done, total, source=source)
 
     def fail(self, error: str) -> None:
         self.write(
@@ -136,7 +153,9 @@ class TagRunProgress:
             return out
 
         try:
-            pct = float(disk.get("progress_pct") or 0)
+            pct = _shared_percent("tag", key)
+            if pct is None:
+                pct = float(disk.get("progress_pct") or 0)
         except (TypeError, ValueError):
             pct = 0.0
         pct = max(0.0, min(100.0, pct))
@@ -159,3 +178,25 @@ class TagRunProgress:
 
 
 __all__ = ["TagRunProgress"]
+
+
+def _shared_percent(job: str, source: str) -> Optional[float]:
+    from core.infra.progress import Progress
+
+    snap = Progress.read()
+    if str(snap.get("job") or "") != job:
+        return None
+    if source and str(snap.get("source") or "") not in ("", source):
+        return None
+    if int(snap.get("step_total") or 0) <= 0:
+        return None
+    return round(
+        Progress.fraction(
+            int(snap.get("step") or 0),
+            int(snap.get("step_total") or 0),
+            int(snap.get("sub") or 0),
+            int(snap.get("sub_total") or 0),
+        )
+        * 100,
+        2,
+    )

@@ -31,6 +31,7 @@ import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
 import { showToast } from 'containers/toast';
+import { progressRatio } from 'service/progress/ratio';
 import './dataSourceListPage.scss';
 
 function RenewAccessTip() {
@@ -54,10 +55,12 @@ function formatElapsed(seconds) {
   return min ? `${hours}小时${min}分` : `${hours}小时`;
 }
 
-function taskPercent(run) {
-  const done = Number(run?.progressDone);
-  const total = Number(run?.progressTotal);
-  if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0) return 0;
+function taskPercent(run, progress) {
+  if (!run || run.status !== 'running' || !progress) return 0;
+  if (progress.source && progress.source !== run.source) return 0;
+  const total = Number(progress.subTotal);
+  const done = Number(progress.sub);
+  if (!Number.isFinite(total) || total <= 0) return 0;
   return Math.max(0, Math.min(100, (done / total) * 100));
 }
 
@@ -109,6 +112,9 @@ function DataSourceListPage() {
   const [renewing, setRenewing] = useState(false);
   const [renewSource, setRenewSource] = useState('');
   const [renewTasks, setRenewTasks] = useState([]);
+  const [jobProgress, setJobProgress] = useState({
+    source: '', step: 0, stepTotal: 0, sub: 0, subTotal: 0,
+  });
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const expectJobRef = useRef('');
   const watchRef = useRef(() => {});
@@ -243,6 +249,9 @@ function DataSourceListPage() {
         .then((status) => {
           if (cancelled) return;
           setRenewTasks(settleTasks(status));
+          setJobProgress(status.progress || {
+            source: '', step: 0, stepTotal: 0, sub: 0, subTotal: 0,
+          });
           if (status.running) {
             sawRunning = true;
             setRenewing(true);
@@ -390,8 +399,10 @@ function DataSourceListPage() {
       renderCell: (params) => {
         const run = params.row.__run;
         if (run?.status === 'running') {
-          const pct = taskPercent(run);
-          const text = run.progressLabel || '正在获取';
+          const pct = taskPercent(run, jobProgress);
+          const text = jobProgress.subTotal > 0 && jobProgress.source === run.source
+            ? `${jobProgress.sub}/${jobProgress.subTotal}`
+            : '正在获取';
           const head = pct > 0 ? `${Math.round(pct)}%` : '';
           return (
             <Tooltip title={text}>
@@ -495,7 +506,7 @@ function DataSourceListPage() {
         );
       },
     },
-  ]), [beginRenew, nowSec, renewing, renewSource]);
+  ]), [beginRenew, jobProgress, nowSec, renewing, renewSource]);
 
   return (
     <PageLayout
@@ -556,8 +567,14 @@ function DataSourceListPage() {
         </Stack>
         {renewing ? (
           <Typography variant="body2" className="data-source-list-live">
-            {`正在更新 ${runningTitle || '…'}`}
-            {runningTask?.progressLabel ? ` · ${runningTask.progressLabel}` : ' · 正在获取'}
+            {`正在更新 ${jobProgress.source || runningTitle || '…'}`}
+            {jobProgress.stepTotal > 0
+              ? ` · ${jobProgress.step}/${jobProgress.stepTotal}`
+              : ' · 正在获取'}
+            {jobProgress.subTotal > 0 ? ` · ${jobProgress.sub}/${jobProgress.subTotal}` : ''}
+            {jobProgress.stepTotal > 0
+              ? ` · ${Math.round(progressRatio(jobProgress.step, jobProgress.stepTotal, jobProgress.sub, jobProgress.subTotal) * 100)}%`
+              : ''}
             {runningTask?.startedAt ? ` · ${elapsedLabel(runningTask, nowSec)}` : ''}
           </Typography>
         ) : null}

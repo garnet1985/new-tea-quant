@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from core.modules.data_source.core.catalog.freshness_probe import _resolve_freshness_end_date
+from core.modules.data_source.core.service import renew_progress
 from core.modules.data_source.core.service.date_range.date_range_service import needs_renew_work
 
 
@@ -19,25 +20,21 @@ class _UnreadyManager:
 
 def test_freshness_end_date_ignores_unready_manager(monkeypatch):
     monkeypatch.setattr(
-        "core.modules.data_source.core.service.renew_progress.ProjectContext.config.get_as_of_latest_completed_trading_date",
+        renew_progress.ProjectContext.config,
+        "get_as_of_latest_completed_trading_date",
         lambda: "20260101",
     )
-    monkeypatch.setattr(
-        "core.modules.data_source.core.service.renew_progress.member_end_cap",
-        lambda: None,
-    )
+    monkeypatch.setattr(renew_progress, "member_end_cap", lambda: None)
     assert _resolve_freshness_end_date(_UnreadyManager()) == "20260101"
 
 
 def test_freshness_end_date_stops_at_the_member_window(monkeypatch):
     monkeypatch.setattr(
-        "core.modules.data_source.core.service.renew_progress.ProjectContext.config.get_as_of_latest_completed_trading_date",
+        renew_progress.ProjectContext.config,
+        "get_as_of_latest_completed_trading_date",
         lambda: "20260101",
     )
-    monkeypatch.setattr(
-        "core.modules.data_source.core.service.renew_progress.member_end_cap",
-        lambda: "20251231",
-    )
+    monkeypatch.setattr(renew_progress, "member_end_cap", lambda: "20251231")
     assert _resolve_freshness_end_date(_UnreadyManager()) == "20251231"
 
 

@@ -125,6 +125,12 @@ class CalendarService(BaseDataService):
         if not anchor or not self._trade_calendar:
             return ""
         try:
+            covered = str(
+                self._trade_calendar.load_db_latest_trading_date(as_of_date=anchor) or ""
+            ).strip()
+            # 表里的日历没有记到截止日，就不能用它当终点，否则会停在更早的开市日。
+            if not covered or covered < anchor:
+                return ""
             cal_max = str(
                 self._trade_calendar.load_db_latest_completed_trading_date(
                     as_of_date=anchor

@@ -62,9 +62,7 @@ def _resolve_latest_completed_trading_date() -> List[dict]:
         from core.infra.utils import Utils
         fallback = Utils.date.today()
         return [{"date": fallback}]
-    from core.modules.data_source.core.service.renew_progress import resolve_uptodate_day
-
-    date_str = resolve_uptodate_day(data_manager)
+    date_str = str(calendar.get_latest_completed_trading_date() or "").strip()
     if not date_str:
         from core.infra.utils import Utils
 

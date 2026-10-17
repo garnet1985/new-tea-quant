@@ -13,10 +13,31 @@ from core.modules.data_source.core.progress import tick_renew_leaf
 logger = logging.getLogger(__name__)
 
 
+def _cap_end(end: Optional[str]) -> Optional[str]:
+    """客户端续传不超过会员窗口。官网自己的抓取不走这里。"""
+    if not end:
+        return end
+    from core.modules.data_source.core.service.renew_progress import apply_member_cap, member_end_cap
+
+    return apply_member_cap(str(end), member_end_cap())
+
+
+def _keep_job(job: Any) -> bool:
+    end = _cap_end(getattr(job, "end_date", None))
+    if end is not None:
+        job.end_date = end
+    start = str(getattr(job, "start_date", "") or "")
+    return not start or not end or start <= str(end)
+
+
 def pull_table(handler: Any, jobs: List[Any]) -> int:
     """没有股票维度的表仍整表翻页。没有任务表示这次不用更新。"""
     if not jobs:
         print(f"[{handler.get_key()}] 已是最新，跳过", flush=True)
+        return 0
+    jobs = [job for job in jobs if _keep_job(job)]
+    if not jobs:
+        print(f"[{handler.get_key()}] 已到会员窗口，跳过", flush=True)
         return 0
     bundle = jobs[0]
     config = handler.context.get("config")
@@ -33,6 +54,10 @@ def pull_entities(handler: Any, jobs: List[Any]) -> int:
     """一只股票一次要完再入库。多路并发先不开。"""
     if not jobs:
         print(f"[{handler.get_key()}] 已是最新，跳过", flush=True)
+        return 0
+    jobs = [job for job in jobs if _keep_job(job)]
+    if not jobs:
+        print(f"[{handler.get_key()}] 已到会员窗口，跳过", flush=True)
         return 0
     provider = (handler.context.get("providers") or {}).get("ntq")
     if provider is None:
@@ -68,6 +93,10 @@ def _pull(handler: Any, table: str, start: Optional[str], end: Optional[str]) ->
     provider = (handler.context.get("providers") or {}).get("ntq")
     if provider is None:
         raise ValueError("没有官网数据源 ntq")
+    end = _cap_end(end)
+    if start and end and str(start) > str(end):
+        print(f"[{handler.get_key()}] 已到会员窗口，跳过", flush=True)
+        return 0
     label = DEFAULT_DISPLAY_NAMES.get(handler.get_key(), table)
     progress = handler.progress
     pages = 0

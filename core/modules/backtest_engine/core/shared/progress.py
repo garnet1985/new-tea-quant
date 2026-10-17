@@ -1,15 +1,78 @@
 """Backtest Engine run progress — phased percent + optional CMD display."""
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, Iterator, Optional
 
 class RunPhase(str, Enum):
     PREP = "prep"
     PLAN = "plan"
     EXECUTE = "execute"
     FINISH = "finish"
+
+
+# 执行占 94。准备、计划、收尾各占 2。
+_PHASE_WEIGHTS = {
+    RunPhase.PREP: 2,
+    RunPhase.PLAN: 2,
+    RunPhase.EXECUTE: 94,
+    RunPhase.FINISH: 2,
+}
+
+
+def phase_steps(parent_id: str) -> list:
+    """一轮回测里的四个阶段。权重沿用单次回测。"""
+    return [
+        {
+            "id": f"{parent_id}:{phase.value}",
+            "label": _PHASE_LABELS[phase],
+            "weight": _PHASE_WEIGHTS[phase],
+        }
+        for phase in (RunPhase.PREP, RunPhase.PLAN, RunPhase.EXECUTE, RunPhase.FINISH)
+    ]
+
+
+_PHASE_LABELS = {
+    RunPhase.PREP: "准备",
+    RunPhase.PLAN: "计划",
+    RunPhase.EXECUTE: "执行",
+    RunPhase.FINISH: "收尾",
+}
+
+
+@dataclass(frozen=True)
+class ProgressRound:
+    """多轮任务里，这一轮在总进度中的位置。"""
+
+    root_id: str
+    round_id: str
+    index: int
+    total: int
+
+
+_ATTACHED: ContextVar[Optional[ProgressRound]] = ContextVar(
+    "backtest_progress_round", default=None
+)
+
+
+@contextmanager
+def attach_round(root_id: str, round_id: str, *, index: int, total: int) -> Iterator[str]:
+    """这一轮回测写入已有的总进度，不再单独从 0 走到 100。"""
+    token = _ATTACHED.set(
+        ProgressRound(
+            root_id=str(root_id),
+            round_id=str(round_id),
+            index=int(index),
+            total=int(total),
+        )
+    )
+    try:
+        yield str(round_id)
+    finally:
+        _ATTACHED.reset(token)
 
 
 @dataclass(frozen=True)
@@ -38,6 +101,7 @@ class RunProgressReporter:
         self._phase_floor = 0.0
         self._execute_completed = 0
         self._percent = 0.0
+        self._attached = _ATTACHED.get()
 
     @property
     def percent(self) -> float:
@@ -90,18 +154,18 @@ class RunProgressReporter:
     def _maybe_display(self, snapshot: RunProgressSnapshot, *, detail: bool) -> None:
         if not self._enable_display:
             return
-        total_line = (
-            f"任务：{self._task_name} {self._run_mode} "
-            f"执行总进度：{snapshot.percent:.0f}%"
-        )
+        head = f"任务：{self._task_name} {self._run_mode} "
+        attached = self._attached
+        if attached is not None and attached.total > 1:
+            head += f"第 {attached.index}/{attached.total} 轮，"
         if detail and snapshot.execute_total > 0:
             line = (
-                f"任务：{self._task_name} {self._run_mode} "
+                f"{head}"
                 f"回测进度：{snapshot.execute_completed}/{snapshot.execute_total}，"
                 f"执行总进度：{snapshot.percent:.0f}%"
             )
         else:
-            line = total_line
+            line = f"{head}执行总进度：{snapshot.percent:.0f}%"
         print(line, flush=True)
 
     def _progress_root(self) -> str:
@@ -109,54 +173,61 @@ class RunProgressReporter:
         safe = raw.replace("/", "-").replace("\\", "-").strip() or "backtest"
         return f"backtest-{safe}"
 
-    def _ensure_progress(self) -> str:
-        root = self._progress_root()
-        if getattr(self, "_progress_ready", False):
-            return root
-        Progress = _progress_type()
-        Progress.start(
-            root,
-            job="backtest",
-            label=self._task_name or "backtest",
-            steps=[
-                {"id": f"{root}:prep", "label": "准备"},
-                {"id": f"{root}:plan", "label": "计划"},
-                {"id": f"{root}:execute", "label": "执行"},
-                {"id": f"{root}:finish", "label": "收尾"},
-            ],
-        )
-        self._progress_ready = True
-        return root
+    def _scope_id(self) -> str:
+        if self._attached is not None:
+            return self._attached.round_id
+        return self._progress_root()
 
-    def _sync_percent(self, root: str) -> None:
-        document = _progress_type().read(root)
+    def _ensure_progress(self) -> str:
+        scope = self._scope_id()
+        if getattr(self, "_progress_ready", False):
+            return scope
+        if self._attached is None:
+            Progress = _progress_type()
+            Progress.start(
+                scope,
+                job="backtest",
+                label=self._task_name or "backtest",
+                steps=phase_steps(scope),
+            )
+        self._progress_ready = True
+        return scope
+
+    def _sync_percent(self, node_id: str) -> None:
+        document = _progress_type().read(node_id)
         if not document:
             return
         self._percent = float(document.get("ratio") or 0) * 100.0
 
     def _publish(self, phase: RunPhase) -> None:
-        root = self._ensure_progress()
+        scope = self._ensure_progress()
         progress = _progress_type()
-        if phase is RunPhase.FINISH:
-            progress.finish(root)
-            self._sync_percent(root)
+        if self._attached is not None:
+            progress.resume(scope)
+        if phase is RunPhase.FINISH and self._attached is None:
+            progress.finish(scope)
+            self._sync_percent(scope)
             return
-        order = (RunPhase.PREP, RunPhase.PLAN, RunPhase.EXECUTE)
+        order = (RunPhase.PREP, RunPhase.PLAN, RunPhase.EXECUTE, RunPhase.FINISH)
         index = order.index(phase)
         for earlier in order[:index]:
-            progress.finish(f"{root}:{earlier.value}")
+            progress.finish(f"{scope}:{earlier.value}")
+        if phase is RunPhase.FINISH:
+            progress.finish(f"{scope}:{phase.value}")
+            self._sync_percent(scope)
+            return
         if phase is RunPhase.EXECUTE and self._execute_total > 0:
             done, total = self._execute_completed, self._execute_total
         else:
             done, total = 0, 1
         progress.tick(
-            f"{root}:{phase.value}",
+            f"{scope}:{phase.value}",
             done,
             total,
             source=self._task_name or "backtest",
             log=False,
         )
-        self._sync_percent(root)
+        self._sync_percent(scope)
 
 
 def _progress_type():
@@ -169,4 +240,6 @@ __all__ = [
     "RunPhase",
     "RunProgressSnapshot",
     "RunProgressReporter",
+    "attach_round",
+    "phase_steps",
 ]

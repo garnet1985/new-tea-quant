@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, ClassVar, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -36,6 +37,7 @@ from core.modules.strategy.core.services.progress import (
 )
 
 from ..plan import AttributionCell, AttributionTask, cell_identity
+from .campaign_progress import CampaignProgress
 from .models import CellExecuteResult
 
 logger = logging.getLogger(__name__)
@@ -178,19 +180,26 @@ class ExecuteBase:
         drive = PipelineProgress.drives_pipeline(ATTRIBUTE_PIPELINE)
         total = len(tasks)
         rows: List[CellExecuteResult] = []
-        for idx, task in enumerate(tasks, start=1):
-            rows.append(
-                cls._run_one(
-                    folder,
-                    strategy_info,
-                    task,
-                    parent_version_id=parent_vid,
-                    baseline_execute_fp=str(baseline_fp.execute_fp or ""),
-                    ignore_cache=ignore_cache,
+        campaign = CampaignProgress.open(
+            str(strategy_info.key or ""),
+            layer.value,
+            tasks,
+        )
+        campaign_cm = campaign if campaign is not None else nullcontext()
+        with campaign_cm:
+            for idx, task in enumerate(tasks, start=1):
+                rows.append(
+                    cls._run_one(
+                        folder,
+                        strategy_info,
+                        task,
+                        parent_version_id=parent_vid,
+                        baseline_execute_fp=str(baseline_fp.execute_fp or ""),
+                        ignore_cache=ignore_cache,
+                    )
                 )
-            )
-            if drive:
-                PipelineProgress.tick_execute_bound(idx, total)
+                if drive:
+                    PipelineProgress.tick_execute_bound(idx, total)
         hits = [row.index for row in rows if row.status == "hit"]
         simulated = [row.index for row in rows if row.status == "simulated"]
         skipped = [row.index for row in rows if row.status == "skipped"]
@@ -239,7 +248,9 @@ class ExecuteBase:
         baseline_execute_fp: str,
         ignore_cache: bool,
     ) -> CellExecuteResult:
+        steps = tuple(task.steps) or (task.kind,)
         if strategy_info is None:
+            _skip_rounds(len(steps))
             return CellExecuteResult(
                 index=task.cell.index,
                 status="skipped",
@@ -252,10 +263,11 @@ class ExecuteBase:
                 parent_version_id=parent_version_id,
             )
             if upstream:
-                return cls._simulate_downstream(
+                return cls._run_one_kind(
                     folder,
                     strategy_info,
                     task,
+                    steps,
                     kind=SimulateKind.PRICE_FACTOR,
                     upstream_version_id=upstream,
                     parent_version_id=parent_version_id,
@@ -263,10 +275,11 @@ class ExecuteBase:
                     ignore_cache=ignore_cache,
                 )
         if task.cell.family == "allocation":
-            return cls._simulate_downstream(
+            return cls._run_one_kind(
                 folder,
                 strategy_info,
                 task,
+                steps,
                 kind=SimulateKind.PORTFOLIO,
                 upstream_version_id=parent_version_id,
                 parent_version_id=parent_version_id,
@@ -274,8 +287,6 @@ class ExecuteBase:
                 ignore_cache=ignore_cache,
             )
         fp_res = cls._fingerprints(strategy_info, task)
-        from core.modules.strategy.core.strategy import Strategy
-
         root = ArtifactStore.simulations_root(folder)
         if str(fp_res.execute_fp or "") == str(baseline_execute_fp or ""):
             target_vid = str(parent_version_id)
@@ -287,7 +298,6 @@ class ExecuteBase:
                 env_fp=str(fp_res.env_fp or ""),
             )
 
-        steps = tuple(task.steps) or (task.kind,)
         payload: Any = None
         any_miss = False
         for i, sim_kind in enumerate(steps):
@@ -300,7 +310,7 @@ class ExecuteBase:
                 target_vid,
                 force,
             )
-            payload = Strategy.simulate(
+            payload = _call_simulate(
                 strategy_info.key,
                 kind=sim_kind,
                 ignore_cache=force,
@@ -371,6 +381,38 @@ class ExecuteBase:
         return chosen
 
     @classmethod
+    def _run_one_kind(
+        cls,
+        folder: Path,
+        strategy_info: Optional[EnabledStrategyInfo],
+        task: AttributionTask,
+        steps: Sequence[SimulateKind],
+        *,
+        kind: SimulateKind,
+        upstream_version_id: str,
+        parent_version_id: str,
+        baseline_execute_fp: str,
+        ignore_cache: bool,
+    ) -> CellExecuteResult:
+        """只跑链条里的一层。前面没跑的轮次记完成，后面的也跳过。"""
+        planned = tuple(steps)
+        if kind in planned:
+            _skip_rounds(planned.index(kind))
+        result = cls._simulate_downstream(
+            folder,
+            strategy_info,
+            task,
+            kind=kind,
+            upstream_version_id=upstream_version_id,
+            parent_version_id=parent_version_id,
+            baseline_execute_fp=baseline_execute_fp,
+            ignore_cache=ignore_cache,
+        )
+        if kind in planned:
+            _skip_rounds(len(planned) - planned.index(kind) - 1)
+        return result
+
+    @classmethod
     def _simulate_downstream(
         cls,
         folder: Path,
@@ -391,8 +433,6 @@ class ExecuteBase:
                 reason="strategy_not_enabled",
             )
         fp_res = cls._fingerprints(strategy_info, task)
-        from core.modules.strategy.core.strategy import Strategy
-
         parent = str(parent_version_id or "").strip()
         upstream = str(upstream_version_id or "").strip()
         if str(fp_res.execute_fp or "") == str(baseline_execute_fp or ""):
@@ -413,7 +453,7 @@ class ExecuteBase:
             target_vid,
             upstream,
         )
-        payload = Strategy.simulate(
+        payload = _call_simulate(
             strategy_info.key,
             kind=kind,
             ignore_cache=ignore_cache,
@@ -534,4 +574,49 @@ class ExecuteBase:
             if info.resolved_folder().resolve() == target:
                 return info
         return None
+
+
+def _skip_rounds(count: int) -> None:
+    progress = CampaignProgress.current()
+    if progress is not None:
+        progress.skip(count)
+
+
+@contextmanager
+def _round_binding() -> Iterator[str]:
+    progress = CampaignProgress.current()
+    if progress is None:
+        yield ""
+        return
+    with progress.bind() as slot:
+        yield slot
+
+
+def _call_simulate(
+    key: str,
+    *,
+    kind: SimulateKind,
+    ignore_cache: bool,
+    runtime_settings: Optional[Dict[str, Any]],
+    version_id: Optional[str] = None,
+    upstream_version_id: Optional[str] = None,
+) -> Any:
+    from core.infra.progress import Progress
+    from core.modules.strategy.core.strategy import Strategy
+
+    with _round_binding() as slot:
+        kwargs: Dict[str, Any] = {}
+        if upstream_version_id is not None:
+            kwargs["upstream_version_id"] = upstream_version_id
+        payload = Strategy.simulate(
+            key,
+            kind=kind,
+            ignore_cache=ignore_cache,
+            runtime_settings=runtime_settings,
+            version_id=version_id,
+            **kwargs,
+        )
+        if slot:
+            Progress.finish(slot)
+        return payload
 

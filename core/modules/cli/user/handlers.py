@@ -324,7 +324,22 @@ class UserHandlers:
                 "  提示: 未传 --stocks 时将按 settings.sampling 抽样（可能数百只，耗时较长）",
                 flush=True,
             )
-        print("  进度: 5%→15% 为调度探针，之后按 batch 推进；完成后输出结果摘要", flush=True)
+        from core.modules.backtest_engine.core.shared.progress import (
+            RunPhase,
+            _PHASE_WEIGHTS,
+        )
+
+        weight_total = sum(_PHASE_WEIGHTS.values()) or 1
+        probe_from = round(100 * _PHASE_WEIGHTS[RunPhase.PREP] / weight_total)
+        probe_to = round(
+            100
+            * (_PHASE_WEIGHTS[RunPhase.PREP] + _PHASE_WEIGHTS[RunPhase.PLAN])
+            / weight_total
+        )
+        print(
+            f"  进度: {probe_from}%→{probe_to}% 为调度探针，之后按 batch 推进；完成后输出结果摘要",
+            flush=True,
+        )
 
         t0 = time.perf_counter()
         result = Strategy.enumerate(

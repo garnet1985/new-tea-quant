@@ -1,11 +1,17 @@
 name: infra.progress
-version: 0.1.0
+version: 0.2.0
 compatible_core_versions: ">=0.6.0"
 package: core.infra
-description: "进度模块：记录当前任务的步骤和子步骤，供各业务模块写入、供界面读取。"
+description: "进度模块：按节点 id 写入统一的进度文件，供界面和 PHP 直接读取。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.2.0"
+    changes:
+      - 一个根节点一份文件，steps 里嵌套同一种进度节点
+      - 按节点 id 查找，调用一次 tick 更新一次
+      - 写入时算好 ratio；读取接口立刻看到最新内容，写盘合并进行
+      - 去掉 open / step / sub / close / fraction
   - version: "0.1.0"
     changes:
       - 标准化模块，标准化文档以及对外API

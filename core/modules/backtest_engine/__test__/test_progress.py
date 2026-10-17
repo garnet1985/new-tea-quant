@@ -25,23 +25,21 @@ def test_phase_weights_sum_to_one() -> None:
 
 
 def test_mark_phase_uses_shared_steps() -> None:
-    from core.infra.progress import Progress
-
     reporter = RunProgressReporter(
         task_name="demo",
         run_mode=BacktestMode.ENTITY_BASED.value,
         enable_progress_display=False,
     )
     prep = reporter.mark_phase(RunPhase.PREP)
-    assert prep.percent == Progress.fraction(0, 4) * 100
+    assert prep.percent == 0
 
     plan = reporter.mark_phase(RunPhase.PLAN)
-    assert plan.percent == Progress.fraction(1, 4) * 100
+    assert plan.percent == 25
 
     reporter.set_execute_total(10)
     reporter.mark_phase(RunPhase.EXECUTE)
     execute_mid = reporter.mark_execute_unit(5)
-    assert execute_mid.percent == Progress.fraction(2, 4, 5, 10) * 100
+    assert execute_mid.percent == 62.5
 
     finish = reporter.mark_phase(RunPhase.FINISH)
     assert finish.percent == 100.0

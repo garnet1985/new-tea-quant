@@ -26,21 +26,6 @@ class RunProgressSnapshot:
     execute_total: int = 0
 
 
-def _phase_percent(phase: RunPhase, *, done: int, total: int) -> float:
-    """四个阶段等权。执行阶段的子步骤加在当前阶段上。"""
-    from core.infra.progress import Progress
-
-    index = {
-        RunPhase.PREP: 0,
-        RunPhase.PLAN: 1,
-        RunPhase.EXECUTE: 2,
-        RunPhase.FINISH: 4,
-    }[phase]
-    sub = done if phase is RunPhase.EXECUTE else 0
-    sub_total = total if phase is RunPhase.EXECUTE else 0
-    return Progress.fraction(index, 4, sub, sub_total) * 100.0
-
-
 class RunProgressReporter:
     """Compute phased run progress; optionally display to CMD (BE-internal)."""
 
@@ -74,31 +59,16 @@ class RunProgressReporter:
     def mark_phase(self, phase: RunPhase) -> RunProgressSnapshot:
         if phase is RunPhase.FINISH:
             self._execute_completed = self._execute_total
-        self._percent = _phase_percent(
-            phase,
-            done=self._execute_completed,
-            total=self._execute_total,
-        )
-        if phase is RunPhase.PREP:
-            self._phase_floor = self._percent
-        elif phase is RunPhase.PLAN:
-            self._phase_floor = self._percent
-        elif phase is RunPhase.EXECUTE:
-            self._phase_floor = _phase_percent(RunPhase.EXECUTE, done=0, total=0)
-        snapshot = self.snapshot(phase)
         self._publish(phase)
+        self._phase_floor = self._percent
+        snapshot = self.snapshot(phase)
         self._maybe_display(snapshot, detail=False)
         return snapshot
 
     def mark_execute_unit(self, completed: int) -> RunProgressSnapshot:
         self._execute_completed = max(0, min(completed, self._execute_total or completed))
-        self._percent = _phase_percent(
-            RunPhase.EXECUTE,
-            done=self._execute_completed,
-            total=self._execute_total,
-        )
-        snapshot = self.snapshot(RunPhase.EXECUTE)
         self._publish(RunPhase.EXECUTE)
+        snapshot = self.snapshot(RunPhase.EXECUTE)
         self._maybe_display(snapshot, detail=True)
         return snapshot
 
@@ -140,22 +110,65 @@ class RunProgressReporter:
             line = total_line
         print(line, flush=True)
 
-    def _publish(self, phase: RunPhase) -> None:
-        from core.infra.progress import Progress
+    def _progress_root(self) -> str:
+        raw = self._task_name or "backtest"
+        safe = raw.replace("/", "-").replace("\\", "-").strip() or "backtest"
+        return f"backtest-{safe}"
 
-        current = str(Progress.read().get("job") or "")
-        if current and current != "backtest":
+    def _ensure_progress(self) -> str:
+        root = self._progress_root()
+        if getattr(self, "_progress_ready", False):
+            return root
+        Progress = _progress_type()
+        Progress.start(
+            root,
+            job="backtest",
+            label=self._task_name or "backtest",
+            steps=[
+                {"id": f"{root}:prep", "label": "准备"},
+                {"id": f"{root}:plan", "label": "计划"},
+                {"id": f"{root}:execute", "label": "执行"},
+                {"id": f"{root}:finish", "label": "收尾"},
+            ],
+        )
+        self._progress_ready = True
+        return root
+
+    def _sync_percent(self, root: str) -> None:
+        document = _progress_type().read(root)
+        if not document:
             return
-        phases = (RunPhase.PREP, RunPhase.PLAN, RunPhase.EXECUTE, RunPhase.FINISH)
-        index = phases.index(phase)
-        source = self._task_name or "backtest"
+        self._percent = float(document.get("ratio") or 0) * 100.0
+
+    def _publish(self, phase: RunPhase) -> None:
+        root = self._ensure_progress()
+        progress = _progress_type()
         if phase is RunPhase.FINISH:
-            Progress.step(len(phases), len(phases), source=source, job="backtest")
-            Progress.close()
+            progress.finish(root)
+            self._sync_percent(root)
             return
-        Progress.step(index, len(phases), source=source, job="backtest")
+        order = (RunPhase.PREP, RunPhase.PLAN, RunPhase.EXECUTE)
+        index = order.index(phase)
+        for earlier in order[:index]:
+            progress.finish(f"{root}:{earlier.value}")
         if phase is RunPhase.EXECUTE and self._execute_total > 0:
-            Progress.sub(self._execute_completed, self._execute_total, source=source)
+            done, total = self._execute_completed, self._execute_total
+        else:
+            done, total = 0, 1
+        progress.tick(
+            f"{root}:{phase.value}",
+            done,
+            total,
+            source=self._task_name or "backtest",
+            log=False,
+        )
+        self._sync_percent(root)
+
+
+def _progress_type():
+    from core.infra.progress import Progress
+
+    return Progress
 
 
 __all__ = [

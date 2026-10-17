@@ -1,8 +1,8 @@
 # Progress — 架构
 
-**版本：** `0.1.0`
+**版本：** `0.2.0`
 
-本模块只保存当前任务的步骤计数。业务模块在自己的生命周期里调用门面，界面和 PHP 读取同一份文件。
+本模块把进度写成文件。根节点和每一层 steps 是同一种节点。界面和 PHP 读文件里的 ratio。
 
 ---
 
@@ -10,14 +10,16 @@
 
 **负责**
 
-- 把当前任务的步骤和子步骤写入临时目录里的一个文件
-- 提供读取和同一条比例式
+- 按节点 id 更新进度树，并写入 `userspace/.ntq/tmp/progress/{根id}.json`
+- 在写入时算好每个节点的 ratio
+- tick 时打一行日志
+- 读取最新内容；合并短时间内的重复写盘
 
 **不负责**
 
-- 不解释步骤在业务上是什么
-- 不保存错误、结果或机会列表
-- 不保留上一份任务的历史
+- 不保存任务结果、机会列表或失败日志
+- 不替调用方决定业务步骤的含义
+- 不在内部用定时器把进度往前推
 
 ---
 
@@ -43,11 +45,11 @@ core/infra/progress/
 ## 架构图
 
 ```text
-安装 / 回测 / 扫描 / 归因 / 数据源 / 标签
+业务 tick / finish / fail
    → Progress
-        → userspace/.ntq/tmp/progress.json
-界面 / PHP
-   → Progress.read()
+        → userspace/.ntq/tmp/progress/{根id}.json
+界面 / PHP / BFF
+   → Progress.read / Progress.latest
 ```
 
 ---
@@ -55,11 +57,15 @@ core/infra/progress/
 ## 数据流（若有）
 
 ```text
-open
-  → step（已完成步骤，子步骤清零）
-  → sub（当前步骤内的计数）
-  → close（步骤收到总数）
+start
+  → tick（叶子计数，父节点 ratio 向上重算）
+  → finish / fail / cancel / pause / resume
+  → clear
 ```
+
+同一次根上的连续 tick 先改内存，再合并写盘。`read` 和 `latest` 读内存里的最新树。
+
+测试可设 `NTQ_PROGRESS_DIR` 指向进度目录。
 
 ---
 

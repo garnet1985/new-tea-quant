@@ -28,6 +28,8 @@
 
 目标，AI agent & NTQ skill
 
+- `infra.progress` 0.2.0：一个任务一份进度文件，节点可以嵌套。去掉 `open` / `step` / `sub` / `close` / `fraction`。业务模块尚未改接。
+
 ---
 
 ---
@@ -42,6 +44,7 @@
 - (破坏性改动)重新命名所有策略函数的钩子命名和暴露的参数，见具体改动B
 - (破坏性改动)重构数据库表命名，加入kind命名空间
 - 加入新的ruff的代码规范并修改相应的报错。见具体改动D
+- 新加入进度模块统一管理app的所有进度相关的信息 infra/progress
 
 具体改动：
 - A 非商用沿用 Apache 2.0 条款，商用需书面授权，并须去掉 `core/modules/ntq_external`（会员 AI、反馈、使用统计等打到 new-tea.cn 的客户端）

@@ -1,16 +1,22 @@
-"""进度快照的字段。"""
+"""进度节点的字段。根节点和每一层 steps 使用同一种结构。"""
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import List, TypedDict
 
 
-class ProgressSnapshot(TypedDict):
-    """当前任务进度。显示层用 step 与 sub 自己算比例。"""
+class ProgressNode(TypedDict):
+    """一份进度。有子节点时 ratio 来自子节点，否则来自 done / total。"""
 
+    id: str
     job: str
+    status: str
     source: str
-    step: int
-    step_total: int
-    sub: int
-    sub_total: int
+    label: str
+    detail: str
+    weight: float
+    done: int
+    total: int
+    ratio: float
+    started_at: int
     updated_at: int
+    steps: List["ProgressNode"]

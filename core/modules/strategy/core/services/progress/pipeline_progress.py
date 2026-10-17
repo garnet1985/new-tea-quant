@@ -33,24 +33,10 @@ _STEPS: tuple[str, ...] = ("load", "dispatch", "execute", "report")
 ATTRIBUTE_PIPELINE = "attribute"
 ROLLING_PIPELINE = "rolling"
 
-_STEP_WEIGHTS: Dict[str, Dict[str, float]] = {
-    "enum": {"load": 0.05, "dispatch": 0.03, "execute": 0.9, "report": 0.02},
-    "price": {"load": 0.1, "dispatch": 0.03, "execute": 0.85, "report": 0.02},
-    "portfolio": {"load": 0.2, "dispatch": 0.1, "execute": 0.6, "report": 0.1},
-    # 准备 5% · 对照回测 85% · 归因/报告 10%（dispatch 权重 0，不单独占阶段）
-    ATTRIBUTE_PIPELINE: {
-        "load": 0.05,
-        "dispatch": 0.0,
-        "execute": 0.85,
-        "report": 0.10,
-    },
-    # 窗口里的枚举 / 价格 / 资金各记一次，不跟进单层内部进度。
-    ROLLING_PIPELINE: {
-        "load": 0.0,
-        "dispatch": 0.0,
-        "execute": 0.95,
-        "report": 0.05,
-    },
+# 这些阶段对部分流水线没有工作，不写进进度。其余阶段等权。
+_SKIPPED_STEPS: Dict[str, tuple[str, ...]] = {
+    ATTRIBUTE_PIPELINE: ("dispatch",),
+    ROLLING_PIPELINE: ("load", "dispatch"),
 }
 
 _STEP_LABELS: Dict[str, str] = {
@@ -213,7 +199,6 @@ class PipelineProgress:
         if name == "execute":
             self._exec_wave_total = None
             self._exec_wave_done = 0
-        self._recompute_pipeline_progress()
         self._save()
 
     def complete_step(self, step_name: Optional[str] = None) -> None:
@@ -228,7 +213,6 @@ class PipelineProgress:
         cur["counters"] = None
         self._doc["step"] = cur
         self._finalize_current_step()
-        self._recompute_pipeline_progress()
         self._save()
 
     def tick_execute(
@@ -278,7 +262,6 @@ class PipelineProgress:
         )
         self._doc["step"] = cur
         self._doc["status"] = "running"
-        self._recompute_pipeline_progress()
         self._save()
 
     def complete(self, *, result: Optional[Dict[str, Any]] = None) -> None:
@@ -401,10 +384,6 @@ class PipelineProgress:
     def _status(self) -> str:
         return str(self._doc.get("status") or "").strip().lower()
 
-    def _weights(self) -> Dict[str, float]:
-        name = str(self._doc.get("pipeline_name") or "").strip()
-        return dict(_STEP_WEIGHTS.get(name, _STEP_WEIGHTS["price"]))
-
     def _finalize_current_step(self) -> None:
         cur = self._doc.get("step")
         if not isinstance(cur, dict):
@@ -438,42 +417,9 @@ class PipelineProgress:
         self._doc["step"] = None
 
     def _active_steps(self) -> List[str]:
-        active = [
-            name
-            for name in _STEPS
-            if float(self._weights().get(name) or 0.0) > 0
-        ]
-        return active or list(_STEPS)
-
-    def _recompute_pipeline_progress(self) -> None:
-        """总进度按有效阶段均分。执行阶段的子计数加在当前阶段上。"""
-        active = self._active_steps()
-        if not active:
-            self._doc["progress"] = 0.0
-            return
-        done_names = {
-            str(item.get("name") or "")
-            for item in (self._doc.get("completed_steps") or [])
-            if isinstance(item, dict)
-        }
-        done = sum(1 for name in active if name in done_names)
-        sub = 0
-        sub_total = 0
-        current = self._doc.get("step")
-        if isinstance(current, dict):
-            name = str(current.get("name") or "").strip()
-            if name in active and name not in done_names and name == "execute":
-                counters = current.get("counters") or {}
-                if isinstance(counters, dict):
-                    sub_total = int(counters.get("total") or 0)
-                    sub = int(counters.get("done") or 0)
-        inner = 0.0
-        if sub_total > 0:
-            inner = max(0.0, min(1.0, sub / float(sub_total)))
-        ratio = (done + inner) / float(len(active))
-        if self._status() == "completed":
-            ratio = 1.0
-        self._doc["progress"] = round(max(0.0, min(1.0, ratio)) * 100.0, 2)
+        name = str(self._doc.get("pipeline_name") or "").strip()
+        skipped = set(_SKIPPED_STEPS.get(name, ()))
+        return [step for step in _STEPS if step not in skipped]
 
     def _maybe_mark_stale(self) -> None:
         if self._status() != "running":
@@ -499,19 +445,23 @@ class PipelineProgress:
         self.fail("进度超时未更新，任务可能已中断")
 
     def _save(self) -> None:
-        self._recompute_pipeline_progress()
+        ratio = self._publish_shared()
+        status = self._status()
+        if status == "completed":
+            self._doc["progress"] = 100.0
+        elif status not in ("failed", "cancelled", "queued") and ratio is not None:
+            self._doc["progress"] = round(max(0.0, min(1.0, ratio)) * 100.0, 2)
         ProgressRecorder.for_strategy_workbench_run(
             self.strategy_key, self.pipeline_id
         ).record(self._doc)
-        self._publish_shared()
 
-    def _publish_shared(self) -> None:
+    def _publish_shared(self) -> Optional[float]:
         """把有效阶段写进公用进度。结果和阶段说明仍留在工作台文件。"""
         from core.infra.progress import Progress
 
         status = self._status()
         if status == "queued":
-            return
+            return None
         root = _progress_root_id(self.strategy_key, self.pipeline_id)
         job = str(self._doc.get("pipeline_name") or "pipeline")
         active = self._active_steps()
@@ -570,17 +520,23 @@ class PipelineProgress:
                     continue
             Progress.tick(node_id, 0, 1, source=source, log=False)
 
+        snap = Progress.read(root)
+        ratio = float(snap.get("ratio") or 0) if isinstance(snap, dict) else None
         detail = str(self._doc.get("error") or "").strip()
         if status == "completed":
             Progress.finish(root)
-        elif status == "failed":
+            return 1.0
+        if status == "failed":
             if current_name in active and current_name not in done_names:
                 Progress.fail(f"{root}:{current_name}", detail=detail)
             Progress.fail(root, detail=detail)
-        elif status == "cancelled":
+            return None
+        if status == "cancelled":
             if current_name in active and current_name not in done_names:
                 Progress.cancel(f"{root}:{current_name}", detail=detail)
             Progress.cancel(root, detail=detail)
+            return None
+        return ratio
 
 
 __all__ = ["ATTRIBUTE_PIPELINE", "PipelineProgress"]

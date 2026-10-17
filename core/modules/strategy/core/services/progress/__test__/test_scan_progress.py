@@ -37,7 +37,6 @@ def test_seed_tick_complete_poll(tmp_path, monkeypatch):
         prog.mark_running()
         prog.tick(
             {
-                "progress_pct": 40,
                 "total_jobs": 10,
                 "completed_jobs": 4,
                 "failed_jobs": 0,

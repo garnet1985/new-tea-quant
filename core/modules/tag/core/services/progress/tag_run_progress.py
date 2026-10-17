@@ -29,7 +29,6 @@ class TagRunProgress:
                 "job_id": self.job_id,
                 "phase": "queued",
                 "status": "queued",
-                "progress_pct": 0,
                 "label": "准备中…",
             }
         )
@@ -44,41 +43,34 @@ class TagRunProgress:
         base.update(payload)
         self._recorder().record(base)
 
-    def mark_running(self, *, label: str = "加载场景…", progress_pct: float = 1) -> None:
+    def mark_running(self, *, label: str = "加载场景…") -> None:
         self.write(
             {
                 "phase": "running",
                 "status": "running",
-                "progress_pct": progress_pct,
                 "label": label,
             }
         )
 
     def tick_from_pipeline(self, snapshot: Dict[str, Any]) -> None:
-        finished = int(snapshot.get("finished") or 0)
-        total = int(snapshot.get("total_jobs") or 0)
-        try:
-            pct = float(snapshot.get("progress_pct") or 0)
-        except (TypeError, ValueError):
-            pct = 0.0
-        pct = max(0.0, min(99.9, pct))
+        finished = int(snapshot.get("finished") or snapshot.get("index") or 0)
+        total = int(snapshot.get("total_jobs") or snapshot.get("total") or 0)
         label = f"执行计算 {finished}/{total}" if total else "执行计算…"
         self.write(
             {
                 "phase": "running",
                 "status": "running",
-                "progress_pct": pct,
                 "label": label,
             }
         )
-        self._publish(finished, total, detail=label)
+        if total > 0 or finished > 0:
+            self._publish(finished, total, detail=label)
 
     def complete(self) -> None:
         self.write(
             {
                 "phase": "completed",
                 "status": "completed",
-                "progress_pct": 100,
                 "label": "完成",
                 "is_success": True,
             }
@@ -135,7 +127,6 @@ class TagRunProgress:
             {
                 "phase": "failed",
                 "status": "failed",
-                "progress_pct": 100,
                 "error": str(error),
                 "is_success": False,
             }
@@ -186,10 +177,10 @@ class TagRunProgress:
 
         try:
             pct = _shared_percent(key, jid)
-            if pct is None:
-                pct = float(disk.get("progress_pct") or 0)
         except (TypeError, ValueError):
-            pct = 0.0
+            pct = None
+        if pct is None:
+            pct = 100.0 if status == "completed" or phase == "completed" else 0.0
         pct = max(0.0, min(100.0, pct))
         done = pct >= 100.0 or status == "completed" or phase == "completed"
 

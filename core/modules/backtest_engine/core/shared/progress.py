@@ -5,12 +5,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Optional
 
-PHASE_PREP_WEIGHT = 0.05
-PHASE_PLAN_WEIGHT = 0.10
-PHASE_EXECUTE_WEIGHT = 0.80
-PHASE_FINISH_WEIGHT = 0.05
-
-
 class RunPhase(str, Enum):
     PREP = "prep"
     PLAN = "plan"
@@ -175,8 +169,4 @@ __all__ = [
     "RunPhase",
     "RunProgressSnapshot",
     "RunProgressReporter",
-    "PHASE_PREP_WEIGHT",
-    "PHASE_PLAN_WEIGHT",
-    "PHASE_EXECUTE_WEIGHT",
-    "PHASE_FINISH_WEIGHT",
 ]

@@ -5,23 +5,9 @@ from unittest.mock import patch
 
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.progress import (
-    PHASE_EXECUTE_WEIGHT,
-    PHASE_FINISH_WEIGHT,
-    PHASE_PLAN_WEIGHT,
-    PHASE_PREP_WEIGHT,
     RunPhase,
     RunProgressReporter,
 )
-
-
-def test_phase_weights_sum_to_one() -> None:
-    total = (
-        PHASE_PREP_WEIGHT
-        + PHASE_PLAN_WEIGHT
-        + PHASE_EXECUTE_WEIGHT
-        + PHASE_FINISH_WEIGHT
-    )
-    assert total == 1.0
 
 
 def test_mark_phase_uses_shared_steps() -> None:

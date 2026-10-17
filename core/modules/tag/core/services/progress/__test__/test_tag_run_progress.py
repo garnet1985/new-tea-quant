@@ -32,7 +32,7 @@ def test_tag_run_publishes_job_counts(progress_dir):
     prog = TagRunProgress.for_job("macro/rate", "job1")
     prog.seed()
     prog.mark_running()
-    prog.tick_from_pipeline({"finished": 2, "total_jobs": 8, "progress_pct": 10})
+    prog.tick_from_pipeline({"finished": 2, "total": 8})
 
     body = TagRunProgress.get_poll_dto(tag_key="macro/rate", job_id="job1")
     assert body["status"] == "running"

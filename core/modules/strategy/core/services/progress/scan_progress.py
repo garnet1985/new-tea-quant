@@ -35,7 +35,6 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "queued",
                 "status": "queued",
-                "progress_pct": 0,
                 "demo": bool(demo),
                 "force": bool(force),
             }
@@ -50,19 +49,12 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "running",
                 "status": "running",
-                "progress_pct": max(int(base.get("progress_pct") or 0), 1),
             }
         )
         self._recorder().record(base)
 
     def tick(self, payload: Dict[str, Any]) -> None:
         """ScannerPipeline ``on_progress`` payload → disk."""
-        try:
-            pct = float(payload.get("progress_pct", 0) or 0)
-        except (TypeError, ValueError):
-            pct = 0.0
-        pct = max(0.0, min(99.9, pct))
-
         total_jobs = int(payload.get("total_jobs", 0) or 0)
         done_jobs = (
             int(payload.get("completed_jobs", 0) or 0)
@@ -77,7 +69,6 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "running",
                 "status": "running",
-                "progress_pct": round(pct, 2),
                 "total_jobs": total_jobs,
                 "done_jobs": done_jobs,
                 "last_job_id": str(payload.get("last_job_id") or ""),
@@ -95,7 +86,6 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "failed",
                 "status": "failed",
-                "progress_pct": 100,
                 "error": str(error),
             }
         )
@@ -131,7 +121,6 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "completed",
                 "status": "completed",
-                "progress_pct": 100,
                 "report": packed_report,
             }
         )
@@ -217,10 +206,10 @@ class ScanProgress:
 
         try:
             pct = _shared_percent(str(strategy_key or "").strip(), jid)
-            if pct is None:
-                pct = float(disk.get("progress_pct") or 0)
         except (TypeError, ValueError):
-            pct = 0.0
+            pct = None
+        if pct is None:
+            pct = 100.0 if status == "completed" or phase == "completed" else 0.0
         pct = max(0.0, min(100.0, pct))
         done = pct >= 100.0 or status == "completed" or phase == "completed"
 

@@ -16,6 +16,7 @@ import time
 
 from core.modules.data_source.core.base_class.base_handler import BaseHandler, format_run_seconds
 from core.infra.progress import Progress
+from core.modules.data_source.core.progress import bind_renew_leaf
 from core.modules.data_source.core.service.run_status import (
     RunStatus,
     call_with_status,
@@ -29,6 +30,17 @@ from core.modules.data_source.core.reserved_dependencies import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_id(value: str) -> str:
+    return str(value or "").replace("/", "-").replace("\\", "-").replace("\x00", "")
+
+
+def _progress_root_id(progress_id: Optional[str]) -> str:
+    cleaned = _safe_id(progress_id or "")
+    if cleaned and cleaned not in {".", ".."}:
+        return cleaned
+    return f"renew-{time.strftime('%Y%m%dT%H%M%S')}"
 
 
 class DataSourceExecutionScheduler:
@@ -55,6 +67,8 @@ class DataSourceExecutionScheduler:
         self._failed_data_sources: List[Tuple[str, BaseHandler, Exception]] = []
         
         self._dependency_cache: Dict[str, Any] = {}
+        self._progress_root = ""
+        self._progress_nodes: Dict[str, str] = {}
 
     def run(
         self,
@@ -62,6 +76,7 @@ class DataSourceExecutionScheduler:
         mappings: HandlerMapping,
         *,
         force: bool = False,
+        progress_id: Optional[str] = None,
     ):
         """
         执行所有数据源
@@ -73,6 +88,7 @@ class DataSourceExecutionScheduler:
         """
         self.mappings = mappings
         self._force_refresh = bool(force)
+        self._progress_id = progress_id
         sorted_handler_instances = self._preprocess(handler_instances)
         self._execute(sorted_handler_instances)
         self._postprocess()
@@ -140,6 +156,65 @@ class DataSourceExecutionScheduler:
         ordered = ordered_source_keys(enabled)
         return [handler_map[name] for name in ordered]
 
+    def open_progress(self, handlers: List[BaseHandler], progress_id: Optional[str] = None) -> None:
+        """每个数据源一层。根 id 用这次任务的 id，没有就按时间生成。"""
+        root = _progress_root_id(progress_id)
+        steps = []
+        nodes: Dict[str, str] = {}
+        for handler in handlers:
+            key = str(handler.get_key() or "")
+            if not key or key in nodes:
+                continue
+            node_id = f"{root}:{_safe_id(key)}"
+            nodes[key] = node_id
+            steps.append({"id": node_id, "label": key})
+        self._progress_nodes = nodes
+        if not steps:
+            self._progress_root = ""
+            return
+        Progress.start(root, job="renew", label="更新数据", steps=steps)
+        self._progress_root = root
+
+    def begin_source(self, key: str) -> None:
+        node_id = self._progress_nodes.get(key, "")
+        if not node_id:
+            bind_renew_leaf("")
+            return
+        bind_renew_leaf(node_id)
+        Progress.tick(node_id, 0, 1, source=key, log=False)
+
+    def finish_source(self, key: str) -> None:
+        node_id = self._progress_nodes.get(key, "")
+        bind_renew_leaf("")
+        if node_id:
+            Progress.finish(node_id)
+
+    def fail_source(self, key: str, error: BaseException) -> None:
+        node_id = self._progress_nodes.get(key, "")
+        bind_renew_leaf("")
+        if not node_id:
+            return
+        message = str(error).splitlines()[0] if str(error) else ""
+        Progress.fail(node_id, detail=message)
+
+    def close_progress(self) -> None:
+        bind_renew_leaf("")
+        root = self._progress_root
+        self._progress_root = ""
+        if root:
+            Progress.finish(root)
+
+    def fail_progress(self, error: Optional[BaseException] = None) -> None:
+        bind_renew_leaf("")
+        root = self._progress_root
+        self._progress_root = ""
+        if not root:
+            return
+        message = ""
+        if error is not None and str(error):
+            message = str(error).splitlines()[0]
+        Progress.fail(root, detail=message)
+
     # ================================
     # execute stage
     # ================================
@@ -159,19 +234,22 @@ class DataSourceExecutionScheduler:
             sorted_handler_instances,
             force=getattr(self, "_force_refresh", False),
         )
-        first = sorted_handler_instances[0].get_key() if sorted_handler_instances else ""
-        Progress.open(first, total, job="renew")
+        self.open_progress(sorted_handler_instances, getattr(self, "_progress_id", None))
         print(f"{i('rocket')} 开始执行 {total} 个数据源", flush=True)
         logger.info("开始执行 %s 个数据源", total)
 
-        self._run_sources(sorted_handler_instances)
-        Progress.close()
+        try:
+            self._run_sources(sorted_handler_instances)
+            self.close_progress()
+        except Exception as exc:
+            self.fail_progress(exc)
+            raise
 
     def _run_sources(self, sorted_handler_instances: List[BaseHandler]) -> None:
         total = len(sorted_handler_instances)
         for idx, handler_instance in enumerate(sorted_handler_instances):
             data_source_key = handler_instance.get_key()
-            Progress.step(idx, total, source=data_source_key)
+            self.begin_source(data_source_key)
             started = time.perf_counter()
             try:
                 mode = handler_instance.renew_mode_label(
@@ -217,8 +295,10 @@ class DataSourceExecutionScheduler:
                 )
                 # 只在成功执行后才清理不再需要的依赖缓存
                 self._clean_up_dependency_cache_if_no_longer_required(sorted_handler_instances, idx)
+                self.finish_source(data_source_key)
             except Exception as e:
                 total_s = time.perf_counter() - started
+                self.fail_source(data_source_key, e)
                 self._handle_execution_error(handler_instance, e, elapsed=total_s)
 
         self._retry_failed_data_sources()
@@ -310,12 +390,9 @@ class DataSourceExecutionScheduler:
         print(f"{i('ongoing')} 开始重试 {n_failed} 个失败的数据源", flush=True)
         logger.info("开始重试 %s 个失败的数据源", n_failed)
         retry_failed = []
-        snap = Progress.read()
-        total = int(snap.get("step_total") or n_failed)
-        finished = max(0, total - n_failed)
 
-        for index, (data_source_key, handler_instance, _) in enumerate(self._failed_data_sources):
-            Progress.step(finished + index, total, source=data_source_key)
+        for data_source_key, handler_instance, _ in self._failed_data_sources:
+            self.begin_source(data_source_key)
             started = time.perf_counter()
             try:
                 # 获取依赖数据（如果依赖也失败了，这里可能会抛出异常）
@@ -346,8 +423,10 @@ class DataSourceExecutionScheduler:
                     format_run_seconds(execute_s),
                     format_run_seconds(total_s),
                 )
+                self.finish_source(data_source_key)
             except ValueError as e:
                 total_s = time.perf_counter() - started
+                self.fail_source(data_source_key, e)
                 print(
                     f"{i('warning')}  数据源 {data_source_key} 重试失败：依赖数据缺失 - {e}，"
                     f"总任务耗时：{format_run_seconds(total_s)}",
@@ -362,6 +441,7 @@ class DataSourceExecutionScheduler:
                 retry_failed.append((data_source_key, handler_instance, e))
             except Exception as e:
                 total_s = time.perf_counter() - started
+                self.fail_source(data_source_key, e)
                 print(
                     f"{i('error')} 数据源 {data_source_key} 重试仍然失败: {e}，"
                     f"总任务耗时：{format_run_seconds(total_s)}",

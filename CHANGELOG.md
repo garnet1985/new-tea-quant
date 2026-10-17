@@ -28,7 +28,7 @@
 
 目标，AI agent & NTQ skill
 
-- `infra.progress` 0.2.0：一个任务一份进度文件，节点可以嵌套。去掉 `open` / `step` / `sub` / `close` / `fraction`。业务模块尚未改接。
+- `infra.progress` 0.2.0：一个任务一份进度文件，节点可以嵌套。去掉 `open` / `step` / `sub` / `close` / `fraction`。回测、数据更新、安装与导入、策略流水线、扫描、标签，以及 PHP 和前端都改为读这份文件。
 
 ---
 

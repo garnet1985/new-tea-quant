@@ -78,12 +78,7 @@ function SetupExecutionPanel({
         {runningStep === 'import_data' && importProgress.totalTables > 0 ? (
           <Alert severity="info" sx={{ mb: 2 }}>
             导入进度：{importProgress.completedCount}/{importProgress.totalTables}
-            （{Math.round(progressRatio(
-              importProgress.step,
-              importProgress.stepTotal,
-              importProgress.sub,
-              importProgress.subTotal,
-            ) * 100)}%）
+            （{Math.round(progressRatio(importProgress.ratio) * 100)}%）
             {importProgress.currentTable ? `，当前表：${importProgress.currentTable}` : ''}
           </Alert>
         ) : null}

@@ -113,7 +113,7 @@ function DataSourceListPage() {
   const [renewSource, setRenewSource] = useState('');
   const [renewTasks, setRenewTasks] = useState([]);
   const [jobProgress, setJobProgress] = useState({
-    source: '', step: 0, stepTotal: 0, sub: 0, subTotal: 0,
+    source: '', step: 0, stepTotal: 0, sub: 0, subTotal: 0, ratio: 0,
   });
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   const expectJobRef = useRef('');
@@ -250,7 +250,7 @@ function DataSourceListPage() {
           if (cancelled) return;
           setRenewTasks(settleTasks(status));
           setJobProgress(status.progress || {
-            source: '', step: 0, stepTotal: 0, sub: 0, subTotal: 0,
+            source: '', step: 0, stepTotal: 0, sub: 0, subTotal: 0, ratio: 0,
           });
           if (status.running) {
             sawRunning = true;
@@ -573,7 +573,7 @@ function DataSourceListPage() {
               : ' · 正在获取'}
             {jobProgress.subTotal > 0 ? ` · ${jobProgress.sub}/${jobProgress.subTotal}` : ''}
             {jobProgress.stepTotal > 0
-              ? ` · ${Math.round(progressRatio(jobProgress.step, jobProgress.stepTotal, jobProgress.sub, jobProgress.subTotal) * 100)}%`
+              ? ` · ${Math.round(progressRatio(jobProgress.ratio) * 100)}%`
               : ''}
             {runningTask?.startedAt ? ` · ${elapsedLabel(runningTask, nowSec)}` : ''}
           </Typography>

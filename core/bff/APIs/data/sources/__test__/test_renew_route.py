@@ -54,3 +54,43 @@ def test_launcher_refuses_when_another_task_is_busy(monkeypatch):
     body = DataRenewLauncher.trigger(None)
     assert body["is_triggered"] is False
     assert "tag_run" in body["reason"]
+
+
+def test_public_progress_uses_the_running_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.bff.APIs.data.sources.renew_launcher import _public_progress
+    from core.infra.progress import Progress
+    from core.infra.progress.core import store
+
+    store.reset()
+    Progress.start(
+        "data-renew-abc",
+        job="renew",
+        label="更新数据",
+        steps=[
+            {"id": "data-renew-abc:cpi", "label": "cpi"},
+            {"id": "data-renew-abc:list", "label": "stock_list"},
+        ],
+    )
+    Progress.finish("data-renew-abc:cpi")
+    Progress.tick(
+        "data-renew-abc:list",
+        2,
+        8,
+        source="stock_list",
+        detail="第 2 页",
+        log=False,
+    )
+
+    body = _public_progress()
+    assert body["step"] == 1
+    assert body["step_total"] == 2
+    assert body["source"] == "stock_list"
+    assert body["sub"] == 2
+    assert body["sub_total"] == 8
+    assert body["detail"] == "第 2 页"
+    assert body["ratio"] == 0.625
+    Progress.clear("data-renew-abc")
+    assert _public_progress()["step_total"] == 0
+    store.reset()

@@ -71,7 +71,7 @@ class TagRunProgress:
                 "label": label,
             }
         )
-        self._publish(finished, total)
+        self._publish(finished, total, detail=label)
 
     def complete(self) -> None:
         self.write(
@@ -83,21 +83,52 @@ class TagRunProgress:
                 "is_success": True,
             }
         )
-        self._publish(1, 1)
+        self._finish_shared()
+
+    def _ensure_shared(self) -> str:
         from core.infra.progress import Progress
 
-        Progress.close()
+        root = _root_id(self.tag_key, self.job_id)
+        existing = Progress.read(root)
+        if (
+            existing is None
+            or str(existing.get("status") or "") in _TERMINAL
+            or str(existing.get("job") or "") != "tag"
+        ):
+            Progress.start(root, job="tag", label="标签计算")
+        return root
 
-    def _publish(self, done: int, total: int) -> None:
+    def _publish(self, done: int, total: int, *, detail: str = "") -> None:
         from core.infra.progress import Progress
 
+        root = self._ensure_shared()
         source = self.tag_key or self.job_id
-        if total > 0 and done >= total:
-            Progress.step(1, 1, source=source, job="tag")
-            return
-        Progress.step(0, 1, source=source, job="tag")
+        text = str(detail or "").strip()
         if total > 0:
-            Progress.sub(done, total, source=source)
+            Progress.tick(
+                root,
+                min(done, total),
+                total,
+                source=source,
+                detail=text or None,
+                log=False,
+            )
+            return
+        Progress.tick(root, 0, 1, source=source, detail=text or None, log=False)
+
+    def _finish_shared(self) -> None:
+        from core.infra.progress import Progress
+
+        Progress.finish(self._ensure_shared())
+
+    def _fail_shared(self, detail: str) -> None:
+        from core.infra.progress import Progress
+
+        root = _root_id(self.tag_key, self.job_id)
+        if Progress.read(root) is None:
+            return
+        message = str(detail or "").splitlines()[0] if str(detail or "") else ""
+        Progress.fail(root, detail=message)
 
     def fail(self, error: str) -> None:
         self.write(
@@ -109,6 +140,7 @@ class TagRunProgress:
                 "is_success": False,
             }
         )
+        self._fail_shared(str(error))
 
     def on_progress_callback(self):
         def _cb(snapshot: Dict[str, Any]) -> None:
@@ -153,7 +185,7 @@ class TagRunProgress:
             return out
 
         try:
-            pct = _shared_percent("tag", key)
+            pct = _shared_percent(key, jid)
             if pct is None:
                 pct = float(disk.get("progress_pct") or 0)
         except (TypeError, ValueError):
@@ -179,24 +211,22 @@ class TagRunProgress:
 
 __all__ = ["TagRunProgress"]
 
+_TERMINAL = frozenset({"completed", "failed", "cancelled"})
 
-def _shared_percent(job: str, source: str) -> Optional[float]:
+
+def _root_id(tag_key: str, job_id: str) -> str:
+    raw = f"tag-{tag_key}-{job_id}"
+    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
+    return safe or "tag"
+
+
+def _shared_percent(tag_key: str, job_id: str) -> Optional[float]:
     from core.infra.progress import Progress
 
-    snap = Progress.read()
-    if str(snap.get("job") or "") != job:
+    snap = Progress.read(_root_id(tag_key, job_id))
+    if not isinstance(snap, dict) or str(snap.get("job") or "") != "tag":
         return None
+    source = str(tag_key or "").strip()
     if source and str(snap.get("source") or "") not in ("", source):
         return None
-    if int(snap.get("step_total") or 0) <= 0:
-        return None
-    return round(
-        Progress.fraction(
-            int(snap.get("step") or 0),
-            int(snap.get("step_total") or 0),
-            int(snap.get("sub") or 0),
-            int(snap.get("sub_total") or 0),
-        )
-        * 100,
-        2,
-    )
+    return round(float(snap.get("ratio") or 0) * 100, 2)

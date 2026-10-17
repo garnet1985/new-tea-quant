@@ -17,6 +17,13 @@ from core.infra.setup.core.cli_install_options import (
 )
 from core.infra.setup.core.db_install_config import write_database_install_config
 from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.install_progress import (
+    begin_install_step,
+    close_install,
+    fail_install,
+    finish_install_step,
+    open_install,
+)
 from core.infra.setup.core.install_runtime import (
     REPO_ROOT,
     mark_cli_success_fingerprint,
@@ -121,10 +128,9 @@ def install_cli_runtime(
     session_inputs = _session_inputs(options)
     current_step_id = ""
     steps = list(_steps_for_options(options))
-    from core.infra.progress import Progress
 
     if steps:
-        Progress.open(steps[0], len(steps), job="install")
+        open_install(steps)
 
     print()
     print("=" * 60)
@@ -133,9 +139,9 @@ def install_cli_runtime(
     print()
 
     try:
-        for index, step_id in enumerate(steps):
+        for step_id in steps:
             current_step_id = step_id
-            Progress.step(index, len(steps), source=step_id, job="install")
+            begin_install_step(step_id)
             NewTeaQuantSetup.print_check_item("running", f"步骤: {step_id}")
             setup_session.record_step(
                 step_id,
@@ -156,7 +162,7 @@ def install_cli_runtime(
                 inputs=session_inputs.get(step_id),
                 source="cli",
             )
-            Progress.step(index + 1, len(steps), source=step_id, job="install")
+            finish_install_step(step_id)
     except Exception as exc:
         failed_step = current_step_id
         message = str(exc)
@@ -177,10 +183,11 @@ def install_cli_runtime(
             step_seconds=step_seconds,
         )
         print(f"{CmdLayout.icon.get('error')} 安装失败: {exc}", flush=True)
+        fail_install(failed_step, message)
         raise
 
     if steps:
-        Progress.close()
+        close_install()
 
     skipped_import = ["import_data"] if not options.import_demo and not options.deps_only else None
     if skipped_import:

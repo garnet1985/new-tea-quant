@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
 from core.modules.data_source.core.catalog.display_names import DEFAULT_DISPLAY_NAMES
-from core.infra.progress import Progress
+from core.modules.data_source.core.progress import tick_renew_leaf
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,12 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
             logger.warning("数据包导入失败", exc_info=True)
             return jobs, saved
         saved += imported
-        Progress.sub(index, total_files, source=str(handler.get_key() or ""))
+        tick_renew_leaf(
+            index,
+            total_files,
+            source=str(handler.get_key() or ""),
+            detail=f"数据包 {index}/{total_files}",
+        )
         print(
             f"[{handler.get_key()}] 数据包 {index}/{total_files} 已导入 {imported} 行，截止 {through}",
             flush=True,

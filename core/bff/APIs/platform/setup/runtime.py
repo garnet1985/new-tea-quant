@@ -211,46 +211,11 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        from core.infra.progress import Progress
+        from core.infra.setup.core.install_progress import read_import_progress
 
-        snap = Progress.read()
-        if snap.get("job") != "import":
-            return {
-                "status": "ok",
-                "message": {
-                    "running": False,
-                    "totalTables": 0,
-                    "completedCount": 0,
-                    "currentTable": "",
-                    "step": 0,
-                    "stepTotal": 0,
-                    "sub": 0,
-                    "subTotal": 0,
-                    "updatedAt": 0,
-                },
-            }
-        step = int(snap.get("step") or 0)
-        step_total = int(snap.get("step_total") or 0)
-        running = step_total > 0 and step < step_total
         return {
             "status": "ok",
-            "message": {
-                "running": running,
-                "totalTables": step_total,
-                "completedCount": step,
-                "currentTable": str(snap.get("source") or "") if running else "",
-                "step": step,
-                "stepTotal": step_total,
-                "sub": int(snap.get("sub") or 0),
-                "subTotal": int(snap.get("sub_total") or 0),
-                "updatedAt": int(snap.get("updated_at") or 0),
-                "ratio": Progress.fraction(
-                    step,
-                    step_total,
-                    int(snap.get("sub") or 0),
-                    int(snap.get("sub_total") or 0),
-                ),
-            },
+            "message": read_import_progress(),
         }
 
     def _run_pipeline(self, state: Dict[str, Any], force_step_id: Optional[str] = None) -> Dict[str, Any]:
@@ -267,10 +232,21 @@ class SetupRuntimeManager:
         else:
             next_ids = ordered_ids
 
-        from core.infra.progress import Progress
+        from core.infra.setup.core.install_progress import (
+            begin_install_step,
+            close_install,
+            fail_install,
+            finish_install_step,
+            open_install,
+            pause_install_step,
+        )
 
-        if next_ids:
-            Progress.open(next_ids[0], len(ordered_ids), job="install")
+        done_ids = [
+            step_id
+            for step_id in ordered_ids
+            if self._get_step_state(state, step_id) == self.STATUS_SUCCESS
+        ]
+        open_install(ordered_ids, done_ids=done_ids)
 
         for step_id in next_ids:
             step = by_id[step_id]
@@ -282,7 +258,8 @@ class SetupRuntimeManager:
                 self._set_step_state(state, step_id, self.STATUS_WAITING_INPUT, "")
                 self._bump_version(state)
                 self._save_state(state)
-                Progress.step(ordered_ids.index(step_id), len(ordered_ids), source=step_id, job="install")
+                begin_install_step(step_id)
+                pause_install_step(step_id)
                 return {
                     "status": "ok",
                     "message": {
@@ -292,17 +269,14 @@ class SetupRuntimeManager:
                     },
                 }
 
+            begin_install_step(step_id)
             ok, err, trace_err = self._execute_step(state, step)
             self._bump_version(state)
             self._save_state(state)
             if ok:
-                Progress.step(
-                    ordered_ids.index(step_id) + 1,
-                    len(ordered_ids),
-                    source=step_id,
-                    job="install",
-                )
+                finish_install_step(step_id)
             if not ok:
+                fail_install(step_id, err or trace_err or "")
                 Setup.trace.install_step_failed(
                     step=step_id,
                     entry="ui",
@@ -331,7 +305,7 @@ class SetupRuntimeManager:
         if state["isReady"]:
             Setup.runtime.mark_cli_ready()
             Setup.license.apply_trace_consent()
-            Progress.close()
+            close_install()
         Setup.trace.install_complete(success=True, entry="ui", **self._timing_kwargs(state))
         return {
             "status": "ok",

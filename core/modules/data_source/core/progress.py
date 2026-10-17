@@ -2,7 +2,22 @@
 
 from __future__ import annotations
 
-from core.infra.progress import Progress
+_LEAF = ""
+
+
+def bind_renew_leaf(node_id: str) -> None:
+    """当前正在抓取的进度节点。空字符串表示先不写文件。"""
+    global _LEAF
+    _LEAF = str(node_id or "")
+
+
+def tick_renew_leaf(done: int, total: int, *, source: str, detail: str) -> None:
+    """有当前节点时更新计数。打印仍由调用方负责。"""
+    if not _LEAF:
+        return
+    from core.infra.progress import Progress
+
+    Progress.tick(_LEAF, done, total, source=source, detail=detail, log=False)
 
 
 class SyncProgress:
@@ -16,23 +31,23 @@ class SyncProgress:
         if failed:
             line += f"，失败 {failed}"
         print(f"[{self.source}] {line}", flush=True)
-        Progress.sub(done, total, source=self.source)
+        tick_renew_leaf(done, total, source=self.source, detail=line)
 
     def tables(self, total: int) -> None:
         label = f"开始同步，共 {total} 张表"
         print(f"[{self.source}] {label}", flush=True)
-        Progress.sub(0, total, source=self.source)
+        tick_renew_leaf(0, total, source=self.source, detail=label)
 
     def table(self, index: int, total: int, table: str, label: str) -> None:
         text = f"第 {index}/{total} 张 {table}（{label}）"
         print(f"[{self.source}] {text}", flush=True)
-        Progress.sub(index, total, source=self.source)
+        tick_renew_leaf(index, total, source=self.source, detail=text)
 
     def page(self, table: str, label: str, page: int, saved: int, total: int | None = None) -> None:
         line = f"同步 {table}（{label}）正在读取第 {page} 页，已写入 {saved} 行"
         if total is not None and total > 0:
             line += f"，{_percent_text(saved, total)}"
-            Progress.sub(saved, total, source=self.source)
+            tick_renew_leaf(saved, total, source=self.source, detail=line)
         print(f"[{self.source}] {line}", flush=True)
 
     def table_done(self, table: str, label: str, saved: int, seconds: float) -> None:
@@ -52,4 +67,4 @@ def _percent_text(saved: int, total: int) -> str:
     return f"{text}%"
 
 
-__all__ = ["SyncProgress"]
+__all__ = ["SyncProgress", "bind_renew_leaf", "tick_renew_leaf"]

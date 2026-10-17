@@ -135,6 +135,13 @@ def test_attribute_pipeline_uses_shared_steps(tmp_path, monkeypatch):
         prog.tick_execute(1, 4)
         # (1 + 1/4) / 3
         assert float(prog.to_dict()["progress"]) == 41.67
+        from core.infra.progress import Progress
+
+        shared = Progress.read("pipeline-demo-x-job-attr")
+        assert shared["job"] == "attribute"
+        assert shared["ratio"] == 0.4167
+        assert shared["steps"][1]["done"] == 1
+        assert shared["steps"][1]["total"] == 4
         assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 4}
         assert prog.to_dict()["step"]["description"] == "对照回测"
 
@@ -161,5 +168,14 @@ def test_rolling_tick_keeps_window_step_label(tmp_path, monkeypatch):
         prog.tick_execute(1, 6, description="20240101-20241231 枚举")
         assert prog.to_dict()["step"]["description"] == "20240101-20241231 枚举"
         assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 6}
+        held = float(prog.to_dict()["step"]["progress"])
+        prog.tick_execute(0, 3, description="下一窗")
+        assert float(prog.to_dict()["step"]["progress"]) == held
+        assert prog.to_dict()["step"]["counters"] == {"done": 0, "total": 3}
+        from core.infra.progress import Progress
+
+        shared = Progress.read("pipeline-demo-x-job-roll")
+        assert shared["steps"][0]["done"] == 0
+        assert shared["steps"][0]["total"] == 3
         assert PipelineProgress.drives_pipeline("enum") is False
         assert PipelineProgress.drives_pipeline(ROLLING_PIPELINE) is True

@@ -173,6 +173,9 @@ function mapJobProgress(progress) {
     stepTotal: number(progress?.step_total),
     sub: number(progress?.sub),
     subTotal: number(progress?.sub_total),
+    ratio: number(progress?.ratio),
+    label: String(progress?.label || '').trim(),
+    detail: String(progress?.detail || '').trim(),
   };
 }
 

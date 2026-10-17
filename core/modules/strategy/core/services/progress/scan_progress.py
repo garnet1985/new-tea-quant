@@ -100,6 +100,7 @@ class ScanProgress:
             }
         )
         self._recorder().record(base)
+        self._fail_shared(str(error))
 
     @staticmethod
     def opportunity_rows(opportunities: List[Any]) -> List[Dict[str, Any]]:
@@ -136,24 +137,44 @@ class ScanProgress:
         )
         base.pop("error", None)
         self._recorder().record(base)
-        self._publish(1, 1)
+        self._finish_shared()
+
+    def _ensure_shared(self):
         from core.infra.progress import Progress
 
-        Progress.close()
+        root = _root_id(self.strategy_key, self.job_id)
+        existing = Progress.read(root)
+        if (
+            existing is None
+            or str(existing.get("status") or "") in _TERMINAL
+            or str(existing.get("job") or "") != "scan"
+        ):
+            Progress.start(root, job="scan", label="扫描")
+        return root
 
     def _publish(self, done: int, total: int) -> None:
         from core.infra.progress import Progress
 
+        root = self._ensure_shared()
         source = self.strategy_key or self.job_id
-        snap = Progress.read()
-        if snap.get("job") != "scan" or snap.get("source") != source or int(snap.get("step_total") or 0) != 1:
-            Progress.open(source, 1, job="scan")
-        if total > 0 and done >= total:
-            Progress.step(1, 1, source=source, job="scan")
-            return
-        Progress.step(0, 1, source=source, job="scan")
         if total > 0:
-            Progress.sub(done, total, source=source)
+            Progress.tick(root, min(done, total), total, source=source, log=False)
+            return
+        Progress.tick(root, 0, 1, source=source, log=False)
+
+    def _finish_shared(self) -> None:
+        from core.infra.progress import Progress
+
+        Progress.finish(self._ensure_shared())
+
+    def _fail_shared(self, detail: str) -> None:
+        from core.infra.progress import Progress
+
+        root = _root_id(self.strategy_key, self.job_id)
+        if Progress.read(root) is None:
+            return
+        message = str(detail or "").splitlines()[0] if str(detail or "") else ""
+        Progress.fail(root, detail=message)
 
     @classmethod
     def get_raw(cls, strategy_key: str, job_id: str) -> Optional[Dict[str, Any]]:
@@ -195,7 +216,7 @@ class ScanProgress:
             return out
 
         try:
-            pct = _shared_percent("scan", str(strategy_key or "").strip())
+            pct = _shared_percent(str(strategy_key or "").strip(), jid)
             if pct is None:
                 pct = float(disk.get("progress_pct") or 0)
         except (TypeError, ValueError):
@@ -225,24 +246,22 @@ class ScanProgress:
 
 __all__ = ["ScanProgress"]
 
+_TERMINAL = frozenset({"completed", "failed", "cancelled"})
 
-def _shared_percent(job: str, source: str) -> Optional[float]:
+
+def _root_id(strategy_key: str, job_id: str) -> str:
+    raw = f"scan-{strategy_key}-{job_id}"
+    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
+    return safe or "scan"
+
+
+def _shared_percent(strategy_key: str, job_id: str) -> Optional[float]:
     from core.infra.progress import Progress
 
-    snap = Progress.read()
-    if str(snap.get("job") or "") != job:
+    snap = Progress.read(_root_id(strategy_key, job_id))
+    if not isinstance(snap, dict) or str(snap.get("job") or "") != "scan":
         return None
+    source = str(strategy_key or "").strip()
     if source and str(snap.get("source") or "") not in ("", source):
         return None
-    if int(snap.get("step_total") or 0) <= 0:
-        return None
-    return round(
-        Progress.fraction(
-            int(snap.get("step") or 0),
-            int(snap.get("step_total") or 0),
-            int(snap.get("sub") or 0),
-            int(snap.get("sub_total") or 0),
-        )
-        * 100,
-        2,
-    )
+    return round(float(snap.get("ratio") or 0) * 100, 2)

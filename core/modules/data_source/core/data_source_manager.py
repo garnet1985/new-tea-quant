@@ -40,6 +40,7 @@ class DataSourceManager:
         table_name: Optional[str] = None,
         *,
         force: bool = False,
+        progress_id: Optional[str] = None,
     ) -> None:
         """
         按配置 renew 数据（CLI / 脚本统一入口）。
@@ -48,12 +49,13 @@ class DataSourceManager:
             table_name: 绑定表名（如 ``sys_data_stock_klines``）或 data source key（如 ``stock_klines``）。
                 ``None`` 表示所有 ``is_enabled`` 的数据源。
             force: 强制 refresh：从 ``default_start_date`` 重拉，跳过日缓存与 ``renew_if_over_days``。
+            progress_id: 这次任务的进度文件名。不传则按时间生成。
         """
         if table_name:
             key = self.resolve_renew_target(table_name)
-            self.execute(sources=(key,), force=force)
+            self.execute(sources=(key,), force=force, progress_id=progress_id)
             return
-        self.execute(sources=None, force=force)
+        self.execute(sources=None, force=force, progress_id=progress_id)
 
     def sources_needing_renew(self) -> List[str]:
         """按依赖顺序返回当前需要更新的数据源。已经跟上的不在里面。"""
@@ -171,6 +173,7 @@ class DataSourceManager:
         sources: Optional[Sequence[str]] = None,
         *,
         force: bool = False,
+        progress_id: Optional[str] = None,
     ):
         """
         执行数据源：发现 mapping/config/handler → 按依赖顺序执行。
@@ -180,6 +183,7 @@ class DataSourceManager:
         Args:
             sources: 仅执行这些 data source key；``None`` 表示全部已启用。
             force: 强制全量重拉（见 ``renew``）。
+            progress_id: 这次任务的进度文件名。不传则按时间生成。
 
         是否写库由各 handler 的 config 顶层 is_dry_run 控制（True 则不执行 DB 写入）。
         """
@@ -204,10 +208,14 @@ class DataSourceManager:
                 raise ValueError(
                     f"未知或未启用的 data source: {unknown}；可选: {sorted(enabled)}"
                 )
-            self._execute_source_subset(keys, mappings, by_key, force=force)
+            self._execute_source_subset(
+                keys, mappings, by_key, force=force, progress_id=progress_id
+            )
             return
 
-        self._execution_scheduler.run(handler_instances, mappings, force=force)
+        self._execution_scheduler.run(
+            handler_instances, mappings, force=force, progress_id=progress_id
+        )
 
     @staticmethod
     def list_enabled_source_keys() -> List[str]:
@@ -240,6 +248,7 @@ class DataSourceManager:
         by_key: Dict[str, BaseHandler],
         *,
         force: bool,
+        progress_id: Optional[str] = None,
     ) -> None:
         """只执行指定 data source；依赖从缓存或 DB 注入。"""
         from core.modules.data_source.core.reserved_dependencies import resolve_reserved_dependency
@@ -301,49 +310,61 @@ class DataSourceManager:
         scheduler._failed_data_sources.clear()
         run_status = RunStatus.open(sorted_handlers, force=force)
         scheduler._run_status = run_status
+        scheduler.open_progress(sorted_handlers, progress_id)
 
         total = len(sorted_handlers)
-        for idx, handler in enumerate(sorted_handlers):
-            key = handler.get_key()
-            mode = handler.renew_mode_label(force=force)
-            started = time.perf_counter()
-            print(f"执行数据源 [{idx + 1}/{total}]: {key} - 执行模式：{mode}", flush=True)
-            logger.info("执行数据源 [%s/%s]: %s 执行模式：%s", idx + 1, total, key, mode)
-            deps: Dict[str, Any] = {}
-            for dep_name in mappings.get_depend_on_data_source_names(key):
-                if dep_name in RESERVED_DEPENDENCY_KEYS:
-                    deps[dep_name] = resolve_reserved_dependency(dep_name)
-                elif dep_name in scheduler._dependency_cache:
-                    deps[dep_name] = scheduler._dependency_cache[dep_name]
-                else:
-                    raise ValueError(f"依赖未就绪: {key} -> {dep_name}（请先执行 {dep_name}）")
-            if force:
-                deps["_execution"] = {"force_refresh": True}
-            handler.context["retain_results"] = mappings.is_dependency_for_downstream(key)
-            result = call_with_status(
-                run_status,
-                handler,
-                lambda handler=handler, deps=deps: handler.execute(deps),
-            )
-            if mappings.is_dependency_for_downstream(key):
-                if result and "data" in result:
-                    scheduler._dependency_cache[key] = result["data"]
-            total_s = time.perf_counter() - started
-            timing = getattr(handler, "_last_run_timing", None) or {}
-            execute_s = timing.get("execute", total_s)
-            print(
-                f"完成: {key}，执行耗时：{format_run_seconds(execute_s)}，"
-                f"总任务耗时：{format_run_seconds(total_s)}",
-                flush=True,
-            )
-            logger.info(
-                "完成: %s，执行耗时：%s，总任务耗时：%s",
-                key,
-                format_run_seconds(execute_s),
-                format_run_seconds(total_s),
-            )
+        try:
+            for idx, handler in enumerate(sorted_handlers):
+                key = handler.get_key()
+                mode = handler.renew_mode_label(force=force)
+                started = time.perf_counter()
+                print(f"执行数据源 [{idx + 1}/{total}]: {key} - 执行模式：{mode}", flush=True)
+                logger.info("执行数据源 [%s/%s]: %s 执行模式：%s", idx + 1, total, key, mode)
+                scheduler.begin_source(key)
+                try:
+                    deps: Dict[str, Any] = {}
+                    for dep_name in mappings.get_depend_on_data_source_names(key):
+                        if dep_name in RESERVED_DEPENDENCY_KEYS:
+                            deps[dep_name] = resolve_reserved_dependency(dep_name)
+                        elif dep_name in scheduler._dependency_cache:
+                            deps[dep_name] = scheduler._dependency_cache[dep_name]
+                        else:
+                            raise ValueError(f"依赖未就绪: {key} -> {dep_name}（请先执行 {dep_name}）")
+                    if force:
+                        deps["_execution"] = {"force_refresh": True}
+                    handler.context["retain_results"] = mappings.is_dependency_for_downstream(key)
+                    result = call_with_status(
+                        run_status,
+                        handler,
+                        lambda handler=handler, deps=deps: handler.execute(deps),
+                    )
+                    if mappings.is_dependency_for_downstream(key):
+                        if result and "data" in result:
+                            scheduler._dependency_cache[key] = result["data"]
+                    total_s = time.perf_counter() - started
+                    timing = getattr(handler, "_last_run_timing", None) or {}
+                    execute_s = timing.get("execute", total_s)
+                    print(
+                        f"完成: {key}，执行耗时：{format_run_seconds(execute_s)}，"
+                        f"总任务耗时：{format_run_seconds(total_s)}",
+                        flush=True,
+                    )
+                    logger.info(
+                        "完成: %s，执行耗时：%s，总任务耗时：%s",
+                        key,
+                        format_run_seconds(execute_s),
+                        format_run_seconds(total_s),
+                    )
+                    scheduler.finish_source(key)
+                except Exception as exc:
+                    scheduler.fail_source(key, exc)
+                    raise
 
-        scheduler._retry_failed_data_sources()
+            scheduler._retry_failed_data_sources()
+            scheduler.close_progress()
+        except Exception as exc:
+            scheduler.fail_progress(exc)
+            raise
 
     def _flush_cache(self):
         self._all_valid_configs_cache.clear()

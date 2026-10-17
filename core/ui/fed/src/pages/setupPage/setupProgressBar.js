@@ -31,12 +31,7 @@ function SetupProgressBar({
     ? setupWeightedPercent(definition, {
       completedIds,
       runningStepId: 'import_data',
-      withinStepRatio: progressRatio(
-        importProgress.step,
-        importProgress.stepTotal,
-        importProgress.sub,
-        importProgress.subTotal,
-      ),
+      withinStepRatio: progressRatio(importProgress.ratio),
     })
     : 0;
   const shownPercent = flowStage === 'success'

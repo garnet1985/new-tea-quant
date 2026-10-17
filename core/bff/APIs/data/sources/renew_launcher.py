@@ -124,14 +124,14 @@ class DataRenewLauncher:
 
             manager = DataSourceManager()
             if source_key:
-                manager.renew(table_name=source_key)
+                manager.renew(table_name=source_key, progress_id=job_id)
             else:
                 keys = manager.sources_needing_renew()
                 if not keys:
                     cls._finish(job_id, "", message="没有需要更新的数据源")
                     return
                 logger.info("一键更新 %s 个需要更新的数据源: %s", len(keys), ", ".join(keys))
-                manager.execute(sources=tuple(keys))
+                manager.execute(sources=tuple(keys), progress_id=job_id)
             cls._finish(job_id, "")
         except Exception as exc:
             logger.exception("data renew failed job_id=%s source=%s", job_id, source_key or "*")
@@ -175,16 +175,51 @@ def _public_tasks() -> list:
 
 
 def _public_progress() -> dict:
-    """当前任务的步骤。显示层用 step 和 sub 自己算百分比。"""
+    """当前 renew 任务。step 是数据源计数，sub 是正在跑的那一个。"""
     from core.infra.progress import Progress
 
-    snap = Progress.read()
+    snap = Progress.latest("renew")
+    if not isinstance(snap, dict):
+        return _empty_progress()
+    current = _deepest_running(snap)
+    leaf = current if current and current.get("id") != snap.get("id") else None
     return {
         "job": str(snap.get("job") or ""),
-        "source": str(snap.get("source") or ""),
-        "step": int(snap.get("step") or 0),
-        "step_total": int(snap.get("step_total") or 0),
-        "sub": int(snap.get("sub") or 0),
-        "sub_total": int(snap.get("sub_total") or 0),
+        "source": str((leaf or {}).get("source") or ""),
+        "step": int(snap.get("done") or 0),
+        "step_total": int(snap.get("total") or 0),
+        "sub": int((leaf or {}).get("done") or 0),
+        "sub_total": int((leaf or {}).get("total") or 0),
         "updated_at": int(snap.get("updated_at") or 0),
+        "ratio": float(snap.get("ratio") or 0),
+        "status": str(snap.get("status") or ""),
+        "label": str((leaf or snap).get("label") or ""),
+        "detail": str((leaf or {}).get("detail") or ""),
     }
+
+
+def _empty_progress() -> dict:
+    return {
+        "job": "",
+        "source": "",
+        "step": 0,
+        "step_total": 0,
+        "sub": 0,
+        "sub_total": 0,
+        "updated_at": 0,
+        "ratio": 0,
+        "status": "",
+        "label": "",
+        "detail": "",
+    }
+
+
+def _deepest_running(node: dict) -> Optional[dict]:
+    found = node if str(node.get("status") or "") == "running" else None
+    for child in node.get("steps") or []:
+        if not isinstance(child, dict):
+            continue
+        deeper = _deepest_running(child)
+        if deeper is not None:
+            found = deeper
+    return found

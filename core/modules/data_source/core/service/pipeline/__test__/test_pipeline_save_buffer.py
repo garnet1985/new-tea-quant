@@ -30,6 +30,29 @@ def test_flushes_before_accepting_a_frame_that_would_overflow():
     assert len(saved) == 2
 
 
+def test_rss_limit_writes_the_frame_instead_of_holding_it(monkeypatch):
+    saved = []
+    frame = pd.DataFrame({"x": [1, 2, 3]})
+    monkeypatch.setattr(
+        "core.modules.data_source.core.service.pipeline.save_memory_budget._process_rss_bytes",
+        lambda: 10_000,
+    )
+    buf = DataSourceSaveBuffer(
+        context={"data_manager": None},
+        budget=SaveMemoryBudget(
+            budget_bytes=50_000_000,
+            cpu_cap=2,
+            write_reserve_bytes=0,
+            rss_limit_bytes=1000,
+        ),
+        to_frames=lambda _ctx, _bundle, result: [result["frame"]],
+        save_frames=lambda _ctx, frames: saved.append(len(frames)),
+    )
+    buf.add(object(), {"frame": frame})
+    assert saved == [1]
+    assert buf._frames == []
+
+
 def test_empty_frame_is_not_buffered():
     saved = []
     buf = DataSourceSaveBuffer(

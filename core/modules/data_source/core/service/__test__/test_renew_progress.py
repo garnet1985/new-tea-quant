@@ -1,9 +1,11 @@
-"""已经更新到的数据日期：只往前推，三个周期取最早的一天，会员窗口再截一次。"""
+"""已经更新到的数据日期：只往前推，每个周期单独保留，会员窗口再截一次。"""
 
 from core.modules.data_source.core.service.renew_progress import (
+    _rows_need_backfill,
     apply_member_cap,
     fold_progress,
     keep_forward,
+    last_updates_for,
     plain_date,
     remember_settled,
     remember_written_rows,
@@ -31,14 +33,96 @@ def test_member_cap_keeps_an_earlier_as_of_and_clips_a_later_day():
     assert apply_member_cap("", "20251231") == "20251231"
 
 
-def test_fold_uses_the_earliest_of_daily_weekly_and_monthly():
+class _MarkedProgress:
+    def __init__(self):
+        self.saved = []
+
+    def load_one(self, where, params=()):
+        if params and params[0] == "__renew_progress__":
+            return {
+                "source": "__renew_progress__",
+                "entity_id": "backfill",
+                "last_update_date": "done",
+            }
+        return None
+
+    def load(self, where, params=()):
+        source = params[0]
+        return [row for row in self.saved if row["source"] == source]
+
+    def save_records(self, records):
+        self.saved.extend(records)
+
+
+class _KlineTable:
+    def load_schema(self):
+        return {"fields": [{"name": "id"}, {"name": "term"}, {"name": "date"}]}
+
+    def load_latests(self, date_field, groups):
+        return [{"id": "000001.SZ", "term": "daily", "date": "20261016"}]
+
+    def load_one(self, where, order_by=None):
+        return {"id": "000001.SZ"}
+
+
+class _KlineConfig:
+    def get_data_source_key(self):
+        return "stock_klines"
+
+    def get_group_fields(self):
+        return ["id", "term"]
+
+    def get_date_field(self):
+        return "date"
+
+    def get_table_name(self):
+        return "sys_data_stock_klines"
+
+    def get_needs_stock_grouping(self):
+        return True
+
+    def is_per_entity(self):
+        return True
+
+
+class _Tables:
+    def __init__(self, progress, fact):
+        self._tables = {
+            "sys_meta_data_renew_progress": progress,
+            "sys_data_stock_klines": fact,
+        }
+
+    def get_table(self, name):
+        return self._tables.get(name)
+
+
+def test_empty_progress_is_filled_from_the_fact_table():
+    progress = _MarkedProgress()
+    updates = last_updates_for(_Tables(progress, _KlineTable()), _KlineConfig())
+    assert updates == {"000001.SZ::daily": "20261016"}
+    assert progress.saved[0]["source"] == "stock_klines"
+
+
+def test_rows_without_a_term_are_refilled_when_the_source_has_terms():
+    assert _rows_need_backfill([], termed=True)
+    assert _rows_need_backfill([{"term": ""}], termed=True)
+    assert not _rows_need_backfill([{"term": "daily"}], termed=True)
+    assert not _rows_need_backfill([{"term": ""}], termed=False)
+
+
+def test_fold_keeps_each_recorded_term_without_requiring_monthly():
     rows = [
         {"entity_id": "000001.SZ", "term": "daily", "last_update_date": "20251231"},
         {"entity_id": "000001.SZ", "term": "weekly", "last_update_date": "20251226"},
         {"entity_id": "000001.SZ", "term": "monthly", "last_update_date": "20251231"},
         {"entity_id": "000002.SZ", "term": "daily", "last_update_date": "20251231"},
     ]
-    assert fold_progress(rows, termed=True) == {"000001.SZ": "20251226"}
+    assert fold_progress(rows, termed=True) == {
+        "000001.SZ::daily": "20251231",
+        "000001.SZ::weekly": "20251226",
+        "000001.SZ::monthly": "20251231",
+        "000002.SZ::daily": "20251231",
+    }
 
 
 def test_fold_without_a_term_uses_the_entity_date():

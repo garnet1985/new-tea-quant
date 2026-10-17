@@ -1,8 +1,9 @@
 """
 数据源已经更新到哪一天。
 
-计划和下一次要拉的起点都读 sys_meta_data_renew_progress，不再对业务表做 GROUP BY。
+计划和下一次要拉的起点都读 sys_meta_data_renew_progress。
 已有库第一次使用时，按业务表现有的最大日期补记一次。
+某个数据源的进度是空的，而业务表里已经有数据时，只补这一张。
 """
 from __future__ import annotations
 
@@ -76,39 +77,20 @@ def apply_member_cap(day: str, cap: Optional[str]) -> str:
 
 def fold_progress(rows: Sequence[Dict[str, Any]], *, termed: bool) -> Dict[str, str]:
     """
-    收成 {实体: 已经更新到的数据日期}。
+    收成排日期要用的起点。
 
-    有周期时，日、周、月都有记录才算这个实体更新过，日期取三者里最早的一天。
-    缺任何一个周期，这个实体就不出现在结果里，下次从默认起点拉。
+    有周期时键是 ``实体::周期``，每个已有周期单独保留。
+    缺月线不会把日线、周线一起丢掉，也不会收成不带周期的实体名。
     """
-    if not termed:
-        folded: Dict[str, str] = {}
-        for row in rows:
-            entity = str(row.get("entity_id") or "").strip()
-            updated = str(row.get("last_update_date") or "").strip()
-            if entity and updated:
-                folded[entity] = updated
-        return folded
-
-    by_entity: Dict[str, Dict[str, str]] = {}
+    folded: Dict[str, str] = {}
     for row in rows:
         entity = str(row.get("entity_id") or "").strip()
-        term = str(row.get("term") or "").strip()
         updated = str(row.get("last_update_date") or "").strip()
-        if entity and term and updated:
-            by_entity.setdefault(entity, {})[term] = updated
-    folded = {}
-    for entity, terms in by_entity.items():
-        dates: List[str] = []
-        complete = True
-        for term in KLINE_TERMS:
-            value = terms.get(term)
-            if not value:
-                complete = False
-                break
-            dates.append(value)
-        if complete:
-            folded[entity] = min(dates)
+        if not entity or not updated:
+            continue
+        term = str(row.get("term") or "").strip()
+        key = f"{entity}::{term}" if termed and term else entity
+        folded[key] = keep_forward(folded.get(key, ""), updated)
     return folded
 
 
@@ -186,7 +168,8 @@ def last_updates_for(data_manager, config) -> Optional[Dict[str, str]]:
     这个数据源各实体已经更新到的数据日期。
 
     进度表还不可用时返回 None，调用方继续扫业务表。
-    补记完成后，没有记录就返回空字典，表示这些实体都还没更新过。
+    这张数据源还没有进度、业务表里却已有数据时，先按业务表补上起点。
+    两边都没有记录时返回空字典，表示这些实体都还没更新过。
     """
     if data_manager is None or config is None:
         return None
@@ -200,10 +183,21 @@ def last_updates_for(data_manager, config) -> Optional[Dict[str, str]]:
     model = _progress_model(data_manager)
     if model is None:
         return None
-    rows = model.load("source = %s", (source,)) or []
-    if not isinstance(rows, list):
-        return None
-    return fold_progress(rows, termed=_source_is_termed(data_manager, config))
+    termed = _progress_uses_term(config, data_manager)
+    with _lock:
+        rows = model.load("source = %s", (source,)) or []
+        if not isinstance(rows, list):
+            return None
+        if _rows_need_backfill(rows, termed):
+            try:
+                _backfill_source(data_manager, model, source, config)
+            except Exception:
+                logger.warning("进度表没有 %s 的起点，按业务表补记失败", source, exc_info=True)
+                return None
+            rows = model.load("source = %s", (source,)) or []
+            if not isinstance(rows, list):
+                return None
+    return fold_progress(rows, termed=termed)
 
 
 def remember_written_rows(handler: Any, rows: Sequence[Dict[str, Any]]) -> None:
@@ -403,6 +397,23 @@ def _marker_exists(model) -> bool:
         str(row.get("entity_id") or "") == MARKER_ENTITY
         and str(row.get("last_update_date") or "") == MARKER_DATE
     )
+
+
+def _rows_need_backfill(rows: Sequence[Dict[str, Any]], termed: bool) -> bool:
+    """没有进度，或有周期的表只记了不带周期的行，都要按业务表重补。"""
+    if not rows:
+        return True
+    if not termed:
+        return False
+    return not any(str(row.get("term") or "").strip() for row in rows)
+
+
+def _progress_uses_term(config, data_manager) -> bool:
+    """排日期按「实体::周期」查时，进度键也必须带周期。"""
+    fields = config.get_group_fields() if hasattr(config, "get_group_fields") else []
+    if len(fields or []) < 2:
+        return False
+    return _source_is_termed(data_manager, config)
 
 
 def _source_is_termed(data_manager, config) -> bool:

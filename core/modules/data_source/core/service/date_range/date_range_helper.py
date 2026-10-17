@@ -54,7 +54,8 @@ def compute_last_update_map(context: Dict[str, Any]) -> Dict[str, Optional[str]]
     各实体已经更新到的数据日期（不考虑 renew_mode）。
 
     优先读 sys_meta_data_renew_progress。这张表还没补记好时，才退回扫业务表：
-    - 按实体：{entity_id: 数据日期}；有周期时取日、周、月里最早的一天。
+    - 按实体：{entity_id: 数据日期}。
+    - 有周期：{entity_id::term: 数据日期}，每个已有周期单独一条。
     - 整表：{"_global": 数据日期}。
     - 还没有记录时返回空 dict，调用方按“还没更新过”处理。
     """

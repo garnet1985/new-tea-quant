@@ -621,28 +621,40 @@ class BaseHandler:
 
     def _save_frames(self, context: Dict[str, Any], frames: List[Any]) -> None:
         """按固定行数把多张表写成记录，不把整个缓冲区合成一张表或一份字典。"""
+        from core.modules.data_source.core.hooks.base import DataSourceHooks
         from core.modules.data_source.core.service.pipeline.frame_mapping import (
             WRITE_CHUNK_ROWS,
+            iter_record_chunks,
             records_from_frame,
         )
 
         if context.get("is_dry_run") or not frames:
             return
-        rows: List[Dict[str, Any]] = []
-        for frame in frames:
+        # 名单、行业、日历会在保存前改写或清空整表，必须看到这一批的全部行。
+        # K 线没有这个钩子，按块展开，避免落库时再复制一整块缓冲。
+        if type(self.hooks).on_before_save is not DataSourceHooks.on_before_save:
+            rows: List[Dict[str, Any]] = []
+            for frame in frames:
+                if frame is None or getattr(frame, "empty", True):
+                    continue
+                rows.extend(records_from_frame(frame))
+            if not rows:
+                return
+            resolved = self.hooks.on_before_save(context, {"data": rows})
+            if resolved is not None:
+                rows = list(resolved.get("data") or [])
+            if not rows:
+                return
+            for start in range(0, len(rows), WRITE_CHUNK_ROWS):
+                self.hooks.save_record_chunk(context, rows[start : start + WRITE_CHUNK_ROWS])
+            return
+        for index, frame in enumerate(frames):
             if frame is None or getattr(frame, "empty", True):
+                frames[index] = None
                 continue
-            rows.extend(records_from_frame(frame))
-        if not rows:
-            return
-        # 缓冲区写入会跳过收尾的 _do_save。保存前钩子（维度表、清空旧日历）必须在落库前跑一次。
-        resolved = self.hooks.on_before_save(context, {"data": rows})
-        if resolved is not None:
-            rows = list(resolved.get("data") or [])
-        if not rows:
-            return
-        for start in range(0, len(rows), WRITE_CHUNK_ROWS):
-            self.hooks.save_record_chunk(context, rows[start : start + WRITE_CHUNK_ROWS])
+            for chunk in iter_record_chunks(frame):
+                self.hooks.save_record_chunk(context, chunk)
+            frames[index] = None
 
     def _extract_normalized_rows_for_bundle(
         self,

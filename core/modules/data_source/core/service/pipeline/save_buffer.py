@@ -52,9 +52,10 @@ class DataSourceSaveBuffer:
             self._budget.observe(nbytes)
             self._budget.warn_if_frame_exceeds(nbytes)
             cap = self._budget.buffer_cap
-            if self._frames and self._bytes + nbytes > cap:
+            pressured = self._budget.over_rss()
+            if self._frames and (self._bytes + nbytes > cap or pressured):
                 self._flush()
-            if nbytes > cap or cap <= 0:
+            if nbytes > cap or cap <= 0 or pressured:
                 self._write([frame], bundles=1 if not self._frames else 0)
                 continue
             self._frames.append(frame)

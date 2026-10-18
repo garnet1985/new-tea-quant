@@ -1,4 +1,4 @@
-"""后台启动回测、归因和滚动对照。模型只提交策略名，任务立刻返回。"""
+"""后台启动回测、归因、滚动对照和扫描。模型只提交策略名，任务立刻返回。"""
 
 from __future__ import annotations
 
@@ -127,15 +127,45 @@ def start_rolling(arguments: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-def _start(
-    arguments: Dict[str, Any],
-    *,
-    prefix: str,
-    label: str,
-    pipeline_name: str,
-    lease_kind: str,
-    runner: Runner,
-) -> Dict[str, Any]:
+def start_scan(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """扫描当前交易日的机会。不接受 demo 或 force。"""
+    from core.modules.strategy.core.services.progress import ScanProgress
+
+    gated = _gate(arguments, "扫描")
+    if isinstance(gated, dict):
+        return gated
+    block = Strategy.scan_block_reason(demo=False)
+    if block:
+        return {"ok": False, "key": gated, "error": block}
+
+    task_id = f"scan-{uuid.uuid4().hex[:12]}"
+    if not _claim(gated, task_id):
+        return {"ok": False, "key": gated, "error": "该策略已有任务在运行"}
+    try:
+        ScanProgress.for_job(gated, task_id).seed(demo=False, force=False)
+        write_task({"task_id": task_id, "key": gated, "kind": "scan"})
+    except Exception as exc:
+        _release(gated, task_id)
+        logger.exception("seed scan failed key=%s", gated)
+        return {"ok": False, "key": gated, "error": f"无法登记扫描任务: {exc}"}
+
+    thread = threading.Thread(
+        target=_scan_worker,
+        args=(gated, task_id),
+        daemon=True,
+        name=f"ntq-scan-{task_id[-6:]}",
+    )
+    thread.start()
+    return {
+        "ok": True,
+        "key": gated,
+        "task_id": task_id,
+        "status": "running",
+        "note": "扫描已启动。完成前不要编写机会名单",
+    }
+
+
+def _gate(arguments: Dict[str, Any], label: str) -> str | Dict[str, Any]:
     parsed = parse_strategy_key(arguments, only={"key"})
     if isinstance(parsed, dict):
         return parsed
@@ -167,6 +197,50 @@ def _start(
             "key": parsed,
             "error": f"系统任务进行中（{kind}），请稍后再试",
         }
+    return parsed
+
+
+def _scan_worker(key: str, task_id: str) -> None:
+    from core.modules.strategy.core.services.progress import ScanProgress
+
+    lease = TaskGuard.lease(
+        kind="strategy_scan",
+        job_id=task_id,
+        resource_key=key,
+        label=f"strategy_scan:{key}:扫描",
+        domains=["data", "strategy"],
+    )
+    try:
+        lease.acquire()
+    except TaskLeaseBusyError as exc:
+        ScanProgress.for_job(key, task_id).fail(str(exc))
+        _release(key, task_id)
+        return
+    try:
+        Strategy.scan_run(key, progress_id=task_id, demo=False, force=False)
+    except Exception:
+        logger.exception("扫描 failed key=%s task=%s", key, task_id)
+    finally:
+        try:
+            lease.release()
+        except Exception:
+            logger.exception("lease release failed task=%s", task_id)
+        _release(key, task_id)
+
+
+def _start(
+    arguments: Dict[str, Any],
+    *,
+    prefix: str,
+    label: str,
+    pipeline_name: str,
+    lease_kind: str,
+    runner: Runner,
+) -> Dict[str, Any]:
+    gated = _gate(arguments, label)
+    if isinstance(gated, dict):
+        return gated
+    parsed = gated
 
     task_id = f"{prefix}-{uuid.uuid4().hex[:12]}"
     if not _claim(parsed, task_id):

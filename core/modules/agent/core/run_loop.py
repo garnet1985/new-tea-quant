@@ -17,7 +17,7 @@ from core.modules.agent.core.tools.read_reports import read_progress
 from core.modules.assistant import Assistant
 from core.modules.assistant.contracts import AssistantError
 
-_MAX_STEPS = 8
+_MAX_STEPS = 10
 _WAIT_SECONDS = 45 * 60
 logger = logging.getLogger(__name__)
 _PROVIDER = "ntq"
@@ -81,7 +81,7 @@ def _await_task(result: Dict[str, Any]) -> Dict[str, Any]:
             seen = marker
             logger.info("任务 %s：%s", task_id, marker)
         if status in {"completed", "failed", "cancelled"}:
-            if status == "completed":
+            if status == "completed" and progress.get("kind") != "scan":
                 latest["note"] = "任务已结束。接着读执行报告，数字只能来自报告。"
             return latest
     latest["note"] = "等待超时，任务可能仍在跑。不要编写结果数字。"
@@ -109,15 +109,20 @@ def _system_prompt(catalog: ToolCatalog) -> str:
         '直接回答用户：{"reply":"给人看的话"}',
         "只能使用下面列出的工具。数字必须来自工具结果，没有结果就不要写收益或次数。",
         "启动类工具会等到结束再把结果给你。状态不是 completed 时不要编写收益，也不要再启动一次。",
-        "用户没有要求回测、归因或滚动对照时，不要调用 start_ 开头的工具。",
+        "用户没有要求回测、归因、滚动对照或扫描时，不要调用 start_ 开头的工具。",
+        "用户要求扫描当前机会时调用 start_scan，结束后读 read_scan_report。不要编造没有列出的股票。",
         "用户要求改策略或写策略时：先 create_strategy，再 write_strategy_files，再 validate_strategy。",
         "校验未通过就按错误改文件，通过之前不要回测。",
         "回测结束后读 read_execution_report，资金结果用 layer=portfolio。",
+        "止损和止盈的归因调用 start_attribute_price。资金层归因不排这两个参数。",
+        "改进时只改敏感度最高的一个止损或止盈，不要改买卖信号，不要一次改两个。",
+        "改完止盈止损后先 start_price_factor，再 start_portfolio，然后对比资金报告。",
+        "目录已经存在时不要 create_strategy。",
         "strategy.py 里的函数必须原样使用这个签名，不要改参数名：",
         "def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:",
         "    rows = records.last(2)",
-        "    prev = rows[0].get(\"macd_macdh_12_26_9_fast12_signal9_slow26\")",
-        "    curr = rows[1].get(\"macd_macdh_12_26_9_fast12_signal9_slow26\")",
+        '    prev = rows[0].get("macd_macdh_12_26_9_fast12_signal9_slow26")',
+        '    curr = rows[1].get("macd_macdh_12_26_9_fast12_signal9_slow26")',
         "    不足两根，或 prev/curr 为 None，就返回 False。金叉是 prev <= 0 且 curr > 0。",
         "settings.py 必须以 settings = { 开头，是 Python 字典。不要写 YAML。布尔写 True / False。",
         "settings 顶层要有 is_enabled: True。meta.key 等于目录名。不要把 is_enabled 只放进 meta。",

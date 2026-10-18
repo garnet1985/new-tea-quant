@@ -14,6 +14,7 @@ from core.modules.agent.core.tools.background_run import (
     start_portfolio,
     start_price_factor,
     start_rolling,
+    start_scan,
     start_simulate,
 )
 from core.modules.agent.core.tools.create_strategy import create_strategy
@@ -21,6 +22,7 @@ from core.modules.agent.core.tools.read_reports import (
     read_attribution_report,
     read_execution_report,
     read_progress,
+    read_scan_report,
 )
 from core.modules.agent.core.tools.validate_strategy import validate_strategy
 from core.modules.agent.core.tools.write_strategy_files import write_strategy_files
@@ -37,9 +39,11 @@ _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "start_attribute_price": start_attribute_price,
     "start_attribute_portfolio": start_attribute_portfolio,
     "start_rolling": start_rolling,
+    "start_scan": start_scan,
     "read_progress": read_progress,
     "read_execution_report": read_execution_report,
     "read_attribution_report": read_attribution_report,
+    "read_scan_report": read_scan_report,
 }
 
 

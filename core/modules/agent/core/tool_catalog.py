@@ -164,6 +164,17 @@ _TOOLS: tuple[ToolSpec, ...] = (
         implemented=True,
     ),
     ToolSpec(
+        name="start_scan",
+        description=(
+            "扫描该策略在当前交易日的机会，并立刻返回。完成前不要编写股票名单。"
+        ),
+        parameters=_object(
+            {"key": _string("已存在的策略目录名，例如 macd_cross")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
         name="read_progress",
         description="按任务 id 读取进度摘要。状态不是 completed 时不要编写结果数字。",
         parameters=_object(
@@ -201,6 +212,21 @@ _TOOLS: tuple[ToolSpec, ...] = (
                 "group_id": _string("归因组号。省略则读最新一组"),
             },
             ["key", "layer"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="read_scan_report",
+        description=(
+            "读取一次扫描的摘要和前几条机会。date 可省略，省略时读最新一天。"
+            "不要补充名单里没有的股票。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("策略目录名，例如 macd_cross"),
+                "date": _string("扫描日，例如 20260101。省略则读最新一天"),
+            },
+            ["key"],
         ),
         implemented=True,
     ),

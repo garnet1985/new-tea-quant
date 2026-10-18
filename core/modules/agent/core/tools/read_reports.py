@@ -1,4 +1,4 @@
-"""读进度、执行报告和归因报告。只返回摘要，不回整份 JSON。"""
+"""读进度、执行报告、归因报告和扫描摘要。只返回摘要，不回整份 JSON。"""
 
 from __future__ import annotations
 
@@ -72,6 +72,8 @@ def read_progress(arguments: Dict[str, Any]) -> Dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {"ok": False, "error": f"任务记录无法读取: {task_id}"}
     key = str(record.get("key") or "").strip()
+    if str(record.get("kind") or "") == "scan":
+        return _scan_progress(key, task_id)
     doc = PipelineProgress.get(key, task_id, apply_stale=True)
     if not doc:
         return {"ok": False, "key": key, "task_id": task_id, "error": "进度不存在"}
@@ -93,6 +95,133 @@ def read_progress(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if status not in {"completed", "failed", "cancelled"}:
         out["note"] = "尚未结束。不要编写结果数字"
     return out
+
+
+def _scan_progress(key: str, task_id: str) -> Dict[str, Any]:
+    from core.modules.strategy.core.services.progress import ScanProgress
+
+    doc = ScanProgress.get_poll_dto(key, task_id)
+    if not doc:
+        return {"ok": False, "key": key, "task_id": task_id, "error": "进度不存在"}
+    status = str(doc.get("status") or "").strip()
+    out: Dict[str, Any] = {
+        "ok": True,
+        "key": key,
+        "task_id": task_id,
+        "kind": "scan",
+        "status": status,
+        "progress": doc.get("progress"),
+    }
+    if doc.get("reason"):
+        out["error"] = str(doc.get("reason"))
+    report = doc.get("report") if isinstance(doc.get("report"), dict) else {}
+    if status == "completed" and report:
+        summary = (
+            report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        )
+        out["result"] = {
+            "date": str(report.get("date") or ""),
+            "total_opportunities": report.get("total_opportunities"),
+            "universe": report.get("total_stocks"),
+            "hit_stocks": summary.get("total_stocks"),
+            "at_limit_up_count": summary.get("at_limit_up_count"),
+        }
+        out["note"] = "扫描已结束。接着读 read_scan_report，不要编造股票"
+    elif status not in {"completed", "failed", "cancelled"}:
+        out["note"] = "尚未结束。不要编写机会名单"
+    return out
+
+
+def read_scan_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """读一次扫描摘要和前几条机会。不回整份名单。"""
+    parsed = _locate_key(arguments, optional={"date"})
+    if isinstance(parsed, dict) and parsed.get("ok") is False:
+        return parsed
+    key, folder = parsed
+    day = str(arguments.get("date") or "").strip()
+    root = folder / "results" / "scan"
+    if not day:
+        day = _latest_scan_date(root)
+    if not day.isdigit() or len(day) != 8:
+        return {"ok": False, "key": key, "error": "没有可读的扫描报告"}
+    summary_path = root / day / "scan_summary.json"
+    if not _inside(folder, summary_path) or not summary_path.is_file():
+        return {
+            "ok": False,
+            "key": key,
+            "error": f"扫描报告不存在: strategies/{key}/results/scan/{day}",
+        }
+    payload = _read_json(summary_path)
+    if payload is None:
+        return {"ok": False, "key": key, "error": "扫描报告无法解析"}
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    rows = _scan_rows(root / day / "opportunities.csv")
+    return {
+        "ok": True,
+        "key": key,
+        "date": day,
+        "total_opportunities": payload.get("total_opportunities"),
+        "universe": payload.get("total_stocks"),
+        "hit_stocks": summary.get("total_stocks"),
+        "at_limit_up_count": summary.get("at_limit_up_count"),
+        "opportunities": rows,
+        "path": f"strategies/{key}/results/scan/{day}",
+        "note": "只列出前几条机会。没有出现的股票不要补充",
+    }
+
+
+def _latest_scan_date(root: Path) -> str:
+    if not root.is_dir():
+        return ""
+    days = [
+        path.name
+        for path in root.iterdir()
+        if path.is_dir()
+        and path.name.isdigit()
+        and len(path.name) == 8
+        and (path / "scan_summary.json").is_file()
+    ]
+    return max(days) if days else ""
+
+
+def _scan_rows(path: Path) -> List[Dict[str, Any]]:
+    if not path.is_file():
+        return []
+    import csv
+
+    out: List[Dict[str, Any]] = []
+    try:
+        with path.open(encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                stock = _json_cell(row.get("stock"))
+                out.append(
+                    {
+                        "stock_id": str(row.get("stock_id") or stock.get("id") or ""),
+                        "stock_name": str(
+                            row.get("stock_name") or stock.get("name") or ""
+                        ),
+                        "trigger_date": str(row.get("trigger_date") or ""),
+                        "trigger_price": row.get("trigger_price") or "",
+                    }
+                )
+                if len(out) >= 8:
+                    break
+    except OSError:
+        return []
+    return out
+
+
+def _json_cell(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    text = str(value or "").strip()
+    if not text.startswith("{"):
+        return {}
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def read_execution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -182,6 +311,25 @@ def read_attribution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "path": f"strategies/{key}/results/attribution/{group_id}/{layer}/report.json",
         "note": "改进策略时先看 conclusion 和 sensitivity_rank，不要一次改多个参数",
     }
+
+
+def _locate_key(arguments: Dict[str, Any], *, optional: set[str]):
+    allowed = {"key"} | optional
+    if not isinstance(arguments, dict) or not set(arguments) <= allowed:
+        names = "、".join(sorted(allowed))
+        return {"ok": False, "error": f"只接受参数 {names}"}
+    if "key" not in arguments:
+        return {"ok": False, "error": "必须提供 key"}
+    parsed = parse_strategy_key({"key": arguments.get("key")}, only={"key"})
+    if isinstance(parsed, dict):
+        return parsed
+    located = strategy_folder(parsed)
+    if isinstance(located, dict):
+        return located
+    folder, _relative = located
+    if not folder.is_dir():
+        return {"ok": False, "error": f"策略不存在: strategies/{parsed}"}
+    return parsed, folder
 
 
 def _locate(arguments: Dict[str, Any], *, optional: set[str]):

@@ -59,7 +59,7 @@
 
 ### 运行循环（`run_loop`）
 
-`Agent.run` 调用本类。每轮把系统提示、用户原话和此前的工具摘要发给 `Assistant.complete`。模型回复 `{"tool","arguments"}` 时执行工具；回复 `{"reply"}` 时把这句话返回给用户。一轮最多 6 次模型调用。官网代理只接受 system、user、assistant 三种文本消息，所以工具结果作为下一条 user 消息送回。运行记录目录还没落盘。
+`Agent.run` 调用本类。每轮把系统提示、用户原话和此前的工具摘要发给 `Assistant.complete`。模型回复 `{"tool","arguments"}` 时执行工具；启动类工具会等到任务结束再把进度送回。回复 `{"reply"}` 时把这句话返回给用户。一轮最多 8 次模型调用。官网代理只接受 system、user、assistant 三种文本消息，所以工具结果作为下一条 user 消息送回。运行记录目录还没落盘。
 
 ---
 

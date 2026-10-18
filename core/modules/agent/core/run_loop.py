@@ -6,15 +6,20 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 from typing import Any, Dict, List
 
 from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.tool_catalog import ToolCatalog
 from core.modules.agent.core.tool_runner import run_tool
+from core.modules.agent.core.tools.read_reports import read_progress
 from core.modules.assistant import Assistant
 from core.modules.assistant.contracts import AssistantError
 
-_MAX_STEPS = 6
+_MAX_STEPS = 8
+_WAIT_SECONDS = 45 * 60
+logger = logging.getLogger(__name__)
 _PROVIDER = "ntq"
 
 
@@ -48,6 +53,8 @@ class RunLoop:
                     raise AgentError("模型没有给出回复")
                 return reply
             result = run_tool(self._catalog, str(tool), decision.get("arguments") or {})
+            if result.get("task_id") and result.get("status") == "running":
+                result = _await_task(result)
             messages.append({"role": "assistant", "content": raw.strip()})
             messages.append(
                 {
@@ -58,12 +65,35 @@ class RunLoop:
         raise AgentError("这一轮调用次数已到上限，已停止")
 
 
+def _await_task(result: Dict[str, Any]) -> Dict[str, Any]:
+    """启动类工具先返回任务 id。这里等到结束，再把最终进度交给模型。"""
+    task_id = str(result.get("task_id") or "").strip()
+    deadline = time.monotonic() + _WAIT_SECONDS
+    latest = dict(result)
+    seen = ""
+    while time.monotonic() < deadline:
+        time.sleep(8)
+        progress = read_progress({"task_id": task_id})
+        latest = {**result, **progress}
+        status = str(progress.get("status") or "")
+        marker = f"{status} {progress.get('progress')} {progress.get('step')}"
+        if marker != seen:
+            seen = marker
+            logger.info("任务 %s：%s", task_id, marker)
+        if status in {"completed", "failed", "cancelled"}:
+            if status == "completed":
+                latest["note"] = "任务已结束。接着读执行报告，数字只能来自报告。"
+            return latest
+    latest["note"] = "等待超时，任务可能仍在跑。不要编写结果数字。"
+    return latest
+
+
 def _ask(messages: List[Dict[str, str]]) -> str:
     try:
         result = Assistant.complete(
             messages,
             provider_id=_PROVIDER,
-            max_tokens=2048,
+            max_tokens=4096,
             temperature=0.2,
         )
     except AssistantError as exc:
@@ -78,9 +108,23 @@ def _system_prompt(catalog: ToolCatalog) -> str:
         '调用工具：{"tool":"工具名","arguments":{...}}',
         '直接回答用户：{"reply":"给人看的话"}',
         "只能使用下面列出的工具。数字必须来自工具结果，没有结果就不要写收益或次数。",
-        "后台任务立刻返回任务 id。状态不是 completed 时先读进度，不要再启动一次。",
+        "启动类工具会等到结束再把结果给你。状态不是 completed 时不要编写收益，也不要再启动一次。",
         "用户没有要求回测、归因或滚动对照时，不要调用 start_ 开头的工具。",
-        "改进策略时一次只改敏感度最高的一个参数，改完要重新校验。",
+        "用户要求改策略或写策略时：先 create_strategy，再 write_strategy_files，再 validate_strategy。",
+        "校验未通过就按错误改文件，通过之前不要回测。",
+        "回测结束后读 read_execution_report，资金结果用 layer=portfolio。",
+        "strategy.py 里的函数必须原样使用这个签名，不要改参数名：",
+        "def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:",
+        "    rows = records.last(2)",
+        "    prev = rows[0].get(\"macd_macdh_12_26_9_fast12_signal9_slow26\")",
+        "    curr = rows[1].get(\"macd_macdh_12_26_9_fast12_signal9_slow26\")",
+        "    不足两根，或 prev/curr 为 None，就返回 False。金叉是 prev <= 0 且 curr > 0。",
+        "settings.py 必须以 settings = { 开头，是 Python 字典。不要写 YAML。布尔写 True / False。",
+        "settings 顶层要有 is_enabled: True。meta.key 等于目录名。不要把 is_enabled 只放进 meta。",
+        'data.base 为 {"data_key":"stock.kline.daily","indicators":{"macd":[{"fast":12,"slow":26,"signal":9}]}}。',
+        "min_required_records 设为 60。simulation.execution 的 start_date 和 end_date 在用户没指定时用空字符串。",
+        "必须保留 fees、goal、portfolio、scanner 这些块，不要只写 meta 和 data。",
+        "校验失败时按 errors 修改，不要把同一份文件再写一遍。",
         "",
         "工具：",
     ]

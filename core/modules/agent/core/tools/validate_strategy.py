@@ -79,6 +79,9 @@ def validate_strategy(arguments: Dict[str, Any]) -> Dict[str, Any]:
         errors.append(item)
     if hooks_error:
         errors.append(hooks_error)
+    bar_access = _bar_attribute_access(strategy_file)
+    if bar_access:
+        errors.append(bar_access)
 
     if errors:
         return {"ok": False, "key": parsed, "errors": _unique(errors)}
@@ -141,6 +144,16 @@ def _hooks_exception(folder: Path, key: str) -> str:
     except Exception as exc:
         return f"无法加载 strategy.py: {exc}"
     return "strategy.py 缺少继承 StrategyHooks 的公开类"
+
+
+def _bar_attribute_access(path: Path) -> str:
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    if ".macd_" in source or ".get(" not in source and "records.last" in source:
+        return 'K 线是 dict。用 bar.get("字段")，不要写成 bar.字段'
+    return ""
 
 
 def _scrub(text: str, folder: Path, relative: str) -> str:

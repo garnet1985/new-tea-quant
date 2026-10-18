@@ -48,6 +48,14 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
+def _should_open_browser() -> bool:
+    """默认打开。devcli ui 传入 NTQ_OPEN_BROWSER=0 时只打印地址。"""
+    raw = os.environ.get("NTQ_OPEN_BROWSER")
+    if raw is None or not str(raw).strip():
+        return True
+    return str(raw).strip().lower() not in ("0", "false", "no", "none")
+
+
 _BOOTSTRAP_MIN = (
     ("pip", (24, 0)),
     ("setuptools", (65,)),
@@ -541,10 +549,11 @@ def launch_ui_stack() -> None:
 
         if _wait_http_ok(ui_url, timeout_sec=5):
             print(f"访问: {ui_url}", flush=True)
-            try:
-                webbrowser.open(ui_url)
-            except Exception:
-                pass
+            if _should_open_browser():
+                try:
+                    webbrowser.open(ui_url)
+                except Exception:
+                    pass
         else:
             print(f"请手动打开: {ui_url}", flush=True)
 

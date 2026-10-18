@@ -11,7 +11,9 @@ from core.modules.assistant.core.context_library import (
 )
 
 
-def _doc(doc_id: str, title: str, body: str, *, kind: str = "wiki", summary: str = "") -> ContextDoc:
+def _doc(
+    doc_id: str, title: str, body: str, *, kind: str = "wiki", summary: str = ""
+) -> ContextDoc:
     return ContextDoc(
         doc_id=doc_id,
         kind=kind,

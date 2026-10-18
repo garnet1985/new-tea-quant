@@ -25,7 +25,9 @@ def _write_provider(
     return directory
 
 
-def _patch_providers_root(monkeypatch: pytest.MonkeyPatch, providers_root: Path) -> None:
+def _patch_providers_root(
+    monkeypatch: pytest.MonkeyPatch, providers_root: Path
+) -> None:
     monkeypatch.setattr(
         ProjectContext.path,
         "get_assistant_providers_directory",
@@ -33,14 +35,18 @@ def _patch_providers_root(monkeypatch: pytest.MonkeyPatch, providers_root: Path)
     )
 
 
-def test_empty_when_root_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_empty_when_root_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     missing = tmp_path / "does-not-exist"
     _patch_providers_root(monkeypatch, missing)
     assert ProviderCatalog.list_providers() == []
     assert ProviderCatalog.get_provider("zhipu") is None
 
 
-def test_discovers_valid_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_discovers_valid_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "providers"
     directory = _write_provider(
         root,
@@ -69,7 +75,9 @@ def test_discovers_valid_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert ProviderCatalog.get_provider("zhipu") == item
 
 
-def test_save_api_key_writes_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_save_api_key_writes_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "providers"
     directory = _write_provider(
         root,
@@ -92,7 +100,9 @@ def test_save_api_key_writes_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert "secret-key" not in str(item)
 
 
-def test_skips_incomplete_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_skips_incomplete_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "providers"
     _write_provider(
         root,
@@ -104,7 +114,9 @@ def test_skips_incomplete_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert ProviderCatalog.get_provider("broken") is None
 
 
-def test_keeps_disabled_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_keeps_disabled_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "providers"
     _write_provider(
         root,

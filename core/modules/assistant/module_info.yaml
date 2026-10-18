@@ -18,3 +18,4 @@ changelog:
       - 新增 Assistant.set_api_key：写入已发现供应商的 api_key.txt
       - chat 支持可选 history；请求内置 NTQ 系统提示
       - chat 注入 context/global、wiki、know_how；文档多时由模型挑选
+      - 新增 Assistant.complete：按给定消息补全，不注入百科

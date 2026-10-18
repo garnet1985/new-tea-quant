@@ -22,8 +22,13 @@ class Agent:
     def call_tool(
         name: str, arguments: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """执行一张调用单。模型循环尚未接通时，也可直接调用已实现的工具。"""
+        """执行一张调用单。未知工具或尚未实现时抛 AgentError。"""
         return Agent._manager.call_tool(name, arguments)
+
+    @staticmethod
+    def run(content: str) -> str:
+        """把一句话交给会员通道上的 glm-4-flash，按它的调用单执行工具，直到它写出给人看的话。"""
+        return Agent._manager.run(content)
 
 
 __all__ = ["Agent"]

@@ -41,6 +41,7 @@ from core.modules.strategy.contracts import (
     StrategyHooks,
 )
 
+
 class RsiStrategy(StrategyHooks):
     def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
         today = records.latest
@@ -167,6 +168,7 @@ def is_stop_loss(self, ctx, records, *, custom, stage) -> bool:
             ma20 = sum(b["close"] for b in klines[-20:]) / 20
             return klines[-1]["close"] < ma20
     return False
+
 
 def is_take_profit(self, ctx, records, *, custom, stage) -> bool:
     if custom == "rsi_overbought":

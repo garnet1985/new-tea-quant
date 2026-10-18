@@ -39,6 +39,7 @@ userspace/extensions/adapters/my_report/
 ```python
 from core.modules.adapter.contracts import BaseOpportunityAdapter
 
+
 class IndustryReportAdapter(BaseOpportunityAdapter):
     def process(self, opportunities, context):
         # context 包含 price_history 等统计信息
@@ -111,7 +112,7 @@ Scanner 执行完毕，产出 opportunities 列表
 ```python
 from core.modules.adapter import Adapter
 
-Adapter.validate("my_report")     # 返回 (是否通过, 说明文字)
+Adapter.validate("my_report")  # 返回 (是否通过, 说明文字)
 cls = Adapter.load_class("my_report")  # 返回类对象
 ```
 

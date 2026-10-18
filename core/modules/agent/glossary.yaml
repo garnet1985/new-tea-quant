@@ -13,7 +13,7 @@ terms:
       - "deep-import core.policy"
 
   Agent:
-    definition: "本模块门面类。公开静态方法 list_tools、call_tool。"
+    definition: "本模块门面类。公开静态方法 list_tools、call_tool、run。"
     aliases:
       - "agent"
     avoid:
@@ -29,7 +29,7 @@ terms:
       - "把可执行函数放进返回值"
 
   RunLoop:
-    definition: "内部循环：把工具清单发给模型，执行调用单，再把摘要送回。不对外导出。本版尚未接通模型。"
+    definition: "内部循环：把工具清单写进提示，经 Assistant.complete 取 JSON 调用单，执行后把摘要送回。不对外导出。"
     aliases:
       - "运行循环"
     avoid:

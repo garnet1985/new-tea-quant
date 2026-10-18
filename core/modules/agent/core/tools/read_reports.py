@@ -106,7 +106,11 @@ def read_execution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not version_id:
         version_id = _latest_main_version(sim_root, layer)
     if not version_id or not _safe_version(version_id):
-        return {"ok": False, "key": key, "error": f"没有可读的{_LAYER_LABEL[layer]}执行报告"}
+        return {
+            "ok": False,
+            "key": key,
+            "error": f"没有可读的{_LAYER_LABEL[layer]}执行报告",
+        }
     report_path = sim_root / version_id / layer / "overall_report.json"
     if not _inside(folder, report_path) or not report_path.is_file():
         return {
@@ -149,7 +153,11 @@ def read_attribution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not group_id:
         group_id = _latest_group(attr_root, layer)
     if not group_id.isdigit():
-        return {"ok": False, "key": key, "error": f"没有可读的{_LAYER_LABEL[layer]}归因报告"}
+        return {
+            "ok": False,
+            "key": key,
+            "error": f"没有可读的{_LAYER_LABEL[layer]}归因报告",
+        }
     report_path = attr_root / group_id / layer / "report.json"
     if not _inside(folder, report_path) or not report_path.is_file():
         return {

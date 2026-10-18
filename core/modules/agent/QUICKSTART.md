@@ -8,7 +8,7 @@
 
 ## 前置条件
 
-新建策略需要 `userspace/strategies/_template/empty_strategy/`。本版不读取 API Key，也不发网络请求。
+新建策略需要 `userspace/strategies/_template/empty_strategy/`。`Agent.run` 使用本机已装载的会员凭证，经官网调用 glm-4-flash。
 
 ---
 
@@ -23,7 +23,7 @@ for tool in Agent.list_tools():
 Agent.call_tool("create_strategy", {"key": "macd_cross"})
 ```
 
-**预期结果：** 打印工具名。`create_strategy` 为 `True`，其余为 `False`。调用后在 `userspace/strategies/macd_cross/` 出现空策略，`meta.key` 为 `macd_cross`。目录已存在时返回 `ok: false`，不覆盖。
+**预期结果：** 已实现的工具打印 `True`。`create_strategy` 在 `userspace/strategies/macd_cross/` 放一个空策略，`meta.key` 为 `macd_cross`。目录已存在时返回 `ok: false`，不覆盖。
 
 ---
 

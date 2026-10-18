@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from core.modules.agent.contracts import ToolSpec
+from core.modules.agent.core.run_loop import RunLoop
 from core.modules.agent.core.tool_catalog import ToolCatalog
 from core.modules.agent.core.tool_runner import run_tool
 
@@ -22,3 +23,6 @@ class AgentManager:
         self, name: str, arguments: Dict[str, Any] | None = None
     ) -> Dict[str, Any]:
         return run_tool(self._catalog, name, arguments)
+
+    def run(self, content: str) -> str:
+        return RunLoop(self._catalog).run(content)

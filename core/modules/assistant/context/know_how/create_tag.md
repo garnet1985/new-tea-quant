@@ -80,6 +80,7 @@ settings = {
 ```python
 from core.modules.tag.contracts import TagContext, TagHooks
 
+
 class MarketCapTagHooks(TagHooks):
     def calculate_tag(self, ctx: TagContext) -> dict | None:
         klines = ctx.data.items.get(ctx.base_data_key, [])
@@ -143,7 +144,11 @@ settings = {
         "recompute": True,
     },
     "tag_definitions": [
-        {"name": "yangtze", "display_name": "长三角", "description": "上海、江苏、浙江、安徽"},
+        {
+            "name": "yangtze",
+            "display_name": "长三角",
+            "description": "上海、江苏、浙江、安徽",
+        },
         {"name": "pearl", "display_name": "珠三角", "description": "广东、深圳"},
         {"name": "other", "display_name": "其它", "description": "未命中"},
     ],

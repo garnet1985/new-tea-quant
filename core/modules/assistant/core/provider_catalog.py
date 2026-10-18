@@ -105,7 +105,9 @@ class ProviderCatalog:
             raise ValueError("empty api key")
         if len(key) > 4096:
             raise ValueError("api key too long")
-        providers_root = ProjectContext.path.get_assistant_providers_directory().resolve()
+        providers_root = (
+            ProjectContext.path.get_assistant_providers_directory().resolve()
+        )
         target = Path(directory).resolve()
         try:
             target.relative_to(providers_root)

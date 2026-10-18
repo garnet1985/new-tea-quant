@@ -28,7 +28,7 @@ _SYSTEM_PROMPT = (
 )
 _SELECT_PROMPT = (
     "你是 NTQ 文档调度。根据用户问题，从目录中选出最多 3 个最相关的文档 id。"
-    "只输出 JSON 字符串数组，例如 [\"know_how/config_strategy_settings\"]。"
+    '只输出 JSON 字符串数组，例如 ["know_how/config_strategy_settings"]。'
     "没有相关文档就输出 []。不要解释。\n\n目录：\n"
 )
 
@@ -51,11 +51,34 @@ def _member_error(message: str) -> str:
     if text.startswith("供应商请求失败"):
         return "官网暂时不可用。可以先在设置里改用自己的密钥。"
     if text.startswith("供应商"):
-        return "官网" + text[len("供应商"):]
+        return "官网" + text[len("供应商") :]
     return text or "官网暂时不可用。可以先在设置里改用自己的密钥。"
 
 
-def _normalize_history(history: Optional[Sequence[Mapping[str, str]]]) -> List[Dict[str, str]]:
+def _completion_messages(messages: Sequence[Mapping[str, str]]) -> List[Dict[str, str]]:
+    if not isinstance(messages, Sequence) or isinstance(messages, (str, bytes)):
+        raise AssistantError("消息必须是列表")
+    cleaned: List[Dict[str, str]] = []
+    for raw in messages:
+        if not isinstance(raw, Mapping):
+            raise AssistantError("消息格式不正确")
+        role = str(raw.get("role") or "").strip()
+        text = str(raw.get("content") or "").strip()
+        if role not in {"system", "user", "assistant"} or not text:
+            raise AssistantError("消息格式不正确")
+        if len(text) > 80000:
+            raise AssistantError("单条消息过长")
+        cleaned.append({"role": role, "content": text})
+    if not cleaned or len(cleaned) > 40:
+        raise AssistantError("消息条数不正确")
+    if not any(item["role"] == "user" for item in cleaned):
+        raise AssistantError("至少要有一条用户消息")
+    return cleaned
+
+
+def _normalize_history(
+    history: Optional[Sequence[Mapping[str, str]]],
+) -> List[Dict[str, str]]:
     items: List[Dict[str, str]] = []
     if not history:
         return items
@@ -117,6 +140,36 @@ class AssistantManager:
         route = self._route(provider_id)
         try:
             reply = self._answer(text, history, route)
+        except AssistantError as exc:
+            if route["via"] == "member":
+                raise AssistantError(_member_error(str(exc))) from None
+            raise
+        return ChatResult(
+            reply=reply,
+            provider_id=route["provider_id"],
+            model=route["model"],
+        )
+
+    def complete(
+        self,
+        messages: Sequence[Mapping[str, str]],
+        *,
+        provider_id: Optional[str] = None,
+        max_tokens: int = 2048,
+        temperature: float = 0.2,
+    ) -> ChatResult:
+        """按给定消息做一次补全。不注入百科，也不挑选文档。"""
+        cleaned = _completion_messages(messages)
+        route = self._route(provider_id)
+        try:
+            reply = self._client.complete(
+                base_url=route["base_url"],
+                api_key=route["api_key"],
+                model=route["model"],
+                messages=cleaned,
+                max_tokens=int(max_tokens),
+                temperature=float(temperature),
+            )
         except AssistantError as exc:
             if route["via"] == "member":
                 raise AssistantError(_member_error(str(exc))) from None
@@ -247,9 +300,7 @@ class AssistantManager:
                 if item.enabled and item.has_api_key
             ]
             if not ready:
-                raise AssistantError(
-                    "没有可用的供应商：请在设置中填写 API Key"
-                )
+                raise AssistantError("没有可用的供应商：请在设置中填写 API Key")
             info = ready[0]
         if not info.enabled:
             raise AssistantError(f"供应商已禁用：{info.provider_id}")

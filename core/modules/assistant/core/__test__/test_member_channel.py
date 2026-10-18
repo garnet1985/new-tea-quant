@@ -43,7 +43,9 @@ def _local_provider() -> ProviderInfo:
 def _manager(monkeypatch, client: RecordingClient) -> AssistantManager:
     manager = AssistantManager(client)
     monkeypatch.setattr(manager, "_knowledge_for_question", lambda *args, **kwargs: "")
-    monkeypatch.setattr(manager, "_resolve_provider", lambda provider_id: _local_provider())
+    monkeypatch.setattr(
+        manager, "_resolve_provider", lambda provider_id: _local_provider()
+    )
     monkeypatch.setattr(manager._catalog, "load_api_key", lambda directory: "local-key")
     return manager
 

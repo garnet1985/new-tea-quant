@@ -49,12 +49,16 @@ class OpenAICompatibleClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=float(timeout_seconds)) as resp:
+            with urllib.request.urlopen(
+                request, timeout=float(timeout_seconds)
+            ) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             raise AssistantError(_message_from_http_error(exc)) from None
         except urllib.error.URLError as exc:
-            raise AssistantError(f"无法连接供应商：{_short_reason(exc.reason)}") from None
+            raise AssistantError(
+                f"无法连接供应商：{_short_reason(exc.reason)}"
+            ) from None
         except TimeoutError:
             raise AssistantError("供应商请求超时") from None
 

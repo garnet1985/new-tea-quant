@@ -2,7 +2,7 @@
 
 **版本：** `0.1.0`
 
-`modules.agent` 执行模型点名的 NTQ 工具。供应商、密钥和 HTTP 留在 `modules.assistant`。本版已实现新建、写入、校验，以及枚举、价格、资金、完整回测、三层归因和滚动对照的后台启动。运行循环尚未接通模型。
+`modules.agent` 执行模型点名的 NTQ 工具。供应商、密钥和 HTTP 留在 `modules.assistant`。`Agent.run` 经 `Assistant.complete` 使用会员通道上的 glm-4-flash。
 
 ---
 
@@ -34,7 +34,7 @@ core/modules/agent/
 │   ├── tool_catalog.py      # 工具清单
 │   ├── tool_runner.py       # 按名字执行已实现的工具
 │   ├── policy.py            # 写入准则
-│   ├── run_loop.py          # 循环（尚未接通模型，不导出）
+│   ├── run_loop.py          # 循环（不导出；经 Assistant.complete）
 │   └── tools/
 │       ├── _strategy_key.py
 │       ├── background_run.py
@@ -54,24 +54,25 @@ core/modules/agent/
 
 ```text
 Caller
-  → Agent.list_tools
+  → Agent.list_tools / call_tool / run
        → AgentManager
             → ToolCatalog
             → Policy          # 写文件的工具实现时调用
-            → RunLoop         # 下一步才经 Assistant 公开入口请求模型
+            → RunLoop
+                 → Assistant.complete   # 会员通道，glm-4-flash
 ```
 
 ---
 
-## 数据流（待接通）
+## 数据流
 
 ```text
 用户一句话
-  → RunLoop 附带 ToolSpec 列表请求模型
-  → 调用单 {name, arguments}
-  → Policy 校验路径
+  → RunLoop 把工具清单写进系统提示
+  → Assistant.complete（会员凭证，官网选定 glm-4-flash）
+  → JSON 调用单 {tool, arguments}，或 {reply}
   → 已实现的工具执行
-  → 摘要写回本机运行记录，再次请求模型
+  → 摘要作为下一条用户消息送回
   → 人话回复
 ```
 
@@ -80,6 +81,7 @@ Caller
 ## 依赖（结论）
 
 - `infra.project_context`：userspace 与策略 / 标签 / 适配器路径
+- `modules.assistant`：`Assistant.complete`
 
 ---
 

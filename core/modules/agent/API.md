@@ -13,7 +13,7 @@
 
 ## Agent
 
-**描述：** AI agent 门面（静态 API）。列出工具，并执行已实现的调用单。运行循环尚未接通模型。
+**描述：** AI agent 门面（静态 API）。列出工具，执行调用单，并把一句话交给会员通道上的 glm-4-flash。
 
 ### list_tools
 
@@ -56,6 +56,30 @@ names = [tool.name for tool in Agent.list_tools()]
 from core.modules.agent import Agent
 
 Agent.call_tool("create_strategy", {"key": "macd_cross"})
+```
+
+### run
+
+`Agent.run(content: str) -> str`
+
+- **类型：** `static`
+- **状态：** `experimental`
+- **引入版本：** `0.1.0`
+- **描述：** 把用户的一句话和已实现工具的说明发给 `Assistant.complete`。供应商固定为会员通道 `ntq`，模型由官网定为 `glm-4-flash`。模型用 JSON 交出调用单时本机执行，摘要送回，直到它写出给人看的话。一轮最多 6 次模型调用
+- **参数：**
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| `content` | `str` | 用户需求；空白则失败 |
+
+- **返回值：** `str` — 给人看的回复
+- **错误与异常：** `AgentError` — 消息为空、会员通道失败、调用次数用尽、工具名未知
+- **举例：**
+
+```python
+from core.modules.agent import Agent
+
+print(Agent.run("读一下 demo/regression/rsi/rsi_v1_baseline 的枚举报告，不要回测"))
 ```
 
 ---

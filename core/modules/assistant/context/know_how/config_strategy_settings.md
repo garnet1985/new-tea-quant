@@ -18,17 +18,17 @@ summary: 策略 settings.py 各块字段，以及 goal 止盈止损怎么写。
 
 ```python
 settings = {
-    "is_enabled": True,            # bool, 策略是否启用
-    "meta": {...},                 # 策略元信息
+    "is_enabled": True,  # bool, 策略是否启用
+    "meta": {...},  # 策略元信息
     "market_profile": "china_a_stock",  # str, 市场画像
-    "core": {...},                 # 策略私有参数（自由定义）
-    "data": {...},                 # 数据声明
-    "simulation": {...},           # 回测执行配置
-    "goal": {...},                 # 止盈止损过期规则
-    "sampling": {...},             # 股票池采样
-    "portfolio": {...},           # 资金管理
-    "scanner": {...},              # 扫描配置
-    "fees": {...},                 # 手续费
+    "core": {...},  # 策略私有参数（自由定义）
+    "data": {...},  # 数据声明
+    "simulation": {...},  # 回测执行配置
+    "goal": {...},  # 止盈止损过期规则
+    "sampling": {...},  # 股票池采样
+    "portfolio": {...},  # 资金管理
+    "scanner": {...},  # 扫描配置
+    "fees": {...},  # 手续费
 }
 ```
 
@@ -95,10 +95,10 @@ settings = {
 注入序列在 `records`，不在 `ctx`。base 直接取，其它 data key 用 `series`：
 
 ```python
-today = records.latest                              # base 最后一行，前复权
-klines = list(records.series())                     # 当天及之前
+today = records.latest  # base 最后一行，前复权
+klines = list(records.series())  # 当天及之前
 finance = list(records.series("stock.finance.quarterly"))
-rsi14 = today.get("rsi14") if today else None       # 单列注入字段 {name}{length}
+rsi14 = today.get("rsi14") if today else None  # 单列注入字段 {name}{length}
 ```
 
 指标在 `data.base.indicators` 声明，钩子读 K 线上的字段，不要钩子里再手算一遍。顶层 OHLC 已是前复权。RSI 字段是 `{name}{length}`（`rsi14`）。MACD 是三列长名字，见 [用技术指标](use_indicators.md)。
@@ -412,6 +412,7 @@ def is_stop_loss(self, ctx, records, *, custom, stage):
             ma20 = sum(b["close"] for b in klines) / 20
             return klines[-1]["close"] < ma20
     return False
+
 
 def is_take_profit(self, ctx, records, *, custom, stage):
     if custom == "rsi_overbought":

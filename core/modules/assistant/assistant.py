@@ -40,5 +40,21 @@ class Assistant:
             content, provider_id=provider_id, history=history
         )
 
+    @staticmethod
+    def complete(
+        messages: List[Dict[str, str]],
+        *,
+        provider_id: Optional[str] = None,
+        max_tokens: int = 2048,
+        temperature: float = 0.2,
+    ) -> ChatResult:
+        """按给定消息做一次补全。不注入百科。未指定供应商且已装载通用凭证时走官网。"""
+        return Assistant._manager.complete(
+            messages,
+            provider_id=provider_id,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
 
 __all__ = ["Assistant"]

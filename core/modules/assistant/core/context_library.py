@@ -47,7 +47,11 @@ def list_context_docs() -> List[ContextDoc]:
             doc_id = f"{kind}/{rel.as_posix()}"
             meta, body = _split_frontmatter(path.read_text(encoding="utf-8"))
             body = str(body or "").strip()
-            title = str(meta.get("title") or "").strip() or _heading_title(body) or path.stem
+            title = (
+                str(meta.get("title") or "").strip()
+                or _heading_title(body)
+                or path.stem
+            )
             aliases = _string_tuple(meta.get("aliases"))
             summary = str(meta.get("summary") or "").strip()
             docs.append(
@@ -107,7 +111,9 @@ def parse_picked_ids(raw: str, allowed: Set[str]) -> List[str]:
     return picked
 
 
-def keyword_pick(question: str, docs: Sequence[ContextDoc], *, limit: int = _MAX_PICK) -> List[str]:
+def keyword_pick(
+    question: str, docs: Sequence[ContextDoc], *, limit: int = _MAX_PICK
+) -> List[str]:
     """目录 JSON 失败时，用标题/别名与问题的字面重合挑文档。"""
     tokens = _tokens(question)
     if not tokens:
@@ -231,7 +237,9 @@ def _tokens(text: str) -> List[str]:
         candidates = [block]
         for size in (2, 3, 4):
             if len(block) >= size:
-                candidates.extend(block[i : i + size] for i in range(len(block) - size + 1))
+                candidates.extend(
+                    block[i : i + size] for i in range(len(block) - size + 1)
+                )
         for token in candidates:
             if token not in seen:
                 seen.add(token)

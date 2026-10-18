@@ -108,7 +108,49 @@ from core.modules.assistant import Assistant
 
 print(Assistant.chat("只回复 pong"))
 print(Assistant.chat("你好", provider_id="zhipu"))
-print(Assistant.chat("那策略呢", history=[{"role": "user", "content": "NTQ 是什么"}, {"role": "assistant", "content": "..."}]))
+print(
+    Assistant.chat(
+        "那策略呢",
+        history=[
+            {"role": "user", "content": "NTQ 是什么"},
+            {"role": "assistant", "content": "..."},
+        ],
+    )
+)
+```
+
+### complete
+
+`Assistant.complete(messages: list[dict], *, provider_id: Optional[str] = None, max_tokens: int = 2048, temperature: float = 0.2) -> ChatResult`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 按调用方给出的消息做一次非流式补全。不注入百科，也不挑选文档。未指定供应商且已装载通用凭证时走官网
+- **参数：**
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| `messages` | `list[dict]` | `{role, content}`；role 只能是 `system`、`user`、`assistant` |
+| `provider_id` (可选) | `str \| None` | 指定供应商；`ntq` 走会员通道 |
+| `max_tokens` (可选) | `int` | 默认 2048 |
+| `temperature` (可选) | `float` | 默认 0.2 |
+
+- **返回值：** `ChatResult`
+- **错误与异常：** `AssistantError` — 消息不合法、未装载凭证、请求失败
+- **举例：**
+
+```python
+from core.modules.assistant import Assistant
+
+result = Assistant.complete(
+    [
+        {"role": "system", "content": "只回复 pong"},
+        {"role": "user", "content": "ping"},
+    ],
+    provider_id="ntq",
+)
+print(result.reply, result.model)
 ```
 
 ---

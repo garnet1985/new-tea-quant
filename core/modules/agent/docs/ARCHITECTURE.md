@@ -62,7 +62,7 @@ Caller
             → Policy          # 写文件的工具实现时调用
             → SessionStore    # preferences / transcript / state
             → RunLoop
-                 → Assistant.complete   # 门：zhipu 或 ntq；做事：deepseek-flash
+                 → Assistant.complete   # 产品：ntq；开发自有密钥：zhipu 门 + deepseek
 ```
 
 ---

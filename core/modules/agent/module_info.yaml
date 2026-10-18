@@ -22,4 +22,5 @@ changelog:
       - 同样后台启动价格回测、资金模拟、完整回测、三层归因和滚动对照
       - 读取进度、执行报告摘要和归因报告摘要
       - start_scan 后台扫描当前交易日；read_scan_report 只回摘要和前几条机会
-      - 会话落盘：preferences / transcript / state；run 先门后做事（deepseek-flash）
+      - 会话落盘：preferences / transcript / state；run 先门后做事
+      - 产品默认只走 ntq；AI 根地址可指 localhost:2026；OWN_KEYS 走本机密钥

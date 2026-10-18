@@ -27,7 +27,7 @@ class Agent:
 
     @staticmethod
     def run(content: str, *, session_id: Optional[str] = None) -> str:
-        """先用免费模型判断回答还是做事；做事交给 deepseek-flash，并写入会话记录。"""
+        """经会员通道 ntq（auto）判断并执行；本机管理 context 与工具。写入会话记录。"""
         return Agent._manager.run(content, session_id=session_id)
 
     @staticmethod

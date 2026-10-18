@@ -1,14 +1,16 @@
-"""运行循环。先用会员通道 glm-4-flash 判断回答还是做事，做事再交给 deepseek-flash。
+"""运行循环。产品默认只走会员通道 ntq（auto）；本机拼 context 并执行工具。
 
 官网代理只转发文本，不转发 tools 字段。模型用一个 JSON 对象交出调用单，本机执行后再把摘要送回去。
+开发可用环境变量 NTQ_AGENT_OWN_KEYS=1 改走本机智谱门 + DeepSeek 做事（不扣猫粮）。
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.session_store import (
@@ -26,7 +28,10 @@ from core.modules.assistant.contracts import AssistantError
 
 _MAX_STEPS = 10
 _WAIT_SECONDS = 45 * 60
-_WORK_PROVIDER = "deepseek"
+_PRODUCT_PROVIDER = "ntq"
+_OWN_GATE_PROVIDER = "zhipu"
+_OWN_WORK_PROVIDER = "deepseek"
+_OWN_KEYS_ENV = "NTQ_AGENT_OWN_KEYS"
 _WORK_EXTRA = {"thinking": {"type": "disabled"}}
 _WORK_TIMEOUT = 120.0
 _GATE_READ_TOOLS = frozenset(
@@ -62,7 +67,7 @@ class RunLoop:
             raise AgentError(f"一轮最多 {_MAX_STEPS} 次模型调用")
         sid = str(session_id or "").strip() or default_session_id()
         memory = _memory_messages(sid)
-        gate_provider = _gate_provider()
+        gate_provider, work_provider = _providers()
         gate = _gate(
             self._catalog,
             text,
@@ -89,11 +94,12 @@ class RunLoop:
             memory=memory,
             max_steps=steps,
             session_id=sid,
+            provider_id=work_provider,
         )
         append_turn(
             user=text,
             reply=reply,
-            channel=_WORK_PROVIDER,
+            channel=work_provider,
             handoff=True,
             session_id=sid,
         )
@@ -114,15 +120,21 @@ def _memory_messages(session_id: str) -> List[Dict[str, str]]:
     return messages
 
 
-def _gate_provider() -> str:
-    """免费判断优先本机智谱；没有密钥时走会员通道。"""
-    try:
-        zhipu = Assistant.get_provider("zhipu")
-    except Exception:
-        zhipu = None
-    if zhipu is not None and zhipu.enabled and zhipu.has_api_key:
-        return "zhipu"
-    return "ntq"
+def _own_keys() -> bool:
+    """开发用：显式打开后走本机供应商，不经会员通道。"""
+    return os.environ.get(_OWN_KEYS_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _providers() -> Tuple[str, str]:
+    """产品默认 ntq / ntq；自有密钥时门用智谱、做事用 DeepSeek。"""
+    if _own_keys():
+        return _OWN_GATE_PROVIDER, _OWN_WORK_PROVIDER
+    return _PRODUCT_PROVIDER, _PRODUCT_PROVIDER
 
 
 def _gate(
@@ -156,8 +168,7 @@ def _gate(
             messages.append(
                 {
                     "role": "user",
-                    "content": "工具结果：\n"
-                    + json.dumps(result, ensure_ascii=False),
+                    "content": "工具结果：\n" + json.dumps(result, ensure_ascii=False),
                 }
             )
             continue
@@ -175,6 +186,7 @@ def _work(
     memory: List[Dict[str, str]],
     max_steps: int,
     session_id: str,
+    provider_id: str,
 ) -> str:
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": _system_prompt(catalog)},
@@ -182,13 +194,14 @@ def _work(
         {"role": "user", "content": text},
     ]
     names = {spec.name for spec in catalog.list_tools() if spec.implemented}
+    extra = _WORK_EXTRA if provider_id == _OWN_WORK_PROVIDER else None
     for _ in range(max_steps):
         raw = _ask(
             messages,
-            provider_id=_WORK_PROVIDER,
+            provider_id=provider_id,
             max_tokens=4096,
             timeout_seconds=_WORK_TIMEOUT,
-            extra_body=_WORK_EXTRA,
+            extra_body=extra,
         )
         decision = _decision(raw, names)
         tool = decision.get("tool")

@@ -1,0 +1,13 @@
+name: modules.agent
+version: "0.1.0"
+compatible_core_versions: ">=0.6.0"
+package: core.modules
+description: "AI agent：登记工具、约束写入范围，并按模型的调用单在本机执行。"
+dependencies:
+  - infra.project_context
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 初始化模块骨架：门面 Agent、工具清单、userspace 写入准则
+      - 包根只导出 Agent；运行循环尚未接通模型
+      - 模型通道留给 modules.assistant，本模块不 deep-import 其客户端

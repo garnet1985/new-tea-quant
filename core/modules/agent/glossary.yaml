@@ -1,0 +1,45 @@
+# glossary — modules.agent
+# Version: 0.1.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Agent。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.agent_manager"
+      - "deep-import core.tool_catalog"
+      - "deep-import core.run_loop"
+      - "deep-import core.policy"
+
+  Agent:
+    definition: "本模块门面类。本版公开静态方法只有 list_tools。"
+    aliases:
+      - "agent"
+    avoid:
+      - "把 Assistant 当成会执行工具的入口"
+      - "把 AgentManager 当公开入口"
+
+  ToolSpec:
+    definition: "登记给模型的工具说明：名字、用途、参数 schema、是否已实现。不含函数本身。"
+    aliases:
+      - "工具"
+      - "调用单能点的名字"
+    avoid:
+      - "把可执行函数放进返回值"
+
+  RunLoop:
+    definition: "内部循环：把工具清单发给模型，执行调用单，再把摘要送回。不对外导出。本版尚未接通模型。"
+    aliases:
+      - "运行循环"
+    avoid:
+      - "从包根 import RunLoop"
+
+  写入准则:
+    definition: "工具写文件前的硬检查。只允许 strategies/、extensions/tags/、extensions/adapters/ 下的相对路径。"
+    aliases:
+      - "policy"
+    avoid:
+      - "只写在系统提示里"
+      - "允许整个 userspace"
+      - "允许 extensions/assistant 下的密钥文件"

@@ -351,7 +351,6 @@ class ScannerPipeline:
                 try:
                     on_progress(
                         {
-                            "progress_pct": 99,
                             "total_jobs": 1,
                             "completed_jobs": 1,
                             "failed_jobs": 0,
@@ -409,7 +408,6 @@ class ScannerPipeline:
             try:
                 on_progress(
                     {
-                        "progress_pct": 100,
                         "total_jobs": int(getattr(run_result, "total_jobs", 0) or 0),
                         "completed_jobs": int(
                             getattr(run_result, "completed_jobs", 0) or 0

@@ -53,6 +53,9 @@ class TestDateRangeHelper:
         with patch(
             "core.modules.data_source.core.service.date_range.date_range_helper.RenewCommonHelper.get_needs_stock_grouping",
             return_value=False,
+        ), patch(
+            "core.modules.data_source.core.service.renew_progress.last_updates_for",
+            return_value=None,
         ):
             ctx: Dict[str, Any] = {"config": config, "data_manager": data_manager}
             last_map = drh.compute_last_update_map(ctx)

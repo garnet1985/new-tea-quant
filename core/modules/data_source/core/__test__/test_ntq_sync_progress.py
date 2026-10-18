@@ -7,7 +7,7 @@ import pytest
 pytestmark = pytest.mark.force_run
 
 
-def test_pull_prints_the_page_it_is_waiting_on(capsys):
+def test_pull_prints_the_page_it_is_waiting_on(capsys, monkeypatch):
     from core.modules.data_source.core.progress import SyncProgress
     from core.modules.data_source.core.service import official_sync
 
@@ -33,6 +33,7 @@ def test_pull_prints_the_page_it_is_waiting_on(capsys):
             }
 
     handler = _Handler()
+    monkeypatch.setattr(official_sync, "_cap_end", lambda end: end)
     official_sync._upsert = lambda handler, table, rows: None
     saved = official_sync._pull(handler, "sys_data_cpi", "20230101", "20251231")
     text = capsys.readouterr().out
@@ -89,6 +90,7 @@ def _entity_handler(provider):
 def test_entities_are_pulled_one_stock_at_a_time(capsys, monkeypatch):
     from core.modules.data_source.core.service import official_sync
 
+    monkeypatch.setattr(official_sync, "_cap_end", lambda end: end)
     monkeypatch.setattr(official_sync, "_upsert", lambda handler, table, rows: None)
     provider = _EntityProvider({
         "files": [],
@@ -115,6 +117,7 @@ def test_entities_are_pulled_one_stock_at_a_time(capsys, monkeypatch):
 def test_plan_imports_the_cache_and_keeps_the_early_stock(capsys, monkeypatch):
     from core.modules.data_source.core.service import official_sync
 
+    monkeypatch.setattr(official_sync, "_cap_end", lambda end: end)
     monkeypatch.setattr(official_sync, "_import_snapshot", lambda handler, provider, table, path: 9)
     provider = _EntityProvider({
         "files": [{"path": "/api/recent.csv.gz", "from": "20260920", "through": "20261014"}],
@@ -128,8 +131,8 @@ def test_plan_imports_the_cache_and_keeps_the_early_stock(capsys, monkeypatch):
     saved = official_sync.pull_entities(handler, jobs)
     text = capsys.readouterr().out
     assert saved == 10
-    assert "远端计划：缓存 1 个文件（20260920–20261014），导入后再按股票补 1 只" in text
-    assert "已导入数据包 9 行，截止 20261014" in text
+    assert "远端计划：1 个数据包（20260920–20261014），导入后再按股票补 1 只" in text
+    assert "数据包 1/1 已导入 9 行，截止 20261014" in text
     assert provider.synced == [("000003.SZ", "20100101", "20260919")]
     assert provider.asked[1][0]["id"] == "000001.SZ"
     assert provider.asked[1][1]["start"] == "20100101"
@@ -176,6 +179,60 @@ def test_busy_slot_is_waited_out_past_a_handful_of_retries(monkeypatch):
     assert page["rows"] == [{"id": "000001.SZ"}]
     assert calls["n"] == 8
     assert calls["timeout"] == 120.0
+
+
+def test_a_range_past_the_member_window_is_not_pulled(capsys, monkeypatch):
+    from core.modules.data_source.core.service import official_sync
+
+    monkeypatch.setattr(official_sync, "_cap_end", lambda end: "20251231" if end else end)
+    provider = _EntityProvider({"files": [], "stocks": []})
+    handler = _entity_handler(provider)
+    saved = official_sync.pull_entities(handler, [_Job("000001.SZ", "20261016", "20261016")])
+    assert saved == 0
+    assert provider.asked is None
+    assert "已到会员窗口" in capsys.readouterr().out
+
+
+def test_empty_range_does_not_count_as_finished(monkeypatch):
+    from core.modules.data_source.core.service import official_sync
+    from core.modules.data_source.core.service import renew_progress
+
+    called = []
+    monkeypatch.setattr(renew_progress, "remember_settled", lambda *args: called.append(args))
+    official_sync._note_settled(
+        object(),
+        None,
+        {"rows": [], "total": 0, "settled_through": "202512", "next_start": None},
+    )
+    assert called == []
+
+
+def test_blank_numbers_become_null():
+    from core.modules.data_source.core.service import official_sync
+
+    row = {
+        "id": "002714.SZ",
+        "date": "20240603",
+        "pe": "",
+        "dv_ttm": "1.515",
+        "name": "",
+    }
+    official_sync._blank_as_null(
+        {
+            "fields": [
+                {"name": "id", "type": "varchar"},
+                {"name": "date", "type": "varchar"},
+                {"name": "pe", "type": "float"},
+                {"name": "dv_ttm", "type": "float"},
+                {"name": "name", "type": "varchar"},
+            ]
+        },
+        [row],
+    )
+    assert row["pe"] is None
+    assert row["dv_ttm"] == "1.515"
+    assert row["id"] == "002714.SZ"
+    assert row["name"] == ""
 
 
 def test_busy_wait_stops_when_the_slot_hold_is_over(monkeypatch):

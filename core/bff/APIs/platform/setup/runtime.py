@@ -211,48 +211,11 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        progress_file = REPO_ROOT / "initialization" / "data" / ".import_progress.json"
-        if not progress_file.is_file():
-            return {
-                "status": "ok",
-                "message": {
-                    "running": False,
-                    "totalTables": 0,
-                    "completedCount": 0,
-                    "currentTable": "",
-                    "percent": 0,
-                    "updatedAt": 0,
-                },
-            }
-        try:
-            payload = json.loads(progress_file.read_text(encoding="utf-8"))
-        except Exception as exc:
-            log_degraded("setup.importProgressRead", exc, str(progress_file))
-            payload = {}
+        from core.infra.setup.core.install_progress import read_import_progress
 
-        completed_tables = payload.get("completed_tables", {}) or {}
-        total_tables = int(payload.get("total_tables") or 0)
-        if total_tables <= 0:
-            order = payload.get("table_order", []) or []
-            if isinstance(order, list) and order:
-                total_tables = len(order)
-            else:
-                total_tables = max(len(completed_tables), 1)
-
-        completed_count = sum(1 for v in completed_tables.values() if v == "done")
-        current_table = str(payload.get("in_progress_table") or "")
-        running = bool(current_table) or completed_count < total_tables
-        percent = int(round((completed_count / total_tables) * 100)) if total_tables > 0 else 0
         return {
             "status": "ok",
-            "message": {
-                "running": running,
-                "totalTables": total_tables,
-                "completedCount": completed_count,
-                "currentTable": current_table,
-                "percent": max(0, min(percent, 100)),
-                "updatedAt": int(payload.get("updated_at") or 0),
-            },
+            "message": read_import_progress(),
         }
 
     def _run_pipeline(self, state: Dict[str, Any], force_step_id: Optional[str] = None) -> Dict[str, Any]:
@@ -269,6 +232,22 @@ class SetupRuntimeManager:
         else:
             next_ids = ordered_ids
 
+        from core.infra.setup.core.install_progress import (
+            begin_install_step,
+            close_install,
+            fail_install,
+            finish_install_step,
+            open_install,
+            pause_install_step,
+        )
+
+        done_ids = [
+            step_id
+            for step_id in ordered_ids
+            if self._get_step_state(state, step_id) == self.STATUS_SUCCESS
+        ]
+        open_install(ordered_ids, done_ids=done_ids)
+
         for step_id in next_ids:
             step = by_id[step_id]
             cur = self._get_step_state(state, step_id)
@@ -279,6 +258,8 @@ class SetupRuntimeManager:
                 self._set_step_state(state, step_id, self.STATUS_WAITING_INPUT, "")
                 self._bump_version(state)
                 self._save_state(state)
+                begin_install_step(step_id)
+                pause_install_step(step_id)
                 return {
                     "status": "ok",
                     "message": {
@@ -288,10 +269,14 @@ class SetupRuntimeManager:
                     },
                 }
 
+            begin_install_step(step_id)
             ok, err, trace_err = self._execute_step(state, step)
             self._bump_version(state)
             self._save_state(state)
+            if ok:
+                finish_install_step(step_id)
             if not ok:
+                fail_install(step_id, err or trace_err or "")
                 Setup.trace.install_step_failed(
                     step=step_id,
                     entry="ui",
@@ -320,6 +305,7 @@ class SetupRuntimeManager:
         if state["isReady"]:
             Setup.runtime.mark_cli_ready()
             Setup.license.apply_trace_consent()
+            close_install()
         Setup.trace.install_complete(success=True, entry="ui", **self._timing_kwargs(state))
         return {
             "status": "ok",

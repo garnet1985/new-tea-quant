@@ -70,3 +70,15 @@ def records_from_frame(frame: pd.DataFrame) -> List[Dict[str, Any]]:
             item[key] = None if _is_missing(value) else value
         rows.append(item)
     return rows
+
+
+def iter_record_chunks(frame: pd.DataFrame, chunk_rows: int = WRITE_CHUNK_ROWS):
+    """按行切出记录。一次只展开一块，避免整表再变一份字典。"""
+    if frame is None or frame.empty:
+        return
+    step = max(1, int(chunk_rows))
+    total = len(frame)
+    for start in range(0, total, step):
+        rows = records_from_frame(frame.iloc[start : start + step])
+        if rows:
+            yield rows

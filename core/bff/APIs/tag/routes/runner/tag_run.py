@@ -101,7 +101,6 @@ class TagRunLauncher:
         jid = f"tag-run-{uuid.uuid4().hex[:12]}"
         cls._JOBS[jid] = {
             "tag_key": tag_key,
-            "progress": 0.0,
             "status": "queued",
             "error": None,
         }
@@ -145,7 +144,7 @@ class TagRunLauncher:
             with cls._LOCK:
                 row = cls._JOBS.get(job_id)
                 if row:
-                    row.update({"status": "failed", "error": err, "progress": 100.0})
+                    row.update({"status": "failed", "error": err})
             return
 
         try:
@@ -159,7 +158,7 @@ class TagRunLauncher:
             with cls._LOCK:
                 row = cls._JOBS.get(job_id)
                 if row:
-                    row.update({"status": "completed", "progress": 100.0})
+                    row.update({"status": "completed"})
         except Exception as exc:
             logger.exception(
                 "Tag UI run failed tag_key=%s job_id=%s", tag_key, job_id
@@ -168,9 +167,7 @@ class TagRunLauncher:
             with cls._LOCK:
                 row = cls._JOBS.get(job_id)
                 if row:
-                    row.update(
-                        {"status": "failed", "error": str(exc), "progress": 100.0}
-                    )
+                    row.update({"status": "failed", "error": str(exc)})
         finally:
             lease.release()
             with cls._LOCK:

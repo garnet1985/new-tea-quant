@@ -16,6 +16,7 @@ def _service_with_calendar(calendar_model) -> CalendarService:
 
 def test_derive_completed_uses_cal_max_when_before_as_of():
     cal = MagicMock()
+    cal.load_db_latest_trading_date.return_value = "20250524"
     cal.load_db_latest_completed_trading_date.return_value = "20250520"
     svc = _service_with_calendar(cal)
 
@@ -25,6 +26,7 @@ def test_derive_completed_uses_cal_max_when_before_as_of():
 
 def test_derive_completed_pushes_back_when_cal_max_equals_as_of():
     cal = MagicMock()
+    cal.load_db_latest_trading_date.return_value = "20250524"
     cal.load_db_latest_completed_trading_date.return_value = "20250524"
     cal.load_previous_open_date_before.return_value = "20250523"
     svc = _service_with_calendar(cal)
@@ -33,8 +35,18 @@ def test_derive_completed_pushes_back_when_cal_max_equals_as_of():
     cal.load_previous_open_date_before.assert_called_once_with("20250524")
 
 
+def test_stale_calendar_does_not_freeze_the_end_date():
+    cal = MagicMock()
+    cal.load_db_latest_trading_date.return_value = "20261015"
+    svc = _service_with_calendar(cal)
+
+    assert svc._derive_completed_from_trade_calendar(as_of_date="20261017") == ""
+    cal.load_db_latest_completed_trading_date.assert_not_called()
+
+
 def test_resolve_prefers_trade_calendar_over_real_world():
     cal = MagicMock()
+    cal.load_db_latest_trading_date.return_value = "20250524"
     cal.load_db_latest_completed_trading_date.return_value = "20250520"
     svc = _service_with_calendar(cal)
 
@@ -62,6 +74,7 @@ def test_get_latest_completed_uses_data_json_override():
 
 def test_get_latest_completed_falls_back_without_config():
     cal = MagicMock()
+    cal.load_db_latest_trading_date.return_value = "20250524"
     cal.load_db_latest_completed_trading_date.return_value = "20250520"
     svc = _service_with_calendar(cal)
 

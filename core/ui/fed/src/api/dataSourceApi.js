@@ -4,6 +4,7 @@ import { getUpdateModeIcon } from 'service/updateModeIcon';
 
 const API_DATA_SOURCES_LIST = `${API_VERSION_PREFIX}/data-sources/list`;
 const API_DATA_SOURCES_FRESHNESS = `${API_VERSION_PREFIX}/data-sources/freshness`;
+const API_DATA_SOURCES_RENEW = `${API_VERSION_PREFIX}/data-sources/renew`;
 
 /** 列表展示名：优先 ``display_name``，否则 ``name``。 */
 export function getDataSourceDisplayLabel(item) {
@@ -123,5 +124,75 @@ export async function fetchDataSourceFreshness({ names } = {}) {
   return {
     items,
     dataEnd: mapDataEnd(dataEnd),
+  };
+}
+
+/**
+ * 更新全部数据源，或只更新 source 这一项。
+ * @param {string} [source]
+ * @returns {Promise<{ is_triggered: boolean, job_id: string, source: string, running: boolean }>}
+ */
+export async function startDataSourceRenew(source = '') {
+  const body = {};
+  const key = String(source || '').trim();
+  if (key) body.source = key;
+  const json = await request.postJson(API_DATA_SOURCES_RENEW, { body });
+  const m = json?.message || {};
+  return {
+    is_triggered: Boolean(m.is_triggered),
+    job_id: String(m.job_id || '').trim(),
+    source: String(m.source || '').trim(),
+    running: Boolean(m.running),
+  };
+}
+
+function mapRenewTask(task) {
+  const numberOrNull = (value) => {
+    if (value == null || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  return {
+    source: String(task?.source || '').trim(),
+    status: String(task?.status || '').trim(),
+    startedAt: Number(task?.started_at) || 0,
+    totalSeconds: numberOrNull(task?.total_seconds),
+    error: String(task?.error || '').trim(),
+  };
+}
+
+function mapJobProgress(progress) {
+  const number = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return {
+    job: String(progress?.job || '').trim(),
+    source: String(progress?.source || '').trim(),
+    step: number(progress?.step),
+    stepTotal: number(progress?.step_total),
+    sub: number(progress?.sub),
+    subTotal: number(progress?.sub_total),
+    ratio: number(progress?.ratio),
+    label: String(progress?.label || '').trim(),
+    detail: String(progress?.detail || '').trim(),
+  };
+}
+
+/**
+ * @returns {Promise<{ running: boolean, job_id: string, source: string, error: string, message: string, tasks: object[], progress: object }>}
+ */
+export async function fetchDataSourceRenewStatus() {
+  const json = await request.getJson(API_DATA_SOURCES_RENEW, { silent: true });
+  const m = json?.message || {};
+  const rawTasks = Array.isArray(m.tasks) ? m.tasks : [];
+  return {
+    running: Boolean(m.running),
+    job_id: String(m.job_id || '').trim(),
+    source: String(m.source || '').trim(),
+    error: String(m.error || '').trim(),
+    message: String(m.message || '').trim(),
+    tasks: rawTasks.map(mapRenewTask).filter((task) => task.source),
+    progress: mapJobProgress(m.progress),
   };
 }

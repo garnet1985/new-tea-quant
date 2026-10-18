@@ -8,14 +8,36 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
 from core.modules.data_source.core.catalog.display_names import DEFAULT_DISPLAY_NAMES
+from core.modules.data_source.core.progress import tick_renew_leaf
 
 logger = logging.getLogger(__name__)
+
+
+def _cap_end(end: Optional[str]) -> Optional[str]:
+    """客户端续传不超过会员窗口。官网自己的抓取不走这里。"""
+    if not end:
+        return end
+    from core.modules.data_source.core.service.renew_progress import apply_member_cap, member_end_cap
+
+    return apply_member_cap(str(end), member_end_cap())
+
+
+def _keep_job(job: Any) -> bool:
+    end = _cap_end(getattr(job, "end_date", None))
+    if end is not None:
+        job.end_date = end
+    start = str(getattr(job, "start_date", "") or "")
+    return not start or not end or start <= str(end)
 
 
 def pull_table(handler: Any, jobs: List[Any]) -> int:
     """没有股票维度的表仍整表翻页。没有任务表示这次不用更新。"""
     if not jobs:
         print(f"[{handler.get_key()}] 已是最新，跳过", flush=True)
+        return 0
+    jobs = [job for job in jobs if _keep_job(job)]
+    if not jobs:
+        print(f"[{handler.get_key()}] 已到会员窗口，跳过", flush=True)
         return 0
     bundle = jobs[0]
     config = handler.context.get("config")
@@ -32,6 +54,10 @@ def pull_entities(handler: Any, jobs: List[Any]) -> int:
     """一只股票一次要完再入库。多路并发先不开。"""
     if not jobs:
         print(f"[{handler.get_key()}] 已是最新，跳过", flush=True)
+        return 0
+    jobs = [job for job in jobs if _keep_job(job)]
+    if not jobs:
+        print(f"[{handler.get_key()}] 已到会员窗口，跳过", flush=True)
         return 0
     provider = (handler.context.get("providers") or {}).get("ntq")
     if provider is None:
@@ -56,6 +82,8 @@ def pull_entities(handler: Any, jobs: List[Any]) -> int:
             if rows and not handler.context.get("is_dry_run"):
                 _upsert(handler, table, rows)
                 saved += len(rows)
+            if not page.get("next_start"):
+                _note_settled(handler, entity_id, page)
         handler.progress.bundles(index, total, saved)
     print(f"[{handler.get_key()}] 抓取结束 {total}/{total}，已写入 {saved} 行", flush=True)
     return saved
@@ -65,6 +93,10 @@ def _pull(handler: Any, table: str, start: Optional[str], end: Optional[str]) ->
     provider = (handler.context.get("providers") or {}).get("ntq")
     if provider is None:
         raise ValueError("没有官网数据源 ntq")
+    end = _cap_end(end)
+    if start and end and str(start) > str(end):
+        print(f"[{handler.get_key()}] 已到会员窗口，跳过", flush=True)
+        return 0
     label = DEFAULT_DISPLAY_NAMES.get(handler.get_key(), table)
     progress = handler.progress
     pages = 0
@@ -84,6 +116,7 @@ def _pull(handler: Any, table: str, start: Optional[str], end: Optional[str]) ->
             saved += len(rows)
         nxt = page.get("next_start")
         if not nxt:
+            _note_settled(handler, None, page)
             break
         cursor = str(nxt)
     progress.table_done(table, label, saved, time.perf_counter() - begun)
@@ -104,11 +137,8 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
             ranges.append({"id": entity_id, "start": start, "end": end})
     if not ranges:
         return jobs, 0
-    from core.modules.data_manager.core.sample_universe.sample_universe import SampleUniverse
-
-    pack = "sample" if SampleUniverse.is_active() else "all"
     try:
-        plan = provider.plan_entities(table, ranges, pack)
+        plan = provider.plan_entities(table, ranges, "all")
     except Exception:
         print(f"[{handler.get_key()}] 远端没有返回更新计划，改为按股票拉取", flush=True)
         logger.warning("官网没有返回更新计划，改为按股票拉取", exc_info=True)
@@ -126,15 +156,19 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
     if not files:
         print(f"[{handler.get_key()}] 远端计划：没有缓存文件，按股票拉取 {len(left)} 只", flush=True)
     else:
-        spans = "，".join(
-            f"{item.get('from') or '?'}–{item.get('through') or '?'}" for item in files
-        )
+        spans = []
+        for item in files:
+            label = f"{item.get('from') or '?'}–{item.get('through') or '?'}"
+            if label not in spans:
+                spans.append(label)
+        spans = "，".join(spans)
         print(
-            f"[{handler.get_key()}] 远端计划：缓存 {len(files)} 个文件（{spans}），导入后再按股票补 {len(left)} 只",
+            f"[{handler.get_key()}] 远端计划：{len(files)} 个数据包（{spans}），导入后再按股票补 {len(left)} 只",
             flush=True,
         )
     saved = 0
-    for item in files:
+    total_files = len(files)
+    for index, item in enumerate(files, start=1):
         if not isinstance(item, dict):
             continue
         path = str(item.get("path") or "")
@@ -146,7 +180,16 @@ def _apply_remote_plan(handler: Any, provider: Any, table: str, jobs: List[Any])
             logger.warning("数据包导入失败", exc_info=True)
             return jobs, saved
         saved += imported
-        print(f"[{handler.get_key()}] 已导入数据包 {imported} 行，截止 {through}", flush=True)
+        tick_renew_leaf(
+            index,
+            total_files,
+            source=str(handler.get_key() or ""),
+            detail=f"数据包 {index}/{total_files}",
+        )
+        print(
+            f"[{handler.get_key()}] 数据包 {index}/{total_files} 已导入 {imported} 行，截止 {through}",
+            flush=True,
+        )
     return left, saved
 
 
@@ -215,6 +258,26 @@ def list_rows(handler: Any) -> List[Dict[str, Any]]:
     return list(rows)
 
 
+_BLANK_AS_NULL = {"float", "double", "decimal", "int", "integer", "bigint", "smallint", "tinyint", "date", "datetime"}
+
+
+def _blank_as_null(schema: Dict[str, Any], rows: List[Dict[str, Any]]) -> None:
+    """CSV 里的空单元格是空字符串。数字和日期列要写成 NULL。"""
+    names = set()
+    for field in schema.get("fields") or []:
+        if not isinstance(field, dict):
+            continue
+        if str(field.get("type") or "").lower() in _BLANK_AS_NULL and field.get("name"):
+            names.add(field["name"])
+    if not names:
+        return
+    for row in rows:
+        for name in names:
+            value = row.get(name)
+            if isinstance(value, str) and value.strip() == "":
+                row[name] = None
+
+
 def _upsert(handler: Any, table: str, rows: List[Dict[str, Any]]) -> None:
     manager = handler.context.get("data_manager")
     if manager is None:
@@ -230,4 +293,31 @@ def _upsert(handler: Any, table: str, rows: List[Dict[str, Any]]) -> None:
         unique_keys = list(primary_key)
     else:
         raise ValueError(f"{table} 没有主键，无法同步")
+    _blank_as_null(schema, rows)
     model.upsert_many(rows, unique_keys)
+    _note_rows(handler, rows)
+
+
+def _note_rows(handler: Any, rows: List[Dict[str, Any]]) -> None:
+    try:
+        from core.modules.data_source.core.service.renew_progress import remember_written_rows
+
+        remember_written_rows(handler, rows)
+    except Exception:
+        logger.warning("写入后没能记下已经更新到的数据日期", exc_info=True)
+
+
+def _note_settled(handler: Any, entity_id: Optional[str], page: Dict[str, Any]) -> None:
+    settled = page.get("settled_through") if isinstance(page, dict) else None
+    if not isinstance(settled, str) or not settled.strip():
+        return
+    rows = page.get("rows") if isinstance(page, dict) else None
+    # 区间被判成空的（一页都没有，total 也是 0）不能当成已经读完。
+    if not rows and page.get("total") == 0:
+        return
+    try:
+        from core.modules.data_source.core.service.renew_progress import remember_settled
+
+        remember_settled(handler, entity_id, settled)
+    except Exception:
+        logger.warning("没能记下官网已经读完的数据日期", exc_info=True)

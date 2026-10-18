@@ -70,7 +70,6 @@ class TagPipelineHooks:
                 "total": total,
                 "ok": ctx.ok,
                 "fail": ctx.fail,
-                "progress_pct": min(100.0, ctx.finished / total * 100.0),
             }
         )
 

@@ -113,8 +113,8 @@ def test_bound_facades_noop_without_bind(tmp_path, monkeypatch):
     assert PipelineProgress.current() is None
 
 
-def test_attribute_pipeline_weights_and_labels(tmp_path, monkeypatch):
-    """归因：准备 5% · 对照回测 85% · 报告 10%；嵌套 enum 不抢进度。"""
+def test_attribute_pipeline_uses_shared_steps(tmp_path, monkeypatch):
+    """归因跳过调度，三步等权。对照回测的子步骤加在当前步上。"""
     from core.modules.strategy.core.services.progress import ATTRIBUTE_PIPELINE
 
     _patch_recorder(tmp_path, monkeypatch)
@@ -129,12 +129,19 @@ def test_attribute_pipeline_weights_and_labels(tmp_path, monkeypatch):
         prog.enter_step("load")
         assert prog.to_dict()["step"]["description"] == "准备任务"
         prog.complete_step("load")
-        assert float(prog.to_dict()["progress"]) == 5.0
+        assert float(prog.to_dict()["progress"]) == 33.33
 
         prog.enter_step("execute")
         prog.tick_execute(1, 4)
-        # 5% + 85% * 0.25 = 26.25
-        assert float(prog.to_dict()["progress"]) == 26.25
+        # (1 + 1/4) / 3
+        assert float(prog.to_dict()["progress"]) == 41.67
+        from core.infra.progress import Progress
+
+        shared = Progress.read("pipeline-demo-x-job-attr")
+        assert shared["job"] == "attribute"
+        assert shared["ratio"] == 0.4167
+        assert shared["steps"][1]["done"] == 1
+        assert shared["steps"][1]["total"] == 4
         assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 4}
         assert prog.to_dict()["step"]["description"] == "对照回测"
 
@@ -145,7 +152,7 @@ def test_attribute_pipeline_weights_and_labels(tmp_path, monkeypatch):
         prog.complete_step("execute")
         prog.enter_step("report")
         assert prog.to_dict()["step"]["description"] == "归因与报告"
-        assert float(prog.to_dict()["progress"]) == 90.0
+        assert float(prog.to_dict()["progress"]) == 66.67
         prog.complete_step("report")
         assert float(prog.to_dict()["progress"]) == 100.0
 
@@ -161,5 +168,14 @@ def test_rolling_tick_keeps_window_step_label(tmp_path, monkeypatch):
         prog.tick_execute(1, 6, description="20240101-20241231 枚举")
         assert prog.to_dict()["step"]["description"] == "20240101-20241231 枚举"
         assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 6}
+        held = float(prog.to_dict()["step"]["progress"])
+        prog.tick_execute(0, 3, description="下一窗")
+        assert float(prog.to_dict()["step"]["progress"]) == held
+        assert prog.to_dict()["step"]["counters"] == {"done": 0, "total": 3}
+        from core.infra.progress import Progress
+
+        shared = Progress.read("pipeline-demo-x-job-roll")
+        assert shared["steps"][0]["done"] == 0
+        assert shared["steps"][0]["total"] == 3
         assert PipelineProgress.drives_pipeline("enum") is False
         assert PipelineProgress.drives_pipeline(ROLLING_PIPELINE) is True

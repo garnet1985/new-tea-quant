@@ -1,6 +1,7 @@
 """和 new-tea.cn 通信的地址。只放在这里。"""
 
 OFFICIAL_BASE_URL = "https://www.new-tea.cn"
+MEMBER_PROFILE_URL = f"{OFFICIAL_BASE_URL}/api/v1/ntq-member/profile"
 AI_BASE_URL = f"{OFFICIAL_BASE_URL}/api/v1/ntq-ai"
 FEEDBACK_URL = f"{OFFICIAL_BASE_URL}/api/v1/feedback"
 TRACE_URL = f"{OFFICIAL_BASE_URL}/api/v1/traces"

@@ -91,6 +91,14 @@ def get_membership_settings():
     return ok(settings_service.get_membership_settings())
 
 
+@settings_api_bp.route("/v1/membership/profile", methods=["GET"])
+def get_membership_profile():
+    """用本地通用凭证向官网读取用户名、头像和点数。响应不含凭证。"""
+    from core.modules.ntq_external.member_profile import member_profile
+
+    return ok(member_profile())
+
+
 @settings_api_bp.route("/v1/settings/membership", methods=["PUT"])
 def put_membership_settings():
     """把官网通用凭证写入 userspace/system/membership/membership_token.txt。"""

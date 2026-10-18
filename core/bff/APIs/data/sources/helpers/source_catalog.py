@@ -127,6 +127,7 @@ def fetch_data_source_freshness(
     data_manager = DataManager.get_instance()
     if data_manager is None:
         data_manager = DataManager(is_verbose=False)
+    elif not getattr(data_manager, "_initialized", False):
         data_manager.initialize()
 
     data_end = DataSourceManager.get_data_end_meta(data_manager)

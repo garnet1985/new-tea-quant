@@ -8,6 +8,7 @@ import {
   Typography,
 } from '@mui/material';
 import NtqIcon from '../../views/ntqIcon';
+import { progressRatio } from 'service/progress/ratio';
 
 function stateIcon(row, runningStep) {
   if (runningStep && row.id === runningStep) {
@@ -77,7 +78,7 @@ function SetupExecutionPanel({
         {runningStep === 'import_data' && importProgress.totalTables > 0 ? (
           <Alert severity="info" sx={{ mb: 2 }}>
             导入进度：{importProgress.completedCount}/{importProgress.totalTables}
-            （{importProgress.percent}%）
+            （{Math.round(progressRatio(importProgress.ratio) * 100)}%）
             {importProgress.currentTable ? `，当前表：${importProgress.currentTable}` : ''}
           </Alert>
         ) : null}

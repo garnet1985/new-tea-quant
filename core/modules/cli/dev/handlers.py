@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -133,8 +134,10 @@ class DevHandlers:
             DevHandlers.kill_listeners_on_ports(ALL_UI_PORTS, ntq_only=False)
         cmd = [sys.executable, str(launcher), "-d", *args.forward]
         print("启动: " + " ".join(cmd), flush=True)
+        env = os.environ.copy()
+        env["NTQ_OPEN_BROWSER"] = "0"
         try:
-            return subprocess.run(cmd, cwd=str(DevHandlers._repo_root())).returncode
+            return subprocess.run(cmd, cwd=str(DevHandlers._repo_root()), env=env).returncode
         except KeyboardInterrupt:
             return 130
 

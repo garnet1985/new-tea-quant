@@ -10,6 +10,11 @@ logger = logging.getLogger(__name__)
 WRITE_RESERVE_BYTES = 8 * 1024 * 1024
 # 无 psutil 时的紧预算，避免退回旧的数 GB 下限。
 FALLBACK_BUDGET_BYTES = 64 * 1024 * 1024
+# 缓冲区硬顶。预算按「当时可用内存」算时，小机器上会接近 2GB，
+# 第一笔落库发生前进程就已经被 OOM 杀掉。
+MAX_BUFFER_BYTES = 128 * 1024 * 1024
+# 探测不到总内存时，进程 RSS 到这里就先落库。
+FALLBACK_RSS_LIMIT_BYTES = 512 * 1024 * 1024
 
 
 def probe_budget_bytes() -> int:
@@ -23,6 +28,19 @@ def probe_budget_bytes() -> int:
     usable_mb = max(0.0, float(available) - float(floor))
     budget_mb = usable_mb * MachineInfo.DEFAULT_WORKER_MEMORY_FRACTION
     return max(0, int(budget_mb * 1024 * 1024))
+
+
+def probe_rss_limit_bytes() -> int:
+    """本进程 RSS 达到此值就先落库，给 Apache 和数据库留出内存。"""
+    from core.infra.machine_capacity import MachineInfo
+
+    total, _available = MachineInfo.virtual_memory_mb()
+    if total is None:
+        return FALLBACK_RSS_LIMIT_BYTES
+    total_bytes = int(float(total) * 1024 * 1024)
+    # 至少留 1.5GB；大机器上本进程不超过总内存的 40%。
+    leave = max(1536 * 1024 * 1024, int(total_bytes * 0.60))
+    return max(256 * 1024 * 1024, total_bytes - leave)
 
 
 def _cpu_cap() -> int:
@@ -54,10 +72,16 @@ class SaveMemoryBudget:
         *,
         write_reserve_bytes: int = WRITE_RESERVE_BYTES,
         cpu_cap: Optional[int] = None,
+        rss_limit_bytes: Optional[int] = None,
     ) -> None:
         self.write_reserve_bytes = max(0, int(write_reserve_bytes))
         self.cpu_cap = max(1, int(cpu_cap if cpu_cap is not None else _cpu_cap()))
         self.budget_bytes = max(0, int(budget_bytes if budget_bytes is not None else probe_budget_bytes()))
+        if rss_limit_bytes is None:
+            # 测试传入预算时不读本机 RSS，避免把测试进程的内存当成压力。
+            self.rss_limit_bytes = 0 if budget_bytes is not None else probe_rss_limit_bytes()
+        else:
+            self.rss_limit_bytes = max(0, int(rss_limit_bytes))
         self.frame_bytes = 0
         self.in_flight = 1
         self.buffer_cap = 0
@@ -79,6 +103,13 @@ class SaveMemoryBudget:
         if size > self.frame_bytes:
             self.frame_bytes = size
             self._recompute()
+
+    def over_rss(self) -> bool:
+        """进程占用已经达到上限。调用方应先把缓冲区落库。"""
+        if self.rss_limit_bytes <= 0:
+            return False
+        rss = _process_rss_bytes()
+        return rss > 0 and rss >= self.rss_limit_bytes
 
     def note_rss(self) -> None:
         rss = _process_rss_bytes()
@@ -109,13 +140,15 @@ class SaveMemoryBudget:
         if size <= 0:
             self.in_flight = 1
             self.buffer_cap = max(0, self.budget_bytes - reserve)
-            return
-        room = self.budget_bytes - reserve - size
-        if room < size:
-            self.in_flight = 1
-            self.buffer_cap = size
-            return
-        self.in_flight = min(self.cpu_cap, max(1, room // size))
-        self.buffer_cap = self.budget_bytes - reserve - self.in_flight * size
-        if self.buffer_cap < size:
-            self.buffer_cap = size
+        else:
+            room = self.budget_bytes - reserve - size
+            if room < size:
+                self.in_flight = 1
+                self.buffer_cap = size
+            else:
+                self.in_flight = min(self.cpu_cap, max(1, room // size))
+                self.buffer_cap = self.budget_bytes - reserve - self.in_flight * size
+                if self.buffer_cap < size:
+                    self.buffer_cap = size
+        if self.buffer_cap > MAX_BUFFER_BYTES:
+            self.buffer_cap = MAX_BUFFER_BYTES

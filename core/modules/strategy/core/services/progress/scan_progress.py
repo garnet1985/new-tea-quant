@@ -35,11 +35,11 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "queued",
                 "status": "queued",
-                "progress_pct": 0,
                 "demo": bool(demo),
                 "force": bool(force),
             }
         )
+        self._publish(0, 0)
 
     def mark_running(self) -> None:
         base = self._load()
@@ -49,19 +49,12 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "running",
                 "status": "running",
-                "progress_pct": max(int(base.get("progress_pct") or 0), 1),
             }
         )
         self._recorder().record(base)
 
     def tick(self, payload: Dict[str, Any]) -> None:
         """ScannerPipeline ``on_progress`` payload → disk."""
-        try:
-            pct = float(payload.get("progress_pct", 0) or 0)
-        except (TypeError, ValueError):
-            pct = 0.0
-        pct = max(0.0, min(99.9, pct))
-
         total_jobs = int(payload.get("total_jobs", 0) or 0)
         done_jobs = (
             int(payload.get("completed_jobs", 0) or 0)
@@ -76,7 +69,6 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "running",
                 "status": "running",
-                "progress_pct": round(pct, 2),
                 "total_jobs": total_jobs,
                 "done_jobs": done_jobs,
                 "last_job_id": str(payload.get("last_job_id") or ""),
@@ -84,6 +76,7 @@ class ScanProgress:
             }
         )
         self._recorder().record(base)
+        self._publish(done_jobs, total_jobs)
 
     def fail(self, error: str) -> None:
         base = self._load()
@@ -93,11 +86,11 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "failed",
                 "status": "failed",
-                "progress_pct": 100,
                 "error": str(error),
             }
         )
         self._recorder().record(base)
+        self._fail_shared(str(error))
 
     @staticmethod
     def opportunity_rows(opportunities: List[Any]) -> List[Dict[str, Any]]:
@@ -128,12 +121,49 @@ class ScanProgress:
                 "run_id": self.job_id,
                 "phase": "completed",
                 "status": "completed",
-                "progress_pct": 100,
                 "report": packed_report,
             }
         )
         base.pop("error", None)
         self._recorder().record(base)
+        self._finish_shared()
+
+    def _ensure_shared(self):
+        from core.infra.progress import Progress
+
+        root = _root_id(self.strategy_key, self.job_id)
+        existing = Progress.read(root)
+        if (
+            existing is None
+            or str(existing.get("status") or "") in _TERMINAL
+            or str(existing.get("job") or "") != "scan"
+        ):
+            Progress.start(root, job="scan", label="扫描")
+        return root
+
+    def _publish(self, done: int, total: int) -> None:
+        from core.infra.progress import Progress
+
+        root = self._ensure_shared()
+        source = self.strategy_key or self.job_id
+        if total > 0:
+            Progress.tick(root, min(done, total), total, source=source, log=False)
+            return
+        Progress.tick(root, 0, 1, source=source, log=False)
+
+    def _finish_shared(self) -> None:
+        from core.infra.progress import Progress
+
+        Progress.finish(self._ensure_shared())
+
+    def _fail_shared(self, detail: str) -> None:
+        from core.infra.progress import Progress
+
+        root = _root_id(self.strategy_key, self.job_id)
+        if Progress.read(root) is None:
+            return
+        message = str(detail or "").splitlines()[0] if str(detail or "") else ""
+        Progress.fail(root, detail=message)
 
     @classmethod
     def get_raw(cls, strategy_key: str, job_id: str) -> Optional[Dict[str, Any]]:
@@ -175,9 +205,11 @@ class ScanProgress:
             return out
 
         try:
-            pct = float(disk.get("progress_pct") or 0)
+            pct = _shared_percent(str(strategy_key or "").strip(), jid)
         except (TypeError, ValueError):
-            pct = 0.0
+            pct = None
+        if pct is None:
+            pct = 100.0 if status == "completed" or phase == "completed" else 0.0
         pct = max(0.0, min(100.0, pct))
         done = pct >= 100.0 or status == "completed" or phase == "completed"
 
@@ -202,3 +234,23 @@ class ScanProgress:
 
 
 __all__ = ["ScanProgress"]
+
+_TERMINAL = frozenset({"completed", "failed", "cancelled"})
+
+
+def _root_id(strategy_key: str, job_id: str) -> str:
+    raw = f"scan-{strategy_key}-{job_id}"
+    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
+    return safe or "scan"
+
+
+def _shared_percent(strategy_key: str, job_id: str) -> Optional[float]:
+    from core.infra.progress import Progress
+
+    snap = Progress.read(_root_id(strategy_key, job_id))
+    if not isinstance(snap, dict) or str(snap.get("job") or "") != "scan":
+        return None
+    source = str(strategy_key or "").strip()
+    if source and str(snap.get("source") or "") not in ("", source):
+        return None
+    return round(float(snap.get("ratio") or 0) * 100, 2)

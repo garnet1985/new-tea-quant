@@ -175,6 +175,27 @@ export async function saveMembershipToken(token) {
 /**
  * @returns {Promise<{ configured: boolean, invalid: boolean, path: string }>}
  */
+/**
+ * 顶栏会员条。没有凭证或官网拒绝时 signed_in 为 false。
+ * @returns {Promise<{ signed_in: boolean, register_url: string, name: string, avatar: string, points: number|null, reason: string }>}
+ */
+export async function fetchMemberProfile() {
+  const json = await request.getJson(`${API_VERSION_PREFIX}/membership/profile`, { silent: true });
+  const m = json?.message || {};
+  const points = m.points;
+  return {
+    signed_in: Boolean(m.signed_in),
+    register_url: String(m.register_url || '').trim(),
+    name: String(m.name || '').trim(),
+    avatar: String(m.avatar || '').trim(),
+    points: points == null || points === '' ? null : Number(points),
+    reason: String(m.reason || '').trim(),
+  };
+}
+
+/**
+ * @returns {Promise<{ configured: boolean, invalid: boolean, path: string }>}
+ */
 export async function clearMembershipToken() {
   const json = await request.deleteJson(API_SETTINGS_MEMBERSHIP);
   const m = json?.message || {};

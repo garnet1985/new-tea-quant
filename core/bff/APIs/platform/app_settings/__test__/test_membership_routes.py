@@ -31,6 +31,14 @@ def test_membership_roundtrip_hides_token(token_file):
         assert body["invalid"] is False
         assert TOKEN not in empty.get_data(as_text=True)
 
+        guest = client.get("/api/v1/membership/profile")
+        assert guest.status_code == 200
+        profile = guest.get_json()["message"]
+        assert profile["signed_in"] is False
+        assert profile["reason"] == "missing"
+        assert profile["register_url"].endswith("/zh-hans/user/register")
+        assert TOKEN not in guest.get_data(as_text=True)
+
         bad = client.put("/api/v1/settings/membership", json={"token": "sk-vendor"})
         assert bad.status_code == 400
         assert "凭证格式不对" in bad.get_json()["message"]["detail"]

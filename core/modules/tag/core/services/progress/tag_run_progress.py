@@ -29,10 +29,10 @@ class TagRunProgress:
                 "job_id": self.job_id,
                 "phase": "queued",
                 "status": "queued",
-                "progress_pct": 0,
                 "label": "准备中…",
             }
         )
+        self._publish(0, 0)
 
     def write(self, payload: Dict[str, Any]) -> None:
         base = {
@@ -43,55 +43,95 @@ class TagRunProgress:
         base.update(payload)
         self._recorder().record(base)
 
-    def mark_running(self, *, label: str = "加载场景…", progress_pct: float = 1) -> None:
+    def mark_running(self, *, label: str = "加载场景…") -> None:
         self.write(
             {
                 "phase": "running",
                 "status": "running",
-                "progress_pct": progress_pct,
                 "label": label,
             }
         )
 
     def tick_from_pipeline(self, snapshot: Dict[str, Any]) -> None:
-        finished = int(snapshot.get("finished") or 0)
-        total = int(snapshot.get("total_jobs") or 0)
-        try:
-            pct = float(snapshot.get("progress_pct") or 0)
-        except (TypeError, ValueError):
-            pct = 0.0
-        pct = max(0.0, min(99.9, pct))
+        finished = int(snapshot.get("finished") or snapshot.get("index") or 0)
+        total = int(snapshot.get("total_jobs") or snapshot.get("total") or 0)
         label = f"执行计算 {finished}/{total}" if total else "执行计算…"
         self.write(
             {
                 "phase": "running",
                 "status": "running",
-                "progress_pct": pct,
                 "label": label,
             }
         )
+        if total > 0 or finished > 0:
+            self._publish(finished, total, detail=label)
 
     def complete(self) -> None:
         self.write(
             {
                 "phase": "completed",
                 "status": "completed",
-                "progress_pct": 100,
                 "label": "完成",
                 "is_success": True,
             }
         )
+        self._finish_shared()
+
+    def _ensure_shared(self) -> str:
+        from core.infra.progress import Progress
+
+        root = _root_id(self.tag_key, self.job_id)
+        existing = Progress.read(root)
+        if (
+            existing is None
+            or str(existing.get("status") or "") in _TERMINAL
+            or str(existing.get("job") or "") != "tag"
+        ):
+            Progress.start(root, job="tag", label="标签计算")
+        return root
+
+    def _publish(self, done: int, total: int, *, detail: str = "") -> None:
+        from core.infra.progress import Progress
+
+        root = self._ensure_shared()
+        source = self.tag_key or self.job_id
+        text = str(detail or "").strip()
+        if total > 0:
+            Progress.tick(
+                root,
+                min(done, total),
+                total,
+                source=source,
+                detail=text or None,
+                log=False,
+            )
+            return
+        Progress.tick(root, 0, 1, source=source, detail=text or None, log=False)
+
+    def _finish_shared(self) -> None:
+        from core.infra.progress import Progress
+
+        Progress.finish(self._ensure_shared())
+
+    def _fail_shared(self, detail: str) -> None:
+        from core.infra.progress import Progress
+
+        root = _root_id(self.tag_key, self.job_id)
+        if Progress.read(root) is None:
+            return
+        message = str(detail or "").splitlines()[0] if str(detail or "") else ""
+        Progress.fail(root, detail=message)
 
     def fail(self, error: str) -> None:
         self.write(
             {
                 "phase": "failed",
                 "status": "failed",
-                "progress_pct": 100,
                 "error": str(error),
                 "is_success": False,
             }
         )
+        self._fail_shared(str(error))
 
     def on_progress_callback(self):
         def _cb(snapshot: Dict[str, Any]) -> None:
@@ -136,9 +176,11 @@ class TagRunProgress:
             return out
 
         try:
-            pct = float(disk.get("progress_pct") or 0)
+            pct = _shared_percent(key, jid)
         except (TypeError, ValueError):
-            pct = 0.0
+            pct = None
+        if pct is None:
+            pct = 100.0 if status == "completed" or phase == "completed" else 0.0
         pct = max(0.0, min(100.0, pct))
         done = pct >= 100.0 or status == "completed" or phase == "completed"
 
@@ -159,3 +201,23 @@ class TagRunProgress:
 
 
 __all__ = ["TagRunProgress"]
+
+_TERMINAL = frozenset({"completed", "failed", "cancelled"})
+
+
+def _root_id(tag_key: str, job_id: str) -> str:
+    raw = f"tag-{tag_key}-{job_id}"
+    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
+    return safe or "tag"
+
+
+def _shared_percent(tag_key: str, job_id: str) -> Optional[float]:
+    from core.infra.progress import Progress
+
+    snap = Progress.read(_root_id(tag_key, job_id))
+    if not isinstance(snap, dict) or str(snap.get("job") or "") != "tag":
+        return None
+    source = str(tag_key or "").strip()
+    if source and str(snap.get("source") or "") not in ("", source):
+        return None
+    return round(float(snap.get("ratio") or 0) * 100, 2)

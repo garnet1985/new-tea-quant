@@ -512,3 +512,57 @@ def test_unique_tasks_share_execute_identity() -> None:
         executed, unique_cells, [cell_same, cell_other]
     )
     assert [row["version_id"] for row in bound_b["cells"]] == ["21", "21-attr1"]
+
+
+def test_cache_hits_share_one_campaign_bar(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "shared"))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.infra.progress import Progress
+    from core.infra.progress.core import store
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.execute.base import (
+        _call_simulate,
+    )
+    from core.modules.strategy.core.engines.analyzer.steps.campaign.execute.campaign_progress import (
+        CampaignProgress,
+    )
+
+    store.reset()
+    cell = AttributionCell(
+        index=0,
+        overlay={},
+        runtime_settings={},
+        execute_settings={},
+    )
+    tasks = [
+        AttributionTask(cell=cell, kind=SimulateKind.ENUMERATE, steps=(SimulateKind.ENUMERATE,)),
+        AttributionTask(cell=cell, kind=SimulateKind.ENUMERATE, steps=(SimulateKind.ENUMERATE,)),
+    ]
+    progress = CampaignProgress.open("demo/rsi", "enumerate", tasks)
+    assert progress is not None
+
+    def fake_simulate(key, *, kind, ignore_cache, runtime_settings, version_id=None, upstream_version_id=None):
+        return {"cache_hit": True, "version_id": "21", kind.value: {"version_id": "21"}}
+
+    with progress, patch(
+        "core.modules.strategy.core.strategy.Strategy.simulate",
+        side_effect=fake_simulate,
+    ):
+        _call_simulate(
+            "demo/rsi",
+            kind=SimulateKind.ENUMERATE,
+            ignore_cache=False,
+            runtime_settings={},
+        )
+        mid = Progress.read(progress.root_id)
+        assert mid["steps"][0]["status"] == "completed"
+        assert mid["ratio"] == 0.5
+        _call_simulate(
+            "demo/rsi",
+            kind=SimulateKind.ENUMERATE,
+            ignore_cache=False,
+            runtime_settings={},
+        )
+    done = Progress.read(progress.root_id)
+    assert done["status"] == "completed"
+    assert done["ratio"] == 1.0
+    store.reset()

@@ -17,4 +17,85 @@
     display: inline-flex;
     align-items: center;
   }
+
+  .data-source-list-progress-label {
+    color: var(--ntq-cyan);
+    max-width: 100%;
+  }
+
+  .data-source-list-elapsed {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .data-source-list-live {
+    margin: 4px 0 12px;
+    color: var(--ntq-cyan);
+  }
+
+  .data-source-list-grid-body {
+    .MuiDataGrid-row.data-source-list-row--running {
+      position: relative;
+      overflow: hidden;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 0;
+        width: var(--data-source-run-pct, 0%);
+        pointer-events: none;
+        background: linear-gradient(
+          90deg,
+          rgba(34, 211, 238, 0.32) 0%,
+          rgba(34, 211, 238, 0.12) 100%
+        );
+        transition: width 0.35s ease-out;
+      }
+
+      .MuiDataGrid-cell {
+        position: relative;
+        z-index: 1;
+      }
+    }
+
+    .MuiDataGrid-row.data-source-list-row--running-indeterminate::before {
+      width: 38%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(34, 211, 238, 0.28) 50%,
+        transparent 100%
+      );
+      animation: data-source-list-row-progress-slide 1.2s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes data-source-list-row-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-source-list-page .data-source-list-grid-body .MuiDataGrid-row.data-source-list-row--running-indeterminate::before {
+    animation: none;
+    opacity: 0.85;
+    transform: translateX(0);
+  }
+}
+
+.data-source-renew-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.5;
 }

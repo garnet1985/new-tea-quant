@@ -40,6 +40,7 @@ class DataSourceManager:
         table_name: Optional[str] = None,
         *,
         force: bool = False,
+        progress_id: Optional[str] = None,
     ) -> None:
         """
         按配置 renew 数据（CLI / 脚本统一入口）。
@@ -48,12 +49,41 @@ class DataSourceManager:
             table_name: 绑定表名（如 ``sys_data_stock_klines``）或 data source key（如 ``stock_klines``）。
                 ``None`` 表示所有 ``is_enabled`` 的数据源。
             force: 强制 refresh：从 ``default_start_date`` 重拉，跳过日缓存与 ``renew_if_over_days``。
+            progress_id: 这次任务的进度文件名。不传则按时间生成。
         """
         if table_name:
             key = self.resolve_renew_target(table_name)
-            self.execute(sources=(key,), force=force)
+            self.execute(sources=(key,), force=force, progress_id=progress_id)
             return
-        self.execute(sources=None, force=force)
+        self.execute(sources=None, force=force, progress_id=progress_id)
+
+    def sources_needing_renew(self) -> List[str]:
+        """按依赖顺序返回当前需要更新的数据源。已经跟上的不在里面。"""
+        from core.modules.data_manager.core.data_manager import DataManager
+        from core.modules.data_source.core.service.run_status import ordered_source_keys
+
+        self._flush_cache()
+        mappings = self._discover_mappings()
+        enabled = mappings.get_enabled()
+        dm = DataManager.get_instance()
+        if dm is None:
+            dm = DataManager(is_verbose=False)
+        if not getattr(dm, "_initialized", False):
+            dm.initialize()
+        needed: List[str] = []
+        for key in ordered_source_keys(enabled):
+            cfg = self._discover_config(key)
+            if cfg is None:
+                continue
+            status, _, _ = self.evaluate_update_status(
+                source_key=key,
+                config=cfg,
+                mappings=mappings,
+                data_manager=dm,
+            )
+            if status == "needs_update":
+                needed.append(key)
+        return needed
 
     def resolve_renew_target(self, table_or_source: str) -> str:
         """
@@ -143,6 +173,7 @@ class DataSourceManager:
         sources: Optional[Sequence[str]] = None,
         *,
         force: bool = False,
+        progress_id: Optional[str] = None,
     ):
         """
         执行数据源：发现 mapping/config/handler → 按依赖顺序执行。
@@ -152,10 +183,15 @@ class DataSourceManager:
         Args:
             sources: 仅执行这些 data source key；``None`` 表示全部已启用。
             force: 强制全量重拉（见 ``renew``）。
+            progress_id: 这次任务的进度文件名。不传则按时间生成。
 
         是否写库由各 handler 的 config 顶层 is_dry_run 控制（True 则不执行 DB 写入）。
         """
         self._flush_cache()
+        self._ensure_data_manager()
+        from core.modules.data_source.core.service.renew_progress import ensure_backfill
+
+        ensure_backfill(self._ensure_data_manager())
         mappings = self._discover_mappings()
         providers = self._discover_providers()
         handler_instances = self._discover_handlers(mappings, providers)
@@ -172,10 +208,14 @@ class DataSourceManager:
                 raise ValueError(
                     f"未知或未启用的 data source: {unknown}；可选: {sorted(enabled)}"
                 )
-            self._execute_source_subset(keys, mappings, by_key, force=force)
+            self._execute_source_subset(
+                keys, mappings, by_key, force=force, progress_id=progress_id
+            )
             return
 
-        self._execution_scheduler.run(handler_instances, mappings, force=force)
+        self._execution_scheduler.run(
+            handler_instances, mappings, force=force, progress_id=progress_id
+        )
 
     @staticmethod
     def list_enabled_source_keys() -> List[str]:
@@ -208,18 +248,20 @@ class DataSourceManager:
         by_key: Dict[str, BaseHandler],
         *,
         force: bool,
+        progress_id: Optional[str] = None,
     ) -> None:
         """只执行指定 data source；依赖从缓存或 DB 注入。"""
         from core.modules.data_source.core.reserved_dependencies import resolve_reserved_dependency
 
         missing = [k for k in keys if k not in by_key]
         if missing:
+            reasons = getattr(self, "_handler_skip_reasons", {})
+            detail = [reasons[k] for k in missing if reasons.get(k)]
+            if detail:
+                raise ValueError("；".join(detail))
             raise ValueError(f"Handler 未就绪: {missing}")
 
-        dm = DataManager.get_instance()
-        if dm is None:
-            dm = DataManager(is_verbose=False)
-            dm.initialize()
+        dm = self._ensure_data_manager()
 
         scheduler = self._execution_scheduler
         scheduler.mappings = mappings
@@ -239,9 +281,13 @@ class DataSourceManager:
             for k in keys
         )
         if need_sw and "sw_industry" not in keys:
-            # 分类树已在 sys_data_sw_industry。单独 renew 日线/成分时不再重拉分类。
-            scheduler._dependency_cache["sw_industry"] = []
-            logger.info("sw_industry 不在本次执行中，下游读取已有分类表")
+            # 分类树已在 sys_data_sw_industry。单独 renew 日线时不再重拉分类。
+            try:
+                rows = dm.sw.load_quote_list() or []
+            except Exception:
+                rows = []
+            scheduler._dependency_cache["sw_industry"] = rows
+            logger.info("从 DB 注入 sw_industry 依赖：%s 条", len(rows))
 
         handlers_for_topo = [by_key[k] for k in keys]
         if need_list and "stock_list" not in keys and "stock_list" in by_key:
@@ -264,49 +310,61 @@ class DataSourceManager:
         scheduler._failed_data_sources.clear()
         run_status = RunStatus.open(sorted_handlers, force=force)
         scheduler._run_status = run_status
+        scheduler.open_progress(sorted_handlers, progress_id)
 
         total = len(sorted_handlers)
-        for idx, handler in enumerate(sorted_handlers):
-            key = handler.get_key()
-            mode = handler.renew_mode_label(force=force)
-            started = time.perf_counter()
-            print(f"执行数据源 [{idx + 1}/{total}]: {key} - 执行模式：{mode}", flush=True)
-            logger.info("执行数据源 [%s/%s]: %s 执行模式：%s", idx + 1, total, key, mode)
-            deps: Dict[str, Any] = {}
-            for dep_name in mappings.get_depend_on_data_source_names(key):
-                if dep_name in RESERVED_DEPENDENCY_KEYS:
-                    deps[dep_name] = resolve_reserved_dependency(dep_name)
-                elif dep_name in scheduler._dependency_cache:
-                    deps[dep_name] = scheduler._dependency_cache[dep_name]
-                else:
-                    raise ValueError(f"依赖未就绪: {key} -> {dep_name}（请先执行 {dep_name}）")
-            if force:
-                deps["_execution"] = {"force_refresh": True}
-            handler.context["retain_results"] = mappings.is_dependency_for_downstream(key)
-            result = call_with_status(
-                run_status,
-                handler,
-                lambda handler=handler, deps=deps: handler.execute(deps),
-            )
-            if mappings.is_dependency_for_downstream(key):
-                if result and "data" in result:
-                    scheduler._dependency_cache[key] = result["data"]
-            total_s = time.perf_counter() - started
-            timing = getattr(handler, "_last_run_timing", None) or {}
-            execute_s = timing.get("execute", total_s)
-            print(
-                f"完成: {key}，执行耗时：{format_run_seconds(execute_s)}，"
-                f"总任务耗时：{format_run_seconds(total_s)}",
-                flush=True,
-            )
-            logger.info(
-                "完成: %s，执行耗时：%s，总任务耗时：%s",
-                key,
-                format_run_seconds(execute_s),
-                format_run_seconds(total_s),
-            )
+        try:
+            for idx, handler in enumerate(sorted_handlers):
+                key = handler.get_key()
+                mode = handler.renew_mode_label(force=force)
+                started = time.perf_counter()
+                print(f"执行数据源 [{idx + 1}/{total}]: {key} - 执行模式：{mode}", flush=True)
+                logger.info("执行数据源 [%s/%s]: %s 执行模式：%s", idx + 1, total, key, mode)
+                scheduler.begin_source(key)
+                try:
+                    deps: Dict[str, Any] = {}
+                    for dep_name in mappings.get_depend_on_data_source_names(key):
+                        if dep_name in RESERVED_DEPENDENCY_KEYS:
+                            deps[dep_name] = resolve_reserved_dependency(dep_name)
+                        elif dep_name in scheduler._dependency_cache:
+                            deps[dep_name] = scheduler._dependency_cache[dep_name]
+                        else:
+                            raise ValueError(f"依赖未就绪: {key} -> {dep_name}（请先执行 {dep_name}）")
+                    if force:
+                        deps["_execution"] = {"force_refresh": True}
+                    handler.context["retain_results"] = mappings.is_dependency_for_downstream(key)
+                    result = call_with_status(
+                        run_status,
+                        handler,
+                        lambda handler=handler, deps=deps: handler.execute(deps),
+                    )
+                    if mappings.is_dependency_for_downstream(key):
+                        if result and "data" in result:
+                            scheduler._dependency_cache[key] = result["data"]
+                    total_s = time.perf_counter() - started
+                    timing = getattr(handler, "_last_run_timing", None) or {}
+                    execute_s = timing.get("execute", total_s)
+                    print(
+                        f"完成: {key}，执行耗时：{format_run_seconds(execute_s)}，"
+                        f"总任务耗时：{format_run_seconds(total_s)}",
+                        flush=True,
+                    )
+                    logger.info(
+                        "完成: %s，执行耗时：%s，总任务耗时：%s",
+                        key,
+                        format_run_seconds(execute_s),
+                        format_run_seconds(total_s),
+                    )
+                    scheduler.finish_source(key)
+                except Exception as exc:
+                    scheduler.fail_source(key, exc)
+                    raise
 
-        scheduler._retry_failed_data_sources()
+            scheduler._retry_failed_data_sources()
+            scheduler.close_progress()
+        except Exception as exc:
+            scheduler.fail_progress(exc)
+            raise
 
     def _flush_cache(self):
         self._all_valid_configs_cache.clear()
@@ -325,23 +383,40 @@ class DataSourceManager:
         return HandlerMapping(data_sources=mapping)
 
 
+    def _ensure_data_manager(self) -> DataManager:
+        """表结构要从 DataManager 读。单例还没建好时先等它初始化完。"""
+        dm = DataManager.get_instance()
+        if dm is None:
+            dm = DataManager(is_verbose=False)
+        if not getattr(dm, "_initialized", False):
+            dm.initialize()
+        return dm
+
     def _discover_handlers(self, mappings: HandlerMapping, providers: Dict[str, BaseProvider]) -> List[BaseHandler]:
         handler_instances = []
+        self._handler_skip_reasons = {}
 
         for data_source_key in mappings.get_enabled().keys():
             config = self._discover_config(data_source_key)
             if config is None:
-                logger.error(f"Data source config {data_source_key} 没有找到，跳过")
+                reason = f"{data_source_key}：没有找到 settings"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             schema = self._get_schema_for_handler(config)
             if not schema:
-                logger.error(f"Data source {data_source_key} 无法从绑定表加载 schema，跳过")
+                table_name = config.get_table_name() or ""
+                reason = f"{data_source_key}：无法加载表 {table_name} 的结构"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             handler_cls = self._discover_handler(data_source_key, mappings)
             if not handler_cls:
-                logger.error(f"Data source handler {data_source_key} 没有找到，跳过")
+                reason = f"{data_source_key}：没有找到 handler"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             handler_instance = DataSourceManagerHelper.create_handler_instance(
@@ -353,7 +428,9 @@ class DataSourceManager:
                 mappings.get_depend_on_data_source_names(data_source_key),
             )
             if not handler_instance:
-                logger.error(f"Data source handler instance {data_source_key} 创建失败，跳过")
+                reason = f"{data_source_key}：handler 创建失败"
+                logger.error("Data source %s", reason)
+                self._handler_skip_reasons[data_source_key] = reason
                 continue
 
             handler_instances.append(handler_instance)
@@ -368,8 +445,11 @@ class DataSourceManager:
         if not table_name:
             return None
         try:
-            data_manager = DataManager.get_instance()
+            data_manager = self._ensure_data_manager()
             model = data_manager.get_table(table_name)
+            if not model:
+                data_manager._discover_tables()
+                model = data_manager.get_table(table_name)
             if not model:
                 logger.warning(f"表 '{table_name}' 未注册，无法加载 schema")
                 return None

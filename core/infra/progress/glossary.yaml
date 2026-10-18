@@ -1,0 +1,40 @@
+# Progress 术语表
+# Version: 0.2.0
+#
+# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
+
+terms:
+  Node:
+    definition: "一份进度。根节点和 steps 里的每一项都是这种结构。"
+    aliases:
+      - "进度节点"
+    avoid:
+      - "把步骤做成另一种字段更少的结构"
+
+  Root:
+    definition: "一次任务的最外层节点。一个根节点对应一个进度文件。"
+    aliases:
+      - "根节点"
+    avoid:
+      - "模块"
+
+  Leaf:
+    definition: "steps 为空的节点。它的 ratio 来自 done / total。"
+    aliases:
+      - "叶子"
+    avoid:
+      - "在有子节点的节点上调用 tick"
+
+  Ratio:
+    definition: "0 到 1 的进度。有子节点时按 weight 汇总；叶子用 done / total。完成时为 1。"
+    aliases:
+      - "比例"
+    avoid:
+      - "由界面再算一遍权重"
+
+  Weight:
+    definition: "节点相对同级节点的权重。省略时是 1。0 表示不推动父节点的 ratio。"
+    aliases:
+      - "权重"
+    avoid:
+      - "把 0 当成没这个节点的状态"

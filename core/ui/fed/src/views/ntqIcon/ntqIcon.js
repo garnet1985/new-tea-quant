@@ -62,7 +62,7 @@ NtqIcon.propTypes = {
   size: PropTypes.number,
   className: PropTypes.string,
   spin: PropTypes.bool,
-  tone: PropTypes.oneOf(['muted', 'success', 'error', 'warning', 'disabled', '']),
+  tone: PropTypes.oneOf(['muted', 'success', 'error', 'warning', 'disabled', 'cyan', '']),
   title: PropTypes.string,
   style: PropTypes.object,
 };

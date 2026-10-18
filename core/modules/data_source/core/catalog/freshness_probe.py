@@ -10,7 +10,6 @@ from core.modules.data_source.core.data_class.config import DataSourceConfig
 from core.modules.data_source.core.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.core.service.date_range.date_range_service import needs_renew_work
 from core.modules.data_manager import DataManager
-from core.modules.data_source.core.service.renew.renew_common_helper import RenewCommonHelper
 
 
 def _format_yyyy_mm_dd(value: str) -> str:
@@ -49,26 +48,13 @@ def get_data_end_meta_light() -> Dict[str, Any]:
 
 def _resolve_freshness_end_date(data_manager) -> str:
     """
-    Effective renew/freshness end date.
+    计划和“是否还要更新”共用的截止数据日。
 
-    When ``data.json`` sets ``as_of_latest_completed_trading_date``, align to the last
-    open trading day on or before that date (via ``sys_data_trade_calendar``). Raw as-of can
-    fall on a non-trading day (e.g. 20260101), which would otherwise mark caught-up DB
-    rows as stale.
+    data.json 的 as_of 先落到该日或之前最近的开市日，再被会员能拿到的最后一天挡住。
     """
-    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
-    if configured_as_of:
-        if data_manager and getattr(data_manager, "service", None):
-            try:
-                derived = data_manager.service.calendar._derive_completed_from_trade_calendar(
-                    as_of_date=configured_as_of
-                )
-                if derived:
-                    return derived
-            except Exception:
-                pass
-        return str(configured_as_of).strip()
-    return RenewCommonHelper.resolve_latest_completed_trading_date(data_manager)
+    from core.modules.data_source.core.service.renew_progress import resolve_uptodate_day
+
+    return resolve_uptodate_day(data_manager)
 
 
 def get_data_end_meta(data_manager) -> Dict[str, Any]:
@@ -107,6 +93,11 @@ def _build_freshness_context(
         elif dep == "index_list":
             try:
                 dependencies[dep] = data_manager.index.load_list(sync_from_config=False)
+            except Exception:
+                dependencies[dep] = []
+        elif dep == "sw_industry":
+            try:
+                dependencies[dep] = data_manager.sw.load_quote_list() or []
             except Exception:
                 dependencies[dep] = []
 

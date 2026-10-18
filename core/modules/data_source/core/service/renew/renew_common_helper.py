@@ -24,7 +24,7 @@ class RenewCommonHelper:
 
     @staticmethod
     def resolve_latest_completed_trading_date(data_manager) -> str:
-        if not data_manager or not getattr(data_manager, "service", None):
+        if not data_manager or not getattr(data_manager, "_data_service", None):
             return ""
         try:
             return str(

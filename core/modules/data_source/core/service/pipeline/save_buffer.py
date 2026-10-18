@@ -52,9 +52,10 @@ class DataSourceSaveBuffer:
             self._budget.observe(nbytes)
             self._budget.warn_if_frame_exceeds(nbytes)
             cap = self._budget.buffer_cap
-            if self._frames and self._bytes + nbytes > cap:
+            pressured = self._budget.over_rss()
+            if self._frames and (self._bytes + nbytes > cap or pressured):
                 self._flush()
-            if nbytes > cap or cap <= 0:
+            if nbytes > cap or cap <= 0 or pressured:
                 self._write([frame], bundles=1 if not self._frames else 0)
                 continue
             self._frames.append(frame)
@@ -77,10 +78,13 @@ class DataSourceSaveBuffer:
         self._write(frames, bundles=count)
 
     def _write(self, frames: List[pd.DataFrame], *, bundles: int) -> None:
+        row_count = sum(len(frame) for frame in frames if frame is not None)
         try:
             self._save_frames(self._context, frames)
         finally:
             self._budget.note_rss()
-            if self._bundle_progress is not None and bundles:
+            if self._bundle_progress is not None and row_count:
+                self._bundle_progress.add_saved(row_count)
+            elif self._bundle_progress is not None and bundles:
                 self._bundle_progress.add_saved(bundles)
             checkpoint_after_batch_save(self._context)

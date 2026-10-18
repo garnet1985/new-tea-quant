@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { useFakeProgress } from 'service/progress/useFakeProgress';
+import { progressRatio } from 'service/progress/ratio';
 import {
   fakeProgressTickSize,
   setupFakeProgressBounds,
@@ -30,7 +31,7 @@ function SetupProgressBar({
     ? setupWeightedPercent(definition, {
       completedIds,
       runningStepId: 'import_data',
-      withinStepRatio: Number(importProgress.percent || 0) / 100,
+      withinStepRatio: progressRatio(importProgress.ratio),
     })
     : 0;
   const shownPercent = flowStage === 'success'

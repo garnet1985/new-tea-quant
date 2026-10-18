@@ -238,15 +238,16 @@ class BaseHandler:
         if group_by_entity_list_name == "stock_list":
             # 优先使用 context 中的 stock_list（handler 可能在 on_prepare_context 中修改了）
             if "stock_list" in self.context:
-                entity_list = self.context["stock_list"]
-                return DataManager.sample_universe.slice_stock_list(entity_list or [])
-
-            # 回退到 dependencies
-            deps = self.context.get("dependencies") or {}
-            entity_list = deps.get("stock_list")
-            if entity_list is None:
-                return []
-            return DataManager.sample_universe.slice_stock_list(entity_list or [])
+                entity_list = self.context["stock_list"] or []
+            else:
+                deps = self.context.get("dependencies") or {}
+                entity_list = deps.get("stock_list")
+                if entity_list is None:
+                    return []
+                entity_list = entity_list or []
+            if _is_official_sync(config):
+                return entity_list
+            return DataManager.sample_universe.slice_stock_list(entity_list)
         if group_by_entity_list_name:
             # 其他 list 名（如 index_list）：从 dependencies 或 context 获取，由 handler 在 on_prepare_context 中注入
             deps = self.context.get("dependencies") or {}
@@ -387,7 +388,8 @@ class BaseHandler:
     def _inject_dependencies(self, dependencies_data):
         """注入依赖数据；无依赖时设为空字典，避免后续 .get 报错。"""
         deps = dependencies_data if dependencies_data is not None else {}
-        deps = DataManager.sample_universe.slice_stock_list_in_dependencies(deps)
+        if not _is_official_sync(self.context.get("config")):
+            deps = DataManager.sample_universe.slice_stock_list_in_dependencies(deps)
         self.context["dependencies"] = deps
         exec_meta = deps.get("_execution")
         self.context["force_refresh"] = (
@@ -619,31 +621,40 @@ class BaseHandler:
 
     def _save_frames(self, context: Dict[str, Any], frames: List[Any]) -> None:
         """按固定行数把多张表写成记录，不把整个缓冲区合成一张表或一份字典。"""
+        from core.modules.data_source.core.hooks.base import DataSourceHooks
         from core.modules.data_source.core.service.pipeline.frame_mapping import (
             WRITE_CHUNK_ROWS,
+            iter_record_chunks,
             records_from_frame,
         )
 
         if context.get("is_dry_run") or not frames:
             return
-        pending: List[Dict[str, Any]] = []
-
-        def flush_pending() -> None:
-            if not pending:
+        # 名单、行业、日历会在保存前改写或清空整表，必须看到这一批的全部行。
+        # K 线没有这个钩子，按块展开，避免落库时再复制一整块缓冲。
+        if type(self.hooks).on_before_save is not DataSourceHooks.on_before_save:
+            rows: List[Dict[str, Any]] = []
+            for frame in frames:
+                if frame is None or getattr(frame, "empty", True):
+                    continue
+                rows.extend(records_from_frame(frame))
+            if not rows:
                 return
-            rows = list(pending)
-            pending.clear()
-            self.hooks.save_record_chunk(context, rows)
-
-        for frame in frames:
+            resolved = self.hooks.on_before_save(context, {"data": rows})
+            if resolved is not None:
+                rows = list(resolved.get("data") or [])
+            if not rows:
+                return
+            for start in range(0, len(rows), WRITE_CHUNK_ROWS):
+                self.hooks.save_record_chunk(context, rows[start : start + WRITE_CHUNK_ROWS])
+            return
+        for index, frame in enumerate(frames):
             if frame is None or getattr(frame, "empty", True):
+                frames[index] = None
                 continue
-            total = len(frame)
-            for start in range(0, total, WRITE_CHUNK_ROWS):
-                pending.extend(records_from_frame(frame.iloc[start : start + WRITE_CHUNK_ROWS]))
-                if len(pending) >= WRITE_CHUNK_ROWS:
-                    flush_pending()
-        flush_pending()
+            for chunk in iter_record_chunks(frame):
+                self.hooks.save_record_chunk(context, chunk)
+            frames[index] = None
 
     def _extract_normalized_rows_for_bundle(
         self,

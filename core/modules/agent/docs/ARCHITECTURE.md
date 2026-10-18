@@ -2,7 +2,7 @@
 
 **版本：** `0.1.0`
 
-`modules.agent` 执行模型点名的 NTQ 工具。供应商、密钥和 HTTP 留在 `modules.assistant`。本版只建立清单和写入准则，不调用模型。
+`modules.agent` 执行模型点名的 NTQ 工具。供应商、密钥和 HTTP 留在 `modules.assistant`。本版已实现新建、写入、校验，以及枚举、价格、资金、完整回测、三层归因和滚动对照的后台启动。运行循环尚未接通模型。
 
 ---
 
@@ -32,8 +32,17 @@ core/modules/agent/
 ├── core/
 │   ├── agent_manager.py     # 编排层（不导出）
 │   ├── tool_catalog.py      # 工具清单
+│   ├── tool_runner.py       # 按名字执行已实现的工具
 │   ├── policy.py            # 写入准则
-│   └── run_loop.py          # 循环（尚未接通模型，不导出）
+│   ├── run_loop.py          # 循环（尚未接通模型，不导出）
+│   └── tools/
+│       ├── _strategy_key.py
+│       ├── background_run.py
+│       ├── create_strategy.py
+│       ├── read_reports.py
+│       ├── task_record.py
+│       ├── validate_strategy.py
+│       └── write_strategy_files.py
 ├── API.md / QUICKSTART.md / glossary.yaml
 ├── __test__/
 └── docs/

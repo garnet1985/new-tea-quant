@@ -113,6 +113,8 @@ devbackup/
 *.log
 logs/
 tools/
+!core/modules/agent/core/tools/
+!core/modules/agent/core/tools/**
 experiments/
 
 ########################

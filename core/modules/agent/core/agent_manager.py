@@ -1,11 +1,12 @@
-"""编排层：目前只交出工具清单。循环在 RunLoop，门面不导出。"""
+"""编排层：交出工具清单，并执行已实现的工具。"""
 
 from __future__ import annotations
 
-from typing import List
+from typing import Any, Dict, List
 
 from core.modules.agent.contracts import ToolSpec
 from core.modules.agent.core.tool_catalog import ToolCatalog
+from core.modules.agent.core.tool_runner import run_tool
 
 
 class AgentManager:
@@ -16,3 +17,8 @@ class AgentManager:
 
     def list_tools(self) -> List[ToolSpec]:
         return self._catalog.list_tools()
+
+    def call_tool(
+        self, name: str, arguments: Dict[str, Any] | None = None
+    ) -> Dict[str, Any]:
+        return run_tool(self._catalog, name, arguments)

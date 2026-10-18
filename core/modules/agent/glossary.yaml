@@ -13,7 +13,7 @@ terms:
       - "deep-import core.policy"
 
   Agent:
-    definition: "本模块门面类。本版公开静态方法只有 list_tools。"
+    definition: "本模块门面类。公开静态方法 list_tools、call_tool。"
     aliases:
       - "agent"
     avoid:

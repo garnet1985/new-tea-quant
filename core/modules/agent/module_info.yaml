@@ -5,9 +5,17 @@ package: core.modules
 description: "AI agent：登记工具、约束写入范围，并按模型的调用单在本机执行。"
 dependencies:
   - infra.project_context
+  - modules.strategy
+  - modules.cli
+  - infra.task_guard
 changelog:
   - version: "0.1.0"
     changes:
       - 初始化模块骨架：门面 Agent、工具清单、userspace 写入准则
       - 包根只导出 Agent；运行循环尚未接通模型
       - 模型通道留给 modules.assistant，本模块不 deep-import 其客户端
+      - create_strategy 已实现：检查目录名与是否存在，复制空模板并写入 meta.key
+      - write_strategy_files 覆盖已有策略的两个文件；validate_strategy 加载钩子和 settings
+      - start_enumerate 校验通过后在后台启动枚举，立刻返回任务 id
+      - 同样后台启动价格回测、资金模拟、完整回测、三层归因和滚动对照
+      - 读取进度、执行报告摘要和归因报告摘要

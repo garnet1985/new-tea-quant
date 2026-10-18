@@ -2,13 +2,13 @@
 
 **模块：** `modules.agent` · **版本：** `0.1.0`
 
-查看已登记、尚未实现的工具。
+查看工具清单，或直接新建一个空策略。
 
 ---
 
 ## 前置条件
 
-无。本版不读取 API Key，也不发网络请求。
+新建策略需要 `userspace/strategies/_template/empty_strategy/`。本版不读取 API Key，也不发网络请求。
 
 ---
 
@@ -19,9 +19,11 @@ from core.modules.agent import Agent
 
 for tool in Agent.list_tools():
     print(tool.name, tool.implemented)
+
+Agent.call_tool("create_strategy", {"key": "macd_cross"})
 ```
 
-**预期结果：** 打印 6 个工具名，`implemented` 均为 `False`。
+**预期结果：** 打印工具名。`create_strategy` 为 `True`，其余为 `False`。调用后在 `userspace/strategies/macd_cross/` 出现空策略，`meta.key` 为 `macd_cross`。目录已存在时返回 `ok: false`，不覆盖。
 
 ---
 
@@ -29,7 +31,3 @@ for tool in Agent.list_tools():
 
 - [API.md](./API.md)
 - [设计](./docs/DESIGN.md)
-
-```bash
-python3 -m pytest core/modules/agent/__test__/ core/modules/agent/core/__test__/ -q
-```

@@ -13,7 +13,7 @@
 
 ## Agent
 
-**描述：** AI agent 门面（静态 API）。本版只列出工具，不执行。
+**描述：** AI agent 门面（静态 API）。列出工具，并执行已实现的调用单。运行循环尚未接通模型。
 
 ### list_tools
 
@@ -31,6 +31,31 @@
 from core.modules.agent import Agent
 
 names = [tool.name for tool in Agent.list_tools()]
+```
+
+### call_tool
+
+`Agent.call_tool(name: str, arguments: dict | None = None) -> dict`
+
+- **类型：** `static`
+- **状态：** `experimental`
+- **引入版本：** `0.1.0`
+- **描述：** 执行一张调用单。未知工具或尚未实现时抛 `AgentError`。工具自己的失败（例如目录已存在）放在返回值的 `ok: false` 里
+- **参数：**
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| `name` | `str` | 工具名，须在 `list_tools` 中 |
+| `arguments` (可选) | `dict \| None` | 该工具的参数；缺省为 `{}` |
+
+- **返回值：** `dict` — 给模型的摘要，不含绝对路径
+- **错误与异常：** `AgentError` — 未知工具、工具尚未实现、参数不是对象
+- **举例：**
+
+```python
+from core.modules.agent import Agent
+
+Agent.call_tool("create_strategy", {"key": "macd_cross"})
 ```
 
 ---

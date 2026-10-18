@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.modules.agent.core.tools._strategy_key import (
+from core.modules.agent.core.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
 )

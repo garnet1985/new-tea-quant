@@ -60,20 +60,21 @@ Agent.call_tool("create_strategy", {"key": "macd_cross"})
 
 ### run
 
-`Agent.run(content: str) -> str`
+`Agent.run(content: str, *, session_id: Optional[str] = None) -> str`
 
 - **类型：** `static`
 - **状态：** `experimental`
 - **引入版本：** `0.1.0`
-- **描述：** 把用户的一句话和已实现工具的说明发给 `Assistant.complete`。供应商固定为会员通道 `ntq`，模型由官网定为 `glm-4-flash`。模型用 JSON 交出调用单时本机执行。启动回测或扫描后会等到任务结束，再把摘要送回。一轮最多 10 次模型调用
+- **描述：** 先用免费模型判断回答还是做事。回答直接返回；做事交给本机 `deepseek-flash` 带工具执行。启动回测或扫描后会等到任务结束。写入默认会话的 transcript 与 state。一轮最多 10 次模型调用
 - **参数：**
 
 | 名字 | 类型 | 说明 |
 |------|------|------|
 | `content` | `str` | 用户需求；空白则失败 |
+| `session_id` (可选) | `str \| None` | 会话名，默认 `default` |
 
 - **返回值：** `str` — 给人看的回复
-- **错误与异常：** `AgentError` — 消息为空、会员通道失败、调用次数用尽、工具名未知
+- **错误与异常：** `AgentError` — 消息为空、模型通道失败、调用次数用尽、工具名未知
 - **举例：**
 
 ```python
@@ -81,6 +82,26 @@ from core.modules.agent import Agent
 
 print(Agent.run("读一下 demo/regression/rsi/rsi_v1_baseline 的枚举报告，不要回测"))
 ```
+
+### clear_session
+
+`Agent.clear_session(session_id: Optional[str] = None) -> None`
+
+- **类型：** `static`
+- **状态：** `experimental`
+- **引入版本：** `0.1.0`
+- **描述：** 清空会话对话与局部任务状态。不清除跨会话偏好，也不删除策略或报告
+
+### remember / forget / list_preferences
+
+`Agent.remember(rule: str) -> list[str]`  
+`Agent.forget(rule: str) -> list[str]`  
+`Agent.list_preferences() -> list[str]`
+
+- **类型：** `static`
+- **状态：** `experimental`
+- **引入版本：** `0.1.0`
+- **描述：** 读写跨会话偏好（`userspace/.ntq/agent/preferences.json`）
 
 ---
 

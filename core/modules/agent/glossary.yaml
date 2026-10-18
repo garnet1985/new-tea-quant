@@ -13,7 +13,7 @@ terms:
       - "deep-import core.policy"
 
   Agent:
-    definition: "本模块门面类。公开静态方法 list_tools、call_tool、run。"
+    definition: "本模块门面类。公开静态方法 list_tools、call_tool、run、clear_session、remember、forget、list_preferences。"
     aliases:
       - "agent"
     avoid:
@@ -29,11 +29,18 @@ terms:
       - "把可执行函数放进返回值"
 
   RunLoop:
-    definition: "内部循环：把工具清单写进提示，经 Assistant.complete 取 JSON 调用单，执行后把摘要送回。不对外导出。"
+    definition: "内部循环：先免费模型判断回答或交接，做事时经 deepseek-flash 取 JSON 调用单并执行。不对外导出。"
     aliases:
       - "运行循环"
     avoid:
       - "从包根 import RunLoop"
+
+  SessionStore:
+    definition: "会话落盘：跨会话 preferences，会话内 transcript 与局部 state。不对外导出。"
+    aliases:
+      - "会话记录"
+    avoid:
+      - "把工具 JSON 全文写入 transcript"
 
   写入准则:
     definition: "工具写文件前的硬检查。只允许 strategies/、extensions/tags/、extensions/adapters/ 下的相对路径。"

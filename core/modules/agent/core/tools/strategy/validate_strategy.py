@@ -14,7 +14,7 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 from core.modules.strategy.core.services.discovery.hooks_loader import (
     StrategyHooksLoader,
 )
-from core.modules.agent.core.tools._strategy_key import (
+from core.modules.agent.core.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
 )

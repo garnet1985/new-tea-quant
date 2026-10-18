@@ -34,15 +34,17 @@ core/modules/agent/
 │   ├── tool_catalog.py      # 工具清单
 │   ├── tool_runner.py       # 按名字执行已实现的工具
 │   ├── policy.py            # 写入准则
-│   ├── run_loop.py          # 循环（不导出；经 Assistant.complete）
+│   ├── session_store.py     # 会话记录、局部状态、跨会话偏好
+│   ├── run_loop.py          # 门 + 做事循环（不导出；经 Assistant.complete）
 │   └── tools/
-│       ├── _strategy_key.py
-│       ├── background_run.py
-│       ├── create_strategy.py
-│       ├── read_reports.py
-│       ├── task_record.py
-│       ├── validate_strategy.py
-│       └── write_strategy_files.py
+│       ├── task_record.py          # 各领域共用的任务记录
+│       └── strategy/               # 策略工具；data、tag 以后各自一目录
+│           ├── _strategy_key.py
+│           ├── background_run.py
+│           ├── create_strategy.py
+│           ├── read_reports.py
+│           ├── validate_strategy.py
+│           └── write_strategy_files.py
 ├── API.md / QUICKSTART.md / glossary.yaml
 ├── __test__/
 └── docs/
@@ -54,12 +56,13 @@ core/modules/agent/
 
 ```text
 Caller
-  → Agent.list_tools / call_tool / run
+  → Agent.list_tools / call_tool / run / clear_session / remember
        → AgentManager
             → ToolCatalog
             → Policy          # 写文件的工具实现时调用
+            → SessionStore    # preferences / transcript / state
             → RunLoop
-                 → Assistant.complete   # 会员通道，glm-4-flash
+                 → Assistant.complete   # 门：zhipu 或 ntq；做事：deepseek-flash
 ```
 
 ---
@@ -68,12 +71,13 @@ Caller
 
 ```text
 用户一句话
-  → RunLoop 把工具清单写进系统提示
-  → Assistant.complete（会员凭证，官网选定 glm-4-flash）
+  → 拼偏好 + 局部状态 + 最近几轮
+  → 免费模型判断 reply 或 handoff
+  → 做事时 deepseek-flash + 工具清单
   → JSON 调用单 {tool, arguments}，或 {reply}
-  → 已实现的工具执行
+  → 已实现的工具执行，刷新 state
   → 摘要作为下一条用户消息送回
-  → 人话回复
+  → 人话回复写入 transcript
 ```
 
 ---

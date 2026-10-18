@@ -135,6 +135,8 @@ print(
 | `provider_id` (可选) | `str \| None` | 指定供应商；`ntq` 走会员通道 |
 | `max_tokens` (可选) | `int` | 默认 2048 |
 | `temperature` (可选) | `float` | 默认 0.2 |
+| `timeout_seconds` (可选) | `float \| None` | 覆盖默认超时 |
+| `extra_body` (可选) | `dict \| None` | 并入请求体（如 DeepSeek `thinking`） |
 
 - **返回值：** `ChatResult`
 - **错误与异常：** `AssistantError` — 消息不合法、未装载凭证、请求失败

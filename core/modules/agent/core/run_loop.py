@@ -1,4 +1,4 @@
-"""运行循环。经 Assistant.complete 走会员通道上的 glm-4-flash。
+"""运行循环。先用会员通道 glm-4-flash 判断回答还是做事，做事再交给 deepseek-flash。
 
 官网代理只转发文本，不转发 tools 字段。模型用一个 JSON 对象交出调用单，本机执行后再把摘要送回去。
 """
@@ -8,19 +8,37 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from core.modules.agent.contracts import AgentError
+from core.modules.agent.core.session_store import (
+    append_turn,
+    context_block,
+    default_session_id,
+    recent_turns,
+    update_state_from_tool,
+)
 from core.modules.agent.core.tool_catalog import ToolCatalog
 from core.modules.agent.core.tool_runner import run_tool
-from core.modules.agent.core.tools.read_reports import read_progress
+from core.modules.agent.core.tools.strategy.read_reports import read_progress
 from core.modules.assistant import Assistant
 from core.modules.assistant.contracts import AssistantError
 
 _MAX_STEPS = 10
 _WAIT_SECONDS = 45 * 60
+_WORK_PROVIDER = "deepseek"
+_WORK_EXTRA = {"thinking": {"type": "disabled"}}
+_WORK_TIMEOUT = 120.0
+_GATE_READ_TOOLS = frozenset(
+    {
+        "read_progress",
+        "read_execution_report",
+        "read_attribution_report",
+        "read_scan_report",
+    }
+)
+_GATE_MAX_STEPS = 4
 logger = logging.getLogger(__name__)
-_PROVIDER = "ntq"
 
 
 class RunLoop:
@@ -29,40 +47,168 @@ class RunLoop:
     def __init__(self, catalog: ToolCatalog) -> None:
         self._catalog = catalog
 
-    def run(self, content: str, *, max_steps: int = _MAX_STEPS) -> str:
+    def run(
+        self,
+        content: str,
+        *,
+        max_steps: int = _MAX_STEPS,
+        session_id: Optional[str] = None,
+    ) -> str:
         text = str(content or "").strip()
         if not text:
             raise AgentError("消息不能为空")
         steps = int(max_steps)
         if steps < 1 or steps > _MAX_STEPS:
             raise AgentError(f"一轮最多 {_MAX_STEPS} 次模型调用")
-        messages: List[Dict[str, str]] = [
-            {"role": "system", "content": _system_prompt(self._catalog)},
-            {"role": "user", "content": text},
-        ]
-        for _ in range(steps):
-            raw = _ask(messages)
-            names = {
-                spec.name for spec in self._catalog.list_tools() if spec.implemented
+        sid = str(session_id or "").strip() or default_session_id()
+        memory = _memory_messages(sid)
+        gate_provider = _gate_provider()
+        gate = _gate(
+            self._catalog,
+            text,
+            memory=memory,
+            provider_id=gate_provider,
+            session_id=sid,
+        )
+        if not gate.get("handoff"):
+            reply = str(gate.get("reply") or "").strip()
+            if not reply:
+                raise AgentError("模型没有给出回复")
+            append_turn(
+                user=text,
+                reply=reply,
+                channel=gate_provider,
+                handoff=False,
+                session_id=sid,
+            )
+            return reply
+
+        reply = _work(
+            self._catalog,
+            text,
+            memory=memory,
+            max_steps=steps,
+            session_id=sid,
+        )
+        append_turn(
+            user=text,
+            reply=reply,
+            channel=_WORK_PROVIDER,
+            handoff=True,
+            session_id=sid,
+        )
+        return reply
+
+
+def _memory_messages(session_id: str) -> List[Dict[str, str]]:
+    messages: List[Dict[str, str]] = []
+    block = context_block(session_id)
+    if block:
+        messages.append(
+            {
+                "role": "system",
+                "content": "以下是跨会话偏好和当前任务状态，回答时遵守：\n" + block,
             }
-            decision = _decision(raw, names)
-            tool = decision.get("tool")
-            if not tool:
-                reply = str(decision.get("reply") or "").strip()
-                if not reply:
-                    raise AgentError("模型没有给出回复")
-                return reply
-            result = run_tool(self._catalog, str(tool), decision.get("arguments") or {})
-            if result.get("task_id") and result.get("status") == "running":
-                result = _await_task(result)
+        )
+    messages.extend(recent_turns(session_id))
+    return messages
+
+
+def _gate_provider() -> str:
+    """免费判断优先本机智谱；没有密钥时走会员通道。"""
+    try:
+        zhipu = Assistant.get_provider("zhipu")
+    except Exception:
+        zhipu = None
+    if zhipu is not None and zhipu.enabled and zhipu.has_api_key:
+        return "zhipu"
+    return "ntq"
+
+
+def _gate(
+    catalog: ToolCatalog,
+    text: str,
+    *,
+    memory: List[Dict[str, str]],
+    provider_id: str,
+    session_id: str,
+) -> Dict[str, Any]:
+    messages: List[Dict[str, str]] = [
+        {"role": "system", "content": _gate_prompt(catalog)},
+        *memory,
+        {"role": "user", "content": text},
+    ]
+    for _ in range(_GATE_MAX_STEPS):
+        raw = _ask(messages, provider_id=provider_id)
+        payload = _json_object(raw)
+        if isinstance(payload, dict) and str(
+            payload.get("handoff") or ""
+        ).strip().lower() in {"work", "true", "1"}:
+            return {"handoff": True}
+        decision = _decision(raw, set(_GATE_READ_TOOLS))
+        tool = str(decision.get("tool") or "").strip()
+        if tool:
+            if tool not in _GATE_READ_TOOLS:
+                return {"handoff": True}
+            result = run_tool(catalog, tool, decision.get("arguments") or {})
+            update_state_from_tool(result, session_id)
             messages.append({"role": "assistant", "content": raw.strip()})
             messages.append(
                 {
                     "role": "user",
-                    "content": "工具结果：\n" + json.dumps(result, ensure_ascii=False),
+                    "content": "工具结果：\n"
+                    + json.dumps(result, ensure_ascii=False),
                 }
             )
-        raise AgentError("这一轮调用次数已到上限，已停止")
+            continue
+        reply = str(decision.get("reply") or "").strip()
+        if reply:
+            return {"reply": reply}
+        return {}
+    return {"handoff": True}
+
+
+def _work(
+    catalog: ToolCatalog,
+    text: str,
+    *,
+    memory: List[Dict[str, str]],
+    max_steps: int,
+    session_id: str,
+) -> str:
+    messages: List[Dict[str, str]] = [
+        {"role": "system", "content": _system_prompt(catalog)},
+        *memory,
+        {"role": "user", "content": text},
+    ]
+    names = {spec.name for spec in catalog.list_tools() if spec.implemented}
+    for _ in range(max_steps):
+        raw = _ask(
+            messages,
+            provider_id=_WORK_PROVIDER,
+            max_tokens=4096,
+            timeout_seconds=_WORK_TIMEOUT,
+            extra_body=_WORK_EXTRA,
+        )
+        decision = _decision(raw, names)
+        tool = decision.get("tool")
+        if not tool:
+            reply = str(decision.get("reply") or "").strip()
+            if not reply:
+                raise AgentError("模型没有给出回复")
+            return reply
+        result = run_tool(catalog, str(tool), decision.get("arguments") or {})
+        if result.get("task_id") and result.get("status") == "running":
+            result = _await_task(result)
+        update_state_from_tool(result, session_id)
+        messages.append({"role": "assistant", "content": raw.strip()})
+        messages.append(
+            {
+                "role": "user",
+                "content": "工具结果：\n" + json.dumps(result, ensure_ascii=False),
+            }
+        )
+    raise AgentError("这一轮调用次数已到上限，已停止")
 
 
 def _await_task(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -88,17 +234,47 @@ def _await_task(result: Dict[str, Any]) -> Dict[str, Any]:
     return latest
 
 
-def _ask(messages: List[Dict[str, str]]) -> str:
+def _ask(
+    messages: List[Dict[str, str]],
+    *,
+    provider_id: str,
+    max_tokens: int = 1024,
+    timeout_seconds: Optional[float] = None,
+    extra_body: Optional[Dict[str, Any]] = None,
+) -> str:
     try:
         result = Assistant.complete(
             messages,
-            provider_id=_PROVIDER,
-            max_tokens=4096,
+            provider_id=provider_id,
+            max_tokens=max_tokens,
             temperature=0.2,
+            timeout_seconds=timeout_seconds,
+            extra_body=extra_body,
         )
     except AssistantError as exc:
         raise AgentError(str(exc)) from None
     return result.reply
+
+
+def _gate_prompt(catalog: ToolCatalog) -> str:
+    lines = [
+        "你是 NTQ 的入口判断。只决定这一句是回答、读报告，还是交接去做复杂事。",
+        "每次只输出一个 JSON 对象，不要 Markdown，不要解释。",
+        '直接回答：{"reply":"给人看的话"}',
+        '读已有报告时只能用下面列出的只读工具：{"tool":"工具名","arguments":{...}}',
+        '需要写策略、改代码、校验、回测、归因、滚动对照或扫描时：{"handoff":"work"}',
+        "不要编造收益或股票名单。数字只能来自工具结果。",
+        "用户说「继续」「改一下」且当前任务状态里已有待确认的做事意图时，用 handoff。",
+        "",
+        "只读工具：",
+    ]
+    for spec in catalog.list_tools():
+        if spec.name not in _GATE_READ_TOOLS or not spec.implemented:
+            continue
+        lines.append(
+            f"- {spec.name}：{spec.description} 参数：{_param_text(spec.parameters)}"
+        )
+    return "\n".join(lines)
 
 
 def _system_prompt(catalog: ToolCatalog) -> str:
@@ -200,7 +376,12 @@ def _json_object(text: str) -> Any:
     end = body.rfind("}")
     if start < 0 or end <= start:
         return None
+    candidate = body[start : end + 1]
     try:
-        return json.loads(body[start : end + 1])
+        return json.loads(candidate)
     except json.JSONDecodeError:
-        return None
+        # 模型常在 JSON 字符串里直接换行，压成空格后再试一次
+        try:
+            return json.loads(" ".join(candidate.splitlines()))
+        except json.JSONDecodeError:
+            return None

@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from typing import Any, Dict
 
-from core.modules.agent.core.tools._strategy_key import (
+from core.modules.agent.core.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
 )
@@ -13,9 +13,7 @@ from core.modules.agent.core.tools._strategy_key import (
 _MAX_CHARS = 200_000
 
 
-_CONTRACTS = (
-    "from core.modules.strategy.contracts import Records, StrategyContext, StrategyHooks"
-)
+_CONTRACTS = "from core.modules.strategy.contracts import Records, StrategyContext, StrategyHooks"
 
 
 def _normalize_strategy(body: str) -> str:

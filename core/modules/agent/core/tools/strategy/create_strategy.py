@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from core.infra.project_context import ProjectContext
-from core.modules.agent.core.tools._strategy_key import (
+from core.modules.agent.core.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
 )

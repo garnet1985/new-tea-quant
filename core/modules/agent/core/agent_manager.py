@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from core.modules.agent.contracts import ToolSpec
 from core.modules.agent.core.run_loop import RunLoop
+from core.modules.agent.core.session_store import (
+    clear_session,
+    default_session_id,
+    forget_preference,
+    load_preferences,
+    remember_preference,
+)
 from core.modules.agent.core.tool_catalog import ToolCatalog
 from core.modules.agent.core.tool_runner import run_tool
 
@@ -24,5 +31,17 @@ class AgentManager:
     ) -> Dict[str, Any]:
         return run_tool(self._catalog, name, arguments)
 
-    def run(self, content: str) -> str:
-        return RunLoop(self._catalog).run(content)
+    def run(self, content: str, *, session_id: Optional[str] = None) -> str:
+        return RunLoop(self._catalog).run(content, session_id=session_id)
+
+    def clear_session(self, session_id: Optional[str] = None) -> None:
+        clear_session(session_id or default_session_id())
+
+    def list_preferences(self) -> List[str]:
+        return load_preferences()
+
+    def remember(self, rule: str) -> List[str]:
+        return remember_preference(rule)
+
+    def forget(self, rule: str) -> List[str]:
+        return forget_preference(rule)

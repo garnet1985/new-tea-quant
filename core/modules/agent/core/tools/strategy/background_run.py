@@ -11,12 +11,12 @@ from typing import Any, Callable, Dict
 from core.infra.project_context import ProjectContext
 from core.infra.task_guard import TaskGuard
 from core.infra.task_guard.contracts import TaskLeaseBusyError
-from core.modules.agent.core.tools._strategy_key import (
+from core.modules.agent.core.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
 )
 from core.modules.agent.core.tools.task_record import write_task
-from core.modules.agent.core.tools.validate_strategy import validate_strategy
+from core.modules.agent.core.tools.strategy.validate_strategy import validate_strategy
 from core.modules.strategy import Strategy
 from core.modules.strategy.core.services.progress import (
     ATTRIBUTE_PIPELINE,

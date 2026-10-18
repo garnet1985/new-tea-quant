@@ -27,15 +27,21 @@ class OpenAICompatibleClient:
         timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
         max_tokens: int = _DEFAULT_MAX_TOKENS,
         temperature: float = 0.7,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> str:
         """发送 messages，返回助手文本。失败抛 ``AssistantError``（不含密钥）。"""
         url = _completions_url(base_url)
-        payload = {
+        payload: Dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": int(max_tokens),
             "temperature": float(temperature),
         }
+        if isinstance(extra_body, dict):
+            for key, value in extra_body.items():
+                if key in {"model", "messages", "max_tokens", "temperature"}:
+                    continue
+                payload[key] = value
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             url,

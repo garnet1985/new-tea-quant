@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.modules.assistant.contracts import ChatResult, ProviderInfo
 from core.modules.assistant.core.assistant_manager import AssistantManager
@@ -47,6 +47,8 @@ class Assistant:
         provider_id: Optional[str] = None,
         max_tokens: int = 2048,
         temperature: float = 0.2,
+        timeout_seconds: Optional[float] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
         """按给定消息做一次补全。不注入百科。未指定供应商且已装载通用凭证时走官网。"""
         return Assistant._manager.complete(
@@ -54,6 +56,8 @@ class Assistant:
             provider_id=provider_id,
             max_tokens=max_tokens,
             temperature=temperature,
+            timeout_seconds=timeout_seconds,
+            extra_body=extra_body,
         )
 
 

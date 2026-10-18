@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.assistant.contracts import AssistantError, ChatResult, ProviderInfo
 from core.modules.assistant.core.context_library import (
@@ -157,19 +157,25 @@ class AssistantManager:
         provider_id: Optional[str] = None,
         max_tokens: int = 2048,
         temperature: float = 0.2,
+        timeout_seconds: Optional[float] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatResult:
         """按给定消息做一次补全。不注入百科，也不挑选文档。"""
         cleaned = _completion_messages(messages)
         route = self._route(provider_id)
+        kwargs: Dict[str, Any] = {
+            "base_url": route["base_url"],
+            "api_key": route["api_key"],
+            "model": route["model"],
+            "messages": cleaned,
+            "max_tokens": int(max_tokens),
+            "temperature": float(temperature),
+            "extra_body": extra_body,
+        }
+        if timeout_seconds is not None:
+            kwargs["timeout_seconds"] = float(timeout_seconds)
         try:
-            reply = self._client.complete(
-                base_url=route["base_url"],
-                api_key=route["api_key"],
-                model=route["model"],
-                messages=cleaned,
-                max_tokens=int(max_tokens),
-                temperature=float(temperature),
-            )
+            reply = self._client.complete(**kwargs)
         except AssistantError as exc:
             if route["via"] == "member":
                 raise AssistantError(_member_error(str(exc))) from None

@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict
 
 from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.tool_catalog import ToolCatalog
-from core.modules.agent.core.tools.background_run import (
+from core.modules.agent.core.tools.strategy.background_run import (
     start_attribute_enumerate,
     start_attribute_portfolio,
     start_attribute_price,
@@ -17,15 +17,17 @@ from core.modules.agent.core.tools.background_run import (
     start_scan,
     start_simulate,
 )
-from core.modules.agent.core.tools.create_strategy import create_strategy
-from core.modules.agent.core.tools.read_reports import (
+from core.modules.agent.core.tools.strategy.create_strategy import create_strategy
+from core.modules.agent.core.tools.strategy.read_reports import (
     read_attribution_report,
     read_execution_report,
     read_progress,
     read_scan_report,
 )
-from core.modules.agent.core.tools.validate_strategy import validate_strategy
-from core.modules.agent.core.tools.write_strategy_files import write_strategy_files
+from core.modules.agent.core.tools.strategy.validate_strategy import validate_strategy
+from core.modules.agent.core.tools.strategy.write_strategy_files import (
+    write_strategy_files,
+)
 
 _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "create_strategy": create_strategy,

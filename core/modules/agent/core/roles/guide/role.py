@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.modules.agent.core.gate import patterns as gate_patterns
+from core.modules.agent.core.navigator import patterns as nav_patterns
 from core.modules.agent.core.loop_runtime import ask, decision, json_object, usable_reply
 from core.modules.agent.core.roles.guide.docs import load_allowlisted_docs
 from core.modules.agent.core.roles.guide.prompt import (
@@ -29,7 +29,7 @@ def run_encyclopedia(
     provider_id: str,
     billing: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """BYOK / 轻问答：门禁后拼说明书，无工具。"""
+    """拼说明书轻问答（无工具循环）；通道无关。"""
     from core.modules.agent.core.knowledge.stitch import build_encyclopedia_messages
 
     def _pick(messages: List[Dict[str, str]]) -> str:
@@ -88,7 +88,7 @@ def run_architecture(
         max_tokens=1600,
     )
     reply = usable_reply(raw) or str(raw or "").strip()
-    if reply and gate_patterns.has_brand_leak(reply):
+    if reply and nav_patterns.has_brand_leak(reply):
         reply = (
             "NTQ 是 New Tea Quant（新茶）的量化回测产品。"
             "下面按公开架构说明；细节以说明书为准。\n\n" + reply
@@ -148,7 +148,7 @@ def run_wiki(
             )
             continue
         reply = usable_reply(chosen.get("reply"))
-        if reply and gate_patterns.has_brand_leak(reply):
+        if reply and nav_patterns.has_brand_leak(reply):
             logger.warning("guide wiki reply rejected for brand leak")
             messages.append({"role": "assistant", "content": raw.strip() or "{}"})
             messages.append(
@@ -163,7 +163,7 @@ def run_wiki(
                 }
             )
             continue
-        if reply and gate_patterns.FABRICATED_STRATEGY_RE.search(reply):
+        if reply and nav_patterns.FABRICATED_STRATEGY_RE.search(reply):
             logger.warning("guide wiki reply rejected for fabricated strategy labels")
             messages.append({"role": "assistant", "content": raw.strip() or "{}"})
             messages.append(

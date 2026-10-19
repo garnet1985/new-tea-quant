@@ -65,7 +65,7 @@ Agent.call_tool("create_strategy", {"key": "macd_cross"})
 - **类型：** `static`
 - **状态：** `experimental`
 - **引入版本：** `0.1.0`
-- **描述：** 经会员通道 `ntq`（auto）判断回答还是做事，本机执行工具并写会话。启动回测或扫描后会等到任务结束。一轮最多 14 次模型调用。开发可设 `NTQ_AGENT_OWN_KEYS=1` 使用本机密钥
+- **描述：** 锁定 Provider（`ntq` 或某一个自备）后，Navigator 分流再进 guide/worker；全程同一 `provider_id` 出站。`ntq` 打 Website（模型调度与猫粮在远端）；自备 key 不计 NTQ 用量。一轮最多 14 次模型调用。开发可设 `NTQ_AGENT_OWN_KEYS=1`（默认本机 deepseek）；Navigator 对照臂可设 `NTQ_AGENT_NAVIGATOR_MODE=regex`
 - **参数：**
 
 | 名字 | 类型 | 说明 |

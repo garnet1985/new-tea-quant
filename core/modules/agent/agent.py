@@ -32,7 +32,7 @@ class Agent:
         session_id: Optional[str] = None,
         provider_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """经门禁与角色循环处理一句消息。默认会员 ``ntq``；也可传本机 ``provider_id``（BYOK）。
+        """锁定 Provider → Navigator → 流向。默认 ``ntq``；或传某一个自备 ``provider_id``。
 
         返回 ``reply`` / ``mode`` / ``catfood_spent`` / ``balance`` 等，供 UI 展示。
         """

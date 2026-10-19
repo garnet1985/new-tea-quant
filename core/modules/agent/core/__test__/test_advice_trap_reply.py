@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from core.modules.agent.core.gate.patterns import (
+from core.modules.agent.core.navigator.patterns import (
     is_investment_advice_trap,
     is_out_of_scope_web_question,
 )
-from core.modules.agent.core.gate.router import route
+from core.modules.agent.core.navigator.router import route
 from core.modules.agent.core.roles.guide.patterns import is_architecture_question
-from core.modules.agent.core.gate.advice_reply import format_strategy_summaries_reply
+from core.modules.agent.core.navigator.advice_reply import format_strategy_summaries_reply
 
 
 def test_advice_trap_detects_make_money_question():
@@ -63,8 +63,24 @@ def test_out_of_scope_web_detects_news_and_macro():
     assert not is_out_of_scope_web_question("帮我改一下止损并重跑回测")
 
 
-def test_router_splits_guide_arch_and_worker():
-    assert route("NTQ 的回测四步架构原理是什么？").kind == "guide_arch"
-    assert route("帮我改止损并重跑回测").kind == "worker"
-    assert route("资金报告里的夏普怎么读？").kind == "guide"
+def test_navigator_splits_guide_arch_and_worker():
+    assert route(
+        "NTQ 的回测四步架构原理是什么？", provider_id="ntq", mode="regex"
+    ).kind == "guide_arch"
+    assert route("帮我改止损并重跑回测", provider_id="ntq", mode="regex").kind == "worker"
+    assert route("资金报告里的夏普怎么读？", provider_id="ntq", mode="regex").kind == "guide"
     assert is_architecture_question("userspace 隔离是什么设计？")
+
+
+def test_navigator_cross_intent_pipeline():
+    advice = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq", mode="regex")
+    assert advice.kind == "advice"
+    assert advice.queue == ("advice", "worker")
+    ident = route("NTQ 是什么，顺便帮我回测一下", provider_id="ntq", mode="regex")
+    assert ident.kind == "identity"
+    assert ident.queue == ("identity", "worker")
+    oos = route(
+        "法国暴乱影响 A 股吗，帮我改止损并重跑回测", provider_id="ntq", mode="regex"
+    )
+    assert oos.kind == "out_of_scope"
+    assert oos.queue == ("out_of_scope", "worker")

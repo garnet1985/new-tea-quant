@@ -2,13 +2,13 @@
 
 **版本：** 0.1.0
 
-浏览器经本域访问 `modules.agent`（产品 NTQ AI 与 BYOK 轻问答）。补全经 `infra.ai.AiChannel.complete`。
+浏览器经本域访问 `modules.agent`（Provider：`ntq` 或某一个自备）。补全经 `infra.ai.AiChannel.complete`。
 
 ## 与 infra.ai 的分界
 
 | 入口 | 用途 |
 |------|------|
-| `POST /v1/agent/run` | 门禁 + guide/worker；可传 `providerId`（默认 `ntq`） |
+| `POST /v1/agent/run` | Provider → Navigator → guide/worker；可传 `providerId`（默认 `ntq`） |
 | `GET /v1/agent/quota` | 会员猫粮余额 |
 | `GET /v1/ai/providers` | 仅供应商/密钥（见 [`ai.md`](./ai.md)） |
 
@@ -31,4 +31,4 @@
 }
 ```
 
-`providerId` 省略或 `ntq`：会员产品循环（可工具）。其他本机供应商：门禁后百科轻问答，不写策略/回测。
+`providerId` 省略或 `ntq`：打 Website（猫粮与模型调度在远端）。其他 id：用户自备供应商，一个 Provider 干到底。

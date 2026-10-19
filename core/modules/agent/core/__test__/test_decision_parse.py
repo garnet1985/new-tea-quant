@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.modules.agent.core.gate.patterns import FORCE_WORK_RE
+from core.modules.agent.core.navigator.patterns import FORCE_WORK_RE
 from core.modules.agent.core.loop_runtime import decision, usable_reply
 from core.modules.agent.core.roles.worker.role import (
     asks_user_permission,

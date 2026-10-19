@@ -46,6 +46,7 @@
 - (破坏性改动)重构数据库表命名，加入kind命名空间
 - 加入新的ruff的代码规范并修改相应的报错。见具体改动D
 - 新加入进度模块统一管理app的所有进度相关的信息 infra/progress
+- 重写AI相关模块，分成infra/ai（基建）和 modules/agent（代理）模块
 
 具体改动：
 - A 非商用沿用 Apache 2.0 条款，商用需书面授权，并须去掉 `core/modules/ntq_external`（会员 AI、反馈、使用统计等打到 new-tea.cn 的客户端）

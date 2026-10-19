@@ -446,8 +446,8 @@ function AssistantChatDock() {
                 <p className="ntq-assistant-dock__title">您好，我是新茶，有什么可以帮到您？</p>
                 <p className="ntq-assistant-dock__subtitle">
                   {selectedId === 'ntq'
-                    ? '可以问策略、回测和扫描；我会在本机执行工具。'
-                    : '我现在还只能帮助您回答一些基础问题，之后的版本喵星还会赋予我更强大的能力哦'}
+                    ? '可以问策略、回测和扫描；我会在本机执行工具（走 NTQ 会员额度）。'
+                    : '可以问策略、回测和扫描；我会在本机执行工具（走您自己的 API Key，不计 NTQ 猫粮）。'}
                 </p>
               </div>
             </div>

@@ -2,12 +2,12 @@ name: modules.agent
 version: "0.1.0"
 compatible_core_versions: ">=0.6.0"
 package: core.modules
-description: "AI agent：门禁、角色循环、知识拼装与工具执行。"
+description: "AI agent：Provider、Navigator、流向、知识拼装与本机工具。"
 dependencies:
   - infra.project_context
   - infra.ai
 changelog:
   - version: "0.1.0"
     changes:
-      - 门禁与 guide/worker；知识语料在本模块
-      - 补全经 infra.ai.AiChannel；BYOK 经 Agent.run(provider_id)
+      - Provider（ntq|own）→ Navigator → guide/worker；一个 provider 干到底
+      - 补全经 infra.ai.AiChannel；ntq 模型调度在 Website

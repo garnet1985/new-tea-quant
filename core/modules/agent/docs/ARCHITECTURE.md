@@ -2,40 +2,38 @@
 
 **版本：** `0.1.0`
 
-`modules.agent` 执行门禁、角色循环与 NTQ 工具。供应商、密钥和 HTTP 在 `infra.ai`。`Agent.run` 经 `AiChannel.complete` 出站。
+名词与本地/远端边界见 [PROVIDER_AND_NAVIGATOR.md](./PROVIDER_AND_NAVIGATOR.md)。
 
 ---
 
-## 职责与边界（结论）
+## 职责
 
-**负责**
+**App**
 
-- 登记工具、写入准则、会话
-- 门禁与 guide / worker
-- 知识语料（`context/`）与拼装
+- 选定 Provider（`ntq` 或某一个自备）
+- 组织 context、Navigator、流向、本机工具
 
 **不负责**
 
-- 发现供应商、读写 API Key、裸 HTTP（`infra.ai`）
-- 会员 token / 外站配额客户端（`ntq_external`；BFF/agent 可读 quota）
+- 为 ntq 挑选背后大模型（Website）
+- 供应商发现 / API Key 文件 / 裸 HTTP（`infra.ai`）
 
 ---
 
-## 模块结构图
+## 结构
 
 ```text
 core/modules/agent/
 ├── agent.py
-├── contracts.py
-├── context/                 # 说明书语料
 ├── core/
-│   ├── gate/
-│   ├── knowledge/           # 挑文档 / 拼 messages
+│   ├── provider.py          # 锁定 Provider
+│   ├── navigator/           # Navigator（意图清单）
+│   ├── knowledge/
 │   ├── roles/guide|worker
-│   ├── loop_runtime.py
 │   ├── run_loop.py
 │   └── tools/strategy/
 └── docs/
+    └── PROVIDER_AND_NAVIGATOR.md
 ```
 
 ---
@@ -43,12 +41,14 @@ core/modules/agent/
 ## 数据流
 
 ```text
-用户一句话 + 可选 providerId
-  → gate.router
-  → ntq：guide_arch | guide wiki | worker
-  → BYOK：百科拼装（knowledge）或拒绝 worker
-  → AiChannel.complete
-  → 工具执行（仅会员路径）→ transcript
+用户话 + providerId
+  → resolve_provider          # ntq | 某一个 own（一个 id 干到底）
+  → 组 context
+  → navigator.route(provider_id=…)
+  → 流向 + 本机工具
+  → complete 一律打同一 provider_id
+       ntq → Website 调度模型与计费
+       own → 用户供应商
 ```
 
 ---
@@ -56,4 +56,5 @@ core/modules/agent/
 ## 依赖
 
 - `infra.project_context`
-- `infra.ai`：`AiChannel.complete`
+- `infra.ai`
+- `ntq_external`（仅 Provider=`ntq`）

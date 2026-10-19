@@ -73,7 +73,7 @@ settings = {
         "params": {},                       # dict；顶层 OHLC 已是前复权
         "indicators": {                      # dict, 可选, 框架写入每根 K 线
             "rsi": [{"length": 14}],         # 当天 bar：rsi14
-            "macd": [{"fast": 12, "slow": 26, "signal": 9}],
+            "macd": [{"fast": 12, "slow": 26, "signal": 9, "alias": "macd"}],
         },
     },
     "required": [                            # list[dict], 可选, 附加数据源
@@ -98,10 +98,10 @@ settings = {
 today = records.latest  # base 最后一行，前复权
 klines = list(records.series())  # 当天及之前
 finance = list(records.series("stock.finance.quarterly"))
-rsi14 = today.get("rsi14") if today else None  # 单列注入字段 {name}{length}
+rsi14 = today.get("rsi14") if today else None  # 单列：{name}{length}；或读 alias
 ```
 
-指标在 `data.base.indicators` 声明，钩子读 K 线上的字段，不要钩子里再手算一遍。顶层 OHLC 已是前复权。RSI 字段是 `{name}{length}`（`rsi14`）。MACD 是三列长名字，见 [用技术指标](use_indicators.md)。
+指标在 `data.base.indicators` 声明，钩子读 K 线上的字段，不要钩子里再手算一遍。顶层 OHLC 已是前复权。单列默认 `{name}{length}`（`rsi14`）；可写 `alias` 固定字段名。MACD 等多列见 [用技术指标](use_indicators.md)。
 
 ## simulation
 

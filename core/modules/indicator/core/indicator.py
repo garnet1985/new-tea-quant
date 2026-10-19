@@ -359,6 +359,8 @@ class Indicator:
         if ctx is None:
             return []
 
+        from core.modules.indicator.core.field_naming import compute_params
+
         results: List[BatchIndicatorResult] = []
         for name, configs in indicators_cfg.items():
             if not configs:
@@ -369,14 +371,16 @@ class Indicator:
                 if not isinstance(cfg, dict):
                     continue
                 item_cfg = dict(cfg)
+                calc_cfg = compute_params(item_cfg)
                 try:
                     result = cls._compute_single(
                         str(name).lower().strip(),
                         klines,
-                        item_cfg,
+                        calc_cfg,
                         batch_ctx=ctx,
                     )
                     if result:
+                        # 返回仍带 alias，供落盘命名
                         results.append((str(name).lower().strip(), item_cfg, result))
                 except Exception as exc:
                     logger.error(

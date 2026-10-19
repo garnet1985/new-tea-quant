@@ -31,3 +31,16 @@ terms:
     definition: "策略配置友好的单指标计算（close / 裁剪 OHLCV / 宽表分层）。"
     aliases: []
     avoid: []
+
+  alias:
+    definition: "indicators 参数 dict 中的可选键；只决定落盘字段名，不传入 TA。单列为 alias，多列为 alias_列名。"
+    aliases:
+      - "指标别名"
+    avoid:
+      - "as"
+      - "as_name"
+
+  field_naming:
+    definition: "包根导出的落盘命名与校验模块（默认 {name}{length}、alias、重名检查）。"
+    aliases: []
+    avoid: []

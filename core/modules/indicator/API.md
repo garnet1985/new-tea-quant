@@ -9,7 +9,15 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
-**公开约定：** 包根仅导出 `Indicator`；类型从 [`contracts.py`](./contracts.py) 导入。策略侧指标配置表见 [docs/AVAILABLE_INDICATORS.md](./docs/AVAILABLE_INDICATORS.md)。
+**公开约定：** 包根导出 `Indicator` 与 `field_naming`；类型从 [`contracts.py`](./contracts.py) 导入。策略侧指标配置表见 [docs/AVAILABLE_INDICATORS.md](./docs/AVAILABLE_INDICATORS.md)。
+
+---
+
+## field_naming
+
+**描述：** 策略 `indicators` 落盘字段命名与校验（`alias`、默认 `{name}{length}`、多列 ta 列名）。
+
+常用入口：`series_field_name` / `dict_field_name` / `validate_indicators_config` / `apply_batch_to_rows`。
 
 ---
 
@@ -46,7 +54,7 @@
 - **类型：** `classmethod`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 批量计算；共享 K 线上下文；每项为 `(name, params, values)`
+- **描述：** 批量计算；共享 K 线上下文；每项为 `(name, params, values)`。`params` 可含 `alias`（计算前剥离，仍随结果返回供落盘命名）
 
 ### 便捷方法
 

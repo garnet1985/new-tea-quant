@@ -9,3 +9,4 @@
 | 文件 | 说明 |
 |------|------|
 | `test_api.py` | 公开 API 契约与轻量行为（`force_run`） |
+| `core/__test__/test_field_naming.py` | `alias` / 默认落盘名 / 重名校验 / 写入 |

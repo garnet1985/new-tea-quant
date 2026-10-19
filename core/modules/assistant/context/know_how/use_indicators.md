@@ -35,17 +35,20 @@ klines = list(records.series())
 | --- | --- |
 | `"ma": [{"length": 20}]` | `ma20`（`{name}{length}`；参数必须用 `length`，不要用 `window`） |
 | `"rsi": [{"length": 14}]` | `rsi14`（`{name}{length}`） |
-| `"macd": [{"fast": 12, "slow": 26, "signal": 9}]` | 三列，名字长：见下表 |
+| `"ma": [{"length": 5, "alias": "fast_ma"}]` | `fast_ma`（有 `alias` 时只认 alias） |
+| `"macd": [{"fast": 12, "slow": 26, "signal": 9, "alias": "macd"}]` | 三列：见下表 |
 
-MACD 默认参数注入后的键（必须抄对）：
+**`alias`（推荐多参数 / 多列指标用）：** 写在该条参数 dict 里，不参与计算。单列落盘名 = `alias`；多列 = `{alias}_{ta列名小写}`。同一 `settings` 里 `alias` 与可预知的默认名（如 `ma20`）不可重复，也不能叫 `close` 等行情字段。
+
+MACD 推荐声明（带 `alias`）：
 
 | 含义 | 字段 |
 | --- | --- |
-| DIF / MACD 线 | `macd_macd_12_26_9_fast12_signal9_slow26` |
-| DEA / 信号线 | `macd_macds_12_26_9_fast12_signal9_slow26` |
-| 柱（DIF−DEA） | `macd_macdh_12_26_9_fast12_signal9_slow26` |
+| DIF / MACD 线 | `macd_macd_12_26_9` |
+| DEA / 信号线 | `macd_macds_12_26_9` |
+| 柱（DIF−DEA） | `macd_macdh_12_26_9` |
 
-改了 fast/slow/signal，键里的数字会变。布林带同类，演示策略用辅助函数拼字段名。
+不写 `alias` 时多列直接用 ta 列名小写（如 `macdh_12_26_9`）。改了 fast/slow/signal，列名里的数字会变。
 
 钩子里再调 `Indicator.macd(klines)` 也能算，但图表不画未声明的指标。需要临时试算时：`from core.modules.indicator import Indicator`。
 
@@ -63,7 +66,7 @@ MACD 默认参数注入后的键（必须抄对）：
         "data_key": "stock.kline.daily",
         "params": {},
         "indicators": {
-            "macd": [{"fast": 12, "slow": 26, "signal": 9}],
+            "macd": [{"fast": 12, "slow": 26, "signal": 9, "alias": "macd"}],
         },
     },
     "min_required_records": 60,
@@ -80,9 +83,9 @@ from __future__ import annotations
 
 from core.modules.strategy.contracts import Records, StrategyContext, StrategyHooks
 
-MACD_LINE = "macd_macd_12_26_9_fast12_signal9_slow26"
-MACD_SIGNAL = "macd_macds_12_26_9_fast12_signal9_slow26"
-MACD_HIST = "macd_macdh_12_26_9_fast12_signal9_slow26"
+MACD_LINE = "macd_macd_12_26_9"
+MACD_SIGNAL = "macd_macds_12_26_9"
+MACD_HIST = "macd_macdh_12_26_9"
 
 
 class MacdGoldenCrossStrategy(StrategyHooks):
@@ -127,6 +130,8 @@ return rsi < 30
 | 错法 | 对法 |
 | --- | --- |
 | 钩子里手写 EMA / `Indicator.macd`，settings 不声明 | `data.base.indicators` 声明，钩子读 K 线字段 |
+| 读 `ma_ma20` / 用 `window` | `length` + 读 `ma20`，或设 `alias` 后读 alias |
+| 两个指标共用同一 `alias` | 每个实例唯一 `alias` |
 | `meta = {}`、`data = {}` 当两个顶层变量 | 只有一个 `settings = { "meta": ..., "data": ... }` |
 | `ctx.data("stock.kline.daily")` | `records.series()` / `records.latest` |
 | 只改 `meta`，其余删光 | 用模板写全 |

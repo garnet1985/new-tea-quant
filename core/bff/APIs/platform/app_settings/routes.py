@@ -99,6 +99,18 @@ def get_membership_profile():
     return ok(member_profile())
 
 
+@settings_api_bp.route("/v1/membership/catfood-ledger", methods=["GET"])
+def get_membership_catfood_ledger():
+    """用本地通用凭证向官网读取最近猫粮流水。"""
+    from core.modules.ntq_external.ai.member_channel import fetch_member_usage
+
+    limit = request.args.get("limit", 40, type=int)
+    body = fetch_member_usage(limit=limit if limit else 40)
+    if not body:
+        return ok({"items": [], "catfood": None, "currency": "猫粮", "available": False})
+    return ok({**body, "available": True})
+
+
 @settings_api_bp.route("/v1/settings/membership", methods=["PUT"])
 def put_membership_settings():
     """把官网通用凭证写入 userspace/system/membership/membership_token.txt。"""

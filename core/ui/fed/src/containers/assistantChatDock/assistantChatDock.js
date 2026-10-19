@@ -7,7 +7,7 @@ import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
 import { runAgent, clearAgentSession } from 'api/agentApi';
 import { chatWithAssistant, fetchNtqQuota, listAssistantProviders } from 'api/assistantApi';
-import { fetchMembershipSettings } from 'api/settingsApi';
+import { fetchMembershipSettings, notifyMembershipChanged } from 'api/settingsApi';
 import { fetchSiteUrls } from 'api/siteApi';
 import { isHttpStatusError } from 'service/request';
 import { GLOBAL_HELPER_SESSION_EVENT } from 'containers/globalHelper';
@@ -190,6 +190,9 @@ function AssistantChatDock() {
     fetchNtqQuota()
       .then((quota) => {
         setNtqQuota(quota?.available ? quota : null);
+        if (quota?.available && quota.balance != null) {
+          notifyMembershipChanged({ catfood: quota.balance });
+        }
       })
       .catch(() => setNtqQuota(null));
   }, []);

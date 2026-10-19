@@ -146,9 +146,12 @@ export async function saveTraceSettings(body) {
 /** 会员凭证变更后，顶栏等监听此事件刷新。 */
 export const MEMBERSHIP_CHANGED_EVENT = 'ntq-membership-changed';
 
-export function notifyMembershipChanged() {
+/**
+ * @param {{ catfood?: number|null }} [detail]
+ */
+export function notifyMembershipChanged(detail = {}) {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(MEMBERSHIP_CHANGED_EVENT));
+  window.dispatchEvent(new CustomEvent(MEMBERSHIP_CHANGED_EVENT, { detail: detail || {} }));
 }
 
 /**
@@ -204,6 +207,35 @@ export async function fetchMemberProfile() {
     is_pro: Boolean(m.is_pro),
     catfood: catfood == null || catfood === '' ? null : Number(catfood),
     reason: String(m.reason || '').trim(),
+  };
+}
+
+/**
+ * 最近猫粮流水（经本机 BFF 转发官网）。
+ * @returns {Promise<{ available: boolean, catfood: number|null, currency: string, items: Array<object> }>}
+ */
+export async function fetchCatfoodLedger(limit = 40) {
+  const json = await request.getJson(
+    `${API_VERSION_PREFIX}/membership/catfood-ledger?limit=${encodeURIComponent(String(limit))}`,
+    { silent: true },
+  );
+  const m = json?.message || {};
+  const items = Array.isArray(m.items) ? m.items : [];
+  const catfood = m.catfood;
+  return {
+    available: Boolean(m.available),
+    catfood: catfood == null || catfood === '' ? null : Number(catfood),
+    currency: String(m.currency || '猫粮'),
+    items: items.map((row) => ({
+      id: Number(row?.id) || 0,
+      created: Number(row?.created) || 0,
+      reason: String(row?.reason || ''),
+      reasonLabel: String(row?.reason_label || row?.reason || ''),
+      model: String(row?.model || ''),
+      mode: String(row?.mode || ''),
+      catfoodDelta: Number(row?.catfood_delta),
+      catfoodBalanceAfter: Number(row?.catfood_balance_after),
+    })),
   };
 }
 

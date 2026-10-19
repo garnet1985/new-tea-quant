@@ -44,11 +44,27 @@ function MemberStrip() {
     };
 
     load();
-    const onChanged = () => load();
+    const onChanged = (event) => {
+      const nextCatfood = event?.detail?.catfood;
+      if (nextCatfood != null && Number.isFinite(Number(nextCatfood))) {
+        setProfile((prev) => (
+          prev?.signed_in
+            ? { ...prev, catfood: Number(Number(nextCatfood).toFixed(2)) }
+            : prev
+        ));
+        return;
+      }
+      load();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
     window.addEventListener(MEMBERSHIP_CHANGED_EVENT, onChanged);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
       window.removeEventListener(MEMBERSHIP_CHANGED_EVENT, onChanged);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 

@@ -81,3 +81,41 @@ def fetch_member_quota() -> Optional[dict]:
         return None
     remaining = max(0, min(remaining, limit))
     return {"limit": limit, "remaining": remaining, "used": limit - remaining}
+
+
+def fetch_member_usage(limit: int = 40) -> Optional[dict]:
+    """会员猫粮流水。无凭证或官网不可达时返回 None。"""
+    token = member_token()
+    if not token:
+        return None
+    lim = max(1, min(100, int(limit or 40)))
+    request = urllib.request.Request(
+        member_base_url() + f"/usage?limit={lim}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "User-Agent": "NTQ-assistant/0.1.0",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    items = data.get("items")
+    if not isinstance(items, list):
+        return None
+    try:
+        catfood = float(data.get("catfood") or 0)
+    except (TypeError, ValueError):
+        catfood = 0.0
+    return {
+        "items": items,
+        "catfood": round(catfood, 2),
+        "catfood_free": data.get("catfood_free"),
+        "catfood_paid": data.get("catfood_paid"),
+        "currency": str(data.get("currency") or "猫粮"),
+    }

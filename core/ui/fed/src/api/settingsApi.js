@@ -231,7 +231,6 @@ export async function fetchCatfoodLedger(limit = 40) {
       created: Number(row?.created) || 0,
       reason: String(row?.reason || ''),
       reasonLabel: String(row?.reason_label || row?.reason || ''),
-      model: String(row?.model || ''),
       mode: String(row?.mode || ''),
       catfoodDelta: Number(row?.catfood_delta),
       catfoodBalanceAfter: Number(row?.catfood_balance_after),

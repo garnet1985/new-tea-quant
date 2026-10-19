@@ -33,6 +33,7 @@ klines = list(records.series())
 
 | 声明 | 当天 bar 上的字段 |
 | --- | --- |
+| `"ma": [{"length": 20}]` | `ma20`（`{name}{length}`；参数必须用 `length`，不要用 `window`） |
 | `"rsi": [{"length": 14}]` | `rsi14`（`{name}{length}`） |
 | `"macd": [{"fast": 12, "slow": 26, "signal": 9}]` | 三列，名字长：见下表 |
 

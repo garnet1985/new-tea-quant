@@ -45,14 +45,34 @@ class AgentImplementer:
             return None, "消息不能为空", 400
         sid = str(session_id or "").strip() or None
         try:
-            reply = self._Agent.run(text, session_id=sid)
+            outcome = self._Agent.run(text, session_id=sid)
         except self._AgentError as exc:
             return None, str(exc), _status_for_agent_error(exc)
         except Exception as exc:  # noqa: BLE001 — surface unexpected failures to the dock
             return None, str(exc) or "Agent 执行失败", 502
+        if isinstance(outcome, dict):
+            reply = str(outcome.get("reply") or "")
+            mode = str(outcome.get("mode") or ("work" if outcome.get("handoff") else "ask"))
+            try:
+                spent = round(max(0.0, float(outcome.get("catfood_spent") or 0)), 2)
+            except (TypeError, ValueError):
+                spent = 0.0
+            balance = outcome.get("balance")
+            try:
+                balance_out = None if balance is None else round(max(0.0, float(balance)), 2)
+            except (TypeError, ValueError):
+                balance_out = None
+        else:
+            reply = str(outcome or "")
+            mode = "ask"
+            spent = 0.0
+            balance_out = None
         return {
-            "reply": str(reply or ""),
+            "reply": reply,
             "sessionId": sid or "default",
+            "mode": mode,
+            "catfoodSpent": spent,
+            "balance": balance_out,
         }, None, 200
 
     def clear_session(

@@ -1118,7 +1118,7 @@ export function SettingsMembershipPanel() {
                 const after = Number(row.catfoodBalanceAfter);
                 return (
                   <Box
-                    key={row.id || `${row.created}-${row.reason}-${row.model}`}
+                    key={row.id || `${row.created}-${row.reason}-${row.mode}`}
                     sx={{
                       display: 'grid',
                       gridTemplateColumns: 'minmax(7rem, auto) 1fr auto auto',
@@ -1133,9 +1133,8 @@ export function SettingsMembershipPanel() {
                     <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
                       {formatDateTime(row.created, { style: 'absolute' })}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap title={row.model || undefined}>
+                    <Typography variant="body2" color="text.secondary" noWrap>
                       {row.reasonLabel || row.reason}
-                      {row.model ? ` · ${row.model}` : ''}
                     </Typography>
                     <Typography
                       variant="body2"

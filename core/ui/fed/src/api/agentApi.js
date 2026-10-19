@@ -5,7 +5,13 @@ const API_AGENT_SESSION_CLEAR = `${API_VERSION_PREFIX}/agent/session/clear`;
 
 /**
  * @param {{ content: string, sessionId?: string }} body
- * @returns {Promise<{ reply: string, sessionId: string }>}
+ * @returns {Promise<{
+ *   reply: string,
+ *   sessionId: string,
+ *   mode: 'ask'|'work'|string,
+ *   catfoodSpent: number|null,
+ *   balance: number|null,
+ * }>}
  */
 export async function runAgent(body) {
   const json = await request.postJson(API_AGENT_RUN, {
@@ -16,9 +22,19 @@ export async function runAgent(body) {
     },
   });
   const m = json?.message || {};
+  const spent = m.catfoodSpent == null ? m.catfood_spent : m.catfoodSpent;
+  const balance = m.balance;
+  const mode = String(m.mode || '').trim().toLowerCase();
   return {
     reply: String(m.reply || ''),
     sessionId: String(m.sessionId || 'default'),
+    mode: mode === 'work' || mode === 'ask' ? mode : (m.handoff ? 'work' : 'ask'),
+    catfoodSpent: spent == null || spent === '' || Number.isNaN(Number(spent))
+      ? null
+      : Number(Number(spent).toFixed(2)),
+    balance: balance == null || balance === '' || Number.isNaN(Number(balance))
+      ? null
+      : Number(Number(balance).toFixed(2)),
   };
 }
 

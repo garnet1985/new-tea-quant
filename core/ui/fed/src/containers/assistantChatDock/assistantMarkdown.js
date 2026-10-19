@@ -93,8 +93,26 @@ function collectListItems(lines, start, itemRe) {
   return { items, next: i };
 }
 
+/**
+ * 模型常把「1. …；2. …」写在同一段里；拆成换行后才能渲染成 ol/li。
+ */
+function normalizeCompactLists(text) {
+  let source = String(text || '').replace(/\r\n/g, '\n');
+  const structured = source
+    .split('\n')
+    .filter((line) => /^\s*(\d+\.|[-*])\s+/.test(line));
+  if (structured.length >= 2) {
+    return source;
+  }
+  // 「：1. …；2. …」或「;2.」
+  source = source.replace(/([：:])\s*(?=\d+\.\s)/g, '$1\n');
+  source = source.replace(/[；;]\s*(?=\d+\.\s)/g, '\n');
+  source = source.replace(/[；;]\s*(?=[-*]\s+)/g, '\n');
+  return source;
+}
+
 function renderBlocks(text, keyPrefix) {
-  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+  const lines = normalizeCompactLists(text).split('\n');
   const nodes = [];
   let i = 0;
   let block = 0;

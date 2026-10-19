@@ -3,8 +3,8 @@ import { Link as RouterLink } from 'react-router-dom';
 import { IconButton } from '@mui/material';
 import NtqIcon from 'views/ntqIcon';
 import RainbowButton from 'views/rainbowButton';
-import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
+import PendingStream from './pendingStream';
 import { runAgent, clearAgentSession } from 'api/agentApi';
 import { chatWithAssistant, fetchNtqQuota, listAssistantProviders } from 'api/assistantApi';
 import { fetchMembershipSettings, notifyMembershipChanged } from 'api/settingsApi';
@@ -12,6 +12,11 @@ import { fetchSiteUrls } from 'api/siteApi';
 import { isHttpStatusError } from 'service/request';
 import { GLOBAL_HELPER_SESSION_EVENT } from 'containers/globalHelper';
 import './style.scss';
+
+function formatCatfoodSpent(value) {
+  if (value == null || Number.isNaN(Number(value))) return null;
+  return Number(value).toFixed(2);
+}
 
 function errorMessage(err, fallback) {
   if (isHttpStatusError(err) && err.message) return err.message;
@@ -59,6 +64,18 @@ function toHistory(messages) {
     .map((item) => ({ role: item.role, content: item.content }));
 }
 
+function SpentLine({ spent }) {
+  const text = formatCatfoodSpent(spent);
+  if (text == null) return null;
+  return (
+    <p className="ntq-assistant-dock__spent">
+      本次消耗猫粮
+      {' '}
+      <span>{text}</span>
+    </p>
+  );
+}
+
 function BubbleBody({ item, onNavigate }) {
   const link = item.error ? settingsLinkFor(item.content) : null;
   return (
@@ -73,6 +90,7 @@ function BubbleBody({ item, onNavigate }) {
           {link.label}
         </RouterLink>
       ) : null}
+      {!item.error ? <SpentLine spent={item.catfoodSpent} /> : null}
     </>
   );
 }
@@ -238,7 +256,14 @@ function AssistantChatDock() {
     setMessages((prev) => [
       ...prev,
       { id: userId, role: 'user', content },
-      { id: pendingId, role: 'assistant', content: '', pending: true },
+      {
+        id: pendingId,
+        role: 'assistant',
+        content: '',
+        pending: true,
+        pendingKind: selectedId === 'ntq' ? 'work' : 'ask',
+        pendingUserText: content,
+      },
     ]);
     try {
       const result = selectedId === 'ntq'
@@ -248,16 +273,44 @@ function AssistantChatDock() {
           history,
           providerId: selectedId,
         });
-      if (selectedId === 'ntq') refreshNtqQuota();
+      const spent = selectedId === 'ntq' ? result.catfoodSpent : null;
+      const balance = selectedId === 'ntq' ? result.balance : null;
+      if (selectedId === 'ntq') {
+        if (balance != null) {
+          setNtqQuota((prev) => (
+            prev
+              ? { ...prev, balance, remaining: balance }
+              : {
+                available: true,
+                balance,
+                remaining: balance,
+                currency: '猫粮',
+              }
+          ));
+          notifyMembershipChanged({ catfood: balance });
+        }
+        refreshNtqQuota();
+      }
       setMessages((prev) => prev.map((item) => (
         item.id === pendingId
-          ? { ...item, pending: false, content: result.reply || '（空回复）' }
+          ? {
+            ...item,
+            pending: false,
+            content: result.reply || '（空回复）',
+            mode: result.mode || (selectedId === 'ntq' ? 'ask' : undefined),
+            catfoodSpent: spent,
+          }
           : item
       )));
     } catch (err) {
       setMessages((prev) => prev.map((item) => (
         item.id === pendingId
-          ? { ...item, pending: false, error: true, content: errorMessage(err, '对话失败') }
+          ? {
+            ...item,
+            pending: false,
+            error: true,
+            content: errorMessage(err, '对话失败'),
+          }
           : item
       )));
     } finally {
@@ -384,17 +437,21 @@ function AssistantChatDock() {
                 ].filter(Boolean).join(' ')}
               >
                 {item.pending ? (
-                  <div className="ntq-assistant-dock__waiting" role="status">
-                    <LoadingBars barCount={4} className="ntq-loading-bars--sm" aria-label="正在联络喵星总部" />
-                    <span>正在联络喵星总部…</span>
-                  </div>
-                ) : item.role === 'assistant' && !item.error ? (
-                  <AssistantTypewriter
-                    text={item.content}
-                    animate={item.id === latestAssistantId && !typedIdsRef.current.has(item.id)}
-                    onProgress={scrollToBottom}
-                    onDone={() => markTyped(item.id)}
+                  <PendingStream
+                    kind={item.pendingKind === 'ask' ? 'ask' : 'work'}
+                    userText={item.pendingUserText || ''}
+                    onTick={scrollToBottom}
                   />
+                ) : item.role === 'assistant' && !item.error ? (
+                  <>
+                    <AssistantTypewriter
+                      text={item.content}
+                      animate={item.id === latestAssistantId && !typedIdsRef.current.has(item.id)}
+                      onProgress={scrollToBottom}
+                      onDone={() => markTyped(item.id)}
+                    />
+                    <SpentLine spent={item.catfoodSpent} />
+                  </>
                 ) : (
                   <BubbleBody item={item} onNavigate={close} />
                 )}

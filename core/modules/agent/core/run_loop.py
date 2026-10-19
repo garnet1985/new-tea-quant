@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -43,6 +44,52 @@ _GATE_READ_TOOLS = frozenset(
     }
 )
 _GATE_MAX_STEPS = 4
+# 模型偶发照抄 schema 示例；这些不能当作用户可见回复。
+_PLACEHOLDER_REPLIES = frozenset(
+    {
+        "给人看的话",
+        "你的回答",
+        "简明中文回答",
+        "<简明中文回答>",
+        "...",
+        "…",
+        "工具名",
+    }
+)
+# 小模型常乱猜缩写 / 把「新茶」答成茶叶；身份问答直接用固定文案。
+_PRODUCT_INTRO = (
+    "NTQ 是 **New Tea Quant** 的缩写，中文名「新茶」。\n\n"
+    "New Tea Quant（NTQ）是专注于 A 股的量化策略回测框架与桌面应用："
+    "可编写策略、跑回测与归因、扫描交易机会。"
+    "对话里的助理「新茶」就是这个产品的内置助手。\n\n"
+    "主要特点：\n"
+    "1. 回测拆成多步（枚举 → 价格因子 → 组合等），每步有独立报告，便于定位问题\n"
+    "2. 策略与配置放在 userspace，框架升级不覆盖你的数据\n"
+    "3. 支持策略开发、回测、归因与机会扫描\n"
+    "4. 内置助理可解答用法、协助写策略与解读报告\n\n"
+    "说明：这里的「新茶」是产品名，不是茶叶。"
+    "NTQ 只展开为 New Tea Quant，不要猜成别的英文短语。"
+)
+_BRAND_LEAK_RE = re.compile(
+    r"("
+    r"new\s*trading\s*question|"
+    r"new\s*trading\s*query|"
+    r"new\s*tea\s*question|"
+    r"新采摘|"
+    r"采摘的茶|"
+    r"茶叶|"
+    r"茶饮|"
+    r"春茶"
+    r")",
+    re.IGNORECASE,
+)
+_IDENTITY_BRAND_RE = re.compile(
+    r"(新茶|ntq|new\s*tea(?:\s*quant)?)",
+    re.IGNORECASE,
+)
+_IDENTITY_ASK_RE = re.compile(
+    r"(是什么|什么意思|啥意思|缩写|全称|简介|介绍|特点|概述|干什么|做什么|谁)",
+)
 logger = logging.getLogger(__name__)
 
 
@@ -58,7 +105,7 @@ class RunLoop:
         *,
         max_steps: int = _MAX_STEPS,
         session_id: Optional[str] = None,
-    ) -> str:
+    ) -> Dict[str, Any]:
         text = str(content or "").strip()
         if not text:
             raise AgentError("消息不能为空")
@@ -68,6 +115,7 @@ class RunLoop:
         sid = str(session_id or "").strip() or default_session_id()
         memory = _memory_messages(sid)
         gate_provider, work_provider = _providers()
+        billing: Dict[str, Any] = {"catfood_spent": 0.0, "balance": None}
         gate = _gate(
             self._catalog,
             text,
@@ -75,6 +123,7 @@ class RunLoop:
             provider_id=gate_provider,
             session_id=sid,
             ntq_mode="ask",
+            billing=billing,
         )
         if not gate.get("handoff"):
             reply = str(gate.get("reply") or "").strip()
@@ -87,7 +136,7 @@ class RunLoop:
                 handoff=False,
                 session_id=sid,
             )
-            return reply
+            return _run_result(reply, handoff=False, billing=billing)
 
         reply = _work(
             self._catalog,
@@ -96,6 +145,7 @@ class RunLoop:
             max_steps=steps,
             session_id=sid,
             provider_id=work_provider,
+            billing=billing,
         )
         append_turn(
             user=text,
@@ -104,7 +154,7 @@ class RunLoop:
             handoff=True,
             session_id=sid,
         )
-        return reply
+        return _run_result(reply, handoff=True, billing=billing)
 
 
 def _memory_messages(session_id: str) -> List[Dict[str, str]]:
@@ -146,14 +196,24 @@ def _gate(
     provider_id: str,
     session_id: str,
     ntq_mode: str = "ask",
+    billing: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    # 品牌/身份问答不交给小模型自由发挥，避免「New Trading Question」等穿帮。
+    if _is_product_identity_question(text):
+        return {"reply": _PRODUCT_INTRO}
+
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": _gate_prompt(catalog)},
         *memory,
         {"role": "user", "content": text},
     ]
     for _ in range(_GATE_MAX_STEPS):
-        raw = _ask(messages, provider_id=provider_id, ntq_mode=ntq_mode)
+        raw = _ask(
+            messages,
+            provider_id=provider_id,
+            ntq_mode=ntq_mode,
+            billing=billing,
+        )
         payload = _json_object(raw)
         if isinstance(payload, dict) and str(
             payload.get("handoff") or ""
@@ -174,10 +234,37 @@ def _gate(
                 }
             )
             continue
-        reply = str(decision.get("reply") or "").strip()
+        reply = _usable_reply(decision.get("reply"))
+        if reply and _has_brand_leak(reply):
+            logger.warning("gate reply rejected for brand leak")
+            messages.append({"role": "assistant", "content": raw.strip() or "{}"})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "上一条穿帮了：NTQ 只能是 New Tea Quant（新茶），"
+                        "不是 New Trading Question，也不是茶叶。"
+                        "请按产品事实重答，"
+                        '只输出 {"reply":"..."}。'
+                    ),
+                }
+            )
+            continue
         if reply:
             return {"reply": reply}
-        return {}
+        # 空回复 / 示例占位：再问一轮，不要把占位文案展示给用户。
+        messages.append({"role": "assistant", "content": raw.strip() or "{}"})
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "上一条无效：reply 不能为空，也不能是示例占位。"
+                    "请针对用户原问题给出真实中文回答，"
+                    '只输出 {"reply":"..."}。'
+                ),
+            }
+        )
+        continue
     return {"handoff": True}
 
 
@@ -189,6 +276,7 @@ def _work(
     max_steps: int,
     session_id: str,
     provider_id: str,
+    billing: Optional[Dict[str, Any]] = None,
 ) -> str:
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": _system_prompt(catalog)},
@@ -206,14 +294,26 @@ def _work(
             timeout_seconds=_WORK_TIMEOUT,
             extra_body=extra or None,
             ntq_mode=ntq_mode,
+            billing=billing,
         )
         decision = _decision(raw, names)
         tool = decision.get("tool")
         if not tool:
-            reply = str(decision.get("reply") or "").strip()
-            if not reply:
-                raise AgentError("模型没有给出回复")
-            return reply
+            reply = _usable_reply(decision.get("reply"))
+            if reply:
+                return reply
+            messages.append({"role": "assistant", "content": raw.strip() or "{}"})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "上一条无效：reply 不能为空或示例占位。"
+                        "请根据工具结果用中文回答用户，"
+                        '只输出 {"reply":"..."}。'
+                    ),
+                }
+            )
+            continue
         result = run_tool(catalog, str(tool), decision.get("arguments") or {})
         if result.get("task_id") and result.get("status") == "running":
             result = _await_task(result)
@@ -259,6 +359,7 @@ def _ask(
     timeout_seconds: Optional[float] = None,
     extra_body: Optional[Dict[str, Any]] = None,
     ntq_mode: str = "",
+    billing: Optional[Dict[str, Any]] = None,
 ) -> str:
     body = dict(extra_body or {})
     mode = str(ntq_mode or "").strip()
@@ -275,15 +376,88 @@ def _ask(
         )
     except AssistantError as exc:
         raise AgentError(str(exc)) from None
+    _accumulate_billing(billing, result.ntq if isinstance(result.ntq, dict) else None)
     return result.reply
+
+
+def _accumulate_billing(
+    billing: Optional[Dict[str, Any]],
+    ntq: Optional[Dict[str, Any]],
+) -> None:
+    if billing is None or not isinstance(ntq, dict):
+        return
+    try:
+        spent = max(0.0, float(ntq.get("catfood_spent") or 0))
+    except (TypeError, ValueError):
+        spent = 0.0
+    billing["catfood_spent"] = round(float(billing.get("catfood_spent") or 0) + spent, 2)
+    for key in ("balance", "catfood"):
+        if ntq.get(key) is None:
+            continue
+        try:
+            billing["balance"] = round(max(0.0, float(ntq.get(key))), 2)
+        except (TypeError, ValueError):
+            pass
+
+
+def _run_result(
+    reply: str,
+    *,
+    handoff: bool,
+    billing: Dict[str, Any],
+) -> Dict[str, Any]:
+    spent = billing.get("catfood_spent")
+    try:
+        catfood_spent = round(max(0.0, float(spent or 0)), 2)
+    except (TypeError, ValueError):
+        catfood_spent = 0.0
+    balance = billing.get("balance")
+    try:
+        balance_out = None if balance is None else round(max(0.0, float(balance)), 2)
+    except (TypeError, ValueError):
+        balance_out = None
+    return {
+        "reply": str(reply or ""),
+        "handoff": bool(handoff),
+        "mode": "work" if handoff else "ask",
+        "catfood_spent": catfood_spent,
+        "balance": balance_out,
+    }
+
+
+def _is_product_identity_question(text: str) -> bool:
+    raw = str(text or "").strip()
+    if not raw or not _IDENTITY_BRAND_RE.search(raw):
+        return False
+    if _IDENTITY_ASK_RE.search(raw):
+        return True
+    # 「NTQ？」这类极短追问也视为身份问答
+    return len(raw) <= 24
+
+
+def _has_brand_leak(text: str) -> bool:
+    return bool(_BRAND_LEAK_RE.search(str(text or "")))
+
+
+def _product_identity() -> List[str]:
+    """门控 / 做事共用的产品身份，避免把「新茶」答成茶叶。"""
+    return [
+        "硬性事实（不可改写）：NTQ = New Tea Quant；中文名「新茶」。",
+        "禁止把 NTQ 展开成 New Trading Question、New Trading Query 或任何其他英文。",
+        "禁止把「新茶」解释成茶叶、茶饮、采摘或口感。",
+        "身份：你是 New Tea Quant 桌面应用里的助理，对外自称「新茶」。",
+        "简介要点：专注 A 股的量化策略回测框架，可写策略、回测、归因与扫描机会。",
+    ]
 
 
 def _gate_prompt(catalog: ToolCatalog) -> str:
     lines = [
+        *_product_identity(),
         "你是 NTQ 的入口判断。只决定这一句是回答、读报告，还是交接去做复杂事。",
         "每次只输出一个 JSON 对象，不要 Markdown，不要解释。",
-        '直接回答：{"reply":"给人看的话"}',
-        '读已有报告时只能用下面列出的只读工具：{"tool":"工具名","arguments":{...}}',
+        '能直接回答时：{"reply":"<针对用户问题的真实中文回答>"}',
+        "reply 必须是完整可用的回答内容；禁止照抄尖括号示例或任何占位词。",
+        '读已有报告时只能用下面列出的只读工具：{"tool":"<工具名>","arguments":{...}}',
         '需要写策略、改代码、校验、回测、归因、滚动对照或扫描时：{"handoff":"work"}',
         "不要编造收益或股票名单。数字只能来自工具结果。",
         "用户说「继续」「改一下」且当前任务状态里已有待确认的做事意图时，用 handoff。",
@@ -301,10 +475,12 @@ def _gate_prompt(catalog: ToolCatalog) -> str:
 
 def _system_prompt(catalog: ToolCatalog) -> str:
     lines = [
+        *_product_identity(),
         "你是 NTQ 的执行代理。根据用户需求和工具结果决定下一步。",
         "每次只输出一个 JSON 对象，不要 Markdown，不要解释。",
-        '调用工具：{"tool":"工具名","arguments":{...}}',
-        '直接回答用户：{"reply":"给人看的话"}',
+        '调用工具：{"tool":"<工具名>","arguments":{...}}',
+        '直接回答用户：{"reply":"<针对用户的真实中文回答>"}',
+        "reply 必须是完整可用的回答；禁止照抄尖括号示例或占位词。",
         "只能使用下面列出的工具。数字必须来自工具结果，没有结果就不要写收益或次数。",
         "启动类工具会等到结束再把结果给你。状态不是 completed 时不要编写收益，也不要再启动一次。",
         "用户没有要求回测、归因、滚动对照或扫描时，不要调用 start_ 开头的工具。",
@@ -354,26 +530,40 @@ def _param_text(schema: Dict[str, Any]) -> str:
     return "；".join(bits)
 
 
+def _usable_reply(value: Any) -> str:
+    reply = str(value or "").strip()
+    if not reply:
+        return ""
+    if reply in _PLACEHOLDER_REPLIES:
+        return ""
+    # 尖括号包起来的 schema 示例
+    if reply.startswith("<") and reply.endswith(">") and len(reply) < 40:
+        return ""
+    return reply
+
+
 def _decision(text: str, tool_names: set[str]) -> Dict[str, Any]:
     raw = str(text or "").strip()
     payload = _json_object(raw)
     if isinstance(payload, dict):
         tool = str(payload.get("tool") or payload.get("name") or "").strip()
-        if tool:
+        if tool and tool not in {"工具名", "<工具名>"}:
             arguments = payload.get("arguments")
             if arguments is None:
                 arguments = {}
             if not isinstance(arguments, dict):
-                return {"reply": raw}
+                cleaned = _usable_reply(raw)
+                return {"reply": cleaned} if cleaned else {}
             return {"tool": tool, "arguments": arguments}
-        reply = payload.get("reply")
-        if isinstance(reply, str) and reply.strip():
-            return {"reply": reply.strip()}
+        cleaned = _usable_reply(payload.get("reply"))
+        if cleaned:
+            return {"reply": cleaned}
         named = _tool_name_before_json(raw, tool_names)
         if named:
             return {"tool": named, "arguments": payload}
-    if raw:
-        return {"reply": raw}
+    cleaned = _usable_reply(raw)
+    if cleaned and not cleaned.startswith("{"):
+        return {"reply": cleaned}
     return {}
 
 

@@ -14,17 +14,33 @@ const API_ASSISTANT_NTQ_QUOTA = `${API_VERSION_PREFIX}/assistant/ntq-quota`;
  * }>>}
  */
 /**
- * @returns {Promise<{ available: boolean, limit: number, remaining: number|null }>}
+ * @returns {Promise<{
+ *   available: boolean,
+ *   balance: number|null,
+ *   tokenBalance: number|null,
+ *   currency: string,
+ *   usage: object|null,
+ *   models: object|null,
+ *   limit: number|null,
+ *   remaining: number|null,
+ * }>}
  */
 export async function fetchNtqQuota() {
   const json = await request.getJson(API_ASSISTANT_NTQ_QUOTA);
   const m = json?.message || {};
-  const limit = Number(m.limit);
-  const remaining = m.remaining == null ? null : Number(m.remaining);
+  const balance = m.balance == null ? null : Number(m.balance);
+  const tokenBalance = m.token_balance == null ? null : Number(m.token_balance);
+  const remaining = m.remaining == null ? balance : Number(m.remaining);
+  const limit = m.limit == null ? null : Number(m.limit);
   return {
     available: Boolean(m.available) && Number.isFinite(remaining),
-    limit: Number.isFinite(limit) && limit > 0 ? limit : 30,
-    remaining: Number.isFinite(remaining) ? remaining : null,
+    balance: Number.isFinite(balance) ? Number(balance.toFixed(2)) : null,
+    tokenBalance: Number.isFinite(tokenBalance) ? tokenBalance : null,
+    currency: String(m.currency || '猫粮'),
+    usage: m.usage && typeof m.usage === 'object' ? m.usage : null,
+    models: m.models && typeof m.models === 'object' ? m.models : null,
+    limit: Number.isFinite(limit) ? limit : null,
+    remaining: Number.isFinite(remaining) ? Number(Number(remaining).toFixed(2)) : null,
   };
 }
 

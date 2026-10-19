@@ -1,4 +1,4 @@
-"""用本地通用凭证向官网要会员名、头像和点数。响应里没有凭证。"""
+"""用本地通用凭证向官网要会员名、头像、点数、档位和猫粮。响应里没有凭证。"""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from core.modules.ntq_external.conf.endpoints import MEMBER_PROFILE_URL, REGISTER_URL
+from core.modules.ntq_external.conf.site_target import member_profile_url, register_url
 
 
 def member_profile() -> dict:
     """
-    已登录时带上官网返回的 name / avatar / points。
+    已登录时带上官网返回的 name / avatar / points / tier / catfood。
 
     没有凭证，或官网拒绝这张凭证，signed_in 为 False，reason 为 missing 或 rejected。
     官网暂时连不上时 reason 为 unreachable，避免把网络故障说成未注册。
@@ -24,7 +24,7 @@ def member_profile() -> dict:
     if not token:
         return guest
     request = urllib.request.Request(
-        MEMBER_PROFILE_URL,
+        member_profile_url(),
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
@@ -54,10 +54,16 @@ def member_profile() -> dict:
 def _guest(reason: str) -> dict:
     return {
         "signed_in": False,
-        "register_url": REGISTER_URL,
+        "register_url": register_url(),
         "name": None,
         "avatar": None,
         "points": None,
+        "tier": None,
+        "is_pro": False,
+        "catfood": None,
+        "token_balance": None,
+        "currency": None,
+        "sync_access": None,
         "reason": reason,
     }
 
@@ -76,11 +82,47 @@ def _signed_in(data: object) -> Optional[dict]:
         points = max(0, int(data.get("points")))
     except (TypeError, ValueError):
         points = 0
+    tier = str(data.get("tier") or "").strip().lower()
+    if tier not in ("standard", "pro"):
+        tier = "pro" if points >= 1000 else "standard"
+    is_pro = data.get("is_pro")
+    if not isinstance(is_pro, bool):
+        is_pro = tier == "pro"
+    catfood = _optional_float(data.get("catfood"))
+    token_balance = _optional_int(data.get("token_balance"))
+    currency = str(data.get("currency") or "").strip() or None
+    sync_access = str(data.get("sync_access") or "").strip() or None
+    if sync_access not in ("demo", "all"):
+        sync_access = "all" if is_pro else "demo"
     return {
         "signed_in": True,
-        "register_url": REGISTER_URL,
+        "register_url": register_url(),
         "name": name,
         "avatar": avatar_url or None,
         "points": points,
+        "tier": tier,
+        "is_pro": is_pro,
+        "catfood": catfood,
+        "token_balance": token_balance,
+        "currency": currency,
+        "sync_access": sync_access,
         "reason": None,
     }
+
+
+def _optional_float(raw: object) -> Optional[float]:
+    if raw is None or raw == "":
+        return None
+    try:
+        return round(max(0.0, float(raw)), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_int(raw: object) -> Optional[int]:
+    if raw is None or raw == "":
+        return None
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return None

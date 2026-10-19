@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.assistant.contracts import AssistantError
 
@@ -30,6 +30,31 @@ class OpenAICompatibleClient:
         extra_body: Optional[Dict[str, Any]] = None,
     ) -> str:
         """发送 messages，返回助手文本。失败抛 ``AssistantError``（不含密钥）。"""
+        text, _meta = self.complete_with_meta(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            messages=messages,
+            timeout_seconds=timeout_seconds,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            extra_body=extra_body,
+        )
+        return text
+
+    def complete_with_meta(
+        self,
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+        messages: List[Dict[str, str]],
+        timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+        max_tokens: int = _DEFAULT_MAX_TOKENS,
+        temperature: float = 0.7,
+        extra_body: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """发送 messages，返回助手文本与可选 ntq/usage 元数据。"""
         url = _completions_url(base_url)
         payload: Dict[str, Any] = {
             "model": model,
@@ -68,7 +93,7 @@ class OpenAICompatibleClient:
         except TimeoutError:
             raise AssistantError("供应商请求超时") from None
 
-        return _content_from_response(raw)
+        return _content_and_meta_from_response(raw, fallback_model=model)
 
 
 def _completions_url(base_url: str) -> str:
@@ -76,6 +101,13 @@ def _completions_url(base_url: str) -> str:
 
 
 def _content_from_response(raw: str) -> str:
+    text, _meta = _content_and_meta_from_response(raw, fallback_model="")
+    return text
+
+
+def _content_and_meta_from_response(
+    raw: str, *, fallback_model: str
+) -> Tuple[str, Dict[str, Any]]:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
@@ -93,7 +125,14 @@ def _content_from_response(raw: str) -> str:
     content = str(message.get("content") or "").strip()
     if not content:
         raise AssistantError("供应商没有返回内容")
-    return content
+    meta: Dict[str, Any] = {
+        "model": str(data.get("model") or fallback_model or "").strip(),
+    }
+    if isinstance(data.get("ntq"), dict):
+        meta["ntq"] = data.get("ntq")
+    if isinstance(data.get("usage"), dict):
+        meta["usage"] = data.get("usage")
+    return content, meta
 
 
 def _message_from_http_error(exc: urllib.error.HTTPError) -> str:

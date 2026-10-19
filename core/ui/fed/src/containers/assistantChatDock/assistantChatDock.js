@@ -5,6 +5,7 @@ import NtqIcon from 'views/ntqIcon';
 import RainbowButton from 'views/rainbowButton';
 import LoadingBars from 'views/loadingBars';
 import AssistantTypewriter from './assistantTypewriter';
+import { runAgent, clearAgentSession } from 'api/agentApi';
 import { chatWithAssistant, fetchNtqQuota, listAssistantProviders } from 'api/assistantApi';
 import { fetchMembershipSettings } from 'api/settingsApi';
 import { fetchSiteUrls } from 'api/siteApi';
@@ -205,6 +206,21 @@ function AssistantChatDock() {
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, []);
 
+  const clearChat = useCallback(async () => {
+    if (sending) return;
+    try {
+      if (selectedId === 'ntq') {
+        await clearAgentSession();
+      }
+      setMessages([]);
+      typedIdsRef.current = new Set();
+      setHint('');
+      if (selectedId === 'ntq') refreshNtqQuota();
+    } catch (err) {
+      setHint(errorMessage(err, '清空会话失败'));
+    }
+  }, [refreshNtqQuota, selectedId, sending]);
+
   const send = useCallback(async () => {
     const content = draft.trim();
     if (!content || sending || !selectedId) return;
@@ -222,11 +238,13 @@ function AssistantChatDock() {
       { id: pendingId, role: 'assistant', content: '', pending: true },
     ]);
     try {
-      const result = await chatWithAssistant({
-        content,
-        history,
-        providerId: selectedId,
-      });
+      const result = selectedId === 'ntq'
+        ? await runAgent({ content })
+        : await chatWithAssistant({
+          content,
+          history,
+          providerId: selectedId,
+        });
       if (selectedId === 'ntq') refreshNtqQuota();
       setMessages((prev) => prev.map((item) => (
         item.id === pendingId
@@ -285,18 +303,32 @@ function AssistantChatDock() {
               />
               <div className="ntq-assistant-dock__head-text">
                 <p className="ntq-assistant-dock__title">您好，我是新茶，有什么可以帮到您？</p>
-                <p className="ntq-assistant-dock__subtitle">我现在还只能帮助您回答一些基础问题，之后的版本喵星还会赋予我更强大的能力哦</p>
+                <p className="ntq-assistant-dock__subtitle">
+                  {selectedId === 'ntq'
+                    ? '可以问策略、回测和扫描；我会在本机执行工具。'
+                    : '我现在还只能帮助您回答一些基础问题，之后的版本喵星还会赋予我更强大的能力哦'}
+                </p>
               </div>
             </div>
-            <IconButton
-              className="ntq-assistant-dock__close"
-              onClick={close}
-              aria-label="关闭新茶"
-              size="small"
-              disableRipple
-            >
-              <NtqIcon name="cancel" size={18} tone="muted" />
-            </IconButton>
+            <div className="ntq-assistant-dock__head-actions">
+              <button
+                type="button"
+                className="ntq-assistant-dock__clear"
+                onClick={clearChat}
+                disabled={sending || messages.length === 0}
+              >
+                清空会话
+              </button>
+              <IconButton
+                className="ntq-assistant-dock__close"
+                onClick={close}
+                aria-label="关闭新茶"
+                size="small"
+                disableRipple
+              >
+                <NtqIcon name="cancel" size={18} tone="muted" />
+              </IconButton>
+            </div>
           </header>
 
           <div ref={listRef} className="ntq-assistant-dock__messages">
@@ -383,14 +415,20 @@ function AssistantChatDock() {
                 resizeDraft(event.target);
               }}
               onKeyDown={onDraftKeyDown}
-              placeholder="可以问任何 NTQ 问题，例如：我该怎么制定一个策略？"
+              placeholder={selectedId === 'ntq'
+                ? '例如：帮我建一个双均线策略并回测'
+                : '可以问任何 NTQ 问题，例如：我该怎么制定一个策略？'}
               rows={2}
               disabled={sending}
               aria-label="给新茶的问题"
             />
             <div className="ntq-assistant-dock__actions">
-              <span className="ntq-assistant-dock__quota">
-                {selectedId === 'ntq' && ntqQuota ? `(${ntqQuota.remaining}/${ntqQuota.limit})` : ''}
+              <span className="ntq-assistant-dock__quota" aria-live="polite">
+                {sending && selectedId === 'ntq'
+                  ? '进行中…'
+                  : selectedId === 'ntq' && ntqQuota
+                    ? `${Number(ntqQuota.balance ?? ntqQuota.remaining).toFixed(2)} ${ntqQuota.currency || '猫粮'}`
+                    : ''}
               </span>
               <div className="ntq-assistant-dock__actions-end">
                 {options.length > 0 ? (

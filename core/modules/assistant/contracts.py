@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 class AssistantError(Exception):
@@ -17,6 +18,8 @@ class ChatResult:
     reply: str
     provider_id: str
     model: str
+    ntq: Optional[Dict[str, Any]] = None
+    usage: Optional[Dict[str, Any]] = None
 
 
 @dataclass(frozen=True)

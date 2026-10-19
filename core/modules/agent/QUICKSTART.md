@@ -8,7 +8,7 @@
 
 ## 前置条件
 
-新建策略需要 `userspace/strategies/_template/empty_strategy/`。`Agent.run` 使用本机已装载的会员凭证，经会员通道 `ntq` 调用（默认指向配置里的 AI 根地址）。本地 Drupal 可在 `userspace/system/config/membership.json` 写 `"ai_base_url": "http://localhost:2026/api/v1/ntq-ai"`，或设置环境变量 `NTQ_MEMBER_AI_BASE_URL`。开发自测本机密钥时设 `NTQ_AGENT_OWN_KEYS=1`。
+新建策略需要 `userspace/strategies/_template/empty_strategy/`。`Agent.run` 使用本机已装载的会员凭证，经会员通道 `ntq` 调用。官网根地址只认 `userspace/system/config/membership.json` 的 `base_url`（缺省为生产官网）；AI / profile 等路径由其派生。开发自测本机密钥时设 `NTQ_AGENT_OWN_KEYS=1`。
 
 ---
 

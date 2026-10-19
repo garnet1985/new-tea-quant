@@ -104,20 +104,21 @@ def test_member_connection_error_is_rewritten(monkeypatch):
     assert "local-key" not in message
 
 
-def test_base_url_env_then_userspace_then_default(monkeypatch, tmp_path: Path):
-    monkeypatch.delenv("NTQ_MEMBER_AI_BASE_URL", raising=False)
+def test_base_url_from_membership_json(monkeypatch, tmp_path: Path):
+    from core.infra.project_context.core.path_manager import PathManager
+    from core.modules.ntq_external.conf import site_target
+
     monkeypatch.setattr(
-        member_channel.ProjectContext.path,
+        PathManager,
         "get_user_config_root",
-        lambda: tmp_path,
+        staticmethod(lambda: tmp_path),
     )
     assert member_base_url() == AI_BASE_URL
+    assert site_target.base_url() == site_target.DEFAULT_BASE_URL
 
     (tmp_path / "membership.json").write_text(
-        '{"ai_base_url": "http://localhost:2026/api/v1/ntq-ai"}',
+        '{"base_url": "http://localhost:2026"}',
         encoding="utf-8",
     )
-    assert member_base_url() == "http://localhost:2026/api/v1/ntq-ai"
-
-    monkeypatch.setenv("NTQ_MEMBER_AI_BASE_URL", "https://example.test/api/v1/ntq-ai/")
-    assert member_base_url() == "https://example.test/api/v1/ntq-ai"
+    assert site_target.base_url() == "http://127.0.0.1:2026"
+    assert member_base_url() == "http://127.0.0.1:2026/api/v1/ntq-ai"

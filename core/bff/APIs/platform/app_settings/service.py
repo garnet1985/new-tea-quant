@@ -277,7 +277,7 @@ def save_trace_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any
 
 
 def get_membership_settings() -> Dict[str, Any]:
-    """通用凭证是否已装载。不返回明文。"""
+    """通用凭证是否已装载。不返回明文。官网根地址只在 userspace 配置里改。"""
     from core.infra.membership import Membership
 
     return Membership.status()
@@ -285,7 +285,7 @@ def get_membership_settings() -> Dict[str, Any]:
 
 def save_membership_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """把官网通用凭证写入 userspace。"""
-    token = payload.get("token")
+    token = payload.get("token") if isinstance(payload, dict) else None
     if not isinstance(token, str) or not token.strip():
         return None, "请填入通用凭证"
     from core.infra.membership import Membership

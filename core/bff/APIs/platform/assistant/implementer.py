@@ -40,7 +40,15 @@ class AssistantImplementer:
 
         snap = fetch_member_quota()
         if not snap:
-            return {"available": False, "limit": 30, "remaining": None, "used": None}
+            return {
+                "available": False,
+                "limit": None,
+                "remaining": None,
+                "used": None,
+                "balance": None,
+                "token_balance": None,
+                "currency": "猫粮",
+            }
         return {"available": True, **snap}
 
     def list_providers(self) -> Dict[str, Any]:

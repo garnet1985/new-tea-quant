@@ -12,7 +12,7 @@
 
 `Assistant.chat` 继续做一轮问答：说明书、供应商、会员通道。
 
-`Agent` 做调用循环。它不读取 `api_key.txt`，也不自己发 HTTP。补全走 `Assistant.complete`。`Agent.run` 固定使用会员通道 `ntq`，官网把模型定成 `glm-4-flash`。
+`Agent` 做调用循环。它不读取 `api_key.txt`，也不自己发 HTTP。补全走 `Assistant.complete`。`Agent.run` 默认使用会员通道 `ntq`，模型由官网 auto（`ntq_mode=ask|work`）选择。
 
 ---
 
@@ -61,7 +61,7 @@
 
 ### 运行循环（`run_loop`）
 
-`Agent.run` 调用本类。产品默认只走会员通道 `ntq`（模型由官网 auto 选择）：先判断回答还是做事；只需回答或读报告时直接结束，做事时带上工具清单继续。模型回复 `{"tool","arguments"}` 时本机执行工具；启动类工具会等到任务结束再把进度送回。一轮最多 10 次模型调用。官网代理只接受 system、user、assistant 三种文本消息，所以工具结果作为下一条 user 消息送回。AI 根地址优先环境变量 `NTQ_MEMBER_AI_BASE_URL`，其次 `userspace/system/config/membership.json` 的 `ai_base_url`（本地开发可指 `http://localhost:2026/api/v1/ntq-ai`）。开发可设 `NTQ_AGENT_OWN_KEYS=1` 改走本机智谱门 + DeepSeek，不经会员通道。
+`Agent.run` 调用本类。产品默认只走会员通道 `ntq`：请求带 `ntq_mode=ask|work`。门与只读报告走 ask；写代码和长任务走 work。问答以后可真流式；做事一次输出一整段。模型点工具时本机执行；启动类工具会等到结束。官网成功后按 usage 精确扣猫粮，响应里带 `ntq.catfood_spent` / `balance`。一轮最多 10 次模型调用。官网根地址只认 `membership.json` 的 `base_url`。开发可设 `NTQ_AGENT_OWN_KEYS=1` 走本机密钥。
 
 会话落在 `userspace/.ntq/agent/`：跨会话偏好 `preferences.json`；每个会话目录有 `transcript.jsonl`（全文）和 `state.json`（局部任务状态）。每次请求拼偏好、状态卡和最近 6 轮人话。超过 200 轮时归档更早记录。`clear_session` 只清对话和局部状态。
 

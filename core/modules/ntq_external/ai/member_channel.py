@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import urllib.error
 import urllib.request
 from typing import Optional
 
-from core.infra.project_context import ProjectContext
-from core.modules.ntq_external.conf.endpoints import AI_BASE_URL
+from core.modules.ntq_external.conf.site_target import ai_base_url
 
-ENV_BASE_URL = "NTQ_MEMBER_AI_BASE_URL"
-CONFIG_NAME = "membership.json"
 PROVIDER_ID = "ntq"
 MODEL = "glm-4-flash"
 
@@ -25,25 +21,12 @@ def member_token() -> Optional[str]:
 
 
 def member_base_url() -> str:
-    """官网 AI 根地址。环境变量优先，其次 userspace 配置，否则 conf。"""
-    env = os.environ.get(ENV_BASE_URL, "").strip()
-    if env:
-        return _clean_base(env)
-    path = ProjectContext.path.get_user_config_root() / CONFIG_NAME
-    if path.is_file():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            data = None
-        if isinstance(data, dict):
-            raw = str(data.get("ai_base_url") or "").strip()
-            if raw:
-                return _clean_base(raw)
-    return AI_BASE_URL
+    """官网 AI 根地址：由统一的 ``base_url`` 派生。"""
+    return ai_base_url()
 
 
 def fetch_member_quota() -> Optional[dict]:
-    """官网今日剩余回答次数。没有凭证或官网不可达时返回 None。"""
+    """会员通道额度。优先读猫粮余额；旧版每日次数字段仍兼容。"""
     token = member_token()
     if not token:
         return None
@@ -63,6 +46,32 @@ def fetch_member_quota() -> Optional[dict]:
         return None
     if not isinstance(data, dict):
         return None
+    if data.get("balance") is not None or data.get("token_balance") is not None:
+        try:
+            balance = max(0.0, float(data.get("balance") or 0))
+        except (TypeError, ValueError):
+            return None
+        try:
+            token_balance = max(0, int(data.get("token_balance") or 0))
+        except (TypeError, ValueError):
+            token_balance = 0
+        try:
+            unit_tokens = max(1, int(data.get("unit_tokens") or 10000))
+        except (TypeError, ValueError):
+            unit_tokens = 10000
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        models = data.get("models") if isinstance(data.get("models"), dict) else {}
+        return {
+            "balance": round(balance, 2),
+            "token_balance": token_balance,
+            "unit_tokens": unit_tokens,
+            "currency": str(data.get("currency") or "猫粮"),
+            "models": models,
+            "usage": usage,
+            "remaining": round(balance, 2),
+            "limit": max(round(balance, 2), 1),
+            "used": 0,
+        }
     try:
         limit = int(data.get("limit"))
         remaining = int(data.get("remaining"))
@@ -72,10 +81,3 @@ def fetch_member_quota() -> Optional[dict]:
         return None
     remaining = max(0, min(remaining, limit))
     return {"limit": limit, "remaining": remaining, "used": limit - remaining}
-
-
-def _clean_base(value: str) -> str:
-    text = str(value or "").strip().rstrip("/")
-    if text.startswith("http://") or text.startswith("https://"):
-        return text
-    return AI_BASE_URL

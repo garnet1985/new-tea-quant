@@ -54,6 +54,33 @@ $ntq-assistant-fab-size: 52px;
   flex-shrink: 0;
 }
 
+.ntq-assistant-dock__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ntq-assistant-dock__clear {
+  border: 0;
+  background: transparent;
+  color: var(--ntq-text-muted, rgba(255, 255, 255, 0.55));
+  font-size: 0.75rem;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 8px;
+
+  &:hover:not(:disabled) {
+    color: var(--ntq-text);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+}
+
 .ntq-assistant-dock__brand {
   display: flex;
   align-items: center;

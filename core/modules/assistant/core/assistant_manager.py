@@ -175,15 +175,20 @@ class AssistantManager:
         if timeout_seconds is not None:
             kwargs["timeout_seconds"] = float(timeout_seconds)
         try:
-            reply = self._client.complete(**kwargs)
+            reply, meta = self._client.complete_with_meta(**kwargs)
         except AssistantError as exc:
             if route["via"] == "member":
                 raise AssistantError(_member_error(str(exc))) from None
             raise
+        model = str(meta.get("model") or route["model"] or "").strip()
+        ntq = meta.get("ntq") if isinstance(meta.get("ntq"), dict) else None
+        usage = meta.get("usage") if isinstance(meta.get("usage"), dict) else None
         return ChatResult(
             reply=reply,
             provider_id=route["provider_id"],
-            model=route["model"],
+            model=model or route["model"],
+            ntq=ntq,
+            usage=usage,
         )
 
     def _route(self, provider_id: Optional[str]) -> Dict[str, str]:

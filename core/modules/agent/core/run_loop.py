@@ -74,6 +74,7 @@ class RunLoop:
             memory=memory,
             provider_id=gate_provider,
             session_id=sid,
+            ntq_mode="ask",
         )
         if not gate.get("handoff"):
             reply = str(gate.get("reply") or "").strip()
@@ -144,6 +145,7 @@ def _gate(
     memory: List[Dict[str, str]],
     provider_id: str,
     session_id: str,
+    ntq_mode: str = "ask",
 ) -> Dict[str, Any]:
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": _gate_prompt(catalog)},
@@ -151,7 +153,7 @@ def _gate(
         {"role": "user", "content": text},
     ]
     for _ in range(_GATE_MAX_STEPS):
-        raw = _ask(messages, provider_id=provider_id)
+        raw = _ask(messages, provider_id=provider_id, ntq_mode=ntq_mode)
         payload = _json_object(raw)
         if isinstance(payload, dict) and str(
             payload.get("handoff") or ""
@@ -194,14 +196,16 @@ def _work(
         {"role": "user", "content": text},
     ]
     names = {spec.name for spec in catalog.list_tools() if spec.implemented}
-    extra = _WORK_EXTRA if provider_id == _OWN_WORK_PROVIDER else None
+    extra = dict(_WORK_EXTRA) if provider_id == _OWN_WORK_PROVIDER else {}
+    ntq_mode = "work" if provider_id == _PRODUCT_PROVIDER else ""
     for _ in range(max_steps):
         raw = _ask(
             messages,
             provider_id=provider_id,
             max_tokens=4096,
             timeout_seconds=_WORK_TIMEOUT,
-            extra_body=extra,
+            extra_body=extra or None,
+            ntq_mode=ntq_mode,
         )
         decision = _decision(raw, names)
         tool = decision.get("tool")
@@ -254,7 +258,12 @@ def _ask(
     max_tokens: int = 1024,
     timeout_seconds: Optional[float] = None,
     extra_body: Optional[Dict[str, Any]] = None,
+    ntq_mode: str = "",
 ) -> str:
+    body = dict(extra_body or {})
+    mode = str(ntq_mode or "").strip()
+    if provider_id == _PRODUCT_PROVIDER and mode in {"ask", "work"}:
+        body["ntq_mode"] = mode
     try:
         result = Assistant.complete(
             messages,
@@ -262,7 +271,7 @@ def _ask(
             max_tokens=max_tokens,
             temperature=0.2,
             timeout_seconds=timeout_seconds,
-            extra_body=extra_body,
+            extra_body=body or None,
         )
     except AssistantError as exc:
         raise AgentError(str(exc)) from None

@@ -33,10 +33,28 @@ class AgentImplementer:
             self._AgentError = AgentError
         return self
 
+    def ntq_quota(self) -> Dict[str, Any]:
+        """会员猫粮余额快照（产品 NTQ dock 用）。"""
+        from core.modules.ntq_external.ai.member_channel import fetch_member_quota
+
+        snap = fetch_member_quota()
+        if not snap:
+            return {
+                "available": False,
+                "limit": None,
+                "remaining": None,
+                "used": None,
+                "balance": None,
+                "token_balance": None,
+                "currency": "猫粮",
+            }
+        return {"available": True, **snap}
+
     def run(
         self,
         content: str,
         session_id: Optional[str] = None,
+        provider_id: Optional[str] = None,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str], int]:
         assert self._Agent is not None
         assert self._AgentError is not None
@@ -44,8 +62,9 @@ class AgentImplementer:
         if not text:
             return None, "消息不能为空", 400
         sid = str(session_id or "").strip() or None
+        pid = str(provider_id or "").strip() or None
         try:
-            outcome = self._Agent.run(text, session_id=sid)
+            outcome = self._Agent.run(text, session_id=sid, provider_id=pid)
         except self._AgentError as exc:
             return None, str(exc), _status_for_agent_error(exc)
         except Exception as exc:  # noqa: BLE001 — surface unexpected failures to the dock

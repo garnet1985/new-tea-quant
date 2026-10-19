@@ -218,22 +218,19 @@ class PathNamespace:
         return PathManager.get_adapters_directory()
 
     @staticmethod
-    def get_assistant_root() -> Path:
-        """获取 Assistant 根目录：userspace/extensions/assistant/"""
+    def get_ai_root() -> Path:
         from .path_manager import PathManager
-        return PathManager.get_assistant_root()
+        return PathManager.get_ai_root()
 
     @staticmethod
-    def get_assistant_providers_directory() -> Path:
-        """获取 Assistant providers 根目录"""
+    def get_ai_providers_directory() -> Path:
         from .path_manager import PathManager
-        return PathManager.get_assistant_providers_directory()
+        return PathManager.get_ai_providers_directory()
 
     @staticmethod
-    def get_assistant_provider_directory(provider_id: str) -> Path:
-        """获取指定 Assistant provider 目录"""
+    def get_ai_provider_directory(provider_id: str) -> Path:
         from .path_manager import PathManager
-        return PathManager.get_assistant_provider_directory(provider_id)
+        return PathManager.get_ai_provider_directory(provider_id)
 
     @staticmethod
     def get_data_source_handler_directory(handler_name: str) -> Path:

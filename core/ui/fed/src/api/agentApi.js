@@ -1,11 +1,43 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 
 const API_AGENT_RUN = `${API_VERSION_PREFIX}/agent/run`;
+const API_AGENT_QUOTA = `${API_VERSION_PREFIX}/agent/quota`;
 const API_AGENT_SESSION_CLEAR = `${API_VERSION_PREFIX}/agent/session/clear`;
 const API_AGENT_SESSION_HISTORY = `${API_VERSION_PREFIX}/agent/session/history`;
 
 /**
- * @param {{ content: string, sessionId?: string }} body
+ * @returns {Promise<{
+ *   available: boolean,
+ *   balance: number|null,
+ *   tokenBalance: number|null,
+ *   currency: string,
+ *   usage: object|null,
+ *   models: object|null,
+ *   limit: number|null,
+ *   remaining: number|null,
+ * }>}
+ */
+export async function fetchAgentQuota() {
+  const json = await request.getJson(API_AGENT_QUOTA);
+  const m = json?.message || {};
+  const balance = m.balance == null ? null : Number(m.balance);
+  const tokenBalance = m.token_balance == null ? null : Number(m.token_balance);
+  const remaining = m.remaining == null ? balance : Number(m.remaining);
+  const limit = m.limit == null ? null : Number(m.limit);
+  return {
+    available: Boolean(m.available) && Number.isFinite(remaining),
+    balance: Number.isFinite(balance) ? Number(balance.toFixed(2)) : null,
+    tokenBalance: Number.isFinite(tokenBalance) ? tokenBalance : null,
+    currency: String(m.currency || '猫粮'),
+    usage: m.usage && typeof m.usage === 'object' ? m.usage : null,
+    models: m.models && typeof m.models === 'object' ? m.models : null,
+    limit: Number.isFinite(limit) ? limit : null,
+    remaining: Number.isFinite(remaining) ? Number(Number(remaining).toFixed(2)) : null,
+  };
+}
+
+/**
+ * @param {{ content: string, sessionId?: string, providerId?: string }} body
  * @returns {Promise<{
  *   reply: string,
  *   sessionId: string,
@@ -20,6 +52,7 @@ export async function runAgent(body) {
     body: {
       content: String(body?.content || ''),
       sessionId: String(body?.sessionId || '').trim() || undefined,
+      providerId: String(body?.providerId || '').trim() || undefined,
     },
   });
   const m = json?.message || {};

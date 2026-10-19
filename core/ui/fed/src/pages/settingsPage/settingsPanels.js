@@ -39,7 +39,7 @@ import {
 } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { fetchSiteUrls } from '../../api/siteApi';
-import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
+import { listAiProviders, saveAiProviderApiKey } from '../../api/aiApi';
 import {
   getImportDataProgress,
   getMlExtrasStatus,
@@ -1242,7 +1242,7 @@ export function SettingsAssistantPanel() {
     setLoadError('');
     setLoading(true);
     Promise.all([
-      listAssistantProviders(),
+      listAiProviders(),
       fetchMembershipSettings().catch(() => ({ configured: false })),
     ])
       .then(([items, membership]) => {
@@ -1272,7 +1272,7 @@ export function SettingsAssistantPanel() {
     setSavingId(providerId);
     setSaveError('');
     setSaveOk('');
-    saveAssistantProviderApiKey(providerId, apiKey)
+    saveAiProviderApiKey(providerId, apiKey)
       .then((updated) => {
         setProviders((prev) => prev.map((item) => (
           item.providerId === updated.providerId ? { ...item, ...updated } : item

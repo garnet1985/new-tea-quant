@@ -32,8 +32,16 @@ class AgentManager:
     ) -> Dict[str, Any]:
         return run_tool(self._catalog, name, arguments)
 
-    def run(self, content: str, *, session_id: Optional[str] = None) -> Dict[str, Any]:
-        return RunLoop(self._catalog).run(content, session_id=session_id)
+    def run(
+        self,
+        content: str,
+        *,
+        session_id: Optional[str] = None,
+        provider_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return RunLoop(self._catalog).run(
+            content, session_id=session_id, provider_id=provider_id
+        )
 
     def clear_session(self, session_id: Optional[str] = None) -> None:
         clear_session(session_id or default_session_id())

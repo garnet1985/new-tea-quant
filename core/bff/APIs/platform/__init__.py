@@ -1,10 +1,10 @@
-"""Platform domain: health, runtime, setup, app_settings, assistant, agent."""
+"""Platform domain: health, runtime, setup, app_settings, ai, agent."""
 
 from .health import health_api_bp
 from .runtime import runtime_api_bp
 from .setup import setup_api_bp, SetupService, SetupRuntimeManager
 from .app_settings import settings_api_bp
-from .assistant import assistant_api_bp
+from .ai import ai_api_bp
 from .agent import agent_api_bp
 
 __all__ = [
@@ -14,6 +14,6 @@ __all__ = [
     "SetupService",
     "SetupRuntimeManager",
     "settings_api_bp",
-    "assistant_api_bp",
+    "ai_api_bp",
     "agent_api_bp",
 ]

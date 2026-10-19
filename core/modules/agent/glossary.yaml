@@ -49,4 +49,4 @@ terms:
     avoid:
       - "只写在系统提示里"
       - "允许整个 userspace"
-      - "允许 extensions/assistant 下的密钥文件"
+      - "允许 extensions/ai 下的密钥文件"

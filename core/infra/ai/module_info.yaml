@@ -1,0 +1,13 @@
+name: infra.ai
+version: "0.1.0"
+compatible_core_versions: ">=0.6.0"
+package: core.infra
+description: "AI 通道：供应商发现、密钥与裸 complete（无业务）。"
+dependencies:
+  - infra.project_context
+  - infra.discovery
+changelog:
+  - version: "0.1.0"
+    changes:
+      - AiChannel：list_providers / set_api_key / complete
+      - 供应商目录 userspace/extensions/ai/providers

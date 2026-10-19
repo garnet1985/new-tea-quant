@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from core.modules.agent.core.run_loop import (
-    _format_strategy_summaries_reply,
-    _is_investment_advice_trap,
+from core.modules.agent.core.gate.patterns import (
+    is_investment_advice_trap,
+    is_out_of_scope_web_question,
 )
+from core.modules.agent.core.gate.router import route
+from core.modules.agent.core.roles.guide.patterns import is_architecture_question
+from core.modules.agent.core.gate.advice_reply import format_strategy_summaries_reply
 
 
 def test_advice_trap_detects_make_money_question():
-    assert _is_investment_advice_trap("告诉我什么策略赚钱？")
-    assert _is_investment_advice_trap("有没有能赚钱的策略")
-    assert not _is_investment_advice_trap("帮我看看 ma20_touch 的资金报告")
+    assert is_investment_advice_trap("告诉我什么策略赚钱？")
+    assert is_investment_advice_trap("有没有能赚钱的策略")
+    assert not is_investment_advice_trap("帮我看看 ma20_touch 的资金报告")
 
 
 def test_format_strategy_summaries_uses_real_keys():
-    text = _format_strategy_summaries_reply(
+    text = format_strategy_summaries_reply(
         {
             "ok": True,
             "strategies": [
@@ -47,6 +50,21 @@ def test_format_strategy_summaries_uses_real_keys():
 
 
 def test_format_strategy_summaries_empty():
-    text = _format_strategy_summaries_reply({"ok": True, "strategies": []})
+    text = format_strategy_summaries_reply({"ok": True, "strategies": []})
     assert "还没有可列出的策略" in text
     assert "投资建议" in text
+
+
+def test_out_of_scope_web_detects_news_and_macro():
+    assert is_out_of_scope_web_question("最近发生的法国暴乱会不会影响A股？")
+    assert is_out_of_scope_web_question("告诉我最近AI和芯片的投资潜力还大不大？")
+    assert is_out_of_scope_web_question("美联储最近一次利率决议结果是什么？")
+    assert not is_out_of_scope_web_question("帮我看看 ma20_touch 的资金报告")
+    assert not is_out_of_scope_web_question("帮我改一下止损并重跑回测")
+
+
+def test_router_splits_guide_arch_and_worker():
+    assert route("NTQ 的回测四步架构原理是什么？").kind == "guide_arch"
+    assert route("帮我改止损并重跑回测").kind == "worker"
+    assert route("资金报告里的夏普怎么读？").kind == "guide"
+    assert is_architecture_question("userspace 隔离是什么设计？")

@@ -10,6 +10,13 @@ from .implementer import impl as agent_impl
 agent_api_bp = Blueprint("agent_api", __name__)
 
 
+@agent_api_bp.route("/v1/agent/quota", methods=["GET"])
+def get_agent_quota():
+    """GET /v1/agent/quota — 会员猫粮余额（产品 NTQ AI）。"""
+    api = agent_impl.lazy_load()
+    return ok(api.ntq_quota())
+
+
 @agent_api_bp.route("/v1/agent/run", methods=["POST"])
 def post_agent_run():
     """POST /v1/agent/run — 经 Agent 门控与工具循环处理一句用户消息。"""
@@ -18,8 +25,13 @@ def post_agent_run():
         return error("请求体须为 JSON 对象", 400, code="AGENT_BAD_REQUEST")
     content = str(payload.get("content") or "").strip()
     session_id = str(payload.get("sessionId") or payload.get("session_id") or "").strip() or None
+    provider_id = (
+        str(payload.get("providerId") or payload.get("provider_id") or "").strip() or None
+    )
     api = agent_impl.lazy_load()
-    result, err, status = api.run(content, session_id=session_id)
+    result, err, status = api.run(
+        content, session_id=session_id, provider_id=provider_id
+    )
     if err:
         code = "AGENT_UNAVAILABLE" if status >= 500 else "AGENT_BAD_REQUEST"
         if status == 429:

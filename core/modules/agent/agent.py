@@ -26,12 +26,19 @@ class Agent:
         return Agent._manager.call_tool(name, arguments)
 
     @staticmethod
-    def run(content: str, *, session_id: Optional[str] = None) -> Dict[str, Any]:
-        """经会员通道 ntq（auto）判断并执行；本机管理 context 与工具。写入会话记录。
+    def run(
+        content: str,
+        *,
+        session_id: Optional[str] = None,
+        provider_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """经门禁与角色循环处理一句消息。默认会员 ``ntq``；也可传本机 ``provider_id``（BYOK）。
 
         返回 ``reply`` / ``mode`` / ``catfood_spent`` / ``balance`` 等，供 UI 展示。
         """
-        return Agent._manager.run(content, session_id=session_id)
+        return Agent._manager.run(
+            content, session_id=session_id, provider_id=provider_id
+        )
 
     @staticmethod
     def clear_session(session_id: Optional[str] = None) -> None:

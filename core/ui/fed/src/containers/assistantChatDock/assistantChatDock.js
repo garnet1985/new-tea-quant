@@ -5,8 +5,13 @@ import NtqIcon from 'views/ntqIcon';
 import RainbowButton from 'views/rainbowButton';
 import AssistantTypewriter from './assistantTypewriter';
 import PendingStream from './pendingStream';
-import { runAgent, clearAgentSession, fetchAgentSessionHistory } from 'api/agentApi';
-import { chatWithAssistant, fetchNtqQuota, listAssistantProviders } from 'api/assistantApi';
+import {
+  runAgent,
+  clearAgentSession,
+  fetchAgentSessionHistory,
+  fetchAgentQuota,
+} from 'api/agentApi';
+import { listAiProviders } from 'api/aiApi';
 import { fetchMembershipSettings, notifyMembershipChanged } from 'api/settingsApi';
 import { fetchSiteUrls } from 'api/siteApi';
 import { isHttpStatusError } from 'service/request';
@@ -44,7 +49,7 @@ function settingsLinkFor(content) {
     return { to: '/settings/membership', label: '去设置检查通用凭证' };
   }
   if (/自己的密钥|供应商|API Key/.test(text)) {
-    return { to: '/settings/assistant', label: '去设置填写 API Key' };
+    return { to: '/settings/ai', label: '去设置填写 API Key' };
   }
   return null;
 }
@@ -60,17 +65,6 @@ function buildAiOptions(items, membership) {
     }
   });
   return options;
-}
-
-function toHistory(messages) {
-  return messages
-    .filter((item) => (
-      (item.role === 'user' || item.role === 'assistant')
-      && item.content
-      && !item.pending
-      && !item.error
-    ))
-    .map((item) => ({ role: item.role, content: item.content }));
 }
 
 function SpentLine({ spent }) {
@@ -207,7 +201,7 @@ function AssistantChatDock() {
     if (!open) return undefined;
     let cancelled = false;
     Promise.all([
-      listAssistantProviders(),
+      listAiProviders(),
       fetchMembershipSettings().catch(() => ({ configured: false })),
     ])
       .then(([items, membership]) => {
@@ -297,7 +291,7 @@ function AssistantChatDock() {
   }, [selectedId]);
 
   const refreshNtqQuota = useCallback(() => {
-    fetchNtqQuota()
+    fetchAgentQuota()
       .then((quota) => {
         setNtqQuota(quota?.available ? quota : null);
         if (quota?.available && quota.balance != null) {
@@ -340,7 +334,6 @@ function AssistantChatDock() {
   const send = useCallback(async () => {
     const content = draft.trim();
     if (!content || sending || !selectedId) return;
-    const history = toHistory(messages);
     const userId = nextId(idRef);
     const pendingId = nextId(idRef);
     setDraft('');
@@ -361,13 +354,10 @@ function AssistantChatDock() {
       },
     ]);
     try {
-      const result = selectedId === 'ntq'
-        ? await runAgent({ content })
-        : await chatWithAssistant({
-          content,
-          history,
-          providerId: selectedId,
-        });
+      const result = await runAgent({
+        content,
+        providerId: selectedId === 'ntq' ? 'ntq' : selectedId,
+      });
       const spent = selectedId === 'ntq' ? result.catfoodSpent : null;
       const balance = selectedId === 'ntq' ? result.balance : null;
       if (selectedId === 'ntq') {
@@ -411,7 +401,7 @@ function AssistantChatDock() {
     } finally {
       setSending(false);
     }
-  }, [draft, messages, refreshNtqQuota, selectedId, sending]);
+  }, [draft, refreshNtqQuota, selectedId, sending]);
 
   const onDraftKeyDown = (event) => {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -515,7 +505,7 @@ function AssistantChatDock() {
                     {' '}
                     <RouterLink
                       className="ntq-assistant-dock__settings-link"
-                      to="/settings/assistant"
+                      to="/settings/ai"
                       onClick={close}
                     >
                       自己配置 AI

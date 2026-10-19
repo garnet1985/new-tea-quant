@@ -423,19 +423,19 @@ class PathManager:
         """获取扫描适配器目录：userspace/extensions/adapters/"""
         return PathManager.get_extensions_root() / "adapters"
 
-    # ========== extensions: Assistant ==========
+    # ========== extensions: AI 通道（infra.ai） ==========
 
     @staticmethod
-    def get_assistant_root() -> Path:
-        """获取 Assistant 根目录：userspace/extensions/assistant/"""
-        return PathManager.get_extensions_root() / "assistant"
+    def get_ai_root() -> Path:
+        """AI 通道根目录：userspace/extensions/ai/"""
+        return PathManager.get_extensions_root() / "ai"
 
     @staticmethod
-    def get_assistant_providers_directory() -> Path:
-        """获取 Assistant providers 目录：.../assistant/providers/"""
-        return PathManager.get_assistant_root() / "providers"
+    def get_ai_providers_directory() -> Path:
+        """providers 目录：.../ai/providers/"""
+        return PathManager.get_ai_root() / "providers"
 
     @staticmethod
-    def get_assistant_provider_directory(provider_id: str) -> Path:
-        """获取指定 Assistant provider 目录：.../assistant/providers/{provider_id}/"""
-        return PathManager.get_assistant_providers_directory() / provider_id
+    def get_ai_provider_directory(provider_id: str) -> Path:
+        """指定供应商目录：.../ai/providers/{provider_id}/"""
+        return PathManager.get_ai_providers_directory() / provider_id

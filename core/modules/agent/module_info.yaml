@@ -2,25 +2,12 @@ name: modules.agent
 version: "0.1.0"
 compatible_core_versions: ">=0.6.0"
 package: core.modules
-description: "AI agent：登记工具、约束写入范围，并按模型的调用单在本机执行。"
+description: "AI agent：门禁、角色循环、知识拼装与工具执行。"
 dependencies:
   - infra.project_context
-  - modules.strategy
-  - modules.cli
-  - infra.task_guard
-  - modules.assistant
+  - infra.ai
 changelog:
   - version: "0.1.0"
     changes:
-      - 初始化模块骨架：门面 Agent、工具清单、userspace 写入准则
-      - 包根只导出 Agent
-      - 模型通道走 Assistant.complete，本模块不 deep-import 其客户端
-      - Agent.run 使用会员通道上的 glm-4-flash；调用单放在 JSON 里
-      - create_strategy 已实现：检查目录名与是否存在，复制空模板并写入 meta.key
-      - write_strategy_files 覆盖已有策略的两个文件；validate_strategy 加载钩子和 settings
-      - start_enumerate 校验通过后在后台启动枚举，立刻返回任务 id
-      - 同样后台启动价格回测、资金模拟、完整回测、三层归因和滚动对照
-      - 读取进度、执行报告摘要和归因报告摘要
-      - start_scan 后台扫描当前交易日；read_scan_report 只回摘要和前几条机会
-      - 会话落盘：preferences / transcript / state；run 先门后做事
-      - 产品默认只走 ntq；AI 根地址可指 localhost:2026；OWN_KEYS 走本机密钥
+      - 门禁与 guide/worker；知识语料在本模块
+      - 补全经 infra.ai.AiChannel；BYOK 经 Agent.run(provider_id)

@@ -39,6 +39,13 @@ class Agent:
         Agent._manager.clear_session(session_id)
 
     @staticmethod
+    def session_history(
+        session_id: Optional[str] = None, *, limit: int = 20
+    ) -> Dict[str, Any]:
+        """返回本机会话最近若干轮人话，供 UI 刷新后恢复展示。"""
+        return Agent._manager.session_history(session_id, limit=limit)
+
+    @staticmethod
     def list_preferences() -> List[str]:
         """返回跨会话偏好列表。"""
         return Agent._manager.list_preferences()

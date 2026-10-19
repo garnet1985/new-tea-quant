@@ -61,7 +61,7 @@
 
 ### 运行循环（`run_loop`）
 
-`Agent.run` 调用本类。产品默认只走会员通道 `ntq`：请求带 `ntq_mode=ask|work`。门与只读报告走 ask；写代码和长任务走 work。问答以后可真流式；做事一次输出一整段。模型点工具时本机执行；启动类工具会等到结束。官网成功后按 usage 精确扣猫粮，响应里带 `ntq.catfood_spent` / `balance`。一轮最多 10 次模型调用。官网根地址只认 `membership.json` 的 `base_url`。开发可设 `NTQ_AGENT_OWN_KEYS=1` 走本机密钥。
+`Agent.run` 调用本类。产品默认只走会员通道 `ntq`：请求带 `ntq_mode=ask|work`。门与只读报告走 ask；写代码和长任务走 work。问答以后可真流式；做事一次输出一整段。模型点工具时本机执行；启动类工具会等到结束。官网成功后按 usage 精确扣猫粮，响应里带 `ntq.catfood_spent` / `balance`。一轮最多 14 次模型调用。官网根地址只认 `membership.json` 的 `base_url`。开发可设 `NTQ_AGENT_OWN_KEYS=1` 走本机密钥。
 
 会话落在 `userspace/.ntq/agent/`：跨会话偏好 `preferences.json`；每个会话目录有 `transcript.jsonl`（全文）和 `state.json`（局部任务状态）。每次请求拼偏好、状态卡和最近 6 轮人话。超过 200 轮时归档更早记录。`clear_session` 只清对话和局部状态。
 

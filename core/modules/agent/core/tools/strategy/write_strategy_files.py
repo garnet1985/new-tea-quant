@@ -1,9 +1,9 @@
-"""write_strategy_files：覆盖已有策略的两个文件。"""
+"""write_strategy_files：覆盖已有策略的 strategy.py / settings.py / attribution.py。"""
 
 from __future__ import annotations
 
 import ast
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from core.modules.agent.core.tools.strategy._strategy_key import (
     parse_strategy_key,
@@ -11,7 +11,7 @@ from core.modules.agent.core.tools.strategy._strategy_key import (
 )
 
 _MAX_CHARS = 200_000
-
+_ALLOWED = frozenset({"key", "strategy_py", "settings_py", "attribution_py"})
 
 _CONTRACTS = "from core.modules.strategy.contracts import Records, StrategyContext, StrategyHooks"
 
@@ -34,9 +34,26 @@ def _settings_shape_error(body: str) -> str:
         return (
             "settings.py 必须是 Python，以 settings = { 开头。"
             "布尔写 True / False。不要写 YAML。"
-            "至少包含 is_enabled、meta.key、data.base.indicators.macd。"
+            "至少包含 is_enabled、meta.key、data.base。"
             "文件没有被改。"
         )
+    return ""
+
+
+def _attribution_shape_error(body: str) -> str:
+    text = _python_settings(body)
+    if "attribution" not in text or "{" not in text:
+        return "attribution.py 须含 attribution = { ... }。文件没有被改。"
+    marker = text.find("attribution")
+    start = text.find("{", marker)
+    if start < 0:
+        return "attribution.py 须含 attribution = { ... }。文件没有被改。"
+    try:
+        value = ast.literal_eval(text[start:])
+    except (SyntaxError, ValueError):
+        return "attribution.py 无法解析为字典。文件没有被改。"
+    if not isinstance(value, dict):
+        return "attribution 必须是字典。文件没有被改。"
     return ""
 
 
@@ -125,9 +142,29 @@ def _python_settings(body: str) -> str:
     )
 
 
+def _read_body(arguments: Dict[str, Any], name: str) -> str | Dict[str, Any]:
+    body = arguments.get(name)
+    if body is None:
+        return ""
+    if not isinstance(body, str) or not body.strip():
+        return {"ok": False, "error": f"{name} 不能为空字符串"}
+    if "\x00" in body:
+        return {"ok": False, "error": f"{name} 含有无法写入的字符"}
+    if len(body) > _MAX_CHARS:
+        return {"ok": False, "error": f"{name} 超过 {_MAX_CHARS} 个字符"}
+    return body
+
+
 def write_strategy_files(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """只覆盖 strategy.py 与 settings.py。目录必须已经存在。"""
-    parsed = parse_strategy_key(arguments, only={"key", "strategy_py", "settings_py"})
+    """覆盖 strategy.py / settings.py / attribution.py（至少写一个）。目录须已存在。"""
+    if not isinstance(arguments, dict) or not set(arguments) <= _ALLOWED:
+        return {
+            "ok": False,
+            "error": "只接受参数 key、strategy_py、settings_py、attribution_py",
+        }
+    if "key" not in arguments:
+        return {"ok": False, "error": "必须提供 key"}
+    parsed = parse_strategy_key({"key": arguments.get("key")}, only={"key"})
     if isinstance(parsed, dict):
         return parsed
     located = strategy_folder(parsed)
@@ -137,37 +174,57 @@ def write_strategy_files(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not folder.is_dir():
         return {"ok": False, "error": f"策略不存在: {relative}。请先 create_strategy"}
 
-    texts: Dict[str, str] = {}
-    for name in ("strategy_py", "settings_py"):
-        body = arguments.get(name)
-        if not isinstance(body, str) or not body.strip():
-            return {"ok": False, "error": f"{name} 不能为空"}
-        if "\x00" in body:
-            return {"ok": False, "error": f"{name} 含有无法写入的字符"}
-        if len(body) > _MAX_CHARS:
-            return {"ok": False, "error": f"{name} 超过 {_MAX_CHARS} 个字符"}
-        texts[name] = body
-    texts["strategy_py"] = _normalize_strategy(texts["strategy_py"])
+    strategy_body = _read_body(arguments, "strategy_py")
+    if isinstance(strategy_body, dict):
+        return strategy_body
+    settings_body = _read_body(arguments, "settings_py")
+    if isinstance(settings_body, dict):
+        return settings_body
+    attribution_body = _read_body(arguments, "attribution_py")
+    if isinstance(attribution_body, dict):
+        return attribution_body
+    if not strategy_body and not settings_body and not attribution_body:
+        return {
+            "ok": False,
+            "error": "至少提供 strategy_py、settings_py、attribution_py 之一",
+        }
 
-    shape = _settings_shape_error(texts["settings_py"])
-    if shape:
-        return {"ok": False, "key": parsed, "error": shape}
-    signature = _signature_error(texts["strategy_py"])
-    if signature:
-        return {"ok": False, "key": parsed, "error": signature}
-
-    strategy_file = folder / "strategy.py"
-    settings_file = folder / "settings.py"
-    texts["settings_py"] = _merge_settings(settings_file, texts["settings_py"])
+    written: List[str] = []
     try:
-        strategy_file.write_text(texts["strategy_py"], encoding="utf-8")
-        settings_file.write_text(texts["settings_py"], encoding="utf-8")
+        if strategy_body:
+            strategy_body = _normalize_strategy(strategy_body)
+            signature = _signature_error(strategy_body)
+            if signature:
+                return {"ok": False, "key": parsed, "error": signature}
+            (folder / "strategy.py").write_text(strategy_body, encoding="utf-8")
+            written.append("strategy.py")
+        if settings_body:
+            shape = _settings_shape_error(settings_body)
+            if shape:
+                return {"ok": False, "key": parsed, "error": shape}
+            settings_path = folder / "settings.py"
+            merged = _merge_settings(settings_path, settings_body)
+            settings_path.write_text(merged, encoding="utf-8")
+            written.append("settings.py")
+        if attribution_body:
+            shape = _attribution_shape_error(attribution_body)
+            if shape:
+                return {"ok": False, "key": parsed, "error": shape}
+            text = _python_settings(attribution_body).strip() + "\n"
+            (folder / "attribution.py").write_text(text, encoding="utf-8")
+            written.append("attribution.py")
     except OSError:
         return {"ok": False, "error": f"无法写入 {relative} 下的策略文件"}
+
+    note = "文件已覆盖。"
+    if "strategy.py" in written or "settings.py" in written:
+        note += "接着调用 validate_strategy，通过之前不要回测。"
+    if "attribution.py" in written:
+        note += "归因配置已更新，可重新 start_attribute_*。"
     return {
         "ok": True,
         "key": parsed,
         "path": relative,
-        "files": ["strategy.py", "settings.py"],
-        "note": "文件已覆盖。接着调用 validate_strategy，通过之前不要回测",
+        "files": written,
+        "note": note.strip(),
     }

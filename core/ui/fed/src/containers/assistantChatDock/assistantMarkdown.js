@@ -94,6 +94,44 @@ function collectListItems(lines, start, itemRe) {
 }
 
 /**
+ * 模型常把长「结论」写成列表最后一项；拆成段落后再渲染。
+ */
+function peelTrailingSummary(items) {
+  if (!Array.isArray(items) || items.length < 2) {
+    return { items, summary: null };
+  }
+  const last = String(items[items.length - 1] || '').trim();
+  if (!last) return { items, summary: null };
+  const others = items.slice(0, -1);
+  const avg = others.reduce((sum, text) => sum + String(text).length, 0) / others.length;
+  const summaryLead = /^(结论|综合来看|综合判断|总结|因此|所以|简言之|总的来说|总体来看|综上)/;
+  const looksSummary = summaryLead.test(last) && last.length >= 40;
+  const looksLongTail = last.length >= 90 && last.length >= avg * 2.2;
+  if (looksSummary || looksLongTail) {
+    return { items: others, summary: last };
+  }
+  return { items, summary: null };
+}
+
+function pushListNodes(nodes, key, Tag, className, items) {
+  const peeled = peelTrailingSummary(items);
+  nodes.push(
+    <Tag key={key} className={className}>
+      {peeled.items.map((item, idx) => (
+        <li key={`${key}-${idx}`}>{parseInline(item, `${key}-${idx}`)}</li>
+      ))}
+    </Tag>,
+  );
+  if (peeled.summary) {
+    nodes.push(
+      <p key={`${key}-summary`} className="ntq-assistant-md__p ntq-assistant-md__p--summary">
+        {parseInline(peeled.summary, `${key}-summary`)}
+      </p>,
+    );
+  }
+}
+
+/**
  * 模型常把「1. …；2. …」写在同一段里；拆成换行后才能渲染成 ol/li。
  */
 function normalizeCompactLists(text) {
@@ -179,25 +217,19 @@ function renderBlocks(text, keyPrefix) {
     if (/^\s*[-*]\s+/.test(line)) {
       const collected = collectListItems(lines, i, /^\s*[-*]\s+/);
       i = collected.next;
-      nodes.push(
-        <ul key={key} className="ntq-assistant-md__list">
-          {collected.items.map((item, idx) => (
-            <li key={`${key}-${idx}`}>{parseInline(item, `${key}-${idx}`)}</li>
-          ))}
-        </ul>,
-      );
+      pushListNodes(nodes, key, 'ul', 'ntq-assistant-md__list', collected.items);
       continue;
     }
 
     if (/^\s*\d+\.\s+/.test(line)) {
       const collected = collectListItems(lines, i, /^\s*\d+\.\s+/);
       i = collected.next;
-      nodes.push(
-        <ol key={key} className="ntq-assistant-md__list ntq-assistant-md__list--ol">
-          {collected.items.map((item, idx) => (
-            <li key={`${key}-${idx}`}>{parseInline(item, `${key}-${idx}`)}</li>
-          ))}
-        </ol>,
+      pushListNodes(
+        nodes,
+        key,
+        'ol',
+        'ntq-assistant-md__list ntq-assistant-md__list--ol',
+        collected.items,
       );
       continue;
     }

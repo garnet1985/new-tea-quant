@@ -224,6 +224,84 @@ def _json_cell(value: Any) -> Dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def list_strategy_summaries(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """列出本机策略及最新一层执行报告摘要（默认资金层）。供客观陈述回测事实，不作投资建议。"""
+    if not isinstance(arguments, dict) or not set(arguments) <= {"layer"}:
+        return {"ok": False, "error": "只接受可选参数 layer"}
+    layer = str(arguments.get("layer") or "portfolio").strip() or "portfolio"
+    if layer not in _LAYERS:
+        return {"ok": False, "error": "layer 只能是 enum、price 或 portfolio"}
+    try:
+        from core.modules.strategy import Strategy
+
+        infos = Strategy.list_strategy_infos()
+    except Exception as exc:  # noqa: BLE001 — surface discovery failure to the agent
+        return {"ok": False, "error": f"无法列出策略：{exc}"}
+
+    strategies: List[Dict[str, Any]] = []
+    for info in infos:
+        if not isinstance(info, dict):
+            continue
+        key = str(info.get("unique_relative_path") or info.get("key") or "").strip()
+        if not key:
+            continue
+        located = strategy_folder(key)
+        if isinstance(located, dict):
+            continue
+        folder, _relative = located
+        if not folder.is_dir():
+            continue
+        entry: Dict[str, Any] = {
+            "key": key,
+            "display_name": str(info.get("display_name") or key),
+            "enabled": bool(info.get("is_enabled")),
+            "has_report": False,
+        }
+        sim_root = folder / "results" / "simulations"
+        version_id = _latest_main_version(sim_root, layer)
+        if version_id and _safe_version(version_id):
+            report_path = sim_root / version_id / layer / "overall_report.json"
+            if _inside(folder, report_path) and report_path.is_file():
+                payload = _read_json(report_path)
+                summary = (
+                    payload.get("summary")
+                    if isinstance(payload, dict) and isinstance(payload.get("summary"), dict)
+                    else {}
+                )
+                period = (
+                    payload.get("backtest_period")
+                    if isinstance(payload, dict)
+                    and isinstance(payload.get("backtest_period"), dict)
+                    else {}
+                )
+                entry.update(
+                    {
+                        "has_report": True,
+                        "layer": layer,
+                        "version_id": version_id,
+                        "period": {
+                            "start_date": period.get("start_date") or "",
+                            "end_date": period.get("end_date") or "",
+                        },
+                        "summary": _pick(summary, _fields_for(layer)),
+                    }
+                )
+        strategies.append(entry)
+        if len(strategies) >= 24:
+            break
+
+    return {
+        "ok": True,
+        "layer": layer,
+        "count": len(strategies),
+        "strategies": strategies,
+        "note": (
+            "这些是本机历史回测摘要，只供研究陈述；"
+            "不要据此给出投资建议或「会赚钱」的推荐。"
+        ),
+    }
+
+
 def read_execution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """读枚举、价格或资金层的 overall_report 摘要。"""
     parsed = _locate(arguments, optional={"version_id"})

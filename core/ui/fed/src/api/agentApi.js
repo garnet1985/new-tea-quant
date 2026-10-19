@@ -2,6 +2,7 @@ import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 
 const API_AGENT_RUN = `${API_VERSION_PREFIX}/agent/run`;
 const API_AGENT_SESSION_CLEAR = `${API_VERSION_PREFIX}/agent/session/clear`;
+const API_AGENT_SESSION_HISTORY = `${API_VERSION_PREFIX}/agent/session/history`;
 
 /**
  * @param {{ content: string, sessionId?: string }} body
@@ -52,5 +53,29 @@ export async function clearAgentSession(body = {}) {
   return {
     cleared: Boolean(m.cleared),
     sessionId: String(m.sessionId || 'default'),
+  };
+}
+
+/**
+ * @param {{ sessionId?: string, limit?: number }} [body]
+ * @returns {Promise<{ sessionId: string, messages: Array<{ role: string, content: string }> }>}
+ */
+export async function fetchAgentSessionHistory(body = {}) {
+  const params = new URLSearchParams();
+  const sessionId = String(body?.sessionId || '').trim();
+  if (sessionId) params.set('sessionId', sessionId);
+  params.set('limit', String(body?.limit == null ? 20 : body.limit));
+  const url = `${API_AGENT_SESSION_HISTORY}?${params.toString()}`;
+  const json = await request.getJson(url);
+  const m = json?.message || {};
+  const rows = Array.isArray(m.messages) ? m.messages : [];
+  return {
+    sessionId: String(m.sessionId || 'default'),
+    messages: rows
+      .filter((item) => item && (item.role === 'user' || item.role === 'assistant') && item.content)
+      .map((item) => ({
+        role: item.role === 'user' ? 'user' : 'assistant',
+        content: String(item.content),
+      })),
   };
 }

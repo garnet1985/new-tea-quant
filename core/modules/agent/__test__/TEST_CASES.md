@@ -3,4 +3,6 @@
 **模块：** `modules.agent`  
 **版本：** `0.1.0`
 
-开发完成后再统一补齐。本阶段不维护用例表，也不放测试代码。
+| 文件 | 说明 |
+|------|------|
+| `core/__test__/test_decision_parse.py` | 混排 tool JSON 不得当 reply；优先提取 tool |

@@ -88,5 +88,35 @@ class AgentImplementer:
             return None, str(exc), _status_for_agent_error(exc)
         return {"cleared": True, "sessionId": sid or "default"}, None, 200
 
+    def session_history(
+        self,
+        session_id: Optional[str] = None,
+        *,
+        limit: int = 20,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str], int]:
+        assert self._Agent is not None
+        assert self._AgentError is not None
+        sid = str(session_id or "").strip() or None
+        try:
+            outcome = self._Agent.session_history(sid, limit=limit)
+        except self._AgentError as exc:
+            return None, str(exc), _status_for_agent_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            return None, str(exc) or "读取会话失败", 502
+        messages = outcome.get("messages") if isinstance(outcome, dict) else []
+        if not isinstance(messages, list):
+            messages = []
+        return {
+            "sessionId": str((outcome or {}).get("session_id") or sid or "default"),
+            "messages": [
+                {
+                    "role": str(item.get("role") or ""),
+                    "content": str(item.get("content") or ""),
+                }
+                for item in messages
+                if isinstance(item, dict) and item.get("content")
+            ],
+        }, None, 200
+
 
 impl = AgentImplementer()

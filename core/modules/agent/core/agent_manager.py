@@ -11,6 +11,7 @@ from core.modules.agent.core.session_store import (
     default_session_id,
     forget_preference,
     load_preferences,
+    recent_turns,
     remember_preference,
 )
 from core.modules.agent.core.tool_catalog import ToolCatalog
@@ -36,6 +37,15 @@ class AgentManager:
 
     def clear_session(self, session_id: Optional[str] = None) -> None:
         clear_session(session_id or default_session_id())
+
+    def session_history(
+        self, session_id: Optional[str] = None, *, limit: int = 20
+    ) -> Dict[str, Any]:
+        sid = session_id or default_session_id()
+        return {
+            "session_id": sid,
+            "messages": recent_turns(sid, limit=max(1, int(limit))),
+        }
 
     def list_preferences(self) -> List[str]:
         return load_preferences()

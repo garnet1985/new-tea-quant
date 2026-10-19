@@ -40,20 +40,24 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="write_strategy_files",
         description=(
-            "覆盖已有策略的 strategy.py 与 settings.py。目录必须已经存在，不会新建目录，也不写其他文件。"
-            "写完后调用 validate_strategy。未通过校验不要回测。"
+            "覆盖已有策略的 strategy.py、settings.py 或 attribution.py。"
+            "目录必须已经存在；至少提供一个文件正文。改了 strategy/settings 后调用 validate_strategy；"
+            "只改 attribution 后可直接重跑归因。"
         ),
         parameters=_object(
             {
                 "key": _string("已存在的策略目录名，例如 macd_cross"),
                 "strategy_py": _string(
-                    "strategy.py 全文。公开类继承 StrategyHooks，并实现 is_opportunity。"
+                    "strategy.py 全文。公开类继承 StrategyHooks，并实现 is_opportunity。可省略。"
                 ),
                 "settings_py": _string(
-                    "settings.py 全文。必须有 settings 字典，meta.key 等于目录名，is_enabled 为 True。"
+                    "settings.py 全文。必须有 settings 字典，meta.key 等于目录名，is_enabled 为 True。可省略。"
+                ),
+                "attribution_py": _string(
+                    "attribution.py 全文。须含 attribution = { ... }。可省略。"
                 ),
             },
-            ["key", "strategy_py", "settings_py"],
+            ["key"],
         ),
         implemented=True,
     ),
@@ -180,6 +184,19 @@ _TOOLS: tuple[ToolSpec, ...] = (
         parameters=_object(
             {"task_id": _string("启动类工具返回的任务 id")},
             ["task_id"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_strategy_summaries",
+        description=(
+            "列出本机策略及最新执行报告摘要（默认资金层 portfolio）。"
+            "用于客观陈述已有回测结果；禁止据此给投资建议或推荐「能赚钱」的策略。"
+            "layer 可省略，为 enum、price 或 portfolio。"
+        ),
+        parameters=_object(
+            {"layer": _string("enum、price 或 portfolio；省略则 portfolio")},
+            [],
         ),
         implemented=True,
     ),

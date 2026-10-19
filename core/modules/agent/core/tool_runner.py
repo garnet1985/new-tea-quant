@@ -19,6 +19,7 @@ from core.modules.agent.core.tools.strategy.background_run import (
 )
 from core.modules.agent.core.tools.strategy.create_strategy import create_strategy
 from core.modules.agent.core.tools.strategy.read_reports import (
+    list_strategy_summaries,
     read_attribution_report,
     read_execution_report,
     read_progress,
@@ -43,6 +44,7 @@ _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "start_rolling": start_rolling,
     "start_scan": start_scan,
     "read_progress": read_progress,
+    "list_strategy_summaries": list_strategy_summaries,
     "read_execution_report": read_execution_report,
     "read_attribution_report": read_attribution_report,
     "read_scan_report": read_scan_report,

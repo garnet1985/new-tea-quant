@@ -13,7 +13,7 @@
 
 - 选定 Provider（`ntq` 或某一个自备）
 - **Navigator：意图分流**（输出 guide / worker / …）——**不是** Website 的事
-- 组织 context、流向、本机工具
+- 组织 content、流向、本机工具
 
 **Website（仅 Provider=ntq）**
 
@@ -22,34 +22,32 @@
 
 ---
 
-## 目录分层（内容 / 功能分离）
+## 目录分层
 
 | 目录 | 受众 | 规则 |
 |------|------|------|
-| `prompts/` | 模型 | **md only**；禁止在 `core/` 堆大段中文 system / nudge / 固定回复 |
-| `core/` | 运行时 | 只 `load_prompt` / `load_nudge` / `load_reply`；禁止大段中文常量 |
-| `context/` | 白名单说明书 | allowlist 注入 guide；**默认不进** worker 系统提示全文 |
-| `eval/` | 离线评测 | 不被 `run_loop` import |
+| `core/code/` | 程序员 | 全部可执行逻辑；禁止堆大段中文文案 |
+| `core/content/` | 非程序员 / 模型 | 仅 md、txt、allowlist；由 code 读取 |
+| `evaluate/` | 离线分流评测 | 金标 + harness；**不被** pipeline import |
 | `docs/` | 开发者 | 不注入模型 |
 
 ```text
 core/modules/agent/
-├── prompts/                 # 给模型：md only
-│   ├── common/{identity,session_preamble}.md
-│   ├── navigate/classifier.md
-│   ├── guide/{arch,arch_user,wiki}.md
-│   ├── worker/system.md     # {{identity}} {{tools}}
-│   ├── nudges/{worker,guide}.md
-│   └── replies.md
-├── core/                    # 功能（暂不改名 runtime）
-│   ├── prompt_store.py      # loader
-│   ├── provider.py / run_loop.py / loop_runtime.py
-│   ├── navigator/           # 本地意图（正则在 patterns，文案在 prompts）
-│   ├── roles/guide|worker
-│   └── tools/strategy/
-├── context/                 # 白名单说明书 + allowlist
-├── eval/                    # gold_set / harness
-└── docs/
+├── agent.py / contracts.py
+├── evaluate/                   # gold_set + harness（evaluate）
+├── docs/
+└── core/
+    ├── code/
+    │   ├── pipeline.py / agent_manager.py
+    │   ├── navigator/ provider/ session/ tools/ conf/
+    │   └── executor/{shared,guider,worker}/
+    └── content/
+        ├── global/             # whoiam · responsibility · redlines
+        ├── specific/
+        │   ├── navigator/      # classifier + advice replies
+        │   ├── guider/
+        │   └── worker/
+        └── ntq_wiki/
 ```
 
 ---
@@ -59,10 +57,12 @@ core/modules/agent/
 ```text
 用户话 + providerId
   → resolve_provider
-  → navigator.route           # 本地分流（文案：prompts/navigate）
-  → guide / worker            # 文案：prompts/guide|worker
+  → navigator.route
+  → guider / worker（读 content/ → ask → decision → use_tool）
   → complete(同一 provider_id；ntq 时带 ntq.phase / ntq.intent)
 ```
+
+`Agent.run` 返回里的 `handoff` / `mode`：`mode` 仅为 UI 兼容简写（`work`⇔进过执行者），**不是**远端 `ntq.phase`。
 
 ---
 

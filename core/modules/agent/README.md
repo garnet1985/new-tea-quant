@@ -5,7 +5,16 @@
 ## 适用场景
 
 - 查看工具清单
-- `Agent.run`：Provider（`ntq` 或某一个自备）→ 组 context → Navigator → 流向 / 工具
+- `Agent.run`：Provider（`ntq` 或某一个自备）→ Navigator → guider / worker / 工具
+
+## 目录
+
+| 路径 | 说明 |
+|------|------|
+| `core/code/` | 可执行逻辑 |
+| `core/content/` | 文案与说明书（global / specific / ntq_wiki） |
+| `evaluate/` | 分流金标评测（离线） |
+| `docs/` | 开发者文档 |
 
 ## 模块依赖
 

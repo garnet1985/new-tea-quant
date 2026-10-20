@@ -10,6 +10,8 @@
 
 新建策略需要 `userspace/strategies/_template/empty_strategy/`。`Agent.run` 默认 Provider=`ntq`（会员凭证 → Website）。官网根地址只认 `userspace/system/config/membership.json` 的 `base_url`。开发自测可设 `NTQ_AGENT_OWN_KEYS=1`（默认本机 deepseek，仍是 own）。
 
+文案在 `core/content/`；超时与步数在 `core/code/conf/conf.py`。
+
 ---
 
 ## 最小示例
@@ -24,6 +26,11 @@ Agent.call_tool("create_strategy", {"key": "macd_cross"})
 ```
 
 **预期结果：** 已实现的工具打印 `True`。`create_strategy` 在 `userspace/strategies/macd_cross/` 放一个空策略，`meta.key` 为 `macd_cross`。目录已存在时返回 `ok: false`，不覆盖。
+
+```python
+outcome = Agent.run("NTQ 是什么")
+print(outcome["reply"], outcome["handoff"], outcome.get("catfood_spent"))
+```
 
 ---
 

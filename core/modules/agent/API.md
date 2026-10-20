@@ -7,13 +7,13 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
-**公开约定：** 包根仅导出 `Agent`。`ToolSpec` 与 `AgentError` 从 [`contracts.py`](./contracts.py) 导入。`AgentManager`、`ToolCatalog`、`RunLoop` 位于 `core/`，禁止 deep-import。
+**公开约定：** 包根仅导出 `Agent`。`ToolSpec` 与 `AgentError` 从 [`contracts.py`](./contracts.py) 导入。实现位于 `core/code/`，禁止 deep-import。
 
 ---
 
 ## Agent
 
-**描述：** AI agent 门面（静态 API）。列出工具，执行调用单，并把一句话交给会员通道上的 glm-4-flash。
+**描述：** AI agent 门面（静态 API）。列出工具，执行调用单；`run` 走 Provider → Navigator → guider/worker。
 
 ### list_tools
 
@@ -60,27 +60,28 @@ Agent.call_tool("create_strategy", {"key": "macd_cross"})
 
 ### run
 
-`Agent.run(content: str, *, session_id: Optional[str] = None) -> str`
+`Agent.run(content: str, *, session_id: Optional[str] = None, provider_id: Optional[str] = None) -> dict`
 
 - **类型：** `static`
 - **状态：** `experimental`
 - **引入版本：** `0.1.0`
-- **描述：** 锁定 Provider（`ntq` 或某一个自备）后，Navigator 分流再进 guide/worker；全程同一 `provider_id` 出站。`ntq` 打 Website（模型调度与猫粮在远端）；自备 key 不计 NTQ 用量。一轮最多 14 次模型调用。开发可设 `NTQ_AGENT_OWN_KEYS=1`（默认本机 deepseek）；Navigator 对照臂可设 `NTQ_AGENT_NAVIGATOR_MODE=regex`
+- **描述：** 锁定 Provider（`ntq` 或某一个自备）后，Navigator 分流再进 guider/worker；全程同一 `provider_id` 出站。`ntq` 打 Website（模型调度与猫粮在远端）；自备 key 不计 NTQ 用量。一轮模型调用上限见 `conf.PIPELINE_MAX_STEPS`。开发可设 `NTQ_AGENT_OWN_KEYS=1`；Navigator 对照臂可设 `NTQ_AGENT_NAVIGATOR_MODE=regex`
 - **参数：**
 
 | 名字 | 类型 | 说明 |
 |------|------|------|
 | `content` | `str` | 用户需求；空白则失败 |
 | `session_id` (可选) | `str \| None` | 会话名，默认 `default` |
+| `provider_id` (可选) | `str \| None` | 缺省走 ntq（或 OWN_KEYS 开发默认） |
 
-- **返回值：** `str` — 给人看的回复
+- **返回值：** `dict` — `reply`、`handoff`（是否进过执行者）、`mode`（`ask`\|`work`，与 `handoff` 同义的 UI 简写，**不是** `ntq.phase`）、`catfood_spent`、`balance`
 - **错误与异常：** `AgentError` — 消息为空、模型通道失败、调用次数用尽、工具名未知
 - **举例：**
 
 ```python
 from core.modules.agent import Agent
 
-print(Agent.run("读一下 demo/regression/rsi/rsi_v1_baseline 的枚举报告，不要回测"))
+print(Agent.run("读一下 demo/regression/rsi/rsi_v1_baseline 的枚举报告，不要回测")["reply"])
 ```
 
 ### clear_session

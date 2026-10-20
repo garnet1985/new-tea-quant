@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from core.modules.agent.contracts import ToolSpec
-from core.modules.agent.core.agent_manager import AgentManager
+from core.modules.agent.core.code.agent_manager import AgentManager
 
 
 class Agent:
@@ -34,7 +34,8 @@ class Agent:
     ) -> Dict[str, Any]:
         """锁定 Provider → Navigator → 流向。默认 ``ntq``；或传某一个自备 ``provider_id``。
 
-        返回 ``reply`` / ``mode`` / ``catfood_spent`` / ``balance`` 等，供 UI 展示。
+        返回 ``reply`` / ``handoff`` / ``mode``（UI 简写，等同 handoff）/
+        ``catfood_spent`` / ``balance`` 等，供 UI 展示。
         """
         return Agent._manager.run(
             content, session_id=session_id, provider_id=provider_id

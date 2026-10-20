@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
-import { fetchMemberProfile } from 'api/settingsApi';
+import { fetchMemberProfile, MEMBERSHIP_CHANGED_EVENT } from 'api/settingsApi';
 import './style.scss';
 
 const FALLBACK_REGISTER_URL = 'https://www.new-tea.cn/zh-hans/user/register';
@@ -17,35 +17,78 @@ function MemberStrip() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchMemberProfile()
-      .then((next) => {
-        if (!cancelled) setProfile(next);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setProfile({
-            signed_in: false,
-            register_url: FALLBACK_REGISTER_URL,
-            name: '',
-            avatar: '',
-            points: null,
-            reason: 'unreachable',
-          });
-        }
-      });
+
+    const load = () => {
+      fetchMemberProfile()
+        .then((next) => {
+          if (!cancelled) {
+            setAvatarFailed(false);
+            setProfile(next);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setProfile({
+              signed_in: false,
+              register_url: FALLBACK_REGISTER_URL,
+              name: '',
+              avatar: '',
+              points: null,
+              tier: null,
+              is_pro: false,
+              catfood: null,
+              reason: 'unreachable',
+            });
+          }
+        });
+    };
+
+    load();
+    const onChanged = (event) => {
+      const nextCatfood = event?.detail?.catfood;
+      if (nextCatfood != null && Number.isFinite(Number(nextCatfood))) {
+        setProfile((prev) => (
+          prev?.signed_in
+            ? { ...prev, catfood: Number(Number(nextCatfood).toFixed(2)) }
+            : prev
+        ));
+        return;
+      }
+      load();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    window.addEventListener(MEMBERSHIP_CHANGED_EVENT, onChanged);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;
+      window.removeEventListener(MEMBERSHIP_CHANGED_EVENT, onChanged);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
   const signedIn = Boolean(profile?.signed_in);
   const showAvatar = signedIn && profile.avatar && !avatarFailed;
   const registerUrl = profile?.register_url || FALLBACK_REGISTER_URL;
+  const tierLabel = profile?.is_pro || profile?.tier === 'pro' ? 'Pro' : '标准';
+  const catfoodText =
+    profile?.catfood == null || Number.isNaN(Number(profile.catfood))
+      ? null
+      : Number(profile.catfood).toFixed(2);
+  const chipTitle = [
+    profile?.name,
+    `${profile?.points ?? 0} 点数`,
+    tierLabel,
+    catfoodText != null ? `${catfoodText} 猫粮` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Box className="ntq-member-strip">
       {signedIn ? (
-        <Box className="ntq-member-strip__chip" title={`${profile.name} · ${profile.points} 点数`}>
+        <Box className="ntq-member-strip__chip" title={chipTitle}>
           {showAvatar ? (
             <Box
               component="img"
@@ -64,10 +107,24 @@ function MemberStrip() {
           </Box>
           <Box component="span" className="ntq-member-strip__points">
             <Box component="span" className="ntq-member-strip__points-value">
-              {profile.points}
+              {tierLabel}
             </Box>
-            点数
           </Box>
+          {catfoodText != null ? (
+            <Box component="span" className="ntq-member-strip__points">
+              <Box component="span" className="ntq-member-strip__points-value">
+                {catfoodText}
+              </Box>
+              猫粮
+            </Box>
+          ) : (
+            <Box component="span" className="ntq-member-strip__points">
+              <Box component="span" className="ntq-member-strip__points-value">
+                {profile.points}
+              </Box>
+              点数
+            </Box>
+          )}
         </Box>
       ) : profile ? (
         <Box className="ntq-member-strip__chip">

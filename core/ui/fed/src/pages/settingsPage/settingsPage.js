@@ -24,7 +24,7 @@ const SETTINGS_TABS = [
   { id: 'system', label: '安装与维护', path: 'system' },
   { id: 'database', label: '数据库', path: 'database' },
   { id: 'membership', label: '会员', path: 'membership' },
-  { id: 'assistant', label: 'AI 助理', path: 'assistant' },
+  { id: 'ai', label: 'AI 通道', path: 'ai' },
   { id: 'data', label: '数据范围', path: 'data' },
   { id: 'cache', label: '缓存管理', path: 'cache' },
   { id: 'trace', label: '使用统计', path: 'trace' },
@@ -223,7 +223,7 @@ function SettingsPage() {
               )}
             />
             <Route path="membership" element={<SettingsMembershipPanel />} />
-            <Route path="assistant" element={<SettingsAssistantPanel />} />
+            <Route path="ai" element={<SettingsAssistantPanel />} />
             <Route path="cache" element={<SettingsCachePanel />} />
             <Route path="trace" element={<SettingsTracePanel />} />
             <Route path="feedback" element={<SettingsFeedbackPanel />} />

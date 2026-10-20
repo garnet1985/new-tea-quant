@@ -3,7 +3,9 @@
 ########################
 
 __pycache__/
+**/__pycache__/
 *.py[cod]
+**/*.py[cod]
 *$py.class
 
 ########################
@@ -112,7 +114,6 @@ temp/
 devbackup/
 *.log
 logs/
-tools/
 experiments/
 
 ########################

@@ -143,6 +143,17 @@ export async function saveTraceSettings(body) {
   };
 }
 
+/** 会员凭证变更后，顶栏等监听此事件刷新。 */
+export const MEMBERSHIP_CHANGED_EVENT = 'ntq-membership-changed';
+
+/**
+ * @param {{ catfood?: number|null }} [detail]
+ */
+export function notifyMembershipChanged(detail = {}) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(MEMBERSHIP_CHANGED_EVENT, { detail: detail || {} }));
+}
+
 /**
  * @returns {Promise<{ configured: boolean, invalid: boolean, path: string }>}
  */
@@ -165,6 +176,7 @@ export async function saveMembershipToken(token) {
     body: { token: String(token || '') },
   });
   const m = json?.message || {};
+  notifyMembershipChanged();
   return {
     configured: Boolean(m.configured),
     invalid: Boolean(m.invalid),
@@ -177,19 +189,52 @@ export async function saveMembershipToken(token) {
  */
 /**
  * 顶栏会员条。没有凭证或官网拒绝时 signed_in 为 false。
- * @returns {Promise<{ signed_in: boolean, register_url: string, name: string, avatar: string, points: number|null, reason: string }>}
+ * @returns {Promise<{ signed_in: boolean, register_url: string, name: string, avatar: string, points: number|null, tier: string|null, is_pro: boolean, catfood: number|null, reason: string }>}
  */
 export async function fetchMemberProfile() {
   const json = await request.getJson(`${API_VERSION_PREFIX}/membership/profile`, { silent: true });
   const m = json?.message || {};
   const points = m.points;
+  const catfood = m.catfood;
+  const tier = String(m.tier || '').trim().toLowerCase();
   return {
     signed_in: Boolean(m.signed_in),
     register_url: String(m.register_url || '').trim(),
     name: String(m.name || '').trim(),
     avatar: String(m.avatar || '').trim(),
     points: points == null || points === '' ? null : Number(points),
+    tier: tier === 'pro' || tier === 'standard' ? tier : null,
+    is_pro: Boolean(m.is_pro),
+    catfood: catfood == null || catfood === '' ? null : Number(catfood),
     reason: String(m.reason || '').trim(),
+  };
+}
+
+/**
+ * 最近猫粮流水（经本机 BFF 转发官网）。
+ * @returns {Promise<{ available: boolean, catfood: number|null, currency: string, items: Array<object> }>}
+ */
+export async function fetchCatfoodLedger(limit = 40) {
+  const json = await request.getJson(
+    `${API_VERSION_PREFIX}/membership/catfood-ledger?limit=${encodeURIComponent(String(limit))}`,
+    { silent: true },
+  );
+  const m = json?.message || {};
+  const items = Array.isArray(m.items) ? m.items : [];
+  const catfood = m.catfood;
+  return {
+    available: Boolean(m.available),
+    catfood: catfood == null || catfood === '' ? null : Number(catfood),
+    currency: String(m.currency || '猫粮'),
+    items: items.map((row) => ({
+      id: Number(row?.id) || 0,
+      created: Number(row?.created) || 0,
+      reason: String(row?.reason || ''),
+      reasonLabel: String(row?.reason_label || row?.reason || ''),
+      mode: String(row?.mode || ''),
+      catfoodDelta: Number(row?.catfood_delta),
+      catfoodBalanceAfter: Number(row?.catfood_balance_after),
+    })),
   };
 }
 
@@ -199,6 +244,7 @@ export async function fetchMemberProfile() {
 export async function clearMembershipToken() {
   const json = await request.deleteJson(API_SETTINGS_MEMBERSHIP);
   const m = json?.message || {};
+  notifyMembershipChanged();
   return {
     configured: Boolean(m.configured),
     invalid: Boolean(m.invalid),

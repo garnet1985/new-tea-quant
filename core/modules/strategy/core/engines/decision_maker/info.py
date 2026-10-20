@@ -62,31 +62,11 @@ def parse_info_args(tokens: Sequence[str]) -> Tuple[str, int, Optional[List[str]
     return target, n, keep
 
 
-def _indicator_field_name(name: str, params: Dict[str, Any]) -> str:
-    key = str(name or "").lower()
-    length = params.get("length")
-    if length is not None and isinstance(length, (int, float, str)):
-        return f"{key}{int(length)}"
-    parts = [key]
-    for param_key in sorted(params.keys()):
-        value = params[param_key]
-        if isinstance(value, (int, float, str)):
-            parts.append(f"{param_key}{value}")
-    return "_".join(parts)
-
-
 def declared_indicator_fields(indicators_cfg: Optional[Dict[str, Any]]) -> List[str]:
-    """从 ``settings.data.base.indicators`` 推出默认列名。"""
-    cfg = dict(indicators_cfg or {})
-    names: List[str] = []
-    for name, raw in cfg.items():
-        specs = raw if isinstance(raw, list) else [raw]
-        for spec in specs:
-            params = spec if isinstance(spec, dict) else {}
-            field = _indicator_field_name(str(name), params)
-            if field and field not in names:
-                names.append(field)
-    return names
+    """从 ``settings.data.base.indicators`` 推出配置期可确定的列名。"""
+    from core.modules.indicator import field_naming
+
+    return field_naming.declared_field_names(indicators_cfg)
 
 
 def _apply_indicators(
@@ -96,37 +76,14 @@ def _apply_indicators(
     """写入指标列，返回实际落盘的字段名（供列发现，避免扫到 amount 等行情元数据）。"""
     if not rows or not indicators_cfg:
         return []
-    from core.modules.indicator import Indicator
+    from core.modules.indicator import Indicator, field_naming
 
-    written: List[str] = []
     try:
         batch = Indicator.compute_batch(rows, indicators_cfg)
+        return field_naming.apply_batch_to_rows(rows, batch)
     except (TypeError, ValueError, KeyError) as exc:
         logger.debug("决策者指标计算跳过: %s", exc)
         return []
-    for name, cfg, result in batch:
-        try:
-            if isinstance(result, list):
-                field = _indicator_field_name(name, cfg)
-                for rec, val in zip(rows, result):
-                    rec[field] = val
-                if field and field not in written:
-                    written.append(field)
-            elif isinstance(result, dict):
-                # 与报告单股图一致：用 pandas-ta 列名（vtxp_14），勿再拼 name+length
-                for key, series in result.items():
-                    if not isinstance(series, list):
-                        continue
-                    field = str(key or "").strip().lower()
-                    if not field:
-                        continue
-                    for rec, val in zip(rows, series):
-                        rec[field] = val
-                    if field not in written:
-                        written.append(field)
-        except (TypeError, ValueError, KeyError) as exc:
-            logger.debug("决策者指标写入跳过 %s: %s", name, exc)
-    return written
 
 
 def _discover_indicator_columns(

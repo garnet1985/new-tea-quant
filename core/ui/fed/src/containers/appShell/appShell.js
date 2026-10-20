@@ -18,6 +18,7 @@ function AppShell() {
           <Outlet />
         </Box>
       </Box>
+      {/* 全局挂载：切路由不卸载，对话状态保留；整页刷新靠 dock 本地/本机历史恢复 */}
       <AssistantChatDock />
       <GlobalHelperHost />
       <ToastHost />

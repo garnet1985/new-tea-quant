@@ -34,8 +34,8 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     _write(root / "extensions/data_source/providers/tushare/auth_token.txt.example", "template")
     _write(root / "system/membership/membership_token.txt", "secret")
     _write(root / "system/membership/membership_token.txt.example", "template")
-    _write(root / "extensions/assistant/providers/zhipu/api_key.txt", "secret")
-    _write(root / "extensions/assistant/providers/zhipu/api_key.txt.example", "template")
+    _write(root / "extensions/llm_providers/zhipu/api_key.txt", "secret")
+    _write(root / "extensions/llm_providers/zhipu/api_key.txt.example", "template")
     _write(root / "extensions/data_source/config.py", "TOKEN='x'")
     _write(root / "strategies/demo/results/simulations/1/price/a.csv")
     _write(
@@ -57,8 +57,8 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     assert (root / "extensions/data_source/providers/tushare/auth_token.txt.example").is_file()
     assert not (root / "system/membership/membership_token.txt").exists()
     assert (root / "system/membership/membership_token.txt.example").is_file()
-    assert not (root / "extensions/assistant/providers/zhipu/api_key.txt").exists()
-    assert (root / "extensions/assistant/providers/zhipu/api_key.txt.example").is_file()
+    assert not (root / "extensions/llm_providers/zhipu/api_key.txt").exists()
+    assert (root / "extensions/llm_providers/zhipu/api_key.txt.example").is_file()
     assert not (root / "extensions/data_source/config.py").exists()
     assert not (root / "strategies/demo/results").exists()
     assert not (

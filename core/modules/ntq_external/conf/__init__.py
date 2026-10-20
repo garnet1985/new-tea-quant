@@ -14,6 +14,11 @@ from .endpoints import (
     REGISTER_URL,
     TRACE_URL,
 )
+from .site_target import (
+    DEFAULT_BASE_URL,
+    ai_base_url,
+    base_url,
+)
 
 __all__ = [
     "AI_BASE_URL",
@@ -28,4 +33,7 @@ __all__ = [
     "LICENSE_URL",
     "REGISTER_URL",
     "TRACE_URL",
+    "DEFAULT_BASE_URL",
+    "base_url",
+    "ai_base_url",
 ]

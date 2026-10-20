@@ -22,16 +22,16 @@ class FeedbackDefaults:
 
     @classmethod
     def as_dict(cls) -> Dict[str, Any]:
-        from core.modules.ntq_external.conf.endpoints import CONTACT_URL, FEEDBACK_URL
+        from core.modules.ntq_external.conf.site_target import contact_url, feedback_url
 
         return {
-            "target_url": FEEDBACK_URL,
+            "target_url": feedback_url(),
             "timeout_sec": cls.TIMEOUT_SEC,
             "max_text_codepoints": cls.MAX_TEXT_CODEPOINTS,
             "body_max_bytes": cls.BODY_MAX_BYTES,
             "min_success_before_prompt": cls.MIN_SUCCESS_BEFORE_PROMPT,
             "prompt_probability": cls.PROMPT_PROBABILITY,
-            "contact_url": CONTACT_URL,
+            "contact_url": contact_url(),
         }
 
 

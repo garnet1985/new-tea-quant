@@ -1,0 +1,14 @@
+name: modules.agent
+version: "0.1.0"
+compatible_core_versions: ">=0.6.0"
+package: core.modules
+description: "AI agent：Provider、Navigator、流向、知识拼装与本机工具。"
+dependencies:
+  - infra.project_context
+  - infra.discovery
+  - infra.ai
+changelog:
+  - version: "0.1.0"
+    changes:
+      - Provider（ntq|own）→ Navigator → guide/worker；一个 provider 干到底
+      - 补全经 infra.ai.AiChannel；ntq 模型调度在 Website

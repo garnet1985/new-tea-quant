@@ -1,0 +1,61 @@
+# glossary — modules.agent
+# Version: 0.1.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Agent。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.agent_manager"
+      - "deep-import core.tool_catalog"
+      - "deep-import core.run_loop"
+      - "deep-import core.policy"
+
+  Agent:
+    definition: "本模块门面类。公开静态方法 list_tools、call_tool、run、clear_session、remember、forget、list_preferences。"
+    aliases:
+      - "agent"
+    avoid:
+      - "把 Assistant 当成会执行工具的入口"
+      - "把 AgentManager 当公开入口"
+
+  ToolSpec:
+    definition: "登记给模型的工具说明：名字、用途、参数 schema、是否已实现。不含函数本身。"
+    aliases:
+      - "工具"
+      - "调用单能点的名字"
+    avoid:
+      - "把可执行函数放进返回值"
+
+  RunLoop:
+    definition: "内部循环：锁定 Provider → 本地 Navigator 分流 → guide/worker 与本机工具。ntq 时模型由 Website 按 phase/intent 调度。不对外导出。"
+    aliases:
+      - "运行循环"
+    avoid:
+      - "从包根 import RunLoop"
+      - "以为 Navigator 在远端完成意图分类"
+
+  Navigator:
+    definition: "本地意图分流：输出有序 kinds（guide/worker/…）。Website 的 phase=navigate 只为这次分流补全选模型，不代替 Navigator。"
+    aliases:
+      - "分流"
+      - "原 gate"
+    avoid:
+      - "把 Navigator 当成 Website 专属逻辑"
+
+  SessionStore:
+    definition: "会话落盘：跨会话 preferences，会话内 transcript 与局部 state。不对外导出。"
+    aliases:
+      - "会话记录"
+    avoid:
+      - "把工具 JSON 全文写入 transcript"
+
+  写入准则:
+    definition: "工具写文件前的硬检查。只允许 strategies/、extensions/tags/、extensions/adapters/ 下的相对路径。"
+    aliases:
+      - "policy"
+    avoid:
+      - "只写在系统提示里"
+      - "允许整个 userspace"
+      - "允许 extensions/ai 下的密钥文件"

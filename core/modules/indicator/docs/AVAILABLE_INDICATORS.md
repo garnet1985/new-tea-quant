@@ -4,9 +4,10 @@
 
 ## 命名原则
 
-- 指标名直接使用 `pandas-ta-classic` 原生函数名（例如 `sma`、`rsi`、`macd`）。
-- 参数直接透传给 `Indicator.compute(name, klines, **params)`（或 `calculate`）。
-- 优先使用 `length` 参数名（与 ta-classic 一致）；不再推荐 `period`。
+- 指标名直接使用 `pandas-ta-classic` 原生函数名（例如 `sma`、`rsi`、`macd`）；策略里也可用别名 `ma`（走 sma）。
+- 计算参数直接透传给 `Indicator.compute`；额外键 `alias` **不**传入 TA，只决定落盘字段名。
+- 优先使用 `length`（与 ta-classic 一致）。
+- 落盘名：单列默认 `{name}{length}`；有 `alias` 则单列为 `alias`、多列为 `{alias}_{ta列名小写}`。同一配置内名字不可重复。
 
 ## 高频常用指标（推荐优先使用）
 
@@ -67,12 +68,16 @@
 "indicators": {
     # 趋势
     "sma": [{"length": 5}, {"length": 20}, {"length": 60}],
+    "ma": [
+        {"length": 5, "alias": "fast_ma"},
+        {"length": 20, "alias": "slow_ma"},
+    ],
     "ema": [{"length": 12}, {"length": 26}],
     "supertrend": [{"length": 10, "multiplier": 3.0}],
 
     # 动量
     "rsi": [{"length": 14}],
-    "macd": [{"fast": 12, "slow": 26, "signal": 9}],
+    "macd": [{"fast": 12, "slow": 26, "signal": 9, "alias": "macd"}],
     "stoch": [{"k": 14, "d": 3, "smooth_k": 3}],
 
     # 波动/量能

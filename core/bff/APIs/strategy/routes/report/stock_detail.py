@@ -1171,11 +1171,13 @@ class WorkbenchStockDetail:
             logger.exception("单股指标批量计算失败")
             return []
 
+        from core.modules.indicator import field_naming
+
         for name, cfg, result in batch:
             if not isinstance(cfg, dict):
                 cfg = {}
             if isinstance(result, list):
-                field_key = cls._indicator_field_name(name, cfg)
+                field_key = field_naming.series_field_name(name, cfg)
                 render = resolve_indicator_render(
                     name, field_key=field_key, params=cfg
                 )
@@ -1197,8 +1199,9 @@ class WorkbenchStockDetail:
                 for sub_key, sub_values in result.items():
                     if not isinstance(sub_values, list):
                         continue
-                    # 用 pandas-ta 列名作 key，避免 name+length 再拼一次变成 vtxp_1414
-                    field_key = str(sub_key).strip().lower()
+                    field_key = field_naming.dict_field_name(
+                        name, cfg, str(sub_key)
+                    )
                     if should_skip_chart_series(
                         name=name, sub_key=str(sub_key), field_key=field_key
                     ):
@@ -1230,24 +1233,6 @@ class WorkbenchStockDetail:
         return [
             row for row in series_out if any(v is not None for v in row.get("data") or [])
         ]
-
-    @staticmethod
-    def _indicator_field_name(name: str, params: Dict[str, Any]) -> str:
-        name = str(name or "").lower()
-        length = params.get("length")
-        if length is not None:
-            try:
-                length_int = int(length)
-            except (TypeError, ValueError):
-                length_int = None
-            if length_int is not None:
-                return f"{name}{length_int}"
-        parts = [name]
-        for key in sorted(params.keys()):
-            value = params[key]
-            if isinstance(value, (int, float, str)):
-                parts.append(f"{key}{value}")
-        return "_".join(parts)
 
     @classmethod
     def _align_indicator_values(

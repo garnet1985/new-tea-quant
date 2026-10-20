@@ -30,6 +30,8 @@ import { formatDateTime } from '../../service/format/formatDateTime';
 import {
   clearMembershipToken,
   clearSettingsCache,
+  fetchCatfoodLedger,
+  fetchMemberProfile,
   fetchMembershipSettings,
   fetchTraceSettings,
   saveMembershipToken,
@@ -37,7 +39,7 @@ import {
 } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { fetchSiteUrls } from '../../api/siteApi';
-import { listAssistantProviders, saveAssistantProviderApiKey } from '../../api/assistantApi';
+import { listAiProviders, saveAiProviderApiKey } from '../../api/aiApi';
 import {
   getImportDataProgress,
   getMlExtrasStatus,
@@ -893,6 +895,9 @@ export function SettingsMembershipPanel() {
   const [invalid, setInvalid] = useState(false);
   const [filePath, setFilePath] = useState('userspace/system/membership/membership_token.txt');
   const [token, setToken] = useState('');
+  const [catfood, setCatfood] = useState(null);
+  const [ledgerItems, setLedgerItems] = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const saveAction = useAsyncAction(useCallback((value) => saveMembershipToken(value), []));
   const clearAction = useAsyncAction(useCallback(() => clearMembershipToken(), []));
@@ -903,16 +908,43 @@ export function SettingsMembershipPanel() {
     if (r.path) setFilePath(r.path);
   }, []);
 
+  const loadLedger = useCallback((ready) => {
+    if (!ready) {
+      setCatfood(null);
+      setLedgerItems([]);
+      return;
+    }
+    setLedgerLoading(true);
+    Promise.all([
+      fetchMemberProfile().catch(() => null),
+      fetchCatfoodLedger(30).catch(() => null),
+    ])
+      .then(([profile, ledger]) => {
+        if (profile?.signed_in && profile.catfood != null) {
+          setCatfood(Number(profile.catfood));
+        } else if (ledger?.available && ledger.catfood != null) {
+          setCatfood(Number(ledger.catfood));
+        } else {
+          setCatfood(null);
+        }
+        setLedgerItems(Array.isArray(ledger?.items) ? ledger.items : []);
+      })
+      .finally(() => setLedgerLoading(false));
+  }, []);
+
   const load = useCallback(() => {
     setLoadError('');
     setLoading(true);
     fetchMembershipSettings()
-      .then(applyState)
+      .then((r) => {
+        applyState(r);
+        loadLedger(Boolean(r.configured));
+      })
       .catch((e) => {
         setLoadError(e?.message || '读取会员凭证失败');
       })
       .finally(() => setLoading(false));
-  }, [applyState]);
+  }, [applyState, loadLedger]);
 
   useEffect(() => {
     load();
@@ -926,6 +958,7 @@ export function SettingsMembershipPanel() {
       applyState(r);
       setToken('');
       setSaveOk('通用凭证已装载。');
+      loadLedger(Boolean(r.configured));
     } catch {
       /* saveAction.error */
     }
@@ -939,6 +972,7 @@ export function SettingsMembershipPanel() {
       applyState(r);
       setToken('');
       setSaveOk('已移除通用凭证。');
+      loadLedger(false);
     } catch {
       /* clearAction.error */
     }
@@ -972,6 +1006,13 @@ export function SettingsMembershipPanel() {
         {invalid ? (
           <Typography variant="body2" color="error">
             文件在，但内容不是通用凭证。
+          </Typography>
+        ) : null}
+        {configured && catfood != null && Number.isFinite(catfood) ? (
+          <Typography variant="body2" color="text.secondary">
+            猫粮
+            {' '}
+            {Number(catfood).toFixed(2)}
           </Typography>
         ) : null}
       </Stack>
@@ -1043,6 +1084,80 @@ export function SettingsMembershipPanel() {
           移除
         </Button>
       </Stack>
+      {configured ? (
+        <Box>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              猫粮记录
+            </Typography>
+            <Button
+              size="small"
+              variant="text"
+              disabled={ledgerLoading}
+              onClick={() => loadLedger(true)}
+            >
+              刷新
+            </Button>
+          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            最近对话消耗、月赠与调整。
+          </Typography>
+          {ledgerLoading ? <InlineLoadingState /> : null}
+          {!ledgerLoading && ledgerItems.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              还没有记录。
+            </Typography>
+          ) : null}
+          {!ledgerLoading && ledgerItems.length > 0 ? (
+            <Stack spacing={0.75}>
+              {ledgerItems.map((row) => {
+                const delta = Number(row.catfoodDelta);
+                const deltaText = Number.isFinite(delta)
+                  ? `${delta > 0 ? '+' : ''}${delta.toFixed(2)}`
+                  : '—';
+                const after = Number(row.catfoodBalanceAfter);
+                return (
+                  <Box
+                    key={row.id || `${row.created}-${row.reason}-${row.mode}`}
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(7rem, auto) 1fr auto auto',
+                      gap: 1,
+                      alignItems: 'baseline',
+                      py: 0.75,
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                      {formatDateTime(row.created, { style: 'absolute' })}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" noWrap>
+                      {row.reasonLabel || row.reason}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      fontWeight={700}
+                      color={delta < 0 ? 'primary.main' : delta > 0 ? 'success.main' : 'text.secondary'}
+                      sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
+                    >
+                      {deltaText}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
+                    >
+                      {Number.isFinite(after) ? `→ ${after.toFixed(2)}` : ''}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Stack>
+          ) : null}
+        </Box>
+      ) : null}
     </Stack>
   );
 }
@@ -1127,7 +1242,7 @@ export function SettingsAssistantPanel() {
     setLoadError('');
     setLoading(true);
     Promise.all([
-      listAssistantProviders(),
+      listAiProviders(),
       fetchMembershipSettings().catch(() => ({ configured: false })),
     ])
       .then(([items, membership]) => {
@@ -1157,7 +1272,7 @@ export function SettingsAssistantPanel() {
     setSavingId(providerId);
     setSaveError('');
     setSaveOk('');
-    saveAssistantProviderApiKey(providerId, apiKey)
+    saveAiProviderApiKey(providerId, apiKey)
       .then((updated) => {
         setProviders((prev) => prev.map((item) => (
           item.providerId === updated.providerId ? { ...item, ...updated } : item
@@ -1209,7 +1324,7 @@ export function SettingsAssistantPanel() {
           <NtqProxyCard configured={membershipReady} />
           {sortedProviders.length === 0 ? (
             <Alert severity="info">
-              还没有发现 AI 供应商。需要先在 userspace 里放好供应商目录和 config.py。
+              还没有发现大模型供应商。需要先在 userspace/extensions/llm_providers/ 下放好供应商目录和 config.py。
             </Alert>
           ) : sortedProviders.map((item) => {
             const draft = drafts[item.providerId] || '';

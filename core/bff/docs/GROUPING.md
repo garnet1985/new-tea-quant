@@ -10,7 +10,8 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 | platform | `APIs/platform/runtime` | `/api/v1/runtime/pipeline` |
 | platform | `APIs/platform/setup` | `/api/v1/setup/*` |
 | platform | `APIs/platform/app_settings` | `/api/v1/settings/*`（含 database / data / cache / **trace** / **ui-helper**） |
-| platform | `APIs/platform/assistant` | `/api/v1/assistant/providers`、`/api/v1/assistant/chat`、`PUT …/providers/<id>/api-key` |
+| platform | `APIs/platform/ai` | `/api/v1/ai/providers`、`PUT …/providers/<id>/api-key` |
+| platform | `APIs/platform/agent` | `/api/v1/agent/run`、`/api/v1/agent/quota`、`/api/v1/agent/session/*` |
 | data | `APIs/data/sources` | `/api/v1/data-sources/*` |
 | data | `APIs/data/contracts` | `/api/v1/data-contracts/*` |
 | strategy | `APIs/strategy/`（`routes/` + `helpers/`） | `/api/v1/strategy/*` |
@@ -30,7 +31,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 | **strategy** | workbench + scan + package + strategy catalog + decision | app 级 settings |
 | **tag** | tag list + tag run | runtime/pipeline（平台能力） |
 | **data** | data_source + data_contract 目录/新鲜度 | — |
-| **platform** | health + runtime/pipeline + setup + app settings/cache/trace + assistant | strategy 仿真 options |
+| **platform** | health + runtime/pipeline + setup + app settings + ai 通道 + agent | strategy 仿真 options |
 
 ## 实现下沉（已完成）
 

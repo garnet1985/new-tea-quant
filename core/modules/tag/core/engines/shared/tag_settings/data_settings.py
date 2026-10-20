@@ -161,7 +161,11 @@ class DataSettings(SettingsBase):
             return {}
         if not isinstance(raw, dict):
             raise ValueError("indicators 须为 dict")
-        return deepcopy(raw)
+        from core.modules.indicator import field_naming
+
+        out = deepcopy(raw)
+        field_naming.validate_indicators_config(out)
+        return out
 
     def normalize_base(self, block: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(block, dict):

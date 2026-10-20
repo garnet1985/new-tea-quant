@@ -65,6 +65,12 @@ def test_profile_returns_name_avatar_points(token_file, monkeypatch):
                 "name": "青茶",
                 "avatar": "https://www.new-tea.cn/files/a.png",
                 "points": 500,
+                "tier": "standard",
+                "is_pro": False,
+                "catfood": 500.0,
+                "token_balance": 5000000,
+                "currency": "猫粮",
+                "sync_access": "demo",
             }).encode()
 
         def __enter__(self):
@@ -89,6 +95,12 @@ def test_profile_returns_name_avatar_points(token_file, monkeypatch):
         "name": "青茶",
         "avatar": "https://www.new-tea.cn/files/a.png",
         "points": 500,
+        "tier": "standard",
+        "is_pro": False,
+        "catfood": 500.0,
+        "token_balance": 5000000,
+        "currency": "猫粮",
+        "sync_access": "demo",
         "reason": None,
     }
     assert TOKEN not in json.dumps(body)

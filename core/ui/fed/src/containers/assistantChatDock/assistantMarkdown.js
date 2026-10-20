@@ -22,6 +22,58 @@ function splitFences(text) {
   return chunks;
 }
 
+function toneForUnsignedPercent(before) {
+  const ctx = String(before || '').slice(-28);
+  if (/回撤|亏损|止损|跌幅|回落|回吐|回撤期/.test(ctx)) return 'neg';
+  if (/收益|胜率|年化|夏普|索提诺|卡玛|完成率|利用率|盈利|回报|触发率/.test(ctx)) {
+    return 'pos';
+  }
+  return '';
+}
+
+/**
+ * Highlight signed metrics (+4.31% / -13%) and context-aware bare percents.
+ */
+function colorizeMetrics(text, keyPrefix) {
+  const source = String(text || '');
+  if (!source) return [];
+  const nodes = [];
+  // Signed value (not mid "20230101-20260101"), or unsigned percent.
+  const re = /(?<![\d])([+-])(\d+(?:\.\d+)?)(%)?(?![\d-])|(?<![+\-\d.])(\d+(?:\.\d+)?)(%)(?![\d%])/g;
+  let last = 0;
+  let index = 0;
+  let match = re.exec(source);
+  while (match) {
+    if (match.index > last) {
+      nodes.push(source.slice(last, match.index));
+    }
+    const key = `${keyPrefix}-n${index}`;
+    index += 1;
+    let tone = '';
+    let token = match[0];
+    if (match[1]) {
+      tone = match[1] === '+' ? 'pos' : 'neg';
+      token = `${match[1]}${match[2]}${match[3] || ''}`;
+    } else {
+      tone = toneForUnsignedPercent(source.slice(0, match.index));
+      token = `${match[4]}${match[5]}`;
+    }
+    if (tone) {
+      nodes.push(
+        <span key={key} className={`ntq-assistant-md__num ntq-assistant-md__num--${tone}`}>
+          {token}
+        </span>,
+      );
+    } else {
+      nodes.push(token);
+    }
+    last = match.index + match[0].length;
+    match = re.exec(source);
+  }
+  if (last < source.length) nodes.push(source.slice(last));
+  return nodes;
+}
+
 function parseInline(text, keyPrefix) {
   const nodes = [];
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g;
@@ -30,20 +82,26 @@ function parseInline(text, keyPrefix) {
   let match = pattern.exec(text);
   while (match) {
     if (match.index > last) {
-      nodes.push(text.slice(last, match.index));
+      nodes.push(...colorizeMetrics(text.slice(last, match.index), `${keyPrefix}-t${index}`));
     }
     const token = match[1];
     const key = `${keyPrefix}-${index}`;
     if (token.startsWith('`')) {
       nodes.push(<code key={key} className="ntq-assistant-md__code">{token.slice(1, -1)}</code>);
     } else {
-      nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
+      nodes.push(
+        <strong key={key}>
+          {colorizeMetrics(token.slice(2, -2), `${key}-b`)}
+        </strong>,
+      );
     }
     index += 1;
     last = match.index + token.length;
     match = pattern.exec(text);
   }
-  if (last < text.length) nodes.push(text.slice(last));
+  if (last < text.length) {
+    nodes.push(...colorizeMetrics(text.slice(last), `${keyPrefix}-t${index}`));
+  }
   return nodes;
 }
 
@@ -93,8 +151,75 @@ function collectListItems(lines, start, itemRe) {
   return { items, next: i };
 }
 
+/**
+ * 模型常把长「结论」写成列表最后一项；拆成段落后再渲染。
+ */
+function peelTrailingSummary(items) {
+  if (!Array.isArray(items) || items.length < 2) {
+    return { items, summary: null };
+  }
+  const last = String(items[items.length - 1] || '').trim();
+  if (!last) return { items, summary: null };
+  const others = items.slice(0, -1);
+  const avg = others.reduce((sum, text) => sum + String(text).length, 0) / others.length;
+  const summaryLead = /^(结论|综合来看|综合判断|总结|因此|所以|简言之|总的来说|总体来看|综上)/;
+  const looksSummary = summaryLead.test(last) && last.length >= 40;
+  const looksLongTail = last.length >= 90 && last.length >= avg * 2.2;
+  if (looksSummary || looksLongTail) {
+    return { items: others, summary: last };
+  }
+  return { items, summary: null };
+}
+
+function headingLayerClass(title) {
+  const text = String(title || '').replace(/\*+/g, '');
+  if (/枚举/.test(text)) return 'ntq-assistant-md__h--layer-enum';
+  if (/价格/.test(text)) return 'ntq-assistant-md__h--layer-price';
+  if (/资金/.test(text)) return 'ntq-assistant-md__h--layer-capital';
+  if (/归因/.test(text)) return 'ntq-assistant-md__h--layer-attr';
+  if (/滚动/.test(text)) return 'ntq-assistant-md__h--layer-roll';
+  if (/建议/.test(text)) return 'ntq-assistant-md__h--layer-advice';
+  return '';
+}
+
+function pushListNodes(nodes, key, Tag, className, items) {
+  const peeled = peelTrailingSummary(items);
+  nodes.push(
+    <Tag key={key} className={className}>
+      {peeled.items.map((item, idx) => (
+        <li key={`${key}-${idx}`}>{parseInline(item, `${key}-${idx}`)}</li>
+      ))}
+    </Tag>,
+  );
+  if (peeled.summary) {
+    nodes.push(
+      <p key={`${key}-summary`} className="ntq-assistant-md__p ntq-assistant-md__p--summary">
+        {parseInline(peeled.summary, `${key}-summary`)}
+      </p>,
+    );
+  }
+}
+
+/**
+ * 模型常把「1. …；2. …」写在同一段里；拆成换行后才能渲染成 ol/li。
+ */
+function normalizeCompactLists(text) {
+  let source = String(text || '').replace(/\r\n/g, '\n');
+  const structured = source
+    .split('\n')
+    .filter((line) => /^\s*(\d+\.|[-*])\s+/.test(line));
+  if (structured.length >= 2) {
+    return source;
+  }
+  // 「：1. …；2. …」或「;2.」
+  source = source.replace(/([：:])\s*(?=\d+\.\s)/g, '$1\n');
+  source = source.replace(/[；;]\s*(?=\d+\.\s)/g, '\n');
+  source = source.replace(/[；;]\s*(?=[-*]\s+)/g, '\n');
+  return source;
+}
+
 function renderBlocks(text, keyPrefix) {
-  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+  const lines = normalizeCompactLists(text).split('\n');
   const nodes = [];
   let i = 0;
   let block = 0;
@@ -149,8 +274,12 @@ function renderBlocks(text, keyPrefix) {
     if (heading) {
       const level = heading[1].length;
       const Tag = `h${level}`;
+      const layer = level === 2 ? headingLayerClass(heading[2]) : '';
       nodes.push(
-        <Tag key={key} className={`ntq-assistant-md__h ntq-assistant-md__h${level}`}>
+        <Tag
+          key={key}
+          className={['ntq-assistant-md__h', `ntq-assistant-md__h${level}`, layer].filter(Boolean).join(' ')}
+        >
           {parseInline(heading[2], key)}
         </Tag>,
       );
@@ -158,28 +287,46 @@ function renderBlocks(text, keyPrefix) {
       continue;
     }
 
+    if (/^\s*>\s?/.test(line)) {
+      const quoteLines = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) {
+        quoteLines.push(lines[i].replace(/^\s*>\s?/, ''));
+        i += 1;
+      }
+      const quoteText = quoteLines.join(' ').trim();
+      if (quoteText) {
+        const isConclusion = /^结论[：:]/.test(quoteText);
+        nodes.push(
+          <blockquote
+            key={key}
+            className={[
+              'ntq-assistant-md__quote',
+              isConclusion ? 'ntq-assistant-md__quote--conclusion' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            {parseInline(quoteText, key)}
+          </blockquote>,
+        );
+      }
+      continue;
+    }
+
     if (/^\s*[-*]\s+/.test(line)) {
       const collected = collectListItems(lines, i, /^\s*[-*]\s+/);
       i = collected.next;
-      nodes.push(
-        <ul key={key} className="ntq-assistant-md__list">
-          {collected.items.map((item, idx) => (
-            <li key={`${key}-${idx}`}>{parseInline(item, `${key}-${idx}`)}</li>
-          ))}
-        </ul>,
-      );
+      pushListNodes(nodes, key, 'ul', 'ntq-assistant-md__list', collected.items);
       continue;
     }
 
     if (/^\s*\d+\.\s+/.test(line)) {
       const collected = collectListItems(lines, i, /^\s*\d+\.\s+/);
       i = collected.next;
-      nodes.push(
-        <ol key={key} className="ntq-assistant-md__list ntq-assistant-md__list--ol">
-          {collected.items.map((item, idx) => (
-            <li key={`${key}-${idx}`}>{parseInline(item, `${key}-${idx}`)}</li>
-          ))}
-        </ol>,
+      pushListNodes(
+        nodes,
+        key,
+        'ol',
+        'ntq-assistant-md__list ntq-assistant-md__list--ol',
+        collected.items,
       );
       continue;
     }
@@ -190,6 +337,7 @@ function renderBlocks(text, keyPrefix) {
       i < lines.length
       && lines[i].trim()
       && !lines[i].startsWith('#')
+      && !/^\s*>\s?/.test(lines[i])
       && !/^\s*[-*]\s+/.test(lines[i])
       && !/^\s*\d+\.\s+/.test(lines[i])
       && !isTableRow(lines[i])

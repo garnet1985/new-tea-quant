@@ -36,7 +36,11 @@ def wiki_system_prompt(catalog: ToolCatalog, *, docs_excerpt: str = "") -> str:
         "每次只输出一个 JSON 对象，不要 Markdown，不要解释，不要在 JSON 外写任何字。",
         '能直接回答时：{"reply":"<针对用户问题的真实中文回答>"}',
         "reply 必须是完整可用的回答内容；禁止照抄尖括号示例或任何占位词。",
-        "reply 排版：指标与数字用短列表；结论/综合判断单独成段，不要写成列表最后一项。",
+        "reply 排版：指标用短列表；读报告时按层用 ## 标题分段，结论用引用块 "
+        "（> 结论：…），不要把结论写成列表最后一项。",
+        "总结价格回测：先 read_execution_report layer=price，再按 "
+        "summarize_backtest_report 模板结构写（概览→成绩单→拆解→分布→地形图→配置→评语）；"
+        "数字只来自工具摘要，禁止照抄模板示例。",
         "reply 里禁止再嵌套 tool 调用 JSON；要读报告就单独输出 tool 对象。",
         '读已有报告时只能用下面列出的只读工具：{"tool":"<工具名>","arguments":{...}}',
         "read_progress 必须带真实 task_id；没有 task_id 时不要调用，改为 handoff 或直接 reply。",

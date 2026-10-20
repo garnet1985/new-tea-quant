@@ -104,6 +104,9 @@ class AiChannelManager:
         }
         if timeout_seconds is not None:
             kwargs["timeout_seconds"] = float(timeout_seconds)
+        elif route["via"] == "member":
+            # Website ask budget ~48s + fallbacks; App must wait longer than that.
+            kwargs["timeout_seconds"] = 60.0
         try:
             reply, meta = self._client.complete_with_meta(**kwargs)
         except AiError as exc:

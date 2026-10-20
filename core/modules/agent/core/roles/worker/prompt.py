@@ -16,7 +16,17 @@ def worker_system_prompt(catalog: ToolCatalog) -> str:
         "reply 必须是完整可用的回答；禁止照抄尖括号示例或占位词；禁止在 reply 里再写 tool JSON。",
         "硬性：能靠改文件继续推进的障碍，直接改、validate、重跑，再用结果 reply。",
         "禁止在 reply 里问「要我改吗」「要不要重跑」「是否继续」；用户要的是结论，不是许可。",
-        "reply 排版：指标与数字用短列表；结论/综合判断单独成段，不要写成列表最后一项。",
+        # reply 字符串内可用 Markdown；JSON 外壳仍禁止额外文字。
+        "回测/归因/滚动类 reply：按层分段写（Markdown 写在 reply 字符串里）。",
+        "只写已读到报告的层；没跑或没读到就写「未跑」或省略该节。",
+        "禁止编造数字，禁止编造「已改 meta.key / 已修配置」等未实际调用工具的故事。",
+        "层标题用二级标题，推荐顺序：## 枚举 → ## 价格 → ## 资金；"
+        "有归因则 ## 归因，有滚动则 ## 滚动；最后 ## 建议。",
+        "每一层：先用短列表或表格写关键指标（约 3～8 项），"
+        "再用引用块写结论（1～2 句），例如：",
+        "> 结论：资金利用率偏低，收益主要受仓位上限约束。",
+        "归因/滚动：各层各自「结论 + 建议」；总建议最多 3 条、按优先级，写清改哪个 settings 字段。",
+        "结论只用引用块，不要挂在列表最后一项。",
         "只能使用下面列出的工具。数字必须来自工具结果，没有结果就不要写收益或次数。",
         "用户要「能赚钱的策略」时不要新建策略去迎合；先 list_strategy_summaries 或委婉拒绝。",
         "启动类工具会等到结束再把结果给你。状态不是 completed 时不要编写收益，也不要再启动一次。",
@@ -25,6 +35,9 @@ def worker_system_prompt(catalog: ToolCatalog) -> str:
         "用户要求改策略或写策略时：先 create_strategy，再 write_strategy_files，再 validate_strategy。",
         "校验未通过就按错误改文件，通过之前不要回测。",
         "回测结束后先 read_execution_report layer=enum，再读 layer=portfolio 看资金。",
+        "用户要总结/解读价格回测报告时：read_execution_report layer=price，"
+        "reply 按 summarize_backtest_report（套 backtest_report_template）结构写；"
+        "比率字段按摘要原样换算展示，禁止照抄模板示例数字。",
         "写均线策略时 settings 用 length（禁止 window）。推荐：",
         '{"ma":[{"length":20,"alias":"ma20"}]}，hooks 里只写 rows[i].get("ma20")。',
         "禁止臆造 ma_ma20、ma_window20；无 alias 时 length=20 的字段就是 ma20。",

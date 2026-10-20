@@ -208,11 +208,13 @@ _TOOLS: tuple[ToolSpec, ...] = (
         name="read_execution_report",
         description=(
             "读取枚举、价格或资金层的执行报告摘要。layer 为 enum、price 或 portfolio。"
-            "version_id 可省略，省略时读该层最新的主版本。不要编造摘要里没有的数字。"
+            "version_id 可省略，省略时读该层最新的主版本。"
+            "价格层摘要含分位点/收益桶/配置快照，总结时按 summarize_backtest_report 模板写。"
+            "不要编造摘要里没有的数字。"
         ),
         parameters=_object(
             {
-                "key": _string("策略目录名，例如 macd_cross"),
+                "key": _string("策略 meta.key 或相对路径，例如 rsi_v1"),
                 "layer": _string("enum、price 或 portfolio"),
                 "version_id": _string("版本号，例如 3。省略则读最新主版本"),
             },

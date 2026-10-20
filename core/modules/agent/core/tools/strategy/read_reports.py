@@ -33,11 +33,24 @@ _PRICE_FIELDS = (
     "win_rate",
     "avg_roi",
     "annual_return",
+    "annual_return_in_trading_days",
     "avg_duration_in_days",
+    "avg_duration_in_trading_days",
     "total_investments",
+    "total_win_investments",
+    "total_loss_investments",
+    "total_completed_investments",
     "completion_rate",
+    "total_profit",
     "avg_profit_per_investment",
     "stocks_have_opportunities",
+    "roi_p10",
+    "roi_p25",
+    "roi_p50",
+    "roi_p75",
+    "roi_p90",
+    "roi_iqr",
+    "roi_conclusion",
     "skipped_buy_at_limit_up",
     "skipped_sell_at_limit_down",
     "skipped_stock_status",
@@ -334,7 +347,8 @@ def read_execution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(payload.get("backtest_period"), dict)
         else {}
     )
-    return {
+    picked = _pick(summary, _fields_for(layer))
+    out: Dict[str, Any] = {
         "ok": True,
         "key": key,
         "layer": layer,
@@ -343,10 +357,27 @@ def read_execution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "start_date": period.get("start_date") or "",
             "end_date": period.get("end_date") or "",
         },
-        "summary": _pick(summary, _fields_for(layer)),
+        "summary": picked,
+        "strategy_meta": _strategy_meta(folder),
         "path": f"strategies/{key}/results/simulations/{version_id}/{layer}/overall_report.json",
-        "note": "这是摘要。解释给用户时只用这些数字，不要补充报告里没有的指标",
+        "note": (
+            "这是摘要。解释给用户时只用这些数字，不要补充报告里没有的指标。"
+            + (
+                " 价格层请按 summarize_backtest_report 模板结构写："
+                "概览→收益成绩单→交易拆解→收益分布→地形图(如有)→配置快照(如有)→综合评语。"
+                if layer == "price"
+                else ""
+            )
+        ),
     }
+    if layer == "price":
+        buckets = _roi_buckets(summary)
+        if buckets:
+            out["roi_buckets"] = buckets
+        params = _settings_snapshot(folder)
+        if params:
+            out["settings_snapshot"] = params
+    return out
 
 
 def read_attribution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -449,6 +480,105 @@ def _pick(summary: Dict[str, Any], fields: tuple[str, ...]) -> Dict[str, Any]:
             continue
         out[name] = _round(value)
     return out
+
+
+def _strategy_meta(folder: Path) -> Dict[str, str]:
+    settings = _load_settings_dict(folder)
+    meta = settings.get("meta") if isinstance(settings.get("meta"), dict) else {}
+    name = str(
+        meta.get("display_name") or meta.get("name") or meta.get("key") or ""
+    ).strip()
+    desc = str(meta.get("description") or "").strip()
+    out: Dict[str, str] = {}
+    if name:
+        out["display_name"] = name
+    if desc:
+        out["description"] = desc
+    key = str(meta.get("key") or "").strip()
+    if key:
+        out["key"] = key
+    return out
+
+
+def _settings_snapshot(folder: Path) -> Dict[str, Any]:
+    """Compact knobs for the price-report template「策略配置快照」."""
+    settings = _load_settings_dict(folder)
+    if not settings:
+        return {}
+    portfolio = settings.get("portfolio") if isinstance(settings.get("portfolio"), dict) else {}
+    allocation = (
+        portfolio.get("allocation") if isinstance(portfolio.get("allocation"), dict) else {}
+    )
+    goal = settings.get("goal") if isinstance(settings.get("goal"), dict) else {}
+    fees = settings.get("fees") if isinstance(settings.get("fees"), dict) else {}
+    snap: Dict[str, Any] = {}
+    if portfolio.get("initial_capital") is not None:
+        snap["initial_capital"] = portfolio.get("initial_capital")
+    max_pos = portfolio.get("max_positions")
+    if max_pos is None:
+        max_pos = allocation.get("max_portfolio_size")
+    if max_pos is not None:
+        snap["max_positions"] = max_pos
+    if portfolio.get("position_size") is not None:
+        snap["position_size"] = portfolio.get("position_size")
+    tp = _first_stage_ratio(goal.get("take_profit"))
+    sl = _first_stage_ratio(goal.get("stop_loss"))
+    if tp is not None:
+        snap["take_profit"] = tp
+    if sl is not None:
+        snap["stop_loss"] = sl
+    if goal.get("max_holding_days") is not None:
+        snap["max_holding_days"] = goal.get("max_holding_days")
+    commission = fees.get("commission_rate", fees.get("commission"))
+    stamp = fees.get("stamp_duty_rate", fees.get("stamp_tax"))
+    if commission is not None:
+        snap["commission"] = commission
+    if stamp is not None:
+        snap["stamp_tax"] = stamp
+    return snap
+
+
+def _first_stage_ratio(block: Any) -> Any:
+    if not isinstance(block, dict):
+        return None
+    stages = block.get("stages")
+    if not isinstance(stages, list) or not stages:
+        return None
+    first = stages[0] if isinstance(stages[0], dict) else {}
+    return first.get("ratio")
+
+
+def _roi_buckets(summary: Dict[str, Any]) -> List[Dict[str, Any]]:
+    labels = summary.get("roi_bucket_labels")
+    counts = summary.get("roi_bucket_counts")
+    if not isinstance(labels, list) or not isinstance(counts, list):
+        return []
+    total = sum(int(c) for c in counts if isinstance(c, (int, float)))
+    out: List[Dict[str, Any]] = []
+    for label, count in zip(labels, counts):
+        if not isinstance(count, (int, float)) or int(count) <= 0:
+            continue
+        n = int(count)
+        pct = round(100.0 * n / total, 1) if total else 0.0
+        out.append({"label": str(label), "count": n, "percentage": pct})
+        if len(out) >= 12:
+            break
+    # Prefer non-empty buckets already; sort by count desc for readability.
+    out.sort(key=lambda row: int(row.get("count") or 0), reverse=True)
+    return out[:10]
+
+
+def _load_settings_dict(folder: Path) -> Dict[str, Any]:
+    path = folder / "settings.py"
+    if not path.is_file():
+        return {}
+    try:
+        from core.infra.discovery import Discovery
+
+        loaded = Discovery.file.load_python_config(path, var_name="settings")
+    except Exception:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def _sections(raw: Any) -> List[Dict[str, Any]]:

@@ -21,5 +21,5 @@
 
 - [Provider 与 Navigator（约定）](./docs/PROVIDER_AND_NAVIGATOR.md)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
+- [远端状态协议](./docs/NTQ_REMOTE_PROTOCOL.md)
 - [公开 API](./API.md)

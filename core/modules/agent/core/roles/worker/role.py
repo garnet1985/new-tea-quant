@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.loop_runtime import ask, await_task, decision, usable_reply
+from core.modules.agent.core.prompt_store import load_nudge
 from core.modules.agent.core.roles.worker.prompt import worker_system_prompt
 from core.modules.agent.core.session_store import update_state_from_tool
 from core.modules.agent.core.tool_catalog import ToolCatalog
@@ -67,27 +68,14 @@ def run(
             ):
                 messages.append({"role": "assistant", "content": raw.strip() or "{}"})
                 messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "不要只说计划或问许可。立刻调用 write_strategy_files 改文件，"
-                            "再启动任务并读报告，最后用结论 reply。"
-                        ),
-                    }
+                    {"role": "user", "content": load_nudge("worker", "no_permission")}
                 )
                 continue
             if reply:
                 return reply
             messages.append({"role": "assistant", "content": raw.strip() or "{}"})
             messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "上一条无效：reply 不能为空或示例占位。"
-                        "请根据工具结果用中文回答用户，"
-                        '只输出 {"reply":"..."}。'
-                    ),
-                }
+                {"role": "user", "content": load_nudge("worker", "empty_reply")}
             )
             continue
         result = run_tool(catalog, str(tool), chosen.get("arguments") or {})
@@ -120,13 +108,7 @@ def run(
 
 
 def _zero_opportunity_heal_nudge() -> str:
-    return (
-        "机会数为 0：禁止现在向用户 reply，也不要问「要不要改」。"
-        "立刻读 strategy.py 与 settings.py，核对 indicators 与 hooks 字段："
-        "禁止 ma_ma20 这类臆造名；有 alias 只读 alias；无 alias 时 length=20 读 ma20；"
-        "参数用 length 不用 window。"
-        "改对后 validate_strategy，再 start 回测/扫描，再 read 报告，然后才能 reply。"
-    )
+    return load_nudge("worker", "zero_opportunity")
 
 
 def asks_user_permission(reply: str) -> bool:

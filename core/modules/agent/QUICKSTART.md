@@ -30,4 +30,5 @@ Agent.call_tool("create_strategy", {"key": "macd_cross"})
 ## 下一步
 
 - [API.md](./API.md)
-- [设计](./docs/DESIGN.md)
+- [架构](./docs/ARCHITECTURE.md)
+- [Provider 与 Navigator](./docs/PROVIDER_AND_NAVIGATOR.md)

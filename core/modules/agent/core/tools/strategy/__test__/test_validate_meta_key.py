@@ -5,14 +5,16 @@ from __future__ import annotations
 from core.modules.agent.core.tools.strategy.validate_strategy import validate_strategy
 
 
-def test_rsi_v1_baseline_accepts_short_meta_key() -> None:
-    full = "demo/regression/rsi/rsi_v1_baseline"
+def test_nested_demo_accepts_path_and_short_meta_key() -> None:
+    # rsi_v2 keeps short meta.key under a descriptive folder.
+    full = "demo/regression/rsi/rsi_v2_net_profit_gate"
     by_path = validate_strategy({"key": full})
     assert by_path.get("ok") is True, by_path
-    assert by_path.get("path", "").endswith(full) or full in str(by_path.get("path"))
+    assert full in str(by_path.get("path") or "")
 
-    by_alias = validate_strategy({"key": "rsi_v1"})
+    by_alias = validate_strategy({"key": "rsi_v2"})
     assert by_alias.get("ok") is True, by_alias
+    assert full in str(by_alias.get("path") or "")
 
 
 def test_meta_key_mismatch_still_fails(tmp_path, monkeypatch) -> None:

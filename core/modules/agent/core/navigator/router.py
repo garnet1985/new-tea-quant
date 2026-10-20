@@ -10,7 +10,7 @@ from core.modules.agent.core.navigator import patterns as P
 from core.modules.agent.core.navigator.classifier import classify_route, sort_pipeline
 from core.modules.agent.core.roles.guide.patterns import is_architecture_question
 
-# regex = 对照臂；其它值仅当 provider=ntq 时作为 website 协议 ntq_mode 提示
+# regex = 强制正则兜底（对照/离线）；默认走模型分流
 _NAV_MODE_ENV = "NTQ_AGENT_NAVIGATOR_MODE"
 
 
@@ -45,11 +45,7 @@ def route(
     if not pid:
         return regex_route(raw)
 
-    kinds = classify_route(
-        raw,
-        provider_id=pid,
-        ntq_mode="ask" if key not in {"ask", "work"} else key,
-    )
+    kinds = classify_route(raw, provider_id=pid)
     if kinds:
         return _route_from_kinds(_escalate_queue(raw, kinds))
     return regex_route(raw)
@@ -95,7 +91,7 @@ def _escalate_queue(text: str, kinds: List[str]) -> List[str]:
 
 
 def _mode_from_env() -> str:
-    raw = os.environ.get(_NAV_MODE_ENV, "ask").strip().lower()
-    if raw in {"regex", "ask", "work"}:
-        return raw
-    return "ask"
+    raw = os.environ.get(_NAV_MODE_ENV, "").strip().lower()
+    if raw == "regex":
+        return "regex"
+    return "model"

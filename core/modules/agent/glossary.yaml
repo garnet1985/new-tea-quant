@@ -29,11 +29,20 @@ terms:
       - "把可执行函数放进返回值"
 
   RunLoop:
-    definition: "内部循环：先免费模型判断回答或交接，做事时经 deepseek-flash 取 JSON 调用单并执行。不对外导出。"
+    definition: "内部循环：锁定 Provider → 本地 Navigator 分流 → guide/worker 与本机工具。ntq 时模型由 Website 按 phase/intent 调度。不对外导出。"
     aliases:
       - "运行循环"
     avoid:
       - "从包根 import RunLoop"
+      - "以为 Navigator 在远端完成意图分类"
+
+  Navigator:
+    definition: "本地意图分流：输出有序 kinds（guide/worker/…）。Website 的 phase=navigate 只为这次分流补全选模型，不代替 Navigator。"
+    aliases:
+      - "分流"
+      - "原 gate"
+    avoid:
+      - "把 Navigator 当成 Website 专属逻辑"
 
   SessionStore:
     definition: "会话落盘：跨会话 preferences，会话内 transcript 与局部 state。不对外导出。"

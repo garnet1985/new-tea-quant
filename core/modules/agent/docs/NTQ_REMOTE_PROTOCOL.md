@@ -1,10 +1,10 @@
 # NTQ Provider ↔ Website 状态协议
 
-**版本：** `0.1.0-draft`  
+**版本：** `0.1.0`  
 **前提：** [PROVIDER_AND_NAVIGATOR.md](./PROVIDER_AND_NAVIGATOR.md)
 
 本地 App 只打 **一个出入口**（OpenAI 兼容 `chat/completions` → `{ai_base}/chat/completions`）。  
-Website 负责选模型与扣费；因此 **每次请求必须声明当前 Agent 状态**，不能靠猜 messages。
+Website 负责选模型与扣费；因此 **每次请求必须声明 `ntq.phase` / `ntq.intent`**，不能靠猜 messages，也不再使用 `ntq_mode`。
 
 ---
 
@@ -83,11 +83,11 @@ Website 负责选模型与扣费；因此 **每次请求必须声明当前 Agent
 
 ## 为什么需要协议
 
-| 本地阶段 | Website 通常该选 | 仅靠 `ntq_mode=ask\|work` 的问题 |
-|----------|------------------|----------------------------------|
-| navigate | 强分类模型 | 与「讲解」混在 ask 里 |
-| act + guide* | 便宜问答 | 无法与 navigate 区分 |
-| act + worker | 更强编码/工具 | 只有 work，没有显式阶段 |
+| 本地阶段 | Website 通常该选 |
+|----------|------------------|
+| navigate | 强分类模型 |
+| act + guide* | 便宜问答 |
+| act + worker | 更强编码/工具 |
 
 ---
 
@@ -156,18 +156,6 @@ Website 负责选模型与扣费；因此 **每次请求必须声明当前 Agent
   }
 }
 ```
-
----
-
-## 与旧字段 `ntq_mode=ask|work`
-
-| 旧 | 新 | 说明 |
-|----|----|------|
-| `ask` | 不够用 | 曾混用「便宜档」与「非 worker」 |
-| `work` | ≈ `phase=act` + `intent=worker` | 不含 navigate |
-
-**Drupal 新实现以 `ntq.phase` / `ntq.intent` 为准。**  
-过渡期：无 `ntq` 块时，`ntq_mode=work` → `act+worker`，其余 → `act+guide`；**勿**把旧 `ask` 当成 `navigate`。
 
 ---
 

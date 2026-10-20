@@ -6,13 +6,13 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence
 
 from core.modules.agent.core.navigator.classifier import classify_route
-from core.modules.agent.core.navigator.gold_set import (
+from core.modules.agent.core.navigator.router import Route, route
+from core.modules.agent.eval.gold_set import (
     GOLD_CASES,
     TRAP_CASES,
     GoldCase,
     expected_kinds,
 )
-from core.modules.agent.core.navigator.router import Route, route
 
 
 RouterFn = Callable[[str], Route]
@@ -116,13 +116,13 @@ def evaluate(
     )
 
 
-def model_only_router(provider_id: str, *, ntq_mode: str = "ask") -> RouterFn:
+def model_only_router(provider_id: str) -> RouterFn:
     """live 对照：纯模型输出（无正则加严/回退），失败记 ``__fail__``。"""
 
     def _predict(text: str) -> Route:
         from core.modules.agent.core.navigator.router import _route_from_kinds
 
-        kinds = classify_route(text, ntq_mode=ntq_mode, provider_id=provider_id)
+        kinds = classify_route(text, provider_id=provider_id)
         if not kinds:
             return Route(kind="__fail__", queue=("__fail__",))
         return _route_from_kinds(kinds)
@@ -184,23 +184,13 @@ def run_ab(
     if include_live:
         pids = list(providers or ["ntq"])
         for pid in pids:
-            if pid == "ntq":
-                for mode in ("ask", "work"):
-                    reports.append(
-                        evaluate(
-                            name=f"{pid}_{mode}_{label}",
-                            router=model_only_router(pid, ntq_mode=mode),
-                            cases=cases,
-                        )
-                    )
-            else:
-                reports.append(
-                    evaluate(
-                        name=f"{pid}_{label}",
-                        router=model_only_router(pid),
-                        cases=cases,
-                    )
+            reports.append(
+                evaluate(
+                    name=f"{pid}_{label}",
+                    router=model_only_router(pid),
+                    cases=cases,
                 )
+            )
     return reports
 
 

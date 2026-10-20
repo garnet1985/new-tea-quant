@@ -35,7 +35,6 @@ def ask(
     max_tokens: int = 1024,
     timeout_seconds: Optional[float] = None,
     extra_body: Optional[Dict[str, Any]] = None,
-    ntq_mode: str = "",
     ntq_phase: str = "",
     ntq_intent: Optional[str] = None,
     billing: Optional[Dict[str, Any]] = None,
@@ -43,26 +42,17 @@ def ask(
     body = dict(extra_body or {})
     if provider_id == _PRODUCT_PROVIDER:
         phase = str(ntq_phase or "").strip().lower()
-        if phase in {"navigate", "act"}:
-            intent = None if phase == "navigate" else (
-                str(ntq_intent).strip() if ntq_intent is not None else ""
-            )
-            if phase == "act" and not intent:
-                intent = "guide"
-            body["ntq"] = {
-                "phase": phase,
-                "intent": intent,
-            }
-            # Legacy compat for older Website builds.
-            body["ntq_mode"] = (
-                "work"
-                if phase == "navigate" or intent == "worker"
-                else "ask"
-            )
-        else:
-            mode = str(ntq_mode or "").strip()
-            if mode in {"ask", "work"}:
-                body["ntq_mode"] = mode
+        if phase not in {"navigate", "act"}:
+            raise AgentError("ntq 请求必须声明 ntq.phase=navigate|act")
+        intent = None if phase == "navigate" else (
+            str(ntq_intent).strip() if ntq_intent is not None else ""
+        )
+        if phase == "act" and not intent:
+            intent = "guide"
+        body["ntq"] = {
+            "phase": phase,
+            "intent": intent,
+        }
     try:
         result = AiChannel.complete(
             messages,

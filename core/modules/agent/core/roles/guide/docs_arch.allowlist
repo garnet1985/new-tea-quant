@@ -1,4 +1,4 @@
-# 相对 core/modules/assistant/context/；介绍者·架构讲解白名单
+# 相对 core/modules/agent/context/；介绍者·架构讲解白名单
 global/ntq_overview.md
 wiki/ntq_design_philosophy.md
 wiki/strategy/backtest_pipeline.md

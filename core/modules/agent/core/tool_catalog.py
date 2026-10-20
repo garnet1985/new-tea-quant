@@ -79,7 +79,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
         description=(
             "对已启用且通过校验的策略启动枚举，并立刻返回。不要等待跑完。"
             "回测区间用 settings 里的 start_date / end_date，不要在参数里传年数或股票数量。"
-            "完成前不要编写机会次数。"
+            "任务完成前不要给出机会数。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -92,7 +92,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
         description=(
             "对已启用且通过校验的策略启动价格回测，并立刻返回。不要等待跑完。"
             "缺同指纹枚举产物时会先补跑枚举。区间用 settings，不要传年数或股票数量。"
-            "完成前不要编写收益数字。"
+            "任务完成前不要给出收益数字。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -104,7 +104,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
         name="start_portfolio",
         description=(
             "对已启用且通过校验的策略启动资金模拟，并立刻返回。不要等待跑完。"
-            "区间用 settings，不要传年数或股票数量。完成前不要编写收益数字。"
+            "区间用 settings，不要传年数或股票数量。任务完成前不要给出收益数字。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -116,7 +116,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
         name="start_simulate",
         description=(
             "依次启动枚举、价格回测、资金模拟，任一层失败即停，并立刻返回。不要等待跑完。"
-            "区间用 settings，不要传年数或股票数量。完成前不要编写结果数字。"
+            "区间用 settings，不要传年数或股票数量。任务完成前不要给出结果数字。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -127,8 +127,9 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="start_attribute_enumerate",
         description=(
-            "启动枚举层归因，并立刻返回。须已有该层主 version。配置在 attribution.py。"
-            "不要传参数以外的策略名。完成前不要编写归因结论。"
+            "启动枚举层归因，并立刻返回。须已有该层主 version；"
+            "归因参数配置在该策略目录的 attribution.py 中，此处只需传当前策略的 key。"
+            "任务完成前不要给出归因结论。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -139,8 +140,9 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="start_attribute_price",
         description=(
-            "启动价格层归因，并立刻返回。须已有该层主 version。配置在 attribution.py。"
-            "完成前不要编写归因结论。"
+            "启动价格层归因，并立刻返回。须已有该层主 version；"
+            "归因参数配置在该策略目录的 attribution.py 中，此处只需传当前策略的 key。"
+            "任务完成前不要给出归因结论。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -151,8 +153,9 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="start_attribute_portfolio",
         description=(
-            "启动资金层归因，并立刻返回。须已有该层主 version。配置在 attribution.py。"
-            "完成前不要编写归因结论。"
+            "启动资金层归因，并立刻返回。须已有该层主 version；"
+            "归因参数配置在该策略目录的 attribution.py 中，此处只需传当前策略的 key。"
+            "任务完成前不要给出归因结论。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -163,7 +166,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="start_rolling",
         description=(
-            "按策略目录里的 rolling.py 启动滚动对照，并立刻返回。完成前不要编写对照结论。"
+            "按策略目录里的 rolling.py 启动滚动对照，并立刻返回。任务完成前不要给出对照结论。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -174,7 +177,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="start_scan",
         description=(
-            "扫描该策略在当前交易日的机会，并立刻返回。完成前不要编写股票名单。"
+            "扫描该策略在当前交易日的机会，并立刻返回。任务完成前不要给出股票名单。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -184,7 +187,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         name="read_progress",
-        description="按任务 id 读取进度摘要。状态不是 completed 时不要编写结果数字。",
+        description="按任务 id 读取进度摘要。任务状态不是 completed 时不要给出结果数字。",
         parameters=_object(
             {"task_id": _string("启动类工具返回的任务 id")},
             ["task_id"],

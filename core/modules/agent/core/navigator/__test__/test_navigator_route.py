@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from core.modules.agent.core.navigator.classifier import parse_kinds
-from core.modules.agent.core.navigator.eval_gate import evaluate, format_report, worker_recall
-from core.modules.agent.core.navigator.gold_set import GOLD_CASES
+from core.modules.agent.eval.gold_set import GOLD_CASES
+from core.modules.agent.eval.harness import evaluate, format_report, worker_recall
 from core.modules.agent.core.navigator.router import regex_route, route
 
 
@@ -30,10 +30,11 @@ def test_regex_arch():
     assert regex_route("NTQ 的回测四步架构原理是什么？").kind == "guide_arch"
 
 
-def test_parse_kinds_queue_and_legacy_kind():
+def test_parse_kinds_queue():
     assert parse_kinds('{"kinds":["advice","worker"]}') == ["advice", "worker"]
-    assert parse_kinds('{"kind":"guide"}') == ["guide"]
+    assert parse_kinds('{"kinds":["guide"]}') == ["guide"]
     assert parse_kinds('{"kinds":["worker","advice"]}') == ["advice", "worker"]
+    assert parse_kinds('{"kind":"guide"}') is None
     assert parse_kinds("nonsense") is None
 
 
@@ -52,7 +53,7 @@ def test_a0_regex_gold_floor():
 
 def _install_oracle_classifier(monkeypatch):
     from core.modules.agent.core.navigator import classifier as clf
-    from core.modules.agent.core.navigator.gold_set import expected_kinds
+    from core.modules.agent.eval.gold_set import expected_kinds
     from core.infra.ai.contracts import CompleteResult
     import json
 

@@ -4,31 +4,21 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from core.modules.agent.core.prompt_store import load_reply
+
 
 def format_strategy_summaries_reply(result: Dict[str, Any]) -> str:
     """避免模型编造策略名；数字只来自工具结果。"""
-    head = (
-        "NTQ 是研究与回测工具，不能提供投资建议，也不能告诉你「什么策略会赚钱」。\n\n"
-        "下面是本机已有策略的历史回测摘要（资金层最新主版本；不代表未来）："
-    )
     if not isinstance(result, dict) or not result.get("ok"):
         err = ""
         if isinstance(result, dict):
             err = str(result.get("error") or "").strip()
         detail = f"（{err}）" if err else ""
-        return (
-            "NTQ 是研究与回测工具，不能提供投资建议。\n\n"
-            f"暂时无法读取本机策略列表{detail}。"
-            "你可以先打开策略工作台查看已有策略，或自己写策略并回测验证。"
-        )
+        return load_reply("advice_list_unavailable", variables={"detail": detail})
     rows = result.get("strategies") if isinstance(result.get("strategies"), list) else []
     if not rows:
-        return (
-            "NTQ 是研究与回测工具，不能提供投资建议。\n\n"
-            "本机目前还没有可列出的策略。"
-            "我不能推荐「能赚钱」的策略；若要研究想法，请先创建策略并跑回测。"
-        )
-    lines: List[str] = [head, ""]
+        return load_reply("advice_empty")
+    lines: List[str] = [load_reply("advice_head"), ""]
     for item in rows:
         if not isinstance(item, dict):
             continue
@@ -58,13 +48,7 @@ def format_strategy_summaries_reply(result: Dict[str, Any]) -> str:
             lines.append(f"- `{label}`{ver}：{'，'.join(bits)}")
         else:
             lines.append(f"- `{label}`{ver}：有报告但摘要字段为空")
-    lines.extend(
-        [
-            "",
-            "这些数字只供研究对照，不是投资推荐。"
-            "若要验证自己的想法，请在 NTQ 里编写策略并回测。",
-        ]
-    )
+    lines.extend(["", load_reply("advice_foot")])
     return "\n".join(lines)
 
 

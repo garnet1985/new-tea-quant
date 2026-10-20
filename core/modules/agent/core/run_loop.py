@@ -10,9 +10,9 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from core.modules.agent.contracts import AgentError
-from core.modules.agent.core.navigator import patterns as nav_patterns
 from core.modules.agent.core.navigator.advice_reply import format_strategy_summaries_reply
 from core.modules.agent.core.navigator.router import route as navigate
+from core.modules.agent.core.prompt_store import load_prompt, load_reply
 from core.modules.agent.core.provider import resolve_provider
 from core.modules.agent.core.roles.guide import role as guide_role
 from core.modules.agent.core.roles.worker import role as worker_role
@@ -27,8 +27,6 @@ from core.modules.agent.core.tool_catalog import ToolCatalog
 from core.modules.agent.core.tool_runner import run_tool
 
 _MAX_STEPS = 14
-_PRODUCT_INTRO = nav_patterns.PRODUCT_INTRO
-_OUT_OF_SCOPE_WEB_REPLY = nav_patterns.OUT_OF_SCOPE_WEB_REPLY
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +63,7 @@ class RunLoop:
         decision = navigate(text, provider_id=pid)
 
         if decision.kind == "identity":
-            reply = _PRODUCT_INTRO
+            reply = load_reply("product_intro")
             append_turn(
                 user=text, reply=reply, channel=pid, handoff=False, session_id=sid
             )
@@ -81,7 +79,7 @@ class RunLoop:
             return _run_result(reply, handoff=False, billing=billing)
 
         if decision.kind == "out_of_scope":
-            reply = _OUT_OF_SCOPE_WEB_REPLY
+            reply = load_reply("out_of_scope_web")
             append_turn(
                 user=text, reply=reply, channel=pid, handoff=False, session_id=sid
             )
@@ -148,10 +146,11 @@ def _memory_messages(session_id: str) -> List[Dict[str, str]]:
     messages: List[Dict[str, str]] = []
     block = context_block(session_id)
     if block:
+        preamble = load_prompt("common/session_preamble.md").rstrip()
         messages.append(
             {
                 "role": "system",
-                "content": "以下是跨会话偏好和当前任务状态，回答时遵守：\n" + block,
+                "content": preamble + "\n" + block,
             }
         )
     messages.extend(recent_turns(session_id))

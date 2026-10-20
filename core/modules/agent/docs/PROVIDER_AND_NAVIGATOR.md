@@ -21,7 +21,7 @@
 | 名词 | 含义 | 不要叫成 |
 |------|------|----------|
 | **Provider** | 用户选定的一路 AI 出入口。二选一：`ntq`（产品默认）或用户自备供应商之一（只能选 1 个） | 「通道里再拆三个 provider」 |
-| **Navigator** | 意图理解与分流：输出有序处理清单（原「门禁 / 分流器 / gate」语义） | 与计费档 `ask/work` 混称 |
+| **Navigator** | **本地**意图理解与分流：输出有序处理清单（原「门禁 / gate」）。Website 的 `phase=navigate` **只选分流模型**，不代替本机出 kinds | 「分流在远端做完」「与计费档 ask/work 混称」 |
 | **处理方式 / 流向** | Navigator 之后的分支，如 identity、advice、out_of_scope、guide、worker 等 | Provider |
 | **Context** | App 组给模型的材料：用户话、会话、说明书摘录、工具摘要、准则等 | — |
 
@@ -91,9 +91,9 @@ Navigator 协议与金标（产品语义）  执行推理、计量猫粮
 
 - 不为 `ntq` 维护「router=deepseek / ask=zhipu」一类**本地模型挑选表**
 - 不在 App 内根据流向把 ntq 请求拆到多个本机供应商
-- 不把计费档名字（历史上的 `ask`/`work`）当成 Provider 或流向名词
+- 不把计费档名字（Website 内部 lane `ask`/`work`）当成 Provider 或流向名词
 
-远端若用 `ntq_mode` 等字段区分用量档，那是 **Website 协议细节**，不是本地又多了一种 Provider。
+远端只认 `ntq.phase` / `ntq.intent`；内部 lane 与猫粮钱包是 Website 实现细节，不是第二种 Provider。
 
 ---
 

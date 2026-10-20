@@ -36,7 +36,6 @@ def run(
     ]
     names = {spec.name for spec in catalog.list_tools() if spec.implemented}
     extra = dict(_WORK_EXTRA) if provider_id == _OWN_WORK_PROVIDER else {}
-    ntq_mode = "work" if provider_id == _PRODUCT_PROVIDER else ""
     zero_heal_active = False
     saw_rerun_after_zero = False
     for _ in range(max_steps):
@@ -46,7 +45,8 @@ def run(
             max_tokens=4096,
             timeout_seconds=_WORK_TIMEOUT,
             extra_body=extra or None,
-            ntq_mode=ntq_mode,
+            ntq_phase="act" if provider_id == _PRODUCT_PROVIDER else "",
+            ntq_intent="worker" if provider_id == _PRODUCT_PROVIDER else None,
             billing=billing,
         )
         chosen = decision(raw, names)

@@ -29,10 +29,31 @@ def parse_strategy_key(
 
 
 def strategy_folder(key: str) -> tuple[Path, str] | Dict[str, Any]:
-    """解析 ``strategies/<key>``。路径不在允许范围时返回错误摘要。"""
+    """解析 ``strategies/<key>``。
+
+    ``key`` 可以是相对路径，也可以是 ``meta.key``（经 Strategy 发现解析到真实目录）。
+    路径不在允许范围时返回错误摘要。
+    """
     relative = f"strategies/{key}"
     try:
         folder = resolve_user_write_path(relative)
     except AgentError as exc:
         return {"ok": False, "error": str(exc)}
-    return folder, relative
+    if folder.is_dir() and (folder / "settings.py").is_file():
+        return folder, relative
+
+    # Nested demos: meta.key=rsi_v1 → demo/regression/rsi/rsi_v1_baseline
+    try:
+        from core.modules.strategy import Strategy
+
+        path_id = str(Strategy.resolve_path(key) or "").strip().strip("/")
+    except (FileNotFoundError, ValueError, OSError):
+        return folder, relative
+    if not path_id or path_id == key:
+        return folder, relative
+    discovered_rel = f"strategies/{path_id}"
+    try:
+        discovered = resolve_user_write_path(discovered_rel)
+    except AgentError as exc:
+        return {"ok": False, "error": str(exc)}
+    return discovered, discovered_rel

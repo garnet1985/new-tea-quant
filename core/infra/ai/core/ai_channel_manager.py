@@ -19,15 +19,14 @@ def _member_channel():
 
 def _member_error(message: str) -> str:
     text = str(message or "").strip()
-    if text.startswith("无法连接"):
-        return "暂时连不上官网。可以先在设置里改用自己的密钥。"
-    if "超时" in text:
-        return "官网应答超时。可以先在设置里改用自己的密钥。"
-    if text.startswith("供应商请求失败"):
-        return "官网暂时不可用。可以先在设置里改用自己的密钥。"
+    # Website / NTQ member channel failures — do not push users to BYOK.
+    if text.startswith("无法连接") or "超时" in text or text.startswith("供应商请求失败"):
+        return "远端服务失败，请稍候再试。"
+    if "远端服务失败" in text or "远端模型" in text:
+        return "远端服务失败，请稍候再试。"
     if text.startswith("供应商"):
         return "官网" + text[len("供应商") :]
-    return text or "官网暂时不可用。可以先在设置里改用自己的密钥。"
+    return text or "远端服务失败，请稍候再试。"
 
 
 def _completion_messages(messages: Sequence[Mapping[str, str]]) -> List[Dict[str, str]]:

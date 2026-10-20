@@ -81,10 +81,10 @@ export function resolvePendingSteps(userText, kind = 'work') {
 function formatElapsed(seconds) {
   const total = Math.max(0, Math.floor(Number(seconds) || 0));
   if (total < 15) return '';
-  if (total < 60) return `已等待 ${total} 秒`;
+  if (total < 60) return `已等待${total}秒`;
   const minutes = Math.floor(total / 60);
   const rest = total % 60;
-  return rest ? `已等待 ${minutes} 分 ${rest} 秒` : `已等待 ${minutes} 分钟`;
+  return rest ? `已等待${minutes}分${rest}秒` : `已等待${minutes}分钟`;
 }
 
 /**
@@ -150,14 +150,14 @@ function PendingStream({ userText = '', kind = 'work', onTick }) {
   return (
     <div className="ntq-assistant-dock__waiting" role="status" aria-live="polite">
       <LoadingBars barCount={4} className="ntq-loading-bars--sm" aria-label={label} />
-      <div className="ntq-assistant-dock__waiting-copy">
-        <span key={label} className="ntq-assistant-dock__waiting-text">
-          {label}
-        </span>
+      <span key={label} className="ntq-assistant-dock__waiting-text">
+        {label}
         {elapsedLabel ? (
-          <span className="ntq-assistant-dock__waiting-elapsed">{elapsedLabel}</span>
+          <span className="ntq-assistant-dock__waiting-elapsed">
+            {`（${elapsedLabel}）`}
+          </span>
         ) : null}
-      </div>
+      </span>
     </div>
   );
 }

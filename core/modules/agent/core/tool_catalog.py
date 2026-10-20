@@ -64,10 +64,14 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="validate_strategy",
         description=(
-            "加载 strategy.py 和 settings.py。检查语法、meta.key 与目录名一致、is_enabled 为 True、"
+            "加载 strategy.py 和 settings.py。检查语法、meta.key 能否标识本策略"
+            "（等于目录名/叶名，或经发现解析到同一文件夹）、is_enabled 为 True、"
             "公开类继承 StrategyHooks 并实现 is_opportunity。未通过则不要启动回测。不检查行情数据。"
         ),
-        parameters=_object({"key": _string("策略目录名，例如 macd_cross")}, ["key"]),
+        parameters=_object(
+            {"key": _string("策略 meta.key 或相对路径，例如 rsi_v1 或 demo/regression/rsi/rsi_v1_baseline")},
+            ["key"],
+        ),
         implemented=True,
     ),
     ToolSpec(

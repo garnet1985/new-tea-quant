@@ -55,17 +55,26 @@ def classify_route(
     ntq_mode: str = "ask",
     provider_id: str = "ntq",
 ) -> Optional[List[str]]:
-    """返回有序 kinds；失败返回 None（由调用方正则兜底）。"""
+    """返回有序 kinds；失败返回 None（由调用方正则兜底）。
+
+    ``ntq_mode`` is retained for eval_gate callers; live NTQ uses
+    ``extra_body.ntq.phase=navigate``.
+    """
     raw = str(text or "").strip()
     if not raw:
         return None
-    mode = str(ntq_mode or "ask").strip().lower()
-    if mode not in {"ask", "work"}:
-        mode = "ask"
     pid = str(provider_id or "ntq").strip() or "ntq"
-    # deepseek-flash 等会先占 reasoning_tokens；额度过小会出现 content 为空
-    max_tokens = 512 if pid == "deepseek" else 128
+    # deepseek-flash（含 Website navigate 车道）会先占 reasoning_tokens；
+    # 额度过小会出现 content 为空。
+    max_tokens = 512 if pid in {"deepseek", "ntq"} else 128
     try:
+        extra = None
+        if pid == "ntq":
+            # Navigator step of the 1×navigate → 0…N×act chain.
+            extra = {
+                "ntq": {"phase": "navigate", "intent": None},
+                "ntq_mode": "work",  # legacy: heavy lane
+            }
         result = AiChannel.complete(
             [
                 {"role": "system", "content": _SYSTEM},
@@ -74,7 +83,7 @@ def classify_route(
             provider_id=pid,
             max_tokens=max_tokens,
             temperature=0.0,
-            extra_body={"ntq_mode": mode} if pid == "ntq" else None,
+            extra_body=extra,
         )
         kinds = parse_kinds(result.reply)
         if kinds:

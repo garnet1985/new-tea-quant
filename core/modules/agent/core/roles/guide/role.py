@@ -36,7 +36,8 @@ def run_encyclopedia(
         return ask(
             messages,
             provider_id=provider_id,
-            ntq_mode="",
+            ntq_phase="act",
+            ntq_intent="guide",
             billing=billing,
             max_tokens=256,
         )
@@ -52,7 +53,8 @@ def run_encyclopedia(
     raw = ask(
         messages,
         provider_id=provider_id,
-        ntq_mode="",
+        ntq_phase="act",
+        ntq_intent="guide",
         billing=billing,
         max_tokens=1600,
     )
@@ -83,7 +85,8 @@ def run_architecture(
     raw = ask(
         messages,
         provider_id=provider_id,
-        ntq_mode="ask",
+        ntq_phase="act",
+        ntq_intent="guide_arch",
         billing=billing,
         max_tokens=1600,
     )
@@ -124,7 +127,8 @@ def run_wiki(
         raw = ask(
             messages,
             provider_id=provider_id,
-            ntq_mode="ask",
+            ntq_phase="act",
+            ntq_intent="guide",
             billing=billing,
         )
         payload = json_object(raw)

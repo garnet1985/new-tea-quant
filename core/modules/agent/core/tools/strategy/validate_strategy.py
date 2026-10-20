@@ -63,9 +63,14 @@ def validate_strategy(arguments: Dict[str, Any]) -> Dict[str, Any]:
         meta_key = ""
         if isinstance(meta, dict):
             meta_key = str(meta.get("key") or "").strip()
-        if meta_key != parsed:
+        if not meta_key:
+            errors.append("settings 缺少 meta.key")
+        elif not _meta_key_aligned(meta_key, parsed, folder):
+            leaf = Path(str(parsed).replace("\\", "/")).name
             errors.append(
-                f"meta.key 必须等于目录名 {parsed}，当前是 {meta_key or '空'}"
+                f"meta.key={meta_key!r} 无法标识本策略"
+                f"（请求 {parsed}，目录叶名 {leaf}）。"
+                f"meta.key 应等于目录名/叶名，或经发现解析到同一文件夹"
             )
         if settings.get("is_enabled") is not True:
             errors.append("is_enabled 必须为 True，否则不能回测")
@@ -92,6 +97,21 @@ def validate_strategy(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "hooks_class": hooks_name,
         "is_enabled": True,
     }
+
+
+def _meta_key_aligned(meta_key: str, parsed: str, folder: Path) -> bool:
+    """Accept short aliases (rsi_v1) under descriptive folders (rsi_v1_baseline)."""
+    needle = str(parsed or "").replace("\\", "/").strip().strip("/")
+    leaf = Path(needle).name if needle else ""
+    if meta_key in {needle, leaf}:
+        return True
+    try:
+        from core.modules.strategy import Strategy
+
+        resolved = Strategy.resolve_folder(meta_key).resolve()
+        return resolved == folder.resolve()
+    except (FileNotFoundError, ValueError, OSError):
+        return False
 
 
 def _syntax_error(path: Path, label: str) -> str:

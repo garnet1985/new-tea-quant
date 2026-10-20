@@ -45,10 +45,14 @@ function nextId(idRef) {
 
 function settingsLinkFor(content) {
   const text = String(content || '');
+  // Remote NTQ failures are not fixed by BYOK — no settings CTA.
+  if (/远端服务失败|远端模型|官网暂时不可用|官网应答超时|暂时连不上官网/.test(text)) {
+    return null;
+  }
   if (/凭证/.test(text)) {
     return { to: '/settings/membership', label: '去设置检查通用凭证' };
   }
-  if (/自己的密钥|供应商|API Key/.test(text)) {
+  if (/自己的密钥|未配置密钥|没有可用的供应商|API Key/.test(text)) {
     return { to: '/settings/ai', label: '去设置填写 API Key' };
   }
   return null;

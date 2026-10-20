@@ -49,7 +49,8 @@ def worker_system_prompt(catalog: ToolCatalog) -> str:
         '    curr = rows[1].get("ma20")',
         "    不足两根，或 prev/curr 为 None，就返回 False。",
         "settings.py 必须以 settings = { 开头，是 Python 字典。不要写 YAML。布尔写 True / False。",
-        "settings 顶层要有 is_enabled: True。meta.key 等于目录名。不要把 is_enabled 只放进 meta。",
+        "settings 顶层要有 is_enabled: True。meta.key 应能标识本策略"
+        "（新建时等于目录名；demo 可用短 key）。不要把 is_enabled 只放进 meta。",
         'data.base 示例：{"data_key":"stock.kline.daily","indicators":{"ma":[{"length":20,"alias":"ma20"}]}}。',
         "indicators 的 alias 不参与计算；单列落盘名=alias，多列=alias_列名。同一 settings 里名字不可重复。",
         "min_required_records 设为 60。simulation.execution 的 start_date 和 end_date 在用户没指定时用空字符串。",

@@ -5,6 +5,7 @@ package: core.modules
 description: "AI agent：Provider、Navigator、流向、知识拼装与本机工具。"
 dependencies:
   - infra.project_context
+  - infra.discovery
   - infra.ai
 changelog:
   - version: "0.1.0"

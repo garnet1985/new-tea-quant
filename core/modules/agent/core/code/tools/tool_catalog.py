@@ -212,7 +212,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
         description=(
             "读取枚举、价格或资金层的执行报告摘要。layer 为 enum、price 或 portfolio。"
             "version_id 可省略，省略时读该层最新的主版本。"
-            "价格层摘要含分位点/收益桶/配置快照，总结时按 summarize_backtest_report 模板写。"
+            "价格层摘要含分位点/收益桶/配置快照；总结时 present 可套 scenario=backtest_price。"
             "不要编造摘要里没有的数字。"
         ),
         parameters=_object(

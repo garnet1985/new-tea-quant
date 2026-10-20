@@ -1,4 +1,4 @@
-"""运行循环：锁定 Provider → Navigator → 流向执行。
+"""运行循环：锁定 Provider → ask(Navigator) → work* → present?。
 
 一个 Provider 干到底：补全一律 ``provider_id``；ntq 时模型调度在 Website。
 开发可设 ``NTQ_AGENT_OWN_KEYS=1``：未传 provider 时默认本机 deepseek（仍是 own）。
@@ -6,12 +6,15 @@
 
 from __future__ import annotations
 
-import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.code.conf.conf import PIPELINE_MAX_STEPS
 from core.modules.agent.core.code.executor.guider import pipeline as guide_role
+from core.modules.agent.core.code.executor.shared.present import (
+    resolve_present_scenario,
+    run_present,
+)
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_prompt, load_reply
 from core.modules.agent.core.code.executor.shared.use_tool import use_tool
 from core.modules.agent.core.code.executor.worker import pipeline as worker_role
@@ -27,11 +30,9 @@ from core.modules.agent.core.code.session.session_store import (
 )
 from core.modules.agent.core.code.tools.tool_catalog import ToolCatalog
 
-logger = logging.getLogger(__name__)
-
 
 class RunLoop:
-    """Provider → Navigator → 本机执行。"""
+    """Provider → ask → work* → present?。"""
 
     def __init__(self, catalog: ToolCatalog) -> None:
         self._catalog = catalog
@@ -89,7 +90,12 @@ class RunLoop:
             outcome = guide_role.run_architecture(
                 text, memory=memory, provider_id=pid, billing=billing
             )
-            reply = str(outcome.get("reply") or "").strip()
+            reply = _maybe_present(
+                text,
+                outcome,
+                provider_id=pid,
+                billing=billing,
+            )
             if not reply:
                 raise AgentError("模型没有给出回复")
             append_turn(
@@ -98,12 +104,18 @@ class RunLoop:
             return _run_result(reply, handoff=False, billing=billing)
 
         if decision.kind == "worker":
-            reply = worker_role.run(
+            outcome = worker_role.run(
                 self._catalog,
                 text,
                 memory=memory,
                 max_steps=steps,
                 session_id=sid,
+                provider_id=pid,
+                billing=billing,
+            )
+            reply = _maybe_present(
+                text,
+                outcome,
                 provider_id=pid,
                 billing=billing,
             )
@@ -121,7 +133,12 @@ class RunLoop:
             billing=billing,
         )
         if not guide.get("handoff"):
-            reply = str(guide.get("reply") or "").strip()
+            reply = _maybe_present(
+                text,
+                guide,
+                provider_id=pid,
+                billing=billing,
+            )
             if not reply:
                 raise AgentError("模型没有给出回复")
             append_turn(
@@ -129,7 +146,7 @@ class RunLoop:
             )
             return _run_result(reply, handoff=False, billing=billing)
 
-        reply = worker_role.run(
+        outcome = worker_role.run(
             self._catalog,
             text,
             memory=memory,
@@ -138,8 +155,56 @@ class RunLoop:
             provider_id=pid,
             billing=billing,
         )
+        # guide 已读过的工具痕迹并入 worker，便于 present 识别 scenario
+        merged = _merge_tools_seen(guide.get("tools_seen"), outcome.get("tools_seen"))
+        outcome = {**outcome, "tools_seen": merged}
+        reply = _maybe_present(
+            text,
+            outcome,
+            provider_id=pid,
+            billing=billing,
+        )
         append_turn(user=text, reply=reply, channel=pid, handoff=True, session_id=sid)
         return _run_result(reply, handoff=True, billing=billing)
+
+
+def _maybe_present(
+    user_text: str,
+    outcome: Mapping[str, Any] | str,
+    *,
+    provider_id: str,
+    billing: Dict[str, Any],
+) -> str:
+    if isinstance(outcome, str):
+        conclusion = outcome.strip()
+        tools_seen: Sequence[Mapping[str, Any]] = ()
+    else:
+        conclusion = str(outcome.get("reply") or "").strip()
+        raw_tools = outcome.get("tools_seen")
+        tools_seen = raw_tools if isinstance(raw_tools, list) else ()
+    if not conclusion:
+        return ""
+    scenario = resolve_present_scenario(user_text, tools_seen)
+    return run_present(
+        conclusion=conclusion,
+        scenario=scenario,
+        provider_id=provider_id,
+        billing=billing,
+    )
+
+
+def _merge_tools_seen(
+    left: Any,
+    right: Any,
+) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for block in (left, right):
+        if not isinstance(block, list):
+            continue
+        for row in block:
+            if isinstance(row, dict):
+                out.append(row)
+    return out
 
 
 def _memory_messages(session_id: str) -> List[Dict[str, str]]:

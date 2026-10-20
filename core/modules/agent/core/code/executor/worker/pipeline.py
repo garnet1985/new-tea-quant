@@ -16,6 +16,7 @@ from core.modules.agent.core.code.conf.conf import (
 )
 from core.modules.agent.core.code.executor.shared.complete import ask
 from core.modules.agent.core.code.executor.shared.decision import decision, usable_reply
+from core.modules.agent.core.code.executor.shared.present import record_tool_seen
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_nudge
 from core.modules.agent.core.code.executor.shared.use_tool import use_tool
 from core.modules.agent.core.code.executor.worker.prompt import worker_system_prompt
@@ -32,7 +33,8 @@ def run(
     session_id: str,
     provider_id: str,
     billing: Optional[Dict[str, Any]] = None,
-) -> str:
+) -> Dict[str, Any]:
+    """返回 ``{reply, tools_seen}``，供 pipeline 的 present 阶段解析 scenario。"""
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": worker_system_prompt(catalog)},
         *memory,
@@ -44,6 +46,7 @@ def run(
         if provider_id == WORKER_OWN_EXTRA_PROVIDER_ID
         else {}
     )
+    tools_seen: List[Dict[str, Any]] = []
     zero_heal_active = False
     saw_rerun_after_zero = False
     for _ in range(max_steps):
@@ -79,7 +82,7 @@ def run(
                 )
                 continue
             if reply:
-                return reply
+                return {"reply": reply, "tools_seen": tools_seen}
             messages.append({"role": "assistant", "content": raw.strip() or "{}"})
             messages.append(
                 {"role": "user", "content": load_nudge("worker", "empty_reply")}
@@ -87,6 +90,7 @@ def run(
             continue
         result = use_tool(catalog, str(tool), chosen.get("arguments") or {})
         tool_name = str(tool)
+        record_tool_seen(tools_seen, tool_name, result)
         if zero_heal_active and tool_name.startswith("start_"):
             if str(result.get("status") or "") == "completed":
                 saw_rerun_after_zero = True

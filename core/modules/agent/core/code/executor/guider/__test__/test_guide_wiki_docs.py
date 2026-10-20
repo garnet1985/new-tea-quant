@@ -18,3 +18,4 @@ def test_wiki_system_prompt_embeds_docs_excerpt():
     assert "说明书摘录" in prompt
     assert "hello-wiki-doc" in prompt
     assert "list_strategy_summaries" in prompt
+    assert "收益成绩单" not in prompt  # 骨架在 present / templates，不在 work system

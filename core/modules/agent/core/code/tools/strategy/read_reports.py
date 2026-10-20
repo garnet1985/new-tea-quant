@@ -6,12 +6,20 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+from core.modules.agent.core.code.executor.shared.present import template_tool_note
 from core.modules.agent.core.code.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
 )
 from core.modules.agent.core.code.tools.task_record import task_file
 from core.modules.strategy.core.services.progress import PipelineProgress
+
+
+def _price_presentation_note() -> str:
+    return template_tool_note(
+        "backtest_price",
+        extra="用户没要求时不要主动加归因。",
+    )
 
 _LAYER_LABEL = {"enum": "枚举", "price": "价格", "portfolio": "资金"}
 _LAYERS = frozenset(_LAYER_LABEL)
@@ -363,13 +371,8 @@ def read_execution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "note": (
             "这是摘要。解释给用户时只用这些数字，不要补充报告里没有的指标。"
             + (
-                " 价格层总结按七块写：开场段（策略名 + 周期 + 总笔数 + 胜率 + 平均持仓）→ "
-                "## 收益成绩单（年化 / 均笔 ROI / 累计盈利，比率换算成百分数，加一句体感）→ "
-                "## 交易拆解（盈亏笔数、胜率与盈亏比、持仓风格）→ "
-                "## 收益分布（roi_p10 ~ p90 表格，解读中位数与 roi_iqr）→ "
-                "## 收益地形图（有 roi_buckets 才写）→ ## 配置快照（有 settings_snapshot 才写）→ "
-                "## 综合评语（优势 / 风险 / 建议各一条，提醒回测 ≠ 实盘）。"
-                "用户没要求时不要主动加归因。"
+                " "
+                + _price_presentation_note()
                 if layer == "price"
                 else ""
             )

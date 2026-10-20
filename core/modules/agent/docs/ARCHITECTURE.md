@@ -47,7 +47,9 @@ core/modules/agent/
         │   ├── navigator/      # classifier + advice replies
         │   ├── guider/
         │   └── worker/
-        └── ntq_wiki/
+        ├── templates/          # scenario → 呈现骨架；≠ know_how
+        ├── specific/present/   # present 阶段 system/user
+        └── ntq_wiki/           # wiki 概念 + know_how 操作
 ```
 
 ---
@@ -57,9 +59,9 @@ core/modules/agent/
 ```text
 用户话 + providerId
   → resolve_provider
-  → navigator.route
-  → guider / worker（读 content/ → ask → decision → use_tool）
-  → complete(同一 provider_id；ntq 时带 ntq.phase / ntq.intent)
+  → ask：navigator.route
+  → work：guider / worker（读 content/ → ask → decision → use_tool）× 0…N
+  → present?：命中 PRESENTATION_SCENARIOS 则结论+模版再 complete(intent=present)；否则透传
 ```
 
 `Agent.run` 返回里的 `handoff` / `mode`：`mode` 仅为 UI 兼容简写（`work`⇔进过执行者），**不是**远端 `ntq.phase`。

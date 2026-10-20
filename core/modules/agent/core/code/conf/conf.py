@@ -59,3 +59,11 @@ PLACEHOLDER_REPLIES: FrozenSet[str] = frozenset(
         "工具名",
     }
 )
+
+# --- 呈现（ask → work* → present?；content/templates/；与 know_how 分离）---
+# scenario → 模版路径；命中规则在 executor/shared/present.py（一 scenario 一模版）
+PRESENTATION_SCENARIOS: Dict[str, str] = {
+    "backtest_price": "templates/backtest_price.md",
+}
+PRESENT_MAX_TOKENS = 4096
+PRESENT_TIMEOUT_SECONDS = 60.0

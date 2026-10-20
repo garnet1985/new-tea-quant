@@ -22,6 +22,7 @@ from core.modules.agent.core.code.executor.shared.decision import (
     json_object,
     usable_reply,
 )
+from core.modules.agent.core.code.executor.shared.present import record_tool_seen
 from core.modules.agent.core.code.executor.shared.prompt_loader import (
     load_nudge,
     load_prompt,
@@ -66,7 +67,7 @@ def run_architecture(
         reply = load_reply("arch_brand_prefix") + "\n\n" + reply
     if not reply:
         reply = load_reply("arch_unavailable")
-    return {"reply": reply, "handoff": False}
+    return {"reply": reply, "handoff": False, "tools_seen": []}
 
 
 def run_wiki(
@@ -88,6 +89,7 @@ def run_wiki(
         *memory,
         {"role": "user", "content": text},
     ]
+    tools_seen: List[Dict[str, Any]] = []
     for _ in range(GUIDER_MAX_STEPS):
         raw = ask(
             messages,
@@ -100,13 +102,14 @@ def run_wiki(
         if isinstance(payload, dict) and str(
             payload.get("handoff") or ""
         ).strip().lower() in {"work", "true", "1"}:
-            return {"handoff": True}
+            return {"handoff": True, "tools_seen": tools_seen}
         chosen = decision(raw, set(WIKI_READ_TOOLS))
         tool = str(chosen.get("tool") or "").strip()
         if tool:
             if tool not in WIKI_READ_TOOLS:
-                return {"handoff": True}
+                return {"handoff": True, "tools_seen": tools_seen}
             result = use_tool(catalog, tool, chosen.get("arguments") or {})
+            record_tool_seen(tools_seen, tool, result)
             update_state_from_tool(result, session_id)
             messages.append({"role": "assistant", "content": raw.strip()})
             messages.append(
@@ -132,10 +135,10 @@ def run_wiki(
             )
             continue
         if reply:
-            return {"reply": reply}
+            return {"reply": reply, "tools_seen": tools_seen}
         messages.append({"role": "assistant", "content": raw.strip() or "{}"})
         messages.append(
             {"role": "user", "content": load_nudge("guide", "empty_reply")}
         )
         continue
-    return {"handoff": True}
+    return {"handoff": True, "tools_seen": tools_seen}

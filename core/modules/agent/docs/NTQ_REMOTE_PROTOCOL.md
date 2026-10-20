@@ -77,6 +77,7 @@ Website 负责选模型与扣费；因此 **每次请求必须声明 `ntq.phase`
 | `guide` | 说明书 / wiki 循环 | glm-4-flash |
 | `guide_arch` | 架构讲解 | glm-4-flash |
 | `worker` | 写策略 / 回测等工具循环 | deepseek-flash |
+| `present` | work 之后的呈现：结论 + scenario 模版改版式；无模版则本地透传、不打模型 | glm-4-flash（可按 guide 档） |
 | `identity` / `advice` / `out_of_scope` | 通常**本地固定文案、不打模型**；若打了则按 guide 档 | glm-4-flash |
 
 ---
@@ -85,9 +86,10 @@ Website 负责选模型与扣费；因此 **每次请求必须声明 `ntq.phase`
 
 | 本地阶段 | Website 通常该选 |
 |----------|------------------|
-| navigate | 强分类模型 |
-| act + guide* | 便宜问答 |
-| act + worker | 更强编码/工具 |
+| navigate（ask） | 强分类模型 |
+| act + guide*（work） | 便宜问答 |
+| act + worker（work） | 更强编码/工具 |
+| act + present | 便宜排版（可同 guide） |
 
 ---
 
@@ -123,11 +125,14 @@ Website 负责选模型与扣费；因此 **每次请求必须声明 `ntq.phase`
 
 ```text
 每个用户 prompt（Provider = ntq）：
-  1) navigate → complete(ntq.phase=navigate, intent=null)
-  2) 若进入模型流向：
+  1) navigate（ask）→ complete(ntq.phase=navigate, intent=null)
+  2) 若进入模型流向（work）：
        guide / guide_arch → complete(phase=act, intent=…)  × 0…N
        worker             → complete(phase=act, intent=worker) × 0…N
-  3) 本地固定回复 → 不请求 Website（该链路 act 次数为 0）
+  3) 若命中呈现 scenario（present）：
+       complete(phase=act, intent=present) × 0…1
+       无模版则本地透传 work 结论，不请求 Website
+  4) 本地固定回复（identity / advice / out_of_scope）→ 不请求 Website（act 可为 0）
 ```
 
 - 自备 Provider：**不传 `ntq` 块**。  

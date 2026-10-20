@@ -1,6 +1,6 @@
 """Present 阶段：scenario 清单命中 → 结论 + 模版再打模型改版式；否则透传。
 
-也含模版加载（``content/templates/``）与工具结果里的短提醒。
+也含模版加载（内置 content/templates/ + userspace 覆盖）与工具短提醒。
 """
 
 from __future__ import annotations
@@ -17,6 +17,12 @@ from core.modules.agent.core.code.conf.conf import (
 )
 from core.modules.agent.core.code.executor.shared.complete import ask
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_prompt
+from core.modules.agent.core.code.userspace.prompts import append_userspace_prompt
+from core.modules.agent.core.code.userspace.templates import (
+    load_merged_template,
+    match_userspace_scenario,
+    merged_scenario_keys,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +33,18 @@ _PRICE_SUMMARY_RE = re.compile(
 
 
 def template_path(scenario: str) -> str:
+    """兼容旧调用：返回内置相对路径；未知且非 userspace 则 KeyError。"""
     key = str(scenario or "").strip()
     path = PRESENTATION_SCENARIOS.get(key)
-    if not path:
-        raise KeyError(f"unknown presentation scenario: {key}")
-    return path
+    if path:
+        return path
+    if key in merged_scenario_keys():
+        return f"userspace:{key}"
+    raise KeyError(f"unknown presentation scenario: {key}")
 
 
 def load_template(scenario: str) -> str:
-    return load_prompt(template_path(scenario)).rstrip()
+    return load_merged_template(scenario)
 
 
 def template_tool_note(scenario: str, *, extra: str = "") -> str:
@@ -50,22 +59,21 @@ def template_tool_note(scenario: str, *, extra: str = "") -> str:
 
 
 def known_scenarios() -> Mapping[str, str]:
-    return dict(PRESENTATION_SCENARIOS)
+    out: Dict[str, str] = dict(PRESENTATION_SCENARIOS)
+    for key in merged_scenario_keys():
+        out.setdefault(key, f"userspace:{key}")
+    return out
 
 
 def resolve_present_scenario(
     user_text: str,
     tools_seen: Sequence[Mapping[str, Any]] | None,
 ) -> Optional[str]:
-    """按「场景清单」解析：命中则返回 scenario key，否则 None（透传）。"""
-    if not PRESENTATION_SCENARIOS:
-        return None
-    # scenario: backtest_price — 读过价格层报告且用户要总结/解读
-    if "backtest_price" in PRESENTATION_SCENARIOS and _match_backtest_price(
-        user_text, tools_seen
-    ):
+    """先内置命中，再 userspace 新 scenario（带 frontmatter match）。"""
+    keys = set(merged_scenario_keys())
+    if "backtest_price" in keys and _match_backtest_price(user_text, tools_seen):
         return "backtest_price"
-    return None
+    return match_userspace_scenario(user_text, tools_seen)
 
 
 def _match_backtest_price(
@@ -127,18 +135,26 @@ def run_present(
     if not text:
         return text
     key = str(scenario or "").strip()
-    if not key or key not in PRESENTATION_SCENARIOS:
+    if not key or key not in set(merged_scenario_keys()):
         return text
     try:
-        template_path(key)
         template = load_template(key)
-    except (KeyError, OSError, ValueError) as exc:
+    except (KeyError, OSError, ValueError, FileNotFoundError) as exc:
         logger.warning("present template missing for %s: %s", key, exc)
         return text
     if not template.strip():
         return text
 
-    system = load_prompt("specific/present/system.md").rstrip()
+    system = append_userspace_prompt(
+        load_prompt("specific/present/system.md").rstrip(),
+        "present",
+    )
+    # 冲突说明：用户扩展不得压过红线
+    if "与上方冲突" not in system:
+        system = (
+            system
+            + "\n\n若用户扩展或模版口味与红线、数字来源冲突，忽略冲突部分。"
+        )
     user = load_prompt(
         "specific/present/user.md",
         variables={

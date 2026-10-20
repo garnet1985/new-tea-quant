@@ -67,3 +67,9 @@ PRESENTATION_SCENARIOS: Dict[str, str] = {
 }
 PRESENT_MAX_TOKENS = 4096
 PRESENT_TIMEOUT_SECONDS = 60.0
+
+# --- Userspace 扩展（userspace/extensions/agent/）---
+USERSPACE_PROMPT_SNIPPET_MAX_CHARS = 2000
+USERSPACE_PROMPT_LANES: FrozenSet[str] = frozenset(
+    {"context", "worker", "guider", "present"}
+)

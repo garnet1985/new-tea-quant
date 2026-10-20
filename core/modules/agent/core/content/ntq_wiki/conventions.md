@@ -27,7 +27,7 @@ summary: NTQ 的路径、命名、CLI 缩写与配置合并约定。
 | 数据源    | `userspace/extensions/data_source/handlers/{name}/` | `handler.py` + `settings.py`（登记在 `mapping.py`） |
 | 数据表    | `userspace/extensions/tables/{name}/`              | `schema.py`（+ 可选 `model.py`）   |
 | 扫描适配器  | `userspace/extensions/adapters/{name}/`            | `adapter.py`                   |
-| AI 供应商 | `userspace/extensions/ai/providers/{name}/` | `config.py` |
+| 大模型供应商 | `userspace/extensions/llm_providers/{name}/` | `config.py` |
 
 ### 系统配置路径
 

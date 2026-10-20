@@ -10,6 +10,7 @@ from core.modules.agent.core.code.executor.shared.prompt_common import (
 )
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_prompt
 from core.modules.agent.core.code.tools.tool_catalog import ToolCatalog
+from core.modules.agent.core.code.userspace.prompts import append_userspace_prompt
 
 WIKI_READ_TOOLS: FrozenSet[str] = frozenset(
     {
@@ -48,4 +49,4 @@ def wiki_system_prompt(catalog: ToolCatalog, *, docs_excerpt: str = "") -> str:
     excerpt = str(docs_excerpt or "").strip()
     if excerpt:
         body += "\n\n说明书摘录：\n" + excerpt
-    return body
+    return append_userspace_prompt(body, "guider")

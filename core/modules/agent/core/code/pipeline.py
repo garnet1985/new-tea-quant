@@ -29,6 +29,7 @@ from core.modules.agent.core.code.session.session_store import (
     update_state_from_tool,
 )
 from core.modules.agent.core.code.tools.tool_catalog import ToolCatalog
+from core.modules.agent.core.code.userspace.prompts import append_userspace_prompt
 
 
 class RunLoop:
@@ -210,14 +211,14 @@ def _merge_tools_seen(
 def _memory_messages(session_id: str) -> List[Dict[str, str]]:
     messages: List[Dict[str, str]] = []
     block = context_block(session_id)
-    if block:
-        preamble = load_prompt("global/session_preamble.md").rstrip()
-        messages.append(
-            {
-                "role": "system",
-                "content": preamble + "\n" + block,
-            }
-        )
+    preamble = append_userspace_prompt(
+        load_prompt("global/session_preamble.md").rstrip(),
+        "context",
+    )
+    # 有会话状态或用户 context 片段时注入 system
+    if block or "用户扩展" in preamble:
+        content = preamble if not block else preamble + "\n" + block
+        messages.append({"role": "system", "content": content})
     messages.extend(recent_turns(session_id))
     return messages
 

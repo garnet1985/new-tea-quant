@@ -15,11 +15,18 @@ def product_identity_text() -> str:
     redlines = load_prompt("global/redlines.md").rstrip()
     can_do = load_section("global/responsibility.md", "can_do")
     cannot_do = load_section("global/responsibility.md", "cannot_do")
-    return (
+    try:
+        ext = load_section("global/responsibility.md", "userspace_extensions")
+    except KeyError:
+        ext = ""
+    body = (
         f"{redlines}\n\n"
         f"## 职责·能做\n{can_do}\n\n"
         f"## 职责·不做\n{cannot_do}"
-    ).rstrip()
+    )
+    if ext.strip():
+        body += f"\n\n## 用户扩展免责\n{ext.strip()}"
+    return body.rstrip()
 
 
 def param_text(schema: Dict[str, Any]) -> str:

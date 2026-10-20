@@ -204,6 +204,21 @@ class FileUtils:
             return None
 
     @staticmethod
+    def parse_yaml_text(text: str) -> Optional[Any]:
+        """解析 YAML 文本（如 markdown frontmatter）。缺 pyyaml 时抛 ``RuntimeError``。"""
+        try:
+            import yaml
+        except ImportError as e:
+            raise RuntimeError(
+                "解析 YAML 需要安装 pyyaml（pip install pyyaml）"
+            ) from e
+        try:
+            return yaml.safe_load(str(text or ""))
+        except yaml.YAMLError as e:
+            logger.warning("YAML文本格式错误: %s", e)
+            return None
+
+    @staticmethod
     def save_file_content(
         file_path: Path,
         content: Union[str, Dict[str, Any], bytes],
@@ -278,6 +293,35 @@ class FileUtils:
             return False
 
     @staticmethod
+    def load_python_namespace(
+        file_path: Path,
+        *,
+        module_name: str = "__main__",
+    ) -> Optional[Dict[str, Any]]:
+        """exec 受信 Python 文件并返回命名空间。
+
+        **仅用于项目内可信配置 / userspace 扩展**，不要对不可信输入调用。
+        """
+        if not file_path.exists():
+            logger.debug("Python文件不存在: %s", file_path)
+            return None
+        if not file_path.is_file():
+            logger.warning("路径不是文件: %s", file_path)
+            return None
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            exec_globals: Dict[str, Any] = {
+                "__file__": str(file_path),
+                "__name__": str(module_name or "__main__"),
+            }
+            exec(content, exec_globals)
+            logger.debug("成功加载Python命名空间: %s", file_path)
+            return exec_globals
+        except Exception as e:
+            logger.error("加载Python命名空间失败: %s, %s", file_path, e)
+            return None
+
+    @staticmethod
     def load_python_config(
         file_path: Path, var_name: str = "settings"
     ) -> Optional[Dict[str, Any]]:
@@ -286,31 +330,14 @@ class FileUtils:
         使用 ``exec`` 执行文件内容；**仅用于项目内可信配置**（如 userspace
         settings.py），不要对不可信输入调用。
         """
-        if not file_path.exists():
-            logger.debug("Python配置文件不存在: %s", file_path)
+        exec_globals = FileUtils.load_python_namespace(file_path)
+        if exec_globals is None:
             return None
-
-        if not file_path.is_file():
-            logger.warning("路径不是文件: %s", file_path)
-            return None
-
-        try:
-            content = file_path.read_text(encoding="utf-8")
-            exec_globals = {
-                "__file__": str(file_path),
-                "__name__": "__main__",
-            }
-            exec(content, exec_globals)
-
-            if var_name in exec_globals:
-                config = exec_globals[var_name]
-                logger.debug(
-                    "成功加载Python配置文件: %s, 提取变量: %s", file_path, var_name
-                )
-                return config
-            logger.warning("Python文件 %s 未定义变量: %s", file_path, var_name)
-            return None
-
-        except Exception as e:
-            logger.error("加载Python配置文件失败: %s, %s", file_path, e)
-            return None
+        if var_name in exec_globals:
+            config = exec_globals[var_name]
+            logger.debug(
+                "成功加载Python配置文件: %s, 提取变量: %s", file_path, var_name
+            )
+            return config
+        logger.warning("Python文件 %s 未定义变量: %s", file_path, var_name)
+        return None

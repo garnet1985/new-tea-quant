@@ -20,7 +20,7 @@ summary: 在设置 → AI 助理粘贴供应商密钥；页面不回读明文。
 ## 前置条件
 
 - 已安装并打开 UI
-- `userspace/extensions/ai/providers/<id>/` 里已有 `config.py`
+- `userspace/extensions/llm_providers/<id>/` 里已有 `config.py`
 
 ## 步骤
 
@@ -40,7 +40,7 @@ summary: 在设置 → AI 助理粘贴供应商密钥；页面不回读明文。
 
 ## 常见坑
 
-- **还没有发现供应商**：需要先有 `userspace/extensions/ai/providers/<id>/config.py`。设置页会提示这一点。
+- **还没有发现供应商**：需要先有 `userspace/extensions/llm_providers/<id>/config.py`。设置页会提示这一点。
 - **供应商已禁用**：列表会标「已禁用」，先启用配置再聊。
 - **不要把密钥贴进策略代码或对话记录里让助手「记住」。** 只走设置页。
 - 打包 / 分发 userspace 时会剥离密钥；换机器要重新粘贴。

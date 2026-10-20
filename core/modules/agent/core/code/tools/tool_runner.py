@@ -62,6 +62,13 @@ def run_tool(
         raise AgentError(f"工具尚未实现：{spec.name}")
     handler = _HANDLERS.get(spec.name)
     if handler is None:
+        from core.modules.agent.core.code.userspace.tools import get_userspace_tool_handler
+
+        handler = get_userspace_tool_handler(
+            spec.name,
+            builtin_names=catalog.builtin_names(),
+        )
+    if handler is None:
         raise AgentError(f"工具尚未实现：{spec.name}")
     if arguments is None:
         arguments = {}

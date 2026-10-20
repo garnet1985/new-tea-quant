@@ -200,6 +200,16 @@ class PathManager:
         return PathManager.get_userspace_root() / "extensions"
 
     @staticmethod
+    def is_safe_extension_id(name: str) -> bool:
+        """userspace 扩展目录/文件名：无路径段、非隐藏。"""
+        text = str(name or "").strip()
+        if not text or text in {".", ".."}:
+            return False
+        if "/" in text or "\\" in text:
+            return False
+        return not text.startswith(".")
+
+    @staticmethod
     def get_system_root() -> Path:
         """获取系统根目录：userspace/system/"""
         return PathManager.get_userspace_root() / "system"
@@ -423,19 +433,50 @@ class PathManager:
         """获取扫描适配器目录：userspace/extensions/adapters/"""
         return PathManager.get_extensions_root() / "adapters"
 
-    # ========== extensions: AI 通道（infra.ai） ==========
+    # ========== extensions: 大模型供应商（infra.ai） ==========
 
     @staticmethod
-    def get_ai_root() -> Path:
-        """AI 通道根目录：userspace/extensions/ai/"""
-        return PathManager.get_extensions_root() / "ai"
+    def get_llm_providers_directory() -> Path:
+        """大模型供应商根：userspace/extensions/llm_providers/"""
+        return PathManager.get_extensions_root() / "llm_providers"
 
+    @staticmethod
+    def get_llm_provider_directory(provider_id: str) -> Path:
+        """指定供应商目录：.../llm_providers/{provider_id}/"""
+        return PathManager.get_llm_providers_directory() / provider_id
+
+    # 旧名兼容（曾为 extensions/ai/providers）
     @staticmethod
     def get_ai_providers_directory() -> Path:
-        """providers 目录：.../ai/providers/"""
-        return PathManager.get_ai_root() / "providers"
+        return PathManager.get_llm_providers_directory()
 
     @staticmethod
     def get_ai_provider_directory(provider_id: str) -> Path:
-        """指定供应商目录：.../ai/providers/{provider_id}/"""
-        return PathManager.get_ai_providers_directory() / provider_id
+        return PathManager.get_llm_provider_directory(provider_id)
+
+    @staticmethod
+    def get_ai_root() -> Path:
+        """兼容旧名：现等于 llm_providers 根。"""
+        return PathManager.get_llm_providers_directory()
+
+    # ========== extensions: Agent（modules.agent） ==========
+
+    @staticmethod
+    def get_agent_extensions_directory() -> Path:
+        """Agent 用户扩展根：userspace/extensions/agent/"""
+        return PathManager.get_extensions_root() / "agent"
+
+    @staticmethod
+    def get_agent_tools_directory() -> Path:
+        """Agent 用户工具：.../agent/tools/"""
+        return PathManager.get_agent_extensions_directory() / "tools"
+
+    @staticmethod
+    def get_agent_templates_directory() -> Path:
+        """Agent 呈现模版：.../agent/templates/"""
+        return PathManager.get_agent_extensions_directory() / "templates"
+
+    @staticmethod
+    def get_agent_prompts_directory() -> Path:
+        """Agent 提示词片段：.../agent/prompts/"""
+        return PathManager.get_agent_extensions_directory() / "prompts"

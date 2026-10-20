@@ -1324,7 +1324,7 @@ export function SettingsAssistantPanel() {
           <NtqProxyCard configured={membershipReady} />
           {sortedProviders.length === 0 ? (
             <Alert severity="info">
-              还没有发现 AI 供应商。需要先在 userspace 里放好供应商目录和 config.py。
+              还没有发现大模型供应商。需要先在 userspace/extensions/llm_providers/ 下放好供应商目录和 config.py。
             </Alert>
           ) : sortedProviders.map((item) => {
             const draft = drafts[item.providerId] || '';

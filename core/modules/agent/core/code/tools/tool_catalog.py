@@ -259,15 +259,30 @@ _TOOLS: tuple[ToolSpec, ...] = (
 )
 
 
+def _builtin_names() -> frozenset[str]:
+    return frozenset(spec.name for spec in _TOOLS)
+
+
 class ToolCatalog:
-    """已登记工具的只读清单。"""
+    """已登记工具的只读清单（内置 + userspace 新增）。"""
 
     def list_tools(self) -> List[ToolSpec]:
-        return list(_TOOLS)
+        from core.modules.agent.core.code.userspace.tools import list_userspace_tool_specs
+
+        extra = list_userspace_tool_specs(builtin_names=_builtin_names())
+        return list(_TOOLS) + extra
 
     def get(self, name: str) -> ToolSpec | None:
         key = str(name or "").strip()
         for spec in _TOOLS:
             if spec.name == key:
                 return spec
+        from core.modules.agent.core.code.userspace.tools import list_userspace_tool_specs
+
+        for spec in list_userspace_tool_specs(builtin_names=_builtin_names()):
+            if spec.name == key:
+                return spec
         return None
+
+    def builtin_names(self) -> frozenset[str]:
+        return _builtin_names()

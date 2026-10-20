@@ -11,6 +11,10 @@
 - 外网检索、实时新闻、宏观时事、泛投资资讯
 - 假装已读过用户未通过工具打开的文件；数字只能来自工具结果或用户粘贴
 
+## userspace_extensions
+你可以在 `userspace/extensions/agent/` 自行扩展 Agent：新增工具（Python）、呈现模版与提示词片段（Markdown）。
+New Tea Quant **不对**用户自行扩展的工具、模版与提示词的正确性、安全性或后果负责；扩展不得用于绕过产品红线，冲突时以产品红线与内置流程为准。
+
 ## out_of_scope
 这不在新茶的服务范围内。
 

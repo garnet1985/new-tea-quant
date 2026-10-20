@@ -8,6 +8,7 @@ from core.modules.agent.core.code.executor.shared.prompt_common import (
 )
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_prompt
 from core.modules.agent.core.code.tools.tool_catalog import ToolCatalog
+from core.modules.agent.core.code.userspace.prompts import append_userspace_prompt
 
 
 def worker_system_prompt(catalog: ToolCatalog) -> str:
@@ -19,10 +20,11 @@ def worker_system_prompt(catalog: ToolCatalog) -> str:
             f"- {spec.name}：{spec.description} 参数：{param_text(spec.parameters)}"
         )
     tools = "\n".join(tools_lines) if tools_lines else "（无已实现工具）"
-    return load_prompt(
+    body = load_prompt(
         "specific/worker/system.md",
         variables={
             "identity": product_identity_text(),
             "tools": tools,
         },
     ).rstrip()
+    return append_userspace_prompt(body, "worker")

@@ -206,6 +206,12 @@ class PathNamespace:
     # ========== 扩展路径 API ==========
 
     @staticmethod
+    def is_safe_extension_id(name: str) -> bool:
+        """userspace 扩展目录/文件名是否安全。"""
+        from .path_manager import PathManager
+        return PathManager.is_safe_extension_id(name)
+
+    @staticmethod
     def get_extensions_tables_directory() -> Path:
         """获取扩展表目录"""
         from .path_manager import PathManager
@@ -218,7 +224,19 @@ class PathNamespace:
         return PathManager.get_adapters_directory()
 
     @staticmethod
+    def get_llm_providers_directory() -> Path:
+        """大模型供应商：userspace/extensions/llm_providers/"""
+        from .path_manager import PathManager
+        return PathManager.get_llm_providers_directory()
+
+    @staticmethod
+    def get_llm_provider_directory(provider_id: str) -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_llm_provider_directory(provider_id)
+
+    @staticmethod
     def get_ai_root() -> Path:
+        """兼容旧名 → llm_providers。"""
         from .path_manager import PathManager
         return PathManager.get_ai_root()
 
@@ -231,6 +249,27 @@ class PathNamespace:
     def get_ai_provider_directory(provider_id: str) -> Path:
         from .path_manager import PathManager
         return PathManager.get_ai_provider_directory(provider_id)
+
+    @staticmethod
+    def get_agent_extensions_directory() -> Path:
+        """Agent 用户扩展：userspace/extensions/agent/"""
+        from .path_manager import PathManager
+        return PathManager.get_agent_extensions_directory()
+
+    @staticmethod
+    def get_agent_tools_directory() -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_agent_tools_directory()
+
+    @staticmethod
+    def get_agent_templates_directory() -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_agent_templates_directory()
+
+    @staticmethod
+    def get_agent_prompts_directory() -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_agent_prompts_directory()
 
     @staticmethod
     def get_data_source_handler_directory(handler_name: str) -> Path:

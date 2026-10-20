@@ -46,7 +46,7 @@ class TestAiChannelApi(unittest.TestCase):
         self.assertNotIn("api_key", fields)
 
     def test_live_userspace_discovers_provider(self) -> None:
-        root = ProjectContext.path.get_ai_providers_directory()
+        root = ProjectContext.path.get_llm_providers_directory()
         if not (root / "zhipu" / "config.py").is_file():
             if not any(AiChannel.list_providers()):
                 self.skipTest("userspace AI providers 未安装")

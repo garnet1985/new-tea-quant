@@ -17,4 +17,4 @@ AiChannel.complete(
 )
 ```
 
-供应商目录：`userspace/extensions/ai/providers/<id>/`。
+供应商目录：`userspace/extensions/llm_providers/<id>/`。

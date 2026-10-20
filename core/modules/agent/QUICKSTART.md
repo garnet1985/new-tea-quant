@@ -34,6 +34,55 @@ print(outcome["reply"], outcome["handoff"], outcome.get("catfood_spent"))
 
 ---
 
+## 用户扩展（可选）
+
+目录：`userspace/extensions/agent/`。**除 tool 外只写 Markdown。** New Tea Quant 不对用户扩展的正确性与后果负责；与产品红线冲突时以产品为准。
+
+```text
+userspace/extensions/agent/
+├── tools/my_tool/tool.py     # 仅新增工具（外接 API 或包装本机 NTQ）
+├── templates/backtest_price.md   # 覆盖内置呈现；或新 scenario.md + frontmatter match
+└── prompts/
+    ├── context.md            # 喜好 / 背景（追加）
+    ├── worker.md
+    ├── guider.md
+    └── present.md
+```
+
+`tool.py` 最小形状：
+
+```python
+TOOL = {
+    "name": "my_tool",
+    "description": "……",
+    "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": False,
+    },
+}
+
+def run(arguments):
+    return {"ok": True, "note": "hello"}
+```
+
+新呈现 scenario（自动命中需 frontmatter）：
+
+```markdown
+---
+match:
+  tool: read_execution_report
+  layer: portfolio
+  user_re: 总结|解读
+---
+
+# 我的资金层版式
+…
+```
+
+---
+
 ## 下一步
 
 - [API.md](./API.md)

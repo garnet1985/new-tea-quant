@@ -50,6 +50,8 @@ core/modules/agent/
         ├── templates/          # scenario → 呈现骨架；≠ know_how
         ├── specific/present/   # present 阶段 system/user
         └── ntq_wiki/           # wiki 概念 + know_how 操作
+
+用户扩展（可选）：`userspace/extensions/agent/` — tools（仅新增）/ templates（md，可覆盖）/ prompts（md，仅追加）。
 ```
 
 ---

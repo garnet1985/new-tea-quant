@@ -8,5 +8,5 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/v1/ai/providers` | 本机供应商列表（无密钥明文） |
+| GET | `/v1/ai/providers` | 本机大模型供应商列表（无密钥明文；目录为 `userspace/extensions/llm_providers/`） |
 | PUT | `/v1/ai/providers/<provider_id>/api-key` | 写入密钥 |

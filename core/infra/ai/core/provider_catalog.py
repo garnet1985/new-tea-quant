@@ -19,17 +19,12 @@ class ProviderCatalog:
 
     @staticmethod
     def is_safe_provider_id(provider_id: str) -> bool:
-        name = str(provider_id or "").strip()
-        if not name or name in {".", ".."}:
-            return False
-        if "/" in name or "\\" in name:
-            return False
-        return not name.startswith(".")
+        return ProjectContext.path.is_safe_extension_id(provider_id)
 
     @staticmethod
     def list_providers() -> List[ProviderInfo]:
-        """发现 ``userspace/extensions/ai/providers/*``。"""
-        providers_root = ProjectContext.path.get_ai_providers_directory()
+        """发现 ``userspace/extensions/llm_providers/*``。"""
+        providers_root = ProjectContext.path.get_llm_providers_directory()
         if not providers_root.is_dir():
             return []
         config_files = Discovery.discover.files(
@@ -103,7 +98,7 @@ class ProviderCatalog:
             raise ValueError("empty api key")
         if len(key) > 4096:
             raise ValueError("api key too long")
-        providers_root = ProjectContext.path.get_ai_providers_directory().resolve()
+        providers_root = ProjectContext.path.get_llm_providers_directory().resolve()
         target = Path(directory).resolve()
         try:
             target.relative_to(providers_root)

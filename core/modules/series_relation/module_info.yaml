@@ -21,3 +21,4 @@ changelog:
       - CLI 跑完打印 report（并落盘 report.txt）：核心相关/先后/幅度结论
       - series 源 strategy_sim：引用回测 portfolio.equity / price.cum_exit_roi（version 默认 latest；可 transform=returns）
       - 示例：demo_portfolio_vs_hs300（组合权益 vs 沪深300，仅示范）
+      - Facade：save / load_results；BFF `/v1/series-relations/*`

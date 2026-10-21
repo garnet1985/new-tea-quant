@@ -16,6 +16,7 @@ const advancedNavItems = [
   { label: '特征标签', path: '/advanced/tags' },
   { label: '数据源', path: '/advanced/data-sources' },
   { label: '数据契约', path: '/advanced/data-contracts' },
+  { label: '序列关系', path: '/advanced/series-relation' },
 ];
 
 const ADVANCED_BASE = '/advanced';

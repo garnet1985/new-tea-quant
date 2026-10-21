@@ -16,6 +16,9 @@ import ScanPage from './pages/scanPage';
 import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
 import DataSourceListPage from './pages/dataSourcePage';
+import SeriesRelationListPage, {
+  SeriesRelationDetailPage,
+} from './pages/seriesRelationPage';
 import SettingsPage from './pages/settingsPage';
 import WhatWeWillTrackPage from './pages/whatWeWillTrackPage';
 
@@ -78,6 +81,10 @@ function App() {
               path="/advanced/tags"
               element={<TagListPage />}
             />
+            <Route path="/advanced/series-relation">
+              <Route index element={<SeriesRelationListPage />} />
+              <Route path="*" element={<SeriesRelationDetailPage />} />
+            </Route>
             <Route
               path="/advanced"
               element={<Navigate to="/advanced/tags" replace />}

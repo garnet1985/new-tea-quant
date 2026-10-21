@@ -165,9 +165,11 @@ class StrategyInfo(StrategyDraft):
             settings_file=draft.settings_file,
             folder=draft.strategy_file.parent.resolve(),
             key=str(settings_dict.get("meta", {}).get("key", "")).strip(),
-            display_name=str(
-                settings_dict.get("meta", {}).get("display_name", "")
-            ).strip(),
+            # 展示名：prefer display_name；旧 settings 只有 meta.name 时回退
+            display_name=(
+                str(settings_dict.get("meta", {}).get("display_name", "")).strip()
+                or str(settings_dict.get("meta", {}).get("name", "")).strip()
+            ),
             is_enabled=bool(settings_dict.get("is_enabled", False)),
             settings=settings_dict,
             hooks_class=hooks_class,

@@ -43,6 +43,14 @@
 - **状态：** `beta`
 - **描述：** 返回 `{ok, settings, errors}`；规范化后的 settings 不含 `max_series`
 
+### save
+
+`SeriesRelation.save(key_or_id: str, settings: Mapping) -> dict`
+
+- **状态：** `beta`
+- **描述：** 校验后写入 `userspace/extensions/series_relation/<key>/settings.py`（`meta.key` 强制对齐路径）；目录不存在则创建
+- **返回：** `{success, key, settings, ...}`；失败含 `errors` / `error`
+
 ### run
 
 `SeriesRelation.run(key_or_id: str) -> dict`
@@ -61,7 +69,16 @@
   3. **波动差多少**（`raw` OLS）：`beta_b_on_a` / `alpha_b_on_a` / `scale_r2`
 - **门槛：** 交集过短不报；`relation` 为 weak 时 `shape_ok=false`，先后/幅度文案标「请谨慎看待」
 
+### load_results
+
+`SeriesRelation.load_results(key_or_id: str, *, max_points: int = 800) -> dict`
+
+- **状态：** `beta`
+- **描述：** 读 `results/`（meta / summary / 抽稀 chart / report 文本）供 UI
+
 **CLI：** `python cli.py series_relation KEY`（缩写 `srel`；`--list` 列场景）
+
+**BFF：** `/api/v1/series-relations/*`（list / get / put / run / results）→ 只调本 Facade
 
 **举例：**
 

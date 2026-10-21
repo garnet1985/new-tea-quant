@@ -21,7 +21,7 @@ dependencies:
 changelog:
   - version: "0.4.4"
     changes:
-      - list catalog 扩展：datakey / tag / tag.<key> / strategy / indicator / table
+      - list catalog 扩展：datakeys / tags / tag.<key> / strategies / indicators / tables（集合用复数；单数为别名）
   - version: "0.4.3"
     changes:
       - 新增 list / ls catalog：list stock.area|industry|board|market|list_status（及 list stock）

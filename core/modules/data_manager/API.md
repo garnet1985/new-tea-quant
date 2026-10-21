@@ -39,7 +39,7 @@
 `DataManager().list_tables() -> list[str]`
 
 - **状态：** `beta`
-- **描述：** 已发现并注册的逻辑表名（排序）。CLI：`python cli.py list table`
+- **描述：** 已发现并注册的逻辑表名（排序）。CLI：`python cli.py list tables`
 
 ### get_table / register_table
 

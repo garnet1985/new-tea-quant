@@ -1,0 +1,10 @@
+terms:
+  series_relation:
+    definition: "多条 time series 并置比较：日期并集呈现，交集上做关系摘要。"
+  MAX_SERIES:
+    definition: "模块代码常量，单次比较最多系列条数；不进用户 settings。"
+  calendar_union:
+    definition: "各系列观测日的并集，用作图的横轴；各系列只在自有点上有值。"
+avoid:
+  - factor_research
+  - ui_charting

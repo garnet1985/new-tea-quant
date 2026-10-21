@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { fetchMemberProfile, MEMBERSHIP_CHANGED_EVENT } from 'api/settingsApi';
+import { FALLBACK_REGISTER_URL, resolveRegisterUrl } from 'api/siteApi';
 import './style.scss';
-
-const FALLBACK_REGISTER_URL = 'https://www.new-tea.cn/zh-hans/user/register';
 
 function letterOf(name) {
   const text = String(name || '').trim();
@@ -70,7 +69,7 @@ function MemberStrip() {
 
   const signedIn = Boolean(profile?.signed_in);
   const showAvatar = signedIn && profile.avatar && !avatarFailed;
-  const registerUrl = profile?.register_url || FALLBACK_REGISTER_URL;
+  const registerUrl = resolveRegisterUrl(profile?.register_url);
   const tierLabel = profile?.is_pro || profile?.tier === 'pro' ? 'Pro' : '标准';
   const catfoodText =
     profile?.catfood == null || Number.isNaN(Number(profile.catfood))
@@ -133,21 +132,19 @@ function MemberStrip() {
               暂时连不上官网
             </Box>
           ) : (
-            <>
-              <Box component="span" className="ntq-member-strip__hint">
-                注册可以获得更多功能
-              </Box>
-              <Box
-                component="a"
-                className="ntq-member-strip__link"
-                href={registerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                去官网注册
-              </Box>
-            </>
+            <Box component="span" className="ntq-member-strip__hint">
+              注册可以获得更多功能
+            </Box>
           )}
+          <Box
+            component="a"
+            className="ntq-member-strip__link"
+            href={registerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            成为会员
+          </Box>
         </Box>
       ) : null}
     </Box>

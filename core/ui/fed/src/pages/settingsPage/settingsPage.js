@@ -13,10 +13,9 @@ import {
   SettingsCachePanel,
   SettingsDataPanel,
   SettingsDatabasePanel,
-  SettingsFeedbackPanel,
+  SettingsFeedbackAndTracePanel,
   SettingsMembershipPanel,
   SettingsSystemPanel,
-  SettingsTracePanel,
 } from './settingsPanels';
 import './settingsPage.scss';
 
@@ -24,11 +23,10 @@ const SETTINGS_TABS = [
   { id: 'system', label: '安装与维护', path: 'system' },
   { id: 'database', label: '数据库', path: 'database' },
   { id: 'membership', label: '会员', path: 'membership' },
-  { id: 'ai', label: 'AI 通道', path: 'ai' },
+  { id: 'ai', label: 'AI 配置', path: 'ai' },
   { id: 'data', label: '数据范围', path: 'data' },
   { id: 'cache', label: '缓存管理', path: 'cache' },
-  { id: 'trace', label: '使用统计', path: 'trace' },
-  { id: 'feedback', label: '反馈', path: 'feedback' },
+  { id: 'feedback', label: '反馈与统计', path: 'feedback' },
 ];
 
 function useSettingsSection() {
@@ -60,7 +58,6 @@ function SettingsPage() {
   const [dataSaving, setDataSaving] = React.useState(false);
   const [defaultStartDate, setDefaultStartDate] = React.useState('');
   const [asOfLatestCompletedDate, setAsOfLatestCompletedDate] = React.useState('');
-  const [useSampleStockList, setUseSampleStockList] = React.useState('');
   const [simulationResultsMaxStaleEnvs, setSimulationResultsMaxStaleEnvs] = React.useState('');
 
   const loadDatabase = useCallback(() => {
@@ -85,9 +82,6 @@ function SettingsPage() {
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
         setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
-        setUseSampleStockList(
-          r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
-        );
         setSimulationResultsMaxStaleEnvs(
           r.simulation_results_max_stale_envs != null
             ? String(r.simulation_results_max_stale_envs)
@@ -129,15 +123,11 @@ function SettingsPage() {
     saveDataSettings({
       default_start_date: defaultStartDate.trim(),
       as_of_latest_completed_trading_date: asOfLatestCompletedDate.trim(),
-      use_sample_stock_list: useSampleStockList.trim(),
       simulation_results_max_stale_envs: simulationResultsMaxStaleEnvs.trim(),
     })
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
         setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
-        setUseSampleStockList(
-          r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
-        );
         setSimulationResultsMaxStaleEnvs(
           r.simulation_results_max_stale_envs != null
             ? String(r.simulation_results_max_stale_envs)
@@ -161,7 +151,7 @@ function SettingsPage() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装、数据库连接、会员凭证、AI 助理、数据范围、缓存清理、使用统计与反馈。"
+      bannerDescription="系统安装、数据库连接、会员凭证、AI 配置、数据范围、缓存清理、反馈与统计。"
     >
       <Box className="settings-page-layout">
         <Paper className="settings-page-nav" elevation={0}>
@@ -211,11 +201,9 @@ function SettingsPage() {
                   saving={dataSaving}
                   defaultStartDate={defaultStartDate}
                   asOfLatestCompletedDate={asOfLatestCompletedDate}
-                  useSampleStockList={useSampleStockList}
                   simulationResultsMaxStaleEnvs={simulationResultsMaxStaleEnvs}
                   onDefaultStartDateChange={setDefaultStartDate}
                   onAsOfLatestCompletedDateChange={setAsOfLatestCompletedDate}
-                  onUseSampleStockListChange={setUseSampleStockList}
                   onSimulationResultsMaxStaleEnvsChange={setSimulationResultsMaxStaleEnvs}
                   onSave={handleSaveData}
                   onReload={loadDataSettings}
@@ -225,8 +213,8 @@ function SettingsPage() {
             <Route path="membership" element={<SettingsMembershipPanel />} />
             <Route path="ai" element={<SettingsAssistantPanel />} />
             <Route path="cache" element={<SettingsCachePanel />} />
-            <Route path="trace" element={<SettingsTracePanel />} />
-            <Route path="feedback" element={<SettingsFeedbackPanel />} />
+            <Route path="feedback" element={<SettingsFeedbackAndTracePanel />} />
+            <Route path="trace" element={<Navigate to="/settings/feedback" replace />} />
             <Route path="*" element={<Navigate to="system" replace />} />
           </Routes>
         </Paper>

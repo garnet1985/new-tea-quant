@@ -17,6 +17,7 @@ from .APIs.platform import (
 from .APIs.data import data_contract_api_bp, data_source_api_bp
 from .APIs.strategy import strategy_api_bp
 from .APIs.tag import tag_api_bp
+from .APIs.series_relation import series_relation_api_bp
 from .conf import conf
 from .static_ui import (
     fed_build_ready,
@@ -58,6 +59,7 @@ def create_app():
     app.register_blueprint(data_contract_api_bp, url_prefix="/api")
     app.register_blueprint(data_source_api_bp, url_prefix="/api")
     app.register_blueprint(tag_api_bp, url_prefix="/api")
+    app.register_blueprint(series_relation_api_bp, url_prefix="/api")
 
     if not register_fed_static_routes(app, build_dir=build_dir):
 

@@ -26,6 +26,7 @@ import {
 import InlineLoadingState from '../../views/inlineLoadingState';
 import PageLoadingState from '../../views/pageLoadingState';
 import NtqIcon from '../../views/ntqIcon';
+import BecomeMemberLink from '../../views/becomeMemberLink';
 import { formatDateTime } from '../../service/format/formatDateTime';
 import {
   clearMembershipToken,
@@ -38,7 +39,6 @@ import {
   saveTraceSettings,
 } from '../../api/settingsApi';
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
-import { fetchSiteUrls } from '../../api/siteApi';
 import { listAiProviders, saveAiProviderApiKey } from '../../api/aiApi';
 import {
   getImportDataProgress,
@@ -435,11 +435,9 @@ export function SettingsDataPanel({
   saving,
   defaultStartDate,
   asOfLatestCompletedDate,
-  useSampleStockList,
   simulationResultsMaxStaleEnvs,
   onDefaultStartDateChange,
   onAsOfLatestCompletedDateChange,
-  onUseSampleStockListChange,
   onSimulationResultsMaxStaleEnvsChange,
   onSave,
   onReload,
@@ -465,8 +463,51 @@ export function SettingsDataPanel({
         <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
           userspace/config/data.json
         </Typography>
-        。截至日截断会影响数据源更新状态评估与 Tag/策略的数据边界。
+        。这里只约束「已入库数据怎么用」：起始日与截至日等，不会凭空补行情。
       </Typography>
+
+      <Alert severity="info" sx={{ width: '100%', alignSelf: 'stretch' }}>
+        <Typography variant="body2" component="div">
+          库里没有的区间或标的，把截至日拉长或起始日提前都不会生效——系统仍只能用已下载/导入的数据。
+        </Typography>
+        <Typography variant="body2" component="div" sx={{ mt: 1 }}>
+          自带演示数据大约是
+          {' '}
+          <strong>300 只股票、约 3 年</strong>
+          （约 2023–2025 年底）。需要更长历史或全市场时，请先补数据，而不是只改本页：
+        </Typography>
+        <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
+          <li>
+            <Typography variant="body2" component="span">
+              注册会员后，可在官网下载并导入约 3 年全市场数据；也可在
+              {' '}
+              <Link component={RouterLink} to="/advanced/data-sources" underline="hover">
+                高级功能 → 数据源
+              </Link>
+              {' '}
+              拉取（档位与点数以该页说明为准）。还没有账号？
+              {' '}
+              <BecomeMemberLink />
+              。
+            </Typography>
+          </li>
+          <li>
+            <Typography variant="body2" component="span">
+              尚未导入演示包时，可到
+              {' '}
+              <Link component={RouterLink} to="/settings/system" underline="hover">
+                设置 → 安装与维护
+              </Link>
+              ；会员凭证在
+              {' '}
+              <Link component={RouterLink} to="/settings/membership" underline="hover">
+                设置 → 会员
+              </Link>
+              。
+            </Typography>
+          </li>
+        </Box>
+      </Alert>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
       {saveError ? <Alert severity="error">{saveError}</Alert> : null}
@@ -483,7 +524,7 @@ export function SettingsDataPanel({
             value={defaultStartDate}
             onChange={(e) => onDefaultStartDateChange(e.target.value)}
             placeholder="20080101"
-            helperText="YYYYMMDD；更新拉数下界。"
+            helperText="YYYYMMDD；更新/拉数的下界。库中更早没有数据时，实际仍从库内最早日开始。"
           />
           <TextField
             label="截至日期（as-of）"
@@ -492,16 +533,7 @@ export function SettingsDataPanel({
             value={asOfLatestCompletedDate}
             onChange={(e) => onAsOfLatestCompletedDateChange(e.target.value)}
             placeholder="留空表示不截断"
-            helperText="as_of_latest_completed_trading_date；留空则使用实时最新已完成交易日。"
-          />
-          <TextField
-            label="样本股票池规模"
-            size="small"
-            fullWidth
-            value={useSampleStockList}
-            onChange={(e) => onUseSampleStockListChange(e.target.value)}
-            placeholder="留空表示全市场"
-            helperText="use_sample_stock_list；正整数 N 对应 stratified_N 样本池。"
+            helperText="截断 Tag/策略与数据源状态评估的上界；留空则用实时最新已完成交易日。不能超过库内已有行情。"
           />
           <Box id="settings-retention">
             <TextField
@@ -676,208 +708,183 @@ function formatTraceDecidedAt(raw) {
   return formatDateTime(raw, { style: 'absolute' });
 }
 
-export function SettingsTracePanel() {
+/** 反馈询问 + 匿名使用统计（合并页）。 */
+export function SettingsFeedbackAndTracePanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [saveOk, setSaveOk] = useState('');
-  const [enabled, setEnabled] = useState(false);
-  const [decided, setDecided] = useState(false);
-  const [decidedAt, setDecidedAt] = useState('');
+  const [feedbackSaveOk, setFeedbackSaveOk] = useState('');
+  const [traceSaveOk, setTraceSaveOk] = useState('');
+  const [promptsDisabled, setPromptsDisabled] = useState(false);
+  const [contactUrl, setContactUrl] = useState('');
+  const [traceEnabled, setTraceEnabled] = useState(false);
+  const [traceDecided, setTraceDecided] = useState(false);
+  const [traceDecidedAt, setTraceDecidedAt] = useState('');
 
-  const saveAction = useAsyncAction(
+  const feedbackSave = useAsyncAction(
+    useCallback((nextDisabled) => saveFeedbackSettings({ prompts_disabled: Boolean(nextDisabled) }), []),
+  );
+  const traceSave = useAsyncAction(
     useCallback((nextEnabled) => saveTraceSettings({ enabled: Boolean(nextEnabled) }), []),
   );
 
-  const applyState = useCallback((r) => {
-    setEnabled(Boolean(r.enabled));
-    setDecided(Boolean(r.decided));
-    setDecidedAt(formatTraceDecidedAt(r.decided_at));
-  }, []);
-
   const load = useCallback(() => {
     setLoadError('');
     setLoading(true);
-    fetchTraceSettings()
-      .then(applyState)
+    Promise.all([fetchFeedbackSettings(), fetchTraceSettings()])
+      .then(([feedback, trace]) => {
+        setPromptsDisabled(Boolean(feedback.prompts_disabled));
+        if (feedback.contact_url) setContactUrl(String(feedback.contact_url));
+        setTraceEnabled(Boolean(trace.enabled));
+        setTraceDecided(Boolean(trace.decided));
+        setTraceDecidedAt(formatTraceDecidedAt(trace.decided_at));
+      })
       .catch((e) => {
-        setLoadError(e?.message || '读取使用统计设置失败');
+        setLoadError(e?.message || '读取反馈与使用统计设置失败');
       })
       .finally(() => setLoading(false));
-  }, [applyState]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const handleToggle = async (_event, next) => {
-    setSaveOk('');
-    saveAction.clearError();
-    try {
-      const r = await saveAction.run(Boolean(next));
-      applyState(r);
-      setSaveOk(next ? '已开启匿名使用统计。' : '已关闭匿名使用统计。本地排队事件已清空。');
-    } catch {
-      /* saveAction.error */
-    }
-  };
-
-  return (
-    <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        使用统计
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        可选的匿名使用数据，用于改进 New Tea Quant。不包含策略代码、回测结果、账户或个人身份信息。
-        详见
-        {' '}
-        <Link component={RouterLink} to="/what-we-will-track" underline="hover">
-          我们收集哪些信息
-        </Link>
-        。
-      </Typography>
-
-      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
-      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
-
-      {loading ? (
-        <PageLoadingState message="正在加载使用统计设置…" minHeight="36vh" />
-      ) : (
-        <Stack spacing={1.5} sx={{ maxWidth: 520 }}>
-          {!decided ? (
-            <Alert severity="info">
-              尚未选择偏好。打开开关即表示同意；关闭表示不同意。之后可随时在此更改。
-            </Alert>
-          ) : null}
-          <FormControlLabel
-            sx={{
-              ml: 0,
-              gap: 1.5,
-              alignItems: 'center',
-              '& .MuiFormControlLabel-label': { marginLeft: 0 },
-            }}
-            control={(
-              <Switch
-                checked={enabled}
-                onChange={handleToggle}
-                disabled={saveAction.busy}
-                inputProps={{ 'aria-label': '开启匿名使用统计' }}
-              />
-            )}
-            label={enabled ? '已开启匿名使用统计' : '未开启匿名使用统计'}
-          />
-          {decided && decidedAt ? (
-            <Typography variant="caption" color="text.secondary">
-              最近决定时间：
-              {decidedAt}
-            </Typography>
-          ) : null}
-          <Box>
-            <Button variant="outlined" onClick={load} disabled={saveAction.busy || loading}>
-              重新读取
-            </Button>
-          </Box>
-        </Stack>
-      )}
-    </Stack>
-  );
-}
-
-export function SettingsFeedbackPanel() {
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [saveOk, setSaveOk] = useState('');
-  const [promptsDisabled, setPromptsDisabled] = useState(false);
-  const [contactUrl, setContactUrl] = useState('');
-
-  const saveAction = useAsyncAction(
-    useCallback((nextDisabled) => saveFeedbackSettings({ prompts_disabled: Boolean(nextDisabled) }), []),
-  );
-
-  const applyState = useCallback((r) => {
-    setPromptsDisabled(Boolean(r.prompts_disabled));
-    if (r.contact_url) setContactUrl(String(r.contact_url));
-  }, []);
-
-  const load = useCallback(() => {
-    setLoadError('');
-    setLoading(true);
-    fetchFeedbackSettings()
-      .then(applyState)
-      .catch((e) => {
-        setLoadError(e?.message || '读取反馈设置失败');
-      })
-      .finally(() => setLoading(false));
-  }, [applyState]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const handleToggle = async (_event, nextEnabled) => {
-    // Switch ON = prompts enabled = prompts_disabled false
+  const handleFeedbackToggle = async (_event, nextEnabled) => {
     const nextDisabled = !nextEnabled;
-    setSaveOk('');
-    saveAction.clearError();
+    setFeedbackSaveOk('');
+    feedbackSave.clearError();
     try {
-      const r = await saveAction.run(nextDisabled);
-      applyState(r);
-      setSaveOk(nextDisabled ? '已关闭应用内反馈询问。' : '已开启应用内反馈询问。');
+      const r = await feedbackSave.run(nextDisabled);
+      setPromptsDisabled(Boolean(r.prompts_disabled));
+      if (r.contact_url) setContactUrl(String(r.contact_url));
+      setFeedbackSaveOk(nextDisabled ? '已关闭应用内反馈询问。' : '已开启应用内反馈询问。');
     } catch {
-      /* saveAction.error */
+      /* feedbackSave.error */
     }
   };
 
+  const handleTraceToggle = async (_event, next) => {
+    setTraceSaveOk('');
+    traceSave.clearError();
+    try {
+      const r = await traceSave.run(Boolean(next));
+      setTraceEnabled(Boolean(r.enabled));
+      setTraceDecided(Boolean(r.decided));
+      setTraceDecidedAt(formatTraceDecidedAt(r.decided_at));
+      setTraceSaveOk(next ? '已开启匿名使用统计。' : '已关闭匿名使用统计。本地排队事件已清空。');
+    } catch {
+      /* traceSave.error */
+    }
+  };
+
+  const busy = feedbackSave.busy || traceSave.busy;
+
   return (
-    <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        反馈
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        任务成功后会弹出简短反馈，每个半天（0 点到 12 点、12 点到 24 点）最多一次。关闭询问只在本页。一旦你主动发送，不会再要求任何本地授权。
-        更长的问题请走官网联系页。
-      </Typography>
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="subtitle1" fontWeight={700}>
+          反馈与统计
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          管理应用内反馈询问，以及可选的匿名使用统计。
+        </Typography>
+      </Box>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
-      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
+      {feedbackSave.error ? <Alert severity="error">{feedbackSave.error}</Alert> : null}
+      {traceSave.error ? <Alert severity="error">{traceSave.error}</Alert> : null}
+      {feedbackSaveOk ? <Alert severity="success">{feedbackSaveOk}</Alert> : null}
+      {traceSaveOk ? <Alert severity="success">{traceSaveOk}</Alert> : null}
 
       {loading ? (
-        <PageLoadingState message="正在加载反馈设置…" minHeight="36vh" />
+        <PageLoadingState message="正在加载反馈与统计设置…" minHeight="36vh" />
       ) : (
-        <Stack spacing={1.5} sx={{ maxWidth: 520 }}>
-          <FormControlLabel
-            sx={{
-              ml: 0,
-              gap: 1.5,
-              alignItems: 'center',
-              '& .MuiFormControlLabel-label': { marginLeft: 0 },
-            }}
-            control={(
-              <Switch
-                checked={!promptsDisabled}
-                onChange={handleToggle}
-                disabled={saveAction.busy}
-                inputProps={{ 'aria-label': '开启应用内反馈询问' }}
-              />
-            )}
-            label={promptsDisabled ? '已关闭应用内反馈询问' : '允许应用内反馈询问'}
-          />
-          {contactUrl ? (
-            <Box>
-              <Button
-                component="a"
-                href={contactUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="outlined"
-              >
-                打开官网联系页
-              </Button>
-            </Box>
-          ) : null}
+        <Stack spacing={3} sx={{ maxWidth: 560 }}>
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              反馈
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              任务成功后会弹出简短反馈，每个半天（0 点到 12 点、12 点到 24 点）最多一次。关闭询问只在本页。一旦你主动发送，不会再要求任何本地授权。
+              更长的问题请走官网联系页。
+            </Typography>
+            <FormControlLabel
+              sx={{
+                ml: 0,
+                gap: 1.5,
+                alignItems: 'center',
+                '& .MuiFormControlLabel-label': { marginLeft: 0 },
+              }}
+              control={(
+                <Switch
+                  checked={!promptsDisabled}
+                  onChange={handleFeedbackToggle}
+                  disabled={busy}
+                  inputProps={{ 'aria-label': '开启应用内反馈询问' }}
+                />
+              )}
+              label={promptsDisabled ? '已关闭应用内反馈询问' : '允许应用内反馈询问'}
+            />
+            {contactUrl ? (
+              <Box>
+                <Button
+                  component="a"
+                  href={contactUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="outlined"
+                  size="small"
+                >
+                  打开官网联系页
+                </Button>
+              </Box>
+            ) : null}
+          </Stack>
+
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              使用统计
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              可选的匿名使用数据，用于改进 New Tea Quant。不包含策略代码、回测结果、账户或个人身份信息。
+              详见
+              {' '}
+              <Link component={RouterLink} to="/what-we-will-track" underline="hover">
+                我们收集哪些信息
+              </Link>
+              。
+            </Typography>
+            {!traceDecided ? (
+              <Alert severity="info">
+                尚未选择偏好。打开开关即表示同意；关闭表示不同意。之后可随时在此更改。
+              </Alert>
+            ) : null}
+            <FormControlLabel
+              sx={{
+                ml: 0,
+                gap: 1.5,
+                alignItems: 'center',
+                '& .MuiFormControlLabel-label': { marginLeft: 0 },
+              }}
+              control={(
+                <Switch
+                  checked={traceEnabled}
+                  onChange={handleTraceToggle}
+                  disabled={busy}
+                  inputProps={{ 'aria-label': '开启匿名使用统计' }}
+                />
+              )}
+              label={traceEnabled ? '已开启匿名使用统计' : '未开启匿名使用统计'}
+            />
+            {traceDecided && traceDecidedAt ? (
+              <Typography variant="caption" color="text.secondary">
+                最近决定时间：
+                {traceDecidedAt}
+              </Typography>
+            ) : null}
+          </Stack>
+
           <Box>
-            <Button variant="text" onClick={load} disabled={saveAction.busy || loading}>
+            <Button variant="outlined" onClick={load} disabled={busy || loading}>
               重新读取
             </Button>
           </Box>
@@ -984,14 +991,18 @@ export function SettingsMembershipPanel() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        会员
-      </Typography>
+      <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Typography variant="subtitle1" fontWeight={700}>
+          会员
+        </Typography>
+        {!configured ? <BecomeMemberLink variant="button" /> : null}
+      </Stack>
       <Typography variant="body2" color="text.secondary">
         把官网会员中心的通用凭证贴到这里，或直接把文件放到
         {' '}
         {filePath}
-        。文件里是有效凭证后，新茶会通过官网回答。没有这份凭证时，仍使用 AI 助理里自己的密钥。
+        。文件里是有效凭证后，新茶会通过官网回答（NTQ AI）。没有这份凭证时，可在 AI 配置里使用自己的密钥。
+        {!configured ? ' 还没有账号时，先点上方「成为会员」注册，再到会员中心复制通用凭证回来装载。' : null}
       </Typography>
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
       {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
@@ -1162,21 +1173,8 @@ export function SettingsMembershipPanel() {
   );
 }
 
+/** NTQ AI：只读指引，不在此页配置凭证。 */
 function NtqProxyCard({ configured }) {
-  const [registerUrl, setRegisterUrl] = useState('');
-
-  useEffect(() => {
-    let alive = true;
-    fetchSiteUrls()
-      .then((urls) => {
-        if (alive) setRegisterUrl(urls.registerUrl);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   return (
     <Box
       sx={{
@@ -1195,33 +1193,25 @@ function NtqProxyCard({ configured }) {
           size="small"
           color={configured ? 'success' : 'default'}
           variant={configured ? 'filled' : 'outlined'}
-          label={configured ? '已接入' : '尚未装载凭证'}
+          label={configured ? '已配置' : '未配置'}
         />
       </Stack>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-        官网代理 · 每天 30 次回答
+        官网代理 · 只读提示（凭证在「会员」页配置）
       </Typography>
       {configured ? (
         <Typography variant="body2" sx={{ mt: 1.5 }}>
-          通用凭证已装载。对话经官网转发，不用再填模型密钥。
-          {' '}
-          <Link component={RouterLink} to="/settings/membership">
-            查看会员凭证
-          </Link>
+          NTQ AI 已配置，可直接使用。若想使用自己的模型，可在 AI 交互框中选择下方已配置的其他 AI。
         </Typography>
       ) : (
         <Typography variant="body2" sx={{ mt: 1.5 }}>
-          到官网注册会员，在会员中心复制通用凭证，再放到设置 → 会员。
+          尚未配置 NTQ AI。请先到
           {' '}
-          {registerUrl ? (
-            <Link href={registerUrl} target="_blank" rel="noreferrer">
-              去官网注册
-            </Link>
-          ) : null}
-          {' '}
-          <Link component={RouterLink} to="/settings/membership">
-            去装载凭证
+          <Link component={RouterLink} to="/settings/membership" underline="hover">
+            设置 → 会员
           </Link>
+          {' '}
+          放入会员 token；本页只做指引，不在这里填写凭证。
         </Typography>
       )}
     </Box>
@@ -1300,10 +1290,10 @@ export function SettingsAssistantPanel() {
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1" fontWeight={700}>
-        AI 助理
+        AI 配置
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        把密钥写入本机已发现的供应商。页面不会回读明文，只会显示是否已配置。
+        NTQ AI 状态见下方提示；自有供应商可在此写入 API Key。页面不会回读明文，只会显示是否已配置。
       </Typography>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}

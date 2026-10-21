@@ -129,22 +129,6 @@ def normalize_yyyymmdd(value: Any, field: str, *, required: bool = False) -> Opt
     return raw
 
 
-def normalize_sample_pool(value: Any) -> Optional[int]:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, str) and not value.strip():
-        return None
-    try:
-        n = int(value)
-    except (TypeError, ValueError):
-        raise ValueError("use_sample_stock_list 须为正整数或留空")
-    if n <= 0:
-        raise ValueError("use_sample_stock_list 须大于 0")
-    return n
-
-
 def normalize_positive_int(value: Any, field: str) -> int:
     if isinstance(value, bool):
         raise ValueError(f"{field} 须为正整数")
@@ -158,10 +142,7 @@ def normalize_positive_int(value: Any, field: str) -> int:
 
 
 def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    sample = cfg.get("use_sample_stock_list")
-    sample_out: Optional[int] = None
-    if isinstance(sample, int) and sample > 0:
-        sample_out = sample
+    # use_sample_stock_list 是开发后门，不进入设置 API；只由 CLI/手改 data.json 控制。
     sim_max: Optional[int] = None
     try:
         sim_max = int(ProjectContext.config.get_simulation_results_max_stale_envs())
@@ -176,7 +157,6 @@ def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "default_start_date": str(cfg.get("default_start_date") or "").strip(),
         "as_of_latest_completed_trading_date": _get_as_of_latest_completed_trading_date(),
-        "use_sample_stock_list": sample_out,
         "simulation_results_max_stale_envs": sim_max,
         "config_path": str(ProjectContext.path.get_user_config_root() / "data.json"),
     }
@@ -198,7 +178,6 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
             payload.get("as_of_latest_completed_trading_date"),
             "as_of_latest_completed_trading_date",
         )
-        sample = normalize_sample_pool(payload.get("use_sample_stock_list"))
         sim_max = None
         if "simulation_results_max_stale_envs" in payload:
             sim_max = normalize_positive_int(
@@ -219,7 +198,7 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
 
     existing["default_start_date"] = default_start
     existing["as_of_latest_completed_trading_date"] = as_of
-    existing["use_sample_stock_list"] = sample
+    # 不读写 use_sample_stock_list：设置页保存不得写入/清空该开发配置。
     if sim_max is not None:
         retention = existing.get("retention")
         retention = dict(retention) if isinstance(retention, dict) else {}

@@ -148,6 +148,30 @@ class PathNamespace:
         return PathManager.get_tags_root()
 
     @staticmethod
+    def get_series_relation_root() -> Path:
+        """序列关系扩展根：userspace/extensions/series_relation/"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_root()
+
+    @staticmethod
+    def get_series_relation_directory(key_or_rel: str) -> Path:
+        """指定序列关系场景目录。"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_directory(key_or_rel)
+
+    @staticmethod
+    def get_series_relation_settings_path(key_or_rel: str) -> Path:
+        """场景 settings.py。"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_settings_path(key_or_rel)
+
+    @staticmethod
+    def get_series_relation_results_directory(key_or_rel: str) -> Path:
+        """场景 results/ 目录。"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_results_directory(key_or_rel)
+
+    @staticmethod
     def get_data_source_root() -> Path:
         """获取数据源根目录"""
         from .path_manager import PathManager

@@ -33,7 +33,7 @@ function WhatWeWillTrackPage() {
             New Tea Quant 可在征得你同意后，发送匿名使用数据以帮助改进产品。默认关闭；你可随时在设置中更改。
           </Typography>
           <Box sx={{ pt: 1 }}>
-            <Button component={RouterLink} to="/settings/trace" variant="outlined" size="small">
+            <Button component={RouterLink} to="/settings/feedback" variant="outlined" size="small">
               前往设置
             </Button>
           </Box>
@@ -132,8 +132,8 @@ function WhatWeWillTrackPage() {
           <Typography variant="body2" color="text.secondary">
             打开
             {' '}
-            <Link component={RouterLink} to="/settings/trace" underline="hover">
-              设置 → 使用统计
+            <Link component={RouterLink} to="/settings/feedback" underline="hover">
+              设置 → 反馈与统计
             </Link>
             {' '}
             即可开启或关闭。删除本地同意记录后，下次进入应用会再次询问。

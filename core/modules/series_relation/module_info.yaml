@@ -1,0 +1,24 @@
+name: modules.series_relation
+version: "0.1.0"
+compatible_core_versions: ">=0.5.0"
+package: core.modules
+description: "序列关系：多条 time series 并置比较（对齐呈现 + 可选关系摘要）。无 BFF/UI。"
+dependencies:
+  - modules.data_manager
+  - modules.data_contract
+  - modules.strategy
+  - infra.project_context
+  - infra.discovery
+changelog:
+  - version: "0.1.0"
+    changes:
+      - Facade：list/find/validate/run；MAX_SERIES=6 为代码常量
+      - userspace：extensions/series_relation/<key>/settings.py → results/
+      - 产物：meta.json / series.json / summary.json / findings.md
+      - CLI：series_relation / srel（sr 已占用）；本波无 BFF/UI
+      - 分析主轴：相关 + 领先滞后 + 幅度系数（原始值 OLS β/α）；弱相关时先后/幅度降可信度
+      - 示例场景：userspace/extensions/series_relation/cn_index_vs_lpr
+      - CLI 跑完打印 report（并落盘 report.txt）：核心相关/先后/幅度结论
+      - series 源 strategy_sim：引用回测 portfolio.equity / price.cum_exit_roi（version 默认 latest；可 transform=returns）
+      - 示例：demo_portfolio_vs_hs300（组合权益 vs 沪深300，仅示范）
+      - Facade：save / load_results；BFF `/v1/series-relations/*`

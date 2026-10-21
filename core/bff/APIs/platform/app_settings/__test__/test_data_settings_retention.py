@@ -44,8 +44,6 @@ def test_data_settings_response_includes_retention(monkeypatch):
         "ProjectContext",
         type("PC", (), {"config": _Cfg, "path": _Path}),
     )
-    out = data_settings_response(
-        {"default_start_date": "20080101", "use_sample_stock_list": None}
-    )
+    out = data_settings_response({"default_start_date": "20080101"})
     assert out["simulation_results_max_stale_envs"] == 5
     assert out["default_start_date"] == "20080101"

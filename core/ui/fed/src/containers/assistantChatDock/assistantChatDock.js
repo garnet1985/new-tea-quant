@@ -523,7 +523,7 @@ function AssistantChatDock() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          去官网注册
+                          成为会员
                         </a>
                         {' '}
                       </>

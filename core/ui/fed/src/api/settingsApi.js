@@ -209,7 +209,7 @@ export async function fetchMemberProfile() {
  * 最近猫粮流水（经本机 BFF 转发官网）。
  * @returns {Promise<{ available: boolean, catfood: number|null, currency: string, items: Array<object> }>}
  */
-export async function fetchCatfoodLedger(limit = 40) {
+export async function fetchCatfoodLedger(limit = 20) {
   const json = await request.getJson(
     `${API_VERSION_PREFIX}/membership/catfood-ledger?limit=${encodeURIComponent(String(limit))}`,
     { silent: true },

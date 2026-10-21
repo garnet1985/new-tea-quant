@@ -49,7 +49,6 @@ function pairHeadline(row) {
   if (p == null || !Number.isFinite(Number(p))) {
     return { text: '样本不足', tone: 'muted' };
   }
-  const abs = Math.abs(Number(p));
   const num = fmtNum(p, 2);
   if (rel === 'positive' || (rel !== 'negative' && Number(p) > 0.15)) {
     return { text: `${num} 同向`, tone: 'pos' };

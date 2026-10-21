@@ -894,6 +894,9 @@ export function SettingsFeedbackAndTracePanel() {
   );
 }
 
+const LEDGER_INITIAL = 20;
+const LEDGER_MORE = 50;
+
 export function SettingsMembershipPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -904,7 +907,10 @@ export function SettingsMembershipPanel() {
   const [token, setToken] = useState('');
   const [catfood, setCatfood] = useState(null);
   const [ledgerItems, setLedgerItems] = useState([]);
+  const [ledgerLimit, setLedgerLimit] = useState(LEDGER_INITIAL);
+  const [ledgerHasMore, setLedgerHasMore] = useState(false);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerLoadingMore, setLedgerLoadingMore] = useState(false);
 
   const saveAction = useAsyncAction(useCallback((value) => saveMembershipToken(value), []));
   const clearAction = useAsyncAction(useCallback(() => clearMembershipToken(), []));
@@ -915,16 +921,20 @@ export function SettingsMembershipPanel() {
     if (r.path) setFilePath(r.path);
   }, []);
 
-  const loadLedger = useCallback((ready) => {
+  const loadLedger = useCallback((ready, { limit = LEDGER_INITIAL, append = false } = {}) => {
     if (!ready) {
       setCatfood(null);
       setLedgerItems([]);
+      setLedgerLimit(LEDGER_INITIAL);
+      setLedgerHasMore(false);
       return;
     }
-    setLedgerLoading(true);
+    const nextLimit = Math.max(1, Number(limit) || LEDGER_INITIAL);
+    if (append) setLedgerLoadingMore(true);
+    else setLedgerLoading(true);
     Promise.all([
       fetchMemberProfile().catch(() => null),
-      fetchCatfoodLedger(30).catch(() => null),
+      fetchCatfoodLedger(nextLimit).catch(() => null),
     ])
       .then(([profile, ledger]) => {
         if (profile?.signed_in && profile.catfood != null) {
@@ -934,10 +944,20 @@ export function SettingsMembershipPanel() {
         } else {
           setCatfood(null);
         }
-        setLedgerItems(Array.isArray(ledger?.items) ? ledger.items : []);
+        const items = Array.isArray(ledger?.items) ? ledger.items : [];
+        setLedgerItems(items);
+        setLedgerLimit(nextLimit);
+        setLedgerHasMore(items.length >= nextLimit);
       })
-      .finally(() => setLedgerLoading(false));
+      .finally(() => {
+        setLedgerLoading(false);
+        setLedgerLoadingMore(false);
+      });
   }, []);
+
+  const handleLedgerLoadMore = useCallback(() => {
+    loadLedger(true, { limit: ledgerLimit + LEDGER_MORE, append: true });
+  }, [ledgerLimit, loadLedger]);
 
   const load = useCallback(() => {
     setLoadError('');
@@ -1104,14 +1124,16 @@ export function SettingsMembershipPanel() {
             <Button
               size="small"
               variant="text"
-              disabled={ledgerLoading}
-              onClick={() => loadLedger(true)}
+              disabled={ledgerLoading || ledgerLoadingMore}
+              onClick={() => loadLedger(true, { limit: LEDGER_INITIAL })}
             >
               刷新
             </Button>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            最近对话消耗、月赠与调整。
+            最近对话消耗、月赠与调整。默认最近
+            {LEDGER_INITIAL}
+            条。
           </Typography>
           {ledgerLoading ? <InlineLoadingState /> : null}
           {!ledgerLoading && ledgerItems.length === 0 ? (
@@ -1165,6 +1187,18 @@ export function SettingsMembershipPanel() {
                   </Box>
                 );
               })}
+              {ledgerHasMore ? (
+                <Box sx={{ pt: 0.5 }}>
+                  <Button
+                    size="small"
+                    variant="text"
+                    disabled={ledgerLoadingMore}
+                    onClick={handleLedgerLoadMore}
+                  >
+                    {ledgerLoadingMore ? '加载中…' : `查看更多（再 ${LEDGER_MORE} 条）`}
+                  </Button>
+                </Box>
+              ) : null}
             </Stack>
           ) : null}
         </Box>

@@ -1,6 +1,7 @@
-"""回测前解析实入池：sampling → ``to_sample_list`` → 排序（指纹前）。
+"""回测前解析实入池：stock_list_filter → sampling → ``to_sample_list`` → 排序（指纹前）。
 
 调用方: Strategy.simulate、DecisionMaker 找枚举 vid。
+维度查询只经 DataManager.stock.list.filter_ids。
 """
 
 from __future__ import annotations
@@ -8,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, List, Optional, Sequence
 
+from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class SampleListResolver:
-    """DB 宇宙 → settings.sampling → hooks.to_sample_list → sorted unique。"""
+    """DB 宇宙 → data.stock_list_filter → settings.sampling → hooks.to_sample_list → sorted unique。"""
 
     @classmethod
     def resolve(
@@ -41,6 +43,7 @@ class SampleListResolver:
             else GlobalEntityCache.get_stock_list()
         )
         stock_list = cls._normalize_ids(raw_universe)
+        stock_list = cls._apply_stock_list_filter(settings, stock_list)
 
         if settings.sampling.use_sampling:
             stock_list = cls._normalize_ids(
@@ -55,6 +58,29 @@ class SampleListResolver:
         return sorted(stock_list)
 
     @classmethod
+    def _apply_stock_list_filter(
+        cls,
+        settings: StrategySettings,
+        stock_list: List[str],
+    ) -> List[str]:
+        filt = settings.data.normalized_stock_list_filter()
+        if filt is None:
+            return stock_list
+        try:
+            filtered = DataManager().stock.list.filter_ids(
+                include=filt.get("include"),
+                exclude=filt.get("exclude"),
+                universe=stock_list,
+            )
+        except Exception:
+            logger.error(
+                "stock_list_filter 失败，回退未过滤宇宙",
+                exc_info=True,
+            )
+            return stock_list
+        return cls._normalize_ids(filtered)
+
+    @classmethod
     def _apply_hook(
         cls,
         strategy_info: EnabledStrategyInfo,
@@ -64,7 +90,7 @@ class SampleListResolver:
         runtime, err = StrategyHookRuntime.from_strategy_info(strategy_info, settings)
         if runtime is None:
             logger.error(
-                "to_sample_list: hooks 加载失败，使用 sampling 结果 strategy=%s err=%s",
+                "to_sample_list: hooks 加载失败，使用 filter/sampling 结果 strategy=%s err=%s",
                 getattr(strategy_info, "key", ""),
                 (err or {}).get("error"),
             )
@@ -89,7 +115,7 @@ class SampleListResolver:
             raw = runtime.call("to_sample_list", ctx, list(stock_list))
         except Exception:
             logger.error(
-                "to_sample_list 失败 strategy=%s，回退 sampling 结果",
+                "to_sample_list 失败 strategy=%s，回退 filter/sampling 结果",
                 strategy_key,
                 exc_info=True,
             )

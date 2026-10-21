@@ -1,5 +1,5 @@
 name: modules.strategy
-version: "0.11.0"
+version: "0.12.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
@@ -20,6 +20,10 @@ dependencies:
   - infra.utils
   - infra.trace
 changelog:
+  - version: "0.12.0"
+    changes:
+      - 股票池流水线：data.stock_list_filter → sampling → to_sample_list（hooks 在过滤之后，不替换过滤）
+      - settings.data.stock_list_filter：按 area/industry/board/market/list_status 做 include/exclude（查询经 DataManager.stock.list.filter_ids）
   - version: "0.11.0"
     changes:
       - 用户钩子改为显式载荷：is_opportunity(ctx, records)、on_calendar_slice(ctx, calendar_slice)、select_portfolio_entries(ctx, opportunities)。注入的数据在 records，不在 ctx。

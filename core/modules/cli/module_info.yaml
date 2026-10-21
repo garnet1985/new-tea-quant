@@ -1,6 +1,6 @@
 # 模块元数据
 name: modules.cli
-version: "0.4.2"
+version: "0.4.4"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "客户端模块：在命令行工具内为用户或开发者提供一系列边界操作命令的模块。"
@@ -16,7 +16,15 @@ dependencies:
   - modules.tag
   - modules.data_manager
   - modules.data_source
+  - modules.data_contract
+  - modules.indicator
 changelog:
+  - version: "0.4.4"
+    changes:
+      - list catalog 扩展：datakey / tag / tag.<key> / strategy / indicator / table
+  - version: "0.4.3"
+    changes:
+      - 新增 list / ls catalog：list stock.area|industry|board|market|list_status（及 list stock）
   - version: "0.4.2"
     changes:
       - 从 `core/infra/cli` 迁至 `core/modules/cli`（access 能力扩展，非无业务 infra）

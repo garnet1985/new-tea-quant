@@ -45,6 +45,16 @@ class TestDataManagerApi(unittest.TestCase):
         physical = dm.get_physical_table_name(BaseTableNames.STOCK_LIST.value)
         self.assertTrue(str(physical))
 
+    def test_list_tables(self):
+        from core.modules.data_manager import DataManager
+        from core.modules.data_manager.contracts import BaseTableNames
+
+        dm = DataManager(force_new=True, is_verbose=False)
+        names = dm.list_tables()
+        self.assertIsInstance(names, list)
+        self.assertIn(BaseTableNames.STOCK_LIST.value, names)
+        self.assertEqual(names, sorted(names))
+
     def test_normalize_delist_date(self):
         from core.modules.data_manager import DataManager
 

@@ -25,8 +25,9 @@ class StrategyHooks(ABC):
     ) -> Sequence[str]:
         """回测开始前调用一次，在指纹之前。
 
-        ``stock_list`` 已是数据库宇宙经 ``settings.sampling`` 过滤后的列表。
-        默认原样返回。覆盖时做确定性的语义过滤。
+        ``stock_list`` 已是数据库宇宙经 ``data.stock_list_filter`` 与
+        ``settings.sampling`` 之后的列表。默认原样返回。
+        覆盖时做确定性的语义过滤（不替代声明式过滤）。
         返回值会与入参取交、排序，写入 ``ctx.sample_list`` 和指纹。
         """
         _ = ctx

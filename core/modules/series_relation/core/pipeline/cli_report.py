@@ -15,16 +15,46 @@ def format_cli_report(meta: Mapping[str, Any], summary: Mapping[str, Any]) -> st
         "[系列]",
     ]
     for item in meta.get("series") or []:
+        extra = ""
+        if item.get("source") == "strategy_sim":
+            sk = item.get("strategy_key") or item.get("strategy")
+            extra = (
+                f"  [sim {sk}@"
+                f"{item.get('resolved_version') or item.get('version')} "
+                f"{item.get('layer')}.{item.get('metric')}"
+            )
+            if item.get("entity_id"):
+                extra += f" {item.get('entity_id')}"
+            if item.get("transform"):
+                extra += f" transform={item.get('transform')}"
+            extra += "]"
+        elif item.get("transform") and item.get("transform") != "none":
+            extra = f"  [transform={item.get('transform')}]"
         lines.append(
             f"  {item.get('id')}  {item.get('label')}: "
             f"n={item.get('point_count')}  "
-            f"[{item.get('date_min')} .. {item.get('date_max')}]"
+            f"[{item.get('date_min')} .. {item.get('date_max')}]{extra}"
         )
 
     pairwise = list(summary.get("pairwise") or [])
     if not pairwise:
         lines.extend(["", "[结论] 未做两两分析（analyze=false 或系列不足）。", ""])
         return "\n".join(lines)
+
+    by_id = {
+        str(item.get("id") or ""): item
+        for item in (meta.get("series") or [])
+        if isinstance(item, Mapping)
+    }
+    lines.extend(["", "[参与者] 下面找关系的都是谁", ""])
+    for item in meta.get("series") or []:
+        if not isinstance(item, Mapping):
+            continue
+        who = _participant_who(item)
+        lines.append(
+            f"  {item.get('id')}  {item.get('label')}"
+            + (f"  ← {who}" if who else "")
+        )
 
     lines.extend(
         [
@@ -38,7 +68,9 @@ def format_cli_report(meta: Mapping[str, Any], summary: Mapping[str, Any]) -> st
     )
     for index, row in enumerate(pairwise, start=1):
         core = row.get("core") if isinstance(row.get("core"), Mapping) else {}
-        lines.append(f"  ({index}) {row.get('label_a')}  vs  {row.get('label_b')}")
+        left = _pair_title(row.get("label_a"), by_id.get(str(row.get("a") or "")))
+        right = _pair_title(row.get("label_b"), by_id.get(str(row.get("b") or "")))
+        lines.append(f"  ({index}) {left}  vs  {right}")
         rel = str(core.get("relation_text") or "").strip()
         if rel:
             lines.append(f"      同向还是反向: {rel}")
@@ -72,7 +104,12 @@ def format_cli_report(meta: Mapping[str, Any], summary: Mapping[str, Any]) -> st
         if isinstance(rolling, Mapping):
             has_rolling = True
             extras.append(f"  - {label}: {format_rolling_stability(rolling)}")
-    if extras:
+    notes = [
+        str(n).strip()
+        for n in (summary.get("notes") or [])
+        if str(n).strip() and ("事件" in str(n) or "cum_exit_roi" in str(n))
+    ]
+    if extras or notes:
         if has_rolling:
             lines.extend(
                 [
@@ -85,12 +122,49 @@ def format_cli_report(meta: Mapping[str, Any], summary: Mapping[str, Any]) -> st
             )
         else:
             lines.append("[补充]")
+        for note in notes:
+            lines.append(f"  - {note}")
         lines.extend(extras)
         lines.append("")
 
     lines.append("产物含 series.json（供日后画图）与 findings.md。")
     lines.append("")
     return "\n".join(lines)
+
+
+def _participant_who(item: Mapping[str, Any]) -> str:
+    """一句话说明这条序列是谁（策略 key / 数据键等）。"""
+    if item.get("source") == "strategy_sim":
+        sk = item.get("strategy_key") or item.get("strategy") or "?"
+        ver = item.get("resolved_version") or item.get("version") or "latest"
+        layer = item.get("layer") or "?"
+        metric = item.get("metric") or "?"
+        who = f"策略 {sk}@{ver} · {layer}.{metric}"
+        if item.get("entity_id"):
+            who += f" · {item.get('entity_id')}"
+        return who
+    data_key = str(item.get("data_key") or "").strip()
+    field = str(item.get("field") or "").strip()
+    entity_id = str(item.get("entity_id") or "").strip()
+    if data_key and entity_id and field:
+        return f"{data_key} · {entity_id}.{field}"
+    if data_key and field:
+        return f"{data_key} · {field}"
+    return data_key or field or ""
+
+
+def _pair_title(label: Any, item: Mapping[str, Any] | None) -> str:
+    name = str(label or "").strip() or "?"
+    if not item:
+        return name
+    who = _participant_who(item)
+    if not who:
+        return name
+    # 身份已写进 label 时不再重复
+    sk = str(item.get("strategy_key") or "").strip()
+    if who in name or (sk and sk in name):
+        return name
+    return f"{name}（{who}）"
 
 
 def format_rolling_stability(rolling: Mapping[str, Any]) -> str:
@@ -113,11 +187,16 @@ def format_rolling_stability(rolling: Mapping[str, Any]) -> str:
 
         tag = _stability_tag(float(mean), float(recent), flips, max_flips)
 
+    from core.modules.series_relation.core.pipeline.format_num import (
+        fmt_corr,
+        fmt_pct,
+    )
+
     verdict, nuance = _stability_plain(tag, mean, recent)
     stats = (
-        f"{window} 日滚动 Spearman：平均≈{_fmt(mean)}，最近≈{_fmt(recent)}；"
+        f"{window} 日滚动 Spearman：平均≈{fmt_corr(mean)}，最近≈{fmt_corr(recent)}；"
         f"方向翻转 {flips}/{max_flips} 次"
-        f"（翻转率≈{rate:.1%}，窗数={n_windows}）"
+        f"（翻转率≈{fmt_pct(rate)}，窗数={n_windows}）"
     )
     return f"{verdict}——{nuance}（{stats}）"
 
@@ -161,15 +240,6 @@ def _stability_plain(
     if abs(m) < 0.12 and abs(r) < 0.15:
         return "不太稳", "相关本身偏弱，时有时无，谈不上稳定的同向/反向"
     return "不太稳", "相邻窗口里正负对调偏多，关系方向不牢靠"
-
-
-def _fmt(value: Any) -> str:
-    if value is None:
-        return "-"
-    try:
-        return f"{float(value):.3f}"
-    except (TypeError, ValueError):
-        return str(value)
 
 
 __all__ = ["format_cli_report", "format_rolling_stability"]

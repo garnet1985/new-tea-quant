@@ -156,6 +156,7 @@ def test_runner_writes_artifacts(tmp_path: Path) -> None:
     assert "scale_text" in summary["pairwise"][0]["core"]
     report = str(result.get("report") or "")
     assert "核心结论" in report
+    assert "参与者" in report
     assert "同向还是反向:" in report
     assert (tmp_path / "results" / "report.txt").is_file()
 
@@ -179,3 +180,4 @@ def test_rolling_stability_answers_plainly() -> None:
     assert "比较稳" in text
     assert "8/666" in text
     assert "翻转率" in text
+    assert "平均≈0.40" in text  # 固定 2 位小数

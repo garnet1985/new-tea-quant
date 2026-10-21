@@ -44,18 +44,23 @@ settings = {
         "display_name": "股指 vs LPR",
     },
     "series": [
-        # global：只要 data_key + field
+        # 契约源（默认 source=data_key）
         {
-            "data_key": "macro.lpr",          # 示例名，以契约为准
+            "data_key": "macro.lpr",
             "field": "lpr_1y",
-            "label": "LPR 1Y",               # 可选；缺省用 data_key.field
+            "label": "LPR 1Y",
+            "transform": "none",             # none | returns；契约默认 none
         },
-        # per_entity：必须带 entity_id
+        # 回测产物源：只负责引入序列；和谁比由本 list 组合决定
         {
-            "data_key": "stock.kline.daily",
-            "entity_id": "000300.SH",
-            "field": "close",
-            "label": "沪深300",
+            "source": "strategy_sim",
+            "strategy_key": "demo/regression/rsi/rsi_v1_baseline",  # 推荐 meta.key；也可用相对路径（别名 strategy）
+            # version 省略 → latest；钉死某次则写 "2"
+            "layer": "portfolio",            # portfolio | price
+            "metric": "equity",              # portfolio.equity | price.cum_exit_roi
+            # "entity_id": "600199.SH",      # 仅 price.cum_exit_roi 可选单票
+            "label": "策略组合权益",
+            "transform": "returns",          # strategy_sim 默认 returns
         },
     ],
     "range": {
@@ -67,6 +72,9 @@ settings = {
     "analyze": True,                         # 是否写 findings / summary
 }
 ```
+
+**strategy_sim 装载：** 缺策略 / 缺 version / 缺该 layer 文件 / 0 点 → 整次硬失败（不换更旧 version）。  
+分析样本不够 → 沿用 pairwise 软降级。`price.cum_exit_roi` 为事件曲线（按平仓累加 ROI），非盯市净值。
 
 `max_series` **不出现在 settings**。模块内常量，例如：
 

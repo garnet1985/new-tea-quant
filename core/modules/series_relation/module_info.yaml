@@ -6,6 +6,7 @@ description: "序列关系：多条 time series 并置比较（对齐呈现 + �
 dependencies:
   - modules.data_manager
   - modules.data_contract
+  - modules.strategy
   - infra.project_context
   - infra.discovery
 changelog:
@@ -18,3 +19,5 @@ changelog:
       - 分析主轴：相关 + 领先滞后 + 幅度系数（原始值 OLS β/α）；弱相关时先后/幅度降可信度
       - 示例场景：userspace/extensions/series_relation/cn_index_vs_lpr
       - CLI 跑完打印 report（并落盘 report.txt）：核心相关/先后/幅度结论
+      - series 源 strategy_sim：引用回测 portfolio.equity / price.cum_exit_roi（version 默认 latest；可 transform=returns）
+      - 示例：demo_portfolio_vs_hs300（组合权益 vs 沪深300，仅示范）

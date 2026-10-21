@@ -48,8 +48,13 @@
 `SeriesRelation.run(key_or_id: str) -> dict`
 
 - **状态：** `beta`
-- **描述：** 拉数 → 并集日历 → 归一化 → 写入 `results/`（`meta.json` / `series.json` / `summary.json` / `report.txt`；`analyze=true` 时另有 `findings.md`）
-- **返回：** `{success, key, output_dir, series_count, calendar_len, report}`；`report` 为 CLI 人读短报告（无图时用白话交代三问，专业指标放括号）
+- **描述：** 拉数 → 可选 `transform` → 并集日历 → 归一化 → 写入 `results/`（`meta.json` / `series.json` / `summary.json` / `report.txt`；`analyze=true` 时另有 `findings.md`）
+- **返回：** `{success, key, output_dir, series_count, calendar_len, report}`；失败时 `{success: false, error}`（装载硬失败，如缺回测层）
+- **序列源（`series[]` 每项）：**
+  - **契约**：`data_key` + `field`（[+ `entity_id`]）；默认 `transform=none`
+  - **回测**：`source: "strategy_sim"` + `strategy_key`（推荐 `meta.key`；也可用相对路径；别名 `strategy`）+ `layer` + `metric`；`version` 默认 `latest`；默认 `transform=returns`
+    - Phase1 metric：`portfolio.equity`（`equity_curve.json`）；`price.cum_exit_roi`（按平仓日累加已实现 ROI，可选 `entity_id` 单票）
+    - `portfolio.equity` 禁止 `entity_id`；缺层/空点硬失败，不静默换更旧 version
 - **分析（`summary.pairwise`）核心三问（白话 + 括号内指标）：**
   1. **同向还是反向**（`norm`）：`relation` / `pearson` / `spearman`
   2. **谁先谁后**（`norm` 滞后相关）：`best_lag_days` / `lead`（`lag>0` ⇒ a 领先 b）
@@ -63,7 +68,8 @@
 ```python
 from core.modules.series_relation import SeriesRelation
 
-SeriesRelation.run("cn_index_vs_lpr")  # userspace/extensions/series_relation/cn_index_vs_lpr/
+SeriesRelation.run("cn_index_vs_lpr")
+SeriesRelation.run("demo_portfolio_vs_hs300")  # strategy_sim 组合权益 vs 指数
 ```
 
 ---

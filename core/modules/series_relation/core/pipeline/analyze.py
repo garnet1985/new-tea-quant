@@ -260,10 +260,12 @@ def _relation_text(
     pearson: Optional[float],
     spearman: Optional[float],
 ) -> str:
+    from core.modules.series_relation.core.pipeline.format_num import fmt_corr
+
     if relation == "insufficient" or pearson is None:
         return f"{label_a} 与 {label_b}：算不出是否同向或反向。"
-    p = f"{pearson:.3f}"
-    s = "-" if spearman is None else f"{spearman:.3f}"
+    p = fmt_corr(pearson)
+    s = "-" if spearman is None else fmt_corr(spearman)
     stats = f"Pearson={p}，Spearman={s}"
     if relation == "positive":
         return (
@@ -291,9 +293,11 @@ def _lead_text(
     trusted: bool = True,
 ) -> str:
     """口径：best_lag>0 表示 a 领先 b。"""
+    from core.modules.series_relation.core.pipeline.format_num import fmt_corr
+
     if lead == "insufficient" or lag is None:
         return f"{label_a} 与 {label_b}：说不清谁更早动。"
-    c = "-" if lag_corr is None else f"{lag_corr:.3f}"
+    c = "-" if lag_corr is None else fmt_corr(lag_corr)
     days = abs(int(lag))
     caution = "" if trusted else "走势不太像，这条请谨慎看待。"
     caveat = "只是时间先后的统计，不能说明谁带动谁。"
@@ -327,19 +331,21 @@ def _scale_text(
     trusted: bool = True,
 ) -> str:
     """纵轴幅度：原始值上 B ≈ α + β·A。"""
+    from core.modules.series_relation.core.pipeline.format_num import fmt_coef, fmt_corr
+
     if beta_b_on_a is None:
         return (
             f"{label_a} 与 {label_b}：波动大小比不出来"
             f"（方差过小或样本不足）。"
         )
-    r2_s = "-" if r2 is None else f"{r2:.3f}"
-    inv_s = "-" if beta_a_on_b is None else f"{beta_a_on_b:.6g}"
-    alpha_s = "-" if alpha is None else f"{alpha:.6g}"
+    r2_s = "-" if r2 is None else fmt_corr(r2)
+    inv_s = "-" if beta_a_on_b is None else fmt_coef(beta_a_on_b)
+    alpha_s = "-" if alpha is None else fmt_coef(alpha)
     beta = float(beta_b_on_a)
     abs_beta = abs(beta)
     caution = "" if trusted else "走势不太像，这条请谨慎看待。"
     caveat = "这是价格数量关系的描述，不是因果。"
-    stats = f"β≈{beta:.6g}，α≈{alpha_s}，R²={r2_s}；反过来 β≈{inv_s}"
+    stats = f"β≈{fmt_coef(beta)}，α≈{alpha_s}，R²={r2_s}；反过来 β≈{inv_s}"
     direction = "同向" if beta >= 0 else "反向"
     mult = _human_mult(abs_beta)
 
@@ -363,12 +369,12 @@ def _scale_text(
 
 
 def _human_mult(abs_beta: float) -> str:
-    """把 |β| 说成「3.3 倍」这类口语（句子里自带「大约」）。"""
+    """把 |β| 说成「3.30 倍」这类口语（句子里自带「大约」）。"""
+    from core.modules.series_relation.core.pipeline.format_num import fmt_coef
+
     if abs_beta <= 0:
-        return "0 倍"
-    if abs_beta >= 10:
-        return f"{abs_beta:.1f} 倍"
-    return f"{abs_beta:.2g} 倍"
+        return "0.00 倍"
+    return f"{fmt_coef(abs_beta)} 倍"
 
 
 def _rolling_spearman(

@@ -34,6 +34,13 @@
 - **状态：** `beta`
 - **描述：** 读当前单例 / 清空单例（测试用）
 
+### list_tables
+
+`DataManager().list_tables() -> list[str]`
+
+- **状态：** `beta`
+- **描述：** 已发现并注册的逻辑表名（排序）。CLI：`python cli.py list table`
+
 ### get_table / register_table
 
 - **状态：** `beta`
@@ -134,6 +141,16 @@ ids = dm.stock.list.filter_ids(
 - **参数：**
   - `include` / `exclude`：`dict[dim, list[value]]`；省略或空不约束
   - `universe`：可选候选 id；非空时与结果取交
+
+### stock.list.load_filter_options
+
+`DataManager().stock.list.load_filter_options(dim=None, *, alive_only=True) -> dict[str, list[dict]]`
+
+- **状态：** `beta`
+- **描述：** 列出 `stock_list_filter` / `filter_ids` 可用选项。每项含 `value`（可写入 settings）；industry / market 可含 `code`。CLI：`python cli.py list stock.area`（见 `modules.cli`）。
+- **参数：**
+  - `dim`：单维；省略返回全部维度
+  - `alive_only`：字典表（area/board/market）是否仅 `is_alive=1`
 
 ### sample_universe（嵌套）
 

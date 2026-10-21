@@ -34,6 +34,7 @@ pytestmark = pytest.mark.force_run
         (["sdd", "--session", "1"], ["strategy_decision_delete", "--session", "1"]),
         (["sdv", "--strategy", "rsi_v1:3"], ["strategy_delete_version", "--strategy", "rsi_v1:3"]),
         (["r", "stock_klines", "-f"], ["renew", "stock_klines", "-f"]),
+        (["ls", "stock.area"], ["list", "stock.area"]),
         (["ex", "example"], ["export_strategy", "example"]),
         (["im", "./pkg.zip"], ["import_strategy", "./pkg.zip"]),
         (["id"], ["import_data"]),

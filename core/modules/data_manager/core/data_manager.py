@@ -21,7 +21,7 @@
   - CorporateFinanceService: 企业财务数据服务（StockService 的子服务）
 """
 from core.infra.cmd_layout import i
-from typing import Dict, Any, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 import logging
 import threading
 import importlib
@@ -363,6 +363,13 @@ class DataManager:
     # ------------------------------------------------------------------
     # Table 访问（基础表 + 自定义表）
     # ------------------------------------------------------------------
+
+    def list_tables(self) -> List[str]:
+        """已发现并注册的逻辑表名（排序后）。
+
+        供 CLI ``list table`` 等 catalog 使用；不含未注册的 orphan 物理表。
+        """
+        return sorted(self._table_cache.keys())
 
     def get_table(self, table_name: str) -> Any:
         """

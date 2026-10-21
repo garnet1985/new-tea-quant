@@ -91,6 +91,8 @@ settings = {
 
 流水线：`stock_list_filter` → `sampling` → `to_sample_list`。维度：`area` / `industry` / `board` / `market` / `list_status`（同维 OR、多维 AND）。`list_status` 是上市状态，不是 `risk_control` 里的 st。
 
+可用值查库：`python cli.py list stock.area`（或 `industry` / `board` / `market` / `list_status`）；`python cli.py list stock` 一次列出全部；短写 `ls`。
+
 `base.data_key` 决定数据路由模式：
 
 - `stock.kline.daily` → 逐股逐日（entity\_based）

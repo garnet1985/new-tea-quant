@@ -13,6 +13,8 @@ changelog:
   - version: "0.2.3"
     changes:
       - ListService.filter_ids：多维度 include/exclude 股票池过滤（策略 data.stock_list_filter）
+      - ListService.load_filter_options：列出 stock_list_filter 可用选项（CLI list stock.*）
+      - DataManager.list_tables：已注册逻辑表名列表（CLI list table）
   - version: "0.2.2"
     changes:
       - 股票行业读取改为申万一级（sys_data_sw_industry / sys_map_sw_stock_industry）

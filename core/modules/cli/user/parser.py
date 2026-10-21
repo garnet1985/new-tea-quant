@@ -64,6 +64,7 @@ class UserParser:
         UserParser._p_strategy_rolling(sub)
         UserParser._p_strategy_delete_version(sub)
         UserParser._p_renew(sub)
+        UserParser._p_list(sub)
         UserParser._p_export_adj_factor(sub)
         UserParser._p_tag(sub)
         UserParser._p_export_strategy(sub)
@@ -240,6 +241,26 @@ class UserParser:
             help="删除指定策略的一份回测产物（settings.py 不动）",
         )
         UserParser._add_strategy_version_spec(p)
+
+    @staticmethod
+    def _p_list(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "list",
+            aliases=UserCommands.aliases_for("list"),
+            help="列出可用选项（catalog：stock.area / stock.industry / …）",
+        )
+        p.add_argument(
+            "resource",
+            nargs="?",
+            default=None,
+            help="如 stock.area；省略则打印可用 resource",
+        )
+        p.add_argument(
+            "--json",
+            action="store_true",
+            help="JSON 输出",
+        )
 
     @staticmethod
     def _p_renew(sub: argparse._SubParsersAction) -> None:

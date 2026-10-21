@@ -158,6 +158,17 @@ class UserHandlers:
             UserHandlers._handle_renew(app, args)
             return
 
+        if cmd == "list":
+            from core.modules.cli.user.list_catalog import run as run_list_catalog
+
+            code = run_list_catalog(
+                getattr(args, "resource", None),
+                as_json=bool(getattr(args, "json", False)),
+            )
+            if code != 0:
+                raise SystemExit(code)
+            return
+
         if cmd == "export_adj_factor":
             print(f"{i('upload')} 手动导出复权因子事件季度 CSV...", flush=True)
             app.export_adj_factor_csv(base_date=getattr(args, "base_date", None))

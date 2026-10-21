@@ -24,6 +24,10 @@ changelog:
     changes:
       - 股票池流水线：data.stock_list_filter → sampling → to_sample_list（hooks 在过滤之后，不替换过滤）
       - settings.data.stock_list_filter：按 area/industry/board/market/list_status 做 include/exclude（查询经 DataManager.stock.list.filter_ids）
+      - Series 增加窗口统计 / 穿越 / streak，波峰波谷与 to_trend，以及 K 线结构（body/wick/TR、突破、gap、retracement）
+      - Records 增加 has/keys/field/info、in_position、unrealized_pnl_pct、holding_bars、align/both_rising/crossed_on；goal 钩子 position 带入 entry_date
+      - CalendarSlice / Opportunities 增加轻量导航快捷（count/as_of/has/iter_records；remaining_slots/held_ids/head/exclude_held 等）
+      - 钩子与载荷工具专文：agent ntq_wiki know_how/use_strategy_hooks.md（guider allowlist 已收录）
   - version: "0.11.0"
     changes:
       - 用户钩子改为显式载荷：is_opportunity(ctx, records)、on_calendar_slice(ctx, calendar_slice)、select_portfolio_entries(ctx, opportunities)。注入的数据在 records，不在 ctx。

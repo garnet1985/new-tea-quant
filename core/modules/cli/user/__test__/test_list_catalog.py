@@ -14,7 +14,7 @@ pytestmark = pytest.mark.force_run
 
 def test_expand_ls_alias() -> None:
     assert UserAbbrev.expand_argv(["ls", "stock.area"]) == ["list", "stock.area"]
-    assert UserAbbrev.expand_argv(["ls", "datakey"]) == ["list", "datakey"]
+    assert UserAbbrev.expand_argv(["ls", "datakeys"]) == ["list", "datakeys"]
 
 
 def test_parse_list_resource_and_json() -> None:
@@ -35,7 +35,8 @@ def test_run_unknown_resource_returns_1(capsys: pytest.CaptureFixture[str]) -> N
     assert code == 1
     err = capsys.readouterr().out
     assert "未知 resource" in err
-    assert "datakey" in err
+    assert "datakeys" in err
+    assert "tags" in err
 
 
 def test_run_stock_area_uses_dm(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -63,7 +64,7 @@ def test_run_json(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     assert payload["list_status"][0]["value"] == "L"
 
 
-def test_run_datakey(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_datakeys(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setattr(
         list_catalog,
         "_load_datakeys",
@@ -79,12 +80,20 @@ def test_run_datakey(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixt
         ],
     )
     list_catalog._STATIC_LOADERS.clear()
-    code = list_catalog.run("datakey")
+    code = list_catalog.run("datakeys")
     assert code == 0
     out = capsys.readouterr().out
+    assert "[datakeys]" in out
     assert "stock.kline.daily" in out
     assert "time_series" in out
     assert "per_entity" in out
+
+    # 单数别名 → 规范复数名输出
+    list_catalog._STATIC_LOADERS.clear()
+    assert list_catalog.run("datakey", as_json=True) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "datakeys" in payload
+    assert "datakey" not in payload
 
 
 def test_run_tag_definitions(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -113,7 +122,7 @@ def test_run_tag_definitions(monkeypatch: pytest.MonkeyPatch, capsys: pytest.Cap
     assert "高市值" in out
 
 
-def test_run_indicator_and_table(
+def test_run_indicators_and_tables(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(
@@ -127,14 +136,18 @@ def test_run_indicator_and_table(
         lambda: [{"value": "sys_data_stock_list", "name": "sys_data_stock_list"}],
     )
     list_catalog._STATIC_LOADERS.clear()
-    assert list_catalog.run("indicator") == 0
+    assert list_catalog.run("indicators") == 0
     assert "rsi" in capsys.readouterr().out
-    assert list_catalog.run("table", as_json=True) == 0
+    assert list_catalog.run("tables", as_json=True) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["table"][0]["value"] == "sys_data_stock_list"
+    assert payload["tables"][0]["value"] == "sys_data_stock_list"
+
+    list_catalog._STATIC_LOADERS.clear()
+    assert list_catalog.run("table", as_json=True) == 0
+    assert "tables" in json.loads(capsys.readouterr().out)
 
 
-def test_run_strategy(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_strategies(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setattr(
         list_catalog,
         "_load_strategies",
@@ -148,17 +161,55 @@ def test_run_strategy(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFix
         ],
     )
     list_catalog._STATIC_LOADERS.clear()
-    assert list_catalog.run("strategy") == 0
+    assert list_catalog.run("strategies") == 0
     out = capsys.readouterr().out
-    # key → is_enabled → name → id
+    assert "[strategies]" in out
     assert "rsi_v1" in out
     assert "is_enabled=True" in out
     assert "RSI 演示" in out
     assert out.index("rsi_v1") < out.index("is_enabled=True") < out.index("id=demo/rsi")
 
+    list_catalog._STATIC_LOADERS.clear()
+    assert list_catalog.run("strategy") == 0
+    assert "[strategies]" in capsys.readouterr().out
 
-def test_known_resources_includes_new() -> None:
+
+def test_run_tags_alias(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setattr(
+        list_catalog,
+        "_load_tags",
+        lambda: [
+            {
+                "key": "market_cap_tier",
+                "is_enabled": True,
+                "name": "市值分层",
+                "id": "demo/market_cap_tier",
+            }
+        ],
+    )
+    list_catalog._STATIC_LOADERS.clear()
+    assert list_catalog.run("tags") == 0
+    assert "[tags]" in capsys.readouterr().out
+    list_catalog._STATIC_LOADERS.clear()
+    assert list_catalog.run("tag") == 0
+    assert "[tags]" in capsys.readouterr().out
+
+
+def test_known_resources_includes_plural_and_aliases() -> None:
     list_catalog._STATIC_LOADERS.clear()
     names = list_catalog.known_resources()
-    for item in ("datakey", "tag", "strategy", "indicator", "table", "stock.area"):
+    for item in (
+        "datakeys",
+        "tags",
+        "strategies",
+        "indicators",
+        "tables",
+        "datakey",
+        "tag",
+        "strategy",
+        "indicator",
+        "table",
+        "stock.area",
+        "stock",
+    ):
         assert item in names

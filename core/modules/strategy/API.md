@@ -178,7 +178,7 @@ Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUME
 
 | 符号 | 说明 |
 |------|------|
-| `StrategyHooks` / `StrategyContext` / `Records` / `CalendarSlice` / `Opportunities` / `StrategyInfo` | userspace hook 契约。`is_opportunity(ctx, records) -> bool`。价格回放 `is_new_opportunity(ctx, *, previous, gap)`。跨日袋是 `ctx.state`，本笔归因是 `ctx.capture` |
+| `StrategyHooks` / `StrategyContext` / `Records` / `Series` / `CalendarSlice` / `Opportunities` / `StrategyInfo` | userspace hook 契约。用法专文（用户/AI）：[`ntq_wiki/know_how/use_strategy_hooks.md`](../agent/core/content/ntq_wiki/know_how/use_strategy_hooks.md)。`is_opportunity(ctx, records) -> bool`；`ctx.state` 跨日、`ctx.capture` 归因。`Series`/`Records`/`CalendarSlice`/`Opportunities` 快捷见该文 |
 | `Opportunity` / `Investment` | 引擎共享数据类；`Opportunity.signal_snapshot` 为归因用决策现场记录 |
 | `AsOfSlice` / `JobBundleLoader` / `ProgressRecorder` | 跨模块协作面（tag / BE 数据装载与进度落盘） |
 | `SimulateKind` / `WorkbenchStep` | 公开枚举 |

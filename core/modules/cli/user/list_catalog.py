@@ -20,8 +20,15 @@ _STOCK_FILTER_RESOURCES: Dict[str, str] = {
 
 _STOCK_GROUP = "stock"
 
-# 静态 resource → loader（返回 items 列表）
+# 集合用复数；单数是兼容别名（见 _STATIC_ALIASES）
 _STATIC_LOADERS: Dict[str, Callable[[], List[Dict[str, Any]]]] = {}
+_STATIC_ALIASES: Dict[str, str] = {
+    "datakey": "datakeys",
+    "tag": "tags",
+    "strategy": "strategies",
+    "indicator": "indicators",
+    "table": "tables",
+}
 
 
 def _register_static() -> None:
@@ -29,19 +36,35 @@ def _register_static() -> None:
         return
     _STATIC_LOADERS.update(
         {
-            "datakey": _load_datakeys,
-            "tag": _load_tags,
-            "strategy": _load_strategies,
-            "indicator": _load_indicators,
-            "table": _load_tables,
+            "datakeys": _load_datakeys,
+            "tags": _load_tags,
+            "strategies": _load_strategies,
+            "indicators": _load_indicators,
+            "tables": _load_tables,
         }
     )
 
 
-def known_resources() -> List[str]:
-    """已注册静态 resource（不含动态 ``tag.<id>``）。"""
+def _resolve_static(key: str) -> Optional[str]:
+    """返回规范复数名；未知则 None。"""
     _register_static()
-    return sorted(set(_STOCK_FILTER_RESOURCES) | set(_STATIC_LOADERS))
+    if key in _STATIC_LOADERS:
+        return key
+    alias = _STATIC_ALIASES.get(key)
+    if alias and alias in _STATIC_LOADERS:
+        return alias
+    return None
+
+
+def known_resources() -> List[str]:
+    """已注册 resource（含单数别名；不含动态 ``tag.<id>``）。"""
+    _register_static()
+    return sorted(
+        set(_STOCK_FILTER_RESOURCES)
+        | set(_STATIC_LOADERS)
+        | set(_STATIC_ALIASES)
+        | {_STOCK_GROUP}
+    )
 
 
 def resource_help_lines() -> List[str]:
@@ -59,17 +82,18 @@ def resource_help_lines() -> List[str]:
         [
             "  stock                  → 一次列出全部股票池维度",
             "",
-            "其它:",
-            "  datakey                → data_key（type / scope）",
-            "  tag                    → 已发现的 tag 场景",
+            "其它（集合用复数；单数别名仍可用）:",
+            "  datakeys               → data_key（type / scope）",
+            "  tags                   → 已发现的 tag 场景",
             "  tag.<key>              → 某 tag 的 tag_definitions（推荐 meta.key；也可用路径 id）",
-            "  strategy               → 已发现策略（key / is_enabled / name / id）",
-            "  indicator              → 可用技术指标名",
-            "  table                  → 已注册逻辑表名",
+            "  strategies             → 已发现策略（key / is_enabled / name / id）",
+            "  indicators             → 可用技术指标名",
+            "  tables                 → 已注册逻辑表名",
             "",
-            "例: python cli.py list datakey --json",
+            "例: python cli.py list datakeys --json",
+            "    python cli.py list tags",
             "    python cli.py list tag.market_cap_tier",
-            "    python cli.py list strategy",
+            "    python cli.py list strategies",
         ]
     )
     return lines
@@ -95,9 +119,10 @@ def run(resource: Optional[str], *, as_json: bool = False) -> int:
         _print_grouped(payload, as_json=as_json, title=key)
         return 0
 
-    if key in _STATIC_LOADERS:
-        items = _STATIC_LOADERS[key]()
-        _print_items(key, items, as_json=as_json)
+    canonical = _resolve_static(key)
+    if canonical is not None:
+        items = _STATIC_LOADERS[canonical]()
+        _print_items(canonical, items, as_json=as_json)
         return 0
 
     if key.startswith("tag.") and len(key) > 4:

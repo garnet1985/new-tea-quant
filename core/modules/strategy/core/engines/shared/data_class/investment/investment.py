@@ -763,6 +763,7 @@ class Investment(Opportunity):
             items={base_key: [dict(bar)]} if base_key else {},
             base_data_key=base_key,
             position={
+                "entry_date": str(self.entry.date or "").strip(),
                 "entry_price": float(self.entry.price or 0.0),
                 "entry_price_hfq": float(self.entry.price_hfq or 0.0),
                 "basis": self._hfq_basis(),

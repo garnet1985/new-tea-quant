@@ -10,7 +10,7 @@
 - sys_data_stock_list、sys_data_sw_industry、sys_map_sw_stock_industry、sys_data_stock_klines 等（由 DataManager 发现）
 
 子服务：
-- list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / load_all）
+- list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / filter_ids / load_all）
 - st: ST/*ST 风险警示时段（is_on / load_overlapping）
 - query_status_by_ids: 批量某日状态（st / star_st / delisted）
 - kline: K线数据服务（data_mgr.stock.kline.load_qfq()）
@@ -22,12 +22,16 @@
 使用示例：
     # 单个股票信息
     stock_info = data_mgr.stock.load_info('000001.SZ')
-    
-    # 股票列表（通过 list 服务；板块筛选由 Tag 等上层负责）
+
+    # 股票列表（通过 list 服务）
     all_stocks = data_mgr.stock.list.load_all()
     one = data_mgr.stock.list.load_single("000001.SZ")
     window = data_mgr.stock.list.load(period_start="20150101", period_end="20241231")
-    
+    ids = data_mgr.stock.list.filter_ids(
+        include={"market": ["SSE"], "list_status": ["L"]},
+        exclude={"industry": ["银行"]},
+    )
+
     # 跨表查询
     stock_with_price = data_mgr.stock.load_with_latest_price('000001.SZ')
 """

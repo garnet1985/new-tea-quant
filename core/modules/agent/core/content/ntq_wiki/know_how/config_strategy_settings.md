@@ -81,8 +81,15 @@ settings = {
         {"data_key": "macro.cpi"},
     ],
     "min_required_records": 100,             # int, 最少 K 线根数
+    # 可选：股票池快捷过滤（sampling / to_sample_list 之前）
+    # "stock_list_filter": {
+    #     "include": {"market": ["SSE", "SZSE"], "list_status": ["L"]},
+    #     "exclude": {"industry": ["银行"]},
+    # },
 }
 ```
+
+流水线：`stock_list_filter` → `sampling` → `to_sample_list`。维度：`area` / `industry` / `board` / `market` / `list_status`（同维 OR、多维 AND）。`list_status` 是上市状态，不是 `risk_control` 里的 st。
 
 `base.data_key` 决定数据路由模式：
 
@@ -238,6 +245,8 @@ rsi14 = today.get("rsi14") if today else None  # 单列：{name}{length}；或�
 | `mode`                 | str | `open_day`（开仓日算起）/ `trading_day`（交易日）/ `natural_day`（日历日） |
 
 ## sampling
+
+在 `data.stock_list_filter` 之后、`to_sample_list` 之前，对已过滤池做机械缩池 / 抽样。
 
 ```python
 "sampling": {

@@ -116,18 +116,20 @@ is_take_profit(ctx, records, *, custom, stage) -> bool
 
 ```text
 1. DB / GlobalEntityCache 得到全市场 stock_list
-2. settings.sampling 过滤（use_sampling=False 则跳过）
-3. to_sample_list(ctx, stock_list)     # 回测只调一次；语义过滤
-4. （可选）∩「DB 有数据」——默认不做，见下
-5. sorted unique → 钉进 scope / ctx.sample_list → 算 execute_fp
+2. data.stock_list_filter（include/exclude 维度；省略则跳过）→ DataManager.stock.list.filter_ids
+3. settings.sampling 过滤（use_sampling=False 则跳过）
+4. to_sample_list(ctx, stock_list)     # 回测只调一次；语义过滤（不替换第 2 步）
+5. （可选）∩「DB 有数据」——默认不做，见下
+6. sorted unique → 钉进 scope / ctx.sample_list → 算 execute_fp
 ```
 
 **分工**
 
 | 步 | 谁 | 干什么 |
 |----|-----|--------|
+| stock_list_filter | 配置声明 | 维度缩池：area / industry / board / market / list_status |
 | sampling | 配置声明 | 机械缩池：抽 N 只、白名单、黑名单、seed 随机 |
-| `to_sample_list` | 策略代码 | 语义过滤：板块、规则、演示宇宙等（须确定性） |
+| `to_sample_list` | 策略代码 | 语义过滤：自定义规则、演示宇宙等（须确定性） |
 
 **关于第 4 步「和 DB 有数据取交」：建议默认不做。**
 
@@ -157,7 +159,7 @@ is_take_profit(ctx, records, *, custom, stage) -> bool
 
 - [x] ~~核心 UX~~ → **「我知道的」= 稳定 ctx；「要我操作的」= 显式入参**；禁止 ctx 里按钩子时有时无的 data 口袋
 - [x] ~~State 是否独立于 Context~~ → **否**；`ctx.state` 是 Context 的一类
-- [x] ~~`watch_list` / sampling ↔ `to_sample_list` 顺序~~ → **DB → settings.sampling → 钩子 →（默认不做有数据交）→ 指纹**
+- [x] ~~`watch_list` / sampling ↔ `to_sample_list` 顺序~~ → **DB → stock_list_filter → sampling → 钩子 →（默认不做有数据交）→ 指纹**
 - [ ] `scanner.watch_list` 是否并入 sampling 之前的配置过滤（与 pool 策略如何并存）
 - [ ] `ctx.state` 与现有 `remember` / `capture` 的边界（state 存跨日；capture 仍归因？）
 - [ ] `on_calendar_slice` 是否完全放弃 `session_state`（现 `CalendarAsOfResult`）？

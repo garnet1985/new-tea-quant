@@ -1,6 +1,6 @@
 # Data Manager API 文档
 
-**版本：** `0.2.2`  
+**版本：** `0.2.3`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -116,7 +116,24 @@ klines = dm.stock.kline.load("000001.SZ", term="daily")
 # 顶层 OHLC = qfq；row["raw"] / row["hfq"]（raw×F）/ row["adj_factor"]
 # 未复权用 load_raw
 open_dates = dm.calendar.load_open_dates("20240101", "20241231")
+
+# 多维度股票池过滤（策略 data.stock_list_filter 经此 API）
+ids = dm.stock.list.filter_ids(
+    include={"market": ["SSE", "SZSE"], "list_status": ["L"]},
+    exclude={"industry": ["银行"]},
+    universe=None,  # 或先给定候选 id 列表
+)
 ```
+
+### stock.list.filter_ids
+
+`DataManager().stock.list.filter_ids(*, include=None, exclude=None, universe=None, order_by="id") -> list[str]`
+
+- **状态：** `beta`
+- **描述：** 按维度 include/exclude 过滤股票 id。同维 OR、多维 AND；先 include 再 exclude。维度：`area` / `industry` / `board` / `market` / `list_status`。
+- **参数：**
+  - `include` / `exclude`：`dict[dim, list[value]]`；省略或空不约束
+  - `universe`：可选候选 id；非空时与结果取交
 
 ### sample_universe（嵌套）
 

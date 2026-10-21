@@ -6,7 +6,7 @@ aliases:
   - hooks
   - 写策略
   - 策略钩子
-summary: 编写策略：strategy.py 钩子与 settings.py。取数用 items_with_meta；指标用 Indicator。
+summary: 编写策略：strategy.py 钩子与 settings.py。钩子与载荷工具见 use_strategy_hooks；指标见 use_indicators。
 ---
 
 # 如何编写策略
@@ -57,33 +57,17 @@ class RsiStrategy(StrategyHooks):
 
 指标在 `settings.data.base.indicators` 声明，钩子只读 K 线字段。不要手写 RSI/EMA。MACD 金叉见 [用技术指标](use_indicators.md)。
 
-### 核心钩子
+### 钩子与取数（摘要）
 
 | 钩子 | 必须 | 说明 |
 | --- | -- | --- |
-| `is_opportunity(ctx, records) -> bool` | 是 | 每日每股调用一次，返回 True 表示有交易机会 |
-| `on_calendar_slice(ctx, calendar_slice) -> list[str]` | 否 | slice_based 每个日历日，返回进入单股判定的 id |
-| `select_portfolio_entries(ctx, opportunities)` | 否 | 机会多于空位时挑选 |
-| `is_stop_loss` / `is_take_profit` | 否 | goal 段写了 custom 时调用 |
+| `is_opportunity(ctx, records) -> bool` | 是 | 每日每股；只返回 True/False，框架建 Opportunity |
+| `on_calendar_slice` / `select_portfolio_entries` / goal custom | 否 | 见专文 |
 
-`ctx` 在每个钩子里一样：`ctx.info`、`ctx.sample_list`、`ctx.mode`、`ctx.effective_settings_dict()`、`ctx.state`（跨日）、`ctx.capture`（本笔归因）。当日序列在 `records`，不在 `ctx`。
+`ctx`：信息、池、`state`（跨日）、`capture`（本笔归因）。**当日数据在 `records` 等载荷上，不在 `ctx`。**  
+常用：`records.latest`、`records.series(key)`、`records.series().crossed_above(...)`。
 
-| 取数 | 说明 |
-| --- | --- |
-| `records.latest` / `records.first` | base 序列的最后一行 / 第一行 |
-| `records.series(data_key)` | 其它注入序列，方法与 base 相同 |
-| `get_by_date` / `index_of` / `last_index_of` / `last(n)` | 按日期或末尾取行、取下标 |
-| `ctx.base_data_key` | 主数据键，通常 `stock.kline.daily` |
-| `ctx.state["key"] = value` | 跨日变量 |
-| `ctx.capture(key, value)` | 本笔归因 |
-
-### 关键设计
-
-- **只返回 True/False**：`Opportunity` 对象由框架自动构建，不要手动 new
-
-- **ctx.capture vs ctx.remember**：capture 落报告归因，remember 不落
-
-- **取数**：`data.get(ctx.base_data_key)` 是当天及之前的全部历史（前复权），不是只有当天一根
+完整钩子签名、`Series` / `Records` / `CalendarSlice` / `Opportunities` 工具表与示例 → **[策略钩子与载荷工具](use_strategy_hooks.md)**（用户与 AI 写 `strategy.py` 时优先读）。
 
 ## settings.py
 
@@ -163,10 +147,10 @@ settings = {
 ```python
 def is_stop_loss(self, ctx, records, *, custom, stage) -> bool:
     if custom == "below_ma20":
-        klines = records.items.get(ctx.base_data_key) or []
-        if len(klines) >= 20:
-            ma20 = sum(b["close"] for b in klines[-20:]) / 20
-            return klines[-1]["close"] < ma20
+        # 正路：settings 声明 ma20 后读字段；或用序列工具
+        close = records.field("close")
+        ma = records.field("ma20")
+        return close is not None and ma is not None and close < ma
     return False
 
 

@@ -64,7 +64,7 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
     return rsi < 30
 ```
 
-序列在 `records`，是当天及之前的历史（前复权）。指标在 settings 声明后写在 K 线上，见 [用技术指标](../../know_how/use_indicators.md)。`ctx.capture()` 记入报告的信号快照。
+序列在 `records`，是当天及之前的历史（前复权）。指标在 settings 声明后写在 K 线上，见 [用技术指标](../../know_how/use_indicators.md)。钩子签名与 `Series`/`Records` 等载荷工具见 [策略钩子与载荷工具](../../know_how/use_strategy_hooks.md)。`ctx.capture()` 记入报告的信号快照。
 
 ## 关键设计
 

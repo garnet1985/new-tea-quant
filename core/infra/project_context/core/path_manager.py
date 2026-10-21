@@ -372,6 +372,28 @@ class PathManager:
         """获取指定 Tag scenario 的 hooks 文件：.../tags/{scenario_name}/tag.py"""
         return PathManager.get_tag_scenario_directory(scenario_name) / "tag.py"
 
+    # ========== extensions: SeriesRelation ==========
+
+    @staticmethod
+    def get_series_relation_root() -> Path:
+        """序列关系根目录：userspace/extensions/series_relation/"""
+        return PathManager.get_extensions_root() / "series_relation"
+
+    @staticmethod
+    def get_series_relation_directory(key_or_rel: str) -> Path:
+        """指定场景目录：userspace/extensions/series_relation/{key_or_rel}/"""
+        return PathManager.get_series_relation_root() / str(key_or_rel or "").strip()
+
+    @staticmethod
+    def get_series_relation_settings_path(key_or_rel: str) -> Path:
+        """场景 settings.py。"""
+        return PathManager.get_series_relation_directory(key_or_rel) / "settings.py"
+
+    @staticmethod
+    def get_series_relation_results_directory(key_or_rel: str) -> Path:
+        """场景产物目录：.../series_relation/{key_or_rel}/results/"""
+        return PathManager.get_series_relation_directory(key_or_rel) / "results"
+
     # ========== extensions: Data Source ==========
 
     @staticmethod

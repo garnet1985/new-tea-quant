@@ -76,15 +76,18 @@
 - **引入版本：** `0.5.0`
 - **描述：** `userspace/system/backup/data/`
 
-#### get_strategies_root / get_tags_root
+#### get_strategies_root / get_tags_root / get_series_relation_root
 
 `ProjectContext.path.get_strategies_root() -> Path`  
-`ProjectContext.path.get_tags_root() -> Path`
+`ProjectContext.path.get_tags_root() -> Path`  
+`ProjectContext.path.get_series_relation_root() -> Path`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
-- **描述：** `userspace/strategies/`；`userspace/extensions/tags/`
+- **引入版本：** `0.3.0`（series_relation 路径为后续增补）
+- **描述：** `userspace/strategies/`；`userspace/extensions/tags/`；`userspace/extensions/series_relation/`
+
+另有：`get_series_relation_directory` / `get_series_relation_settings_path` / `get_series_relation_results_directory`。
 
 #### get_strategy_directory / get_tag_directory
 

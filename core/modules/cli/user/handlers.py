@@ -197,6 +197,10 @@ class UserHandlers:
             )
             return
 
+        if cmd == "series_relation":
+            UserHandlers._run_series_relation(args)
+            return
+
         if cmd in (
             "scan",
             "strategy_enumerate",
@@ -805,4 +809,40 @@ class UserHandlers:
             return
 
         raise SystemExit(f"未知命令: {cmd}")
+
+    @staticmethod
+    def _run_series_relation(args: argparse.Namespace) -> None:
+        from core.modules.series_relation import SeriesRelation
+
+        if getattr(args, "list", False):
+            infos = SeriesRelation.list_infos()
+            if not infos:
+                print(
+                    "未发现 series_relation"
+                    "（检查 userspace/extensions/series_relation/*/settings.py）"
+                )
+                raise SystemExit(1)
+            print("可用 series_relation:")
+            for info in infos:
+                print(f"  - {info.key:<24} id={info.relative_path}  {info.display_name}")
+            return
+
+        key = UserHandlers._strategy_name(getattr(args, "key", None))
+        if not key:
+            raise SystemExit(
+                "用法: cli.py srel KEY | cli.py series_relation --list"
+            )
+        print(f"{i('chart')} 序列关系: {key}", flush=True)
+        result = SeriesRelation.run(key)
+        if not result.get("success"):
+            raise SystemExit(result.get("error") or "series_relation 失败")
+        report = str(result.get("report") or "").strip()
+        if report:
+            print(flush=True)
+            print(report, end="" if report.endswith("\n") else "\n", flush=True)
+        print(
+            f"产物: {result.get('output_dir')}  "
+            f"(series.json / summary.json / findings.md / report.txt)",
+            flush=True,
+        )
 

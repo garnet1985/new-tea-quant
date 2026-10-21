@@ -67,6 +67,7 @@ class UserParser:
         UserParser._p_list(sub)
         UserParser._p_export_adj_factor(sub)
         UserParser._p_tag(sub)
+        UserParser._p_series_relation(sub)
         UserParser._p_export_strategy(sub)
         UserParser._p_import_strategy(sub)
         UserParser._p_import_data(sub)
@@ -318,6 +319,27 @@ class UserParser:
             default=None,
             metavar="N",
             help="只跑前 N 个实体（试验用）",
+        )
+
+    @staticmethod
+    def _p_series_relation(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "series_relation",
+            aliases=UserCommands.aliases_for("series_relation"),
+            help="多序列并置比较（``srel``；配置在 extensions/series_relation）",
+        )
+        p.add_argument(
+            "key",
+            nargs="?",
+            default=None,
+            metavar="KEY",
+            help="meta.key 或相对路径；与 --list 互斥",
+        )
+        p.add_argument(
+            "--list",
+            action="store_true",
+            help="列出已发现的场景并退出",
         )
 
     @staticmethod

@@ -36,7 +36,7 @@ new-tea-quant/
 ├── userspace/              # 用户数据与配置（gitignore 大部）
 │   ├── system/             # config / db / backup / updater 等
 │   ├── strategies/         # 用户策略包
-│   └── extensions/         # 用户扩展（tags / data_source / adapters…）
+│   └── extensions/         # 用户扩展（tags / data_source / post_process…）
 └── experiments/            # 实验与草稿（非产品路径）
 ```
 
@@ -96,18 +96,18 @@ new-tea-quant/
 | [`analysis`](../core/modules/analysis/) | 回测后解释 inputs 与 outputs 的关系（骨架） | [README](../core/modules/analysis/README.md) |
 | [`backtest_engine`](../core/modules/backtest_engine/) | 回测时间轴与执行引擎 | [README](../core/modules/backtest_engine/README.md) |
 | [`market_profile`](../core/modules/market_profile/) | 市场画像相关 | [README](../core/modules/market_profile/README.md) |
-| [`adapter`](../core/modules/adapter/) | `Strategy.scan` 机会列表的后处理回调（userspace adapters） | [README](../core/modules/adapter/README.md) |
+| [`post_process`](../core/modules/post_process/) | `Strategy.scan` 机会协议规范化 + PostProcessor / Adapter | [README](../core/modules/post_process/README.md) |
 | [`agent`](../core/modules/agent/) | AI agent：工具清单、写入准则；运行循环尚未接通模型 | [README](../core/modules/agent/README.md) |
 | [`assistant`](../core/modules/assistant/) | AI 助理：发现 userspace 供应商配置，注入 NTQ 文档上下文，发送 OpenAI 兼容聊天 | [README](../core/modules/assistant/README.md) |
 
-策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/adapters/`。细节以各模块 README 与 `docs/` 为准。
+策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/post_process/`。细节以各模块 README 与 `docs/` 为准。
 
 ---
 
 ## 6. 典型数据流（简图）
 
 两条线分开看：**行情怎么进库 / 怎么被用**，以及 **scan 结果怎么交给 adapter**。  
-（`modules.adapter` **不是**行情入口；它是 scan 产出的 callbacks。）
+（`modules.post_process` **不是**行情入口；它是 scan 产出的 callbacks。）
 
 **① 数据路径（落库 → 读取 → 计算）**
 
@@ -139,7 +139,7 @@ Strategy.scan（Scanner）
   Opportunity 列表 + context
         │
         ▼
-  Adapter（按 scanner.adapters 依次 process）
+  PostProcess.run_post_processor（scanner.post_process）
         │
         ▼
   console / webhook / 自定义 userspace adapter …

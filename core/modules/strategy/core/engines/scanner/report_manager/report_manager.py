@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO
 
 from core.infra.cmd_layout import CmdLayout
-from core.modules.strategy.core.engines.scanner.helpers import AdapterDispatcher
+from core.modules.strategy.core.engines.scanner.helpers import PostProcessDispatcher
 from core.modules.strategy.core.engines.scanner.report_manager.scan_summary import (
     ScanSummary,
 )
@@ -37,7 +37,7 @@ class ReportManager(BaseReportManager):
     """扫描 run 产物编排。
 
     边界:
-    - 负责: collect opportunities、summary、落盘、adapter present
+    - 负责: collect opportunities、summary、落盘、post_process present
     - 不负责: BE 调度 / 日期解析 / 磁盘路径
     - 调用方: ScannerPipeline
     """
@@ -46,7 +46,9 @@ class ReportManager(BaseReportManager):
     scan_date: str = ""
     stock_ids: List[str] = field(default_factory=list)
     date_meta: Dict[str, Any] = field(default_factory=dict)
-    adapter_names: List[str] = field(default_factory=list)
+    post_process: str = "console"
+    goal: Dict[str, Any] = field(default_factory=dict)
+    strategy_version: str = ""
     max_cache_days: int = 10
     skip_save: bool = False
     opportunities: List[Opportunity] = field(default_factory=list)
@@ -61,7 +63,9 @@ class ReportManager(BaseReportManager):
         scan_date: str,
         stock_ids: List[str],
         date_meta: Optional[Dict[str, Any]] = None,
-        adapter_names: Optional[List[str]] = None,
+        post_process: Optional[str] = None,
+        goal: Optional[Dict[str, Any]] = None,
+        strategy_version: str = "",
         max_cache_days: int = 10,
         skip_save: bool = False,
         strategy_folder: Optional[Path] = None,
@@ -77,7 +81,9 @@ class ReportManager(BaseReportManager):
             scan_date=day,
             stock_ids=list(stock_ids or []),
             date_meta=dict(date_meta or {}),
-            adapter_names=list(adapter_names or []),
+            post_process=str(post_process or "console").strip() or "console",
+            goal=dict(goal or {}),
+            strategy_version=str(strategy_version or ""),
             max_cache_days=int(max_cache_days),
             skip_save=bool(skip_save),
         )
@@ -183,8 +189,12 @@ class ReportManager(BaseReportManager):
             flush=True,
         )
 
-        AdapterDispatcher(self.strategy_key).dispatch(
-            adapter_names=self.adapter_names,
+        PostProcessDispatcher(
+            strategy_name=self.strategy_key,
+            strategy_version=self.strategy_version,
+            goal=dict(self.goal or {}),
+        ).dispatch(
+            post_process_key=self.post_process,
             opportunities=self.opportunities,
             context={
                 "date": self.scan_date,

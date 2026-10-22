@@ -32,8 +32,18 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.setattr(
         PathManager,
+        "get_post_process_extensions_directory",
+        staticmethod(lambda: us / "extensions" / "post_process"),
+    )
+    monkeypatch.setattr(
+        PathManager,
         "get_adapters_directory",
-        staticmethod(lambda: us / "extensions" / "adapters"),
+        staticmethod(lambda: us / "extensions" / "post_process" / "adapters"),
+    )
+    monkeypatch.setattr(
+        PathManager,
+        "get_post_processors_directory",
+        staticmethod(lambda: us / "extensions" / "post_process" / "post_processors"),
     )
     monkeypatch.setattr(
         PathManager,
@@ -43,7 +53,7 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return us
 
 
-def _minimal_settings(*, required=None, adapters=None) -> dict:
+def _minimal_settings(*, required=None, post_process="console") -> dict:
     return {
         "is_enabled": True,
         "meta": {"key": "demo"},
@@ -60,7 +70,7 @@ def _minimal_settings(*, required=None, adapters=None) -> dict:
                 "end_date": "20201231",
             }
         },
-        "scanner": {"adapters": list(adapters or ["console"])},
+        "scanner": {"post_process": post_process},
     }
 
 
@@ -68,7 +78,7 @@ def _write_demo_bundle_sources(us: Path) -> None:
     strategy = us / "strategies" / "demo"
     strategy.mkdir(parents=True)
     demo_settings = _minimal_settings(
-        adapters=["console", "my_webhook"],
+        post_process="my_handoff",
         required=[
             {"data_key": "tag", "params": {"tag_scenario": "activity-ratio20"}},
         ],
@@ -87,20 +97,35 @@ def _write_demo_bundle_sources(us: Path) -> None:
     (tag / "settings.py").write_text('Settings = {"name": "activity-ratio20"}\n', encoding="utf-8")
     (tag / "tag_worker.py").write_text("class W: pass\n", encoding="utf-8")
 
-    adapter = us / "extensions" / "adapters" / "my_webhook"
+    pp = us / "extensions" / "post_process" / "post_processors" / "my_handoff"
+    pp.mkdir(parents=True)
+    (pp / "post_processor.yaml").write_text(
+        "key: my_handoff\nadapters:\n  my_webhook:\n    config: {}\n",
+        encoding="utf-8",
+    )
+
+    adapter = us / "extensions" / "post_process" / "adapters" / "my_webhook"
     adapter.mkdir(parents=True)
-    (adapter / "adapter.py").write_text("class A: pass\n", encoding="utf-8")
+    (adapter / "adapter.py").write_text(
+        "from core.modules.post_process.contracts import BaseAdapter\n"
+        "class MyWebhookAdapter(BaseAdapter):\n"
+        "    def run(self, session, config, deps):\n"
+        "        return None\n",
+        encoding="utf-8",
+    )
 
 
-def test_resolve_includes_tag_and_adapter(userspace_tree: Path):
+def test_resolve_includes_tag_and_post_processor(userspace_tree: Path):
     _write_demo_bundle_sources(userspace_tree)
     specs = resolve_strategy_bundle_specs("demo")
     kinds = {s.kind for s in specs}
     names = {s.name for s in specs}
     assert "strategy" in kinds
     assert "tag" in kinds
+    assert "post_processor" in kinds
     assert "adapter" in kinds
     assert "activity-ratio20" in names
+    assert "my_handoff" in names
     assert "my_webhook" in names
     assert "console" not in names
 
@@ -121,4 +146,5 @@ def test_export_import_roundtrip(userspace_tree: Path, tmp_path: Path):
     assert result.ok
     assert (dst / "strategies" / "demo" / "settings.py").is_file()
     assert (dst / "extensions" / "tags" / "activity-ratio20").is_dir()
-    assert (dst / "extensions" / "adapters" / "my_webhook").is_dir()
+    assert (dst / "extensions" / "post_process" / "post_processors" / "my_handoff").is_dir()
+    assert (dst / "extensions" / "post_process" / "adapters" / "my_webhook").is_dir()

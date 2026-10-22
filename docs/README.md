@@ -9,7 +9,8 @@
 - [策略开发](../userspace/strategies/USER_GUIDE.md)
 - [数据源扩展](../userspace/extensions/data_source/USER_GUIDE.md)
 - [标签扩展](../userspace/extensions/tags/USER_GUIDE.md)
-- [适配器扩展](../userspace/extensions/adapters/USER_GUIDE.md)
+- [后续处理扩展](../userspace/extensions/post_process/README.md)
+- [PostProcess 模块](../core/modules/post_process/README.md)
 
 ## Docker
 

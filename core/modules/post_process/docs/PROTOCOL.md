@@ -1,7 +1,7 @@
 # Adapter 出口协议
 
-**状态：** 设计定稿（dataclass 尚未落地；与现行 `process(opportunities, context)` 并行演进）  
-**版本：** `0.1.0-draft`
+**状态：** 已落地（`modules.post_process` 0.3.0 / `contracts`）  
+**版本：** `0.1.0`
 
 Adapter 的核心出口是三层标准协议（建议用三个 dataclass 表达）。  
 协议是后续处理里每个 component 的**标准协议 input**（可另有依赖产出，见 [POST_PROCESS.md](./POST_PROCESS.md)）；如何删减、重组、副作用由 component 自行决定。
@@ -155,8 +155,7 @@ goal:
 - 可交易演示协议、通知/券商实现  
 - 强迫 component 写回本协议  
 
-现行运行时仍为 `AdapterDispatcher` → `process(opportunities, context)`。  
-本文件描述的是**目标出口形状**；落地时再收敛 API。
+运行时：`PostProcessDispatcher` → `PostProcess.build_session_report` → `PostProcess.run_post_processor`。
 
 ---
 
@@ -195,8 +194,8 @@ goal:
 
 ## 建议 dataclass 落点（实现时）
 
-放在 `modules.adapter` 的公开契约中（例如 `contracts` 或独立 `protocol` 模块），与 `BaseOpportunityAdapter` 一并导出；  
-避免与 `strategy` 内部 `Opportunity` 在文档与 import 路径上混淆（可用全名或别名说明「协议 Opportunity」）。
+已放在 `core.modules.post_process.contracts`（与 `BaseAdapter` 一并导出）。  
+避免与 `strategy` 内部 `Opportunity` 在文档与 import 路径上混淆。
 
 ---
 

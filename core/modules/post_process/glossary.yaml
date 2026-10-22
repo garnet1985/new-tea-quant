@@ -1,0 +1,65 @@
+# glossary — modules.post_process
+# Version: 0.3.0
+
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 PostProcess。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core/*"
+
+  PostProcess:
+    definition: "本模块门面类；协议规范化与 Adapter / PostProcessor 的 list、validate、load、run。"
+    aliases: []
+    avoid:
+      - "Adapter（旧模块门面名）"
+
+  Opportunity:
+    definition: "出口协议：单条标准机会（标的 + 触发价/日）。与 strategy 内部 Opportunity 为映射关系。"
+    aliases:
+      - "标准机会"
+
+  StrategyScanReport:
+    definition: "单策略一次扫描报告。"
+    aliases:
+      - "标准单策略扫描报告"
+
+  ScanSessionReport:
+    definition: "一次扫描会话顶层报告；strategies 为 StrategyScanReport 列表。"
+    aliases:
+      - "标准扫描会话报告"
+
+  PostProcessor:
+    definition: "后续处理声明单元：有 key，无序声明 adapters；可选 depends_on。目录 post_processors/<key>/。"
+    aliases:
+      - "PostProcessorDefinition"
+      - "post_processor"
+    avoid:
+      - "pipeline"
+      - "把 adapter 的 output 当成下一跳的标准协议"
+
+  Adapter:
+    definition: "PostProcessor 内干活积木。input = ScanSessionReport + deps。目录 post_process/adapters/<name>/。"
+    aliases:
+      - "BaseAdapter"
+    avoid:
+      - "BaseComponent"
+      - "把模块本身叫 adapter"
+
+  BaseAdapter:
+    definition: "userspace adapter 须继承的基类；须实现 run(session, config, deps)。"
+    aliases:
+      - "contracts.BaseAdapter"
+
+  post_process_extensions_directory:
+    definition: "userspace/extensions/post_process/。"
+    aliases: []
+
+  adapters_directory:
+    definition: "userspace/extensions/post_process/adapters/<name>/adapter.py。"
+    aliases: []
+
+  post_processors_directory:
+    definition: "userspace/extensions/post_process/post_processors/<key>/post_processor.yaml。"
+    aliases: []

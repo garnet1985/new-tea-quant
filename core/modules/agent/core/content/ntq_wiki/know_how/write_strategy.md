@@ -116,7 +116,7 @@ settings = {
         },
     },
     "scanner": {
-        "adapters": ["console"],
+        "post_process": "console",
     },
 }
 ```

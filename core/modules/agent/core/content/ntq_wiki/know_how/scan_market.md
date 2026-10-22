@@ -8,7 +8,7 @@ aliases:
   - 扫描
   - 策略选股
   - 扫描选股
-summary: 用界面「策略选股」或 CLI 扫描当天机会；后处理适配器用 scanner.adapters。
+summary: 用界面「策略选股」或 CLI 扫描当天机会；后处理用 scanner.post_process。
 ---
 
 # 如何扫描实时行情
@@ -49,18 +49,18 @@ python cli.py c --demo
 | `hit_stocks`    | 命中的股票数         |
 | `at_limit_up`   | 涨停时触发的数量（不可交易） |
 
-## 适配器后处理
+## 后续处理（PostProcess）
 
-如果策略配置了 `scanner.adapters`，扫描完成后会调用适配器做后处理：
+如果策略配置了 `scanner.post_process`，扫描完成后会执行对应后续处理：
 
 ```python
 # settings.py
 "scanner": {
-    "adapters": "industry_report",
+    "post_process": "console",
 }
 ```
 
-详见 [如何编写适配器](write_adapter.md)。
+详见 [如何编写后续处理](write_adapter.md)。
 
 ## 严格交易日门闸
 
@@ -78,7 +78,7 @@ python cli.py c --demo
 
 ```python
 "scanner": {
-    "adapters": ["console"],              # 后处理适配器
+    "post_process": "console",            # 后续处理 key
     "use_strict_previous_trading_day": True,  # 严格交易日
     "max_cache_days": 10,                 # 缓存天数
     "watch_list": "",                     # 观察列表

@@ -17,8 +17,8 @@ describe('settingsOccupancy', () => {
   });
 
   it('flags dirty when scanner config changes (persisted, not fingerprint)', () => {
-    const loaded = persistComparable({ core: { n: 1 }, scanner: { adapters: ['console'] } });
-    const draft = persistComparable({ core: { n: 1 }, scanner: { adapters: ['webhook'] } });
+    const loaded = persistComparable({ core: { n: 1 }, scanner: { post_process: 'console' } });
+    const draft = persistComparable({ core: { n: 1 }, scanner: { post_process: 'webhook' } });
     expect(isDraftDirty(draft, loaded)).toBe(true);
   });
 });

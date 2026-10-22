@@ -8,7 +8,7 @@ dependencies:
   - modules.data_contract
   - modules.indicator
   - modules.backtest_engine
-  - modules.adapter
+  - modules.post_process
   - modules.analysis
   - modules.market_profile
   - modules.data_source

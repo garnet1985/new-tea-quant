@@ -1,22 +1,24 @@
-"""``settings.scanner`` — 扫描模式与缓存/adapter 配置。
+"""``settings.scanner`` — 扫描模式与缓存 / post_process 配置。
 
 本文件:
-- ScannerSettings: 锚点严格模式、max_cache_days、adapter_names 等
+- ScannerSettings: 锚点严格模式、max_cache_days、post_process 等
   边界: 负责 scanner section；不负责 ScanDateResolver 或 BE 扫描
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport
 
+DEFAULT_POST_PROCESS = "console"
+
 
 @dataclass
 class ScannerSettings(SettingsBase):
-    """``settings.scanner`` — adapters / 严格交易日 / 缓存 / watch_list。"""
+    """``settings.scanner`` — post_process / 严格交易日 / 缓存 / watch_list。"""
 
     raw_settings: Dict[str, Any]
 
@@ -32,14 +34,10 @@ class ScannerSettings(SettingsBase):
         return dict(self._block())
 
     @property
-    def adapter_names(self) -> List[str]:
-        raw = self._block().get("adapters", ["console"])
-        if isinstance(raw, str):
-            return [raw] if raw.strip() else ["console"]
-        if isinstance(raw, list):
-            names = [str(x).strip() for x in raw if str(x).strip()]
-            return names or ["console"]
-        return ["console"]
+    def post_process(self) -> str:
+        raw = self._block().get("post_process", DEFAULT_POST_PROCESS)
+        name = str(raw or "").strip()
+        return name or DEFAULT_POST_PROCESS
 
     @property
     def use_strict_previous_trading_day(self) -> bool:
@@ -73,10 +71,12 @@ class ScannerSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         s = self._block()
-        s.setdefault("adapters", ["console"])
+        s.setdefault("post_process", DEFAULT_POST_PROCESS)
         s.setdefault("use_strict_previous_trading_day", True)
         s.setdefault("max_cache_days", self._system_scan_max_versions())
         s.setdefault("watch_list", "")
+        # 清理过时字段
+        s.pop("adapters", None)
         self._normalize_fields()
 
     def validate(self) -> ValidationReport:
@@ -93,7 +93,7 @@ class ScannerSettings(SettingsBase):
             return report
 
         self.apply_defaults()
-        self._validate_adapters(report)
+        self._validate_post_process(report)
         return report
 
     def to_dict(self) -> Dict[str, Any]:
@@ -102,14 +102,9 @@ class ScannerSettings(SettingsBase):
 
     def _normalize_fields(self) -> None:
         s = self._block()
-        adapters = s.get("adapters", ["console"])
-        if isinstance(adapters, str):
-            s["adapters"] = [adapters] if adapters.strip() else ["console"]
-        elif isinstance(adapters, list):
-            names = [str(x).strip() for x in adapters if str(x).strip()]
-            s["adapters"] = names or ["console"]
-        else:
-            s["adapters"] = ["console"]
+        s.pop("adapters", None)
+        pp = str(s.get("post_process") or "").strip()
+        s["post_process"] = pp or DEFAULT_POST_PROCESS
 
         ust = s.get("use_strict_previous_trading_day", True)
         s["use_strict_previous_trading_day"] = ust if isinstance(ust, bool) else True
@@ -123,17 +118,17 @@ class ScannerSettings(SettingsBase):
         wl = s.get("watch_list", "")
         s["watch_list"] = "" if wl is None else str(wl)
 
-    def _validate_adapters(self, report: ValidationReport) -> None:
-        from core.modules.adapter import Adapter
+    def _validate_post_process(self, report: ValidationReport) -> None:
+        from core.modules.post_process import PostProcess
 
-        for name in self.adapter_names:
-            ok, err = Adapter.validate(name)
-            if not ok:
-                SettingsBase.add_warning(
-                    report,
-                    f"scanner.adapters[{name}]",
-                    f"适配器 '{name}' 不可用: {err}",
-                )
+        key = self.post_process
+        ok, err = PostProcess.validate_post_processor(key)
+        if not ok:
+            SettingsBase.add_warning(
+                report,
+                f"scanner.post_process[{key}]",
+                f"后续处理 '{key}' 不可用: {err}",
+            )
 
 
-__all__ = ["ScannerSettings"]
+__all__ = ["DEFAULT_POST_PROCESS", "ScannerSettings"]

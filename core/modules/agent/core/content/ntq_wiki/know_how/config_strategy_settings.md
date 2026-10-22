@@ -306,7 +306,7 @@ rsi14 = today.get("rsi14") if today else None  # 单列：{name}{length}；或�
 
 ```python
 "scanner": {
-    "adapters": ["console"],               # list[str], 结果输出方式
+    "post_process": "console",             # str, 后续处理 PostProcess key
     "use_strict_previous_trading_day": True,  # bool, 严格交易日检查
     "max_cache_days": 10,                  # int, 扫描结果保留天数
     "watch_list": "",                      # str, 关注列表

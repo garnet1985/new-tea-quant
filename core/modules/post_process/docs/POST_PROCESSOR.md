@@ -1,7 +1,7 @@
 # 后续处理（PostProcess）
 
-**状态：** 设计定稿（运行时尚未落地；与现行 `scanner.adapters` + `process(opportunities, context)` 并行演进）  
-**版本：** `0.1.0-draft`
+**状态：** 已落地（`modules.post_process` 0.3.0）  
+**版本：** `0.1.0`
 
 扫描结果经 adapter 规范化为 [`ScanSessionReport`](./PROTOCOL.md) 之后，交给用户声明的 **后续处理（PostProcess）**：一组**彼此独立**的 component，各自消费同一份标准协议。
 
@@ -78,16 +78,16 @@ userspace/extensions/
 │   └── <key>.yaml                  # 或 <key>/post_process.yaml
 └── components/                     # Component 实现（代码）
     └── <name>/
-        ├── component.py            # 必须：BaseComponent 子类
+        ├── adapter.py            # 必须：BaseAdapter 子类
         └── settings.py             # 可选：默认 config
 ```
 
 | 对象 | 目录 | 导入 / 标识 |
 |------|------|-------------|
-| PostProcess | `extensions/post_processes/` | key = 文件名（无后缀）或子目录名 |
-| Component | `extensions/components/<name>/` | 模块 `userspace.extensions.components.<name>.component` |
+| PostProcess | `extensions/post_process/post_processors/` | key = 文件名（无后缀）或子目录名 |
+| Component | `extensions/post_process/adapters/<name>/` | 模块 `userspace.extensions.post_process.adapters.<name>.component` |
 
-PathManager（实现时）建议提供：`get_post_processes_directory()`、`get_components_directory()`，与现有 `get_adapters_directory()` 并列。
+PathManager 提供：`get_post_processors_directory()`、`get_adapters_directory()`。
 
 ### 文件形态
 
@@ -155,21 +155,20 @@ components:
 
 ---
 
-## 与现行 `scanner.adapters` 的关系
+## 策略配置
 
-| 现行 | 目标语义 |
-|------|----------|
-| `adapters: [console]` | 隐式 PostProcess：仅含 `console`，无依赖 |
-| `adapters: [a, b]` | 隐式 PostProcess：components 为 `{a, b}`，无依赖；执行用稳定序，**不是** a 的 output 喂给 b |
+```yaml
+scanner:
+  post_process: console
+```
 
-迁移期可继续只配 `adapters`；文档与新配置主推 `post_process: <key>`。  
-旧「整段 Adapter 类」可视为一个 mega-component，或一个只含单 component 的 PostProcess。
+旧 `scanner.adapters` 已移除，不做兼容。
 
 ---
 
 ## Example components（演示用）
 
-跑通与否次要；用于说明组装方式。可作为 ship 在 `userspace/extensions/components/` 的模板，或 initialization 种子。
+跑通与否次要；用于说明组装方式。可作为 ship 在 `userspace/extensions/post_process/adapters/` 的模板，或 initialization 种子。
 
 | 名 | 典型行为 | 常见 return |
 |----|----------|-------------|
@@ -182,14 +181,14 @@ components:
 
 ## 发现与加载（可扩展性）
 
-用户只往 userspace 丢目录/YAML，框架必须能 **枚举** 与 **按名解析**，否则 `post_process: demo_handoff` 与 `components.console` 无法落地。能力对齐现有 `Adapter.validate` / `Adapter.load_class` / `AdapterLoader`。
+用户只往 userspace 丢目录/YAML，框架必须能 **枚举** 与 **按名解析**，否则 `post_process: demo_handoff` 与 `components.console` 无法落地。能力对齐现有 `PostProcess.validate` / `PostProcess.load_class` / `AdapterLoader`。
 
 ### Component 发现
 
 | API（建议） | 行为 |
 |-------------|------|
 | `list` / `discover` | 扫描 `components/` 下子目录；返回可用 `name` 列表（可附带是否可加载） |
-| `load_class(name)` | 导入 `userspace.extensions.components.<name>.component`，取第一个合法 `BaseComponent` 子类 |
+| `load_class(name)` | 导入 `userspace.extensions.post_process.adapters.<name>.component`，取第一个合法 `BaseAdapter` 子类 |
 | `validate(name)` | 可加载且实现 `run(session, config, deps)` → `(ok, message)` |
 
 约定与 adapter 相同：**一目录一名；模块内第一个合法子类即实现**。可选 `settings.py` 提供默认 config（可被 PostProcess 里的 `config` 覆盖）。
@@ -228,12 +227,6 @@ scanner.post_process = "demo_handoff"
 - 声明里用到的 Component 目录  
 
 （对齐现今 `extensions/adapters/<name>` 打进 strategy bundle 的做法。）
-
-### 与旧 `adapters/` 目录
-
-迁移期：`userspace/extensions/adapters/<name>` 仍可被发现为 **兼容 component**（或隐式单 component 的 PostProcess），避免一夜作废。新扩展优先写 `components/` + `post_processes/`。
-
----
 
 ## 刻意保持简单的点
 

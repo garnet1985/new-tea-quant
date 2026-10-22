@@ -443,7 +443,7 @@ class PathManager:
         """获取 Data Contract loaders 目录：.../data_contract/loaders/"""
         return PathManager.get_data_contract_root() / "loaders"
 
-    # ========== extensions: Tables / Adapters ==========
+    # ========== extensions: Tables / PostProcess ==========
 
     @staticmethod
     def get_extensions_tables_directory() -> Path:
@@ -451,9 +451,19 @@ class PathManager:
         return PathManager.get_extensions_root() / "tables"
 
     @staticmethod
+    def get_post_process_extensions_directory() -> Path:
+        """后续处理扩展根：userspace/extensions/post_process/"""
+        return PathManager.get_extensions_root() / "post_process"
+
+    @staticmethod
     def get_adapters_directory() -> Path:
-        """获取扫描适配器目录：userspace/extensions/adapters/"""
-        return PathManager.get_extensions_root() / "adapters"
+        """后续处理适配器：userspace/extensions/post_process/adapters/"""
+        return PathManager.get_post_process_extensions_directory() / "adapters"
+
+    @staticmethod
+    def get_post_processors_directory() -> Path:
+        """后续处理声明：userspace/extensions/post_process/post_processors/"""
+        return PathManager.get_post_process_extensions_directory() / "post_processors"
 
     # ========== extensions: 大模型供应商（infra.ai） ==========
 

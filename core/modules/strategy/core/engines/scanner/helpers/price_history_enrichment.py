@@ -1,4 +1,4 @@
-"""Scan → adapter 推送用：从 price 模拟产物组装历史统计（不暴露给 adapter 拉取）。"""
+"""Scan → post_process 推送用：从 price 模拟产物组装历史统计（供 context 注入，不回读磁盘）。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def build_price_history_for_adapter(
     stock_ids: Sequence[str],
 ) -> Dict[str, Any]:
     """
-    供 ``AdapterDispatcher`` 写入 ``context["price_history"]``。
+    供扫描 present / presenter adapter 组装 ``backtest_history``。
 
     Returns::
         {

@@ -52,7 +52,7 @@ terms:
       - "把工具 JSON 全文写入 transcript"
 
   写入准则:
-    definition: "工具写文件前的硬检查。只允许 strategies/、extensions/tags/、extensions/adapters/ 下的相对路径。"
+    definition: "工具写文件前的硬检查。只允许 strategies/、extensions/tags/、extensions/post_process/adapters/、extensions/post_process/post_processors/ 下的相对路径。"
     aliases:
       - "policy"
     avoid:

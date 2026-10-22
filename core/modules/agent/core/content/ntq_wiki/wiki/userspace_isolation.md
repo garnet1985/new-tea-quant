@@ -23,7 +23,7 @@ NTQ 把框架和你的东西分开：
 userspace/
 ├── strategies/              策略（不在 extensions 里）
 ├── extensions/
-│   ├── adapters/            扫描后处理
+│   ├── post_process/        扫描后续处理（adapters + post_processors）
 │   ├── tags/                标签
 │   ├── data_source/handlers/  数据源（运行时扫 handlers/）
 │   ├── data_contract/       自定义数据契约
@@ -50,7 +50,8 @@ core/default_config/...  →  userspace/system/config/...  →  环境变量
 
 | 类型 | 路径 |
 | --- | --- |
-| 适配器 | `userspace/extensions/adapters/<name>/adapter.py` |
+| 后续处理适配器 | `userspace/extensions/post_process/adapters/<name>/adapter.py` |
+| 后续处理声明 | `userspace/extensions/post_process/post_processors/<key>/post_processor.yaml` |
 | 标签 | `userspace/extensions/tags/<path>/` |
 | 数据契约 | `userspace/extensions/data_contract/<key>/` |
 | 数据源 | `userspace/extensions/data_source/handlers/` |

@@ -116,7 +116,7 @@ settings = {
         },
     },
     "scanner": {
-        "adapters": ["console"],
+        "use_strict_previous_trading_day": True,
     },
 }
 ```

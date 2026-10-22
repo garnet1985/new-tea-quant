@@ -242,10 +242,22 @@ class PathNamespace:
         return PathManager.get_extensions_tables_directory()
 
     @staticmethod
+    def get_post_process_extensions_directory() -> Path:
+        """后续处理扩展根：userspace/extensions/post_process/"""
+        from .path_manager import PathManager
+        return PathManager.get_post_process_extensions_directory()
+
+    @staticmethod
     def get_adapters_directory() -> Path:
-        """获取 adapters 目录"""
+        """后续处理适配器：userspace/extensions/post_process/adapters/"""
         from .path_manager import PathManager
         return PathManager.get_adapters_directory()
+
+    @staticmethod
+    def get_post_processors_directory() -> Path:
+        """后续处理声明：userspace/extensions/post_process/post_processors/"""
+        from .path_manager import PathManager
+        return PathManager.get_post_processors_directory()
 
     @staticmethod
     def get_llm_providers_directory() -> Path:

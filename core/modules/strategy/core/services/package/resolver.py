@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Dict, List, Set
 
 from core.infra.export_import import ExportImport
@@ -10,8 +9,6 @@ from core.infra.project_context import ProjectContext
 from core.modules.data_contract.contracts import SYS_DATA_KEY
 
 from .paths import (
-    BUILTIN_ADAPTERS_SKIP_EXPORT,
-    adapter_artifact_spec,
     strategy_artifact_spec,
     tag_artifact_spec,
 )
@@ -22,8 +19,10 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ExportImport.types
     """
     Collect exportable artifacts for a strategy share bundle.
 
-    Always includes the strategy directory. Adds tag / adapter directories when
-    referenced in settings and present on disk.
+    Always includes the strategy directory. Adds tag directories when referenced
+    in settings and present on disk.
+
+    PostProcess 为全局 ``is_enabled`` 配置，不随策略包导出。
     """
     name = str(strategy_name or "").strip()
     if not name:
@@ -48,21 +47,10 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ExportImport.types
             specs.append(spec)
             seen.add(key)
 
-    for adapter_name in _adapter_dependencies(settings):
-        adapter_dir = ProjectContext.path.get_adapters_directory() / adapter_name
-        if not adapter_dir.is_dir():
-            continue
-        spec = adapter_artifact_spec(adapter_name, adapter_dir)
-        key = spec.normalized_archive_prefix()
-        if key not in seen:
-            specs.append(spec)
-            seen.add(key)
-
     return specs
 
 
 def _tag_dependencies(settings: Dict) -> List[str]:
-    """NEW settings: ``data.required[]`` with ``data_key=tag`` + ``params.tag_scenario``."""
     data = settings.get("data") if isinstance(settings.get("data"), dict) else {}
     required = data.get("required") if isinstance(data, dict) else []
     if not isinstance(required, list):
@@ -87,26 +75,6 @@ def _tag_dependencies(settings: Dict) -> List[str]:
         if scenario and scenario not in seen:
             names.append(scenario)
             seen.add(scenario)
-    return names
-
-
-def _adapter_dependencies(settings: Dict) -> List[str]:
-    scanner = settings.get("scanner") if isinstance(settings.get("scanner"), dict) else {}
-    adapters = scanner.get("adapters", ["console"]) if isinstance(scanner, dict) else ["console"]
-    if isinstance(adapters, str):
-        adapters = [adapters] if adapters else ["console"]
-    if not isinstance(adapters, list):
-        return []
-
-    names: List[str] = []
-    seen: Set[str] = set()
-    for raw in adapters:
-        adapter_name = str(raw or "").strip()
-        if not adapter_name or adapter_name in BUILTIN_ADAPTERS_SKIP_EXPORT:
-            continue
-        if adapter_name not in seen:
-            names.append(adapter_name)
-            seen.add(adapter_name)
     return names
 
 

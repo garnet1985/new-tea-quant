@@ -13,6 +13,7 @@ from dataclasses import fields as dc_fields
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from core.modules.post_process import PostProcess
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.scanner.executor import ScannerJobExecutor
@@ -340,7 +341,7 @@ class ScannerPipeline:
             scan_date=scan_date,
             stock_ids=stock_ids,
             date_meta=date_meta,
-            adapter_names=list(settings.scanner.adapter_names or []),
+            goal=PostProcess.goal_summary_from_settings(settings.goal.goal),
             max_cache_days=scan_max,
             skip_save=use_cache,
         )

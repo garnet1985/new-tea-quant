@@ -34,7 +34,12 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(
         PathManager,
         "get_adapters_directory",
-        staticmethod(lambda: us / "extensions" / "adapters"),
+        staticmethod(lambda: us / "extensions" / "post_process" / "adapters"),
+    )
+    monkeypatch.setattr(
+        PathManager,
+        "get_post_processors_directory",
+        staticmethod(lambda: us / "extensions" / "post_process" / "post_processors"),
     )
     return us
 

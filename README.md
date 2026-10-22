@@ -289,7 +289,7 @@ NTQ 能帮助您将您的想法进行验证，您可能需要：
 NTQ 是一个回测器，无法提供：
 
 - **持续稳定的数据源**（需要您自己对接数据源）。仓库自带约 3 年、**300 只**股票的演示数据。全 A 约 3 年包自 **0.5.3** 起暂停下载，**0.6.0** 重新开放（见 [数据说明](#data)）。
-- **实盘交易。** NTQ 不支持实盘，但提供扫描结果的处理接口（[`adapter`](core/modules/post_process/README.md) 模块）。如果您懂得如何接入第三方交易软件或者平台，可以把扫描得到的机会交给下游处理。
+- **实盘交易。** NTQ 不支持实盘，但提供扫描结果的处理接口（[`post_process`](core/modules/post_process/README.md) 模块）。如果您懂得如何接入第三方交易软件或者平台，可以把扫描得到的机会交给下游处理。
 
 ## NTQ 如何跑起来？
 
@@ -316,7 +316,7 @@ NTQ 还可以：
 - **自定义数据源：** NTQ 有接入外部数据源的一套完整工具。一个数据源（比如公司财务数据）可以接入多个数据供应商，并且默认带有限流、等待等模式，支持多种数据存入（增量、覆盖、滚动刷新）模式。说明见 [core/modules/data_source/README.md](core/modules/data_source/README.md)。
 - **自定义数据契约：** NTQ 大部分操作是配置完成的，代码较少。那假如我新增加了一张数据表，想通过声明的方式注入回测流程，我该怎么办？NTQ 提供了[数据契约](core/modules/data_contract/README.md)模块：您只需要给您的新数据定义一个唯一的名字（`data_key`），然后定义一个加载逻辑（loader），接下来框架会在回测过程中自动通过名字找到您的 loader 进行数据加载，就可以注入回测了。
 - **对回测归因：** 在策略目录的 `attribution.py` 里声明要对照的参数。`sea` / `spa` / `soa` 共用这套轴，分别补枚举、价格和组合。平时 Run 不自动归因。演示策略已各带一份短示例。见 [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md)。
-- **适配器：** 扫描出机会后，用 [`adapter`](core/modules/post_process/README.md) 接到您自己的下游（通知、交易软件或其他程序）。框架会提供标准的机会信息，以及回测历史（如果您回测过）。
+- **后续处理：** 扫描出机会后，用 [`post_process`](core/modules/post_process/README.md) 接到您自己的下游（通知、交易软件或其他程序）。框架会提供标准的机会信息，以及回测历史（如果您回测过）。
 - **用户界面（UI）：** NTQ 标配了一款 Web UI，可以在您的浏览器里使用。很多结果和操作可以可视化，还可以比较您多次回测的输入参数和输出结果的不同，从而对策略进行针对性微调。
 - **AI 助理：** 应用内可对话，需自行在设置中填写供应商 API Key；请求会带上 NTQ 文档上下文。
 - **命令行入口（CLI）：** 与 UI 类似，NTQ 也提供了一套快捷命令行命令，您可以使用 [`python cli.py`](#cli) 查看说明和所有命令。
@@ -327,7 +327,7 @@ NTQ 还可以：
 NTQ 本身免费开源，但部分能力依赖您自备资源：
 
 - **数据**：框架提供接入与存储能力，**不含**数据源的付费账号或 token；需在第三方平台注册/购买后自行配置。
-- **通知**：短信、邮件、推送等**不在框架内**，用[适配器](core/modules/post_process/README.md)自己接。
+- **通知**：短信、邮件、推送等**不在框架内**，用[后续处理](core/modules/post_process/README.md)自己接。
 
 更完整的教程见官网 [更多用例](https://new-tea.cn/zh-hans/more-examples)（中文）。许可见文末 [NTQ 许可证](LICENSE)（[许可与支持](#license)）。
 
@@ -522,7 +522,7 @@ python cli.py t  --scenario market_cap_tier   # 特征标签
 | **验证「有限资金下还能不能活」** | 价格层 OK 后 → **投资模拟** → 看组合曲线与持仓 |
 | **每月在全 A 选低价 / Top N** | 参考安装后的 `userspace/strategies/demo/cross_sectional/low_price/`，用 **`slice_based`** 横截面模式 |
 | **多个策略共用同一因子** | 先跑 **[Tag](core/modules/tag/README.md)**（[`cli.py t`](#cli)），策略 settings 里引用 Tag 数据 |
-| **最新行情筛机会** | 数据更新后 [`cli.py c`](#cli) 或 Web 扫描（通知需 [Adapter](core/modules/post_process/README.md) 自接） |
+| **最新行情筛机会** | 数据更新后 [`cli.py c`](#cli) 或 Web 扫描（通知需 [post_process](core/modules/post_process/README.md) 自接） |
 
 ---
 

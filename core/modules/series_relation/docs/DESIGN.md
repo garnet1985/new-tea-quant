@@ -12,7 +12,7 @@
 | 项 | 决定 |
 |----|------|
 | 模块名 | `modules.series_relation` |
-| userspace 路径 | `userspace/extensions/series_relation/<key>/`（与 tags / adapters 同级的一类扩展） |
+| userspace 路径 | `userspace/extensions/series_relation/<key>/`（与 tags / post_process 同级的一类扩展） |
 | 选源 | 仅 `meta.type == time_series` 的 data_key；`global` 选 field；`per_entity` 选 entity + field |
 | 条数上限 | **代码常量**（建议 `MAX_SERIES = 6`），不进用户 settings；超限拒跑（不静默截断） |
 | 时间轴 | **日期并集**；各系列只在自有观测日有值；折线按系列连接自身有效点 |

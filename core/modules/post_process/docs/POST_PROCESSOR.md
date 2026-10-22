@@ -226,7 +226,7 @@ scanner.post_process = "demo_handoff"
 - 引用的 PostProcess 声明文件  
 - 声明里用到的 Component 目录  
 
-（对齐现今 `extensions/adapters/<name>` 打进 strategy bundle 的做法。）
+（对齐 `extensions/post_process/adapters/<name>` 打进 strategy bundle 的做法。）
 
 ## 刻意保持简单的点
 

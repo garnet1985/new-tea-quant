@@ -2,7 +2,7 @@
 
 本文件:
 - ScannerJobExecutor: RunCallbacks 面；on_tick 调 is_opportunity、贴板标注
-  边界: 负责 worker 内 scan 业务；不负责 Pipeline 缓存/adapters、BE batch 切分
+  边界: 负责 worker 内 scan 业务；不负责 Pipeline 缓存/post_process、BE batch 切分
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ class ScannerJobExecutor:
 
     边界:
     - 负责: 装载 lookback contracts、调用 scan hooks、回传 opportunities
-    - 不负责: 调度 / 切 batch（BE）、cache / adapters（Pipeline）
+    - 不负责: 调度 / 切 batch（BE）、cache / post_process（Pipeline）
     """
 
     task_log_label = "scanner task"

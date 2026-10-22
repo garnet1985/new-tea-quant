@@ -1,4 +1,4 @@
-"""Opportunity — 扫描/枚举信号记录（scan → Investment / adapter）。
+"""Opportunity — 扫描/枚举信号记录（scan → Investment / post_process）。
 
 消费者: scanner, enumerator, portfolio
 其它: contracts, hooks

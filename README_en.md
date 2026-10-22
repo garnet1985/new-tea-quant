@@ -278,7 +278,7 @@ NTQ helps you test your ideas. You will likely need:
 NTQ is a backtester. It does not provide:
 
 - **A stable live data feed** (you connect your own). The repo ships ~3 years / **300** names of demo data. The ~3-year **full A-share** pack is paused from **0.5.3** and will reopen in **0.6.0** (see [Data notes](#data)).
-- **Live brokerage trading.** There is no broker hook. Scan results go out through the [`adapter`](core/modules/post_process/README.md) module. If you can talk to a third-party trading app or venue, you can pass those opportunities downstream.
+- **Live brokerage trading.** There is no broker hook. Scan results go out through the [`post_process`](core/modules/post_process/README.md) module. If you can talk to a third-party trading app or venue, you can pass those opportunities downstream.
 
 ## How do I run it?
 
@@ -303,7 +303,7 @@ Full walkthrough: [Quick install + run a strategy](#quick-start).
 - **Custom data sources:** a full ingest toolkit. One logical source (e.g. company fundamentals) can have several vendors, with rate limits, waits, and write modes (incremental, overwrite, rolling refresh). See [core/modules/data_source/README.md](core/modules/data_source/README.md).
 - **Custom data contracts:** most of the run is config. If you add a table and want it in the backtest by declaration, give it a unique `data_key` and a loader; the framework finds the loader by name. See [data contracts](core/modules/data_contract/README.md).
 - **Attribute a backtest:** declare the parameters to contrast in the strategy folder’s `attribution.py`. `sea` / `spa` / `soa` share those axes and fill in enumerate, price, and portfolio. A normal Run does not attribute. Each demo strategy ships a short example. See [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md).
-- **Adapters:** after a scan, wire [`adapter`](core/modules/post_process/README.md) to your own downstream (notifications, a trading app, anything). You get standard opportunity payloads plus backtest history if you have run one.
+- **Post-process:** after a scan, wire [`post_process`](core/modules/post_process/README.md) to your own downstream (notifications, a trading app, anything). You get standard opportunity payloads plus backtest history if you have run one.
 - **Web UI:** use it in the browser. Visualize results and compare inputs/outputs across runs so you can tune the strategy on purpose.
 - **AI assistant:** in-app chat; fill in a vendor API key in settings. Requests include NTQ documentation context.
 - **CLI:** [`python cli.py`](#cli) lists commands.
@@ -314,7 +314,7 @@ Full walkthrough: [Quick install + run a strategy](#quick-start).
 NTQ itself is free and open source. Some capabilities need **your** resources:
 
 - **Data:** ingest and storage are in the framework; **paid vendor accounts / tokens are not**. Register and buy those yourself.
-- **Notifications:** SMS / email / push are **not** in the framework. Hook them via an [adapter](core/modules/post_process/README.md).
+- **Notifications:** SMS / email / push are **not** in the framework. Hook them via [post_process](core/modules/post_process/README.md).
 
 Fuller tutorials (Chinese): [More examples](https://new-tea.cn/zh-hans/more-examples). License: [NTQ License](LICENSE) ([License & support](#license)).
 
@@ -509,7 +509,7 @@ Prefer an explicit `--strategy` (use `meta.key`); add `-f` to force recalculatio
 | **Survive with limited capital?** | After price layer → **portfolio simulation** → curves & holdings |
 | **Monthly low-price / Top N across A-shares** | After install: `userspace/strategies/demo/cross_sectional/low_price/`, **`slice_based`** mode |
 | **Share one factor across strategies** | Run **[Tag](core/modules/tag/README.md)** ([`cli.py t`](#cli)), reference it in settings |
-| **Screen with latest bars** | Refresh data → [`cli.py c`](#cli) or Web scan (notify via [Adapter](core/modules/post_process/README.md)) |
+| **Screen with latest bars** | Refresh data → [`cli.py c`](#cli) or Web scan (notify via [post_process](core/modules/post_process/README.md)) |
 
 ---
 

@@ -3,6 +3,7 @@
 from core.modules.agent.core.code.userspace.prompts import (
     append_userspace_prompt,
     load_userspace_prompt_snippet,
+    save_userspace_prompt_snippet,
 )
 from core.modules.agent.core.code.userspace.templates import (
     list_userspace_template_matches,
@@ -25,5 +26,6 @@ __all__ = [
     "load_userspace_prompt_snippet",
     "match_userspace_scenario",
     "merged_scenario_keys",
+    "save_userspace_prompt_snippet",
     "userspace_template_path",
 ]

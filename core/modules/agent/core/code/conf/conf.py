@@ -73,3 +73,9 @@ USERSPACE_PROMPT_SNIPPET_MAX_CHARS = 2000
 USERSPACE_PROMPT_LANES: FrozenSet[str] = frozenset(
     {"context", "worker", "guider", "present"}
 )
+
+# --- 产品设置页（偏好 / 默认 Provider）---
+PREFERENCE_MAX_RULES = 40
+PREFERENCE_MAX_CHARS = 200
+# UI 补充说明写入的 prompt lane（只追加，冲突以产品红线为准）
+SETTINGS_CONTEXT_PROMPT_LANE = "context"

@@ -10,6 +10,7 @@ import {
   clearAgentSession,
   fetchAgentSessionHistory,
   fetchAgentQuota,
+  fetchAgentSettings,
 } from 'api/agentApi';
 import { listAiProviders } from 'api/aiApi';
 import { fetchMembershipSettings, notifyMembershipChanged } from 'api/settingsApi';
@@ -207,15 +208,20 @@ function AssistantChatDock() {
     Promise.all([
       listAiProviders(),
       fetchMembershipSettings().catch(() => ({ configured: false })),
+      fetchAgentSettings().catch(() => null),
     ])
-      .then(([items, membership]) => {
+      .then(([items, membership, agentSettings]) => {
         if (cancelled) return;
         const nextOptions = buildAiOptions(items, membership);
         setOptions(nextOptions);
         const storedId = loadDockStore().selectedId;
+        const settingsDefault = String(agentSettings?.defaultProviderId || '').trim();
         setSelectedId((current) => {
           if (nextOptions.some((item) => item.id === current)) return current;
           if (storedId && nextOptions.some((item) => item.id === storedId)) return storedId;
+          if (settingsDefault && nextOptions.some((item) => item.id === settingsDefault)) {
+            return settingsDefault;
+          }
           return nextOptions[0]?.id || '';
         });
         setNeedsKey(nextOptions.length === 0);

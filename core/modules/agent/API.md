@@ -104,6 +104,16 @@ print(Agent.run("读一下 demo/regression/rsi/rsi_v1_baseline 的枚举报告�
 - **引入版本：** `0.1.0`
 - **描述：** 读写跨会话偏好（`userspace/.ntq/agent/preferences.json`）
 
+### get_settings / update_settings
+
+`Agent.get_settings() -> dict`  
+`Agent.update_settings(*, default_provider_id=None, context_prompt=None, preferences=None) -> dict`
+
+- **类型：** `static`
+- **状态：** `experimental`
+- **引入版本：** `0.1.0`
+- **描述：** 产品设置页用。默认 Provider 存 `userspace/.ntq/agent/settings.json`；补充说明写入 `userspace/extensions/agent/prompts/context.md`；偏好整表替换。不含超时/步数等调试项。BFF：`GET|PUT /v1/agent/settings`。
+
 ---
 
 ## ToolSpec

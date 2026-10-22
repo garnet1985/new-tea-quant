@@ -9,6 +9,7 @@ import {
 } from '../../api/settingsApi';
 import PageLayout from '../../views/pageLayout';
 import {
+  SettingsAgentPanel,
   SettingsAssistantPanel,
   SettingsCachePanel,
   SettingsDataPanel,
@@ -24,6 +25,7 @@ const SETTINGS_TABS = [
   { id: 'database', label: '数据库', path: 'database' },
   { id: 'membership', label: '会员', path: 'membership' },
   { id: 'ai', label: 'AI 配置', path: 'ai' },
+  { id: 'agent', label: 'Agent 配置', path: 'agent' },
   { id: 'data', label: '数据范围', path: 'data' },
   { id: 'cache', label: '缓存管理', path: 'cache' },
   { id: 'feedback', label: '反馈与统计', path: 'feedback' },
@@ -151,7 +153,7 @@ function SettingsPage() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装、数据库连接、会员凭证、AI 配置、数据范围、缓存清理、反馈与统计。"
+      bannerDescription="系统安装、数据库连接、会员凭证、AI 配置、Agent 配置、数据范围、缓存清理、反馈与统计。"
     >
       <Box className="settings-page-layout">
         <Paper className="settings-page-nav" elevation={0}>
@@ -212,6 +214,7 @@ function SettingsPage() {
             />
             <Route path="membership" element={<SettingsMembershipPanel />} />
             <Route path="ai" element={<SettingsAssistantPanel />} />
+            <Route path="agent" element={<SettingsAgentPanel />} />
             <Route path="cache" element={<SettingsCachePanel />} />
             <Route path="feedback" element={<SettingsFeedbackAndTracePanel />} />
             <Route path="trace" element={<Navigate to="/settings/feedback" replace />} />

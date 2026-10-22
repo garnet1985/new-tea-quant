@@ -85,3 +85,28 @@ def agent_session_history():
         code = "AGENT_UNAVAILABLE" if status >= 500 else "AGENT_BAD_REQUEST"
         return error(err, status, code=code)
     return ok(result)
+
+
+@agent_api_bp.route("/v1/agent/settings", methods=["GET"])
+def get_agent_settings():
+    """GET /v1/agent/settings — 默认 Provider、补充说明、跨会话偏好。"""
+    api = agent_impl.lazy_load()
+    result, err, status = api.get_settings()
+    if err:
+        code = "AGENT_UNAVAILABLE" if status >= 500 else "AGENT_BAD_REQUEST"
+        return error(err, status, code=code)
+    return ok(result)
+
+
+@agent_api_bp.route("/v1/agent/settings", methods=["PUT"])
+def put_agent_settings():
+    """PUT /v1/agent/settings — 更新 Agent 产品设置（可部分字段）。"""
+    payload = json_payload()
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400, code="AGENT_BAD_REQUEST")
+    api = agent_impl.lazy_load()
+    result, err, status = api.update_settings(payload)
+    if err:
+        code = "AGENT_UNAVAILABLE" if status >= 500 else "AGENT_BAD_REQUEST"
+        return error(err, status, code=code)
+    return ok(result)

@@ -41,6 +41,11 @@ import {
 import { fetchFeedbackSettings, saveFeedbackSettings } from '../../api/feedbackApi';
 import { listAiProviders, saveAiProviderApiKey } from '../../api/aiApi';
 import {
+  clearAgentSession,
+  fetchAgentSettings,
+  saveAgentSettings,
+} from '../../api/agentApi';
+import {
   getImportDataProgress,
   getMlExtrasStatus,
   importDemoData,
@@ -49,6 +54,7 @@ import {
 } from '../../api/setupApi';
 import { useAsyncAction } from 'service/useAsyncAction';
 import { useFakeProgress } from 'service/progress/useFakeProgress';
+import { persistDockSelectedId } from '../../containers/assistantChatDock/dockChatStore';
 
 export function SettingsSystemPanel() {
   const navigate = useNavigate();
@@ -1408,6 +1414,289 @@ export function SettingsAssistantPanel() {
           })}
           <Box>
             <Button variant="outlined" onClick={load} disabled={Boolean(savingId) || loading}>
+              重新读取
+            </Button>
+          </Box>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+/** Agent 产品设置：默认通道、偏好、补充说明、清空会话。不含超时/步数等高级项。 */
+export function SettingsAgentPanel() {
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saveOk, setSaveOk] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [providerOptions, setProviderOptions] = useState([{ id: 'ntq', label: 'NTQ AI' }]);
+  const [defaultProviderId, setDefaultProviderId] = useState('ntq');
+  const [contextPrompt, setContextPrompt] = useState('');
+  const [contextPromptMaxChars, setContextPromptMaxChars] = useState(2000);
+  const [preferences, setPreferences] = useState([]);
+  const [preferenceMaxRules, setPreferenceMaxRules] = useState(40);
+  const [preferenceMaxChars, setPreferenceMaxChars] = useState(200);
+  const [draftRule, setDraftRule] = useState('');
+  const [clearBusy, setClearBusy] = useState(false);
+  const [clearOk, setClearOk] = useState('');
+  const [clearError, setClearError] = useState('');
+
+  const applySettings = useCallback((settings) => {
+    setDefaultProviderId(settings.defaultProviderId || 'ntq');
+    setContextPrompt(settings.contextPrompt || '');
+    setContextPromptMaxChars(settings.contextPromptMaxChars || 2000);
+    setPreferences(Array.isArray(settings.preferences) ? settings.preferences : []);
+    setPreferenceMaxRules(settings.preferenceMaxRules || 40);
+    setPreferenceMaxChars(settings.preferenceMaxChars || 200);
+  }, []);
+
+  const load = useCallback(() => {
+    setLoadError('');
+    setLoading(true);
+    Promise.all([
+      fetchAgentSettings(),
+      listAiProviders().catch(() => []),
+      fetchMembershipSettings().catch(() => ({ configured: false })),
+    ])
+      .then(([settings, providers, membership]) => {
+        applySettings(settings);
+        const options = [{ id: 'ntq', label: membership?.configured ? 'NTQ AI（已配置）' : 'NTQ AI' }];
+        (Array.isArray(providers) ? providers : []).forEach((item) => {
+          if (!item?.providerId || !item.enabled || !item.hasApiKey) return;
+          options.push({ id: String(item.providerId), label: String(item.providerId) });
+        });
+        setProviderOptions(options);
+        if (!options.some((item) => item.id === settings.defaultProviderId)) {
+          setDefaultProviderId(options[0]?.id || 'ntq');
+        }
+      })
+      .catch((e) => {
+        setLoadError(e?.message || '读取 Agent 设置失败');
+      })
+      .finally(() => setLoading(false));
+  }, [applySettings]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleAddPreference = () => {
+    const text = draftRule.trim().slice(0, preferenceMaxChars);
+    if (!text) return;
+    if (preferences.includes(text)) {
+      setDraftRule('');
+      return;
+    }
+    if (preferences.length >= preferenceMaxRules) {
+      setSaveError(`最多 ${preferenceMaxRules} 条偏好`);
+      return;
+    }
+    setPreferences((prev) => [...prev, text]);
+    setDraftRule('');
+    setSaveError('');
+  };
+
+  const handleRemovePreference = (rule) => {
+    setPreferences((prev) => prev.filter((item) => item !== rule));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveOk('');
+    setSaveError('');
+    try {
+      const next = await saveAgentSettings({
+        defaultProviderId,
+        contextPrompt,
+        preferences,
+      });
+      applySettings(next);
+      persistDockSelectedId(next.defaultProviderId);
+      setSaveOk('已保存 Agent 设置。');
+    } catch (e) {
+      setSaveError(e?.message || '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClearSession = async () => {
+    setClearBusy(true);
+    setClearOk('');
+    setClearError('');
+    try {
+      await clearAgentSession();
+      setClearOk('已清空本机会话对话与局部任务状态。跨会话偏好与策略文件未改动。');
+    } catch (e) {
+      setClearError(e?.message || '清空会话失败');
+    } finally {
+      setClearBusy(false);
+    }
+  };
+
+  return (
+    <Stack spacing={3}>
+      <Box>
+        <Typography variant="subtitle1" fontWeight={700}>
+          Agent 配置
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          管理助理的默认通道、跨会话偏好与补充说明。密钥仍在「AI 配置」；会员凭证在「会员」。
+        </Typography>
+      </Box>
+
+      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
+      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
+      {clearError ? <Alert severity="error">{clearError}</Alert> : null}
+      {clearOk ? <Alert severity="success">{clearOk}</Alert> : null}
+
+      {loading ? (
+        <PageLoadingState message="正在加载 Agent 设置…" minHeight="36vh" />
+      ) : (
+        <Stack spacing={3} sx={{ maxWidth: 560 }}>
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              默认 AI 通道
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              打开聊天框且尚未手动切换时使用。可随时在聊天框里改选；密钥请到「AI 配置」填写。
+            </Typography>
+            <FormControl size="small" fullWidth>
+              <InputLabel id="agent-default-provider-label">默认通道</InputLabel>
+              <Select
+                labelId="agent-default-provider-label"
+                label="默认通道"
+                value={
+                  providerOptions.some((item) => item.id === defaultProviderId)
+                    ? defaultProviderId
+                    : (providerOptions[0]?.id || 'ntq')
+                }
+                onChange={(e) => setDefaultProviderId(e.target.value)}
+              >
+                {providerOptions.map((item) => (
+                  <MenuItem key={item.id} value={item.id}>
+                    {item.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              跨会话偏好
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              每条会长期带入对话（最多
+              {preferenceMaxRules}
+              条，每条
+              {preferenceMaxChars}
+              字）。清空会话不会删这些。
+            </Typography>
+            {preferences.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                还没有偏好。
+              </Typography>
+            ) : (
+              <Stack spacing={0.75}>
+                {preferences.map((rule) => (
+                  <Stack
+                    key={rule}
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    sx={{
+                      py: 0.5,
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ flex: 1 }}>
+                      {rule}
+                    </Typography>
+                    <Button size="small" onClick={() => handleRemovePreference(rule)}>
+                      删除
+                    </Button>
+                  </Stack>
+                ))}
+              </Stack>
+            )}
+            <Stack direction="row" spacing={1} alignItems="flex-start">
+              <TextField
+                size="small"
+                fullWidth
+                label="新增偏好"
+                placeholder="例如：回答尽量简短"
+                value={draftRule}
+                onChange={(e) => setDraftRule(e.target.value.slice(0, preferenceMaxChars))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddPreference();
+                  }
+                }}
+                helperText={`${draftRule.length}/${preferenceMaxChars}`}
+              />
+              <Button
+                variant="outlined"
+                sx={{ mt: '2px', flexShrink: 0 }}
+                disabled={!draftRule.trim() || preferences.length >= preferenceMaxRules}
+                onClick={handleAddPreference}
+              >
+                添加
+              </Button>
+            </Stack>
+          </Stack>
+
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              补充说明
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              追加到助理上下文（不会覆盖产品红线）。适合写风格或常用约定，最多
+              {' '}
+              {contextPromptMaxChars}
+              {' '}
+              字。
+            </Typography>
+            <TextField
+              size="small"
+              fullWidth
+              multiline
+              minRows={4}
+              value={contextPrompt}
+              onChange={(e) => setContextPrompt(e.target.value.slice(0, contextPromptMaxChars))}
+              placeholder="例如：优先用中文解释；涉及回测先确认区间。"
+              helperText={`${contextPrompt.length}/${contextPromptMaxChars}`}
+            />
+          </Stack>
+
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              会话
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              清空本机当前会话的对话记录与局部任务状态。不会删除跨会话偏好、策略代码或回测报告。
+            </Typography>
+            <Box>
+              <Button
+                variant="outlined"
+                color="inherit"
+                disabled={clearBusy || saving}
+                onClick={handleClearSession}
+              >
+                {clearBusy ? '清空中…' : '清空本机会话'}
+              </Button>
+            </Box>
+          </Stack>
+
+          <Box>
+            <Button variant="contained" onClick={handleSave} disabled={saving}>
+              {saving ? '保存中…' : '保存 Agent 设置'}
+            </Button>
+            <Button sx={{ ml: 1 }} variant="outlined" onClick={load} disabled={saving || clearBusy}>
               重新读取
             </Button>
           </Box>

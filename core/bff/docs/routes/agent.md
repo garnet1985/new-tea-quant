@@ -20,6 +20,7 @@
 | POST | `/v1/agent/run` | 一句用户消息 → Agent |
 | POST | `/v1/agent/session/clear` | 清空本机会话 |
 | GET\|POST | `/v1/agent/session/history` | 最近对话 |
+| GET\|PUT | `/v1/agent/settings` | 默认 Provider、补充说明、跨会话偏好 |
 
 ### POST `/v1/agent/run`
 

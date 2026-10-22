@@ -4,6 +4,7 @@ const API_AGENT_RUN = `${API_VERSION_PREFIX}/agent/run`;
 const API_AGENT_QUOTA = `${API_VERSION_PREFIX}/agent/quota`;
 const API_AGENT_SESSION_CLEAR = `${API_VERSION_PREFIX}/agent/session/clear`;
 const API_AGENT_SESSION_HISTORY = `${API_VERSION_PREFIX}/agent/session/history`;
+const API_AGENT_SETTINGS = `${API_VERSION_PREFIX}/agent/settings`;
 
 /**
  * @returns {Promise<{
@@ -110,5 +111,62 @@ export async function fetchAgentSessionHistory(body = {}) {
         role: item.role === 'user' ? 'user' : 'assistant',
         content: String(item.content),
       })),
+  };
+}
+
+/**
+ * @returns {Promise<{
+ *   defaultProviderId: string,
+ *   contextPrompt: string,
+ *   contextPromptMaxChars: number,
+ *   preferences: string[],
+ *   preferenceMaxRules: number,
+ *   preferenceMaxChars: number,
+ * }>}
+ */
+export async function fetchAgentSettings() {
+  const json = await request.getJson(API_AGENT_SETTINGS);
+  const m = json?.message || {};
+  const prefs = Array.isArray(m.preferences) ? m.preferences : [];
+  return {
+    defaultProviderId: String(m.defaultProviderId || 'ntq').trim() || 'ntq',
+    contextPrompt: String(m.contextPrompt || ''),
+    contextPromptMaxChars: Number(m.contextPromptMaxChars) || 2000,
+    preferences: prefs.map((item) => String(item || '').trim()).filter(Boolean),
+    preferenceMaxRules: Number(m.preferenceMaxRules) || 40,
+    preferenceMaxChars: Number(m.preferenceMaxChars) || 200,
+  };
+}
+
+/**
+ * @param {{
+ *   defaultProviderId?: string,
+ *   contextPrompt?: string,
+ *   preferences?: string[],
+ * }} body
+ */
+export async function saveAgentSettings(body) {
+  const payload = {};
+  if (body && Object.prototype.hasOwnProperty.call(body, 'defaultProviderId')) {
+    payload.defaultProviderId = String(body.defaultProviderId || '').trim() || 'ntq';
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, 'contextPrompt')) {
+    payload.contextPrompt = String(body.contextPrompt || '');
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, 'preferences')) {
+    payload.preferences = Array.isArray(body.preferences)
+      ? body.preferences.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+  }
+  const json = await request.putJson(API_AGENT_SETTINGS, { body: payload });
+  const m = json?.message || {};
+  const prefs = Array.isArray(m.preferences) ? m.preferences : [];
+  return {
+    defaultProviderId: String(m.defaultProviderId || 'ntq').trim() || 'ntq',
+    contextPrompt: String(m.contextPrompt || ''),
+    contextPromptMaxChars: Number(m.contextPromptMaxChars) || 2000,
+    preferences: prefs.map((item) => String(item || '').trim()).filter(Boolean),
+    preferenceMaxRules: Number(m.preferenceMaxRules) || 40,
+    preferenceMaxChars: Number(m.preferenceMaxChars) || 200,
   };
 }

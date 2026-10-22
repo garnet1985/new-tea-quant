@@ -35,6 +35,15 @@ class Provider:
 def resolve_provider(provider_id: Optional[str] = None) -> Provider:
     """解析用户选定的 Provider；一个 id 全程使用。"""
     explicit = str(provider_id or "").strip()
+    if not explicit:
+        try:
+            from core.modules.agent.core.code.session.session_store import (
+                load_default_provider_id,
+            )
+
+            explicit = str(load_default_provider_id() or "").strip()
+        except Exception:
+            explicit = ""
     if explicit and explicit != PRODUCT_PROVIDER_ID:
         if not _local_key_ready(explicit):
             return Provider(

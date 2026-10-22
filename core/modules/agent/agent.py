@@ -68,5 +68,24 @@ class Agent:
         """删除一条跨会话偏好。"""
         return Agent._manager.forget(rule)
 
+    @staticmethod
+    def get_settings() -> Dict[str, Any]:
+        """产品设置：默认 Provider、补充说明、跨会话偏好。"""
+        return Agent._manager.get_settings()
+
+    @staticmethod
+    def update_settings(
+        *,
+        default_provider_id: Optional[str] = None,
+        context_prompt: Optional[str] = None,
+        preferences: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """更新产品设置；未传的字段保持不变。"""
+        return Agent._manager.update_settings(
+            default_provider_id=default_provider_id,
+            context_prompt=context_prompt,
+            preferences=preferences,
+        )
+
 
 __all__ = ["Agent"]

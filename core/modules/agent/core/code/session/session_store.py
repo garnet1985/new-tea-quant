@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional
 from core.infra.project_context import ProjectContext
 from core.modules.agent.core.code.conf.conf import (
     DEFAULT_SESSION_ID,
+    PREFERENCE_MAX_CHARS,
+    PREFERENCE_MAX_RULES,
+    PRODUCT_PROVIDER_ID,
     SESSION_ARCHIVE_AFTER,
     SESSION_KEEP_ACTIVE,
     SESSION_RECENT_TURNS,
@@ -29,6 +32,11 @@ def agent_root() -> Path:
 
 def preferences_path() -> Path:
     return agent_root() / "preferences.json"
+
+
+def settings_path() -> Path:
+    """产品侧 Agent 设置：默认 Provider 等（userspace/.ntq/agent/settings.json）。"""
+    return agent_root() / "settings.json"
 
 
 def sessions_root() -> Path:
@@ -78,8 +86,12 @@ def save_preferences(rules: List[str]) -> None:
 
 def remember_preference(rule: str) -> List[str]:
     text = str(rule or "").strip()
+    if len(text) > PREFERENCE_MAX_CHARS:
+        text = text[:PREFERENCE_MAX_CHARS].rstrip()
     rules = load_preferences()
     if text and text not in rules:
+        if len(rules) >= PREFERENCE_MAX_RULES:
+            raise ValueError(f"跨会话偏好最多 {PREFERENCE_MAX_RULES} 条")
         rules.append(text)
         save_preferences(rules)
     return rules
@@ -90,6 +102,57 @@ def forget_preference(rule: str) -> List[str]:
     rules = [item for item in load_preferences() if item != text]
     save_preferences(rules)
     return rules
+
+
+def replace_preferences(rules: List[str]) -> List[str]:
+    """整表替换偏好（设置页保存用）。超长截断；超出条数截断。"""
+    cleaned: List[str] = []
+    for item in rules or []:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        if len(text) > PREFERENCE_MAX_CHARS:
+            text = text[:PREFERENCE_MAX_CHARS].rstrip()
+        if text and text not in cleaned:
+            cleaned.append(text)
+        if len(cleaned) >= PREFERENCE_MAX_RULES:
+            break
+    save_preferences(cleaned)
+    return cleaned
+
+
+def load_default_provider_id() -> str:
+    path = settings_path()
+    if not path.is_file():
+        return PRODUCT_PROVIDER_ID
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return PRODUCT_PROVIDER_ID
+    if not isinstance(raw, dict):
+        return PRODUCT_PROVIDER_ID
+    pid = str(raw.get("default_provider_id") or "").strip()
+    return pid or PRODUCT_PROVIDER_ID
+
+
+def save_default_provider_id(provider_id: str) -> str:
+    pid = str(provider_id or "").strip() or PRODUCT_PROVIDER_ID
+    path = settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing: Dict[str, Any] = {}
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                existing = dict(loaded)
+        except (OSError, json.JSONDecodeError):
+            existing = {}
+    existing["default_provider_id"] = pid
+    path.write_text(
+        json.dumps(existing, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return pid
 
 
 def load_state(session_id: str = DEFAULT_SESSION_ID) -> Dict[str, Any]:
@@ -338,12 +401,16 @@ __all__ = [
     "context_block",
     "default_session_id",
     "forget_preference",
+    "load_default_provider_id",
     "load_preferences",
     "load_state",
     "recent_turns",
     "remember_preference",
+    "replace_preferences",
+    "save_default_provider_id",
     "save_preferences",
     "save_state",
     "session_directory",
+    "settings_path",
     "update_state_from_tool",
 ]

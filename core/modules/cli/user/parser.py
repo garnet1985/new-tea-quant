@@ -68,6 +68,7 @@ class UserParser:
         UserParser._p_export_adj_factor(sub)
         UserParser._p_tag(sub)
         UserParser._p_series_relation(sub)
+        UserParser._p_agent(sub)
         UserParser._p_export_strategy(sub)
         UserParser._p_import_strategy(sub)
         UserParser._p_import_data(sub)
@@ -340,6 +341,95 @@ class UserParser:
             "--list",
             action="store_true",
             help="列出已发现的场景并退出",
+        )
+
+    @staticmethod
+    def _p_agent(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "agent",
+            aliases=UserCommands.aliases_for("agent"),
+            help="NTQ 助理（对话 / 偏好 / 设置；``a``）",
+        )
+        p.add_argument(
+            "message",
+            nargs="?",
+            default=None,
+            metavar="MESSAGE",
+            help="发给助理的一句话（与下方管理开关互斥）",
+        )
+        p.add_argument(
+            "--provider",
+            dest="agent_provider",
+            type=str,
+            default=None,
+            metavar="ID",
+            help="本轮 Provider（ntq 或已配置的自备 id）；省略用设置页默认",
+        )
+        p.add_argument(
+            "--session",
+            dest="agent_session",
+            type=str,
+            default=None,
+            metavar="ID",
+            help="会话名（默认 default）",
+        )
+        exclusive = p.add_mutually_exclusive_group()
+        exclusive.add_argument(
+            "--tools",
+            dest="agent_tools",
+            action="store_true",
+            help="列出已登记工具",
+        )
+        exclusive.add_argument(
+            "--clear",
+            dest="agent_clear",
+            action="store_true",
+            help="清空本机会话（不删跨会话偏好）",
+        )
+        exclusive.add_argument(
+            "--prefs",
+            dest="agent_prefs",
+            action="store_true",
+            help="列出跨会话偏好",
+        )
+        exclusive.add_argument(
+            "--remember",
+            dest="agent_remember",
+            type=str,
+            default=None,
+            metavar="RULE",
+            help="追加一条跨会话偏好",
+        )
+        exclusive.add_argument(
+            "--forget",
+            dest="agent_forget",
+            type=str,
+            default=None,
+            metavar="RULE",
+            help="删除一条跨会话偏好",
+        )
+        exclusive.add_argument(
+            "--settings",
+            dest="agent_settings",
+            action="store_true",
+            help="显示 Agent 产品设置",
+        )
+        exclusive.add_argument(
+            "--set-provider",
+            dest="agent_set_provider",
+            type=str,
+            default=None,
+            metavar="ID",
+            help="写入默认 Provider",
+        )
+        exclusive.add_argument(
+            "--set-context",
+            dest="agent_set_context",
+            type=str,
+            default=None,
+            metavar="TEXT",
+            help="写入补充说明（空字符串清空）",
         )
 
     @staticmethod

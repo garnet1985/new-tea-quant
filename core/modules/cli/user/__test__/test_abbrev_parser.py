@@ -39,6 +39,9 @@ pytestmark = pytest.mark.force_run
         (["im", "./pkg.zip"], ["import_strategy", "./pkg.zip"]),
         (["id"], ["import_data"]),
         (["id", "-f"], ["import_data", "-f"]),
+        (["a", "你好"], ["agent", "你好"]),
+        (["a", "--tools"], ["agent", "--tools"]),
+        (["agent", "--prefs"], ["agent", "--prefs"]),
     ],
 )
 def test_expand_argv(raw: list[str], expected: list[str]) -> None:
@@ -263,6 +266,20 @@ def test_run_strategy_delete_version_prints_ok(monkeypatch, capsys) -> None:
     monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
     UserHandlers._run_strategy_delete_version(Namespace(strategy="rsi_v1:3"))
     assert "已删除 rsi_v1 v3 的回测产物" in capsys.readouterr().out
+
+
+def test_parse_agent_message_and_flags() -> None:
+    args = UserParser.parse_args(["a", "帮我看看", "--provider", "ntq"])
+    assert args.command == "agent"
+    assert args.message == "帮我看看"
+    assert args.agent_provider == "ntq"
+
+    tools = UserParser.parse_args(["agent", "--tools"])
+    assert tools.command == "agent"
+    assert tools.agent_tools is True
+
+    remember = UserParser.parse_args(["a", "--remember", "回答简短"])
+    assert remember.agent_remember == "回答简短"
 
 
 def test_execute_dispatches_decision_commands(monkeypatch) -> None:

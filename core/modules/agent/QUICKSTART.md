@@ -14,6 +14,22 @@
 
 ---
 
+## CLI
+
+```bash
+python cli.py a "NTQ 是什么"          # 对话（同 agent）
+python cli.py a --tools               # 工具清单
+python cli.py a --clear               # 清空本机会话
+python cli.py a --prefs               # 跨会话偏好
+python cli.py a --settings            # 默认 Provider / 补充说明
+python cli.py a --remember "回答简短"
+python cli.py a --set-provider ntq
+```
+
+也可用 UI 设置页「Agent 配置」，或下方 Python API。
+
+---
+
 ## 最小示例
 
 ```python

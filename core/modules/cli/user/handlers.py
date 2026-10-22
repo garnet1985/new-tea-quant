@@ -201,6 +201,10 @@ class UserHandlers:
             UserHandlers._run_series_relation(args)
             return
 
+        if cmd == "agent":
+            UserHandlers._run_agent(args)
+            return
+
         if cmd in (
             "scan",
             "strategy_enumerate",
@@ -811,6 +815,121 @@ class UserHandlers:
         raise SystemExit(f"未知命令: {cmd}")
 
     @staticmethod
+    def _run_agent(args: argparse.Namespace) -> None:
+        from core.modules.agent import Agent
+        from core.modules.agent.contracts import AgentError
+
+        UserHandlers.setup_logging(verbose=bool(getattr(args, "verbose", False)))
+        session_id = str(getattr(args, "agent_session", None) or "").strip() or None
+        provider_id = str(getattr(args, "agent_provider", None) or "").strip() or None
+
+        try:
+            if getattr(args, "agent_tools", False):
+                tools = Agent.list_tools()
+                if not tools:
+                    print("尚未登记工具。")
+                    return
+                print("Agent 工具:")
+                for tool in tools:
+                    flag = "ok" if tool.implemented else "stub"
+                    print(f"  - {tool.name} [{flag}]  {tool.description}")
+                return
+
+            if getattr(args, "agent_clear", False):
+                Agent.clear_session(session_id)
+                sid = session_id or "default"
+                print(f"已清空会话 {sid}（偏好与策略未改）。")
+                return
+
+            if getattr(args, "agent_prefs", False):
+                rules = Agent.list_preferences()
+                if not rules:
+                    print("还没有跨会话偏好。")
+                    return
+                print("跨会话偏好:")
+                for rule in rules:
+                    print(f"  - {rule}")
+                return
+
+            remember = getattr(args, "agent_remember", None)
+            if remember is not None:
+                text = str(remember or "").strip()
+                if not text:
+                    raise SystemExit("--remember 需要非空 RULE")
+                rules = Agent.remember(text)
+                print(f"已记住（共 {len(rules)} 条）。")
+                return
+
+            forget = getattr(args, "agent_forget", None)
+            if forget is not None:
+                text = str(forget or "").strip()
+                if not text:
+                    raise SystemExit("--forget 需要非空 RULE")
+                rules = Agent.forget(text)
+                print(f"已删除（剩余 {len(rules)} 条）。")
+                return
+
+            if getattr(args, "agent_settings", False):
+                settings = Agent.get_settings()
+                print(f"default_provider_id: {settings.get('default_provider_id')}")
+                print(
+                    f"context_prompt ({settings.get('context_prompt_max_chars')} chars max):"
+                )
+                prompt = str(settings.get("context_prompt") or "").strip()
+                print(prompt if prompt else "  (empty)")
+                prefs = settings.get("preferences") or []
+                print(f"preferences ({len(prefs)}):")
+                if not prefs:
+                    print("  (none)")
+                else:
+                    for rule in prefs:
+                        print(f"  - {rule}")
+                return
+
+            set_provider = getattr(args, "agent_set_provider", None)
+            if set_provider is not None:
+                pid = str(set_provider or "").strip()
+                if not pid:
+                    raise SystemExit("--set-provider 需要非空 ID")
+                settings = Agent.update_settings(default_provider_id=pid)
+                print(f"默认 Provider → {settings.get('default_provider_id')}")
+                return
+
+            if getattr(args, "agent_set_context", None) is not None:
+                text = str(getattr(args, "agent_set_context") or "")
+                settings = Agent.update_settings(context_prompt=text)
+                saved = str(settings.get("context_prompt") or "").strip()
+                print("补充说明已更新。" if saved else "补充说明已清空。")
+                return
+
+            message = str(getattr(args, "message", None) or "").strip()
+            if not message:
+                raise SystemExit(
+                    "用法: cli.py a \"一句话\" | cli.py agent --tools|--clear|--prefs|"
+                    "--settings|--remember RULE|--forget RULE|"
+                    "--set-provider ID|--set-context TEXT"
+                )
+
+            print(f"{i('sparkle')} Agent 处理中…", flush=True)
+            outcome = Agent.run(
+                message, session_id=session_id, provider_id=provider_id
+            )
+            reply = str((outcome or {}).get("reply") or "").strip()
+            mode = str((outcome or {}).get("mode") or "ask")
+            spent = (outcome or {}).get("catfood_spent")
+            balance = (outcome or {}).get("balance")
+            print(reply or "(空回复)")
+            meta = [f"mode={mode}"]
+            if spent is not None:
+                meta.append(f"catfood_spent={spent}")
+            if balance is not None:
+                meta.append(f"balance={balance}")
+            print(f"[{' · '.join(meta)}]")
+        except AgentError as exc:
+            raise SystemExit(str(exc)) from exc
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+
     def _run_series_relation(args: argparse.Namespace) -> None:
         from core.modules.series_relation import SeriesRelation
 

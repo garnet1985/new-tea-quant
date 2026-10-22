@@ -1,6 +1,6 @@
 # 模块元数据
 name: modules.cli
-version: "0.4.4"
+version: "0.4.5"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "客户端模块：在命令行工具内为用户或开发者提供一系列边界操作命令的模块。"
@@ -19,7 +19,11 @@ dependencies:
   - modules.data_contract
   - modules.indicator
   - modules.series_relation
+  - modules.agent
 changelog:
+  - version: "0.4.5"
+    changes:
+      - agent / a：助理对话、工具列表、会话清空、偏好与产品设置 CLI
   - version: "0.4.4"
     changes:
       - list catalog 扩展：datakeys / tags / tag.<key> / strategies / indicators / tables（集合用复数；单数为别名）

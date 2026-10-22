@@ -17,7 +17,7 @@ def build_price_history_for_adapter(
     stock_ids: Sequence[str],
 ) -> Dict[str, Any]:
     """
-    供扫描 present 侧写入 ``context["price_history"]``（当前默认 console 未消费）。
+    供扫描 present / presenter adapter 组装 ``backtest_history``。
 
     Returns::
         {

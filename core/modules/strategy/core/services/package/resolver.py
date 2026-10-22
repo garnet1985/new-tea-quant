@@ -9,10 +9,6 @@ from core.infra.project_context import ProjectContext
 from core.modules.data_contract.contracts import SYS_DATA_KEY
 
 from .paths import (
-    BUILTIN_ADAPTERS_SKIP_EXPORT,
-    BUILTIN_POST_PROCESSORS_SKIP_EXPORT,
-    adapter_artifact_spec,
-    post_processor_artifact_spec,
     strategy_artifact_spec,
     tag_artifact_spec,
 )
@@ -23,8 +19,10 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ExportImport.types
     """
     Collect exportable artifacts for a strategy share bundle.
 
-    Always includes the strategy directory. Adds tag / post_processor / adapter
-    directories when referenced in settings and present on disk.
+    Always includes the strategy directory. Adds tag directories when referenced
+    in settings and present on disk.
+
+    PostProcess 为全局 ``is_enabled`` 配置，不随策略包导出。
     """
     name = str(strategy_name or "").strip()
     if not name:
@@ -48,34 +46,6 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ExportImport.types
         if key not in seen:
             specs.append(spec)
             seen.add(key)
-
-    pp_key = _post_process_key(settings)
-    if pp_key and pp_key not in BUILTIN_POST_PROCESSORS_SKIP_EXPORT:
-        from core.modules.post_process.core.post_processor_loader import PostProcessorLoader
-
-        resolved = PostProcessorLoader.resolve_path(pp_key)
-        if resolved is not None:
-            source_dir = resolved.parent if resolved.is_file() else resolved
-            if source_dir.name != "post_processors":
-                spec = post_processor_artifact_spec(pp_key, source_dir)
-                key = spec.normalized_archive_prefix()
-                if key not in seen:
-                    specs.append(spec)
-                    seen.add(key)
-
-        definition = PostProcessorLoader.load(pp_key)
-        if definition is not None:
-            for adapter_name in definition.adapters:
-                if adapter_name in BUILTIN_ADAPTERS_SKIP_EXPORT:
-                    continue
-                adapter_dir = ProjectContext.path.get_adapters_directory() / adapter_name
-                if not adapter_dir.is_dir():
-                    continue
-                spec = adapter_artifact_spec(adapter_name, adapter_dir)
-                key = spec.normalized_archive_prefix()
-                if key not in seen:
-                    specs.append(spec)
-                    seen.add(key)
 
     return specs
 
@@ -106,12 +76,6 @@ def _tag_dependencies(settings: Dict) -> List[str]:
             names.append(scenario)
             seen.add(scenario)
     return names
-
-
-def _post_process_key(settings: Dict) -> str:
-    scanner = settings.get("scanner") if isinstance(settings.get("scanner"), dict) else {}
-    raw = scanner.get("post_process", "console") if isinstance(scanner, dict) else "console"
-    return str(raw or "").strip() or "console"
 
 
 __all__ = ["resolve_strategy_bundle_specs"]

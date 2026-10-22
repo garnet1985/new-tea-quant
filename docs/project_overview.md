@@ -139,10 +139,10 @@ Strategy.scan（Scanner）
   Opportunity 列表 + context
         │
         ▼
-  PostProcess.run_post_processor（scanner.post_process）
+  PostProcess.run_enabled_post_processors（全局 is_enabled）
         │
         ▼
-  console / webhook / 自定义 userspace adapter …
+  presenter / webhook / 自定义 userspace adapter …
 ```
 
 **③ 入口（同一套 Facade）**

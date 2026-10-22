@@ -74,6 +74,14 @@ class PostProcessorLoader:
     def _from_dict(key: str, raw: Dict[str, Any]) -> PostProcessorDefinition:
         declared_key = str(raw.get("key") or key).strip() or key
         name = str(raw.get("name") or "").strip()
+        raw_enabled = raw.get("is_enabled", True)
+        if isinstance(raw_enabled, bool):
+            is_enabled = raw_enabled
+        elif isinstance(raw_enabled, (int, float)):
+            is_enabled = bool(raw_enabled)
+        else:
+            text = str(raw_enabled or "").strip().lower()
+            is_enabled = text not in ("0", "false", "no", "off", "")
         on_error = str(raw.get("on_error") or "continue").strip().lower()
         if on_error not in ("continue", "stop"):
             on_error = "continue"
@@ -110,10 +118,21 @@ class PostProcessorLoader:
         return PostProcessorDefinition(
             key=declared_key,
             name=name,
+            is_enabled=is_enabled,
             on_error=on_error,
             on_empty=on_empty,
             adapters=adapters,
         )
+
+    @staticmethod
+    def list_enabled_keys() -> List[str]:
+        """``is_enabled: true`` 的 post_processor key（稳定排序）。"""
+        out: List[str] = []
+        for key in PostProcessorLoader.list_keys():
+            definition = PostProcessorLoader.load(key)
+            if definition is not None and definition.is_enabled:
+                out.append(key)
+        return out
 
 
 __all__ = ["PostProcessorLoader"]

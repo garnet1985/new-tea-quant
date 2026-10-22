@@ -31,12 +31,13 @@ terms:
       - "标准扫描会话报告"
 
   PostProcessor:
-    definition: "后续处理声明单元：有 key，无序声明 adapters；可选 depends_on。目录 post_processors/<key>/。"
+    definition: "后续处理声明单元：有 key、is_enabled；无序声明 adapters；可选 depends_on。目录 post_processors/<key>/。全局启用，不绑策略 settings。"
     aliases:
       - "PostProcessorDefinition"
       - "post_processor"
     avoid:
       - "pipeline"
+      - "scanner.post_process"
       - "把 adapter 的 output 当成下一跳的标准协议"
 
   Adapter:

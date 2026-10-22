@@ -7,8 +7,8 @@ from pathlib import Path
 from core.infra.export_import import ExportImport
 
 # Shipped with init userspace; omit from strategy share bundles by default.
-BUILTIN_ADAPTERS_SKIP_EXPORT = frozenset({"console"})
-BUILTIN_POST_PROCESSORS_SKIP_EXPORT = frozenset({"console"})
+BUILTIN_ADAPTERS_SKIP_EXPORT = frozenset({"presenter"})
+BUILTIN_POST_PROCESSORS_SKIP_EXPORT = frozenset({"presenter"})
 
 
 def strategy_artifact_spec(strategy_name: str, source_dir: Path) -> ExportImport.types.ArtifactSpec:

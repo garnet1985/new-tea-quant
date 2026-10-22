@@ -9,4 +9,4 @@
 
 | 文件 | 说明 |
 |------|------|
-| `test_api.py` | 公开 API 契约；console component / post_process 可加载与执行（`force_run`） |
+| `test_api.py` | 公开 API 契约；presenter adapter / post_process 可加载与执行（`force_run`） |

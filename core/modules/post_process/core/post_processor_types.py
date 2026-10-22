@@ -21,6 +21,7 @@ class PostProcessorDefinition:
 
     key: str
     name: str = ""
+    is_enabled: bool = True
     on_error: str = "continue"  # continue | stop
     on_empty: str = "run"  # run | skip
     adapters: Dict[str, AdapterBinding] = field(default_factory=dict)

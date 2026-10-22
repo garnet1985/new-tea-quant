@@ -46,7 +46,6 @@ class ReportManager(BaseReportManager):
     scan_date: str = ""
     stock_ids: List[str] = field(default_factory=list)
     date_meta: Dict[str, Any] = field(default_factory=dict)
-    post_process: str = "console"
     goal: Dict[str, Any] = field(default_factory=dict)
     strategy_version: str = ""
     max_cache_days: int = 10
@@ -63,7 +62,6 @@ class ReportManager(BaseReportManager):
         scan_date: str,
         stock_ids: List[str],
         date_meta: Optional[Dict[str, Any]] = None,
-        post_process: Optional[str] = None,
         goal: Optional[Dict[str, Any]] = None,
         strategy_version: str = "",
         max_cache_days: int = 10,
@@ -81,7 +79,6 @@ class ReportManager(BaseReportManager):
             scan_date=day,
             stock_ids=list(stock_ids or []),
             date_meta=dict(date_meta or {}),
-            post_process=str(post_process or "console").strip() or "console",
             goal=dict(goal or {}),
             strategy_version=str(strategy_version or ""),
             max_cache_days=int(max_cache_days),
@@ -194,7 +191,6 @@ class ReportManager(BaseReportManager):
             strategy_version=self.strategy_version,
             goal=dict(self.goal or {}),
         ).dispatch(
-            post_process_key=self.post_process,
             opportunities=self.opportunities,
             context={
                 "date": self.scan_date,

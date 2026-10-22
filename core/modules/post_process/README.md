@@ -1,6 +1,8 @@
 # PostProcess（`modules.post_process`）
 
-策略 **Scanner** 完成后，将机会规范为三层出口协议，再按 `scanner.post_process` 执行 userspace **PostProcessor**（一组独立 Adapter）。
+策略 **Scanner** 完成后，将机会规范为三层出口协议，再执行 userspace 中所有 **`is_enabled: true`** 的 **PostProcessor**（各含一组 Adapter）。
+
+后续处理是**全局**配置，不在策略 `settings.scanner` 里。
 
 ## 布局
 
@@ -18,7 +20,7 @@ core/modules/post_process/
 ```text
 userspace/extensions/post_process/
 ├── adapters/<name>/adapter.py
-└── post_processors/<key>/post_processor.yaml
+└── post_processors/<key>/post_processor.yaml   # 含 is_enabled
 ```
 
 ## 常见问题
@@ -26,8 +28,8 @@ userspace/extensions/post_process/
 **Q：该 import 什么？**  
 A：`from core.modules.post_process import PostProcess`；契约 `from core.modules.post_process.contracts import BaseAdapter, ScanSessionReport, ...`。
 
-**Q：策略怎么挂？**  
-A：`settings.scanner.post_process = "console"`。
+**Q：怎么启用 / 关闭？**  
+A：改 `post_processors/<key>/post_processor.yaml` 的 `is_enabled`。扫描任意策略结束后会跑所有 enabled 的 PostProcessor。
 
 ## 相关文档
 

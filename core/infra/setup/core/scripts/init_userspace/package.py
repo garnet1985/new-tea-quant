@@ -95,7 +95,12 @@ def _copy_ignore(directory: str, names: list[str]) -> set[str]:
             ignored.add(name)
         if name == "data" and d.name == "backup":
             ignored.add(name)
-        if name in ("auth_token.txt", "api_key.txt", "membership_token.txt"):
+        if name in (
+            "auth_token.txt",
+            "api_key.txt",
+            "membership_token.txt",
+            "token.txt",
+        ):
             ignored.add(name)
         if name in (".env", "secrets.json", "credentials.json"):
             ignored.add(name)

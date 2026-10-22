@@ -36,15 +36,15 @@
 
 ### PostProcessor
 
-#### list_post_processors / validate_post_processor / load_post_processor
+#### list_post_processors / list_enabled_post_processors / validate_post_processor / load_post_processor
 
-发现、校验、加载 `userspace/extensions/post_process/post_processors/` 下的声明。
+发现、校验、加载 `userspace/extensions/post_process/post_processors/` 下的声明。  
+`list_enabled_post_processors` 仅返回 ``is_enabled: true`` 的 key。
 
-#### run_post_processor
+#### run_post_processor / run_enabled_post_processors
 
-`PostProcess.run_post_processor(key: str, session: ScanSessionReport) -> None`
-
-校验会话后按声明拓扑执行各 adapter（同一份 `session` + 可选 `deps`）。
+`PostProcess.run_post_processor(key, session)` — 显式跑指定 key（忽略 is_enabled）。  
+`PostProcess.run_enabled_post_processors(session) -> list[str]` — 扫描结束后默认路径：跑所有 enabled。
 
 ---
 

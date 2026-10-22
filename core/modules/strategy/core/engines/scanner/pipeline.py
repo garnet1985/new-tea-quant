@@ -341,7 +341,6 @@ class ScannerPipeline:
             scan_date=scan_date,
             stock_ids=stock_ids,
             date_meta=date_meta,
-            post_process=str(settings.scanner.post_process or "console"),
             goal=PostProcess.goal_summary_from_settings(settings.goal.goal),
             max_cache_days=scan_max,
             skip_save=use_cache,

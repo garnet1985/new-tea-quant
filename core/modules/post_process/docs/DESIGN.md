@@ -19,11 +19,11 @@ userspace/extensions/
     └── post_process.yaml
 ```
 
-策略：
+启用（全局，不在策略 settings）：
 
 ```yaml
-scanner:
-  post_process: console
+# post_processors/presenter/post_processor.yaml
+is_enabled: true
 ```
 
 ---
@@ -32,7 +32,7 @@ scanner:
 
 1. Scanner 产出内部机会列表  
 2. `PostProcess.build_session_report` → `ScanSessionReport`  
-3. `PostProcess.run_post_processor(key, session)` → 拓扑执行各 component  
+3. `PostProcess.run_enabled_post_processors(session)` → 对每个 enabled PostProcessor 拓扑执行  
 
 Component **共享同一份** session；`depends_on` 仅注入依赖方的 **return**（`deps` map），不改写标准协议。
 

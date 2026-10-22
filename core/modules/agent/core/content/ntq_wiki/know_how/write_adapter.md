@@ -1,6 +1,6 @@
 ---
 title: 写扫描后续处理 Adapter
-summary: 在 userspace 写 BaseAdapter，并用 post_processor YAML 挂到策略 scanner.post_process。
+summary: 在 userspace 写 BaseAdapter，用 post_processor.yaml 声明并设 is_enabled。
 ---
 
 # 写扫描后续处理 Adapter
@@ -29,28 +29,23 @@ class MyNotifyAdapter(BaseAdapter):
             print(report.strategy_name, len(report.opportunities))
 ```
 
-## 2. 声明 PostProcessor
+## 2. 声明并启用 PostProcessor
 
 ```yaml
 # userspace/extensions/post_process/post_processors/my_notify/post_processor.yaml
 key: my_notify
+is_enabled: true
 adapters:
   my_notify:
     config: {}
 ```
 
-可选 `depends_on: [other_adapter]`；执行时注入 `deps`。
-
-## 3. 策略挂上
-
-```python
-"scanner": {
-    "post_process": "my_notify",
-}
-```
+可选 `depends_on: [other_adapter]`；执行时注入 `deps`。  
+扫描任意策略结束后会跑所有 ``is_enabled: true`` 的 PostProcessor——不在策略 settings 里挂。
 
 ## 检查
 
 1. `PostProcess.validate_adapter("my_notify")`
 2. `PostProcess.validate_post_processor("my_notify")`
-3. 跑一次 `Strategy.scan`
+3. `PostProcess.list_enabled_post_processors()` 应含 `my_notify`
+4. 跑一次 `Strategy.scan`

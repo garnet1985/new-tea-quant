@@ -16,7 +16,7 @@ def _disk() -> dict:
         "meta": {"key": "demo"},
         "simulation": {"execution": {"mode": "entity_based"}},
         "data": {"base": {"data_key": "stock.kline.daily"}},
-        "scanner": {"post_process": "console"},
+        "scanner": {"max_cache_days": 10},
         "core": {"n": 1},
     }
 
@@ -25,7 +25,7 @@ def test_fingerprint_diff_ignores_scanner_and_meta() -> None:
     disk = _disk()
     user = {
         **disk,
-        "scanner": {"post_process": "webhook"},
+        "scanner": {"max_cache_days": 3},
         "meta": {"key": "demo", "display_name": "x"},
         "core": {"n": 2},
     }
@@ -37,8 +37,9 @@ def test_fingerprint_diff_ignores_scanner_and_meta() -> None:
 
 def test_calculate_effective_settings_merges_fingerprint_fields_only() -> None:
     disk = _disk()
-    user = {**disk, "core": {"n": 9}, "scanner": {"post_process": "x"}}
+    user = {**disk, "core": {"n": 9}, "scanner": {"max_cache_days": 3}}
     effective, settings_diff = StrategySettings.calculate_effective_settings(disk, user)
     assert settings_diff.get("core") == {"n": 9}
     assert effective.core.get("n") == 9
-    assert effective.scanner.post_process == "console"
+    # scanner 不进 fingerprint merge：effective 保留 disk 侧 scanner
+    assert effective.scanner.max_cache_days == 10

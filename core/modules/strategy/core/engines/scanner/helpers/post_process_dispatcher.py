@@ -1,8 +1,8 @@
-"""扫描结果 → Adapter 协议 → userspace PostProcess。
+"""扫描结果 → Adapter 协议 → userspace 全局 enabled PostProcessor。
 
 本文件:
-- PostProcessDispatcher: 组装 ScanSessionReport 并执行 scanner.post_process
-  边界: 负责协议映射与调度；不负责 component 实现
+- PostProcessDispatcher: 组装 ScanSessionReport 并执行所有 ``is_enabled`` 的 PostProcessor
+  边界: 负责协议映射与调度；不负责 component 实现；不读策略 settings
 """
 
 from __future__ import annotations
@@ -16,8 +16,6 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_POST_PROCESS = "console"
-
 
 @dataclass
 class PostProcessDispatcher:
@@ -27,11 +25,9 @@ class PostProcessDispatcher:
 
     def dispatch(
         self,
-        post_process_key: str,
         opportunities: List[Opportunity],
         context: Dict[str, Any],
-    ) -> None:
-        key = str(post_process_key or "").strip() or DEFAULT_POST_PROCESS
+    ) -> List[str]:
         scan_date = str((context or {}).get("date") or "").strip()
         session = PostProcess.build_session_report(
             scan_date=scan_date,
@@ -41,14 +37,14 @@ class PostProcessDispatcher:
             strategy_version=str(self.strategy_version or ""),
         )
         try:
-            PostProcess.run_post_processor(key, session)
+            return PostProcess.run_enabled_post_processors(session)
         except Exception as exc:
             logger.error(
-                "[PostProcessDispatcher] post_process '%s' 失败: %s",
-                key,
+                "[PostProcessDispatcher] enabled post_processors 失败: %s",
                 exc,
                 exc_info=True,
             )
+            return []
 
 
-__all__ = ["DEFAULT_POST_PROCESS", "PostProcessDispatcher"]
+__all__ = ["PostProcessDispatcher"]

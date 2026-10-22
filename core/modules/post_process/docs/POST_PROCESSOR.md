@@ -65,7 +65,7 @@ run(session: ScanSessionReport, config: dict, deps: dict[str, Any]) -> Any
 
 ```yaml
 scanner:
-  post_process: demo_handoff    # 引用某个 PostProcess 的 key
+  # 后续处理不在策略 settings；见 post_processors/<key>.is_enabled
 ```
 
 ### 命名定义与目录（userspace）
@@ -99,26 +99,24 @@ on_error: continue    # continue | stop（可选，默认 continue）
 on_empty: run         # run | skip：会话无机会时是否仍执行（可选）
 
 # 无序声明：用 mapping，不要用 list 表达「流水线」
-components:
-  console:
+adapters:
+  presenter:
     config:
+      print: true
       show_history: true
-
-  backtest_res_loader:
-    config:
-      layer: price
 
   msg_sender:
     config:
       dry_run: true
       channel: wecom_webhook
-    # depends_on: []                 # 可选；默认无依赖
+    depends_on:
+      - presenter                 # 可选：注入 presenter 的 return
 
   paper_trader:
     config:
       dry_run: true
     depends_on:
-      - backtest_res_loader          # 可选：执行前须先跑完 loader，并注入其 output
+      - presenter
 ```
 
 要点：
@@ -132,8 +130,8 @@ components:
 ## 执行语义
 
 1. Adapter（或等价层）得到并校验 **一份** `ScanSessionReport`  
-2. 加载策略配置的 `post_process` key → component 集合  
-3. 按各 component 的 `depends_on` 做 **拓扑排序**  
+2. 枚举所有 ``is_enabled: true`` 的 PostProcessor  
+3. 对每个 PostProcessor：按 adapters 的 `depends_on` 做 **拓扑排序**  
    - 无边：采用**稳定次序**（例如按 component 名排序），保证可复现，但不赋予「流水线」语义  
    - 有环：配置错误，拒绝执行并报错  
 4. 按序逐个调用；每次传入 **同一 `session`** + 当前已缓存的依赖 `deps`  
@@ -155,33 +153,33 @@ components:
 
 ---
 
-## 策略配置
+## 全局启用
 
 ```yaml
-scanner:
-  post_process: console
+# post_processors/presenter/post_processor.yaml
+key: presenter
+is_enabled: true
 ```
 
-旧 `scanner.adapters` 已移除，不做兼容。
+策略 `settings.scanner` **不再**配置 post_process；旧字段加载时会被丢弃。
 
 ---
 
-## Example components（演示用）
+## Example adapters（演示用）
 
 跑通与否次要；用于说明组装方式。可作为 ship 在 `userspace/extensions/post_process/adapters/` 的模板，或 initialization 种子。
 
 | 名 | 典型行为 | 常见 return |
 |----|----------|-------------|
-| `backtest_res_loader` | 按 entity 拉回测等 app 内信息 | 自定结构（供 `deps` 使用） |
-| `console` | 打印会话 / 策略报告 / 机会 | 通常 `None` |
-| `emailer` / `msg_sender` | 通知；建议默认 `dry_run` | 通常 `None` |
-| `paper_trader` | 演示下单；内部可自建带仓位局部类型 | 可选下单回执 |
+| `presenter` | 组装会话视图；可选 CLI；加载同策略 price 回测历史 | `{strategies, backtest_history}`（供 UI / `deps`） |
+| `email_sender` / `wechat_sender` / `sms_sender` | 通知；建议默认 `dry_run` | 通常 `None` |
+| `demo_broker` | 演示下单（easytrader / vnpy / qmt） | 可选下单回执 |
 
 ---
 
 ## 发现与加载（可扩展性）
 
-用户只往 userspace 丢目录/YAML，框架必须能 **枚举** 与 **按名解析**，否则 `post_process: demo_handoff` 与 `components.console` 无法落地。能力对齐现有 `PostProcess.validate` / `PostProcess.load_class` / `AdapterLoader`。
+用户只往 userspace 丢目录/YAML，框架必须能 **枚举** 与 **按名解析**，否则 enabled 的 PostProcessor 与 `adapters.presenter` 无法落地。能力对齐现有 `PostProcess.validate_post_processor` / `AdapterLoader`。
 
 ### Component 发现
 
@@ -201,36 +199,32 @@ scanner:
 | `load(key)` | 读入声明 → 结构化对象（key、components map、on_error…） |
 | `validate(key)` | 文件存在、YAML 可解析、`components` 中每个 name 能通过 Component.validate；`depends_on` 无环且引用的 name 都在本 PostProcess 的 components 集合内 |
 
-策略设置校验阶段：`scanner.post_process` 指向的 key 应 `PostProcess.validate` 通过（失败策略可与现行 adapter 一样先 warn，或升为 critical——实现时再定）。
+扫描路径只执行 ``is_enabled: true`` 且 `validate_post_processor` 通过的声明；失效的 enabled 项执行期记错并按 `on_error` 处理。
 
 ### 解析流程（执行前）
 
 ```text
-scanner.post_process = "demo_handoff"
+ list_enabled_post_processors()
         │
         ▼
- PostProcess.load("demo_handoff")     # userspace 发现
-        │
-        ▼
- for name in components:              # 声明集合
-     Component.validate / load_class(name)
-        │
-        ▼
- 拓扑排序(depends_on) → 依次 run(session, config, deps)
+ for key in enabled:
+     PostProcess.load_post_processor(key)
+            │
+            ▼
+     for name in adapters:
+         Adapter.validate / load_class(name)
+            │
+            ▼
+     拓扑排序(depends_on) → 依次 run(session, config, deps)
 ```
 
 ### 打包 / 分发
 
-策略包若依赖自定义后续处理，打包解析应能收集：
-
-- 引用的 PostProcess 声明文件  
-- 声明里用到的 Component 目录  
-
-（对齐 `extensions/post_process/adapters/<name>` 打进 strategy bundle 的做法。）
+PostProcess 为全局配置，**不随策略 share bundle 导出**。自定义装配放在本机 / 初始化种子的 `userspace/extensions/post_process/`。
 
 ## 刻意保持简单的点
 
-- 用户只配：**一个 key + 用哪些 component**（无序）  
+- 用户只配：**is_enabled + 用哪些 adapter**（无序）  
 - 需要协作时再写 **`depends_on`** → 执行期拓扑 + `deps` 注入  
 - 可扩展性靠 **userspace 目录约定 + list/load/validate**，不靠中央注册表  
 - 不引入 steps/sinks、协议变换链、并行 DAG 语法（以后若要并行，仍是同一 input 模型上的调度优化）

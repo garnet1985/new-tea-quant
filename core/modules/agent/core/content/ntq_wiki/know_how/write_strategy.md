@@ -116,7 +116,7 @@ settings = {
         },
     },
     "scanner": {
-        "post_process": "console",
+        "use_strict_previous_trading_day": True,
     },
 }
 ```

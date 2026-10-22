@@ -1,8 +1,9 @@
-"""``settings.scanner`` — 扫描模式与缓存 / post_process 配置。
+"""``settings.scanner`` — 扫描模式与缓存配置。
 
 本文件:
-- ScannerSettings: 锚点严格模式、max_cache_days、post_process 等
-  边界: 负责 scanner section；不负责 ScanDateResolver 或 BE 扫描
+- ScannerSettings: 锚点严格模式、max_cache_days、watch_list 等
+  边界: 负责 scanner section；不负责 ScanDateResolver / BE / post_process
+  说明: 后续处理是全局 ``post_processors/<key>.is_enabled``，不在策略 settings 里
 """
 
 from __future__ import annotations
@@ -13,12 +14,10 @@ from typing import Any, Dict
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport
 
-DEFAULT_POST_PROCESS = "console"
-
 
 @dataclass
 class ScannerSettings(SettingsBase):
-    """``settings.scanner`` — post_process / 严格交易日 / 缓存 / watch_list。"""
+    """``settings.scanner`` — 严格交易日 / 缓存 / watch_list。"""
 
     raw_settings: Dict[str, Any]
 
@@ -32,12 +31,6 @@ class ScannerSettings(SettingsBase):
     @property
     def scanner(self) -> Dict[str, Any]:
         return dict(self._block())
-
-    @property
-    def post_process(self) -> str:
-        raw = self._block().get("post_process", DEFAULT_POST_PROCESS)
-        name = str(raw or "").strip()
-        return name or DEFAULT_POST_PROCESS
 
     @property
     def use_strict_previous_trading_day(self) -> bool:
@@ -71,12 +64,12 @@ class ScannerSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         s = self._block()
-        s.setdefault("post_process", DEFAULT_POST_PROCESS)
         s.setdefault("use_strict_previous_trading_day", True)
         s.setdefault("max_cache_days", self._system_scan_max_versions())
         s.setdefault("watch_list", "")
-        # 清理过时字段
+        # 清理过时字段（后续处理已改为全局 is_enabled）
         s.pop("adapters", None)
+        s.pop("post_process", None)
         self._normalize_fields()
 
     def validate(self) -> ValidationReport:
@@ -93,7 +86,6 @@ class ScannerSettings(SettingsBase):
             return report
 
         self.apply_defaults()
-        self._validate_post_process(report)
         return report
 
     def to_dict(self) -> Dict[str, Any]:
@@ -103,8 +95,7 @@ class ScannerSettings(SettingsBase):
     def _normalize_fields(self) -> None:
         s = self._block()
         s.pop("adapters", None)
-        pp = str(s.get("post_process") or "").strip()
-        s["post_process"] = pp or DEFAULT_POST_PROCESS
+        s.pop("post_process", None)
 
         ust = s.get("use_strict_previous_trading_day", True)
         s["use_strict_previous_trading_day"] = ust if isinstance(ust, bool) else True
@@ -118,17 +109,5 @@ class ScannerSettings(SettingsBase):
         wl = s.get("watch_list", "")
         s["watch_list"] = "" if wl is None else str(wl)
 
-    def _validate_post_process(self, report: ValidationReport) -> None:
-        from core.modules.post_process import PostProcess
 
-        key = self.post_process
-        ok, err = PostProcess.validate_post_processor(key)
-        if not ok:
-            SettingsBase.add_warning(
-                report,
-                f"scanner.post_process[{key}]",
-                f"后续处理 '{key}' 不可用: {err}",
-            )
-
-
-__all__ = ["DEFAULT_POST_PROCESS", "ScannerSettings"]
+__all__ = ["ScannerSettings"]

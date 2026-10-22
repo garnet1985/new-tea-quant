@@ -85,6 +85,11 @@ class PostProcess:
         return PostProcessorLoader.list_keys()
 
     @staticmethod
+    def list_enabled_post_processors() -> List[str]:
+        """全局启用的 PostProcessor key（``is_enabled: true``）。"""
+        return PostProcessorLoader.list_enabled_keys()
+
+    @staticmethod
     def validate_post_processor(key: str) -> Tuple[bool, str]:
         return PostProcessorValidator.validate(key)
 
@@ -94,11 +99,26 @@ class PostProcess:
 
     @staticmethod
     def run_post_processor(key: str, session: ScanSessionReport) -> None:
-        """校验会话后执行指定 PostProcessor。"""
+        """校验会话后执行指定 PostProcessor（忽略 is_enabled，供显式调用）。"""
         ok, err = PostProcess.validate_session(session)
         if not ok:
             raise ValueError(f"ScanSessionReport 无效: {err}")
         PostProcessorExecutor.run(key, session)
+
+    @staticmethod
+    def run_enabled_post_processors(session: ScanSessionReport) -> List[str]:
+        """扫描结束后：对所有 ``is_enabled`` 的 PostProcessor 各跑一遍。
+
+        Returns:
+            实际尝试执行的 key 列表（稳定序）。
+        """
+        ok, err = PostProcess.validate_session(session)
+        if not ok:
+            raise ValueError(f"ScanSessionReport 无效: {err}")
+        keys = PostProcess.list_enabled_post_processors()
+        for key in keys:
+            PostProcessorExecutor.run(key, session)
+        return list(keys)
 
 
 __all__ = ["PostProcess"]

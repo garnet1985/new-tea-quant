@@ -47,5 +47,6 @@ session = PostProcess.build_session_report(
     strategy_name="demo",
     opportunities=[],
 )
-PostProcess.run_post_processor("console", session)
+PostProcess.run_enabled_post_processors(session)
+# 或显式：PostProcess.run_post_processor("presenter", session)
 ```

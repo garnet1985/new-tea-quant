@@ -4,7 +4,7 @@
 
 userspace 扩展布局、动态加载、`process` 上下文，以及与 `AdapterDispatcher` 的协作。
 
-**相关文档**：[架构总览](./ARCHITECTURE.md)
+**相关文档**：[架构总览](./ARCHITECTURE.md) · [出口协议](./PROTOCOL.md) · [后续处理](./POST_PROCESS.md)
 
 ---
 

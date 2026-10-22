@@ -41,4 +41,6 @@ A：strategy `AdapterDispatcher` 写入 `context["price_history"]`；adapter 只
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
 - [设计](./docs/DESIGN.md)
+- [出口协议（三层）](./docs/PROTOCOL.md)
+- [后续处理 PostProcess](./docs/POST_PROCESS.md)
 - [测试用例](./__test__/TEST_CASES.md)

@@ -29,3 +29,56 @@ terms:
     avoid:
       - "userspace.adapters.*"
       - "userspace/adapters/"
+
+  Opportunity:
+    definition: "Adapter 出口协议：单条标准机会（标的 + 触发价/日）。见 docs/PROTOCOL.md。与 strategy 内部 Opportunity 为映射关系，非同一契约。"
+    aliases:
+      - "标准机会"
+    avoid:
+      - "在协议层塞入仓位或止盈止损细则"
+
+  StrategyScanReport:
+    definition: "Adapter 出口协议：单策略一次扫描报告（策略/目标/时间 + Opportunity 列表）。见 docs/PROTOCOL.md。"
+    aliases:
+      - "标准单策略扫描报告"
+    avoid:
+      - "把多策略机会扁平成一份却只挂一个 goal"
+
+  ScanSessionReport:
+    definition: "Adapter 出口协议：一次扫描会话顶层报告；strategies 为 StrategyScanReport 列表（单策略长度为 1）。见 docs/PROTOCOL.md。"
+    aliases:
+      - "标准扫描会话报告"
+      - "扫描会话"
+    avoid:
+      - "ScanReport（易与单策略报告混淆）"
+
+  PostProcess:
+    definition: "后续处理单元：有 key，无序声明所用 components；各 component 独立消费同一份 ScanSessionReport。可选 depends_on 仅影响执行拓扑与 deps 注入。见 docs/POST_PROCESS.md。"
+    aliases:
+      - "后续处理"
+      - "post_process"
+    avoid:
+      - "pipeline"
+      - "把 component 的 output 当成下一跳的标准协议"
+
+  Component:
+    definition: "PostProcess 内真正干活的单元。input = ScanSessionReport + deps（依赖组件 output 的 key→value；无依赖则为空）。落在 userspace/extensions/components/<name>/，由 list/load/validate 发现。见 docs/POST_PROCESS.md。"
+    aliases:
+      - "post_process_component"
+    avoid:
+      - "协议流水线上一环"
+      - "中央硬编码注册表（应用目录发现）"
+
+  post_processes_directory:
+    definition: "userspace/extensions/post_processes/；按 key 发现 PostProcess YAML（或子目录声明）。"
+    aliases:
+      - "PostProcess 发现根"
+    avoid:
+      - "userspace/pipelines/"
+
+  components_directory:
+    definition: "userspace/extensions/components/<name>/component.py；导入路径 userspace.extensions.components.<name>.component。"
+    aliases:
+      - "Component 发现根"
+    avoid:
+      - "与 adapters/ 长期混用（迁移期除外）"

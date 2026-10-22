@@ -18,10 +18,12 @@ core/loader.AdapterLoader    # 与 strategy.AdapterDispatcher 共用加载规则
 
 ## 边界
 
-**In scope：** adapter 契约、userspace 目录约定、校验与动态加载  
-**Out of scope：** 扫描调度、模拟产物读取、具体业务 adapter、下单/风控；`AdapterDispatcher` 与 `price_history` 组装归属 `modules.strategy`
+**In scope：** adapter 契约、userspace 目录约定、校验与动态加载；出口协议与后续处理设计；PostProcess / Component 的 userspace 发现（list / load / validate）（见 PROTOCOL / POST_PROCESS）  
+**Out of scope：** 扫描调度、模拟产物读取、具体业务 adapter、下单/风控、可交易演示协议；`AdapterDispatcher` 与 `price_history` 组装归属 `modules.strategy`
 
 ## 相关文档
 
+- [PROTOCOL.md](./PROTOCOL.md) — 三层出口协议
+- [POST_PROCESS.md](./POST_PROCESS.md) — 后续处理（非 pipeline）
 - [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)

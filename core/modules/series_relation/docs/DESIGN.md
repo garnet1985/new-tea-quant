@@ -1,6 +1,6 @@
 # SeriesRelation — 设计
 
-**版本：** `0.1.0`（设计稿；实现未开始）
+**版本：** `0.1.0`（设计稿）
 
 多条 time series 并置比较：对齐呈现 + 可选关系摘要。  
 相关约定见下文 settings / 产物；实现时 Facade 拟为 `SeriesRelation`。

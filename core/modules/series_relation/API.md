@@ -9,7 +9,7 @@
 
 设计见 [docs/DESIGN.md](./docs/DESIGN.md)。术语见 [glossary.yaml](./glossary.yaml)。
 
-**公开约定：** 包根仅导出 `SeriesRelation`；类型从 [`contracts.py`](./contracts.py) 导入。本波无 BFF/UI。
+**公开约定：** 包根仅导出 `SeriesRelation`；类型从 [`contracts.py`](./contracts.py) 导入。CLI、BFF 与 UI 均只经本 Facade。
 
 ---
 

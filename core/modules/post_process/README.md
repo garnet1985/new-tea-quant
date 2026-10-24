@@ -35,5 +35,6 @@ A：改 `post_processors/<key>/post_processor.yaml` 的 `is_enabled`。扫描任
 
 - [快速开始](./QUICKSTART.md)
 - [公开 API](./API.md)
+- [架构](./docs/ARCHITECTURE.md)
 - [出口协议](./docs/PROTOCOL.md)
 - [PostProcessor](./docs/POST_PROCESSOR.md)

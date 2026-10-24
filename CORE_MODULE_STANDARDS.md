@@ -178,7 +178,7 @@
 | 位置 | 放什么 | 不放什么 |
 |------|--------|----------|
 | `<module>/__test__/` | **`test_api.py`（必须）**；可选 `test_integration_*.py`、**薄** `test_performance_*.py`（CI 冒烟）；`TEST_CASES.md` | 正式 bench 的大输入/历史结果（→ `__performance__/`）；包内细单测 |
-| `<package>/__test__/` | 该包 **unit** + `TEST_CASES.md` | 超出该包职责；测其他模块行为 |
+| `<package>/__test__/` | 该包 **unit**；`TEST_CASES.md` 可选（有则须与 pytest 对齐） | 超出该包职责；测其他模块行为 |
 | `<module>/__performance__/` | 本模块正式性能：固定输入、脚本、分版本结果、`CASES.md` | 跨模块 e2e（分别在相关模块 `__performance__/`，或 `devcli.py bpe/bps`）；普通 API 单测 |
 
 ```text
@@ -249,7 +249,7 @@
 - `API.md` 中每个对外入口须有对应 case（按 API 节/入口映射即可，不必一方法一文件）。
 - API 不破坏时，内部重构 / 包内单测调整 → 版本规则上可走**小版本**；破坏公开 API → **中版本**，并同步 `API.md` + `test_api.py` + `__test__/TEST_CASES.md`。
 
-**`TEST_CASES.md`（每个 `__test__` 目录一份）：**
+**`TEST_CASES.md`（模块根 `__test__` 必须；功能包 `__test__` 可选）：**
 
 | 内容 | 要求 |
 |------|------|
@@ -432,7 +432,7 @@ settings["performance"] = {"max_workers": 8}
 
 ### **指标14：TEST_CASES.md 用例索引**
 
-> 每个 `__test__` 目录维护一份 `TEST_CASES.md`（取代 `test_cases.yaml`）。  
+> 模块根 `__test__` 必须维护一份 `TEST_CASES.md`（取代 `test_cases.yaml`）；功能包级可选。  
 > **正文结构与规则**见 [`docs/module-doc-standard.md` §4](docs/module-doc-standard.md)。  
 > 模块侧：存在该文件；Case 名与 pytest 一致；API suite 映射 `API.md`（指标 2）。
 

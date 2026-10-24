@@ -1,7 +1,7 @@
 # Adapter 出口协议
 
 **状态：** 已落地（`modules.post_process` 0.3.0 / `contracts`）  
-**版本：** `0.1.0`
+**版本：** `0.3.0`
 
 Adapter 的核心出口是三层标准协议（建议用三个 dataclass 表达）。  
 协议是后续处理里每个 component 的**标准协议 input**（可另有依赖产出，见 [POST_PROCESS.md](./POST_PROCESS.md)）；如何删减、重组、副作用由 component 自行决定。

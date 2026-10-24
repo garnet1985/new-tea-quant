@@ -1,6 +1,6 @@
 # Data Manager — 快速开始
 
-**模块：** `modules.data_manager` · **版本：** `0.2.2`
+**模块：** `modules.data_manager` · **版本：** `0.2.3`
 
 ```python
 from core.modules.data_manager import DataManager

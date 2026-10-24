@@ -2,7 +2,7 @@ name: modules.series_relation
 version: "0.1.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
-description: "序列关系：多条 time series 并置比较（对齐呈现 + 可选关系摘要）。无 BFF/UI。"
+description: "序列关系：多条 time series 并置比较（对齐呈现 + 可选关系摘要）。"
 dependencies:
   - modules.data_manager
   - modules.data_contract

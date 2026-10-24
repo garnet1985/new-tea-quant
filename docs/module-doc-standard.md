@@ -284,7 +284,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### `__test__/TEST_CASES.md`
 
-> 每个 `__test__` 目录维护一份；**取代** `test_cases.yaml`。  
+> 模块根 `__test__` 必须维护一份；功能包级可选；**取代** `test_cases.yaml`。  
 > 模板：[`__test__/TEST_CASES.md`](doc_templates/module/__test__/TEST_CASES.md)。  
 > 测试类型与目录职责见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)。
 

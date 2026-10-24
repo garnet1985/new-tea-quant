@@ -1,6 +1,6 @@
 # Strategy — 设计说明
 
-**模块：** `modules.strategy` · **版本：** `0.11.0`
+**模块：** `modules.strategy` · **版本：** `0.12.0`
 
 硬约束摘要如下；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 

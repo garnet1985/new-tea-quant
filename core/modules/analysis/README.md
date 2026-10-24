@@ -32,3 +32,4 @@
 - [TODO.md](./TODO.md) — **当前权威实施清单**
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — 部分表述待与 TODO 同步
 - [API.md](./API.md) — 行为 API 定稿后更新
+- [glossary.yaml](./glossary.yaml) — 术语表

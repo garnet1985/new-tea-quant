@@ -150,3 +150,4 @@ IO 不变量：正式片数 N ⇒ 至少 N 次按片 DB 装载。
 - [设计](./DESIGN.md)
 - [SliceBased 算法 SOT](./SLICE_BASED_ALGORITHM.md)
 - [术语表](../glossary.yaml)
+- [决策](./DECISIONS.md)

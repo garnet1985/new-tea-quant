@@ -1,3 +1,6 @@
+# Series Relation 术语表
+# Version: 0.1.0
+
 terms:
   series_relation:
     definition: "多条 time series 并置比较：日期并集呈现，交集上做关系摘要。"

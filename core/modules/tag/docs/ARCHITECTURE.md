@@ -87,3 +87,4 @@ Tag.execute
 - [glossary.yaml](../glossary.yaml)
 - [DESIGN.md](./DESIGN.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
+- [决策](./DECISIONS.md)

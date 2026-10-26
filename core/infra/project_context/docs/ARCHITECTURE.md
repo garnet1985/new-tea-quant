@@ -97,3 +97,5 @@ err = ProjectContext.types.OverridableConfigNotFoundError
 - [详细设计](./DESIGN.md)
 - [API](../API.md)
 - [契约测试](../__test__/test_api.py)
+- [术语表](../glossary.yaml)
+- [决策](./DECISIONS.md)

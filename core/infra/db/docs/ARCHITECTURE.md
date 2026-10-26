@@ -1,6 +1,6 @@
 # Database — 架构
 
-**版本：** `0.3.1`
+**版本：** `0.3.2`
 
 统一数据库基础设施：门面 `Db` + 实现包 `core/`（按 backend 挂载 Engine）。词条见 [glossary.yaml](../glossary.yaml)。
 
@@ -101,3 +101,4 @@ flowchart LR
 - [设计](./DESIGN.md)
 - [存储域](./storage-domains.md)
 - [快速开始](../QUICKSTART.md)
+- [决策](./DECISIONS.md)

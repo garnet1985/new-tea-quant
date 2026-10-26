@@ -83,3 +83,4 @@ start
 - [术语表](../glossary.yaml)
 - [设计](./DESIGN.md)
 - [快速开始](../QUICKSTART.md)
+- [决策](./DECISIONS.md)

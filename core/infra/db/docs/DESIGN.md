@@ -1,6 +1,6 @@
 # Database 模块设计文档
 
-**版本：** `0.3.1`
+**版本：** `0.3.2`
 
 本文档描述 `infra.db` 的模块拆分与协作细节；总览见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 

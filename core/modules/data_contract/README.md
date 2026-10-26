@@ -28,3 +28,7 @@
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
+- [快速开始](./QUICKSTART.md)
+- [概念](./docs/CONCEPTS.md)
+- [设计](./docs/DESIGN.md)
+- [决策](./docs/DECISIONS.md)

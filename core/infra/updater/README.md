@@ -25,3 +25,7 @@ NTQ 的升级流程编排。在已装环境上原地升级——替换源码、�
 - [用户指南](./docs/USER_GUIDE.md)
 - [公开 API](./API.md)
 - [架构](./docs/ARCHITECTURE.md)
+- [术语表](./glossary.yaml)
+- [快速开始](./QUICKSTART.md)
+- [设计](./docs/DESIGN.md)
+- [决策](./docs/DECISIONS.md)

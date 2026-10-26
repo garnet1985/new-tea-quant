@@ -29,3 +29,4 @@ NTQ 的 AI 助手。你跟它说想干嘛，它在后台调用框架自带的工
 - [公开 API](./API.md)
 - [架构](./docs/ARCHITECTURE.md)
 - [术语表](./glossary.yaml)
+- [快速开始](./QUICKSTART.md)

@@ -1,0 +1,32 @@
+# AI 通道 术语表
+# Version: 0.1.0
+#
+# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
+
+terms:
+  Provider:
+    definition: "一家 AI 模型供应商的接入配置，包含 id、显示名、base_url、可用模型列表等；用户可在 userspace 注册自带供应商"
+    aliases:
+      - "供应商"
+      - "AI 供应商"
+    avoid:
+      - "模型（模型属于某个 Provider，Provider 本身不是模型）"
+
+  API Key:
+    definition: "某个 Provider 的访问密钥，由用户填入，本模块负责写入本地存储；与官网会员通用凭证是两回事"
+    aliases:
+      - "密钥"
+    avoid:
+      - "会员凭证（会员凭证走 infra.membership，不经过本模块）"
+
+  裸补全:
+    definition: "单次发请求拿模型补全结果；本模块只做这一层，不做多轮对话、工具调度、系统提示词编排"
+    aliases:
+      - "complete"
+    avoid:
+      - "对话（多轮对话与工具调度是 modules.agent 的职责）"
+
+  OpenAI 兼容协议:
+    definition: "供应商 API 遵循 OpenAI 请求/响应格式；符合该协议的供应商均可接入"
+    aliases: []
+    avoid: []

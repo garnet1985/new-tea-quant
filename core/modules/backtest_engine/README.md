@@ -33,3 +33,4 @@
 - [架构](./docs/ARCHITECTURE.md)
 - [设计](./docs/DESIGN.md)
 - [slice_based 算法](./docs/SLICE_BASED_ALGORITHM.md)
+- [决策](./docs/DECISIONS.md)

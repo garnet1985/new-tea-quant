@@ -60,3 +60,4 @@ flowchart LR
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
 - [DESIGN.md](DESIGN.md)
+- [决策](./DECISIONS.md)

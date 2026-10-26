@@ -73,3 +73,4 @@ strategy 三步模拟与 BE 调度不经过本模块。
 - [术语表](../glossary.yaml)
 - [设计](./DESIGN.md)
 - [概念](./CONCEPTS.md)
+- [决策](./DECISIONS.md)

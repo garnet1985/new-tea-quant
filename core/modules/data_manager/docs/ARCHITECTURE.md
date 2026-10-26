@@ -58,3 +58,4 @@ flowchart TB
 - [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
+- [决策](./DECISIONS.md)

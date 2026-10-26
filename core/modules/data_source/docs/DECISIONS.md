@@ -1,9 +1,22 @@
-# modules.data_source — 决定
+# Data Source — 设计与决策
 
 **版本：** `0.4.0`
 
-本文件列出本模块的关键选型回顾。每条决定独立编号。
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录本模块的设计目标、方案思路与拍板决策。API 以根目录 [API.md](../API.md) 为准。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+提供配置驱动的数据抓取，支持按照不同模式和不同数据供应商请求并加载数据：新数据源只需在 userspace 加 Provider + Handler，不用改主流程。
+
+## 方案与思路
+
+- **配置驱动**：`DATA_SOURCES` 声明各数据源（`userspace/data_source/mapping.py`）；handler config 经约定路径或 `handlers/` 树内按 key 查找；Provider 扫描 `userspace.data_source.providers` 下 `BaseProvider` 子类（见 DEC-04）。
+- **Schema 与表绑定**：不维护独立 schema 文件——`CONFIG.table` → `DataManager.get_table` → `load_schema()`，Handler 输出与 schema 对齐（见 DEC-01）。
+- **执行与 `is_dry_run`**：`is_dry_run` 为真时跳过写库，仍可抓取与标准化。
+- 其余选型——单一入口 `execute` / `renew`、数据源间串行 + 拓扑序、TQDM 在 import 时禁用、日期范围无独立 RenewManager、样本股票宇宙归属——见下文 DEC-02 ~ DEC-07。
 
 ---
 
@@ -49,10 +62,8 @@
 
 ---
 
-
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

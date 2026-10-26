@@ -1,9 +1,25 @@
-# Task Guard — 决定
+# Task Guard — 设计与决策
 
 **版本：** `0.2.0`
 
-本文列出长任务互斥锁模块的关键选型回顾。  
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录长任务互斥锁模块的设计目标、方案思路与拍板决策。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+解决"同一时刻只允许一个重活"的单机长任务互斥问题：CLI、BFF、Agent 可能各自起进程，需要跨进程可见的互斥机制；同时模块保持基础设施层纯净，不拉起业务模块。明确不做任务队列或流水线调度——当前需求仅是互斥，预留将来并入真 pipeline 的演进空间。
+
+## 方案与思路
+
+- **门面收口：** 包根只导出 `TaskGuard` 门面作为唯一调用面，内部 Lease / LockFile 等实现细节不外泄。
+- **租约语义：** `lease` 的 `kind` 须在 `VALID_KINDS`；上下文退出时按 `job_id` 释放。忙时 `acquire` 抛 `TaskLeaseBusyError`（携带 `active` 快照）。
+- **跨进程互斥用文件锁：** 租约文件放在 `userspace/.ntq/runtime/task_guard_active.json`，与进度等运行时文件同区；租约带过期时间，崩溃后自动释放。
+- **依赖最小化：** 只 import `infra.project_context`，不依赖 strategy / tag / db。
+- **演进策略：** 将来若引入真 pipeline/queue，本模块可并入其互斥层，或整体舍弃（见下文 DEC-05）。
+
+关键选型（单一入口、租约文件位置、依赖范围、文件锁、未来演进）见下文 DEC-01 ～ DEC-05。
 
 ---
 
@@ -89,6 +105,5 @@
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

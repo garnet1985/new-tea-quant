@@ -20,7 +20,7 @@
 - 不把归因拆成与 strategy 平级的模块；统计原语在 `modules.analysis`，无调度、无读盘
 - 不在单次回测里顺便归因
 
-硬约束细节见 [DESIGN.md](./DESIGN.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
+硬约束细节见 [DECISIONS.md](./DECISIONS.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
 ---
 
@@ -112,7 +112,6 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 - [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
-- [DESIGN.md](./DESIGN.md)
 - [CONCEPTS.md](./CONCEPTS.md)
 - [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)

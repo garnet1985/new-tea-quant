@@ -168,5 +168,5 @@ analyzer 从 `source.json` 抽出 **对齐长度的列向量**，不传 `Investm
 
 ## 与旧文档的关系
 
-- [README.md](./README.md) / [docs/DESIGN.md](./docs/DESIGN.md) 中「独立 Facade 读产物」「Strategy.analyze 已删除」等表述 **过时**。
-- **以本文 + `strategy/engines/analyzer/TODO.md` 为准**；有空再同步 ARCHITECTURE/DESIGN（非第一步阻塞项）。
+- [README.md](./README.md) / [docs/DECISIONS.md](./docs/DECISIONS.md) 中「独立 Facade 读产物」「Strategy.analyze 已删除」等表述 **过时**。
+- **以本文 + `strategy/engines/analyzer/TODO.md` 为准**；有空再同步 ARCHITECTURE/DECISIONS（非第一步阻塞项）。

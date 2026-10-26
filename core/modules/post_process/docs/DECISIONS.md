@@ -1,9 +1,43 @@
-# post_process — 决定
+# Post Process — 设计与决策
 
 **版本：** `0.3.0`
 
-本文件列出本模块的关键选型回顾。每条决定独立编号。
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录本模块的设计目标、方案思路与拍板决策。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+为扫描出口提供 userspace 可扩展的后续处理能力：userspace 扩展布局、动态加载、以及与策略 `PostProcessDispatcher` 的协作。扩展的启用是全局的，不进策略 settings。
+
+## 方案与思路
+
+**userspace 目录约定**：
+
+```text
+userspace/extensions/
+├── components/<name>/
+│   ├── adapter.py      # BaseAdapter 子类
+│   └── settings.py       # 可选
+└── post_processes/<key>/
+    └── post_process.yaml
+```
+
+启用（全局，不在策略 settings）：
+
+```yaml
+# post_processors/presenter/post_processor.yaml
+is_enabled: true
+```
+
+**运行时**：
+
+1. Scanner 产出内部机会列表
+2. `PostProcess.build_session_report` → `ScanSessionReport`
+3. `PostProcess.run_enabled_post_processors(session)` → 对每个 enabled PostProcessor 拓扑执行
+
+Component **共享同一份** session；`depends_on` 仅注入依赖方的 **return**（`deps` map），不改写标准协议。
 
 ---
 
@@ -36,6 +70,5 @@
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

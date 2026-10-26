@@ -44,7 +44,6 @@ flowchart LR
 ## 相关文档
 
 - [用户指南](./USER_GUIDE.md)
-- [DESIGN.md](DESIGN.md)
 - [API.md](../API.md)
 - [可用指标表](./AVAILABLE_INDICATORS.md)
 - [术语表](../glossary.yaml)

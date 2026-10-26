@@ -13,7 +13,7 @@ cp -R docs/doc_templates/module/ core/modules/foo/
 # 然后：替换 <占位>；不需要的可选文件/目录整份删除（并去掉 README 里对应链接）
 ```
 
-可选可删：`QUICKSTART.md`、`docs/CONCEPTS.md`、`docs/DESIGN.md`、整个 `__performance__/`。  
+可选可删：`QUICKSTART.md`、`docs/CONCEPTS.md`、`docs/DECISIONS.md`、整个 `__performance__/`。  
 `docs/notes/` 仅自用草稿，无正式契约。
 
 ## 放置规则
@@ -21,7 +21,7 @@ cp -R docs/doc_templates/module/ core/modules/foo/
 | 位置 | 文档 |
 |------|------|
 | **模块根**（有则必须在此） | `README.md`、`API.md`、`QUICKSTART.md`（可选）、`glossary.yaml`、`module_info.yaml` |
-| **`docs/`**（标准文档） | `ARCHITECTURE.md`、`DESIGN.md`（可选）、`CONCEPTS.md`（可选） |
+| **`docs/`**（标准文档） | `ARCHITECTURE.md`、`DECISIONS.md`（可选）、`USER_GUIDE.md`、`CONCEPTS.md`（可选） |
 | **`docs/notes/`** | 临时 / 开发者自用；无模板、非正式契约 |
 | **`__test__/`** | `TEST_CASES.md` + `test_api.py`（必须） |
 | **`__performance__/`**（可选） | 正式本模块 bench：`README` / `CASES` / `inputs` / `scripts` / `results/<version>/` |
@@ -54,7 +54,8 @@ docs/doc_templates/module/
 │   ├── inputs/  scripts/  results/
 └── docs/
     ├── ARCHITECTURE.md
-    ├── DESIGN.md              # 可选
+    ├── DECISIONS.md           # 可选
+    ├── USER_GUIDE.md
     ├── CONCEPTS.md            # 可选
     └── notes/
 ```
@@ -64,7 +65,7 @@ docs/doc_templates/module/
 | 文件 | 状态 |
 |------|------|
 | `README.md` / `API.md` / `glossary.yaml` / `module_info.yaml` | 已定稿（v1） |
-| `QUICKSTART.md` / `docs/CONCEPTS.md` / `docs/DESIGN.md` | 已定稿（v1，可选） |
+| `QUICKSTART.md` / `docs/CONCEPTS.md` / `docs/DECISIONS.md` | 已定稿（v1，可选） |
 | `docs/ARCHITECTURE.md` | 已定稿（v1） |
 | `__test__/TEST_CASES.md` + `test_api.py` | 已定稿（v1） |
 | `__performance__/README.md` + `CASES.md` | 已定稿（v1，框架）；指标细表可后补 |

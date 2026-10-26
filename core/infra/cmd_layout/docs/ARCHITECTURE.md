@@ -48,8 +48,7 @@ core/infra/cmd_layout/
 │   └── __test__/
 ├── __test__/              # 公开 API（test_api.py）
 └── docs/
-    ├── ARCHITECTURE.md
-    └── DESIGN.md
+    └── ARCHITECTURE.md
 ```
 
 ---
@@ -104,6 +103,5 @@ flowchart LR
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [快速开始](../QUICKSTART.md)
 - [决策](./DECISIONS.md)

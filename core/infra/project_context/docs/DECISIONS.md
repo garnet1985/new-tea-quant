@@ -1,9 +1,43 @@
-# Project Context — 决定
+# Project Context — 设计与决策
 
 **版本：** `0.2.0`
 
-本文列出项目上下文模块的关键选型回顾。  
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录项目上下文模块的设计目标、方案思路与拍板决策。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+项目上下文模块要解决的问题：全项目的**路径解析与配置访问**散落在各调用方手中，容易产生多入口、命名漂移与字符串路径拼接错误。目标是提供一个单一、静态、跨平台的访问入口，统一处理：
+
+- 项目根 / userspace 根的定位与缓存，支持自定义 userspace 位置与多环境切换；
+- 配置的加载与覆盖（core 默认值 ∪ userspace 覆盖 ∪ 环境变量），区分"可选配置"与"强依赖配置"的缺失语义；
+- 公开面保持窄：内部实现（PathManager / ConfigManager / DiscoveryManager）不对外暴露。
+
+约束与上下文：路径需跨 Windows / macOS / Linux 工作，且原生支持中文与空格路径；公开契约要单一真源、有测试覆盖。
+
+## 方案与思路
+
+整体走 **Facade + 静态 namespace** 路线：包根只导出 `ProjectContext` 作为静态 namespace 容器（无实例状态），内部 Manager 不对外导出；人读契约收敛到根目录 `API.md` 一份，跨模块类型放在 `contracts.py` 并经 `ProjectContext.types` 挂载。
+
+**路径解析：**
+
+- 项目根自包路径向上查找根标记（`.git`、`pyproject.toml` 等），命中后缓存；否则 fallback 父链。
+- userspace 根按固定优先级链解析：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`；已配置路径不要求目录已存在，但禁止静默回落。
+- 安装校验与运行时读取分离：`resolve_userspace_target(raw)`（仅安装 / precheck）做 `expanduser().resolve()` + 可写性检查，失败抛错且不写坏 json；空 `raw` 沿用已有 json。运行时只用 `get_userspace_root`，不另设近义别名；其余命名维持 `get_xxx_root` / `get_xxx_directory` / `get_xxx_path`。
+- `coerce_strategy_folder`：绝对 discovered folder 原样返回；相对 id 拼到 `userspace/strategies/`。
+- 所有路径 API 返回 `pathlib.Path` 而非字符串。
+
+**配置加载与发现：**
+
+- `load_core_config` 委托 `DiscoveryManager.load_overridable_config("", name)`，缺文件返回空 dict；`load_database_config` 合并 `database/common` + `database/{type}` + userspace + `DB_*` env；`load_data_config` 及访问器读合并后的 `data.json` 字段。
+- `discover_configs(domain)` 取 core ∪ userspace 下 id 并集排序；`load_overridable_config` 默认 `ConfigManager.load_with_defaults`，可注入自定义 `merge_fn`（如 `merge_market_profile_dicts` 做市场 profile 规则深度合并）。
+- 配置缺失按"可选 / 强依赖"分级处理（见下文 DEC-03）。
+
+**测试策略：** `__test__/test_api.py` 做公开 Facade / contracts 契约 smoke（`force_run`）；`core/__test__/` 测内部 Manager 行为。
+
+关键选型（单一入口、路径类型、缺失策略、优先级链、契约载体、find_in_tree 归属）见下文 DEC-01 ～ DEC-06。
 
 ---
 
@@ -109,6 +143,5 @@
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

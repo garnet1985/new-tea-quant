@@ -64,7 +64,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 返回 `(budget_mb, floor_mb)`；显式 `memory_budget_mb` 或 `auto`（见 DESIGN）
+- **描述：** 返回 `(budget_mb, floor_mb)`；显式 `memory_budget_mb` 或 `auto`（见 [DECISIONS](./docs/DECISIONS.md)）
 
 #### resolve_memory_floor
 

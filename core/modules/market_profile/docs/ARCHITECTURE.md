@@ -59,5 +59,4 @@ flowchart LR
 - [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
-- [DESIGN.md](DESIGN.md)
 - [决策](./DECISIONS.md)

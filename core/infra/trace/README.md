@@ -28,5 +28,4 @@
 - [架构](./docs/ARCHITECTURE.md)
 - [术语表](./glossary.yaml)
 - [快速开始](./QUICKSTART.md)
-- [设计](./docs/DESIGN.md)
 - [决策](./docs/DECISIONS.md)

@@ -83,4 +83,4 @@ Tag().execute(scenario_name="market_cap_tier")
 | `TagCalendarAsOfResult` | slice_based 横截面返回 |
 | `TagUpdateMode` / `TagExecutionMode` | 更新与执行模式枚举 |
 
-路由：`data.base` → per_entity（BE）/ global / non_time_series（主进程）。详见 [docs/DESIGN.md](./docs/DESIGN.md)。
+路由：`data.base` → per_entity（BE）/ global / non_time_series（主进程）。详见 [docs/DECISIONS.md](./docs/DECISIONS.md)。

@@ -1,9 +1,36 @@
-# infra.db — 决定
+# Database — 设计与决策
 
 **版本：** `0.3.2`
 
-本文件列出本模块的关键选型回顾。每条决定独立编号。
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录本模块的设计目标、方案思路与拍板决策。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+- **按 backend 分包**：mysql / pgsql / duckdb 各自 engine，不合并为 server 层。
+- **统一入口**：业务经 `DatabaseManager` 或 `DbBaseModel`，不直接碰 connector。
+- **字段与方言分离**：`engines/shared/fields` 定义类型语义；`schema_parser` 生成 DDL。
+- **性能优先**：参数化 SQL、批量写入、mysql/pgsql 写队列、duckdb WritePipeline。
+- **边界清晰**：`infra.db` 不提供业务语义；升级编排在 `userspace/system/updater`。
+
+## 方案与思路
+
+围绕上述目标，模块在几个关键方向上做了取舍（候选方案与比较的结论均已固化为 DEC 条目）：
+
+- **多后端支持**：适配层需明确支持范围并控制维护成本，最终确定为 PostgreSQL / MySQL / DuckDB 三后端，DuckDB 为 NTQ 默认嵌入式后端（见下文 DEC-01）。
+- **管理层形态**：v0.2 曾采用 `ConnectionManager` + `SchemaManager` + `TableManager` 三层架构，由 `DatabaseManager` 编排；因方言与 DuckDB 特例在统一层膨胀，与「每 backend 自洽」目标冲突，后废止并改为按 backend 拆分的独立 Engine 包（编排者模式），MySQL 与 PostgreSQL 保持平级目录、禁止合并为 `server/`（见下文 DEC-02 / DEC-07 / DEC-08）。
+- **写入路径**：高频写入默认走异步队列聚合而非逐条同步落库——mysql / pgsql 用 `BatchWriteQueue`，duckdb 用按 `storage_domain` 分域的 `WritePipeline`（见下文 DEC-04）。
+- **SQL 策略**：继续使用直接 SQL + 参数化，不引入 ORM，换取性能可控、方言可调（见下文 DEC-05）。
+- **DuckDB 存储布局**：按 `storage_domain` 拆为 data / tag / strategy 三库文件，表名全局唯一（见下文 DEC-06）；跨域读计划由 QueryPlanner 实现、跨域写 v1 不支持（见下文 DEC-10）。
+- **数值契约**：DECIMAL 存储 + infra 统一出入库标量契约，读出口 / 写入口各做一次规范化，业务层禁止再写兼容补丁（见下文 DEC-12）。
+
+**扩展方式**：
+
+- 新方言：新 engine 包 + `schema_parser` + `factory` 分支。
+- 新字段类型：在 `shared/fields` 增加子类并在 `from_dict` 注册。
+- DuckDB 新域：配置 `domains.*.db_path` + schema `storage_domain` 枚举。
 
 ---
 
@@ -17,8 +44,6 @@
 
 ---
 
----
-
 ## DEC-02：决策 2：三层管理架构（已废止）
 
 - **原决策（v0.2）**：`ConnectionManager` + `SchemaManager` + `TableManager`，由 `DatabaseManager` 编排。
@@ -28,16 +53,12 @@
 
 ---
 
----
-
 ## DEC-03：决策 3：默认实例机制保留
 
 - **决策**：保留 `DatabaseManager.set_default` / `get_default` / `reset_default`。
 - **理由**：减少样板代码；支持惰性自动 `initialize()`。
 - **影响**：测试需 `reset_default`；长生命周期进程须在退出时 `close()`。
 - **实现**：`db_manager.py`。
-
----
 
 ---
 
@@ -52,8 +73,6 @@
 
 ---
 
----
-
 ## DEC-05：决策 5：继续使用直接 SQL + 参数化
 
 - **决策**：Engine `connector` + 参数化 SQL；不引入 ORM。
@@ -63,15 +82,11 @@
 
 ---
 
----
-
 ## DEC-06：决策 6：DuckDB 三存储域（data / tag / strategy）
 
 - **决策**：按 `storage_domain` 拆为三库文件；表名全局唯一；`get_table(name)` API 不变。
 - **实现**：`StorageRegistry`、`DuckdbDomainCatalog`、`engines/duckdb/paths.py`；init 时 `rebuild_table_file_map`。
 - **详见**：[storage-domains.md](./storage-domains.md)
-
----
 
 ---
 
@@ -86,14 +101,10 @@
 
 ---
 
----
-
 ## DEC-08：决策 8：MySQL 与 PostgreSQL 保持平级目录
 
 - **决策**：禁止合并为 `server/`；允许包内重复，抽 shared 须无方言分支。
 - **实现**：`engines/mysql/` 与 `engines/pgsql/` 对称；共享项见 `_shared/`（fields、ddl_executor、dialect 等）。
-
----
 
 ---
 
@@ -112,8 +123,6 @@
 
 ---
 
----
-
 ## DEC-10：决策 10：JOIN 与 DuckDB 跨域查询（部分）
 
 - **决策**：
@@ -121,8 +130,6 @@
   - DuckDB 跨域读：计划由 engine **QueryPlanner**（ATTACH + qualify）— **尚未实现**。
   - DuckDB 跨域写 SQL：**v1 不支持**；写路径用单表白名单 API。
 - **当前**：按表路由域读写；跨域复杂查询仍建议 DataService 层组装。
-
----
 
 ---
 
@@ -135,8 +142,6 @@
 - **仍开放**：
   - Tag 等多场景与 Collector 的完整对接（若产品仍需要独立 Collector 叙事）。
 - **详见**：[engines/ARCHITECTURE.md §8](../core/engines/ARCHITECTURE.md)、[storage-domains.md](./storage-domains.md)
-
----
 
 ---
 
@@ -175,10 +180,8 @@
 
 ---
 
-
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

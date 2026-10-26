@@ -7,7 +7,7 @@
 > 本文档是本模块公开调用面的**唯一人读 API 文档**。  
 > core 仍为 `0.x`：公开入口状态最高 **`beta`**（禁止 `stable`）。
 
-设计见 [docs/DESIGN.md](./docs/DESIGN.md)。术语见 [glossary.yaml](./glossary.yaml)。
+设计与决策见 [docs/DECISIONS.md](./docs/DECISIONS.md)。术语见 [glossary.yaml](./glossary.yaml)。
 
 **公开约定：** 包根仅导出 `SeriesRelation`；类型从 [`contracts.py`](./contracts.py) 导入。CLI、BFF 与 UI 均只经本 Facade。
 

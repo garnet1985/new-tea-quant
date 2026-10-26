@@ -1,6 +1,6 @@
 # 模块文档规范
 
-**版本：** 1.3.0  
+**版本：** 1.4.0  
 **最后更新：** 2026-10-26  
 **适用范围：** `core/modules/*`、`core/infra/*`（及其他按 core 模块标准收口的主模块）的**文档**
 
@@ -8,7 +8,7 @@
 > **模块规则（代码 / 测试结构 / 版本 / Facade 等）：** [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)  
 > **可 copy 骨架：** [`docs/doc_templates/module/`](doc_templates/module/)（与真实模块同结构；整棵 copy 后替换 `<xxx>`，删除不需要的可选文件）
 
-**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.3.0 起**：`docs/DESIGN.md` 与 `docs/DECISIONS.md` 分离（原 DECISIONS 并入 DESIGN 的做法已撤销）；新增 `docs/USER_GUIDE.md`（每个模块一份）。
+**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。
 
 ---
 
@@ -24,14 +24,13 @@
 | 模块根 `glossary.yaml` | **名词表**：定义 + aliases + avoid；与 CONCEPTS 分离 |
 | 模块根 `module_info.yaml` | 模块元数据（字段见 [CORE 指标 4](../CORE_MODULE_STANDARDS.md)） |
 | 模块 `docs/ARCHITECTURE.md` | 高阶已定结论：结构图、架构图、数据流（若有） |
-| 模块 `docs/DESIGN.md` | **可选**；设计思路、试错、多方案比较——"我是怎么设计的" |
-| 模块 `docs/DECISIONS.md` | **可选**（有重要选型时必写）；每个决定独立编号，只写"是什么 / 为什么选 / 放弃了什么"——"我做了什么决定" |
+| 模块 `docs/DECISIONS.md` | **可选**（有非平凡设计过程或关键选型时必写）；设计目标、方案思路与拍板决策合一——"为什么这么设计、定了什么" |
 | 模块 `docs/CONCEPTS.md` | **可选**；运作原理与多步骤关系（**不是**词条表） |
 | 模块 `docs/USER_GUIDE.md` | **必须**；用户教程：能干嘛、怎么配、常见坑 |
 | 模块根 `__performance__/` | **可选**；正式本模块性能（目录结构见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)） |
 | 仓库根 `docs/` | 全局文档、模块准则、本文、可 copy 模板 |
 
-**根目录 vs `docs/`（硬性）：** 若存在下列文件，**必须**在模块根：`README.md`、`API.md`、`QUICKSTART.md`、`glossary.yaml`、`module_info.yaml`。标准模块文档（`ARCHITECTURE` / `DESIGN` / `CONCEPTS`）放在模块 `docs/` 根下（与 `notes/` 同级）。正式性能套件在模块根 `__performance__/`（不要放进 `docs/notes/`）。
+**根目录 vs `docs/`（硬性）：** 若存在下列文件，**必须**在模块根：`README.md`、`API.md`、`QUICKSTART.md`、`glossary.yaml`、`module_info.yaml`。标准模块文档（`ARCHITECTURE` / `DECISIONS` / `CONCEPTS`）放在模块 `docs/` 根下（与 `notes/` 同级）。正式性能套件在模块根 `__performance__/`（不要放进 `docs/notes/`）。
 
 **临时 / 开发者自用笔记：** 不设模板、不进 must 清单。草稿、边界碎记、迁移草稿、用完即删的材料等，**一律放在** `docs/notes/`（可再分子目录）。
 
@@ -56,8 +55,7 @@
 |---------|------|------|---------|
 | `QUICKSTART.md`（根） | 要马上跑起来的人 | 最短可运行路径 | API 单条举例不够时 |
 | `docs/CONCEPTS.md` | 要懂原理的人 | 运作原理、多步骤关系（非词条表） | 复杂模块 |
-| `docs/DESIGN.md` | 维护者 | 设计思路、试错、多方案比较 | 有非平凡设计过程时 |
-| `docs/DECISIONS.md` | 维护者 + 未来维护者 | 每个决定独立编号回顾 | 有关键选型时（与 DESIGN 配对出现） |
+| `docs/DECISIONS.md` | 维护者 + 未来维护者 | 设计目标、方案思路、拍板决策（每条独立编号） | 有非平凡设计过程或关键选型时 |
 
 ### 受众分工
 
@@ -70,29 +68,28 @@
 | 正确调用 | `API.md` |
 | 怎么用、怎么配 | `docs/USER_GUIDE.md`（必须） |
 | 高阶已定架构 | `docs/ARCHITECTURE.md` |
-| 设计思路与试错 | `docs/DESIGN.md`（可选） |
-| 为什么这么做 | `docs/DECISIONS.md`（可选；有选型时必写） |
+| 为什么这么做、定了什么 | `docs/DECISIONS.md`（可选；有选型时必写） |
 
 ### 模板用法
 
-新建或整改模块时，整棵 copy [`doc_templates/module/`](doc_templates/module/) 到目标模块根，将 `<xxx>` 占位符替换为模块内容；不需要的可选文件（`QUICKSTART` / `docs/CONCEPTS` / `docs/DESIGN` / `docs/DECISIONS` / `__performance__/`）整份删除。固定章节以骨架内文件为准。
+新建或整改模块时，整棵 copy [`doc_templates/module/`](doc_templates/module/) 到目标模块根，将 `<xxx>` 占位符替换为模块内容；不需要的可选文件（`QUICKSTART` / `docs/CONCEPTS` / `docs/DECISIONS` / `__performance__/`）整份删除。固定章节以骨架内文件为准。
 
 ### 命名与位置
 
-- 根目录文件名固定；`docs/` 下 `ARCHITECTURE.md` / `DESIGN.md` / `DECISIONS.md` / `CONCEPTS.md` / `USER_GUIDE.md` 使用大写（不要小写变体）。
+- 根目录文件名固定；`docs/` 下 `ARCHITECTURE.md` / `DECISIONS.md` / `CONCEPTS.md` / `USER_GUIDE.md` 使用大写（不要小写变体）。
 - ❌ 不并行维护 `api.yaml` / `docs/API.md` 与根目录 `API.md` 多套 API 真源。
 - ❌ 不把唯一人读 API 文档只放在 `docs/` 而模块根缺失 `API.md`。
 
-### ARCHITECTURE vs DESIGN vs DECISIONS
+### ARCHITECTURE vs DECISIONS
 
-| | ARCHITECTURE | DESIGN（可选） | DECISIONS（可选） |
-|--|--------------|----------------|------------------|
-| 核心回答 | 长啥样、怎么搭起来的 | "我是怎么设计的" | "我做了什么决定" |
-| 内容 | **已定结论**（结构图、架构图、数据流） | 思路、试错、多方案比较 | 每个决定独立编号，三条：**是什么** / **为什么选它** / **放弃了什么** |
-| 有无历史 | 无（只看当前） | 可附试错过程 | 每条独立，天然可追溯 |
-| 受众 | 所有人、未来维护者 | 维护者 | 未来维护者、代码审查者 |
-| 版本 | 必须 | 有则必须 | 有则必须 |
-| 互链 | 被 DESIGN / DECISIONS 引用 | 可引用 DECISIONS 编号（"见 [DEC-01](./DECISIONS.md#dec-01)"） | 被 DESIGN 引用 |
+| | ARCHITECTURE | DECISIONS（可选） |
+|--|--------------|------------------|
+| 核心回答 | 长啥样、怎么搭起来的 | "为什么这么设计、定了什么" |
+| 内容 | **已定结论**（结构图、架构图、数据流） | 设计目标、方案与思路（候选方案怎么比较）、拍板决策（每条独立编号：是什么 / 为什么选它 / 放弃了什么） |
+| 有无历史 | 无（只看当前） | 每条决策独立，天然可追溯 |
+| 受众 | 所有人、未来维护者 | 维护者、代码审查者 |
+| 版本 | 必须 | 有则必须 |
+| 互链 | 被 DECISIONS 引用 | 引用 ARCHITECTURE |
 
 ### glossary vs CONCEPTS
 
@@ -100,9 +97,9 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### 交叉链接（最低要求）
 
-- `README.md` 链到 `API.md`、`glossary.yaml`、`docs/ARCHITECTURE.md`、`docs/USER_GUIDE.md`；若有则链 QUICKSTART / docs/CONCEPTS / docs/DESIGN / docs/DECISIONS
-- `docs/ARCHITECTURE.md` 链到 `../API.md`、`../glossary.yaml`、`USER_GUIDE.md`；若有 DESIGN / DECISIONS / CONCEPTS 则链
-- `docs/DESIGN.md` 里涉及关键选择的地方，用相对链接引用 `DECISIONS.md` 里的决定编号（如「见 [DEC-01](./DECISIONS.md#dec-01)」）
+- `README.md` 链到 `API.md`、`glossary.yaml`、`docs/ARCHITECTURE.md`、`docs/USER_GUIDE.md`；若有则链 QUICKSTART / docs/CONCEPTS / docs/DECISIONS
+- `docs/ARCHITECTURE.md` 链到 `../API.md`、`../glossary.yaml`、`USER_GUIDE.md`；若有 DECISIONS / CONCEPTS 则链
+- `docs/DECISIONS.md` 的「方案与思路」部分引用 `ARCHITECTURE.md` 的现状描述，不重复粘贴
 
 ### 版本一致性
 
@@ -121,7 +118,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 禁止用 `**覆盖版本：**`、`**当前基线版本：**` 表示模块版本。
 
-**须带标准版本字段的文件（存在则检查）：** `API.md`、`glossary.yaml`、`QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/DESIGN.md`、`docs/DECISIONS.md`、`docs/CONCEPTS.md`、`docs/USER_GUIDE.md`、模块内全部 `**/TEST_CASES.md`、`__performance__/README.md`、`__performance__/CASES.md`。`README.md` 与 `docs/` 根下其它 md 若文首已写版本字段，也必须等于 SSOT。`docs/notes/` 不检查。
+**须带标准版本字段的文件（存在则检查）：** `API.md`、`glossary.yaml`、`QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/CONCEPTS.md`、`docs/USER_GUIDE.md`、模块内全部 `**/TEST_CASES.md`、`__performance__/README.md`、`__performance__/CASES.md`。`README.md` 与 `docs/` 根下其它 md 若文首已写版本字段，也必须等于 SSOT。`docs/notes/` 不检查。
 
 版本 bump 语义见 [CORE 指标 11](../CORE_MODULE_STANDARDS.md)。
 
@@ -193,8 +190,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | `QUICKSTART.md`（根，可选） | 见下「QUICKSTART 结构」 | 有则含最小示例 |
 | `docs/CONCEPTS.md`（可选） | 见下「CONCEPTS 结构」；原理与关系 | 有则文首有版本；非词条表 |
 | `docs/ARCHITECTURE.md` | 见下「ARCHITECTURE 结构」 | 文首有版本；结构图 + 架构图 |
-| `docs/DESIGN.md`（可选） | 见下「DESIGN 结构」；思路与试错（不含决定） | 有则有版本 |
-| `docs/DECISIONS.md`（可选） | 见下「DECISIONS 结构」；每个决定独立编号 | 有则有版本；可被 DESIGN 引用 |
+| `docs/DECISIONS.md`（可选） | 见下「DECISIONS 结构」；设计目标 + 方案思路 + 拍板决策 | 有则有版本 |
 | `docs/USER_GUIDE.md` | 见下「USER_GUIDE 结构」 | 有则有版本；非空 |
 | `API.md`（模块根） | 见上文 §2；且有 `__test__/test_api.py` 覆盖 | 签名与代码一致；测试存在 |
 
@@ -245,7 +241,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### `docs/ARCHITECTURE.md`（模板见 [`docs/ARCHITECTURE.md`](doc_templates/module/docs/ARCHITECTURE.md)）
 
-> **High level + 已定结论**。不写方案对比（→ DESIGN）。**必须有版本。**
+> **High level + 已定结论**。不写方案对比（→ DECISIONS）。**必须有版本。**
 
 | 章节 | 必须 / 可选 | 说明 |
 |------|------------|------|
@@ -255,25 +251,22 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | 架构图 | 必须 | 组件 / 分层 / 主调用关系 |
 | 数据流 | 可选 | 有显著数据流时写 |
 | 依赖 | 建议 | 对齐 `module_info.yaml` |
-| 相关文档 | 必须 | API、glossary；（若有）DESIGN / CONCEPTS |
-
-### `docs/DESIGN.md`（可选；模板见 [`docs/DESIGN.md`](doc_templates/module/docs/DESIGN.md)）
-
-> 按**设计点**组织。写思路、试错、多方案比较——"我是怎么设计的"。**决定**单独放在 `DECISIONS.md`，DESIGN 里涉及选择时用相对链接引用（如「见 [DEC-01](./DECISIONS.md#dec-01)」）。无必要设计过程时**省略整文件**。
-
-| 每设计点章节 | 必须 |
-|-------------|------|
-| 设计初衷 | 解决什么问题 |
-| 设计背景 | 约束与上下文 |
-| 解决方案 | 多个方案及优劣；最终选型处链到 DECISIONS 编号 |
+| 相关文档 | 必须 | API、glossary；（若有）DECISIONS / CONCEPTS |
 
 ### `docs/DECISIONS.md`（可选；模板见 [`docs/DECISIONS.md`](doc_templates/module/docs/DECISIONS.md)）
 
-> 每个决定独立编号（`DEC-01`、`DEC-02`…），只写三条——是什么、为什么选它、放弃了什么。"我做了什么决定"。
+> 设计与决策合一文档——"为什么这么设计、定了什么"。有非平凡设计过程或关键选型时必写；都没有时**省略整文件**。
 
-| 每个决定的固定结构 | 必须 |
+| 章节 | 必须 / 可选 | 说明 |
+|------|------------|------|
+| 文首（模块名 + 版本 + 一句话说明） | 必须 | 版本 = `module_info.yaml` |
+| 设计目标 | 必须 | 要解决什么——业务目标、性能目标或其他；写清约束与上下文 |
+| 方案与思路 | 必须 | 当时有哪些候选方案、怎么比较的、为什么这么走；可引用 ARCHITECTURE 现状，不重复粘贴 |
+| 决策点（`## DEC-01:`、`## DEC-02:`…） | 必须 | 每条独立编号，追加在末尾不回头改历史 |
+
+| 每个决策点的固定结构 | 必须 |
 |-------------------|------|
-| 编号 + 标题 | 如 `### DEC-01: 数据库引擎选择` |
+| 编号 + 标题 | 如 `## DEC-01: 数据库引擎选择` |
 | 是什么 | 一句话决定（选 DuckDB 作为默认引擎） |
 | 为什么选它 | 核心理由（多进程 worker 池支持好、列式存储、开箱即用） |
 | 放弃了什么 | 列方案 B / C 及放弃理由（Postgres：安装重；MySQL：列式支持差） |
@@ -300,7 +293,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
   2）收入本模块 [`glossary.yaml`](doc_templates/module/glossary.yaml)，正文可写「见术语表」。  
   不要在 README 首句堆未解释的英文黑话。
 - **README 尽量不出现代码块**；上手代码放 `QUICKSTART`（若有）或 `API.md` 举例；原理放 `CONCEPTS`（若有）
-- 非 `API.md` / `docs/DESIGN.md` / `docs/DECISIONS.md` 不写历史沿革，只描述当前事实（DESIGN 内按设计点追加历史；DECISIONS 每条独立天然可追溯）
+- 非 `API.md` / `docs/DECISIONS.md` 不写历史沿革，只描述当前事实（DECISIONS 每条独立、追加式，天然可追溯）
 - 避免多文档大段重复：重复处用相对链接
 - `QUICKSTART` / `API.md`（及 CONCEPTS 内示意代码）须可运行或明确标注占位
 - 所有相对链接须在仓库内可打开
@@ -348,14 +341,14 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 | 检查项 | 说明 |
 |--------|------|
-| 文档齐全 | 根：README + API + glossary + module_info；docs：ARCHITECTURE + USER_GUIDE；（可选）QUICKSTART / DESIGN / DECISIONS / CONCEPTS |
+| 文档齐全 | 根：README + API + glossary + module_info；docs：ARCHITECTURE + USER_GUIDE；（可选）QUICKSTART / DECISIONS / CONCEPTS |
 | 从模板 copy | 章节与 [`doc_templates/module/`](doc_templates/module/) 一致 |
 | 版本号一致 | module_info 与各文档文首 `**版本：**` / `# Version:` 一致；`devcli.py p` 闸门 |
 | 文档同步 | 与代码一致；触发见 §3 |
 | 根目录 `API.md` | 签名 / 状态 / 参数表对齐代码；有 `test_api.py` |
 | 无双源 | 无并行 `api.yaml` / `docs/API.md` |
 | `TEST_CASES.md` | scenario/case 与 pytest 对齐；无遗留 `test_cases.yaml` |
-| DESIGN ↔ DECISIONS 引用 | DESIGN 里涉及选型时用相对链到 DECISIONS 编号（若两者都存在） |
+| DECISIONS 结构 | 含设计目标 + 方案与思路 + DEC 编号决策点；无遗留 `docs/DESIGN.md` |
 
 模块创建 / 维护 / 清理的完整清单（含代码与测试）见 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
 

@@ -33,7 +33,7 @@ analysis/
 ├── core/                # 内部实现（空）
 └── docs/
     ├── ARCHITECTURE.md
-    ├── DESIGN.md        # 已定 + 待决设计点
+    ├── DECISIONS.md     # 已定 + 待决设计点
     └── CONCEPTS.md      # 三个未决问题的思考框架
 ```
 
@@ -55,7 +55,7 @@ strategy 三步模拟与 BE 调度不经过本模块。
 
 ## 数据流（若有）
 
-未定。候选方向见 [DESIGN.md](./DESIGN.md)：只读 `results/simulations/`，不另建结果库。
+未定。候选方向见 [DECISIONS.md](./DECISIONS.md)：只读 `results/simulations/`，不另建结果库。
 
 ---
 
@@ -71,6 +71,5 @@ strategy 三步模拟与 BE 调度不经过本模块。
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [概念](./CONCEPTS.md)
 - [决策](./DECISIONS.md)

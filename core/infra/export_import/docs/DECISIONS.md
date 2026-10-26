@@ -1,9 +1,31 @@
-# infra.export_import — 决定
+# Export / Import — 设计与决策
 
 **版本：** `0.2.0`
 
-本文件列出本模块的关键选型回顾。每条决定独立编号。
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录本模块的设计目标、方案思路与拍板决策。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+- **服务文件导入导出**：提供打包、压缩等对批量或单个文件的操作能力（目录收集、zip 打包/解压、manifest 校验、安装前冲突预检、落盘安装）。
+- **跨平台行为一致**：压缩实现不依赖系统命令差异。
+- **安装行为可控**：安装前预检冲突，支持 拒绝 / 跳过 / 复写 三种行为。
+
+## 方案与思路
+
+- **压缩实现**：只使用 stdlib `zipfile`，去掉系统 `zip` 双路径，目录条目由实现显式写入（见下文 DEC-01）。
+- **公开形态**：实现一律类方法，门面 `ExportImport.*` 薄委托，不导出模块级自由函数（见下文 DEC-02）。
+- **冲突策略**：
+
+| Policy | 行为 |
+|--------|------|
+| `reject` | 存在冲突则预检失败，不安装 |
+| `skip_existing` | 跳过已存在目标 |
+| `overwrite` | 覆盖已存在目标 |
+
+- **运行时排除**：收集时跳过 `RuntimeExcludes` 中的目录名 / 后缀（`results/`、`cache/`、`__pycache__` 等）；**无**按 strategies/tags 路径再写特殊分支。
 
 ---
 
@@ -17,10 +39,10 @@
 
 公开只经 `ExportImport.*`；不导出模块级自由函数。
 
+---
 
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

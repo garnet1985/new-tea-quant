@@ -33,7 +33,6 @@ Setup
 ## 相关文档
 
 - [用户指南](./USER_GUIDE.md)
-- [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)
 - [安装失败 Trace 排障（TODO）](./notes/INSTALL_TRACE_TODO.md)
 - [术语表](../glossary.yaml)

@@ -33,4 +33,4 @@
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
 - [架构](./ARCHITECTURE.md)
-- [设计](./DESIGN.md)<!-- 若无则删 -->
+- [设计与决策](./DECISIONS.md)<!-- 若无则删 -->

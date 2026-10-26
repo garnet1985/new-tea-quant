@@ -42,6 +42,5 @@
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
 - [测试用例](./__test__/TEST_CASES.md)
 - [决策](./docs/DECISIONS.md)

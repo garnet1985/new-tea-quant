@@ -43,7 +43,6 @@ core/infra/db/
 ├── core/**/__test__/     # 功能包单测（下沉；helper 包可不索引业务 case）
 └── docs/
     ├── ARCHITECTURE.md   # 模块总览（SSOT）
-    ├── DESIGN.md
     ├── storage-domains.md
     └── （engines 细部见 core/engines/ARCHITECTURE.md）
 ```
@@ -98,7 +97,6 @@ flowchart LR
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [存储域](./storage-domains.md)
 - [快速开始](../QUICKSTART.md)
 - [决策](./DECISIONS.md)

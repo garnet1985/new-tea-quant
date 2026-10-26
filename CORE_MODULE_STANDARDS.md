@@ -572,7 +572,7 @@ def check_core_module(module_path: Path) -> List[str]:
         "glossary.yaml",
         "module_info.yaml",
         "docs/ARCHITECTURE.md",
-        # DESIGN / CONCEPTS / QUICKSTART 可选；DECISIONS 已取消
+        # DECISIONS / CONCEPTS / QUICKSTART 可选；DESIGN 已取消（并入 DECISIONS）
     ]
 
     for file in required_files:

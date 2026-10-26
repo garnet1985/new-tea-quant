@@ -203,5 +203,4 @@ goal:
 
 - [后续处理 PostProcess](./POST_PROCESS.md)  
 - [架构](./ARCHITECTURE.md)  
-- [设计](./DESIGN.md)  
 - [API](../API.md)  

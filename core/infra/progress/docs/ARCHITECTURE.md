@@ -39,8 +39,7 @@ core/infra/progress/
 │   ├── store.py
 │   └── channel_store.py
 └── docs/
-    ├── ARCHITECTURE.md
-    └── DESIGN.md
+    └── ARCHITECTURE.md
 ```
 
 ---
@@ -89,6 +88,5 @@ channel.write / read / clear（即时落盘，无树形 ratio）
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [快速开始](../QUICKSTART.md)
 - [决策](./DECISIONS.md)

@@ -2,7 +2,7 @@
 
 **模块：** `modules.strategy` · **版本：** `0.12.1`
 
-本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DESIGN.md](./DESIGN.md)。
+本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DECISIONS.md](./DECISIONS.md)。
 
 文字入口见 [README.md](../README.md)；调用见 [API.md](../API.md)；指纹与 version 见 [VERSIONING.md](./VERSIONING.md)。
 
@@ -76,7 +76,6 @@
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
 - [架构](./ARCHITECTURE.md)
-- [设计](./DESIGN.md)
 - [Version / 指纹](./VERSIONING.md)
 - [价格回放](./notes/PRICE_REPLAY.md)
 - [选仓排序](./notes/OPPORTUNITY_SELECTION.md)

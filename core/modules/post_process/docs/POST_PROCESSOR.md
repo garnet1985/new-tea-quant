@@ -235,4 +235,3 @@ PostProcess 为全局配置，**不随策略 share bundle 导出**。自定义�
 
 - [出口协议（三层）](./PROTOCOL.md)  
 - [架构](./ARCHITECTURE.md)  
-- [设计](./DESIGN.md)  

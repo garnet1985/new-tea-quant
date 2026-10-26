@@ -31,6 +31,5 @@
 - [快速开始](./QUICKSTART.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
 - [slice_based 算法](./docs/SLICE_BASED_ALGORITHM.md)
 - [决策](./docs/DECISIONS.md)

@@ -30,5 +30,4 @@ NTQ 的安装流程编排。首次启动时检测环境、创建目录、拷贝�
 - [架构](./docs/ARCHITECTURE.md)
 - [术语表](./glossary.yaml)
 - [快速开始](./QUICKSTART.md)
-- [设计](./docs/DESIGN.md)
 - [决策](./docs/DECISIONS.md)

@@ -1,9 +1,87 @@
-# tag — 决定
+# Tag — 设计与决策
 
 **版本：** `0.4.1`
 
-本文件列出本模块的关键选型回顾。每条决定独立编号。
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录本模块的设计目标、方案思路与拍板决策。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+为 userspace 标签场景（scenario）提供发现、调度与计算能力：按数据契约分流执行方式，支持增量续算与 dry run。硬约束摘要如下；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
+
+## 方案与思路
+
+### Scenario 与目录约定
+
+- 根路径：`ProjectContext.path.get_tags_root()`（通常 `userspace/extensions/tags`）。
+- 发现条件：子目录同时含 **`settings.py`** + **`tag.py`**（`TagHooks`）。
+- **系统 id（tag_key / scenario 路径）** = 相对 tags 根的 POSIX 路径（如 `demo/market_cap_tier`）。
+- `meta.key`：短名索引；CLI / `find` 可用路径或 key。DB scenario.name 用**路径**。
+- 跳过 `_` 开头目录；路径段须 machine-readable。
+
+### 路由：由 `data.base` 决定（见 DEC-01）
+
+| base（contract `scope` × `type`） | 调度 | `execution.mode` |
+|-----------------------------------|------|------------------|
+| **per_entity** + 时序 | BacktestEngine（多进程） | 必填：`entity_based` / `slice_based` |
+| **global** + 时序 | Tag **轻量主进程推进器**（不走 BE） | 忽略；配置了则 warning |
+| **non_time_series** | Tag 轻量主进程（不走 BE） | 忽略；配置了则 warning |
+
+per_entity 的实体池：读 base 的 `meta.list_data_key`（如 `stock.list` / `index.list`）。  
+global：哨兵实体（如 `__global__`）。
+
+### 执行模式（仅 per_entity，见 DEC-03）
+
+| `calculation.execution.mode` | 含义 |
+|------------------------------|------|
+| `entity_based` | 各实体按各自交易日推进；钩子 `calculate_tag(ctx)` |
+| `slice_based` | 日历切片；钩子 `on_calendar_asof(ctx)`；`incremental` 同样走 progress 裁窗 |
+
+### 更新模式（见 DEC-02）
+
+| `update_mode` | 含义 |
+|---------------|------|
+| `incremental` | 从每实体 **`last_calculated_end`** 续算（不是 `max(as_of)`）；写 progress |
+| `refresh` | 对目标区间按重算语义清值后重算；**不写** progress（清库时一并清空） |
+
+`recompute=True`：运维开关，等价本次 refresh，并可重建 definition 元数据（**dry_run 时跳过清库**）。
+
+水位：``sys_meta_tag_calc_progress``（``TagDataService.get_entity_calc_progress``）。
+
+### Dry run
+
+- settings：`calculation.is_dry_run`（默认 `False`）
+- CLI：`--dry-run`
+- 二者 OR：只计算、不写 `tag_value`、不更新 progress、不做 refresh/recompute 清库。
+
+### 标签与取值
+
+`tag_definitions` 里的每一条是一个特性，`display_name` 是界面上的名字。`calculate_tag` 返回的 `value` 是该特性当时的注解，落在 `sys_data_tag_value.json_value`。互斥特性做成多条定义，只给当前命中的定义写值。用户空间说明见 `userspace/extensions/tags/README.md`。
+
+### 钩子面
+
+userspace `tag.py` 继承 `TagHooks`：
+
+- `to_entity_list(ctx, entity_list)` — **仅 per_entity**，开跑前一次；过滤 `list_data_key` 宇宙后与入参取交、排序，再套运维 `entity_limit`
+- `calculate_tag(ctx)` — per_entity 的 entity_based；global 主进程推进也复用（哨兵 `entity_id`）
+- `on_calendar_asof(ctx)` — per_entity 的 slice_based（可选）；返回 ``TagCalendarAsOfResult``
+
+实体池解析顺序（per_entity）：
+
+```text
+list_data_key 全表 → to_entity_list → sorted unique → entity_limit（可选）
+```
+
+global / non_time_series **不调** `to_entity_list`。
+
+### 数据与 as_of
+
+- 数据声明在 `settings.data`（`base` / `required` / `min_required_records`），与 strategy 的 `data_key` 对齐。
+- 计算路径内通过 `TagContext` / 注入数据按 as_of 可见；业务钩子不应偷看未来。
+
+配置字段 SOT：`userspace/extensions/tags/settings_example.py`。
 
 ---
 
@@ -34,6 +112,5 @@
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

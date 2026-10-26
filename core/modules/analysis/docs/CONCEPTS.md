@@ -3,7 +3,7 @@
 **模块：** `modules.analysis` · **版本：** `0.1.0`
 
 本文不给结论。只把三个还没想清的问题摊开，避免和 factor 研究、strategy 报告混在一起。  
-文字入口见 [README.md](../README.md)；词条见 [glossary.yaml](../glossary.yaml)；选型过程见 [DESIGN.md](./DESIGN.md)。
+文字入口见 [README.md](../README.md)；词条见 [glossary.yaml](../glossary.yaml)；选型过程见 [DECISIONS.md](./DECISIONS.md)。
 
 ---
 
@@ -88,4 +88,3 @@ analysis 问的是「**这次策略 run** 的结果，和它用过的输入有�
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
 - [架构](./ARCHITECTURE.md)
-- [设计](./DESIGN.md)

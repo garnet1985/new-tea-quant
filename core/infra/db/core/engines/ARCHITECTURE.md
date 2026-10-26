@@ -148,7 +148,7 @@ Engine / connector 优先使用 `meta.require_mysql()` 等，不再散落 `confi
 
 ## 7. 与 DuckDB 存储域的关系
 
-DuckDB 三存储域（data / tag / strategy）的**产品决策**见 [决策 6](../docs/DESIGN.md) 与 [storage-domains.md](../docs/storage-domains.md)。
+DuckDB 三存储域（data / tag / strategy）的**产品决策**见 [决策 6](../docs/DECISIONS.md) 与 [storage-domains.md](../docs/storage-domains.md)。
 
 在 engines 架构下：
 
@@ -308,6 +308,6 @@ Engine 只需实现白名单对应能力；表作者遵守契约即可保证三�
 
 ## 11. 相关文档
 
-- [../docs/DESIGN.md](../docs/DESIGN.md) — 决策 7–11
+- [../docs/DECISIONS.md](../docs/DECISIONS.md) — 决策 7–11
 - [../docs/storage-domains.md](../docs/storage-domains.md) — DuckDB 存储域、§4.2 并发与 WAL
 - [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — DatabaseManager + Engine 当前架构

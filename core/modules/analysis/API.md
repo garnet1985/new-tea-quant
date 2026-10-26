@@ -7,7 +7,7 @@
 > 本文档是本模块公开调用面的**唯一人读 API 文档**。  
 > core 仍为 `0.x`：公开入口状态最高 **`beta`**（禁止 `stable`）。
 
-术语见 [glossary.yaml](./glossary.yaml)。概念见 [CONCEPTS.md](./docs/CONCEPTS.md)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。未决选型见 [DESIGN.md](./docs/DESIGN.md)。
+术语见 [glossary.yaml](./glossary.yaml)。概念见 [CONCEPTS.md](./docs/CONCEPTS.md)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。未决选型见 [DECISIONS.md](./docs/DECISIONS.md)。
 
 **公开约定：** 包根仅导出 `Analysis`。跨模块类型从 [`contracts.py`](./contracts.py) 导入。实现位于 `core/`，禁止 deep-import。
 

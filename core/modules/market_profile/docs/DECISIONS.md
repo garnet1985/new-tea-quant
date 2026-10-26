@@ -1,9 +1,31 @@
-# modules.market_profile — 决定
+# Market Profile — 设计与决策
 
 **版本：** `0.2.0`
 
-本文件列出本模块的关键选型回顾。每条决定独立编号。
-相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
+本文记录本模块的设计目标、方案思路与拍板决策。
+相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
+
+---
+
+## 设计目标
+
+为各市场（A 股等）提供统一的市场规则（振幅、手数、交收、代码匹配等）查询能力。约束与上下文：多市场规则高度相似，复制实现易漂移；跨模块调用需要单一、可控的入口；构造时实例化全部市场没有必要。
+
+## 方案与思路
+
+**挂载模型**：
+
+- **`MarketRulesProxy.for_market(id)`**：只创建目标市场（跨模块推荐）。
+- **实例 Proxy**：构造时挂载 `default_market`；其它市场在 `get_market` / `set_market` 时懒加载，同实例内缓存。
+
+**规则实现**：各市场子类只提供 `profile_id` 与 `settings`；`MarketBaseRules` 用 Amplitude / Lot / Settlement 服务解释配置；代码匹配走 `MatchingService`。
+
+**不做**：
+
+- 不从包根导出自由函数（历史 `get_market_profile` 已删）
+- 不把 `create_market_rules` 当作跨模块 API（内部工厂；对外用 `for_market`）
+- 不在本模块读取策略配置文件
+- 本模块当前**无** userspace 覆盖加载路径（changelog 历史表述已纠正）
 
 ---
 
@@ -53,10 +75,10 @@ strategy 曾 deep-import `create_market_rules`。
 **影响**  
 `list_available` 只读注册表键，不触发实例化。
 
+---
 
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)
-- [设计思路](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

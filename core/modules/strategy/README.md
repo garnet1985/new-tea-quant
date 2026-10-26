@@ -43,5 +43,4 @@
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
 - [概念与运作](./docs/CONCEPTS.md)
-- [设计](./docs/DESIGN.md)
 - [决策](./docs/DECISIONS.md)

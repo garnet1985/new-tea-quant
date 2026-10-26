@@ -44,7 +44,6 @@ core/infra/machine_capacity/
 ## 相关文档
 
 - [用户指南](./USER_GUIDE.md)
-- [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
 - [决策](./DECISIONS.md)

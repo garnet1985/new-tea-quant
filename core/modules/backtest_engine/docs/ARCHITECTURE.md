@@ -84,7 +84,7 @@ backtest_engine/
 │       └── slice_based/     # + orchestrator / reader_pool / slice_width
 ├── docs/
 │   ├── ARCHITECTURE.md
-│   ├── DESIGN.md
+│   ├── DECISIONS.md
 │   └── SLICE_BASED_ALGORITHM.md  # slice_based 算法 SOT（硬约束）
 ├── __test__/                # 含 test_api.py；用例索引见 TEST_CASES.md
 └── __performance__/         # 调度空转性能基线（非公开 API）
@@ -147,7 +147,6 @@ IO 不变量：正式片数 N ⇒ 至少 N 次按片 DB 装载。
 - [用户指南](./USER_GUIDE.md)
 - [README.md](../README.md)
 - [公开 API](../API.md)
-- [设计](./DESIGN.md)
 - [SliceBased 算法 SOT](./SLICE_BASED_ALGORITHM.md)
 - [术语表](../glossary.yaml)
 - [决策](./DECISIONS.md)

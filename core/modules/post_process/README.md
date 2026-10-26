@@ -29,5 +29,4 @@
 - [出口协议](./docs/PROTOCOL.md)
 - [PostProcessor](./docs/POST_PROCESSOR.md)
 - [术语表](./glossary.yaml)
-- [设计](./docs/DESIGN.md)
 - [决策](./docs/DECISIONS.md)

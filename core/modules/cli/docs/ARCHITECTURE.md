@@ -21,7 +21,7 @@
 
 - 具体业务动作的实现（交给 `infra.setup`、`infra.updater`、各业务模块等）
 - 把 `user/`、`dev/`、`shared/` 作为跨模块公开 import 面（设置页清理走 `dev/scripts/temp_cleanup` 除外）
-- 合成单一 CLI 二进制（见 [DESIGN.md](./DESIGN.md)）
+- 合成单一 CLI 二进制（见 [DECISIONS.md](./DECISIONS.md)）
 
 ---
 
@@ -44,7 +44,7 @@ core/modules/cli/
 ├── __test__/              # 公开 API（test_api.py）
 └── docs/
     ├── ARCHITECTURE.md
-    └── DESIGN.md
+    └── DECISIONS.md
 ```
 
 仓库根：`cli.py` → `Cli.user`；`devcli.py` → `Cli.dev`。
@@ -102,6 +102,5 @@ argv
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [快速开始](../QUICKSTART.md)
 - [决策](./DECISIONS.md)

@@ -70,7 +70,7 @@ Tag.execute
   → global / non_time_series: 主进程推进器 → flush
 ```
 
-硬约束见 [DESIGN.md](./DESIGN.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
+硬约束见 [DECISIONS.md](./DECISIONS.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
 ---
 
@@ -85,6 +85,5 @@ Tag.execute
 - [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
-- [DESIGN.md](./DESIGN.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
 - [决策](./DECISIONS.md)

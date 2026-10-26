@@ -1,7 +1,7 @@
 # <Module Display Name> — 架构
 
 **版本：** `<module.version>`  
-<!-- 只写已定结论；选型过程 → DESIGN（若有） -->
+<!-- 只写已定结论；选型过程 → DECISIONS（若有） -->
 
 `<1～3 句：模块在系统中的位置、对外提供什么能力。>`
 
@@ -34,7 +34,8 @@
 │   └── <pkg>/
 └── docs/
     ├── ARCHITECTURE.md
-    ├── DESIGN.md              # 可选
+    ├── DECISIONS.md           # 可选
+    ├── USER_GUIDE.md
     ├── CONCEPTS.md            # 可选
     └── notes/
 ```
@@ -83,6 +84,7 @@ flowchart LR
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)<!-- 若无则删 -->
+- [设计与决策](./DECISIONS.md)<!-- 若无则删 -->
+- [用户指南](./USER_GUIDE.md)
 - [概念](./CONCEPTS.md)<!-- 若无则删 -->
 - [快速开始](../QUICKSTART.md)<!-- 若无则删 -->

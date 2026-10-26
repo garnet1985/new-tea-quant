@@ -78,5 +78,4 @@ settings.yaml
 - [用户指南](./USER_GUIDE.md)
 - [公开 API](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [决策](./DECISIONS.md)

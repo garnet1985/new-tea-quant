@@ -1,16 +1,10 @@
 # Data Contract 架构文档
-
 **模块：** `modules.data_contract` · **版本：** `0.4.3`
 
----
-
-## 模块介绍
+## 模块结构图
 
 将「策略/标签声明的数据依赖」收敛为 **`DATA_KEY` → declaration + loader`**，经 **发现 → 签发 → 填充 →（时序）PIT 游标** 交付。公开 Facade 为 **`ContractIssuer`**。
 
----
-
-## 分层结构
 
 ```text
 modules.data_contract/
@@ -36,7 +30,7 @@ modules.data_contract/
 
 ---
 
-## 流程
+## 数据流（若有）
 
 ```mermaid
 flowchart LR
@@ -48,7 +42,7 @@ flowchart LR
 
 ---
 
-## 边界
+## 职责与边界（结论）
 
 **In scope：** DATA_KEY 白名单、签发、loader 取数、时序 `until`  
 **Out of scope：** DB schema/SQL（`data_manager`）；策略/标签编排

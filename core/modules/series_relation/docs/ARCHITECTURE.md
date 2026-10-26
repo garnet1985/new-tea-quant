@@ -2,7 +2,7 @@
 
 **模块：** `modules.series_relation` · **版本：** `0.1.0`
 
-## 职责
+## 职责与边界（结论）
 
 把 2 到 `MAX_SERIES` 条序列放在同一时间轴上，输出**描述性**的两两关系：
 
@@ -13,7 +13,7 @@
 
 **不做：** 因果推断、因子有效性判断、买卖建议。相关不等于因果，滞后不等于领先。
 
-## 目录分层
+## 模块结构图
 
 | 路径 | 层 | 职责 |
 |------|----|------|
@@ -32,7 +32,7 @@
 
 依赖方向：`series_relation.py` → `core/`；`core/pipeline/` → `core/engines/`、`core/settings.py`；反向不成立。
 
-## 数据流
+## 数据流（若有）
 
 ```
 settings.yaml
@@ -50,7 +50,7 @@ settings.yaml
                 / meta.json
 ```
 
-## 依赖
+## 依赖（结论）
 
 | 依赖 | 用途 |
 |------|------|
@@ -60,7 +60,6 @@ settings.yaml
 
 被依赖方：`cli`（`srel` 子命令）、BFF（`/v1/series-relations/*`）、UI（`seriesRelationPage`）。
 
-## 产物
 
 `userspace/extensions/series_relation/<key>/results/` 下：
 
@@ -71,7 +70,6 @@ settings.yaml
 | `findings.md` | 面向人的解释与配对结论 |
 | `meta.json` | 跑批信息与指纹 |
 
-## 已知限制
 
 - `best_lag_days` 在**归一化水平值**上扫描 ±20 天。水平值自相关强，相关系数曲线接近平坦，峰值位置对噪声敏感；滞后结论只能作参考，不宜单独作为交易依据。改用去趋势收益率的互相关后才能提升可信度。
 - 序列有缺口时按并集对齐，各序列只在自身有值的点参与计算；重叠样本不足时 `reliable=False`，指标不应当作结论。

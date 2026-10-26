@@ -59,7 +59,7 @@ flowchart TB
 
 ---
 
-## 执行流（摘要）
+## 数据流（若有）
 
 ```text
 Tag.execute
@@ -74,7 +74,7 @@ Tag.execute
 
 ---
 
-## 依赖
+## 依赖（结论）
 
 见 `module_info.yaml`。数据读写依赖 `data_manager`；**per_entity** 调度依赖 `backtest_engine`。
 

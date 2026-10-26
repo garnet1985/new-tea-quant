@@ -1,17 +1,13 @@
 # Adapter 架构文档
-
 **版本：** `0.3.0`
 
-## 模块介绍
+## 架构图
 
 `modules.post_process` 负责：
-
 1. 将扫描结果规范为三层出口协议（`Opportunity` / `StrategyScanReport` / `ScanSessionReport`）
 2. 发现、校验、执行 userspace **PostProcess**（无序 Component 集合 + 可选 `depends_on`）
-
 策略 Scanner 在 present 阶段通过 `PostProcessDispatcher` 调用本模块门面。
 
-## 架构
 
 ```text
 Adapter (Facade)
@@ -27,7 +23,7 @@ core/
   └── post_processor_loader / validator / executor / topo
 ```
 
-## 边界
+## 职责与边界（结论）
 
 **In scope：** 协议、Component / PostProcess 契约与发现执行、userspace 目录约定  
 **Out of scope：** 扫描调度、可交易演示协议、具体通知/券商实现；策略 `PostProcessDispatcher` 属 `modules.strategy`

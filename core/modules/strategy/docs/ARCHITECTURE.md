@@ -1,12 +1,10 @@
 # Strategy — 架构
-
 **版本：** `0.12.0`
+
+## 职责与边界（结论）
 
 `modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enum / price / portfolio）、决策者回放、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
 
----
-
-## 职责与边界（结论）
 
 **负责**
 
@@ -75,7 +73,7 @@ flowchart TB
 
 ---
 
-## 归因数据流
+## 数据流（若有）
 
 `sea` / `spa` / `soa` 共用一条管道。差别是补到哪一层、总结哪一层指标。运作见 [CONCEPTS.md](./CONCEPTS.md)。
 
@@ -101,7 +99,6 @@ attribution.py + 当前 settings
 
 ---
 
-## 与 BacktestEngine
 
 | 组件 | 职责 |
 |------|------|

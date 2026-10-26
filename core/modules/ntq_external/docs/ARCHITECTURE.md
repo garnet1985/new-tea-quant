@@ -2,7 +2,7 @@
 
 **模块：** `modules.ntq_external` · **版本：** `0.1.0`
 
-## 职责
+## 职责与边界（结论）
 
 把「与官网通信」收在一个模块里：
 
@@ -14,7 +14,14 @@
 
 **不做：** 登录注册流程、支付订单、模型密钥存储、会员资料本地缓存。
 
-## 目录分层
+**边界约定：**
+
+- 地址只从 `conf/` 取；其他模块不得硬编码官网 URL。
+- 资料响应只含业务字段，不含凭证。
+- 网络失败一律降级为 `unreachable`，不抛给调用方。
+- 反馈失败返回 `False`，不影响主流程。
+
+## 模块结构图
 
 | 路径 | 层 | 职责 |
 |------|----|------|
@@ -30,7 +37,7 @@
 
 依赖方向：`site.py` / `member_profile.py` / `ai/` / `feedback/` / `track/` → `conf/`；反向不成立。
 
-## 数据流
+## 数据流（若有）
 
 **页面地址**
 
@@ -64,7 +71,7 @@ import core.modules.ntq_external
   → TraceEndpointService.register(trace_url(), setup_without_consent=True)
 ```
 
-## 依赖
+## 依赖（结论）
 
 | 依赖 | 用途 |
 |------|------|
@@ -74,9 +81,8 @@ import core.modules.ntq_external
 
 被依赖方：`data_source`（会员资料）、UI/BFF（反馈、地址）、`infra.setup`（许可页地址）。
 
-## 边界与约定
+## 相关文档
 
-- 地址只从 `conf/` 取；其他模块不得硬编码官网 URL。
-- 资料响应只含业务字段，不含凭证。
-- 网络失败一律降级为 `unreachable`，不抛给调用方。
-- 反馈失败返回 `False`，不影响主流程。
+- [README.md](../README.md)
+- [公开 API](../API.md)
+- [术语表](../glossary.yaml)

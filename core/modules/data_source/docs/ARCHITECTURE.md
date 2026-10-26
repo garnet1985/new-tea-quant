@@ -1,18 +1,11 @@
 # Data Source 架构文档
-
 **模块：** `modules.data_source` · **版本：** `0.4.0`
 
----
-
-## 模块介绍
+## 模块结构图
 
 将「抓取第三方数据并落入项目表」拆为：**配置发现**（`DataSourceManager`）→ **Provider 池** → **Handler 实例** → **执行调度**（拓扑序、依赖注入）。单表 schema 以 **`DataManager`** 绑定表的 **`load_schema()`** 为唯一来源。
-
 公开 Facade：**`DataSourceManager`**。
 
----
-
-## 分层结构
 
 ```text
 modules.data_source/
@@ -39,7 +32,7 @@ modules.data_source/
 
 ---
 
-## 流程
+## 数据流（若有）
 
 ```mermaid
 flowchart TB
@@ -56,7 +49,7 @@ flowchart TB
 
 ---
 
-## 边界
+## 职责与边界（结论）
 
 **In scope：** 配置发现、handler/provider 生命周期、调度与持久化钩子  
 **Out of scope：** `DataKey` 契约（`data_contract`）；实盘下单；样本股票宇宙（`DataManager.sample_universe`）

@@ -1,16 +1,12 @@
 # Updater 架构文档
-
 **版本：** `0.1.0`
 
-## 模块介绍
+## 架构图
 
 `infra.updater` 拥有应用升级：编排源码（`core/orchestrator/`）、数据迁移脚本注册表、post-upgrade 收尾。
-
 **运行时**必须在 `userspace/system/updater/`（由 `Updater.runtime.sync_orchestrator` 写入）。`core/` 在 `managed_scope` 内，升级镜像时会被覆盖，不能从 core 跑流水线。
-
 **不负责：** 首次安装、安装 wizard、`needs_install`（均在 `infra.setup`）。
 
-## 架构
 
 ```text
 Updater

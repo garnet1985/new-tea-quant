@@ -1,6 +1,6 @@
 # Progress — 用户指南
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 进度统一写进文件——长任务把进度写到 JSON，前端和 CLI 都从这里读。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

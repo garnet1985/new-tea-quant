@@ -1,6 +1,6 @@
 # modules.strategy — 决定
 
-**版本：** `0.12.0`
+**版本：** `0.12.1`
 
 本文件列出本模块的关键选型回顾。每条决定独立编号。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)

@@ -1,6 +1,6 @@
 # Strategy — 用户指南
 
-**版本：** `0.12.0`
+**版本：** `0.12.1`
 
 `Strategy 是策略执行核心——发现策略、加载配置、跑扫描和回测，把结果落到磁盘。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

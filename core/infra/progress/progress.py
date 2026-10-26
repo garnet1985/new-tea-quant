@@ -1,9 +1,11 @@
 """进度门面。调用方从 core.infra.progress 导入。"""
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Sequence
+from pathlib import Path
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from core.infra.progress.contracts import ProgressNode
+from core.infra.progress.core import channel_store as _channel
 from core.infra.progress.core import store as _store
 
 
@@ -11,10 +13,35 @@ class _Types:
     Node = ProgressNode
 
 
+class _ChannelNamespace:
+    """频道化 job 快照（与树形节点进度互补；无业务 channel 名）。"""
+
+    @staticmethod
+    def path(channel: str, file_key: str) -> Path:
+        """``.../progress/{channel}/{file_key}.json``。"""
+        return _channel.build_path(channel, file_key)
+
+    @staticmethod
+    def write(channel: str, file_key: str, payload: Dict[str, Any]) -> Path:
+        """原子写入快照；自动补 ``updated_at``。"""
+        return _channel.write(channel, file_key, payload)
+
+    @staticmethod
+    def read(channel: str, file_key: str) -> Optional[Dict[str, Any]]:
+        """读取快照；不存在或损坏则 ``None``。"""
+        return _channel.read(channel, file_key)
+
+    @staticmethod
+    def clear(channel: str, file_key: str) -> None:
+        """删除快照文件（若存在）。"""
+        _channel.clear(channel, file_key)
+
+
 class Progress:
     """按节点 id 更新进度文件。没有实例。"""
 
     types = _Types
+    channel = _ChannelNamespace()
 
     @staticmethod
     def start(

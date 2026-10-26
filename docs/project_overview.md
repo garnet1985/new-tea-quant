@@ -66,11 +66,14 @@ new-tea-quant/
 
 | 包 | 一句话 |
 |----|--------|
+| [`ai`](../core/infra/ai/) | AI 供应商发现、API Key、裸补全（OpenAI 兼容） |
 | [`cmd_layout`](../core/infra/cmd_layout/) | 命令布局 / 帮助结构 |
 | [`db`](../core/infra/db/) | 数据库连接与访问约定 |
 | [`discovery`](../core/infra/discovery/) | 模块 / 命令发现 |
 | [`export_import`](../core/infra/export_import/) | 导出导入 |
 | [`machine_capacity`](../core/infra/machine_capacity/) | 机器能力探测（如并行度建议） |
+| [`membership`](../core/infra/membership/) | 官网会员凭证本地存取 |
+| [`progress`](../core/infra/progress/) | 统一进度文件（树形 `Progress` + 频道 `Progress.channel`） |
 | [`project_context`](../core/infra/project_context/) | 仓库根、userspace 路径等上下文 |
 | [`setup`](../core/infra/setup/) | 安装 / 首次配置（`install.py`） |
 | [`task_guard`](../core/infra/task_guard/) | 单活跃长任务租约（`TaskGuard` / `TaskLease`） |
@@ -97,8 +100,10 @@ new-tea-quant/
 | [`backtest_engine`](../core/modules/backtest_engine/) | 回测时间轴与执行引擎 | [README](../core/modules/backtest_engine/README.md) |
 | [`market_profile`](../core/modules/market_profile/) | 市场画像相关 | [README](../core/modules/market_profile/README.md) |
 | [`post_process`](../core/modules/post_process/) | `Strategy.scan` 机会协议规范化 + PostProcessor / Adapter | [README](../core/modules/post_process/README.md) |
-| [`agent`](../core/modules/agent/) | AI agent：工具清单、写入准则；运行循环尚未接通模型 | [README](../core/modules/agent/README.md) |
-| [`assistant`](../core/modules/assistant/) | AI 助理：发现 userspace 供应商配置，注入 NTQ 文档上下文，发送 OpenAI 兼容聊天 | [README](../core/modules/assistant/README.md) |
+| [`agent`](../core/modules/agent/) | AI 助手：多轮对话、工具调度、写策略/读报告/跑扫描 | [README](../core/modules/agent/README.md) |
+| [`ntq_external`](../core/modules/ntq_external/) | 与官网的唯一对接（页面链接、会员通道、反馈；AI 会员补全走此通道） | [README](../core/modules/ntq_external/README.md) |
+
+**AI 三角（勿混）：** `infra.ai` = 本机供应商补全；`modules.agent` = 对话与工具编排；`modules.ntq_external` = 官网会员 AI 通道。无独立 `modules.assistant`。
 
 策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/post_process/`。细节以各模块 README 与 `docs/` 为准。
 

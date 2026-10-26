@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.strategy.core.services.progress.progress_recorder import ProgressRecorder
+from core.infra.progress import Progress
 from core.modules.tag.core.services.progress import TagRunProgress
 
 pytestmark = pytest.mark.force_run
@@ -15,10 +15,6 @@ def progress_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "shared"))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
 
-    def _build(channel, file_key):
-        return tmp_path / "jobs" / channel / f"{file_key}.json"
-
-    monkeypatch.setattr(ProgressRecorder, "build_path", staticmethod(_build))
     from core.infra.progress.core import store
 
     store.reset()
@@ -27,8 +23,6 @@ def progress_dir(tmp_path, monkeypatch):
 
 
 def test_tag_run_publishes_job_counts(progress_dir):
-    from core.infra.progress import Progress
-
     prog = TagRunProgress.for_job("macro/rate", "job1")
     prog.seed()
     prog.mark_running()
@@ -47,6 +41,10 @@ def test_tag_run_publishes_job_counts(progress_dir):
     assert shared["detail"] == "执行计算 2/8"
     assert "is_success" not in shared
 
+    disk = Progress.channel.read("tag-run", "macro/rate__job1")
+    assert disk is not None
+    assert disk["status"] == "running"
+
     prog.complete()
     done = TagRunProgress.get_poll_dto(tag_key="macro/rate", job_id="job1")
     assert done["status"] == "completed"
@@ -56,8 +54,6 @@ def test_tag_run_publishes_job_counts(progress_dir):
 
 
 def test_tag_run_failure_marks_the_progress_file(progress_dir):
-    from core.infra.progress import Progress
-
     prog = TagRunProgress.for_job("macro/rate", "job2")
     prog.seed()
     prog.fail("场景缺失")

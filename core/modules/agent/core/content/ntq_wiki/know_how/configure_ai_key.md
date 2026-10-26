@@ -3,12 +3,12 @@ title: configure AI key 配置助理密钥
 aliases:
   - api key
   - api-key
-  - assistant
   - 密钥
   - API Key
   - AI 助理
+  - Agent
   - 智谱
-summary: 在设置 → AI 助理粘贴供应商密钥；页面不回读明文。
+summary: 在设置 → AI 助理粘贴供应商密钥；页面不回读明文。走 infra.ai 发现的 llm_providers。
 ---
 
 # 如何配置 AI Key

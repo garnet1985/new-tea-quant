@@ -3,8 +3,9 @@
 本文件:
 - StrategyHooks / StrategyContext / Records / Series / CalendarSlice / Opportunities: 用户策略 hook 契约
 - Opportunity / Investment: 引擎共享数据类
-- AsOfSlice / JobBundleLoader / ProgressRecorder: tag / BE 协作面（勿 deep-import）
+- AsOfSlice / JobBundleLoader: tag / BE 数据装载协作面（勿 deep-import）
   边界: 仅类型与协作类导出；编排实现仍在 core/
+  进度落盘：跨模块用 ``infra.progress.Progress.channel``，不经本 contracts
 """
 
 from __future__ import annotations
@@ -27,7 +28,6 @@ from core.modules.strategy.core.hooks.hook_params import (
 from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
     JobBundleLoader,
 )
-from core.modules.strategy.core.services.progress import ProgressRecorder
 
 __all__ = [
     "AsOfSlice",
@@ -36,7 +36,6 @@ __all__ = [
     "JobBundleLoader",
     "Opportunities",
     "Opportunity",
-    "ProgressRecorder",
     "Records",
     "Series",
     "SimulateKind",

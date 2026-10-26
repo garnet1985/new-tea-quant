@@ -1,6 +1,6 @@
 # infra.progress — 决定
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 本文件列出本模块的关键选型回顾。每条决定独立编号。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md) · [DESIGN.md](./DESIGN.md)
@@ -34,6 +34,15 @@
 - **理由：** 解析器不需要每一次 tick 都已经在磁盘上。日志仍在调用当次打印。
 - **影响：** 没有定时器去推进进度。
 
+---
+
+## DEC-04：设计点 4：频道快照走 Progress.channel
+
+- **采用：** 方案 A
+- **理由：** Facade 只导出 `Progress`；infra 不写业务 channel 名；tag 可直连 `Progress.channel`，不必依赖 strategy。
+- **影响：** strategy 若要包一层约定，放在本模块 `core/`（如 `ProgressRecorder`），不经 infra 包根导出。
+
+---
 
 ## 相关文档
 

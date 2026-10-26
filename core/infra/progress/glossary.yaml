@@ -1,9 +1,17 @@
 # Progress 术语表
-# Version: 0.2.0
+# Version: 0.2.1
 #
 # 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
 
 terms:
+  Channel:
+    definition: "频道化 job 快照的命名空间。路径为 progress/{channel}/{file_key}.json；与树形根文件并列。"
+    aliases:
+      - "频道"
+    avoid:
+      - "在 infra 里写死 strategy / tag 等业务 channel 名"
+      - "把 ProgressRecorder 当成 infra 公开导出"
+
   Node:
     definition: "一份进度。根节点和 steps 里的每一项都是这种结构。"
     aliases:

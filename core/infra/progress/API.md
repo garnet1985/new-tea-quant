@@ -1,6 +1,6 @@
 # Progress API 文档
 
-**版本：** `0.2.0`  
+**版本：** `0.2.1`  
 **最低支持核心版本：** `>=0.6.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
@@ -259,6 +259,64 @@ current = Progress.latest("renew")
 ### types
 
 **描述：** `ProgressNode`
+
+### channel
+
+**描述：** 频道化 job 快照（与树形节点互补）。包根仍只导出 `Progress`；业务 channel 名由调用方自定，本模块不识别 strategy / tag 等业务语义。
+
+#### channel.path
+
+`Progress.channel.path(channel: str, file_key: str) -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 返回快照路径 ``{progress_dir}/{channel}/{file_key}.json``
+- **参数：**
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| channel | str | 频道名；不能含路径分隔符 |
+| file_key | str | 文件键；可含 ``/``（落在 channel 子目录下） |
+
+- **返回值：** `Path`
+- **错误与异常：** channel / file_key 为空或非法时抛出 `ValueError`
+
+#### channel.write
+
+`Progress.channel.write(channel: str, file_key: str, payload: dict) -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 原子写入快照；自动补 `updated_at`
+- **返回值：** 写入后的 `Path`
+
+#### channel.read
+
+`Progress.channel.read(channel: str, file_key: str) -> dict | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 读取快照；不存在或损坏则 `None`
+
+#### channel.clear
+
+`Progress.channel.clear(channel: str, file_key: str) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 删除快照文件（若存在）
+
+**举例：**
+
+```python
+Progress.channel.write("my-job", "demo__run1", {"phase": "running"})
+snap = Progress.channel.read("my-job", "demo__run1")
+Progress.channel.clear("my-job", "demo__run1")
+```
 
 ---
 

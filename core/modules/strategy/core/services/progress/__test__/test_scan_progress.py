@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from core.infra.project_context.core.path_manager import PathManager
-from core.modules.strategy.core.services.progress import ProgressRecorder, ScanProgress
+from core.modules.strategy.core.services.progress import ScanProgress
 
 
-def _patch_recorder(tmp_path: Path, monkeypatch) -> None:
-    def _build(channel, file_key):
-        return tmp_path / "progress" / channel / f"{file_key}.json"
+@pytest.fixture(autouse=True)
+def progress_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "progress"))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.infra.progress.core import store
 
-    monkeypatch.setattr(ProgressRecorder, "build_path", staticmethod(_build))
+    store.reset()
+    yield tmp_path
+    store.reset()
 
 
 def _isolate_userspace(tmp_path: Path, monkeypatch) -> Path:
@@ -29,7 +35,6 @@ def _isolate_userspace(tmp_path: Path, monkeypatch) -> Path:
 
 
 def test_seed_tick_complete_poll(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
     _isolate_userspace(tmp_path, monkeypatch)
     try:
         prog = ScanProgress.for_job("demo/x", "job1")
@@ -80,8 +85,7 @@ def test_scan_progress_does_not_import_engines() -> None:
     assert "ScanCacheManager" not in text
 
 
-def test_fail_poll(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
+def test_fail_poll():
     prog = ScanProgress.for_job("demo/x", "job2")
     prog.seed(demo=False, force=True)
     prog.fail("nope")

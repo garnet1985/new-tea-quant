@@ -1,6 +1,6 @@
 # Progress — 设计
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 进度文件的形状和写入方式。设计点 2 起取代设计点 1 的「一份当前进度」。  
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
@@ -59,3 +59,22 @@
 | B：每次 tick 都替换文件 | 调用返回时磁盘已是新的 | 崩溃也停在最后一次 | 热路径写盘更勤 |
 
 > 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）
+
+## 设计点 4：频道快照与树形进度并列
+
+### 设计初衷
+
+策略工作台、标签异步 run 等需要按 job 存一份 JSON 快照（phase / label），与树形 ratio 进度互补，但不能再开第二个 infra 导出入口。
+
+### 设计背景
+
+若在 infra 再导出 `ProgressRecorder`，或把 `strategy-scan` / `tag-run` 等 channel 名写进 infra，会违反 Facade 单一入口，并让业务语义渗进基础设施层；tag 若 import strategy 的 recorder，又会形成跨业务依赖。
+
+### 解决方案
+
+| 方案 | 做法摘要 | 优点 | 缺点 |
+|------|----------|------|------|
+| A：`Progress.channel` | 包根只导出 `Progress`；另挂 path/write/read/clear；channel 名由调用方自定 | 单一入口；infra 无业务名；tag 可直连 | 业务侧可能各自包一层约定 |
+| B：infra 再导出 `ProgressRecorder` | 包根同时导出 recorder，并内置业务 channel | 调用方少写几行 | 双入口；业务名进 infra |
+
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md#dec-04)（DEC-04）

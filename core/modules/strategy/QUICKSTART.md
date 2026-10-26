@@ -1,6 +1,6 @@
 # Strategy — 快速开始
 
-**模块：** `modules.strategy` · **版本：** `0.12.0`
+**模块：** `modules.strategy` · **版本：** `0.12.1`
 
 ## 最小示例
 

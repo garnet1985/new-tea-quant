@@ -1,10 +1,10 @@
 # Progress（`infra.progress`）
 
-**模块：** `infra.progress` · **版本：** `0.2.0`
+**模块：** `infra.progress` · **版本：** `0.2.1`
 
 ## 简介
 
-进度统一写进文件。一次任务一个 JSON 文件，按节点 id 一层层写进度。前端 BFF、CLI、PHP 安装脚本都能读同一份进度，不用各自维护进度状态。短时间内多次 tick 会合并成一次写盘。
+进度统一写进文件。一次任务一个 JSON 文件，按节点 id 一层层写进度；另可用 `Progress.channel` 写频道化 job 快照。前端 BFF、CLI、PHP 安装脚本都能读同一份进度，不用各自维护进度状态。短时间内多次 tick 会合并成一次写盘。
 
 ## 适用场景
 

@@ -1,5 +1,5 @@
 name: modules.tag
-version: "0.4.0"
+version: "0.4.1"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。UI catalog/run 在 BFF；进度落盘 TagRunProgress。"
@@ -12,7 +12,11 @@ dependencies:
   - infra.discovery
   - infra.utils
   - infra.trace
+  - infra.progress
 changelog:
+  - version: "0.4.1"
+    changes:
+      - "TagRunProgress 直连 Progress.channel（channel=tag-run），不再经 strategy.ProgressRecorder"
   - version: "0.4.0"
     changes:
       - 标准化模块，标准化文档以及对外API

@@ -9,12 +9,12 @@ import pytest
 
 from core.modules.strategy import Strategy
 from core.modules.strategy.core import strategy as strategy_mod
+from core.modules.strategy import contracts as strategy_contracts
 from core.modules.strategy.contracts import (
     AsOfSlice,
     Investment,
     JobBundleLoader,
     Opportunity,
-    ProgressRecorder,
     SimulateKind,
     StrategyContext,
     StrategyHooks,
@@ -95,7 +95,7 @@ class TestStrategyApi(unittest.TestCase):
         self.assertTrue(hasattr(AsOfSlice, "ready_date_by_entity"))
         self.assertTrue(hasattr(AsOfSlice, "slice_contracts"))
         self.assertTrue(hasattr(JobBundleLoader, "load"))
-        self.assertTrue(hasattr(ProgressRecorder, "for_tag_run"))
+        self.assertNotIn("ProgressRecorder", strategy_contracts.__all__)
 
     def test_list_strategies_delegates_to_discovery(self) -> None:
         info = MagicMock()

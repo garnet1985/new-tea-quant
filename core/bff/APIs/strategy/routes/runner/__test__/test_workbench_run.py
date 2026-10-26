@@ -4,11 +4,21 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from core.bff.APIs.strategy.routes.runner.workbench_run import WorkbenchRunLauncher
-from core.modules.strategy.core.services.progress import (
-    PipelineProgress,
-    ProgressRecorder,
-)
+from core.modules.strategy.core.services.progress import PipelineProgress
+
+
+@pytest.fixture(autouse=True)
+def progress_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "progress"))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.infra.progress.core import store
+
+    store.reset()
+    yield tmp_path
+    store.reset()
 
 
 def test_normalize_step():
@@ -19,12 +29,7 @@ def test_normalize_step():
     assert WorkbenchRunLauncher.normalize_step("nope") is None
 
 
-def test_pipeline_progress_roundtrip_via_launcher(tmp_path, monkeypatch):
-    def _build(channel, file_key):
-        return tmp_path / "progress" / channel / f"{file_key}.json"
-
-    monkeypatch.setattr(ProgressRecorder, "build_path", staticmethod(_build))
-
+def test_pipeline_progress_roundtrip_via_launcher():
     PipelineProgress.seed("demo/x", "job1", pipeline_name="price")
     with PipelineProgress.bind("demo/x", "job1") as prog:
         prog.mark_running()

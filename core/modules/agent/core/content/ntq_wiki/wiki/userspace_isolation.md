@@ -27,7 +27,8 @@ userspace/
 │   ├── tags/                标签
 │   ├── data_source/handlers/  数据源（运行时扫 handlers/）
 │   ├── data_contract/       自定义数据契约
-│   ├── assistant/           助手供应商
+│   ├── llm_providers/       AI 供应商（密钥与 config；由 infra.ai 发现）
+│   ├── agent/               Agent 用户扩展（可选工具等）
 │   └── tables/              自定义表
 └── system/
     ├── config/              覆盖默认配置

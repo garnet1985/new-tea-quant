@@ -37,6 +37,35 @@ def test_package_exports_only_progress() -> None:
     assert callable(Progress.read)
     assert callable(Progress.latest)
     assert Progress.types.Node is ProgressNode
+    assert callable(Progress.channel.path)
+    assert callable(Progress.channel.write)
+    assert callable(Progress.channel.read)
+    assert callable(Progress.channel.clear)
+
+
+def test_channel_write_read_clear(progress_dir) -> None:
+    path = Progress.channel.write(
+        "demo-channel",
+        "demo/x__job1",
+        {"phase": "running", "label": "试跑"},
+    )
+    assert path == progress_dir / "demo-channel" / "demo" / "x__job1.json"
+    assert path.is_file()
+    loaded = Progress.channel.read("demo-channel", "demo/x__job1")
+    assert loaded is not None
+    assert loaded["phase"] == "running"
+    assert loaded["label"] == "试跑"
+    assert "updated_at" in loaded
+
+    Progress.channel.clear("demo-channel", "demo/x__job1")
+    assert Progress.channel.read("demo-channel", "demo/x__job1") is None
+
+
+def test_channel_rejects_bad_channel() -> None:
+    with pytest.raises(ValueError):
+        Progress.channel.path("bad/channel", "k")
+    with pytest.raises(ValueError):
+        Progress.channel.path("", "k")
 
 
 def test_tick_can_skip_the_log(capsys) -> None:

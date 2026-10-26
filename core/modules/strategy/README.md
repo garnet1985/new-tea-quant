@@ -1,6 +1,6 @@
 # Strategy（`modules.strategy`）
 
-**模块：** `modules.strategy` · **版本：** `0.12.0`
+**模块：** `modules.strategy` · **版本：** `0.12.1`
 
 ## 简介
 

@@ -1,10 +1,12 @@
-"""Tag async run progress — disk via ProgressRecorder (tag-run channel)."""
+"""Tag async run progress — job 快照走 ``Progress.channel``（channel=tag-run）。"""
 
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from core.modules.strategy.contracts import ProgressRecorder
+from core.infra.progress import Progress
+
+_CHANNEL = "tag-run"
 
 
 class TagRunProgress:
@@ -18,15 +20,12 @@ class TagRunProgress:
     def for_job(cls, tag_key: str, job_id: str) -> "TagRunProgress":
         return cls(tag_key, job_id)
 
-    def _recorder(self) -> ProgressRecorder:
-        return ProgressRecorder.for_tag_run(self.tag_key, self.job_id)
+    def _file_key(self) -> str:
+        return f"{self.tag_key}__{self.job_id}"
 
     def seed(self) -> None:
-        self._recorder().record(
+        self.write(
             {
-                "tag_key": self.tag_key,
-                "run_id": self.job_id,
-                "job_id": self.job_id,
                 "phase": "queued",
                 "status": "queued",
                 "label": "准备中…",
@@ -41,7 +40,7 @@ class TagRunProgress:
             "job_id": self.job_id,
         }
         base.update(payload)
-        self._recorder().record(base)
+        Progress.channel.write(_CHANNEL, self._file_key(), base)
 
     def mark_running(self, *, label: str = "加载场景…") -> None:
         self.write(
@@ -78,8 +77,6 @@ class TagRunProgress:
         self._finish_shared()
 
     def _ensure_shared(self) -> str:
-        from core.infra.progress import Progress
-
         root = _root_id(self.tag_key, self.job_id)
         existing = Progress.read(root)
         if (
@@ -91,8 +88,6 @@ class TagRunProgress:
         return root
 
     def _publish(self, done: int, total: int, *, detail: str = "") -> None:
-        from core.infra.progress import Progress
-
         root = self._ensure_shared()
         source = self.tag_key or self.job_id
         text = str(detail or "").strip()
@@ -109,13 +104,9 @@ class TagRunProgress:
         Progress.tick(root, 0, 1, source=source, detail=text or None, log=False)
 
     def _finish_shared(self) -> None:
-        from core.infra.progress import Progress
-
         Progress.finish(self._ensure_shared())
 
     def _fail_shared(self, detail: str) -> None:
-        from core.infra.progress import Progress
-
         root = _root_id(self.tag_key, self.job_id)
         if Progress.read(root) is None:
             return
@@ -148,7 +139,7 @@ class TagRunProgress:
         if not key or not jid:
             return None
 
-        disk = ProgressRecorder.for_tag_run(key, jid).get_progress()
+        disk = Progress.channel.read(_CHANNEL, f"{key}__{jid}")
         if not isinstance(disk, dict) or not disk:
             return None
         if str(disk.get("tag_key") or "").strip() != key:
@@ -212,8 +203,6 @@ def _root_id(tag_key: str, job_id: str) -> str:
 
 
 def _shared_percent(tag_key: str, job_id: str) -> Optional[float]:
-    from core.infra.progress import Progress
-
     snap = Progress.read(_root_id(tag_key, job_id))
     if not isinstance(snap, dict) or str(snap.get("job") or "") != "tag":
         return None

@@ -1,11 +1,16 @@
 name: infra.progress
-version: 0.2.0
+version: 0.2.1
 compatible_core_versions: ">=0.6.0"
 package: core.infra
 description: "进度模块：按节点 id 写入统一的进度文件，供界面和 PHP 直接读取。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.2.1"
+    changes:
+      - "新增 Progress.channel：频道化 job 快照落盘（path/write/read/clear）"
+      - "与树形进度共用 NTQ_PROGRESS_DIR；infra 不承载业务 channel 名"
+      - "包根仍仅导出 Progress（不导出 ProgressRecorder）"
   - version: "0.2.0"
     changes:
       - 一个根节点一份文件，steps 里嵌套同一种进度节点

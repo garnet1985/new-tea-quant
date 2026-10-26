@@ -1,6 +1,6 @@
 # Progress — 快速开始
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 ```python
 from core.infra.progress import Progress

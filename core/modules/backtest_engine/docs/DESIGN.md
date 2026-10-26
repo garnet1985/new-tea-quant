@@ -4,6 +4,8 @@
 
 API 与行为以根目录 [API.md](../API.md) 为准。
 
+关键选型见 [DECISIONS.md](./DECISIONS.md)：DEC-01（模块定位）、DEC-02（两种执行模式）、DEC-03（slice_based 算法 SOT 独立）、DEC-04（execute_fn 兼作 probe）、DEC-05（Job 契约）、DEC-06（performance 边界）、DEC-07（RunCallbacks 聚合）、DEC-08（进度始终计算）、DEC-09（MachineInfo 归属）、DEC-10（与 data_source 调度分离）。
+
 ---
 
 ## 1. 模块定位：业务调度 Facade

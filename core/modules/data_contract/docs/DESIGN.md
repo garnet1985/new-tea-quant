@@ -4,6 +4,8 @@
 
 API 以根目录 [API.md](../API.md) 为准。名词见 [CONCEPTS.md](./CONCEPTS.md) / [glossary.yaml](../glossary.yaml)。
 
+关键选型见 [DECISIONS.md](./DECISIONS.md)：DEC-01（ContractIssuer 唯一导出）、DEC-02（契约三层）、DEC-03（Scope 二分）、DEC-04（系统 + userspace 扩展）、DEC-05（应用层边界）。
+
 ---
 
 ## 1. Facade：`ContractIssuer`

@@ -9,19 +9,23 @@
 
 ## 已拍板
 
+关键选型见 [DECISIONS.md](./DECISIONS.md)：DEC-01（MAX_SERIES 代码常量）、DEC-02（时间轴并集 + 统计交集）、DEC-03（默认 fill none）、DEC-04（分析三件套）、DEC-05（points 数组非宽表）、DEC-06（本波无 UI）、DEC-07（CLI 缩写 srel）、DEC-08（最优滞后在去趋势收益率上算）。
+
+下表保留为速查；详细决策理由与放弃方案以 DECISIONS.md 为准。
+
 | 项 | 决定 |
 |----|------|
 | 模块名 | `modules.series_relation` |
 | userspace 路径 | `userspace/extensions/series_relation/<key>/`（与 tags / post_process 同级的一类扩展） |
 | 选源 | 仅 `meta.type == time_series` 的 data_key；`global` 选 field；`per_entity` 选 entity + field |
-| 条数上限 | **代码常量**（建议 `MAX_SERIES = 6`），不进用户 settings；超限拒跑（不静默截断） |
-| 时间轴 | **日期并集**；各系列只在自有观测日有值；折线按系列连接自身有效点 |
-| 默认填充 | `fill: none`（不做 ffill）；ffill 仅显式开启 |
-| 统计口径 | 两两 **交集**；与图的并集分开 |
-| 分析主轴 | **核心**：相关 + 领先滞后 + **幅度系数（原始值 OLS β）**；**补充**：样本门槛、滚动相关 |
-| 产物形状 | 每条系列一个 `points` 数组（非宽表） |
-| 呈现 | 模块落盘 JSON；CLI 打印摘要 + 路径；**本波无 BFF/UI**（后端完成后再做） |
-| CLI | `series_relation` / 缩写 `srel`（`sr` 已被 strategy_rolling 占用） |
+| 条数上限 | **代码常量**（建议 `MAX_SERIES = 6`），不进用户 settings；超限拒跑（不静默截断）—— 见 [DEC-01](./DECISIONS.md#dec-01) |
+| 时间轴 | **日期并集**；各系列只在自有观测日有值；折线按系列连接自身有效点 —— 见 [DEC-02](./DECISIONS.md#dec-02) |
+| 默认填充 | `fill: none`（不做 ffill）；ffill 仅显式开启 —— 见 [DEC-03](./DECISIONS.md#dec-03) |
+| 统计口径 | 两两 **交集**；与图的并集分开 —— 见 [DEC-02](./DECISIONS.md#dec-02) |
+| 分析主轴 | **核心**：相关 + 领先滞后 + **幅度系数（原始值 OLS β）**；**补充**：样本门槛、滚动相关 —— 见 [DEC-04](./DECISIONS.md#dec-04) |
+| 产物形状 | 每条系列一个 `points` 数组（非宽表） —— 见 [DEC-05](./DECISIONS.md#dec-05) |
+| 呈现 | 模块落盘 JSON；CLI 打印摘要 + 路径；**本波无 BFF/UI**（后端完成后再做） —— 见 [DEC-06](./DECISIONS.md#dec-06) |
+| CLI | `series_relation` / 缩写 `srel`（`sr` 已被 strategy_rolling 占用） —— 见 [DEC-07](./DECISIONS.md#dec-07) |
 
 ---
 

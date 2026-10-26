@@ -2,11 +2,7 @@
 
 **版本：** `0.2.0`
 
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| 入口 | 仅 `TaskGuard` | 统一调用面；直白表达「守卫」而非 pipeline |
-| 租约文件 | `userspace/.ntq/runtime/task_guard_active.json` | 与进度等运行时文件同区 |
-| 依赖 | 仅 `project_context` | 避免拉起 strategy/tag/db |
+关键选型见 [DECISIONS.md](./DECISIONS.md)：DEC-01（单一入口）、DEC-02（租约文件位置）、DEC-03（仅依赖 project_context）、DEC-04（文件锁而非内存锁）、DEC-05（将来可并入 pipeline）。
 
 ## 行为要点
 

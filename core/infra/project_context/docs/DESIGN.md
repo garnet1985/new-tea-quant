@@ -12,16 +12,7 @@
 - **内部 Manager：** `PathManager`、`ConfigManager`、`DiscoveryManager` 不对外导出。
 - **人读契约：** 根目录 `API.md`；跨模块类型在 `contracts.py` 或 `ProjectContext.types`。
 
-### 决策摘要
-
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| 入口 | 仅 `ProjectContext` | 防止多入口与命名漂移 |
-| 路径类型 | `pathlib.Path` | 跨平台、可组合 |
-| 配置缺失 | `load_core_config` → `{}`；overridable 两侧皆无 → 抛错 | 可选配置温和失败；强依赖可覆盖配置须显式失败 |
-| 稳定性标记 | 公开 API 最高 `beta`（core `0.x`） | 与 CORE_MODULE_STANDARDS 一致 |
-| 契约载体 | `API.md` + `test_api.py`（不再维护 `api.yaml`） | 人读 SSOT |
-| 文件发现 | `find_in_tree` 在 `infra.discovery` | 通用 IO 与项目上下文解耦 |
+关键选型见 [DECISIONS.md](./DECISIONS.md)：DEC-01（单一入口）、DEC-02（路径类型）、DEC-03（配置缺失策略）、DEC-04（userspace 优先级链）、DEC-05（契约载体）、DEC-06（find_in_tree 归属）。
 
 ---
 

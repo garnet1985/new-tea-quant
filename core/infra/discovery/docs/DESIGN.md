@@ -78,30 +78,4 @@ DiscoveryConfig ──► ClassDiscovery ──► DiscoveryResult
 
 ## 附录：设计决策（原 DECISIONS）
 
-### D1：收敛为独立 infra 模块
-
-横切发现逻辑集中，避免各业务复制 `pkgutil` 扫描。
-
-### D2：拆分 ClassDiscovery 与 ModuleDiscovery
-
-「找子类」与「读模块常量」语义不同，分类型比单类多分支更清晰。
-
-### D3：DiscoveryConfig 承载规则
-
-配置可组合、可测；避免超长 kwargs。
-
-### D4：ClassDiscovery 默认缓存
-
-适合启动期多次查询；提供 `clear_cache`；热替换由调用方清理。
-
-### D5：fail-soft
-
-扩展缺失或语法错误不拖垮装配；调用方处理空结果。
-
-### D6：约定式 module_name_pattern
-
-`str.format` 占位符 `base_module` / `name`，鼓励统一目录约定。
-
-### D7：不保留模块级便捷函数与猜测性属性回退
-
-公开能力一律经 `Discovery.*`；已删除 `discover_*` 自由函数、`discover_class_attribute` 约定回退、`discover_modules_by_path`。
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）

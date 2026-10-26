@@ -38,9 +38,4 @@ Component **共享同一份** session；`depends_on` 仅注入依赖方的 **ret
 
 ---
 
-## 设计决策
-
-1. **协议与编排分离** — 三层协议只描述扫描出口；干活在 Component。  
-2. **PostProcess 不是 pipeline** — 声明无序；执行序仅由依赖拓扑决定。  
-3. **一策略一份 StrategyScanReport** — 多策略用 `ScanSessionReport.strategies`。  
-4. **不兼容旧 adapters 目录** — 过时 `BaseOpportunityAdapter` / `scanner.adapters` 已删除。  
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)

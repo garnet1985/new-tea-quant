@@ -92,32 +92,4 @@ global / non_time_series **不调** `to_entity_list`。
 
 ---
 
-## 设计决策（原 DECISIONS.md）
-
-### 按 `data.base` 分流（BE vs 主进程）
-
-per_entity → BacktestEngine；global / non_time_series → Tag 轻量主进程推进器，忽略 `execution.mode`。
-
-### 增量水位用 last_calculated_end
-
-每实体 progress 存 `last_calculated_end`，非 `max(as_of_date)`。
-
-### entity_based vs slice_based（仅 per_entity）
-
-`entity_based` + `calculate_tag`；`slice_based` + `on_calendar_asof`。
-
-### Facade 名称为 Tag
-
-对外唯一入口 `Tag`；BFF 经 `TagCatalog` / `TagRunLauncher`。
-
-### Tag 表字段单一真相
-
-`attach_to_data_key` SOT = `sys_data_tag_scenario`；progress 水位用 `last_calculated_end`。
-
----
-
-## 相关文档
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
-- [API.md](../API.md)
-- [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)

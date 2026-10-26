@@ -40,26 +40,7 @@ Loader 经 **`DataManager`** 取 raw 行；契约 / `DataKey` / `until` 在 data
 
 ## 5. 设计决策
 
-### 决策 1：Facade 与单例
-
-**决策：** 默认进程内单例（锁 + 双重检查）；`force_new` 用于测试/隔离。  
-**影响：** 多进程每进程各自 `DataManager`。
-
-### 决策 2：表定义在 `core/tables` 与 `userspace/extensions/tables`
-
-**决策：** 递归发现 `schema.py`；core 强制 `sys_` 前缀。
-
-### 决策 3：领域服务属性链
-
-**决策：** 经 `stock` / `macro` / `calendar` / … 属性访问，不包根导出各 Service 类。
-
-### 决策 4：样本股票宇宙属于 DataManager
-
-**决策：** `use_sample_stock_list` 决定系统内保留哪些股票，经 `DataManager.sample_universe` 访问。data_source 只消费该宇宙（抓取切片 / 写库过滤），不持有名单文件或 API。
-
----
-
-## 相关文档
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）## 相关文档
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
 - [API.md](../API.md)

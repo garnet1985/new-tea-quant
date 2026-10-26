@@ -23,15 +23,7 @@
 | A：单一二进制 | 一套 argv，用子命令或旗标区分 | 入口少 | 短别名冲突难解；帮助噪音大 |
 | B：双入口 | 保留 `cli.py` / `devcli.py`，代码在 `modules.cli` | 受众清晰；别名可独立 | 两个入口脚本 |
 
-### 决定
-
-- **采用：** 方案 B
-- **理由：** 受众与别名表本就不该强行合并
-- **影响：** 调用方记住两个入口；实现共享 `Cli.shared`
-
----
-
-## 设计点 2：只导出（export）门面类 `Cli`
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）## 设计点 2：只导出（export）门面类 `Cli`
 
 ### 设计初衷
 
@@ -48,15 +40,7 @@
 | A：导出函数 + 类 | 兼容旧调用 | 迁移成本低 | 多真源、难收紧 |
 | B：只导出 `Cli` | `__all__ = ["Cli"]`；调用一律 `Cli.user.*` 等 | 契约清晰 | 调用方一次性改 import |
 
-### 决定
-
-- **采用：** 方案 B
-- **理由：** 对齐核心模块准则；测试只钉门面类
-- **影响：** 无函数式兼容层
-
----
-
-## 设计点 3：shared 是 namespace，不是独立产品
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）## 设计点 3：shared 是 namespace，不是独立产品
 
 ### 设计初衷
 
@@ -73,15 +57,7 @@ user / dev 都需要短别名展开与 help 判定，避免复制粘贴。
 | A：独立包 / 第三入口 | 单独产品化 | 可被外部 CLI 复用叙事强 | 产品面膨胀 |
 | B：挂在 `Cli.shared` | 仅脚手架 API | 边界清楚 | 外部复用需经门面类 |
 
-### 决定
-
-- **采用：** 方案 B
-- **理由：** shared 只服务双入口，不是第三套 CLI
-- **影响：** 公开面仍只有 `Cli`
-
----
-
-## 设计点 4：删除 `infra.devcli` 与无兼容层
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）## 设计点 4：删除 `infra.devcli` 与无兼容层
 
 ### 设计初衷
 
@@ -98,15 +74,7 @@ user / dev 都需要短别名展开与 help 判定，避免复制粘贴。
 | A：保留兼容 proxy | 旧 import 仍可用 | 短期平滑 | 永久双源 |
 | B：一次性切换 | 删包与自由函数导出 | 干净 | 调用方需改 |
 
-### 决定
-
-- **采用：** 方案 B
-- **理由：** 核心模块不保留向后兼容 proxy
-- **影响：** 一律 `from core.modules.cli import Cli`
-
----
-
-## 设计点 5：短别名与 bootstrap 行为
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）## 设计点 5：短别名与 bootstrap 行为
 
 ### 设计初衷
 
@@ -123,19 +91,7 @@ user / dev 各自维护 `SHORT_TO_LONG`；允许同名短别名语义不同。us
 | A：统一一张别名表 | 全局 SHORT_TO_LONG | 简单 | 无法表达冲突别名 |
 | B：分表 + shared 展开 | 各入口自有表，共用 `expand_argv` | 灵活 | 两套表需各自维护 |
 
-### 决定
-
-- **采用：** 方案 B
-- **理由：** 与双入口决策一致
-- **影响：**
-  - 首 token 在表中则替换为长命令，再交 argparse；空 argv / `-v` / `--version` → `version`
-  - dev 的 `pack` 可经 `after_expand` 支持 `-core_vX.Y.Z` → `--version X.Y.Z`
-  - pack 以各模块 `module_info.yaml` 为版本 SSOT：检查 `name`、changelog、文档文首 `**版本：**` / `# Version:` / `最低支持核心版本`；非 `--check-only` 时按 SSOT 改写文首
-  - user bootstrap：非 venv 且存在 `venv/` 时 `os.execv` 重入；非 early 命令按需 `install.py`；early 含 `update` / `version` / 策略 import|export、help、`-n` 新建等
-
----
-
-## 相关文档
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）## 相关文档
 
 - [架构](./ARCHITECTURE.md)
 - [API.md](../API.md)

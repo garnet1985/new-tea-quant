@@ -38,10 +38,4 @@ archive + userspace + policy → BundleInstaller.install_archive → InstallResu
 
 ## 设计决策
 
-### D1：stdlib zip 为唯一实现
-
-去掉系统 `zip` 双路径，保证跨平台行为一致；目录条目由实现显式写入。
-
-### D2：实现一律类方法，门面薄委托
-
-公开只经 `ExportImport.*`；不导出模块级自由函数。
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）

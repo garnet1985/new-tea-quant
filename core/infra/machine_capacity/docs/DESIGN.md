@@ -16,10 +16,4 @@
 
 ## 设计决策
 
-### D1：去掉旧字段兼容
-
-不再识别 `main_process_reserve_mb`、`dispatch_memory_budget_mb`；只认 `memory_floor_mb` / `memory_budget_mb`。
-
-### D2：门面承载全部实现
-
-模块体量小，解析逻辑内联在 `MachineInfo`；不拆空 `core/` 包。
+> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）> 本节决定已独立到 [DECISIONS.md](./DECISIONS.md)（自动编号 DEC-XX）

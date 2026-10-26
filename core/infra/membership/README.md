@@ -11,8 +11,7 @@
 
 ## 模块依赖
 
-- `infra.project_context`：定位凭证文件（`userspace/system/membership/membership_token.txt`）
-
+- `infra.project_context`：项目上下文模块：提供常用路径，配置，缓存，项目上下文信息的模块。
 ## 设计初衷
 
 - **要解决的问题：** 把凭证存放位置、格式校验（`ntq_` + 48 位十六进制）、权限收紧（0600）收在一个入口，各会员功能不各自读文件。

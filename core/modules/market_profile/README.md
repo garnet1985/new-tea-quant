@@ -1,4 +1,5 @@
 # Market Profile（`modules.market_profile`）
+**模块：** `modules.market_profile` · **版本：** `0.2.0`
 
 为 NTQ 提供多市场制度规则（涨跌幅、整手、交收等）。对外门面为 `MarketRulesProxy`；规则基类见 `contracts`。
 
@@ -9,8 +10,7 @@
 
 ## 模块依赖
 
-无 NTQ 模块硬依赖。
-
+无硬依赖
 ## 常见问题
 
 **Q：该 import 什么？**  

@@ -1,4 +1,5 @@
 # Export / Import（`infra.export_import`）
+**模块：** `infra.export_import` · **版本：** `0.2.0`
 
 为 New Tea Quant（简称 **NTQ**）提供 userspace 制品**打包与安装**公用能力：目录收集、zip 归档、`manifest.json`、冲突预检与按策略落盘。对外门面类（Facade）为 `ExportImport`。词条见 [glossary.yaml](./glossary.yaml)。
 
@@ -9,8 +10,7 @@
 
 ## 模块依赖
 
-无硬性模块依赖（路径由调用方传入）。
-
+无硬依赖
 ## 设计初衷
 
 - **要解决的问题：** 把打包 / 落盘从具体业务编排中抽离，避免 strategy 等模块重复实现 zip 与冲突逻辑。

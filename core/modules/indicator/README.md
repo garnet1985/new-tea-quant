@@ -1,4 +1,5 @@
 # Indicator（`modules.indicator`）
+**模块：** `modules.indicator` · **版本：** `0.2.0`
 
 为 New Tea Quant（简称 **NTQ**）提供技术指标计算。对外门面为 `Indicator`（pandas-ta-classic 薄代理）；结果类型见 `contracts`。词条见 [glossary.yaml](./glossary.yaml)。
 
@@ -11,8 +12,7 @@
 
 ## 模块依赖
 
-无 NTQ 模块硬依赖；运行需 `pandas`、`pandas-ta-classic`。
-
+无硬依赖
 ## 设计初衷
 
 - **要解决的问题：** 统一 List[Dict] K 线与 TA 库之间的格式桥接。

@@ -1,4 +1,5 @@
 # Discovery（`infra.discovery`）
+**模块：** `infra.discovery` · **版本：** `0.2.1`
 
 为 New Tea Quant（简称 **NTQ**）提供可配置的文件与类发现能力：单文件读写、批量路径扫描、按基类枚举子类、按模块名收集对象。对外门面类（Facade）为 `Discovery`。词条见 [glossary.yaml](./glossary.yaml)。
 
@@ -10,8 +11,7 @@
 
 ## 模块依赖
 
-无（标准库为主）。调用方若用路径辅助定位根目录，自行依赖 `project_context` 等。
-
+无硬依赖
 ## 设计初衷
 
 - **要解决的问题：** 用统一入口替代各业务模块手写 `pkgutil` / `importlib` 扫描。

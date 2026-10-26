@@ -1,35 +1,29 @@
 # Analysis（`modules.analysis`）
 
-**统计 / ML 原语工具箱**（无业务、无 I/O）。解释一次策略 run 的 **编排与产物** 在 `strategy/engines/analyzer`。
+**模块：** `modules.analysis` · **版本：** `0.1.0`
 
-## 职责
+统计 / ML 原语工具箱（纯函数、无业务、无 I/O）。输入列向量，输出分桶、相关、回归等统计结构。**不是**策略回测的归因解释——解释一次策略 run 的编排与产物在 `strategy/engines/analyzer`。
 
-- 提供分桶、相关、回归等 **纯函数**（输入列向量 → 输出统计结构）
-- 后期：XGBoost / SHAP 等同模块 `core/ml/`
-- **不提供：** 读 `simulations/`、step 配置、report 文案、simulate 调度
+## 适用场景
 
-## 消费者
+- strategy 等模块需要对某列因子值做分桶、相关性、回归等纯数学计算时
+- 日后可扩展 XGBoost / SHAP 等 ML 模块（均为纯函数）
 
-- `strategy/engines/analyzer` — AttributionPipeline stages
-- 日后 factor 等模块可复用同一套数学，但不经过 strategy 产物路径
+## 模块依赖
 
-## 实施计划
+无硬依赖
+## 设计初衷
 
-见 [TODO.md](./TODO.md)（与 analyzer 侧 [TODO.md](../strategy/core/engines/analyzer/TODO.md) 四步对齐）。
+- **要解决的问题：** 把"数学原语"从"业务归因"中分离——业务归因读策略产物、管 report 文案；本模块只做数字计算。
+- **明确不做：** 不读 `simulations/`、不管配置、不产生 report 文案；不做全市场因子挖掘（未来 factor 模块）。
 
-## 当前状态
+## 常见问题
 
-- Facade `Analysis` 仍为占位
-- 行为 API 尚未导出；第二步起在 `core/classical/` 添加 stub
-
-## 明确不做
-
-- 全市场因子 IC / 滚动 / 挖掘（未来 factor 模块）
-- 重复 strategy overall 报告中的胜率、净值
+**Q：Facade 怎么用？**
+A：行为 API 见 [API.md](./API.md)；纯函数直接调用 `core/classical/` 下对应函数即可。
 
 ## 相关文档
 
-- [TODO.md](./TODO.md) — **当前权威实施清单**
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — 部分表述待与 TODO 同步
-- [API.md](./API.md) — 行为 API 定稿后更新
-- [glossary.yaml](./glossary.yaml) — 术语表
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)

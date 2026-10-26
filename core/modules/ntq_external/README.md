@@ -25,10 +25,9 @@ NTQ 与官网之间的唯一客户端：对外地址、会员资料与会员 AI 
 
 ## 模块依赖
 
+- `infra.membership`
 - `infra.project_context`
-- `infra.membership`：读取本地通用凭证
-- `infra.trace`：登记发送端
-
+- `infra.trace`
 ## 设计初衷
 
 - **地址只认一处。** `conf/site_target.py` 是全部对外 URL 的唯一来源；其他模块经 `site_urls()` 取页面地址，不自己拼字符串。

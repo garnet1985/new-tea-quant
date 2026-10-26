@@ -13,15 +13,15 @@
 
 ## 模块依赖
 
-- `modules.data_source`：序列来源与 `data_key` 声明
-- `modules.strategy`：回测产物（组合净值、价格累计）
+- `infra.discovery`
+- `infra.project_context`
+- `modules.data_contract`：数据契约模块：提供一套可扩展的数据声明到数据加载的契约，主要目的是为了实现回测过程中的声明式数据注入
+- `modules.data_manager`：数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。
+- `modules.strategy`：策略执行模块：Strategy facade 提供 scan / simulate / discov
+## 常见问题
 
-## 配置与命令
-
-- 配置：`userspace/extensions/series_relation/<key>/settings.py`
-- 条数上限：`SeriesRelation.MAX_SERIES`（代码常量）
-- CLI：`python cli.py srel KEY` / `series_relation --list`
-- 产物：`meta.json` / `series.json` / `summary.json` / `findings.md`
+**Q：配置和产物在哪？**  
+A：配置 `userspace/extensions/series_relation/<key>/settings.py`；产物 `meta.json` / `series.json` / `summary.json` / `findings.md`；条数上限 `SeriesRelation.MAX_SERIES`（代码常量）。CLI：`python cli.py srel KEY`。
 
 ## 相关文档
 

@@ -1,4 +1,5 @@
 # Machine Capacity（`infra.machine_capacity`）
+**模块：** `infra.machine_capacity` · **版本：** `0.2.1`
 
 为 New Tea Quant（简称 **NTQ**）提供本机 CPU / 内存容量探测，供 BacktestEngine 等调度器解析 worker 数与内存预算。对外门面类（Facade）为 `MachineInfo`；快照类型 `MachineCapacity` 见 `contracts`。词条见 [glossary.yaml](./glossary.yaml)。
 
@@ -8,8 +9,7 @@
 
 ## 模块依赖
 
-无（可选 `psutil` 读取真实内存；缺失时用内置回退值）。
-
+无硬依赖
 ## 设计初衷
 
 - **要解决的问题：** 把容量探测从 BacktestEngine 中抽成可复用原语。

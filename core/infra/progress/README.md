@@ -1,4 +1,5 @@
 # Progress（`infra.progress`）
+**模块：** `infra.progress` · **版本：** `0.2.0`
 
 按节点 id 把进度写入文件。根节点和每一层 steps 使用同一种结构。界面、PHP 和 BFF 读取文件里已经算好的 ratio，不再自己加权。
 
@@ -14,8 +15,7 @@
 
 ## 模块依赖
 
-- `infra.project_context`：定位 userspace 下的临时目录
-
+- `infra.project_context`：项目上下文模块：提供常用路径，配置，缓存，项目上下文信息的模块。
 ## 设计初衷
 
 各模块曾经各自写进度，界面要认多套字段。本模块只提供统一的进度文件。业务结果仍由各模块自己保存。

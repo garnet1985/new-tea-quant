@@ -1,36 +1,31 @@
 # Setup（`infra.setup`）
 
-安装编排、安装步骤、安装产物工厂。**不是** setuptools 的 `setup.py`。
+**模块：** `infra.setup` · **版本：** `0.1.1`
 
-**公开入口：** `from core.infra.setup import Setup`  
-CLI / `install.py` / `launcher.py` / BFF **只调用门面**。应用升级见 `core.infra.updater`。
+安装编排、安装步骤、安装产物工厂。**不是** setuptools 的 `setup.py`。CLI / `install.py` / `launcher.py` / BFF 只调用门面 `Setup`。应用升级见 `infra.updater`。
 
-产物 zip 在 `initialization/userspace/`、`initialization/data/`（方便找到，不进本模块）。
+## 适用场景
 
-## 布局
+- 首次启动 NTQ 时，编排环境检测（依赖检查、目录创建、产物拷贝）
+- 安装 CLI 运行时 / UI 运行时等可选组件
 
-```text
-core/infra/setup/
-├── setup.py / contracts.py / __init__.py
-├── core/
-│   ├── env.py
-│   ├── install_runtime.py / cli_runtime.py / ui_runtime.py
-│   ├── steps/
-│   └── scripts/
-└── docs/ / __test__/
-```
+## 模块依赖
 
-## 快速开始
+- `infra.cmd_layout`：命令行UI模块：给命令行工具提供一套通用的UI组件，方便其他模块展示结果。
+- `infra.project_context`：项目上下文模块：提供常用路径，配置，缓存，项目上下文信息的模块。
+- `infra.trace`：使用追踪模块：追踪一些重要事件的模块，用于改善用户体验，统计分析错误的模块。
+- `infra.utils`：工具函数模块：提供一些通用的业务无关的工具函数。例如日期处理，类型转换，CSV/归档 IO，确定性随
+## 设计初衷
 
-见 [QUICKSTART.md](./QUICKSTART.md)。
+- **要解决的问题：** 把"怎么装"与"装上了之后怎么跑"分开；安装流程可以在 CLI / BFF / 独立安装器三处复用同一份编排。
+- **明确不做：** 不做升级（属 `infra.updater`）；不做业务配置迁移。
 
-```python
-from core.infra.setup import Setup
+## 常见问题
 
-Setup.runtime.needs_install("cli")
-```
+**Q：安装产物 zip 在哪？**
+A：`initialization/userspace/` 和 `initialization/data/`，方便用户手动取。
 
 ## 相关文档
 
-- [API.md](./API.md)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [公开 API](./API.md)
+- [架构](./docs/ARCHITECTURE.md)

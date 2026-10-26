@@ -1,4 +1,5 @@
 # 命令行布局（`infra.cmd_layout`）
+**模块：** `infra.cmd_layout` · **版本：** `0.2.0`
 
 为 New Tea Quant（简称 **NTQ**）的命令行（CLI）报告提供**纯文本排版助手**：标题层级（h1/h2/h3/h4）、分割线、对照表、行内文本、跨平台图标、水平条形图 / 直方图。对外只暴露门面类（Facade）`CmdLayout`。词条见 [glossary.yaml](./glossary.yaml)。
 
@@ -10,8 +11,7 @@
 
 ## 模块依赖
 
-无（`module_info.yaml` 的 `dependencies` 为空）。
-
+无硬依赖
 ## 设计初衷
 
 - **要解决的问题：** 把报告排版常用片段收成统一入口，并保证跨平台终端可读。

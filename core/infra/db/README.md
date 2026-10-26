@@ -1,4 +1,5 @@
 # Database（`infra.db`）
+**模块：** `infra.db` · **版本：** `0.3.2`
 
 为 New Tea Quant（简称 **NTQ**）提供统一的数据库基础设施：按配置挂载一个后端引擎（Engine：DuckDB / PostgreSQL / MySQL）、schema 管理、表级读写与（DuckDB）多存储域协作。对外门面类（Facade）为 `Db`；表模型等契约见 `contracts.py`。词条见 [glossary.yaml](./glossary.yaml)。
 
@@ -10,8 +11,7 @@
 
 ## 模块依赖
 
-- `infra.project_context`：读取数据库配置与项目路径
-
+- `infra.project_context`：项目上下文模块：提供常用路径，配置，缓存，项目上下文信息的模块。
 ## 设计初衷
 
 - **要解决的问题：** 用单一挂载入口屏蔽多后端差异，并把 schema / 迁移收在基础设施层。

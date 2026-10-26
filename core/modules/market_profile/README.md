@@ -1,29 +1,27 @@
 # Market Profile（`modules.market_profile`）
+
 **模块：** `modules.market_profile` · **版本：** `0.2.0`
 
-为 NTQ 提供多市场制度规则（涨跌幅、整手、交收等）。对外门面为 `MarketRulesProxy`；规则基类见 `contracts`。
+## 简介
+
+各市场的交易规则。A股有涨跌停和 T+1，港股有整手单位，美股有不同的涨跌限制——策略在判断能不能买入、会不会贴板时，从这里拿目标市场的规则。
 
 ## 适用场景
 
-- 策略/组合在交易规则判断前取目标市场规则
-- 读取涨跌停价、整手数量、T+N 交收、贴板判断
+- 策略回测前，问一下"今天会不会涨停"、"这只股票整手是多少股"
+- 支持未来加新市场规则（Crypto、Forex 已有雏形）
 
 ## 模块依赖
 
 无硬依赖
-## 常见问题
 
-**Q：该 import 什么？**  
-A：`from core.modules.market_profile import MarketRulesProxy`；单市场用 `MarketRulesProxy.for_market("china_a_stock")`。类型从 `contracts` 导入。
+## 设计初衷
 
-**Q：能否 deep-import `create_market_rules`？**  
-A：不要。那是内部工厂；请用 `for_market`。
+- **要解决的问题：** 交易规则不能写死在策略里——换个市场规则就全变了。集中在这里维护。
+- **明确不做：** 不模拟撮合、不做交收账务（回测引擎管执行）。
 
 ## 相关文档
 
-- [快速开始](./QUICKSTART.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
-- [测试用例](./__test__/TEST_CASES.md)

@@ -1,35 +1,27 @@
 # Discovery（`infra.discovery`）
+
 **模块：** `infra.discovery` · **版本：** `0.2.1`
 
-为 New Tea Quant（简称 **NTQ**）提供可配置的文件与类发现能力：单文件读写、批量路径扫描、按基类枚举子类、按模块名收集对象。对外门面类（Facade）为 `Discovery`。词条见 [glossary.yaml](./glossary.yaml)。
+## 简介
+
+自动找文件和类。扫 userspace / core 下某个目录，把里面的 Provider、Handler、Strategy 等插件类找出来。代替各模块手写 importlib 扫描，统一走 `Discovery` 门面。
 
 ## 适用场景
 
-- 在 userspace / core 扩展目录中枚举 Provider、Handler、Strategy 等插件类。
-- 查找并加载 JSON / YAML / Python 配置文件。
-- 按约定路径批量收集模块级常量（如 `SCHEMA`）。
+- 启动时扫一遍 `userspace/extensions/data_source/` 下有哪些外部数据源
+- 找所有继承了某个基类的插件实现
 
 ## 模块依赖
 
 无硬依赖
+
 ## 设计初衷
 
-- **要解决的问题：** 用统一入口替代各业务模块手写 `pkgutil` / `importlib` 扫描。
-- **明确不做：** 不定义业务基类；不做热更新 / 文件监视 / 跨进程缓存。
-
-## 常见问题
-
-**Q：代码里该 import 什么？**  
-A：`from core.infra.discovery import Discovery`；类型见 `contracts`。见 [API.md](./API.md)。
-
-**Q：实现在哪？**  
-A：`core/` 子包；勿将内部类当作公开 import 面。
+- **要解决的问题：** 每个模块自己写文件扫描和类枚举是重复代码，集中一处。
+- **明确不做：** 不定义业务基类；不做文件变更监视；不做跨进程缓存。
 
 ## 相关文档
 
-- [快速开始](./QUICKSTART.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
-- [测试用例](./__test__/TEST_CASES.md)

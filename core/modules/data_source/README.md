@@ -2,30 +2,29 @@
 
 **模块：** `modules.data_source` · **版本：** `0.4.0`
 
-配置驱动的数据抓取：对接 Tushare / Yahoo / 自建 Provider 等外部数据源，按 `renew_config` 周期把数据落进 `infra.db` 的约定表。
+## 简介
+
+对接外部数据源（Tushare、Yahoo、自建 Provider 等），把数据拉下来存进本地数据库。支持按配置定时增量更新，新数据源加 Provider + Handler 就行，不用改主流程。
 
 ## 适用场景
 
-- 首次拉全量、或每日/每周增量更新股票、指数、宏观等数据
-- 对接新的外部数据源，只需写 Provider + Handler，不改主流程
+- 首次运行 NTQ，需要拉全量的股票、指数、宏观数据
+- 每天 / 每周自动增量更新最新行情
+- 想接一个新数据源（比如 Wind、东方财富），不想改框架代码
 
 ## 模块依赖
 
-- `infra.cmd_layout`
-- `infra.db`
-- `infra.discovery`
-- `infra.project_context`
-- `infra.utils`
-- `modules.data_manager`：数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。
+- `infra.cmd_layout`：终端展示
+- `infra.db`：底层数据库操作
+- `infra.discovery`：自动发现外部 Provider
+- `infra.project_context`：路径与配置
+- `infra.utils`：通用工具
+- `modules.data_manager`：数据落库后的读回与校验
+
 ## 设计初衷
 
-- **要解决的问题：** 把"和外部打交道"从"本地取数"里分离，抓取周期、并发、速率限制在本层统一。
-- **明确不做：** 不缓存数据（靠 `infra.db` + `data_manager`）；不做声明式取数（属 DataContract）。
-
-## 常见问题
-
-**Q：怎么加一个新数据源？**
-A：在 `userspace/extensions/data_source/<provider_id>/` 下放 Handler + 配置；Discovery 会自动加载。详见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
+- **要解决的问题：** 抓取是"和外部打交道"，取数是"本地读取"，两件事分开。抓取还需要速率限制、并发控制、重试等。
+- **明确不做：** 不做本地数据读取（那是 `data_manager`）；不做声明式取数（那是 `data_contract`）。
 
 ## 相关文档
 

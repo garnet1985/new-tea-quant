@@ -1,33 +1,28 @@
 # Indicator（`modules.indicator`）
+
 **模块：** `modules.indicator` · **版本：** `0.2.0`
 
-为 New Tea Quant（简称 **NTQ**）提供技术指标计算。对外门面为 `Indicator`（pandas-ta-classic 薄代理）；结果类型见 `contracts`。词条见 [glossary.yaml](./glossary.yaml)。
+## 简介
 
-策略里 `settings.data.indicators` 的命名与参数约定见 [docs/AVAILABLE_INDICATORS.md](./docs/AVAILABLE_INDICATORS.md)。
+技术指标计算器。给一串 K 线数据，算 MA、RSI、MACD、KDJ 等常用指标。策略里写 `settings.data.indicators` 或在代码里调 `Indicator.calculate('macd', klines)` 就行。
 
 ## 适用场景
 
-- Strategy / Tag / 分析脚本中对 K 线序列算 MA、RSI、MACD 等
-- 通过 `Indicator.calculate('cci', klines, ...)` 调用库内任意已实现指标
+- 策略里配了技术指标，回测时自动算出来给后续逻辑用
+- 分析脚本里临时算一下 MACD、BOLLINGER 带看看形态
 
 ## 模块依赖
 
-无硬依赖
+无硬依赖（运行需 Python `pandas`、`pandas-ta-classic`）
+
 ## 设计初衷
 
-- **要解决的问题：** 统一 List[Dict] K 线与 TA 库之间的格式桥接。
-- **明确不做：** 不缓存结果、不 fork 指标公式、不做跨股票批量编排。
-
-## 常见问题
-
-**Q：该 import 什么？**  
-A：`from core.modules.indicator import Indicator`；类型 `from core.modules.indicator.contracts import BatchIndicatorResult`。
+- **要解决的问题：** 把 K 线格式和 TA 库桥接起来，策略不用自己写格式转换。
+- **明确不做：** 不缓存结果、不改指标公式、不做跨股票批量编排。
 
 ## 相关文档
 
-- [快速开始](./QUICKSTART.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
-- [测试用例](./__test__/TEST_CASES.md)
+- [可用指标清单](./docs/AVAILABLE_INDICATORS.md)

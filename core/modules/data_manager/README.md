@@ -2,29 +2,28 @@
 
 **模块：** `modules.data_manager` · **版本：** `0.2.3`
 
-统一数据访问门面。上层模块（Strategy / DataSource / Tag / SeriesRelation）不直接连 `infra.db`，经 `DataManager` 取日历、股票、行业、指数、宏观等各类数据。
+## 简介
+
+本地数据访问的统一入口。上层模块不直接连数据库，都从这里拿——交易日历、股票列表、K 线、行业映射、指数、宏观数据。底层用什么引擎（DuckDB / PostgreSQL / MySQL）对上层透明。
 
 ## 适用场景
 
-- 需要股票列表、K 线、行业映射、交易日历等通用数据，不想知道底层表名
-- 需要统一配置不同数据源（本地 DuckDB vs PostgreSQL）
+- 策略跑回测前拿某只股票的 K 线
+- 标签计算需要全股票列表或行业映射表
+- 不同环境想用不同数据库，改一处配置就行
 
 ## 模块依赖
 
-- `infra.cmd_layout`
-- `infra.db`
-- `infra.discovery`
-- `infra.project_context`
-- `infra.utils`
+- `infra.cmd_layout`：终端展示
+- `infra.db`：底层数据库操作
+- `infra.discovery`：自动发现数据服务实现
+- `infra.project_context`：路径与配置
+- `infra.utils`：通用工具
+
 ## 设计初衷
 
-- **要解决的问题：** 把多数据源（DB / DataSource renew）的读取入口收在一处，上层只调门面。
-- **明确不做：** 不做抓取（属 DataSource）；不做数据转换（属 DataContract）。
-
-## 常见问题
-
-**Q：怎么拿股票 K 线？**
-A：`DataManager.get_service("stock").get_klines(entity_id, start, end)`；具体 API 见 [API.md](./API.md)。
+- **要解决的问题：** 把底层数据访问集中到一处，上层不直接连数据库。
+- **明确不做：** 不抓取外部数据（那是 `data_source`）；不做数据格式转换（那是 `data_contract`）。
 
 ## 相关文档
 

@@ -6,7 +6,6 @@
 将「抓取第三方数据并落入项目表」拆为：**配置发现**（`DataSourceManager`）→ **Provider 池** → **Handler 实例** → **执行调度**（拓扑序、依赖注入）。单表 schema 以 **`DataManager`** 绑定表的 **`load_schema()`** 为唯一来源。
 公开 Facade：**`DataSourceManager`**。
 
-
 ```text
 modules.data_source/
 ├── __init__.py                 # 仅 DataSourceManager
@@ -58,6 +57,7 @@ flowchart TB
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)

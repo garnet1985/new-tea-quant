@@ -52,6 +52,7 @@ Settings 页（CLI / UI）
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [README.md](../README.md)
 - [公开 API](../API.md)
 - [术语表](../glossary.yaml)

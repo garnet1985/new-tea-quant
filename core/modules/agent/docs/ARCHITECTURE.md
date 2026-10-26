@@ -75,3 +75,7 @@ core/modules/agent/
 - `infra.project_context`
 - `infra.ai`
 - `ntq_external`（仅 Provider=`ntq`）
+
+## 相关文档
+
+- [用户指南](./USER_GUIDE.md)

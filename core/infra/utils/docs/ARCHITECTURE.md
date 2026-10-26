@@ -5,7 +5,6 @@
 
 `infra.utils` 提供与业务无关的通用工具，经 Facade `Utils` 暴露。
 
-
 ```text
 Utils
   ├── date      → core/date/date_utils.DateUtils
@@ -25,5 +24,6 @@ contracts       → PERIOD_* / PeriodType / ArchiveFormat
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)

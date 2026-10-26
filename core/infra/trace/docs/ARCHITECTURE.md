@@ -15,11 +15,9 @@ Trace (Facade, static API)
   core/services/    Config · Consent · … · Client · Send · Drain
 ```
 
-
 ```text
 NTQ_TRACE_SKIP=1  /  GITHUB_ACTIONS=true  >  NTQ_TRACE_ENABLED=0/1  >  userspace/system/config/trace_consent.json  >  false
 ```
-
 
 ```text
 NTQ_TRACE_ENDPOINT / NTQ_TRACE_TIMEOUT
@@ -28,7 +26,6 @@ NTQ_TRACE_ENDPOINT / NTQ_TRACE_TIMEOUT
 ```
 
 不进 `core/default_config/`：tracing 为 opt-in，默认值与同意分离。
-
 
 ```python
 from core.infra.trace import Trace
@@ -55,3 +52,7 @@ Trace.send(budget="standard")
 - 每条事件 `meta` 含：`os` / `cpu_cores` / `memory_mb` / `db` / `disk_type` / `python_version` / `arch` / `ntq_version`
 - 失败静默；不阻塞业务
 - 与 UI `traceId`（请求排障）无关
+
+## 相关文档
+
+- [用户指南](./USER_GUIDE.md)

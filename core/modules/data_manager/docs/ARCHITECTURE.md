@@ -6,7 +6,6 @@
 提供 **Facade + 领域服务**：`DataManager` 管理单例、库初始化与表注册；领域逻辑在 **`core/data_services/`**，经属性链访问（`data_mgr.stock.kline.load`）。
 公开 Facade：**`DataManager`**。
 
-
 ```text
 modules.data_manager/
 ├── __init__.py              # 仅 DataManager
@@ -55,6 +54,7 @@ flowchart TB
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)

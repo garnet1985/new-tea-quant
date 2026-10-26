@@ -5,7 +5,6 @@
 
 `modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enum / price / portfolio）、决策者回放、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
 
-
 **负责**
 
 - 策略包发现与 Facade 编排（指纹 → 缓存 → Pipeline）
@@ -99,7 +98,6 @@ attribution.py + 当前 settings
 
 ---
 
-
 | 组件 | 职责 |
 |------|------|
 | BE | jobs 调度、Timeline、`JobContext`、slice 装载 |
@@ -111,6 +109,7 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
 - [DESIGN.md](./DESIGN.md)

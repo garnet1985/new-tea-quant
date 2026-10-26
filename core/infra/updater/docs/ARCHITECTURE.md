@@ -7,7 +7,6 @@
 **运行时**必须在 `userspace/system/updater/`（由 `Updater.runtime.sync_orchestrator` 写入）。`core/` 在 `managed_scope` 内，升级镜像时会被覆盖，不能从 core 跑流水线。
 **不负责：** 首次安装、安装 wizard、`needs_install`（均在 `infra.setup`）。
 
-
 ```text
 Updater
   ├── data_scripts  → core/db/registry
@@ -36,5 +35,6 @@ core/infra/updater/
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)

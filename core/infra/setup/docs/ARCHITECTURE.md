@@ -6,7 +6,6 @@
 `infra.setup` 是安装域：判断是否需要安装、跑步骤流水线、生产 `initialization/userspace` / `initialization/data` 产物、UI/CLI 安装编排。
 **核心设计：** setup 全权管理安装；CLI 只调用 `Setup` 门面。冷启动（`install.py` / `launcher.py` / Docker zip）不依赖 argparse CLI。
 
-
 **In scope：** venv、依赖、userspace 初始化、演示数据导入/导出、安装状态、产物 zip 的**生产逻辑**  
 **Out of scope：** 应用升级（见 `infra.updater`）；zip 落盘目录（`initialization/userspace/`、`initialization/data/`）；用户策略/打标命令
 
@@ -33,6 +32,7 @@ Setup
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [DESIGN.md](./DESIGN.md)
 - [API.md](../API.md)
 - [安装失败 Trace 排障（TODO）](./notes/INSTALL_TRACE_TODO.md)

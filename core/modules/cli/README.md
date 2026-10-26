@@ -37,6 +37,7 @@
 
 ## 相关文档
 
+- [用户指南](./docs/USER_GUIDE.md)
 - [快速开始](./QUICKSTART.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)

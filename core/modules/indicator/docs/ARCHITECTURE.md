@@ -10,7 +10,6 @@
 
 - **`core/indicator.py`**：`_init_ta`、数据裁剪与转换、`calculate` / `compute` / `compute_batch`、便捷封装、`list_indicators`、`get_indicator_help`、`warmup`。
 
-
 见 `module_info.yaml`（无 NTQ 模块依赖）；运行需 **pandas**、**pandas-ta-classic**。
 
 ---
@@ -44,6 +43,7 @@ flowchart LR
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [DESIGN.md](DESIGN.md)
 - [API.md](../API.md)
 - [可用指标表](./AVAILABLE_INDICATORS.md)

@@ -60,7 +60,6 @@ settings.yaml
 
 被依赖方：`cli`（`srel` 子命令）、BFF（`/v1/series-relations/*`）、UI（`seriesRelationPage`）。
 
-
 `userspace/extensions/series_relation/<key>/results/` 下：
 
 | 文件 | 内容 |
@@ -70,7 +69,10 @@ settings.yaml
 | `findings.md` | 面向人的解释与配对结论 |
 | `meta.json` | 跑批信息与指纹 |
 
-
 - `best_lag_days` 在**归一化水平值**上扫描 ±20 天。水平值自相关强，相关系数曲线接近平坦，峰值位置对噪声敏感；滞后结论只能作参考，不宜单独作为交易依据。改用去趋势收益率的互相关后才能提升可信度。
 - 序列有缺口时按并集对齐，各序列只在自身有值的点参与计算；重叠样本不足时 `reliable=False`，指标不应当作结论。
 - `relation` 的符号只描述统计方向，与基本面因果无关。
+
+## 相关文档
+
+- [用户指南](./USER_GUIDE.md)

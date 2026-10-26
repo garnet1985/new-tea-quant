@@ -8,7 +8,6 @@
 2. 发现、校验、执行 userspace **PostProcess**（无序 Component 集合 + 可选 `depends_on`）
 策略 Scanner 在 present 阶段通过 `PostProcessDispatcher` 调用本模块门面。
 
-
 ```text
 Adapter (Facade)
   ├── build_session_report / validate_session
@@ -30,6 +29,7 @@ core/
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [PROTOCOL.md](./PROTOCOL.md)
 - [POST_PROCESS.md](./POST_PROCESS.md)
 - [DESIGN.md](./DESIGN.md)

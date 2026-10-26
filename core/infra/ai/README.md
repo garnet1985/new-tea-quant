@@ -23,4 +23,5 @@
 
 ## 相关文档
 
+- [用户指南](./docs/USER_GUIDE.md)
 - [门面 `AiChannel` 实现](./ai_channel.py)

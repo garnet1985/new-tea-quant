@@ -9,7 +9,6 @@
 - 稳定路径构造，避免业务硬编码相对路径
 - 统一 `core/default_config` 与 `userspace/config` 的发现与合并语义
 
-
 **职责（In scope）**
 
 - 根目录检测与缓存；userspace 环境变量与 `.ntq/userspace-path.json` 覆盖
@@ -65,7 +64,6 @@ NEW_TEA_QUANT_USERSPACE_ROOT
 
 ---
 
-
 ```python
 from core.infra.project_context import ProjectContext
 
@@ -95,6 +93,7 @@ err = ProjectContext.types.OverridableConfigNotFoundError
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [详细设计](./DESIGN.md)
 - [API](../API.md)
 - [契约测试](../__test__/test_api.py)

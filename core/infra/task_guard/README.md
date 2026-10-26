@@ -22,5 +22,6 @@
 
 ## 相关文档
 
+- [用户指南](./docs/USER_GUIDE.md)
 - [公开 API](./API.md)
 - [架构](./docs/ARCHITECTURE.md)

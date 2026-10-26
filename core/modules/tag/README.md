@@ -29,6 +29,7 @@
 
 ## 相关文档
 
+- [用户指南](./docs/USER_GUIDE.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)

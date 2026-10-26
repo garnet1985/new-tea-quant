@@ -26,6 +26,7 @@ NTQ 本地和官网之间的唯一对接点。拿官网页面地址、查会员�
 
 ## 相关文档
 
+- [用户指南](./docs/USER_GUIDE.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)

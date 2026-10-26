@@ -144,6 +144,7 @@ IO 不变量：正式片数 N ⇒ 至少 N 次按片 DB 装载。
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [README.md](../README.md)
 - [公开 API](../API.md)
 - [设计](./DESIGN.md)

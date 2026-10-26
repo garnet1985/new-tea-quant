@@ -77,6 +77,7 @@ start
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)

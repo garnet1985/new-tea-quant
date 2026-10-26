@@ -25,5 +25,6 @@ NTQ 的安装流程编排。首次启动时检测环境、创建目录、拷贝�
 
 ## 相关文档
 
+- [用户指南](./docs/USER_GUIDE.md)
 - [公开 API](./API.md)
 - [架构](./docs/ARCHITECTURE.md)

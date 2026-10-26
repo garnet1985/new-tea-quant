@@ -5,7 +5,6 @@
 
 将「策略/标签声明的数据依赖」收敛为 **`DATA_KEY` → declaration + loader`**，经 **发现 → 签发 → 填充 →（时序）PIT 游标** 交付。公开 Facade 为 **`ContractIssuer`**。
 
-
 ```text
 modules.data_contract/
 ├── __init__.py              # 仅 ContractIssuer（Facade）
@@ -51,6 +50,7 @@ flowchart LR
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [DESIGN.md](./DESIGN.md)
 - [CONCEPTS.md](./CONCEPTS.md)
 - [API.md](../API.md)

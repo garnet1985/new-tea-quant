@@ -3,6 +3,9 @@ version: "0.2.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "市场制度规则模块：提供市场制度规则的查询服务，支持查询涨跌停、最小申报单位、板块手数等规则。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "市场模块 (Market Profile)"
+site_display_title: "不同市场提供不同规则 - Market profile 模块"
 dependencies: []
 changelog:
   - version: "0.2.0"

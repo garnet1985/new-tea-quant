@@ -3,6 +3,9 @@ version: "0.1.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "序列关系：多条 time series 并置比较（对齐呈现 + 可选关系摘要）。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "序列数据关系模块 (Series Relation)"
+site_display_title: "在不同时序数据中找关系 - Series Relation 模块"
 dependencies:
   - modules.data_manager
   - modules.data_contract

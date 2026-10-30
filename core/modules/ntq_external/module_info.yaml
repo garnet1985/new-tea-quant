@@ -3,6 +3,9 @@ version: "0.1.0"
 compatible_core_versions: ">=0.6.0"
 package: core.modules
 description: "NTQ 官网客户端：会员 AI、反馈，以及 trace 的官网发送端。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "官网服务模块 (NTQ External)"
+site_display_title: "与官网交互的服务 - NTQ External 模块"
 dependencies:
   - infra.project_context
   - infra.membership

@@ -3,6 +3,9 @@ version: "0.1.1"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "安装域：venv/依赖/userspace/演示数据与 CLI·UI 安装编排。产物工厂与安装步骤均属本模块；CLI 只调用门面。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "安装模块 (Setup)"
+site_display_title: "安装的统一步骤编排 - Setup 模块"
 dependencies:
   - infra.cmd_layout
   - infra.project_context

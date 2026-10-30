@@ -3,6 +3,9 @@ version: "0.1.0"
 compatible_core_versions: ">=0.6.0"
 package: core.infra
 description: "AI 通道：供应商发现、密钥与裸 complete（无业务）。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "AI管理模块 (AI)"
+site_display_title: "管理AI的识别与配置 - AI 管理模块"
 dependencies:
   - infra.project_context
   - infra.discovery

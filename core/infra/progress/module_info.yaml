@@ -3,6 +3,9 @@ version: 0.2.1
 compatible_core_versions: ">=0.6.0"
 package: core.infra
 description: "进度模块：按节点 id 写入统一的进度文件，供界面和 PHP 直接读取。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "进度模块 (Progress)"
+site_display_title: "统一管理进度记录 - Progress 模块"
 dependencies:
   - infra.project_context
 changelog:

@@ -3,6 +3,9 @@ version: "0.4.3"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据契约模块：提供一套可扩展的数据声明到数据加载的契约，主要目的是为了实现回测过程中的声明式数据注入。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "数据契约模块 (Data Contract)"
+site_display_title: "统一格式的数据 - Data Contract模块"
 dependencies:
   - modules.data_manager
   - infra.project_context

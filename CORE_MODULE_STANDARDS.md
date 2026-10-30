@@ -297,6 +297,15 @@
 | `dependencies` | list | 模块级依赖列表 | 属性存在 |
 | `changelog` | list | 本模块变更记录 | 至少一条；`changelog[0].version` = 顶层 `version` |
 
+**可选属性（站点文档同步，非运行时）：**
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `site_title` | string | Drupal 节点 Title（URL / 菜单）；例：`安装模块 (Setup)` |
+| `site_display_title` | string | Drupal Display title（页头展示）；例：`安装的统一步骤编排 - Setup 模块` |
+
+留空则站点同步回退到 Markdown 文首 `#` 标题。不纳入 `devcli.py p` 必填检查。
+
 **`changelog` 格式：** 新 → 旧；每条含 `version` + `changes`（字符串列表）。
 
 **版本一致性：** `module_info.yaml` 的 `version`、`changelog[0].version` 与各文档文首标准版本字段一致；`name` 须符合目录约定。`devcli.py p` 强制检查。细则见 [模块文档规范](docs/module-doc-standard.md)。

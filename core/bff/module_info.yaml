@@ -2,6 +2,9 @@ name: bff
 version: "0.2.1"
 compatible_core_versions: ">=0.5.0"
 description: "FED 的 Flask BFF：HTTP 编排与 DTO；领域执行在 core.modules / core.infra。"
+# 站点文档（可选；Drupal title / display title）
+site_title: ""
+site_display_title: ""
 dependencies:
   - modules.strategy
   - infra.ai

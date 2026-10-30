@@ -3,6 +3,9 @@ version: 0.1.2
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "使用追踪模块：追踪一些重要事件的模块，用于改善用户体验，统计分析错误的模块。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "轨迹追踪模块 (Trace)"
+site_display_title: "追踪事件 - Trace 模块"
 dependencies:
   - infra.project_context
   - infra.machine_capacity

@@ -3,6 +3,9 @@ version: 0.2.0
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "项目上下文模块：提供常用路径，配置，缓存，项目上下文信息的模块。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "工程上下文 (Project Context)"
+site_display_title: "提供统一便捷的工程上下文 - Project Context 模块"
 dependencies: []
 changelog:
   - version: "0.2.0"

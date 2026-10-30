@@ -3,6 +3,9 @@ version: "0.2.3"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "数据管理模块 (Data Manager)"
+site_display_title: "统一的数据分发层 - Data Manager 模块"
 dependencies:
   - infra.db
   - infra.project_context

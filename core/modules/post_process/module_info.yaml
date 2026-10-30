@@ -3,6 +3,9 @@ version: "0.3.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "后续处理模块：扫描机会协议规范化，以及 PostProcessor / Adapter 发现与执行。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "扫描机会处理模块 (Post Process)"
+site_display_title: "处理策略扫描到的机会 - Post Process 模块"
 dependencies:
   - infra.project_context
 changelog:

@@ -2,6 +2,9 @@ name: ui
 version: "0.2.3"
 compatible_core_versions: ">=0.5.0"
 description: "NTQ 前端UI基础设施：提供可视化的用户界面，通过浏览器展示。"
+# 站点文档（可选；Drupal title / display title）
+site_title: ""
+site_display_title: ""
 dependencies:
   - modules.strategy
   - infra.project_context

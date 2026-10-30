@@ -41,12 +41,14 @@ analysis/
 
 ## 架构图
 
-```text
-Caller (CLI / 工作台 / 日后)
-   → Analysis（Facade，骨架）
-        → （未实现）读 strategy version 目录
-        → （未实现）归因工具
-        → （未实现）attribution report
+当前仅 Facade 骨架；下游未实现。
+
+```mermaid
+flowchart LR
+  Caller[CLI / 工作台] --> Analysis
+  Analysis -.-> Read[读 strategy version 目录]
+  Analysis -.-> Tools[归因工具]
+  Analysis -.-> Report[attribution report]
 ```
 
 strategy 三步模拟与 BE 调度不经过本模块。

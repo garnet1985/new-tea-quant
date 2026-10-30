@@ -17,6 +17,13 @@ TaskGuard
   └── types                → contracts（含懒加载 TaskLease）
 ```
 
+```mermaid
+flowchart LR
+  Caller --> TaskGuard
+  TaskGuard --> Lease[TaskLease]
+  TaskGuard --> Types[contracts]
+```
+
 ## 相关文档
 
 - [用户指南](./USER_GUIDE.md)

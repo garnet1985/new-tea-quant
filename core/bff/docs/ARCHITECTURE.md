@@ -31,6 +31,18 @@ core/bff/
   docs/
 ```
 
+## 架构图
+
+```mermaid
+flowchart TB
+  FED[FED / UI] --> BFF[Flask BFF]
+  BFF --> Routes[APIs routes]
+  Routes --> Impl[implementer]
+  Impl --> Helpers[helpers DTO]
+  Impl --> Modules[modules / infra facades]
+  BFF --> Static[static FED build]
+```
+
 ## 分层
 
 | 层 | 允许 | 禁止 |

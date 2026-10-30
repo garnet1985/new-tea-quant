@@ -26,45 +26,21 @@
 
 ---
 
-## 模块结构图
+## 架构图
 
-**组件层：**
+应用层经 Facade 分到两种 schedule；细节见下方目录树。
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│  tag / strategy（应用层）                                 │
-│  jobs, dispatch.yaml → performance, RunCallbacks          │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│  BacktestEngine（Facade）                                  │
-│  run / entity_based / slice_based · Timeline · RunResult   │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-         ┌─────────────────┴─────────────────┐
-         ▼                                   ▼
-┌─────────────────────┐           ┌─────────────────────┐
-│ schedule/entity_based│           │ schedule/slice_based │
-│ ExecutePipeline      │           │ ExecutePipeline      │
-│ Planner / Probe      │           │ Planner / Probe      │
-│ EntityExecutor       │           │ SliceExecutor        │
-│ Monitor              │           │ Orchestrator/Monitor │
-└──────────┬───────────┘           └──────────┬───────────┘
-           │                                  │
-           └──────────────┬───────────────────┘
-                          ▼
-              ┌───────────────────────┐
-              │ core/shared + timeline│
-              │ jobs, types, progress │
-              │ core/performance      │
-              └───────────┬───────────┘
-                          ▼
-              ┌───────────────────────┐
-              │ core.infra            │
-              │ machine_capacity      │
-              │ duckdb process pool   │
-              └───────────────────────┘
+```mermaid
+flowchart TB
+  App[tag / strategy] --> BE[BacktestEngine]
+  BE --> Ent[entity_based]
+  BE --> Slice[slice_based]
+  Ent --> Shared[shared / timeline / performance]
+  Slice --> Shared
+  Shared --> Infra[infra.machine_capacity / db pool]
 ```
+
+## 模块结构图
 
 **目录树：**
 
@@ -92,9 +68,9 @@ backtest_engine/
 
 ---
 
-## 架构图
+## 数据流（若有）
 
-probe → plan → execute → monitor 流水线；两种模式下具体执行器不同。
+probe → plan → execute → monitor；两种模式下具体执行器不同。用户 settings **不含** `performance`。
 
 ```text
 EntityBasedPerformance.base()
@@ -107,12 +83,6 @@ SliceBasedPerformance.base()
     → resolve_slice_based_performance()
     → SliceBasedPerformance.resolve_for_planning()
 ```
-
-用户 settings **不含** `performance`。
-
----
-
-## 数据流（若有）
 
 两种模式共用：**validate → plan → monitor setup → execute → RunResult**。有 jobs 时须先就绪 Timeline（`run(start=, end=)` 或 `set_timeline`）。内置进度：prep 5% → plan 10% → execute 80% → finish 5%；始终计算，`enable_progress_display` 仅控制 CMD 日志。
 

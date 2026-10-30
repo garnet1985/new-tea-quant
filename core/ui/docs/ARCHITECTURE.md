@@ -45,6 +45,17 @@ core/ui/
 
 生产构建产物在 `fed/build`，由 BFF 静态托管。
 
+## 架构图
+
+```mermaid
+flowchart LR
+  Browser --> FED[fed React]
+  FED --> API[fed/api]
+  API --> BFF[core/bff]
+  BFF --> Modules[modules / infra]
+  BFF -->|static| Build[fed/build]
+```
+
 ---
 
 ## 主导航

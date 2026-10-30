@@ -66,6 +66,6 @@ docs/doc_templates/module/
 |------|------|
 | `README.md` / `API.md` / `glossary.yaml` / `module_info.yaml` | 已定稿（v1） |
 | `QUICKSTART.md` / `docs/CONCEPTS.md` / `docs/DECISIONS.md` | 已定稿（v1，可选） |
-| `docs/ARCHITECTURE.md` | 已定稿（v1） |
+| `docs/ARCHITECTURE.md` | 已定稿（v1.5：架构图必须 Mermaid，见 module-doc-standard §3.1） |
 | `__test__/TEST_CASES.md` + `test_api.py` | 已定稿（v1） |
 | `__performance__/README.md` + `CASES.md` | 已定稿（v1，框架）；指标细表可后补 |

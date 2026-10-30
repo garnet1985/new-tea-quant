@@ -17,6 +17,18 @@ Utils
 contracts       → PERIOD_* / PeriodType / ArchiveFormat
 ```
 
+```mermaid
+flowchart LR
+  Caller --> Utils
+  Utils --> Date
+  Utils --> Types
+  Utils --> IO
+  Utils --> Math
+  Utils --> Markdown
+  Utils --> Locale
+  Utils --> Pkg
+```
+
 ## 职责与边界（结论）
 
 **In scope：** 日期、类型判断、CSV/归档、确定性随机、MD 模版填充、本机区域（`is_china`）、pip/npm 依赖源（`pkg`）  

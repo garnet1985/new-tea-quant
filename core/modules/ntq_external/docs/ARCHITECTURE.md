@@ -37,6 +37,26 @@
 
 依赖方向：`site.py` / `member_profile.py` / `ai/` / `feedback/` / `track/` → `conf/`；反向不成立。
 
+## 架构图
+
+```mermaid
+flowchart TB
+  Caller --> Site[site_urls]
+  Caller --> Profile[member_profile]
+  Caller --> MemberAI[ai/member_channel]
+  Caller --> Feedback
+  Site --> Conf[conf/site_target]
+  Profile --> Conf
+  Profile --> Mem[infra.membership]
+  MemberAI --> Conf
+  MemberAI --> Mem
+  Feedback --> Conf
+  Track[track register] --> Trace[infra.trace]
+  Track --> Conf
+```
+
+地址只从 `conf/` 出；资料与 AI 通道读本地凭证，不回传明文。
+
 ## 数据流（若有）
 
 **页面地址**

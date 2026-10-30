@@ -1,14 +1,14 @@
 # 模块文档规范
 
-**版本：** 1.4.0  
-**最后更新：** 2026-10-26  
+**版本：** 1.5.0  
+**最后更新：** 2026-10-30  
 **适用范围：** `core/modules/*`、`core/infra/*`（及其他按 core 模块标准收口的主模块）的**文档**
 
 > **文档 SSOT：** 模块文档的格式、清单、位置与维护规则以**本文**为准。  
 > **模块规则（代码 / 测试结构 / 版本 / Facade 等）：** [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)  
 > **可 copy 骨架：** [`docs/doc_templates/module/`](doc_templates/module/)（与真实模块同结构；整棵 copy 后替换 `<xxx>`，删除不需要的可选文件）
 
-**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。
+**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。**v1.5.0 起**：架构图 / 组件关系图以 **Mermaid** 为 SSOT；禁止用 Unicode/ASCII 方框「手绘」流程图（见 §3.1）。
 
 ---
 
@@ -241,17 +241,52 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### `docs/ARCHITECTURE.md`（模板见 [`docs/ARCHITECTURE.md`](doc_templates/module/docs/ARCHITECTURE.md)）
 
-> **High level + 已定结论**。不写方案对比（→ DECISIONS）。**必须有版本。**
+> **High level + 已定结论**。不写方案对比（→ DECISIONS）。**必须有版本。**  
+> 图示写法见下 **§3.1**。
 
 | 章节 | 必须 / 可选 | 说明 |
 |------|------------|------|
 | 文首版本 + 定位 | 必须 | 版本 = `module_info.yaml` |
 | 职责与边界（负责 / 不负责） | 必须 | 已定结论；勿用 In/Out of scope 作标题 |
-| 模块结构图 | 必须 | 目录 / 包结构 |
-| 架构图 | 必须 | 组件 / 分层 / 主调用关系 |
-| 数据流 | 可选 | 有显著数据流时写 |
+| 模块结构图 | 必须 | 目录 / 包结构（` ```text ` 树即可） |
+| 架构图 | 必须 | 组件 / 分层 / 主调用关系（**必须** ` ```mermaid `） |
+| 数据流 | 可选 | 有显著数据流时写（短步骤可用 `text`；关系复杂则用 Mermaid） |
 | 依赖 | 建议 | 对齐 `module_info.yaml` |
 | 相关文档 | 必须 | API、glossary；（若有）DECISIONS / CONCEPTS |
+
+### 3.1 图示约定（Mermaid SSOT）
+
+> 目标：仓库内架构图可在 GitHub / IDE / 官网文档管道中稳定渲染；**不再**依赖自研 ASCII 方框解析。
+
+| 用途 | 写法 | 说明 |
+|------|------|------|
+| **架构图 / 组件关系 / 分层调用** | **` ```mermaid `** | **SSOT**。优先 `flowchart TB` 或 `flowchart LR`；节点用短 id + 方括号标签 |
+| **目录 / 包结构树** | **` ```text `** | `├──` / `└──` 树；**不要**用 Mermaid |
+| **短线性步骤**（≤ ~8 步、无分支） | **` ```text `** | 可用 `→` 链式；也可改成 Mermaid |
+| **有分支 / 并行 / 多出口的数据流** | **` ```mermaid `** | 与架构图同一语法 |
+
+**允许的 Mermaid 子集（正式文档）：**
+
+- 推荐：`flowchart TB` / `flowchart LR`（含 `-->`、`---`、`\|label\|`、`{}` 判断节点）
+- 可用：`sequenceDiagram`（仅当时序是主叙事）
+- **不要**在正式 ARCHITECTURE 里用：`gantt`、`pie`、`gitGraph`、复杂 `classDiagram`（易碎、难审）
+
+**源码可读性（硬性习惯）：**
+
+- 节点标签**短**（一个名字 / 一层包名即可）；**禁止**在标签里堆职责列表或写 `<br/>`
+- 图只表达**谁连谁**；职责、文件、方法名放在目录树或图下一二句说明
+- 对照好例子：[`tag/docs/ARCHITECTURE.md`](../core/modules/tag/docs/ARCHITECTURE.md) 的架构图——裸源码也能扫出调用关系
+- 若一张图在**未渲染**时都扫不动，说明写复杂了，应拆图或改回短标签，而不是把 ASCII 方框原文塞进 Mermaid
+
+**禁止：**
+
+- ❌ 用 `┌─┐` / `└─┘` / `│` 画的 **Unicode 方框图** 表达架构或调用关系（存量迁到 Mermaid）
+- ❌ 用 `+---+` 一类 ASCII 边框图表达同上
+- ❌ 同一关系既维护一份 ASCII 方框又维护一份 Mermaid（只留 Mermaid）
+
+**官网 / md2html：** Mermaid 围栏原样进入富文本（如 `<pre class="mermaid">`），由前台渲染；目录树与短 `text` 步骤按普通 `<pre>` 输出，不做方框解析。
+
+**存量：** 发现方框图即改为 Mermaid；仅目录树与短步骤的 `text` 可保留。
 
 ### `docs/DECISIONS.md`（可选；模板见 [`docs/DECISIONS.md`](doc_templates/module/docs/DECISIONS.md)）
 
@@ -349,6 +384,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | 无双源 | 无并行 `api.yaml` / `docs/API.md` |
 | `TEST_CASES.md` | scenario/case 与 pytest 对齐；无遗留 `test_cases.yaml` |
 | DECISIONS 结构 | 含设计目标 + 方案与思路 + DEC 编号决策点；无遗留 `docs/DESIGN.md` |
+| 图示 | ARCHITECTURE「架构图」为 Mermaid；无 Unicode/ASCII 方框流程图；目录树用 `text`（§3.1） |
 
 模块创建 / 维护 / 清理的完整清单（含代码与测试）见 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
 

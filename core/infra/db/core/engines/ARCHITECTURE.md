@@ -60,6 +60,22 @@ core/infra/db/core/engines/
 
 ## 3. 层次职责
 
+```mermaid
+flowchart TB
+  Caller[DbBaseModel / 业务] --> Mgr[DatabaseManager]
+  Mgr --> Factory[EngineFactory]
+  Factory --> Duck[duckdb Engine]
+  Factory --> My[mysql Engine]
+  Factory --> Pg[pgsql Engine]
+  Duck --> DParts[connector / sql_adapter / schema_parser / table_operator / write_pipeline]
+  My --> SParts[connector / sql_adapter / schema_parser / table_operator]
+  Pg --> SParts
+  My --> Shared[shared/server_*]
+  Pg --> Shared
+```
+
+同一时刻只挂载一个 engine；Manager 只转发，方言与连接在各 backend 包内。
+
 ### 3.1 DatabaseManager（外层）
 
 | 负责 | 不负责 |

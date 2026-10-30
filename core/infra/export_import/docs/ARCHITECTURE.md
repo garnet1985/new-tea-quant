@@ -43,6 +43,14 @@ core/infra/export_import/
            └── types → contracts
 ```
 
+```mermaid
+flowchart LR
+  Caller --> ExportImport
+  ExportImport --> Archive[BundleArchive]
+  ExportImport --> Install[ConflictChecker / BundleInstaller]
+  ExportImport --> Types[contracts]
+```
+
 ---
 
 ## 相关文档

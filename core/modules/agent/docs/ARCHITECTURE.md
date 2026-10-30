@@ -56,6 +56,26 @@ core/modules/agent/
 
 ---
 
+## 架构图
+
+```mermaid
+flowchart TB
+  User[用户话] --> Agent
+  Agent --> Prov[resolve_provider]
+  Prov --> Nav[navigator.route]
+  Nav --> Guide[guider]
+  Nav --> Work[worker]
+  Guide --> AI[infra.ai / ntq_external]
+  Work --> AI
+  Work --> Tools[本机 tools]
+  Nav -->|present?| Present[present complete]
+  Present --> AI
+```
+
+本地负责分流与工具；仅 `provider=ntq` 时补全出站走官网。细节见 [PROVIDER_AND_NAVIGATOR.md](./PROVIDER_AND_NAVIGATOR.md)。
+
+---
+
 ## 数据流（若有）
 
 ```text

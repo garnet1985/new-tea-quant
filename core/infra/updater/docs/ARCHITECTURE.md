@@ -15,6 +15,14 @@ Updater
   └── types         → contracts
 ```
 
+```mermaid
+flowchart LR
+  Caller --> Updater
+  Updater --> DataScripts[data_scripts]
+  Updater --> PostUpgrade[post_upgrade]
+  Updater --> Runtime[runtime sync]
+```
+
 ```text
 cli.py u ──► userspace/system/updater (拷贝)
 devcli pu ──► Updater.runtime.sync_orchestrator ──► Setup.artifacts.package_userspace

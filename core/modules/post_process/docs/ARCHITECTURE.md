@@ -22,6 +22,15 @@ core/
   └── post_processor_loader / validator / executor / topo
 ```
 
+```mermaid
+flowchart LR
+  Scanner[strategy Scanner] --> Facade[PostProcess / Adapter]
+  Facade --> Protocol[session report protocol]
+  Facade --> Components[Component load]
+  Facade --> PP[PostProcess run]
+  PP --> Userspace[userspace extensions]
+```
+
 ## 职责与边界（结论）
 
 **In scope：** 协议、Component / PostProcess 契约与发现执行、userspace 目录约定  

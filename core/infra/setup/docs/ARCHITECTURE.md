@@ -30,6 +30,16 @@ Setup
   └── types      → contracts
 ```
 
+```mermaid
+flowchart LR
+  Caller --> Setup
+  Setup --> Env[env]
+  Setup --> Runtime[runtime]
+  Setup --> Artifacts[artifacts]
+  Setup --> Meta[meta]
+  Setup --> Trace[trace]
+```
+
 ## 相关文档
 
 - [用户指南](./USER_GUIDE.md)

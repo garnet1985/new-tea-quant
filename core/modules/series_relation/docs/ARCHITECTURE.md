@@ -32,6 +32,20 @@
 
 依赖方向：`series_relation.py` → `core/`；`core/pipeline/` → `core/engines/`、`core/settings.py`；反向不成立。
 
+## 架构图
+
+```mermaid
+flowchart TB
+  Caller --> Facade[SeriesRelation]
+  Facade --> Disc[discovery]
+  Facade --> Pipe[pipeline]
+  Pipe --> Load[load_series / load_strategy_sim]
+  Pipe --> Norm[normalize / transform]
+  Pipe --> Analyze[analyze pairwise]
+  Analyze --> Engines[core/engines]
+  Analyze --> Out[results summary / findings]
+```
+
 ## 数据流（若有）
 
 ```

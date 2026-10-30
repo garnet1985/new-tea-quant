@@ -39,6 +39,14 @@ core/infra/machine_capacity/
            └── types → contracts.MachineCapacity
 ```
 
+```mermaid
+flowchart LR
+  Caller --> MachineInfo
+  MachineInfo --> Capacity[get_capacity / resolve_*]
+  MachineInfo --> Mem[virtual_memory_mb]
+  MachineInfo --> Types[contracts]
+```
+
 ---
 
 ## 相关文档

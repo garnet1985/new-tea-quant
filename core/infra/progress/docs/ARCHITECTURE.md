@@ -46,15 +46,14 @@ core/infra/progress/
 
 ## 架构图
 
-```text
-业务 tick / finish / fail
-   → Progress
-        → userspace/.ntq/tmp/progress/{根id}.json
-业务 job 快照（自定 channel）
-   → Progress.channel
-        → userspace/.ntq/tmp/progress/{channel}/{file_key}.json
-界面 / PHP / BFF
-   → Progress.read / Progress.latest / Progress.channel.read
+```mermaid
+flowchart TB
+  Biz[业务 tick / finish / fail] --> Progress
+  Progress --> TreeJSON["progress/{根id}.json"]
+  BizJob[业务 job 快照] --> Channel[Progress.channel]
+  Channel --> ChJSON["progress/{channel}/{file_key}.json"]
+  UI[界面 / PHP / BFF] -->|read / latest / channel.read| Progress
+  UI --> Channel
 ```
 
 ---

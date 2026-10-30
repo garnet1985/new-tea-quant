@@ -2,6 +2,7 @@
 
 **版本：** `<module.version>`  
 <!-- 只写已定结论；选型过程 → DECISIONS（若有） -->
+<!-- 图示：架构图必须 mermaid；目录树 / 短步骤用 text。见 module-doc-standard §3.1 -->
 
 `<1～3 句：模块在系统中的位置、对外提供什么能力。>`
 
@@ -44,15 +45,6 @@
 
 ## 架构图
 
-```text
-<Caller>
-   → <Facade>
-        → <Component A>
-        → <Component B>
-```
-
-或：
-
 ```mermaid
 flowchart LR
   Caller --> Facade
@@ -64,12 +56,16 @@ flowchart LR
 
 ## 数据流（若有）
 
+短步骤可用 `text`：
+
 ```text
 <input>
   → <step 1>
   → <step 2>
   → <output / store>
 ```
+
+有分支或并行时改用 Mermaid（同「架构图」语法）。
 
 ---
 

@@ -31,16 +31,13 @@
 
 ## 两种 Provider（本地可见的全部）
 
-```text
-┌─────────────────────┐     ┌──────────────────────────┐
-│ Provider = ntq      │     │ Provider = 用户自备 (×1)  │
-│ 唯一出入口 → Website│     │ 唯一出入口 → 该供应商 API │
-└─────────────────────┘     └──────────────────────────┘
-            │                            │
-            └────────────┬───────────────┘
-                         ▼
-              同一套 Agent 流程
-         （组 context → Navigator → 流向 → 工具）
+```mermaid
+flowchart TB
+  Ntq["Provider = ntq<br/>唯一出入口 → Website"]
+  User["Provider = 用户自备 ×1<br/>唯一出入口 → 该供应商 API"]
+  Flow[同一套 Agent 流程<br/>组 context → Navigator → 流向 → 工具]
+  Ntq --> Flow
+  User --> Flow
 ```
 
 | | **ntq** | **用户自备** |

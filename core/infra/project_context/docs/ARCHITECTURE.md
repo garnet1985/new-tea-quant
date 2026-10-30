@@ -43,6 +43,19 @@
   PathManager · ConfigManager · DiscoveryManager
 ```
 
+```mermaid
+flowchart LR
+  Caller --> PC[ProjectContext]
+  PC --> Path[path]
+  PC --> Config[config]
+  PC --> Meta[meta]
+  PC --> Cache[cache]
+  PC --> Disc[discovery]
+  Path --> PathMgr[PathManager]
+  Config --> ConfigMgr[ConfigManager]
+  Disc --> DiscMgr[DiscoveryManager]
+```
+
 配置发现：
 
 ```text

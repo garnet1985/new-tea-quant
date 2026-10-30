@@ -15,6 +15,19 @@ Trace (Facade, static API)
   core/services/    Config · Consent · … · Client · Send · Drain
 ```
 
+## 架构图
+
+```mermaid
+flowchart LR
+  Caller --> Trace
+  Trace --> Consent[consent]
+  Trace --> Track[track / queue]
+  Track -->|fail| Queue[local queue]
+  Track -->|ok| POST[POST target_url]
+  Queue --> Send[send / drain]
+  Send --> POST
+```
+
 ```text
 NTQ_TRACE_SKIP=1  /  GITHUB_ACTIONS=true  >  NTQ_TRACE_ENABLED=0/1  >  userspace/system/config/trace_consent.json  >  false
 ```

@@ -32,13 +32,14 @@ infra/membership/
 
 ## 架构图
 
+```mermaid
+flowchart LR
+  Settings[Settings CLI / UI] -->|save| Mem[Membership]
+  Other[ntq_external / Agent] -->|status / read| Mem
+  Mem --> File[membership_token.txt]
 ```
-Settings 页（CLI / UI）
-  → Membership.save(token)     # 格式校验 + 写盘 + chmod
-其他模块（ntq_external / Agent）
-  → Membership.status()        # 返回 configured / invalid / missing
-  → Membership.read()          # 只返回状态，不回传明文
-```
+
+`save` 做格式校验与写盘；`status` / `read` 不向 HTTP 回传明文。
 
 ## 数据流（若有）
 

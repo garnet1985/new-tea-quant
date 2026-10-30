@@ -33,19 +33,21 @@ infra/ai/
 
 ## 架构图
 
+```mermaid
+flowchart LR
+  Caller --> AiChannel
+  AiChannel --> Disc[discovery]
+  AiChannel --> Prov[Provider in userspace]
+  Prov --> HTTP[OpenAI-compatible HTTP]
 ```
-userspace/extensions/ai/providers/<name>/
-  → Provider（基类）
-  → AiChannel.list_providers() → 发现
-  → AiChannel.set_api_key()    → 写 userspace
-  → AiChannel.complete()       → 裸补全调用
-```
+
+userspace 供应商由 `list_providers` 发现；Key 经 `set_api_key` 落盘；补全走 `complete`。
 
 ## 数据流（若有）
 
 补全请求流程：
 
-```
+```text
 调用方 → AiChannel.complete(provider, messages, ...)
   → Provider.complete()
   → HTTP POST（OpenAI 兼容协议）

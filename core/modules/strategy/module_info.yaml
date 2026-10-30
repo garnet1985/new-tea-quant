@@ -4,8 +4,8 @@ compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
 # 站点文档（可选；Drupal title / display title）
-site_title: "验证，调试和感受您的策略 - Strategy模块"
-site_display_title: ""
+site_title: "策略模块 (Strategy)"
+site_display_title: "验证，调试和感受您的策略 - Strategy模块"
 dependencies:
   - modules.data_manager
   - modules.data_contract

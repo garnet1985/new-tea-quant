@@ -34,6 +34,56 @@ $ntq-member-join: 14px;
   border-radius: 0 0 $ntq-member-join $ntq-member-join;
 }
 
+.ntq-member-strip__pro {
+  position: relative;
+  isolation: isolate;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.05rem;
+  text-transform: uppercase;
+  background: var(--ntq-brand-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+
+  // 浅底
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    border-radius: inherit;
+    background: var(--ntq-white-12);
+  }
+
+  // 彩虹描边
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--ntq-brand-text-gradient);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+}
+
 .ntq-member-strip__avatar,
 .ntq-member-strip__letter {
   width: 24px;
@@ -70,6 +120,20 @@ $ntq-member-join: 14px;
   gap: 4px;
   color: var(--ntq-text-muted);
   white-space: nowrap;
+}
+
+.ntq-member-strip__points--link {
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 4px;
+
+  &:hover {
+    color: var(--ntq-text);
+
+    .ntq-member-strip__points-value {
+      text-decoration: underline;
+    }
+  }
 }
 
 .ntq-member-strip__points-value {

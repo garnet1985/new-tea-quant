@@ -5,6 +5,9 @@ const API_SITE = `${API_VERSION_PREFIX}/setup/site`;
 /** Drupal 官网注册页；API 未返回时用此兜底。 */
 export const FALLBACK_REGISTER_URL = 'https://www.new-tea.cn/zh-hans/user/register';
 
+/** 文档总入口；API 未返回时用此兜底（与 site_target.docs_url 默认一致）。 */
+export const FALLBACK_DOCS_URL = 'https://www.new-tea.cn/zh-hans/docs';
+
 export function resolveRegisterUrl(url) {
   const next = String(url || '').trim();
   return next || FALLBACK_REGISTER_URL;
@@ -17,6 +20,7 @@ function readUrls(json) {
     disclaimerUrl: String(message.disclaimer_url || ''),
     licenseUrl: String(message.license_url || ''),
     contactUrl: String(message.contact_url || ''),
+    docsUrl: String(message.docs_url || '').trim() || FALLBACK_DOCS_URL,
     registerUrl: String(message.register_url || ''),
     docs: {
       strategy: String(docs.strategy || ''),

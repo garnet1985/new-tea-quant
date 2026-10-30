@@ -184,14 +184,30 @@ export async function saveMembershipToken(token) {
  */
 /**
  * 顶栏会员条。没有凭证或官网拒绝时 signed_in 为 false。
- * @returns {Promise<{ signed_in: boolean, register_url: string, name: string, avatar: string, points: number|null, tier: string|null, is_pro: boolean, catfood: number|null, reason: string }>}
+ * @returns {Promise<{
+ *   signed_in: boolean,
+ *   register_url: string,
+ *   name: string,
+ *   avatar: string,
+ *   points: number|null,
+ *   tier: string|null,
+ *   is_pro: boolean,
+ *   catfood: number|null,
+ *   catfood_free: number|null,
+ *   catfood_paid: number|null,
+ *   catfood_free_expires_at: string|null,
+ *   reason: string
+ * }>}
  */
 export async function fetchMemberProfile() {
   const json = await request.getJson(`${API_VERSION_PREFIX}/membership/profile`, { silent: true });
   const m = json?.message || {};
   const points = m.points;
   const catfood = m.catfood;
+  const catfoodFree = m.catfood_free;
+  const catfoodPaid = m.catfood_paid;
   const tier = String(m.tier || '').trim().toLowerCase();
+  const expiresAt = String(m.catfood_free_expires_at || '').trim();
   return {
     signed_in: Boolean(m.signed_in),
     register_url: String(m.register_url || '').trim(),
@@ -201,6 +217,9 @@ export async function fetchMemberProfile() {
     tier: tier === 'pro' || tier === 'standard' ? tier : null,
     is_pro: Boolean(m.is_pro),
     catfood: catfood == null || catfood === '' ? null : Number(catfood),
+    catfood_free: catfoodFree == null || catfoodFree === '' ? null : Number(catfoodFree),
+    catfood_paid: catfoodPaid == null || catfoodPaid === '' ? null : Number(catfoodPaid),
+    catfood_free_expires_at: expiresAt || null,
     reason: String(m.reason || '').trim(),
   };
 }

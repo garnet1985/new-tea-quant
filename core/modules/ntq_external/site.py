@@ -8,6 +8,7 @@ from core.modules.ntq_external.conf.site_target import (
     contact_url,
     disclaimer_url,
     doc_url,
+    docs_url,
     license_url,
     register_url,
 )
@@ -19,6 +20,7 @@ def site_urls() -> Dict[str, object]:
         "disclaimer_url": disclaimer_url(),
         "license_url": license_url(),
         "contact_url": contact_url(),
+        "docs_url": docs_url(),
         "register_url": register_url(),
         "docs": {
             "strategy": doc_url("using-strategy-example"),

@@ -3,6 +3,7 @@
 from .endpoints import (
     AI_BASE_URL,
     CONTACT_URL,
+    DOCS_URL,
     DISCLAIMER_URL,
     DOC_CONTRACT_URL,
     DOC_DATASOURCE_URL,
@@ -23,6 +24,7 @@ from .site_target import (
 __all__ = [
     "AI_BASE_URL",
     "CONTACT_URL",
+    "DOCS_URL",
     "DISCLAIMER_URL",
     "DOC_CONTRACT_URL",
     "DOC_DATASOURCE_URL",

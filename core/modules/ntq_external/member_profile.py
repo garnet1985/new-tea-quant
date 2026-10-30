@@ -61,6 +61,9 @@ def _guest(reason: str) -> dict:
         "tier": None,
         "is_pro": False,
         "catfood": None,
+        "catfood_free": None,
+        "catfood_paid": None,
+        "catfood_free_expires_at": None,
         "token_balance": None,
         "currency": None,
         "sync_access": None,
@@ -89,6 +92,12 @@ def _signed_in(data: object) -> Optional[dict]:
     if not isinstance(is_pro, bool):
         is_pro = tier == "pro"
     catfood = _optional_float(data.get("catfood"))
+    catfood_free = _optional_float(data.get("catfood_free"))
+    catfood_paid = _optional_float(data.get("catfood_paid"))
+    expires_raw = data.get("catfood_free_expires_at")
+    expires_at = str(expires_raw).strip() if isinstance(expires_raw, str) else None
+    if expires_at == "":
+        expires_at = None
     token_balance = _optional_int(data.get("token_balance"))
     currency = str(data.get("currency") or "").strip() or None
     sync_access = str(data.get("sync_access") or "").strip() or None
@@ -103,6 +112,9 @@ def _signed_in(data: object) -> Optional[dict]:
         "tier": tier,
         "is_pro": is_pro,
         "catfood": catfood,
+        "catfood_free": catfood_free,
+        "catfood_paid": catfood_paid,
+        "catfood_free_expires_at": expires_at,
         "token_balance": token_balance,
         "currency": currency,
         "sync_access": sync_access,

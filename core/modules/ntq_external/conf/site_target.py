@@ -54,6 +54,11 @@ def contact_url() -> str:
     return f"{base_url()}/zh-hans/contact?from=ntq_app"
 
 
+def docs_url() -> str:
+    """文档总入口（主 nav 外链）。"""
+    return f"{base_url()}/zh-hans/docs"
+
+
 def disclaimer_url() -> str:
     return f"{base_url()}/zh-hans/disclaimer"
 

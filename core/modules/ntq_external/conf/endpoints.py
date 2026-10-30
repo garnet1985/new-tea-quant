@@ -11,6 +11,7 @@ from .site_target import (
     contact_url,
     disclaimer_url,
     doc_url,
+    docs_url,
     feedback_url,
     license_url,
     member_profile_url,
@@ -24,6 +25,7 @@ AI_BASE_URL = f"{OFFICIAL_BASE_URL}/api/v1/ntq-ai"
 FEEDBACK_URL = f"{OFFICIAL_BASE_URL}/api/v1/feedback"
 TRACE_URL = f"{OFFICIAL_BASE_URL}/api/v1/traces"
 CONTACT_URL = f"{OFFICIAL_BASE_URL}/zh-hans/contact?from=ntq_app"
+DOCS_URL = f"{OFFICIAL_BASE_URL}/zh-hans/docs"
 DISCLAIMER_URL = f"{OFFICIAL_BASE_URL}/zh-hans/disclaimer"
 LICENSE_URL = f"{OFFICIAL_BASE_URL}/zh-hans/ntq-license"
 REGISTER_URL = f"{OFFICIAL_BASE_URL}/zh-hans/user/register"
@@ -41,6 +43,7 @@ __all__ = [
     "FEEDBACK_URL",
     "TRACE_URL",
     "CONTACT_URL",
+    "DOCS_URL",
     "DISCLAIMER_URL",
     "LICENSE_URL",
     "REGISTER_URL",
@@ -56,6 +59,7 @@ __all__ = [
     "feedback_url",
     "trace_url",
     "contact_url",
+    "docs_url",
     "disclaimer_url",
     "license_url",
     "doc_url",

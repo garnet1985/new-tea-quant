@@ -19,9 +19,10 @@ def test_root_exports() -> None:
 
 def test_site_urls_shape() -> None:
     urls = site_urls()
-    for key in ("disclaimer_url", "license_url", "contact_url", "register_url"):
+    for key in ("disclaimer_url", "license_url", "contact_url", "docs_url", "register_url"):
         assert isinstance(urls[key], str)
         assert urls[key].startswith("http")
+    assert urls["docs_url"].endswith("/zh-hans/docs")
     docs = urls["docs"]
     assert set(docs) == {"strategy", "opportunities", "tag", "datasource", "contract"}
     for value in docs.values():

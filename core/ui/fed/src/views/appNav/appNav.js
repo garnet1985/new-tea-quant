@@ -10,7 +10,7 @@ const primaryNavItems = [
   { label: '策略选股', path: '/scan', icon: 'monitoring' },
 ];
 
-const settingsNavItem = { label: '设置', path: '/settings', icon: 'settings' };
+const settingsNavItem = { label: '设置', path: '/settings/membership', icon: 'settings' };
 
 const advancedNavItems = [
   { label: '特征标签', path: '/advanced/tags' },
@@ -50,12 +50,15 @@ function AppNav() {
   const location = useLocation();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [contactUrl, setContactUrl] = useState('');
+  const [docsUrl, setDocsUrl] = useState('');
 
   useEffect(() => {
     let alive = true;
     fetchSiteUrls()
       .then((urls) => {
-        if (alive) setContactUrl(urls.contactUrl);
+        if (!alive) return;
+        setContactUrl(urls.contactUrl);
+        setDocsUrl(urls.docsUrl);
       })
       .catch(() => {});
     return () => {
@@ -162,6 +165,19 @@ function AppNav() {
         </Paper>
       </Popper>
 
+      {docsUrl ? (
+        <Button
+          component="a"
+          href={docsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="text"
+          className="ntq-nav-btn"
+        >
+          <NavButtonLabel icon="help" label="文档" />
+        </Button>
+      ) : null}
+
       {contactUrl ? (
         <Button
           component="a"
@@ -179,7 +195,7 @@ function AppNav() {
         component={RouterLink}
         to={settingsNavItem.path}
         variant="text"
-        className={`ntq-nav-btn${location.pathname.startsWith(settingsNavItem.path) ? ' is-active' : ''}`}
+        className={`ntq-nav-btn${location.pathname.startsWith('/settings') ? ' is-active' : ''}`}
       >
         <NavButtonLabel icon={settingsNavItem.icon} label={settingsNavItem.label} />
       </Button>

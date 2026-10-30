@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { Box } from '@mui/material';
 import { fetchMemberProfile, MEMBERSHIP_CHANGED_EVENT } from 'api/settingsApi';
 import { FALLBACK_REGISTER_URL, resolveRegisterUrl } from 'api/siteApi';
@@ -70,16 +71,24 @@ function MemberStrip() {
   const signedIn = Boolean(profile?.signed_in);
   const showAvatar = signedIn && profile.avatar && !avatarFailed;
   const registerUrl = resolveRegisterUrl(profile?.register_url);
-  const tierLabel = profile?.is_pro || profile?.tier === 'pro' ? 'Pro' : '标准';
+  const isPro = Boolean(profile?.is_pro || profile?.tier === 'pro');
   const catfoodText =
     profile?.catfood == null || Number.isNaN(Number(profile.catfood))
       ? null
       : Number(profile.catfood).toFixed(2);
+  const freeText =
+    profile?.catfood_free == null || Number.isNaN(Number(profile.catfood_free))
+      ? null
+      : Number(profile.catfood_free).toFixed(2);
+  const expiresAt = String(profile?.catfood_free_expires_at || '').trim();
   const chipTitle = [
     profile?.name,
     `${profile?.points ?? 0} 点数`,
-    tierLabel,
-    catfoodText != null ? `${catfoodText} 猫粮` : null,
+    isPro ? 'Pro' : '标准',
+    catfoodText != null ? `还有 ${catfoodText} 猫粮` : null,
+    freeText != null && Number(freeText) > 0 && expiresAt
+      ? `其中 ${freeText} 在 ${expiresAt} 过期`
+      : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -104,16 +113,24 @@ function MemberStrip() {
           <Box component="span" className="ntq-member-strip__name">
             {profile.name}
           </Box>
-          <Box component="span" className="ntq-member-strip__points">
-            <Box component="span" className="ntq-member-strip__points-value">
-              {tierLabel}
+          {isPro ? (
+            <Box component="span" className="ntq-member-strip__pro" aria-label="Pro">
+              Pro
             </Box>
-          </Box>
+          ) : null}
           {catfoodText != null ? (
-            <Box component="span" className="ntq-member-strip__points">
+            <Box
+              component={RouterLink}
+              to="/settings/membership"
+              className="ntq-member-strip__points ntq-member-strip__points--link"
+              title="查看猫粮明细"
+            >
+              还有
+              {' '}
               <Box component="span" className="ntq-member-strip__points-value">
                 {catfoodText}
               </Box>
+              {' '}
               猫粮
             </Box>
           ) : (

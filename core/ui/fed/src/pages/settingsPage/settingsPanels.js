@@ -912,6 +912,9 @@ export function SettingsMembershipPanel() {
   const [filePath, setFilePath] = useState('userspace/system/membership/membership_token.txt');
   const [token, setToken] = useState('');
   const [catfood, setCatfood] = useState(null);
+  const [catfoodFree, setCatfoodFree] = useState(null);
+  const [catfoodPaid, setCatfoodPaid] = useState(null);
+  const [catfoodFreeExpiresAt, setCatfoodFreeExpiresAt] = useState(null);
   const [ledgerItems, setLedgerItems] = useState([]);
   const [ledgerLimit, setLedgerLimit] = useState(LEDGER_INITIAL);
   const [ledgerHasMore, setLedgerHasMore] = useState(false);
@@ -930,6 +933,9 @@ export function SettingsMembershipPanel() {
   const loadLedger = useCallback((ready, { limit = LEDGER_INITIAL, append = false } = {}) => {
     if (!ready) {
       setCatfood(null);
+      setCatfoodFree(null);
+      setCatfoodPaid(null);
+      setCatfoodFreeExpiresAt(null);
       setLedgerItems([]);
       setLedgerLimit(LEDGER_INITIAL);
       setLedgerHasMore(false);
@@ -945,10 +951,27 @@ export function SettingsMembershipPanel() {
       .then(([profile, ledger]) => {
         if (profile?.signed_in && profile.catfood != null) {
           setCatfood(Number(profile.catfood));
+          setCatfoodFree(
+            profile.catfood_free == null || Number.isNaN(Number(profile.catfood_free))
+              ? null
+              : Number(profile.catfood_free),
+          );
+          setCatfoodPaid(
+            profile.catfood_paid == null || Number.isNaN(Number(profile.catfood_paid))
+              ? null
+              : Number(profile.catfood_paid),
+          );
+          setCatfoodFreeExpiresAt(String(profile.catfood_free_expires_at || '').trim() || null);
         } else if (ledger?.available && ledger.catfood != null) {
           setCatfood(Number(ledger.catfood));
+          setCatfoodFree(null);
+          setCatfoodPaid(null);
+          setCatfoodFreeExpiresAt(null);
         } else {
           setCatfood(null);
+          setCatfoodFree(null);
+          setCatfoodPaid(null);
+          setCatfoodFreeExpiresAt(null);
         }
         const items = Array.isArray(ledger?.items) ? ledger.items : [];
         setLedgerItems(items);
@@ -1045,14 +1068,69 @@ export function SettingsMembershipPanel() {
             文件在，但内容不是通用凭证。
           </Typography>
         ) : null}
-        {configured && catfood != null && Number.isFinite(catfood) ? (
-          <Typography variant="body2" color="text.secondary">
-            猫粮
-            {' '}
-            {Number(catfood).toFixed(2)}
-          </Typography>
-        ) : null}
       </Stack>
+      {configured && catfood != null && Number.isFinite(catfood) ? (
+        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+          {(() => {
+            const total = Number(catfood).toFixed(2);
+            const free = catfoodFree != null && Number.isFinite(catfoodFree)
+              ? Number(catfoodFree)
+              : null;
+            const paid = catfoodPaid != null && Number.isFinite(catfoodPaid)
+              ? Number(catfoodPaid)
+              : null;
+            const expire = catfoodFreeExpiresAt;
+            if (free != null && free > 0 && expire) {
+              return (
+                <>
+                  您还有
+                  {' '}
+                  <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
+                    {total}
+                  </Box>
+                  {' '}
+                  猫粮，其中
+                  {' '}
+                  <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
+                    {free.toFixed(2)}
+                  </Box>
+                  {' '}
+                  （月赠）在
+                  {' '}
+                  {expire}
+                  {' '}
+                  过期
+                  {paid != null && paid > 0 ? (
+                    <>
+                      ；另有
+                      {' '}
+                      <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
+                        {paid.toFixed(2)}
+                      </Box>
+                      {' '}
+                      充值余额不过期
+                    </>
+                  ) : null}
+                  。
+                </>
+              );
+            }
+            return (
+              <>
+                您还有
+                {' '}
+                <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
+                  {total}
+                </Box>
+                {' '}
+                猫粮
+                {paid != null && paid > 0 ? '（充值余额不过期）' : ''}
+                。
+              </>
+            );
+          })()}
+        </Typography>
+      ) : null}
       <TextField
         className="membership-token-field"
         label="通用凭证"

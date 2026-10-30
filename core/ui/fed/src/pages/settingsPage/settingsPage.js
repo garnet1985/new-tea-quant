@@ -21,9 +21,9 @@ import {
 import './settingsPage.scss';
 
 const SETTINGS_TABS = [
+  { id: 'membership', label: '会员', path: 'membership' },
   { id: 'system', label: '安装与维护', path: 'system' },
   { id: 'database', label: '数据库', path: 'database' },
-  { id: 'membership', label: '会员', path: 'membership' },
   { id: 'ai', label: 'AI 配置', path: 'ai' },
   { id: 'agent', label: 'Agent 配置', path: 'agent' },
   { id: 'data', label: '数据范围', path: 'data' },
@@ -36,7 +36,7 @@ function useSettingsSection() {
   return useMemo(() => {
     const tail = location.pathname.replace(/\/+$/, '').split('/').pop() || '';
     const found = SETTINGS_TABS.find((tab) => tab.path === tail);
-    return found ? found.path : 'system';
+    return found ? found.path : 'membership';
   }, [location.pathname]);
 }
 
@@ -171,7 +171,8 @@ function SettingsPage() {
 
         <Paper className="settings-page-panel" elevation={0}>
           <Routes>
-            <Route index element={<Navigate to="system" replace />} />
+            <Route index element={<Navigate to="membership" replace />} />
+            <Route path="membership" element={<SettingsMembershipPanel />} />
             <Route path="system" element={<SettingsSystemPanel />} />
             <Route
               path="database"
@@ -212,13 +213,12 @@ function SettingsPage() {
                 />
               )}
             />
-            <Route path="membership" element={<SettingsMembershipPanel />} />
             <Route path="ai" element={<SettingsAssistantPanel />} />
             <Route path="agent" element={<SettingsAgentPanel />} />
             <Route path="cache" element={<SettingsCachePanel />} />
             <Route path="feedback" element={<SettingsFeedbackAndTracePanel />} />
             <Route path="trace" element={<Navigate to="/settings/feedback" replace />} />
-            <Route path="*" element={<Navigate to="system" replace />} />
+            <Route path="*" element={<Navigate to="membership" replace />} />
           </Routes>
         </Paper>
       </Box>

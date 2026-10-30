@@ -19,7 +19,7 @@
 
 | 配项 | 在哪配 | 默认值 | 说明 |
 |------|--------|--------|------|
-| `base_url` | `userspace/system/config/membership.json` | `https://www.new-tea.cn` | 官网根地址；其它页面、AI、反馈、trace 地址都由它派生 |
+| `base_url` | `userspace/system/config/membership.json` | `https://www.new-tea.cn` | 官网根地址；联系页 / 文档入口 / 注册 / AI / 反馈 / trace 等均由它派生 |
 | `NTQ_FEEDBACK_ENDPOINT` | 环境变量 | 由 `base_url` 派生 | 反馈上报地址的紧急覆盖口 |
 | `NTQ_FEEDBACK_TIMEOUT` | 环境变量 | `3.0` 秒 | 反馈上报超时 |
 

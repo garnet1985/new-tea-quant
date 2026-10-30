@@ -73,7 +73,7 @@
 `Strategy.decision_repl(key_or_id, *, version_id=None, session_id=None, new_session=False) -> int`
 
 - **状态：** `beta`
-- **描述：** 决策者（当前策略 `portfolio` 回放）。须已有枚举 version（默认当前 `settings.py` 指纹，与 `so` 相同）。不是 `SimulateKind`，不进指纹缓存。磁盘 `{vid}/decision/{dm_id}/`。CLI：`sd` / `sdl` / `sdd`。口径见 [docs/notes/DECISION_MAKER.md](./docs/notes/DECISION_MAKER.md)。
+- **描述：** 决策者（当前策略 `portfolio` 回放）。须已有机会盘点 version（默认当前 `settings.py` 指纹，与 `so` 相同）。不是 `SimulateKind`，不进指纹缓存。磁盘 `{vid}/decision/{dm_id}/`。CLI：`sd` / `sdl` / `sdd`。口径见 [docs/notes/DECISION_MAKER.md](./docs/notes/DECISION_MAKER.md)。
 
 ### list_strategies / list_enabled_strategies / list_enabled_keys / list_strategy_infos
 
@@ -134,7 +134,7 @@
 `Strategy.present_rolling(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `rolling.py` 的窗口，用当前设置再跑枚举、价格和资金。须已有当前 settings 对应的主 version，且三层产物都在，否则拒绝。窗口写入 `{vid}-roll{n}`，不 bump `next_version_id`，不进版本列表。一份对照报告写 `results/simulations/{vid}/rolling/report.json`，只和该主 version 比差值。CLI `sr`（`-f` 即 `ignore_cache`）。一次跑完三层回测是 `sim`。
+- **描述：** 读 `rolling.py` 的窗口，用当前设置再跑机会盘点、价格和资金。须已有当前 settings 对应的主 version，且三层产物都在，否则拒绝。窗口写入 `{vid}-roll{n}`，不 bump `next_version_id`，不进版本列表。一份对照报告写 `results/simulations/{vid}/rolling/report.json`，只和该主 version 比差值。CLI `sr`（`-f` 即 `ignore_cache`）。一次跑完三层回测是 `sim`。
 
 ### resolve_simulation_output_dirs
 

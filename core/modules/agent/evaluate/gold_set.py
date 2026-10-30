@@ -137,7 +137,7 @@ GOLD_CASES: List[GoldCase] = [
     },
     {"text": "机会扫描入口在哪", "kind": "guide", "note": "问入口"},
     {
-        "text": "枚举步失败一般看哪份报告",
+        "text": "机会盘点步失败一般看哪份报告",
         "kind": "guide",
         "note": "排障说明",
     },

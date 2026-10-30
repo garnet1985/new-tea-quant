@@ -81,7 +81,7 @@ Agent.call_tool("create_strategy", {"key": "macd_cross"})
 ```python
 from core.modules.agent import Agent
 
-print(Agent.run("读一下 demo/regression/rsi/rsi_v1_baseline 的枚举报告，不要回测")["reply"])
+print(Agent.run("读一下 demo/regression/rsi/rsi_v1_baseline 的机会盘点报告，不要回测")["reply"])
 ```
 
 ### clear_session

@@ -230,11 +230,11 @@ function StrategyDesignDecisionStep() {
     return (
       <Box className="ntq-design-decision-gate">
         <Alert severity="info" variant="outlined">
-          决策模拟依赖「枚举机会」和「投资模拟」都完成。价格回测不是前置条件。
+          决策模拟依赖「机会盘点」和「投资模拟」都完成。价格回测不是前置条件。
         </Alert>
         <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
           {!enumDone ? (
-            <Button variant="contained" onClick={() => goStep('enum')}>去枚举机会</Button>
+            <Button variant="contained" onClick={() => goStep('enum')}>去机会盘点</Button>
           ) : null}
           {!portfolioDone ? (
             <Button variant={enumDone ? 'contained' : 'outlined'} onClick={() => goStep('portfolio')}>

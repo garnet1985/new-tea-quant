@@ -50,7 +50,7 @@ function CoreSettingsBlock({ showHint, coreEditorContext, settings }) {
       <Box className="ntq-design-settings-core-hint" aria-hidden={!showHint}>
         {showHint ? (
           <Typography variant="caption" color="text.secondary" component="p">
-            修改核心参数后请回到枚举步重新运行。
+            修改核心参数后请回到机会盘点步重新运行。
           </Typography>
         ) : null}
       </Box>

@@ -12,7 +12,7 @@ import RainbowButton from 'views/rainbowButton';
 import './style.scss';
 
 const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
-const ROLLING_IDLE_TOOLTIP = '请先完成枚举、价格和资金回测。需要在策略目录配置 rolling.py 才能滚动测试。';
+const ROLLING_IDLE_TOOLTIP = '请先完成机会盘点、价格和资金回测。需要在策略目录配置 rolling.py 才能滚动测试。';
 
 function disabledTip(button, howTo) {
   if (!button || !howTo) return button;

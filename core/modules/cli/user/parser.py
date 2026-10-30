@@ -97,7 +97,7 @@ class UserParser:
             sub,
             "strategy_enumerate",
             aliases=UserCommands.aliases_for("strategy_enumerate"),
-            help="枚举投资机会",
+            help="机会盘点（历史命中扫描）",
         )
         UserParser._add_strategy_target(p)
         p.add_argument("--stocks", type=int, default=None, help="测试股票数量")
@@ -181,7 +181,7 @@ class UserParser:
             sub,
             "strategy_simulate",
             aliases=UserCommands.aliases_for("strategy_simulate"),
-            help="一次跑完枚举、价格和资金回测",
+            help="一次跑完机会盘点、价格和资金回测",
         )
         UserParser._add_strategy_target(p)
 
@@ -191,7 +191,7 @@ class UserParser:
             sub,
             "strategy_attribute_enumerate",
             aliases=UserCommands.aliases_for("strategy_attribute_enumerate"),
-            help="枚举层归因（读 attribution.py；须先 se）",
+            help="机会盘点层归因（读 attribution.py；须先 se）",
         )
         UserParser._add_strategy_target(p)
 
@@ -221,7 +221,7 @@ class UserParser:
             sub,
             "strategy_rolling",
             aliases=UserCommands.aliases_for("strategy_rolling"),
-            help="滚动对照（读 rolling.py；须先完成枚举、价格和资金回测）",
+            help="滚动对照（读 rolling.py；须先完成机会盘点、价格和资金回测）",
         )
         UserParser._add_strategy_target(p)
 

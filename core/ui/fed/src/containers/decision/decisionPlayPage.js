@@ -1271,7 +1271,7 @@ export function DecisionPlaySession({
       width: 108,
       renderHeader: headerWithTooltip(
         '模拟胜率',
-        '该标的在当前日之前已经完成的枚举记录胜率（exit_date < 当天）。无样本为 —。',
+        '该标的在当前日之前已经完成的机会盘点记录胜率（exit_date < 当天）。无样本为 —。',
       ),
     },
     {
@@ -1279,7 +1279,7 @@ export function DecisionPlaySession({
       width: 108,
       renderHeader: headerWithTooltip(
         '模拟 ROI',
-        '该标的在当前日之前已经完成的枚举记录平均 ROI。无样本为 —。',
+        '该标的在当前日之前已经完成的机会盘点记录平均 ROI。无样本为 —。',
       ),
     },
     {

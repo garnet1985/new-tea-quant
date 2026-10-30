@@ -15,7 +15,7 @@ _CURRENT: ContextVar[Optional["CampaignProgress"]] = ContextVar(
 )
 
 _STEP_LABEL = {
-    SimulateKind.ENUMERATE: "枚举",
+    SimulateKind.ENUMERATE: "机会盘点",
     SimulateKind.PRICE_FACTOR: "价格",
     SimulateKind.PORTFOLIO: "组合",
 }

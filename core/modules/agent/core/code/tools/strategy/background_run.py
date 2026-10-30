@@ -36,7 +36,7 @@ def start_enumerate(arguments: Dict[str, Any]) -> Dict[str, Any]:
     return _start(
         arguments,
         prefix="enum",
-        label="枚举",
+        label="机会盘点",
         pipeline_name="enum",
         lease_kind="strategy_run",
         runner=_run_enumerate,
@@ -44,7 +44,7 @@ def start_enumerate(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def start_price_factor(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """启动价格回测。缺枚举产物时由策略模块自己补跑。"""
+    """启动价格回测。缺机会盘点产物时由策略模块自己补跑。"""
     return _start(
         arguments,
         prefix="price",
@@ -68,7 +68,7 @@ def start_portfolio(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def start_simulate(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """依次跑枚举、价格、资金。任一层失败即停。"""
+    """依次跑机会盘点、价格、资金。任一层失败即停。"""
     return _start(
         arguments,
         prefix="sim",
@@ -80,7 +80,7 @@ def start_simulate(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def start_attribute_enumerate(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """枚举层归因。须已有主 version。"""
+    """机会盘点层归因。须已有主 version。"""
     return _start(
         arguments,
         prefix="atenum",

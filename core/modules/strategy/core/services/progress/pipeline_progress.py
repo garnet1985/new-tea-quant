@@ -62,7 +62,7 @@ _STEP_LABELS_BY_PIPELINE: Dict[str, Dict[str, str]] = {
 }
 
 _PIPELINE_LABELS: Dict[str, str] = {
-    "enum": "枚举",
+    "enum": "机会盘点",
     "price": "价格回测",
     "portfolio": "资金模拟",
     ATTRIBUTE_PIPELINE: "归因",

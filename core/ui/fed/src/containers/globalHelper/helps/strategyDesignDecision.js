@@ -6,7 +6,7 @@ export function matchStrategyDesignDecision(pathname) {
 }
 
 /**
- * 决策模拟回测现场。枚举/投资未完成时只有闸门，回测 DOM 还没挂上，
+ * 决策模拟回测现场。机会盘点/投资未完成时只有闸门，回测 DOM 还没挂上，
  * 所以用 appear：等执行栏出现再弹。
  */
 export const STRATEGY_DESIGN_DECISION_HELP = {

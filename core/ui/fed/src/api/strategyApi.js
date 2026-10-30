@@ -409,7 +409,7 @@ export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId
 }
 
 /**
- * V2-07b：枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
+ * V2-07b：机会盘点逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
  * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
  * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/ref
  * @param {string} strategyKeyOrName
@@ -503,7 +503,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   const curStep = envelope.step && typeof envelope.step === 'object' ? envelope.step : null;
   const progress_label = String(envelope.pipeline_description || '').trim()
     || ({
-      enum: '枚举',
+      enum: '机会盘点',
       price: '价格回测',
       portfolio: '投资模拟',
     }[pipeline] || '');

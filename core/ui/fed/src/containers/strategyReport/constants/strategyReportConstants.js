@@ -1,6 +1,6 @@
 /** 报告 Tab 定义（与后端 ``available_tabs`` / 执行步骤 key 对齐） */
 export const STEP_TABS = [
-  { key: 'enum', label: '枚举报告' },
+  { key: 'enum', label: '机会盘点报告' },
   { key: 'price', label: '价格回测报告' },
   { key: 'portfolio', label: '投资模拟报告' },
 ];

@@ -345,7 +345,7 @@ class ExecuteBase:
         *,
         parent_version_id: str,
     ) -> str:
-        """已有枚举与本格去掉 ``simulation.price`` 后相同，则复用该版本。"""
+        """已有机会盘点与本格去掉 ``simulation.price`` 后相同，则复用该版本。"""
         cell_settings = task.cell.execute_settings
         if not isinstance(cell_settings, dict) or not cell_settings:
             return ""

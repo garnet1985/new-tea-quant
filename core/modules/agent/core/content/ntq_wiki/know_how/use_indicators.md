@@ -18,7 +18,7 @@ summary: 指标在 settings.data.base.indicators 声明，框架写入 K 线；�
 
 # 如何用技术指标
 
-正路：**在 `settings.py` 的 `data.base.indicators` 里声明**，枚举/扫描时框架算好写回每根 K 线。钩子只读字段，不要手写 EMA，不要对 dict 列表做减法。
+正路：**在 `settings.py` 的 `data.base.indicators` 里声明**，机会盘点/扫描时框架算好写回每根 K 线。钩子只读字段，不要手写 EMA，不要对 dict 列表做减法。
 
 K 线是 dict 列表。序列在 `records`（穿越、窗口等见 [策略钩子与载荷工具](use_strategy_hooks.md)）：
 

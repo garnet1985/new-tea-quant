@@ -37,12 +37,12 @@ const DEFAULT_SKIP_ENTER_WHEN_OPTIONS = [
   {
     value: 'st',
     label: 'ST',
-    tooltip: '触发日处于 ST（含 SST）时，枚举、价格回测与资金回测均跳过该机会。',
+    tooltip: '触发日处于 ST（含 SST）时，机会盘点、价格回测与资金回测均跳过该机会。',
   },
   {
     value: 'star_st',
     label: '*ST',
-    tooltip: '触发日处于 *ST（含 S*ST）时，枚举、价格回测与资金回测均跳过该机会。',
+    tooltip: '触发日处于 *ST（含 S*ST）时，机会盘点、价格回测与资金回测均跳过该机会。',
   },
 ];
 
@@ -485,7 +485,7 @@ export function buildStrategySimulationSchema(
             type: 'checkboxGroup',
             label: '跳过进场如果股票是：',
             tooltip:
-              '勾选后，触发日处于对应股票状态的机会不会进入枚举结果，价格/资金回测也不会进场。',
+              '勾选后，触发日处于对应股票状态的机会不会进入机会盘点结果，价格/资金回测也不会进场。',
             options: skipOptions,
           },
           {

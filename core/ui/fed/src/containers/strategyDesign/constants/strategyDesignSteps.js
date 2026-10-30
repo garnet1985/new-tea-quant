@@ -3,8 +3,8 @@ export const STRATEGY_DESIGN_STEPS = [
   {
     key: 'enum',
     no: 1,
-    label: '枚举机会',
-    executionPanelTitle: '枚举所有机会',
+    label: '机会盘点',
+    executionPanelTitle: '盘点所有机会',
     pathSegment: 'enum',
   },
   {
@@ -35,7 +35,7 @@ export const STRATEGY_DESIGN_STEPS = [
 /** Meta 顶栏：当前步说明（标题 + 一句摘要） */
 export const STRATEGY_DESIGN_STEP_INTRO = {
   enum: {
-    title: '枚举机会',
+    title: '机会盘点',
     summary: '测试股票池中发现交易机会的数量与分布',
   },
   price: {

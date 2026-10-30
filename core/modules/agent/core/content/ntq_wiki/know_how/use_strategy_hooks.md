@@ -142,7 +142,7 @@ s.find_valleys(order=2)
 | `basis` | hfq 收益分母 |
 | `remaining_ratio` | 剩余仓位比例 |
 
-枚举/扫描里的 `Records` 通常**没有** `position`。
+机会盘点/扫描里的 `Records` 通常**没有** `position`。
 
 ---
 

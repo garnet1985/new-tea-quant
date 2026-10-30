@@ -30,7 +30,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 
 **禁止再引入：**
 
-- **TimelineBuilder / 枚举器侧复写推进轴** — 枚举走交易日历即可，交给 BE
+- **TimelineBuilder / 枚举器侧复写推进轴** — 机会盘点走交易日历即可，交给 BE
 - **JobSession / 第二套 session** — BE 的 session 就是 `JobContext.init`。`EntityTaskState` / `SliceTaskState` 只是 init 里的可变袋
 - **Strategy 侧片窗装载 / prefetch / queue refine / 进度** — 一律 `SliceOrchestrator`
 - **Executor 空 proxy** — 日业务入口在 `JobExecutor` 钩子
@@ -76,7 +76,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 
 **写边界：**
 
-- 枚举 **RuntimeEnv** 等写模型 → `enumerator/common/artifacts`（CSV 行模型已上移，artifacts 仅 re-export）
+- 机会盘点 **RuntimeEnv** 等写模型 → `enumerator/common/artifacts`（CSV 行模型已上移，artifacts 仅 re-export）
 - P/O **写自有产物** → 各自 report（**本期先不动**）
 - 已删除 P/O `enum_input/`（不再私有拷贝 CSV 解析）
 
@@ -103,7 +103,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 | `services`（无引擎偏见的加载、解析、校验、切片） | 某引擎 ReportManager / 写盘格式 |
 | （可选）纯类型并入 `data_class` | helpers（先私有；真 ≥3 再提成 **service**） |
 
-`enumerator/common` 是**枚举引擎内部**（entity vs slice）共用；与四引擎 `engines/shared` 层级不同。
+`enumerator/common` 是**机会盘点引擎内部**（entity vs slice）共用；与四引擎 `engines/shared` 层级不同。
 
 ### 入口必须标消费者
 

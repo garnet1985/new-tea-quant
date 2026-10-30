@@ -21,7 +21,7 @@ def _price_presentation_note() -> str:
         extra="用户没要求时不要主动加归因。",
     )
 
-_LAYER_LABEL = {"enum": "枚举", "price": "价格", "portfolio": "资金"}
+_LAYER_LABEL = {"enum": "机会盘点", "price": "价格", "portfolio": "资金"}
 _LAYERS = frozenset(_LAYER_LABEL)
 _ENUM_FIELDS = (
     "total_opportunities",

@@ -6,7 +6,7 @@ import { ENUM_METRIC_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from '../reportUnavailableHint';
 
 const SINGLE_STOCK_ENUM_SECTION_TIP =
-  '该股在枚举阶段的汇总指标；触发日在上方 K 线图中标注。';
+  '该股在机会盘点阶段的汇总指标；触发日在上方 K 线图中标注。';
 
 function StockEnumDetailReport({ metrics }) {
   const avail = metrics?._availability ?? {};
@@ -21,7 +21,7 @@ function StockEnumDetailReport({ metrics }) {
   }
 
   return (
-    <SectionBlock title="枚举统计" tip={SINGLE_STOCK_ENUM_SECTION_TIP}>
+    <SectionBlock title="机会盘点统计" tip={SINGLE_STOCK_ENUM_SECTION_TIP}>
       <MetricGrid>
         {avail.overview ? (
           <>

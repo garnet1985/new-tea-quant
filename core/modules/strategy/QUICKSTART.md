@@ -11,7 +11,7 @@ names = Strategy.list_strategies()
 print(names[:3])
 ```
 
-## 枚举一步
+## 机会盘点一步
 
 ```python
 result = Strategy.enumerate("demo/random/random_v1_null_baseline")

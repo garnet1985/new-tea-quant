@@ -334,7 +334,7 @@ class UserHandlers:
                 "sampling_amount": int(stock_count),
             }
 
-        print(f"{i('numbers')} 枚举投资机会…", flush=True)
+        print(f"{i('numbers')} 机会盘点…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if stock_count is not None:
             print(f"  采样: {stock_count} 只股票", flush=True)
@@ -381,12 +381,12 @@ class UserHandlers:
                     SimulateKind.ENUMERATE, Path(enum_result["output_dir"])
                 )
             except FileNotFoundError as exc:
-                print(f"  展示枚举汇总失败（缺产物）: {exc}", flush=True)
+                print(f"  展示机会盘点汇总失败（缺产物）: {exc}", flush=True)
                 print(f"  success: {enum_result.get('success')}", flush=True)
                 print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
             except Exception as exc:
-                print(f"  展示枚举汇总失败: {exc}", flush=True)
-                logger.warning("展示枚举汇总失败", exc_info=True)
+                print(f"  展示机会盘点汇总失败: {exc}", flush=True)
+                logger.warning("展示机会盘点汇总失败", exc_info=True)
                 print(f"  success: {enum_result.get('success')}", flush=True)
                 print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
         else:
@@ -413,7 +413,7 @@ class UserHandlers:
         print(f"  策略: {strategy_key}", flush=True)
         if force:
             print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
-        print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
+        print("  依赖: 同指纹机会盘点产物；缺失时会先补跑机会盘点", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.price_factor(
@@ -427,7 +427,7 @@ class UserHandlers:
         UserHandlers._print_simulate_version(result, "price")
         if enum_part:
             print(
-                f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
+                f"  机会盘点: success={enum_part.get('success')} version={enum_part.get('version_id')}",
                 flush=True,
             )
 
@@ -466,7 +466,7 @@ class UserHandlers:
         print(f"  策略: {strategy_key}", flush=True)
         if force:
             print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
-        print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
+        print("  依赖: 同指纹机会盘点产物；缺失时会先补跑机会盘点", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.portfolio(
@@ -480,7 +480,7 @@ class UserHandlers:
         UserHandlers._print_simulate_version(result, "portfolio")
         if enum_part:
             print(
-                f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
+                f"  机会盘点: success={enum_part.get('success')} version={enum_part.get('version_id')}",
                 flush=True,
             )
 
@@ -550,7 +550,7 @@ class UserHandlers:
 
     @staticmethod
     def _run_strategy_simulate(args: argparse.Namespace) -> None:
-        """一次跑完枚举、价格和资金。任一层失败即停。"""
+        """一次跑完机会盘点、价格和资金。任一层失败即停。"""
         UserHandlers._run_strategy_enumerate(args)
         UserHandlers._run_strategy_price_factor(args)
         UserHandlers._run_strategy_portfolio(args)
@@ -779,7 +779,7 @@ class UserHandlers:
                 args,
                 layer="enum",
                 api_name="attribute_enumerate",
-                title="枚举层归因",
+                title="机会盘点层归因",
                 need_cli="se",
             )
             return

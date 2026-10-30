@@ -202,14 +202,14 @@ def test_run_strategy_attribute_enumerate_ok(monkeypatch, capsys) -> None:
         Namespace(strategy="rsi_v1", force=True),
         layer="enum",
         api_name="attribute_enumerate",
-        title="枚举层归因",
+        title="机会盘点层归因",
         need_cli="se",
     )
     out = capsys.readouterr().out
     assert seen["key"] == "rsi_v1"
     assert seen["ignore_cache"] is True
     assert seen["presented"]
-    assert "枚举层归因" in out
+    assert "机会盘点层归因" in out
 
 
 def test_run_strategy_delete_version_ok(monkeypatch, capsys) -> None:

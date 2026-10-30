@@ -140,8 +140,8 @@ python cli.py xx [-f] [--strategy NAME] [--param value]
 
 | 缩写    | 全称                         | 用途       |
 | ----- | -------------------------- | -------- |
-| `sim` | strategy\_simulate         | 一次跑完枚举、价格、资金 |
-| `se`  | strategy\_enumerate        | 第一步：枚举   |
+| `sim` | strategy\_simulate         | 一次跑完机会盘点、价格、资金 |
+| `se`  | strategy\_enumerate        | 第一步：机会盘点   |
 | `sp`  | strategy\_price\_factor    | 第二步：价格因子 |
 | `so`  | strategy\_portfolio        | 第三步：组合模拟 |
 | `sr`  | strategy\_rolling          | 滚动对照（读 rolling.py，须先完成三层） |

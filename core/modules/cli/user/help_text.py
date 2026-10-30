@@ -7,14 +7,14 @@ CLI_COMMAND_REFERENCE = """
 
   python cli.py                         先显示帮助，再显示版本（默认）  同 version / v / -v / --version
   python cli.py c                       扫描          同 scan [--strategy NAME] [--demo]
-  python cli.py se                      枚举          同 strategy_enumerate [--strategy NAME]
+  python cli.py se                      机会盘点      同 strategy_enumerate [--strategy NAME]
   python cli.py sp                      价格因子模拟  同 strategy_price_factor [--strategy NAME]
   python cli.py so                      组合模拟      同 strategy_portfolio [--strategy NAME]
   python cli.py sd                      决策者 REPL   同 strategy_decision [--strategy NAME] [--version ID] [--session N] [--new-session]
   python cli.py sdl                     列出决策者会话 同 strategy_decision_list [--strategy NAME] [--version ID]
   python cli.py sdd --session N         删除一局决策者 同 strategy_decision_delete --session N
-  python cli.py sim                     三层回测      同 strategy_simulate [--strategy NAME]（枚举 → 价格 → 资金；-f 忽略缓存重跑）
-  python cli.py sea                     枚举层归因    同 strategy_attribute_enumerate [--strategy NAME]（须先 se；-f 忽略缓存）
+  python cli.py sim                     三层回测      同 strategy_simulate [--strategy NAME]（机会盘点 → 价格 → 资金；-f 忽略缓存重跑）
+  python cli.py sea                     机会盘点层归因    同 strategy_attribute_enumerate [--strategy NAME]（须先 se；-f 忽略缓存）
   python cli.py spa                     价格层归因    同 strategy_attribute_price [--strategy NAME]（须先 sp）
   python cli.py soa                     组合层归因    同 strategy_attribute_portfolio [--strategy NAME]（须先 so）
   python cli.py sr                      滚动对照      同 strategy_rolling [--strategy NAME]（读 rolling.py；须先完成三层回测；-f 忽略缓存重跑）

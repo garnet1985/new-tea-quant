@@ -39,7 +39,7 @@ _REQUIRED = (
     SimulateKind.PORTFOLIO,
 )
 _LAYER_LABEL = {
-    SimulateKind.ENUMERATE: "枚举",
+    SimulateKind.ENUMERATE: "机会盘点",
     SimulateKind.PRICE_FACTOR: "价格",
     SimulateKind.PORTFOLIO: "资金",
 }

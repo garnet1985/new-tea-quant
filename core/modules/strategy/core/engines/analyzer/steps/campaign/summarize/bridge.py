@@ -47,16 +47,16 @@ def upstream_bridge(
         )
         bits = []
         if opp:
-            bits.append(f"枚举机会约 {opp} 笔")
+            bits.append(f"机会盘点约 {opp} 笔")
         if done:
             bits.append(f"去噪后代表完成笔约 {done}")
         if bits:
             return (
                 "本层基于"
                 + "，".join(bits)
-                + "；回答等权投一笔能不能赚。详见上一层枚举报告。"
+                + "；回答等权投一笔能不能赚。详见上一层机会盘点报告。"
             )
-        return "本层基于去噪后的代表机会等权账；详见上一层枚举报告。"
+        return "本层基于去噪后的代表机会等权账；详见上一层机会盘点报告。"
 
     if layer == "portfolio":
         done = _fmt_int(

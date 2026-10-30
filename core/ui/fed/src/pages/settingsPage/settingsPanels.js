@@ -570,7 +570,7 @@ const CACHE_OPTIONS = [
   {
     key: 'clear_backtest_results',
     label: '回测结果临时文件清理',
-    hint: '删除各策略 results/simulations/ 下的枚举、价格、投资模拟产物。',
+    hint: '删除各策略 results/simulations/ 下的机会盘点、价格、投资模拟产物。',
   },
   {
     key: 'clear_scan_results',

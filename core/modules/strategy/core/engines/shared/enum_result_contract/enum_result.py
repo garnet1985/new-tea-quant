@@ -3,7 +3,7 @@
 边界:
 - 负责: 从 ``Investment`` 投影；JSON 往返；选仓用的 ``Opportunity`` 投影
 - 不负责: 生命周期模拟、文件 IO（见 EnumResultsManager）
-- 调用方: EnumResultsManager；价格回测 worker；组合选仓 / 事件展开；枚举报告 / 分析 / BFF
+- 调用方: EnumResultsManager；价格回测 worker；组合选仓 / 事件展开；机会盘点报告 / 分析 / BFF
 
 字段口径：价无后缀 = qfq；``*_raw`` 成交；``*_hfq`` 比例 / ROI。
 """
@@ -71,7 +71,7 @@ class CompletedGoal:
 
 @dataclass(frozen=True)
 class EnumResult:
-    """一笔枚举机会的冻结结果。不可 ``try_enter`` / ``check_targets``。"""
+    """一笔机会盘点的冻结结果。不可 ``try_enter`` / ``check_targets``。"""
 
     entity_id: str = ""
     investment_id: str = ""

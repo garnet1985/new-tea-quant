@@ -7,7 +7,7 @@ aliases:
   - simulate
   - 回测
   - 运行回测
-summary: 用 CLI 跑枚举、价格因子、组合模拟（决策者是另一步）。
+summary: 用 CLI 跑机会盘点、价格因子、组合模拟（决策者是另一步）。
 ---
 
 # 如何运行回测
@@ -15,7 +15,7 @@ summary: 用 CLI 跑枚举、价格因子、组合模拟（决策者是另一步
 ## 快速开始
 
 ```bash
-# 一次跑完枚举、价格、资金
+# 一次跑完机会盘点、价格、资金
 python cli.py sim
 
 # 指定策略（用 meta.key，或磁盘相对路径）
@@ -33,10 +33,10 @@ python cli.py sim -f
 
 | 命令                                    | 缩写   | 说明 |
 | ------------------------------------- | ---- | -------- |
-| `python cli.py strategy_enumerate`    | `se` | 第一步：枚举机会 |
+| `python cli.py strategy_enumerate`    | `se` | 第一步：机会盘点 |
 | `python cli.py strategy_price_factor` | `sp` | 第二步：单笔模拟 |
 | `python cli.py strategy_portfolio`    | `so` | 第三步：组合模拟 |
-| `python cli.py strategy_simulate`     | `sim` | 枚举 → 价格 → 资金 |
+| `python cli.py strategy_simulate`     | `sim` | 机会盘点 → 价格 → 资金 |
 | `python cli.py strategy_decision`     | `sd` | 第四步：决策者回放 |
 
 ### 分步示例
@@ -60,10 +60,10 @@ python cli.py sp -f --strategy random_v1
 
 ```
 s (simulate)
-  ├── 若缺枚举 → se (enumerate)  → enum/
+  ├── 若缺机会盘点 → se (enumerate)  → enum/
   ├── sp (price_factor)         → price/
   └── so (portfolio)            → portfolio/
-sd 是决策者，基于已有枚举版本交互回放。
+sd 是决策者，基于已有机会盘点版本交互回放。
 ```
 
 产物在同一个版本目录下（**没有** `reports/`）：

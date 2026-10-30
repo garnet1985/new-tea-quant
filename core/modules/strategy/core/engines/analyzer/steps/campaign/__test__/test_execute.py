@@ -113,7 +113,7 @@ def test_simulate_price_chain_force_only_first_step() -> None:
 
 
 def test_price_gap_reuses_existing_enum(tmp_path) -> None:
-    """只改近邻间隔时读已有枚举，不再为这一格跑枚举。"""
+    """只改近邻间隔时读已有机会盘点，不再为这一格跑机会盘点。"""
     root = tmp_path / "sim"
     primary = root / "21"
     other = root / "21-attr1"

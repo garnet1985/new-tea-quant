@@ -185,7 +185,7 @@ class Strategy:
         ignore_cache: bool = False,
         runtime_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """价格因子回测（依赖枚举产物）。"""
+        """价格因子回测（依赖机会盘点产物）。"""
         return Strategy.simulate(
             key_or_id,
             kind=SimulateKind.PRICE_FACTOR,
@@ -282,7 +282,7 @@ class Strategy:
         """统一模拟入口：枚举 / 价格 / 资金。
 
         ``version_id``：归因副本写入指定号（如 ``5-1``）；普通回测勿传，由指纹分配主号。
-        ``upstream_version_id``：价格或组合对照时，枚举产物读这个号，只重跑本层。
+        ``upstream_version_id``：价格或组合对照时，机会盘点产物读这个号，只重跑本层。
 
         缓存与指纹流程（磁盘单轨）::
 
@@ -450,7 +450,7 @@ class Strategy:
 
     @staticmethod
     def _resolve_steps(ctx: SimulateSession, *, ignore_cache: bool = False) -> None:
-        """按目标 kind + 指纹是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
+        """按目标 kind + 指纹是否已有机会盘点产物，写入 ctx.steps / ctx.enum_version。"""
         from .engines.enumerator import EnumeratorPipeline
 
         step = ctx.kind
@@ -825,7 +825,7 @@ class Strategy:
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """枚举层归因（CLI ``sea``）。须已有主 version；对照格写 ``{vid}-attr{n}`` 副本。"""
+        """机会盘点层归因（CLI ``sea``）。须已有主 version；对照格写 ``{vid}-attr{n}`` 副本。"""
         from .engines.analyzer import Analyzer
 
         return Analyzer.attribute_enumerate(key_or_id, ignore_cache=ignore_cache)

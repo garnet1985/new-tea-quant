@@ -1,4 +1,4 @@
-"""枚举层战役计划（sea）。"""
+"""机会盘点层战役计划（sea）。"""
 from __future__ import annotations
 
 from core.modules.strategy.core.enums import SimulateKind
@@ -7,7 +7,7 @@ from .base import AttributionPlanBase
 
 
 class EnumerateAttributionPlan(AttributionPlanBase):
-    """枚举层计划。近邻间隔不另开版本。"""
+    """机会盘点层计划。近邻间隔不另开版本。"""
 
     LAYER = "enum"
     KIND = SimulateKind.ENUMERATE

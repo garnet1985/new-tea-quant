@@ -57,7 +57,7 @@ terms:
     avoid: []
 
   Opportunity:
-    definition: "扫描/枚举命中后由框架构建的交易机会数据类；用户钩子 has_opportunity 只返回 bool。从 contracts 导入。"
+    definition: "扫描/机会盘点命中后由框架构建的交易机会数据类；用户钩子 has_opportunity 只返回 bool。从 contracts 导入。"
     aliases: []
     avoid:
       - "在 has_opportunity 里手动 new Opportunity / 调用已删除的 build_opportunity"
@@ -91,15 +91,16 @@ terms:
       - "core.modules.strategy.core.hooks（作者路径）"
 
   Enumerator:
-    definition: "枚举引擎：entity_based / slice_based，经 BacktestEngine RunCallbacks 推进。"
+    definition: "机会盘点引擎：entity_based / slice_based，经 BacktestEngine RunCallbacks 推进。"
     aliases:
       - "枚举器"
     avoid:
       - "TimelineBuilder（禁止在 strategy 侧引入）"
 
   WorkbenchStep:
-    definition: "工作台三步 enum / price / portfolio；与 SimulateKind 同值；从 contracts 导入。"
-    aliases: []
+    definition: "工作台三步 enum / price / portfolio（产品文案：机会盘点 / 价格回测 / 投资模拟）；与 SimulateKind 同值；从 contracts 导入。"
+    aliases:
+      - "机会盘点"
     avoid: []
 
   DecisionMaker:

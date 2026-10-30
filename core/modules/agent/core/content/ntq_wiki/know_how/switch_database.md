@@ -47,7 +47,7 @@ DuckDB 三个文件默认在 `userspace/system/db/`：`data.duckdb`（行情）�
 ## 验证
 
 - 设置页重新读取后，类型与库名与刚才保存的一致
-- 能打开制定策略并跑一步枚举（或 `python cli.py se --strategy random_v1`）而不报连库失败
+- 能打开制定策略并跑一步机会盘点（或 `python cli.py se --strategy random_v1`）而不报连库失败
 
 ## 常见坑
 

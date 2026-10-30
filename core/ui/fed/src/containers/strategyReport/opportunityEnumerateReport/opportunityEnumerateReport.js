@@ -87,7 +87,7 @@ function buildStockDistributionOption(metrics) {
 function OpportunityEnumrateReport({
   metrics,
   stockRows,
-  title = '枚举机会报告',
+  title = '机会盘点报告',
   showStockGrid = true,
   stockGridOverlay = null,
   enumRefStockTotal,

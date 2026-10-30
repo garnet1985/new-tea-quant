@@ -173,7 +173,7 @@ function peelTrailingSummary(items) {
 
 function headingLayerClass(title) {
   const text = String(title || '').replace(/\*+/g, '');
-  if (/枚举/.test(text)) return 'ntq-assistant-md__h--layer-enum';
+  if (/枚举|机会盘点/.test(text)) return 'ntq-assistant-md__h--layer-enum';
   if (/价格/.test(text)) return 'ntq-assistant-md__h--layer-price';
   if (/资金/.test(text)) return 'ntq-assistant-md__h--layer-capital';
   if (/归因/.test(text)) return 'ntq-assistant-md__h--layer-attr';

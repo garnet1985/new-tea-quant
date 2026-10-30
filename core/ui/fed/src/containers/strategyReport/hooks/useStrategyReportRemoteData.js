@@ -121,7 +121,7 @@ export function useStrategyReportRemoteData({
         if (cancelled) return;
         setEnumRefRows([]);
         setEnumRefStatus('error');
-        setEnumRefError(err?.message || '加载枚举报告失败');
+        setEnumRefError(err?.message || '加载机会盘点报告失败');
       });
     return () => {
       cancelled = true;

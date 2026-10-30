@@ -118,7 +118,7 @@ function mapOpportunity(row) {
     id: localId,
     ticker: String(raw.entity_id || ''),
     name: String(raw.name || ''),
-    // 现场 chip 走 D1-12 live 查询；枚举触发日戳不用于展示
+    // 现场 chip 走 D1-12 live 查询；机会盘点触发日戳不用于展示
     statusTags: [],
     price: Number(raw.entry_price) || 0,
     wr: stats ? stats.winRateLabel : '—',
@@ -272,7 +272,7 @@ export function mapDecisionHoldings(message) {
       id: `${row.entity_id || 'h'}-${row.buy_date || index}`,
       ticker: String(row.entity_id || ''),
       name: String(row.name || ''),
-      // 现场 chip 走 D1-12；持仓枚举触发日戳不用于展示
+      // 现场 chip 走 D1-12；持仓机会盘点触发日戳不用于展示
       statusTags: [],
       shares,
       buyDate,

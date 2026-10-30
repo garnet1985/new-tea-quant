@@ -91,7 +91,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
         name="start_price_factor",
         description=(
             "对已启用且通过校验的策略启动价格回测，并立刻返回。不要等待跑完。"
-            "缺同指纹枚举产物时会先补跑枚举。区间用 settings，不要传年数或股票数量。"
+            "缺同指纹机会盘点产物时会先补跑机会盘点。区间用 settings，不要传年数或股票数量。"
             "任务完成前不要给出收益数字。"
         ),
         parameters=_object(
@@ -127,7 +127,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="start_attribute_enumerate",
         description=(
-            "启动枚举层归因，并立刻返回。须已有该层主 version；"
+            "启动机会盘点层归因，并立刻返回。须已有该层主 version；"
             "归因参数配置在该策略目录的 attribution.py 中，此处只需传当前策略的 key。"
             "任务完成前不要给出归因结论。"
         ),

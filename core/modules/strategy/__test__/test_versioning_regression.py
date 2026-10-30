@@ -117,7 +117,7 @@ def test_overwrite_enum_clears_downstream_artifacts(tmp_path: Path) -> None:
 
 
 def test_enum_report_manager_begin_reuses_fingerprint_vid(tmp_path: Path, monkeypatch) -> None:
-    """D17：同指纹重跑枚举写入同一 vid；begin 不得把 VersionMetaStore 变成局部变量。"""
+    """D17：同指纹重跑机会盘点写入同一 vid；begin 不得把 VersionMetaStore 变成局部变量。"""
     from core.modules.strategy.core.engines.enumerator.common.report_manager.report_manager import (
         ReportManager,
     )

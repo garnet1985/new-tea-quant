@@ -3,7 +3,7 @@
 边界:
 - 负责: ``Investment`` → ``EnumResult`` 交还；``entities/{id}.json`` 读写；按 entity 筛选
 - 不负责: tick 调度、价格锁仓、组合资金；不一次加载全市场
-- 调用方: 枚举落盘；价格回测 worker；组合 build_events；枚举报告 / 分析 / BFF
+- 调用方: 机会盘点落盘；价格回测 worker；组合 build_events；机会盘点报告 / 分析 / BFF
 
 查询必须带 ``entity_ids``。``filled`` = 有进场日；``completed`` = lifecycle complete。
 """

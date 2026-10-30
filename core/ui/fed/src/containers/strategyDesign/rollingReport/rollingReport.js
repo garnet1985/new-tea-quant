@@ -16,7 +16,7 @@ import './style.scss';
 const LAYERS = [
   {
     key: 'enum',
-    title: '枚举',
+    title: '机会盘点',
     columns: [
       { key: 'total_opportunities', label: '机会数', style: 'count', delta: true },
       { key: 'trigger_stocks', label: '触发股票数', style: 'count', delta: true },

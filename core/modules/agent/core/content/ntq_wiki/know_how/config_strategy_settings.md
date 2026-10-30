@@ -349,7 +349,7 @@ settings = {
 3. `close_invest=True` 和 `exit_ratio` 二选一，前者等于 `exit_ratio=1.0`
 4. `exit_ratio` 的分母是初始总仓位，不是当前剩余仓位
 5. `actions` 中的 `set_protect_loss` / `set_dynamic_loss` 需要对应的 `goal.protect_loss` / `goal.dynamic_loss` 配置存在
-6. `data.base.data_key` 决定数据路由模式，影响枚举阶段的遍历方式
+6. `data.base.data_key` 决定数据路由模式，影响机会盘点阶段的遍历方式
 7. `execution.mode` 和 `data.base.data_key` 有联动关系：global 类型的 data\_key 通常配合 `slice_based` 模式
 8. `lots_per_trade` 对主板/创业板有效，科创板/北交所的交易单位规则不同
 9. `assumption.template` 为 `custom` 时才读取 `tradability` 各字段，其他模板有预设值

@@ -17,7 +17,7 @@
 - **租约语义：** `lease` 的 `kind` 须在 `VALID_KINDS`；上下文退出时按 `job_id` 释放。忙时 `acquire` 抛 `TaskLeaseBusyError`（携带 `active` 快照）。
 - **跨进程互斥用文件锁：** 租约文件放在 `userspace/.ntq/runtime/task_guard_active.json`，与进度等运行时文件同区；租约带过期时间，崩溃后自动释放。
 - **依赖最小化：** 只 import `infra.project_context`，不依赖 strategy / tag / db。
-- **演进策略：** 将来若引入真 pipeline/queue，本模块可并入其互斥层，或整体舍弃（见下文 DEC-05）。
+- **演进策略：** 真 pipeline/queue 由新建的 `infra.job_pipeline` 承接（见该模块 `docs/DESIGN.md`）；本模块绞杀期可被适配，最终退役（见下文 DEC-05）。
 
 关键选型（单一入口、租约文件位置、依赖范围、文件锁、未来演进）见下文 DEC-01 ～ DEC-05。
 

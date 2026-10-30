@@ -1,0 +1,131 @@
+# Job Pipeline — 设计结论
+
+**状态：** 草案（只读适配已落地；submit/队列未做）  
+**版本对齐：** `0.1.0`  
+**相关：** [ARCHITECTURE.md](./ARCHITECTURE.md) · [DECISIONS.md](./DECISIONS.md)
+
+本文固定讨论结论，作为实现与迁移的 SSOT。细节拍板进 DECISIONS；公开调用面进根目录 `API.md`。
+
+---
+
+## 1. 要解决什么
+
+今天长任务被拆成两套基础设施：
+
+| 模块 | 实际职责 | 缺口 |
+|------|----------|------|
+| `infra.task_guard` | 全局单飞租约（忙则拒绝） | 不是队列；不是 UX 真相源 |
+| `infra.progress` | 按 `job_id` 写进度树 / channel | 不能「发现正在跑谁」；与互斥脱节 |
+
+前端若只靠 `sessionStorage` 记 `run_id`，跨 tab 会丢进度；切页后也没有「跑完了」的全局提示。业务 launcher（strategy / tag / renew…）同时摸租约和进度，边界模糊。
+
+**目标：** 一个长任务 infra——**任务登记表 +（先）串行队列 + 进度视图**——阻断前端与「线程怎么跑」的直接耦合：前端只读任务表；后端只通过本模块更新任务状态与进度。
+
+---
+
+## 2. 模块边界
+
+### 做
+
+- 维护 **job 列表 / id→任务信息**（状态、阶段、进度、展示用元数据、跳转提示）
+- **提交**长任务：空闲则跑，忙则 **入队**（有上限；满则仍拒绝并说清原因）
+- **串行执行**（第一期：全局同时只跑 1 个）——政策，不是死架构
+- **挂死 / 进程退出** 时纠正列表（释放槽位，必要时拉下一条）
+- 经 BFF 给前端 **只读** list/get（及现有逐步 progress 形状的兼容映射）
+
+### 不做（第一期）
+
+- 通用工作流引擎、DAG 调度器、拓扑排序运行时
+- 分布式多机队列
+- 自动重试 / 恢复业务中间态（只保证登记表可信）
+- 取代业务「如何 simulate / 如何算 tag」——本模块不管业务算法
+
+### 与旧模块关系
+
+- **绞杀：** 先适配 `TaskGuard` + `Progress`，launcher 改走 `JobPipeline`
+- **换心：** 自管登记表与互斥后，**退役** `task_guard` 与对外 `progress`（进度树可内嵌为私有能力）。互斥优先用 **`filelock`**，不长期维护自研 lease 协议（见 DEC-06）
+
+---
+
+## 3. 核心模型
+
+### 3.1 任务表（真相源）
+
+`job_id → { kind, resource_key, status, progress, label, locks?, depends_on?, … }`
+
+- 前端 / BFF **只读这份表**（或单条 get），不解析 lease 文件、不假设进度目录布局。
+- 业务线程 **只写本模块**（submit / tick 或等价更新 / complete / fail），不直接 `TaskGuard.lease` + `Progress.*` 双轨（迁移完成后）。
+
+### 3.2 第一期调度：有上限的串行队列
+
+用户点 Run：**不再是 TaskGuard deny-only**，而是：
+
+1. 构造 job → 写入表（`pending` 或立刻 `running`）
+2. 若已有 `running` → 入队（`pending`），受 **队列最大长度** 约束
+3. 当前任务终态后 → 取队头 → `running`
+4. 队列满 → deny（明确 reason）
+
+同资源重复提交政策（实现时拍板，倾向）：
+
+- 同 `kind` + `resource_key` 已有 `pending`/`running` → 拒绝或合并，避免无意义堆叠
+
+### 3.3 可扩展性（先预留，后实现）
+
+**资源锁（locks），不是一上来上图：**
+
+- 「strategy 与 tag 可并行、各自单飞」→ 不同 lock 槽
+- 「simulate ∥ rolling」→ 拆细 `strategy:{key}:simulate` vs `…:rolling`
+- 现在「全局只能一个」→ 大家抢同一把 `global`（或等价默认 policy）
+
+**依赖（depends_on）稍后：**
+
+- 队列模型已经是「表里的 pending/running」
+- 加边之后只多一个 **ready 条件**（deps 完成才能出队）
+- **不要**为扩展性先做拓扑排序引擎；无边时 FIFO + 单飞足够
+- 「rolling 需要已有 simulate 产物」优先用 **启动前置检查**，不必建成任务边
+
+### 3.4 崩溃与 hang
+
+列表必须可纠正，否则 UX 不可信：
+
+| 情况 | 行为 |
+|------|------|
+| 持有进程已死 | 标 `failed`/`stale`，释放执行槽，调度下一条（继承 TaskGuard pid 思路） |
+| 进程仍在但长时间无进度心跳 | 标 `stale` / 提示；是否允许用户「放弃」另定 |
+
+---
+
+## 4. 前后端契约（间接汇报）
+
+```text
+[业务 Run 按钮] → BFF submit → JobPipeline.submit(spec)
+                                      ↓
+                              任务表 +（内部）真正开跑
+                                      ↓
+[全局管道 UI / 完成 toast] ← BFF list/get ← JobPipeline.list_jobs / get_job
+```
+
+- **TaskGuard 不进前端模型**；互斥是管道内部政策。
+- 全局管道列表 = 表中活跃任务（串行期 0～1 条 running + 若干 pending）；完成时可短暂保留最近一条便于 toast + 快捷 link。
+- 制定策略页进页发现在跑任务：读 list/get，**不依赖** `sessionStorage` 作为真相（最多当缓存）。
+
+---
+
+## 5. 迁移阶段
+
+1. **骨架 + 本设计**（已完成）
+2. **只读适配：** `get_running_job` / `list_jobs` 委托 TaskGuard（雏形，未定型）。细进度不在 infra 拉 `modules.*`；BFF 可按 kind 再查。
+3. **BFF + FED：** 暴露 running job；进页发现 / 完成 toast + link
+4. **submit 入队：** 替代忙则拒绝；迁 launcher
+5. **换心：** 自管表 + `filelock`；退役 `task_guard` / 对外 `progress`
+
+---
+
+## 6. 结论摘要（讨论拍板）
+
+1. 长任务应有 **统一登记表**；前端只与表交互。
+2. 第一期用 **有上限串行队列** 替代「忙则拒绝」，是明确的产品与模型进步。
+3. 扩展靠 **资源锁 + 队列政策**；**依赖边** 可后加；**不要**先上 DAG / 拓扑排序。
+4. 新模块 `infra.job_pipeline` 吸收并最终替代 `task_guard` 与 `progress` 的对外职责；绞杀式落地，禁止大爆炸重写。
+5. UX（跨 tab 可见、完成后 toast + link）挂在任务表上，不另造通知总线依赖租约。
+6. **自建**管道；不上重型队列/工作流库。换心时的跨进程锁 **优先 `filelock`**（DEC-06）。

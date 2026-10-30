@@ -1,0 +1,15 @@
+name: infra.job_pipeline
+version: "0.1.0"
+compatible_core_versions: ">=0.6.0"
+package: core.infra
+description: "长任务执行管道：任务登记表、串行队列与进度视图；将吸收并替代 task_guard 与 progress 的对外职责。"
+site_title: "任务管道 (Job Pipeline)"
+site_display_title: "长任务排队与进度 - Job Pipeline 模块"
+dependencies:
+  - infra.project_context
+  - infra.task_guard
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 初始化模块骨架与设计文档
+      - 只读面雏形：get_running_job / has_running_job / list_jobs / get_job（TaskGuard 适配；未定型）

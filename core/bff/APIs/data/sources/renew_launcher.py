@@ -35,8 +35,6 @@ class DataRenewLauncher:
             except ValueError as exc:
                 return {"is_triggered": False, "reason": str(exc).splitlines()[0]}
 
-        from core.infra.job_pipeline import JobPipeline
-
         resource = source_key or _ALL_RESOURCE
         label = (
             "更新需要更新的数据源"
@@ -177,8 +175,6 @@ class DataRenewLauncher:
     @staticmethod
     def _notify_finished() -> None:
         try:
-            from core.infra.job_pipeline import JobPipeline
-
             JobPipeline.notify_job_finished()
         except Exception:
             logger.exception("JobPipeline.notify_job_finished after renew failed")

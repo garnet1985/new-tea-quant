@@ -65,8 +65,6 @@ class AttributeRunLauncher:
         if gate is not None:
             return {"is_triggered": False, "reason": gate}
 
-        from core.infra.job_pipeline import JobPipeline
-
         return JobPipeline.submit(
             {
                 "kind": "strategy_attribute",
@@ -243,8 +241,6 @@ class AttributeRunLauncher:
     @staticmethod
     def _notify_finished() -> None:
         try:
-            from core.infra.job_pipeline import JobPipeline
-
             JobPipeline.notify_job_finished()
         except Exception:
             logger.exception("JobPipeline.notify_job_finished after attribute failed")

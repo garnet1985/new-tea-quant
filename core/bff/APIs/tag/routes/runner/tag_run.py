@@ -35,8 +35,6 @@ class TagRunLauncher:
             return {"is_triggered": False, "reason": "Scenario 未启用"}
         run_key = str(item.id())
 
-        from core.infra.job_pipeline import JobPipeline
-
         return JobPipeline.submit(
             {
                 "kind": "tag_run",
@@ -227,8 +225,6 @@ class TagRunLauncher:
     @staticmethod
     def _notify_finished() -> None:
         try:
-            from core.infra.job_pipeline import JobPipeline
-
             JobPipeline.notify_job_finished()
         except Exception:
             logger.exception("JobPipeline.notify_job_finished after tag failed")

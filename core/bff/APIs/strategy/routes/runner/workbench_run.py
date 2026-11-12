@@ -62,8 +62,6 @@ class WorkbenchRunLauncher:
                 return {"is_triggered": False, "reason": "策略未启用"}
             return {"is_triggered": False, "reason": f"策略不可运行: {name}"}
 
-        from core.infra.job_pipeline import JobPipeline
-
         return JobPipeline.submit(
             {
                 "kind": "strategy_run",
@@ -325,8 +323,6 @@ class WorkbenchRunLauncher:
                 logger.exception("pipeline lease release failed")
             cls._clear_active(strategy_name, job_id)
             try:
-                from core.infra.job_pipeline import JobPipeline
-
                 JobPipeline.notify_job_finished()
             except Exception:
                 logger.exception("JobPipeline.notify_job_finished after workbench failed")

@@ -5,7 +5,7 @@ CLI 应用安装入口（与 ``launcher.py`` 对称）：
 
   python install.py              执行 CLI 安装，不导入演示数据
   python install.py --import-demo
-                                 同上，并导入 initialization/data 里的演示包
+                                 同上，并导入演示数据包（官网下载到 userspace）
   python install.py --if-needed  仅未就绪时安装（``cli.py`` 自动触发）。
                                  依赖变化只更新依赖；不带 --import-demo 就不导入演示包。
 
@@ -46,7 +46,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--import-demo",
         action="store_true",
-        help="导入 initialization/data 里的演示数据包（会覆盖同名表）",
+        help="导入演示数据包（无本地 zip 则从官网下载；会覆盖同名表）",
     )
     parser.add_argument(
         "--userspace",

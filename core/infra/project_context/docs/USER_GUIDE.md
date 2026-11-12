@@ -1,6 +1,6 @@
 # Project Context — 用户指南
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 项目路径和配置的统一入口——找 userspace 在哪、合并默认配置和用户覆盖。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

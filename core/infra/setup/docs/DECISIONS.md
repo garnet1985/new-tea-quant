@@ -1,6 +1,6 @@
 # infra.setup — 设计与决策
 
-**版本：** `0.1.1`
+**版本：** `0.1.2`
 
 本文记录 infra.setup 模块的设计目标、方案思路与拍板决策。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
@@ -26,7 +26,7 @@
 - `cli.py` / `devcli.py` 安装相关只调用 `Setup.*`；应用升级走 `userspace/system/updater` / `Updater`
 - 禁止 `infra.setup` import `core.modules.cli`
 - 禁止 setup 实现升级编排（见 `infra.updater`）
-- 产物 zip 落在 `initialization/userspace/`、`initialization/data/`
+- userspace 模板 zip 落在 `initialization/userspace/`；演示包落在 `userspace/.ntq/packages/install_demo/`（导出与下载共用）
 
 ---
 

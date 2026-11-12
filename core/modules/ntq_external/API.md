@@ -1,6 +1,6 @@
 # NtqExternal API 文档
 
-**版本：** `0.1.0`
+**版本：** `0.1.1`
 **最低支持核心版本：** `>=0.6.0`
 
 > 须与 `module_info.yaml` 一致。core 仍为 `0.x`：公开入口状态最高 **`beta`**（禁止 `stable`）。
@@ -72,6 +72,21 @@ print(urls["register_url"])
 | `get_prefs` | `() -> dict` | 读取本地提示偏好 |
 | `set_prompts_disabled` | `(disabled, *, source="settings_ui") -> bool` | 设置是否禁用提示 |
 | `contact_url` | `() -> str` | 联系我们页面地址 |
+
+### install_demo
+
+`from core.modules.ntq_external.install_demo import download_install_demo, resolve_install_demo_url`
+
+公开演示安装包（无需会员凭证）。供 `infra.setup` 在本地无 zip 时拉取。
+
+| 符号 | 签名 | 说明 |
+|------|------|------|
+| `resolve_install_demo_url` | `() -> str` | 下载 URL；可用 `NTQ_INSTALL_DEMO_URL` 覆盖 |
+| `resolve_install_demo_meta_url` | `() -> str` | meta URL；可用 `NTQ_INSTALL_DEMO_META_URL` 覆盖 |
+| `fetch_install_demo_meta` | `(*, timeout_sec=30.0) -> dict` | 拉取 meta JSON |
+| `download_install_demo` | `(dest_dir, *, force=False, timeout_sec=120.0) -> Path` | 写入 `dest_dir/data_demo.zip`；已存在且非 force 则跳过；有 meta 时校验 sha256 |
+
+失败抛 `InstallDemoError`。
 
 ### member_profile
 

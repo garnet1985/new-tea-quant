@@ -1,6 +1,6 @@
 # NtqExternal — 架构
 
-**模块：** `modules.ntq_external` · **版本：** `0.1.0`
+**模块：** `modules.ntq_external` · **版本：** `0.1.1`
 
 ## 职责与边界（结论）
 
@@ -11,6 +11,7 @@
 - 会员 AI 通道的凭证、根地址与额度（`ai/`）
 - 应用内软反馈（`feedback/`）
 - 向 `infra.trace` 登记官网发送端（`track/`）
+- 公开演示安装包下载（`install_demo.py`，供 Setup 导入）
 
 **不做：** 登录注册流程、支付订单、模型密钥存储、会员资料本地缓存。
 
@@ -33,6 +34,7 @@
 | `feedback/feedback.py` | 业务 | 反馈提交与提示偏好 |
 | `feedback/core/` | 内部 | 提交、偏好、HTTP 客户端 |
 | `track/__init__.py` | 装配 | 导入时登记 trace 发送端 |
+| `install_demo.py` | 业务 | 公开演示包 URL / 下载 / sha256 校验 |
 | `__test__/` | 测试 | 模块级公开契约 |
 
 依赖方向：`site.py` / `member_profile.py` / `ai/` / `feedback/` / `track/` → `conf/`；反向不成立。

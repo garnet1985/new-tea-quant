@@ -120,7 +120,7 @@ class UserHandlers:
             UserHandlers.setup_logging(verbose=args.verbose)
             force = bool(getattr(args, "force", False))
             suffix = " [force]" if force else ""
-            print(f"{i('ongoing')} 导入 initialization/data 数据包{suffix}", flush=True)
+            print(f"{i('ongoing')} 导入演示数据包{suffix}", flush=True)
             return Setup.runtime.import_init_data(force=force)
 
         return None

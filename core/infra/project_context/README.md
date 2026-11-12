@@ -1,6 +1,6 @@
 # Project Context（`infra.project_context`）
 
-**模块：** `infra.project_context` · **版本：** `0.2.0`
+**模块：** `infra.project_context` · **版本：** `0.2.1`
 
 ## 简介
 

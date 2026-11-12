@@ -6,7 +6,7 @@ from core.modules.data_manager.core.data_services.stock.sub_services.kline_servi
     KlineService,
 )
 
-# 与 initialization/data/data_demo.zip 日期窗对齐（20230101–20251231）
+# 与演示安装包日期窗对齐（20230101–20251231）
 # 标的须尽量落在当前分层抽样池；不在池内则 skip（全量库仍会跑）。
 _DEMO_STOCK = "000333.SZ"
 _DEMO_START = "20250102"

@@ -1,14 +1,14 @@
 # 测试用例 — `modules.ntq_external`
 
 **模块：** `modules.ntq_external`  
-**版本：** `0.1.0`  
+**版本：** `0.1.1`  
 **本文件位置：** `__test__/`
 
 ---
 
 ## Scope
 
-验证模块根公开契约：包根导出 `register_trace_endpoint` 与 `site_urls`；地址集合键完整且为绝对地址；`Feedback` 门面方法齐全。
+验证模块根公开契约：包根导出 `register_trace_endpoint` 与 `site_urls`；地址集合键完整且为绝对地址；`Feedback` 门面方法齐全；安装演示包 URL / 下载逻辑（不联网）。
 
 **不覆盖**：真实 HTTP 请求、会员凭证有效性、反馈落库。子包各有自己的 `__test__/`。
 
@@ -19,6 +19,7 @@
 - Facade 导出面（对齐 `API.md`）
 - `site_urls()` 的键与绝对地址
 - trace 发送端登记可重复调用且不抛错
+- `install_demo` URL 与本地跳过/校验写入
 
 **不负责**
 
@@ -38,6 +39,17 @@
 | `test_site_urls_shape` | `test_api.py` | 4 个页面地址 + 5 个文档地址齐全，均以 `http` 开头 |
 | `test_register_trace_endpoint` | `test_api.py` | 返回 `None`，不抛异常 |
 | `test_feedback_surface` | `test_api.py` | `Feedback` 的 7 个方法可调用 |
+
+---
+
+## Scenario：install_demo
+
+| Case（pytest 函数名） | 文件 | 说明 |
+|----------------------|------|------|
+| `test_install_demo_urls_default` | `test_install_demo.py` | 默认 URL 落在 `/api/v1/ntq-data/install/demo` |
+| `test_install_demo_url_env_override` | `test_install_demo.py` | `NTQ_INSTALL_DEMO_URL` 可覆盖 |
+| `test_download_install_demo_skips_when_present` | `test_install_demo.py` | 已有 zip 且非 force 不下载 |
+| `test_download_install_demo_writes_and_checks_sha` | `test_install_demo.py` | 写入 zip + meta，校验 sha256 |
 
 ---
 

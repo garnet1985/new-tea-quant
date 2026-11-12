@@ -470,9 +470,10 @@ That is a simple path from backtest to scan — there is more in NTQ to explore.
 <a id="data"></a>
 ## Data notes
 
-1. For a **larger (~3 years, full A-share) package**, useful for a fuller strategy check or backtest: **downloads are paused from 0.5.3 and will reopen in 0.6.0.** When they reopen, [register and sign in on the member page](https://new-tea.cn/zh-hans/user/), download it, leave **only one** zip under [`initialization/data/`](initialization/data/) (move the old demo zip aside), then run `python cli.py id` (`-f` forces a full re-import; see [CLI](#cli)). You can point a different DB name to keep demo and full data side by side (after install: `userspace/system/config/database/`).
-2. **Bring your own data source** (e.g. [Tushare](https://tushare.pro)): see [core/modules/data_source/README.md](core/modules/data_source/README.md).
-3. Demo data and strategies are for learning/research only — not live trading or commercial use.
+1. **Demo data (~3 years / 300 names):** install or `python cli.py id` downloads from the public site API into `userspace/.ntq/packages/install_demo/`, then imports. Force re-download + re-import: `python cli.py id -f`. Successful import cleans the local zip.
+2. **Larger (~3 years, full A-share) packs:** paused since 0.5.3; membership-tier downloads TBD.
+3. **Bring your own data source** (e.g. [Tushare](https://tushare.pro)): see [core/modules/data_source/README.md](core/modules/data_source/README.md).
+4. Demo data and strategies are for learning/research only — not live trading or commercial use.
 
 ## Disclaimers
 

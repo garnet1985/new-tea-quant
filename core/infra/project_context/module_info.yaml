@@ -1,5 +1,5 @@
 name: infra.project_context
-version: 0.2.0
+version: 0.2.1
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "项目上下文模块：提供常用路径，配置，缓存，项目上下文信息的模块。"
@@ -8,6 +8,9 @@ site_title: "工程上下文 (Project Context)"
 site_display_title: "提供统一便捷的工程上下文 - Project Context 模块"
 dependencies: []
 changelog:
+  - version: "0.2.1"
+    changes:
+      - path：get_install_demo_package_directory（userspace/.ntq/packages/install_demo）
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

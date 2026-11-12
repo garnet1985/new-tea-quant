@@ -26,6 +26,8 @@ def test_default_is_production(config_root):
     assert site_target.base_url() == site_target.DEFAULT_BASE_URL
     assert site_target.ai_base_url().endswith("/api/v1/ntq-ai")
     assert site_target.member_profile_url().startswith(site_target.DEFAULT_BASE_URL)
+    assert site_target.install_demo_url().endswith("/api/v1/ntq-data/install/demo")
+    assert site_target.install_demo_meta_url().endswith("/api/v1/ntq-data/install/demo/meta")
 
 
 def test_membership_json_base_url_drives_all(config_root: Path):
@@ -37,5 +39,8 @@ def test_membership_json_base_url_drives_all(config_root: Path):
     assert site_target.ai_base_url() == "http://127.0.0.1:2026/api/v1/ntq-ai"
     assert site_target.member_profile_url() == (
         "http://127.0.0.1:2026/api/v1/ntq-member/profile"
+    )
+    assert site_target.install_demo_url() == (
+        "http://127.0.0.1:2026/api/v1/ntq-data/install/demo"
     )
     assert site_target.register_url() == "http://127.0.0.1:2026/zh-hans/user/register"

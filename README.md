@@ -288,7 +288,7 @@ NTQ 能帮助您将您的想法进行验证，您可能需要：
 
 NTQ 是一个回测器，无法提供：
 
-- **持续稳定的数据源**（需要您自己对接数据源）。仓库自带约 3 年、**300 只**股票的演示数据。全 A 约 3 年包自 **0.5.3** 起暂停下载，**0.6.0** 重新开放（见 [数据说明](#data)）。
+- **持续稳定的数据源**（需要您自己对接数据源）。安装时可从官网下载约 3 年、**300 只**股票的演示数据（需联网）。全 A 约 3 年包自 **0.5.3** 起暂停，会员分包后续开放（见 [数据说明](#data)）。
 - **实盘交易。** NTQ 不支持实盘，但提供扫描结果的处理接口（[`post_process`](core/modules/post_process/README.md) 模块）。如果您懂得如何接入第三方交易软件或者平台，可以把扫描得到的机会交给下游处理。
 
 ## NTQ 如何跑起来？
@@ -482,9 +482,10 @@ NTQ 自带以下演示资产：
 <a id="data"></a>
 ## 数据说明
  
-1. 如果您想**获取更多（约 3 年，全 A 股市场）演示数据包**：用于更完整的策略验证/回测。**自 0.5.3 起暂停下载，将在 0.6.0 重新开放。** 重新开放后，请先[注册并登录会员页面](https://new-tea.cn/zh-hans/user/)下载，移走 [`initialization/data/`](initialization/data/) 里原有 zip 后只放入 **1 个** zip，再执行 `python cli.py id`（强制全量重导加 `-f`，见 [常用命令](#cli)）。可另配库名以并存 demo 与全量数据（安装后见 `userspace/system/config/database/`）。  
-2. **自有数据源**：也可自行接入（例如 [Tushare](https://tushare.pro)），详见 [core/modules/data_source/README.md](core/modules/data_source/README.md)。
-3. 演示数据与 demo 策略仅供学习研究，请勿用于实盘或商用。
+1. **演示数据（约 3 年 / 300 只）：** 安装向导或 `python cli.py id` 会从官网公开接口下载到 `userspace/.ntq/packages/install_demo/` 再导入（无需会员）。强制重新下载并重导：`python cli.py id -f`。  
+2. **更大包（约 3 年全 A）：** 自 0.5.3 起暂停；会员分档下载后续再定。  
+3. **自有数据源**：也可自行接入（例如 [Tushare](https://tushare.pro)），详见 [core/modules/data_source/README.md](core/modules/data_source/README.md)。  
+4. 演示数据与 demo 策略仅供学习研究，请勿用于实盘或商用。
 
 
 ## 一些声明

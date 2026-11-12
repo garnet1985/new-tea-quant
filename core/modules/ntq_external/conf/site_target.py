@@ -38,6 +38,16 @@ def member_profile_url() -> str:
     return f"{base_url()}/api/v1/ntq-member/profile"
 
 
+def install_demo_url() -> str:
+    """公开演示安装包 zip（无需会员凭证）。"""
+    return f"{base_url()}/api/v1/ntq-data/install/demo"
+
+
+def install_demo_meta_url() -> str:
+    """演示安装包元数据（sha256 / 日期窗等）。"""
+    return f"{base_url()}/api/v1/ntq-data/install/demo/meta"
+
+
 def register_url() -> str:
     return f"{base_url()}/zh-hans/user/register"
 

@@ -38,6 +38,7 @@
 - 新加入进度模块统一管理app的所有进度相关的信息 infra/progress
 - 重写AI相关模块，分成infra/ai（基建）和 modules/agent（代理）模块
 - 新增加job pipeline（任务管线）功能，替换和升级原来的 task guard（长任务守护）模块
+- 演示数据包不再随仓库发布；安装 / `cli.py id` 从官网 `ntq_data` 公开接口下载
 
 具体改动：
 - A 非商用沿用 Apache 2.0 条款，商用需书面授权，并须去掉 `core/modules/ntq_external`（会员 AI、反馈、使用统计等打到 new-tea.cn 的客户端）

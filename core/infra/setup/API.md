@@ -1,6 +1,6 @@
 # Setup API 文档
 
-**版本：** `0.1.1`  
+**版本：** `0.1.2`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
@@ -119,7 +119,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.4.4`
-- **描述：** 导入 `initialization/data/` 下唯一 zip；`force` 全量重导；用户 CLI：`python cli.py id`
+- **描述：** 导入演示数据包；目录为 `userspace/.ntq/packages/install_demo/`；无 zip 时从官网公开接口下载；`force` 重新下载并全量重导；成功后清理 zip/meta/解压目录；须先有 userspace；用户 CLI：`python cli.py id`
 
 #### install_ui / check_ui_prerequisites / launch_ui / set_ui_dev_mode
 
@@ -149,7 +149,7 @@
 
 ### artifacts
 
-**描述：** 安装产物工厂（写入 `initialization/userspace/`、`initialization/data/`）
+**描述：** 安装产物工厂（userspace zip；演示包导出到 `userspace/.ntq/packages/install_demo/`）
 
 #### package_userspace
 
@@ -167,7 +167,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 导出演示数据包到 `initialization/data/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`
+- **描述：** 导出演示数据包到 `userspace/.ntq/packages/install_demo/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`
 
 ---
 

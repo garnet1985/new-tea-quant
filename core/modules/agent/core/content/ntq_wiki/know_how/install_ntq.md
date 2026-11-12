@@ -64,6 +64,6 @@ Windows PowerShell 可用 `python .\launcher.py`。若 `python` 指向旧版本�
 | 升级已安装的应用 | 拉取新代码，**保留** `userspace/`，然后 `python cli.py u` |
 | 从头再走向导 | 设置 → 安装与维护 → 重新安装（可能覆盖库连接；导入演示数据可能覆盖表） |
 | 补装机器学习依赖 | 设置 → 安装与维护，或向导里那一步 |
-| 换更大演示包 | `initialization/data/` 里只留 **1 个** zip，再 `python cli.py id`（全量重导加 `-f`） |
+| 换演示包 | `userspace/.ntq/packages/install_demo/` 里只留 **1 个** zip，或 `python cli.py id -f` 重新下载并重导 |
 
 换库见 [切换数据库](switch_database.md)。在界面里调策略见 [从界面制定策略](use_strategy_workbench.md)。填聊天密钥见 [配置 AI Key](configure_ai_key.md)。

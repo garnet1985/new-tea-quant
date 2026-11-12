@@ -1,6 +1,6 @@
 # Project Context — 设计与决策
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 本文记录项目上下文模块的设计目标、方案思路与拍板决策。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)

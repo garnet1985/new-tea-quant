@@ -461,7 +461,7 @@ class UserParser:
             sub,
             "import_data",
             aliases=UserCommands.aliases_for("import_data"),
-            help="导入 initialization/data 下唯一 zip 数据包（-f 强制全量重导）",
+            help="导入演示数据包（userspace/.ntq/packages/install_demo；无则官网下载；-f 重新下载并重导）",
         )
 
     @staticmethod

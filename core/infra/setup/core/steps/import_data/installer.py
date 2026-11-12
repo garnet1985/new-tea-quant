@@ -2,7 +2,7 @@
 Init Data 导入流程（必跑步骤的执行体）。
 
 约定：
-- 数据包目录：initialization/data
+- 数据包目录：userspace/.ntq/packages/install_demo/（与 ``devcli.py ex`` 共用）
 - 导入逻辑目录：core/infra/setup/core/steps/import_data
 - 导入方式：目标表清空后，由数据库直接读 CSV（DuckDB read_csv / PostgreSQL COPY）
 """
@@ -26,35 +26,16 @@ from .archives import collect_table_archives
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_INIT_SUBDIR = "initialization/data"
 EXTRACT_SUBDIR = "_extract"
 DEFAULT_TABLE_PREFIX = ""
 PROGRESS_FILE = ".import_progress.json"
 
 
 def default_init_data_dir() -> Path:
-    from core.infra.setup.core.env import NewTeaQuantSetup
+    """演示包目录；须在 userspace 已创建之后调用。"""
+    from core.infra.setup.core.scripts.init_data.config import require_package_dir
 
-    return NewTeaQuantSetup.init_data_dir
-
-
-def resolve_init_data_dir_with_subdir(base: Path, subdir: str) -> Path:
-    """
-    将数据目录限制为 base / subdir，避免 initialization/data 下多个 zip（demo + 正式）被一并导入。
-
-    subdir 不得含 .. 或绝对路径；结果必须仍在 base 之下。
-    """
-    s = (subdir or "").strip().replace("\\", "/")
-    if not s:
-        return base
-    if ".." in s or s.startswith("/"):
-        raise ValueError(f"非法子目录: {subdir!r}")
-    out = (base / s).resolve()
-    try:
-        out.relative_to(base.resolve())
-    except ValueError as e:
-        raise ValueError(f"子目录必须位于 {base} 之下: {subdir!r}") from e
-    return out
+    return require_package_dir()
 
 
 def _bare_table_name_for_exists_check(qualified_table: str) -> str:
@@ -95,7 +76,12 @@ class SetupDataInstaller:
         *,
         table_prefix: str = DEFAULT_TABLE_PREFIX,
     ) -> None:
-        self.data_dir = Path(data_dir) if data_dir is not None else default_init_data_dir()
+        try:
+            self.data_dir = (
+                Path(data_dir) if data_dir is not None else default_init_data_dir()
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(f"{CmdLayout.icon.get('error')} {exc}") from exc
         self.table_prefix = table_prefix.rstrip("_") + "_" if table_prefix else ""
         self.progress_file = self.data_dir / PROGRESS_FILE
 
@@ -107,10 +93,38 @@ class SetupDataInstaller:
             return zips
         names = ", ".join(p.name for p in zips)
         raise RuntimeError(
-            f"{CmdLayout.icon.get('error')} 为避免混包导入，initialization/data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
+            f"{CmdLayout.icon.get('error')} 为避免混包导入，演示包目录下只允许存在 1 个 .zip。\n"
+            f"目录: {self.data_dir}\n"
             f"当前发现 {len(zips)} 个：{names}\n"
             "请保留您需要导入的 zip，另一个移走/改后缀后重新运行: python cli.py id"
         )
+
+    def ensure_demo_package(self, *, force_download: bool = False) -> Path:
+        """本地无 zip（或 force）时从官网公开接口下载 ``data_demo.zip``。"""
+        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.modules.ntq_external.install_demo import (
+            InstallDemoError,
+            download_install_demo,
+        )
+
+        existing = self.discover_data_packages()
+        if existing and not force_download:
+            return existing[0]
+
+        NewTeaQuantSetup.print_check_item(
+            "running",
+            "正在从官网下载演示数据包（公开，无需会员）…",
+        )
+        try:
+            path = download_install_demo(self.data_dir, force=force_download)
+        except InstallDemoError as exc:
+            raise RuntimeError(
+                f"{CmdLayout.icon.get('error')} 下载演示数据包失败: {exc}\n"
+                "请检查网络后重跑: python cli.py id\n"
+                "本地联调可设 NTQ_INSTALL_DEMO_URL 指向官网或本机 XAMPP。"
+            ) from exc
+        NewTeaQuantSetup.print_check_item("done", f"演示数据包已就绪: {path.name}")
+        return path
 
     def _extract_zips(self, extract_root: Path) -> List[Path]:
         from core.infra.setup.core.env import NewTeaQuantSetup
@@ -181,6 +195,41 @@ class SetupDataInstaller:
         if self.progress_file.exists():
             self.progress_file.unlink()
 
+    def _cleanup_temp_after_success(
+        self,
+        extract_root: Path,
+        *,
+        remove_extract: bool = True,
+        remove_package_files: bool = True,
+    ) -> None:
+        """导入成功后清理解压目录、进度文件，以及已入库的下载包（可再从官网拉取）。"""
+        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.scripts.init_data.config import (
+            GIT_DATA_META_NAME,
+            GIT_DATA_ZIP_NAME,
+        )
+
+        if remove_extract and extract_root.exists():
+            shutil.rmtree(extract_root, ignore_errors=True)
+        self._clear_progress()
+        if not remove_package_files:
+            return
+        removed: List[str] = []
+        for name in (GIT_DATA_ZIP_NAME, GIT_DATA_META_NAME):
+            path = self.data_dir / name
+            if not path.is_file():
+                continue
+            try:
+                path.unlink()
+                removed.append(name)
+            except OSError as exc:
+                logger.warning("无法删除临时包文件 %s: %s", path, exc)
+        if removed:
+            NewTeaQuantSetup.print_check_item(
+                "done",
+                f"已清理临时演示包文件: {', '.join(removed)}",
+            )
+
     def run(
         self,
         *,
@@ -194,14 +243,13 @@ class SetupDataInstaller:
         data_dir = self.data_dir
         extract_root = data_dir / EXTRACT_SUBDIR
 
+        self.ensure_demo_package(force_download=force)
         zips = self.discover_data_packages()
         if not zips:
-            NewTeaQuantSetup.print_check_item("warn", f"未发现任何初始化数据包: {data_dir}")
-            NewTeaQuantSetup.print_check_item(
-                "warn",
-                "请将 zip 数据包放到 initialization/data 后重跑: python cli.py id",
+            raise RuntimeError(
+                f"{CmdLayout.icon.get('error')} 未找到初始化数据包: {data_dir}\n"
+                "请检查网络后重跑: python cli.py id"
             )
-            return
 
         fingerprint = _file_fingerprint(zips)
         NewTeaQuantSetup.print_check_item("done", f"发现初始化数据包 {len(zips)} 个")
@@ -264,7 +312,10 @@ class SetupDataInstaller:
                     "done",
                     f"所有表已在当前数据包指纹下导入完成（import_data 本步 {dt_setup:.1f}s）",
                 )
-                self._clear_progress()
+                self._cleanup_temp_after_success(
+                    extract_root,
+                    remove_extract=remove_extract,
+                )
                 return
 
             from core.infra.setup.core.install_progress import (
@@ -347,9 +398,6 @@ class SetupDataInstaller:
             dt_import_tables = time.perf_counter() - t_import_loop
             dt_setup_all = time.perf_counter() - t0_all
 
-            if remove_extract and not errors:
-                shutil.rmtree(extract_root, ignore_errors=True)
-
             if errors:
                 NewTeaQuantSetup.print_check_item(
                     "fail",
@@ -363,7 +411,10 @@ class SetupDataInstaller:
                 f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；import_data 全程 {dt_setup_all:.1f}s）",
             )
             close_import()
-            self._clear_progress()
+            self._cleanup_temp_after_success(
+                extract_root,
+                remove_extract=remove_extract,
+            )
         finally:
             try:
                 if db is not None:

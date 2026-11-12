@@ -1,5 +1,5 @@
 name: infra.setup
-version: "0.1.1"
+version: "0.1.2"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "安装域：venv/依赖/userspace/演示数据与 CLI·UI 安装编排。产物工厂与安装步骤均属本模块；CLI 只调用门面。"
@@ -11,7 +11,15 @@ dependencies:
   - infra.project_context
   - infra.trace
   - infra.utils
+  - modules.ntq_external
 changelog:
+  - version: "0.1.2"
+    changes:
+      - 导入演示数据时若本地无 zip，从官网公开接口下载（不再随仓发布 data_demo.zip）
+      - 演示包目录改为 userspace/.ntq/packages/install_demo（导出与下载共用；须先有 userspace）
+      - 导入成功后清理 zip / meta / 解压目录等临时文件
+      - 移除仓库根 initialization/data（演示包改走 userspace 与官网）
+
   - version: "0.1.1"
     changes:
       - install.py 支持 --userspace / --db 等参数（省略走默认，带了必须按参数执行，失败即停）

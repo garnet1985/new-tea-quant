@@ -266,6 +266,11 @@ class PathManager:
         """获取临时目录：userspace/.ntq/tmp/"""
         return PathManager.get_userspace_ntq_directory() / "tmp"
 
+    @staticmethod
+    def get_install_demo_package_directory() -> Path:
+        """演示安装包目录：userspace/.ntq/packages/install_demo/（导出与下载共用）。"""
+        return PathManager.get_userspace_ntq_directory() / "packages" / "install_demo"
+
     # ========== 策略相关路径 ==========
 
     @staticmethod

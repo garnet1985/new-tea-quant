@@ -5,7 +5,8 @@
 - 股票池：``TARGET_STOCK_COUNT > 0`` 时分层抽样（默认 **300**）；``<= 0`` 为全市场
 - 时序日期窗：**20230101** ~ **20251231**（``DEFAULT_START_DATE`` / ``DEFAULT_END_DATE``，约三年）
 - 季度窗：**2023Q1** ~ **2025Q4**（财报等季度表）
-- 输出（进 Git / 安装）：``initialization/data/data_demo.zip``（固定名，每次覆盖）
+- 输出（本地）：``userspace/.ntq/packages/install_demo/data_demo.zip``（与安装下载共用）
+- 安装下载源：官网 ``ntq_data/assets/install/``（导出后手动复制上去）
 - 可选 ``--tagged``：额外写一份带版本号的 ``data_v*`` 副本（不提交 Git）
 - 仅导出行情/财报/宏观等**数据表**；不含 cache、meta、tag、工作台快照等运行时生成表
 """
@@ -17,12 +18,10 @@ from typing import Dict, Optional, Tuple
 
 # 仓库根（config 位于 core/infra/setup/core/scripts/init_data/）
 from core.infra.setup.core.install_runtime import REPO_ROOT
-SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
-INIT_DATA_DIR = REPO_ROOT / "initialization" / "data"
-# 可选：``--export-dir`` 覆盖时的本地默认旁路目录（不进 Git）
-ALT_EXPORT_DIR = REPO_ROOT / "initialization" / "data" / "export_output"
 
-# 进仓库 / 安装向导使用的固定 zip 名（勿改，避免 Git 里堆积 data_v0.3.x_*.zip）
+SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
+
+# 固定 zip 名（安装下载与本地导出共用；勿改）
 GIT_DATA_ZIP_NAME = "data_demo.zip"
 GIT_DATA_META_NAME = "data_demo.meta.json"
 
@@ -59,6 +58,32 @@ EXCLUDED_GENERATED_TABLES = frozenset(
         "sys_meta_tag_calc_progress",
     }
 )
+
+
+def default_package_dir() -> Path:
+    """演示包目录（导出 / 下载共用）。不检查 userspace 是否已存在。"""
+    from core.infra.project_context import ProjectContext
+
+    return ProjectContext.path.get_install_demo_package_directory()
+
+
+def require_package_dir() -> Path:
+    """
+    返回可写的演示包目录；userspace 根目录不存在时抛出明确错误。
+    """
+    from core.infra.project_context import ProjectContext
+
+    userspace = ProjectContext.path.get_userspace_root()
+    if not userspace.is_dir():
+        raise RuntimeError(
+            "需要先有 userspace 文件夹才能导出或存放演示数据包。\n"
+            f"当前路径不存在: {userspace}\n"
+            "请先完成安装（python install.py 或 launcher），"
+            "或检查 NTQ_USERSPACE_ROOT / .ntq/userspace-path.json。"
+        )
+    out = ProjectContext.path.get_install_demo_package_directory()
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
 
 @dataclass(frozen=True)

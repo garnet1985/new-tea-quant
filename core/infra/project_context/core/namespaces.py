@@ -136,6 +136,12 @@ class PathNamespace:
         return PathManager.get_userspace_tmp_directory()
 
     @staticmethod
+    def get_install_demo_package_directory() -> Path:
+        """演示安装包目录（导出 / 下载共用）"""
+        from .path_manager import PathManager
+        return PathManager.get_install_demo_package_directory()
+
+    @staticmethod
     def get_strategies_root() -> Path:
         """获取策略根目录"""
         from .path_manager import PathManager

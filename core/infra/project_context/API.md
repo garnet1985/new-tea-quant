@@ -1,6 +1,6 @@
 # Project Context API 文档
 
-**版本：** `0.2.0`  
+**版本：** `0.2.1`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -75,6 +75,15 @@
 - **状态：** `beta`
 - **引入版本：** `0.5.0`
 - **描述：** `userspace/system/backup/data/`
+
+#### get_install_demo_package_directory
+
+`ProjectContext.path.get_install_demo_package_directory() -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** `userspace/.ntq/packages/install_demo/`（`devcli.py ex` 导出与安装下载共用）
 
 #### get_strategies_root / get_tags_root / get_series_relation_root
 

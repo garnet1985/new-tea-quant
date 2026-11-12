@@ -48,8 +48,7 @@
       "initialization"
     ],
     "update_ignored_paths": [
-      "userspace",
-      "initialization/data"
+      "userspace"
     ]
   }
 }

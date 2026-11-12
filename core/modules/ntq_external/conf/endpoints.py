@@ -13,6 +13,8 @@ from .site_target import (
     doc_url,
     docs_url,
     feedback_url,
+    install_demo_meta_url,
+    install_demo_url,
     license_url,
     member_profile_url,
     register_url,
@@ -21,6 +23,8 @@ from .site_target import (
 
 OFFICIAL_BASE_URL = DEFAULT_BASE_URL
 MEMBER_PROFILE_URL = f"{OFFICIAL_BASE_URL}/api/v1/ntq-member/profile"
+INSTALL_DEMO_URL = f"{OFFICIAL_BASE_URL}/api/v1/ntq-data/install/demo"
+INSTALL_DEMO_META_URL = f"{OFFICIAL_BASE_URL}/api/v1/ntq-data/install/demo/meta"
 AI_BASE_URL = f"{OFFICIAL_BASE_URL}/api/v1/ntq-ai"
 FEEDBACK_URL = f"{OFFICIAL_BASE_URL}/api/v1/feedback"
 TRACE_URL = f"{OFFICIAL_BASE_URL}/api/v1/traces"
@@ -39,6 +43,8 @@ __all__ = [
     "OFFICIAL_BASE_URL",
     "DEFAULT_BASE_URL",
     "MEMBER_PROFILE_URL",
+    "INSTALL_DEMO_URL",
+    "INSTALL_DEMO_META_URL",
     "AI_BASE_URL",
     "FEEDBACK_URL",
     "TRACE_URL",
@@ -55,6 +61,8 @@ __all__ = [
     "base_url",
     "ai_base_url",
     "member_profile_url",
+    "install_demo_url",
+    "install_demo_meta_url",
     "register_url",
     "feedback_url",
     "trace_url",

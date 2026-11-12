@@ -148,9 +148,10 @@ class RuntimeNamespace:
     @staticmethod
     def import_init_data(*, force: bool = False) -> int:
         """
-        导入 ``initialization/data/`` 下唯一 zip 数据包到当前配置的数据库。
+        导入演示数据包到当前配置的数据库。
 
-        ``force=True`` 忽略进度指纹，全量重导。成功返回 ``0``。
+        本地 ``userspace/.ntq/packages/install_demo/`` 无 zip 时从官网公开接口下载；
+        ``force=True`` 会重新下载并全量重导。须在 userspace 已创建之后调用。成功返回 ``0``。
         """
         from core.infra.setup.core.steps.import_data.installer import SetupDataInstaller
 

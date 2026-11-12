@@ -9,9 +9,10 @@ python devcli.py ex
 python -m core.infra.setup.core.scripts.init_data --help
 ```
 
-默认写入 **`initialization/data/data_demo.zip`**（固定名，供安装 + 提交 Git，每次覆盖）。
+默认写入 **`userspace/.ntq/packages/install_demo/data_demo.zip`**（与安装下载共用；userspace 须已存在）。
+安装下载源在官网 `ntq_data/assets/install/`——导出后请手动复制 zip + meta 到该目录并部署。
 
-可选 `python dev-cli.py -ex -- --tagged` 额外生成 `data_v*.zip` 副本（已 ignore，勿 commit）。详见 `initialization/data/README.md`。
+可选 `python devcli.py ex -- --tagged` 额外生成 `data_v*` 副本。
 
 ## 默认参数
 

@@ -11,9 +11,12 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional
 
+from filelock import FileLock, Timeout
+
 logger = logging.getLogger(__name__)
 
 _LOCK = threading.Lock()
+_LOCK_TIMEOUT_SEC = 5.0
 DEFAULT_MAX_PENDING = 8
 
 
@@ -29,6 +32,10 @@ def queue_path() -> Path:
         / "runtime"
         / "job_pipeline_queue.json"
     )
+
+
+def queue_lock_path() -> Path:
+    return queue_path().with_suffix(".lock")
 
 
 def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
@@ -60,9 +67,23 @@ def _read_unlocked(path: Path) -> Dict[str, Any]:
     return {"pending": clean}
 
 
-def list_pending() -> List[Dict[str, Any]]:
+def _with_locks(fn):
+    """进程内锁 + filelock，保证跨进程串行改队列。"""
     with _LOCK:
+        lock = FileLock(str(queue_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+        try:
+            with lock:
+                return fn()
+        except Timeout:
+            logger.warning("queue_store filelock timeout")
+            return fn()
+
+
+def list_pending() -> List[Dict[str, Any]]:
+    def _inner() -> List[Dict[str, Any]]:
         return list(_read_unlocked(queue_path()).get("pending") or [])
+
+    return _with_locks(_inner)
 
 
 def get_pending(job_id: str) -> Optional[Dict[str, Any]]:
@@ -87,7 +108,7 @@ def enqueue(
     if not kind or not resource or not jid:
         return {"ok": False, "reason": "enqueue 需要 kind / resource_key / job_id"}
 
-    with _LOCK:
+    def _inner() -> Dict[str, Any]:
         path = queue_path()
         doc = _read_unlocked(path)
         pending: List[Dict[str, Any]] = list(doc.get("pending") or [])
@@ -113,10 +134,13 @@ def enqueue(
         _atomic_write(path, {"pending": pending})
         return {"ok": True, "job": dict(entry)}
 
+    return _with_locks(_inner)
+
 
 def pop_next() -> Optional[Dict[str, Any]]:
     """取出队头 pending（并写回剩余）。"""
-    with _LOCK:
+
+    def _inner() -> Optional[Dict[str, Any]]:
         path = queue_path()
         doc = _read_unlocked(path)
         pending: List[Dict[str, Any]] = list(doc.get("pending") or [])
@@ -126,13 +150,16 @@ def pop_next() -> Optional[Dict[str, Any]]:
         _atomic_write(path, {"pending": pending[1:]})
         return head
 
+    return _with_locks(_inner)
+
 
 def remove_pending(job_id: str) -> Dict[str, Any]:
     """按 id 删除尚未执行的 pending。找不到则 ``ok=False``。"""
     needle = str(job_id or "").strip()
     if not needle:
         return {"ok": False, "reason": "job_id 无效"}
-    with _LOCK:
+
+    def _inner() -> Dict[str, Any]:
         path = queue_path()
         doc = _read_unlocked(path)
         pending: List[Dict[str, Any]] = list(doc.get("pending") or [])
@@ -147,3 +174,5 @@ def remove_pending(job_id: str) -> Dict[str, Any]:
             return {"ok": False, "reason": "队列中无此任务（可能已开始执行）"}
         _atomic_write(path, {"pending": keep})
         return {"ok": True, "job": removed}
+
+    return _with_locks(_inner)

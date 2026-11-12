@@ -65,6 +65,14 @@ export function jobDisplayName(job) {
   if (kind === 'strategy_run' && resource) {
     return stepTitle ? `${resource} · ${stepTitle}` : resource;
   }
+  if (kind === 'strategy_attribute' && resource) {
+    const attrStep = (() => {
+      const m = /^strategy_attribute:(.+):([a-z_]+)$/.exec(label);
+      return m ? String(m[2] || '').trim() : '';
+    })();
+    const attrTitle = attrStep ? (STEP_TITLE[attrStep] || attrStep) : '';
+    return attrTitle ? `${resource} · ${attrTitle}归因` : `${resource} · 策略归因`;
+  }
   if (STRATEGY_KINDS.has(kind) && resource) {
     const kindTitle = KIND_TITLE[kind] || kind;
     return `${resource} · ${kindTitle}`;
@@ -73,7 +81,8 @@ export function jobDisplayName(job) {
     return resource ? `标签 · ${resource}` : (KIND_TITLE.tag_run || '标签任务');
   }
   if (kind === 'data_renew') {
-    return resource ? `数据更新 · ${resource}` : (KIND_TITLE.data_renew || '数据更新');
+    if (!resource || resource === '*') return KIND_TITLE.data_renew || '数据更新';
+    return `数据更新 · ${resource}`;
   }
   if (resource && KIND_TITLE[kind]) return `${resource} · ${KIND_TITLE[kind]}`;
   if (resource && kind) return `${resource} · ${kind}`;

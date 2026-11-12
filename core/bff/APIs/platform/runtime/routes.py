@@ -68,7 +68,7 @@ def get_runtime_pipeline():
 
 @runtime_api_bp.route("/v1/runtime/pipeline/jobs/<path:job_id>", methods=["DELETE"])
 def delete_runtime_pipeline_job(job_id: str):
-    """DELETE /v1/runtime/pipeline/jobs/:job_id — 取消 pending。"""
+    """DELETE /v1/runtime/pipeline/jobs/:job_id — 取消 pending，或请求取消 running。"""
     out = JobPipeline.cancel(job_id)
     if not out.get("cancelled"):
         return error(str(out.get("reason") or "取消失败"), 400)

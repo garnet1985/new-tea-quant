@@ -138,8 +138,22 @@ export async function startDataSourceRenew(source = '') {
   if (key) body.source = key;
   const json = await request.postJson(API_DATA_SOURCES_RENEW, { body });
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      is_triggered: false,
+      job_id: String(m.job_id || '').trim(),
+      source: String(m.source || key).trim(),
+      running: false,
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
+  if (!m.is_triggered) {
+    throw new Error(typeof m.reason === 'string' ? m.reason : '无法开始更新');
+  }
   return {
-    is_triggered: Boolean(m.is_triggered),
+    queued: false,
+    is_triggered: true,
     job_id: String(m.job_id || '').trim(),
     source: String(m.source || '').trim(),
     running: Boolean(m.running),

@@ -13,19 +13,29 @@ def post_tag_run(tag_key: str):
     """POST /v1/tag/{tag_key}/run — start async tag calculation."""
     api = runner_impl.lazy_load()
     out = api.trigger_run(tag_key=tag_key)
-    if not out.get("is_triggered"):
-        reason = str(out.get("reason") or "启动 Tag 任务失败")
-        status = 409 if "运行中" in reason or "进行中" in reason else 400
-        return error(reason, status)
-    return ok(
-        {
-            "is_triggered": True,
-            "job_id": out["job_id"],
-            "run_id": out.get("run_id") or out["job_id"],
-            "tag_key": out.get("tag_key") or tag_key,
-            "name": out.get("name") or out.get("tag_key") or tag_key,
-        }
-    )
+    if out.get("is_triggered"):
+        return ok(
+            {
+                "is_triggered": True,
+                "job_id": out["job_id"],
+                "run_id": out.get("run_id") or out["job_id"],
+                "tag_key": out.get("tag_key") or tag_key,
+                "name": out.get("name") or out.get("tag_key") or tag_key,
+            }
+        )
+    if out.get("queued"):
+        return ok(
+            {
+                "is_triggered": False,
+                "queued": True,
+                "job_id": out.get("job_id") or "",
+                "tag_key": out.get("tag_key") or tag_key,
+                "reason": out.get("reason") or "已加入管道队列",
+            }
+        )
+    reason = str(out.get("reason") or "启动 Tag 任务失败")
+    status = 409 if "运行中" in reason or "进行中" in reason else 400
+    return error(reason, status)
 
 
 @tag_api_bp.route("/v1/tag/<path:tag_key>/run/progress", methods=["GET"])

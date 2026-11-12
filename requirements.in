@@ -30,6 +30,9 @@ akshare
 # Worker monitoring
 psutil
 
+# Cross-process locks (JobPipeline running slot / queue)
+filelock>=3.13
+
 # YAML (module_info / discovery file utils)
 pyyaml
 

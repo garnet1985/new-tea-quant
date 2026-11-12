@@ -58,6 +58,6 @@ def post_data_sources_renew():
     if source is not None and not isinstance(source, str):
         return error("source 须为字符串", 400)
     result = DataRenewLauncher.trigger(source)
-    if not result.get("is_triggered"):
-        return error(str(result.get("reason") or "无法开始更新"), 409)
-    return ok(result)
+    if result.get("is_triggered") or result.get("queued"):
+        return ok(result)
+    return error(str(result.get("reason") or "无法开始更新"), 409)

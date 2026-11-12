@@ -24,16 +24,22 @@ import logClientError from 'service/logClientError';
 import NtqIcon from 'views/ntqIcon';
 import './style.scss';
 
-function statusLabel(status) {
-  const s = String(status || '').trim().toLowerCase();
-  if (s === 'running') return '运行中';
+function statusLabel(row) {
+  if (row?.cancel_requested) return '取消中';
+  const s = String(row?.status || '').trim().toLowerCase();
+  if (s === 'running') {
+    const pct = Number(row?.progress?.percent);
+    if (Number.isFinite(pct) && pct > 0) return `运行中 ${pct}%`;
+    return '运行中';
+  }
   if (s === 'pending') return '排队中';
   if (s === 'completed') return '已完成';
   return s || '—';
 }
 
-function statusClass(status) {
-  const s = String(status || '').trim().toLowerCase();
+function statusClass(row) {
+  if (row?.cancel_requested) return 'ntq-job-pipeline-dock__status--cancelling';
+  const s = String(row?.status || '').trim().toLowerCase();
   if (s === 'pending') return 'ntq-job-pipeline-dock__status--pending';
   if (s === 'completed') return 'ntq-job-pipeline-dock__status--completed';
   return 'ntq-job-pipeline-dock__status--running';
@@ -77,7 +83,8 @@ function JobPipelineDock() {
       showToast({
         severity: 'info',
         duration: 3200,
-        content: '已从队列取消该任务',
+        content: out?.reason
+          || (out?.pipeline?.job?.cancel_requested ? '已请求取消，等待任务退出' : '已从队列取消该任务'),
       });
     } catch (error) {
       logClientError('jobPipelineDock.cancel', error, id);
@@ -98,7 +105,13 @@ function JobPipelineDock() {
 
   let markerText = '无任务';
   if (running) {
-    markerText = pendingCount > 0 ? `运行中 · 排队 ${pendingCount}` : '运行中';
+    if (running.cancel_requested) {
+      markerText = '取消中';
+    } else {
+      const pct = Number(running?.progress?.percent);
+      const runLabel = Number.isFinite(pct) && pct > 0 ? `运行中 ${pct}%` : '运行中';
+      markerText = pendingCount > 0 ? `${runLabel} · 排队 ${pendingCount}` : runLabel;
+    }
   } else if (pendingCount > 0) {
     markerText = `排队 ${pendingCount}`;
   } else if (unreadCount > 0) {
@@ -140,14 +153,22 @@ function JobPipelineDock() {
                   const status = String(row.status || '').trim().toLowerCase();
                   const pending = status === 'pending';
                   const completed = status === 'completed';
+                  const runningRow = status === 'running';
+                  const cancelRequested = Boolean(row.cancel_requested);
                   const href = jobDeepLink(row);
                   const name = jobDisplayName(row);
+                  const detail = String(row?.progress?.detail || row?.progress?.label || '').trim();
                   return (
                     <TableRow key={id || `${row.kind}-${row.resource_key}-${status}`}>
                       <TableCell>
                         <Typography variant="body2" className="ntq-job-pipeline-dock__job-name">
                           {name}
                         </Typography>
+                        {detail && runningRow ? (
+                          <Typography variant="caption" className="ntq-job-pipeline-dock__job-detail">
+                            {detail}
+                          </Typography>
+                        ) : null}
                         {!completed && href ? (
                           <Link
                             component={RouterLink}
@@ -161,19 +182,19 @@ function JobPipelineDock() {
                         ) : null}
                       </TableCell>
                       <TableCell>
-                        <span className={['ntq-job-pipeline-dock__status', statusClass(status)].join(' ')}>
-                          {statusLabel(status)}
+                        <span className={['ntq-job-pipeline-dock__status', statusClass(row)].join(' ')}>
+                          {statusLabel(row)}
                         </span>
                       </TableCell>
                       <TableCell align="right">
-                        {pending ? (
+                        {(pending || runningRow) ? (
                           <Button
                             size="small"
                             color="inherit"
-                            disabled={Boolean(cancellingId)}
+                            disabled={Boolean(cancellingId) || cancelRequested}
                             onClick={() => handleCancel(id)}
                           >
-                            {cancellingId === id ? '取消中…' : '取消'}
+                            {cancellingId === id || cancelRequested ? '取消中…' : '取消'}
                           </Button>
                         ) : null}
                         {completed && href ? (
@@ -195,11 +216,6 @@ function JobPipelineDock() {
                           >
                             知道了
                           </Button>
-                        ) : null}
-                        {!pending && !completed ? (
-                          <Typography variant="caption" color="text.secondary">
-                            —
-                          </Typography>
                         ) : null}
                       </TableCell>
                     </TableRow>

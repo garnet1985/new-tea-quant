@@ -6,7 +6,7 @@ terms:
     aliases:
       - "任务管道"
     avoid:
-      - "把 TaskGuard 或 Progress 继续当作前端可见的管道真相源"
+      - "把 Progress 或其它模块继续当作「谁在跑」的前端真相源"
 
   Job:
     definition: "管道内一条长任务记录（id → kind / resource / status / 进度等）。"
@@ -18,7 +18,7 @@ terms:
     definition: "任务生命周期：pending / running / completed / failed / cancelled / stale。"
     aliases: []
     avoid:
-      - "用 TaskGuard busy 布尔代替完整状态机"
+      - "只用 busy 布尔代替完整任务状态机"
 
   Queue:
     definition: "pending 任务的有序等待序列；第一期与全局单 running 配合，有最大长度。"

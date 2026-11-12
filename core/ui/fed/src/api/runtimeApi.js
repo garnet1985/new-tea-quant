@@ -35,7 +35,7 @@ export async function fetchPipelineStatus() {
   return mapPipelineMessage(json?.message || {});
 }
 
-/** 取消尚未执行的 pending job */
+/** 取消 pending，或请求取消 running */
 export async function cancelPipelineJob(jobId) {
   const id = String(jobId || '').trim();
   if (!id) throw new Error('缺少 job_id');

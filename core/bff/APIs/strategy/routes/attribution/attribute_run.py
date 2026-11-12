@@ -8,8 +8,8 @@ import uuid
 from typing import Any, Dict, Optional
 
 from core.bff.APIs.strategy.routes.runner.workbench_run import WorkbenchRunLauncher
-from core.infra.task_guard import TaskGuard
-from core.infra.task_guard.contracts import TaskLeaseBusyError
+from core.infra.job_pipeline import JobPipeline
+from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
@@ -49,7 +49,7 @@ class AttributeRunLauncher:
         step: str,
         force_refresh: bool,
     ) -> Dict[str, Any]:
-        """申请租约并在后台启动归因。"""
+        """校验后交给 ``JobPipeline.submit``。"""
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
         if not name:
@@ -65,13 +65,36 @@ class AttributeRunLauncher:
         if gate is not None:
             return {"is_triggered": False, "reason": gate}
 
-        status = TaskGuard.read_status()
-        if status.get("busy"):
-            kind = status.get("kind") or "unknown"
-            return {
-                "is_triggered": False,
-                "reason": f"系统任务进行中（{kind}），请稍后再试",
+        from core.infra.job_pipeline import JobPipeline
+
+        return JobPipeline.submit(
+            {
+                "kind": "strategy_attribute",
+                "resource_key": name,
+                "label": f"strategy_attribute:{name}:{norm}",
+                "domains": ["data", "strategy"],
+                "payload": {
+                    "step": norm,
+                    "force_refresh": bool(force_refresh),
+                },
             }
+        )
+
+    @classmethod
+    def start_now(
+        cls,
+        *,
+        strategy_name: str,
+        step: str,
+        force_refresh: bool,
+    ) -> Dict[str, Any]:
+        """管道 handler 调用：立刻开跑，不再入队。"""
+        name = str(strategy_name or "").strip()
+        norm = cls.normalize_step(step)
+        if not name:
+            return {"is_triggered": False, "reason": "strategy_name 无效"}
+        if norm is None:
+            return {"is_triggered": False, "reason": "step 须为 enum / price / portfolio"}
 
         jid = f"attr-run-{uuid.uuid4().hex[:12]}"
         busy = WorkbenchRunLauncher.claim_active(name, jid)
@@ -136,7 +159,7 @@ class AttributeRunLauncher:
         norm_step: str,
         force_refresh: bool,
     ) -> None:
-        lease = TaskGuard.lease(
+        lease = JobPipeline.running_lease(
             kind="strategy_attribute",
             job_id=job_id,
             resource_key=strategy_name,
@@ -147,11 +170,12 @@ class AttributeRunLauncher:
         try:
             lease.acquire()
             acquired = True
-        except TaskLeaseBusyError as exc:
+        except JobRunningBusyError as exc:
             inst = PipelineProgress.load(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
+            cls._notify_finished()
             return
         except Exception as exc:  # noqa: BLE001
             logger.exception("Attribute lease acquire failed job_id=%s", job_id)
@@ -159,11 +183,15 @@ class AttributeRunLauncher:
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
+            cls._notify_finished()
             return
 
         try:
             with PipelineProgress.bind(strategy_name, job_id) as prog:
                 prog.mark_running()
+                if JobPipeline.is_cancel_requested(job_id):
+                    prog.fail("用户取消")
+                    return
                 WorkbenchRunLauncher._duckdb_prepare()
                 kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
                 if kind.value == "enum":
@@ -210,6 +238,16 @@ class AttributeRunLauncher:
                 except Exception:
                     logger.exception("attribute lease release failed")
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
+            cls._notify_finished()
+
+    @staticmethod
+    def _notify_finished() -> None:
+        try:
+            from core.infra.job_pipeline import JobPipeline
+
+            JobPipeline.notify_job_finished()
+        except Exception:
+            logger.exception("JobPipeline.notify_job_finished after attribute failed")
 
 
 __all__ = ["AttributeRunLauncher"]

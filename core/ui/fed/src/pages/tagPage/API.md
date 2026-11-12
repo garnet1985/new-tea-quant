@@ -37,7 +37,7 @@
 | 层 | 机制 | HTTP |
 |----|------|------|
 | Tag ↔ Tag | BFF tag run 锁；FED 跑一个 disable 其余 | T1-02 重复 → **409** |
-| 全局长任务互斥 | `.ntq/runtime/task_guard_active.json`（`TaskGuard`） | T1-00 `busy`；T1-02 冲突 → **409** |
+| 全局长任务互斥 | `JobPipeline` running 槽（`.ntq/runtime/job_pipeline_running.json`） | T1-00 `busy`；忙则可入队 |
 
 FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `busy && kind !== tag_run` 时 disable 所有运行按钮。
 
@@ -115,7 +115,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 }
 ```
 
-**实现**：BFF → `infra.job_pipeline`（绞杀期底层仍读 TaskGuard）。
+**实现**：BFF → `infra.job_pipeline`（自管 running 槽 + 队列）。
 
 ---
 

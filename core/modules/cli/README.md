@@ -18,7 +18,7 @@
 - `infra.db`：数据库操作
 - `infra.project_context`：路径与配置
 - `infra.setup`：安装编排
-- `infra.task_guard`：长任务互斥
+- `infra.job_pipeline`：长任务互斥与队列
 - `infra.trace`：匿名上报
 - `infra.utils`：通用工具
 - `modules.agent`：AI 助手

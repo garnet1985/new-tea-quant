@@ -27,7 +27,7 @@ new-tea-quant/
 ├── ci/                     # CI 专用（如 smoke_fresh_install）；非产品 runtime
 ├── docs/                   # 仓库级文档（本目录）
 ├── core/
-│   ├── infra/              # 基础设施（DB、TaskGuard、trace、setup…）
+│   ├── infra/              # 基础设施（DB、job_pipeline、trace、setup…）
 │   ├── modules/            # 业务与能力扩展（数据、策略、回测、cli…）
 │   ├── bff/                # Flask BFF（HTTP 编排；托管 FED build）
 │   ├── ui/                 # 工作台前端（fed/：React）
@@ -40,7 +40,7 @@ new-tea-quant/
 └── experiments/            # 实验与草稿（非产品路径）
 ```
 
-**运行时（通常不入库）：** `userspace/.ntq/`（如 TaskGuard 租约、trace 等）。
+**运行时（通常不入库）：** `userspace/.ntq/`（如 job_pipeline 运行态、trace 等）。
 
 ---
 
@@ -53,7 +53,7 @@ new-tea-quant/
 | 展示 | `core/ui/fed/` | 工作台 UI（React） |
 | 接入 | `core/bff/`、`cli.py`（实现见 `modules.cli`）、`launcher.py` | HTTP / CLI / 一键启动 |
 | 业务与能力 | `core/modules/` | 数据、标签、策略、回测、适配器、CLI… |
-| 基础设施 | `core/infra/` | DB、发现、TaskGuard、trace、updater、setup… |
+| 基础设施 | `core/infra/` | DB、发现、job_pipeline、trace、updater、setup… |
 | 用户落盘 | `userspace/` | 配置、库文件、策略与扩展源码 |
 
 **依赖方向（硬约束）：** 上层可依赖下层；**infra 不得依赖 modules**；modules 之间只经公开门面与 `module_info.yaml` 声明依赖。细则见根目录 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
@@ -76,7 +76,7 @@ new-tea-quant/
 | [`progress`](../core/infra/progress/) | 统一进度文件（树形 `Progress` + 频道 `Progress.channel`） |
 | [`project_context`](../core/infra/project_context/) | 仓库根、userspace 路径等上下文 |
 | [`setup`](../core/infra/setup/) | 安装 / 首次配置（`install.py`） |
-| [`task_guard`](../core/infra/task_guard/) | 单活跃长任务租约（`TaskGuard` / `TaskLease`） |
+| [`job_pipeline`](../core/infra/job_pipeline/) | 长任务登记表、串行队列与互斥（`JobPipeline`） |
 | [`trace`](../core/infra/trace/) | 运行时 trace 上报客户端 |
 | [`updater`](../core/infra/updater/) | 更新流程 |
 | [`utils`](../core/infra/utils/) | 跨模块小工具 |
@@ -159,7 +159,7 @@ CLI / BFF（工作台） / launcher
   modules.* 门面（DataSource、DataManager、Tag、Strategy、Adapter…）
 ```
 
-长任务（数据续期、标签跑批、策略跑批等）经 **`TaskGuard`** 互斥；HTTP 对外状态路径仍为 `GET /api/v1/runtime/pipeline`（实现已切到 TaskGuard，见 `task_guard` 文档）。
+长任务（数据续期、标签跑批、策略跑批等）经 **`JobPipeline`** 互斥与排队；HTTP 对外状态路径为 `GET /api/v1/runtime/pipeline`（见 `job_pipeline` 文档）。
 
 ---
 

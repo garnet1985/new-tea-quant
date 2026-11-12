@@ -124,6 +124,15 @@
   color: #f2f4f7;
 }
 
+.ntq-job-pipeline-dock__job-detail {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #98a2b3;
+}
+
 .ntq-job-pipeline-dock__job-link,
 .ntq-job-pipeline-dock__view-link {
   display: inline-block;
@@ -162,4 +171,9 @@
 .ntq-job-pipeline-dock__status--completed {
   background: rgba(18, 183, 106, 0.18);
   color: #6ce9a6;
+}
+
+.ntq-job-pipeline-dock__status--cancelling {
+  background: rgba(240, 68, 56, 0.16);
+  color: #fda29b;
 }

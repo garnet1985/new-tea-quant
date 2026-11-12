@@ -223,13 +223,12 @@ function TagListPage() {
         const enabled = Boolean(params.row.is_enabled);
         const id = params.row.id;
         const isThisRunning = id === runningTagId;
-        const blocked = pipelineBusy && !isThisRunning;
-        const disableRun = !enabled || Boolean(runningTagId) || blocked;
+        const disableRun = !enabled || Boolean(runningTagId);
         let title = '';
         if (!enabled) title = 'Scenario 未启用';
-        else if (blocked) title = pipelineLabel ? `系统忙：${pipelineLabel}` : '系统有其他任务进行中';
         else if (running && !isThisRunning) title = '已有 Tag 任务在运行';
-        else if (!title) title = '运行 Tag 计算';
+        else if (pipelineBusy) title = pipelineLabel ? `系统忙时可加入队列：${pipelineLabel}` : '系统忙时可加入队列';
+        else title = '运行 Tag 计算';
 
         return (
           <Tooltip title={title}>
@@ -237,15 +236,28 @@ function TagListPage() {
               <RainbowButton
                 icon="play"
                 disabled={disableRun}
-                aria-label="运行 Tag 计算"
+                aria-label={pipelineBusy && !running ? '加入队列' : '运行 Tag 计算'}
                 onClick={(e) => {
                   e.stopPropagation();
                   setRunningTagId(id);
                   setRunningTagKey(params.row.name);
                   setRunningJobId('');
-                  patchRunningRowProgress(id, { pct: 0, label: '准备中…' });
+                  patchRunningRowProgress(id, { pct: 0, label: pipelineBusy ? '加入队列…' : '准备中…' });
                   startTagRun(params.row.name)
                     .then((res) => {
+                      if (res?.queued) {
+                        showToast({
+                          severity: 'info',
+                          duration: 5000,
+                          content: res.reason || '已加入管道队列，当前任务结束后将自动执行',
+                        });
+                        setRunningTagId('');
+                        setRunningTagKey('');
+                        setRunningJobId('');
+                        setRows((prev) => clearRowProgress(prev));
+                        refreshPipeline();
+                        return;
+                      }
                       const jobId = String(res?.job_id || '').trim();
                       if (!jobId) throw new Error('启动失败：未返回 job_id');
                       setRunningTagId(id);
@@ -437,7 +449,7 @@ function TagListPage() {
   const statusChip = running
     ? { label: '计算中…', color: 'warning', variant: 'filled' }
     : pipelineBusy
-      ? { label: '系统忙', color: 'default', variant: 'outlined' }
+      ? { label: '可排队', color: 'default', variant: 'outlined' }
       : { label: '就绪', color: 'default', variant: 'outlined' };
 
   return (
@@ -446,7 +458,7 @@ function TagListPage() {
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="标签"
       bannerTitle="标签计算"
-      bannerDescription="列出 userspace 中的 Tag scenario；对已启用场景点击「运行」触发计算。同一时刻仅可运行一个 Tag 任务。"
+      bannerDescription="列出 userspace 中的 Tag scenario；对已启用场景点击「运行」触发计算。忙时可加入全局管道队列。"
       bannerRightSlot={(
         <Chip
           size="small"
@@ -467,7 +479,7 @@ function TagListPage() {
       ) : null}
       {pipelineBusy && pipelineLabel ? (
         <Message severity="info" className="tag-list-alert">
-          当前有其它任务占用数据管道（{pipelineLabel}），Tag 运行已暂时禁用。
+          当前有其它任务占用数据管道（{pipelineLabel}）。仍可点运行，任务将加入队列。
         </Message>
       ) : null}
 

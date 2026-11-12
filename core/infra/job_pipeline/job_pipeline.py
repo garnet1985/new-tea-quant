@@ -1,4 +1,4 @@
-"""JobPipeline 门面：只读 + 串行入队 / advance（绞杀期）。"""
+"""JobPipeline 门面：只读任务表 + 串行入队 / running 槽 / advance。"""
 
 from __future__ import annotations
 
@@ -7,9 +7,12 @@ import threading
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from .contracts import JobStatus, VALID_KINDS
+from .contracts import JobRunningBusyError, JobStatus, VALID_KINDS
 from .core import queue_store
-from .core.task_guard_reader import read_running_job
+from .core import progress_view
+from .core import registry_store
+from .core.running_lease import RunningLease
+from .core.running_reader import read_running_job
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,9 @@ _ADVANCE_LOCK = threading.Lock()
 
 class JobPipeline:
     """长任务登记 / 排队 / 进度视图的唯一对外入口。"""
+
+    # launcher 占用全局 running 槽；忙则 JobRunningBusyError
+    JobRunningBusyError = JobRunningBusyError
 
     @staticmethod
     def register_handler(kind: str, handler: Handler) -> None:
@@ -35,17 +41,35 @@ class JobPipeline:
     @staticmethod
     def get_running_job() -> Optional[Dict[str, Any]]:
         """当前唯一 running 任务；没有则 ``None``。"""
-        return read_running_job()
+        return progress_view.attach_progress(read_running_job())
 
     @staticmethod
     def has_running_job() -> bool:
-        return JobPipeline.get_running_job() is not None
+        return read_running_job() is not None
+
+    @staticmethod
+    def running_lease(
+        *,
+        kind: str,
+        job_id: str,
+        resource_key: str = "",
+        label: str = "",
+        domains: Optional[list] = None,
+    ) -> RunningLease:
+        """占用全局 running 槽（filelock + 自管表）。"""
+        return RunningLease(
+            kind=kind,
+            job_id=job_id,
+            resource_key=resource_key,
+            label=label,
+            domains=domains,
+        )
 
     @staticmethod
     def list_jobs() -> List[Dict[str, Any]]:
         """running（0～1）+ pending 队列。"""
         out: List[Dict[str, Any]] = []
-        running = read_running_job()
+        running = JobPipeline.get_running_job()
         if running:
             out.append(running)
         for row in queue_store.list_pending():
@@ -58,6 +82,7 @@ class JobPipeline:
                 "domains": list(row.get("domains") or []),
                 "started_at": row.get("enqueued_at"),
                 "progress": None,
+                "cancel_requested": False,
             }
             out.append(snap)
         return out
@@ -134,16 +159,39 @@ class JobPipeline:
 
     @staticmethod
     def cancel(job_id: str) -> Dict[str, Any]:
-        """取消尚未执行的 pending。running 第一期不可取消。"""
+        """取消 pending，或对 running 发出协作取消请求。"""
         needle = str(job_id or "").strip()
         if not needle:
             return {"cancelled": False, "reason": "job_id 无效"}
         running = read_running_job()
         if running and str(running.get("job_id") or "") == needle:
+            if running.get("cancel_requested"):
+                return {
+                    "cancelled": True,
+                    "cancel_requested": True,
+                    "job_id": needle,
+                    "reason": "已在取消中，等待任务退出",
+                    "job": progress_view.attach_progress(running),
+                }
+            marked = registry_store.request_cancel(needle)
+            if not marked.get("ok"):
+                return {
+                    "cancelled": False,
+                    "reason": marked.get("reason") or "无法请求取消",
+                    "job_id": needle,
+                }
+            try:
+                from core.infra.progress import Progress
+
+                Progress.cancel(needle, detail="用户取消")
+            except Exception:
+                logger.debug("Progress.cancel skipped for job_id=%s", needle, exc_info=True)
             return {
-                "cancelled": False,
-                "reason": "任务已在运行，当前不支持取消",
+                "cancelled": True,
+                "cancel_requested": True,
                 "job_id": needle,
+                "reason": "已请求取消，等待任务协作退出",
+                "job": progress_view.attach_progress(marked.get("job") or running),
             }
         result = queue_store.remove_pending(needle)
         if not result.get("ok"):
@@ -157,6 +205,11 @@ class JobPipeline:
             "job_id": needle,
             "job": result.get("job"),
         }
+
+    @staticmethod
+    def is_cancel_requested(job_id: str) -> bool:
+        """后台线程轮询：用户是否请求取消该 running。"""
+        return registry_store.is_cancel_requested(job_id)
 
     @staticmethod
     def advance() -> Optional[Dict[str, Any]]:
@@ -189,3 +242,11 @@ class JobPipeline:
                     "reason": str(exc),
                     "job_id": head.get("job_id"),
                 }
+
+    @staticmethod
+    def notify_job_finished() -> None:
+        """launcher finally 调用：尝试泵下一条；失败只打日志。"""
+        try:
+            JobPipeline.advance()
+        except Exception:
+            logger.exception("JobPipeline.notify_job_finished / advance failed")

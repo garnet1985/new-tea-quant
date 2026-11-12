@@ -80,6 +80,15 @@ def post_strategy_attribute_run(strategy_key_or_name: str, step: str):
                 "pipeline_description": out.get("pipeline_description"),
             }
         )
+    if out.get("queued"):
+        return ok(
+            {
+                "is_triggered": False,
+                "queued": True,
+                "job_id": out.get("job_id") or "",
+                "reason": out.get("reason") or "已加入管道队列",
+            }
+        )
     reason = str(out.get("reason") or "启动归因失败")
     status = 409 if "运行中" in reason or "系统任务" in reason else 400
     return error(reason, status)

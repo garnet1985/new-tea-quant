@@ -97,7 +97,19 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
 export async function startTagRun(tagKey) {
   const json = await request.postJson(`${apiTagPath(tagKey)}/run`, { body: {} });
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || '').trim(),
+      tag_key: m.tag_key || tagKey,
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
+  if (m.is_triggered === false) {
+    throw new Error(typeof m.reason === 'string' ? m.reason : '启动 Tag 计算失败');
+  }
   return {
+    queued: false,
     job_id: String(m.job_id || m.run_id || '').trim(),
     run_id: String(m.run_id || m.job_id || '').trim(),
     tag_key: m.tag_key || tagKey,

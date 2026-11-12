@@ -4,7 +4,7 @@
 **最低支持核心版本：** `>=0.6.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
-> 只读面已实现（TaskGuard 适配）；`submit` 仍为 planned。设计见 [docs/DESIGN.md](./docs/DESIGN.md)。
+> 只读任务表 + 串行队列 + `submit` / `running_lease`（filelock 自管槽）已落地。业务 launcher 公开入口统一 `JobPipeline.submit`；handler 调 `start_now`；互斥用 `running_lease`。设计见 [docs/DESIGN.md](./docs/DESIGN.md)。
 
 **公开约定：** 包根仅导出 `JobPipeline`；状态常量见 [`contracts.py`](./contracts.py)。
 
@@ -22,7 +22,7 @@
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
 - **描述：** 返回当前 running 任务快照；没有长任务在跑时返回 ``None``。串行期 BFF/FED 主读面。
-- **返回值：** ``None`` 或含至少 ``job_id`` / ``kind`` / ``resource_key`` / ``label`` / ``status``（``running``）/ ``domains`` / ``started_at`` / ``progress``（第一期常为 ``None``，细进度由业务侧按 kind 再查）
+- **返回值：** ``None`` 或含至少 ``job_id`` / ``kind`` / ``resource_key`` / ``label`` / ``status``（``running``）/ ``domains`` / ``started_at`` / ``cancel_requested`` / ``progress``（有则挂 ``infra.progress`` 摘要：``ratio`` / ``percent`` / ``label`` / ``detail``；细进度仍可直接读 Progress）
 - **错误与异常：** 无
 
 ### has_running_job
@@ -43,8 +43,8 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 管道内任务列表。第一期仅含当前 running（0 或 1 条）；pending 队列实现后扩展。
-- **返回值：** ``list[dict]``（元素形状同 ``get_running_job``）
+- **描述：** 管道内活跃任务：当前 running（0 或 1 条）+ pending 队列（按入队顺序）。
+- **返回值：** ``list[dict]``（running 形状同 ``get_running_job``；pending 含 ``status=pending``，``progress`` 常为 ``None``）
 - **错误与异常：** 无
 
 ### get_job
@@ -54,8 +54,18 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 按 id 取单条；第一期仅当 id 等于当前 running 时命中。
+- **描述：** 按 id 取单条；命中当前 running 或 pending 队列中的项。
 - **错误与异常：** 无
+
+### running_lease
+
+`JobPipeline.running_lease(*, kind, job_id, resource_key="", label="", domains=None) -> RunningLease`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 占用全局 running 槽（`filelock` + 自管表）。忙则 ``JobRunningBusyError``。
+- **返回值：** 含 ``acquire`` / ``release`` 的租约对象
 
 ### enqueue
 
@@ -83,8 +93,17 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 取消尚未执行的 pending。running 不可取消。
-- **返回值：** 成功 ``cancelled=True``；失败 ``cancelled=False`` + ``reason``
+- **描述：** 删除尚未执行的 pending；若 ``job_id`` 是当前 running，则写入 ``cancel_requested``（协作取消，后台需轮询 ``is_cancel_requested``）。
+- **返回值：** 成功 ``cancelled=True``（running 时另有 ``cancel_requested=True``）；失败 ``cancelled=False`` + ``reason``
+
+### is_cancel_requested
+
+`JobPipeline.is_cancel_requested(job_id: str) -> bool`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 后台线程查询用户是否已请求取消该 running。
 
 ### advance
 
@@ -93,4 +112,22 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 无 running 时弹出队头并交给 handler（launcher ``finally`` 调用）
+- **描述：** 无 running 时弹出队头并交给 handler。一般经 ``notify_job_finished`` 间接调用。
+
+### notify_job_finished
+
+`JobPipeline.notify_job_finished() -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** launcher ``finally`` 调用：尝试 ``advance`` 泵下一条；失败只打日志。
+
+### register_handler
+
+`JobPipeline.register_handler(kind: str, handler) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** BFF 启动时注册 ``kind → start_now`` 回调；``submit`` / ``advance`` 依赖此表。

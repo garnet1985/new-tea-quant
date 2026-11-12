@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
-# 与现行 TaskGuard kinds 对齐，便于绞杀期映射；并行扩容时再拆锁粒度。
+from typing import Any, Dict, Optional
+
+# 长任务 kind；并行扩容时再拆锁粒度。
 VALID_KINDS = frozenset(
     {
         "tag_run",
@@ -30,3 +32,13 @@ class JobStatus:
     FAILED = "failed"
     CANCELLED = "cancelled"
     STALE = "stale"
+
+
+class JobRunningBusyError(RuntimeError):
+    """全局 running 槽已被占用。"""
+
+    def __init__(self, existing: Optional[Dict[str, Any]] = None) -> None:
+        self.existing = existing if isinstance(existing, dict) else {}
+        kind = self.existing.get("kind") or "unknown"
+        jid = self.existing.get("job_id") or ""
+        super().__init__(f"系统任务进行中（{kind}）" + (f" job_id={jid}" if jid else ""))

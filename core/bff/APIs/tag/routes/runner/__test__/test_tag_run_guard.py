@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher
-from core.infra.task_guard import TaskGuard
 
 
 def test_trigger_unknown_scenario():
@@ -15,19 +14,47 @@ def test_trigger_unknown_scenario():
     assert "未知" in out["reason"]
 
 
-def test_trigger_rejects_when_task_busy(monkeypatch):
-    monkeypatch.setattr(
-        TaskGuard,
-        "read_status",
-        staticmethod(lambda: {"busy": True, "kind": "strategy_run", "job_id": "x"}),
-    )
+def test_trigger_queues_when_task_busy():
     info = MagicMock()
     info.id.return_value = "demo/x"
     info.settings = {"is_enabled": True}
     with patch.object(TagRunLauncher, "_find_info", return_value=info):
-        out = TagRunLauncher.trigger(tag_key="demo/x")
+        with patch(
+            "core.infra.job_pipeline.JobPipeline.has_running_job",
+            return_value=True,
+        ):
+            with patch(
+                "core.infra.job_pipeline.JobPipeline.enqueue",
+                return_value={
+                    "queued": True,
+                    "is_triggered": False,
+                    "job_id": "jp-pend-1",
+                    "reason": "已加入管道队列，当前任务结束后将自动执行",
+                },
+            ) as enqueue:
+                out = TagRunLauncher.trigger(tag_key="demo/x")
+    assert out.get("queued") is True
+    assert out.get("is_triggered") is False
+    enqueue.assert_called_once()
+
+
+def test_start_now_does_not_enqueue_when_local_busy():
+    info = MagicMock()
+    info.id.return_value = "demo/x"
+    info.settings = {"is_enabled": True}
+    with patch.object(TagRunLauncher, "_find_info", return_value=info):
+        with patch.object(
+            TagRunLauncher,
+            "_has_active_tag_run_locked",
+            return_value=True,
+        ):
+            with patch(
+                "core.infra.job_pipeline.JobPipeline.enqueue"
+            ) as enqueue:
+                out = TagRunLauncher.start_now(tag_key="demo/x")
     assert out["is_triggered"] is False
-    assert "进行中" in out["reason"]
+    assert "运行中" in out["reason"]
+    enqueue.assert_not_called()
 
 
 def test_require_successful_run_rejects_unsaved_values():

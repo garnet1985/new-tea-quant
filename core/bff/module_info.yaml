@@ -18,7 +18,7 @@ dependencies:
   - infra.project_context
   - infra.membership
   - modules.ntq_external
-  - infra.task_guard
+  - infra.job_pipeline
   - infra.discovery
   - infra.trace
   - infra.db

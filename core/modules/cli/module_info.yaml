@@ -9,7 +9,7 @@ site_title: "客户端模块 (Cli)"
 site_display_title: "提供命令行快捷指令 - Cli模块"
 dependencies:
   - infra.project_context
-  - infra.task_guard
+  - infra.job_pipeline
   - infra.db
   - infra.trace
   - infra.setup

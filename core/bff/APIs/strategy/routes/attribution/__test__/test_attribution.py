@@ -162,14 +162,10 @@ def test_report_reader_loads_artifacts(tmp_path, monkeypatch):
 
 
 @patch(
-    "core.infra.task_guard.task_guard.TaskGuard.read_status",
-    return_value={"busy": False},
-)
-@patch(
     "core.bff.APIs.strategy.routes.attribution.attribute_run.DiscoveryService.find_strategy",
     return_value=MagicMock(),
 )
-def test_submit_gated_when_status_disabled(_find, _busy):
+def test_submit_gated_when_status_disabled(_find):
     with patch.object(
         AttributeRunLauncher,
         "_gate",

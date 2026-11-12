@@ -2,7 +2,7 @@
 
 **模块：** `infra.job_pipeline` · **版本：** `0.1.0`
 
-长任务执行管道：统一任务登记表、串行排队与进度视图，作为前端可见的「管道」真相源。将吸收并替代 `infra.task_guard`（互斥）与对外 `infra.progress`（进度）职责。
+长任务执行管道：统一任务登记表、串行排队与任务级进度摘要，作为前端可见的「管道」真相源。负责互斥与队列；细进度继续用 `infra.progress`。
 
 ## 适用场景
 
@@ -13,7 +13,7 @@
 ## 模块依赖
 
 - `infra.project_context`：定位 runtime 落盘目录
-- `infra.task_guard`：绞杀期只读适配（`get_running_job`）
+- `infra.progress`（可选）：把细进度摘要挂到任务快照；业务页仍可直接读 Progress
 
 ## 设计初衷
 

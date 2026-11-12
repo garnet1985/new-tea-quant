@@ -8,17 +8,17 @@
 
 ## 设计目标
 
-用单一长任务 infra 统一「能不能跑 / 跑到哪了 / 队列里还有谁」，让前端只读任务表，并绞杀退役 `task_guard` 与对外 `progress`。
+用单一长任务 infra 统一「能不能跑 / 队列里还有谁 / 任务级摘要」，让前端只读任务表。细进度继续用 `infra.progress`（业务页可直接读）。
 
 ---
 
-## DEC-01：新建模块而非扩写 Progress / TaskGuard
+## DEC-01：新建模块而非扩写 Progress / 旧互斥模块
 
 **是什么：** 新建 `infra.job_pipeline`，包根门面 `JobPipeline`。
 
-**为什么选它：** 对外契约是「任务表 + 队列」，与现有 Progress 树 API、TaskGuard 租约 API 语义不同；新模块便于绞杀期双轨，避免把队列塞进旧门面造成永久歧义。
+**为什么选它：** 对外契约是「任务表 + 队列」，与 Progress 树 API、旧单文件租约语义不同；独立模块避免把队列塞进进度或旧互斥门面。
 
-**放弃了什么：** 在 `Progress` 上直接挂 lease；或只扩 `TaskGuard` 成队列。
+**放弃了什么：** 在 `Progress` 上直接挂 lease；或只把旧互斥模块扩成队列。
 
 ---
 
@@ -26,7 +26,7 @@
 
 **是什么：** 全局同时 `running` 至多 1；新提交进 `pending`，队列有上限，满则拒绝。
 
-**为什么选它：** 相对今日 deny-only 明显改善 UX，且表结构自然支持以后的 locks 并行与 `depends_on` ready。
+**为什么选它：** 相对「忙则拒绝」明显改善 UX，且表结构自然支持以后的 locks 并行与 `depends_on` ready。
 
 **放弃了什么：** 第一期就做 strategy∥tag 条件并行。
 
@@ -42,11 +42,11 @@
 
 ---
 
-## DEC-04：绞杀迁移，最后退役旧模块
+## DEC-04：按调用点逐步迁移，最后删除旧对外 API
 
-**是什么：** 先适配 TaskGuard + Progress → 迁 launcher → 换心 → 删旧对外 API。
+**是什么：** 先接只读任务表与 launcher 入队 → 自管 running 槽与 `filelock` → 删除旧互斥模块。`progress` 始终保留为进度明细库。
 
-**为什么选它：** 降低一次性重写风险；FED/BFF 可先吃新读面。
+**为什么选它：** 降低一次性重写风险；FED/BFF 可先吃新读面；细进度调用面不必搬迁。
 
 ---
 
@@ -54,7 +54,7 @@
 
 **是什么：** 进程死或长时间无心跳时，表内状态必须更新并释放执行权。
 
-**为什么选它：** 否则全局管道与「完成后提示」不可信；继承并强化 TaskGuard 的 pid 存活检查思路。
+**为什么选它：** 否则全局管道与「完成后提示」不可信；沿用并强化 pid 存活检查。
 
 ---
 
@@ -70,16 +70,17 @@
 
 ## DEC-06：互斥锁优先用 `filelock`；管道自建
 
-**是什么：** 整体任务表 / 队列 / 进度视图 **自建** `job_pipeline`，不上 Celery/Prefect 一类全家桶。换心阶段的跨进程互斥，**优先采用成熟的 [`filelock`](https://github.com/tox-dev/py-filelock)**（`FileLock`），而不是继续手写租约文件协议（现行 TaskGuard 那套可在绞杀期暂时委托）。
+**是什么：** 整体任务表 / 队列 **自建** `job_pipeline`，不上 Celery/Prefect 一类全家桶。跨进程互斥 **优先 [`filelock`](https://github.com/tox-dev/py-filelock)**。细进度仍用现有 `infra.progress`，不把进度树引擎重写进管道。
 
 **为什么选它：**
 
 - 单机文件锁场景 `filelock` 更简单、跨平台行为清楚，少维护自研锁边角
-- 队列、任务表、进度形状、BFF 读面仍是产品特定，没有合适的一站式库
+- 队列、任务表、BFF 读面是产品特定；进度树已有独立模块且多处直接依赖
 
 **放弃了什么：**
 
 - 引入 Celery / RQ / Huey / Prefect 等带 broker 的调度栈
-- 换心后仍长期维护自研 lease JSON 协议（除非 `filelock` 实测不够用再回退）
+- 继续维护自研单文件 lease JSON 协议
+- 删除或私有化 `progress`（外部业务页仍需直接读进度）
 
-**注意：** 依赖尚未写入 `requirements.txt`；真正换心实现时再加，并补测试。
+**落地：** `filelock` 已写入 `requirements.in`；`JobPipeline.running_lease` + `registry_store` 为自管槽；旧互斥包已删除。

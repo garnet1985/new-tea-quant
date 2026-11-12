@@ -63,17 +63,7 @@ Tag 配置编辑、tag 结果预览等均 **不在 MVP**。
 
 ### 第 2 层 — DuckDB 全局长任务互斥（跨模块）
 
-Tag、Strategy 回测/扫描、Data Source renew 等可能争用 **`data.duckdb`**（及个别写路径）。MVP **不做排队**，冲突即 **409** + UI disable。
-
-**推荐实现：`infra.task_guard` 全局租约（单文件）**
-
-- 路径：`userspace/.ntq/runtime/task_guard_active.json`（与 `ProgressRecorder` 同属 `.ntq` 运行时区）。
-- 内容示例：`{ "kind": "tag_run"|"strategy_scan"|"strategy_run"|"data_renew", "job_id", "resource_key", "started_at", "domains": ["data","tag"] }`
-- **Acquire**：任何长任务启动前 CAS 写入；已有活跃租约 → 拒绝。
-- **Release**：任务终态（completed/failed）或 BFF 进程 atexit 清理。
-- **查询**：`GET /api/v1/runtime/pipeline`（**T1-00**，路径名历史；实现为 `TaskGuard.read_status()`）供 FED 进页/轮询时 disable 按钮并展示「谁占用了 DB」。
-
-各模块后续在 `POST …/run` 入口统一调用同一 `TaskGuard.lease(kind=…)`；Tag MVP 先实现 tag 侧 + 只读 T1-00，Strategy/renew 接入可渐进。
+Tag、Strategy 回测/扫描、Data Source renew 等可能争用 **`data.duckdb`**（及个别写路径）。互斥与排队由 **`infra.job_pipeline`**（`JobPipeline`）承担：busy 时入队，前端读任务表；不再使用已删除的 `task_guard`。
 
 默认三分库：`data.duckdb`、`tag.duckdb`、`strategy.duckdb` — tag run 写 tag、读 data；renew 写 data；回测读 data、写 strategy。
 

@@ -45,6 +45,12 @@
   color: #e8edf5;
 }
 
+.ntq-job-pipeline-dock__marker--stale {
+  border-color: rgba(240, 68, 56, 0.45);
+  background: rgba(48, 18, 18, 0.92);
+  color: #e8edf5;
+}
+
 .ntq-job-pipeline-dock__marker--unread {
   border-color: rgba(18, 183, 106, 0.45);
   background: rgba(12, 36, 28, 0.92);
@@ -175,5 +181,10 @@
 
 .ntq-job-pipeline-dock__status--cancelling {
   background: rgba(240, 68, 56, 0.16);
+  color: #fda29b;
+}
+
+.ntq-job-pipeline-dock__status--stale {
+  background: rgba(240, 68, 56, 0.18);
   color: #fda29b;
 }

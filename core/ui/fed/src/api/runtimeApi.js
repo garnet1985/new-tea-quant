@@ -35,19 +35,36 @@ export async function fetchPipelineStatus() {
   return mapPipelineMessage(json?.message || {});
 }
 
-/** 取消 pending，或请求取消 running */
-export async function cancelPipelineJob(jobId) {
-  const id = String(jobId || '').trim();
-  if (!id) throw new Error('缺少 job_id');
-  const encoded = id
+function encodeJobId(jobId) {
+  return String(jobId || '')
     .split('/')
     .filter(Boolean)
     .map((seg) => encodeURIComponent(seg))
     .join('/');
-  const json = await request.deleteJson(`${API_RUNTIME_PIPELINE}/jobs/${encoded}`);
+}
+
+/** 取消 pending */
+export async function cancelPipelineJob(jobId) {
+  const id = String(jobId || '').trim();
+  if (!id) throw new Error('缺少 job_id');
+  const json = await request.deleteJson(`${API_RUNTIME_PIPELINE}/jobs/${encodeJobId(id)}`);
   const m = json?.message || {};
   return {
     cancelled: Boolean(m.cancelled),
+    job_id: String(m.job_id || id),
+    reason: String(m.reason || '').trim(),
+    pipeline: mapPipelineMessage(m),
+  };
+}
+
+/** 放弃僵死 running（清槽并泵队列） */
+export async function abandonPipelineJob(jobId) {
+  const id = String(jobId || '').trim();
+  if (!id) throw new Error('缺少 job_id');
+  const json = await request.postJson(`${API_RUNTIME_PIPELINE}/jobs/${encodeJobId(id)}/abandon`);
+  const m = json?.message || {};
+  return {
+    abandoned: Boolean(m.abandoned),
     job_id: String(m.job_id || id),
     reason: String(m.reason || '').trim(),
     pipeline: mapPipelineMessage(m),

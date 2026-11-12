@@ -15,7 +15,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { cancelPipelineJob } from 'api/runtimeApi';
+import { abandonPipelineJob, cancelPipelineJob } from 'api/runtimeApi';
 import { showToast } from 'containers/toast';
 import { jobDeepLink, jobDisplayName } from 'service/jobPipelineLinks';
 import { publishPipelineSnapshot, subscribePipelineSnapshot } from 'service/jobPipelineBus';
@@ -27,6 +27,7 @@ import './style.scss';
 function statusLabel(row) {
   if (row?.cancel_requested) return '取消中';
   const s = String(row?.status || '').trim().toLowerCase();
+  if (s === 'stale') return '已卡住';
   if (s === 'running') {
     const pct = Number(row?.progress?.percent);
     if (Number.isFinite(pct) && pct > 0) return `运行中 ${pct}%`;
@@ -40,6 +41,7 @@ function statusLabel(row) {
 function statusClass(row) {
   if (row?.cancel_requested) return 'ntq-job-pipeline-dock__status--cancelling';
   const s = String(row?.status || '').trim().toLowerCase();
+  if (s === 'stale') return 'ntq-job-pipeline-dock__status--stale';
   if (s === 'pending') return 'ntq-job-pipeline-dock__status--pending';
   if (s === 'completed') return 'ntq-job-pipeline-dock__status--completed';
   return 'ntq-job-pipeline-dock__status--running';
@@ -70,7 +72,12 @@ function JobPipelineDock() {
 
   const pendingCount = Number(snap?.pending_count || 0)
     || activeJobs.filter((row) => String(row?.status || '') === 'pending').length;
-  const running = snap?.job || activeJobs.find((row) => String(row?.status || '') === 'running') || null;
+  const running = snap?.job
+    || activeJobs.find((row) => {
+      const s = String(row?.status || '');
+      return s === 'running' || s === 'stale';
+    })
+    || null;
   const unreadCount = unread.length;
 
   const handleCancel = useCallback(async (jobId) => {
@@ -83,8 +90,7 @@ function JobPipelineDock() {
       showToast({
         severity: 'info',
         duration: 3200,
-        content: out?.reason
-          || (out?.pipeline?.job?.cancel_requested ? '已请求取消，等待任务退出' : '已从队列取消该任务'),
+        content: out?.reason || '已从队列取消该任务',
       });
     } catch (error) {
       logClientError('jobPipelineDock.cancel', error, id);
@@ -98,6 +104,30 @@ function JobPipelineDock() {
     }
   }, [cancellingId]);
 
+  const handleAbandon = useCallback(async (jobId) => {
+    const id = String(jobId || '').trim();
+    if (!id || cancellingId) return;
+    setCancellingId(id);
+    try {
+      const out = await abandonPipelineJob(id);
+      if (out?.pipeline) publishPipelineSnapshot(out.pipeline);
+      showToast({
+        severity: 'info',
+        duration: 3200,
+        content: out?.reason || '已放弃该任务，管道已释放',
+      });
+    } catch (error) {
+      logClientError('jobPipelineDock.abandon', error, id);
+      showToast({
+        severity: 'error',
+        duration: 4200,
+        content: error?.message || '放弃失败',
+      });
+    } finally {
+      setCancellingId('');
+    }
+  }, [cancellingId]);
+
   const handleView = useCallback((jobId) => {
     dismissUnreadJob(jobId);
     setOpen(false);
@@ -105,7 +135,9 @@ function JobPipelineDock() {
 
   let markerText = '无任务';
   if (running) {
-    if (running.cancel_requested) {
+    if (String(running.status || '') === 'stale') {
+      markerText = pendingCount > 0 ? `已卡住 · 排队 ${pendingCount}` : '已卡住';
+    } else if (running.cancel_requested) {
       markerText = '取消中';
     } else {
       const pct = Number(running?.progress?.percent);
@@ -153,7 +185,8 @@ function JobPipelineDock() {
                   const status = String(row.status || '').trim().toLowerCase();
                   const pending = status === 'pending';
                   const completed = status === 'completed';
-                  const runningRow = status === 'running';
+                  const stale = status === 'stale';
+                  const runningRow = status === 'running' || stale;
                   const href = jobDeepLink(row);
                   const name = jobDisplayName(row);
                   const detail = String(row?.progress?.detail || row?.progress?.label || '').trim();
@@ -196,6 +229,16 @@ function JobPipelineDock() {
                             {cancellingId === id ? '取消中…' : '取消'}
                           </Button>
                         ) : null}
+                        {stale ? (
+                          <Button
+                            size="small"
+                            color="inherit"
+                            disabled={Boolean(cancellingId)}
+                            onClick={() => handleAbandon(id)}
+                          >
+                            {cancellingId === id ? '处理中…' : '放弃'}
+                          </Button>
+                        ) : null}
                         {completed && href ? (
                           <Link
                             component={RouterLink}
@@ -231,7 +274,12 @@ function JobPipelineDock() {
         className={[
           'ntq-job-pipeline-dock__marker',
           open ? 'ntq-job-pipeline-dock__marker--open' : '',
-          running ? 'ntq-job-pipeline-dock__marker--running' : '',
+          running && String(running.status || '') === 'stale'
+            ? 'ntq-job-pipeline-dock__marker--stale'
+            : '',
+          running && String(running.status || '') !== 'stale'
+            ? 'ntq-job-pipeline-dock__marker--running'
+            : '',
           !running && pendingCount > 0 ? 'ntq-job-pipeline-dock__marker--pending' : '',
           !running && pendingCount === 0 && unreadCount > 0
             ? 'ntq-job-pipeline-dock__marker--unread'
@@ -241,7 +289,7 @@ function JobPipelineDock() {
         aria-label="打开任务管道"
         onClick={() => setOpen((v) => !v)}
       >
-        {running ? (
+        {running && String(running.status || '') !== 'stale' ? (
           <CircularProgress size={14} thickness={5} className="ntq-job-pipeline-dock__spin" />
         ) : (
           <NtqIcon name="syncAlt" size={16} className="ntq-job-pipeline-dock__marker-icon" />

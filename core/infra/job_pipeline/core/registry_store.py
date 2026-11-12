@@ -96,6 +96,32 @@ def _live_payload(path: Path) -> Optional[Dict[str, Any]]:
     return None
 
 
+def clear_dead_holder() -> Optional[Dict[str, Any]]:
+    """若 running 槽 pid 已死则删除；返回被清掉的快照，否则 ``None``。"""
+    with _THREAD_LOCK:
+        try:
+            lock = FileLock(str(registry_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+            with lock:
+                path = registry_path()
+                raw = _read_json(path)
+                if not raw or not str(raw.get("job_id") or "").strip():
+                    return None
+                if _holder_alive(raw):
+                    return None
+                snap = _to_public_snapshot(raw)
+                logger.warning(
+                    "clear_dead_holder kind=%s job_id=%s pid=%s",
+                    raw.get("kind"),
+                    raw.get("job_id"),
+                    raw.get("pid"),
+                )
+                path.unlink(missing_ok=True)
+                return snap
+        except Timeout:
+            logger.warning("registry_store.clear_dead_holder: filelock timeout")
+            return None
+
+
 def _to_public_snapshot(raw: Dict[str, Any]) -> Dict[str, Any]:
     domains = raw.get("domains")
     if not isinstance(domains, list):

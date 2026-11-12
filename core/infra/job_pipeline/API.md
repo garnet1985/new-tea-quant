@@ -123,6 +123,26 @@
 - **引入版本：** `0.1.0`
 - **描述：** launcher ``finally`` 调用：尝试 ``advance`` 泵下一条；失败只打日志。
 
+### recover
+
+`JobPipeline.recover() -> dict`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 若 running 槽 pid 已死则清槽并 ``advance``。BFF 读面轮询时调用。
+- **返回值：** ``recovered``；为真时含 ``reason=dead_pid`` / ``cleared_job_id``
+
+### abandon
+
+`JobPipeline.abandon(job_id: str) -> dict`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 强制释放当前 running（僵死任务），写 Progress.fail，并泵下一条。产品 UI 仅在 ``status=stale`` 时暴露。
+- **返回值：** 成功 ``abandoned=True``；失败 ``abandoned=False`` + ``reason``
+
 ### register_handler
 
 `JobPipeline.register_handler(kind: str, handler) -> None`

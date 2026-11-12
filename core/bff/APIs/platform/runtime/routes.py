@@ -58,6 +58,7 @@ def _pipeline_message(
 @runtime_api_bp.route("/v1/runtime/pipeline", methods=["GET"])
 def get_runtime_pipeline():
     """GET /v1/runtime/pipeline — JobPipeline 任务表（running + pending）。"""
+    JobPipeline.recover()
     return ok(
         _pipeline_message(
             JobPipeline.get_running_job(),
@@ -68,10 +69,27 @@ def get_runtime_pipeline():
 
 @runtime_api_bp.route("/v1/runtime/pipeline/jobs/<path:job_id>", methods=["DELETE"])
 def delete_runtime_pipeline_job(job_id: str):
-    """DELETE /v1/runtime/pipeline/jobs/:job_id — 取消 pending，或请求取消 running。"""
+    """DELETE /v1/runtime/pipeline/jobs/:job_id — 取消 pending。"""
     out = JobPipeline.cancel(job_id)
     if not out.get("cancelled"):
         return error(str(out.get("reason") or "取消失败"), 400)
+    return ok(
+        {
+            **out,
+            **_pipeline_message(
+                JobPipeline.get_running_job(),
+                JobPipeline.list_jobs(),
+            ),
+        }
+    )
+
+
+@runtime_api_bp.route("/v1/runtime/pipeline/jobs/<path:job_id>/abandon", methods=["POST"])
+def abandon_runtime_pipeline_job(job_id: str):
+    """POST …/jobs/:id/abandon — 强制释放僵死 running，并泵队列。"""
+    out = JobPipeline.abandon(job_id)
+    if not out.get("abandoned"):
+        return error(str(out.get("reason") or "放弃失败"), 400)
     return ok(
         {
             **out,

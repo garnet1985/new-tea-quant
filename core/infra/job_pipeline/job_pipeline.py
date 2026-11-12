@@ -8,6 +8,7 @@ import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from .contracts import JobRunningBusyError, JobStatus, VALID_KINDS
+from .core import liveness
 from .core import queue_store
 from .core import progress_view
 from .core import registry_store
@@ -40,12 +41,52 @@ class JobPipeline:
 
     @staticmethod
     def get_running_job() -> Optional[Dict[str, Any]]:
-        """当前唯一 running 任务；没有则 ``None``。"""
-        return progress_view.attach_progress(read_running_job())
+        """当前唯一 running 任务；没有则 ``None``。无心跳过久时 ``status=stale``。"""
+        return liveness.annotate_stale(progress_view.attach_progress(read_running_job()))
 
     @staticmethod
     def has_running_job() -> bool:
         return read_running_job() is not None
+
+    @staticmethod
+    def recover() -> Dict[str, Any]:
+        """清掉死 pid 占槽并泵队列。读面轮询时可调用。"""
+        cleared = registry_store.clear_dead_holder()
+        if not cleared:
+            return {"recovered": False}
+        JobPipeline.notify_job_finished()
+        return {
+            "recovered": True,
+            "reason": "dead_pid",
+            "cleared_job_id": cleared.get("job_id"),
+            "cleared_kind": cleared.get("kind"),
+        }
+
+    @staticmethod
+    def abandon(job_id: str) -> Dict[str, Any]:
+        """强制释放当前 running（僵死任务），并泵下一条。"""
+        needle = str(job_id or "").strip()
+        if not needle:
+            return {"abandoned": False, "reason": "job_id 无效"}
+        running = read_running_job()
+        if not running or str(running.get("job_id") or "") != needle:
+            return {"abandoned": False, "reason": "任务不在运行或不匹配", "job_id": needle}
+        released = registry_store.release_running(needle)
+        if not released:
+            return {"abandoned": False, "reason": "释放 running 槽失败", "job_id": needle}
+        try:
+            from core.infra.progress import Progress
+
+            Progress.fail(needle, detail="用户放弃僵死任务")
+        except Exception:
+            logger.debug("Progress.fail skipped for abandoned job_id=%s", needle, exc_info=True)
+        JobPipeline.notify_job_finished()
+        return {
+            "abandoned": True,
+            "job_id": needle,
+            "reason": "已放弃该任务并释放管道",
+            "job": running,
+        }
 
     @staticmethod
     def running_lease(

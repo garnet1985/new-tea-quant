@@ -122,7 +122,9 @@
 5. **FED 管道坞**（已完成）：左下角入口常驻；展开显示活跃任务（running/pending）+ 前端「未读完成」缓冲；仅 pending 可取消（running 不提供取消按钮）；完成行显示「查看」，点开或已在目标页即消，不保留真历史。
 6. **自管互斥**（已完成）：`job_pipeline_running.json` + `filelock`；`JobPipeline.running_lease`；running 协作取消；任务快照可挂细进度。`task_guard` 已删除；`progress` 继续作为明细进度库。
 
-**本期未做（另定）：** 进程仍在但长时间无进度心跳的 `stale` 标记；用户「放弃」僵死任务；资源级并行锁 / 依赖边。
+**已补：** 死 pid 在读面 `recover` 时清槽并 `advance`；有 Progress 时 `updated_at` 超过 2h 无写入标 `stale`（无 Progress 时墙钟 12h 兜底，避免长跑误伤）；坞仅对 stale 显示「放弃」。
+
+**仍另定：** 资源级并行锁 / 依赖边。
 
 ---
 

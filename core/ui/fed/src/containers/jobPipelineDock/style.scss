@@ -1,0 +1,165 @@
+.ntq-job-pipeline-dock {
+  position: fixed;
+  z-index: 1300;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(440px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.ntq-job-pipeline-dock__marker,
+.ntq-job-pipeline-dock__panel {
+  pointer-events: auto;
+}
+
+.ntq-job-pipeline-dock__marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(18, 22, 34, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: #e8edf5;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ntq-job-pipeline-dock__marker--running {
+  border-color: rgba(46, 144, 250, 0.45);
+  background: rgba(16, 36, 64, 0.92);
+  color: #e8edf5;
+}
+
+.ntq-job-pipeline-dock__marker--pending {
+  border-color: rgba(247, 144, 9, 0.4);
+  background: rgba(42, 28, 12, 0.92);
+  color: #e8edf5;
+}
+
+.ntq-job-pipeline-dock__marker--unread {
+  border-color: rgba(18, 183, 106, 0.45);
+  background: rgba(12, 36, 28, 0.92);
+  color: #e8edf5;
+}
+
+.ntq-job-pipeline-dock__marker--open {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+}
+
+.ntq-job-pipeline-dock__marker-text {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.ntq-job-pipeline-dock__marker-icon {
+  color: #c7d0dd;
+}
+
+.ntq-job-pipeline-dock__spin {
+  color: #53b1fd;
+}
+
+.ntq-job-pipeline-dock__panel {
+  width: min(420px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(12, 14, 22, 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #e8edf5;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.ntq-job-pipeline-dock__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 6px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ntq-job-pipeline-dock__panel-title {
+  font-weight: 700;
+  color: #f2f4f7;
+}
+
+.ntq-job-pipeline-dock__empty {
+  padding: 16px 14px 18px;
+  color: #98a2b3;
+}
+
+.ntq-job-pipeline-dock__table {
+  .MuiTableCell-root {
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #e8edf5;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .MuiTableHead-root .MuiTableCell-root {
+    color: #98a2b3;
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+.ntq-job-pipeline-dock__job-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f2f4f7;
+}
+
+.ntq-job-pipeline-dock__job-link,
+.ntq-job-pipeline-dock__view-link {
+  display: inline-block;
+  font-size: 12px;
+  color: #84caff;
+}
+
+.ntq-job-pipeline-dock__job-link {
+  margin-top: 2px;
+}
+
+.ntq-job-pipeline-dock__view-link {
+  font-weight: 600;
+}
+
+.ntq-job-pipeline-dock__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ntq-job-pipeline-dock__status--running {
+  background: rgba(46, 144, 250, 0.18);
+  color: #84caff;
+}
+
+.ntq-job-pipeline-dock__status--pending {
+  background: rgba(247, 144, 9, 0.18);
+  color: #fdb022;
+}
+
+.ntq-job-pipeline-dock__status--completed {
+  background: rgba(18, 183, 106, 0.18);
+  color: #6ce9a6;
+}

@@ -133,6 +133,32 @@ class JobPipeline:
             return {"is_triggered": False, "queued": False, "reason": str(exc)}
 
     @staticmethod
+    def cancel(job_id: str) -> Dict[str, Any]:
+        """取消尚未执行的 pending。running 第一期不可取消。"""
+        needle = str(job_id or "").strip()
+        if not needle:
+            return {"cancelled": False, "reason": "job_id 无效"}
+        running = read_running_job()
+        if running and str(running.get("job_id") or "") == needle:
+            return {
+                "cancelled": False,
+                "reason": "任务已在运行，当前不支持取消",
+                "job_id": needle,
+            }
+        result = queue_store.remove_pending(needle)
+        if not result.get("ok"):
+            return {
+                "cancelled": False,
+                "reason": result.get("reason") or "取消失败",
+                "job_id": needle,
+            }
+        return {
+            "cancelled": True,
+            "job_id": needle,
+            "job": result.get("job"),
+        }
+
+    @staticmethod
     def advance() -> Optional[Dict[str, Any]]:
         """当前无 running 时弹出队头并交给 handler。供 launcher finally 调用。"""
         with _ADVANCE_LOCK:

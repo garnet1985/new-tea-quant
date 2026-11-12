@@ -245,14 +245,25 @@ function StrategyDesignExecutionPanel() {
         <Box className="ntq-design-exec-panel__actions">
           <RainbowButton
             shape="pill"
-            icon={currentStepDone ? 'refresh' : 'play'}
+            icon={currentStepDone || wb.executionBusy ? 'refresh' : 'play'}
             shimmer
-            disabled={wb.disableMetaActions || panelBusy}
+            disabled={
+              wb.disableMetaActions
+              || wb.attributeBusy
+              || wb.rollingBusy
+              || (panelBusy && !wb.executionBusy)
+            }
             onClick={wb.handleRunCurrentStep}
-            aria-label={currentStepDone ? '重新模拟' : '开始模拟'}
+            aria-label={
+              wb.executionBusy
+                ? '加入队列'
+                : (currentStepDone ? '重新模拟' : '开始模拟')
+            }
             data-ntq-help="start-simulation"
           >
-            {currentStepDone ? '重新模拟' : '开始模拟'}
+            {wb.executionBusy
+              ? '加入队列'
+              : (currentStepDone ? '重新模拟' : '开始模拟')}
           </RainbowButton>
           {attributeControl}
           {rollingControl}

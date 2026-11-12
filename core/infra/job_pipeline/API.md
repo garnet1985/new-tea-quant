@@ -76,6 +76,16 @@
 - **引入版本：** `0.1.0`
 - **描述：** 空闲则调已注册 handler 开跑；忙则 ``enqueue``。handler 由 BFF 启动时 ``register_handler`` 注入。
 
+### cancel
+
+`JobPipeline.cancel(job_id: str) -> dict`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 取消尚未执行的 pending。running 不可取消。
+- **返回值：** 成功 ``cancelled=True``；失败 ``cancelled=False`` + ``reason``
+
 ### advance
 
 `JobPipeline.advance() -> dict | None`

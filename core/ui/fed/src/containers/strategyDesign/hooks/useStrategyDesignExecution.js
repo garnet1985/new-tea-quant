@@ -73,17 +73,49 @@ export function useStrategyDesignExecution({
     }));
   }, [setSession]);
 
-  const startRun = useCallback(async (target, { isForce = false, _retryAfterBusy = false, forceSettingsWrite = false } = {}) => {
+  const startRun = useCallback(async (target, { isForce = false, forceSettingsWrite = false } = {}) => {
     if (!strategyName || !RUN_STEPS.has(target)) return;
     clearStockKlineMemoryCache();
 
-    if (executionBusy && !_retryAfterBusy) {
-      queueMicrotask(() => startRun(target, { isForce, _retryAfterBusy: true, forceSettingsWrite }));
-      return;
-    }
-
     const prevStatus = getExecutionState()?.stepStatus
       || { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' };
+
+    // 本页已有任务在跑：不打断轮询，直接请求后端入队。
+    if (executionBusy) {
+      try {
+        setRunError('');
+        const resolvedSettings = getDraftSettingsForSubmit?.();
+        if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
+        const started = await startStrategyRun(strategyName, target, resolvedSettings, {
+          force_refresh: isForce,
+          settings_rev: getSettingsRev?.() ?? null,
+          force_settings_write: Boolean(forceSettingsWrite),
+        });
+        onSettingsPersisted?.(started);
+        if (started?.queued) {
+          showToast({
+            severity: 'info',
+            duration: 5000,
+            content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
+          });
+          return;
+        }
+        if (started?.run_id) {
+          showToast({
+            severity: 'info',
+            duration: 4000,
+            content: '已有任务在运行；新请求已提交，请稍后在管道条查看。',
+          });
+        }
+      } catch (err) {
+        if (isSettingsConflictError(err)) {
+          onSettingsConflict?.(err, { target, isForce });
+          return;
+        }
+        setRunError(err?.message || '加入队列失败');
+      }
+      return;
+    }
 
     try {
       setRunError('');

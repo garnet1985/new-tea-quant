@@ -106,7 +106,7 @@
 ```
 
 - **TaskGuard 不进前端模型**；互斥是管道内部政策。
-- 全局管道列表 = 表中活跃任务（串行期 0～1 条 running + 若干 pending）；完成时可短暂保留最近一条便于 toast + 快捷 link。
+- 全局管道列表 = 表中活跃任务（串行期 0～1 条 running + 若干 pending）；完成未查看时由 FED 本地「未读完成」缓冲展示（toast + 坞内「查看」），看过即消。
 - 制定策略页进页发现在跑任务：读 list/get，**不依赖** `sessionStorage` 作为真相（最多当缓存）。
 
 ---
@@ -117,7 +117,8 @@
 2. **只读适配：** `get_running_job` / `list_jobs` 委托 TaskGuard（雏形，未定型）。细进度不在 infra 拉 `modules.*`；BFF 可按 kind 再查。
 3. **BFF + FED：** `GET /v1/runtime/pipeline` 已接 `get_running_job`；FED `JobPipelineWatch` 静默轮询 + 完成 toast/link；制定策略页可从管道跨 tab 接管 `strategy_run`。
 4. **submit 入队（雏形）：** `strategy_run` 忙时 `JobPipeline.enqueue`；结束 `advance` 泵下一条；队列上限 8。Tag/renew 等尚未改。
-5. **换心：** 自管表 + `filelock`；退役 `task_guard` / 对外 `progress`；补齐其余 launcher 入队
+5. **FED 管道坞：** 左下角入口常驻；展开显示活跃任务（running/pending）+ 前端「未读完成」缓冲；pending 可 `cancel`；完成行显示「查看」，点开或已在目标页即消，不保留真历史。
+6. **换心：** 自管表 + `filelock`；退役 `task_guard` / 对外 `progress`；补齐其余 launcher 入队
 
 ---
 

@@ -1,4 +1,5 @@
 import { getStrategyDesignPath } from 'api/strategyApi';
+import { STRATEGY_DESIGN_STEPS } from 'containers/strategyDesign/constants/strategyDesignSteps';
 
 const STRATEGY_KINDS = new Set([
   'strategy_run',
@@ -6,6 +7,19 @@ const STRATEGY_KINDS = new Set([
   'strategy_attribute',
   'strategy_rolling',
 ]);
+
+const KIND_TITLE = {
+  strategy_run: '制定策略',
+  strategy_scan: '策略扫描',
+  strategy_attribute: '策略归因',
+  strategy_rolling: '滚动测试',
+  tag_run: '标签任务',
+  data_renew: '数据更新',
+};
+
+const STEP_TITLE = Object.fromEntries(
+  STRATEGY_DESIGN_STEPS.map((step) => [step.key, step.label]),
+);
 
 /** 从 strategy_run label（``strategy_run:{name}:{step}``）解析工作台 step。 */
 export function strategyStepFromJobLabel(label) {
@@ -33,13 +47,35 @@ export function jobDeepLink(job) {
   return '';
 }
 
-/** 人类可读任务名（toast 用）。 */
+/**
+ * 人类可读任务名（坞 / toast）。
+ * 优先 ``display_title``；否则从 kind / resource / label 拼。
+ */
 export function jobDisplayName(job) {
   if (!job || typeof job !== 'object') return '长任务';
-  const label = String(job.label || '').trim();
-  if (label) return label;
+  const explicit = String(job.display_title || '').trim();
+  if (explicit) return explicit;
+
   const kind = String(job.kind || '').trim();
   const resource = String(job.resource_key || '').trim();
-  if (kind && resource) return `${kind} · ${resource}`;
-  return kind || resource || '长任务';
+  const label = String(job.label || '').trim();
+  const step = strategyStepFromJobLabel(label);
+  const stepTitle = step ? (STEP_TITLE[step] || step) : '';
+
+  if (kind === 'strategy_run' && resource) {
+    return stepTitle ? `${resource} · ${stepTitle}` : resource;
+  }
+  if (STRATEGY_KINDS.has(kind) && resource) {
+    const kindTitle = KIND_TITLE[kind] || kind;
+    return `${resource} · ${kindTitle}`;
+  }
+  if (kind === 'tag_run') {
+    return resource ? `标签 · ${resource}` : (KIND_TITLE.tag_run || '标签任务');
+  }
+  if (kind === 'data_renew') {
+    return resource ? `数据更新 · ${resource}` : (KIND_TITLE.data_renew || '数据更新');
+  }
+  if (resource && KIND_TITLE[kind]) return `${resource} · ${KIND_TITLE[kind]}`;
+  if (resource && kind) return `${resource} · ${kind}`;
+  return resource || KIND_TITLE[kind] || label || '长任务';
 }

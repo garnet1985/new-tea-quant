@@ -125,3 +125,25 @@ def pop_next() -> Optional[Dict[str, Any]]:
         head = dict(pending[0])
         _atomic_write(path, {"pending": pending[1:]})
         return head
+
+
+def remove_pending(job_id: str) -> Dict[str, Any]:
+    """按 id 删除尚未执行的 pending。找不到则 ``ok=False``。"""
+    needle = str(job_id or "").strip()
+    if not needle:
+        return {"ok": False, "reason": "job_id 无效"}
+    with _LOCK:
+        path = queue_path()
+        doc = _read_unlocked(path)
+        pending: List[Dict[str, Any]] = list(doc.get("pending") or [])
+        keep: List[Dict[str, Any]] = []
+        removed: Optional[Dict[str, Any]] = None
+        for row in pending:
+            if removed is None and str(row.get("job_id") or "") == needle:
+                removed = dict(row)
+                continue
+            keep.append(row)
+        if removed is None:
+            return {"ok": False, "reason": "队列中无此任务（可能已开始执行）"}
+        _atomic_write(path, {"pending": keep})
+        return {"ok": True, "job": removed}

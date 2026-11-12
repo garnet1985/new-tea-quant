@@ -4,6 +4,8 @@ import { Link } from '@mui/material';
 import { fetchPipelineStatus } from 'api/runtimeApi';
 import { showToast } from 'containers/toast';
 import { jobDeepLink, jobDisplayName } from 'service/jobPipelineLinks';
+import { publishPipelineSnapshot } from 'service/jobPipelineBus';
+import { addUnreadJob, dismissUnreadMatchingPath } from 'service/jobPipelineUnread';
 import logClientError from 'service/logClientError';
 
 const IDLE_POLL_MS = 4000;
@@ -11,8 +13,8 @@ const BUSY_POLL_MS = 1500;
 const TOAST_MS = 8000;
 
 /**
- * 壳层静默盯 JobPipeline：有 running 则加快轮询；任务从有变无时 toast + 快捷链。
- * 人已在目标页时不弹（避免与现场进度重复吵）。
+ * 壳层静默盯 JobPipeline：广播快照；任务从有→无时 toast + 未读完成缓冲。
+ * 人已在目标页时仍提示「已结束」（短文案），并自动清未读。
  */
 function JobPipelineWatch() {
   const location = useLocation();
@@ -22,6 +24,7 @@ function JobPipelineWatch() {
 
   useEffect(() => {
     locationRef.current = location;
+    dismissUnreadMatchingPath(location.pathname);
   }, [location]);
 
   useEffect(() => {
@@ -36,24 +39,29 @@ function JobPipelineWatch() {
       if (!prevJob) return;
       const href = jobDeepLink(prevJob);
       const path = String(locationRef.current?.pathname || '');
-      if (href && (path === href || path.startsWith(`${href}/`))) {
-        return;
-      }
+      const onTarget = Boolean(href) && (path === href || path.startsWith(`${href}/`));
       const name = jobDisplayName(prevJob);
+      if (onTarget) {
+        dismissUnreadMatchingPath(path);
+      } else {
+        addUnreadJob(prevJob);
+      }
       showToast({
         severity: 'success',
         duration: TOAST_MS,
-        content: href ? (
-          <span>
-            {`「${name}」已结束。`}
-            {' '}
-            <Link component={RouterLink} to={href} underline="hover">
-              去查看
-            </Link>
-          </span>
-        ) : (
-          `「${name}」已结束。`
-        ),
+        content: onTarget
+          ? `「${name}」已结束。`
+          : (
+            <span>
+              {`「${name}」已结束。`}
+              {' '}
+              {href ? (
+                <Link component={RouterLink} to={href} underline="hover">
+                  去查看
+                </Link>
+              ) : null}
+            </span>
+          ),
       });
     };
 
@@ -63,7 +71,10 @@ function JobPipelineWatch() {
       try {
         const st = await fetchPipelineStatus();
         if (cancelled) return;
+        publishPipelineSnapshot(st);
         const job = st?.job && st.busy ? st.job : null;
+        const hasPending = Number(st?.pending_count || 0) > 0
+          || (Array.isArray(st?.pending) && st.pending.length > 0);
         const prev = watchedRef.current;
         if (job) {
           watchedRef.current = {
@@ -78,7 +89,7 @@ function JobPipelineWatch() {
             maybeToastFinished(prev);
           }
           watchedRef.current = null;
-          nextMs = IDLE_POLL_MS;
+          nextMs = hasPending ? BUSY_POLL_MS : IDLE_POLL_MS;
         }
       } catch (error) {
         logClientError('jobPipelineWatch.tick', error);

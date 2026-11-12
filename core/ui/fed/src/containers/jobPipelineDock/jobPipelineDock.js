@@ -154,7 +154,6 @@ function JobPipelineDock() {
                   const pending = status === 'pending';
                   const completed = status === 'completed';
                   const runningRow = status === 'running';
-                  const cancelRequested = Boolean(row.cancel_requested);
                   const href = jobDeepLink(row);
                   const name = jobDisplayName(row);
                   const detail = String(row?.progress?.detail || row?.progress?.label || '').trim();
@@ -187,14 +186,14 @@ function JobPipelineDock() {
                         </span>
                       </TableCell>
                       <TableCell align="right">
-                        {(pending || runningRow) ? (
+                        {pending ? (
                           <Button
                             size="small"
                             color="inherit"
-                            disabled={Boolean(cancellingId) || cancelRequested}
+                            disabled={Boolean(cancellingId)}
                             onClick={() => handleCancel(id)}
                           >
-                            {cancellingId === id || cancelRequested ? '取消中…' : '取消'}
+                            {cancellingId === id ? '取消中…' : '取消'}
                           </Button>
                         ) : null}
                         {completed && href ? (

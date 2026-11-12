@@ -13,11 +13,11 @@
 ## 读面（BFF / FED）
 
 - `GET /api/v1/runtime/pipeline` → `get_running_job` / `list_jobs`
-- 取消 → `JobPipeline.cancel(job_id)`（pending 直接删；running 写 `cancel_requested`）
+- 取消 → `JobPipeline.cancel(job_id)`（产品 UI 仅对 pending；API 对 running 仍可写 `cancel_requested`，坞不暴露）
 - 细进度仍用 `infra.progress`；任务表上的 `progress` 只是摘要
 
 ## 产品 UI
 
-左下角管道坞：活跃任务 + 前端「未读完成」缓冲；可取消 pending / 请求取消 running；完成行「查看」后消掉。不保留真历史。
+左下角管道坞：活跃任务 + 前端「未读完成」缓冲；仅 pending 可取消（running 不提供取消）；完成行「查看」后消掉。不保留真历史。
 
 更多产品约定见 [DESIGN.md](./DESIGN.md)。

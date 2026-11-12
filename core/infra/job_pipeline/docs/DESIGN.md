@@ -119,7 +119,7 @@
 2. **只读面**（已完成）：`get_running_job` / `list_jobs` 读自管 running 槽；`Progress.read(job_id)` 摘要可挂到快照。不在 infra 拉 `modules.*`。
 3. **BFF + FED**（已完成）：`GET /v1/runtime/pipeline`；FED `JobPipelineWatch` 静默轮询 + 完成 toast/link；制定策略页可从管道跨 tab 接管 `strategy_run`。
 4. **submit 入队**（已完成）：各 launcher 公开入口只校验后调 `JobPipeline.submit`；handler 调 `start_now` 真正开跑；结束 `notify_job_finished`→`advance`；队列上限 8。
-5. **FED 管道坞**（已完成）：左下角入口常驻；展开显示活跃任务（running/pending）+ 前端「未读完成」缓冲；pending / 已请求取消的 running 可操作；完成行显示「查看」，点开或已在目标页即消，不保留真历史。
+5. **FED 管道坞**（已完成）：左下角入口常驻；展开显示活跃任务（running/pending）+ 前端「未读完成」缓冲；仅 pending 可取消（running 不提供取消按钮）；完成行显示「查看」，点开或已在目标页即消，不保留真历史。
 6. **自管互斥**（已完成）：`job_pipeline_running.json` + `filelock`；`JobPipeline.running_lease`；running 协作取消；任务快照可挂细进度。`task_guard` 已删除；`progress` 继续作为明细进度库。
 
 **本期未做（另定）：** 进程仍在但长时间无进度心跳的 `stale` 标记；用户「放弃」僵死任务；资源级并行锁 / 依赖边。

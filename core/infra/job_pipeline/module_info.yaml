@@ -7,9 +7,11 @@ site_title: "任务管道 (Job Pipeline)"
 site_display_title: "长任务排队与进度 - Job Pipeline 模块"
 dependencies:
   - infra.project_context
+  - infra.progress
 changelog:
   - version: "0.1.0"
     changes:
       - 初始化模块骨架与设计文档
       - 只读面 + 串行队列 + submit 收敛
       - running_lease：filelock 自管 running 槽；删除旧 task_guard 互斥包
+      - recover / stale / abandon；文档并入 DECISIONS

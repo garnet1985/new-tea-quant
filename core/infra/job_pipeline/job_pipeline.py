@@ -7,7 +7,7 @@ import threading
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from .contracts import JobRunningBusyError, JobStatus, VALID_KINDS
+from .contracts import JobStatus, VALID_KINDS
 from .core import liveness
 from .core import queue_store
 from .core import progress_view
@@ -25,9 +25,6 @@ _ADVANCE_LOCK = threading.Lock()
 
 class JobPipeline:
     """长任务登记 / 排队 / 进度视图的唯一对外入口。"""
-
-    # launcher 占用全局 running 槽；忙则 JobRunningBusyError
-    JobRunningBusyError = JobRunningBusyError
 
     @staticmethod
     def register_handler(kind: str, handler: Handler) -> None:

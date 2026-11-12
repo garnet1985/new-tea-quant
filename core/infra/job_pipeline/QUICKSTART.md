@@ -2,7 +2,7 @@
 
 **模块：** `infra.job_pipeline` · **版本：** `0.1.0`
 
-只读、入队、互斥与协作取消均已可用。设计见 [docs/DESIGN.md](./docs/DESIGN.md)；完整契约见 [API.md](./API.md)。
+只读、入队、互斥与协作取消均已可用。设计见 [docs/DECISIONS.md](./docs/DECISIONS.md)；完整契约见 [API.md](./API.md)。
 
 ```python
 from core.infra.job_pipeline import JobPipeline

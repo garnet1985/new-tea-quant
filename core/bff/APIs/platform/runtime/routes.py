@@ -16,7 +16,7 @@ def _pipeline_message(
     job: Optional[Dict[str, Any]],
     jobs: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """``job`` = running；``jobs`` = running + pending。保留 ``busy`` 兼容旧 FED。"""
+    """``job`` = running；``jobs`` = running + pending；``busy`` 与扁平字段为现行 FED 契约。"""
     job_list = [dict(row) for row in (jobs or []) if isinstance(row, dict)]
     pending = [
         row for row in job_list

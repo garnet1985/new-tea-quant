@@ -20,4 +20,4 @@
 
 左下角管道坞：活跃任务 + 前端「未读完成」缓冲；仅 pending 可取消；running 正常无取消；长时间无心跳标「已卡住」可「放弃」清槽。完成行「查看」后消掉。不保留真历史。
 
-更多产品约定见 [DESIGN.md](./DESIGN.md)。
+更多产品约定见 [DECISIONS.md](./DECISIONS.md)。

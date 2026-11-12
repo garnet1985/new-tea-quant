@@ -4,7 +4,7 @@
 **最低支持核心版本：** `>=0.6.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
-> 只读任务表 + 串行队列 + `submit` / `running_lease`（filelock 自管槽）已落地。业务 launcher 公开入口统一 `JobPipeline.submit`；handler 调 `start_now`；互斥用 `running_lease`。设计见 [docs/DESIGN.md](./docs/DESIGN.md)。
+> 只读任务表 + 串行队列 + `submit` / `running_lease`（filelock 自管槽）已落地。业务 launcher 公开入口统一 `JobPipeline.submit`；handler 调 `start_now`；互斥用 `running_lease`。设计见 [docs/DECISIONS.md](./docs/DECISIONS.md)。
 
 **公开约定：** 包根仅导出 `JobPipeline`；状态常量见 [`contracts.py`](./contracts.py)。
 

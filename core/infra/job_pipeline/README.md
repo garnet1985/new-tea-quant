@@ -13,7 +13,7 @@
 ## 模块依赖
 
 - `infra.project_context`：定位 runtime 落盘目录
-- `infra.progress`（可选）：把细进度摘要挂到任务快照；业务页仍可直接读 Progress
+- `infra.progress`：把细进度摘要挂到任务快照；业务页仍可直接读 Progress
 
 ## 设计初衷
 
@@ -22,7 +22,6 @@
 
 ## 相关文档
 
-- [设计结论](./docs/DESIGN.md)（讨论拍板 SSOT）
 - [设计与决策](./docs/DECISIONS.md)
 - [架构](./docs/ARCHITECTURE.md)
 - [公开 API](./API.md)

@@ -57,12 +57,30 @@
 - **描述：** 按 id 取单条；第一期仅当 id 等于当前 running 时命中。
 - **错误与异常：** 无
 
+### enqueue
+
+`JobPipeline.enqueue(spec: dict) -> dict`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 只入 pending 队列（有上限；同 kind+resource 去重）
+- **返回值：** 成功含 ``queued=True`` / ``job_id``；失败 ``queued=False`` + ``reason``
+
 ### submit
 
 `JobPipeline.submit(spec: dict) -> dict`
 
 - **类型：** `static`
-- **状态：** `planned`
+- **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 提交长任务（空闲开跑 / 忙则入队）。尚未实现。
-- **错误与异常：** ``NotImplementedError``
+- **描述：** 空闲则调已注册 handler 开跑；忙则 ``enqueue``。handler 由 BFF 启动时 ``register_handler`` 注入。
+
+### advance
+
+`JobPipeline.advance() -> dict | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 无 running 时弹出队头并交给 handler（launcher ``finally`` 调用）

@@ -2,8 +2,9 @@ import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 import { mapDataEnd } from 'service/dataEnd';
 import { getUpdateModeIcon } from 'service/updateModeIcon';
 
+export { fetchPipelineStatus } from './runtimeApi';
+
 const API_TAGS_LIST = `${API_VERSION_PREFIX}/tags/list`;
-const API_RUNTIME_PIPELINE = `${API_VERSION_PREFIX}/runtime/pipeline`;
 
 /** 列表展示名：优先 ``display_name``，否则 ``name``（tag_key）。 */
 export function getTagDisplayLabel(item) {
@@ -53,23 +54,6 @@ export function formatTagAsOfDate(value) {
 /** 计算状态展示文案。 */
 export function getTagComputeStatusLabel(item) {
   return String(item?.compute_status_label || '—').trim() || '—';
-}
-
-/**
- * T1-00：全局 pipeline 状态
- * @returns {Promise<{ busy: boolean, kind?: string|null, label?: string|null, resource_key?: string|null }>}
- */
-export async function fetchPipelineStatus() {
-  const json = await request.getJson(API_RUNTIME_PIPELINE);
-  const m = json?.message || {};
-  return {
-    busy: Boolean(m.busy),
-    kind: m.kind ?? null,
-    job_id: m.job_id ?? null,
-    resource_key: m.resource_key ?? null,
-    label: m.label ?? null,
-    domains: Array.isArray(m.domains) ? m.domains : [],
-  };
 }
 
 /**

@@ -368,6 +368,14 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     { body, headers },
   );
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || ''),
+      reason: String(m.reason || '已加入管道队列').trim(),
+      settings_rev: String(m.settings_rev || ''),
+    };
+  }
   if (!m.is_triggered) {
     const reason = m.reason;
     throw new Error(typeof reason === 'string' ? reason : '启动失败');

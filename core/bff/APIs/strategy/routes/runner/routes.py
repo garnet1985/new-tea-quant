@@ -124,6 +124,15 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
                 "settings_rev": out.get("settings_rev") or "",
             }
         )
+    if out.get("queued"):
+        return ok(
+            {
+                "is_triggered": False,
+                "queued": True,
+                "job_id": out.get("job_id") or "",
+                "reason": out.get("reason") or "已加入管道队列",
+            }
+        )
     return ok({"is_triggered": False, "reason": out.get("reason", "未知错误")})
 
 

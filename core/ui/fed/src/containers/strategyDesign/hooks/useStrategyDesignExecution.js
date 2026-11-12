@@ -3,6 +3,7 @@ import {
   fetchStrategyRunStatus,
   startStrategyRun,
 } from '../../../api/strategyApi';
+import { fetchPipelineStatus } from '../../../api/runtimeApi';
 import {
   mergeStepStatusFromRunProgress,
   resetDownstreamStepStatus,
@@ -15,7 +16,9 @@ import {
   persistDesignActiveRun,
 } from '../lib/strategyDesignActiveRunPersistence';
 import { isSettingsConflictError } from '../lib/settingsOccupancy';
+import { strategyStepFromJobLabel } from '../../../service/jobPipelineLinks';
 import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
+import { showToast } from 'containers/toast';
 import logClientError from '../../../service/logClientError';
 import { normalizeWorkbenchVersionId } from '../../../service/workbenchVersionId';
 
@@ -111,6 +114,21 @@ export function useStrategyDesignExecution({
         force_settings_write: Boolean(forceSettingsWrite),
       });
       onSettingsPersisted?.(started);
+      if (started?.queued) {
+        patchExecutionSession({
+          runningStep: '',
+          activeRunId: '',
+          runId: '',
+          stepStatus: prevStatus,
+        });
+        progressPollStepRef.current = '';
+        showToast({
+          severity: 'info',
+          duration: 5000,
+          content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
+        });
+        return;
+      }
       const runId = started?.run_id;
       if (!runId) throw new Error('启动执行失败：缺少 run_id');
 
@@ -166,16 +184,41 @@ export function useStrategyDesignExecution({
   useEffect(() => {
     if (!strategyName || activeRunId || isLoadingSettings) return undefined;
 
-    const saved = loadDesignActiveRun(strategyName);
-    if (!saved?.activeRunId) return undefined;
-
     let cancelled = false;
     (async () => {
       try {
-        const status = await fetchStrategyRunStatus(strategyName, saved.activeRunId);
+        let activeRunIdToRestore = '';
+        let progressPollStep = '';
+
+        const saved = loadDesignActiveRun(strategyName);
+        if (saved?.activeRunId) {
+          activeRunIdToRestore = saved.activeRunId;
+          progressPollStep = saved.progressPollStep || '';
+        } else {
+          // 跨 tab：sessionStorage 没有时，从 JobPipeline 发现本策略的 strategy_run
+          const pipe = await fetchPipelineStatus();
+          const job = pipe?.job;
+          if (
+            job
+            && String(job.kind || '') === 'strategy_run'
+            && String(job.resource_key || '') === String(strategyName)
+            && String(job.job_id || '').trim()
+          ) {
+            activeRunIdToRestore = String(job.job_id).trim();
+            progressPollStep = strategyStepFromJobLabel(job.label) || 'enum';
+            persistDesignActiveRun(strategyName, {
+              activeRunId: activeRunIdToRestore,
+              progressPollStep,
+            });
+          }
+        }
+
+        if (!activeRunIdToRestore || cancelled) return;
+
+        const status = await fetchStrategyRunStatus(strategyName, activeRunIdToRestore);
         if (cancelled) return;
         if (status?.state === 'running') {
-          const pollStep = saved.progressPollStep || status?.running_step || 'enum';
+          const pollStep = progressPollStep || status?.running_step || 'enum';
           progressPollStepRef.current = pollStep;
           setSession((prev) => {
             const stepStatus = mergeStepStatusFromRunProgress(
@@ -192,8 +235,8 @@ export function useStrategyDesignExecution({
               },
               executionState: {
                 ...prev.executionState,
-                activeRunId: saved.activeRunId,
-                runId: saved.activeRunId,
+                activeRunId: activeRunIdToRestore,
+                runId: activeRunIdToRestore,
                 runningStep: status?.running_step || pollStep,
                 stepStatus,
               },

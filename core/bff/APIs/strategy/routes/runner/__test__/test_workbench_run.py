@@ -95,8 +95,15 @@ def test_submit_unknown_strategy(_find_any, _find, _pipe):
 @patch(
     "core.bff.APIs.strategy.routes.runner.workbench_run.DiscoveryService.find_strategy",
 )
-def test_submit_task_busy(mock_find, _pipe):
+def test_submit_task_busy(mock_find, _pipe, tmp_path, monkeypatch):
     mock_find.return_value = MagicMock()
+    monkeypatch.setenv("NTQ_USERSPACE", str(tmp_path / "userspace"))
+    # ProjectContext may not read NTQ_USERSPACE — patch queue path instead
+    qfile = tmp_path / "job_pipeline_queue.json"
+    monkeypatch.setattr(
+        "core.infra.job_pipeline.core.queue_store.queue_path",
+        lambda: qfile,
+    )
     out = WorkbenchRunLauncher.submit(
         strategy_name="demo/x",
         step="enum",
@@ -104,4 +111,5 @@ def test_submit_task_busy(mock_find, _pipe):
         force_refresh=False,
     )
     assert out["is_triggered"] is False
-    assert "tag_run" in out["reason"]
+    assert out.get("queued") is True
+    assert out.get("job_id")

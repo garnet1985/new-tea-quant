@@ -42,6 +42,7 @@ class WorkbenchRunLauncher:
         force_refresh: bool,
         expected_rev: Optional[str] = None,
         force_settings_write: bool = False,
+        allow_enqueue: bool = True,
     ) -> Dict[str, Any]:
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
@@ -63,6 +64,16 @@ class WorkbenchRunLauncher:
 
         status = TaskGuard.read_status()
         if status.get("busy"):
+            if allow_enqueue:
+                return cls._enqueue_when_busy(
+                    name=name,
+                    norm=norm,
+                    api_settings=api_settings,
+                    force_refresh=force_refresh,
+                    expected_rev=expected_rev,
+                    force_settings_write=force_settings_write,
+                    reason_hint=f"系统任务进行中（{status.get('kind') or 'unknown'}）",
+                )
             kind = status.get("kind") or "unknown"
             return {
                 "is_triggered": False,
@@ -72,6 +83,16 @@ class WorkbenchRunLauncher:
         jid = f"wb-run-{uuid.uuid4().hex[:12]}"
         busy = cls.claim_active(name, jid)
         if busy:
+            if allow_enqueue:
+                return cls._enqueue_when_busy(
+                    name=name,
+                    norm=norm,
+                    api_settings=api_settings,
+                    force_refresh=force_refresh,
+                    expected_rev=expected_rev,
+                    force_settings_write=force_settings_write,
+                    reason_hint=busy,
+                )
             return {"is_triggered": False, "reason": busy}
 
         occupancy: Dict[str, Any] = {}
@@ -289,6 +310,51 @@ class WorkbenchRunLauncher:
             except Exception:
                 logger.exception("pipeline lease release failed")
             cls._clear_active(strategy_name, job_id)
+            try:
+                from core.infra.job_pipeline import JobPipeline
+
+                JobPipeline.advance()
+            except Exception:
+                logger.exception("JobPipeline.advance after workbench failed")
+
+    @classmethod
+    def _enqueue_when_busy(
+        cls,
+        *,
+        name: str,
+        norm: str,
+        api_settings: Dict[str, Any],
+        force_refresh: bool,
+        expected_rev: Optional[str],
+        force_settings_write: bool,
+        reason_hint: str,
+    ) -> Dict[str, Any]:
+        from core.infra.job_pipeline import JobPipeline
+
+        queued = JobPipeline.enqueue(
+            {
+                "kind": "strategy_run",
+                "resource_key": name,
+                "label": f"strategy_run:{name}:{norm}",
+                "domains": ["data", "strategy"],
+                "payload": {
+                    "step": norm,
+                    "api_settings": dict(api_settings),
+                    "force_refresh": bool(force_refresh),
+                    "expected_rev": expected_rev,
+                    "force_settings_write": bool(force_settings_write),
+                },
+            }
+        )
+        if queued.get("queued"):
+            return queued
+        return {
+            "is_triggered": False,
+            "queued": False,
+            "reason": queued.get("reason")
+            or reason_hint
+            or "系统忙，且无法入队",
+        }
 
     @staticmethod
     def _persist_run_settings(

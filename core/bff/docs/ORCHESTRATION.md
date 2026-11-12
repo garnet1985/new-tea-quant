@@ -7,7 +7,7 @@ HTTP 前缀一律为 `/api`（见 `core/bff/app.py`）。契约细节优先看 F
 | 域 | Blueprint 包 | 编排文档 | 实现 |
 |----|--------------|----------|------|
 | platform / health | `APIs/platform/health` | — | `core.system.get_version` |
-| platform / runtime | `APIs/platform/runtime` | Tag T1-00 引用 | `infra.task_guard` |
+| platform / runtime | `APIs/platform/runtime` | Tag T1-00 引用 | `infra.job_pipeline`（`get_running_job`；绞杀期底层仍为 TaskGuard） |
 | platform / setup | `APIs/platform/setup` | — | `setup` meta + `SetupRuntimeManager` |
 | platform / app_settings | `APIs/platform/app_settings` | — | `app_settings/service.py`（含 trace / ui-helper） |
 | platform / ai | `APIs/platform/ai` | [`routes/ai.md`](routes/ai.md) | `infra.ai` AiChannel |

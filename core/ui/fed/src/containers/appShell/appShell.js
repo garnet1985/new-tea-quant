@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom';
 import AppNavigation from 'containers/appNavigation';
 import AssistantChatDock from 'containers/assistantChatDock';
 import GlobalHelperHost from 'containers/globalHelper';
+import JobPipelineWatch from 'containers/jobPipelineWatch';
 import ToastHost from 'containers/toast';
 import PageBackground from 'views/pageBackground';
 import './style.scss';
@@ -21,6 +22,7 @@ function AppShell() {
       {/* 全局挂载：切路由不卸载，对话状态保留；整页刷新靠 dock 本地/本机历史恢复 */}
       <AssistantChatDock />
       <GlobalHelperHost />
+      <JobPipelineWatch />
       <ToastHost />
     </Box>
   );

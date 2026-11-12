@@ -115,9 +115,9 @@
 
 1. **骨架 + 本设计**（已完成）
 2. **只读适配：** `get_running_job` / `list_jobs` 委托 TaskGuard（雏形，未定型）。细进度不在 infra 拉 `modules.*`；BFF 可按 kind 再查。
-3. **BFF + FED：** 暴露 running job；进页发现 / 完成 toast + link
-4. **submit 入队：** 替代忙则拒绝；迁 launcher
-5. **换心：** 自管表 + `filelock`；退役 `task_guard` / 对外 `progress`
+3. **BFF + FED：** `GET /v1/runtime/pipeline` 已接 `get_running_job`；FED `JobPipelineWatch` 静默轮询 + 完成 toast/link；制定策略页可从管道跨 tab 接管 `strategy_run`。
+4. **submit 入队（雏形）：** `strategy_run` 忙时 `JobPipeline.enqueue`；结束 `advance` 泵下一条；队列上限 8。Tag/renew 等尚未改。
+5. **换心：** 自管表 + `filelock`；退役 `task_guard` / 对外 `progress`；补齐其余 launcher 入队
 
 ---
 

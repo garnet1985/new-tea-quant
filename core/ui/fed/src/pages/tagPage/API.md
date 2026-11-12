@@ -37,7 +37,7 @@
 | 层 | 机制 | HTTP |
 |----|------|------|
 | Tag ↔ Tag | BFF tag run 锁；FED 跑一个 disable 其余 | T1-02 重复 → **409** |
-| 全局长任务互斥 | `.ntq/runtime/task_guard_active.json`（`TaskGuard`） | T1-00 `busy`；T1-02 冲突 → **409** |
+| 全局长任务互斥 | `JobPipeline` running 槽（`.ntq/runtime/job_pipeline_running.json`） | T1-00 `busy`；忙则可入队 |
 
 FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `busy && kind !== tag_run` 时 disable 所有运行按钮。
 
@@ -85,19 +85,15 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 
 ### T1-00 `GET /runtime/pipeline`
 
-**语义**：返回当前是否已有**占用 DuckDB 相关域**的长任务（单 BFF 进程内协调；文件租约供多入口只读查询）。
+**语义**：当前 running 长任务（`JobPipeline.get_running_job`）。路径名历史兼容。
 
 **成功 `message`**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `busy` | boolean | 是否有活跃租约 |
-| `kind` | string \| null | `tag_run` \| `strategy_scan` \| `strategy_run` \| `data_renew` \| null |
-| `job_id` | string \| null | 活跃 job |
-| `resource_key` | string \| null | 如 `demo/market_cap_tier`、strategy name、data source key |
-| `label` | string \| null | 可选展示文案 |
-| `domains` | string[] | 占用的 storage domain，如 `["data","tag"]` |
-| `started_at` | string \| null | ISO8601 |
+| `job` | object \| null | 主字段：running 快照；空闲为 null |
+| `busy` | boolean | 兼容旧 FED：`job != null` |
+| `kind` / `job_id` / `resource_key` / `label` / `domains` / `started_at` / `status` / `progress` | … | 与 `job` 扁平对齐（兼容） |
 
 **空闲示例**
 
@@ -106,17 +102,20 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
   "status": "ok",
   "message": {
     "busy": false,
+    "job": null,
     "kind": null,
     "job_id": null,
     "resource_key": null,
     "label": null,
     "domains": [],
-    "started_at": null
+    "started_at": null,
+    "status": null,
+    "progress": null
   }
 }
 ```
 
-**实现**：`core/infra/task_guard`（`TaskGuard` / `TaskLease`）；Tag MVP 至少写入/释放 `kind=tag_run`；Strategy scan/run、renew 后续接入同一 acquire/release。路径文件：`userspace/.ntq/runtime/task_guard_active.json`。HTTP 仍为历史路径 `GET /runtime/pipeline`。
+**实现**：BFF → `infra.job_pipeline`（自管 running 槽 + 队列）。
 
 ---
 

@@ -1,0 +1,34 @@
+version: "0.1.0"
+module: infra.job_pipeline
+terms:
+  JobPipeline:
+    definition: "长任务执行管道门面：任务登记、串行排队与只读进度视图的唯一对外入口。"
+    aliases:
+      - "任务管道"
+    avoid:
+      - "把 Progress 或其它模块继续当作「谁在跑」的前端真相源"
+
+  Job:
+    definition: "管道内一条长任务记录（id → kind / resource / status / 进度等）。"
+    aliases:
+      - "管道任务"
+    avoid: []
+
+  JobStatus:
+    definition: "任务生命周期：pending / running / completed / failed / cancelled / stale。"
+    aliases: []
+    avoid:
+      - "只用 busy 布尔代替完整任务状态机"
+
+  Queue:
+    definition: "pending 任务的有序等待序列；第一期与全局单 running 配合，有最大长度。"
+    aliases:
+      - "串行队列"
+    avoid:
+      - "把队列理解成已支持条件并行或 DAG"
+
+  ResourceLock:
+    definition: "（预留）任务声明的排他资源槽；无冲突才可并行。第一期等价于全局单槽。"
+    aliases:
+      - "资源锁"
+    avoid: []

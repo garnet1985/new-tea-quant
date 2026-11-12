@@ -11,8 +11,8 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.task_guard import TaskGuard
-from core.infra.task_guard.contracts import TaskLeaseBusyError
+from core.infra.job_pipeline import JobPipeline
+from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
@@ -43,6 +43,7 @@ class WorkbenchRunLauncher:
         expected_rev: Optional[str] = None,
         force_settings_write: bool = False,
     ) -> Dict[str, Any]:
+        """校验后交给 ``JobPipeline.submit``（空闲开跑 / 忙则入队）。"""
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
         if not name:
@@ -61,13 +62,42 @@ class WorkbenchRunLauncher:
                 return {"is_triggered": False, "reason": "策略未启用"}
             return {"is_triggered": False, "reason": f"策略不可运行: {name}"}
 
-        status = TaskGuard.read_status()
-        if status.get("busy"):
-            kind = status.get("kind") or "unknown"
-            return {
-                "is_triggered": False,
-                "reason": f"系统任务进行中（{kind}），请稍后再试",
+        return JobPipeline.submit(
+            {
+                "kind": "strategy_run",
+                "resource_key": name,
+                "label": f"strategy_run:{name}:{norm}",
+                "domains": ["data", "strategy"],
+                "payload": {
+                    "step": norm,
+                    "api_settings": dict(api_settings),
+                    "force_refresh": bool(force_refresh),
+                    "expected_rev": expected_rev,
+                    "force_settings_write": bool(force_settings_write),
+                },
             }
+        )
+
+    @classmethod
+    def start_now(
+        cls,
+        *,
+        strategy_name: str,
+        step: str,
+        api_settings: Dict[str, Any],
+        force_refresh: bool,
+        expected_rev: Optional[str] = None,
+        force_settings_write: bool = False,
+    ) -> Dict[str, Any]:
+        """管道 handler 调用：立刻开跑，不再入队。"""
+        name = str(strategy_name or "").strip()
+        norm = cls.normalize_step(step)
+        if not name:
+            return {"is_triggered": False, "reason": "strategy_name 无效"}
+        if norm is None:
+            return {"is_triggered": False, "reason": "step 须为 enum / price / portfolio"}
+        if not isinstance(api_settings, dict):
+            return {"is_triggered": False, "reason": "settings 必须为对象"}
 
         jid = f"wb-run-{uuid.uuid4().hex[:12]}"
         busy = cls.claim_active(name, jid)
@@ -225,7 +255,7 @@ class WorkbenchRunLauncher:
         api_settings: Dict[str, Any],
         force_refresh: bool,
     ) -> None:
-        lease = TaskGuard.lease(
+        lease = JobPipeline.running_lease(
             kind="strategy_run",
             job_id=job_id,
             resource_key=strategy_name,
@@ -234,7 +264,7 @@ class WorkbenchRunLauncher:
         )
         try:
             lease.acquire()
-        except TaskLeaseBusyError as exc:
+        except JobRunningBusyError as exc:
             inst = PipelineProgress.load(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
@@ -244,6 +274,9 @@ class WorkbenchRunLauncher:
         try:
             with PipelineProgress.bind(strategy_name, job_id) as prog:
                 prog.mark_running()
+                if JobPipeline.is_cancel_requested(job_id):
+                    prog.fail("用户取消")
+                    return
                 cls._duckdb_prepare()
                 kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
                 result = Strategy.simulate(
@@ -289,6 +322,10 @@ class WorkbenchRunLauncher:
             except Exception:
                 logger.exception("pipeline lease release failed")
             cls._clear_active(strategy_name, job_id)
+            try:
+                JobPipeline.notify_job_finished()
+            except Exception:
+                logger.exception("JobPipeline.notify_job_finished after workbench failed")
 
     @staticmethod
     def _persist_run_settings(

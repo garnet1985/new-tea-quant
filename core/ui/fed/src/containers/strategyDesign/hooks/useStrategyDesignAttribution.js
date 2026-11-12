@@ -5,6 +5,7 @@ import {
   fetchAttributeStatus,
   startAttributeRun,
 } from '../../../api/strategyApi';
+import { showToast } from 'containers/toast';
 import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
 import logClientError from '../../../service/logClientError';
 
@@ -141,6 +142,15 @@ export function useStrategyDesignAttribution({
       const started = await startAttributeRun(strategyName, activeStep, {
         force_refresh: isForce,
       });
+      if (started?.queued) {
+        showToast({
+          severity: 'info',
+          duration: 5000,
+          content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
+        });
+        setActiveJobId('');
+        return;
+      }
       const jobId = started?.job_id || started?.run_id;
       if (!jobId) throw new Error('启动归因失败：缺少 job_id');
       setActiveJobId(jobId);

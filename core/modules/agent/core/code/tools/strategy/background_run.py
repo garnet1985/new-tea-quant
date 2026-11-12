@@ -8,9 +8,9 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict
 
+from core.infra.job_pipeline import JobPipeline
+from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.infra.project_context import ProjectContext
-from core.infra.task_guard import TaskGuard
-from core.infra.task_guard.contracts import TaskLeaseBusyError
 from core.modules.agent.core.code.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
@@ -189,9 +189,9 @@ def _gate(arguments: Dict[str, Any], label: str) -> str | Dict[str, Any]:
     if not info or not info.get("is_enabled"):
         return {"ok": False, "key": parsed, "error": f"策略不存在或未启用: {parsed}"}
 
-    status = TaskGuard.read_status()
-    if status.get("busy"):
-        kind = str(status.get("kind") or "unknown")
+    running = JobPipeline.get_running_job()
+    if running:
+        kind = str(running.get("kind") or "unknown")
         return {
             "ok": False,
             "key": parsed,
@@ -203,7 +203,7 @@ def _gate(arguments: Dict[str, Any], label: str) -> str | Dict[str, Any]:
 def _scan_worker(key: str, task_id: str) -> None:
     from core.modules.strategy.core.services.progress import ScanProgress
 
-    lease = TaskGuard.lease(
+    lease = JobPipeline.running_lease(
         kind="strategy_scan",
         job_id=task_id,
         resource_key=key,
@@ -212,11 +212,15 @@ def _scan_worker(key: str, task_id: str) -> None:
     )
     try:
         lease.acquire()
-    except TaskLeaseBusyError as exc:
+    except JobRunningBusyError as exc:
         ScanProgress.for_job(key, task_id).fail(str(exc))
         _release(key, task_id)
+        JobPipeline.notify_job_finished()
         return
     try:
+        if JobPipeline.is_cancel_requested(task_id):
+            ScanProgress.for_job(key, task_id).fail("用户取消")
+            return
         Strategy.scan_run(key, progress_id=task_id, demo=False, force=False)
     except Exception:
         logger.exception("扫描 failed key=%s task=%s", key, task_id)
@@ -226,6 +230,7 @@ def _scan_worker(key: str, task_id: str) -> None:
         except Exception:
             logger.exception("lease release failed task=%s", task_id)
         _release(key, task_id)
+        JobPipeline.notify_job_finished()
 
 
 def _start(
@@ -296,7 +301,7 @@ def _worker(
     label: str,
     runner: Runner,
 ) -> None:
-    lease = TaskGuard.lease(
+    lease = JobPipeline.running_lease(
         kind=lease_kind,
         job_id=task_id,
         resource_key=key,
@@ -305,14 +310,18 @@ def _worker(
     )
     try:
         lease.acquire()
-    except TaskLeaseBusyError as exc:
+    except JobRunningBusyError as exc:
         _fail(key, task_id, str(exc))
         _release(key, task_id)
+        JobPipeline.notify_job_finished()
         return
 
     try:
         with PipelineProgress.bind(key, task_id) as prog:
             prog.mark_running()
+            if JobPipeline.is_cancel_requested(task_id):
+                prog.fail("用户取消")
+                return
             _duckdb_prepare()
             summary = runner(key, prog)
             if summary.get("success") is False:
@@ -329,6 +338,7 @@ def _worker(
         except Exception:
             logger.exception("lease release failed task=%s", task_id)
         _release(key, task_id)
+        JobPipeline.notify_job_finished()
 
 
 def _fail(key: str, task_id: str, message: str) -> None:

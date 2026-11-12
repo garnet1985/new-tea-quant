@@ -76,6 +76,8 @@ pandas-ta-classic==0.8.32
     # via -r requirements.in
 psutil==7.2.2
     # via -r requirements.in
+filelock==4.2.10
+    # via -r requirements.in
 psycopg2-binary==2.9.13
     # via -r requirements.in
 pycparser==2.23

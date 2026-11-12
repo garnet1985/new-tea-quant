@@ -2,8 +2,9 @@ import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 import { mapDataEnd } from 'service/dataEnd';
 import { getUpdateModeIcon } from 'service/updateModeIcon';
 
+export { fetchPipelineStatus } from './runtimeApi';
+
 const API_TAGS_LIST = `${API_VERSION_PREFIX}/tags/list`;
-const API_RUNTIME_PIPELINE = `${API_VERSION_PREFIX}/runtime/pipeline`;
 
 /** 列表展示名：优先 ``display_name``，否则 ``name``（tag_key）。 */
 export function getTagDisplayLabel(item) {
@@ -56,23 +57,6 @@ export function getTagComputeStatusLabel(item) {
 }
 
 /**
- * T1-00：全局 pipeline 状态
- * @returns {Promise<{ busy: boolean, kind?: string|null, label?: string|null, resource_key?: string|null }>}
- */
-export async function fetchPipelineStatus() {
-  const json = await request.getJson(API_RUNTIME_PIPELINE);
-  const m = json?.message || {};
-  return {
-    busy: Boolean(m.busy),
-    kind: m.kind ?? null,
-    job_id: m.job_id ?? null,
-    resource_key: m.resource_key ?? null,
-    label: m.label ?? null,
-    domains: Array.isArray(m.domains) ? m.domains : [],
-  };
-}
-
-/**
  * T1-01：Tag scenario 列表
  * @returns {Promise<{ data: object[], total: number, dataEnd: object }>}
  */
@@ -113,7 +97,19 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
 export async function startTagRun(tagKey) {
   const json = await request.postJson(`${apiTagPath(tagKey)}/run`, { body: {} });
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || '').trim(),
+      tag_key: m.tag_key || tagKey,
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
+  if (m.is_triggered === false) {
+    throw new Error(typeof m.reason === 'string' ? m.reason : '启动 Tag 计算失败');
+  }
   return {
+    queued: false,
     job_id: String(m.job_id || m.run_id || '').trim(),
     run_id: String(m.run_id || m.job_id || '').trim(),
     tag_key: m.tag_key || tagKey,

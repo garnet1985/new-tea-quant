@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from core.bff.app import create_app
-from core.infra.task_guard import TaskGuard
 
 pytestmark = pytest.mark.force_run
 
@@ -43,17 +44,42 @@ def test_renew_route_starts_without_calling_remote(client, monkeypatch):
     assert seen["source"] == "cpi"
 
 
-def test_launcher_refuses_when_another_task_is_busy(monkeypatch):
+def test_launcher_queues_when_another_task_is_busy(monkeypatch):
     from core.bff.APIs.data.sources.renew_launcher import DataRenewLauncher
 
     monkeypatch.setattr(
-        TaskGuard,
-        "read_status",
-        staticmethod(lambda: {"busy": True, "kind": "tag_run"}),
+        "core.infra.job_pipeline.JobPipeline.has_running_job",
+        staticmethod(lambda: True),
+    )
+    monkeypatch.setattr(
+        "core.infra.job_pipeline.JobPipeline.enqueue",
+        staticmethod(
+            lambda spec: {
+                "queued": True,
+                "is_triggered": False,
+                "job_id": "jp-pend-renew",
+                "reason": "已加入管道队列，当前任务结束后将自动执行",
+            }
+        ),
     )
     body = DataRenewLauncher.trigger(None)
+    assert body.get("queued") is True
     assert body["is_triggered"] is False
-    assert "tag_run" in body["reason"]
+
+
+def test_start_now_does_not_enqueue_when_local_busy(monkeypatch):
+    from core.bff.APIs.data.sources.renew_launcher import DataRenewLauncher
+
+    monkeypatch.setattr(
+        DataRenewLauncher,
+        "_running_locked",
+        classmethod(lambda cls: True),
+    )
+    with patch("core.infra.job_pipeline.JobPipeline.enqueue") as enqueue:
+        body = DataRenewLauncher.start_now(None)
+    assert body["is_triggered"] is False
+    assert "运行" in body["reason"]
+    enqueue.assert_not_called()
 
 
 def test_public_progress_uses_the_running_source(tmp_path, monkeypatch):

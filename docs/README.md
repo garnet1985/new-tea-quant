@@ -18,7 +18,7 @@
 
 ## CI
 
-- [ci/README.md](../ci/README.md) — Workflow 专用验收脚本（如冷启动冒烟）；与 `devcli` / `TaskGuard` 分开
+- [ci/README.md](../ci/README.md) — Workflow 专用验收脚本（如冷启动冒烟）；与 `devcli` / `JobPipeline` 分开
 
 ## UI / BFF
 

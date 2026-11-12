@@ -316,6 +316,14 @@ function DataSourceListPage() {
     const key = String(source || '').trim();
     startDataSourceRenew(key)
       .then((started) => {
+        if (started?.queued) {
+          showToast({
+            severity: 'info',
+            duration: 5000,
+            content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
+          });
+          return;
+        }
         expectJobRef.current = started.job_id || '';
         setRenewing(true);
         setRenewSource(key);

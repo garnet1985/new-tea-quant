@@ -137,7 +137,7 @@ class TempCleanup:
         """
         按勾选项清理。有全局长任务进行中时拒绝（``error=task_busy``）。
         """
-        from core.infra.task_guard import TaskGuard
+        from core.infra.job_pipeline import JobPipeline
 
         selected = [
             clear_backtest_results,
@@ -147,13 +147,13 @@ class TempCleanup:
         if not any(selected):
             return {"ok": False, "error": "nothing_selected"}
 
-        status = TaskGuard.read_status()
-        if status.get("busy"):
+        running = JobPipeline.get_running_job()
+        if running:
             return {
                 "ok": False,
                 "error": "task_busy",
                 "label": str(
-                    status.get("label") or status.get("kind") or ""
+                    running.get("label") or running.get("kind") or ""
                 ).strip(),
             }
 

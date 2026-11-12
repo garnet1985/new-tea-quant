@@ -61,6 +61,15 @@ def create_app():
     app.register_blueprint(tag_api_bp, url_prefix="/api")
     app.register_blueprint(series_relation_api_bp, url_prefix="/api")
 
+    try:
+        from .APIs.platform.runtime.job_handlers import register_job_pipeline_handlers
+
+        register_job_pipeline_handlers()
+    except Exception:  # noqa: BLE001
+        import logging
+
+        logging.getLogger(__name__).exception("register_job_pipeline_handlers failed")
+
     if not register_fed_static_routes(app, build_dir=build_dir):
 
         @app.route("/", methods=["GET"])

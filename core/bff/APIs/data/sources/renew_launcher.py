@@ -7,10 +7,13 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.task_guard import TaskGuard
-from core.infra.task_guard.contracts import TaskLeaseBusyError
+from core.infra.job_pipeline import JobPipeline
+from core.infra.job_pipeline.contracts import JobRunningBusyError
 
 logger = logging.getLogger(__name__)
+
+# 与 job_handlers.DATA_RENEW_ALL_RESOURCE 对齐
+_ALL_RESOURCE = "*"
 
 
 class DataRenewLauncher:
@@ -21,6 +24,7 @@ class DataRenewLauncher:
 
     @classmethod
     def trigger(cls, source: Optional[str] = None) -> Dict[str, Any]:
+        """校验后交给 ``JobPipeline.submit``。"""
         raw = str(source or "").strip()
         source_key = ""
         if raw:
@@ -31,13 +35,34 @@ class DataRenewLauncher:
             except ValueError as exc:
                 return {"is_triggered": False, "reason": str(exc).splitlines()[0]}
 
-        status = TaskGuard.read_status()
-        if status.get("busy"):
-            kind = status.get("kind") or "unknown"
-            return {
-                "is_triggered": False,
-                "reason": f"系统任务进行中（{kind}），请稍后再试",
+        resource = source_key or _ALL_RESOURCE
+        label = (
+            "更新需要更新的数据源"
+            if not source_key
+            else f"更新 {source_key}"
+        )
+        return JobPipeline.submit(
+            {
+                "kind": "data_renew",
+                "resource_key": resource,
+                "label": label,
+                "domains": ["data"],
+                "payload": {"source": source_key},
             }
+        )
+
+    @classmethod
+    def start_now(cls, source: Optional[str] = None) -> Dict[str, Any]:
+        """管道 handler 调用：立刻开跑，不再入队。"""
+        raw = str(source or "").strip()
+        source_key = ""
+        if raw and raw != _ALL_RESOURCE:
+            from core.modules.data_source import DataSourceManager
+
+            try:
+                source_key = DataSourceManager().resolve_renew_target(raw)
+            except ValueError as exc:
+                return {"is_triggered": False, "reason": str(exc).splitlines()[0]}
 
         with cls._LOCK:
             if cls._running_locked():
@@ -70,12 +95,12 @@ class DataRenewLauncher:
         with cls._LOCK:
             active = dict(cls._ACTIVE or {})
         if not active:
-            guard = TaskGuard.read_status()
-            if guard.get("busy") and guard.get("kind") == "data_renew":
+            running = JobPipeline.get_running_job()
+            if running and str(running.get("kind") or "") == "data_renew":
                 return {
                     "running": True,
-                    "job_id": str(guard.get("job_id") or ""),
-                    "source": str(guard.get("resource_key") or ""),
+                    "job_id": str(running.get("job_id") or ""),
+                    "source": str(running.get("resource_key") or ""),
                     "error": "",
                     "message": "",
                     "tasks": _public_tasks(),
@@ -107,19 +132,25 @@ class DataRenewLauncher:
 
     @classmethod
     def _background(cls, job_id: str, source_key: str) -> None:
-        lease = TaskGuard.lease(
+        lease = JobPipeline.running_lease(
             kind="data_renew",
             job_id=job_id,
             resource_key=source_key,
             label="更新需要更新的数据源" if not source_key else f"更新 {source_key}",
             domains=["data"],
         )
+        acquired = False
         try:
             lease.acquire()
-        except TaskLeaseBusyError as exc:
+            acquired = True
+        except JobRunningBusyError as exc:
             cls._finish(job_id, str(exc))
+            cls._notify_finished()
             return
         try:
+            if JobPipeline.is_cancel_requested(job_id):
+                cls._finish(job_id, "用户取消")
+                return
             from core.modules.data_source import DataSourceManager
 
             manager = DataSourceManager()
@@ -137,7 +168,16 @@ class DataRenewLauncher:
             logger.exception("data renew failed job_id=%s source=%s", job_id, source_key or "*")
             cls._finish(job_id, str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__)
         finally:
-            lease.release()
+            if acquired:
+                lease.release()
+            cls._notify_finished()
+
+    @staticmethod
+    def _notify_finished() -> None:
+        try:
+            JobPipeline.notify_job_finished()
+        except Exception:
+            logger.exception("JobPipeline.notify_job_finished after renew failed")
 
     @classmethod
     def _finish(cls, job_id: str, error: str, message: str = "") -> None:

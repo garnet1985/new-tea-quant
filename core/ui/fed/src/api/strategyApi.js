@@ -368,6 +368,14 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     { body, headers },
   );
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || ''),
+      reason: String(m.reason || '已加入管道队列').trim(),
+      settings_rev: String(m.settings_rev || ''),
+    };
+  }
   if (!m.is_triggered) {
     const reason = m.reason;
     throw new Error(typeof reason === 'string' ? reason : '启动失败');
@@ -604,12 +612,20 @@ export async function startAttributeRun(strategyName, step, options = {}) {
     { body: { force_refresh: Boolean(options?.force_refresh) } },
   );
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || '').trim(),
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
   if (!m.is_triggered) {
     const reason = m.reason;
     throw new Error(typeof reason === 'string' ? reason : '启动归因失败');
   }
   const jid = String(m.job_id || '').trim();
   return {
+    queued: false,
     run_id: String(m.run_id || jid).trim(),
     job_id: jid,
     pipeline_name: String(m.pipeline_name || step).trim(),
@@ -712,12 +728,20 @@ export async function startRollingRun(strategyName, options = {}) {
     { body: { force_refresh: Boolean(options?.force_refresh) } },
   );
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || '').trim(),
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
   if (!m.is_triggered) {
     const reason = m.reason;
     throw new Error(typeof reason === 'string' ? reason : '启动滚动对照失败');
   }
   const jid = String(m.job_id || '').trim();
   return {
+    queued: false,
     run_id: String(m.run_id || jid).trim(),
     job_id: jid,
     pipeline_name: String(m.pipeline_name || 'rolling').trim(),

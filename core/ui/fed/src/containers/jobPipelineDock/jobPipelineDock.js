@@ -6,6 +6,7 @@ import {
   CircularProgress,
   Collapse,
   IconButton,
+  LinearProgress,
   Link,
   Paper,
   Table,
@@ -28,14 +29,16 @@ function statusLabel(row) {
   if (row?.cancel_requested) return '取消中';
   const s = String(row?.status || '').trim().toLowerCase();
   if (s === 'stale') return '已卡住';
-  if (s === 'running') {
-    const pct = Number(row?.progress?.percent);
-    if (Number.isFinite(pct) && pct > 0) return `运行中 ${pct}%`;
-    return '运行中';
-  }
+  if (s === 'running') return '运行中';
   if (s === 'pending') return '排队中';
   if (s === 'completed') return '已完成';
   return s || '—';
+}
+
+function progressPercent(row) {
+  const pct = Number(row?.progress?.percent);
+  if (!Number.isFinite(pct)) return null;
+  return Math.max(0, Math.min(100, pct));
 }
 
 function statusClass(row) {
@@ -175,8 +178,10 @@ function JobPipelineDock() {
               <TableHead>
                 <TableRow>
                   <TableCell>任务</TableCell>
-                  <TableCell width={88}>状态</TableCell>
-                  <TableCell width={96} align="right">操作</TableCell>
+                  <TableCell width={72}>状态</TableCell>
+                  <TableCell width={88}>进度</TableCell>
+                  <TableCell width={72}>页面</TableCell>
+                  <TableCell width={72} align="right">操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -190,6 +195,7 @@ function JobPipelineDock() {
                   const href = jobDeepLink(row);
                   const name = jobDisplayName(row);
                   const detail = String(row?.progress?.detail || row?.progress?.label || '').trim();
+                  const pct = runningRow ? progressPercent(row) : null;
                   return (
                     <TableRow key={id || `${row.kind}-${row.resource_key}-${status}`}>
                       <TableCell>
@@ -201,6 +207,26 @@ function JobPipelineDock() {
                             {detail}
                           </Typography>
                         ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <span className={['ntq-job-pipeline-dock__status', statusClass(row)].join(' ')}>
+                          {statusLabel(row)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {pct != null ? (
+                          <Box className="ntq-job-pipeline-dock__progress" title={`${pct}%`}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={pct}
+                              className="ntq-job-pipeline-dock__progress-bar"
+                            />
+                          </Box>
+                        ) : (
+                          <span className="ntq-job-pipeline-dock__progress-empty">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         {!completed && href ? (
                           <Link
                             component={RouterLink}
@@ -209,14 +235,11 @@ function JobPipelineDock() {
                             className="ntq-job-pipeline-dock__job-link"
                             onClick={() => setOpen(false)}
                           >
-                            打开
+                            进入页面
                           </Link>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <span className={['ntq-job-pipeline-dock__status', statusClass(row)].join(' ')}>
-                          {statusLabel(row)}
-                        </span>
+                        ) : (
+                          <span className="ntq-job-pipeline-dock__progress-empty">—</span>
+                        )}
                       </TableCell>
                       <TableCell align="right">
                         {pending ? (

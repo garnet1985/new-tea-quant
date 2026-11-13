@@ -125,11 +125,28 @@ def find_local_package_zip(kind: str = "demo") -> Optional[Path]:
                 return zips[0]
         return None
 
+    if key == "member":
+        if member_package_present(data_dir):
+            parts = sorted(data_dir.glob("data_member_3y_part*.zip"))
+            return parts[0] if parts else data_dir / package_zip_name(key)
+        preferred = data_dir / package_zip_name(key)
+        if preferred.is_file():
+            return preferred
+        return None
+
     preferred = data_dir / package_zip_name(key)
     if preferred.is_file():
         return preferred
     zips = discover_package_zips(data_dir)
     return zips[0] if zips else None
+
+
+def member_package_present(data_dir: Optional[Path] = None) -> bool:
+    """会员分卷是否已在本地齐套。"""
+    from core.modules.ntq_external.install_member import member_parts_complete
+
+    folder = Path(data_dir) if data_dir is not None else default_package_dir("member")
+    return member_parts_complete(folder)
 
 
 def describe_data_packages(
@@ -140,6 +157,21 @@ def describe_data_packages(
     packages: Dict[str, Any] = {}
     for raw in selected:
         key = normalize_package_kind(raw)
+        data_dir = default_package_dir(key)
+        if key == "member":
+            present = member_package_present(data_dir)
+            parts = sorted(data_dir.glob("data_member_3y_part*.zip")) if present else []
+            size_bytes = sum(p.stat().st_size for p in parts) if parts else 0
+            packages[key] = {
+                "kind": key,
+                "present": present,
+                "fileName": parts[0].name if parts else package_zip_name(key),
+                "path": str(data_dir),
+                "sizeBytes": size_bytes,
+                "sizeLabel": _size_label(size_bytes) if present else "",
+                "partCount": len(parts),
+            }
+            continue
         path = find_local_package_zip(key)
         present = path is not None and path.is_file()
         size_bytes = int(path.stat().st_size) if present else 0
@@ -147,7 +179,7 @@ def describe_data_packages(
             "kind": key,
             "present": present,
             "fileName": path.name if present else package_zip_name(key),
-            "path": str(path) if present else str(default_package_dir(key) / package_zip_name(key)),
+            "path": str(path) if present else str(data_dir / package_zip_name(key)),
             "sizeBytes": size_bytes,
             "sizeLabel": _size_label(size_bytes) if present else "",
         }
@@ -156,6 +188,7 @@ def describe_data_packages(
         "packages": packages,
         "anyPresent": any_present,
         "demoPresent": bool(packages.get("demo", {}).get("present")),
+        "memberPresent": bool(packages.get("member", {}).get("present")),
     }
 
 

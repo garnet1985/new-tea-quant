@@ -91,8 +91,55 @@ class SetupRuntimeManager:
         )
         return {"status": "ok", "message": payload}
 
+    def get_import_data_plan(self) -> Dict[str, Any]:
+        """设置页导入说明：按会员凭证自动选 demo / member。"""
+        from core.infra.setup.core.import_plan import build_import_plan
+
+        return {"status": "ok", "message": build_import_plan()}
+
     def import_demo_data(self) -> Dict[str, Any]:
-        """设置页补导入演示数据。不重跑整次安装。"""
+        """设置页导入数据：非会员同步导 demo；会员走 JobPipeline 导 member。"""
+        from core.infra.setup.core.import_plan import build_import_plan
+
+        plan = build_import_plan()
+        pack_kind = str(plan.get("packKind") or "demo")
+        if pack_kind == "member":
+            from core.bff.APIs.platform.setup.import_data_launcher import (
+                ImportDataLauncher,
+            )
+
+            out = ImportDataLauncher.trigger(pack_kind="member", force=False)
+            if not out.get("is_triggered") and not out.get("queued"):
+                reason = str(out.get("reason") or "无法启动会员数据导入")
+                return self._error("SETUP_IMPORT_DATA_FAILED", reason)
+            with self._lock:
+                state = self._load_state()
+                # 任务已入队/开跑；完成后由用户在管道坞确认。此处先标成功避免安装向导卡住。
+                self._set_step_state(state, "import_data", self.STATUS_SUCCESS, "")
+                self._unmark_step_skipped(state, "import_data")
+                state.setdefault("inputsByStep", {})["import_data"] = {
+                    "skip": False,
+                    "packKind": "member",
+                }
+                self._bump_version(state)
+                self._save_state(state)
+            return {
+                "status": "ok",
+                "message": {
+                    "imported": False,
+                    "queued": bool(out.get("queued")),
+                    "running": bool(out.get("is_triggered") or out.get("running")),
+                    "jobId": str(out.get("job_id") or ""),
+                    "packKind": "member",
+                    "packLabel": plan.get("packLabel") or "",
+                    "message": (
+                        "会员数据包导入已加入任务管道，可在右下角任务坞查看进度。"
+                        if out.get("queued")
+                        else "会员数据包正在后台下载并导入，可在右下角任务坞查看进度。"
+                    ),
+                },
+            }
+
         script = (
             REPO_ROOT
             / "core"
@@ -133,11 +180,25 @@ class SetupRuntimeManager:
             state = self._load_state()
             self._set_step_state(state, "import_data", self.STATUS_SUCCESS, "")
             self._unmark_step_skipped(state, "import_data")
-            state.setdefault("inputsByStep", {})["import_data"] = {"skip": False}
+            state.setdefault("inputsByStep", {})["import_data"] = {
+                "skip": False,
+                "packKind": "demo",
+            }
             self._record_step_seconds(state, "import_data", elapsed)
             self._bump_version(state)
             self._save_state(state)
-        return {"status": "ok", "message": {"imported": True}}
+        return {
+            "status": "ok",
+            "message": {
+                "imported": True,
+                "queued": False,
+                "running": False,
+                "jobId": "",
+                "packKind": "demo",
+                "packLabel": plan.get("packLabel") or "",
+                "message": "演示数据已导入。",
+            },
+        }
 
     def start(self) -> Dict[str, Any]:
         definition = self.get_definition()

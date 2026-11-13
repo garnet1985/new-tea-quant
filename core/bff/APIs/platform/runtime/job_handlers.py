@@ -19,6 +19,7 @@ def register_job_pipeline_handlers() -> None:
     JobPipeline.register_handler("strategy_rolling", _handle_strategy_rolling)
     JobPipeline.register_handler("tag_run", _handle_tag_run)
     JobPipeline.register_handler("data_renew", _handle_data_renew)
+    JobPipeline.register_handler("import_data", _handle_import_data)
 
 
 def _handle_strategy_run(job: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,3 +83,14 @@ def _handle_data_renew(job: Dict[str, Any]) -> Dict[str, Any]:
     if not source and resource not in ("", DATA_RENEW_ALL_RESOURCE):
         source = resource
     return DataRenewLauncher.start_now(source or None)
+
+
+def _handle_import_data(job: Dict[str, Any]) -> Dict[str, Any]:
+    from core.bff.APIs.platform.setup.import_data_launcher import ImportDataLauncher
+
+    payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+    pack_kind = str(payload.get("pack_kind") or "demo").strip().lower() or "demo"
+    return ImportDataLauncher.start_now(
+        pack_kind=pack_kind,
+        force=bool(payload.get("force")),
+    )

@@ -48,6 +48,17 @@ def install_demo_meta_url() -> str:
     return f"{base_url()}/api/v1/ntq-data/install/demo/meta"
 
 
+def install_member_meta_url() -> str:
+    """会员安装包 manifest（需 Bearer 凭证）。"""
+    return f"{base_url()}/api/v1/ntq-data/install/member/meta"
+
+
+def install_member_part_url(part_index: int) -> str:
+    """会员安装包分卷（需 Bearer 凭证；``part_index`` 从 1 起）。"""
+    n = int(part_index)
+    return f"{base_url()}/api/v1/ntq-data/install/member/part/{n}"
+
+
 def register_url() -> str:
     return f"{base_url()}/zh-hans/user/register"
 

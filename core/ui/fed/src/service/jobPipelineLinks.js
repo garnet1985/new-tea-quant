@@ -15,6 +15,7 @@ const KIND_TITLE = {
   strategy_rolling: '滚动测试',
   tag_run: '标签任务',
   data_renew: '数据更新',
+  import_data: '导入数据',
 };
 
 const STEP_TITLE = Object.fromEntries(
@@ -44,6 +45,7 @@ export function jobDeepLink(job) {
   }
   if (kind === 'tag_run') return '/advanced/tags';
   if (kind === 'data_renew') return '/advanced/data-sources';
+  if (kind === 'import_data') return '/settings/system';
   return '';
 }
 
@@ -83,6 +85,9 @@ export function jobDisplayName(job) {
   if (kind === 'data_renew') {
     if (!resource || resource === '*') return KIND_TITLE.data_renew || '数据更新';
     return `数据更新 · ${resource}`;
+  }
+  if (kind === 'import_data') {
+    return label || KIND_TITLE.import_data || '导入数据';
   }
   if (resource && KIND_TITLE[kind]) return `${resource} · ${KIND_TITLE[kind]}`;
   if (resource && kind) return `${resource} · ${kind}`;

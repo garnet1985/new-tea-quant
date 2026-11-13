@@ -19,6 +19,7 @@ VALID_KINDS = frozenset(
         "strategy_attribute",
         "strategy_rolling",
         "data_renew",
+        "import_data",
     }
 )
 

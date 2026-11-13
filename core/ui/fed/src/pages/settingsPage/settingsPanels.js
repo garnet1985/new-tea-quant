@@ -46,9 +46,9 @@ import {
   saveAgentSettings,
 } from '../../api/agentApi';
 import {
+  getImportDataPlan,
   getImportDataProgress,
   getMlExtrasStatus,
-  getSetupStatus,
   importDemoData,
   installMlExtras,
   resetSetupStatus,
@@ -71,7 +71,7 @@ export function SettingsSystemPanel() {
   const [importError, setImportError] = useState('');
   const [importOk, setImportOk] = useState('');
   const [importProgress, setImportProgress] = useState(null);
-  const [demoPackageHint, setDemoPackageHint] = useState('');
+  const [importPlan, setImportPlan] = useState(null);
   const fakePercent = useFakeProgress(installing, 8);
 
   const loadMlStatus = useCallback(() => {
@@ -85,26 +85,20 @@ export function SettingsSystemPanel() {
       });
   }, []);
 
-  const loadDemoPackageHint = useCallback(() => {
-    return getSetupStatus()
-      .then((status) => {
-        const demo = status?.dataPackages?.packages?.demo;
-        if (demo?.present) {
-          const size = demo.sizeLabel ? `（${demo.sizeLabel}）` : '';
-          setDemoPackageHint(`本地已有演示数据包${size}，导入时无需重新下载。`);
-        } else {
-          setDemoPackageHint('本地尚无演示数据包，导入时将从官网下载。');
-        }
+  const loadImportPlan = useCallback(() => {
+    return getImportDataPlan()
+      .then((next) => {
+        setImportPlan(next);
       })
       .catch(() => {
-        setDemoPackageHint('');
+        setImportPlan(null);
       });
   }, []);
 
   useEffect(() => {
     loadMlStatus();
-    loadDemoPackageHint();
-  }, [loadMlStatus, loadDemoPackageHint]);
+    loadImportPlan();
+  }, [loadMlStatus, loadImportPlan]);
 
   useEffect(() => {
     if (!importing) return undefined;
@@ -145,12 +139,12 @@ export function SettingsSystemPanel() {
     setImportOk('');
     setImportProgress(null);
     try {
-      await importDemoData();
+      const result = await importDemoData();
       setImportOpen(false);
-      setImportOk('演示数据已导入。');
-      loadDemoPackageHint();
+      setImportOk(result.message || (result.imported ? '数据已导入。' : '导入任务已提交。'));
+      loadImportPlan();
     } catch (err) {
-      setImportError(err?.message || '演示数据导入失败，请稍后重试。');
+      setImportError(err?.message || '数据导入失败，请稍后重试。');
     } finally {
       setImporting(false);
     }
@@ -173,7 +167,7 @@ export function SettingsSystemPanel() {
   const mlInstalled = Boolean(mlStatus?.installed);
   const importBusy = importing || reinstalling;
   const importProgressText = !importProgress?.running
-    ? '正在导入演示数据…'
+    ? '正在导入数据…'
     : (importProgress.phase === 'downloading' || importProgress.phase === 'preparing')
       ? (importProgress.statusText
         || (importProgress.phase === 'downloading' ? '数据下载中…' : '准备导入…'))
@@ -181,7 +175,15 @@ export function SettingsSystemPanel() {
         ? `正在导入 ${importProgress.completedCount}/${importProgress.totalTables}${
           importProgress.currentTable ? `：${importProgress.currentTable}` : ''
         }`
-        : '正在导入演示数据…';
+        : '正在导入数据…';
+  const membershipConfigured = Boolean(importPlan?.membershipConfigured);
+  const packLabel = importPlan?.packLabel || '约 300 只股票 × 三年（公开演示包）';
+  const localHint = importPlan?.localHint || '';
+  const membershipWarning = importPlan?.warning || '';
+  const confirmTitle = importPlan?.confirmTitle || '导入数据？';
+  const confirmBody = importPlan?.confirmBody
+    || '数据包中的表会被清空后重写，可能覆盖已有行情。';
+  const confirmActionLabel = importPlan?.confirmActionLabel || '开始导入';
 
   return (
     <Stack spacing={2}>
@@ -239,14 +241,29 @@ export function SettingsSystemPanel() {
       </Dialog>
 
       <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
-        演示数据
+        导入数据
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        安装时如果跳过了演示数据，可以在这里导入。导入会清空数据包中的表再写入，可能覆盖已有数据。
+        按是否已装载会员凭证自动选择数据包。导入会清空数据包中的表再写入，可能覆盖已有行情。
       </Typography>
-      {demoPackageHint ? (
+      {importPlan && membershipWarning ? (
+        <Alert severity="warning">
+          {membershipWarning}
+          {' '}
+          <Link component={RouterLink} to="/settings/membership" underline="hover">
+            前往会员设置
+          </Link>
+        </Alert>
+      ) : null}
+      {importPlan ? (
         <Typography variant="body2" color="text.secondary">
-          {demoPackageHint}
+          当前将导入：{packLabel}
+          {membershipConfigured ? ' · 已装载会员凭证' : ' · 未装载会员凭证'}
+        </Typography>
+      ) : null}
+      {localHint ? (
+        <Typography variant="body2" color="text.secondary">
+          {localHint}
         </Typography>
       ) : null}
       {importError ? <Alert severity="error">{importError}</Alert> : null}
@@ -263,10 +280,10 @@ export function SettingsSystemPanel() {
           onClick={() => {
             setImportError('');
             setImportOk('');
-            setImportOpen(true);
+            loadImportPlan().finally(() => setImportOpen(true));
           }}
         >
-          导入演示数据
+          导入数据
         </Button>
       </Box>
       <Dialog
@@ -275,12 +292,27 @@ export function SettingsSystemPanel() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>导入演示数据？</DialogTitle>
+        <DialogTitle>{confirmTitle}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            演示数据包里的表会被清空后重写，可能覆盖已有行情。请先退出其他正在使用这个数据库的程序，再继续。
-            {demoPackageHint ? ` ${demoPackageHint}` : ''}
+          <DialogContentText component="div">
+            {confirmBody}
+            {localHint ? (
+              <Box component="p" sx={{ mt: 1.5, mb: 0 }}>
+                {localHint}
+              </Box>
+            ) : null}
           </DialogContentText>
+          {!membershipConfigured ? (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              若您是会员，请先取消并到
+              {' '}
+              <Link component={RouterLink} to="/settings/membership" underline="hover">
+                设置 → 会员
+              </Link>
+              {' '}
+              装载凭证，再回来导入全市场数据。
+            </Alert>
+          ) : null}
           {importError ? (
             <Alert severity="error" sx={{ mt: 2 }}>{importError}</Alert>
           ) : null}
@@ -296,10 +328,11 @@ export function SettingsSystemPanel() {
           </Button>
           <Button
             variant="contained"
+            color={membershipConfigured ? 'primary' : 'warning'}
             onClick={handleConfirmImport}
             disabled={importing}
           >
-            {importing ? '正在导入…' : '开始导入'}
+            {importing ? '正在导入…' : confirmActionLabel}
           </Button>
         </DialogActions>
       </Dialog>
@@ -516,7 +549,19 @@ export function SettingsDataPanel({
         <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
           <li>
             <Typography variant="body2" component="span">
-              注册会员后，可在官网下载并导入约 3 年全市场数据；也可在
+              注册会员并在
+              {' '}
+              <Link component={RouterLink} to="/settings/membership" underline="hover">
+                设置 → 会员
+              </Link>
+              {' '}
+              装载凭证后，可到
+              {' '}
+              <Link component={RouterLink} to="/settings/system" underline="hover">
+                设置 → 安装与维护
+              </Link>
+              {' '}
+              一键导入约 3 年全市场数据；也可在
               {' '}
               <Link component={RouterLink} to="/advanced/data-sources" underline="hover">
                 高级功能 → 数据源
@@ -530,7 +575,7 @@ export function SettingsDataPanel({
           </li>
           <li>
             <Typography variant="body2" component="span">
-              尚未导入演示包时，可到
+              尚未导入数据时，可到
               {' '}
               <Link component={RouterLink} to="/settings/system" underline="hover">
                 设置 → 安装与维护

@@ -62,6 +62,11 @@ def get_import_data_progress():
     return _setup_service.get_import_data_progress()
 
 
+@setup_api_bp.route('/v1/setup/import-data/plan', methods=['GET'])
+def get_import_data_plan():
+    return _setup_service.get_import_data_plan()
+
+
 @setup_api_bp.route('/v1/setup/import-data', methods=['POST'])
 def import_demo_data():
     return _setup_service.import_demo_data()

@@ -48,7 +48,7 @@ def test_download_install_demo_writes_and_checks_sha(tmp_path: Path, monkeypatch
     digest = hashlib.sha256(payload).hexdigest()
     meta = {"sha256": digest, "stock_count": 300}
 
-    def _fake_get(url: str, *, timeout_sec: float = 30.0) -> bytes:
+    def _fake_get(url: str, *, timeout_sec: float = 30.0, **_kwargs) -> bytes:
         if url.endswith("/meta") or "demo/meta" in url:
             return json.dumps(meta).encode("utf-8")
         return payload

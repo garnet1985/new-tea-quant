@@ -60,7 +60,7 @@ Windows PowerShell 可用 `python .\launcher.py`。若 `python` 指向旧版本�
 | --- | --- |
 | 以后打开 UI | 再执行 `python launcher.py` |
 | 只补 CLI / Python 依赖 | 已安装过且只是 `requirements.txt` 变了：`python install.py --if-needed`（或直接跑 `python cli.py`）。不会重导演示数据 |
-| 命令行安装并导入演示数据 | `python install.py --import-demo`（会覆盖同名表）。开始前须输入 `y` 同意使用条款；无终端时加 `--accept-license`。默认 `python install.py` 不导入；需要时再跑 `python cli.py id` |
+| 命令行安装（默认含演示数据） | `python install.py`（从官网下载演示包并导入，会覆盖同名表）。开始前须输入 `y` 同意使用条款；无终端时加 `--accept-license`。跳过演示数据：`python install.py --skip-demo-data`；之后可 `python cli.py id` 补导。参数说明：`python install.py -h` |
 | 升级已安装的应用 | 拉取新代码，**保留** `userspace/`，然后 `python cli.py u` |
 | 从头再走向导 | 设置 → 安装与维护 → 重新安装（可能覆盖库连接；导入演示数据可能覆盖表） |
 | 补装机器学习依赖 | 设置 → 安装与维护，或向导里那一步 |

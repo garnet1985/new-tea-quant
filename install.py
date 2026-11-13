@@ -3,11 +3,11 @@
 """
 CLI 应用安装入口（与 ``launcher.py`` 对称）：
 
-  python install.py              执行 CLI 安装，不导入演示数据
-  python install.py --import-demo
-                                 同上，并导入演示数据包（官网下载到 userspace）
-  python install.py --if-needed  仅未就绪时安装（``cli.py`` 自动触发）。
-                                 依赖变化只更新依赖；不带 --import-demo 就不导入演示包。
+  python install.py                 执行 CLI 安装，并默认从官网下载、导入演示数据
+  python install.py --skip-demo-data
+                                    同上，但跳过演示数据下载/导入
+  python install.py --if-needed     仅未就绪时安装（``cli.py`` 自动触发）。
+                                    依赖变化只更新依赖；完整安装时默认仍导入演示数据。
 
 安装步骤开始前须同意使用条款：交互终端只认 y / Y，其他输入停止。
 无终端时用 ``--accept-license`` 或 ``NTQ_ACCEPT_LICENSE=1``。
@@ -28,58 +28,93 @@ if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
 
 from core.infra.setup import Setup
 
+_HELP_EPILOG = """
+默认行为
+  · 同意使用条款后跑完整 CLI 安装（系统检查 → 依赖 → userspace → 数据库 → 演示数据）
+  · 数据库默认 DuckDB；userspace 默认 <仓库根>/userspace（已存在则 skip 保留）
+  · 演示数据默认从官网公开接口下载 data_demo.zip 并导入（约 22MB；会覆盖同名表）
+  · 下载过程在终端显示进度（有 Content-Length 时为百分比）
+
+常用示例
+  python install.py
+  python install.py --skip-demo-data
+  python install.py --accept-license
+  python install.py --db postgresql --db-host 127.0.0.1 --db-name ntq --db-user ntq --db-password secret
+  python install.py --if-needed
+
+跳过演示数据后若要补导：python cli.py id
+""".strip()
+
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="New Tea Quant CLI 安装（须先同意使用条款；可用参数指定 userspace / 数据库）"
+        prog="install.py",
+        description="New Tea Quant CLI 安装（须先同意使用条款；可用参数指定 userspace / 数据库）",
+        epilog=_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--accept-license",
         action="store_true",
-        help="非交互环境明示同意当前使用条款（否则只在终端里输入 y）",
+        help="非交互环境明示同意当前使用条款（默认：交互终端输入 y；也可用 NTQ_ACCEPT_LICENSE=1）",
     )
     parser.add_argument(
         "--if-needed",
         action="store_true",
-        help="仅在 CLI 未就绪时安装（cli.py 自动触发）。不带 --import-demo 则不导入演示数据",
+        help="仅在 CLI 未就绪时安装（cli.py 自动触发）。依赖变更只更新依赖；完整安装默认仍导入演示数据",
     )
     parser.add_argument(
-        "--import-demo",
+        "--skip-demo-data",
         action="store_true",
-        help="导入演示数据包（无本地 zip 则从官网下载；会覆盖同名表）",
+        help="跳过演示数据下载与导入（默认会从官网拉取并导入；跳过后可用 python cli.py id 补导）",
     )
     parser.add_argument(
         "--userspace",
         default=None,
-        help="userspace 路径（默认 <仓库根>/userspace）",
+        metavar="PATH",
+        help="userspace 路径（默认：<仓库根>/userspace）",
     )
     parser.add_argument(
         "--userspace-conflict",
         choices=("skip", "overwrite"),
         default=None,
-        help="目标路径已存在时：skip 保留当前目录 / overwrite 覆盖（默认 skip）",
+        help="目标路径已存在时：skip 保留 / overwrite 覆盖（默认：skip）",
     )
     parser.add_argument(
         "--db",
         choices=("duckdb", "postgresql", "mysql"),
         default=None,
-        help="数据库类型（默认 duckdb）",
+        help="数据库类型（默认：duckdb）",
     )
-    parser.add_argument("--db-host", default=None, help="PostgreSQL / MySQL host")
-    parser.add_argument("--db-port", default=None, help="PostgreSQL / MySQL port")
-    parser.add_argument("--db-name", default=None, help="PostgreSQL / MySQL 数据库名")
-    parser.add_argument("--db-user", default=None, help="PostgreSQL / MySQL 用户")
-    parser.add_argument("--db-password", default=None, help="PostgreSQL / MySQL 密码")
+    parser.add_argument("--db-host", default=None, metavar="HOST", help="PostgreSQL / MySQL host")
+    parser.add_argument("--db-port", default=None, metavar="PORT", help="PostgreSQL / MySQL port")
+    parser.add_argument(
+        "--db-name",
+        default=None,
+        metavar="NAME",
+        help="PostgreSQL / MySQL 数据库名",
+    )
+    parser.add_argument("--db-user", default=None, metavar="USER", help="PostgreSQL / MySQL 用户")
+    parser.add_argument(
+        "--db-password",
+        default=None,
+        metavar="PASS",
+        help="PostgreSQL / MySQL 密码",
+    )
     parser.add_argument(
         "--db-schema",
         default=None,
-        help="PostgreSQL schema（默认 public）",
+        metavar="SCHEMA",
+        help="PostgreSQL schema（默认：public）",
     )
     return parser.parse_args(argv)
 
 
 def _install_kwargs(args: argparse.Namespace) -> dict:
-    kwargs: dict = {"force": True}
+    kwargs: dict = {
+        "force": True,
+        "import_demo": not bool(args.skip_demo_data),
+    }
     if args.userspace is not None:
         kwargs["userspace"] = args.userspace
     if args.userspace_conflict is not None:
@@ -98,8 +133,6 @@ def _install_kwargs(args: argparse.Namespace) -> dict:
         kwargs["db_password"] = args.db_password
     if args.db_schema is not None:
         kwargs["db_schema"] = args.db_schema
-    if args.import_demo:
-        kwargs["import_demo"] = True
     return kwargs
 
 
@@ -156,7 +189,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if not _ensure_license(args):
         return 1
-    print("开始 CLI 安装…", flush=True)
+    demo_note = "跳过演示数据" if args.skip_demo_data else "含演示数据（官网下载）"
+    print(f"开始 CLI 安装…（{demo_note}）", flush=True)
     return _install(args, force=True)
 
 

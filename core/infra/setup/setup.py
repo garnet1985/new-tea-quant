@@ -115,7 +115,7 @@ class RuntimeNamespace:
         db_user: str | None = None,
         db_password: str | None = None,
         db_schema: str | None = None,
-        import_demo: bool = False,
+        import_demo: bool = True,
         deps_only: bool = False,
     ) -> None:
         from core.infra.setup.core.cli_install_options import CliInstallOptions

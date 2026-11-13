@@ -142,8 +142,20 @@ class PathNamespace:
         return PathManager.get_userspace_tmp_directory()
 
     @staticmethod
+    def get_packages_root() -> Path:
+        """静态数据包根目录：userspace/.ntq/packages/"""
+        from .path_manager import PathManager
+        return PathManager.get_packages_root()
+
+    @staticmethod
+    def get_data_package_directory(kind: str = "demo") -> Path:
+        """按类型返回数据包目录：packages/{demo|member|full}/"""
+        from .path_manager import PathManager
+        return PathManager.get_data_package_directory(kind)
+
+    @staticmethod
     def get_install_demo_package_directory() -> Path:
-        """演示安装包目录（导出 / 下载共用）"""
+        """演示安装包目录（packages/demo/；导出 / 下载共用）"""
         from .path_manager import PathManager
         return PathManager.get_install_demo_package_directory()
 

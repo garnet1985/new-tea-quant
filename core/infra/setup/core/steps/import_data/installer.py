@@ -2,7 +2,8 @@
 Init Data 导入流程（必跑步骤的执行体）。
 
 约定：
-- 数据包目录：userspace/.ntq/packages/install_demo/（与 ``devcli.py ex`` 共用）
+- 数据包目录：userspace/.ntq/packages/demo/（与 ``devcli.py ex --demo`` 共用；member/full 分目录缓存）
+- 导入成功后默认保留 zip/meta，仅清理解压目录；force 才重新下载
 - 导入逻辑目录：core/infra/setup/core/steps/import_data
 - 导入方式：目标表清空后，由数据库直接读 CSV（DuckDB read_csv / PostgreSQL COPY）
 """
@@ -109,15 +110,38 @@ class SetupDataInstaller:
 
         existing = self.discover_data_packages()
         if existing and not force_download:
+            from core.infra.setup.core.install_progress import begin_import_prepare
+
+            begin_import_prepare(detail="使用本地已下载的数据包…")
+            NewTeaQuantSetup.print_check_item(
+                "done",
+                f"使用本地已下载的数据包: {existing[0].name}",
+            )
             return existing[0]
+
+        from core.infra.setup.core.install_progress import (
+            begin_import_download,
+            begin_import_prepare,
+            fail_import,
+            finish_import_download,
+            tick_import_download,
+        )
 
         NewTeaQuantSetup.print_check_item(
             "running",
             "正在从官网下载演示数据包（公开，无需会员）…",
         )
+        begin_import_download()
         try:
-            path = download_install_demo(self.data_dir, force=force_download)
+            path = download_install_demo(
+                self.data_dir,
+                force=force_download,
+                on_progress=tick_import_download,
+            )
+            finish_import_download()
+            begin_import_prepare(detail="准备导入…")
         except InstallDemoError as exc:
+            fail_import(str(exc))
             raise RuntimeError(
                 f"{CmdLayout.icon.get('error')} 下载演示数据包失败: {exc}\n"
                 "请检查网络后重跑: python cli.py id\n"
@@ -200,11 +224,11 @@ class SetupDataInstaller:
         extract_root: Path,
         *,
         remove_extract: bool = True,
-        remove_package_files: bool = True,
+        remove_package_files: bool = False,
     ) -> None:
-        """导入成功后清理解压目录、进度文件，以及已入库的下载包（可再从官网拉取）。"""
+        """导入成功后清理解压目录与进度文件；默认保留 zip/meta 供重试与减压。"""
         from core.infra.setup.core.env import NewTeaQuantSetup
-        from core.infra.setup.core.scripts.init_data.config import (
+        from core.infra.setup.core.data_packages import (
             GIT_DATA_META_NAME,
             GIT_DATA_ZIP_NAME,
         )
@@ -213,6 +237,10 @@ class SetupDataInstaller:
             shutil.rmtree(extract_root, ignore_errors=True)
         self._clear_progress()
         if not remove_package_files:
+            NewTeaQuantSetup.print_check_item(
+                "done",
+                "已保留本地数据包（可在「设置 → 缓存管理」清理）",
+            )
             return
         removed: List[str] = []
         for name in (GIT_DATA_ZIP_NAME, GIT_DATA_META_NAME):
@@ -243,6 +271,14 @@ class SetupDataInstaller:
         data_dir = self.data_dir
         extract_root = data_dir / EXTRACT_SUBDIR
 
+        from core.infra.setup.core.install_progress import (
+            begin_import_prepare,
+            clear_import_progress,
+        )
+
+        # 避免上一轮成功导入的快照被安装页当成本次 100%。
+        clear_import_progress()
+        begin_import_prepare()
         self.ensure_demo_package(force_download=force)
         zips = self.discover_data_packages()
         if not zips:

@@ -422,6 +422,8 @@ class SetupRuntimeManager:
         return setup_session.new_state(definition)
 
     def _build_snapshot(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        from core.infra.setup.core.data_packages import describe_data_packages
+
         return {
             "sessionId": state.get("sessionId", ""),
             "version": int(state.get("version", 1)),
@@ -429,6 +431,7 @@ class SetupRuntimeManager:
             "stepStates": state.get("stepStates", []),
             "inputsByStep": state.get("inputsByStep", {}),
             "noticesByStep": state.get("noticesByStep", {}),
+            "dataPackages": describe_data_packages(),
         }
 
     def _load_state(self) -> Dict[str, Any]:

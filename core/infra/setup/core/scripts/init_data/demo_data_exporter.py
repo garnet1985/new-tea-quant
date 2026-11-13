@@ -35,8 +35,6 @@ from .config import (
     DEFAULT_START_QUARTER,
     EXCLUDED_GENERATED_TABLES,
     EXPORT_TABLES,
-    GIT_DATA_META_NAME,
-    GIT_DATA_ZIP_NAME,
     LIST_STATUS_LABELS,
     PACKAGE_NAME_PREFIX,
     REPO_ROOT,
@@ -46,6 +44,8 @@ from .config import (
     DateFilter,
     TableExportSpec,
     default_package_dir,
+    package_meta_name,
+    package_zip_name,
     require_package_dir,
 )
 from .stock_pool import (
@@ -293,17 +293,18 @@ def _write_data_meta(
 
 
 def _prune_stale_package_copies(package_dir: Path, keep_zip: Path) -> None:
-    """删除包目录下旧的 data_v* 副本，只保留固定 data_demo.zip。"""
+    """删除包目录下旧的 data_v* 副本，只保留当前固定 zip。"""
     if not package_dir.is_dir():
         return
     keep = keep_zip.resolve()
+    keep_name = keep_zip.name
     for pattern in ("data_v*.zip", "data_*.zip"):
         for p in package_dir.glob(pattern):
             if p.resolve() == keep:
                 continue
             if p.name.startswith("example_"):
                 continue
-            if p.name == GIT_DATA_ZIP_NAME:
+            if p.name == keep_name:
                 continue
             try:
                 p.unlink()
@@ -474,17 +475,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=Path,
-        help=f"输出 zip 完整路径（默认 userspace/.ntq/packages/install_demo/{GIT_DATA_ZIP_NAME}）",
+        help="输出 zip 完整路径（默认 userspace/.ntq/packages/{demo|member|full}/data_*.zip）",
     )
     parser.add_argument(
         "--export-dir",
         type=Path,
-        help="输出目录（默认 userspace/.ntq/packages/install_demo/；与 -o 二选一）",
+        help="输出目录（默认 userspace/.ntq/packages/{demo|member|full}/；与 -o 二选一）",
     )
     parser.add_argument(
         "--tagged",
         action="store_true",
-        help="除 data_demo.zip 外，再写一份 data_v{version}_{n}_{from}_{to}.zip（勿提交 Git）",
+        help="除固定 data_*.zip 外，再写一份 data_v{version}_{n}_{from}_{to}.zip（勿提交 Git）",
     )
     parser.add_argument("--tables", help="逗号分隔逻辑表名，覆盖 config.EXPORT_TABLES")
     parser.add_argument(
@@ -626,11 +627,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             package_dir = (
                 Path(args.export_dir).expanduser().resolve()
                 if args.export_dir
-                else require_package_dir()
+                else require_package_dir(preset)
             )
             package_dir.mkdir(parents=True, exist_ok=True)
-            output_zip = package_dir / GIT_DATA_ZIP_NAME
-            write_package_sidecar = package_dir.resolve() == default_package_dir().resolve()
+            output_zip = package_dir / package_zip_name(preset)
+            write_package_sidecar = (
+                package_dir.resolve() == default_package_dir(preset).resolve()
+            )
     except RuntimeError as exc:
         logger.error("%s", exc)
         return 1
@@ -659,7 +662,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if write_package_sidecar:
             _write_data_meta(
-                meta_path=package_dir / GIT_DATA_META_NAME,
+                meta_path=package_dir / package_meta_name(preset),
                 core_version=core_version,
                 stock_count=len(stock_ids),
                 start_date=start_date,
@@ -673,8 +676,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 logger.info("已额外写入带版本号文件 %s（勿提交 Git）", tagged_name)
             logger.info(
                 "请将 %s 与 %s 手动复制到官网 ntq_data/assets/install/ 并部署",
-                GIT_DATA_ZIP_NAME,
-                GIT_DATA_META_NAME,
+                package_zip_name(preset),
+                package_meta_name(preset),
             )
     except Exception as e:
         logger.error("%s", e)

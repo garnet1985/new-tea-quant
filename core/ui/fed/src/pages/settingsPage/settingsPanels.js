@@ -48,6 +48,7 @@ import {
 import {
   getImportDataProgress,
   getMlExtrasStatus,
+  getSetupStatus,
   importDemoData,
   installMlExtras,
   resetSetupStatus,
@@ -70,6 +71,7 @@ export function SettingsSystemPanel() {
   const [importError, setImportError] = useState('');
   const [importOk, setImportOk] = useState('');
   const [importProgress, setImportProgress] = useState(null);
+  const [demoPackageHint, setDemoPackageHint] = useState('');
   const fakePercent = useFakeProgress(installing, 8);
 
   const loadMlStatus = useCallback(() => {
@@ -83,9 +85,26 @@ export function SettingsSystemPanel() {
       });
   }, []);
 
+  const loadDemoPackageHint = useCallback(() => {
+    return getSetupStatus()
+      .then((status) => {
+        const demo = status?.dataPackages?.packages?.demo;
+        if (demo?.present) {
+          const size = demo.sizeLabel ? `（${demo.sizeLabel}）` : '';
+          setDemoPackageHint(`本地已有演示数据包${size}，导入时无需重新下载。`);
+        } else {
+          setDemoPackageHint('本地尚无演示数据包，导入时将从官网下载。');
+        }
+      })
+      .catch(() => {
+        setDemoPackageHint('');
+      });
+  }, []);
+
   useEffect(() => {
     loadMlStatus();
-  }, [loadMlStatus]);
+    loadDemoPackageHint();
+  }, [loadMlStatus, loadDemoPackageHint]);
 
   useEffect(() => {
     if (!importing) return undefined;
@@ -129,6 +148,7 @@ export function SettingsSystemPanel() {
       await importDemoData();
       setImportOpen(false);
       setImportOk('演示数据已导入。');
+      loadDemoPackageHint();
     } catch (err) {
       setImportError(err?.message || '演示数据导入失败，请稍后重试。');
     } finally {
@@ -152,11 +172,16 @@ export function SettingsSystemPanel() {
 
   const mlInstalled = Boolean(mlStatus?.installed);
   const importBusy = importing || reinstalling;
-  const importProgressText = importProgress?.totalTables
-    ? `正在导入 ${importProgress.completedCount}/${importProgress.totalTables}${
-      importProgress.currentTable ? `：${importProgress.currentTable}` : ''
-    }`
-    : '正在导入演示数据…';
+  const importProgressText = !importProgress?.running
+    ? '正在导入演示数据…'
+    : (importProgress.phase === 'downloading' || importProgress.phase === 'preparing')
+      ? (importProgress.statusText
+        || (importProgress.phase === 'downloading' ? '数据下载中…' : '准备导入…'))
+      : importProgress.totalTables
+        ? `正在导入 ${importProgress.completedCount}/${importProgress.totalTables}${
+          importProgress.currentTable ? `：${importProgress.currentTable}` : ''
+        }`
+        : '正在导入演示数据…';
 
   return (
     <Stack spacing={2}>
@@ -219,6 +244,11 @@ export function SettingsSystemPanel() {
       <Typography variant="body2" color="text.secondary">
         安装时如果跳过了演示数据，可以在这里导入。导入会清空数据包中的表再写入，可能覆盖已有数据。
       </Typography>
+      {demoPackageHint ? (
+        <Typography variant="body2" color="text.secondary">
+          {demoPackageHint}
+        </Typography>
+      ) : null}
       {importError ? <Alert severity="error">{importError}</Alert> : null}
       {importOk ? <Alert severity="success">{importOk}</Alert> : null}
       {importing ? (
@@ -249,6 +279,7 @@ export function SettingsSystemPanel() {
         <DialogContent>
           <DialogContentText>
             演示数据包里的表会被清空后重写，可能覆盖已有行情。请先退出其他正在使用这个数据库的程序，再继续。
+            {demoPackageHint ? ` ${demoPackageHint}` : ''}
           </DialogContentText>
           {importError ? (
             <Alert severity="error" sx={{ mt: 2 }}>{importError}</Alert>
@@ -580,7 +611,12 @@ const CACHE_OPTIONS = [
   {
     key: 'clear_userspace_ntq',
     label: '用户空间缓存清理',
-    hint: '删除 userspace/.ntq/（进度、pipeline 租约、tmp 等）。不含仓库根 .ntq/。',
+    hint: '删除 userspace/.ntq/（进度、pipeline 租约、tmp 等）。不含仓库根 .ntq/。勾选此项时已包含下方静态数据包。',
+  },
+  {
+    key: 'clear_static_packages',
+    label: '静态数据包清理',
+    hint: '删除 userspace/.ntq/packages/ 下已下载的 demo / member / full 数据包。下次导入需重新下载。',
   },
 ];
 
@@ -588,6 +624,7 @@ const DEFAULT_CACHE_SELECTION = {
   clear_backtest_results: true,
   clear_scan_results: true,
   clear_userspace_ntq: true,
+  clear_static_packages: false,
 };
 
 export function SettingsCachePanel() {

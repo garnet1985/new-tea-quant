@@ -183,6 +183,8 @@ export async function getImportDataProgress() {
   });
   return {
     running: Boolean(json?.message?.running),
+    phase: String(json?.message?.phase || ''),
+    statusText: String(json?.message?.statusText || ''),
     totalTables: Number(json?.message?.totalTables || 0),
     completedCount: Number(json?.message?.completedCount || 0),
     currentTable: json?.message?.currentTable || '',

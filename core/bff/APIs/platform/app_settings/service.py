@@ -221,6 +221,7 @@ def run_cache_clear(payload: Dict[str, Any]) -> Dict[str, Any]:
         clear_backtest_results=_flag("clear_backtest_results"),
         clear_scan_results=_flag("clear_scan_results"),
         clear_userspace_ntq=_flag("clear_userspace_ntq"),
+        clear_static_packages=_flag("clear_static_packages"),
     )
 
 

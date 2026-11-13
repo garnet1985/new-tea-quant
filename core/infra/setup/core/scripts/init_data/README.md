@@ -12,7 +12,7 @@ python devcli.py ex --full       # 全市场全历史
 python -m core.infra.setup.core.scripts.init_data --help
 ```
 
-默认写入 **`userspace/.ntq/packages/install_demo/data_demo.zip`**（与安装下载共用；userspace 须已存在）。
+默认按预设写入 **`userspace/.ntq/packages/{demo|member|full}/data_*.zip`**（与安装下载共用；userspace 须已存在）。
 安装下载源在官网 `ntq_data/assets/install/`——导出后请手动复制 zip + meta 到该目录并部署。
 
 可选 `python devcli.py ex --demo --tagged` 额外生成 `data_v*` 副本。

@@ -76,14 +76,16 @@
 - **引入版本：** `0.5.0`
 - **描述：** `userspace/system/backup/data/`
 
-#### get_install_demo_package_directory
+#### get_packages_root / get_data_package_directory / get_install_demo_package_directory
 
+`ProjectContext.path.get_packages_root() -> Path`  
+`ProjectContext.path.get_data_package_directory(kind="demo") -> Path`  
 `ProjectContext.path.get_install_demo_package_directory() -> Path`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.2.1`
-- **描述：** `userspace/.ntq/packages/install_demo/`（`devcli.py ex` 导出与安装下载共用）
+- **引入版本：** `0.2.1`（分类型目录为后续增补）
+- **描述：** `userspace/.ntq/packages/`；`packages/{demo|member|full}/`；`get_install_demo_package_directory` 等同 `get_data_package_directory("demo")`（`devcli.py ex` 导出与安装下载共用）
 
 #### get_strategies_root / get_tags_root / get_series_relation_root
 

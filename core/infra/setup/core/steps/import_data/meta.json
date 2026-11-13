@@ -1,7 +1,7 @@
 {
   "id": "import_data",
-  "name": "导入演示数据",
-  "description": "userspace 与数据库就绪后，可选从官网下载并导入演示数据。跳过后可自行接入数据源。",
+  "name": "演示数据",
+  "description": "可选导入公开演示包（约 300 只股票 × 三年），或稍候注册会员后再导入全市场数据。",
   "scriptEntry": "core/infra/setup/core/steps/import_data/install.py",
   "requiresUserInput": true,
   "optional": true,

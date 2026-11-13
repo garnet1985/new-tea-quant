@@ -81,3 +81,15 @@
   min-width: 0;
 }
 
+.setup-choice-card__option {
+  border-radius: 8px;
+
+  .MuiCardActionArea-root {
+    min-height: 140px;
+  }
+
+  .MuiCardActionArea-root:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+}
+

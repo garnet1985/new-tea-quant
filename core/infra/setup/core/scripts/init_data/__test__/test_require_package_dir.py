@@ -33,5 +33,9 @@ def test_require_package_dir_creates_package_folder(tmp_path: Path, monkeypatch)
     ProjectContext.cache.clear_userspace_cache()
     monkeypatch.setattr(PathManager, "_userspace_cache", us)
     out = require_package_dir()
-    assert out == us / ".ntq" / "packages" / "install_demo"
+    assert out == us / ".ntq" / "packages" / "demo"
     assert out.is_dir()
+
+    member = require_package_dir("member")
+    assert member == us / ".ntq" / "packages" / "member"
+    assert member.is_dir()

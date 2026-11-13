@@ -276,10 +276,34 @@ class PathManager:
         """获取临时目录：userspace/.ntq/tmp/"""
         return PathManager.get_userspace_ntq_directory() / "tmp"
 
+    # 静态数据包：demo / member / full（导出、下载、导入共用）
+    DATA_PACKAGE_KINDS = ("demo", "member", "full")
+    _LEGACY_DEMO_PACKAGE_DIR = "install_demo"
+
+    @staticmethod
+    def get_packages_root() -> Path:
+        """静态数据包根目录：userspace/.ntq/packages/"""
+        return PathManager.get_userspace_ntq_directory() / "packages"
+
+    @staticmethod
+    def get_data_package_directory(kind: str = "demo") -> Path:
+        """按类型返回数据包目录：userspace/.ntq/packages/{demo|member|full}/。"""
+        key = str(kind or "demo").strip().lower() or "demo"
+        if key not in PathManager.DATA_PACKAGE_KINDS:
+            raise ValueError(
+                f"未知数据包类型: {kind!r}（可选: {', '.join(PathManager.DATA_PACKAGE_KINDS)}）"
+            )
+        return PathManager.get_packages_root() / key
+
+    @staticmethod
+    def get_legacy_install_demo_package_directory() -> Path:
+        """旧演示包目录：userspace/.ntq/packages/install_demo/（只读兼容）。"""
+        return PathManager.get_packages_root() / PathManager._LEGACY_DEMO_PACKAGE_DIR
+
     @staticmethod
     def get_install_demo_package_directory() -> Path:
-        """演示安装包目录：userspace/.ntq/packages/install_demo/（导出与下载共用）。"""
-        return PathManager.get_userspace_ntq_directory() / "packages" / "install_demo"
+        """演示安装包目录（canonical：packages/demo/；导出与下载共用）。"""
+        return PathManager.get_data_package_directory("demo")
 
     # ========== 策略相关路径 ==========
 

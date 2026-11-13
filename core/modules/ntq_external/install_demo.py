@@ -67,12 +67,14 @@ def download_install_demo(
     force: bool = False,
     timeout_sec: float = _DEFAULT_TIMEOUT_SEC,
     show_progress: Optional[bool] = None,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> Path:
     """
     确保 ``dest_dir/data_demo.zip`` 存在。
 
     已存在且 ``force=False`` 时直接返回现有路径；否则从官网下载并可选校验 sha256。
     ``show_progress`` 默认：stdout 为 TTY 时显示下载进度。
+    ``on_progress(read, total)`` 可选；``total`` 可能为 ``None``。
     """
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -104,20 +106,30 @@ def download_install_demo(
 
     if show_progress is None:
         show_progress = sys.stdout.isatty()
-    on_progress: Optional[ProgressCallback] = (
-        _print_download_progress if show_progress else None
-    )
+    progress_cbs: list[ProgressCallback] = []
+    if show_progress:
+        progress_cbs.append(_print_download_progress)
+    if on_progress is not None:
+        progress_cbs.append(on_progress)
+
+    def _emit(read: int, total: Optional[int]) -> None:
+        for cb in progress_cbs:
+            cb(read, total)
+
+    emit: Optional[ProgressCallback] = _emit if progress_cbs else None
 
     logger.info("下载演示安装包: %s → %s", url, target)
     if show_progress:
         size_hint = f"（约 {expected_bytes / (1024 * 1024):.1f} MB）" if expected_bytes else ""
         print(f"  正在下载演示数据包{size_hint}…", flush=True)
+    if emit is not None and expected_bytes:
+        emit(0, expected_bytes)
 
     try:
         payload = _http_get_bytes(
             url,
             timeout_sec=timeout_sec,
-            on_progress=on_progress,
+            on_progress=emit,
             content_length_hint=expected_bytes,
         )
     except InstallDemoError:

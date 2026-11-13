@@ -167,7 +167,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 导出演示数据包到 `userspace/.ntq/packages/install_demo/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`
+- **描述：** 导出安装/会员数据包到 `userspace/.ntq/packages/install_demo/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`（需 `--demo` / `--member` / `--full`；无参数只打印帮助）
 
 ---
 

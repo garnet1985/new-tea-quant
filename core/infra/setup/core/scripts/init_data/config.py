@@ -1,14 +1,18 @@
 """
 演示数据导出配置。
 
-``python devcli.py ex`` 默认行为（本文件为唯一配置源）：
-- 股票池：``TARGET_STOCK_COUNT > 0`` 时分层抽样（默认 **300**）；``<= 0`` 为全市场
-- 时序日期窗：**20230101** ~ **20251231**（``DEFAULT_START_DATE`` / ``DEFAULT_END_DATE``，约三年）
-- 季度窗：**2023Q1** ~ **2025Q4**（财报等季度表）
-- 输出（本地）：``userspace/.ntq/packages/install_demo/data_demo.zip``（与安装下载共用）
-- 安装下载源：官网 ``ntq_data/assets/install/``（导出后手动复制上去）
-- 可选 ``--tagged``：额外写一份带版本号的 ``data_v*`` 副本（不提交 Git）
-- 仅导出行情/财报/宏观等**数据表**；不含 cache、meta、tag、工作台快照等运行时生成表
+``python devcli.py ex`` 需指定预设（本文件为日期/抽样默认值的唯一配置源）：
+
+- ``--demo``：分层抽样 ``TARGET_STOCK_COUNT``（默认 **300**）+ 默认日期窗
+- ``--member``：全市场 + 默认日期窗（会员安装包）
+- ``--full``：全市场 + 忽略日期窗（全历史）
+- 无参数：只显示帮助，不导出
+
+日期窗默认：**20230101** ~ **20251231**；季度窗：**2023Q1** ~ **2025Q4**。
+输出：``userspace/.ntq/packages/install_demo/data_demo.zip``（与安装下载共用）。
+安装下载源：官网 ``ntq_data/assets/install/``（导出后手动复制上去）。
+可选 ``--tagged``：额外写一份带版本号的 ``data_v*`` 副本（不提交 Git）。
+仅导出行情/财报/宏观等**数据表**；不含 cache、meta、tag、工作台快照等运行时生成表。
 """
 from __future__ import annotations
 

@@ -165,8 +165,13 @@ class DevHandlers:
     @staticmethod
     def cmd_data_export_init(args: argparse.Namespace) -> int:
         from core.infra.setup import Setup
+        from core.infra.setup.core.scripts.init_data.demo_data_exporter import (
+            normalize_ex_argv,
+        )
 
-        return Setup.artifacts.export_demo_data(list(getattr(args, "forward", None) or []))
+        return Setup.artifacts.export_demo_data(
+            normalize_ex_argv(getattr(args, "forward", None) or [])
+        )
 
     @staticmethod
     def cmd_userspace_package(args: argparse.Namespace) -> int:

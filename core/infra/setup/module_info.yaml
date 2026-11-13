@@ -1,5 +1,5 @@
 name: infra.setup
-version: "0.1.2"
+version: "0.1.3"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "安装域：venv/依赖/userspace/演示数据与 CLI·UI 安装编排。产物工厂与安装步骤均属本模块；CLI 只调用门面。"
@@ -13,6 +13,11 @@ dependencies:
   - infra.utils
   - modules.ntq_external
 changelog:
+  - version: "0.1.3"
+    changes:
+      - devcli ex 改为预设模式：--demo / --member / --full；无参数只显示帮助
+      - 旧「忽略日期窗」参数更名为 --no-date-filter（--full 预设已隐含）
+
   - version: "0.1.2"
     changes:
       - 导入演示数据时若本地无 zip，从官网公开接口下载（不再随仓发布 data_demo.zip）

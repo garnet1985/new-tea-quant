@@ -58,6 +58,7 @@ class UserCommands:
             "export_strategy",
             "import_strategy",
             "import_data",
+            "auth",
             "update",
             "version",
         }
@@ -86,6 +87,7 @@ class UserCommands:
             "export_strategy",
             "import_strategy",
             "import_data",
+            "auth",
         }
     )
 

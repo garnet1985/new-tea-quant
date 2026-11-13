@@ -45,15 +45,15 @@ class ScanDateResolver:
         cal_svc = getattr(getattr(data_manager, "service", None), "calendar", None)
         kline_latest = ScanDateResolver.load_kline_latest_date(data_manager)
 
-        configured_as_of = ""
+        assumed_latest = ""
         try:
             from core.infra.project_context import ProjectContext
 
-            configured_as_of = str(
-                ProjectContext.config.get_as_of_latest_completed_trading_date() or ""
+            assumed_latest = str(
+                ProjectContext.config.get_assumed_latest_completed_trading_date() or ""
             ).strip()
         except Exception:
-            configured_as_of = ""
+            assumed_latest = ""
 
         raw_anchor = ""
         source = ""
@@ -65,7 +65,7 @@ class ScanDateResolver:
                 use_strict=use_strict,
                 raw_anchor="",
                 kline_latest=kline_latest,
-                configured_as_of=configured_as_of,
+                assumed_latest=assumed_latest,
                 source="unavailable",
                 source_detail="calendar service 不可用，无法解析扫描日",
             )
@@ -89,16 +89,16 @@ class ScanDateResolver:
                 raw_anchor = str(
                     DataSourceManager.resolve_freshness_end_date(data_manager) or ""
                 ).strip()
-                if configured_as_of:
-                    source = "data_json_as_of"
+                if assumed_latest:
+                    source = "data_json_assumed_latest"
                     source_detail = (
-                        "非严格模式：data.json 的 as_of_latest_completed_trading_date="
-                        f"{configured_as_of}，经交易日历对齐为 {raw_anchor or '空'}"
+                        "非严格模式：data.json 的 assumed_latest_completed_trading_date="
+                        f"{assumed_latest}，经交易日历对齐为 {raw_anchor or '空'}"
                     )
                 else:
                     source = "freshness_latest_completed"
                     source_detail = (
-                        "非严格模式：未配置 data.json 截断，按 freshness/"
+                        "非严格模式：未配置 assumed_latest，按 freshness/"
                         f"最新完整交易日解析 → {raw_anchor or '空'}"
                     )
         except Exception as exc:
@@ -108,7 +108,7 @@ class ScanDateResolver:
                 use_strict=use_strict,
                 raw_anchor="",
                 kline_latest=kline_latest,
-                configured_as_of=configured_as_of,
+                assumed_latest=assumed_latest,
                 source="error",
                 source_detail=f"解析扫描锚点失败: {exc}",
             )
@@ -118,7 +118,7 @@ class ScanDateResolver:
             use_strict=use_strict,
             raw_anchor=raw_anchor,
             kline_latest=kline_latest,
-            configured_as_of=configured_as_of,
+            assumed_latest=assumed_latest,
             source=source,
             source_detail=source_detail,
         )
@@ -130,7 +130,7 @@ class ScanDateResolver:
         use_strict: bool,
         raw_anchor: str,
         kline_latest: str,
-        configured_as_of: str,
+        assumed_latest: str,
         source: str,
         source_detail: str,
     ) -> Dict[str, Any]:
@@ -160,7 +160,7 @@ class ScanDateResolver:
             "mode_label": "严格模式" if use_strict else "非严格模式",
             "raw_anchor": str(raw_anchor or "").strip(),
             "kline_latest": str(kline_latest or "").strip(),
-            "configured_as_of": str(configured_as_of or "").strip(),
+            "assumed_latest_completed_trading_date": str(assumed_latest or "").strip(),
             "clamped_to_kline": clamped,
             "source": source,
             "source_detail": source_detail,

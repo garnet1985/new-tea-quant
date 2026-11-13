@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from core.modules.data_source.core.enums import TermType, UpdateMode
-from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.core.service.renew.renew_common_helper import RenewCommonHelper
 from core.infra.utils import Utils
@@ -171,8 +170,9 @@ def calc_last_update_based_on_renew_mode(
             data_manager, date_format, context
         )
     except Exception:  # pragma: no cover - 防御性兜底
-        # 极端情况下回退到全局配置
-        default_start_date = ProjectContext.config.get_default_start_date()
+        from core.infra.project_context import ProjectContext
+
+        default_start_date = str(ProjectContext.config.get_default_start_date() or "").strip()
 
     # REFRESH：全量刷新，直接从默认起点开始
     if renew_mode == UpdateMode.REFRESH:

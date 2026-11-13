@@ -26,7 +26,7 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `configured_as_of` | string \| null | `data.json` 的 `as_of_latest_completed_trading_date` |
+| `assumed_latest_completed_trading_date` | string \| null | `data.json` 假定最新已完成交易日（扫描/回测用；不裁 renew） |
 | `effective_end_date` | string \| null | 实际用于评估的截至日（YYYYMMDD） |
 | `is_end_date_truncated` | boolean | 是否配置了 as-of 截断 |
 | `truncation_hint` | string | 截断时 UI 提示文案 |

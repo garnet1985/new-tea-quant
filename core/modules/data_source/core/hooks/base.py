@@ -30,9 +30,12 @@ class DataSourceHooks:
         if not data_manager:
             return context
         try:
-            context["latest_completed_trading_date"] = (
-                data_manager.service.calendar.get_latest_completed_trading_date()
+            # renew 截止跟真实日历，不读 assumed_latest_completed_trading_date
+            from core.modules.data_source.core.service.renew_progress import (
+                resolve_uptodate_day,
             )
+
+            context["latest_completed_trading_date"] = resolve_uptodate_day(data_manager)
         except Exception:
             pass
         return context

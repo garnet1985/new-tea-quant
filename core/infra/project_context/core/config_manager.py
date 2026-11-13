@@ -578,22 +578,18 @@ class ConfigManager:
         return key
 
     @staticmethod
-    def get_as_of_latest_completed_trading_date() -> Optional[str]:
-        """
-        data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。
-
-        配置为 ``null`` / 缺省时返回 ``None``（允许未截断）；非空但非法则报错。
-        """
+    def get_assumed_latest_completed_trading_date() -> Optional[str]:
+        """data.json ``assumed_latest_completed_trading_date``（扫描/回测假定最新日；不裁 renew）。"""
         data_config = ConfigManager.load_data_config()
-        if "as_of_latest_completed_trading_date" not in data_config:
+        if "assumed_latest_completed_trading_date" not in data_config:
             return None
-        raw = data_config.get("as_of_latest_completed_trading_date")
+        raw = data_config.get("assumed_latest_completed_trading_date")
         if raw is None or str(raw).strip() == "":
             return None
         s = str(raw).strip().replace("-", "")[:8]
         if len(s) != 8 or not s.isdigit():
             raise ValueError(
-                "data.json as_of_latest_completed_trading_date 必须是 YYYYMMDD "
+                "data.json assumed_latest_completed_trading_date 必须是 YYYYMMDD "
                 f"或 null，收到: {raw!r}"
             )
         return s

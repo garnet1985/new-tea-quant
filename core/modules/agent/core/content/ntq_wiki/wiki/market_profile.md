@@ -53,7 +53,7 @@ summary: A 股涨跌停、手数、日历等交易制度；策略按 market_prof
 
 最近已完成交易日的解析顺序：
 
-1. `data.json` 里配置的 `as_of_latest_completed_trading_date`
+1. `data.json` 里配置的 `assumed_latest_completed_trading_date`
 2. 日历表
 3. 实时抓取（新浪 → 东方财富）
 4. K 线最大日期

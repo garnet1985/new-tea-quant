@@ -529,7 +529,7 @@ function Scan() {
                       以数据集中已有最新日期作为扫描截止日（当前：
                       {' '}
                       <strong>{contextLoading ? '…' : demoCutoffLabel}</strong>
-                      {!contextLoading && dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
+                      {!contextLoading && dataEnd.is_end_date_truncated ? '，受当前会员档下载区间约束' : ''}
                       ），用于演示链路，不代表实时市场。
                     </Typography>
                   </Box>

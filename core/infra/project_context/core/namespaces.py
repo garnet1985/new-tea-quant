@@ -445,23 +445,14 @@ class ConfigNamespace:
     """配置管理命名空间"""
 
     @staticmethod
-    def get_as_of_latest_completed_trading_date() -> Optional[str]:
-        """
-        data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。
-
-        配置后 ``CalendarService.get_latest_completed_trading_date`` 直接返回该值。
-        """
+    def get_assumed_latest_completed_trading_date() -> Optional[str]:
+        """扫描/回测假定最新已完成交易日；不裁 renew 截止。见 docs/DATA_JSON.md。"""
         from .config_manager import ConfigManager
-        return ConfigManager.get_as_of_latest_completed_trading_date()
+        return ConfigManager.get_assumed_latest_completed_trading_date()
 
     @staticmethod
     def get_default_start_date() -> str:
-        """
-        获取默认开始日期
-
-        Returns:
-            默认开始日期字符串（格式：YYYYMMDD）
-        """
+        """全局历史地板（空表 renew、回测默认 start 等）。见 docs/DATA_JSON.md。"""
         from .config_manager import ConfigManager
         return ConfigManager.get_default_start_date()
 

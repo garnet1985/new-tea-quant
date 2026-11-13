@@ -1,14 +1,14 @@
-"""已经更新到的数据日期：只往前推，每个周期单独保留，会员窗口再截一次。"""
+"""已经更新到的数据日期：只往前推，每个周期单独保留。"""
 
 from core.modules.data_source.core.service.renew_progress import (
     _rows_need_backfill,
-    apply_member_cap,
     fold_progress,
     keep_forward,
     last_updates_for,
     plain_date,
     remember_settled,
     remember_written_rows,
+    resolve_uptodate_day,
 )
 
 
@@ -26,11 +26,12 @@ def test_keep_forward_does_not_move_backward():
     assert keep_forward("20251231", "") == "20251231"
 
 
-def test_member_cap_keeps_an_earlier_as_of_and_clips_a_later_day():
-    assert apply_member_cap("20260101", "20251231") == "20251231"
-    assert apply_member_cap("20240101", "20251231") == "20240101"
-    assert apply_member_cap("20261016", None) == "20261016"
-    assert apply_member_cap("", "20251231") == "20251231"
+def test_resolve_uptodate_day_is_calendar_only(monkeypatch):
+    monkeypatch.setattr(
+        "core.modules.data_source.core.service.renew_progress.sync_market_day",
+        lambda _dm: "20260301",
+    )
+    assert resolve_uptodate_day(None) == "20260301"
 
 
 class _MarkedProgress:
@@ -148,6 +149,9 @@ class _Fact:
 
 
 class _Config:
+    def __init__(self, terms=None):
+        self._terms = terms
+
     def get_date_field(self):
         return "date"
 
@@ -160,15 +164,18 @@ class _Config:
     def get_group_by_key(self):
         return "id"
 
+    def get_group_by_terms(self):
+        return list(self._terms) if self._terms is not None else None
+
     def get_table_name(self):
         return "sys_data_stock_klines"
 
 
 class _Handler:
-    def __init__(self, progress, dry_run=False):
+    def __init__(self, progress, dry_run=False, terms=None):
         self.progress_model = progress
         self.context = {
-            "config": _Config(),
+            "config": _Config(terms=terms),
             "data_manager": self,
             "is_dry_run": dry_run,
         }
@@ -211,6 +218,20 @@ def test_settled_date_fills_a_term_that_had_no_rows():
         ("daily", "20251231"),
         ("weekly", "20251231"),
         ("monthly", "20251231"),
+    }
+
+
+def test_settled_date_uses_configured_terms_only():
+    progress = _Progress()
+    remember_settled(
+        _Handler(progress, terms=["daily", "weekly"]),
+        "000001.SZ",
+        "20251231",
+    )
+    saved = {(row["term"], row["last_update_date"]) for row in progress.saved}
+    assert saved == {
+        ("daily", "20251231"),
+        ("weekly", "20251231"),
     }
 
 

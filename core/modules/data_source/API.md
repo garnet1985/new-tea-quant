@@ -55,7 +55,7 @@
 `DataSourceManager.get_data_end_meta_light() -> dict`（staticmethod）
 
 - **状态：** `beta`
-- **描述：** 数据截断 / 有效结束日（供 scan UI）；对齐 `data.json` as_of 与交易日历。跨模块入口，勿 deep-import `catalog.freshness_probe`
+- **描述：** 有效结束日摘要（供 scan UI）：renew 截止走真实日历；`assumed_latest_completed_trading_date` 仅作计算侧展示。跨模块入口，勿 deep-import `catalog.freshness_probe`
 
 ### catalog / provider（跨模块辅助）
 

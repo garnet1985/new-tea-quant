@@ -33,7 +33,6 @@ def test_pull_prints_the_page_it_is_waiting_on(capsys, monkeypatch):
             }
 
     handler = _Handler()
-    monkeypatch.setattr(official_sync, "_cap_end", lambda end: end)
     official_sync._upsert = lambda handler, table, rows: None
     saved = official_sync._pull(handler, "sys_data_cpi", "20230101", "20251231")
     text = capsys.readouterr().out
@@ -90,7 +89,6 @@ def _entity_handler(provider):
 def test_entities_are_pulled_one_stock_at_a_time(capsys, monkeypatch):
     from core.modules.data_source.core.service import official_sync
 
-    monkeypatch.setattr(official_sync, "_cap_end", lambda end: end)
     monkeypatch.setattr(official_sync, "_upsert", lambda handler, table, rows: None)
     provider = _EntityProvider({
         "files": [],
@@ -117,7 +115,6 @@ def test_entities_are_pulled_one_stock_at_a_time(capsys, monkeypatch):
 def test_plan_imports_the_cache_and_keeps_the_early_stock(capsys, monkeypatch):
     from core.modules.data_source.core.service import official_sync
 
-    monkeypatch.setattr(official_sync, "_cap_end", lambda end: end)
     monkeypatch.setattr(official_sync, "_import_snapshot", lambda handler, provider, table, path: 9)
     provider = _EntityProvider({
         "files": [{"path": "/api/recent.csv.gz", "from": "20260920", "through": "20261014"}],
@@ -181,16 +178,16 @@ def test_busy_slot_is_waited_out_past_a_handful_of_retries(monkeypatch):
     assert calls["timeout"] == 120.0
 
 
-def test_a_range_past_the_member_window_is_not_pulled(capsys, monkeypatch):
+def test_inverted_range_is_skipped(capsys, monkeypatch):
     from core.modules.data_source.core.service import official_sync
 
-    monkeypatch.setattr(official_sync, "_cap_end", lambda end: "20251231" if end else end)
+    monkeypatch.setattr(official_sync, "_upsert", lambda handler, table, rows: None)
     provider = _EntityProvider({"files": [], "stocks": []})
     handler = _entity_handler(provider)
-    saved = official_sync.pull_entities(handler, [_Job("000001.SZ", "20261016", "20261016")])
+    saved = official_sync.pull_entities(handler, [_Job("000001.SZ", "20261016", "20261010")])
     assert saved == 0
     assert provider.asked is None
-    assert "已到会员窗口" in capsys.readouterr().out
+    assert "无需更新" in capsys.readouterr().out
 
 
 def test_empty_range_does_not_count_as_finished(monkeypatch):

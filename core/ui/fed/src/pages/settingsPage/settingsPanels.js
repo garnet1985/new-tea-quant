@@ -440,10 +440,10 @@ export function SettingsDataPanel({
   saveOk,
   saving,
   defaultStartDate,
-  asOfLatestCompletedDate,
+  assumedLatestCompletedDate,
   simulationResultsMaxStaleEnvs,
   onDefaultStartDateChange,
-  onAsOfLatestCompletedDateChange,
+  onAssumedLatestCompletedDateChange,
   onSimulationResultsMaxStaleEnvsChange,
   onSave,
   onReload,
@@ -530,16 +530,16 @@ export function SettingsDataPanel({
             value={defaultStartDate}
             onChange={(e) => onDefaultStartDateChange(e.target.value)}
             placeholder="20080101"
-            helperText="YYYYMMDD；更新/拉数的下界。库中更早没有数据时，实际仍从库内最早日开始。"
+            helperText="YYYYMMDD；空表 renew 与回测默认起点的全局地板。"
           />
           <TextField
-            label="截至日期（as-of）"
+            label="假定最新已完成交易日"
             size="small"
             fullWidth
-            value={asOfLatestCompletedDate}
-            onChange={(e) => onAsOfLatestCompletedDateChange(e.target.value)}
-            placeholder="留空表示不截断"
-            helperText="截断 Tag/策略与数据源状态评估的上界；留空则用实时最新已完成交易日。不能超过库内已有行情。"
+            value={assumedLatestCompletedDate}
+            onChange={(e) => onAssumedLatestCompletedDateChange(e.target.value)}
+            placeholder="留空表示跟真实日历"
+            helperText="扫描/回测假定的「今天」。留空则用实时最新已完成交易日。不裁剪日常数据续传截止。"
           />
           <Box id="settings-retention">
             <TextField

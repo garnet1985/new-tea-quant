@@ -504,7 +504,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         validate_csv_columns(df.columns)
 
         default_start = ProjectContext.config.get_default_start_date() or ""
-        as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
+        assumed = ProjectContext.config.get_assumed_latest_completed_trading_date()
         pool_ids: Optional[Set[str]] = None
         if DataManager.sample_universe.count():
             pool_ids = set(DataManager.sample_universe.ids())
@@ -524,7 +524,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             events, report = prepare_adj_factor_csv_import(
                 raw_rows,
                 default_start_date=default_start,
-                as_of_date=as_of,
+                as_of_date=assumed,
                 pool_ids=pool_ids,
                 list_date_by_id=list_date_map,
                 source_path=str(path),

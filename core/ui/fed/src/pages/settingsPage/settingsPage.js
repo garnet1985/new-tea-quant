@@ -59,7 +59,7 @@ function SettingsPage() {
   const [dataSaveOk, setDataSaveOk] = React.useState('');
   const [dataSaving, setDataSaving] = React.useState(false);
   const [defaultStartDate, setDefaultStartDate] = React.useState('');
-  const [asOfLatestCompletedDate, setAsOfLatestCompletedDate] = React.useState('');
+  const [assumedLatestCompletedDate, setAssumedLatestCompletedDate] = React.useState('');
   const [simulationResultsMaxStaleEnvs, setSimulationResultsMaxStaleEnvs] = React.useState('');
 
   const loadDatabase = useCallback(() => {
@@ -83,7 +83,7 @@ function SettingsPage() {
     fetchDataSettings()
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
-        setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
+        setAssumedLatestCompletedDate(r.assumed_latest_completed_trading_date || '');
         setSimulationResultsMaxStaleEnvs(
           r.simulation_results_max_stale_envs != null
             ? String(r.simulation_results_max_stale_envs)
@@ -124,12 +124,12 @@ function SettingsPage() {
     setDataSaving(true);
     saveDataSettings({
       default_start_date: defaultStartDate.trim(),
-      as_of_latest_completed_trading_date: asOfLatestCompletedDate.trim(),
+      assumed_latest_completed_trading_date: assumedLatestCompletedDate.trim(),
       simulation_results_max_stale_envs: simulationResultsMaxStaleEnvs.trim(),
     })
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
-        setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
+        setAssumedLatestCompletedDate(r.assumed_latest_completed_trading_date || '');
         setSimulationResultsMaxStaleEnvs(
           r.simulation_results_max_stale_envs != null
             ? String(r.simulation_results_max_stale_envs)
@@ -203,10 +203,10 @@ function SettingsPage() {
                   saveOk={dataSaveOk}
                   saving={dataSaving}
                   defaultStartDate={defaultStartDate}
-                  asOfLatestCompletedDate={asOfLatestCompletedDate}
+                  assumedLatestCompletedDate={assumedLatestCompletedDate}
                   simulationResultsMaxStaleEnvs={simulationResultsMaxStaleEnvs}
                   onDefaultStartDateChange={setDefaultStartDate}
-                  onAsOfLatestCompletedDateChange={setAsOfLatestCompletedDate}
+                  onAssumedLatestCompletedDateChange={setAssumedLatestCompletedDate}
                   onSimulationResultsMaxStaleEnvsChange={setSimulationResultsMaxStaleEnvs}
                   onSave={handleSaveData}
                   onReload={loadDataSettings}

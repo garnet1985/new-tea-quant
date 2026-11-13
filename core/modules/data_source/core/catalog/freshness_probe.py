@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
 
@@ -12,33 +12,29 @@ from core.modules.data_source.core.service.date_range.date_range_service import 
 from core.modules.data_manager import DataManager
 
 
-def _format_yyyy_mm_dd(value: str) -> str:
-    raw = str(value or "").strip().replace("-", "")
-    if len(raw) == 8 and raw.isdigit():
-        return f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
-    return str(value or "").strip()
+def _demo_truncation_meta() -> Tuple[bool, str, str]:
+    """演示档提示：区间由官网决定，本地不硬编码截止日。"""
+    try:
+        from core.modules.ntq_external.member_profile import member_profile
 
-
-def _truncation_meta(configured_as_of: str) -> Tuple[bool, str, str]:
-    is_truncated = bool(configured_as_of)
-    hint = ""
-    settings_path = ""
-    if is_truncated:
-        settings_path = "/settings/data"
-        hint = (
-            f"data.json 已将数据截至日期截断为 {_format_yyyy_mm_dd(configured_as_of)}"
-            f"（as_of_latest_completed_trading_date）。"
-            "更新状态按该截至日评估，而非实时市场最新交易日。"
-        )
-    return is_truncated, hint, settings_path
+        profile = member_profile()
+    except Exception:
+        return False, "", ""
+    if profile.get("sync_access") != "demo":
+        return False, "", ""
+    return (
+        True,
+        "当前会员档可下载区间由官网决定；完整续传需 Pro（或等价点数）档位。",
+        "/settings/membership",
+    )
 
 
 def get_data_end_meta_light() -> Dict[str, Any]:
-    """``data.json`` truncation only — no DB / calendar lookup (fast list)."""
-    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
-    is_truncated, hint, settings_path = _truncation_meta(configured_as_of)
+    """假定最新日展示 + 演示档提示；不做日历/DB 查询（快列）。"""
+    assumed = ProjectContext.config.get_assumed_latest_completed_trading_date()
+    is_truncated, hint, settings_path = _demo_truncation_meta()
     return {
-        "configured_as_of": configured_as_of,
+        "assumed_latest_completed_trading_date": assumed,
         "effective_end_date": None,
         "is_end_date_truncated": is_truncated,
         "truncation_hint": hint,
@@ -47,24 +43,20 @@ def get_data_end_meta_light() -> Dict[str, Any]:
 
 
 def _resolve_freshness_end_date(data_manager) -> str:
-    """
-    计划和“是否还要更新”共用的截止数据日。
-
-    data.json 的 as_of 先落到该日或之前最近的开市日，再被会员能拿到的最后一天挡住。
-    """
+    """计划和“是否还要更新”共用的截止数据日（日历；不按本地会员窗裁）。"""
     from core.modules.data_source.core.service.renew_progress import resolve_uptodate_day
 
     return resolve_uptodate_day(data_manager)
 
 
 def get_data_end_meta(data_manager) -> Dict[str, Any]:
-    """Summarize effective data end date and ``data.json`` truncation."""
-    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
+    """Summarize renew effective end date；assumed 仅作计算侧展示。"""
+    assumed = ProjectContext.config.get_assumed_latest_completed_trading_date()
     effective_end = _resolve_freshness_end_date(data_manager)
-    is_truncated, hint, settings_path = _truncation_meta(configured_as_of)
+    is_truncated, hint, settings_path = _demo_truncation_meta()
 
     return {
-        "configured_as_of": configured_as_of,
+        "assumed_latest_completed_trading_date": assumed,
         "effective_end_date": effective_end or None,
         "is_end_date_truncated": is_truncated,
         "truncation_hint": hint,
@@ -132,12 +124,7 @@ def evaluate_update_status(
             data_manager=data_manager,
         )
         if needs_renew_work(context, source_key=source_key):
-            hint = ""
-            if ProjectContext.config.get_as_of_latest_completed_trading_date():
-                _, truncation_hint, _ = _truncation_meta(
-                    ProjectContext.config.get_as_of_latest_completed_trading_date()
-                )
-                hint = truncation_hint
+            _, hint, _ = _demo_truncation_meta()
             return "needs_update", "需要更新", hint
         return "up_to_date", "已经更新", ""
     except Exception:

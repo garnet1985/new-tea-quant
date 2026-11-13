@@ -1,4 +1,4 @@
-"""Global helper 关闭账本：读写 ``userspace/system/config/ui_helper.json``。"""
+"""Global helper 关闭账本：读写 ``userspace/system/prefs/ui_helper.json``。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ HELP_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 def _ledger_path() -> Path:
-    return ProjectContext.path.get_user_config_root() / UI_HELPER_FILENAME
+    return ProjectContext.path.get_user_prefs_root() / UI_HELPER_FILENAME
 
 
 def _empty_ledger() -> Dict[str, Any]:

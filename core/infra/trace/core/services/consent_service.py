@@ -19,7 +19,7 @@ class TraceConsentService:
     """
     Persist the user's opt-in decision.
 
-    Stored in ``userspace/system/config/trace_consent.json`` (survives
+    Stored in ``userspace/system/prefs/trace_consent.json`` (survives
     ``.ntq`` cache cleanup). Missing file means "not asked yet" → no tracking.
     """
 
@@ -109,7 +109,7 @@ class TraceConsentService:
         try:
             from core.infra.project_context import ProjectContext
 
-            return ProjectContext.path.get_user_config_root() / _CONSENT_FILENAME
+            return ProjectContext.path.get_user_prefs_root() / _CONSENT_FILENAME
         except Exception as exc:
             logger.debug("consent path unavailable: %s", exc)
             return None

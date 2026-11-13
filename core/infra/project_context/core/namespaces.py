@@ -106,6 +106,12 @@ class PathNamespace:
         return PathManager.get_user_config_root()
 
     @staticmethod
+    def get_user_prefs_root() -> Path:
+        """获取用户偏好目录（同意 / 反馈开关 / UI helper 等，非 default_config 合并项）"""
+        from .path_manager import PathManager
+        return PathManager.get_user_prefs_root()
+
+    @staticmethod
     def get_system_db_directory() -> Path:
         """获取系统数据库目录"""
         from .path_manager import PathManager

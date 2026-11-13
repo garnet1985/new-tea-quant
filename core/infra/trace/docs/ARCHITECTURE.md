@@ -29,7 +29,7 @@ flowchart LR
 ```
 
 ```text
-NTQ_TRACE_SKIP=1  /  GITHUB_ACTIONS=true  >  NTQ_TRACE_ENABLED=0/1  >  userspace/system/config/trace_consent.json  >  false
+NTQ_TRACE_SKIP=1  /  GITHUB_ACTIONS=true  >  NTQ_TRACE_ENABLED=0/1  >  userspace/system/prefs/trace_consent.json  >  false
 ```
 
 ```text

@@ -19,7 +19,7 @@ class FeedbackPrefsService:
     """
     Persist prompt opt-out and frequency counters.
 
-    - Hard opt-out: ``userspace/system/config/feedback_prefs.json``
+    - Hard opt-out: ``userspace/system/prefs/feedback_prefs.json``
     - Soft counters: ``userspace/.ntq/feedback/prompt_state.json``
     """
 
@@ -130,7 +130,7 @@ class FeedbackPrefsService:
         try:
             from core.infra.project_context import ProjectContext
 
-            return ProjectContext.path.get_user_config_root() / "feedback_prefs.json"
+            return ProjectContext.path.get_user_prefs_root() / "feedback_prefs.json"
         except Exception as exc:
             logger.debug("feedback prefs path unavailable: %s", exc)
             return None

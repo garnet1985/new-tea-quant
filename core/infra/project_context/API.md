@@ -119,6 +119,14 @@
 - **状态：** `beta`
 - **描述：** 策略仿真与扫描结果目录（PathManager 规范命名）
 
+#### get_user_prefs_root
+
+`ProjectContext.path.get_user_prefs_root() -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **描述：** `userspace/system/prefs/` — 用户偏好与一次性状态（trace 同意、反馈开关、UI helper 关闭账本）。与 `get_user_config_root()`（default_config 合并）分离；不进 `.ntq/`（避免 `cgc` 清掉）。
+
 #### 其他 path 辅助
 
 同命名空间还提供系统库、备份、tmp、data_source / data_contract、assistant providers、策略仿真与扫描结果等路径构造（见 `core/namespaces.py` 中 `PathNamespace`）。状态均为 **`beta`**。

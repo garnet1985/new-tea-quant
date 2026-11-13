@@ -231,8 +231,18 @@ class PathManager:
 
     @staticmethod
     def get_user_config_root() -> Path:
-        """获取用户配置目录：userspace/system/config/"""
+        """获取用户配置目录：userspace/system/config/（与 default_config 深度合并）"""
         return PathManager.get_system_root() / "config"
+
+    @staticmethod
+    def get_user_prefs_root() -> Path:
+        """
+        用户偏好 / 一次性状态：userspace/system/prefs/
+
+        与 ``config/`` 分离（不做 default_config 合并）；也不放 ``.ntq/``
+        （``devcli.py cgc`` 会清掉缓存，同意/关闭账本等应保留）。
+        """
+        return PathManager.get_system_root() / "prefs"
 
     # ========== 系统目录 ==========
 

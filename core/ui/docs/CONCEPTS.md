@@ -28,7 +28,7 @@
 | | 放哪 | 谁改 | 内容 |
 |--|------|------|------|
 | **目录（catalog）** | FED 代码 | 发版 | `helpId`、路由匹配、`version`、steps、文案、图片、target |
-| **关闭账本** | `userspace/system/config/ui_helper.json` | 用户点关闭 | 哪些 `helpId` 在哪个 `version` 上被关过 |
+| **关闭账本** | `userspace/system/prefs/ui_helper.json` | 用户点关闭 | 哪些 `helpId` 在哪个 `version` 上被关过 |
 
 userspace **不存** 路由、文案、DOM 选择器。JSON 过时指的是账本里的 id/version，不是目录本身。
 
@@ -131,7 +131,7 @@ BFF 不认识 catalog。多出来的 `helpId` 原样保存。FED 读到不在目
 
 ## 6. 关闭账本
 
-路径：`userspace/system/config/ui_helper.json`（经 `ProjectContext.path.get_user_config_root()`，禁止硬编码）。与 `feedback_prefs.json` 同类：升级保留 userspace，换浏览器仍有效。
+路径：`userspace/system/prefs/ui_helper.json`（经 `ProjectContext.path.get_user_prefs_root()`，禁止硬编码）。与 `feedback_prefs.json` 同类：升级保留 userspace，换浏览器仍有效；不进 `.ntq`（清缓存不应丢掉关闭记录）。
 
 ```json
 {

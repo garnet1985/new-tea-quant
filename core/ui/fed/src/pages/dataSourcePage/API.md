@@ -30,7 +30,7 @@
 | `effective_end_date` | string \| null | 实际用于评估的截至日（YYYYMMDD） |
 | `is_end_date_truncated` | boolean | 是否配置了 as-of 截断 |
 | `truncation_hint` | string | 截断时 UI 提示文案 |
-| `truncation_settings_path` | string \| null | 截断时跳转设置内页路径（如 `/settings/data`） |
+| `truncation_settings_path` | string \| null | 截断时跳转设置内页（演示档限制多为 `/settings/membership`；数据范围则为 `/settings/data`） |
 
 **`items[]` 元素**
 

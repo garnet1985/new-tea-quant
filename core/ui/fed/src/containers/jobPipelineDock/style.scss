@@ -7,7 +7,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  max-width: min(560px, calc(100vw - 24px));
+  max-width: min(640px, calc(100vw - 24px));
   pointer-events: none;
 }
 
@@ -77,7 +77,7 @@
 }
 
 .ntq-job-pipeline-dock__panel {
-  width: min(540px, calc(100vw - 24px));
+  width: min(620px, calc(100vw - 24px));
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
@@ -123,32 +123,18 @@
 }
 
 .ntq-job-pipeline-dock__job-name {
-  max-width: 180px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #f2f4f7;
 }
 
-.ntq-job-pipeline-dock__job-detail {
-  display: block;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #98a2b3;
-}
-
-.ntq-job-pipeline-dock__job-link,
-.ntq-job-pipeline-dock__view-link {
+.ntq-job-pipeline-dock__job-link {
   display: inline-block;
   font-size: 12px;
   color: #84caff;
   white-space: nowrap;
-}
-
-.ntq-job-pipeline-dock__view-link {
-  font-weight: 600;
 }
 
 .ntq-job-pipeline-dock__progress {
@@ -169,9 +155,15 @@
   }
 }
 
-.ntq-job-pipeline-dock__progress-empty {
-  color: #667085;
+.ntq-job-pipeline-dock__elapsed,
+.ntq-job-pipeline-dock__empty-cell {
+  color: #98a2b3;
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.ntq-job-pipeline-dock__empty-cell {
+  color: #667085;
 }
 
 .ntq-job-pipeline-dock__status {
@@ -198,6 +190,11 @@
 .ntq-job-pipeline-dock__status--completed {
   background: rgba(18, 183, 106, 0.18);
   color: #6ce9a6;
+}
+
+.ntq-job-pipeline-dock__status--failed {
+  background: rgba(240, 68, 56, 0.18);
+  color: #fda29b;
 }
 
 .ntq-job-pipeline-dock__status--cancelling {

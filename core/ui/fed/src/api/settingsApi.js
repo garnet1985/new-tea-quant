@@ -143,7 +143,7 @@ export async function saveTraceSettings(body) {
 export const MEMBERSHIP_CHANGED_EVENT = 'ntq-membership-changed';
 
 /**
- * @param {{ catfood?: number|null }} [detail]
+ * @param {{ catfood?: number|null, profile?: object }} [detail]
  */
 export function notifyMembershipChanged(detail = {}) {
   if (typeof window === 'undefined') return;

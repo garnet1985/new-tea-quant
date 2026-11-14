@@ -15,6 +15,7 @@ _ACTIVE = frozenset({"running", "paused"})
 _STATUS_STEPS = frozenset({DOWNLOAD_STEP, PREPARE_STEP})
 _DOWNLOAD_TICK_MIN_INTERVAL_SEC = 0.25
 _last_download_tick_at = 0.0
+_last_download_parts_done = -1
 
 
 def open_install(step_ids: Iterable[str], *, done_ids: Iterable[str] = ()) -> None:
@@ -91,10 +92,11 @@ def begin_import_prepare(*, detail: str = "准备导入…") -> None:
 
 def begin_import_download(*, total_bytes: Optional[int] = None) -> None:
     """官网拉演示包：进度树先挂 download 一步，供 UI 显示下载进度。"""
-    global _last_download_tick_at
+    global _last_download_tick_at, _last_download_parts_done
     from core.infra.progress.core import store as progress_store
 
     _last_download_tick_at = 0.0
+    _last_download_parts_done = -1
     node = _child_id(IMPORT_ID, DOWNLOAD_STEP)
     total = max(0, int(total_bytes or 0))
     Progress.start(
@@ -115,27 +117,45 @@ def begin_import_download(*, total_bytes: Optional[int] = None) -> None:
     progress_store.drain()
 
 
-def tick_import_download(read_bytes: int, total_bytes: Optional[int] = None) -> None:
-    """下载过程中更新字节进度（节流写入，避免每个 chunk 打满磁盘）。"""
-    global _last_download_tick_at
+def tick_import_download(
+    read_bytes: int,
+    total_bytes: Optional[int] = None,
+    *,
+    parts_done: int = 0,
+    parts_total: int = 0,
+) -> None:
+    """下载过程中更新字节 / 分卷进度（节流写入，避免每个 chunk 打满磁盘）。"""
+    global _last_download_tick_at, _last_download_parts_done
 
     read = max(0, int(read_bytes or 0))
     total = max(0, int(total_bytes or 0))
+    done_parts = max(0, int(parts_done or 0))
+    total_parts = max(0, int(parts_total or 0))
     now = time.monotonic()
-    finished = total > 0 and read >= total
+    finished = (total > 0 and read >= total) or (
+        total_parts > 0 and done_parts >= total_parts
+    )
+    parts_changed = total_parts > 0 and done_parts != _last_download_parts_done
     if (
         not finished
+        and not parts_changed
         and _last_download_tick_at > 0
         and (now - _last_download_tick_at) < _DOWNLOAD_TICK_MIN_INTERVAL_SEC
     ):
         return
     _last_download_tick_at = now
+    _last_download_parts_done = done_parts
     Progress.tick(
         _child_id(IMPORT_ID, DOWNLOAD_STEP),
         read,
         total,
         source=DOWNLOAD_STEP,
-        detail=_download_detail(read, total),
+        detail=_download_detail(
+            read,
+            total,
+            parts_done=done_parts,
+            parts_total=total_parts,
+        ),
         log=False,
     )
 
@@ -277,9 +297,25 @@ def _only_status_steps(snap: dict) -> bool:
     return bool(labels) and labels <= _STATUS_STEPS
 
 
-def _download_detail(read_bytes: int, total_bytes: int) -> str:
+def _download_detail(
+    read_bytes: int,
+    total_bytes: int,
+    *,
+    parts_done: int = 0,
+    parts_total: int = 0,
+) -> str:
     read = max(0, int(read_bytes or 0))
     total = max(0, int(total_bytes or 0))
+    done_parts = max(0, int(parts_done or 0))
+    total_parts = max(0, int(parts_total or 0))
+    if total_parts > 0:
+        base = f"数据下载中… {done_parts}/{total_parts} 包"
+        if total > 0:
+            pct = min(100, int(read * 100 / total))
+            return f"{base} · {_format_mb(read)}/{_format_mb(total)} MB（{pct}%）"
+        if read > 0:
+            return f"{base} · 已下载 {_format_mb(read)} MB"
+        return base
     if total > 0:
         pct = min(100, int(read * 100 / total))
         return (

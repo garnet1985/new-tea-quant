@@ -82,6 +82,17 @@ def test_import_download_phase_text(progress_dir):
     assert "5.0/20.0 MB" in mid["statusText"]
     assert "25%" in mid["statusText"]
 
+    tick_import_download(
+        8 * 1024 * 1024,
+        20 * 1024 * 1024,
+        parts_done=2,
+        parts_total=5,
+    )
+    parted = read_import_progress()
+    assert parted["phase"] == "downloading"
+    assert "2/5 包" in parted["statusText"]
+    assert "8.0/20.0 MB" in parted["statusText"]
+
     finish_import_download()
     # 下载刚结束、尚未 open_import 时，不能被读成导表 1/1。
     after_download = read_import_progress()

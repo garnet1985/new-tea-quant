@@ -35,6 +35,7 @@ import {
   fetchMemberProfile,
   fetchMembershipSettings,
   fetchTraceSettings,
+  notifyMembershipChanged,
   saveMembershipToken,
   saveTraceSettings,
 } from '../../api/settingsApi';
@@ -55,6 +56,7 @@ import {
 } from '../../api/setupApi';
 import { useAsyncAction } from 'service/useAsyncAction';
 import { useFakeProgress } from 'service/progress/useFakeProgress';
+import { subscribePipelineSnapshot } from 'service/jobPipelineBus';
 import { persistDockSelectedId } from '../../containers/assistantChatDock/dockChatStore';
 
 export function SettingsSystemPanel() {
@@ -67,12 +69,14 @@ export function SettingsSystemPanel() {
   const [reinstalling, setReinstalling] = useState(false);
   const [reinstallError, setReinstallError] = useState('');
   const [importOpen, setImportOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importRunning, setImportRunning] = useState(false);
   const [importError, setImportError] = useState('');
   const [importOk, setImportOk] = useState('');
   const [importProgress, setImportProgress] = useState(null);
   const [importPlan, setImportPlan] = useState(null);
   const fakePercent = useFakeProgress(installing, 8);
+  const importing = importSubmitting || importRunning;
 
   const loadMlStatus = useCallback(() => {
     setMlLoadError('');
@@ -101,12 +105,40 @@ export function SettingsSystemPanel() {
   }, [loadMlStatus, loadImportPlan]);
 
   useEffect(() => {
-    if (!importing) return undefined;
     let stopped = false;
+    let pipelineBusy = false;
+    let progressRunning = false;
+    let wasBusy = false;
+
+    const isImportJob = (row) => String(row?.kind || '') === 'import_data'
+      && ['running', 'pending', 'stale'].includes(String(row?.status || '').toLowerCase());
+
+    const syncBusy = () => {
+      const busy = pipelineBusy || progressRunning;
+      setImportRunning(busy);
+      if (wasBusy && !busy) {
+        loadImportPlan();
+      }
+      wasBusy = busy;
+    };
+
+    const unsub = subscribePipelineSnapshot((snap) => {
+      if (stopped) return;
+      const jobs = Array.isArray(snap?.jobs) ? snap.jobs : [];
+      pipelineBusy = Boolean(
+        isImportJob(snap?.job)
+        || jobs.some(isImportJob),
+      );
+      syncBusy();
+    });
+
     const tick = () => {
       getImportDataProgress()
         .then((next) => {
-          if (!stopped) setImportProgress(next);
+          if (stopped) return;
+          setImportProgress(next);
+          progressRunning = Boolean(next?.running);
+          syncBusy();
         })
         .catch(() => {});
     };
@@ -115,8 +147,9 @@ export function SettingsSystemPanel() {
     return () => {
       stopped = true;
       clearInterval(timerId);
+      unsub();
     };
-  }, [importing]);
+  }, [loadImportPlan]);
 
   const handleInstallMl = async () => {
     setInstalling(true);
@@ -134,19 +167,28 @@ export function SettingsSystemPanel() {
   };
 
   const handleConfirmImport = async () => {
-    setImporting(true);
+    setImportSubmitting(true);
     setImportError('');
     setImportOk('');
     setImportProgress(null);
     try {
       const result = await importDemoData();
       setImportOpen(false);
-      setImportOk(result.message || (result.imported ? '数据已导入。' : '导入任务已提交。'));
+      // 一次任务内下载（若需）并导入，无需再点一次。
+      setImportOk(
+        result.message
+          || (result.imported
+            ? '数据已导入。'
+            : '导入任务已提交（缺包时先下载再导入）。'),
+      );
+      if (result.running || result.queued || result.imported === false) {
+        setImportRunning(true);
+      }
       loadImportPlan();
     } catch (err) {
       setImportError(err?.message || '数据导入失败，请稍后重试。');
     } finally {
-      setImporting(false);
+      setImportSubmitting(false);
     }
   };
 
@@ -167,7 +209,7 @@ export function SettingsSystemPanel() {
   const mlInstalled = Boolean(mlStatus?.installed);
   const importBusy = importing || reinstalling;
   const importProgressText = !importProgress?.running
-    ? '正在导入数据…'
+    ? (importSubmitting ? '正在提交导入任务…' : '正在导入数据…')
     : (importProgress.phase === 'downloading' || importProgress.phase === 'preparing')
       ? (importProgress.statusText
         || (importProgress.phase === 'downloading' ? '数据下载中…' : '准备导入…'))
@@ -283,7 +325,7 @@ export function SettingsSystemPanel() {
             loadImportPlan().finally(() => setImportOpen(true));
           }}
         >
-          导入数据
+          {importRunning ? '正在导入…' : '导入数据'}
         </Button>
       </Box>
       <Dialog
@@ -1044,11 +1086,14 @@ export function SettingsMembershipPanel() {
               : Number(profile.catfood_paid),
           );
           setCatfoodFreeExpiresAt(String(profile.catfood_free_expires_at || '').trim() || null);
+          // 设置页与顶栏各持一份 state：资料拉成功后推给顶栏，避免顶栏停在旧的 unreachable。
+          notifyMembershipChanged({ profile });
         } else if (ledger?.available && ledger.catfood != null) {
           setCatfood(Number(ledger.catfood));
           setCatfoodFree(null);
           setCatfoodPaid(null);
           setCatfoodFreeExpiresAt(null);
+          notifyMembershipChanged();
         } else {
           setCatfood(null);
           setCatfoodFree(null);

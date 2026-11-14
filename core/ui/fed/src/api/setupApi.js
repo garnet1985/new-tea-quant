@@ -189,6 +189,8 @@ export async function getImportDataProgress() {
     completedCount: Number(json?.message?.completedCount || 0),
     currentTable: json?.message?.currentTable || '',
     ratio: Number(json?.message?.ratio || 0),
+    downloadedBytes: Number(json?.message?.downloadedBytes || 0),
+    totalBytes: Number(json?.message?.totalBytes || 0),
   };
 }
 

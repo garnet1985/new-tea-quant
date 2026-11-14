@@ -24,7 +24,8 @@ _DEFAULT_TIMEOUT_SEC = 180
 _USER_AGENT = "NTQ/install-member"
 _CHUNK_SIZE = 64 * 1024
 
-ProgressCallback = Callable[[int, Optional[int]], None]
+# on_progress(done_bytes, total_bytes, *, parts_done=0, parts_total=0)；旧版两参回调仍兼容。
+ProgressCallback = Callable[..., None]
 
 
 class InstallMemberError(RuntimeError):
@@ -150,6 +151,7 @@ def download_install_member(
         return dest_dir
 
     parts = meta.get("parts") if isinstance(meta.get("parts"), list) else []
+    parts_total = sum(1 for part in parts if isinstance(part, dict))
     total_bytes = 0
     for part in parts:
         if isinstance(part, dict):
@@ -159,6 +161,21 @@ def download_install_member(
                 pass
 
     done_bytes = 0
+    parts_done = 0
+
+    def _emit(done: int, total: Optional[int], completed_parts: int) -> None:
+        if on_progress is None:
+            return
+        try:
+            on_progress(
+                done,
+                total,
+                parts_done=completed_parts,
+                parts_total=parts_total,
+            )
+        except TypeError:
+            on_progress(done, total)
+
     for part in parts:
         if not isinstance(part, dict):
             continue
@@ -184,16 +201,21 @@ def download_install_member(
             )
         ):
             done_bytes += expected_size if expected_size > 0 else target.stat().st_size
-            if on_progress is not None:
-                on_progress(done_bytes, total_bytes or None)
+            parts_done += 1
+            _emit(done_bytes, total_bytes or None, parts_done)
             continue
 
         url = resolve_install_member_part_url(index)
         logger.info("下载会员分卷 %s → %s", name, target)
 
-        def _part_progress(read: int, _total: Optional[int], *, base=done_bytes) -> None:
-            if on_progress is not None:
-                on_progress(base + read, total_bytes or None)
+        def _part_progress(
+            read: int,
+            _total: Optional[int],
+            *,
+            base=done_bytes,
+            completed=parts_done,
+        ) -> None:
+            _emit(base + read, total_bytes or None, completed)
 
         try:
             payload = _http_get_bytes(
@@ -218,8 +240,8 @@ def download_install_member(
                 )
         _atomic_write(target, payload)
         done_bytes += len(payload)
-        if on_progress is not None:
-            on_progress(done_bytes, total_bytes or None)
+        parts_done += 1
+        _emit(done_bytes, total_bytes or None, parts_done)
 
     if not member_parts_complete(dest_dir, meta):
         raise InstallMemberError("会员分卷下载后仍不完整，请重试")

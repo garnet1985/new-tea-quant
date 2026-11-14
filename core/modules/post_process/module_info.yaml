@@ -1,5 +1,5 @@
 name: modules.post_process
-version: "0.3.0"
+version: "0.3.2"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "后续处理模块：扫描机会协议规范化，以及 PostProcessor / Adapter 发现与执行。"
@@ -9,6 +9,14 @@ site_display_title: "处理策略扫描到的机会 - Post Process 模块"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.3.2"
+    changes:
+      - BaseAdapter 增加就绪声明与 check_readiness；Facade check_adapter_readiness
+      - 目录 status 接入 readiness（宽规则：dry_run 不卡真发配置）
+  - version: "0.3.1"
+    changes:
+      - 新增目录摘要 API（summarize / list_*_summaries）
+      - 新增 set_enabled / update_post_processor_adapters 写入 YAML
   - version: "0.3.0"
     changes:
       - 由 modules.adapter 重命名为 modules.post_process（不兼容）

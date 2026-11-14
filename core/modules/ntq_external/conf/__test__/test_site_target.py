@@ -30,6 +30,8 @@ def test_default_is_production(config_root):
     assert site_target.install_demo_meta_url().endswith("/api/v1/ntq-data/install/demo/meta")
     assert site_target.install_member_meta_url().endswith("/api/v1/ntq-data/install/member/meta")
     assert site_target.install_member_part_url(3).endswith("/api/v1/ntq-data/install/member/part/3")
+    assert site_target.member_mail_send_url().endswith("/api/v1/ntq-mail/send")
+    assert site_target.member_mail_quota_url().endswith("/api/v1/ntq-mail/quota")
 
 
 def test_membership_json_base_url_drives_all(config_root: Path):

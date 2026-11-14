@@ -28,6 +28,7 @@ import {
   getStrategyDesignPath,
   startStrategyScan,
 } from '../../api/strategyApi';
+import { fetchPostProcessProcessors } from '../../api/postProcessApi';
 import { groupStrategiesByCategory } from 'containers/strategyCategory';
 import PageLayout from '../../views/pageLayout';
 import { SectionBlock } from '../../views/sectionBlock';
@@ -72,6 +73,7 @@ function Scan() {
   const [progress, setProgress] = useState({ pct: 0, label: '准备扫描…' });
 
   const [results, setResults] = useState({}); // strategy_id -> report payload
+  const [enabledPostProcessors, setEnabledPostProcessors] = useState([]);
   const [reportVisible, setReportVisible] = useState(false);
   const [reportStrategyId, setReportStrategyId] = useState('');
   const [reportStrategyName, setReportStrategyName] = useState('');
@@ -133,6 +135,15 @@ function Scan() {
         setDemoScanCutoffDate('');
       })
       .finally(() => setContextLoading(false));
+
+    fetchPostProcessProcessors()
+      .then((res) => {
+        const items = Array.isArray(res?.data) ? res.data : [];
+        setEnabledPostProcessors(items.filter((row) => row.is_enabled));
+      })
+      .catch(() => {
+        setEnabledPostProcessors([]);
+      });
   }, []);
 
   const demoCutoffLabel = useMemo(() => {
@@ -483,6 +494,41 @@ function Scan() {
 
       <SectionBlock
         className="scan-section"
+        title="后续处理"
+        action={(
+          <Link
+            component={RouterLink}
+            to="/advanced/post-process"
+            underline="hover"
+            variant="caption"
+          >
+            管理后续处理
+          </Link>
+        )}
+      >
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          每个策略扫描结束后，会运行全部<strong>全局已启用</strong>的处理方案（非策略绑定）。
+        </Typography>
+        {enabledPostProcessors.length ? (
+          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+            {enabledPostProcessors.map((row) => (
+              <Chip
+                key={row.key}
+                size="small"
+                label={row.name || row.key}
+                variant="outlined"
+              />
+            ))}
+          </Stack>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            当前未启用任何后续处理方案。
+          </Typography>
+        )}
+      </SectionBlock>
+
+      <SectionBlock
+        className="scan-section"
         title="扫描模式"
         action={(
           <Typography variant="caption" color="text.secondary">接入数据服务后由服务端校验</Typography>
@@ -681,6 +727,19 @@ function Scan() {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
+                - 后续处理：{(() => {
+                  const ran = Array.isArray(reportPayload?.post_process?.ran)
+                    ? reportPayload.post_process.ran
+                    : [];
+                  const enabled = Array.isArray(reportPayload?.post_process?.enabled)
+                    ? reportPayload.post_process.enabled
+                    : enabledPostProcessors.map((row) => row.key);
+                  if (ran.length) return `已运行 ${ran.join('、')}`;
+                  if (enabled.length) return '已启用但未回报运行结果（可能失败或跳过）';
+                  return '未启用';
+                })()}
               </Typography>
             </div>
             <Typography variant="caption" color="text.secondary" className="scan-report__hint">

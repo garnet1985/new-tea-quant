@@ -38,6 +38,16 @@ def member_profile_url() -> str:
     return f"{base_url()}/api/v1/ntq-member/profile"
 
 
+def member_mail_send_url() -> str:
+    """会员邮件代发（Bearer；收件人=注册邮箱）。"""
+    return f"{base_url()}/api/v1/ntq-mail/send"
+
+
+def member_mail_quota_url() -> str:
+    """会员邮件代发额度（Bearer）。"""
+    return f"{base_url()}/api/v1/ntq-mail/quota"
+
+
 def install_demo_url() -> str:
     """公开演示安装包 zip（无需会员凭证）。"""
     return f"{base_url()}/api/v1/ntq-data/install/demo"

@@ -29,6 +29,9 @@ class TestAdapterApi(unittest.TestCase):
         self.assertTrue(callable(PostProcess.list_adapters))
         self.assertTrue(callable(PostProcess.validate_adapter))
         self.assertTrue(callable(PostProcess.load_adapter_class))
+        self.assertTrue(callable(PostProcess.summarize_adapter))
+        self.assertTrue(callable(PostProcess.list_adapter_summaries))
+        self.assertTrue(callable(PostProcess.check_adapter_readiness))
         ok, err = PostProcess.validate_adapter("")
         self.assertFalse(ok)
         self.assertTrue(err)
@@ -38,11 +41,65 @@ class TestAdapterApi(unittest.TestCase):
         self.assertTrue(callable(PostProcess.list_enabled_post_processors))
         self.assertTrue(callable(PostProcess.validate_post_processor))
         self.assertTrue(callable(PostProcess.load_post_processor))
+        self.assertTrue(callable(PostProcess.summarize_post_processor))
+        self.assertTrue(callable(PostProcess.list_post_processor_summaries))
+        self.assertTrue(callable(PostProcess.set_enabled))
+        self.assertTrue(callable(PostProcess.update_post_processor_adapters))
         self.assertTrue(callable(PostProcess.run_post_processor))
         self.assertTrue(callable(PostProcess.run_enabled_post_processors))
         ok, err = PostProcess.validate_post_processor("")
         self.assertFalse(ok)
         self.assertTrue(err)
+
+    def test_catalog_summaries(self) -> None:
+        adapters = PostProcess.list_adapter_summaries()
+        self.assertTrue(any(row.get("name") == "presenter" for row in adapters))
+        presenter = PostProcess.summarize_adapter("presenter")
+        self.assertIsNotNone(presenter)
+        assert presenter is not None
+        self.assertIn("supports_dry_run", presenter)
+        self.assertIn("display_name", presenter)
+        self.assertIn("status", presenter)
+        self.assertIn("readiness", presenter)
+        self.assertEqual(presenter.get("status"), "live")
+        self.assertTrue(str(presenter.get("display_name") or "").strip())
+
+        email = PostProcess.check_adapter_readiness("email_sender")
+        # 缺 to / token → 不可用优先于 dry_run
+        self.assertEqual(email.get("status"), "unavailable")
+        self.assertFalse(email.get("ok"))
+        self.assertIn("缺少", str(email.get("remark") or ""))
+        email_ready = PostProcess.check_adapter_readiness(
+            "email_sender",
+            config={"dry_run": True, "to": ["a@b.com"]},
+        )
+        # 仍缺 token.txt → 依旧 unavailable
+        self.assertEqual(email_ready.get("status"), "unavailable")
+        demo = PostProcess.check_adapter_readiness("demo_broker")
+        self.assertEqual(demo.get("status"), "dry_run")
+        self.assertEqual(demo.get("remark"), "当前是测试模式")
+
+        self.assertIn("ntq_email", PostProcess.list_adapters())
+        from unittest.mock import patch
+
+        with patch(
+            "core.infra.membership.Membership.read",
+            return_value=None,
+        ):
+            ntq_mail = PostProcess.check_adapter_readiness("ntq_email")
+        # 无会员凭证 → 不可用
+        self.assertEqual(ntq_mail.get("status"), "unavailable")
+        self.assertIn("会员凭证", str(ntq_mail.get("remark") or ""))
+
+        processors = PostProcess.list_post_processor_summaries()
+        self.assertTrue(any(row.get("key") == "presenter" for row in processors))
+        pp = PostProcess.summarize_post_processor("presenter")
+        self.assertIsNotNone(pp)
+        assert pp is not None
+        self.assertIn("execution_order", pp)
+        self.assertTrue(pp.get("adapters"))
+        self.assertIn("status", pp["adapters"][0])
+        self.assertNotIn("dry_run_summary", pp)
 
     def test_presenter_adapter_and_post_process_available(self) -> None:
         self.assertIn("presenter", PostProcess.list_adapters())

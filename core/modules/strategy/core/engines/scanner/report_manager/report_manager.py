@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO
 
 from core.infra.cmd_layout import CmdLayout
+from core.modules.post_process import PostProcess
 from core.modules.strategy.core.engines.scanner.helpers import PostProcessDispatcher
 from core.modules.strategy.core.engines.scanner.report_manager.scan_summary import (
     ScanSummary,
@@ -52,6 +53,8 @@ class ReportManager(BaseReportManager):
     skip_save: bool = False
     opportunities: List[Opportunity] = field(default_factory=list)
     summary: Optional[ScanSummary] = field(default=None, init=False, repr=False)
+    post_process_ran: List[str] = field(default_factory=list)
+    post_process_enabled: List[str] = field(default_factory=list)
     _store: Optional[ScanStore] = field(default=None, init=False, repr=False)
 
     @classmethod
@@ -129,6 +132,10 @@ class ReportManager(BaseReportManager):
             "total_stocks": len(self.stock_ids),
             "summary": summary.to_dict(),
             "date_meta": dict(self.date_meta or {}),
+            "post_process": {
+                "enabled": list(self.post_process_enabled or []),
+                "ran": list(self.post_process_ran or []),
+            },
         }
 
     def to_ui_dict(self) -> Dict[str, Any]:
@@ -186,7 +193,8 @@ class ReportManager(BaseReportManager):
             flush=True,
         )
 
-        PostProcessDispatcher(
+        self.post_process_enabled = list(PostProcess.list_enabled_post_processors())
+        ran = PostProcessDispatcher(
             strategy_name=self.strategy_key,
             strategy_version=self.strategy_version,
             goal=dict(self.goal or {}),
@@ -199,13 +207,14 @@ class ReportManager(BaseReportManager):
                 "date_meta": dict(self.date_meta or {}),
             },
         )
+        self.post_process_ran = list(ran or [])
 
     def finalize(self, *, present: bool = True, **kwargs: Any) -> Dict[str, Any]:
         _ = kwargs
         self.summarize()
-        self.save()
         if present:
             self.present()
+        self.save()
         return self.to_report_dict()
 
 

@@ -19,6 +19,7 @@ import DataSourceListPage from './pages/dataSourcePage';
 import SeriesRelationListPage, {
   SeriesRelationDetailPage,
 } from './pages/seriesRelationPage';
+import PostProcessPage from './pages/postProcessPage';
 import SettingsPage from './pages/settingsPage';
 import WhatWeWillTrackPage from './pages/whatWeWillTrackPage';
 
@@ -85,6 +86,10 @@ function App() {
               <Route index element={<SeriesRelationListPage />} />
               <Route path="*" element={<SeriesRelationDetailPage />} />
             </Route>
+            <Route
+              path="/advanced/post-process"
+              element={<PostProcessPage />}
+            />
             <Route
               path="/advanced"
               element={<Navigate to="/advanced/tags" replace />}

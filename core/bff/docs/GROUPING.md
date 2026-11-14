@@ -16,6 +16,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 | data | `APIs/data/contracts` | `/api/v1/data-contracts/*` |
 | strategy | `APIs/strategy/`（`routes/` + `helpers/`） | `/api/v1/strategy/*` |
 | tag | `APIs/tag/`（`routes/` + `helpers/`） | `/api/v1/tags/*`、`/api/v1/tag/*` |
+| post_process | `APIs/post_process/` | `/api/v1/post-process/*` |
 
 ## settings 消歧
 
@@ -30,6 +31,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 |----|----|------|
 | **strategy** | workbench + scan + package + strategy catalog + decision | app 级 settings |
 | **tag** | tag list + tag run | runtime/pipeline（平台能力） |
+| **post_process** | adapter / processor 目录、启用、步骤编辑 | 扫描执行本身（strategy） |
 | **data** | data_source + data_contract 目录/新鲜度 | — |
 | **platform** | health + runtime/pipeline + setup + app settings + ai 通道 + agent | strategy 仿真 options |
 

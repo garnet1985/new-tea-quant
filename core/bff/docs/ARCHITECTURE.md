@@ -28,6 +28,7 @@ core/bff/
     data/                # sources, contracts
     strategy/            # routes/ + helpers/
     tag/                 # routes/ + helpers/
+    post_process/        # adapters / processors catalog + mutate
   docs/
 ```
 

@@ -1,26 +1,78 @@
 .scan-page {
+  .scan-settings {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .scan-settings__label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .scan-settings__modes {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-right: 20px;
+  }
+
+  .scan-settings__divider {
+    flex: 0 0 1px;
+    align-self: stretch;
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .scan-settings__post {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 20px;
+  }
+
+  .scan-settings__post-hint {
+    line-height: 1.45;
+  }
+
+  .scan-settings__chips {
+    min-width: 0;
+  }
+
+  .scan-settings__post-actions {
+    margin-top: auto;
+    display: flex;
+    justify-content: flex-end;
+  }
+
   .scan-mode-options {
     display: flex;
     flex-direction: row;
-    gap: 12px;
+    gap: 10px;
     align-items: stretch;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .scan-mode-option {
     margin: 0;
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
     padding: 12px 14px;
     align-items: flex-start;
     transition: background-color 120ms ease, border-color 120ms ease;
-    flex: 1 1 320px;
-    min-height: 92px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 280px;
+    max-height: 148px;
+    overflow: hidden;
   }
 
   .scan-mode-option:hover {
-    border-color: rgba(0, 0, 0, 0.28);
-    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .scan-mode-option.scan-mode-option--active {
@@ -37,6 +89,51 @@
     flex-direction: column;
     gap: 4px;
     margin-top: 1px;
+    min-width: 0;
+  }
+
+  .scan-mode-option-body .MuiTypography-root {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .scan-mode-option-body .MuiTypography-body2:last-child {
+    -webkit-line-clamp: 4;
+  }
+
+  @media (max-width: 899px) {
+    .scan-settings {
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .scan-settings__modes {
+      padding-right: 0;
+    }
+
+    .scan-settings__divider {
+      flex: 0 0 1px;
+      width: 100%;
+      height: 1px;
+    }
+
+    .scan-settings__post {
+      padding-left: 0;
+    }
+
+    .scan-settings__post-actions {
+      margin-top: 8px;
+    }
+
+    .scan-mode-options {
+      flex-direction: column;
+    }
+
+    .scan-mode-option {
+      max-width: none;
+      max-height: none;
+    }
   }
 
   .scan-progress-row {
@@ -54,16 +151,70 @@
     margin-bottom: 16px;
   }
 
+  .scan-section--compact {
+    margin-bottom: 12px;
+  }
+
   .scan-toolbar {
-    margin-bottom: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .scan-toolbar__hint {
+    margin-left: auto;
+  }
+
+  .scan-category-chips {
+    margin-bottom: 12px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .scan-category-chips-scroller {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    padding: 2px 0;
+  }
+
+  .scan-category-empty {
+    padding: 16px 4px;
+  }
+
+  .scan-category-section {
+    min-width: 0;
+  }
+
+  .scan-category-header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .scan-category-header-btn:hover .scan-category-header-label {
+    text-decoration: underline;
   }
 
   .scan-alert {
     margin-bottom: 12px;
   }
 
-  .scan-design-link {
-    font-size: 13px;
+  .scan-design-btn {
+    white-space: nowrap;
   }
 
   .scan-progress {
@@ -92,6 +243,12 @@
     align-items: flex-start;
     white-space: normal;
     line-height: 1.5;
+  }
+
+  .scan-opp-count {
+    min-width: unset;
+    padding-left: 6px;
+    padding-right: 6px;
   }
 
   .scan-report__lead {
@@ -142,4 +299,3 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-

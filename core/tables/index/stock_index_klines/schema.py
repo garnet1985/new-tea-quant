@@ -24,8 +24,6 @@ schema = {
         {"name": "amount", "type": "float", "isRequired": False, "nullable": True},
     ],
     "indexes": [
-        {"name": "idx_id_term_date", "fields": ["id", "term", "date"], "unique": True},
         {"name": "idx_id_date", "fields": ["id", "date"]},
-        {"name": "idx_id_term", "fields": ["id", "term"]},
     ],
 }

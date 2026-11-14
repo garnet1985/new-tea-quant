@@ -56,8 +56,13 @@ export async function saveDatabaseSettings(body) {
   };
 }
 
+function _assumedFromMessage(m) {
+  const raw = m.assumed_latest_completed_trading_date;
+  return raw ? normalizeYyyymmdd(raw) : null;
+}
+
 /**
- * @returns {Promise<{ default_start_date: string, as_of_latest_completed_trading_date: string|null, simulation_results_max_stale_envs: number|null, config_path: string }>}
+ * @returns {Promise<{ default_start_date: string, assumed_latest_completed_trading_date: string|null, simulation_results_max_stale_envs: number|null, config_path: string }>}
  */
 export async function fetchDataSettings() {
   const json = await request.getJson(API_SETTINGS_DATA);
@@ -65,9 +70,7 @@ export async function fetchDataSettings() {
   const retentionMax = m.simulation_results_max_stale_envs;
   return {
     default_start_date: normalizeYyyymmdd(m.default_start_date),
-    as_of_latest_completed_trading_date: m.as_of_latest_completed_trading_date
-      ? normalizeYyyymmdd(m.as_of_latest_completed_trading_date)
-      : null,
+    assumed_latest_completed_trading_date: _assumedFromMessage(m),
     simulation_results_max_stale_envs:
       retentionMax != null && retentionMax !== '' ? Number(retentionMax) : null,
     config_path: String(m.config_path || '').trim(),
@@ -75,14 +78,14 @@ export async function fetchDataSettings() {
 }
 
 /**
- * @param {{ default_start_date: string, as_of_latest_completed_trading_date?: string, simulation_results_max_stale_envs?: string|number }} body
+ * @param {{ default_start_date: string, assumed_latest_completed_trading_date?: string, simulation_results_max_stale_envs?: string|number }} body
  */
 export async function saveDataSettings(body) {
   const json = await request.postJson(API_SETTINGS_DATA, {
     body: {
       default_start_date: normalizeYyyymmdd(body.default_start_date),
-      as_of_latest_completed_trading_date: normalizeOptionalYyyymmdd(
-        body.as_of_latest_completed_trading_date,
+      assumed_latest_completed_trading_date: normalizeOptionalYyyymmdd(
+        body.assumed_latest_completed_trading_date,
       ),
       simulation_results_max_stale_envs:
         String(body.simulation_results_max_stale_envs ?? '').trim() || null,
@@ -92,9 +95,7 @@ export async function saveDataSettings(body) {
   const retentionMax = m.simulation_results_max_stale_envs;
   return {
     default_start_date: normalizeYyyymmdd(m.default_start_date),
-    as_of_latest_completed_trading_date: m.as_of_latest_completed_trading_date
-      ? normalizeYyyymmdd(m.as_of_latest_completed_trading_date)
-      : null,
+    assumed_latest_completed_trading_date: _assumedFromMessage(m),
     simulation_results_max_stale_envs:
       retentionMax != null && retentionMax !== '' ? Number(retentionMax) : null,
     config_path: String(m.config_path || '').trim(),
@@ -142,7 +143,7 @@ export async function saveTraceSettings(body) {
 export const MEMBERSHIP_CHANGED_EVENT = 'ntq-membership-changed';
 
 /**
- * @param {{ catfood?: number|null }} [detail]
+ * @param {{ catfood?: number|null, profile?: object }} [detail]
  */
 export function notifyMembershipChanged(detail = {}) {
   if (typeof window === 'undefined') return;

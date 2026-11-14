@@ -106,6 +106,12 @@ class PathNamespace:
         return PathManager.get_user_config_root()
 
     @staticmethod
+    def get_user_prefs_root() -> Path:
+        """获取用户偏好目录（同意 / 反馈开关 / UI helper 等，非 default_config 合并项）"""
+        from .path_manager import PathManager
+        return PathManager.get_user_prefs_root()
+
+    @staticmethod
     def get_system_db_directory() -> Path:
         """获取系统数据库目录"""
         from .path_manager import PathManager
@@ -136,8 +142,20 @@ class PathNamespace:
         return PathManager.get_userspace_tmp_directory()
 
     @staticmethod
+    def get_packages_root() -> Path:
+        """静态数据包根目录：userspace/.ntq/packages/"""
+        from .path_manager import PathManager
+        return PathManager.get_packages_root()
+
+    @staticmethod
+    def get_data_package_directory(kind: str = "demo") -> Path:
+        """按类型返回数据包目录：packages/{demo|member|full}/"""
+        from .path_manager import PathManager
+        return PathManager.get_data_package_directory(kind)
+
+    @staticmethod
     def get_install_demo_package_directory() -> Path:
-        """演示安装包目录（导出 / 下载共用）"""
+        """演示安装包目录（packages/demo/；导出 / 下载共用）"""
         from .path_manager import PathManager
         return PathManager.get_install_demo_package_directory()
 
@@ -445,23 +463,14 @@ class ConfigNamespace:
     """配置管理命名空间"""
 
     @staticmethod
-    def get_as_of_latest_completed_trading_date() -> Optional[str]:
-        """
-        data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。
-
-        配置后 ``CalendarService.get_latest_completed_trading_date`` 直接返回该值。
-        """
+    def get_assumed_latest_completed_trading_date() -> Optional[str]:
+        """扫描/回测假定最新已完成交易日；不裁 renew 截止。见 docs/DATA_JSON.md。"""
         from .config_manager import ConfigManager
-        return ConfigManager.get_as_of_latest_completed_trading_date()
+        return ConfigManager.get_assumed_latest_completed_trading_date()
 
     @staticmethod
     def get_default_start_date() -> str:
-        """
-        获取默认开始日期
-
-        Returns:
-            默认开始日期字符串（格式：YYYYMMDD）
-        """
+        """全局历史地板（空表 renew、回测默认 start 等）。见 docs/DATA_JSON.md。"""
         from .config_manager import ConfigManager
         return ConfigManager.get_default_start_date()
 

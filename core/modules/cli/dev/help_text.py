@@ -12,7 +12,8 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py cgc                     清 .ntq           同 clear_global_cache
   python devcli.py csc                     清策略 results/   同 clear_strategy_cache
   python devcli.py dbc                     DuckDB WAL        同 db_checkpoint [--recover]
-  python devcli.py ex                      演示数据 zip      同 data_export_init（写入 userspace/.ntq/packages/install_demo）
+  python devcli.py ex                      导出数据包帮助    同 data_export_init（无参数只显示帮助）
+  python devcli.py ex --demo|--member|--full  演示/会员/全量包  写入 userspace/.ntq/packages/{demo|member|full}
   python devcli.py pu                      打包 userspace    同 userspace_package [--no-zip]
   python devcli.py p -core_v0.3.2          发布检查          同 pack --version 0.3.2（含 ruff、模块版本不漂移）
   python devcli.py ssp 500                 分层抽样样本名单  同 sample_stock_pool N

@@ -97,11 +97,12 @@ def test_non_strict_meta_mentions_data_json(monkeypatch: pytest.MonkeyPatch) -> 
         _fake_freshness,
     )
     monkeypatch.setattr(
-        "core.infra.project_context.ProjectContext.config.get_as_of_latest_completed_trading_date",
+        "core.infra.project_context.ProjectContext.config.get_assumed_latest_completed_trading_date",
         lambda: "20240115",
     )
     meta = ScanDateResolver.resolve_anchor_meta(dm, use_strict=False)
     assert meta["mode"] == "non_strict"
-    assert meta["source"] == "data_json_as_of"
+    assert meta["source"] == "data_json_assumed_latest"
     assert "data.json" in meta["source_detail"]
-    assert meta["configured_as_of"] == "20240115"
+    assert "assumed_latest_completed_trading_date" in meta["source_detail"]
+    assert meta["assumed_latest_completed_trading_date"] == "20240115"

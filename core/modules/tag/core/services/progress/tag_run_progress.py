@@ -91,17 +91,27 @@ class TagRunProgress:
         root = self._ensure_shared()
         source = self.tag_key or self.job_id
         text = str(detail or "").strip()
-        if total > 0:
+        done_n = max(0, int(done or 0))
+        total_n = max(0, int(total or 0))
+        # 总数未知时写 0/0（ratio=0），禁止写成 0/1，否则管道会像「分母恒为 1」。
+        if total_n <= 0:
             Progress.tick(
                 root,
-                min(done, total),
-                total,
+                0,
+                0,
                 source=source,
                 detail=text or None,
                 log=False,
             )
             return
-        Progress.tick(root, 0, 1, source=source, detail=text or None, log=False)
+        Progress.tick(
+            root,
+            min(done_n, total_n),
+            total_n,
+            source=source,
+            detail=text or None,
+            log=False,
+        )
 
     def _finish_shared(self) -> None:
         Progress.finish(self._ensure_shared())

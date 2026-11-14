@@ -32,6 +32,7 @@ import {
 import {
   applyDbTypeDefaults,
   DEFAULT_STEP_ID,
+  demoPackageHintFromStatus,
   EMPTY_IMPORT_PROGRESS,
   getFieldDisplayValue,
   getFieldInputId,
@@ -468,6 +469,8 @@ function SetupPage() {
     if (flowStage !== 'executing' || runningStep !== 'import_data') {
       return undefined;
     }
+
+    setImportProgress(EMPTY_IMPORT_PROGRESS);
     let stopped = false;
     let failCount = 0;
     const tick = async () => {
@@ -475,7 +478,12 @@ function SetupPage() {
         const next = await getImportDataProgress();
         failCount = 0;
         if (!stopped) {
-          setImportProgress(next);
+          // 未开始跑时忽略残留的已完成快照。
+          if (!next.running && next.totalTables > 0) {
+            setImportProgress(EMPTY_IMPORT_PROGRESS);
+          } else {
+            setImportProgress(next);
+          }
           setImportPollWarning('');
         }
       } catch (error) {
@@ -550,7 +558,7 @@ function SetupPage() {
                   安装开始
                 </Typography>
                 <Typography color="text.secondary" sx={{ mb: 2 }}>
-                  点击开始后，系统会按顺序执行步骤。数据库配置成功后会询问是否导入演示数据；机器学习依赖为选装。跳过的步骤视为完成。
+                  点击开始后，系统会按顺序执行步骤。数据库配置成功后，你可以选择立刻导入公开演示数据，或稍候注册会员后再导入全市场数据；机器学习依赖为选装。跳过的步骤视为完成。
                 </Typography>
                 {bootstrapError ? (
                   <Alert
@@ -581,6 +589,11 @@ function SetupPage() {
             <SetupChoiceCard
               stepId={pausedStep}
               errorMessage={errorMessage}
+              packageHint={
+                pausedStep === 'import_data'
+                  ? demoPackageHintFromStatus(status)
+                  : ''
+              }
               onConfirm={() => handleSubmitInteractionStep({ skip: false })}
               onSkip={() => handleSubmitInteractionStep({ skip: true })}
             />

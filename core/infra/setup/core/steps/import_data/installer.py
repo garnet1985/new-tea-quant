@@ -2,7 +2,8 @@
 Init Data 导入流程（必跑步骤的执行体）。
 
 约定：
-- 数据包目录：userspace/.ntq/packages/install_demo/（与 ``devcli.py ex`` 共用）
+- 数据包目录：userspace/.ntq/packages/demo/（与 ``devcli.py ex --demo`` 共用；member/full 分目录缓存）
+- 导入成功后默认保留 zip/meta，仅清理解压目录；force 才重新下载
 - 导入逻辑目录：core/infra/setup/core/steps/import_data
 - 导入方式：目标表清空后，由数据库直接读 CSV（DuckDB read_csv / PostgreSQL COPY）
 """
@@ -31,11 +32,11 @@ DEFAULT_TABLE_PREFIX = ""
 PROGRESS_FILE = ".import_progress.json"
 
 
-def default_init_data_dir() -> Path:
-    """演示包目录；须在 userspace 已创建之后调用。"""
+def default_init_data_dir(kind: str = "demo") -> Path:
+    """数据包目录；须在 userspace 已创建之后调用。"""
     from core.infra.setup.core.scripts.init_data.config import require_package_dir
 
-    return require_package_dir()
+    return require_package_dir(kind)
 
 
 def _bare_table_name_for_exists_check(qualified_table: str) -> str:
@@ -75,10 +76,14 @@ class SetupDataInstaller:
         data_dir: Optional[Path] = None,
         *,
         table_prefix: str = DEFAULT_TABLE_PREFIX,
+        pack_kind: str = "demo",
     ) -> None:
+        self.pack_kind = str(pack_kind or "demo").strip().lower() or "demo"
         try:
             self.data_dir = (
-                Path(data_dir) if data_dir is not None else default_init_data_dir()
+                Path(data_dir)
+                if data_dir is not None
+                else default_init_data_dir(self.pack_kind)
             )
         except RuntimeError as exc:
             raise RuntimeError(f"{CmdLayout.icon.get('error')} {exc}") from exc
@@ -88,6 +93,13 @@ class SetupDataInstaller:
     def discover_data_packages(self) -> List[Path]:
         if not self.data_dir.is_dir():
             return []
+        if self.pack_kind == "member":
+            parts = sorted(self.data_dir.glob("data_member_3y_part*.zip"))
+            if parts:
+                return parts
+            # 兼容单文件会员包
+            single = self.data_dir / "data_member.zip"
+            return [single] if single.is_file() else []
         zips = sorted(self.data_dir.glob("*.zip"))
         if len(zips) <= 1:
             return zips
@@ -99,6 +111,12 @@ class SetupDataInstaller:
             "请保留您需要导入的 zip，另一个移走/改后缀后重新运行: python cli.py id"
         )
 
+    def ensure_package(self, *, force_download: bool = False) -> Path:
+        """按 ``pack_kind`` 确保本地数据包就绪。"""
+        if self.pack_kind == "member":
+            return self.ensure_member_package(force_download=force_download)
+        return self.ensure_demo_package(force_download=force_download)
+
     def ensure_demo_package(self, *, force_download: bool = False) -> Path:
         """本地无 zip（或 force）时从官网公开接口下载 ``data_demo.zip``。"""
         from core.infra.setup.core.env import NewTeaQuantSetup
@@ -109,21 +127,92 @@ class SetupDataInstaller:
 
         existing = self.discover_data_packages()
         if existing and not force_download:
+            from core.infra.setup.core.install_progress import begin_import_prepare
+
+            begin_import_prepare(detail="使用本地已下载的数据包…")
+            NewTeaQuantSetup.print_check_item(
+                "done",
+                f"使用本地已下载的数据包: {existing[0].name}",
+            )
             return existing[0]
+
+        from core.infra.setup.core.install_progress import (
+            begin_import_download,
+            begin_import_prepare,
+            fail_import,
+            finish_import_download,
+            tick_import_download,
+        )
 
         NewTeaQuantSetup.print_check_item(
             "running",
             "正在从官网下载演示数据包（公开，无需会员）…",
         )
+        begin_import_download()
         try:
-            path = download_install_demo(self.data_dir, force=force_download)
+            path = download_install_demo(
+                self.data_dir,
+                force=force_download,
+                on_progress=tick_import_download,
+            )
+            finish_import_download()
+            begin_import_prepare(detail="准备导入…")
         except InstallDemoError as exc:
+            fail_import(str(exc))
             raise RuntimeError(
                 f"{CmdLayout.icon.get('error')} 下载演示数据包失败: {exc}\n"
                 "请检查网络后重跑: python cli.py id\n"
                 "本地联调可设 NTQ_INSTALL_DEMO_URL 指向官网或本机 XAMPP。"
             ) from exc
         NewTeaQuantSetup.print_check_item("done", f"演示数据包已就绪: {path.name}")
+        return path
+
+    def ensure_member_package(self, *, force_download: bool = False) -> Path:
+        """本地无齐套分卷（或 force）时凭会员凭证从官网拉取。"""
+        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.modules.ntq_external.install_member import (
+            InstallMemberError,
+            download_install_member,
+            member_parts_complete,
+        )
+
+        if member_parts_complete(self.data_dir) and not force_download:
+            from core.infra.setup.core.install_progress import begin_import_prepare
+
+            begin_import_prepare(detail="使用本地已下载的会员数据包…")
+            NewTeaQuantSetup.print_check_item(
+                "done",
+                f"使用本地已下载的会员数据包: {self.data_dir}",
+            )
+            return self.data_dir
+
+        from core.infra.setup.core.install_progress import (
+            begin_import_download,
+            begin_import_prepare,
+            fail_import,
+            finish_import_download,
+            tick_import_download,
+        )
+
+        NewTeaQuantSetup.print_check_item(
+            "running",
+            "正在从官网下载会员数据包（需会员凭证）…",
+        )
+        begin_import_download()
+        try:
+            path = download_install_member(
+                self.data_dir,
+                force=force_download,
+                on_progress=tick_import_download,
+            )
+            finish_import_download()
+            begin_import_prepare(detail="准备导入…")
+        except InstallMemberError as exc:
+            fail_import(str(exc))
+            raise RuntimeError(
+                f"{CmdLayout.icon.get('error')} 下载会员数据包失败: {exc}"
+            ) from exc
+        NewTeaQuantSetup.print_check_item("done", f"会员数据包已就绪: {path}")
         return path
 
     def _extract_zips(self, extract_root: Path) -> List[Path]:
@@ -200,11 +289,11 @@ class SetupDataInstaller:
         extract_root: Path,
         *,
         remove_extract: bool = True,
-        remove_package_files: bool = True,
+        remove_package_files: bool = False,
     ) -> None:
-        """导入成功后清理解压目录、进度文件，以及已入库的下载包（可再从官网拉取）。"""
+        """导入成功后清理解压目录与进度文件；默认保留 zip/meta 供重试与减压。"""
         from core.infra.setup.core.env import NewTeaQuantSetup
-        from core.infra.setup.core.scripts.init_data.config import (
+        from core.infra.setup.core.data_packages import (
             GIT_DATA_META_NAME,
             GIT_DATA_ZIP_NAME,
         )
@@ -213,6 +302,10 @@ class SetupDataInstaller:
             shutil.rmtree(extract_root, ignore_errors=True)
         self._clear_progress()
         if not remove_package_files:
+            NewTeaQuantSetup.print_check_item(
+                "done",
+                "已保留本地数据包（可在「设置 → 缓存管理」清理）",
+            )
             return
         removed: List[str] = []
         for name in (GIT_DATA_ZIP_NAME, GIT_DATA_META_NAME):
@@ -243,12 +336,20 @@ class SetupDataInstaller:
         data_dir = self.data_dir
         extract_root = data_dir / EXTRACT_SUBDIR
 
-        self.ensure_demo_package(force_download=force)
+        from core.infra.setup.core.install_progress import (
+            begin_import_prepare,
+            clear_import_progress,
+        )
+
+        # 避免上一轮成功导入的快照被安装页当成本次 100%。
+        clear_import_progress()
+        begin_import_prepare()
+        self.ensure_package(force_download=force)
         zips = self.discover_data_packages()
         if not zips:
             raise RuntimeError(
                 f"{CmdLayout.icon.get('error')} 未找到初始化数据包: {data_dir}\n"
-                "请检查网络后重跑: python cli.py id"
+                "请检查网络后重跑导入"
             )
 
         fingerprint = _file_fingerprint(zips)

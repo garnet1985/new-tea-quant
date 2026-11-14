@@ -18,24 +18,14 @@ class _UnreadyManager:
         raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
 
 
-def test_freshness_end_date_ignores_unready_manager(monkeypatch):
-    monkeypatch.setattr(
-        renew_progress.ProjectContext.config,
-        "get_as_of_latest_completed_trading_date",
-        lambda: "20260101",
-    )
-    monkeypatch.setattr(renew_progress, "member_end_cap", lambda: None)
-    assert _resolve_freshness_end_date(_UnreadyManager()) == "20260101"
+def test_freshness_end_date_is_calendar_only(monkeypatch):
+    monkeypatch.setattr(renew_progress, "sync_market_day", lambda _dm: "20260115")
+    assert _resolve_freshness_end_date(_UnreadyManager()) == "20260115"
 
 
-def test_freshness_end_date_stops_at_the_member_window(monkeypatch):
-    monkeypatch.setattr(
-        renew_progress.ProjectContext.config,
-        "get_as_of_latest_completed_trading_date",
-        lambda: "20260101",
-    )
-    monkeypatch.setattr(renew_progress, "member_end_cap", lambda: "20251231")
-    assert _resolve_freshness_end_date(_UnreadyManager()) == "20251231"
+def test_freshness_end_date_empty_when_calendar_unavailable(monkeypatch):
+    monkeypatch.setattr(renew_progress, "sync_market_day", lambda _dm: "")
+    assert _resolve_freshness_end_date(_UnreadyManager()) == ""
 
 
 def test_needs_renew_work_refresh_stock_list_when_table_has_rows():

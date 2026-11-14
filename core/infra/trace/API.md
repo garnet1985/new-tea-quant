@@ -105,7 +105,7 @@
 | `userspace/system/config/trace.json` | 中 | 可选 tunables（`target_url` 等）；**不含**同意开关 |
 | [`core/defaults.py`](./core/defaults.py) `TraceDefaults` | 最低 | **改内置默认地址改这里** |
 
-同意：`userspace/system/config/trace_consent.json`；另有 `NTQ_TRACE_SKIP` / `NTQ_TRACE_ENABLED`。
+同意：`userspace/system/prefs/trace_consent.json`；另有 `NTQ_TRACE_SKIP` / `NTQ_TRACE_ENABLED`。
 
 `trace.json` 示例：
 

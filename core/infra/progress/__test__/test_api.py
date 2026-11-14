@@ -183,6 +183,57 @@ def test_latest_and_clear() -> None:
     assert Progress.read("old")["id"] == "old"
 
 
+def test_latest_reloads_when_another_process_rewrites_file(progress_dir) -> None:
+    """BFF 轮询依赖磁盘；子进程改写同名根后必须看到新状态。"""
+    Progress.start("import", job="import", label="旧完成")
+    Progress.tick("import", 27, 27)
+    Progress.finish("import")
+    first = Progress.latest("import")
+    assert first["status"] == "completed"
+    assert first["total"] == 27
+
+    # 模拟安装子进程清空并写入 downloading（不经本进程 Progress API）。
+    time.sleep(0.05)
+    rewritten = {
+        "id": "import",
+        "job": "import",
+        "status": "running",
+        "source": "",
+        "label": "导入数据",
+        "detail": "",
+        "weight": 1.0,
+        "done": 0,
+        "total": 1,
+        "ratio": 0.0,
+        "started_at": int(time.time()),
+        "updated_at": int(time.time()),
+        "steps": [
+            {
+                "id": "import:download",
+                "job": "import",
+                "status": "running",
+                "source": "download",
+                "label": "download",
+                "detail": "数据下载中....",
+                "weight": 1.0,
+                "done": 0,
+                "total": 1,
+                "ratio": 0.0,
+                "started_at": int(time.time()),
+                "updated_at": int(time.time()),
+                "steps": [],
+            }
+        ],
+    }
+    path = progress_dir / "import.json"
+    path.write_text(json.dumps(rewritten, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    latest = Progress.latest("import")
+    assert latest["status"] == "running"
+    assert latest["steps"][0]["source"] == "download"
+    assert latest["steps"][0]["detail"] == "数据下载中...."
+
+
 def test_prune_drops_old_finished_and_keeps_running(progress_dir) -> None:
     now = int(time.time())
     old = {

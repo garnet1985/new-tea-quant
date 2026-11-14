@@ -71,7 +71,7 @@ class TestApi(unittest.TestCase):
             "load_database_config",
             "load_data_config",
             "get_default_start_date",
-            "get_as_of_latest_completed_trading_date",
+            "get_assumed_latest_completed_trading_date",
             "get_use_sample_stock_list",
             "get_decimal_places",
             "get_database_type",

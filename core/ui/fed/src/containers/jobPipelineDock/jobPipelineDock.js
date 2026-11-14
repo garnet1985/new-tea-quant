@@ -25,14 +25,31 @@ import logClientError from 'service/logClientError';
 import NtqIcon from 'views/ntqIcon';
 import './style.scss';
 
+function statusKey(row) {
+  if (row?.cancel_requested) return 'cancelling';
+  return String(row?.status || '').trim().toLowerCase() || '';
+}
+
 function statusLabel(row) {
-  if (row?.cancel_requested) return '取消中';
-  const s = String(row?.status || '').trim().toLowerCase();
-  if (s === 'stale') return '已卡住';
+  const s = statusKey(row);
+  if (s === 'cancelling') return '取消中';
+  if (s === 'stale') return '超时';
   if (s === 'running') return '运行中';
   if (s === 'pending') return '排队中';
-  if (s === 'completed') return '已完成';
+  if (s === 'completed') return '成功';
+  if (s === 'failed') return '失败';
+  if (s === 'cancelled') return '取消';
   return s || '—';
+}
+
+function statusClass(row) {
+  const s = statusKey(row);
+  if (s === 'cancelling' || s === 'cancelled') return 'ntq-job-pipeline-dock__status--cancelling';
+  if (s === 'stale') return 'ntq-job-pipeline-dock__status--stale';
+  if (s === 'pending') return 'ntq-job-pipeline-dock__status--pending';
+  if (s === 'completed') return 'ntq-job-pipeline-dock__status--completed';
+  if (s === 'failed') return 'ntq-job-pipeline-dock__status--failed';
+  return 'ntq-job-pipeline-dock__status--running';
 }
 
 function progressPercent(row) {
@@ -41,13 +58,34 @@ function progressPercent(row) {
   return Math.max(0, Math.min(100, pct));
 }
 
-function statusClass(row) {
-  if (row?.cancel_requested) return 'ntq-job-pipeline-dock__status--cancelling';
-  const s = String(row?.status || '').trim().toLowerCase();
-  if (s === 'stale') return 'ntq-job-pipeline-dock__status--stale';
-  if (s === 'pending') return 'ntq-job-pipeline-dock__status--pending';
-  if (s === 'completed') return 'ntq-job-pipeline-dock__status--completed';
-  return 'ntq-job-pipeline-dock__status--running';
+function parseTimeMs(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** 墙钟已运行时长；完成后冻结到 finished_at。 */
+function formatElapsed(row, nowMs) {
+  const start = parseTimeMs(row?.started_at);
+  if (start == null) return '—';
+  const s = statusKey(row);
+  const ended = s === 'running' || s === 'stale' || s === 'cancelling' || s === 'pending'
+    ? nowMs
+    : (parseTimeMs(row?.finished_at) ?? nowMs);
+  const sec = Math.max(0, Math.floor((ended - start) / 1000));
+  if (sec < 60) return `${sec}s`;
+  const mins = Math.floor(sec / 60);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem > 0 ? `${hours}h${rem}m` : `${hours}h`;
 }
 
 function JobPipelineDock() {
@@ -55,6 +93,7 @@ function JobPipelineDock() {
   const [unread, setUnread] = useState([]);
   const [open, setOpen] = useState(false);
   const [cancellingId, setCancellingId] = useState('');
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => subscribePipelineSnapshot(setSnap), []);
   useEffect(() => subscribeUnreadJobs(setUnread), []);
@@ -72,6 +111,21 @@ function JobPipelineDock() {
     const unreadRows = unread.filter((row) => !activeIds.has(String(row?.job_id || '')));
     return [...activeJobs, ...unreadRows];
   }, [activeJobs, unread]);
+
+  const hasLiveElapsed = useMemo(
+    () => jobs.some((row) => {
+      const s = statusKey(row);
+      return s === 'running' || s === 'stale' || s === 'cancelling' || s === 'pending';
+    }),
+    [jobs],
+  );
+
+  useEffect(() => {
+    if (!open && !hasLiveElapsed) return undefined;
+    setNowMs(Date.now());
+    const timerId = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timerId);
+  }, [open, hasLiveElapsed]);
 
   const pendingCount = Number(snap?.pending_count || 0)
     || activeJobs.filter((row) => String(row?.status || '') === 'pending').length;
@@ -117,14 +171,14 @@ function JobPipelineDock() {
       showToast({
         severity: 'info',
         duration: 3200,
-        content: out?.reason || '已放弃该任务，管道已释放',
+        content: out?.reason || '已取消该任务，管道已释放',
       });
     } catch (error) {
       logClientError('jobPipelineDock.abandon', error, id);
       showToast({
         severity: 'error',
         duration: 4200,
-        content: error?.message || '放弃失败',
+        content: error?.message || '取消失败',
       });
     } finally {
       setCancellingId('');
@@ -139,7 +193,7 @@ function JobPipelineDock() {
   let markerText = '无任务';
   if (running) {
     if (String(running.status || '') === 'stale') {
-      markerText = pendingCount > 0 ? `已卡住 · 排队 ${pendingCount}` : '已卡住';
+      markerText = pendingCount > 0 ? `超时 · 排队 ${pendingCount}` : '超时';
     } else if (running.cancel_requested) {
       markerText = '取消中';
     } else {
@@ -180,33 +234,34 @@ function JobPipelineDock() {
                   <TableCell>任务</TableCell>
                   <TableCell width={72}>状态</TableCell>
                   <TableCell width={88}>进度</TableCell>
+                  <TableCell width={64}>已运行</TableCell>
                   <TableCell width={72}>页面</TableCell>
-                  <TableCell width={72} align="right">操作</TableCell>
+                  <TableCell width={64} align="right">操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {jobs.map((row) => {
                   const id = String(row.job_id || '');
-                  const status = String(row.status || '').trim().toLowerCase();
-                  const pending = status === 'pending';
-                  const completed = status === 'completed';
-                  const stale = status === 'stale';
-                  const runningRow = status === 'running' || stale;
+                  const key = statusKey(row);
+                  const pending = key === 'pending';
+                  const completed = key === 'completed';
+                  const stale = key === 'stale';
+                  const live = key === 'running' || stale || key === 'cancelling';
                   const href = jobDeepLink(row);
                   const name = jobDisplayName(row);
-                  const detail = String(row?.progress?.detail || row?.progress?.label || '').trim();
-                  const pct = runningRow ? progressPercent(row) : null;
+                  const detail = String(row?.progress?.detail || '').trim();
+                  const pct = live ? progressPercent(row) : (completed ? progressPercent(row) : null);
+                  const showBar = pct != null && (live || completed);
                   return (
-                    <TableRow key={id || `${row.kind}-${row.resource_key}-${status}`}>
+                    <TableRow key={id || `${row.kind}-${row.resource_key}-${key}`}>
                       <TableCell>
-                        <Typography variant="body2" className="ntq-job-pipeline-dock__job-name">
+                        <Typography
+                          variant="body2"
+                          className="ntq-job-pipeline-dock__job-name"
+                          title={name}
+                        >
                           {name}
                         </Typography>
-                        {detail && runningRow ? (
-                          <Typography variant="caption" className="ntq-job-pipeline-dock__job-detail">
-                            {detail}
-                          </Typography>
-                        ) : null}
                       </TableCell>
                       <TableCell>
                         <span className={['ntq-job-pipeline-dock__status', statusClass(row)].join(' ')}>
@@ -214,8 +269,11 @@ function JobPipelineDock() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        {pct != null ? (
-                          <Box className="ntq-job-pipeline-dock__progress" title={`${pct}%`}>
+                        {showBar ? (
+                          <Box
+                            className="ntq-job-pipeline-dock__progress"
+                            title={detail || `${pct}%`}
+                          >
                             <LinearProgress
                               variant="determinate"
                               value={pct}
@@ -223,26 +281,34 @@ function JobPipelineDock() {
                             />
                           </Box>
                         ) : (
-                          <span className="ntq-job-pipeline-dock__progress-empty">—</span>
+                          <span className="ntq-job-pipeline-dock__empty-cell">—</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        {!completed && href ? (
+                        <span className="ntq-job-pipeline-dock__elapsed">
+                          {formatElapsed(row, nowMs)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {href ? (
                           <Link
                             component={RouterLink}
                             to={href}
                             underline="hover"
                             className="ntq-job-pipeline-dock__job-link"
-                            onClick={() => setOpen(false)}
+                            onClick={() => {
+                              if (completed) handleView(id);
+                              else setOpen(false);
+                            }}
                           >
                             进入页面
                           </Link>
                         ) : (
-                          <span className="ntq-job-pipeline-dock__progress-empty">—</span>
+                          <span className="ntq-job-pipeline-dock__empty-cell">—</span>
                         )}
                       </TableCell>
                       <TableCell align="right">
-                        {pending ? (
+                        {pending || (key === 'running' && !row?.cancel_requested) ? (
                           <Button
                             size="small"
                             color="inherit"
@@ -259,19 +325,8 @@ function JobPipelineDock() {
                             disabled={Boolean(cancellingId)}
                             onClick={() => handleAbandon(id)}
                           >
-                            {cancellingId === id ? '处理中…' : '放弃'}
+                            {cancellingId === id ? '取消中…' : '取消'}
                           </Button>
-                        ) : null}
-                        {completed && href ? (
-                          <Link
-                            component={RouterLink}
-                            to={href}
-                            underline="hover"
-                            className="ntq-job-pipeline-dock__view-link"
-                            onClick={() => handleView(id)}
-                          >
-                            查看
-                          </Link>
                         ) : null}
                         {completed && !href ? (
                           <Button

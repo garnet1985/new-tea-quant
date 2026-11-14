@@ -15,6 +15,8 @@ _LOCK = threading.Lock()
 _BY_ROOT: Dict[str, Dict[str, Any]] = {}
 _ROOT_OF: Dict[str, str] = {}
 _DIRTY: Dict[str, Dict[str, Any]] = {}
+# 磁盘 mtime；跨进程写入后 latest/read 靠它决定是否重载。
+_FILE_MTIME: Dict[str, float] = {}
 _WRITER_ALIVE = False
 
 _KEEP_FILES = 20
@@ -31,6 +33,7 @@ def reset() -> None:
         _BY_ROOT.clear()
         _ROOT_OF.clear()
         _DIRTY.clear()
+        _FILE_MTIME.clear()
         _WRITER_ALIVE = False
 
 
@@ -171,6 +174,7 @@ def clear(node_id: str) -> None:
         root_id = str(root["id"])
         _drop_index(root_id)
         _DIRTY.pop(root_id, None)
+        _FILE_MTIME.pop(root_id, None)
         path = _directory() / f"{root_id}.json"
     try:
         path.unlink(missing_ok=True)
@@ -360,20 +364,42 @@ def _drop_index(root_id: str) -> None:
         if owner == root_id:
             del _ROOT_OF[item_id]
     _BY_ROOT.pop(root_id, None)
+    _FILE_MTIME.pop(root_id, None)
 
 
 def _refresh_index() -> None:
+    """
+    与磁盘对齐。
+
+    安装导入等在子进程写进度、BFF 轮询读：若内存里已有同名根却 ``continue``，
+    会一直看到旧的 completed 快照。mtime 变化或文件消失时必须重载/剔除。
+    """
     directory = _directory()
     if not directory.is_dir():
         return
+    alive: set[str] = set()
     for path in directory.glob("*.json"):
         root_id = path.stem
-        if root_id in _BY_ROOT:
+        alive.add(root_id)
+        if root_id in _DIRTY:
+            # 本进程尚未落盘的写入优先于磁盘。
+            continue
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        if root_id in _BY_ROOT and _FILE_MTIME.get(root_id) == mtime:
             continue
         document = _read_json(path)
         if document is None or str(document.get("id") or "") != root_id:
             continue
+        _drop_index(root_id)
         _index_tree(document)
+        _FILE_MTIME[root_id] = mtime
+    for root_id in list(_BY_ROOT.keys()):
+        if root_id in alive or root_id in _DIRTY:
+            continue
+        _drop_index(root_id)
 
 
 def _prune(*, job: str, keep_root: str) -> None:
@@ -442,6 +468,10 @@ def _write_file(root_id: str, snapshot: Mapping[str, Any]) -> None:
         temporary = target.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
         temporary.replace(target)
+        try:
+            _FILE_MTIME[root_id] = target.stat().st_mtime
+        except OSError:
+            _FILE_MTIME.pop(root_id, None)
     except OSError:
         return
 

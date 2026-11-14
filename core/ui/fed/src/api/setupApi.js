@@ -183,10 +183,14 @@ export async function getImportDataProgress() {
   });
   return {
     running: Boolean(json?.message?.running),
+    phase: String(json?.message?.phase || ''),
+    statusText: String(json?.message?.statusText || ''),
     totalTables: Number(json?.message?.totalTables || 0),
     completedCount: Number(json?.message?.completedCount || 0),
     currentTable: json?.message?.currentTable || '',
     ratio: Number(json?.message?.ratio || 0),
+    downloadedBytes: Number(json?.message?.downloadedBytes || 0),
+    totalBytes: Number(json?.message?.totalBytes || 0),
   };
 }
 
@@ -202,13 +206,37 @@ export async function getMlExtrasStatus() {
   };
 }
 
+export async function getImportDataPlan() {
+  const json = await request.getJson(`${API_BASE}/import-data/plan`);
+  const msg = json?.message || {};
+  return {
+    membershipConfigured: Boolean(msg.membershipConfigured),
+    packKind: String(msg.packKind || 'demo'),
+    packLabel: String(msg.packLabel || ''),
+    localPresent: Boolean(msg.localPresent),
+    localHint: String(msg.localHint || ''),
+    warning: msg.warning ? String(msg.warning) : '',
+    usesJobPipeline: Boolean(msg.usesJobPipeline),
+    confirmTitle: String(msg.confirmTitle || '导入数据？'),
+    confirmBody: String(msg.confirmBody || ''),
+    confirmActionLabel: String(msg.confirmActionLabel || '开始导入'),
+  };
+}
+
 export async function importDemoData() {
   const json = await request.postJson(`${API_BASE}/import-data`, {
     body: {},
     timeoutMs: HTTP_TIMEOUT_MS.SETUP,
   });
+  const msg = json?.message || {};
   return {
-    imported: Boolean(json?.message?.imported),
+    imported: Boolean(msg.imported),
+    queued: Boolean(msg.queued),
+    running: Boolean(msg.running),
+    jobId: String(msg.jobId || ''),
+    packKind: String(msg.packKind || ''),
+    packLabel: String(msg.packLabel || ''),
+    message: String(msg.message || ''),
   };
 }
 

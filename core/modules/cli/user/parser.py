@@ -72,6 +72,7 @@ class UserParser:
         UserParser._p_export_strategy(sub)
         UserParser._p_import_strategy(sub)
         UserParser._p_import_data(sub)
+        UserParser._p_auth(sub)
         UserParser._p_update(sub)
         UserParser._p_version(sub)
 
@@ -461,7 +462,25 @@ class UserParser:
             sub,
             "import_data",
             aliases=UserCommands.aliases_for("import_data"),
-            help="导入演示数据包（userspace/.ntq/packages/install_demo；无则官网下载；-f 重新下载并重导）",
+            help="导入演示数据包（userspace/.ntq/packages/demo；无则官网下载；-f 重新下载并重导；成功后保留本地包）",
+        )
+
+    @staticmethod
+    def _p_auth(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "auth",
+            help="交互设置官网会员凭证（密码式输入，不回显；写入 membership_token.txt）",
+        )
+        p.add_argument(
+            "--clear",
+            action="store_true",
+            help="清除本地凭证",
+        )
+        p.add_argument(
+            "--status",
+            action="store_true",
+            help="只查看是否已配置（不打印明文）",
         )
 
     @staticmethod

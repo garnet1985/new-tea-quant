@@ -110,7 +110,7 @@ def test_install_py_default_runs_even_when_ready(monkeypatch: pytest.MonkeyPatch
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
     assert mod.main([]) == 0
-    assert called == [{"force": True}]
+    assert called == [{"force": True, "import_demo": True}]
     called.clear()
     assert mod.main(["--if-needed"]) == 0
     assert called == []
@@ -143,6 +143,7 @@ def test_install_py_default_runs_even_when_ready(monkeypatch: pytest.MonkeyPatch
     assert called == [
         {
             "force": True,
+            "import_demo": True,
             "userspace": "/tmp/ntq-userspace",
             "userspace_conflict": "overwrite",
             "db": "postgresql",
@@ -248,7 +249,7 @@ def test_deps_only_runs_dependency_steps(monkeypatch: pytest.MonkeyPatch) -> Non
     assert ran == ["sys_req_check", "resolve_deps"]
 
 
-def test_default_install_omits_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_install_includes_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
     from core.infra.setup.core import cli_runtime as cr
     from core.infra.setup.core.cli_install_options import CliInstallOptions
 
@@ -262,10 +263,16 @@ def test_default_install_omits_demo_step(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(cr, "_run_step", lambda step_id, options=None: ran.append(step_id) or 0)
 
     cr.install_cli_runtime(force=True, options=CliInstallOptions())
-    assert ran == ["sys_req_check", "resolve_deps", "init_userspace", "db_connection"]
+    assert ran == [
+        "sys_req_check",
+        "resolve_deps",
+        "init_userspace",
+        "db_connection",
+        "import_data",
+    ]
 
 
-def test_import_demo_includes_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_skip_demo_omits_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
     from core.infra.setup.core import cli_runtime as cr
     from core.infra.setup.core.cli_install_options import CliInstallOptions
 
@@ -278,14 +285,8 @@ def test_import_demo_includes_demo_step(monkeypatch: pytest.MonkeyPatch) -> None
     )
     monkeypatch.setattr(cr, "_run_step", lambda step_id, options=None: ran.append(step_id) or 0)
 
-    cr.install_cli_runtime(force=True, options=CliInstallOptions(import_demo=True))
-    assert ran == [
-        "sys_req_check",
-        "resolve_deps",
-        "init_userspace",
-        "db_connection",
-        "import_data",
-    ]
+    cr.install_cli_runtime(force=True, options=CliInstallOptions(import_demo=False))
+    assert ran == ["sys_req_check", "resolve_deps", "init_userspace", "db_connection"]
 
 
 def test_if_needed_deps_only_does_not_request_full_install(
@@ -309,10 +310,10 @@ def test_if_needed_deps_only_does_not_request_full_install(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
     assert mod.main(["--if-needed"]) == 0
-    assert called == [{"force": False, "deps_only": True}]
+    assert called == [{"force": False, "import_demo": True, "deps_only": True}]
 
 
-def test_if_needed_full_still_skips_demo_import(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_if_needed_full_imports_demo_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
@@ -331,10 +332,10 @@ def test_if_needed_full_still_skips_demo_import(monkeypatch: pytest.MonkeyPatch)
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
     assert mod.main(["--if-needed"]) == 0
-    assert called == [{"force": False}]
+    assert called == [{"force": False, "import_demo": True}]
 
 
-def test_default_install_does_not_import_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_install_imports_demo(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
@@ -351,14 +352,14 @@ def test_default_install_does_not_import_demo(monkeypatch: pytest.MonkeyPatch) -
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
     assert mod.main([]) == 0
-    assert called == [{"force": True}]
+    assert called == [{"force": True, "import_demo": True}]
 
 
-def test_import_demo_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_skip_demo_data_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
-        "ntq_install_entry_demo", ir.REPO_ROOT / "install.py"
+        "ntq_install_entry_skip_demo", ir.REPO_ROOT / "install.py"
     )
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
@@ -370,5 +371,5 @@ def test_import_demo_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
     )
-    assert mod.main(["--import-demo"]) == 0
-    assert called == [{"force": True, "import_demo": True}]
+    assert mod.main(["--skip-demo-data"]) == 0
+    assert called == [{"force": True, "import_demo": False}]

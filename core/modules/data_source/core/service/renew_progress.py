@@ -13,8 +13,6 @@ import time
 from datetime import date, datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from core.infra.project_context import ProjectContext
-
 logger = logging.getLogger(__name__)
 
 TABLE_NAME = "sys_meta_data_renew_progress"
@@ -23,15 +21,10 @@ MARKER_SOURCE = "__renew_progress__"
 MARKER_ENTITY = "backfill"
 MARKER_DATE = "done"
 KLINE_TERMS = ("daily", "weekly", "monthly")
-DEMO_END = "20251231"
-PAID_POINTS = 1000
-_PROFILE_TTL_SECONDS = 60
 _BACKFILL_RETRY_SECONDS = 60
 
 _lock = threading.Lock()
-_profile_cache: Dict[str, Any] = {"at": 0.0, "cap": DEMO_END, "loaded": False}
 _backfill_failed_until = 0.0
-_cap_logged = False
 
 
 def plain_date(value: Any) -> str:
@@ -67,14 +60,6 @@ def keep_forward(current: str, proposed: str) -> str:
     return current
 
 
-def apply_member_cap(day: str, cap: Optional[str]) -> str:
-    """data.json 给出的截止日，再被会员能拿到的最后一天挡住。"""
-    day = (day or "").strip()
-    if cap and (not day or day > cap):
-        return cap
-    return day
-
-
 def fold_progress(rows: Sequence[Dict[str, Any]], *, termed: bool) -> Dict[str, str]:
     """
     收成排日期要用的起点。
@@ -94,47 +79,13 @@ def fold_progress(rows: Sequence[Dict[str, Any]], *, termed: bool) -> Dict[str, 
     return folded
 
 
-def member_end_cap() -> Optional[str]:
-    """
-    点数不满 1000、没有凭证、凭证被拒绝，或点数暂时读不到时，截止到 20251231。
-    点数达到 1000 则不再加这一层。结果缓存一小会儿，避免每个数据源都去问一次官网。
-    """
-    global _cap_logged
-    now = time.monotonic()
-    if _profile_cache.get("loaded") and now - float(_profile_cache["at"]) < _PROFILE_TTL_SECONDS:
-        return _profile_cache["cap"]
-    from core.modules.ntq_external.member_profile import member_profile
-
-    profile = member_profile()
-    signed_in = bool(profile.get("signed_in"))
-    points = profile.get("points")
-    if signed_in and isinstance(points, int) and points >= PAID_POINTS:
-        cap: Optional[str] = None
-    else:
-        cap = DEMO_END
-        if not _cap_logged:
-            _cap_logged = True
-            if profile.get("reason") == "unreachable":
-                logger.info("会员点数暂时读不到，更新截止按 %s", DEMO_END)
-            elif not signed_in:
-                logger.info("当前没有可用会员凭证，更新截止按 %s", DEMO_END)
-            else:
-                logger.info("会员点数未满 %s，更新截止按 %s", PAID_POINTS, DEMO_END)
-    _profile_cache["at"] = now
-    _profile_cache["cap"] = cap
-    _profile_cache["loaded"] = True
-    return cap
-
-
 def resolve_uptodate_day(data_manager=None) -> str:
     """
     这次计划和“是否还要更新”用的截止数据日。
 
-    先取 data.json 的 as_of，并落到该日或之前最近的开市日；没配 as_of 就用交易日历。
-    然后再被会员能拿到的最后一天挡住。
+    交易日历推导最近已完成开市日（**不读** assumed_latest_completed_trading_date）。
     """
-    return apply_member_cap(_market_day(data_manager), member_end_cap())
-
+    return sync_market_day(data_manager)
 
 def ensure_backfill(data_manager) -> bool:
     """
@@ -237,7 +188,8 @@ def remember_settled(handler: Any, entity_id: Optional[str], settled: str) -> No
     """
     官网说这个区间已经读完。
 
-    有周期的股票把日、周、月都推进到这个数据日期，这样停牌日没 K 线也不会一直显示要更新。
+    有周期的股票按配置的 terms（没有配置时退回日/周/月）推进到这个数据日期，
+    这样停牌日没 K 线也不会一直显示要更新；未启用的周期不要写假水位。
     整表数据源只推进 _global。
     """
     updated = plain_date(settled)
@@ -248,33 +200,43 @@ def remember_settled(handler: Any, entity_id: Optional[str], settled: str) -> No
         return
     entity = str(entity_id or "").strip() or GLOBAL_ENTITY
     if entity != GLOBAL_ENTITY and _handler_has_term(handler):
-        terms: Iterable[str] = KLINE_TERMS
+        terms = _settled_terms(handler)
     else:
         terms = ("",)
     proposed = {(entity, term): updated for term in terms}
     _write_forward(_progress_model(_manager(handler)), source, proposed)
 
 
-def _market_day(data_manager) -> str:
-    configured = ProjectContext.config.get_as_of_latest_completed_trading_date()
+def _settled_terms(handler: Any) -> Tuple[str, ...]:
+    """优先用 job_execution.terms；没有配置时才用日/周/月默认三档。"""
+    config = _config(handler)
+    configured = None
+    if config is not None and hasattr(config, "get_group_by_terms"):
+        try:
+            configured = config.get_group_by_terms()
+        except Exception:
+            configured = None
     if configured:
-        if data_manager and getattr(data_manager, "_data_service", None):
-            try:
-                derived = data_manager.service.calendar._derive_completed_from_trade_calendar(
-                    as_of_date=configured
-                )
-                if derived:
-                    return str(derived).strip()
-            except Exception:
-                logger.debug("as_of 没能落到开市日", exc_info=True)
-        return str(configured).strip()
+        terms = tuple(str(term).strip() for term in configured if str(term).strip())
+        if terms:
+            return terms
+    return KLINE_TERMS
+
+
+def sync_market_day(data_manager) -> str:
+    """
+    Renew 用的市场日：跟交易日历（或 K 线等 fallback）推，
+    **忽略** assumed_latest_completed_trading_date。
+
+    assumed 只作扫描/回测假定最新日，见 CalendarService.get_latest_completed_trading_date。
+    """
     if data_manager and getattr(data_manager, "_data_service", None):
         try:
-            return str(
-                data_manager.service.calendar.get_latest_completed_trading_date() or ""
-            ).strip()
+            cal = data_manager.service.calendar
+            raw, _source = cal._resolve_raw_latest_completed()
+            return str(raw or "").strip()
         except Exception:
-            logger.warning("读取最近开市日失败", exc_info=True)
+            logger.warning("读取最近开市日失败（sync）", exc_info=True)
     return ""
 
 

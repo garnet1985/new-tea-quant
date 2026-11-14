@@ -1,8 +1,11 @@
 import {
   FAKE_PROGRESS_CAP,
+  IMPORT_DOWNLOAD_WITHIN_SHARE,
   SETUP_CHOICE_COPY,
   clampFakeProgress,
+  demoPackageHintFromStatus,
   fakeProgressTickSize,
+  importWithinStepRatio,
   isChoicePauseStep,
   nextFakeProgress,
   setupFakeProgressBounds,
@@ -19,14 +22,58 @@ const STEPS = [
 ];
 
 describe('setup.helpers fake progress and choice steps', () => {
-  it('points skipped demo import at settings maintenance', () => {
-    expect(SETUP_CHOICE_COPY.import_data.body).toContain('设置 → 安装与维护');
+  it('offers demo import vs later member pack on the import pause', () => {
+    const copy = SETUP_CHOICE_COPY.import_data;
+    expect(copy.layout).toBe('cards');
+    expect(copy.introLinkLabel).toBe('注册会员');
+    expect(copy.introAfterLink).toContain('设置 → 安装与维护');
+    expect(copy.choices.map((item) => item.id)).toEqual(['demo', 'later']);
+    expect(copy.choices[0].skip).toBe(false);
+    expect(copy.choices[1].skip).toBe(true);
+    expect(copy.choices[0].description).toContain('300');
+    expect(copy.choices[1].description).toContain('5800');
   });
 
   it('identifies import and ML pause steps', () => {
     expect(isChoicePauseStep('import_data')).toBe(true);
     expect(isChoicePauseStep('resolve_ml_deps')).toBe(true);
     expect(isChoicePauseStep('db_connection')).toBe(false);
+  });
+
+  it('explains whether a local demo package is already cached', () => {
+    expect(demoPackageHintFromStatus(null)).toBe('');
+    expect(demoPackageHintFromStatus({
+      dataPackages: { packages: { demo: { present: true, sizeLabel: '120 MB' } } },
+    })).toContain('本地已有');
+    expect(demoPackageHintFromStatus({
+      dataPackages: { packages: { demo: { present: false } } },
+    })).toContain('尚无');
+  });
+
+  it('maps download into a small slice so table import can continue without falling back', () => {
+    expect(importWithinStepRatio({
+      running: true,
+      phase: 'downloading',
+      ratio: 1,
+      totalBytes: 100,
+    })).toBeCloseTo(IMPORT_DOWNLOAD_WITHIN_SHARE);
+    expect(importWithinStepRatio({
+      running: true,
+      phase: 'preparing',
+      ratio: 0,
+    })).toBe(0);
+    expect(importWithinStepRatio({
+      running: true,
+      phase: 'importing',
+      ratio: 0,
+      totalTables: 10,
+    })).toBeCloseTo(IMPORT_DOWNLOAD_WITHIN_SHARE);
+    expect(importWithinStepRatio({
+      running: true,
+      phase: 'importing',
+      ratio: 1,
+      totalTables: 10,
+    })).toBeCloseTo(1);
   });
 
   it('nudges percent toward the cap and then holds', () => {

@@ -83,7 +83,7 @@ class DevParser:
         p_ex = sub.add_parser(
             "data_export_init",
             aliases=DevCommands.aliases_for("data_export_init"),
-            help="打包演示数据 zip",
+            help="导出安装/会员数据包（--demo/--member/--full；无参数显示帮助）",
         )
         p_ex.add_argument("forward", nargs=argparse.REMAINDER)
         p_ex.set_defaults(handler=DevHandlers.cmd_data_export_init)

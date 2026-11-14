@@ -60,6 +60,25 @@ def _is_userspace_structure_ready(target: Path) -> bool:
     return required.is_file()
 
 
+def _is_hollow_userspace(target: Path) -> bool:
+    """
+    目录已存在但还不是可用 userspace。
+
+    安装开始时 trace 可能先写入 ``userspace/.ntq/``，此时目录非空却没有
+    ``system/config/database/common.json``；应视为可覆盖的空壳，而不是冲突。
+    """
+    if not target.is_dir() or _is_userspace_structure_ready(target):
+        return False
+    for child in target.iterdir():
+        name = child.name
+        if name in (".ntq", ".DS_Store"):
+            continue
+        if name.startswith("._"):
+            continue
+        return False
+    return True
+
+
 def _extract_zip(zip_path: Path, target: Path) -> None:
     if target.exists():
         raise RuntimeError(f"目标路径已存在，请先清理后重试: {target}")
@@ -116,20 +135,21 @@ def main() -> int:
     except (ValueError, PermissionError, OSError) as exc:
         raise RuntimeError(f"userspace 路径非法或无权限: {exc}") from exc
     if target.exists():
-        if conflict_policy == "skip":
-            if not _is_userspace_structure_ready(target):
-                raise RuntimeError(
-                    "目标路径已存在，但不是可用的 userspace 结构（缺少 system/config/database/common.json）。"
-                    f"请改用“覆盖”或清理后重试: {target}"
-                )
+        if conflict_policy == "skip" and _is_userspace_structure_ready(target):
             NewTeaQuantSetup.print_check_item("warn", f"目标路径已存在，按策略跳过解压: {target}")
             _write_userspace_state(target)
             NewTeaQuantSetup.print_check_ok(f"userspace 初始化完成（跳过覆盖）: {target}")
             NewTeaQuantSetup.print_check_info(f"userspace 路径状态已写入: {STATE_FILE}")
             return 0
-        if conflict_policy == "overwrite":
-            NewTeaQuantSetup.print_check_item("warn", f"目标路径已存在，按策略覆盖: {target}")
+        if conflict_policy == "overwrite" or _is_hollow_userspace(target):
+            reason = "按策略覆盖" if conflict_policy == "overwrite" else "仅有临时 .ntq，清理后重新初始化"
+            NewTeaQuantSetup.print_check_item("warn", f"目标路径已存在，{reason}: {target}")
             shutil.rmtree(target)
+        else:
+            raise RuntimeError(
+                "目标路径已存在，但不是可用的 userspace 结构（缺少 system/config/database/common.json）。"
+                f"请改用“覆盖”或清理后重试: {target}"
+            )
 
     _extract_zip(zip_path, target)
     _ensure_default_database_config(target)

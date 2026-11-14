@@ -128,11 +128,19 @@ class TempCleanup:
             TempCleanup._rm_tree(us_ntq)
 
     @staticmethod
+    def clear_static_data_packages() -> int:
+        """删除 ``userspace/.ntq/packages/{demo,member,full}`` 与旧 install_demo。"""
+        from core.infra.setup.core.data_packages import clear_static_data_packages
+
+        return clear_static_data_packages()
+
+    @staticmethod
     def run(
         *,
         clear_backtest_results: bool = False,
         clear_scan_results: bool = False,
         clear_userspace_ntq: bool = False,
+        clear_static_packages: bool = False,
     ) -> Dict[str, Any]:
         """
         按勾选项清理。有全局长任务进行中时拒绝（``error=task_busy``）。
@@ -143,6 +151,7 @@ class TempCleanup:
             clear_backtest_results,
             clear_scan_results,
             clear_userspace_ntq,
+            clear_static_packages,
         ]
         if not any(selected):
             return {"ok": False, "error": "nothing_selected"}
@@ -161,8 +170,11 @@ class TempCleanup:
             TempCleanup.clear_backtest_results_disk()
         if clear_scan_results:
             TempCleanup.clear_scan_results_disk()
+        # 整目录清理已含 packages；单独勾选时再清一次无害。
         if clear_userspace_ntq:
             TempCleanup.clear_userspace_ntq_dir()
+        elif clear_static_packages:
+            TempCleanup.clear_static_data_packages()
 
         return {"ok": True, "message": "缓存已经全部清理"}
 

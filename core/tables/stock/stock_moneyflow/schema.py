@@ -99,7 +99,6 @@ schema = {
         },
     ],
     "indexes": [
-        {"name": "idx_id_date", "fields": ["id", "date"], "unique": True},
         {"name": "idx_date", "fields": ["date"]},
     ],
 }

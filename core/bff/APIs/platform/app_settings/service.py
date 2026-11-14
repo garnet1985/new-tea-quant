@@ -109,9 +109,9 @@ def save_database_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, 
     return {"database_type": dt, "database": db_name, "duckdb_domains": {}}, None
 
 
-def _get_as_of_latest_completed_trading_date() -> Optional[str]:
+def _get_assumed_latest_completed_trading_date() -> Optional[str]:
     data_config = ProjectContext.config.load_data_config()
-    return data_config.get("as_of_latest_completed_trading_date")
+    return data_config.get("assumed_latest_completed_trading_date")
 
 
 def normalize_yyyymmdd(value: Any, field: str, *, required: bool = False) -> Optional[str]:
@@ -156,7 +156,7 @@ def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
             sim_max = None
     return {
         "default_start_date": str(cfg.get("default_start_date") or "").strip(),
-        "as_of_latest_completed_trading_date": _get_as_of_latest_completed_trading_date(),
+        "assumed_latest_completed_trading_date": _get_assumed_latest_completed_trading_date(),
         "simulation_results_max_stale_envs": sim_max,
         "config_path": str(ProjectContext.path.get_user_config_root() / "data.json"),
     }
@@ -174,9 +174,9 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
             "default_start_date",
             required=True,
         )
-        as_of = normalize_yyyymmdd(
-            payload.get("as_of_latest_completed_trading_date"),
-            "as_of_latest_completed_trading_date",
+        assumed = normalize_yyyymmdd(
+            payload.get("assumed_latest_completed_trading_date"),
+            "assumed_latest_completed_trading_date",
         )
         sim_max = None
         if "simulation_results_max_stale_envs" in payload:
@@ -197,7 +197,7 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
             existing = dict(loaded)
 
     existing["default_start_date"] = default_start
-    existing["as_of_latest_completed_trading_date"] = as_of
+    existing["assumed_latest_completed_trading_date"] = assumed
     # 不读写 use_sample_stock_list：设置页保存不得写入/清空该开发配置。
     if sim_max is not None:
         retention = existing.get("retention")
@@ -221,6 +221,7 @@ def run_cache_clear(payload: Dict[str, Any]) -> Dict[str, Any]:
         clear_backtest_results=_flag("clear_backtest_results"),
         clear_scan_results=_flag("clear_scan_results"),
         clear_userspace_ntq=_flag("clear_userspace_ntq"),
+        clear_static_packages=_flag("clear_static_packages"),
     )
 
 

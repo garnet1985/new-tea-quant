@@ -36,7 +36,7 @@ def test_data_settings_response_includes_retention(monkeypatch):
 
     monkeypatch.setattr(
         settings_service,
-        "_get_as_of_latest_completed_trading_date",
+        "_get_assumed_latest_completed_trading_date",
         lambda: None,
     )
     monkeypatch.setattr(

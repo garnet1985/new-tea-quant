@@ -96,3 +96,19 @@ terms:
       - "Discovery.file.find_in_tree"
     avoid:
       - "ProjectContext.discovery.find_in_tree"
+
+  default_start_date:
+    definition: "data.json 全局历史地板：空表 renew 起点、回测/Tag 默认 start、Timeline/查询下界。见 docs/DATA_JSON.md。"
+    aliases:
+      - "get_default_start_date"
+    avoid: []
+
+  assumed_latest_completed_trading_date:
+    definition: "data.json 扫描/回测假定的最新已完成交易日；null 跟真实日历。不裁剪 data source renew 截止。见 docs/DATA_JSON.md。"
+    aliases:
+      - "get_assumed_latest_completed_trading_date"
+      - "假定最新已完成交易日"
+    avoid:
+      - "as_of_latest_completed_trading_date"
+      - "configured_as_of"
+      - "get_as_of_latest_completed_trading_date"

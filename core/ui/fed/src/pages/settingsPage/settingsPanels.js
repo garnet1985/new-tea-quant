@@ -35,6 +35,7 @@ import {
   fetchMemberProfile,
   fetchMembershipSettings,
   fetchTraceSettings,
+  notifyMembershipChanged,
   saveMembershipToken,
   saveTraceSettings,
 } from '../../api/settingsApi';
@@ -46,6 +47,7 @@ import {
   saveAgentSettings,
 } from '../../api/agentApi';
 import {
+  getImportDataPlan,
   getImportDataProgress,
   getMlExtrasStatus,
   importDemoData,
@@ -54,6 +56,7 @@ import {
 } from '../../api/setupApi';
 import { useAsyncAction } from 'service/useAsyncAction';
 import { useFakeProgress } from 'service/progress/useFakeProgress';
+import { subscribePipelineSnapshot } from 'service/jobPipelineBus';
 import { persistDockSelectedId } from '../../containers/assistantChatDock/dockChatStore';
 
 export function SettingsSystemPanel() {
@@ -66,11 +69,14 @@ export function SettingsSystemPanel() {
   const [reinstalling, setReinstalling] = useState(false);
   const [reinstallError, setReinstallError] = useState('');
   const [importOpen, setImportOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importRunning, setImportRunning] = useState(false);
   const [importError, setImportError] = useState('');
   const [importOk, setImportOk] = useState('');
   const [importProgress, setImportProgress] = useState(null);
+  const [importPlan, setImportPlan] = useState(null);
   const fakePercent = useFakeProgress(installing, 8);
+  const importing = importSubmitting || importRunning;
 
   const loadMlStatus = useCallback(() => {
     setMlLoadError('');
@@ -83,17 +89,56 @@ export function SettingsSystemPanel() {
       });
   }, []);
 
-  useEffect(() => {
-    loadMlStatus();
-  }, [loadMlStatus]);
+  const loadImportPlan = useCallback(() => {
+    return getImportDataPlan()
+      .then((next) => {
+        setImportPlan(next);
+      })
+      .catch(() => {
+        setImportPlan(null);
+      });
+  }, []);
 
   useEffect(() => {
-    if (!importing) return undefined;
+    loadMlStatus();
+    loadImportPlan();
+  }, [loadMlStatus, loadImportPlan]);
+
+  useEffect(() => {
     let stopped = false;
+    let pipelineBusy = false;
+    let progressRunning = false;
+    let wasBusy = false;
+
+    const isImportJob = (row) => String(row?.kind || '') === 'import_data'
+      && ['running', 'pending', 'stale'].includes(String(row?.status || '').toLowerCase());
+
+    const syncBusy = () => {
+      const busy = pipelineBusy || progressRunning;
+      setImportRunning(busy);
+      if (wasBusy && !busy) {
+        loadImportPlan();
+      }
+      wasBusy = busy;
+    };
+
+    const unsub = subscribePipelineSnapshot((snap) => {
+      if (stopped) return;
+      const jobs = Array.isArray(snap?.jobs) ? snap.jobs : [];
+      pipelineBusy = Boolean(
+        isImportJob(snap?.job)
+        || jobs.some(isImportJob),
+      );
+      syncBusy();
+    });
+
     const tick = () => {
       getImportDataProgress()
         .then((next) => {
-          if (!stopped) setImportProgress(next);
+          if (stopped) return;
+          setImportProgress(next);
+          progressRunning = Boolean(next?.running);
+          syncBusy();
         })
         .catch(() => {});
     };
@@ -102,8 +147,9 @@ export function SettingsSystemPanel() {
     return () => {
       stopped = true;
       clearInterval(timerId);
+      unsub();
     };
-  }, [importing]);
+  }, [loadImportPlan]);
 
   const handleInstallMl = async () => {
     setInstalling(true);
@@ -121,18 +167,28 @@ export function SettingsSystemPanel() {
   };
 
   const handleConfirmImport = async () => {
-    setImporting(true);
+    setImportSubmitting(true);
     setImportError('');
     setImportOk('');
     setImportProgress(null);
     try {
-      await importDemoData();
+      const result = await importDemoData();
       setImportOpen(false);
-      setImportOk('演示数据已导入。');
+      // 一次任务内下载（若需）并导入，无需再点一次。
+      setImportOk(
+        result.message
+          || (result.imported
+            ? '数据已导入。'
+            : '导入任务已提交（缺包时先下载再导入）。'),
+      );
+      if (result.running || result.queued || result.imported === false) {
+        setImportRunning(true);
+      }
+      loadImportPlan();
     } catch (err) {
-      setImportError(err?.message || '演示数据导入失败，请稍后重试。');
+      setImportError(err?.message || '数据导入失败，请稍后重试。');
     } finally {
-      setImporting(false);
+      setImportSubmitting(false);
     }
   };
 
@@ -152,11 +208,24 @@ export function SettingsSystemPanel() {
 
   const mlInstalled = Boolean(mlStatus?.installed);
   const importBusy = importing || reinstalling;
-  const importProgressText = importProgress?.totalTables
-    ? `正在导入 ${importProgress.completedCount}/${importProgress.totalTables}${
-      importProgress.currentTable ? `：${importProgress.currentTable}` : ''
-    }`
-    : '正在导入演示数据…';
+  const importProgressText = !importProgress?.running
+    ? (importSubmitting ? '正在提交导入任务…' : '正在导入数据…')
+    : (importProgress.phase === 'downloading' || importProgress.phase === 'preparing')
+      ? (importProgress.statusText
+        || (importProgress.phase === 'downloading' ? '数据下载中…' : '准备导入…'))
+      : importProgress.totalTables
+        ? `正在导入 ${importProgress.completedCount}/${importProgress.totalTables}${
+          importProgress.currentTable ? `：${importProgress.currentTable}` : ''
+        }`
+        : '正在导入数据…';
+  const membershipConfigured = Boolean(importPlan?.membershipConfigured);
+  const packLabel = importPlan?.packLabel || '约 300 只股票 × 三年（公开演示包）';
+  const localHint = importPlan?.localHint || '';
+  const membershipWarning = importPlan?.warning || '';
+  const confirmTitle = importPlan?.confirmTitle || '导入数据？';
+  const confirmBody = importPlan?.confirmBody
+    || '数据包中的表会被清空后重写，可能覆盖已有行情。';
+  const confirmActionLabel = importPlan?.confirmActionLabel || '开始导入';
 
   return (
     <Stack spacing={2}>
@@ -214,11 +283,31 @@ export function SettingsSystemPanel() {
       </Dialog>
 
       <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
-        演示数据
+        导入数据
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        安装时如果跳过了演示数据，可以在这里导入。导入会清空数据包中的表再写入，可能覆盖已有数据。
+        按是否已装载会员凭证自动选择数据包。导入会清空数据包中的表再写入，可能覆盖已有行情。
       </Typography>
+      {importPlan && membershipWarning ? (
+        <Alert severity="warning">
+          {membershipWarning}
+          {' '}
+          <Link component={RouterLink} to="/settings/membership" underline="hover">
+            前往会员设置
+          </Link>
+        </Alert>
+      ) : null}
+      {importPlan ? (
+        <Typography variant="body2" color="text.secondary">
+          当前将导入：{packLabel}
+          {membershipConfigured ? ' · 已装载会员凭证' : ' · 未装载会员凭证'}
+        </Typography>
+      ) : null}
+      {localHint ? (
+        <Typography variant="body2" color="text.secondary">
+          {localHint}
+        </Typography>
+      ) : null}
       {importError ? <Alert severity="error">{importError}</Alert> : null}
       {importOk ? <Alert severity="success">{importOk}</Alert> : null}
       {importing ? (
@@ -233,10 +322,10 @@ export function SettingsSystemPanel() {
           onClick={() => {
             setImportError('');
             setImportOk('');
-            setImportOpen(true);
+            loadImportPlan().finally(() => setImportOpen(true));
           }}
         >
-          导入演示数据
+          {importRunning ? '正在导入…' : '导入数据'}
         </Button>
       </Box>
       <Dialog
@@ -245,11 +334,27 @@ export function SettingsSystemPanel() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>导入演示数据？</DialogTitle>
+        <DialogTitle>{confirmTitle}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            演示数据包里的表会被清空后重写，可能覆盖已有行情。请先退出其他正在使用这个数据库的程序，再继续。
+          <DialogContentText component="div">
+            {confirmBody}
+            {localHint ? (
+              <Box component="p" sx={{ mt: 1.5, mb: 0 }}>
+                {localHint}
+              </Box>
+            ) : null}
           </DialogContentText>
+          {!membershipConfigured ? (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              若您是会员，请先取消并到
+              {' '}
+              <Link component={RouterLink} to="/settings/membership" underline="hover">
+                设置 → 会员
+              </Link>
+              {' '}
+              装载凭证，再回来导入全市场数据。
+            </Alert>
+          ) : null}
           {importError ? (
             <Alert severity="error" sx={{ mt: 2 }}>{importError}</Alert>
           ) : null}
@@ -265,10 +370,11 @@ export function SettingsSystemPanel() {
           </Button>
           <Button
             variant="contained"
+            color={membershipConfigured ? 'primary' : 'warning'}
             onClick={handleConfirmImport}
             disabled={importing}
           >
-            {importing ? '正在导入…' : '开始导入'}
+            {importing ? '正在导入…' : confirmActionLabel}
           </Button>
         </DialogActions>
       </Dialog>
@@ -440,10 +546,10 @@ export function SettingsDataPanel({
   saveOk,
   saving,
   defaultStartDate,
-  asOfLatestCompletedDate,
+  assumedLatestCompletedDate,
   simulationResultsMaxStaleEnvs,
   onDefaultStartDateChange,
-  onAsOfLatestCompletedDateChange,
+  onAssumedLatestCompletedDateChange,
   onSimulationResultsMaxStaleEnvsChange,
   onSave,
   onReload,
@@ -485,7 +591,19 @@ export function SettingsDataPanel({
         <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
           <li>
             <Typography variant="body2" component="span">
-              注册会员后，可在官网下载并导入约 3 年全市场数据；也可在
+              注册会员并在
+              {' '}
+              <Link component={RouterLink} to="/settings/membership" underline="hover">
+                设置 → 会员
+              </Link>
+              {' '}
+              装载凭证后，可到
+              {' '}
+              <Link component={RouterLink} to="/settings/system" underline="hover">
+                设置 → 安装与维护
+              </Link>
+              {' '}
+              一键导入约 3 年全市场数据；也可在
               {' '}
               <Link component={RouterLink} to="/advanced/data-sources" underline="hover">
                 高级功能 → 数据源
@@ -499,7 +617,7 @@ export function SettingsDataPanel({
           </li>
           <li>
             <Typography variant="body2" component="span">
-              尚未导入演示包时，可到
+              尚未导入数据时，可到
               {' '}
               <Link component={RouterLink} to="/settings/system" underline="hover">
                 设置 → 安装与维护
@@ -530,16 +648,16 @@ export function SettingsDataPanel({
             value={defaultStartDate}
             onChange={(e) => onDefaultStartDateChange(e.target.value)}
             placeholder="20080101"
-            helperText="YYYYMMDD；更新/拉数的下界。库中更早没有数据时，实际仍从库内最早日开始。"
+            helperText="YYYYMMDD；空表 renew 与回测默认起点的全局地板。"
           />
           <TextField
-            label="截至日期（as-of）"
+            label="假定最新已完成交易日"
             size="small"
             fullWidth
-            value={asOfLatestCompletedDate}
-            onChange={(e) => onAsOfLatestCompletedDateChange(e.target.value)}
-            placeholder="留空表示不截断"
-            helperText="截断 Tag/策略与数据源状态评估的上界；留空则用实时最新已完成交易日。不能超过库内已有行情。"
+            value={assumedLatestCompletedDate}
+            onChange={(e) => onAssumedLatestCompletedDateChange(e.target.value)}
+            placeholder="留空表示跟真实日历"
+            helperText="扫描/回测假定的「今天」。留空则用实时最新已完成交易日。不裁剪日常数据续传截止。"
           />
           <Box id="settings-retention">
             <TextField
@@ -580,7 +698,12 @@ const CACHE_OPTIONS = [
   {
     key: 'clear_userspace_ntq',
     label: '用户空间缓存清理',
-    hint: '删除 userspace/.ntq/（进度、pipeline 租约、tmp 等）。不含仓库根 .ntq/。',
+    hint: '删除 userspace/.ntq/（进度、pipeline 租约、tmp 等）。不含仓库根 .ntq/。勾选此项时已包含下方静态数据包。',
+  },
+  {
+    key: 'clear_static_packages',
+    label: '静态数据包清理',
+    hint: '删除 userspace/.ntq/packages/ 下已下载的 demo / member / full 数据包。下次导入需重新下载。',
   },
 ];
 
@@ -588,6 +711,7 @@ const DEFAULT_CACHE_SELECTION = {
   clear_backtest_results: true,
   clear_scan_results: true,
   clear_userspace_ntq: true,
+  clear_static_packages: false,
 };
 
 export function SettingsCachePanel() {
@@ -962,11 +1086,14 @@ export function SettingsMembershipPanel() {
               : Number(profile.catfood_paid),
           );
           setCatfoodFreeExpiresAt(String(profile.catfood_free_expires_at || '').trim() || null);
+          // 设置页与顶栏各持一份 state：资料拉成功后推给顶栏，避免顶栏停在旧的 unreachable。
+          notifyMembershipChanged({ profile });
         } else if (ledger?.available && ledger.catfood != null) {
           setCatfood(Number(ledger.catfood));
           setCatfoodFree(null);
           setCatfoodPaid(null);
           setCatfoodFreeExpiresAt(null);
+          notifyMembershipChanged();
         } else {
           setCatfood(null);
           setCatfoodFree(null);

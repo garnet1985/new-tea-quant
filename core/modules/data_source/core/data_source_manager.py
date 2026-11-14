@@ -48,7 +48,7 @@ class DataSourceManager:
         Args:
             table_name: 绑定表名（如 ``sys_data_stock_klines``）或 data source key（如 ``stock_klines``）。
                 ``None`` 表示所有 ``is_enabled`` 的数据源。
-            force: 强制 refresh：从 ``default_start_date`` 重拉，跳过日缓存与 ``renew_if_over_days``。
+            force: 强制 refresh：从会员权益起点重拉，跳过日缓存与 ``renew_if_over_days``。
             progress_id: 这次任务的进度文件名。不传则按时间生成。
         """
         if table_name:
@@ -559,7 +559,7 @@ class DataSourceManager:
 
     @staticmethod
     def resolve_freshness_end_date(data_manager=None) -> str:
-        """有效 freshness 结束日（对齐 ``data.json`` as_of 与交易日历）。"""
+        """有效 freshness 结束日（真实日历；不读 assumed）。"""
         from core.modules.data_source.core.catalog.freshness_probe import (
             _resolve_freshness_end_date,
         )

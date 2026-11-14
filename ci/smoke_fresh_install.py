@@ -52,7 +52,7 @@ def smoke_fresh_install(
         return 1
     py = install_python or sys.executable
     code = _run(
-        [py, "install.py", "--import-demo", "--accept-license"],
+        [py, "install.py", "--accept-license"],
         cwd=root,
         label="CLI 安装",
     )

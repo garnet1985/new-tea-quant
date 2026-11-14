@@ -6,6 +6,12 @@ from typing import Dict
 
 DEFAULT_DISPLAY_NAMES: Dict[str, str] = {
     "stock_list": "股票列表",
+    "boards": "板块定义",
+    "markets": "交易所定义",
+    "areas": "地域定义",
+    "stock_board": "股票-板块映射",
+    "stock_market": "股票-交易所映射",
+    "stock_area": "股票-地域映射",
     "stock_klines": "股票 K 线",
     "stock_indicators": "股票日频指标",
     "stock_moneyflow": "个股资金流向",

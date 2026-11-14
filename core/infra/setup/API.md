@@ -104,13 +104,13 @@
 
 #### install_cli / ensure_cli_install
 
-`Setup.runtime.install_cli(*, force: bool = False, userspace=None, userspace_conflict=None, db=None, db_host=None, db_port=None, db_name=None, db_user=None, db_password=None, db_schema=None, import_demo: bool = False, deps_only: bool = False) -> None`  
+`Setup.runtime.install_cli(*, force: bool = False, userspace=None, userspace_conflict=None, db=None, db_host=None, db_port=None, db_name=None, db_user=None, db_password=None, db_schema=None, import_demo: bool = True, deps_only: bool = False) -> None`  
 `Setup.runtime.ensure_cli_install() -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`（`userspace` / `db` 参数：`0.1.1`）
-- **描述：** 跑 CLI 安装步骤，不询问 userspace / 数据库。使用条款在 `install.py` 与 `cli.py` 入口询问，不在本方法内。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。默认不导入演示包；`import_demo=True`（`install.py --import-demo`）才导入，并覆盖同名表。`deps_only=True` 只跑系统检查和依赖安装。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发）：依赖指纹变化时只更新依赖；不带 `--import-demo` 不导入演示包。未导入时结束提示 `python cli.py id`。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
+- **描述：** 跑 CLI 安装步骤，不询问 userspace / 数据库。使用条款在 `install.py` 与 `cli.py` 入口询问，不在本方法内。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。默认从官网下载并导入演示包（覆盖同名表）；`import_demo=False`（`install.py --skip-demo-data`）跳过。`deps_only=True` 只跑系统检查和依赖安装。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发）：依赖指纹变化时只更新依赖；完整安装默认仍导入演示包。跳过演示数据时结束提示 `python cli.py id`。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
 
 #### import_init_data
 
@@ -119,7 +119,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.4.4`
-- **描述：** 导入演示数据包；目录为 `userspace/.ntq/packages/install_demo/`；无 zip 时从官网公开接口下载；`force` 重新下载并全量重导；成功后清理 zip/meta/解压目录；须先有 userspace；用户 CLI：`python cli.py id`
+- **描述：** 导入演示数据包；目录为 `userspace/.ntq/packages/demo/`（旧 `install_demo/` 会自动迁入）；无 zip 时从官网公开接口下载；`force` 重新下载并全量重导；成功后清理解压目录并**保留** zip/meta 作本地缓存；须先有 userspace；用户 CLI：`python cli.py id`
 
 #### install_ui / check_ui_prerequisites / launch_ui / set_ui_dev_mode
 
@@ -149,7 +149,7 @@
 
 ### artifacts
 
-**描述：** 安装产物工厂（userspace zip；演示包导出到 `userspace/.ntq/packages/install_demo/`）
+**描述：** 安装产物工厂（userspace zip；数据包导出到 `userspace/.ntq/packages/{demo|member|full}/`）
 
 #### package_userspace
 
@@ -167,7 +167,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 导出演示数据包到 `userspace/.ntq/packages/install_demo/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`
+- **描述：** 导出安装/会员数据包到 `userspace/.ntq/packages/{demo|member|full}/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`（需 `--demo` / `--member` / `--full`；无参数只打印帮助）
 
 ---
 

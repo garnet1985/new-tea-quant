@@ -59,14 +59,21 @@ class TagPipelineHooks:
             ctx.tag_values_count += ctx.flush.extend(rows)
 
     @classmethod
-    def _emit_progress(cls) -> None:
+    def _emit_progress(cls, run_progress: Optional[RunProgress] = None) -> None:
         ctx = cls._ctx
         if ctx is None or ctx.on_progress is None:
             return
-        total = max(int(ctx.total_jobs), 1)
+        # entity_based 常把全部实体塞进 1 个 BacktestJob，再按 batch 回报；
+        # 分母必须用 BE 的 RunProgress.total（batch 数），不能用 len(jobs)=1。
+        if run_progress is not None and int(getattr(run_progress, "total", 0) or 0) > 0:
+            finished = max(0, int(getattr(run_progress, "finished", 0) or 0))
+            total = max(0, int(run_progress.total or 0))
+        else:
+            finished = max(0, int(ctx.finished))
+            total = max(0, int(ctx.total_jobs))
         ctx.on_progress(
             {
-                "finished": ctx.finished,
+                "finished": finished,
                 "total": total,
                 "ok": ctx.ok,
                 "fail": ctx.fail,
@@ -75,9 +82,8 @@ class TagPipelineHooks:
 
     @classmethod
     def on_receive_task_result(cls, report: JobReport, progress: RunProgress) -> None:
-        _ = progress
         cls._apply_report(report)
-        cls._emit_progress()
+        cls._emit_progress(progress)
 
     @classmethod
     def on_after_all_tasks_complete(cls, job_reports: List[JobReport]) -> None:

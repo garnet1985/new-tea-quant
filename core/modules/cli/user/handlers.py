@@ -123,7 +123,90 @@ class UserHandlers:
             print(f"{i('ongoing')} 导入演示数据包{suffix}", flush=True)
             return Setup.runtime.import_init_data(force=force)
 
+        if cmd == "auth":
+            return UserHandlers.run_auth(args)
+
         return None
+
+    @staticmethod
+    def _auth_guide() -> str:
+        return "\n".join(
+            [
+                "Guide：",
+                "  1. 登录官网会员中心，复制通用凭证（ntq_ 开头 + 48 位小写十六进制）",
+                "  2. 再执行：python cli.py auth",
+                "  3. 在提示处粘贴凭证后回车（输入不回显，属正常）",
+                "  4. 也可在应用设置页粘贴保存；清除用：python cli.py auth --clear",
+                "  5. 仅查看是否已配置：python cli.py auth --status",
+            ]
+        )
+
+    @staticmethod
+    def _auth_print_status() -> int:
+        from core.infra.membership import Membership
+
+        status = Membership.status()
+        if status["configured"]:
+            print(f"{i('success')} 已配置会员凭证（{status['path']}）", flush=True)
+            return 0
+        if status["invalid"]:
+            print(
+                f"{i('error')} 凭证文件存在但格式无效（{status['path']}）",
+                flush=True,
+            )
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+        print(f"{i('warning')} 尚未配置会员凭证", flush=True)
+        print(UserHandlers._auth_guide(), flush=True)
+        return 1
+
+    @staticmethod
+    def run_auth(args: argparse.Namespace) -> int:
+        """Prompt for membership token via getpass; never echo or print the secret."""
+        import getpass
+
+        from core.infra.membership import Membership
+
+        clear = bool(getattr(args, "clear", False))
+        status_only = bool(getattr(args, "status", False))
+
+        if clear and status_only:
+            print(
+                f"{i('error')} 请二选一：cli.py auth / auth --status / auth --clear",
+                flush=True,
+            )
+            return 1
+
+        if clear:
+            Membership.clear()
+            print(f"{i('success')} 已清除本地会员凭证", flush=True)
+            return 0
+
+        if status_only:
+            return UserHandlers._auth_print_status()
+
+        try:
+            token_text = getpass.getpass("会员凭证（输入不回显）: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print(flush=True)
+            print(f"{i('error')} 设置失败", flush=True)
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+
+        if not token_text:
+            print(f"{i('error')} 设置失败（未输入凭证）", flush=True)
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+
+        err = Membership.save(token_text)
+        if err:
+            print(f"{i('error')} 设置失败", flush=True)
+            print(f"  {err}", flush=True)
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+
+        print(f"{i('success')} token 设置成功", flush=True)
+        return 0
 
     @staticmethod
     def _run_scaffold(kind: str, raw_path: object, args: argparse.Namespace) -> int:

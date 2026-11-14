@@ -46,7 +46,9 @@ function normalizeJob(job) {
     resource_key: job.resource_key || null,
     label: job.label || null,
     status: 'completed',
+    started_at: job.started_at || null,
     finished_at: job.finished_at || Date.now(),
+    progress: job.progress && typeof job.progress === 'object' ? job.progress : null,
   };
 }
 

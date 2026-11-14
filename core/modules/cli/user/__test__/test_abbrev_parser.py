@@ -39,6 +39,9 @@ pytestmark = pytest.mark.force_run
         (["im", "./pkg.zip"], ["import_strategy", "./pkg.zip"]),
         (["id"], ["import_data"]),
         (["id", "-f"], ["import_data", "-f"]),
+        (["auth"], ["auth"]),
+        (["auth", "--clear"], ["auth", "--clear"]),
+        (["auth", "--status"], ["auth", "--status"]),
         (["a", "你好"], ["agent", "你好"]),
         (["a", "--tools"], ["agent", "--tools"]),
         (["agent", "--prefs"], ["agent", "--prefs"]),
@@ -51,6 +54,23 @@ def test_expand_argv(raw: list[str], expected: list[str]) -> None:
 def test_parse_default_version() -> None:
     args = UserParser.parse_args([])
     assert args.command == "version"
+
+
+def test_parse_auth_flags() -> None:
+    args = UserParser.parse_args(["auth"])
+    assert args.command == "auth"
+    assert args.clear is False
+    assert args.status is False
+
+    cleared = UserParser.parse_args(["auth", "--clear"])
+    assert cleared.command == "auth"
+    assert cleared.clear is True
+    assert cleared.status is False
+
+    status = UserParser.parse_args(["auth", "--status"])
+    assert status.command == "auth"
+    assert status.status is True
+    assert status.clear is False
 
 
 def test_parse_dash_v() -> None:

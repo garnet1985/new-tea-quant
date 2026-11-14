@@ -107,3 +107,18 @@ def test_run_temp_cleanup_nothing_selected():
     out = TempCleanup.run()
     assert out["ok"] is False
     assert out["error"] == "nothing_selected"
+
+
+def test_run_temp_cleanup_static_packages_only(userspace_layout, monkeypatch):
+    packages = userspace_layout / ".ntq" / "packages" / "demo"
+    packages.mkdir(parents=True)
+    (packages / "data_demo.zip").write_bytes(b"PK\x03\x04")
+    monkeypatch.setattr(
+        "core.infra.project_context.core.path_manager.PathManager.get_packages_root",
+        lambda: userspace_layout / ".ntq" / "packages",
+    )
+    with patch.object(JobPipeline, "get_running_job", return_value=None):
+        out = TempCleanup.run(clear_static_packages=True)
+    assert out["ok"] is True
+    assert not packages.exists()
+    assert (userspace_layout / ".ntq").exists()

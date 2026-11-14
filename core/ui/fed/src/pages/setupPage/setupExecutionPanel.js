@@ -75,11 +75,20 @@ function SetupExecutionPanel({
             {pollWarning}
           </Alert>
         ) : null}
-        {runningStep === 'import_data' && importProgress.totalTables > 0 ? (
+        {runningStep === 'import_data' && importProgress.running ? (
           <Alert severity="info" sx={{ mb: 2 }}>
-            导入进度：{importProgress.completedCount}/{importProgress.totalTables}
-            （{Math.round(progressRatio(importProgress.ratio) * 100)}%）
-            {importProgress.currentTable ? `，当前表：${importProgress.currentTable}` : ''}
+            {importProgress.phase === 'downloading' || importProgress.phase === 'preparing'
+              ? (importProgress.statusText
+                || (importProgress.phase === 'downloading' ? '数据下载中…' : '准备导入…'))
+              : importProgress.totalTables > 0
+                ? (
+                  <>
+                    导入进度：{importProgress.completedCount}/{importProgress.totalTables}
+                    （{Math.round(progressRatio(importProgress.ratio) * 100)}%）
+                    {importProgress.currentTable ? `，当前表：${importProgress.currentTable}` : ''}
+                  </>
+                )
+                : '准备导入…'}
           </Alert>
         ) : null}
         <Stack spacing={1} className="setup-page__step-list">

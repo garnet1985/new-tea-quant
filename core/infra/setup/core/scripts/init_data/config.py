@@ -1,29 +1,38 @@
 """
 演示数据导出配置。
 
-``python devcli.py ex`` 默认行为（本文件为唯一配置源）：
-- 股票池：``TARGET_STOCK_COUNT > 0`` 时分层抽样（默认 **300**）；``<= 0`` 为全市场
-- 时序日期窗：**20230101** ~ **20251231**（``DEFAULT_START_DATE`` / ``DEFAULT_END_DATE``，约三年）
-- 季度窗：**2023Q1** ~ **2025Q4**（财报等季度表）
-- 输出（本地）：``userspace/.ntq/packages/install_demo/data_demo.zip``（与安装下载共用）
-- 安装下载源：官网 ``ntq_data/assets/install/``（导出后手动复制上去）
-- 可选 ``--tagged``：额外写一份带版本号的 ``data_v*`` 副本（不提交 Git）
-- 仅导出行情/财报/宏观等**数据表**；不含 cache、meta、tag、工作台快照等运行时生成表
+``python devcli.py ex`` 需指定预设（本文件为日期/抽样默认值的唯一配置源）：
+
+- ``--demo``：分层抽样 ``TARGET_STOCK_COUNT``（默认 **300**）+ 默认日期窗
+- ``--member``：全市场 + 默认日期窗（会员安装包）
+- ``--full``：全市场 + 忽略日期窗（全历史）
+- 无参数：只显示帮助，不导出
+
+日期窗默认：**20230101** ~ **20251231**；季度窗：**2023Q1** ~ **2025Q4**。
+输出：``userspace/.ntq/packages/{demo|member|full}/``（与安装下载共用；按类型分目录）。
+安装下载源：官网 ``ntq_data/assets/install/``（导出后手动复制上去）。
+可选 ``--tagged``：额外写一份带版本号的 ``data_v*`` 副本（不提交 Git）。
+仅导出行情/财报/宏观等**数据表**；不含 cache、meta、tag、工作台快照等运行时生成表。
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 # 仓库根（config 位于 core/infra/setup/core/scripts/init_data/）
 from core.infra.setup.core.install_runtime import REPO_ROOT
+from core.infra.setup.core.data_packages import (  # noqa: F401 — 对外兼容再导出
+    GIT_DATA_META_NAME,
+    GIT_DATA_ZIP_NAME,
+    PACKAGE_META_BY_KIND,
+    PACKAGE_ZIP_BY_KIND,
+    default_package_dir,
+    package_meta_name,
+    package_zip_name,
+    require_package_dir,
+)
 
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
-
-# 固定 zip 名（安装下载与本地导出共用；勿改）
-GIT_DATA_ZIP_NAME = "data_demo.zip"
-GIT_DATA_META_NAME = "data_demo.meta.json"
 
 # --tagged 时额外副本：data_v{core_version}_{stock_count}_{from}_{to}.zip
 PACKAGE_NAME_PREFIX = "data"
@@ -58,32 +67,6 @@ EXCLUDED_GENERATED_TABLES = frozenset(
         "sys_meta_tag_calc_progress",
     }
 )
-
-
-def default_package_dir() -> Path:
-    """演示包目录（导出 / 下载共用）。不检查 userspace 是否已存在。"""
-    from core.infra.project_context import ProjectContext
-
-    return ProjectContext.path.get_install_demo_package_directory()
-
-
-def require_package_dir() -> Path:
-    """
-    返回可写的演示包目录；userspace 根目录不存在时抛出明确错误。
-    """
-    from core.infra.project_context import ProjectContext
-
-    userspace = ProjectContext.path.get_userspace_root()
-    if not userspace.is_dir():
-        raise RuntimeError(
-            "需要先有 userspace 文件夹才能导出或存放演示数据包。\n"
-            f"当前路径不存在: {userspace}\n"
-            "请先完成安装（python install.py 或 launcher），"
-            "或检查 NTQ_USERSPACE_ROOT / .ntq/userspace-path.json。"
-        )
-    out = ProjectContext.path.get_install_demo_package_directory()
-    out.mkdir(parents=True, exist_ok=True)
-    return out
 
 
 @dataclass(frozen=True)

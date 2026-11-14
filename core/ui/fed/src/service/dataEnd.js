@@ -2,7 +2,8 @@
 export function mapDataEnd(dataEnd) {
   const raw = dataEnd && typeof dataEnd === 'object' ? dataEnd : {};
   return {
-    configured_as_of: raw.configured_as_of ?? null,
+    assumed_latest_completed_trading_date:
+      raw.assumed_latest_completed_trading_date ?? null,
     effective_end_date: raw.effective_end_date ?? null,
     is_end_date_truncated: Boolean(raw.is_end_date_truncated),
     truncation_hint: String(raw.truncation_hint || '').trim(),

@@ -6,8 +6,9 @@
 - 提供日期相关的业务方法
 
 对外读入口：
-- ``get_latest_completed_trading_date()``：全系统 latest completed 的唯一权威 API
-  （优先 ``data.json`` 的 ``as_of_latest_completed_trading_date``；否则 DB 日历 → real-world → K 线 MAX → 猜测）
+- ``get_latest_completed_trading_date()``：计算侧 latest completed 权威 API
+  （优先 ``assumed_latest_completed_trading_date``；否则 DB 日历 → real-world → K 线 MAX → 猜测）。
+  data source renew 截止请用 ``renew_progress.sync_market_day``（不读 assumed）。
 
 网络侧（Scanner 严格模式 / unified API fallback）：
 - ``get_real_world_latest_completed_trading_date()``：经注入的 fetcher（通常由 DS 注册）探测；
@@ -46,7 +47,7 @@ class CalendarService(BaseDataService):
         "last_request_date": None,       # 上次请求日期（YYYYMMDD）
         "lock": threading.Lock()         # 线程锁
     }
-    _configured_as_of_logged = False
+    _assumed_latest_logged = False
     _real_world_fetcher: Optional[RealWorldFetcher] = None
 
     @classmethod
@@ -55,12 +56,7 @@ class CalendarService(BaseDataService):
         cls._real_world_fetcher = fetcher
 
     def __init__(self, data_manager):
-        """
-        初始化日历服务
-        
-        Args:
-            data_manager: DataManager 实例
-        """
+        """初始化日历服务。"""
         super().__init__(data_manager)
         self._trade_calendar = data_manager.get_table("sys_data_trade_calendar")
 
@@ -70,26 +66,21 @@ class CalendarService(BaseDataService):
         as_of_date: Optional[str] = None,
     ) -> str:
         """
-        最新已完成交易日（全系统统一读入口）。
+        最新已完成交易日（计算侧统一读入口）。
 
-        1. ``data.json`` 配置 ``as_of_latest_completed_trading_date`` → 直接作为 as-of，不走 fallback。
-        2. 否则 fallback：``sys_data_trade_calendar`` → real-world → K 线 MAX → 猜测。
-
-        Args:
-            as_of_date: 截止自然日（YYYYMMDD），默认今天；仅影响未配置 as-of 时的推导。
-
-        Returns:
-            最新已完成交易日（YYYYMMDD），无法解析时可能为空字符串。
+        有 ``assumed_latest_completed_trading_date`` 则直接用；否则
+        DB 日历 → real-world → K 线 MAX → 猜测。``as_of_date`` 仅影响未配置 assumed 时的推导截止自然日。
+        Renew 截止请用 ``renew_progress.sync_market_day``。
         """
-        configured = ProjectContext.config.get_as_of_latest_completed_trading_date()
-        if configured:
-            if not CalendarService._configured_as_of_logged:
-                CalendarService._configured_as_of_logged = True
+        assumed = ProjectContext.config.get_assumed_latest_completed_trading_date()
+        if assumed:
+            if not CalendarService._assumed_latest_logged:
+                CalendarService._assumed_latest_logged = True
                 logger.info(
-                    i('pin') + " latest completed trading date 使用 data.json 配置: %s",
-                    configured,
+                    i('pin') + " latest completed trading date 使用 data.json assumed: %s",
+                    assumed,
                 )
-            return configured
+            return assumed
         raw_date, _source = self._resolve_raw_latest_completed(as_of_date=as_of_date)
         return raw_date or ""
 

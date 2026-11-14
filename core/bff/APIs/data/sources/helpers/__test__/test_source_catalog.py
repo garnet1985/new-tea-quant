@@ -14,7 +14,8 @@ def test_fetch_catalog_page_shape():
     assert isinstance(data_end, dict)
     assert "is_end_date_truncated" in data_end
     if data_end.get("is_end_date_truncated"):
-        assert data_end.get("truncation_settings_path") == "/settings/data"
+        # 演示档 sync_access=demo：引导去会员页装载/升级，不是数据范围。
+        assert data_end.get("truncation_settings_path") == "/settings/membership"
     if not items:
         return
     row = items[0]

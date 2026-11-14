@@ -149,7 +149,10 @@ class TestPathManager:
             assert ntq.is_dir()
             assert ProjectContext.path.get_userspace_tmp_directory() == ntq / "tmp"
             assert ProjectContext.path.get_install_demo_package_directory() == (
-                ntq / "packages" / "install_demo"
+                ntq / "packages" / "demo"
+            )
+            assert ProjectContext.path.get_data_package_directory("member") == (
+                ntq / "packages" / "member"
             )
         finally:
             ProjectContext.cache.clear_userspace_cache()

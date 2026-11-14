@@ -109,7 +109,9 @@ class TestAdapterApi(unittest.TestCase):
         ok2, err2 = PostProcess.validate_post_processor("presenter")
         self.assertTrue(ok2, err2)
         enabled = PostProcess.list_enabled_post_processors()
-        self.assertIn("presenter", enabled)
+        # 默认开 ntq_mail（含 presenter 步骤）；单独 presenter / demo_handoff 关闭
+        self.assertIn("ntq_mail", enabled)
+        self.assertNotIn("presenter", enabled)
         self.assertNotIn("demo_handoff", enabled)
 
     def test_build_and_run_presenter_post_process(self) -> None:
@@ -122,7 +124,7 @@ class TestAdapterApi(unittest.TestCase):
         ok, err = PostProcess.validate_session(session)
         self.assertTrue(ok, err)
         ran = PostProcess.run_enabled_post_processors(session)
-        self.assertIn("presenter", ran)
+        self.assertIn("ntq_mail", ran)
 
     def test_contracts(self) -> None:
         self.assertTrue(issubclass(BaseAdapter, object))

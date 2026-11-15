@@ -1,21 +1,61 @@
 /**
  * SPECIAL-CASE（post_process DEC-05）：写死消费 ``view=presenter`` 的 scan_report UI。
+ * 机会明细 = 邮件同款两列（股票 / 机会信息）；有 presenter 时追加回测列。
  * 第二个会改前端渲染的 adapter 出现时，改为契约 + 解析引擎，废掉本分支。
  */
-import React, { useMemo } from 'react';
-import {
-  Box,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material';
-import './presenterScanReport.scss';
+import React from 'react';
+import { Box, Stack, Typography } from '@mui/material';
 
-function formatPct(raw, { assumeFraction = true } = {}) {
+/** 与 ntq_email / report_template 默认仓位一致 */
+const DEFAULT_QTY = 100;
+
+/** @param {object|null|undefined} reportPayload */
+export function readPresenterScanUi(reportPayload) {
+  const slot = reportPayload?.post_process?.ui?.scan_report;
+  if (!slot || typeof slot !== 'object') return null;
+  if (String(slot.view || '') !== 'presenter') return null;
+  return slot;
+}
+
+/**
+ * @param {object|null|undefined} ui
+ * @param {string} [strategyName]
+ */
+export function readPresenterHistory(ui, strategyName = '') {
+  const props = ui?.props && typeof ui.props === 'object' ? ui.props : {};
+  const historyByStrategy = props.backtest_history && typeof props.backtest_history === 'object'
+    ? props.backtest_history
+    : {};
+  const name = String(strategyName || '').trim();
+  let hist = name ? historyByStrategy[name] : null;
+  if (!hist || typeof hist !== 'object') {
+    const strategies = Array.isArray(props.strategies) ? props.strategies : [];
+    const firstName = String(strategies[0]?.strategy_name || '').trim();
+    hist = (firstName && historyByStrategy[firstName])
+      || Object.values(historyByStrategy)[0]
+      || null;
+  }
+  if (!hist || typeof hist !== 'object') {
+    return { byStock: {}, sessionSummary: null, error: '' };
+  }
+  let summary = hist.session_summary;
+  // 兼容未解包的 overall_report 整包
+  if (summary && typeof summary === 'object' && summary.summary && typeof summary.summary === 'object') {
+    const nested = summary.summary;
+    const period = summary.backtest_period;
+    summary = { ...nested };
+    if (period && typeof period === 'object' && !summary.backtest_period) {
+      summary.backtest_period = period;
+    }
+  }
+  return {
+    byStock: hist.by_stock && typeof hist.by_stock === 'object' ? hist.by_stock : {},
+    sessionSummary: summary && typeof summary === 'object' ? summary : null,
+    error: hist.error ? String(hist.error) : '',
+  };
+}
+
+export function formatPct(raw, { assumeFraction = true } = {}) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return '—';
   let pct = n;
@@ -23,13 +63,26 @@ function formatPct(raw, { assumeFraction = true } = {}) {
   return `${pct.toFixed(1)}%`;
 }
 
-function formatPrice(raw) {
+export function formatPrice(raw) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return raw == null || raw === '' ? '—' : String(raw);
   return n.toFixed(2);
 }
 
-function formatScanDate(v) {
+export function formatQty(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return '—';
+  return Number.isInteger(n) ? String(n) : String(n);
+}
+
+export function formatNotional(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return '—';
+  if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));
+  return n.toFixed(2);
+}
+
+export function formatScanDateLabel(v) {
   const raw = String(v || '').trim();
   if (!raw) return '—';
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
@@ -37,171 +90,251 @@ function formatScanDate(v) {
   return raw;
 }
 
-function sessionSummaryLine(summary) {
-  if (!summary || typeof summary !== 'object') return null;
-  // overall_report 可能整包下发，指标在嵌套 summary
-  const s = (summary.summary && typeof summary.summary === 'object')
-    ? summary.summary
-    : summary;
-  const total = s.total_investments ?? s.totalInvestments;
-  const winRate = s.win_rate ?? s.winRate;
-  const avgRoi = s.avg_roi ?? s.avg_return ?? s.avgReturn;
-  if (total == null && winRate == null && avgRoi == null) return null;
-  // price overall_report.win_rate 常为百分数（如 58.7）；by_stock 为 0~1
-  const winLooksPercent = Number(winRate) > 1;
+function suggestSize(price, snapshot) {
+  const snap = snapshot && typeof snapshot === 'object' ? snapshot : {};
+  const qtyRaw = snap.qty ?? snap.suggested_qty ?? snap.shares ?? DEFAULT_QTY;
+  const qty = Number(qtyRaw);
+  const p = Number(price);
+  let notional = snap.notional ?? snap.total_cost ?? snap.cost;
+  if ((notional == null || notional === '') && Number.isFinite(p) && Number.isFinite(qty)) {
+    notional = p * qty;
+  }
   return {
-    total: total == null ? '—' : String(total),
-    winRate: formatPct(winRate, { assumeFraction: !winLooksPercent }),
-    avgRoi: formatPct(avgRoi, { assumeFraction: true }),
+    price: Number.isFinite(p) ? p : null,
+    qty: Number.isFinite(qty) ? qty : null,
+    notional: Number(notional),
   };
 }
 
 /**
- * @param {object} props
- * @param {object} [props.ui] ``post_process.ui.scan_report``（含 view / props）
- * @param {string} [props.fallbackStrategyName]
- * @param {'panel'|'dialog'} [props.variant]
+ * @param {object} opp
+ * @param {number} idx
+ * @param {Record<string, object>} byStock
  */
-function PresenterScanReport({
-  ui,
-  fallbackStrategyName = '',
-  variant = 'panel',
+export function mapOpportunityRow(opp, idx, byStock = {}) {
+  const stockId = String(opp?.stock_id || opp?.stockId || opp?.entity_id || '').trim();
+  const snap = opp?.signal_snapshot ?? opp?.signalSnapshot ?? opp?.snapshot ?? {};
+  const price = opp?.trigger_price ?? opp?.triggerPrice ?? '';
+  const size = suggestSize(price, snap);
+  const stats = stockId && byStock[stockId] && typeof byStock[stockId] === 'object'
+    ? byStock[stockId]
+    : null;
+  return {
+    id: stockId || `${idx}`,
+    stock_id: stockId,
+    stock_name: String(opp?.stock_name || opp?.stockName || opp?.entity_name || ''),
+    trigger_price: size.price,
+    qty: size.qty,
+    notional: Number.isFinite(size.notional) ? size.notional : null,
+    bt_completed: stats?.completed_investments ?? null,
+    bt_win_rate: stats?.win_rate ?? null,
+    bt_avg_return: stats?.avg_return ?? null,
+  };
+}
+
+/** 回测整体结果文案（含区间） */
+export function formatSessionSummaryLine(sessionSummary) {
+  if (!sessionSummary || typeof sessionSummary !== 'object') return '';
+  const total = sessionSummary.total_investments ?? sessionSummary.totalInvestments;
+  const winRate = sessionSummary.win_rate ?? sessionSummary.winRate;
+  const avgRoi = sessionSummary.avg_roi ?? sessionSummary.avg_return ?? sessionSummary.avgReturn;
+  if (total == null && winRate == null && avgRoi == null) return '';
+  const winLooksPercent = Number(winRate) > 1;
+  const period = sessionSummary.backtest_period || sessionSummary.backtestPeriod || {};
+  const start = formatScanDateLabel(period.start_date || period.startDate || '');
+  const end = formatScanDateLabel(period.end_date || period.endDate || '');
+  const range = (start !== '—' && end !== '—') ? `${start} ~ ${end}` : '';
+  const parts = [
+    `胜率 ${formatPct(winRate, { assumeFraction: !winLooksPercent })}`,
+    `次数 ${total == null ? '—' : String(total)}`,
+    `平均收益 ${formatPct(avgRoi, { assumeFraction: true })}`,
+  ];
+  if (range) parts.push(`区间 ${range}`);
+  return parts.join(' · ');
+}
+
+/**
+ * 表顶摘要条：策略 / 扫描日期（青） / 总机会数；可选回测整体一行。
+ */
+export function OpportunityDetailMeta({
+  strategyName = '',
+  scanDate = '',
+  opportunityCount = null,
+  presenterLine = '',
+  presenterError = '',
 }) {
-  const payload = useMemo(() => {
-    const props = ui?.props && typeof ui.props === 'object' ? ui.props : {};
-    return props;
-  }, [ui]);
-
-  const strategies = Array.isArray(payload.strategies) ? payload.strategies : [];
-  const historyByStrategy = payload.backtest_history && typeof payload.backtest_history === 'object'
-    ? payload.backtest_history
-    : {};
-
-  const rootClass = [
-    'presenter-scan-report',
-    variant === 'dialog' ? 'presenter-scan-report--dialog' : '',
-  ].filter(Boolean).join(' ');
-
-  if (!strategies.length) {
-    return (
-      <Box className={rootClass}>
-        <Typography variant="body2" color="text.secondary">
-          暂无策略会话数据。
-        </Typography>
-      </Box>
-    );
-  }
-
   return (
-    <Box className={rootClass}>
-      <Typography variant="body2" color="text.secondary" className="presenter-scan-report__meta">
-        会话扫描日：{formatScanDate(payload.scan_date)}
-        {payload.emitted_at ? ` · 生成 ${payload.emitted_at}` : ''}
-      </Typography>
-
-      <Stack spacing={2.5}>
-        {strategies.map((row) => {
-          const name = String(row?.strategy_name || fallbackStrategyName || '—');
-          const opps = Array.isArray(row?.opportunities) ? row.opportunities : [];
-          const hist = historyByStrategy[name] || historyByStrategy[row?.strategy_name] || {};
-          const summaryLine = sessionSummaryLine(hist.session_summary);
-          const byStock = hist.by_stock && typeof hist.by_stock === 'object' ? hist.by_stock : {};
-
-          return (
-            <Box key={name} className="presenter-scan-report__strategy">
-              <Typography variant="subtitle1" fontWeight={700}>
-                {name}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                扫描日 {formatScanDate(row?.scan_date || payload.scan_date)}
-                {' · '}
-                机会 {opps.length}
-                {row?.strategy_version ? ` · 版本 ${row.strategy_version}` : ''}
-              </Typography>
-
-              {hist.error ? (
-                <Typography variant="body2" color="warning.main" className="presenter-scan-report__hist-err">
-                  回测历史加载失败：{String(hist.error)}
-                </Typography>
-              ) : null}
-
-              {summaryLine ? (
-                <Typography variant="body2" color="text.secondary" className="presenter-scan-report__hist-summary">
-                  回测整体：投资次数={summaryLine.total}
-                  {' · '}
-                  胜率={summaryLine.winRate}
-                  {' · '}
-                  平均收益={summaryLine.avgRoi}
-                </Typography>
-              ) : (
-                <Typography variant="body2" color="text.secondary" className="presenter-scan-report__hist-summary">
-                  回测整体：（无 price 层 overall_report / 尚未回测）
-                </Typography>
-              )}
-
-              {opps.length ? (
-                <Table size="small" className="presenter-scan-report__table">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>标的</TableCell>
-                      <TableCell>触发日</TableCell>
-                      <TableCell align="right">触发价</TableCell>
-                      <TableCell align="right">历史完成</TableCell>
-                      <TableCell align="right">胜率</TableCell>
-                      <TableCell align="right">平均收益</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {opps.map((opp, idx) => {
-                      const entityId = String(opp?.entity_id || '').trim();
-                      const label = opp?.entity_name || entityId || '—';
-                      const stats = entityId && byStock[entityId] && typeof byStock[entityId] === 'object'
-                        ? byStock[entityId]
-                        : null;
-                      return (
-                        <TableRow key={String(opp?.id || `${entityId}-${idx}`)}>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={600}>{label}</Typography>
-                            {entityId && entityId !== label ? (
-                              <Typography variant="caption" color="text.secondary">{entityId}</Typography>
-                            ) : null}
-                          </TableCell>
-                          <TableCell>{formatScanDate(opp?.trigger_date)}</TableCell>
-                          <TableCell align="right">{formatPrice(opp?.trigger_price)}</TableCell>
-                          <TableCell align="right">
-                            {stats?.completed_investments != null
-                              ? String(stats.completed_investments)
-                              : '—'}
-                          </TableCell>
-                          <TableCell align="right">
-                            {stats ? formatPct(stats.win_rate) : '—'}
-                          </TableCell>
-                          <TableCell align="right">
-                            {stats ? formatPct(stats.avg_return) : '—'}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              ) : (
-                <Typography variant="body2" color="text.secondary">（无机会）</Typography>
-              )}
-            </Box>
-          );
-        })}
+    <Box className="scan-detail__meta">
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={0}
+        className="scan-detail__meta-strip"
+      >
+        <Box className="scan-detail__meta-cell">
+          <Typography className="scan-detail__meta-label">策略</Typography>
+          <Typography className="scan-detail__meta-value">
+            {strategyName || '—'}
+          </Typography>
+        </Box>
+        <Box className="scan-detail__meta-cell">
+          <Typography className="scan-detail__meta-label">扫描日期</Typography>
+          <Typography className="scan-detail__meta-value scan-detail__meta-value--accent">
+            {formatScanDateLabel(scanDate)}
+          </Typography>
+        </Box>
+        <Box className="scan-detail__meta-cell">
+          <Typography className="scan-detail__meta-label">总机会数</Typography>
+          <Typography className="scan-detail__meta-value scan-detail__meta-value--strong">
+            {opportunityCount == null ? '—' : String(opportunityCount)}
+          </Typography>
+        </Box>
       </Stack>
+      {presenterError || presenterLine ? (
+        <Box className="scan-detail__bt-block">
+          {presenterError ? (
+            <Typography color="warning.main" className="scan-detail__bt-line">
+              回测整体结果：{presenterError}
+            </Typography>
+          ) : (
+            <Typography className="scan-detail__bt-line">
+              回测整体结果：{presenterLine}
+            </Typography>
+          )}
+          <Typography className="scan-detail__bt-note">
+            （此处与表格中的回测信息由机会后处理「会话展示」提供）
+          </Typography>
+        </Box>
+      ) : null}
     </Box>
   );
 }
 
-export default PresenterScanReport;
+function StockCell({ row }) {
+  const name = String(row?.stock_name || '').trim() || row?.stock_id || '—';
+  const code = String(row?.stock_id || '').trim();
+  return (
+    <Box className="scan-detail__stock">
+      <Typography className="scan-detail__stock-name">{name}</Typography>
+      {code && code !== name ? (
+        <Typography className="scan-detail__stock-code">{code}</Typography>
+      ) : null}
+    </Box>
+  );
+}
 
-/** @param {object|null|undefined} reportPayload */
-export function readPresenterScanUi(reportPayload) {
-  const slot = reportPayload?.post_process?.ui?.scan_report;
-  if (!slot || typeof slot !== 'object') return null;
-  // SPECIAL-CASE DEC-05：仅识别 view=presenter
-  if (String(slot.view || '') !== 'presenter') return null;
-  return slot;
+function OpportunityInfoCell({ row }) {
+  return (
+    <Box className="scan-detail__opp-info">
+      <Typography className="scan-detail__opp-primary">
+        <span className="scan-detail__opp-kv">
+          <span className="scan-detail__opp-k">进入价格</span>
+          <span className="scan-detail__opp-v">{formatPrice(row?.trigger_price)}</span>
+        </span>
+        <span className="scan-detail__opp-primary-sep">｜</span>
+        <span className="scan-detail__opp-kv">
+          <span className="scan-detail__opp-k">股数</span>
+          <span className="scan-detail__opp-v">{formatQty(row?.qty)}</span>
+        </span>
+      </Typography>
+      <Typography className="scan-detail__opp-cost">
+        <span className="scan-detail__opp-k">总投资成本</span>
+        <span className="scan-detail__opp-v scan-detail__opp-v--muted">
+          {formatNotional(row?.notional)} 元
+        </span>
+      </Typography>
+    </Box>
+  );
+}
+
+function MetricCell({ value, tone = '' }) {
+  return (
+    <Typography
+      className={[
+        'scan-detail__metric',
+        tone === 'pos' ? 'scan-detail__metric--pos' : '',
+        tone === 'neg' ? 'scan-detail__metric--neg' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {value}
+    </Typography>
+  );
+}
+
+function avgReturnTone(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n === 0) return '';
+  return n > 0 ? 'pos' : 'neg';
+}
+
+/** 默认两列（对齐邮件：股票 + 机会信息） */
+export function buildOpportunityColumns({ withPresenter = false } = {}) {
+  const cols = [
+    {
+      field: 'stock',
+      headerName: '股票',
+      minWidth: 148,
+      flex: withPresenter ? 0.7 : 0.85,
+      sortable: false,
+      valueGetter: (params) => params?.row?.stock_name || params?.row?.stock_id || '',
+      renderCell: (params) => <StockCell row={params.row} />,
+    },
+    {
+      field: 'opportunity',
+      headerName: '机会信息',
+      minWidth: 200,
+      flex: withPresenter ? 1 : 1.2,
+      sortable: false,
+      valueGetter: (params) => params?.row?.trigger_price ?? '',
+      renderCell: (params) => <OpportunityInfoCell row={params.row} />,
+    },
+  ];
+  if (withPresenter) {
+    cols.push(
+      {
+        field: 'bt_completed',
+        headerName: '回测次数',
+        width: 88,
+        minWidth: 88,
+        maxWidth: 100,
+        align: 'right',
+        headerAlign: 'right',
+        sortable: true,
+        renderCell: (params) => (
+          <MetricCell
+            value={params?.row?.bt_completed == null ? '—' : String(params.row.bt_completed)}
+          />
+        ),
+      },
+      {
+        field: 'bt_win_rate',
+        headerName: '胜率',
+        width: 88,
+        minWidth: 88,
+        maxWidth: 100,
+        align: 'right',
+        headerAlign: 'right',
+        sortable: true,
+        renderCell: (params) => (
+          <MetricCell value={formatPct(params?.row?.bt_win_rate)} />
+        ),
+      },
+      {
+        field: 'bt_avg_return',
+        headerName: '平均收益',
+        width: 100,
+        minWidth: 100,
+        maxWidth: 120,
+        align: 'right',
+        headerAlign: 'right',
+        sortable: true,
+        renderCell: (params) => (
+          <MetricCell
+            value={formatPct(params?.row?.bt_avg_return)}
+            tone={avgReturnTone(params?.row?.bt_avg_return)}
+          />
+        ),
+      },
+    );
+  }
+  return cols;
 }

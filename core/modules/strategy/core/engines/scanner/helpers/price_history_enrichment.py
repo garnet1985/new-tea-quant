@@ -70,10 +70,25 @@ def _load_session_summary(version_dir: Path) -> Optional[Dict[str, Any]]:
         raw = store.read_json("overall_report")
         if not isinstance(raw, dict):
             return None
+        period = raw.get("backtest_period")
+        period_out = (
+            dict(period)
+            if isinstance(period, dict)
+            and period.get("start_date")
+            and period.get("end_date")
+            else None
+        )
         # overall_report.json 契约：指标在嵌套 ``summary``；兼容旧扁平结构
         nested = raw.get("summary")
         if isinstance(nested, dict) and nested:
-            return dict(nested)
+            out = dict(nested)
+            if period_out:
+                out["backtest_period"] = period_out
+            return out
+        if period_out:
+            merged = dict(raw)
+            merged["backtest_period"] = period_out
+            return merged
         return raw
     except Exception as e:
         logger.debug("[price_history] 加载会话汇总失败: %s", e)

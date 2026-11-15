@@ -181,7 +181,7 @@ is_enabled: true
 
 `post_process.ui.scan_report = { view: "presenter", props: <presenter return> }`
 
-FED 写死识别 `view=presenter` 并替换默认扫描结果 UI。**本迭代不做**通用模板引擎；第二个 UI adapter 出现时再定契约 + 前端解析引擎。
+FED 写死识别 `view=presenter`：机会明细仍用默认表，有载荷时追加回测列。**本迭代不做**通用模板引擎；第二个 UI adapter 出现时再定契约 + 前端解析引擎。
 
 ---
 

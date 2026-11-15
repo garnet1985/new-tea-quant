@@ -2,6 +2,7 @@ import request, { API_VERSION_PREFIX } from 'service/request';
 
 const API_ADAPTERS = `${API_VERSION_PREFIX}/post-process/adapters`;
 const API_PROCESSORS = `${API_VERSION_PREFIX}/post-process/processors`;
+const API_RUN_ENABLED = `${API_VERSION_PREFIX}/post-process/run-enabled`;
 
 function mapReadiness(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
@@ -67,6 +68,27 @@ function mapProcessor(item) {
     validate_ok: Boolean(item?.validate?.ok),
     validate_message: String(item?.validate?.message || ''),
   };
+}
+
+/**
+ * 工作区是否跑扫描后处理（默认 true；关闭需 prefs 声明）。
+ * GET /v1/post-process/run-enabled
+ */
+export async function fetchPostProcessRunEnabled() {
+  const json = await request.getJson(API_RUN_ENABLED);
+  const m = json?.message || {};
+  return { enablePostProcess: m.enable_post_process !== false };
+}
+
+/**
+ * PUT /v1/post-process/run-enabled  body ``{ enable_post_process: bool }``
+ */
+export async function setPostProcessRunEnabled({ enablePostProcess }) {
+  const json = await request.putJson(API_RUN_ENABLED, {
+    body: { enable_post_process: Boolean(enablePostProcess) },
+  });
+  const m = json?.message || {};
+  return { enablePostProcess: m.enable_post_process !== false };
 }
 
 /** GET /v1/post-process/adapters */

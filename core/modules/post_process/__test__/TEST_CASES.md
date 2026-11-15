@@ -20,5 +20,5 @@
 | `test_post_process_apis` | `test_api.py` | PostProcessor 发现 / 写入 / 执行 API |
 | `test_catalog_summaries` | `test_api.py` | summarize / list_*_summaries |
 | `test_presenter_adapter_and_post_process_available` | `test_api.py` | presenter 可加载且 enabled |
-| `test_build_and_run_presenter_post_process` | `test_api.py` | build_session + run_enabled |
+| `test_build_and_run_presenter_post_process` | `test_api.py` | build_session + run_enabled；assert `ui.scan_report.view=presenter` |
 | `test_contracts` | `test_api.py` | Opportunity / Session 协议 |

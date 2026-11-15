@@ -123,8 +123,16 @@ class TestAdapterApi(unittest.TestCase):
         )
         ok, err = PostProcess.validate_session(session)
         self.assertTrue(ok, err)
-        ran = PostProcess.run_enabled_post_processors(session)
-        self.assertIn("ntq_mail", ran)
+        out = PostProcess.run_enabled_post_processors(session)
+        self.assertIsInstance(out, dict)
+        self.assertIn("ntq_mail", out.get("ran") or [])
+        # ntq_mail 含 presenter 步骤 → 扫描页 UI 槽（SPECIAL-CASE DEC-05）
+        ui = out.get("ui") or {}
+        scan_report = ui.get("scan_report") or {}
+        self.assertEqual(scan_report.get("view"), "presenter")
+        props = scan_report.get("props") or {}
+        self.assertIn("strategies", props)
+        self.assertIn("backtest_history", props)
 
     def test_contracts(self) -> None:
         self.assertTrue(issubclass(BaseAdapter, object))

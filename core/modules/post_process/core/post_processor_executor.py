@@ -13,20 +13,39 @@ from core.modules.post_process.core.topo import topological_order
 
 logger = logging.getLogger(__name__)
 
+# SPECIAL-CASE（见 docs/DECISIONS.md DEC-05）：仅 presenter 写入扫描页 UI 槽。
+# 第二个会改前端渲染的 adapter 出现时，改为通用契约 + FED 解析引擎，废掉此硬编码。
+_SCAN_UI_ADAPTER = "presenter"
+_SCAN_UI_SLOT = "scan_report"
+_SCAN_UI_VIEW = "presenter"
+
+
+def ui_contributions_from_outputs(outputs: Dict[str, Any]) -> Dict[str, Any]:
+    """从单次 PostProcessor 的 adapter outputs 抽出 scan UI 贡献（写死 presenter）。"""
+    props = outputs.get(_SCAN_UI_ADAPTER) if isinstance(outputs, dict) else None
+    if not isinstance(props, dict) or not props:
+        return {}
+    return {
+        _SCAN_UI_SLOT: {
+            "view": _SCAN_UI_VIEW,
+            "props": props,
+        }
+    }
+
 
 class PostProcessorExecutor:
     @staticmethod
-    def run(key: str, session: ScanSessionReport) -> None:
+    def run(key: str, session: ScanSessionReport) -> Dict[str, Any]:
         definition = PostProcessorLoader.load(key)
         if definition is None:
             raise ValueError(f"无法加载 post_processor: {key}")
-        PostProcessorExecutor.run_definition(definition, session)
+        return PostProcessorExecutor.run_definition(definition, session)
 
     @staticmethod
     def run_definition(
         definition: PostProcessorDefinition,
         session: ScanSessionReport,
-    ) -> None:
+    ) -> Dict[str, Any]:
         if not isinstance(session, ScanSessionReport):
             raise TypeError("session 须为 ScanSessionReport")
 
@@ -36,7 +55,7 @@ class PostProcessorExecutor:
                 "[PostProcessor] %s on_empty=skip 且无机会，跳过",
                 definition.key,
             )
-            return
+            return {}
 
         order = topological_order(definition)
         outputs: Dict[str, Any] = {}
@@ -69,5 +88,10 @@ class PostProcessorExecutor:
                 if definition.on_error == "stop":
                     raise
 
+        return outputs
 
-__all__ = ["PostProcessorExecutor"]
+
+__all__ = [
+    "PostProcessorExecutor",
+    "ui_contributions_from_outputs",
+]

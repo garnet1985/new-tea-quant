@@ -175,6 +175,14 @@ is_enabled: true
 | `email_sender` / `wechat_sender` / `sms_sender` | 通知；建议默认 `dry_run` | 通常 `None` |
 | `demo_broker` | 演示下单（easytrader / vnpy / qmt） | 可选下单回执 |
 
+### 扫描页 UI 槽（SPECIAL-CASE，见 DECISIONS DEC-05）
+
+`run_enabled_post_processors` 聚合 adapter outputs 后，若含 `presenter` return，写入扫描 report：
+
+`post_process.ui.scan_report = { view: "presenter", props: <presenter return> }`
+
+FED 写死识别 `view=presenter` 并替换默认扫描结果 UI。**本迭代不做**通用模板引擎；第二个 UI adapter 出现时再定契约 + 前端解析引擎。
+
 ---
 
 ## 发现与加载（可扩展性）

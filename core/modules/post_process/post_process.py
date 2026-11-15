@@ -153,23 +153,60 @@ class PostProcess:
         return write_update_adapters(key, adapters)
 
     @staticmethod
-    def run_post_processor(key: str, session: ScanSessionReport) -> None:
-        """校验会话后执行指定 PostProcessor（忽略 is_enabled，供显式调用）。"""
+    def run_post_processor(key: str, session: ScanSessionReport) -> Dict[str, Any]:
+        """校验会话后执行指定 PostProcessor（忽略 is_enabled，供显式调用）。
+
+        返回该方案内各 adapter 的 ``run`` 输出（name → return）。
+        """
         ok, err = PostProcess.validate_session(session)
         if not ok:
             raise ValueError(f"ScanSessionReport 无效: {err}")
-        PostProcessorExecutor.run(key, session)
+        return PostProcessorExecutor.run(key, session)
 
     @staticmethod
-    def run_enabled_post_processors(session: ScanSessionReport) -> List[str]:
-        """扫描结束后对所有 ``is_enabled`` 的 PostProcessor 各跑一遍；返回尝试执行的 key。"""
+    def is_run_enabled() -> bool:
+        """工作区是否允许跑扫描后处理（默认 True；关闭需 prefs 声明）。"""
+        from core.modules.post_process.core.run_prefs import RunPrefs
+
+        return RunPrefs.is_enabled()
+
+    @staticmethod
+    def set_run_enabled(enabled: bool) -> bool:
+        """持久化工作区「是否跑扫描后处理」；开启=去掉声明。"""
+        from core.modules.post_process.core.run_prefs import RunPrefs
+
+        return RunPrefs.set_enabled(bool(enabled))
+
+    @staticmethod
+    def run_enabled_post_processors(session: ScanSessionReport) -> Dict[str, Any]:
+        """扫描结束后对所有 ``is_enabled`` 的 PostProcessor 各跑一遍。
+
+        若工作区 prefs 关闭后处理，直接跳过（CLI / UI / Pipeline 共用）。
+
+        返回::
+
+            {
+              "ran": [<post_processor key>, ...],
+              "ui": { ... },
+              "skipped": bool,
+            }
+        """
+        from core.modules.post_process.core.post_processor_executor import (
+            ui_contributions_from_outputs,
+        )
+
         ok, err = PostProcess.validate_session(session)
         if not ok:
             raise ValueError(f"ScanSessionReport 无效: {err}")
+        if not PostProcess.is_run_enabled():
+            return {"ran": [], "ui": {}, "skipped": True}
         keys = PostProcess.list_enabled_post_processors()
+        ui: Dict[str, Any] = {}
         for key in keys:
-            PostProcessorExecutor.run(key, session)
-        return list(keys)
+            outputs = PostProcessorExecutor.run(key, session) or {}
+            # 后写覆盖：多方案都含 presenter 时保留最后一次
+            ui.update(ui_contributions_from_outputs(outputs))
+        return {"ran": list(keys), "ui": ui, "skipped": False}
 
 
 __all__ = ["PostProcess"]

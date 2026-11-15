@@ -28,7 +28,10 @@ import {
   getStrategyDesignPath,
   startStrategyScan,
 } from '../../api/strategyApi';
-import { fetchPostProcessProcessors } from '../../api/postProcessApi';
+import {
+  fetchPostProcessProcessors,
+  setPostProcessRunEnabled,
+} from '../../api/postProcessApi';
 import {
   groupStrategiesByCategory,
   readStrategyListCategoryQuery,
@@ -48,6 +51,7 @@ import NtqIcon from '../../views/ntqIcon';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import { formatDateTime } from '../../service/format/formatDateTime';
+import PresenterScanReport, { readPresenterScanUi } from './presenterScanReport';
 import './style.scss';
 
 function readOpportunityCount(pack) {
@@ -118,6 +122,16 @@ function Scan() {
 
   const reportPayload = useMemo(() => results?.[reportStrategyId] || null, [results, reportStrategyId]);
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
+  // SPECIAL-CASE DEC-05：仅 presenter 可替换扫描结果 UI；见 post_process/docs/DECISIONS.md
+  // 「执行扫描后处理」关闭时强制默认 UI（即使落盘里仍有旧的 presenter 载荷）
+  const reportPresenterUi = useMemo(() => {
+    if (!runPostProcess || reportPayload?.post_process?.skipped) return null;
+    return readPresenterScanUi(reportPayload);
+  }, [reportPayload, runPostProcess]);
+  const detailPresenterUi = useMemo(() => {
+    if (!runPostProcess || detailPayload?.post_process?.skipped) return null;
+    return readPresenterScanUi(detailPayload);
+  }, [detailPayload, runPostProcess]);
   const detailStrategyName = useMemo(() => {
     if (!detailStrategyId) return '';
     const row = rows.find((r) => r.id === detailStrategyId);
@@ -204,6 +218,7 @@ function Scan() {
       .then((ctxRes) => {
         setDataEnd(ctxRes?.dataEnd && typeof ctxRes.dataEnd === 'object' ? ctxRes.dataEnd : {});
         setDemoScanCutoffDate(String(ctxRes?.demoScanCutoffDate || '').trim());
+        setRunPostProcess(ctxRes?.enablePostProcess !== false);
       })
       .catch(() => {
         setDataEnd({});
@@ -682,8 +697,20 @@ function Scan() {
                     size="small"
                     checked={runPostProcess && enabledPostProcessors.length > 0}
                     disabled={running || enabledPostProcessors.length === 0}
-                    onChange={(e) => setRunPostProcess(e.target.checked)}
-                    inputProps={{ 'aria-label': '本次扫描运行后处理' }}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      const prev = runPostProcess;
+                      setRunPostProcess(next);
+                      setPostProcessRunEnabled({ enablePostProcess: next })
+                        .then((res) => {
+                          setRunPostProcess(res?.enablePostProcess !== false);
+                        })
+                        .catch(() => {
+                          setRunPostProcess(prev);
+                          setRunError('无法保存「执行扫描后处理」偏好');
+                        });
+                    }}
+                    inputProps={{ 'aria-label': '执行扫描后处理' }}
                   />
                 )}
                 label={(
@@ -695,7 +722,7 @@ function Scan() {
               />
             </Stack>
             <Typography variant="body2" color="text.secondary" className="scan-settings__post-hint">
-              关闭后仅跳过本次扫描的后处理（可能产生费用），不改全局启用配置。
+              默认开启；关闭会写入工作区偏好并跳过扫描后处理（可能产生费用），不改全局方案启用。
             </Typography>
             {enabledPostProcessors.length ? (
               <Stack
@@ -903,71 +930,113 @@ function Scan() {
           </Stack>
         )}
       >
-            <Typography variant="body2" className="scan-report__lead">
-              使用策略
-              {' '}
-              <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
-              {' '}
-              扫描完成：共找到
-              {' '}
-              {(() => {
-                const reportCount = readOpportunityCount(reportPayload);
-                return (
+            {reportPresenterUi ? (
+              <>
+                <Typography variant="body2" className="scan-report__lead">
+                  使用策略
+                  {' '}
+                  <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
+                  {' '}
+                  扫描完成
+                  {' · '}
+                  模式：{reportDemo === true ? '演示模式' : '严格模式'}
+                  {' · '}
                   <Button
                     size="small"
                     variant="text"
                     className="scan-report__count"
-                    disabled={reportCount == null}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!reportStrategyId || reportCount == null) return;
+                      if (!reportStrategyId) return;
                       openDetail(reportStrategyId);
                     }}
                   >
-                    {reportCount == null ? '—' : reportCount}
+                    查看会话详情
                   </Button>
-                );
-              })()}
-              {' '}
-              个机会
-            </Typography>
-            <div className="scan-report__facts">
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 扫描日期：{formatScanDate(reportPayload?.date) || '—'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 扫描后处理：{(() => {
-                  if (reportPayload?.post_process?.skipped) return '本次已跳过';
-                  const ran = Array.isArray(reportPayload?.post_process?.ran)
-                    ? reportPayload.post_process.ran
-                    : [];
-                  const enabled = Array.isArray(reportPayload?.post_process?.enabled)
-                    ? reportPayload.post_process.enabled
-                    : enabledPostProcessors.map((row) => row.key);
-                  if (ran.length) return `已运行 ${ran.join('、')}`;
-                  if (enabled.length) return '已启用但未回报运行结果（可能失败或跳过）';
-                  return '未启用';
-                })()}
-              </Typography>
-            </div>
-            <Typography variant="caption" color="text.secondary" className="scan-report__hint">
-              请点击表格里的机会数量查看详情。
-            </Typography>
+                </Typography>
+                <PresenterScanReport
+                  ui={reportPresenterUi}
+                  fallbackStrategyName={reportStrategyName || reportStrategyId}
+                  variant="panel"
+                />
+              </>
+            ) : (
+              <>
+                <Typography variant="body2" className="scan-report__lead">
+                  使用策略
+                  {' '}
+                  <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
+                  {' '}
+                  扫描完成：共找到
+                  {' '}
+                  {(() => {
+                    const reportCount = readOpportunityCount(reportPayload);
+                    return (
+                      <Button
+                        size="small"
+                        variant="text"
+                        className="scan-report__count"
+                        disabled={reportCount == null}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!reportStrategyId || reportCount == null) return;
+                          openDetail(reportStrategyId);
+                        }}
+                      >
+                        {reportCount == null ? '—' : reportCount}
+                      </Button>
+                    );
+                  })()}
+                  {' '}
+                  个机会
+                </Typography>
+                <div className="scan-report__facts">
+                  <Typography variant="body2" color="text.secondary" className="scan-report__fact">
+                    - 扫描日期：{formatScanDate(reportPayload?.date) || '—'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" className="scan-report__fact">
+                    - 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" className="scan-report__fact">
+                    - 扫描后处理：{(() => {
+                      if (reportPayload?.post_process?.skipped) return '本次已跳过';
+                      const ran = Array.isArray(reportPayload?.post_process?.ran)
+                        ? reportPayload.post_process.ran
+                        : [];
+                      const enabled = Array.isArray(reportPayload?.post_process?.enabled)
+                        ? reportPayload.post_process.enabled
+                        : enabledPostProcessors.map((row) => row.key);
+                      if (ran.length) return `已运行 ${ran.join('、')}`;
+                      if (enabled.length) return '已启用但未回报运行结果（可能失败或跳过）';
+                      return '未启用';
+                    })()}
+                  </Typography>
+                </div>
+                <Typography variant="caption" color="text.secondary" className="scan-report__hint">
+                  请点击表格里的机会数量查看详情。
+                </Typography>
+              </>
+            )}
       </SectionBlock>
       ) : null}
 
       <Dialog open={detailOpen} onClose={closeDetail} maxWidth="md" fullWidth>
         <DialogTitle>
-          机会明细 · {detailStrategyName || '—'}
+          {detailPresenterUi ? '扫描会话' : '机会明细'}
+          {' · '}
+          {detailStrategyName || '—'}
         </DialogTitle>
         <DialogContent dividers className="scan-detail__body">
-          {detailPayload ? (
+          {detailPresenterUi ? (
+            <PresenterScanReport
+              ui={detailPresenterUi}
+              fallbackStrategyName={detailStrategyName}
+              variant="dialog"
+            />
+          ) : detailPayload ? (
             <>
               <Typography variant="body2" color="text.secondary" className="scan-detail__note">
                 机会明细与 CLI 输出对齐；可分页查看。

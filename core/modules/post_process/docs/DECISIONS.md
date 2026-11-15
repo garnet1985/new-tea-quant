@@ -65,6 +65,27 @@ Component **共享同一份** session；`depends_on` 仅注入依赖方的 **ret
 
 **放弃了什么：** 为旧 adapters 目录保留兼容层
 
+## DEC-05：扫描页 UI 先写死 presenter（非插件系统）
+
+**是什么：** 扫描结束后若某 enabled 方案跑过 `presenter` adapter，将其 return 写入
+
+`report.post_process.ui.scan_report = { view: "presenter", props: <presenter return> }`。
+
+FED 扫描页用 **写死分支**（`view === "presenter"`）渲染 `PresenterScanReport`，替换默认「扫描报告 / 机会明细」。未跑后处理、未挂 presenter、或 `run_post_process=false` 时 **无 ui 载荷**，保持默认 UI。
+
+**写死入口（改这里时搜 SPECIAL-CASE DEC-05）：**
+
+- 后端：`post_processor_executor.ui_contributions_from_outputs`（按 adapter 名 `presenter` 抽取）
+- 前端：`containers/scan/presenterScanReport` + `scan.js` 中 `readPresenterScanUi`
+
+**放弃了什么（本迭代）：** SSR HTML；通用 JSON 模板引擎；点击时再探测「有没有 presenter」。
+
+**演进条件：** 再出现 **第二个** 会改变前端渲染的 adapter / model 时：
+
+1. 把 `post_process.ui.<slot> = { view, props }` 收成版本化前后端契约；
+2. 在 FED 放置解析/渲染引擎（view 注册表或声明式模板）；
+3. 废掉对 `presenter` 字符串的特殊分支。
+
 ---
 
 ## 相关文档

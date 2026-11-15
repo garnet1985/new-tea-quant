@@ -27,7 +27,11 @@ class PostProcessDispatcher:
         self,
         opportunities: List[Opportunity],
         context: Dict[str, Any],
-    ) -> List[str]:
+    ) -> Dict[str, Any]:
+        """执行 enabled 方案。
+
+        返回 ``{"ran": [...], "ui": {...}, "skipped": bool}``（与 ``PostProcess.run_enabled_post_processors`` 一致）。
+        """
         scan_date = str((context or {}).get("date") or "").strip()
         session = PostProcess.build_session_report(
             scan_date=scan_date,
@@ -37,14 +41,22 @@ class PostProcessDispatcher:
             strategy_version=str(self.strategy_version or ""),
         )
         try:
-            return PostProcess.run_enabled_post_processors(session)
+            out = PostProcess.run_enabled_post_processors(session)
+            if isinstance(out, dict):
+                return {
+                    "ran": list(out.get("ran") or []),
+                    "ui": dict(out.get("ui") or {}),
+                    "skipped": bool(out.get("skipped")),
+                }
+            # 兼容旧返回 List[str]
+            return {"ran": list(out or []), "ui": {}, "skipped": False}
         except Exception as exc:
             logger.error(
                 "[PostProcessDispatcher] enabled post_processors 失败: %s",
                 exc,
                 exc_info=True,
             )
-            return []
+            return {"ran": [], "ui": {}, "skipped": False}
 
 
 __all__ = ["PostProcessDispatcher"]

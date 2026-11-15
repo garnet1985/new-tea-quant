@@ -69,6 +69,7 @@ export async function fetchStrategyList() {
 
 /**
  * 扫描页上下文：data.json 截至日 + 演示模式截止日（与后端 ScanDateResolver 一致）。
+ * ``enable_post_process`` 为 PostProcess prefs 只读镜像；写入见 ``setPostProcessRunEnabled``。
  */
 export async function fetchStrategyScanContext() {
   const json = await request.getJson(API_STRATEGY_SCAN_CONTEXT);
@@ -78,6 +79,7 @@ export async function fetchStrategyScanContext() {
   return {
     dataEnd: mapDataEnd(dataEnd),
     demoScanCutoffDate: cutoff,
+    enablePostProcess: m.enable_post_process !== false,
   };
 }
 

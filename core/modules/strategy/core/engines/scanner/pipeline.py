@@ -21,6 +21,9 @@ from core.modules.strategy.core.engines.scanner.helpers import (
     ScanDateResolver,
     ScannerCalendarAsof,
 )
+from core.modules.strategy.core.engines.scanner.helpers.price_history_enrichment import (
+    enrich_post_process_ui_history,
+)
 from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
 from core.modules.strategy.core.engines.scanner.report_manager import ReportManager
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -168,6 +171,8 @@ class ScannerPipeline:
         return {
             "data_end": data_end,
             "demo_scan_cutoff_date": demo_scan_cutoff_date or None,
+            # 工作区后处理开关由 PostProcess prefs 持有（run 时检查）；此处只读给扫描页
+            "enable_post_process": PostProcess.is_run_enabled(),
         }
 
     @classmethod
@@ -231,6 +236,13 @@ class ScannerPipeline:
                             },
                             "opportunities": ScanProgress.opportunity_rows(opportunities),
                         }
+                        if isinstance(summary_payload.get("post_process"), dict):
+                            report["post_process"] = enrich_post_process_ui_history(
+                                dict(summary_payload["post_process"]),
+                                fallback_strategy_name=str(
+                                    summary_payload.get("strategy_key") or name or ""
+                                ),
+                            )
                         primary = "rerun"
                 return {
                     "primary_action": primary,
@@ -282,6 +294,13 @@ class ScannerPipeline:
                 "summary": summary,
                 "opportunities": ScanProgress.opportunity_rows(opportunities),
             }
+            if isinstance(summary_payload.get("post_process"), dict):
+                report["post_process"] = enrich_post_process_ui_history(
+                    dict(summary_payload["post_process"]),
+                    fallback_strategy_name=str(
+                        summary_payload.get("strategy_key") or name or ""
+                    ),
+                )
             return {
                 "primary_action": "rerun",
                 "can_scan": True,

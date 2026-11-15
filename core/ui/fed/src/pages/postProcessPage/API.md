@@ -19,6 +19,8 @@ FED `/advanced/post-process` 页面对应的 BFF 契约。实现见 `core/bff/AP
 |------|------|------|
 | GET | `/v1/post-process/adapters` | Adapter 目录 |
 | GET | `/v1/post-process/processors` | 方案列表（含步骤、拓扑序、校验、dry_run 汇总） |
+| GET | `/v1/post-process/run-enabled` | 工作区是否跑扫描后处理（默认 true） |
+| PUT | `/v1/post-process/run-enabled` | body `{ enable_post_process: bool }`；关闭需 prefs 声明 |
 | POST | `/v1/post-process/processors/<key>/enabled` | body `{ enabled: bool }` |
 | PUT | `/v1/post-process/processors/<key>/adapters` | body `{ adapters: { name: { depends_on: [] } } }` |
 

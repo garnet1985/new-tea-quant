@@ -29,6 +29,31 @@ def get_post_process_processors():
     return ok({"items": items, "total": len(items)})
 
 
+@post_process_api_bp.route("/v1/post-process/run-enabled", methods=["GET"])
+def get_post_process_run_enabled():
+    """GET /v1/post-process/run-enabled — 工作区是否跑扫描后处理（默认 true）。"""
+    api = catalog_impl.lazy_load()
+    return ok(api.get_run_enabled())
+
+
+@post_process_api_bp.route("/v1/post-process/run-enabled", methods=["PUT"])
+def put_post_process_run_enabled():
+    """PUT /v1/post-process/run-enabled — body ``{ enable_post_process: bool }``。
+
+    默认开启；关闭需 prefs 声明；开启则去掉声明。
+    """
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    if "enable_post_process" not in payload:
+        return error("缺少 enable_post_process", 400)
+    api = catalog_impl.lazy_load()
+    try:
+        return ok(api.set_run_enabled(bool(payload.get("enable_post_process"))))
+    except RuntimeError as exc:
+        return error(str(exc), 500)
+
+
 @post_process_api_bp.route(
     "/v1/post-process/processors/<key>/enabled", methods=["POST"]
 )

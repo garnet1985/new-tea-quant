@@ -32,5 +32,18 @@ class PostProcessImplementer:
         assert self._Catalog is not None
         return self._Catalog.update_adapters(key, adapters)
 
+    def get_run_enabled(self) -> Dict[str, Any]:
+        from core.modules.post_process import PostProcess
+
+        return {"enable_post_process": PostProcess.is_run_enabled()}
+
+    def set_run_enabled(self, enabled: bool) -> Dict[str, Any]:
+        from core.modules.post_process import PostProcess
+
+        ok_write = PostProcess.set_run_enabled(bool(enabled))
+        if not ok_write:
+            raise RuntimeError("无法写入后处理偏好 enable_post_process")
+        return {"enable_post_process": PostProcess.is_run_enabled()}
+
 
 impl = PostProcessImplementer()

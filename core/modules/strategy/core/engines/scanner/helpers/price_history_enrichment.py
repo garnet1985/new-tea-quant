@@ -67,10 +67,91 @@ def _load_session_summary(version_dir: Path) -> Optional[Dict[str, Any]]:
         path = store.file("overall_report")
         if not path.is_file():
             return None
-        return store.read_json("overall_report")
+        raw = store.read_json("overall_report")
+        if not isinstance(raw, dict):
+            return None
+        # overall_report.json 契约：指标在嵌套 ``summary``；兼容旧扁平结构
+        nested = raw.get("summary")
+        if isinstance(nested, dict) and nested:
+            return dict(nested)
+        return raw
     except Exception as e:
         logger.debug("[price_history] 加载会话汇总失败: %s", e)
         return None
+
+
+def refresh_presenter_backtest_history(
+    props: Dict[str, Any],
+    *,
+    fallback_strategy_name: str = "",
+) -> Dict[str, Any]:
+    """按当前磁盘 price 产物重填 ``props.backtest_history``（扫描早于回测写完时用）。"""
+    if not isinstance(props, dict):
+        return {}
+    out = dict(props)
+    strategies = list(out.get("strategies") or [])
+    history: Dict[str, Any] = {}
+    for row in strategies:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("strategy_name") or fallback_strategy_name or "").strip()
+        if not name:
+            continue
+        entity_ids = [
+            str(o.get("entity_id") or "").strip()
+            for o in (row.get("opportunities") or [])
+            if isinstance(o, dict) and str(o.get("entity_id") or "").strip()
+        ]
+        history[name] = build_price_history_for_adapter(name, entity_ids)
+        # 与 presenter adapter 返回形状对齐
+        hist = history[name]
+        history[name] = {
+            "layer": "price",
+            "session_summary": hist.get("session_summary"),
+            "by_stock": dict(hist.get("by_stock") or {}),
+            "error": None,
+        }
+    out["backtest_history"] = history
+    return out
+
+
+def enrich_post_process_ui_history(
+    post_process: Optional[Dict[str, Any]],
+    *,
+    fallback_strategy_name: str = "",
+) -> Dict[str, Any]:
+    """若 ``ui.scan_report`` 为 presenter 且历史为空，则按最新 price 产物回填。"""
+    pp = dict(post_process or {})
+    ui = dict(pp.get("ui") or {})
+    slot = ui.get("scan_report")
+    if not isinstance(slot, dict) or str(slot.get("view") or "") != "presenter":
+        return pp
+    props = slot.get("props") if isinstance(slot.get("props"), dict) else {}
+    hist = props.get("backtest_history") if isinstance(props.get("backtest_history"), dict) else {}
+    needs_refresh = False
+    if not hist:
+        needs_refresh = True
+    else:
+        for entry in hist.values():
+            if not isinstance(entry, dict):
+                needs_refresh = True
+                break
+            if entry.get("error"):
+                needs_refresh = True
+                break
+            summary = entry.get("session_summary")
+            by_stock = entry.get("by_stock") if isinstance(entry.get("by_stock"), dict) else {}
+            if not summary and not by_stock:
+                needs_refresh = True
+                break
+    if not needs_refresh:
+        return pp
+    refreshed = refresh_presenter_backtest_history(
+        props, fallback_strategy_name=fallback_strategy_name
+    )
+    ui["scan_report"] = {**slot, "props": refreshed}
+    pp["ui"] = ui
+    return pp
 
 
 def _latest_price_version_dir(strategy_name: str) -> Optional[Path]:

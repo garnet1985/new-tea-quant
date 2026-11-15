@@ -1,0 +1,94 @@
+# `src/ui` — 设计系统原语
+
+本目录是后续产品页**唯一**应复用的 UI widget 来源。
+
+## 约定
+
+- 只放**设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
+- **layout**：`column` / `block` / `section`（不含 Banner、面包屑）。
+  - `Column`：版式 + `gap` + `divider`（竖线分栏）。
+  - `Block`：`surface`（soft/panel/glass/gradient）+ `radius`（含 pill）+ `bordered`。
+  - `Section`：纵向堆叠 + `gap`；表面仍用内嵌 Block。
+- **text**：
+  - **文字**（图鉴 `/dev/ui/text`）：`text` / `quote` / `textBlock` / `codeBlock`。
+  - **标题**（图鉴 `/dev/ui/heading`）：`heading`（`level` + `variant`/`subtitle`/`gap`）。
+  - **分隔线**（图鉴 `/dev/ui/separator`）：`separator`。
+  - 磁盘仍在 `ui/text/*`；图鉴大类分开便于浏览。
+  - 普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等），不是组件。
+- **icon** / **progress** / **button**：见各目录 README。
+- 隐形图鉴 `/dev/ui` **只能**展示本目录下的组件。
+
+## 命名：统一用 `variant` + `size`
+
+| 参数 | 用途 | 例子 |
+|------|------|------|
+| **`variant`** | 形态 / 角色 | `Column variant="thirds"`、`Button variant="primary"`、`Loading variant="page"`、`Text variant="code"` |
+| **`size`** | 尺寸档位 | `Icon size="md"`、`ProgressBar size="sm"`、`LoadingBars size="md"` |
+| **`gap` / `padding`** | 间距 token | `none`…`xl` → `--ntq-space-*` |
+
+不要再用 `kind` 作为组件 API（业务域里的 job.kind 等除外）。
+
+## 图鉴样本（`/dev/ui` 样例）
+
+每个组件的样例通常按下面五个维度组织（没有的维度标明「不适用」，不要硬凑）：
+
+1. **形态** — `variant`、`name`、`surface` 等全量枚举（过多再商量是否折叠）
+2. **大小** — `size` / `iconSize` 等档位
+3. **间距** — `gap` / `padding` 等
+4. **颜色** — `tone` / 表面色等
+5. **外观** — 圆角、描边、`shape`、动画等
+
+展示文案用中文；仅参数名与取值保留英文，避免中英夹杂。
+
+实现：`pages/uiPrototype/showcases/sample.js`（`SampleDim` / `SampleRow` / `SampleNA`）。
+
+## Token 优先（禁止裸数字）
+
+rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`0.875rem` / `--ntq-font-normal`）：`body` + MUI `typography.body1` + `CssBaseline` 已对齐（否则 Emotion 会把 body 盖回 16px）。`p` / `span` / `strong` 继承 body。字号与间距用 **rem** token，不要写裸 `px`。
+
+| 维度 | 合法值 | 全局变量 |
+|------|--------|----------|
+| 间距 | `none` `xs` `sm` `md` `lg` `xl` | `--ntq-space-*`（rem；`md` = 1rem = 16px） |
+| 字号 | `xs` `sm` `normal` `md` `lg` `xl` | `--ntq-font-*`（rem；`normal` = 0.875rem = 14px） |
+| 图标 | `sm` `md` `lg` `xl` | `--ntq-icon-*` |
+| 圆角 | `none` `sm` `md` `lg` `pill` | `--ntq-radius-*` |
+| 表面 | `none` `soft` `panel` `glass` `gradient` | `--ntq-surface-*`（Block） |
+| 分隔 | `none` `line` | `--ntq-divider-color`（Column） |
+
+```js
+// ✅
+<Column variant="thirds" gap="md" />
+<Heading level="h1">页面标题</Heading>
+<Heading level="h2" variant="bar" tone="cyan" subtitle="说明">区块</Heading>
+<p className="ntq-muted">次要说明</p>
+<a className="ntq-link" href="/dev/ui">文字图鉴</a>
+<Quote>优先用语义 token。</Quote>
+<Text variant="code">/dev/ui</Text>
+<NtqIcon name="settings" size="md" />
+<Loading variant="inline" />
+
+// ❌
+<Column kind="thirds" />
+<Block padding={16} />
+<p style={{ fontSize: 14 }}>...</p>
+```
+
+普通文字 class：`.ntq-muted` / `.ntq-caption` / `.ntq-label` / `.ntq-link`（`styles/_typography.scss`）。
+
+改数值：覆盖 `styles/_tokens.scss`，不要在调用处写死像素。
+
+## 目录结构
+
+```text
+ui/<大类>/<widgetName>/
+  <widgetName>.js
+  index.js
+  README.md
+  doc.js
+```
+
+## 与 views 的关系
+
+- **现阶段 `views/` 只读**：先把 `src/ui` 标准做完，再单独开迁移，避免被旧实现带偏。
+- 可参考 views 的视觉与用法，但新 API（`variant` / `size` / token）以 `ui/` 为准。
+- 业务页暂时继续用 views；标准稳定后再改 import。

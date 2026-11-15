@@ -8,7 +8,7 @@ const SWITCH_THUMB_PX = 16;
 const SWITCH_PAD_X_TOTAL_PX = 4;
 const SWITCH_THUMB_TRAVEL_PX = SWITCH_ROOT_WIDTH_PX - SWITCH_THUMB_PX - SWITCH_PAD_X_TOTAL_PX;
 
-/** 与 ``body`` 上 ``--ntq-form-control-font-size`` 对齐；勿在 InputBase 使用 ``typography.body1``（默认 16px 会盖过变量） */
+/** 与 ``body`` 上 ``--ntq-form-control-font-size`` 对齐；勿在 InputBase 使用 ``typography.body1``（会盖过变量） */
 const formControlTypography = {
   fontSize: 'var(--ntq-form-control-font-size, 0.875rem)',
   lineHeight: 'var(--ntq-form-control-line-height, 1.5)',
@@ -32,12 +32,33 @@ const theme = createTheme({
   },
   shape: { borderRadius: 5 },
   typography: {
+    // rem 基准 16px（html 默认）。注意：MUI 的 typography.fontSize=14 只是变体系数，
+    // CssBaseline 仍会把 body 设成 body1（默认 1rem=16px），必须显式改 body1。
+    htmlFontSize: 16,
+    fontSize: 14,
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+    body1: {
+      fontSize: '0.875rem', // 14px：覆盖 MUI 默认 1rem，与 --ntq-font-normal 一致
+      lineHeight: 1.68,
+    },
+    body2: {
+      fontSize: '0.875rem',
+      lineHeight: 1.5,
+    },
     h6: { fontWeight: 700 },
     button: { textTransform: 'none', fontWeight: 650, fontSize: 13, letterSpacing: '0.2px' },
   },
   components: {
+    // Emotion 注入晚于 SCSS，CssBaseline 会盖掉 _global.scss 的 body font-size
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          fontSize: 'var(--ntq-font-normal, 0.875rem)',
+          lineHeight: 1.68,
+        },
+      },
+    },
     MuiInputBase: {
       styleOverrides: {
         root: formControlTypography,

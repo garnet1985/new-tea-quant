@@ -3,7 +3,7 @@
 
 // --- Inputs (TextField / Select / Autocomplete) ---
 .MuiInputBase-root {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
@@ -14,12 +14,12 @@
 }
 
 .MuiInputBase-inputMultiline {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 .MuiInputLabel-root {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
 }
 
 .MuiFormHelperText-root {
@@ -79,22 +79,22 @@
 
 .MuiOutlinedInput-inputMultiline {
   padding: 10px 12px;
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 // --- Dropdowns (Select / Menu) ---
 .MuiSelect-select {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
   line-height: var(--ntq-form-control-line-height, 1.5) !important;
 }
 
 .MuiMenuItem-root {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
 }
 
 .MuiListSubheader-root {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
 }
 
 // Menu/Popover paper: keep readable, but DO NOT blur globally
@@ -110,7 +110,7 @@
 .MuiPopover-paper {
   .MuiMenuItem-root,
   .MuiListSubheader-root {
-    font-size: var(--ntq-form-control-font-size, 14px);
+    font-size: var(--ntq-form-control-font-size, 0.875rem);
     line-height: var(--ntq-form-control-line-height, 1.5);
     padding: 8px 14px;
   }

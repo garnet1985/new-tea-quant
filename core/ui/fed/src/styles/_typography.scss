@@ -1,0 +1,65 @@
+// 普通文字规范：utility class，不必包 <Text /> 组件。
+// 行内特殊字形（code / rainbow / accent）→ ui/text/text
+// 多行代码块 → ui/text/codeBlock
+// 引用块 → ui/text/quote
+//
+// 间距约定：段落自身 margin 固定为 0；堆叠间距由外层 Section/Block 的 gap 控制，
+// 避免浏览器默认 margin: 1em 随字号变化。
+
+.ntq-muted,
+.ntq-caption,
+.ntq-label,
+p.ntq-muted,
+p.ntq-caption {
+  margin: 0;
+}
+
+.ntq-muted {
+  color: var(--ntq-text-muted);
+}
+
+.ntq-caption {
+  font-size: var(--ntq-font-xs);
+  font-weight: var(--ntq-font-weight-regular);
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-text-muted);
+}
+
+.ntq-label {
+  display: inline-block;
+  font-size: var(--ntq-font-sm);
+  font-weight: var(--ntq-font-weight-medium);
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-text);
+}
+
+// 链接：规范 class，不是组件。可包 inline icon（NtqIcon size="sm"）。
+.ntq-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xs);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-cyan);
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: baseline;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ntq-cyan);
+    outline-offset: 2px;
+    border-radius: var(--ntq-radius-sm);
+  }
+
+  .ntq-icon-wrap {
+    color: inherit;
+  }
+}

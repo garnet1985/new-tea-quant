@@ -1,0 +1,35 @@
+.ntq-separator {
+  display: flex;
+  align-items: center;
+  gap: var(--ntq-space-sm);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.ntq-separator__label {
+  // 与 .ntq-caption 一致
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--ntq-font-xs);
+  font-weight: var(--ntq-font-weight-regular);
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-text-muted);
+  white-space: nowrap;
+}
+
+.ntq-separator__line {
+  flex: 1 1 auto;
+  min-width: var(--ntq-space-lg);
+  height: 1px;
+  background: var(--ntq-white-12);
+}
+
+.ntq-separator--muted .ntq-separator__label {
+  opacity: 0.75;
+}
+
+.ntq-separator--muted .ntq-separator__line {
+  background: var(--ntq-white-06);
+}

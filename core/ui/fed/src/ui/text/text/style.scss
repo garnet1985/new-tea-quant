@@ -1,0 +1,35 @@
+.ntq-text {
+  max-width: 100%;
+}
+
+.ntq-text--code {
+  display: inline;
+  font-family: var(--ntq-font-mono) !important;
+  font-size: inherit;
+  font-weight: var(--ntq-font-weight-regular);
+  line-height: inherit;
+  color: var(--ntq-cyan);
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0;
+}
+
+.ntq-text--rainbow {
+  display: inline;
+  font-weight: var(--ntq-font-weight-bold);
+  line-height: var(--ntq-leading-tight);
+  background: var(--ntq-brand-text-gradient);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.ntq-text--accent {
+  display: inline;
+  font-weight: var(--ntq-font-weight-medium);
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-cyan);
+}

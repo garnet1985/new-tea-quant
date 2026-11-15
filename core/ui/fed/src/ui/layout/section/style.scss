@@ -1,0 +1,22 @@
+.ntq-section {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+  // 段落外边距清零，间距只走 gap（避免 p 的 1em 随字号变）
+  // 不重置 Heading：标题自带上大下小外边距
+  > p {
+    margin-block: 0;
+  }
+
+  // 段落后若还有段落，用 gap 即可；单段不额外加高
+}
+
+.ntq-section--gap-none { gap: var(--ntq-space-none); }
+.ntq-section--gap-xs { gap: var(--ntq-space-xs); }
+.ntq-section--gap-sm { gap: var(--ntq-space-sm); }
+.ntq-section--gap-md { gap: var(--ntq-space-md); }
+.ntq-section--gap-lg { gap: var(--ntq-space-lg); }
+.ntq-section--gap-xl { gap: var(--ntq-space-xl); }

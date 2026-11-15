@@ -1,0 +1,118 @@
+.ntq-button {
+  height: 40px;
+  min-height: 40px;
+  border-radius: 5px !important;
+  padding: 0 14px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+  text-transform: none;
+
+  &.Mui-disabled {
+    opacity: 0.45;
+  }
+}
+
+.ntq-button--glass {
+  border: 1px solid var(--ntq-white-12) !important;
+  background: var(--ntq-white-03) !important;
+  color: var(--ntq-text) !important;
+
+  &:hover {
+    background: var(--ntq-white-06) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+  }
+}
+
+.ntq-button--primary {
+  background-color: var(--ntq-cyan) !important;
+  color: var(--ntq-ink, #060612) !important;
+
+  &:hover {
+    background-color: #3dddf3 !important;
+    box-shadow: none !important;
+  }
+
+  &.Mui-disabled {
+    color: var(--ntq-ink, #060612) !important;
+  }
+}
+
+.ntq-button--ghost {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--ntq-text-muted) !important;
+
+  &:hover {
+    background: var(--ntq-white-03) !important;
+    border-color: transparent !important;
+  }
+}
+
+.ntq-button--attention {
+  position: relative;
+  border-color: rgba(34, 211, 238, 0.55) !important;
+  color: var(--ntq-cyan) !important;
+  background: rgba(34, 211, 238, 0.08) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: -40%;
+    bottom: -40%;
+    width: 42%;
+    left: -60%;
+    transform: skewX(-18deg);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.00) 18%,
+      rgba(255, 255, 255, 0.26) 50%,
+      rgba(255, 255, 255, 0.00) 82%,
+      transparent 100%
+    );
+    filter: blur(1px);
+    opacity: 0.9;
+    animation: ntq-attention-shine 4.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  &:hover {
+    background: rgba(34, 211, 238, 0.12) !important;
+    border-color: rgba(34, 211, 238, 0.75) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-button--attention::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes ntq-attention-shine {
+  0% {
+    left: -60%;
+    opacity: 0;
+  }
+
+  72% {
+    left: -60%;
+    opacity: 0;
+  }
+
+  78% {
+    opacity: 0.95;
+  }
+
+  92% {
+    left: 120%;
+    opacity: 0.95;
+  }
+
+  100% {
+    left: 120%;
+    opacity: 0;
+  }
+}

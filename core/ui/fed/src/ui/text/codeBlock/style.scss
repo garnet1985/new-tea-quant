@@ -1,0 +1,70 @@
+.ntq-code-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ntq-space-xs);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  // 四边统一内边距（不再拆到 meta / pre 上造成不均）
+  padding: var(--ntq-code-block-pad);
+}
+
+.ntq-code-block--pad-none { --ntq-code-block-pad: var(--ntq-space-none); }
+.ntq-code-block--pad-xs { --ntq-code-block-pad: var(--ntq-space-xs); }
+.ntq-code-block--pad-sm { --ntq-code-block-pad: var(--ntq-space-sm); }
+.ntq-code-block--pad-md { --ntq-code-block-pad: var(--ntq-space-md); }
+.ntq-code-block--pad-lg { --ntq-code-block-pad: var(--ntq-space-lg); }
+.ntq-code-block--pad-xl { --ntq-code-block-pad: var(--ntq-space-xl); }
+
+.ntq-code-block--radius-none { border-radius: var(--ntq-radius-none); }
+.ntq-code-block--radius-sm { border-radius: var(--ntq-radius-sm); }
+.ntq-code-block--radius-md { border-radius: var(--ntq-radius-md); }
+.ntq-code-block--radius-lg { border-radius: var(--ntq-radius-lg); }
+.ntq-code-block--radius-pill { border-radius: var(--ntq-radius-lg); }
+
+.ntq-code-block--surface-soft { background: var(--ntq-surface-soft); }
+.ntq-code-block--surface-panel { background: var(--ntq-surface-panel); }
+.ntq-code-block--surface-glass {
+  background: var(--ntq-surface-glass);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
+}
+.ntq-code-block--surface-gradient { background: var(--ntq-surface-gradient); }
+
+.ntq-code-block--bordered {
+  border: 1px solid var(--ntq-white-12);
+}
+
+.ntq-code-block__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0;
+}
+
+.ntq-code-block__lang {
+  font-family: var(--ntq-font-mono);
+  font-size: var(--ntq-font-xs);
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+.ntq-code-block__pre {
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  max-height: 24rem;
+}
+
+.ntq-code-block__code {
+  font-family: var(--ntq-font-mono);
+  font-size: var(--ntq-font-sm);
+  font-weight: var(--ntq-font-weight-regular);
+  line-height: var(--ntq-leading-relaxed);
+  color: var(--ntq-text);
+  white-space: pre;
+}

@@ -1,0 +1,69 @@
+.ntq-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+
+  // 段落外边距清零，间距只走 gap
+  > p {
+    margin-block: 0;
+  }
+
+  // 块内首尾标题不顶破内边距；标题之间仍保留各自 margin
+  > .ntq-heading[class*='ntq-heading--gap-']:first-child,
+  > .ntq-heading-root[class*='ntq-heading-root--gap-']:first-child {
+    margin-top: 0;
+  }
+
+  > .ntq-heading[class*='ntq-heading--gap-']:last-child,
+  > .ntq-heading-root[class*='ntq-heading-root--gap-']:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.ntq-block--pad-none { padding: var(--ntq-space-none); }
+.ntq-block--pad-xs { padding: var(--ntq-space-xs); }
+.ntq-block--pad-sm { padding: var(--ntq-space-sm); }
+.ntq-block--pad-md { padding: var(--ntq-space-md); }
+.ntq-block--pad-lg { padding: var(--ntq-space-lg); }
+.ntq-block--pad-xl { padding: var(--ntq-space-xl); }
+
+.ntq-block--gap-none { gap: var(--ntq-space-none); }
+.ntq-block--gap-xs { gap: var(--ntq-space-xs); }
+.ntq-block--gap-sm { gap: var(--ntq-space-sm); }
+.ntq-block--gap-md { gap: var(--ntq-space-md); }
+.ntq-block--gap-lg { gap: var(--ntq-space-lg); }
+.ntq-block--gap-xl { gap: var(--ntq-space-xl); }
+
+.ntq-block--radius-none { border-radius: var(--ntq-radius-none); }
+.ntq-block--radius-sm { border-radius: var(--ntq-radius-sm); }
+.ntq-block--radius-md { border-radius: var(--ntq-radius-md); }
+.ntq-block--radius-lg { border-radius: var(--ntq-radius-lg); }
+.ntq-block--radius-pill { border-radius: var(--ntq-radius-pill); }
+
+.ntq-block--surface-soft {
+  background: var(--ntq-surface-soft);
+}
+
+.ntq-block--surface-panel {
+  background: var(--ntq-surface-panel);
+}
+
+.ntq-block--surface-glass {
+  background: var(--ntq-surface-glass);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
+}
+
+.ntq-block--surface-gradient {
+  background: var(--ntq-surface-gradient);
+}
+
+.ntq-block--bordered {
+  border: 1px solid var(--ntq-white-12);
+}
+
+// bordered 且无 surface 时，给一点默认浅底（旧行为）
+.ntq-block--bordered:not([class*='ntq-block--surface-']) {
+  background: var(--ntq-surface-soft);
+}

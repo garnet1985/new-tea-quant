@@ -1,0 +1,149 @@
+// =============================================================================
+// Heading
+// - level → 标签 + 固定字号（h1 最大 → h5 最小），组件不提供 size
+// - variant="bar" → 官网式左竖条 + 左/上下 padding，无背景
+// - gap → 上外边距 > 下外边距 > 普通段落间距
+// =============================================================================
+
+.ntq-heading {
+  margin: 0;
+  max-width: 100%;
+  color: var(--ntq-text);
+}
+
+// --- 字号阶梯（只跟 level 走）---
+.ntq-heading--h1 {
+  font-size: var(--ntq-font-xl);
+  font-weight: var(--ntq-font-weight-bold);
+  line-height: var(--ntq-leading-tight);
+}
+
+.ntq-heading--h2 {
+  font-size: var(--ntq-font-lg);
+  font-weight: var(--ntq-font-weight-bold);
+  line-height: var(--ntq-leading-tight);
+}
+
+.ntq-heading--h3 {
+  font-size: var(--ntq-font-md);
+  font-weight: var(--ntq-font-weight-bold);
+  line-height: var(--ntq-leading-tight);
+}
+
+.ntq-heading--h4 {
+  font-size: var(--ntq-font-normal);
+  font-weight: var(--ntq-font-weight-medium);
+  line-height: var(--ntq-leading-tight);
+}
+
+.ntq-heading--h5 {
+  font-size: var(--ntq-font-sm);
+  font-weight: var(--ntq-font-weight-medium);
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-text-muted);
+}
+
+// --- gap：直接打在 h 上（无 root 包裹时）---
+.ntq-heading--gap-none {
+  margin-top: var(--ntq-heading-gap-none-mt);
+  margin-bottom: var(--ntq-heading-gap-none-mb);
+}
+.ntq-heading--gap-sm {
+  margin-top: var(--ntq-heading-gap-sm-mt);
+  margin-bottom: var(--ntq-heading-gap-sm-mb);
+}
+.ntq-heading--gap-md {
+  margin-top: var(--ntq-heading-gap-md-mt);
+  margin-bottom: var(--ntq-heading-gap-md-mb);
+}
+.ntq-heading--gap-lg {
+  margin-top: var(--ntq-heading-gap-lg-mt);
+  margin-bottom: var(--ntq-heading-gap-lg-mb);
+}
+.ntq-heading--gap-xl {
+  margin-top: var(--ntq-heading-gap-xl-mt);
+  margin-bottom: var(--ntq-heading-gap-xl-mb);
+}
+
+// --- root：有副标题或 bar 时包裹 ---
+.ntq-heading-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ntq-space-xs);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ntq-heading-root .ntq-heading {
+  margin: 0;
+}
+
+.ntq-heading-root--gap-none {
+  margin-top: var(--ntq-heading-gap-none-mt);
+  margin-bottom: var(--ntq-heading-gap-none-mb);
+}
+.ntq-heading-root--gap-sm {
+  margin-top: var(--ntq-heading-gap-sm-mt);
+  margin-bottom: var(--ntq-heading-gap-sm-mb);
+}
+.ntq-heading-root--gap-md {
+  margin-top: var(--ntq-heading-gap-md-mt);
+  margin-bottom: var(--ntq-heading-gap-md-mb);
+}
+.ntq-heading-root--gap-lg {
+  margin-top: var(--ntq-heading-gap-lg-mt);
+  margin-bottom: var(--ntq-heading-gap-lg-mb);
+}
+.ntq-heading-root--gap-xl {
+  margin-top: var(--ntq-heading-gap-xl-mt);
+  margin-bottom: var(--ntq-heading-gap-xl-mb);
+}
+
+// --- variant="bar"：左竖条 + 左/上下 padding（对齐官网）---
+.ntq-heading-root--bar {
+  --ntq-heading-bar-color: var(--ntq-cyan);
+  padding-top: var(--ntq-heading-bar-pad-y);
+  padding-bottom: var(--ntq-heading-bar-pad-y);
+  padding-left: var(--ntq-heading-bar-pad-x);
+  border-left: var(--ntq-heading-bar-width) solid var(--ntq-heading-bar-color);
+  background: transparent;
+}
+
+.ntq-heading-root--bar.ntq-heading-root--h1 {
+  border-left-width: var(--ntq-heading-bar-width-h1);
+}
+
+.ntq-heading-root--tone-cyan { --ntq-heading-bar-color: var(--ntq-cyan); }
+.ntq-heading-root--tone-violet { --ntq-heading-bar-color: var(--ntq-violet); }
+.ntq-heading-root--tone-green { --ntq-heading-bar-color: var(--ntq-green); }
+.ntq-heading-root--tone-warning { --ntq-heading-bar-color: var(--ntq-warning); }
+.ntq-heading-root--tone-error { --ntq-heading-bar-color: var(--ntq-error); }
+.ntq-heading-root--tone-muted { --ntq-heading-bar-color: var(--ntq-white-45); }
+
+// --- 副标题 ---
+.ntq-heading__inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-heading__label {
+  min-width: 0;
+}
+
+.ntq-heading__subtitle {
+  margin: 0;
+  font-size: var(--ntq-font-sm);
+  font-weight: var(--ntq-font-weight-regular);
+  line-height: var(--ntq-leading-normal);
+  color: var(--ntq-text-muted);
+}
+
+.ntq-heading__subtitle--inline {
+  font-size: var(--ntq-font-sm);
+}
+
+.ntq-heading__subtitle--below {
+  font-size: var(--ntq-font-sm);
+}

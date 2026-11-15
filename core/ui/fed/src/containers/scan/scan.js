@@ -14,6 +14,7 @@ import {
   Radio,
   RadioGroup,
   Stack,
+  Switch,
   Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
@@ -89,7 +90,9 @@ function Scan() {
   const [progress, setProgress] = useState({ pct: 0, label: '准备扫描…' });
 
   const [results, setResults] = useState({}); // strategy_id -> report payload
-  const [enabledPostProcessors, setEnabledPostProcessors] = useState([]);
+  const [postProcessors, setPostProcessors] = useState([]);
+  /** 本次扫描是否运行已启用的扫描后处理（不改全局 is_enabled） */
+  const [runPostProcess, setRunPostProcess] = useState(true);
   const [reportVisible, setReportVisible] = useState(false);
   const [reportStrategyId, setReportStrategyId] = useState('');
   const [reportStrategyName, setReportStrategyName] = useState('');
@@ -211,12 +214,17 @@ function Scan() {
     fetchPostProcessProcessors()
       .then((res) => {
         const items = Array.isArray(res?.data) ? res.data : [];
-        setEnabledPostProcessors(items.filter((row) => row.is_enabled));
+        setPostProcessors(items);
       })
       .catch(() => {
-        setEnabledPostProcessors([]);
+        setPostProcessors([]);
       });
   }, []);
+
+  const enabledPostProcessors = useMemo(
+    () => postProcessors.filter((row) => row.is_enabled),
+    [postProcessors],
+  );
 
   const demoCutoffLabel = useMemo(() => {
     const formatted = formatScanDate(demoScanCutoffDate);
@@ -447,7 +455,11 @@ function Scan() {
                     delete next[id];
                     return next;
                   });
-                  startStrategyScan(params.row.name, { demo: mode === 'demo', force })
+                  startStrategyScan(params.row.name, {
+                    demo: mode === 'demo',
+                    force,
+                    runPostProcess,
+                  })
                     .then((res) => {
                       const jobId = String(res?.job_id || '').trim();
                       if (!jobId) throw new Error('启动失败：未返回 job_id');
@@ -491,7 +503,7 @@ function Scan() {
         );
       },
     },
-  ]), [mode, openDetail, progress.pct, readinessLoading, results, running, runningStrategyId, scanGateById, scanPrimaryById]);
+  ]), [mode, openDetail, progress.pct, readinessLoading, results, runPostProcess, running, runningStrategyId, scanGateById, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -653,14 +665,49 @@ function Scan() {
           <Box className="scan-settings__divider" aria-hidden />
 
           <Box className="scan-settings__post">
-            <Typography variant="subtitle1" className="scan-settings__label">
-              后续处理
-            </Typography>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1}
+              className="scan-settings__post-head"
+            >
+              <Typography variant="subtitle1" className="scan-settings__label">
+                扫描后处理
+              </Typography>
+              <FormControlLabel
+                className="scan-settings__pp-switch"
+                control={(
+                  <Switch
+                    size="small"
+                    checked={runPostProcess && enabledPostProcessors.length > 0}
+                    disabled={running || enabledPostProcessors.length === 0}
+                    onChange={(e) => setRunPostProcess(e.target.checked)}
+                    inputProps={{ 'aria-label': '本次扫描运行后处理' }}
+                  />
+                )}
+                label={(
+                  <Typography variant="caption" color="text.secondary">
+                    执行扫描后处理
+                  </Typography>
+                )}
+                labelPlacement="start"
+              />
+            </Stack>
             <Typography variant="body2" color="text.secondary" className="scan-settings__post-hint">
-              扫描结束后运行全部已启用方案（非策略绑定）。
+              关闭后仅跳过本次扫描的后处理（可能产生费用），不改全局启用配置。
             </Typography>
             {enabledPostProcessors.length ? (
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap className="scan-settings__chips">
+              <Stack
+                direction="row"
+                spacing={0.75}
+                flexWrap="wrap"
+                useFlexGap
+                className={[
+                  'scan-settings__chips',
+                  !runPostProcess ? 'scan-settings__chips--muted' : '',
+                ].filter(Boolean).join(' ')}
+              >
                 {enabledPostProcessors.map((row) => (
                   <Chip
                     key={row.key}
@@ -672,7 +719,7 @@ function Scan() {
               </Stack>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                当前未启用任何后续处理方案。
+                当前未启用任何扫描后处理方案。
               </Typography>
             )}
             <Box className="scan-settings__post-actions">
@@ -684,7 +731,7 @@ function Scan() {
                 endIcon={<NtqIcon name="chevronRight" size={16} />}
                 className="scan-design-btn"
               >
-                管理后续处理
+                管理扫描后处理
               </Button>
             </Box>
           </Box>
@@ -895,7 +942,8 @@ function Scan() {
                 - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
               </Typography>
               <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 后续处理：{(() => {
+                - 扫描后处理：{(() => {
+                  if (reportPayload?.post_process?.skipped) return '本次已跳过';
                   const ran = Array.isArray(reportPayload?.post_process?.ran)
                     ? reportPayload.post_process.ran
                     : [];

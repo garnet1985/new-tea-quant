@@ -303,6 +303,7 @@ class ScannerPipeline:
         settings: StrategySettings,
         *,
         force: bool = False,
+        run_post_process: bool = True,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
         data_manager: Any = None,
     ) -> Dict[str, Any]:
@@ -372,7 +373,7 @@ class ScannerPipeline:
             )
             report.collect(run_result)
 
-        return report.finalize(present=True)
+        return report.finalize(present=True, run_post_process=bool(run_post_process))
 
     @classmethod
     def _run_backtest(

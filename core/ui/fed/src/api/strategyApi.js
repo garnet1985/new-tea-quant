@@ -104,11 +104,15 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
 
 /**
  * 启动单策略扫描（机会扫描页使用）
- * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1&force=0|1`
+ * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1&force=0|1&post_process=0|1`
  */
-export async function startStrategyScan(strategyName, { demo = false, force = false } = {}) {
+export async function startStrategyScan(
+  strategyName,
+  { demo = false, force = false, runPostProcess = true } = {},
+) {
   const params = new URLSearchParams({ demo: demo ? '1' : '0' });
   if (force) params.set('force', '1');
+  params.set('post_process', runPostProcess ? '1' : '0');
   const json = await request.postJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`);
   const m = json?.message || {};
   return {
@@ -116,6 +120,7 @@ export async function startStrategyScan(strategyName, { demo = false, force = fa
     job_id: m.job_id || '',
     demo: Boolean(m.demo),
     force: Boolean(m.force),
+    post_process: m.post_process !== false,
   };
 }
 

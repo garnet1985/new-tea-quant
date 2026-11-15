@@ -28,7 +28,7 @@ class ScanProgress:
         prev = self._recorder().get_progress()
         return dict(prev) if isinstance(prev, dict) else {}
 
-    def seed(self, *, demo: bool, force: bool) -> None:
+    def seed(self, *, demo: bool, force: bool, run_post_process: bool = True) -> None:
         self._recorder().record(
             {
                 "strategy_name": self.strategy_key,
@@ -37,6 +37,7 @@ class ScanProgress:
                 "status": "queued",
                 "demo": bool(demo),
                 "force": bool(force),
+                "run_post_process": bool(run_post_process),
             }
         )
         self._publish(0, 0)

@@ -105,12 +105,20 @@ class StrategyRunnerImplementer:
         return self._get_scan_readiness(strategy_name=name, demo=bool(demo))
 
     def trigger_scan(
-        self, *, strategy_key_or_name: str, demo: bool, force: bool
+        self,
+        *,
+        strategy_key_or_name: str,
+        demo: bool,
+        force: bool,
+        run_post_process: bool = True,
     ) -> Dict[str, Any]:
         assert self._trigger_strategy_scan_run is not None
         name = Strategy.resolve(strategy_key_or_name)
         return self._trigger_strategy_scan_run(
-            strategy_name=name, demo=bool(demo), force=bool(force)
+            strategy_name=name,
+            demo=bool(demo),
+            force=bool(force),
+            run_post_process=bool(run_post_process),
         )
 
     def scan_progress(

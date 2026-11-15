@@ -69,4 +69,9 @@ def test_trigger_scan_resolves_name():
     ):
         out = impl.trigger_scan(strategy_key_or_name="k", demo=True, force=False)
     assert out["job_id"] == "s1"
-    trigger.assert_called_once_with(strategy_name="demo-key", demo=True, force=False)
+    trigger.assert_called_once_with(
+        strategy_name="demo-key",
+        demo=True,
+        force=False,
+        run_post_process=True,
+    )

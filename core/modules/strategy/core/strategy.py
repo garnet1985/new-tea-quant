@@ -100,6 +100,7 @@ class Strategy:
         progress_id: str,
         demo: bool = False,
         force: bool = False,
+        run_post_process: bool = True,
     ) -> None:
         """工作台一次扫描：写 ``ScanProgress``，再跑 ``ScannerPipeline.run``。"""
         from core.modules.data_manager import DataManager
@@ -144,6 +145,7 @@ class Strategy:
                 info,
                 settings,
                 force=bool(force),
+                run_post_process=bool(run_post_process),
                 on_progress=_on_progress,
                 data_manager=data_mgr,
             )

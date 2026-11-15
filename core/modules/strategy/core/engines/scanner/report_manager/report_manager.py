@@ -55,6 +55,7 @@ class ReportManager(BaseReportManager):
     summary: Optional[ScanSummary] = field(default=None, init=False, repr=False)
     post_process_ran: List[str] = field(default_factory=list)
     post_process_enabled: List[str] = field(default_factory=list)
+    post_process_skipped: bool = False
     _store: Optional[ScanStore] = field(default=None, init=False, repr=False)
 
     @classmethod
@@ -135,6 +136,7 @@ class ReportManager(BaseReportManager):
             "post_process": {
                 "enabled": list(self.post_process_enabled or []),
                 "ran": list(self.post_process_ran or []),
+                "skipped": bool(getattr(self, "post_process_skipped", False)),
             },
         }
 
@@ -165,7 +167,12 @@ class ReportManager(BaseReportManager):
         store.write_opportunity_rows([opp.to_dict() for opp in self.opportunities])
         return summary_path
 
-    def present(self, stream: Optional[TextIO] = None) -> None:
+    def present(
+        self,
+        stream: Optional[TextIO] = None,
+        *,
+        run_post_process: bool = True,
+    ) -> None:
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         report = self.to_report_dict()
@@ -194,6 +201,11 @@ class ReportManager(BaseReportManager):
         )
 
         self.post_process_enabled = list(PostProcess.list_enabled_post_processors())
+        if not run_post_process:
+            self.post_process_skipped = True
+            self.post_process_ran = []
+            return
+        self.post_process_skipped = False
         ran = PostProcessDispatcher(
             strategy_name=self.strategy_key,
             strategy_version=self.strategy_version,
@@ -209,11 +221,17 @@ class ReportManager(BaseReportManager):
         )
         self.post_process_ran = list(ran or [])
 
-    def finalize(self, *, present: bool = True, **kwargs: Any) -> Dict[str, Any]:
+    def finalize(
+        self,
+        *,
+        present: bool = True,
+        run_post_process: bool = True,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         _ = kwargs
         self.summarize()
         if present:
-            self.present()
+            self.present(run_post_process=bool(run_post_process))
         self.save()
         return self.to_report_dict()
 

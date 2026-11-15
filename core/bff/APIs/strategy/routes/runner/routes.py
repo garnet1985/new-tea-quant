@@ -197,19 +197,26 @@ def get_strategy_scan_readiness_route(strategy_key_or_name: str):
     methods=["POST"],
 )
 def post_strategy_scan(strategy_key_or_name: str):
-    """POST /api/v1/strategy/:strategy_key_or_name/scan?demo=0|1&force=0|1"""
+    """POST /api/v1/strategy/:strategy_key_or_name/scan?demo=0|1&force=0|1&post_process=0|1"""
     runner = runner_impl.lazy_load()
     demo = parse_bool_query(request.args.get("demo"), default=False)
     force = parse_bool_query(request.args.get("force"), default=False)
+    run_post_process = parse_bool_query(
+        request.args.get("post_process"), default=True
+    )
     logger.info(
-        "[bff.scan] POST scan strategy=%s demo=%s force=%s",
+        "[bff.scan] POST scan strategy=%s demo=%s force=%s post_process=%s",
         strategy_key_or_name,
         demo,
         force,
+        run_post_process,
     )
     try:
         out = runner.trigger_scan(
-            strategy_key_or_name=strategy_key_or_name, demo=demo, force=force
+            strategy_key_or_name=strategy_key_or_name,
+            demo=demo,
+            force=force,
+            run_post_process=run_post_process,
         )
     except ValueError as exc:
         return error(str(exc), 400)
@@ -220,19 +227,22 @@ def post_strategy_scan(strategy_key_or_name: str):
         reason = str(out.get("reason") or "启动扫描失败")
         status = 409 if "运行中" in reason or "扫描任务" in reason else 400
         logger.warning(
-            "[bff.scan] trigger rejected strategy=%s demo=%s force=%s status=%s reason=%s",
+            "[bff.scan] trigger rejected strategy=%s demo=%s force=%s "
+            "post_process=%s status=%s reason=%s",
             strategy_key_or_name,
             demo,
             force,
+            run_post_process,
             status,
             reason,
         )
         return error(reason, status)
     logger.info(
-        "[bff.scan] triggered strategy=%s demo=%s force=%s job_id=%s",
+        "[bff.scan] triggered strategy=%s demo=%s force=%s post_process=%s job_id=%s",
         strategy_key_or_name,
         demo,
         force,
+        run_post_process,
         out.get("job_id"),
     )
     return ok(
@@ -241,6 +251,7 @@ def post_strategy_scan(strategy_key_or_name: str):
             "job_id": out["job_id"],
             "demo": demo,
             "force": force,
+            "post_process": run_post_process,
             "strategy_name": out.get("strategy_name") or strategy_key_or_name,
         }
     )

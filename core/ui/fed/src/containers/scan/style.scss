@@ -42,6 +42,30 @@
     min-width: 0;
   }
 
+  .scan-settings__post-head {
+    .scan-settings__label {
+      margin-bottom: 0;
+    }
+  }
+
+  .scan-settings__pp-switch {
+    margin-right: 0;
+    margin-left: 0;
+    gap: 10px;
+
+    .MuiFormControlLabel-label {
+      margin-right: 0;
+    }
+
+    .MuiSwitch-root {
+      margin-left: 0;
+    }
+  }
+
+  .scan-settings__chips--muted {
+    opacity: 0.45;
+  }
+
   .scan-settings__post-actions {
     margin-top: auto;
     display: flex;

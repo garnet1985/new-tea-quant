@@ -46,7 +46,8 @@ def _ctx(*, kind=SimulateKind.PRICE_FACTOR):
     )
 
 
-def test_resolve_steps_price_ignore_cache_skips_enum_reuse():
+def test_resolve_steps_price_ignore_cache_still_reuses_enum_when_fps_match():
+    """force 只重做本步；指纹能对上则仍复用 enum。"""
     ctx = _ctx()
     with patch.object(
         EnumeratorPipeline,
@@ -54,8 +55,8 @@ def test_resolve_steps_price_ignore_cache_skips_enum_reuse():
         return_value="7",
     ):
         Strategy._resolve_steps(ctx, ignore_cache=True)
-    assert ctx.steps == [SimulateKind.ENUMERATE, SimulateKind.PRICE_FACTOR]
-    assert ctx.enum_version is None
+    assert ctx.steps == [SimulateKind.PRICE_FACTOR]
+    assert ctx.enum_version == "7"
 
 
 def test_resolve_steps_price_reuses_enum_version():

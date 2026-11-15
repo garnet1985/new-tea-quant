@@ -467,7 +467,7 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
 export async function fetchStrategyRunProgress(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   return json?.message || null;
 }
@@ -649,7 +649,7 @@ export async function startAttributeRun(strategyName, step, options = {}) {
 export async function fetchAttributeRunProgress(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/attribute/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   return json?.message || null;
 }
@@ -765,7 +765,7 @@ export async function startRollingRun(strategyName, options = {}) {
 export async function fetchRollingRunStatus(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/rolling/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   const envelope = json?.message || null;
   if (!envelope) {

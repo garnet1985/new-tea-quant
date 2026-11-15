@@ -305,6 +305,8 @@ export function useStrategyDesignExecution({
     if (!strategyName || !activeRunId) return undefined;
 
     let stopped = false;
+    let failCount = 0;
+    const MAX_POLL_FAILS = 5;
 
     const applyStatus = (status) => {
       const patch = status?.step_status_merge && typeof status.step_status_merge === 'object'
@@ -405,9 +407,20 @@ export function useStrategyDesignExecution({
       try {
         const status = await fetchStrategyRunStatus(strategyName, activeRunId);
         if (stopped) return;
+        failCount = 0;
+        // 成功读到进度后清掉「暂缓」提示；终态错误由 applyStatus 写入
+        setRunError((prev) => (
+          prev && String(prev).includes('仍在后台执行') ? '' : prev
+        ));
         applyStatus(status);
       } catch (err) {
         if (stopped) return;
+        failCount += 1;
+        if (failCount < MAX_POLL_FAILS) {
+          // 单次超时/瞬断不放弃：后台 daemon 仍在跑
+          setRunError('进度读取暂缓，任务仍在后台执行…');
+          return;
+        }
         setRunError(err?.message || '读取执行状态失败');
         patchExecutionSession({
           activeRunId: '',
@@ -418,11 +431,21 @@ export function useStrategyDesignExecution({
       }
     };
 
-    poll();
-    const timer = window.setInterval(poll, 800);
+    // 串行轮询，避免 interval 在 BFF 忙时叠请求
+    let timer = null;
+    const scheduleNext = () => {
+      timer = window.setTimeout(runPoll, 800);
+    };
+    const runPoll = async () => {
+      await poll();
+      if (!stopped && failCount < MAX_POLL_FAILS) {
+        scheduleNext();
+      }
+    };
+    runPoll();
     return () => {
       stopped = true;
-      window.clearInterval(timer);
+      if (timer != null) window.clearTimeout(timer);
     };
   }, [
     activeRunId,

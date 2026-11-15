@@ -8,8 +8,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set
 
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.portfolio.opportunity_ranker import (
@@ -241,18 +242,21 @@ class EnterSelection:
         self,
         events: Sequence[PortfolioEvent],
         opportunities_by_id: Dict[str, Opportunity],
+        *,
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> List[PortfolioEvent]:
         """按日挑选 portfolio members，过滤未选中的 investment 事件。
 
         跨日维护持仓 entity：卖出释放槽位，买入占用槽位（近似 legacy 容量约束）。
+        ``on_progress(done, total, description)`` 按交易日推进（可选）。
         """
-        dates = sorted(
-            {
-                str(e.date or "").strip()
-                for e in events
-                if str(e.date or "").strip()
-            }
-        )
+        # 先按日建索引，避免「每个交易日扫全量事件」的 O(日×事件)
+        by_date: Dict[str, List[PortfolioEvent]] = defaultdict(list)
+        for event in events:
+            d = str(event.date or "").strip()
+            if d:
+                by_date[d].append(event)
+        dates = sorted(by_date.keys())
         selected: Set[str] = set()
         held_entities: Set[str] = set()
         inv_entity: Dict[str, str] = {
@@ -266,9 +270,13 @@ class EnterSelection:
             if key and eid:
                 inv_entity.setdefault(key, eid)
 
-        for date in dates:
-            for event in events:
-                if str(event.date or "").strip() != date or not event.is_sell():
+        n_dates = len(dates)
+        if on_progress is not None and n_dates > 0:
+            on_progress(0, n_dates, "选仓")
+        for index, date in enumerate(dates):
+            day_events = by_date[date]
+            for event in day_events:
+                if not event.is_sell():
                     continue
                 key = EntrySelector.event_selection_key(event)
                 if key not in selected:
@@ -277,11 +285,7 @@ class EnterSelection:
                 if eid:
                     held_entities.discard(eid)
 
-            day_buys = [
-                e
-                for e in events
-                if e.is_buy() and str(e.date or "").strip() == date
-            ]
+            day_buys = [e for e in day_events if e.is_buy()]
             available: List[Opportunity] = []
             for buy in day_buys:
                 key = EntrySelector.event_selection_key(buy)
@@ -311,6 +315,9 @@ class EnterSelection:
                 if eid:
                     held_entities.add(eid)
                     inv_entity[key] = eid
+
+            if on_progress is not None and n_dates > 0:
+                on_progress(index + 1, n_dates, f"选仓 {date}")
 
         return self.filter_events(events, selected)
 

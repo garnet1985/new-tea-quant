@@ -581,3 +581,50 @@ def test_kelly_does_not_use_default_when_edge_is_not_positive():
     buys = [trade for trade in result.trades if trade.is_buy()]
     assert len(buys) == 1
     assert buys[0].shares == 500
+
+
+def test_simulator_on_progress_ticks_by_timeline_date():
+    """回放进度按事件序去重日期推进（非整段 0/1）。"""
+    alloc = _allocation(allocation={"max_portfolio_size": 2})
+    fees = FeeCalculator(
+        commission_rate=0.0, min_commission=0.0, stamp_duty_rate=0.0, transfer_fee_rate=0.0
+    )
+    ticks = []
+
+    def on_progress(done, total, description):
+        ticks.append((done, total, description))
+
+    PortfolioSimulator.create(allocation=alloc, fee_calculator=fees).run(
+        [
+            PortfolioEvent(
+                kind="buy",
+                date="20240103",
+                entity_id="600000.SH",
+                investment_id="a",
+                price=10.0,
+                entry_price_hfq=10.0,
+            ),
+            PortfolioEvent(
+                kind="sell",
+                date="20240103",
+                entity_id="600000.SH",
+                investment_id="a",
+                price=11.0,
+                roi=0.1,
+            ),
+            PortfolioEvent(
+                kind="buy",
+                date="20240110",
+                entity_id="600001.SH",
+                investment_id="b",
+                price=10.0,
+                entry_price_hfq=10.0,
+            ),
+        ],
+        initial_capital=1_000_000,
+        on_progress=on_progress,
+    )
+    assert ticks[0] == (1, 2, "回放 20240103")
+    assert ticks[-1][0] == 2
+    assert ticks[-1][1] == 2
+    assert "20240110" in ticks[-1][2]

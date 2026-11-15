@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.shared.enum_result_contract import (
@@ -64,8 +64,6 @@ class PortfolioPipeline:
         if drive:
             PipelineProgress.complete_step_bound("dispatch")
             PipelineProgress.enter_step_bound("execute")
-            # No BE task ticks; mark execute mid-way before simulate returns.
-            PipelineProgress.tick_execute_bound(0, 1)
         sim_result = cls.simulate(
             events,
             opportunities,
@@ -74,7 +72,6 @@ class PortfolioPipeline:
             ctx=ctx,
         )
         if drive:
-            PipelineProgress.tick_execute_bound(1, 1)
             PipelineProgress.complete_step_bound("execute")
             PipelineProgress.enter_step_bound("report")
         out = cls.finalize(
@@ -173,13 +170,104 @@ class PortfolioPipeline:
         report: ReportManager,
         ctx: "SimulateSession",
     ) -> PortfolioSimResult:
-        """选仓钩子过滤事件后做账户回放。"""
+        """选仓钩子过滤事件后做账户回放。
+
+        进度（execute）：选仓按交易日、回放按交易日，拼成一条 ``done/total``。
+        选仓阶段 total 只用「选仓日数」（不再混入事件条数，避免出现 1/96020）。
+        """
+        drive = PipelineProgress.drives_pipeline(_PROGRESS_PIPELINE)
+        select_dates = sorted(
+            {
+                str(e.date or "").strip()
+                for e in events
+                if str(e.date or "").strip()
+            }
+        )
+        n_select = max(len(select_dates), 1)
+        # 选仓占进度轴前半（预留回放）；UI 计数器用真实选仓日 done/n_select
+        total_select_phase = 2 * n_select
+        progress_state = {"last_emit_done": -1}
+
+        def emit(
+            done: int,
+            total: int,
+            description: str,
+            *,
+            force: bool = False,
+            counter_done: Optional[int] = None,
+            counter_total: Optional[int] = None,
+        ) -> None:
+            if not drive:
+                return
+            t = max(int(total), 1)
+            d = max(0, min(int(done), t))
+            # 最多约 200 次落盘；首尾与 force 必写
+            step = max(1, t // 200)
+            if (
+                not force
+                and d not in (0, 1, t)
+                and d - progress_state["last_emit_done"] < step
+            ):
+                return
+            progress_state["last_emit_done"] = d
+            PipelineProgress.tick_execute_bound(
+                d,
+                t,
+                description=str(description or "").strip() or None,
+                counter_done=counter_done,
+                counter_total=counter_total,
+            )
+
+        def on_select(done: int, phase_total: int, description: str) -> None:
+            pt = max(int(phase_total), 1)
+            emit(
+                done,
+                total_select_phase,
+                description,
+                counter_done=done,
+                counter_total=pt,
+            )
+
         hook_runtime = cls._load_hook_runtime(ctx, settings)
         filtered = EnterSelection.create(
             settings=settings,
             strategy_name=str(ctx.strategy_key or report.strategy_key or ""),
             hook_runtime=hook_runtime,
-        ).apply(events, opportunities)
+        ).apply(
+            events,
+            opportunities,
+            on_progress=on_select if drive else None,
+        )
+
+        sim_dates: List[str] = []
+        seen_sim: Set[str] = set()
+        for event in filtered:
+            d = str(event.date or "").strip()
+            if d and d not in seen_sim:
+                seen_sim.add(d)
+                sim_dates.append(d)
+        n_sim = max(len(sim_dates), 1)
+        total_run = n_select + n_sim
+        # 切入回放：换 total；选仓已完成 n_select / total_run
+        progress_state["last_emit_done"] = -1
+        emit(
+            n_select,
+            total_run,
+            "回放",
+            force=True,
+            counter_done=0,
+            counter_total=n_sim,
+        )
+
+        def on_sim(done: int, phase_total: int, description: str) -> None:
+            pt = max(int(phase_total), 1)
+            emit(
+                n_select + done,
+                total_run,
+                description,
+                counter_done=done,
+                counter_total=pt,
+            )
 
         fee_calculator = FeeCalculator.from_fees(settings)
         market_rules = MarketRulesProxy.for_market(report.market_profile)
@@ -189,11 +277,17 @@ class PortfolioPipeline:
             fee_calculator=fee_calculator,
         )
         portfolio = settings.portfolio
-        return PortfolioSimulator.create(
+        result = PortfolioSimulator.create(
             allocation=allocation,
             fee_calculator=fee_calculator,
             save_equity_curve=bool(portfolio.output.save_equity_curve),
-        ).run(filtered, initial_capital=float(portfolio.initial_capital))
+        ).run(
+            filtered,
+            initial_capital=float(portfolio.initial_capital),
+            on_progress=on_sim if drive else None,
+        )
+        emit(total_run, total_run, "回测中", force=True)
+        return result
 
     @classmethod
     def finalize(

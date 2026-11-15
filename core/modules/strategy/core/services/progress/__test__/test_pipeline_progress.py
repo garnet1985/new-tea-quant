@@ -114,7 +114,7 @@ def test_bound_facades_noop_without_bind():
 
 
 def test_attribute_pipeline_uses_shared_steps():
-    """归因跳过调度，三步等权。对照回测的子步骤加在当前步上。"""
+    """归因跳过调度；权重 load5 / execute85 / report5（合计 95 归一）。"""
     from core.modules.strategy.core.services.progress import ATTRIBUTE_PIPELINE
     from core.infra.progress import Progress
 
@@ -129,16 +129,17 @@ def test_attribute_pipeline_uses_shared_steps():
         prog.enter_step("load")
         assert prog.to_dict()["step"]["description"] == "准备任务"
         prog.complete_step("load")
-        assert float(prog.to_dict()["progress"]) == 33.33
+        # 5/95
+        assert float(prog.to_dict()["progress"]) == 5.26
 
         prog.enter_step("execute")
         prog.tick_execute(1, 4)
-        # (1 + 1/4) / 3
-        assert float(prog.to_dict()["progress"]) == 41.67
+        # (5 + 85*0.25) / 95
+        assert float(prog.to_dict()["progress"]) == 27.63
 
         shared = Progress.read("pipeline-demo-x-job-attr")
         assert shared["job"] == "attribute"
-        assert shared["ratio"] == 0.4167
+        assert shared["ratio"] == 0.2763
         assert shared["steps"][1]["done"] == 1
         assert shared["steps"][1]["total"] == 4
         assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 4}
@@ -151,7 +152,8 @@ def test_attribute_pipeline_uses_shared_steps():
         prog.complete_step("execute")
         prog.enter_step("report")
         assert prog.to_dict()["step"]["description"] == "归因与报告"
-        assert float(prog.to_dict()["progress"]) == 66.67
+        # (5+85)/95
+        assert float(prog.to_dict()["progress"]) == 94.74
         prog.complete_step("report")
         assert float(prog.to_dict()["progress"]) == 100.0
 

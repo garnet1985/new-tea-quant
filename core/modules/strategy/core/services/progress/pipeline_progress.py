@@ -33,10 +33,19 @@ _STEPS: tuple[str, ...] = ("load", "dispatch", "execute", "report")
 ATTRIBUTE_PIPELINE = "attribute"
 ROLLING_PIPELINE = "rolling"
 
-# 这些阶段对部分流水线没有工作，不写进进度。其余阶段等权。
+# 这些阶段对部分流水线没有工作，不写进进度。
 _SKIPPED_STEPS: Dict[str, tuple[str, ...]] = {
     ATTRIBUTE_PIPELINE: ("dispatch",),
     ROLLING_PIPELINE: ("load", "dispatch"),
+}
+
+# 阶段权重（同级求和归一）：调度合计 10%（load+dispatch）/ 执行 85% / 报告 5%。
+# 跳过某步时其余权重按比例占满（infra Progress 按 weight 加权）。
+_STEP_WEIGHTS: Dict[str, float] = {
+    "load": 5.0,
+    "dispatch": 5.0,
+    "execute": 85.0,
+    "report": 5.0,
 }
 
 _STEP_LABELS: Dict[str, str] = {
@@ -221,6 +230,8 @@ class PipelineProgress:
         total: int,
         *,
         description: Optional[str] = None,
+        counter_done: Optional[int] = None,
+        counter_total: Optional[int] = None,
     ) -> None:
         if self._status() in _TERMINAL:
             return
@@ -254,7 +265,10 @@ class PipelineProgress:
         except (TypeError, ValueError):
             old_pct = 0.0
         cur["progress"] = max(old_pct, new_pct)
-        cur["counters"] = {"done": d, "total": t}
+        # 进度轴 done/total 可与 UI 计数器分离（如选仓占前半轴、计数仍显示 i/选仓日）
+        cd = d if counter_done is None else max(0, int(counter_done))
+        ct = t if counter_total is None else max(0, int(counter_total))
+        cur["counters"] = {"done": cd, "total": ct}
         label = str(description or "").strip()
         cur["description"] = label or self.step_description(
             "execute",
@@ -339,10 +353,18 @@ class PipelineProgress:
         total: int,
         *,
         description: Optional[str] = None,
+        counter_done: Optional[int] = None,
+        counter_total: Optional[int] = None,
     ) -> None:
         cur = cls.current()
         if cur is not None:
-            cur.tick_execute(done, total, description=description)
+            cur.tick_execute(
+                done,
+                total,
+                description=description,
+                counter_done=counter_done,
+                counter_total=counter_total,
+            )
 
     @classmethod
     def tick_from_run_progress(cls, progress: Any) -> None:
@@ -469,6 +491,7 @@ class PipelineProgress:
             {
                 "id": f"{root}:{name}",
                 "label": self.step_description(name, pipeline_name=job),
+                "weight": float(_STEP_WEIGHTS.get(name, 1.0)),
             }
             for name in active
         ]

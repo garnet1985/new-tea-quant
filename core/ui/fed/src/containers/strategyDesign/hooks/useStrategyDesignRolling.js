@@ -189,23 +189,44 @@ export function useStrategyDesignRolling({
       }
     };
 
+    let failCount = 0;
+    const MAX_POLL_FAILS = 5;
+
     const poll = async () => {
       try {
         const mapped = await fetchRollingRunStatus(strategyName, activeJobId);
         if (stopped) return;
+        failCount = 0;
+        setRollingError((prev) => (
+          prev && String(prev).includes('仍在后台执行') ? '' : prev
+        ));
         applyStatus(mapped);
       } catch (err) {
         if (stopped) return;
+        failCount += 1;
+        if (failCount < MAX_POLL_FAILS) {
+          setRollingError('进度读取暂缓，任务仍在后台执行…');
+          return;
+        }
         setRollingError(err?.message || '读取滚动进度失败');
         setActiveJobId('');
       }
     };
 
-    poll();
-    const timer = window.setInterval(poll, 800);
+    let timer = null;
+    const scheduleNext = () => {
+      timer = window.setTimeout(runPoll, 800);
+    };
+    const runPoll = async () => {
+      await poll();
+      if (!stopped && failCount < MAX_POLL_FAILS) {
+        scheduleNext();
+      }
+    };
+    runPoll();
     return () => {
       stopped = true;
-      window.clearInterval(timer);
+      if (timer != null) window.clearTimeout(timer);
     };
   }, [activeJobId, refreshStatus, strategyName]);
 

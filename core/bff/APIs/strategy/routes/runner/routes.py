@@ -167,7 +167,11 @@ def get_strategy_step_progress(strategy_key_or_name: str, step: str):
 
 @strategy_api_bp.route(f"{API_BASE_PATH}/scan/context", methods=["GET"])
 def get_strategy_scan_context_route():
-    """GET /api/v1/strategy/scan/context — 扫描页全局上下文（无 target）。"""
+    """GET /api/v1/strategy/scan/context — 扫描页全局上下文（无 target）。
+
+    ``enable_post_process`` 只读镜像自 PostProcess prefs；写入见
+    ``PUT /v1/post-process/run-enabled``。
+    """
     runner = runner_impl.lazy_load()
     return ok(runner.scan_page_context())
 
@@ -201,6 +205,7 @@ def post_strategy_scan(strategy_key_or_name: str):
     runner = runner_impl.lazy_load()
     demo = parse_bool_query(request.args.get("demo"), default=False)
     force = parse_bool_query(request.args.get("force"), default=False)
+    # 未传则默认尝试跑后处理；工作区 prefs 在 PostProcess.run_enabled 内检查并可能跳过
     run_post_process = parse_bool_query(
         request.args.get("post_process"), default=True
     )

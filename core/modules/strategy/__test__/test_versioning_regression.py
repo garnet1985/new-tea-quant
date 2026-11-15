@@ -79,7 +79,7 @@ def test_new_layout_paths_under_shared_version_id(tmp_path: Path) -> None:
     assert "4" in VersionMetaStore.read_root_meta(root).get("registry", {})
 
 
-def test_ignore_cache_skips_enum_reuse() -> None:
+def test_ignore_cache_reuses_enum_when_fingerprints_match() -> None:
     from core.modules.strategy.core.engines.enumerator.pipeline import EnumeratorPipeline
     from core.modules.strategy.__test__.test_simulate_cache_flow import (
         _ctx,
@@ -92,8 +92,8 @@ def test_ignore_cache_skips_enum_reuse() -> None:
         return_value="9",
     ):
         Strategy._resolve_steps(ctx, ignore_cache=True)
-    assert ctx.enum_version is None
-    assert SimulateKind.ENUMERATE in ctx.steps
+    assert ctx.enum_version == "9"
+    assert ctx.steps == [SimulateKind.PRICE_FACTOR]
 
 
 def test_overwrite_enum_clears_downstream_artifacts(tmp_path: Path) -> None:

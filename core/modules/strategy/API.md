@@ -53,7 +53,7 @@
   - `version_id`：可选；战役归因写入副本时传入
 - **返回：** 目标 step 槽位 dict（如 `enum` / `price` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（`success` / `output_dir` / `version_id`）；UI 指标由 BFF `report_hydrate` 从 `overall_report.json` 补全。
 - **环境失效：** registry 中 `env_fp` 与当前运行环境不一致时不可 cache hit（配置相同也会 miss 并新建 version）；BFF 读 version 时返回 `env_invalid: true`。
-- **强制重跑：** `ignore_cache=True`（CLI `--force`）跳过 cache 命中，price/portfolio **不复用**已有 enum 产物（会重跑 enum）。命中键 `(execute_fp, env_fp)` 不变则 **写入同一 `version_id`**，复写上游步时清下游。禁止为同一双指纹再 allocate 一个号。
+- **强制重跑：** `ignore_cache=True`（CLI `--force` / UI 本步已完成再跑）只跳过 **本步** cache 命中，强制重算本步。price/portfolio 的上游 enum：**指纹能对上仍复用**；对不上才前置重跑 enum。命中键 `(execute_fp, env_fp)` 不变则 **写入同一 `version_id`**，复写本步时清下游。禁止为同一双指纹再 allocate 一个号。
 - **磁盘布局：** `{strategy}/results/simulations/{version_id}/{enum|price|portfolio}/`；索引在 `simulations/meta.json`（`registry` + `next_version_id`）；`{version_id}/` 归档 `settings.json` / `effective_settings.json` / `scope.json`。过时 `env_fp` 超出 `retention.simulation_results_max_stale_envs` 时整组删除（含对应归因组）。
 
 ### enumerate / price_factor / portfolio

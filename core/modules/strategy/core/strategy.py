@@ -452,18 +452,14 @@ class Strategy:
 
     @staticmethod
     def _resolve_steps(ctx: SimulateSession, *, ignore_cache: bool = False) -> None:
-        """按目标 kind + 指纹是否已有机会盘点产物，写入 ctx.steps / ctx.enum_version。"""
+        """按目标 kind + 指纹是否已有机会盘点产物，写入 ctx.steps / ctx.enum_version。
+
+        ``ignore_cache`` 只表示强制重做 **本步**（跳过本步磁盘命中），**不**自动打穿上游。
+        price / portfolio 的依赖 enum：指纹能对上就复用；对不上才前置 enumerate。
+        """
         from .engines.enumerator import EnumeratorPipeline
 
         step = ctx.kind
-        if ignore_cache:
-            if step == SimulateKind.ENUMERATE:
-                ctx.steps = [SimulateKind.ENUMERATE]
-            else:
-                ctx.steps = [SimulateKind.ENUMERATE, step]
-            ctx.enum_version = None
-            return
-
         if step == SimulateKind.ENUMERATE:
             ctx.steps = [SimulateKind.ENUMERATE]
             ctx.enum_version = None
@@ -472,9 +468,10 @@ class Strategy:
         enum_version = EnumeratorPipeline.find_output_version_via_fps(ctx)
         if enum_version:
             logger.info(
-                "reuse enum version via fingerprints: %s (strategy=%s)",
+                "reuse enum version via fingerprints: %s (strategy=%s%s)",
                 enum_version,
                 ctx.strategy_key,
+                ", force_step" if ignore_cache else "",
             )
             ctx.steps = [step]
             ctx.enum_version = enum_version

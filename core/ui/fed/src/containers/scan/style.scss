@@ -301,25 +301,233 @@
   }
 }
 
+.scan-detail-dialog {
+  .MuiDialogTitle-root.scan-detail__title {
+    padding: 18px 24px 14px;
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+  }
+
+  .MuiDialogContent-root.scan-detail__body {
+    padding: 16px 24px 12px;
+  }
+
+  .MuiDialogActions-root {
+    padding: 10px 20px 14px;
+  }
+}
+
 .scan-detail__body {
-  height: 520px;
+  min-height: 500px;
 }
 
-.scan-detail__note {
-  margin-bottom: 12px;
+.scan-detail__meta {
+  margin-bottom: 22px;
 }
 
-.scan-detail__dates {
-  margin-bottom: 10px;
+.scan-detail__meta-strip {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  overflow: hidden;
+}
+
+.scan-detail__meta-cell {
+  flex: 1 1 0;
+  padding: 16px 18px 18px;
+  min-width: 0;
+
+  & + & {
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+  }
+}
+
+.scan-detail__meta-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: rgba(148, 163, 184, 0.88);
+  line-height: 1.25;
+}
+
+.scan-detail__meta-value {
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(226, 232, 240, 0.96);
+  word-break: break-word;
+}
+
+.scan-detail__meta-value--accent {
+  color: #22d3ee;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.scan-detail__meta-value--strong {
+  font-size: 22px;
+  font-weight: 800;
+  color: rgba(248, 250, 252, 0.98);
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.scan-detail__bt-block {
+  margin-top: 18px;
+  padding: 0 2px;
+}
+
+.scan-detail__bt-line {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  color: rgba(203, 213, 225, 0.92) !important;
+}
+
+.scan-detail__bt-note {
+  margin-top: 6px;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+  color: rgba(100, 116, 139, 0.95) !important;
 }
 
 .scan-detail__grid {
   width: 100%;
-  height: 420px;
+  height: 440px;
+
+  .MuiDataGrid-columnHeaders {
+    min-height: 40px !important;
+    max-height: 40px !important;
+    background: rgba(255, 255, 255, 0.025);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .MuiDataGrid-columnHeaderTitle {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(203, 213, 225, 0.92);
+  }
+
+  .MuiDataGrid-columnSeparator {
+    opacity: 0.25;
+  }
+
+  .MuiDataGrid-row {
+    min-height: 78px !important;
+  }
+
+  .MuiDataGrid-cell {
+    align-items: flex-start;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    padding-left: 14px;
+    padding-right: 14px;
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+    font-size: 13px;
+  }
+
+  .MuiDataGrid-footerContainer {
+    min-height: 44px;
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
 }
 
-.scan-detail__snapshot {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.scan-detail__stock {
+  padding-top: 1px;
+}
+
+.scan-detail__stock-name {
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: rgba(248, 250, 252, 0.97);
+}
+
+.scan-detail__stock-code {
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.9);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.01em;
+}
+
+.scan-detail__opp-info {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding-top: 1px;
+  text-align: left;
+}
+
+.scan-detail__opp-primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-detail__opp-kv {
+  display: inline;
+}
+
+.scan-detail__opp-k {
+  color: rgba(148, 163, 184, 0.92);
+  font-weight: 500;
+  margin-right: 4px;
+
+  &::after {
+    content: '：';
+  }
+}
+
+.scan-detail__opp-v {
+  color: rgba(248, 250, 252, 0.98);
+  font-weight: 750;
+}
+
+.scan-detail__opp-v--muted {
+  color: rgba(148, 163, 184, 0.95);
+  font-weight: 550;
+}
+
+.scan-detail__opp-primary-sep {
+  margin: 0 8px;
+  color: rgba(100, 116, 139, 0.85);
+  font-weight: 400;
+}
+
+.scan-detail__opp-cost {
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-detail__metric {
+  width: 100%;
+  padding-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+  color: rgba(226, 232, 240, 0.95);
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-detail__metric--pos {
+  color: #4ade80;
+}
+
+.scan-detail__metric--neg {
+  color: #f87171;
 }

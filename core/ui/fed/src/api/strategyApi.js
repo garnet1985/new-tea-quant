@@ -69,6 +69,7 @@ export async function fetchStrategyList() {
 
 /**
  * 扫描页上下文：data.json 截至日 + 演示模式截止日（与后端 ScanDateResolver 一致）。
+ * ``enable_post_process`` 为 PostProcess prefs 只读镜像；写入见 ``setPostProcessRunEnabled``。
  */
 export async function fetchStrategyScanContext() {
   const json = await request.getJson(API_STRATEGY_SCAN_CONTEXT);
@@ -78,6 +79,7 @@ export async function fetchStrategyScanContext() {
   return {
     dataEnd: mapDataEnd(dataEnd),
     demoScanCutoffDate: cutoff,
+    enablePostProcess: m.enable_post_process !== false,
   };
 }
 
@@ -465,7 +467,7 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
 export async function fetchStrategyRunProgress(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   return json?.message || null;
 }
@@ -647,7 +649,7 @@ export async function startAttributeRun(strategyName, step, options = {}) {
 export async function fetchAttributeRunProgress(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/attribute/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   return json?.message || null;
 }
@@ -763,7 +765,7 @@ export async function startRollingRun(strategyName, options = {}) {
 export async function fetchRollingRunStatus(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/rolling/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   const envelope = json?.message || null;
   if (!envelope) {

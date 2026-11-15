@@ -28,7 +28,10 @@ import {
   getStrategyDesignPath,
   startStrategyScan,
 } from '../../api/strategyApi';
-import { fetchPostProcessProcessors } from '../../api/postProcessApi';
+import {
+  fetchPostProcessProcessors,
+  setPostProcessRunEnabled,
+} from '../../api/postProcessApi';
 import {
   groupStrategiesByCategory,
   readStrategyListCategoryQuery,
@@ -48,6 +51,14 @@ import NtqIcon from '../../views/ntqIcon';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import { formatDateTime } from '../../service/format/formatDateTime';
+import {
+  OpportunityDetailMeta,
+  buildOpportunityColumns,
+  formatSessionSummaryLine,
+  mapOpportunityRow,
+  readPresenterHistory,
+  readPresenterScanUi,
+} from './presenterScanReport';
 import './style.scss';
 
 function readOpportunityCount(pack) {
@@ -118,11 +129,26 @@ function Scan() {
 
   const reportPayload = useMemo(() => results?.[reportStrategyId] || null, [results, reportStrategyId]);
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
+  // SPECIAL-CASE DEC-05：presenter 只给机会表追加回测列；见 post_process/docs/DECISIONS.md
+  // 「执行扫描后处理」关闭时不读落盘里的旧 presenter 载荷
+  const detailPresenterUi = useMemo(() => {
+    if (!runPostProcess || detailPayload?.post_process?.skipped) return null;
+    return readPresenterScanUi(detailPayload);
+  }, [detailPayload, runPostProcess]);
   const detailStrategyName = useMemo(() => {
     if (!detailStrategyId) return '';
     const row = rows.find((r) => r.id === detailStrategyId);
     return getStrategyDisplayLabel(row) || detailStrategyId;
   }, [detailStrategyId, rows]);
+  const detailPresenterHistory = useMemo(() => {
+    const key = String(
+      detailPayload?.strategy_key
+      || detailPayload?.strategyKey
+      || detailStrategyId
+      || '',
+    ).trim();
+    return readPresenterHistory(detailPresenterUi, key);
+  }, [detailPresenterUi, detailPayload, detailStrategyId]);
 
   const catalogGroups = useMemo(() => groupStrategiesByCategory(rows), [rows]);
 
@@ -204,6 +230,7 @@ function Scan() {
       .then((ctxRes) => {
         setDataEnd(ctxRes?.dataEnd && typeof ctxRes.dataEnd === 'object' ? ctxRes.dataEnd : {});
         setDemoScanCutoffDate(String(ctxRes?.demoScanCutoffDate || '').trim());
+        setRunPostProcess(ctxRes?.enablePostProcess !== false);
       })
       .catch(() => {
         setDataEnd({});
@@ -682,8 +709,20 @@ function Scan() {
                     size="small"
                     checked={runPostProcess && enabledPostProcessors.length > 0}
                     disabled={running || enabledPostProcessors.length === 0}
-                    onChange={(e) => setRunPostProcess(e.target.checked)}
-                    inputProps={{ 'aria-label': '本次扫描运行后处理' }}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      const prev = runPostProcess;
+                      setRunPostProcess(next);
+                      setPostProcessRunEnabled({ enablePostProcess: next })
+                        .then((res) => {
+                          setRunPostProcess(res?.enablePostProcess !== false);
+                        })
+                        .catch(() => {
+                          setRunPostProcess(prev);
+                          setRunError('无法保存「执行扫描后处理」偏好');
+                        });
+                    }}
+                    inputProps={{ 'aria-label': '执行扫描后处理' }}
                   />
                 )}
                 label={(
@@ -695,7 +734,7 @@ function Scan() {
               />
             </Stack>
             <Typography variant="body2" color="text.secondary" className="scan-settings__post-hint">
-              关闭后仅跳过本次扫描的后处理（可能产生费用），不改全局启用配置。
+              默认开启；关闭会写入工作区偏好并跳过扫描后处理（可能产生费用），不改全局方案启用。
             </Typography>
             {enabledPostProcessors.length ? (
               <Stack
@@ -903,154 +942,118 @@ function Scan() {
           </Stack>
         )}
       >
-            <Typography variant="body2" className="scan-report__lead">
-              使用策略
-              {' '}
-              <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
-              {' '}
-              扫描完成：共找到
-              {' '}
-              {(() => {
-                const reportCount = readOpportunityCount(reportPayload);
-                return (
-                  <Button
-                    size="small"
-                    variant="text"
-                    className="scan-report__count"
-                    disabled={reportCount == null}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!reportStrategyId || reportCount == null) return;
-                      openDetail(reportStrategyId);
-                    }}
-                  >
-                    {reportCount == null ? '—' : reportCount}
-                  </Button>
-                );
-              })()}
-              {' '}
-              个机会
-            </Typography>
-            <div className="scan-report__facts">
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 扫描日期：{formatScanDate(reportPayload?.date) || '—'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 扫描后处理：{(() => {
-                  if (reportPayload?.post_process?.skipped) return '本次已跳过';
-                  const ran = Array.isArray(reportPayload?.post_process?.ran)
-                    ? reportPayload.post_process.ran
-                    : [];
-                  const enabled = Array.isArray(reportPayload?.post_process?.enabled)
-                    ? reportPayload.post_process.enabled
-                    : enabledPostProcessors.map((row) => row.key);
-                  if (ran.length) return `已运行 ${ran.join('、')}`;
-                  if (enabled.length) return '已启用但未回报运行结果（可能失败或跳过）';
-                  return '未启用';
+            <>
+              <Typography variant="body2" className="scan-report__lead">
+                使用策略
+                {' '}
+                <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
+                {' '}
+                扫描完成：共找到
+                {' '}
+                {(() => {
+                  const reportCount = readOpportunityCount(reportPayload);
+                  return (
+                    <Button
+                      size="small"
+                      variant="text"
+                      className="scan-report__count"
+                      disabled={reportCount == null}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!reportStrategyId || reportCount == null) return;
+                        openDetail(reportStrategyId);
+                      }}
+                    >
+                      {reportCount == null ? '—' : reportCount}
+                    </Button>
+                  );
                 })()}
+                {' '}
+                个机会
               </Typography>
-            </div>
-            <Typography variant="caption" color="text.secondary" className="scan-report__hint">
-              请点击表格里的机会数量查看详情。
-            </Typography>
+              <div className="scan-report__facts">
+                <Typography variant="body2" color="text.secondary" className="scan-report__fact">
+                  - 扫描日期：{formatScanDate(reportPayload?.date) || '—'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" className="scan-report__fact">
+                  - 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" className="scan-report__fact">
+                  - 扫描后处理：{(() => {
+                    if (reportPayload?.post_process?.skipped) return '本次已跳过';
+                    const ran = Array.isArray(reportPayload?.post_process?.ran)
+                      ? reportPayload.post_process.ran
+                      : [];
+                    const enabled = Array.isArray(reportPayload?.post_process?.enabled)
+                      ? reportPayload.post_process.enabled
+                      : enabledPostProcessors.map((row) => row.key);
+                    if (ran.length) return `已运行 ${ran.join('、')}`;
+                    if (enabled.length) return '已启用但未回报运行结果（可能失败或跳过）';
+                    return '未启用';
+                  })()}
+                </Typography>
+              </div>
+              <Typography variant="caption" color="text.secondary" className="scan-report__hint">
+                请点击表格里的机会数量查看详情。
+              </Typography>
+            </>
       </SectionBlock>
       ) : null}
 
-      <Dialog open={detailOpen} onClose={closeDetail} maxWidth="md" fullWidth>
-        <DialogTitle>
-          机会明细 · {detailStrategyName || '—'}
-        </DialogTitle>
+      <Dialog
+        open={detailOpen}
+        onClose={closeDetail}
+        maxWidth={detailPresenterUi ? 'lg' : 'md'}
+        fullWidth
+        className="scan-detail-dialog"
+      >
+        <DialogTitle className="scan-detail__title">机会明细</DialogTitle>
         <DialogContent dividers className="scan-detail__body">
           {detailPayload ? (
             <>
-              <Typography variant="body2" color="text.secondary" className="scan-detail__note">
-                机会明细与 CLI 输出对齐；可分页查看。
-              </Typography>
-              {(() => {
-                const rows0 = Array.isArray(detailPayload?.opportunities) ? detailPayload.opportunities : [];
-                const dates = Array.from(new Set(
-                  rows0
-                    .map((o) => formatScanDate(o?.trigger_date || o?.triggerDate))
-                    .filter(Boolean),
-                ));
-                if (!dates.length) return null;
-                dates.sort();
-                const label = dates.length === 1 ? dates[0] : `${dates[0]} ~ ${dates[dates.length - 1]}（多日）`;
-                return (
-                  <Typography variant="body2" color="text.secondary" className="scan-detail__dates">
-                    触发日期：{label}
-                  </Typography>
-                );
-              })()}
+              <OpportunityDetailMeta
+                strategyName={detailStrategyName}
+                scanDate={detailPayload?.date || detailPayload?.scan_date}
+                opportunityCount={(() => {
+                  const n = readOpportunityCount(detailPayload);
+                  if (n != null) return n;
+                  const ops = detailPayload?.opportunities;
+                  return Array.isArray(ops) ? ops.length : null;
+                })()}
+                presenterLine={
+                  detailPresenterUi && !detailPresenterHistory.error
+                    ? (formatSessionSummaryLine(detailPresenterHistory.sessionSummary)
+                      || '（无 price 层 overall_report / 尚未回测）')
+                    : ''
+                }
+                presenterError={
+                  detailPresenterUi ? detailPresenterHistory.error : ''
+                }
+              />
               <Box className="scan-detail__grid">
                 <DataGrid
                   rows={(() => {
-                    const ops = Array.isArray(detailPayload?.opportunities) ? detailPayload.opportunities : null;
+                    const byStock = detailPresenterUi ? detailPresenterHistory.byStock : {};
+                    const ops = Array.isArray(detailPayload?.opportunities)
+                      ? detailPayload.opportunities
+                      : null;
                     if (ops) {
-                      return ops.map((o, idx) => ({
-                        id: String(o?.stock_id || o?.stockId || `${idx}`),
-                        stock_id: String(o?.stock_id || o?.stockId || ''),
-                        stock_name: String(o?.stock_name || o?.stockName || ''),
-                        trigger_price: o?.trigger_price ?? o?.triggerPrice ?? '',
-                        signal_snapshot: o?.signal_snapshot ?? o?.signalSnapshot ?? {},
-                      }));
+                      return ops.map((o, idx) => mapOpportunityRow(o, idx, byStock));
                     }
                     const list = Array.isArray(detailPayload?.summary?.stocks_with_opportunities)
                       ? detailPayload.summary.stocks_with_opportunities
                       : [];
-                    return list.map((code) => ({ id: code, stock_id: code, stock_name: '', trigger_price: '', signal_snapshot: {} }));
+                    return list.map((code, idx) => mapOpportunityRow(
+                      { stock_id: code },
+                      idx,
+                      byStock,
+                    ));
                   })()}
-                  columns={[
-                    { field: 'stock_id', headerName: '股票代码', minWidth: 140, flex: 0.6 },
-                    { field: 'stock_name', headerName: '名称', minWidth: 140, flex: 0.6 },
-                    {
-                      field: 'trigger_price',
-                      headerName: '触发价格',
-                      minWidth: 120,
-                      flex: 0.5,
-                      valueFormatter: (v) => {
-                        const raw = v?.value;
-                        if (raw === '' || raw == null) return '—';
-                        const n = Number(raw);
-                        return Number.isFinite(n) ? n.toFixed(2) : String(raw);
-                      },
-                    },
-                    {
-                      field: 'signal_snapshot',
-                      headerName: '信号快照',
-                      minWidth: 220,
-                      flex: 1,
-                      valueGetter: (params) => {
-                        const v = params?.row?.signal_snapshot;
-                        if (!v || (typeof v === 'object' && Object.keys(v).length === 0)) return '';
-                        if (typeof v === 'string') return v;
-                        const rounded = {};
-                        Object.entries(v).forEach(([k, val]) => {
-                          if (typeof val === 'number' && Number.isFinite(val)) {
-                            rounded[k] = Number(val.toFixed(2));
-                          } else {
-                            rounded[k] = val;
-                          }
-                        });
-                        return JSON.stringify(rounded);
-                      },
-                      renderCell: (params) => (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          className="scan-detail__snapshot"
-                        >
-                          {params.value || '—'}
-                        </Typography>
-                      ),
-                    },
-                  ]}
+                  columns={buildOpportunityColumns({ withPresenter: Boolean(detailPresenterUi) })}
+                  getRowHeight={() => 'auto'}
                   localeText={zhCN}
                   disableRowSelectionOnClick
                   pagination

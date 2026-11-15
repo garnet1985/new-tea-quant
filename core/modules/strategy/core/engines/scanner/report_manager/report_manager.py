@@ -56,6 +56,7 @@ class ReportManager(BaseReportManager):
     post_process_ran: List[str] = field(default_factory=list)
     post_process_enabled: List[str] = field(default_factory=list)
     post_process_skipped: bool = False
+    post_process_ui: Dict[str, Any] = field(default_factory=dict)
     _store: Optional[ScanStore] = field(default=None, init=False, repr=False)
 
     @classmethod
@@ -137,6 +138,8 @@ class ReportManager(BaseReportManager):
                 "enabled": list(self.post_process_enabled or []),
                 "ran": list(self.post_process_ran or []),
                 "skipped": bool(getattr(self, "post_process_skipped", False)),
+                # SPECIAL-CASE DEC-05：目前仅 presenter → scan_report；见 post_process/docs/DECISIONS.md
+                "ui": dict(self.post_process_ui or {}),
             },
         }
 
@@ -158,11 +161,17 @@ class ReportManager(BaseReportManager):
         }
 
     def save(self) -> Optional[Path]:
-        if self.skip_save:
-            return None
         if not self.scan_date:
             return None
         store = self._store or ArtifactStore.scan_at(self.strategy_key, self.scan_date)
+        if self.skip_save:
+            # 缓存命中不重写机会明细，但仍落盘 post_process（含 ui），供就绪态回填
+            existing = store.read_summary() if store is not None else None
+            if isinstance(existing, dict):
+                merged = dict(existing)
+                merged["post_process"] = dict(self.to_report_dict().get("post_process") or {})
+                return store.write_summary(merged)
+            return None
         summary_path = store.write_summary(self.to_report_dict())
         store.write_opportunity_rows([opp.to_dict() for opp in self.opportunities])
         return summary_path
@@ -204,9 +213,9 @@ class ReportManager(BaseReportManager):
         if not run_post_process:
             self.post_process_skipped = True
             self.post_process_ran = []
+            self.post_process_ui = {}
             return
-        self.post_process_skipped = False
-        ran = PostProcessDispatcher(
+        dispatched = PostProcessDispatcher(
             strategy_name=self.strategy_key,
             strategy_version=self.strategy_version,
             goal=dict(self.goal or {}),
@@ -219,7 +228,15 @@ class ReportManager(BaseReportManager):
                 "date_meta": dict(self.date_meta or {}),
             },
         )
-        self.post_process_ran = list(ran or [])
+        if isinstance(dispatched, dict):
+            self.post_process_ran = list(dispatched.get("ran") or [])
+            self.post_process_ui = dict(dispatched.get("ui") or {})
+            # prefs 关闭时 run_enabled 返回 skipped；显式 run_post_process=False 已在上方 return
+            self.post_process_skipped = bool(dispatched.get("skipped"))
+        else:
+            self.post_process_ran = list(dispatched or [])
+            self.post_process_ui = {}
+            self.post_process_skipped = False
 
     def finalize(
         self,

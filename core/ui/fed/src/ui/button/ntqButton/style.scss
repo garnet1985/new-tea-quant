@@ -12,6 +12,25 @@
   }
 }
 
+// 纯图标：方形热区，内容居中
+.ntq-button--icon-only {
+  width: 40px;
+  min-width: 40px !important;
+  padding: 0 !important;
+
+  &.MuiButton-sizeSmall {
+    width: 32px;
+    min-width: 32px !important;
+    height: 32px;
+    min-height: 32px;
+  }
+}
+
+.ntq-button__tooltip-wrap {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
 .ntq-button--glass {
   border: 1px solid var(--ntq-white-12) !important;
   background: var(--ntq-white-03) !important;

@@ -49,6 +49,9 @@ export const COLUMN_VARIANTS = [
   'sidebarEnd',
 ];
 
+/** Tabs 布局形态：上方横排 / 左右分栏 */
+export const TABS_VARIANTS = ['top', 'side'];
+
 /** Icon 尺寸 */
 export const ICON_SIZE_TOKENS = ['sm', 'md', 'lg', 'xl'];
 

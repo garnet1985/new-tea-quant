@@ -12,7 +12,7 @@
 | `size` | `'sm' \| 'lg'` | `'sm'` | 圆形尺寸；胶囊主要靠自身 min-height |
 | `ring` | `'spin' \| 'still' \| 'plain'` | `'spin'` | 描边：色带旋转 / 静止渐变 / 灰边无彩虹 |
 | `glow` | `boolean` | `false` | 外圈光晕（助手等浮层入口常用） |
-| `quiet` | `boolean` | `false` | 压暗光晕（例如对话面板已打开时） |
+| `quiet` | `boolean` | `false` | 压暗光晕并关闭脉冲（例如对话面板已打开时） |
 | `shimmer` | `boolean` | `false` | 胶囊文案上的色带流动 |
 | `icon` | `'play' \| 'refresh' \| 'cancel' \| ''` | `''` | `play`/`refresh` 色带裁进图标；`cancel` 走 `NtqIcon` |
 | `mark` | `'help' \| 'ai' \| ''` | `''` | 特殊字标：问号帮助 / AI 角标 |

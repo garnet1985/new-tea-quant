@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box } from '@mui/material';
 import Column from 'ui/layout/column';
 import Block from 'ui/layout/block';
 import Section from 'ui/layout/section';
+import Tabs from 'ui/layout/tabs';
 import Text from 'ui/text/text';
 import {
   COLUMN_VARIANTS,
   RADIUS_TOKENS,
   SPACE_TOKENS,
   SURFACE_TOKENS,
+  TABS_VARIANTS,
 } from 'ui/tokens';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
 
@@ -251,10 +253,110 @@ function SectionShowcase() {
   );
 }
 
+const DEMO_TAB_ITEMS = [
+  {
+    id: 'overview',
+    label: '概览',
+    content: <p>概览面板：说明、摘要放这里。</p>,
+  },
+  {
+    id: 'detail',
+    label: '详情',
+    content: (
+      <Section gap="sm">
+        <p>详情面板。</p>
+        <p className="ntq-muted">可用任意块级内容。</p>
+      </Section>
+    ),
+  },
+  {
+    id: 'logs',
+    label: '日志',
+    content: <p className="ntq-caption">日志 / 次要信息。</p>,
+  },
+  {
+    id: 'disabled',
+    label: '禁用',
+    disabled: true,
+    content: <p>不可见。</p>,
+  },
+];
+
+function TabsShowcase() {
+  const [sideValue, setSideValue] = useState('overview');
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label={`variant="top"（默认）· 上方切换`} block>
+          <Tabs variant="top" items={DEMO_TAB_ITEMS.filter((i) => !i.disabled)} />
+        </SampleRow>
+        <SampleRow label={`variant="side" · 左右布局（左导航右内容）`} block>
+          <Tabs
+            variant="side"
+            value={sideValue}
+            onChange={setSideValue}
+            items={DEMO_TAB_ITEMS}
+          />
+        </SampleRow>
+        <SampleRow label={`variant 全集：${TABS_VARIANTS.join(' | ')}`} block>
+          <SampleNA>仅 top / side 两种；不要再叠手写 tab 按钮。</SampleNA>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleNA>
+          无
+          {' '}
+          <Text variant="code">size</Text>
+          ；侧栏宽跟
+          {' '}
+          <Text variant="code">--ntq-layout-sidebar-width</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleRow label='gap：列表与面板之间（默认 md = 1rem）' block>
+          <Section gap="md">
+            <Tabs
+              variant="top"
+              gap="sm"
+              items={[
+                { id: 'a', label: 'gap sm', content: <p>较紧</p> },
+                { id: 'b', label: '另一页', content: <p>B</p> },
+              ]}
+            />
+            <Tabs
+              variant="top"
+              gap="lg"
+              items={[
+                { id: 'a', label: 'gap lg', content: <p>较疏</p> },
+                { id: 'b', label: '另一页', content: <p>B</p> },
+              ]}
+            />
+          </Section>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>激活态用青色指示条；无独立 tone 参数。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleNA>
+          top：底边指示条；side：左边指示条 + 浅底导航。窄屏 side 自动改横排。
+        </SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const layoutShowcases = {
   column: ColumnShowcase,
   block: BlockShowcase,
   section: SectionShowcase,
+  tabs: TabsShowcase,
 };
 
 export default layoutShowcases;

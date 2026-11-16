@@ -3,6 +3,7 @@ import rainbowButtonDoc from 'ui/button/rainbowButton/doc';
 import columnDoc from 'ui/layout/column/doc';
 import blockDoc from 'ui/layout/block/doc';
 import sectionDoc from 'ui/layout/section/doc';
+import tabsDoc from 'ui/layout/tabs/doc';
 import textDoc from 'ui/text/text/doc';
 import quoteDoc from 'ui/text/quote/doc';
 import separatorDoc from 'ui/text/separator/doc';
@@ -19,6 +20,7 @@ const DOCS = {
     column: columnDoc,
     block: blockDoc,
     section: sectionDoc,
+    tabs: tabsDoc,
   },
   text: {
     text: textDoc,

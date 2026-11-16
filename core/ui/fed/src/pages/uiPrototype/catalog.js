@@ -42,11 +42,12 @@ export const UI_CATALOG = [
   {
     id: 'layout',
     label: '布局',
-    description: '分栏与区块：Column（variant/gap/divider）+ Block（surface/radius）+ Section。',
+    description: '分栏与区块：Column / Block / Section / Tabs（上方或左右切换）。',
     widgets: [
       { id: 'column', label: 'column', origin: 'new', source: null, status: 'ready' },
       { id: 'block', label: 'block', origin: 'new', source: null, status: 'ready' },
       { id: 'section', label: 'section', origin: 'new', source: null, status: 'ready' },
+      { id: 'tabs', label: 'tabs', origin: 'new', source: null, status: 'ready' },
     ],
   },
   {

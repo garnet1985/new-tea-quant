@@ -25,7 +25,7 @@ function TextShowcase() {
             <span className="ntq-label">字段名 .ntq-label</span>
           </Section>
         </SampleRow>
-        <SampleRow label="链接 .ntq-link（规范 class，不是组件；可带 inline icon）" block>
+        <SampleRow label="行内链接 .ntq-link（按钮样式链接用 NtqButton + href）" block>
           <Section>
             <p>
               见

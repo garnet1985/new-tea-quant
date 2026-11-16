@@ -5,17 +5,18 @@
 ## 约定
 
 - 只放**设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
-- **layout**：`column` / `block` / `section`（不含 Banner、面包屑）。
+- **layout**：`column` / `block` / `section` / `tabs`（不含 Banner、面包屑）。
   - `Column`：版式 + `gap` + `divider`（竖线分栏）。
   - `Block`：`surface`（soft/panel/glass/gradient）+ `radius`（含 pill）+ `bordered`。
   - `Section`：纵向堆叠 + `gap`；表面仍用内嵌 Block。
+  - `Tabs`：`variant="top"` 上方切换；`variant="side"` 左右分栏。
 - **text**：
   - **文字**（图鉴 `/dev/ui/text`）：`text` / `quote` / `textBlock` / `codeBlock`。
   - **标题**（图鉴 `/dev/ui/heading`）：`heading`（`level` + `variant`/`subtitle`/`gap`）。
   - **分隔线**（图鉴 `/dev/ui/separator`）：`separator`。
   - 磁盘仍在 `ui/text/*`；图鉴大类分开便于浏览。
   - 普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等），不是组件。
-- **icon** / **progress** / **button**：见各目录 README。
+- **icon** / **progress** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
 - 隐形图鉴 `/dev/ui` **只能**展示本目录下的组件。
 
 ## 命名：统一用 `variant` + `size`

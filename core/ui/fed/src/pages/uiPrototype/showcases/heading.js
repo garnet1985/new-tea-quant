@@ -24,26 +24,25 @@ function HeadingShowcase() {
     <Showcase>
       <SampleDim title="1. 形态">
         <SampleRow label={`level：${HEADING_LEVELS.join(' | ')}`} block>
-          <Block bordered padding="md" gap="none" surface="soft">
+          <Block bordered padding="md" surface="soft">
             {HEADING_LEVELS.map((level) => (
-              <Heading key={level} level={level} gap="sm">
+              <Heading key={level} level={level}>
                 {`${level.toUpperCase()} · ${HEADING_LEVEL_LABEL[level]}`}
               </Heading>
             ))}
           </Block>
         </SampleRow>
         <SampleRow label={`variant：${HEADING_VARIANTS.join(' | ')}`} block>
-          <Section gap="md">
-            <Heading level="h2" variant="plain" gap="none">无竖条（默认）</Heading>
-            <Heading level="h2" variant="bar" tone="cyan" gap="none">带竖条</Heading>
-            <Heading level="h3" variant="bar" tone="warning" gap="none">小节竖条（官网黄条感）</Heading>
+          <Section>
+            <Heading level="h2" variant="plain">无竖条（默认）</Heading>
+            <Heading level="h2" variant="bar" tone="cyan">带竖条</Heading>
+            <Heading level="h3" variant="bar" tone="warning">小节竖条（官网黄条感）</Heading>
           </Section>
         </SampleRow>
         <SampleRow label="副标题 below / inline" block>
-          <Section gap="md">
+          <Section>
             <Heading
               level="h2"
-              gap="none"
               subtitle="副标题在下方，更小且 muted"
               subtitlePlacement="below"
             >
@@ -51,7 +50,6 @@ function HeadingShowcase() {
             </Heading>
             <Heading
               level="h2"
-              gap="none"
               subtitle="行内副题"
               subtitlePlacement="inline"
             >
@@ -75,12 +73,12 @@ function HeadingShowcase() {
       </SampleDim>
 
       <SampleDim title="3. 间距">
-        <SampleRow label={`gap：${HEADING_GAP_TOKENS.join(' | ')}（上 > 下 > 段落间距）`} block>
-          <Block bordered padding="md" gap="none" surface="soft">
+        <SampleRow label={`gap：${HEADING_GAP_TOKENS.join(' | ')}（父 gap=1rem 上再补：md→1.5，lg→2）`} block>
+          <Block bordered padding="md" gap="md" surface="soft">
             <p className="ntq-muted">上文段落</p>
-            <Heading level="h2" gap="md">二级标题 gap=md</Heading>
+            <Heading level="h2" gap="md">二级标题 gap=md（视觉上 1.5rem）</Heading>
             <p className="ntq-muted">标题下的正文</p>
-            <Heading level="h3" gap="sm">三级标题 gap=sm</Heading>
+            <Heading level="h3" gap="lg">三级标题 gap=lg（视觉上 2rem）</Heading>
             <p className="ntq-muted">再一段正文</p>
           </Block>
         </SampleRow>
@@ -91,14 +89,13 @@ function HeadingShowcase() {
 
       <SampleDim title="4. 颜色">
         <SampleRow label={`variant="bar" · tone：${HEADING_BAR_TOKENS.join(' | ')}`} block>
-          <Section gap="md">
+          <Section>
             {HEADING_BAR_TOKENS.map((tone) => (
               <Heading
                 key={tone}
                 level="h3"
                 variant="bar"
                 tone={tone}
-                gap="none"
                 subtitle={`tone="${tone}"`}
               >
                 带竖条的标题
@@ -114,7 +111,6 @@ function HeadingShowcase() {
             level="h2"
             variant="bar"
             tone="cyan"
-            gap="none"
             subtitle="可与副标题组合"
           >
             强调型标题

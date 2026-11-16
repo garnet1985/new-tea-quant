@@ -1,24 +1,10 @@
+// 块容器。内部堆叠用 gap；自身不额外制造与兄弟的 margin 距（由父级 gap 管）。
 .ntq-block {
   display: flex;
   flex-direction: column;
   min-width: 0;
   box-sizing: border-box;
-
-  // 段落外边距清零，间距只走 gap
-  > p {
-    margin-block: 0;
-  }
-
-  // 块内首尾标题不顶破内边距；标题之间仍保留各自 margin
-  > .ntq-heading[class*='ntq-heading--gap-']:first-child,
-  > .ntq-heading-root[class*='ntq-heading-root--gap-']:first-child {
-    margin-top: 0;
-  }
-
-  > .ntq-heading[class*='ntq-heading--gap-']:last-child,
-  > .ntq-heading-root[class*='ntq-heading-root--gap-']:last-child {
-    margin-bottom: 0;
-  }
+  margin: 0;
 }
 
 .ntq-block--pad-none { padding: var(--ntq-space-none); }
@@ -31,7 +17,7 @@
 .ntq-block--gap-none { gap: var(--ntq-space-none); }
 .ntq-block--gap-xs { gap: var(--ntq-space-xs); }
 .ntq-block--gap-sm { gap: var(--ntq-space-sm); }
-.ntq-block--gap-md { gap: var(--ntq-space-md); }
+.ntq-block--gap-md { gap: var(--ntq-stack); }
 .ntq-block--gap-lg { gap: var(--ntq-space-lg); }
 .ntq-block--gap-xl { gap: var(--ntq-space-xl); }
 
@@ -63,7 +49,6 @@
   border: 1px solid var(--ntq-white-12);
 }
 
-// bordered 且无 surface 时，给一点默认浅底（旧行为）
 .ntq-block--bordered:not([class*='ntq-block--surface-']) {
   background: var(--ntq-surface-soft);
 }

@@ -61,17 +61,23 @@ body {
   --ntq-leading-normal: 1.5;
   --ntq-leading-relaxed: 1.68;
 
-  // --- 标题 gap：上 > 下 > 普通段落间距（--ntq-space-sm = 0.5rem）---
+  // --- 块级堆叠（统一用父级 gap，子项不叠 margin）---
+  // 默认块距 1rem；标题在 gap 之上再加一点上边距 → 视觉上 1.5 / 2rem
+  --ntq-stack: 1rem;
+  --ntq-heading-margin-top: 1.5rem;
+  --ntq-heading-margin-top-lg: 2rem;
+  --ntq-heading-margin-bottom: var(--ntq-stack);
+  // 在已有 gap=stack 的容器里，标题只需补差额
+  --ntq-heading-gap-boost: calc(var(--ntq-heading-margin-top) - var(--ntq-stack));       // 0.5rem
+  --ntq-heading-gap-boost-lg: calc(var(--ntq-heading-margin-top-lg) - var(--ntq-stack)); // 1rem
+
+  // Heading gap 档位：none | md(默认) | lg
   --ntq-heading-gap-none-mt: 0;
   --ntq-heading-gap-none-mb: 0;
-  --ntq-heading-gap-sm-mt: var(--ntq-space-md); // 1rem > 0.75rem > 0.5rem
-  --ntq-heading-gap-sm-mb: 0.75rem;             // 12px
-  --ntq-heading-gap-md-mt: var(--ntq-space-lg); // 1.5rem > 1rem > 0.5rem
-  --ntq-heading-gap-md-mb: var(--ntq-space-md);
-  --ntq-heading-gap-lg-mt: var(--ntq-space-xl); // 2rem > 1.5rem > 0.5rem
-  --ntq-heading-gap-lg-mb: var(--ntq-space-lg);
-  --ntq-heading-gap-xl-mt: 2.5rem;              // 40px
-  --ntq-heading-gap-xl-mb: var(--ntq-space-xl);
+  --ntq-heading-gap-md-mt: var(--ntq-heading-gap-boost);
+  --ntq-heading-gap-md-mb: 0;
+  --ntq-heading-gap-lg-mt: var(--ntq-heading-gap-boost-lg);
+  --ntq-heading-gap-lg-mb: 0;
 
   // --- 标题竖条 variant="bar"（左色条 + 左/上下内边距，无背景）---
   --ntq-heading-bar-width: 0.1875rem;   // 3px

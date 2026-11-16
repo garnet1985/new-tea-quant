@@ -32,8 +32,8 @@ export const HEADING_VARIANTS = ['plain', 'bar'];
 /** Heading / TextBlock 竖条色 */
 export const HEADING_BAR_TOKENS = ['cyan', 'violet', 'green', 'warning', 'error', 'muted'];
 
-/** Heading 上下间距档（上 > 下 > 普通段落间距） */
-export const HEADING_GAP_TOKENS = ['none', 'sm', 'md', 'lg', 'xl'];
+/** Heading 上下间距：none=收紧；md=上1.5/下1；lg=上2/下1（单位 rem，见 --ntq-stack） */
+export const HEADING_GAP_TOKENS = ['none', 'md', 'lg'];
 
 /** Heading 副标题位置 */
 export const HEADING_SUBTITLE_PLACEMENTS = ['below', 'inline'];

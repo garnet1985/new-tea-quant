@@ -10,8 +10,8 @@ const doc = {
     {
       name: 'gap',
       type: "'none' | 'xs' | 'sm' | 'md' | 'lg' | 'xl'",
-      defaultValue: "'none'",
-      description: '子元素纵向间距 token。',
+      defaultValue: "'md'",
+      description: '子元素纵向间距；默认 1rem（--ntq-stack）。紧凑传 none。',
     },
     {
       name: 'radius',

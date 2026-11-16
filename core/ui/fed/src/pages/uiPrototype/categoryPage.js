@@ -30,13 +30,13 @@ function WidgetDocPanel({ doc, readmePath }) {
   }
 
   return (
-    <Box className="ui-prototype__widget-doc-panel">
+    <Section className="ui-prototype__widget-doc-panel" gap="md">
       <TextBlock bar="cyan" surface="soft" className="ui-prototype__widget-summary">
         {doc.summary}
       </TextBlock>
 
-      <Section gap="none" className="ui-prototype__doc-section">
-        <Heading level="h5" variant="bar" tone="cyan" gap="sm">参数</Heading>
+      <Section className="ui-prototype__doc-section" gap="md">
+        <Heading level="h5" variant="bar" tone="cyan" gap="none">参数</Heading>
         <Box className="ui-prototype__doc-table-wrap">
           <Box component="table" className="ui-prototype__doc-table">
             <thead>
@@ -61,8 +61,8 @@ function WidgetDocPanel({ doc, readmePath }) {
         </Box>
       </Section>
 
-      <Section gap="none" className="ui-prototype__doc-section">
-        <Heading level="h5" variant="bar" tone="cyan" gap="sm">使用场景</Heading>
+      <Section className="ui-prototype__doc-section" gap="md">
+        <Heading level="h5" variant="bar" tone="cyan" gap="none">使用场景</Heading>
         <ul className="ui-prototype__doc-list">
           {doc.scenarios.map((item) => (
             <li key={item}>{item}</li>
@@ -70,8 +70,8 @@ function WidgetDocPanel({ doc, readmePath }) {
         </ul>
       </Section>
 
-      <Section gap="none" className="ui-prototype__doc-section">
-        <Heading level="h5" variant="bar" tone="warning" gap="sm">反例</Heading>
+      <Section className="ui-prototype__doc-section" gap="md">
+        <Heading level="h5" variant="bar" tone="warning" gap="none">反例</Heading>
         {/* 上方已有竖条标题，下方用普通 Block，避免双竖条 */}
         <Block surface="soft" radius="md" padding="md" bordered>
           <ul className="ui-prototype__doc-list">
@@ -87,7 +87,7 @@ function WidgetDocPanel({ doc, readmePath }) {
         {' '}
         <Text variant="code">{readmePath}</Text>
       </p>
-    </Box>
+    </Section>
   );
 }
 
@@ -101,7 +101,7 @@ function UiPrototypeCategoryPage() {
 
   return (
     <Section className="ui-prototype__panel" gap="lg">
-      <Block className="ui-prototype__panel-header" padding="none" gap="sm">
+      <Block className="ui-prototype__panel-header" padding="none" gap="md">
         <Heading level="h1" gap="none" className="ui-prototype__title">
           {category.label}
         </Heading>
@@ -135,7 +135,7 @@ function UiPrototypeCategoryPage() {
               className="ui-prototype__widget-item"
               bordered
               padding="md"
-              gap="sm"
+              gap="md"
             >
               <Box className="ui-prototype__widget-header">
                 <Heading level="h3" gap="none" className="ui-prototype__widget-name">
@@ -160,19 +160,21 @@ function UiPrototypeCategoryPage() {
 
               <WidgetDocPanel doc={doc} readmePath={readmePath} />
 
-              <Heading level="h5" variant="bar" tone="cyan" gap="sm">样例</Heading>
-              <Box
-                className={[
-                  'ui-prototype__widget-sample',
-                  Showcase ? '' : 'is-empty',
-                ].filter(Boolean).join(' ')}
-              >
-                {Showcase ? (
-                  <Showcase />
-                ) : (
-                  <p className="ntq-caption">样例占位（尚未实现）</p>
-                )}
-              </Box>
+              <Section gap="md">
+                <Heading level="h5" variant="bar" tone="cyan" gap="none">样例</Heading>
+                <Box
+                  className={[
+                    'ui-prototype__widget-sample',
+                    Showcase ? '' : 'is-empty',
+                  ].filter(Boolean).join(' ')}
+                >
+                  {Showcase ? (
+                    <Showcase />
+                  ) : (
+                    <p className="ntq-caption">样例占位（尚未实现）</p>
+                  )}
+                </Box>
+              </Section>
             </Block>
           );
         })}

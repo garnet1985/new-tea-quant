@@ -44,7 +44,17 @@
 
 ## Token 优先（禁止裸数字）
 
-rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`0.875rem` / `--ntq-font-normal`）：`body` + MUI `typography.body1` + `CssBaseline` 已对齐（否则 Emotion 会把 body 盖回 16px）。`p` / `span` / `strong` 继承 body。字号与间距用 **rem** token，不要写裸 `px`。
+rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`0.875rem` / `--ntq-font-normal`）：`body` + MUI `typography.body1` + `CssBaseline` 已对齐。`p` / `span` / `strong` 继承 body。字号与间距用 **rem** token，不要写裸 `px`。
+
+### 块级堆叠（只走父级 gap）
+
+| 角色 | 上下距 | 做法 |
+|------|--------|------|
+| 默认块 | **1rem** | 父级 `gap: var(--ntq-stack)`（`Section` 默认 `md`） |
+| 标题 | 上 **1.5rem**（`lg`→**2rem**）/ 下 **1rem** | 父 gap 1rem + Heading 补上边距 |
+| 分隔线 | 上下 **1rem** | 只靠父 gap；自身 `margin: 0` |
+
+不要把子项 `margin-block` 和父级 `gap` 混用。
 
 | 维度 | 合法值 | 全局变量 |
 |------|--------|----------|

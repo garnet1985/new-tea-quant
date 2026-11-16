@@ -3,8 +3,11 @@
 // 多行代码块 → ui/text/codeBlock
 // 引用块 → ui/text/quote
 //
-// 间距约定：段落自身 margin 固定为 0；堆叠间距由外层 Section/Block 的 gap 控制，
-// 避免浏览器默认 margin: 1em 随字号变化。
+// 块级间距：父级用 gap: var(--ntq-stack)（1rem）；子项上下 margin 为 0，避免与 gap 叠乘。
+
+p {
+  margin: 0;
+}
 
 .ntq-muted,
 .ntq-caption,

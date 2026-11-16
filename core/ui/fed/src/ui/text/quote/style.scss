@@ -1,14 +1,14 @@
 // 固定样式：轻白底 + 左白条 + 内边距 + 斜体。
-// margin：整体四周透明空隙（外扩，不是把内容再往里挤）。
+// 左右保留透明空隙；上下距交给父级 gap（不叠 margin-block）。
 .ntq-quote {
   --ntq-quote-pad: var(--ntq-space-sm);
   --ntq-quote-bar: var(--ntq-heading-bar-width);
   position: relative;
   display: block;
-  // 左右 margin 后仍不溢出父级
-  max-width: calc(100% - 2 * var(--ntq-space-md));
+  max-width: calc(100% - 2 * var(--ntq-stack));
   box-sizing: border-box;
-  margin: var(--ntq-space-md);
+  margin-block: 0;
+  margin-inline: var(--ntq-stack);
   padding: var(--ntq-quote-pad);
   padding-left: calc(var(--ntq-quote-bar) + var(--ntq-space-sm) + var(--ntq-quote-pad));
   border-radius: var(--ntq-radius-sm);

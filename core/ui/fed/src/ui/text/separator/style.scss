@@ -4,12 +4,12 @@
   gap: var(--ntq-space-sm);
   width: 100%;
   min-width: 0;
+  // 上下距由父级 gap（默认 1rem）提供，自身不叠 margin
   margin: 0;
   padding: 0;
 }
 
 .ntq-separator__label {
-  // 与 .ntq-caption 一致
   flex: 0 1 auto;
   min-width: 0;
   font-size: var(--ntq-font-xs);

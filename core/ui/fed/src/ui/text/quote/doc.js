@@ -1,5 +1,5 @@
 const doc = {
-  summary: '引用块（固定样式）：整体四周透明 margin 空隙 + 轻白底 + 左白竖条 + 内边距 + 斜体。无 size / padding / color 变体。说明/提示用 TextBlock。',
+  summary: '引用块（固定样式）：左右透明空隙 + 轻白底 + 左白竖条 + 内边距 + 斜体。上下距由父级 gap 提供。无变体。',
   params: [
     {
       name: 'children',

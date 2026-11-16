@@ -170,15 +170,16 @@
 
 .ui-prototype__widget-doc-panel {
   margin: 0;
+  width: 100%;
 }
 
 .ui-prototype__widget-summary {
-  margin: 0 0 var(--ntq-space-md);
+  margin: 0;
 }
 
 .ui-prototype__doc-section {
-  // 间距交给 Heading 默认上下边距，不再额外顶 margin
   margin: 0;
+  width: 100%;
 }
 
 .ui-prototype__doc-table-wrap {
@@ -243,13 +244,13 @@
   color: rgba(255, 255, 255, 0.82);
 
   li + li {
-    margin-top: var(--ntq-space-xs);
+    margin-top: var(--ntq-space-sm);
   }
 }
 
 .ui-prototype__doc-readme {
   display: block;
-  margin-top: 12px;
+  margin: 0;
   color: rgba(255, 255, 255, 0.45) !important;
 }
 
@@ -271,34 +272,24 @@
 }
 
 // ---------------------------------------------------------------------------
-// 样例节奏（对齐 MUI Docs：8px 阶梯 + 大节疏、小节密、demo 成块）
-// spacing(4)=32 大节间；spacing(3)=24 小节间；spacing(2)=16 标签→舞台
+// 样例节奏：只走 gap，子项不叠 margin
+// 大节之间 1.5rem；节内 / 小节 / 舞台 默认 1rem（--ntq-stack）
 // ---------------------------------------------------------------------------
 
 .ui-prototype__showcase {
   display: flex;
   flex-direction: column;
-  // 大节与大节
-  gap: var(--ntq-space-lg);
+  gap: var(--ntq-heading-margin-top); // 1.5rem：大节标题分隔感
   width: 100%;
-
-  // 首个大节标题去掉上边距
-  > .ui-prototype__sample-dim:first-child {
-    .ntq-heading--gap-sm,
-    .ntq-heading-root--gap-sm,
-    .ntq-heading--gap-md,
-    .ntq-heading-root--gap-md {
-      margin-top: 0;
-    }
-  }
 }
 
 .ui-prototype__sample-dim {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: var(--ntq-stack);
   width: 100%;
-  padding-bottom: var(--ntq-space-md);
+  margin: 0;
+  padding-bottom: var(--ntq-stack);
   border-bottom: 1px solid var(--ntq-white-06);
 
   &:last-child {
@@ -308,20 +299,20 @@
 }
 
 .ui-prototype__sample-dim-title {
-  // 标题外边距由 Heading gap 负责；避免被父级挤扁
   max-width: 100%;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 .ui-prototype__sample-dim-body {
   display: flex;
   flex-direction: column;
-  // 小节与小节
-  gap: var(--ntq-space-md);
+  gap: var(--ntq-stack);
   width: 100%;
 }
 
 .ui-prototype__sample-na-wrap {
-  padding: var(--ntq-space-md) 0;
+  margin: 0;
 }
 
 .ui-prototype__sample-na {
@@ -335,30 +326,30 @@
 .ui-prototype__sample-row {
   display: flex;
   flex-direction: column;
-  // 分隔标题 → demo 舞台
-  gap: var(--ntq-space-md);
+  gap: var(--ntq-stack);
   width: 100%;
+  margin: 0;
 }
 
 .ui-prototype__sample-sep {
   margin: 0;
 }
 
-// 样例舞台：不加全局黑框，避免所有组件被套一层
+// 样例舞台：不加全局黑框；间距只走 gap
 .ui-prototype__sample-stage {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ntq-space-md);
+  gap: var(--ntq-stack);
   width: 100%;
   box-sizing: border-box;
+  margin: 0;
   padding: 0;
   border: none;
   border-radius: 0;
   background: transparent;
 
   &--block {
-    display: flex;
     flex-direction: column;
     align-items: stretch;
     flex-wrap: nowrap;

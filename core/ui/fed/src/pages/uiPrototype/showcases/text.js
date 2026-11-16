@@ -17,8 +17,8 @@ function TextShowcase() {
   return (
     <Showcase>
       <SampleDim title="1. 形态">
-        <SampleRow label="普通文字（不包本组件；间距由 Section gap 统一）" block>
-          <Section gap="md">
+        <SampleRow label="普通文字（不包本组件；父级 gap = 1rem）" block>
+          <Section>
             <p>正文直接写段落，继承全局字色与行高。</p>
             <p className="ntq-muted">次要说明用 .ntq-muted</p>
             <p className="ntq-caption">图注用 .ntq-caption</p>
@@ -26,7 +26,7 @@ function TextShowcase() {
           </Section>
         </SampleRow>
         <SampleRow label="链接 .ntq-link（规范 class，不是组件；可带 inline icon）" block>
-          <Section gap="md">
+          <Section>
             <p>
               见
               {' '}
@@ -48,7 +48,7 @@ function TextShowcase() {
           </Section>
         </SampleRow>
         <SampleRow label={`行内特殊字形 variant：${TEXT_VARIANTS.join(' | ')}`} block>
-          <Section gap="md">
+          <Section>
             <p>
               路径
               {' '}
@@ -117,7 +117,7 @@ function TextShowcase() {
 
       <SampleDim title="5. 外观">
         <SampleRow label="代码字：等宽 + 青色，无底无边；链接默认无下划线，悬停出现" block>
-          <Section gap="sm">
+          <Section>
             <p>
               行内
               {' '}

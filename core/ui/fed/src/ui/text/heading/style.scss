@@ -2,7 +2,7 @@
 // Heading
 // - level → 标签 + 固定字号（h1 最大 → h5 最小），组件不提供 size
 // - variant="bar" → 官网式左竖条 + 左/上下 padding，无背景
-// - gap → 上外边距 > 下外边距 > 普通段落间距
+// - gap → 在父级 gap=1rem 之上补上边距：md 再 +0.5→视觉 1.5；lg 再 +1→视觉 2；下边距交给父 gap
 // =============================================================================
 
 .ntq-heading {
@@ -43,14 +43,10 @@
   color: var(--ntq-text-muted);
 }
 
-// --- gap：直接打在 h 上（无 root 包裹时）---
+// --- gap：打在 h 上（无 root 时）；首子不补上边距 ---
 .ntq-heading--gap-none {
   margin-top: var(--ntq-heading-gap-none-mt);
   margin-bottom: var(--ntq-heading-gap-none-mb);
-}
-.ntq-heading--gap-sm {
-  margin-top: var(--ntq-heading-gap-sm-mt);
-  margin-bottom: var(--ntq-heading-gap-sm-mb);
 }
 .ntq-heading--gap-md {
   margin-top: var(--ntq-heading-gap-md-mt);
@@ -60,9 +56,9 @@
   margin-top: var(--ntq-heading-gap-lg-mt);
   margin-bottom: var(--ntq-heading-gap-lg-mb);
 }
-.ntq-heading--gap-xl {
-  margin-top: var(--ntq-heading-gap-xl-mt);
-  margin-bottom: var(--ntq-heading-gap-xl-mb);
+.ntq-heading--gap-md:first-child,
+.ntq-heading--gap-lg:first-child {
+  margin-top: 0;
 }
 
 // --- root：有副标题或 bar 时包裹 ---
@@ -82,10 +78,6 @@
   margin-top: var(--ntq-heading-gap-none-mt);
   margin-bottom: var(--ntq-heading-gap-none-mb);
 }
-.ntq-heading-root--gap-sm {
-  margin-top: var(--ntq-heading-gap-sm-mt);
-  margin-bottom: var(--ntq-heading-gap-sm-mb);
-}
 .ntq-heading-root--gap-md {
   margin-top: var(--ntq-heading-gap-md-mt);
   margin-bottom: var(--ntq-heading-gap-md-mb);
@@ -94,9 +86,9 @@
   margin-top: var(--ntq-heading-gap-lg-mt);
   margin-bottom: var(--ntq-heading-gap-lg-mb);
 }
-.ntq-heading-root--gap-xl {
-  margin-top: var(--ntq-heading-gap-xl-mt);
-  margin-bottom: var(--ntq-heading-gap-xl-mb);
+.ntq-heading-root--gap-md:first-child,
+.ntq-heading-root--gap-lg:first-child {
+  margin-top: 0;
 }
 
 // --- variant="bar"：左竖条 + 左/上下 padding（对齐官网）---

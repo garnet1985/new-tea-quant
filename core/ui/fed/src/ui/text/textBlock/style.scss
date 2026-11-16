@@ -4,6 +4,7 @@
   display: block;
   max-width: 100%;
   box-sizing: border-box;
+  margin: 0;
   // 竖条在左内边距里，正文与外层内容对齐（不再整体右移）
   padding-left: calc(var(--ntq-heading-bar-width) + var(--ntq-heading-bar-pad-x) + var(--ntq-text-block-pad));
   padding-right: var(--ntq-text-block-pad);

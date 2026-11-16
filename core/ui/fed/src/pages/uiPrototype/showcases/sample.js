@@ -4,10 +4,11 @@ import Heading from 'ui/text/heading';
 import Separator from 'ui/text/separator';
 
 /**
- * 图鉴样例节奏（参考 MUI Docs）：
- * - 大节与大节：大间距（≈ theme.spacing(4–5)）
- * - 小节标签与舞台：中等间距
- * - 样例舞台不加全局黑框（需要框时组件自己带，如 Block bordered）
+ * 图鉴样例节奏（只走 gap，子项不叠 margin）：
+ * - 默认块距：--ntq-stack = 1rem
+ * - 大节之间：1.5rem
+ * - 标题在正文流中再补上边距（Heading gap）
+ * - 样例舞台不加全局黑框
  */
 
 export function Showcase({ children }) {
@@ -18,7 +19,7 @@ export function Showcase({ children }) {
 export function SampleDim({ title, children }) {
   return (
     <Box className="ui-prototype__sample-dim">
-      <Heading level="h4" gap="sm" className="ui-prototype__sample-dim-title">
+      <Heading level="h4" className="ui-prototype__sample-dim-title">
         {title}
       </Heading>
       <Box className="ui-prototype__sample-dim-body">{children}</Box>

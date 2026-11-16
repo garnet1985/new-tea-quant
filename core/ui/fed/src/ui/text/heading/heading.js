@@ -15,7 +15,7 @@ import './style.scss';
  * - level：h1–h5（标签 + 固定字号阶梯，不可单独改 font-size）
  * - variant：plain（默认）| bar（左侧竖条，上下/左内边距）
  * - subtitle + subtitlePlacement：below | inline
- * - gap：上下外边距，永远 上 > 下 > 普通段落间距；none 表示收紧
+ * - gap：父级 gap=1rem 时再补上边距。md→视觉上1.5；lg→视觉上2；下边距靠父 gap；none=不补
  *
  * @example
  * <Heading level="h1">页面标题</Heading>

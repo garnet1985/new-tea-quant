@@ -20,12 +20,12 @@ function SeparatorShowcase() {
       </SampleDim>
 
       <SampleDim title="3. 间距">
-        <SampleNA>自身无 gap；与上下内容的间距由外层负责。</SampleNA>
+        <SampleNA>自身无 margin；上下 1rem 由父级 gap（--ntq-stack）提供。</SampleNA>
       </SampleDim>
 
       <SampleDim title="4. 颜色">
         <SampleRow label="default / muted" block>
-          <Section gap="sm">
+          <Section>
             <Separator>默认</Separator>
             <Separator tone="muted">弱化</Separator>
           </Section>

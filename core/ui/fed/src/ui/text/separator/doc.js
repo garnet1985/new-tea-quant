@@ -1,5 +1,5 @@
 const doc = {
-  summary: '分隔标题：左侧文案用 caption 字号与色，右侧横线。编号大节用 Heading，不必加竖条。',
+  summary: '分隔标题：左文右线。上下 1rem 由父级 gap 提供（自身 margin 为 0）。编号大节用 Heading。',
   params: [
     {
       name: 'tone',
@@ -21,6 +21,7 @@ const doc = {
   antiPatterns: [
     '不要用 Separator 替代页面主标题（用 Heading）。',
     '「1. 形态」这类编号标题用 Heading，不要再加 bar。',
+    '不要在 Separator 上再加 margin-block，以免与父级 gap 叠距。',
   ],
 };
 

@@ -1,56 +1,58 @@
+// 固定：圆角 md、描边、内边距 md。
+// variant=glass（默认）| soft（轻底无模糊）。
 .ntq-code-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ntq-space-xs);
+  --ntq-code-block-pad: var(--ntq-space-md);
+  // 语言标注预留高度（含与代码的空隙）
+  --ntq-code-block-lang-slot: 0.75rem;
+  position: relative;
+  display: block;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
-  // 四边统一内边距（不再拆到 meta / pre 上造成不均）
   padding: var(--ntq-code-block-pad);
+  border: 1px solid var(--ntq-white-12);
+  border-radius: var(--ntq-radius-md);
 }
 
-.ntq-code-block--pad-none { --ntq-code-block-pad: var(--ntq-space-none); }
-.ntq-code-block--pad-xs { --ntq-code-block-pad: var(--ntq-space-xs); }
-.ntq-code-block--pad-sm { --ntq-code-block-pad: var(--ntq-space-sm); }
-.ntq-code-block--pad-md { --ntq-code-block-pad: var(--ntq-space-md); }
-.ntq-code-block--pad-lg { --ntq-code-block-pad: var(--ntq-space-lg); }
-.ntq-code-block--pad-xl { --ntq-code-block-pad: var(--ntq-space-xl); }
-
-.ntq-code-block--radius-none { border-radius: var(--ntq-radius-none); }
-.ntq-code-block--radius-sm { border-radius: var(--ntq-radius-sm); }
-.ntq-code-block--radius-md { border-radius: var(--ntq-radius-md); }
-.ntq-code-block--radius-lg { border-radius: var(--ntq-radius-lg); }
-.ntq-code-block--radius-pill { border-radius: var(--ntq-radius-lg); }
-
-.ntq-code-block--surface-soft { background: var(--ntq-surface-soft); }
-.ntq-code-block--surface-panel { background: var(--ntq-surface-panel); }
-.ntq-code-block--surface-glass {
+.ntq-code-block--glass {
   background: var(--ntq-surface-glass);
   backdrop-filter: blur(var(--ntq-blur-md));
   -webkit-backdrop-filter: blur(var(--ntq-blur-md));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(6, 6, 18, 0.35);
 }
-.ntq-code-block--surface-gradient { background: var(--ntq-surface-gradient); }
 
-.ntq-code-block--bordered {
-  border: 1px solid var(--ntq-white-12);
+.ntq-code-block--soft {
+  background: var(--ntq-surface-soft);
+}
+
+// 有语言标注时：加大上内边距，把标注完全放进 padding 带，避免压住首行代码
+.ntq-code-block--has-lang {
+  padding-top: calc(var(--ntq-code-block-pad) + var(--ntq-code-block-lang-slot));
 }
 
 .ntq-code-block__meta {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  position: absolute;
+  // 落在上/右 padding 内（相对描边内缘）
+  top: var(--ntq-space-xs);
+  right: var(--ntq-code-block-pad);
+  z-index: 1;
   margin: 0;
   padding: 0;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .ntq-code-block__lang {
   font-family: var(--ntq-font-mono);
-  font-size: var(--ntq-font-xs);
-  line-height: var(--ntq-leading-normal);
-  color: var(--ntq-text-muted);
+  font-size: 0.625rem; // 10px
+  line-height: 1;
+  color: var(--ntq-white-45);
   letter-spacing: 0.04em;
   text-transform: lowercase;
+  user-select: none;
 }
 
 .ntq-code-block__pre {

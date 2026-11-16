@@ -1,35 +1,17 @@
 const doc = {
-  summary: '多行代码块。等宽展示；language 仅作标注。语法高亮（如 highlight.js）暂未接入。行内短代码请用 Text variant="code"。',
+  summary: '多行代码块。默认科技玻璃；变种 soft。language 落在上内边距带内，不与代码重叠。语法高亮暂未接入。',
   params: [
+    {
+      name: 'variant',
+      type: "'glass' | 'soft'",
+      defaultValue: "'glass'",
+      description: 'glass：科技玻璃（默认）；soft：轻底无模糊。',
+    },
     {
       name: 'language',
       type: 'string',
       defaultValue: "''",
-      description: '语言标注（右上角）；暂不驱动高亮。',
-    },
-    {
-      name: 'surface',
-      type: "'none' | 'soft' | 'panel' | 'glass' | 'gradient'",
-      defaultValue: "'panel'",
-      description: '表面预设，与 Block 同源 token。',
-    },
-    {
-      name: 'radius',
-      type: "'none' | 'sm' | 'md' | 'lg' | 'pill'",
-      defaultValue: "'md'",
-      description: '圆角；pill 对代码块无意义，样式回落 lg。',
-    },
-    {
-      name: 'padding',
-      type: "'none' | 'xs' | 'sm' | 'md' | 'lg' | 'xl'",
-      defaultValue: "'md'",
-      description: '内边距。',
-    },
-    {
-      name: 'bordered',
-      type: 'boolean',
-      defaultValue: 'true',
-      description: '描边。',
+      description: '右上角语言标注；占用上内边距，不驱动高亮。',
     },
     {
       name: 'children',
@@ -39,12 +21,12 @@ const doc = {
     },
   ],
   scenarios: [
-    '文档 / 图鉴里展示多行片段。',
-    '配置示例、错误堆栈只读展示。',
+    '文档 / 图鉴展示多行片段：默认 glass。',
+    '嵌在已有玻璃面板里时可用 soft，避免双重模糊。',
   ],
   antiPatterns: [
-    '路径、单行键名用 Text variant="code"，不要用代码块。',
-    '禁止在调用处写 fontFamily / fontSize px。',
+    '不要再传 surface / radius / padding / bordered；样式只走 variant。',
+    '路径、单行键名用 Text variant="code"。',
     '现阶段不要依赖 language 做高亮。',
   ],
 };

@@ -1,36 +1,32 @@
 import React from 'react';
-import { RADIUS_TOKENS, SPACE_TOKENS, SURFACE_TOKENS, pickToken } from 'ui/tokens';
 import './style.scss';
 
+const VARIANTS = ['glass', 'soft'];
+
 /**
- * 多行代码块原语（等宽、可滚动）。
- * 现阶段不做语法高亮；language 仅作标注，后续可接 highlight.js。
+ * 多行代码块（等宽、可滚动）。
+ * 样式只收 variant：默认科技玻璃 glass，变种 soft。
+ * language 落在内边距带内，不与代码重叠；暂不驱动高亮。
  *
  * @example
- * <CodeBlock>{`npm install`}</CodeBlock>
- * <CodeBlock language="js" surface="panel" radius="md">{`const x = 1;`}</CodeBlock>
+ * <CodeBlock language="js">{`const x = 1;`}</CodeBlock>
+ * <CodeBlock variant="soft">{`npm run start`}</CodeBlock>
  */
 function CodeBlock({
   language = '',
-  surface = 'panel',
-  radius = 'md',
-  padding = 'md',
-  bordered = true,
+  variant = 'glass',
   className = '',
   style,
   children,
   ...rest
 }) {
-  const surfaceToken = pickToken(surface, SURFACE_TOKENS, 'panel');
-  const radiusToken = pickToken(radius, RADIUS_TOKENS, 'md');
-  const paddingToken = pickToken(padding, SPACE_TOKENS, 'md');
+  const variantToken = VARIANTS.includes(variant) ? variant : 'glass';
+  const hasLang = Boolean(language);
 
   const rootClass = [
     'ntq-code-block',
-    surfaceToken !== 'none' ? `ntq-code-block--surface-${surfaceToken}` : '',
-    `ntq-code-block--radius-${radiusToken}`,
-    `ntq-code-block--pad-${paddingToken}`,
-    bordered ? 'ntq-code-block--bordered' : '',
+    `ntq-code-block--${variantToken}`,
+    hasLang ? 'ntq-code-block--has-lang' : '',
     className,
   ].filter(Boolean).join(' ');
 
@@ -38,8 +34,8 @@ function CodeBlock({
 
   return (
     <div className={rootClass} style={style} {...rest}>
-      {language ? (
-        <div className="ntq-code-block__meta">
+      {hasLang ? (
+        <div className="ntq-code-block__meta" aria-hidden="true">
           <span className="ntq-code-block__lang">{language}</span>
         </div>
       ) : null}
@@ -51,3 +47,4 @@ function CodeBlock({
 }
 
 export default CodeBlock;
+export { VARIANTS as CODE_BLOCK_VARIANTS };

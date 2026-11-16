@@ -77,6 +77,8 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
 
 改数值：覆盖 `styles/_tokens.scss`，不要在调用处写死像素。
 
+表面风格约定：科技玻璃为默认（如 `CodeBlock variant="glass"`），最多再留一个轻变种（如 `soft`）；后续 input 等同理，避免 surface/radius/padding 组合爆炸。
+
 ## 目录结构
 
 ```text

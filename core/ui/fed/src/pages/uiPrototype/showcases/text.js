@@ -6,12 +6,7 @@ import TextBlock from 'ui/text/textBlock';
 import CodeBlock from 'ui/text/codeBlock';
 import Section from 'ui/layout/section';
 import NtqIcon from 'ui/icon/ntqIcon';
-import {
-  HEADING_BAR_TOKENS,
-  RADIUS_TOKENS,
-  SURFACE_TOKENS,
-  TEXT_VARIANTS,
-} from 'ui/tokens';
+import { HEADING_BAR_TOKENS, TEXT_VARIANTS } from 'ui/tokens';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
 
 const DEMO_SNIPPET = `function greet(name) {
@@ -144,7 +139,7 @@ function QuoteShowcase() {
   return (
     <Showcase>
       <SampleDim title="1. 形态">
-        <SampleRow label="固定样式：白条 + 轻白底 + 四面缩进 + 斜体" block>
+        <SampleRow label="固定样式：整体四周 margin 空隙 + 轻白底 + 白条 + 斜体" block>
           <Quote>
             优先用语义 token，不要在调用处写死像素。
           </Quote>
@@ -180,11 +175,14 @@ function CodeBlockShowcase() {
   return (
     <Showcase>
       <SampleDim title="1. 形态">
-        <SampleRow label="默认代码块（可带语言标注）" block>
+        <SampleRow label='默认 variant="glass"（科技玻璃；可带语言标注）' block>
           <CodeBlock language="js">{DEMO_SNIPPET}</CodeBlock>
         </SampleRow>
+        <SampleRow label='变种 variant="soft"（轻底，适合嵌在已有玻璃面板里）' block>
+          <CodeBlock variant="soft" language="bash">{`npm run start`}</CodeBlock>
+        </SampleRow>
         <SampleRow label="无语言标注" block>
-          <CodeBlock>{`npm run start`}</CodeBlock>
+          <CodeBlock>{`const ready = true;`}</CodeBlock>
         </SampleRow>
       </SampleDim>
 
@@ -193,57 +191,35 @@ function CodeBlockShowcase() {
           无
           {' '}
           <Text variant="code">size</Text>
-          ；字号固定为等宽
+          ；字号固定等宽
           {' '}
           <Text variant="code">sm</Text>
-          ，改全局
-          {' '}
-          <Text variant="code">--ntq-font-*</Text>
           。
         </SampleNA>
       </SampleDim>
 
       <SampleDim title="3. 间距">
-        <SampleRow label='padding="sm" | "md" | "lg"' block>
-          <Section gap="sm">
-            <CodeBlock padding="sm" language="txt">{`padding sm`}</CodeBlock>
-            <CodeBlock padding="md" language="txt">{`padding md`}</CodeBlock>
-            <CodeBlock padding="lg" language="txt">{`padding lg`}</CodeBlock>
-          </Section>
-        </SampleRow>
+        <SampleNA>
+          内边距固定；
+          {' '}
+          <Text variant="code">language</Text>
+          落在上 padding 带内，不与代码重叠。
+        </SampleNA>
       </SampleDim>
 
       <SampleDim title="4. 颜色">
-        <SampleRow label={`surface：${SURFACE_TOKENS.filter((s) => s !== 'none').join(' | ')}`} block>
-          <Section gap="sm">
-            {['soft', 'panel', 'glass', 'gradient'].map((surface) => (
-              <CodeBlock key={surface} surface={surface} language={surface}>
-                {`surface="${surface}"`}
-              </CodeBlock>
-            ))}
-          </Section>
-        </SampleRow>
+        <SampleNA>
+          无独立色参；表面由
+          {' '}
+          <Text variant="code">variant</Text>
+          决定（glass / soft）。
+        </SampleNA>
       </SampleDim>
 
       <SampleDim title="5. 外观">
-        <SampleRow
-          label={`radius：${RADIUS_TOKENS.filter((r) => r !== 'pill').join(' | ')} · bordered`}
-          block
-        >
-          <Section gap="sm">
-            {['none', 'sm', 'md', 'lg'].map((radius) => (
-              <CodeBlock key={radius} radius={radius} language="css">
-                {`radius="${radius}"`}
-              </CodeBlock>
-            ))}
-            <CodeBlock bordered={false} surface="soft" language="txt">
-              {`bordered={false}`}
-            </CodeBlock>
-          </Section>
-        </SampleRow>
-        <SampleRow label="语法高亮暂未接入（language 仅标注）" block>
-          <p className="ntq-caption">后续若接 highlight.js，不改变本组件调用结构。</p>
-        </SampleRow>
+        <SampleNA>
+          圆角 / 描边固定。后续 input 等也按「默认玻璃 + 一个变种」收敛。语法高亮暂未接入。
+        </SampleNA>
       </SampleDim>
     </Showcase>
   );

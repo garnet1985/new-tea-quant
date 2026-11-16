@@ -14,8 +14,8 @@ import NtqIcon, { NTQ_ICON_NAMES } from 'ui/icon/ntqIcon';
 | 参数 | 取值 | 默认 |
 |------|------|------|
 | `name` | 详见下方列表 | 必填 |
-| `size` | `sm` `md` `lg` `xl` | `md` |
-| `tone` | `''` `muted` `success` `error` `warning` `disabled` `cyan` | `''` |
+| `size` | `sm` `md` `lg` `xl` `xxl` | `md` |
+| `tone` | `''` `muted` `success` `error` `warning` `disabled` `cyan` `violet` | `''` |
 | `spin` | boolean | `false` |
 
 ## 全部 name

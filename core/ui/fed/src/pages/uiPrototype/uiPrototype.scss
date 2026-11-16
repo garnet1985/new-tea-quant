@@ -371,6 +371,21 @@
   padding: var(--ntq-space-md);
 }
 
+.ui-prototype__message-banner-demo-bar,
+.ui-prototype__message-banner-demo-body {
+  padding: var(--ntq-space-sm) var(--ntq-space-md);
+  font-size: var(--ntq-font-sm);
+}
+
+.ui-prototype__message-banner-demo-bar {
+  border-bottom: 1px solid var(--ntq-white-12);
+  background: var(--ntq-white-03);
+}
+
+.ui-prototype__message-banner-demo-body {
+  min-height: 3rem;
+}
+
 .ui-prototype__icon-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

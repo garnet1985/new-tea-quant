@@ -32,6 +32,11 @@
   height: var(--ntq-icon-xl);
 }
 
+.ntq-icon--size-xxl {
+  width: var(--ntq-icon-xxl);
+  height: var(--ntq-icon-xxl);
+}
+
 .ntq-icon--expand-more {
   transform: rotate(90deg);
 }
@@ -59,6 +64,10 @@
 
 .ntq-icon--cyan {
   color: var(--ntq-cyan);
+}
+
+.ntq-icon--violet {
+  color: var(--ntq-violet);
 }
 
 .ntq-icon--spin {

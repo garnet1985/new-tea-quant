@@ -99,10 +99,17 @@ export const UI_CATALOG = [
   {
     id: 'message',
     label: '消息',
-    description: '提示条、内联帮助与状态文案。',
+    description: '消息条、Toast 与说明 Tooltip。',
     widgets: [
-      { id: 'message', label: 'message', origin: 'migrate', source: 'views/message', status: 'stub' },
-      { id: 'ntqHelpTooltip', label: 'ntqHelpTooltip', origin: 'migrate', source: 'views/ntqHelpTooltip', status: 'stub' },
+      { id: 'message', label: 'message', origin: 'new', source: null, status: 'ready' },
+      { id: 'toast', label: 'toast', origin: 'new', source: null, status: 'ready' },
+      {
+        id: 'ntqHelpTooltip',
+        label: 'ntqHelpTooltip',
+        origin: 'migrate',
+        source: 'views/ntqHelpTooltip',
+        status: 'ready',
+      },
     ],
   },
   {

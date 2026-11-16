@@ -14,6 +14,9 @@ import ntqIconDoc from 'ui/icon/ntqIcon/doc';
 import loadingBarsDoc from 'ui/progress/loadingBars/doc';
 import loadingDoc from 'ui/progress/loading/doc';
 import progressBarDoc from 'ui/progress/progressBar/doc';
+import messageDoc from 'ui/message/message/doc';
+import toastDoc from 'ui/message/toast/doc';
+import ntqHelpTooltipDoc from 'ui/message/ntqHelpTooltip/doc';
 
 const DOCS = {
   layout: {
@@ -45,6 +48,11 @@ const DOCS = {
     loadingBars: loadingBarsDoc,
     loading: loadingDoc,
     progressBar: progressBarDoc,
+  },
+  message: {
+    message: messageDoc,
+    toast: toastDoc,
+    ntqHelpTooltip: ntqHelpTooltipDoc,
   },
 };
 

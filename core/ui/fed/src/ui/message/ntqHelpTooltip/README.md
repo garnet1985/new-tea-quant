@@ -1,19 +1,21 @@
 # ntqHelpTooltip
 
-> 状态：**占位** — 尚未在 `src/ui` 中实现。
+统一说明 Tooltip（视觉与交互对齐 `views/ntqHelpTooltip`）。图标固定 `md`。
 
-## 来源
+```js
+import NtqHelpTooltip from 'ui/message/ntqHelpTooltip';
 
-`views/ntqHelpTooltip`
+<NtqHelpTooltip title="字段含义说明" />
+<NtqHelpTooltip title="注意配额" variant="warning" shine />
+<NtqHelpTooltip title="更多信息" variant="info" placement="bottom" />
+```
 
-## 参数
+| 参数 | 合法值 | 默认 |
+|------|--------|------|
+| `title` | ReactNode | —（空则不渲染） |
+| `variant` | `help` `info` `warning` | `help` |
+| `shine` | boolean | `false` |
+| `placement` | MUI placement | `top` |
+| `ariaLabel` | string | 按 variant |
 
-TODO：补充 props、默认值与变体说明。
-
-## 使用场景
-
-TODO：说明何时使用该组件。
-
-## 反例
-
-TODO：说明不要怎么用。
+产品页仍可继续用 `views/ntqHelpTooltip`；本目录为设计系统标准。

@@ -11,13 +11,13 @@ const doc = {
     },
     {
       name: 'size',
-      type: "'sm' | 'md' | 'lg' | 'xl'",
+      type: "'sm' | 'md' | 'lg' | 'xl' | 'xxl'",
       defaultValue: "'md'",
-      description: '尺寸 token → --ntq-icon-*。',
+      description: '尺寸 token → --ntq-icon-*（xxl = 3rem）。',
     },
     {
       name: 'tone',
-      type: "'' | 'muted' | 'success' | 'error' | 'warning' | 'disabled' | 'cyan'",
+      type: "'' | 'muted' | 'success' | 'error' | 'warning' | 'disabled' | 'cyan' | 'violet'",
       defaultValue: "''",
       description: '色调；空则继承 currentColor。',
     },

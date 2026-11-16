@@ -53,10 +53,10 @@ export const COLUMN_VARIANTS = [
 export const TABS_VARIANTS = ['top', 'side'];
 
 /** Icon 尺寸 */
-export const ICON_SIZE_TOKENS = ['sm', 'md', 'lg', 'xl'];
+export const ICON_SIZE_TOKENS = ['sm', 'md', 'lg', 'xl', 'xxl'];
 
 /** Icon 色调 */
-export const ICON_TONE_TOKENS = ['', 'muted', 'success', 'error', 'warning', 'disabled', 'cyan'];
+export const ICON_TONE_TOKENS = ['', 'muted', 'success', 'error', 'warning', 'disabled', 'cyan', 'violet'];
 
 /** LoadingBars / ProgressBar 尺寸 */
 export const LOADING_BARS_SIZE_TOKENS = ['md', 'sm'];
@@ -64,6 +64,21 @@ export const PROGRESS_SIZE_TOKENS = ['sm', 'md'];
 
 /** Loading 场景形态 */
 export const LOADING_VARIANTS = ['page', 'inline', 'inlineRow'];
+
+/** Message 状态（固定图标，不可改） */
+export const MESSAGE_STATUSES = ['success', 'error', 'warning', 'info'];
+
+/** Message 颜色模式（可传 / 省略 icon；含状态色 + 紫） */
+export const MESSAGE_COLORS = ['green', 'error', 'warning', 'muted', 'cyan', 'violet'];
+
+/** Message 形态：圆角无 bar / 通栏有 bar 无圆角 */
+export const MESSAGE_VARIANTS = ['inline', 'banner'];
+
+/** NtqHelpTooltip 触发图标形态 */
+export const HELP_TOOLTIP_VARIANTS = ['help', 'info', 'warning'];
+
+/** @deprecated 用 MESSAGE_STATUSES；保留别名以免旧引用报错 */
+export const MESSAGE_TONES = MESSAGE_STATUSES;
 
 /** @param {string} value @param {string[]} allowed @param {string} fallback */
 export function pickToken(value, allowed, fallback) {

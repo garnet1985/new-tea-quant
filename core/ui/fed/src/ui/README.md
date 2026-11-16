@@ -17,6 +17,10 @@
   - 磁盘仍在 `ui/text/*`；图鉴大类分开便于浏览。
   - 普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等），不是组件。
 - **icon** / **progress** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
+- **message**：
+  - `message`：`variant="inline"` 圆角+border+底色无 bar；`banner` 有 bar 无圆角。`status`（图标固定）或 `color`（icon 可传/省略）。
+  - `toast`：右下角短暂弹出（`ToastHost` + `showToast({ status, content })`）；内部复用 Message。
+  - `ntqHelpTooltip`：说明气泡（对齐 app；`variant` help/info/warning；图标固定 md）。
 - 隐形图鉴 `/dev/ui` **只能**展示本目录下的组件。
 
 ## 命名：统一用 `variant` + `size`
@@ -61,7 +65,7 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
 |------|--------|----------|
 | 间距 | `none` `xs` `sm` `md` `lg` `xl` | `--ntq-space-*`（rem；`md` = 1rem = 16px） |
 | 字号 | `xs` `sm` `normal` `md` `lg` `xl` | `--ntq-font-*`（rem；`normal` = 0.875rem = 14px） |
-| 图标 | `sm` `md` `lg` `xl` | `--ntq-icon-*` |
+| 图标 | `sm` `md` `lg` `xl` `xxl` | `--ntq-icon-*`（`xxl` = 3rem） |
 | 圆角 | `none` `sm` `md` `lg` `pill` | `--ntq-radius-*` |
 | 表面 | `none` `soft` `panel` `glass` `gradient` | `--ntq-surface-*`（Block） |
 | 分隔 | `none` `line` | `--ntq-divider-color`（Column） |
@@ -77,6 +81,10 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
 <Text variant="code">/dev/ui</Text>
 <NtqIcon name="settings" size="md" />
 <Loading variant="inline" />
+<Message status="info">同步已完成。</Message>
+<Message status="warning" variant="banner">维护窗口即将开始。</Message>
+<Message color="violet" icon="chat">装饰性说明</Message>
+showToast({ status: 'success', content: '已保存' });
 
 // ❌
 <Column kind="thirds" />

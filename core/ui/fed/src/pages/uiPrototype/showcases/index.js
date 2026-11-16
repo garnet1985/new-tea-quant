@@ -5,6 +5,7 @@ import headingShowcases from './heading';
 import separatorShowcases from './separator';
 import iconShowcases from './icon';
 import progressShowcases from './progress';
+import messageShowcases from './message';
 
 const SHOWCASES = {
   layout: layoutShowcases,
@@ -14,6 +15,7 @@ const SHOWCASES = {
   button: buttonShowcases,
   icon: iconShowcases,
   progress: progressShowcases,
+  message: messageShowcases,
 };
 
 export function getWidgetShowcase(categoryId, widgetId) {

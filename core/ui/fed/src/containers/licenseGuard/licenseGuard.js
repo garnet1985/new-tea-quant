@@ -36,7 +36,7 @@ function LicenseGuard() {
   }, [retryKey]);
 
   if (loading) {
-    return <Loading variant="page" message="确认使用条款…" style={{ minHeight: '40vh' }} />;
+    return <Loading variant="page" message="确认使用条款…" className="ntq-loading--min-40vh" />;
   }
 
   if (loadError) {

@@ -1065,7 +1065,7 @@ export function DecisionPlaySession({
             <div className="decision-card__content">
               <span className="ntq-decision-subtitle ntq-decision-strong">今日事件</span>
               {events.length ? (
-                <div className="ntq-decision-stack" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="ntq-decision-stack">
                   {events.map((row) => (
                     <div key={`${row.date}-${row.ticker}-${row.shares}`} className={`decision-event ${row.win ? 'is-win' : 'is-loss'}`}>
                       <span className="ntq-caption ntq-muted">{row.date}</span>
@@ -1221,7 +1221,7 @@ export function DecisionPlaySession({
         </p>
         {bill.length ? (
           bill.map((row) => (
-            <div key={row.id} className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+            <div key={row.id} className="ntq-decision-stack ntq-decision-stack--row">
               <div className="decision-stock-with-status">
                 [{row.id}] {row.name}{' '}
                 <StockStatusChips
@@ -1238,11 +1238,11 @@ export function DecisionPlaySession({
         ) : (
           <span>当前选择：（空，本日不买）</span>
         )}
-        <div className="ntq-decision-stack ntq-decision-stack--row ntq-decision-stack--ruled" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+        <div className="ntq-decision-stack ntq-decision-stack--row ntq-decision-stack--ruled">
           <span className="ntq-muted">可用资金</span>
           <span>{formatMoney(cashOnHand)} 元</span>
         </div>
-        <div className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+        <div className="ntq-decision-stack ntq-decision-stack--row">
           <span className="ntq-decision-strong">合计（约）</span>
           <span className="ntq-decision-strong">
             {formatMoney(billTotal)} 元
@@ -1264,15 +1264,7 @@ export function DecisionPlaySession({
         fullScreen
         className="decision-info-chart-dialog"
         title={(
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-              width: '100%',
-            }}
-          >
+          <span className="decision-info-dialog-title">
             <span className="decision-stock-with-status">
               {infoOpp ? opportunityStockLabel(infoOpp) : '市场数据'}
               {infoOpp ? (
@@ -1301,7 +1293,7 @@ export function DecisionPlaySession({
         )}
       >
         {infoOpp ? (
-          <div className="ntq-decision-stack ntq-decision-stack--min0" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+          <div className="ntq-decision-stack ntq-decision-stack--gap-md ntq-decision-stack--min0">
             <span className="ntq-muted">
               as-of {clockDate} · 前复权数据停在当前日，不含未来
               {(() => {
@@ -1321,15 +1313,15 @@ export function DecisionPlaySession({
                 return '';
               })()}
             </span>
-            <div className="ntq-decision-stack" style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-              <div className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+            <div className="ntq-decision-stack ntq-decision-stack--gap-sm">
+              <div className="ntq-decision-stack ntq-decision-stack--row">
                 <span className="ntq-muted">策略 as-of</span>
                 <span>
                   胜率 {strategyWin}  平均ROI {strategyRoi}
                   {asof?.sampleSize != null ? `  n=${asof.sampleSize}` : ''}
                 </span>
               </div>
-              <div className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+              <div className="ntq-decision-stack ntq-decision-stack--row">
                 <span className="ntq-muted">本标的 as-of</span>
                 <span>
                   胜率 {infoPayload?.tickerStats?.winRateLabel || infoOpp.wr}
@@ -1341,7 +1333,7 @@ export function DecisionPlaySession({
             {infoLoading ? (
               <Loading variant="inline" message="正在加载市场数据…" className="is-block" />
             ) : (
-              <div className="ntq-decision-stack ntq-decision-stack--grow ntq-decision-stack--min0" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+              <div className="ntq-decision-stack ntq-decision-stack--gap-md ntq-decision-stack--grow ntq-decision-stack--min0">
                 <div>
                   <ChartPanel
                     title=""

@@ -132,6 +132,27 @@
   }
 }
 
+.ntq-job-pipeline-dock__col-status {
+  width: 72px;
+}
+
+.ntq-job-pipeline-dock__col-progress {
+  width: 88px;
+}
+
+.ntq-job-pipeline-dock__col-elapsed {
+  width: 64px;
+}
+
+.ntq-job-pipeline-dock__col-page {
+  width: 72px;
+}
+
+.ntq-job-pipeline-dock__col-actions {
+  width: 64px;
+  text-align: right;
+}
+
 .ntq-job-pipeline-dock__job-name {
   max-width: 160px;
   overflow: hidden;

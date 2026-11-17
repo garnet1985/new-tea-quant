@@ -14,7 +14,7 @@ function StrategyDesignBody() {
   if (wb.isLoadingSettings) {
     return (
       <div className="ntq-page__body strategy-design-shell__body is-loading">
-        <Loading variant="page" message="正在加载策略工作台…" style={{ minHeight: '48vh' }} />
+        <Loading variant="page" message="正在加载策略工作台…" className="ntq-loading--min-48vh" />
       </div>
     );
   }

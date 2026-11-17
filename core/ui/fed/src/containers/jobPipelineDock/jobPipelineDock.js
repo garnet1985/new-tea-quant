@@ -214,11 +214,11 @@ function JobPipelineDock() {
               <thead>
                 <tr>
                   <th>任务</th>
-                  <th style={{ width: 72 }}>状态</th>
-                  <th style={{ width: 88 }}>进度</th>
-                  <th style={{ width: 64 }}>已运行</th>
-                  <th style={{ width: 72 }}>页面</th>
-                  <th style={{ width: 64 }} align="right">操作</th>
+                  <th className="ntq-job-pipeline-dock__col-status">状态</th>
+                  <th className="ntq-job-pipeline-dock__col-progress">进度</th>
+                  <th className="ntq-job-pipeline-dock__col-elapsed">已运行</th>
+                  <th className="ntq-job-pipeline-dock__col-page">页面</th>
+                  <th className="ntq-job-pipeline-dock__col-actions">操作</th>
                 </tr>
               </thead>
               <tbody>

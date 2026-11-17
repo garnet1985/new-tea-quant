@@ -52,7 +52,7 @@ export const UI_CATALOG = [
     id: 'guidelines',
     label: 'NTQ 业务准则',
     description:
-      '产品页布局、组合与 Tag 等业务约定；工程硬规则见 FED_STANDARD / ui/README。边迁 legacy 边补条目。',
+      '产品页布局、组合与 Tag 等业务约定；工程硬规则见 FED_STANDARD / ui/README。',
     widgets: [],
   },
   {
@@ -65,6 +65,7 @@ export const UI_CATALOG = [
       { id: 'section', label: 'section', origin: 'new', source: null, status: 'ready' },
       { id: 'tabs', label: 'tabs', origin: 'new', source: null, status: 'ready' },
       { id: 'sideNav', label: 'sideNav', origin: 'new', source: null, status: 'ready' },
+      { id: 'accordion', label: 'accordion', origin: 'new', source: null, status: 'ready', uiPath: 'layout/accordion' },
       { id: 'listToolbar', label: 'listToolbar', origin: 'migrate', source: null, status: 'ready', uiPath: 'layout/listToolbar' },
       { id: 'categoryChipStrip', label: 'categoryChipStrip', origin: 'migrate', source: null, status: 'ready', uiPath: 'layout/categoryChipStrip' },
     ],
@@ -279,6 +280,30 @@ export const UI_CATALOG = [
         status: 'ready',
         uiPath: 'ntq-ui/pythonDictEditor',
       },
+      {
+        id: 'descriptionText',
+        label: 'descriptionText',
+        origin: 'migrate',
+        source: null,
+        status: 'ready',
+        uiPath: 'ntq-ui/descriptionText',
+      },
+      {
+        id: 'pageBackground',
+        label: 'pageBackground',
+        origin: 'migrate',
+        source: null,
+        status: 'ready',
+        uiPath: 'ntq-ui/pageBackground',
+      },
+      {
+        id: 'updateStatusChip',
+        label: 'updateStatusChip',
+        origin: 'migrate',
+        source: null,
+        status: 'ready',
+        uiPath: 'ntq-ui/updateStatusChip',
+      },
     ],
   },
 ];
@@ -314,7 +339,7 @@ export function defaultCategoryPath() {
 export function originLabel(origin) {
   if (origin === 'new') return '新建规范';
   if (origin === 'gap') return '缺口（新建）';
-  if (origin === 'migrate') return '待迁入';
+  if (origin === 'migrate') return '迁入';
   return origin;
 }
 

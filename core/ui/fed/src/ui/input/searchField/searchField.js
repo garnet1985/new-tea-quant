@@ -33,7 +33,7 @@ function SearchField({
   fullWidth = true,
   /** 默认约 360px；false 去掉上限 */
   maxWidth = true,
-  /** 工具栏弹性宽度（对齐旧 views/searchField） */
+  /** 工具栏弹性宽度（ListToolbar 搜索槽常用） */
   fluid = false,
   surface = 'solid',
   radius = 'sm',

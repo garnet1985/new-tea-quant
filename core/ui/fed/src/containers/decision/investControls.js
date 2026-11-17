@@ -181,7 +181,7 @@ export function InvestDialog({
       )}
     >
       {row ? (
-        <div className="ntq-decision-stack" style={{ display: 'flex', flexDirection: 'column', gap: '1.0rem' }}>
+        <div className="ntq-decision-stack ntq-decision-stack--gap-lg">
           <span className="ntq-muted">
             成交价 {formatMoney(row.price)}
             {notional ? ` · 约 ${notional}` : ''}

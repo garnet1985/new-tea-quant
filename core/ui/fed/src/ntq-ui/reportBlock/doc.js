@@ -30,7 +30,7 @@ const doc = {
     '机会盘点 / 涨跌停 / 资金分配等报告小节。',
   ],
   antiPatterns: [
-    '不要再复制 views/sectionBlock 或手写一套报告边框。',
+    '不要手写一套报告边框；用本组件。',
     '不要在 ReportBlock 上再叠业务 Metric 映射（用 MetricCard）。',
     '页面大标题用 PageBanner / Heading，不要用 ReportBlock。',
   ],

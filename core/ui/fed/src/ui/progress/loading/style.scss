@@ -16,6 +16,14 @@
   gap: var(--ntq-space-lg);
   min-height: 420px;
   padding: var(--ntq-space-xl) var(--ntq-space-lg);
+
+  &.ntq-loading--min-40vh {
+    min-height: 40vh;
+  }
+
+  &.ntq-loading--min-48vh {
+    min-height: 48vh;
+  }
 }
 
 .ntq-loading--inline {

@@ -7,6 +7,7 @@ import tabsDoc from 'ui/layout/tabs/doc';
 import sideNavDoc from 'ui/layout/sideNav/doc';
 import listToolbarDoc from 'ui/layout/listToolbar/doc';
 import categoryChipStripDoc from 'ui/layout/categoryChipStrip/doc';
+import accordionDoc from 'ui/layout/accordion/doc';
 import definitionListDoc from 'ui/display/definitionList/doc';
 import textDoc from 'ui/text/text/doc';
 import quoteDoc from 'ui/text/quote/doc';
@@ -56,6 +57,9 @@ import pageLayoutDoc from 'ntq-ui/pageLayout/doc';
 import memberStripDoc from 'ntq-ui/memberStrip/doc';
 import proBadgeDoc from 'ntq-ui/proBadge/doc';
 import becomeMemberLinkDoc from 'ntq-ui/becomeMemberLink/doc';
+import descriptionTextDoc from 'ntq-ui/descriptionText/doc';
+import pageBackgroundDoc from 'ntq-ui/pageBackground/doc';
+import updateStatusChipDoc from 'ntq-ui/updateStatusChip/doc';
 import { resolveCategoryId } from './catalog';
 
 const DOCS = {
@@ -67,6 +71,7 @@ const DOCS = {
     sideNav: sideNavDoc,
     listToolbar: listToolbarDoc,
     categoryChipStrip: categoryChipStripDoc,
+    accordion: accordionDoc,
   },
   text: {
     text: textDoc,
@@ -132,6 +137,9 @@ const DOCS = {
     becomeMemberLink: becomeMemberLinkDoc,
     reportBlock: reportBlockDoc,
     pythonDictEditor: pythonDictEditorDoc,
+    descriptionText: descriptionTextDoc,
+    pageBackground: pageBackgroundDoc,
+    updateStatusChip: updateStatusChipDoc,
   },
 };
 

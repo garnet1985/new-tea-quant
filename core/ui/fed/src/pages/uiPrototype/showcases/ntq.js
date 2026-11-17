@@ -10,6 +10,9 @@ import PageLayout from 'ntq-ui/pageLayout';
 import MemberStrip from 'ntq-ui/memberStrip';
 import ProBadge from 'ntq-ui/proBadge';
 import BecomeMemberLink from 'ntq-ui/becomeMemberLink';
+import DescriptionText from 'ntq-ui/descriptionText';
+import PageBackground from 'ntq-ui/pageBackground';
+import UpdateStatusChip from 'ntq-ui/updateStatusChip';
 import MetricCard from 'ui/metric/metricCard';
 import MetricGrid from 'ui/metric/metricGrid';
 import Button from 'ui/button/button';
@@ -539,6 +542,86 @@ function BecomeMemberLinkShowcase() {
   );
 }
 
+function DescriptionTextShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="多行" block>
+          <DescriptionText
+            className="ntq-muted"
+            text={'第一行说明。\n第二行补充。\n第三行细节。'}
+          />
+        </SampleRow>
+        <SampleRow label="maxLines={2}" block>
+          <DescriptionText
+            className="ntq-muted"
+            maxLines={2}
+            text={'很长的说明会被截断到两行。\n第二行。\n第三行看不到。'}
+          />
+        </SampleRow>
+        <SampleRow label="empty">
+          <DescriptionText text="" />
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>字号跟随 className / 父级。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>多行时行间距由 .ntq-description__line 控制。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色"><SampleNA>调用方 className（如 ntq-muted）。</SampleNA></SampleDim>
+      <SampleDim title="5. 外观">
+        <SampleNA>拆行规则与策略描述一致；非 Markdown。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function PageBackgroundShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleNA>
+          壳层装饰组件（absolute + 100vw full-bleed），图鉴内不宜实嵌以免撑破布局。
+          见应用主内容区背后的模糊背景图。
+        </SampleNA>
+        {/* 保留 import 校验：组件可挂载；视觉在壳层 */}
+        <div hidden aria-hidden>
+          <PageBackground />
+        </div>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>宽 100vw；高 --ntq-page-bg-height。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>不适用。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色"><SampleNA>照片 + veil 渐变遮罩。</SampleNA></SampleDim>
+      <SampleDim title="5. 外观">
+        <SampleNA>图库随机；无图返回 null。业务页勿重复挂载。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function UpdateStatusChipShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="status 映射">
+          <UpdateStatusChip status="up_to_date" label="最新" />
+          <UpdateStatusChip status="needs_update" label="需更新" hint="源数据有变更" />
+          <UpdateStatusChip status="needs_recompute" label="需重算" hint="依赖已变" />
+          <UpdateStatusChip status="unknown" label="未知" />
+        </SampleRow>
+        <SampleRow label="pending">
+          <UpdateStatusChip pending label="检查中…" />
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>跟随 Tag / Loading。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>hint 与 Tag 间距由组件 SCSS 控制。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色">
+        <SampleNA>up_to_date=success solid；needs_*=warning outline；其它=neutral outline。</SampleNA>
+      </SampleDim>
+      <SampleDim title="5. 外观">
+        <SampleNA>文案由 label 传入；映射规则集中在本组件。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const ntqShowcases = {
   appNav: AppNavShowcase,
   appBrand: AppBrandShowcase,
@@ -551,6 +634,9 @@ const ntqShowcases = {
   becomeMemberLink: BecomeMemberLinkShowcase,
   reportBlock: ReportBlockShowcase,
   pythonDictEditor: PythonDictEditorShowcase,
+  descriptionText: DescriptionTextShowcase,
+  pageBackground: PageBackgroundShowcase,
+  updateStatusChip: UpdateStatusChipShowcase,
 };
 
 export default ntqShowcases;

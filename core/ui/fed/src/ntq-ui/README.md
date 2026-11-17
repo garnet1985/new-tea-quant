@@ -32,4 +32,4 @@
 import { BecomeMemberLink, MemberStrip, RainbowButton, PageLayout } from 'ntq-ui';
 ```
 
-图鉴 `/dev/ui` 合并展示本目录与 `ui`。
+图鉴 `/dev/ui` 合并展示本目录与 `ui`。组件用法以图鉴 + 各组件 `doc.js` 为准；**不要**再给每个组件加 `README.md`。

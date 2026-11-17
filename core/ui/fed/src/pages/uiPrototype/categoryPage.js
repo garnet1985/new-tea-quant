@@ -165,7 +165,7 @@ function UiPrototypeCategoryPage() {
                 <li>普通分类标签 → 一律实心 <Text variant="code">solid</Text>。</li>
               </ul>
               <p style={{ margin: 0 }}>
-                布局组合（设置侧栏、ReportBlock、Tabs 等）迁 legacy 时继续往本栏补条目。
+                布局组合（设置侧栏、ReportBlock、Tabs、ListToolbar 等）按产品需要继续往本栏补条目。
               </p>
             </div>
           </Block>

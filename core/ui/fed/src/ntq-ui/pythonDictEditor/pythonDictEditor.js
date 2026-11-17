@@ -9,7 +9,7 @@ import './style.scss';
 /**
  * JSON / Python dict 编辑面板（验证、样例、错误定位）。
  * 属 NTQ 特有复合组件，不放在通用 input 下。
- * onChange 接收字符串（非事件），与旧 views/pythonDictInputPanel 对齐。
+ * onChange 接收字符串（非 DOM 事件）。
  *
  * @example
  * <PythonDictEditor value={text} onChange={setText} onApply={validate} parseError={err} />

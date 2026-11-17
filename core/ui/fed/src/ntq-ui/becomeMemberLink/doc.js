@@ -16,7 +16,7 @@ const doc = {
   ],
   antiPatterns: [
     '不要在本组件里 fetchSiteUrls / 写死官网 URL。',
-    '不要再引用 views/becomeMemberLink（已迁至此）。',
+    '注册 URL 由应用传入；组件内不要写死站点域名。',
   ],
 };
 

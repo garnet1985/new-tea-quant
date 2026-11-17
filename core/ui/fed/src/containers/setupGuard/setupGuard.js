@@ -37,7 +37,7 @@ function SetupGuard({ children }) {
   }, [retryKey]);
 
   if (loading) {
-    return <Loading variant="page" message="检查系统就绪状态…" style={{ minHeight: '40vh' }} />;
+    return <Loading variant="page" message="检查系统就绪状态…" className="ntq-loading--min-40vh" />;
   }
 
   if (loadError) {

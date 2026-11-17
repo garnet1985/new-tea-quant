@@ -36,20 +36,21 @@
 | **NTQ 公用** | 应用壳与高复用产品模板 | `appNav`、`pageLayout`、`memberStrip`、`reportBlock` |
 | **业务 mapping** | 业务枚举 / 状态 → 组件 props | freshness→Tag；`buildMarketChartOption`→ChartPanel |
 
-通用原语不收业务 status key；views 里的 `freshnessStatusChip` 等属业务 mapping，稳定后再迁，不进图鉴。
+通用原语不收业务 status key；数据新鲜度等 mapping 用 **`ntq-ui/updateStatusChip`**（图鉴 ntq 栏）。
 
-回测报告小节用 NTQ 固定模板 **`reportBlock`**（对齐旧 `views/sectionBlock`），内部再拼
+回测报告小节用 NTQ 固定模板 **`reportBlock`**，内部再拼
 `MetricCard`/`MetricGrid`/`ChartPanel`/`Message`；不要各页自造边框壳，避免 agent 实现五花八门。
 
 ## 约定
 
 - 只放 **L1 设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
-- **layout**：`column` / `block` / `section` / `tabs` / `sideNav` / `listToolbar` / `categoryChipStrip`（不含 Banner、面包屑）。
+- **layout**：`column` / `block` / `section` / `tabs` / `sideNav` / `accordion` / `listToolbar` / `categoryChipStrip`（不含 Banner、面包屑）。
   - `Column`：版式 + `gap` + `divider`（竖线分栏）。
   - `Block`：`surface`（soft/panel/glass/gradient）+ `radius`（含 pill）+ `bordered`。
   - `Section`：纵向堆叠 + `gap`；表面仍用内嵌 Block。
   - `Tabs`：`variant="top"` 上方切换；`variant="side"` 左右分栏（同页切 panel）。
   - `SideNav`：左侧目录壳（`line` / `rail`）；可选 `sticky` 贴顶。整栏（标题+菜单）贴顶用外层 `Block sticky`。栏宽用 Column sidebar，右栏自管（Outlet 等）。
+  - `Accordion`：折叠区块（panel / nested）；收起仍挂载子树。
   - `ListToolbar`：列表搜索 + 操作槽 + 可选 hint。
   - `CategoryChipStrip`：「全部」+ 横向滚动归类 CountTab。
 - **text**（图鉴 `/dev/ui/text`）：`text` / `heading` / `separator` / `quote` / `textBlock` / `codeBlock`。磁盘仍在 `ui/text/*`。普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等）。
@@ -171,12 +172,13 @@ showToast({ status: 'success', content: '已保存' });
 ui/<大类>/<widgetName>/
   <widgetName>.js
   index.js
-  README.md
-  doc.js
+  doc.js          # 图鉴唯一真相源（summary / params / scenarios）
+  style.scss      # 如有
 ```
 
-## 与 views 的关系
+**文档约定**：组件用法看 `/dev/ui` 图鉴（读 `doc.js` + showcase）。**不要**再给每个组件加 `README.md`；本文件与 `ntq-ui/README.md` 只写包级边界与约定。
 
-- **现阶段 `views/` 只读**：先把 `src/ui` 标准做完，再单独开迁移，避免被旧实现带偏。
-- 可参考 views 的视觉与用法，但新 API（`variant` / `size` / token）以 `ui/` 为准。
-- 业务页暂时继续用 views；标准稳定后再改 import。
+## 目录边界
+
+- `views/` **已淘汰**；展示组件在 `ui/` / `ntq-ui/`，业务组合在 `pages/` / `containers/`。
+- 新 API（`variant` / `size` / token）以本目录与图鉴为准。

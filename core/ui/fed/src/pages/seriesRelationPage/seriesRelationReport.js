@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { Box, Stack, Typography } from '@mui/material';
-import ChartPanel from 'views/chartPanel';
+import { ChartPanel, Heading, Tag } from 'ui';
 import { previewWho } from './seriesRelationConstants';
 
 function fmtNum(v, digits = 2) {
@@ -32,15 +31,15 @@ function corrCellStyle(r) {
 function stabilityMeta(rolling) {
   const tag = String(rolling?.stability || '');
   if (tag === 'stable') {
-    return { label: '稳定', tone: 'stable' };
+    return { label: '稳定', tone: 'stable', status: 'success' };
   }
   if (tag === 'mostly_stable') {
-    return { label: '基本稳', tone: 'mostly' };
+    return { label: '基本稳', tone: 'mostly', status: 'warning' };
   }
   if (tag === 'unstable') {
-    return { label: '不稳', tone: 'unstable' };
+    return { label: '不稳', tone: 'unstable', status: 'error' };
   }
-  return { label: '待判', tone: 'unknown' };
+  return { label: '待判', tone: 'unknown', status: 'neutral' };
 }
 
 function pairHeadline(row) {
@@ -111,7 +110,7 @@ function RelationMatrix({ series, pairwise }) {
   );
   if (!labels.length) return null;
   return (
-    <Box className="ntq-srel-matrix">
+    <div className="ntq-srel-matrix">
       <div
         className="ntq-srel-matrix__grid"
         style={{
@@ -140,10 +139,10 @@ function RelationMatrix({ series, pairwise }) {
           </React.Fragment>
         ))}
       </div>
-      <Typography variant="caption" color="text.secondary" className="ntq-srel-matrix__legend">
+      <p className="ntq-muted ntq-srel-matrix__legend">
         红 = 反向 · 绿 = 同向 · 色深 = 关系强（Pearson）
-      </Typography>
-    </Box>
+      </p>
+    </div>
   );
 }
 
@@ -155,25 +154,28 @@ function PairCard({ row }) {
   const right = row.label_b || row.b || '?';
   const lag = row.best_lag_days;
   return (
-    <Box className="ntq-srel-pair-card">
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-        <Typography variant="subtitle2" className="ntq-srel-pair-card__title">
+    <article className="ntq-srel-pair-card">
+      <header className="ntq-srel-pair-card__head">
+        <h4 className="ntq-srel-pair-card__title">
           {left} vs {right}
-        </Typography>
-        <span className={`ntq-srel-pill ntq-srel-pill--${stab.tone}`}>{stab.label}</span>
-      </Stack>
-      <Typography className={`ntq-srel-pair-card__headline ntq-srel-pair-card__headline--${headline.tone}`}>
+        </h4>
+        <Tag
+          status={stab.status}
+          variant={stab.tone === 'unknown' ? 'outline' : 'solid'}
+        >
+          {stab.label}
+        </Tag>
+      </header>
+      <p className={`ntq-srel-pair-card__headline ntq-srel-pair-card__headline--${headline.tone}`}>
         {headline.text}
-      </Typography>
-      <Stack direction="row" spacing={1.5} className="ntq-srel-pair-card__metrics" flexWrap="wrap" useFlexGap>
+      </p>
+      <div className="ntq-srel-pair-card__metrics">
         <span>滞后 {lag == null ? '—' : `${lag} 日`}</span>
         <span>β {fmtNum(row.beta_b_on_a, 1)}</span>
         <span>R² {fmtNum(row.scale_r2, 2)}</span>
-      </Stack>
-      <Typography variant="body2" color="text.secondary" className="ntq-srel-pair-card__blurb">
-        {pairBlurb(row)}
-      </Typography>
-    </Box>
+      </div>
+      <p className="ntq-muted ntq-srel-pair-card__blurb">{pairBlurb(row)}</p>
+    </article>
   );
 }
 
@@ -187,11 +189,7 @@ function SeriesRelationReport({
   strategyOptions = [],
 }) {
   if (!results?.has_results) {
-    return (
-      <Typography variant="body2" color="text.secondary">
-        运行后将在此展示结构化报告。
-      </Typography>
-    );
+    return <p className="ntq-muted">运行后将在此展示结构化报告。</p>;
   }
 
   const meta = results.meta && typeof results.meta === 'object' ? results.meta : {};
@@ -210,64 +208,52 @@ function SeriesRelationReport({
   }, '');
 
   return (
-    <Box className="ntq-srel-showcase">
-      <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
-        spacing={1.5}
-        className="ntq-srel-showcase__head"
-      >
-        <Box>
-          <Typography className="ntq-srel-showcase__eyebrow">SERIES RELATION</Typography>
-          <Typography variant="h5" className="ntq-srel-showcase__title">
+    <div className="ntq-srel-showcase">
+      <div className="ntq-srel-showcase__head">
+        <div>
+          <p className="ntq-srel-showcase__eyebrow">SERIES RELATION</p>
+          <Heading level="h3" gap="none" className="ntq-srel-showcase__title">
             {meta.key || results.key || '—'}
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap className="ntq-srel-showcase__tags">
-          <span className="ntq-srel-tag">
+          </Heading>
+        </div>
+        <div className="ntq-srel-showcase__tags">
+          <Tag status="neutral" variant="outline">
             {summary.series_count ?? series.length ?? '—'} 系列
-          </span>
-          <span className="ntq-srel-tag">
+          </Tag>
+          <Tag status="neutral" variant="outline">
             {summary.calendar_len ?? '—'} 交易日
-          </span>
-          <span className="ntq-srel-tag">
+          </Tag>
+          <Tag status="info" variant="outline">
             {meta.normalize || '—'} · {meta.fill || '—'}
-          </span>
-        </Stack>
-      </Stack>
+          </Tag>
+        </div>
+      </div>
 
       {series.length ? (
-        <Box className="ntq-srel-showcase__section">
-          <Typography variant="subtitle1" className="ntq-srel-showcase__section-title" sx={{ mb: 1.25 }}>
-            参与者
-          </Typography>
+        <section className="ntq-srel-showcase__section">
+          <Heading level="h4" gap="none">参与者</Heading>
           <div className="ntq-srel-participant-grid">
             {series.map((item) => (
-              <Box key={String(item.id)} className="ntq-srel-participant">
-                <Typography variant="subtitle2" className="ntq-srel-participant__label">
+              <div key={String(item.id)} className="ntq-srel-participant">
+                <div className="ntq-srel-participant__label">
                   {item.label || item.id}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
+                </div>
+                <div className="ntq-muted ntq-srel-participant__who">
                   {previewWho(item, strategyOptions)}
-                </Typography>
-              </Box>
+                </div>
+              </div>
             ))}
           </div>
-        </Box>
+        </section>
       ) : null}
 
-      <Box className="ntq-srel-showcase__section">
-        <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1.25 }}>
-          <Box>
-            <Typography variant="subtitle1" className="ntq-srel-showcase__section-title">
-              归一化走势
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {dateMin && dateMax ? `${dateMin} – ${dateMax}` : '按全局 normalize 后的曲线'}
-            </Typography>
-          </Box>
-        </Stack>
+      <section className="ntq-srel-showcase__section">
+        <div className="ntq-srel-showcase__section-head">
+          <Heading level="h4" gap="none">归一化走势</Heading>
+          <p className="ntq-muted">
+            {dateMin && dateMax ? `${dateMin} – ${dateMax}` : '按全局 normalize 后的曲线'}
+          </p>
+        </div>
         {chartOption ? (
           <ChartPanel
             title="标准化 / 归一化值"
@@ -277,32 +263,24 @@ function SeriesRelationReport({
             framed={false}
           />
         ) : (
-          <Typography variant="body2" color="text.secondary">暂无曲线数据</Typography>
+          <p className="ntq-muted">暂无曲线数据</p>
         )}
-      </Box>
+      </section>
 
-      <Box className="ntq-srel-showcase__section">
-        <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1.25 }}>
-          <Box>
-            <Typography variant="subtitle1" className="ntq-srel-showcase__section-title">
-              关系矩阵
-            </Typography>
-            <Typography variant="caption" color="text.secondary">Pearson</Typography>
-          </Box>
-        </Stack>
+      <section className="ntq-srel-showcase__section">
+        <div className="ntq-srel-showcase__section-head">
+          <Heading level="h4" gap="none">关系矩阵</Heading>
+          <p className="ntq-muted">Pearson</p>
+        </div>
         {pairwise.length ? (
           <RelationMatrix series={series} pairwise={pairwise} />
         ) : (
-          <Typography variant="body2" color="text.secondary">
-            未做两两分析（analyze=false 或系列不足）。
-          </Typography>
+          <p className="ntq-muted">未做两两分析（analyze=false 或系列不足）。</p>
         )}
-      </Box>
+      </section>
 
-      <Box className="ntq-srel-showcase__section">
-        <Typography variant="subtitle1" className="ntq-srel-showcase__section-title" sx={{ mb: 1.25 }}>
-          两两结论
-        </Typography>
+      <section className="ntq-srel-showcase__section">
+        <Heading level="h4" gap="none">两两结论</Heading>
         {pairwise.length ? (
           <div className="ntq-srel-pair-grid">
             {pairwise.map((row, index) => (
@@ -310,10 +288,10 @@ function SeriesRelationReport({
             ))}
           </div>
         ) : (
-          <Typography variant="body2" color="text.secondary">无配对结论</Typography>
+          <p className="ntq-muted">无配对结论</p>
         )}
-      </Box>
-    </Box>
+      </section>
+    </div>
   );
 }
 

@@ -1,21 +1,33 @@
 .data-contract-list-page {
-  .data-contract-list-alert {
-    margin-bottom: 16px;
-  }
-
   .data-contract-list-grid {
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: var(--ui-space-md);
+    background: var(--ui-surface-soft);
+    border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+    border-radius: var(--ui-radius-md, 0.5rem);
   }
 
   .data-contract-list-grid-toolbar {
-    margin-bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-space-sm);
+  }
+
+  .data-contract-list-cell-name {
+    font-weight: var(--ui-font-weight-bold);
   }
 
   .data-contract-list-key {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-family: var(--ui-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
     font-size: 0.8125rem;
     word-break: break-all;
+  }
+}
+
+/* sync: --ui-bp-sm ≈ 600px */
+@media (max-width: 599px) {
+  .data-contract-list-page .data-contract-list-grid-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

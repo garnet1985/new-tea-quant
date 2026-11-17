@@ -1,0 +1,37 @@
+.ntq-metric-card {
+  box-sizing: border-box;
+  padding: 0.625rem; // 10px
+  border: 1px solid var(--ntq-white-12);
+  border-radius: var(--ntq-radius-sm);
+  background: var(--ntq-white-06);
+  min-width: 0;
+}
+
+.ntq-metric-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ntq-space-xxs);
+  min-width: 0;
+}
+
+.ntq-metric-card__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ntq-metric-card__value {
+  margin-top: 0.375rem; // 6px
+  font-size: var(--ntq-font-md);
+  font-weight: var(--ntq-font-weight-bold);
+  line-height: var(--ntq-leading-tight);
+  color: var(--ntq-text);
+  word-break: break-word;
+}
+
+.ntq-metric-card__hint {
+  margin-top: var(--ntq-space-xs);
+  font-size: var(--ntq-font-xs);
+  line-height: var(--ntq-leading-normal);
+}

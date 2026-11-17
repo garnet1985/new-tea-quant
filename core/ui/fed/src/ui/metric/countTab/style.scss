@@ -1,0 +1,54 @@
+.ntq-count-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  max-width: 11.5em;
+  min-height: 1.75rem; // 28px
+  margin: 0;
+  padding: 0 0.625rem; // 10px
+  box-sizing: border-box;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: var(--ntq-radius-sm);
+  background: var(--ntq-white-03);
+  color: var(--ntq-text);
+  font: inherit;
+  font-size: 0.6875rem; // 11px，与 Tag sm 对齐
+  font-weight: var(--ntq-font-weight-medium);
+  line-height: var(--ntq-leading-tight);
+  cursor: pointer;
+  vertical-align: middle;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: var(--ntq-white-06);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ntq-cyan);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &.is-selected {
+    border-color: var(--ntq-cyan);
+    background: color-mix(in srgb, var(--ntq-cyan) 16%, transparent);
+    color: var(--ntq-text);
+  }
+}
+
+.ntq-count-tab--wide {
+  max-width: none;
+}
+
+.ntq-count-tab__label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

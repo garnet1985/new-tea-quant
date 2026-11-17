@@ -1,0 +1,59 @@
+.ntq-python-dict-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ntq-python-dict-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-python-dict-panel__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ntq-space-xs);
+  min-width: 0;
+}
+
+.ntq-python-dict-panel__error-main,
+.ntq-python-dict-panel__error-meta,
+.ntq-python-dict-panel__context-title {
+  margin: 0;
+}
+
+.ntq-python-dict-panel__error-meta {
+  font-size: var(--ntq-font-xs);
+  line-height: 1.4;
+}
+
+.ntq-python-dict-panel .ntq-text-area,
+.ntq-python-dict-panel .ntq-field {
+  width: 100%;
+  max-width: none;
+}
+
+.ntq-python-dict-panel__context {
+  min-width: 0;
+}
+
+.ntq-python-dict-panel__context-pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: var(--ntq-font-xs);
+  line-height: 1.45;
+  overflow-x: auto;
+}
+
+.ntq-python-dict-panel__context-line {
+  padding: 0 var(--ntq-space-xs);
+  border-radius: var(--ntq-radius-sm);
+  white-space: pre;
+
+  &.is-error {
+    background: color-mix(in srgb, var(--ntq-error) 28%, transparent);
+    color: var(--ntq-text);
+  }
+}

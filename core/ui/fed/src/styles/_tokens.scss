@@ -1,0 +1,142 @@
+// =============================================================================
+// NTQ 设计 Token（全局可覆盖）
+// -----------------------------------------------------------------------------
+// 约定：
+// - 组件 props 只收语义名（none / sm / md / normal…），不收 16、'16px'
+// - 改视觉数值：覆盖本文件对应的 CSS 变量（或之后在主题层覆盖）
+// - rem 基准：html 保持浏览器默认 16px → 1rem = 16px
+// - 默认正文字号：body = 0.875rem（14px）；见 _global.scss
+// - 字号 / 间距（margin·gap·padding）用 rem；细线描边可用 px
+// =============================================================================
+
+:root,
+body {
+  // --- 色板（已有，集中登记） ---
+  --ntq-ink: #060612;
+  --ntq-cyan: #22d3ee;
+  --ntq-violet: #a855f7;
+  --ntq-green: #22c55e;
+  --ntq-error: #ef4444;
+  --ntq-warning: #fbbf24;
+
+  // --- 透明度阶（白叠色） ---
+  --ntq-white-98: rgba(255, 255, 255, 0.98);
+  --ntq-white-75: rgba(255, 255, 255, 0.75);
+  --ntq-white-45: rgba(255, 255, 255, 0.45);
+  --ntq-white-42: rgba(255, 255, 255, 0.42);
+  --ntq-white-12: rgba(255, 255, 255, 0.12);
+  --ntq-white-06: rgba(255, 255, 255, 0.06);
+  --ntq-white-03: rgba(255, 255, 255, 0.03);
+
+  // --- 文字色 ---
+  --ntq-text: rgba(255, 255, 255, 0.86);
+  --ntq-text-muted: rgba(255, 255, 255, 0.62);
+
+  // --- 间距（space）· props: none | xxs | xs | sm | md | lg | xl ---
+  // 1rem = 16px → 2 / 4 / 8 / 16 / 24 / 32
+  --ntq-space-none: 0;
+  --ntq-space-xxs: 0.125rem; // 2px（图文贴紧等）
+  --ntq-space-xs: 0.25rem;   // 4px
+  --ntq-space-sm: 0.5rem;    // 8px
+  --ntq-space-md: 1rem;      // 16px
+  --ntq-space-lg: 1.5rem;    // 24px
+  --ntq-space-xl: 2rem;      // 32px
+
+  // --- 字号（font）· props: xs | sm | normal | md | lg | xl ---
+  // normal = 默认正文 14px；更大档相对 16px rem 根
+  --ntq-font-xs: 0.75rem;      // 12px
+  --ntq-font-sm: 0.875rem;     // 14px（与 normal 同档；语义偏辅助文案）
+  --ntq-font-normal: 0.875rem; // 14px（与 body 默认一致）
+  --ntq-font-md: 1rem;         // 16px
+  --ntq-font-lg: 1.5rem;       // 24px
+  --ntq-font-xl: 1.75rem;      // 28px
+
+  // --- 等宽字体（行内 code / 代码块） ---
+  --ntq-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  // --- 字重 / 行高（供 text / heading 的 variant 使用） ---
+  --ntq-font-weight-regular: 400;
+  --ntq-font-weight-medium: 600;
+  --ntq-font-weight-bold: 700;
+  --ntq-leading-tight: 1.25;
+  --ntq-leading-normal: 1.5;
+  --ntq-leading-relaxed: 1.68;
+
+  // --- 块级堆叠（统一用父级 gap，子项不叠 margin）---
+  // 默认块距 1rem；标题在 gap 之上再加一点上边距 → 视觉上 1.5 / 2rem
+  --ntq-stack: 1rem;
+  --ntq-heading-margin-top: 1.5rem;
+  --ntq-heading-margin-top-lg: 2rem;
+  --ntq-heading-margin-bottom: var(--ntq-stack);
+  // 在已有 gap=stack 的容器里，标题只需补差额
+  --ntq-heading-gap-boost: calc(var(--ntq-heading-margin-top) - var(--ntq-stack));       // 0.5rem
+  --ntq-heading-gap-boost-lg: calc(var(--ntq-heading-margin-top-lg) - var(--ntq-stack)); // 1rem
+
+  // Heading gap 档位：none | md(默认) | lg
+  --ntq-heading-gap-none-mt: 0;
+  --ntq-heading-gap-none-mb: 0;
+  --ntq-heading-gap-md-mt: var(--ntq-heading-gap-boost);
+  --ntq-heading-gap-md-mb: 0;
+  --ntq-heading-gap-lg-mt: var(--ntq-heading-gap-boost-lg);
+  --ntq-heading-gap-lg-mb: 0;
+
+  // --- 标题竖条 variant="bar"（左色条 + 左/上下内边距，无背景）---
+  --ntq-heading-bar-width: 0.1875rem;   // 3px
+  --ntq-heading-bar-width-h1: 0.25rem;  // 4px
+  --ntq-heading-bar-pad-x: var(--ntq-space-sm);
+  --ntq-heading-bar-pad-y: var(--ntq-space-xs);
+
+  // --- 圆角（radius）· props: none | sm | md | lg | pill ---
+  --ntq-radius-none: 0;
+  --ntq-radius-sm: 0.25rem; // 4px
+  --ntq-radius-md: 0.5rem;  // 8px
+  --ntq-radius-lg: 0.75rem; // 12px
+  --ntq-radius-pill: 999px;
+
+  // --- 模糊（blur）· 供 surface="glass" 等使用 ---
+  --ntq-blur-sm: 0.5rem; // 8px
+  --ntq-blur-md: 1rem;   // 16px
+
+  // --- 表面（surface）背景预设 · Block surface token ---
+  --ntq-surface-soft: var(--ntq-white-03);
+  --ntq-surface-panel: var(--ntq-white-06);
+  --ntq-surface-glass: var(--ntq-glass-bg);
+  --ntq-surface-gradient:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.015) 100%
+    );
+
+  // --- 分隔线（Column divider） ---
+  --ntq-divider-color: var(--ntq-white-12);
+
+  // --- 布局尺寸（只通过语义 / preset 引用，不在业务里写死 px） ---
+  --ntq-layout-sidebar-width: 14.25rem; // 228px
+
+  // --- 图标尺寸 · props: sm | md | lg | xl | xxl ---
+  --ntq-icon-sm: 1rem;    // 16px
+  --ntq-icon-md: 1.25rem; // 20px
+  --ntq-icon-lg: 1.5rem;  // 24px
+  --ntq-icon-xl: 2rem;    // 32px
+  --ntq-icon-xxl: 3rem;   // 48px
+
+  // --- 进度条（线性高度 / 圆环外径）---
+  --ntq-progress-height-sm: 0.25rem; // 4px（回测条）
+  --ntq-progress-height-md: 0.5rem;  // 8px
+  --ntq-progress-ring-sm: 2.5rem;    // 40px
+  --ntq-progress-ring-md: 3.5rem;    // 56px（对齐回测 step 环）
+
+  // 表单控件字号：与默认正文同档（0.875rem = 14px）
+  --ntq-form-control-font-size: var(--ntq-font-normal);
+  --ntq-form-control-line-height: 1.5;
+
+  // 品牌渐变
+  --ntq-brand-text-gradient: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan), var(--ntq-green));
+  --ntq-brand-text-glow: 0 0 1rem rgba(34, 211, 238, 0.38);
+
+  --ntq-glass-bg:
+    radial-gradient(900px 420px at 12% 0%, rgba(255, 255, 255, 0.02), transparent 55%),
+    radial-gradient(720px 360px at 88% -10%, rgba(34, 211, 238, 0.04), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+}

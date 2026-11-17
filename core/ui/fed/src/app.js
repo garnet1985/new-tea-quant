@@ -22,6 +22,11 @@ import SeriesRelationListPage, {
 import PostProcessPage from './pages/postProcessPage';
 import SettingsPage from './pages/settingsPage';
 import WhatWeWillTrackPage from './pages/whatWeWillTrackPage';
+import {
+  UiPrototypeCatalogShell,
+  UiPrototypeCategoryPage,
+  UiPrototypeIndexPage,
+} from './pages/uiPrototype';
 
 function App() {
   return (
@@ -99,6 +104,11 @@ function App() {
               element={<Navigate to="/advanced/tags" replace />}
             />
             <Route path="/settings/*" element={<SettingsPage />} />
+            {/* 隐形 UI 图鉴 — 不进导航；手输 /dev/ui */}
+            <Route path="/dev/ui" element={<UiPrototypeCatalogShell />}>
+              <Route index element={<UiPrototypeIndexPage />} />
+              <Route path=":categoryId" element={<UiPrototypeCategoryPage />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/welcome" replace />} />
           </Route>

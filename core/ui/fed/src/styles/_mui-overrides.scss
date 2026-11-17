@@ -3,7 +3,7 @@
 
 // --- Inputs (TextField / Select / Autocomplete) ---
 .MuiInputBase-root {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
@@ -14,12 +14,12 @@
 }
 
 .MuiInputBase-inputMultiline {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 .MuiInputLabel-root {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
 }
 
 .MuiFormHelperText-root {
@@ -68,33 +68,49 @@
 }
 
 .MuiOutlinedInput-root .MuiOutlinedInput-input {
-  padding: 0 12px;
+  padding: 0 0.75rem; // 12px，单行只在 input 上留左右距
 }
 
-// Multiline: don't force 40px height
+// Date：隐藏 UA 黑色日历指示器（改由 ui/input/date 自绘浅色 icon）
+input[type='date'].ntq-date__input::-webkit-calendar-picker-indicator {
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+// Multiline：外层 wrapper padding 去掉；只留 textarea 一层四边距。
 .MuiOutlinedInput-root.MuiOutlinedInput-multiline {
-  min-height: unset;
+  min-height: unset !important;
   align-items: stretch;
+  padding: 0 !important;
 }
 
-.MuiOutlinedInput-inputMultiline {
-  padding: 10px 12px;
-  font-size: var(--ntq-form-control-font-size, 14px);
+.MuiOutlinedInput-root.MuiInputBase-sizeSmall.MuiOutlinedInput-multiline {
+  padding: 0 !important;
+}
+
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline .MuiOutlinedInput-input,
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline .MuiInputBase-inputMultiline {
+  padding: 0.5rem 0.75rem !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 // --- Dropdowns (Select / Menu) ---
 .MuiSelect-select {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
   line-height: var(--ntq-form-control-line-height, 1.5) !important;
 }
 
 .MuiMenuItem-root {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
 }
 
 .MuiListSubheader-root {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
 }
 
 // Menu/Popover paper: keep readable, but DO NOT blur globally
@@ -110,7 +126,7 @@
 .MuiPopover-paper {
   .MuiMenuItem-root,
   .MuiListSubheader-root {
-    font-size: var(--ntq-form-control-font-size, 14px);
+    font-size: var(--ntq-form-control-font-size, 0.875rem);
     line-height: var(--ntq-form-control-line-height, 1.5);
     padding: 8px 14px;
   }

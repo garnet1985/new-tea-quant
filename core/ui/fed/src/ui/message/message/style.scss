@@ -1,0 +1,103 @@
+.ntq-message {
+  --ntq-message-accent: var(--ntq-white-75);
+
+  display: flex;
+  align-items: center;
+  gap: var(--ntq-space-md);
+  margin: 0;
+  padding: var(--ntq-space-md);
+  box-sizing: border-box;
+  width: 100%;
+  color: var(--ntq-text);
+}
+
+// 圆角卡片：border + 底色，无左侧 bar
+.ntq-message--inline {
+  border-radius: var(--ntq-radius-md);
+  border: 1px solid color-mix(in srgb, var(--ntq-message-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ntq-message-accent) 12%, transparent);
+}
+
+// 有 bar → 一定无圆角（通栏）
+.ntq-message--banner {
+  border-radius: var(--ntq-radius-none);
+  border: none;
+  border-left: 3px solid var(--ntq-message-accent);
+  background: color-mix(in srgb, var(--ntq-message-accent) 8%, var(--ntq-surface-soft));
+}
+
+// --- 状态 / 颜色 accent ---
+.ntq-message--success,
+.ntq-message--green {
+  --ntq-message-accent: var(--ntq-green);
+}
+
+.ntq-message--error {
+  --ntq-message-accent: var(--ntq-error);
+}
+
+.ntq-message--warning {
+  --ntq-message-accent: var(--ntq-warning);
+}
+
+.ntq-message--info,
+.ntq-message--cyan {
+  --ntq-message-accent: var(--ntq-cyan);
+}
+
+.ntq-message--muted {
+  --ntq-message-accent: var(--ntq-white-75);
+}
+
+.ntq-message--violet {
+  --ntq-message-accent: var(--ntq-violet);
+}
+
+.ntq-message__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.ntq-message__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.45;
+  font-size: var(--ntq-font-normal);
+}
+
+.ntq-message__body > :first-child {
+  margin-top: 0;
+}
+
+.ntq-message__body > :last-child {
+  margin-bottom: 0;
+}
+
+.ntq-message__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  margin-left: var(--ntq-space-xs);
+  padding: var(--ntq-space-xs);
+  border: none;
+  border-radius: var(--ntq-radius-sm);
+  background: transparent;
+  color: var(--ntq-text-muted);
+  cursor: pointer;
+  line-height: 1;
+
+  &:hover {
+    background: var(--ntq-white-06);
+    color: var(--ntq-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ntq-cyan);
+    outline-offset: 2px;
+  }
+}

@@ -1,0 +1,271 @@
+/**
+ * UI 图鉴注册表。
+ *
+ * status: stub | ready
+ * origin: new | migrate | gap
+ *
+ * 阶段约定：先完成 src/ui（L1 原语）；views/ 只读。
+ * L2（业务 status→L1 props）另建，不进本图鉴。
+ * widget.uiPath 可选：覆盖磁盘路径（默认 `${categoryId}/${widgetId}`）。
+ */
+
+export const UI_CATALOG_BASE = '/dev/ui';
+
+/**
+ * 旧大类 id → 合并后的大类（书签兼容）。
+ * @type {Record<string, string>}
+ */
+export const UI_CATEGORY_ALIASES = {
+  heading: 'text',
+  separator: 'text',
+  avatar: 'display',
+  tag: 'display',
+  icon: 'display',
+  table: 'data',
+  chart: 'data',
+  calendar: 'data',
+  metric: 'data',
+  message: 'feedback',
+  progress: 'feedback',
+  steps: 'feedback',
+};
+
+/** @typedef {object} UiWidgetEntry
+ * @property {string} id
+ * @property {string} label
+ * @property {'new'|'migrate'|'gap'} origin
+ * @property {string|null} source
+ * @property {'stub'|'ready'} status
+ * @property {string} [uiPath]
+ */
+
+/** @typedef {object} UiCategoryEntry
+ * @property {string} id
+ * @property {string} label
+ * @property {string} description
+ * @property {UiWidgetEntry[]} widgets
+ */
+
+/** @type {UiCategoryEntry[]} */
+export const UI_CATALOG = [
+  {
+    id: 'guidelines',
+    label: 'NTQ 业务准则',
+    description:
+      '产品页布局与组合约定：什么情况用 Column / Tabs / SideNav / ReportBlock 等。边迁 legacy 边补条目，可先空着。',
+    widgets: [],
+  },
+  {
+    id: 'layout',
+    label: '布局',
+    description: '分栏与区块：Column / Block / Section / Tabs / SideNav。',
+    widgets: [
+      { id: 'column', label: 'column', origin: 'new', source: null, status: 'ready' },
+      { id: 'block', label: 'block', origin: 'new', source: null, status: 'ready' },
+      { id: 'section', label: 'section', origin: 'new', source: null, status: 'ready' },
+      { id: 'tabs', label: 'tabs', origin: 'new', source: null, status: 'ready' },
+      { id: 'sideNav', label: 'sideNav', origin: 'new', source: null, status: 'ready' },
+    ],
+  },
+  {
+    id: 'text',
+    label: '文字',
+    description: '正文特殊字、标题、分隔线、引用、说明块与代码块；普通正文用 HTML + class。',
+    widgets: [
+      { id: 'text', label: 'text', origin: 'new', source: null, status: 'ready', uiPath: 'text/text' },
+      { id: 'heading', label: 'heading', origin: 'new', source: null, status: 'ready', uiPath: 'text/heading' },
+      { id: 'separator', label: 'separator', origin: 'new', source: null, status: 'ready', uiPath: 'text/separator' },
+      { id: 'quote', label: 'quote', origin: 'new', source: null, status: 'ready', uiPath: 'text/quote' },
+      { id: 'textBlock', label: 'textBlock', origin: 'new', source: null, status: 'ready', uiPath: 'text/textBlock' },
+      { id: 'codeBlock', label: 'codeBlock', origin: 'new', source: null, status: 'ready', uiPath: 'text/codeBlock' },
+    ],
+  },
+  {
+    id: 'button',
+    label: '按钮',
+    description: '主操作与彩虹按钮。',
+    widgets: [
+      { id: 'ntqButton', label: 'ntqButton', origin: 'new', source: null, status: 'ready' },
+      { id: 'rainbowButton', label: 'rainbowButton', origin: 'new', source: null, status: 'ready' },
+    ],
+  },
+  {
+    id: 'display',
+    label: '展示',
+    description: '图标、头像、标签等行内展示原语。',
+    widgets: [
+      { id: 'ntqIcon', label: 'ntqIcon', origin: 'new', source: null, status: 'ready', uiPath: 'icon/ntqIcon' },
+      { id: 'avatar', label: 'avatar', origin: 'new', source: null, status: 'ready', uiPath: 'avatar/avatar' },
+      { id: 'tag', label: 'tag', origin: 'new', source: null, status: 'ready', uiPath: 'tag/tag' },
+    ],
+  },
+  {
+    id: 'data',
+    label: '数据',
+    description: '表格、图表、月历与指标卡；业务 option / 事件标注属 L2。',
+    widgets: [
+      {
+        id: 'dataGrid',
+        label: 'dataGrid',
+        origin: 'new',
+        source: null,
+        status: 'ready',
+        uiPath: 'table/dataGrid',
+      },
+      {
+        id: 'chartPanel',
+        label: 'chartPanel',
+        origin: 'migrate',
+        source: 'views/chartPanel',
+        status: 'ready',
+        uiPath: 'chart/chartPanel',
+      },
+      {
+        id: 'monthCalendar',
+        label: 'monthCalendar',
+        origin: 'new',
+        source: null,
+        status: 'ready',
+        uiPath: 'calendar/monthCalendar',
+      },
+      { id: 'metricCard', label: 'metricCard', origin: 'migrate', source: 'views/metricCard', status: 'ready', uiPath: 'metric/metricCard' },
+      { id: 'metricGrid', label: 'metricGrid', origin: 'migrate', source: 'views/metricGrid', status: 'ready', uiPath: 'metric/metricGrid' },
+      { id: 'countBadge', label: 'countBadge', origin: 'migrate', source: 'views/countBadge', status: 'ready', uiPath: 'metric/countBadge' },
+      { id: 'countTab', label: 'countTab', origin: 'migrate', source: 'views/countTab', status: 'ready', uiPath: 'metric/countTab' },
+    ],
+  },
+  {
+    id: 'input',
+    label: '输入',
+    description: '表单字段与控件；number 暂用 TextField type="number"。',
+    widgets: [
+      { id: 'field', label: 'field', origin: 'new', source: null, status: 'ready' },
+      { id: 'textField', label: 'textField', origin: 'new', source: null, status: 'ready' },
+      { id: 'textArea', label: 'textArea', origin: 'new', source: null, status: 'ready' },
+      { id: 'checkbox', label: 'checkbox', origin: 'new', source: null, status: 'ready' },
+      { id: 'radio', label: 'radio', origin: 'new', source: null, status: 'ready' },
+      { id: 'switch', label: 'switch', origin: 'new', source: null, status: 'ready' },
+      { id: 'select', label: 'select', origin: 'new', source: null, status: 'ready' },
+      { id: 'searchSelect', label: 'searchSelect', origin: 'new', source: null, status: 'ready' },
+      { id: 'searchField', label: 'searchField', origin: 'migrate', source: 'views/searchField', status: 'ready' },
+      { id: 'autocomplete', label: 'autocomplete', origin: 'new', source: null, status: 'ready' },
+      { id: 'date', label: 'date', origin: 'new', source: null, status: 'ready' },
+      { id: 'dateRange', label: 'dateRange', origin: 'new', source: null, status: 'ready' },
+    ],
+  },
+  {
+    id: 'feedback',
+    label: '反馈',
+    description: '消息、Toast、帮助提示、加载与进度、步骤条。',
+    widgets: [
+      { id: 'message', label: 'message', origin: 'new', source: null, status: 'ready', uiPath: 'message/message' },
+      { id: 'toast', label: 'toast', origin: 'new', source: null, status: 'ready', uiPath: 'message/toast' },
+      {
+        id: 'ntqHelpTooltip',
+        label: 'ntqHelpTooltip',
+        origin: 'migrate',
+        source: 'views/ntqHelpTooltip',
+        status: 'ready',
+        uiPath: 'message/ntqHelpTooltip',
+      },
+      { id: 'loadingBars', label: 'loadingBars', origin: 'new', source: null, status: 'ready', uiPath: 'progress/loadingBars' },
+      { id: 'loading', label: 'loading', origin: 'new', source: null, status: 'ready', uiPath: 'progress/loading' },
+      { id: 'progressBar', label: 'progressBar', origin: 'new', source: null, status: 'ready', uiPath: 'progress/progressBar' },
+      { id: 'progressRing', label: 'progressRing', origin: 'new', source: null, status: 'ready', uiPath: 'progress/progressRing' },
+      { id: 'stepper', label: 'stepper', origin: 'new', source: null, status: 'ready', uiPath: 'steps/stepper' },
+    ],
+  },
+  {
+    id: 'ntq',
+    label: 'NTQ 特有',
+    description: '应用壳与报告模板：品牌、导航、面包屑、Banner、ReportBlock、Python dict 等。',
+    widgets: [
+      {
+        id: 'appBrand',
+        label: 'brand',
+        origin: 'migrate',
+        source: 'views/appBrand',
+        status: 'ready',
+        uiPath: 'ntq/appBrand',
+      },
+      {
+        id: 'appNav',
+        label: 'nav',
+        origin: 'migrate',
+        source: 'views/appNav',
+        status: 'ready',
+        uiPath: 'ntq/appNav',
+      },
+      {
+        id: 'appBreadcrumbs',
+        label: 'breadcrumb',
+        origin: 'migrate',
+        source: 'views/appBreadcrumbs',
+        status: 'ready',
+        uiPath: 'ntq/appBreadcrumbs',
+      },
+      {
+        id: 'pageBanner',
+        label: 'banner',
+        origin: 'migrate',
+        source: 'views/pageBanner',
+        status: 'ready',
+        uiPath: 'ntq/pageBanner',
+      },
+      {
+        id: 'reportBlock',
+        label: 'reportBlock',
+        origin: 'migrate',
+        source: 'views/sectionBlock',
+        status: 'ready',
+        uiPath: 'ntq/reportBlock',
+      },
+      {
+        id: 'pythonDictEditor',
+        label: 'pythonDictEditor',
+        origin: 'migrate',
+        source: 'views/pythonDictInputPanel',
+        status: 'ready',
+        uiPath: 'ntq/pythonDictEditor',
+      },
+    ],
+  },
+];
+
+export function resolveCategoryId(categoryId) {
+  if (!categoryId) return categoryId;
+  return UI_CATEGORY_ALIASES[categoryId] || categoryId;
+}
+
+export function getCategory(categoryId) {
+  const id = resolveCategoryId(categoryId);
+  return UI_CATALOG.find((entry) => entry.id === id) || null;
+}
+
+export function categoryPath(categoryId) {
+  return `${UI_CATALOG_BASE}/${resolveCategoryId(categoryId)}`;
+}
+
+/** 组件在 src/ui 下的相对目录 */
+export function widgetUiPath(categoryId, widget) {
+  return widget.uiPath || `${categoryId}/${widget.id}`;
+}
+
+export function defaultCategoryPath() {
+  // 默认进第一个「有组件」的大类，跳过空的业务准则栏
+  const firstWithWidgets = UI_CATALOG.find((entry) => entry.widgets.length > 0);
+  return categoryPath((firstWithWidgets || UI_CATALOG[0]).id);
+}
+
+export function originLabel(origin) {
+  if (origin === 'new') return '新建规范';
+  if (origin === 'gap') return '缺口（新建）';
+  if (origin === 'migrate') return '待迁入';
+  return origin;
+}
+
+export function statusLabel(status) {
+  if (status === 'stub') return '未实现';
+  if (status === 'ready') return '已实现';
+  return status;
+}

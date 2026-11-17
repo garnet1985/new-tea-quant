@@ -1,0 +1,85 @@
+.ntq-data-grid {
+  width: 100%;
+  color: var(--ntq-text);
+  background: transparent;
+
+  .MuiDataGrid-main {
+    border-radius: var(--ntq-radius-md);
+  }
+
+  .MuiDataGrid-columnHeaders {
+    background: var(--ntq-white-03);
+    border-bottom-color: var(--ntq-white-12);
+  }
+
+  .MuiDataGrid-columnHeaderTitle {
+    font-size: var(--ntq-font-xs);
+    font-weight: var(--ntq-font-weight-medium);
+    letter-spacing: 0.02em;
+    color: var(--ntq-text-muted);
+  }
+
+  .MuiDataGrid-columnSeparator {
+    opacity: 0.28;
+  }
+
+  .MuiDataGrid-row {
+    &:hover {
+      background: var(--ntq-white-03);
+    }
+  }
+
+  .MuiDataGrid-cell {
+    border-bottom-color: var(--ntq-white-06);
+    font-size: var(--ntq-font-sm);
+    color: var(--ntq-text);
+  }
+
+  .MuiDataGrid-footerContainer {
+    min-height: 2.75rem;
+    border-top-color: var(--ntq-white-12);
+  }
+
+  .MuiDataGrid-overlay {
+    background: rgba(255, 255, 255, 0.04);
+    border-top: 1px solid var(--ntq-white-12);
+    backdrop-filter: blur(0.625rem);
+    -webkit-backdrop-filter: blur(0.625rem);
+    color: var(--ntq-text-muted);
+  }
+
+  &:hover .MuiDataGrid-overlay {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .MuiTablePagination-root,
+  .MuiTablePagination-selectLabel,
+  .MuiTablePagination-displayedRows {
+    font-size: var(--ntq-font-xs);
+    color: var(--ntq-text-muted);
+  }
+}
+
+.ntq-data-grid--sm {
+  .MuiDataGrid-columnHeaders {
+    min-height: 2.25rem !important;
+    max-height: 2.25rem !important;
+  }
+
+  .MuiDataGrid-cell {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+.ntq-data-grid--md {
+  .MuiDataGrid-columnHeaders {
+    min-height: 2.5rem !important;
+    max-height: 2.5rem !important;
+  }
+
+  .MuiDataGrid-cell {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+  }
+}

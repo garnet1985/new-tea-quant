@@ -1,0 +1,86 @@
+.ntq-progress-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ntq-space-xs);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.ntq-progress-bar__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ntq-space-sm);
+  min-width: 0;
+}
+
+.ntq-progress-bar__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ntq-font-sm);
+  line-height: 1.35;
+  color: var(--ntq-text);
+}
+
+.ntq-progress-bar__percent {
+  flex: 0 0 auto;
+  font-size: var(--ntq-font-sm);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color: var(--ntq-text-muted);
+}
+
+.ntq-progress-bar__track {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0.125rem;
+  background: rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+
+.ntq-progress-bar--sm .ntq-progress-bar__track {
+  height: var(--ntq-progress-height-sm);
+}
+
+.ntq-progress-bar--md .ntq-progress-bar__track {
+  height: var(--ntq-progress-height-md);
+}
+
+.ntq-progress-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan));
+}
+
+.ntq-progress-bar.is-determinate .ntq-progress-bar__fill {
+  transition: width 160ms ease;
+}
+
+.ntq-progress-bar.is-indeterminate .ntq-progress-bar__fill {
+  width: 40%;
+  animation: ntq-progress-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes ntq-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-progress-bar.is-indeterminate .ntq-progress-bar__fill {
+    animation: none;
+    width: 50%;
+    opacity: 0.7;
+  }
+}

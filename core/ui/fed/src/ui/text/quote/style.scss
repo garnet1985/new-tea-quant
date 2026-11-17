@@ -1,0 +1,45 @@
+// 固定样式：轻白底 + 左白条 + 内边距 + 斜体。
+// 左右保留透明空隙；上下距交给父级 gap（不叠 margin-block）。
+.ntq-quote {
+  --ntq-quote-pad: var(--ntq-space-sm);
+  --ntq-quote-bar: var(--ntq-heading-bar-width);
+  position: relative;
+  display: block;
+  max-width: calc(100% - 2 * var(--ntq-stack));
+  box-sizing: border-box;
+  margin-block: 0;
+  margin-inline: var(--ntq-stack);
+  padding: var(--ntq-quote-pad);
+  padding-left: calc(var(--ntq-quote-bar) + var(--ntq-space-sm) + var(--ntq-quote-pad));
+  border-radius: var(--ntq-radius-sm);
+  background: var(--ntq-white-06);
+  color: var(--ntq-text);
+  font-style: italic;
+  line-height: var(--ntq-leading-relaxed);
+}
+
+.ntq-quote::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--ntq-quote-bar);
+  background: var(--ntq-white-98);
+  border-radius: var(--ntq-radius-sm) 0 0 var(--ntq-radius-sm);
+}
+
+.ntq-quote__body {
+  margin: 0;
+
+  > *:first-child { margin-top: 0; }
+  > *:last-child { margin-bottom: 0; }
+
+  > p {
+    margin: 0;
+  }
+
+  > p + p {
+    margin-top: var(--ntq-space-sm);
+  }
+}

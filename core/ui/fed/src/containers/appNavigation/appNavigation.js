@@ -9,7 +9,7 @@ import './style.scss';
 function AppNavigation() {
   return (
     <AppBar
-      position="sticky"
+      position="static"
       color="transparent"
       elevation={0}
       className="ntq-app-header"

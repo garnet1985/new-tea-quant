@@ -1,0 +1,16 @@
+// 默认 gap=stack（1rem）纵向堆叠；子项不设上下 margin。
+.ntq-section {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ntq-section--gap-none { gap: var(--ntq-space-none); }
+.ntq-section--gap-xxs { gap: var(--ntq-space-xxs); }
+.ntq-section--gap-xs { gap: var(--ntq-space-xs); }
+.ntq-section--gap-sm { gap: var(--ntq-space-sm); }
+.ntq-section--gap-md { gap: var(--ntq-stack); } // 默认块距 1rem
+.ntq-section--gap-lg { gap: var(--ntq-space-lg); }
+.ntq-section--gap-xl { gap: var(--ntq-space-xl); }

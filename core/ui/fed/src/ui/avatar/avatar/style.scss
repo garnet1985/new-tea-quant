@@ -1,0 +1,45 @@
+.ntq-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--ntq-radius-pill);
+  background: var(--ntq-white-12);
+  color: var(--ntq-text);
+  font-weight: var(--ntq-font-weight-medium);
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.ntq-avatar--sm {
+  width: 1.5rem; // 24px
+  height: 1.5rem;
+  font-size: var(--ntq-font-xs);
+}
+
+.ntq-avatar--md {
+  width: 2rem; // 32px
+  height: 2rem;
+  font-size: var(--ntq-font-sm);
+}
+
+.ntq-avatar--lg {
+  width: 2.75rem; // 44px
+  height: 2.75rem;
+  font-size: var(--ntq-font-md);
+}
+
+.ntq-avatar__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ntq-avatar__letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

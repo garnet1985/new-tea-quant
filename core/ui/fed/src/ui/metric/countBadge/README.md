@@ -1,19 +1,16 @@
 # countBadge
 
-> 状态：**占位** — 尚未在 `src/ui` 中实现。
+圆形计数角标。
 
-## 来源
+```js
+import CountBadge from 'ui/metric/countBadge';
 
-`views/countBadge`
+<CountBadge count={3} label="信号数" />
+```
 
-## 参数
+| 参数 | 合法值 | 默认 |
+|------|--------|------|
+| `count` | ReactNode | — |
+| `label` | string（aria-label） | — |
 
-TODO：补充 props、默认值与变体说明。
-
-## 使用场景
-
-TODO：说明何时使用该组件。
-
-## 反例
-
-TODO：说明不要怎么用。
+可点击筛选用 `CountTab`。

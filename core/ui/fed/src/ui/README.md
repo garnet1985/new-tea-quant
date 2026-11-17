@@ -2,9 +2,18 @@
 
 本目录是后续产品页**唯一**应复用的 UI widget 来源。
 
+## 两层分工
+
+| 层 | 放什么 | 例子 |
+|----|--------|------|
+| **L1 · `src/ui`（本目录）** | 元素与布局原语：长相、token、通用交互 | `Tag`、`DataGrid`、`CountTab`、`MetricCard` |
+| **L2 · 业务 mapping（尚未建目录）** | 业务枚举 / 状态 → L1 组件的 props | `up_to_date`→`<Tag status="success" variant="outline">` |
+
+L1 不收业务 status key；views 里的 `freshnessStatusChip` 等属 L2，稳定后再迁，不进图鉴。
+
 ## 约定
 
-- 只放**设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
+- 只放 **L1 设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
 - **layout**：`column` / `block` / `section` / `tabs`（不含 Banner、面包屑）。
   - `Column`：版式 + `gap` + `divider`（竖线分栏）。
   - `Block`：`surface`（soft/panel/glass/gradient）+ `radius`（含 pill）+ `bordered`。
@@ -17,9 +26,13 @@
   - 磁盘仍在 `ui/text/*`；图鉴大类分开便于浏览。
   - 普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等），不是组件。
 - **icon** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
+- **tag**：通用标签 / 状态小块 — `status` 或 `color`；`variant` soft（半透明）/ outline / solid（同色实心）；`size` sm/md；可选 `icon` / `onDelete`。业务 Freshness 等仍在 **metric**。
+- **table**：`dataGrid`（MUI DataGrid 封装；默认中文、Loading 覆盖层、`density` sm/md）。列定义仍由业务传入。列表 Search / CountTab 过滤由**上层**组合（`SearchField` + `CountTab` → `displayRows` → `DataGrid`），不塞进表格。
+- **metric**：`metricCard` + `metricGrid`；`countTab` / `countBadge`。
 - **progress**：`loadingBars` / `loading`；`progressBar`（回测线性条，可选 label + showPercent）；`progressRing`（step 圆环，可选 label / showPercent / 环心 children）。
 - **steps**：`stepper`（回测步骤条；`activeId` + `status`；可 `href` / RouterLink / `onItemClick`；`showProgress` 可关进度环）。
-- **input**：`field`；`textField` / `textArea`；`checkbox`；`radio`（含 `variant="button"`）；`switch`；`select`；`searchSelect`；`searchField`；`autocomplete`；`date` / `dateRange`。数值暂用 `TextField type="number"`。仍 stub：`pythonDictInputPanel`。
+- **input**：通用表单原语 — `field`；`textField` / `textArea`；`checkbox`；`radio`；`switch`；`select`；`searchSelect`；`searchField`；`autocomplete`；`date` / `dateRange`。数值暂用 `TextField type="number"`。
+- **ntq**：NTQ 特有公用组件 — `appNav`（nav stub）；`pageBanner`（banner stub）；`pythonDictEditor`（JSON/Python dict 面板）。与通用 input 分开，见 `ui/ntq/README.md`。
 - **message**：
   - `message`：`variant="inline"` 圆角+border+底色无 bar；`banner` 有 bar 无圆角。`status`（图标固定）或 `color`（icon 可传/省略）。
   - `toast`：右下角短暂弹出（`ToastHost` + `showToast({ status, content })`）；内部复用 Message。
@@ -93,6 +106,14 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
     { id: 'price', label: '价格回测', status: 'running', progress: 42 },
   ]}
 />
+<Tag status="success">已启用</Tag>
+<Tag color="violet" variant="outline">策略</Tag>
+<CountTab label="全部" count={n} selected={!q} wide onClick={…} />
+<CountBadge count={3} label="信号数" />
+<MetricGrid columns={2}>
+  <MetricCard title="机会总数" value="128" tip="…" />
+</MetricGrid>
+<DataGrid rows={rows} columns={columns} loading={loading} autoHeight />
 <TextField label="名称" value={v} onChange={…} />
 <RadioGroup label="频率" value={f} options={[…]} onChange={…} />
 <Message status="info">同步已完成。</Message>

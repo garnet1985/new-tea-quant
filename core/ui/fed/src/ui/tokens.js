@@ -90,6 +90,24 @@ export const RADIO_DIRECTIONS = ['column', 'row'];
 /** RadioGroup 形态：圆点 / 大按钮卡片（扫描页） */
 export const RADIO_VARIANTS = ['plain', 'button'];
 
+/** Tag 语义状态（与 Message status 对齐；neutral = 中性灰） */
+export const TAG_STATUSES = ['success', 'error', 'warning', 'info', 'neutral'];
+
+/** Tag 颜色模式（含紫；与 Message color 对齐） */
+export const TAG_COLORS = ['green', 'error', 'warning', 'muted', 'cyan', 'violet'];
+
+/** Tag 形态：浅底 / 描边 / 实心 */
+export const TAG_VARIANTS = ['soft', 'outline', 'solid'];
+
+/** Tag 尺寸 */
+export const TAG_SIZE_TOKENS = ['sm', 'md'];
+
+/** DataGrid 行高密度 */
+export const DATA_GRID_DENSITY_TOKENS = ['sm', 'md'];
+
+/** MetricGrid 列数（≥900px；窄屏默认 1 列，denseXs 时 2 列） */
+export const METRIC_GRID_COLUMN_TOKENS = [2, 3, 4];
+
 /** @deprecated 用 MESSAGE_STATUSES；保留别名以免旧引用报错 */
 export const MESSAGE_TONES = MESSAGE_STATUSES;
 

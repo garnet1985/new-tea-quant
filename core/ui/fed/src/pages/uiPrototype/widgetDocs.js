@@ -31,6 +31,15 @@ import autocompleteDoc from 'ui/input/autocomplete/doc';
 import switchDoc from 'ui/input/switch/doc';
 import dateDoc from 'ui/input/date/doc';
 import dateRangeDoc from 'ui/input/dateRange/doc';
+import appNavDoc from 'ui/ntq/appNav/doc';
+import pageBannerDoc from 'ui/ntq/pageBanner/doc';
+import pythonDictEditorDoc from 'ui/ntq/pythonDictEditor/doc';
+import tagDoc from 'ui/tag/tag/doc';
+import dataGridDoc from 'ui/table/dataGrid/doc';
+import countTabDoc from 'ui/metric/countTab/doc';
+import countBadgeDoc from 'ui/metric/countBadge/doc';
+import metricCardDoc from 'ui/metric/metricCard/doc';
+import metricGridDoc from 'ui/metric/metricGrid/doc';
 
 const DOCS = {
   layout: {
@@ -54,6 +63,12 @@ const DOCS = {
   button: {
     ntqButton: ntqButtonDoc,
     rainbowButton: rainbowButtonDoc,
+  },
+  tag: {
+    tag: tagDoc,
+  },
+  table: {
+    dataGrid: dataGridDoc,
   },
   icon: {
     ntqIcon: ntqIconDoc,
@@ -85,6 +100,17 @@ const DOCS = {
     switch: switchDoc,
     date: dateDoc,
     dateRange: dateRangeDoc,
+  },
+  ntq: {
+    appNav: appNavDoc,
+    pageBanner: pageBannerDoc,
+    pythonDictEditor: pythonDictEditorDoc,
+  },
+  metric: {
+    countTab: countTabDoc,
+    countBadge: countBadgeDoc,
+    metricCard: metricCardDoc,
+    metricGrid: metricGridDoc,
   },
 };
 

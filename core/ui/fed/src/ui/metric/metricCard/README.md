@@ -1,19 +1,19 @@
 # metricCard
 
-> 状态：**占位** — 尚未在 `src/ui` 中实现。
+报告指标卡。
 
-## 来源
+```js
+import MetricCard from 'ui/metric/metricCard';
 
-`views/metricCard`
+<MetricCard title="机会总数" value="128" tip="统计窗口内触发次数" />
+<MetricCard title="涨停无法买入" value="12 / 100" hint="占比 12%" />
+```
 
-## 参数
+| 参数 | 说明 | 默认 |
+|------|------|------|
+| `title` | 指标名 | — |
+| `value` | 主值 | — |
+| `hint` | 次要说明 | — |
+| `tip` / `titleTip` | 标题旁帮助 | — |
 
-TODO：补充 props、默认值与变体说明。
-
-## 使用场景
-
-TODO：说明何时使用该组件。
-
-## 反例
-
-TODO：说明不要怎么用。
+网格布局用 `MetricGrid`。

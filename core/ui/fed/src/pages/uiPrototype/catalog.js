@@ -10,11 +10,13 @@
  * - migrate: 计划从现有 views/（或 container）迁入/重写
  * - gap: 业务需要，但尚无独立 view
  *
- * 阶段约定：先完成 src/ui 标准；views/ 只读，不在此阶段改 views 做迁移。
+ * 阶段约定：先完成 src/ui（L1 原语）；views/ 只读，不在此阶段改 views 做迁移。
+ * L2（业务 status→L1 props 映射）另建，不进本图鉴。
  *
  * layout：布局原语；text：正文/特殊字；heading / separator：独立大类。
+ * tag：状态/分类小块；table：DataGrid 封装。
  * widget.uiPath 可选：覆盖磁盘路径（默认 `${categoryId}/${widgetId}`）。
- * pageLayout、Banner 等继续留在 views/，迁移另做。
+ * ntq：应用壳 / 特有复合组件（nav、banner、pythonDictEditor…）；views/ 只读待迁。
  */
 
 export const UI_CATALOG_BASE = '/dev/ui';
@@ -87,6 +89,29 @@ export const UI_CATALOG = [
     ],
   },
   {
+    id: 'tag',
+    label: '标签',
+    description: '状态 / 分类小块（通用 Tag；业务 Freshness 等仍在指标类）。',
+    widgets: [
+      { id: 'tag', label: 'tag', origin: 'new', source: null, status: 'ready', uiPath: 'tag/tag' },
+    ],
+  },
+  {
+    id: 'table',
+    label: '表格',
+    description: '数据表：DataGrid 封装（中文、Loading、密度）。',
+    widgets: [
+      {
+        id: 'dataGrid',
+        label: 'dataGrid',
+        origin: 'new',
+        source: null,
+        status: 'ready',
+        uiPath: 'table/dataGrid',
+      },
+    ],
+  },
+  {
     id: 'input',
     label: '输入',
     description: '表单字段与控件；number 暂用 TextField type="number"。',
@@ -103,12 +128,36 @@ export const UI_CATALOG = [
       { id: 'autocomplete', label: 'autocomplete', origin: 'new', source: null, status: 'ready' },
       { id: 'date', label: 'date', origin: 'new', source: null, status: 'ready' },
       { id: 'dateRange', label: 'dateRange', origin: 'new', source: null, status: 'ready' },
+    ],
+  },
+  {
+    id: 'ntq',
+    label: 'NTQ 特有',
+    description: '应用壳与业务向复合组件：导航、页头 Banner、Python dict 编辑器等（与通用 input 分开）。',
+    widgets: [
       {
-        id: 'pythonDictInputPanel',
-        label: 'pythonDictInputPanel',
+        id: 'appNav',
+        label: 'nav',
+        origin: 'migrate',
+        source: 'views/appNav',
+        status: 'stub',
+        uiPath: 'ntq/appNav',
+      },
+      {
+        id: 'pageBanner',
+        label: 'banner',
+        origin: 'migrate',
+        source: 'views/pageBanner',
+        status: 'stub',
+        uiPath: 'ntq/pageBanner',
+      },
+      {
+        id: 'pythonDictEditor',
+        label: 'pythonDictEditor',
         origin: 'migrate',
         source: 'views/pythonDictInputPanel',
-        status: 'stub',
+        status: 'ready',
+        uiPath: 'ntq/pythonDictEditor',
       },
     ],
   },
@@ -164,12 +213,18 @@ export const UI_CATALOG = [
   {
     id: 'metric',
     label: '指标',
-    description: '指标卡、计数与状态芯片。',
+    description: '指标卡 / 网格、计数角标与筛选 Tab。业务 status→Tag 映射属第二层，不进本目录。',
     widgets: [
-      { id: 'metricCard', label: 'metricCard', origin: 'migrate', source: 'views/metricCard', status: 'stub' },
-      { id: 'countBadge', label: 'countBadge', origin: 'migrate', source: 'views/countBadge', status: 'stub' },
-      { id: 'countTab', label: 'countTab', origin: 'migrate', source: 'views/countTab', status: 'stub' },
-      { id: 'freshnessStatusChip', label: 'freshnessStatusChip', origin: 'migrate', source: 'views/freshnessStatusChip', status: 'stub' },
+      { id: 'metricCard', label: 'metricCard', origin: 'migrate', source: 'views/metricCard', status: 'ready' },
+      {
+        id: 'metricGrid',
+        label: 'metricGrid',
+        origin: 'migrate',
+        source: 'views/metricGrid',
+        status: 'ready',
+      },
+      { id: 'countBadge', label: 'countBadge', origin: 'migrate', source: 'views/countBadge', status: 'ready' },
+      { id: 'countTab', label: 'countTab', origin: 'migrate', source: 'views/countTab', status: 'ready' },
     ],
   },
 ];

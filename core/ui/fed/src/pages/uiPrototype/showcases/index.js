@@ -8,6 +8,10 @@ import progressShowcases from './progress';
 import stepsShowcases from './steps';
 import messageShowcases from './message';
 import inputShowcases from './input';
+import ntqShowcases from './ntq';
+import tagShowcases from './tag';
+import tableShowcases from './table';
+import metricShowcases from './metric';
 
 const SHOWCASES = {
   layout: layoutShowcases,
@@ -15,11 +19,15 @@ const SHOWCASES = {
   heading: headingShowcases,
   separator: separatorShowcases,
   button: buttonShowcases,
+  tag: tagShowcases,
+  table: tableShowcases,
   icon: iconShowcases,
   progress: progressShowcases,
   steps: stepsShowcases,
   message: messageShowcases,
   input: inputShowcases,
+  ntq: ntqShowcases,
+  metric: metricShowcases,
 };
 
 export function getWidgetShowcase(categoryId, widgetId) {

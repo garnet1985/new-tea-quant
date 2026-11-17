@@ -1,13 +1,15 @@
 # `ui/ntq` — NTQ 特有公用组件
 
-应用壳与业务向复合组件（导航、页头 Banner、Python dict 编辑器等）。
+应用壳与产品向复合组件（导航、面包屑、页头 Banner、Python dict 编辑器等）。
 
-与 `input` / `layout` 等**通用原语**分开：这里可以绑产品约定（路由、校验流程、品牌壳），不要求别处可直接复用。
+与 `input` / `layout` 等**通用原语**分开：这里可以绑产品壳约定（Router、顶栏高度），但**路由表 / 站点 URL / 业务映射**仍由应用层传入，不写死在组件里。
 
 | 组件 | 状态 | 说明 |
 |------|------|------|
-| `appNav` | stub | 顶栏导航，迁自 `views/appNav` |
-| `pageBanner` | stub | 页头标题条，迁自 `views/pageBanner` |
+| `appBrand` | ready | 顶栏品牌标 |
+| `appNav` | ready | 顶栏导航壳（`items` 驱动） |
+| `appBreadcrumbs` | ready | 面包屑（`items` + `current`） |
+| `pageBanner` | ready | 页头标题条 |
 | `pythonDictEditor` | ready | JSON / Python dict 调试面板 |
 
 产品页迁移前仍可读 `views/`；新代码优先 `ui/ntq/*`。

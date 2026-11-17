@@ -4,6 +4,7 @@ import columnDoc from 'ui/layout/column/doc';
 import blockDoc from 'ui/layout/block/doc';
 import sectionDoc from 'ui/layout/section/doc';
 import tabsDoc from 'ui/layout/tabs/doc';
+import sideNavDoc from 'ui/layout/sideNav/doc';
 import textDoc from 'ui/text/text/doc';
 import quoteDoc from 'ui/text/quote/doc';
 import separatorDoc from 'ui/text/separator/doc';
@@ -32,6 +33,7 @@ import switchDoc from 'ui/input/switch/doc';
 import dateDoc from 'ui/input/date/doc';
 import dateRangeDoc from 'ui/input/dateRange/doc';
 import appNavDoc from 'ui/ntq/appNav/doc';
+import appBreadcrumbsDoc from 'ui/ntq/appBreadcrumbs/doc';
 import pageBannerDoc from 'ui/ntq/pageBanner/doc';
 import pythonDictEditorDoc from 'ui/ntq/pythonDictEditor/doc';
 import tagDoc from 'ui/tag/tag/doc';
@@ -40,6 +42,10 @@ import countTabDoc from 'ui/metric/countTab/doc';
 import countBadgeDoc from 'ui/metric/countBadge/doc';
 import metricCardDoc from 'ui/metric/metricCard/doc';
 import metricGridDoc from 'ui/metric/metricGrid/doc';
+import chartPanelDoc from 'ui/chart/chartPanel/doc';
+import avatarDoc from 'ui/avatar/avatar/doc';
+import monthCalendarDoc from 'ui/calendar/monthCalendar/doc';
+import appBrandDoc from 'ui/ntq/appBrand/doc';
 
 const DOCS = {
   layout: {
@@ -47,6 +53,7 @@ const DOCS = {
     block: blockDoc,
     section: sectionDoc,
     tabs: tabsDoc,
+    sideNav: sideNavDoc,
   },
   text: {
     text: textDoc,
@@ -64,11 +71,20 @@ const DOCS = {
     ntqButton: ntqButtonDoc,
     rainbowButton: rainbowButtonDoc,
   },
+  avatar: {
+    avatar: avatarDoc,
+  },
   tag: {
     tag: tagDoc,
   },
+  calendar: {
+    monthCalendar: monthCalendarDoc,
+  },
   table: {
     dataGrid: dataGridDoc,
+  },
+  chart: {
+    chartPanel: chartPanelDoc,
   },
   icon: {
     ntqIcon: ntqIconDoc,
@@ -102,7 +118,9 @@ const DOCS = {
     dateRange: dateRangeDoc,
   },
   ntq: {
+    appBrand: appBrandDoc,
     appNav: appNavDoc,
+    appBreadcrumbs: appBreadcrumbsDoc,
     pageBanner: pageBannerDoc,
     pythonDictEditor: pythonDictEditorDoc,
   },

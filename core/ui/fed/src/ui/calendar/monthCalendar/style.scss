@@ -1,0 +1,157 @@
+.ntq-month-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ntq-space-sm);
+  width: 100%;
+  min-width: 0;
+}
+
+.ntq-month-calendar__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-month-calendar__title {
+  font-size: var(--ntq-font-md);
+  font-weight: var(--ntq-font-weight-bold);
+  line-height: var(--ntq-leading-tight);
+  color: var(--ntq-text);
+  text-align: center;
+}
+
+.ntq-month-calendar__title--solo {
+  margin-bottom: 0;
+}
+
+.ntq-month-calendar__nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: var(--ntq-radius-sm);
+  background: var(--ntq-white-03);
+  color: var(--ntq-text);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--ntq-white-06);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ntq-cyan);
+    outline-offset: 1px;
+  }
+}
+
+.ntq-month-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--ntq-white-12);
+  border-radius: var(--ntq-radius-md);
+  overflow: hidden;
+  background: rgba(6, 10, 24, 0.35);
+}
+
+.ntq-month-calendar__head {
+  text-align: center;
+  font-size: var(--ntq-font-xs);
+  font-weight: var(--ntq-font-weight-medium);
+  color: var(--ntq-text-muted);
+  padding: var(--ntq-space-sm) 0;
+  border-right: 1px solid var(--ntq-white-06);
+  border-bottom: 1px solid var(--ntq-white-12);
+  background: var(--ntq-white-03);
+
+  &:nth-child(7n) {
+    border-right: 0;
+  }
+}
+
+.ntq-month-calendar__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ntq-space-xxs);
+  min-width: 0;
+  padding: var(--ntq-space-xs);
+  border-right: 1px solid var(--ntq-white-06);
+  border-bottom: 1px solid var(--ntq-white-06);
+  box-sizing: border-box;
+  user-select: none;
+
+  &:nth-child(7n) {
+    border-right: 0;
+  }
+
+  &.is-pad {
+    padding: 0;
+    min-height: 0;
+  }
+
+  &.is-today {
+    background: color-mix(in srgb, var(--ntq-cyan) 10%, transparent);
+  }
+
+  &.is-selected {
+    box-shadow: inset 0 0 0 1px var(--ntq-cyan);
+  }
+
+  &.is-disabled {
+    opacity: 0.4;
+  }
+}
+
+.ntq-month-calendar--sm .ntq-month-calendar__cell {
+  min-height: 2.5rem;
+}
+
+.ntq-month-calendar--md .ntq-month-calendar__cell {
+  min-height: 7.25rem; // ~116px，可塞事件条
+  max-height: 9.25rem;
+}
+
+.ntq-month-calendar__num {
+  align-self: flex-end;
+  font-size: var(--ntq-font-xs);
+  font-weight: var(--ntq-font-weight-bold);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--ntq-text);
+}
+
+.ntq-month-calendar__day-btn {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+
+  &:focus-visible .ntq-month-calendar__num {
+    outline: 2px solid var(--ntq-cyan);
+    outline-offset: 1px;
+    border-radius: var(--ntq-radius-sm);
+  }
+}
+
+.ntq-month-calendar__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-height: 0;
+  overflow: auto;
+}

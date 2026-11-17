@@ -12,6 +12,9 @@ import ntqShowcases from './ntq';
 import tagShowcases from './tag';
 import tableShowcases from './table';
 import metricShowcases from './metric';
+import chartShowcases from './chart';
+import avatarShowcases from './avatar';
+import calendarShowcases from './calendar';
 
 const SHOWCASES = {
   layout: layoutShowcases,
@@ -19,8 +22,11 @@ const SHOWCASES = {
   heading: headingShowcases,
   separator: separatorShowcases,
   button: buttonShowcases,
+  avatar: avatarShowcases,
   tag: tagShowcases,
+  calendar: calendarShowcases,
   table: tableShowcases,
+  chart: chartShowcases,
   icon: iconShowcases,
   progress: progressShowcases,
   steps: stepsShowcases,

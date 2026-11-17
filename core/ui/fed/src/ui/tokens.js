@@ -52,6 +52,9 @@ export const COLUMN_VARIANTS = [
 /** Tabs 布局形态：上方横排 / 左右分栏 */
 export const TABS_VARIANTS = ['top', 'side'];
 
+/** SideNav 选中条形态：底边 / 左侧轨 */
+export const SIDE_NAV_VARIANTS = ['line', 'rail'];
+
 /** Icon 尺寸 */
 export const ICON_SIZE_TOKENS = ['sm', 'md', 'lg', 'xl', 'xxl'];
 
@@ -107,6 +110,12 @@ export const DATA_GRID_DENSITY_TOKENS = ['sm', 'md'];
 
 /** MetricGrid 列数（≥900px；窄屏默认 1 列，denseXs 时 2 列） */
 export const METRIC_GRID_COLUMN_TOKENS = [2, 3, 4];
+
+/** Avatar 尺寸 */
+export const AVATAR_SIZE_TOKENS = ['sm', 'md', 'lg'];
+
+/** MonthCalendar 格子密度：紧凑选日 / 可塞事件 */
+export const MONTH_CALENDAR_DENSITY_TOKENS = ['sm', 'md'];
 
 /** @deprecated 用 MESSAGE_STATUSES；保留别名以免旧引用报错 */
 export const MESSAGE_TONES = MESSAGE_STATUSES;

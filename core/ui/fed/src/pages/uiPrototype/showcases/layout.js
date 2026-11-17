@@ -4,6 +4,7 @@ import Column from 'ui/layout/column';
 import Block from 'ui/layout/block';
 import Section from 'ui/layout/section';
 import Tabs from 'ui/layout/tabs';
+import SideNav from 'ui/layout/sideNav';
 import Text from 'ui/text/text';
 import {
   COLUMN_VARIANTS,
@@ -13,6 +14,23 @@ import {
   TABS_VARIANTS,
 } from 'ui/tokens';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
+
+/** 图鉴内演示：阻止真实跳转 */
+function DemoLink({ to, children, className, onClick, ...rest }) {
+  return (
+    <a
+      {...rest}
+      href={to || '#'}
+      className={className}
+      onClick={(e) => {
+        e.preventDefault();
+        if (typeof onClick === 'function') onClick(e);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
 
 function DemoCell({ children }) {
   return <Box className="ui-prototype__column-demo">{children}</Box>;
@@ -352,11 +370,106 @@ function TabsShowcase() {
   );
 }
 
+function SideNavShowcase() {
+  const [activeId, setActiveId] = useState('layout');
+  const items = [
+    { id: 'layout', label: '布局', to: '#layout', meta: 5 },
+    { id: 'button', label: '按钮', to: '#button', meta: 2 },
+    { id: 'input', label: '输入', to: '#input', meta: 12 },
+    { id: 'disabled', label: '禁用项', to: '#x', meta: 0, disabled: true },
+  ];
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label='variant="line"（图鉴侧栏）' block>
+          <div style={{ maxWidth: '14rem' }}>
+            <SideNav
+              variant="line"
+              activeId={activeId}
+              items={items}
+              linkComponent={DemoLink}
+              onItemClick={setActiveId}
+            />
+          </div>
+        </SampleRow>
+        <SampleRow label='variant="rail"（设置风）' block>
+          <div style={{ maxWidth: '14rem' }}>
+            <SideNav
+              variant="rail"
+              activeId={activeId}
+              items={items}
+              linkComponent={DemoLink}
+              onItemClick={setActiveId}
+            />
+          </div>
+        </SampleRow>
+        <SampleRow label="Column sidebar + SideNav 组合" block>
+          <Column variant="sidebar" gap="none" divider="line">
+            <Block surface="panel" radius="none" padding="sm" gap="sm">
+              <SideNav
+                variant="line"
+                activeId={activeId}
+                items={items.slice(0, 3)}
+                linkComponent={DemoLink}
+                onItemClick={setActiveId}
+              />
+            </Block>
+            <Block surface="soft" padding="md" gap="none">
+              <p className="ntq-muted" style={{ margin: 0 }}>
+                右栏内容区（当前
+                {' '}
+                <Text variant="code">{activeId}</Text>
+                ）
+              </p>
+            </Block>
+          </Column>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleNA>
+          无独立 size；栏宽交给
+          {' '}
+          <Text variant="code">Column variant=&quot;sidebar&quot;</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>项间距 2px；内边距随 variant。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>
+          选中
+          {' '}
+          <Text variant="code">--ntq-cyan</Text>
+          ；meta 默认可选中同色。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleNA>
+          line=底边条；rail=左边条。同页绑内容用
+          {' '}
+          <Text variant="code">Tabs side</Text>
+          ；全站顶栏用
+          {' '}
+          <Text variant="code">AppNav</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const layoutShowcases = {
   column: ColumnShowcase,
   block: BlockShowcase,
   section: SectionShowcase,
   tabs: TabsShowcase,
+  sideNav: SideNavShowcase,
 };
 
 export default layoutShowcases;

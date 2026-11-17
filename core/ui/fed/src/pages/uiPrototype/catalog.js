@@ -14,7 +14,7 @@
  * L2（业务 status→L1 props 映射）另建，不进本图鉴。
  *
  * layout：布局原语；text：正文/特殊字；heading / separator：独立大类。
- * tag：状态/分类小块；table：DataGrid 封装。
+ * tag：状态/分类小块；table：DataGrid；chart：ChartPanel 壳（非 K 线业务）。
  * widget.uiPath 可选：覆盖磁盘路径（默认 `${categoryId}/${widgetId}`）。
  * ntq：应用壳 / 特有复合组件（nav、banner、pythonDictEditor…）；views/ 只读待迁。
  */
@@ -44,12 +44,13 @@ export const UI_CATALOG = [
   {
     id: 'layout',
     label: '布局',
-    description: '分栏与区块：Column / Block / Section / Tabs（上方或左右切换）。',
+    description: '分栏与区块：Column / Block / Section / Tabs / SideNav（左侧目录壳）。',
     widgets: [
       { id: 'column', label: 'column', origin: 'new', source: null, status: 'ready' },
       { id: 'block', label: 'block', origin: 'new', source: null, status: 'ready' },
       { id: 'section', label: 'section', origin: 'new', source: null, status: 'ready' },
       { id: 'tabs', label: 'tabs', origin: 'new', source: null, status: 'ready' },
+      { id: 'sideNav', label: 'sideNav', origin: 'new', source: null, status: 'ready' },
     ],
   },
   {
@@ -89,11 +90,34 @@ export const UI_CATALOG = [
     ],
   },
   {
+    id: 'avatar',
+    label: '头像',
+    description: '圆形头像（图 / 首字母）；会员条组合属 L2。',
+    widgets: [
+      { id: 'avatar', label: 'avatar', origin: 'new', source: null, status: 'ready', uiPath: 'avatar/avatar' },
+    ],
+  },
+  {
     id: 'tag',
     label: '标签',
-    description: '状态 / 分类小块（通用 Tag；业务 Freshness 等仍在指标类）。',
+    description: '状态 / 分类小块；业务 status→样式映射属 L2。',
     widgets: [
       { id: 'tag', label: 'tag', origin: 'new', source: null, status: 'ready', uiPath: 'tag/tag' },
+    ],
+  },
+  {
+    id: 'calendar',
+    label: '日历',
+    description: '月历网格壳；交易事件标注属 L2（renderDay）。',
+    widgets: [
+      {
+        id: 'monthCalendar',
+        label: 'monthCalendar',
+        origin: 'new',
+        source: null,
+        status: 'ready',
+        uiPath: 'calendar/monthCalendar',
+      },
     ],
   },
   {
@@ -108,6 +132,21 @@ export const UI_CATALOG = [
         source: null,
         status: 'ready',
         uiPath: 'table/dataGrid',
+      },
+    ],
+  },
+  {
+    id: 'chart',
+    label: '图表',
+    description: '图表壳与中性主题；K 线 / 业务 option 属 L2，不进本组件。',
+    widgets: [
+      {
+        id: 'chartPanel',
+        label: 'chartPanel',
+        origin: 'migrate',
+        source: 'views/chartPanel',
+        status: 'ready',
+        uiPath: 'chart/chartPanel',
       },
     ],
   },
@@ -133,22 +172,38 @@ export const UI_CATALOG = [
   {
     id: 'ntq',
     label: 'NTQ 特有',
-    description: '应用壳与业务向复合组件：导航、页头 Banner、Python dict 编辑器等（与通用 input 分开）。',
+    description: '应用壳：品牌、导航、面包屑、页头 Banner、Python dict 编辑器等。',
     widgets: [
+      {
+        id: 'appBrand',
+        label: 'brand',
+        origin: 'migrate',
+        source: 'views/appBrand',
+        status: 'ready',
+        uiPath: 'ntq/appBrand',
+      },
       {
         id: 'appNav',
         label: 'nav',
         origin: 'migrate',
         source: 'views/appNav',
-        status: 'stub',
+        status: 'ready',
         uiPath: 'ntq/appNav',
+      },
+      {
+        id: 'appBreadcrumbs',
+        label: 'breadcrumb',
+        origin: 'migrate',
+        source: 'views/appBreadcrumbs',
+        status: 'ready',
+        uiPath: 'ntq/appBreadcrumbs',
       },
       {
         id: 'pageBanner',
         label: 'banner',
         origin: 'migrate',
         source: 'views/pageBanner',
-        status: 'stub',
+        status: 'ready',
         uiPath: 'ntq/pageBanner',
       },
       {

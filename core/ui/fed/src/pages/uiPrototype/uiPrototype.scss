@@ -26,55 +26,7 @@
   color: var(--ntq-text-muted, rgba(255, 255, 255, 0.55)) !important;
 }
 
-.ui-prototype__menu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ui-prototype__menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 4px 8px;
-  border-radius: 0;
-  color: #fff !important;
-  font-size: 0.95rem;
-  font-weight: 400;
-  line-height: 1.3;
-  border-bottom: 3px solid transparent;
-  transition: border-color 0.15s ease, color 0.15s ease;
-
-  &:hover {
-    color: #fff !important;
-    background: transparent;
-    opacity: 0.88;
-  }
-
-  &.is-active {
-    color: #fff !important;
-    font-weight: 700;
-    border-bottom-color: var(--ntq-cyan, #22d3ee);
-    opacity: 1;
-  }
-}
-
-.ui-prototype__menu-label {
-  flex: 1 1 auto;
-}
-
-.ui-prototype__menu-count {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
-  min-width: 1.25rem;
-  text-align: right;
-  font-weight: 500;
-}
-
-.ui-prototype__menu-item.is-active .ui-prototype__menu-count {
-  color: var(--ntq-cyan, #22d3ee);
-}
+// 侧栏菜单：ui/layout/sideNav
 
 .ui-prototype__content {
   min-width: 0;

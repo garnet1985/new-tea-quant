@@ -1,5 +1,19 @@
-# pageBanner（banner）
+# pageBanner
 
-> 状态：**占位（stub）** — 计划对齐 `views/pageBanner`（页头标题 + 说明 + 右侧槽）。
+NTQ 页头 Banner。
 
-属 `ui/ntq` 应用壳。通栏消息条仍用 `ui/message` 的 `variant="banner"`。
+```js
+import PageBanner from 'ui/ntq/pageBanner';
+
+<PageBanner
+  title="策略列表"
+  description="管理已导入的策略包。"
+  rightSlot={<NtqButton icon="refresh">刷新</NtqButton>}
+/>
+```
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `title` | — | 主标题 |
+| `description` | `null` | 说明 |
+| `rightSlot` | `null` | 右侧操作 |

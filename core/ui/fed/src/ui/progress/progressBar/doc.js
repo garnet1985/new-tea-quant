@@ -1,5 +1,5 @@
 const doc = {
-  summary: '线性进度条。size 用 sm/md token；value 为业务进度 0–100（数据，不是样式像素）。不传 value 则为不确定进度动画。',
+  summary: '线性进度条（回测风格：紫→青渐变）。size 用 sm/md；value 0–100。可选 label（step 名）与 showPercent。',
   params: [
     {
       name: 'value',
@@ -10,18 +10,31 @@ const doc = {
     {
       name: 'size',
       type: "'sm' | 'md'",
-      defaultValue: "'md'",
-      description: '高度 token → --ntq-progress-height-*。',
+      defaultValue: "'sm'",
+      description: '条高 token；sm=回测 4px 条。',
+    },
+    {
+      name: 'label',
+      type: 'ReactNode',
+      defaultValue: 'null',
+      description: '左侧文案，如 step 名。',
+    },
+    {
+      name: 'showPercent',
+      type: 'boolean',
+      defaultValue: 'false',
+      description: '右侧显示取整百分比。',
     },
     {
       name: 'aria-label',
       type: 'string',
-      defaultValue: "'进度'",
+      defaultValue: '由 label /「进度」',
       description: '无障碍。',
     },
   ],
   scenarios: [
-    '任务完成度：value={pct}。',
+    '回测执行：value={pct} label="枚举信号" showPercent。',
+    '仅条：value={pct}。',
     '未知耗时：不传 value。',
   ],
   antiPatterns: [

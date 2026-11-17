@@ -58,9 +58,10 @@ export const ICON_SIZE_TOKENS = ['sm', 'md', 'lg', 'xl', 'xxl'];
 /** Icon 色调 */
 export const ICON_TONE_TOKENS = ['', 'muted', 'success', 'error', 'warning', 'disabled', 'cyan', 'violet'];
 
-/** LoadingBars / ProgressBar 尺寸 */
+/** LoadingBars / ProgressBar / ProgressRing 尺寸 */
 export const LOADING_BARS_SIZE_TOKENS = ['md', 'sm'];
 export const PROGRESS_SIZE_TOKENS = ['sm', 'md'];
+export const PROGRESS_RING_SIZE_TOKENS = ['sm', 'md'];
 
 /** Loading 场景形态 */
 export const LOADING_VARIANTS = ['page', 'inline', 'inlineRow'];

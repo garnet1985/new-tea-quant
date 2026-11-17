@@ -2,6 +2,7 @@ import React from 'react';
 import LoadingBars from 'ui/progress/loadingBars';
 import Loading from 'ui/progress/loading';
 import ProgressBar from 'ui/progress/progressBar';
+import ProgressRing from 'ui/progress/progressRing';
 import Section from 'ui/layout/section';
 import Block from 'ui/layout/block';
 import Text from 'ui/text/text';
@@ -111,41 +112,51 @@ function ProgressBarShowcase() {
       <SampleDim title="1. 形态">
         <SampleRow label="有 value → 确定进度" block>
           <Section gap="sm">
-            <ProgressBar value={35} size="md" />
-            <ProgressBar value={72} size="md" />
+            <ProgressBar value={35} />
+            <ProgressBar value={72} />
           </Section>
         </SampleRow>
         <SampleRow label="无 value → 不确定进度" block>
-          <ProgressBar size="md" />
+          <ProgressBar />
+        </SampleRow>
+        <SampleRow label="label + showPercent（step 名 + 百分比）" block>
+          <Section gap="sm">
+            <ProgressBar value={42} label="枚举信号" showPercent />
+            <ProgressBar value={78} label="回测" showPercent />
+          </Section>
         </SampleRow>
       </SampleDim>
 
       <SampleDim title="2. 大小">
-        <SampleRow label='size="md"' block>
-          <ProgressBar value={50} size="md" />
+        <SampleRow label='size="sm"（默认，回测条高）' block>
+          <ProgressBar value={50} size="sm" label="sm" showPercent />
         </SampleRow>
-        <SampleRow label='size="sm"' block>
-          <ProgressBar value={50} size="sm" />
+        <SampleRow label='size="md"' block>
+          <ProgressBar value={50} size="md" label="md" showPercent />
         </SampleRow>
       </SampleDim>
 
       <SampleDim title="3. 间距">
         <SampleNA>
-          本组件无
+          文案与条之间固定
+          {' '}
+          <Text variant="code">xs</Text>
+          ；与兄弟块的上下距交给父级
           {' '}
           <Text variant="code">gap</Text>
-          {' '}
-          参数。
+          。
         </SampleNA>
       </SampleDim>
 
       <SampleDim title="4. 颜色">
-        <SampleNA>跟随主题主色，无独立色调参数。</SampleNA>
+        <SampleNA>
+          固定紫→青渐变（回测条），无独立 tone 参数。
+        </SampleNA>
       </SampleDim>
 
       <SampleDim title="5. 外观">
         <SampleNA>
-          轨道圆角来自组件样式 / 全局圆角变量，无独立
+          轨道微圆角；无独立
           {' '}
           <Text variant="code">radius</Text>
           {' '}
@@ -156,10 +167,61 @@ function ProgressBarShowcase() {
   );
 }
 
+function ProgressRingShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="有 value → 确定进度">
+          <ProgressRing value={35} showPercent />
+          <ProgressRing value={72} showPercent />
+        </SampleRow>
+        <SampleRow label="无 value → 不确定旋转">
+          <ProgressRing />
+        </SampleRow>
+        <SampleRow label="label + showPercent">
+          <ProgressRing value={40} label="枚举" showPercent />
+          <ProgressRing value={85} label="回测" showPercent />
+        </SampleRow>
+        <SampleRow label="children 自定义环心（如步骤号）">
+          <ProgressRing value={60}>3</ProgressRing>
+          <ProgressRing value={100} label="完成">✓</ProgressRing>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleRow label='size="md"（默认，≈回测环）'>
+          <ProgressRing value={55} size="md" showPercent />
+        </SampleRow>
+        <SampleRow label='size="sm"'>
+          <ProgressRing value={55} size="sm" showPercent />
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>
+          环与 label 之间固定
+          {' '}
+          <Text variant="code">xs</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>环填充固定青色（对齐 step 环），无独立 tone。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleNA>细描边圆环；无独立 thickness / radius 参数。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const progressShowcases = {
   loadingBars: LoadingBarsShowcase,
   loading: LoadingShowcase,
   progressBar: ProgressBarShowcase,
+  progressRing: ProgressRingShowcase,
 };
 
 export default progressShowcases;

@@ -16,7 +16,8 @@
   - **分隔线**（图鉴 `/dev/ui/separator`）：`separator`。
   - 磁盘仍在 `ui/text/*`；图鉴大类分开便于浏览。
   - 普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等），不是组件。
-- **icon** / **progress** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
+- **icon** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
+- **progress**：`loadingBars` / `loading`；`progressBar`（回测线性条，可选 label + showPercent）；`progressRing`（step 圆环，可选 label / showPercent / 环心 children）。
 - **message**：
   - `message`：`variant="inline"` 圆角+border+底色无 bar；`banner` 有 bar 无圆角。`status`（图标固定）或 `color`（icon 可传/省略）。
   - `toast`：右下角短暂弹出（`ToastHost` + `showToast({ status, content })`）；内部复用 Message。
@@ -81,6 +82,8 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
 <Text variant="code">/dev/ui</Text>
 <NtqIcon name="settings" size="md" />
 <Loading variant="inline" />
+<ProgressBar value={42} label="枚举信号" showPercent />
+<ProgressRing value={65} label="回测" showPercent />
 <Message status="info">同步已完成。</Message>
 <Message status="warning" variant="banner">维护窗口即将开始。</Message>
 <Message color="violet" icon="chat">装饰性说明</Message>

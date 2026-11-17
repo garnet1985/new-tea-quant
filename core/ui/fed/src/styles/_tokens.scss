@@ -120,9 +120,11 @@ body {
   --ntq-icon-xl: 2rem;    // 32px
   --ntq-icon-xxl: 3rem;   // 48px
 
-  // --- 进度条 ---
-  --ntq-progress-height-sm: 0.25rem; // 4px
+  // --- 进度条（线性高度 / 圆环外径）---
+  --ntq-progress-height-sm: 0.25rem; // 4px（回测条）
   --ntq-progress-height-md: 0.5rem;  // 8px
+  --ntq-progress-ring-sm: 2.5rem;    // 40px
+  --ntq-progress-ring-md: 3.5rem;    // 56px（对齐回测 step 环）
 
   // 表单控件字号：与默认正文同档（0.875rem = 14px）
   --ntq-form-control-font-size: var(--ntq-font-normal);

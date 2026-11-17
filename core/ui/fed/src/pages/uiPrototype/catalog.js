@@ -123,11 +123,12 @@ export const UI_CATALOG = [
   {
     id: 'progress',
     label: '进度',
-    description: '加载与进度条原语（pageLoadingState 等组合壳暂留 views）。',
+    description: '加载动画、线性进度（回测条）与圆环进度（step 环）。',
     widgets: [
       { id: 'loadingBars', label: 'loadingBars', origin: 'new', source: null, status: 'ready' },
       { id: 'loading', label: 'loading', origin: 'new', source: null, status: 'ready' },
       { id: 'progressBar', label: 'progressBar', origin: 'new', source: null, status: 'ready' },
+      { id: 'progressRing', label: 'progressRing', origin: 'new', source: null, status: 'ready' },
     ],
   },
   {

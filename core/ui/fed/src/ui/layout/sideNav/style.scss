@@ -2,6 +2,16 @@
   min-width: 0;
 }
 
+// 贴顶：仅菜单自身 sticky。整栏（标题+菜单）贴顶用外层 Block sticky。
+.ntq-side-nav--sticky {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
 .ntq-side-nav__list {
   display: flex;
   flex-direction: column;

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Box } from '@mui/material';
 import Column from 'ui/layout/column';
 import Block from 'ui/layout/block';
 import Section from 'ui/layout/section';
@@ -33,7 +32,7 @@ function DemoLink({ to, children, className, onClick, ...rest }) {
 }
 
 function DemoCell({ children }) {
-  return <Box className="ui-prototype__column-demo">{children}</Box>;
+  return <div className="ui-prototype__column-demo">{children}</div>;
 }
 
 function cellsFor(variant) {
@@ -92,7 +91,7 @@ function ColumnShowcase() {
         >
           <Section gap="md">
             {['none', 'sm', 'md', 'xl'].map((gap) => (
-              <Box key={gap}>
+              <div key={gap}>
                 <p className="ntq-caption">
                   <Text variant="code">{`gap="${gap}"`}</Text>
                 </p>
@@ -100,7 +99,7 @@ function ColumnShowcase() {
                   <DemoCell>甲</DemoCell>
                   <DemoCell>乙</DemoCell>
                 </Column>
-              </Box>
+              </div>
             ))}
           </Section>
         </SampleRow>
@@ -424,6 +423,29 @@ function SideNavShowcase() {
               </p>
             </Block>
           </Column>
+        </SampleRow>
+        <SampleRow label="sticky 贴顶" block>
+          <Section gap="sm">
+            <p className="ntq-caption" style={{ margin: 0 }}>
+              仅菜单：
+              {' '}
+              <Text variant="code">SideNav sticky</Text>
+              。整栏（标题+菜单）：
+              {' '}
+              <Text variant="code">Block sticky</Text>
+              ，SideNav 不再开 sticky。
+            </p>
+            <div style={{ maxWidth: '14rem' }}>
+              <SideNav
+                sticky
+                variant="line"
+                activeId={activeId}
+                items={items.slice(0, 3)}
+                linkComponent={DemoLink}
+                onItemClick={setActiveId}
+              />
+            </div>
+          </Section>
         </SampleRow>
       </SampleDim>
 

@@ -20,6 +20,12 @@ const doc = {
       description: 'line=底边选中条（图鉴）；rail=左侧色条（设置风）。',
     },
     {
+      name: 'sticky',
+      type: 'boolean',
+      defaultValue: 'false',
+      description: '是否 position:sticky 贴顶（max-height 100vh + 内部滚动）。整栏含标题贴顶时用外层 Block sticky，本项保持 false。',
+    },
+    {
       name: 'linkComponent',
       type: 'Component',
       defaultValue: 'RouterLink',

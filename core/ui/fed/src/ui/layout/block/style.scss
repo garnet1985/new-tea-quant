@@ -54,3 +54,12 @@
 .ntq-block--bordered:not([class*='ntq-block--surface-']) {
   background: var(--ntq-surface-soft);
 }
+
+// 贴顶：侧栏整栏（标题 + SideNav）常用
+.ntq-block--sticky {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow: auto;
+}

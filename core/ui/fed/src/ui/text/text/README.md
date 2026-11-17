@@ -23,7 +23,7 @@
 <Text variant="accent">仅此一词</Text>
 
 <a className="ntq-link" href="/docs">文档</a>
-<a className="ntq-link" href="/dev/ui/heading">
+<a className="ntq-link" href="/dev/ui/text#heading">
   标题图鉴
   <NtqIcon name="chevronRight" size="sm" />
 </a>

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Box } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import NtqButton from 'ui/button/ntqButton';
 import RainbowButton from 'ui/button/rainbowButton';
@@ -93,14 +92,14 @@ function RainbowButtonShowcase() {
 
       <SampleDim title="2. 大小">
         <SampleRow label='圆形：size="sm" | "lg"'>
-          <Box className="ui-prototype__icon-size-cell">
+          <div className="ui-prototype__icon-size-cell">
             <RainbowButton icon="play" size="sm" aria-label="小" />
             <Text variant="code">sm</Text>
-          </Box>
-          <Box className="ui-prototype__icon-size-cell">
+          </div>
+          <div className="ui-prototype__icon-size-cell">
             <RainbowButton icon="play" size="lg" aria-label="大" />
             <Text variant="code">lg</Text>
-          </Box>
+          </div>
         </SampleRow>
       </SampleDim>
 
@@ -116,31 +115,31 @@ function RainbowButtonShowcase() {
 
       <SampleDim title="4. 颜色">
         <SampleRow label="glow 脉冲光晕；quiet 同款光晕但不闪">
-          <Box className="ui-prototype__icon-size-cell">
+          <div className="ui-prototype__icon-size-cell">
             <RainbowButton mark="ai" size="lg" ring="still" glow aria-label="发光" />
             <Text variant="code">glow</Text>
-          </Box>
-          <Box className="ui-prototype__icon-size-cell">
+          </div>
+          <div className="ui-prototype__icon-size-cell">
             <RainbowButton mark="ai" size="lg" ring="still" glow quiet aria-label="安静" />
             <Text variant="code">quiet</Text>
-          </Box>
+          </div>
         </SampleRow>
       </SampleDim>
 
       <SampleDim title="5. 外观">
         <SampleRow label='ring="spin" | "still" | "plain"'>
-          <Box className="ui-prototype__icon-size-cell">
+          <div className="ui-prototype__icon-size-cell">
             <RainbowButton icon="play" ring="spin" aria-label="旋转环" />
             <Text variant="code">spin</Text>
-          </Box>
-          <Box className="ui-prototype__icon-size-cell">
+          </div>
+          <div className="ui-prototype__icon-size-cell">
             <RainbowButton icon="play" ring="still" aria-label="静止环" />
             <Text variant="code">still</Text>
-          </Box>
-          <Box className="ui-prototype__icon-size-cell">
+          </div>
+          <div className="ui-prototype__icon-size-cell">
             <RainbowButton icon="cancel" ring="plain" aria-label="无环" />
             <Text variant="code">plain</Text>
-          </Box>
+          </div>
         </SampleRow>
         <SampleRow label="胶囊 + 禁用">
           <RainbowButton shape="pill" ring="spin" disabled>

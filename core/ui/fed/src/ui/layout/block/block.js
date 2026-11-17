@@ -11,6 +11,7 @@ import './style.scss';
  * <Block surface="soft" radius="md" bordered />
  * <Block surface="glass" radius="lg" bordered />
  * <Block surface="panel" radius="none" gap="none" />
+ * <Block sticky surface="panel" radius="none">侧栏整栏贴顶</Block>
  */
 function Block({
   padding = 'md',
@@ -18,6 +19,7 @@ function Block({
   radius,
   surface = 'none',
   bordered = false,
+  sticky = false,
   className = '',
   style,
   children,
@@ -38,6 +40,7 @@ function Block({
     `ntq-block--radius-${radiusToken}`,
     surfaceToken !== 'none' ? `ntq-block--surface-${surfaceToken}` : '',
     bordered ? 'ntq-block--bordered' : '',
+    sticky ? 'ntq-block--sticky' : '',
     className,
   ].filter(Boolean).join(' ');
 

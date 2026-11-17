@@ -1,6 +1,6 @@
 # separator
 
-> 路径 `ui/text/separator`（图鉴大类 `/dev/ui/separator`）
+> 路径 `ui/text/separator`（图鉴 `/dev/ui/text#separator`）
 
 分隔标题：左边文字（caption 字号/色），右边一根线。
 

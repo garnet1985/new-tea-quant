@@ -22,7 +22,10 @@ import Column from 'ui/layout/column';
 | 参数 | 合法值 | 默认 |
 |------|--------|------|
 | `variant` | `line` `rail` | `line` |
+| `sticky` | `true` `false` | `false` |
 | `items` | `{ id, label, to?, meta? }[]` | `[]` |
 | `activeId` | string | `''` |
+
+`sticky`：仅菜单贴顶。侧栏还有标题 / 说明要一起贴顶时，用外层 `<Block sticky>`，SideNav 不再开 sticky。
 
 同页切面板用 `Tabs variant="side"`；全站顶栏用 `AppNav`。

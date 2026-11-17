@@ -10,8 +10,8 @@ const doc = {
     {
       name: 'pathname',
       type: 'string',
-      defaultValue: 'useLocation().pathname',
-      description: '覆盖当前路径（图鉴演示激活态）；默认跟 Router。',
+      defaultValue: '跟 Router；未在 Router 内则为空',
+      description: '显式传入时不再调用 useLocation（图鉴演示激活态用这个，勿套 MemoryRouter）。',
     },
     {
       name: 'linkComponent',

@@ -6,7 +6,6 @@ import ProgressRing from 'ui/progress/progressRing';
 import Section from 'ui/layout/section';
 import Block from 'ui/layout/block';
 import Text from 'ui/text/text';
-import { Box } from '@mui/material';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
 
 function LoadingBarsShowcase() {
@@ -23,14 +22,14 @@ function LoadingBarsShowcase() {
 
       <SampleDim title="2. 大小">
         <SampleRow label='size："md" | "sm"'>
-          <Box className="ui-prototype__icon-size-cell">
+          <div className="ui-prototype__icon-size-cell">
             <LoadingBars size="md" />
             <Text variant="code">md</Text>
-          </Box>
-          <Box className="ui-prototype__icon-size-cell">
+          </div>
+          <div className="ui-prototype__icon-size-cell">
             <LoadingBars size="sm" />
             <Text variant="code">sm</Text>
-          </Box>
+          </div>
         </SampleRow>
       </SampleDim>
 

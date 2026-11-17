@@ -11,6 +11,9 @@
 
 L1 不收业务 status key；views 里的 `freshnessStatusChip` 等属 L2，稳定后再迁，不进图鉴。
 
+回测报告小节用 NTQ 固定模板 **`reportBlock`**（对齐旧 `views/sectionBlock`），内部再拼
+`MetricCard`/`MetricGrid`/`ChartPanel`/`Message`；不要各页自造边框壳，避免 agent 实现五花八门。
+
 ## 约定
 
 - 只放 **L1 设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
@@ -19,29 +22,16 @@ L1 不收业务 status key；views 里的 `freshnessStatusChip` 等属 L2，稳�
   - `Block`：`surface`（soft/panel/glass/gradient）+ `radius`（含 pill）+ `bordered`。
   - `Section`：纵向堆叠 + `gap`；表面仍用内嵌 Block。
   - `Tabs`：`variant="top"` 上方切换；`variant="side"` 左右分栏（同页切 panel）。
-  - `SideNav`：左侧目录壳（`line` / `rail`）；栏宽用 Column sidebar，右栏自管（Outlet 等）。
-- **text**：
-  - **文字**（图鉴 `/dev/ui/text`）：`text` / `quote` / `textBlock` / `codeBlock`。
-  - **标题**（图鉴 `/dev/ui/heading`）：`heading`（`level` + `variant`/`subtitle`/`gap`）。
-  - **分隔线**（图鉴 `/dev/ui/separator`）：`separator`。
-  - 磁盘仍在 `ui/text/*`；图鉴大类分开便于浏览。
-  - 普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等），不是组件。
-- **icon** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
-- **tag**：通用标签 / 状态小块 — `status` 或 `color`；`variant` soft（半透明）/ outline / solid（同色实心）；`size` sm/md；可选 `icon` / `onDelete`。业务 Freshness 等仍在 **metric**。
-- **table**：`dataGrid`（MUI DataGrid 封装；默认中文、Loading 覆盖层、`density` sm/md）。列定义仍由业务传入。列表 Search / CountTab 过滤由**上层**组合（`SearchField` + `CountTab` → `displayRows` → `DataGrid`），不塞进表格。
-- **chart**：`chartPanel`（标题 / tip / ECharts 壳）+ `chartTheme`（中性暗色轴/tooltip）。K 线等业务 option 属 L2（`marketChart`），不进本组件。
-- **metric**：`metricCard` + `metricGrid`；`countTab` / `countBadge`。
-- **progress**：`loadingBars` / `loading`；`progressBar`（回测线性条，可选 label + showPercent）；`progressRing`（step 圆环，可选 label / showPercent / 环心 children）。
-- **steps**：`stepper`（回测步骤条；`activeId` + `status`；可 `href` / RouterLink / `onItemClick`；`showProgress` 可关进度环）。
+  - `SideNav`：左侧目录壳（`line` / `rail`）；可选 `sticky` 贴顶。整栏（标题+菜单）贴顶用外层 `Block sticky`。栏宽用 Column sidebar，右栏自管（Outlet 等）。
+- **text**（图鉴 `/dev/ui/text`）：`text` / `heading` / `separator` / `quote` / `textBlock` / `codeBlock`。磁盘仍在 `ui/text/*`。普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等）。
+- **button**：见目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
+- **display**（图鉴 `/dev/ui/display`）：`ntqIcon`；`avatar`；`tag`（`status`/`color`；soft/outline/solid；sm/md）。业务 Freshness 映射属 L2。
+- **data**（图鉴 `/dev/ui/data`）：`dataGrid`；`chartPanel`（+ `chartTheme`）；`monthCalendar`；`metricCard` / `metricGrid`；`countTab` / `countBadge`。K 线 option / 交易日事件属 L2。列表过滤由上层组合 SearchField + CountTab。
 - **input**：通用表单原语 — `field`；`textField` / `textArea`；`checkbox`；`radio`；`switch`；`select`；`searchSelect`；`searchField`；`autocomplete`；`date` / `dateRange`。数值暂用 `TextField type="number"`。
-- **avatar**：圆形头像（图 / 首字母）；`size` sm/md/lg。
-- **calendar**：`monthCalendar` 月历壳（`density` sm/md + `renderDay`）；交易事件属 L2。
-- **ntq**：应用壳 — `appBrand`；`appNav`；`appBreadcrumbs`；`pageBanner`；`pythonDictEditor`。见 `ui/ntq/README.md`。
-- **message**：
-  - `message`：`variant="inline"` 圆角+border+底色无 bar；`banner` 有 bar 无圆角。`status`（图标固定）或 `color`（icon 可传/省略）。
-  - `toast`：右下角短暂弹出（`ToastHost` + `showToast({ status, content })`）；内部复用 Message。
-  - `ntqHelpTooltip`：说明气泡（对齐 app；`variant` help/info/warning；图标固定 md）。
-- 隐形图鉴 `/dev/ui` **只能**展示本目录下的组件。
+- **feedback**（图鉴 `/dev/ui/feedback`）：`message` / `toast` / `ntqHelpTooltip`；`loadingBars` / `loading` / `progressBar` / `progressRing`；`stepper`。
+- **ntq**：应用壳与报告模板 — `appBrand`；`appNav`；`appBreadcrumbs`；`pageBanner`；`reportBlock`；`pythonDictEditor`。见 `ui/ntq/README.md`。
+- 隐形图鉴 `/dev/ui` **只能**展示本目录下的组件。图鉴大类已合并（旧路径如 `/dev/ui/heading` 会重定向到合并后的大类）。
+- 图鉴另有 **NTQ 业务准则**（`/dev/ui/guidelines`）：产品页何时用何种 layout / 模板；迁 legacy 时边补，可先空。
 
 ## 命名：统一用 `variant` + `size`
 

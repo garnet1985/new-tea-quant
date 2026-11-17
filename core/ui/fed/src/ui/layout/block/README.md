@@ -23,5 +23,6 @@
 | `radius` | `none` `sm` `md` `lg` `pill` | 未传时：`bordered`→`md`，否则 `none` |
 | `surface` | `none` `soft` `panel` `glass` `gradient` | `none` |
 | `bordered` | boolean | `false` |
+| `sticky` | boolean | `false`（整栏贴顶；仅菜单贴顶用 SideNav sticky） |
 
 改数值：覆盖 `--ntq-space-*` / `--ntq-radius-*` / `--ntq-surface-*` / `--ntq-blur-*`。

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Box } from '@mui/material';
 import NtqIcon, { NTQ_ICON_NAMES } from 'ui/icon/ntqIcon';
 import { ICON_SIZE_TOKENS, ICON_TONE_TOKENS } from 'ui/tokens';
 import Text from 'ui/text/text';
@@ -21,21 +20,21 @@ function NtqIconShowcase() {
     <Showcase>
       <SampleDim title={`1. 形态（全部图标，共 ${NTQ_ICON_NAMES.length} 个）`}>
         <SampleRow block>
-          <Box className="ui-prototype__icon-grid">
+          <div className="ui-prototype__icon-grid">
             {NTQ_ICON_NAMES.map((name) => (
               <IconTile key={name} name={name} />
             ))}
-          </Box>
+          </div>
         </SampleRow>
       </SampleDim>
 
       <SampleDim title="2. 大小">
         <SampleRow label={`size：${ICON_SIZE_TOKENS.join(' | ')}`}>
           {ICON_SIZE_TOKENS.map((size) => (
-            <Box key={size} className="ui-prototype__icon-size-cell">
+            <div key={size} className="ui-prototype__icon-size-cell">
               <NtqIcon name="settings" size={size} />
               <Text variant="code">{size}</Text>
-            </Box>
+            </div>
           ))}
         </SampleRow>
       </SampleDim>
@@ -51,25 +50,25 @@ function NtqIconShowcase() {
 
       <SampleDim title="4. 颜色">
         <SampleRow label="默认（空）继承当前字色；其余为语义色">
-          <Box className="ui-prototype__icon-size-cell">
+          <div className="ui-prototype__icon-size-cell">
             <NtqIcon name="settings" size="lg" />
             <Text variant="code">默认</Text>
-          </Box>
+          </div>
           {tones.map((tone) => (
-            <Box key={tone} className="ui-prototype__icon-size-cell">
+            <div key={tone} className="ui-prototype__icon-size-cell">
               <NtqIcon name="settings" size="lg" tone={tone} />
               <Text variant="code">{tone}</Text>
-            </Box>
+            </div>
           ))}
         </SampleRow>
       </SampleDim>
 
       <SampleDim title="5. 外观">
         <SampleRow label="旋转动画；无圆角 / 外形参数">
-          <Box className="ui-prototype__icon-size-cell">
+          <div className="ui-prototype__icon-size-cell">
             <NtqIcon name="refresh" size="lg" spin />
             <Text variant="code">spin</Text>
-          </Box>
+          </div>
         </SampleRow>
       </SampleDim>
     </Showcase>

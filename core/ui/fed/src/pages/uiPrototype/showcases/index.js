@@ -15,28 +15,37 @@ import metricShowcases from './metric';
 import chartShowcases from './chart';
 import avatarShowcases from './avatar';
 import calendarShowcases from './calendar';
+import { resolveCategoryId } from '../catalog';
 
 const SHOWCASES = {
   layout: layoutShowcases,
-  text: textShowcases,
-  heading: headingShowcases,
-  separator: separatorShowcases,
+  text: {
+    ...textShowcases,
+    ...headingShowcases,
+    ...separatorShowcases,
+  },
   button: buttonShowcases,
-  avatar: avatarShowcases,
-  tag: tagShowcases,
-  calendar: calendarShowcases,
-  table: tableShowcases,
-  chart: chartShowcases,
-  icon: iconShowcases,
-  progress: progressShowcases,
-  steps: stepsShowcases,
-  message: messageShowcases,
+  display: {
+    ...iconShowcases,
+    ...avatarShowcases,
+    ...tagShowcases,
+  },
+  data: {
+    ...tableShowcases,
+    ...chartShowcases,
+    ...calendarShowcases,
+    ...metricShowcases,
+  },
   input: inputShowcases,
+  feedback: {
+    ...messageShowcases,
+    ...progressShowcases,
+    ...stepsShowcases,
+  },
   ntq: ntqShowcases,
-  metric: metricShowcases,
 };
 
 export function getWidgetShowcase(categoryId, widgetId) {
-  const Showcase = SHOWCASES[categoryId]?.[widgetId];
-  return Showcase || null;
+  const id = resolveCategoryId(categoryId);
+  return SHOWCASES[id]?.[widgetId] || null;
 }

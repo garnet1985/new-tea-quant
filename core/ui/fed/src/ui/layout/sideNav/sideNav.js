@@ -14,12 +14,14 @@ import './style.scss';
  *     { id: 'button', label: '按钮', to: '/dev/ui/button', meta: 2 },
  *   ]}
  *   activeId="layout"
+ *   sticky
  * />
  */
 function SideNav({
   items = [],
   activeId = '',
   variant = 'line',
+  sticky = false,
   linkComponent: Link = RouterLink,
   onItemClick,
   className = '',
@@ -30,6 +32,7 @@ function SideNav({
   const rootClass = [
     'ntq-side-nav',
     `ntq-side-nav--${variantToken}`,
+    sticky ? 'ntq-side-nav--sticky' : '',
     className,
   ].filter(Boolean).join(' ');
 

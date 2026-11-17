@@ -35,6 +35,7 @@ import dateRangeDoc from 'ui/input/dateRange/doc';
 import appNavDoc from 'ui/ntq/appNav/doc';
 import appBreadcrumbsDoc from 'ui/ntq/appBreadcrumbs/doc';
 import pageBannerDoc from 'ui/ntq/pageBanner/doc';
+import reportBlockDoc from 'ui/ntq/reportBlock/doc';
 import pythonDictEditorDoc from 'ui/ntq/pythonDictEditor/doc';
 import tagDoc from 'ui/tag/tag/doc';
 import dataGridDoc from 'ui/table/dataGrid/doc';
@@ -46,6 +47,7 @@ import chartPanelDoc from 'ui/chart/chartPanel/doc';
 import avatarDoc from 'ui/avatar/avatar/doc';
 import monthCalendarDoc from 'ui/calendar/monthCalendar/doc';
 import appBrandDoc from 'ui/ntq/appBrand/doc';
+import { resolveCategoryId } from './catalog';
 
 const DOCS = {
   layout: {
@@ -57,51 +59,29 @@ const DOCS = {
   },
   text: {
     text: textDoc,
+    heading: headingDoc,
+    separator: separatorDoc,
     quote: quoteDoc,
     textBlock: textBlockDoc,
     codeBlock: codeBlockDoc,
-  },
-  heading: {
-    heading: headingDoc,
-  },
-  separator: {
-    separator: separatorDoc,
   },
   button: {
     ntqButton: ntqButtonDoc,
     rainbowButton: rainbowButtonDoc,
   },
-  avatar: {
+  display: {
+    ntqIcon: ntqIconDoc,
     avatar: avatarDoc,
-  },
-  tag: {
     tag: tagDoc,
   },
-  calendar: {
-    monthCalendar: monthCalendarDoc,
-  },
-  table: {
+  data: {
     dataGrid: dataGridDoc,
-  },
-  chart: {
     chartPanel: chartPanelDoc,
-  },
-  icon: {
-    ntqIcon: ntqIconDoc,
-  },
-  progress: {
-    loadingBars: loadingBarsDoc,
-    loading: loadingDoc,
-    progressBar: progressBarDoc,
-    progressRing: progressRingDoc,
-  },
-  steps: {
-    stepper: stepperDoc,
-  },
-  message: {
-    message: messageDoc,
-    toast: toastDoc,
-    ntqHelpTooltip: ntqHelpTooltipDoc,
+    monthCalendar: monthCalendarDoc,
+    metricCard: metricCardDoc,
+    metricGrid: metricGridDoc,
+    countBadge: countBadgeDoc,
+    countTab: countTabDoc,
   },
   input: {
     field: fieldDoc,
@@ -117,21 +97,27 @@ const DOCS = {
     date: dateDoc,
     dateRange: dateRangeDoc,
   },
+  feedback: {
+    message: messageDoc,
+    toast: toastDoc,
+    ntqHelpTooltip: ntqHelpTooltipDoc,
+    loadingBars: loadingBarsDoc,
+    loading: loadingDoc,
+    progressBar: progressBarDoc,
+    progressRing: progressRingDoc,
+    stepper: stepperDoc,
+  },
   ntq: {
     appBrand: appBrandDoc,
     appNav: appNavDoc,
     appBreadcrumbs: appBreadcrumbsDoc,
     pageBanner: pageBannerDoc,
+    reportBlock: reportBlockDoc,
     pythonDictEditor: pythonDictEditorDoc,
-  },
-  metric: {
-    countTab: countTabDoc,
-    countBadge: countBadgeDoc,
-    metricCard: metricCardDoc,
-    metricGrid: metricGridDoc,
   },
 };
 
 export function getWidgetDoc(categoryId, widgetId) {
-  return DOCS[categoryId]?.[widgetId] || null;
+  const id = resolveCategoryId(categoryId);
+  return DOCS[id]?.[widgetId] || null;
 }

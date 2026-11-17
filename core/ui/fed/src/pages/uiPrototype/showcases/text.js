@@ -34,7 +34,7 @@ function TextShowcase() {
               {' '}
               与路由
               {' '}
-              <RouterLink className="ntq-link" to="/dev/ui/heading">
+              <RouterLink className="ntq-link" to="/dev/ui/text#heading">
                 标题图鉴
                 <NtqIcon name="chevronRight" size="sm" />
               </RouterLink>

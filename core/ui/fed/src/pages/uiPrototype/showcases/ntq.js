@@ -4,16 +4,21 @@ import AppNav from 'ui/ntq/appNav';
 import AppBrand from 'ui/ntq/appBrand';
 import PageBanner from 'ui/ntq/pageBanner';
 import AppBreadcrumbs from 'ui/ntq/appBreadcrumbs';
+import ReportBlock from 'ui/ntq/reportBlock';
+import MetricCard from 'ui/metric/metricCard';
+import MetricGrid from 'ui/metric/metricGrid';
 import NtqButton from 'ui/button/ntqButton';
 import Text from 'ui/text/text';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
 
-/** 图鉴内已有外层 Router，禁止再套 MemoryRouter；演示链阻止跳转。 */
-function DemoLink({ to, children, className, onClick, ...rest }) {
+/**
+ * 图鉴演示链：普通 <a>，阻止跳转。
+ * 外层已有 BrowserRouter，禁止再包 MemoryRouter。
+ */
+function DemoLink({ to, children, className, onClick }) {
   return (
     <a
-      {...rest}
-      href={to || '#'}
+      href={typeof to === 'string' ? to : '#'}
       className={className}
       onClick={(e) => {
         e.preventDefault();
@@ -271,6 +276,76 @@ function AppBreadcrumbsShowcase() {
   );
 }
 
+function ReportBlockShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="标题 + tip + MetricGrid" block>
+          <ReportBlock title="机会盘点" tip="统计窗口内触发次数">
+            <MetricGrid columns={2}>
+              <MetricCard title="机会总数" value="128" />
+              <MetricCard title="完整度" value="96%" />
+            </MetricGrid>
+          </ReportBlock>
+        </SampleRow>
+        <SampleRow label="带 action" block>
+          <ReportBlock
+            title="涨跌停"
+            action={(
+              <NtqButton variant="ghost" size="small" icon="refresh">
+                刷新
+              </NtqButton>
+            )}
+          >
+            <p className="ntq-muted" style={{ margin: 0 }}>
+              内容区放 MetricGrid / ChartPanel / 文案均可。
+            </p>
+          </ReportBlock>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleNA>
+          标题
+          {' '}
+          <Text variant="code">font-sm</Text>
+          ；内边距 0.625rem。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>
+          头与内容
+          {' '}
+          <Text variant="code">space-sm</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>
+          描边
+          {' '}
+          <Text variant="code">white-12</Text>
+          ；浅底
+          {' '}
+          <Text variant="code">white-06</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleNA>
+          固定报告壳；不要再复制
+          {' '}
+          <Text variant="code">views/sectionBlock</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 function PythonDictEditorShowcase() {
   const [text, setText] = useState('{\n  "alpha": 1,\n  "enabled": true\n}\n');
   const [parseError, setParseError] = useState('');
@@ -341,6 +416,7 @@ const ntqShowcases = {
   appBrand: AppBrandShowcase,
   pageBanner: PageBannerShowcase,
   appBreadcrumbs: AppBreadcrumbsShowcase,
+  reportBlock: ReportBlockShowcase,
   pythonDictEditor: PythonDictEditorShowcase,
 };
 

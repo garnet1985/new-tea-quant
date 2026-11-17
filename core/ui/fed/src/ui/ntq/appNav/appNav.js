@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { Link as RouterLink, useInRouterContext, useLocation } from 'react-router-dom';
 import { Popper } from '@mui/material';
 import NtqIcon from 'ui/icon/ntqIcon';
 import './style.scss';
@@ -30,30 +30,13 @@ function NavButtonLabel({ icon, label, caret = false }) {
   );
 }
 
-/**
- * NTQ 顶栏导航（壳）。
- * items 由应用传入，不内置路由表 / 不拉站点 URL。
- *
- * item:
- * - { label, to, icon?, match? } 站内链
- * - { label, href, icon?, external? } 外链
- * - { label, icon?, match?, children: [{ label, to, match? }] } 下拉
- *
- * @example
- * <AppNav items={[
- *   { label: '制定策略', to: '/strategy-design', icon: 'tactic' },
- *   { label: '高级功能', icon: 'dataObject', match: '/advanced', children: […] },
- * ]} />
- */
-function AppNav({
+function AppNavView({
   items = [],
-  pathname: pathnameProp,
+  pathname = '',
   linkComponent: Link = RouterLink,
   className = '',
   ...rest
 }) {
-  const location = useLocation();
-  const pathname = pathnameProp != null ? pathnameProp : (location.pathname || '');
   const [openId, setOpenId] = useState(null);
   const closeTimerRef = useRef(null);
   const anchorRefs = useRef({});
@@ -188,6 +171,38 @@ function AppNav({
       })}
     </nav>
   );
+}
+
+/** 仅在已有 Router 且未传 pathname 时读取 location。 */
+function AppNavFromRouter(props) {
+  const location = useLocation();
+  return <AppNavView {...props} pathname={location.pathname || ''} />;
+}
+
+/**
+ * NTQ 顶栏导航（壳）。
+ * items 由应用传入，不内置路由表 / 不拉站点 URL。
+ *
+ * 图鉴请传 pathname + linkComponent（普通 <a>），不要再套 MemoryRouter。
+ *
+ * item:
+ * - { label, to, icon?, match? } 站内链
+ * - { label, href, icon?, external? } 外链
+ * - { label, icon?, match?, children: [{ label, to, match? }] } 下拉
+ *
+ * @example
+ * <AppNav items={[…]} pathname="/scan" linkComponent={DemoLink} />
+ * <AppNav items={[…]} />
+ */
+function AppNav({ pathname: pathnameProp, ...rest }) {
+  const inRouter = useInRouterContext();
+  if (pathnameProp != null) {
+    return <AppNavView {...rest} pathname={pathnameProp} />;
+  }
+  if (inRouter) {
+    return <AppNavFromRouter {...rest} />;
+  }
+  return <AppNavView {...rest} pathname="" />;
 }
 
 export default AppNav;

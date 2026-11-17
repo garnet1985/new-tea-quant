@@ -32,6 +32,12 @@ const doc = {
       description: '描边；可与 surface / radius 组合。',
     },
     {
+      name: 'sticky',
+      type: 'boolean',
+      defaultValue: 'false',
+      description: '是否 position:sticky 贴顶。侧栏整栏（标题+菜单）贴顶时用本项；仅菜单贴顶用 SideNav sticky。',
+    },
+    {
       name: 'children',
       type: 'ReactNode',
       defaultValue: '—',
@@ -42,7 +48,7 @@ const doc = {
     'Column 某一列里包一组控件。',
     '卡片：surface="soft|gradient" radius="md" bordered。',
     '玻璃浮层：surface="glass" radius="lg"。',
-    '侧栏贴边：surface="panel" radius="none"。',
+    '侧栏贴边贴顶：surface="panel" radius="none" sticky。',
   ],
   antiPatterns: [
     '禁止 padding={16} / gap="12px" / style 里写 borderRadius px。',

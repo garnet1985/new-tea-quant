@@ -1,7 +1,7 @@
 .ntq-meta-clip {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px 20px;
+  gap: 0.75rem 1.25rem;
   width: 100%;
   min-width: 0;
   align-items: start;
@@ -12,13 +12,14 @@
 }
 
 .ntq-meta-clip-col + .ntq-meta-clip-col {
-  padding-left: 20px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--ui-white-12, rgba(255, 255, 255, 0.1));
 }
 
 .ntq-meta-clip-col__label {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
+  font-size: var(--ui-font-xs, 0.75rem);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.55);
@@ -35,11 +36,4 @@
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.62);
   white-space: pre-line;
-}
-
-.ntq-meta-clip-col__tip {
-  white-space: pre-line;
-  max-width: 420px;
-  font-size: 12px;
-  line-height: 1.5;
 }

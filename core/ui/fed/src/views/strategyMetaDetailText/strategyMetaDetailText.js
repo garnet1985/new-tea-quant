@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Box, Tooltip, Typography } from '@mui/material';
 import './style.scss';
 
 function clipTitle(lines) {
@@ -15,22 +14,15 @@ function MetaClipColumn({ label, lines, empty }) {
   const body = items.length ? items : [empty];
 
   return (
-    <Box className="ntq-meta-clip-col">
-      <Typography className="ntq-meta-clip-col__label" variant="caption">
-        {label}
-      </Typography>
-      <Tooltip
-        title={full ? (
-          <Box className="ntq-meta-clip-col__tip">{full}</Box>
-        ) : ''}
-        placement="bottom-start"
-        disableHoverListener={!full}
+    <div className="ntq-meta-clip-col">
+      <span className="ntq-meta-clip-col__label">{label}</span>
+      <div
+        className="ntq-meta-clip-col__body"
+        title={full || undefined}
       >
-        <Box className="ntq-meta-clip-col__body">
-          {body.join('\n')}
-        </Box>
-      </Tooltip>
-    </Box>
+        {body.join('\n')}
+      </div>
+    </div>
   );
 }
 
@@ -48,10 +40,10 @@ function StrategyMetaDetailText({
     : [];
 
   return (
-    <Box className={`ntq-meta-clip ${className}`.trim()}>
+    <div className={`ntq-meta-clip ${className}`.trim()}>
       <MetaClipColumn label="入场条件" lines={entries} empty={empty} />
       <MetaClipColumn label="目标" lines={goals} empty={empty} />
-    </Box>
+    </div>
   );
 }
 

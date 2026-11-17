@@ -1,12 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  Stack,
-  Typography,
-} from '@mui/material';
-import Icon from 'views/ntqIcon';
+import { Button, Heading, Message } from 'ui';
 import StrategyMetaDetailText from 'views/strategyMetaDetailText';
 import { getStrategyListPath } from 'containers/strategyCategory';
 import { formatGoalSummaryLines, resolveStrategyShortLabel } from 'containers/strategySettings';
@@ -14,6 +8,15 @@ import { STRATEGY_DESIGN_STEP_INTRO } from '../constants/strategyDesignSteps';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 import StrategyDesignStepper from '../stepper';
 import './style.scss';
+
+function MetaFlash({ status, children }) {
+  if (!children) return null;
+  return (
+    <Message status={status} variant="inline" className="ntq-design-meta__flash">
+      {children}
+    </Message>
+  );
+}
 
 function StrategyDesignMetaBar() {
   const wb = useStrategyDesignWorkbenchContext();
@@ -34,84 +37,79 @@ function StrategyDesignMetaBar() {
     return intro;
   }, [wb.activeStep]);
 
+  const capsuleTone = (wb.envInvalid || !wb.isAppliedSettings) ? 'changed' : 'clean';
+
   return (
-    <Box className="ntq-design-meta">
-      <Box className="ntq-design-meta__page-title">
-        <Typography component="h2" className="ntq-design-meta__page-heading">
-          <Box component="span" className="ntq-design-meta__page-heading-label">
+    <section className="ntq-design-meta">
+      <div className="ntq-design-meta__page-title">
+        <h2 className="ntq-design-meta__page-heading">
+          <span className="ntq-design-meta__page-heading-label">
             {stepIntro.title}
-          </Box>
+          </span>
           {stepIntro.summary ? (
             <>
-              <Box component="span" className="ntq-design-meta__page-heading-sep">：</Box>
-              <Box component="span" className="ntq-design-meta__page-heading-summary">
+              <span className="ntq-design-meta__page-heading-sep">：</span>
+              <span className="ntq-design-meta__page-heading-summary">
                 {stepIntro.summary}
-              </Box>
+              </span>
             </>
           ) : null}
-        </Typography>
-        <Box className="ntq-design-meta__page-title-stepper" data-ntq-help="strategy-steps">
+        </h2>
+        <div className="ntq-design-meta__page-title-stepper" data-ntq-help="strategy-steps">
           <StrategyDesignStepper />
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Box className="ntq-design-meta__body" data-ntq-help="strategy-intro">
-        <Box className="ntq-design-meta__info">
-          <Box className="ntq-design-meta__title-row">
-            <Typography variant="h6" fontWeight={700} className="ntq-design-meta__strategy-name">
+      <div className="ntq-design-meta__body" data-ntq-help="strategy-intro">
+        <div className="ntq-design-meta__info">
+          <div className="ntq-design-meta__title-row">
+            <Heading level="h3" gap="none" className="ntq-design-meta__strategy-name">
               {strategyLabel}
-            </Typography>
+            </Heading>
             {wb.hasPersistedSnapshot ? (
-              <Box className="ntq-design-meta__version-capsule-wrap" data-ntq-help="strategy-version">
-                <Box
+              <div className="ntq-design-meta__version-capsule-wrap" data-ntq-help="strategy-version">
+                <div
                   className={[
                     'ntq-design-meta__version-capsule',
-                    (wb.envInvalid || !wb.isAppliedSettings)
-                      ? 'ntq-design-meta__version-capsule--changed'
-                      : 'ntq-design-meta__version-capsule--clean',
+                    `ntq-design-meta__version-capsule--${capsuleTone}`,
                   ].join(' ')}
                 >
-                  <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
+                  <span className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
                     {wb.currentVersionDisplay}
-                  </Box>
-                  <Box component="span" className="ntq-design-meta__version-capsule-sep" aria-hidden />
-                  <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
+                  </span>
+                  <span className="ntq-design-meta__version-capsule-sep" aria-hidden />
+                  <span className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
                     {wb.capsuleStatus}
-                  </Box>
-                </Box>
-              </Box>
+                  </span>
+                </div>
+              </div>
             ) : null}
-          </Box>
+          </div>
 
-          <Stack
-            direction="row"
-            spacing={0}
-            alignItems="center"
+          <div
             className="ntq-design-meta__admin"
             data-ntq-help="strategy-actions"
           >
             <Button
               component={RouterLink}
               to={getStrategyListPath()}
-              variant="outlined"
-              size="small"
-              className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-              startIcon={<Icon name="arrowBack" size={16} tone="muted" />}
+              variant="glass"
+              icon="arrowBack"
+              iconSize="sm"
+              className="ntq-design-meta__admin-action"
             >
               选择其他策略
             </Button>
             {wb.strategyName ? (
               <>
-                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
-                  |
-                </Typography>
+                <span className="ntq-design-meta__admin-sep" aria-hidden>|</span>
                 <Button
-                  variant="outlined"
-                  size="small"
+                  variant="glass"
+                  icon="folderOpen"
+                  iconSize="sm"
                   onClick={wb.handleRevealStrategyFolder}
-                  className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-                  startIcon={<Icon name="folderOpen" size={16} tone="muted" />}
-                  title="在文件管理器中打开策略目录"
+                  className="ntq-design-meta__admin-action"
+                  tooltip="在文件管理器中打开策略目录"
                   data-ntq-help="strategy-open"
                 >
                   打开文件夹
@@ -120,16 +118,14 @@ function StrategyDesignMetaBar() {
             ) : null}
             {wb.hasPersistedSnapshot ? (
               <>
-                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
-                  |
-                </Typography>
+                <span className="ntq-design-meta__admin-sep" aria-hidden>|</span>
                 <Button
-                  variant="outlined"
-                  size="small"
+                  variant="glass"
+                  icon="history"
+                  iconSize="sm"
                   disabled={wb.disableMetaActions}
                   onClick={wb.openMoreVersionsDialog}
-                  className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-                  startIcon={<Icon name="history" size={16} tone="muted" />}
+                  className="ntq-design-meta__admin-action"
                   data-ntq-help="strategy-history"
                 >
                   恢复到历史版本
@@ -138,54 +134,40 @@ function StrategyDesignMetaBar() {
             ) : null}
             {wb.strategyName ? (
               <>
-                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
-                  |
-                </Typography>
+                <span className="ntq-design-meta__admin-sep" aria-hidden>|</span>
                 <Button
-                  variant="outlined"
-                  size="small"
+                  variant="glass"
+                  icon="download"
+                  iconSize="sm"
                   disabled={wb.packageExporting}
                   onClick={wb.handleExportStrategyPackage}
-                  className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-                  startIcon={<Icon name="download" size={16} tone="muted" />}
+                  className="ntq-design-meta__admin-action"
                   data-ntq-help="strategy-export"
                 >
                   {wb.packageExporting ? '导出中…' : '导出策略'}
                 </Button>
               </>
             ) : null}
-          </Stack>
+          </div>
 
-          {wb.settingsError ? (
-            <Typography variant="caption" color="error">{wb.settingsError}</Typography>
-          ) : null}
-          {wb.marketProfileOptionsError ? (
-            <Typography variant="caption" color="warning.main">{wb.marketProfileOptionsError}</Typography>
-          ) : null}
-          {wb.saveError ? (
-            <Typography variant="caption" color="error">{wb.saveError}</Typography>
-          ) : null}
-          {wb.restoreOk ? (
-            <Typography variant="caption" color="success.main">{wb.restoreOk}</Typography>
-          ) : null}
-          {wb.packageExportError ? (
-            <Typography variant="caption" color="error">{wb.packageExportError}</Typography>
-          ) : null}
-          {wb.folderRevealError ? (
-            <Typography variant="caption" color="error">{wb.folderRevealError}</Typography>
-          ) : null}
-        </Box>
+          <MetaFlash status="error">{wb.settingsError}</MetaFlash>
+          <MetaFlash status="warning">{wb.marketProfileOptionsError}</MetaFlash>
+          <MetaFlash status="error">{wb.saveError}</MetaFlash>
+          <MetaFlash status="success">{wb.restoreOk}</MetaFlash>
+          <MetaFlash status="error">{wb.packageExportError}</MetaFlash>
+          <MetaFlash status="error">{wb.folderRevealError}</MetaFlash>
+        </div>
 
-        <Box className="ntq-design-meta__description-col">
+        <div className="ntq-design-meta__description-col">
           <StrategyMetaDetailText
             entryConditions={wb.strategyEntryConditions}
             goalLines={goalLines}
             empty="暂无"
             className="ntq-design-meta__description"
           />
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </section>
   );
 }
 

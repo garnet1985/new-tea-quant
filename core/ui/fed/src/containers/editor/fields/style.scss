@@ -40,12 +40,116 @@
   }
 }
 
-.ntq-editor-divider {
-  border: none !important;
-  border-top: 1px solid transparent !important;
-  height: 0 !important;
-  margin: 20px 0 !important;
-  // 比默认 MUI Divider / white-12 更醒目
-  border-top-color: var(--ntq-white-42, rgba(255, 255, 255, 0.42)) !important;
-  opacity: 1 !important;
+// 线色走 Separator 默认（--ntq-white-12）；这里只收紧父级 gap 带来的上下距
+.ntq-editor-field-group__body > .ntq-editor-divider.ntq-separator,
+.ntq-editor-section__stack > .ntq-editor-divider.ntq-separator {
+  margin-block: calc(var(--ui-space-sm, 0.5rem) - 0.875rem);
+}
+
+.ntq-editor-field-group__body > .ntq-editor-divider--tight.ntq-separator,
+.ntq-editor-section__stack > .ntq-editor-divider--tight.ntq-separator {
+  margin-block: calc(var(--ui-space-xs, 0.25rem) - 0.875rem);
+}
+
+.ntq-editor-section__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ntq-dict-parser-field__status {
+  margin-bottom: var(--ui-space-sm, 0.5rem);
+}
+
+.ntq-editor-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+// 盖过全局 `p.ntq-muted { margin: 0 }`
+.ntq-editor-select-field > .ntq-editor-select-field__hint.ntq-muted {
+  margin: var(--ui-space-sm, 0.5rem) 0 0 !important;
+  font-size: var(--ui-font-xs, 0.75rem);
+  line-height: 1.4;
+}
+
+.ntq-editor-input-field__hint {
+  margin: var(--ui-space-xs, 0.25rem) 0 0 !important;
+  font-size: var(--ui-font-xs, 0.75rem);
+  line-height: 1.4;
+
+  &.is-error {
+    color: var(--ntq-error);
+  }
+}
+
+.ntq-editor-field-collection:not(.ntq-editor-field-collection--embedded) {
+  border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+  border-radius: 0.3125rem;
+  padding: 0.75rem;
+  background: var(--ui-surface-soft);
+}
+
+.ntq-editor-field-collection__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ntq-editor-field-collection__heading {
+  font-weight: 600;
+}
+
+.ntq-editor-field-collection__toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.ntq-editor-field-collection__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm);
+}
+
+.ntq-editor-field-collection__card {
+  border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+  border-radius: 0.3125rem;
+  padding: 0.75rem;
+}
+
+.ntq-editor-field-collection__card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ntq-editor-field-collection__card-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: var(--ui-space-xs);
+}
+
+.ntq-editor-field-collection__switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-sm);
+}
+
+.ntq-editor-field-collection__display {
+  min-height: 2.5rem;
+
+  &.is-empty .MuiInputBase-input {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .MuiInputBase-input {
+    font-family: var(--ui-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  }
+}
+
+.ntq-editor-field-collection__empty {
+  margin: 0 !important;
 }

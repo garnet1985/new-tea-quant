@@ -1,18 +1,8 @@
 import React from 'react';
-import Icon from 'views/ntqIcon';
+import { Button, Select, Switch, TextField } from 'ui';
 import EditorFieldLabel from './editorFieldLabel';
-import {
-  Box,
-  Button,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material';
 import { getByPath, setByPath } from '../editor.helper';
+import './style.scss';
 
 function isVisible(config, item, index, items) {
   if (typeof config?.visibleWhen !== 'function') return true;
@@ -107,20 +97,15 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
 
     if (itemField.type === 'switch') {
       return (
-        <Stack
-          key={itemField.key}
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-        >
+        <div key={itemField.key} className="ntq-editor-field-collection__switch-row">
           <EditorFieldLabel field={labelField} context={context} sx={{ mb: 0 }} />
           <Switch
-            size="small"
             checked={Boolean(current)}
             disabled={fieldDisabled}
             onChange={(e) => updateItem(index, { [itemField.key]: e.target.checked })}
+            aria-label={itemField.label || itemField.key}
           />
-        </Stack>
+        </div>
       );
     }
 
@@ -128,28 +113,21 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
       const displayText = resolveDisplayValue(itemField, item, index, items);
       const showEmpty = displayText === '' || displayText == null;
       return (
-        <Box key={itemField.key}>
+        <div key={itemField.key} className="ntq-editor-field-collection__field">
           <EditorFieldLabel field={labelField} context={context} />
           <TextField
-            size="small"
+            labelPlacement="none"
+            maxWidth={false}
             value={showEmpty ? '' : String(displayText)}
             placeholder={itemField.placeholder || ' '}
-            fullWidth
             disabled
-            InputProps={{
-              readOnly: true,
-              sx: {
-                // 空名时保留一行高度，避免填入 ratio 后卡片跳动
-                minHeight: 40,
-                '& .MuiInputBase-input': {
-                  color: showEmpty ? 'transparent' : 'text.secondary',
-                  WebkitTextFillColor: showEmpty ? 'transparent' : undefined,
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                },
-              },
-            }}
+            className={[
+              'ntq-editor-field-collection__display',
+              showEmpty ? 'is-empty' : '',
+            ].filter(Boolean).join(' ')}
+            aria-label={itemField.label || itemField.key}
           />
-        </Box>
+        </div>
       );
     }
 
@@ -158,115 +136,106 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
       const emptyOption = options.find((opt) => opt.value === '' || opt.value == null);
       const selectValue = itemField.multiple
         ? (Array.isArray(current) ? current : [])
-        : (current ?? (emptyOption ? '' : ''));
-      const renderSelectValue = (selected) => {
-        if (itemField.multiple) return selected;
-        const matched = options.find((opt) => opt.value === selected);
-        return matched?.label ?? selected;
-      };
+        : (current ?? '');
 
       return (
-        <Box key={itemField.key}>
+        <div key={itemField.key} className="ntq-editor-field-collection__field">
           <EditorFieldLabel field={labelField} context={context} />
           <Select
-            size="small"
+            labelPlacement="none"
+            maxWidth={false}
             multiple={Boolean(itemField.multiple)}
             displayEmpty={Boolean(emptyOption) && !itemField.multiple}
             value={selectValue}
             disabled={fieldDisabled}
-            renderValue={renderSelectValue}
             onChange={(e) => updateItem(index, { [itemField.key]: e.target.value })}
-            fullWidth
-          >
-            {options.map((opt) => (
-              <MenuItem key={String(opt.value)} value={opt.value}>
-                {opt.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </Box>
+            options={options.map((opt) => ({
+              value: opt.value,
+              label: opt.label,
+              disabled: Boolean(opt.disabled),
+            }))}
+            aria-label={itemField.label || itemField.key}
+          />
+        </div>
       );
     }
 
     return (
-      <Box key={itemField.key}>
+      <div key={itemField.key} className="ntq-editor-field-collection__field">
         <EditorFieldLabel field={labelField} context={context} />
         <TextField
-          size="small"
+          labelPlacement="none"
+          maxWidth={false}
           type={itemField.type === 'number' ? 'number' : 'text'}
           value={current ?? ''}
-          fullWidth
           disabled={fieldDisabled}
           onChange={(e) => {
             const next = parseItemValue(itemField, e.target.value, item);
             updateItem(index, { [itemField.key]: next });
           }}
+          aria-label={itemField.label || itemField.key}
         />
-      </Box>
+      </div>
     );
   });
 
-  const body = (
-    <Stack spacing={1.25} alignItems="stretch">
-      {showHeaderLabel ? (
-        <Typography fontWeight={600}>{field.label}</Typography>
-      ) : null}
+  const rootClass = [
+    'ntq-editor-field-collection',
+    embedded ? 'ntq-editor-field-collection--embedded' : '',
+  ].filter(Boolean).join(' ');
 
-      <Stack direction="row" justifyContent="flex-start">
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<Icon name="add" size={18} />}
-          onClick={addItem}
-          disabled={!canAdd}
-        >
-          {addLabel}
-        </Button>
-      </Stack>
+  return (
+    <div className={rootClass}>
+      <div className="ntq-editor-field-collection__body">
+        {showHeaderLabel ? (
+          <div className="ntq-editor-field-collection__heading">{field.label}</div>
+        ) : null}
 
-      {items.length > 0 ? (
-        <Stack spacing={1}>
-          {items.map((item, index) => (
-            <Box
-              key={`${field.name}-${index}`}
-              sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.25 }}
-            >
-              <Stack spacing={1.5}>
-                {renderItemFields(item, index)}
+        <div className="ntq-editor-field-collection__toolbar">
+          <Button
+            variant="glass"
+            icon="add"
+            iconSize="sm"
+            onClick={addItem}
+            disabled={!canAdd}
+          >
+            {addLabel}
+          </Button>
+        </div>
+
+        {items.length > 0 ? (
+          <div className="ntq-editor-field-collection__items">
+            {items.map((item, index) => (
+              <div
+                key={`${field.name}-${index}`}
+                className="ntq-editor-field-collection__card"
+              >
+                <div className="ntq-editor-field-collection__card-fields">
+                  {renderItemFields(item, index)}
+                </div>
                 {canRemove ? (
-                  <Stack direction="row" justifyContent="flex-start" sx={{ pt: 0.25 }}>
+                  <div className="ntq-editor-field-collection__card-actions">
                     <Button
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      startIcon={<Icon name="delete" size={18} />}
+                      variant="danger"
+                      icon="delete"
+                      iconSize="sm"
                       onClick={() => removeItem(index)}
                       disabled={!canRemove}
                     >
                       {removeLabel}
                     </Button>
-                  </Stack>
+                  </div>
                 ) : null}
-              </Stack>
-            </Box>
-          ))}
-        </Stack>
-      ) : (
-        <Typography variant="body2" color="text.secondary">
-          {field.emptyText || `暂无阶段目标，请点击「${addLabel}」。`}
-        </Typography>
-      )}
-    </Stack>
-  );
-
-  if (embedded) {
-    return <Box className="ntq-editor-field-collection ntq-editor-field-collection--embedded">{body}</Box>;
-  }
-
-  return (
-    <Paper variant="outlined" className="ntq-editor-field-collection" sx={{ p: 1.25 }}>
-      {body}
-    </Paper>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="ntq-muted ntq-editor-field-collection__empty">
+            {field.emptyText || `暂无阶段目标，请点击「${addLabel}」。`}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

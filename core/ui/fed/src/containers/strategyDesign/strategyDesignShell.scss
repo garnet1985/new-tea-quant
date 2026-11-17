@@ -1,6 +1,6 @@
 .strategy-design-shell {
   .ntq-page__shell {
-    padding-bottom: 8px;
+    padding-bottom: var(--ui-space-sm);
   }
 }
 
@@ -11,5 +11,5 @@
 }
 
 .strategy-design-shell__body {
-  margin-top: 4px;
+  margin-top: var(--ui-space-sm);
 }

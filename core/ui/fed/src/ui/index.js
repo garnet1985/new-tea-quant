@@ -12,6 +12,7 @@
 export { default as Column } from './layout/column';
 export { default as Block } from './layout/block';
 export { default as Section } from './layout/section';
+export { default as Accordion } from './layout/accordion';
 export { default as Tabs } from './layout/tabs';
 export { default as SideNav } from './layout/sideNav';
 

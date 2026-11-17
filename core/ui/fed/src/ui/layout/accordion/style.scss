@@ -1,0 +1,96 @@
+.ntq-accordion {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+}
+
+.ntq-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-sm);
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  box-sizing: border-box;
+  color: inherit;
+  cursor: pointer;
+  user-select: none;
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ntq-cyan) 45%, transparent);
+    outline-offset: -2px;
+  }
+}
+
+.ntq-accordion__tip {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ntq-accordion__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-xs);
+  min-width: 0;
+}
+
+.ntq-accordion__title-text {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ntq-accordion__chevron {
+  flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+
+.ntq-accordion__chevron--open {
+  transform: rotate(180deg);
+}
+
+.ntq-accordion__details {
+  padding: 0.25rem 0.75rem 0.75rem;
+}
+
+// --- panel：顶层拼缝块 ---
+.ntq-accordion--panel {
+  position: relative;
+  border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+  background: var(--ui-surface-soft);
+  margin: 0;
+
+  & + .ntq-accordion--panel {
+    margin-top: -1px;
+    border-top-color: transparent;
+  }
+}
+
+// --- nested：内嵌圆角卡片 ---
+.ntq-accordion--nested {
+  border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+  border-radius: 0.3125rem;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+
+  // 间距交给父级 stack/gap；避免与 gap 叠成双倍
+  & + .ntq-accordion--nested {
+    margin-top: 0;
+  }
+
+  &:not(.is-expanded) .ntq-accordion__summary {
+    border-radius: 0.3125rem;
+  }
+
+  &.is-expanded .ntq-accordion__summary {
+    border-radius: 0.3125rem 0.3125rem 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-accordion__chevron {
+    transition: none;
+  }
+}

@@ -21,9 +21,13 @@ function Separator({
     className,
   ].filter(Boolean).join(' ');
 
+  const hasLabel = children != null && children !== false && children !== '';
+
   return (
     <div className={rootClass} role="separator" {...rest}>
-      <span className="ntq-separator__label">{children}</span>
+      {hasLabel ? (
+        <span className="ntq-separator__label">{children}</span>
+      ) : null}
       <span className="ntq-separator__line" aria-hidden="true" />
     </div>
   );

@@ -77,10 +77,10 @@ body {
   --ui-radius-lg: 0.75rem;
   --ui-radius-pill: 999px;
 
-  // --- 输入默认实底 ---
+  // --- 输入默认实底（disabled 偏浅白，表示不可用）---
   --ui-input-solid-bg: #12121f;
   --ui-input-solid-bg-hover: #161625;
-  --ui-input-solid-bg-disabled: #0e0e18;
+  --ui-input-solid-bg-disabled: rgba(255, 255, 255, 0.08);
 
   --ui-blur-sm: 0.5rem;
   --ui-blur-md: 1rem;

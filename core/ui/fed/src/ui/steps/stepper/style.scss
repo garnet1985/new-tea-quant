@@ -136,7 +136,7 @@
 }
 
 .ntq-stepper__num {
-  font-size: var(--ntq-font-md); // 1rem
+  font-size: var(--ntq-font-sm); // 0.875rem：圆内数字不宜过大
   font-weight: 700;
   line-height: 1;
   color: rgba(255, 255, 255, 0.55);

@@ -1,12 +1,5 @@
 import React from 'react';
-import Icon from 'views/ntqIcon';
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Accordion } from 'ui';
 
 function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNode, context }) {
   const children = Array.isArray(node.children) ? node.children : [];
@@ -15,25 +8,18 @@ function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNod
   return (
     <Accordion
       key={node.name}
-      className="ntq-settings-sub-accordion"
+      title={node.label}
+      variant="nested"
       defaultExpanded={Boolean(node.defaultExpanded)}
-      disableGutters
-      TransitionProps={{ timeout: 0, unmountOnExit: false }}
+      className="ntq-settings-sub-accordion"
     >
-      <AccordionSummary expandIcon={<Icon name="expandMore" size={24} />}>
-        <Typography component="span" fontWeight={600}>
-          {node.label}
-        </Typography>
-      </AccordionSummary>
-      <AccordionDetails>
-        <Stack spacing={1.25}>
-          {children.map((child, index) => (
-            <React.Fragment key={getChildKey(child, index)}>
-              {renderNode(child, value, onChange, errors, emitChangeMeta, context)}
-            </React.Fragment>
-          ))}
-        </Stack>
-      </AccordionDetails>
+      <div className="ntq-editor-section__stack">
+        {children.map((child, index) => (
+          <React.Fragment key={getChildKey(child, index)}>
+            {renderNode(child, value, onChange, errors, emitChangeMeta, context)}
+          </React.Fragment>
+        ))}
+      </div>
     </Accordion>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { Dialog, Message } from 'ui';
 import EditorFieldLabel from './editorFieldLabel';
+import './style.scss';
 
 /** 与 ``TextField`` multiline 输入一致，供只读 JSON / diff 视图复用核心设置编辑区观感 */
 export const DICT_PARSER_TEXT_FONT = {
@@ -43,7 +44,7 @@ function getTextFieldSx({ fullscreen = false } = {}) {
 
 function DictParserStatusAlerts({ parser }) {
   return (
-    <>
+    <div className="ntq-dict-parser-field__status">
       {parser.parseError ? (
         <Message status="error">
           <Typography variant="body2">{parser.parseError}</Typography>
@@ -87,7 +88,7 @@ function DictParserStatusAlerts({ parser }) {
           </Box>
         </Paper>
       ) : null}
-    </>
+    </div>
   );
 }
 

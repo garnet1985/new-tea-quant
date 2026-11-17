@@ -117,7 +117,11 @@ function TextFieldShowcase() {
       </SampleDim>
 
       <SampleDim title="4. 颜色">
-        <SampleNA>玻璃底 + 白描边（主题）；error 时描边/文案变红。</SampleNA>
+        <SampleNA>默认 solid 深色实底 + 白描边；error 时描边/文案变红。</SampleNA>
+        <SampleRow label="disabled vs 可填" block>
+          <TextField label="可填" value="loss10%" onChange={() => {}} />
+          <TextField label="禁用" value="loss10%" disabled onChange={() => {}} />
+        </SampleRow>
       </SampleDim>
 
       <SampleDim title="5. 外观">

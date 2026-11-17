@@ -1,56 +1,37 @@
-// 需要全局变量时：@use '../../styles/variables' as *;
-
-// 策略列表：页面级 scss 与模块同目录
 .strategy-list-page {
-  padding: 16px 0;
-  min-width: 0; // 避免 flex 子项内 DataGrid 撑破主内容区（.ntq-content-inner）
-}
-
-.strategy-list-breadcrumbs {
-  margin-bottom: 0; // AppBreadcrumbs already has default margin-bottom
-}
-
-.strategy-list-alert {
-  margin-bottom: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .strategy-list-grid {
-  padding: 0;
-  isolation: isolate;
-  // Opaque glass surface — no backdrop-filter (nested blur ghosts rows when header hovers).
-  background-color: rgba(255, 255, 255, 0.06) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-
-  .MuiChip-root {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
+  padding: var(--ui-space-md);
+  background: var(--ui-surface-soft);
+  border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+  border-radius: var(--ui-radius-md, 0.5rem);
 }
 
-.strategy-list-grid-toolbar {
-  padding: 18px 12px 16px 12px;
+.strategy-list-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-sm);
 }
 
 .strategy-list-category-chips {
-  padding: 0 12px 14px 12px;
+  display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  align-items: center;
+  gap: var(--ui-space-sm);
   min-width: 0;
 }
 
 .strategy-list-category-chips-scroller {
-  flex: 1 1 auto;
-  min-width: 0;
   display: flex;
+  flex: 1 1 auto;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-sm);
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -58,38 +39,90 @@
 }
 
 .strategy-list-category-empty {
-  padding: 24px 8px 12px;
+  margin: 0;
+  padding: var(--ui-space-md) var(--ui-space-xxs);
 }
 
 .strategy-list-grid-body {
   width: 100%;
-  min-height: 400px;
-  padding: 0 12px 12px 12px;
+  min-width: 0;
+}
+
+.strategy-list-grid-body--loading {
+  min-height: 10rem;
+}
+
+.strategy-list-category-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-lg);
 }
 
 .strategy-list-category-section {
   min-width: 0;
 }
 
-.strategy-list-category-header {
-  margin-bottom: 8px;
-  padding: 0 2px;
+.strategy-list-category {
+  margin-bottom: var(--ui-space-sm);
 }
 
 .strategy-list-category-header-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-sm);
   margin: 0;
   padding: 0;
-  border: none;
+  border: 0;
   background: none;
   color: inherit;
-  font: inherit;
   cursor: pointer;
   text-align: left;
+}
 
-  &:hover .strategy-list-category-header-label {
+.strategy-list-category-header-btn:hover .strategy-list-category-header-label {
+  text-decoration: underline;
+}
+
+.strategy-list-category-header-label {
+  font-weight: var(--ui-font-weight-bold);
+}
+
+.strategy-list-name-link {
+  color: inherit;
+  font-weight: var(--ui-font-weight-bold);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--ntq-cyan);
     text-decoration: underline;
   }
+}
+
+.strategy-list-cell-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-xs);
+  line-height: var(--ui-leading-normal, 1.5);
+  white-space: nowrap;
+}
+
+.strategy-list-actions-sep {
+  color: var(--ui-white-40, rgba(255, 255, 255, 0.4));
+  user-select: none;
+}
+
+.strategy-list-enter,
+.strategy-list-export {
+  white-space: nowrap;
+}
+
+.strategy-list-export:disabled {
+  opacity: 0.5;
+  cursor: default;
+  text-decoration: none;
+}
+
+.strategy-list-desc {
+  min-width: 0;
 }

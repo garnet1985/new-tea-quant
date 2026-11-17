@@ -629,8 +629,23 @@
 }
 
 // ---------------------------------------------------------------------------
-// chrome 修饰：默认 solid（见 _mui-overrides）；glass / radius-none 为扩展
+// chrome：solid 默认实底；glass 半透明；radius-none 直角
 // ---------------------------------------------------------------------------
+
+.ntq-input--surface-solid.MuiOutlinedInput-root,
+.ntq-input--surface-solid .MuiOutlinedInput-root {
+  background: var(--ntq-input-solid-bg, #12121f);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  &:hover:not(.Mui-disabled):not(:disabled) {
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &.Mui-disabled {
+    background: var(--ntq-input-solid-bg-disabled, rgba(255, 255, 255, 0.08));
+  }
+}
 
 /*
  * glass 输入：边画在 root 上（与 .ntq-button--glass 同一套描边），
@@ -657,7 +672,9 @@
   }
 
   &.Mui-disabled {
-    background: var(--ntq-white-03);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.14);
+    opacity: 1;
   }
 }
 

@@ -1,7 +1,8 @@
 import React from 'react';
-import { TextField, Typography } from '@mui/material';
+import { TextArea, TextField } from 'ui';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
 import EditorFieldLabel from './editorFieldLabel';
+import './style.scss';
 
 function InputField({ field, value, errors, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
@@ -30,45 +31,58 @@ function InputField({ field, value, errors, onChange, emitChangeMeta, context = 
     || (field.description && !field.tooltip ? field.description : '')
     || '';
 
+  const handleChange = (e) => {
+    if (typeof field.parse === 'function') {
+      applyChange(field.parse(e.target.value, value));
+      return;
+    }
+    if (field.type === 'number') {
+      const raw = e.target.value;
+      if (raw === '') {
+        applyChange('');
+        return;
+      }
+      const n = Number(raw);
+      applyChange(Number.isNaN(n) ? '' : n);
+      return;
+    }
+    applyChange(e.target.value);
+  };
+
+  const shared = {
+    labelPlacement: 'none',
+    maxWidth: false,
+    value: uiValue,
+    error: fieldError || undefined,
+    disabled: isReadonly,
+    onChange: handleChange,
+    placeholder: field.placeholder || '',
+    'aria-label': field.label || field.name || '输入',
+  };
+
   return (
-    <div key={field.name}>
+    <div key={field.name} className="ntq-editor-input-field">
       <EditorFieldLabel field={field} context={context} />
-      <TextField
-        size="small"
-        type={field.type === 'number' ? 'number' : 'text'}
-        multiline={Boolean(field.multiline)}
-        minRows={field.multiline ? (field.minRows || 4) : undefined}
-        value={uiValue}
-        fullWidth
-        error={Boolean(fieldError)}
-        onChange={(e) => {
-          if (typeof field.parse === 'function') {
-            applyChange(field.parse(e.target.value, value));
-            return;
-          }
-          if (field.type === 'number') {
-            const raw = e.target.value;
-            if (raw === '') {
-              applyChange('');
-              return;
-            }
-            const n = Number(raw);
-            applyChange(Number.isNaN(n) ? '' : n);
-            return;
-          }
-          applyChange(e.target.value);
-        }}
-        InputProps={{ readOnly: isReadonly }}
-        placeholder={field.placeholder || ''}
-      />
+      {field.multiline ? (
+        <TextArea
+          {...shared}
+          rows={field.minRows || 4}
+        />
+      ) : (
+        <TextField
+          {...shared}
+          type={field.type === 'number' ? 'number' : 'text'}
+        />
+      )}
       {helperBelow ? (
-        <Typography
-          variant="caption"
-          color={fieldError ? 'error' : 'text.secondary'}
-          sx={{ mt: 0.5, display: 'block' }}
+        <p
+          className={[
+            'ntq-editor-input-field__hint',
+            fieldError ? 'is-error' : 'ntq-muted',
+          ].filter(Boolean).join(' ')}
         >
           {helperBelow}
-        </Typography>
+        </p>
       ) : null}
     </div>
   );

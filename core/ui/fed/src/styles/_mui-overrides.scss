@@ -43,7 +43,8 @@
   }
 
   &.Mui-disabled {
-    background: var(--ntq-input-solid-bg-disabled, #0e0e18);
+    background: var(--ntq-input-solid-bg-disabled, rgba(255, 255, 255, 0.08));
+    opacity: 1;
   }
 }
 
@@ -52,12 +53,30 @@
   border-color: var(--ui-white-12, var(--ntq-white-12)) !important;
 }
 
-.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+.MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiOutlinedInput-notchedOutline {
   border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
   border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* disabled：浅底 + 淡字；可填保持正文色 */
+.MuiOutlinedInput-root:not(.Mui-disabled) .MuiOutlinedInput-input,
+.MuiOutlinedInput-root:not(.Mui-disabled) .MuiSelect-select {
+  color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+  -webkit-text-fill-color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+}
+
+.MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-input,
+.MuiOutlinedInput-root.Mui-disabled .MuiSelect-select {
+  color: rgba(255, 255, 255, 0.42);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.42);
+  cursor: default;
 }
 
 // --- Report grids (DataGrid overlay) ---

@@ -1,6 +1,5 @@
 import React, { useCallback } from 'react';
-import Message from 'ui/message/message';
-import { Box, Grid, Stack } from '@mui/material';
+import { Message } from 'ui';
 import StrategyDesignExecutionPanel from './executionPanel';
 import StrategyDesignReportPanel from './reportPanel';
 import { StrategySettingsContainer } from 'containers/strategySettings';
@@ -23,24 +22,24 @@ function StrategyDesignStepPage() {
 
   if (!wb.hasValidSettings) {
     return (
-      <Box className="ntq-design-step-page">
+      <div className="ntq-design-step-page">
         <Message status="error">
           {wb.settingsError || '策略配置不可用，无法打开设置编辑器。'}
         </Message>
-      </Box>
+      </div>
     );
   }
 
   if (wb.activeStep === 'decision') {
     return (
-      <Box className="ntq-design-step-page">
+      <div className="ntq-design-step-page">
         <StrategyDesignDecisionStep />
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Box className="ntq-design-step-page">
+    <div className="ntq-design-step-page">
       {options.optionsError ? (
         <Message status="error">{options.optionsError}</Message>
       ) : null}
@@ -68,44 +67,40 @@ function StrategyDesignStepPage() {
               onReset={wb.handleDraftDrivenReset}
               suppressDraftDrivenPanelResetRef={wb.suppressDraftDrivenPanelResetRef}
             />
-            <Grid container spacing={2} className="ntq-design-step-page__grid">
-              <Grid item xs={12} md={3}>
-                <Box
-                  className="ntq-design-step-page__settings"
-                  data-ntq-help="design-settings"
-                  onFocusCapture={wb.handleSettingsFocus}
-                >
-                  <StrategyDesignSettingsPanel
-                    activeStep={wb.activeStep}
-                    settings={draftSettings}
-                    onSettingsChange={setDraftSettings}
-                    coreEditor={coreEditor}
-                    onGoalChange={onGoalChange}
-                    onSamplingChange={onSamplingChange}
-                    onFeesChange={onFeesChange}
-                    onSimulationChange={onSimulationChange}
-                    onPriceSimulatorChange={onPriceSimulatorChange}
-                    onPortfolioChange={onPortfolioChange}
-                    allocationModeOptions={options.allocationModeOptions}
-                    samplingStrategyOptions={options.samplingStrategyOptions}
-                    simulationTemplateOptions={options.simulationTemplateOptions}
-                    simulationTemplateProfiles={options.simulationTemplateProfiles}
-                    skipInvestmentWhenOptions={options.skipInvestmentWhenOptions}
-                    marketProfileOptions={options.marketProfileOptions}
-                  />
-                </Box>
-              </Grid>
-              <Grid item xs={12} md={9}>
-                <Stack spacing={1.5} className="ntq-design-step-page__right">
-                  <StrategyDesignExecutionPanel />
-                  <StrategyDesignReportPanel />
-                </Stack>
-              </Grid>
-            </Grid>
+            <div className="ntq-design-step-page__grid">
+              <div
+                className="ntq-design-step-page__settings"
+                data-ntq-help="design-settings"
+                onFocusCapture={wb.handleSettingsFocus}
+              >
+                <StrategyDesignSettingsPanel
+                  activeStep={wb.activeStep}
+                  settings={draftSettings}
+                  onSettingsChange={setDraftSettings}
+                  coreEditor={coreEditor}
+                  onGoalChange={onGoalChange}
+                  onSamplingChange={onSamplingChange}
+                  onFeesChange={onFeesChange}
+                  onSimulationChange={onSimulationChange}
+                  onPriceSimulatorChange={onPriceSimulatorChange}
+                  onPortfolioChange={onPortfolioChange}
+                  allocationModeOptions={options.allocationModeOptions}
+                  samplingStrategyOptions={options.samplingStrategyOptions}
+                  simulationTemplateOptions={options.simulationTemplateOptions}
+                  simulationTemplateProfiles={options.simulationTemplateProfiles}
+                  skipInvestmentWhenOptions={options.skipInvestmentWhenOptions}
+                  marketProfileOptions={options.marketProfileOptions}
+                />
+              </div>
+              <div className="ntq-design-step-page__right">
+                <StrategyDesignExecutionPanel />
+                <StrategyDesignReportPanel />
+              </div>
+            </div>
           </>
         )}
       </StrategySettingsContainer>
-    </Box>
+    </div>
   );
 }
 

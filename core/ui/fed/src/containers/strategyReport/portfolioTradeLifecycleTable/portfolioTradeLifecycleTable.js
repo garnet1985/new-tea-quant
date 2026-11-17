@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { Button, Dialog } from 'ui';
-import ReportStockSampleGrid from 'views/reportStockSampleGrid';
-import { SectionBlock } from 'views/sectionBlock';
+import ReportStockSampleGrid from '../reportStockSampleGrid';
+import ReportBlock from 'ntq-ui/reportBlock';
 import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
 import { CAPITAL_CHART_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from '../reportUnavailableHint';
@@ -262,7 +262,7 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
   if (!rows.length) {
     return (
       <>
-        <SectionBlock
+        <ReportBlock
           title="逐笔投资"
           tip={CAPITAL_CHART_TIPS.tradeLifecycle}
           action={chartAction}
@@ -270,7 +270,7 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
           <div className="ntq-report-trade-empty">
             <ReportUnavailableHint message="暂无成交记录" />
           </div>
-        </SectionBlock>
+        </ReportBlock>
         {chartDialog}
       </>
     );

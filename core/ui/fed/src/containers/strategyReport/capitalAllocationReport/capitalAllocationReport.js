@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChartPanel, MetricCard, MetricGrid } from 'ui';
-import { SectionBlock } from 'views/sectionBlock';
+import ReportBlock from 'ntq-ui/reportBlock';
 import '../reportBlock.scss';
 import {
   CAPITAL_CHART_TIPS,
@@ -86,7 +86,7 @@ function CapitalAllocationReport({
         />
       ) : null}
 
-      <SectionBlock
+      <ReportBlock
         title="资金结果总览"
         tip={CAPITAL_SECTION_TIPS.overview}
       >
@@ -129,9 +129,9 @@ function CapitalAllocationReport({
           option={buildPortfolioEventChartOption(metrics)}
           height={380}
         />
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="交易质量"
         tip={CAPITAL_SECTION_TIPS.tradeQuality}
       >
@@ -159,9 +159,9 @@ function CapitalAllocationReport({
             value={formatReportMoney(metrics.avgPnlPerTrade)}
           />
         </MetricGrid>
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="成交跳过统计"
         tip={CAPITAL_SECTION_TIPS.executionSkips}
       >
@@ -172,9 +172,9 @@ function CapitalAllocationReport({
             includeParticipation
           />
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="仓位与资金利用率"
         tip={CAPITAL_SECTION_TIPS.utilization}
       >
@@ -205,9 +205,9 @@ function CapitalAllocationReport({
             value={`${metrics.peakCapitalUtilizationRatio}%`}
           />
         </MetricGrid>
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="风险结构"
         tip={CAPITAL_SECTION_TIPS.risk}
       >
@@ -233,9 +233,9 @@ function CapitalAllocationReport({
             value={metrics.worstTradePnls.map((value) => formatReportMoney(value)).join(' / ')}
           />
         </MetricGrid>
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="股票集中度"
         tip={CAPITAL_SECTION_TIPS.concentration}
       >
@@ -261,7 +261,7 @@ function CapitalAllocationReport({
             value={metrics.stockPnlCv}
           />
         </MetricGrid>
-      </SectionBlock>
+      </ReportBlock>
     </div>
   );
 }

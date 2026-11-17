@@ -72,39 +72,6 @@
     border-radius: var(--ui-radius-md, 0.5rem);
   }
 
-  .scan-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--ui-space-sm);
-  }
-
-  .scan-toolbar__hint {
-    margin-left: auto;
-    font-size: var(--ui-font-xs);
-  }
-
-  .scan-category-chips {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: var(--ui-space-sm);
-    min-width: 0;
-  }
-
-  .scan-category-chips-scroller {
-    display: flex;
-    flex: 1 1 auto;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: var(--ui-space-sm);
-    min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: thin;
-    padding: 2px 0;
-  }
-
   .scan-category-empty {
     margin: 0;
     padding: var(--ui-space-md) var(--ui-space-xxs);
@@ -242,10 +209,6 @@
 
     .scan-settings__post-actions {
       margin-top: var(--ui-space-sm);
-    }
-
-    .scan-toolbar__hint {
-      margin-left: 0;
     }
   }
 }

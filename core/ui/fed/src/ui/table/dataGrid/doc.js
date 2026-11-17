@@ -14,6 +14,12 @@ const doc = {
       description: '行高密度：sm=紧凑（compact），md=标准（standard）。',
     },
     {
+      name: 'cellLayout',
+      type: "'center' | 'wrap'",
+      defaultValue: "'center'",
+      description: '单元格布局：center=单行垂直居中；wrap=多行换行顶齐（常配 getRowHeight={() => \'auto\'}）。',
+    },
+    {
       name: 'bordered',
       type: 'boolean',
       defaultValue: 'true',
@@ -46,7 +52,7 @@ const doc = {
   antiPatterns: [
     '不要在业务页再手写一套 DataGrid 中文 / Loading（用本组件）。',
     '不要把领域列渲染逻辑写死进 DataGrid（列定义留在页面）。',
-    '不要用裸 px 改单元格样式；优先 density 与本组件 class。',
+    '不要在业务侧用 sx 改 .MuiDataGrid-cell；优先 density / cellLayout / 页面 SCSS。',
   ],
 };
 

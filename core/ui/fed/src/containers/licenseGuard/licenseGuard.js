@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Message } from 'ui';
+import { Button, Message, Loading } from 'ui';
 import { Navigate, Outlet } from 'react-router-dom';
 import { fetchLicenseAcceptance } from 'api/licenseApi';
-import PageLoadingState from 'views/pageLoadingState';
 
 function LicenseGuard() {
   const [loading, setLoading] = useState(true);
@@ -37,7 +36,7 @@ function LicenseGuard() {
   }, [retryKey]);
 
   if (loading) {
-    return <PageLoadingState message="确认使用条款…" minHeight="40vh" />;
+    return <Loading variant="page" message="确认使用条款…" style={{ minHeight: '40vh' }} />;
   }
 
   if (loadError) {

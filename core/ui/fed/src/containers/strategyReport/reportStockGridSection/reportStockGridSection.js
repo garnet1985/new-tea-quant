@@ -1,6 +1,6 @@
 import React from 'react';
-import InlineLoadingState from 'views/inlineLoadingState';
-import ReportStockSampleGrid from 'views/reportStockSampleGrid';
+import { Loading } from 'ui';
+import ReportStockSampleGrid from '../reportStockSampleGrid';
 import ReportUnavailableHint, {
   REPORT_EMPTY_MATCH_ZH,
 } from '../reportUnavailableHint';
@@ -18,7 +18,7 @@ function ReportStockGridSection({
   if (loading) {
     return (
       <div className="ntq-report-stock-grid-section">
-        <InlineLoadingState block compact message={loadingMessage} />
+        <Loading variant="inline" message={loadingMessage} className="is-block" />
       </div>
     );
   }

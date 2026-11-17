@@ -74,7 +74,3 @@ export const ICON_MAP = {
 
 /** 全部支持的 name（图鉴 / 文档用） */
 export const ICON_NAMES = Object.freeze(Object.keys(ICON_MAP));
-/** @deprecated 旧名 */
-export const NTQ_ICON_MAP = ICON_MAP;
-/** @deprecated 旧名 */
-export const NTQ_ICON_NAMES = ICON_NAMES;

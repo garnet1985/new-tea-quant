@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { ChartPanel, MetricCard, MetricGrid } from 'ui';
-import { SectionBlock } from 'views/sectionBlock';
+import ReportBlock from 'ntq-ui/reportBlock';
 import '../reportBlock.scss';
 import {
   PRICE_CHART_TIPS,
@@ -238,7 +238,7 @@ function PriceFactorReport({
         />
       ) : null}
 
-      <SectionBlock
+      <ReportBlock
         title="回测总体"
         tip={PRICE_SECTION_TIPS.overview}
       >
@@ -262,9 +262,9 @@ function PriceFactorReport({
             />
           </MetricGrid>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="样本与覆盖"
         tip={PRICE_SECTION_TIPS.sampleCoverage}
       >
@@ -292,18 +292,18 @@ function PriceFactorReport({
             />
           </MetricGrid>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="成交跳过统计"
         tip={PRICE_SECTION_TIPS.executionSkips}
       >
         {avail.executionSkips ? (
           <ExecutionSkipCards metrics={metrics} tips={PRICE_METRIC_TIPS} />
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="盈亏结构（含收益率分位）"
         tip={PRICE_SECTION_TIPS.profitStructure}
       >
@@ -381,7 +381,7 @@ function PriceFactorReport({
             spaced
           />
         )}
-      </SectionBlock>
+      </ReportBlock>
     </div>
   );
 }

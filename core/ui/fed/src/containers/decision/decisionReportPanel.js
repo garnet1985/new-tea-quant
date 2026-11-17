@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { fetchDecisionReport } from '../../api/decisionApi';
-import InlineLoadingState from '../../views/inlineLoadingState';
+import { Loading } from 'ui';
 import { Button, Dialog, Message, Select } from 'ui';
 import { isHttpStatusError } from 'service/request';
 import {
@@ -139,7 +139,7 @@ export default function DecisionReportPanel({
   const canCompare = Boolean(portfolioSlot) || completedOthers.length > 0;
 
   if (loading) {
-    return <InlineLoadingState block message="正在加载决策报告…" />;
+    return <Loading variant="inline" message="正在加载决策报告…" className="is-block" />;
   }
   if (error) {
     return <Message status="error">{error}</Message>;
@@ -204,7 +204,7 @@ export default function DecisionReportPanel({
               {compareLabel}
             </h4>
             {compareBusy ? (
-              <InlineLoadingState block message="正在加载对比报告…" />
+              <Loading variant="inline" message="正在加载对比报告…" className="is-block" />
             ) : null}
             {compareError ? (
               <p className="ntq-muted">{compareError}</p>

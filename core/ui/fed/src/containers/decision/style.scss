@@ -585,25 +585,6 @@ button.decision-cal-event:focus-visible {
   transform: rotate(0deg);
 }
 
-.decision-kv {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: flex-start;
-  gap: 6px 10px;
-  text-align: left;
-  width: 100%;
-}
-
-.decision-kv__label {
-  color: var(--ntq-text-muted);
-  flex: 0 0 auto;
-}
-
-.decision-kv__value {
-  min-width: 0;
-}
-
 .decision-pnl {
   font-variant-numeric: tabular-nums;
 }
@@ -1038,6 +1019,17 @@ button.decision-cal-event:focus-visible {
 
 .decision-opp-card .MuiDataGrid-row.is-capped {
   opacity: 0.5;
+}
+
+.decision-opp-grid {
+  .MuiDataGrid-row:hover {
+    background-color: rgba(34, 211, 238, 0.06);
+  }
+
+  .MuiDataGrid-cell {
+    outline: none;
+    overflow: visible;
+  }
 }
 
 .decision-opp-card.is-hot {

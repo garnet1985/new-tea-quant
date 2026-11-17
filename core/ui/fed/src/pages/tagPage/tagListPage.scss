@@ -6,13 +6,6 @@
     border-radius: var(--ui-radius-md, 0.5rem);
   }
 
-  .tag-list-grid-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--ui-space-sm);
-  }
-
   .tag-list-cell-name {
     display: inline-flex;
     align-items: center;
@@ -140,13 +133,5 @@
     animation: none;
     opacity: 0.85;
     transform: translateX(0);
-  }
-}
-
-/* sync: --ui-bp-sm ≈ 600px */
-@media (max-width: 599px) {
-  .tag-list-page .tag-list-grid-toolbar {
-    flex-direction: column;
-    align-items: stretch;
   }
 }

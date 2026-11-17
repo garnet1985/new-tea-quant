@@ -64,4 +64,4 @@ const Icon = React.forwardRef(function Icon(props, ref) {
 Icon.displayName = 'Icon';
 
 export default Icon;
-export { ICON_MAP, ICON_NAMES, NTQ_ICON_MAP, NTQ_ICON_NAMES } from './iconRegistry';
+export { ICON_MAP, ICON_NAMES } from './iconRegistry';

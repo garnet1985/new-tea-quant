@@ -1,12 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Accordion,
-  Button,
-  Dialog,
-  Icon,
-  SettingsAccordionTitle,
-  Tabs,
-} from 'ui';
+import { Accordion, Button, Dialog, Icon, SettingsAccordionTitle, Tabs, Loading } from 'ui';
 import { VersionPickLabel, VersionPickerDialog, lookupVersionById } from 'containers/versionPick';
 import OpportunityEnumrateReport from './opportunityEnumerateReport';
 import PriceFactorReport from './priceFactorReport';
@@ -18,7 +11,6 @@ import {
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from './mocks/strategyReportMetrics';
 import SettingsJsonDiff from './settingsJsonDiff';
-import InlineLoadingState from 'views/inlineLoadingState';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
   COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
@@ -481,7 +473,7 @@ function StrategyReportPanel({
                             <p className="ntq-caption ntq-report-panel__hint--error">{compareError}</p>
                           ) : null}
                           {!compareError && compareSideReportBusy ? (
-                            <InlineLoadingState compact block message="正在加载对比报告…" />
+                            <Loading variant="inline" message="正在加载对比报告…" className="is-block" />
                           ) : null}
                           {!compareError && !compareSideReportBusy
                             ? renderReportByTab(
@@ -513,7 +505,7 @@ function StrategyReportPanel({
                       </p>
                     ) : null}
                     {compareVersion && compareSideReportBusy ? (
-                      <InlineLoadingState compact row message="正在加载对比快照…" />
+                      <Loading variant="inlineRow" message="正在加载对比快照…" />
                     ) : null}
                     {compareError ? (
                       <p className="ntq-caption ntq-report-panel__hint--error">{compareError}</p>

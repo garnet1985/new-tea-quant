@@ -2,18 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Button,
-  CountBadge,
-  CountTab,
-  DataGrid,
-  Dialog,
-  Heading,
   Loading,
-  Message,
-  ProgressBar,
-  RadioGroup,
-  SearchField,
   Section,
-  Switch,
   Tag,
 } from 'ui';
 import { PageLayout } from 'ntq-ui';
@@ -35,38 +25,17 @@ import {
   readStrategyListCategoryQuery,
   STRATEGY_LIST_CATEGORY_PARAM,
 } from 'containers/strategyCategory';
-import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
-import StrategyDescriptionText from '../../views/strategyDescriptionText';
+import DescriptionText from 'ntq-ui/descriptionText';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import { formatDateTime } from '../../service/format/formatDateTime';
-import {
-  OpportunityDetailMeta,
-  buildOpportunityColumns,
-  formatSessionSummaryLine,
-  mapOpportunityRow,
-  readPresenterHistory,
-  readPresenterScanUi,
-} from './presenterScanReport';
+import { readPresenterHistory, readPresenterScanUi } from './presenterScanReport';
+import { formatScanDate, readOpportunityCount } from './scanHelpers';
+import ScanSettingsSection from './scanSettingsSection';
+import ScanStrategyListSection from './scanStrategyListSection';
+import ScanReportSection from './scanReportSection';
+import ScanDetailDialog from './scanDetailDialog';
 import './style.scss';
-
-function readOpportunityCount(pack) {
-  if (!pack || typeof pack !== 'object') return null;
-  const raw = pack.total_opportunities ?? pack.totalOpportunities ?? pack.opportunity_count;
-  if (raw == null || raw === '') return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
-}
-
-const SHOW_REPORT_GENERATED_AT = false;
-
-function formatScanDate(v) {
-  const raw = String(v || '').trim();
-  if (!raw) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
-  return raw;
-}
 
 function Scan() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -356,7 +325,7 @@ function Scan() {
           <span className="scan-cell-strategy__name">
             {params.value || params.row.name}
           </span>
-          <StrategyDescriptionText
+          <DescriptionText
             text={params.row.description}
             className="scan-cell-strategy__desc ntq-muted"
             empty="—"
@@ -603,361 +572,84 @@ function Scan() {
       loadingMessage="正在加载策略选股…"
     >
       <Section className="scan-page__stack" gap="md">
-        {/* —— Landing：扫描设置 —— */}
-        <Section className="scan-section scan-section--settings" gap="none">
-          <div className="scan-settings">
-            <div className="scan-settings__modes">
-              <RadioGroup
-                label="扫描模式"
-                variant="button"
-                direction="row"
-                value={mode}
-                disabled={running}
-                className="scan-mode-options"
-                onChange={(e) => {
-                  setMode(e.target.value);
-                  setRunError('');
-                  setStrictBlockReason('');
-                  setScanPrimaryById({});
-                  setScanGateById({});
-                  setReadinessLoading(true);
-                }}
-                options={[
-                  {
-                    value: 'strict',
-                    label: '严格模式',
-                    description: '依赖数据须更新至最新交易日，否则中断并提示缺口。',
-                  },
-                  {
-                    value: 'demo',
-                    label: '扫描演示',
-                    description: demoDesc,
-                  },
-                ]}
-              />
-            </div>
+        <ScanSettingsSection
+          mode={mode}
+          running={running}
+          demoDesc={demoDesc}
+          runPostProcess={runPostProcess}
+          enabledPostProcessors={enabledPostProcessors}
+          onModeChange={(e) => {
+            setMode(e.target.value);
+            setRunError('');
+            setStrictBlockReason('');
+            setScanPrimaryById({});
+            setScanGateById({});
+            setReadinessLoading(true);
+          }}
+          onRunPostProcessChange={(e) => {
+            const next = e.target.checked;
+            const prev = runPostProcess;
+            setRunPostProcess(next);
+            setPostProcessRunEnabled({ enablePostProcess: next })
+              .then((res) => {
+                setRunPostProcess(res?.enablePostProcess !== false);
+              })
+              .catch(() => {
+                setRunPostProcess(prev);
+                setRunError('无法保存「执行扫描后处理」偏好');
+              });
+          }}
+        />
 
-            <div className="scan-settings__divider" aria-hidden />
+        <ScanStrategyListSection
+          nameQuery={nameQuery}
+          onNameQueryChange={(e) => setNameQuery(e.target.value)}
+          running={running}
+          loading={loading}
+          onRefresh={load}
+          catalogGroups={catalogGroups}
+          rows={rows}
+          categoryQuery={categoryQuery}
+          setCategoryQuery={setCategoryQuery}
+          toggleCategoryQuery={toggleCategoryQuery}
+          selectedChipRef={selectedChipRef}
+          loadError={loadError}
+          readinessError={readinessError}
+          onClearReadinessError={() => setReadinessError('')}
+          dataEnd={dataEnd}
+          readinessLoading={readinessLoading}
+          mode={mode}
+          strictBlockReason={strictBlockReason}
+          runError={runError}
+          progress={progress}
+          catalogHasSelectedCategory={catalogHasSelectedCategory}
+          groupedRows={groupedRows}
+          columns={columns}
+        />
 
-            <div className="scan-settings__post">
-              <div className="scan-settings__post-head">
-                <Heading level="h4" gap="none" className="scan-settings__label">
-                  扫描后处理
-                </Heading>
-                <Switch
-                  label="执行扫描后处理"
-                  checked={runPostProcess && enabledPostProcessors.length > 0}
-                  disabled={running || enabledPostProcessors.length === 0}
-                  onChange={(e) => {
-                    const next = e.target.checked;
-                    const prev = runPostProcess;
-                    setRunPostProcess(next);
-                    setPostProcessRunEnabled({ enablePostProcess: next })
-                      .then((res) => {
-                        setRunPostProcess(res?.enablePostProcess !== false);
-                      })
-                      .catch(() => {
-                        setRunPostProcess(prev);
-                        setRunError('无法保存「执行扫描后处理」偏好');
-                      });
-                  }}
-                  aria-label="执行扫描后处理"
-                />
-              </div>
-              <p className="ntq-muted scan-settings__post-hint">
-                默认开启；关闭会写入工作区偏好并跳过扫描后处理（可能产生费用），不改全局方案启用。
-              </p>
-              {enabledPostProcessors.length ? (
-                <div
-                  className={[
-                    'scan-settings__chips',
-                    !runPostProcess ? 'scan-settings__chips--muted' : '',
-                  ].filter(Boolean).join(' ')}
-                >
-                  {enabledPostProcessors.map((row) => (
-                    <Tag key={row.key} status="neutral" variant="solid">
-                      {row.name || row.key}
-                    </Tag>
-                  ))}
-                </div>
-              ) : (
-                <p className="ntq-muted">当前未启用任何扫描后处理方案。</p>
-              )}
-              <div className="scan-settings__post-actions">
-                <Button
-                  variant="glass"
-                  icon="chevronRight"
-                  iconPlacement="end"
-                  iconSize="sm"
-                  component={RouterLink}
-                  to="/advanced/post-process"
-                  className="scan-design-btn"
-                >
-                  管理扫描后处理
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* —— Landing：策略列表 —— */}
-        <Section className="scan-section scan-section--list" gap="md">
-          <div className="scan-toolbar">
-            <SearchField
-              fluid
-              surface="glass"
-              placeholder="输入策略名称搜索"
-              label="按策略名搜索"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-            />
-            <Button
-              variant="glass"
-              icon="refresh"
-              disabled={running || loading}
-              onClick={load}
-            >
-              刷新策略列表
-            </Button>
-            <span className="ntq-muted scan-toolbar__hint">
-              一次仅允许扫描一个策略；运行中会禁用其它策略的扫描按钮。
-            </span>
-          </div>
-
-          {catalogGroups.length > 0 ? (
-            <div
-              className="scan-category-chips"
-              role="group"
-              aria-label="按归类筛选"
-            >
-              <CountTab
-                wide
-                label="全部"
-                count={rows.length}
-                selected={!categoryQuery}
-                onClick={() => setCategoryQuery('')}
-              />
-              <div className="scan-category-chips-scroller">
-                {catalogGroups.map(({ category, queryValue, rows: categoryRows }) => {
-                  const selected = categoryQuery === queryValue;
-                  return (
-                    <CountTab
-                      key={queryValue}
-                      label={category}
-                      count={categoryRows.length}
-                      title={category}
-                      selected={selected}
-                      ref={selected ? selectedChipRef : undefined}
-                      onClick={() => toggleCategoryQuery(queryValue)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          {loadError ? <Message status="error">{loadError}</Message> : null}
-          {readinessError ? (
-            <Message status="warning" onClose={() => setReadinessError('')}>
-              {readinessError}
-            </Message>
-          ) : null}
-          <DataEndTruncationAlert dataEnd={dataEnd} />
-          {!readinessLoading && mode === 'strict' && strictBlockReason ? (
-            <Message status="warning">{strictBlockReason}</Message>
-          ) : null}
-          {runError && runError !== strictBlockReason ? (
-            <Message status="error">{runError}</Message>
-          ) : null}
-
-          {running ? (
-            <ProgressBar
-              className="scan-progress"
-              size="md"
-              value={progress.pct}
-              label={progress.label}
-              showPercent
-            />
-          ) : null}
-
-          <div className={[
-            'scan-strategy-list',
-            loading && rows.length === 0 ? 'scan-strategy-list--loading' : '',
-          ].filter(Boolean).join(' ')}
-          >
-            {loading && rows.length === 0 ? (
-              <Loading variant="inline" message="正在加载策略列表…" />
-            ) : !loading && categoryQuery && !catalogHasSelectedCategory ? (
-              <p className="ntq-muted scan-category-empty">没有该归类的策略</p>
-            ) : groupedRows.length === 0 ? (
-              <p className="ntq-muted scan-category-empty">
-                {nameQuery.trim() ? '没有匹配的策略' : '暂无策略'}
-              </p>
-            ) : (
-              <div className="scan-category-stack">
-                {groupedRows.map(({ category, queryValue, rows: categoryRows }) => (
-                  <div key={queryValue} className="scan-category-section">
-                    <div className="scan-category">
-                      <button
-                        type="button"
-                        className="scan-category-header-btn"
-                        onClick={() => toggleCategoryQuery(queryValue)}
-                        aria-pressed={categoryQuery === queryValue}
-                        title={categoryQuery === queryValue ? '显示全部归类' : `只看${category}`}
-                      >
-                        <span className="scan-category-header-label">{category}</span>
-                        <CountBadge
-                          count={categoryRows.length}
-                          label={`${categoryRows.length} 个策略`}
-                        />
-                      </button>
-                    </div>
-                    <DataGrid
-                      autoHeight
-                      rows={categoryRows}
-                      columns={columns}
-                      loading={false}
-                      getRowHeight={() => 'auto'}
-                      hideFooter
-                      className="scan-strategy-grid"
-                      sx={{
-                        '& .MuiDataGrid-cell': {
-                          py: 1.25,
-                          alignItems: 'flex-start',
-                          whiteSpace: 'normal',
-                          lineHeight: 1.5,
-                        },
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Section>
-
-        {/* 报告 / 明细下一轮再细抠；本轮先换成 ui 外壳，保证 landing 可跑通 */}
         {reportVisible ? (
-          <Section className="scan-section scan-section--report" gap="sm">
-            <div className="scan-report__head">
-              <Heading level="h3" gap="none">扫描报告</Heading>
-              <span className="ntq-muted">
-                扫描当日：{scanTriggeredAt || reportGeneratedAt || '—'}
-              </span>
-              {SHOW_REPORT_GENERATED_AT ? (
-                <span className="ntq-muted">报告日期：{reportGeneratedAt || '—'}</span>
-              ) : null}
-            </div>
-            <p className="scan-report__lead">
-              使用策略
-              {' '}
-              <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
-              {' '}
-              扫描完成：共找到
-              {' '}
-              <Button
-                variant="ghost"
-                className="scan-report__count"
-                disabled={reportCount == null}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!reportStrategyId || reportCount == null) return;
-                  openDetail(reportStrategyId);
-                }}
-              >
-                {reportCount == null ? '—' : reportCount}
-              </Button>
-              {' '}
-              个机会
-            </p>
-            <div className="scan-report__facts ntq-muted">
-              <p>- 扫描日期：{formatScanDate(reportPayload?.date) || '—'}</p>
-              <p>- 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}</p>
-              <p>- 模式：{reportDemo === true ? '演示模式' : '严格模式'}</p>
-              <p>
-                - 扫描后处理：{(() => {
-                  if (reportPayload?.post_process?.skipped) return '本次已跳过';
-                  const ran = Array.isArray(reportPayload?.post_process?.ran)
-                    ? reportPayload.post_process.ran
-                    : [];
-                  const enabled = Array.isArray(reportPayload?.post_process?.enabled)
-                    ? reportPayload.post_process.enabled
-                    : enabledPostProcessors.map((row) => row.key);
-                  if (ran.length) return `已运行 ${ran.join('、')}`;
-                  if (enabled.length) return '已启用但未回报运行结果（可能失败或跳过）';
-                  return '未启用';
-                })()}
-              </p>
-            </div>
-            <p className="ntq-muted scan-report__hint">请点击表格里的机会数量查看详情。</p>
-          </Section>
+          <ScanReportSection
+            scanTriggeredAt={scanTriggeredAt}
+            reportGeneratedAt={reportGeneratedAt}
+            reportStrategyName={reportStrategyName}
+            reportStrategyId={reportStrategyId}
+            reportCount={reportCount}
+            onOpenDetail={openDetail}
+            reportPayload={reportPayload}
+            reportDemo={reportDemo}
+            enabledPostProcessors={enabledPostProcessors}
+          />
         ) : null}
       </Section>
 
-      <Dialog
+      <ScanDetailDialog
         open={detailOpen}
         onClose={closeDetail}
-        title="机会明细"
-        size="lg"
-        maxWidth={detailPresenterUi ? 'lg' : 'md'}
-        className="scan-detail-dialog"
-        actions={<Button variant="glass" onClick={closeDetail}>关闭</Button>}
-      >
-        <div className="scan-detail__body">
-          {detailPayload ? (
-            <>
-              <OpportunityDetailMeta
-                strategyName={detailStrategyName}
-                scanDate={detailPayload?.date || detailPayload?.scan_date}
-                opportunityCount={(() => {
-                  const n = readOpportunityCount(detailPayload);
-                  if (n != null) return n;
-                  const ops = detailPayload?.opportunities;
-                  return Array.isArray(ops) ? ops.length : null;
-                })()}
-                presenterLine={
-                  detailPresenterUi && !detailPresenterHistory.error
-                    ? (formatSessionSummaryLine(detailPresenterHistory.sessionSummary)
-                      || '（无 price 层 overall_report / 尚未回测）')
-                    : ''
-                }
-                presenterError={
-                  detailPresenterUi ? detailPresenterHistory.error : ''
-                }
-              />
-              <div className="scan-detail__grid">
-                <DataGrid
-                  rows={(() => {
-                    const byStock = detailPresenterUi ? detailPresenterHistory.byStock : {};
-                    const ops = Array.isArray(detailPayload?.opportunities)
-                      ? detailPayload.opportunities
-                      : null;
-                    if (ops) {
-                      return ops.map((o, idx) => mapOpportunityRow(o, idx, byStock));
-                    }
-                    const list = Array.isArray(detailPayload?.summary?.stocks_with_opportunities)
-                      ? detailPayload.summary.stocks_with_opportunities
-                      : [];
-                    return list.map((code, idx) => mapOpportunityRow(
-                      { stock_id: code },
-                      idx,
-                      byStock,
-                    ));
-                  })()}
-                  columns={buildOpportunityColumns({ withPresenter: Boolean(detailPresenterUi) })}
-                  getRowHeight={() => 'auto'}
-                  pageSizeOptions={[10, 25, 50]}
-                  initialState={{
-                    pagination: { paginationModel: { page: 0, pageSize: 10 } },
-                  }}
-                />
-              </div>
-            </>
-          ) : (
-            <p className="ntq-muted">暂无明细。</p>
-          )}
-        </div>
-      </Dialog>
+        detailPresenterUi={detailPresenterUi}
+        detailPayload={detailPayload}
+        detailStrategyName={detailStrategyName}
+        detailPresenterHistory={detailPresenterHistory}
+      />
     </PageLayout>
   );
 }

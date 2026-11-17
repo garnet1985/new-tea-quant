@@ -1,14 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Checkbox,
-  DataGrid,
-  Icon,
-  Message,
-  Select,
-  TextField,
-} from 'ui';
-import InlineLoadingState from '../../views/inlineLoadingState';
+import { Button, Checkbox, DataGrid, Icon, Message, Select, TextField, Loading } from 'ui';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   getSetupDefinition,
@@ -511,7 +502,7 @@ function SetupPage() {
     <>
       {bootstrapping ? (
         <div className="setup-page__backdrop">
-          <InlineLoadingState message="正在加载安装状态…" />
+          <Loading variant="inline" message="正在加载安装状态…" />
         </div>
       ) : null}
       <div

@@ -120,5 +120,3 @@ function Button({
 
 export default Button;
 export { ICON_PLACEMENTS as BUTTON_ICON_PLACEMENTS };
-/** @deprecated 旧名 */
-export { ICON_PLACEMENTS as NTQ_BUTTON_ICON_PLACEMENTS };

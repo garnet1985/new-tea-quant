@@ -7,7 +7,7 @@
 **硬规则**
 
 - `ntq-ui` 可以依赖 `ui`；**`ui` 禁止依赖 `ntq-ui`**
-- 禁止引用 Sass `_variables.scss`
+- 尺度用 `--ntq-*` / `--ui-*`；禁止 Sass `$` 设计变量
 - 路由表 / 站点 URL / 业务映射由应用层传入，不写死在组件里
 
 | 组件 | 状态 | 说明 |
@@ -24,9 +24,12 @@
 | `rainbowButton` | ready | 品牌强调按钮（运行 / 助手等；非通用 CRUD） |
 | `reportBlock` | ready | 回测/报告小节固定壳 |
 | `pythonDictEditor` | ready | JSON / Python dict 调试面板 |
+| `pageBackground` | ready | 主壳随机背景 |
+| `updateStatusChip` | ready | 数据/计算更新状态 |
+| `descriptionText` | ready | 多行说明文案（可截断） |
 
 ```js
 import { BecomeMemberLink, MemberStrip, RainbowButton, PageLayout } from 'ntq-ui';
 ```
 
-图鉴 `/dev/ui` 仍合并展示本目录与 `ui`。过渡期 `ui/ntq` 仅为 deprecated re-export。
+图鉴 `/dev/ui` 合并展示本目录与 `ui`。

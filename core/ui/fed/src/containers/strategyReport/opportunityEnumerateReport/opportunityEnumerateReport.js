@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChartPanel, MetricCard, MetricGrid } from 'ui';
-import { SectionBlock } from 'views/sectionBlock';
+import ReportBlock from 'ntq-ui/reportBlock';
 import '../reportBlock.scss';
 import {
   ENUM_CHART_TIPS,
@@ -158,7 +158,7 @@ function OpportunityEnumrateReport({
         />
       ) : null}
 
-      <SectionBlock
+      <ReportBlock
         title="机会总体统计"
         tip={ENUM_SECTION_TIPS.overview}
       >
@@ -176,9 +176,9 @@ function OpportunityEnumrateReport({
             />
           </MetricGrid>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="股票机会统计"
         tip={ENUM_SECTION_TIPS.stockStats}
       >
@@ -204,9 +204,9 @@ function OpportunityEnumrateReport({
           fallback={<ReportUnavailableHint />}
           spaced={Boolean(avail.stockStats)}
         />
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="涨跌停可成交性"
         tip={ENUM_SECTION_TIPS.tradability}
       >
@@ -226,9 +226,9 @@ function OpportunityEnumrateReport({
             />
           </MetricGrid>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="机会出现"
         tip={ENUM_SECTION_TIPS.timing}
       >
@@ -259,7 +259,7 @@ function OpportunityEnumrateReport({
             />
           </div>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
     </div>
   );
 }

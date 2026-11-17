@@ -6,7 +6,7 @@ import GlobalHelperHost from 'containers/globalHelper';
 import JobPipelineDock from 'containers/jobPipelineDock';
 import JobPipelineWatch from 'containers/jobPipelineWatch';
 import { ToastHost } from 'ui';
-import PageBackground from 'views/pageBackground';
+import PageBackground from 'ntq-ui/pageBackground';
 import './style.scss';
 
 function AppShell() {

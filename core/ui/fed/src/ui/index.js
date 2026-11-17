@@ -15,6 +15,8 @@ export { default as Section } from './layout/section';
 export { default as Accordion } from './layout/accordion';
 export { default as Tabs } from './layout/tabs';
 export { default as SideNav } from './layout/sideNav';
+export { default as ListToolbar } from './layout/listToolbar';
+export { default as CategoryChipStrip } from './layout/categoryChipStrip';
 
 // text
 export { default as Text } from './text/text';
@@ -33,6 +35,7 @@ export { default as Button } from './button/button';
 export { default as Icon } from './icon/icon';
 export { default as Avatar } from './avatar/avatar';
 export { default as Tag } from './tag/tag';
+export { default as DefinitionList } from './display/definitionList';
 
 // data
 export { default as DataGrid } from './table/dataGrid';

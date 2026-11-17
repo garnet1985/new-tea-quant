@@ -4,6 +4,7 @@ import {
   DataGrid,
   HelpTooltip,
   Icon,
+  ListToolbar,
   Message,
   SearchField,
   Section,
@@ -24,9 +25,9 @@ import {
   getTagUpdateModeLabel,
   startTagRun,
 } from '../../api/tagApi';
-import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
-import StrategyDescriptionText from '../../views/strategyDescriptionText';
-import FreshnessStatusChip from '../../views/freshnessStatusChip';
+import DataEndTruncationAlert from 'containers/dataEndTruncation';
+import DescriptionText from 'ntq-ui/descriptionText';
+import UpdateStatusChip from 'ntq-ui/updateStatusChip';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import TagVisualization from '../../containers/tagVisualization';
 import './tagListPage.scss';
@@ -51,7 +52,7 @@ function clearRowProgress(rows) {
 
 function ComputeStatusChip({ row }) {
   return (
-    <FreshnessStatusChip
+    <UpdateStatusChip
       status={row.compute_status}
       label={getTagComputeStatusLabel(row)}
       hint={row.compute_status_hint}
@@ -189,7 +190,7 @@ function TagListPage() {
             {description ? (
               <HelpTooltip
                 title={(
-                  <StrategyDescriptionText
+                  <DescriptionText
                     text={description}
                     empty=""
                   />
@@ -470,24 +471,28 @@ function TagListPage() {
         ) : null}
 
         <Section className="tag-list-grid" gap="md">
-          <div className="tag-list-grid-toolbar">
-            <SearchField
-              fluid
-              surface="glass"
-              placeholder="搜索场景名或 Tag"
-              label="搜索 Tag 场景"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-            />
-            <Button
-              variant="glass"
-              icon="refresh"
-              onClick={load}
-              disabled={loading || Boolean(runningTagId)}
-            >
-              刷新列表
-            </Button>
-          </div>
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="搜索场景名或 Tag"
+                label="搜索 Tag 场景"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <Button
+                variant="glass"
+                icon="refresh"
+                onClick={load}
+                disabled={loading || Boolean(runningTagId)}
+              >
+                刷新列表
+              </Button>
+            )}
+          />
 
           <div className="tag-list-grid-body">
             <DataGrid
@@ -501,14 +506,7 @@ function TagListPage() {
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
               getRowId={(row) => row.id}
-              sx={{
-                '& .MuiDataGrid-cell': {
-                  py: 1.25,
-                  alignItems: 'flex-start',
-                  whiteSpace: 'normal',
-                  lineHeight: 1.5,
-                },
-              }}
+              cellLayout="wrap"
             />
           </div>
         </Section>

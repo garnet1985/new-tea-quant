@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Message from 'ui/message/message';
 import { Tag, TextArea } from 'ui';
 import JSON5 from 'json5';
-import PythonDictInputPanel from 'views/pythonDictInputPanel';
+import PythonDictEditor from 'ntq-ui/pythonDictEditor';
 import PageLayout from 'ntq-ui/pageLayout';
 import './style.scss';
 
@@ -358,7 +358,7 @@ function JsonFieldTestPage() {
       ) : null}
 
       <div className="json-field-test-page__columns">
-        <PythonDictInputPanel
+        <PythonDictEditor
           inputRef={inputRef}
           value={jsonInput}
           onChange={(nextText) => {

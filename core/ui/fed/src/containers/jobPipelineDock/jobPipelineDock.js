@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Icon, Loading, ProgressBar } from 'ui';
+import { Button, Icon, Loading, ProgressBar, showToast } from 'ui';
 import { abandonPipelineJob, cancelPipelineJob } from 'api/runtimeApi';
-import { showToast } from 'containers/toast';
 import { jobDeepLink, jobDisplayName } from 'service/jobPipelineLinks';
 import { publishPipelineSnapshot, subscribePipelineSnapshot } from 'service/jobPipelineBus';
 import { dismissUnreadJob, subscribeUnreadJobs } from 'service/jobPipelineUnread';
@@ -37,6 +36,8 @@ function statusClass(row) {
 }
 
 function progressPercent(row) {
+  // 成功结束时后端常停在最后一次上报的 percent（未刷到 100）；展示上按满格处理。
+  if (statusKey(row) === 'completed') return 100;
   const pct = Number(row?.progress?.percent);
   if (!Number.isFinite(pct)) return null;
   return Math.max(0, Math.min(100, pct));
@@ -129,14 +130,14 @@ function JobPipelineDock() {
       const out = await cancelPipelineJob(id);
       if (out?.pipeline) publishPipelineSnapshot(out.pipeline);
       showToast({
-        severity: 'info',
+        status: 'info',
         duration: 3200,
         content: out?.reason || '已从队列取消该任务',
       });
     } catch (error) {
       logClientError('jobPipelineDock.cancel', error, id);
       showToast({
-        severity: 'error',
+        status: 'error',
         duration: 4200,
         content: error?.message || '取消失败',
       });
@@ -153,14 +154,14 @@ function JobPipelineDock() {
       const out = await abandonPipelineJob(id);
       if (out?.pipeline) publishPipelineSnapshot(out.pipeline);
       showToast({
-        severity: 'info',
+        status: 'info',
         duration: 3200,
         content: out?.reason || '已取消该任务，管道已释放',
       });
     } catch (error) {
       logClientError('jobPipelineDock.abandon', error, id);
       showToast({
-        severity: 'error',
+        status: 'error',
         duration: 4200,
         content: error?.message || '取消失败',
       });

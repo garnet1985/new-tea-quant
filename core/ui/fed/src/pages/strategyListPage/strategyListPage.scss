@@ -10,34 +10,6 @@
   border-radius: var(--ui-radius-md, 0.5rem);
 }
 
-.strategy-list-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-space-sm);
-}
-
-.strategy-list-category-chips {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--ui-space-sm);
-  min-width: 0;
-}
-
-.strategy-list-category-chips-scroller {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--ui-space-sm);
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  padding: 2px 0;
-}
-
 .strategy-list-category-empty {
   margin: 0;
   padding: var(--ui-space-md) var(--ui-space-xxs);

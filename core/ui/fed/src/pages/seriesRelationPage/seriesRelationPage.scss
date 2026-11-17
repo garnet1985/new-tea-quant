@@ -9,13 +9,6 @@
   border-radius: var(--ui-radius-md, 0.5rem);
 }
 
-.ntq-srel-list-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-space-sm);
-}
-
 .ntq-srel-list-key {
   font-family: var(--ui-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
   font-size: 0.8125rem;
@@ -430,11 +423,6 @@
 
 /* sync: --ui-bp-sm ≈ 600px */
 @media (max-width: 599px) {
-  .ntq-srel-list-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .ntq-srel-save-btn {
     margin-left: 0;
   }

@@ -501,9 +501,7 @@ function PostProcessPage() {
               getRowHeight={() => 'auto'}
               pageSizeOptions={[10, 25]}
               initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
-              sx={{
-                '& .MuiDataGrid-cell': { py: 1, alignItems: 'flex-start' },
-              }}
+              cellLayout="wrap"
             />
           </Section>
         </Section>
@@ -523,9 +521,7 @@ function PostProcessPage() {
               getRowHeight={() => 'auto'}
               pageSizeOptions={[10, 25]}
               initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
-              sx={{
-                '& .MuiDataGrid-cell': { py: 1, alignItems: 'flex-start' },
-              }}
+              cellLayout="wrap"
             />
           </Section>
         </Section>

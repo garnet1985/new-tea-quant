@@ -33,7 +33,7 @@ const doc = {
   antiPatterns: [
     '不要在每个页面各自再挂 ToastHost。',
     '不要用 Toast 承载需长期阅读的说明（用 Message）。',
-    '不要再传 tone / severity；用 status。',
+    '只用 status（info / success / warning / error），不要自造 tone。',
   ],
 };
 

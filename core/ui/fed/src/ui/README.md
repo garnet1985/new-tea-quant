@@ -13,7 +13,7 @@
 **`ui` 禁止依赖 `ntq-ui`。**
 
 - 入口：`styles/_tokens.scss`（加载两套 + 过渡期把旧 `--ntq-space-*` 等别名到 `--ui-*`）。
-- **禁止**在 `ui/**` 使用 Sass `$` 变量（`styles/_variables.scss` 已标 **TODO 淘汰**，仅 legacy 暂用）。
+- **禁止**在 `ui/**` 使用 Sass `$` 设计变量；尺度一律 `--ui-*` / `--ntq-*`。
 - `@media` 断点写字面量并注释 `sync: --ui-…` / `--ntq-…`（media 不能可靠读 CSS 变量）。
 
 ## App 硬规则（与 `FED_STANDARD.md` 一致）
@@ -44,15 +44,17 @@
 ## 约定
 
 - 只放 **L1 设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
-- **layout**：`column` / `block` / `section` / `tabs` / `sideNav`（不含 Banner、面包屑）。
+- **layout**：`column` / `block` / `section` / `tabs` / `sideNav` / `listToolbar` / `categoryChipStrip`（不含 Banner、面包屑）。
   - `Column`：版式 + `gap` + `divider`（竖线分栏）。
   - `Block`：`surface`（soft/panel/glass/gradient）+ `radius`（含 pill）+ `bordered`。
   - `Section`：纵向堆叠 + `gap`；表面仍用内嵌 Block。
   - `Tabs`：`variant="top"` 上方切换；`variant="side"` 左右分栏（同页切 panel）。
   - `SideNav`：左侧目录壳（`line` / `rail`）；可选 `sticky` 贴顶。整栏（标题+菜单）贴顶用外层 `Block sticky`。栏宽用 Column sidebar，右栏自管（Outlet 等）。
+  - `ListToolbar`：列表搜索 + 操作槽 + 可选 hint。
+  - `CategoryChipStrip`：「全部」+ 横向滚动归类 CountTab。
 - **text**（图鉴 `/dev/ui/text`）：`text` / `heading` / `separator` / `quote` / `textBlock` / `codeBlock`。磁盘仍在 `ui/text/*`。普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等）。
 - **button**：`Button`（前后图标、纯图标、tooltip、`href`/`component` 外链自动后置 `>`）。品牌彩虹钮在 **`ntq-ui/rainbowButton`**。
-- **display**（图鉴 `/dev/ui/display`）：`Icon`；`avatar`；`tag`。业务 Freshness 映射属 L2。
+- **display**（图鉴 `/dev/ui/display`）：`Icon`；`avatar`；`tag`；`definitionList`。业务 Freshness 映射属 L2。
 - **data**（图鉴 `/dev/ui/data`）：`dataGrid`；`chartPanel`；`monthCalendar`；`metricCard` / `metricGrid`；`countTab` / `countBadge`。
 - **input**：`field`；`textField` / `textArea`；`checkbox`；`radio`；`switch`；`select`；`searchSelect`；`searchField`；`autocomplete`；`date` / `dateRange`。
 - **feedback**：`message` / `dialog` / `toast` / `HelpTooltip`；`loadingBars` / `loading` / `progressBar` / `progressRing`；`stepper`。

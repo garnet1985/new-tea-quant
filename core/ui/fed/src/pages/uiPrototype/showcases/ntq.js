@@ -88,7 +88,7 @@ function AppNavShowcase() {
         <SampleNA>
           高度对齐顶栏
           {' '}
-          <Text variant="code">$ntq-header-height</Text>
+          <Text variant="code">--ntq-header-height</Text>
           ；图标
           {' '}
           <Text variant="code">md</Text>
@@ -372,7 +372,7 @@ function ReportBlockShowcase() {
         <SampleNA>
           固定报告壳；不要再复制
           {' '}
-          <Text variant="code">views/sectionBlock</Text>
+          <Text variant="code">ntq-ui/reportBlock</Text>
           。
         </SampleNA>
       </SampleDim>

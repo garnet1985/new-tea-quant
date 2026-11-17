@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import InlineLoadingState from 'views/inlineLoadingState';
+import { Loading } from 'ui';
 import { Button, Dialog } from 'ui';
 import './style.scss';
 import { fetchStrategyStockDetail } from 'api/strategyApi';
@@ -411,7 +411,7 @@ function ReportStockDetailView({
         ) : null}
 
         {loading ? (
-          <InlineLoadingState block message="正在加载 K 线与标注…" />
+          <Loading variant="inline" message="正在加载 K 线与标注…" className="is-block" />
         ) : (
           <>
             {error ? (

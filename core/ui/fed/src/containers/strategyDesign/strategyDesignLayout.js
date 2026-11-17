@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import PageLoadingState from 'views/pageLoadingState';
+import { Loading } from 'ui';
 import StrategyDesignBreadcrumbCurrent from './breadcrumbCurrent';
 import StrategyDesignMetaBar from './metaBar';
 import StrategyDesignMetaDialogs from './metaDialogs';
@@ -14,7 +14,7 @@ function StrategyDesignBody() {
   if (wb.isLoadingSettings) {
     return (
       <div className="ntq-page__body strategy-design-shell__body is-loading">
-        <PageLoadingState message="正在加载策略工作台…" minHeight="48vh" />
+        <Loading variant="page" message="正在加载策略工作台…" style={{ minHeight: '48vh' }} />
       </div>
     );
   }

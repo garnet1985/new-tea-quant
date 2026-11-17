@@ -4,7 +4,7 @@
  * status: stub | ready
  * origin: new | migrate | gap
  *
- * 阶段约定：先完成 src/ui（L1 原语）；views/ 只读。
+ * 阶段约定：L1 在 src/ui；NTQ 壳在 src/ntq-ui；业务组合在 containers。
  * L2（业务 status→L1 props）另建，不进本图鉴。
  * widget.uiPath 可选：覆盖磁盘路径（默认 `${categoryId}/${widgetId}`）。
  */
@@ -58,13 +58,15 @@ export const UI_CATALOG = [
   {
     id: 'layout',
     label: '布局',
-    description: '分栏与区块：Column / Block / Section / Tabs / SideNav。',
+    description: '分栏与区块：Column / Block / Section / Tabs / SideNav / ListToolbar / CategoryChipStrip。',
     widgets: [
       { id: 'column', label: 'column', origin: 'new', source: null, status: 'ready' },
       { id: 'block', label: 'block', origin: 'new', source: null, status: 'ready' },
       { id: 'section', label: 'section', origin: 'new', source: null, status: 'ready' },
       { id: 'tabs', label: 'tabs', origin: 'new', source: null, status: 'ready' },
       { id: 'sideNav', label: 'sideNav', origin: 'new', source: null, status: 'ready' },
+      { id: 'listToolbar', label: 'listToolbar', origin: 'migrate', source: null, status: 'ready', uiPath: 'layout/listToolbar' },
+      { id: 'categoryChipStrip', label: 'categoryChipStrip', origin: 'migrate', source: null, status: 'ready', uiPath: 'layout/categoryChipStrip' },
     ],
   },
   {
@@ -99,11 +101,12 @@ export const UI_CATALOG = [
   {
     id: 'display',
     label: '展示',
-    description: '图标、头像、标签等行内展示原语。',
+    description: '图标、头像、标签、键值行等行内展示原语。',
     widgets: [
       { id: 'icon', label: 'icon', origin: 'new', source: null, status: 'ready', uiPath: 'icon/icon' },
       { id: 'avatar', label: 'avatar', origin: 'new', source: null, status: 'ready', uiPath: 'avatar/avatar' },
       { id: 'tag', label: 'tag', origin: 'new', source: null, status: 'ready', uiPath: 'tag/tag' },
+      { id: 'definitionList', label: 'definitionList', origin: 'migrate', source: null, status: 'ready', uiPath: 'display/definitionList' },
     ],
   },
   {
@@ -264,7 +267,7 @@ export const UI_CATALOG = [
         id: 'reportBlock',
         label: 'reportBlock',
         origin: 'migrate',
-        source: 'views/sectionBlock',
+        source: 'ntq-ui/reportBlock',
         status: 'ready',
         uiPath: 'ntq-ui/reportBlock',
       },
@@ -272,7 +275,7 @@ export const UI_CATALOG = [
         id: 'pythonDictEditor',
         label: 'pythonDictEditor',
         origin: 'migrate',
-        source: 'views/pythonDictInputPanel',
+        source: 'ntq-ui/pythonDictEditor',
         status: 'ready',
         uiPath: 'ntq-ui/pythonDictEditor',
       },

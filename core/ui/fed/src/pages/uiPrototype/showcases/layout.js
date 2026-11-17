@@ -4,6 +4,10 @@ import Block from 'ui/layout/block';
 import Section from 'ui/layout/section';
 import Tabs from 'ui/layout/tabs';
 import SideNav from 'ui/layout/sideNav';
+import ListToolbar from 'ui/layout/listToolbar';
+import CategoryChipStrip from 'ui/layout/categoryChipStrip';
+import Button from 'ui/button/button';
+import SearchField from 'ui/input/searchField';
 import Text from 'ui/text/text';
 import {
   COLUMN_VARIANTS,
@@ -486,12 +490,77 @@ function SideNavShowcase() {
   );
 }
 
+function ListToolbarShowcase() {
+  const [q, setQ] = useState('');
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="search + actions + hint" block>
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                label="搜索"
+                placeholder="输入关键字"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            )}
+            actions={(
+              <>
+                <Button variant="glass" icon="refresh">刷新</Button>
+                <Button variant="primary" icon="add">新建</Button>
+              </>
+            )}
+            hint="提示文案靠右"
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function CategoryChipStripShowcase() {
+  const [query, setQuery] = useState('');
+  const groups = [
+    { key: '动量', label: '动量', count: 3 },
+    { key: '价值', label: '价值', count: 5 },
+    { key: '事件', label: '事件', count: 2 },
+  ];
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="全部 + 归类 chips" block>
+          <CategoryChipStrip
+            all={{
+              label: '全部',
+              count: 10,
+              selected: !query,
+              onClick: () => setQuery(''),
+            }}
+            items={groups.map((g) => ({
+              key: g.key,
+              label: g.label,
+              count: g.count,
+              selected: query === g.key,
+              onClick: () => setQuery(query === g.key ? '' : g.key),
+            }))}
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const layoutShowcases = {
   column: ColumnShowcase,
   block: BlockShowcase,
   section: SectionShowcase,
   tabs: TabsShowcase,
   sideNav: SideNavShowcase,
+  listToolbar: ListToolbarShowcase,
+  categoryChipStrip: CategoryChipStripShowcase,
 };
 
 export default layoutShowcases;

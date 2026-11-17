@@ -6,13 +6,6 @@
     border-radius: var(--ui-radius-md, 0.5rem);
   }
 
-  .data-source-list-grid-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--ui-space-sm);
-  }
-
   .data-source-list-cell-name {
     font-weight: var(--ui-font-weight-bold);
   }
@@ -114,12 +107,4 @@
   max-width: 17.5rem;
   font-size: var(--ui-font-xs);
   line-height: var(--ui-leading-normal);
-}
-
-/* sync: --ui-bp-sm ≈ 600px */
-@media (max-width: 599px) {
-  .data-source-list-page .data-source-list-grid-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }

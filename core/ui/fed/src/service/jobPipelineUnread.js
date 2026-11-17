@@ -40,6 +40,11 @@ function normalizeJob(job) {
   if (!job || typeof job !== 'object') return null;
   const jobId = String(job.job_id || '').trim();
   if (!jobId) return null;
+  const rawProgress = job.progress && typeof job.progress === 'object' ? job.progress : null;
+  // 入库为「待查看成功」时进度按满格，避免沿用运行中最后一次 percent。
+  const progress = rawProgress
+    ? { ...rawProgress, percent: 100 }
+    : { percent: 100 };
   return {
     job_id: jobId,
     kind: job.kind || null,
@@ -48,7 +53,7 @@ function normalizeJob(job) {
     status: 'completed',
     started_at: job.started_at || null,
     finished_at: job.finished_at || Date.now(),
-    progress: job.progress && typeof job.progress === 'object' ? job.progress : null,
+    progress,
   };
 }
 

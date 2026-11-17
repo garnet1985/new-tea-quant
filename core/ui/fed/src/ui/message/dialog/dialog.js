@@ -42,15 +42,22 @@ function Dialog({
   children = null,
   actions = null,
   size = 'sm',
+  /** 叠在另一个 Dialog 之上（如二次确认） */
+  elevated = false,
   disableEscapeKeyDown = false,
   className = '',
   ...rest
 }) {
   const sizeToken = pickToken(size, DIALOG_SIZES, 'sm');
-  const rootClass = ['ntq-dialog', className].filter(Boolean).join(' ');
+  const rootClass = [
+    'ntq-dialog',
+    elevated ? 'ntq-dialog--elevated' : '',
+    className,
+  ].filter(Boolean).join(' ');
 
   return (
     <MuiDialog
+      {...rest}
       open={Boolean(open)}
       onClose={onClose}
       maxWidth={SIZE_TO_MUI[sizeToken]}
@@ -58,7 +65,7 @@ function Dialog({
       disableEscapeKeyDown={disableEscapeKeyDown}
       className={rootClass}
       classes={{ paper: 'ntq-dialog__paper' }}
-      {...rest}
+      sx={elevated ? { zIndex: (theme) => theme.zIndex.modal + 2 } : rest.sx}
     >
       {title ? (
         <DialogTitle className="ntq-dialog__title">{title}</DialogTitle>

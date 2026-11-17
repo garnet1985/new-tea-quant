@@ -32,15 +32,23 @@ const doc = {
       defaultValue: "'sm'",
       description: '宽度：窄确认 / 说明 / 较宽。',
     },
+    {
+      name: 'elevated',
+      type: 'boolean',
+      defaultValue: 'false',
+      description: '叠在另一个 Dialog 之上（二次确认）；勿在业务侧用 sx 抬 z-index。',
+    },
   ],
   scenarios: [
     '清理缓存 / 重新安装 / 导入数据等确认。',
     '需要阅读后果后再继续的短说明。',
+    '已有 Dialog 打开时再弹删除确认：elevated。',
   ],
   antiPatterns: [
     '不要用 Dialog 代替 Toast / Message 做瞬时反馈。',
     '页面禁止直接 import MUI Dialog。',
     '不要在 Dialog 内再嵌一套全页布局。',
+    '不要在业务侧用 sx 改 z-index；用 elevated。',
   ],
 };
 

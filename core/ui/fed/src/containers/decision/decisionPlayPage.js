@@ -1,18 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  ChartPanel,
-  DataGrid,
-  Dialog,
-  Icon,
-  Message,
-  Tag,
-  TextArea,
-} from 'ui';
+import { Button, ChartPanel, DataGrid, DefinitionList, Dialog, Icon, Message, Tag, Loading, showToast } from 'ui';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import PageLayout from 'ntq-ui/pageLayout';
-import InlineLoadingState from '../../views/inlineLoadingState';
-import { showToast } from 'containers/toast';
 import {
   buildMarketChartOptionFromStockPayload,
   FinancePitCard,
@@ -22,22 +11,17 @@ import {
 } from 'containers/marketChart';
 import {
   doneDecisionDay,
-    fetchDecisionHoldings,
-    fetchDecisionInfo,
-    fetchDecisionSession,
-    fetchDecisionStockStatus,
-    holdingsMarketValue,
-    nextDecisionDay,
-    pickDecisionShares,
-    resetDecisionDraft,
+  fetchDecisionHoldings,
+  fetchDecisionInfo,
+  fetchDecisionSession,
+  fetchDecisionStockStatus,
+  holdingsMarketValue,
+  nextDecisionDay,
+  pickDecisionShares,
+  resetDecisionDraft,
 } from '../../api/decisionApi';
 import { getStrategyDesignPath } from '../../api/strategyApi';
-import { isHttpStatusError } from 'service/request';
 import {
-  buildMonthCells,
-  calendarActionLabel,
-  calendarActionDetail,
-  calendarActionNote,
   canShiftMonth,
   countTradingDaysInclusive,
   dateToYearMonth,
@@ -46,620 +30,38 @@ import {
   formatSignedMoney,
   indexCalendarDays,
   listOpenDaysAfter,
-  mapStockStatusTags,
   monthTitle,
   plannedGoalLevelsForChart,
   shiftMonth,
-  statusChipClassName,
   weekdayLabel,
 } from './decisionFormat';
+import {
+  errorMessage,
+  formatDrawdown,
+  formatHoldingListPnl,
+  headerWithTooltip,
+  holdingPnlTone,
+  lotRule,
+  opportunityStockLabel,
+  prefersReducedMotion,
+  resolveLiveStatus,
+  stepShares,
+  StockStatusChips,
+  suggestedBuyTooltip,
+  validateShareDraft,
+} from './decisionPlayHelpers';
+import {
+  InvestDialog,
+  InvestOpenCell,
+  NOTE_MAX,
+  SuggestedSharesCell,
+} from './investControls';
+import { HoldingDetailDialog } from './holdingDetailDialog';
+import { CalendarActionDialog, MonthGrid } from './calendarWidgets';
 import './style.scss';
 
-
-const WEEKDAY_HEADS = ['一', '二', '三', '四', '五', '六', '日'];
 const CLOCK_STEP_MS = 300;
 const CLOCK_FADE_OUT_MS = 100;
-const NOTE_MAX = 2000;
-
-function prefersReducedMotion() {
-  if (typeof window === 'undefined' || !window.matchMedia) return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-function resolveLiveStatus(ticker, liveById, loading) {
-  const id = String(ticker || '').trim();
-  if (!id) return { tags: [], loading: false };
-  if (Object.prototype.hasOwnProperty.call(liveById || {}, id)) {
-    return { tags: liveById[id] || [], loading: false };
-  }
-  return { tags: [], loading: Boolean(loading) };
-}
-
-function formatDrawdown(value) {
-  if (value == null || !Number.isFinite(Number(value))) return '至今无回撤';
-  return `${(Number(value) * 100).toFixed(1)}%`;
-}
-
-function errorMessage(err, fallback) {
-  if (isHttpStatusError(err) && err.message) return err.message;
-  return String(err?.message || fallback);
-}
-
-function formatHoldingPnl(unrealized, pnlPct) {
-  if (unrealized == null || !Number.isFinite(Number(unrealized))) return '—';
-  const money = formatSignedMoney(unrealized);
-  if (pnlPct == null || !Number.isFinite(Number(pnlPct))) return money;
-  const n = Number(pnlPct) * 100;
-  const sign = n > 0 ? '+' : '';
-  return `${money}（${sign}${n.toFixed(1)}%）`;
-}
-
-function formatHoldingListPnl(unrealized) {
-  if (unrealized == null || !Number.isFinite(Number(unrealized))) return '—';
-  const n = Number(unrealized);
-  if (n >= 0) return `+${formatMoney(n)}`;
-  return formatMoney(n);
-}
-
-function holdingPnlTone(unrealized) {
-  return Number(unrealized) < 0 ? 'is-loss' : 'is-profit';
-}
-
-function formatMarketValueWithPnl(marketValue, unrealized) {
-  if (marketValue == null || !Number.isFinite(Number(marketValue))) return '—';
-  const value = formatMoney(marketValue);
-  if (unrealized == null || !Number.isFinite(Number(unrealized))) return value;
-  return (
-    <>
-      {value}
-      {' '}
-      <span className={`decision-pnl ${holdingPnlTone(unrealized)}`}>
-        ({formatSignedMoney(unrealized)})
-      </span>
-    </>
-  );
-}
-
-function StockStatusChips({ tags, loading = false }) {
-  if (loading) {
-    return (
-      <span className="decision-status-chips is-loading" aria-busy="true" title="状态确认中">
-        <span className="decision-status-chip-skeleton" />
-      </span>
-    );
-  }
-  const items = mapStockStatusTags(tags);
-  if (!items.length) return null;
-  return (
-    <span className="decision-status-chips">
-      {items.map((item) => (
-        <Tag key={item.tag} className={`decision-status-chip ${statusChipClassName(item.tag)}`} size="sm" status="neutral" variant="outline">{item.label}</Tag>
-      ))}
-    </span>
-  );
-}
-
-function holdingStockLabel(row) {
-  const name = String(row?.name || '').trim();
-  const ticker = String(row?.ticker || '').trim();
-  if (name && ticker) return `${name}  ${ticker}`;
-  return name || ticker || '—';
-}
-
-function opportunityStockLabel(row) {
-  const name = String(row?.name || '').trim();
-  const ticker = String(row?.ticker || '').trim();
-  if (name && ticker) return `${name}（${ticker}）`;
-  return name || ticker || '—';
-}
-
-function inferAShareLot(ticker) {
-  // 与 china_a_stock 手数表对齐：现场 lot_step 未到时也能步进。
-  const id = String(ticker || '').split('.')[0];
-  if (/^688/.test(id)) return { minLot: 200, lotStep: 1 };
-  if (/^(8|43|92)/.test(id)) return { minLot: 100, lotStep: 1 };
-  return { minLot: 100, lotStep: 100 };
-}
-
-function lotRule(row) {
-  const inferred = inferAShareLot(row?.ticker);
-  const minLot = Number(row?.lotSize) > 0 ? Number(row.lotSize) : inferred.minLot;
-  const lotStep = Number(row?.lotStep) > 0 ? Number(row.lotStep) : inferred.lotStep;
-  return { minLot, lotStep };
-}
-
-function shareStepJump(lotStep) {
-  const step = Math.max(1, Number(lotStep) || 1);
-  return step >= 100 ? step : 100;
-}
-
-function stepShares(current, direction, minLot, lotStep) {
-  const min = Math.max(1, Number(minLot) || 1);
-  const jump = shareStepJump(lotStep);
-  const n = Math.max(0, Math.trunc(Number(current) || 0));
-  if (direction > 0) {
-    if (n < min) return min;
-    return n + jump;
-  }
-  if (n <= min) return 0;
-  const next = n - jump;
-  return next < min ? min : next;
-}
-
-function validateShareDraft(raw, minLot, lotStep) {
-  const text = String(raw ?? '').trim();
-  if (!text) return { ok: true, shares: 0 };
-  if (!/^\d+$/.test(text)) return { ok: false, message: '股数须为整数' };
-  const shares = Number(text);
-  if (!Number.isInteger(shares) || shares < 0) return { ok: false, message: '股数须为整数' };
-  if (shares === 0) return { ok: true, shares: 0 };
-  const min = Math.max(1, Number(minLot) || 1);
-  const step = Math.max(1, Number(lotStep) || min);
-  if (shares < min) return { ok: false, message: `最少 ${min} 股` };
-  if ((shares - min) % step !== 0) {
-    return { ok: false, message: `须为 ${min} 起、每 ${step} 股` };
-  }
-  return { ok: true, shares };
-}
-
-function cashFromShares(shares, price) {
-  const n = Number(shares) || 0;
-  const px = Number(price) || 0;
-  if (n <= 0 || px <= 0) return 0;
-  return n * px;
-}
-
-function headerWithTooltip(label, title) {
-  return () => (
-    <span className="decision-col-help" title={title}>{label}</span>
-  );
-}
-
-function suggestedBuyTooltip(mode) {
-  if (mode === 'equal_shares') {
-    return '等股：每次买入手数 × 最小交易单位。投资弹窗里可填入该建议。';
-  }
-  if (mode === 'kelly') {
-    return '凯莉：当前现金 × 该标的 as-of 胜率 × 凯莉折扣。无已完成样本为 —。投资弹窗里可填入该建议。';
-  }
-  return '等价资金：初始资金 ÷ 最大持股数，再按手数折股。投资弹窗里可填入该建议。';
-}
-
-function SuggestedSharesCell({ suggestedCash, suggestedShares, basis, held }) {
-  if (held) return '—';
-  const hasCash = suggestedCash != null && suggestedCash > 0;
-  const hasShares = suggestedShares != null && suggestedShares > 0;
-  const basisEl = basis ? <span className="decision-suggest-basis">{basis}</span> : null;
-  if (!hasShares) {
-    return (
-      <span className="decision-suggest-cell">
-        —
-        {basisEl}
-      </span>
-    );
-  }
-  return (
-    <span className="decision-suggest-cell">
-      {`${Number(suggestedShares).toLocaleString()} 股`}
-      {hasCash ? (
-        <span className="decision-suggest-shares">约 {Number(suggestedCash).toLocaleString()} 元</span>
-      ) : null}
-      {basisEl}
-    </span>
-  );
-}
-
-function ShareCapsule({
-  disabled,
-  draft,
-  error,
-  lotStep,
-  ticker,
-  onDraftChange,
-  onStep,
-}) {
-  const jump = shareStepJump(lotStep);
-  const stopRow = (event) => event.stopPropagation();
-  return (
-    <span className={`decision-shares-capsule${error ? ' is-error' : ''}${disabled ? ' is-disabled' : ''}`}>
-      <button
-        type="button"
-        className="decision-capsule-btn"
-        disabled={disabled}
-        aria-label={`减少 ${jump} 股`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onStep(-1);
-        }}
-        onMouseDown={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-      >
-        −
-      </button>
-      <input
-        className="decision-capsule-input"
-        type="text"
-        inputMode="numeric"
-        disabled={disabled}
-        value={draft}
-        placeholder="股数"
-        aria-label={`投资股数 ${ticker || ''}`}
-        onClick={stopRow}
-        onMouseDown={stopRow}
-        onChange={(event) => onDraftChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            onStep(1);
-          }
-          if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            onStep(-1);
-          }
-        }}
-      />
-      <button
-        type="button"
-        className="decision-capsule-btn"
-        disabled={disabled}
-        aria-label={`增加 ${jump} 股`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onStep(1);
-        }}
-        onMouseDown={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-      >
-        +
-      </button>
-    </span>
-  );
-}
-
-function InvestOpenCell({ disabled, shares, note, onOpen }) {
-  const n = Number(shares) || 0;
-  const noteText = String(note || '').trim();
-  return (
-    <span className="decision-invest-cell">
-      <Button
-        variant={n > 0 ? 'glass' : 'primary'}
-        className="decision-invest-open"
-        disabled={disabled}
-        onClick={(event) => {
-          event.stopPropagation();
-          onOpen();
-        }}
-      >
-        {n > 0 ? `已投 ${n.toLocaleString()} 股` : '投资'}
-      </Button>
-      {n > 0 && noteText ? (
-        <span
-          className="decision-invest-note-icon"
-          title={noteText}
-          aria-label="买入笔记"
-          onClick={(event) => event.stopPropagation()}
-          onMouseDown={(event) => event.stopPropagation()}
-        >
-          <Icon name="chat" size="sm" />
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function InvestDialog({
-  row,
-  open,
-  shares,
-  note,
-  error,
-  submitting,
-  onSharesChange,
-  onNoteChange,
-  onStep,
-  onApplySuggested,
-  onClear,
-  onCancel,
-  onConfirm,
-}) {
-  const { lotStep } = lotRule(row || {});
-  const parsed = Number(shares);
-  const notional = Number.isFinite(parsed) && parsed > 0
-    ? formatMoney(cashFromShares(parsed, row?.price))
-    : '';
-  const hasSuggested = row?.suggestedShares != null && Number(row.suggestedShares) > 0;
-  const suggestedCash = row?.suggestedCash != null && Number(row.suggestedCash) > 0
-    ? Number(row.suggestedCash)
-    : null;
-  const picked = Number(row?.pickedShares || 0) > 0;
-  return (
-    <Dialog
-      open={open}
-      onClose={submitting ? undefined : onCancel}
-      title={`投资${row ? ` ${opportunityStockLabel(row)}` : ''}`}
-      size="sm"
-      actions={(
-        <>
-          {picked ? (
-            <Button variant="glass" onClick={onClear} disabled={submitting}>
-              取消本次投资
-            </Button>
-          ) : null}
-          <Button variant="primary" onClick={onConfirm} disabled={submitting}>
-            确认
-          </Button>
-        </>
-      )}
-    >
-      {row ? (
-        <div className="ntq-decision-stack" style={{ display: 'flex', flexDirection: 'column', gap: '1.0rem' }}>
-          <span className="ntq-muted">
-            成交价 {formatMoney(row.price)}
-            {notional ? ` · 约 ${notional}` : ''}
-          </span>
-          {hasSuggested ? (
-            <div>
-              <span className="ntq-decision-subtitle ntq-decision-strong">
-                推荐买入
-              </span>
-              <Button variant="glass" onClick={onApplySuggested} disabled={submitting}>
-                {`${Number(row.suggestedShares).toLocaleString()} 股`}
-                {suggestedCash != null ? `（约 ${Number(suggestedCash).toLocaleString()} 元）` : ''}
-              </Button>
-              {row.suggestedBasis ? (
-                <div className="ntq-caption ntq-muted">
-                  {row.suggestedBasis}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <span className="ntq-muted">暂无推荐买入</span>
-          )}
-          <div>
-            <span className="ntq-decision-subtitle ntq-decision-strong">
-              股数
-            </span>
-            <ShareCapsule
-              disabled={submitting}
-              draft={shares}
-              error={error}
-              lotStep={lotStep}
-              ticker={row.ticker}
-              onDraftChange={onSharesChange}
-              onStep={onStep}
-            />
-            {error ? (
-              <div className="ntq-caption ntq-decision-error">
-                {error}
-              </div>
-            ) : null}
-          </div>
-          <TextArea label="买入笔记（可选）" placeholder="为什么买、仓位想法、风险…" value={note} onChange={(event) => onNoteChange(event.target.value)} fullWidth disabled={submitting} inputProps={{ maxLength: NOTE_MAX }} maxWidth={false} hint={`${String(note || '').length}/${NOTE_MAX}`} rows={3} />
-        </div>
-      ) : null}
-    </Dialog>
-  );
-}
-
-function CalendarActionDialog({ action, open, onClose }) {
-  if (!action) {
-    return (
-      <Dialog
-        open={open}
-        onClose={onClose}
-        title="成交"
-        size="sm"
-        actions={<Button variant="ghost" onClick={onClose}>关闭</Button>}
-      />
-    );
-  }
-  const note = String(action.note || '').trim();
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={`${action.side === 'sell' ? '卖出' : '买入'}明细`}
-      size="sm"
-      actions={<Button variant="primary" onClick={onClose}>关闭</Button>}
-    >
-      <span className="decision-kv">
-        <span className="decision-kv__label">标的</span>
-        <span className="decision-kv__value">{action.name || action.ticker || '—'}</span>
-      </span>
-      {action.ticker && action.ticker !== action.name ? (
-        <span className="decision-kv">
-          <span className="decision-kv__label">代码</span>
-          <span className="decision-kv__value">{action.ticker}</span>
-        </span>
-      ) : null}
-      <span className="decision-kv">
-        <span className="decision-kv__label">股数</span>
-        <span className="decision-kv__value">{Number(action.shares || 0).toLocaleString()} 股</span>
-      </span>
-      <span className="decision-kv">
-        <span className="decision-kv__label">金额</span>
-        <span className="decision-kv__value">{formatMoney(action.amount)}</span>
-      </span>
-      {note ? (
-        <>
-          <span className="ntq-decision-subtitle ntq-decision-strong">
-            买入笔记
-          </span>
-          <span className="decision-buy-note">
-            {note}
-          </span>
-        </>
-      ) : null}
-    </Dialog>
-  );
-}
-
-function formatHoldSpan(days, unit) {
-  const n = Number(days) || 0;
-  if (unit === 'trading_day') return `${n} 个交易日`;
-  if (unit === 'open_day') return `${n} 个开市日`;
-  return `${n} 个自然日`;
-}
-
-function HoldingDetailDialog({
-  row,
-  open,
-  equity,
-  onClose,
-  onOpenKline,
-  statusTags = [],
-  statusLoading = false,
-}) {
-  const weight = row?.marketValue != null
-    && Number.isFinite(Number(row.marketValue))
-    && Number.isFinite(Number(equity))
-    && Number(equity) > 0
-    ? Number(row.marketValue) / Number(equity)
-    : null;
-  const kv = row ? [
-    ['股票', (
-      <span className="decision-stock-with-status">
-        {holdingStockLabel(row)}
-        <StockStatusChips tags={statusTags} loading={statusLoading} />
-      </span>
-    )],
-    ['持有', `${Number(row.shares).toLocaleString()} 股`],
-    ['买入日', row.buyDate || '—'],
-    ['买入价', row.buyPrice != null ? formatMoney(row.buyPrice) : '—'],
-    ['现价', row.close != null ? formatMoney(row.close) : '—'],
-    ['总成本', row.cost != null ? formatMoney(row.cost) : '—'],
-    ['总价值', formatMarketValueWithPnl(row.marketValue, row.unrealized)],
-    ['浮动盈亏', formatHoldingPnl(row.unrealized, row.pnlPct)],
-    ['持有时长', formatHoldSpan(row.holdDays, row.holdUnit)],
-    ['仓位占比', weight == null ? '—' : `${(weight * 100).toFixed(1)}%`],
-  ] : [];
-  const buyNote = String(row?.note || '').trim();
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title="持仓明细"
-      size="sm"
-      actions={(
-        <>
-          {onOpenKline ? (
-            <Button variant="glass" onClick={onOpenKline}>查看数据</Button>
-          ) : null}
-          <Button variant="primary" onClick={onClose}>关闭</Button>
-        </>
-      )}
-    >
-      {kv.map(([label, value]) => (
-        <span key={label} className="decision-kv">
-          <span className="decision-kv__label">{label}</span>
-          <span className="decision-kv__value">{value}</span>
-        </span>
-      ))}
-      {buyNote ? (
-        <>
-          <span className="ntq-decision-subtitle ntq-decision-strong">
-            买入笔记
-          </span>
-          <span className="decision-buy-note">
-            {buyNote}
-          </span>
-        </>
-      ) : null}
-      <span className="ntq-decision-subtitle ntq-decision-strong">
-        目标
-      </span>
-      <div className="ntq-caption ntq-muted">
-        已按某档卖出的会标已完成；剩下的股仍按当前浮动盈亏显示，不会因为还在列表里就把该档当成没做过。
-      </div>
-      {row?.goals?.length ? (
-        <div className="decision-goal-list">
-          {row.goals.map((goal, index) => (
-            <div key={`${goal.kind}-${index}`} className="decision-goal-row">
-              <span className="decision-goal-row__text">
-                {goal.text}
-              </span>
-              <Tag size="sm" status={({success:"success",warning:"warning",error:"error",info:"info",default:"neutral",primary:"info"})[goal.done ? 'success' : 'warning']||"neutral"} variant="outline">{goal.done ? '已完成' : '未完成'}</Tag>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <span className="ntq-muted">本策略未配置持仓目标</span>
-      )}
-    </Dialog>
-  );
-}
-
-function CalendarEventChip({ className, label, detail, note, onClick }) {
-  const chipClass = `decision-cal-event ${className || ''}`.trim();
-  const noteText = String(note || '').trim();
-  const tip = [detail || label, noteText].filter(Boolean).join('\n');
-  const body = onClick ? (
-    <button type="button" className={chipClass} title={tip || undefined} onClick={onClick}>
-      {label}
-    </button>
-  ) : (
-    <span className={chipClass} title={tip || undefined}>{label}</span>
-  );
-  return body;
-}
-
-function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd, onActionClick }) {
-  const cells = buildMonthCells(year, month);
-  return (
-    <div className="decision-month-grid" role="grid" aria-label={`${monthTitle(year, month)} 交易日历`}>
-      {WEEKDAY_HEADS.map((label) => (
-        <div key={label} className="decision-month-head">
-          {label}
-        </div>
-      ))}
-      {cells.map((date, index) => {
-        if (!date) {
-          return <div key={`empty-${index}`} className="decision-month-cell is-pad" />;
-        }
-        const outOfRange = (rangeStart && date < rangeStart) || (rangeEnd && date > rangeEnd);
-        const future = date > clockDate;
-        const day = !outOfRange && !future ? days[date] : null;
-        const oppCount = Number(day?.oppCount) || 0;
-        const actions = Array.isArray(day?.actions) ? day.actions : [];
-        const hasEvents = oppCount > 0 || actions.length > 0;
-        return (
-          <div key={date} className={[
-              'decision-month-cell',
-              date === clockDate ? 'is-now' : '',
-              outOfRange ? 'is-out' : '',
-              future ? 'is-future' : '',
-              hasEvents ? 'has-events' : '',
-            ].filter(Boolean).join(' ')}>
-            <span className="decision-month-cell__num">{Number(date.slice(8))}</span>
-            <span className="decision-month-cell__events">
-              {oppCount > 0 ? (
-                <CalendarEventChip
-                  className="is-opp"
-                  label={`发现${oppCount}个机会`}
-                />
-              ) : null}
-              {actions.map((action, actionIndex) => (
-                <CalendarEventChip
-                  key={`${action.side}-${action.ticker}-${actionIndex}`}
-                  className={`is-${action.side}`}
-                  label={calendarActionLabel(action)}
-                  detail={calendarActionDetail(action)}
-                  note={calendarActionNote(action)}
-                  onClick={onActionClick ? () => onActionClick(action) : undefined}
-                />
-              ))}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export function DecisionPlaySession({
   strategyKey: strategyKeyProp,
@@ -1086,7 +488,7 @@ export function DecisionPlaySession({
       const result = validateShareDraft(shares, minLot, lotStep);
       if (!result.ok) {
         setInvestError(result.message);
-        showToast({ severity: 'warning', content: result.message });
+        showToast({ status: 'warning', content: result.message });
         return;
       }
       if (result.shares <= 0) {
@@ -1095,7 +497,7 @@ export function DecisionPlaySession({
         const occupying = Number(picks[row.id] || 0) > 0;
         if (!occupying && remainingSlots <= 0) {
           setInvestError('已达组合上限');
-          showToast({ severity: 'warning', content: '已达组合上限' });
+          showToast({ status: 'warning', content: '已达组合上限' });
           return;
         }
       }
@@ -1112,7 +514,7 @@ export function DecisionPlaySession({
     } catch (err) {
       const message = errorMessage(err, '无法下单');
       setInvestError(message);
-      showToast({ severity: 'error', content: message });
+      showToast({ status: 'error', content: message });
       setInvestBusy(false);
     }
   };
@@ -1133,7 +535,7 @@ export function DecisionPlaySession({
       });
       setInfoPayload(payload);
     } catch (err) {
-      showToast({ severity: 'error', content: errorMessage(err, '无法加载数据') });
+      showToast({ status: 'error', content: errorMessage(err, '无法加载数据') });
     } finally {
       setInfoLoading(false);
     }
@@ -1269,7 +671,7 @@ export function DecisionPlaySession({
     setConfirmOpen(false);
     if (snapshot?.phase !== 'confirming') return;
     resumePicking().catch((err) => {
-      showToast({ severity: 'error', content: errorMessage(err, '无法返回查看') });
+      showToast({ status: 'error', content: errorMessage(err, '无法返回查看') });
     });
   }, [resumePicking, snapshot?.phase]);
 
@@ -1277,7 +679,7 @@ export function DecisionPlaySession({
     if (!strategyKey || !snapshot?.dmId || completed || advancing) return;
     if (billExceedsCash) {
       showToast({
-        severity: 'warning',
+        status: 'warning',
         content: `现金不足，可用 ${formatMoney(cashOnHand)} 元，本单约 ${formatMoney(billTotal)} 元`,
       });
       return;
@@ -1311,7 +713,7 @@ export function DecisionPlaySession({
       setClockMotion('is-landed');
       setAdvancing(false);
       showToast({
-        severity: nextSnap.completed ? 'success' : 'info',
+        status: nextSnap.completed ? 'success' : 'info',
         content: nextSnap.completed ? '本次模拟回测已走完' : '已提交当天，停在下一事件日',
       });
     } catch (err) {
@@ -1322,7 +724,7 @@ export function DecisionPlaySession({
       } catch {
         /* 返回可改状态失败时仍提示推进错误 */
       }
-      showToast({ severity: 'error', content: errorMessage(err, '推进失败') });
+      showToast({ status: 'error', content: errorMessage(err, '推进失败') });
     }
   };
   runAdvanceRef.current = runAdvance;
@@ -1389,7 +791,7 @@ export function DecisionPlaySession({
         bannerTitle="决策模拟回测"
         bannerDescription="正在打开本次模拟回测。"
       >
-        <InlineLoadingState block message="正在加载模拟回测…" />
+        <Loading variant="inline" message="正在加载模拟回测…" className="is-block" />
       </PageLayout>
     );
   }
@@ -1563,18 +965,15 @@ export function DecisionPlaySession({
                 <span className="decision-aside-title ntq-decision-subtitle ntq-decision-strong">
                   策略与模拟
                 </span>
-                {[
-                  ['策略', snapshot.strategyKey || strategyKey],
-                  ['版本', snapshot.versionId || '—'],
-                  ['模拟回测', String(snapshot.dmId)],
-                  ['回测区间', rangeLabel],
-                  ['最大同时持有数', String(snapshot.maxPortfolioSize || '—')],
-                ].map(([label, value]) => (
-                  <span key={label} className="decision-kv">
-                    <span className="decision-kv__label">{label}</span>
-                    <span className="decision-kv__value">{value}</span>
-                  </span>
-                ))}
+                <DefinitionList
+                  items={[
+                    { label: '策略', value: snapshot.strategyKey || strategyKey },
+                    { label: '版本', value: snapshot.versionId || '—' },
+                    { label: '模拟回测', value: String(snapshot.dmId) },
+                    { label: '回测区间', value: rangeLabel },
+                    { label: '最大同时持有数', value: String(snapshot.maxPortfolioSize || '—') },
+                  ]}
+                />
               </div>
               )}
 
@@ -1582,10 +981,11 @@ export function DecisionPlaySession({
                 <span className="decision-aside-title ntq-decision-subtitle ntq-decision-strong">
                   持仓状态
                 </span>
-                <span className="decision-kv">
-                  <span className="decision-kv__label">持仓市值</span>
-                  <span className="decision-kv__value">{formatMoney(holdingsValue)}</span>
-                </span>
+                <DefinitionList
+                  items={[
+                    { label: '持仓市值', value: formatMoney(holdingsValue) },
+                  ]}
+                />
                 {holdings.length ? (
                   <>
                     <div className="decision-holding-head">
@@ -1646,19 +1046,14 @@ export function DecisionPlaySession({
                   <Icon name="expandMore" size="sm" />
                 </button>
                 {positionOpen ? (
-                  <>
-                    {[
-                      ['持仓 / 上限', `${snapshot.openPositionCount} / ${snapshot.maxPortfolioSize || '—'}`],
-                      ['至今最大回撤', formatDrawdown(null)],
-                      ['策略至今胜率', strategyWin],
-                      ['策略平均回报率', strategyRoi],
-                    ].map(([label, value]) => (
-                      <span key={label} className="decision-kv">
-                        <span className="decision-kv__label">{label}</span>
-                        <span className="decision-kv__value">{value}</span>
-                      </span>
-                    ))}
-                  </>
+                  <DefinitionList
+                    items={[
+                      { label: '持仓 / 上限', value: `${snapshot.openPositionCount} / ${snapshot.maxPortfolioSize || '—'}` },
+                      { label: '至今最大回撤', value: formatDrawdown(null) },
+                      { label: '策略至今胜率', value: strategyWin },
+                      { label: '策略平均回报率', value: strategyRoi },
+                    ]}
+                  />
                 ) : null}
               </div>
             </div>
@@ -1708,9 +1103,11 @@ export function DecisionPlaySession({
               {hasOpps ? (
                 <DataGrid
                   autoHeight
+                  bordered={false}
+                  className="decision-opp-grid"
                   rows={oppRows}
                   columns={oppColumns}
-                                    hideFooter
+                  hideFooter
                   disableRowSelectionOnClick
                   onCellClick={(params, event) => {
                     if (event.target.closest('.decision-invest-cell, .decision-invest-open')) {
@@ -1726,13 +1123,6 @@ export function DecisionPlaySession({
                   getRowHeight={(params) => {
                     const row = oppRows.find((item) => item.id === params.id);
                     return row?.held ? 64 : 56;
-                  }}
-                  sx={{
-                    border: 0,
-                    '& .MuiDataGrid-row:hover': {
-                      backgroundColor: 'rgba(34, 211, 238, 0.06)',
-                    },
-                    '& .MuiDataGrid-cell': { outline: 'none', overflow: 'visible' },
                   }}
                 />
               ) : null}
@@ -1949,7 +1339,7 @@ export function DecisionPlaySession({
               </div>
             </div>
             {infoLoading ? (
-              <InlineLoadingState block message="正在加载市场数据…" />
+              <Loading variant="inline" message="正在加载市场数据…" className="is-block" />
             ) : (
               <div className="ntq-decision-stack ntq-decision-stack--grow ntq-decision-stack--min0" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                 <div>

@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Message } from 'ui';
+import { Button, Message, Loading } from 'ui';
 import { Navigate } from 'react-router-dom';
 import { getSetupStatus } from 'api/setupApi';
-import PageLoadingState from 'views/pageLoadingState';
 import './style.scss';
 
 function SetupGuard({ children }) {
@@ -38,7 +37,7 @@ function SetupGuard({ children }) {
   }, [retryKey]);
 
   if (loading) {
-    return <PageLoadingState message="检查系统就绪状态…" minHeight="40vh" />;
+    return <Loading variant="page" message="检查系统就绪状态…" style={{ minHeight: '40vh' }} />;
   }
 
   if (loadError) {

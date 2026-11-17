@@ -17,3 +17,6 @@ export { default as BecomeMemberLink } from './becomeMemberLink';
 export { default as RainbowButton } from './rainbowButton';
 export { default as ReportBlock } from './reportBlock';
 export { default as PythonDictEditor } from './pythonDictEditor';
+export { default as PageBackground } from './pageBackground';
+export { default as UpdateStatusChip } from './updateStatusChip';
+export { default as DescriptionText } from './descriptionText';

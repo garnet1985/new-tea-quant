@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Button,
+  CategoryChipStrip,
   CountBadge,
-  CountTab,
   DataGrid,
   Icon,
+  ListToolbar,
   Loading,
   Message,
   SearchField,
@@ -26,7 +27,7 @@ import {
   STRATEGY_LIST_CATEGORY_PARAM,
 } from 'containers/strategyCategory';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
-import StrategyDescriptionText from '../../views/strategyDescriptionText';
+import DescriptionText from 'ntq-ui/descriptionText';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import './strategyListPage.scss';
 
@@ -235,7 +236,7 @@ function StrategyListPage({
       flex: 1.5,
       sortable: false,
       renderCell: (params) => (
-        <StrategyDescriptionText
+        <DescriptionText
           text={params.value}
           className="strategy-list-desc ntq-muted"
           empty="—"
@@ -268,63 +269,57 @@ function StrategyListPage({
         {loadError ? <Message status="error">{loadError}</Message> : null}
 
         <Section className="strategy-list-grid" gap="md">
-          <div className="strategy-list-toolbar">
-            <SearchField
-              fluid
-              surface="glass"
-              placeholder="输入策略名称搜索"
-              label="按策略名搜索"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-            />
-            <Button
-              variant="glass"
-              icon="refresh"
-              onClick={load}
-              disabled={loading}
-            >
-              刷新策略
-            </Button>
-            <Button
-              variant="primary"
-              icon="uploadFile"
-              onClick={() => setImportOpen(true)}
-              disabled={loading}
-            >
-              导入策略包
-            </Button>
-          </div>
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="输入策略名称搜索"
+                label="按策略名搜索"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <>
+                <Button
+                  variant="glass"
+                  icon="refresh"
+                  onClick={load}
+                  disabled={loading}
+                >
+                  刷新策略
+                </Button>
+                <Button
+                  variant="primary"
+                  icon="uploadFile"
+                  onClick={() => setImportOpen(true)}
+                  disabled={loading}
+                >
+                  导入策略包
+                </Button>
+              </>
+            )}
+          />
 
           {catalogGroups.length > 0 ? (
-            <div
-              className="strategy-list-category-chips"
-              role="group"
-              aria-label="按归类筛选"
-            >
-              <CountTab
-                wide
-                label="全部"
-                count={rows.length}
-                selected={!categoryQuery}
-                onClick={() => setCategoryQuery('')}
-              />
-              <div className="strategy-list-category-chips-scroller">
-                {catalogGroups.map(({ category, queryValue, rows: categoryRows }) => {
-                  const selected = categoryQuery === queryValue;
-                  return (
-                    <CountTab
-                      key={queryValue}
-                      label={category}
-                      count={categoryRows.length}
-                      title={category}
-                      selected={selected}
-                      ref={selected ? selectedChipRef : undefined}
-                      onClick={() => toggleCategoryQuery(queryValue)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+            <CategoryChipStrip
+              all={{
+                label: '全部',
+                count: rows.length,
+                selected: !categoryQuery,
+                onClick: () => setCategoryQuery(''),
+              }}
+              items={catalogGroups.map(({ category, queryValue, rows: categoryRows }) => ({
+                key: queryValue,
+                label: category,
+                count: categoryRows.length,
+                title: category,
+                selected: categoryQuery === queryValue,
+                onClick: () => toggleCategoryQuery(queryValue),
+              }))}
+              selectedItemRef={selectedChipRef}
+            />
           ) : null}
 
           <div className={[

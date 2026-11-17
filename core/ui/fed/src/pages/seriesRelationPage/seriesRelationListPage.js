@@ -4,6 +4,7 @@ import {
   Button,
   DataGrid,
   Dialog,
+  ListToolbar,
   Message,
   SearchField,
   Section,
@@ -162,35 +163,41 @@ function SeriesRelationListPage() {
         {loadError ? <Message status="error">{loadError}</Message> : null}
 
         <Section className="ntq-srel-list-grid" gap="md">
-          <div className="ntq-srel-list-toolbar">
-            <SearchField
-              fluid
-              surface="glass"
-              placeholder="搜索名称或 Key"
-              label="搜索序列关系"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-            />
-            <Button
-              variant="glass"
-              icon="refresh"
-              onClick={load}
-              disabled={loading}
-            >
-              刷新
-            </Button>
-            <Button
-              variant="primary"
-              icon="add"
-              onClick={() => {
-                setNewKey('');
-                setNewDisplayName('');
-                setNewOpen(true);
-              }}
-            >
-              新建
-            </Button>
-          </div>
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="搜索名称或 Key"
+                label="搜索序列关系"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <>
+                <Button
+                  variant="glass"
+                  icon="refresh"
+                  onClick={load}
+                  disabled={loading}
+                >
+                  刷新
+                </Button>
+                <Button
+                  variant="primary"
+                  icon="add"
+                  onClick={() => {
+                    setNewKey('');
+                    setNewDisplayName('');
+                    setNewOpen(true);
+                  }}
+                >
+                  新建
+                </Button>
+              </>
+            )}
+          />
 
           <div className="ntq-srel-list-grid-body">
             <DataGrid
@@ -203,12 +210,6 @@ function SeriesRelationListPage() {
               onPaginationModelChange={setPaginationModel}
               getRowId={(row) => row.id}
               onRowDoubleClick={(params) => enterScene(params.row.key)}
-              sx={{
-                '& .MuiDataGrid-cell': {
-                  py: 1,
-                  alignItems: 'center',
-                },
-              }}
             />
           </div>
         </Section>

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button, Heading, Message } from 'ui';
-import StrategyMetaDetailText from 'views/strategyMetaDetailText';
+import StrategyMetaDetailText from '../strategyMetaDetailText';
 import { getStrategyListPath } from 'containers/strategyCategory';
 import { formatGoalSummaryLines, resolveStrategyShortLabel } from 'containers/strategySettings';
 import { STRATEGY_DESIGN_STEP_INTRO } from '../constants/strategyDesignSteps';

@@ -111,7 +111,7 @@ function StrategyDesignMetaDialogs() {
         }}
         title={`确认删除 ${pendingDeleteId}？`}
         size="sm"
-        sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
+        elevated
         actions={(
           <>
             <Button

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Message } from 'ui';
+import { Button, Message, Loading } from 'ui';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import {
@@ -7,8 +7,7 @@ import {
   fetchDecisionSessions,
   openDecisionSession,
 } from '../../../api/decisionApi';
-import InlineLoadingState from '../../../views/inlineLoadingState';
-import { showToast } from 'containers/toast';
+import { showToast } from 'ui';
 import {
   DecisionPlaySession,
   DecisionReportPanel,
@@ -199,7 +198,7 @@ function StrategyDesignDecisionStep() {
     setBusy(true);
     try {
       await deleteDecisionSession(strategyName, row.dmId, versionQuery);
-      showToast({ severity: 'success', content: `已删除模拟回测 #${row.dmId}` });
+      showToast({ status: 'success', content: `已删除模拟回测 #${row.dmId}` });
       const { listed } = await reloadListed();
       if (String(row.dmId) !== String(sessionId)) return;
       const next = pickRememberedSession(listed);
@@ -247,7 +246,7 @@ function StrategyDesignDecisionStep() {
   }
 
   if (booting) {
-    return <InlineLoadingState block message="正在打开决策模拟…" />;
+    return <Loading variant="inline" message="正在打开决策模拟…" className="is-block" />;
   }
 
   if (bootError && !sessionId) {
@@ -274,7 +273,7 @@ function StrategyDesignDecisionStep() {
       onViewReport={() => setReportOpen(true)}
       onCompleted={handleCompleted}
       render={({ loading, error, inner, hud, snapshot, advancing }) => {
-        if (loading) return <InlineLoadingState block message="正在加载模拟回测…" />;
+        if (loading) return <Loading variant="inline" message="正在加载模拟回测…" className="is-block" />;
         if (error) {
           return (
             <Message status="error">{error}</Message>

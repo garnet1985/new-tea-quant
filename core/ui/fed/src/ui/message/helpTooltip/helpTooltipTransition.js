@@ -2,8 +2,6 @@ import React from 'react';
 import { Transition } from 'react-transition-group';
 
 export const HELP_TOOLTIP_TRANSITION_MS = 220;
-/** @deprecated 旧名 */
-export const NTQ_HELP_TOOLTIP_TRANSITION_MS = HELP_TOOLTIP_TRANSITION_MS;
 
 /**
  * Tooltip 浮入：默认从下方滑入（placement 为 top 时气泡在触发器上方）。

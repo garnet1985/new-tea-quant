@@ -3,6 +3,7 @@ import {
   Button,
   DataGrid,
   Icon,
+  ListToolbar,
   Message,
   ProgressBar,
   SearchField,
@@ -24,8 +25,8 @@ import {
   getDataSourceRenewTypeLabel,
   getDataSourceUpdateStatusLabel,
 } from '../../api/dataSourceApi';
-import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
-import FreshnessStatusChip from '../../views/freshnessStatusChip';
+import DataEndTruncationAlert from 'containers/dataEndTruncation';
+import UpdateStatusChip from 'ntq-ui/updateStatusChip';
 import { progressRatio } from 'service/progress/ratio';
 import './dataSourceListPage.scss';
 
@@ -117,9 +118,9 @@ function sameRenewTasks(a, b) {
   return true;
 }
 
-function UpdateStatusChip({ row }) {
+function DataSourceUpdateStatusCell({ row }) {
   return (
-    <FreshnessStatusChip
+    <UpdateStatusChip
       status={row.update_status}
       label={getDataSourceUpdateStatusLabel(row)}
       hint={row.update_status_hint}
@@ -478,7 +479,7 @@ function DataSourceListPage() {
             </span>
           );
         }
-        return <UpdateStatusChip row={params.row} />;
+        return <DataSourceUpdateStatusCell row={params.row} />;
       },
     },
     {
@@ -592,33 +593,39 @@ function DataSourceListPage() {
         <DataEndTruncationAlert dataEnd={dataEnd} />
 
         <Section className="data-source-list-grid" gap="md">
-          <div className="data-source-list-grid-toolbar">
-            <SearchField
-              fluid
-              surface="glass"
-              placeholder="搜索名称、Key 或 Provider"
-              label="搜索数据源"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-            />
-            <Button
-              variant="primary"
-              icon="play"
-              tooltip={<RenewAccessTip />}
-              onClick={() => beginRenew('')}
-              disabled={loading || renewing || rows.every((row) => !row.can_renew)}
-            >
-              {renewing && !renewSource ? '更新中…' : '一键更新'}
-            </Button>
-            <Button
-              variant="glass"
-              icon="refresh"
-              onClick={load}
-              disabled={loading || freshnessLoading}
-            >
-              刷新列表
-            </Button>
-          </div>
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="搜索名称、Key 或 Provider"
+                label="搜索数据源"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <>
+                <Button
+                  variant="primary"
+                  icon="play"
+                  tooltip={<RenewAccessTip />}
+                  onClick={() => beginRenew('')}
+                  disabled={loading || renewing || rows.every((row) => !row.can_renew)}
+                >
+                  {renewing && !renewSource ? '更新中…' : '一键更新'}
+                </Button>
+                <Button
+                  variant="glass"
+                  icon="refresh"
+                  onClick={load}
+                  disabled={loading || freshnessLoading}
+                >
+                  刷新列表
+                </Button>
+              </>
+            )}
+          />
 
           {renewing ? (
             <ProgressBar
@@ -641,12 +648,6 @@ function DataSourceListPage() {
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
               getRowId={(row) => row.id}
-              sx={{
-                '& .MuiDataGrid-cell': {
-                  py: 1,
-                  alignItems: 'center',
-                },
-              }}
             />
           </div>
         </Section>

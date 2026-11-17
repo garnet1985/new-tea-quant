@@ -5,6 +5,9 @@ import blockDoc from 'ui/layout/block/doc';
 import sectionDoc from 'ui/layout/section/doc';
 import tabsDoc from 'ui/layout/tabs/doc';
 import sideNavDoc from 'ui/layout/sideNav/doc';
+import listToolbarDoc from 'ui/layout/listToolbar/doc';
+import categoryChipStripDoc from 'ui/layout/categoryChipStrip/doc';
+import definitionListDoc from 'ui/display/definitionList/doc';
 import textDoc from 'ui/text/text/doc';
 import quoteDoc from 'ui/text/quote/doc';
 import separatorDoc from 'ui/text/separator/doc';
@@ -62,6 +65,8 @@ const DOCS = {
     section: sectionDoc,
     tabs: tabsDoc,
     sideNav: sideNavDoc,
+    listToolbar: listToolbarDoc,
+    categoryChipStrip: categoryChipStripDoc,
   },
   text: {
     text: textDoc,
@@ -79,6 +84,7 @@ const DOCS = {
     icon: iconDoc,
     avatar: avatarDoc,
     tag: tagDoc,
+    definitionList: definitionListDoc,
   },
   data: {
     dataGrid: dataGridDoc,

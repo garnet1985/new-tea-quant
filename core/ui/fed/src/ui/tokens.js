@@ -6,7 +6,7 @@
  * - 通用原语：styles/_ui-tokens.scss → `--ui-*`
  * - NTQ 产品：styles/_ntq-tokens.scss → `--ntq-*`
  * 入口 styles/_tokens.scss 另提供旧名 `--ntq-space-*` 等 → `--ui-*` 的过渡别名。
- * （Sass `$` 见 _variables.scss，已标淘汰；ui/* 禁止使用。）
+ * 设计尺度只用 CSS 变量；禁止 Sass `$` 设计变量。
  *
  * 命名约定：
  * - variant：形态 / 角色（如 button 的 glass、column 的 thirds）
@@ -116,6 +116,9 @@ export const TAG_SIZE_TOKENS = ['sm', 'md'];
 /** DataGrid 行高密度 */
 export const DATA_GRID_DENSITY_TOKENS = ['sm', 'md'];
 
+/** DataGrid 单元格布局：单行居中 / 多行换行顶齐 */
+export const DATA_GRID_CELL_LAYOUT_TOKENS = ['center', 'wrap'];
+
 /** MetricGrid 列数（≥900px；窄屏默认 1 列，denseXs 时 2 列） */
 export const METRIC_GRID_COLUMN_TOKENS = [2, 3, 4];
 
@@ -124,9 +127,6 @@ export const AVATAR_SIZE_TOKENS = ['sm', 'md', 'lg'];
 
 /** MonthCalendar 格子密度：紧凑选日 / 可塞事件 */
 export const MONTH_CALENDAR_DENSITY_TOKENS = ['sm', 'md'];
-
-/** @deprecated 用 MESSAGE_STATUSES；保留别名以免旧引用报错 */
-export const MESSAGE_TONES = MESSAGE_STATUSES;
 
 /** @param {string} value @param {string[]} allowed @param {string} fallback */
 export function pickToken(value, allowed, fallback) {

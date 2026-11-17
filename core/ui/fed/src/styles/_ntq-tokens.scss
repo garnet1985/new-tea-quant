@@ -2,7 +2,6 @@
 // NTQ 产品 Token（壳层 / 品牌 / 视区）
 // -----------------------------------------------------------------------------
 // 供 `src/ntq-ui/**`、应用壳、产品页使用。命名：`--ntq-*`
-// （原 `src/ui/ntq` 已迁至 `src/ntq-ui`）
 // 通用原语应优先 `--ui-*`（见 `_ui-tokens.scss`）
 // =============================================================================
 
@@ -24,7 +23,7 @@ body {
   --ui-error: var(--ntq-error);
   --ui-warning: var(--ntq-warning);
 
-  // --- 壳层尺寸（原 Sass _variables，迁到 CSS）---
+  // --- 壳层尺寸 ---
   --ntq-header-height: 64px;
   --ntq-member-strip-height: 36px;
   --ntq-member-join: 0.875rem; // 14px，会员条底圆角

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { fetchPipelineStatus } from 'api/runtimeApi';
 import { getImportDataProgress } from 'api/setupApi';
-import { showToast } from 'containers/toast';
+import { showToast } from 'ui';
 import { jobDeepLink, jobDisplayName } from 'service/jobPipelineLinks';
 import { publishPipelineSnapshot } from 'service/jobPipelineBus';
 import { addUnreadJob, dismissUnreadMatchingPath } from 'service/jobPipelineUnread';
@@ -97,7 +97,7 @@ function JobPipelineWatch() {
         addUnreadJob(prevJob);
       }
       showToast({
-        severity: 'success',
+        status: 'success',
         duration: TOAST_MS,
         content: onTarget
           ? `「${name}」已结束。`

@@ -22,6 +22,11 @@
   flex-direction: column;
   gap: var(--ntq-space-sm);
   padding: var(--ntq-space-sm) 0;
+
+  &.is-block {
+    width: 100%;
+    padding: var(--ntq-space-md) 0;
+  }
 }
 
 .ntq-loading--inlineRow {

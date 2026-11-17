@@ -1,19 +1,13 @@
 # textField
 
-> 状态：**占位** — 尚未在 `src/ui` 中实现。
+单行文本输入。
 
-## 来源
+```js
+import TextField from 'ui/input/textField';
 
-_缺口 — 尚无独立 view_
+<TextField label="名称" value={v} onChange={(e) => setV(e.target.value)} />
+<TextField label="代码" labelPlacement="inline" tip="唯一标识" />
+<TextField labelPlacement="none" placeholder="无标签" aria-label="搜索词" />
+```
 
-## 参数
-
-TODO：补充 props、默认值与变体说明。
-
-## 使用场景
-
-TODO：说明何时使用该组件。
-
-## 反例
-
-TODO：说明不要怎么用。
+常用：`label` `labelPlacement` `tip` `hint` `error` `value` `onChange` `type` `disabled` `placeholder` `required`。

@@ -19,6 +19,7 @@
 - **icon** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
 - **progress**：`loadingBars` / `loading`；`progressBar`（回测线性条，可选 label + showPercent）；`progressRing`（step 圆环，可选 label / showPercent / 环心 children）。
 - **steps**：`stepper`（回测步骤条；`activeId` + `status`；可 `href` / RouterLink / `onItemClick`；`showProgress` 可关进度环）。
+- **input**：`field`；`textField` / `textArea`；`checkbox`；`radio`（含 `variant="button"`）；`select`；`searchSelect`（可搜索下拉）。仍 stub：`searchField` / `autocomplete`。
 - **message**：
   - `message`：`variant="inline"` 圆角+border+底色无 bar；`banner` 有 bar 无圆角。`status`（图标固定）或 `color`（icon 可传/省略）。
   - `toast`：右下角短暂弹出（`ToastHost` + `showToast({ status, content })`）；内部复用 Message。
@@ -31,7 +32,7 @@
 |------|------|------|
 | **`variant`** | 形态 / 角色 | `Column variant="thirds"`、`Button variant="primary"`、`Loading variant="page"`、`Text variant="code"` |
 | **`size`** | 尺寸档位 | `Icon size="md"`、`ProgressBar size="sm"`、`LoadingBars size="md"` |
-| **`gap` / `padding`** | 间距 token | `none`…`xl` → `--ntq-space-*` |
+| **`gap` / `padding`** | 间距 token | `none`…`xxs`…`xl` → `--ntq-space-*` |
 
 不要再用 `kind` 作为组件 API（业务域里的 job.kind 等除外）。
 
@@ -65,7 +66,7 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
 
 | 维度 | 合法值 | 全局变量 |
 |------|--------|----------|
-| 间距 | `none` `xs` `sm` `md` `lg` `xl` | `--ntq-space-*`（rem；`md` = 1rem = 16px） |
+| 间距 | `none` `xxs` `xs` `sm` `md` `lg` `xl` | `--ntq-space-*`（rem；`xxs`=2px，`md`=1rem） |
 | 字号 | `xs` `sm` `normal` `md` `lg` `xl` | `--ntq-font-*`（rem；`normal` = 0.875rem = 14px） |
 | 图标 | `sm` `md` `lg` `xl` `xxl` | `--ntq-icon-*`（`xxl` = 3rem） |
 | 圆角 | `none` `sm` `md` `lg` `pill` | `--ntq-radius-*` |
@@ -92,6 +93,8 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
     { id: 'price', label: '价格回测', status: 'running', progress: 42 },
   ]}
 />
+<TextField label="名称" value={v} onChange={…} />
+<RadioGroup label="频率" value={f} options={[…]} onChange={…} />
 <Message status="info">同步已完成。</Message>
 <Message status="warning" variant="banner">维护窗口即将开始。</Message>
 <Message color="violet" icon="chat">装饰性说明</Message>

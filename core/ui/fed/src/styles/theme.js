@@ -70,10 +70,16 @@ const theme = createTheme({
     },
     MuiOutlinedInput: {
       styleOverrides: {
-        root: formControlTypography,
-        input: {
+        // multiline 时 MUI 在 root 顶层写 padding: 8.5px 14px；必须同级覆盖，嵌套选择器压不住。
+        // 外层 wrapper 清零，只留 textarea 一层四边距。
+        root: ({ ownerState }) => ({
+          ...formControlTypography,
+          ...(ownerState.multiline ? { padding: 0 } : {}),
+        }),
+        input: ({ ownerState }) => ({
           lineHeight: 'inherit',
-        },
+          ...(ownerState.multiline ? { padding: '0.5rem 0.75rem' } : {}),
+        }),
       },
     },
     MuiSelect: {

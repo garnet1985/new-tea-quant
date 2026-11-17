@@ -89,11 +89,24 @@ export const UI_CATALOG = [
   {
     id: 'input',
     label: '输入',
-    description: '搜索、文本与结构化取值输入。',
+    description: '表单字段与控件；searchField / autocomplete 仍待做。',
     widgets: [
+      { id: 'field', label: 'field', origin: 'new', source: null, status: 'ready' },
+      { id: 'textField', label: 'textField', origin: 'new', source: null, status: 'ready' },
+      { id: 'textArea', label: 'textArea', origin: 'new', source: null, status: 'ready' },
+      { id: 'checkbox', label: 'checkbox', origin: 'new', source: null, status: 'ready' },
+      { id: 'radio', label: 'radio', origin: 'new', source: null, status: 'ready' },
+      { id: 'select', label: 'select', origin: 'new', source: null, status: 'ready' },
+      { id: 'searchSelect', label: 'searchSelect', origin: 'new', source: null, status: 'ready' },
       { id: 'searchField', label: 'searchField', origin: 'migrate', source: 'views/searchField', status: 'stub' },
-      { id: 'pythonDictInputPanel', label: 'pythonDictInputPanel', origin: 'migrate', source: 'views/pythonDictInputPanel', status: 'stub' },
-      { id: 'textField', label: 'textField', origin: 'gap', source: null, status: 'stub' },
+      { id: 'autocomplete', label: 'autocomplete', origin: 'gap', source: null, status: 'stub' },
+      {
+        id: 'pythonDictInputPanel',
+        label: 'pythonDictInputPanel',
+        origin: 'migrate',
+        source: 'views/pythonDictInputPanel',
+        status: 'stub',
+      },
     ],
   },
   {

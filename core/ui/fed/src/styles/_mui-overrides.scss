@@ -68,17 +68,23 @@
 }
 
 .MuiOutlinedInput-root .MuiOutlinedInput-input {
-  padding: 0 12px;
+  padding: 0 0.75rem; // 12px，单行只在 input 上留左右距
 }
 
-// Multiline: don't force 40px height
+// Multiline：外层 wrapper padding 去掉；只留 textarea 一层四边距。
 .MuiOutlinedInput-root.MuiOutlinedInput-multiline {
-  min-height: unset;
+  min-height: unset !important;
   align-items: stretch;
+  padding: 0 !important;
 }
 
-.MuiOutlinedInput-inputMultiline {
-  padding: 10px 12px;
+.MuiOutlinedInput-root.MuiInputBase-sizeSmall.MuiOutlinedInput-multiline {
+  padding: 0 !important;
+}
+
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline .MuiOutlinedInput-input,
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline .MuiInputBase-inputMultiline {
+  padding: 0.5rem 0.75rem !important;
   font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }

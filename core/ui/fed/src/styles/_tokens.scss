@@ -32,14 +32,15 @@ body {
   --ntq-text: rgba(255, 255, 255, 0.86);
   --ntq-text-muted: rgba(255, 255, 255, 0.62);
 
-  // --- 间距（space）· props: none | xs | sm | md | lg | xl ---
-  // 1rem = 16px → 4 / 8 / 16 / 24 / 32
+  // --- 间距（space）· props: none | xxs | xs | sm | md | lg | xl ---
+  // 1rem = 16px → 2 / 4 / 8 / 16 / 24 / 32
   --ntq-space-none: 0;
-  --ntq-space-xs: 0.25rem; // 4px
-  --ntq-space-sm: 0.5rem;  // 8px
-  --ntq-space-md: 1rem;    // 16px
-  --ntq-space-lg: 1.5rem;  // 24px
-  --ntq-space-xl: 2rem;    // 32px
+  --ntq-space-xxs: 0.125rem; // 2px（图文贴紧等）
+  --ntq-space-xs: 0.25rem;   // 4px
+  --ntq-space-sm: 0.5rem;    // 8px
+  --ntq-space-md: 1rem;      // 16px
+  --ntq-space-lg: 1.5rem;    // 24px
+  --ntq-space-xl: 2rem;      // 32px
 
   // --- 字号（font）· props: xs | sm | normal | md | lg | xl ---
   // normal = 默认正文 14px；更大档相对 16px rem 根

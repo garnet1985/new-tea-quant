@@ -7,6 +7,7 @@ import iconShowcases from './icon';
 import progressShowcases from './progress';
 import stepsShowcases from './steps';
 import messageShowcases from './message';
+import inputShowcases from './input';
 
 const SHOWCASES = {
   layout: layoutShowcases,
@@ -18,6 +19,7 @@ const SHOWCASES = {
   progress: progressShowcases,
   steps: stepsShowcases,
   message: messageShowcases,
+  input: inputShowcases,
 };
 
 export function getWidgetShowcase(categoryId, widgetId) {

@@ -19,6 +19,13 @@ import stepperDoc from 'ui/steps/stepper/doc';
 import messageDoc from 'ui/message/message/doc';
 import toastDoc from 'ui/message/toast/doc';
 import ntqHelpTooltipDoc from 'ui/message/ntqHelpTooltip/doc';
+import fieldDoc from 'ui/input/field/doc';
+import textFieldDoc from 'ui/input/textField/doc';
+import textAreaDoc from 'ui/input/textArea/doc';
+import checkboxDoc from 'ui/input/checkbox/doc';
+import radioDoc from 'ui/input/radio/doc';
+import selectDoc from 'ui/input/select/doc';
+import searchSelectDoc from 'ui/input/searchSelect/doc';
 
 const DOCS = {
   layout: {
@@ -59,6 +66,15 @@ const DOCS = {
     message: messageDoc,
     toast: toastDoc,
     ntqHelpTooltip: ntqHelpTooltipDoc,
+  },
+  input: {
+    field: fieldDoc,
+    textField: textFieldDoc,
+    textArea: textAreaDoc,
+    checkbox: checkboxDoc,
+    radio: radioDoc,
+    select: selectDoc,
+    searchSelect: searchSelectDoc,
   },
 };
 

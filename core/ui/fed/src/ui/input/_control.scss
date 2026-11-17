@@ -1,0 +1,393 @@
+// 输入控件共享：Field 布局 + 控件宽度约定
+
+.ntq-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ntq-space-sm); // label / 控件 / error 之间留空，避免贴边
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ntq-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--ntq-space-md);
+}
+
+.ntq-field--none {
+  // 无标签时仍保留控件与 hint/error 间距
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-field__label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xs);
+  min-width: 0;
+  margin: 0;
+}
+
+.ntq-field--inline .ntq-field__label-row {
+  flex: 0 0 auto;
+  max-width: 40%;
+}
+
+.ntq-field__label {
+  font-size: var(--ntq-font-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ntq-text);
+}
+
+.ntq-field__control {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.ntq-field__hint,
+.ntq-field__error {
+  margin: 0;
+  font-size: var(--ntq-font-xs);
+  line-height: 1.4;
+}
+
+.ntq-field__hint {
+  color: var(--ntq-text-muted);
+}
+
+.ntq-field__error {
+  color: var(--ntq-error);
+}
+
+.ntq-field--inline .ntq-field__meta {
+  // hint/error 仍在控件列下方：结构上放在 control 外时由 Field 处理
+  width: 100%;
+}
+
+.ntq-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xxs);
+  margin: 0;
+  min-width: 0;
+
+  .MuiCheckbox-root {
+    padding: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-checkbox__label {
+  font-size: var(--ntq-font-sm);
+  line-height: 1.35;
+  color: var(--ntq-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ntq-checkbox.is-disabled .ntq-checkbox__label {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ntq-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ntq-space-xs);
+  margin: 0;
+}
+
+.ntq-radio-group--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-radio-group__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin: 0 !important;
+
+  .MuiRadio-root {
+    padding: var(--ntq-space-xxs);
+  }
+
+  .MuiFormControlLabel-label {
+    margin-left: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-radio-group__label {
+  font-size: var(--ntq-font-sm);
+  line-height: 1.35;
+  color: var(--ntq-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ntq-radio-group.is-disabled .ntq-radio-group__label,
+.ntq-radio-group__option.is-disabled .ntq-radio-group__label {
+  cursor: default;
+  opacity: 0.55;
+}
+
+// --- button：扫描页式大卡片 ---
+.ntq-radio-group--button {
+  &.ntq-radio-group--row {
+    flex-wrap: nowrap;
+    gap: var(--ntq-space-sm);
+  }
+}
+
+.ntq-radio-group__option--button {
+  align-items: flex-start;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 17.5rem;
+  padding: var(--ntq-space-sm) 0.875rem;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 0.625rem;
+  background: transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  box-sizing: border-box;
+
+  .MuiFormControlLabel-label {
+    margin-left: 0.25rem;
+  }
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+    background: var(--ntq-white-03);
+  }
+
+  &.is-active {
+    border-color: color-mix(in srgb, var(--ntq-cyan) 55%, transparent);
+    background: color-mix(in srgb, var(--ntq-cyan) 8%, transparent);
+  }
+
+  &.is-disabled {
+    opacity: 0.65;
+  }
+}
+
+.ntq-radio-group--button:not(.ntq-radio-group--row) .ntq-radio-group__option--button {
+  max-width: none;
+  width: 100%;
+}
+
+.ntq-radio-group__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  margin-top: 0.0625rem;
+}
+
+.ntq-radio-group__card-title {
+  font-size: var(--ntq-font-sm);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ntq-text);
+}
+
+.ntq-radio-group__card-desc {
+  font-size: var(--ntq-font-sm);
+  line-height: 1.45;
+  color: var(--ntq-text-muted);
+
+  strong {
+    color: var(--ntq-text);
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 56.1875rem) {
+  .ntq-radio-group--button.ntq-radio-group--row {
+    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .ntq-radio-group--button.ntq-radio-group--row .ntq-radio-group__option--button {
+    max-width: none;
+  }
+}
+
+.ntq-text-field,
+.ntq-text-area,
+.ntq-select,
+.ntq-search-select,
+.ntq-field.ntq-input--capped {
+  width: 100%;
+}
+
+// TextArea：外层 wrapper 无 padding；textarea 自己留四边距
+.ntq-text-area .MuiOutlinedInput-root.MuiOutlinedInput-multiline {
+  padding: 0 !important;
+}
+
+.ntq-text-area .MuiInputBase-inputMultiline {
+  padding: 0.5rem 0.75rem !important;
+}
+
+// 表单控件默认最大宽度（约 280px）；maxWidth={false} 时用 --fluid 去掉
+.ntq-input--capped {
+  max-width: 17.5rem; // 280px
+}
+
+.ntq-input--fluid {
+  max-width: none;
+}
+
+.ntq-select__placeholder {
+  color: var(--ntq-text-muted);
+  opacity: 0.85;
+}
+
+// Select / SearchSelect 菜单：不模糊/不压暗整页，仅用不透明面板盖住下层
+.ntq-menu-backdrop.MuiBackdrop-root {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 0 !important;
+}
+
+.ntq-select__paper.MuiPaper-root,
+.ntq-search-select__paper.MuiPaper-root {
+  background-color: #12121f !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.55);
+  color: var(--ntq-text);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ntq-search-select {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ntq-search-select--fluid {
+  width: 100%;
+}
+
+.ntq-search-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ntq-space-sm);
+  width: 100%;
+  min-height: 2.5rem; // 40px，对齐 small 输入
+  margin: 0;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 5px;
+  background: var(--ntq-white-03);
+  color: var(--ntq-text);
+  font: inherit;
+  font-size: var(--ntq-form-control-font-size);
+  line-height: var(--ntq-form-control-line-height);
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+}
+
+.ntq-search-select.is-open .ntq-search-select__trigger,
+.ntq-search-select__trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--ntq-cyan) 70%, transparent);
+}
+
+.ntq-search-select.is-error .ntq-search-select__trigger {
+  border-color: color-mix(in srgb, var(--ntq-error) 70%, transparent);
+}
+
+.ntq-search-select.is-disabled .ntq-search-select__trigger,
+.ntq-search-select__trigger:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ntq-search-select__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ntq-search-select__value--placeholder {
+  color: var(--ntq-text-muted);
+}
+
+.ntq-search-select__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xxs);
+  flex-shrink: 0;
+}
+
+.ntq-search-select__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ntq-space-xxs);
+  border-radius: var(--ntq-radius-sm);
+  line-height: 0;
+
+  &:hover {
+    background: var(--ntq-white-06);
+  }
+}
+
+.ntq-search-select__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 20rem;
+  min-width: 0;
+}
+
+.ntq-search-select__search {
+  flex: 0 0 auto;
+  padding: var(--ntq-space-sm);
+  border-bottom: 1px solid var(--ntq-white-12);
+
+  .MuiInputAdornment-root {
+    margin-right: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-search-select__list {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: var(--ntq-space-xs) 0;
+  list-style: none;
+  overflow: auto;
+  max-height: 16rem;
+}
+
+.ntq-search-select__option {
+  font-size: var(--ntq-form-control-font-size) !important;
+}
+
+.ntq-search-select__empty {
+  margin: 0;
+  padding: var(--ntq-space-sm) var(--ntq-space-md);
+  font-size: var(--ntq-font-sm);
+}

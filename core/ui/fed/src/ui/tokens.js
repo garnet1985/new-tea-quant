@@ -9,7 +9,7 @@
  * - gap / padding：间距 token
  */
 
-export const SPACE_TOKENS = ['none', 'xs', 'sm', 'md', 'lg', 'xl'];
+export const SPACE_TOKENS = ['none', 'xxs', 'xs', 'sm', 'md', 'lg', 'xl'];
 export const FONT_TOKENS = ['xs', 'sm', 'normal', 'md', 'lg', 'xl'];
 export const RADIUS_TOKENS = ['none', 'sm', 'md', 'lg', 'pill'];
 export const ALIGN_TOKENS = ['stretch', 'start', 'center', 'end'];
@@ -80,6 +80,15 @@ export const HELP_TOOLTIP_VARIANTS = ['help', 'info', 'warning'];
 
 /** Stepper 步骤执行状态（与 activeId 正交） */
 export const STEPPER_ITEM_STATUSES = ['idle', 'done', 'failed', 'running', 'pending'];
+
+/** Field 标签位置 */
+export const FIELD_LABEL_PLACEMENTS = ['above', 'inline', 'none'];
+
+/** RadioGroup 排列方向 */
+export const RADIO_DIRECTIONS = ['column', 'row'];
+
+/** RadioGroup 形态：圆点 / 大按钮卡片（扫描页） */
+export const RADIO_VARIANTS = ['plain', 'button'];
 
 /** @deprecated 用 MESSAGE_STATUSES；保留别名以免旧引用报错 */
 export const MESSAGE_TONES = MESSAGE_STATUSES;

@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Box } from '@mui/material';
 import AppBreadcrumbs from 'ntq-ui/appBreadcrumbs';
 import 'ntq-ui/pageLayout/style.scss';
 import './strategyDesignShell.scss';
@@ -13,12 +12,12 @@ function StrategyDesignShell({
   className = '',
 }) {
   return (
-    <Box className={['ntq-page', 'strategy-design-shell', className].filter(Boolean).join(' ')}>
-      <Box className="ntq-page__shell">
+    <div className={['ntq-page', 'strategy-design-shell', className].filter(Boolean).join(' ')}>
+      <div className="ntq-page__shell">
         <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
         {children}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }
 

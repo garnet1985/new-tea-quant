@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { Link } from '@mui/material';
 import { fetchPipelineStatus } from 'api/runtimeApi';
 import { getImportDataProgress } from 'api/setupApi';
 import { showToast } from 'containers/toast';
@@ -107,9 +106,9 @@ function JobPipelineWatch() {
               {`「${name}」已结束。`}
               {' '}
               {href ? (
-                <Link component={RouterLink} to={href} underline="hover">
+                <RouterLink className="ntq-link" to={href}>
                   去查看
-                </Link>
+                </RouterLink>
               ) : null}
             </span>
           ),

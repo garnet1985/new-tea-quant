@@ -1,13 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Box,
-  IconButton,
-  Typography,
-} from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import InlineLoadingState from 'views/inlineLoadingState';
-import Icon from 'views/ntqIcon';
-import { Dialog } from 'ui';
+import { Button, Dialog } from 'ui';
+import './style.scss';
 import { fetchStrategyStockDetail } from 'api/strategyApi';
 import BacktestPeriodBanner from '../backtestPeriodBanner';
 import {
@@ -390,38 +385,29 @@ function ReportStockDetailView({
       fullScreen
       className="ntq-report-stock-detail-dialog"
       title={(
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
-          <Typography variant="subtitle1" fontWeight={700} component="span">
+        <span className="ntq-report-dialog-title">
+          <span className="ntq-report-dialog-title__main">
             {stockCode}
             {stockName && stockName !== stockCode ? ` · ${stockName}` : ''}
-            <Typography
-              component="span"
-              variant="caption"
-              color="text.secondary"
-              sx={{ ml: 1.5 }}
-            >
-              逐股审阅
-            </Typography>
-          </Typography>
-          <IconButton aria-label="关闭" onClick={onClose} edge="end">
-            <Icon name="cancel" size={18} />
-          </IconButton>
+            <span className="ntq-report-dialog-title__sub ntq-muted">逐股审阅</span>
+          </span>
+          <Button variant="ghost" icon="close" aria-label="关闭" onClick={onClose} />
         </span>
       )}
     >
         <BacktestPeriodBanner slot={periodSlot} />
         {payload?.candles?.length ? (
-          <Typography variant="caption" color="text.secondary" component="div">
-            <Box component="div">
+          <div className="ntq-report-stock-detail__hints ntq-muted">
+            <p>
               主图：K线（前复权）
               {hasVolume ? ' · 成交量' : ''}
               {layerHints ? ` · 分层：${layerHints}` : ''}
-            </Box>
-            <Box component="div">
+            </p>
+            <p>
               {subPanelSummary ? `副图：${subPanelSummary} · ` : ''}
               拖动底部滑块缩放；Y 轴随可见区间自适应
-            </Box>
-          </Typography>
+            </p>
+          </div>
         ) : null}
 
         {loading ? (
@@ -429,15 +415,9 @@ function ReportStockDetailView({
         ) : (
           <>
             {error ? (
-              <Typography variant="body2" color="error">{error}</Typography>
+              <p className="ntq-report-stock-detail__error">{error}</p>
             ) : null}
-            <Box
-              sx={{
-                flex: '1 1 auto',
-                minHeight: { xs: 420, sm: 560, md: 'calc(100vh - 280px)' },
-                width: '100%',
-              }}
-            >
+            <div className="ntq-report-stock-detail__chart">
               {hasChart ? (
                 <ReactECharts
                   ref={chartRef}
@@ -448,11 +428,9 @@ function ReportStockDetailView({
                   onEvents={chartEvents}
                 />
               ) : (
-                <Typography variant="body2" color="text.secondary">
-                  暂无 K 线数据
-                </Typography>
+                <p className="ntq-muted">暂无 K 线数据</p>
               )}
-            </Box>
+            </div>
             {hasFinanceLayer ? (
               <FinancePitCard
                 visible
@@ -462,15 +440,15 @@ function ReportStockDetailView({
               />
             ) : null}
             {hasChart && activeLayer === 'enum' ? (
-              <Typography variant="caption" color="text.secondary" component="div">
+              <p className="ntq-caption ntq-muted">
                 标注：青 pin 为机会触发日；淡紫虚竖线为财报公告日（详情见下方 PIT 卡）。
-              </Typography>
+              </p>
             ) : null}
             {hasChart && activeLayer === 'price' ? (
-              <Typography variant="caption" color="text.secondary" component="div">
+              <p className="ntq-caption ntq-muted">
                 标注：青 pin 买入；中间止盈/止损/保护/动态分色；交易完成按盈亏红绿（随 market profile）；
                 到期/回测结束为中性。十字线停在买入日时显示计划止盈/止损虚线；淡紫竖线为财报日。
-              </Typography>
+              </p>
             ) : null}
           </>
         )}
@@ -478,14 +456,12 @@ function ReportStockDetailView({
         {activeLayer === 'enum' ? (
           <StockEnumDetailReport metrics={enumMetrics} />
         ) : (
-          <Box className="ntq-report-stock-detail__report-placeholder">
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5 }}>
-              单股报告
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+          <div className="ntq-report-stock-detail__report-placeholder">
+            <h3 className="ntq-report-stock-detail__report-title">单股报告</h3>
+            <p className="ntq-muted">
               {payload?.report?.message || '该步骤单股报告尚未开放'}
-            </Typography>
-          </Box>
+            </p>
+          </div>
         )}
     </Dialog>
   );

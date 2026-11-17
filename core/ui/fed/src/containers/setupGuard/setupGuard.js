@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import Message from 'ui/message/message';
+import { Button, Message } from 'ui';
 import { Navigate } from 'react-router-dom';
-import { Button } from '@mui/material';
 import { getSetupStatus } from 'api/setupApi';
 import PageLoadingState from 'views/pageLoadingState';
 import './style.scss';
@@ -46,7 +45,7 @@ function SetupGuard({ children }) {
     return (
       <div className="ntq-setup-guard-error">
         <Message status="error">{loadError}</Message>
-        <Button variant="contained" onClick={retry} className="ntq-setup-guard-error__retry">
+        <Button variant="primary" onClick={retry} className="ntq-setup-guard-error__retry">
           重试
         </Button>
       </div>

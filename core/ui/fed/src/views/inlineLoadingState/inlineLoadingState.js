@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Typography } from '@mui/material';
-import LoadingBars from 'views/loadingBars';
+import { LoadingBars } from 'ui';
 import './style.scss';
 
 function InlineLoadingState({
@@ -27,18 +26,18 @@ function InlineLoadingState({
       aria-label={ariaLabel || (typeof message === 'string' ? message : '加载中')}
     >
       <LoadingBars
-        barCount={barCount}
-        className={compact ? 'ntq-loading-bars--sm' : ''}
+        size={compact ? 'sm' : 'md'}
         aria-label={ariaLabel || (typeof message === 'string' ? message : '加载中')}
       />
       {message ? (
-        <Typography
-          variant={compact ? 'caption' : 'body2'}
-          component="p"
-          className="ntq-inline-loading__message"
+        <p
+          className={[
+            'ntq-inline-loading__message',
+            compact ? 'ntq-inline-loading__message--compact' : '',
+          ].filter(Boolean).join(' ')}
         >
           {message}
-        </Typography>
+        </p>
       ) : null}
     </div>
   );

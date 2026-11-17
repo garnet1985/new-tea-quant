@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useInRouterContext, useLocation } from 'react-router-dom';
-import { Popper } from '@mui/material';
 import Icon from 'ui/icon/icon';
 import './style.scss';
 
@@ -83,38 +82,28 @@ function AppNavView({
           const open = openId === id;
 
           return (
-            <React.Fragment key={id}>
-              <div
-                ref={(el) => { anchorRefs.current[id] = el; }}
-                className="ntq-nav-dropdown"
-                onMouseEnter={() => openMenu(id)}
-                onMouseLeave={scheduleCloseMenu}
+            <div
+              key={id}
+              ref={(el) => { anchorRefs.current[id] = el; }}
+              className="ntq-nav-dropdown"
+              onMouseEnter={() => openMenu(id)}
+              onMouseLeave={scheduleCloseMenu}
+            >
+              <button
+                type="button"
+                className={[
+                  'ntq-nav-btn',
+                  'ntq-nav-btn--dropdown',
+                  active ? 'is-active' : '',
+                  open ? 'is-open' : '',
+                ].filter(Boolean).join(' ')}
+                aria-haspopup="true"
+                aria-expanded={open ? 'true' : 'false'}
+                onClick={() => (open ? closeMenu() : openMenu(id))}
               >
-                <button
-                  type="button"
-                  className={[
-                    'ntq-nav-btn',
-                    'ntq-nav-btn--dropdown',
-                    active ? 'is-active' : '',
-                    open ? 'is-open' : '',
-                  ].filter(Boolean).join(' ')}
-                  aria-haspopup="true"
-                  aria-expanded={open ? 'true' : 'false'}
-                  onClick={() => (open ? closeMenu() : openMenu(id))}
-                >
-                  <NavButtonLabel icon={item.icon} label={item.label} caret />
-                </button>
-              </div>
-              <Popper
-                open={open}
-                anchorEl={anchorRefs.current[id]}
-                placement="bottom-start"
-                className="ntq-nav-dropdown-popper"
-                modifiers={[
-                  { name: 'offset', options: { offset: [0, 0] } },
-                  { name: 'preventOverflow', options: { padding: 8 } },
-                ]}
-              >
+                <NavButtonLabel icon={item.icon} label={item.label} caret />
+              </button>
+              {open ? (
                 <div
                   className="ntq-nav-dropdown__panel"
                   onMouseEnter={() => openMenu(id)}
@@ -138,8 +127,8 @@ function AppNavView({
                     );
                   })}
                 </div>
-              </Popper>
-            </React.Fragment>
+              ) : null}
+            </div>
           );
         }
 

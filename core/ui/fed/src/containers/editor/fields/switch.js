@@ -1,10 +1,8 @@
 import React from 'react';
-import {
-  Stack,
-  Switch,
-} from '@mui/material';
+import { Switch } from 'ui';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
 import EditorFieldLabel from './editorFieldLabel';
+import './style.scss';
 
 function SwitchField({ field, value, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
@@ -26,15 +24,23 @@ function SwitchField({ field, value, onChange, emitChangeMeta, context = {} }) {
   };
 
   return (
-    <Stack key={field.name} direction="row" justifyContent="space-between" alignItems="center">
+    <div
+      key={field.name}
+      className="ntq-editor-field-collection__switch-row"
+    >
       <EditorFieldLabel
         field={field}
         context={context}
         tooltipTitle={field.tooltip || field.description}
-        sx={{ mb: 0 }}
+        noMargin
       />
-      <Switch size="small" checked={Boolean(current)} onChange={(e) => applyChange(e.target.checked)} disabled={isReadonly} />
-    </Stack>
+      <Switch
+        checked={Boolean(current)}
+        onChange={(e) => applyChange(e.target.checked)}
+        disabled={isReadonly}
+        aria-label={field.label || field.name || '开关'}
+      />
+    </div>
   );
 }
 

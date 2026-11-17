@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import Message from 'ui/message/message';
+import { Button, Message } from 'ui';
 import { Navigate, Outlet } from 'react-router-dom';
-import { Button } from '@mui/material';
 import { fetchLicenseAcceptance } from 'api/licenseApi';
 import PageLoadingState from 'views/pageLoadingState';
 
@@ -45,7 +44,7 @@ function LicenseGuard() {
     return (
       <div className="ntq-setup-guard-error">
         <Message status="error">{loadError}</Message>
-        <Button variant="contained" onClick={retry} className="ntq-setup-guard-error__retry">
+        <Button variant="primary" onClick={retry} className="ntq-setup-guard-error__retry">
           重试
         </Button>
       </div>

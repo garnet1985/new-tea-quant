@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Message from 'ui/message/message';
-import { Box, Button, Stack, Typography } from '@mui/material';
+import { Button, Message } from 'ui';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import {
@@ -229,21 +228,21 @@ function StrategyDesignDecisionStep() {
     const enumDone = wb.stepStatus?.enum === 'done';
     const portfolioDone = wb.stepStatus?.portfolio === 'done';
     return (
-      <Box className="ntq-design-decision-gate">
+      <div className="ntq-design-decision-gate">
         <Message status="info">
           决策模拟依赖「机会盘点」和「投资模拟」都完成。价格回测不是前置条件。
         </Message>
-        <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+        <div className="ntq-design-decision-gate__actions">
           {!enumDone ? (
-            <Button variant="contained" onClick={() => goStep('enum')}>去机会盘点</Button>
+            <Button variant="primary" onClick={() => goStep('enum')}>去机会盘点</Button>
           ) : null}
           {!portfolioDone ? (
-            <Button variant={enumDone ? 'contained' : 'outlined'} onClick={() => goStep('portfolio')}>
+            <Button variant={enumDone ? 'primary' : 'glass'} onClick={() => goStep('portfolio')}>
               去投资模拟
             </Button>
           ) : null}
-        </Stack>
-      </Box>
+        </div>
+      </div>
     );
   }
 
@@ -282,24 +281,21 @@ function StrategyDesignDecisionStep() {
           );
         }
         return (
-          <Box className={`ntq-design-decision-step${advancing ? ' is-advancing' : ''}${reportOpen ? ' is-report' : ''}`}>
-            <Box className="ntq-design-exec-panel ntq-design-decision-step__exec" data-ntq-help="decision-exec">
-              <Box className="ntq-design-exec-panel__title-row">
-                <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
+          <div className={`ntq-design-decision-step${advancing ? ' is-advancing' : ''}${reportOpen ? ' is-report' : ''}`}>
+            <div className="ntq-design-exec-panel ntq-design-decision-step__exec" data-ntq-help="decision-exec">
+              <div className="ntq-design-exec-panel__title-row">
+                <h3 className="ntq-design-exec-panel__title">
                   {EXECUTION_PANEL_TITLE} - 决策模拟
                   {snapshot?.dmId ? ` · 模拟回测 #${snapshot.dmId}` : ''}
-                </Typography>
-                <Stack
-                  direction="row"
-                  spacing={1}
+                </h3>
+                <div
                   className="ntq-design-decision-step__actions"
                   data-ntq-help="decision-sessions"
                 >
                   {reportOpen ? (
                     <Button
                       type="button"
-                      variant="outlined"
-                      size="small"
+                      variant="glass"
                       onClick={() => setReportOpen(false)}
                     >
                       返回模拟回测
@@ -307,8 +303,7 @@ function StrategyDesignDecisionStep() {
                   ) : null}
                   <Button
                     type="button"
-                    variant="outlined"
-                    size="small"
+                    variant="glass"
                     disabled={continueDisabled}
                     onClick={openContinue}
                   >
@@ -316,8 +311,7 @@ function StrategyDesignDecisionStep() {
                   </Button>
                   <Button
                     type="button"
-                    variant="outlined"
-                    size="small"
+                    variant="glass"
                     disabled={busy}
                     onClick={openManage}
                   >
@@ -325,27 +319,24 @@ function StrategyDesignDecisionStep() {
                   </Button>
                   <Button
                     type="button"
-                    variant="contained"
-                    size="small"
+                    variant="primary"
                     disabled={busy}
                     onClick={startFresh}
                   >
                     新建模拟回测
                   </Button>
-                </Stack>
-              </Box>
+                </div>
+              </div>
               {bootError ? (
-                <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">
-                  {bootError}
-                </Typography>
+                <p className="ntq-design-exec-panel__error">{bootError}</p>
               ) : null}
-              <Box className="ntq-design-decision-step__clock">
+              <div className="ntq-design-decision-step__clock">
                 {hud}
-              </Box>
-            </Box>
+              </div>
+            </div>
             {inner}
             {reportOpen ? (
-              <Box className="ntq-design-decision-step__report">
+              <div className="ntq-design-decision-step__report">
                 <DecisionReportPanel
                   strategyName={strategyName}
                   versionId={versionId}
@@ -353,7 +344,7 @@ function StrategyDesignDecisionStep() {
                   sessions={sessions}
                   workbenchSnapshot={session.workbenchSnapshot}
                 />
-              </Box>
+              </div>
             ) : null}
             <DecisionSessionDialogs
               panel={panel}
@@ -364,7 +355,7 @@ function StrategyDesignDecisionStep() {
               onDelete={deleteSession}
               busy={busy}
             />
-          </Box>
+          </div>
         );
       }}
     />

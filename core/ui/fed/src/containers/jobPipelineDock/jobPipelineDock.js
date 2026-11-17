@@ -1,28 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  CircularProgress,
-  Collapse,
-  IconButton,
-  LinearProgress,
-  Link,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material';
+import { Button, Icon, Loading, ProgressBar } from 'ui';
 import { abandonPipelineJob, cancelPipelineJob } from 'api/runtimeApi';
 import { showToast } from 'containers/toast';
 import { jobDeepLink, jobDisplayName } from 'service/jobPipelineLinks';
 import { publishPipelineSnapshot, subscribePipelineSnapshot } from 'service/jobPipelineBus';
 import { dismissUnreadJob, subscribeUnreadJobs } from 'service/jobPipelineUnread';
 import logClientError from 'service/logClientError';
-import Icon from 'views/ntqIcon';
 import './style.scss';
 
 function statusKey(row) {
@@ -208,38 +192,35 @@ function JobPipelineDock() {
   }
 
   return (
-    <Box className="ntq-job-pipeline-dock">
-      <Collapse in={open} timeout={180} unmountOnExit>
-        <Paper elevation={0} className="ntq-job-pipeline-dock__panel">
-          <Box className="ntq-job-pipeline-dock__panel-head">
-            <Typography variant="subtitle2" className="ntq-job-pipeline-dock__panel-title">
-              任务管道
-            </Typography>
-            <IconButton
-              size="small"
+    <div className="ntq-job-pipeline-dock">
+      {open ? (
+        <div className="ntq-job-pipeline-dock__panel">
+          <div className="ntq-job-pipeline-dock__panel-head">
+            <h3 className="ntq-job-pipeline-dock__panel-title">任务管道</h3>
+            <Button
+              variant="ghost"
+              icon="expandMore"
               aria-label="收起管道"
               onClick={() => setOpen(false)}
-            >
-              <Icon name="expandMore" size={18} />
-            </IconButton>
-          </Box>
+            />
+          </div>
           {jobs.length === 0 ? (
-            <Typography variant="body2" className="ntq-job-pipeline-dock__empty">
+            <p className="ntq-job-pipeline-dock__empty">
               当前没有运行、排队或待查看的任务
-            </Typography>
+            </p>
           ) : (
-            <Table size="small" className="ntq-job-pipeline-dock__table">
-              <TableHead>
-                <TableRow>
-                  <TableCell>任务</TableCell>
-                  <TableCell width={72}>状态</TableCell>
-                  <TableCell width={88}>进度</TableCell>
-                  <TableCell width={64}>已运行</TableCell>
-                  <TableCell width={72}>页面</TableCell>
-                  <TableCell width={64} align="right">操作</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+            <table className="ntq-job-pipeline-dock__table">
+              <thead>
+                <tr>
+                  <th>任务</th>
+                  <th style={{ width: 72 }}>状态</th>
+                  <th style={{ width: 88 }}>进度</th>
+                  <th style={{ width: 64 }}>已运行</th>
+                  <th style={{ width: 72 }}>页面</th>
+                  <th style={{ width: 64 }} align="right">操作</th>
+                </tr>
+              </thead>
+              <tbody>
                 {jobs.map((row) => {
                   const id = String(row.job_id || '');
                   const key = statusKey(row);
@@ -253,65 +234,58 @@ function JobPipelineDock() {
                   const pct = live ? progressPercent(row) : (completed ? progressPercent(row) : null);
                   const showBar = pct != null && (live || completed);
                   return (
-                    <TableRow key={id || `${row.kind}-${row.resource_key}-${key}`}>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          className="ntq-job-pipeline-dock__job-name"
-                          title={name}
-                        >
+                    <tr key={id || `${row.kind}-${row.resource_key}-${key}`}>
+                      <td>
+                        <p className="ntq-job-pipeline-dock__job-name" title={name}>
                           {name}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
+                        </p>
+                      </td>
+                      <td>
                         <span className={['ntq-job-pipeline-dock__status', statusClass(row)].join(' ')}>
                           {statusLabel(row)}
                         </span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         {showBar ? (
-                          <Box
+                          <div
                             className="ntq-job-pipeline-dock__progress"
                             title={detail || `${pct}%`}
                           >
-                            <LinearProgress
-                              variant="determinate"
+                            <ProgressBar
                               value={pct}
+                              size="sm"
                               className="ntq-job-pipeline-dock__progress-bar"
                             />
-                          </Box>
+                          </div>
                         ) : (
                           <span className="ntq-job-pipeline-dock__empty-cell">—</span>
                         )}
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className="ntq-job-pipeline-dock__elapsed">
                           {formatElapsed(row, nowMs)}
                         </span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         {href ? (
-                          <Link
-                            component={RouterLink}
+                          <RouterLink
+                            className="ntq-link ntq-job-pipeline-dock__job-link"
                             to={href}
-                            underline="hover"
-                            className="ntq-job-pipeline-dock__job-link"
                             onClick={() => {
                               if (completed) handleView(id);
                               else setOpen(false);
                             }}
                           >
                             进入页面
-                          </Link>
+                          </RouterLink>
                         ) : (
                           <span className="ntq-job-pipeline-dock__empty-cell">—</span>
                         )}
-                      </TableCell>
-                      <TableCell align="right">
+                      </td>
+                      <td align="right">
                         {pending || (key === 'running' && !row?.cancel_requested) ? (
                           <Button
-                            size="small"
-                            color="inherit"
+                            variant="ghost"
                             disabled={Boolean(cancellingId)}
                             onClick={() => handleCancel(id)}
                           >
@@ -320,8 +294,7 @@ function JobPipelineDock() {
                         ) : null}
                         {stale ? (
                           <Button
-                            size="small"
-                            color="inherit"
+                            variant="ghost"
                             disabled={Boolean(cancellingId)}
                             onClick={() => handleAbandon(id)}
                           >
@@ -330,22 +303,21 @@ function JobPipelineDock() {
                         ) : null}
                         {completed && !href ? (
                           <Button
-                            size="small"
-                            color="inherit"
+                            variant="ghost"
                             onClick={() => dismissUnreadJob(id)}
                           >
                             知道了
                           </Button>
                         ) : null}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           )}
-        </Paper>
-      </Collapse>
+        </div>
+      ) : null}
 
       <button
         type="button"
@@ -368,13 +340,13 @@ function JobPipelineDock() {
         onClick={() => setOpen((v) => !v)}
       >
         {running && String(running.status || '') !== 'stale' ? (
-          <CircularProgress size={14} thickness={5} className="ntq-job-pipeline-dock__spin" />
+          <Loading variant="inline" className="ntq-job-pipeline-dock__spin" aria-label="加载中" />
         ) : (
-          <Icon name="syncAlt" size={16} className="ntq-job-pipeline-dock__marker-icon" />
+          <Icon name="syncAlt" size="sm" className="ntq-job-pipeline-dock__marker-icon" />
         )}
         <span className="ntq-job-pipeline-dock__marker-text">{markerText}</span>
       </button>
-    </Box>
+    </div>
   );
 }
 

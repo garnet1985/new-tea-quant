@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Box } from '@mui/material';
 import PageLoadingState from 'views/pageLoadingState';
 import StrategyDesignBreadcrumbCurrent from './breadcrumbCurrent';
 import StrategyDesignMetaBar from './metaBar';
@@ -14,9 +13,9 @@ function StrategyDesignBody() {
   const wb = useStrategyDesignWorkbenchContext();
   if (wb.isLoadingSettings) {
     return (
-      <Box className="ntq-page__body strategy-design-shell__body is-loading">
+      <div className="ntq-page__body strategy-design-shell__body is-loading">
         <PageLoadingState message="正在加载策略工作台…" minHeight="48vh" />
-      </Box>
+      </div>
     );
   }
 
@@ -24,9 +23,9 @@ function StrategyDesignBody() {
     <>
       <StrategyDesignMetaBar />
       <StrategyDesignMetaDialogs />
-      <Box className="ntq-page__body strategy-design-shell__body">
+      <div className="ntq-page__body strategy-design-shell__body">
         <StrategyDesignStepPage />
-      </Box>
+      </div>
     </>
   );
 }

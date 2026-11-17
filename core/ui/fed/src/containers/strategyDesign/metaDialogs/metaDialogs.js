@@ -1,13 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  IconButton,
-  Link,
-  Stack,
-  Typography,
-} from '@mui/material';
 import { Button, Dialog } from 'ui';
-import Icon from 'views/ntqIcon';
 import {
   VersionPickerDialog,
   SETTINGS_RETENTION_HREF,
@@ -15,6 +7,7 @@ import {
   retentionCapFromVersions,
 } from 'containers/versionPick';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
+import './style.scss';
 
 function StrategyDesignMetaDialogs() {
   const wb = useStrategyDesignWorkbenchContext();
@@ -69,55 +62,45 @@ function StrategyDesignMetaDialogs() {
         onClose={wb.closeVersionsDialog}
         title="恢复到历史版本"
         titleExtra={(
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            component="div"
-            sx={{ fontWeight: 400, textAlign: 'right', lineHeight: 1.4 }}
-          >
+          <div className="ntq-meta-dialogs__retention ntq-muted">
             当前设置最多保留
             {' '}
             「
-            <Box
-              component="span"
-              sx={{ fontWeight: 700, fontSize: '1.2em', color: 'text.primary' }}
-            >
+            <span className="ntq-meta-dialogs__retention-cap">
               {retentionCap > 0 ? retentionCap : '—'}
-            </Box>
+            </span>
             」组过时环境
             {' · '}
-            <Link
+            <a
+              className="ntq-link"
               href={SETTINGS_RETENTION_HREF}
               target="_blank"
               rel="noopener noreferrer"
-              underline="hover"
             >
               去设置
-            </Link>
-          </Typography>
+            </a>
+          </div>
         )}
         versions={wb.configVersions}
         selectedId={wb.selectedConfigVersion}
         emptyHint="暂无可应用的工作台版本。"
         onSelect={(versionId) => wb.requestApplyVersion(versionId)}
         renderSecondaryAction={(version) => (
-          <Stack direction="row" className="ntq-version-row-actions" alignItems="center">
-            <IconButton
-              size="small"
-              color="error"
+          <div className="ntq-version-row-actions">
+            <Button
+              variant="ghost"
+              icon="trash"
               className="ntq-version-row-action ntq-version-row-action--danger"
               aria-label={`删除 ${version.id}`}
-              title="删除此版本产物"
+              tooltip="删除此版本产物"
               disabled={wb.disableMetaActions || wb.isDeletingVersion}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 wb.requestDeleteVersion(version.id);
               }}
-            >
-              <Icon name="trash" size={20} tone="error" />
-            </IconButton>
-          </Stack>
+            />
+          </div>
         )}
       />
 

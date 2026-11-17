@@ -1,5 +1,4 @@
 import React from 'react';
-import { Box } from '@mui/material';
 import InlineLoadingState from 'views/inlineLoadingState';
 import ReportStockSampleGrid from 'views/reportStockSampleGrid';
 import ReportUnavailableHint, {
@@ -18,9 +17,9 @@ function ReportStockGridSection({
 }) {
   if (loading) {
     return (
-      <Box sx={{ position: 'relative' }}>
+      <div className="ntq-report-stock-grid-section">
         <InlineLoadingState block compact message={loadingMessage} />
-      </Box>
+      </div>
     );
   }
 
@@ -33,10 +32,10 @@ function ReportStockGridSection({
   }
 
   return (
-    <Box sx={{ position: 'relative' }}>
+    <div className="ntq-report-stock-grid-section">
       {overlay}
       <ReportStockSampleGrid rows={filteredRows} {...gridProps} />
-    </Box>
+    </div>
   );
 }
 

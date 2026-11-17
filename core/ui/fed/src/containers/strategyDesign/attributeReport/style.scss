@@ -1,4 +1,7 @@
 .ntq-design-attr-report {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   width: 100%;
   min-height: 120px;
 }
@@ -62,7 +65,27 @@
 }
 
 .ntq-design-attr-report__sections {
-  gap: 14px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ntq-design-attr-report__sweeps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.ntq-design-attr-report__details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ntq-design-attr-report__conclusion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .ntq-design-attr-report__theme {
@@ -103,10 +126,6 @@
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.35);
   border: 1px solid rgba(148, 163, 184, 0.1);
-}
-
-.ntq-design-attr-report__conclusion-list {
-  margin: 0;
 }
 
 .ntq-design-attr-report__effect-conclusion {
@@ -152,10 +171,6 @@
   }
 }
 
-.ntq-design-attr-report__details-body {
-  padding: 0 12px 12px;
-}
-
 .ntq-design-attr-report__effect-table {
   display: flex;
   flex-direction: column;
@@ -163,7 +178,9 @@
 }
 
 .ntq-design-attr-report__effect-table-title {
+  margin: 0;
   color: rgba(186, 198, 220, 0.88);
+  font-size: var(--ui-font-xs, 0.75rem);
   font-weight: 600;
 }
 
@@ -211,12 +228,12 @@
   line-height: 1.55;
 }
 
-.ntq-design-attr-report__row--baseline .MuiTableCell-root {
+.ntq-design-attr-report__row--baseline td {
   color: rgba(252, 211, 77, 0.98);
   font-weight: 600;
 }
 
-.ntq-design-attr-report__row--best .MuiTableCell-root {
+.ntq-design-attr-report__row--best td {
   color: rgba(134, 239, 172, 0.98);
   font-weight: 600;
 }
@@ -227,15 +244,23 @@
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
   background: rgba(2, 6, 23, 0.35);
+}
 
-  .MuiTableCell-root {
+.ntq-design-attr-report__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
     white-space: nowrap;
-    border-color: rgba(148, 163, 184, 0.1);
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     color: rgba(226, 232, 240, 0.9);
-    font-size: 0.8125rem;
+    text-align: left;
   }
 
-  .MuiTableCell-head {
+  th {
     font-weight: 650;
     color: rgba(186, 198, 220, 0.95);
     background: rgba(15, 23, 42, 0.92);

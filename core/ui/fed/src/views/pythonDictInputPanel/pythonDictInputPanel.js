@@ -1,13 +1,7 @@
 import React from 'react';
 import Message from 'ui/message/message';
-import {
-  Box,
-  Button,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Button, TextArea } from 'ui';
+import './style.scss';
 
 function PythonDictInputPanel({
   value,
@@ -25,56 +19,46 @@ function PythonDictInputPanel({
   title = '左栏：Raw JSON 输入',
 }) {
   return (
-    <Paper variant="outlined" sx={{ p: 2, flex: 1, minWidth: 0 }}>
-      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-        {title}
-      </Typography>
+    <div className="ntq-python-dict-input-panel">
+      <h3 className="ntq-python-dict-input-panel__title">{title}</h3>
 
-      <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} flexWrap="wrap">
-        <Button variant="contained" onClick={onApply}>
+      <div className="ntq-python-dict-input-panel__actions">
+        <Button variant="primary" onClick={onApply}>
           验证 JSON
         </Button>
-        <Button variant="outlined" onClick={onLoadDefault}>
+        <Button variant="glass" onClick={onLoadDefault}>
           加载默认样例
         </Button>
-        <Button variant="outlined" onClick={onLoadLarge}>
+        <Button variant="glass" onClick={onLoadLarge}>
           加载大样例（性能）
         </Button>
-        <Button variant="outlined" onClick={onConvertPythonLiteral}>
+        <Button variant="glass" onClick={onConvertPythonLiteral}>
           尝试转换 Python 字面量
         </Button>
-      </Stack>
+      </div>
 
       {parseError ? (
         <Message status="error">
-          <Typography variant="body2" sx={{ mb: lineHint ? 0.5 : 0 }}>
-            {parseError}
-          </Typography>
+          <p className="ntq-python-dict-input-panel__error-main">{parseError}</p>
           {lineHint ? (
-            <Typography variant="caption" component="div">
-              {lineHint}
-            </Typography>
+            <p className="ntq-python-dict-input-panel__error-hint">{lineHint}</p>
           ) : null}
           {errorLine > 0 ? (
-            <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>
+            <p className="ntq-python-dict-input-panel__error-hint">
               定位到第 {errorLine} 行，第 {errorColumn} 列。
-            </Typography>
+            </p>
           ) : null}
         </Message>
       ) : null}
 
-      <TextField
-        multiline
-        minRows={26}
-        maxRows={32}
-        fullWidth
+      <TextArea
+        labelPlacement="none"
+        maxWidth={false}
+        rows={26}
         inputRef={inputRef}
-        error={Boolean(parseError)}
-        helperText={
-          parseError && errorLine > 0
-            ? `错误定位：第 ${errorLine} 行，第 ${errorColumn} 列（已跳转）`
-            : ''
-        }
+        error={parseError && errorLine > 0
+          ? `错误定位：第 ${errorLine} 行，第 ${errorColumn} 列（已跳转）`
+          : (parseError || '')}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="输入 JSON（例如 settings.core）"
@@ -85,29 +69,24 @@ function PythonDictInputPanel({
       </Message>
 
       {parseError && errorContext.length > 0 ? (
-        <Paper variant="outlined" sx={{ mt: 1.5, p: 1, backgroundColor: 'grey.50' }}>
-          <Typography variant="caption" color="text.secondary">
-            错误上下文（已高亮）
-          </Typography>
-          <Box component="pre" sx={{ m: 0, mt: 0.75, fontSize: 12, overflowX: 'auto' }}>
+        <div className="ntq-python-dict-input-panel__context">
+          <p className="ntq-python-dict-input-panel__context-label">错误上下文（已高亮）</p>
+          <pre className="ntq-python-dict-input-panel__context-pre">
             {errorContext.map((row) => (
-              <Box
+              <div
                 key={row.lineNo}
-                component="div"
-                sx={{
-                  px: 0.5,
-                  borderRadius: 0.5,
-                  backgroundColor: row.isError ? 'error.light' : 'transparent',
-                  color: row.isError ? 'error.contrastText' : 'text.primary',
-                }}
+                className={[
+                  'ntq-python-dict-input-panel__context-line',
+                  row.isError ? 'is-error' : '',
+                ].filter(Boolean).join(' ')}
               >
                 {String(row.lineNo).padStart(4, ' ')} | {row.text}
-              </Box>
+              </div>
             ))}
-          </Box>
-        </Paper>
+          </pre>
+        </div>
       ) : null}
-    </Paper>
+    </div>
   );
 }
 

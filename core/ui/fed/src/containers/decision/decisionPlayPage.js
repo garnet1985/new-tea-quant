@@ -1,25 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button as UiButton, Dialog as UiDialog, Message } from 'ui';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
-  Box,
   Button,
-  Card,
-  CardContent,
-  Chip,
-  IconButton,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
-import PageLayout from '../../views/pageLayout';
-import ChartPanel from '../../views/chartPanel';
+  ChartPanel,
+  DataGrid,
+  Dialog,
+  Icon,
+  Message,
+  Tag,
+  TextArea,
+} from 'ui';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import PageLayout from 'ntq-ui/pageLayout';
 import InlineLoadingState from '../../views/inlineLoadingState';
 import { showToast } from 'containers/toast';
-import Icon from '../../views/ntqIcon';
 import {
   buildMarketChartOptionFromStockPayload,
   FinancePitCard,
@@ -61,6 +54,7 @@ import {
   weekdayLabel,
 } from './decisionFormat';
 import './style.scss';
+
 
 const WEEKDAY_HEADS = ['一', '二', '三', '四', '五', '六', '日'];
 const CLOCK_STEP_MS = 300;
@@ -139,13 +133,7 @@ function StockStatusChips({ tags, loading = false }) {
   return (
     <span className="decision-status-chips">
       {items.map((item) => (
-        <Chip
-          key={item.tag}
-          size="small"
-          variant="outlined"
-          label={item.label}
-          className={`decision-status-chip ${statusChipClassName(item.tag)}`}
-        />
+        <Tag key={item.tag} className={`decision-status-chip ${statusChipClassName(item.tag)}`} size="sm" status="neutral" variant="outline">{item.label}</Tag>
       ))}
     </span>
   );
@@ -223,9 +211,7 @@ function cashFromShares(shares, price) {
 
 function headerWithTooltip(label, title) {
   return () => (
-    <Tooltip title={title}>
-      <span className="decision-col-help">{label}</span>
-    </Tooltip>
+    <span className="decision-col-help" title={title}>{label}</span>
   );
 }
 
@@ -340,8 +326,7 @@ function InvestOpenCell({ disabled, shares, note, onOpen }) {
   return (
     <span className="decision-invest-cell">
       <Button
-        size="small"
-        variant={n > 0 ? 'outlined' : 'contained'}
+        variant={n > 0 ? 'glass' : 'primary'}
         className="decision-invest-open"
         disabled={disabled}
         onClick={(event) => {
@@ -352,31 +337,15 @@ function InvestOpenCell({ disabled, shares, note, onOpen }) {
         {n > 0 ? `已投 ${n.toLocaleString()} 股` : '投资'}
       </Button>
       {n > 0 && noteText ? (
-        <Tooltip
-          title={<span className="decision-invest-note-tip">{noteText}</span>}
-          placement="top"
-          enterDelay={120}
-          enterNextDelay={60}
-          slotProps={{
-            tooltip: {
-              sx: {
-                maxWidth: 320,
-                fontSize: 12,
-                lineHeight: 1.45,
-                whiteSpace: 'pre-wrap',
-              },
-            },
-          }}
+        <span
+          className="decision-invest-note-icon"
+          title={noteText}
+          aria-label="买入笔记"
+          onClick={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
         >
-          <span
-            className="decision-invest-note-icon"
-            aria-label="买入笔记"
-            onClick={(event) => event.stopPropagation()}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <Icon name="chat" size={16} />
-          </span>
-        </Tooltip>
+          <Icon name="chat" size="sm" />
+        </span>
       ) : null}
     </span>
   );
@@ -408,7 +377,7 @@ function InvestDialog({
     : null;
   const picked = Number(row?.pickedShares || 0) > 0;
   return (
-    <UiDialog
+    <Dialog
       open={open}
       onClose={submitting ? undefined : onCancel}
       title={`投资${row ? ` ${opportunityStockLabel(row)}` : ''}`}
@@ -416,49 +385,44 @@ function InvestDialog({
       actions={(
         <>
           {picked ? (
-            <UiButton variant="glass" onClick={onClear} disabled={submitting}>
+            <Button variant="glass" onClick={onClear} disabled={submitting}>
               取消本次投资
-            </UiButton>
+            </Button>
           ) : null}
-          <UiButton variant="primary" onClick={onConfirm} disabled={submitting}>
+          <Button variant="primary" onClick={onConfirm} disabled={submitting}>
             确认
-          </UiButton>
+          </Button>
         </>
       )}
     >
       {row ? (
-        <Stack spacing={2}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="ntq-decision-stack" style={{ display: 'flex', flexDirection: 'column', gap: '1.0rem' }}>
+          <span className="ntq-muted">
             成交价 {formatMoney(row.price)}
             {notional ? ` · 约 ${notional}` : ''}
-          </Typography>
+          </span>
           {hasSuggested ? (
-            <Box>
-              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+            <div>
+              <span className="ntq-decision-subtitle ntq-decision-strong">
                 推荐买入
-              </Typography>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={onApplySuggested}
-                disabled={submitting}
-              >
+              </span>
+              <Button variant="glass" onClick={onApplySuggested} disabled={submitting}>
                 {`${Number(row.suggestedShares).toLocaleString()} 股`}
                 {suggestedCash != null ? `（约 ${Number(suggestedCash).toLocaleString()} 元）` : ''}
               </Button>
               {row.suggestedBasis ? (
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                <div className="ntq-caption ntq-muted">
                   {row.suggestedBasis}
-                </Typography>
+                </div>
               ) : null}
-            </Box>
+            </div>
           ) : (
-            <Typography variant="body2" color="text.secondary">暂无推荐买入</Typography>
+            <span className="ntq-muted">暂无推荐买入</span>
           )}
-          <Box>
-            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
+          <div>
+            <span className="ntq-decision-subtitle ntq-decision-strong">
               股数
-            </Typography>
+            </span>
             <ShareCapsule
               disabled={submitting}
               draft={shares}
@@ -469,79 +433,68 @@ function InvestDialog({
               onStep={onStep}
             />
             {error ? (
-              <Typography variant="caption" color="error" display="block" sx={{ mt: 0.75 }}>
+              <div className="ntq-caption ntq-decision-error">
                 {error}
-              </Typography>
+              </div>
             ) : null}
-          </Box>
-          <TextField
-            label="买入笔记（可选）"
-            placeholder="为什么买、仓位想法、风险…"
-            value={note}
-            onChange={(event) => onNoteChange(event.target.value)}
-            multiline
-            minRows={3}
-            fullWidth
-            disabled={submitting}
-            inputProps={{ maxLength: NOTE_MAX }}
-            helperText={`${String(note || '').length}/${NOTE_MAX}`}
-          />
-        </Stack>
+          </div>
+          <TextArea label="买入笔记（可选）" placeholder="为什么买、仓位想法、风险…" value={note} onChange={(event) => onNoteChange(event.target.value)} fullWidth disabled={submitting} inputProps={{ maxLength: NOTE_MAX }} maxWidth={false} hint={`${String(note || '').length}/${NOTE_MAX}`} rows={3} />
+        </div>
       ) : null}
-    </UiDialog>
+    </Dialog>
   );
 }
 
 function CalendarActionDialog({ action, open, onClose }) {
   if (!action) {
     return (
-      <UiDialog
+      <Dialog
         open={open}
         onClose={onClose}
         title="成交"
         size="sm"
-        actions={<UiButton variant="ghost" onClick={onClose}>关闭</UiButton>}
+        actions={<Button variant="ghost" onClick={onClose}>关闭</Button>}
       />
     );
   }
   const note = String(action.note || '').trim();
   return (
-    <UiDialog
+    <Dialog
       open={open}
       onClose={onClose}
       title={`${action.side === 'sell' ? '卖出' : '买入'}明细`}
       size="sm"
-      actions={<UiButton variant="primary" onClick={onClose}>关闭</UiButton>}
+      actions={<Button variant="primary" onClick={onClose}>关闭</Button>}
     >
-      <Typography className="decision-kv" variant="body2">
+      <span className="decision-kv">
         <span className="decision-kv__label">标的</span>
         <span className="decision-kv__value">{action.name || action.ticker || '—'}</span>
-      </Typography>
+      </span>
       {action.ticker && action.ticker !== action.name ? (
-        <Typography className="decision-kv" variant="body2">
+        <span className="decision-kv">
           <span className="decision-kv__label">代码</span>
           <span className="decision-kv__value">{action.ticker}</span>
-        </Typography>
+        </span>
       ) : null}
-      <Typography className="decision-kv" variant="body2">
+      <span className="decision-kv">
         <span className="decision-kv__label">股数</span>
         <span className="decision-kv__value">{Number(action.shares || 0).toLocaleString()} 股</span>
-      </Typography>
-      <Typography className="decision-kv" variant="body2">
+      </span>
+      <span className="decision-kv">
         <span className="decision-kv__label">金额</span>
         <span className="decision-kv__value">{formatMoney(action.amount)}</span>
-      </Typography>
+      </span>
       {note ? (
         <>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, mb: 0.75 }}>
+          <span className="ntq-decision-subtitle ntq-decision-strong">
             买入笔记
-          </Typography>
-          <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
+          </span>
+          <span className="decision-buy-note">
             {note}
-          </Typography>
+          </span>
         </>
       ) : null}
-    </UiDialog>
+    </Dialog>
   );
 }
 
@@ -587,7 +540,7 @@ function HoldingDetailDialog({
   const buyNote = String(row?.note || '').trim();
 
   return (
-    <UiDialog
+    <Dialog
       open={open}
       onClose={onClose}
       title="持仓明细"
@@ -595,109 +548,78 @@ function HoldingDetailDialog({
       actions={(
         <>
           {onOpenKline ? (
-            <UiButton variant="glass" onClick={onOpenKline}>查看数据</UiButton>
+            <Button variant="glass" onClick={onOpenKline}>查看数据</Button>
           ) : null}
-          <UiButton variant="primary" onClick={onClose}>关闭</UiButton>
+          <Button variant="primary" onClick={onClose}>关闭</Button>
         </>
       )}
     >
       {kv.map(([label, value]) => (
-        <Typography key={label} className="decision-kv" variant="body2">
+        <span key={label} className="decision-kv">
           <span className="decision-kv__label">{label}</span>
           <span className="decision-kv__value">{value}</span>
-        </Typography>
+        </span>
       ))}
       {buyNote ? (
         <>
-          <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
+          <span className="ntq-decision-subtitle ntq-decision-strong">
             买入笔记
-          </Typography>
-          <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
+          </span>
+          <span className="decision-buy-note">
             {buyNote}
-          </Typography>
+          </span>
         </>
       ) : null}
-      <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
+      <span className="ntq-decision-subtitle ntq-decision-strong">
         目标
-      </Typography>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+      </span>
+      <div className="ntq-caption ntq-muted">
         已按某档卖出的会标已完成；剩下的股仍按当前浮动盈亏显示，不会因为还在列表里就把该档当成没做过。
-      </Typography>
+      </div>
       {row?.goals?.length ? (
-        <Box className="decision-goal-list">
+        <div className="decision-goal-list">
           {row.goals.map((goal, index) => (
-            <Box key={`${goal.kind}-${index}`} className="decision-goal-row">
-              <Typography variant="body2" className="decision-goal-row__text">
+            <div key={`${goal.kind}-${index}`} className="decision-goal-row">
+              <span className="decision-goal-row__text">
                 {goal.text}
-              </Typography>
-              <Chip
-                size="small"
-                variant="outlined"
-                color={goal.done ? 'success' : 'warning'}
-                label={goal.done ? '已完成' : '未完成'}
-              />
-            </Box>
+              </span>
+              <Tag size="sm" status={({success:"success",warning:"warning",error:"error",info:"info",default:"neutral",primary:"info"})[goal.done ? 'success' : 'warning']||"neutral"} variant="outline">{goal.done ? '已完成' : '未完成'}</Tag>
+            </div>
           ))}
-        </Box>
+        </div>
       ) : (
-        <Typography variant="body2" color="text.secondary">本策略未配置持仓目标</Typography>
+        <span className="ntq-muted">本策略未配置持仓目标</span>
       )}
-    </UiDialog>
+    </Dialog>
   );
 }
 
 function CalendarEventChip({ className, label, detail, note, onClick }) {
   const chipClass = `decision-cal-event ${className || ''}`.trim();
   const noteText = String(note || '').trim();
+  const tip = [detail || label, noteText].filter(Boolean).join('\n');
   const body = onClick ? (
-    <button type="button" className={chipClass} onClick={onClick}>
+    <button type="button" className={chipClass} title={tip || undefined} onClick={onClick}>
       {label}
     </button>
   ) : (
-    <span className={chipClass}>{label}</span>
+    <span className={chipClass} title={tip || undefined}>{label}</span>
   );
-  const tip = (
-    <span className="decision-cal-tip">
-      <span className="decision-cal-tip__info">{detail || label}</span>
-      {noteText ? <span className="decision-cal-tip__note">{noteText}</span> : null}
-    </span>
-  );
-  return (
-    <Tooltip
-      title={tip}
-      placement="top"
-      enterDelay={120}
-      enterNextDelay={60}
-      describeChild
-      slotProps={{
-        popper: { sx: { zIndex: 1600 } },
-        tooltip: {
-          sx: {
-            maxWidth: 360,
-            fontSize: 12,
-            lineHeight: 1.45,
-            whiteSpace: 'pre-wrap',
-          },
-        },
-      }}
-    >
-      {body}
-    </Tooltip>
-  );
+  return body;
 }
 
 function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd, onActionClick }) {
   const cells = buildMonthCells(year, month);
   return (
-    <Box className="decision-month-grid" role="grid" aria-label={`${monthTitle(year, month)} 交易日历`}>
+    <div className="decision-month-grid" role="grid" aria-label={`${monthTitle(year, month)} 交易日历`}>
       {WEEKDAY_HEADS.map((label) => (
-        <Typography key={label} className="decision-month-head" component="div">
+        <div key={label} className="decision-month-head">
           {label}
-        </Typography>
+        </div>
       ))}
       {cells.map((date, index) => {
         if (!date) {
-          return <Box key={`empty-${index}`} className="decision-month-cell is-pad" />;
+          return <div key={`empty-${index}`} className="decision-month-cell is-pad" />;
         }
         const outOfRange = (rangeStart && date < rangeStart) || (rangeEnd && date > rangeEnd);
         const future = date > clockDate;
@@ -706,16 +628,13 @@ function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd, onActio
         const actions = Array.isArray(day?.actions) ? day.actions : [];
         const hasEvents = oppCount > 0 || actions.length > 0;
         return (
-          <Box
-            key={date}
-            className={[
+          <div key={date} className={[
               'decision-month-cell',
               date === clockDate ? 'is-now' : '',
               outOfRange ? 'is-out' : '',
               future ? 'is-future' : '',
               hasEvents ? 'has-events' : '',
-            ].filter(Boolean).join(' ')}
-          >
+            ].filter(Boolean).join(' ')}>
             <span className="decision-month-cell__num">{Number(date.slice(8))}</span>
             <span className="decision-month-cell__events">
               {oppCount > 0 ? (
@@ -735,10 +654,10 @@ function MonthGrid({ year, month, clockDate, days, rangeStart, rangeEnd, onActio
                 />
               ))}
             </span>
-          </Box>
+          </div>
         );
       })}
-    </Box>
+    </div>
   );
 }
 
@@ -1305,7 +1224,7 @@ export function DecisionPlaySession({
       sortable: false,
       renderCell: (grid) => {
         if (grid.row.held) {
-          return <Chip size="small" variant="outlined" label="已持有" />;
+          return <Tag size="sm" status="neutral" variant="outline">已持有</Tag>;
         }
         return (
           <InvestOpenCell
@@ -1511,97 +1430,69 @@ export function DecisionPlaySession({
   const rangeLabel = rangeStart && rangeEnd ? `${rangeStart} → ${rangeEnd}` : '—';
 
   const clockHud = (
-    <Box className={`decision-hud${embedded ? ' decision-hud--embedded' : ''}`} aria-label="模拟回测时钟">
-      <Box className="decision-hud-main">
-        <Box className="decision-calendar-block" data-ntq-help="decision-clock">
-          <Typography className="decision-calendar-title" component="h2">
+    <div className={`decision-hud${embedded ? ' decision-hud--embedded' : ''}`} aria-label="模拟回测时钟">
+      <div className="decision-hud-main">
+        <div className="decision-calendar-block" data-ntq-help="decision-clock">
+          <h2 className="decision-calendar-title">
             交易日历
-          </Typography>
-          <Box className={`decision-clock ${clockMotion}`}>
-            <Typography className="decision-clock__date">{shownClockDate || '—'}</Typography>
-            <Typography className="decision-clock__weekday">{weekdayLabel(shownClockDate)}</Typography>
-          </Box>
-        </Box>
+          </h2>
+          <div className={`decision-clock ${clockMotion}`}>
+            <span className="decision-clock__date">{shownClockDate || '—'}</span>
+            <span className="decision-clock__weekday">{weekdayLabel(shownClockDate)}</span>
+          </div>
+        </div>
 
-        <Box className="decision-hud-actions" data-ntq-help="decision-advance">
+        <div className="decision-hud-actions" data-ntq-help="decision-advance">
           {completed && typeof onViewReport === 'function' ? (
-            <Button
-              className="decision-advance-btn"
-              variant="contained"
-              onClick={onViewReport}
-            >
+            <Button className="decision-advance-btn" variant="primary" onClick={onViewReport}>
               查看报告
             </Button>
           ) : (
-            <Button
-              className="decision-advance-btn"
-              variant="contained"
-              disabled={completed || advancing}
-              startIcon={<Icon name="play" size={16} />}
-              onClick={requestAdvance}
-              title="空格也可推进"
-              aria-keyshortcuts="Space"
-            >
+            <Button className="decision-advance-btn" variant="primary" disabled={completed || advancing} onClick={requestAdvance} title="空格也可推进" aria-keyshortcuts="Space" icon="play" iconPlacement="start">
               {advancing ? '推进中' : '下一个事件（空格键）'}
             </Button>
           )}
-          <Button
-            variant="outlined"
-            className="decision-calendar-toggle"
-            aria-haspopup="dialog"
-            aria-expanded={calendarOpen}
-            onClick={openCalendar}
-          >
+          <Button variant="glass" className="decision-calendar-toggle" aria-haspopup="dialog" aria-expanded={calendarOpen} onClick={openCalendar}>
             事件回溯
           </Button>
-        </Box>
+        </div>
 
-        <Box className="decision-hud-metrics" data-ntq-help="decision-metrics">
-          <Box className="decision-hud-metric">
-            <Typography variant="caption" color="text.secondary">账户价值</Typography>
-            <Typography variant="h6" className="decision-hud-metric__value">
+        <div className="decision-hud-metrics" data-ntq-help="decision-metrics">
+          <div className="decision-hud-metric">
+            <span className="ntq-caption ntq-muted">账户价值</span>
+            <div className="decision-hud-metric__value ntq-decision-metric-value">
               {formatMoney(equity)}
               {showEquityDelta ? (
-                <Box
-                  component="span"
-                  className={`decision-hud-delta ${equityDelta >= 0 ? 'is-up' : 'is-down'}`}
-                >
+                <span className={`decision-hud-delta ${equityDelta >= 0 ? 'is-up' : 'is-down'}`}>
                   （{formatSignedMoney(equityDelta)}）
-                </Box>
+                </span>
               ) : null}
-            </Typography>
-          </Box>
-          <Box className="decision-hud-metric">
-            <Typography variant="caption" color="text.secondary">可用资金</Typography>
-            <Typography variant="h6" className="decision-hud-metric__value">
+            </div>
+          </div>
+          <div className="decision-hud-metric">
+            <span className="ntq-caption ntq-muted">可用资金</span>
+            <div className="decision-hud-metric__value ntq-decision-metric-value">
               {formatMoney(snapshot.cash)}
-              <Box component="span" className="decision-hud-ratio">
+              <span className="decision-hud-ratio">
                 {' '}
                 ({formatPct(cashRatio)})
-              </Box>
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Box className="decision-progress">
-        <Box
-          className="decision-progress__track"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(sessionPct)}
-          aria-label="回测进度"
-        >
-          <Box className="decision-progress__fill" style={{ width: `${sessionPct}%` }} />
-        </Box>
-        <Typography className="decision-progress__label" variant="caption">
+      <div className="decision-progress">
+        <div className="decision-progress__track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(sessionPct)} aria-label="回测进度">
+          <div className="decision-progress__fill" style={{ width: `${sessionPct}%` }} />
+        </div>
+        <span className="decision-progress__label ntq-caption">
           {totalDays > 0
             ? `已走 ${elapsedDays} / ${totalDays} 个交易日`
             : (shownClockDate ? `停在 ${shownClockDate}` : '区间未知')}
-        </Typography>
-      </Box>
-    </Box>
+        </span>
+      </div>
+    </div>
   );
 
   const playInner = (
@@ -1613,14 +1504,14 @@ export function DecisionPlaySession({
       ) : null}
 
       {embedded ? null : (
-      <Card variant="outlined" className="decision-hud-card" sx={{ mb: 2 }}>
-        <CardContent>
+      <div className="decision-hud-card decision-card">
+        <div className="decision-card__content">
           {clockHud}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       )}
 
-      <UiDialog
+      <Dialog
         open={calendarOpen}
         onClose={closeCalendar}
         maxWidth={false}
@@ -1628,34 +1519,20 @@ export function DecisionPlaySession({
         scroll="paper"
         PaperProps={{ className: 'decision-month-popover' }}
       >
-        <Box className="decision-month">
-          <Box className="decision-month-nav">
-            <IconButton
-              size="small"
-              aria-label="上个月"
-              disabled={!canPrevMonth}
-              onClick={() => {
+        <div className="decision-month">
+          <div className="decision-month-nav">
+            <Button aria-label="上个月" disabled={!canPrevMonth} onClick={() => {
                 const next = shiftMonth(viewYear, viewMonth, -1);
                 setViewYear(next.year);
                 setViewMonth(next.month);
-              }}
-            >
-              <Icon name="arrowBack" size={16} />
-            </IconButton>
-            <Typography className="decision-month-title">{monthTitle(viewYear, viewMonth)}</Typography>
-            <IconButton
-              size="small"
-              aria-label="下个月"
-              disabled={!canNextMonth}
-              onClick={() => {
+              }} variant="ghost" icon="arrowBack" />
+            <span className="decision-month-title">{monthTitle(viewYear, viewMonth)}</span>
+            <Button aria-label="下个月" disabled={!canNextMonth} onClick={() => {
                 const next = shiftMonth(viewYear, viewMonth, 1);
                 setViewYear(next.year);
                 setViewMonth(next.month);
-              }}
-            >
-              <Icon name="chevronRight" size={16} />
-            </IconButton>
-          </Box>
+              }} variant="ghost" icon="chevronRight" />
+          </div>
           {calendarOpen ? (
             <MonthGrid
               year={viewYear}
@@ -1667,25 +1544,25 @@ export function DecisionPlaySession({
               onActionClick={setCalendarAction}
             />
           ) : null}
-          <Typography className="decision-month-legend" variant="caption">
+          <span className="decision-month-legend ntq-caption">
             <span className="decision-month-legend__now">当前停顿日</span>
             <span className="decision-month-legend__opp">发现机会</span>
             <span className="decision-month-legend__buy">买入</span>
             <span className="decision-month-legend__sell">卖出</span>
             未来日期不标注 · 不能点选跳转
-          </Typography>
-        </Box>
-      </UiDialog>
+          </span>
+        </div>
+      </Dialog>
 
-      <Box className={`decision-play-split ${advancing ? 'is-advancing' : ''}`}>
-        <Box className="decision-left">
-          <Card variant="outlined">
-            <CardContent className="decision-aside">
+      <div className={`decision-play-split ${advancing ? 'is-advancing' : ''}`}>
+        <div className="decision-left">
+          <div className="decision-card">
+            <div className="decision-aside decision-card__content">
               {hideStrategyMeta ? null : (
-              <Box className="decision-aside-section">
-                <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
+              <div className="decision-aside-section">
+                <span className="decision-aside-title ntq-decision-subtitle ntq-decision-strong">
                   策略与模拟
-                </Typography>
+                </span>
                 {[
                   ['策略', snapshot.strategyKey || strategyKey],
                   ['版本', snapshot.versionId || '—'],
@@ -1693,30 +1570,30 @@ export function DecisionPlaySession({
                   ['回测区间', rangeLabel],
                   ['最大同时持有数', String(snapshot.maxPortfolioSize || '—')],
                 ].map(([label, value]) => (
-                  <Typography key={label} className="decision-kv" variant="body2">
+                  <span key={label} className="decision-kv">
                     <span className="decision-kv__label">{label}</span>
                     <span className="decision-kv__value">{value}</span>
-                  </Typography>
+                  </span>
                 ))}
-              </Box>
+              </div>
               )}
 
-              <Box className="decision-aside-section" data-ntq-help="decision-holdings">
-                <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
+              <div className="decision-aside-section" data-ntq-help="decision-holdings">
+                <span className="decision-aside-title ntq-decision-subtitle ntq-decision-strong">
                   持仓状态
-                </Typography>
-                <Typography className="decision-kv" variant="body2">
+                </span>
+                <span className="decision-kv">
                   <span className="decision-kv__label">持仓市值</span>
                   <span className="decision-kv__value">{formatMoney(holdingsValue)}</span>
-                </Typography>
+                </span>
                 {holdings.length ? (
                   <>
-                    <Box className="decision-holding-head">
+                    <div className="decision-holding-head">
                       <span>股票</span>
                       <span>持有</span>
                       <span>盈亏</span>
-                    </Box>
-                    <Box className="decision-holding-list">
+                    </div>
+                    <div className="decision-holding-list">
                       {holdings.map((row) => (
                         <button
                           key={row.id}
@@ -1746,27 +1623,27 @@ export function DecisionPlaySession({
                           </span>
                         </button>
                       ))}
-                    </Box>
-                    <Typography variant="caption" color="text.secondary" className="decision-holding-hint">
+                    </div>
+                    <span className="decision-holding-hint ntq-caption ntq-muted">
                       点一行查看明细
-                    </Typography>
+                    </span>
                   </>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">当前无持仓</Typography>
+                  <span className="ntq-muted">当前无持仓</span>
                 )}
-              </Box>
+              </div>
 
-              <Box className="decision-aside-section">
+              <div className="decision-aside-section">
                 <button
                   type="button"
                   className={`decision-aside-fold${positionOpen ? ' is-open' : ''}`}
                   aria-expanded={positionOpen}
                   onClick={() => setPositionOpen((open) => !open)}
                 >
-                  <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
+                  <span className="decision-aside-title ntq-decision-subtitle ntq-decision-strong">
                     约束条件与状态统计
-                  </Typography>
-                  <Icon name="expandMore" size={20} />
+                  </span>
+                  <Icon name="expandMore" size="sm" />
                 </button>
                 {positionOpen ? (
                   <>
@@ -1776,57 +1653,47 @@ export function DecisionPlaySession({
                       ['策略至今胜率', strategyWin],
                       ['策略平均回报率', strategyRoi],
                     ].map(([label, value]) => (
-                      <Typography key={label} className="decision-kv" variant="body2">
+                      <span key={label} className="decision-kv">
                         <span className="decision-kv__label">{label}</span>
                         <span className="decision-kv__value">{value}</span>
-                      </Typography>
+                      </span>
                     ))}
                   </>
                 ) : null}
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <Box className="decision-right">
-          <Card variant="outlined" data-ntq-help="decision-events">
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>今日事件</Typography>
+        <div className="decision-right">
+          <div data-ntq-help="decision-events" className="decision-card">
+            <div className="decision-card__content">
+              <span className="ntq-decision-subtitle ntq-decision-strong">今日事件</span>
               {events.length ? (
-                <Stack spacing={1}>
+                <div className="ntq-decision-stack" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {events.map((row) => (
-                    <Box
-                      key={`${row.date}-${row.ticker}-${row.shares}`}
-                      className={`decision-event ${row.win ? 'is-win' : 'is-loss'}`}
-                    >
-                      <Typography variant="caption" color="text.secondary">{row.date}</Typography>
-                      <Typography variant="body2">{row.text}</Typography>
-                    </Box>
+                    <div key={`${row.date}-${row.ticker}-${row.shares}`} className={`decision-event ${row.win ? 'is-win' : 'is-loss'}`}>
+                      <span className="ntq-caption ntq-muted">{row.date}</span>
+                      <span>{row.text}</span>
+                    </div>
                   ))}
-                </Stack>
+                </div>
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <span className="ntq-muted">
                   今日无出场结算。
-                </Typography>
+                </span>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card
-            variant="outlined"
-            className={hasOpps ? 'decision-opp-card is-hot' : 'decision-opp-card'}
-            data-ntq-help="decision-opps"
-          >
-            <CardContent>
-              <Box className="decision-opp-head">
-                <Typography
-                  className={`decision-opp-title ${hasOpps ? 'is-hot' : 'is-empty'}`}
-                  component="h2"
-                >
+          <div className={[hasOpps ? 'decision-opp-card is-hot' : 'decision-opp-card', "decision-card"].filter(Boolean).join(" ")} data-ntq-help="decision-opps">
+            <div className="decision-card__content">
+              <div className="decision-opp-head">
+                <h2 className={`decision-opp-title ${hasOpps ? 'is-hot' : 'is-empty'}`}>
                   {hasOpps ? '发现了新的可交易机会' : '今日没有可交易的机会'}
-                </Typography>
+                </h2>
                 {hasOpps ? (
-                  <Typography className="decision-opp-meta">
+                  <span className="decision-opp-meta">
                     点击股票名称查看当前状态。还可选择
                     {' '}
                     <span className="decision-opp-slots">{remainingSlots}</span>
@@ -1835,16 +1702,15 @@ export function DecisionPlaySession({
                     {remainingSlots <= 0 ? (
                       <span className="decision-opp-slots-full">（已达组合上限）</span>
                     ) : null}
-                  </Typography>
+                  </span>
                 ) : null}
-              </Box>
+              </div>
               {hasOpps ? (
                 <DataGrid
                   autoHeight
                   rows={oppRows}
                   columns={oppColumns}
-                  localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-                  hideFooter
+                                    hideFooter
                   disableRowSelectionOnClick
                   onCellClick={(params, event) => {
                     if (event.target.closest('.decision-invest-cell, .decision-invest-open')) {
@@ -1870,10 +1736,10 @@ export function DecisionPlaySession({
                   }}
                 />
               ) : null}
-            </CardContent>
-          </Card>
-        </Box>
-      </Box>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <HoldingDetailDialog
         open={Boolean(holdingDetail)}
@@ -1942,21 +1808,21 @@ export function DecisionPlaySession({
         onClose={() => setCalendarAction(null)}
       />
 
-      <UiDialog
+      <Dialog
         open={confirmOpen}
         onClose={cancelConfirm}
         title="确认当天选择"
         size="sm"
         actions={(
           <>
-            <UiButton variant="ghost" onClick={cancelConfirm}>返回查看</UiButton>
-            <UiButton
+            <Button variant="ghost" onClick={cancelConfirm}>返回查看</Button>
+            <Button
               variant="primary"
               onClick={runAdvance}
               disabled={advancing || billExceedsCash}
             >
               确认推进（空格键）
-            </UiButton>
+            </Button>
           </>
         )}
       >
@@ -1965,13 +1831,8 @@ export function DecisionPlaySession({
         </p>
         {bill.length ? (
           bill.map((row) => (
-            <Stack
-              key={row.id}
-              direction="row"
-              justifyContent="space-between"
-              sx={{ py: 0.5 }}
-            >
-              <Typography variant="body2" component="div" className="decision-stock-with-status">
+            <div key={row.id} className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+              <div className="decision-stock-with-status">
                 [{row.id}] {row.name}{' '}
                 <StockStatusChips
                   {...resolveLiveStatus(row.ticker, liveStatusById, statusLoading)}
@@ -1980,31 +1841,31 @@ export function DecisionPlaySession({
                 {row.note ? (
                   <span className="decision-bill-note"> · {row.note}</span>
                 ) : null}
-              </Typography>
-              <Typography variant="body2">约 {formatMoney(row.notional)}</Typography>
-            </Stack>
+              </div>
+              <span>约 {formatMoney(row.notional)}</span>
+            </div>
           ))
         ) : (
-          <Typography variant="body2">当前选择：（空，本日不买）</Typography>
+          <span>当前选择：（空，本日不买）</span>
         )}
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
-          <Typography color="text.secondary">可用资金</Typography>
-          <Typography>{formatMoney(cashOnHand)} 元</Typography>
-        </Stack>
-        <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5 }}>
-          <Typography fontWeight={700}>合计（约）</Typography>
-          <Typography fontWeight={700} color={billExceedsCash ? 'error' : 'inherit'}>
+        <div className="ntq-decision-stack ntq-decision-stack--row ntq-decision-stack--ruled" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <span className="ntq-muted">可用资金</span>
+          <span>{formatMoney(cashOnHand)} 元</span>
+        </div>
+        <div className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+          <span className="ntq-decision-strong">合计（约）</span>
+          <span className="ntq-decision-strong">
             {formatMoney(billTotal)} 元
-          </Typography>
-        </Stack>
+          </span>
+        </div>
         {billExceedsCash ? (
           <Message status="warning">
             这几笔加起来超过可用资金。返回查看后减少买入，或卖掉持仓后再买。
           </Message>
         ) : null}
-      </UiDialog>
+      </Dialog>
 
-      <UiDialog
+      <Dialog
         open={Boolean(infoOpp)}
         onClose={() => {
           setInfoOpp(null);
@@ -2033,31 +1894,25 @@ export function DecisionPlaySession({
                   )}
                 />
               ) : null}
-              <Typography
-                component="span"
-                variant="caption"
-                color="text.secondary"
-                sx={{ ml: 1.5 }}
-              >
+              <span className="ntq-caption ntq-muted decision-info-title-hint">
                 查看数据
-              </Typography>
+              </span>
             </span>
-            <IconButton
+            <Button
+              variant="ghost"
+              icon="cancel"
               aria-label="关闭"
               onClick={() => {
                 setInfoOpp(null);
                 setInfoPointerAsOf('');
               }}
-              edge="end"
-            >
-              <Icon name="cancel" size={18} />
-            </IconButton>
+            />
           </span>
         )}
       >
         {infoOpp ? (
-          <Stack spacing={1.25} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <Typography variant="body2" color="text.secondary">
+          <div className="ntq-decision-stack ntq-decision-stack--min0" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+            <span className="ntq-muted">
               as-of {clockDate} · 前复权数据停在当前日，不含未来
               {(() => {
                 const panels = new Set(
@@ -2075,35 +1930,29 @@ export function DecisionPlaySession({
                 if (layerNames.length) return ` · 分层：${layerNames.join(' · ')}`;
                 return '';
               })()}
-            </Typography>
-            <Stack spacing={0.75}>
-              <Stack direction="row" justifyContent="space-between">
-                <Typography variant="body2" color="text.secondary">策略 as-of</Typography>
-                <Typography variant="body2">
+            </span>
+            <div className="ntq-decision-stack" style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              <div className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <span className="ntq-muted">策略 as-of</span>
+                <span>
                   胜率 {strategyWin}  平均ROI {strategyRoi}
                   {asof?.sampleSize != null ? `  n=${asof.sampleSize}` : ''}
-                </Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="space-between">
-                <Typography variant="body2" color="text.secondary">本标的 as-of</Typography>
-                <Typography variant="body2">
+                </span>
+              </div>
+              <div className="ntq-decision-stack ntq-decision-stack--row" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <span className="ntq-muted">本标的 as-of</span>
+                <span>
                   胜率 {infoPayload?.tickerStats?.winRateLabel || infoOpp.wr}
                   {' '}
                   平均ROI {infoPayload?.tickerStats?.avgRoiLabel || infoOpp.roi}
-                </Typography>
-              </Stack>
-            </Stack>
+                </span>
+              </div>
+            </div>
             {infoLoading ? (
               <InlineLoadingState block message="正在加载市场数据…" />
             ) : (
-              <Stack spacing={1.25} sx={{ flex: '1 1 auto', minHeight: 0 }}>
-                <Box
-                  sx={{
-                    flex: '1 1 auto',
-                    minHeight: { xs: 420, sm: 560, md: 'calc(100vh - 280px)' },
-                    width: '100%',
-                  }}
-                >
+              <div className="ntq-decision-stack ntq-decision-stack--grow ntq-decision-stack--min0" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                <div>
                   <ChartPanel
                     title=""
                     option={infoChart}
@@ -2114,18 +1963,18 @@ export function DecisionPlaySession({
                       ? '主图：K线（前复权）与策略声明指标 / 分层数据。悬停查看财报 PIT。使用底部滑块调整可见区间。'
                       : '没有截至当前日的市场数据。'}
                   />
-                </Box>
+                </div>
                 <FinancePitCard
                   visible={infoHasFinanceLayer}
                   live={infoFinanceLive}
                   pointerAsOf={infoPointerAsOf}
                   snapshot={infoFinanceSnapshot}
                 />
-              </Stack>
+              </div>
             )}
-          </Stack>
+          </div>
         ) : null}
-      </UiDialog>
+      </Dialog>
     </>
   );
 

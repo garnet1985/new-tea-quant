@@ -1,9 +1,7 @@
 import React, { useMemo } from 'react';
-import { Box, Stack, Typography } from '@mui/material';
-import ChartPanel from 'views/chartPanel';
-import MetricCard from 'views/metricCard';
-import MetricGrid from 'views/metricGrid';
+import { ChartPanel, MetricCard, MetricGrid } from 'ui';
 import { SectionBlock } from 'views/sectionBlock';
+import '../reportBlock.scss';
 import {
   PRICE_CHART_TIPS,
   PRICE_METRIC_TIPS,
@@ -220,9 +218,9 @@ function PriceFactorReport({
   })();
 
   return (
-    <Stack spacing={1.25}>
+    <div className="ntq-report-block">
       {!hideTitle ? (
-        <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+        <h3 className="ntq-report-block__title">{title}</h3>
       ) : null}
 
       {showStockGrid ? (
@@ -342,14 +340,18 @@ function PriceFactorReport({
           </MetricGrid>
         ) : <ReportUnavailableHint />}
         {!avail.roiPercentileViz ? (
-          <Box sx={{ mt: avail.profitBasics ? 1 : 0 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+          <div className={[
+            'ntq-report-block__chart-fallback',
+            avail.profitBasics ? 'ntq-report-block__chart-fallback--spaced' : '',
+          ].filter(Boolean).join(' ')}
+          >
+            <p className="ntq-caption ntq-muted">
               {roiAllTruncated
                 ? PRICE_CHART_TIPS.roiPercentileUnavailableAllTruncated(roiTruncatedCount)
                 : PRICE_CHART_TIPS.roiPercentileUnavailable}
-            </Typography>
+            </p>
             {roiAllTruncated ? null : <ReportUnavailableHint />}
-          </Box>
+          </div>
         ) : (
           <ChartPanel
             title="收益率（ROI）分位图"
@@ -361,14 +363,14 @@ function PriceFactorReport({
           />
         )}
         {!avail.roiBucketViz ? (
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+          <div className="ntq-report-block__chart-fallback ntq-report-block__chart-fallback--spaced">
+            <p className="ntq-caption ntq-muted">
               {roiAllTruncated
                 ? PRICE_CHART_TIPS.roiBucketUnavailableAllTruncated(roiTruncatedCount)
                 : PRICE_CHART_TIPS.roiBucketUnavailable}
-            </Typography>
+            </p>
             {roiAllTruncated ? null : <ReportUnavailableHint />}
-          </Box>
+          </div>
         ) : (
           <ChartPanel
             title="收益率（ROI）分布"
@@ -380,7 +382,7 @@ function PriceFactorReport({
           />
         )}
       </SectionBlock>
-    </Stack>
+    </div>
   );
 }
 

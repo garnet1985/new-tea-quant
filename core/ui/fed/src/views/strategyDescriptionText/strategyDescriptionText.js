@@ -1,59 +1,60 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Stack, Typography } from '@mui/material';
 import { splitStrategyDescription } from '../../service/format/formatStrategyDescription';
+import './style.scss';
 
+/**
+ * 策略说明多行文本。调用方用 className（如 ntq-muted）控色；maxLines 做行数截断。
+ */
 function StrategyDescriptionText({
   text = '',
-  variant = 'body2',
-  color = 'text.secondary',
   className = '',
   empty = '—',
   maxLines = null,
   component = 'div',
 }) {
   const lines = splitStrategyDescription(text);
-  const clampSx = maxLines != null && maxLines > 0
-    ? {
-      display: '-webkit-box',
-      WebkitLineClamp: maxLines,
-      WebkitBoxOrient: 'vertical',
-      overflow: 'hidden',
-    }
+  const Tag = component || 'div';
+  const clamped = maxLines != null && maxLines > 0;
+  const rootClass = [
+    'ntq-strategy-desc',
+    clamped ? 'ntq-strategy-desc--clamp' : '',
+    className,
+  ].filter(Boolean).join(' ');
+  const style = clamped
+    ? { '--ntq-strategy-desc-lines': maxLines }
     : undefined;
 
   if (!lines.length) {
     if (empty == null || empty === '') return null;
     return (
-      <Typography variant={variant} color={color} className={className} component={component} sx={clampSx}>
+      <Tag className={rootClass} style={style}>
         {empty}
-      </Typography>
+      </Tag>
     );
   }
 
-  if (lines.length === 1) {
+  if (clamped || lines.length === 1) {
     return (
-      <Typography variant={variant} color={color} className={className} component={component} sx={clampSx}>
-        {lines[0]}
-      </Typography>
+      <Tag className={rootClass} style={style}>
+        {lines.join('\n')}
+      </Tag>
     );
   }
 
   return (
-    <Stack spacing={0.35} className={className} component={component}>
+    <Tag className={rootClass}>
       {lines.map((line, idx) => (
-        <Typography key={`${idx}-${line}`} variant={variant} color={color} sx={clampSx}>
+        <p key={`${idx}-${line}`} className="ntq-strategy-desc__line">
           {line}
-        </Typography>
+        </p>
       ))}
-    </Stack>
+    </Tag>
   );
 }
 
 StrategyDescriptionText.propTypes = {
   text: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  variant: PropTypes.string,
-  color: PropTypes.string,
   className: PropTypes.string,
   empty: PropTypes.node,
   maxLines: PropTypes.number,

@@ -1,0 +1,14 @@
+.coming-soon-page__card {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.coming-soon-page__note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ui-text-muted, #98a2b3);
+  font-style: italic;
+}

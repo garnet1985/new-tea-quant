@@ -80,12 +80,11 @@
   align-items: stretch;
 }
 
-.ntq-nav-dropdown-popper {
-  z-index: 1300;
-}
-
 .ntq-nav-dropdown__panel {
-  position: relative;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1300;
   min-width: 10rem;
   padding: var(--ntq-space-xxs) 0;
   overflow: visible;

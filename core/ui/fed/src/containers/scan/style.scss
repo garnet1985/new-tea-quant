@@ -264,6 +264,15 @@
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 0.75rem;
   background: rgba(255, 255, 255, 0.035);
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+
+    .scan-detail__meta-cell + .scan-detail__meta-cell {
+      border-left: 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+    }
+  }
 }
 
 .scan-detail__meta-cell {
@@ -314,9 +323,13 @@
 }
 
 .scan-detail__bt-line {
-  font-size: 0.8125rem !important;
-  line-height: 1.55 !important;
-  color: rgba(203, 213, 225, 0.92) !important;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.scan-detail__bt-line--warn {
+  color: #fdb022;
 }
 
 .scan-detail__bt-note {

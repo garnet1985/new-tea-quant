@@ -1,16 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Message from 'ui/message/message';
-import {
-  Chip,
-  Divider,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Tag, TextArea } from 'ui';
 import JSON5 from 'json5';
 import PythonDictInputPanel from 'views/pythonDictInputPanel';
-import PageLayout from '../../views/pageLayout';
+import PageLayout from 'ntq-ui/pageLayout';
+import './style.scss';
 
 const defaultInput = JSON.stringify(
   {
@@ -358,12 +352,12 @@ function JsonFieldTestPage() {
     >
 
       {parseError ? (
-        <Typography variant="caption" color="error" sx={{ display: 'block', mb: 1 }}>
+        <p className="json-field-test-page__banner-error">
           输入区上方已显示错误信息与定位，请先修复后再应用。
-        </Typography>
+        </p>
       ) : null}
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="stretch">
+      <div className="json-field-test-page__columns">
         <PythonDictInputPanel
           inputRef={inputRef}
           value={jsonInput}
@@ -391,44 +385,40 @@ function JsonFieldTestPage() {
           errorContext={errorContext}
         />
 
-        <Paper variant="outlined" sx={{ p: 2, flex: 1.35, minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-            右栏：验证结果与性能
-          </Typography>
+        <div className="json-field-test-page__result">
+          <h3 className="json-field-test-page__result-title">右栏：验证结果与性能</h3>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1.5 }}>
-            <Chip
-              color={accuracyStatus === '通过' ? 'success' : accuracyStatus === '失败' ? 'error' : 'default'}
-              label={`准确性: ${accuracyStatus}`}
-              size="small"
-            />
-            <Chip label={`模式: ${parseMode}`} size="small" />
-            <Chip label={`parse: ${metrics.parseMs}ms`} size="small" />
-            <Chip label={`pretty: ${metrics.prettyMs}ms`} size="small" />
-            <Chip label={`bytes: ${metrics.bytes}`} size="small" />
-            <Chip label={`objects: ${metrics.objects}`} size="small" />
-            <Chip label={`arrays: ${metrics.arrays}`} size="small" />
-            <Chip label={`leaves: ${metrics.leaves}`} size="small" />
-          </Stack>
+          <div className="json-field-test-page__tags">
+            <Tag
+              status={accuracyStatus === '通过' ? 'success' : accuracyStatus === '失败' ? 'error' : 'neutral'}
+            >
+              {`准确性: ${accuracyStatus}`}
+            </Tag>
+            <Tag status="neutral">{`模式: ${parseMode}`}</Tag>
+            <Tag status="neutral">{`parse: ${metrics.parseMs}ms`}</Tag>
+            <Tag status="neutral">{`pretty: ${metrics.prettyMs}ms`}</Tag>
+            <Tag status="neutral">{`bytes: ${metrics.bytes}`}</Tag>
+            <Tag status="neutral">{`objects: ${metrics.objects}`}</Tag>
+            <Tag status="neutral">{`arrays: ${metrics.arrays}`}</Tag>
+            <Tag status="neutral">{`leaves: ${metrics.leaves}`}</Tag>
+          </div>
 
           <Message status="warning">
             可操作性评估标准（第一版）：能快速粘贴、看懂错误、修正后一次通过。
           </Message>
 
-          <Divider sx={{ mb: 1.5 }} />
-          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-            标准化输出（通过后）
-          </Typography>
-          <TextField
-            multiline
-            minRows={14}
+          <hr className="json-field-test-page__divider" />
+          <h4 className="json-field-test-page__preview-title">标准化输出（通过后）</h4>
+          <TextArea
+            labelPlacement="none"
+            maxWidth={false}
+            rows={14}
             value={parsedPreview}
-            fullWidth
             placeholder="验证通过后，这里显示格式化 JSON"
-            InputProps={{ readOnly: true }}
+            readOnly
           />
-        </Paper>
-      </Stack>
+        </div>
+      </div>
     </PageLayout>
   );
 }

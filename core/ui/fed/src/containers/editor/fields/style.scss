@@ -1,4 +1,12 @@
 // 轻量分组：区块标题 + 字段区（可比 MUI Paper 更疏朗）
+.ntq-editor-field-label {
+  margin-bottom: 0.5rem;
+}
+
+.ntq-editor-field-label--flush {
+  margin-bottom: 0;
+}
+
 .ntq-editor-field-group {
 
   &:last-child {
@@ -57,8 +65,152 @@
   gap: 0.75rem;
 }
 
+.ntq-editor-checkbox-group__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-xs, 0.25rem);
+}
+
+.ntq-editor-date-range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm, 0.5rem);
+}
+
+.ntq-editor-date-range__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-md, 0.75rem);
+}
+
+.ntq-editor-fees-override {
+  border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+  border-radius: 0.3125rem;
+  padding: 0.75rem;
+  background: var(--ui-surface-soft);
+}
+
+.ntq-editor-fees-override__title {
+  margin: 0 0 var(--ui-space-sm, 0.5rem);
+  font-size: var(--ui-font-sm, 0.875rem);
+  font-weight: 600;
+  color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+}
+
+.ntq-editor-fees-override__switch {
+  margin-bottom: 0;
+
+  &--open {
+    margin-bottom: var(--ui-space-sm, 0.5rem);
+  }
+}
+
+.ntq-editor-fees-override__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm, 0.5rem);
+}
+
+.ntq-editor-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--ui-space-sm, 0.5rem);
+
+  @media (min-width: 900px) {
+    grid-template-columns: repeat(var(--ntq-editor-columns, 1), minmax(0, 1fr));
+  }
+}
+
+.ntq-editor-columns__cell {
+  min-width: 0;
+
+  @media (min-width: 900px) {
+    grid-column: span var(--ntq-editor-col-span, 1);
+  }
+}
+
 .ntq-dict-parser-field__status {
   margin-bottom: var(--ui-space-sm, 0.5rem);
+}
+
+.ntq-dict-parser-field__alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-xs, 0.25rem);
+}
+
+.ntq-dict-parser-field__alert-text,
+.ntq-dict-parser-field__alert-meta {
+  margin: 0;
+  font-size: var(--ui-font-sm, 0.875rem);
+  line-height: 1.4;
+}
+
+.ntq-dict-parser-field__alert-meta {
+  font-size: var(--ui-font-xs, 0.75rem);
+  opacity: 0.9;
+}
+
+.ntq-dict-parser-field__context {
+  margin-top: var(--ui-space-sm, 0.5rem);
+  padding: var(--ui-space-sm, 0.5rem);
+  border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+  border-radius: 0.3125rem;
+  background: var(--ui-surface-soft);
+}
+
+.ntq-dict-parser-field__context-label {
+  margin: 0 0 var(--ui-space-xs, 0.25rem) !important;
+  font-size: var(--ui-font-xs, 0.75rem);
+}
+
+.ntq-dict-parser-field__context-pre {
+  margin: 0;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  font-family: var(--ui-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+}
+
+.ntq-dict-parser-field__context-line {
+  padding: 0 0.25rem;
+  border-radius: 0.25rem;
+
+  &.is-error {
+    background: color-mix(in srgb, var(--ntq-error, #f44336) 35%, transparent);
+    color: var(--ntq-text, #fff);
+  }
+}
+
+.ntq-dict-parser-field__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm, 0.5rem);
+  margin-bottom: var(--ui-space-sm, 0.5rem);
+}
+
+.ntq-dict-parser-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ntq-dict-parser-field__fullscreen-body {
+  flex: 1;
+  min-height: min(72vh, 720px);
+  display: flex;
+}
+
+.ntq-dict-parser-field__textarea--fullscreen {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+// 错误态红框（文案由上方 Message 展示，不走 Field error）
+.ntq-dict-parser-field__textarea.is-error .MuiOutlinedInput-notchedOutline {
+  border-color: var(--ntq-error, #f44336);
 }
 
 .ntq-editor-select-field {

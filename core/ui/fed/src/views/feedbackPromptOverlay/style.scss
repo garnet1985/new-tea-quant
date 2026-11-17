@@ -32,32 +32,62 @@
 }
 
 .feedback-prompt-overlay__title {
-  margin: 0 !important;
-  font-weight: 700 !important;
-  font-size: 1.05rem !important;
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #f2f4f7;
 }
 
 .feedback-prompt-overlay__copy {
   margin: 0;
+  font-size: 0.875rem;
+  color: #98a2b3;
 }
 
 .feedback-prompt-overlay__rating {
   align-self: flex-start;
+  display: inline-flex;
+  gap: 8px;
+}
 
-  .MuiToggleButton-root {
-    gap: 6px;
-    text-transform: none;
+.feedback-prompt-overlay__rate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8edf5;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-transform: none;
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
   }
 
-  .feedback-prompt-overlay__rate-icon {
-    transition: color 160ms ease;
+  &.is-active {
+    border-color: rgba(247, 144, 9, 0.45);
+    background: rgba(247, 144, 9, 0.12);
   }
+}
+
+.feedback-prompt-overlay__rate-icon {
+  transition: color 160ms ease;
 }
 
 .feedback-prompt-overlay__actions {
   margin-top: 4px;
   width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
+  gap: 8px;
 }
 
 @keyframes feedback-prompt-in {

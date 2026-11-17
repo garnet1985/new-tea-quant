@@ -23,6 +23,8 @@ export { default as Separator } from './text/separator';
 export { default as Quote } from './text/quote';
 export { default as TextBlock } from './text/textBlock';
 export { default as CodeBlock } from './text/codeBlock';
+export { default as TipLabel } from './title/tipLabel';
+export { default as SettingsAccordionTitle } from './title/settingsAccordionTitle';
 
 // button（RainbowButton 在 ntq-ui）
 export { default as Button } from './button/button';

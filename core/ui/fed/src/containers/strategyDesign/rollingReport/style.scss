@@ -12,9 +12,12 @@
   justify-content: center;
   min-height: 160px;
   padding: 8px 2px;
+  gap: 0.5rem;
 }
 
 .ntq-design-roll-report__meta {
+  margin: 0;
+  font-size: var(--ui-font-xs, 0.75rem);
   opacity: 0.86;
 }
 
@@ -27,6 +30,7 @@
 .ntq-design-roll-report__title {
   margin: 0;
   color: rgba(255, 255, 255, 0.94);
+  font-size: var(--ui-font-sm, 0.875rem);
   font-weight: 650;
 }
 
@@ -36,22 +40,34 @@
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
   background: rgba(2, 6, 23, 0.35);
+}
 
-  .MuiTableCell-root {
+.ntq-design-roll-report__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
     white-space: nowrap;
-    border-color: rgba(148, 163, 184, 0.1);
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     color: rgba(226, 232, 240, 0.9);
-    font-size: 0.8125rem;
+    text-align: left;
   }
 
-  .MuiTableCell-head {
+  th {
     font-weight: 650;
     color: rgba(186, 198, 220, 0.95);
     background: rgba(15, 23, 42, 0.92);
   }
+
+  .is-num {
+    text-align: right;
+  }
 }
 
-.ntq-design-roll-report__row--baseline .MuiTableCell-root {
+.ntq-design-roll-report__row--baseline td {
   color: rgba(252, 211, 77, 0.98);
   font-weight: 600;
 }
@@ -60,4 +76,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+
+  p {
+    margin: 0;
+  }
 }

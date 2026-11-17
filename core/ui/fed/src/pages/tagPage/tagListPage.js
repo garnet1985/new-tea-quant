@@ -191,8 +191,6 @@ function TagListPage() {
                 title={(
                   <StrategyDescriptionText
                     text={description}
-                    variant="body2"
-                    color="inherit"
                     empty=""
                   />
                 )}

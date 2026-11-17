@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import LoadingBars from 'views/loadingBars';
+import LoadingBars from 'ui/progress/loadingBars';
 
 const STEPS_CREATE = [
   '新茶正在理解你的需求...',
@@ -149,7 +149,7 @@ function PendingStream({ userText = '', kind = 'work', onTick }) {
 
   return (
     <div className="ntq-assistant-dock__waiting" role="status" aria-live="polite">
-      <LoadingBars barCount={4} className="ntq-loading-bars--sm" aria-label={label} />
+      <LoadingBars size="sm" aria-label={label} />
       <span key={label} className="ntq-assistant-dock__waiting-text">
         {label}
         {elapsedLabel ? (

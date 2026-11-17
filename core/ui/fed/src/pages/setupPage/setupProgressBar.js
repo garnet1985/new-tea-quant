@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Box, Typography } from '@mui/material';
+import { ProgressBar } from 'ui';
 import { useFakeProgress } from 'service/progress/useFakeProgress';
 import {
   fakeProgressTickSize,
@@ -7,6 +7,7 @@ import {
   setupFakeProgressBounds,
   setupWeightedPercent,
 } from './setup.helpers';
+import './setupProgressBar.scss';
 
 function SetupProgressBar({
   definition,
@@ -77,17 +78,17 @@ function SetupProgressBar({
       : progressPercent;
 
   return (
-    <>
-      <Typography variant="body2" color="text.secondary">
-        总进度: {completedCount}/{definition.length} ({Math.round(shownPercent)}%)
-      </Typography>
-      <Box className="setup-page__progress-track">
-        <Box
-          className="setup-page__progress-fill"
-          sx={{ width: `${shownPercent}%`, bgcolor: 'primary.main' }}
-        />
-      </Box>
-    </>
+    <div className="setup-page__progress">
+      <p className="setup-page__progress-meta ntq-muted">
+        {`总进度: ${completedCount}/${definition.length} (${Math.round(shownPercent)}%)`}
+      </p>
+      <ProgressBar
+        className="setup-page__progress-bar"
+        value={shownPercent}
+        size="sm"
+        aria-label="安装总进度"
+      />
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import TipLabel from 'views/tipLabel';
+import { TipLabel } from 'ui';
 import './style.scss';
 
 /**

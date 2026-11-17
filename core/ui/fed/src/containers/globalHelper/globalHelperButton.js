@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import RainbowButton from 'views/rainbowButton';
+import RainbowButton from 'ntq-ui/rainbowButton';
 
 function GlobalHelperButton({ onClick }) {
   return (

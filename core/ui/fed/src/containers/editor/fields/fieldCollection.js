@@ -98,7 +98,7 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
     if (itemField.type === 'switch') {
       return (
         <div key={itemField.key} className="ntq-editor-field-collection__switch-row">
-          <EditorFieldLabel field={labelField} context={context} sx={{ mb: 0 }} />
+          <EditorFieldLabel field={labelField} context={context} noMargin />
           <Switch
             checked={Boolean(current)}
             disabled={fieldDisabled}

@@ -1,14 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
 import { fetchDecisionReport } from '../../api/decisionApi';
 import InlineLoadingState from '../../views/inlineLoadingState';
-import { Button, Dialog, Message } from 'ui';
+import { Button, Dialog, Message, Select } from 'ui';
 import { isHttpStatusError } from 'service/request';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -17,6 +10,7 @@ import {
   normalizeCapitalMetricsFromSummary,
   slotFromResultReport,
 } from 'containers/strategyReport';
+import './decisionReportPanel.scss';
 
 const PORTFOLIO_COMPARE_ID = 'portfolio';
 
@@ -62,9 +56,9 @@ export default function DecisionReportPanel({
   );
 
   const compareOptions = useMemo(() => {
-    const rows = [{ id: PORTFOLIO_COMPARE_ID, label: '投资模拟' }];
+    const rows = [{ value: PORTFOLIO_COMPARE_ID, label: '投资模拟' }];
     completedOthers.forEach((row) => {
-      rows.push({ id: `session:${row.dmId}`, label: `模拟回测 #${row.dmId}` });
+      rows.push({ value: `session:${row.dmId}`, label: `模拟回测 #${row.dmId}` });
     });
     return rows;
   }, [completedOthers]);
@@ -141,7 +135,7 @@ export default function DecisionReportPanel({
 
   const current = metricsFromSlot(slot);
   const compared = metricsFromSlot(compareSlot);
-  const compareLabel = compareOptions.find((row) => row.id === compareId)?.label || '对比';
+  const compareLabel = compareOptions.find((row) => row.value === compareId)?.label || '对比';
   const canCompare = Boolean(portfolioSlot) || completedOthers.length > 0;
 
   if (loading) {
@@ -152,11 +146,11 @@ export default function DecisionReportPanel({
   }
 
   return (
-    <Box className="ntq-design-step-report ntq-design-decision-report">
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-        <Typography variant="subtitle2" fontWeight={600}>
+    <div className="ntq-design-step-report ntq-design-decision-report">
+      <div className="ntq-design-decision-report__head">
+        <h3 className="ntq-design-decision-report__title">
           决策模拟回测报告 · #{sessionId}
-        </Typography>
+        </h3>
         {canCompare ? (
           <Button
             type="button"
@@ -166,7 +160,7 @@ export default function DecisionReportPanel({
             对比结果
           </Button>
         ) : null}
-      </Stack>
+      </div>
       <CapitalAllocationReport
         title="决策模拟报告"
         hideTitle
@@ -178,45 +172,42 @@ export default function DecisionReportPanel({
         open={compareOpen}
         onClose={() => setCompareOpen(false)}
         size="lg"
-        maxWidth="lg"
         title={(
-          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ width: '100%' }}>
+          <span className="ntq-design-decision-report__compare-title">
             <span>对比结果</span>
-            <TextField
-              select
-              size="small"
+            <Select
               label="对比对象"
+              labelPlacement="none"
+              maxWidth={false}
+              className="ntq-design-decision-report__compare-select"
               value={compareId}
-              onChange={(event) => setCompareId(event.target.value)}
-              sx={{ minWidth: 180 }}
-            >
-              {compareOptions.map((row) => (
-                <MenuItem key={row.id} value={row.id}>{row.label}</MenuItem>
-              ))}
-            </TextField>
-          </Stack>
+              options={compareOptions}
+              onChange={(e) => setCompareId(e.target.value)}
+              aria-label="对比对象"
+            />
+          </span>
         )}
       >
-        <Box className="ntq-report-compare__grid">
-          <Box>
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+        <div className="ntq-report-compare__grid">
+          <div>
+            <h4 className="ntq-design-decision-report__col-title">
               当前模拟回测（#{sessionId}）
-            </Typography>
+            </h4>
             <CapitalAllocationReport
               hideTitle
               metrics={current.capitalMetrics}
               stockRows={current.stockRows}
             />
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+          </div>
+          <div>
+            <h4 className="ntq-design-decision-report__col-title">
               {compareLabel}
-            </Typography>
+            </h4>
             {compareBusy ? (
               <InlineLoadingState block message="正在加载对比报告…" />
             ) : null}
             {compareError ? (
-              <Typography variant="body2" color="text.secondary">{compareError}</Typography>
+              <p className="ntq-muted">{compareError}</p>
             ) : null}
             {!compareBusy && !compareError && compared.capitalMetrics ? (
               <CapitalAllocationReport
@@ -226,13 +217,13 @@ export default function DecisionReportPanel({
               />
             ) : null}
             {!compareBusy && !compareError && !compared.capitalMetrics && compareId === PORTFOLIO_COMPARE_ID ? (
-              <Typography variant="body2" color="text.secondary">
+              <p className="ntq-muted">
                 {COMPARE_EMPTY_OTHER_VERSION_ZH}
-              </Typography>
+              </p>
             ) : null}
-          </Box>
-        </Box>
+          </div>
+        </div>
       </Dialog>
-    </Box>
+    </div>
   );
 }

@@ -1,26 +1,32 @@
 import React from 'react';
-import { Stack } from '@mui/material';
-import TipLabel from 'views/tipLabel';
+import { TipLabel } from 'ui';
 
-/** 标签与下方控件（Select / Input 等）的间距（theme spacing 单位） */
-export const EDITOR_FIELD_LABEL_MB = 1;
+/** 标签与下方控件的间距 */
+export const EDITOR_FIELD_LABEL_MB = '0.5rem';
 
-/** 与 Switch 行标签一致：``body2`` + 可选 ``HelpTooltip`` */
+/** 表单字段标签：field 字号 + 可选 HelpTooltip */
 export default function EditorFieldLabel({
   field,
   context = {},
   tooltipTitle,
-  sx = {},
+  className = '',
+  noMargin = false,
 }) {
   if (!field?.label) return null;
   const title = tooltipTitle ?? field.tooltip ?? '';
   const shine = field.tooltipShine ?? context?.defaultTooltipShine ?? false;
 
   return (
-    <Stack sx={{ mb: EDITOR_FIELD_LABEL_MB, ...sx }}>
+    <div
+      className={[
+        'ntq-editor-field-label',
+        noMargin ? 'ntq-editor-field-label--flush' : '',
+        className,
+      ].filter(Boolean).join(' ')}
+    >
       <TipLabel variant="field" tip={title} shine={shine}>
         {field.label}
       </TipLabel>
-    </Stack>
+    </div>
   );
 }

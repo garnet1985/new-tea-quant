@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Button, IconButton } from '@mui/material';
-import Icon from 'views/ntqIcon';
+import { Button } from 'ui';
 
 function GlobalHelperOverlay({
   hole = null,
@@ -43,15 +42,13 @@ function GlobalHelperOverlay({
           {stepLabel ? (
             <p className="ntq-global-helper__step">{stepLabel}</p>
           ) : null}
-          <IconButton
+          <Button
+            variant="ghost"
+            icon="close"
             className="ntq-global-helper__close"
             onClick={onSkip}
             aria-label="跳过引导"
-            size="small"
-            disableRipple
-          >
-            <Icon name="cancel" size={18} />
-          </IconButton>
+          />
         </div>
         {title ? <h2 className="ntq-global-helper__title">{title}</h2> : null}
         {body ? <p className="ntq-global-helper__body">{body}</p> : null}
@@ -60,28 +57,25 @@ function GlobalHelperOverlay({
         ) : null}
         <div className="ntq-global-helper__actions">
           <Button
-            variant="text"
+            variant="ghost"
             className="ntq-global-helper__skip"
             onClick={onSkip}
-            disableRipple
           >
             跳过
           </Button>
           <div className="ntq-global-helper__nav">
             <Button
-              variant="outlined"
+              variant="glass"
               className="ntq-global-helper__prev"
               onClick={onPrev}
               disabled={isFirst}
-              disableRipple
             >
               上一步
             </Button>
             <Button
-              variant="contained"
+              variant="primary"
               className="ntq-global-helper__next"
               onClick={onNext}
-              disableRipple
             >
               {isLast ? '我知道了' : '下一步'}
             </Button>

@@ -1,0 +1,17 @@
+.ntq-meta-dialogs__retention {
+  font-size: var(--ui-font-xs, 0.75rem);
+  font-weight: 400;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.ntq-meta-dialogs__retention-cap {
+  font-weight: 700;
+  font-size: 1.2em;
+  color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+}
+
+.ntq-version-row-actions {
+  display: inline-flex;
+  align-items: center;
+}

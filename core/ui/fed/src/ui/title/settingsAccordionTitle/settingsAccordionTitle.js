@@ -1,9 +1,15 @@
-/**
- * 占位组件 — 后续步骤再迁入/实现。
- * 计划来源：views/settingsAccordionTitle
- */
-function SettingsAccordionTitle() {
-  return null;
-}
+import React from 'react';
+import TipLabel from 'ui/title/tipLabel';
 
-export default SettingsAccordionTitle;
+/** Accordion 标题行：统一字重，可选区块级 tooltip */
+export default function SettingsAccordionTitle({ title, tooltip = '', context = {} }) {
+  return (
+    <TipLabel
+      variant="title"
+      tip={tooltip}
+      shine={Boolean(context?.defaultTooltipShine)}
+    >
+      {title}
+    </TipLabel>
+  );
+}

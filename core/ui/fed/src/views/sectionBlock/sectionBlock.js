@@ -1,5 +1,5 @@
 import React from 'react';
-import TipLabel from 'views/tipLabel';
+import TipLabel from 'ui/title/tipLabel';
 import './style.scss';
 
 function SectionTitle({ title, tip }) {

@@ -1,15 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Box,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  TextField,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import { DataGrid, Select, TextField } from 'ui';
 import { SectionBlock } from 'views/sectionBlock';
+import './style.scss';
 
 /**
  * 搜索 + 排序 + DataGrid（行数据与列定义由调用方传入）
@@ -95,40 +87,47 @@ function ReportStockSampleGrid({
     ? gridHeight
     : Math.min(240, gridHeight);
 
+  const sortOptions = useMemo(
+    () => (Array.isArray(sortMenuItems) ? sortMenuItems : []),
+    [sortMenuItems],
+  );
+
   return (
     <SectionBlock title={title} tip={tip} action={headerAction}>
-      <Stack spacing={1}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+      <div className="ntq-report-stock-sample-grid">
+        <div className="ntq-report-stock-sample-grid__toolbar">
           <TextField
-            size="small"
+            className="ntq-report-stock-sample-grid__search"
+            labelPlacement="none"
+            maxWidth={false}
             placeholder={searchPlaceholder}
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            sx={{ minWidth: { xs: '100%', md: 220 } }}
           />
           {showSortSelect ? (
-            <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 200 } }}>
-              <InputLabel id={sortSelectLabelId}>{sortLabel}</InputLabel>
-              <Select
-                labelId={sortSelectLabelId}
-                value={sortValue}
-                label={sortLabel}
-                onChange={(event) => onSortChange(event.target.value)}
-              >
-                {sortMenuItems.map((item) => (
-                  <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Select
+              className="ntq-report-stock-sample-grid__sort"
+              id={sortSelectLabelId}
+              label={sortLabel}
+              labelPlacement="none"
+              maxWidth={false}
+              value={sortValue}
+              onChange={(event) => onSortChange(event.target.value)}
+              options={sortOptions}
+            />
           ) : null}
-        </Stack>
-        <Box className="ntq-report-grid" sx={{ height: effectiveGridHeight, width: '100%', minWidth: 0 }}>
+        </div>
+        <div
+          className="ntq-report-grid ntq-report-stock-sample-grid__grid"
+          style={{ height: effectiveGridHeight }}
+        >
           <DataGrid
             rows={rows}
             columns={columns}
+            bordered={false}
+            density="sm"
             disableColumnMenu
             disableColumnFilter
-            disableRowSelectionOnClick
             sortingOrder={['desc', 'asc']}
             sortingMode={sortingMode}
             sx={{
@@ -157,10 +156,9 @@ function ReportStockSampleGrid({
                   },
                 }
                 : {})}
-            density="compact"
           />
-        </Box>
-      </Stack>
+        </div>
+      </div>
     </SectionBlock>
   );
 }

@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Typography } from '@mui/material';
-import LoadingBars from 'views/loadingBars';
+import { LoadingBars } from 'ui';
 import './style.scss';
 
 function PageLoadingState({ message = null, className = '', minHeight = '', barCount = 5 }) {
@@ -12,11 +11,9 @@ function PageLoadingState({ message = null, className = '', minHeight = '', barC
       className={['ntq-page-loading', className].filter(Boolean).join(' ')}
       style={style}
     >
-      <LoadingBars barCount={barCount} />
+      <LoadingBars size="md" />
       {message ? (
-        <Typography variant="body2" component="p" className="ntq-page-loading__message">
-          {message}
-        </Typography>
+        <p className="ntq-page-loading__message">{message}</p>
       ) : null}
     </div>
   );

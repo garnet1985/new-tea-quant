@@ -1,15 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import {
-  Box,
-  Button,
-  Stack,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from '@mui/material';
-import Icon from 'views/ntqIcon';
+import { Button, Icon, TextArea } from 'ui';
 import './style.scss';
 
 /**
@@ -43,13 +34,13 @@ function FeedbackPromptOverlay({
   const canSend = rating === 'up' || rating === 'down';
 
   return (
-    <Box
+    <div
       className="feedback-prompt-overlay"
       role="dialog"
       aria-modal="false"
       aria-labelledby="feedback-prompt-title"
     >
-      <Box
+      <div
         className={`feedback-prompt-overlay__panel is-${phase}`}
         onAnimationEnd={() => {
           if (phase === 'leave') {
@@ -57,29 +48,31 @@ function FeedbackPromptOverlay({
           }
         }}
       >
-        <Typography
+        <h2
           id="feedback-prompt-title"
-          variant="h6"
-          component="h2"
           className="feedback-prompt-overlay__title"
         >
           这次体验怎么样？
-        </Typography>
-        <Typography variant="body2" color="text.secondary" className="feedback-prompt-overlay__copy">
+        </h2>
+        <p className="feedback-prompt-overlay__copy">
           可选：点一下并写一句（也可跳过）。发送不需要额外授权。
-        </Typography>
+        </p>
 
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={rating || null}
-          onChange={(_e, next) => {
-            if (next) setRating(next);
-          }}
+        <div
           className="feedback-prompt-overlay__rating"
+          role="group"
           aria-label="评价"
         >
-          <ToggleButton value="up" aria-label="满意" className="feedback-prompt-overlay__rate-btn">
+          <button
+            type="button"
+            aria-label="满意"
+            aria-pressed={rating === 'up'}
+            className={[
+              'feedback-prompt-overlay__rate-btn',
+              rating === 'up' ? 'is-active' : '',
+            ].filter(Boolean).join(' ')}
+            onClick={() => setRating('up')}
+          >
             <Icon
               name="sentimentSatisfied"
               size={18}
@@ -87,8 +80,17 @@ function FeedbackPromptOverlay({
               className="feedback-prompt-overlay__rate-icon"
             />
             <span>满意</span>
-          </ToggleButton>
-          <ToggleButton value="down" aria-label="不满意" className="feedback-prompt-overlay__rate-btn">
+          </button>
+          <button
+            type="button"
+            aria-label="不满意"
+            aria-pressed={rating === 'down'}
+            className={[
+              'feedback-prompt-overlay__rate-btn',
+              rating === 'down' ? 'is-active' : '',
+            ].filter(Boolean).join(' ')}
+            onClick={() => setRating('down')}
+          >
             <Icon
               name="sentimentDissatisfied"
               size={18}
@@ -96,35 +98,32 @@ function FeedbackPromptOverlay({
               className="feedback-prompt-overlay__rate-icon"
             />
             <span>不满意</span>
-          </ToggleButton>
-        </ToggleButtonGroup>
+          </button>
+        </div>
 
-        <TextField
+        <TextArea
           label="想说的话（可选）"
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, 2000))}
-          multiline
-          minRows={2}
-          maxRows={5}
-          fullWidth
-          helperText={`${text.length}/2000`}
+          rows={2}
+          maxWidth={false}
+          hint={`${text.length}/2000`}
         />
 
-        <Stack direction="row" spacing={1} className="feedback-prompt-overlay__actions" justifyContent="flex-end" flexWrap="wrap">
-          <Button variant="text" onClick={onLater}>
+        <div className="feedback-prompt-overlay__actions">
+          <Button variant="ghost" onClick={onLater}>
             以后再说
           </Button>
           <Button
-            variant="contained"
-            color="primary"
+            variant="primary"
             disabled={!canSend}
             onClick={() => onSubmit({ rating, text })}
           >
             发送
           </Button>
-        </Stack>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 

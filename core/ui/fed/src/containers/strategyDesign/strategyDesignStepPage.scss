@@ -35,6 +35,13 @@
   padding: 8px 4px 24px;
 }
 
+.ntq-design-decision-gate__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
 .ntq-design-decision-step {
   display: grid;
   grid-template-columns: minmax(240px, 1fr) minmax(0, 3fr);
@@ -59,9 +66,12 @@
 }
 
 .ntq-design-decision-step__actions {
+  display: flex;
   flex-shrink: 0;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .ntq-design-decision-step__clock {

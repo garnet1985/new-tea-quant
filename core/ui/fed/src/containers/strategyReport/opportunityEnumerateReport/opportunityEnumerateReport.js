@@ -1,9 +1,7 @@
 import React from 'react';
-import { Stack, Typography } from '@mui/material';
-import ChartPanel from 'views/chartPanel';
-import MetricCard from 'views/metricCard';
-import MetricGrid from 'views/metricGrid';
+import { ChartPanel, MetricCard, MetricGrid } from 'ui';
 import { SectionBlock } from 'views/sectionBlock';
+import '../reportBlock.scss';
 import {
   ENUM_CHART_TIPS,
   ENUM_METRIC_TIPS,
@@ -140,9 +138,9 @@ function OpportunityEnumrateReport({
   }
 
   return (
-    <Stack spacing={1.25}>
+    <div className="ntq-report-block">
       {!hideTitle ? (
-        <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+        <h3 className="ntq-report-block__title">{title}</h3>
       ) : null}
 
       {showStockGrid ? (
@@ -235,7 +233,7 @@ function OpportunityEnumrateReport({
         tip={ENUM_SECTION_TIPS.timing}
       >
         {avail.timing ? (
-          <Stack spacing={1}>
+          <div className="ntq-report-block__stack">
             <MetricGrid>
               <MetricCard
                 title="平均每股机会间隔"
@@ -259,10 +257,10 @@ function OpportunityEnumrateReport({
                 (metrics.dispersionConclusion && String(metrics.dispersionConclusion).trim()) || null,
               ].filter(Boolean).join(' · ') || undefined}
             />
-          </Stack>
+          </div>
         ) : <ReportUnavailableHint />}
       </SectionBlock>
-    </Stack>
+    </div>
   );
 }
 

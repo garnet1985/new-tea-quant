@@ -4,7 +4,6 @@
  * 第二个会改前端渲染的 adapter 出现时，改为契约 + 解析引擎，废掉本分支。
  */
 import React from 'react';
-import { Box, Stack, Typography } from '@mui/material';
 
 /** 与 ntq_email / report_template 默认仓位一致 */
 const DEFAULT_QTY = 100;
@@ -164,48 +163,44 @@ export function OpportunityDetailMeta({
   presenterError = '',
 }) {
   return (
-    <Box className="scan-detail__meta">
-      <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        spacing={0}
-        className="scan-detail__meta-strip"
-      >
-        <Box className="scan-detail__meta-cell">
-          <Typography className="scan-detail__meta-label">策略</Typography>
-          <Typography className="scan-detail__meta-value">
+    <div className="scan-detail__meta">
+      <div className="scan-detail__meta-strip">
+        <div className="scan-detail__meta-cell">
+          <div className="scan-detail__meta-label">策略</div>
+          <div className="scan-detail__meta-value">
             {strategyName || '—'}
-          </Typography>
-        </Box>
-        <Box className="scan-detail__meta-cell">
-          <Typography className="scan-detail__meta-label">扫描日期</Typography>
-          <Typography className="scan-detail__meta-value scan-detail__meta-value--accent">
+          </div>
+        </div>
+        <div className="scan-detail__meta-cell">
+          <div className="scan-detail__meta-label">扫描日期</div>
+          <div className="scan-detail__meta-value scan-detail__meta-value--accent">
             {formatScanDateLabel(scanDate)}
-          </Typography>
-        </Box>
-        <Box className="scan-detail__meta-cell">
-          <Typography className="scan-detail__meta-label">总机会数</Typography>
-          <Typography className="scan-detail__meta-value scan-detail__meta-value--strong">
+          </div>
+        </div>
+        <div className="scan-detail__meta-cell">
+          <div className="scan-detail__meta-label">总机会数</div>
+          <div className="scan-detail__meta-value scan-detail__meta-value--strong">
             {opportunityCount == null ? '—' : String(opportunityCount)}
-          </Typography>
-        </Box>
-      </Stack>
+          </div>
+        </div>
+      </div>
       {presenterError || presenterLine ? (
-        <Box className="scan-detail__bt-block">
+        <div className="scan-detail__bt-block">
           {presenterError ? (
-            <Typography color="warning.main" className="scan-detail__bt-line">
+            <div className="scan-detail__bt-line scan-detail__bt-line--warn">
               回测整体结果：{presenterError}
-            </Typography>
+            </div>
           ) : (
-            <Typography className="scan-detail__bt-line">
+            <div className="scan-detail__bt-line">
               回测整体结果：{presenterLine}
-            </Typography>
+            </div>
           )}
-          <Typography className="scan-detail__bt-note">
+          <div className="scan-detail__bt-note">
             （此处与表格中的回测信息由机会后处理「会话展示」提供）
-          </Typography>
-        </Box>
+          </div>
+        </div>
       ) : null}
-    </Box>
+    </div>
   );
 }
 
@@ -213,19 +208,19 @@ function StockCell({ row }) {
   const name = String(row?.stock_name || '').trim() || row?.stock_id || '—';
   const code = String(row?.stock_id || '').trim();
   return (
-    <Box className="scan-detail__stock">
-      <Typography className="scan-detail__stock-name">{name}</Typography>
+    <div className="scan-detail__stock">
+      <div className="scan-detail__stock-name">{name}</div>
       {code && code !== name ? (
-        <Typography className="scan-detail__stock-code">{code}</Typography>
+        <div className="scan-detail__stock-code">{code}</div>
       ) : null}
-    </Box>
+    </div>
   );
 }
 
 function OpportunityInfoCell({ row }) {
   return (
-    <Box className="scan-detail__opp-info">
-      <Typography className="scan-detail__opp-primary">
+    <div className="scan-detail__opp-info">
+      <div className="scan-detail__opp-primary">
         <span className="scan-detail__opp-kv">
           <span className="scan-detail__opp-k">进入价格</span>
           <span className="scan-detail__opp-v">{formatPrice(row?.trigger_price)}</span>
@@ -235,20 +230,20 @@ function OpportunityInfoCell({ row }) {
           <span className="scan-detail__opp-k">股数</span>
           <span className="scan-detail__opp-v">{formatQty(row?.qty)}</span>
         </span>
-      </Typography>
-      <Typography className="scan-detail__opp-cost">
+      </div>
+      <div className="scan-detail__opp-cost">
         <span className="scan-detail__opp-k">总投资成本</span>
         <span className="scan-detail__opp-v scan-detail__opp-v--muted">
           {formatNotional(row?.notional)} 元
         </span>
-      </Typography>
-    </Box>
+      </div>
+    </div>
   );
 }
 
 function MetricCell({ value, tone = '' }) {
   return (
-    <Typography
+    <div
       className={[
         'scan-detail__metric',
         tone === 'pos' ? 'scan-detail__metric--pos' : '',
@@ -256,7 +251,7 @@ function MetricCell({ value, tone = '' }) {
       ].filter(Boolean).join(' ')}
     >
       {value}
-    </Typography>
+    </div>
   );
 }
 

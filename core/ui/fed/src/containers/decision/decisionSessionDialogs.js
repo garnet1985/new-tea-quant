@@ -1,24 +1,19 @@
 import React, { useMemo } from 'react';
-import {
-  Chip,
-  Stack,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
-import { Button, Dialog } from 'ui';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import { Button, DataGrid, Dialog, Tag } from 'ui';
 import { formatDateTime } from '../../service/format/formatDateTime';
 import { unfinishedSessions } from './decisionSessionPick';
+import './decisionSessionDialogs.scss';
 
 function statusChip(status) {
   const completed = status === 'completed';
   return (
-    <Chip
-      size="small"
-      label={completed ? '已完成' : '进行中'}
-      color={completed ? 'success' : 'warning'}
-      variant="outlined"
-    />
+    <Tag
+      size="sm"
+      status={completed ? 'success' : 'warning'}
+      variant="outline"
+    >
+      {completed ? '已完成' : '进行中'}
+    </Tag>
   );
 }
 
@@ -86,7 +81,7 @@ export default function DecisionSessionDialogs({
           const isCurrent = params.row.dmId === current;
           const completed = params.row.status === 'completed';
           return (
-            <Stack direction="row" spacing={1}>
+            <div className="ntq-decision-session-actions">
               <Button
                 variant="glass"
                 disabled={busy || isCurrent}
@@ -101,7 +96,7 @@ export default function DecisionSessionDialogs({
               >
                 删除
               </Button>
-            </Stack>
+            </div>
           );
         },
       },
@@ -113,12 +108,12 @@ export default function DecisionSessionDialogs({
       open={Boolean(panel)}
       onClose={onClose}
       title={(
-        <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2} sx={{ width: '100%' }}>
+        <span className="ntq-decision-session-dialog__title">
           <span>
             {panel === 'continue' ? '选择要继续的模拟回测' : '管理模拟回测'}
           </span>
           <Button variant="ghost" onClick={onClose}>关闭</Button>
-        </Stack>
+        </span>
       )}
       size="lg"
     >
@@ -129,14 +124,11 @@ export default function DecisionSessionDialogs({
       </p>
       <DataGrid
         autoHeight
+        bordered={false}
         rows={rows}
         columns={columns}
         getRowId={(row) => row.id || row.dmId}
-        localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
         hideFooter
-        disableRowSelectionOnClick
-        slots={NTQ_DATA_GRID_LOADING_SLOTS}
-        sx={{ border: 0, '& .MuiDataGrid-cell': { py: 1 } }}
       />
     </Dialog>
   );

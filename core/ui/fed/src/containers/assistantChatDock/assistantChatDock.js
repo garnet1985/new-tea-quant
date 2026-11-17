@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { IconButton } from '@mui/material';
-import Icon from 'views/ntqIcon';
-import RainbowButton from 'views/rainbowButton';
+import { Button } from 'ui';
+import RainbowButton from 'ntq-ui/rainbowButton';
 import AssistantTypewriter from './assistantTypewriter';
 import PendingStream from './pendingStream';
 import {
@@ -470,15 +469,13 @@ function AssistantChatDock() {
               >
                 清空会话
               </button>
-              <IconButton
+              <Button
+                variant="ghost"
+                icon="close"
                 className="ntq-assistant-dock__close"
                 onClick={close}
                 aria-label="关闭新茶"
-                size="small"
-                disableRipple
-              >
-                <Icon name="cancel" size={18} tone="muted" />
-              </IconButton>
+              />
             </div>
           </header>
 

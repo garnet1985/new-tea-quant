@@ -1,0 +1,43 @@
+.ntq-report-trade-cell {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-font-sm, 0.875rem);
+  line-height: 1.35;
+
+  &--pair {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    min-width: 0;
+  }
+
+  &--emph {
+    font-weight: 600;
+  }
+}
+
+.ntq-report-trade-empty {
+  padding-block: 0.25rem;
+}
+
+.ntq-report-dialog-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.ntq-report-dialog-title__main {
+  font-size: var(--ui-font-md, 1rem);
+  font-weight: 700;
+}
+
+.ntq-report-dialog-title__sub {
+  margin-left: 0.75rem;
+  font-size: var(--ui-font-xs, 0.75rem);
+  font-weight: 400;
+}

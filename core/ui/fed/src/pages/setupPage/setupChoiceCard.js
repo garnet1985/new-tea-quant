@@ -1,16 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import Message from 'ui/message/message';
-import {
-  Button,
-  Card,
-  CardActionArea,
-  CardContent,
-  Link,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Button, Message } from 'ui';
 import { FALLBACK_REGISTER_URL, fetchSiteUrls, resolveRegisterUrl } from 'api/siteApi';
 import { SETUP_CHOICE_COPY } from './setup.helpers';
+import './setupChoiceCard.scss';
 
 function SetupChoiceCard({
   stepId,
@@ -49,104 +41,81 @@ function SetupChoiceCard({
 
   if (copy.layout === 'cards' && Array.isArray(copy.choices) && copy.choices.length > 0) {
     return (
-      <Card variant="outlined" className="setup-choice-card">
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 1.5 }}>
-            {copy.title}
-          </Typography>
-          <Typography color="text.secondary" sx={{ mb: 2.5, lineHeight: 1.7 }}>
-            {copy.introBeforeLink}
-            <Link
-              href={registerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              underline="hover"
-            >
-              {copy.introLinkLabel}
-            </Link>
-            {copy.introAfterLink}
-          </Typography>
-          {packageHint ? (
-            <Message status="info">{packageHint}</Message>
-          ) : null}
-          {errorMessage ? (
-            <Message status="error">{errorMessage}</Message>
-          ) : null}
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={2}
-            className="setup-choice-card__options"
+      <section className="setup-choice-card">
+        <h3 className="setup-choice-card__title">{copy.title}</h3>
+        <p className="setup-choice-card__intro ntq-muted">
+          {copy.introBeforeLink}
+          <a
+            className="ntq-link"
+            href={registerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            {copy.choices.map((choice) => {
-              const select = () => {
-                if (choice.skip) {
-                  onSkip();
-                  return;
-                }
-                onConfirm();
-              };
-              return (
-                <Card
-                  key={choice.id}
-                  variant="outlined"
-                  className="setup-choice-card__option"
-                  sx={{ flex: 1, minWidth: 0 }}
-                >
-                  <CardActionArea
-                    disabled={submitting}
-                    onClick={select}
-                    sx={{ height: '100%', alignItems: 'stretch' }}
-                  >
-                    <CardContent sx={{ height: '100%' }}>
-                      <Typography variant="h6" component="div" sx={{ mb: 1 }}>
-                        {choice.title}
-                      </Typography>
-                      <Typography color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                        {choice.description}
-                      </Typography>
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              );
-            })}
-          </Stack>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          {copy.title}
-        </Typography>
-        {copy.body ? (
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
-            {copy.body}
-          </Typography>
+            {copy.introLinkLabel}
+          </a>
+          {copy.introAfterLink}
+        </p>
+        {packageHint ? (
+          <Message status="info">{packageHint}</Message>
         ) : null}
         {errorMessage ? (
           <Message status="error">{errorMessage}</Message>
         ) : null}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Button
-            variant="contained"
-            disabled={submitting}
-            onClick={onConfirm}
-          >
-            {copy.confirmLabel}
-          </Button>
-          <Button
-            variant="outlined"
-            disabled={submitting}
-            onClick={onSkip}
-          >
-            {copy.skipLabel}
-          </Button>
-        </Stack>
-      </CardContent>
-    </Card>
+        <div className="setup-choice-card__options">
+          {copy.choices.map((choice) => {
+            const select = () => {
+              if (choice.skip) {
+                onSkip();
+                return;
+              }
+              onConfirm();
+            };
+            return (
+              <button
+                key={choice.id}
+                type="button"
+                className="setup-choice-card__option"
+                disabled={submitting}
+                onClick={select}
+              >
+                <span className="setup-choice-card__option-title">{choice.title}</span>
+                <span className="setup-choice-card__option-desc ntq-muted">
+                  {choice.description}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="setup-choice-card setup-choice-card--simple">
+      <h3 className="setup-choice-card__title">{copy.title}</h3>
+      {copy.body ? (
+        <p className="setup-choice-card__body ntq-muted">{copy.body}</p>
+      ) : null}
+      {errorMessage ? (
+        <Message status="error">{errorMessage}</Message>
+      ) : null}
+      <div className="setup-choice-card__actions">
+        <Button
+          variant="primary"
+          disabled={submitting}
+          onClick={onConfirm}
+        >
+          {copy.confirmLabel}
+        </Button>
+        <Button
+          variant="glass"
+          disabled={submitting}
+          onClick={onSkip}
+        >
+          {copy.skipLabel}
+        </Button>
+      </div>
+    </section>
   );
 }
 

@@ -1,23 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  List,
-  ListItem,
-  ListItemText,
-  Radio,
-  RadioGroup,
-  Stack,
-  Typography,
-} from '@mui/material';
-import {
   importStrategyPackage,
   previewStrategyPackageImport,
 } from 'api/strategyApi';
 import { useAsyncAction } from 'service/useAsyncAction';
-import { Button, Dialog, Message } from 'ui';
+import { Button, Dialog, Message, RadioGroup } from 'ui';
 import './style.scss';
 
 const POLICY_OPTIONS = [
@@ -130,7 +118,7 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
         </div>
       )}
     >
-      <Stack spacing={2}>
+      <div className="strategy-package-import-dialog__body">
         <p className="ntq-muted">
           仅支持策略交流包（策略目录及依赖的 tag / adapter），文件格式为 .zip。
         </p>
@@ -144,54 +132,47 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
           <input type="file" accept=".zip,application/zip" hidden onChange={handleFileChange} />
         </Button>
         {file ? (
-          <Typography variant="body2" color="text.secondary">
+          <p className="ntq-muted">
             已选：
             {file.name}
-          </Typography>
+          </p>
         ) : null}
 
-        <FormControl>
-          <FormLabel>冲突策略</FormLabel>
-          <RadioGroup
-            value={policy}
-            onChange={(e) => {
-              setPolicy(e.target.value);
-              setPreview(null);
-            }}
-          >
-            {POLICY_OPTIONS.map((opt) => (
-              <FormControlLabel
-                key={opt.value}
-                value={opt.value}
-                control={<Radio size="small" />}
-                label={opt.label}
-              />
-            ))}
-          </RadioGroup>
-        </FormControl>
+        <RadioGroup
+          label="冲突策略"
+          options={POLICY_OPTIONS}
+          value={policy}
+          disabled={busy}
+          onChange={(e) => {
+            setPolicy(e.target.value);
+            setPreview(null);
+          }}
+        />
 
         {error ? <Message status="error">{error}</Message> : null}
 
         {preview?.items?.length ? (
-          <Stack spacing={0.5}>
-            <Typography variant="subtitle2">
+          <div className="strategy-package-import-dialog__preview">
+            <h4 className="strategy-package-import-dialog__preview-title">
               预览（
               {preview.ok ? '可导入' : '存在冲突'}
               ）
-            </Typography>
-            <List dense disablePadding>
+            </h4>
+            <ul className="strategy-package-import-dialog__list">
               {preview.items.map((row) => (
-                <ListItem key={`${row.kind}:${row.name}`} disableGutters>
-                  <ListItemText
-                    primary={`${row.kind} / ${row.name}`}
-                    secondary={statusLabel(row.status)}
-                  />
-                </ListItem>
+                <li key={`${row.kind}:${row.name}`} className="strategy-package-import-dialog__item">
+                  <span className="strategy-package-import-dialog__item-name">
+                    {`${row.kind} / ${row.name}`}
+                  </span>
+                  <span className="strategy-package-import-dialog__item-status ntq-muted">
+                    {statusLabel(row.status)}
+                  </span>
+                </li>
               ))}
-            </List>
-          </Stack>
+            </ul>
+          </div>
         ) : null}
-      </Stack>
+      </div>
     </Dialog>
   );
 }

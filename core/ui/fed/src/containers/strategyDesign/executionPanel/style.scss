@@ -41,6 +41,13 @@
   }
 }
 
+.ntq-design-exec-panel__error:not(.ntq-message) {
+  margin: 0;
+  font-size: var(--ui-font-xs, 0.75rem);
+  line-height: 1.35;
+  color: var(--ntq-error, #f44336);
+}
+
 .ntq-design-exec-panel__body {
   display: flex;
   flex-direction: row;

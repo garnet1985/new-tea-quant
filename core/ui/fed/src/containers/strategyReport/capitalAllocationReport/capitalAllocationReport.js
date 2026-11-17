@@ -1,9 +1,7 @@
 import React from 'react';
-import { Stack, Typography } from '@mui/material';
-import ChartPanel from 'views/chartPanel';
-import MetricCard from 'views/metricCard';
-import MetricGrid from 'views/metricGrid';
+import { ChartPanel, MetricCard, MetricGrid } from 'ui';
 import { SectionBlock } from 'views/sectionBlock';
+import '../reportBlock.scss';
 import {
   CAPITAL_CHART_TIPS,
   CAPITAL_METRIC_TIPS,
@@ -66,9 +64,9 @@ function CapitalAllocationReport({
   const showStockSampleGrid = Boolean(showStockGrid && derivedStockRows.length > 0);
 
   return (
-    <Stack spacing={1.25}>
+    <div className="ntq-report-block">
       {!hideTitle ? (
-        <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+        <h3 className="ntq-report-block__title">{title}</h3>
       ) : null}
 
       <PortfolioTradeLifecycleTable
@@ -264,7 +262,7 @@ function CapitalAllocationReport({
           />
         </MetricGrid>
       </SectionBlock>
-    </Stack>
+    </div>
   );
 }
 

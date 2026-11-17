@@ -221,8 +221,164 @@
 .ntq-text-area,
 .ntq-select,
 .ntq-search-select,
+.ntq-search-field,
+.ntq-autocomplete,
+.ntq-date,
 .ntq-field.ntq-input--capped {
   width: 100%;
+}
+
+.ntq-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ntq-space-md);
+  min-width: 0;
+  max-width: 22.5rem; // 与 search 工具栏接近，避免开关贴太远
+}
+
+.ntq-switch--control-only {
+  justify-content: flex-start;
+  max-width: none;
+}
+
+.ntq-switch__text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xs);
+  min-width: 0;
+}
+
+.ntq-switch__label {
+  font-size: var(--ntq-font-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ntq-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ntq-switch.is-disabled .ntq-switch__label {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ntq-date-range {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; // 整段左对齐，不要撑满后左右拉开
+  gap: var(--ntq-space-sm);
+  min-width: 0;
+  width: 100%;
+}
+
+// 侧标签单独一行；“–”只和输入框同一行，避免有/无标签时上下漂移
+.ntq-date-range__labels {
+  display: inline-flex;
+  align-items: end;
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-date-range__side-label {
+  box-sizing: border-box;
+  width: 17.5rem; // 对齐 capped Date
+  max-width: 100%;
+  font-size: var(--ntq-font-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ntq-text);
+}
+
+.ntq-date-range__side-gap {
+  flex: 0 0 auto;
+  width: 1rem;
+}
+
+.ntq-date-range__controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--ntq-space-sm);
+  min-width: 0;
+
+  // 覆盖 .ntq-date { width:100% }，避免被拉成「左右两端」
+  .ntq-date,
+  .ntq-field.ntq-input--capped {
+    flex: 0 0 auto;
+    width: 17.5rem;
+    max-width: 100%;
+  }
+
+  .ntq-field.ntq-input--fluid,
+  .ntq-date.ntq-input--fluid {
+    width: auto;
+    min-width: 12rem;
+  }
+}
+
+.ntq-date-range__sep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 2.5rem; // 固定对齐 small 输入 40px，不随 error 文案变高
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+// 隐藏 UA 黑色日历指示器，改用右侧自绘浅色 icon（.ntq-date__picker-btn）
+.ntq-date {
+  .MuiOutlinedInput-root {
+    padding-right: 0.5rem;
+  }
+
+  input.ntq-date__input[type='date'] {
+    color-scheme: dark;
+  }
+
+  input.ntq-date__input[type='date']::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 0;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+  }
+}
+
+.ntq-date__adornment {
+  margin-left: 0;
+}
+
+.ntq-date__picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: var(--ntq-space-xxs);
+  border: 0;
+  border-radius: var(--ntq-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+
+  &:hover:not(:disabled) {
+    background: var(--ntq-white-06);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
 }
 
 // TextArea：外层 wrapper 无 padding；textarea 自己留四边距
@@ -239,8 +395,77 @@
   max-width: 17.5rem; // 280px
 }
 
+// SearchField 工具栏默认更宽（约 360px，对齐旧 views）
+.ntq-input--search {
+  max-width: 22.5rem; // 360px
+}
+
 .ntq-input--fluid {
   max-width: none;
+}
+
+.ntq-search-field--fluid {
+  flex: 1 1 auto;
+  min-width: 12.5rem; // 200px
+  max-width: 26.25rem; // 420px
+}
+
+// 收紧前缀图标占位：MUI 默认 root 左 pad + adornment margin + input 左 pad 叠太厚
+.ntq-search-field {
+  .MuiOutlinedInput-root {
+    padding-left: 0.625rem; // 10px
+  }
+
+  .MuiInputAdornment-root.MuiInputAdornment-positionStart {
+    margin-right: var(--ntq-space-xs); // 4px，贴文字
+  }
+
+  .MuiOutlinedInput-input {
+    padding-left: 0 !important;
+  }
+
+  .MuiInputAdornment-root.MuiInputAdornment-positionEnd {
+    margin-left: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-search-field__icon {
+  margin: 0;
+  max-height: none;
+}
+
+.ntq-search-field__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: var(--ntq-space-xxs);
+  border: 0;
+  border-radius: var(--ntq-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+
+  &:hover {
+    background: var(--ntq-white-06);
+  }
+}
+
+.ntq-autocomplete__paper.MuiPaper-root {
+  background-color: #12121f !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.55);
+  color: var(--ntq-text);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ntq-autocomplete__listbox {
+  font-size: var(--ntq-form-control-font-size);
+  line-height: var(--ntq-form-control-line-height);
 }
 
 .ntq-select__placeholder {

@@ -71,6 +71,16 @@
   padding: 0 0.75rem; // 12px，单行只在 input 上留左右距
 }
 
+// Date：隐藏 UA 黑色日历指示器（改由 ui/input/date 自绘浅色 icon）
+input[type='date'].ntq-date__input::-webkit-calendar-picker-indicator {
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
 // Multiline：外层 wrapper padding 去掉；只留 textarea 一层四边距。
 .MuiOutlinedInput-root.MuiOutlinedInput-multiline {
   min-height: unset !important;

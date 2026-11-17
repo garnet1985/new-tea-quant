@@ -2,6 +2,7 @@ import { ReactComponent as AddIcon } from './icons/add.svg';
 import { ReactComponent as ArrowBackIcon } from './icons/arrow_back.svg';
 import { ReactComponent as ArrowRightIcon } from './icons/arrow_right.svg';
 import { ReactComponent as AssistantCatIcon } from './icons/assistant_cat.svg';
+import { ReactComponent as CalendarIcon } from './icons/calendar.svg';
 import { ReactComponent as CancelIcon } from './icons/cancel.svg';
 import { ReactComponent as ChatIcon } from './icons/chat.svg';
 import { ReactComponent as DataObjectIcon } from './icons/data_object.svg';
@@ -36,6 +37,7 @@ export const NTQ_ICON_MAP = {
   add: AddIcon,
   arrowBack: ArrowBackIcon,
   assistantCat: AssistantCatIcon,
+  calendar: CalendarIcon,
   cancel: CancelIcon,
   chat: ChatIcon,
   chevronRight: ArrowRightIcon,

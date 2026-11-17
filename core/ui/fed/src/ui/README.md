@@ -19,7 +19,7 @@
 - **icon** / **button**：见各目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
 - **progress**：`loadingBars` / `loading`；`progressBar`（回测线性条，可选 label + showPercent）；`progressRing`（step 圆环，可选 label / showPercent / 环心 children）。
 - **steps**：`stepper`（回测步骤条；`activeId` + `status`；可 `href` / RouterLink / `onItemClick`；`showProgress` 可关进度环）。
-- **input**：`field`；`textField` / `textArea`；`checkbox`；`radio`（含 `variant="button"`）；`select`；`searchSelect`（可搜索下拉）。仍 stub：`searchField` / `autocomplete`。
+- **input**：`field`；`textField` / `textArea`；`checkbox`；`radio`（含 `variant="button"`）；`switch`；`select`；`searchSelect`；`searchField`；`autocomplete`；`date` / `dateRange`。数值暂用 `TextField type="number"`。仍 stub：`pythonDictInputPanel`。
 - **message**：
   - `message`：`variant="inline"` 圆角+border+底色无 bar；`banner` 有 bar 无圆角。`status`（图标固定）或 `color`（icon 可传/省略）。
   - `toast`：右下角短暂弹出（`ToastHost` + `showToast({ status, content })`）；内部复用 Message。

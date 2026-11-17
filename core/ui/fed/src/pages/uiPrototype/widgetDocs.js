@@ -26,6 +26,11 @@ import checkboxDoc from 'ui/input/checkbox/doc';
 import radioDoc from 'ui/input/radio/doc';
 import selectDoc from 'ui/input/select/doc';
 import searchSelectDoc from 'ui/input/searchSelect/doc';
+import searchFieldDoc from 'ui/input/searchField/doc';
+import autocompleteDoc from 'ui/input/autocomplete/doc';
+import switchDoc from 'ui/input/switch/doc';
+import dateDoc from 'ui/input/date/doc';
+import dateRangeDoc from 'ui/input/dateRange/doc';
 
 const DOCS = {
   layout: {
@@ -75,6 +80,11 @@ const DOCS = {
     radio: radioDoc,
     select: selectDoc,
     searchSelect: searchSelectDoc,
+    searchField: searchFieldDoc,
+    autocomplete: autocompleteDoc,
+    switch: switchDoc,
+    date: dateDoc,
+    dateRange: dateRangeDoc,
   },
 };
 

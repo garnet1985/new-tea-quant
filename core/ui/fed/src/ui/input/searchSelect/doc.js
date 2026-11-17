@@ -55,7 +55,7 @@ const doc = {
   ],
   antiPatterns: [
     '少量固定枚举用 Select。',
-    '自由输入建议列表留给 Autocomplete（仍 stub）。',
+    '自由输入建议列表用 Autocomplete；工具栏关键字用 SearchField。',
   ],
 };
 

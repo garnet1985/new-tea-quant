@@ -20,7 +20,7 @@ import NtqIcon, { NTQ_ICON_NAMES } from 'ui/icon/ntqIcon';
 
 ## 全部 name
 
-`add` · `arrowBack` · `assistantCat` · `cancel` · `chat` · `chevronRight` · `dataObject` · `delete` · `download` · `expandMore` · `folderOpen` · `help` · `history` · `info` · `monitoring` · `pin` · `pinFilled` · `play` · `playCircle` · `radioUnchecked` · `refresh` · `remove` · `search` · `sentimentDissatisfied` · `sentimentSatisfied` · `settings` · `success` · `syncAlt` · `tactic` · `trash` · `uploadFile` · `warning` · `webhook`
+`add` · `arrowBack` · `assistantCat` · `calendar` · `cancel` · `chat` · `chevronRight` · `dataObject` · `delete` · `download` · `expandMore` · `folderOpen` · `help` · `history` · `info` · `monitoring` · `pin` · `pinFilled` · `play` · `playCircle` · `radioUnchecked` · `refresh` · `remove` · `search` · `sentimentDissatisfied` · `sentimentSatisfied` · `settings` · `success` · `syncAlt` · `tactic` · `trash` · `uploadFile` · `warning` · `webhook`
 
 运行时列表：`NTQ_ICON_NAMES`（与 `NTQ_ICON_MAP` 的 key 一致）。
 

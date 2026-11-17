@@ -6,6 +6,11 @@ import Checkbox from 'ui/input/checkbox';
 import RadioGroup from 'ui/input/radio';
 import Select from 'ui/input/select';
 import SearchSelect from 'ui/input/searchSelect';
+import SearchField from 'ui/input/searchField';
+import Autocomplete from 'ui/input/autocomplete';
+import Switch from 'ui/input/switch';
+import Date from 'ui/input/date';
+import DateRange from 'ui/input/dateRange';
 import Text from 'ui/text/text';
 import Section from 'ui/layout/section';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
@@ -446,6 +451,268 @@ function SearchSelectShowcase() {
   );
 }
 
+function SearchFieldShowcase() {
+  const [q, setQ] = useState('动量');
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="默认（工具栏，无标签）" block>
+          <SearchField
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="搜索策略"
+          />
+        </SampleRow>
+        <SampleRow label="labelPlacement above + tip" block>
+          <SearchField
+            label="关键词"
+            labelPlacement="above"
+            tip="匹配显示名"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleRow label="默认 maxWidth ≈ 360px | fluid" block>
+          <Section gap="md">
+            <SearchField value={q} onChange={(e) => setQ(e.target.value)} />
+            <SearchField
+              fluid
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="弹性宽"
+            />
+          </Section>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>图标与文字间距 xxs；有 Field 时同 sm。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>同 TextField 玻璃输入。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleRow label="clearable={false}" block>
+          <SearchField
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            clearable={false}
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+const UNIT_OPTIONS = [
+  { value: 'alpha', label: 'Alpha 单元' },
+  { value: 'risk', label: '风控单元' },
+  { value: 'exec', label: '执行单元' },
+  { value: 'post', label: '后处理' },
+];
+
+function AutocompleteShowcase() {
+  const [unit, setUnit] = useState('alpha');
+  const [deps, setDeps] = useState(['risk']);
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="单选 + tip" block>
+          <Autocomplete
+            label="执行单元"
+            tip="可输入过滤"
+            options={UNIT_OPTIONS}
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            placeholder="输入或选择"
+          />
+        </SampleRow>
+        <SampleRow label="multiple" block>
+          <Autocomplete
+            label="依赖"
+            multiple
+            options={UNIT_OPTIONS}
+            value={deps}
+            onChange={(e) => setDeps(e.target.value)}
+            placeholder="添加依赖"
+          />
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleNA>默认 maxWidth ≈ 280px；高度同 small 输入。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>同 Field；多选芯片间距跟 MUI。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>不透明建议面板；不模糊整页。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleRow label="clearable={false}" block>
+          <Autocomplete
+            label="不可清空"
+            options={UNIT_OPTIONS}
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            clearable={false}
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function SwitchShowcase() {
+  const [live, setLive] = useState(true);
+  const [mail, setMail] = useState(false);
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="标签左 + 开关右" block>
+          <Switch
+            label="启用实时扫描"
+            tip="占用队列时会排队"
+            checked={live}
+            onChange={(e) => setLive(e.target.checked)}
+          />
+        </SampleRow>
+        <SampleRow label="fieldLabel above" block>
+          <Switch
+            fieldLabel="邮件通知"
+            labelPlacement="above"
+            tip="重要告警"
+            checked={mail}
+            onChange={(e) => setMail(e.target.checked)}
+          />
+        </SampleRow>
+        <SampleRow label="disabled" block>
+          <Switch label="不可用" checked disabled />
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleNA>MUI size="small"；主题内已定制轨道。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>标签与开关水平 gap md。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>跟随主题 primary。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleNA>无额外外形参数。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function DateShowcase() {
+  const [day, setDay] = useState('2024-01-15');
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="默认 above" block>
+          <Date
+            label="交易日"
+            tip="自然日"
+            value={day}
+            onChange={(e) => setDay(e.target.value)}
+          />
+        </SampleRow>
+        <SampleRow label="error" block>
+          <Date
+            label="生效日"
+            value=""
+            onChange={() => {}}
+            error="必填"
+          />
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleNA>默认 maxWidth ≈ 280px；高度同 small。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>同 Field。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>同 TextField。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleNA>原生 date；样式随浏览器。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function DateRangeShowcase() {
+  const [range, setRange] = useState({ start: '2024-01-01', end: '2024-03-31' });
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="外层 label" block>
+          <DateRange
+            label="回测区间"
+            tip="含起止日"
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+          />
+        </SampleRow>
+        <SampleRow label="无外层 label（各自标签）" block>
+          <DateRange
+            labelPlacement="none"
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+          />
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleNA>两侧 Date 各自默认 capped。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>两控件水平 gap sm。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>同 Date。</SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleRow label="单侧 error" block>
+          <DateRange
+            label="区间"
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+            endError="结束日不能早于开始日"
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const inputShowcases = {
   field: FieldShowcase,
   textField: TextFieldShowcase,
@@ -454,6 +721,11 @@ const inputShowcases = {
   radio: RadioShowcase,
   select: SelectShowcase,
   searchSelect: SearchSelectShowcase,
+  searchField: SearchFieldShowcase,
+  autocomplete: AutocompleteShowcase,
+  switch: SwitchShowcase,
+  date: DateShowcase,
+  dateRange: DateRangeShowcase,
 };
 
 export default inputShowcases;

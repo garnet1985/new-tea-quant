@@ -78,6 +78,9 @@ export const MESSAGE_VARIANTS = ['inline', 'banner'];
 /** NtqHelpTooltip 触发图标形态 */
 export const HELP_TOOLTIP_VARIANTS = ['help', 'info', 'warning'];
 
+/** Stepper 步骤执行状态（与 activeId 正交） */
+export const STEPPER_ITEM_STATUSES = ['idle', 'done', 'failed', 'running', 'pending'];
+
 /** @deprecated 用 MESSAGE_STATUSES；保留别名以免旧引用报错 */
 export const MESSAGE_TONES = MESSAGE_STATUSES;
 

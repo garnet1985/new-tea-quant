@@ -1,0 +1,207 @@
+.ntq-stepper {
+  --ntq-stepper-ring: var(--ntq-progress-ring-md);
+  --ntq-stepper-circle: 2.875rem; // 46px
+  --ntq-stepper-gap: 2.75rem; // 44px
+
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  width: auto;
+  min-width: calc(
+    var(--ntq-stepper-count, 3) * var(--ntq-stepper-ring)
+    + (var(--ntq-stepper-count, 3) - 1) * var(--ntq-stepper-gap)
+  );
+  gap: 0;
+  margin: 0;
+  padding: 0.75rem 0 1rem;
+}
+
+.ntq-stepper__hit {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  padding-right: var(--ntq-stepper-gap);
+  border: none;
+  border-radius: var(--ntq-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+
+  &:last-child {
+    padding-right: 0;
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ntq-cyan) 45%, transparent);
+  }
+
+  &[aria-disabled='true'],
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+}
+
+.ntq-stepper__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ntq-stepper__connector {
+  position: absolute;
+  z-index: 0;
+  top: calc(var(--ntq-stepper-ring) / 2 - 1px);
+  left: calc(
+    (var(--ntq-stepper-ring) - var(--ntq-stepper-circle)) / 2
+    + var(--ntq-stepper-circle)
+  );
+  width: calc(
+    var(--ntq-stepper-gap)
+    + var(--ntq-stepper-ring)
+    - var(--ntq-stepper-circle)
+  );
+  height: 2px;
+  background: var(--ntq-white-12);
+  pointer-events: none;
+}
+
+.ntq-stepper__connector--done {
+  background: color-mix(in srgb, var(--ntq-green) 45%, transparent);
+}
+
+.ntq-stepper__step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.ntq-stepper__ring-wrap {
+  position: relative;
+  width: var(--ntq-stepper-ring);
+  height: var(--ntq-stepper-ring);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+// ProgressRing 铺满 ring-wrap；环心放圆点
+.ntq-stepper__ring {
+  width: 100%;
+  height: 100%;
+  gap: 0;
+
+  .ntq-progress-ring__wrap {
+    width: 100%;
+    height: 100%;
+  }
+
+  .ntq-progress-ring__center {
+    max-width: none;
+  }
+
+  .ntq-progress-ring__label {
+    display: none;
+  }
+}
+
+.ntq-stepper__ring--pending .ntq-progress-ring__fill {
+  stroke: color-mix(in srgb, var(--ntq-cyan) 55%, transparent);
+}
+
+.ntq-stepper__circle {
+  width: var(--ntq-stepper-circle);
+  height: var(--ntq-stepper-circle);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  box-sizing: border-box;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.ntq-stepper__num {
+  font-size: var(--ntq-font-md); // 1rem
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* 普通 */
+.ntq-stepper__step--idle .ntq-stepper__circle {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* 激活（当前步） */
+.ntq-stepper__step--active .ntq-stepper__circle {
+  background: color-mix(in srgb, var(--ntq-cyan) 92%, transparent);
+  border-color: transparent;
+}
+
+.ntq-stepper__step--active .ntq-stepper__num {
+  color: var(--ntq-ink);
+}
+
+/* 已完成 */
+.ntq-stepper__step--done .ntq-stepper__circle,
+.ntq-stepper__step--done-active .ntq-stepper__circle {
+  background: color-mix(in srgb, var(--ntq-green) 28%, transparent);
+  border-color: color-mix(in srgb, var(--ntq-green) 45%, transparent);
+}
+
+.ntq-stepper__step--done-active .ntq-stepper__circle {
+  background: color-mix(in srgb, var(--ntq-green) 92%, transparent);
+  border-color: transparent;
+}
+
+.ntq-stepper__step--done .ntq-stepper__num,
+.ntq-stepper__step--done-active .ntq-stepper__num {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.ntq-stepper__step--done-active .ntq-stepper__num {
+  color: var(--ntq-ink);
+}
+
+/* 失败 */
+.ntq-stepper__step--failed .ntq-stepper__circle {
+  background: color-mix(in srgb, var(--ntq-error) 18%, transparent);
+  border-color: color-mix(in srgb, var(--ntq-error) 42%, transparent);
+}
+
+.ntq-stepper__step--failed .ntq-stepper__num {
+  color: #ef9a9a;
+}
+
+/* 运行中（有进度环） */
+.ntq-stepper__step--running .ntq-stepper__circle {
+  background: color-mix(in srgb, var(--ntq-cyan) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ntq-cyan) 28%, transparent);
+}
+
+.ntq-stepper__step--running .ntq-stepper__num {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* 排队 / 不确定 */
+.ntq-stepper__step--pending .ntq-stepper__circle {
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--ntq-cyan) 32%, transparent);
+}

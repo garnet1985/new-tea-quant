@@ -5,6 +5,7 @@ import headingShowcases from './heading';
 import separatorShowcases from './separator';
 import iconShowcases from './icon';
 import progressShowcases from './progress';
+import stepsShowcases from './steps';
 import messageShowcases from './message';
 
 const SHOWCASES = {
@@ -15,6 +16,7 @@ const SHOWCASES = {
   button: buttonShowcases,
   icon: iconShowcases,
   progress: progressShowcases,
+  steps: stepsShowcases,
   message: messageShowcases,
 };
 

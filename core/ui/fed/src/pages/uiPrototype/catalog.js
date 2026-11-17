@@ -134,14 +134,14 @@ export const UI_CATALOG = [
   {
     id: 'steps',
     label: '步骤',
-    description: '多步流程与步骤条。',
+    description: '多步流程步骤条（回测视觉；可点击跳转，进度环可选）。',
     widgets: [
       {
         id: 'stepper',
         label: 'stepper',
-        origin: 'gap',
-        source: 'containers/strategyDesign/stepper',
-        status: 'stub',
+        origin: 'new',
+        source: null,
+        status: 'ready',
       },
     ],
   },

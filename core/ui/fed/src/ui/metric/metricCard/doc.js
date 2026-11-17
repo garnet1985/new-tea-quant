@@ -1,5 +1,5 @@
 const doc = {
-  summary: '报告指标卡：标题 + 主值 + 可选 hint；标题旁可用 tip（NtqHelpTooltip）。常与 MetricGrid 一起用。',
+  summary: '报告指标卡：标题 + 主值 + 可选 hint；标题旁可用 tip（HelpTooltip）。常与 MetricGrid 一起用。',
   params: [
     {
       name: 'title',

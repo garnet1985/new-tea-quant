@@ -1,6 +1,6 @@
 import React from 'react';
 import { InputAdornment, TextField } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import './style.scss';
 
 function SearchField({
@@ -25,7 +25,7 @@ function SearchField({
       InputProps={{
         startAdornment: (
           <InputAdornment position="start">
-            <NtqIcon name="search" size={22} tone="muted" />
+            <Icon name="search" size={22} tone="muted" />
           </InputAdornment>
         ),
       }}

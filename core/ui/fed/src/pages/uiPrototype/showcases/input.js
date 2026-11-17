@@ -99,7 +99,7 @@ function TextFieldShowcase() {
       </SampleDim>
 
       <SampleDim title="2. 大小">
-        <SampleRow label="默认 maxWidth ≈ 280px" block>
+        <SampleRow label="默认 maxWidth ≈ 320px" block>
           <TextField label="默认宽度" value={name} onChange={(e) => setName(e.target.value)} />
         </SampleRow>
         <SampleRow label="maxWidth={false}" block>
@@ -494,7 +494,7 @@ function SearchFieldShowcase() {
       </SampleDim>
 
       <SampleDim title="4. 颜色">
-        <SampleNA>同 TextField 玻璃输入。</SampleNA>
+        <SampleNA>同 TextField 实底输入。</SampleNA>
       </SampleDim>
 
       <SampleDim title="5. 外观">
@@ -547,7 +547,7 @@ function AutocompleteShowcase() {
       </SampleDim>
 
       <SampleDim title="2. 大小">
-        <SampleNA>默认 maxWidth ≈ 280px；高度同 small 输入。</SampleNA>
+        <SampleNA>默认 maxWidth ≈ 320px；高度同 small 输入。</SampleNA>
       </SampleDim>
 
       <SampleDim title="3. 间距">
@@ -646,7 +646,7 @@ function DateShowcase() {
       </SampleDim>
 
       <SampleDim title="2. 大小">
-        <SampleNA>默认 maxWidth ≈ 280px；高度同 small。</SampleNA>
+        <SampleNA>默认 maxWidth ≈ 320px；高度同 small。</SampleNA>
       </SampleDim>
 
       <SampleDim title="3. 间距">

@@ -23,10 +23,10 @@ import {
 } from '../../api/dataSourceApi';
 import PageLayout from '../../views/pageLayout';
 import SearchField from '../../views/searchField';
-import NtqButton from '../../views/ntqButton';
+import Button from '../../views/ntqButton';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import NtqIcon from '../../views/ntqIcon';
+import Icon from '../../views/ntqIcon';
 import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
@@ -465,7 +465,7 @@ function DataSourceListPage() {
         const iconName = getDataSourceRenewTypeIcon(mode);
         return (
           <Stack direction="row" spacing={0.75} alignItems="center">
-            <NtqIcon
+            <Icon
               name={iconName}
               size={28}
               tone="cyan"
@@ -554,24 +554,24 @@ function DataSourceListPage() {
           />
           <Tooltip title={<RenewAccessTip />}>
             <span>
-              <NtqButton
+              <Button
                 variant="primary"
                 icon="play"
                 onClick={() => beginRenew('')}
                 disabled={loading || renewing || rows.every((row) => !row.can_renew)}
               >
                 {renewing && !renewSource ? '更新中…' : '一键更新'}
-              </NtqButton>
+              </Button>
             </span>
           </Tooltip>
-          <NtqButton
+          <Button
             variant="glass"
             icon="refresh"
             onClick={load}
             disabled={loading || freshnessLoading}
           >
             刷新列表
-          </NtqButton>
+          </Button>
         </Stack>
         {renewing ? (
           <Typography variant="body2" className="data-source-list-live">

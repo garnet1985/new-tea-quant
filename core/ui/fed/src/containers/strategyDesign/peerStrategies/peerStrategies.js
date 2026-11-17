@@ -8,7 +8,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import SettingsAccordionTitle from 'views/settingsAccordionTitle';
 import {
   fetchStrategyList,
@@ -67,7 +67,7 @@ function StrategyDesignPeerStrategies() {
       disableGutters
       TransitionProps={{ timeout: 0, unmountOnExit: false }}
     >
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+      <AccordionSummary expandIcon={<Icon name="expandMore" size={24} />}>
         <SettingsAccordionTitle
           title={STRATEGY_DESIGN_SETTINGS_PEERS_TITLE}
           tooltip={STRATEGY_DESIGN_SETTINGS_PEERS_TOOLTIP}

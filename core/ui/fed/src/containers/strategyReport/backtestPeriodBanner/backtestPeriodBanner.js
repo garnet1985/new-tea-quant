@@ -1,6 +1,6 @@
 import React from 'react';
 import { Typography } from '@mui/material';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import HelpTooltip from 'views/ntqHelpTooltip';
 import './style.scss';
 import {
   BACKTEST_PERIOD_TOOLTIP,
@@ -21,7 +21,7 @@ export default function BacktestPeriodBanner({ slot }) {
       component="div"
     >
       {line}
-      <NtqHelpTooltip title={BACKTEST_PERIOD_TOOLTIP} />
+      <HelpTooltip title={BACKTEST_PERIOD_TOOLTIP} />
     </Typography>
   );
 }

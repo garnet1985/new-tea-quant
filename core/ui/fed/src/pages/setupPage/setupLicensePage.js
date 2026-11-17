@@ -7,7 +7,7 @@ import {
   Link,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import { acceptLicense, declineLicense, fetchLicenseAcceptance } from 'api/licenseApi';
 import './setupLicensePage.scss';
 
@@ -71,7 +71,7 @@ function SetupLicensePage() {
       <Box className="license-gate__panel">
         <Box className="license-gate__brand">
           {logoFailed ? (
-            <NtqIcon name="tactic" size={64} />
+            <Icon name="tactic" size={64} />
           ) : (
             <Box
               component="img"

@@ -5,7 +5,7 @@ import Quote from 'ui/text/quote';
 import TextBlock from 'ui/text/textBlock';
 import CodeBlock from 'ui/text/codeBlock';
 import Section from 'ui/layout/section';
-import NtqIcon from 'ui/icon/ntqIcon';
+import Icon from 'ui/icon/icon';
 import { HEADING_BAR_TOKENS, TEXT_VARIANTS } from 'ui/tokens';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
 
@@ -25,7 +25,7 @@ function TextShowcase() {
             <span className="ntq-label">字段名 .ntq-label</span>
           </Section>
         </SampleRow>
-        <SampleRow label="行内链接 .ntq-link（按钮样式链接用 NtqButton + href）" block>
+        <SampleRow label="行内链接 .ntq-link（按钮样式链接用 Button + href）" block>
           <Section>
             <p>
               见
@@ -36,12 +36,12 @@ function TextShowcase() {
               {' '}
               <RouterLink className="ntq-link" to="/dev/ui/text#heading">
                 标题图鉴
-                <NtqIcon name="chevronRight" size="sm" />
+                <Icon name="chevronRight" size="sm" />
               </RouterLink>
             </p>
             <p>
               <button type="button" className="ntq-link">
-                <NtqIcon name="folderOpen" size="sm" />
+                <Icon name="folderOpen" size="sm" />
                 按钮伪装链接（少用）
               </button>
             </p>

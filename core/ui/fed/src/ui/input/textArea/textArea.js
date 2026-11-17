@@ -3,6 +3,7 @@ import { TextField as MuiTextField } from '@mui/material';
 import Field from 'ui/input/field';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
+import { inputChromeClass } from 'ui/input/controlChrome';
 import '../_control.scss';
 
 /**
@@ -27,15 +28,18 @@ function TextArea({
   id = '',
   className = '',
   fullWidth = true,
-  /** 默认限制约 280px；传 false 去掉上限 */
+  /** 默认限制约 400px；传 false 去掉上限 */
   maxWidth = true,
+  surface = 'solid',
+  radius = 'sm',
   ...rest
 }) {
   const controlId = useControlId(id);
   const placement = pickToken(labelPlacement, FIELD_LABEL_PLACEMENTS, 'above');
   const hasFieldChrome = placement !== 'none' || tip || hint || error || label;
   const minRows = Number(rows) > 0 ? Number(rows) : 3;
-  const widthClass = maxWidth ? 'ntq-input--capped' : 'ntq-input--fluid';
+  const widthClass = maxWidth ? 'ntq-input--capped-area' : 'ntq-input--fluid';
+  const chromeClass = inputChromeClass({ surface, radius });
 
   const {
     InputProps: restInputProps,
@@ -60,6 +64,7 @@ function TextArea({
       className={[
         'ntq-text-area',
         widthClass,
+        chromeClass,
         !hasFieldChrome ? className : '',
       ].filter(Boolean).join(' ')}
       // 清掉 OutlinedInput wrapper padding，只留 textarea

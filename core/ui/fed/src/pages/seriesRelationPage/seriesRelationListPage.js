@@ -20,7 +20,7 @@ import {
 } from 'api/seriesRelationApi';
 import PageLayout from 'views/pageLayout';
 import SearchField from 'views/searchField';
-import NtqButton from 'views/ntqButton';
+import Button from 'views/ntqButton';
 import Message from 'views/message';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from 'views/dataGridLoadingOverlay';
 import { showToast } from 'containers/toast';
@@ -145,14 +145,14 @@ function SeriesRelationListPage() {
       sortable: false,
       filterable: false,
       renderCell: (params) => (
-        <NtqButton
+        <Button
           size="small"
           variant="glass"
           component={RouterLink}
           to={getSeriesRelationPath(params.row.key)}
         >
           进入
-        </NtqButton>
+        </Button>
       ),
     },
   ]), []);
@@ -185,15 +185,15 @@ function SeriesRelationListPage() {
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
           />
-          <NtqButton
+          <Button
             variant="glass"
             icon="refresh"
             onClick={load}
             disabled={loading}
           >
             刷新
-          </NtqButton>
-          <NtqButton
+          </Button>
+          <Button
             variant="primary"
             icon="add"
             onClick={() => {
@@ -203,7 +203,7 @@ function SeriesRelationListPage() {
             }}
           >
             新建
-          </NtqButton>
+          </Button>
         </Stack>
 
         <Box className="ntq-srel-list-grid-body">
@@ -254,8 +254,8 @@ function SeriesRelationListPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <NtqButton variant="ghost" onClick={() => setNewOpen(false)}>取消</NtqButton>
-          <NtqButton variant="primary" onClick={confirmNew}>创建</NtqButton>
+          <Button variant="ghost" onClick={() => setNewOpen(false)}>取消</Button>
+          <Button variant="primary" onClick={confirmNew}>创建</Button>
         </DialogActions>
       </Dialog>
     </PageLayout>

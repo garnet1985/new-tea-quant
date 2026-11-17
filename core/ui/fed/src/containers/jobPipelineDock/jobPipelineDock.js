@@ -22,7 +22,7 @@ import { jobDeepLink, jobDisplayName } from 'service/jobPipelineLinks';
 import { publishPipelineSnapshot, subscribePipelineSnapshot } from 'service/jobPipelineBus';
 import { dismissUnreadJob, subscribeUnreadJobs } from 'service/jobPipelineUnread';
 import logClientError from 'service/logClientError';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import './style.scss';
 
 function statusKey(row) {
@@ -220,7 +220,7 @@ function JobPipelineDock() {
               aria-label="收起管道"
               onClick={() => setOpen(false)}
             >
-              <NtqIcon name="expandMore" size={18} />
+              <Icon name="expandMore" size={18} />
             </IconButton>
           </Box>
           {jobs.length === 0 ? (
@@ -370,7 +370,7 @@ function JobPipelineDock() {
         {running && String(running.status || '') !== 'stale' ? (
           <CircularProgress size={14} thickness={5} className="ntq-job-pipeline-dock__spin" />
         ) : (
-          <NtqIcon name="syncAlt" size={16} className="ntq-job-pipeline-dock__marker-icon" />
+          <Icon name="syncAlt" size={16} className="ntq-job-pipeline-dock__marker-icon" />
         )}
         <span className="ntq-job-pipeline-dock__marker-text">{markerText}</span>
       </button>

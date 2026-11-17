@@ -11,8 +11,8 @@ import {
 } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import EditorFieldLabel from 'containers/editor/fields/editorFieldLabel';
-import NtqIcon from 'views/ntqIcon';
-import NtqButton from 'views/ntqButton';
+import Icon from 'views/ntqIcon';
+import Button from 'views/ntqButton';
 import { fetchStrategyVersions } from 'api/strategyApi';
 import {
   COMMON_FIELDS,
@@ -319,9 +319,9 @@ export function SeriesSummaryCard({
         </Typography>
       </Box>
       <Stack direction="row" spacing={0.5} alignItems="center" className="ntq-srel-summary-card__actions">
-        <NtqButton size="small" variant="glass" onClick={onEdit}>
+        <Button size="small" variant="glass" onClick={onEdit}>
           编辑
-        </NtqButton>
+        </Button>
         <IconButton
           size="small"
           aria-label="删除系列"
@@ -329,7 +329,7 @@ export function SeriesSummaryCard({
           onClick={onRemove}
           className="ntq-srel-card__delete"
         >
-          <NtqIcon name="trash" size={18} tone="error" />
+          <Icon name="trash" size={18} tone="error" />
         </IconButton>
       </Stack>
     </Box>

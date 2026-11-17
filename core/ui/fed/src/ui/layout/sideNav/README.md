@@ -21,7 +21,8 @@ import Column from 'ui/layout/column';
 
 | 参数 | 合法值 | 默认 |
 |------|--------|------|
-| `variant` | `line` `rail` | `line` |
+| `variant` | `line`（底边） `rail`（左侧色条高亮，设置页） | `line` |
+| `radius` | `sm` `none`（扩展直角） | `sm` |
 | `sticky` | `true` `false` | `false` |
 | `items` | `{ id, label, to?, meta? }[]` | `[]` |
 | `activeId` | string | `''` |

@@ -11,7 +11,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import {
   VersionPickerDialog,
   SETTINGS_RETENTION_HREF,
@@ -113,7 +113,7 @@ function StrategyDesignMetaDialogs() {
                 wb.requestDeleteVersion(version.id);
               }}
             >
-              <NtqIcon name="trash" size={20} tone="error" />
+              <Icon name="trash" size={20} tone="error" />
             </IconButton>
           </Stack>
         )}

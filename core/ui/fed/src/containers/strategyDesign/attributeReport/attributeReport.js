@@ -16,7 +16,7 @@ import {
   Typography,
 } from '@mui/material';
 import ChartPanel from 'views/chartPanel';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import TipLabel from 'views/tipLabel';
 import {
   REPORT_CHART_AXIS_LABEL,
@@ -222,7 +222,7 @@ function DetailsBlock({ effects }) {
       className="ntq-design-attr-report__details"
     >
       <AccordionSummary
-        expandIcon={<NtqIcon name="expandMore" size={18} />}
+        expandIcon={<Icon name="expandMore" size={18} />}
         className="ntq-design-attr-report__details-summary"
       >
         <Typography variant="body2" className="ntq-design-attr-report__label">
@@ -273,7 +273,7 @@ function ThemeSection({ sectionKey, block }) {
       className="ntq-design-attr-report__theme"
     >
       <AccordionSummary
-        expandIcon={<NtqIcon name="expandMore" size={20} />}
+        expandIcon={<Icon name="expandMore" size={20} />}
         className="ntq-design-attr-report__theme-summary"
       >
         <Typography variant="subtitle2" className="ntq-design-attr-report__section-title">

@@ -42,6 +42,8 @@ function DateRange({
   className = '',
   /** 每个日期默认 capped；false 时两格拉满 */
   maxWidth = true,
+  surface = 'solid',
+  radius = 'sm',
   ...rest
 }) {
   const placement = pickToken(labelPlacement, FIELD_LABEL_PLACEMENTS, 'above');
@@ -76,6 +78,8 @@ function DateRange({
           error={startErr}
           disabled={disabled}
           maxWidth={maxWidth}
+          surface={surface}
+          radius={radius}
           fullWidth={false}
           aria-label={startLabel}
         />
@@ -87,6 +91,8 @@ function DateRange({
           error={endErr}
           disabled={disabled}
           maxWidth={maxWidth}
+          surface={surface}
+          radius={radius}
           fullWidth={false}
           aria-label={endLabel}
         />

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import Message from 'ui/message/message';
+import Dialog from 'ui/message/dialog';
 import ToastHost, { showToast } from 'ui/message/toast';
-import NtqHelpTooltip from 'ui/message/ntqHelpTooltip';
-import NtqButton from 'ui/button/ntqButton';
+import HelpTooltip from 'ui/message/helpTooltip';
+import Button from 'ui/button/button';
 import Section from 'ui/layout/section';
 import Block from 'ui/layout/block';
 import Text from 'ui/text/text';
@@ -36,13 +37,13 @@ function MessageShowcase() {
               配置已更新。可点右侧关闭。
             </Message>
           ) : (
-            <NtqButton
+            <Button
               variant="glass"
               size="small"
               onClick={() => setOpen(true)}
             >
               重新显示
-            </NtqButton>
+            </Button>
           )}
         </SampleRow>
       </SampleDim>
@@ -60,7 +61,7 @@ function MessageShowcase() {
           <Text variant="code">1rem</Text>
           。更大用
           {' '}
-          <Text variant="code">NtqIcon size="xxl"</Text>
+          <Text variant="code">Icon size="xxl"</Text>
           （3rem）。
         </SampleNA>
       </SampleDim>
@@ -108,6 +109,102 @@ function MessageShowcase() {
   );
 }
 
+function DialogShowcase() {
+  const [open, setOpen] = useState(false);
+  const [dangerOpen, setDangerOpen] = useState(false);
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="确认弹层（title + body + actions）" block>
+          <Button variant="glass" size="small" onClick={() => setOpen(true)}>
+            打开说明 Dialog
+          </Button>
+          <Dialog
+            open={open}
+            onClose={() => setOpen(false)}
+            title="同步说明"
+            size="md"
+            actions={(
+              <Button variant="primary" onClick={() => setOpen(false)}>
+                知道了
+              </Button>
+            )}
+          >
+            <p className="ntq-muted">
+              用于需要用户明确应答的说明。轻量提示请用 Message / Toast。
+            </p>
+          </Dialog>
+        </SampleRow>
+        <SampleRow label="危险确认（取消 + danger）" block>
+          <Button variant="danger" size="small" onClick={() => setDangerOpen(true)}>
+            打开危险确认
+          </Button>
+          <Dialog
+            open={dangerOpen}
+            onClose={() => setDangerOpen(false)}
+            title="确认清理缓存？"
+            size="sm"
+            actions={(
+              <>
+                <Button variant="ghost" onClick={() => setDangerOpen(false)}>
+                  取消
+                </Button>
+                <Button variant="danger" onClick={() => setDangerOpen(false)}>
+                  确认清理
+                </Button>
+              </>
+            )}
+          >
+            <p className="ntq-muted">将清理所选缓存，此操作不可撤销。</p>
+          </Dialog>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 大小">
+        <SampleRow label='size="sm" | "md" | "lg"'>
+          <Text variant="code">sm</Text>
+          <span className="ntq-muted">窄确认</span>
+          <Text variant="code">md</Text>
+          <span className="ntq-muted">说明</span>
+          <Text variant="code">lg</Text>
+          <span className="ntq-muted">较宽</span>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="3. 间距">
+        <SampleNA>
+          标题 / 正文 / 操作区内边距由组件固定；与页面其它块无关（模态层）。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="4. 颜色">
+        <SampleNA>
+          面板走
+          {' '}
+          <Text variant="code">--ui-surface-panel</Text>
+          ；语义靠 actions 里的
+          {' '}
+          <Text variant="code">Button variant</Text>
+          （primary / danger / ghost）。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="5. 外观">
+        <SampleNA>
+          圆角
+          {' '}
+          <Text variant="code">md</Text>
+          + 细描边；遮罩点击与 Esc 触发
+          {' '}
+          <Text variant="code">onClose</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 function ToastShowcase() {
   return (
     <Showcase>
@@ -125,28 +222,28 @@ function ToastShowcase() {
               。本页已本地挂载宿主以便演示。
             </p>
             <div className="ui-prototype__sample-stage">
-              <NtqButton
+              <Button
                 variant="glass"
                 size="small"
                 onClick={() => showToast({ status: 'info', content: '信息 Toast' })}
               >
                 info
-              </NtqButton>
-              <NtqButton
+              </Button>
+              <Button
                 variant="glass"
                 size="small"
                 onClick={() => showToast({ status: 'success', content: '已保存' })}
               >
                 success
-              </NtqButton>
-              <NtqButton
+              </Button>
+              <Button
                 variant="glass"
                 size="small"
                 onClick={() => showToast({ status: 'warning', content: '配额即将用尽' })}
               >
                 warning
-              </NtqButton>
-              <NtqButton
+              </Button>
+              <Button
                 variant="glass"
                 size="small"
                 onClick={() => showToast({
@@ -156,7 +253,7 @@ function ToastShowcase() {
                 })}
               >
                 error（4s）
-              </NtqButton>
+              </Button>
             </div>
           </Section>
         </SampleRow>
@@ -209,21 +306,21 @@ function NtqHelpTooltipShowcase() {
       <SampleDim title="1. 形态">
         <SampleRow label='variant="help" | "info" | "warning"'>
           <span className="ntq-muted">字段说明</span>
-          <NtqHelpTooltip title="默认问号：补充字段含义或用法。" />
+          <HelpTooltip title="默认问号：补充字段含义或用法。" />
           <span className="ntq-muted">更多信息</span>
-          <NtqHelpTooltip
+          <HelpTooltip
             title="信息类提示，可放稍长说明。"
             variant="info"
           />
           <span className="ntq-muted">注意</span>
-          <NtqHelpTooltip
+          <HelpTooltip
             title="有风险或需特别留意时使用。"
             variant="warning"
           />
         </SampleRow>
         <SampleRow label="shine 扫光">
           <span className="ntq-muted">强调可点</span>
-          <NtqHelpTooltip
+          <HelpTooltip
             title="带扫光，用于需要引起注意的帮助入口。"
             shine
           />
@@ -256,10 +353,10 @@ function NtqHelpTooltipShowcase() {
 
       <SampleDim title="5. 外观">
         <SampleRow label='placement="top" | "bottom" | "left" | "right"'>
-          <NtqHelpTooltip title="上方（默认）" placement="top" />
-          <NtqHelpTooltip title="下方" placement="bottom" />
-          <NtqHelpTooltip title="左侧" placement="left" />
-          <NtqHelpTooltip title="右侧" placement="right" />
+          <HelpTooltip title="上方（默认）" placement="top" />
+          <HelpTooltip title="下方" placement="bottom" />
+          <HelpTooltip title="左侧" placement="left" />
+          <HelpTooltip title="右侧" placement="right" />
         </SampleRow>
       </SampleDim>
     </Showcase>
@@ -268,8 +365,9 @@ function NtqHelpTooltipShowcase() {
 
 const messageShowcases = {
   message: MessageShowcase,
+  dialog: DialogShowcase,
   toast: ToastShowcase,
-  ntqHelpTooltip: NtqHelpTooltipShowcase,
+  helpTooltip: NtqHelpTooltipShowcase,
 };
 
 export default messageShowcases;

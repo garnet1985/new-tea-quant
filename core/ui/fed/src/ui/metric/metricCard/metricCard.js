@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqHelpTooltip from 'ui/message/ntqHelpTooltip';
+import HelpTooltip from 'ui/message/helpTooltip';
 import './style.scss';
 
 /**
@@ -26,7 +26,7 @@ function MetricCard({
     <div className={rootClass} {...rest}>
       <div className="ntq-metric-card__title-row">
         <span className="ntq-metric-card__title ntq-caption">{title}</span>
-        {help ? <NtqHelpTooltip title={help} /> : null}
+        {help ? <HelpTooltip title={help} /> : null}
       </div>
       <div className="ntq-metric-card__value">{value}</div>
       {hint ? (

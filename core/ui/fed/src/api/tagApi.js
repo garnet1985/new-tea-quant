@@ -37,7 +37,7 @@ export function getTagUpdateModeLabel(mode) {
   return UPDATE_MODE_LABELS[key] || key;
 }
 
-/** ``update_mode`` 对应 ``NtqIcon`` name。 */
+/** ``update_mode`` 对应 ``Icon`` name。 */
 export function getTagUpdateModeIcon(mode) {
   return getUpdateModeIcon(mode);
 }

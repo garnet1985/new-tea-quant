@@ -23,7 +23,7 @@ import PageLayout from '../../views/pageLayout';
 import ChartPanel from '../../views/chartPanel';
 import InlineLoadingState from '../../views/inlineLoadingState';
 import { showToast } from 'containers/toast';
-import NtqIcon from '../../views/ntqIcon';
+import Icon from '../../views/ntqIcon';
 import {
   buildMarketChartOptionFromStockPayload,
   FinancePitCard,
@@ -378,7 +378,7 @@ function InvestOpenCell({ disabled, shares, note, onOpen }) {
             onClick={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <NtqIcon name="chat" size={16} />
+            <Icon name="chat" size={16} />
           </span>
         </Tooltip>
       ) : null}
@@ -1539,7 +1539,7 @@ export function DecisionPlaySession({
               className="decision-advance-btn"
               variant="contained"
               disabled={completed || advancing}
-              startIcon={<NtqIcon name="play" size={16} />}
+              startIcon={<Icon name="play" size={16} />}
               onClick={requestAdvance}
               title="空格也可推进"
               aria-keyshortcuts="Space"
@@ -1641,7 +1641,7 @@ export function DecisionPlaySession({
                 setViewMonth(next.month);
               }}
             >
-              <NtqIcon name="arrowBack" size={16} />
+              <Icon name="arrowBack" size={16} />
             </IconButton>
             <Typography className="decision-month-title">{monthTitle(viewYear, viewMonth)}</Typography>
             <IconButton
@@ -1654,7 +1654,7 @@ export function DecisionPlaySession({
                 setViewMonth(next.month);
               }}
             >
-              <NtqIcon name="chevronRight" size={16} />
+              <Icon name="chevronRight" size={16} />
             </IconButton>
           </Box>
           {calendarOpen ? (
@@ -1767,7 +1767,7 @@ export function DecisionPlaySession({
                   <Typography className="decision-aside-title" variant="subtitle1" fontWeight={700}>
                     约束条件与状态统计
                   </Typography>
-                  <NtqIcon name="expandMore" size={20} />
+                  <Icon name="expandMore" size={20} />
                 </button>
                 {positionOpen ? (
                   <>
@@ -2048,7 +2048,7 @@ export function DecisionPlaySession({
             }}
             edge="end"
           >
-            <NtqIcon name="cancel" size={18} />
+            <Icon name="cancel" size={18} />
           </IconButton>
         </DialogTitle>
         <DialogContent

@@ -52,7 +52,7 @@ export const UI_CATALOG = [
     id: 'guidelines',
     label: 'NTQ 业务准则',
     description:
-      '产品页布局与组合约定：什么情况用 Column / Tabs / SideNav / ReportBlock 等。边迁 legacy 边补条目，可先空着。',
+      '产品页布局、组合与 Tag 等业务约定；工程硬规则见 FED_STANDARD / ui/README。边迁 legacy 边补条目。',
     widgets: [],
   },
   {
@@ -85,8 +85,15 @@ export const UI_CATALOG = [
     label: '按钮',
     description: '主操作与彩虹按钮。',
     widgets: [
-      { id: 'ntqButton', label: 'ntqButton', origin: 'new', source: null, status: 'ready' },
-      { id: 'rainbowButton', label: 'rainbowButton', origin: 'new', source: null, status: 'ready' },
+      { id: 'button', label: 'button', origin: 'new', source: null, status: 'ready', uiPath: 'button/button' },
+      {
+        id: 'rainbowButton',
+        label: 'rainbowButton',
+        origin: 'new',
+        source: null,
+        status: 'ready',
+        uiPath: 'ntq-ui/rainbowButton',
+      },
     ],
   },
   {
@@ -94,7 +101,7 @@ export const UI_CATALOG = [
     label: '展示',
     description: '图标、头像、标签等行内展示原语。',
     widgets: [
-      { id: 'ntqIcon', label: 'ntqIcon', origin: 'new', source: null, status: 'ready', uiPath: 'icon/ntqIcon' },
+      { id: 'icon', label: 'icon', origin: 'new', source: null, status: 'ready', uiPath: 'icon/icon' },
       { id: 'avatar', label: 'avatar', origin: 'new', source: null, status: 'ready', uiPath: 'avatar/avatar' },
       { id: 'tag', label: 'tag', origin: 'new', source: null, status: 'ready', uiPath: 'tag/tag' },
     ],
@@ -156,17 +163,18 @@ export const UI_CATALOG = [
   {
     id: 'feedback',
     label: '反馈',
-    description: '消息、Toast、帮助提示、加载与进度、步骤条。',
+    description: '消息、对话框、Toast、帮助提示、加载与进度、步骤条。',
     widgets: [
       { id: 'message', label: 'message', origin: 'new', source: null, status: 'ready', uiPath: 'message/message' },
+      { id: 'dialog', label: 'dialog', origin: 'new', source: null, status: 'ready', uiPath: 'message/dialog' },
       { id: 'toast', label: 'toast', origin: 'new', source: null, status: 'ready', uiPath: 'message/toast' },
       {
-        id: 'ntqHelpTooltip',
-        label: 'ntqHelpTooltip',
+        id: 'helpTooltip',
+        label: 'helpTooltip',
         origin: 'migrate',
         source: 'views/ntqHelpTooltip',
         status: 'ready',
-        uiPath: 'message/ntqHelpTooltip',
+        uiPath: 'message/helpTooltip',
       },
       { id: 'loadingBars', label: 'loadingBars', origin: 'new', source: null, status: 'ready', uiPath: 'progress/loadingBars' },
       { id: 'loading', label: 'loading', origin: 'new', source: null, status: 'ready', uiPath: 'progress/loading' },
@@ -178,7 +186,7 @@ export const UI_CATALOG = [
   {
     id: 'ntq',
     label: 'NTQ 特有',
-    description: '应用壳与报告模板：品牌、导航、面包屑、Banner、ReportBlock、Python dict 等。',
+    description: '应用壳与报告模板：品牌、导航、面包屑、Banner、页壳、会员条、ReportBlock 等。',
     widgets: [
       {
         id: 'appBrand',
@@ -186,7 +194,15 @@ export const UI_CATALOG = [
         origin: 'migrate',
         source: 'views/appBrand',
         status: 'ready',
-        uiPath: 'ntq/appBrand',
+        uiPath: 'ntq-ui/appBrand',
+      },
+      {
+        id: 'appVersion',
+        label: 'version',
+        origin: 'migrate',
+        source: 'views/appVersion',
+        status: 'ready',
+        uiPath: 'ntq-ui/appVersion',
       },
       {
         id: 'appNav',
@@ -194,7 +210,7 @@ export const UI_CATALOG = [
         origin: 'migrate',
         source: 'views/appNav',
         status: 'ready',
-        uiPath: 'ntq/appNav',
+        uiPath: 'ntq-ui/appNav',
       },
       {
         id: 'appBreadcrumbs',
@@ -202,7 +218,7 @@ export const UI_CATALOG = [
         origin: 'migrate',
         source: 'views/appBreadcrumbs',
         status: 'ready',
-        uiPath: 'ntq/appBreadcrumbs',
+        uiPath: 'ntq-ui/appBreadcrumbs',
       },
       {
         id: 'pageBanner',
@@ -210,7 +226,39 @@ export const UI_CATALOG = [
         origin: 'migrate',
         source: 'views/pageBanner',
         status: 'ready',
-        uiPath: 'ntq/pageBanner',
+        uiPath: 'ntq-ui/pageBanner',
+      },
+      {
+        id: 'pageLayout',
+        label: 'pageLayout',
+        origin: 'migrate',
+        source: 'views/pageLayout',
+        status: 'ready',
+        uiPath: 'ntq-ui/pageLayout',
+      },
+      {
+        id: 'memberStrip',
+        label: 'memberStrip',
+        origin: 'migrate',
+        source: 'containers/memberStrip',
+        status: 'ready',
+        uiPath: 'ntq-ui/memberStrip',
+      },
+      {
+        id: 'proBadge',
+        label: 'proBadge',
+        origin: 'new',
+        source: null,
+        status: 'ready',
+        uiPath: 'ntq-ui/proBadge',
+      },
+      {
+        id: 'becomeMemberLink',
+        label: 'becomeMemberLink',
+        origin: 'migrate',
+        source: 'views/becomeMemberLink',
+        status: 'ready',
+        uiPath: 'ntq-ui/becomeMemberLink',
       },
       {
         id: 'reportBlock',
@@ -218,7 +266,7 @@ export const UI_CATALOG = [
         origin: 'migrate',
         source: 'views/sectionBlock',
         status: 'ready',
-        uiPath: 'ntq/reportBlock',
+        uiPath: 'ntq-ui/reportBlock',
       },
       {
         id: 'pythonDictEditor',
@@ -226,7 +274,7 @@ export const UI_CATALOG = [
         origin: 'migrate',
         source: 'views/pythonDictInputPanel',
         status: 'ready',
-        uiPath: 'ntq/pythonDictEditor',
+        uiPath: 'ntq-ui/pythonDictEditor',
       },
     ],
   },
@@ -246,7 +294,10 @@ export function categoryPath(categoryId) {
   return `${UI_CATALOG_BASE}/${resolveCategoryId(categoryId)}`;
 }
 
-/** 组件在 src/ui 下的相对目录 */
+/**
+ * 组件磁盘相对路径（相对 `src/` 的子树）。
+ * 默认落在 `ui/${categoryId}/${widgetId}`；`uiPath` 可写 `icon/icon` 或 `ntq-ui/appNav`。
+ */
 export function widgetUiPath(categoryId, widget) {
   return widget.uiPath || `${categoryId}/${widget.id}`;
 }

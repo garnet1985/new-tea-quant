@@ -17,7 +17,13 @@ const doc = {
       name: 'variant',
       type: "'line' | 'rail'",
       defaultValue: "'line'",
-      description: 'line=底边选中条（图鉴）；rail=左侧色条（设置风）。',
+      description: 'line=底边选中条（图鉴）；rail=左侧色条高亮当前项（设置页；窄屏改底边条）。',
+    },
+    {
+      name: 'radius',
+      type: "'sm' | 'none'",
+      defaultValue: "'sm'",
+      description: '扩展：sm=rail 项小圆角（默认）；none=直角。',
     },
     {
       name: 'sticky',

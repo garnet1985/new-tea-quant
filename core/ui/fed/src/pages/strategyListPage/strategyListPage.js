@@ -23,7 +23,7 @@ import {
 } from 'containers/strategyCategory';
 import PageLayout from '../../views/pageLayout';
 import SearchField from '../../views/searchField';
-import NtqButton from '../../views/ntqButton';
+import Button from '../../views/ntqButton';
 import CountTab from '../../views/countTab';
 import CountBadge from '../../views/countBadge';
 import Message from '../../views/message';
@@ -295,22 +295,22 @@ function StrategyListPage({
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
           />
-          <NtqButton
+          <Button
             variant="glass"
             icon="refresh"
             onClick={load}
             disabled={loading}
           >
             刷新策略
-          </NtqButton>
-          <NtqButton
+          </Button>
+          <Button
             variant="primary"
             icon="uploadFile"
             onClick={() => setImportOpen(true)}
             disabled={loading}
           >
             导入策略包
-          </NtqButton>
+          </Button>
         </Stack>
 
         {catalogGroups.length > 0 ? (

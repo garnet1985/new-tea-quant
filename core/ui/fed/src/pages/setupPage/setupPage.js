@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import InlineLoadingState from '../../views/inlineLoadingState';
-import NtqIcon from '../../views/ntqIcon';
+import Icon from '../../views/ntqIcon';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   getSetupDefinition,
@@ -236,7 +236,7 @@ function SetupPage() {
     if (runningStep && params.row.id === runningStep) {
       return (
         <Stack direction="row" spacing={1} alignItems="center" className="setup-step-state">
-          <NtqIcon name="refresh" size={24} spin />
+          <Icon name="refresh" size={24} spin />
           <Typography variant="body2">执行中...</Typography>
         </Stack>
       );
@@ -244,7 +244,7 @@ function SetupPage() {
     if (params.value === '已完成') {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <NtqIcon name="success" size={24} tone="success" />
+          <Icon name="success" size={24} tone="success" />
           <Typography variant="body2">已完成</Typography>
         </Stack>
       );
@@ -252,7 +252,7 @@ function SetupPage() {
     if (params.value === '失败') {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <NtqIcon name="cancel" size={24} tone="error" />
+          <Icon name="cancel" size={24} tone="error" />
           <Typography variant="body2">失败</Typography>
         </Stack>
       );
@@ -260,14 +260,14 @@ function SetupPage() {
     if (params.value === '待输入') {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <NtqIcon name="radioUnchecked" size={24} tone="warning" />
+          <Icon name="radioUnchecked" size={24} tone="warning" />
           <Typography variant="body2">待输入</Typography>
         </Stack>
       );
     }
     return (
       <Stack direction="row" spacing={1} alignItems="center">
-        <NtqIcon name="radioUnchecked" size={24} tone="disabled" />
+        <Icon name="radioUnchecked" size={24} tone="disabled" />
         <Typography variant="body2">{pendingLabel}</Typography>
       </Stack>
     );
@@ -737,7 +737,7 @@ function SetupPage() {
                         },
                       }}
                     >
-                      <NtqIcon name="success" size={72} tone="success" />
+                      <Icon name="success" size={72} tone="success" />
                     </Box>
                     <Typography variant="h6">成功</Typography>
                   </Stack>
@@ -779,7 +779,7 @@ function SetupPage() {
                       },
                     }}
                   >
-                    <NtqIcon name="cancel" size={72} tone="error" />
+                    <Icon name="cancel" size={72} tone="error" />
                   </Box>
                   <Typography variant="h6">失败</Typography>
                 </Stack>

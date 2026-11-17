@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import InlineLoadingState from 'views/inlineLoadingState';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import { fetchStrategyStockDetail } from 'api/strategyApi';
 import BacktestPeriodBanner from '../backtestPeriodBanner';
 import {
@@ -415,7 +415,7 @@ function ReportStockDetailView({
           </Typography>
         </Typography>
         <IconButton aria-label="关闭" onClick={onClose} edge="end">
-          <NtqIcon name="cancel" size={18} />
+          <Icon name="cancel" size={18} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, pt: 1.5 }}>

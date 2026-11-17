@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqIcon from 'ui/icon/ntqIcon';
+import Icon from 'ui/icon/icon';
 import {
   TAG_COLORS,
   TAG_SIZE_TOKENS,
@@ -48,7 +48,7 @@ function Tag({
   let iconNode = null;
   if (icon != null && icon !== false) {
     if (typeof icon === 'string') {
-      iconNode = <NtqIcon name={icon} size="sm" />;
+      iconNode = <Icon name={icon} size="sm" />;
     } else {
       iconNode = icon;
     }
@@ -77,7 +77,7 @@ function Tag({
           aria-label="移除"
           onClick={onDelete}
         >
-          <NtqIcon name="cancel" size="sm" />
+          <Icon name="cancel" size="sm" />
         </button>
       ) : null}
     </span>

@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { Box, Button, Paper, Popper } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import { fetchSiteUrls } from 'api/siteApi';
 import './style.scss';
+
+// @deprecated 顶栏请用 ntq-ui/appNav + containers/appNavigation 组装 items。
 
 const primaryNavItems = [
   { label: '制定策略', path: '/strategy-design', icon: 'tactic' },
@@ -28,7 +30,7 @@ function NavButtonLabel({ icon, label, caret = false }) {
   return (
     <>
       {icon ? (
-        <NtqIcon
+        <Icon
           name={icon}
           size={NAV_ICON_SIZE}
           className="ntq-nav-btn__icon"
@@ -36,7 +38,7 @@ function NavButtonLabel({ icon, label, caret = false }) {
       ) : null}
       <span className="ntq-nav-btn__label">{label}</span>
       {caret ? (
-        <NtqIcon
+        <Icon
           name="expandMore"
           size={16}
           tone="muted"

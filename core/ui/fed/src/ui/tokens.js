@@ -1,7 +1,12 @@
 /**
- * UI 组件允许的语义 token（与 styles/_tokens.scss 对应）。
+ * UI 组件允许的语义 token（props 名 ↔ CSS 变量）。
  * 组件 props 只收这些名字，禁止传入 16 / '16px' 等原始数值。
- * 对应 CSS 变量见 styles/_tokens.scss（字号/间距为 rem；html 16px，正文 0.875rem）。
+ *
+ * CSS 两套：
+ * - 通用原语：styles/_ui-tokens.scss → `--ui-*`
+ * - NTQ 产品：styles/_ntq-tokens.scss → `--ntq-*`
+ * 入口 styles/_tokens.scss 另提供旧名 `--ntq-space-*` 等 → `--ui-*` 的过渡别名。
+ * （Sass `$` 见 _variables.scss，已标淘汰；ui/* 禁止使用。）
  *
  * 命名约定：
  * - variant：形态 / 角色（如 button 的 glass、column 的 thirds）
@@ -16,6 +21,9 @@ export const ALIGN_TOKENS = ['stretch', 'start', 'center', 'end'];
 
 /** Block 表面（背景 / 玻璃 / 渐变） */
 export const SURFACE_TOKENS = ['none', 'soft', 'panel', 'glass', 'gradient'];
+
+/** 输入控件表面：solid=默认深色实底；glass=半透明玻璃 */
+export const INPUT_SURFACE_TOKENS = ['solid', 'glass'];
 
 /** Column 列间分隔 */
 export const DIVIDER_TOKENS = ['none', 'line'];
@@ -78,7 +86,7 @@ export const MESSAGE_COLORS = ['green', 'error', 'warning', 'muted', 'cyan', 'vi
 /** Message 形态：圆角无 bar / 通栏有 bar 无圆角 */
 export const MESSAGE_VARIANTS = ['inline', 'banner'];
 
-/** NtqHelpTooltip 触发图标形态 */
+/** HelpTooltip 触发图标形态 */
 export const HELP_TOOLTIP_VARIANTS = ['help', 'info', 'warning'];
 
 /** Stepper 步骤执行状态（与 activeId 正交） */

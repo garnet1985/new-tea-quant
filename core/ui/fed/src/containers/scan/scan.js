@@ -47,7 +47,7 @@ import Message from 'views/message';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import InlineLoadingState from '../../views/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import NtqIcon from '../../views/ntqIcon';
+import Icon from '../../views/ntqIcon';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import { formatDateTime } from '../../service/format/formatDateTime';
@@ -460,7 +460,7 @@ function Scan() {
                 size="small"
                 variant="contained"
                 disabled={disableRun}
-                startIcon={<NtqIcon name="play" size={16} />}
+                startIcon={<Icon name="play" size={16} />}
                 title={
                   blocked
                     ? (gate.blockReason || '严格模式数据未就绪，无法扫描')
@@ -515,7 +515,7 @@ function Scan() {
               component={RouterLink}
               to={getStrategyDesignPath(params.row.name)}
               state={buildStrategyDesignNavState(params.row)}
-              endIcon={<NtqIcon name="chevronRight" size={16} />}
+              endIcon={<Icon name="chevronRight" size={16} />}
               onClick={(e) => e.stopPropagation()}
               className="scan-design-btn"
             >
@@ -767,7 +767,7 @@ function Scan() {
                 variant="outlined"
                 component={RouterLink}
                 to="/advanced/post-process"
-                endIcon={<NtqIcon name="chevronRight" size={16} />}
+                endIcon={<Icon name="chevronRight" size={16} />}
                 className="scan-design-btn"
               >
                 管理扫描后处理

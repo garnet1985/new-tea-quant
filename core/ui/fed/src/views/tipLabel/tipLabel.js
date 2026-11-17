@@ -1,6 +1,6 @@
 import React from 'react';
 import { Typography } from '@mui/material';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import HelpTooltip from 'views/ntqHelpTooltip';
 import './style.scss';
 
 const TEXT = {
@@ -60,7 +60,7 @@ function TipLabel({
         </Typography>
       ) : null}
       {tip ? (
-        <NtqHelpTooltip
+        <HelpTooltip
           title={tip}
           shine={shine}
           placement={placement}

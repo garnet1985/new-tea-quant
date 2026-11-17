@@ -1,32 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
+  Block,
+  Checkbox as UiCheckbox,
   Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  FormControl,
-  FormControlLabel,
-  FormGroup,
-  InputLabel,
-  Link,
-  MenuItem,
-  Select,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-  Chip,
-} from '@mui/material';
-import InlineLoadingState from '../../views/inlineLoadingState';
-import PageLoadingState from '../../views/pageLoadingState';
-import NtqIcon from '../../views/ntqIcon';
-import BecomeMemberLink from '../../views/becomeMemberLink';
+  Heading,
+  Loading,
+  Message,
+  Button,
+  ProgressBar,
+  Section,
+  Select as UiSelect,
+  Switch as UiSwitch,
+  Tag,
+  Text,
+  TextArea as UiTextArea,
+  TextField as UiTextField,
+} from 'ui';
+import { BecomeMemberLink } from 'ntq-ui';
 import { formatDateTime } from '../../service/format/formatDateTime';
 import {
   clearMembershipToken,
@@ -54,6 +45,7 @@ import {
   installMlExtras,
   resetSetupStatus,
 } from '../../api/setupApi';
+import { fetchSiteUrls, resolveRegisterUrl } from '../../api/siteApi';
 import { useAsyncAction } from 'service/useAsyncAction';
 import { useFakeProgress } from 'service/progress/useFakeProgress';
 import { subscribePipelineSnapshot } from 'service/jobPipelineBus';
@@ -228,203 +220,201 @@ export function SettingsSystemPanel() {
   const confirmActionLabel = importPlan?.confirmActionLabel || '开始导入';
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        安装与维护
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        重新安装会再次走引导：数据路径、数据库连接、演示数据和可选的机器学习依赖。确认后从第一步开始，不会停留在「安装完成」页。
-      </Typography>
-      {reinstallError ? <Alert severity="error">{reinstallError}</Alert> : null}
-      <Box>
-        <Button
-          variant="contained"
-          color="secondary"
-          disabled={importBusy}
-          onClick={() => {
-            setReinstallError('');
-            setReinstallOpen(true);
-          }}
+    <Section className="settings-system" gap="lg">
+      <Section className="settings-system__reinstall" gap="md">
+        <Heading level="h3" gap="none">重新安装</Heading>
+        <p className="ntq-muted">
+          会再次走引导：数据路径、数据库连接、演示数据和可选的机器学习依赖。确认后从第一步开始，不会停留在「安装完成」页。
+        </p>
+        {reinstallError ? <Message status="error">{reinstallError}</Message> : null}
+        <div className="settings-system__actions">
+          <Button
+            variant="danger"
+            disabled={importBusy}
+            onClick={() => {
+              setReinstallError('');
+              setReinstallOpen(true);
+            }}
+          >
+            重新安装
+          </Button>
+        </div>
+        <Dialog
+          open={reinstallOpen}
+          onClose={() => !reinstalling && setReinstallOpen(false)}
+          title="确认重新安装？"
+          size="md"
+          actions={(
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => setReinstallOpen(false)}
+                disabled={reinstalling}
+              >
+                取消
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleConfirmReinstall}
+                disabled={reinstalling}
+              >
+                {reinstalling ? '正在进入安装…' : '确认，从第一步开始'}
+              </Button>
+            </>
+          )}
         >
-          重新安装
-        </Button>
-      </Box>
-      <Dialog
-        open={reinstallOpen}
-        onClose={() => !reinstalling && setReinstallOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>确认重新安装？</DialogTitle>
-        <DialogContent>
-          <DialogContentText component="div">
-            向导会从头执行。请先了解这些风险：
-            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+          <div className="settings-system__dialog-body">
+            <p className="ntq-muted">向导会从头执行。请先了解这些风险：</p>
+            <ul className="settings-system__risk-list ntq-muted">
               <li>可能覆盖 userspace 路径选择，以及数据库连接配置。</li>
               <li>若选择导入演示数据，现有表数据可能被覆盖。</li>
               <li>进行中的回测 / 扫描结果不会自动备份。</li>
               <li>已安装的 Python 依赖不会被卸载；机器学习组件仍可稍后在本页补装。</li>
-            </Box>
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setReinstallOpen(false)} disabled={reinstalling}>
-            取消
-          </Button>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={handleConfirmReinstall}
-            disabled={reinstalling}
-          >
-            {reinstalling ? '正在进入安装…' : '确认，从第一步开始'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            </ul>
+          </div>
+        </Dialog>
+      </Section>
 
-      <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
-        导入数据
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        按是否已装载会员凭证自动选择数据包。导入会清空数据包中的表再写入，可能覆盖已有行情。
-      </Typography>
-      {importPlan && membershipWarning ? (
-        <Alert severity="warning">
-          {membershipWarning}
-          {' '}
-          <Link component={RouterLink} to="/settings/membership" underline="hover">
-            前往会员设置
-          </Link>
-        </Alert>
-      ) : null}
-      {importPlan ? (
-        <Typography variant="body2" color="text.secondary">
-          当前将导入：{packLabel}
-          {membershipConfigured ? ' · 已装载会员凭证' : ' · 未装载会员凭证'}
-        </Typography>
-      ) : null}
-      {localHint ? (
-        <Typography variant="body2" color="text.secondary">
-          {localHint}
-        </Typography>
-      ) : null}
-      {importError ? <Alert severity="error">{importError}</Alert> : null}
-      {importOk ? <Alert severity="success">{importOk}</Alert> : null}
-      {importing ? (
-        <Typography variant="body2" color="text.secondary">
-          {importProgressText}
-        </Typography>
-      ) : null}
-      <Box>
-        <Button
-          variant="outlined"
-          disabled={importBusy}
-          onClick={() => {
-            setImportError('');
-            setImportOk('');
-            loadImportPlan().finally(() => setImportOpen(true));
-          }}
+      <Section className="settings-system__import" gap="md">
+        <Heading level="h3" gap="none">导入数据</Heading>
+        <p className="ntq-muted">
+          按是否已装载会员凭证自动选择数据包。导入会清空数据包中的表再写入，可能覆盖已有行情。
+        </p>
+        {importPlan && membershipWarning ? (
+          <Message status="warning">
+            {membershipWarning}
+            {' '}
+            <RouterLink className="ntq-link" to="/settings/membership">
+              前往会员设置
+            </RouterLink>
+          </Message>
+        ) : null}
+        {importPlan ? (
+          <div className="settings-system__status">
+            <p className="ntq-muted">
+              当前将导入：
+              {packLabel}
+            </p>
+            <Tag
+              status={membershipConfigured ? 'success' : 'neutral'}
+              variant={membershipConfigured ? 'solid' : 'outline'}
+            >
+              {membershipConfigured ? '已装载会员凭证' : '未装载会员凭证'}
+            </Tag>
+          </div>
+        ) : null}
+        {localHint ? <p className="ntq-muted">{localHint}</p> : null}
+        {importError ? <Message status="error">{importError}</Message> : null}
+        {importOk ? <Message status="success">{importOk}</Message> : null}
+        {importing ? <p className="ntq-muted">{importProgressText}</p> : null}
+        <div className="settings-system__actions">
+          <Button
+            variant="primary"
+            disabled={importBusy}
+            onClick={() => {
+              setImportError('');
+              setImportOk('');
+              loadImportPlan().finally(() => setImportOpen(true));
+            }}
+          >
+            {importRunning ? '正在导入…' : '导入数据'}
+          </Button>
+        </div>
+        <Dialog
+          open={importOpen}
+          onClose={() => !importing && setImportOpen(false)}
+          title={confirmTitle}
+          size="md"
+          actions={(
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => setImportOpen(false)}
+                disabled={importing}
+              >
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleConfirmImport}
+                disabled={importing}
+              >
+                {importing ? '正在导入…' : confirmActionLabel}
+              </Button>
+            </>
+          )}
         >
-          {importRunning ? '正在导入…' : '导入数据'}
-        </Button>
-      </Box>
-      <Dialog
-        open={importOpen}
-        onClose={() => !importing && setImportOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>{confirmTitle}</DialogTitle>
-        <DialogContent>
-          <DialogContentText component="div">
-            {confirmBody}
-            {localHint ? (
-              <Box component="p" sx={{ mt: 1.5, mb: 0 }}>
-                {localHint}
-              </Box>
+          <div className="settings-system__dialog-body">
+            <p className="ntq-muted">{confirmBody}</p>
+            {localHint ? <p className="ntq-muted">{localHint}</p> : null}
+            {!membershipConfigured ? (
+              <Message status="warning">
+                若您是会员，请先取消并到
+                {' '}
+                <RouterLink className="ntq-link" to="/settings/membership">
+                  设置 → 会员
+                </RouterLink>
+                {' '}
+                装载凭证，再回来导入全市场数据。
+              </Message>
             ) : null}
-          </DialogContentText>
-          {!membershipConfigured ? (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              若您是会员，请先取消并到
-              {' '}
-              <Link component={RouterLink} to="/settings/membership" underline="hover">
-                设置 → 会员
-              </Link>
-              {' '}
-              装载凭证，再回来导入全市场数据。
-            </Alert>
-          ) : null}
-          {importError ? (
-            <Alert severity="error" sx={{ mt: 2 }}>{importError}</Alert>
-          ) : null}
-          {importing ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              {importProgressText}
-            </Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setImportOpen(false)} disabled={importing}>
-            取消
-          </Button>
-          <Button
-            variant="contained"
-            color={membershipConfigured ? 'primary' : 'warning'}
-            onClick={handleConfirmImport}
-            disabled={importing}
-          >
-            {importing ? '正在导入…' : confirmActionLabel}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            {importError ? <Message status="error">{importError}</Message> : null}
+            {importing ? <p className="ntq-muted">{importProgressText}</p> : null}
+          </div>
+        </Dialog>
+      </Section>
 
-      <Typography variant="subtitle1" fontWeight={700} sx={{ pt: 1 }}>
-        机器学习组件
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        分析库的统计 / ML 原语会用到这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
-      </Typography>
-      {mlLoadError ? <Alert severity="error">{mlLoadError}</Alert> : null}
-      {mlOk ? <Alert severity="success">{mlOk}</Alert> : null}
-      {mlStatus == null && !mlLoadError ? (
-        <InlineLoadingState message="正在检查机器学习依赖…" />
-      ) : (
-        <Typography variant="body2" color="text.secondary">
-          {mlInstalled
-            ? `已安装${mlStatus?.shap ? '（含 SHAP）' : '（XGBoost）'}。`
-            : '尚未安装。分析库的机器学习阶段在未安装时会跳过。'}
-        </Typography>
-      )}
-      {installing ? (
-        <Box>
-          <Typography variant="caption" color="text.secondary">
-            正在安装… {fakePercent}%
-          </Typography>
-          <Box sx={{ mt: 0.5, height: 8, borderRadius: 1, bgcolor: 'grey.200', overflow: 'hidden' }}>
-            <Box
-              sx={{
-                width: `${fakePercent}%`,
-                bgcolor: 'primary.main',
-                height: '100%',
-                transition: 'width 0.4s ease',
-              }}
-            />
-          </Box>
-        </Box>
-      ) : null}
-      <Box>
-        <Button
-          variant="outlined"
-          disabled={mlInstalled || installing}
-          onClick={handleInstallMl}
-        >
-          {mlInstalled ? '已安装' : '安装机器学习依赖'}
-        </Button>
-      </Box>
-    </Stack>
+      <Section className="settings-system__ml" gap="md">
+        <Heading level="h3" gap="none">机器学习组件</Heading>
+        <p className="ntq-muted">
+          分析库的统计 / ML 原语会用到这些依赖（XGBoost / SHAP）。跳过安装向导后可在这里补装，可能需要几分钟。
+        </p>
+        {mlLoadError ? <Message status="error">{mlLoadError}</Message> : null}
+        {mlOk ? <Message status="success">{mlOk}</Message> : null}
+        {mlStatus == null && !mlLoadError ? (
+          <Loading variant="inline" message="正在检查机器学习依赖…" />
+        ) : (
+          <div className="settings-system__status">
+            <Tag
+              status={mlInstalled ? 'success' : 'neutral'}
+              variant={mlInstalled ? 'solid' : 'outline'}
+            >
+              {mlInstalled ? '已安装' : '尚未安装'}
+            </Tag>
+            <p className="ntq-muted">
+              {mlInstalled
+                ? `${mlStatus?.shap ? '含 SHAP' : 'XGBoost'}。`
+                : '分析库的机器学习阶段在未安装时会跳过。'}
+            </p>
+          </div>
+        )}
+        {installing ? (
+          <ProgressBar
+            value={fakePercent}
+            size="md"
+            label="正在安装…"
+            showPercent
+          />
+        ) : null}
+        <div className="settings-system__actions">
+          <Button
+            variant="primary"
+            disabled={mlInstalled || installing}
+            onClick={handleInstallMl}
+          >
+            {mlInstalled ? '已安装' : '安装机器学习依赖'}
+          </Button>
+        </div>
+      </Section>
+    </Section>
   );
 }
+
+const DATABASE_TYPE_OPTIONS = [
+  { value: 'duckdb', label: 'DuckDB（推荐，本地文件）' },
+  { value: 'postgresql', label: 'PostgreSQL' },
+  { value: 'mysql', label: 'MySQL' },
+];
 
 export function SettingsDatabasePanel({
   loading,
@@ -441,101 +431,92 @@ export function SettingsDatabasePanel({
   onReload,
 }) {
   const isDuckdb = databaseType === 'duckdb';
+  const domainEntries = Object.entries(duckdbDomains || {});
+
+  if (loading) {
+    return <Loading variant="inline" message="正在加载数据库配置…" />;
+  }
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        数据库
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        对应
-        {' '}
-        <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-          userspace/system/config/database/common.json
-        </Typography>
-        {' '}
-        中的
-        {' '}
-        <code>database_type</code>
-        。
-        DuckDB 使用
-        {' '}
-        <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-          duckdb.json
-        </Typography>
-        {' '}
-        中的三域文件路径（相对
-        {' '}
-        <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-          userspace/system/db/
-        </Typography>
-        ）。
-        PostgreSQL / MySQL 另需编辑对应 json 中的连接字段。
-      </Typography>
+    <Section className="settings-database" gap="lg">
+      <Section className="settings-database__engine" gap="md">
+        <Heading level="h3" gap="none">数据库引擎</Heading>
+        <p className="ntq-muted">
+          选择本机使用的数据库。DuckDB 为推荐的本地文件库；PostgreSQL / MySQL 还需在对应配置中填写连接信息。
+        </p>
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        {saveError ? <Message status="error">{saveError}</Message> : null}
+        {saveOk ? <Message status="success">{saveOk}</Message> : null}
+        <UiSelect
+          label="数据库类型"
+          value={databaseType}
+          onChange={(e) => onDatabaseTypeChange(e.target.value)}
+          options={DATABASE_TYPE_OPTIONS}
+        />
+        {!isDuckdb ? (
+          <UiTextField
+            label="数据库名（库名）"
+            value={databaseName}
+            onChange={(e) => onDatabaseNameChange(e.target.value)}
+            hint="仅允许字母、数字、下划线、连字符与点号。"
+          />
+        ) : null}
+        <div className="settings-database__actions">
+          <Button variant="primary" onClick={onSave} disabled={saving}>
+            {saving ? '保存中…' : '保存数据库设置'}
+          </Button>
+          <Button
+            variant="glass"
+            icon="refresh"
+            iconSize="sm"
+            onClick={onReload}
+            disabled={saving}
+          >
+            重新读取
+          </Button>
+        </div>
+      </Section>
 
-      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
-      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
-
-      {loading ? (
-        <PageLoadingState message="正在加载数据库配置…" minHeight="36vh" />
-      ) : (
-        <Stack spacing={2} sx={{ maxWidth: 420 }}>
-          <FormControl fullWidth size="small">
-            <InputLabel id="settings-db-type-label">数据库类型</InputLabel>
-            <Select
-              labelId="settings-db-type-label"
-              label="数据库类型"
-              value={databaseType}
-              onChange={(e) => onDatabaseTypeChange(e.target.value)}
-            >
-              <MenuItem value="duckdb">DuckDB（推荐，本地文件）</MenuItem>
-              <MenuItem value="postgresql">PostgreSQL</MenuItem>
-              <MenuItem value="mysql">MySQL</MenuItem>
-            </Select>
-          </FormControl>
-          {isDuckdb ? (
-            <Alert severity="info">
-              当前使用 DuckDB。数据文件位于 userspace/system/db/，默认域：
-              {Object.keys(duckdbDomains).length > 0 ? (
-                <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
-                  {Object.entries(duckdbDomains).map(([domain, path]) => (
-                    <li key={domain}>
-                      <code>{domain}</code>
-                      :
-                      {' '}
-                      <code>{path}</code>
-                    </li>
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  data.duckdb / tag.duckdb / strategy.duckdb（使用 core 默认配置）
-                </Typography>
-              )}
-              高级参数请直接编辑 duckdb.json。
-            </Alert>
+      {isDuckdb ? (
+        <Section className="settings-database__duckdb" gap="md">
+          <Heading level="h3" gap="none">DuckDB 数据域</Heading>
+          <p className="ntq-muted">
+            当前使用本地 DuckDB 文件库，按域拆分存储。
+          </p>
+          {domainEntries.length > 0 ? (
+            <ul className="settings-database__domain-list">
+              {domainEntries.map(([domain, path]) => (
+                <li key={domain}>
+                  <Text variant="code">{domain}</Text>
+                  <span className="ntq-muted">：</span>
+                  <Text variant="code">{path}</Text>
+                </li>
+              ))}
+            </ul>
           ) : (
-            <TextField
-              label="数据库名（库名）"
-              size="small"
-              fullWidth
-              value={databaseName}
-              onChange={(e) => onDatabaseNameChange(e.target.value)}
-              helperText="仅允许字母、数字、下划线、连字符与点号。"
-            />
+            <p className="ntq-muted">
+              默认域：
+              <Text variant="code">data.duckdb</Text>
+              {' / '}
+              <Text variant="code">tag.duckdb</Text>
+              {' / '}
+              <Text variant="code">strategy.duckdb</Text>
+              （使用 core 默认配置）
+            </p>
           )}
-          <Box>
-            <Button variant="contained" onClick={onSave} disabled={saving}>
-              {saving ? '保存中…' : '保存数据库设置'}
-            </Button>
-            <Button sx={{ ml: 1 }} variant="outlined" onClick={onReload} disabled={saving}>
-              重新读取
-            </Button>
-          </Box>
-        </Stack>
+          <Message status="info">
+            高级参数请在对应数据库配置中调整；保存引擎类型后，相关进程可能需要重启才生效。
+          </Message>
+        </Section>
+      ) : (
+        <Section className="settings-database__remote" gap="md">
+          <Heading level="h3" gap="none">连接说明</Heading>
+          <Message status="info">
+            PostgreSQL / MySQL 的主机、端口与账号等请在对应引擎配置中填写；本页只保存引擎类型与库名。
+          </Message>
+        </Section>
       )}
-    </Stack>
+    </Section>
   );
 }
 
@@ -564,123 +545,115 @@ export function SettingsDataPanel({
     return undefined;
   }, [loading, location.hash]);
 
+  if (loading) {
+    return <Loading variant="inline" message="正在加载数据配置…" />;
+  }
+
   return (
-    <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        数据范围
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        对应
-        {' '}
-        <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-          userspace/config/data.json
-        </Typography>
-        。这里只约束「已入库数据怎么用」：起始日与截至日等，不会凭空补行情。
-      </Typography>
+    <Section className="settings-data" gap="lg">
+      <Section className="settings-data__intro" gap="md">
+        <Heading level="h3" gap="none">数据范围</Heading>
+        <p className="ntq-muted">
+          只约束「已入库数据怎么用」：起始日与截至日等，不会凭空补行情。
+        </p>
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        {saveError ? <Message status="error">{saveError}</Message> : null}
+        {saveOk ? <Message status="success">{saveOk}</Message> : null}
+        <Message status="warning">
+          <div className="settings-data__guide">
+            <p>
+              库里没有的区间或标的，把截至日拉长或起始日提前都不会生效——系统仍只能用已下载/导入的数据。
+            </p>
+            <p>
+              自带演示数据大约是
+              {' '}
+              <strong>300 只股票、约 3 年</strong>
+              （约 2023–2025 年底）。需要更长历史或全市场时，请先补数据，而不是只改本页：
+            </p>
+            <ul>
+              <li>
+                在
+                {' '}
+                <RouterLink className="ntq-link" to="/settings/membership">
+                  设置 → 会员
+                </RouterLink>
+                {' '}
+                装载凭证后，可到
+                {' '}
+                <RouterLink className="ntq-link" to="/settings/system">
+                  设置 → 安装与维护
+                </RouterLink>
+                {' '}
+                一键导入约 3 年全市场数据；也可在
+                {' '}
+                <RouterLink className="ntq-link" to="/advanced/data-sources">
+                  高级功能 → 数据源
+                </RouterLink>
+                {' '}
+                拉取。还没有账号时，请先到会员页注册。
+              </li>
+              <li>
+                尚未导入数据时，可到
+                {' '}
+                <RouterLink className="ntq-link" to="/settings/system">
+                  设置 → 安装与维护
+                </RouterLink>
+                ；会员凭证在
+                {' '}
+                <RouterLink className="ntq-link" to="/settings/membership">
+                  设置 → 会员
+                </RouterLink>
+                。
+              </li>
+            </ul>
+          </div>
+        </Message>
+      </Section>
 
-      <Alert severity="info" sx={{ width: '100%', alignSelf: 'stretch' }}>
-        <Typography variant="body2" component="div">
-          库里没有的区间或标的，把截至日拉长或起始日提前都不会生效——系统仍只能用已下载/导入的数据。
-        </Typography>
-        <Typography variant="body2" component="div" sx={{ mt: 1 }}>
-          自带演示数据大约是
-          {' '}
-          <strong>300 只股票、约 3 年</strong>
-          （约 2023–2025 年底）。需要更长历史或全市场时，请先补数据，而不是只改本页：
-        </Typography>
-        <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
-          <li>
-            <Typography variant="body2" component="span">
-              注册会员并在
-              {' '}
-              <Link component={RouterLink} to="/settings/membership" underline="hover">
-                设置 → 会员
-              </Link>
-              {' '}
-              装载凭证后，可到
-              {' '}
-              <Link component={RouterLink} to="/settings/system" underline="hover">
-                设置 → 安装与维护
-              </Link>
-              {' '}
-              一键导入约 3 年全市场数据；也可在
-              {' '}
-              <Link component={RouterLink} to="/advanced/data-sources" underline="hover">
-                高级功能 → 数据源
-              </Link>
-              {' '}
-              拉取（档位与点数以该页说明为准）。还没有账号？
-              {' '}
-              <BecomeMemberLink />
-              。
-            </Typography>
-          </li>
-          <li>
-            <Typography variant="body2" component="span">
-              尚未导入数据时，可到
-              {' '}
-              <Link component={RouterLink} to="/settings/system" underline="hover">
-                设置 → 安装与维护
-              </Link>
-              ；会员凭证在
-              {' '}
-              <Link component={RouterLink} to="/settings/membership" underline="hover">
-                设置 → 会员
-              </Link>
-              。
-            </Typography>
-          </li>
-        </Box>
-      </Alert>
-
-      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
-      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
-
-      {loading ? (
-        <PageLoadingState message="正在加载数据配置…" minHeight="36vh" />
-      ) : (
-        <Stack spacing={2} sx={{ maxWidth: 420 }}>
-          <TextField
-            label="默认起始日期"
-            size="small"
-            fullWidth
-            value={defaultStartDate}
-            onChange={(e) => onDefaultStartDateChange(e.target.value)}
-            placeholder="20080101"
-            helperText="YYYYMMDD；空表 renew 与回测默认起点的全局地板。"
+      <Section className="settings-data__fields" gap="md">
+        <Heading level="h3" gap="none">范围与保留</Heading>
+        <UiTextField
+          label="默认起始日期"
+          value={defaultStartDate}
+          onChange={(e) => onDefaultStartDateChange(e.target.value)}
+          placeholder="20080101"
+          hint="YYYYMMDD；空表 renew 与回测默认起点的全局地板。"
+        />
+        <UiTextField
+          label="假定最新已完成交易日"
+          value={assumedLatestCompletedDate}
+          onChange={(e) => onAssumedLatestCompletedDateChange(e.target.value)}
+          placeholder="留空表示跟真实日历"
+          hint="扫描/回测假定的「今天」。留空则用实时最新已完成交易日。不裁剪日常数据续传截止。"
+        />
+        <div id="settings-retention">
+          <UiTextField
+            label="过时回测环境保留组数"
+            value={simulationResultsMaxStaleEnvs}
+            onChange={(e) => onSimulationResultsMaxStaleEnvsChange(e.target.value)}
+            placeholder="5"
+            hint="改代码或核心后旧环境不能再跑，最多留这么多组档案。超出则整组删除。当前环境不限份数。"
           />
-          <TextField
-            label="假定最新已完成交易日"
-            size="small"
-            fullWidth
-            value={assumedLatestCompletedDate}
-            onChange={(e) => onAssumedLatestCompletedDateChange(e.target.value)}
-            placeholder="留空表示跟真实日历"
-            helperText="扫描/回测假定的「今天」。留空则用实时最新已完成交易日。不裁剪日常数据续传截止。"
-          />
-          <Box id="settings-retention">
-            <TextField
-              label="过时回测环境保留组数"
-              size="small"
-              fullWidth
-              value={simulationResultsMaxStaleEnvs}
-              onChange={(e) => onSimulationResultsMaxStaleEnvsChange(e.target.value)}
-              placeholder="5"
-              helperText="改代码或核心后旧环境不能再跑，最多留这么多组档案。超出则整组删除。当前环境不限份数。"
-            />
-          </Box>
-          <Box>
-            <Button variant="contained" onClick={onSave} disabled={saving}>
-              {saving ? '保存中…' : '保存数据设置'}
-            </Button>
-            <Button sx={{ ml: 1 }} variant="outlined" onClick={onReload} disabled={saving}>
-              重新读取
-            </Button>
-          </Box>
-        </Stack>
-      )}
-    </Stack>
+        </div>
+      </Section>
+
+      <Section className="settings-data__form-actions" gap="md">
+        <div className="settings-data__actions">
+          <Button variant="primary" onClick={onSave} disabled={saving}>
+            {saving ? '保存中…' : '保存数据设置'}
+          </Button>
+          <Button
+            variant="glass"
+            icon="refresh"
+            iconSize="sm"
+            onClick={onReload}
+            disabled={saving}
+          >
+            重新读取
+          </Button>
+        </div>
+      </Section>
+    </Section>
   );
 }
 
@@ -756,81 +729,78 @@ export function SettingsCachePanel() {
   };
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        缓存管理
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        勾选需要清理的缓存类型，点击「一键清理」。有 Tag、扫描、回测等任务进行中时将拒绝清理。
-      </Typography>
+    <Section className="settings-cache" gap="lg">
+      <Section className="settings-cache__types" gap="md">
+        <Heading level="h3" gap="none">缓存管理</Heading>
+        <p className="ntq-muted">
+          勾选需要清理的缓存类型，点击「一键清理」。有 Tag、扫描、回测等任务进行中时将拒绝清理。
+        </p>
+        {clearError ? <Message status="error">{clearError}</Message> : null}
+        {clearOk ? <Message status="success">{clearOk}</Message> : null}
+        <div className="settings-cache__options" role="group" aria-label="缓存清理选项">
+          {CACHE_OPTIONS.map((opt) => (
+            <UiCheckbox
+              key={opt.key}
+              className="settings-cache__option"
+              checked={Boolean(selection[opt.key])}
+              onChange={handleToggle(opt.key)}
+              disabled={clearing}
+              label={(
+                <span className="settings-cache__option-text">
+                  <span className="settings-cache__option-title">{opt.label}</span>
+                  <span className="settings-cache__option-hint">{opt.hint}</span>
+                </span>
+              )}
+            />
+          ))}
+        </div>
+      </Section>
 
-      {clearError ? <Alert severity="error">{clearError}</Alert> : null}
-      {clearOk ? (
-        <Alert
-          severity="success"
-          icon={<NtqIcon name="success" size={22} tone="success" />}
-        >
-          {clearOk}
-        </Alert>
-      ) : null}
-
-      <FormGroup sx={{ maxWidth: 560 }}>
-        {CACHE_OPTIONS.map((opt) => (
-          <FormControlLabel
-            key={opt.key}
-            control={(
-              <Checkbox
-                checked={Boolean(selection[opt.key])}
-                onChange={handleToggle(opt.key)}
+      <Section className="settings-cache__form-actions" gap="md">
+        <div className="settings-cache__actions">
+          <Button
+            variant="danger"
+            disabled={!hasSelection || clearing}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {clearing ? '清理中…' : '一键清理'}
+          </Button>
+        </div>
+        <Dialog
+          open={confirmOpen}
+          onClose={() => !clearing && setConfirmOpen(false)}
+          title="确认清理缓存"
+          size="sm"
+          actions={(
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => setConfirmOpen(false)}
                 disabled={clearing}
-              />
-            )}
-            label={(
-              <Box>
-                <Typography variant="body2" fontWeight={600}>{opt.label}</Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  {opt.hint}
-                </Typography>
-              </Box>
-            )}
-            sx={{ alignItems: 'flex-start', mb: 1 }}
-          />
-        ))}
-      </FormGroup>
-
-      <Box>
-        <Button
-          variant="contained"
-          color="secondary"
-          disabled={!hasSelection || clearing}
-          onClick={() => setConfirmOpen(true)}
+              >
+                取消
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleConfirmClear}
+                disabled={clearing}
+              >
+                {clearing ? '清理中…' : '确认清理'}
+              </Button>
+            </>
+          )}
         >
-          {clearing ? '清理中…' : '一键清理'}
-        </Button>
-      </Box>
-
-      <Dialog open={confirmOpen} onClose={() => !clearing && setConfirmOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>确认清理缓存</DialogTitle>
-        <DialogContent>
-          <DialogContentText component="div">
-            将清理以下项，此操作不可撤销：
-            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+          <div className="settings-cache__dialog-body">
+            <p className="ntq-muted">将清理以下项，此操作不可撤销：</p>
+            <ul className="settings-cache__dialog-list">
               {selectedLabels.map((label) => (
                 <li key={label}>{label}</li>
               ))}
-            </Box>
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmOpen(false)} disabled={clearing}>
-            取消
-          </Button>
-          <Button variant="contained" color="secondary" onClick={handleConfirmClear} disabled={clearing}>
-            {clearing ? '清理中…' : '确认清理'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Stack>
+            </ul>
+          </div>
+        </Dialog>
+      </Section>
+    </Section>
   );
 }
 
@@ -908,124 +878,136 @@ export function SettingsFeedbackAndTracePanel() {
 
   const busy = feedbackSave.busy || traceSave.busy;
 
+  if (loading) {
+    return <Loading variant="inline" message="正在加载反馈与统计设置…" />;
+  }
+
   return (
-    <Stack spacing={3}>
-      <Box>
-        <Typography variant="subtitle1" fontWeight={700}>
-          反馈与统计
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          管理应用内反馈询问，以及可选的匿名使用统计。
-        </Typography>
-      </Box>
-
-      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {feedbackSave.error ? <Alert severity="error">{feedbackSave.error}</Alert> : null}
-      {traceSave.error ? <Alert severity="error">{traceSave.error}</Alert> : null}
-      {feedbackSaveOk ? <Alert severity="success">{feedbackSaveOk}</Alert> : null}
-      {traceSaveOk ? <Alert severity="success">{traceSaveOk}</Alert> : null}
-
-      {loading ? (
-        <PageLoadingState message="正在加载反馈与统计设置…" minHeight="36vh" />
-      ) : (
-        <Stack spacing={3} sx={{ maxWidth: 560 }}>
-          <Stack spacing={1.5}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              反馈
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              任务成功后会弹出简短反馈，每个半天（0 点到 12 点、12 点到 24 点）最多一次。关闭询问只在本页。一旦你主动发送，不会再要求任何本地授权。
-              更长的问题请走官网联系页。
-            </Typography>
-            <FormControlLabel
-              sx={{
-                ml: 0,
-                gap: 1.5,
-                alignItems: 'center',
-                '& .MuiFormControlLabel-label': { marginLeft: 0 },
-              }}
-              control={(
-                <Switch
-                  checked={!promptsDisabled}
-                  onChange={handleFeedbackToggle}
-                  disabled={busy}
-                  inputProps={{ 'aria-label': '开启应用内反馈询问' }}
-                />
-              )}
-              label={promptsDisabled ? '已关闭应用内反馈询问' : '允许应用内反馈询问'}
-            />
-            {contactUrl ? (
-              <Box>
-                <Button
-                  component="a"
-                  href={contactUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="outlined"
-                  size="small"
-                >
-                  打开官网联系页
-                </Button>
-              </Box>
-            ) : null}
-          </Stack>
-
-          <Stack spacing={1.5}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              使用统计
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              可选的匿名使用数据，用于改进 New Tea Quant。不包含策略代码、回测结果、账户或个人身份信息。
-              详见
-              {' '}
-              <Link component={RouterLink} to="/what-we-will-track" underline="hover">
-                我们收集哪些信息
-              </Link>
-              。
-            </Typography>
-            {!traceDecided ? (
-              <Alert severity="info">
-                尚未选择偏好。打开开关即表示同意；关闭表示不同意。之后可随时在此更改。
-              </Alert>
-            ) : null}
-            <FormControlLabel
-              sx={{
-                ml: 0,
-                gap: 1.5,
-                alignItems: 'center',
-                '& .MuiFormControlLabel-label': { marginLeft: 0 },
-              }}
-              control={(
-                <Switch
-                  checked={traceEnabled}
-                  onChange={handleTraceToggle}
-                  disabled={busy}
-                  inputProps={{ 'aria-label': '开启匿名使用统计' }}
-                />
-              )}
-              label={traceEnabled ? '已开启匿名使用统计' : '未开启匿名使用统计'}
-            />
-            {traceDecided && traceDecidedAt ? (
-              <Typography variant="caption" color="text.secondary">
-                最近决定时间：
-                {traceDecidedAt}
-              </Typography>
-            ) : null}
-          </Stack>
-
-          <Box>
-            <Button variant="outlined" onClick={load} disabled={busy || loading}>
-              重新读取
+    <Section className="settings-feedback" gap="lg">
+      <Section className="settings-feedback__prompts" gap="md">
+        <Heading level="h3" gap="none">反馈</Heading>
+        <p className="ntq-muted">
+          任务成功后会弹出简短反馈，每个半天（0 点到 12 点、12 点到 24 点）最多一次。关闭询问只在本页。一旦你主动发送，不会再要求任何本地授权。更长的问题请走官网联系页。
+        </p>
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        {feedbackSave.error ? <Message status="error">{feedbackSave.error}</Message> : null}
+        {feedbackSaveOk ? <Message status="success">{feedbackSaveOk}</Message> : null}
+        <UiSwitch
+          label={promptsDisabled ? '已关闭应用内反馈询问' : '允许应用内反馈询问'}
+          checked={!promptsDisabled}
+          onChange={handleFeedbackToggle}
+          disabled={busy}
+          inputProps={{ 'aria-label': '开启应用内反馈询问' }}
+        />
+        {contactUrl ? (
+          <div className="settings-feedback__actions">
+            <Button
+              variant="glass"
+              href={contactUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开官网联系页
             </Button>
-          </Box>
-        </Stack>
-      )}
-    </Stack>
+          </div>
+        ) : null}
+      </Section>
+
+      <Section className="settings-feedback__trace" gap="md">
+        <Heading level="h3" gap="none">使用统计</Heading>
+        <p className="ntq-muted">
+          可选的匿名使用数据，用于改进 New Tea Quant。不包含策略代码、回测结果、账户或个人身份信息。详见
+          {' '}
+          <RouterLink className="ntq-link" to="/what-we-will-track">
+            我们收集哪些信息
+          </RouterLink>
+          。
+        </p>
+        {traceSave.error ? <Message status="error">{traceSave.error}</Message> : null}
+        {traceSaveOk ? <Message status="success">{traceSaveOk}</Message> : null}
+        {!traceDecided ? (
+          <Message status="info">
+            尚未选择偏好。打开开关即表示同意；关闭表示不同意。之后可随时在此更改。
+          </Message>
+        ) : null}
+        <UiSwitch
+          label={traceEnabled ? '已开启匿名使用统计' : '未开启匿名使用统计'}
+          checked={traceEnabled}
+          onChange={handleTraceToggle}
+          disabled={busy}
+          inputProps={{ 'aria-label': '开启匿名使用统计' }}
+        />
+        {traceDecided && traceDecidedAt ? (
+          <p className="ntq-muted settings-feedback__meta">
+            最近决定时间：
+            {traceDecidedAt}
+          </p>
+        ) : null}
+      </Section>
+
+      <Section className="settings-feedback__form-actions" gap="md">
+        <div className="settings-feedback__actions">
+          <Button variant="ghost" onClick={load} disabled={busy}>
+            重新读取
+          </Button>
+        </div>
+      </Section>
+    </Section>
   );
 }
 
 const LEDGER_INITIAL = 20;
 const LEDGER_MORE = 50;
+
+function formatCatfoodSummary({ catfood, catfoodFree, catfoodPaid, catfoodFreeExpiresAt }) {
+  if (catfood == null || !Number.isFinite(catfood)) return null;
+  const total = Number(catfood).toFixed(2);
+  const free = catfoodFree != null && Number.isFinite(catfoodFree) ? Number(catfoodFree) : null;
+  const paid = catfoodPaid != null && Number.isFinite(catfoodPaid) ? Number(catfoodPaid) : null;
+  const expire = catfoodFreeExpiresAt;
+
+  if (free != null && free > 0 && expire) {
+    return (
+      <>
+        您还有
+        {' '}
+        <strong className="settings-membership__em">{total}</strong>
+        {' '}
+        猫粮，其中
+        {' '}
+        <strong className="settings-membership__em">{free.toFixed(2)}</strong>
+        {' '}
+        （月赠）在
+        {' '}
+        {expire}
+        {' '}
+        过期
+        {paid != null && paid > 0 ? (
+          <>
+            ；另有
+            {' '}
+            <strong className="settings-membership__em">{paid.toFixed(2)}</strong>
+            {' '}
+            充值余额不过期
+          </>
+        ) : null}
+        。
+      </>
+    );
+  }
+
+  return (
+    <>
+      您还有
+      {' '}
+      <strong className="settings-membership__em">{total}</strong>
+      {' '}
+      猫粮
+      {paid != null && paid > 0 ? '（充值余额不过期）' : ''}
+      。
+    </>
+  );
+}
 
 export function SettingsMembershipPanel() {
   const [loading, setLoading] = useState(true);
@@ -1033,7 +1015,6 @@ export function SettingsMembershipPanel() {
   const [saveOk, setSaveOk] = useState('');
   const [configured, setConfigured] = useState(false);
   const [invalid, setInvalid] = useState(false);
-  const [filePath, setFilePath] = useState('userspace/system/membership/membership_token.txt');
   const [token, setToken] = useState('');
   const [catfood, setCatfood] = useState(null);
   const [catfoodFree, setCatfoodFree] = useState(null);
@@ -1044,6 +1025,7 @@ export function SettingsMembershipPanel() {
   const [ledgerHasMore, setLedgerHasMore] = useState(false);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerLoadingMore, setLedgerLoadingMore] = useState(false);
+  const [registerUrl, setRegisterUrl] = useState('');
 
   const saveAction = useAsyncAction(useCallback((value) => saveMembershipToken(value), []));
   const clearAction = useAsyncAction(useCallback(() => clearMembershipToken(), []));
@@ -1051,7 +1033,6 @@ export function SettingsMembershipPanel() {
   const applyState = useCallback((r) => {
     setConfigured(Boolean(r.configured));
     setInvalid(Boolean(r.invalid));
-    if (r.path) setFilePath(r.path);
   }, []);
 
   const loadLedger = useCallback((ready, { limit = LEDGER_INITIAL, append = false } = {}) => {
@@ -1118,9 +1099,13 @@ export function SettingsMembershipPanel() {
   const load = useCallback(() => {
     setLoadError('');
     setLoading(true);
-    fetchMembershipSettings()
-      .then((r) => {
+    Promise.all([
+      fetchMembershipSettings(),
+      fetchSiteUrls().catch(() => ({ registerUrl: '' })),
+    ])
+      .then(([r, urls]) => {
         applyState(r);
+        setRegisterUrl(resolveRegisterUrl(urls.registerUrl));
         loadLedger(Boolean(r.configured));
       })
       .catch((e) => {
@@ -1162,304 +1147,192 @@ export function SettingsMembershipPanel() {
   };
 
   if (loading) {
-    return <InlineLoadingState />;
+    return <Loading variant="inline" message="正在加载会员设置…" />;
   }
 
+  const catfoodSummary = formatCatfoodSummary({
+    catfood,
+    catfoodFree,
+    catfoodPaid,
+    catfoodFreeExpiresAt,
+  });
+
   return (
-    <Stack spacing={2}>
-      <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-        <Typography variant="subtitle1" fontWeight={700}>
-          会员
-        </Typography>
-        {!configured ? <BecomeMemberLink variant="button" /> : null}
-      </Stack>
-      <Typography variant="body2" color="text.secondary">
-        把官网会员中心的通用凭证贴到这里，或直接把文件放到
-        {' '}
-        {filePath}
-        。文件里是有效凭证后，新茶会通过官网回答（NTQ AI）。没有这份凭证时，可在 AI 配置里使用自己的密钥。
-        {!configured ? ' 还没有账号时，先点上方「成为会员」注册，再到会员中心复制通用凭证回来装载。' : null}
-      </Typography>
-      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
-      {saveAction.error ? <Alert severity="error">{saveAction.error}</Alert> : null}
-      {clearAction.error ? <Alert severity="error">{clearAction.error}</Alert> : null}
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Chip
-          size="small"
-          color={configured ? 'success' : 'default'}
-          label={configured ? '已装载' : '尚未装载'}
+    <Section className="settings-membership" gap="lg">
+      <Section className="settings-membership__token" gap="md">
+        <div className="settings-membership__head">
+          <Heading level="h3" gap="none">通用凭证</Heading>
+          {!configured ? <BecomeMemberLink href={registerUrl} /> : null}
+        </div>
+        <p className="ntq-muted">
+          把官网会员中心的通用凭证粘贴到下方并装载。装载后可使用 NTQ AI；未装载时可在「AI 配置」里使用自己的密钥。
+          {!configured
+            ? ' 还没有账号时，先点「成为会员」注册，再到会员中心复制通用凭证回来装载。'
+            : null}
+        </p>
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        {saveOk ? <Message status="success">{saveOk}</Message> : null}
+        {saveAction.error ? <Message status="error">{saveAction.error}</Message> : null}
+        {clearAction.error ? <Message status="error">{clearAction.error}</Message> : null}
+        <div className="settings-membership__status">
+          <Tag
+            status={configured ? 'success' : 'neutral'}
+            variant={configured ? 'solid' : 'outline'}
+          >
+            {configured ? '已装载' : '尚未装载'}
+          </Tag>
+          {invalid ? (
+            <p className="settings-membership__invalid">
+              当前凭证无效，请重新粘贴并装载。
+            </p>
+          ) : null}
+        </div>
+        <UiTextField
+          label="通用凭证"
+          placeholder="粘贴通用凭证"
+          type="password"
+          value={token}
+          autoComplete="off"
+          onChange={(e) => setToken(e.target.value)}
+          hint="装载后本页不再显示已保存的凭证。"
         />
-        {invalid ? (
-          <Typography variant="body2" color="error">
-            文件在，但内容不是通用凭证。
-          </Typography>
-        ) : null}
-      </Stack>
-      {configured && catfood != null && Number.isFinite(catfood) ? (
-        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-          {(() => {
-            const total = Number(catfood).toFixed(2);
-            const free = catfoodFree != null && Number.isFinite(catfoodFree)
-              ? Number(catfoodFree)
-              : null;
-            const paid = catfoodPaid != null && Number.isFinite(catfoodPaid)
-              ? Number(catfoodPaid)
-              : null;
-            const expire = catfoodFreeExpiresAt;
-            if (free != null && free > 0 && expire) {
-              return (
-                <>
-                  您还有
-                  {' '}
-                  <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
-                    {total}
-                  </Box>
-                  {' '}
-                  猫粮，其中
-                  {' '}
-                  <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
-                    {free.toFixed(2)}
-                  </Box>
-                  {' '}
-                  （月赠）在
-                  {' '}
-                  {expire}
-                  {' '}
-                  过期
-                  {paid != null && paid > 0 ? (
-                    <>
-                      ；另有
-                      {' '}
-                      <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
-                        {paid.toFixed(2)}
-                      </Box>
-                      {' '}
-                      充值余额不过期
-                    </>
-                  ) : null}
-                  。
-                </>
-              );
-            }
-            return (
-              <>
-                您还有
-                {' '}
-                <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>
-                  {total}
-                </Box>
-                {' '}
-                猫粮
-                {paid != null && paid > 0 ? '（充值余额不过期）' : ''}
-                。
-              </>
-            );
-          })()}
-        </Typography>
-      ) : null}
-      <TextField
-        className="membership-token-field"
-        label="通用凭证"
-        placeholder="粘贴通用凭证"
-        type="password"
-        size="small"
-        value={token}
-        autoComplete="off"
-        onChange={(e) => setToken(e.target.value)}
-        helperText="只写入文件，页面不会再显示已保存的凭证。"
-        fullWidth
-        InputLabelProps={{ shrink: true }}
-        sx={{
-          '& .MuiInputLabel-root': {
-            position: 'static',
-            transform: 'none !important',
-            marginBottom: '6px',
-            maxWidth: '100%',
-            fontSize: '0.8rem',
-            lineHeight: 1.4,
-            letterSpacing: 'normal',
-            color: 'text.secondary',
-            pointerEvents: 'none',
-          },
-          '& .MuiOutlinedInput-root': {
-            background: 'transparent',
-            minHeight: 0,
-            padding: 0,
-            backdropFilter: 'none',
-          },
-          '& .MuiOutlinedInput-notchedOutline': {
-            display: 'none',
-          },
-          '& .MuiOutlinedInput-input': {
-            boxSizing: 'border-box',
-            height: 40,
-            margin: 0,
-            padding: '0 12px !important',
-            lineHeight: '40px',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '5px',
-            background: 'var(--ntq-white-03)',
-          },
-          '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-input': {
-            borderColor: 'rgba(255, 255, 255, 0.18)',
-          },
-          '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-input': {
-            borderColor: 'rgba(255, 255, 255, 0.28)',
-          },
-        }}
-      />
-      <Stack direction="row" spacing={1}>
-        <Button
-          variant="contained"
-          disabled={saveAction.busy || !token.trim()}
-          onClick={handleSave}
-        >
-          装载
-        </Button>
-        <Button
-          variant="outlined"
-          color="inherit"
-          disabled={clearAction.busy || (!configured && !invalid)}
-          onClick={handleClear}
-        >
-          移除
-        </Button>
-      </Stack>
+        <div className="settings-membership__actions">
+          <Button
+            variant="primary"
+            disabled={saveAction.busy || !token.trim()}
+            onClick={handleSave}
+          >
+            装载
+          </Button>
+          <Button
+            variant="glass"
+            disabled={clearAction.busy || (!configured && !invalid)}
+            onClick={handleClear}
+          >
+            移除
+          </Button>
+        </div>
+      </Section>
+
       {configured ? (
-        <Box>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              猫粮记录
-            </Typography>
+        <Section className="settings-membership__catfood" gap="md">
+          <Heading level="h3" gap="none">猫粮</Heading>
+          {catfoodSummary ? (
+            <p className="ntq-muted settings-membership__balance">{catfoodSummary}</p>
+          ) : (
+            <p className="ntq-muted">暂未读到猫粮余额。</p>
+          )}
+          <div className="settings-membership__head">
+            <Heading level="h4" gap="none">消耗记录</Heading>
             <Button
-              size="small"
-              variant="text"
+              variant="ghost"
               disabled={ledgerLoading || ledgerLoadingMore}
               onClick={() => loadLedger(true, { limit: LEDGER_INITIAL })}
             >
               刷新
             </Button>
-          </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          </div>
+          <p className="ntq-muted">
             最近对话消耗、月赠与调整。默认最近
             {LEDGER_INITIAL}
             条。
-          </Typography>
-          {ledgerLoading ? <InlineLoadingState /> : null}
+          </p>
+          {ledgerLoading ? <Loading variant="inline" /> : null}
           {!ledgerLoading && ledgerItems.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              还没有记录。
-            </Typography>
+            <p className="ntq-muted">还没有记录。</p>
           ) : null}
           {!ledgerLoading && ledgerItems.length > 0 ? (
-            <Stack spacing={0.75}>
+            <div className="settings-membership__ledger">
               {ledgerItems.map((row) => {
                 const delta = Number(row.catfoodDelta);
                 const deltaText = Number.isFinite(delta)
                   ? `${delta > 0 ? '+' : ''}${delta.toFixed(2)}`
                   : '—';
                 const after = Number(row.catfoodBalanceAfter);
+                const deltaTone = delta < 0 ? 'spend' : delta > 0 ? 'gain' : 'flat';
                 return (
-                  <Box
+                  <div
                     key={row.id || `${row.created}-${row.reason}-${row.mode}`}
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(7rem, auto) 1fr auto auto',
-                      gap: 1,
-                      alignItems: 'baseline',
-                      py: 0.75,
-                      borderBottom: '1px solid',
-                      borderColor: 'divider',
-                      fontSize: '0.8rem',
-                    }}
+                    className="settings-membership__ledger-row"
                   >
-                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                    <span className="settings-membership__ledger-time ntq-caption">
                       {formatDateTime(row.created, { style: 'absolute' })}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap>
+                    </span>
+                    <span className="settings-membership__ledger-reason ntq-muted">
                       {row.reasonLabel || row.reason}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      fontWeight={700}
-                      color={delta < 0 ? 'primary.main' : delta > 0 ? 'success.main' : 'text.secondary'}
-                      sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
+                    </span>
+                    <span
+                      className={[
+                        'settings-membership__ledger-delta',
+                        `settings-membership__ledger-delta--${deltaTone}`,
+                      ].join(' ')}
                     >
                       {deltaText}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
-                    >
+                    </span>
+                    <span className="settings-membership__ledger-after ntq-caption">
                       {Number.isFinite(after) ? `→ ${after.toFixed(2)}` : ''}
-                    </Typography>
-                  </Box>
+                    </span>
+                  </div>
                 );
               })}
               {ledgerHasMore ? (
-                <Box sx={{ pt: 0.5 }}>
+                <div className="settings-membership__ledger-more">
                   <Button
-                    size="small"
-                    variant="text"
+                    variant="ghost"
                     disabled={ledgerLoadingMore}
                     onClick={handleLedgerLoadMore}
                   >
                     {ledgerLoadingMore ? '加载中…' : `查看更多（再 ${LEDGER_MORE} 条）`}
                   </Button>
-                </Box>
+                </div>
               ) : null}
-            </Stack>
+            </div>
           ) : null}
-        </Box>
+        </Section>
       ) : null}
-    </Stack>
+    </Section>
   );
 }
 
 /** NTQ AI：只读指引，不在此页配置凭证。 */
 function NtqProxyCard({ configured }) {
   return (
-    <Box
-      sx={{
-        p: 2,
-        border: '1px solid',
-        borderColor: configured ? 'success.main' : 'divider',
-        bgcolor: configured ? 'action.hover' : 'transparent',
-        borderRadius: 1,
-      }}
+    <Block
+      className={[
+        'settings-ai__card',
+        configured ? 'settings-ai__card--ready' : '',
+      ].filter(Boolean).join(' ')}
+      surface={configured ? 'soft' : 'none'}
+      bordered
+      padding="md"
+      gap="sm"
     >
-      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-        <Typography variant="body2" fontWeight={700}>
-          NTQ AI
-        </Typography>
-        <Chip
-          size="small"
-          color={configured ? 'success' : 'default'}
-          variant={configured ? 'filled' : 'outlined'}
-          label={configured ? '已配置' : '未配置'}
-        />
-      </Stack>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-        官网代理 · 只读提示（凭证在「会员」页配置）
-      </Typography>
+      <div className="settings-ai__card-head">
+        <strong>NTQ AI</strong>
+        <Tag
+          status={configured ? 'success' : 'neutral'}
+          variant={configured ? 'solid' : 'outline'}
+        >
+          {configured ? '已配置' : '未配置'}
+        </Tag>
+      </div>
+      <p className="ntq-caption">官网代理 · 只读提示（凭证在「会员」页配置）</p>
       {configured ? (
-        <Typography variant="body2" sx={{ mt: 1.5 }}>
+        <p className="ntq-muted">
           NTQ AI 已配置，可直接使用。若想使用自己的模型，可在 AI 交互框中选择下方已配置的其他 AI。
-        </Typography>
+        </p>
       ) : (
-        <Typography variant="body2" sx={{ mt: 1.5 }}>
+        <p className="ntq-muted">
           尚未配置 NTQ AI。请先到
           {' '}
-          <Link component={RouterLink} to="/settings/membership" underline="hover">
+          <RouterLink className="ntq-link" to="/settings/membership">
             设置 → 会员
-          </Link>
+          </RouterLink>
           {' '}
-          放入会员 token；本页只做指引，不在这里填写凭证。
-        </Typography>
+          装载会员凭证；本页只做指引，不在这里填写凭证。
+        </p>
       )}
-    </Box>
+    </Block>
   );
 }
 
@@ -1532,99 +1405,100 @@ export function SettingsAssistantPanel() {
     return items;
   }, [providers]);
 
+  if (loading) {
+    return <Loading variant="inline" message="正在加载 AI 供应商…" />;
+  }
+
   return (
-    <Stack spacing={2}>
-      <Typography variant="subtitle1" fontWeight={700}>
-        AI 配置
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        NTQ AI 状态见下方提示；自有供应商可在此写入 API Key。页面不会回读明文，只会显示是否已配置。
-      </Typography>
+    <Section className="settings-ai" gap="lg">
+      <Section className="settings-ai__ntq" gap="md">
+        <Heading level="h3" gap="none">NTQ AI</Heading>
+        <p className="ntq-muted">
+          官网代理状态见下方卡片；凭证在「会员」页装载，本页不填写。
+        </p>
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        {saveError ? <Message status="error">{saveError}</Message> : null}
+        {saveOk ? <Message status="success">{saveOk}</Message> : null}
+        <NtqProxyCard configured={membershipReady} />
+      </Section>
 
-      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
-      {saveOk ? (
-        <Alert
-          severity="success"
-          icon={<NtqIcon name="success" size={22} tone="success" />}
-        >
-          {saveOk}
-        </Alert>
-      ) : null}
-
-      {loading ? (
-        <PageLoadingState message="正在加载 AI 供应商…" minHeight="36vh" />
-      ) : (
-        <Stack spacing={2} sx={{ maxWidth: 560 }}>
-          <NtqProxyCard configured={membershipReady} />
-          {sortedProviders.length === 0 ? (
-            <Alert severity="info">
-              还没有发现大模型供应商。需要先在 userspace/extensions/llm_providers/ 下放好供应商目录和 config.py。
-            </Alert>
-          ) : sortedProviders.map((item) => {
-            const draft = drafts[item.providerId] || '';
-            const busy = savingId === item.providerId;
-            const configured = Boolean(item.hasApiKey);
-            return (
-              <Box
-                key={item.providerId}
-                sx={{
-                  p: 2,
-                  border: '1px solid',
-                  borderColor: configured ? 'success.main' : 'divider',
-                  bgcolor: configured ? 'action.hover' : 'transparent',
-                  borderRadius: 1,
-                }}
-              >
-                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                  <Typography variant="body2" fontWeight={700}>
-                    {item.providerId}
-                  </Typography>
-                  <Chip
-                    size="small"
-                    color={configured ? 'success' : 'default'}
-                    variant={configured ? 'filled' : 'outlined'}
-                    label={configured ? '已配置 API Key' : '尚未配置 API Key'}
+      <Section className="settings-ai__providers" gap="md">
+        <Heading level="h3" gap="none">自有供应商</Heading>
+        <p className="ntq-muted">
+          在此写入 API Key。页面不会回读明文，只会显示是否已配置。
+        </p>
+        {sortedProviders.length === 0 ? (
+          <Message status="info">
+            还没有发现大模型供应商。请先在扩展目录中放入供应商包后再刷新本页。
+          </Message>
+        ) : (
+          <div className="settings-ai__provider-list">
+            {sortedProviders.map((item) => {
+              const draft = drafts[item.providerId] || '';
+              const busy = savingId === item.providerId;
+              const configured = Boolean(item.hasApiKey);
+              return (
+                <Block
+                  key={item.providerId}
+                  className={[
+                    'settings-ai__card',
+                    configured ? 'settings-ai__card--ready' : '',
+                  ].filter(Boolean).join(' ')}
+                  surface={configured ? 'soft' : 'none'}
+                  bordered
+                  padding="md"
+                  gap="sm"
+                >
+                  <div className="settings-ai__card-head">
+                    <strong>{item.providerId}</strong>
+                    <Tag
+                      status={configured ? 'success' : 'neutral'}
+                      variant={configured ? 'solid' : 'outline'}
+                    >
+                      {configured ? '已配置 API Key' : '尚未配置 API Key'}
+                    </Tag>
+                  </div>
+                  <p className="ntq-caption">
+                    {item.model}
+                    {item.baseUrl ? ` · ${item.baseUrl}` : ''}
+                    {item.enabled ? '' : ' · 已禁用'}
+                  </p>
+                  <UiTextField
+                    type="password"
+                    label="API Key"
+                    value={draft}
+                    onChange={handleDraftChange(item.providerId)}
+                    autoComplete="off"
+                    disabled={Boolean(savingId)}
+                    placeholder={configured ? '输入新密钥可覆盖' : '粘贴 API Key'}
                   />
-                </Stack>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                  {item.model}
-                  {item.baseUrl ? ` · ${item.baseUrl}` : ''}
-                  {item.enabled ? '' : ' · 已禁用'}
-                </Typography>
-                <TextField
-                  type="password"
-                  label="API Key"
-                  value={draft}
-                  onChange={handleDraftChange(item.providerId)}
-                  autoComplete="off"
-                  fullWidth
-                  size="small"
-                  sx={{ mt: 1.5 }}
-                  disabled={Boolean(savingId)}
-                  placeholder={configured ? '输入新密钥可覆盖' : '粘贴 API Key'}
-                />
-                <Box sx={{ mt: 1.5 }}>
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    disabled={!draft.trim() || Boolean(savingId)}
-                    onClick={() => handleSave(item.providerId)}
-                  >
-                    {busy ? '保存中…' : '保存'}
-                  </Button>
-                </Box>
-              </Box>
-            );
-          })}
-          <Box>
-            <Button variant="outlined" onClick={load} disabled={Boolean(savingId) || loading}>
-              重新读取
-            </Button>
-          </Box>
-        </Stack>
-      )}
-    </Stack>
+                  <div className="settings-ai__actions">
+                    <Button
+                      variant="primary"
+                      disabled={!draft.trim() || Boolean(savingId)}
+                      onClick={() => handleSave(item.providerId)}
+                    >
+                      {busy ? '保存中…' : '保存'}
+                    </Button>
+                  </div>
+                </Block>
+              );
+            })}
+          </div>
+        )}
+        <div className="settings-ai__actions">
+          <Button
+            variant="glass"
+            icon="refresh"
+            iconSize="sm"
+            onClick={load}
+            disabled={Boolean(savingId) || loading}
+          >
+            重新读取
+          </Button>
+        </div>
+      </Section>
+    </Section>
   );
 }
 
@@ -1740,173 +1614,143 @@ export function SettingsAgentPanel() {
     }
   };
 
+  if (loading) {
+    return <Loading variant="inline" message="正在加载 Agent 设置…" />;
+  }
+
+  const selectValue = providerOptions.some((item) => item.id === defaultProviderId)
+    ? defaultProviderId
+    : (providerOptions[0]?.id || 'ntq');
+
+  const selectOptions = providerOptions.map((item) => ({
+    value: item.id,
+    label: item.label,
+  }));
+
   return (
-    <Stack spacing={3}>
-      <Box>
-        <Typography variant="subtitle1" fontWeight={700}>
-          Agent 配置
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+    <Section className="settings-agent" gap="lg">
+      <Section className="settings-agent__channel" gap="md">
+        <Heading level="h3" gap="none">默认 AI 通道</Heading>
+        <p className="ntq-muted">
           管理助理的默认通道、跨会话偏好与补充说明。密钥仍在「AI 配置」；会员凭证在「会员」。
-        </Typography>
-      </Box>
+          打开聊天框且尚未手动切换时使用本通道；可随时在聊天框里改选。
+        </p>
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        {saveError ? <Message status="error">{saveError}</Message> : null}
+        {saveOk ? <Message status="success">{saveOk}</Message> : null}
+        {clearError ? <Message status="error">{clearError}</Message> : null}
+        {clearOk ? <Message status="success">{clearOk}</Message> : null}
+        <UiSelect
+          label="默认通道"
+          value={selectValue}
+          onChange={(e) => setDefaultProviderId(e.target.value)}
+          options={selectOptions}
+        />
+      </Section>
 
-      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
-      {saveError ? <Alert severity="error">{saveError}</Alert> : null}
-      {saveOk ? <Alert severity="success">{saveOk}</Alert> : null}
-      {clearError ? <Alert severity="error">{clearError}</Alert> : null}
-      {clearOk ? <Alert severity="success">{clearOk}</Alert> : null}
+      <Section className="settings-agent__prefs" gap="md">
+        <Heading level="h3" gap="none">跨会话偏好</Heading>
+        <p className="ntq-muted">
+          每条会长期带入对话（最多
+          {preferenceMaxRules}
+          条，每条
+          {preferenceMaxChars}
+          字）。清空会话不会删这些。
+        </p>
+        {preferences.length === 0 ? (
+          <p className="ntq-muted">还没有偏好。</p>
+        ) : (
+          <ul className="settings-agent__pref-list">
+            {preferences.map((rule) => (
+              <li key={rule} className="settings-agent__pref-row">
+                <span className="settings-agent__pref-text">{rule}</span>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleRemovePreference(rule)}
+                >
+                  删除
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="settings-agent__pref-add">
+          <UiTextField
+            label="新增偏好"
+            placeholder="例如：回答尽量简短"
+            value={draftRule}
+            onChange={(e) => setDraftRule(e.target.value.slice(0, preferenceMaxChars))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddPreference();
+              }
+            }}
+            hint={`${draftRule.length}/${preferenceMaxChars}`}
+          />
+          <Button
+            variant="primary"
+            disabled={!draftRule.trim() || preferences.length >= preferenceMaxRules}
+            onClick={handleAddPreference}
+          >
+            添加
+          </Button>
+        </div>
+      </Section>
 
-      {loading ? (
-        <PageLoadingState message="正在加载 Agent 设置…" minHeight="36vh" />
-      ) : (
-        <Stack spacing={3} sx={{ maxWidth: 560 }}>
-          <Stack spacing={1.5}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              默认 AI 通道
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              打开聊天框且尚未手动切换时使用。可随时在聊天框里改选；密钥请到「AI 配置」填写。
-            </Typography>
-            <FormControl size="small" fullWidth>
-              <InputLabel id="agent-default-provider-label">默认通道</InputLabel>
-              <Select
-                labelId="agent-default-provider-label"
-                label="默认通道"
-                value={
-                  providerOptions.some((item) => item.id === defaultProviderId)
-                    ? defaultProviderId
-                    : (providerOptions[0]?.id || 'ntq')
-                }
-                onChange={(e) => setDefaultProviderId(e.target.value)}
-              >
-                {providerOptions.map((item) => (
-                  <MenuItem key={item.id} value={item.id}>
-                    {item.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Stack>
+      <Section className="settings-agent__context" gap="md">
+        <Heading level="h3" gap="none">补充说明</Heading>
+        <p className="ntq-muted">
+          追加到助理上下文（不会覆盖产品红线）。适合写风格或常用约定，最多
+          {' '}
+          {contextPromptMaxChars}
+          {' '}
+          字。
+        </p>
+        <UiTextArea
+          label="补充说明"
+          labelPlacement="none"
+          rows={4}
+          value={contextPrompt}
+          onChange={(e) => setContextPrompt(e.target.value.slice(0, contextPromptMaxChars))}
+          placeholder="例如：优先用中文解释；涉及回测先确认区间。"
+          hint={`${contextPrompt.length}/${contextPromptMaxChars}`}
+          aria-label="补充说明"
+        />
+      </Section>
 
-          <Stack spacing={1.5}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              跨会话偏好
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              每条会长期带入对话（最多
-              {preferenceMaxRules}
-              条，每条
-              {preferenceMaxChars}
-              字）。清空会话不会删这些。
-            </Typography>
-            {preferences.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                还没有偏好。
-              </Typography>
-            ) : (
-              <Stack spacing={0.75}>
-                {preferences.map((rule) => (
-                  <Stack
-                    key={rule}
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    sx={{
-                      py: 0.5,
-                      borderBottom: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ flex: 1 }}>
-                      {rule}
-                    </Typography>
-                    <Button size="small" onClick={() => handleRemovePreference(rule)}>
-                      删除
-                    </Button>
-                  </Stack>
-                ))}
-              </Stack>
-            )}
-            <Stack direction="row" spacing={1} alignItems="flex-start">
-              <TextField
-                size="small"
-                fullWidth
-                label="新增偏好"
-                placeholder="例如：回答尽量简短"
-                value={draftRule}
-                onChange={(e) => setDraftRule(e.target.value.slice(0, preferenceMaxChars))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddPreference();
-                  }
-                }}
-                helperText={`${draftRule.length}/${preferenceMaxChars}`}
-              />
-              <Button
-                variant="outlined"
-                sx={{ mt: '2px', flexShrink: 0 }}
-                disabled={!draftRule.trim() || preferences.length >= preferenceMaxRules}
-                onClick={handleAddPreference}
-              >
-                添加
-              </Button>
-            </Stack>
-          </Stack>
+      <Section className="settings-agent__session" gap="md">
+        <Heading level="h3" gap="none">会话</Heading>
+        <p className="ntq-muted">
+          清空本机当前会话的对话记录与局部任务状态。不会删除跨会话偏好、策略代码或回测报告。
+        </p>
+        <div className="settings-agent__actions">
+          <Button
+            variant="danger"
+            disabled={clearBusy || saving}
+            onClick={handleClearSession}
+          >
+            {clearBusy ? '清空中…' : '清空本机会话'}
+          </Button>
+        </div>
+      </Section>
 
-          <Stack spacing={1.5}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              补充说明
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              追加到助理上下文（不会覆盖产品红线）。适合写风格或常用约定，最多
-              {' '}
-              {contextPromptMaxChars}
-              {' '}
-              字。
-            </Typography>
-            <TextField
-              size="small"
-              fullWidth
-              multiline
-              minRows={4}
-              value={contextPrompt}
-              onChange={(e) => setContextPrompt(e.target.value.slice(0, contextPromptMaxChars))}
-              placeholder="例如：优先用中文解释；涉及回测先确认区间。"
-              helperText={`${contextPrompt.length}/${contextPromptMaxChars}`}
-            />
-          </Stack>
-
-          <Stack spacing={1.5}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              会话
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              清空本机当前会话的对话记录与局部任务状态。不会删除跨会话偏好、策略代码或回测报告。
-            </Typography>
-            <Box>
-              <Button
-                variant="outlined"
-                color="inherit"
-                disabled={clearBusy || saving}
-                onClick={handleClearSession}
-              >
-                {clearBusy ? '清空中…' : '清空本机会话'}
-              </Button>
-            </Box>
-          </Stack>
-
-          <Box>
-            <Button variant="contained" onClick={handleSave} disabled={saving}>
-              {saving ? '保存中…' : '保存 Agent 设置'}
-            </Button>
-            <Button sx={{ ml: 1 }} variant="outlined" onClick={load} disabled={saving || clearBusy}>
-              重新读取
-            </Button>
-          </Box>
-        </Stack>
-      )}
-    </Stack>
+      <Section className="settings-agent__form-actions" gap="md">
+        <div className="settings-agent__actions">
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? '保存中…' : '保存 Agent 设置'}
+          </Button>
+          <Button
+            variant="glass"
+            icon="refresh"
+            iconSize="sm"
+            onClick={load}
+            disabled={saving || clearBusy}
+          >
+            重新读取
+          </Button>
+        </div>
+      </Section>
+    </Section>
   );
 }

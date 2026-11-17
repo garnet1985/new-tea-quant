@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import EditorFieldLabel from './editorFieldLabel';
 import {
   Box,
@@ -216,7 +216,7 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
         <Button
           size="small"
           variant="outlined"
-          startIcon={<NtqIcon name="add" size={18} />}
+          startIcon={<Icon name="add" size={18} />}
           onClick={addItem}
           disabled={!canAdd}
         >
@@ -239,7 +239,7 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
                       size="small"
                       variant="outlined"
                       color="error"
-                      startIcon={<NtqIcon name="delete" size={18} />}
+                      startIcon={<Icon name="delete" size={18} />}
                       onClick={() => removeItem(index)}
                       disabled={!canRemove}
                     >

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import {
   Alert,
   Box,
@@ -144,7 +144,7 @@ function DictParserToolbar({
     <Button
       size="small"
       variant="outlined"
-      startIcon={<NtqIcon name="delete" size={18} />}
+      startIcon={<Icon name="delete" size={18} />}
       onClick={onCollapse}
     >
       回到侧边栏
@@ -153,7 +153,7 @@ function DictParserToolbar({
     <Button
       size="small"
       variant="outlined"
-      startIcon={<NtqIcon name="add" size={18} />}
+      startIcon={<Icon name="add" size={18} />}
       onClick={onExpand}
     >
       在大窗口编辑

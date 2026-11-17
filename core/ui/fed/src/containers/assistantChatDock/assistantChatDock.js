@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { IconButton } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import RainbowButton from 'views/rainbowButton';
 import AssistantTypewriter from './assistantTypewriter';
 import PendingStream from './pendingStream';
@@ -477,7 +477,7 @@ function AssistantChatDock() {
                 size="small"
                 disableRipple
               >
-                <NtqIcon name="cancel" size={18} tone="muted" />
+                <Icon name="cancel" size={18} tone="muted" />
               </IconButton>
             </div>
           </header>

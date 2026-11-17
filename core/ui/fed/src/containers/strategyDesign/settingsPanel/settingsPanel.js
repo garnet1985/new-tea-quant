@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -85,7 +85,7 @@ function SectionAccordion({
       TransitionProps={{ timeout: 0, unmountOnExit: false }}
       data-ntq-help={helpTarget || undefined}
     >
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+      <AccordionSummary expandIcon={<Icon name="expandMore" size={24} />}>
         {summaryTitle}
       </AccordionSummary>
       <AccordionDetails>{children}</AccordionDetails>

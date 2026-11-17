@@ -7,14 +7,14 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from '../../views/ntqIcon';
+import Icon from '../../views/ntqIcon';
 import { progressRatio } from 'service/progress/ratio';
 
 function stateIcon(row, runningStep) {
   if (runningStep && row.id === runningStep) {
     return (
       <Stack direction="row" spacing={1} alignItems="center" className="setup-step-state">
-        <NtqIcon name="refresh" size={20} spin />
+        <Icon name="refresh" size={20} spin />
         <Typography variant="body2">执行中...</Typography>
       </Stack>
     );
@@ -22,7 +22,7 @@ function stateIcon(row, runningStep) {
   if (row.state === '已完成') {
     return (
       <Stack direction="row" spacing={1} alignItems="center">
-        <NtqIcon name="success" size={20} tone="success" />
+        <Icon name="success" size={20} tone="success" />
         <Typography variant="body2">已完成</Typography>
       </Stack>
     );
@@ -30,7 +30,7 @@ function stateIcon(row, runningStep) {
   if (row.state === '失败') {
     return (
       <Stack direction="row" spacing={1} alignItems="center">
-        <NtqIcon name="cancel" size={20} tone="error" />
+        <Icon name="cancel" size={20} tone="error" />
         <Typography variant="body2">失败</Typography>
       </Stack>
     );
@@ -38,14 +38,14 @@ function stateIcon(row, runningStep) {
   if (row.state === '待输入') {
     return (
       <Stack direction="row" spacing={1} alignItems="center">
-        <NtqIcon name="radioUnchecked" size={20} tone="warning" />
+        <Icon name="radioUnchecked" size={20} tone="warning" />
         <Typography variant="body2">待输入</Typography>
       </Stack>
     );
   }
   return (
     <Stack direction="row" spacing={1} alignItems="center">
-      <NtqIcon name="radioUnchecked" size={20} tone="disabled" />
+      <Icon name="radioUnchecked" size={20} tone="disabled" />
       <Typography variant="body2">{row.state}</Typography>
     </Stack>
   );

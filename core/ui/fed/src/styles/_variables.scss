@@ -1,13 +1,23 @@
-// NTQ Sass 编译期变量（视区等；运行时可覆盖的 token 见 _tokens.scss）
-// 在页面/组件的 scss 中通过 @use '../../styles/variables' as *; 引用（按目录深度调整 ../）
+// =============================================================================
+// TODO(deprecate / 淘汰)：Sass 编译期变量
+// -----------------------------------------------------------------------------
+// 目标：全站只保留 CSS 变量两套 —— `--ui-*`（通用）与 `--ntq-*`（产品壳）。
+// 规则：
+// - `src/ui/**`、`src/ntq-ui/**`、已迁移页（如 settings）**禁止** `@use` 本文件
+//   （含旧路径 shim `src/ui/ntq`）
+// - 新代码禁止新增 `$ntq-*`
+// - legacy（views / 未迁 containers / pages）可暂用；替换时改为 `var(--…)`，
+//   `@media` 写字面量并注释 sync 对应 CSS 变量（media 不能可靠读自定义属性）
+// 权威数值：`_ui-tokens.scss` / `_ntq-tokens.scss`
+// =============================================================================
 
-// 视区与主内容
-$ntq-header-height: 64px; // 与 .ntq-app-header__toolbar 一致
-$ntq-member-strip-height: 36px; // header 内容区右下角的会员条
-$ntq-page-bg-height: clamp(350px, 50vh, 450px); // 顶栏下方装饰背景高度
-$ntq-body-min-width: 1280px; // 页面最小宽度（窄于此时出现横向滚动条）
-$ntq-content-width: 88vw; // 主内容区、header inner、footer inner 共用相对视口宽度
-$ntq-content-max-width: 1920px; // 超宽屏下内容不无限变宽，可按需再调
+// 与 --ntq-header-height 等同步（仅 legacy）
+$ntq-header-height: 64px;
+$ntq-member-strip-height: 36px;
+$ntq-page-bg-height: clamp(350px, 50vh, 450px);
+$ntq-body-min-width: 1280px;
+$ntq-content-width: 88vw;
+$ntq-content-max-width: 1920px;
 
-// Column 等窄屏堆叠断点（媒体查询无法直接用 CSS 变量，故放 Sass）
+// sync: --ui-layout-stack-below（Column 等已改为字面量 800px）
 $ntq-layout-stack-below: 800px;

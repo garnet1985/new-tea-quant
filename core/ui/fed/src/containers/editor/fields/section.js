@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -20,7 +20,7 @@ function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNod
       disableGutters
       TransitionProps={{ timeout: 0, unmountOnExit: false }}
     >
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+      <AccordionSummary expandIcon={<Icon name="expandMore" size={24} />}>
         <Typography component="span" fontWeight={600}>
           {node.label}
         </Typography>

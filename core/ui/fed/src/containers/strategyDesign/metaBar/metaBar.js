@@ -6,7 +6,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import StrategyMetaDetailText from 'views/strategyMetaDetailText';
 import { getStrategyListPath } from 'containers/strategyCategory';
 import { formatGoalSummaryLines, resolveStrategyShortLabel } from 'containers/strategySettings';
@@ -96,7 +96,7 @@ function StrategyDesignMetaBar() {
               variant="outlined"
               size="small"
               className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-              startIcon={<NtqIcon name="arrowBack" size={16} tone="muted" />}
+              startIcon={<Icon name="arrowBack" size={16} tone="muted" />}
             >
               选择其他策略
             </Button>
@@ -110,7 +110,7 @@ function StrategyDesignMetaBar() {
                   size="small"
                   onClick={wb.handleRevealStrategyFolder}
                   className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-                  startIcon={<NtqIcon name="folderOpen" size={16} tone="muted" />}
+                  startIcon={<Icon name="folderOpen" size={16} tone="muted" />}
                   title="在文件管理器中打开策略目录"
                   data-ntq-help="strategy-open"
                 >
@@ -129,7 +129,7 @@ function StrategyDesignMetaBar() {
                   disabled={wb.disableMetaActions}
                   onClick={wb.openMoreVersionsDialog}
                   className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-                  startIcon={<NtqIcon name="history" size={16} tone="muted" />}
+                  startIcon={<Icon name="history" size={16} tone="muted" />}
                   data-ntq-help="strategy-history"
                 >
                   恢复到历史版本
@@ -147,7 +147,7 @@ function StrategyDesignMetaBar() {
                   disabled={wb.packageExporting}
                   onClick={wb.handleExportStrategyPackage}
                   className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
-                  startIcon={<NtqIcon name="download" size={16} tone="muted" />}
+                  startIcon={<Icon name="download" size={16} tone="muted" />}
                   data-ntq-help="strategy-export"
                 >
                   {wb.packageExporting ? '导出中…' : '导出策略'}

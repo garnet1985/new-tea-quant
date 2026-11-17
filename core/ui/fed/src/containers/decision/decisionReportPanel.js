@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import { fetchDecisionReport } from '../../api/decisionApi';
 import InlineLoadingState from '../../views/inlineLoadingState';
-import NtqButton from 'views/ntqButton';
+import Button from 'views/ntqButton';
 import { isHttpStatusError } from 'service/request';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -162,13 +162,13 @@ export default function DecisionReportPanel({
           决策模拟回测报告 · #{sessionId}
         </Typography>
         {canCompare ? (
-          <NtqButton
+          <Button
             type="button"
             variant="attention"
             onClick={() => setCompareOpen(true)}
           >
             对比结果
-          </NtqButton>
+          </Button>
         ) : null}
       </Stack>
       <CapitalAllocationReport

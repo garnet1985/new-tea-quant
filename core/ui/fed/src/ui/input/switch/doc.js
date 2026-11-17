@@ -1,5 +1,5 @@
 const doc = {
-  summary: '开关。默认标签在左、开关在右；onChange 为 e.target.checked。与 Checkbox（勾选确认）场景不同。',
+  summary: '开关。默认标签在左、开关紧随其后（居左贴齐，不拉开）；onChange 为 e.target.checked。与 Checkbox（勾选确认）场景不同。',
   params: [
     {
       name: 'label',

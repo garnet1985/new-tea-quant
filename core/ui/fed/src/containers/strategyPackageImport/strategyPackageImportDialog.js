@@ -22,7 +22,7 @@ import {
   previewStrategyPackageImport,
 } from 'api/strategyApi';
 import { useAsyncAction } from 'service/useAsyncAction';
-import NtqButton from 'views/ntqButton';
+import Button from 'views/ntqButton';
 import './style.scss';
 
 const POLICY_OPTIONS = [
@@ -113,7 +113,7 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
           <Typography variant="body2" color="text.secondary">
             仅支持策略交流包（策略目录及依赖的 tag / adapter），文件格式为 .zip。
           </Typography>
-          <NtqButton
+          <Button
             variant="glass"
             component="label"
             disabled={busy}
@@ -121,7 +121,7 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
           >
             选择策略包文件
             <input type="file" accept=".zip,application/zip" hidden onChange={handleFileChange} />
-          </NtqButton>
+          </Button>
           {file ? (
             <Typography variant="body2" color="text.secondary">
               已选：
@@ -173,30 +173,30 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
         </Stack>
       </DialogContent>
       <DialogActions className="strategy-package-import-dialog__actions">
-        <NtqButton
+        <Button
           variant="ghost"
           onClick={onClose}
           disabled={busy}
           className="strategy-package-import-dialog__btn"
         >
           取消
-        </NtqButton>
-        <NtqButton
+        </Button>
+        <Button
           variant="glass"
           onClick={handlePreview}
           disabled={!file || busy}
           className="strategy-package-import-dialog__btn"
         >
           预览
-        </NtqButton>
-        <NtqButton
+        </Button>
+        <Button
           variant="primary"
           onClick={handleImport}
           disabled={!file || busy}
           className="strategy-package-import-dialog__btn strategy-package-import-dialog__btn--primary"
         >
           导入策略包
-        </NtqButton>
+        </Button>
       </DialogActions>
     </Dialog>
   );

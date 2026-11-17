@@ -1,5 +1,3 @@
-@use '../../../styles/variables' as *;
-
 .ntq-column {
   display: grid;
   width: 100%;
@@ -33,20 +31,20 @@
 }
 
 .ntq-column--sidebar {
-  grid-template-columns: var(--ntq-layout-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--ui-layout-sidebar-width) minmax(0, 1fr);
 }
 
 .ntq-column--sidebarEnd {
-  grid-template-columns: minmax(0, 1fr) var(--ntq-layout-sidebar-width);
+  grid-template-columns: minmax(0, 1fr) var(--ui-layout-sidebar-width);
 }
 
-.ntq-column--gap-none { gap: var(--ntq-space-none); }
-.ntq-column--gap-xxs { gap: var(--ntq-space-xxs); }
-.ntq-column--gap-xs { gap: var(--ntq-space-xs); }
-.ntq-column--gap-sm { gap: var(--ntq-space-sm); }
-.ntq-column--gap-md { gap: var(--ntq-space-md); }
-.ntq-column--gap-lg { gap: var(--ntq-space-lg); }
-.ntq-column--gap-xl { gap: var(--ntq-space-xl); }
+.ntq-column--gap-none { gap: var(--ui-space-none); }
+.ntq-column--gap-xxs { gap: var(--ui-space-xxs); }
+.ntq-column--gap-xs { gap: var(--ui-space-xs); }
+.ntq-column--gap-sm { gap: var(--ui-space-sm); }
+.ntq-column--gap-md { gap: var(--ui-space-md); }
+.ntq-column--gap-lg { gap: var(--ui-space-lg); }
+.ntq-column--gap-xl { gap: var(--ui-space-xl); }
 
 .ntq-column--align-stretch { align-items: stretch; }
 .ntq-column--align-start { align-items: start; }
@@ -55,16 +53,17 @@
 
 // 列间竖线（常与 gap="none" 搭配，如侧栏 | 主区）
 .ntq-column--divider-line > * + * {
-  border-left: 1px solid var(--ntq-divider-color);
+  border-left: 1px solid var(--ui-divider-color);
 }
 
-@media (max-width: $ntq-layout-stack-below) {
+// sync: --ui-layout-stack-below（@media 不能可靠使用 CSS 变量）
+@media (max-width: 800px) {
   .ntq-column:not(.ntq-column--no-stack) {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .ntq-column:not(.ntq-column--no-stack).ntq-column--divider-line > * + * {
     border-left: none;
-    border-top: 1px solid var(--ntq-divider-color);
+    border-top: 1px solid var(--ui-divider-color);
   }
 }

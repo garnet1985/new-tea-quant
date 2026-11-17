@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Button, IconButton } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 
 function GlobalHelperOverlay({
   hole = null,
@@ -50,7 +50,7 @@ function GlobalHelperOverlay({
             size="small"
             disableRipple
           >
-            <NtqIcon name="cancel" size={18} />
+            <Icon name="cancel" size={18} />
           </IconButton>
         </div>
         {title ? <h2 className="ntq-global-helper__title">{title}</h2> : null}

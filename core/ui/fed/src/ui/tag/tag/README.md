@@ -15,7 +15,7 @@ import Tag from 'ui/tag/tag';
 |------|--------|------|
 | `status` | `success` `error` `warning` `info` `neutral` | `neutral` |
 | `color` | `green` `error` `warning` `muted` `cyan` `violet` | — |
-| `variant` | `soft`（描边+半透明底） `outline` `solid`（同色实心） | `soft` |
+| `variant` | `soft` / `outline` / `solid` | `soft` | 产品：未达成=`outline`；已达成与分类标签=`solid` |
 | `size` | `sm` `md` | `sm` |
 | `icon` | NtqIcon 名 / 节点 | — |
 | `onDelete` | `() => void` | — |

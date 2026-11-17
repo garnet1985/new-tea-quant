@@ -28,15 +28,23 @@
   margin-right: 0;
 }
 
-// Outlined input: default glass surface + consistent height/padding
+// Outlined input: default solid dark surface（辨识度）；glass 需显式 surface="glass"
 .MuiOutlinedInput-root {
   border-radius: 5px;
-  background: var(--ntq-white-03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--ntq-input-solid-bg, #12121f);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   min-height: 40px;
   align-items: center;
   transition: background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+
+  &:hover:not(.Mui-disabled) {
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &.Mui-disabled {
+    background: var(--ntq-input-solid-bg-disabled, #0e0e18);
+  }
 }
 
 .MuiOutlinedInput-notchedOutline {

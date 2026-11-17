@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import './style.scss';
+
+// @deprecated 顶栏请用 ntq-ui/appBrand。
 
 const HOME_PATH = '/welcome';
 
@@ -17,7 +19,7 @@ function AppBrand({ to = HOME_PATH, version = null }) {
       aria-label="返回 New Tea Quant 首页"
     >
       {logoFailed ? (
-        <NtqIcon name="tactic" size={50} />
+        <Icon name="tactic" size={50} />
       ) : (
         <Box
           component="img"

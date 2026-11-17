@@ -24,7 +24,7 @@ const doc = {
     '路径、键名、短代码：variant="code"。',
     '品牌强调短词：variant="rainbow"。',
     '句中青色强调：variant="accent"。',
-    '导航 / 外链：<a className="ntq-link">，可嵌 NtqIcon size="sm"。',
+    '导航 / 外链：<a className="ntq-link">，可嵌 Icon size="sm"。',
   ],
   antiPatterns: [
     '不要用 Text 包每一段普通正文。',

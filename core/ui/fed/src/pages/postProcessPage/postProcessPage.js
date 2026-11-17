@@ -27,10 +27,10 @@ import {
   updatePostProcessAdapters,
 } from '../../api/postProcessApi';
 import PageLayout from '../../views/pageLayout';
-import NtqButton from '../../views/ntqButton';
+import Button from '../../views/ntqButton';
 import Message from '../../views/message';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import NtqIcon from '../../views/ntqIcon';
+import Icon from '../../views/ntqIcon';
 import { showToast } from 'containers/toast';
 import './postProcessPage.scss';
 
@@ -204,7 +204,7 @@ function ProcessorEditDialog({
                   onClick={() => handleRemove(row.name)}
                   disabled={saving}
                 >
-                  <NtqIcon name="delete" size={18} />
+                  <Icon name="delete" size={18} />
                 </IconButton>
               </Stack>
               <Autocomplete
@@ -245,16 +245,16 @@ function ProcessorEditDialog({
             )}
             disabled={saving || availableToAdd.length === 0}
           />
-          <NtqButton onClick={handleAdd} disabled={saving || !addOption}>
+          <Button onClick={handleAdd} disabled={saving || !addOption}>
             添加
-          </NtqButton>
+          </Button>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <NtqButton variant="ghost" onClick={onClose} disabled={saving}>取消</NtqButton>
-        <NtqButton onClick={handleSave} disabled={saving}>
+        <Button variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
+        <Button onClick={handleSave} disabled={saving}>
           {saving ? '保存中…' : '保存'}
-        </NtqButton>
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -454,9 +454,9 @@ function PostProcessPage() {
       width: 140,
       sortable: false,
       renderCell: (params) => (
-        <NtqButton size="small" variant="glass" onClick={() => setEditTarget(params.row)}>
+        <Button size="small" variant="glass" onClick={() => setEditTarget(params.row)}>
           编辑步骤
-        </NtqButton>
+        </Button>
       ),
     },
   ]), [adaptersByName, handleToggle, togglingKey]);

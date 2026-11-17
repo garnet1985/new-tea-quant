@@ -9,7 +9,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import './style.scss';
 
 /**
@@ -80,7 +80,7 @@ function FeedbackPromptOverlay({
           aria-label="评价"
         >
           <ToggleButton value="up" aria-label="满意" className="feedback-prompt-overlay__rate-btn">
-            <NtqIcon
+            <Icon
               name="sentimentSatisfied"
               size={18}
               tone={rating === 'up' ? 'warning' : 'muted'}
@@ -89,7 +89,7 @@ function FeedbackPromptOverlay({
             <span>满意</span>
           </ToggleButton>
           <ToggleButton value="down" aria-label="不满意" className="feedback-prompt-overlay__rate-btn">
-            <NtqIcon
+            <Icon
               name="sentimentDissatisfied"
               size={18}
               tone={rating === 'down' ? 'warning' : 'muted'}

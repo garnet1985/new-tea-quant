@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import NtqIcon from 'ui/icon/ntqIcon';
+import Icon from 'ui/icon/icon';
 import { MONTH_CALENDAR_DENSITY_TOKENS, pickToken } from 'ui/tokens';
 import {
   WEEKDAY_HEADS_ZH,
@@ -70,7 +70,7 @@ function MonthCalendar({
             disabled={typeof onMonthChange !== 'function'}
             onClick={() => go(-1)}
           >
-            <NtqIcon name="arrowBack" size="sm" />
+            <Icon name="arrowBack" size="sm" />
           </button>
           <div className="ntq-month-calendar__title">{monthTitle(y, m)}</div>
           <button
@@ -80,7 +80,7 @@ function MonthCalendar({
             disabled={typeof onMonthChange !== 'function'}
             onClick={() => go(1)}
           >
-            <NtqIcon name="chevronRight" size="sm" />
+            <Icon name="chevronRight" size="sm" />
           </button>
         </div>
       ) : (

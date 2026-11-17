@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import PythonDictEditor from 'ui/ntq/pythonDictEditor';
-import AppNav from 'ui/ntq/appNav';
-import AppBrand from 'ui/ntq/appBrand';
-import PageBanner from 'ui/ntq/pageBanner';
-import AppBreadcrumbs from 'ui/ntq/appBreadcrumbs';
-import ReportBlock from 'ui/ntq/reportBlock';
+import PythonDictEditor from 'ntq-ui/pythonDictEditor';
+import AppNav from 'ntq-ui/appNav';
+import AppBrand from 'ntq-ui/appBrand';
+import AppVersionMark from 'ntq-ui/appVersion';
+import PageBanner from 'ntq-ui/pageBanner';
+import AppBreadcrumbs from 'ntq-ui/appBreadcrumbs';
+import ReportBlock from 'ntq-ui/reportBlock';
+import PageLayout from 'ntq-ui/pageLayout';
+import MemberStrip from 'ntq-ui/memberStrip';
+import ProBadge from 'ntq-ui/proBadge';
+import BecomeMemberLink from 'ntq-ui/becomeMemberLink';
 import MetricCard from 'ui/metric/metricCard';
 import MetricGrid from 'ui/metric/metricGrid';
-import NtqButton from 'ui/button/ntqButton';
+import Button from 'ui/button/button';
 import Text from 'ui/text/text';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
 
@@ -116,6 +121,35 @@ function AppNavShowcase() {
   );
 }
 
+function AppVersionShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="版本号">
+          <AppVersionMark label="v0.3.0" />
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小">
+        <SampleNA>
+          字号
+          {' '}
+          <Text variant="code">font-xs</Text>
+          。
+        </SampleNA>
+      </SampleDim>
+      <SampleDim title="3. 间距">
+        <SampleNA>由 AppBrand meta 行排布。</SampleNA>
+      </SampleDim>
+      <SampleDim title="4. 颜色">
+        <SampleNA>muted 字色。</SampleNA>
+      </SampleDim>
+      <SampleDim title="5. 外观">
+        <SampleNA>纯 span；无边框。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 function AppBrandShowcase() {
   return (
     <Showcase>
@@ -123,7 +157,7 @@ function AppBrandShowcase() {
         <SampleRow label="徽标 + 彩虹字（DemoLink 不跳转）" block>
           <AppBrand
             linkComponent={DemoLink}
-            version={<span className="ntq-caption">v0.3.0</span>}
+            version={<AppVersionMark label="v0.3.0" />}
           />
         </SampleRow>
       </SampleDim>
@@ -172,9 +206,9 @@ function PageBannerShowcase() {
             title="数据源"
             description="查看同步状态与运行入口。"
             rightSlot={(
-              <NtqButton variant="glass" icon="refresh" size="small">
+              <Button variant="glass" icon="refresh" size="small">
                 刷新
-              </NtqButton>
+              </Button>
             )}
           />
         </SampleRow>
@@ -292,9 +326,9 @@ function ReportBlockShowcase() {
           <ReportBlock
             title="涨跌停"
             action={(
-              <NtqButton variant="ghost" size="small" icon="refresh">
+              <Button variant="ghost" size="small" icon="refresh">
                 刷新
-              </NtqButton>
+              </Button>
             )}
           >
             <p className="ntq-muted" style={{ margin: 0 }}>
@@ -411,11 +445,110 @@ function PythonDictEditorShowcase() {
   );
 }
 
+function PageLayoutShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="面包屑 + Banner + 正文" block>
+          <PageLayout
+            breadcrumbsItems={[{ label: '制定策略', to: '#' }]}
+            breadcrumbsCurrent="设置"
+            bannerTitle="设置"
+            bannerDescription="系统安装与会员等。"
+          >
+            <p className="ntq-muted" style={{ margin: 0 }}>正文区域</p>
+          </PageLayout>
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>跟 Banner / 面包屑。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>页 padding md；正文上边距 0.75rem。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色"><SampleNA>无额外表面。</SampleNA></SampleDim>
+      <SampleDim title="5. 外观"><SampleNA>loading 时用 Loading page。</SampleNA></SampleDim>
+    </Showcase>
+  );
+}
+
+function MemberStripShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="已登录 + Pro + 猫粮（相对定位示意）" block>
+          <div style={{ position: 'relative', height: '3rem', borderBottom: '1px solid var(--ntq-white-12)' }}>
+            <MemberStrip
+              signedIn
+              name="茶茶"
+              isPro
+              catfoodText="12.50"
+              chipTitle="示意"
+              linkComponent={DemoLink}
+            />
+          </div>
+        </SampleRow>
+        <SampleRow label="未登录" block>
+          <div style={{ position: 'relative', height: '3rem', borderBottom: '1px solid var(--ntq-white-12)' }}>
+            <MemberStrip guestReason="missing" registerUrl="https://example.com" />
+          </div>
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>挂角高 36px；头像 24px。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>chip 内 gap sm。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色"><SampleNA>Pro 用 ProBadge；猫粮值青色。</SampleNA></SampleDim>
+      <SampleDim title="5. 外观"><SampleNA>绝对定位挂在顶栏右下；container 负责 fetch。</SampleNA></SampleDim>
+    </Showcase>
+  );
+}
+
+function ProBadgeShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="默认">
+          <ProBadge />
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>约 10px 字 + pill。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>不适用。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色"><SampleNA>品牌彩虹字 + 描边。</SampleNA></SampleDim>
+      <SampleDim title="5. 外观"><SampleNA>勿在业务复制 SCSS。</SampleNA></SampleDim>
+    </Showcase>
+  );
+}
+
+function BecomeMemberLinkShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label='variant="button" | "link"'>
+          <BecomeMemberLink href="https://example.com/register" />
+          <BecomeMemberLink href="https://example.com/register" variant="link" />
+        </SampleRow>
+        <SampleRow label="href 为空：不渲染">
+          <BecomeMemberLink href="" />
+          <span className="ntq-muted">（左侧应为空）</span>
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>跟随 Button / 行内链。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>不适用。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色"><SampleNA>button=glass；link=.ntq-link。</SampleNA></SampleDim>
+      <SampleDim title="5. 外观">
+        <SampleNA>
+          外链示意：button 自动后置 chevronRight；link 显式后置图标。href 由应用传入，组件不 fetch。
+        </SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const ntqShowcases = {
   appNav: AppNavShowcase,
   appBrand: AppBrandShowcase,
+  appVersion: AppVersionShowcase,
   pageBanner: PageBannerShowcase,
   appBreadcrumbs: AppBreadcrumbsShowcase,
+  pageLayout: PageLayoutShowcase,
+  memberStrip: MemberStripShowcase,
+  proBadge: ProBadgeShowcase,
+  becomeMemberLink: BecomeMemberLinkShowcase,
   reportBlock: ReportBlockShowcase,
   pythonDictEditor: PythonDictEditorShowcase,
 };

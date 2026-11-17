@@ -17,7 +17,7 @@ const doc = {
       name: 'maxWidth',
       type: 'boolean',
       defaultValue: 'true',
-      description: '默认约 280px；false 去掉。',
+      description: '默认约 320px；false 去掉。',
     },
   ],
   scenarios: [

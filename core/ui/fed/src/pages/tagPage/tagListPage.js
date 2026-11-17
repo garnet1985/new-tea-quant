@@ -23,12 +23,12 @@ import {
 } from '../../api/tagApi';
 import PageLayout from '../../views/pageLayout';
 import SearchField from '../../views/searchField';
-import NtqButton from '../../views/ntqButton';
+import Button from '../../views/ntqButton';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
-import NtqHelpTooltip from '../../views/ntqHelpTooltip';
+import HelpTooltip from '../../views/ntqHelpTooltip';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import NtqIcon from '../../views/ntqIcon';
+import Icon from '../../views/ntqIcon';
 import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
 import Message from '../../views/message';
@@ -186,7 +186,7 @@ function TagListPage() {
               {label}
             </Typography>
             {description ? (
-              <NtqHelpTooltip
+              <HelpTooltip
                 title={(
                   <StrategyDescriptionText
                     text={description}
@@ -307,7 +307,7 @@ function TagListPage() {
                   });
                 }}
               >
-                <NtqIcon name="monitoring" size={18} tone={computed ? '' : 'muted'} />
+                <Icon name="monitoring" size={18} tone={computed ? '' : 'muted'} />
               </IconButton>
             </span>
           </Tooltip>
@@ -324,7 +324,7 @@ function TagListPage() {
         const iconName = getTagUpdateModeIcon(mode);
         return (
           <Stack direction="row" spacing={0.75} alignItems="center">
-            <NtqIcon
+            <Icon
               name={iconName}
               size={18}
               tone="muted"
@@ -497,14 +497,14 @@ function TagListPage() {
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
           />
-          <NtqButton
+          <Button
             variant="glass"
             icon="refresh"
             onClick={load}
             disabled={loading || Boolean(runningTagId)}
           >
             刷新列表
-          </NtqButton>
+          </Button>
         </Stack>
 
         <Box className="tag-list-grid-body">

@@ -9,7 +9,7 @@
 | 普通段落 | `<p>` |
 | 次要说明 / 图注 / 字段名 | `.ntq-muted` / `.ntq-caption` / `.ntq-label` |
 | 行内文字链接 | `.ntq-link`（可嵌 `NtqIcon`；不是组件） |
-| 按钮样式的超链接 | `<NtqButton href>` / `component={Link}`（见 `ui/button/ntqButton`） |
+| 按钮样式的超链接 | `<NtqButton href>` / `component={Link}`（见 `ui/button/button`） |
 | 行内代码字符（路径、键名） | `<Text variant="code">` · 等宽青色，无底无边 |
 | 品牌彩虹字 | `<Text variant="rainbow">` |
 | 青色强调 | `<Text variant="accent">` |

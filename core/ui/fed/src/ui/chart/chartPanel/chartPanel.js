@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
-import NtqHelpTooltip from 'ui/message/ntqHelpTooltip';
+import HelpTooltip from 'ui/message/helpTooltip';
 import Loading from 'ui/progress/loading';
 import './style.scss';
 
@@ -52,7 +52,7 @@ function ChartPanel({
       {title != null && title !== false ? (
         <div className="ntq-chart-panel__title-row">
           <span className="ntq-chart-panel__title ntq-caption">{title}</span>
-          {tip ? <NtqHelpTooltip title={tip} /> : null}
+          {tip ? <HelpTooltip title={tip} /> : null}
         </div>
       ) : null}
       {note ? (

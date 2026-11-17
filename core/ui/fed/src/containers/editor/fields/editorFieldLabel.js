@@ -5,7 +5,7 @@ import TipLabel from 'views/tipLabel';
 /** 标签与下方控件（Select / Input 等）的间距（theme spacing 单位） */
 export const EDITOR_FIELD_LABEL_MB = 1;
 
-/** 与 Switch 行标签一致：``body2`` + 可选 ``NtqHelpTooltip`` */
+/** 与 Switch 行标签一致：``body2`` + 可选 ``HelpTooltip`` */
 export default function EditorFieldLabel({
   field,
   context = {},

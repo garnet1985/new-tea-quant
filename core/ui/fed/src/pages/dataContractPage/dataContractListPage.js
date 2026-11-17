@@ -16,7 +16,7 @@ import {
 } from '../../api/dataContractApi';
 import PageLayout from '../../views/pageLayout';
 import SearchField from '../../views/searchField';
-import NtqButton from '../../views/ntqButton';
+import Button from '../../views/ntqButton';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import Message from '../../views/message';
 import { showToast } from 'containers/toast';
@@ -180,14 +180,14 @@ function DataContractListPage() {
             value={nameQuery}
             onChange={(e) => setNameQuery(e.target.value)}
           />
-          <NtqButton
+          <Button
             variant="glass"
             icon="refresh"
             onClick={rediscover}
             disabled={busy}
           >
             {rediscovering ? '发现中…' : '重新发现'}
-          </NtqButton>
+          </Button>
         </Stack>
 
         <Box className="data-contract-list-grid-body">

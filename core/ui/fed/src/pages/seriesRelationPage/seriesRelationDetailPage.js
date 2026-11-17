@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageLayout from 'views/pageLayout';
-import NtqButton from 'views/ntqButton';
+import Button from 'views/ntqButton';
 import RainbowButton from 'views/rainbowButton';
 import EditorFieldLabel from 'containers/editor/fields/editorFieldLabel';
 import { showToast } from 'containers/toast';
@@ -367,14 +367,14 @@ function SeriesRelationDetailPage() {
       bannerTitle={displayName}
       bannerDescription={isNew ? `新建场景 · ${sceneKey}` : `key: ${sceneKey}`}
       bannerRightSlot={(
-        <NtqButton
+        <Button
           variant="glass"
           icon="arrowBack"
           component={RouterLink}
           to="/advanced/series-relation"
         >
           返回列表
-        </NtqButton>
+        </Button>
       )}
       loading={pageLoading}
       loadingMessage="正在加载场景…"
@@ -452,14 +452,14 @@ function SeriesRelationDetailPage() {
               )}
               label="生成分析报告"
             />
-            <NtqButton
+            <Button
               variant="primary"
               disabled={busy}
               onClick={handleSave}
               className="ntq-srel-save-btn"
             >
               {saving ? '保存中…' : '保存'}
-            </NtqButton>
+            </Button>
           </Stack>
         </Box>
 
@@ -475,7 +475,7 @@ function SeriesRelationDetailPage() {
             <Typography variant="subtitle2">
               系列（最多 {maxSeries}）
             </Typography>
-            <NtqButton
+            <Button
               size="small"
               variant="primary"
               icon="add"
@@ -483,7 +483,7 @@ function SeriesRelationDetailPage() {
               onClick={addSeries}
             >
               追加系列
-            </NtqButton>
+            </Button>
           </Stack>
           <div className="ntq-srel-summary-grid">
             {(draft.series || []).map((item, index) => (
@@ -564,8 +564,8 @@ function SeriesRelationDetailPage() {
           ) : null}
         </DialogContent>
         <DialogActions>
-          <NtqButton variant="ghost" onClick={closeEdit}>取消</NtqButton>
-          <NtqButton variant="primary" onClick={confirmEdit}>完成</NtqButton>
+          <Button variant="ghost" onClick={closeEdit}>取消</Button>
+          <Button variant="primary" onClick={confirmEdit}>完成</Button>
         </DialogActions>
       </Dialog>
     </PageLayout>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -16,7 +16,7 @@ import {
   Typography,
 } from '@mui/material';
 import SettingsAccordionTitle from 'views/settingsAccordionTitle';
-import NtqButton from 'views/ntqButton';
+import Button from 'views/ntqButton';
 import { VersionPickLabel, VersionPickerDialog, lookupVersionById } from 'containers/versionPick';
 import OpportunityEnumrateReport from './opportunityEnumerateReport';
 import PriceFactorReport from './priceFactorReport';
@@ -304,7 +304,7 @@ function StrategyReportPanel({
             className="ntq-stock-grid-overlay"
           >
             <Stack spacing={1} alignItems="center">
-              <NtqIcon name="refresh" size={60} className="ntq-stock-grid-overlay__icon" />
+              <Icon name="refresh" size={60} className="ntq-stock-grid-overlay__icon" />
               <Typography variant="body2" color="text.secondary">
                 此结果需要重新执行步骤才能看到结果，点击重新执行
               </Typography>
@@ -389,7 +389,7 @@ function StrategyReportPanel({
             {activeTabSectionTitle}
           </Typography>
           {showReportCompare ? (
-            <NtqButton
+            <Button
               variant="attention"
               className="ntq-report-section-head__compare"
               onClick={() => {
@@ -398,7 +398,7 @@ function StrategyReportPanel({
               }}
             >
               对比结果
-            </NtqButton>
+            </Button>
           ) : null}
         </Stack>
       ) : null}
@@ -444,7 +444,7 @@ function StrategyReportPanel({
             onClick={() => setCompareDialogOpen(false)}
             edge="end"
           >
-            <NtqIcon name="cancel" size={18} />
+            <Icon name="cancel" size={18} />
           </IconButton>
         </DialogTitle>
         <DialogContent
@@ -614,7 +614,7 @@ function StrategyReportPanel({
             context={{ defaultTooltipShine: true }}
           />
           {showReportCompare && lockedTab ? (
-            <NtqButton
+            <Button
               variant="attention"
               className="ntq-report-panel__embedded-compare"
               data-ntq-help="strategy-report-compare"
@@ -624,7 +624,7 @@ function StrategyReportPanel({
               }}
             >
               对比结果
-            </NtqButton>
+            </Button>
           ) : null}
         </Stack>
         {reportPanelBody}
@@ -635,7 +635,7 @@ function StrategyReportPanel({
 
   return (
     <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+      <AccordionSummary expandIcon={<Icon name="expandMore" size={24} />}>
         <SettingsAccordionTitle
           title={REPORT_PANEL_TITLE}
           tooltip={REPORT_PANEL_TOOLTIP}

@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqIcon from 'ui/icon/ntqIcon';
+import Icon from 'ui/icon/icon';
 import {
   MESSAGE_COLORS,
   MESSAGE_STATUSES,
@@ -67,7 +67,7 @@ function Message({
     if (icon != null && icon !== false) {
       if (typeof icon === 'string') {
         iconNode = (
-          <NtqIcon
+          <Icon
             name={icon}
             size="xl"
             tone={COLOR_ICON_TONE[colorToken] || ''}
@@ -80,7 +80,7 @@ function Message({
   } else {
     const preset = STATUS_ICON[statusToken];
     iconNode = (
-      <NtqIcon name={preset.name} size="xl" tone={preset.tone} />
+      <Icon name={preset.name} size="xl" tone={preset.tone} />
     );
   }
 
@@ -112,7 +112,7 @@ function Message({
           aria-label="关闭"
           onClick={onClose}
         >
-          <NtqIcon name="cancel" size="md" tone="muted" />
+          <Icon name="cancel" size="md" tone="muted" />
         </button>
       ) : null}
     </div>

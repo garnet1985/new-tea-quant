@@ -1,5 +1,5 @@
 const doc = {
-  summary: '表单字段壳：标签 above / inline / none，可选 tip（NtqHelpTooltip）、hint、error。标签/控件/错误文案间距为 space sm。各输入控件内部可组合本组件。',
+  summary: '表单字段壳：标签 above / inline / none，可选 tip（HelpTooltip）、hint、error。标签/控件/错误文案间距为 space sm。各输入控件内部可组合本组件。',
   params: [
     {
       name: 'label',

@@ -1,8 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Box } from '@mui/material';
-import AppBreadcrumbs from '../../views/appBreadcrumbs';
-import '../../views/pageLayout/style.scss';
+import AppBreadcrumbs from 'ntq-ui/appBreadcrumbs';
+import 'ntq-ui/pageLayout/style.scss';
 import './strategyDesignShell.scss';
 
 /** 制定策略页壳：仅面包屑 + 正文（无 PageBanner） */

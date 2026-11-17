@@ -6,6 +6,7 @@ import {
 import Field from 'ui/input/field';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
+import { inputChromeClass } from 'ui/input/controlChrome';
 import '../_control.scss';
 
 function emitChange(onChange, name, next) {
@@ -62,8 +63,10 @@ function Autocomplete({
   noOptionsText = '无匹配项',
   className = '',
   fullWidth = true,
-  /** 默认约 280px；false 去掉上限 */
+  /** 默认约 320px；false 去掉上限 */
   maxWidth = true,
+  surface = 'solid',
+  radius = 'sm',
   ...rest
 }) {
   const controlId = useControlId(id);
@@ -71,6 +74,7 @@ function Autocomplete({
   const list = useMemo(() => (Array.isArray(options) ? options : []), [options]);
   const hasFieldChrome = placement !== 'none' || tip || hint || error || label;
   const widthClass = maxWidth ? 'ntq-input--capped' : 'ntq-input--fluid';
+  const chromeClass = inputChromeClass({ surface, radius });
 
   const selected = useMemo(() => {
     if (multiple) {
@@ -112,6 +116,7 @@ function Autocomplete({
       className={[
         'ntq-autocomplete',
         widthClass,
+        chromeClass,
         !hasFieldChrome ? className : '',
       ].filter(Boolean).join(' ')}
       fullWidth={fullWidth}

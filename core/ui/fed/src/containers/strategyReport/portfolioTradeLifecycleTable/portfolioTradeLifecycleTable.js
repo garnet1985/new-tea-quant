@@ -9,7 +9,7 @@ import {
   Typography,
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import NtqIcon from 'views/ntqIcon';
+import Icon from 'views/ntqIcon';
 import ReportStockSampleGrid from 'views/reportStockSampleGrid';
 import { SectionBlock } from 'views/sectionBlock';
 import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
@@ -58,7 +58,7 @@ function TradeChartOpenButton({ onClick, disabled = false }) {
         },
       }}
     >
-      <NtqIcon name="monitoring" size={18} tone={disabled ? 'muted' : ''} />
+      <Icon name="monitoring" size={18} tone={disabled ? 'muted' : ''} />
     </IconButton>
   );
 }
@@ -274,7 +274,7 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
           </Typography>
         </Typography>
         <IconButton aria-label="关闭" onClick={() => setChartOpen(false)} edge="end">
-          <NtqIcon name="cancel" size={18} />
+          <Icon name="cancel" size={18} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1.5 }}>

@@ -11,8 +11,8 @@ import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
 import ReactECharts from 'echarts-for-react';
 import { fetchTagVisualization } from 'api/tagApi';
-import NtqIcon from 'views/ntqIcon';
-import NtqButton from 'views/ntqButton';
+import Icon from 'views/ntqIcon';
+import Button from 'views/ntqButton';
 import Message from 'views/message';
 import InlineLoadingState from 'views/inlineLoadingState';
 import SearchField from 'views/searchField';
@@ -327,13 +327,13 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
           ) : null}
         </span>
         <IconButton aria-label="关闭" onClick={handleClose} edge="end">
-          <NtqIcon name="cancel" size={18} />
+          <Icon name="cancel" size={18} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers className="tag-viz-dialog__body">
         {drilled ? (
           <div>
-            <NtqButton
+            <Button
               variant="ghost"
               className="tag-viz-dialog__back"
               icon="arrowBack"
@@ -344,7 +344,7 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
               }}
             >
               返回实体列表
-            </NtqButton>
+            </Button>
           </div>
         ) : null}
         {error ? <Message severity="error">{error}</Message> : null}

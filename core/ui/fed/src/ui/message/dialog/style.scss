@@ -1,10 +1,13 @@
 .ntq-dialog__paper {
+  /* 半透明深底 + 模糊：可透一点背景，但保持可读 */
   background: var(--ui-surface-panel) !important;
   background-image: none !important;
   border: 1px solid var(--ui-white-12);
   border-radius: var(--ui-radius-md) !important;
   color: var(--ui-text);
-  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45) !important;
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
 }
 
 .ntq-dialog__title {

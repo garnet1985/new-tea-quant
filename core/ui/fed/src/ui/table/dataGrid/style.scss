@@ -3,6 +3,15 @@
   color: var(--ntq-text);
   background: transparent;
 
+  &.ntq-data-grid--bordered {
+    border: 1px solid var(--ui-divider-color);
+    border-radius: var(--ui-radius-md, var(--ntq-radius-md));
+  }
+
+  &.ntq-data-grid--borderless {
+    border: none;
+  }
+
   .MuiDataGrid-main {
     border-radius: var(--ntq-radius-md);
   }

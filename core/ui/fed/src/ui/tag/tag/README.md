@@ -19,3 +19,5 @@ import Tag from 'ui/tag/tag';
 | `size` | `sm` `md` | `sm` |
 | `icon` | NtqIcon 名 / 节点 | — |
 | `onDelete` | `() => void` | — |
+
+多个 Tag 请由**父级**设 `display: flex; flex-wrap: wrap; gap: 0.5rem`（`--ui-space-sm`）。不要用相邻 margin，否则换行后下一行第一枚会偏右、显得第一行格外靠左。

@@ -37,7 +37,8 @@
 }
 
 .ntq-button--glass {
-  border: 1px solid var(--ntq-white-12) !important;
+  /* 与 glass 输入共用 --ui-white-12 描边 */
+  border: 1px solid var(--ui-white-12, var(--ntq-white-12)) !important;
   background: var(--ntq-white-03) !important;
   color: var(--ntq-text) !important;
 

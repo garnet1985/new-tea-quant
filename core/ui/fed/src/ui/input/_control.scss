@@ -632,18 +632,46 @@
 // chrome 修饰：默认 solid（见 _mui-overrides）；glass / radius-none 为扩展
 // ---------------------------------------------------------------------------
 
+/*
+ * glass 输入：边画在 root 上（与 .ntq-button--glass 同一套描边），
+ * 关掉 fieldset notchedOutline，避免和 Button 看起来「不是一个透明度」。
+ */
 .ntq-input--surface-glass.MuiOutlinedInput-root,
-.ntq-input--surface-glass .MuiOutlinedInput-root,
+.ntq-input--surface-glass .MuiOutlinedInput-root {
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ui-white-12, var(--ntq-white-12));
+
+  .MuiOutlinedInput-notchedOutline {
+    border: none !important;
+  }
+
+  &:hover:not(.Mui-disabled):not(:disabled) {
+    background: var(--ntq-white-03);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  &.Mui-focused {
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
+  &.Mui-disabled {
+    background: var(--ntq-white-03);
+  }
+}
+
 .ntq-search-select__trigger.ntq-input--surface-glass {
   background: var(--ntq-white-03);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ui-white-12, var(--ntq-white-12));
 
-  &:hover:not(.Mui-disabled):not(:disabled) {
+  &:hover:not(:disabled) {
     background: var(--ntq-white-03);
+    border-color: rgba(255, 255, 255, 0.18);
   }
 
-  &.Mui-disabled,
   &:disabled {
     background: var(--ntq-white-03);
   }

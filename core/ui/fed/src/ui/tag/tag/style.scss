@@ -18,6 +18,8 @@
   white-space: nowrap;
 }
 
+/* 多 Tag 间距：勿用相邻 margin（flex 换行时下一行首枚会被顶歪）。父级用 gap ≥ 0.5rem。 */
+
 .ntq-tag--sm {
   min-height: 1.375rem; // 22px
   // 光学居中：底略多 1px，抵消汉字重心偏下
@@ -44,13 +46,11 @@
   background: transparent;
 }
 
-// 实心：border 与背景同色（不透明 accent）
+// 实心：border 与背景同色（不透明 accent）；字色在 status 规则后统一压回 on-solid
 .ntq-tag--solid {
   --ntq-tag-on-solid: var(--ntq-ink);
-  --ntq-tag-fg: var(--ntq-tag-on-solid);
   border-color: var(--ntq-tag-accent);
   background: var(--ntq-tag-accent);
-  color: var(--ntq-tag-fg);
 
   .ntq-tag__icon {
     color: inherit;
@@ -105,6 +105,12 @@
 .ntq-tag--solid.ntq-tag--muted {
   --ntq-tag-accent: var(--ntq-white-75);
   --ntq-tag-on-solid: var(--ntq-ink);
+}
+
+// solid 的字色必须压过 status（尤其 neutral 的 muted），否则浅字叠浅底会糊成一团
+.ntq-tag--solid {
+  --ntq-tag-fg: var(--ntq-tag-on-solid);
+  color: var(--ntq-tag-fg);
 }
 
 .ntq-tag__icon {

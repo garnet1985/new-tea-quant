@@ -85,14 +85,15 @@ body {
   --ui-blur-sm: 0.5rem;
   --ui-blur-md: 1rem;
 
-  --ui-surface-soft: var(--ui-white-03);
-  --ui-surface-panel: var(--ui-white-06);
-  --ui-surface-glass: var(--ui-white-06);
+  // 表面：白色半透明叠层（不是深墨实底）+ 组件侧配 blur；略高于旧 03/06，仍可透背景
+  --ui-surface-soft: rgba(255, 255, 255, 0.06);
+  --ui-surface-panel: rgba(255, 255, 255, 0.10);
+  --ui-surface-glass: rgba(255, 255, 255, 0.08);
   --ui-surface-gradient:
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.05) 0%,
-      rgba(255, 255, 255, 0.015) 100%
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 100%
     );
 
   --ui-divider-color: var(--ui-white-12);

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { DataGrid as MuiDataGrid } from '@mui/x-data-grid';
+import { DataGrid as MuiDataGrid, GridRow } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
 import { DATA_GRID_DENSITY_TOKENS, pickToken } from 'ui/tokens';
 import {
@@ -17,16 +17,18 @@ const DENSITY_TO_MUI = {
 
 /**
  * NTQ 表格（MUI DataGrid 封装）。
- * - 默认中文 locale、Loading 覆盖层、无边框、禁用点击选行
+ * - 默认中文 locale、Loading 覆盖层、描边边框、禁用点击选行
  * - density：sm（紧凑）/ md（标准）
+ * - bordered：默认 true；嵌在已有描边容器内时可传 false
  * - 其余 props 透传给 MUI DataGrid
  *
  * @example
  * <DataGrid rows={rows} columns={columns} loading={loading} autoHeight />
- * <DataGrid density="sm" rows={…} columns={…} />
+ * <DataGrid density="sm" bordered={false} rows={…} columns={…} />
  */
 function DataGrid({
   density = 'md',
+  bordered = true,
   className = '',
   slots,
   slotProps,
@@ -45,6 +47,7 @@ function DataGrid({
   const rootClass = [
     'ntq-data-grid',
     `ntq-data-grid--${densityToken}`,
+    bordered ? 'ntq-data-grid--bordered' : 'ntq-data-grid--borderless',
     className,
   ].filter(Boolean).join(' ');
 
@@ -57,13 +60,16 @@ function DataGrid({
       localeText={localeText || LOCALE_TEXT}
       slots={mergedSlots}
       slotProps={slotProps}
-      sx={{
-        border: 'none',
-        ...(sx || {}),
-      }}
+      sx={sx}
     />
   );
 }
 
 export default DataGrid;
-export { DataGridLoadingOverlay, NTQ_DATA_GRID_LOADING_SLOTS, LOCALE_TEXT };
+export {
+  DataGridLoadingOverlay,
+  NTQ_DATA_GRID_LOADING_SLOTS,
+  LOCALE_TEXT,
+  /** 自定义行渲染时用（如行内进度条），避免业务直连 @mui/x-data-grid */
+  GridRow,
+};

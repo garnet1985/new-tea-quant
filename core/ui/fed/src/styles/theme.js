@@ -22,7 +22,7 @@ const theme = createTheme({
     secondary: { main: '#A855F7' }, // violet
     background: {
       default: '#060612', // ink
-      paper: 'rgba(255, 255, 255, 0.06)', // glass surface
+      paper: 'rgba(255, 255, 255, 0.10)', // 白半透明（对齐 --ui-surface-panel）
     },
     text: {
       primary: 'rgba(255, 255, 255, 0.86)',

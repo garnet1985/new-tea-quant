@@ -11,11 +11,13 @@
   color: var(--ntq-text);
 }
 
-// 圆角卡片：border + 底色，无左侧 bar
+// 圆角卡片：accent 半透明（只提高不透明度，不混深色）+ 模糊
 .ntq-message--inline {
   border-radius: var(--ntq-radius-md);
   border: 1px solid color-mix(in srgb, var(--ntq-message-accent) 40%, transparent);
-  background: color-mix(in srgb, var(--ntq-message-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--ntq-message-accent) 20%, transparent);
+  backdrop-filter: blur(var(--ui-blur-md, var(--ntq-blur-md)));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md, var(--ntq-blur-md)));
 }
 
 // 有 bar → 一定无圆角（通栏）
@@ -23,7 +25,9 @@
   border-radius: var(--ntq-radius-none);
   border: none;
   border-left: 3px solid var(--ntq-message-accent);
-  background: color-mix(in srgb, var(--ntq-message-accent) 8%, var(--ntq-surface-soft));
+  background: color-mix(in srgb, var(--ntq-message-accent) 16%, transparent);
+  backdrop-filter: blur(var(--ui-blur-md, var(--ntq-blur-md)));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md, var(--ntq-blur-md)));
 }
 
 // --- 状态 / 颜色 accent ---

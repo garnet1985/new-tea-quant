@@ -1,18 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Chip,
-  IconButton,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
-import ReactECharts from 'echarts-for-react';
+  Button,
+  ChartPanel,
+  DataGrid,
+  Dialog,
+  Heading,
+  Loading,
+  Message,
+  SearchField,
+  Section,
+  Tag,
+} from 'ui';
 import { fetchTagVisualization } from 'api/tagApi';
-import Icon from 'views/ntqIcon';
-import { Button, Dialog, Message } from 'ui';
-import InlineLoadingState from 'views/inlineLoadingState';
-import SearchField from 'views/searchField';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from 'views/dataGridLoadingOverlay';
 import {
   buildTagGanttOption,
   countEntitiesByValue,
@@ -21,8 +20,6 @@ import {
   tagValueColor,
 } from './tagVisualization.service';
 import './style.scss';
-
-const GRID_LOCALE = zhCN.components.MuiDataGrid.defaultProps.localeText;
 
 const ENTITY_COLUMNS = [
   {
@@ -39,12 +36,12 @@ const ENTITY_COLUMNS = [
       const name = params.row.entity_name || '';
       const code = params.row.entity_id || '';
       if (!code || name === code) {
-        return <Typography variant="body2" noWrap>{name || code}</Typography>;
+        return <span className="tag-viz-dialog__cell-primary">{name || code}</span>;
       }
       return (
         <span className="tag-viz-dialog__heading">
-          <Typography variant="body2" noWrap>{name}</Typography>
-          <Typography variant="caption" color="text.secondary" noWrap>{code}</Typography>
+          <span className="tag-viz-dialog__cell-primary">{name}</span>
+          <span className="ntq-muted">{code}</span>
         </span>
       );
     },
@@ -59,12 +56,12 @@ const ENTITY_COLUMNS = [
       const tag = params.row.tag_label || params.row.value_label || '';
       const detail = params.row.value_detail || '';
       if (!detail || detail === tag) {
-        return <Typography variant="body2" noWrap>{tag}</Typography>;
+        return <span className="tag-viz-dialog__cell-primary">{tag}</span>;
       }
       return (
         <span className="tag-viz-dialog__heading">
-          <Typography variant="body2" noWrap>{tag}</Typography>
-          <Typography variant="caption" color="text.secondary" noWrap>{detail}</Typography>
+          <span className="tag-viz-dialog__cell-primary">{tag}</span>
+          <span className="ntq-muted">{detail}</span>
         </span>
       );
     },
@@ -115,7 +112,7 @@ function shareLabel(count, total) {
 
 function SnapshotBoard({ board }) {
   return (
-    <div className="tag-viz-dialog__board">
+    <Section className="tag-viz-dialog__board" gap="md">
       <div className="tag-viz-dialog__board-meta">
         <span className="tag-viz-dialog__board-total">{board.total}</span>
         <span>只</span>
@@ -151,7 +148,9 @@ function SnapshotBoard({ board }) {
             {card.provinces.length ? (
               <div className="tag-viz-dialog__pills">
                 {card.provinces.map((name) => (
-                  <span key={name} className="tag-viz-dialog__pill">{name}</span>
+                  <Tag key={name} status="neutral" variant="solid">
+                    {name}
+                  </Tag>
                 ))}
               </div>
             ) : null}
@@ -167,7 +166,7 @@ function SnapshotBoard({ board }) {
           </article>
         ))}
       </div>
-    </div>
+    </Section>
   );
 }
 
@@ -176,11 +175,9 @@ function SnapshotBlock({ snapshot }) {
   if (snapshot.kind === 'scalar') {
     return (
       <div className="tag-viz-dialog__scalar">
-        <Typography variant="h5">{snapshot.scalar || '—'}</Typography>
+        <Heading level="h3" gap="none">{snapshot.scalar || '—'}</Heading>
         {snapshot.as_of ? (
-          <Typography variant="caption" color="text.secondary">
-            {formatVizDate(snapshot.as_of)}
-          </Typography>
+          <p className="ntq-muted">{formatVizDate(snapshot.as_of)}</p>
         ) : null}
       </div>
     );
@@ -195,11 +192,8 @@ function SnapshotBlock({ snapshot }) {
         <DataGrid
           rows={rows}
           columns={CATEGORY_COLUMNS}
-          disableRowSelectionOnClick
           pageSizeOptions={[10, 25]}
           initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
-          localeText={GRID_LOCALE}
-          slots={NTQ_DATA_GRID_LOADING_SLOTS}
         />
       </div>
     );
@@ -214,10 +208,7 @@ function SnapshotBlock({ snapshot }) {
         <DataGrid
           rows={rows}
           columns={FIELD_COLUMNS}
-          disableRowSelectionOnClick
           hideFooter
-          localeText={GRID_LOCALE}
-          slots={NTQ_DATA_GRID_LOADING_SLOTS}
         />
       </div>
     );
@@ -311,31 +302,33 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
       maxWidth="lg"
       className="tag-viz-dialog"
       title={(
-        <span className="tag-viz-dialog__title" style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span className="tag-viz-dialog__title">
           <span className="tag-viz-dialog__heading">
-            <Typography variant="subtitle1" fontWeight={700} component="span">
-              {title || '标签可视化'}
-            </Typography>
+            <strong className="tag-viz-dialog__title-text">{title || '标签可视化'}</strong>
             {route ? (
-              <Typography component="span" variant="caption" color="text.secondary">
-                {routeSubtitle(route, drilled ? selectedLabel : '')}
-              </Typography>
+              <span className="ntq-muted">{routeSubtitle(route, drilled ? selectedLabel : '')}</span>
             ) : null}
           </span>
-          <IconButton aria-label="关闭" onClick={handleClose} edge="end">
-            <Icon name="cancel" size={18} />
-          </IconButton>
+          <Button
+            variant="ghost"
+            icon="close"
+            iconSize="md"
+            className="tag-viz-dialog__close"
+            aria-label="关闭"
+            tooltip="关闭"
+            onClick={handleClose}
+          />
         </span>
       )}
     >
-      <div className="tag-viz-dialog__body">
+      <Section className="tag-viz-dialog__body" gap="md">
         {drilled ? (
           <div>
             <Button
               variant="ghost"
               className="tag-viz-dialog__back"
               icon="arrowBack"
-              iconSize={18}
+              iconSize="sm"
               onClick={() => {
                 setSelectedEntityId('');
                 setSelectedLabel('');
@@ -346,35 +339,31 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
           </div>
         ) : null}
         {error ? <Message status="error">{error}</Message> : null}
-        {loading ? <InlineLoadingState message="正在加载标签数据…" /> : null}
+        {loading ? <Loading variant="inline" message="正在加载标签数据…" /> : null}
         {!loading && !error && payload ? (
           <>
-            <Typography variant="caption" color="text.secondary" className="tag-viz-dialog__note">
-              {routeNote(route, drilled)}
-            </Typography>
+            <p className="ntq-muted tag-viz-dialog__note">{routeNote(route, drilled)}</p>
             {showEntityTable && !entities.length ? (
-              <Typography variant="body2" color="text.secondary">暂无实体标签值。</Typography>
+              <p className="ntq-muted">暂无实体标签值。</p>
             ) : null}
             {showEntityTable && entities.length ? (
               <>
                 {distribution.length ? (
                   <div className="tag-viz-dialog__distribution">
                     {distribution.map((item) => (
-                      <Chip
+                      <Tag
                         key={item.label}
-                        size="small"
-                        variant="outlined"
-                        label={`${item.label} ${item.count}`}
-                        style={{
-                          borderColor: tagValueColor(item.label),
-                          color: tagValueColor(item.label),
-                        }}
-                      />
+                        variant="solid"
+                        style={{ '--ntq-tag-accent': tagValueColor(item.label) }}
+                      >
+                        {`${item.label} ${item.count}`}
+                      </Tag>
                     ))}
                   </div>
                 ) : null}
                 <SearchField
                   fluid
+                  surface="glass"
                   placeholder="搜索代码、名称或取值"
                   label="搜索实体"
                   value={query}
@@ -385,7 +374,6 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
                     rows={filteredEntities}
                     columns={ENTITY_COLUMNS}
                     getRowId={(row) => row.entity_id}
-                    disableRowSelectionOnClick
                     onRowClick={(params) => {
                       const name = params.row.entity_name || '';
                       const code = params.row.entity_id || '';
@@ -394,8 +382,6 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
                     }}
                     pageSizeOptions={[10, 25, 50]}
                     initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
-                    localeText={GRID_LOCALE}
-                    slots={NTQ_DATA_GRID_LOADING_SLOTS}
                   />
                 </div>
               </>
@@ -406,34 +392,32 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
                 payload.snapshots.map((snapshot) => (
                   <section key={snapshot.tag_name || snapshot.tag_display_name} className="tag-viz-dialog__section">
                     {(payload.snapshots.length > 1) ? (
-                      <Typography variant="subtitle2">
+                      <Heading level="h4" gap="sm">
                         {snapshot.tag_display_name || snapshot.tag_name}
-                      </Typography>
+                      </Heading>
                     ) : null}
                     <SnapshotBlock snapshot={snapshot} />
                   </section>
                 ))
               ) : (
-                <Typography variant="body2" color="text.secondary">暂无标签值。</Typography>
+                <p className="ntq-muted">暂无标签值。</p>
               )
             ) : null}
             {!showEntityTable && !showSnapshots ? (
               chartOption ? (
-                <div className="tag-viz-dialog__chart">
-                  <ReactECharts
-                    option={chartOption}
-                    style={{ height: chartHeight, width: '100%' }}
-                    notMerge
-                    lazyUpdate
-                  />
-                </div>
+                <ChartPanel
+                  className="tag-viz-dialog__chart"
+                  framed={false}
+                  option={chartOption}
+                  height={chartHeight}
+                />
               ) : (
-                <Typography variant="body2" color="text.secondary">暂无区间数据。</Typography>
+                <p className="ntq-muted">暂无区间数据。</p>
               )
             ) : null}
           </>
         ) : null}
-      </div>
+      </Section>
     </Dialog>
   );
 }

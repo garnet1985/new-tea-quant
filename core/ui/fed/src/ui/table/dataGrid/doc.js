@@ -1,5 +1,5 @@
 const doc = {
-  summary: 'NTQ 表格：封装 MUI DataGrid，默认中文、Loading 覆盖层、无边框与禁用点击选行；业务列定义仍透传。',
+  summary: 'NTQ 表格：封装 MUI DataGrid，默认中文、Loading 覆盖层、描边边框与禁用点击选行；业务列定义仍透传。',
   params: [
     {
       name: 'rows / columns',
@@ -12,6 +12,12 @@ const doc = {
       type: "'sm' | 'md'",
       defaultValue: "'md'",
       description: '行高密度：sm=紧凑（compact），md=标准（standard）。',
+    },
+    {
+      name: 'bordered',
+      type: 'boolean',
+      defaultValue: 'true',
+      description: '外框描边（--ui-divider-color）。嵌在已有描边容器内传 false。',
     },
     {
       name: 'loading',

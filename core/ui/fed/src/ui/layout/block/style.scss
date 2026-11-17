@@ -31,10 +31,14 @@
 
 .ntq-block--surface-soft {
   background: var(--ntq-surface-soft);
+  backdrop-filter: blur(var(--ntq-blur-sm));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-sm));
 }
 
 .ntq-block--surface-panel {
   background: var(--ntq-surface-panel);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
 }
 
 .ntq-block--surface-glass {

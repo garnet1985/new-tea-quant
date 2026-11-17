@@ -21,6 +21,6 @@ import Icon, { ICON_NAMES } from 'ui/icon/icon';
 
 ## 全部 name
 
-`add` · `arrowBack` · `assistantCat` · `calendar` · `cancel` · `chat` · `chevronRight` · `dataObject` · `delete` · `download` · `expandMore` · `folderOpen` · `help` · `history` · `info` · `monitoring` · `pin` · `pinFilled` · `play` · `playCircle` · `radioUnchecked` · `refresh` · `remove` · `search` · `sentimentDissatisfied` · `sentimentSatisfied` · `settings` · `success` · `syncAlt` · `tactic` · `trash` · `uploadFile` · `warning` · `webhook`
+`add` · `arrowBack` · `assistantCat` · `calendar` · `cancel` · `chat` · `chevronRight` · `close` · `dataObject` · `delete` · `download` · `expandMore` · `folderOpen` · `help` · `history` · `info` · `monitoring` · `pin` · `pinFilled` · `play` · `playCircle` · `radioUnchecked` · `refresh` · `remove` · `search` · `sentimentDissatisfied` · `sentimentSatisfied` · `settings` · `success` · `syncAlt` · `tactic` · `trash` · `uploadFile` · `warning` · `webhook`
 
 运行时列表：`ICON_NAMES`（与 `ICON_MAP` 的 key 一致；旧名 `NTQ_ICON_*` 仍可作别名）。

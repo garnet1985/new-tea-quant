@@ -47,16 +47,17 @@
   }
 }
 
+/* 与 glass Button 同色；!important 压住 MUI Emotion 默认 ~0.23 白边 */
 .MuiOutlinedInput-notchedOutline {
-  border-color: var(--ntq-white-12);
+  border-color: var(--ui-white-12, var(--ntq-white-12)) !important;
 }
 
 .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.28) !important;
 }
 
 // --- Report grids (DataGrid overlay) ---

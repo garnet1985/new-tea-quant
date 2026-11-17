@@ -5,6 +5,7 @@ import { ReactComponent as AssistantCatIcon } from './icons/assistant_cat.svg';
 import { ReactComponent as CalendarIcon } from './icons/calendar.svg';
 import { ReactComponent as CancelIcon } from './icons/cancel.svg';
 import { ReactComponent as ChatIcon } from './icons/chat.svg';
+import { ReactComponent as CloseIcon } from './icons/close.svg';
 import { ReactComponent as DataObjectIcon } from './icons/data_object.svg';
 import { ReactComponent as DeleteIcon } from './icons/delete.svg';
 import { ReactComponent as DownloadIcon } from './icons/download.svg';
@@ -41,6 +42,7 @@ export const ICON_MAP = {
   cancel: CancelIcon,
   chat: ChatIcon,
   chevronRight: ArrowRightIcon,
+  close: CloseIcon,
   dataObject: DataObjectIcon,
   delete: DeleteIcon,
   download: DownloadIcon,

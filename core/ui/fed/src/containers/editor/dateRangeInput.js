@@ -1,14 +1,11 @@
 import React from 'react';
+import { Date, DateRange } from 'ui';
 import EditorFieldLabel from './fields/editorFieldLabel';
-import {
-  Box,
-  Stack,
-  TextField,
-} from '@mui/material';
+import './fields/style.scss';
 
 /**
- * 通用时间段输入：标签 + 可选说明 tooltip + 起止日期。
- * MUI 无内置 DateRange 表单控件，本组件作为薄封装供工作台与其它表单复用。
+ * 通用时间段输入：标签 + 可选说明 + 起止日期。
+ * 水平布局走 ui DateRange；垂直布局叠两个 Date。
  */
 export default function DateRangeInput({
   label,
@@ -25,48 +22,55 @@ export default function DateRangeInput({
   endError = '',
 }) {
   const isVertical = layout === 'vertical';
-  const labelGap = isVertical ? 2 : 1;
-  const fieldGap = isVertical ? 1.5 : 1;
 
   return (
-    <Stack spacing={labelGap}>
+    <div
+      className={[
+        'ntq-editor-date-range',
+        isVertical ? 'ntq-editor-date-range--vertical' : '',
+      ].filter(Boolean).join(' ')}
+    >
       {label ? (
         <EditorFieldLabel
           field={{ label, tooltip: tooltipTitle || '' }}
           context={context}
-          sx={{ mb: 0 }}
+          noMargin
         />
       ) : null}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: isVertical ? '1fr' : { xs: '1fr', md: '1fr 1fr' },
-          gap: fieldGap,
-        }}
-      >
-        <TextField
-          size="small"
-          type="date"
-          label={startLabel}
-          value={startValue || ''}
-          onChange={(e) => onStartChange?.(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          error={Boolean(startError)}
-          helperText={startError || ''}
-          fullWidth
+
+      {isVertical ? (
+        <div className="ntq-editor-date-range__stack">
+          <Date
+            label={startLabel}
+            maxWidth={false}
+            value={startValue || ''}
+            onChange={(e) => onStartChange?.(e.target.value)}
+            error={startError || undefined}
+          />
+          <Date
+            label={endLabel}
+            maxWidth={false}
+            value={endValue || ''}
+            onChange={(e) => onEndChange?.(e.target.value)}
+            error={endError || undefined}
+          />
+        </div>
+      ) : (
+        <DateRange
+          labelPlacement="none"
+          maxWidth={false}
+          startLabel={startLabel}
+          endLabel={endLabel}
+          value={{ start: startValue || '', end: endValue || '' }}
+          startError={startError}
+          endError={endError}
+          onChange={(e) => {
+            const next = e?.target?.value || {};
+            if (next.start !== startValue) onStartChange?.(next.start || '');
+            if (next.end !== endValue) onEndChange?.(next.end || '');
+          }}
         />
-        <TextField
-          size="small"
-          type="date"
-          label={endLabel}
-          value={endValue || ''}
-          onChange={(e) => onEndChange?.(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          error={Boolean(endError)}
-          helperText={endError || ''}
-          fullWidth
-        />
-      </Box>
-    </Stack>
+      )}
+    </div>
   );
 }

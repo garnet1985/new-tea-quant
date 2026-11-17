@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Message, Loading } from 'ui';
 import { Navigate, Outlet } from 'react-router-dom';
-import { Alert, Button } from '@mui/material';
 import { fetchLicenseAcceptance } from 'api/licenseApi';
-import PageLoadingState from 'views/pageLoadingState';
 
 function LicenseGuard() {
   const [loading, setLoading] = useState(true);
@@ -37,14 +36,14 @@ function LicenseGuard() {
   }, [retryKey]);
 
   if (loading) {
-    return <PageLoadingState message="确认使用条款…" minHeight="40vh" />;
+    return <Loading variant="page" message="确认使用条款…" className="ntq-loading--min-40vh" />;
   }
 
   if (loadError) {
     return (
       <div className="ntq-setup-guard-error">
-        <Alert severity="error">{loadError}</Alert>
-        <Button variant="contained" onClick={retry} className="ntq-setup-guard-error__retry">
+        <Message status="error">{loadError}</Message>
+        <Button variant="primary" onClick={retry} className="ntq-setup-guard-error__retry">
           重试
         </Button>
       </div>

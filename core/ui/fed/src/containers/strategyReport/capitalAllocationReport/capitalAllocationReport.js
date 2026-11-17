@@ -1,9 +1,7 @@
 import React from 'react';
-import { Stack, Typography } from '@mui/material';
-import ChartPanel from 'views/chartPanel';
-import MetricCard from 'views/metricCard';
-import MetricGrid from 'views/metricGrid';
-import { SectionBlock } from 'views/sectionBlock';
+import { ChartPanel, MetricCard, MetricGrid } from 'ui';
+import ReportBlock from 'ntq-ui/reportBlock';
+import '../reportBlock.scss';
 import {
   CAPITAL_CHART_TIPS,
   CAPITAL_METRIC_TIPS,
@@ -66,9 +64,9 @@ function CapitalAllocationReport({
   const showStockSampleGrid = Boolean(showStockGrid && derivedStockRows.length > 0);
 
   return (
-    <Stack spacing={1.25}>
+    <div className="ntq-report-block">
       {!hideTitle ? (
-        <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+        <h3 className="ntq-report-block__title">{title}</h3>
       ) : null}
 
       <PortfolioTradeLifecycleTable
@@ -88,7 +86,7 @@ function CapitalAllocationReport({
         />
       ) : null}
 
-      <SectionBlock
+      <ReportBlock
         title="资金结果总览"
         tip={CAPITAL_SECTION_TIPS.overview}
       >
@@ -131,9 +129,9 @@ function CapitalAllocationReport({
           option={buildPortfolioEventChartOption(metrics)}
           height={380}
         />
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="交易质量"
         tip={CAPITAL_SECTION_TIPS.tradeQuality}
       >
@@ -161,9 +159,9 @@ function CapitalAllocationReport({
             value={formatReportMoney(metrics.avgPnlPerTrade)}
           />
         </MetricGrid>
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="成交跳过统计"
         tip={CAPITAL_SECTION_TIPS.executionSkips}
       >
@@ -174,9 +172,9 @@ function CapitalAllocationReport({
             includeParticipation
           />
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="仓位与资金利用率"
         tip={CAPITAL_SECTION_TIPS.utilization}
       >
@@ -207,9 +205,9 @@ function CapitalAllocationReport({
             value={`${metrics.peakCapitalUtilizationRatio}%`}
           />
         </MetricGrid>
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="风险结构"
         tip={CAPITAL_SECTION_TIPS.risk}
       >
@@ -235,9 +233,9 @@ function CapitalAllocationReport({
             value={metrics.worstTradePnls.map((value) => formatReportMoney(value)).join(' / ')}
           />
         </MetricGrid>
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="股票集中度"
         tip={CAPITAL_SECTION_TIPS.concentration}
       >
@@ -263,8 +261,8 @@ function CapitalAllocationReport({
             value={metrics.stockPnlCv}
           />
         </MetricGrid>
-      </SectionBlock>
-    </Stack>
+      </ReportBlock>
+    </div>
   );
 }
 

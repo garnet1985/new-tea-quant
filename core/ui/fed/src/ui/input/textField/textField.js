@@ -3,6 +3,7 @@ import { TextField as MuiTextField } from '@mui/material';
 import Field from 'ui/input/field';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
+import { inputChromeClass } from 'ui/input/controlChrome';
 import '../_control.scss';
 
 /**
@@ -11,7 +12,9 @@ import '../_control.scss';
  * @example
  * <TextField label="名称" value={v} onChange={…} />
  * <TextField label="代码" labelPlacement="inline" />
- * <TextField maxWidth={false} /> // 去掉默认约 280px 上限
+ * <TextField maxWidth={false} /> // 去掉默认约 320px 上限
+ * <TextField radius="none" /> // 直角
+ * <TextField surface="glass" /> // 半透明玻璃
  */
 function TextField({
   label = '',
@@ -29,14 +32,19 @@ function TextField({
   id = '',
   className = '',
   fullWidth = true,
-  /** 默认限制约 280px；传 false 去掉上限 */
+  /** 默认限制约 320px；传 false 去掉上限 */
   maxWidth = true,
+  /** 默认 solid 深色实底；glass=半透明 */
+  surface = 'solid',
+  /** 扩展：sm=默认圆角；none=直角 */
+  radius = 'sm',
   ...rest
 }) {
   const controlId = useControlId(id);
   const placement = pickToken(labelPlacement, FIELD_LABEL_PLACEMENTS, 'above');
   const hasFieldChrome = placement !== 'none' || tip || hint || error || label;
   const widthClass = maxWidth ? 'ntq-input--capped' : 'ntq-input--fluid';
+  const chromeClass = inputChromeClass({ surface, radius });
 
   const control = (
     <MuiTextField
@@ -53,6 +61,7 @@ function TextField({
       className={[
         'ntq-text-field',
         widthClass,
+        chromeClass,
         !hasFieldChrome ? className : '',
       ].filter(Boolean).join(' ')}
       inputProps={{

@@ -4,6 +4,7 @@ import Field from 'ui/input/field';
 import InstantTransition from 'ui/input/instantTransition';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
+import { inputChromeClass } from 'ui/input/controlChrome';
 import '../_control.scss';
 
 /**
@@ -36,8 +37,10 @@ function Select({
   displayEmpty = true,
   className = '',
   fullWidth = true,
-  /** 默认限制约 280px；传 false 去掉上限 */
+  /** 默认限制约 320px；传 false 去掉上限 */
   maxWidth = true,
+  surface = 'solid',
+  radius = 'sm',
   ...rest
 }) {
   const controlId = useControlId(id);
@@ -48,6 +51,7 @@ function Select({
   const empty = multiple ? [] : '';
   const current = value === undefined || value === null ? empty : value;
   const widthClass = maxWidth ? 'ntq-input--capped' : 'ntq-input--fluid';
+  const chromeClass = inputChromeClass({ surface, radius });
 
   const renderValue = (selected) => {
     if (multiple) {
@@ -77,6 +81,7 @@ function Select({
       className={[
         'ntq-select',
         widthClass,
+        chromeClass,
         !hasFieldChrome ? className : '',
       ].filter(Boolean).join(' ')}
     >

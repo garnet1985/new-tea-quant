@@ -5,7 +5,7 @@ import {
   fetchAttributeStatus,
   startAttributeRun,
 } from '../../../api/strategyApi';
-import { showToast } from 'containers/toast';
+import { showToast } from 'ui';
 import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
 import logClientError from '../../../service/logClientError';
 
@@ -144,7 +144,7 @@ export function useStrategyDesignAttribution({
       });
       if (started?.queued) {
         showToast({
-          severity: 'info',
+          status: 'info',
           duration: 5000,
           content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
         });

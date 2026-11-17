@@ -1,22 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  Backdrop,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Checkbox,
-  Container,
-  FormControlLabel,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import InlineLoadingState from '../../views/inlineLoadingState';
-import NtqIcon from '../../views/ntqIcon';
+import { Button, Checkbox, DataGrid, Icon, Message, Select, TextField, Loading } from 'ui';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   getSetupDefinition,
@@ -51,12 +34,11 @@ import SetupStepper from './setupStepper';
 import logClientError from '../../service/logClientError';
 import './setupPage.scss';
 
-/** 安装向导表单：统一尺寸、描边标签始终上浮，避免部分字段像 placeholder */
-const SETUP_TEXT_FIELD_COMMON = {
-  size: 'small',
-  variant: 'outlined',
+
+/** 安装向导表单：统一走 ui TextField / Select */
+const SETUP_FIELD_COMMON = {
+  maxWidth: false,
   fullWidth: true,
-  InputLabelProps: { shrink: true },
 };
 
 function SetupPage() {
@@ -233,43 +215,44 @@ function SetupPage() {
   };
 
   const renderStepStateCell = useCallback((params, pendingLabel = '待完成') => {
+    const rowClass = 'setup-step-state';
     if (runningStep && params.row.id === runningStep) {
       return (
-        <Stack direction="row" spacing={1} alignItems="center" className="setup-step-state">
-          <NtqIcon name="refresh" size={24} spin />
-          <Typography variant="body2">执行中...</Typography>
-        </Stack>
+        <div className={rowClass}>
+          <Icon name="refresh" size="md" spin />
+          <span>执行中...</span>
+        </div>
       );
     }
     if (params.value === '已完成') {
       return (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <NtqIcon name="success" size={24} tone="success" />
-          <Typography variant="body2">已完成</Typography>
-        </Stack>
+        <div className={rowClass}>
+          <Icon name="success" size="md" tone="success" />
+          <span>已完成</span>
+        </div>
       );
     }
     if (params.value === '失败') {
       return (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <NtqIcon name="cancel" size={24} tone="error" />
-          <Typography variant="body2">失败</Typography>
-        </Stack>
+        <div className={rowClass}>
+          <Icon name="cancel" size="md" tone="error" />
+          <span>失败</span>
+        </div>
       );
     }
     if (params.value === '待输入') {
       return (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <NtqIcon name="radioUnchecked" size={24} tone="warning" />
-          <Typography variant="body2">待输入</Typography>
-        </Stack>
+        <div className={rowClass}>
+          <Icon name="radioUnchecked" size="md" tone="warning" />
+          <span>待输入</span>
+        </div>
       );
     }
     return (
-      <Stack direction="row" spacing={1} alignItems="center">
-        <NtqIcon name="radioUnchecked" size={24} tone="disabled" />
-        <Typography variant="body2">{pendingLabel}</Typography>
-      </Stack>
+      <div className={rowClass}>
+        <Icon name="radioUnchecked" size="md" tone="disabled" />
+        <span>{pendingLabel}</span>
+      </div>
     );
   }, [runningStep]);
 
@@ -517,24 +500,29 @@ function SetupPage() {
 
   return (
     <>
-      <Backdrop open={bootstrapping} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <InlineLoadingState message="正在加载安装状态…" />
-      </Backdrop>
-      <Container maxWidth="lg" sx={{ py: 5, visibility: bootstrapping ? 'hidden' : 'visible' }}>
-        <Box className="setup-page" sx={{ minWidth: 0 }}>
-          <Stack spacing={3}>
+      {bootstrapping ? (
+        <div className="setup-page__backdrop">
+          <Loading variant="inline" message="正在加载安装状态…" />
+        </div>
+      ) : null}
+      <div
+        className="setup-page__container"
+        style={bootstrapping ? { visibility: 'hidden' } : undefined}
+      >
+        <div className="setup-page">
+          <div className="setup-page__stack">
           {flowStage !== 'input' && status?.isReady ? (
-            <Alert severity="success">
+            <Message status="success">
               安装流程已完成。你可以进入欢迎页开始使用。
-            </Alert>
+            </Message>
           ) : (
-            <Alert severity="warning">
+            <Message status="warning">
               检测到必要配置缺失，业务页将继续重定向到 Setup。
-            </Alert>
+            </Message>
           )}
 
-          <Card variant="outlined">
-            <CardContent>
+          <section className="setup-card">
+            <div className="setup-card__content">
               <SetupStepper
                 definition={definition}
                 completedIds={completedIds}
@@ -548,41 +536,34 @@ function SetupPage() {
                 importProgress={importProgress}
                 completedCount={completedCount}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {flowStage === 'input' ? (
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  安装开始
-                </Typography>
-                <Typography color="text.secondary" sx={{ mb: 2 }}>
+            <section className="setup-card">
+              <div className="setup-card__content">
+                <h3 className="setup-typo-title">安装开始</h3>
+                <p className="ntq-muted setup-page__lead">
                   点击开始后，系统会按顺序执行步骤。数据库配置成功后，你可以选择立刻导入公开演示数据，或稍候注册会员后再导入全市场数据；机器学习依赖为选装。跳过的步骤视为完成。
-                </Typography>
+                </p>
                 {bootstrapError ? (
-                  <Alert
-                    severity="error"
-                    sx={{ mb: 2 }}
-                    action={(
-                      <Button color="inherit" size="small" onClick={loadBootstrap}>
-                        重新加载
-                      </Button>
-                    )}
-                  >
-                    {bootstrapError}
-                  </Alert>
+                  <>
+                    <Message status="error">{bootstrapError}</Message>
+                    <Button variant="ghost" className="setup-page__reload" onClick={loadBootstrap}>
+                      重新加载
+                    </Button>
+                  </>
                 ) : null}
                 {errorMessage && !bootstrapError ? (
-                  <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+                  <Message status="error">{errorMessage}</Message>
                 ) : null}
-                <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                  <Button variant="contained" onClick={handleStartSetup} disabled={Boolean(bootstrapError)}>
+                <div className="setup-page__actions">
+                  <Button variant="primary" onClick={handleStartSetup} disabled={Boolean(bootstrapError)}>
                     开始安装
                   </Button>
-                </Stack>
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </section>
           ) : null}
 
           {flowStage === 'interaction' && isChoicePause ? (
@@ -600,16 +581,15 @@ function SetupPage() {
           ) : null}
 
           {flowStage === 'interaction' && !isChoicePause ? (
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>
+            <section className="setup-card">
+              <div className="setup-card__content">
+                <h3 className="setup-typo-title">
                   需要用户输入：{pausedStepDef?.name || pausedStep}
-                </Typography>
+                </h3>
                 {errorMessage ? (
-                  <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+                  <Message status="error">{errorMessage}</Message>
                 ) : null}
-                <Box
-                  component="form"
+                <form
                   className="setup-interaction-form"
                   noValidate
                   onSubmit={(e) => {
@@ -617,12 +597,7 @@ function SetupPage() {
                     handleSubmitInteractionStep({});
                   }}
                 >
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={2}
-                  useFlexGap
-                  flexWrap="wrap"
-                >
+                <div className="setup-interaction-form__fields">
                   {(pausedStepDef?.requiredUserInputs || []).map((field) => {
                     if (field.key === 'skip' || field.type === 'boolean') return null;
                     const dbType = formValues.dbType || 'duckdb';
@@ -630,24 +605,20 @@ function SetupPage() {
                     if (!shouldShowUserspaceConflictPolicy(field, userspacePathEditable, userspacePathExists)) return null;
                     if (field.type === 'select') {
                       return (
-                        <TextField
+                        <Select
                           key={field.key}
                           id={getFieldInputId(pausedStep, field)}
-                          select
                           label={field.label}
                           value={formValues[field.key] ?? field.defaultValue ?? ''}
                           onChange={(e) => handleInputChange(field.key, e.target.value)}
-                          sx={{ minWidth: 240, flex: 1 }}
-                          {...SETUP_TEXT_FIELD_COMMON}
-                        >
-                          {(field.options || []).map((opt) => (
-                            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                          ))}
-                        </TextField>
+                          options={field.options || []}
+                          className="setup-interaction-form__field"
+                          {...SETUP_FIELD_COMMON}
+                        />
                       );
                     }
                     return (
-                      <Box key={field.key} sx={{ minWidth: 240, flex: 1 }}>
+                      <div key={field.key} className="setup-interaction-form__field">
                         <TextField
                           id={getFieldInputId(pausedStep, field)}
                           label={field.label}
@@ -660,7 +631,7 @@ function SetupPage() {
                               ? 'new-password'
                               : (field.key === 'user' ? 'username' : undefined)
                           }
-                          helperText={
+                          hint={
                             field.key === 'userspaceTargetPath'
                               ? (
                                 checkingUserspacePath
@@ -670,39 +641,34 @@ function SetupPage() {
                               : (field.helperText || '')
                           }
                           disabled={field.editableByCheckbox ? !userspacePathEditable : false}
-                          sx={{ width: '100%' }}
-                          {...SETUP_TEXT_FIELD_COMMON}
+                          {...SETUP_FIELD_COMMON}
                         />
                         {field.editableByCheckbox ? (
-                          <FormControlLabel
-                            sx={{ mt: 0.5 }}
-                            control={(
-                              <Checkbox
-                                checked={userspacePathEditable}
-                                onChange={(e) => {
-                                  const nextChecked = e.target.checked;
-                                  setUserspacePathEditable(nextChecked);
-                                  if (!nextChecked) {
-                                    setUserspacePathExists(false);
-                                  }
-                                }}
-                              />
-                            )}
+                          <Checkbox
+                            className="setup-interaction-form__editable"
+                            checked={userspacePathEditable}
+                            onChange={(e) => {
+                              const nextChecked = e.target.checked;
+                              setUserspacePathEditable(nextChecked);
+                              if (!nextChecked) {
+                                setUserspacePathExists(false);
+                              }
+                            }}
                             label={field.editableLabel || '允许修改该路径'}
                           />
                         ) : null}
-                      </Box>
+                      </div>
                     );
                   })}
-                </Stack>
-                <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                  <Button type="submit" variant="contained">
+                </div>
+                <div className="setup-page__actions">
+                  <Button type="submit" variant="primary">
                     下一步
                   </Button>
-                </Stack>
-                </Box>
-              </CardContent>
-            </Card>
+                </div>
+                </form>
+              </div>
+            </section>
           ) : null}
 
           <SetupDialogs
@@ -725,91 +691,74 @@ function SetupPage() {
           />
 
           {flowStage === 'success' ? (
-            <Card variant="outlined">
-                <CardContent>
-                  <Stack alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                    <Box
-                      sx={{
-                        animation: 'ySpinFast 0.3s ease',
-                        '@keyframes ySpinFast': {
-                          '0%': { transform: 'rotateY(0deg) scale(0.9)', opacity: 0.4 },
-                          '100%': { transform: 'rotateY(360deg) scale(1)', opacity: 1 },
-                        },
-                      }}
-                    >
-                      <NtqIcon name="success" size={72} tone="success" />
-                    </Box>
-                    <Typography variant="h6">成功</Typography>
-                  </Stack>
-                  <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
+            <section className="setup-card">
+                <div className="setup-card__content">
+                  <div className="setup-page__result-head">
+                    <div className="setup-page__result-icon">
+                      <Icon name="success" size="xxl" tone="success" />
+                    </div>
+                    <h3 className="setup-typo-title">成功</h3>
+                  </div>
+                  <p className="ntq-muted setup-page__lead">
                     安装流程已完成。
-                  </Typography>
+                  </p>
                   {restartError ? (
-                    <Alert severity="error" sx={{ mb: 2 }}>{restartError}</Alert>
+                    <Message status="error">{restartError}</Message>
                   ) : null}
-                  <Stack direction="row" spacing={2}>
+                  <div className="setup-page__actions">
                     <Button
                       component={RouterLink}
                       to="/welcome"
-                      variant="contained"
+                      variant="primary"
                     >
                       继续
                     </Button>
-                    <Button component={RouterLink} to="/settings" variant="outlined">
+                    <Button component={RouterLink} to="/settings" variant="glass">
                       前往设置
                     </Button>
-                    <Button color="warning" variant="outlined" onClick={handleRestartSetup}>
+                    <Button variant="attention" onClick={handleRestartSetup}>
                       重新安装
                     </Button>
-                  </Stack>
-                </CardContent>
-              </Card>
+                  </div>
+                </div>
+              </section>
           ) : null}
 
           {flowStage === 'fail' ? (
-            <Card variant="outlined">
-              <CardContent>
-                <Stack alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                  <Box
-                    sx={{
-                      animation: 'ySpinFast 0.3s ease',
-                      '@keyframes ySpinFast': {
-                        '0%': { transform: 'rotateY(0deg) scale(0.9)', opacity: 0.5 },
-                        '100%': { transform: 'rotateY(360deg) scale(1)', opacity: 1 },
-                      },
-                    }}
-                  >
-                    <NtqIcon name="cancel" size={72} tone="error" />
-                  </Box>
-                  <Typography variant="h6">失败</Typography>
-                </Stack>
-                <Alert severity="error" sx={{ mt: 1, mb: 2 }}>
+            <section className="setup-card">
+              <div className="setup-card__content">
+                <div className="setup-page__result-head">
+                  <div className="setup-page__result-icon">
+                    <Icon name="cancel" size="xxl" tone="error" />
+                  </div>
+                  <h3 className="setup-typo-title">失败</h3>
+                </div>
+                <Message status="error">
                   {errorMessage}
-                </Alert>
+                </Message>
                 {failedStep ? (
-                  <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Message status="warning">
                     失败步骤: {definition.find((step) => step.id === failedStep)?.name || failedStep}
-                  </Alert>
+                  </Message>
                 ) : null}
-                <Box sx={{ height: 320, mb: 2 }}>
+                <div className="setup-page__fail-grid">
                   <DataGrid
                     rows={rows}
                     columns={failColumns}
-                    disableRowSelectionOnClick
                     hideFooter
                   />
-                </Box>
-                <Stack direction="row" spacing={2}>
-                  <Button variant="contained" onClick={handleRetryFailedStep}>
+                </div>
+                <div className="setup-page__actions">
+                  <Button variant="primary" onClick={handleRetryFailedStep}>
                     重新开始安装
                   </Button>
-                </Stack>
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </section>
           ) : null}
-          </Stack>
-        </Box>
-      </Container>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

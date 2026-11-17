@@ -96,12 +96,14 @@
   }
 }
 
-// 设置式：左侧色条
+// 设置式：左侧色条高亮当前项（对齐设置页旧 MUI Tabs 观感）
 .ntq-side-nav--rail .ntq-side-nav__item {
-  padding: 0.625rem var(--ntq-space-md);
+  min-height: 2.75rem; // 44px
+  padding: 0.625rem var(--ntq-space-md); // 10px 16px
   border-radius: var(--ntq-radius-sm);
   border-left: 3px solid transparent;
   color: var(--ntq-text-muted);
+  font-weight: var(--ntq-font-weight-medium);
 
   &:hover:not(.is-disabled) {
     color: var(--ntq-text);
@@ -112,6 +114,36 @@
   &.is-active {
     color: var(--ntq-cyan);
     border-left-color: var(--ntq-cyan);
-    background: color-mix(in srgb, var(--ntq-cyan) 8%, transparent);
+    font-weight: var(--ntq-font-weight-bold);
+    background: color-mix(in srgb, var(--ntq-cyan) 10%, transparent);
+  }
+}
+
+// 扩展：直角（默认 rail 项仍用 radius-sm）
+.ntq-side-nav--radius-none.ntq-side-nav--rail .ntq-side-nav__item {
+  border-radius: 0;
+}
+
+@media (max-width: 48rem) {
+  .ntq-side-nav--rail .ntq-side-nav__list {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .ntq-side-nav--rail .ntq-side-nav__li {
+    flex: 0 0 auto;
+  }
+
+  .ntq-side-nav--rail .ntq-side-nav__item {
+    width: auto;
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+
+    &.is-active {
+      border-left-color: transparent;
+      border-bottom-color: var(--ntq-cyan);
+    }
   }
 }

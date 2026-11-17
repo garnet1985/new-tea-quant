@@ -1,0 +1,41 @@
+.ntq-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-sm);
+  min-width: 0;
+  width: 100%;
+}
+
+.ntq-list-toolbar__search {
+  flex: 1 1 12rem;
+  min-width: min(100%, 12rem);
+}
+
+.ntq-list-toolbar__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-sm);
+}
+
+.ntq-list-toolbar__hint {
+  margin-left: auto;
+  font-size: var(--ui-font-xs);
+}
+
+/* sync: --ui-bp-sm ≈ 600px */
+@media (max-width: 599px) {
+  .ntq-list-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ntq-list-toolbar__actions {
+    width: 100%;
+  }
+
+  .ntq-list-toolbar__hint {
+    margin-left: 0;
+  }
+}

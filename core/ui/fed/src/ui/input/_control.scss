@@ -224,17 +224,19 @@
 .ntq-search-field,
 .ntq-autocomplete,
 .ntq-date,
-.ntq-field.ntq-input--capped {
+.ntq-field.ntq-input--capped,
+.ntq-field.ntq-input--capped-area {
   width: 100%;
 }
 
 .ntq-switch {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--ntq-space-md);
   min-width: 0;
-  max-width: 22.5rem; // 与 search 工具栏接近，避免开关贴太远
+  width: fit-content;
+  max-width: 100%;
 }
 
 .ntq-switch--control-only {
@@ -281,7 +283,7 @@
 
 .ntq-date-range__side-label {
   box-sizing: border-box;
-  width: 17.5rem; // 对齐 capped Date
+  width: var(--ui-input-max-width);
   max-width: 100%;
   font-size: var(--ntq-font-sm);
   font-weight: 500;
@@ -306,7 +308,7 @@
   .ntq-date,
   .ntq-field.ntq-input--capped {
     flex: 0 0 auto;
-    width: 17.5rem;
+    width: var(--ui-input-max-width);
     max-width: 100%;
   }
 
@@ -390,9 +392,13 @@
   padding: 0.5rem 0.75rem !important;
 }
 
-// 表单控件默认最大宽度（约 280px）；maxWidth={false} 时用 --fluid 去掉
+// 表单控件默认最大宽度；maxWidth={false} 时用 --fluid 去掉
 .ntq-input--capped {
-  max-width: 17.5rem; // 280px
+  max-width: var(--ui-input-max-width); // 320px
+}
+
+.ntq-input--capped-area {
+  max-width: var(--ui-textarea-max-width); // 400px
 }
 
 // SearchField 工具栏默认更宽（约 360px，对齐旧 views）
@@ -515,7 +521,7 @@
   padding: 0 0.75rem;
   border: 1px solid var(--ntq-white-12);
   border-radius: 5px;
-  background: var(--ntq-white-03);
+  background: var(--ntq-input-solid-bg, #12121f);
   color: var(--ntq-text);
   font: inherit;
   font-size: var(--ntq-form-control-font-size);
@@ -526,6 +532,11 @@
 
   &:hover:not(:disabled) {
     border-color: rgba(255, 255, 255, 0.18);
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &:disabled {
+    background: var(--ntq-input-solid-bg-disabled, #0e0e18);
   }
 
   &:focus-visible {
@@ -615,4 +626,76 @@
   margin: 0;
   padding: var(--ntq-space-sm) var(--ntq-space-md);
   font-size: var(--ntq-font-sm);
+}
+
+// ---------------------------------------------------------------------------
+// chrome：solid 默认实底；glass 半透明；radius-none 直角
+// ---------------------------------------------------------------------------
+
+.ntq-input--surface-solid.MuiOutlinedInput-root,
+.ntq-input--surface-solid .MuiOutlinedInput-root {
+  background: var(--ntq-input-solid-bg, #12121f);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  &:hover:not(.Mui-disabled):not(:disabled) {
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &.Mui-disabled {
+    background: var(--ntq-input-solid-bg-disabled, rgba(255, 255, 255, 0.08));
+  }
+}
+
+/*
+ * glass 输入：边画在 root 上（与 .ntq-button--glass 同一套描边），
+ * 关掉 fieldset notchedOutline，避免和 Button 看起来「不是一个透明度」。
+ */
+.ntq-input--surface-glass.MuiOutlinedInput-root,
+.ntq-input--surface-glass .MuiOutlinedInput-root {
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ui-white-12, var(--ntq-white-12));
+
+  .MuiOutlinedInput-notchedOutline {
+    border: none !important;
+  }
+
+  &:hover:not(.Mui-disabled):not(:disabled) {
+    background: var(--ntq-white-03);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  &.Mui-focused {
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
+  &.Mui-disabled {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.14);
+    opacity: 1;
+  }
+}
+
+.ntq-search-select__trigger.ntq-input--surface-glass {
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ui-white-12, var(--ntq-white-12));
+
+  &:hover:not(:disabled) {
+    background: var(--ntq-white-03);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  &:disabled {
+    background: var(--ntq-white-03);
+  }
+}
+
+.ntq-input--radius-none.MuiOutlinedInput-root,
+.ntq-input--radius-none .MuiOutlinedInput-root,
+.ntq-search-select__trigger.ntq-input--radius-none {
+  border-radius: 0 !important;
 }

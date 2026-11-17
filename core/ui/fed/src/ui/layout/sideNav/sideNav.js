@@ -3,6 +3,9 @@ import { Link as RouterLink } from 'react-router-dom';
 import { SIDE_NAV_VARIANTS, pickToken } from 'ui/tokens';
 import './style.scss';
 
+/** 扩展：默认 sm（rail 项有小圆角）；none=直角 */
+const SIDE_NAV_RADIUS_TOKENS = ['sm', 'none'];
+
 /**
  * 左侧目录壳：竖排可点项 + 选中态。
  * 不管版式栏宽（用 Column sidebar）；不管右栏内容（路由 Outlet 或自管）。
@@ -21,6 +24,7 @@ function SideNav({
   items = [],
   activeId = '',
   variant = 'line',
+  radius = 'sm',
   sticky = false,
   linkComponent: Link = RouterLink,
   onItemClick,
@@ -29,9 +33,11 @@ function SideNav({
   ...rest
 }) {
   const variantToken = pickToken(variant, SIDE_NAV_VARIANTS, 'line');
+  const radiusToken = pickToken(radius, SIDE_NAV_RADIUS_TOKENS, 'sm');
   const rootClass = [
     'ntq-side-nav',
     `ntq-side-nav--${variantToken}`,
+    radiusToken === 'none' ? 'ntq-side-nav--radius-none' : '',
     sticky ? 'ntq-side-nav--sticky' : '',
     className,
   ].filter(Boolean).join(' ');

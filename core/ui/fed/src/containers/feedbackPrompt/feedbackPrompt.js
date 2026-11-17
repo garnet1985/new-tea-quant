@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { submitFeedback } from 'api/feedbackApi';
-import FeedbackPromptOverlay from 'views/feedbackPromptOverlay';
+import FeedbackPromptOverlay from './feedbackPromptOverlay';
 import { subscribeFeedbackPrompt } from 'service/feedbackPromptBus';
 
 /**

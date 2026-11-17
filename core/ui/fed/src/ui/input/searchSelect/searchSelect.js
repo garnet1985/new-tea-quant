@@ -5,11 +5,12 @@ import {
   Popover,
   TextField as MuiTextField,
 } from '@mui/material';
-import NtqIcon from 'ui/icon/ntqIcon';
+import Icon from 'ui/icon/icon';
 import Field from 'ui/input/field';
 import InstantTransition from 'ui/input/instantTransition';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
+import { inputChromeClass } from 'ui/input/controlChrome';
 import '../_control.scss';
 
 function emitChange(onChange, name, next) {
@@ -54,8 +55,10 @@ function SearchSelect({
   noOptionsText = '无匹配项',
   className = '',
   fullWidth = true,
-  /** 默认限制约 280px；传 false 去掉上限 */
+  /** 默认限制约 320px；传 false 去掉上限 */
   maxWidth = true,
+  surface = 'solid',
+  radius = 'sm',
   ...rest
 }) {
   const controlId = useControlId(id);
@@ -65,6 +68,7 @@ function SearchSelect({
   const list = useMemo(() => (Array.isArray(options) ? options : []), [options]);
   const hasFieldChrome = placement !== 'none' || tip || hint || error || label;
   const widthClass = maxWidth ? 'ntq-input--capped' : 'ntq-input--fluid';
+  const chromeClass = inputChromeClass({ surface, radius });
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -139,7 +143,7 @@ function SearchSelect({
         ref={anchorRef}
         id={controlId}
         type="button"
-        className="ntq-search-select__trigger"
+        className={['ntq-search-select__trigger', chromeClass].filter(Boolean).join(' ')}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -167,10 +171,10 @@ function SearchSelect({
                 if (e.key === 'Enter' || e.key === ' ') handleClear(e);
               }}
             >
-              <NtqIcon name="cancel" size="sm" tone="muted" />
+              <Icon name="cancel" size="sm" tone="muted" />
             </span>
           ) : null}
-          <NtqIcon name="expandMore" size="sm" tone="muted" />
+          <Icon name="expandMore" size="sm" tone="muted" />
         </span>
       </button>
 
@@ -211,7 +215,7 @@ function SearchSelect({
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <NtqIcon name="search" size="sm" tone="muted" />
+                    <Icon name="search" size="sm" tone="muted" />
                   </InputAdornment>
                 ),
               }}

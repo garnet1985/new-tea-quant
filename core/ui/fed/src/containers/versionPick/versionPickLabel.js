@@ -1,5 +1,5 @@
 import React from 'react';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import HelpTooltip from 'ui/message/helpTooltip';
 import { versionPickMarks } from './versionPickMarks';
 import './style.scss';
 
@@ -46,7 +46,7 @@ export default function VersionPickLabel({ version, id, suffix }) {
           onPointerDown={stopRowAction}
           onKeyDown={stopRowAction}
         >
-          <NtqHelpTooltip
+          <HelpTooltip
             title={<VersionMarkHints marks={marks} />}
             variant="help"
             iconSize={18}

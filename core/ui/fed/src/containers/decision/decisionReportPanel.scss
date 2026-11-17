@@ -1,0 +1,31 @@
+.ntq-design-decision-report__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ntq-design-decision-report__title {
+  margin: 0;
+  font-size: var(--ui-font-sm, 0.875rem);
+  font-weight: 600;
+}
+
+.ntq-design-decision-report__compare-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.ntq-design-decision-report__compare-select {
+  min-width: 11.25rem;
+}
+
+.ntq-design-decision-report__col-title {
+  margin: 0 0 0.5rem;
+  font-size: var(--ui-font-sm, 0.875rem);
+  font-weight: 600;
+}

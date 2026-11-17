@@ -11,7 +11,7 @@ const doc = {
       name: 'tip',
       type: 'ReactNode',
       defaultValue: 'undefined',
-      description: '标题旁 NtqHelpTooltip。',
+      description: '标题旁 HelpTooltip。',
     },
     {
       name: 'note',

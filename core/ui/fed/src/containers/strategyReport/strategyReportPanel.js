@@ -1,22 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import NtqIcon from 'views/ntqIcon';
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Box,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  Stack,
-  Tab,
-  Tabs,
-  Typography,
-} from '@mui/material';
-import SettingsAccordionTitle from 'views/settingsAccordionTitle';
-import NtqButton from 'views/ntqButton';
+import { Accordion, Button, Dialog, Icon, SettingsAccordionTitle, Tabs, Loading } from 'ui';
 import { VersionPickLabel, VersionPickerDialog, lookupVersionById } from 'containers/versionPick';
 import OpportunityEnumrateReport from './opportunityEnumerateReport';
 import PriceFactorReport from './priceFactorReport';
@@ -28,7 +11,6 @@ import {
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from './mocks/strategyReportMetrics';
 import SettingsJsonDiff from './settingsJsonDiff';
-import InlineLoadingState from 'views/inlineLoadingState';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
   COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
@@ -155,7 +137,7 @@ function StrategyReportPanel({
     };
   };
 
-  const handleTabChange = (_event, nextValue) => {
+  const handleTabChange = (nextValue) => {
     setActiveTab(nextValue);
     setSelectedStock(null);
   };
@@ -184,16 +166,17 @@ function StrategyReportPanel({
     return [];
   }, [priceRefRows, priceRefStatus]);
 
+  const unavailableClass = (options) => (
+    options.unavailableHintZh
+      ? 'ntq-report-panel__hint'
+      : 'ntq-report-panel__hint ntq-muted'
+  );
+
   const renderReportByTab = (tabKey, reportData, title, options = {}) => {
     const unavailableZh = options.unavailableHintZh ?? REPORT_BLOCK_UNAVAILABLE_ZH;
-    const unavailableTypographyProps = options.unavailableHintZh
-      ? { variant: 'body2', color: 'text.primary' }
-      : { variant: 'body2', color: 'text.secondary' };
     if (tabKey === 'enum') {
       if (!reportData?.enumMetrics) {
-        return (
-          <Typography {...unavailableTypographyProps}>{unavailableZh}</Typography>
-        );
+        return <p className={unavailableClass(options)}>{unavailableZh}</p>;
       }
       return (
         <OpportunityEnumrateReport
@@ -212,9 +195,7 @@ function StrategyReportPanel({
     }
     if (tabKey === 'price') {
       if (!reportData?.priceMetrics) {
-        return (
-          <Typography {...unavailableTypographyProps}>{unavailableZh}</Typography>
-        );
+        return <p className={unavailableClass(options)}>{unavailableZh}</p>;
       }
       return (
         <PriceFactorReport
@@ -233,9 +214,7 @@ function StrategyReportPanel({
     }
     if (tabKey === 'portfolio') {
       if (!reportData?.capitalMetrics) {
-        return (
-          <Typography {...unavailableTypographyProps}>{unavailableZh}</Typography>
-        );
+        return <p className={unavailableClass(options)}>{unavailableZh}</p>;
       }
       return (
         <CapitalAllocationReport
@@ -270,20 +249,34 @@ function StrategyReportPanel({
     [resultReport, resolvedActiveTab],
   );
 
+  const tabItems = useMemo(
+    () => availableTabs.map((tab) => ({
+      id: tab.key,
+      label: tab.label,
+      content: null,
+    })),
+    [availableTabs],
+  );
+
+  const compareTabItems = useMemo(() => ([
+    { id: 'report', label: '报告', content: null },
+    { id: 'settings', label: '设置', content: null },
+  ]), []);
+
   const renderTabContent = () => {
     if (lockedTab && executionState?.stepStatus?.[lockedTab] !== 'done') {
       return (
-        <Typography variant="body2" color="text.secondary">
+        <p className="ntq-report-panel__hint ntq-muted">
           在执行面板点击开始来产出报告
-        </Typography>
+        </p>
       );
     }
 
     if (!resolvedActiveTab) {
       return (
-        <Typography variant="body2" color="text.secondary">
+        <p className="ntq-report-panel__hint ntq-muted">
           先执行任一步，系统会在这里自动新增对应报告 Tab。
-        </Typography>
+        </p>
       );
     }
 
@@ -291,7 +284,7 @@ function StrategyReportPanel({
       let stockGridOverlay = null;
       if (activeWorkbenchVersionId && enumRefStatus === 'missing' && typeof onForceEnumerate === 'function') {
         stockGridOverlay = (
-          <Box
+          <div
             role="button"
             tabIndex={0}
             onClick={() => onForceEnumerate()}
@@ -303,23 +296,23 @@ function StrategyReportPanel({
             }}
             className="ntq-stock-grid-overlay"
           >
-            <Stack spacing={1} alignItems="center">
-              <NtqIcon name="refresh" size={60} className="ntq-stock-grid-overlay__icon" />
-              <Typography variant="body2" color="text.secondary">
+            <div className="ntq-stock-grid-overlay__inner">
+              <Icon name="refresh" size="xl" className="ntq-stock-grid-overlay__icon" />
+              <p className="ntq-report-panel__hint ntq-muted">
                 此结果需要重新执行步骤才能看到结果，点击重新执行
-              </Typography>
-            </Stack>
-          </Box>
+              </p>
+            </div>
+          </div>
         );
       } else if (activeWorkbenchVersionId && enumRefStatus === 'error') {
         stockGridOverlay = (
-          <Box className="ntq-stock-grid-overlay ntq-stock-grid-overlay--static">
-            <Stack spacing={1} alignItems="center">
-              <Typography variant="body2" color="error">
+          <div className="ntq-stock-grid-overlay ntq-stock-grid-overlay--static">
+            <div className="ntq-stock-grid-overlay__inner">
+              <p className="ntq-report-panel__hint ntq-report-panel__hint--error">
                 逐股明细加载失败（网络或服务异常），请稍后重试。
-              </Typography>
-            </Stack>
-          </Box>
+              </p>
+            </div>
+          </div>
         );
       }
       return renderReportByTab(
@@ -365,31 +358,27 @@ function StrategyReportPanel({
   };
 
   const reportPanelBody = (
-    <Stack spacing={1.25} className={embedded ? 'ntq-report-panel__embedded-body' : undefined}>
+    <div className={[
+      'ntq-report-panel__body',
+      embedded ? 'ntq-report-panel__embedded-body' : '',
+    ].filter(Boolean).join(' ')}
+    >
       {!lockedTab && availableTabs.length > 0 ? (
         <Tabs
+          className="ntq-report-panel__tabs ntq-tabs--list-only"
+          gap="sm"
           value={resolvedActiveTab}
           onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          {availableTabs.map((tab) => (
-            <Tab key={tab.key} value={tab.key} label={tab.label} />
-          ))}
-        </Tabs>
+          items={tabItems}
+        />
       ) : null}
       {showSectionHead ? (
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={1.5}
-          className="ntq-report-section-head"
-        >
-          <Typography variant="subtitle2" fontWeight={600} className="ntq-report-section-head__title">
+        <div className="ntq-report-section-head">
+          <h3 className="ntq-report-section-head__title">
             {activeTabSectionTitle}
-          </Typography>
+          </h3>
           {showReportCompare ? (
-            <NtqButton
+            <Button
               variant="attention"
               className="ntq-report-section-head__compare"
               onClick={() => {
@@ -398,9 +387,9 @@ function StrategyReportPanel({
               }}
             >
               对比结果
-            </NtqButton>
+            </Button>
           ) : null}
-        </Stack>
+        </div>
       ) : null}
       {resolvedActiveTab ? (
         <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
@@ -415,7 +404,7 @@ function StrategyReportPanel({
         stepStatus={executionState?.stepStatus || {}}
         onClose={closeStockDetail}
       />
-    </Stack>
+    </div>
   );
 
   const reportPanelDialogs = (
@@ -425,161 +414,134 @@ function StrategyReportPanel({
         onClose={() => setCompareDialogOpen(false)}
         fullScreen
         className="ntq-report-compare-dialog"
+        title={(
+          <span className="ntq-report-compare-dialog__title">
+            <span className="ntq-report-compare-dialog__title-text">报告对比</span>
+            <Button
+              variant="ghost"
+              icon="close"
+              aria-label="关闭"
+              onClick={() => setCompareDialogOpen(false)}
+            />
+          </span>
+        )}
       >
-        <DialogTitle
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-            py: 1.25,
-            pr: 1,
-          }}
-        >
-          <Typography variant="subtitle1" fontWeight={700} component="span">
-            报告对比
-          </Typography>
-          <IconButton
-            aria-label="关闭"
-            onClick={() => setCompareDialogOpen(false)}
-            edge="end"
-          >
-            <NtqIcon name="cancel" size={18} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent
-          dividers
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1.5,
-            pt: 1.5,
-            minHeight: 0,
-            flex: 1,
-          }}
-        >
-          <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              <Typography variant="caption" color="text.secondary">对比版本</Typography>
-              <Button
-                size="small"
-                variant="outlined"
-                className="ntq-report-compare__picker-trigger"
-                onClick={() => setComparePickerOpen(true)}
-              >
-                {compareVersion
-                  ? <VersionPickLabel version={lookupVersionById(configVersions, compareVersion)} />
-                  : '选择对比版本'}
-              </Button>
-            </Stack>
-            <Box className="ntq-report-compare" sx={{ flex: 1, minHeight: 0 }}>
-              <Tabs
-                value={compareDialogSubTab}
-                onChange={(_e, v) => setCompareDialogSubTab(v)}
-                variant="standard"
-                className="ntq-report-compare__tabs"
-              >
-                <Tab label="报告" value="report" />
-                <Tab label="设置" value="settings" />
-              </Tabs>
+        <div className="ntq-report-compare-dialog__body">
+          <div className="ntq-report-compare__picker-row">
+            <span className="ntq-caption ntq-muted">对比版本</span>
+            <Button
+              variant="glass"
+              className="ntq-report-compare__picker-trigger"
+              onClick={() => setComparePickerOpen(true)}
+            >
+              {compareVersion
+                ? <VersionPickLabel version={lookupVersionById(configVersions, compareVersion)} />
+                : '选择对比版本'}
+            </Button>
+          </div>
+          <div className="ntq-report-compare">
+            <Tabs
+              className="ntq-report-compare__tabs ntq-tabs--list-only"
+              gap="sm"
+              value={compareDialogSubTab}
+              onChange={setCompareDialogSubTab}
+              items={compareTabItems}
+            />
 
-              <Box className="ntq-report-compare__panel">
-                <Box className="ntq-report-compare__scroll">
-                  {compareDialogSubTab === 'report' ? (
-                    <Box className="ntq-report-compare__grid">
-                      <Stack spacing={1} className="ntq-report-compare__col">
-                        <Typography variant="body2" color="text.primary">
-                          {`当前版本（${activeWorkbenchVersionId || '—'}）`}
-                        </Typography>
-                        {renderReportByTab(
-                          resolvedActiveTab,
-                          buildMetricsPayloadForTab(resolvedActiveTab),
-                          compareDialogReportKindLabel,
-                          { showStockGrid: false, showTradeChart: false },
-                        )}
-                      </Stack>
-                      <Stack spacing={1} className="ntq-report-compare__col">
-                        <Typography variant="body2" color="text.primary">
-                          {`对比版本（${compareVersion || '—'}）`}
-                        </Typography>
-                        {compareVersion ? (
-                          <>
-                            {compareError ? (
-                              <Typography variant="caption" color="error">
-                                {compareError}
-                              </Typography>
-                            ) : null}
-                            {!compareError && compareSideReportBusy ? (
-                              <InlineLoadingState compact block message="正在加载对比报告…" />
-                            ) : null}
-                            {!compareError && !compareSideReportBusy
-                              ? renderReportByTab(
-                                resolvedActiveTab,
-                                buildMetricsPayloadForTab(resolvedActiveTab, {
-                                  compareResultReport: compareSnapshot?.result_report ?? null,
-                                }),
-                                compareDialogReportKindLabel,
-                                {
-                                  showStockGrid: false,
-                                  showTradeChart: false,
-                                  unavailableHintZh: COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
-                                },
-                              )
-                              : null}
-                          </>
-                        ) : (
-                          <Typography variant="body2" color="text.primary">
-                            {COMPARE_EMPTY_OTHER_VERSION_ZH}
-                          </Typography>
-                        )}
-                      </Stack>
-                    </Box>
-                  ) : (
-                    <Stack spacing={2} className="ntq-report-compare__settings">
-                      {!activeWorkbenchVersionId ? (
-                        <Typography variant="body2" color="text.secondary">
-                          暂无绑定工作台快照版本，无法加载当前设置。
-                        </Typography>
-                      ) : null}
-                      {compareVersion && compareSideReportBusy ? (
-                        <InlineLoadingState compact row message="正在加载对比快照…" />
-                      ) : null}
-                      {compareError ? (
-                        <Typography variant="caption" color="error">{compareError}</Typography>
-                      ) : null}
+            <div className="ntq-report-compare__panel">
+              <div className="ntq-report-compare__scroll">
+                {compareDialogSubTab === 'report' ? (
+                  <div className="ntq-report-compare__grid">
+                    <div className="ntq-report-compare__col">
+                      <p className="ntq-report-compare__col-title">
+                        {`当前版本（${activeWorkbenchVersionId || '—'}）`}
+                      </p>
+                      {renderReportByTab(
+                        resolvedActiveTab,
+                        buildMetricsPayloadForTab(resolvedActiveTab),
+                        compareDialogReportKindLabel,
+                        { showStockGrid: false, showTradeChart: false },
+                      )}
+                    </div>
+                    <div className="ntq-report-compare__col">
+                      <p className="ntq-report-compare__col-title">
+                        {`对比版本（${compareVersion || '—'}）`}
+                      </p>
+                      {compareVersion ? (
+                        <>
+                          {compareError ? (
+                            <p className="ntq-caption ntq-report-panel__hint--error">{compareError}</p>
+                          ) : null}
+                          {!compareError && compareSideReportBusy ? (
+                            <Loading variant="inline" message="正在加载对比报告…" className="is-block" />
+                          ) : null}
+                          {!compareError && !compareSideReportBusy
+                            ? renderReportByTab(
+                              resolvedActiveTab,
+                              buildMetricsPayloadForTab(resolvedActiveTab, {
+                                compareResultReport: compareSnapshot?.result_report ?? null,
+                              }),
+                              compareDialogReportKindLabel,
+                              {
+                                showStockGrid: false,
+                                showTradeChart: false,
+                                unavailableHintZh: COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
+                              },
+                            )
+                            : null}
+                        </>
+                      ) : (
+                        <p className="ntq-report-panel__hint">
+                          {COMPARE_EMPTY_OTHER_VERSION_ZH}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ntq-report-compare__settings">
+                    {!activeWorkbenchVersionId ? (
+                      <p className="ntq-report-panel__hint ntq-muted">
+                        暂无绑定工作台快照版本，无法加载当前设置。
+                      </p>
+                    ) : null}
+                    {compareVersion && compareSideReportBusy ? (
+                      <Loading variant="inlineRow" message="正在加载对比快照…" />
+                    ) : null}
+                    {compareError ? (
+                      <p className="ntq-caption ntq-report-panel__hint--error">{compareError}</p>
+                    ) : null}
 
-                      {activeWorkbenchVersionId && baseSettings && !compareVersion ? (
-                        <Stack spacing={1}>
-                          <Typography variant="subtitle2" fontWeight={700}>当前快照 settings</Typography>
-                          <Box component="pre" className="ntq-report-compare__pre">
-                            {JSON.stringify(baseSettings, null, 2)}
-                          </Box>
-                        </Stack>
-                      ) : null}
+                    {activeWorkbenchVersionId && baseSettings && !compareVersion ? (
+                      <div className="ntq-report-compare__settings-block">
+                        <h4 className="ntq-report-compare__settings-heading">当前快照 settings</h4>
+                        <pre className="ntq-report-compare__pre">
+                          {JSON.stringify(baseSettings, null, 2)}
+                        </pre>
+                      </div>
+                    ) : null}
 
-                      {!compareVersion ? (
-                        <Box className="ntq-report-compare__hint">
-                          <Typography variant="body2" color="text.secondary">
-                            选择对比版本后，左右两栏将并排高亮 settings 差异。
-                          </Typography>
-                        </Box>
-                      ) : null}
+                    {!compareVersion ? (
+                      <div className="ntq-report-compare__hint">
+                        <p className="ntq-report-panel__hint ntq-muted">
+                          选择对比版本后，左右两栏将并排高亮 settings 差异。
+                        </p>
+                      </div>
+                    ) : null}
 
-                      {compareVersion && activeWorkbenchVersionId && baseSettings && compareSettings ? (
-                        <SettingsJsonDiff
-                          left={baseSettings}
-                          right={compareSettings}
-                          leftTitle={`当前版本（${activeWorkbenchVersionId || '—'}）`}
-                          rightTitle={`对比版本（${compareVersion || '—'}）`}
-                        />
-                      ) : null}
-                    </Stack>
-                  )}
-                </Box>
-              </Box>
-            </Box>
-          </Stack>
-        </DialogContent>
+                    {compareVersion && activeWorkbenchVersionId && baseSettings && compareSettings ? (
+                      <SettingsJsonDiff
+                        left={baseSettings}
+                        right={compareSettings}
+                        leftTitle={`当前版本（${activeWorkbenchVersionId || '—'}）`}
+                        rightTitle={`对比版本（${compareVersion || '—'}）`}
+                      />
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </Dialog>
 
       <VersionPickerDialog
@@ -600,21 +562,15 @@ function StrategyReportPanel({
 
   if (embedded) {
     return (
-      <Box className="ntq-report-panel ntq-report-panel--embedded">
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          spacing={1.5}
-          className="ntq-report-panel__embedded-head"
-        >
+      <div className="ntq-report-panel ntq-report-panel--embedded">
+        <div className="ntq-report-panel__embedded-head">
           <SettingsAccordionTitle
             title={embeddedPanelTitle}
             tooltip={REPORT_PANEL_TOOLTIP}
             context={{ defaultTooltipShine: true }}
           />
           {showReportCompare && lockedTab ? (
-            <NtqButton
+            <Button
               variant="attention"
               className="ntq-report-panel__embedded-compare"
               data-ntq-help="strategy-report-compare"
@@ -624,29 +580,27 @@ function StrategyReportPanel({
               }}
             >
               对比结果
-            </NtqButton>
+            </Button>
           ) : null}
-        </Stack>
+        </div>
         {reportPanelBody}
         {reportPanelDialogs}
-      </Box>
+      </div>
     );
   }
 
   return (
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <SettingsAccordionTitle
-          title={REPORT_PANEL_TITLE}
-          tooltip={REPORT_PANEL_TOOLTIP}
-          context={{ defaultTooltipShine: true }}
-        />
-      </AccordionSummary>
-      <AccordionDetails>
+    <>
+      <Accordion
+        title={REPORT_PANEL_TITLE}
+        tooltip={REPORT_PANEL_TOOLTIP}
+        shine
+        defaultExpanded
+      >
         {reportPanelBody}
-      </AccordionDetails>
+      </Accordion>
       {reportPanelDialogs}
-    </Accordion>
+    </>
   );
 }
 

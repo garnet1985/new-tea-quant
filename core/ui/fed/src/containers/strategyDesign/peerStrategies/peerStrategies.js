@@ -1,15 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Link,
-  Stack,
-  Typography,
-} from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
-import SettingsAccordionTitle from 'views/settingsAccordionTitle';
+import { Accordion } from 'ui';
 import {
   fetchStrategyList,
   getStrategyDesignPath,
@@ -63,59 +54,38 @@ function StrategyDesignPeerStrategies() {
   return (
     <Accordion
       className="ntq-design-peer-strategies"
+      title={STRATEGY_DESIGN_SETTINGS_PEERS_TITLE}
+      tooltip={STRATEGY_DESIGN_SETTINGS_PEERS_TOOLTIP}
+      shine
       defaultExpanded={false}
-      disableGutters
-      TransitionProps={{ timeout: 0, unmountOnExit: false }}
     >
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <SettingsAccordionTitle
-          title={STRATEGY_DESIGN_SETTINGS_PEERS_TITLE}
-          tooltip={STRATEGY_DESIGN_SETTINGS_PEERS_TOOLTIP}
-          context={{ defaultTooltipShine: true }}
-        />
-      </AccordionSummary>
-      <AccordionDetails>
-        <Stack spacing={0.5} className="ntq-design-peer-strategies__list">
-          {listed.peers.map((row) => {
-            const label = getStrategyDisplayLabel(row);
-            return (
-              <Link
-                key={row.id || row.name}
-                component={RouterLink}
-                to={getStrategyDesignPath(row.name, wb.activeStep)}
-                state={buildStrategyDesignNavState(row)}
-                underline="hover"
-                className="ntq-design-peer-strategies__item"
-                title={label}
-              >
-                <Typography component="span" className="ntq-design-peer-strategies__name">
-                  {label}
-                </Typography>
-                {row.is_enabled ? null : (
-                  <Typography
-                    component="span"
-                    variant="caption"
-                    color="text.secondary"
-                    className="ntq-design-peer-strategies__badge"
-                  >
-                    未启用
-                  </Typography>
-                )}
-              </Link>
-            );
-          })}
-          {listed.hasMore ? (
-            <Link
-              component={RouterLink}
-              to={moreTo}
-              underline="hover"
-              className="ntq-design-peer-strategies__more"
+      <div className="ntq-design-peer-strategies__list">
+        {listed.peers.map((row) => {
+          const label = getStrategyDisplayLabel(row);
+          return (
+            <RouterLink
+              key={row.id || row.name}
+              to={getStrategyDesignPath(row.name, wb.activeStep)}
+              state={buildStrategyDesignNavState(row)}
+              className="ntq-link ntq-design-peer-strategies__item"
+              title={label}
             >
-              更多{listed.categoryLabel ? ` · ${listed.categoryLabel}` : ''}
-            </Link>
-          ) : null}
-        </Stack>
-      </AccordionDetails>
+              <span className="ntq-design-peer-strategies__name">{label}</span>
+              {row.is_enabled ? null : (
+                <span className="ntq-muted ntq-design-peer-strategies__badge">未启用</span>
+              )}
+            </RouterLink>
+          );
+        })}
+        {listed.hasMore ? (
+          <RouterLink
+            to={moreTo}
+            className="ntq-link ntq-design-peer-strategies__more"
+          >
+            更多{listed.categoryLabel ? ` · ${listed.categoryLabel}` : ''}
+          </RouterLink>
+        ) : null}
+      </div>
     </Accordion>
   );
 }

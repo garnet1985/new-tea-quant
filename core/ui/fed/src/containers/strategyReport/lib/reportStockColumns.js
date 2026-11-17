@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from '@mui/material';
 
 export const STOCK_NAME_COLUMN = {
   field: 'stockName',
@@ -20,18 +19,16 @@ export function stockCodeColumn({ onStockSelect, stockLinkEnabled } = {}) {
         return code;
       }
       return (
-        <Link
-          component="button"
+        <button
           type="button"
-          underline="hover"
+          className="ntq-link"
           onClick={(event) => {
             event.stopPropagation();
             onStockSelect(params.row);
           }}
-          sx={{ font: 'inherit', textAlign: 'left' }}
         >
           {code}
-        </Link>
+        </button>
       );
     },
   };

@@ -1,0 +1,52 @@
+.ntq-finance-pit-card {
+  padding: 8px 10px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.ntq-finance-pit-card__caption {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ui-text-muted, #98a2b3);
+}
+
+.ntq-finance-pit-card__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ntq-finance-pit-card__metric {
+  min-width: 72px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.ntq-finance-pit-card__metric-name {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--ui-text-muted, #98a2b3);
+}
+
+.ntq-finance-pit-card__value {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--ui-text, #f2f4f7);
+
+  &.is-empty {
+    color: var(--ui-text-muted, #98a2b3);
+  }
+
+  &.is-neg {
+    color: #fda29b;
+  }
+}

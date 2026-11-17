@@ -1,6 +1,6 @@
 import React from 'react';
 import { Switch as MuiSwitch } from '@mui/material';
-import NtqHelpTooltip from 'ui/message/ntqHelpTooltip';
+import HelpTooltip from 'ui/message/helpTooltip';
 import Field from 'ui/input/field';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
@@ -69,7 +69,7 @@ function Switch({
                 {required ? <span aria-hidden="true"> *</span> : null}
               </label>
             ) : null}
-            {tip ? <NtqHelpTooltip title={tip} /> : null}
+            {tip ? <HelpTooltip title={tip} /> : null}
           </span>
         ) : null}
         {switchNode}

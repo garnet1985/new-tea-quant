@@ -1,29 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import {
+  Button,
+  DataGrid,
+  Dialog,
+  ListToolbar,
+  Message,
+  SearchField,
+  Section,
+  Tag,
+  TextField,
+} from 'ui';
+import { showToast } from 'ui/message/toast';
+import { PageLayout } from 'ntq-ui';
 import {
   fetchSeriesRelationList,
   getSeriesRelationPath,
 } from 'api/seriesRelationApi';
-import PageLayout from 'views/pageLayout';
-import SearchField from 'views/searchField';
-import NtqButton from 'views/ntqButton';
-import Message from 'views/message';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from 'views/dataGridLoadingOverlay';
-import { showToast } from 'containers/toast';
 import './seriesRelationPage.scss';
 
 function SeriesRelationListPage() {
@@ -87,7 +80,7 @@ function SeriesRelationListPage() {
   const confirmNew = () => {
     const key = String(newKey || '').trim();
     if (!key) {
-      showToast({ severity: 'error', content: '请填写场景 key' });
+      showToast({ status: 'error', content: '请填写场景 key' });
       return;
     }
     setNewOpen(false);
@@ -104,15 +97,12 @@ function SeriesRelationListPage() {
       minWidth: 200,
       flex: 0.5,
       renderCell: (params) => (
-        <Typography
-          component={RouterLink}
+        <RouterLink
           to={getSeriesRelationPath(params.row.key)}
-          variant="body2"
-          fontWeight={700}
           className="ntq-srel-list-link"
         >
           {params.value || params.row.key}
-        </Typography>
+        </RouterLink>
       ),
     },
     {
@@ -121,9 +111,7 @@ function SeriesRelationListPage() {
       minWidth: 180,
       flex: 0.4,
       renderCell: (params) => (
-        <Typography variant="body2" color="text.secondary" className="ntq-srel-list-key">
-          {params.value}
-        </Typography>
+        <span className="ntq-srel-list-key ntq-muted">{params.value}</span>
       ),
     },
     {
@@ -131,10 +119,11 @@ function SeriesRelationListPage() {
       headerName: '结果',
       width: 110,
       renderCell: (params) => (
+        // 约定：有结果（满足）solid；未跑批（未满足）outline
         params.value ? (
-          <Chip size="small" color="success" label="有结果" />
+          <Tag status="success" variant="solid">有结果</Tag>
         ) : (
-          <Chip size="small" variant="outlined" label="未跑批" />
+          <Tag status="neutral" variant="outline">未跑批</Tag>
         )
       ),
     },
@@ -145,14 +134,17 @@ function SeriesRelationListPage() {
       sortable: false,
       filterable: false,
       renderCell: (params) => (
-        <NtqButton
-          size="small"
-          variant="glass"
+        <Button
+          variant="ghost"
+          icon="chevronRight"
+          iconPlacement="end"
+          iconSize="sm"
           component={RouterLink}
           to={getSeriesRelationPath(params.row.key)}
+          className="ntq-srel-list-enter"
         >
           进入
-        </NtqButton>
+        </Button>
       ),
     },
   ]), []);
@@ -167,96 +159,92 @@ function SeriesRelationListPage() {
       loading={!pageReady}
       loadingMessage="正在加载序列关系…"
     >
-      {loadError ? (
-        <Message severity="error" className="ntq-srel-list-alert">{loadError}</Message>
-      ) : null}
+      <Section className="ntq-srel-list-page__stack" gap="md">
+        {loadError ? <Message status="error">{loadError}</Message> : null}
 
-      <Paper className="ntq-srel-list-grid">
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          alignItems={{ xs: 'stretch', sm: 'center' }}
-          spacing={1.5}
-          className="ntq-srel-list-toolbar"
-        >
-          <SearchField
-            fluid
-            placeholder="搜索名称或 Key"
-            label="搜索序列关系"
-            value={nameQuery}
-            onChange={(e) => setNameQuery(e.target.value)}
+        <Section className="ntq-srel-list-grid" gap="md">
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="搜索名称或 Key"
+                label="搜索序列关系"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <>
+                <Button
+                  variant="glass"
+                  icon="refresh"
+                  onClick={load}
+                  disabled={loading}
+                >
+                  刷新
+                </Button>
+                <Button
+                  variant="primary"
+                  icon="add"
+                  onClick={() => {
+                    setNewKey('');
+                    setNewDisplayName('');
+                    setNewOpen(true);
+                  }}
+                >
+                  新建
+                </Button>
+              </>
+            )}
           />
-          <NtqButton
-            variant="glass"
-            icon="refresh"
-            onClick={load}
-            disabled={loading}
-          >
-            刷新
-          </NtqButton>
-          <NtqButton
-            variant="primary"
-            icon="add"
-            onClick={() => {
-              setNewKey('');
-              setNewDisplayName('');
-              setNewOpen(true);
-            }}
-          >
-            新建
-          </NtqButton>
-        </Stack>
 
-        <Box className="ntq-srel-list-grid-body">
-          <DataGrid
-            autoHeight
-            rows={displayRows}
-            columns={columns}
-            loading={loading}
-            disableRowSelectionOnClick
-            pageSizeOptions={[10, 25, 50]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-            slots={NTQ_DATA_GRID_LOADING_SLOTS}
-            getRowId={(row) => row.id}
-            onRowDoubleClick={(params) => enterScene(params.row.key)}
-            sx={{
-              border: 'none',
-              '& .MuiDataGrid-cell': {
-                py: 1,
-                alignItems: 'center',
-              },
-            }}
+          <div className="ntq-srel-list-grid-body">
+            <DataGrid
+              autoHeight
+              rows={displayRows}
+              columns={columns}
+              loading={loading}
+              pageSizeOptions={[10, 25, 50]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              getRowId={(row) => row.id}
+              onRowDoubleClick={(params) => enterScene(params.row.key)}
+            />
+          </div>
+        </Section>
+      </Section>
+
+      <Dialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        title="新建序列关系场景"
+        size="sm"
+        actions={(
+          <>
+            <Button variant="ghost" onClick={() => setNewOpen(false)}>取消</Button>
+            <Button variant="primary" onClick={confirmNew}>创建</Button>
+          </>
+        )}
+      >
+        <Section gap="md">
+          <TextField
+            label="场景 key"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            placeholder="如 banks_vs_macro"
+            maxWidth={false}
+            surface="glass"
+            autoFocus
           />
-        </Box>
-      </Paper>
-
-      <Dialog open={newOpen} onClose={() => setNewOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>新建序列关系场景</DialogTitle>
-        <DialogContent>
-          <Stack spacing={1.5} sx={{ mt: 1 }}>
-            <TextField
-              size="small"
-              label="场景 key"
-              value={newKey}
-              onChange={(e) => setNewKey(e.target.value)}
-              placeholder="如 banks_vs_macro"
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              size="small"
-              label="显示名（可选）"
-              value={newDisplayName}
-              onChange={(e) => setNewDisplayName(e.target.value)}
-              fullWidth
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <NtqButton variant="ghost" onClick={() => setNewOpen(false)}>取消</NtqButton>
-          <NtqButton variant="primary" onClick={confirmNew}>创建</NtqButton>
-        </DialogActions>
+          <TextField
+            label="显示名（可选）"
+            value={newDisplayName}
+            onChange={(e) => setNewDisplayName(e.target.value)}
+            maxWidth={false}
+            surface="glass"
+          />
+        </Section>
       </Dialog>
     </PageLayout>
   );

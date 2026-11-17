@@ -1,17 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  Link,
-  Stack,
-  Typography,
-} from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
+import { Button, Dialog } from 'ui';
 import {
   VersionPickerDialog,
   SETTINGS_RETENTION_HREF,
@@ -19,6 +7,7 @@ import {
   retentionCapFromVersions,
 } from 'containers/versionPick';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
+import './style.scss';
 
 function StrategyDesignMetaDialogs() {
   const wb = useStrategyDesignWorkbenchContext();
@@ -29,37 +18,43 @@ function StrategyDesignMetaDialogs() {
 
   return (
     <>
-      <Dialog open={wb.confirmOpen} onClose={() => wb.setConfirmOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>恢复历史版本配置</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2">
-            将把版本
-            {' '}
-            <strong>{wb.pendingVersionId}</strong>
-            {' '}
-            当时冻结的配置写回 settings.py，并刷新当前编辑器。未保存的草稿将被覆盖。
-          </Typography>
-          {pendingVersion.envInvalid ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              该版本产物仅供查阅。恢复配置后运行会按当前环境查找或新建 version，不会写回此目录。
-            </Typography>
-          ) : null}
-          {pendingVersion.expiresSoon ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              该版本所在的过时环境已接近保留上限，下次再出现新环境时可能整组被清理。恢复配置不受影响。
-            </Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => wb.setConfirmOpen(false)}>取消</Button>
-          <Button
-            variant="contained"
-            disabled={wb.isSavingSettings}
-            onClick={wb.confirmRestoreVersion}
-          >
-            {wb.isSavingSettings ? '处理中...' : '确认恢复'}
-          </Button>
-        </DialogActions>
+      <Dialog
+        open={wb.confirmOpen}
+        onClose={() => wb.setConfirmOpen(false)}
+        title="恢复历史版本配置"
+        size="sm"
+        actions={(
+          <>
+            <Button variant="ghost" onClick={() => wb.setConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              disabled={wb.isSavingSettings}
+              onClick={wb.confirmRestoreVersion}
+            >
+              {wb.isSavingSettings ? '处理中...' : '确认恢复'}
+            </Button>
+          </>
+        )}
+      >
+        <p>
+          将把版本
+          {' '}
+          <strong>{wb.pendingVersionId}</strong>
+          {' '}
+          当时冻结的配置写回 settings.py，并刷新当前编辑器。未保存的草稿将被覆盖。
+        </p>
+        {pendingVersion.envInvalid ? (
+          <p className="ntq-muted">
+            该版本产物仅供查阅。恢复配置后运行会按当前环境查找或新建 version，不会写回此目录。
+          </p>
+        ) : null}
+        {pendingVersion.expiresSoon ? (
+          <p className="ntq-muted">
+            该版本所在的过时环境已接近保留上限，下次再出现新环境时可能整组被清理。恢复配置不受影响。
+          </p>
+        ) : null}
       </Dialog>
 
       <VersionPickerDialog
@@ -67,55 +62,45 @@ function StrategyDesignMetaDialogs() {
         onClose={wb.closeVersionsDialog}
         title="恢复到历史版本"
         titleExtra={(
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            component="div"
-            sx={{ fontWeight: 400, textAlign: 'right', lineHeight: 1.4 }}
-          >
+          <div className="ntq-meta-dialogs__retention ntq-muted">
             当前设置最多保留
             {' '}
             「
-            <Box
-              component="span"
-              sx={{ fontWeight: 700, fontSize: '1.2em', color: 'text.primary' }}
-            >
+            <span className="ntq-meta-dialogs__retention-cap">
               {retentionCap > 0 ? retentionCap : '—'}
-            </Box>
+            </span>
             」组过时环境
             {' · '}
-            <Link
+            <a
+              className="ntq-link"
               href={SETTINGS_RETENTION_HREF}
               target="_blank"
               rel="noopener noreferrer"
-              underline="hover"
             >
               去设置
-            </Link>
-          </Typography>
+            </a>
+          </div>
         )}
         versions={wb.configVersions}
         selectedId={wb.selectedConfigVersion}
         emptyHint="暂无可应用的工作台版本。"
         onSelect={(versionId) => wb.requestApplyVersion(versionId)}
         renderSecondaryAction={(version) => (
-          <Stack direction="row" className="ntq-version-row-actions" alignItems="center">
-            <IconButton
-              size="small"
-              color="error"
+          <div className="ntq-version-row-actions">
+            <Button
+              variant="ghost"
+              icon="trash"
               className="ntq-version-row-action ntq-version-row-action--danger"
               aria-label={`删除 ${version.id}`}
-              title="删除此版本产物"
+              tooltip="删除此版本产物"
               disabled={wb.disableMetaActions || wb.isDeletingVersion}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 wb.requestDeleteVersion(version.id);
               }}
-            >
-              <NtqIcon name="trash" size={20} tone="error" />
-            </IconButton>
-          </Stack>
+            />
+          </div>
         )}
       />
 
@@ -124,83 +109,84 @@ function StrategyDesignMetaDialogs() {
         onClose={() => {
           if (!wb.isDeletingVersion) wb.setDeleteConfirmOpen(false);
         }}
-        maxWidth="xs"
-        fullWidth
-        sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
+        title={`确认删除 ${pendingDeleteId}？`}
+        size="sm"
+        elevated
+        actions={(
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => wb.setDeleteConfirmOpen(false)}
+              disabled={wb.isDeletingVersion}
+            >
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              disabled={wb.isDeletingVersion}
+              onClick={wb.confirmDeleteVersion}
+            >
+              {wb.isDeletingVersion ? '删除中...' : '确认删除'}
+            </Button>
+          </>
+        )}
       >
-        <DialogTitle>确认删除 {pendingDeleteId}？</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2">
-            将永久删除这份回测的报告、缓存目录和版本登记，删除后无法恢复。
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-            不会改 settings.py，也不会改当前编辑器里的配置。
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => wb.setDeleteConfirmOpen(false)}
-            disabled={wb.isDeletingVersion}
-          >
-            取消
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            disabled={wb.isDeletingVersion}
-            onClick={wb.confirmDeleteVersion}
-          >
-            {wb.isDeletingVersion ? '删除中...' : '确认删除'}
-          </Button>
-        </DialogActions>
+        <p>
+          将永久删除这份回测的报告、缓存目录和版本登记，删除后无法恢复。
+        </p>
+        <p className="ntq-muted">
+          不会改 settings.py，也不会改当前编辑器里的配置。
+        </p>
       </Dialog>
+
       <Dialog
         open={Boolean(wb.diskConflict)}
         onClose={() => {
           if (!wb.diskConflictBusy) wb.closeDiskConflict();
         }}
-        maxWidth="xs"
-        fullWidth
+        title="文件已更新"
+        size="sm"
+        actions={(
+          <>
+            <Button
+              variant="ghost"
+              onClick={wb.closeDiskConflict}
+              disabled={wb.diskConflictBusy}
+            >
+              取消
+            </Button>
+            <Button
+              variant="glass"
+              onClick={wb.confirmDiskConflictTakeFile}
+              disabled={wb.diskConflictBusy}
+            >
+              用文件覆盖编辑器
+            </Button>
+            <Button
+              variant="primary"
+              onClick={wb.confirmDiskConflictOverwriteFile}
+              disabled={wb.diskConflictBusy}
+            >
+              {wb.diskConflictBusy
+                ? '处理中...'
+                : (wb.diskConflict?.intent === 'restore' ? '仍要恢复历史版本' : '用编辑器覆盖文件')}
+            </Button>
+          </>
+        )}
       >
-        <DialogTitle>文件已更新</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2">
-            settings.py 已在别处修改，与当前编辑器草稿不一致。
-          </Typography>
-          {wb.diskConflict?.intent === 'restore' ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              继续恢复会丢掉当前草稿，并用历史版本覆盖磁盘上的新改动。
-            </Typography>
-          ) : null}
-          {wb.diskConflict?.intent === 'run' ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-              用编辑器覆盖文件后才会继续运行。
-            </Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={wb.closeDiskConflict}
-            disabled={wb.diskConflictBusy}
-          >
-            取消
-          </Button>
-          <Button
-            onClick={wb.confirmDiskConflictTakeFile}
-            disabled={wb.diskConflictBusy}
-          >
-            用文件覆盖编辑器
-          </Button>
-          <Button
-            variant="contained"
-            onClick={wb.confirmDiskConflictOverwriteFile}
-            disabled={wb.diskConflictBusy}
-          >
-            {wb.diskConflictBusy
-              ? '处理中...'
-              : (wb.diskConflict?.intent === 'restore' ? '仍要恢复历史版本' : '用编辑器覆盖文件')}
-          </Button>
-        </DialogActions>
+        <p>
+          settings.py 已在别处修改，与当前编辑器草稿不一致。
+        </p>
+        {wb.diskConflict?.intent === 'restore' ? (
+          <p className="ntq-muted">
+            继续恢复会丢掉当前草稿，并用历史版本覆盖磁盘上的新改动。
+          </p>
+        ) : null}
+        {wb.diskConflict?.intent === 'run' ? (
+          <p className="ntq-muted">
+            用编辑器覆盖文件后才会继续运行。
+          </p>
+        ) : null}
       </Dialog>
     </>
   );

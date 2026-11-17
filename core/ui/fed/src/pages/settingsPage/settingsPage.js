@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Box, Paper, Tab, Tabs } from '@mui/material';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import PageLayout from 'ntq-ui/pageLayout';
+import Column from 'ui/layout/column';
+import Block from 'ui/layout/block';
+import SideNav from 'ui/layout/sideNav';
 import {
   fetchDatabaseSettings,
   fetchDataSettings,
   saveDatabaseSettings,
   saveDataSettings,
 } from '../../api/settingsApi';
-import PageLayout from '../../views/pageLayout';
 import {
   SettingsAgentPanel,
   SettingsAssistantPanel,
@@ -41,7 +43,6 @@ function useSettingsSection() {
 }
 
 function SettingsPage() {
-  const navigate = useNavigate();
   const section = useSettingsSection();
 
   const [loading, setLoading] = React.useState(true);
@@ -61,6 +62,15 @@ function SettingsPage() {
   const [defaultStartDate, setDefaultStartDate] = React.useState('');
   const [assumedLatestCompletedDate, setAssumedLatestCompletedDate] = React.useState('');
   const [simulationResultsMaxStaleEnvs, setSimulationResultsMaxStaleEnvs] = React.useState('');
+
+  const navItems = useMemo(
+    () => SETTINGS_TABS.map((tab) => ({
+      id: tab.path,
+      label: tab.label,
+      to: `/settings/${tab.path}`,
+    })),
+    [],
+  );
 
   const loadDatabase = useCallback(() => {
     setLoading(true);
@@ -143,10 +153,6 @@ function SettingsPage() {
       .finally(() => setDataSaving(false));
   };
 
-  const handleTabChange = (_event, nextPath) => {
-    navigate(`/settings/${nextPath}`);
-  };
-
   return (
     <PageLayout
       className="settings-page"
@@ -155,21 +161,36 @@ function SettingsPage() {
       bannerTitle="设置"
       bannerDescription="系统安装、数据库连接、会员凭证、AI 配置、Agent 配置、数据范围、缓存清理、反馈与统计。"
     >
-      <Box className="settings-page-layout">
-        <Paper className="settings-page-nav" elevation={0}>
-          <Tabs
-            orientation="vertical"
-            value={section}
-            onChange={handleTabChange}
+      <Column
+        className="settings-page-layout"
+        variant="sidebar"
+        gap="md"
+        align="stretch"
+        stack
+      >
+        <Block
+          className="settings-page-nav"
+          surface="soft"
+          bordered
+          padding="sm"
+          gap="none"
+        >
+          <SideNav
+            variant="rail"
+            radius="none"
+            activeId={section}
+            items={navItems}
             aria-label="设置分类"
-          >
-            {SETTINGS_TABS.map((tab) => (
-              <Tab key={tab.id} label={tab.label} value={tab.path} />
-            ))}
-          </Tabs>
-        </Paper>
+          />
+        </Block>
 
-        <Paper className="settings-page-panel" elevation={0}>
+        <Block
+          className="settings-page-panel"
+          surface="soft"
+          bordered
+          padding="lg"
+          gap="none"
+        >
           <Routes>
             <Route index element={<Navigate to="membership" replace />} />
             <Route path="membership" element={<SettingsMembershipPanel />} />
@@ -220,8 +241,8 @@ function SettingsPage() {
             <Route path="trace" element={<Navigate to="/settings/feedback" replace />} />
             <Route path="*" element={<Navigate to="membership" replace />} />
           </Routes>
-        </Paper>
-      </Box>
+        </Block>
+      </Column>
     </PageLayout>
   );
 }

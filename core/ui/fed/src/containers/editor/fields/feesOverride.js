@@ -1,12 +1,7 @@
 import React from 'react';
-import {
-  Paper,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Switch, TextField } from 'ui';
 import { getByPath, setByPath } from '../editor.helper';
+import './style.scss';
 
 function parseWithField(field, raw) {
   if (typeof field?.parse === 'function') return field.parse(raw);
@@ -56,36 +51,39 @@ function FeesOverrideField({ field, value, onChange, emitChangeMeta }) {
   };
 
   return (
-    <Paper variant="outlined" sx={{ p: 1 }}>
-      <Typography fontWeight={600} variant="body2" sx={{ mb: 1 }}>
+    <div className="ntq-editor-fees-override">
+      <p className="ntq-editor-fees-override__title">
         {field.label || '费用设置'}
-      </Typography>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: enabled ? 1 : 0 }}>
+      </p>
+      <div
+        className={[
+          'ntq-editor-fees-override__switch',
+          enabled ? 'ntq-editor-fees-override__switch--open' : '',
+        ].filter(Boolean).join(' ')}
+      >
         <Switch
-          size="small"
+          label={field.switchLabel || '覆盖全局费用'}
           checked={enabled}
           onChange={(e) => toggleOverride(e.target.checked)}
         />
-        <Typography variant="body2">{field.switchLabel || '覆盖全局费用'}</Typography>
-      </Stack>
+      </div>
 
       {enabled ? (
-        <Stack spacing={1}>
+        <div className="ntq-editor-fees-override__fields">
           {feeFields.map((feeField) => (
             <TextField
               key={feeField.name}
-              size="small"
+              maxWidth={false}
               type={feeField.type === 'number' ? 'number' : 'text'}
               label={feeField.label}
+              hint={feeField.description || ''}
               value={getByPath(value, `${feesPath}.${feeField.name}`) ?? ''}
-              fullWidth
-              helperText={feeField.description || ''}
               onChange={(e) => setFeeValue(feeField.name, e.target.value, feeField)}
             />
           ))}
-        </Stack>
+        </div>
       ) : null}
-    </Paper>
+    </div>
   );
 }
 

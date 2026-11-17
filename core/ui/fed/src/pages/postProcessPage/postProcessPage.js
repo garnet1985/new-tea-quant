@@ -1,21 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Autocomplete,
-  Chip,
+  Button,
+  DataGrid,
   Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  Paper,
-  Stack,
+  Heading,
+  Message,
+  SearchSelect,
+  Section,
   Switch,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
+  Tag,
+} from 'ui';
+import { showToast } from 'ui/message/toast';
+import { PageLayout } from 'ntq-ui';
 import {
   fetchPostProcessAdapters,
   fetchPostProcessProcessors,
@@ -26,43 +23,41 @@ import {
   setPostProcessEnabled,
   updatePostProcessAdapters,
 } from '../../api/postProcessApi';
-import PageLayout from '../../views/pageLayout';
-import NtqButton from '../../views/ntqButton';
-import Message from '../../views/message';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import NtqIcon from '../../views/ntqIcon';
-import { showToast } from 'containers/toast';
 import './postProcessPage.scss';
 
-const AUTOCOMPLETE_SLOT_PROPS = {
-  paper: { className: 'post-process-autocomplete-paper' },
-  listbox: { className: 'post-process-autocomplete-listbox' },
-};
+/** 状态列：一律实心，色区分可用性 */
+function statusColumnTag(status) {
+  const key = String(status || '');
+  if (key === 'live') return { status: 'success', variant: 'solid' };
+  if (key === 'dry_run') return { status: 'warning', variant: 'solid' };
+  return { status: 'error', variant: 'solid' };
+}
+
+/** 步骤名 Tag：一律实心，色区分可用性 */
+function stepTagProps(status) {
+  const key = String(status || '');
+  if (key === 'live') return { status: 'success', variant: 'solid' };
+  if (key === 'dry_run') return { status: 'warning', variant: 'solid' };
+  return { status: 'error', variant: 'solid' };
+}
 
 function StepStatusLegend() {
   return (
-    <Stack
-      direction="row"
-      spacing={2}
-      flexWrap="wrap"
-      useFlexGap
-      className="post-process-legend"
-      alignItems="center"
-    >
-      <Typography variant="caption" color="text.secondary">图例：</Typography>
-      <Stack direction="row" spacing={0.75} alignItems="center">
+    <div className="post-process-legend">
+      <span className="ntq-muted">图例：</span>
+      <span className="post-process-legend__item">
         <span className="post-process-legend-swatch post-process-legend-swatch--live" />
-        <Typography variant="caption">可用（可正常使用）</Typography>
-      </Stack>
-      <Stack direction="row" spacing={0.75} alignItems="center">
+        可用（可正常使用）
+      </span>
+      <span className="post-process-legend__item">
         <span className="post-process-legend-swatch post-process-legend-swatch--dry" />
-        <Typography variant="caption">测试模式（配置已齐）</Typography>
-      </Stack>
-      <Stack direction="row" spacing={0.75} alignItems="center">
+        测试模式（配置已齐）
+      </span>
+      <span className="post-process-legend__item">
         <span className="post-process-legend-swatch post-process-legend-swatch--bad" />
-        <Typography variant="caption">不可用（缺配置）</Typography>
-      </Stack>
-    </Stack>
+        不可用（缺配置）
+      </span>
+    </div>
   );
 }
 
@@ -75,15 +70,17 @@ function StepStatusChip({ step, adaptersByName }) {
   const readinessMsg = String(step?.readiness?.message || '').trim();
   if (readinessMsg) tipParts.push(readinessMsg);
   else if (step?.validate_message) tipParts.push(step.validate_message);
+  const tag = stepTagProps(status);
   return (
-    <Tooltip title={tipParts.filter(Boolean).join(' · ')}>
-      <Chip
-        size="small"
-        label={label}
+    <span title={tipParts.filter(Boolean).join(' · ')} className="post-process-step-chip-wrap">
+      <Tag
+        status={tag.status}
+        variant={tag.variant}
         className={`post-process-step-chip post-process-step-chip--${status}`}
-        variant="outlined"
-      />
-    </Tooltip>
+      >
+        {label}
+      </Tag>
+    </span>
   );
 }
 
@@ -95,7 +92,7 @@ function ProcessorEditDialog({
   onSaved,
 }) {
   const [rows, setRows] = useState([]);
-  const [addOption, setAddOption] = useState(null);
+  const [addName, setAddName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -108,7 +105,7 @@ function ProcessorEditDialog({
         depends_on: [...(row.depends_on || [])],
       })),
     );
-    setAddOption(null);
+    setAddName('');
     setError('');
   }, [open, processor]);
 
@@ -116,6 +113,14 @@ function ProcessorEditDialog({
     const used = new Set(rows.map((r) => r.name));
     return (adapterOptions || []).filter((opt) => !used.has(opt.name));
   }, [adapterOptions, rows]);
+
+  const addOptions = useMemo(
+    () => availableToAdd.map((opt) => ({
+      value: opt.name,
+      label: `${opt.display_name || opt.name} (${opt.name})`,
+    })),
+    [availableToAdd],
+  );
 
   const labelByName = useMemo(() => {
     const map = {};
@@ -129,17 +134,18 @@ function ProcessorEditDialog({
   }, [adapterOptions, rows]);
 
   const handleAdd = () => {
-    const name = String(addOption?.name || '').trim();
+    const name = String(addName || '').trim();
     if (!name) return;
+    const hit = availableToAdd.find((opt) => opt.name === name);
     setRows((prev) => [
       ...prev,
       {
         name,
-        display_name: addOption.display_name || name,
+        display_name: hit?.display_name || name,
         depends_on: [],
       },
     ]);
-    setAddOption(null);
+    setAddName('');
   };
 
   const handleRemove = (name) => {
@@ -161,7 +167,7 @@ function ProcessorEditDialog({
     });
     try {
       const item = await updatePostProcessAdapters(processor.key, payload);
-      showToast({ severity: 'success', message: '已保存方案步骤' });
+      showToast({ status: 'success', content: '已保存方案步骤' });
       onSaved?.(item);
       onClose?.();
     } catch (err) {
@@ -171,91 +177,95 @@ function ProcessorEditDialog({
     }
   };
 
-  const peerNames = rows.map((row) => row.name);
-
   return (
-    <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        编辑方案步骤 · {processor?.name || processor?.key || '—'}
-      </DialogTitle>
-      <DialogContent dividers>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+    <Dialog
+      open={open}
+      onClose={saving ? undefined : onClose}
+      title={`编辑方案步骤 · ${processor?.name || processor?.key || '—'}`}
+      size="lg"
+      actions={(
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? '保存中…' : '保存'}
+          </Button>
+        </>
+      )}
+    >
+      <Section gap="md" className="post-process-edit">
+        <p className="ntq-muted">
           添加或移除执行单元，并为每个步骤设置 depends_on（依赖）。执行顺序由依赖拓扑计算，不可拖拽排序。
-        </Typography>
-        {error ? <Message severity="error" className="post-process-edit-error">{error}</Message> : null}
-        <Stack spacing={1.5}>
-          {rows.map((row) => (
-            <Paper key={row.name} variant="outlined" className="post-process-edit-row">
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1}
-                alignItems={{ sm: 'center' }}
-                justifyContent="space-between"
-              >
-                <Stack spacing={0.25}>
-                  <Typography variant="subtitle2">
-                    {row.display_name || labelByName[row.name] || row.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">{row.name}</Typography>
-                </Stack>
-                <IconButton
-                  size="small"
+        </p>
+        {error ? <Message status="error">{error}</Message> : null}
+
+        {rows.map((row) => {
+          const depOptions = rows
+            .filter((item) => item.name !== row.name)
+            .map((item) => ({
+              value: item.name,
+              label: labelByName[item.name] || item.name,
+            }));
+          return (
+            <div key={row.name} className="post-process-edit-row">
+              <div className="post-process-edit-row__head">
+                <div className="post-process-edit-row__meta">
+                  <strong>{row.display_name || labelByName[row.name] || row.name}</strong>
+                  <span className="ntq-muted">{row.name}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  icon="trash"
+                  iconSize="sm"
                   aria-label={`移除 ${row.name}`}
                   onClick={() => handleRemove(row.name)}
                   disabled={saving}
-                >
-                  <NtqIcon name="delete" size={18} />
-                </IconButton>
-              </Stack>
+                  className="post-process-edit-row__remove"
+                />
+              </div>
               <Autocomplete
                 multiple
-                size="small"
-                options={peerNames.filter((name) => name !== row.name)}
+                label="depends_on"
+                tip="依赖的执行单元"
+                options={depOptions}
                 value={row.depends_on || []}
-                getOptionLabel={(name) => labelByName[name] || name}
-                onChange={(_, value) => {
+                onChange={(e) => {
+                  const next = Array.isArray(e.target.value) ? e.target.value : [];
                   setRows((prev) => prev.map((item) => (
                     item.name === row.name
-                      ? { ...item, depends_on: value }
+                      ? { ...item, depends_on: next }
                       : item
                   )));
                 }}
-                slotProps={AUTOCOMPLETE_SLOT_PROPS}
-                renderInput={(params) => (
-                  <TextField {...params} label="depends_on" placeholder="依赖的执行单元" />
-                )}
+                placeholder="依赖的执行单元"
                 disabled={saving}
-                sx={{ mt: 1 }}
+                maxWidth={false}
+                surface="glass"
               />
-            </Paper>
-          ))}
-        </Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }} alignItems="center">
-          <Autocomplete
-            size="small"
-            sx={{ minWidth: 240, flex: 1 }}
-            options={availableToAdd}
-            value={addOption}
-            getOptionLabel={(opt) => (opt ? `${opt.display_name || opt.name} (${opt.name})` : '')}
-            isOptionEqualToValue={(a, b) => a?.name === b?.name}
-            onChange={(_, value) => setAddOption(value)}
-            slotProps={AUTOCOMPLETE_SLOT_PROPS}
-            renderInput={(params) => (
-              <TextField {...params} label="添加执行单元" placeholder="选择执行单元" />
-            )}
+            </div>
+          );
+        })}
+
+        <div className="post-process-edit-add">
+          <SearchSelect
+            label="添加执行单元"
+            value={addName}
+            onChange={(e) => setAddName(String(e.target.value || ''))}
+            options={addOptions}
+            placeholder="选择执行单元"
+            emptyLabel="选择执行单元"
             disabled={saving || availableToAdd.length === 0}
+            maxWidth={false}
+            surface="glass"
           />
-          <NtqButton onClick={handleAdd} disabled={saving || !addOption}>
+          <Button
+            variant="glass"
+            onClick={handleAdd}
+            disabled={saving || !addName}
+          >
             添加
-          </NtqButton>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <NtqButton variant="ghost" onClick={onClose} disabled={saving}>取消</NtqButton>
-        <NtqButton onClick={handleSave} disabled={saving}>
-          {saving ? '保存中…' : '保存'}
-        </NtqButton>
-      </DialogActions>
+          </Button>
+        </div>
+      </Section>
     </Dialog>
   );
 }
@@ -316,13 +326,13 @@ function PostProcessPage() {
       const item = await setPostProcessEnabled(key, enabled);
       setProcessors((prev) => prev.map((p) => (p.key === key ? item : p)));
       showToast({
-        severity: 'success',
-        message: enabled ? `已启用 ${item.name}` : `已禁用 ${item.name}`,
+        status: 'success',
+        content: enabled ? `已启用 ${item.name}` : `已禁用 ${item.name}`,
       });
     } catch (err) {
       showToast({
-        severity: 'error',
-        message: String(err?.message || err || '更新启用状态失败'),
+        status: 'error',
+        content: String(err?.message || err || '更新启用状态失败'),
       });
     } finally {
       setTogglingKey('');
@@ -336,12 +346,10 @@ function PostProcessPage() {
       flex: 1.1,
       minWidth: 160,
       renderCell: (params) => (
-        <Stack spacing={0.25}>
-          <Typography variant="body2" fontWeight={600}>
-            {getAdapterDisplayLabel(params.row)}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">{params.row.name}</Typography>
-        </Stack>
+        <div className="post-process-cell-stack">
+          <span className="post-process-cell-name">{getAdapterDisplayLabel(params.row)}</span>
+          <span className="ntq-muted post-process-cell-key">{params.row.name}</span>
+        </div>
       ),
     },
     {
@@ -350,13 +358,15 @@ function PostProcessPage() {
       width: 120,
       renderCell: (params) => {
         const status = getAdapterStatus(params.row, adaptersByName);
+        const tag = statusColumnTag(status);
         return (
-          <Chip
-            size="small"
-            label={getAdapterStatusLabel(status)}
+          <Tag
+            status={tag.status}
+            variant={tag.variant}
             className={`post-process-step-chip post-process-step-chip--${status}`}
-            variant="outlined"
-          />
+          >
+            {getAdapterStatusLabel(status)}
+          </Tag>
         );
       },
     },
@@ -367,9 +377,7 @@ function PostProcessPage() {
       minWidth: 200,
       sortable: false,
       renderCell: (params) => (
-        <Typography variant="body2" color="text.secondary">
-          {getAdapterRemark(params.row)}
-        </Typography>
+        <span className="ntq-muted">{getAdapterRemark(params.row)}</span>
       ),
     },
   ]), [adaptersByName]);
@@ -381,10 +389,10 @@ function PostProcessPage() {
       flex: 1,
       minWidth: 140,
       renderCell: (params) => (
-        <Stack spacing={0.25}>
-          <Typography variant="body2" fontWeight={600}>{params.row.name}</Typography>
-          <Typography variant="caption" color="text.secondary">{params.row.key}</Typography>
-        </Stack>
+        <div className="post-process-cell-stack">
+          <span className="post-process-cell-name">{params.row.name}</span>
+          <span className="ntq-muted post-process-cell-key">{params.row.key}</span>
+        </div>
       ),
     },
     {
@@ -393,11 +401,10 @@ function PostProcessPage() {
       width: 100,
       renderCell: (params) => (
         <Switch
-          size="small"
           checked={Boolean(params.row.is_enabled)}
           disabled={togglingKey === params.row.key}
           onChange={(e) => handleToggle(params.row, e.target.checked)}
-          inputProps={{ 'aria-label': `启用 ${params.row.key}` }}
+          aria-label={`启用 ${params.row.key}`}
         />
       ),
     },
@@ -411,7 +418,7 @@ function PostProcessPage() {
         const steps = params.row.adapters || [];
         if (!steps.length) return '—';
         return (
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+          <div className="post-process-step-list">
             {steps.map((step) => (
               <StepStatusChip
                 key={step.name}
@@ -419,7 +426,7 @@ function PostProcessPage() {
                 adaptersByName={adaptersByName}
               />
             ))}
-          </Stack>
+          </div>
         );
       },
     },
@@ -432,31 +439,36 @@ function PostProcessPage() {
       renderCell: (params) => {
         if (params.row.order_error) {
           return (
-            <Typography variant="caption" color="error">
-              {params.row.order_error}
-            </Typography>
+            <span className="post-process-order-error">{params.row.order_error}</span>
           );
         }
         const order = params.row.execution_order || [];
         if (!order.length) return '—';
         return (
-          <Typography variant="caption" color="text.secondary">
+          <span className="ntq-muted post-process-order">
             {order
               .map((name) => getAdapterDisplayLabel(name, adaptersByName))
               .join(' → ')}
-          </Typography>
+          </span>
         );
       },
     },
     {
       field: 'actions',
       headerName: '操作',
-      width: 140,
+      width: 132,
       sortable: false,
       renderCell: (params) => (
-        <NtqButton size="small" variant="glass" onClick={() => setEditTarget(params.row)}>
+        <Button
+          variant="glass"
+          icon="chevronRight"
+          iconPlacement="end"
+          iconSize="sm"
+          onClick={() => setEditTarget(params.row)}
+          className="post-process-edit-btn"
+        >
           编辑步骤
-        </NtqButton>
+        </Button>
       ),
     },
   ]), [adaptersByName, handleToggle, togglingKey]);
@@ -464,67 +476,56 @@ function PostProcessPage() {
   return (
     <PageLayout
       className="post-process-page"
-      breadcrumbsItems={[{ label: '高级功能' }]}
+      breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="后续处理"
       bannerTitle="后续处理"
-      bannerDescription={(
-        <>
-          管理全局扫描后续处理：处理方案（PostProcessor）与执行单元（Adapter）。
-          每个策略扫描结束后，会运行<strong>全部已启用</strong>的方案（非策略绑定）。
-        </>
-      )}
+      bannerDescription="管理全局扫描后续处理：处理方案（PostProcessor）与执行单元（Adapter）。每个策略扫描结束后，会运行全部已启用的方案（非策略绑定）。"
       loading={!pageReady}
       loadingMessage="正在加载后续处理…"
     >
-      {loadError ? (
-        <Message severity="error" className="post-process-alert">{loadError}</Message>
-      ) : null}
+      <Section className="post-process-page__stack" gap="md">
+        {loadError ? <Message status="error">{loadError}</Message> : null}
 
-      <Typography variant="h6" className="post-process-section-title">处理方案</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        userspace/extensions/post_process/post_processors/；启用后每个策略扫完都会跑。步骤依赖用 depends_on，执行序自动计算。
-      </Typography>
-      <StepStatusLegend />
-      <Paper className="post-process-grid" elevation={0}>
-        <DataGrid
-          autoHeight
-          rows={processors}
-          columns={processorColumns}
-          loading={loading}
-          disableRowSelectionOnClick
-          getRowHeight={() => 'auto'}
-          pageSizeOptions={[10, 25]}
-          initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
-          localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-          slots={NTQ_DATA_GRID_LOADING_SLOTS}
-          sx={{
-            '& .MuiDataGrid-cell': { py: 1, alignItems: 'flex-start' },
-          }}
-        />
-      </Paper>
+        <Section className="post-process-block" gap="sm">
+          <Heading level="h3" gap="none">处理方案</Heading>
+          <p className="ntq-muted post-process-block__desc">
+            userspace/extensions/post_process/post_processors/；启用后每个策略扫完都会跑。步骤依赖用 depends_on，执行序自动计算。
+          </p>
+          <StepStatusLegend />
+          <Section className="post-process-grid" gap="none">
+            <DataGrid
+              autoHeight
+              rows={processors}
+              columns={processorColumns}
+              loading={loading}
+              getRowHeight={() => 'auto'}
+              pageSizeOptions={[10, 25]}
+              initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+              cellLayout="wrap"
+            />
+          </Section>
+        </Section>
 
-      <Typography variant="h6" className="post-process-section-title">执行单元</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        userspace/extensions/post_process/adapters/；展示名来自 settings.py 的 display_name。颜色含义同上图例。
-      </Typography>
-      <StepStatusLegend />
-      <Paper className="post-process-grid" elevation={0}>
-        <DataGrid
-          autoHeight
-          rows={adapters}
-          columns={adapterColumns}
-          loading={loading}
-          disableRowSelectionOnClick
-          getRowHeight={() => 'auto'}
-          pageSizeOptions={[10, 25]}
-          initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
-          localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-          slots={NTQ_DATA_GRID_LOADING_SLOTS}
-          sx={{
-            '& .MuiDataGrid-cell': { py: 1, alignItems: 'flex-start' },
-          }}
-        />
-      </Paper>
+        <Section className="post-process-block" gap="sm">
+          <Heading level="h3" gap="none">执行单元</Heading>
+          <p className="ntq-muted post-process-block__desc">
+            userspace/extensions/post_process/adapters/；展示名来自 settings.py 的 display_name。颜色含义同上图例。
+          </p>
+          <StepStatusLegend />
+          <Section className="post-process-grid" gap="none">
+            <DataGrid
+              autoHeight
+              rows={adapters}
+              columns={adapterColumns}
+              loading={loading}
+              getRowHeight={() => 'auto'}
+              pageSizeOptions={[10, 25]}
+              initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
+              cellLayout="wrap"
+            />
+          </Section>
+        </Section>
+      </Section>
 
       <ProcessorEditDialog
         open={Boolean(editTarget)}

@@ -1,7 +1,8 @@
 import React from 'react';
-import { MenuItem, Select, Typography } from '@mui/material';
+import { Select } from 'ui';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
 import EditorFieldLabel from './editorFieldLabel';
+import './style.scss';
 
 function SelectField({ field, value, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
@@ -28,34 +29,25 @@ function SelectField({ field, value, onChange, emitChangeMeta, context = {} }) {
     || (field.description && !field.tooltip ? field.description : '');
 
   return (
-    <div key={field.name}>
+    <div key={field.name} className="ntq-editor-select-field">
       <EditorFieldLabel field={field} context={context} />
       <Select
-        size="small"
-        fullWidth
+        labelPlacement="none"
+        maxWidth={false}
         multiple={Boolean(field.multiple)}
+        displayEmpty={false}
         value={current ?? (field.multiple ? [] : '')}
         onChange={(e) => applyChange(e.target.value)}
         disabled={isReadonly}
-        renderValue={(selected) => {
-          const matched = options.find((item) => item.value === selected);
-          return matched?.label ?? selected;
-        }}
-      >
-        {options.map((item) => (
-          <MenuItem
-            key={item.value}
-            value={item.value}
-            title={item.tooltip || undefined}
-          >
-            {item.label}
-          </MenuItem>
-        ))}
-      </Select>
+        options={options.map((item) => ({
+          value: item.value,
+          label: item.label,
+          disabled: Boolean(item.disabled),
+        }))}
+        aria-label={field.label || field.name || '选择'}
+      />
       {helperText ? (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-          {helperText}
-        </Typography>
+        <p className="ntq-muted ntq-editor-select-field__hint">{helperText}</p>
       ) : null}
     </div>
   );

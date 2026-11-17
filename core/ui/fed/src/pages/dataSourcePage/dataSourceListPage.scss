@@ -1,26 +1,30 @@
 .data-source-list-page {
-  .data-source-list-alert {
-    margin-bottom: 16px;
-  }
-
   .data-source-list-grid {
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: var(--ui-space-md);
+    background: var(--ui-surface-soft);
+    border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+    border-radius: var(--ui-radius-md, 0.5rem);
   }
 
-  .data-source-list-grid-toolbar {
-    margin-bottom: 12px;
+  .data-source-list-cell-name {
+    font-weight: var(--ui-font-weight-bold);
+  }
+
+  .data-source-list-cell-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-xs);
   }
 
   .data-source-list-update-btn-wrap {
     display: inline-flex;
     align-items: center;
+    line-height: 0;
   }
 
-  .data-source-list-progress-label {
-    color: var(--ntq-cyan);
-    max-width: 100%;
+  .data-source-list-progress {
+    width: 100%;
+    min-width: 0;
   }
 
   .data-source-list-elapsed {
@@ -28,8 +32,13 @@
   }
 
   .data-source-list-live {
-    margin: 4px 0 12px;
-    color: var(--ntq-cyan);
+    width: 100%;
+  }
+
+  .data-source-list-status-failed,
+  .data-source-list-auth-warn {
+    display: inline-flex;
+    max-width: 100%;
   }
 
   .data-source-list-grid-body {
@@ -94,8 +103,8 @@
 .data-source-renew-tip {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-width: 280px;
-  font-size: 12px;
-  line-height: 1.5;
+  gap: var(--ui-space-xxs);
+  max-width: 17.5rem;
+  font-size: var(--ui-font-xs);
+  line-height: var(--ui-leading-normal);
 }

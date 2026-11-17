@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { InputAdornment, TextField as MuiTextField } from '@mui/material';
-import NtqIcon from 'ui/icon/ntqIcon';
+import Icon from 'ui/icon/icon';
 import Field from 'ui/input/field';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
+import { inputChromeClass } from 'ui/input/controlChrome';
 import '../_control.scss';
 
 /**
@@ -32,14 +33,17 @@ function SearchField({
   fullWidth = true,
   /** 默认约 360px；false 去掉上限 */
   maxWidth = true,
-  /** 工具栏弹性宽度（对齐旧 views/searchField） */
+  /** 工具栏弹性宽度（ListToolbar 搜索槽常用） */
   fluid = false,
+  surface = 'solid',
+  radius = 'sm',
   ...rest
 }) {
   const controlId = useControlId(id);
   const placement = pickToken(labelPlacement, FIELD_LABEL_PLACEMENTS, 'none');
   const hasFieldChrome = placement !== 'none' || tip || hint || error || label;
   const widthClass = maxWidth ? 'ntq-input--search' : 'ntq-input--fluid';
+  const chromeClass = inputChromeClass({ surface, radius });
   const [inner, setInner] = useState('');
   const controlled = value !== undefined;
   const current = controlled ? value : inner;
@@ -86,13 +90,14 @@ function SearchField({
         'ntq-search-field',
         fluid ? 'ntq-search-field--fluid' : '',
         widthClass,
+        chromeClass,
         !hasFieldChrome ? className : '',
       ].filter(Boolean).join(' ')}
       InputProps={{
         ...restInputProps,
         startAdornment: (
           <InputAdornment position="start" className="ntq-search-field__icon">
-            <NtqIcon name="search" size="sm" tone="muted" />
+            <Icon name="search" size="sm" tone="muted" />
           </InputAdornment>
         ),
         endAdornment: showClear ? (
@@ -104,7 +109,7 @@ function SearchField({
               onClick={handleClear}
               tabIndex={-1}
             >
-              <NtqIcon name="cancel" size="sm" tone="muted" />
+              <Icon name="cancel" size="sm" tone="muted" />
             </button>
           </InputAdornment>
         ) : restInputProps?.endAdornment,

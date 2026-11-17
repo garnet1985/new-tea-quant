@@ -10,6 +10,7 @@ function Loading({
   variant = 'inline',
   message = null,
   className = '',
+  style,
   'aria-label': ariaLabel = '',
 }) {
   const variantToken = pickToken(variant, LOADING_VARIANTS, 'inline');
@@ -23,7 +24,7 @@ function Loading({
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={rootClass} role="status" aria-label={label}>
+    <div className={rootClass} style={style} role="status" aria-label={label}>
       <LoadingBars size={barsSize} aria-label={label} />
       {message ? <p className="ntq-loading__message ntq-muted">{message}</p> : null}
     </div>

@@ -1,37 +1,75 @@
 # `src/ui` — 设计系统原语
 
-本目录是后续产品页**唯一**应复用的 UI widget 来源。
+本目录是**可累计的通用原语**（可离 NTQ）。产品壳在并列的 [`src/ntq-ui`](../ntq-ui/README.md)。
 
-## 两层分工
+## 组件两层 + 变量两套
+
+| 层 | 目录 | 变量 | 说明 |
+|----|------|------|------|
+| **通用原语** | `src/ui/<大类>/` | **`--ui-*`**（`styles/_ui-tokens.scss`） | 可脱离 NTQ 复用；独立视觉尺度 |
+| **NTQ 公用** | `src/ntq-ui/` | **`--ntq-*`**（`styles/_ntq-tokens.scss`） | 壳 / 品牌 / 顶栏等产品层，组合通用原语 |
+| **业务 mapping** | （尚未建目录） | — | 业务枚举 → 组件 props；不进图鉴 |
+
+**`ui` 禁止依赖 `ntq-ui`。**
+
+- 入口：`styles/_tokens.scss`（加载两套 + 过渡期把旧 `--ntq-space-*` 等别名到 `--ui-*`）。
+- **禁止**在 `ui/**` 使用 Sass `$` 设计变量；尺度一律 `--ui-*` / `--ntq-*`。
+- `@media` 断点写字面量并注释 `sync: --ui-…` / `--ntq-…`（media 不能可靠读 CSS 变量）。
+
+## App 硬规则（与 `FED_STANDARD.md` 一致）
+
+1. **`pages` / `containers` 只消费 `ui/` 与 `ntq-ui/`**，禁止直接使用 MUI（或其它 UI 库）拼页面。MUI 仅可藏在原语内部。
+2. **缺口优先扩展 `ui` / `ntq-ui` 或增加选项**，再给业务用；不要在页面用临时样式 / 直连 MUI 绕过。
+3. **变量用全局 CSS token**（`--ui-*` / `--ntq-*`），业务侧不另起一套 Sass `$` 或裸色号。
+
+### Tag 业务用法
+
+| 语义 | `variant` |
+|------|-----------|
+| 未达成 / 未完成 / 尚未配置 | `outline`（空心） |
+| 已达成 / 已完成 / 已配置 | `solid`（实心） |
+| 普通分类标签（非「未完成」态） | `solid`（实心） |
 
 | 层 | 放什么 | 例子 |
 |----|--------|------|
-| **L1 · `src/ui`（本目录）** | 元素与布局原语：长相、token、通用交互 | `Tag`、`DataGrid`、`ChartPanel`、`CountTab` |
-| **L2 · 业务 mapping（尚未建目录）** | 业务枚举 / 状态 → L1 组件的 props；领域 option 构建 | freshness→Tag；`buildMarketChartOption`→ChartPanel |
+| **通用原语** | 元素与布局：长相、token、通用交互 | `Tag`、`DataGrid`、`Column`、`TextField` |
+| **NTQ 公用** | 应用壳与高复用产品模板 | `appNav`、`pageLayout`、`memberStrip`、`reportBlock` |
+| **业务 mapping** | 业务枚举 / 状态 → 组件 props | freshness→Tag；`buildMarketChartOption`→ChartPanel |
 
-L1 不收业务 status key；views 里的 `freshnessStatusChip` 等属 L2，稳定后再迁，不进图鉴。
+通用原语不收业务 status key；数据新鲜度等 mapping 用 **`ntq-ui/updateStatusChip`**（图鉴 ntq 栏）。
 
-回测报告小节用 NTQ 固定模板 **`reportBlock`**（对齐旧 `views/sectionBlock`），内部再拼
+回测报告小节用 NTQ 固定模板 **`reportBlock`**，内部再拼
 `MetricCard`/`MetricGrid`/`ChartPanel`/`Message`；不要各页自造边框壳，避免 agent 实现五花八门。
 
 ## 约定
 
 - 只放 **L1 设计原语**（布局、按钮、输入、标题、消息、进度、步骤、图标、指标…）。
-- **layout**：`column` / `block` / `section` / `tabs` / `sideNav`（不含 Banner、面包屑）。
+- **layout**：`column` / `block` / `section` / `tabs` / `sideNav` / `accordion` / `listToolbar` / `categoryChipStrip`（不含 Banner、面包屑）。
   - `Column`：版式 + `gap` + `divider`（竖线分栏）。
   - `Block`：`surface`（soft/panel/glass/gradient）+ `radius`（含 pill）+ `bordered`。
   - `Section`：纵向堆叠 + `gap`；表面仍用内嵌 Block。
   - `Tabs`：`variant="top"` 上方切换；`variant="side"` 左右分栏（同页切 panel）。
   - `SideNav`：左侧目录壳（`line` / `rail`）；可选 `sticky` 贴顶。整栏（标题+菜单）贴顶用外层 `Block sticky`。栏宽用 Column sidebar，右栏自管（Outlet 等）。
+  - `Accordion`：折叠区块（panel / nested）；收起仍挂载子树。
+  - `ListToolbar`：列表搜索 + 操作槽 + 可选 hint。
+  - `CategoryChipStrip`：「全部」+ 横向滚动归类 CountTab。
 - **text**（图鉴 `/dev/ui/text`）：`text` / `heading` / `separator` / `quote` / `textBlock` / `codeBlock`。磁盘仍在 `ui/text/*`。普通正文 / 链接用 HTML + class（`.ntq-muted` / `.ntq-link` 等）。
-- **button**：见目录 README。`NtqButton` 支持前后图标、纯图标、tooltip、以及 `href`/`component` 做成按钮样式超链接（行内文字链仍用 `.ntq-link`）。
-- **display**（图鉴 `/dev/ui/display`）：`ntqIcon`；`avatar`；`tag`（`status`/`color`；soft/outline/solid；sm/md）。业务 Freshness 映射属 L2。
-- **data**（图鉴 `/dev/ui/data`）：`dataGrid`；`chartPanel`（+ `chartTheme`）；`monthCalendar`；`metricCard` / `metricGrid`；`countTab` / `countBadge`。K 线 option / 交易日事件属 L2。列表过滤由上层组合 SearchField + CountTab。
-- **input**：通用表单原语 — `field`；`textField` / `textArea`；`checkbox`；`radio`；`switch`；`select`；`searchSelect`；`searchField`；`autocomplete`；`date` / `dateRange`。数值暂用 `TextField type="number"`。
-- **feedback**（图鉴 `/dev/ui/feedback`）：`message` / `toast` / `ntqHelpTooltip`；`loadingBars` / `loading` / `progressBar` / `progressRing`；`stepper`。
-- **ntq**：应用壳与报告模板 — `appBrand`；`appNav`；`appBreadcrumbs`；`pageBanner`；`reportBlock`；`pythonDictEditor`。见 `ui/ntq/README.md`。
-- 隐形图鉴 `/dev/ui` **只能**展示本目录下的组件。图鉴大类已合并（旧路径如 `/dev/ui/heading` 会重定向到合并后的大类）。
-- 图鉴另有 **NTQ 业务准则**（`/dev/ui/guidelines`）：产品页何时用何种 layout / 模板；迁 legacy 时边补，可先空。
+- **button**：`Button`（前后图标、纯图标、tooltip、`href`/`component` 外链自动后置 `>`）。品牌彩虹钮在 **`ntq-ui/rainbowButton`**。
+- **display**（图鉴 `/dev/ui/display`）：`Icon`；`avatar`；`tag`；`definitionList`。业务 Freshness 映射属 L2。
+- **data**（图鉴 `/dev/ui/data`）：`dataGrid`；`chartPanel`；`monthCalendar`；`metricCard` / `metricGrid`；`countTab` / `countBadge`。
+- **input**：`field`；`textField` / `textArea`；`checkbox`；`radio`；`switch`；`select`；`searchSelect`；`searchField`；`autocomplete`；`date` / `dateRange`。
+- **feedback**：`message` / `dialog` / `toast` / `HelpTooltip`；`loadingBars` / `loading` / `progressBar` / `progressRing`；`stepper`。
+- **ntq-ui**（图鉴仍挂在 `/dev/ui/ntq`）：见 [`ntq-ui/README.md`](../ntq-ui/README.md)。
+- 隐形图鉴 `/dev/ui` 合并展示 `ui` + `ntq-ui`。CSS 根类暂多仍为 `.ntq-*`（后续可改为 `ui-*`）。
+
+### 统一导出（barrel）
+
+```js
+import { Section, Heading, Message, Dialog, Button, Icon, TextField } from 'ui';
+import { BecomeMemberLink, MemberStrip, AppNav, RainbowButton } from 'ntq-ui';
+```
+
+深层路径仍可用；新代码优先 barrel。
 
 ## 命名：统一用 `variant` + `size`
 
@@ -39,7 +77,7 @@ L1 不收业务 status key；views 里的 `freshnessStatusChip` 等属 L2，稳�
 |------|------|------|
 | **`variant`** | 形态 / 角色 | `Column variant="thirds"`、`Button variant="primary"`、`Loading variant="page"`、`Text variant="code"` |
 | **`size`** | 尺寸档位 | `Icon size="md"`、`ProgressBar size="sm"`、`LoadingBars size="md"` |
-| **`gap` / `padding`** | 间距 token | `none`…`xxs`…`xl` → `--ntq-space-*` |
+| **`gap` / `padding`** | 间距 token | `none`…`xxs`…`xl` → `--ui-space-*` |
 
 不要再用 `kind` 作为组件 API（业务域里的 job.kind 等除外）。
 
@@ -71,14 +109,14 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
 
 不要把子项 `margin-block` 和父级 `gap` 混用。
 
-| 维度 | 合法值 | 全局变量 |
+| 维度 | 合法值 | 全局变量（通用 `--ui-*`；过渡别名仍有 `--ntq-*`） |
 |------|--------|----------|
-| 间距 | `none` `xxs` `xs` `sm` `md` `lg` `xl` | `--ntq-space-*`（rem；`xxs`=2px，`md`=1rem） |
-| 字号 | `xs` `sm` `normal` `md` `lg` `xl` | `--ntq-font-*`（rem；`normal` = 0.875rem = 14px） |
-| 图标 | `sm` `md` `lg` `xl` `xxl` | `--ntq-icon-*`（`xxl` = 3rem） |
-| 圆角 | `none` `sm` `md` `lg` `pill` | `--ntq-radius-*` |
-| 表面 | `none` `soft` `panel` `glass` `gradient` | `--ntq-surface-*`（Block） |
-| 分隔 | `none` `line` | `--ntq-divider-color`（Column） |
+| 间距 | `none` `xxs` `xs` `sm` `md` `lg` `xl` | `--ui-space-*` |
+| 字号 | `xs` `sm` `normal` `md` `lg` `xl` | `--ui-font-*`（`normal` = 0.875rem） |
+| 图标 | `sm` `md` `lg` `xl` `xxl` | `--ui-icon-*` |
+| 圆角 | `none` `sm` `md` `lg` `pill` | `--ui-radius-*` |
+| 表面 | `none` `soft` `panel` `glass` `gradient` | `--ui-surface-*`（Block；玻璃底可由 NTQ 注入） |
+| 分隔 | `none` `line` | `--ui-divider-color` |
 
 ```js
 // ✅
@@ -89,7 +127,7 @@ rem 基准：`html` 保持 **16px**（1rem = 16px）。默认正文 **14px**（`
 <a className="ntq-link" href="/dev/ui">文字图鉴</a>
 <Quote>优先用语义 token。</Quote>
 <Text variant="code">/dev/ui</Text>
-<NtqIcon name="settings" size="md" />
+<Icon name="settings" size="md" />
 <Loading variant="inline" />
 <ProgressBar value={42} label="枚举信号" showPercent />
 <ProgressRing value={65} label="回测" showPercent />
@@ -124,9 +162,9 @@ showToast({ status: 'success', content: '已保存' });
 
 普通文字 class：`.ntq-muted` / `.ntq-caption` / `.ntq-label` / `.ntq-link`（`styles/_typography.scss`）。
 
-改数值：覆盖 `styles/_tokens.scss`，不要在调用处写死像素。
+改数值：覆盖 `styles/_ui-tokens.scss` / `_ntq-tokens.scss`（经 `_tokens.scss` 加载），不要在调用处写死像素；不要新增 Sass `$`。
 
-表面风格约定：科技玻璃为默认（如 `CodeBlock variant="glass"`），最多再留一个轻变种（如 `soft`）；后续 input 等同理，避免 surface/radius/padding 组合爆炸。
+表面风格约定：科技玻璃为默认（如 `CodeBlock variant="glass"`），最多再留一个轻变种（如 `soft`）。**Input 例外**：默认 `surface="solid"` 深色实底（辨识度）；`surface="glass"` / `radius="none"` 为扩展。按钮扩展：`radius="none"`。避免组合爆炸。
 
 ## 目录结构
 
@@ -134,12 +172,13 @@ showToast({ status: 'success', content: '已保存' });
 ui/<大类>/<widgetName>/
   <widgetName>.js
   index.js
-  README.md
-  doc.js
+  doc.js          # 图鉴唯一真相源（summary / params / scenarios）
+  style.scss      # 如有
 ```
 
-## 与 views 的关系
+**文档约定**：组件用法看 `/dev/ui` 图鉴（读 `doc.js` + showcase）。**不要**再给每个组件加 `README.md`；本文件与 `ntq-ui/README.md` 只写包级边界与约定。
 
-- **现阶段 `views/` 只读**：先把 `src/ui` 标准做完，再单独开迁移，避免被旧实现带偏。
-- 可参考 views 的视觉与用法，但新 API（`variant` / `size` / token）以 `ui/` 为准。
-- 业务页暂时继续用 views；标准稳定后再改 import。
+## 目录边界
+
+- `views/` **已淘汰**；展示组件在 `ui/` / `ntq-ui/`，业务组合在 `pages/` / `containers/`。
+- 新 API（`variant` / `size` / token）以本目录与图鉴为准。

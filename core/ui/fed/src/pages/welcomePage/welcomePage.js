@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Typography } from '@mui/material';
-import PageLayout from '../../views/pageLayout';
+import PageLayout from 'ntq-ui/pageLayout';
 import WelcomeIntroCanvas from './welcomeIntroCanvas';
 import { fetchSiteUrls } from '../../api/siteApi';
 import './welcomePage.scss';
@@ -92,49 +91,48 @@ function WelcomePage() {
       showBreadcrumbs={false}
       showBanner={false}
     >
-      <Box className="welcome-page__stack">
-        <Box className="welcome-hero">
-          <Box
-            component="img"
+      <div className="welcome-page__stack">
+        <div className="welcome-hero">
+          <img
             ref={logoRef}
             src={LOGO_SRC}
             alt="New Tea Quant"
             className="welcome-hero__logo"
           />
-          <Typography className="welcome-hero__title" component="h1">
+          <h1 className="welcome-hero__title">
             <span className="welcome-hero__en">Welcome</span>
             <span className="welcome-hero__sep" aria-hidden>|</span>
             <span className="welcome-hero__zh">欢迎使用</span>
-          </Typography>
-        </Box>
+          </h1>
+        </div>
 
-        <Box className="welcome-lower">
-          <Box className="welcome-lower__note">
+        <div className="welcome-lower">
+          <div className="welcome-lower__note">
             在您开始使用之前，强烈建议您先花 3 分钟阅读下边的简介，这会帮助您快速理解并上手
             <Term>NTQ</Term>
             。
-          </Box>
+          </div>
 
-          <Box className="welcome-lower__slot">
-            <Typography className="welcome-lower__slot-title" component="h2">
+          <div className="welcome-lower__slot">
+            <h2 className="welcome-lower__slot-title">
               什么是 New Tea Quant（
               <Term>NTQ</Term>
               ）？
-            </Typography>
-            <Typography className="welcome-lower__lead" component="p">
+            </h2>
+            <p className="welcome-lower__lead">
               <Term>NTQ</Term>
               是一款回测与研究框架。本质上就做两件事：在您把交易准则抽象成代码能描述的规则后，
-            </Typography>
+            </p>
             <ul className="welcome-lower__list">
               <li>在历史数据里验证规则是否可行</li>
               <li>使用您的规则在市场里寻找机会</li>
             </ul>
-          </Box>
+          </div>
 
-          <Box className="welcome-lower__slot">
-            <Typography className="welcome-lower__slot-title" component="h2">
+          <div className="welcome-lower__slot">
+            <h2 className="welcome-lower__slot-title">
               我该从哪里做起？
-            </Typography>
+            </h2>
             <ul className="welcome-lower__list">
               <li>
                 <strong>第一步：把您的想法变成规则。</strong>
@@ -207,12 +205,12 @@ function WelcomePage() {
                 <DocHint href={docs.opportunities} before="更多的信息可以参考" />
               </li>
             </ul>
-          </Box>
+          </div>
 
-          <Box className="welcome-lower__slot">
-            <Typography className="welcome-lower__slot-title" component="h2">
+          <div className="welcome-lower__slot">
+            <h2 className="welcome-lower__slot-title">
               其他的页面都是做什么的？
-            </Typography>
+            </h2>
             <ul className="welcome-lower__list">
               <li>
                 <strong>
@@ -269,9 +267,9 @@ function WelcomePage() {
                 <DocHint href={docs.contract} before="您可以通过" after="了解更多。" />
               </li>
             </ul>
-          </Box>
-        </Box>
-      </Box>
+          </div>
+        </div>
+      </div>
 
       {introOn ? (
         <WelcomeIntroCanvas

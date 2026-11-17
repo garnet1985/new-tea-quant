@@ -1,12 +1,15 @@
 import React from 'react';
-import { Divider } from '@mui/material';
+import { Separator } from 'ui';
 import './style.scss';
 
 function DividerField({ node }) {
+  const tight = node?.spacing === 'tight';
   return (
-    <Divider
-      className="ntq-editor-divider"
-      sx={{ my: node?.spacing === 'tight' ? 1 : 2.5 }}
+    <Separator
+      className={[
+        'ntq-editor-divider',
+        tight ? 'ntq-editor-divider--tight' : '',
+      ].filter(Boolean).join(' ')}
     />
   );
 }

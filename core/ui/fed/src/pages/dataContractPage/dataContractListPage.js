@@ -1,32 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Box,
-  Chip,
-  Paper,
-  Stack,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
+  Button,
+  DataGrid,
+  ListToolbar,
+  Message,
+  SearchField,
+  Section,
+  Tag,
+} from 'ui';
+import { showToast } from 'ui/message/toast';
+import { PageLayout } from 'ntq-ui';
 import {
   fetchDataContractList,
   getDataContractDisplayLabel,
   getDataContractOriginLabel,
   reloadDataContractCatalog,
 } from '../../api/dataContractApi';
-import PageLayout from '../../views/pageLayout';
-import SearchField from '../../views/searchField';
-import NtqButton from '../../views/ntqButton';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import Message from '../../views/message';
-import { showToast } from 'containers/toast';
 import './dataContractListPage.scss';
 
-function BoolChip({ value, trueLabel, falseLabel }) {
+/** 约定：满足 → solid；未满足 → outline */
+function BoolTag({ value, trueLabel, falseLabel }) {
   return value ? (
-    <Chip size="small" color="success" label={trueLabel} />
+    <Tag status="success" variant="solid">{trueLabel}</Tag>
   ) : (
-    <Chip size="small" variant="outlined" label={falseLabel} />
+    <Tag status="neutral" variant="outline">{falseLabel}</Tag>
   );
 }
 
@@ -75,7 +72,7 @@ function DataContractListPage() {
         setRows(Array.isArray(res?.data) ? res.data : []);
         const total = Number(res?.total) || 0;
         showToast({
-          severity: 'success',
+          status: 'success',
           content: `已重新发现 ${total} 个数据契约（无需重启 NTQ）`,
         });
       })
@@ -105,9 +102,9 @@ function DataContractListPage() {
       flex: 0.45,
       valueGetter: (params) => getDataContractDisplayLabel(params.row),
       renderCell: (params) => (
-        <Typography variant="body2" fontWeight={700}>
+        <span className="data-contract-list-cell-name">
           {params.value || params.row.key}
-        </Typography>
+        </span>
       ),
     },
     {
@@ -116,9 +113,7 @@ function DataContractListPage() {
       minWidth: 220,
       flex: 0.55,
       renderCell: (params) => (
-        <Typography variant="body2" color="text.secondary" className="data-contract-list-key">
-          {params.value}
-        </Typography>
+        <span className="data-contract-list-key ntq-muted">{params.value}</span>
       ),
     },
     {
@@ -128,9 +123,9 @@ function DataContractListPage() {
       valueGetter: (params) => getDataContractOriginLabel(params.row.origin),
       renderCell: (params) => (
         params.row.is_custom ? (
-          <Chip size="small" color="secondary" variant="outlined" label={params.value} />
+          <Tag status="info" variant="outline">{params.value}</Tag>
         ) : (
-          <Chip size="small" variant="outlined" label={params.value} />
+          <Tag status="neutral" variant="outline">{params.value}</Tag>
         )
       ),
     },
@@ -139,7 +134,7 @@ function DataContractListPage() {
       headerName: '时序',
       width: 100,
       renderCell: (params) => (
-        <BoolChip value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
+        <BoolTag value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
       ),
     },
     {
@@ -147,7 +142,7 @@ function DataContractListPage() {
       headerName: '按实体',
       width: 100,
       renderCell: (params) => (
-        <BoolChip value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
+        <BoolTag value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
       ),
     },
   ]), []);
@@ -164,55 +159,47 @@ function DataContractListPage() {
       loading={!pageReady}
       loadingMessage="正在加载数据契约…"
     >
-      {loadError ? <Message severity="error" className="data-contract-list-alert">{loadError}</Message> : null}
+      <Section className="data-contract-list-page__stack" gap="md">
+        {loadError ? <Message status="error">{loadError}</Message> : null}
 
-      <Paper className="data-contract-list-grid">
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          alignItems={{ xs: 'stretch', sm: 'center' }}
-          spacing={1.5}
-          className="data-contract-list-grid-toolbar"
-        >
-          <SearchField
-            fluid
-            placeholder="搜索名称或 Key"
-            label="搜索数据契约"
-            value={nameQuery}
-            onChange={(e) => setNameQuery(e.target.value)}
+        <Section className="data-contract-list-grid" gap="md">
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="搜索名称或 Key"
+                label="搜索数据契约"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <Button
+                variant="glass"
+                icon="refresh"
+                onClick={rediscover}
+                disabled={busy}
+              >
+                {rediscovering ? '发现中…' : '重新发现'}
+              </Button>
+            )}
           />
-          <NtqButton
-            variant="glass"
-            icon="refresh"
-            onClick={rediscover}
-            disabled={busy}
-          >
-            {rediscovering ? '发现中…' : '重新发现'}
-          </NtqButton>
-        </Stack>
 
-        <Box className="data-contract-list-grid-body">
-          <DataGrid
-            autoHeight
-            rows={displayRows}
-            columns={columns}
-            loading={busy}
-            disableRowSelectionOnClick
-            pageSizeOptions={[10, 25, 50, 100]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-            slots={NTQ_DATA_GRID_LOADING_SLOTS}
-            getRowId={(row) => row.id}
-            sx={{
-              border: 'none',
-              '& .MuiDataGrid-cell': {
-                py: 1,
-                alignItems: 'center',
-              },
-            }}
-          />
-        </Box>
-      </Paper>
+          <div className="data-contract-list-grid-body">
+            <DataGrid
+              autoHeight
+              rows={displayRows}
+              columns={columns}
+              loading={busy}
+              pageSizeOptions={[10, 25, 50, 100]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              getRowId={(row) => row.id}
+            />
+          </div>
+        </Section>
+      </Section>
     </PageLayout>
   );
 }

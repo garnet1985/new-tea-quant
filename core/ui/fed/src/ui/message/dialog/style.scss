@@ -1,0 +1,33 @@
+.ntq-dialog__paper {
+  /* 半透明深底 + 模糊：可透一点背景，但保持可读 */
+  background: var(--ui-surface-panel) !important;
+  background-image: none !important;
+  border: 1px solid var(--ui-white-12);
+  border-radius: var(--ui-radius-md) !important;
+  color: var(--ui-text);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
+}
+
+.ntq-dialog__title {
+  padding: var(--ui-space-lg) var(--ui-space-lg) var(--ui-space-sm) !important;
+  font-size: var(--ui-font-md) !important;
+  font-weight: var(--ui-font-weight-bold) !important;
+  line-height: var(--ui-leading-tight);
+  color: var(--ui-text);
+}
+
+.ntq-dialog__content {
+  padding: var(--ui-space-sm) var(--ui-space-lg) var(--ui-space-md) !important;
+  color: var(--ui-text);
+
+  > .ntq-muted {
+    margin: 0;
+  }
+}
+
+.ntq-dialog__actions {
+  padding: var(--ui-space-sm) var(--ui-space-lg) var(--ui-space-lg) !important;
+  gap: var(--ui-space-sm);
+}

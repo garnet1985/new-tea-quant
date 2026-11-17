@@ -1,16 +1,6 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import {
-  Alert,
-  Box,
-  CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material';
+import { Loading, Message } from 'ui';
 import './style.scss';
 
 const LAYERS = [
@@ -88,45 +78,43 @@ function layerCells(row, layerKey) {
 
 function MetricTable({ title, layerKey, columns, rows }) {
   return (
-    <Box className="ntq-design-roll-report__block">
-      <Typography variant="subtitle2" className="ntq-design-roll-report__title">
-        {title}
-      </Typography>
-      <Box className="ntq-design-roll-report__table-wrap">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>窗口</TableCell>
+    <div className="ntq-design-roll-report__block">
+      <h3 className="ntq-design-roll-report__title">{title}</h3>
+      <div className="ntq-design-roll-report__table-wrap">
+        <table className="ntq-design-roll-report__table">
+          <thead>
+            <tr>
+              <th>窗口</th>
               {columns.map((column) => (
-                <TableCell key={column.key} align="right">{column.label}</TableCell>
+                <th key={column.key} className="is-num">{column.label}</th>
               ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody>
             {rows.map((row) => {
               const cells = layerCells(row, layerKey);
               return (
-                <TableRow
+                <tr
                   key={`${layerKey}-${row.version_id || ''}-${row.label || ''}`}
                   className={row.is_baseline ? 'ntq-design-roll-report__row--baseline' : undefined}
                 >
-                  <TableCell>{row.label || '—'}</TableCell>
+                  <td>{row.label || '—'}</td>
                   {columns.map((column) => (
-                    <TableCell key={column.key} align="right">
+                    <td key={column.key} className="is-num">
                       {formatCell(
                         cells[column.key],
                         column.style,
                         column.delta && !row.is_baseline,
                       )}
-                    </TableCell>
+                    </td>
                   ))}
-                </TableRow>
+                </tr>
               );
             })}
-          </TableBody>
-        </Table>
-      </Box>
-    </Box>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -153,26 +141,26 @@ function StrategyDesignRollingReport({
 
   if (loading) {
     return (
-      <Box className="ntq-design-roll-report ntq-design-roll-report--center">
-        <CircularProgress size={28} />
-        <Typography variant="body2" color="text.secondary">正在读取滚动报告…</Typography>
-      </Box>
+      <div className="ntq-design-roll-report ntq-design-roll-report--center">
+        <Loading variant="inline" aria-label="正在读取滚动报告" />
+        <p className="ntq-muted">正在读取滚动报告…</p>
+      </div>
     );
   }
 
   if (error) {
-    return <Alert severity="error">{error}</Alert>;
+    return <Message status="error">{error}</Message>;
   }
 
   if (!rows.length) {
     return (
-      <Box className="ntq-design-roll-report ntq-design-roll-report--empty">
-        <Typography variant="body2" color="text.secondary">
+      <div className="ntq-design-roll-report ntq-design-roll-report--empty">
+        <p className="ntq-muted">
           {busy
             ? '滚动对照进行中，完成后会显示在这里。'
             : '尚未运行滚动测试。配置 rolling.py 后，在投资组合面板点击「滚动测试」。'}
-        </Typography>
-      </Box>
+        </p>
+      </div>
     );
   }
 
@@ -185,37 +173,37 @@ function StrategyDesignRollingReport({
     .filter(Boolean);
 
   return (
-    <Box className="ntq-design-roll-report">
-      <Typography variant="caption" color="text.secondary" className="ntq-design-roll-report__meta">
+    <div className="ntq-design-roll-report">
+      <p className="ntq-design-roll-report__meta ntq-muted">
         {`主版本 ${payload?.parent_version_id || baseline?.version_id || '—'} · 基准 ${baseline?.start || '—'}-${baseline?.end || '—'} · ${rows.length - (rows[0]?.is_baseline ? 1 : 0)} 段窗口`}
-      </Typography>
-      <Box className="ntq-design-roll-report__table-wrap">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>窗口</TableCell>
-              <TableCell>版本</TableCell>
-              <TableCell align="right">长度（天）</TableCell>
-              <TableCell align="right">与基准重叠（天）</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+      </p>
+      <div className="ntq-design-roll-report__table-wrap">
+        <table className="ntq-design-roll-report__table">
+          <thead>
+            <tr>
+              <th>窗口</th>
+              <th>版本</th>
+              <th className="is-num">长度（天）</th>
+              <th className="is-num">与基准重叠（天）</th>
+            </tr>
+          </thead>
+          <tbody>
             {rows.map((row) => (
-              <TableRow
+              <tr
                 key={`span-${row.version_id || ''}-${row.label || ''}`}
                 className={row.is_baseline ? 'ntq-design-roll-report__row--baseline' : undefined}
               >
-                <TableCell>{row.label || '—'}</TableCell>
-                <TableCell>{row.version_id || '—'}</TableCell>
-                <TableCell align="right">{formatDays(row.length_days)}</TableCell>
-                <TableCell align="right">
+                <td>{row.label || '—'}</td>
+                <td>{row.version_id || '—'}</td>
+                <td className="is-num">{formatDays(row.length_days)}</td>
+                <td className="is-num">
                   {row.is_baseline ? '—' : formatDays(row.overlap_days)}
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
-      </Box>
+          </tbody>
+        </table>
+      </div>
       {LAYERS.map((layer) => (
         <MetricTable
           key={layer.key}
@@ -226,15 +214,13 @@ function StrategyDesignRollingReport({
         />
       ))}
       {notes.length ? (
-        <Box className="ntq-design-roll-report__notes">
+        <div className="ntq-design-roll-report__notes">
           {notes.map((line) => (
-            <Typography key={line} variant="caption" color="text.secondary">
-              {line}
-            </Typography>
+            <p key={line} className="ntq-caption ntq-muted">{line}</p>
           ))}
-        </Box>
+        </div>
       ) : null}
-    </Box>
+    </div>
   );
 }
 

@@ -29,7 +29,7 @@ const doc = {
       name: 'icon',
       type: 'string | ReactNode',
       defaultValue: 'undefined',
-      description: '可选前置图标（NtqIcon 名或节点）。',
+      description: '可选前置图标（Icon 名或节点）。',
     },
     {
       name: 'onDelete',
@@ -45,14 +45,16 @@ const doc = {
     },
   ],
   scenarios: [
-    '列表状态：status="success"「已启用」、status="warning"「待更新」。',
-    '分类标签：color="violet" / color="cyan"。',
+    '未达成：variant="outline" + status（空心）。',
+    '已达成 / 已配置：variant="solid" + status="success"（实心）。',
+    '分类标签：variant="solid" + color="violet" / cyan（实心）。',
     '可移除筛选条件：onDelete。',
   ],
   antiPatterns: [
     '不要用 Tag 做大段说明（用 Message）。',
     '不要把业务 status→样式映射塞进 Tag（第二层 helper / 页面负责）。',
     '不要同时依赖 status 与 color（有 color 即颜色模式）。',
+    '产品里不要用 soft 表示完成态；未完成用 outline，完成与分类标签用 solid。',
   ],
 };
 

@@ -1,10 +1,8 @@
-@use '../../styles/variables' as *;
-
 .ui-prototype {
   display: grid;
   grid-template-columns: var(--ntq-layout-sidebar-width) minmax(0, 1fr);
   width: 100%;
-  min-height: calc(100vh - #{$ntq-header-height});
+  min-height: calc(100vh - var(--ntq-header-height));
   color: var(--ntq-text, rgba(255, 255, 255, 0.92));
   box-sizing: border-box;
 }
@@ -82,6 +80,7 @@
   letter-spacing: 0.02em;
   line-height: var(--ntq-leading-tight, 1.25);
   color: var(--ntq-text, #fff);
+  text-transform: uppercase;
 }
 
 .ui-prototype__widget-meta {
@@ -383,7 +382,8 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-@media (max-width: $ntq-layout-stack-below) {
+/* sync: --ui-layout-stack-below（@media 不能可靠使用 CSS 变量） */
+@media (max-width: 800px) {
   .ui-prototype {
     grid-template-columns: minmax(0, 1fr);
   }

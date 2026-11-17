@@ -1,9 +1,10 @@
 import React, { useRef } from 'react';
 import { InputAdornment, TextField as MuiTextField } from '@mui/material';
-import NtqIcon from 'ui/icon/ntqIcon';
+import Icon from 'ui/icon/icon';
 import Field from 'ui/input/field';
 import useControlId from 'ui/input/useControlId';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
+import { inputChromeClass } from 'ui/input/controlChrome';
 import '../_control.scss';
 
 /**
@@ -27,8 +28,10 @@ function Date({
   id = '',
   className = '',
   fullWidth = true,
-  /** 默认限制约 280px；传 false 去掉上限 */
+  /** 默认限制约 320px；传 false 去掉上限 */
   maxWidth = true,
+  surface = 'solid',
+  radius = 'sm',
   ...rest
 }) {
   const controlId = useControlId(id);
@@ -36,6 +39,7 @@ function Date({
   const placement = pickToken(labelPlacement, FIELD_LABEL_PLACEMENTS, 'above');
   const hasFieldChrome = placement !== 'none' || tip || hint || error || label;
   const widthClass = maxWidth ? 'ntq-input--capped' : 'ntq-input--fluid';
+  const chromeClass = inputChromeClass({ surface, radius });
 
   const {
     InputProps: restInputProps,
@@ -75,6 +79,7 @@ function Date({
       className={[
         'ntq-date',
         widthClass,
+        chromeClass,
         !hasFieldChrome ? className : '',
       ].filter(Boolean).join(' ')}
       InputLabelProps={{ shrink: true }}
@@ -92,7 +97,7 @@ function Date({
               onClick={openPicker}
               onMouseDown={(e) => e.preventDefault()}
             >
-              <NtqIcon name="calendar" size="sm" tone="muted" />
+              <Icon name="calendar" size="sm" tone="muted" />
             </button>
             {restInputProps?.endAdornment}
           </InputAdornment>

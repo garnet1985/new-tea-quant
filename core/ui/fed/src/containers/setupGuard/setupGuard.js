@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Message, Loading } from 'ui';
 import { Navigate } from 'react-router-dom';
-import { Alert, Button } from '@mui/material';
 import { getSetupStatus } from 'api/setupApi';
-import PageLoadingState from 'views/pageLoadingState';
 import './style.scss';
 
 function SetupGuard({ children }) {
@@ -38,14 +37,14 @@ function SetupGuard({ children }) {
   }, [retryKey]);
 
   if (loading) {
-    return <PageLoadingState message="检查系统就绪状态…" minHeight="40vh" />;
+    return <Loading variant="page" message="检查系统就绪状态…" className="ntq-loading--min-40vh" />;
   }
 
   if (loadError) {
     return (
       <div className="ntq-setup-guard-error">
-        <Alert severity="error">{loadError}</Alert>
-        <Button variant="contained" onClick={retry} className="ntq-setup-guard-error__retry">
+        <Message status="error">{loadError}</Message>
+        <Button variant="primary" onClick={retry} className="ntq-setup-guard-error__retry">
           重试
         </Button>
       </div>

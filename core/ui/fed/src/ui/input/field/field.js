@@ -1,5 +1,5 @@
 import React, { useId } from 'react';
-import NtqHelpTooltip from 'ui/message/ntqHelpTooltip';
+import HelpTooltip from 'ui/message/helpTooltip';
 import { FIELD_LABEL_PLACEMENTS, pickToken } from 'ui/tokens';
 import '../_control.scss';
 
@@ -87,7 +87,7 @@ function Field({
           </label>
         )
       ) : null}
-      {tip ? <NtqHelpTooltip title={tip} /> : null}
+      {tip ? <HelpTooltip title={tip} /> : null}
     </div>
   ) : null;
 

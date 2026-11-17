@@ -4,7 +4,7 @@ import Section from 'ui/layout/section';
 import Block from 'ui/layout/block';
 import Text from 'ui/text/text';
 import Heading from 'ui/text/heading';
-import PageBanner from 'ui/ntq/pageBanner';
+import PageBanner from 'ntq-ui/pageBanner';
 import Tag from 'ui/tag/tag';
 import {
   UI_CATALOG_BASE,
@@ -140,19 +140,40 @@ function UiPrototypeCategoryPage() {
             padding="md"
             gap="md"
           >
-            <Heading level="h2" gap="none">占位 · 待补充</Heading>
-            <p className="ntq-muted" style={{ margin: 0, maxWidth: '40rem' }}>
-              这里将沉淀 NTQ 产品页的布局与组合准则（例如：设置类用 Tabs side / SideNav；
-              报告小节用 ReportBlock；同页切 panel 用 Tabs；目录站用 Column sidebar + SideNav 等）。
-              迁 legacy 时按场景补条目，避免各页自造版式。
-            </p>
-            <p className="ntq-caption" style={{ margin: 0 }}>
-              条目形态后续再定（纯文案 / 对照表 / 链到组件锚点均可）。
-            </p>
+            <Heading level="h2" gap="none">已收录准则</Heading>
+            <div className="ntq-muted" style={{ margin: 0, maxWidth: '42rem' }}>
+              <p style={{ margin: '0 0 0.75rem' }}>
+                <strong>工程硬规则</strong>
+                （全文见
+                {' '}
+                <Text variant="code">FED_STANDARD.md</Text>
+                {' / '}
+                <Text variant="code">ui/README.md</Text>
+                ）
+              </p>
+              <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                <li>App（pages / containers）只能用 <Text variant="code">ui/</Text>（含 <Text variant="code">ntq-ui</Text>），禁止直接使用 MUI。</li>
+                <li>现有组件盖不住时，优先扩展基础组件或选项，再给业务用。</li>
+                <li>视觉变量使用全局 CSS token（<Text variant="code">--ui-*</Text> / <Text variant="code">--ntq-*</Text>）。</li>
+              </ul>
+              <p style={{ margin: '0 0 0.75rem' }}>
+                <strong>Tag</strong>
+              </p>
+              <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
+                <li>未达成 / 未完成 / 尚未配置 → <Text variant="code">variant=&quot;outline&quot;</Text>（空心）。</li>
+                <li>已达成 / 已完成 / 已配置 → <Text variant="code">variant=&quot;solid&quot;</Text>（实心）。</li>
+                <li>普通分类标签 → 一律实心 <Text variant="code">solid</Text>。</li>
+              </ul>
+              <p style={{ margin: 0 }}>
+                布局组合（设置侧栏、ReportBlock、Tabs、ListToolbar 等）按产品需要继续往本栏补条目。
+              </p>
+            </div>
           </Block>
         ) : category.widgets.map((widget) => {
           const uiDir = widgetUiPath(category.id, widget);
-          const readmePath = `src/ui/${uiDir}/README.md`;
+          const readmePath = uiDir.startsWith('ntq-ui/')
+            ? `src/${uiDir}/README.md`
+            : `src/ui/${uiDir}/README.md`;
           const doc = getWidgetDoc(category.id, widget.id);
           const Showcase = getWidgetShowcase(category.id, widget.id);
 

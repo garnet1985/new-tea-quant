@@ -8,7 +8,34 @@
 }
 
 .what-we-will-track-page__inner {
+  width: min(900px, calc(100% - 48px));
+  margin: 0 auto;
   color: rgba(255, 255, 255, 0.86);
+}
+
+.what-we-will-track-page__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.what-we-will-track-page__title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #f2f4f7;
+}
+
+.what-we-will-track-page__lead,
+.what-we-will-track-page__copy {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.64);
+  line-height: 1.6;
+}
+
+.what-we-will-track-page__actions {
+  padding-top: 8px;
 }
 
 .what-we-will-track-page__section {
@@ -16,8 +43,17 @@
 }
 
 .what-we-will-track-page__section-title {
-  margin-bottom: 8px !important;
-  font-weight: 700 !important;
+  margin: 0 0 8px;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #f2f4f7;
+}
+
+.what-we-will-track-page__subtitle {
+  margin: 16px 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e8edf5;
 }
 
 .what-we-will-track-page__list {

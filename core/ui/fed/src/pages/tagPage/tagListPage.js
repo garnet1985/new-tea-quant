@@ -1,15 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Box,
-  Chip,
-  IconButton,
-  Paper,
-  Stack,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import { DataGrid, GridRow } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
+  Button,
+  DataGrid,
+  HelpTooltip,
+  Icon,
+  ListToolbar,
+  Message,
+  SearchField,
+  Section,
+  Tag,
+} from 'ui';
+import { GridRow } from 'ui/table/dataGrid';
+import { TAG_COLORS } from 'ui/tokens';
+import { PageLayout, RainbowButton } from 'ntq-ui';
+import { showToast } from 'ui/message/toast';
 import {
   fetchPipelineStatus,
   fetchTagList,
@@ -21,21 +25,21 @@ import {
   getTagUpdateModeLabel,
   startTagRun,
 } from '../../api/tagApi';
-import PageLayout from '../../views/pageLayout';
-import SearchField from '../../views/searchField';
-import NtqButton from '../../views/ntqButton';
-import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
-import NtqHelpTooltip from '../../views/ntqHelpTooltip';
-import StrategyDescriptionText from '../../views/strategyDescriptionText';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import NtqIcon from '../../views/ntqIcon';
-import RainbowButton from '../../views/rainbowButton';
-import FreshnessStatusChip from '../../views/freshnessStatusChip';
-import Message from '../../views/message';
-import { showToast } from 'containers/toast';
+import DataEndTruncationAlert from 'containers/dataEndTruncation';
+import DescriptionText from 'ntq-ui/descriptionText';
+import UpdateStatusChip from 'ntq-ui/updateStatusChip';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import TagVisualization from '../../containers/tagVisualization';
 import './tagListPage.scss';
+
+/** 按名称稳定散列到装饰色（同名同色，刷新不跳） */
+function tagColorFromName(name) {
+  const palette = TAG_COLORS.filter((c) => c !== 'muted');
+  const s = String(name || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length] || 'cyan';
+}
 
 function clearRowProgress(rows) {
   return rows.map((row) => {
@@ -48,7 +52,7 @@ function clearRowProgress(rows) {
 
 function ComputeStatusChip({ row }) {
   return (
-    <FreshnessStatusChip
+    <UpdateStatusChip
       status={row.compute_status}
       label={getTagComputeStatusLabel(row)}
       hint={row.compute_status_hint}
@@ -181,24 +185,20 @@ function TagListPage() {
         const label = params.value || params.row.name;
         const description = String(params.row.description || '').trim();
         return (
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={700} noWrap>
-              {label}
-            </Typography>
+          <div className="tag-list-cell-name">
+            <strong className="tag-list-cell-name__label">{label}</strong>
             {description ? (
-              <NtqHelpTooltip
+              <HelpTooltip
                 title={(
-                  <StrategyDescriptionText
+                  <DescriptionText
                     text={description}
-                    variant="body2"
-                    color="inherit"
                     empty=""
                   />
                 )}
                 ariaLabel={`${label} 简介`}
               />
             ) : null}
-          </Stack>
+          </div>
         );
       },
     },
@@ -207,9 +207,9 @@ function TagListPage() {
       headerName: '启用状态',
       width: 110,
       renderCell: (params) => (params.value ? (
-        <Chip size="small" color="success" label="已启用" />
+        <Tag status="success" variant="solid">已启用</Tag>
       ) : (
-        <Chip size="small" color="default" label="已禁用" />
+        <Tag status="neutral" variant="outline">已禁用</Tag>
       )),
     },
     {
@@ -231,50 +231,48 @@ function TagListPage() {
         else title = '运行 Tag 计算';
 
         return (
-          <Tooltip title={title}>
-            <span className="tag-list-run-btn-wrap">
-              <RainbowButton
-                icon="play"
-                disabled={disableRun}
-                aria-label={pipelineBusy && !running ? '加入队列' : '运行 Tag 计算'}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setRunningTagId(id);
-                  setRunningTagKey(params.row.name);
-                  setRunningJobId('');
-                  patchRunningRowProgress(id, { pct: 0, label: pipelineBusy ? '加入队列…' : '准备中…' });
-                  startTagRun(params.row.name)
-                    .then((res) => {
-                      if (res?.queued) {
-                        showToast({
-                          severity: 'info',
-                          duration: 5000,
-                          content: res.reason || '已加入管道队列，当前任务结束后将自动执行',
-                        });
-                        setRunningTagId('');
-                        setRunningTagKey('');
-                        setRunningJobId('');
-                        setRows((prev) => clearRowProgress(prev));
-                        refreshPipeline();
-                        return;
-                      }
-                      const jobId = String(res?.job_id || '').trim();
-                      if (!jobId) throw new Error('启动失败：未返回 job_id');
-                      setRunningTagId(id);
-                      setRunningJobId(jobId);
-                    })
-                    .catch((err) => {
-                      showToast({ severity: 'error', content: err?.message || '启动 Tag 计算失败' });
+          <span className="tag-list-run-btn-wrap" title={title}>
+            <RainbowButton
+              icon="play"
+              disabled={disableRun}
+              aria-label={pipelineBusy && !running ? '加入队列' : '运行 Tag 计算'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setRunningTagId(id);
+                setRunningTagKey(params.row.name);
+                setRunningJobId('');
+                patchRunningRowProgress(id, { pct: 0, label: pipelineBusy ? '加入队列…' : '准备中…' });
+                startTagRun(params.row.name)
+                  .then((res) => {
+                    if (res?.queued) {
+                      showToast({
+                        status: 'info',
+                        duration: 5000,
+                        content: res.reason || '已加入管道队列，当前任务结束后将自动执行',
+                      });
                       setRunningTagId('');
                       setRunningTagKey('');
                       setRunningJobId('');
                       setRows((prev) => clearRowProgress(prev));
                       refreshPipeline();
-                    });
-                }}
-              />
-            </span>
-          </Tooltip>
+                      return;
+                    }
+                    const jobId = String(res?.job_id || '').trim();
+                    if (!jobId) throw new Error('启动失败：未返回 job_id');
+                    setRunningTagId(id);
+                    setRunningJobId(jobId);
+                  })
+                  .catch((err) => {
+                    showToast({ status: 'error', content: err?.message || '启动 Tag 计算失败' });
+                    setRunningTagId('');
+                    setRunningTagKey('');
+                    setRunningJobId('');
+                    setRows((prev) => clearRowProgress(prev));
+                    refreshPipeline();
+                  });
+              }}
+            />
+          </span>
         );
       },
     },
@@ -291,26 +289,25 @@ function TagListPage() {
         const computed = Boolean(String(params.row.last_computed_as_of || '').trim());
         const title = computed ? '打开标签可视化' : '尚未计算，无法可视化';
         return (
-          <Tooltip title={title}>
-            <span className="tag-list-run-btn-wrap">
-              <IconButton
-                size="small"
-                disabled={!computed}
-                className="tag-list-viz-btn"
-                aria-label={title}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!computed) return;
-                  setVizTarget({
-                    name: params.row.name,
-                    display_name: params.row.display_name,
-                  });
-                }}
-              >
-                <NtqIcon name="monitoring" size={18} tone={computed ? '' : 'muted'} />
-              </IconButton>
-            </span>
-          </Tooltip>
+          <span className="tag-list-run-btn-wrap">
+            <Button
+              variant="glass"
+              icon="monitoring"
+              iconSize="sm"
+              disabled={!computed}
+              className="tag-list-viz-btn"
+              tooltip={title}
+              aria-label={title}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!computed) return;
+                setVizTarget({
+                  name: params.row.name,
+                  display_name: params.row.display_name,
+                });
+              }}
+            />
+          </span>
         );
       },
     },
@@ -319,18 +316,14 @@ function TagListPage() {
       headerName: '更新方式',
       width: 110,
       renderCell: (params) => {
-        const mode = params.row.update_mode;
-        const label = getTagUpdateModeLabel(mode);
-        const iconName = getTagUpdateModeIcon(mode);
+        // 样式对齐数据源列表：青色 Icon + 文案（非 Tag 胶囊）
+        const label = getTagUpdateModeLabel(params.row.update_mode);
+        const iconName = getTagUpdateModeIcon(params.row.update_mode);
         return (
-          <Stack direction="row" spacing={0.75} alignItems="center">
-            <NtqIcon
-              name={iconName}
-              size={18}
-              tone="muted"
-            />
-            <Typography variant="body2">{label}</Typography>
-          </Stack>
+          <div className="tag-list-cell-mode">
+            <Icon name={iconName} size="lg" tone="cyan" />
+            <span>{label}</span>
+          </div>
         );
       },
     },
@@ -360,19 +353,16 @@ function TagListPage() {
       renderCell: (params) => {
         const defs = params.row.tag_definitions || [];
         if (!defs.length) {
-          return <Typography variant="body2" color="text.secondary">—</Typography>;
+          return <span className="ntq-muted">—</span>;
         }
         return (
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+          <div className="tag-list-cell-tags">
             {defs.map((t) => (
-              <Chip
-                key={t.name}
-                size="small"
-                variant="outlined"
-                label={t.display_name || t.name}
-              />
+              <Tag key={t.name} variant="solid" color={tagColorFromName(t.name)}>
+                {t.display_name || t.name}
+              </Tag>
             ))}
-          </Stack>
+          </div>
         );
       },
     },
@@ -383,7 +373,6 @@ function TagListPage() {
     refreshPipeline,
     running,
     runningTagId,
-    setVizTarget,
   ]);
 
   useEffect(() => {
@@ -416,7 +405,7 @@ function TagListPage() {
           }
           if (status === 'failed') {
             showToast({
-              severity: 'error',
+              status: 'error',
               content: String(p?.reason || p?.label || 'Tag 计算失败'),
             });
             setRunningTagId('');
@@ -431,7 +420,7 @@ function TagListPage() {
         })
         .catch((err) => {
           if (cancelled) return;
-          showToast({ severity: 'error', content: err?.message || '轮询进度失败' });
+          showToast({ status: 'error', content: err?.message || '轮询进度失败' });
           setRunningTagId('');
           setRunningTagKey('');
           setRunningJobId('');
@@ -446,11 +435,11 @@ function TagListPage() {
     };
   }, [load, patchRunningRowProgress, refreshPipeline, running, runningJobId, runningTagId, runningTagKey]);
 
-  const statusChip = running
-    ? { label: '计算中…', color: 'warning', variant: 'filled' }
+  const statusTag = running
+    ? { label: '计算中…', status: 'warning', variant: 'solid' }
     : pipelineBusy
-      ? { label: '可排队', color: 'default', variant: 'outlined' }
-      : { label: '就绪', color: 'default', variant: 'outlined' };
+      ? { label: '可排队', status: 'neutral', variant: 'outline' }
+      : { label: '就绪', status: 'neutral', variant: 'outline' };
 
   return (
     <PageLayout
@@ -460,82 +449,69 @@ function TagListPage() {
       bannerTitle="标签计算"
       bannerDescription="列出 userspace 中的 Tag scenario；对已启用场景点击「运行」触发计算。忙时可加入全局管道队列。"
       bannerRightSlot={(
-        <Chip
-          size="small"
-          label={statusChip.label}
-          color={statusChip.color}
-          variant={statusChip.variant}
-        />
+        <Tag status={statusTag.status} variant={statusTag.variant}>
+          {statusTag.label}
+        </Tag>
       )}
       loading={!pageReady}
       loadingMessage="正在加载标签列表…"
     >
-      {loadError ? <Message severity="error" className="tag-list-alert">{loadError}</Message> : null}
-      <DataEndTruncationAlert dataEnd={dataEnd} className="tag-list-alert" />
-      {pipelineError ? (
-        <Message severity="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
-          {pipelineError}
-        </Message>
-      ) : null}
-      {pipelineBusy && pipelineLabel ? (
-        <Message severity="info" className="tag-list-alert">
-          当前有其它任务占用数据管道（{pipelineLabel}）。仍可点运行，任务将加入队列。
-        </Message>
-      ) : null}
+      <Section className="tag-list-page__stack" gap="md">
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        <DataEndTruncationAlert dataEnd={dataEnd} />
+        {pipelineError ? (
+          <Message status="warning" onClose={() => setPipelineError('')}>
+            {pipelineError}
+          </Message>
+        ) : null}
+        {pipelineBusy && pipelineLabel ? (
+          <Message status="info">
+            当前有其它任务占用数据管道（{pipelineLabel}）。仍可点运行，任务将加入队列。
+          </Message>
+        ) : null}
 
-      <Paper className="tag-list-grid">
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          alignItems={{ xs: 'stretch', sm: 'center' }}
-          spacing={1.5}
-          className="tag-list-grid-toolbar"
-        >
-          <SearchField
-            fluid
-            placeholder="搜索场景名或 Tag"
-            label="搜索 Tag 场景"
-            value={nameQuery}
-            onChange={(e) => setNameQuery(e.target.value)}
+        <Section className="tag-list-grid" gap="md">
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="搜索场景名或 Tag"
+                label="搜索 Tag 场景"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <Button
+                variant="glass"
+                icon="refresh"
+                onClick={load}
+                disabled={loading || Boolean(runningTagId)}
+              >
+                刷新列表
+              </Button>
+            )}
           />
-          <NtqButton
-            variant="glass"
-            icon="refresh"
-            onClick={load}
-            disabled={loading || Boolean(runningTagId)}
-          >
-            刷新列表
-          </NtqButton>
-        </Stack>
 
-        <Box className="tag-list-grid-body">
-          <DataGrid
-            autoHeight
-            rows={displayRows}
-            columns={columns}
-            loading={loading}
-            getRowHeight={() => 'auto'}
-            slots={{
-              ...NTQ_DATA_GRID_LOADING_SLOTS,
-              row: TagListGridRow,
-            }}
-            disableRowSelectionOnClick
-            pageSizeOptions={[10, 25, 50]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-            getRowId={(row) => row.id}
-            sx={{
-              border: 'none',
-              '& .MuiDataGrid-cell': {
-                py: 1.25,
-                alignItems: 'flex-start',
-                whiteSpace: 'normal',
-                lineHeight: 1.5,
-              },
-            }}
-          />
-        </Box>
-      </Paper>
+          <div className="tag-list-grid-body">
+            <DataGrid
+              autoHeight
+              rows={displayRows}
+              columns={columns}
+              loading={loading}
+              getRowHeight={() => 'auto'}
+              slots={{ row: TagListGridRow }}
+              pageSizeOptions={[10, 25, 50]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              getRowId={(row) => row.id}
+              cellLayout="wrap"
+            />
+          </div>
+        </Section>
+      </Section>
+
       <TagVisualization
         open={Boolean(vizTarget)}
         tagKey={vizTarget?.name || ''}

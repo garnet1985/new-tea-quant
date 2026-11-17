@@ -1,13 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { Button, Icon, Message } from 'ui';
 import { useNavigate } from 'react-router-dom';
-import {
-  Alert,
-  Box,
-  Button,
-  Link,
-  Typography,
-} from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
 import { acceptLicense, declineLicense, fetchLicenseAcceptance } from 'api/licenseApi';
 import './setupLicensePage.scss';
 
@@ -66,56 +59,55 @@ function SetupLicensePage() {
   };
 
   return (
-    <Box className="license-gate" role="dialog" aria-modal="true" aria-labelledby="license-gate-title">
-      <Box className="license-gate__scrim" aria-hidden />
-      <Box className="license-gate__panel">
-        <Box className="license-gate__brand">
+    <div className="license-gate" role="dialog" aria-modal="true" aria-labelledby="license-gate-title">
+      <div className="license-gate__scrim" aria-hidden />
+      <div className="license-gate__panel">
+        <div className="license-gate__brand">
           {logoFailed ? (
-            <NtqIcon name="tactic" size={64} />
+            <Icon name="tactic" size="xxl" />
           ) : (
-            <Box
-              component="img"
+            <img
               src="/logo.png"
               alt="New Tea Quant"
               className="license-gate__logo"
               onError={() => setLogoFailed(true)}
             />
           )}
-        </Box>
-        <Typography id="license-gate-title" variant="h4" component="h1" className="license-gate__title">
+        </div>
+        <h1 id="license-gate-title" className="license-gate__title">
           同意使用条款后才能继续
-        </Typography>
-        <Typography variant="body1" color="text.secondary" component="div" className="license-gate__copy">
+        </h1>
+        <div className="license-gate__copy ntq-muted">
           <p>只有同意使用条款，才能继续安装和使用 New Tea Quant。不同意将退出。</p>
           {disclaimerUrl || licenseUrl ? (
             <p>
               {disclaimerUrl ? (
-                <Link href={disclaimerUrl} target="_blank" rel="noopener noreferrer" underline="always">
+                <a className="ntq-link" href={disclaimerUrl} target="_blank" rel="noopener noreferrer">
                   使用条款
-                </Link>
+                </a>
               ) : null}
               {disclaimerUrl && licenseUrl ? ' · ' : null}
               {licenseUrl ? (
-                <Link href={licenseUrl} target="_blank" rel="noopener noreferrer" underline="always">
+                <a className="ntq-link" href={licenseUrl} target="_blank" rel="noopener noreferrer">
                   NTQ 许可证
-                </Link>
+                </a>
               ) : null}
             </p>
           ) : null}
           <p>全文在仓库根目录的 DISCLAIMER.md 与 LICENSE。条款以后改了，会再问一次。</p>
-        </Typography>
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        {exiting ? <Alert severity="info">未同意，正在退出。</Alert> : null}
-        <Box className="license-gate__actions">
-          <Button variant="text" disabled={busy || loading} onClick={decline}>
+        </div>
+        {error ? <Message status="error">{error}</Message> : null}
+        {exiting ? <Message status="info">未同意，正在退出。</Message> : null}
+        <div className="license-gate__actions">
+          <Button variant="ghost" disabled={busy || loading} onClick={decline}>
             不同意并退出
           </Button>
-          <Button variant="contained" color="primary" disabled={busy || loading} onClick={agree}>
+          <Button variant="primary" disabled={busy || loading} onClick={agree}>
             {busy && !exiting ? '保存中…' : '同意并继续'}
           </Button>
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }
 

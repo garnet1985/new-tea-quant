@@ -28,27 +28,55 @@
   margin-right: 0;
 }
 
-// Outlined input: default glass surface + consistent height/padding
+// Outlined input: default solid dark surface（辨识度）；glass 需显式 surface="glass"
 .MuiOutlinedInput-root {
   border-radius: 5px;
-  background: var(--ntq-white-03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--ntq-input-solid-bg, #12121f);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   min-height: 40px;
   align-items: center;
   transition: background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+
+  &:hover:not(.Mui-disabled) {
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &.Mui-disabled {
+    background: var(--ntq-input-solid-bg-disabled, rgba(255, 255, 255, 0.08));
+    opacity: 1;
+  }
 }
 
+/* 与 glass Button 同色；!important 压住 MUI Emotion 默认 ~0.23 白边 */
 .MuiOutlinedInput-notchedOutline {
-  border-color: var(--ntq-white-12);
+  border-color: var(--ui-white-12, var(--ntq-white-12)) !important;
 }
 
-.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.18);
+.MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* disabled：浅底 + 淡字；可填保持正文色 */
+.MuiOutlinedInput-root:not(.Mui-disabled) .MuiOutlinedInput-input,
+.MuiOutlinedInput-root:not(.Mui-disabled) .MuiSelect-select {
+  color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+  -webkit-text-fill-color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+}
+
+.MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-input,
+.MuiOutlinedInput-root.Mui-disabled .MuiSelect-select {
+  color: rgba(255, 255, 255, 0.42);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.42);
+  cursor: default;
 }
 
 // --- Report grids (DataGrid overlay) ---

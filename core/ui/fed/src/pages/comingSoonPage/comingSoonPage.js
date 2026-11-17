@@ -1,6 +1,7 @@
 import React from 'react';
-import { Card, CardContent, Chip, Stack, Typography } from '@mui/material';
-import PageLayout from '../../views/pageLayout';
+import { Tag } from 'ui';
+import PageLayout from 'ntq-ui/pageLayout';
+import './style.scss';
 
 /**
  * 导航中尚未实装的入口页：全宽由 AppShell 的 main 已套 ntq-content-inner
@@ -14,17 +15,13 @@ function ComingSoonPage({ title, description }) {
       breadcrumbsCurrent={title}
       bannerTitle={title}
       bannerDescription={desc}
-      bannerRightSlot={<Chip size="small" color="default" label="即将推出" variant="outlined" />}
+      bannerRightSlot={<Tag status="neutral" variant="outline">即将推出</Tag>}
     >
-      <Card variant="outlined" sx={{ mt: 2 }}>
-        <CardContent>
-          <Stack spacing={1.5}>
-            <Typography color="text.secondary" variant="body2" component="p" sx={{ fontStyle: 'italic' }}>
-              敬请期待 - 我正在努力中...
-            </Typography>
-          </Stack>
-        </CardContent>
-      </Card>
+      <div className="coming-soon-page__card">
+        <p className="coming-soon-page__note">
+          敬请期待 - 我正在努力中...
+        </p>
+      </div>
     </PageLayout>
   );
 }

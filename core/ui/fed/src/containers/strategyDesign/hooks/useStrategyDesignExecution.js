@@ -18,7 +18,7 @@ import {
 import { isSettingsConflictError } from '../lib/settingsOccupancy';
 import { strategyStepFromJobLabel } from '../../../service/jobPipelineLinks';
 import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
-import { showToast } from 'containers/toast';
+import { showToast } from 'ui';
 import logClientError from '../../../service/logClientError';
 import { normalizeWorkbenchVersionId } from '../../../service/workbenchVersionId';
 
@@ -94,7 +94,7 @@ export function useStrategyDesignExecution({
         onSettingsPersisted?.(started);
         if (started?.queued) {
           showToast({
-            severity: 'info',
+            status: 'info',
             duration: 5000,
             content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
           });
@@ -102,7 +102,7 @@ export function useStrategyDesignExecution({
         }
         if (started?.run_id) {
           showToast({
-            severity: 'info',
+            status: 'info',
             duration: 4000,
             content: '已有任务在运行；新请求已提交，请稍后在管道条查看。',
           });
@@ -155,7 +155,7 @@ export function useStrategyDesignExecution({
         });
         progressPollStepRef.current = '';
         showToast({
-          severity: 'info',
+          status: 'info',
           duration: 5000,
           content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
         });

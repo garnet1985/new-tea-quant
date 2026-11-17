@@ -4,6 +4,11 @@ import Block from 'ui/layout/block';
 import Section from 'ui/layout/section';
 import Tabs from 'ui/layout/tabs';
 import SideNav from 'ui/layout/sideNav';
+import ListToolbar from 'ui/layout/listToolbar';
+import CategoryChipStrip from 'ui/layout/categoryChipStrip';
+import Accordion from 'ui/layout/accordion';
+import Button from 'ui/button/button';
+import SearchField from 'ui/input/searchField';
 import Text from 'ui/text/text';
 import {
   COLUMN_VARIANTS,
@@ -486,12 +491,113 @@ function SideNavShowcase() {
   );
 }
 
+function ListToolbarShowcase() {
+  const [q, setQ] = useState('');
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="search + actions + hint" block>
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                label="搜索"
+                placeholder="输入关键字"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            )}
+            actions={(
+              <>
+                <Button variant="glass" icon="refresh">刷新</Button>
+                <Button variant="primary" icon="add">新建</Button>
+              </>
+            )}
+            hint="提示文案靠右"
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function CategoryChipStripShowcase() {
+  const [query, setQuery] = useState('');
+  const groups = [
+    { key: '动量', label: '动量', count: 3 },
+    { key: '价值', label: '价值', count: 5 },
+    { key: '事件', label: '事件', count: 2 },
+  ];
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="全部 + 归类 chips" block>
+          <CategoryChipStrip
+            all={{
+              label: '全部',
+              count: 10,
+              selected: !query,
+              onClick: () => setQuery(''),
+            }}
+            items={groups.map((g) => ({
+              key: g.key,
+              label: g.label,
+              count: g.count,
+              selected: query === g.key,
+              onClick: () => setQuery(query === g.key ? '' : g.key),
+            }))}
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
+function AccordionShowcase() {
+  const [open, setOpen] = useState(true);
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label='variant="panel"' block>
+          <Accordion
+            title="全局设置"
+            tooltip="顶层拼缝；收起仍挂载子树"
+            defaultExpanded
+          >
+            <p className="ntq-muted" style={{ margin: 0 }}>panel 内容</p>
+          </Accordion>
+        </SampleRow>
+        <SampleRow label='variant="nested"' block>
+          <Accordion title="市场规则" variant="nested" defaultExpanded={false}>
+            <p className="ntq-muted" style={{ margin: 0 }}>nested 内容</p>
+          </Accordion>
+        </SampleRow>
+        <SampleRow label="受控 expanded" block>
+          <Accordion title="受控示例" expanded={open} onExpandedChange={setOpen}>
+            <p className="ntq-muted" style={{ margin: 0 }}>当前：{open ? '展开' : '收起'}</p>
+          </Accordion>
+        </SampleRow>
+      </SampleDim>
+      <SampleDim title="2. 大小"><SampleNA>无独立 size；标题字号固定。</SampleNA></SampleDim>
+      <SampleDim title="3. 间距"><SampleNA>summary / details 内边距随 variant。</SampleNA></SampleDim>
+      <SampleDim title="4. 颜色"><SampleNA>边框 / 表面走 --ntq-*。</SampleNA></SampleDim>
+      <SampleDim title="5. 外观">
+        <SampleNA>收起不卸载 children。设置页标题行可再包 SettingsAccordionTitle。</SampleNA>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const layoutShowcases = {
   column: ColumnShowcase,
   block: BlockShowcase,
   section: SectionShowcase,
   tabs: TabsShowcase,
   sideNav: SideNavShowcase,
+  listToolbar: ListToolbarShowcase,
+  categoryChipStrip: CategoryChipStripShowcase,
+  accordion: AccordionShowcase,
 };
 
 export default layoutShowcases;

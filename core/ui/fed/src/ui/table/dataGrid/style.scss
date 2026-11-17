@@ -3,6 +3,15 @@
   color: var(--ntq-text);
   background: transparent;
 
+  &.ntq-data-grid--bordered {
+    border: 1px solid var(--ui-divider-color);
+    border-radius: var(--ui-radius-md, var(--ntq-radius-md));
+  }
+
+  &.ntq-data-grid--borderless {
+    border: none;
+  }
+
   .MuiDataGrid-main {
     border-radius: var(--ntq-radius-md);
   }
@@ -33,6 +42,11 @@
     border-bottom-color: var(--ntq-white-06);
     font-size: var(--ntq-font-sm);
     color: var(--ntq-text);
+    display: flex;
+  }
+
+  .MuiDataGrid-virtualScroller {
+    overflow-x: auto;
   }
 
   .MuiDataGrid-footerContainer {
@@ -81,5 +95,25 @@
   .MuiDataGrid-cell {
     padding-left: 0.875rem;
     padding-right: 0.875rem;
+  }
+}
+
+/* 单行：垂直居中（列表页默认） */
+.ntq-data-grid--cell-center {
+  .MuiDataGrid-cell {
+    align-items: center;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+}
+
+/* 多行：顶齐 + 换行（说明列 / 自动行高） */
+.ntq-data-grid--cell-wrap {
+  .MuiDataGrid-cell {
+    align-items: flex-start;
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+    white-space: normal;
+    line-height: 1.5;
   }
 }

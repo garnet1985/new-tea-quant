@@ -1,7 +1,8 @@
 import React from 'react';
-import { TextField, Typography } from '@mui/material';
+import { Date } from 'ui';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
 import EditorFieldLabel from './editorFieldLabel';
+import './style.scss';
 
 function DateField({ field, value, errors, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
@@ -28,26 +29,26 @@ function DateField({ field, value, errors, onChange, emitChangeMeta, context = {
     || '';
 
   return (
-    <div key={field.name}>
+    <div key={field.name} className="ntq-editor-input-field">
       <EditorFieldLabel field={field} context={context} />
-      <TextField
-        size="small"
-        type="date"
+      <Date
+        labelPlacement="none"
+        maxWidth={false}
         value={current || ''}
-        fullWidth
         onChange={(e) => applyChange(e.target.value)}
-        InputLabelProps={{ shrink: true }}
-        InputProps={{ readOnly: isReadonly }}
-        error={Boolean(fieldError)}
+        disabled={isReadonly}
+        error={fieldError || undefined}
+        aria-label={field.label || field.name || '日期'}
       />
       {helperBelow ? (
-        <Typography
-          variant="caption"
-          color={fieldError ? 'error' : 'text.secondary'}
-          sx={{ mt: 0.5, display: 'block' }}
+        <p
+          className={[
+            'ntq-editor-input-field__hint',
+            fieldError ? 'is-error' : 'ntq-muted',
+          ].filter(Boolean).join(' ')}
         >
           {helperBelow}
-        </Typography>
+        </p>
       ) : null}
     </div>
   );

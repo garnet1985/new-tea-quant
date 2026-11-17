@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Tag from 'ui/tag/tag';
+import DefinitionList from 'ui/display/definitionList';
 import Text from 'ui/text/text';
 import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
 
@@ -118,8 +119,27 @@ function TagShowcase() {
   );
 }
 
+function DefinitionListShowcase() {
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="items 键值行" block>
+          <DefinitionList
+            items={[
+              { label: '标的', value: '贵州茅台（600519.SH）' },
+              { label: '股数', value: '100 股' },
+              { label: '金额', value: '168,000.00' },
+            ]}
+          />
+        </SampleRow>
+      </SampleDim>
+    </Showcase>
+  );
+}
+
 const showcases = {
   tag: TagShowcase,
+  definitionList: DefinitionListShowcase,
 };
 
 export default showcases;

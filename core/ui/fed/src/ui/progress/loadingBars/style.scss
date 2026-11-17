@@ -30,11 +30,11 @@
   animation: ntq-loading-bars-pulse 0.9s ease-in-out infinite;
 }
 
-@for $i from 1 through 5 {
-  .ntq-loading-bars__bar:nth-child(#{$i}) {
-    animation-delay: #{($i - 1) * 0.1}s;
-  }
-}
+.ntq-loading-bars__bar:nth-child(1) { animation-delay: 0s; }
+.ntq-loading-bars__bar:nth-child(2) { animation-delay: 0.1s; }
+.ntq-loading-bars__bar:nth-child(3) { animation-delay: 0.2s; }
+.ntq-loading-bars__bar:nth-child(4) { animation-delay: 0.3s; }
+.ntq-loading-bars__bar:nth-child(5) { animation-delay: 0.4s; }
 
 @keyframes ntq-loading-bars-pulse {
   0%,

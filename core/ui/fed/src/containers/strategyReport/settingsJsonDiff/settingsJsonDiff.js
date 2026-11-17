@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued';
-import { Box, Chip, Stack, Typography } from '@mui/material';
+import { Tag } from 'ui';
 import { DICT_PARSER_TEXT_FONT } from 'containers/editor';
+import './style.scss';
 
 /** 与常见编辑器一致；过大缩进会加重横向滚动 */
 const JSON_INDENT = 2;
@@ -73,8 +74,6 @@ function formatSettingsJson(obj) {
   }
 }
 
-const LEGEND_SX = { width: 10, height: 10, borderRadius: 0.5, flexShrink: 0 };
-
 /**
  * 使用 ``react-diff-viewer-continued``（底层 ``diff`` 库）做**行级**文本对比；
  * 展示前将 settings 格式化为 JSON（{JSON_INDENT} 空格缩进），与核心 Dict 编辑器等宽字体。
@@ -93,43 +92,32 @@ function SettingsJsonDiff({
   );
 
   return (
-    <Stack spacing={1} sx={{ height: '100%', minHeight: 0 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+    <div className="ntq-settings-json-diff">
+      <p className="ntq-settings-json-diff__meta ntq-muted">
         基于
         {' '}
-        <Typography component="span" variant="caption" sx={{ fontFamily: 'monospace' }}>react-diff-viewer-continued</Typography>
+        <code className="ntq-settings-json-diff__code">react-diff-viewer-continued</code>
         {' '}
         + 行级 diff；缩进 {JSON_INDENT} 空格；字体同 Dict 编辑器。
-      </Typography>
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ flexShrink: 0 }}>
-        <Chip
-          size="small"
-          label={structuralDiffs === 0 ? '对象结构无差异' : `对象路径差异约 ${structuralDiffs} 处`}
-          color={structuralDiffs === 0 ? 'default' : 'warning'}
-          variant={structuralDiffs === 0 ? 'outlined' : 'filled'}
-        />
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ ...LEGEND_SX, bgcolor: 'rgba(211, 47, 47, 0.2)', border: 1, borderColor: 'error.light' }} />
-          <Typography variant="caption" color="text.secondary">删除行（左）</Typography>
-        </Stack>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ ...LEGEND_SX, bgcolor: 'rgba(46, 125, 50, 0.22)', border: 1, borderColor: 'success.light' }} />
-          <Typography variant="caption" color="text.secondary">新增行（右）</Typography>
-        </Stack>
-      </Stack>
+      </p>
+      <div className="ntq-settings-json-diff__legend">
+        <Tag
+          status={structuralDiffs === 0 ? 'neutral' : 'warning'}
+          variant={structuralDiffs === 0 ? 'outline' : 'solid'}
+        >
+          {structuralDiffs === 0 ? '对象结构无差异' : `对象路径差异约 ${structuralDiffs} 处`}
+        </Tag>
+        <span className="ntq-settings-json-diff__swatch-row">
+          <span className="ntq-settings-json-diff__swatch ntq-settings-json-diff__swatch--removed" />
+          <span className="ntq-caption ntq-muted">删除行（左）</span>
+        </span>
+        <span className="ntq-settings-json-diff__swatch-row">
+          <span className="ntq-settings-json-diff__swatch ntq-settings-json-diff__swatch--added" />
+          <span className="ntq-caption ntq-muted">新增行（右）</span>
+        </span>
+      </div>
 
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          overflow: 'auto',
-          border: 1,
-          borderColor: 'divider',
-          borderRadius: 1,
-          bgcolor: 'grey.50',
-          '& table': { borderCollapse: 'collapse' },
-        }}
-      >
+      <div className="ntq-settings-json-diff__viewer">
         <ReactDiffViewer
           oldValue={oldStr}
           newValue={newStr}
@@ -162,8 +150,8 @@ function SettingsJsonDiff({
             },
           }}
         />
-      </Box>
-    </Stack>
+      </div>
+    </div>
   );
 }
 

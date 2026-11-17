@@ -1,5 +1,5 @@
 const doc = {
-  summary: 'NTQ 表格：封装 MUI DataGrid，默认中文、Loading 覆盖层、无边框与禁用点击选行；业务列定义仍透传。',
+  summary: 'NTQ 表格：封装 MUI DataGrid，默认中文、Loading 覆盖层、描边边框与禁用点击选行；业务列定义仍透传。',
   params: [
     {
       name: 'rows / columns',
@@ -12,6 +12,18 @@ const doc = {
       type: "'sm' | 'md'",
       defaultValue: "'md'",
       description: '行高密度：sm=紧凑（compact），md=标准（standard）。',
+    },
+    {
+      name: 'cellLayout',
+      type: "'center' | 'wrap'",
+      defaultValue: "'center'",
+      description: '单元格布局：center=单行垂直居中；wrap=多行换行顶齐（常配 getRowHeight={() => \'auto\'}）。',
+    },
+    {
+      name: 'bordered',
+      type: 'boolean',
+      defaultValue: 'true',
+      description: '外框描边（--ui-divider-color）。嵌在已有描边容器内传 false。',
     },
     {
       name: 'loading',
@@ -40,7 +52,7 @@ const doc = {
   antiPatterns: [
     '不要在业务页再手写一套 DataGrid 中文 / Loading（用本组件）。',
     '不要把领域列渲染逻辑写死进 DataGrid（列定义留在页面）。',
-    '不要用裸 px 改单元格样式；优先 density 与本组件 class。',
+    '不要在业务侧用 sx 改 .MuiDataGrid-cell；优先 density / cellLayout / 页面 SCSS。',
   ],
 };
 

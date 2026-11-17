@@ -1,5 +1,3 @@
-@use '../../styles/variables' as *;
-
 .ntq-app-header {
   position: relative;
   z-index: 1200;
@@ -9,12 +7,8 @@
   border-bottom: 1px solid var(--ntq-white-12);
 }
 
-.ntq-app-header.MuiPaper-root {
-  overflow: visible;
-}
-
 .ntq-app-header__toolbar {
-  min-height: $ntq-header-height;
+  min-height: var(--ntq-header-height);
   display: block;
   width: 100%;
   overflow: visible;
@@ -28,9 +22,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: $ntq-header-height;
-  padding-left: 16px;
-  padding-right: 16px;
+  min-height: var(--ntq-header-height);
+  padding-left: var(--ntq-space-md);
+  padding-right: var(--ntq-space-md);
   box-sizing: border-box;
   overflow: visible;
 }

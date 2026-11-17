@@ -1,5 +1,5 @@
-@use 'variables' as *;
 @use 'tokens';
+// TODO(deprecate): 不再 @use Sass variables；壳层尺寸见 --ntq-*（_ntq-tokens.scss）
 
 * {
   box-sizing: border-box;
@@ -15,7 +15,7 @@ html {
 
 body {
   margin: 0;
-  min-width: $ntq-body-min-width;
+  min-width: var(--ntq-body-min-width);
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
@@ -148,24 +148,25 @@ body {
 }
 
 // 当视口宽度 ≤ 1280 时，不再用 vw 压缩主内容；固定 1280，由 html/body 横向滚动查看。
-@media (max-width: $ntq-body-min-width) {
+// sync: --ntq-body-min-width（@media 不能可靠使用 CSS 变量）
+@media (max-width: 1280px) {
   body {
-    width: $ntq-body-min-width;
+    width: var(--ntq-body-min-width);
     margin-left: auto;
     margin-right: auto;
   }
 
   .ntq-content-inner,
   .ntq-content {
-    width: $ntq-body-min-width;
+    width: var(--ntq-body-min-width);
     max-width: none;
-    min-width: $ntq-body-min-width;
+    min-width: var(--ntq-body-min-width);
     margin-left: auto;
     margin-right: auto;
   }
 
   .ntq-app-header {
-    min-width: $ntq-body-min-width;
+    min-width: var(--ntq-body-min-width);
   }
 }
 
@@ -176,19 +177,19 @@ code {
 
 #root {
   min-height: 100%;
-  min-width: $ntq-body-min-width;
+  min-width: var(--ntq-body-min-width);
 }
 
 .ntq-main-layout {
-  min-width: $ntq-body-min-width;
+  min-width: var(--ntq-body-min-width);
 }
 
-// 与 $ntq-content-width / $ntq-content-max-width 一致；用于 header 内条、<main>、footer 内条，保持同一竖线对齐
+// 与 --ntq-content-width / --ntq-content-max-width 一致；用于 header 内条、<main>、footer 内条，保持同一竖线对齐
 // 全宽条（AppBar、footer 顶边等）用满屏宽，其内部再包一层本 class 限制内容宽度
 .ntq-content-inner,
 .ntq-content {
-  width: $ntq-content-width;
-  max-width: $ntq-content-max-width;
+  width: var(--ntq-content-width);
+  max-width: var(--ntq-content-max-width);
   margin-left: auto;
   margin-right: auto;
 }

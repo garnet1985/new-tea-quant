@@ -1,25 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  Alert,
-  Box,
+  Button,
   Checkbox,
   Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  MenuItem,
+  Heading,
+  Message,
+  Section,
   Select,
-  Stack,
   TextField,
-  Typography,
-} from '@mui/material';
-import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router-dom';
-import PageLayout from 'views/pageLayout';
-import NtqButton from 'views/ntqButton';
-import RainbowButton from 'views/rainbowButton';
-import EditorFieldLabel from 'containers/editor/fields/editorFieldLabel';
-import { showToast } from 'containers/toast';
+} from 'ui';
+import { showToast } from 'ui/message/toast';
+import { PageLayout, RainbowButton } from 'ntq-ui';
 import { fetchDataContractList } from 'api/dataContractApi';
 import { fetchStrategyList } from 'api/strategyApi';
 import {
@@ -41,33 +33,6 @@ import {
   normalizeSettings,
 } from './seriesRelationConstants';
 import './seriesRelationPage.scss';
-
-function LabeledField({ label, tip = '', children, inline = false }) {
-  if (inline) {
-    return (
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={1}
-        className="ntq-srel-field ntq-srel-field--inline"
-      >
-        <EditorFieldLabel
-          field={{ label, tooltip: tip || '' }}
-          sx={{ mb: 0, flex: '0 0 auto', whiteSpace: 'nowrap' }}
-        />
-        <Box className="ntq-srel-field__control" flex={1} minWidth={0}>
-          {children}
-        </Box>
-      </Stack>
-    );
-  }
-  return (
-    <div className="ntq-srel-field">
-      <EditorFieldLabel field={{ label, tooltip: tip || '' }} />
-      {children}
-    </div>
-  );
-}
 
 function SeriesRelationDetailPage() {
   const navigate = useNavigate();
@@ -174,7 +139,6 @@ function SeriesRelationDetailPage() {
           (strategies.data || [])
             .filter((s) => s.key || s.path)
             .map((s) => {
-              // 只用目录里的真实 display_name；勿把 path 填进 display_name
               const displayName = String(s.display_name || '').trim();
               return {
                 id: s.id || s.key || s.path,
@@ -200,14 +164,12 @@ function SeriesRelationDetailPage() {
     }
     if (isNew) {
       setPageLoading(false);
-      // 清掉 location.state，避免刷新后误判为新建
       if (navState.isNew) {
         navigate(location.pathname, { replace: true, state: null });
       }
       return;
     }
     loadScene(keyFromPath);
-    // 仅随路由 key / 是否新建切换；loadScene 内部自洽
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyFromPath, isNew]);
 
@@ -301,14 +263,14 @@ function SeriesRelationDetailPage() {
   const handleSave = async () => {
     const { key, settings } = buildPayload();
     if (!key) {
-      showToast({ severity: 'error', content: '缺少 meta.key' });
+      showToast({ status: 'error', content: '缺少 meta.key' });
       return;
     }
     setSaving(true);
     setActionError('');
     try {
       await saveSeriesRelationScene(key, settings);
-      showToast({ severity: 'success', content: '已保存' });
+      showToast({ status: 'success', content: '已保存' });
       setIsNew(false);
       await loadScene(key);
     } catch (err) {
@@ -317,7 +279,7 @@ function SeriesRelationDetailPage() {
         : '';
       const msg = [err?.message || '保存失败', extras].filter(Boolean).join('\n');
       setActionError(msg);
-      showToast({ severity: 'error', content: err?.message || '保存失败' });
+      showToast({ status: 'error', content: err?.message || '保存失败' });
     } finally {
       setSaving(false);
     }
@@ -326,7 +288,7 @@ function SeriesRelationDetailPage() {
   const handleRun = async () => {
     const { key, settings } = buildPayload();
     if (!key) {
-      showToast({ severity: 'error', content: '缺少场景 key' });
+      showToast({ status: 'error', content: '缺少场景 key' });
       return;
     }
     setRunning(true);
@@ -337,13 +299,13 @@ function SeriesRelationDetailPage() {
       if (runResult?.success === false) {
         throw new Error(runResult.error || '跑批失败');
       }
-      showToast({ severity: 'success', content: '跑批完成' });
+      showToast({ status: 'success', content: '跑批完成' });
       setIsNew(false);
       await loadResults(key);
     } catch (err) {
       const msg = err?.message || '跑批失败';
       setActionError(msg);
-      showToast({ severity: 'error', content: msg });
+      showToast({ status: 'error', content: msg });
     } finally {
       setRunning(false);
     }
@@ -367,115 +329,91 @@ function SeriesRelationDetailPage() {
       bannerTitle={displayName}
       bannerDescription={isNew ? `新建场景 · ${sceneKey}` : `key: ${sceneKey}`}
       bannerRightSlot={(
-        <NtqButton
+        <Button
           variant="glass"
           icon="arrowBack"
           component={RouterLink}
           to="/advanced/series-relation"
         >
           返回列表
-        </NtqButton>
+        </Button>
       )}
       loading={pageLoading}
       loadingMessage="正在加载场景…"
     >
-      {loadError ? (
-        <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert>
-      ) : null}
-      {actionError ? (
-        <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setActionError('')}>
-          {actionError}
-        </Alert>
-      ) : null}
+      <Section className="ntq-srel-page__stack" gap="md">
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        {actionError ? (
+          <Message status="error" onClose={() => setActionError('')}>
+            {actionError}
+          </Message>
+        ) : null}
 
-      <Stack spacing={1.5} className="ntq-srel-page__stack">
-        {/* 全局时间 / 归一化 + 保存 */}
-        <Box className="ntq-srel-topbar">
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            spacing={1.5}
-            alignItems={{ xs: 'stretch', sm: 'center' }}
-            className="ntq-srel-globals"
-            flexWrap="wrap"
-            useFlexGap
-          >
-            <LabeledField label="开始日期" inline>
-              <TextField
-                size="small"
-                placeholder="YYYYMMDD"
-                value={draft.range.start_date || ''}
-                onChange={(e) => patchRange({ start_date: e.target.value.trim() })}
-                fullWidth
-              />
-            </LabeledField>
-            <LabeledField label="结束日期" inline>
-              <TextField
-                size="small"
-                placeholder="可空"
-                value={draft.range.end_date || ''}
-                onChange={(e) => patchRange({ end_date: e.target.value.trim() })}
-                fullWidth
-              />
-            </LabeledField>
-            <LabeledField label="Normalize" inline>
-              <Select
-                size="small"
-                fullWidth
-                value={draft.normalize || 'zscore'}
-                onChange={(e) => patchGlobals({ normalize: e.target.value })}
-              >
-                {NORMALIZE_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                ))}
-              </Select>
-            </LabeledField>
-            <LabeledField label="Fill" inline>
-              <Select
-                size="small"
-                fullWidth
-                value={draft.fill || 'none'}
-                onChange={(e) => patchGlobals({ fill: e.target.value })}
-              >
-                {FILL_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                ))}
-              </Select>
-            </LabeledField>
-            <FormControlLabel
-              className="ntq-srel-globals__analyze"
-              control={(
-                <Checkbox
-                  checked={draft.analyze !== false}
-                  onChange={(e) => patchGlobals({ analyze: e.target.checked })}
-                  size="small"
-                />
-              )}
-              label="生成分析报告"
+        <div className="ntq-srel-topbar">
+          <div className="ntq-srel-globals">
+            <TextField
+              label="开始日期"
+              labelPlacement="inline"
+              placeholder="YYYYMMDD"
+              value={draft.range.start_date || ''}
+              onChange={(e) => patchRange({ start_date: e.target.value.trim() })}
+              maxWidth={false}
+              surface="glass"
+              className="ntq-srel-field--inline"
             />
-            <NtqButton
+            <TextField
+              label="结束日期"
+              labelPlacement="inline"
+              placeholder="可空"
+              value={draft.range.end_date || ''}
+              onChange={(e) => patchRange({ end_date: e.target.value.trim() })}
+              maxWidth={false}
+              surface="glass"
+              className="ntq-srel-field--inline"
+            />
+            <Select
+              label="Normalize"
+              labelPlacement="inline"
+              value={draft.normalize || 'zscore'}
+              onChange={(e) => patchGlobals({ normalize: e.target.value })}
+              options={NORMALIZE_OPTIONS}
+              maxWidth={false}
+              surface="glass"
+              className="ntq-srel-field--inline"
+            />
+            <Select
+              label="Fill"
+              labelPlacement="inline"
+              value={draft.fill || 'none'}
+              onChange={(e) => patchGlobals({ fill: e.target.value })}
+              options={FILL_OPTIONS}
+              maxWidth={false}
+              surface="glass"
+              className="ntq-srel-field--inline"
+            />
+            <Checkbox
+              label="生成分析报告"
+              checked={draft.analyze !== false}
+              onChange={(e) => patchGlobals({ analyze: e.target.checked })}
+              className="ntq-srel-globals__analyze"
+            />
+            <Button
               variant="primary"
               disabled={busy}
               onClick={handleSave}
               className="ntq-srel-save-btn"
             >
               {saving ? '保存中…' : '保存'}
-            </NtqButton>
-          </Stack>
-        </Box>
+            </Button>
+          </div>
+        </div>
 
-        {/* 系列摘要卡片（编辑弹窗） */}
-        <Box className="ntq-srel-panel">
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            spacing={1}
-            sx={{ mb: 1.25 }}
-          >
-            <Typography variant="subtitle2">
+        <Section className="ntq-srel-panel" gap="sm">
+          <div className="ntq-srel-panel__head">
+            <Heading level="h4" gap="none">
               系列（最多 {maxSeries}）
-            </Typography>
-            <NtqButton
+            </Heading>
+            <Button
               size="small"
               variant="primary"
               icon="add"
@@ -483,8 +421,8 @@ function SeriesRelationDetailPage() {
               onClick={addSeries}
             >
               追加系列
-            </NtqButton>
-          </Stack>
+            </Button>
+          </div>
           <div className="ntq-srel-summary-grid">
             {(draft.series || []).map((item, index) => (
               <SeriesSummaryCard
@@ -498,15 +436,14 @@ function SeriesRelationDetailPage() {
               />
             ))}
           </div>
-        </Box>
+        </Section>
 
-        {/* 全宽：执行 + 报告（含矩阵与走势） */}
-        <Box className="ntq-srel-exec">
-          <Typography variant="subtitle2" className="ntq-srel-exec__title">
+        <div className="ntq-srel-exec">
+          <Heading level="h4" gap="none" className="ntq-srel-exec__title">
             执行
-          </Typography>
-          <Box className="ntq-srel-exec__body">
-            <Stack direction="row" spacing={1.25} alignItems="center" className="ntq-srel-exec__actions">
+          </Heading>
+          <div className="ntq-srel-exec__body">
+            <div className="ntq-srel-exec__actions">
               <RainbowButton
                 shape="pill"
                 icon={hasResults ? 'refresh' : 'play'}
@@ -516,57 +453,52 @@ function SeriesRelationDetailPage() {
               >
                 {running ? '运行中…' : (hasResults ? '重新跑批' : '开始跑批')}
               </RainbowButton>
-            </Stack>
-            <Box className="ntq-srel-exec__status">
-              <Typography variant="body2">
+            </div>
+            <div className="ntq-srel-exec__status">
+              <p className="ntq-srel-exec__status-main">
                 {running
                   ? '正在跑批…'
                   : hasResults
                     ? '已有结果，可查看下方报告'
                     : '尚未跑批'}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
+              </p>
+              <p className="ntq-muted ntq-srel-exec__status-hint">
                 运行前会自动保存当前配置
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
+              </p>
+            </div>
+          </div>
+        </div>
 
-        <Box className="ntq-srel-panel ntq-srel-panel--report">
+        <Section className="ntq-srel-panel ntq-srel-panel--report" gap="md">
           <SeriesRelationReport
             results={results}
             chartOption={chartOption}
             strategyOptions={strategyOptions}
           />
-        </Box>
-      </Stack>
+        </Section>
+      </Section>
 
       <Dialog
         open={editIndex != null && editDraft != null}
         onClose={closeEdit}
-        fullWidth
-        maxWidth="sm"
+        title={`编辑系列 ${(editIndex == null ? 0 : editIndex) + 1}`}
+        size="sm"
         className="ntq-srel-edit-dialog"
+        actions={(
+          <>
+            <Button variant="ghost" onClick={closeEdit}>取消</Button>
+            <Button variant="primary" onClick={confirmEdit}>完成</Button>
+          </>
+        )}
       >
-        <DialogTitle>
-          编辑系列 {(editIndex == null ? 0 : editIndex) + 1}
-        </DialogTitle>
-        <DialogContent dividers>
-          {editDraft ? (
-            <Box sx={{ pt: 0.5 }}>
-              <SeriesEditForm
-                value={editDraft}
-                onChange={setEditDraft}
-                dataKeyOptions={dataKeyOptions}
-                strategyOptions={strategyOptions}
-              />
-            </Box>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <NtqButton variant="ghost" onClick={closeEdit}>取消</NtqButton>
-          <NtqButton variant="primary" onClick={confirmEdit}>完成</NtqButton>
-        </DialogActions>
+        {editDraft ? (
+          <SeriesEditForm
+            value={editDraft}
+            onChange={setEditDraft}
+            dataKeyOptions={dataKeyOptions}
+            strategyOptions={strategyOptions}
+          />
+        ) : null}
       </Dialog>
     </PageLayout>
   );

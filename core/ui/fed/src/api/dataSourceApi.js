@@ -33,7 +33,7 @@ export function getDataSourceAuthLabel(item) {
   return item?.auth_ready ? '已配置' : '未配置 Token';
 }
 
-/** 更新方式对应 ``NtqIcon`` name。 */
+/** 更新方式对应 ``Icon`` name。 */
 export function getDataSourceRenewTypeIcon(mode) {
   return getUpdateModeIcon(mode);
 }

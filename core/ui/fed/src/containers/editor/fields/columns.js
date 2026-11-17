@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box } from '@mui/material';
+import './style.scss';
 
 function ColumnsNode({ node, value, onChange, errors, emitChangeMeta, renderNode, context }) {
   const children = Array.isArray(node.children) ? node.children : [];
@@ -7,23 +7,21 @@ function ColumnsNode({ node, value, onChange, errors, emitChangeMeta, renderNode
   const spans = Array.isArray(node.spans) ? node.spans : [];
 
   return (
-    <Box
+    <div
       key={node.name}
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr', md: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))` },
-        gap: 1,
-      }}
+      className="ntq-editor-columns"
+      style={{ '--ntq-editor-columns': Math.max(1, columns) }}
     >
       {children.map((child, index) => (
-        <Box
+        <div
           key={child.name || `${node.name}-${index}`}
-          sx={spans[index] ? { gridColumn: { md: `span ${spans[index]}` } } : undefined}
+          className="ntq-editor-columns__cell"
+          style={spans[index] ? { '--ntq-editor-col-span': spans[index] } : undefined}
         >
           {renderNode(child, value, onChange, errors, emitChangeMeta, context)}
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }
 

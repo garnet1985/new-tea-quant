@@ -1,7 +1,7 @@
 import React from 'react';
-import MetricCard from 'views/metricCard';
-import MetricGrid from 'views/metricGrid';
-import { SectionBlock } from 'views/sectionBlock';
+import MetricCard from 'ui/metric/metricCard';
+import MetricGrid from 'ui/metric/metricGrid';
+import ReportBlock from 'ntq-ui/reportBlock';
 import { ENUM_METRIC_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from '../reportUnavailableHint';
 
@@ -21,7 +21,7 @@ function StockEnumDetailReport({ metrics }) {
   }
 
   return (
-    <SectionBlock title="机会盘点统计" tip={SINGLE_STOCK_ENUM_SECTION_TIP}>
+    <ReportBlock title="机会盘点统计" tip={SINGLE_STOCK_ENUM_SECTION_TIP}>
       <MetricGrid>
         {avail.overview ? (
           <>
@@ -84,7 +84,7 @@ function StockEnumDetailReport({ metrics }) {
           </>
         ) : null}
       </MetricGrid>
-    </SectionBlock>
+    </ReportBlock>
   );
 }
 

@@ -2,22 +2,11 @@ import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Alert,
-  Box,
-  CircularProgress,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material';
-import ChartPanel from 'views/chartPanel';
-import NtqIcon from 'views/ntqIcon';
-import TipLabel from 'views/tipLabel';
+  ChartPanel,
+  Loading,
+  Message,
+  TipLabel,
+} from 'ui';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
@@ -132,28 +121,23 @@ function EffectConclusion({ effect }) {
   if (!lines.length) return null;
 
   return (
-    <Box className="ntq-design-attr-report__effect-conclusion">
-      <Typography variant="body2" className="ntq-design-attr-report__effect-name">
+    <div className="ntq-design-attr-report__effect-conclusion">
+      <p className="ntq-design-attr-report__effect-name">
         {label}
         {outcome ? (
-          <Typography component="span" variant="caption" className="ntq-design-attr-report__effect-outcome">
+          <span className="ntq-design-attr-report__effect-outcome">
             {` · ${outcome}`}
-          </Typography>
+          </span>
         ) : null}
-      </Typography>
-      <Stack spacing={0.3} component="ul" className="ntq-design-attr-report__list">
+      </p>
+      <ul className="ntq-design-attr-report__list">
         {lines.map((line) => (
-          <Typography
-            key={line}
-            component="li"
-            variant="body2"
-            className="ntq-design-attr-report__list-item"
-          >
+          <li key={line} className="ntq-design-attr-report__list-item">
             {line}
-          </Typography>
+          </li>
         ))}
-      </Stack>
-    </Box>
+      </ul>
+    </div>
   );
 }
 
@@ -170,35 +154,35 @@ function EffectTable({ effect }) {
   const outcome = String(effect?.outcome_label || effect?.outcome || '').trim() || '结果';
 
   return (
-    <Box className="ntq-design-attr-report__effect-table">
-      <Typography variant="caption" className="ntq-design-attr-report__effect-table-title">
+    <div className="ntq-design-attr-report__effect-table">
+      <p className="ntq-design-attr-report__effect-table-title">
         {knob}
         {outcome ? ` · ${outcome}` : ''}
-      </Typography>
-      <Box className="ntq-design-attr-report__table-wrap ntq-design-attr-report__table-wrap--effect">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{`当${knob}为`}</TableCell>
-              <TableCell>{outcome}</TableCell>
-              <TableCell>与当前策略配置的变化</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+      </p>
+      <div className="ntq-design-attr-report__table-wrap ntq-design-attr-report__table-wrap--effect">
+        <table className="ntq-design-attr-report__table">
+          <thead>
+            <tr>
+              <th>{`当${knob}为`}</th>
+              <th>{outcome}</th>
+              <th>与当前策略配置的变化</th>
+            </tr>
+          </thead>
+          <tbody>
             {table.map((row) => (
-              <TableRow
+              <tr
                 key={`${String(row.value_label)}-${String(row.metric_label)}`}
                 className={row.is_baseline ? 'ntq-design-attr-report__row--baseline' : undefined}
               >
-                <TableCell>{row.value_label ?? '—'}</TableCell>
-                <TableCell>{row.metric_label ?? '—'}</TableCell>
-                <TableCell>{row.delta_label ?? '—'}</TableCell>
-              </TableRow>
+                <td>{row.value_label ?? '—'}</td>
+                <td>{row.metric_label ?? '—'}</td>
+                <td>{row.delta_label ?? '—'}</td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
-      </Box>
-    </Box>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -215,30 +199,20 @@ function DetailsBlock({ effects }) {
 
   return (
     <Accordion
+      variant="nested"
+      title="具体细节"
       expanded={open}
-      onChange={(_event, next) => setOpen(next)}
-      disableGutters
-      elevation={0}
+      onExpandedChange={setOpen}
       className="ntq-design-attr-report__details"
     >
-      <AccordionSummary
-        expandIcon={<NtqIcon name="expandMore" size={18} />}
-        className="ntq-design-attr-report__details-summary"
-      >
-        <Typography variant="body2" className="ntq-design-attr-report__label">
-          具体细节
-        </Typography>
-      </AccordionSummary>
-      <AccordionDetails className="ntq-design-attr-report__details-body">
-        <Stack spacing={1.25}>
-          {usable.map((effect) => (
-            <EffectTable
-              key={`${effect.knob || ''}-${effect.outcome || ''}`}
-              effect={effect}
-            />
-          ))}
-        </Stack>
-      </AccordionDetails>
+      <div className="ntq-design-attr-report__details-body">
+        {usable.map((effect) => (
+          <EffectTable
+            key={`${effect.knob || ''}-${effect.outcome || ''}`}
+            effect={effect}
+          />
+        ))}
+      </div>
     </Accordion>
   );
 }
@@ -266,56 +240,41 @@ function ThemeSection({ sectionKey, block }) {
 
   return (
     <Accordion
+      variant="nested"
+      title={title}
       expanded={open}
-      onChange={(_event, next) => setOpen(next)}
-      disableGutters
-      elevation={0}
+      onExpandedChange={setOpen}
       className="ntq-design-attr-report__theme"
     >
-      <AccordionSummary
-        expandIcon={<NtqIcon name="expandMore" size={20} />}
-        className="ntq-design-attr-report__theme-summary"
-      >
-        <Typography variant="subtitle2" className="ntq-design-attr-report__section-title">
-          {title}
-        </Typography>
-      </AccordionSummary>
-      <AccordionDetails className="ntq-design-attr-report__theme-body">
-        <Box className="ntq-design-attr-report__conclusion-block">
-          <Typography variant="body2" className="ntq-design-attr-report__label">
-            结论
-          </Typography>
+      <div className="ntq-design-attr-report__theme-body">
+        <div className="ntq-design-attr-report__conclusion-block">
+          <p className="ntq-design-attr-report__label">结论</p>
           {summaryFacts.length ? (
-            <Stack spacing={0.35} component="ul" className="ntq-design-attr-report__list">
+            <ul className="ntq-design-attr-report__list">
               {summaryFacts.map((line) => (
-                <Typography
-                  key={line}
-                  component="li"
-                  variant="body2"
-                  className="ntq-design-attr-report__list-item"
-                >
+                <li key={line} className="ntq-design-attr-report__list-item">
                   {line}
-                </Typography>
+                </li>
               ))}
-            </Stack>
+            </ul>
           ) : null}
           {effects.length ? (
-            <Stack spacing={1} className="ntq-design-attr-report__conclusion-list">
+            <div className="ntq-design-attr-report__conclusion-list">
               {effects.map((effect) => (
                 <EffectConclusion
                   key={`${effect.knob || ''}-${effect.outcome || ''}`}
                   effect={effect}
                 />
               ))}
-            </Stack>
+            </div>
           ) : (!summaryFacts.length ? (
-            <Typography variant="body2" color="text.secondary">
+            <p className="ntq-muted">
               {fallback || baselineFacts[0] || '暂无结论。'}
-            </Typography>
+            </p>
           ) : null)}
-        </Box>
+        </div>
         <DetailsBlock effects={effects} />
-      </AccordionDetails>
+      </div>
     </Accordion>
   );
 }
@@ -552,13 +511,9 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
   if (!usableRank.length && !usableSweeps.length) {
     if (!scopeNote) return null;
     return (
-      <Alert
-        severity="info"
-        variant="outlined"
-        className="ntq-design-attr-report__scope-alert"
-      >
+      <Message status="info" className="ntq-design-attr-report__scope-alert">
         {scopeNote}
-      </Alert>
+      </Message>
     );
   }
 
@@ -568,18 +523,14 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
   ).trim() || '主指标';
 
   return (
-    <Stack spacing={2.5} className="ntq-design-attr-report__sweeps">
+    <div className="ntq-design-attr-report__sweeps">
       {scopeNote ? (
-        <Alert
-          severity="info"
-          variant="outlined"
-          className="ntq-design-attr-report__scope-alert"
-        >
+        <Message status="info" className="ntq-design-attr-report__scope-alert">
           {scopeNote}
-        </Alert>
+        </Message>
       ) : null}
       {usableRank.length ? (
-        <Box>
+        <div>
           <TipLabel
             tip={`当其余参数不变，只变动当前的参数时，「${outcomeLabel}」在不同取值间的差异，影响程度以及最优的取值。`}
             shine
@@ -589,33 +540,33 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
           >
             敏感度排名
           </TipLabel>
-          <Box className="ntq-design-attr-report__table-wrap">
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>#</TableCell>
-                  <TableCell>参数</TableCell>
-                  <TableCell>{`${outcomeLabel}的差异`}</TableCell>
-                  <TableCell>{`对${outcomeLabel}的影响`}</TableCell>
-                  <TableCell>{`${outcomeLabel}最优取值`}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+          <div className="ntq-design-attr-report__table-wrap">
+            <table className="ntq-design-attr-report__table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>参数</th>
+                  <th>{`${outcomeLabel}的差异`}</th>
+                  <th>{`对${outcomeLabel}的影响`}</th>
+                  <th>{`${outcomeLabel}最优取值`}</th>
+                </tr>
+              </thead>
+              <tbody>
                 {usableRank.map((item) => (
-                  <TableRow key={`${item.rank}-${item.knob}`}>
-                    <TableCell>{item.rank ?? '—'}</TableCell>
-                    <TableCell>{item.knob_label || item.knob || '—'}</TableCell>
-                    <TableCell>{item.span_label ?? item.span ?? '—'}</TableCell>
-                    <TableCell>{item.impact || '—'}</TableCell>
-                    <TableCell>
+                  <tr key={`${item.rank}-${item.knob}`}>
+                    <td>{item.rank ?? '—'}</td>
+                    <td>{item.knob_label || item.knob || '—'}</td>
+                    <td>{item.span_label ?? item.span ?? '—'}</td>
+                    <td>{item.impact || '—'}</td>
+                    <td>
                       {displayKnobValue(item.best_value_label ?? item.best_value)}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-          </Box>
-        </Box>
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : null}
       {usableSweeps.map((sweep, index) => {
         const outcome = sweep.primary_outcome || '';
@@ -624,7 +575,7 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
         const metricLabel = sweep.primary_outcome_label || outcome || outcomeLabel;
         const trend = trendForSweep(sweep, sections);
         return (
-          <Box key={sweep.knob || sweep.knob_label} className="ntq-design-attr-report__sweep-block">
+          <div key={sweep.knob || sweep.knob_label} className="ntq-design-attr-report__sweep-block">
             <TipLabel
               tip={`只改这个参数时，「${metricLabel}」怎么变`}
               shine
@@ -636,19 +587,17 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
             </TipLabel>
             <SweepCurve sweep={sweep} />
             {trend ? (
-              <Typography variant="body2" className="ntq-design-attr-report__sweep-trend">
-                {trend}
-              </Typography>
+              <p className="ntq-design-attr-report__sweep-trend">{trend}</p>
             ) : null}
-            <Box className="ntq-design-attr-report__table-wrap">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>取值</TableCell>
-                    <TableCell>{metricLabel}</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <div className="ntq-design-attr-report__table-wrap">
+              <table className="ntq-design-attr-report__table">
+                <thead>
+                  <tr>
+                    <th>取值</th>
+                    <th>{metricLabel}</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {levels.map((level) => {
                     const metrics = level?.metrics && typeof level.metrics === 'object'
                       ? level.metrics
@@ -660,25 +609,25 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
                     else if (mark === 'best') tag = '（最佳）';
                     else if (mark === 'baseline') tag = '（当前）';
                     return (
-                      <TableRow
+                      <tr
                         key={`${String(level.value_label)}-${String(metric)}`}
                         className={mark ? `ntq-design-attr-report__row--${mark}` : undefined}
                       >
-                        <TableCell>
+                        <td>
                           {displayKnobValue(level.value_label)}
                           {tag}
-                        </TableCell>
-                        <TableCell>{metric == null ? '—' : String(metric)}</TableCell>
-                      </TableRow>
+                        </td>
+                        <td>{metric == null ? '—' : String(metric)}</td>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
-            </Box>
-          </Box>
+                </tbody>
+              </table>
+            </div>
+          </div>
         );
       })}
-    </Stack>
+    </div>
   );
 }
 
@@ -706,14 +655,12 @@ function QuestionSections({ sections, sweeps }) {
   if (!ordered.length) return null;
 
   return (
-    <Stack spacing={1.75} className="ntq-design-attr-report__sections">
-      <Typography variant="subtitle2" className="ntq-design-attr-report__section-title">
-        层内诊断
-      </Typography>
+    <div className="ntq-design-attr-report__sections">
+      <h3 className="ntq-design-attr-report__section-title">层内诊断</h3>
       {ordered.map(({ key, block }) => (
         <ThemeSection key={key} sectionKey={key} block={block} />
       ))}
-    </Stack>
+    </div>
   );
 }
 
@@ -763,43 +710,38 @@ function StrategyDesignAttributeReport({
 
   if (loading) {
     return (
-      <Box className="ntq-design-attr-report ntq-design-attr-report--center">
-        <CircularProgress size={28} />
-        <Typography variant="body2" color="text.secondary">正在读取归因报告…</Typography>
-      </Box>
+      <div className="ntq-design-attr-report ntq-design-attr-report--center">
+        <Loading variant="inline" message="正在读取归因报告…" />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" className="ntq-design-attr-report__alert">
+      <Message status="error" className="ntq-design-attr-report__alert">
         {error}
-      </Alert>
+      </Message>
     );
   }
 
   if (!payload) {
     return (
-      <Box className="ntq-design-attr-report ntq-design-attr-report--empty">
-        <Typography variant="body2" color="text.secondary">
+      <div className="ntq-design-attr-report ntq-design-attr-report--empty">
+        <p className="ntq-muted">
           {busy
             ? '归因进行中，完成后会显示在这里。'
             : '尚未运行归因。配置 attribution.py 后，点击上方「开始归因」。'}
-        </Typography>
-      </Box>
+        </p>
+      </div>
     );
   }
 
   return (
-    <Stack spacing={1.5} className="ntq-design-attr-report">
+    <div className="ntq-design-attr-report">
       {upstreamBridge ? (
-        <Alert
-          severity="info"
-          variant="outlined"
-          className="ntq-design-attr-report__scope-alert"
-        >
+        <Message status="info" className="ntq-design-attr-report__scope-alert">
           {upstreamBridge}
-        </Alert>
+        </Message>
       ) : null}
       {hasSweeps || (portfolioLayer && scopeNote) ? (
         <SweepPanel
@@ -813,11 +755,11 @@ function StrategyDesignAttributeReport({
         <QuestionSections sections={sections} sweeps={sweeps} />
       ) : null}
       {!hasSweeps && !hasSections ? (
-        <Typography variant="body2" color="text.secondary">
+        <p className="ntq-muted">
           已有归因产物，但没有可展示的摘要字段。重新跑一遍归因后会按扫描与主题展示。
-        </Typography>
+        </p>
       ) : null}
-    </Stack>
+    </div>
   );
 }
 

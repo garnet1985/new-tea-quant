@@ -2,10 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Paper,
   Stack,
   TextField,
@@ -20,8 +16,7 @@ import {
 } from 'api/seriesRelationApi';
 import PageLayout from 'views/pageLayout';
 import SearchField from 'views/searchField';
-import Button from 'views/ntqButton';
-import Message from 'views/message';
+import { Button, Dialog, Message } from 'ui';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from 'views/dataGridLoadingOverlay';
 import { showToast } from 'containers/toast';
 import './seriesRelationPage.scss';
@@ -168,7 +163,7 @@ function SeriesRelationListPage() {
       loadingMessage="正在加载序列关系…"
     >
       {loadError ? (
-        <Message severity="error" className="ntq-srel-list-alert">{loadError}</Message>
+        <Message status="error" className="ntq-srel-list-alert">{loadError}</Message>
       ) : null}
 
       <Paper className="ntq-srel-list-grid">
@@ -231,32 +226,36 @@ function SeriesRelationListPage() {
         </Box>
       </Paper>
 
-      <Dialog open={newOpen} onClose={() => setNewOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>新建序列关系场景</DialogTitle>
-        <DialogContent>
-          <Stack spacing={1.5} sx={{ mt: 1 }}>
-            <TextField
-              size="small"
-              label="场景 key"
-              value={newKey}
-              onChange={(e) => setNewKey(e.target.value)}
-              placeholder="如 banks_vs_macro"
-              fullWidth
-              autoFocus
-            />
-            <TextField
-              size="small"
-              label="显示名（可选）"
-              value={newDisplayName}
-              onChange={(e) => setNewDisplayName(e.target.value)}
-              fullWidth
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button variant="ghost" onClick={() => setNewOpen(false)}>取消</Button>
-          <Button variant="primary" onClick={confirmNew}>创建</Button>
-        </DialogActions>
+      <Dialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        title="新建序列关系场景"
+        size="sm"
+        actions={(
+          <>
+            <Button variant="ghost" onClick={() => setNewOpen(false)}>取消</Button>
+            <Button variant="primary" onClick={confirmNew}>创建</Button>
+          </>
+        )}
+      >
+        <Stack spacing={1.5}>
+          <TextField
+            size="small"
+            label="场景 key"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            placeholder="如 banks_vs_macro"
+            fullWidth
+            autoFocus
+          />
+          <TextField
+            size="small"
+            label="显示名（可选）"
+            value={newDisplayName}
+            onChange={(e) => setNewDisplayName(e.target.value)}
+            fullWidth
+          />
+        </Stack>
       </Dialog>
     </PageLayout>
   );

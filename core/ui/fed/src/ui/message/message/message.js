@@ -40,7 +40,9 @@ const COLOR_ICON_TONE = {
  * <Message color="cyan" icon="settings">带自定义图标</Message>
  */
 function Message({
-  status = 'info',
+  status,
+  /** @deprecated 旧 views/MUI 名；等价于 status。有 status 时忽略。 */
+  severity,
   color,
   variant = 'inline',
   icon,
@@ -53,9 +55,10 @@ function Message({
   const variantToken = pickToken(variant, MESSAGE_VARIANTS, 'inline');
   const colorToken = MESSAGE_COLORS.includes(color) ? color : null;
   const isColorMode = colorToken != null;
+  const resolvedStatus = status != null ? status : severity;
   const statusToken = isColorMode
     ? null
-    : pickToken(status, MESSAGE_STATUSES, 'info');
+    : pickToken(resolvedStatus, MESSAGE_STATUSES, 'info');
   const accentKey = isColorMode ? colorToken : statusToken;
 
   const role = (!isColorMode && (statusToken === 'error' || statusToken === 'warning'))

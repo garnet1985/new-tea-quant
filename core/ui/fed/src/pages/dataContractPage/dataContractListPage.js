@@ -18,7 +18,7 @@ import PageLayout from '../../views/pageLayout';
 import SearchField from '../../views/searchField';
 import Button from '../../views/ntqButton';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import Message from '../../views/message';
+import Message from 'ui/message/message';
 import { showToast } from 'containers/toast';
 import './dataContractListPage.scss';
 
@@ -164,7 +164,7 @@ function DataContractListPage() {
       loading={!pageReady}
       loadingMessage="正在加载数据契约…"
     >
-      {loadError ? <Message severity="error" className="data-contract-list-alert">{loadError}</Message> : null}
+      {loadError ? <Message status="error" className="data-contract-list-alert">{loadError}</Message> : null}
 
       <Paper className="data-contract-list-grid">
         <Stack

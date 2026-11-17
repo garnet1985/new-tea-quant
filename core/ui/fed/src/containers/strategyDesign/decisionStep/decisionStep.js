@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Stack, Typography } from '@mui/material';
+import Message from 'ui/message/message';
+import { Box, Button, Stack, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import {
@@ -229,9 +230,9 @@ function StrategyDesignDecisionStep() {
     const portfolioDone = wb.stepStatus?.portfolio === 'done';
     return (
       <Box className="ntq-design-decision-gate">
-        <Alert severity="info" variant="outlined">
+        <Message status="info">
           决策模拟依赖「机会盘点」和「投资模拟」都完成。价格回测不是前置条件。
-        </Alert>
+        </Message>
         <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
           {!enumDone ? (
             <Button variant="contained" onClick={() => goStep('enum')}>去机会盘点</Button>
@@ -252,17 +253,17 @@ function StrategyDesignDecisionStep() {
 
   if (bootError && !sessionId) {
     return (
-      <Alert severity="error" variant="outlined">
+      <Message status="error">
         {bootError}
-      </Alert>
+      </Message>
     );
   }
 
   if (!sessionId) {
     return (
-      <Alert severity="warning" variant="outlined">
+      <Message status="warning">
         没有可用的模拟回测。
-      </Alert>
+      </Message>
     );
   }
 
@@ -277,7 +278,7 @@ function StrategyDesignDecisionStep() {
         if (loading) return <InlineLoadingState block message="正在加载模拟回测…" />;
         if (error) {
           return (
-            <Alert severity="error" variant="outlined">{error}</Alert>
+            <Message status="error">{error}</Message>
           );
         }
         return (

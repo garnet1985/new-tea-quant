@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
+import Message from 'ui/message/message';
 import PropTypes from 'prop-types';
 import {
-  Alert,
   Box,
   CircularProgress,
   Table,
@@ -161,7 +161,7 @@ function StrategyDesignRollingReport({
   }
 
   if (error) {
-    return <Alert severity="error">{error}</Alert>;
+    return <Message status="error">{error}</Message>;
   }
 
   if (!rows.length) {

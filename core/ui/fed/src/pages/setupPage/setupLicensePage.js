@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import Message from 'ui/message/message';
 import { useNavigate } from 'react-router-dom';
 import {
-  Alert,
   Box,
   Button,
   Link,
@@ -104,8 +104,8 @@ function SetupLicensePage() {
           ) : null}
           <p>全文在仓库根目录的 DISCLAIMER.md 与 LICENSE。条款以后改了，会再问一次。</p>
         </Typography>
-        {error ? <Alert severity="error">{error}</Alert> : null}
-        {exiting ? <Alert severity="info">未同意，正在退出。</Alert> : null}
+        {error ? <Message status="error">{error}</Message> : null}
+        {exiting ? <Message status="info">未同意，正在退出。</Message> : null}
         <Box className="license-gate__actions">
           <Button variant="text" disabled={busy || loading} onClick={decline}>
             不同意并退出

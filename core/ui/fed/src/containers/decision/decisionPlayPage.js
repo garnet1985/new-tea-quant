@@ -1,16 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button as UiButton, Dialog as UiDialog, Message } from 'ui';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
-  Alert,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Stack,
   TextField,
@@ -412,144 +408,140 @@ function InvestDialog({
     : null;
   const picked = Number(row?.pickedShares || 0) > 0;
   return (
-    <Dialog
+    <UiDialog
       open={open}
       onClose={submitting ? undefined : onCancel}
-      maxWidth="sm"
-      fullWidth
+      title={`投资${row ? ` ${opportunityStockLabel(row)}` : ''}`}
+      size="sm"
+      actions={(
+        <>
+          {picked ? (
+            <UiButton variant="glass" onClick={onClear} disabled={submitting}>
+              取消本次投资
+            </UiButton>
+          ) : null}
+          <UiButton variant="primary" onClick={onConfirm} disabled={submitting}>
+            确认
+          </UiButton>
+        </>
+      )}
     >
-      <DialogTitle>
-        投资
-        {row ? ` ${opportunityStockLabel(row)}` : ''}
-      </DialogTitle>
-      <DialogContent dividers>
-        {row ? (
-          <Stack spacing={2}>
-            <Typography variant="body2" color="text.secondary">
-              成交价 {formatMoney(row.price)}
-              {notional ? ` · 约 ${notional}` : ''}
-            </Typography>
-            {hasSuggested ? (
-              <Box>
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
-                  推荐买入
-                </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={onApplySuggested}
-                  disabled={submitting}
-                >
-                  {`${Number(row.suggestedShares).toLocaleString()} 股`}
-                  {suggestedCash != null ? `（约 ${Number(suggestedCash).toLocaleString()} 元）` : ''}
-                </Button>
-                {row.suggestedBasis ? (
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                    {row.suggestedBasis}
-                  </Typography>
-                ) : null}
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">暂无推荐买入</Typography>
-            )}
+      {row ? (
+        <Stack spacing={2}>
+          <Typography variant="body2" color="text.secondary">
+            成交价 {formatMoney(row.price)}
+            {notional ? ` · 约 ${notional}` : ''}
+          </Typography>
+          {hasSuggested ? (
             <Box>
-              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
-                股数
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+                推荐买入
               </Typography>
-              <ShareCapsule
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={onApplySuggested}
                 disabled={submitting}
-                draft={shares}
-                error={error}
-                lotStep={lotStep}
-                ticker={row.ticker}
-                onDraftChange={onSharesChange}
-                onStep={onStep}
-              />
-              {error ? (
-                <Typography variant="caption" color="error" display="block" sx={{ mt: 0.75 }}>
-                  {error}
+              >
+                {`${Number(row.suggestedShares).toLocaleString()} 股`}
+                {suggestedCash != null ? `（约 ${Number(suggestedCash).toLocaleString()} 元）` : ''}
+              </Button>
+              {row.suggestedBasis ? (
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  {row.suggestedBasis}
                 </Typography>
               ) : null}
             </Box>
-            <TextField
-              label="买入笔记（可选）"
-              placeholder="为什么买、仓位想法、风险…"
-              value={note}
-              onChange={(event) => onNoteChange(event.target.value)}
-              multiline
-              minRows={3}
-              fullWidth
+          ) : (
+            <Typography variant="body2" color="text.secondary">暂无推荐买入</Typography>
+          )}
+          <Box>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
+              股数
+            </Typography>
+            <ShareCapsule
               disabled={submitting}
-              inputProps={{ maxLength: NOTE_MAX }}
-              helperText={`${String(note || '').length}/${NOTE_MAX}`}
+              draft={shares}
+              error={error}
+              lotStep={lotStep}
+              ticker={row.ticker}
+              onDraftChange={onSharesChange}
+              onStep={onStep}
             />
-          </Stack>
-        ) : null}
-      </DialogContent>
-      <DialogActions>
-        <Box sx={{ flex: 1 }} />
-        {picked ? (
-          <Button variant="outlined" onClick={onClear} disabled={submitting}>
-            取消本次投资
-          </Button>
-        ) : null}
-        <Button variant="contained" onClick={onConfirm} disabled={submitting}>
-          确认
-        </Button>
-      </DialogActions>
-    </Dialog>
+            {error ? (
+              <Typography variant="caption" color="error" display="block" sx={{ mt: 0.75 }}>
+                {error}
+              </Typography>
+            ) : null}
+          </Box>
+          <TextField
+            label="买入笔记（可选）"
+            placeholder="为什么买、仓位想法、风险…"
+            value={note}
+            onChange={(event) => onNoteChange(event.target.value)}
+            multiline
+            minRows={3}
+            fullWidth
+            disabled={submitting}
+            inputProps={{ maxLength: NOTE_MAX }}
+            helperText={`${String(note || '').length}/${NOTE_MAX}`}
+          />
+        </Stack>
+      ) : null}
+    </UiDialog>
   );
 }
 
 function CalendarActionDialog({ action, open, onClose }) {
   if (!action) {
     return (
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-        <DialogTitle>成交</DialogTitle>
-        <DialogActions>
-          <Button onClick={onClose}>关闭</Button>
-        </DialogActions>
-      </Dialog>
+      <UiDialog
+        open={open}
+        onClose={onClose}
+        title="成交"
+        size="sm"
+        actions={<UiButton variant="ghost" onClick={onClose}>关闭</UiButton>}
+      />
     );
   }
   const note = String(action.note || '').trim();
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{action.side === 'sell' ? '卖出' : '买入'}明细</DialogTitle>
-      <DialogContent dividers>
+    <UiDialog
+      open={open}
+      onClose={onClose}
+      title={`${action.side === 'sell' ? '卖出' : '买入'}明细`}
+      size="sm"
+      actions={<UiButton variant="primary" onClick={onClose}>关闭</UiButton>}
+    >
+      <Typography className="decision-kv" variant="body2">
+        <span className="decision-kv__label">标的</span>
+        <span className="decision-kv__value">{action.name || action.ticker || '—'}</span>
+      </Typography>
+      {action.ticker && action.ticker !== action.name ? (
         <Typography className="decision-kv" variant="body2">
-          <span className="decision-kv__label">标的</span>
-          <span className="decision-kv__value">{action.name || action.ticker || '—'}</span>
+          <span className="decision-kv__label">代码</span>
+          <span className="decision-kv__value">{action.ticker}</span>
         </Typography>
-        {action.ticker && action.ticker !== action.name ? (
-          <Typography className="decision-kv" variant="body2">
-            <span className="decision-kv__label">代码</span>
-            <span className="decision-kv__value">{action.ticker}</span>
+      ) : null}
+      <Typography className="decision-kv" variant="body2">
+        <span className="decision-kv__label">股数</span>
+        <span className="decision-kv__value">{Number(action.shares || 0).toLocaleString()} 股</span>
+      </Typography>
+      <Typography className="decision-kv" variant="body2">
+        <span className="decision-kv__label">金额</span>
+        <span className="decision-kv__value">{formatMoney(action.amount)}</span>
+      </Typography>
+      {note ? (
+        <>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, mb: 0.75 }}>
+            买入笔记
           </Typography>
-        ) : null}
-        <Typography className="decision-kv" variant="body2">
-          <span className="decision-kv__label">股数</span>
-          <span className="decision-kv__value">{Number(action.shares || 0).toLocaleString()} 股</span>
-        </Typography>
-        <Typography className="decision-kv" variant="body2">
-          <span className="decision-kv__label">金额</span>
-          <span className="decision-kv__value">{formatMoney(action.amount)}</span>
-        </Typography>
-        {note ? (
-          <>
-            <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, mb: 0.75 }}>
-              买入笔记
-            </Typography>
-            <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
-              {note}
-            </Typography>
-          </>
-        ) : null}
-      </DialogContent>
-      <DialogActions>
-        <Button variant="contained" onClick={onClose}>关闭</Button>
-      </DialogActions>
-    </Dialog>
+          <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
+            {note}
+          </Typography>
+        </>
+      ) : null}
+    </UiDialog>
   );
 }
 
@@ -595,56 +587,62 @@ function HoldingDetailDialog({
   const buyNote = String(row?.note || '').trim();
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>持仓明细</DialogTitle>
-      <DialogContent dividers>
-        {kv.map(([label, value]) => (
-          <Typography key={label} className="decision-kv" variant="body2">
-            <span className="decision-kv__label">{label}</span>
-            <span className="decision-kv__value">{value}</span>
+    <UiDialog
+      open={open}
+      onClose={onClose}
+      title="持仓明细"
+      size="sm"
+      actions={(
+        <>
+          {onOpenKline ? (
+            <UiButton variant="glass" onClick={onOpenKline}>查看数据</UiButton>
+          ) : null}
+          <UiButton variant="primary" onClick={onClose}>关闭</UiButton>
+        </>
+      )}
+    >
+      {kv.map(([label, value]) => (
+        <Typography key={label} className="decision-kv" variant="body2">
+          <span className="decision-kv__label">{label}</span>
+          <span className="decision-kv__value">{value}</span>
+        </Typography>
+      ))}
+      {buyNote ? (
+        <>
+          <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
+            买入笔记
           </Typography>
-        ))}
-        {buyNote ? (
-          <>
-            <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
-              买入笔记
-            </Typography>
-            <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
-              {buyNote}
-            </Typography>
-          </>
-        ) : null}
-        <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
-          目标
-        </Typography>
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-          已按某档卖出的会标已完成；剩下的股仍按当前浮动盈亏显示，不会因为还在列表里就把该档当成没做过。
-        </Typography>
-        {row?.goals?.length ? (
-          <Box className="decision-goal-list">
-            {row.goals.map((goal, index) => (
-              <Box key={`${goal.kind}-${index}`} className="decision-goal-row">
-                <Typography variant="body2" className="decision-goal-row__text">
-                  {goal.text}
-                </Typography>
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  color={goal.done ? 'success' : 'warning'}
-                  label={goal.done ? '已完成' : '未完成'}
-                />
-              </Box>
-            ))}
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary">本策略未配置持仓目标</Typography>
-        )}
-      </DialogContent>
-      <DialogActions>
-        {onOpenKline ? <Button onClick={onOpenKline}>查看数据</Button> : null}
-        <Button variant="contained" onClick={onClose}>关闭</Button>
-      </DialogActions>
-    </Dialog>
+          <Typography variant="body2" className="decision-buy-note" sx={{ whiteSpace: 'pre-wrap' }}>
+            {buyNote}
+          </Typography>
+        </>
+      ) : null}
+      <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={700}>
+        目标
+      </Typography>
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+        已按某档卖出的会标已完成；剩下的股仍按当前浮动盈亏显示，不会因为还在列表里就把该档当成没做过。
+      </Typography>
+      {row?.goals?.length ? (
+        <Box className="decision-goal-list">
+          {row.goals.map((goal, index) => (
+            <Box key={`${goal.kind}-${index}`} className="decision-goal-row">
+              <Typography variant="body2" className="decision-goal-row__text">
+                {goal.text}
+              </Typography>
+              <Chip
+                size="small"
+                variant="outlined"
+                color={goal.done ? 'success' : 'warning'}
+                label={goal.done ? '已完成' : '未完成'}
+              />
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Typography variant="body2" color="text.secondary">本策略未配置持仓目标</Typography>
+      )}
+    </UiDialog>
   );
 }
 
@@ -1502,7 +1500,7 @@ export function DecisionPlaySession({
           </Button>
         )}
       >
-        <Alert severity="error" variant="outlined">{loadError || '模拟回测不存在'}</Alert>
+        <Message status="error">{loadError || '模拟回测不存在'}</Message>
       </PageLayout>
     );
   }
@@ -1609,9 +1607,9 @@ export function DecisionPlaySession({
   const playInner = (
     <>
       {completed ? (
-        <Alert severity="warning" variant="outlined" sx={{ mb: 2 }}>
+        <Message status="warning">
           本次模拟回测已走完，只读回看。不能改股数，也不能再推进。
-        </Alert>
+        </Message>
       ) : null}
 
       {embedded ? null : (
@@ -1622,10 +1620,11 @@ export function DecisionPlaySession({
       </Card>
       )}
 
-      <Dialog
+      <UiDialog
         open={calendarOpen}
         onClose={closeCalendar}
         maxWidth={false}
+        fullWidth={false}
         scroll="paper"
         PaperProps={{ className: 'decision-month-popover' }}
       >
@@ -1676,7 +1675,7 @@ export function DecisionPlaySession({
             未来日期不标注 · 不能点选跳转
           </Typography>
         </Box>
-      </Dialog>
+      </UiDialog>
 
       <Box className={`decision-play-split ${advancing ? 'is-advancing' : ''}`}>
         <Box className="decision-left">
@@ -1943,65 +1942,69 @@ export function DecisionPlaySession({
         onClose={() => setCalendarAction(null)}
       />
 
-      <Dialog open={confirmOpen} onClose={cancelConfirm} maxWidth="sm" fullWidth>
-        <DialogTitle>确认当天选择</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            提交后不可改当日选择。空选择等于本日不买。空格确认后，日历会按交易日走到下一事件。
+      <UiDialog
+        open={confirmOpen}
+        onClose={cancelConfirm}
+        title="确认当天选择"
+        size="sm"
+        actions={(
+          <>
+            <UiButton variant="ghost" onClick={cancelConfirm}>返回查看</UiButton>
+            <UiButton
+              variant="primary"
+              onClick={runAdvance}
+              disabled={advancing || billExceedsCash}
+            >
+              确认推进（空格键）
+            </UiButton>
+          </>
+        )}
+      >
+        <p className="ntq-muted">
+          提交后不可改当日选择。空选择等于本日不买。空格确认后，日历会按交易日走到下一事件。
+        </p>
+        {bill.length ? (
+          bill.map((row) => (
+            <Stack
+              key={row.id}
+              direction="row"
+              justifyContent="space-between"
+              sx={{ py: 0.5 }}
+            >
+              <Typography variant="body2" component="div" className="decision-stock-with-status">
+                [{row.id}] {row.name}{' '}
+                <StockStatusChips
+                  {...resolveLiveStatus(row.ticker, liveStatusById, statusLoading)}
+                />{' '}
+                {row.shares.toLocaleString()} 股
+                {row.note ? (
+                  <span className="decision-bill-note"> · {row.note}</span>
+                ) : null}
+              </Typography>
+              <Typography variant="body2">约 {formatMoney(row.notional)}</Typography>
+            </Stack>
+          ))
+        ) : (
+          <Typography variant="body2">当前选择：（空，本日不买）</Typography>
+        )}
+        <Stack direction="row" justifyContent="space-between" sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+          <Typography color="text.secondary">可用资金</Typography>
+          <Typography>{formatMoney(cashOnHand)} 元</Typography>
+        </Stack>
+        <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5 }}>
+          <Typography fontWeight={700}>合计（约）</Typography>
+          <Typography fontWeight={700} color={billExceedsCash ? 'error' : 'inherit'}>
+            {formatMoney(billTotal)} 元
           </Typography>
-          {bill.length ? (
-            bill.map((row) => (
-              <Stack
-                key={row.id}
-                direction="row"
-                justifyContent="space-between"
-                sx={{ py: 0.5 }}
-              >
-                <Typography variant="body2" component="div" className="decision-stock-with-status">
-                  [{row.id}] {row.name}{' '}
-                  <StockStatusChips
-                    {...resolveLiveStatus(row.ticker, liveStatusById, statusLoading)}
-                  />{' '}
-                  {row.shares.toLocaleString()} 股
-                  {row.note ? (
-                    <span className="decision-bill-note"> · {row.note}</span>
-                  ) : null}
-                </Typography>
-                <Typography variant="body2">约 {formatMoney(row.notional)}</Typography>
-              </Stack>
-            ))
-          ) : (
-            <Typography variant="body2">当前选择：（空，本日不买）</Typography>
-          )}
-          <Stack direction="row" justifyContent="space-between" sx={{ mt: 1.5, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
-            <Typography color="text.secondary">可用资金</Typography>
-            <Typography>{formatMoney(cashOnHand)} 元</Typography>
-          </Stack>
-          <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5 }}>
-            <Typography fontWeight={700}>合计（约）</Typography>
-            <Typography fontWeight={700} color={billExceedsCash ? 'error' : 'inherit'}>
-              {formatMoney(billTotal)} 元
-            </Typography>
-          </Stack>
-          {billExceedsCash ? (
-            <Alert severity="warning" variant="outlined" sx={{ mt: 1.5 }}>
-              这几笔加起来超过可用资金。返回查看后减少买入，或卖掉持仓后再买。
-            </Alert>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={cancelConfirm}>返回查看</Button>
-          <Button
-            variant="contained"
-            onClick={runAdvance}
-            disabled={advancing || billExceedsCash}
-          >
-            确认推进（空格键）
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Stack>
+        {billExceedsCash ? (
+          <Message status="warning">
+            这几笔加起来超过可用资金。返回查看后减少买入，或卖掉持仓后再买。
+          </Message>
+        ) : null}
+      </UiDialog>
 
-      <Dialog
+      <UiDialog
         open={Boolean(infoOpp)}
         onClose={() => {
           setInfoOpp(null);
@@ -2009,124 +2012,120 @@ export function DecisionPlaySession({
         }}
         fullScreen
         className="decision-info-chart-dialog"
-      >
-        <DialogTitle
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-            py: 1.25,
-            pr: 1,
-          }}
-        >
-          <span className="decision-stock-with-status">
-            {infoOpp ? opportunityStockLabel(infoOpp) : '市场数据'}
-            {infoOpp ? (
-              <StockStatusChips
-                {...resolveLiveStatus(
-                  infoOpp.ticker || infoPayload?.entityId,
-                  liveStatusById,
-                  statusLoading,
-                )}
-              />
-            ) : null}
-            <Typography
-              component="span"
-              variant="caption"
-              color="text.secondary"
-              sx={{ ml: 1.5 }}
-            >
-              查看数据
-            </Typography>
-          </span>
-          <IconButton
-            aria-label="关闭"
-            onClick={() => {
-              setInfoOpp(null);
-              setInfoPointerAsOf('');
+        title={(
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              width: '100%',
             }}
-            edge="end"
           >
-            <Icon name="cancel" size={18} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent
-          dividers
-          sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, pt: 1.5 }}
-        >
-          {infoOpp ? (
-            <>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                as-of {clockDate} · 前复权数据停在当前日，不含未来
-                {(() => {
-                  const panels = new Set(
-                    (infoPayload?.indicatorSeries || [])
-                      .map((row) => row.panel)
-                      .filter((p) => p && p !== 'overlay'),
-                  );
-                  const names = [];
-                  if (panels.has('macd')) names.push('MACD');
-                  if (panels.has('oscillator')) names.push('振荡指标');
-                  const layerNames = (infoPayload?.chartLayers || [])
-                    .map((l) => l.label || l.role)
-                    .filter(Boolean);
-                  if (names.length) return ` · 副图：${names.join(' / ')}`;
-                  if (layerNames.length) return ` · 分层：${layerNames.join(' · ')}`;
-                  return '';
-                })()}
+            <span className="decision-stock-with-status">
+              {infoOpp ? opportunityStockLabel(infoOpp) : '市场数据'}
+              {infoOpp ? (
+                <StockStatusChips
+                  {...resolveLiveStatus(
+                    infoOpp.ticker || infoPayload?.entityId,
+                    liveStatusById,
+                    statusLoading,
+                  )}
+                />
+              ) : null}
+              <Typography
+                component="span"
+                variant="caption"
+                color="text.secondary"
+                sx={{ ml: 1.5 }}
+              >
+                查看数据
               </Typography>
-              <Stack spacing={0.75}>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="body2" color="text.secondary">策略 as-of</Typography>
-                  <Typography variant="body2">
-                    胜率 {strategyWin}  平均ROI {strategyRoi}
-                    {asof?.sampleSize != null ? `  n=${asof.sampleSize}` : ''}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" justifyContent="space-between">
-                  <Typography variant="body2" color="text.secondary">本标的 as-of</Typography>
-                  <Typography variant="body2">
-                    胜率 {infoPayload?.tickerStats?.winRateLabel || infoOpp.wr}
-                    {' '}
-                    平均ROI {infoPayload?.tickerStats?.avgRoiLabel || infoOpp.roi}
-                  </Typography>
-                </Stack>
+            </span>
+            <IconButton
+              aria-label="关闭"
+              onClick={() => {
+                setInfoOpp(null);
+                setInfoPointerAsOf('');
+              }}
+              edge="end"
+            >
+              <Icon name="cancel" size={18} />
+            </IconButton>
+          </span>
+        )}
+      >
+        {infoOpp ? (
+          <Stack spacing={1.25} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Typography variant="body2" color="text.secondary">
+              as-of {clockDate} · 前复权数据停在当前日，不含未来
+              {(() => {
+                const panels = new Set(
+                  (infoPayload?.indicatorSeries || [])
+                    .map((row) => row.panel)
+                    .filter((p) => p && p !== 'overlay'),
+                );
+                const names = [];
+                if (panels.has('macd')) names.push('MACD');
+                if (panels.has('oscillator')) names.push('振荡指标');
+                const layerNames = (infoPayload?.chartLayers || [])
+                  .map((l) => l.label || l.role)
+                  .filter(Boolean);
+                if (names.length) return ` · 副图：${names.join(' / ')}`;
+                if (layerNames.length) return ` · 分层：${layerNames.join(' · ')}`;
+                return '';
+              })()}
+            </Typography>
+            <Stack spacing={0.75}>
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">策略 as-of</Typography>
+                <Typography variant="body2">
+                  胜率 {strategyWin}  平均ROI {strategyRoi}
+                  {asof?.sampleSize != null ? `  n=${asof.sampleSize}` : ''}
+                </Typography>
               </Stack>
-              {infoLoading ? (
-                <InlineLoadingState block message="正在加载市场数据…" />
-              ) : (
-                <Stack spacing={1.25} sx={{ flex: '1 1 auto', minHeight: 0 }}>
-                  <Box
-                    sx={{
-                      flex: '1 1 auto',
-                      minHeight: { xs: 420, sm: 560, md: 'calc(100vh - 280px)' },
-                      width: '100%',
-                    }}
-                  >
-                    <ChartPanel
-                      title=""
-                      option={infoChart}
-                      height={infoChartHeight}
-                      framed={false}
-                      onEvents={infoChartEvents}
-                      note={infoPayload?.candles?.length
-                        ? '主图：K线（前复权）与策略声明指标 / 分层数据。悬停查看财报 PIT。使用底部滑块调整可见区间。'
-                        : '没有截至当前日的市场数据。'}
-                    />
-                  </Box>
-                  <FinancePitCard
-                    visible={infoHasFinanceLayer}
-                    live={infoFinanceLive}
-                    pointerAsOf={infoPointerAsOf}
-                    snapshot={infoFinanceSnapshot}
+              <Stack direction="row" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">本标的 as-of</Typography>
+                <Typography variant="body2">
+                  胜率 {infoPayload?.tickerStats?.winRateLabel || infoOpp.wr}
+                  {' '}
+                  平均ROI {infoPayload?.tickerStats?.avgRoiLabel || infoOpp.roi}
+                </Typography>
+              </Stack>
+            </Stack>
+            {infoLoading ? (
+              <InlineLoadingState block message="正在加载市场数据…" />
+            ) : (
+              <Stack spacing={1.25} sx={{ flex: '1 1 auto', minHeight: 0 }}>
+                <Box
+                  sx={{
+                    flex: '1 1 auto',
+                    minHeight: { xs: 420, sm: 560, md: 'calc(100vh - 280px)' },
+                    width: '100%',
+                  }}
+                >
+                  <ChartPanel
+                    title=""
+                    option={infoChart}
+                    height={infoChartHeight}
+                    framed={false}
+                    onEvents={infoChartEvents}
+                    note={infoPayload?.candles?.length
+                      ? '主图：K线（前复权）与策略声明指标 / 分层数据。悬停查看财报 PIT。使用底部滑块调整可见区间。'
+                      : '没有截至当前日的市场数据。'}
                   />
-                </Stack>
-              )}
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+                </Box>
+                <FinancePitCard
+                  visible={infoHasFinanceLayer}
+                  live={infoFinanceLive}
+                  pointerAsOf={infoPointerAsOf}
+                  snapshot={infoFinanceSnapshot}
+                />
+              </Stack>
+            )}
+          </Stack>
+        ) : null}
+      </UiDialog>
     </>
   );
 

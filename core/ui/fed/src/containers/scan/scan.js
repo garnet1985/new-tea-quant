@@ -4,10 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
   FormControlLabel,
   LinearProgress,
@@ -17,6 +13,7 @@ import {
   Switch,
   Typography,
 } from '@mui/material';
+import { Dialog, Message } from 'ui';
 import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
 import {
@@ -43,7 +40,6 @@ import CountBadge from '../../views/countBadge';
 import CountTab from '../../views/countTab';
 import SearchField from '../../views/searchField';
 import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
-import Message from 'views/message';
 import StrategyDescriptionText from '../../views/strategyDescriptionText';
 import InlineLoadingState from '../../views/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
@@ -836,20 +832,20 @@ function Scan() {
             </Stack>
           ) : null}
 
-          {loadError ? <Message severity="error" className="scan-alert">{loadError}</Message> : null}
+          {loadError ? <Message status="error" className="scan-alert">{loadError}</Message> : null}
           {readinessError ? (
-            <Message severity="warning" className="scan-alert" onClose={() => setReadinessError('')}>
+            <Message status="warning" className="scan-alert" onClose={() => setReadinessError('')}>
               {readinessError}
             </Message>
           ) : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
           {!readinessLoading && mode === 'strict' && strictBlockReason ? (
-            <Message severity="warning" className="scan-alert">
+            <Message status="warning" className="scan-alert">
               {strictBlockReason}
             </Message>
           ) : null}
           {runError && runError !== strictBlockReason ? (
-            <Message severity="error" className="scan-alert">{runError}</Message>
+            <Message status="error" className="scan-alert">{runError}</Message>
           ) : null}
 
           {running ? (
@@ -1006,12 +1002,13 @@ function Scan() {
       <Dialog
         open={detailOpen}
         onClose={closeDetail}
+        title={<span className="scan-detail__title">机会明细</span>}
+        size="lg"
         maxWidth={detailPresenterUi ? 'lg' : 'md'}
-        fullWidth
         className="scan-detail-dialog"
+        actions={<Button onClick={closeDetail}>关闭</Button>}
       >
-        <DialogTitle className="scan-detail__title">机会明细</DialogTitle>
-        <DialogContent dividers className="scan-detail__body">
+        <div className="scan-detail__body">
           {detailPayload ? (
             <>
               <OpportunityDetailMeta
@@ -1069,10 +1066,7 @@ function Scan() {
               暂无明细。
             </Typography>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDetail}>关闭</Button>
-        </DialogActions>
+        </div>
       </Dialog>
     </PageLayout>
   );

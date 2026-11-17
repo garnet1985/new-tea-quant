@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
-import { Alert, Box, Grid, Stack } from '@mui/material';
+import Message from 'ui/message/message';
+import { Box, Grid, Stack } from '@mui/material';
 import StrategyDesignExecutionPanel from './executionPanel';
 import StrategyDesignReportPanel from './reportPanel';
 import { StrategySettingsContainer } from 'containers/strategySettings';
@@ -23,9 +24,9 @@ function StrategyDesignStepPage() {
   if (!wb.hasValidSettings) {
     return (
       <Box className="ntq-design-step-page">
-        <Alert severity="error" sx={{ mb: 1.5 }}>
+        <Message status="error">
           {wb.settingsError || '策略配置不可用，无法打开设置编辑器。'}
-        </Alert>
+        </Message>
       </Box>
     );
   }
@@ -41,7 +42,7 @@ function StrategyDesignStepPage() {
   return (
     <Box className="ntq-design-step-page">
       {options.optionsError ? (
-        <Alert severity="error" sx={{ mb: 1.5 }}>{options.optionsError}</Alert>
+        <Message status="error">{options.optionsError}</Message>
       ) : null}
       <StrategySettingsContainer initialSettings={wb.initialSettings}>
         {({

@@ -5,10 +5,6 @@ import {
   AccordionDetails,
   AccordionSummary,
   Box,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Stack,
   Tab,
@@ -16,7 +12,7 @@ import {
   Typography,
 } from '@mui/material';
 import SettingsAccordionTitle from 'views/settingsAccordionTitle';
-import Button from 'views/ntqButton';
+import { Button, Dialog } from 'ui';
 import { VersionPickLabel, VersionPickerDialog, lookupVersionById } from 'containers/versionPick';
 import OpportunityEnumrateReport from './opportunityEnumerateReport';
 import PriceFactorReport from './priceFactorReport';
@@ -425,45 +421,27 @@ function StrategyReportPanel({
         onClose={() => setCompareDialogOpen(false)}
         fullScreen
         className="ntq-report-compare-dialog"
+        title={(
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+            <Typography variant="subtitle1" fontWeight={700} component="span">
+              报告对比
+            </Typography>
+            <IconButton
+              aria-label="关闭"
+              onClick={() => setCompareDialogOpen(false)}
+              edge="end"
+            >
+              <Icon name="cancel" size={18} />
+            </IconButton>
+          </span>
+        )}
       >
-        <DialogTitle
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-            py: 1.25,
-            pr: 1,
-          }}
-        >
-          <Typography variant="subtitle1" fontWeight={700} component="span">
-            报告对比
-          </Typography>
-          <IconButton
-            aria-label="关闭"
-            onClick={() => setCompareDialogOpen(false)}
-            edge="end"
-          >
-            <Icon name="cancel" size={18} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent
-          dividers
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1.5,
-            pt: 1.5,
-            minHeight: 0,
-            flex: 1,
-          }}
-        >
           <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
               <Typography variant="caption" color="text.secondary">对比版本</Typography>
               <Button
                 size="small"
-                variant="outlined"
+                variant="glass"
                 className="ntq-report-compare__picker-trigger"
                 onClick={() => setComparePickerOpen(true)}
               >
@@ -579,7 +557,6 @@ function StrategyReportPanel({
               </Box>
             </Box>
           </Stack>
-        </DialogContent>
       </Dialog>
 
       <VersionPickerDialog

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import Message from 'ui/message/message';
 import {
-  Alert,
   Button,
   Card,
   CardActionArea,
@@ -67,10 +67,10 @@ function SetupChoiceCard({
             {copy.introAfterLink}
           </Typography>
           {packageHint ? (
-            <Alert severity="info" sx={{ mb: 2 }}>{packageHint}</Alert>
+            <Message status="info">{packageHint}</Message>
           ) : null}
           {errorMessage ? (
-            <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+            <Message status="error">{errorMessage}</Message>
           ) : null}
           <Stack
             direction={{ xs: 'column', md: 'row' }}
@@ -127,7 +127,7 @@ function SetupChoiceCard({
           </Typography>
         ) : null}
         {errorMessage ? (
-          <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+          <Message status="error">{errorMessage}</Message>
         ) : null}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <Button

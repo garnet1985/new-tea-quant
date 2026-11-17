@@ -1,11 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
-  Alert,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
   FormControlLabel,
   FormLabel,
@@ -22,7 +17,7 @@ import {
   previewStrategyPackageImport,
 } from 'api/strategyApi';
 import { useAsyncAction } from 'service/useAsyncAction';
-import Button from 'views/ntqButton';
+import { Button, Dialog, Message } from 'ui';
 import './style.scss';
 
 const POLICY_OPTIONS = [
@@ -103,101 +98,100 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
     <Dialog
       open={open}
       onClose={busy ? undefined : onClose}
-      maxWidth="sm"
-      fullWidth
+      title="导入策略包"
+      size="sm"
       className="strategy-package-import-dialog"
-    >
-      <DialogTitle>导入策略包</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ pt: 0.5 }}>
-          <Typography variant="body2" color="text.secondary">
-            仅支持策略交流包（策略目录及依赖的 tag / adapter），文件格式为 .zip。
-          </Typography>
+      actions={(
+        <div className="strategy-package-import-dialog__actions">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={busy}
+            className="strategy-package-import-dialog__btn"
+          >
+            取消
+          </Button>
           <Button
             variant="glass"
-            component="label"
-            disabled={busy}
-            className="strategy-package-import-dialog__file"
+            onClick={handlePreview}
+            disabled={!file || busy}
+            className="strategy-package-import-dialog__btn"
           >
-            选择策略包文件
-            <input type="file" accept=".zip,application/zip" hidden onChange={handleFileChange} />
+            预览
           </Button>
-          {file ? (
-            <Typography variant="body2" color="text.secondary">
-              已选：
-              {file.name}
-            </Typography>
-          ) : null}
-
-          <FormControl>
-            <FormLabel>冲突策略</FormLabel>
-            <RadioGroup
-              value={policy}
-              onChange={(e) => {
-                setPolicy(e.target.value);
-                setPreview(null);
-              }}
-            >
-              {POLICY_OPTIONS.map((opt) => (
-                <FormControlLabel
-                  key={opt.value}
-                  value={opt.value}
-                  control={<Radio size="small" />}
-                  label={opt.label}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
-
-          {error ? <Alert severity="error">{error}</Alert> : null}
-
-          {preview?.items?.length ? (
-            <Stack spacing={0.5}>
-              <Typography variant="subtitle2">
-                预览（
-                {preview.ok ? '可导入' : '存在冲突'}
-                ）
-              </Typography>
-              <List dense disablePadding>
-                {preview.items.map((row) => (
-                  <ListItem key={`${row.kind}:${row.name}`} disableGutters>
-                    <ListItemText
-                      primary={`${row.kind} / ${row.name}`}
-                      secondary={statusLabel(row.status)}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Stack>
-          ) : null}
-        </Stack>
-      </DialogContent>
-      <DialogActions className="strategy-package-import-dialog__actions">
-        <Button
-          variant="ghost"
-          onClick={onClose}
-          disabled={busy}
-          className="strategy-package-import-dialog__btn"
-        >
-          取消
-        </Button>
+          <Button
+            variant="primary"
+            onClick={handleImport}
+            disabled={!file || busy}
+            className="strategy-package-import-dialog__btn strategy-package-import-dialog__btn--primary"
+          >
+            导入策略包
+          </Button>
+        </div>
+      )}
+    >
+      <Stack spacing={2}>
+        <p className="ntq-muted">
+          仅支持策略交流包（策略目录及依赖的 tag / adapter），文件格式为 .zip。
+        </p>
         <Button
           variant="glass"
-          onClick={handlePreview}
-          disabled={!file || busy}
-          className="strategy-package-import-dialog__btn"
+          component="label"
+          disabled={busy}
+          className="strategy-package-import-dialog__file"
         >
-          预览
+          选择策略包文件
+          <input type="file" accept=".zip,application/zip" hidden onChange={handleFileChange} />
         </Button>
-        <Button
-          variant="primary"
-          onClick={handleImport}
-          disabled={!file || busy}
-          className="strategy-package-import-dialog__btn strategy-package-import-dialog__btn--primary"
-        >
-          导入策略包
-        </Button>
-      </DialogActions>
+        {file ? (
+          <Typography variant="body2" color="text.secondary">
+            已选：
+            {file.name}
+          </Typography>
+        ) : null}
+
+        <FormControl>
+          <FormLabel>冲突策略</FormLabel>
+          <RadioGroup
+            value={policy}
+            onChange={(e) => {
+              setPolicy(e.target.value);
+              setPreview(null);
+            }}
+          >
+            {POLICY_OPTIONS.map((opt) => (
+              <FormControlLabel
+                key={opt.value}
+                value={opt.value}
+                control={<Radio size="small" />}
+                label={opt.label}
+              />
+            ))}
+          </RadioGroup>
+        </FormControl>
+
+        {error ? <Message status="error">{error}</Message> : null}
+
+        {preview?.items?.length ? (
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2">
+              预览（
+              {preview.ok ? '可导入' : '存在冲突'}
+              ）
+            </Typography>
+            <List dense disablePadding>
+              {preview.items.map((row) => (
+                <ListItem key={`${row.kind}:${row.name}`} disableGutters>
+                  <ListItemText
+                    primary={`${row.kind} / ${row.name}`}
+                    secondary={statusLabel(row.status)}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Stack>
+        ) : null}
+      </Stack>
     </Dialog>
   );
 }

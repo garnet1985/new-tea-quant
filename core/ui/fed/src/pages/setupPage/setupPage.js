@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Message from 'ui/message/message';
 import {
-  Alert,
   Backdrop,
   Box,
   Button,
@@ -524,13 +524,13 @@ function SetupPage() {
         <Box className="setup-page" sx={{ minWidth: 0 }}>
           <Stack spacing={3}>
           {flowStage !== 'input' && status?.isReady ? (
-            <Alert severity="success">
+            <Message status="success">
               安装流程已完成。你可以进入欢迎页开始使用。
-            </Alert>
+            </Message>
           ) : (
-            <Alert severity="warning">
+            <Message status="warning">
               检测到必要配置缺失，业务页将继续重定向到 Setup。
-            </Alert>
+            </Message>
           )}
 
           <Card variant="outlined">
@@ -561,20 +561,15 @@ function SetupPage() {
                   点击开始后，系统会按顺序执行步骤。数据库配置成功后，你可以选择立刻导入公开演示数据，或稍候注册会员后再导入全市场数据；机器学习依赖为选装。跳过的步骤视为完成。
                 </Typography>
                 {bootstrapError ? (
-                  <Alert
-                    severity="error"
-                    sx={{ mb: 2 }}
-                    action={(
-                      <Button color="inherit" size="small" onClick={loadBootstrap}>
-                        重新加载
-                      </Button>
-                    )}
-                  >
-                    {bootstrapError}
-                  </Alert>
+                  <>
+                    <Message status="error">{bootstrapError}</Message>
+                    <Button color="inherit" size="small" onClick={loadBootstrap} sx={{ mt: 1 }}>
+                      重新加载
+                    </Button>
+                  </>
                 ) : null}
                 {errorMessage && !bootstrapError ? (
-                  <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+                  <Message status="error">{errorMessage}</Message>
                 ) : null}
                 <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
                   <Button variant="contained" onClick={handleStartSetup} disabled={Boolean(bootstrapError)}>
@@ -606,7 +601,7 @@ function SetupPage() {
                   需要用户输入：{pausedStepDef?.name || pausedStep}
                 </Typography>
                 {errorMessage ? (
-                  <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
+                  <Message status="error">{errorMessage}</Message>
                 ) : null}
                 <Box
                   component="form"
@@ -745,7 +740,7 @@ function SetupPage() {
                     安装流程已完成。
                   </Typography>
                   {restartError ? (
-                    <Alert severity="error" sx={{ mb: 2 }}>{restartError}</Alert>
+                    <Message status="error">{restartError}</Message>
                   ) : null}
                   <Stack direction="row" spacing={2}>
                     <Button
@@ -783,13 +778,13 @@ function SetupPage() {
                   </Box>
                   <Typography variant="h6">失败</Typography>
                 </Stack>
-                <Alert severity="error" sx={{ mt: 1, mb: 2 }}>
+                <Message status="error">
                   {errorMessage}
-                </Alert>
+                </Message>
                 {failedStep ? (
-                  <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Message status="warning">
                     失败步骤: {definition.find((step) => step.id === failedStep)?.name || failedStep}
-                  </Alert>
+                  </Message>
                 ) : null}
                 <Box sx={{ height: 320, mb: 2 }}>
                   <DataGrid

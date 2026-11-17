@@ -29,7 +29,7 @@ import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay'
 import Icon from '../../views/ntqIcon';
 import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
-import Message from '../../views/message';
+import Message from 'ui/message/message';
 import { showToast } from 'containers/toast';
 import { progressRatio } from 'service/progress/ratio';
 import './dataSourceListPage.scss';
@@ -526,10 +526,10 @@ function DataSourceListPage() {
       loading={!pageReady}
       loadingMessage="正在加载数据源…"
     >
-      {loadError ? <Message severity="error" className="data-source-list-alert">{loadError}</Message> : null}
+      {loadError ? <Message status="error" className="data-source-list-alert">{loadError}</Message> : null}
       {freshnessError ? (
         <Message
-          severity="warning"
+          status="warning"
           className="data-source-list-alert"
           onClose={() => setFreshnessError('')}
         >

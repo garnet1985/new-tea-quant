@@ -2,10 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Autocomplete,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Paper,
   Stack,
@@ -27,8 +23,7 @@ import {
   updatePostProcessAdapters,
 } from '../../api/postProcessApi';
 import PageLayout from '../../views/pageLayout';
-import Button from '../../views/ntqButton';
-import Message from '../../views/message';
+import { Button, Dialog, Message } from 'ui';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
 import Icon from '../../views/ntqIcon';
 import { showToast } from 'containers/toast';
@@ -174,88 +169,90 @@ function ProcessorEditDialog({
   const peerNames = rows.map((row) => row.name);
 
   return (
-    <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        编辑方案步骤 · {processor?.name || processor?.key || '—'}
-      </DialogTitle>
-      <DialogContent dividers>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          添加或移除执行单元，并为每个步骤设置 depends_on（依赖）。执行顺序由依赖拓扑计算，不可拖拽排序。
-        </Typography>
-        {error ? <Message severity="error" className="post-process-edit-error">{error}</Message> : null}
-        <Stack spacing={1.5}>
-          {rows.map((row) => (
-            <Paper key={row.name} variant="outlined" className="post-process-edit-row">
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1}
-                alignItems={{ sm: 'center' }}
-                justifyContent="space-between"
-              >
-                <Stack spacing={0.25}>
-                  <Typography variant="subtitle2">
-                    {row.display_name || labelByName[row.name] || row.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">{row.name}</Typography>
-                </Stack>
-                <IconButton
-                  size="small"
-                  aria-label={`移除 ${row.name}`}
-                  onClick={() => handleRemove(row.name)}
-                  disabled={saving}
-                >
-                  <Icon name="delete" size={18} />
-                </IconButton>
-              </Stack>
-              <Autocomplete
-                multiple
-                size="small"
-                options={peerNames.filter((name) => name !== row.name)}
-                value={row.depends_on || []}
-                getOptionLabel={(name) => labelByName[name] || name}
-                onChange={(_, value) => {
-                  setRows((prev) => prev.map((item) => (
-                    item.name === row.name
-                      ? { ...item, depends_on: value }
-                      : item
-                  )));
-                }}
-                slotProps={AUTOCOMPLETE_SLOT_PROPS}
-                renderInput={(params) => (
-                  <TextField {...params} label="depends_on" placeholder="依赖的执行单元" />
-                )}
-                disabled={saving}
-                sx={{ mt: 1 }}
-              />
-            </Paper>
-          ))}
-        </Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }} alignItems="center">
-          <Autocomplete
-            size="small"
-            sx={{ minWidth: 240, flex: 1 }}
-            options={availableToAdd}
-            value={addOption}
-            getOptionLabel={(opt) => (opt ? `${opt.display_name || opt.name} (${opt.name})` : '')}
-            isOptionEqualToValue={(a, b) => a?.name === b?.name}
-            onChange={(_, value) => setAddOption(value)}
-            slotProps={AUTOCOMPLETE_SLOT_PROPS}
-            renderInput={(params) => (
-              <TextField {...params} label="添加执行单元" placeholder="选择执行单元" />
-            )}
-            disabled={saving || availableToAdd.length === 0}
-          />
-          <Button onClick={handleAdd} disabled={saving || !addOption}>
-            添加
+    <Dialog
+      open={open}
+      onClose={saving ? undefined : onClose}
+      title={`编辑方案步骤 · ${processor?.name || processor?.key || '—'}`}
+      size="lg"
+      actions={(
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? '保存中…' : '保存'}
           </Button>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? '保存中…' : '保存'}
+        </>
+      )}
+    >
+      <p className="ntq-muted">
+        添加或移除执行单元，并为每个步骤设置 depends_on（依赖）。执行顺序由依赖拓扑计算，不可拖拽排序。
+      </p>
+      {error ? <Message status="error" className="post-process-edit-error">{error}</Message> : null}
+      <Stack spacing={1.5}>
+        {rows.map((row) => (
+          <Paper key={row.name} variant="outlined" className="post-process-edit-row">
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              alignItems={{ sm: 'center' }}
+              justifyContent="space-between"
+            >
+              <Stack spacing={0.25}>
+                <Typography variant="subtitle2">
+                  {row.display_name || labelByName[row.name] || row.name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">{row.name}</Typography>
+              </Stack>
+              <IconButton
+                size="small"
+                aria-label={`移除 ${row.name}`}
+                onClick={() => handleRemove(row.name)}
+                disabled={saving}
+              >
+                <Icon name="delete" size={18} />
+              </IconButton>
+            </Stack>
+            <Autocomplete
+              multiple
+              size="small"
+              options={peerNames.filter((name) => name !== row.name)}
+              value={row.depends_on || []}
+              getOptionLabel={(name) => labelByName[name] || name}
+              onChange={(_, value) => {
+                setRows((prev) => prev.map((item) => (
+                  item.name === row.name
+                    ? { ...item, depends_on: value }
+                    : item
+                )));
+              }}
+              slotProps={AUTOCOMPLETE_SLOT_PROPS}
+              renderInput={(params) => (
+                <TextField {...params} label="depends_on" placeholder="依赖的执行单元" />
+              )}
+              disabled={saving}
+              sx={{ mt: 1 }}
+            />
+          </Paper>
+        ))}
+      </Stack>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 2 }} alignItems="center">
+        <Autocomplete
+          size="small"
+          sx={{ minWidth: 240, flex: 1 }}
+          options={availableToAdd}
+          value={addOption}
+          getOptionLabel={(opt) => (opt ? `${opt.display_name || opt.name} (${opt.name})` : '')}
+          isOptionEqualToValue={(a, b) => a?.name === b?.name}
+          onChange={(_, value) => setAddOption(value)}
+          slotProps={AUTOCOMPLETE_SLOT_PROPS}
+          renderInput={(params) => (
+            <TextField {...params} label="添加执行单元" placeholder="选择执行单元" />
+          )}
+          disabled={saving || availableToAdd.length === 0}
+        />
+        <Button variant="glass" onClick={handleAdd} disabled={saving || !addOption}>
+          添加
         </Button>
-      </DialogActions>
+      </Stack>
     </Dialog>
   );
 }
@@ -477,7 +474,7 @@ function PostProcessPage() {
       loadingMessage="正在加载后续处理…"
     >
       {loadError ? (
-        <Message severity="error" className="post-process-alert">{loadError}</Message>
+        <Message status="error" className="post-process-alert">{loadError}</Message>
       ) : null}
 
       <Typography variant="h6" className="post-process-section-title">处理方案</Typography>

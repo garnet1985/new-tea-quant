@@ -1,12 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Box,
   Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControlLabel,
   MenuItem,
   Select,
@@ -16,7 +11,7 @@ import {
 } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageLayout from 'views/pageLayout';
-import Button from 'views/ntqButton';
+import { Button, Dialog, Message } from 'ui';
 import RainbowButton from 'views/rainbowButton';
 import EditorFieldLabel from 'containers/editor/fields/editorFieldLabel';
 import { showToast } from 'containers/toast';
@@ -380,12 +375,12 @@ function SeriesRelationDetailPage() {
       loadingMessage="正在加载场景…"
     >
       {loadError ? (
-        <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert>
+        <Message status="error">{loadError}</Message>
       ) : null}
       {actionError ? (
-        <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setActionError('')}>
+        <Message status="error" onClose={() => setActionError('')}>
           {actionError}
-        </Alert>
+        </Message>
       ) : null}
 
       <Stack spacing={1.5} className="ntq-srel-page__stack">
@@ -544,29 +539,24 @@ function SeriesRelationDetailPage() {
       <Dialog
         open={editIndex != null && editDraft != null}
         onClose={closeEdit}
-        fullWidth
-        maxWidth="sm"
+        title={`编辑系列 ${(editIndex == null ? 0 : editIndex) + 1}`}
+        size="sm"
         className="ntq-srel-edit-dialog"
+        actions={(
+          <>
+            <Button variant="ghost" onClick={closeEdit}>取消</Button>
+            <Button variant="primary" onClick={confirmEdit}>完成</Button>
+          </>
+        )}
       >
-        <DialogTitle>
-          编辑系列 {(editIndex == null ? 0 : editIndex) + 1}
-        </DialogTitle>
-        <DialogContent dividers>
-          {editDraft ? (
-            <Box sx={{ pt: 0.5 }}>
-              <SeriesEditForm
-                value={editDraft}
-                onChange={setEditDraft}
-                dataKeyOptions={dataKeyOptions}
-                strategyOptions={strategyOptions}
-              />
-            </Box>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button variant="ghost" onClick={closeEdit}>取消</Button>
-          <Button variant="primary" onClick={confirmEdit}>完成</Button>
-        </DialogActions>
+        {editDraft ? (
+          <SeriesEditForm
+            value={editDraft}
+            onChange={setEditDraft}
+            dataKeyOptions={dataKeyOptions}
+            strategyOptions={strategyOptions}
+          />
+        ) : null}
       </Dialog>
     </PageLayout>
   );

@@ -31,7 +31,7 @@ import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay'
 import Icon from '../../views/ntqIcon';
 import RainbowButton from '../../views/rainbowButton';
 import FreshnessStatusChip from '../../views/freshnessStatusChip';
-import Message from '../../views/message';
+import Message from 'ui/message/message';
 import { showToast } from 'containers/toast';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import TagVisualization from '../../containers/tagVisualization';
@@ -470,15 +470,15 @@ function TagListPage() {
       loading={!pageReady}
       loadingMessage="正在加载标签列表…"
     >
-      {loadError ? <Message severity="error" className="tag-list-alert">{loadError}</Message> : null}
+      {loadError ? <Message status="error" className="tag-list-alert">{loadError}</Message> : null}
       <DataEndTruncationAlert dataEnd={dataEnd} className="tag-list-alert" />
       {pipelineError ? (
-        <Message severity="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
+        <Message status="warning" className="tag-list-alert" onClose={() => setPipelineError('')}>
           {pipelineError}
         </Message>
       ) : null}
       {pipelineBusy && pipelineLabel ? (
-        <Message severity="info" className="tag-list-alert">
+        <Message status="info" className="tag-list-alert">
           当前有其它任务占用数据管道（{pipelineLabel}）。仍可点运行，任务将加入队列。
         </Message>
       ) : null}

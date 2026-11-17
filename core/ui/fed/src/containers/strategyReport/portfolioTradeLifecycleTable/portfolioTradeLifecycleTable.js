@@ -1,15 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   Box,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Stack,
   Typography,
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import Icon from 'views/ntqIcon';
+import { Dialog } from 'ui';
 import ReportStockSampleGrid from 'views/reportStockSampleGrid';
 import { SectionBlock } from 'views/sectionBlock';
 import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
@@ -251,50 +249,41 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
       onClose={() => setChartOpen(false)}
       fullScreen
       className="ntq-report-trade-overview-dialog"
+      title={(
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+          <Typography variant="subtitle1" fontWeight={700} component="span">
+            逐笔投资事件图
+            <Typography
+              component="span"
+              variant="caption"
+              color="text.secondary"
+              sx={{ ml: 1.5 }}
+            >
+              净值曲线 · 仅标开仓起点（同日合并 · 赚红亏绿 · 按金额分三档大小）
+            </Typography>
+          </Typography>
+          <IconButton aria-label="关闭" onClick={() => setChartOpen(false)} edge="end">
+            <Icon name="cancel" size={18} />
+          </IconButton>
+        </span>
+      )}
     >
-      <DialogTitle
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 2,
-          py: 1.25,
-          pr: 1,
-        }}
-      >
-        <Typography variant="subtitle1" fontWeight={700} component="span">
-          逐笔投资事件图
-          <Typography
-            component="span"
-            variant="caption"
-            color="text.secondary"
-            sx={{ ml: 1.5 }}
-          >
-            净值曲线 · 仅标开仓起点（同日合并 · 赚红亏绿 · 按金额分三档大小）
-          </Typography>
+      <Typography variant="caption" color="text.secondary">
+        与表格同源。同日多笔开仓合并为一点：总盈亏金额为正红、为负绿；点大小按 |金额| 分小/中/大。
+        悬停看当日明细。底部滑条缩放。
+      </Typography>
+      {overviewOption ? (
+        <ReactECharts
+          option={overviewOption}
+          style={{ height: 'min(72vh, 640px)', width: '100%' }}
+          notMerge
+          lazyUpdate
+        />
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          暂无曲线或成交数据，无法绘制事件图。
         </Typography>
-        <IconButton aria-label="关闭" onClick={() => setChartOpen(false)} edge="end">
-          <Icon name="cancel" size={18} />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1.5 }}>
-        <Typography variant="caption" color="text.secondary">
-          与表格同源。同日多笔开仓合并为一点：总盈亏金额为正红、为负绿；点大小按 |金额| 分小/中/大。
-          悬停看当日明细。底部滑条缩放。
-        </Typography>
-        {overviewOption ? (
-          <ReactECharts
-            option={overviewOption}
-            style={{ height: 'min(72vh, 640px)', width: '100%' }}
-            notMerge
-            lazyUpdate
-          />
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            暂无曲线或成交数据，无法绘制事件图。
-          </Typography>
-        )}
-      </DialogContent>
+      )}
     </Dialog>
   ) : null;
 

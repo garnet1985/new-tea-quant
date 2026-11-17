@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import Message from 'ui/message/message';
 import PropTypes from 'prop-types';
 import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  Alert,
   Box,
   CircularProgress,
   Stack,
@@ -552,13 +552,9 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
   if (!usableRank.length && !usableSweeps.length) {
     if (!scopeNote) return null;
     return (
-      <Alert
-        severity="info"
-        variant="outlined"
-        className="ntq-design-attr-report__scope-alert"
-      >
+      <Message status="info" className="ntq-design-attr-report__scope-alert">
         {scopeNote}
-      </Alert>
+      </Message>
     );
   }
 
@@ -570,13 +566,9 @@ function SweepPanel({ rank, sweeps, scopeNote, sections }) {
   return (
     <Stack spacing={2.5} className="ntq-design-attr-report__sweeps">
       {scopeNote ? (
-        <Alert
-          severity="info"
-          variant="outlined"
-          className="ntq-design-attr-report__scope-alert"
-        >
+        <Message status="info" className="ntq-design-attr-report__scope-alert">
           {scopeNote}
-        </Alert>
+        </Message>
       ) : null}
       {usableRank.length ? (
         <Box>
@@ -772,9 +764,9 @@ function StrategyDesignAttributeReport({
 
   if (error) {
     return (
-      <Alert severity="error" className="ntq-design-attr-report__alert">
+      <Message status="error" className="ntq-design-attr-report__alert">
         {error}
-      </Alert>
+      </Message>
     );
   }
 
@@ -793,13 +785,9 @@ function StrategyDesignAttributeReport({
   return (
     <Stack spacing={1.5} className="ntq-design-attr-report">
       {upstreamBridge ? (
-        <Alert
-          severity="info"
-          variant="outlined"
-          className="ntq-design-attr-report__scope-alert"
-        >
+        <Message status="info" className="ntq-design-attr-report__scope-alert">
           {upstreamBridge}
-        </Alert>
+        </Message>
       ) : null}
       {hasSweeps || (portfolioLayer && scopeNote) ? (
         <SweepPanel

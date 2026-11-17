@@ -1,10 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Box,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   MenuItem,
   Stack,
   TextField,
@@ -12,7 +8,7 @@ import {
 } from '@mui/material';
 import { fetchDecisionReport } from '../../api/decisionApi';
 import InlineLoadingState from '../../views/inlineLoadingState';
-import Button from 'views/ntqButton';
+import { Button, Dialog, Message } from 'ui';
 import { isHttpStatusError } from 'service/request';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -152,7 +148,7 @@ export default function DecisionReportPanel({
     return <InlineLoadingState block message="正在加载决策报告…" />;
   }
   if (error) {
-    return <Alert severity="error" variant="outlined">{error}</Alert>;
+    return <Message status="error">{error}</Message>;
   }
 
   return (
@@ -178,10 +174,14 @@ export default function DecisionReportPanel({
         stockRows={current.stockRows}
       />
 
-      <Dialog open={compareOpen} onClose={() => setCompareOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-            <Typography variant="h6" component="span">对比结果</Typography>
+      <Dialog
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        size="lg"
+        maxWidth="lg"
+        title={(
+          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ width: '100%' }}>
+            <span>对比结果</span>
             <TextField
               select
               size="small"
@@ -195,44 +195,43 @@ export default function DecisionReportPanel({
               ))}
             </TextField>
           </Stack>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Box className="ntq-report-compare__grid">
-            <Box>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                当前模拟回测（#{sessionId}）
-              </Typography>
+        )}
+      >
+        <Box className="ntq-report-compare__grid">
+          <Box>
+            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+              当前模拟回测（#{sessionId}）
+            </Typography>
+            <CapitalAllocationReport
+              hideTitle
+              metrics={current.capitalMetrics}
+              stockRows={current.stockRows}
+            />
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+              {compareLabel}
+            </Typography>
+            {compareBusy ? (
+              <InlineLoadingState block message="正在加载对比报告…" />
+            ) : null}
+            {compareError ? (
+              <Typography variant="body2" color="text.secondary">{compareError}</Typography>
+            ) : null}
+            {!compareBusy && !compareError && compared.capitalMetrics ? (
               <CapitalAllocationReport
                 hideTitle
-                metrics={current.capitalMetrics}
-                stockRows={current.stockRows}
+                metrics={compared.capitalMetrics}
+                stockRows={compared.stockRows}
               />
-            </Box>
-            <Box>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                {compareLabel}
+            ) : null}
+            {!compareBusy && !compareError && !compared.capitalMetrics && compareId === PORTFOLIO_COMPARE_ID ? (
+              <Typography variant="body2" color="text.secondary">
+                {COMPARE_EMPTY_OTHER_VERSION_ZH}
               </Typography>
-              {compareBusy ? (
-                <InlineLoadingState block message="正在加载对比报告…" />
-              ) : null}
-              {compareError ? (
-                <Typography variant="body2" color="text.secondary">{compareError}</Typography>
-              ) : null}
-              {!compareBusy && !compareError && compared.capitalMetrics ? (
-                <CapitalAllocationReport
-                  hideTitle
-                  metrics={compared.capitalMetrics}
-                  stockRows={compared.stockRows}
-                />
-              ) : null}
-              {!compareBusy && !compareError && !compared.capitalMetrics && compareId === PORTFOLIO_COMPARE_ID ? (
-                <Typography variant="body2" color="text.secondary">
-                  {COMPARE_EMPTY_OTHER_VERSION_ZH}
-                </Typography>
-              ) : null}
-            </Box>
+            ) : null}
           </Box>
-        </DialogContent>
+        </Box>
       </Dialog>
     </Box>
   );

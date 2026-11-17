@@ -1,17 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import Icon from 'views/ntqIcon';
 import {
-  Alert,
   Box,
   Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   Paper,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import { Dialog, Message } from 'ui';
 import EditorFieldLabel from './editorFieldLabel';
 
 /** 与 ``TextField`` multiline 输入一致，供只读 JSON / diff 视图复用核心设置编辑区观感 */
@@ -48,7 +45,7 @@ function DictParserStatusAlerts({ parser }) {
   return (
     <>
       {parser.parseError ? (
-        <Alert severity="error" sx={{ mb: 1 }}>
+        <Message status="error">
           <Typography variant="body2">{parser.parseError}</Typography>
           {parser.lineHint ? (
             <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>
@@ -60,11 +57,11 @@ function DictParserStatusAlerts({ parser }) {
               定位到第 {parser.errorLine} 行，第 {parser.errorColumn} 列。
             </Typography>
           ) : null}
-        </Alert>
+        </Message>
       ) : (
-        <Alert severity="success" sx={{ mb: 1 }}>
+        <Message status="success">
           格式正确
-        </Alert>
+        </Message>
       )}
 
       {parser.parseError && Array.isArray(parser.errorContext) && parser.errorContext.length > 0 ? (
@@ -193,9 +190,9 @@ function DictParserField({ field, context = {} }) {
 
   if (!parser) {
     return (
-      <Alert severity="warning">
+      <Message status="warning">
         Dict parser source not found: <strong>{sourceKey}</strong>
-      </Alert>
+      </Message>
     );
   }
 
@@ -226,8 +223,7 @@ function DictParserField({ field, context = {} }) {
         fullScreen
         open={fullscreenOpen}
         onClose={() => setFullscreenOpen(false)}
-      >
-        <DialogTitle sx={{ py: 1.25 }}>
+        title={(
           <DictParserToolbar
             field={field}
             context={context}
@@ -237,27 +233,18 @@ function DictParserField({ field, context = {} }) {
             variant="fullscreen"
             onCollapse={() => setFullscreenOpen(false)}
           />
-        </DialogTitle>
-        <DialogContent
-          dividers
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            pt: 1.5,
-            pb: 2,
-          }}
-        >
-          <DictParserStatusAlerts parser={parser} />
-          <Box sx={{ flex: 1, minHeight: 'min(72vh, 720px)', display: 'flex' }}>
-            <DictParserTextarea
-              parser={parser}
-              field={field}
-              inputRef={parser.fullscreenInputRef}
-              fullscreen
-              autoFocus
-            />
-          </Box>
-        </DialogContent>
+        )}
+      >
+        <DictParserStatusAlerts parser={parser} />
+        <Box sx={{ flex: 1, minHeight: 'min(72vh, 720px)', display: 'flex' }}>
+          <DictParserTextarea
+            parser={parser}
+            field={field}
+            inputRef={parser.fullscreenInputRef}
+            fullscreen
+            autoFocus
+          />
+        </Box>
       </Dialog>
     </Box>
   );

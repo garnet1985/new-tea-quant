@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Message from 'ui/message/message';
 import {
-  Alert,
   Chip,
   Divider,
   Paper,
@@ -411,9 +411,9 @@ function JsonFieldTestPage() {
             <Chip label={`leaves: ${metrics.leaves}`} size="small" />
           </Stack>
 
-          <Alert severity="warning" sx={{ mb: 1.5 }}>
+          <Message status="warning">
             可操作性评估标准（第一版）：能快速粘贴、看懂错误、修正后一次通过。
-          </Alert>
+          </Message>
 
           <Divider sx={{ mb: 1.5 }} />
           <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>

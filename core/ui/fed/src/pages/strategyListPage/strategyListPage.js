@@ -26,7 +26,7 @@ import SearchField from '../../views/searchField';
 import Button from '../../views/ntqButton';
 import CountTab from '../../views/countTab';
 import CountBadge from '../../views/countBadge';
-import Message from '../../views/message';
+import Message from 'ui/message/message';
 import { showToast } from 'containers/toast';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
@@ -280,7 +280,7 @@ function StrategyListPage({
       loading={!pageReady}
       loadingMessage="正在加载策略列表…"
     >
-      {loadError ? <Message severity="error" className="strategy-list-alert">{loadError}</Message> : null}
+      {loadError ? <Message status="error" className="strategy-list-alert">{loadError}</Message> : null}
 
       <Paper className="strategy-list-grid">
         <Stack

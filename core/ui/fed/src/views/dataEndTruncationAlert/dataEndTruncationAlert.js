@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Typography } from '@mui/material';
-import Message from 'views/message';
+import Message from 'ui/message/message';
 import './style.scss';
 
 function settingsLinkLabel(path) {
@@ -23,18 +22,17 @@ export default function DataEndTruncationAlert({ dataEnd, className = '' }) {
   const settingsPath = String(dataEnd.truncation_settings_path || '').trim();
 
   return (
-    <Message severity="warning" className={className}>
+    <Message status="warning" className={className}>
       {dataEnd.truncation_hint}
       {settingsPath ? (
         <>
           {' '}
-          <Typography
-            component={RouterLink}
+          <RouterLink
             to={settingsPath}
-            className="ntq-data-end-truncation-alert__link"
+            className="ntq-link ntq-data-end-truncation-alert__link"
           >
             {settingsLinkLabel(settingsPath)}
-          </Typography>
+          </RouterLink>
           {' '}
           修改。
         </>

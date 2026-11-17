@@ -1,11 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   List,
   ListItem,
   ListItemButton,
@@ -15,6 +10,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { Button, Dialog } from 'ui';
 import VersionPickLabel from './versionPickLabel';
 import { versionPickSearchText } from './versionPickMarks';
 import { formatVersionPickTime } from 'service/format/formatDateTime';
@@ -81,81 +77,86 @@ function VersionPickerDialog({
     if (closeOnSelect) onClose?.();
   };
 
+  const dialogTitle = (
+    <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2}>
+      <Box component="span" sx={{ flexShrink: 0 }}>{title}</Box>
+      {titleExtra || null}
+    </Stack>
+  );
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth sx={dialogSx}>
-      <DialogTitle sx={{ pr: 3 }}>
-        <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2}>
-          <Box component="span" sx={{ flexShrink: 0 }}>{title}</Box>
-          {titleExtra || null}
-        </Stack>
-      </DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={1}>
-          <TextField
-            size="small"
-            fullWidth
-            placeholder="搜索版本 ID、时间或标记"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-          />
-          <Typography variant="caption" color="text.secondary">
-            {pool.length > 0
-              ? `共 ${filtered.length} 条${filtered.length !== pool.length ? `（已筛选，全部 ${pool.length} 条）` : ''}`
-              : emptyHint}
-          </Typography>
-          <List className="ntq-version-picker-dialog__list">
-            {allowClear ? (
-              <ListItem disablePadding>
-                <ListItemButton selected={!selected} onClick={() => pick('')}>
-                  <ListItemText primary={clearLabel} />
-                </ListItemButton>
-              </ListItem>
-            ) : null}
-            {slice.length > 0 ? slice.map((version) => (
-              <ListItem
-                key={version.id}
-                disablePadding
-                secondaryAction={hasActions ? renderSecondaryAction(version) : null}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={dialogTitle}
+      size="sm"
+      sx={dialogSx}
+      actions={(
+        <Button variant="ghost" onClick={onClose}>关闭</Button>
+      )}
+    >
+      <Stack spacing={1}>
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="搜索版本 ID、时间或标记"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+        />
+        <Typography variant="caption" color="text.secondary">
+          {pool.length > 0
+            ? `共 ${filtered.length} 条${filtered.length !== pool.length ? `（已筛选，全部 ${pool.length} 条）` : ''}`
+            : emptyHint}
+        </Typography>
+        <List className="ntq-version-picker-dialog__list">
+          {allowClear ? (
+            <ListItem disablePadding>
+              <ListItemButton selected={!selected} onClick={() => pick('')}>
+                <ListItemText primary={clearLabel} />
+              </ListItemButton>
+            </ListItem>
+          ) : null}
+          {slice.length > 0 ? slice.map((version) => (
+            <ListItem
+              key={version.id}
+              disablePadding
+              secondaryAction={hasActions ? renderSecondaryAction(version) : null}
+            >
+              <ListItemButton
+                selected={version.id === selected}
+                sx={hasActions ? { pr: 14 } : undefined}
+                onClick={() => pick(version.id)}
               >
-                <ListItemButton
-                  selected={version.id === selected}
-                  sx={hasActions ? { pr: 14 } : undefined}
-                  onClick={() => pick(version.id)}
-                >
-                  <ListItemText
-                    primary={<VersionPickLabel version={version} />}
-                    secondary={formatVersionPickTime(version)}
-                  />
-                </ListItemButton>
-              </ListItem>
-            )) : null}
-            {slice.length === 0 && !(allowClear && pool.length === 0) ? (
-              <Box className="ntq-version-picker-dialog__empty">
-                <Typography variant="body2" color="text.secondary">
-                  {pool.length > 0 ? noMatchHint : emptyHint}
-                </Typography>
-              </Box>
-            ) : null}
-          </List>
-          {filtered.length > VERSION_PICKER_PAGE_SIZE ? (
-            <Box className="ntq-version-picker-dialog__pages">
-              <Pagination
-                count={totalPages}
-                page={currentPage}
-                onChange={(_event, nextPage) => setPage(nextPage)}
-                size="small"
-                color="primary"
-              />
+                <ListItemText
+                  primary={<VersionPickLabel version={version} />}
+                  secondary={formatVersionPickTime(version)}
+                />
+              </ListItemButton>
+            </ListItem>
+          )) : null}
+          {slice.length === 0 && !(allowClear && pool.length === 0) ? (
+            <Box className="ntq-version-picker-dialog__empty">
+              <Typography variant="body2" color="text.secondary">
+                {pool.length > 0 ? noMatchHint : emptyHint}
+              </Typography>
             </Box>
           ) : null}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>关闭</Button>
-      </DialogActions>
+        </List>
+        {filtered.length > VERSION_PICKER_PAGE_SIZE ? (
+          <Box className="ntq-version-picker-dialog__pages">
+            <Pagination
+              count={totalPages}
+              page={currentPage}
+              onChange={(_event, nextPage) => setPage(nextPage)}
+              size="small"
+              color="primary"
+            />
+          </Box>
+        ) : null}
+      </Stack>
     </Dialog>
   );
 }

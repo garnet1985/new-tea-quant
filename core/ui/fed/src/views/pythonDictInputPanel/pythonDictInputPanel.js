@@ -1,6 +1,6 @@
 import React from 'react';
+import Message from 'ui/message/message';
 import {
-  Alert,
   Box,
   Button,
   Paper,
@@ -46,7 +46,7 @@ function PythonDictInputPanel({
       </Stack>
 
       {parseError ? (
-        <Alert severity="error" sx={{ mb: 1.5 }}>
+        <Message status="error">
           <Typography variant="body2" sx={{ mb: lineHint ? 0.5 : 0 }}>
             {parseError}
           </Typography>
@@ -60,7 +60,7 @@ function PythonDictInputPanel({
               定位到第 {errorLine} 行，第 {errorColumn} 列。
             </Typography>
           ) : null}
-        </Alert>
+        </Message>
       ) : null}
 
       <TextField
@@ -80,9 +80,9 @@ function PythonDictInputPanel({
         placeholder="输入 JSON（例如 settings.core）"
       />
 
-      <Alert severity="info" sx={{ mt: 1.5 }}>
+      <Message status="info">
         支持两种输入：1) 标准 JSON；2) Python dict 风格（支持单引号、True/False/None、# 注释）。
-      </Alert>
+      </Message>
 
       {parseError && errorContext.length > 0 ? (
         <Paper variant="outlined" sx={{ mt: 1.5, p: 1, backgroundColor: 'grey.50' }}>

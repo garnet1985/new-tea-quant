@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Typography,
 } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import InlineLoadingState from 'views/inlineLoadingState';
 import Icon from 'views/ntqIcon';
+import { Dialog } from 'ui';
 import { fetchStrategyStockDetail } from 'api/strategyApi';
 import BacktestPeriodBanner from '../backtestPeriodBanner';
 import {
@@ -391,34 +389,26 @@ function ReportStockDetailView({
       onClose={onClose}
       fullScreen
       className="ntq-report-stock-detail-dialog"
-    >
-      <DialogTitle
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 2,
-          py: 1.25,
-          pr: 1,
-        }}
-      >
-        <Typography variant="subtitle1" fontWeight={700} component="span">
-          {stockCode}
-          {stockName && stockName !== stockCode ? ` · ${stockName}` : ''}
-          <Typography
-            component="span"
-            variant="caption"
-            color="text.secondary"
-            sx={{ ml: 1.5 }}
-          >
-            逐股审阅
+      title={(
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+          <Typography variant="subtitle1" fontWeight={700} component="span">
+            {stockCode}
+            {stockName && stockName !== stockCode ? ` · ${stockName}` : ''}
+            <Typography
+              component="span"
+              variant="caption"
+              color="text.secondary"
+              sx={{ ml: 1.5 }}
+            >
+              逐股审阅
+            </Typography>
           </Typography>
-        </Typography>
-        <IconButton aria-label="关闭" onClick={onClose} edge="end">
-          <Icon name="cancel" size={18} />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, pt: 1.5 }}>
+          <IconButton aria-label="关闭" onClick={onClose} edge="end">
+            <Icon name="cancel" size={18} />
+          </IconButton>
+        </span>
+      )}
+    >
         <BacktestPeriodBanner slot={periodSlot} />
         {payload?.candles?.length ? (
           <Typography variant="caption" color="text.secondary" component="div">
@@ -497,7 +487,6 @@ function ReportStockDetailView({
             </Typography>
           </Box>
         )}
-      </DialogContent>
     </Dialog>
   );
 }

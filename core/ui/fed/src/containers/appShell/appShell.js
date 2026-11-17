@@ -6,7 +6,7 @@ import AssistantChatDock from 'containers/assistantChatDock';
 import GlobalHelperHost from 'containers/globalHelper';
 import JobPipelineDock from 'containers/jobPipelineDock';
 import JobPipelineWatch from 'containers/jobPipelineWatch';
-import ToastHost from 'containers/toast';
+import { ToastHost } from 'ui';
 import PageBackground from 'views/pageBackground';
 import './style.scss';
 

@@ -1,6 +1,6 @@
 import React from 'react';
+import Message from 'ui/message/message';
 import {
-  Alert,
   Box,
   Card,
   CardContent,
@@ -71,12 +71,12 @@ function SetupExecutionPanel({
           {progressText}
         </Typography>
         {pollWarning ? (
-          <Alert severity="warning" sx={{ mb: 2 }}>
+          <Message status="warning">
             {pollWarning}
-          </Alert>
+          </Message>
         ) : null}
         {runningStep === 'import_data' && importProgress.running ? (
-          <Alert severity="info" sx={{ mb: 2 }}>
+          <Message status="info">
             {importProgress.phase === 'downloading' || importProgress.phase === 'preparing'
               ? (importProgress.statusText
                 || (importProgress.phase === 'downloading' ? '数据下载中…' : '准备导入…'))
@@ -89,7 +89,7 @@ function SetupExecutionPanel({
                   </>
                 )
                 : '准备导入…'}
-          </Alert>
+          </Message>
         ) : null}
         <Stack spacing={1} className="setup-page__step-list">
           {rows.map((row) => (

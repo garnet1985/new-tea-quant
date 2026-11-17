@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Chip,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Typography,
 } from '@mui/material';
@@ -12,8 +9,7 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import ReactECharts from 'echarts-for-react';
 import { fetchTagVisualization } from 'api/tagApi';
 import Icon from 'views/ntqIcon';
-import Button from 'views/ntqButton';
-import Message from 'views/message';
+import { Button, Dialog, Message } from 'ui';
 import InlineLoadingState from 'views/inlineLoadingState';
 import SearchField from 'views/searchField';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from 'views/dataGridLoadingOverlay';
@@ -311,26 +307,28 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
     <Dialog
       open={open}
       onClose={handleClose}
-      fullWidth
+      size="lg"
       maxWidth="lg"
       className="tag-viz-dialog"
-    >
-      <DialogTitle className="tag-viz-dialog__title">
-        <span className="tag-viz-dialog__heading">
-          <Typography variant="subtitle1" fontWeight={700} component="span">
-            {title || '标签可视化'}
-          </Typography>
-          {route ? (
-            <Typography component="span" variant="caption" color="text.secondary">
-              {routeSubtitle(route, drilled ? selectedLabel : '')}
+      title={(
+        <span className="tag-viz-dialog__title" style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span className="tag-viz-dialog__heading">
+            <Typography variant="subtitle1" fontWeight={700} component="span">
+              {title || '标签可视化'}
             </Typography>
-          ) : null}
+            {route ? (
+              <Typography component="span" variant="caption" color="text.secondary">
+                {routeSubtitle(route, drilled ? selectedLabel : '')}
+              </Typography>
+            ) : null}
+          </span>
+          <IconButton aria-label="关闭" onClick={handleClose} edge="end">
+            <Icon name="cancel" size={18} />
+          </IconButton>
         </span>
-        <IconButton aria-label="关闭" onClick={handleClose} edge="end">
-          <Icon name="cancel" size={18} />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent dividers className="tag-viz-dialog__body">
+      )}
+    >
+      <div className="tag-viz-dialog__body">
         {drilled ? (
           <div>
             <Button
@@ -347,7 +345,7 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
             </Button>
           </div>
         ) : null}
-        {error ? <Message severity="error">{error}</Message> : null}
+        {error ? <Message status="error">{error}</Message> : null}
         {loading ? <InlineLoadingState message="正在加载标签数据…" /> : null}
         {!loading && !error && payload ? (
           <>
@@ -435,7 +433,7 @@ function TagVisualization({ open, tagKey, displayName, onClose }) {
             ) : null}
           </>
         ) : null}
-      </DialogContent>
+      </div>
     </Dialog>
   );
 }

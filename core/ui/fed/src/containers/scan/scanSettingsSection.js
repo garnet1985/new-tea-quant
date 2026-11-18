@@ -22,7 +22,7 @@ export default function ScanSettingsSection({
   return (
     <Section className="scan-section scan-section--settings" gap="none">
       <div className="scan-settings">
-        <div className="scan-settings__modes">
+        <div className="scan-settings__modes" data-ntq-help="scan-mode">
           <RadioGroup
             label="扫描模式"
             variant="button"
@@ -48,7 +48,7 @@ export default function ScanSettingsSection({
 
         <div className="scan-settings__divider" aria-hidden />
 
-        <div className="scan-settings__post">
+        <div className="scan-settings__post" data-ntq-help="scan-post-process">
           <div className="scan-settings__post-head">
             <Heading level="h4" gap="none" className="scan-settings__label">
               扫描后处理

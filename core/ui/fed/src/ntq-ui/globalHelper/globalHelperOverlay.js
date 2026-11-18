@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Button } from 'ui';
+import { renderHelpRichText } from './helpRichText';
 import './style.scss';
 
 /**
@@ -55,8 +56,12 @@ function GlobalHelperOverlay({
             aria-label="关闭引导"
           />
         </div>
-        {title ? <h2 className="ntq-global-helper__title">{title}</h2> : null}
-        {body ? <p className="ntq-global-helper__body">{body}</p> : null}
+        {title ? (
+          <h2 className="ntq-global-helper__title">{renderHelpRichText(title)}</h2>
+        ) : null}
+        {body ? (
+          <p className="ntq-global-helper__body">{renderHelpRichText(body)}</p>
+        ) : null}
         {image ? (
           <img className="ntq-global-helper__image" src={image} alt="" />
         ) : null}
@@ -107,8 +112,8 @@ GlobalHelperOverlay.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
-  title: PropTypes.string,
-  body: PropTypes.string,
+  title: PropTypes.node,
+  body: PropTypes.node,
   image: PropTypes.string,
   stepLabel: PropTypes.string,
   isFirst: PropTypes.bool,

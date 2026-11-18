@@ -96,6 +96,11 @@
   color: var(--ntq-text);
 }
 
+.ntq-global-helper__term {
+  color: var(--ntq-cyan);
+  font-weight: var(--ntq-font-weight-medium);
+}
+
 .ntq-global-helper__image {
   display: block;
   width: 100%;

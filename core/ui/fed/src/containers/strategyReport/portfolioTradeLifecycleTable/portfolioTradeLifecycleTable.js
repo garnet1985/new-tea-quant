@@ -38,6 +38,7 @@ function TradeChartOpenButton({ onClick, disabled = false }) {
       aria-label="打开逐笔事件图"
       tooltip="打开逐笔事件图"
       className="ntq-report-trade-chart-btn"
+      data-ntq-help="strategy-report-portfolio-chart"
       onClick={onClick}
     />
   );

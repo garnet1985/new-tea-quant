@@ -11,9 +11,9 @@ const doc = {
     },
     {
       name: 'title / body / image',
-      type: 'string',
+      type: 'string | ReactNode',
       defaultValue: "''",
-      description: '说明卡内容；image 可选截图 URL。',
+      description: '说明卡内容；文案里用「专有名词」会自动青色高亮。image 可选截图 URL。',
     },
     {
       name: 'stepLabel',

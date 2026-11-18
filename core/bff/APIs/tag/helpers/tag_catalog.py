@@ -94,6 +94,8 @@ class TagCatalog:
             "display_name": display_name,
             "is_enabled": bool(settings.get("is_enabled")),
             "description": description,
+            "category": cls._category(meta),
+            "data_key": cls._data_key(settings),
             "tag_definitions": cls._tag_definitions_from_settings(settings),
             "last_computed_as_of": last_computed_as_of,
             "compute_status": compute_status,
@@ -135,6 +137,24 @@ class TagCatalog:
             display = str(item.get("display_name") or name).strip()
             out.append({"name": name, "display_name": display})
         return out
+
+    @classmethod
+    def _category(cls, meta: Dict[str, Any]) -> str:
+        raw = meta.get("category")
+        if isinstance(raw, list):
+            parts = [str(x).strip() for x in raw if str(x).strip()]
+            return parts[0] if parts else ""
+        return str(raw or "").strip()
+
+    @classmethod
+    def _data_key(cls, settings: Dict[str, Any]) -> str:
+        data = settings.get("data") or {}
+        if not isinstance(data, dict):
+            return ""
+        base = data.get("base") or {}
+        if not isinstance(base, dict):
+            return ""
+        return str(base.get("data_key") or "").strip()
 
     @classmethod
     def _execution_mode(cls, settings: Dict[str, Any]) -> str:

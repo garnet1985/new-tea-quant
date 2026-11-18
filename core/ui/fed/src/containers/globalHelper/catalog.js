@@ -1,26 +1,54 @@
 import {
+  STRATEGY_DESIGN_ENUM_HELP,
+  STRATEGY_DESIGN_PORTFOLIO_HELP,
+  STRATEGY_DESIGN_PRICE_HELP,
   STRATEGY_LAYOUT_HELP,
   STRATEGY_REPORT_COMPARE_HELP,
+  STRATEGY_REPORT_PORTFOLIO_CHART_HELP,
+  STRATEGY_REPORT_STOCK_HELP,
   STRATEGY_VERSION_AND_REPORT_HELP,
 } from './helps/strategyDesign';
-import { STRATEGY_DESIGN_DECISION_HELP } from './helps/strategyDesignDecision';
+import {
+  STRATEGY_DESIGN_DECISION_HELP,
+  STRATEGY_DESIGN_DECISION_INTRO_HELP,
+} from './helps/strategyDesignDecision';
+import { SCAN_HELP } from './helps/scan';
 import { STRATEGY_LIST_HELP } from './helps/strategyList';
+import { TAG_LIST_HELP } from './helps/tagList';
 import { WELCOME_HELP } from './helps/welcome';
 
 export {
+  matchStrategyDesignEnum,
+  matchStrategyDesignPortfolio,
+  matchStrategyDesignPrice,
   matchStrategyDesignWorkbench,
+  STRATEGY_DESIGN_ENUM_HELP,
+  STRATEGY_DESIGN_PORTFOLIO_HELP,
+  STRATEGY_DESIGN_PRICE_HELP,
   STRATEGY_LAYOUT_HELP,
+  STRATEGY_LAYOUT_STEPS,
   STRATEGY_REPORT_COMPARE_HELP,
+  STRATEGY_REPORT_PORTFOLIO_CHART_HELP,
+  STRATEGY_REPORT_STOCK_HELP,
   STRATEGY_VERSION_AND_REPORT_HELP,
 } from './helps/strategyDesign';
 export {
   matchStrategyDesignDecision,
   STRATEGY_DESIGN_DECISION_HELP,
+  STRATEGY_DESIGN_DECISION_INTRO_HELP,
 } from './helps/strategyDesignDecision';
 export {
   matchStrategyList,
   STRATEGY_LIST_HELP,
 } from './helps/strategyList';
+export {
+  matchScan,
+  SCAN_HELP,
+} from './helps/scan';
+export {
+  matchTagList,
+  TAG_LIST_HELP,
+} from './helps/tagList';
 export {
   matchWelcome,
   WELCOME_HELP,
@@ -30,9 +58,16 @@ export {
 export const GLOBAL_HELPER_CATALOG = [
   WELCOME_HELP,
   STRATEGY_LIST_HELP,
-  STRATEGY_LAYOUT_HELP,
+  SCAN_HELP,
+  TAG_LIST_HELP,
+  STRATEGY_DESIGN_ENUM_HELP,
+  STRATEGY_DESIGN_PRICE_HELP,
+  STRATEGY_DESIGN_PORTFOLIO_HELP,
+  STRATEGY_DESIGN_DECISION_INTRO_HELP,
   STRATEGY_VERSION_AND_REPORT_HELP,
+  STRATEGY_REPORT_STOCK_HELP,
   STRATEGY_REPORT_COMPARE_HELP,
+  STRATEGY_REPORT_PORTFOLIO_CHART_HELP,
   STRATEGY_DESIGN_DECISION_HELP,
 ];
 

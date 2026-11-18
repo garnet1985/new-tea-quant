@@ -113,7 +113,12 @@ function DataContractListPage() {
       minWidth: 220,
       flex: 0.55,
       renderCell: (params) => (
-        <span className="data-contract-list-key ntq-muted">{params.value}</span>
+        <span
+          className="data-contract-list-key ntq-muted"
+          data-ntq-help="data-contract-list-key"
+        >
+          {params.value}
+        </span>
       ),
     },
     {
@@ -122,11 +127,13 @@ function DataContractListPage() {
       width: 100,
       valueGetter: (params) => getDataContractOriginLabel(params.row.origin),
       renderCell: (params) => (
-        params.row.is_custom ? (
-          <Tag status="info" variant="outline">{params.value}</Tag>
-        ) : (
-          <Tag status="neutral" variant="outline">{params.value}</Tag>
-        )
+        <span data-ntq-help="data-contract-list-origin">
+          {params.row.is_custom ? (
+            <Tag status="info" variant="outline">{params.value}</Tag>
+          ) : (
+            <Tag status="neutral" variant="outline">{params.value}</Tag>
+          )}
+        </span>
       ),
     },
     {
@@ -134,7 +141,9 @@ function DataContractListPage() {
       headerName: '时序',
       width: 100,
       renderCell: (params) => (
-        <BoolTag value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
+        <span data-ntq-help="data-contract-list-time-series">
+          <BoolTag value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
+        </span>
       ),
     },
     {
@@ -142,7 +151,9 @@ function DataContractListPage() {
       headerName: '按实体',
       width: 100,
       renderCell: (params) => (
-        <BoolTag value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
+        <span data-ntq-help="data-contract-list-per-entity">
+          <BoolTag value={Boolean(params.value)} trueLabel="是" falseLabel="否" />
+        </span>
       ),
     },
   ]), []);
@@ -175,14 +186,16 @@ function DataContractListPage() {
               />
             )}
             actions={(
-              <Button
-                variant="glass"
-                icon="refresh"
-                onClick={rediscover}
-                disabled={busy}
-              >
-                {rediscovering ? '发现中…' : '重新发现'}
-              </Button>
+              <span data-ntq-help="data-contract-list-rediscover">
+                <Button
+                  variant="glass"
+                  icon="refresh"
+                  onClick={rediscover}
+                  disabled={busy}
+                >
+                  {rediscovering ? '发现中…' : '重新发现'}
+                </Button>
+              </span>
             )}
           />
 

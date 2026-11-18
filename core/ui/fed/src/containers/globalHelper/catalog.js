@@ -12,6 +12,8 @@ import {
   STRATEGY_DESIGN_DECISION_HELP,
   STRATEGY_DESIGN_DECISION_INTRO_HELP,
 } from './helps/strategyDesignDecision';
+import { DATA_CONTRACT_LIST_HELP } from './helps/dataContractList';
+import { DATA_SOURCE_LIST_HELP } from './helps/dataSourceList';
 import { SCAN_HELP } from './helps/scan';
 import { STRATEGY_LIST_HELP } from './helps/strategyList';
 import { TAG_LIST_HELP } from './helps/tagList';
@@ -50,6 +52,14 @@ export {
   TAG_LIST_HELP,
 } from './helps/tagList';
 export {
+  matchDataSourceList,
+  DATA_SOURCE_LIST_HELP,
+} from './helps/dataSourceList';
+export {
+  matchDataContractList,
+  DATA_CONTRACT_LIST_HELP,
+} from './helps/dataContractList';
+export {
   matchWelcome,
   WELCOME_HELP,
 } from './helps/welcome';
@@ -60,6 +70,8 @@ export const GLOBAL_HELPER_CATALOG = [
   STRATEGY_LIST_HELP,
   SCAN_HELP,
   TAG_LIST_HELP,
+  DATA_SOURCE_LIST_HELP,
+  DATA_CONTRACT_LIST_HELP,
   STRATEGY_DESIGN_ENUM_HELP,
   STRATEGY_DESIGN_PRICE_HELP,
   STRATEGY_DESIGN_PORTFOLIO_HELP,

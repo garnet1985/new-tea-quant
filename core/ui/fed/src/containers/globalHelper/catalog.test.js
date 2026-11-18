@@ -3,6 +3,8 @@ import {
   findHelpsForPath,
   helpTrigger,
   isHelpDismissed,
+  matchDataContractList,
+  matchDataSourceList,
   matchScan,
   matchStrategyDesignDecision,
   matchStrategyDesignWorkbench,
@@ -43,6 +45,24 @@ describe('matchTagList', () => {
     expect(matchTagList('/advanced/tags/')).toBe(true);
     expect(matchTagList('/advanced')).toBe(false);
     expect(matchTagList('/scan')).toBe(false);
+  });
+});
+
+describe('matchDataSourceList', () => {
+  it('matches only /advanced/data-sources', () => {
+    expect(matchDataSourceList('/advanced/data-sources')).toBe(true);
+    expect(matchDataSourceList('/advanced/data-sources/')).toBe(true);
+    expect(matchDataSourceList('/advanced/tags')).toBe(false);
+    expect(matchDataSourceList('/scan')).toBe(false);
+  });
+});
+
+describe('matchDataContractList', () => {
+  it('matches only /advanced/data-contracts', () => {
+    expect(matchDataContractList('/advanced/data-contracts')).toBe(true);
+    expect(matchDataContractList('/advanced/data-contracts/')).toBe(true);
+    expect(matchDataContractList('/advanced/data-sources')).toBe(false);
+    expect(matchDataContractList('/scan')).toBe(false);
   });
 });
 
@@ -122,6 +142,35 @@ describe('findHelpForPath / isHelpDismissed', () => {
       'tag-list-update-mode',
       'tag-list-definitions',
       'tag-list-visualize',
+    ]);
+  });
+
+  it('returns the data-source-list help on /advanced/data-sources', () => {
+    const helps = findHelpsForPath('/advanced/data-sources');
+    expect(helps.map((item) => item.id)).toEqual(['data-source-list']);
+    expect(helpTrigger(helps[0])).toBe('enter');
+    expect(String(helps[0].steps[0].target || '')).toBe('');
+    expect(helps[0].steps.slice(1).map((step) => step.target)).toEqual([
+      'data-source-list-providers',
+      'data-source-list-status',
+      'data-source-list-origin',
+      'data-source-list-renew-type',
+      'data-source-list-rate-limit',
+      'data-source-list-auth',
+    ]);
+  });
+
+  it('returns the data-contract-list help on /advanced/data-contracts', () => {
+    const helps = findHelpsForPath('/advanced/data-contracts');
+    expect(helps.map((item) => item.id)).toEqual(['data-contract-list']);
+    expect(helpTrigger(helps[0])).toBe('enter');
+    expect(String(helps[0].steps[0].target || '')).toBe('');
+    expect(helps[0].steps.slice(1).map((step) => step.target)).toEqual([
+      'data-contract-list-rediscover',
+      'data-contract-list-key',
+      'data-contract-list-origin',
+      'data-contract-list-time-series',
+      'data-contract-list-per-entity',
     ]);
   });
 

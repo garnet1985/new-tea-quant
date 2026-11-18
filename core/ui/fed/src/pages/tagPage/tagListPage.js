@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Button,
+  CategoryChipStrip,
   DataGrid,
   HelpTooltip,
   Icon,
@@ -25,7 +27,11 @@ import {
   getTagUpdateModeLabel,
   startTagRun,
 } from '../../api/tagApi';
-import DataEndTruncationAlert from 'containers/dataEndTruncation';
+import {
+  groupStrategiesByCategory,
+  readStrategyListCategoryQuery,
+  STRATEGY_LIST_CATEGORY_PARAM,
+} from 'containers/strategyCategory';
 import DescriptionText from 'ntq-ui/descriptionText';
 import UpdateStatusChip from 'ntq-ui/updateStatusChip';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
@@ -61,8 +67,8 @@ function ComputeStatusChip({ row }) {
 }
 
 function TagListPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
-  const [dataEnd, setDataEnd] = useState({});
   const [loading, setLoading] = useState(true);
   const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -79,9 +85,39 @@ function TagListPage() {
   const [vizTarget, setVizTarget] = useState(null);
 
   const pollRef = useRef({ timeoutId: null });
+  const selectedChipRef = useRef(null);
   const runningTagIdRef = useRef('');
   runningTagIdRef.current = runningTagId;
   const running = Boolean(runningTagId) && Boolean(runningJobId);
+
+  const categoryQuery = readStrategyListCategoryQuery(searchParams);
+
+  const catalogGroups = useMemo(
+    () => groupStrategiesByCategory(rows),
+    [rows],
+  );
+
+  const categoryFilteredRows = useMemo(() => {
+    if (!categoryQuery) return rows;
+    const match = catalogGroups.find((g) => g.queryValue === categoryQuery);
+    return match ? match.rows : [];
+  }, [rows, categoryQuery, catalogGroups]);
+
+  const setCategoryQuery = useCallback((nextQuery) => {
+    const q = String(nextQuery || '').trim();
+    if (q === categoryQuery) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (q) next.set(STRATEGY_LIST_CATEGORY_PARAM, q);
+      else next.delete(STRATEGY_LIST_CATEGORY_PARAM);
+      return next;
+    });
+  }, [categoryQuery, setSearchParams]);
+
+  const toggleCategoryQuery = useCallback((queryValue) => {
+    const q = String(queryValue || '').trim();
+    setCategoryQuery(q && q === categoryQuery ? '' : q);
+  }, [categoryQuery, setCategoryQuery]);
 
   const TagListGridRow = useCallback((rowProps) => {
     const progress = rowProps.row.__progress;
@@ -107,17 +143,26 @@ function TagListPage() {
 
   const displayRows = useMemo(() => {
     const q = nameQuery.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
+    if (!q) return categoryFilteredRows;
+    return categoryFilteredRows.filter((r) => {
       const id = String(r.name || '').toLowerCase();
       const label = String(r.display_name || '').toLowerCase();
       const desc = String(r.description || '').toLowerCase();
+      const category = String(r.category || '').toLowerCase();
+      const dataKey = String(r.data_key || '').toLowerCase();
       const tags = (r.tag_definitions || [])
         .map((t) => `${t.display_name || ''} ${t.name || ''}`.toLowerCase())
         .join(' ');
-      return id.includes(q) || label.includes(q) || desc.includes(q) || tags.includes(q);
+      return (
+        id.includes(q)
+        || label.includes(q)
+        || desc.includes(q)
+        || category.includes(q)
+        || dataKey.includes(q)
+        || tags.includes(q)
+      );
     });
-  }, [rows, nameQuery]);
+  }, [categoryFilteredRows, nameQuery]);
 
   const refreshPipeline = useCallback(() => {
     fetchPipelineStatus()
@@ -139,11 +184,9 @@ function TagListPage() {
     fetchTagList({ page: 1, limit: 200 })
       .then((res) => {
         setRows(clearRowProgress(Array.isArray(res?.data) ? res.data : []));
-        setDataEnd(res?.dataEnd && typeof res.dataEnd === 'object' ? res.dataEnd : {});
       })
       .catch((e) => {
         setRows([]);
-        setDataEnd({});
         setLoadError(e?.message || '加载 Tag 列表失败');
       })
       .finally(() => {
@@ -168,7 +211,7 @@ function TagListPage() {
 
   useEffect(() => {
     setPaginationModel((m) => ({ ...m, page: 0 }));
-  }, [nameQuery]);
+  }, [nameQuery, categoryQuery]);
 
   useEffect(() => () => {
     if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
@@ -203,6 +246,20 @@ function TagListPage() {
       },
     },
     {
+      field: 'data_key',
+      headerName: '贴标对象',
+      minWidth: 160,
+      flex: 0.35,
+      renderCell: (params) => {
+        const dataKey = String(params.row.data_key || '').trim();
+        return (
+          <span data-ntq-help="tag-list-data-key" className={dataKey ? undefined : 'ntq-muted'}>
+            {dataKey || '—'}
+          </span>
+        );
+      },
+    },
+    {
       field: 'is_enabled',
       headerName: '启用状态',
       width: 110,
@@ -231,7 +288,11 @@ function TagListPage() {
         else title = '运行 Tag 计算';
 
         return (
-          <span className="tag-list-run-btn-wrap" title={title}>
+          <span
+            className="tag-list-run-btn-wrap"
+            title={title}
+            data-ntq-help="tag-list-run"
+          >
             <RainbowButton
               icon="play"
               disabled={disableRun}
@@ -289,7 +350,7 @@ function TagListPage() {
         const computed = Boolean(String(params.row.last_computed_as_of || '').trim());
         const title = computed ? '打开标签可视化' : '尚未计算，无法可视化';
         return (
-          <span className="tag-list-run-btn-wrap">
+          <span className="tag-list-run-btn-wrap" data-ntq-help="tag-list-visualize">
             <Button
               variant="glass"
               icon="monitoring"
@@ -320,7 +381,7 @@ function TagListPage() {
         const label = getTagUpdateModeLabel(params.row.update_mode);
         const iconName = getTagUpdateModeIcon(params.row.update_mode);
         return (
-          <div className="tag-list-cell-mode">
+          <div className="tag-list-cell-mode" data-ntq-help="tag-list-update-mode">
             <Icon name={iconName} size="lg" tone="cyan" />
             <span>{label}</span>
           </div>
@@ -332,7 +393,11 @@ function TagListPage() {
       headerName: '数据状态',
       width: 110,
       valueGetter: (params) => getTagComputeStatusLabel(params.row),
-      renderCell: (params) => <ComputeStatusChip row={params.row} />,
+      renderCell: (params) => (
+        <span data-ntq-help="tag-list-status">
+          <ComputeStatusChip row={params.row} />
+        </span>
+      ),
     },
     {
       field: 'last_computed_as_of',
@@ -356,7 +421,7 @@ function TagListPage() {
           return <span className="ntq-muted">—</span>;
         }
         return (
-          <div className="tag-list-cell-tags">
+          <div className="tag-list-cell-tags" data-ntq-help="tag-list-definitions">
             {defs.map((t) => (
               <Tag key={t.name} variant="solid" color={tagColorFromName(t.name)}>
                 {t.display_name || t.name}
@@ -458,7 +523,6 @@ function TagListPage() {
     >
       <Section className="tag-list-page__stack" gap="md">
         {loadError ? <Message status="error">{loadError}</Message> : null}
-        <DataEndTruncationAlert dataEnd={dataEnd} />
         {pipelineError ? (
           <Message status="warning" onClose={() => setPipelineError('')}>
             {pipelineError}
@@ -476,7 +540,7 @@ function TagListPage() {
               <SearchField
                 fluid
                 surface="glass"
-                placeholder="搜索场景名或 Tag"
+                placeholder="搜索场景名、Tag 或 data_key"
                 label="搜索 Tag 场景"
                 value={nameQuery}
                 onChange={(e) => setNameQuery(e.target.value)}
@@ -493,6 +557,28 @@ function TagListPage() {
               </Button>
             )}
           />
+
+          {catalogGroups.length > 0 ? (
+            <div data-ntq-help="tag-list-filter">
+              <CategoryChipStrip
+                all={{
+                  label: '全部',
+                  count: rows.length,
+                  selected: !categoryQuery,
+                  onClick: () => setCategoryQuery(''),
+                }}
+                items={catalogGroups.map(({ category, queryValue, rows: categoryRows }) => ({
+                  key: queryValue,
+                  label: category,
+                  count: categoryRows.length,
+                  title: category,
+                  selected: categoryQuery === queryValue,
+                  onClick: () => toggleCategoryQuery(queryValue),
+                }))}
+                selectedItemRef={selectedChipRef}
+              />
+            </div>
+          ) : null}
 
           <div className="tag-list-grid-body">
             <DataGrid

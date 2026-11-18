@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import RainbowButton from 'ntq-ui/rainbowButton';
+import './style.scss';
 
 function GlobalHelperButton({ onClick }) {
   return (

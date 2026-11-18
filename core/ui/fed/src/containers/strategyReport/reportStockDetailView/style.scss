@@ -33,16 +33,16 @@
 }
 
 .ntq-report-stock-detail__chart {
-  flex: 1 1 auto;
   width: 100%;
-  min-height: 420px;
+  height: 520px;
+  margin-bottom: 0.75rem;
 
   @media (min-width: 600px) {
-    min-height: 560px;
+    height: 560px;
   }
 
   @media (min-width: 900px) {
-    min-height: calc(100vh - 280px);
+    height: min(640px, 55vh);
   }
 }
 

@@ -3,8 +3,8 @@ import {
   HEADING_BAR_TOKENS,
   RADIUS_TOKENS,
   SPACE_TOKENS,
-  SURFACE_TOKENS,
   pickToken,
+  resolveSurfaceToken,
 } from 'ui/tokens';
 import './style.scss';
 
@@ -13,12 +13,12 @@ import './style.scss';
  * 可带左侧竖条 + 可选表面；不是标题——标题用 Heading。
  *
  * @example
- * <TextBlock bar="cyan" surface="soft">组件用途说明…</TextBlock>
- * <TextBlock bar="warning" surface="soft"><ul>…</ul></TextBlock>
+ * <TextBlock bar="cyan" surface="glass">组件用途说明…</TextBlock>
+ * <TextBlock bar="warning" surface="frost"><ul>…</ul></TextBlock>
  */
 function TextBlock({
   bar = 'cyan',
-  surface = 'soft',
+  surface = 'glass',
   radius = 'md',
   padding = 'md',
   className = '',
@@ -27,7 +27,7 @@ function TextBlock({
   ...rest
 }) {
   const barToken = HEADING_BAR_TOKENS.includes(bar) ? bar : 'cyan';
-  const surfaceToken = pickToken(surface, SURFACE_TOKENS, 'soft');
+  const surfaceToken = resolveSurfaceToken(surface);
   const radiusToken = pickToken(radius, RADIUS_TOKENS, 'md');
   const paddingToken = pickToken(padding, SPACE_TOKENS, 'md');
 

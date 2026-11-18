@@ -5,9 +5,16 @@
 
 .strategy-list-grid {
   padding: var(--ui-space-md);
-  background: var(--ui-surface-soft);
+  background: var(--ui-surface-glass);
   border: 1px solid var(--ui-divider-color, var(--ui-white-12));
   border-radius: var(--ui-radius-md, 0.5rem);
+}
+
+.strategy-list-toolbar-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-sm);
 }
 
 .strategy-list-category-empty {

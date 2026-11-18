@@ -102,6 +102,9 @@ function StepHit({
 /**
  * 步骤条（回测视觉）。纯展示 + 可选点击跳转，不含路由/会话。
  *
+ * ``layout="compact"``：固定间距、内容宽（回测默认）。
+ * ``layout="spread"``：等分铺满父宽，圆点与下方文案一对齐（安装引导等）。
+ *
  * @example
  * <Stepper
  *   activeId="price"
@@ -111,22 +114,27 @@ function StepHit({
  *     { id: 'portfolio', label: '投资模拟', status: 'idle' },
  *   ]}
  * />
- * <Stepper showProgress={false} activeId="enum" items={items} />
+ * <Stepper layout="spread" showLabels showProgress={false} items={items} />
  */
 function Stepper({
   items = [],
   activeId = null,
   showProgress = true,
+  showLabels = false,
+  layout = 'compact',
   onItemClick,
   className = '',
   'aria-label': ariaLabel = '步骤',
 }) {
   const list = Array.isArray(items) ? items : [];
   const count = list.length;
+  const layoutToken = layout === 'spread' ? 'spread' : 'compact';
 
   const rootClass = [
     'ntq-stepper',
+    `ntq-stepper--${layoutToken}`,
     showProgress ? '' : 'ntq-stepper--no-progress',
+    showLabels ? 'ntq-stepper--with-labels' : '',
     className,
   ].filter(Boolean).join(' ');
 
@@ -146,6 +154,7 @@ function Stepper({
         );
         const showRing = showProgress
           && (visual.kind === 'running' || visual.kind === 'pending');
+        const label = String(item.label || '').trim();
 
         return (
           <StepHit
@@ -193,6 +202,9 @@ function Stepper({
                 </span>
               </span>
             </span>
+            {showLabels && label ? (
+              <span className="ntq-stepper__label">{label}</span>
+            ) : null}
           </StepHit>
         );
       })}

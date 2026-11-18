@@ -19,10 +19,37 @@ export const FONT_TOKENS = ['xs', 'sm', 'normal', 'md', 'lg', 'xl'];
 export const RADIUS_TOKENS = ['none', 'sm', 'md', 'lg', 'pill'];
 export const ALIGN_TOKENS = ['stretch', 'start', 'center', 'end'];
 
-/** Block 表面（背景 / 玻璃 / 渐变） */
-export const SURFACE_TOKENS = ['none', 'soft', 'panel', 'glass', 'gradient'];
+/**
+ * Wrapper / Block 表面（三档 + 旧名兼容）。
+ * - glass：透光玻璃（浅白抬亮，无 blur）
+ * - frost：毛玻璃（抬亮 + blur）
+ * - frost-strong：渐变毛玻璃（ink 遮罩 + blur）
+ * 旧名：soft→glass，panel→frost，gradient→frost-strong
+ */
+export const SURFACE_TOKENS = [
+  'none',
+  'glass',
+  'frost',
+  'frost-strong',
+  'soft',
+  'panel',
+  'gradient',
+];
 
-/** 输入控件表面：solid=默认深色实底；glass=半透明玻璃 */
+const SURFACE_ALIASES = {
+  soft: 'glass',
+  panel: 'frost',
+  gradient: 'frost-strong',
+};
+
+/** 把 surface prop 归一到三档（或 none）。 */
+export function resolveSurfaceToken(surface) {
+  const raw = pickToken(surface, SURFACE_TOKENS, 'none');
+  if (raw === 'none') return 'none';
+  return SURFACE_ALIASES[raw] || raw;
+}
+
+/** 输入控件表面：solid=默认深色实底；glass=半透明玻璃（与 wrapper 三档无关） */
 export const INPUT_SURFACE_TOKENS = ['solid', 'glass'];
 
 /** Column 列间分隔 */

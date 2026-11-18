@@ -85,16 +85,29 @@ body {
   --ui-blur-sm: 0.5rem;
   --ui-blur-md: 1rem;
 
-  // 表面：白色半透明叠层（不是深墨实底）+ 组件侧配 blur；略高于旧 03/06，仍可透背景
-  --ui-surface-soft: rgba(255, 255, 255, 0.06);
-  --ui-surface-panel: rgba(255, 255, 255, 0.10);
-  --ui-surface-glass: rgba(255, 255, 255, 0.08);
-  --ui-surface-gradient:
+  // ---------------------------------------------------------------------------
+  // Wrapper 表面：只三种。抬亮 alpha 统一，用「有无 blur / 有无渐变」区分。
+  // 1) glass        透光玻璃：浅白抬亮，不模糊
+  // 2) frost        毛玻璃：同抬亮 + blur，柔化背景
+  // 3) frost-strong 渐变毛玻璃：ink 遮罩 + 浅抬亮 + blur，强隔底
+  // blur 由组件 class 施加；此处只定义 fill。
+  // ---------------------------------------------------------------------------
+  --ui-surface-lift: rgba(255, 255, 255, 0.06);
+
+  --ui-surface-glass: var(--ui-surface-lift);
+  --ui-surface-frost: var(--ui-surface-lift);
+  --ui-surface-frost-strong:
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.08) 0%,
-      rgba(255, 255, 255, 0.03) 100%
-    );
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    ),
+    color-mix(in srgb, var(--ui-ink) 52%, transparent);
+
+  // 旧名兼容（fill）；blur 行为见 Block / .ui-surface-* class
+  --ui-surface-soft: var(--ui-surface-glass);
+  --ui-surface-panel: var(--ui-surface-frost);
+  --ui-surface-gradient: var(--ui-surface-frost-strong);
 
   --ui-divider-color: var(--ui-white-12);
   --ui-layout-sidebar-width: 14.25rem;

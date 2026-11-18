@@ -1,10 +1,11 @@
-.ntq-report-block {
+/* 步骤报告纵向堆叠（勿再用 ntq-report-block：会撞上 ntq-ui ReportBlock 的边框壳） */
+.ntq-report-step-stack {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.ntq-report-block__title {
+.ntq-report-step-stack__title {
   margin: 0;
   font-size: var(--ui-font-sm, 0.875rem);
   font-weight: 600;
@@ -12,13 +13,13 @@
   color: var(--ntq-text, rgba(255, 255, 255, 0.92));
 }
 
-.ntq-report-block__stack {
+.ntq-report-step-stack__group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.ntq-report-block__chart-fallback {
+.ntq-report-step-stack__chart-fallback {
   &--spaced {
     margin-top: 0.5rem;
   }

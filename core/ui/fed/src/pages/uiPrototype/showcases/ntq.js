@@ -13,6 +13,8 @@ import BecomeMemberLink from 'ntq-ui/becomeMemberLink';
 import DescriptionText from 'ntq-ui/descriptionText';
 import PageBackground from 'ntq-ui/pageBackground';
 import UpdateStatusChip from 'ntq-ui/updateStatusChip';
+import { GlobalHelperOverlay } from 'ntq-ui/globalHelper';
+import RainbowButton from 'ntq-ui/rainbowButton';
 import MetricCard from 'ui/metric/metricCard';
 import MetricGrid from 'ui/metric/metricGrid';
 import Button from 'ui/button/button';
@@ -578,7 +580,7 @@ function PageBackgroundShowcase() {
     <Showcase>
       <SampleDim title="1. 形态">
         <SampleNA>
-          壳层装饰组件（absolute + 100vw full-bleed），图鉴内不宜实嵌以免撑破布局。
+          壳层装饰组件（fixed + 100vw full-bleed，滚动不跟着走），图鉴内不宜实嵌以免撑破布局。
           见应用主内容区背后的模糊背景图。
         </SampleNA>
         {/* 保留 import 校验：组件可挂载；视觉在壳层 */}
@@ -622,6 +624,115 @@ function UpdateStatusChipShowcase() {
   );
 }
 
+function GlobalHelperShowcase() {
+  const [demo, setDemo] = useState(null);
+
+  return (
+    <Showcase>
+      <SampleDim title="1. 形态">
+        <SampleRow label="无洞全屏 dim（单页 → 仅「我知道了」）" block>
+          <Button variant="glass" onClick={() => setDemo('plain')}>
+            打开单页引导
+          </Button>
+        </SampleRow>
+        <SampleRow label="挖洞聚焦 + 多页（有「下一页」）" block>
+          <Button variant="glass" onClick={() => setDemo('spot')}>
+            打开挖洞引导
+          </Button>
+          <div
+            data-ntq-help-demo="spot-target"
+            style={{
+              marginTop: 'var(--ntq-space-md)',
+              padding: 'var(--ntq-space-md)',
+              border: '1px solid var(--ntq-white-12)',
+              borderRadius: 'var(--ntq-radius-md)',
+              color: 'var(--ntq-text)',
+            }}
+          >
+            示意目标区域（挖洞会罩在这块上）
+          </div>
+        </SampleRow>
+        <SampleRow label="问号 FAB（产品里 fixed 挂右上）" block>
+          <RainbowButton
+            size="lg"
+            ring="still"
+            mark="help"
+            onClick={() => setDemo('plain')}
+            aria-label="打开页面引导"
+          />
+          <SampleNA>
+            产品由
+            {' '}
+            <Text variant="code">containers/globalHelper</Text>
+            Host 按路由挂载
+            {' '}
+            <Text variant="code">GlobalHelperButton</Text>
+            ；图鉴只演示壳。
+          </SampleNA>
+        </SampleRow>
+      </SampleDim>
+
+      <SampleDim title="2. 按钮">
+        <SampleNA>
+          有后续 →「下一页」；末页 / 单页 → 只留「我知道了」。不放「跳过」（与下一页语义重复）。角标 X 关闭。
+        </SampleNA>
+      </SampleDim>
+
+      <SampleDim title="3. 颜色">
+        <SampleNA>
+          遮罩 / 描边 / 卡片走
+          {' '}
+          <Text variant="code">--ntq-ink</Text>
+          、
+          <Text variant="code">--ntq-cyan</Text>
+          、
+          <Text variant="code">--ui-surface-panel</Text>
+          等基础变量，不用硬编码色。
+        </SampleNA>
+      </SampleDim>
+
+      {demo === 'plain' ? (
+        <GlobalHelperOverlay
+          hole={null}
+          title="欢迎使用 NTQ"
+          body="单页说明示例：不聚焦任何元素。点「我知道了」或右上角关闭。"
+          isFirst
+          isLast
+          onNext={() => setDemo(null)}
+          onClose={() => setDemo(null)}
+        />
+      ) : null}
+
+      {demo === 'spot' ? (
+        <GlobalHelperOverlay
+          hole={{ left: 48, top: 180, width: 280, height: 72 }}
+          title="挖洞步骤"
+          body="多页时会出现「下一页」。本示意洞位置固定，真实产品按 data-ntq-help 测量。"
+          stepLabel="1 / 2"
+          isFirst
+          isLast={false}
+          onNext={() => setDemo('spot-last')}
+          onClose={() => setDemo(null)}
+        />
+      ) : null}
+
+      {demo === 'spot-last' ? (
+        <GlobalHelperOverlay
+          hole={{ left: 48, top: 180, width: 280, height: 72 }}
+          title="最后一页"
+          body="末页没有「下一页」，只剩「我知道了」。"
+          stepLabel="2 / 2"
+          isFirst={false}
+          isLast
+          onPrev={() => setDemo('spot')}
+          onNext={() => setDemo(null)}
+          onClose={() => setDemo(null)}
+        />
+      ) : null}
+    </Showcase>
+  );
+}
+
 const ntqShowcases = {
   appNav: AppNavShowcase,
   appBrand: AppBrandShowcase,
@@ -637,6 +748,7 @@ const ntqShowcases = {
   descriptionText: DescriptionTextShowcase,
   pageBackground: PageBackgroundShowcase,
   updateStatusChip: UpdateStatusChipShowcase,
+  globalHelper: GlobalHelperShowcase,
 };
 
 export default ntqShowcases;

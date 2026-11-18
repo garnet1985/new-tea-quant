@@ -150,7 +150,9 @@
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--ui-surface-frost);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
 }
 
 @media (max-width: 599.98px) {
@@ -201,14 +203,16 @@
   border: 1px solid var(--ntq-white-12);
   border-radius: 8px;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ui-surface-glass);
 }
 
 .ntq-report-compare__hint {
   border: 1px solid var(--ntq-white-12);
   border-radius: 8px;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.10);
+  background: var(--ui-surface-frost);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
 }
 
 .ntq-report-compare__picker-trigger {

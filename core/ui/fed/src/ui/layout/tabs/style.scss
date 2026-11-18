@@ -67,7 +67,9 @@
   padding: var(--ntq-space-sm);
   border: 1px solid var(--ntq-white-12);
   border-radius: var(--ntq-radius-sm);
-  background: var(--ntq-surface-panel);
+  background: var(--ntq-surface-frost);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
   box-sizing: border-box;
 }
 
@@ -106,7 +108,7 @@
   padding: var(--ntq-space-md);
   border: 1px solid var(--ntq-white-12);
   border-radius: var(--ntq-radius-sm);
-  background: var(--ntq-surface-soft);
+  background: var(--ntq-surface-glass);
   box-sizing: border-box;
 }
 

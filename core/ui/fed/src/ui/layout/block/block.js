@@ -1,5 +1,5 @@
 import React from 'react';
-import { RADIUS_TOKENS, SPACE_TOKENS, SURFACE_TOKENS, pickToken } from 'ui/tokens';
+import { RADIUS_TOKENS, SPACE_TOKENS, resolveSurfaceToken } from 'ui/tokens';
 import './style.scss';
 
 /**
@@ -7,11 +7,13 @@ import './style.scss';
  * padding / gap / radius / surface 只用语义 token。
  * 默认 gap="md"（1rem = --ntq-stack）；紧凑场景显式传 gap="none"。
  *
+ * surface 三档：glass（透光）/ frost（毛玻璃）/ frost-strong（渐变毛玻璃）。
+ * 旧名 soft→glass、panel→frost、gradient→frost-strong。
+ *
  * @example
- * <Block surface="soft" radius="md" bordered />
- * <Block surface="glass" radius="lg" bordered />
- * <Block surface="panel" radius="none" gap="none" />
- * <Block sticky surface="panel" radius="none">侧栏整栏贴顶</Block>
+ * <Block surface="glass" radius="md" bordered />
+ * <Block surface="frost" radius="lg" bordered />
+ * <Block sticky surface="frost" radius="none">侧栏整栏贴顶</Block>
  */
 function Block({
   padding = 'md',
@@ -25,13 +27,13 @@ function Block({
   children,
   ...rest
 }) {
-  const paddingToken = pickToken(padding, SPACE_TOKENS, 'md');
-  const gapToken = pickToken(gap, SPACE_TOKENS, 'md');
-  const surfaceToken = pickToken(surface, SURFACE_TOKENS, 'none');
+  const paddingToken = pickSpace(padding);
+  const gapToken = pickSpace(gap);
+  const surfaceToken = resolveSurfaceToken(surface);
   // 未传 radius：bordered 默认 md，否则 none；显式传 none 可无圆角
   const radiusToken = radius === undefined
     ? (bordered ? 'md' : 'none')
-    : pickToken(radius, RADIUS_TOKENS, 'none');
+    : pickRadius(radius);
 
   const rootClass = [
     'ntq-block',
@@ -49,6 +51,14 @@ function Block({
       {children}
     </div>
   );
+}
+
+function pickSpace(value) {
+  return SPACE_TOKENS.includes(value) ? value : 'md';
+}
+
+function pickRadius(value) {
+  return RADIUS_TOKENS.includes(value) ? value : 'none';
 }
 
 export default Block;

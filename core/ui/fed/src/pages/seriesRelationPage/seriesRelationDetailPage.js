@@ -349,7 +349,7 @@ function SeriesRelationDetailPage() {
           </Message>
         ) : null}
 
-        <div className="ntq-srel-topbar">
+        <div className="ntq-srel-topbar" data-ntq-help="series-relation-detail-globals">
           <div className="ntq-srel-globals">
             <TextField
               label="开始日期"
@@ -372,7 +372,7 @@ function SeriesRelationDetailPage() {
               className="ntq-srel-field--inline"
             />
             <Select
-              label="Normalize"
+              label="归一方式"
               labelPlacement="inline"
               value={draft.normalize || 'zscore'}
               onChange={(e) => patchGlobals({ normalize: e.target.value })}
@@ -382,7 +382,7 @@ function SeriesRelationDetailPage() {
               className="ntq-srel-field--inline"
             />
             <Select
-              label="Fill"
+              label="自动纠错"
               labelPlacement="inline"
               value={draft.fill || 'none'}
               onChange={(e) => patchGlobals({ fill: e.target.value })}
@@ -408,7 +408,11 @@ function SeriesRelationDetailPage() {
           </div>
         </div>
 
-        <Section className="ntq-srel-panel" gap="sm">
+        <Section
+          className="ntq-srel-panel"
+          gap="sm"
+          data-ntq-help="series-relation-detail-series"
+        >
           <div className="ntq-srel-panel__head">
             <Heading level="h4" gap="none">
               系列（最多 {maxSeries}）
@@ -433,12 +437,13 @@ function SeriesRelationDetailPage() {
                 onRemove={() => removeSeriesAt(index)}
                 canRemove={(draft.series || []).length > 1}
                 strategyOptions={strategyOptions}
+                dataKeyOptions={dataKeyOptions}
               />
             ))}
           </div>
         </Section>
 
-        <div className="ntq-srel-exec">
+        <div className="ntq-srel-exec" data-ntq-help="series-relation-detail-run">
           <Heading level="h4" gap="none" className="ntq-srel-exec__title">
             执行
           </Heading>
@@ -451,16 +456,16 @@ function SeriesRelationDetailPage() {
                 disabled={busy || !sceneKey}
                 onClick={handleRun}
               >
-                {running ? '运行中…' : (hasResults ? '重新跑批' : '开始跑批')}
+                {running ? '计算中…' : (hasResults ? '重新计算' : '开始计算关系')}
               </RainbowButton>
             </div>
             <div className="ntq-srel-exec__status">
               <p className="ntq-srel-exec__status-main">
                 {running
-                  ? '正在跑批…'
+                  ? '正在计算…'
                   : hasResults
                     ? '已有结果，可查看下方报告'
-                    : '尚未跑批'}
+                    : '尚未计算'}
               </p>
               <p className="ntq-muted ntq-srel-exec__status-hint">
                 运行前会自动保存当前配置
@@ -474,6 +479,7 @@ function SeriesRelationDetailPage() {
             results={results}
             chartOption={chartOption}
             strategyOptions={strategyOptions}
+            dataKeyOptions={dataKeyOptions}
           />
         </Section>
       </Section>

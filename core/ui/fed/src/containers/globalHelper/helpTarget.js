@@ -30,8 +30,13 @@ function nextFrame() {
   });
 }
 
+/** 无 target / 空 target = 不挖洞的全屏说明步，始终视为 live。 */
 export function liveStepsNow(steps) {
-  return (Array.isArray(steps) ? steps : []).filter((step) => queryHelpTarget(step?.target));
+  return (Array.isArray(steps) ? steps : []).filter((step) => {
+    const target = String(step?.target || '').trim();
+    if (!target) return true;
+    return Boolean(queryHelpTarget(target));
+  });
 }
 
 export async function resolveLiveSteps(steps, timeoutMs = HELP_TARGET_WAIT_MS) {
@@ -51,7 +56,12 @@ export function placeCard(hole, card, viewport) {
   const ch = Math.max(1, Number(card?.height) || 200);
   const clampX = (x) => Math.min(Math.max(VIEW_PAD, x), Math.max(VIEW_PAD, vw - cw - VIEW_PAD));
   const clampY = (y) => Math.min(Math.max(VIEW_PAD, y), Math.max(VIEW_PAD, vh - ch - VIEW_PAD));
-  if (!hole) return { left: VIEW_PAD, top: VIEW_PAD };
+  if (!hole) {
+    return {
+      left: Math.max(VIEW_PAD, Math.round((vw - cw) / 2)),
+      top: Math.max(VIEW_PAD, Math.round((vh - ch) / 2)),
+    };
+  }
 
   const right = vw - (hole.left + hole.width);
   const left = hole.left;

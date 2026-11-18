@@ -123,7 +123,6 @@ function DataSourceUpdateStatusCell({ row }) {
     <UpdateStatusChip
       status={row.update_status}
       label={getDataSourceUpdateStatusLabel(row)}
-      hint={row.update_status_hint}
       pending={Boolean(row.freshness_pending)}
     />
   );
@@ -410,7 +409,9 @@ function DataSourceListPage() {
       minWidth: 120,
       flex: 0.25,
       renderCell: (params) => (
-        <span className="ntq-muted">{params.value || '—'}</span>
+        <span className="ntq-muted" data-ntq-help="data-source-list-providers">
+          {params.value || '—'}
+        </span>
       ),
     },
     {
@@ -463,23 +464,33 @@ function DataSourceListPage() {
             ? `${progress.sub}/${progress.subTotal}`
             : '正在获取';
           return (
-            <ProgressBar
-              className="data-source-list-progress"
-              size="sm"
-              value={pct > 0 ? pct : null}
-              label={detail}
-              showPercent={pct > 0}
-            />
+            <span data-ntq-help="data-source-list-status">
+              <ProgressBar
+                className="data-source-list-progress"
+                size="sm"
+                value={pct > 0 ? pct : null}
+                label={detail}
+                showPercent={pct > 0}
+              />
+            </span>
           );
         }
         if (run?.status === 'failed') {
           return (
-            <span className="data-source-list-status-failed" title={run.error || '更新失败'}>
+            <span
+              className="data-source-list-status-failed"
+              title={run.error || '更新失败'}
+              data-ntq-help="data-source-list-status"
+            >
               <Tag status="error" variant="solid">更新失败</Tag>
             </span>
           );
         }
-        return <DataSourceUpdateStatusCell row={params.row} />;
+        return (
+          <span data-ntq-help="data-source-list-status">
+            <DataSourceUpdateStatusCell row={params.row} />
+          </span>
+        );
       },
     },
     {
@@ -500,11 +511,13 @@ function DataSourceListPage() {
       width: 100,
       valueGetter: (params) => getDataSourceOriginLabel(params.row.origin),
       renderCell: (params) => (
-        params.row.is_custom ? (
-          <Tag status="info" variant="outline">{params.value}</Tag>
-        ) : (
-          <Tag status="neutral" variant="outline">{params.value}</Tag>
-        )
+        <span data-ntq-help="data-source-list-origin">
+          {params.row.is_custom ? (
+            <Tag status="info" variant="outline">{params.value}</Tag>
+          ) : (
+            <Tag status="neutral" variant="outline">{params.value}</Tag>
+          )}
+        </span>
       ),
     },
     {
@@ -515,7 +528,7 @@ function DataSourceListPage() {
       renderCell: (params) => {
         const iconName = getDataSourceRenewTypeIcon(params.row.renew_type);
         return (
-          <div className="data-source-list-cell-mode">
+          <div className="data-source-list-cell-mode" data-ntq-help="data-source-list-renew-type">
             <Icon name={iconName} size="lg" tone="cyan" />
             <span>{params.value}</span>
           </div>
@@ -541,6 +554,9 @@ function DataSourceListPage() {
         if (limit == null || limit === '') return '—';
         return `${limit}/分钟`;
       },
+      renderCell: (params) => (
+        <span data-ntq-help="data-source-list-rate-limit">{params.value}</span>
+      ),
     },
     {
       field: 'auth_ready',
@@ -550,13 +566,25 @@ function DataSourceListPage() {
       renderCell: (params) => {
         const row = params.row;
         if (!row.requires_auth) {
-          return <Tag status="neutral" variant="outline">{params.value}</Tag>;
+          return (
+            <span data-ntq-help="data-source-list-auth">
+              <Tag status="neutral" variant="outline">{params.value}</Tag>
+            </span>
+          );
         }
         if (row.auth_ready) {
-          return <Tag status="success" variant="solid">{params.value}</Tag>;
+          return (
+            <span data-ntq-help="data-source-list-auth">
+              <Tag status="success" variant="solid">{params.value}</Tag>
+            </span>
+          );
         }
         return (
-          <span className="data-source-list-auth-warn" title={row.auth_hint || '未配置 Token'}>
+          <span
+            className="data-source-list-auth-warn"
+            title={row.auth_hint || '未配置 Token'}
+            data-ntq-help="data-source-list-auth"
+          >
             <Tag status="warning" variant="outline">{params.value}</Tag>
           </span>
         );

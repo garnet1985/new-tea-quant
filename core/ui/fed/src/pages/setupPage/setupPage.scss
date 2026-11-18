@@ -118,7 +118,9 @@
 .setup-card {
   border: 1px solid var(--ntq-white-12);
   border-radius: 0.5rem;
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--ui-surface-frost);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
 }
 
 .setup-card__content {

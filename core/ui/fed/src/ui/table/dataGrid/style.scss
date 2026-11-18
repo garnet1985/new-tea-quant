@@ -75,11 +75,7 @@
 }
 
 .ntq-data-grid--sm {
-  .MuiDataGrid-columnHeaders {
-    min-height: 2.25rem !important;
-    max-height: 2.25rem !important;
-  }
-
+  .MuiDataGrid-columnHeader,
   .MuiDataGrid-cell {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
@@ -87,11 +83,7 @@
 }
 
 .ntq-data-grid--md {
-  .MuiDataGrid-columnHeaders {
-    min-height: 2.5rem !important;
-    max-height: 2.5rem !important;
-  }
-
+  .MuiDataGrid-columnHeader,
   .MuiDataGrid-cell {
     padding-left: 0.875rem;
     padding-right: 0.875rem;
@@ -102,18 +94,34 @@
 .ntq-data-grid--cell-center {
   .MuiDataGrid-cell {
     align-items: center;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
   }
+}
+
+.ntq-data-grid--sm.ntq-data-grid--cell-center .MuiDataGrid-cell {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+.ntq-data-grid--md.ntq-data-grid--cell-center .MuiDataGrid-cell {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
 }
 
 /* 多行：顶齐 + 换行（说明列 / 自动行高） */
 .ntq-data-grid--cell-wrap {
   .MuiDataGrid-cell {
     align-items: flex-start;
-    padding-top: 0.625rem;
-    padding-bottom: 0.625rem;
     white-space: normal;
     line-height: 1.5;
   }
+}
+
+.ntq-data-grid--sm.ntq-data-grid--cell-wrap .MuiDataGrid-cell {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.ntq-data-grid--md.ntq-data-grid--cell-wrap .MuiDataGrid-cell {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
 }

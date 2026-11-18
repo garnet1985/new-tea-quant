@@ -398,7 +398,7 @@ function Scan() {
         const blocked = mode === 'strict' && gate.canScan === false;
         const disableRun = pending || !enabled || running || blocked;
         return (
-          <div className="scan-cell-actions">
+          <div className="scan-cell-actions" data-ntq-help="scan-start">
             {pending ? (
               <Loading variant="inlineRow" message="校验中…" className="scan-cell-actions__loading" />
             ) : (

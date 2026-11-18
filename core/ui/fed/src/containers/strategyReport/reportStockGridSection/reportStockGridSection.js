@@ -32,7 +32,10 @@ function ReportStockGridSection({
   }
 
   return (
-    <div className="ntq-report-stock-grid-section">
+    <div
+      className="ntq-report-stock-grid-section"
+      data-ntq-help={hasRows ? 'strategy-report-stock' : undefined}
+    >
       {overlay}
       <ReportStockSampleGrid rows={filteredRows} {...gridProps} />
     </div>

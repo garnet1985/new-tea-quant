@@ -124,8 +124,12 @@ export default function ScanStrategyListSection({
           </p>
         ) : (
           <div className="scan-category-stack">
-            {groupedRows.map(({ category, queryValue, rows: categoryRows }) => (
-              <div key={queryValue} className="scan-category-section">
+            {groupedRows.map(({ category, queryValue, rows: categoryRows }, index) => (
+              <div
+                key={queryValue}
+                className="scan-category-section"
+                data-ntq-help={index === 0 ? 'scan-strategy-list' : undefined}
+              >
                 <div className="scan-category">
                   <button
                     type="button"

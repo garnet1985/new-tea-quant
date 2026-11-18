@@ -203,7 +203,10 @@ function StrategyListPage({
         const isExporting = exportingName === exportId;
         const exportBusy = Boolean(exportingName);
         return (
-          <div className="strategy-list-cell-actions">
+          <div
+            className="strategy-list-cell-actions"
+            data-ntq-help="strategy-list-enter"
+          >
             <RouterLink
               to={getEnterPath(name)}
               state={enterNavState(params.row)}
@@ -246,15 +249,6 @@ function StrategyListPage({
     },
   ]), [enterNavState, exportingName, getEnterPath, handleExportStrategyPackage]);
 
-  const gridSx = {
-    '& .MuiDataGrid-cell': {
-      py: 1.25,
-      alignItems: 'flex-start',
-      whiteSpace: 'normal',
-      lineHeight: 1.5,
-    },
-  };
-
   return (
     <PageLayout
       className="strategy-list-page"
@@ -281,7 +275,10 @@ function StrategyListPage({
               />
             )}
             actions={(
-              <>
+              <div
+                className="strategy-list-toolbar-actions"
+                data-ntq-help="strategy-list-refresh-import"
+              >
                 <Button
                   variant="glass"
                   icon="refresh"
@@ -298,34 +295,37 @@ function StrategyListPage({
                 >
                   导入策略包
                 </Button>
-              </>
+              </div>
             )}
           />
 
           {catalogGroups.length > 0 ? (
-            <CategoryChipStrip
-              all={{
-                label: '全部',
-                count: rows.length,
-                selected: !categoryQuery,
-                onClick: () => setCategoryQuery(''),
-              }}
-              items={catalogGroups.map(({ category, queryValue, rows: categoryRows }) => ({
-                key: queryValue,
-                label: category,
-                count: categoryRows.length,
-                title: category,
-                selected: categoryQuery === queryValue,
-                onClick: () => toggleCategoryQuery(queryValue),
-              }))}
-              selectedItemRef={selectedChipRef}
-            />
+            <div data-ntq-help="strategy-list-filter">
+              <CategoryChipStrip
+                all={{
+                  label: '全部',
+                  count: rows.length,
+                  selected: !categoryQuery,
+                  onClick: () => setCategoryQuery(''),
+                }}
+                items={catalogGroups.map(({ category, queryValue, rows: categoryRows }) => ({
+                  key: queryValue,
+                  label: category,
+                  count: categoryRows.length,
+                  title: category,
+                  selected: categoryQuery === queryValue,
+                  onClick: () => toggleCategoryQuery(queryValue),
+                }))}
+                selectedItemRef={selectedChipRef}
+              />
+            </div>
           ) : null}
 
-          <div className={[
-            'strategy-list-grid-body',
-            loading && rows.length === 0 ? 'strategy-list-grid-body--loading' : '',
-          ].filter(Boolean).join(' ')}
+          <div
+            className={[
+              'strategy-list-grid-body',
+              loading && rows.length === 0 ? 'strategy-list-grid-body--loading' : '',
+            ].filter(Boolean).join(' ')}
           >
             {loading && rows.length === 0 ? (
               <Loading variant="inline" message="正在加载策略列表…" />
@@ -337,8 +337,12 @@ function StrategyListPage({
               </p>
             ) : (
               <div className="strategy-list-category-stack">
-                {groupedRows.map(({ category, queryValue, rows: categoryRows }) => (
-                  <div key={queryValue} className="strategy-list-category-section">
+                {groupedRows.map(({ category, queryValue, rows: categoryRows }, index) => (
+                  <div
+                    key={queryValue}
+                    className="strategy-list-category-section"
+                    data-ntq-help={index === 0 ? 'strategy-list-table' : undefined}
+                  >
                     <div className="strategy-list-category">
                       <button
                         type="button"
@@ -360,9 +364,9 @@ function StrategyListPage({
                       columns={columns}
                       loading={false}
                       getRowHeight={() => 'auto'}
+                      cellLayout="wrap"
                       hideFooter
                       className="strategy-list-data-grid"
-                      sx={gridSx}
                       onRowDoubleClick={(params) => {
                         navigate(getEnterPath(params.row.name), {
                           state: enterNavState(params.row),

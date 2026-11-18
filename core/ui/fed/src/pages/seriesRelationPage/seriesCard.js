@@ -15,6 +15,7 @@ import {
   emptyDataKeySeries,
   emptyStrategySimSeries,
   findStrategyOption,
+  formatDataContractLabel,
   previewWho,
 } from './seriesRelationConstants';
 
@@ -47,7 +48,7 @@ export function SeriesEditForm({
   const dataKeySelectOptions = useMemo(
     () => dataKeyOptions.map((o) => ({
       value: o.key,
-      label: o.display_name || o.key,
+      label: formatDataContractLabel(o),
     })),
     [dataKeyOptions],
   );
@@ -135,8 +136,8 @@ export function SeriesEditForm({
       {source === 'data_key' ? (
         <>
           <SearchSelect
-            label="DataKey"
-            tip="仅 time_series 契约"
+            label="数据契约"
+            tip="仅时序契约；显示为「中文名 (data_key)」"
             value={value.data_key || ''}
             onChange={(e) => {
               const key = String(e.target.value || '').trim();
@@ -147,13 +148,13 @@ export function SeriesEditForm({
               });
             }}
             options={dataKeySelectOptions}
-            placeholder="搜索 time_series 契约…"
-            emptyLabel="选择 time_series 契约"
+            placeholder="搜索数据契约…"
+            emptyLabel="选择时序数据契约"
             maxWidth={false}
             surface="glass"
           />
           <TextField
-            label="Field"
+            label="字段"
             tip="如 close；可手输"
             value={value.field || ''}
             onChange={(e) => patch({ field: e.target.value.trim() })}
@@ -163,7 +164,7 @@ export function SeriesEditForm({
           />
           {needsEntity ? (
             <TextField
-              label="Entity ID"
+              label="实体 ID"
               tip="股票或指数代码"
               value={value.entity_id || ''}
               onChange={(e) => patch({ entity_id: e.target.value.trim() })}
@@ -176,7 +177,7 @@ export function SeriesEditForm({
       ) : (
         <>
           <SearchSelect
-            label="Strategy Key"
+            label="策略"
             tip="策略 meta.key"
             value={
               findStrategyOption(value.strategy_key, strategyOptions)?.key
@@ -189,12 +190,12 @@ export function SeriesEditForm({
             }}
             options={strategySelectOptions}
             placeholder="搜索策略…"
-            emptyLabel="策略 meta.key"
+            emptyLabel="选择策略"
             maxWidth={false}
             surface="glass"
           />
           <Select
-            label="Layer"
+            label="层级"
             value={value.layer || 'portfolio'}
             onChange={(e) => handleLayerChange(e.target.value)}
             options={LAYER_OPTIONS}
@@ -202,7 +203,7 @@ export function SeriesEditForm({
             surface="glass"
           />
           <Select
-            label="Metric"
+            label="指标"
             value={value.metric || metricOptions[0].value}
             onChange={(e) => patch({ metric: e.target.value })}
             options={metricOptions}
@@ -210,7 +211,7 @@ export function SeriesEditForm({
             surface="glass"
           />
           <Select
-            label="Version"
+            label="版本"
             tip="默认 latest"
             value={value.version || 'latest'}
             disabled={versionsLoading}
@@ -221,8 +222,8 @@ export function SeriesEditForm({
           />
           {needsEntity ? (
             <TextField
-              label="Entity ID"
-              tip="price.cum_exit_roi 需要单票"
+              label="实体 ID"
+              tip="单票累计出场收益需要填写股票代码"
               value={value.entity_id || ''}
               onChange={(e) => patch({ entity_id: e.target.value.trim() })}
               placeholder="单票代码"
@@ -234,7 +235,7 @@ export function SeriesEditForm({
       )}
 
       <TextField
-        label="Label"
+        label="显示名"
         tip="图表与报告显示名，可空"
         value={value.label || ''}
         onChange={(e) => patch({ label: e.target.value })}
@@ -243,7 +244,7 @@ export function SeriesEditForm({
         surface="glass"
       />
       <Select
-        label="Transform"
+        label="变换"
         value={value.transform || (source === 'strategy_sim' ? 'returns' : 'none')}
         onChange={(e) => patch({ transform: e.target.value })}
         options={TRANSFORM_OPTIONS}
@@ -269,32 +270,41 @@ export function SeriesSummaryCard({
   onRemove,
   canRemove = true,
   strategyOptions = [],
+  dataKeyOptions = [],
 }) {
   const titleLabel = String(value?.label || '').trim();
-  const who = previewWho(value, strategyOptions);
+  const who = previewWho(value, strategyOptions, dataKeyOptions);
   return (
     <div className="ntq-srel-summary-card">
-      <div className="ntq-srel-summary-card__text">
+      <div className="ntq-srel-summary-card__head">
         <div className="ntq-srel-summary-card__title">
           系列 {index + 1}
           {titleLabel ? ` · ${titleLabel}` : ''}
         </div>
-        <div className="ntq-srel-summary-card__who ntq-muted">{who}</div>
+        <div className="ntq-srel-summary-card__actions">
+          <Button
+            size="small"
+            variant="glass"
+            icon="edit"
+            iconSize="sm"
+            tooltip="编辑"
+            aria-label="编辑系列"
+            onClick={onEdit}
+          />
+          <Button
+            size="small"
+            variant="glass"
+            icon="trash"
+            iconSize="sm"
+            tooltip="删除"
+            aria-label="删除系列"
+            disabled={!canRemove}
+            onClick={onRemove}
+            className="ntq-srel-card__delete"
+          />
+        </div>
       </div>
-      <div className="ntq-srel-summary-card__actions">
-        <Button size="small" variant="glass" onClick={onEdit}>
-          编辑
-        </Button>
-        <Button
-          variant="ghost"
-          icon="trash"
-          iconSize="sm"
-          aria-label="删除系列"
-          disabled={!canRemove}
-          onClick={onRemove}
-          className="ntq-srel-card__delete"
-        />
-      </div>
+      <div className="ntq-srel-summary-card__who ntq-muted">{who}</div>
     </div>
   );
 }
@@ -306,6 +316,7 @@ SeriesSummaryCard.propTypes = {
   onRemove: PropTypes.func.isRequired,
   canRemove: PropTypes.bool,
   strategyOptions: PropTypes.arrayOf(PropTypes.object),
+  dataKeyOptions: PropTypes.arrayOf(PropTypes.object),
 };
 
 export default SeriesEditForm;

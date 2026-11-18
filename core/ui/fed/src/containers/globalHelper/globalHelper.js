@@ -15,9 +15,7 @@ import {
   queryHelpTarget,
   resolveLiveSteps,
 } from './helpTarget';
-import GlobalHelperButton from './globalHelperButton';
-import GlobalHelperOverlay from './globalHelperOverlay';
-import './style.scss';
+import { GlobalHelperButton, GlobalHelperOverlay } from 'ntq-ui/globalHelper';
 
 const CARD_FALLBACK = { width: 360, height: 220 };
 
@@ -261,9 +259,13 @@ function GlobalHelperHost() {
 
   useEffect(() => {
     if (!open || !holeReady || hole || !liveSteps.length) return;
-    const next = liveSteps.findIndex((item, index) => (
-      index > stepIndex && queryHelpTarget(item.target)
-    ));
+    // 无 target：全屏 dim，不挖洞，保持打开。
+    if (!String(step?.target || '').trim()) return;
+    const next = liveSteps.findIndex((item, index) => {
+      if (index <= stepIndex) return false;
+      const target = String(item?.target || '').trim();
+      return !target || Boolean(queryHelpTarget(target));
+    });
     if (next >= 0) {
       setStepIndex(next);
       setPageIndex(0);
@@ -273,7 +275,7 @@ function GlobalHelperHost() {
     setActiveHelp(null);
     setLiveSteps([]);
     emitGlobalHelperSession(false);
-  }, [hole, holeReady, liveSteps, open, stepIndex]);
+  }, [hole, holeReady, liveSteps, open, step, stepIndex]);
 
   useLayoutEffect(() => {
     if (!open || !cardRef.current) return;
@@ -333,7 +335,7 @@ function GlobalHelperHost() {
           isLast={isLast}
           onPrev={goPrev}
           onNext={goNext}
-          onSkip={() => closeOverlay('skip')}
+          onClose={() => closeOverlay('skip')}
         />
       ) : null}
     </>

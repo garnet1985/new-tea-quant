@@ -60,6 +60,7 @@ import becomeMemberLinkDoc from 'ntq-ui/becomeMemberLink/doc';
 import descriptionTextDoc from 'ntq-ui/descriptionText/doc';
 import pageBackgroundDoc from 'ntq-ui/pageBackground/doc';
 import updateStatusChipDoc from 'ntq-ui/updateStatusChip/doc';
+import globalHelperDoc from 'ntq-ui/globalHelper/doc';
 import { resolveCategoryId } from './catalog';
 
 const DOCS = {
@@ -140,6 +141,7 @@ const DOCS = {
     descriptionText: descriptionTextDoc,
     pageBackground: pageBackgroundDoc,
     updateStatusChip: updateStatusChipDoc,
+    globalHelper: globalHelperDoc,
   },
 };
 

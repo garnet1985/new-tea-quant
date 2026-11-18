@@ -277,8 +277,8 @@ function TextBlockShowcase() {
       <SampleDim title="5. 外观">
         <SampleRow label="surface + radius（右侧圆角）" block>
           <Section gap="sm">
-            <TextBlock bar="cyan" surface="panel" radius="md">panel 表面</TextBlock>
-            <TextBlock bar="violet" surface="gradient" radius="lg">gradient 表面</TextBlock>
+            <TextBlock bar="cyan" surface="frost" radius="md">frost 毛玻璃</TextBlock>
+            <TextBlock bar="violet" surface="frost-strong" radius="lg">frost-strong 渐变毛玻璃</TextBlock>
           </Section>
         </SampleRow>
       </SampleDim>

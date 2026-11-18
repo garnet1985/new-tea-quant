@@ -192,11 +192,11 @@ function BlockShowcase() {
       </SampleDim>
 
       <SampleDim title="4. 颜色">
-        <SampleRow label="由 surface 预设控制（改全局表面变量 / 白叠色阶）" block>
+        <SampleRow label="表面仅三档：透光 / 毛玻璃 / 渐变毛玻璃" block>
           <Section gap="sm">
-            <Block surface="soft" radius="md" padding="sm">浅底</Block>
-            <Block surface="panel" radius="md" padding="sm">面板</Block>
-            <Block surface="glass" radius="md" padding="sm" bordered>玻璃</Block>
+            <Block surface="glass" radius="md" padding="sm" bordered>glass · 透光玻璃</Block>
+            <Block surface="frost" radius="md" padding="sm" bordered>frost · 毛玻璃</Block>
+            <Block surface="frost-strong" radius="md" padding="sm" bordered>frost-strong · 渐变毛玻璃</Block>
           </Section>
         </SampleRow>
       </SampleDim>
@@ -207,7 +207,7 @@ function BlockShowcase() {
             {RADIUS_TOKENS.map((radius) => (
               <Block
                 key={radius}
-                surface="soft"
+                surface="glass"
                 bordered
                 radius={radius}
                 padding="sm"
@@ -218,8 +218,8 @@ function BlockShowcase() {
           </Section>
         </SampleRow>
         <SampleRow label="描边可与表面组合" block>
-          <Block surface="gradient" radius="lg" bordered padding="md">
-            渐变底 + 描边 + 大圆角
+          <Block surface="frost-strong" radius="lg" bordered padding="md">
+            渐变毛玻璃 + 描边 + 大圆角
           </Block>
         </SampleRow>
       </SampleDim>

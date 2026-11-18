@@ -138,9 +138,9 @@ function OpportunityEnumrateReport({
   }
 
   return (
-    <div className="ntq-report-block">
+    <div className="ntq-report-step-stack">
       {!hideTitle ? (
-        <h3 className="ntq-report-block__title">{title}</h3>
+        <h3 className="ntq-report-step-stack__title">{title}</h3>
       ) : null}
 
       {showStockGrid ? (
@@ -233,7 +233,7 @@ function OpportunityEnumrateReport({
         tip={ENUM_SECTION_TIPS.timing}
       >
         {avail.timing ? (
-          <div className="ntq-report-block__stack">
+          <div className="ntq-report-step-stack__group">
             <MetricGrid>
               <MetricCard
                 title="平均每股机会间隔"

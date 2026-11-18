@@ -64,9 +64,9 @@ function CapitalAllocationReport({
   const showStockSampleGrid = Boolean(showStockGrid && derivedStockRows.length > 0);
 
   return (
-    <div className="ntq-report-block">
+    <div className="ntq-report-step-stack">
       {!hideTitle ? (
-        <h3 className="ntq-report-block__title">{title}</h3>
+        <h3 className="ntq-report-step-stack__title">{title}</h3>
       ) : null}
 
       <PortfolioTradeLifecycleTable

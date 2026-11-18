@@ -35,12 +35,11 @@ body {
   // --- 品牌表面 / 渐变（产品特有）---
   --ntq-brand-text-gradient: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan), var(--ntq-green));
   --ntq-brand-text-glow: 0 0 1rem rgba(34, 211, 238, 0.38);
+  // 壳层装饰玻璃（顶栏等）；wrapper 三档请用 --ui-surface-glass|frost|frost-strong
   --ntq-glass-bg:
     radial-gradient(900px 420px at 12% 0%, rgba(255, 255, 255, 0.02), transparent 55%),
     radial-gradient(720px 360px at 88% -10%, rgba(34, 211, 238, 0.04), transparent 58%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-
-  --ui-surface-glass: var(--ntq-glass-bg);
 
   // RainbowButton 等产品控件
   --ntq-rainbow-aurora: conic-gradient(

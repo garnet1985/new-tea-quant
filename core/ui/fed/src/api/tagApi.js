@@ -75,6 +75,8 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
       name: item.name,
       display_name: getTagDisplayLabel(item),
       description: String(item.description || '').trim(),
+      category: String(item.category || '').trim(),
+      data_key: String(item.data_key || '').trim(),
       is_enabled: Boolean(item.is_enabled),
       tag_definitions: Array.isArray(item.tag_definitions) ? item.tag_definitions : [],
       last_computed_as_of: item.last_computed_as_of ?? null,

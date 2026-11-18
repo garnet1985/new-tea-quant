@@ -89,7 +89,12 @@ def test_summary_clamps_last_computed_to_effective_end():
     item.id.return_value = "demo/macro_rate_stance"
     item.settings = {
         "is_enabled": True,
-        "meta": {"display_name": "宏观", "description": ""},
+        "meta": {
+            "display_name": "宏观",
+            "description": "",
+            "category": "宏观",
+        },
+        "data": {"base": {"data_key": "macro.lpr"}},
         "tag_definitions": [{"name": "x", "display_name": "X"}],
         "calculation": {"update_mode": "incremental", "execution": {"mode": ""}},
     }
@@ -102,6 +107,28 @@ def test_summary_clamps_last_computed_to_effective_end():
     assert row["last_computed_as_of"] == "20251231"
     assert row["compute_status"] == "up_to_date"
     assert row["compute_status_label"] == "已经更新"
+    assert row["category"] == "宏观"
+    assert row["data_key"] == "macro.lpr"
+
+
+def test_summary_category_coerces_legacy_list_and_empty_data_key():
+    from unittest.mock import MagicMock
+
+    item = MagicMock()
+    item.id.return_value = "demo/legacy"
+    item.settings = {
+        "is_enabled": False,
+        "meta": {"display_name": "旧", "category": ["demo", "universe"]},
+        "calculation": {},
+    }
+    row = TagCatalog._summary(
+        item,
+        None,
+        effective_end="",
+        truncation_hint="",
+    )
+    assert row["category"] == "demo"
+    assert row["data_key"] == ""
 
 
 @patch(

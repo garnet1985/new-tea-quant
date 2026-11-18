@@ -1,9 +1,38 @@
+import { parseStrategyDesignRoute } from 'containers/strategyDesign';
+
+const DESIGN_PREFIX = '/strategy-design/';
+
+/** 决策模拟步：与 parseStrategyDesignRoute 同一套 splat 解析。 */
 export function matchStrategyDesignDecision(pathname) {
-  const segs = String(pathname || '').split('/').filter(Boolean);
-  if (segs[0] !== 'strategy-design' || segs.length < 3) return false;
-  const step = decodeURIComponent(segs[segs.length - 1] || '');
-  return step === 'decision';
+  const path = String(pathname || '');
+  if (!path.startsWith(DESIGN_PREFIX)) return false;
+  const { strategyName, step } = parseStrategyDesignRoute(path.slice(DESIGN_PREFIX.length));
+  return Boolean(strategyName) && step === 'decision';
 }
+
+/**
+ * 进决策步先讲本步在做什么（无挖洞）；控件引导仍走 appear。
+ */
+export const STRATEGY_DESIGN_DECISION_INTRO_HELP = {
+  id: 'strategy-design-decision-intro',
+  version: 1,
+  trigger: 'enter',
+  match: matchStrategyDesignDecision,
+  steps: [
+    {
+      pages: [
+        {
+          title: '决策模拟',
+          body: '本步是手动模拟「投资模拟」：在给定资金下，由您自己决定投资对象和投资多少，来模拟实盘交易。',
+        },
+        {
+          title: '核心结果看什么',
+          body: '模拟结束后会把您的手动决策结果与系统自动跑的结果对比，用来感受参数是否合理、压力是否适合您。',
+        },
+      ],
+    },
+  ],
+};
 
 /**
  * 决策模拟回测现场。机会盘点/投资未完成时只有闸门，回测 DOM 还没挂上，

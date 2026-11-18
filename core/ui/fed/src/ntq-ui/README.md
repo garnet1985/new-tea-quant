@@ -27,6 +27,7 @@
 | `pageBackground` | ready | 主壳随机背景 |
 | `updateStatusChip` | ready | 数据/计算更新状态 |
 | `descriptionText` | ready | 多行说明文案（可截断） |
+| `globalHelper` | ready | 页面引导遮罩卡 + 问号 FAB（路由/文案目录在 containers） |
 
 ```js
 import { BecomeMemberLink, MemberStrip, RainbowButton, PageLayout } from 'ntq-ui';

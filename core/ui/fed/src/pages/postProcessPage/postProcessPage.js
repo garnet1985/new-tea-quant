@@ -400,12 +400,14 @@ function PostProcessPage() {
       headerName: '启用',
       width: 100,
       renderCell: (params) => (
-        <Switch
-          checked={Boolean(params.row.is_enabled)}
-          disabled={togglingKey === params.row.key}
-          onChange={(e) => handleToggle(params.row, e.target.checked)}
-          aria-label={`启用 ${params.row.key}`}
-        />
+        <span data-ntq-help="post-process-enabled">
+          <Switch
+            checked={Boolean(params.row.is_enabled)}
+            disabled={togglingKey === params.row.key}
+            onChange={(e) => handleToggle(params.row, e.target.checked)}
+            aria-label={`启用 ${params.row.key}`}
+          />
+        </span>
       ),
     },
     {
@@ -416,9 +418,11 @@ function PostProcessPage() {
       sortable: false,
       renderCell: (params) => {
         const steps = params.row.adapters || [];
-        if (!steps.length) return '—';
+        if (!steps.length) {
+          return <span data-ntq-help="post-process-steps">—</span>;
+        }
         return (
-          <div className="post-process-step-list">
+          <div className="post-process-step-list" data-ntq-help="post-process-steps">
             {steps.map((step) => (
               <StepStatusChip
                 key={step.name}
@@ -456,19 +460,19 @@ function PostProcessPage() {
     {
       field: 'actions',
       headerName: '操作',
-      width: 132,
+      width: 88,
       sortable: false,
+      align: 'left',
+      headerAlign: 'left',
+      cellClassName: 'post-process-cell--actions',
       renderCell: (params) => (
-        <Button
-          variant="glass"
-          icon="chevronRight"
-          iconPlacement="end"
-          iconSize="sm"
+        <button
+          type="button"
+          className="post-process-edit-link"
           onClick={() => setEditTarget(params.row)}
-          className="post-process-edit-btn"
         >
           编辑步骤
-        </Button>
+        </button>
       ),
     },
   ]), [adaptersByName, handleToggle, togglingKey]);
@@ -486,13 +490,17 @@ function PostProcessPage() {
       <Section className="post-process-page__stack" gap="md">
         {loadError ? <Message status="error">{loadError}</Message> : null}
 
-        <Section className="post-process-block" gap="sm">
-          <Heading level="h3" gap="none">处理方案</Heading>
-          <p className="ntq-muted post-process-block__desc">
-            userspace/extensions/post_process/post_processors/；启用后每个策略扫完都会跑。步骤依赖用 depends_on，执行序自动计算。
-          </p>
-          <StepStatusLegend />
-          <Section className="post-process-grid" gap="none">
+        <Section className="post-process-panel" gap="lg">
+          <Section
+            className="post-process-block"
+            gap="sm"
+            data-ntq-help="post-process-schemes"
+          >
+            <Heading level="h3" gap="none">处理方案</Heading>
+            <p className="ntq-muted post-process-block__desc">
+              userspace/extensions/post_process/post_processors/；启用后每个策略扫完都会跑。步骤依赖用 depends_on，执行序自动计算。
+            </p>
+            <StepStatusLegend />
             <DataGrid
               autoHeight
               rows={processors}
@@ -504,15 +512,17 @@ function PostProcessPage() {
               cellLayout="wrap"
             />
           </Section>
-        </Section>
 
-        <Section className="post-process-block" gap="sm">
-          <Heading level="h3" gap="none">执行单元</Heading>
-          <p className="ntq-muted post-process-block__desc">
-            userspace/extensions/post_process/adapters/；展示名来自 settings.py 的 display_name。颜色含义同上图例。
-          </p>
-          <StepStatusLegend />
-          <Section className="post-process-grid" gap="none">
+          <Section
+            className="post-process-block"
+            gap="sm"
+            data-ntq-help="post-process-adapters"
+          >
+            <Heading level="h3" gap="none">执行单元</Heading>
+            <p className="ntq-muted post-process-block__desc">
+              userspace/extensions/post_process/adapters/；展示名来自 settings.py 的 display_name。颜色含义同上图例。
+            </p>
+            <StepStatusLegend />
             <DataGrid
               autoHeight
               rows={adapters}

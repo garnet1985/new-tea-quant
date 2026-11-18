@@ -76,9 +76,13 @@ body {
   --ntq-blur-sm: var(--ui-blur-sm);
   --ntq-blur-md: var(--ui-blur-md);
 
+  --ntq-surface-lift: var(--ui-surface-lift);
+  --ntq-surface-glass: var(--ui-surface-glass);
+  --ntq-surface-frost: var(--ui-surface-frost);
+  --ntq-surface-frost-strong: var(--ui-surface-frost-strong);
+  // 旧名 → 三档
   --ntq-surface-soft: var(--ui-surface-soft);
   --ntq-surface-panel: var(--ui-surface-panel);
-  --ntq-surface-glass: var(--ui-surface-glass);
   --ntq-surface-gradient: var(--ui-surface-gradient);
 
   --ntq-divider-color: var(--ui-divider-color);

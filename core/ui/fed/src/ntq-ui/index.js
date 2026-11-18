@@ -20,3 +20,7 @@ export { default as PythonDictEditor } from './pythonDictEditor';
 export { default as PageBackground } from './pageBackground';
 export { default as UpdateStatusChip } from './updateStatusChip';
 export { default as DescriptionText } from './descriptionText';
+export {
+  default as GlobalHelperOverlay,
+  GlobalHelperButton,
+} from './globalHelper';

@@ -19,6 +19,18 @@ const DENSITY_TO_MUI = {
   md: 'standard',
 };
 
+/** 默认行高：为 40px 按钮等控件留出上下呼吸空间（auto 行高时由 getRowHeight 覆盖）。 */
+const DENSITY_ROW_HEIGHT = {
+  sm: 44,
+  md: 56,
+};
+
+/** 表头高度：与 density 配套，避免各页自行覆盖导致不齐。 */
+const DENSITY_HEADER_HEIGHT = {
+  sm: 36,
+  md: 40,
+};
+
 /**
  * NTQ 表格（MUI DataGrid 封装）。
  * - 默认中文 locale、Loading 覆盖层、描边边框、禁用点击选行
@@ -62,6 +74,8 @@ function DataGrid({
 
   return (
     <MuiDataGrid
+      rowHeight={DENSITY_ROW_HEIGHT[densityToken]}
+      columnHeaderHeight={DENSITY_HEADER_HEIGHT[densityToken]}
       {...rest}
       className={rootClass}
       density={DENSITY_TO_MUI[densityToken]}

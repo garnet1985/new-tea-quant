@@ -15,6 +15,7 @@ import {
 import { DATA_CONTRACT_LIST_HELP } from './helps/dataContractList';
 import { DATA_SOURCE_LIST_HELP } from './helps/dataSourceList';
 import { SCAN_HELP } from './helps/scan';
+import { POST_PROCESS_HELP } from './helps/postProcess';
 import { SERIES_RELATION_DETAIL_HELP } from './helps/seriesRelationDetail';
 import { SERIES_RELATION_LIST_HELP } from './helps/seriesRelationList';
 import { STRATEGY_LIST_HELP } from './helps/strategyList';
@@ -70,6 +71,10 @@ export {
   SERIES_RELATION_DETAIL_HELP,
 } from './helps/seriesRelationDetail';
 export {
+  matchPostProcess,
+  POST_PROCESS_HELP,
+} from './helps/postProcess';
+export {
   matchWelcome,
   WELCOME_HELP,
 } from './helps/welcome';
@@ -84,6 +89,7 @@ export const GLOBAL_HELPER_CATALOG = [
   DATA_CONTRACT_LIST_HELP,
   SERIES_RELATION_LIST_HELP,
   SERIES_RELATION_DETAIL_HELP,
+  POST_PROCESS_HELP,
   STRATEGY_DESIGN_ENUM_HELP,
   STRATEGY_DESIGN_PRICE_HELP,
   STRATEGY_DESIGN_PORTFOLIO_HELP,

@@ -1,19 +1,10 @@
 .setup-page__stepper {
   min-height: 88px;
   margin-bottom: 16px;
+  width: 100%;
 }
 
-.setup-page__stepper-labels {
-  display: grid;
-  grid-template-columns: repeat(var(--ntq-stepper-count, 1), minmax(0, 1fr));
-  gap: 0;
-  margin-top: 0.5rem;
-}
-
-.setup-page__stepper-label {
-  text-align: center;
-  font-size: 0.75rem;
-  line-height: 1.3;
-  color: var(--ntq-text-muted, rgba(255, 255, 255, 0.62));
-  padding: 0 0.25rem;
+.setup-page__stepper-track {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
 }

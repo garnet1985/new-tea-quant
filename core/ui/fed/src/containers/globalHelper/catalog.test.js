@@ -6,6 +6,7 @@ import {
   matchDataContractList,
   matchDataSourceList,
   matchScan,
+  matchPostProcess,
   matchSeriesRelationDetail,
   matchSeriesRelationList,
   matchStrategyDesignDecision,
@@ -83,6 +84,15 @@ describe('matchSeriesRelationDetail', () => {
     expect(matchSeriesRelationDetail('/advanced/series-relation/a/b')).toBe(true);
     expect(matchSeriesRelationDetail('/advanced/series-relation')).toBe(false);
     expect(matchSeriesRelationDetail('/advanced/series-relation/')).toBe(false);
+  });
+});
+
+describe('matchPostProcess', () => {
+  it('matches only /advanced/post-process', () => {
+    expect(matchPostProcess('/advanced/post-process')).toBe(true);
+    expect(matchPostProcess('/advanced/post-process/')).toBe(true);
+    expect(matchPostProcess('/advanced/tags')).toBe(false);
+    expect(matchPostProcess('/scan')).toBe(false);
   });
 });
 
@@ -213,6 +223,19 @@ describe('findHelpForPath / isHelpDismissed', () => {
       'series-relation-detail-globals',
       'series-relation-detail-series',
       'series-relation-detail-run',
+    ]);
+  });
+
+  it('returns the post-process help on /advanced/post-process', () => {
+    const helps = findHelpsForPath('/advanced/post-process');
+    expect(helps.map((item) => item.id)).toEqual(['post-process']);
+    expect(helpTrigger(helps[0])).toBe('enter');
+    expect(String(helps[0].steps[0].target || '')).toBe('');
+    expect(helps[0].steps.slice(1).map((step) => step.target)).toEqual([
+      'post-process-schemes',
+      'post-process-enabled',
+      'post-process-steps',
+      'post-process-adapters',
     ]);
   });
 

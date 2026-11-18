@@ -67,6 +67,21 @@ function StepperShowcase() {
             ]}
           />
         </SampleRow>
+        <SampleRow label="layout=spread + showLabels（全宽一对齐）" block>
+          <Stepper
+            layout="spread"
+            showLabels
+            showProgress={false}
+            activeId="price"
+            items={[
+              { ...BASE_ITEMS[0], status: 'done' },
+              { ...BASE_ITEMS[1], status: 'running' },
+              { ...BASE_ITEMS[2], status: 'idle' },
+              { ...BASE_ITEMS[3], status: 'idle' },
+              { id: 'extra', label: '选装依赖', no: 5, status: 'idle' },
+            ]}
+          />
+        </SampleRow>
       </SampleDim>
 
       <SampleDim title="2. 大小">

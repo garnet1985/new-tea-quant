@@ -1,4 +1,11 @@
 .post-process-page {
+  .post-process-panel {
+    padding: var(--ui-space-md);
+    background: var(--ui-surface-soft);
+    border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+    border-radius: var(--ui-radius-md, 0.5rem);
+  }
+
   .post-process-block__desc {
     margin: 0;
   }
@@ -40,13 +47,6 @@
     border-color: rgba(239, 68, 68, 0.95);
   }
 
-  .post-process-grid {
-    padding: var(--ui-space-sm) var(--ui-space-md) var(--ui-space-md);
-    background: var(--ui-surface-soft);
-    border: 1px solid var(--ui-divider-color, var(--ui-white-12));
-    border-radius: var(--ui-radius-md, 0.5rem);
-  }
-
   .post-process-cell-stack {
     display: flex;
     flex-direction: column;
@@ -76,8 +76,33 @@
     font-size: var(--ui-font-xs);
   }
 
-  .post-process-edit-btn.ntq-button {
-    white-space: nowrap;
+  .post-process-cell--actions {
+    align-items: flex-start;
+  }
+
+  .post-process-edit-link {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ntq-cyan, #67e8f9);
+    font: inherit;
+    font-size: var(--ui-font-sm);
+    line-height: var(--ui-leading-normal, 1.4);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--ntq-white-98, #fff);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--ntq-cyan, #67e8f9) 55%, transparent);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
   }
 
   .post-process-step-chip-wrap {
@@ -89,7 +114,6 @@
     max-width: 100%;
     white-space: nowrap;
   }
-
 }
 
 .post-process-edit-row {

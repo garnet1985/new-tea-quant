@@ -24,24 +24,16 @@ function SetupStepper({ definition, completedIds, activeStep }) {
   );
 
   return (
-    <div
-      className="setup-page__stepper"
-      style={{ '--ntq-stepper-count': items.length || 1 }}
-    >
+    <div className="setup-page__stepper">
       <Stepper
+        layout="spread"
+        showLabels
         className="setup-page__stepper-track"
         activeId={activeId}
         items={items}
         showProgress={false}
         aria-label="安装步骤"
       />
-      <div className="setup-page__stepper-labels" aria-hidden="true">
-        {items.map((item) => (
-          <span key={item.id} className="setup-page__stepper-label">
-            {item.label}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

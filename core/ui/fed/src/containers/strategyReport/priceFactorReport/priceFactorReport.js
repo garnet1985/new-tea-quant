@@ -218,9 +218,9 @@ function PriceFactorReport({
   })();
 
   return (
-    <div className="ntq-report-block">
+    <div className="ntq-report-step-stack">
       {!hideTitle ? (
-        <h3 className="ntq-report-block__title">{title}</h3>
+        <h3 className="ntq-report-step-stack__title">{title}</h3>
       ) : null}
 
       {showStockGrid ? (
@@ -341,8 +341,8 @@ function PriceFactorReport({
         ) : <ReportUnavailableHint />}
         {!avail.roiPercentileViz ? (
           <div className={[
-            'ntq-report-block__chart-fallback',
-            avail.profitBasics ? 'ntq-report-block__chart-fallback--spaced' : '',
+            'ntq-report-step-stack__chart-fallback',
+            avail.profitBasics ? 'ntq-report-step-stack__chart-fallback--spaced' : '',
           ].filter(Boolean).join(' ')}
           >
             <p className="ntq-caption ntq-muted">
@@ -363,7 +363,7 @@ function PriceFactorReport({
           />
         )}
         {!avail.roiBucketViz ? (
-          <div className="ntq-report-block__chart-fallback ntq-report-block__chart-fallback--spaced">
+          <div className="ntq-report-step-stack__chart-fallback ntq-report-step-stack__chart-fallback--spaced">
             <p className="ntq-caption ntq-muted">
               {roiAllTruncated
                 ? PRICE_CHART_TIPS.roiBucketUnavailableAllTruncated(roiTruncatedCount)

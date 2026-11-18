@@ -1,8 +1,13 @@
+import { parseStrategyDesignRoute } from 'containers/strategyDesign';
+
+const DESIGN_PREFIX = '/strategy-design/';
+
+/** 决策模拟步：与 parseStrategyDesignRoute 同一套 splat 解析。 */
 export function matchStrategyDesignDecision(pathname) {
-  const segs = String(pathname || '').split('/').filter(Boolean);
-  if (segs[0] !== 'strategy-design' || segs.length < 3) return false;
-  const step = decodeURIComponent(segs[segs.length - 1] || '');
-  return step === 'decision';
+  const path = String(pathname || '');
+  if (!path.startsWith(DESIGN_PREFIX)) return false;
+  const { strategyName, step } = parseStrategyDesignRoute(path.slice(DESIGN_PREFIX.length));
+  return Boolean(strategyName) && step === 'decision';
 }
 
 /**

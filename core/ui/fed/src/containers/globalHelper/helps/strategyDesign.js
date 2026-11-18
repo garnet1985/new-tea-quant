@@ -1,10 +1,14 @@
-const WORKBENCH_STEPS = new Set(['enum', 'price', 'portfolio']);
+import { parseStrategyDesignRoute } from 'containers/strategyDesign';
+import { STRATEGY_DESIGN_RUN_STEP_KEYS } from 'containers/strategyDesign/constants/strategyDesignSteps';
 
+const DESIGN_PREFIX = '/strategy-design/';
+
+/** 机会盘点 / 价格回测 / 投资模拟（与 STRATEGY_DESIGN_RUN_STEP_KEYS 对齐）。 */
 export function matchStrategyDesignWorkbench(pathname) {
-  const segs = String(pathname || '').split('/').filter(Boolean);
-  if (segs[0] !== 'strategy-design' || segs.length < 3) return false;
-  const step = decodeURIComponent(segs[segs.length - 1] || '');
-  return WORKBENCH_STEPS.has(step);
+  const path = String(pathname || '');
+  if (!path.startsWith(DESIGN_PREFIX)) return false;
+  const { strategyName, step } = parseStrategyDesignRoute(path.slice(DESIGN_PREFIX.length));
+  return Boolean(strategyName) && STRATEGY_DESIGN_RUN_STEP_KEYS.has(step);
 }
 
 /** 制定策略内页：进页即可看到的栏位。 */
@@ -19,7 +23,7 @@ export const STRATEGY_LAYOUT_HELP = {
       pages: [
         {
           title: '策略简介',
-          body: '这里是策略的基本信息栏位，他们是从您用户空间的策略设置中的meta信息读取而来的。',
+          body: '这里是策略的基本信息栏位。这些信息来自您本地策略文件夹中的settings.py文件的meta信息块。',
         },
       ],
     },
@@ -130,7 +134,7 @@ export const STRATEGY_VERSION_AND_REPORT_HELP = {
       pages: [
         {
           title: '回测版本',
-          body: '当您的回测执行任意一步的时候，就会产生一个版本，这个版本会锁定您的设置参数和样本池。如果您在不改设置的情况下再次运行当前步骤，系统将直接返回缓存结果给您。',
+          body: '您的不同版本将对应策略的不同配置。之后产生的不同版本将有两种情况，如果只是配置发生变化，您仍然可以回到老版本。但如果是系统代码或环境发生变化导致的新版本，老版本将只能查看结果不可修改或回溯。',
         },
       ],
     },
@@ -139,7 +143,7 @@ export const STRATEGY_VERSION_AND_REPORT_HELP = {
       pages: [
         {
           title: '回测版本历史',
-          body: '您可以在这里轻松回到一个版本历史。请注意历史版本可以基于您的代码或者NTQ版本会变成只读或者无法运行，系统会自动标注。',
+          body: '您可以在这里轻松回到一个版本历史。（如果只是改参数）',
         },
         {
           title: '回测版本清理',
@@ -151,12 +155,8 @@ export const STRATEGY_VERSION_AND_REPORT_HELP = {
       target: 'strategy-report',
       pages: [
         {
-          title: '回测版本',
-          body: '当您的回测执行任意一步的时候，就会产生一个版本，这个版本会锁定您的设置参数和样本池。如果您在不改设置的情况下再次运行当前步骤，系统将直接返回缓存结果给您。',
-        },
-        {
-          title: '报告对比',
-          body: '您当前的回测步骤的报告会出现在这里。请注意指向每个报告名称后方的 ？图标会给您当前报告的详细说明。',
+          title: '回测报告',
+          body: '您当前回测步骤的报告会出现在这里。请注意每个报告名称后方的 ？图标，会给出当前报告的详细说明。',
         },
       ],
     },

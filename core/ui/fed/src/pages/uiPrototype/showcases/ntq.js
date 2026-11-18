@@ -580,7 +580,7 @@ function PageBackgroundShowcase() {
     <Showcase>
       <SampleDim title="1. 形态">
         <SampleNA>
-          壳层装饰组件（absolute + 100vw full-bleed），图鉴内不宜实嵌以免撑破布局。
+          壳层装饰组件（fixed + 100vw full-bleed，滚动不跟着走），图鉴内不宜实嵌以免撑破布局。
           见应用主内容区背后的模糊背景图。
         </SampleNA>
         {/* 保留 import 校验：组件可挂载；视觉在壳层 */}

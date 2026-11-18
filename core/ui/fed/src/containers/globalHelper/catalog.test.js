@@ -5,6 +5,7 @@ import {
   isHelpDismissed,
   matchStrategyDesignDecision,
   matchStrategyDesignWorkbench,
+  matchStrategyList,
   matchWelcome,
   pickHelpForManualOpen,
 } from './catalog';
@@ -14,6 +15,15 @@ describe('matchWelcome', () => {
     expect(matchWelcome('/welcome')).toBe(true);
     expect(matchWelcome('/welcome/')).toBe(false);
     expect(matchWelcome('/strategy-design')).toBe(false);
+  });
+});
+
+describe('matchStrategyList', () => {
+  it('matches the strategy list index only', () => {
+    expect(matchStrategyList('/strategy-design')).toBe(true);
+    expect(matchStrategyList('/strategy-design/')).toBe(true);
+    expect(matchStrategyList('/strategy-design/demo/enum')).toBe(false);
+    expect(matchStrategyList('/strategy-design/demo')).toBe(false);
   });
 });
 
@@ -56,10 +66,22 @@ describe('findHelpForPath / isHelpDismissed', () => {
     expect(String(helps[0].steps[0].target || '')).toBe('');
   });
 
+  it('returns the strategy-list help on the list route', () => {
+    const helps = findHelpsForPath('/strategy-design');
+    expect(helps.map((item) => item.id)).toEqual(['strategy-list']);
+    expect(helpTrigger(helps[0])).toBe('enter');
+    expect(helps[0].steps.map((step) => step.target)).toEqual([
+      'strategy-list-table',
+      'strategy-list-filter',
+      'strategy-list-refresh-import',
+      'strategy-list-enter',
+    ]);
+  });
+
   it('returns the strategy-design help on workbench routes', () => {
     const help = findHelpForPath('/strategy-design/demo/enum');
     expect(help?.id).toBe('strategy-design');
-    expect(findHelpForPath('/strategy-design')).toBeNull();
+    expect(findHelpForPath('/strategy-design')?.id).toBe('strategy-list');
   });
 
   it('returns enter and appear helps for the same route class', () => {

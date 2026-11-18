@@ -10,6 +10,13 @@
   border-radius: var(--ui-radius-md, 0.5rem);
 }
 
+.strategy-list-toolbar-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-sm);
+}
+
 .strategy-list-category-empty {
   margin: 0;
   padding: var(--ui-space-md) var(--ui-space-xxs);

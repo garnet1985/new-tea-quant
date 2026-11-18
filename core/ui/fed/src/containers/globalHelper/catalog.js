@@ -4,6 +4,7 @@ import {
   STRATEGY_VERSION_AND_REPORT_HELP,
 } from './helps/strategyDesign';
 import { STRATEGY_DESIGN_DECISION_HELP } from './helps/strategyDesignDecision';
+import { STRATEGY_LIST_HELP } from './helps/strategyList';
 import { WELCOME_HELP } from './helps/welcome';
 
 export {
@@ -17,6 +18,10 @@ export {
   STRATEGY_DESIGN_DECISION_HELP,
 } from './helps/strategyDesignDecision';
 export {
+  matchStrategyList,
+  STRATEGY_LIST_HELP,
+} from './helps/strategyList';
+export {
   matchWelcome,
   WELCOME_HELP,
 } from './helps/welcome';
@@ -24,6 +29,7 @@ export {
 /** 所有页面的 help。新页面：在 helps/ 加文件，再推进这个数组。 */
 export const GLOBAL_HELPER_CATALOG = [
   WELCOME_HELP,
+  STRATEGY_LIST_HELP,
   STRATEGY_LAYOUT_HELP,
   STRATEGY_VERSION_AND_REPORT_HELP,
   STRATEGY_REPORT_COMPARE_HELP,

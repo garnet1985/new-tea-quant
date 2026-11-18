@@ -304,6 +304,14 @@ export const UI_CATALOG = [
         status: 'ready',
         uiPath: 'ntq-ui/updateStatusChip',
       },
+      {
+        id: 'globalHelper',
+        label: 'globalHelper',
+        origin: 'migrate',
+        source: 'containers/globalHelper',
+        status: 'ready',
+        uiPath: 'ntq-ui/globalHelper',
+      },
     ],
   },
 ];

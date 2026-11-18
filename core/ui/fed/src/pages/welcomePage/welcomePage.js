@@ -1,10 +1,55 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
+import { Heading, Message, Section } from 'ui';
 import PageLayout from 'ntq-ui/pageLayout';
 import WelcomeIntroCanvas from './welcomeIntroCanvas';
-import { fetchSiteUrls } from '../../api/siteApi';
+import { FALLBACK_DOCS_URL, fetchSiteUrls } from '../../api/siteApi';
 import './welcomePage.scss';
 
 const LOGO_SRC = '/logo.png';
+
+const NEXT_LINKS = [
+  {
+    to: '/strategy-design',
+    label: '制定策略',
+    body: '您可以在这里看到当前所有本地的策略，也可以点击进入单个策略进行参数调试和回测。',
+  },
+  {
+    to: '/scan',
+    label: '策略选股',
+    body: '您可以在这里使用自己调试完成的策略，扫描当前市场中的机会。',
+  },
+  {
+    to: '/advanced/tags',
+    label: '高级功能 → 特征标签',
+    body: '您可以在这里对任何对象进行标签标记，以便在回测过程中快速分类或过滤数据，从而大大加快回测效率。',
+  },
+  {
+    to: '/advanced/data-sources',
+    label: '高级功能 → 数据源',
+    body: '您可以在这里查看所有已经接入的外部数据源及其状态，并通过界面随时拉取和更新外部数据。',
+  },
+  {
+    to: '/advanced/data-contracts',
+    label: '高级功能 → 数据契约',
+    body: '您可以在这里查看所有已经定义的可声明数据契约的信息和状态。',
+  },
+  {
+    to: '/advanced/series-relation',
+    label: '高级功能 → 序列关系',
+    body: '您可以在这里对比任意两组或更多数据，从而从曲线中直观看出它们的关联和相关性。',
+  },
+  {
+    to: '/advanced/post-process',
+    label: '高级功能 → 后续处理',
+    body: '您可以在这里定义：当市场通过策略扫描出机会时，后续如何处理它们。发邮件通知？再次过滤？喂给机器学习？都随您任意扩展。',
+  },
+  {
+    to: '/settings/membership',
+    label: '设置',
+    body: '您可以在这里设置个人偏好和系统配置。',
+  },
+];
 
 function prefersReducedMotion() {
   try {
@@ -14,55 +59,21 @@ function prefersReducedMotion() {
   }
 }
 
-function Path({ children }) {
-  return <code className="welcome-path">{children}</code>;
-}
-
-function Term({ children }) {
-  return <span className="welcome-term">{children}</span>;
-}
-
-function Mark({ children }) {
-  return <mark className="welcome-mark">{children}</mark>;
-}
-
-function DocLink({ href, children }) {
-  return (
-    <a
-      className="welcome-doc"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      {children}
-    </a>
-  );
-}
-
-function DocHint({ href, before, after = '。' }) {
-  if (!href) return null;
-  return (
-    <>
-      {before}
-      {' '}
-      <DocLink href={href}>这篇文档</DocLink>
-      {after.startsWith('。') ? after : ` ${after}`}
-    </>
-  );
-}
-
 function WelcomePage() {
   const logoRef = useRef(null);
   const skipIntro = prefersReducedMotion();
   const [introOn, setIntroOn] = useState(() => !skipIntro);
   const [pageReady, setPageReady] = useState(() => skipIntro);
-  const [docs, setDocs] = useState({});
+  const [docsUrl, setDocsUrl] = useState(FALLBACK_DOCS_URL);
+  const [contactUrl, setContactUrl] = useState('');
 
   useEffect(() => {
     let alive = true;
     fetchSiteUrls()
       .then((urls) => {
-        if (alive) setDocs(urls.docs || {});
+        if (!alive) return;
+        setDocsUrl(urls.docsUrl || FALLBACK_DOCS_URL);
+        setContactUrl(urls.contactUrl || '');
       })
       .catch(() => {});
     return () => {
@@ -106,169 +117,59 @@ function WelcomePage() {
           </h1>
         </div>
 
-        <div className="welcome-lower">
-          <div className="welcome-lower__note">
-            在您开始使用之前，强烈建议您先花 3 分钟阅读下边的简介，这会帮助您快速理解并上手
-            <Term>NTQ</Term>
-            。
-          </div>
+        <Section className="welcome-lower" gap="xl">
+          <Message status="success">
+            您的安装已经全部完成，欢迎使用 New Tea Quant（NTQ）。
+          </Message>
 
-          <div className="welcome-lower__slot">
-            <h2 className="welcome-lower__slot-title">
-              什么是 New Tea Quant（
-              <Term>NTQ</Term>
-              ）？
-            </h2>
-            <p className="welcome-lower__lead">
-              <Term>NTQ</Term>
-              是一款回测与研究框架。本质上就做两件事：在您把交易准则抽象成代码能描述的规则后，
-            </p>
-            <ul className="welcome-lower__list">
-              <li>在历史数据里验证规则是否可行</li>
-              <li>使用您的规则在市场里寻找机会</li>
-            </ul>
-          </div>
-
-          <div className="welcome-lower__slot">
-            <h2 className="welcome-lower__slot-title">
-              我该从哪里做起？
-            </h2>
+          <div>
+            <Heading level="h2" gap="none">
+              接下来：
+            </Heading>
             <ul className="welcome-lower__list">
               <li>
-                <strong>第一步：把您的想法变成规则。</strong>
-                {' '}
-                您需要明确地把脑海中的想法变成一个规则，比如我的超卖就是
-                「
-                <Mark>
-                  <Term>RSI</Term>
-                  {' < 20'}
-                </Mark>
-                」
-                或是「我的热度是使用近期波动和成交量衡量的，当它们都在某个范围内就视作机会」。
+                首先，您可以通过每个页面右上角悬浮的
+                <strong>问号</strong>
+                按钮打开当前页面帮助；也可以使用
+                <strong>AI</strong>
+                按钮打开 AI 新茶小助手，帮您完成任务。
               </li>
+              {NEXT_LINKS.map((item) => (
+                <li key={item.to}>
+                  <RouterLink className="ntq-link" to={item.to}>
+                    {item.label}
+                  </RouterLink>
+                  ：
+                  {item.body}
+                </li>
+              ))}
               <li>
-                <strong>第二步：把想法变成代码。</strong>
-                {' '}
-                您需要在
-                <Path>userspace/strategies</Path>
-                给您的策略建立一个目录，里边需要 2 个文件，分别是
-                <Path>strategy.py</Path>
-                和
-                <Path>settings.py</Path>
-                。您可以通过拷贝演示策略，或拷贝
-                <Path>_template</Path>
-                目录再重命名的方式来创建。
-                {' '}
-                在您的
-                <Path>strategy.py</Path>
-                中，您需要实现
-                <Path>is_opportunity</Path>
-                方法，这个方法就是您抽象出的量化规则：返回
-                <Path>True</Path>
-                代表当前股票当前时间点有机会，
-                <Path>False</Path>
-                则反之。
-                {' '}
-                您还需要在
-                <Path>settings.py</Path>
-                中定义一些参数，比如您的回测需要什么数据、什么指标、起点、终点等等。当然还要定义一个明确的交易目标。
-                {' '}
-                <DocHint href={docs.strategy} before="更多的帮助可以参考" />
+                <a
+                  className="ntq-link"
+                  href={docsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  文档
+                </a>
+                ：您可以在这里直接跳转到官网查看开发文档。
               </li>
-              <li>
-                <strong>第三步：在历史数据中验证想法。</strong>
-                {' '}
-                完成代码编写和配置后，您就可以在
-                <Term>UI</Term>
-                上进行调试了。您可以把核心参数放入
-                <Path>settings.py</Path>
-                的
-                <Path>core</Path>
-                中，比如
-                <Term>RSI</Term>
-                的阈值、热度的范围等等。这样
-                <Term>UI</Term>
-                上会显示出这些数值，您只要修改并运行就能看到阈值变化对结果的影响。
-                {' '}
-                每个步骤完成时会有一份详尽的报告，告诉您当前想法把握机会的能力、抓住价格波动的能力，以及实盘模拟。调试到您觉得合理的区间后，就可以使用这个策略了。
-              </li>
-              <li>
-                <strong>第四步：在最新市场里寻找机会。</strong>
-                {' '}
-                您可以在
-                <Term>UI</Term>
-                的
-                <Term>策略选股</Term>
-                里看到您所有的策略，然后使用它们去扫描最新市场，找到符合您策略的机会并报告给您。
-                {' '}
-                <Mark>但请注意，这需要您接入自己的数据源才行。</Mark>
-                <DocHint href={docs.opportunities} before="更多的信息可以参考" />
-              </li>
+              {contactUrl ? (
+                <li>
+                  <a
+                    className="ntq-link"
+                    href={contactUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    反馈
+                  </a>
+                  ：您可以在这里直接跳转到官网反馈问题或提出建议。NTQ 随时欢迎您的任何反馈和建议。
+                </li>
+              ) : null}
             </ul>
           </div>
-
-          <div className="welcome-lower__slot">
-            <h2 className="welcome-lower__slot-title">
-              其他的页面都是做什么的？
-            </h2>
-            <ul className="welcome-lower__list">
-              <li>
-                <strong>
-                  <Term>特征标签</Term>
-                </strong>
-                {' '}
-                这个页面用来查看您对各种数据和股票做的特征标记。特征标签是可重用的预处理标记，比如您想对一只股票所有的记录进行市值分类，或标记一个公司是不是高负债率，这样在回测中可以直接通过
-                <Path>settings.py</Path>
-                的配置注入这些标签并使用。
-                {' '}
-                标签的用法类似策略：您需要抽象出标签的准则，然后在
-                <Path>userspace/extensions/tags</Path>
-                目录下创建
-                <Path>tag.py</Path>
-                和
-                <Path>settings.py</Path>
-                ，再像运行策略一样单独运行。
-                {' '}
-                标签的
-                <Term>UI</Term>
-                只能告诉您这个标签是不是最新的、它是什么类型，以及快捷开始按钮。
-                {' '}
-                <DocHint href={docs.tag} before="如果您想了解更多关于 tag 的用法，请参考" />
-              </li>
-              <li>
-                <strong>
-                  <Term>数据源</Term>
-                </strong>
-                {' '}
-                <Term>NTQ</Term>
-                自带了一套数据源（如果您在安装的时候导入过），您可以在
-                <Term>UI</Term>
-                里查看它们，并且可以让它们开始获取最新数据。
-                {' '}
-                <Mark>但请注意，NTQ 不自带持续的数据源。</Mark>
-                如果您需要不停更新数据（尤其是扫描机会需要使用），您需要自己接入自己的数据源。
-                {' '}
-                <DocHint href={docs.datasource} before="您可以通过" after="了解更多。" />
-              </li>
-              <li>
-                <strong>
-                  <Term>数据契约</Term>
-                </strong>
-                {' '}
-                数据契约是让一组数据绑定在一个独一无二的
-                <Path>data_key</Path>
-                上，这样您在制定策略时就可以在
-                <Path>settings.py</Path>
-                里直接声明这个 key，数据就会自动注入回测流程。
-                {' '}
-                <Term>UI</Term>
-                用来帮您看清不同契约的名字、描述和 key，方便在代码中使用。
-                {' '}
-                <DocHint href={docs.contract} before="您可以通过" after="了解更多。" />
-              </li>
-            </ul>
-          </div>
-        </div>
+        </Section>
       </div>
 
       {introOn ? (

@@ -5,8 +5,17 @@ import {
   isHelpDismissed,
   matchStrategyDesignDecision,
   matchStrategyDesignWorkbench,
+  matchWelcome,
   pickHelpForManualOpen,
 } from './catalog';
+
+describe('matchWelcome', () => {
+  it('matches only /welcome', () => {
+    expect(matchWelcome('/welcome')).toBe(true);
+    expect(matchWelcome('/welcome/')).toBe(false);
+    expect(matchWelcome('/strategy-design')).toBe(false);
+  });
+});
 
 describe('matchStrategyDesignWorkbench', () => {
   it('matches enum/price/portfolio for any strategy name', () => {
@@ -37,6 +46,16 @@ describe('matchStrategyDesignDecision', () => {
 });
 
 describe('findHelpForPath / isHelpDismissed', () => {
+  it('returns the welcome help on /welcome', () => {
+    const helps = findHelpsForPath('/welcome');
+    expect(helps.map((item) => item.id)).toEqual(['welcome']);
+    expect(helpTrigger(helps[0])).toBe('enter');
+    expect(findHelpForPath('/welcome')?.id).toBe('welcome');
+    expect(pickHelpForManualOpen(helps)?.id).toBe('welcome');
+    expect(helps[0].steps).toHaveLength(1);
+    expect(String(helps[0].steps[0].target || '')).toBe('');
+  });
+
   it('returns the strategy-design help on workbench routes', () => {
     const help = findHelpForPath('/strategy-design/demo/enum');
     expect(help?.id).toBe('strategy-design');

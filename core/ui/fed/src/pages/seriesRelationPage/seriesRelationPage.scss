@@ -273,6 +273,22 @@
   }
 }
 
+.ntq-srel-showcase__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-xs);
+}
+
+.ntq-srel-help-tip {
+  p {
+    margin: 0;
+
+    & + p {
+      margin-top: 0.5em;
+    }
+  }
+}
+
 .ntq-srel-participant-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(13.75rem, 1fr));

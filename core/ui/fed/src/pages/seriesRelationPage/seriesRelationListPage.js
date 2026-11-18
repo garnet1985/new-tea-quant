@@ -176,25 +176,29 @@ function SeriesRelationListPage() {
             )}
             actions={(
               <>
-                <Button
-                  variant="glass"
-                  icon="refresh"
-                  onClick={load}
-                  disabled={loading}
-                >
-                  刷新
-                </Button>
-                <Button
-                  variant="primary"
-                  icon="add"
-                  onClick={() => {
-                    setNewKey('');
-                    setNewDisplayName('');
-                    setNewOpen(true);
-                  }}
-                >
-                  新建
-                </Button>
+                <span data-ntq-help="series-relation-list-refresh">
+                  <Button
+                    variant="glass"
+                    icon="refresh"
+                    onClick={load}
+                    disabled={loading}
+                  >
+                    刷新
+                  </Button>
+                </span>
+                <span data-ntq-help="series-relation-list-create">
+                  <Button
+                    variant="primary"
+                    icon="add"
+                    onClick={() => {
+                      setNewKey('');
+                      setNewDisplayName('');
+                      setNewOpen(true);
+                    }}
+                  >
+                    新建
+                  </Button>
+                </span>
               </>
             )}
           />

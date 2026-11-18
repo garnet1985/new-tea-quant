@@ -1,32 +1,73 @@
 export const MAX_SERIES = 6;
 
+/** 展示：中文（英文值） */
+export function zhEnLabel(zh, en) {
+  const name = String(zh || '').trim();
+  const code = String(en || '').trim();
+  if (name && code) return `${name} (${code})`;
+  return name || code || '';
+}
+
+/** 数据契约选项：显示名 (data_key) */
+export function formatDataContractLabel(contractOrKey, displayName = '') {
+  if (contractOrKey && typeof contractOrKey === 'object') {
+    const key = String(contractOrKey.key || '').trim();
+    const name = String(contractOrKey.display_name || '').trim();
+    return zhEnLabel(name || key, name && name !== key ? key : '');
+  }
+  const key = String(contractOrKey || '').trim();
+  const name = String(displayName || '').trim();
+  return zhEnLabel(name || key, name && name !== key ? key : '');
+}
+
+export function findDataContractOption(ref, dataKeyOptions = []) {
+  const key = String(ref || '').trim();
+  if (!key || !Array.isArray(dataKeyOptions)) return null;
+  return dataKeyOptions.find((o) => o.key === key) || null;
+}
+
 export const NORMALIZE_OPTIONS = [
-  { value: 'zscore', label: 'zscore' },
-  { value: 'minmax', label: 'minmax' },
-  { value: 'index_100', label: 'index_100' },
-  { value: 'none', label: 'none' },
+  { value: 'zscore', label: zhEnLabel('标准化', 'zscore') },
+  { value: 'minmax', label: zhEnLabel('最大最小归一', 'minmax') },
+  { value: 'index_100', label: zhEnLabel('指数基准 100', 'index_100') },
+  { value: 'none', label: zhEnLabel('不归一', 'none') },
 ];
 
 export const FILL_OPTIONS = [
-  { value: 'none', label: 'none' },
-  { value: 'ffill', label: 'ffill' },
+  { value: 'none', label: zhEnLabel('不填充', 'none') },
+  { value: 'ffill', label: zhEnLabel('向前填充', 'ffill') },
 ];
 
 export const TRANSFORM_OPTIONS = [
-  { value: 'none', label: 'none' },
-  { value: 'returns', label: 'returns' },
+  { value: 'none', label: zhEnLabel('无变换', 'none') },
+  { value: 'returns', label: zhEnLabel('收益率', 'returns') },
 ];
 
 export const LAYER_OPTIONS = [
-  { value: 'portfolio', label: 'portfolio（组合）' },
-  { value: 'price', label: 'price（单票）' },
+  { value: 'portfolio', label: zhEnLabel('组合', 'portfolio') },
+  { value: 'price', label: zhEnLabel('单票', 'price') },
 ];
 
 /** layer → 允许的 metric（与后端 STRATEGY_SIM_LAYER_METRICS 对齐） */
 export const LAYER_METRICS = {
-  portfolio: [{ value: 'equity', label: 'equity' }],
-  price: [{ value: 'cum_exit_roi', label: 'cum_exit_roi' }],
+  portfolio: [{ value: 'equity', label: zhEnLabel('净值', 'equity') }],
+  price: [{ value: 'cum_exit_roi', label: zhEnLabel('累计出场收益', 'cum_exit_roi') }],
 };
+
+function labelFromOptions(options, value, fallback = '') {
+  const key = String(value || '').trim();
+  const hit = (options || []).find((o) => o.value === key);
+  if (hit?.label) return hit.label;
+  return fallback || key || '—';
+}
+
+export function getNormalizeLabel(value) {
+  return labelFromOptions(NORMALIZE_OPTIONS, value);
+}
+
+export function getFillLabel(value) {
+  return labelFromOptions(FILL_OPTIONS, value);
+}
 
 export const COMMON_FIELDS = ['close', 'open', 'high', 'low', 'volume', 'amount'];
 
@@ -157,9 +198,9 @@ export function resolveStrategyLabelForDisplay(ref, strategyOptions = []) {
 
 /**
  * 摘要副行：与契约源同 pattern——``身份 · 细节``。
- * 契约：``data_key · entity.field``；策略：``display_name · layer.metric``。
+ * 契约：``显示名 (data_key) · entity.field``；策略：``display_name · layer.metric``。
  */
-export function previewWho(item, strategyOptions = []) {
+export function previewWho(item, strategyOptions = [], dataKeyOptions = []) {
   if (!item || typeof item !== 'object') return '（未配置）';
   if (item.source === 'strategy_sim') {
     const label = resolveStrategyLabelForDisplay(
@@ -168,18 +209,23 @@ export function previewWho(item, strategyOptions = []) {
     );
     const layer = String(item.layer || '').trim() || '?';
     const metric = String(item.metric || '').trim() || '?';
+    const layerLabel = labelFromOptions(LAYER_OPTIONS, layer, layer);
+    const metrics = LAYER_METRICS[layer] || [];
+    const metricLabel = labelFromOptions(metrics, metric, metric);
     const detail = item.entity_id
-      ? `${layer}.${metric} · ${item.entity_id}`
-      : `${layer}.${metric}`;
+      ? `${layerLabel} · ${metricLabel} · ${item.entity_id}`
+      : `${layerLabel} · ${metricLabel}`;
     if (label && detail) return `${label} · ${detail}`;
     return label || detail || '（未配置）';
   }
   const dataKey = String(item.data_key || '').trim();
+  const contract = findDataContractOption(dataKey, dataKeyOptions);
+  const contractLabel = formatDataContractLabel(contract || dataKey);
   const field = String(item.field || '').trim();
   const entityId = String(item.entity_id || '').trim();
-  if (dataKey && entityId && field) return `${dataKey} · ${entityId}.${field}`;
-  if (dataKey && field) return `${dataKey} · ${field}`;
-  return dataKey || field || '（未配置）';
+  if (contractLabel && entityId && field) return `${contractLabel} · ${entityId}.${field}`;
+  if (contractLabel && field) return `${contractLabel} · ${field}`;
+  return contractLabel || field || '（未配置）';
 }
 
 const CHART_LEGEND_TEXT = {

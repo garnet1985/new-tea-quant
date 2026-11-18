@@ -1,7 +1,28 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { ChartPanel, Heading, Tag } from 'ui';
-import { previewWho } from './seriesRelationConstants';
+import { ChartPanel, Heading, HelpTooltip, Tag } from 'ui';
+import {
+  getFillLabel,
+  getNormalizeLabel,
+  previewWho,
+} from './seriesRelationConstants';
+
+const CHART_SECTION_TIP = (
+  <div className="ntq-srel-help-tip">
+    <p>把各条曲线按同一套归一方式放在同一尺度上，方便直接对比涨跌节奏是否合拍。</p>
+    <p>点图例可隐藏或重新显示某条曲线，便于只看你关心的那几条。</p>
+  </div>
+);
+
+const MATRIX_SECTION_TIP = (
+  <div className="ntq-srel-help-tip">
+    <p>矩阵里是两两皮尔逊相关系数：越接近 1 越同涨同跌；越接近 -1 越反向；接近 0 则几乎没有线性关系。</p>
+    <p>
+      若形状很像却一前一后，相关仍可能偏高，但会有领先 / 滞后；具体看下方「两两结论」里的滞后天数——
+      正值大致表示后者晚于前者，负值则相反。
+    </p>
+  </div>
+);
 
 function fmtNum(v, digits = 2) {
   if (v == null || v === '') return '—';
@@ -187,6 +208,7 @@ function SeriesRelationReport({
   results = null,
   chartOption = null,
   strategyOptions = [],
+  dataKeyOptions = [],
 }) {
   if (!results?.has_results) {
     return <p className="ntq-muted">运行后将在此展示结构化报告。</p>;
@@ -211,7 +233,7 @@ function SeriesRelationReport({
     <div className="ntq-srel-showcase">
       <div className="ntq-srel-showcase__head">
         <div>
-          <p className="ntq-srel-showcase__eyebrow">SERIES RELATION</p>
+          <p className="ntq-srel-showcase__eyebrow">序列关系</p>
           <Heading level="h3" gap="none" className="ntq-srel-showcase__title">
             {meta.key || results.key || '—'}
           </Heading>
@@ -224,7 +246,7 @@ function SeriesRelationReport({
             {summary.calendar_len ?? '—'} 交易日
           </Tag>
           <Tag status="info" variant="outline">
-            {meta.normalize || '—'} · {meta.fill || '—'}
+            {getNormalizeLabel(meta.normalize)} · {getFillLabel(meta.fill)}
           </Tag>
         </div>
       </div>
@@ -239,7 +261,7 @@ function SeriesRelationReport({
                   {item.label || item.id}
                 </div>
                 <div className="ntq-muted ntq-srel-participant__who">
-                  {previewWho(item, strategyOptions)}
+                  {previewWho(item, strategyOptions, dataKeyOptions)}
                 </div>
               </div>
             ))}
@@ -249,15 +271,21 @@ function SeriesRelationReport({
 
       <section className="ntq-srel-showcase__section">
         <div className="ntq-srel-showcase__section-head">
-          <Heading level="h4" gap="none">归一化走势</Heading>
+          <div className="ntq-srel-showcase__title-row">
+            <Heading level="h4" gap="none">归一化走势</Heading>
+            <HelpTooltip
+              title={CHART_SECTION_TIP}
+              ariaLabel="归一化走势说明"
+            />
+          </div>
           <p className="ntq-muted">
-            {dateMin && dateMax ? `${dateMin} – ${dateMax}` : '按全局 normalize 后的曲线'}
+            {dateMin && dateMax ? `${dateMin} – ${dateMax}` : '按上方归一方式处理后的曲线'}
           </p>
         </div>
         {chartOption ? (
           <ChartPanel
             title="标准化 / 归一化值"
-            tip="纵轴含义随全局 Normalize（如 zscore）变化"
+            tip="纵轴含义随全局归一方式（如标准化 zscore）变化"
             option={chartOption}
             height={340}
             framed={false}
@@ -269,13 +297,19 @@ function SeriesRelationReport({
 
       <section className="ntq-srel-showcase__section">
         <div className="ntq-srel-showcase__section-head">
-          <Heading level="h4" gap="none">关系矩阵</Heading>
-          <p className="ntq-muted">Pearson</p>
+          <div className="ntq-srel-showcase__title-row">
+            <Heading level="h4" gap="none">关系矩阵</Heading>
+            <HelpTooltip
+              title={MATRIX_SECTION_TIP}
+              ariaLabel="关系矩阵说明"
+            />
+          </div>
+          <p className="ntq-muted">皮尔逊相关 (Pearson)</p>
         </div>
         {pairwise.length ? (
           <RelationMatrix series={series} pairwise={pairwise} />
         ) : (
-          <p className="ntq-muted">未做两两分析（analyze=false 或系列不足）。</p>
+          <p className="ntq-muted">未做两两分析（未开启分析报告，或系列不足）。</p>
         )}
       </section>
 
@@ -299,6 +333,7 @@ SeriesRelationReport.propTypes = {
   results: PropTypes.object,
   chartOption: PropTypes.object,
   strategyOptions: PropTypes.arrayOf(PropTypes.object),
+  dataKeyOptions: PropTypes.arrayOf(PropTypes.object),
 };
 
 export default SeriesRelationReport;

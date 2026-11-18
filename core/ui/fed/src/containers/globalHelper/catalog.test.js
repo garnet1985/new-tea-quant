@@ -6,6 +6,8 @@ import {
   matchDataContractList,
   matchDataSourceList,
   matchScan,
+  matchSeriesRelationDetail,
+  matchSeriesRelationList,
   matchStrategyDesignDecision,
   matchStrategyDesignWorkbench,
   matchStrategyList,
@@ -63,6 +65,24 @@ describe('matchDataContractList', () => {
     expect(matchDataContractList('/advanced/data-contracts/')).toBe(true);
     expect(matchDataContractList('/advanced/data-sources')).toBe(false);
     expect(matchDataContractList('/scan')).toBe(false);
+  });
+});
+
+describe('matchSeriesRelationList', () => {
+  it('matches only the series-relation index', () => {
+    expect(matchSeriesRelationList('/advanced/series-relation')).toBe(true);
+    expect(matchSeriesRelationList('/advanced/series-relation/')).toBe(true);
+    expect(matchSeriesRelationList('/advanced/series-relation/demo')).toBe(false);
+    expect(matchSeriesRelationList('/advanced/data-contracts')).toBe(false);
+  });
+});
+
+describe('matchSeriesRelationDetail', () => {
+  it('matches series-relation detail routes only', () => {
+    expect(matchSeriesRelationDetail('/advanced/series-relation/demo')).toBe(true);
+    expect(matchSeriesRelationDetail('/advanced/series-relation/a/b')).toBe(true);
+    expect(matchSeriesRelationDetail('/advanced/series-relation')).toBe(false);
+    expect(matchSeriesRelationDetail('/advanced/series-relation/')).toBe(false);
   });
 });
 
@@ -171,6 +191,28 @@ describe('findHelpForPath / isHelpDismissed', () => {
       'data-contract-list-origin',
       'data-contract-list-time-series',
       'data-contract-list-per-entity',
+    ]);
+  });
+
+  it('returns the series-relation-list help on /advanced/series-relation', () => {
+    const helps = findHelpsForPath('/advanced/series-relation');
+    expect(helps.map((item) => item.id)).toEqual(['series-relation-list']);
+    expect(helpTrigger(helps[0])).toBe('enter');
+    expect(String(helps[0].steps[0].target || '')).toBe('');
+    expect(helps[0].steps.slice(1).map((step) => step.target)).toEqual([
+      'series-relation-list-refresh',
+      'series-relation-list-create',
+    ]);
+  });
+
+  it('returns the series-relation-detail help on detail routes', () => {
+    const helps = findHelpsForPath('/advanced/series-relation/demo');
+    expect(helps.map((item) => item.id)).toEqual(['series-relation-detail']);
+    expect(helpTrigger(helps[0])).toBe('enter');
+    expect(helps[0].steps.map((step) => step.target)).toEqual([
+      'series-relation-detail-globals',
+      'series-relation-detail-series',
+      'series-relation-detail-run',
     ]);
   });
 

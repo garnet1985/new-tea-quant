@@ -2,7 +2,9 @@
   border: 1px solid var(--ntq-white-12);
   border-radius: 0.5rem;
   padding: 1rem 1.125rem;
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--ui-surface-frost);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

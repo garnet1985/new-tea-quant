@@ -78,28 +78,42 @@
   position: relative;
   display: flex;
   align-items: stretch;
+  z-index: 0;
+}
+
+/* 展开时压过会员条（z-index: 2），避免指针移入面板途中被条带走 hover */
+.ntq-nav-dropdown.is-open {
+  z-index: 20;
 }
 
 .ntq-nav-dropdown__panel {
   position: absolute;
-  top: 100%;
+  /* 上沿叠进触发条 2px，避免顶栏底边缝触发 mouseleave */
+  top: calc(100% - 2px);
   left: 0;
-  z-index: 1300;
+  z-index: 1;
   min-width: 10rem;
-  padding: var(--ntq-space-xxs) 0;
+  /* 透明顶垫：斜向移动时仍算在下拉命中区内 */
+  padding: 0.625rem 0 var(--ntq-space-xxs);
   overflow: visible;
-  background-color: rgba(12, 12, 28, 0.98);
-  border: 1px solid var(--ntq-white-12);
-  border-radius: var(--ntq-radius-sm);
-  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 
-  &::before {
+  /* 可视表面（不含透明顶垫） */
+  &::after {
     content: '';
     position: absolute;
-    top: -0.5rem;
-    left: 0;
+    top: 0.625rem;
     right: 0;
-    height: 0.5rem;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    background-color: rgba(12, 12, 28, 0.98);
+    border: 1px solid var(--ntq-white-12);
+    border-radius: var(--ntq-radius-sm);
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
+    pointer-events: none;
   }
 }
 

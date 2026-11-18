@@ -9,6 +9,7 @@ import { ReactComponent as CloseIcon } from './icons/close.svg';
 import { ReactComponent as DataObjectIcon } from './icons/data_object.svg';
 import { ReactComponent as DeleteIcon } from './icons/delete.svg';
 import { ReactComponent as DownloadIcon } from './icons/download.svg';
+import { ReactComponent as EditIcon } from './icons/edit.svg';
 import { ReactComponent as FolderOpenIcon } from './icons/folder_open.svg';
 import { ReactComponent as HelpIcon } from './icons/help.svg';
 import { ReactComponent as HistoryIcon } from './icons/history.svg';
@@ -46,6 +47,7 @@ export const ICON_MAP = {
   dataObject: DataObjectIcon,
   delete: DeleteIcon,
   download: DownloadIcon,
+  edit: EditIcon,
   expandMore: ArrowRightIcon,
   folderOpen: FolderOpenIcon,
   help: HelpIcon,

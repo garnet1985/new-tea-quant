@@ -29,26 +29,23 @@
 .ntq-block--radius-lg { border-radius: var(--ntq-radius-lg); }
 .ntq-block--radius-pill { border-radius: var(--ntq-radius-pill); }
 
-.ntq-block--surface-soft {
-  background: var(--ntq-surface-soft);
-  backdrop-filter: blur(var(--ntq-blur-sm));
-  -webkit-backdrop-filter: blur(var(--ntq-blur-sm));
-}
-
-.ntq-block--surface-panel {
-  background: var(--ntq-surface-panel);
-  backdrop-filter: blur(var(--ntq-blur-md));
-  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
-}
-
+// 1) 透光玻璃
 .ntq-block--surface-glass {
   background: var(--ntq-surface-glass);
+}
+
+// 2) 毛玻璃
+.ntq-block--surface-frost {
+  background: var(--ntq-surface-frost);
   backdrop-filter: blur(var(--ntq-blur-md));
   -webkit-backdrop-filter: blur(var(--ntq-blur-md));
 }
 
-.ntq-block--surface-gradient {
-  background: var(--ntq-surface-gradient);
+// 3) 渐变毛玻璃
+.ntq-block--surface-frost-strong {
+  background: var(--ntq-surface-frost-strong);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
 }
 
 .ntq-block--bordered {
@@ -56,7 +53,7 @@
 }
 
 .ntq-block--bordered:not([class*='ntq-block--surface-']) {
-  background: var(--ntq-surface-soft);
+  background: var(--ntq-surface-glass);
 }
 
 // 贴顶：侧栏整栏（标题 + SideNav）常用

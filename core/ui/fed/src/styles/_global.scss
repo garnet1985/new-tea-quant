@@ -1,4 +1,5 @@
 @use 'tokens';
+@use 'surfaces';
 // TODO(deprecate): 不再 @use Sass variables；壳层尺寸见 --ntq-*（_ntq-tokens.scss）
 
 * {

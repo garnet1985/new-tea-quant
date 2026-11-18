@@ -11,7 +11,7 @@ const doc = {
       name: 'density',
       type: "'sm' | 'md'",
       defaultValue: "'md'",
-      description: '行高密度：sm=紧凑（compact），md=标准（standard）。',
+      description: '行高密度：sm=紧凑（表头 36 / 行高 44），md=标准（表头 40 / 行高 56）；表头左右 padding 与单元格一致。',
     },
     {
       name: 'cellLayout',

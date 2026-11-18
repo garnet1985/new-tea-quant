@@ -59,7 +59,7 @@
 .ntq-accordion--panel {
   position: relative;
   border: 1px solid var(--ui-divider-color, var(--ui-white-12));
-  background: var(--ui-surface-soft);
+  background: var(--ui-surface-glass);
   margin: 0;
 
   & + .ntq-accordion--panel {
@@ -72,7 +72,7 @@
 .ntq-accordion--nested {
   border: 1px solid var(--ui-divider-color, var(--ui-white-12));
   border-radius: 0.3125rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ui-surface-glass);
   overflow: hidden;
 
   // 间距交给父级 stack/gap；避免与 gap 叠成双倍

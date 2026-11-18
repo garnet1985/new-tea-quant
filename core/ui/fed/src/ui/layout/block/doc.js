@@ -1,5 +1,5 @@
 const doc = {
-  summary: '块级容器原语。padding / gap / radius / surface 用语义 token；可做软底、玻璃模糊、渐变与胶囊圆角。',
+  summary: '块级容器原语。padding / gap / radius / surface 用语义 token。表面仅三档：透光玻璃 / 毛玻璃 / 渐变毛玻璃。',
   params: [
     {
       name: 'padding',
@@ -21,9 +21,9 @@ const doc = {
     },
     {
       name: 'surface',
-      type: "'none' | 'soft' | 'panel' | 'glass' | 'gradient'",
+      type: "'none' | 'glass' | 'frost' | 'frost-strong' | 'soft' | 'panel' | 'gradient'",
       defaultValue: "'none'",
-      description: '表面：透明 / 浅底 / 稍实底 / 玻璃模糊 / 纵向浅渐变。',
+      description: 'glass=透光抬亮；frost=毛玻璃；frost-strong=渐变毛玻璃。旧名 soft/panel/gradient 仍可用。',
     },
     {
       name: 'bordered',
@@ -46,13 +46,15 @@ const doc = {
   ],
   scenarios: [
     'Column 某一列里包一组控件。',
-    '卡片：surface="soft|gradient" radius="md" bordered。',
-    '玻璃浮层：surface="glass" radius="lg"。',
-    '侧栏贴边贴顶：surface="panel" radius="none" sticky。',
+    '普通列表外壳：surface="glass" radius="md" bordered。',
+    '怕透底的表单/执行区：surface="frost"。',
+    '报告 / 图表区：surface="frost-strong"。',
+    '侧栏贴边贴顶：surface="frost" radius="none" sticky。',
   ],
   antiPatterns: [
     '禁止 padding={16} / gap="12px" / style 里写 borderRadius px。',
     '不要在 Block 上做业务标题行。',
+    '不要再用 rgba(0,0,0,0.12) 黑压当表面；改 frost / frost-strong。',
   ],
 };
 

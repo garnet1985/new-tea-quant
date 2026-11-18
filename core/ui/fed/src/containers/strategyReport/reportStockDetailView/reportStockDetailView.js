@@ -422,7 +422,7 @@ function ReportStockDetailView({
                 <ReactECharts
                   ref={chartRef}
                   option={chartOption}
-                  style={{ height: '100%', width: '100%', minHeight: 520 }}
+                  style={{ height: '100%', width: '100%' }}
                   notMerge
                   lazyUpdate
                   onEvents={chartEvents}

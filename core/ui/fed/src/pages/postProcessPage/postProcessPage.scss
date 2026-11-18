@@ -1,7 +1,7 @@
 .post-process-page {
   .post-process-panel {
     padding: var(--ui-space-md);
-    background: var(--ui-surface-soft);
+    background: var(--ui-surface-glass);
     border: 1px solid var(--ui-divider-color, var(--ui-white-12));
     border-radius: var(--ui-radius-md, 0.5rem);
   }
@@ -120,7 +120,9 @@
   padding: var(--ui-space-sm);
   border: 1px solid var(--ui-white-12);
   border-radius: var(--ui-radius-md, 0.5rem);
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--ui-surface-frost);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
 }
 
 .post-process-edit-row__head {

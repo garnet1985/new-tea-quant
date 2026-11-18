@@ -48,7 +48,9 @@
   box-sizing: border-box;
   border-radius: var(--ntq-radius-lg);
   border: 1px solid color-mix(in srgb, var(--ntq-cyan) 40%, transparent);
-  background: var(--ui-surface-panel);
+  background: var(--ui-surface-frost);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
   backdrop-filter: blur(var(--ui-blur-md));
   -webkit-backdrop-filter: blur(var(--ui-blur-md));
   box-shadow:

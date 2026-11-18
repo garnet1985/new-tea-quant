@@ -249,15 +249,6 @@ function StrategyListPage({
     },
   ]), [enterNavState, exportingName, getEnterPath, handleExportStrategyPackage]);
 
-  const gridSx = {
-    '& .MuiDataGrid-cell': {
-      py: 1.25,
-      alignItems: 'flex-start',
-      whiteSpace: 'normal',
-      lineHeight: 1.5,
-    },
-  };
-
   return (
     <PageLayout
       className="strategy-list-page"
@@ -373,9 +364,9 @@ function StrategyListPage({
                       columns={columns}
                       loading={false}
                       getRowHeight={() => 'auto'}
+                      cellLayout="wrap"
                       hideFooter
                       className="strategy-list-data-grid"
-                      sx={gridSx}
                       onRowDoubleClick={(params) => {
                         navigate(getEnterPath(params.row.name), {
                           state: enterNavState(params.row),

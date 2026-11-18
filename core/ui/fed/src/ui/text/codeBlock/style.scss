@@ -17,7 +17,7 @@
 }
 
 .ntq-code-block--glass {
-  background: var(--ntq-surface-glass);
+  background: var(--ntq-surface-frost);
   backdrop-filter: blur(var(--ntq-blur-md));
   -webkit-backdrop-filter: blur(var(--ntq-blur-md));
   box-shadow:
@@ -26,7 +26,7 @@
 }
 
 .ntq-code-block--soft {
-  background: var(--ntq-surface-soft);
+  background: var(--ntq-surface-glass);
 }
 
 // 有语言标注时：加大上内边距，把标注完全放进 padding 带，避免压住首行代码

@@ -170,7 +170,7 @@ function SettingsPage() {
       >
         <Block
           className="settings-page-nav"
-          surface="soft"
+          surface="glass"
           bordered
           padding="sm"
           gap="none"
@@ -186,7 +186,7 @@ function SettingsPage() {
 
         <Block
           className="settings-page-panel"
-          surface="soft"
+          surface="glass"
           bordered
           padding="lg"
           gap="none"

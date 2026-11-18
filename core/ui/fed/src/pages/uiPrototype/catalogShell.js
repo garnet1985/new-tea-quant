@@ -26,7 +26,7 @@ function UiPrototypeCatalogShell() {
       <aside className="ui-prototype__sidebar-rail">
         <Block
           className="ui-prototype__sidebar"
-          surface="panel"
+          surface="frost"
           radius="none"
           padding="md"
           gap="sm"

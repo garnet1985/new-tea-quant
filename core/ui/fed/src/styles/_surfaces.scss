@@ -1,0 +1,23 @@
+// =============================================================================
+// Wrapper 表面工具类（三档）
+// -----------------------------------------------------------------------------
+// glass        透光玻璃：浅白抬亮，不模糊
+// frost        毛玻璃：同抬亮 + blur
+// frost-strong 渐变毛玻璃：ink 遮罩 + 浅抬亮 + blur
+// =============================================================================
+
+.ui-surface-glass {
+  background: var(--ui-surface-glass);
+}
+
+.ui-surface-frost {
+  background: var(--ui-surface-frost);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
+}
+
+.ui-surface-frost-strong {
+  background: var(--ui-surface-frost-strong);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
+}

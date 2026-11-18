@@ -3,7 +3,8 @@ import { Link as RouterLink, useInRouterContext, useLocation } from 'react-route
 import Icon from 'ui/icon/icon';
 import './style.scss';
 
-const MENU_CLOSE_DELAY_MS = 160;
+/** 指针从触发条移向面板时允许斜穿空隙，过短会闪关。 */
+const MENU_CLOSE_DELAY_MS = 280;
 
 function pathActive(pathname, match) {
   if (!match) return false;
@@ -85,7 +86,7 @@ function AppNavView({
             <div
               key={id}
               ref={(el) => { anchorRefs.current[id] = el; }}
-              className="ntq-nav-dropdown"
+              className={['ntq-nav-dropdown', open ? 'is-open' : ''].filter(Boolean).join(' ')}
               onMouseEnter={() => openMenu(id)}
               onMouseLeave={scheduleCloseMenu}
             >
@@ -103,31 +104,32 @@ function AppNavView({
               >
                 <NavButtonLabel icon={item.icon} label={item.label} caret />
               </button>
-              {open ? (
-                <div
-                  className="ntq-nav-dropdown__panel"
-                  onMouseEnter={() => openMenu(id)}
-                  onMouseLeave={scheduleCloseMenu}
-                >
-                  {children.map((child) => {
-                    const childMatch = child.match || child.to;
-                    const selected = pathActive(pathname, childMatch);
-                    return (
-                      <Link
-                        key={child.to || child.label}
-                        to={child.to}
-                        className={[
-                          'ntq-nav-dropdown__item',
-                          selected ? 'is-selected' : '',
-                        ].filter(Boolean).join(' ')}
-                        onClick={closeMenu}
-                      >
-                        {child.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <div
+                className="ntq-nav-dropdown__panel"
+                role="menu"
+                aria-hidden={open ? 'false' : 'true'}
+                hidden={!open}
+              >
+                {children.map((child) => {
+                  const childMatch = child.match || child.to;
+                  const selected = pathActive(pathname, childMatch);
+                  return (
+                    <Link
+                      key={child.to || child.label}
+                      to={child.to}
+                      role="menuitem"
+                      tabIndex={open ? 0 : -1}
+                      className={[
+                        'ntq-nav-dropdown__item',
+                        selected ? 'is-selected' : '',
+                      ].filter(Boolean).join(' ')}
+                      onClick={closeMenu}
+                    >
+                      {child.label}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           );
         }

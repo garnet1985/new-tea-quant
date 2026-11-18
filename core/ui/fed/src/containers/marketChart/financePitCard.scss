@@ -23,7 +23,9 @@
   padding: 6px 8px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--ui-surface-frost-strong);
+  backdrop-filter: blur(var(--ui-blur-md));
+  -webkit-backdrop-filter: blur(var(--ui-blur-md));
 }
 
 .ntq-finance-pit-card__metric-name {

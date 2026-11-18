@@ -276,27 +276,35 @@ export function SeriesSummaryCard({
   const who = previewWho(value, strategyOptions, dataKeyOptions);
   return (
     <div className="ntq-srel-summary-card">
-      <div className="ntq-srel-summary-card__text">
+      <div className="ntq-srel-summary-card__head">
         <div className="ntq-srel-summary-card__title">
           系列 {index + 1}
           {titleLabel ? ` · ${titleLabel}` : ''}
         </div>
-        <div className="ntq-srel-summary-card__who ntq-muted">{who}</div>
+        <div className="ntq-srel-summary-card__actions">
+          <Button
+            size="small"
+            variant="glass"
+            icon="edit"
+            iconSize="sm"
+            tooltip="编辑"
+            aria-label="编辑系列"
+            onClick={onEdit}
+          />
+          <Button
+            size="small"
+            variant="glass"
+            icon="trash"
+            iconSize="sm"
+            tooltip="删除"
+            aria-label="删除系列"
+            disabled={!canRemove}
+            onClick={onRemove}
+            className="ntq-srel-card__delete"
+          />
+        </div>
       </div>
-      <div className="ntq-srel-summary-card__actions">
-        <Button size="small" variant="glass" onClick={onEdit}>
-          编辑
-        </Button>
-        <Button
-          variant="ghost"
-          icon="trash"
-          iconSize="sm"
-          aria-label="删除系列"
-          disabled={!canRemove}
-          onClick={onRemove}
-          className="ntq-srel-card__delete"
-        />
-      </div>
+      <div className="ntq-srel-summary-card__who ntq-muted">{who}</div>
     </div>
   );
 }

@@ -39,14 +39,17 @@
 .ntq-text-block--radius-lg { border-radius: 0 var(--ntq-radius-lg) var(--ntq-radius-lg) 0; }
 .ntq-text-block--radius-pill { border-radius: 0 var(--ntq-radius-lg) var(--ntq-radius-lg) 0; }
 
-.ntq-text-block--surface-soft { background: var(--ntq-surface-soft); }
-.ntq-text-block--surface-panel { background: var(--ntq-surface-panel); }
-.ntq-text-block--surface-glass {
-  background: var(--ntq-surface-glass);
+.ntq-text-block--surface-glass { background: var(--ntq-surface-glass); }
+.ntq-text-block--surface-frost {
+  background: var(--ntq-surface-frost);
   backdrop-filter: blur(var(--ntq-blur-md));
   -webkit-backdrop-filter: blur(var(--ntq-blur-md));
 }
-.ntq-text-block--surface-gradient { background: var(--ntq-surface-gradient); }
+.ntq-text-block--surface-frost-strong {
+  background: var(--ntq-surface-frost-strong);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
+}
 
 .ntq-text-block--bar-cyan { --ntq-text-block-bar-color: var(--ntq-cyan); }
 .ntq-text-block--bar-violet { --ntq-text-block-bar-color: var(--ntq-violet); }

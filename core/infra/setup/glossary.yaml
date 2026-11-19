@@ -1,5 +1,5 @@
 # Setup 术语表
-# Version: 0.1.1
+# Version: 0.2.0
 
 terms:
   NTQ:
@@ -13,7 +13,7 @@ terms:
     aliases:
       - "门面"
     avoid:
-      - "跨模块直接 import NewTeaQuantSetup / install_cli_runtime 当公开 API"
+      - "跨模块直接 import NewTeaQuantSetup / InstallOrchestrator 当公开 API"
 
   Setup:
     definition: "本模块门面类；挂载 env / runtime / artifacts / meta / trace / types。"

@@ -1,0 +1,283 @@
+"""
+安装状态与 ``needs_install`` 共用层（UI / CLI 入口均通过本模块判断）。
+
+- ``launcher.py`` → ``needs_install("ui")`` + ``install_ui_runtime``
+- ``python install.py`` → ``install_cli_runtime(force=True)``
+- ``cli.py`` / ``install.py --if-needed`` → ``needs_install("cli")`` + ``install_cli_runtime``
+
+状态文件：``.ntq/install-state.json``（依赖指纹 / cliRuntime / uiRuntime）。
+向导完成态：``.ntq/setup-runtime.json``（``isReady``，CLI 与 UI 共用）。
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Literal, Optional
+
+from core.system import system_meta
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
+
+logger = logging.getLogger(__name__)
+
+InstallProfileName = Literal["ui", "cli"]
+
+REPO_ROOT = NewTeaQuantSetup.repo_root
+STATE_FILE = REPO_ROOT / ".ntq" / "install-state.json"
+REQUIREMENTS = REPO_ROOT / "requirements.txt"
+UI_BFF_REQUIREMENTS = REPO_ROOT / "core" / "bff" / "requirements.txt"
+UI_FED_ROOT = REPO_ROOT / "core" / "ui" / "fed"
+UI_FED_LOCKFILE = UI_FED_ROOT / "package-lock.json"
+UI_FED_NODE_MODULES = UI_FED_ROOT / "node_modules"
+UI_FED_BUILD_DIR = UI_FED_ROOT / "build"
+UI_FED_BUILD_INDEX = UI_FED_BUILD_DIR / "index.html"
+
+
+def sha256_file(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def python_env_id() -> str:
+    """Current interpreter/venv identity; changes when ``venv/`` is recreated."""
+    prefix = Path(sys.prefix)
+    parts = [str(prefix.resolve())]
+    cfg = prefix / "pyvenv.cfg"
+    if cfg.is_file():
+        try:
+            stat = cfg.stat()
+            parts.append(str(stat.st_mtime_ns))
+            parts.append(sha256_file(cfg))
+        except OSError:
+            pass
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+
+def _module_importable(name: str) -> bool:
+    import importlib.util
+
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
+
+
+def bff_python_ready() -> bool:
+    """UI/BFF canary: empty or rebuilt venv has no Flask."""
+    return _module_importable("flask")
+
+
+def cli_python_ready() -> bool:
+    """CLI canary: empty or rebuilt venv has no pandas."""
+    return _module_importable("pandas")
+
+
+def load_state() -> Dict[str, Any]:
+    if not STATE_FILE.is_file():
+        return {}
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("install_runtime state read failed: %s", STATE_FILE, exc_info=exc)
+        return {}
+
+
+def save_state(state: Dict[str, Any]) -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def userspace_ready() -> bool:
+    from core.infra.project_context import ProjectContext
+
+    return (ProjectContext.path.get_user_config_root() / "database" / "common.json").is_file()
+
+
+def _runtime_status(state: Dict[str, Any], profile: InstallProfileName) -> str:
+    """读取 profile 对应 runtime 状态。"""
+    key = "uiRuntime" if profile == "ui" else "cliRuntime"
+    runtime = state.get(key) or {}
+    return str(runtime.get("lastStatus", ""))
+
+
+@dataclass(frozen=True)
+class _ProfileSpec:
+    name: InstallProfileName
+    runtime_key: str
+    extra_needs_checks: tuple[Callable[[Dict[str, Any]], bool], ...]
+
+
+def fed_build_ready() -> bool:
+    return UI_FED_BUILD_INDEX.is_file()
+
+
+def fed_build_fingerprint() -> str:
+    """CRA 构建产物指纹（用于生产模式 needs_install）。"""
+    parts: List[str] = []
+    for rel in ("index.html", "asset-manifest.json"):
+        p = UI_FED_BUILD_DIR / rel
+        if p.is_file():
+            parts.append(sha256_file(p))
+    if not parts:
+        return ""
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+
+def set_ui_dev_mode(enabled: bool) -> None:
+    """由 ``launcher.py -d`` / ``-dev`` 设置；内部仍用环境变量传递（venv 重启后保留）。"""
+    import os
+
+    if enabled:
+        os.environ["NTQ_UI_DEV"] = "1"
+    else:
+        os.environ.pop("NTQ_UI_DEV", None)
+
+
+def ui_dev_mode() -> bool:
+    import os
+
+    return os.environ.get("NTQ_UI_DEV", "").strip().lower() in ("1", "true", "yes")
+
+
+def _venv_id_mismatch(stored: Any) -> bool:
+    expected = str(stored or "").strip()
+    if not expected:
+        return False
+    return expected != python_env_id()
+
+
+def _ui_extra_needs(state: Dict[str, Any]) -> bool:
+    python_state = state.get("python", {}) or {}
+    if python_state.get("uiRequirementsHash") != sha256_file(UI_BFF_REQUIREMENTS):
+        return True
+    if _venv_id_mismatch(python_state.get("venvId")):
+        return True
+    if not bff_python_ready():
+        return True
+
+    if ui_dev_mode():
+        node_state = state.get("node", {})
+        if node_state.get("fedLockHash") != sha256_file(UI_FED_LOCKFILE):
+            return True
+        if not UI_FED_NODE_MODULES.is_dir():
+            return True
+        return False
+
+    # 生产模式只看产物在不在。指纹变化（例如本地 npm run build）不必重装 pip。
+    if not fed_build_ready():
+        return True
+    return False
+
+
+def _cli_extra_needs(state: Dict[str, Any]) -> bool:
+    cli_state = state.get("cli", {}) or {}
+    if cli_state.get("requirementsHash") != sha256_file(REQUIREMENTS):
+        return True
+    if _venv_id_mismatch(cli_state.get("venvId")):
+        return True
+    if not cli_python_ready():
+        return True
+    return False
+
+
+_PROFILES: Dict[InstallProfileName, _ProfileSpec] = {
+    "ui": _ProfileSpec("ui", "uiRuntime", (_ui_extra_needs,)),
+    "cli": _ProfileSpec("cli", "cliRuntime", (_cli_extra_needs,)),
+}
+
+
+def cli_install_scope() -> Literal["full", "deps_only", "none"]:
+    """
+    CLI 安装范围：已就绪环境仅 requirements.txt 变更时，只刷新依赖，不重跑 init/import。
+    """
+    if not needs_install("cli"):
+        return "none"
+
+    state = load_state()
+    if (
+        state
+        and state.get("coreVersion") == system_meta.version
+        and userspace_ready()
+        and _runtime_status(state, "cli") == "success"
+        and _cli_extra_needs(state)
+    ):
+        return "deps_only"
+    return "full"
+
+
+def needs_install(profile: InstallProfileName) -> bool:
+    """
+    UI / CLI 共用判断顺序（完全一致）：
+
+    1. 状态文件不存在
+    2. ``coreVersion`` 与当前 core 不一致
+    3. userspace 未就绪
+    4. 对应 profile 的 runtime ``lastStatus`` 非 ``success``
+    5. profile 专有依赖指纹（UI 生产：BFF hash + fed/build 存在；UI 开发：lock/node_modules；CLI: requirements.txt）
+    6. 当前解释器能导入关键包（UI: flask；CLI: pandas）；venv 重建后旧 install-state 不能再跳过 pip
+    """
+    state = load_state()
+    if not state:
+        return True
+
+    if state.get("coreVersion") != system_meta.version:
+        return True
+
+    if not userspace_ready():
+        return True
+
+    if _runtime_status(state, profile) != "success":
+        return True
+
+    spec = _PROFILES[profile]
+    for check in spec.extra_needs_checks:
+        if check(state):
+            return True
+
+    return False
+
+
+def mark_runtime(
+    profile: InstallProfileName,
+    *,
+    success: bool,
+    failed_step_id: str = "",
+    fingerprints: Optional[Dict[str, Any]] = None,
+) -> None:
+    """安装结束后写入状态（合并已有字段，不覆盖另一 profile）。"""
+    state = load_state()
+    state["coreVersion"] = system_meta.version
+
+    if fingerprints:
+        state.update(fingerprints)
+
+    spec = _PROFILES[profile]
+    state[spec.runtime_key] = {
+        "lastStatus": "success" if success else "failed",
+        "lastFailedStepId": failed_step_id if not success else "",
+    }
+    save_state(state)
+
+
+def mark_cli_success_fingerprint() -> None:
+    """CLI 流水线或 UI 向导完成后，写入同一份 install-state cliRuntime 指纹。"""
+    mark_runtime(
+        "cli",
+        success=True,
+        fingerprints={
+            "cli": {
+                "requirementsHash": sha256_file(REQUIREMENTS),
+                "venvId": python_env_id(),
+                "lastInstallAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+        },
+    )

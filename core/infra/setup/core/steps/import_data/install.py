@@ -19,7 +19,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 os.chdir(_REPO_ROOT)
 
-from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 from core.infra.setup.core.steps.import_data.installer import SetupDataInstaller
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)

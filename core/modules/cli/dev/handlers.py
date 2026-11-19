@@ -165,7 +165,7 @@ class DevHandlers:
     @staticmethod
     def cmd_data_export_init(args: argparse.Namespace) -> int:
         from core.infra.setup import Setup
-        from core.infra.setup.core.scripts.init_data.demo_data_exporter import (
+        from core.infra.setup.core.steps.import_data.export.demo_data_exporter import (
             normalize_ex_argv,
         )
 

@@ -1,6 +1,6 @@
 # Setup（`infra.setup`）
 
-**模块：** `infra.setup` · **版本：** `0.1.2`
+**模块：** `infra.setup` · **版本：** `0.2.0`
 
 ## 简介
 

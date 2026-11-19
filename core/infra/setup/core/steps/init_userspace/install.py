@@ -3,7 +3,7 @@
 安装流程步骤：初始化 userspace 目录。
 
 行为：
-- 从 initialization/userspace 自动读取唯一 zip 包（没有或有多个都报错）
+- 从 core/infra/setup/core/steps/init_userspace/assets 自动读取唯一 zip 包（没有或有多个都报错）
 - 解压到目标目录（默认 <repo>/userspace，或沿用已有 .ntq/userspace-path.json）
 - 写入 .ntq/userspace-path.json 供 ProjectContext 读取
 """
@@ -25,13 +25,13 @@ _REPO_ROOT = next(
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
 from core.infra.project_context.core.path_manager import PathManager
 
-INIT_USERSPACE_DIR = _REPO_ROOT / "initialization" / "userspace"
+INIT_USERSPACE_DIR = NewTeaQuantSetup.init_userspace_dir
 STATE_FILE = _REPO_ROOT / ".ntq" / "userspace-path.json"
 
 
@@ -41,7 +41,7 @@ def _resolve_zip() -> Path:
         raise FileNotFoundError(f"未找到 userspace zip，请放置到: {INIT_USERSPACE_DIR}")
     if len(zip_files) > 1:
         names = ", ".join(p.name for p in zip_files)
-        raise RuntimeError(f"initialization/userspace 下检测到多个 zip，请只保留一个: {names}")
+        raise RuntimeError(f"core/infra/setup/core/steps/init_userspace/assets 下检测到多个 zip，请只保留一个: {names}")
     return zip_files[0]
 
 

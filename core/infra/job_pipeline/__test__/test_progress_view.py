@@ -63,7 +63,7 @@ def test_import_data_candidates_include_import():
 
 
 def test_import_data_falls_back_to_install_progress(progress_dir):
-    from core.infra.setup.core.install_progress import (
+    from core.infra.setup.core.shared.install_progress import (
         begin_import_download,
         tick_import_download,
     )

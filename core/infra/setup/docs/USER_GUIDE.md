@@ -1,6 +1,6 @@
 # Setup — 用户指南
 
-**版本：** `0.1.2`
+**版本：** `0.2.0`
 
 NTQ 安装流程编排——首次启动时检测环境、创建目录、拷贝产物。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

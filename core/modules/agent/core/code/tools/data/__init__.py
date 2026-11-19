@@ -20,6 +20,7 @@ from core.modules.agent.core.code.tools.data.inspect_data import (
     list_indicators,
     list_stock_pool_dimensions,
 )
+from core.modules.agent.core.code.tools.data.preview_data import preview_data_rows
 from core.modules.agent.core.code.tools.data.renew import (
     read_renew_progress,
     start_data_renew,
@@ -68,4 +69,5 @@ __all__ = [
     "list_stock_pool_dimensions",
     "start_data_renew",
     "read_renew_progress",
+    "preview_data_rows",
 ]

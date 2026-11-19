@@ -20,10 +20,14 @@ def test_regex_pipeline_identity_then_worker():
     assert r.queue == ("identity", "worker")
 
 
-def test_regex_pipeline_oos_then_worker():
+def test_regex_pipeline_guide_then_worker_for_news():
     r = regex_route("法国暴乱影响 A 股吗，帮我改止损并重跑回测")
-    assert r.kind == "out_of_scope"
-    assert r.queue == ("out_of_scope", "worker")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
+
+
+def test_regex_realtime_quote_is_out_of_scope():
+    assert regex_route("招商银行现在实时股价多少钱").kind == "out_of_scope"
 
 
 def test_regex_arch():

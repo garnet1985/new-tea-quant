@@ -26,6 +26,11 @@ class AiChannel:
         return AiChannel._manager.set_api_key(provider_id, api_key)
 
     @staticmethod
+    def load_api_key(provider_id: str) -> Optional[str]:
+        """读取本机供应商 API Key；未配置则 ``None``。供工具（如网页搜索）使用。"""
+        return AiChannel._manager.load_api_key(provider_id)
+
+    @staticmethod
     def complete(
         messages: List[Dict[str, str]],
         *,

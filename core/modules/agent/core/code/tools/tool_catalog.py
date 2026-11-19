@@ -37,6 +37,165 @@ def _array(item_schema: Dict[str, Any], description: str = "") -> Dict[str, Any]
 
 _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
+        name="web_search",
+        description=(
+            "网页搜索：新闻背景、历史事件、专有名词与公开知识。"
+            "优先走 NTQ 远端 knowledge_brief（一次搜+总结）；无会员凭证时回退本机 deepseek。"
+            "返回 brief/来源；须注明出处。禁止据此荐股、预测涨跌或当作实时行情报价。"
+        ),
+        parameters=_object(
+            {
+                "query": _string("搜索词，1～128 字，例如 美联储 2024 年利率决议"),
+                "count": _integer("返回条数，1～10，默认 5"),
+            },
+            ["query"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_dir",
+        description=(
+            "列出 userspace 下某一层目录（strategies/ 或 extensions/ 内）。"
+            "不含密钥与 system。用于找策略/扩展路径。"
+        ),
+        parameters=_object(
+            {
+                "path": _string(
+                    "相对 userspace 的目录，例如 strategies 或 extensions/tables；默认 strategies"
+                ),
+            },
+            [],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="search_files",
+        description=(
+            "在 userspace 允许树内按子串搜索文件内容（默认 *.py）。"
+            "返回路径与行号；改文件前先 read_file。"
+        ),
+        parameters=_object(
+            {
+                "query": _string("要搜索的子串，例如 is_opportunity 或 ma20"),
+                "path": _string("搜索根目录，相对 userspace，默认 strategies"),
+                "glob": _string("文件 glob，默认 *.py"),
+            },
+            ["query"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="read_file",
+        description=(
+            "读取 userspace 内允许的文本文件（strategies/、extensions/，不含密钥）。"
+            "改策略/标签仍用对应 write_* 整文件覆盖。"
+        ),
+        parameters=_object(
+            {
+                "path": _string(
+                    "相对 userspace 的文件路径，例如 strategies/macd_cross/settings.py"
+                ),
+                "max_chars": _integer("最多返回字符数，默认约 4 万"),
+                "start_line": _integer("从第几行开始读，默认 1"),
+            },
+            ["path"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="calculator",
+        description=(
+            "安全计算算术表达式（+ - * / **、括号，以及 abs/sqrt/log/round 等）。"
+            "回测收益数字仍以报告工具为准，不要用计算器代替读报告。"
+        ),
+        parameters=_object(
+            {"expression": _string("表达式，例如 (1+0.12)**3 - 1")},
+            ["expression"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="read_url",
+        description=(
+            "抓取单个 http(s) 链接正文（Markdown）。用于用户给出的文档/公告链接。"
+            "需要本机 deepseek API Key。禁止据此荐股。"
+        ),
+        parameters=_object(
+            {
+                "url": _string("完整 http(s) URL"),
+                "max_chars": _integer("最多返回字符数"),
+            },
+            ["url"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="search_wiki",
+        description=(
+            "在 NTQ 产品说明书（ntq_wiki）内按关键字检索。"
+            "用法/配置/钩子优先用本工具；外网新闻用 web_search。"
+        ),
+        parameters=_object(
+            {"query": _string("关键字，例如 stock_list_filter 或 止损 stages")},
+            ["query"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="preview_data_rows",
+        description=(
+            "抽样读取本机行情行（验收 renew / 契约）。"
+            "当前支持 stock.kline.daily|weekly|monthly + entity_id。"
+            "不是实时行情终端。"
+        ),
+        parameters=_object(
+            {
+                "data_key": _string("如 stock.kline.daily"),
+                "entity_id": _string("标的，如 600036.SH"),
+                "limit": _integer("返回行数，默认 5，最大 20"),
+                "start": _string("可选起始日 YYYYMMDD"),
+                "end": _string("可选结束日 YYYYMMDD"),
+                "term": _string("可选；默认从 data_key 推断 daily/weekly/monthly"),
+            },
+            ["data_key", "entity_id"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="trading_calendar",
+        description=(
+            "查询本机 A 股交易日历：某日是否开市、上一/下一开市日、最新已完成交易日；"
+            "或 start+end 列出区间开市日。默认 market=SSE。不是实时行情。"
+        ),
+        parameters=_object(
+            {
+                "date": _string("要查的自然日 YYYYMMDD；省略则用今天"),
+                "start": _string("区间起始 YYYYMMDD（与 end 同用）"),
+                "end": _string("区间结束 YYYYMMDD（与 start 同用）"),
+                "market": _string("市场代码，默认 SSE"),
+            },
+            [],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="run_python_snippet",
+        description=(
+            "在受限沙箱跑短 Python：列表/复利/分位等 calculator 不够用时。"
+            "预置 math、statistics；须把最终值赋给 result。禁止 import/文件/网络/while。"
+            "回测收益仍以 read_*_report 为准。"
+        ),
+        parameters=_object(
+            {
+                "code": _string(
+                    "短脚本，例如 xs=[0.1,0.2,-0.05]; result=statistics.mean(xs)"
+                ),
+            },
+            ["code"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
         name="create_strategy",
         description=(
             "从空模板新建一个策略。先检查目录名和是否已存在，再复制模板、启用并写入 meta.key。"

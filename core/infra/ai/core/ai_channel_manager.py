@@ -81,6 +81,13 @@ class AiChannelManager:
             raise AiError(f"密钥已写入但未能读取：{info.provider_id}")
         return updated
 
+    def load_api_key(self, provider_id: str) -> Optional[str]:
+        """读取本机供应商密钥；未配置或不存在则 ``None``。"""
+        info = self.get_provider(str(provider_id or "").strip())
+        if info is None:
+            return None
+        return self._catalog.load_api_key(info.directory)
+
     def complete(
         self,
         messages: Sequence[Mapping[str, str]],

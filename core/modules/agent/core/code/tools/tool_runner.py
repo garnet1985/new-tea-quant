@@ -133,8 +133,34 @@ from core.modules.agent.core.code.tools.post_process.enable import (
     set_post_process_run_enabled,
     set_post_processor_enabled,
 )
+from core.modules.agent.core.code.tools.general.calculator_tool import calculator
+from core.modules.agent.core.code.tools.general.fs_tools import (
+    list_dir,
+    read_file,
+    search_files,
+)
+from core.modules.agent.core.code.tools.general.python_snippet_tool import (
+    run_python_snippet,
+)
+from core.modules.agent.core.code.tools.general.read_url_tool import read_url
+from core.modules.agent.core.code.tools.general.trading_calendar_tool import (
+    trading_calendar,
+)
+from core.modules.agent.core.code.tools.general.web_search_tool import web_search
+from core.modules.agent.core.code.tools.general.wiki_search_tool import search_wiki
+from core.modules.agent.core.code.tools.data.preview_data import preview_data_rows
 
 _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
+    "web_search": web_search,
+    "read_url": read_url,
+    "search_wiki": search_wiki,
+    "list_dir": list_dir,
+    "search_files": search_files,
+    "read_file": read_file,
+    "calculator": calculator,
+    "preview_data_rows": preview_data_rows,
+    "trading_calendar": trading_calendar,
+    "run_python_snippet": run_python_snippet,
     "create_strategy": create_strategy,
     "write_strategy_files": write_strategy_files,
     "validate_strategy": validate_strategy,

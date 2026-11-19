@@ -188,3 +188,39 @@ def test_read_renew_progress_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     out = renew_mod.read_renew_progress({})
     assert out.get("ok") is True, out
     assert out.get("running") is False
+
+
+def test_preview_data_rows_unsupported_key() -> None:
+    from core.modules.agent.core.code.tools.data.preview_data import preview_data_rows
+
+    out = preview_data_rows(
+        {"data_key": "macro.gdp", "entity_id": "CN"}
+    )
+    assert out.get("ok") is False
+    assert "暂不支持" in str(out.get("error") or "")
+
+
+def test_preview_data_rows_kline(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.modules.agent.core.code.tools.data import preview_data as preview_mod
+
+    class _Kline:
+        def load(self, stock_id, term="daily", start_date=None, end_date=None):
+            assert stock_id == "600036.SH"
+            return [
+                {"trade_date": "20240101", "close": 30.0},
+                {"trade_date": "20240102", "close": 31.0},
+            ]
+
+    class _Stock:
+        kline = _Kline()
+
+    class _DM:
+        stock = _Stock()
+
+    monkeypatch.setattr(preview_mod, "DataManager", lambda: _DM())
+    out = preview_mod.preview_data_rows(
+        {"data_key": "stock.kline.daily", "entity_id": "600036.SH", "limit": 1}
+    )
+    assert out.get("ok") is True, out
+    assert out.get("returned") == 1
+    assert out["rows"][0]["close"] == 31.0

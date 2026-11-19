@@ -165,6 +165,14 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
 - 改进时一次只改敏感度最高的一个止损或止盈；不要改买卖信号，不要一次改两个。
 - 改完止盈止损后先 start_price_factor，再按用户要求 start_portfolio，然后对比资金报告。
 
+## 通用工具
+
+- 改策略前可用 `list_dir` / `search_files` / `read_file` 查看本机文件（只读；密钥与 system 不可读）。
+- 产品说明书用 `search_wiki`；外网新闻/名词用 `web_search`（会员通道走远端 knowledge_brief；否则本机 deepseek）；用户给的链接用 `read_url`（本机 deepseek）。须引用来源；禁止荐股或当实时报价。
+- 算术用 `calculator`；列表/分位/复利等用 `run_python_snippet`（须赋给 `result`）。回测数字仍以 `read_*_report` 为准。
+- 问今天是否开市、下一交易日、区间开市日：用 `trading_calendar`（本机日历，不是实时盘口）。
+- 验收本机行情可用 `preview_data_rows`（stock.kline.* + entity_id）。
+
 ## 数据底层工具链（少用）
 
 供探查本机表/契约/数据源，或在 **userspace** 建自定义表 / 数据源 handler；不是日常主流程。域能力在 DataManager / DataSourceManager；本处工具只传参。

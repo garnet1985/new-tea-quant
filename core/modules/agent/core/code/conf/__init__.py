@@ -1,7 +1,25 @@
 """Agent 配置与硬门禁。"""
 
-from core.modules.agent.core.code.conf.agent_policy import resolve_user_write_path
+from core.modules.agent.core.code.conf.agent_policy import (
+    resolve_user_read_path,
+    resolve_user_write_path,
+)
 from core.modules.agent.core.code.conf.conf import (
+    READ_FILE_MAX_CHARS,
+    READ_URL_MAX_CHARS,
+    SEARCH_FILES_MAX_HITS,
+    SEARCH_FILES_MAX_LINE_CHARS,
+    TRADING_CALENDAR_RANGE_MAX_DAYS,
+    PYTHON_SNIPPET_MAX_CHARS,
+    PYTHON_SNIPPET_TIMEOUT_SECONDS,
+    PYTHON_SNIPPET_RESULT_MAX_CHARS,
+    PYTHON_SNIPPET_STDOUT_MAX_CHARS,
+    WEB_SEARCH_COUNT_DEFAULT,
+    WEB_SEARCH_COUNT_MAX,
+    WEB_SEARCH_PROVIDER_ID,
+    WEB_SEARCH_TIMEOUT_SECONDS,
+    WEB_SEARCH_URL,
+
     ASK_DEFAULT_MAX_TOKENS,
     ASK_TEMPERATURE,
     CLASSIFIER_HEAVY_PROVIDER_IDS,
@@ -101,5 +119,20 @@ __all__ = [
     "WRITE_POST_PROCESS_ADAPTER_MAX_CHARS",
     "WRITE_POST_PROCESS_PROCESSOR_ALLOWED_FIELDS",
     "WRITE_POST_PROCESS_PROCESSOR_MAX_CHARS",
+    "READ_FILE_MAX_CHARS",
+    "READ_URL_MAX_CHARS",
+    "SEARCH_FILES_MAX_HITS",
+    "SEARCH_FILES_MAX_LINE_CHARS",
+    "TRADING_CALENDAR_RANGE_MAX_DAYS",
+    "PYTHON_SNIPPET_MAX_CHARS",
+    "PYTHON_SNIPPET_TIMEOUT_SECONDS",
+    "PYTHON_SNIPPET_RESULT_MAX_CHARS",
+    "PYTHON_SNIPPET_STDOUT_MAX_CHARS",
+    "WEB_SEARCH_COUNT_DEFAULT",
+    "WEB_SEARCH_COUNT_MAX",
+    "WEB_SEARCH_PROVIDER_ID",
+    "WEB_SEARCH_TIMEOUT_SECONDS",
+    "WEB_SEARCH_URL",
+    "resolve_user_read_path",
     "resolve_user_write_path",
 ]

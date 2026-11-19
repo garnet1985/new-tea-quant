@@ -15,8 +15,6 @@ from core.infra.job_pipeline import JobPipeline
 from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
-from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.progress import PipelineProgress
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +51,12 @@ class WorkbenchRunLauncher:
         if not isinstance(api_settings, dict):
             return {"is_triggered": False, "reason": "settings 必须为对象"}
 
-        info = DiscoveryService.find_strategy(name)
+        info = Strategy.find(name, enabled_only=True)
         if info is None:
-            discovered = cls._find_any(name)
-            if discovered is None:
+            any_info = Strategy.find(name, enabled_only=False)
+            if any_info is None:
                 return {"is_triggered": False, "reason": f"策略不存在: {name}"}
-            if not discovered.is_enabled:
+            if not bool(any_info.get("is_enabled")):
                 return {"is_triggered": False, "reason": "策略未启用"}
             return {"is_triggered": False, "reason": f"策略不可运行: {name}"}
 
@@ -136,11 +134,11 @@ class WorkbenchRunLauncher:
                 "reason": persist_err,
             }
 
-        PipelineProgress.seed(
+        Strategy.seed_pipeline_progress(
             name,
             jid,
             pipeline_name=norm,
-            pipeline_description=PipelineProgress.pipeline_description(norm),
+            pipeline_description=Strategy.pipeline_progress_description(norm),
         )
         thread = threading.Thread(
             target=cls._background_job,
@@ -155,7 +153,7 @@ class WorkbenchRunLauncher:
             "run_id": jid,
             "pipeline_id": jid,
             "pipeline_name": norm,
-            "pipeline_description": PipelineProgress.pipeline_description(norm),
+            "pipeline_description": Strategy.pipeline_progress_description(norm),
             "settings_rev": str((occupancy or {}).get("settings_rev") or ""),
         }
 
@@ -188,7 +186,7 @@ class WorkbenchRunLauncher:
         jid = str(job_id or "").strip()
         if not jid:
             return None
-        doc = PipelineProgress.get(sn, jid, apply_stale=True)
+        doc = Strategy.get_pipeline_progress(sn, jid, apply_stale=True)
         if not doc:
             return None
         # HTTP aliases for existing clients (run_id / phase).
@@ -237,16 +235,6 @@ class WorkbenchRunLauncher:
         return out
 
     @classmethod
-    def _find_any(cls, key_or_id: str):
-        needle = str(key_or_id or "").strip()
-        if not needle:
-            return None
-        for info in DiscoveryService.discover_strategies():
-            if info.id() == needle or info.key == needle:
-                return info
-        return None
-
-    @classmethod
     def _background_job(
         cls,
         job_id: str,
@@ -265,14 +253,14 @@ class WorkbenchRunLauncher:
         try:
             lease.acquire()
         except JobRunningBusyError as exc:
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             cls._clear_active(strategy_name, job_id)
             return
 
         try:
-            with PipelineProgress.bind(strategy_name, job_id) as prog:
+            with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                 prog.mark_running()
                 if JobPipeline.is_cancel_requested(job_id):
                     prog.fail("用户取消")
@@ -306,12 +294,12 @@ class WorkbenchRunLauncher:
                 prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Workbench run failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             else:
                 try:
-                    with PipelineProgress.bind(strategy_name, job_id) as prog:
+                    with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                         prog.fail(str(exc))
                 except Exception:
                     logger.exception("PipelineProgress.fail unavailable job_id=%s", job_id)

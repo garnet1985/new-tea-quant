@@ -12,11 +12,6 @@ from core.infra.job_pipeline import JobPipeline
 from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
-from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.progress import (
-    ATTRIBUTE_PIPELINE,
-    PipelineProgress,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +52,7 @@ class AttributeRunLauncher:
         if norm is None:
             return {"is_triggered": False, "reason": "step 须为 enum / price / portfolio"}
 
-        info = DiscoveryService.find_strategy(name)
+        info = Strategy.find(name, enabled_only=True)
         if info is None:
             return {"is_triggered": False, "reason": f"策略不存在或未启用: {name}"}
 
@@ -99,11 +94,12 @@ class AttributeRunLauncher:
         if busy:
             return {"is_triggered": False, "reason": busy}
 
+        pipeline_name = Strategy.attribute_pipeline_name()
         desc = cls.pipeline_description(norm)
-        PipelineProgress.seed(
+        Strategy.seed_pipeline_progress(
             name,
             jid,
-            pipeline_name=ATTRIBUTE_PIPELINE,
+            pipeline_name=pipeline_name,
             pipeline_description=desc,
         )
         thread = threading.Thread(
@@ -118,7 +114,7 @@ class AttributeRunLauncher:
             "job_id": jid,
             "run_id": jid,
             "pipeline_id": jid,
-            "pipeline_name": ATTRIBUTE_PIPELINE,
+            "pipeline_name": pipeline_name,
             "pipeline_kind": "attribute",
             "pipeline_description": desc,
         }
@@ -138,11 +134,7 @@ class AttributeRunLauncher:
     @classmethod
     def _gate(cls, strategy_name: str, norm_step: str) -> Optional[str]:
         """可跑则返回 None，否则返回给人看的原因。"""
-        from core.bff.APIs.strategy.routes.attribution.status import (
-            AttributeStatus,
-        )
-
-        status = AttributeStatus.probe(strategy_name, norm_step)
+        status = Strategy.probe_attribute_status(strategy_name, norm_step)
         if not status.get("visible"):
             return str(status.get("tooltip") or "请先完成本层回测再归因")
         if not status.get("enabled"):
@@ -169,7 +161,7 @@ class AttributeRunLauncher:
             lease.acquire()
             acquired = True
         except JobRunningBusyError as exc:
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
@@ -177,7 +169,7 @@ class AttributeRunLauncher:
             return
         except Exception as exc:  # noqa: BLE001
             logger.exception("Attribute lease acquire failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
@@ -185,7 +177,7 @@ class AttributeRunLauncher:
             return
 
         try:
-            with PipelineProgress.bind(strategy_name, job_id) as prog:
+            with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                 prog.mark_running()
                 if JobPipeline.is_cancel_requested(job_id):
                     prog.fail("用户取消")
@@ -217,12 +209,12 @@ class AttributeRunLauncher:
                 prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Attribute run failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             else:
                 try:
-                    with PipelineProgress.bind(strategy_name, job_id) as prog:
+                    with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                         prog.fail(str(exc))
                 except Exception:
                     logger.exception(

@@ -148,28 +148,9 @@ def _load_stock_options(dim: Optional[str]) -> Dict[str, List[Dict[str, Any]]]:
 
 
 def _load_datakeys() -> List[Dict[str, Any]]:
-    from core.infra.project_context import ProjectContext
     from core.modules.data_contract import ContractIssuer
 
-    issuer = ContractIssuer()
-    issuer.discover(user_space_path=ProjectContext.path.get_data_contract_root())
-    rows: List[Dict[str, Any]] = []
-    for data_key in sorted(issuer.list_available_keys()):
-        decl = issuer.get_declaration(data_key)
-        meta = decl.get("meta") if isinstance(decl.get("meta"), dict) else {}
-        ctype = str(meta.get("type") or "").strip()
-        scope = str(meta.get("scope") or "").strip()
-        rows.append(
-            {
-                "key": data_key,
-                "type": ctype,
-                "scope": scope,
-                "time_series": ctype == "time_series",
-                "per_entity": scope == "per_entity",
-                "display_name": str(meta.get("display_name") or "").strip(),
-            }
-        )
-    return rows
+    return ContractIssuer.list_catalog_entries()
 
 
 def _load_tags() -> List[Dict[str, Any]]:
@@ -220,29 +201,7 @@ def _load_tag_definitions(tag_ref: str) -> Tuple[List[Dict[str, Any]], Optional[
     """``tag_ref`` 为 meta.key（推荐）或路径 id。"""
     from core.modules.tag import Tag
 
-    info = Tag().find(tag_ref)
-    if info is None:
-        return [], f"未找到 tag: {tag_ref}（可用 meta.key，如 market_cap_tier）"
-    settings = getattr(info, "settings", None) or {}
-    raw = settings.get("tag_definitions") if isinstance(settings, dict) else None
-    if not isinstance(raw, list):
-        return [], None
-    rows: List[Dict[str, Any]] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name") or "").strip()
-        if not name:
-            continue
-        rows.append(
-            {
-                "value": name,
-                "name": name,
-                "display_name": str(item.get("display_name") or "").strip(),
-                "description": str(item.get("description") or "").strip(),
-            }
-        )
-    return rows, None
+    return Tag.list_definitions(tag_ref)
 
 
 def _load_indicators() -> List[Dict[str, Any]]:

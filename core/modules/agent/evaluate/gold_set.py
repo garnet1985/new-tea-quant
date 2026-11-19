@@ -37,21 +37,26 @@ GOLD_CASES: List[GoldCase] = [
         "kinds": ["advice", "worker"],
         "note": "pipeline：先拒荐，再问是否自述任务去实现",
     },
-    # —— 超范围 ——
+    # —— 资讯 / 知识（guide + web_search）——
     {
         "text": "最近发生的法国暴乱会不会影响A股？",
-        "kind": "out_of_scope",
-        "note": "纯资讯",
+        "kind": "guide",
+        "note": "新闻背景（可搜网，不荐股）",
     },
     {
         "text": "美联储最近一次利率决议结果是什么？",
-        "kind": "out_of_scope",
-        "note": "宏观",
+        "kind": "guide",
+        "note": "宏观事实（可搜网）",
     },
     {
         "text": "告诉我最近AI和芯片的投资潜力还大不大？",
+        "kind": "guide",
+        "note": "产业背景（可搜网；禁止结论性荐股）",
+    },
+    {
+        "text": "招商银行现在实时股价多少钱",
         "kind": "out_of_scope",
-        "note": "泛投资资讯",
+        "note": "实时报价红线",
     },
     # —— 交叉 pipeline：先讲解/拒答，再挂起做事 ——
     {
@@ -62,9 +67,9 @@ GOLD_CASES: List[GoldCase] = [
     },
     {
         "text": "法国暴乱影响 A 股吗，帮我改止损并重跑回测",
-        "kind": "out_of_scope",
-        "kinds": ["out_of_scope", "worker"],
-        "note": "pipeline：先拒资讯，再问是否改止损",
+        "kind": "guide",
+        "kinds": ["guide", "worker"],
+        "note": "pipeline：先答资讯，再问是否改止损",
     },
     {
         "text": "新茶简介一下，然后帮我扫描机会",
@@ -99,13 +104,13 @@ GOLD_CASES: List[GoldCase] = [
     {"text": "有没有稳赚不赔的策略推荐", "kind": "advice", "note": "投资建议陷阱"},
     {
         "text": "今天大盘为什么跌，网上怎么说的",
-        "kind": "out_of_scope",
-        "note": "资讯+外网",
+        "kind": "guide",
+        "note": "资讯+外网（可搜网）",
     },
     {
         "text": "贵州茅台最近新闻关注点是什么",
-        "kind": "out_of_scope",
-        "note": "个股新闻",
+        "kind": "guide",
+        "note": "个股新闻（可搜网，不荐股）",
     },
     {
         "text": "介绍一下新茶，顺便帮我写个均线策略并回测",
@@ -115,9 +120,9 @@ GOLD_CASES: List[GoldCase] = [
     },
     {
         "text": "美联储加息了吗，帮我重跑一遍组合",
-        "kind": "out_of_scope",
-        "kinds": ["out_of_scope", "worker"],
-        "note": "pipeline",
+        "kind": "guide",
+        "kinds": ["guide", "worker"],
+        "note": "pipeline：先答宏观，再问是否重跑",
     },
     {"text": "报告不对帮我查", "kind": "worker", "note": "质疑→worker"},
     {
@@ -144,6 +149,21 @@ GOLD_CASES: List[GoldCase] = [
     {"text": "请帮我校验策略", "kind": "worker", "note": "明确做事"},
     {"text": "再跑一次回测看看", "kind": "worker", "note": "再跑"},
     {"text": "写个动量策略", "kind": "worker", "note": "建策"},
+    {
+        "text": "帮我验证一下是不是出来跳空之后都会总有一天补回来？假如跳空是个机会我能不能利用跳空进行盈利？",
+        "kind": "worker",
+        "note": "研究假说→worker，非 advice",
+    },
+    {
+        "text": "帮我验证金叉之后是不是更容易上涨",
+        "kind": "worker",
+        "note": "研究假说",
+    },
+    {
+        "text": "跳空在 K 线上是什么意思",
+        "kind": "guide",
+        "note": "纯概念，未要求验证",
+    },
 ]
 
 

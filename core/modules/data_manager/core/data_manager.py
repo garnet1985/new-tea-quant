@@ -338,8 +338,20 @@ class DataManager:
         仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
         def _dirs_with_schema(root: Path) -> set:
-            """递归收集包含 schema.py 的目录。"""
-            return {p.parent for p in root.rglob("schema.py") if p.is_file()}
+            """递归收集包含 schema.py 的目录；跳过路径段以 ``_`` 开头的目录（如 ``_template``）。"""
+            found: set = set()
+            for schema_py in root.rglob("schema.py"):
+                if not schema_py.is_file():
+                    continue
+                folder = schema_py.parent
+                try:
+                    rel = folder.relative_to(root)
+                except ValueError:
+                    continue
+                if any(part.startswith("_") for part in rel.parts):
+                    continue
+                found.add(folder)
+            return found
 
         try:
             # 1. core/tables（仅接受 sys_ 前缀）
@@ -370,6 +382,106 @@ class DataManager:
         供 CLI ``list tables`` 等 catalog 使用；不含未注册的 orphan 物理表。
         """
         return sorted(self._table_cache.keys())
+
+    # ------------------------------------------------------------------
+    # Userspace 自定义表用例（脚手架 / 校验 / 物理表；实现在 user_tables）
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def scaffold_user_table(
+        *,
+        key: str,
+        kind: str = "data",
+        table_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """在 ``userspace/extensions/tables`` 从模板新建 cust_* 表骨架。拒写 core/tables。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.scaffold(key=key, kind=kind, table_name=table_name)
+
+    @staticmethod
+    def write_user_table_files(
+        *,
+        key: str,
+        schema_py: str = "",
+        model_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖已有 userspace 表的 schema.py / model.py（至少一份）。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.write_files(
+            key=key, schema_py=schema_py, model_py=model_py
+        )
+
+    def validate_user_table(self, *, key: str) -> Dict[str, Any]:
+        """校验 userspace 表并 ``register_table``；不建物理表。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.validate(self, key=key)
+
+    def ensure_user_table(self, *, key: str) -> Dict[str, Any]:
+        """校验通过后为 cust_* 调用 Model.create_table()。sys_* 拒绝。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.ensure_physical(self, key=key)
+
+    def describe_table(self, *, table_name: str) -> Dict[str, Any]:
+        """只读表 schema 摘要（sys_/cust_ 均可读）。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.describe(self, table_name=table_name)
+
+    def list_tables_by_owner(self, *, owner: str = "all") -> Dict[str, Any]:
+        """按 owner 过滤 ``list_tables``（all / sys / cust）。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.list_names(self, owner=owner)
+
+    def export_adj_factor_events_csv(
+        self,
+        *,
+        base_date: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """导出 ``sys_data_adj_factor_events`` 到 CSV；返回 path / rows / 区间。"""
+        import os
+
+        adj = self.get_table("sys_data_adj_factor_events")
+        if adj is None:
+            return {
+                "ok": False,
+                "error": "表未注册: sys_data_adj_factor_events",
+                "path": "",
+                "rows": 0,
+            }
+        resolved_start = (
+            str(start_date).replace("-", "")[:8]
+            if start_date
+            else adj.get_min_event_date()
+        )
+        end = end_date or adj.get_max_event_date()
+        if file_path:
+            out = str(file_path)
+        elif base_date and not end_date and start_date is None:
+            file_name = adj.get_current_quarter_csv_name(base_date=base_date)
+            out = os.path.join(adj.csv_dir, file_name)
+        else:
+            out = os.path.join(
+                adj.csv_dir,
+                f"adj_factor_events_{resolved_start or 'earliest'}_{end or 'latest'}.csv",
+            )
+        rows = adj.export_to_csv(
+            file_path=out, start_date=start_date, end_date=end_date
+        )
+        return {
+            "ok": True,
+            "path": out,
+            "rows": int(rows),
+            "start": resolved_start or "",
+            "end": str(end or ""),
+        }
 
     def get_table(self, table_name: str) -> Any:
         """

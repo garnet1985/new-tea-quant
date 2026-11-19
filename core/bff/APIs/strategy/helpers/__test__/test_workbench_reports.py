@@ -10,6 +10,7 @@ from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_portfolio_slot,
     hydrate_price_slot,
 )
+from core.modules.strategy import Strategy
 
 
 def _write_overall(path: Path, summary: dict, **extra) -> None:
@@ -44,8 +45,9 @@ def test_hydrate_enum_slot_from_overall_report(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.helpers.report_hydrate.Strategy.resolve_simulation_output_dirs",
-        lambda *a, **k: [out_dir],
+        Strategy,
+        "resolve_simulation_output_dirs",
+        staticmethod(lambda *a, **k: [out_dir]),
     )
 
     slot = hydrate_enum_slot("demo/x", {"output_dir": str(out_dir), "success": True})
@@ -70,8 +72,9 @@ def test_hydrate_price_slot_from_overall_report(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.helpers.report_hydrate.Strategy.resolve_simulation_output_dirs",
-        lambda *a, **k: [out_dir],
+        Strategy,
+        "resolve_simulation_output_dirs",
+        staticmethod(lambda *a, **k: [out_dir]),
     )
     slot = hydrate_price_slot("demo/x", {"output_dir": str(out_dir)})
     assert slot["priceMetrics"]["totalInvestments"] == 3
@@ -93,8 +96,9 @@ def test_hydrate_portfolio_slot_from_overall_report(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.helpers.report_hydrate.Strategy.resolve_simulation_output_dirs",
-        lambda *a, **k: [out_dir],
+        Strategy,
+        "resolve_simulation_output_dirs",
+        staticmethod(lambda *a, **k: [out_dir]),
     )
     slot = hydrate_portfolio_slot("demo/x", {"output_dir": str(out_dir)})
     assert slot["capitalMetrics"]["initialCapital"] == 100000.0

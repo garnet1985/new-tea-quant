@@ -278,7 +278,7 @@ def test_step_status_from_artifacts_even_if_cache_payload_missing(
         "_enrich_row",
         side_effect=lambda name, _info, row: row,
     ), patch(
-        "core.bff.APIs.strategy.helpers.workbench_snapshots.SimulationVersionStore.get_cache_by_version_id",
+        "core.modules.strategy.core.services.workbench_snapshots.SimulationVersionStore.get_cache_by_version_id",
         return_value=None,
     ):
         row = WorkbenchSnapshots.fetch_latest("demo/random/random_v1_null_baseline")
@@ -330,7 +330,7 @@ def test_step_status_decision_done_when_any_session_completed(
         "_enrich_row",
         side_effect=lambda name, _info, row: row,
     ), patch(
-        "core.bff.APIs.strategy.helpers.workbench_snapshots.SimulationVersionStore.get_cache_by_version_id",
+        "core.modules.strategy.core.services.workbench_snapshots.SimulationVersionStore.get_cache_by_version_id",
         return_value=None,
     ):
         row = WorkbenchSnapshots.fetch_latest("demo/random/random_v1_null_baseline")

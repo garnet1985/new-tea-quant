@@ -178,6 +178,53 @@ class SeriesRelation:
 
         return lookup
 
+    # ------------------------------------------------------------------
+    # Userspace 用例（脚手架 / 写 settings / 校验；发现即注册，无 mapping）
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def scaffold_user_series_relation(
+        *,
+        key: str,
+        display_name: str = "",
+    ) -> Dict[str, Any]:
+        """在 ``userspace/extensions/series_relation`` 从模板新建场景骨架。"""
+        from core.modules.series_relation.core.user_relations import UserSeriesRelationOps
+
+        return UserSeriesRelationOps.scaffold(key=key, display_name=display_name)
+
+    @staticmethod
+    def write_user_series_relation_settings(
+        *,
+        key: str,
+        settings_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖已有场景的 settings.py（meta.key 强制对齐目录叶名）。"""
+        from core.modules.series_relation.core.user_relations import UserSeriesRelationOps
+
+        return UserSeriesRelationOps.write_settings(key=key, settings_py=settings_py)
+
+    @staticmethod
+    def validate_user_series_relation(*, key: str) -> Dict[str, Any]:
+        """按目录加载 settings 并校验；不跑批。"""
+        from core.modules.series_relation.core.user_relations import UserSeriesRelationOps
+
+        return UserSeriesRelationOps.validate(key=key)
+
+    @staticmethod
+    def describe_user_series_relation(*, key: str) -> Dict[str, Any]:
+        """只读场景摘要。"""
+        from core.modules.series_relation.core.user_relations import UserSeriesRelationOps
+
+        return UserSeriesRelationOps.describe(key=key)
+
+    @staticmethod
+    def list_user_series_relation_summaries() -> Dict[str, Any]:
+        """列出已发现场景摘要。"""
+        from core.modules.series_relation.core.user_relations import UserSeriesRelationOps
+
+        return UserSeriesRelationOps.list_summaries()
+
 
 def _read_json(path: Path) -> Any:
     try:

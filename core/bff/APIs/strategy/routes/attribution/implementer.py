@@ -9,11 +9,10 @@ from core.modules.strategy.contracts import WorkbenchStep
 
 
 class StrategyAttributionImplementer:
-    """延迟加载归因的状态、启动和报告。"""
+    """延迟加载归因的启动和报告；状态走 Strategy Facade。"""
 
     def __init__(self) -> None:
         self._AttributeRunLauncher = None
-        self._AttributeStatus = None
         self._AttributeReportReader = None
 
     def lazy_load(self) -> "StrategyAttributionImplementer":
@@ -25,12 +24,8 @@ class StrategyAttributionImplementer:
             from core.bff.APIs.strategy.routes.attribution.report import (
                 AttributeReportReader,
             )
-            from core.bff.APIs.strategy.routes.attribution.status import (
-                AttributeStatus,
-            )
 
             self._AttributeRunLauncher = AttributeRunLauncher
-            self._AttributeStatus = AttributeStatus
             self._AttributeReportReader = AttributeReportReader
         return self
 
@@ -44,12 +39,11 @@ class StrategyAttributionImplementer:
         self, *, strategy_key_or_name: str, step: str
     ) -> Dict[str, Any]:
         """查询本层归因按钮是否可点。"""
-        assert self._AttributeStatus is not None
         name = Strategy.resolve(strategy_key_or_name)
         norm = self.normalize_step(step)
         if norm is None:
             raise ValueError("step 须为 enum / price / portfolio")
-        return self._AttributeStatus.probe(name, norm)
+        return Strategy.probe_attribute_status(name, norm)
 
     def submit_run(
         self,

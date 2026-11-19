@@ -1037,5 +1037,437 @@ class Strategy:
             dry_run=dry_run,
         )
 
+    @staticmethod
+    def export_package_zip(
+        key_or_name: str,
+        *,
+        scope: str = "bundle",
+    ) -> tuple:
+        """导出 zip 字节与文件名（BFF 下载）；``scope`` = bundle | strategy。"""
+        from .services import package as pkg
+
+        name = Strategy.resolve_path(key_or_name)
+        scope_norm = str(scope or "bundle").strip().lower() or "bundle"
+        if scope_norm == "bundle":
+            _manifest, payload = pkg.export_strategy_bundle(name)
+            filename = pkg.bundle_filename(name)
+        elif scope_norm == "strategy":
+            _manifest, payload = pkg.export_single_entity("strategy", name)
+            filename = pkg.single_entity_filename("strategy", name)
+        else:
+            raise ValueError(f"无效 scope={scope_norm!r}；可选 bundle | strategy")
+        if isinstance(payload, (bytes, bytearray)):
+            data = bytes(payload)
+        else:
+            data = Path(payload).read_bytes()
+        return data, filename
+
+    @staticmethod
+    def preview_package_import(blob: bytes, policy: Any) -> Dict[str, Any]:
+        """预览策略 bundle 导入。"""
+        from .services import package as pkg
+
+        return pkg.preview_strategy_bundle_import(blob, policy=policy)
+
+    @staticmethod
+    def import_package_blob(blob: bytes, policy: Any) -> Any:
+        """执行策略 bundle 导入（bytes）。"""
+        from .services import package as pkg
+
+        return pkg.import_strategy_bundle(blob, policy)
+
+    # --- 跨模块进度 / hooks（agent / BFF 勿 deep-import core.services）---
+
+    @staticmethod
+    def get_pipeline_progress(
+        strategy_key: str,
+        pipeline_id: str,
+        *,
+        apply_stale: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """读取工作台回测 / 归因 / 滚动进度文档。"""
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.get(
+            strategy_key, pipeline_id, apply_stale=apply_stale
+        )
+
+    @staticmethod
+    def get_scan_progress(strategy_key: str, job_id: str) -> Optional[Dict[str, Any]]:
+        """读取扫描任务进度 DTO。"""
+        from .services.progress import ScanProgress
+
+        return ScanProgress.get_poll_dto(strategy_key, job_id)
+
+    @staticmethod
+    def seed_pipeline_progress(
+        strategy_key: str,
+        pipeline_id: str,
+        *,
+        pipeline_name: str,
+        pipeline_description: str | None = None,
+    ) -> None:
+        """登记一条管道进度（启动类任务用）。"""
+        from .services.progress import PipelineProgress
+
+        desc = pipeline_description
+        if desc is None:
+            desc = PipelineProgress.pipeline_description(pipeline_name)
+        PipelineProgress.seed(
+            strategy_key,
+            pipeline_id,
+            pipeline_name=pipeline_name,
+            pipeline_description=desc,
+        )
+
+    @staticmethod
+    def bind_pipeline_progress(strategy_key: str, pipeline_id: str):
+        """绑定当前线程的管道进度上下文（``with`` 使用）。"""
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.bind(strategy_key, pipeline_id)
+
+    @staticmethod
+    def load_pipeline_progress(strategy_key: str, pipeline_id: str):
+        """加载已有管道进度实例（可 ``fail`` / 读状态）。"""
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.load(strategy_key, pipeline_id)
+
+    @staticmethod
+    def pipeline_progress_description(pipeline_name: str) -> str:
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.pipeline_description(pipeline_name)
+
+    @staticmethod
+    def attribute_pipeline_name() -> str:
+        from .services.progress import ATTRIBUTE_PIPELINE
+
+        return ATTRIBUTE_PIPELINE
+
+    @staticmethod
+    def rolling_pipeline_name() -> str:
+        from .services.progress import ROLLING_PIPELINE
+
+        return ROLLING_PIPELINE
+
+    @staticmethod
+    def seed_scan_progress(
+        strategy_key: str,
+        job_id: str,
+        *,
+        demo: bool = False,
+        force: bool = False,
+        run_post_process: bool = True,
+    ) -> None:
+        from .services.progress import ScanProgress
+
+        ScanProgress.for_job(strategy_key, job_id).seed(
+            demo=demo, force=force, run_post_process=run_post_process
+        )
+
+    @staticmethod
+    def fail_scan_progress(strategy_key: str, job_id: str, message: str) -> None:
+        from .services.progress import ScanProgress
+
+        ScanProgress.for_job(strategy_key, job_id).fail(str(message))
+
+    @staticmethod
+    def load_hooks_class(strategy_folder: Path, strategy_key: str):
+        """加载 ``strategy.py`` 中的 ``StrategyHooks`` 子类；失败返回 ``None``。"""
+        from .services.discovery.hooks_loader import StrategyHooksLoader
+
+        return StrategyHooksLoader.load_hooks_class(
+            Path(strategy_folder), str(strategy_key)
+        )
+
+    # --- userspace 制品用例（CLI / agent 薄封装；实现在 artifact_ops）---
+
+    @staticmethod
+    def scaffold_from_template(raw_path: str) -> Dict[str, Any]:
+        """从 ``_template/empty_strategy`` 新建策略目录并写入 meta.key。"""
+        from .services.artifact_ops import StrategyArtifactOps
+
+        return StrategyArtifactOps.scaffold_from_template(raw_path)
+
+    @staticmethod
+    def apply_settings_patch(
+        *,
+        key: str,
+        strategy_py: str = "",
+        settings_py: str = "",
+        attribution_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖策略制品文件（合并 settings 默认块）。"""
+        from .services.artifact_ops import StrategyArtifactOps
+
+        return StrategyArtifactOps.apply_settings_patch(
+            key=key,
+            strategy_py=strategy_py,
+            settings_py=settings_py,
+            attribution_py=attribution_py,
+        )
+
+    @staticmethod
+    def validate_artifact(*, key: str) -> Dict[str, Any]:
+        """校验策略 settings / hooks；不启动回测。"""
+        from .services.artifact_ops import StrategyArtifactOps
+
+        return StrategyArtifactOps.validate_artifact(key=key)
+
+    @staticmethod
+    def write_user_rolling(*, key: str, rolling_py: str) -> Dict[str, Any]:
+        """覆盖策略目录 ``rolling.py``。"""
+        from .services.artifact_ops import StrategyArtifactOps
+
+        return StrategyArtifactOps.write_rolling(key=key, rolling_py=rolling_py)
+
+    @staticmethod
+    def validate_user_rolling(*, key: str) -> Dict[str, Any]:
+        """校验 ``rolling.py`` 窗口列表；不跑批。"""
+        from .services.artifact_ops import StrategyArtifactOps
+
+        return StrategyArtifactOps.validate_rolling(key=key)
+
+    @staticmethod
+    def read_rolling_report(*, key: str) -> Dict[str, Any]:
+        """读当前主 version 的 ``rolling/report.json`` 摘要。"""
+        import json
+
+        from .engines.rolling.readiness import report_path_for
+
+        name = str(key or "").strip()
+        if not name:
+            return {"ok": False, "error": "key 不能为空"}
+        try:
+            path = report_path_for(name)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            return {"ok": False, "key": name, "error": str(exc)}
+        except Exception as exc:
+            return {"ok": False, "key": name, "error": f"无法读取滚动报告: {exc}"}
+        if not isinstance(payload, dict):
+            return {"ok": False, "key": name, "error": "滚动报告格式无效"}
+        return {
+            "ok": True,
+            "key": name,
+            "path": str(path),
+            "report": payload,
+            "note": "只用报告里的数字解释对照结果，不要编造未出现的指标。",
+        }
+
+    # --- workbench snapshot 读模型（磁盘 registry；UI hydrate 仍在 BFF）---
+
+    @staticmethod
+    def fetch_workbench_latest(strategy_name: str) -> Optional[Dict[str, Any]]:
+        """最新仿真 version 行，或冷启动 version=0。"""
+        from .services.workbench_snapshots import WorkbenchSnapshots
+
+        return WorkbenchSnapshots.fetch_latest(strategy_name)
+
+    @staticmethod
+    def fetch_workbench_by_version(
+        strategy_name: str,
+        version: int,
+    ) -> Optional[Dict[str, Any]]:
+        """指定主 version 的磁盘 snapshot。"""
+        from .services.workbench_snapshots import WorkbenchSnapshots
+
+        return WorkbenchSnapshots.fetch_by_version(strategy_name, int(version))
+
+    @staticmethod
+    def list_workbench_versions(
+        strategy_name: str,
+        *,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Version 下拉：新→旧，含 env_invalid / expires_soon。"""
+        from .services.workbench_snapshots import WorkbenchSnapshots
+
+        return WorkbenchSnapshots.list_dropdown(strategy_name, limit=limit)
+
+    @staticmethod
+    def parse_workbench_version_id(version_id: str) -> Optional[int]:
+        """解析 ``v3`` / ``3``；非法返回 None。"""
+        from .services.workbench_snapshots import WorkbenchSnapshots
+
+        return WorkbenchSnapshots.parse_version_id(version_id)
+
+    @staticmethod
+    def parse_version_spec(raw: object) -> tuple:
+        """``rsi_v1:3`` / ``demo/foo:v3`` → ``(策略, version int)``。"""
+        from .helpers.version_id import WorkbenchVersionId
+
+        text = str(raw or "").strip()
+        if ":" not in text:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        name, _, vid = text.rpartition(":")
+        name = name.strip()
+        sid = WorkbenchVersionId.parse(vid)
+        if not name or sid is None:
+            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
+        return name, sid
+
+    @staticmethod
+    def resolve_default_enabled_key(
+        explicit: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """解析启用策略 key；未指定时取第一个启用项。
+
+        返回 ``{ok, key, message?, choices?}``；``ok=False`` 时信道自行退出。
+        """
+        needle = str(explicit or "").strip()
+        if needle:
+            info = Strategy.find(needle, enabled_only=True)
+            if info is None:
+                return {
+                    "ok": False,
+                    "key": "",
+                    "message": f"策略不存在或未启用: {needle}",
+                    "choices": Strategy.list_enabled_keys(),
+                }
+            return {"ok": True, "key": str(info.get("key") or needle)}
+
+        enabled = Strategy.list_strategy_infos(enabled_only=True)
+        if not enabled:
+            return {
+                "ok": False,
+                "key": "",
+                "message": (
+                    "未指定 --strategy，且 userspace/strategies 下没有 "
+                    "is_enabled=True 的合法策略。"
+                    "请检查 settings.py 含 meta.key 与 is_enabled=True。"
+                ),
+                "choices": [],
+            }
+        chosen = enabled[0]
+        key = str(chosen.get("key") or chosen.get("unique_relative_path") or "")
+        message = ""
+        if len(enabled) > 1:
+            message = (
+                "多个启用策略，默认使用 "
+                f"key={chosen.get('key')}（{chosen.get('unique_relative_path')}）；"
+                "可用 --strategy <meta.key> 指定"
+            )
+        return {"ok": True, "key": key, "message": message}
+
+    @staticmethod
+    def clear_all_simulation_results() -> Dict[str, Any]:
+        """删除所有已发现策略的 ``results/simulations/``。"""
+        from .services.artifacts import ArtifactRetention
+
+        return ArtifactRetention.clear_all()
+
+    @staticmethod
+    def verify_settings_restore_fingerprint(
+        strategy_name: str,
+        version: int,
+        settings_snapshot: Dict[str, Any],
+    ) -> Optional[str]:
+        """恢复前 round-trip：快照 execute_fp 须与 registry 一致；失败返回错误文案。"""
+        from .engines.shared.services.strategy_settings import StrategySettings
+        from .services.artifacts import ArtifactStore
+        from .services.artifacts.version_meta import VersionMetaStore
+        from .services.fingerprint import FingerprintCalculator
+
+        folder = Strategy.resolve_folder(strategy_name)
+        root = ArtifactStore.simulations_root(folder)
+        entry = VersionMetaStore.get_registry_entry(root, str(int(version)))
+        expected = str((entry or {}).get("execute_fp") or "").strip()
+        if not expected:
+            return None
+        archive = VersionMetaStore.read_archive_context(root, str(int(version)))
+        try:
+            computed = FingerprintCalculator.to_execute_fingerprint(
+                StrategySettings.from_dict(settings_snapshot),
+                archive.get("entity_ids") or [],
+            )
+        except ValueError as exc:
+            return f"配置快照无法计算指纹: {exc}"
+        if computed != expected:
+            return "配置快照与 version 指纹不一致"
+        return None
+
+    @staticmethod
+    def probe_attribute_status(strategy_name: str, norm_step: str) -> Dict[str, Any]:
+        """工作台归因按钮可见/可点探测。"""
+        from .services.attribute_status import AttributeStatus
+
+        return AttributeStatus.probe(strategy_name, norm_step)
+
+    # --- 报告产物读 IO（BFF hydrate / step_report / stock_detail）---
+
+    @staticmethod
+    def load_overall_report_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:
+        """``overall_report.json`` → UI dict。"""
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.load_overall_report_ui(step, Path(output_dir))
+
+    @staticmethod
+    def load_entity_list_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:
+        """``entity_list`` → UI dict（未过滤）。"""
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.load_entity_list_ui(step, Path(output_dir))
+
+    @staticmethod
+    def step_dir_has_entity(step: str, output_dir: Path, entity_id: str) -> bool:
+        """仿真输出目录是否含该实体产物。"""
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.step_dir_has_entity(step, Path(output_dir), entity_id)
+
+    @staticmethod
+    def enum_entity_has_data(output_dir: Path, entity_id: str) -> bool:
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.enum_entity_has_data(Path(output_dir), entity_id)
+
+    @staticmethod
+    def price_entity_has_investments(output_dir: Path, entity_id: str) -> bool:
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.price_entity_has_investments(Path(output_dir), entity_id)
+
+    @staticmethod
+    def load_price_investments(output_dir: Path, entity_id: str) -> List[Any]:
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.load_price_investments(Path(output_dir), entity_id)
+
+    @staticmethod
+    def load_price_goals(output_dir: Path, entity_id: str) -> List[Any]:
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.load_price_goals(Path(output_dir), entity_id)
+
+    @staticmethod
+    def load_enum_entity_results(output_dir: Path, entity_id: str) -> List[Any]:
+        from .services.report_io import StrategyReportIo
+
+        return StrategyReportIo.load_enum_entity_results(Path(output_dir), entity_id)
+
+    @staticmethod
+    def describe_enumerate_progress_hint() -> str:
+        """CLI 枚举进度提示：探针区间占 PREP+PLAN 权重。"""
+        from core.modules.backtest_engine.core.shared.progress import (
+            RunPhase,
+            _PHASE_WEIGHTS,
+        )
+
+        weight_total = sum(_PHASE_WEIGHTS.values()) or 1
+        probe_from = round(100 * _PHASE_WEIGHTS[RunPhase.PREP] / weight_total)
+        probe_to = round(
+            100
+            * (_PHASE_WEIGHTS[RunPhase.PREP] + _PHASE_WEIGHTS[RunPhase.PLAN])
+            / weight_total
+        )
+        return (
+            f"进度: {probe_from}%→{probe_to}% 为调度探针，之后按 batch 推进；"
+            "完成后输出结果摘要"
+        )
+
 
 __all__ = ["Strategy", "BackTestPipelines"]

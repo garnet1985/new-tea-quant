@@ -208,5 +208,105 @@ class PostProcess:
             ui.update(ui_contributions_from_outputs(outputs))
         return {"ran": list(keys), "ui": ui, "skipped": False}
 
+    # ------------------------------------------------------------------
+    # Userspace 用例（脚手架 / 写文件 / 校验；发现即注册）
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def scaffold_user_adapter(
+        *,
+        name: str,
+        display_name: str = "",
+    ) -> Dict[str, Any]:
+        """在 ``userspace/.../adapters`` 从模板新建 Adapter 骨架。"""
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.scaffold_adapter(
+            name=name, display_name=display_name
+        )
+
+    @staticmethod
+    def write_user_adapter_files(
+        *,
+        name: str,
+        adapter_py: str = "",
+        settings_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖已有 Adapter 的 adapter.py / settings.py。"""
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.write_adapter_files(
+            name=name, adapter_py=adapter_py, settings_py=settings_py
+        )
+
+    @staticmethod
+    def validate_user_adapter(*, name: str) -> Dict[str, Any]:
+        """校验 userspace Adapter（结构 + 可加载）。"""
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.validate_adapter(name=name)
+
+    @staticmethod
+    def scaffold_user_post_processor(
+        *,
+        key: str,
+        name: str = "",
+        adapter_name: str = "",
+        is_enabled: bool = False,
+    ) -> Dict[str, Any]:
+        """在 ``userspace/.../post_processors`` 新建 YAML 骨架。"""
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.scaffold_post_processor(
+            key=key,
+            name=name,
+            adapter_name=adapter_name,
+            is_enabled=is_enabled,
+        )
+
+    @staticmethod
+    def write_user_post_processor_yaml(
+        *,
+        key: str,
+        yaml_body: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖 PostProcessor YAML（key 强制对齐目录）。"""
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.write_post_processor_yaml(
+            key=key, yaml_body=yaml_body
+        )
+
+    @staticmethod
+    def validate_user_post_processor(*, key: str) -> Dict[str, Any]:
+        """校验 PostProcessor 声明与所引用 Adapter。"""
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.validate_post_processor(key=key)
+
+    @staticmethod
+    def describe_user_adapter(*, name: str) -> Dict[str, Any]:
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.describe_adapter(name=name)
+
+    @staticmethod
+    def describe_user_post_processor(*, key: str) -> Dict[str, Any]:
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.describe_post_processor(key=key)
+
+    @staticmethod
+    def list_user_adapter_summaries() -> Dict[str, Any]:
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.list_adapter_summaries()
+
+    @staticmethod
+    def list_user_post_processor_summaries() -> Dict[str, Any]:
+        from core.modules.post_process.core.user_post_process import UserPostProcessOps
+
+        return UserPostProcessOps.list_post_processor_summaries()
+
 
 __all__ = ["PostProcess"]

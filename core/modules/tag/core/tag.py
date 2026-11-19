@@ -386,5 +386,205 @@ class Tag:
 
         return TagPathRules.is_machine_readable_path(relative_path)
 
+    # --- 跨模块 discovery / 进度 IO（异步壳在 BFF / agent，勿 deep-import services）---
+
+    @staticmethod
+    def list_tag_infos(*, enabled_only: bool = False) -> List[Dict[str, Any]]:
+        """返回标签元数据列表（一次 discovery，不构造 DataManager）。"""
+        tags = DiscoveryService.discover_tags()
+        if enabled_only:
+            tags = [t for t in tags if t.is_enabled]
+        return [Tag._to_info_dict(info) for info in tags]
+
+    @staticmethod
+    def get_tag_info(
+        key_or_id: str,
+        *,
+        enabled_only: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """按 ``meta.key`` 或相对路径查找元数据；未命中返回 ``None``。"""
+        needle = str(key_or_id or "").strip()
+        if not needle:
+            return None
+        for info in Tag.list_tag_infos(enabled_only=enabled_only):
+            if needle in (
+                str(info.get("key") or "").strip(),
+                str(info.get("unique_relative_path") or "").strip(),
+                str(info.get("relative_path") or "").strip(),
+            ):
+                return info
+        return None
+
+    @staticmethod
+    def resolve_path(key_or_id: str) -> str:
+        """``meta.key`` 或 path → userspace 相对 path。不存在则 ``FileNotFoundError``。"""
+        info = DiscoveryService.find_tag(key_or_id)
+        if info is None:
+            raise FileNotFoundError(f"找不到标签: {key_or_id}")
+        return str(info.id())
+
+    @staticmethod
+    def resolve_folder(key_or_id: str) -> Path:
+        """``meta.key`` / path → 绝对标签目录。"""
+        info = DiscoveryService.find_tag(key_or_id)
+        if info is not None:
+            return Path(info.folder)
+        needle = str(key_or_id or "").strip().strip("/")
+        if not needle or not Tag.is_valid_path(needle):
+            raise FileNotFoundError(f"找不到标签: {key_or_id}")
+        folder = ProjectContext.path.get_tags_root() / needle
+        if not folder.is_dir():
+            raise FileNotFoundError(f"找不到标签: {key_or_id}")
+        return folder.resolve()
+
+    @staticmethod
+    def load_hooks_class(tag_folder: Path, tag_key: str):
+        """加载 ``tag.py`` 中的 ``TagHooks`` 子类；失败返回 ``None``。"""
+        from .services.discovery.hooks_loader import TagHooksLoader
+
+        return TagHooksLoader.load_hooks_class(Path(tag_folder), str(tag_key))
+
+    @staticmethod
+    def get_run_progress(*, tag_key: str, job_id: str) -> Optional[Dict[str, Any]]:
+        """读取一次异步打标进度（供轮询）。"""
+        from .services.progress import TagRunProgress
+
+        return TagRunProgress.get_poll_dto(tag_key=tag_key, job_id=job_id)
+
+    @staticmethod
+    def seed_run_progress(tag_key: str, job_id: str) -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).seed()
+
+    @staticmethod
+    def mark_run_running(tag_key: str, job_id: str, *, label: str = "加载场景…") -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).mark_running(label=label)
+
+    @staticmethod
+    def complete_run_progress(tag_key: str, job_id: str) -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).complete()
+
+    @staticmethod
+    def fail_run_progress(tag_key: str, job_id: str, message: str) -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).fail(str(message))
+
+    @staticmethod
+    def run_progress_callback(tag_key: str, job_id: str):
+        """返回可传给 ``execute(on_pipeline_progress=...)`` 的进度回调。"""
+        from .services.progress import TagRunProgress
+
+        return TagRunProgress.for_job(tag_key, job_id).on_progress_callback()
+
+    # --- userspace 制品用例（CLI / agent 薄封装；实现在 artifact_ops）---
+
+    @staticmethod
+    def scaffold_from_template(raw_path: str) -> Dict[str, Any]:
+        """从 ``_template/empty_scenario`` 新建标签目录；meta.key 写叶名。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        return TagArtifactOps.scaffold_from_template(raw_path)
+
+    @staticmethod
+    def apply_settings_patch(
+        *,
+        key: str,
+        tag_py: str = "",
+        settings_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖标签制品文件（合并 settings 默认块）。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        return TagArtifactOps.apply_settings_patch(
+            key=key, tag_py=tag_py, settings_py=settings_py
+        )
+
+    @staticmethod
+    def validate_artifact(*, key: str) -> Dict[str, Any]:
+        """校验标签 settings / hooks；不启动打标。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        return TagArtifactOps.validate_artifact(key=key)
+
+    @staticmethod
+    def interpret_execute_result(result: Any) -> None:
+        """校验 ``execute`` 返回值；失败抛 ``RuntimeError``。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        TagArtifactOps.interpret_execute_result(result)
+
+    @staticmethod
+    def list_definitions(
+        tag_ref: str,
+    ) -> tuple[List[Dict[str, Any]], Optional[str]]:
+        """某 tag 的 ``tag_definitions`` 行；``(rows, error)``。未找到时 rows=[]。"""
+        needle = str(tag_ref or "").strip()
+        if not needle:
+            return [], "tag 不能为空"
+        info = Tag().find(needle)
+        if info is None:
+            return [], f"未找到 tag: {needle}（可用 meta.key，如 market_cap_tier）"
+        settings = getattr(info, "settings", None) or {}
+        raw = settings.get("tag_definitions") if isinstance(settings, dict) else None
+        if not isinstance(raw, list):
+            return [], None
+        rows: List[Dict[str, Any]] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            rows.append(
+                {
+                    "value": name,
+                    "name": name,
+                    "display_name": str(item.get("display_name") or "").strip(),
+                    "description": str(item.get("description") or "").strip(),
+                }
+            )
+        return rows, None
+
+    @staticmethod
+    def fetch_catalog_page(
+        page: int,
+        limit: int,
+    ):
+        """UI 标签列表页：``(items, total, data_end)``。"""
+        from .services.catalog import TagUiCatalog
+
+        return TagUiCatalog.fetch_page(page, limit)
+
+    @staticmethod
+    def fetch_visualization(
+        tag_key: str, entity_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """标签可视化读模型；未知标签返回 ``None``。"""
+        from .services.visualization import TagVisualization
+
+        return TagVisualization.fetch(tag_key, entity_id)
+
+    @staticmethod
+    def _to_info_dict(info: DiscoveredTagInfo) -> Dict[str, Any]:
+        path_id = str(info.id() or "")
+        return {
+            "unique_relative_path": path_id,
+            "relative_path": path_id,
+            "key": str(info.key or ""),
+            "display_name": str(info.display_name or ""),
+            "is_enabled": bool(info.is_enabled),
+            "folder": str(Path(info.folder)),
+            "tag_file": str(Path(info.tag_file)),
+            "settings_file": str(Path(info.settings_file)),
+            "hooks_class_name": str(info.hooks_class_name or ""),
+            "settings": dict(info.settings or {}),
+        }
+
 
 __all__ = ["Tag"]

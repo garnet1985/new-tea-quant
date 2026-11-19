@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from core.bff.APIs.strategy.routes.attribution.attribute_run import AttributeRunLauncher
 from core.bff.APIs.strategy.routes.attribution.report import AttributeReportReader
-from core.bff.APIs.strategy.routes.attribution.status import AttributeStatus, EXAMPLE_PATH
+from core.modules.strategy import Strategy
 from core.modules.strategy.core.engines.analyzer.steps.campaign.persist.base import (
     REPORT_FILE,
+)
+from core.modules.strategy.core.services.attribute_status import (
+    EXAMPLE_PATH,
+    AttributeStatus,
 )
 
 pytestmark = pytest.mark.force_run
@@ -28,12 +32,8 @@ def test_status_hidden_without_primary(tmp_path, monkeypatch):
     folder = tmp_path / "strat"
     folder.mkdir()
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.attribution.status.Strategy.resolve_folder",
+        "core.modules.strategy.core.services.attribute_status.Strategy.resolve_folder",
         staticmethod(lambda key: folder),
-    )
-    monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.attribution.status.DiscoveryService.find_strategy",
-        staticmethod(lambda key: MagicMock()),
     )
     monkeypatch.setattr(
         AttributeStatus,
@@ -53,7 +53,7 @@ def test_status_disabled_without_attribution_file(tmp_path, monkeypatch):
     folder = tmp_path / "strat"
     folder.mkdir()
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.attribution.status.Strategy.resolve_folder",
+        "core.modules.strategy.core.services.attribute_status.Strategy.resolve_folder",
         staticmethod(lambda key: folder),
     )
     monkeypatch.setattr(
@@ -82,7 +82,7 @@ def test_status_enabled_with_inputs(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.attribution.status.Strategy.resolve_folder",
+        "core.modules.strategy.core.services.attribute_status.Strategy.resolve_folder",
         staticmethod(lambda key: folder),
     )
     monkeypatch.setattr(
@@ -111,7 +111,7 @@ def test_status_invalid_when_only_rolling(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.attribution.status.Strategy.resolve_folder",
+        "core.modules.strategy.core.services.attribute_status.Strategy.resolve_folder",
         staticmethod(lambda key: folder),
     )
     monkeypatch.setattr(
@@ -135,13 +135,9 @@ def test_report_reader_loads_artifacts(tmp_path, monkeypatch):
     task_dir = tmp_path / "attr" / "3" / "enum"
     task_dir.mkdir(parents=True)
     (task_dir / REPORT_FILE).write_text(
-        json.dumps({"headline": "hello", "trades": {}}),
+        json.dumps({"headline": "hello", "group_id": "3", "layer": "enum"}),
         encoding="utf-8",
     )
-    (task_dir / "table.json").write_text("[]", encoding="utf-8")
-    (task_dir / "attribute.json").write_text("{}", encoding="utf-8")
-    (task_dir / "task_meta.json").write_text("{}", encoding="utf-8")
-
     monkeypatch.setattr(
         "core.bff.APIs.strategy.routes.attribution.report.Strategy.resolve_folder",
         staticmethod(lambda key: folder),
@@ -161,15 +157,15 @@ def test_report_reader_loads_artifacts(tmp_path, monkeypatch):
     assert msg["step"] == "enum"
 
 
-@patch(
-    "core.bff.APIs.strategy.routes.attribution.attribute_run.DiscoveryService.find_strategy",
-    return_value=MagicMock(),
-)
-def test_submit_gated_when_status_disabled(_find):
+def test_submit_gated_when_status_disabled():
     with patch.object(
         AttributeRunLauncher,
         "_gate",
         return_value="需要配置 attribution.py 才能做归因。",
+    ), patch.object(
+        Strategy,
+        "find",
+        return_value={"key": "x", "is_enabled": True},
     ):
         out = AttributeRunLauncher.submit(
             strategy_name="demo/x",

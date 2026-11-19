@@ -1,6 +1,6 @@
 # Strategy API 文档
 
-**版本：** `0.12.1`  
+**版本：** `0.12.2`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -159,6 +159,80 @@
 
 - **状态：** `beta`
 - **描述：** 策略交流包导出 / bundle 导入（退出码）；供 CLI / system shell 使用，勿 deep-import `PackageCli`
+
+### scaffold_from_template / apply_settings_patch / validate_artifact
+
+`Strategy.scaffold_from_template(raw_path: str) -> dict`  
+`Strategy.apply_settings_patch(*, key, strategy_py="", settings_py="", attribution_py="") -> dict`  
+`Strategy.validate_artifact(*, key: str) -> dict`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** userspace 策略制品用例（实现在 `artifact_ops`）。CLI/agent 只薄封装。脚手架写 `strategies/_template/empty_strategy`，`meta.key` 为完整相对路径。
+
+### write_user_rolling / validate_user_rolling / read_rolling_report
+
+`Strategy.write_user_rolling(*, key: str, rolling_py: str) -> dict`  
+`Strategy.validate_user_rolling(*, key: str) -> dict`  
+`Strategy.read_rolling_report(*, key: str) -> dict`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 覆盖/校验策略目录 `rolling.py`（`rolling = { windows: [...] }`）；读当前主 version 的滚动对照 `report.json`。Agent：`write_strategy_rolling` / `validate_strategy_rolling` / `read_rolling_report`。
+
+### fetch_workbench_latest / fetch_workbench_by_version / list_workbench_versions
+
+`Strategy.fetch_workbench_latest(strategy_name) -> dict | None`  
+`Strategy.fetch_workbench_by_version(strategy_name, version: int) -> dict | None`  
+`Strategy.list_workbench_versions(strategy_name, *, limit=10) -> list[dict]`  
+`Strategy.parse_workbench_version_id(version_id) -> int | None`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 工作台磁盘 snapshot 读模型（registry / settings 层 / step 槽位）。BFF 可在返回后再 hydrate `result_report` UI metrics；勿 deep-import `VersionMetaStore` 拼 UI 行
+
+### resolve_default_enabled_key / parse_version_spec / probe_attribute_status / verify_settings_restore_fingerprint / clear_all_simulation_results / export_package_zip
+
+`Strategy.resolve_default_enabled_key(explicit=None) -> dict`  
+`Strategy.parse_version_spec(raw) -> (name, version_int)`  
+`Strategy.probe_attribute_status(strategy_name, norm_step) -> dict`  
+`Strategy.verify_settings_restore_fingerprint(name, version, settings_snapshot) -> str | None`  
+`Strategy.clear_all_simulation_results() -> dict`  
+`Strategy.export_package_zip(key_or_name, *, scope="bundle") -> (bytes, filename)`  
+`Strategy.preview_package_import(blob, policy) -> dict` / `Strategy.import_package_blob(blob, policy)`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** CLI 默认策略 / `策略:版本` 解析、归因按钮探测、恢复指纹校验、全量清理、BFF 包导入导出。勿 deep-import Discovery/Artifact/Fingerprint/package
+
+### load_overall_report_ui / load_entity_list_ui / step_dir_has_entity / load_price_* / load_enum_entity_results / describe_enumerate_progress_hint
+
+`Strategy.load_overall_report_ui(step, output_dir) -> dict | None`  
+`Strategy.load_entity_list_ui(step, output_dir) -> dict | None`  
+`Strategy.step_dir_has_entity(step, output_dir, entity_id) -> bool`  
+`Strategy.enum_entity_has_data` / `price_entity_has_investments`  
+`Strategy.load_price_investments` / `load_price_goals` / `load_enum_entity_results`  
+`Strategy.describe_enumerate_progress_hint() -> str`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 工作台报告产物读 IO（实现在 `report_io`）与 CLI 枚举进度文案。BFF hydrate/report 勿 deep-import ArtifactStore / PriceFactorStore / EnumResultsManager
+
+### get_pipeline_progress / get_scan_progress / seed_* / bind_pipeline_progress / load_hooks_class
+
+`Strategy.get_pipeline_progress(strategy_key, pipeline_id, *, apply_stale=True) -> dict | None`  
+`Strategy.get_scan_progress(strategy_key, job_id) -> dict | None`  
+`Strategy.seed_pipeline_progress(strategy_key, pipeline_id, *, pipeline_name, pipeline_description=None) -> None`  
+`Strategy.bind_pipeline_progress(strategy_key, pipeline_id)`  
+`Strategy.load_pipeline_progress(strategy_key, pipeline_id)`  
+`Strategy.pipeline_progress_description(pipeline_name) -> str`  
+`Strategy.attribute_pipeline_name() -> str` / `Strategy.rolling_pipeline_name() -> str`  
+`Strategy.seed_scan_progress(...)` / `Strategy.fail_scan_progress(...)`  
+`Strategy.load_hooks_class(strategy_folder, strategy_key)`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 跨模块进度轮询与启动登记、hooks 加载。agent / BFF 经此调用，勿 deep-import `core.services.progress` / hooks_loader
 
 **举例：**
 

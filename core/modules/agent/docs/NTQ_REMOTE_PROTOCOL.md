@@ -77,6 +77,7 @@ Website 负责选模型与扣费；因此 **每次请求必须声明 `ntq.phase`
 | `guide` | 说明书 / wiki 循环 | glm-4-flash |
 | `guide_arch` | 架构讲解 | glm-4-flash |
 | `worker` | 写策略 / 回测等工具循环 | deepseek-flash |
+| `knowledge_brief` | **远端知识简报**：Website 内搜网并总结，一次返回（DeepSeek Search→总结；失败则 MiniMax `web_search` 服务端工具）。本地 `web_search` 在会员通道下走此 intent | deepseek / MiniMax（付费 work 档） |
 | `present` | work 之后的呈现：结论 + scenario 模版改版式；无模版则本地透传、不打模型 | glm-4-flash（可按 guide 档） |
 | `identity` / `advice` / `out_of_scope` | 通常**本地固定文案、不打模型**；若打了则按 guide 档 | glm-4-flash |
 

@@ -14,11 +14,26 @@ from core.modules.agent.core.code.userspace.prompts import append_userspace_prom
 
 WIKI_READ_TOOLS: FrozenSet[str] = frozenset(
     {
+        "web_search",
+        "read_url",
+        "search_wiki",
+        "list_dir",
+        "search_files",
+        "read_file",
+        "calculator",
+        "preview_data_rows",
+        "trading_calendar",
+        "run_python_snippet",
         "read_progress",
         "list_strategy_summaries",
         "read_execution_report",
         "read_attribution_report",
         "read_scan_report",
+        "read_rolling_report",
+        "list_indicators",
+        "list_stock_pool_dimensions",
+        "check_data_freshness",
+        "list_data_contract_keys",
     }
 )
 

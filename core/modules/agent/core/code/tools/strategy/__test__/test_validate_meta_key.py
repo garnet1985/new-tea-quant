@@ -18,8 +18,8 @@ def test_nested_demo_accepts_path_and_short_meta_key() -> None:
 
 
 def test_meta_key_mismatch_still_fails(tmp_path, monkeypatch) -> None:
-    from core.modules.agent.core.code.tools.strategy import validate_strategy as mod
     from core.modules.agent.core.code.tools.strategy import _strategy_key as key_mod
+    from core.modules.strategy.core.services.artifact_ops import ops as artifact_ops
 
     folder = tmp_path / "strategies" / "my_strat"
     folder.mkdir(parents=True)
@@ -39,14 +39,21 @@ def test_meta_key_mismatch_still_fails(tmp_path, monkeypatch) -> None:
         return folder, f"strategies/{key}"
 
     monkeypatch.setattr(key_mod, "strategy_folder", fake_folder)
-    monkeypatch.setattr(mod, "strategy_folder", fake_folder)
-    # Avoid StrategyHooksLoader needing real package layout
     monkeypatch.setattr(
-        mod,
-        "_hooks_status",
-        lambda *_a, **_k: ("", "H"),
+        artifact_ops.StrategyArtifactOps,
+        "_folder_for_key",
+        classmethod(lambda cls, key: (folder, f"strategies/{key}")),
     )
-    monkeypatch.setattr(mod, "_bar_attribute_access", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        artifact_ops.StrategyArtifactOps,
+        "_hooks_status",
+        classmethod(lambda *_a, **_k: ("", "H")),
+    )
+    monkeypatch.setattr(
+        artifact_ops.StrategyArtifactOps,
+        "_bar_attribute_access",
+        classmethod(lambda *_a, **_k: ""),
+    )
 
     out = validate_strategy({"key": "my_strat"})
     assert out.get("ok") is False

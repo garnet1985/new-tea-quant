@@ -46,6 +46,31 @@
 - **状态：** `beta`
 - **描述：** 按逻辑表名取已注册 Model 实例；从「表目录」（含 `schema.py`/`model.py`）注册
 
+### scaffold_user_table / write_user_table_files / validate_user_table / ensure_user_table
+
+`DataManager.scaffold_user_table(*, key, kind="data", table_name=None) -> dict`（staticmethod）  
+`DataManager.write_user_table_files(*, key, schema_py="", model_py="") -> dict`（staticmethod）  
+`DataManager().validate_user_table(*, key) -> dict`  
+`DataManager().ensure_user_table(*, key) -> dict`
+
+- **状态：** `beta`
+- **描述：** userspace 自定义表用例。只写 `userspace/extensions/tables`，表名须 `cust_{kind}_*`；拒绝 `sys_*` / 污染 `core/tables`。实现在模块内 `user_tables`，BFF/CLI/agent 只薄封装。`ensure_user_table` 内部再调 Model 物理 `create_table()`
+
+### describe_table / list_tables_by_owner
+
+`DataManager().describe_table(*, table_name) -> dict`  
+`DataManager().list_tables_by_owner(*, owner="all") -> dict`
+
+- **状态：** `beta`
+- **描述：** 只读表摘要 / 按 `all|sys|cust` 过滤已注册表名
+
+### export_adj_factor_events_csv
+
+`DataManager().export_adj_factor_events_csv(*, base_date=None, start_date=None, end_date=None, file_path=None) -> dict`
+
+- **状态：** `beta`
+- **描述：** 导出 `sys_data_adj_factor_events` 到 CSV。返回 `{ok, path, rows, start, end}`（失败时 `ok=False` + `error`）。CLI `export_adj_factor` 只打印
+
 ### get_physical_table_name
 
 - **状态：** `beta`

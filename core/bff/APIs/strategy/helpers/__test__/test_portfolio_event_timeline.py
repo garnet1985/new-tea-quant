@@ -199,9 +199,12 @@ def test_hydrate_attaches_timeline_when_metrics_already_present(tmp_path, monkey
             }
         ],
     )
+    from core.modules.strategy import Strategy
+
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.helpers.report_hydrate.Strategy.resolve_simulation_output_dirs",
-        lambda *a, **k: [out_dir],
+        Strategy,
+        "resolve_simulation_output_dirs",
+        staticmethod(lambda *a, **k: [out_dir]),
     )
     slot = hydrate_portfolio_slot(
         "demo/x",

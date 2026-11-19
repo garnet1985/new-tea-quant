@@ -14,7 +14,7 @@
 - 仓库根入口脚本 `cli.py` / `devcli.py` 分发到门面类
 - user / dev 各自的短别名与命令注册表
 - 用户侧虚拟环境 / 安装的启动前检查（bootstrap）
-- 从模板新建策略 / Tag（`user/scripts/create_from_template`，`cli.py -n`）
+- 从模板新建策略 / Tag（`cli.py -n` → 薄封装 `Strategy`/`Tag.scaffold_from_template`）
 - 临时文件清理（`dev/scripts/temp_cleanup`）
 
 **不负责**
@@ -36,7 +36,7 @@ core/modules/cli/
 ├── glossary.yaml
 ├── module_info.yaml
 ├── user/                  # 用户 CLI 实现（非公开 import）
-│   ├── scripts/           # 用户命令实现（create_from_template 等）
+│   ├── scripts/           # 用户命令实现（薄壳；脚手架走 Strategy/Tag Facade）
 │   └── __test__/          # user abbrev / parser unit
 ├── dev/                   # 开发 CLI 实现（非公开 import）
 │   └── __test__/          # dev abbrev / parser unit

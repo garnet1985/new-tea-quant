@@ -12,7 +12,7 @@ from core.modules.agent.core.code.tools.strategy._strategy_key import (
     strategy_folder,
 )
 from core.modules.agent.core.code.tools.task_record import task_file
-from core.modules.strategy.core.services.progress import PipelineProgress
+from core.modules.strategy import Strategy
 
 
 def _price_presentation_note() -> str:
@@ -93,9 +93,14 @@ def read_progress(arguments: Dict[str, Any]) -> Dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {"ok": False, "error": f"任务记录无法读取: {task_id}"}
     key = str(record.get("key") or "").strip()
-    if str(record.get("kind") or "") == "scan":
+    kind = str(record.get("kind") or "").strip()
+    if kind == "scan":
         return _scan_progress(key, task_id)
-    doc = PipelineProgress.get(key, task_id, apply_stale=True)
+    if kind == "tag":
+        from core.modules.agent.core.code.tools.tag.read_reports import tag_progress
+
+        return tag_progress(key, task_id)
+    doc = Strategy.get_pipeline_progress(key, task_id, apply_stale=True)
     if not doc:
         return {"ok": False, "key": key, "task_id": task_id, "error": "进度不存在"}
     status = str(doc.get("status") or "").strip()
@@ -119,9 +124,7 @@ def read_progress(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _scan_progress(key: str, task_id: str) -> Dict[str, Any]:
-    from core.modules.strategy.core.services.progress import ScanProgress
-
-    doc = ScanProgress.get_poll_dto(key, task_id)
+    doc = Strategy.get_scan_progress(key, task_id)
     if not doc:
         return {"ok": False, "key": key, "task_id": task_id, "error": "进度不存在"}
     status = str(doc.get("status") or "").strip()
@@ -428,6 +431,14 @@ def read_attribution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "path": f"strategies/{key}/results/attribution/{group_id}/{layer}/report.json",
         "note": "改进策略时先看 conclusion 和 sensitivity_rank，不要一次改多个参数",
     }
+
+
+def read_rolling_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """读当前主 version 的滚动对照报告。"""
+    parsed = parse_strategy_key(arguments, only={"key"})
+    if isinstance(parsed, dict):
+        return parsed
+    return Strategy.read_rolling_report(key=parsed)
 
 
 def _locate_key(arguments: Dict[str, Any], *, optional: set[str]):

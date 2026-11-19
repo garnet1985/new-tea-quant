@@ -69,11 +69,10 @@ def test_pipeline_progress_roundtrip_via_launcher():
 
 
 @patch(
-    "core.bff.APIs.strategy.routes.runner.workbench_run.DiscoveryService.find_strategy",
+    "core.bff.APIs.strategy.routes.runner.workbench_run.Strategy.find",
     return_value=None,
 )
-@patch.object(WorkbenchRunLauncher, "_find_any", return_value=None)
-def test_submit_unknown_strategy(_find_any, _find):
+def test_submit_unknown_strategy(_find):
     out = WorkbenchRunLauncher.submit(
         strategy_name="missing",
         step="enum",
@@ -89,10 +88,10 @@ def test_submit_unknown_strategy(_find_any, _find):
     return_value=True,
 )
 @patch(
-    "core.bff.APIs.strategy.routes.runner.workbench_run.DiscoveryService.find_strategy",
+    "core.bff.APIs.strategy.routes.runner.workbench_run.Strategy.find",
 )
 def test_submit_task_busy(mock_find, _busy, tmp_path, monkeypatch):
-    mock_find.return_value = MagicMock()
+    mock_find.return_value = {"key": "demo", "is_enabled": True}
     monkeypatch.setenv("NTQ_USERSPACE", str(tmp_path / "userspace"))
     # ProjectContext may not read NTQ_USERSPACE — patch queue path instead
     qfile = tmp_path / "job_pipeline_queue.json"

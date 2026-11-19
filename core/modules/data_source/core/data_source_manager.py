@@ -654,4 +654,101 @@ class DataSourceManager:
         """公开配置发现（原 ``_discover_config``）。"""
         return self._discover_config(data_source_key)
 
+    @staticmethod
+    def fetch_catalog_page(page: int, limit: int):
+        """UI 数据源列表页：``(items, total, data_end)``。"""
+        from core.modules.data_source.core.catalog.ui_catalog import (
+            fetch_data_source_catalog_page,
+        )
+
+        return fetch_data_source_catalog_page(page, limit)
+
+    @staticmethod
+    def fetch_freshness(source_names=None):
+        """UI 懒加载新鲜度：``({source: status_fields}, data_end)``。"""
+        from core.modules.data_source.core.catalog.ui_catalog import (
+            fetch_data_source_freshness,
+        )
+
+        return fetch_data_source_freshness(source_names)
+
+    @staticmethod
+    def read_renew_ui_status() -> Dict[str, Any]:
+        """Renew UI：最近任务栏 + Progress 投影（不含 JobPipeline 壳）。"""
+        from core.modules.data_source.core.service.renew_ui import read_renew_ui_status
+
+        return read_renew_ui_status()
+
+    @staticmethod
+    def read_renew_ui_tasks():
+        """Renew UI 任务栏字段。"""
+        from core.modules.data_source.core.service.renew_ui import read_renew_ui_tasks
+
+        return read_renew_ui_tasks()
+
+    @staticmethod
+    def read_renew_ui_progress() -> Dict[str, Any]:
+        """Renew UI Progress 投影。"""
+        from core.modules.data_source.core.service.renew_ui import read_renew_ui_progress
+
+        return read_renew_ui_progress()
+
+    # ------------------------------------------------------------------
+    # Userspace handler 用例（脚手架 / 写文件 / mapping / 校验）
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def scaffold_user_handler(
+        *,
+        key: str,
+        hooks_class_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """在 ``userspace/extensions/data_source/handlers`` 从模板新建 handler 骨架。"""
+        from core.modules.data_source.core.user_handlers import DataSourceHandlerOps
+
+        return DataSourceHandlerOps.scaffold(
+            key=key, hooks_class_name=hooks_class_name
+        )
+
+    @staticmethod
+    def write_user_handler_files(
+        *,
+        key: str,
+        handler_py: str = "",
+        settings_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖已有 userspace handler 的 handler.py / settings.py（至少一份）。"""
+        from core.modules.data_source.core.user_handlers import DataSourceHandlerOps
+
+        return DataSourceHandlerOps.write_files(
+            key=key, handler_py=handler_py, settings_py=settings_py
+        )
+
+    @staticmethod
+    def apply_mapping_entry(
+        *,
+        key: str,
+        handler: str,
+        is_enabled: bool = True,
+        depends_on: Optional[Sequence[str]] = None,
+        weight: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """合并写入 ``mapping.py`` 的 ``DATA_SOURCES[key]``（校验权重与依赖）。"""
+        from core.modules.data_source.core.user_handlers import DataSourceHandlerOps
+
+        return DataSourceHandlerOps.apply_mapping_entry(
+            key=key,
+            handler=handler,
+            is_enabled=is_enabled,
+            depends_on=depends_on,
+            weight=weight,
+        )
+
+    @staticmethod
+    def validate_user_handler(*, key: str) -> Dict[str, Any]:
+        """校验 mapping + settings + handler 类 + 绑定表；不执行 renew。"""
+        from core.modules.data_source.core.user_handlers import DataSourceHandlerOps
+
+        return DataSourceHandlerOps.validate(key=key)
+
  

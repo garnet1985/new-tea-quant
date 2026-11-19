@@ -51,6 +51,15 @@ AiChannel.set_api_key(provider_id: str, api_key: str) -> ProviderInfo
 | `provider_id` | `str` | ✓ | 供应商标识 |
 | `api_key` | `str` | ✓ | API Key 明文 |
 
+### load_api_key
+
+```python
+AiChannel.load_api_key(provider_id: str) -> Optional[str]
+```
+
+- **状态：** `beta`
+- **描述：** 读取本机供应商 API Key；未配置或不存在则 ``None``。供 agent 工具（如 DeepSeek 网页搜索）使用，不经会员通道。
+
 ### complete
 
 ```python

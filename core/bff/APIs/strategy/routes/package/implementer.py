@@ -1,14 +1,7 @@
-"""Package implementer: call strategy core package services + ExportImport.
-
-HTTP / multipart stay in routes (+ helpers); this layer owns export/import logic.
-
-Export 路径参数约定为 ``meta.key``（短唯一 id）；同时兼容 strategy name
-（userspace 相对 path，即 ``StrategyInfo.id()``）。核心 package API 仍吃 path name。
-"""
+"""Package implementer: Strategy Facade + ExportImport policy。"""
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from core.modules.strategy import Strategy
@@ -16,15 +9,12 @@ from core.modules.strategy import Strategy
 
 class StrategyPackageImplementer:
     def __init__(self) -> None:
-        self._pkg = None
         self._ConflictPolicy = None
 
     def lazy_load(self) -> "StrategyPackageImplementer":
-        if self._pkg is None:
+        if self._ConflictPolicy is None:
             from core.infra.export_import import ExportImport
-            from core.modules.strategy.core.services import package as pkg
 
-            self._pkg = pkg
             self._ConflictPolicy = ExportImport.types.ConflictPolicy
         return self
 
@@ -48,44 +38,20 @@ class StrategyPackageImplementer:
         return Strategy.resolve_path(key_or_name)
 
     def export_zip(self, strategy_key_or_name: str, scope: str) -> Tuple[bytes, str]:
-        """Return ``(zip_bytes, download_filename)``.
-
-        ``strategy_key_or_name``: ``settings.meta.key`` 或 path name。
-        """
-        assert self._pkg is not None
-        name = Strategy.resolve_path(strategy_key_or_name)
-        scope_norm = str(scope or "bundle").strip().lower() or "bundle"
-
-        if scope_norm == "bundle":
-            _manifest, payload = self._pkg.export_strategy_bundle(name)
-            filename = self._pkg.bundle_filename(name)
-        elif scope_norm == "strategy":
-            _manifest, payload = self._pkg.export_single_entity("strategy", name)
-            filename = self._pkg.single_entity_filename("strategy", name)
-        else:
-            raise ValueError(f"无效 scope={scope_norm!r}；可选 bundle | strategy")
-
-        if isinstance(payload, (bytes, bytearray)):
-            data = bytes(payload)
-        elif isinstance(payload, Path):
-            data = payload.read_bytes()
-        else:
-            data = payload.read_bytes()
-        return data, filename
+        """Return ``(zip_bytes, download_filename)``."""
+        return Strategy.export_package_zip(strategy_key_or_name, scope=scope)
 
     def preview_import(self, blob: bytes, policy: Any) -> Dict[str, Any]:
-        assert self._pkg is not None
-        return self._pkg.preview_strategy_bundle_import(blob, policy=policy)
+        return Strategy.preview_package_import(blob, policy)
 
     def import_bundle(
         self, blob: bytes, policy: Any
     ) -> Tuple[Dict[str, Any], Any]:
         """Run preview then import. Returns ``(preview, import_result)``."""
-        assert self._pkg is not None
-        preview = self._pkg.preview_strategy_bundle_import(blob, policy=policy)
+        preview = Strategy.preview_package_import(blob, policy)
         if not preview.get("ok"):
             return preview, None
-        result = self._pkg.import_strategy_bundle(blob, policy)
+        result = Strategy.import_package_blob(blob, policy)
         return preview, result
 
     @staticmethod

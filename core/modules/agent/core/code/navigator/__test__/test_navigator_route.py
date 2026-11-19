@@ -20,14 +20,29 @@ def test_regex_pipeline_identity_then_worker():
     assert r.queue == ("identity", "worker")
 
 
-def test_regex_pipeline_oos_then_worker():
+def test_regex_pipeline_guide_then_worker_for_news():
     r = regex_route("法国暴乱影响 A 股吗，帮我改止损并重跑回测")
-    assert r.kind == "out_of_scope"
-    assert r.queue == ("out_of_scope", "worker")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
+
+
+def test_regex_realtime_quote_is_out_of_scope():
+    assert regex_route("招商银行现在实时股价多少钱").kind == "out_of_scope"
 
 
 def test_regex_arch():
     assert regex_route("NTQ 的回测四步架构原理是什么？").kind == "guide_arch"
+
+
+def test_regex_hypothesis_validation_is_worker():
+    gap = (
+        "帮我验证一下是不是出来跳空之后都会总有一天补回来？"
+        "假如跳空是个机会我能不能利用跳空进行盈利？"
+    )
+    assert regex_route(gap).kind == "worker"
+    assert regex_route("帮我验证金叉之后是不是更容易上涨").kind == "worker"
+    assert regex_route("跳空在 K 线上是什么意思").kind == "guide"
+    assert regex_route("有没有能赚钱的策略").kind == "advice"
 
 
 def test_parse_kinds_queue():

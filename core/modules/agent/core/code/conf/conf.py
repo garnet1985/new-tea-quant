@@ -12,7 +12,7 @@ NAVIGATOR_MODE_ENV = "NTQ_AGENT_NAVIGATOR_MODE"
 
 # --- Pipeline / executor 步数 ---
 PIPELINE_MAX_STEPS = 14
-GUIDER_MAX_STEPS = 4
+GUIDER_MAX_STEPS = 6
 
 # --- 补全 ---
 ASK_DEFAULT_MAX_TOKENS = 1024
@@ -39,11 +39,58 @@ SESSION_RECENT_TURNS = 6
 SESSION_ARCHIVE_AFTER = 200
 SESSION_KEEP_ACTIVE = 50
 
+# --- 通用工具 ---
+WEB_SEARCH_PROVIDER_ID = "deepseek"
+WEB_SEARCH_URL = "https://api.deepseek.com/v1/tools/search"
+WEB_SEARCH_TIMEOUT_SECONDS = 30.0
+WEB_SEARCH_COUNT_DEFAULT = 5
+WEB_SEARCH_COUNT_MAX = 10
+READ_FILE_MAX_CHARS = 40_000
+READ_URL_MAX_CHARS = 24_000
+SEARCH_FILES_MAX_HITS = 40
+SEARCH_FILES_MAX_LINE_CHARS = 200
+TRADING_CALENDAR_RANGE_MAX_DAYS = 400
+PYTHON_SNIPPET_MAX_CHARS = 4_000
+PYTHON_SNIPPET_TIMEOUT_SECONDS = 2.0
+PYTHON_SNIPPET_RESULT_MAX_CHARS = 8_000
+PYTHON_SNIPPET_STDOUT_MAX_CHARS = 4_000
+
 # --- 写盘 / 说明书摘录 ---
 WRITE_PATH_LIMIT = 240
 WRITE_STRATEGY_MAX_CHARS = 200_000
 WRITE_STRATEGY_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
     {"key", "strategy_py", "settings_py", "attribution_py"}
+)
+WRITE_STRATEGY_ROLLING_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "rolling_py"}
+)
+WRITE_TAG_MAX_CHARS = 200_000
+WRITE_TAG_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "tag_py", "settings_py"}
+)
+WRITE_TABLE_MAX_CHARS = 200_000
+WRITE_TABLE_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "schema_py", "model_py"}
+)
+WRITE_DATA_SOURCE_MAX_CHARS = 200_000
+WRITE_DATA_SOURCE_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "handler_py", "settings_py"}
+)
+WRITE_DATA_CONTRACT_MAX_CHARS = 200_000
+WRITE_DATA_CONTRACT_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "declaration_py", "loader_py", "contract_py"}
+)
+WRITE_SERIES_RELATION_MAX_CHARS = 200_000
+WRITE_SERIES_RELATION_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "settings_py"}
+)
+WRITE_POST_PROCESS_ADAPTER_MAX_CHARS = 200_000
+WRITE_POST_PROCESS_ADAPTER_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"name", "adapter_py", "settings_py"}
+)
+WRITE_POST_PROCESS_PROCESSOR_MAX_CHARS = 200_000
+WRITE_POST_PROCESS_PROCESSOR_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "yaml_body"}
 )
 DOCS_EXCERPT_MAX_CHARS = 12_000
 

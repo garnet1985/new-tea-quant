@@ -263,6 +263,8 @@ def context_block(session_id: str = DEFAULT_SESSION_ID) -> str:
     bits: List[str] = []
     if state.get("strategy_key"):
         bits.append(f"当前策略：{state['strategy_key']}")
+    if state.get("tag_key"):
+        bits.append(f"当前标签：{state['tag_key']}")
     last = state.get("last_task") if isinstance(state.get("last_task"), dict) else {}
     if last.get("task_id"):
         bits.append(
@@ -283,16 +285,74 @@ def context_block(session_id: str = DEFAULT_SESSION_ID) -> str:
     return "\n".join(lines).strip()
 
 
+PENDING_PLAN_CONFIRM = "awaiting_plan_confirm"
+PENDING_PORTFOLIO_CONFIRM = "awaiting_portfolio_confirm"
+PENDING_TAG_PLAN_CONFIRM = "awaiting_tag_plan_confirm"
+
+_EXECUTE_TOOLS_CLEAR_PENDING = frozenset(
+    {
+        "create_strategy",
+        "write_strategy_files",
+        "create_tag",
+        "write_tag_files",
+    }
+)
+
+
+def set_pending(pending: str, session_id: str = DEFAULT_SESSION_ID) -> Dict[str, Any]:
+    """写入会话待确认标记（如测试计划确认）。"""
+    state = load_state(session_id)
+    state["pending"] = str(pending or "").strip()
+    save_state(state, session_id)
+    return state
+
+
+def clear_pending(session_id: str = DEFAULT_SESSION_ID) -> Dict[str, Any]:
+    """清空待确认标记。"""
+    return set_pending("", session_id)
+
+
+def should_clear_pending_for_tool(tool_name: str) -> bool:
+    name = str(tool_name or "").strip()
+    if name in _EXECUTE_TOOLS_CLEAR_PENDING:
+        return True
+    return name.startswith("start_")
+
+
 def update_state_from_tool(
-    result: Dict[str, Any], session_id: str = DEFAULT_SESSION_ID
+    result: Dict[str, Any],
+    session_id: str = DEFAULT_SESSION_ID,
+    *,
+    tool_name: str = "",
 ) -> Dict[str, Any]:
     """用工具摘要刷新局部状态。不写偏好。"""
     state = load_state(session_id)
     if not isinstance(result, dict):
         return state
+    if should_clear_pending_for_tool(tool_name):
+        state["pending"] = ""
     key = str(result.get("key") or "").strip()
     if key:
-        state["strategy_key"] = key
+        name = str(tool_name or "")
+        if (
+            name.startswith(("create_tag", "write_tag", "validate_tag", "start_tag", "read_tag", "list_tag"))
+            or str(result.get("kind") or "") == "tag"
+        ):
+            state["tag_key"] = key
+        elif name.startswith(
+            (
+                "create_table",
+                "write_table",
+                "validate_table",
+                "ensure_physical_table",
+                "list_data",
+                "describe_data",
+                "check_data",
+            )
+        ):
+            state["table_key"] = key
+        else:
+            state["strategy_key"] = key
     task_id = str(result.get("task_id") or "").strip()
     if task_id:
         state["last_task"] = {
@@ -311,6 +371,10 @@ def update_state_from_tool(
         "date",
         "version_id",
         "group_id",
+        "tag_values_count",
+        "saved_tag_values",
+        "ok_jobs",
+        "failed_jobs",
     ):
         if name in result and result.get(name) not in (None, ""):
             facts[name] = result.get(name)
@@ -397,6 +461,10 @@ def _maybe_archive(directory: Path) -> None:
 
 __all__ = [
     "append_turn",
+    "PENDING_PLAN_CONFIRM",
+    "PENDING_PORTFOLIO_CONFIRM",
+    "PENDING_TAG_PLAN_CONFIRM",
+    "clear_pending",
     "clear_session",
     "context_block",
     "default_session_id",
@@ -411,6 +479,8 @@ __all__ = [
     "save_preferences",
     "save_state",
     "session_directory",
+    "set_pending",
     "settings_path",
+    "should_clear_pending_for_tool",
     "update_state_from_tool",
 ]

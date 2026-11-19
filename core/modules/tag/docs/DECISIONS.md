@@ -101,7 +101,7 @@ global / non_time_series **不调** `to_entity_list`。
 
 ## DEC-04：Facade 名称为 Tag
 
-**是什么：** 对外唯一入口 Tag；BFF 经 TagCatalog / TagRunLauncher。
+**是什么：** 对外唯一入口 Tag（同步 `execute` + 进度 IO）。异步编排在 BFF `TagRunLauncher` / agent `start_tag`。
 
 ## DEC-05：Tag 表字段单一真相
 

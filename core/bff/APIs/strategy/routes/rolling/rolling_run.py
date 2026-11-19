@@ -12,11 +12,6 @@ from core.infra.job_pipeline import JobPipeline
 from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.core.engines.rolling.readiness import probe
-from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.progress import (
-    ROLLING_PIPELINE,
-    PipelineProgress,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +30,7 @@ class RollingRunLauncher:
         name = str(strategy_name or "").strip()
         if not name:
             return {"is_triggered": False, "reason": "strategy_name 无效"}
-        if DiscoveryService.find_strategy(name) is None:
+        if Strategy.find(name, enabled_only=False) is None:
             return {"is_triggered": False, "reason": f"策略不存在或未启用: {name}"}
 
         gate = cls._gate(name)
@@ -69,11 +64,12 @@ class RollingRunLauncher:
         if busy:
             return {"is_triggered": False, "reason": busy}
 
-        desc = PipelineProgress.pipeline_description(ROLLING_PIPELINE)
-        PipelineProgress.seed(
+        pipeline_name = Strategy.rolling_pipeline_name()
+        desc = Strategy.pipeline_progress_description(pipeline_name)
+        Strategy.seed_pipeline_progress(
             name,
             jid,
-            pipeline_name=ROLLING_PIPELINE,
+            pipeline_name=pipeline_name,
             pipeline_description=desc,
         )
         thread = threading.Thread(
@@ -88,7 +84,7 @@ class RollingRunLauncher:
             "job_id": jid,
             "run_id": jid,
             "pipeline_id": jid,
-            "pipeline_name": ROLLING_PIPELINE,
+            "pipeline_name": pipeline_name,
             "pipeline_kind": "rolling",
             "pipeline_description": desc,
         }
@@ -132,7 +128,7 @@ class RollingRunLauncher:
             lease.acquire()
             acquired = True
         except JobRunningBusyError as exc:
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
@@ -140,7 +136,7 @@ class RollingRunLauncher:
             return
         except (OSError, ValueError, RuntimeError) as exc:
             logger.exception("Rolling lease acquire failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
@@ -148,7 +144,7 @@ class RollingRunLauncher:
             return
 
         try:
-            with PipelineProgress.bind(strategy_name, job_id) as prog:
+            with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                 prog.mark_running()
                 if JobPipeline.is_cancel_requested(job_id):
                     prog.fail("用户取消")
@@ -167,7 +163,7 @@ class RollingRunLauncher:
                 prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001 — 后台线程必须把失败写进进度
             logger.exception("Rolling run failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
         finally:

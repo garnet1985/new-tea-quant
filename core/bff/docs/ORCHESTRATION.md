@@ -15,7 +15,7 @@ HTTP 前缀一律为 `/api`（见 `core/bff/app.py`）。契约细节优先看 F
 | data / sources | `APIs/data/sources` | [`routes/data_sources.md`](routes/data_sources.md) | BFF helpers + implementer |
 | data / contracts | `APIs/data/contracts` | [`routes/data_contracts.md`](routes/data_contracts.md) | BFF helpers + implementer |
 | strategy | `APIs/strategy`（`routes/` + `helpers/`） | [`routes/strategy.md`](routes/strategy.md) | core `PipelineProgress` / `Strategy.scan_run`；BFF snapshots + runner 薄壳 |
-| tag | `APIs/tag`（`routes/` + `helpers/`） | [`routes/tag.md`](routes/tag.md) | core `TagRunProgress`；BFF catalog + runner 薄壳 |
+| tag | `APIs/tag`（`routes/` + `helpers/`） | [`routes/tag.md`](routes/tag.md) | Tag Facade 进度 IO；BFF catalog + runner 异步壳 |
 | post_process | `APIs/post_process` | [`routes/post_process.md`](routes/post_process.md) | Facade 目录摘要 / 启用 / adapters 写入 |
 | series_relation | `APIs/series_relation` | — | `modules.series_relation` Facade（list/get/save/run/results） |
 

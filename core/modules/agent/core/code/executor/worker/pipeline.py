@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.code.conf.conf import (
@@ -20,8 +20,25 @@ from core.modules.agent.core.code.executor.shared.present import record_tool_see
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_nudge
 from core.modules.agent.core.code.executor.shared.use_tool import use_tool
 from core.modules.agent.core.code.executor.worker.prompt import worker_system_prompt
-from core.modules.agent.core.code.session.session_store import update_state_from_tool
+from core.modules.agent.core.code.session.session_store import (
+    PENDING_PLAN_CONFIRM,
+    PENDING_PORTFOLIO_CONFIRM,
+    PENDING_TAG_PLAN_CONFIRM,
+    set_pending,
+    update_state_from_tool,
+)
 from core.modules.agent.core.code.tools.tool_catalog import ToolCatalog
+
+_REPORT_TOOLS = frozenset(
+    {
+        "read_execution_report",
+        "read_attribution_report",
+        "read_scan_report",
+        "list_strategy_summaries",
+        "read_tag_report",
+        "list_tag_summaries",
+    }
+)
 
 
 def run(
@@ -74,6 +91,19 @@ def run(
                 )
                 continue
             if reply and (
+                is_test_plan_confirm(reply)
+                or is_portfolio_plan_confirm(reply)
+                or is_tag_plan_confirm(reply)
+                or is_next_step_offer(reply, tools_seen)
+            ):
+                if is_test_plan_confirm(reply):
+                    set_pending(PENDING_PLAN_CONFIRM, session_id)
+                elif is_portfolio_plan_confirm(reply):
+                    set_pending(PENDING_PORTFOLIO_CONFIRM, session_id)
+                elif is_tag_plan_confirm(reply):
+                    set_pending(PENDING_TAG_PLAN_CONFIRM, session_id)
+                return {"reply": reply, "tools_seen": tools_seen}
+            if reply and (
                 asks_user_permission(reply) or is_deferred_plan_reply(reply)
             ):
                 messages.append({"role": "assistant", "content": raw.strip() or "{}"})
@@ -105,7 +135,7 @@ def run(
             and result.get("ok")
         ):
             zero_heal_active = False
-        update_state_from_tool(result, session_id)
+        update_state_from_tool(result, session_id, tool_name=tool_name)
         messages.append({"role": "assistant", "content": raw.strip()})
         messages.append(
             {
@@ -120,18 +150,93 @@ def _zero_opportunity_heal_nudge() -> str:
     return load_nudge("worker", "zero_opportunity")
 
 
+def is_test_plan_confirm(reply: str) -> bool:
+    """策略测试计划确认单：须含二级标题 + 请用户确认的 CTA。"""
+    text = str(reply or "")
+    if not re.search(r"##\s*(测试计划|回测计划)", text):
+        return False
+    return bool(
+        re.search(
+            r"(可行吗|需要改动|确认执行|请告诉我|说[「\"]?执行)",
+            text,
+        )
+    )
+
+
+def is_portfolio_plan_confirm(reply: str) -> bool:
+    """资金模拟计划确认单：须含二级标题，避免「下一步邀请」里顺带提到计划名被误判。"""
+    text = str(reply or "")
+    if not re.search(r"##\s*(资金模拟计划|组合模拟计划|资金计划)", text):
+        return False
+    return bool(
+        re.search(
+            r"(可行吗|需要改动|确认执行|请告诉我|说[「\"]?执行)",
+            text,
+        )
+    )
+
+
+def is_tag_plan_confirm(reply: str) -> bool:
+    """打标计划确认单：须含二级标题 + CTA。"""
+    text = str(reply or "")
+    if not re.search(r"##\s*(打标计划|标签计划)", text):
+        return False
+    return bool(
+        re.search(
+            r"(可行吗|需要改动|确认执行|请告诉我|说[「\"]?执行)",
+            text,
+        )
+    )
+
+
+def is_next_step_offer(reply: str, tools_seen: Sequence[Dict[str, Any]]) -> bool:
+    """报告后的下一步邀请：本轮已读过报告，且提出资金/归因/滚动等可选下一步。"""
+    if not _saw_report_tool(tools_seen):
+        return False
+    text = str(reply or "")
+    if is_portfolio_plan_confirm(text) or is_tag_plan_confirm(text):
+        return False
+    if not re.search(r"(要不要|要我帮你|可以接着|下一步)", text):
+        return False
+    return bool(
+        re.search(
+            r"(资金|portfolio|归因|止盈|止损|滚动|多区间|扫描|本金|标签|打标|增量)",
+            text,
+        )
+    )
+
+
 def asks_user_permission(reply: str) -> bool:
+    """中途空许可请示。不含「要不要试试…归因/资金/滚动」类下一步。"""
+    text = str(reply or "")
+    if (
+        is_test_plan_confirm(text)
+        or is_portfolio_plan_confirm(text)
+        or is_tag_plan_confirm(text)
+    ):
+        return False
+    if re.search(
+        r"要不要(试试|用).+(资金|portfolio|归因|止盈|止损|滚动|多区间|本金|标签|打标)",
+        text,
+    ):
+        return False
     return bool(
         re.search(
             r"(要我改|要不要改|要我帮你改|是否(?:要|需要)?改|要我重跑|要不要重跑|"
             r"要我继续|要不要继续|需要我改|方便我改吗|可以改吗|要我直接改)",
-            str(reply or ""),
+            text,
         )
     )
 
 
 def is_deferred_plan_reply(reply: str) -> bool:
     text = str(reply or "")
+    if (
+        is_test_plan_confirm(text)
+        or is_portfolio_plan_confirm(text)
+        or is_tag_plan_confirm(text)
+    ):
+        return False
     if re.search(
         r"(结论如下|敏感度|卡玛|夏普|总收益|机会总数|归因报告|group_id)",
         text,
@@ -139,7 +244,7 @@ def is_deferred_plan_reply(reply: str) -> bool:
         return False
     return bool(
         re.search(
-            r"(我接下来会|下一步我会|下一步建议|这一步必须先|在真正跑出结果之前|"
+            r"(我接下来会|下一步我会|这一步必须先|在真正跑出结果之前|"
             r"需要先把|必须先把|然后重跑|然后再读)",
             text,
         )
@@ -163,6 +268,16 @@ def is_zero_opportunity_report(tool_name: str, result: Dict[str, Any]) -> bool:
     if "total_opportunities" in summary:
         return _as_nonneg_int(summary.get("total_opportunities")) == 0
     return _as_nonneg_int(result.get("total_opportunities")) == 0
+
+
+def _saw_report_tool(tools_seen: Sequence[Dict[str, Any]]) -> bool:
+    for item in tools_seen or ():
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("tool") or "").strip()
+        if name in _REPORT_TOOLS:
+            return True
+    return False
 
 
 def _as_nonneg_int(value: Any) -> Optional[int]:

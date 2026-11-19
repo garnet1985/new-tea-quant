@@ -1,24 +1,21 @@
-"""contract_catalog list tests."""
+"""contract catalog Facade tests."""
 
 from __future__ import annotations
 
 from core.modules.data_contract.contracts import SYS_DATA_KEY
 from core.modules.data_contract import ContractIssuer
-from core.bff.APIs.data.contracts.helpers.contract_catalog import (
-    fetch_data_contract_catalog_page,
-    reload_data_contract_catalog,
-)
+from core.infra.project_context import ProjectContext
 
 
 def test_fetch_page_includes_core_keys():
-    items, total = fetch_data_contract_catalog_page(page=1, limit=500)
+    items, total = ContractIssuer.fetch_ui_catalog_page(page=1, limit=500)
     assert total >= 1
     keys = {item["key"] for item in items}
     assert SYS_DATA_KEY.STOCK_LIST in keys
 
 
 def test_summary_fields():
-    items, _ = fetch_data_contract_catalog_page(page=1, limit=500)
+    items, _ = ContractIssuer.fetch_ui_catalog_page(page=1, limit=500)
     stock_list = next(i for i in items if i["key"] == SYS_DATA_KEY.STOCK_LIST)
     assert stock_list["display_name"]
     assert stock_list["is_time_series"] is False
@@ -33,20 +30,24 @@ def test_summary_fields():
 
 
 def test_pagination():
-    items, total = fetch_data_contract_catalog_page(page=1, limit=2)
+    items, total = ContractIssuer.fetch_ui_catalog_page(page=1, limit=2)
     assert len(items) == min(2, total)
     if total > 2:
-        page2, _ = fetch_data_contract_catalog_page(page=2, limit=2)
+        page2, _ = ContractIssuer.fetch_ui_catalog_page(page=2, limit=2)
         assert page2[0]["key"] != items[0]["key"]
 
 
 def test_reload_refreshes_class_cache():
     ContractIssuer._discovered = False
     ContractIssuer._declarations_cache = {}
-    summary = reload_data_contract_catalog()
-    assert summary["total"] >= 1
+    total = ContractIssuer.reload(
+        user_space_path=ProjectContext.path.get_data_contract_root()
+    )
+    assert total >= 1
     assert ContractIssuer._discovered is True
     assert SYS_DATA_KEY.STOCK_LIST in ContractIssuer.get_all_keys()
-    items, total = fetch_data_contract_catalog_page(page=1, limit=500, force_reload=True)
-    assert total == summary["total"]
+    items, page_total = ContractIssuer.fetch_ui_catalog_page(
+        page=1, limit=500, force_reload=True
+    )
+    assert page_total == total
     assert any(i["key"] == SYS_DATA_KEY.STOCK_LIST for i in items)

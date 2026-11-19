@@ -62,9 +62,12 @@ def test_build_step_report_ref_from_entity_list(mock_fetch, _mock_enrich, tmp_pa
         "version": 7,
         "result_report": {"enum": {"output_dir": str(out_dir)}},
     }
+    from core.modules.strategy import Strategy
+
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.report.step_report.Strategy.resolve_simulation_output_dirs",
-        lambda *a, **k: [out_dir],
+        Strategy,
+        "resolve_simulation_output_dirs",
+        staticmethod(lambda *a, **k: [out_dir]),
     )
 
     msg = WorkbenchReports.build_step_report_ref(
@@ -103,9 +106,12 @@ def test_build_step_report_ref_empty_entity_list_is_available(
         "version": 3,
         "result_report": {"enum": {"output_dir": str(out_dir)}},
     }
+    from core.modules.strategy import Strategy
+
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.report.step_report.Strategy.resolve_simulation_output_dirs",
-        lambda *a, **k: [out_dir],
+        Strategy,
+        "resolve_simulation_output_dirs",
+        staticmethod(lambda *a, **k: [out_dir]),
     )
 
     msg = WorkbenchReports.build_step_report_ref(

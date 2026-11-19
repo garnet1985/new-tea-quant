@@ -55,10 +55,11 @@ def test_format_strategy_summaries_empty():
     assert "投资建议" in text
 
 
-def test_out_of_scope_web_detects_news_and_macro():
-    assert is_out_of_scope_web_question("最近发生的法国暴乱会不会影响A股？")
-    assert is_out_of_scope_web_question("告诉我最近AI和芯片的投资潜力还大不大？")
-    assert is_out_of_scope_web_question("美联储最近一次利率决议结果是什么？")
+def test_out_of_scope_web_only_realtime_quotes():
+    assert is_out_of_scope_web_question("招商银行现在实时股价多少钱")
+    assert is_out_of_scope_web_question("给我看一下盘中实时行情")
+    assert not is_out_of_scope_web_question("最近发生的法国暴乱会不会影响A股？")
+    assert not is_out_of_scope_web_question("美联储最近一次利率决议结果是什么？")
     assert not is_out_of_scope_web_question("帮我看看 ma20_touch 的资金报告")
     assert not is_out_of_scope_web_question("帮我改一下止损并重跑回测")
 
@@ -79,8 +80,8 @@ def test_navigator_cross_intent_pipeline():
     ident = route("NTQ 是什么，顺便帮我回测一下", provider_id="ntq", mode="regex")
     assert ident.kind == "identity"
     assert ident.queue == ("identity", "worker")
-    oos = route(
+    news = route(
         "法国暴乱影响 A 股吗，帮我改止损并重跑回测", provider_id="ntq", mode="regex"
     )
-    assert oos.kind == "out_of_scope"
-    assert oos.queue == ("out_of_scope", "worker")
+    assert news.kind == "guide"
+    assert news.queue == ("guide", "worker")

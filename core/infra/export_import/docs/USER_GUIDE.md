@@ -1,6 +1,8 @@
 # Export / Import — 用户指南
 
-**版本：** `0.2.0`
+**模块：** `infra.export_import` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 打包和安装策略包 / 扩展包——打 zip 导出去，从 zip 装进来。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

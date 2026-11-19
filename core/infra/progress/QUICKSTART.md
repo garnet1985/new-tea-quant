@@ -1,6 +1,8 @@
 # Progress — 快速开始
 
-**版本：** `0.2.1`
+**模块：** `infra.progress` · **版本：** `0.2.1`
+
+**最低支持核心版本：** `>=0.6.0`
 
 ```python
 from core.infra.progress import Progress

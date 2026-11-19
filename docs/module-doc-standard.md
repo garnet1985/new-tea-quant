@@ -1,14 +1,14 @@
 # 模块文档规范
 
-**版本：** 1.5.0  
-**最后更新：** 2026-10-30  
+**版本：** 1.6.0  
+**最后更新：** 2026-11-19  
 **适用范围：** `core/modules/*`、`core/infra/*`（及其他按 core 模块标准收口的主模块）的**文档**
 
 > **文档 SSOT：** 模块文档的格式、清单、位置与维护规则以**本文**为准。  
 > **模块规则（代码 / 测试结构 / 版本 / Facade 等）：** [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)  
 > **可 copy 骨架：** [`docs/doc_templates/module/`](doc_templates/module/)（与真实模块同结构；整棵 copy 后替换 `<xxx>`，删除不需要的可选文件）
 
-**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。**v1.5.0 起**：架构图 / 组件关系图以 **Mermaid** 为 SSOT；禁止用 Unicode/ASCII 方框「手绘」流程图（见 §3.1）。
+**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。**v1.5.0 起**：架构图 / 组件关系图以 **Mermaid** 为 SSOT；禁止用 Unicode/ASCII 方框「手绘」流程图（见 §3.1）。**v1.6.0 起**：标准 Markdown 文首统一为两行（模块·版本 + 最低支持核心版本）；站点 `ntq_md2html` 按此解析。
 
 ---
 
@@ -113,13 +113,21 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | `module_info.yaml` | `compatible_core_versions` | `>=0.4.5` |
 | `module_info.yaml` | `name` | `modules.strategy` / `modules.cli` / `ui` / `bff` / `tables` |
 | `module_info.yaml`（可选） | `site_title` / `site_display_title` | 站点文档 Title / Display title；见 CORE 指标 4 |
-| Markdown 文首 | `**版本：**` | `**版本：** 0.4.0` |
-| `API.md` 文首另须 | `**最低支持核心版本：**` | `**最低支持核心版本：** >=0.4.5` |
-| `glossary.yaml` 头注释 | `# Version:` | `# Version: 0.4.0` |
+| Markdown 文首第 1 行 | `**模块：**` · `**版本：**` | `**模块：** `modules.cli` · **版本：** `0.4.5`` |
+| Markdown 文首第 2 行 | `**最低支持核心版本：**` | `**最低支持核心版本：** `>=0.5.0`` |
+| `glossary.yaml` 头注释 | `# Version:` / `# Compatible-Core:` | `# Version: 0.4.0` / `# Compatible-Core: >=0.5.0` |
 
-禁止用 `**覆盖版本：**`、`**当前基线版本：**` 表示模块版本。
+禁止用 `**覆盖版本：**`、`**当前基线版本：**`、`**最低核心版本：**` 表示模块 / 核心兼容版本。
 
-**须带标准版本字段的文件（存在则检查）：** `API.md`、`glossary.yaml`、`QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/DECISIONS.md`、`docs/CONCEPTS.md`、`docs/USER_GUIDE.md`、模块内全部 `**/TEST_CASES.md`、`__performance__/README.md`、`__performance__/CASES.md`。`README.md` 与 `docs/` 根下其它 md 若文首已写版本字段，也必须等于 SSOT。`docs/notes/` 不检查。
+**统一 Markdown 文首（紧跟 `#` 标题之后；两行之间空一行）：**
+
+```markdown
+**模块：** `<module_info.name>` · **版本：** `<module_info.version>`
+
+**最低支持核心版本：** `<module_info.compatible_core_versions>`
+```
+
+**须带标准文首的文件（存在则检查；范围与 `devcli.py p` 一致）：** `API.md`、`glossary.yaml`、`QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/CONCEPTS.md`、`__performance__/README.md`、`__performance__/CASES.md`、模块内全部 `**/TEST_CASES.md`。`README.md` 与 `docs/` 根下其它 md（如 `USER_GUIDE` / `DECISIONS`）若文首已写版本字段，也必须是完整两行头且等于 SSOT。`docs/notes/` 不检查。
 
 版本 bump 语义见 [CORE 指标 11](../CORE_MODULE_STANDARDS.md)。
 
@@ -134,8 +142,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 **文首：**
 
-- 模块显示名、`**版本：**`（= `module_info.yaml` 的 `version`）
-- `**最低支持核心版本：**`（= `module_info.yaml` 的 `compatible_core_versions`）
+- 统一两行头：`**模块：**` · `**版本：**` + `**最低支持核心版本：**`（见 §1 版本一致性）
 - 说明：本文件是公开调用面的唯一人读文档；所列入口须有 `__test__/test_api.py` 覆盖
 
 **层级（固定）：**

@@ -1,6 +1,8 @@
 # Indicator — 用户指南
 
-**版本：** `0.2.0`
+**模块：** `modules.indicator` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `Indicator 是技术指标计算器——给 K 线，算 MA、RSI、MACD、KDJ 等。`
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

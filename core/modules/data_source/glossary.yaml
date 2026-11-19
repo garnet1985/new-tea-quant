@@ -1,5 +1,6 @@
 # Data Source 术语表
 # Version: 0.4.0
+# Compatible-Core: >=0.5.0
 
 terms:
   Facade:

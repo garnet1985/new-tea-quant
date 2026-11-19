@@ -1,5 +1,6 @@
 # Series Relation 术语表
 # Version: 0.1.0
+# Compatible-Core: >=0.5.0
 
 terms:
   series_relation:

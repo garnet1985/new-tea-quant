@@ -2,6 +2,8 @@
 
 **模块：** `ui` · **版本：** `0.2.3`
 
+**最低支持核心版本：** `>=0.5.0`
+
 浏览器里的 NTQ。React 应用在 `fed/`。HTTP 在 [`core/bff`](../../bff/README.md)，不在本模块。
 
 API 不在这里。安装门面见 `core/infra/setup`，路由见 `core/bff/docs`。

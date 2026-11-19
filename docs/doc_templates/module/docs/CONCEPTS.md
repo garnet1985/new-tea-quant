@@ -5,7 +5,9 @@
   写运作原理与多步骤关系；词条放 ../glossary.yaml。
 -->
 
-**模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+**模块：** `<namespace.module_name>` · **模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+
+**最低支持核心版本：** `<compatible_core_versions>`
 
 `<1～3 句：本文补充哪些运作链路 / 原理。>`
 

@@ -1,5 +1,6 @@
 # Data Contract 术语表
 # Version: 0.4.3
+# Compatible-Core: >=0.5.0
 
 terms:
   Facade:

@@ -1,6 +1,8 @@
 # Strategy（`modules.strategy`）
 
-**模块：** `modules.strategy` · **版本：** `0.12.1`
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 ## 简介
 

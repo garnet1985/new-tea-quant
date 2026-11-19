@@ -1,6 +1,8 @@
 # SeriesRelation — 用户指南
 
-**版本：** `0.1.0`
+**模块：** `modules.series_relation` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `SeriesRelation 把多条时间序列放一起看——算相关性、找滞后、对比形态。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

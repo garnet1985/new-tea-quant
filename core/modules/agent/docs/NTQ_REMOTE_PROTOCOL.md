@@ -1,6 +1,9 @@
 # NTQ Provider ↔ Website 状态协议
 
-**版本：** `0.1.0`  
+**模块：** `modules.agent` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.6.0`
+
 **前提：** [PROVIDER_AND_NAVIGATOR.md](./PROVIDER_AND_NAVIGATOR.md)
 
 本地 App 只打 **一个出入口**（OpenAI 兼容 `chat/completions` → `{ai_base}/chat/completions`）。  

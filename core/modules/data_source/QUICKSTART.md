@@ -2,6 +2,8 @@
 
 **模块：** `modules.data_source` · **版本：** `0.4.0`
 
+**最低支持核心版本：** `>=0.5.0`
+
 ```python
 from core.modules.data_source import DataSourceManager
 

@@ -1,5 +1,6 @@
 # glossary — modules.post_process
 # Version: 0.3.2
+# Compatible-Core: >=0.5.0
 
 terms:
   Facade:

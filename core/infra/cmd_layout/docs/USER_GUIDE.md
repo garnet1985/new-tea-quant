@@ -1,6 +1,8 @@
 # 命令行布局 — 用户指南
 
-**版本：** `0.2.0`
+**模块：** `infra.cmd_layout` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 终端排版工具箱——打印标题、表格、条形图、图标，Windows 自动降级 ASCII。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

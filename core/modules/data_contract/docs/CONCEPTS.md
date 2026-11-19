@@ -1,6 +1,8 @@
 # Data Contract 术语与概念
 
-**版本：** `0.4.3`
+**模块：** `modules.data_contract` · **版本：** `0.4.3`
+
+**最低支持核心版本：** `>=0.5.0`
 
 与 [glossary.yaml](../glossary.yaml) 对齐；实现以仓库代码为准。
 

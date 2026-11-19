@@ -1,6 +1,7 @@
 # Strategy API 文档
 
-**版本：** `0.12.2`  
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  

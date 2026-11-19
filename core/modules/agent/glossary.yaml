@@ -1,5 +1,6 @@
 # glossary — modules.agent
 # Version: 0.1.0
+# Compatible-Core: >=0.6.0
 
 terms:
   Facade:

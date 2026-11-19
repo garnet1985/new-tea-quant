@@ -1,5 +1,6 @@
 # <Module Display Name> 术语表
 # Version: <module.version>
+# Compatible-Core: <compatible_core_versions>
 #
 # 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
 # 与 CONCEPTS：本文件是词条表；运作原理写 docs/CONCEPTS.md（若有）

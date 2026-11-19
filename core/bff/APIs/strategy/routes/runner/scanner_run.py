@@ -9,7 +9,6 @@ import uuid
 from typing import Any, Dict, Optional
 
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.services.progress import ScanProgress
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, A
 
 
 def get_scan_progress(*, strategy_name: str, job_id: str) -> Optional[Dict[str, Any]]:
-    return ScanProgress.get_poll_dto(strategy_name, job_id)
+    return Strategy.get_scan_progress(strategy_name, job_id)
 
 
 def _background_scan_job(
@@ -91,7 +90,9 @@ def trigger_strategy_scan_run(
         jid = str(uuid.uuid4())
         _ACTIVE_JOB_ID = jid
 
-    ScanProgress.for_job(name, jid).seed(
+    Strategy.seed_scan_progress(
+        name,
+        jid,
         demo=bool(demo),
         force=bool(force),
         run_post_process=bool(run_post_process),

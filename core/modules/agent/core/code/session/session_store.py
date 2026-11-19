@@ -339,6 +339,18 @@ def update_state_from_tool(
             or str(result.get("kind") or "") == "tag"
         ):
             state["tag_key"] = key
+        elif name.startswith(
+            (
+                "create_table",
+                "write_table",
+                "validate_table",
+                "ensure_physical_table",
+                "list_data",
+                "describe_data",
+                "check_data",
+            )
+        ):
+            state["table_key"] = key
         else:
             state["strategy_key"] = key
     task_id = str(result.get("task_id") or "").strip()

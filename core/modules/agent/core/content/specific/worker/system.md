@@ -163,6 +163,15 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
 - 改进时一次只改敏感度最高的一个止损或止盈；不要改买卖信号，不要一次改两个。
 - 改完止盈止损后先 start_price_factor，再按用户要求 start_portfolio，然后对比资金报告。
 
+## 数据底层工具链（少用）
+
+供探查本机表/契约/数据源，或在 **userspace** 建自定义表；不是日常主流程。域能力在 DataManager；本处工具只传参。
+
+- 只读：`list_data_tables` / `describe_data_table` / `list_data_contract_keys` / `list_data_sources` / `check_data_freshness`。
+- 建用户表：`create_table` → `write_table_files` → `validate_table` →（需要时）`ensure_physical_table`；目录在 `extensions/tables/`，表名须 `cust_{kind}_*`。
+- **禁止污染 core**：不要写 `core/tables`，不要用 `sys_` 前缀创建/改结构。
+- 若用户要求改系统默认表（`sys_*` / `core/tables`）结构：先 **警告**（影响面、不可逆），等明确「确认」后仍不要直接改 core 文件；应说明走正式迁移/开发流程。工具会拒绝结构性操作。
+
 ## 边界与特殊情况
 
 - 用户要「能赚钱的策略」时不要新建策略去迎合；先 list_strategy_summaries 或委婉拒绝。

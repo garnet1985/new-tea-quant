@@ -55,6 +55,32 @@ class TestDataManagerApi(unittest.TestCase):
         self.assertIn(BaseTableNames.STOCK_LIST.value, names)
         self.assertEqual(names, sorted(names))
 
+    def test_user_table_facade_methods(self):
+        from core.modules.data_manager import DataManager
+
+        for name in (
+            "scaffold_user_table",
+            "write_user_table_files",
+            "validate_user_table",
+            "ensure_user_table",
+            "describe_table",
+            "list_tables_by_owner",
+            "export_adj_factor_events_csv",
+        ):
+            self.assertTrue(callable(getattr(DataManager, name)), name)
+
+    def test_list_tables_by_owner_and_describe(self):
+        from core.modules.data_manager import DataManager
+        from core.modules.data_manager.contracts import BaseTableNames
+
+        dm = DataManager(force_new=True, is_verbose=False)
+        listed = dm.list_tables_by_owner(owner="sys")
+        self.assertTrue(listed.get("ok"))
+        self.assertIn(BaseTableNames.STOCK_LIST.value, listed.get("tables") or [])
+        desc = dm.describe_table(table_name=BaseTableNames.STOCK_LIST.value)
+        self.assertTrue(desc.get("ok"))
+        self.assertEqual(desc.get("owner"), "sys")
+
     def test_normalize_delist_date(self):
         from core.modules.data_manager import DataManager
 

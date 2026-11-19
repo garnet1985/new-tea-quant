@@ -482,6 +482,94 @@ class Tag:
 
         return TagRunProgress.for_job(tag_key, job_id).on_progress_callback()
 
+    # --- userspace 制品用例（CLI / agent 薄封装；实现在 artifact_ops）---
+
+    @staticmethod
+    def scaffold_from_template(raw_path: str) -> Dict[str, Any]:
+        """从 ``_template/empty_scenario`` 新建标签目录；meta.key 写叶名。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        return TagArtifactOps.scaffold_from_template(raw_path)
+
+    @staticmethod
+    def apply_settings_patch(
+        *,
+        key: str,
+        tag_py: str = "",
+        settings_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖标签制品文件（合并 settings 默认块）。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        return TagArtifactOps.apply_settings_patch(
+            key=key, tag_py=tag_py, settings_py=settings_py
+        )
+
+    @staticmethod
+    def validate_artifact(*, key: str) -> Dict[str, Any]:
+        """校验标签 settings / hooks；不启动打标。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        return TagArtifactOps.validate_artifact(key=key)
+
+    @staticmethod
+    def interpret_execute_result(result: Any) -> None:
+        """校验 ``execute`` 返回值；失败抛 ``RuntimeError``。"""
+        from .services.artifact_ops import TagArtifactOps
+
+        TagArtifactOps.interpret_execute_result(result)
+
+    @staticmethod
+    def list_definitions(
+        tag_ref: str,
+    ) -> tuple[List[Dict[str, Any]], Optional[str]]:
+        """某 tag 的 ``tag_definitions`` 行；``(rows, error)``。未找到时 rows=[]。"""
+        needle = str(tag_ref or "").strip()
+        if not needle:
+            return [], "tag 不能为空"
+        info = Tag().find(needle)
+        if info is None:
+            return [], f"未找到 tag: {needle}（可用 meta.key，如 market_cap_tier）"
+        settings = getattr(info, "settings", None) or {}
+        raw = settings.get("tag_definitions") if isinstance(settings, dict) else None
+        if not isinstance(raw, list):
+            return [], None
+        rows: List[Dict[str, Any]] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            rows.append(
+                {
+                    "value": name,
+                    "name": name,
+                    "display_name": str(item.get("display_name") or "").strip(),
+                    "description": str(item.get("description") or "").strip(),
+                }
+            )
+        return rows, None
+
+    @staticmethod
+    def fetch_catalog_page(
+        page: int,
+        limit: int,
+    ):
+        """UI 标签列表页：``(items, total, data_end)``。"""
+        from .services.catalog import TagUiCatalog
+
+        return TagUiCatalog.fetch_page(page, limit)
+
+    @staticmethod
+    def fetch_visualization(
+        tag_key: str, entity_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """标签可视化读模型；未知标签返回 ``None``。"""
+        from .services.visualization import TagVisualization
+
+        return TagVisualization.fetch(tag_key, entity_id)
+
     @staticmethod
     def _to_info_dict(info: DiscoveredTagInfo) -> Dict[str, Any]:
         path_id = str(info.id() or "")

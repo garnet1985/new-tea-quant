@@ -654,4 +654,43 @@ class DataSourceManager:
         """公开配置发现（原 ``_discover_config``）。"""
         return self._discover_config(data_source_key)
 
+    @staticmethod
+    def fetch_catalog_page(page: int, limit: int):
+        """UI 数据源列表页：``(items, total, data_end)``。"""
+        from core.modules.data_source.core.catalog.ui_catalog import (
+            fetch_data_source_catalog_page,
+        )
+
+        return fetch_data_source_catalog_page(page, limit)
+
+    @staticmethod
+    def fetch_freshness(source_names=None):
+        """UI 懒加载新鲜度：``({source: status_fields}, data_end)``。"""
+        from core.modules.data_source.core.catalog.ui_catalog import (
+            fetch_data_source_freshness,
+        )
+
+        return fetch_data_source_freshness(source_names)
+
+    @staticmethod
+    def read_renew_ui_status() -> Dict[str, Any]:
+        """Renew UI：最近任务栏 + Progress 投影（不含 JobPipeline 壳）。"""
+        from core.modules.data_source.core.service.renew_ui import read_renew_ui_status
+
+        return read_renew_ui_status()
+
+    @staticmethod
+    def read_renew_ui_tasks():
+        """Renew UI 任务栏字段。"""
+        from core.modules.data_source.core.service.renew_ui import read_renew_ui_tasks
+
+        return read_renew_ui_tasks()
+
+    @staticmethod
+    def read_renew_ui_progress() -> Dict[str, Any]:
+        """Renew UI Progress 投影。"""
+        from core.modules.data_source.core.service.renew_ui import read_renew_ui_progress
+
+        return read_renew_ui_progress()
+
  

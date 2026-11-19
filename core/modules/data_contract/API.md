@@ -54,7 +54,16 @@ kline = ContractIssuer.issue(
 
 - **状态：** `beta`
 
-常用：`get_contract`、`list_available_keys`、`list_system_keys`、`is_available`、`get_list_data_key`、`register_custom_declaration`、`get_declaration`、`system_registry_source_path`。
+常用：`get_contract`、`list_available_keys`、`list_system_keys`、`is_available`、`get_list_data_key`、`register_custom_declaration`、`get_declaration`、`system_registry_source_path`、`list_catalog_entries`、`list_ui_catalog_entries` / `fetch_ui_catalog_page`。
+
+#### list_catalog_entries / list_ui_catalog_entries / fetch_ui_catalog_page
+
+`ContractIssuer.list_catalog_entries() -> list[dict]`（classmethod）  
+`ContractIssuer.list_ui_catalog_entries(*, force_reload=False) -> list[dict]`（classmethod）  
+`ContractIssuer.fetch_ui_catalog_page(page, limit, *, force_reload=False) -> (items, total)`（classmethod）
+
+- **状态：** `beta`
+- **描述：** CLI 目录行 / BFF UI 目录行（含 origin、is_custom）。自动 discover；信道勿摸 `_discovered` / `_declarations_cache`
 
 #### reload
 

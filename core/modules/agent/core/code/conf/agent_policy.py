@@ -12,7 +12,7 @@ from core.modules.agent.core.code.conf.conf import WRITE_PATH_LIMIT
 def resolve_user_write_path(relative: str) -> Path:
     """把相对路径解析到允许的 userspace 子目录。
 
-    只允许 ``strategies/``、``extensions/tags/``、
+    只允许 ``strategies/``、``extensions/tags/``、``extensions/tables/``、
     ``extensions/post_process/adapters/``、``extensions/post_process/post_processors/`` 之下。
     拒绝绝对路径、``..``、以及 userspace 里的配置、密钥和会员凭证。
     """
@@ -34,7 +34,7 @@ def resolve_user_write_path(relative: str) -> Path:
     if not allowed:
         raise AgentError(
             f"写入路径不在允许范围内：{raw}。"
-            "只允许 strategies/、extensions/tags/、"
+            "只允许 strategies/、extensions/tags/、extensions/tables/、"
             "extensions/post_process/adapters/、extensions/post_process/post_processors/ 下的相对路径"
         )
     return candidate
@@ -45,6 +45,7 @@ def _write_roots() -> tuple[Path, ...]:
     return (
         path.get_strategies_root().resolve(),
         path.get_tags_root().resolve(),
+        path.get_extensions_tables_directory().resolve(),
         path.get_adapters_directory().resolve(),
         path.get_post_processors_directory().resolve(),
     )

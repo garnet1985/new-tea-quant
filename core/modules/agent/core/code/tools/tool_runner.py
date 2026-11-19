@@ -37,6 +37,19 @@ from core.modules.agent.core.code.tools.tag.read_reports import (
 )
 from core.modules.agent.core.code.tools.tag.validate_tag import validate_tag
 from core.modules.agent.core.code.tools.tag.write_tag_files import write_tag_files
+from core.modules.agent.core.code.tools.data.create_table import create_table
+from core.modules.agent.core.code.tools.data.ensure_physical_table import (
+    ensure_physical_table,
+)
+from core.modules.agent.core.code.tools.data.inspect_data import (
+    check_data_freshness,
+    describe_data_table,
+    list_data_contract_keys,
+    list_data_sources,
+    list_data_tables,
+)
+from core.modules.agent.core.code.tools.data.validate_table import validate_table
+from core.modules.agent.core.code.tools.data.write_table_files import write_table_files
 
 _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "create_strategy": create_strategy,
@@ -62,6 +75,15 @@ _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "start_tag": start_tag,
     "list_tag_summaries": list_tag_summaries,
     "read_tag_report": read_tag_report,
+    "list_data_tables": list_data_tables,
+    "describe_data_table": describe_data_table,
+    "list_data_contract_keys": list_data_contract_keys,
+    "list_data_sources": list_data_sources,
+    "check_data_freshness": check_data_freshness,
+    "create_table": create_table,
+    "write_table_files": write_table_files,
+    "validate_table": validate_table,
+    "ensure_physical_table": ensure_physical_table,
 }
 
 

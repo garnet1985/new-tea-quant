@@ -73,6 +73,33 @@
 - **状态：** `beta`
 - **描述：** 加载 `tag.py` 中的 `TagHooks` 子类；失败返回 `None`
 
+### fetch_catalog_page / fetch_visualization
+
+`Tag.fetch_catalog_page(page, limit) -> (items, total, data_end)`  
+`Tag.fetch_visualization(tag_key, entity_id=None) -> dict | None`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** UI 列表与可视化读模型（实现在 `services/catalog` / `services/visualization`）。BFF 只薄封装。
+
+### list_definitions
+
+`Tag.list_definitions(tag_ref: str) -> (rows, error | None)`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** 某 tag 的 `tag_definitions` 行（`value/name/display_name/description`）。`tag_ref` 为 meta.key 或路径 id；CLI `list tag.<key>` 薄封装
+
+### scaffold_from_template / apply_settings_patch / validate_artifact / interpret_execute_result
+
+`Tag.scaffold_from_template(raw_path: str) -> dict`  
+`Tag.apply_settings_patch(*, key, tag_py="", settings_py="") -> dict`  
+`Tag.validate_artifact(*, key: str) -> dict`  
+`Tag.interpret_execute_result(result) -> None`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** userspace 标签制品用例（实现在 `artifact_ops`）。CLI/agent 只薄封装。脚手架写 `extensions/tags/_template/empty_scenario`，`meta.key` 为目录叶名。`interpret_execute_result` 供异步壳共用成功判定。
+
 ### get_run_progress / seed_run_progress / mark_run_running / complete_run_progress / fail_run_progress / run_progress_callback
 
 `Tag.get_run_progress(*, tag_key: str, job_id: str) -> dict | None`  

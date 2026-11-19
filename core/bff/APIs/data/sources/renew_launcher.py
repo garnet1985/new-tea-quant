@@ -92,6 +92,9 @@ class DataRenewLauncher:
 
     @classmethod
     def status(cls) -> Dict[str, Any]:
+        from core.modules.data_source import DataSourceManager
+
+        ui = DataSourceManager.read_renew_ui_status()
         with cls._LOCK:
             active = dict(cls._ACTIVE or {})
         if not active:
@@ -103,8 +106,8 @@ class DataRenewLauncher:
                     "source": str(running.get("resource_key") or ""),
                     "error": "",
                     "message": "",
-                    "tasks": _public_tasks(),
-                    "progress": _public_progress(),
+                    "tasks": ui.get("tasks") or [],
+                    "progress": ui.get("progress") or {},
                 }
             return {
                 "running": False,
@@ -112,8 +115,8 @@ class DataRenewLauncher:
                 "source": "",
                 "error": "",
                 "message": "",
-                "tasks": _public_tasks(),
-                "progress": _public_progress(),
+                "tasks": ui.get("tasks") or [],
+                "progress": ui.get("progress") or {},
             }
         return {
             "running": bool(active.get("running")),
@@ -121,8 +124,8 @@ class DataRenewLauncher:
             "source": str(active.get("source") or ""),
             "error": str(active.get("error") or ""),
             "message": str(active.get("message") or ""),
-            "tasks": _public_tasks(),
-            "progress": _public_progress(),
+            "tasks": ui.get("tasks") or [],
+            "progress": ui.get("progress") or {},
         }
 
     @classmethod
@@ -189,77 +192,3 @@ class DataRenewLauncher:
             active["error"] = error
             active["message"] = message
 
-
-def _public_tasks() -> list:
-    """最近一次运行的任务栏，只留界面要用的字段。"""
-    from core.modules.data_source.core.service.run_status import read_latest_run_status
-
-    payload = read_latest_run_status()
-    raw = payload.get("tasks") if isinstance(payload, dict) else None
-    if not isinstance(raw, list):
-        return []
-    tasks = []
-    for row in raw:
-        if not isinstance(row, dict):
-            continue
-        tasks.append(
-            {
-                "source": str(row.get("source") or ""),
-                "status": str(row.get("status") or ""),
-                "started_at": row.get("started_at"),
-                "total_seconds": row.get("total_seconds"),
-                "error": str(row.get("error") or ""),
-            }
-        )
-    return tasks
-
-
-def _public_progress() -> dict:
-    """当前 renew 任务。step 是数据源计数，sub 是正在跑的那一个。"""
-    from core.infra.progress import Progress
-
-    snap = Progress.latest("renew")
-    if not isinstance(snap, dict):
-        return _empty_progress()
-    current = _deepest_running(snap)
-    leaf = current if current and current.get("id") != snap.get("id") else None
-    return {
-        "job": str(snap.get("job") or ""),
-        "source": str((leaf or {}).get("source") or ""),
-        "step": int(snap.get("done") or 0),
-        "step_total": int(snap.get("total") or 0),
-        "sub": int((leaf or {}).get("done") or 0),
-        "sub_total": int((leaf or {}).get("total") or 0),
-        "updated_at": int(snap.get("updated_at") or 0),
-        "ratio": float(snap.get("ratio") or 0),
-        "status": str(snap.get("status") or ""),
-        "label": str((leaf or snap).get("label") or ""),
-        "detail": str((leaf or {}).get("detail") or ""),
-    }
-
-
-def _empty_progress() -> dict:
-    return {
-        "job": "",
-        "source": "",
-        "step": 0,
-        "step_total": 0,
-        "sub": 0,
-        "sub_total": 0,
-        "updated_at": 0,
-        "ratio": 0,
-        "status": "",
-        "label": "",
-        "detail": "",
-    }
-
-
-def _deepest_running(node: dict) -> Optional[dict]:
-    found = node if str(node.get("status") or "") == "running" else None
-    for child in node.get("steps") or []:
-        if not isinstance(child, dict):
-            continue
-        deeper = _deepest_running(child)
-        if deeper is not None:
-            found = deeper
-    return found

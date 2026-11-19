@@ -1,4 +1,4 @@
-"""Tag 可视化读模型（T1-07）。
+"""Tag 可视化读模型（经 Tag.fetch_visualization 对外）。
 
 把 ``sys_data_tag_value`` 收成三种视图：
 - 时序全局：按标签展示名分列的区间（甘特）；取值只留在悬停
@@ -9,11 +9,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.bff.shared.client_log import log_degraded
 from core.modules.data_manager import DataManager
 from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
     TagDataService,
@@ -21,6 +21,8 @@ from core.modules.data_manager.core.data_services.stock.sub_services.tag_service
 from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_ID
 from core.modules.tag.core.engines.shared.tag_settings.data_settings import DataSettings
 from core.modules.tag.core.services.discovery import DiscoveryService
+
+logger = logging.getLogger(__name__)
 
 _VALUE_TABLE = "sys_data_tag_value"
 _NAME_CHUNK = 400
@@ -62,6 +64,10 @@ INNER JOIN sys_data_tag_scenario sc ON td.scenario_id = sc.id
 WHERE sc.name = %s AND tv.entity_id = %s
 ORDER BY td.name ASC, tv.as_of_date ASC
 """
+
+
+def _log_degraded(event: str, exc: BaseException, *extra: Any) -> None:
+    logger.warning("%s degraded: %s %s", event, exc, extra)
 
 
 class TagVisualization:
@@ -155,7 +161,7 @@ class TagVisualization:
         try:
             progress = tag_svc.get_entity_calc_progress(scenario_name) or {}
         except Exception as exc:
-            log_degraded("tag.visualization.progress", exc, scenario_name)
+            _log_degraded("tag.visualization.progress", exc, scenario_name)
         horizon = str(progress.get(entity_id) or "").strip()
         if not horizon and progress:
             ends = [str(value).strip() for value in progress.values() if str(value or "").strip()]
@@ -180,7 +186,7 @@ class TagVisualization:
         try:
             model = data_manager.get_table("sys_data_stock_list")
         except Exception as exc:
-            log_degraded("tag.visualization.stockList", exc)
+            _log_degraded("tag.visualization.stockList", exc)
             return {}
         if model is None:
             return {}
@@ -190,7 +196,7 @@ class TagVisualization:
             try:
                 rows = model.load_by_ids(chunk) or []
             except Exception as exc:
-                log_degraded("tag.visualization.stockNames", exc)
+                _log_degraded("tag.visualization.stockNames", exc)
                 continue
             for row in rows:
                 eid = str(row.get("id") or "").strip()
@@ -201,7 +207,6 @@ class TagVisualization:
 
 
 def normalize_point(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """DB 行 → 可视化点。日期统一 YYYYMMDD，json_value 解开 ``value``。"""
     if not isinstance(row, dict):
         return None
     as_of = _yyyymmdd(row.get("as_of_date"))
@@ -221,7 +226,6 @@ def normalize_point(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def decode_value(raw: Any) -> Any:
-    """``json_value`` 可能是 JSON 字符串或已解析对象；业务值在 ``value`` 键。"""
     payload = raw
     if isinstance(raw, str):
         text = raw.strip()
@@ -237,7 +241,6 @@ def decode_value(raw: Any) -> Any:
 
 
 def definition_lanes(settings: Dict[str, Any]) -> List[str]:
-    """settings 里的标签展示名，顺序就是甘特纵轴。"""
     raw = settings.get("tag_definitions") if isinstance(settings, dict) else None
     lanes: List[str] = []
     for item in raw or []:
@@ -253,7 +256,6 @@ def build_entity_rows(
     latest: List[Dict[str, Any]],
     names: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
-    """每个实体一行：当前标签（最近一个变化日）和悬停用的取值。"""
     lookup = names or {}
     grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for point in latest:
@@ -285,11 +287,6 @@ def build_entity_rows(
 
 
 def build_intervals(points: List[Dict[str, Any]], horizon_end: str = "") -> List[Dict[str, Any]]:
-    """变化日接成区间。纵轴是标签展示名；下一次任一标签的变化结束上一段。
-
-    同一天的多个标签一起保留到下一次变化。取值相同且首尾相接的段合并。
-    ``value_label`` 只给悬停，不进纵轴。
-    """
     ordered = [point for point in points if str(point.get("as_of") or "").strip()]
     ordered.sort(key=lambda item: (str(item.get("as_of") or ""), str(item.get("tag_name") or "")))
     events: List[Tuple[str, List[Dict[str, Any]]]] = []
@@ -336,7 +333,6 @@ def build_intervals(points: List[Dict[str, Any]], horizon_end: str = "") -> List
 
 
 def build_snapshots(points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """每个定义保留最新一点，并按值的形状收成可渲染块。"""
     latest: Dict[str, Dict[str, Any]] = {}
     for point in points:
         name = str(point.get("tag_name") or "")
@@ -355,7 +351,6 @@ def build_snapshots(points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def shape_snapshot(value: Any) -> Dict[str, Any]:
-    """标量 → 卡片；类别字典 → 表；其余对象 → 字段表或文本。"""
     if is_scalar(value) or value is None:
         return {"kind": "scalar", "scalar": "" if value is None else lane_text(value_label(value))}
     if isinstance(value, dict):
@@ -472,7 +467,6 @@ def _interval_row(
 
 
 def _merge_adjacent(intervals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """同一标签、同一取值、首尾相接的段合成一根。显式区间不并进去。"""
     merged: List[Dict[str, Any]] = []
     for item in intervals:
         prev = merged[-1] if merged else None

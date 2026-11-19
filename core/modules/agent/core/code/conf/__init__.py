@@ -37,6 +37,8 @@ from core.modules.agent.core.code.conf.conf import (
     WRITE_STRATEGY_MAX_CHARS,
     WRITE_TAG_ALLOWED_FIELDS,
     WRITE_TAG_MAX_CHARS,
+    WRITE_TABLE_ALLOWED_FIELDS,
+    WRITE_TABLE_MAX_CHARS,
 )
 
 __all__ = [
@@ -75,5 +77,7 @@ __all__ = [
     "WRITE_STRATEGY_MAX_CHARS",
     "WRITE_TAG_ALLOWED_FIELDS",
     "WRITE_TAG_MAX_CHARS",
+    "WRITE_TABLE_ALLOWED_FIELDS",
+    "WRITE_TABLE_MAX_CHARS",
     "resolve_user_write_path",
 ]

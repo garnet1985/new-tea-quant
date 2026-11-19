@@ -72,6 +72,9 @@ class TestStrategyApi(unittest.TestCase):
             "export_package",
             "import_package",
             "latest_completed_trading_date",
+            "scaffold_from_template",
+            "apply_settings_patch",
+            "validate_artifact",
         ):
             self.assertTrue(callable(getattr(Strategy, name)), name)
         self.assertFalse(hasattr(Strategy, "set_simulation_version_pinned"))

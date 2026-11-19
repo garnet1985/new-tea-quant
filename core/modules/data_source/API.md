@@ -57,6 +57,23 @@
 - **状态：** `beta`
 - **描述：** 有效结束日摘要（供 scan UI）：renew 截止走真实日历；`assumed_latest_completed_trading_date` 仅作计算侧展示。跨模块入口，勿 deep-import `catalog.freshness_probe`
 
+### fetch_catalog_page / fetch_freshness
+
+`DataSourceManager.fetch_catalog_page(page, limit) -> (items, total, data_end)`（staticmethod）  
+`DataSourceManager.fetch_freshness(source_names=None) -> (status_by_source, data_end)`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** UI 数据源列表与懒加载新鲜度（实现在 `catalog/ui_catalog`）。BFF 只薄封装。
+
+### read_renew_ui_status / read_renew_ui_tasks / read_renew_ui_progress
+
+`DataSourceManager.read_renew_ui_status() -> dict`（staticmethod）  
+`DataSourceManager.read_renew_ui_tasks() -> list[dict]`（staticmethod）  
+`DataSourceManager.read_renew_ui_progress() -> dict`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** Renew UI 任务栏与 Progress 投影（实现在 `service/renew_ui`）。BFF launcher 只拼 JobPipeline/`_ACTIVE` 壳，勿 deep-import `run_status` / Progress
+
 ### catalog / provider（跨模块辅助）
 
 - **状态：** `beta`

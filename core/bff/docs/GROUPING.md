@@ -41,7 +41,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 |----|----------------------|----------------|
 | strategy | BFF `helpers/`（snapshots、hydrate） | core `PipelineProgress` / `Strategy.scan_run`；BFF runner 薄壳 |
 | tag | BFF `helpers/tag_catalog` | Tag Facade 进度 IO；BFF `routes/runner/tag_run` |
-| data_contract | BFF `helpers/contract_catalog` | — |
-| data_source | BFF `helpers/source_catalog` | — |
+| data_contract | `ContractIssuer.fetch_ui_catalog_page` | — |
+| data_source | `DataSourceManager.fetch_catalog_page` | — |
 
 `modules/*/launcher` 与 `bff/support` 业务逻辑已删除 / 废弃；勿再写入 `support/`。

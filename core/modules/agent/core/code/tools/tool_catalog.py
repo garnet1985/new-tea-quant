@@ -343,6 +343,111 @@ _TOOLS: tuple[ToolSpec, ...] = (
         ),
         implemented=True,
     ),
+    # --- data 底层工具链（少用；供其它工具/建扩展表探查）---
+    ToolSpec(
+        name="list_data_tables",
+        description=(
+            "列出已注册逻辑表名。owner=all|sys|cust。"
+            "只读；写系统表结构前须警告用户并确认，且不要改 core/tables。"
+        ),
+        parameters=_object(
+            {"owner": _string("过滤：all（默认）/ sys / cust")},
+            [],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="describe_data_table",
+        description=(
+            "只读描述一张已注册表的字段摘要。"
+            "对 sys_* 仅可查看；结构性变更须警告+确认，且不得写入 core/tables。"
+        ),
+        parameters=_object(
+            {"table_name": _string("逻辑表名，例如 sys_data_stock_list 或 cust_data_my_signals")},
+            ["table_name"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_data_contract_keys",
+        description="列出可用 data_key，供策略/标签 settings.data.base 选用。只读。",
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_data_sources",
+        description="列出已启用数据源及其绑定表（renew 目标）。只读。",
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="check_data_freshness",
+        description="读取本机数据结束日/新鲜度摘要。只读；不要编造日期。",
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="create_table",
+        description=(
+            "在 userspace/extensions/tables 从空模板新建用户表骨架。"
+            "表名须 cust_{kind}_主题；禁止写入 core/tables 或使用 sys_。"
+            "目录已存在时不要覆盖。"
+        ),
+        parameters=_object(
+            {
+                "key": _string(
+                    "表目录相对路径，例如 my_signals 或 demo/signals。"
+                    "每段以字母开头，只含字母、数字、下划线。"
+                ),
+                "kind": _string("表种类：data（默认）/ map / cache / tmp / meta"),
+                "table_name": _string(
+                    "可选。schema.name，须 cust_{kind}_主题；省略则按目录叶名生成"
+                ),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="write_table_files",
+        description=(
+            "覆盖已有 userspace 表的 schema.py 或 model.py。"
+            "name 必须是 cust_*；改完后调用 validate_table。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("已存在的表目录相对路径"),
+                "schema_py": _string("schema.py 全文。须含 schema 字典。可省略。"),
+                "model_py": _string("model.py 全文。公开类继承 DbBaseModel。可省略。"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_table",
+        description=(
+            "校验 userspace 表的 schema/model，并尝试注册到 DataManager。"
+            "未通过则不要 ensure_physical_table。"
+        ),
+        parameters=_object(
+            {"key": _string("表目录相对路径，例如 my_signals")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="ensure_physical_table",
+        description=(
+            "对已通过校验的 cust_* 用户表调用 create_table() 确保物理表存在。"
+            "系统表（sys_* / core/tables）一律拒绝。"
+        ),
+        parameters=_object(
+            {"key": _string("表目录相对路径")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
 )
 
 

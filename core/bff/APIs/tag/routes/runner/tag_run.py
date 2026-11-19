@@ -109,22 +109,7 @@ class TagRunLauncher:
 
     @staticmethod
     def _require_successful_run(result: Optional[Dict[str, Any]]) -> None:
-        if not isinstance(result, dict) or not result.get("success"):
-            message = ""
-            if isinstance(result, dict):
-                message = str(result.get("message") or "").strip()
-                failed = int(result.get("fail") or 0)
-                if not message and failed:
-                    message = f"标签计算失败（{failed} 个任务）"
-            raise RuntimeError(message or "标签计算未完成")
-        if result.get("dry_run"):
-            return
-        produced = int(result.get("tag_values_count") or 0)
-        saved = int(result.get("saved_tag_values") or 0)
-        if produced > 0 and saved < produced:
-            raise RuntimeError(
-                f"标签值未全部落库（计算 {produced} 行，写入 {saved} 行）"
-            )
+        Tag.interpret_execute_result(result)
 
     @classmethod
     def _background_tag_job(cls, job_id: str, tag_key: str) -> None:

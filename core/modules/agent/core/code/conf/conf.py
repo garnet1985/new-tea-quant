@@ -49,6 +49,10 @@ WRITE_TAG_MAX_CHARS = 200_000
 WRITE_TAG_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
     {"key", "tag_py", "settings_py"}
 )
+WRITE_TABLE_MAX_CHARS = 200_000
+WRITE_TABLE_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "schema_py", "model_py"}
+)
 DOCS_EXCERPT_MAX_CHARS = 12_000
 
 # --- 模型输出卫生（占位回复视为无效）---

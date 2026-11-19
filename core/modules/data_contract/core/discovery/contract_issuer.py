@@ -892,6 +892,74 @@ class ContractIssuer:
 
         return list(cls._declarations_cache.keys())
 
+    @classmethod
+    def list_catalog_entries(cls) -> List[Dict[str, Any]]:
+        """CLI 用契约目录行（自动 discover；勿摸 ``_discovered``）。"""
+        rows: List[Dict[str, Any]] = []
+        for data_key in sorted(cls.get_all_keys()):
+            decl = cls._declarations_cache.get(data_key) or {}
+            meta = decl.get("meta") if isinstance(decl.get("meta"), dict) else {}
+            ctype = str(meta.get("type") or "").strip()
+            scope = str(meta.get("scope") or "").strip()
+            rows.append(
+                {
+                    "key": data_key,
+                    "type": ctype,
+                    "scope": scope,
+                    "time_series": ctype == "time_series",
+                    "per_entity": scope == "per_entity",
+                    "display_name": str(meta.get("display_name") or "").strip(),
+                }
+            )
+        return rows
+
+    @classmethod
+    def list_ui_catalog_entries(cls, *, force_reload: bool = False) -> List[Dict[str, Any]]:
+        """BFF UI 契约目录行（含 origin / is_custom）；勿摸私有缓存字段。"""
+        from core.modules.data_contract.contracts import ContractScope, ContractType
+
+        if force_reload or not cls._discovered:
+            cls.reload(user_space_path=ProjectContext.path.get_data_contract_root())
+        rows: List[Dict[str, Any]] = []
+        for data_key in sorted(cls.get_all_keys()):
+            decl = cls._declarations_cache.get(data_key) or {}
+            meta = decl.get("meta") if isinstance(decl.get("meta"), dict) else {}
+            ctype = str(meta.get("type") or "").strip().lower()
+            scope = str(meta.get("scope") or "").strip().lower()
+            origin = (
+                "userspace" if bool(decl.get("_is_customized", False)) else "system"
+            )
+            rows.append(
+                {
+                    "key": data_key,
+                    "display_name": str(meta.get("display_name") or data_key).strip()
+                    or data_key,
+                    "is_time_series": ctype == ContractType.TIME_SERIES,
+                    "is_per_entity": scope == ContractScope.PER_ENTITY,
+                    "origin": origin,
+                    "is_custom": origin == "userspace",
+                }
+            )
+        return rows
+
+    @classmethod
+    def fetch_ui_catalog_page(
+        cls,
+        page: int,
+        limit: int,
+        *,
+        force_reload: bool = False,
+    ) -> tuple:
+        """分页 UI 契约目录：``(items, total)``。"""
+        ordered = cls.list_ui_catalog_entries(force_reload=force_reload)
+        total = len(ordered)
+        if total == 0:
+            return [], 0
+        page = max(1, int(page))
+        limit = max(1, int(limit))
+        start = (page - 1) * limit
+        return ordered[start : start + limit], total
+
     @staticmethod
     def system_registry_source_path():
         """系统契约注册指纹源文件（``data_keys``）；供仿真缓存 fingerprint，勿 deep-import core。"""

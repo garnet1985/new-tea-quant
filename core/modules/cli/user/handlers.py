@@ -36,17 +36,9 @@ class UserHandlers:
     @staticmethod
     def parse_strategy_version_spec(raw: object) -> tuple[str, int]:
         """``rsi_v1:3`` / ``demo/foo:v3`` → (策略, version int)。按最后一个冒号切开。"""
-        from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
+        from core.modules.strategy import Strategy
 
-        text = str(raw or "").strip()
-        if ":" not in text:
-            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
-        name, _, vid = text.rpartition(":")
-        name = name.strip()
-        sid = WorkbenchVersionId.parse(vid)
-        if not name or sid is None:
-            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
-        return name, sid
+        return Strategy.parse_version_spec(raw)
 
     @staticmethod
     def run_app_update() -> int:
@@ -121,7 +113,7 @@ class UserHandlers:
             force = bool(getattr(args, "force", False))
             suffix = " [force]" if force else ""
             print(f"{i('ongoing')} 导入演示数据包{suffix}", flush=True)
-            return Setup.runtime.import_init_data(force=force)
+            return Setup.runtime.import_data_pack(pack_kind="demo", force=force)
 
         if cmd == "auth":
             return UserHandlers.run_auth(args)
@@ -214,24 +206,25 @@ class UserHandlers:
         if not path:
             raise SystemExit(f"new_{kind} 需要目标路径")
 
-        from core.modules.cli.user.scripts.create_from_template import CreateFromTemplate
-
         UserHandlers.setup_logging(verbose=args.verbose)
 
-        try:
-            if kind == "tag":
-                result = CreateFromTemplate.create_tag(path)
-                label = "Tag 场景"
-            else:
-                result = CreateFromTemplate.create_strategy(path)
-                label = "策略"
-            print(f"{i('success')} 已新建 {label}: {result.key}", flush=True)
-            print(f"   目录: {result.dest}", flush=True)
-            print("   请编辑 settings.py 与 worker，然后运行回测或打标。", flush=True)
-            return 0
-        except CreateFromTemplate.Error as exc:
-            print(f"{i('error')} {exc}", flush=True)
+        if kind == "tag":
+            from core.modules.tag import Tag
+
+            out = Tag.scaffold_from_template(path)
+            label = "Tag 场景"
+        else:
+            from core.modules.strategy import Strategy
+
+            out = Strategy.scaffold_from_template(path)
+            label = "策略"
+        if not out.get("ok"):
+            print(f"{i('error')} {out.get('error') or '新建失败'}", flush=True)
             return 1
+        print(f"{i('success')} 已新建 {label}: {out.get('key')}", flush=True)
+        print(f"   目录: {out.get('dest') or out.get('path')}", flush=True)
+        print("   请编辑 settings.py 与 worker，然后运行回测或打标。", flush=True)
+        return 0
 
     @staticmethod
     def execute(args: argparse.Namespace, app: CliApp) -> None:
@@ -354,34 +347,20 @@ class UserHandlers:
     def _resolve_strategy_key(name: Optional[str]) -> str:
         from core.modules.strategy import Strategy
 
-        explicit = UserHandlers._strategy_name(name)
-        if explicit:
-            info = Strategy.find(explicit, enabled_only=True)
-            if info is None:
-                keys = Strategy.list_enabled_keys()
-                print(f"策略不存在或未启用: {explicit}", flush=True)
-                if keys:
-                    print(f"可用 meta.key: {', '.join(sorted(keys))}", flush=True)
-                raise SystemExit(1)
-            return str(info.get("key") or explicit)
-
-        enabled = Strategy.list_strategy_infos(enabled_only=True)
-        if not enabled:
-            print(
-                "未指定 --strategy，且 userspace/strategies 下没有 is_enabled=True 的合法策略。"
-                "请检查 settings.py 含 meta.key 与 is_enabled=True。",
-                flush=True,
-            )
+        out = Strategy.resolve_default_enabled_key(
+            UserHandlers._strategy_name(name) or None
+        )
+        if not out.get("ok"):
+            msg = str(out.get("message") or "策略不可用")
+            print(msg, flush=True)
+            choices = out.get("choices") or []
+            if choices and "未启用" in msg:
+                print(f"可用 meta.key: {', '.join(sorted(choices))}", flush=True)
             raise SystemExit(1)
-        if len(enabled) > 1:
-            chosen = enabled[0]
-            print(
-                "多个启用策略，默认使用 "
-                f"key={chosen.get('key')}（{chosen.get('unique_relative_path')}）；"
-                "可用 --strategy <meta.key> 指定",
-                flush=True,
-            )
-        return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
+        note = str(out.get("message") or "").strip()
+        if note:
+            print(note, flush=True)
+        return str(out.get("key") or "")
 
     @staticmethod
     def _print_simulate_version(result: dict, step_key: str) -> None:
@@ -426,22 +405,7 @@ class UserHandlers:
                 "  提示: 未传 --stocks 时将按 settings.sampling 抽样（可能数百只，耗时较长）",
                 flush=True,
             )
-        from core.modules.backtest_engine.core.shared.progress import (
-            RunPhase,
-            _PHASE_WEIGHTS,
-        )
-
-        weight_total = sum(_PHASE_WEIGHTS.values()) or 1
-        probe_from = round(100 * _PHASE_WEIGHTS[RunPhase.PREP] / weight_total)
-        probe_to = round(
-            100
-            * (_PHASE_WEIGHTS[RunPhase.PREP] + _PHASE_WEIGHTS[RunPhase.PLAN])
-            / weight_total
-        )
-        print(
-            f"  进度: {probe_from}%→{probe_to}% 为调度探针，之后按 batch 推进；完成后输出结果摘要",
-            flush=True,
-        )
+        print(f"  {Strategy.describe_enumerate_progress_hint()}", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.enumerate(

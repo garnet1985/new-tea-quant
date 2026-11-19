@@ -143,11 +143,13 @@ class ImportDataLauncher:
             except Exception:
                 logger.debug("release duckdb before import failed", exc_info=True)
 
-            from core.infra.setup.core.steps.import_data.installer import (
-                SetupDataInstaller,
-            )
+            from core.infra.setup import Setup
 
-            SetupDataInstaller(pack_kind=pack_kind).run(force=force, remove_extract=True)
+            Setup.runtime.import_data_pack(
+                pack_kind=pack_kind,
+                force=force,
+                remove_extract=True,
+            )
             cls._finish(job_id, "", message="导入完成")
         except Exception as exc:  # noqa: BLE001
             logger.exception("import_data job failed job_id=%s", job_id)

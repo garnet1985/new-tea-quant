@@ -85,9 +85,9 @@ def test_start_now_does_not_enqueue_when_local_busy(monkeypatch):
 def test_public_progress_uses_the_running_source(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
-    from core.bff.APIs.data.sources.renew_launcher import _public_progress
     from core.infra.progress import Progress
     from core.infra.progress.core import store
+    from core.modules.data_source import DataSourceManager
 
     store.reset()
     Progress.start(
@@ -109,7 +109,7 @@ def test_public_progress_uses_the_running_source(tmp_path, monkeypatch):
         log=False,
     )
 
-    body = _public_progress()
+    body = DataSourceManager.read_renew_ui_progress()
     assert body["step"] == 1
     assert body["step_total"] == 2
     assert body["source"] == "stock_list"
@@ -118,5 +118,5 @@ def test_public_progress_uses_the_running_source(tmp_path, monkeypatch):
     assert body["detail"] == "第 2 页"
     assert body["ratio"] == 0.625
     Progress.clear("data-renew-abc")
-    assert _public_progress()["step_total"] == 0
+    assert DataSourceManager.read_renew_ui_progress()["step_total"] == 0
     store.reset()

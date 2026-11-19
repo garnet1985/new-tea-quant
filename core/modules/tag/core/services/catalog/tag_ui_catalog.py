@@ -1,17 +1,23 @@
-"""Tag scenario list for UI (T1-01)."""
+"""Tag scenario list for UI（模块内；经 Tag.fetch_catalog_page 对外）。"""
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.data_manager import DataManager
 from core.modules.tag.core.services.discovery import DiscoveryService
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
-from core.bff.shared.client_log import log_degraded
+
+logger = logging.getLogger(__name__)
 
 
-class TagCatalog:
+def _log_degraded(event: str, exc: BaseException, *extra: Any) -> None:
+    logger.warning("%s degraded: %s %s", event, exc, extra)
+
+
+class TagUiCatalog:
     """UI 列表：discovery + freshness 摘要。"""
 
     @classmethod
@@ -40,7 +46,7 @@ class TagCatalog:
             if data_end.get("is_end_date_truncated"):
                 truncation_hint = str(data_end.get("truncation_hint") or "").strip()
         except Exception as exc:
-            log_degraded("tag.catalog.dataManagerInit", exc)
+            _log_degraded("tag.catalog.dataManagerInit", exc)
             tag_svc = None
 
         if total == 0:
@@ -195,7 +201,7 @@ class TagCatalog:
         try:
             progress = tag_svc.get_entity_calc_progress(tag_key) or {}
         except Exception as exc:
-            log_degraded("tag.catalog.calcProgress", exc, tag_key)
+            _log_degraded("tag.catalog.calcProgress", exc, tag_key)
             progress = {}
         ends = [str(v).strip() for v in progress.values() if str(v or "").strip()]
         if ends:
@@ -210,7 +216,7 @@ class TagCatalog:
         try:
             defs = tag_svc.get_tag_definitions(int(scenario["id"]))
         except Exception as exc:
-            log_degraded("tag.catalog.tagDefinitions", exc, tag_key)
+            _log_degraded("tag.catalog.tagDefinitions", exc, tag_key)
             return None
         def_ids = [int(d["id"]) for d in defs if d.get("id") is not None]
         if not def_ids:
@@ -218,7 +224,7 @@ class TagCatalog:
         try:
             return tag_svc.get_max_as_of_date(def_ids)
         except Exception as exc:
-            log_degraded("tag.catalog.maxAsOf", exc, tag_key)
+            _log_degraded("tag.catalog.maxAsOf", exc, tag_key)
             return None
 
     @classmethod
@@ -238,4 +244,4 @@ class TagCatalog:
         return "up_to_date", "已经更新", ""
 
 
-__all__ = ["TagCatalog"]
+__all__ = ["TagUiCatalog"]

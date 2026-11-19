@@ -146,17 +146,20 @@ class RuntimeNamespace:
         return ensure_cli_install_via_install_py()
 
     @staticmethod
-    def import_init_data(*, force: bool = False) -> int:
-        """
-        导入演示数据包到当前配置的数据库。
-
-        本地 ``userspace/.ntq/packages/demo/`` 无 zip 时从官网公开接口下载；
-        ``force=True`` 会重新下载并全量重导。成功后保留 zip 作本地缓存。
-        须在 userspace 已创建之后调用。成功返回 ``0``。
-        """
+    def import_data_pack(
+        *,
+        pack_kind: str = "demo",
+        force: bool = False,
+        remove_extract: bool = True,
+    ) -> int:
+        """导入演示/会员等数据包（``SetupDataInstaller``）；成功返回 ``0``。"""
         from core.infra.setup.core.steps.import_data.installer import SetupDataInstaller
 
-        SetupDataInstaller(table_prefix="").run(force=force, remove_extract=True)
+        kind = str(pack_kind or "demo").strip().lower() or "demo"
+        SetupDataInstaller(pack_kind=kind, table_prefix="").run(
+            force=force,
+            remove_extract=remove_extract,
+        )
         return 0
 
     @staticmethod

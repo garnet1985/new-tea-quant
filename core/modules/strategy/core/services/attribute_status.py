@@ -1,4 +1,4 @@
-"""归因按钮是否可点。"""
+"""归因按钮是否可点（域逻辑；BFF 薄封装）。"""
 
 from __future__ import annotations
 

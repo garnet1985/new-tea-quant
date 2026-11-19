@@ -112,14 +112,14 @@
 - **引入版本：** `0.1.0`（`userspace` / `db` 参数：`0.1.1`）
 - **描述：** 跑 CLI 安装步骤，不询问 userspace / 数据库。使用条款在 `install.py` 与 `cli.py` 入口询问，不在本方法内。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。默认从官网下载并导入演示包（覆盖同名表）；`import_demo=False`（`install.py --skip-demo-data`）跳过。`deps_only=True` 只跑系统检查和依赖安装。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发）：依赖指纹变化时只更新依赖；完整安装默认仍导入演示包。跳过演示数据时结束提示 `python cli.py id`。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
 
-#### import_init_data
+#### import_data_pack
 
-`Setup.runtime.import_init_data(*, force: bool = False) -> int`
+`Setup.runtime.import_data_pack(*, pack_kind="demo", force=False, remove_extract=True) -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.4.4`
-- **描述：** 导入演示数据包；目录为 `userspace/.ntq/packages/demo/`（旧 `install_demo/` 会自动迁入）；无 zip 时从官网公开接口下载；`force` 重新下载并全量重导；成功后清理解压目录并**保留** zip/meta 作本地缓存；须先有 userspace；用户 CLI：`python cli.py id`
+- **引入版本：** `0.4.4`（`import_data_pack`：同轨扩展）
+- **描述：** 导入演示/会员等数据包（`SetupDataInstaller`）。目录为 `userspace/.ntq/packages/{demo|member|…}/`；无 zip 时按 kind 下载；`force` 重新下载并全量重导；BFF `ImportDataLauncher` / CLI `id` 只留壳，勿 deep-import installer
 
 #### install_ui / check_ui_prerequisites / launch_ui / set_ui_dev_mode
 

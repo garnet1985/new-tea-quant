@@ -41,7 +41,6 @@ new-tea-quant/
 │   │   └── settings_example.py 配置示例（带注释）
 │   ├── extensions/             扩展：标签、数据契约、数据源、表、扫描适配器
 │   └── system/                 系统配置、数据库文件、备份
-├── initialization/             初始化数据包
 └── docs/                       项目文档
 ```
 

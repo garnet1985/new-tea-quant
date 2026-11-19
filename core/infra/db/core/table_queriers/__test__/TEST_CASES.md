@@ -1,6 +1,9 @@
 # 测试用例 — `infra.db` / `core/table_queriers`
 
-**版本：** `0.3.1`  
+**模块：** `infra.db` · **版本：** `0.3.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 **本文件位置：** `core/table_queriers/__test__/`
 
 ## Scope

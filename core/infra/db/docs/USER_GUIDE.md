@@ -1,6 +1,8 @@
 # Database — 用户指南
 
-**版本：** `0.3.2`
+**模块：** `infra.db` · **版本：** `0.3.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 数据库底层——按配置挂后端（DuckDB / PostgreSQL / MySQL），管建表和迁移。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

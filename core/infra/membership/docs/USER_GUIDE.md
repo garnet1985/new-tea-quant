@@ -1,6 +1,8 @@
 # Membership — 用户指南
 
-**版本：** `0.1.0`
+**模块：** `infra.membership` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.5.3`
 
 官网会员凭证的本地存取——设置页写入，其他模块读取状态和凭证。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

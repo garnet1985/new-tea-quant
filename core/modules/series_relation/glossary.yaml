@@ -1,13 +1,38 @@
 # Series Relation 术语表
 # Version: 0.1.0
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 多序列对齐与关系摘要；不做因果推断/预测；不是 factor 研究，也不是通用 UI 绘图库。
 
 terms:
   series_relation:
-    definition: "多条 time series 并置比较：日期并集呈现，交集上做关系摘要。"
-  MAX_SERIES:
-    definition: "模块代码常量，单次比较最多系列条数；不进用户 settings。"
+    definition: |
+      把多条 time series 并置比较：横轴用各系列观测日的并集呈现，在日期交集上算相关、
+      滞后、缩放等关系摘要。回答「谁领先、是否同形波动」，不做因果或预测。
+    in_code: "from core.modules.series_relation import …（模块 Facade/API）"
+    aliases:
+      - "多序列关系"
+    avoid:
+      - "factor_research"
+      - "ui_charting"
+      - "当成因果推断工具"
+
   calendar_union:
-    definition: "各系列观测日的并集，用作图的横轴；各系列只在自有点上有值。"
-avoid:
-  - factor_research
-  - ui_charting
+    definition: |
+      各系列观测日的并集，用作图/表的横轴。每个系列只在自有观测日上有值，
+      并集日期上其它系列可为空——先对齐日历，再在交集上做关系统计。
+    in_code: "对齐逻辑中的 calendar union 横轴"
+    aliases:
+      - "日期并集"
+    avoid:
+      - "只用交集当横轴导致图上「洞」被裁掉而不自知"
+
+  MAX_SERIES:
+    definition: |
+      模块代码常量：单次比较最多允许的系列条数。写死在代码里，不进用户 settings，
+      防止一次塞过多序列导致无意义的两两关系爆炸。
+    in_code: "MAX_SERIES 常量"
+    aliases: []
+    avoid:
+      - "把 MAX_SERIES 做成 settings 可配项（当前设计不进 settings）"

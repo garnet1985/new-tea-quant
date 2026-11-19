@@ -1,6 +1,8 @@
 # CLI — 设计与决策
 
-**版本：** `0.4.5`
+**模块：** `modules.cli` · **版本：** `0.4.5`
+
+**最低支持核心版本：** `>=0.5.0`
 
 本文记录本模块的设计目标、方案思路与拍板决策（双入口、门面类 Facade 导出与 argv 脚手架等选型）。术语见 [glossary.yaml](../glossary.yaml)。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)

@@ -9,12 +9,12 @@ from typing import Tuple
 from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
 from core.modules.data_manager import DataManager
-from core.infra.setup.core.scripts.init_data.config import (
+from core.infra.setup.core.steps.import_data.export.config import (
     LIST_STATUS_LABELS,
     MIN_PER_STRATUM,
     SAMPLE_RANDOM_SEED,
 )
-from core.infra.setup.core.scripts.init_data.stock_pool import (
+from core.infra.setup.core.steps.import_data.export.stock_pool import (
     SamplingReport,
     load_stock_universe,
     log_sampling_report,

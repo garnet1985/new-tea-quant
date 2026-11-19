@@ -1,6 +1,7 @@
 # Market Profile API 文档
 
-**版本：** `0.2.0`  
+**模块：** `modules.market_profile` · **版本：** `0.2.0`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  

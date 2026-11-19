@@ -1,68 +1,85 @@
 # Project Context 术语表
 # Version: 0.2.1
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块是路径与配置的统一读入口；不做业务调度；不往 userspace 写配置。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 ProjectContext。"
-    aliases:
-      - "门面"
+  ProjectContext:
+    definition: |
+      项目路径与配置 Facade：userspace 在哪、策略/Tag 目录、默认配置与覆盖合并、core meta、
+      缓存清理等。挂载 path / config / meta / cache / discovery / types。
+      不要 deep-import PathManager / ConfigManager，也不要再用旧名 ProjectContextManager。
+    in_code: "from core.infra.project_context import ProjectContext"
+    aliases: []
     avoid:
       - "ProjectContextManager"
       - "直接 import PathManager / ConfigManager"
 
-  ProjectContext:
-    definition: "本模块门面类；提供 path / config / meta / cache / discovery / types 命名空间。"
-    aliases: []
-    avoid:
-      - "from core.infra.project_context.core.path_manager import PathManager"
-
   path:
-    definition: "PathNamespace：项目根、userspace 与语义目录路径（返回 pathlib.Path）。"
+    definition: |
+      路径命名空间：项目根、userspace、策略/仿真/Tag 等语义目录，返回 pathlib.Path。
+      各模块应经此取路径，不要硬编码相对 userspace 拼串。
+    in_code: "ProjectContext.path.*；get_userspace_root / coerce_strategy_folder / …"
     aliases:
       - "PathNamespace"
     avoid:
       - "get_strategy_directory_simulation_*（已统一为 get_strategy_simulation_*_directory）"
 
   config:
-    definition: "ConfigNamespace：默认配置与 userspace 覆盖的加载、合并与常用字段访问器。"
+    definition: |
+      配置命名空间：加载 core/default_config 与 userspace/config 覆盖、合并，并提供常用字段访问器。
+      只读合并结果；不负责把 UI 草稿写回 settings。
+    in_code: "ProjectContext.config.*；load_overridable_config 相关"
     aliases:
       - "ConfigNamespace"
     avoid: []
 
   meta:
-    definition: "MetaNamespace：读取 core_meta.json（可选回退 core.system）。"
+    definition: |
+      元信息命名空间：读 core_meta.json（可选回退 core.system），例如版本、最低 Python 等核心元数据。
+    in_code: "ProjectContext.meta.*"
     aliases:
       - "MetaNamespace"
     avoid: []
 
   cache:
-    definition: "CacheNamespace：清理 userspace 路径缓存（clear_userspace_cache）。"
+    definition: |
+      缓存命名空间：清理 userspace 路径等缓存（clear_userspace_cache），使随后 path 解析重新计算。
+    in_code: "ProjectContext.cache.clear_userspace_cache"
     aliases:
       - "CacheNamespace"
     avoid: []
 
   discovery:
-    definition: "DiscoveryNamespace：约定式配置发现与 load_overridable_config。"
+    definition: |
+      约定式配置发现命名空间：load_overridable_config 等。目录树 find_in_tree 已迁至
+      infra.discovery（Discovery.file.find_in_tree），不在 ProjectContext 上暴露。
+    in_code: "ProjectContext.discovery.*；load_overridable_config"
     aliases:
       - "DiscoveryNamespace"
     avoid:
-      - "ProjectContext 上的 find_in_tree（已迁至 infra.discovery）"
+      - "ProjectContext.discovery.find_in_tree"
+      - "ProjectContext 上的 find_in_tree"
 
   types:
-    definition: "TypesNamespace：与 contracts 同源的异常、常量与类型挂载点。"
+    definition: |
+      与 contracts 同源的异常、常量与类型挂载点。优先 contracts 或 ProjectContext.types，
+      不要从包根 import 个别异常类当长期习惯。
+    in_code: "ProjectContext.types.*；contracts"
     aliases:
       - "TypesNamespace"
     avoid:
-      - "from core.infra.project_context import OverridableConfigNotFoundError（优先 contracts 或 ProjectContext.types）"
+      - "from core.infra.project_context import OverridableConfigNotFoundError（优先 contracts / types）"
 
   userspace_root:
-    definition: "userspace 目录；优先级 NEW_TEA_QUANT_USERSPACE_ROOT → NTQ_USERSPACE_ROOT → {project_root}/.ntq/userspace-path.json → {project_root}/userspace。已配置不静默回落；安装校验用 resolve_userspace_target。"
+    definition: |
+      userspace 根目录解析：优先级 NEW_TEA_QUANT_USERSPACE_ROOT → NTQ_USERSPACE_ROOT →
+      {project_root}/.ntq/userspace-path.json → {project_root}/userspace。
+      已配置则不静默回落；安装校验用 resolve_userspace_target。所有语义路径以此为锚。
+    in_code: "ProjectContext.path.get_userspace_root；resolve_userspace_target"
     aliases:
       - "get_userspace_root"
       - "resolve_userspace_target"
@@ -71,42 +88,51 @@ terms:
       - "get_userspace_path（近义别名，勿新增）"
 
   overridable_config:
-    definition: "core/default_config 默认 + userspace/config 覆盖的可合并配置；两侧皆无有效文件时 load_overridable_config 抛 OverridableConfigNotFoundError。"
+    definition: |
+      「core/default_config 默认 ⊕ userspace/config 覆盖」的可合并配置模型。
+      两侧都没有有效文件时 load_overridable_config 抛 OverridableConfigNotFoundError。
+      这是配置分层的核心概念：改 userspace 覆盖，不必改 core 默认。
+    in_code: "load_overridable_config；OverridableConfigNotFoundError"
     aliases:
       - "可覆盖配置"
     avoid: []
 
   coerce_strategy_folder:
-    definition: "将策略 id 或绝对 discovered folder 规范化为策略根目录；绝对路径原样返回，相对名拼到 userspace/strategies/。"
-    aliases:
-      - "ProjectContext.path.coerce_strategy_folder"
+    definition: |
+      把策略 id 或绝对 discovered folder 规范化为策略根目录：绝对路径原样返回，
+      相对名拼到 userspace/strategies/。定位策略包目录应经此，不要手拼 strategies 路径。
+    in_code: "ProjectContext.path.coerce_strategy_folder(...)"
+    aliases: []
     avoid:
       - "直接拼接 strategies 路径而不经 coerce"
 
   get_tag_directory:
-    definition: "Tag scenario 目录（userspace/extensions/tags/{name}/）；PathManager 内部仍称 get_tag_scenario_directory。"
+    definition: |
+      Tag scenario 目录：userspace/extensions/tags/{name}/。
+      PathManager 内部仍可能称 get_tag_scenario_directory；门面上已统一为 get_tag_directory，
+      不要再调已移除的 path.get_tag_scenario_directory。
+    in_code: "ProjectContext.path.get_tag_directory(name)"
     aliases:
       - "get_tag_scenario_directory（PathManager 内部名）"
     avoid:
       - "ProjectContext.path.get_tag_scenario_directory（门面已移除）"
 
-  find_in_tree:
-    definition: "目录树文件发现；已迁至 core.infra.discovery（Discovery.file.find_in_tree），不在 ProjectContext 上暴露。"
-    aliases:
-      - "Discovery.file.find_in_tree"
-    avoid:
-      - "ProjectContext.discovery.find_in_tree"
-
   default_start_date:
-    definition: "data.json 全局历史地板：空表 renew 起点、回测/Tag 默认 start、Timeline/查询下界。见 docs/DATA_JSON.md。"
+    definition: |
+      data.json 里的全局历史地板：空表 renew 起点、回测/Tag 默认 start、Timeline/查询下界。
+      细则见 docs/DATA_JSON.md。不是「今天」，而是数据与回测允许的最早日约定。
+    in_code: "ProjectContext.config.get_default_start_date；data.json"
     aliases:
       - "get_default_start_date"
     avoid: []
 
   assumed_latest_completed_trading_date:
-    definition: "data.json 扫描/回测假定的最新已完成交易日；null 跟真实日历。不裁剪 data source renew 截止。见 docs/DATA_JSON.md。"
+    definition: |
+      data.json 中扫描/回测假定的「最新已完成交易日」；null 表示跟真实日历。
+      只影响扫描/回测上界假定，不裁剪 data source renew 的截止拉取日。
+      旧名 as_of_latest_completed_trading_date 等已废。见 docs/DATA_JSON.md。
+    in_code: "get_assumed_latest_completed_trading_date；data.json"
     aliases:
-      - "get_assumed_latest_completed_trading_date"
       - "假定最新已完成交易日"
     avoid:
       - "as_of_latest_completed_trading_date"

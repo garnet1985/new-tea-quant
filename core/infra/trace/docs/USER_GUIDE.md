@@ -1,6 +1,8 @@
 # Trace — 用户指南
 
-**版本：** `0.1.2`
+**模块：** `infra.trace` · **版本：** `0.1.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 匿名 usage 上报——默认关闭，用户同意才上报，去敏感化后静默发送。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

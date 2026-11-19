@@ -1,6 +1,7 @@
 # Membership API 文档
 
-**版本：** `0.1.0`
+**模块：** `infra.membership` · **版本：** `0.1.0`
+
 **最低支持核心版本：** `>=0.5.3`
 
 > 须与 `module_info.yaml` 一致。

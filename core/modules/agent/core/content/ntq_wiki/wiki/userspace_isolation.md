@@ -66,4 +66,4 @@ core/default_config/...  →  userspace/system/config/...  →  环境变量
 - 升级后会把升级器同步到 `userspace/system/updater/`
 - 你的配置和策略不受影响
 
-初始化可从 `initialization/userspace/userspace.zip` 解压；分发包会去掉 `.ntq`、`results/`、缓存和密钥。
+初始化可从 setup 模块内 `steps/init_userspace/assets/userspace.zip` 解压；分发包会去掉 `.ntq`、`results/`、缓存和密钥。

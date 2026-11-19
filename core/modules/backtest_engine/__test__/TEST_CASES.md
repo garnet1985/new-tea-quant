@@ -1,7 +1,9 @@
 # 测试用例 — `modules.backtest_engine`
 
-**模块：** `modules.backtest_engine`  
-**版本：** `0.2.0`  
+**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
+
 ## Scope
 
 验证门面 `BacktestEngine` 与 contracts 公开逻辑（对齐 `API.md`）。

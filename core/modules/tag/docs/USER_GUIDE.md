@@ -1,6 +1,8 @@
 # Tag — 用户指南
 
-**版本：** `0.4.1`
+**模块：** `modules.tag` · **版本：** `0.4.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `Tag 批量算因子并存到数据库——每日全市场跑一遍 PE、PB、换手率，策略回测时直接查表用。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

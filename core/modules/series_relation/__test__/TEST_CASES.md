@@ -1,7 +1,9 @@
 # 测试用例 — `modules.series_relation`
 
-**模块：** `modules.series_relation`  
-**版本：** `0.1.0`  
+**模块：** `modules.series_relation` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.5.0`
+
 **本文件位置：** `__test__/`
 
 ---

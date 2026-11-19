@@ -1,79 +1,110 @@
 # Machine Capacity 术语表
 # Version: 0.2.1
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块只探测容量并算预算；不做进程池调度、不读业务 settings 里的手动 worker 数。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 MachineInfo。"
-    aliases:
-      - "门面"
+  MachineInfo:
+    definition: |
+      本机容量 Facade：读 performance 相关键，解析 CPU/内存预算与可用 worker，探测磁盘类型。
+      BacktestEngine 等调度器据此决定开多少进程、内存预算多少。不要把 MachineInfo 再 export
+      到业务模块空壳；容量类型从 contracts 或 MachineInfo.types 取。
+    in_code: "from core.infra.machine_capacity import MachineInfo"
+    aliases: []
     avoid:
       - "把 MachineInfo 再 export 到业务模块空壳"
 
-  MachineInfo:
-    definition: "本模块门面类；从 performance 解析容量与可用 worker。"
-    aliases: []
-    avoid: []
-
   MachineCapacity:
-    definition: "机器容量快照（冻结 dataclass）；从 contracts 导入，或经 MachineInfo.types。"
+    definition: |
+      机器容量快照（冻结 dataclass）：核数、内存预算、floor、可用 worker 等一次探测/解析结果。
+      从 contracts 导入，或经 MachineInfo.types；不要 from core.infra.machine_capacity import MachineCapacity
+      （包根只导出门面）。
+    in_code: "contracts.MachineCapacity；MachineInfo.types.MachineCapacity"
     aliases:
-      - "MachineInfo.types.MachineCapacity"
+      - "容量快照"
     avoid:
       - "from core.infra.machine_capacity import MachineCapacity"
 
   performance:
-    definition: "调度性能配置字典；本模块读取 reserve_cores / memory_budget_mb / memory_floor_mb / worker_memory_fraction 等键。"
+    definition: |
+      调度性能配置字典（常由上层 merge 后传入）：本模块读取 reserve_cores、memory_budget_mb、
+      memory_floor_mb、worker_memory_fraction 等键来算容量。不是用户 settings.performance
+      （那条路径在 BE 侧禁止覆盖）。
+    in_code: "MachineInfo 解析用的 performance dict"
     aliases: []
     avoid:
       - "main_process_reserve_mb（已移除）"
       - "dispatch_memory_budget_mb（已移除，只用 memory_budget_mb）"
+      - "settings.performance"
 
   memory_budget_mb:
-    definition: "可分配给 worker 池的内存预算（MB）；可为 auto。"
+    definition: |
+      可分配给 worker 池的内存预算（MB）。可为具体数字，或 auto（按 available − floor 再乘
+      worker_memory_fraction）。调度器用它限制并发，避免把机器吃光。
+    in_code: "performance['memory_budget_mb']；capacity.memory_budget_mb"
     aliases: []
-    avoid: []
+    avoid:
+      - "dispatch_memory_budget_mb（旧名）"
 
   memory_floor_mb:
-    definition: "机器必须保留的空闲内存底线（MB），不参与 worker 预算；可为 auto。"
+    definition: |
+      机器必须保留的空闲内存底线（MB），不参与 worker 预算。可为 auto。
+      预算从「可用内存减去 floor」再切给 worker，避免系统换页卡死。
+    in_code: "performance['memory_floor_mb']"
     aliases: []
     avoid: []
 
   reserve_cores:
-    definition: "为系统/主进程预留的逻辑核数。"
+    definition: |
+      为系统 / 主进程预留的逻辑核数。available_workers = max(1, cpu_count − reserve_cores)。
+      核留给 OS 与编排进程，不全部塞进 ProcessPool。
+    in_code: "performance['reserve_cores']；get_available_workers"
     aliases: []
     avoid: []
 
   worker_memory_fraction:
-    definition: "auto 预算时，(available − floor) 中分给 worker 的比例；默认 0.85，夹在 0.1–1.0。"
+    definition: |
+      auto 预算时，(available − floor) 中分给 worker 的比例。默认 0.85，夹在 0.1–1.0。
+      剩下留给主进程与其它开销。
+    in_code: "performance['worker_memory_fraction']"
     aliases: []
     avoid: []
 
   available_workers:
-    definition: "可用 worker 数 = max(1, cpu_count − reserve_cores)。"
+    definition: |
+      建议可用 worker 数 = max(1, cpu_count − reserve_cores)。是容量建议值，不是已经启动的池大小。
+    in_code: "MachineInfo.get_available_workers；capacity 上的 workers 字段"
     aliases:
       - "get_available_workers"
-    avoid: []
+    avoid:
+      - "当成当前已在跑的进程数"
 
   worker_pool_budget_mb:
-    definition: "进程池可用的内存预算（MB）；对 capacity.memory_budget_mb 做至少 1 的夹紧。"
+    definition: |
+      进程池可用的内存预算（MB）：对 capacity.memory_budget_mb 做至少为 1 的夹紧，
+      供调度器按「每 worker 大约占多少」切并发。
+    in_code: "MachineInfo.worker_pool_budget_mb / 相关解析结果"
     aliases: []
     avoid: []
 
   virtual_memory_mb:
-    definition: "本机 (total_mb, available_mb)；依赖可选 psutil，缺失或失败时返回 (None, None) 并走内置 fallback。"
+    definition: |
+      本机 (total_mb, available_mb)。依赖可选 psutil；缺失或失败时返回 (None, None) 并走
+      内置 fallback，避免没装 psutil 就无法跑。公开方法名是 virtual_memory_mb（不再是下划线私有）。
+    in_code: "MachineInfo.virtual_memory_mb()"
     aliases:
       - "psutil fallback"
     avoid:
       - "MachineInfo._virtual_memory_mb（已改为公开 virtual_memory_mb）"
 
   disk_type:
-    definition: "路径所在卷介质：ssd / hdd / unknown；由 MachineInfo.get_disk_type 探测。"
+    definition: |
+      某路径所在卷的介质粗分类：ssd / hdd / unknown。供 IO 密集任务选型；不要把磁盘序列号
+      或设备路径报到 Trace（隐私 / 噪声）。
+    in_code: "MachineInfo.get_disk_type(path) -> ssd|hdd|unknown"
     aliases:
       - "get_disk_type"
       - "ssd"

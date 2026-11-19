@@ -1,7 +1,9 @@
 # 测试用例 — `infra.updater` orchestrator
 
-**模块：** `infra.updater`  
-**版本：** `0.1.0`  
+**模块：** `infra.updater` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.5.0`
+
 **本文件位置：** `core/infra/updater/core/orchestrator/__test__/`
 
 ## Scope

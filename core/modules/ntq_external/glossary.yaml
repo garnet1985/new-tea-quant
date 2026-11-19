@@ -1,11 +1,16 @@
 # NtqExternal 术语表
 # Version: 0.1.1
+# Compatible-Core: >=0.6.0
 #
-# 只固定「不要混用」的名字；地址与字段以 API.md 为准。
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 本模块 = 与官网的客户端（地址、会员资料/AI 通道、反馈、trace 端点登记）；不是支付或账号系统。
 
 terms:
   NtqExternal:
-    definition: "NTQ 与官网之间的客户端模块：地址、会员资料与 AI 通道、反馈、trace 发送端。"
+    definition: |
+      NTQ 与官网之间的客户端 Facade：提供页面地址、用本地会员凭证查资料与 AI 通道、
+      提交软反馈、登记 infra.trace 的 ingest 地址。不落盘会员资料；不做支付/账号注册流程。
+    in_code: "from core.modules.ntq_external import NtqExternal（及子门面）"
     aliases:
       - "官网客户端"
       - "ntq_external"
@@ -13,30 +18,44 @@ terms:
       - "支付模块"
       - "账号系统"
 
-  site_urls:
-    definition: "给其他模块的官网页面地址集合（免责声明、许可、联系、注册、文档）。"
-    aliases:
-      - "官网地址"
-    avoid:
-      - "base_url（那是官网根地址，不是页面地址集合）"
-
   base_url:
-    definition: "官网根地址。全应用只认 conf/site_target.py 一处，无末尾斜杠。"
+    definition: |
+      官网根地址，全应用只认 conf/site_target.py 一处，无末尾斜杠。
+      其它页面 URL 由此派生；不要在代码里硬编码 https://new-tea.cn。
+    in_code: "conf/site_target.py；NtqExternal 读取的根地址"
     aliases:
       - "官网根地址"
     avoid:
       - "硬编码 https://new-tea.cn"
+      - "与 site_urls（页面集合）混称"
+
+  site_urls:
+    definition: |
+      给其他模块的官网页面地址集合：免责声明、许可、联系、注册、文档等。
+      是「多个页面 URL」，不是 base_url 本身。
+    in_code: "NtqExternal.site_urls / 等价 API"
+    aliases:
+      - "官网地址"
+      - "页面地址集合"
+    avoid:
+      - "base_url（根地址，不是页面集合）"
 
   member_profile:
-    definition: "用本地通用凭证向官网查询的会员资料；响应不含凭证。"
+    definition: |
+      用本地通用凭证（infra.membership）向官网查询的会员资料；响应不含凭证明文。
+      本模块不落盘资料——每次按需查；不是本地账号缓存。
+    in_code: "会员资料查询 API"
     aliases:
       - "会员资料"
       - "用户资料"
     avoid:
-      - "本地账号缓存（本模块不落盘资料）"
+      - "本地账号缓存"
 
   catfood:
-    definition: "官网会员通道的用量单位；余额不足时会员 AI 不可用。"
+    definition: |
+      官网会员通道的用量单位（口语「猫粮」）：余额不足时会员 AI 不可用。
+      与会员积分 points 不是同一计量。
+    in_code: "会员通道用量字段"
     aliases:
       - "猫粮"
       - "额度"
@@ -44,15 +63,22 @@ terms:
       - "points（点数是会员积分，不是猫粮）"
 
   Feedback:
-    definition: "应用内软反馈门面；提交不要求 trace 同意，只可关闭提示。"
+    definition: |
+      应用内软反馈门面：评分/文字提交。不要求 Trace.consent；用户只可关闭提示。
+      与匿名 usage 上报是不同端点、不同开关。
+    in_code: "Feedback 门面 / 提交 API"
     aliases:
       - "反馈"
     avoid:
       - "Trace.consent（反馈不走同意开关）"
+      - "把反馈接口当成 trace_endpoint"
 
   trace_endpoint:
-    definition: "infra.trace 的发送端地址；本模块导入时登记，安装事件不受统计开关影响。"
+    definition: |
+      infra.trace 的发送端地址：本模块导入时登记到 Trace；安装等事件可不受统计开关影响
+      （产品约定）。与 Feedback 接口是不同端点。
+    in_code: "导入时登记；Trace target_url 来源之一"
     aliases:
       - "trace 发送端"
     avoid:
-      - "反馈接口（两者是不同端点）"
+      - "反馈接口"

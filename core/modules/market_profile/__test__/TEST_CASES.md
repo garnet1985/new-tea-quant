@@ -1,7 +1,9 @@
 # 测试用例 — `modules.market_profile`
 
-**模块：** `modules.market_profile`  
-**版本：** `0.2.0`  
+**模块：** `modules.market_profile` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
+
 ## Scope
 
 验证门面 `MarketRulesProxy` 与经其取得的 `MarketBaseRules` 公开行为（对齐 `API.md`）。  

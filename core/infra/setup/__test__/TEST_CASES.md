@@ -1,6 +1,9 @@
 # Setup 公开 API 用例（与 test_api.py 对齐）
 
-**版本：** `0.1.2`  
+**模块：** `infra.setup` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
+
 - 包根仅导出 `Setup`
 - `env.repo_root()` 指向含 `core/system.json` 的仓库根
 - `runtime.cli_install_scope()` 返回 full / deps_only / none

@@ -1,6 +1,8 @@
 # Updater — 用户指南
 
-**版本：** `0.1.0`
+**模块：** `infra.updater` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 NTQ 升级流程编排——原地升级：替换源码、跑数据库迁移、收尾。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

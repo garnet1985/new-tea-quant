@@ -1,6 +1,8 @@
 # PostProcess — 用户指南
 
-**版本：** `0.3.2`
+**模块：** `modules.post_process` · **版本：** `0.3.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `PostProcess 管扫描完的机会怎么分发——发微信、发邮件、喂给本地 Broker 模拟下单。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

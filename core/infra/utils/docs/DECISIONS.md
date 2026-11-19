@@ -1,6 +1,8 @@
 # infra.utils — 设计与决策
 
-**版本：** `0.2.2`
+**模块：** `infra.utils` · **版本：** `0.2.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 本文记录 infra.utils 模块的设计目标、方案思路与拍板决策。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)

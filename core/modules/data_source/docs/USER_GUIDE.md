@@ -1,6 +1,8 @@
 # Data Source — 用户指南
 
-**版本：** `0.4.0`
+**模块：** `modules.data_source` · **版本：** `0.4.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `DataSource 对接外部数据源（Tushare、Yahoo 等），把数据拉下来存进本地数据库。`
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

@@ -1,6 +1,8 @@
 # Agent — 架构
 
-**版本：** `0.1.0`
+**模块：** `modules.agent` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.6.0`
 
 名词与本地/远端边界见 [PROVIDER_AND_NAVIGATOR.md](./PROVIDER_AND_NAVIGATOR.md)。  
 状态协议见 [NTQ_REMOTE_PROTOCOL.md](./NTQ_REMOTE_PROTOCOL.md)。

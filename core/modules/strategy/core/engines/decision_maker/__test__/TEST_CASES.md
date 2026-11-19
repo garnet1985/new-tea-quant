@@ -1,7 +1,10 @@
 # 测试用例 — `engines.decision_maker`
 
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 **包：** `core.engines.decision_maker`  
-**版本：** `0.12.1`  
 **本文件位置：** `core/engines/decision_maker/__test__/`
 
 ---

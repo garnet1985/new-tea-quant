@@ -1,6 +1,8 @@
 # Analysis — 用户指南
 
-**版本：** `0.1.0`
+**模块：** `modules.analysis` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `Analysis 是纯数学计算工具箱——给一列数字，输出分桶、相关性、回归结果。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

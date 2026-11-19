@@ -88,7 +88,7 @@ def _snapshot_from_progress_node(raw: Dict[str, Any], *, root_id: str) -> Dict[s
 def _snapshot_from_import_progress() -> Optional[Dict[str, Any]]:
     """与设置页同一数据源，避免只认 Progress 根 id 时管道空白。"""
     try:
-        from core.infra.setup.core.install_progress import read_import_progress
+        from core.infra.setup.core.shared.install_progress import read_import_progress
     except Exception:
         return None
     try:

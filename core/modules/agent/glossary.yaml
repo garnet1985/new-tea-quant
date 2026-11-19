@@ -1,59 +1,108 @@
-# glossary — modules.agent
+# Agent 术语表
 # Version: 0.1.0
+# Compatible-Core: >=0.6.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# Provider/Navigator 边界见 docs/PROVIDER_AND_NAVIGATOR.md；裸补全通道见 infra.ai。
 
 terms:
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 Agent。"
-    aliases:
-      - "门面"
-    avoid:
-      - "deep-import core.agent_manager"
-      - "deep-import core.tool_catalog"
-      - "deep-import core.run_loop"
-      - "deep-import core.policy"
-
   Agent:
-    definition: "本模块门面类。公开静态方法 list_tools、call_tool、run、clear_session、remember、forget、list_preferences。"
+    definition: |
+      本模块 Facade：自然语言驱动 NTQ——列工具、调工具、跑多轮 run、管会话偏好。
+      公开静态方法 list_tools / call_tool / run / clear_session / remember / forget / list_preferences。
+      组 context、跑本机工具；不负责发现供应商或存 API Key（infra.ai）；也不挑 ntq 背后用哪家模型。
+    in_code: "from core.modules.agent import Agent"
     aliases:
       - "agent"
     avoid:
       - "把 Assistant 当成会执行工具的入口"
       - "把 AgentManager 当公开入口"
+      - "deep-import core.agent_manager / run_loop / tool_catalog / policy"
 
-  ToolSpec:
-    definition: "登记给模型的工具说明：名字、用途、参数 schema、是否已实现。不含函数本身。"
-    aliases:
-      - "工具"
-      - "调用单能点的名字"
+  Provider:
+    definition: |
+      用户选定的一路 AI 出入口，全程只用这一路：要么 ntq（官网会员通道，模型由 Website 调度），
+      要么用户自备供应商之一（该供应商 API Key）。不是「通道里再拆三个 provider」，
+      也不是计费档 ask/work。与 infra.ai 的供应商配置配合；本模块锁定后一条路干到底。
+    in_code: "run 前锁定的 Provider；ntq | 用户自备"
+    aliases: []
     avoid:
-      - "把可执行函数放进返回值"
-
-  RunLoop:
-    definition: "内部循环：锁定 Provider → 本地 Navigator 分流 → guide/worker 与本机工具。ntq 时模型由 Website 按 phase/intent 调度。不对外导出。"
-    aliases:
-      - "运行循环"
-    avoid:
-      - "从包根 import RunLoop"
-      - "以为 Navigator 在远端完成意图分类"
+      - "通道里再拆三个 provider"
+      - "与计费档 ask/work 混称"
 
   Navigator:
-    definition: "本地意图分流：输出有序 kinds（guide/worker/…）。Website 的 phase=navigate 只为这次分流补全选模型，不代替 Navigator。"
+    definition: |
+      本地意图分流：读用户话与 context，输出有序 kinds（guide / worker / identity / advice /
+      out_of_scope 等）。原称 gate。Website 的 phase=navigate 只为这次分流补选模型，
+      不代替本机 Navigator 出 kinds——分流在本地完成。
+    in_code: "本地 Navigator；kinds 列表；phase=navigate 仅选模型"
     aliases:
       - "分流"
       - "原 gate"
     avoid:
       - "把 Navigator 当成 Website 专属逻辑"
+      - "以为意图分类在远端做完"
+
+  kind / 流向:
+    definition: |
+      Navigator 之后的处理分支（guide=说明/百科向、worker=要动本机工具、out_of_scope=不做等）。
+      决定后续调哪套提示与是否跑工具；不是 Provider，也不是计费档名。
+    in_code: "Navigator 输出的 kinds；guide / worker / …"
+    aliases:
+      - "处理方式"
+      - "流向"
+    avoid:
+      - "把 kind 叫成 Provider"
+
+  ToolSpec:
+    definition: |
+      登记给模型看的工具说明：名字、用途、参数 schema、是否已实现。只描述「能调什么」，
+      不含可执行函数本身。list_tools 返回这类规格；真正执行走 call_tool / RunLoop。
+    in_code: "Agent.list_tools → ToolSpec；tool catalog"
+    aliases:
+      - "工具规格"
+    avoid:
+      - "把可执行函数放进 list_tools 返回值"
+
+  RunLoop:
+    definition: |
+      内部循环：锁定 Provider → 本地 Navigator 分流 → 按 kind 走 guide/worker 等 → 本机工具。
+      ntq 时模型由 Website 按 phase/intent 调度。实现不对外导出，不要从包根 import RunLoop。
+    in_code: "core/run_loop（内部）；Agent.run 触发"
+    aliases:
+      - "运行循环"
+    avoid:
+      - "从包根 import RunLoop"
+
+  Context:
+    definition: |
+      App 组给模型的材料：用户话、会话、说明书摘录、工具摘要、写入准则等。
+      本地负责组织 Context；远端（ntq）负责在此材料上选模型与计量。
+    in_code: "组 context 逻辑；发给模型的 messages/材料包"
+    aliases:
+      - "上下文材料"
+    avoid:
+      - "把 Context 当成 Provider"
 
   SessionStore:
-    definition: "会话落盘：跨会话 preferences，会话内 transcript 与局部 state。不对外导出。"
+    definition: |
+      会话落盘：跨会话 preferences（remember/forget），会话内 transcript 与局部 state。
+      不对外导出实现类。不要把工具 JSON 全文写入 transcript（噪声/泄密）。
+    in_code: "Agent.remember / forget / clear_session；会话目录"
     aliases:
       - "会话记录"
     avoid:
       - "把工具 JSON 全文写入 transcript"
 
-  写入准则:
-    definition: "工具写文件前的硬检查。只允许 strategies/、extensions/tags/、extensions/post_process/adapters/、extensions/post_process/post_processors/ 下的相对路径。"
+  write policy:
+    definition: |
+      工具写文件前的硬检查（代码强制，不只写在系统提示里）。只允许相对路径落在
+      strategies/、extensions/tags/、extensions/post_process/adapters/、
+      extensions/post_process/post_processors/ 下；禁止整个 userspace，禁止 extensions/ai 密钥文件。
+    in_code: "core/policy 写入准则；写文件工具前置检查"
     aliases:
+      - "写入准则"
       - "policy"
     avoid:
       - "只写在系统提示里"

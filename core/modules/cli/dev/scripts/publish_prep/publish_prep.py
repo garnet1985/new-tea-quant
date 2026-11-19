@@ -246,7 +246,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         return _stop("模块文档版本校验未通过", doc_issues)
     else:
         print(
-            f"  {CmdLayout.icon.i('success')} **版本：** / # Version: / 最低支持核心版本 与 module_info 一致",
+            f"  {CmdLayout.icon.i('success')} 文首 模块·版本 + 最低支持核心版本 / glossary Version+Compatible-Core 与 module_info 一致",
             flush=True,
         )
 

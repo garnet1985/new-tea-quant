@@ -2,6 +2,8 @@
 
 **模块：** `modules.indicator` · **版本：** `0.2.0`
 
+**最低支持核心版本：** `>=0.5.0`
+
 ## 简介
 
 技术指标计算器。给一串 K 线数据，算 MA、RSI、MACD、KDJ 等常用指标。策略里写 `settings.data.indicators` 或在代码里调 `Indicator.calculate('macd', klines)` 就行。

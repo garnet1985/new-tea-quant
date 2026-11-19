@@ -1,6 +1,8 @@
 # CLI — 用户指南
 
-**版本：** `0.4.5`
+**模块：** `modules.cli` · **版本：** `0.4.5`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `CLI 是命令行入口——cli.py 给普通用户跑扫描/回测/更新，devcli.py 给开发者打包检查。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

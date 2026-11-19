@@ -16,6 +16,7 @@ HTTP 路径与响应契约优先以 FED 各页 `API.md` 为准（策略域暂无
 
 ## 相关文档
 
+- [术语表](glossary.yaml)
 - [架构与分层](docs/ARCHITECTURE.md)
 - [业务域分组](docs/GROUPING.md)
 - [路由编排索引](docs/ORCHESTRATION.md)

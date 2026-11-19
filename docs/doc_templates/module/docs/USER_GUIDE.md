@@ -5,7 +5,9 @@
   受众与 README（概览）、API.md（调用契约）、QUICKSTART（最短路径）不同。
 -->
 
-**版本：** `<module.version>`
+**模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+
+**最低支持核心版本：** `<compatible_core_versions>`
 
 `<一句话定位。例：DataManager 是本地数据的统一入口——查 K 线、查行业、查宏观都从这里取。>`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

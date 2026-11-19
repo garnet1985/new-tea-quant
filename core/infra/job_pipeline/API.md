@@ -1,6 +1,7 @@
 # Job Pipeline API 文档
 
-**版本：** `0.1.0`  
+**模块：** `infra.job_pipeline` · **版本：** `0.1.0`
+
 **最低支持核心版本：** `>=0.6.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  

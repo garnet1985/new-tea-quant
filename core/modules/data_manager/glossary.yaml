@@ -1,45 +1,63 @@
 # Data Manager 术语表
 # Version: 0.2.3
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 本模块 = 统一读库/领域服务门面；声明式契约见 data_contract；外部抓取见 data_source。
 
 terms:
-  Facade:
-    definition: "对外统一入口类。本模块门面是 DataManager。"
-    aliases:
-      - "门面"
-    avoid:
-      - "deep-import core.data_manager / core.data_services"
-
   DataManager:
-    definition: "统一数据访问 Facade：DatabaseManager + 表发现/注册 + 各领域 DataService 属性。"
+    definition: |
+      统一数据访问 Facade：持有 DatabaseManager、表发现/注册，并挂各领域 DataService
+      （stock / macro / calendar / index / db_cache / backup_restore 等）。
+      上层读行情/日历/列表优先经此，不要 deep-import core.data_services，也不要从
+      core.data_manager 深路径再导一次门面。
+    in_code: "from core.modules.data_manager import DataManager"
     aliases:
       - "data_mgr"
       - "数据管理器"
     avoid:
       - "从包根导入 CalendarService / StockService"
-      - "from core.modules.data_manager.core.data_manager import DataManager（优先包根）"
+      - "from ...core.data_manager import DataManager（优先包根）"
+      - "deep-import core.data_services"
 
   DataService:
-    definition: "领域服务容器（stock/macro/calendar/index/db_cache/backup_restore）；经 DataManager.service 或对应属性访问。"
+    definition: |
+      领域服务容器：按域聚合表访问与查询 API。经 DataManager.service 或
+      DataManager.calendar / stock / … 属性访问；生产代码不要 deep-import
+      DataService / TagDataService / ListService。
+    in_code: "DataManager.calendar / stock / …；DataManager.service"
     aliases:
       - "service 容器"
     avoid:
       - "生产代码 deep-import DataService / TagDataService / ListService"
 
   CalendarService:
-    definition: "交易日历服务；经 DataManager.calendar 访问。"
+    definition: |
+      交易日历领域服务：开市日、区间交易日序列等。经 DataManager.calendar 访问，
+      不在包根导出类名。
+    in_code: "DataManager.calendar"
     aliases:
       - "calendar"
     avoid:
       - "包根导出 CalendarService"
 
   BaseTableNames:
-    definition: "contracts 中与 schema.name 对齐的基础表名枚举（sys_*）；运行时以 discovery 注册名为准。"
+    definition: |
+      contracts 中与 schema.name 对齐的基础表名枚举（sys_* 前缀）。
+      运行时以 discovery 注册名为准；不要使用无 sys_ 前缀的旧枚举值。
+    in_code: "contracts.BaseTableNames"
     aliases: []
     avoid:
       - "使用无 sys_ 前缀的旧枚举值"
 
   sample_universe:
-    definition: "开发样本股票宇宙（data.json use_sample_stock_list + DataManager.sample_universe + core/dev/sample_stock_list）。"
+    definition: |
+      开发用样本股票宇宙：由 data.json 的 use_sample_stock_list 开关 +
+      DataManager.sample_universe + core/dev/sample_stock_list 提供。
+      便于无全市场数据时跑通回测；不要从 data_source 取样本名单，不要包根导出
+      SampleUniverse，不要在业务路径硬编码股票列表。
+    in_code: "DataManager.sample_universe；data.json use_sample_stock_list"
     aliases:
       - "样本宇宙"
       - "样本池"

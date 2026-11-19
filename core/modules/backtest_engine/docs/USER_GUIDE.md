@@ -1,6 +1,8 @@
 # Backtest Engine — 用户指南
 
-**版本：** `0.2.0`
+**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `BacktestEngine 是回测调度引擎——把任务拆批次、按时间推进，自动管多进程和内存。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

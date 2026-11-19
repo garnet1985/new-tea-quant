@@ -2,32 +2,61 @@
 # Version: 0.1.0
 # Compatible-Core: >=0.5.3
 #
-# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块只管本机凭证存取与格式；不做在线校验 / 续期（那是 ntq_external）；不向 HTTP 回传明文。
 
 terms:
-  通用凭证:
-    definition: "官网会员中心签发的一串 token，格式为 `ntq_` + 48 位小写十六进制；本机会员能力的唯一凭据"
+  Membership:
+    definition: |
+      官网会员通用凭证 Facade：读写本地凭证文件、查 status、格式校验与权限收紧。
+      设置页写入；ntq_external / Agent 等只来这里读状态或（本机内部）读明文。
+      不做在线验证；HTTP 层只能用 status，不能回传 read() 明文。
+    in_code: "from core.infra.membership import Membership；token_file / read / status / save / clear"
     aliases:
-      - "membership token"
+      - "会员门面"
+    avoid:
+      - "把 AI Provider API Key 存进本模块"
+      - "在 HTTP 响应里返回 Membership.read() 明文"
+
+  membership_token:
+    definition: |
+      官网会员中心签发的通用凭证字符串，格式 ntq_ + 48 位小写十六进制。
+      本机会员能力的唯一凭据；不是登录密码，也不是 infra.ai 的供应商 API Key。
+    in_code: "Membership.read() / save(token)；格式校验正则"
+    aliases:
+      - "通用凭证"
       - "会员凭证"
+      - "membership token"
     avoid:
       - "密码"
-      - "API Key（AI 供应商的 key 走 infra.ai，不经过本模块）"
+      - "API Key（AI 供应商 key 走 infra.ai）"
 
-  凭证文件:
-    definition: "存放通用凭证的本地文本文件，固定位于 userspace/system/membership/membership_token.txt；支持 `#` 注释行，取第一行有效内容"
+  membership_token.txt:
+    definition: |
+      存放通用凭证的本地文本文件，固定路径 userspace/system/membership/membership_token.txt。
+      支持 # 注释行与空行，取第一行有效内容。Membership.token_file() 返回该 Path。
+    in_code: "Membership.token_file()；userspace/system/membership/membership_token.txt"
     aliases:
-      - "membership_token.txt"
+      - "凭证文件"
     avoid: []
 
   configured:
-    definition: "status 字段：凭证文件存在且内容为有效通用凭证"
+    definition: |
+      status 字段：凭证文件存在且内容是合法 membership_token 格式。
+      只表示「本机配好了」，不表示官网侧仍然有效或已登录——本模块不做在线校验。
+    in_code: "Membership.status()['configured']"
     aliases: []
     avoid:
-      - "已登录（本模块不校验在线状态，configured 不代表凭证在官网侧仍然有效）"
+      - "已登录"
+      - "以为 configured 表示官网侧有效"
 
   invalid:
-    definition: "status 字段：凭证文件存在但内容不符合通用凭证格式（例如粘贴残缺或写入了别的东西）"
+    definition: |
+      status 字段：凭证文件存在但内容不符合 ntq_… 格式（粘贴残缺、写错东西等）。
+      与「过期」无关——是否过期由官网判定，本模块不感知。
+    in_code: "Membership.status()['invalid']"
     aliases: []
     avoid:
-      - "过期（是否过期由官网侧判定，本模块不感知）"
+      - "过期"
+      - "把 invalid 当成 configured 的反义而不查文件是否存在"

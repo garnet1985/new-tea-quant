@@ -1,24 +1,29 @@
-# glossary — infra.utils
+# Utils 术语表
 # Version: 0.2.2
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 与业务无关的通用小工具；不做回测指标 / 因子；不做 pandas/numpy 薄代理。
 
 terms:
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 Utils。"
-    aliases:
-      - "门面"
-    avoid:
-      - "deep-import core.date / core.io / core.math / core.markdown / core.locale / core.pkg_index"
-
   Utils:
-    definition: "本模块门面类；挂载 date / types / io / math / markdown / locale / pkg。"
+    definition: |
+      通用工具 Facade：挂载 date / types / io / math / markdown / locale / pkg。
+      日期偏移、类型转换、CSV/zip、确定性随机、Markdown 模板、本机是否中国大陆、
+      pip 索引辅助等集中于此，避免各模块互相 import 蛛网。
+      不要把内部 DateUtils / TypeUtils 当公开入口，也不要 deep-import core.date 等包。
+    in_code: "from core.infra.utils import Utils"
     aliases: []
     avoid:
-      - "DateUtils 当公开入口"
-      - "TypeUtils 当公开入口"
+      - "DateUtils / TypeUtils 当公开入口"
+      - "deep-import core.date / core.io / core.math / core.markdown / core.locale / core.pkg_index"
 
   period_type:
-    definition: "日/周/月/季/年周期类型字符串；常量见 contracts.PERIOD_*。"
+    definition: |
+      日/周/月/季/年等周期类型字符串，用于日期对齐与偏移。常量见 contracts.PERIOD_*
+      （如 PERIOD_DAY / PERIOD_MONTH）。Utils.date 相关 API 认这些值。
+    in_code: "contracts.PERIOD_*；Utils.date.*；PeriodType"
     aliases:
       - "PERIOD_DAY"
       - "PERIOD_MONTH"
@@ -26,7 +31,10 @@ terms:
     avoid: []
 
   is_china:
-    definition: "本机是否在中国大陆；公开入口 Utils.locale.is_china / Utils.is_china。按时区地名 / zh_CN，不用 UTC+8。"
+    definition: |
+      判断本机是否在中国大陆：看时区地名 / zh_CN 等 locale 信号，不用「UTC+8 / CST-8」
+      当国内判定（许多境外也用 +8）。公开入口 Utils.locale.is_china 或 Utils.is_china。
+    in_code: "Utils.locale.is_china；Utils.is_china"
     aliases:
       - "Utils.locale"
       - "LocaleUtils"
@@ -34,15 +42,42 @@ terms:
       - "按 UTC+8 / CST-8 判断国内"
 
   MarkdownMgr:
-    definition: "Markdown 模版 ``{{:token}}`` 填充器；公开入口 Utils.markdown。"
+    definition: |
+      Markdown 模板填充器：把文中 {{:token}} 占位符替换为给定值。公开入口 Utils.markdown。
+      extract_tokens 等是实现细节，不要当包级导出依赖。
+    in_code: "Utils.markdown.*；{{:token}} 模板"
     aliases:
       - "Utils.markdown"
     avoid:
       - "extract_tokens 当包级导出"
 
   deterministic_unit_float:
-    definition: "由 key 派生的确定性 [0,1) 伪随机；公开入口 Utils.math.deterministic_unit_float。"
+    definition: |
+      由字符串 key 派生的确定性 [0,1) 伪随机数：同一 key 永远同一值，用于可复现采样/分桶，
+      而不是每次 random()。公开入口 Utils.math.deterministic_unit_float。
+    in_code: "Utils.math.deterministic_unit_float(key)"
     aliases:
       - "Utils.math"
       - "DeterministicRandom"
+    avoid:
+      - "用 random.random() 冒充可复现"
+
+  Utils.io:
+    definition: |
+      文件 IO 辅助命名空间：CSV 读写、zip 打包/解压等与业务无关的磁盘操作。
+      业务模块需要简单落盘时优先这里，避免再包一层。
+    in_code: "Utils.io.*"
+    aliases:
+      - "io"
     avoid: []
+
+  Utils.pkg:
+    definition: |
+      包/索引辅助命名空间（原 pip_index 能力收口于此）：解析或构造包索引相关路径/URL，
+      供安装与依赖步骤使用。不要再 deep-import 已删除的独立 pip_index 空壳。
+    in_code: "Utils.pkg.*"
+    aliases:
+      - "pkg"
+      - "pip_index（旧独立模块，已收口）"
+    avoid:
+      - "deep-import core.pkg_index"

@@ -1,101 +1,267 @@
 # BacktestEngine 术语表
 # Version: 0.2.0
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 主链路与目录见 docs/ARCHITECTURE.md；slice 算法硬约束见 docs/SLICE_BASED_ALGORITHM.md。
 
 terms:
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 BacktestEngine。"
+  BacktestEngine:
+    definition: |
+      回测调度 Facade：把调用方给的 jobs 跑完，自己负责并发、内存预算与编排，不负责业务计算或入库。
+      一次 run 固定走 probe → plan → execute → monitor；业务语义只通过 RunCallbacks 注入。
+      调用方是 strategy / tag 等上层，不要 deep-import core/schedule 或 core/performance。
+    in_code: "from core.modules.backtest_engine import BacktestEngine；BacktestEngine.run / entity_based.run / slice_based.run"
     aliases:
-      - "门面"
+      - "backtest_engine"
+      - "回测引擎"
+      - "BE"
     avoid:
+      - "BacktestScheduler"
+      - "JobPipeline"
       - "deep-import core.schedule / core.performance 当公开 API"
 
-  BacktestEngine:
-    definition: "回测调度 Facade：probe → plan → execute → monitor；业务经 RunCallbacks 注入。"
-    aliases: ["backtest_engine", "回测引擎"]
-    avoid: ["BacktestScheduler", "JobPipeline"]
-
   entity_based:
-    definition: "执行模式：每 entity（或 entity batch）独立并行；slice 边界内无 cross-entity 编排交互"
-    aliases: ["entity parallel", "embarrassingly parallel jobs"]
-    avoid: ["把模式名写成 timeline", "stock_based only"]
+    definition: |
+      两种执行模式之一：按实体（或实体 batch）拆成独立 job，用 ProcessPool 并行跑。
+      适合「每股/每标的互不依赖」的工作（如批量算因子）。每个 job 在自己的 worker 里沿 Timeline
+      推进；同一正式时间边界内不做 cross-entity 编排交互。对比 slice_based：那边按日历片装全截面。
+    in_code: "BacktestEngine.Mode / \"entity_based\"；core/schedule/entity_based/"
+    aliases:
+      - "entity parallel"
+      - "embarrassingly parallel jobs"
+    avoid:
+      - "把模式名写成 timeline"
+      - "stock_based only"
+      - "与 slice_based 混称"
 
   slice_based:
-    definition: >-
-      执行模式：全截面数据按日历正式片从 DB 分次装载+释放，reader/compute 预读管道控峰值内存；
-      算法 SOT 见 docs/SLICE_BASED_ALGORITHM.md。禁止全窗一次加载。
-    aliases: ["calendar slice", "time-slice bulk"]
-    avoid: ["sliced", "chunk mode", "全窗一次 JobBundleLoader"]
+    definition: |
+      两种执行模式之一：全截面数据按「正式片」（连续若干开市日）从 DB 分次装载与释放，
+      用 reader/compute 预读管道压峰值内存。适合组合模拟等需要同日截面的场景。
+      硬约束：禁止全窗一次加载；算法 SOT 见 docs/SLICE_BASED_ALGORITHM.md。
+      对比 entity_based：那边一 job 一实体并行，不按日历片切 IO。
+    in_code: "BacktestEngine.Mode / \"slice_based\"；core/schedule/slice_based/"
+    aliases:
+      - "calendar slice"
+      - "time-slice bulk"
+    avoid:
+      - "sliced"
+      - "chunk mode"
+      - "全窗一次 JobBundleLoader"
 
   formal_slice:
-    definition: "连续 slice_open_days 个 open dates 构成的装载与调度单元；N 片至少 N 次按片 DB 读"
-    aliases: ["正式片", "calendar slice window"]
-    avoid: ["仅进度账本上的片（无对应 IO）"]
+    definition: |
+      slice_based 的装载与调度单元：连续 slice_open_days 个开市日构成一片。
+      N 片 ⇒ 至少 N 次按片 DB 读；不是进度条上随便切的「逻辑进度片」。
+      plan 阶段决定片宽；execute 按片装载、计算、释放。
+    in_code: "slice_open_days；slice_based planner / orchestrator 中的正式片"
+    aliases:
+      - "正式片"
+      - "calendar slice window"
+    avoid:
+      - "仅进度账本上的片（无对应 IO）"
+      - "把任意时间 chunk 都叫 formal_slice"
 
   slice_probe:
-    definition: "小块真实试跑，产出 mb/open_day 与读/算单价，供片宽与 preload_depth 规划"
-    aliases: ["head probe", "slice 探针"]
-    avoid: ["用全窗加载代替探针"]
+    definition: |
+      slice_based 在 plan 前的小块真实试跑：测出每开市日大约占多少内存、读/算各花多久，
+      供规划片宽与 preload_depth。必须是真实路径上的试跑，不能用「假设全窗能装下」代替。
+    in_code: "slice_based probe；plan 前内置探针"
+    aliases:
+      - "head probe"
+      - "slice 探针"
+    avoid:
+      - "用全窗加载代替探针"
+      - "ProbeRegistry（对外概念）"
 
   preload_depth:
-    definition: "读队列预取的正式片数；由 t_read/t_compute 与内存预算共同决定"
-    aliases: ["queue_capacity", "预读深度"]
-    avoid: ["靠一次读满消除等待"]
+    definition: |
+      slice_based 读队列预取的正式片数：reader 比 compute 超前装几片。
+      由探针得到的 t_read / t_compute 与内存预算共同决定；压力大时 monitor 可下调。
+      目的是叠掉 IO 等待，不是「一次读满整个回测窗」。
+    in_code: "preload_depth；SliceBasedPerformance / orchestrator 读队列"
+    aliases:
+      - "queue_capacity"
+      - "预读深度"
+    avoid:
+      - "靠一次读满消除等待"
 
   Timeline:
-    definition: >-
-      日历轴：simulation window / open dates 的发布与按 job 推进（contracts.Timeline）。
-    aliases: ["日历轴", "contracts.Timeline"]
-    avoid: []
+    definition: |
+      日历轴：一次 run 的 simulation window（start/end）以及开市日序列的发布与按 job 推进。
+      有 jobs 时必须先就绪（run 传入 start/end，或 set_timeline）。entity_based 的 worker 沿
+      Timeline 调 on_tick；slice_based 的正式片也落在同一开市日序列上切分。
+    in_code: "contracts.Timeline；BacktestEngine.set_timeline / run(start=, end=, timeline=)"
+    aliases:
+      - "日历轴"
+      - "simulation window 的开市日轴"
+    avoid:
+      - "把执行模式名叫成 timeline"
 
   BacktestJob:
-    definition: "调度 job 契约 dataclass：id + payload"
-    aliases: ["engine job"]
-    avoid: ["wire", "wire format"]
+    definition: |
+      调度层的 job 契约：一次可调度单元，字段是 id + payload（dataclass）。
+      entity_based 的 payload 需 entity_specified；slice_based 需 entity_ids + timeline_point_count。
+      传入 run 时常用可序列化的 job_dict；校验走 BacktestJob.validate_many。
+    in_code: "contracts.BacktestJob；BacktestJob.validate_many(jobs, mode=...)"
+    aliases:
+      - "engine job"
+      - "job"
+    avoid:
+      - "wire"
+      - "wire format"
 
   job_dict:
-    definition: "可序列化的 job 表示 {'id': str, 'payload': dict}"
-    aliases: ["job record"]
-    avoid: ["wire"]
+    definition: |
+      BacktestJob 的可序列化字典形态：{"id": str, "payload": dict}。跨进程 / API 边界传这个；
+      引擎内部再落到 BacktestJob / JobContext。
+    in_code: "run(..., jobs=[{\"id\", \"payload\"}, ...])"
+    aliases:
+      - "job record"
+    avoid:
+      - "wire"
 
   performance:
-    definition: "调度配置 dict；应用方 dispatch 配置 merge engine base 后传入；用户 settings 不可覆盖"
-    aliases: ["dispatch performance"]
-    avoid: ["settings.performance", "global worker.json", "executor_key"]
+    definition: |
+      本次 run 的调度配置 dict（并发度、片宽相关、探针开关等）。由应用方的 dispatch 配置
+      merge 引擎 base 后传入；用户 settings 不得覆盖。entity / slice 各有一套 resolve 路径
+      （EntityBasedPerformance / SliceBasedPerformance）。
+    in_code: "run(..., performance=...)；resolve_*_performance；ENGINE_PERF_KEY / ENUM_PERF_KEY"
+    aliases:
+      - "dispatch performance"
+      - "调度配置"
+    avoid:
+      - "settings.performance"
+      - "global worker.json"
+      - "executor_key"
 
   task_name:
-    definition: "单次 run 展示/追踪名 → JobContext"
+    definition: |
+      单次 run 的展示 / 追踪名，写入 JobContext，供进度与日志识别「这是哪一次任务」。
+      不是 job id，也不是业务策略名的强制字段。
+    in_code: "run(..., task_name=...)；JobContext.task_name"
     aliases: []
-    avoid: ["run_name", "log_label"]
+    avoid:
+      - "run_name"
+      - "log_label"
+
+  Task:
+    definition: |
+      run 内部的一块 partial work（不是整个 run）。寄生主体随模式而变：
+      entity_based = 一个 worker 进程里的一次 ProcessPool 提交；
+      slice_based = 一片正式日历 slice 的 compute。
+      on_task_start / on_task_complete 按 Task 触发；不要把 Task 理解成「整个回测」。
+    in_code: "RunCallbacks.on_task_start / on_task_complete；与 mode 绑定的寄生主体"
+    aliases:
+      - "partial work"
+    avoid:
+      - "把整个 run 叫作一个 Task"
 
   RunCallbacks:
-    definition: "单次 run 的生命周期钩子。Task 寄生主体：entity=一次 worker 提交；slice=一片正式 slice。字段含 on_task_start / on_tick / on_task_complete；跨进程收包用 on_receive_task_result（slice 默认不调）。BE 只提供时间点，不暗示业务动作。"
-  Task:
-    definition: "run 内的 partial work。entity_based 寄生于一个 worker 进程内的一次提交；slice_based 寄生于一片正式日历 slice 的 compute。"
-    aliases: ["hooks", "callbacks"]
-    avoid: ["run 上平铺多个 on_* 参数", "对外传 execute_fn="]
+    definition: |
+      单次 run 的生命周期钩子包。BE 只提供时间点，不暗示业务动作（settle / flush 等由调用方自定）。
+      常见字段：on_task_start / on_tick / on_task_complete；跨进程收包用 on_receive_task_result
+      （slice 默认不调）。slice 装数还可注入 load_per_entity_window。不要把多个 on_* 平铺成 run 参数。
+    in_code: "contracts.RunCallbacks；run(..., callbacks=RunCallbacks(...))"
+    aliases:
+      - "hooks"
+      - "callbacks"
+    avoid:
+      - "run 上平铺多个 on_* 参数"
+      - "对外传 execute_fn="
 
   execute_fn:
-    definition: "引擎内部 worker 入口类型 (JobContext) -> dict；由 TimelineWorkerExecute / SliceWorkerExecute 实现，非 run 公开参数"
-    aliases: ["worker entry"]
-    avoid: ["BacktestEngine.run(..., execute_fn=)"]
+    definition: |
+      引擎内部 worker 入口类型：(JobContext) -> dict。由 TimelineWorkerExecute /
+      SliceWorkerExecute 实现；不是 BacktestEngine.run 的公开参数。业务请走 RunCallbacks。
+    in_code: "TimelineWorkerExecute / SliceWorkerExecute（内部）"
+    aliases:
+      - "worker entry"
+    avoid:
+      - "BacktestEngine.run(..., execute_fn=)"
 
   probe:
-    definition: "engine 内部：plan 前用内置 worker 试跑小样本（调用方不可见）"
+    definition: |
+      plan 前引擎内部的试跑：用内置 worker 跑小样本，收集内存与耗时，供规划并发或片宽。
+      对调用方不可见（不是公开 Probe API）。slice_based 上常具体化为 slice_probe。
+    in_code: "entity_based / slice_based 内部 probe 阶段"
     aliases: []
-    avoid: ["ProbeRegistry"]
+    avoid:
+      - "ProbeRegistry"
+      - "把 probe 当成调用方必须实现的插件"
+
+  plan:
+    definition: |
+      probe 之后、execute 之前：根据机器容量与探针结果生成调度方案（并发度、片宽、preload_depth 等）。
+      产出进入 RunResult.plan；execute 按该方案跑。
+    in_code: "pipeline 的 plan 阶段；RunResult.plan / DispatchPlan"
+    aliases:
+      - "DispatchPlan"
+    avoid: []
+
+  execute:
+    definition: |
+      按 plan 真正跑 jobs：entity_based 用 ProcessPool + Timeline 推进；slice_based 用
+      orchestrator 按正式片装载/计算。业务落在 RunCallbacks（尤其 on_tick）里。
+    in_code: "pipeline 的 execute 阶段；Entity / Slice executor"
+    aliases: []
+    avoid: []
+
+  monitor:
+    definition: |
+      execute 过程中的采样与调节：看 RSS、耗时、压力，必要时动态调整 in-flight 或 preload_depth。
+      统计进入 RunResult.monitor_stats；不是独立对外监控服务。
+    in_code: "pipeline 的 monitor 阶段；EntityMonitorStats 等"
+    aliases: []
+    avoid: []
 
   RunResult:
-    definition: "run 返回汇总：plan、monitor_stats、job_results 等"
+    definition: |
+      BacktestEngine.run 的返回汇总：含 plan、monitor_stats、job_results 等调度层结果。
+      表示「这次调度跑得怎样」，不是金融归因报告（那是 analysis / strategy analyzer）。
+    in_code: "BacktestEngine.RunResult"
     aliases: []
-    avoid: ["DispatchResult"]
+    avoid:
+      - "DispatchResult"
+      - "把 RunResult 当成策略收益报告"
 
   JobContext:
-    definition: "worker 收到的作用域：job_id + payload + task_name"
+    definition: |
+      worker / 钩子里看到的当前作用域：job_id + payload + task_name 等。
+      on_tick(ctx, point, index) 的 ctx 即此对象；业务从 payload 取实体与参数。
+    in_code: "contracts.JobContext"
     aliases: []
-    avoid: ["WorkerContext"]
+    avoid:
+      - "WorkerContext"
 
   JobReport:
-    definition: "单 job execute 返回：success + data + error"
+    definition: |
+      单个 job / task 执行完毕后的报告：success + data + error。
+      汇入 RunResult.job_results；与「整次 run 的 RunResult」区分。
+    in_code: "contracts.JobReport"
     aliases: []
-    avoid: ["JobResult"]
+    avoid:
+      - "JobResult"
+      - "与 RunResult 混用"
+
+  on_tick:
+    definition: |
+      RunCallbacks 中按日历点推进的钩子：引擎每走到一个开市日（或 slice 内等价推进点）调用一次。
+      业务在此做「这一天该算的事」；BE 不规定 settle/信号等语义。
+    in_code: "RunCallbacks(on_tick=...)；on_tick(ctx, point, index)"
+    aliases: []
+    avoid:
+      - "在引擎内写死业务日终逻辑"
+
+  load_per_entity_window:
+    definition: |
+      slice_based 的数据面回调：按实体与时间窗装数，由调用方注入（如 strategy/tag 的
+      JobBundleLoader.load_per_entity_window）。属于 RunCallbacks 上的装数钩子，不是生命周期 on_*；
+      BE 不依赖 modules.strategy。
+    in_code: "RunCallbacks.load_per_entity_window；contracts.LoadPerEntityWindowFn"
+    aliases:
+      - "LoadPerEntityWindowFn"
+    avoid:
+      - "让 BE deep-import strategy 装数"

@@ -1,36 +1,80 @@
+# Job Pipeline 术语表
 # Version: 0.1.0
 # Compatible-Core: >=0.6.0
-version: "0.1.0"
-module: infra.job_pipeline
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块是「谁在跑 / 排着谁」的真相源；细进度仍用 infra.progress。第一期不做条件并行 / DAG。
+
 terms:
   JobPipeline:
-    definition: "长任务执行管道门面：任务登记、串行排队与只读进度视图的唯一对外入口。"
+    definition: |
+      长任务执行管道 Facade：任务登记、串行排队、running 租约、只读任务表。
+      UI / BFF 看「现在有没有长任务、队列里有谁」应读本模块，而不是只盯 Progress 文件。
+      细粒度步骤比例仍由 infra.progress 写；本模块把摘要挂到任务快照上。
+    in_code: "from core.infra.job_pipeline import JobPipeline；submit / enqueue / running_lease / list_jobs"
     aliases:
       - "任务管道"
     avoid:
-      - "把 Progress 或其它模块继续当作「谁在跑」的前端真相源"
+      - "把 Progress 继续当作「谁在跑」的前端真相源"
+      - "以为已支持条件并行或 DAG"
 
   Job:
-    definition: "管道内一条长任务记录（id → kind / resource / status / 进度等）。"
+    definition: |
+      管道里一条长任务记录：id、kind、resource、status、label、进度摘要等。
+      list_jobs / get_job / get_running_job 返回的就是这类快照（dict）。
+      与 Progress 的一棵进度树不同——Job 是管道调度实体，Progress 是细进度文件。
+    in_code: "JobPipeline.get_job / list_jobs；任务表落盘"
     aliases:
       - "管道任务"
-    avoid: []
+    avoid:
+      - "把 Progress 根节点 id 当成 Job id（除非业务刻意对齐）"
 
   JobStatus:
-    definition: "任务生命周期：pending / running / completed / failed / cancelled / stale。"
+    definition: |
+      任务生命周期：pending（排队）、running（占用全局槽）、completed / failed / cancelled、
+      以及 stale（异常遗留）。不要只用 busy 布尔代替完整状态机——UI 需要区分排队与在跑。
+    in_code: "contracts.JobStatus；任务快照 status 字段"
     aliases: []
     avoid:
       - "只用 busy 布尔代替完整任务状态机"
 
   Queue:
-    definition: "pending 任务的有序等待序列；第一期与全局单 running 配合，有最大长度。"
+    definition: |
+      pending 任务的有序等待序列：当前有 running 时新任务入队（有最大长度；同 kind+resource
+      可去重）。第一期与全局单 running 配合——不是 DAG，也不是按资源条件并行。
+    in_code: "JobPipeline.enqueue / list_jobs 中的 pending；submit 忙则入队"
     aliases:
       - "串行队列"
     avoid:
       - "把队列理解成已支持条件并行或 DAG"
 
   ResourceLock:
-    definition: "（预留）任务声明的排他资源槽；无冲突才可并行。第一期等价于全局单槽。"
+    definition: |
+      （预留）任务声明的排他资源槽：无冲突才可并行。第一期等价于全局单槽——
+      实际互斥靠 running_lease 占用唯一 running 位。
+    in_code: "resource_key；未来资源槽；现期全局单 running"
     aliases:
       - "资源锁"
-    avoid: []
+      - "resource_key"
+    avoid:
+      - "以为第一期已按多资源并行调度"
+
+  running_lease:
+    definition: |
+      占用全局 running 槽的租约（filelock + 自管表）：acquire 成功则本任务为唯一 running，
+      忙则 JobRunningBusyError。handler / launcher 用它保证互斥；结束须 release。
+    in_code: "JobPipeline.running_lease(...)；RunningLease.acquire / release"
+    aliases:
+      - "RunningLease"
+    avoid:
+      - "占槽后不 release 导致假忙"
+
+  submit:
+    definition: |
+      业务 launcher 统一入口：空闲则开跑（持 lease），忙则按策略入队。相对 enqueue（只入队）
+      与 start_now（handler 侧立刻开跑）是更高层的「帮我把这活接进管道」。
+    in_code: "JobPipeline.submit(...)"
+    aliases: []
+    avoid:
+      - "绕过 submit 自己改任务表又不管 lease"

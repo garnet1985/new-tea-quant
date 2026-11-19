@@ -1,212 +1,218 @@
-# 命令行布局术语表
+# 命令行布局 术语表
 # Version: 0.2.0
 # Compatible-Core: >=0.5.0
 #
-# 缩写与生僻英文优先在此说明；正文首次出现宜括注或链到本表
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块只做终端 ASCII/图标排版；不做 GUI 图表。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称，即本项目 / 框架名称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外只暴露一个统一入口类。本模块门面类是 CmdLayout。"
-    aliases:
-      - "门面"
-      - "门面类"
-    avoid:
-      - "跨模块直接 import Title / BarChart / IconService"
-
   CmdLayout:
-    definition: "本模块门面类；挂载 bar_chart / title / separator / table / text / icon。"
+    definition: |
+      终端排版 Facade：把标题、分割线、对照表、水平条形图、行内文本、跨平台图标收成统一入口。
+      调用方挂 CmdLayout.bar_chart / title / separator / table / text / icon；不要跨模块直接
+      import 内部 Title / BarChart / IconService。策略报告的 present 步骤会用到本模块片段，
+      但 present 本身不是本模块 API。
+    in_code: "from core.infra.cmd_layout import CmdLayout, i"
     aliases:
       - "命令行布局门面"
-    avoid: []
-
-  namespace:
-    definition: "命名空间：挂在门面类下的分组（如 CmdLayout.title），用来按职责组织一组方法。"
-    aliases:
-      - "命名空间"
-    avoid: []
-
-  CLI:
-    definition: "Command Line Interface，命令行界面 / 终端输出场景。"
-    aliases:
-      - "命令行"
-    avoid: []
-
-  present:
-    definition: "策略等报告侧把结果整理并打印到终端的呈现步骤；布局片段由 CmdLayout 提供，present 本身不是本模块 API。"
-    aliases:
-      - "报告呈现"
     avoid:
       - "CmdLayout.present"
-
-  ASCII:
-    definition: "美国信息交换标准代码；此处指条形与分割线默认只用常见英文可打印字符（如 #、-、=、*），以降低跨终端乱码风险。"
-    aliases: []
-    avoid: []
-
-  emoji:
-    definition: "彩色表情符号图标；UTF-8 终端可用，部分 Windows 终端回退为 ASCII 文本标签。"
-    aliases: []
-    avoid: []
-
-  ASCII_fallback:
-    definition: "当 stdout 不适合 emoji（如 Windows 非 UTF-8）时，用 [OK] / [FAIL] 等方括号文本代替图标。"
-    aliases:
-      - "ascii fallback"
-      - "supports_emoji（判定是否需要回退）"
-    avoid: []
+      - "deep-import Title / BarChart / IconService"
 
   bar_chart:
-    definition: "水平 ASCII 分布 / 直方图命名空间（CmdLayout.bar_chart）：已分桶用 render，连续样本用 from_values。"
+    definition: |
+      水平 ASCII 分布 / 直方图命名空间。已分桶数据用 render；连续样本用 from_values（先等宽
+      分桶再画）。填充固定纯 ASCII（# / 空格），避免 Windows 终端乱码。不是 GUI 图表库。
+    in_code: "CmdLayout.bar_chart.render / from_values / print / print_from_values"
     aliases:
       - "条形图"
       - "分布图"
     avoid: []
 
   histogram:
-    definition: "本模块语境下指 from_values 对连续样本等宽分桶后再 render 的直方图；公开入口仍挂在 bar_chart 下。"
+    definition: |
+      本模块语境下特指 from_values：对连续数值等宽切成若干 bin，再交给 render 画柱。
+      公开入口仍挂在 bar_chart 下，没有单独的 CmdLayout.histogram。
+    in_code: "CmdLayout.bar_chart.from_values(..., bins=...)"
     aliases:
       - "from_values 直方图"
-    avoid: []
-
-  title:
-    definition: "标题命名空间：优先 h1 / h2 / h3 / h4；banner / section 为兼容入口。"
-    aliases: []
-    avoid: []
-
-  h1:
-    definition: "报告总标题：前空行 + 星号框；print 后再空行。"
-    aliases:
-      - "title.h1"
-    avoid: []
-
-  h2:
-    definition: "大节标题：正文 + 等号下划线。"
-    aliases:
-      - "title.h2"
-    avoid: []
-
-  h3:
-    definition: "小节标题：前空行 + --- 文本 ---。"
-    aliases:
-      - "title.h3"
-    avoid: []
-
-  h4:
-    definition: "细节标题：前空行 + ### 文本。"
-    aliases:
-      - "title.h4"
-    avoid: []
-
-  table:
-    definition: "ASCII 对照表命名空间：render / print；首列左齐、其余右齐；列宽按显示宽度。"
-    aliases:
-      - "对照表"
-    avoid: []
-
-  text:
-    definition: "行内排版命名空间：meta / kv / indent / numbered / bullets。"
-    aliases: []
-    avoid: []
-
-  separator:
-    definition: "分割线命名空间：line（-）/ thick（=）/ star（*）/ blank（空行）。"
-    aliases:
-      - "分割线"
-      - "divider"
-    avoid: []
-
-  line:
-    definition: "separator.line：单行 - 分割线。"
-    aliases: []
-    avoid: []
-
-  thick:
-    definition: "separator.thick：单行 = 粗分割线。"
-    aliases: []
-    avoid: []
-
-  star:
-    definition: "separator.star：单行 * 分割线（与 banner 规则线风格一致）。"
-    aliases: []
-    avoid: []
-
-  blank:
-    definition: "separator.blank：空内容；打印时输出一个换行。"
-    aliases: []
-    avoid: []
-
-  icon:
-    definition: "跨平台图标命名空间：get / i / supports_emoji。"
-    aliases: []
-    avoid: []
-
-  i:
-    definition: "CmdLayout.icon.i：get 的简写；包根也可 from core.infra.cmd_layout import i。"
-    aliases:
-      - "icon.i"
-    avoid: []
-
-  IconService:
-    definition: "icon 包内部实现类（双表 emoji/ASCII）；跨模块应只走 CmdLayout.icon。"
-    aliases: []
     avoid:
-      - "from core.infra.cmd_layout.icon... import IconService（作为公开 API）"
+      - "另找 CmdLayout.histogram API"
 
   BarBucket:
-    definition: "单柱数据语义：(label, value)；value 为非负计数或权重。公开调用通常传元组或 mapping，不必直接构造内部类型。"
+    definition: |
+      单柱语义：(label, value)，value 为非负计数或权重。公开调用通常传元组或 mapping；
+      不必直接构造内部类型。负值在 render 时按 0 处理。
+    in_code: "render(buckets=[(label, value), ...] | mapping | BarBucket)"
     aliases:
       - "桶"
       - "柱"
     avoid: []
 
-  banner:
-    definition: "上下规则线包裹的主标题块（无前后空行）；新代码优先 h1。"
-    aliases:
-      - "主标题"
-    avoid: []
-
-  section:
-    definition: "小节标题，形如 -- 文本 --；新代码优先 h3。"
-    aliases:
-      - "小节"
-    avoid: []
-
-  pad:
-    definition: "banner / h1 在未指定 width 时，在正文终端列宽之外附加的边距列数（默认模块内置）。"
-    aliases:
-      - "banner pad"
-      - "DEFAULT_BANNER_PAD"
-    avoid: []
-
   bin:
-    definition: "from_values 等宽分桶区间。"
+    definition: |
+      from_values 等宽分桶的一个区间；bins 参数控制切成几段。全相等样本会收成单柱。
+    in_code: "from_values(..., bins=10)"
     aliases:
       - "分桶"
     avoid: []
 
-  width:
-    definition: "条或线的宽度；标题规则线可按正文终端列宽推导（CJK 全角字符计 2 列）。"
+  fill_char:
+    definition: |
+      条形填充字符，固定为 #（纯 ASCII）。调用方不能换成 emoji 块，以保证跨终端一致；
+      空白格对应 empty_char（空格）。公开 API 不开放自定义填充符。
+    in_code: "bar_chart 内部 fill_char / empty_char"
+    aliases:
+      - "empty_char"
+    avoid:
+      - "在条形填充里用 emoji"
+
+  title:
+    definition: |
+      标题命名空间：新报告优先 h1 / h2 / h3 / h4 四级；banner / section 是旧兼容入口
+      （分别接近 h1 / h3）。线宽会按终端显示列宽计算（CJK 全角计 2 列）。
+    in_code: "CmdLayout.title.h1 / h2 / h3 / h4；兼容 banner / section"
     aliases: []
     avoid: []
 
+  h1:
+    definition: |
+      报告总标题：前空行 + 星号框包裹正文 + 打印后再空行。未指定 width 时用终端列宽 + pad。
+      新代码用 h1，不要再优先 banner。
+    in_code: "CmdLayout.title.h1(text, *, char='*', width=None, pad=None)"
+    aliases:
+      - "title.h1"
+    avoid: []
+
+  h2:
+    definition: |
+      大节标题：前空行 + 正文 + 等号下划线；线宽至少 min_width，并跟正文显示宽度取大。
+    in_code: "CmdLayout.title.h2(text, *, char='=', min_width=24)"
+    aliases:
+      - "title.h2"
+    avoid: []
+
+  h3:
+    definition: |
+      小节标题：前空行 + --- 文本 --- 形态。新代码用 h3；旧 section（-- 文本 --）仅兼容。
+    in_code: "CmdLayout.title.h3(text, *, char='-')"
+    aliases:
+      - "title.h3"
+    avoid: []
+
+  h4:
+    definition: |
+      细节标题：前空行 + ### 文本，比 h3 更轻，用于段内小标题。
+    in_code: "CmdLayout.title.h4(text)"
+    aliases:
+      - "title.h4"
+    avoid: []
+
+  banner:
+    definition: |
+      上下规则线包裹的主标题块（无 h1 那种前后空行）。语义接近 h1；新代码优先 h1。
+    in_code: "CmdLayout.title.banner(...)"
+    aliases:
+      - "主标题"
+    avoid:
+      - "新报告继续把 banner 当一等入口"
+
+  section:
+    definition: |
+      形如 -- 文本 -- 的小节标题；语义接近 h3。新代码优先 h3。
+    in_code: "CmdLayout.title.section(...)"
+    aliases:
+      - "小节"
+    avoid:
+      - "新报告继续把 section 当一等入口"
+
+  pad:
+    definition: |
+      banner / h1 在未指定 width 时，在正文终端列宽之外附加的边距列数（模块内置默认）。
+      用来让星号框比正文略宽一圈。
+    in_code: "h1(..., pad=...)；DEFAULT_BANNER_PAD"
+    aliases:
+      - "banner pad"
+    avoid: []
+
+  width:
+    definition: |
+      条或规则线的宽度（列数）。条形图 width 是条内格子数（最高柱铺满）；标题规则线可按
+      正文显示宽度推导。CJK 全角字符计 2 列，按 len() 会算错。
+    in_code: "bar_chart.render(..., width=20)；title.h1(..., width=None)"
+    aliases: []
+    avoid:
+      - "用 Python len() 当终端列宽"
+
   CJK:
-    definition: "中日韩文字；在终端列宽计算中通常按全角宽度计为 2。"
+    definition: |
+      中日韩等全角字符；算终端显示宽度时通常计 2 列。CmdLayout 标题/表格对齐依赖此规则，
+      否则中英文混排会对不齐。
+    in_code: "display_width 相关逻辑（title / table）"
     aliases:
       - "全角字符"
     avoid: []
 
-  fill_char:
-    definition: "条形填充字符，固定为 #（纯 ASCII）。"
+  table:
+    definition: |
+      ASCII 对照表命名空间：render / print。首列左齐、其余右齐；列宽按显示宽度（含 CJK），
+      不是按字符个数。
+    in_code: "CmdLayout.table.render / print"
+    aliases:
+      - "对照表"
+    avoid: []
+
+  text:
+    definition: |
+      行内排版命名空间：meta（元信息行）、kv（键值）、indent、numbered、bullets 等，
+      用来拼报告正文小块，而不是大标题或整表。
+    in_code: "CmdLayout.text.meta / kv / indent / numbered / bullets"
     aliases: []
     avoid: []
 
-  empty_char:
-    definition: "条形空白字符，固定为空格。"
-    aliases: []
+  separator:
+    definition: |
+      分割线命名空间：line（-）、thick（=）、star（*）、blank（空行）。只输出一行规则或换行，
+      不带标题正文；标题下划线在 title.h2，不要混用。
+    in_code: "CmdLayout.separator.line / thick / star / blank"
+    aliases:
+      - "分割线"
+      - "divider"
     avoid: []
+
+  icon:
+    definition: |
+      跨平台图标命名空间：按逻辑名取符号（success / fail 等）。UTF-8 终端用 emoji；
+      Windows 非 UTF-8 等环境自动 ASCII_fallback（如 [OK] / [FAIL]）。supports_emoji 用于判定。
+    in_code: "CmdLayout.icon.get / i / supports_emoji；from core.infra.cmd_layout import i"
+    aliases: []
+    avoid:
+      - "deep-import IconService"
+
+  i:
+    definition: |
+      icon.get 的短入口：CmdLayout.icon.i，或包根 from core.infra.cmd_layout import i。
+      方便在 f-string 里插图标，行为与 get 相同（含 ASCII 回退）。
+    in_code: "i('success')；CmdLayout.icon.i('success')"
+    aliases:
+      - "icon.i"
+    avoid: []
+
+  ASCII_fallback:
+    definition: |
+      当 stdout 不适合 emoji 时，用 [OK] / [FAIL] 等方括号文本代替彩色表情。
+      由 supports_emoji 判定；调用方仍用同一逻辑名（success 等），不必自己分支。
+    in_code: "CmdLayout.icon.supports_emoji；IconService 双表"
+    aliases:
+      - "ascii fallback"
+    avoid: []
+
+  emoji:
+    definition: |
+      图标在支持 UTF-8 的终端上使用的彩色表情形态。与 ASCII_fallback 是同一逻辑名的两套字形，
+      不是另一套 API。
+    in_code: "icon 双表中的 emoji 侧"
+    aliases: []
+    avoid:
+      - "在 bar_chart 填充里用 emoji（条形固定 ASCII）"

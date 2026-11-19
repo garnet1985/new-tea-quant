@@ -1,38 +1,54 @@
-# glossary — modules.post_process
+# Post Process 术语表
 # Version: 0.3.2
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 扫描结果出口协议 + userspace Adapter/PostProcessor；不要 deep-import core/*。
 
 terms:
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 PostProcess。"
-    aliases:
-      - "门面"
-    avoid:
-      - "deep-import core/*"
-
   PostProcess:
-    definition: "本模块门面类；协议规范化与 Adapter / PostProcessor 的 list、validate、load、run。"
+    definition: |
+      本模块 Facade：把策略扫描结果规范成标准协议，并 list / validate / load / run
+      userspace 的 Adapter 与 PostProcessor。旧模块门面名 Adapter 已废，不要再用。
+    in_code: "from core.modules.post_process import PostProcess"
     aliases: []
     avoid:
       - "Adapter（旧模块门面名）"
+      - "deep-import core/*"
 
   Opportunity:
-    definition: "出口协议：单条标准机会（标的 + 触发价/日）。与 strategy 内部 Opportunity 为映射关系。"
+    definition: |
+      出口协议中的单条标准机会：标的 + 触发价/日等，供后续 Adapter 消费。
+      与 strategy 内部 Opportunity 是映射关系（字段可能不同），不是同一个类直接外抛。
+    in_code: "contracts.Opportunity（post_process 出口）"
     aliases:
       - "标准机会"
+    avoid:
+      - "直接把 strategy.Opportunity 当出口协议"
 
   StrategyScanReport:
-    definition: "单策略一次扫描报告。"
+    definition: |
+      单策略一次扫描的标准报告（含该策略下的机会列表等）。是会话报告里 strategies 的元素。
+    in_code: "contracts.StrategyScanReport"
     aliases:
       - "标准单策略扫描报告"
+    avoid: []
 
   ScanSessionReport:
-    definition: "一次扫描会话顶层报告；strategies 为 StrategyScanReport 列表。"
+    definition: |
+      一次扫描会话的顶层标准报告：strategies 为 StrategyScanReport 列表。
+      Adapter.run 的主输入是它（外加 deps）；不是单个策略报告。
+    in_code: "contracts.ScanSessionReport；Adapter.run(session, ...)"
     aliases:
       - "标准扫描会话报告"
+    avoid: []
 
   PostProcessor:
-    definition: "后续处理声明单元：有 key、is_enabled；无序声明 adapters；可选 depends_on。目录 post_processors/<key>/。全局启用，不绑策略 settings。"
+    definition: |
+      后续处理声明单元：有 key、is_enabled；无序声明要用的 adapters；可选 depends_on。
+      目录 post_processors/<key>/。全局启用，不绑某个策略 settings。
+      不要叫 pipeline / scanner.post_process；也不要把 adapter 的 output 当成下一跳的标准协议。
+    in_code: "post_processors/<key>/post_processor.yaml；PostProcessorDefinition"
     aliases:
       - "PostProcessorDefinition"
       - "post_processor"
@@ -42,26 +58,42 @@ terms:
       - "把 adapter 的 output 当成下一跳的标准协议"
 
   Adapter:
-    definition: "PostProcessor 内干活积木。input = ScanSessionReport + deps。目录 post_process/adapters/<name>/。"
+    definition: |
+      PostProcessor 内真正干活的积木：input = ScanSessionReport + deps。
+      目录 post_process/adapters/<name>/。模块本身不叫 adapter；不要用 BaseComponent 旧名。
+    in_code: "adapters/<name>/adapter.py；BaseAdapter.run"
     aliases:
-      - "BaseAdapter"
+      - "积木"
     avoid:
       - "BaseComponent"
       - "把模块本身叫 adapter"
 
   BaseAdapter:
-    definition: "userspace adapter 须继承的基类；须实现 run(session, config, deps)。"
-    aliases:
-      - "contracts.BaseAdapter"
+    definition: |
+      userspace adapter 须继承的基类；须实现 run(session, config, deps)。
+      从 contracts 导入。
+    in_code: "contracts.BaseAdapter"
+    aliases: []
+    avoid: []
 
   post_process_extensions_directory:
-    definition: "userspace/extensions/post_process/。"
+    definition: |
+      userspace 扩展根：userspace/extensions/post_process/。其下分 adapters/ 与 post_processors/。
+    in_code: "userspace/extensions/post_process/"
     aliases: []
+    avoid: []
 
   adapters_directory:
-    definition: "userspace/extensions/post_process/adapters/<name>/adapter.py。"
+    definition: |
+      Adapter 实现目录约定：userspace/extensions/post_process/adapters/<name>/adapter.py。
+    in_code: "…/adapters/<name>/adapter.py"
     aliases: []
+    avoid: []
 
   post_processors_directory:
-    definition: "userspace/extensions/post_process/post_processors/<key>/post_processor.yaml。"
+    definition: |
+      PostProcessor 声明目录约定：
+      userspace/extensions/post_process/post_processors/<key>/post_processor.yaml。
+    in_code: "…/post_processors/<key>/post_processor.yaml"
     aliases: []
+    avoid: []

@@ -1,61 +1,74 @@
 # Trace 术语表
 # Version: 0.1.2
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 匿名 usage 上报；默认 opt-in；不做强制上报；不做应用内软反馈（走 ntq_external）。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 Trace（静态 API，勿实例化）。"
-    aliases:
-      - "门面"
-    avoid:
-      - "new Trace()"
-
   Trace:
-    definition: "匿名 usage / behavior 上报门面；挂载 config / consent / types。"
+    definition: |
+      匿名 usage / behavior 上报 Facade（静态 API，勿实例化）。挂载 config / consent / types。
+      用户同意后才发送；未同意不留上报痕迹。与 UI 请求排障用的 HTTP traceId 不是一回事。
+    in_code: "from core.infra.trace import Trace；Trace.send / consent / config"
     aliases: []
     avoid:
+      - "new Trace()"
       - "与 UI 请求排障 traceId 混淆"
 
-  TraceDefaults:
-    definition: "引擎默认值（超时、队列）。官网地址不在这里，由 modules.ntq_external 登记。"
+  consent:
+    definition: |
+      用户 opt-in 同意开关；落盘 userspace/system/config/trace_consent.json
+      （与 .ntq 清理隔离，清缓存不会误关同意）。未同意则 send 为空操作。
+    in_code: "Trace.consent.*；trace_consent.json"
     aliases:
-      - "core/defaults.py"
-      - "Trace.types.TraceDefaults"
-    avoid:
-      - "在 config_service / contracts 再硬编码同一 URL"
+      - "trace_consent.json"
+      - "opt-in"
+    avoid: []
 
   target_url:
-    definition: "上报 POST 地址。由 ntq_external 登记；可被 userspace/system/config/trace.json 或 NTQ_TRACE_ENDPOINT 覆盖。没登记则不发送。"
+    definition: |
+      上报 POST 地址。由 modules.ntq_external 登记；可被 userspace/system/config/trace.json
+      或环境变量 NTQ_TRACE_ENDPOINT 覆盖。没登记则不发送。官网 URL 不写在 TraceDefaults 里。
+    in_code: "Trace.config；NTQ_TRACE_ENDPOINT；ntq_external 登记"
     aliases:
       - "NTQ_TRACE_ENDPOINT"
       - "ingest endpoint"
-    avoid: []
+    avoid:
+      - "在 config_service / contracts 硬编码同一 URL"
 
-  consent:
-    definition: "用户 opt-in 同意；落盘 userspace/system/config/trace_consent.json（与 .ntq 清理隔离）。"
-    aliases:
-      - "trace_consent.json"
-      - "Trace.consent"
-    avoid: []
+  TraceDefaults:
+    definition: |
+      引擎默认值：超时、队列策略等。不含官网 ingest 地址（地址由 ntq_external 登记）。
+      经 Trace.types.TraceDefaults 或 core/defaults.py。
+    in_code: "Trace.types.TraceDefaults；core/defaults.py"
+    aliases: []
+    avoid:
+      - "在 Defaults 里硬编码 ingest URL"
 
   installation_id:
-    definition: "本机持久化的匿名安装标识，格式 ntq_i_<uuid-hex>。"
+    definition: |
+      本机持久化的匿名安装标识，格式 ntq_i_<uuid-hex>。用于把事件归到同一安装，
+      不含账号/姓名等 PII。
+    in_code: "installation_id 生成与落盘"
     aliases: []
     avoid: []
 
   queue:
-    definition: "userspace/.ntq/trace/queue 下一事件一文件的本地 outbox。"
-    aliases: []
+    definition: |
+      本地 outbox：userspace/.ntq/trace/queue 下一事件一文件。发送失败就攒着，
+      BFF / 长进程启动时后台 drain。不是内存队列，重启不丢未发事件（在磁盘上）。
+    in_code: "userspace/.ntq/trace/queue/；drain 逻辑"
+    aliases:
+      - "outbox"
     avoid: []
 
   budget:
-    definition: "send 时间与条数上限；standard=1s/5，extreme=2s/10。"
+    definition: |
+      一次 send/drain 的时间与条数上限，避免上报拖慢主路径。
+      standard≈1s/5 条，extreme≈2s/10 条。旧名 FlushBudget / flush 已废，用 SendBudget / budget。
+    in_code: "SendBudget；standard / extreme"
     aliases:
       - "SendBudget"
     avoid:

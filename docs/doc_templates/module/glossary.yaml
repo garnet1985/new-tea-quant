@@ -2,18 +2,24 @@
 # Version: <module.version>
 # Compatible-Core: <compatible_core_versions>
 #
-# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
-# 与 CONCEPTS：本文件是词条表；运作原理写 docs/CONCEPTS.md（若有）
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 与 CONCEPTS：词条在此；多步骤运作链路写 docs/CONCEPTS.md（若有）。
+# 不要堆跨模块通用词（Facade 等）；优先收录读者读代码会卡住的领域词。
 
 terms:
   <TermName>:
-    definition: "<一句话或短段定义；写清在本模块中的含义>"
+    definition: |
+      <短段：是什么；在本模块解决什么问题；与相近概念差在哪（若有）。>
+    in_code: "<类 / 枚举 / 字段 / 典型调用，如 Foo.bar(...)>"
     aliases:
       - "<同义 / 可接受别名 / 其他上下文中的叫法>"
     avoid:
       - "<易与本词混淆、不应混用的名称>"
 
   <AnotherTerm>:
-    definition: "<…>"
+    definition: |
+      <…>
+    in_code: "<…>"
     aliases: []
     avoid: []

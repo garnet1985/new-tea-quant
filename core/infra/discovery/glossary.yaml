@@ -1,96 +1,116 @@
 # Discovery 术语表
 # Version: 0.2.1
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块只做文件 / 类发现；不定义业务基类、不做文件监视、不做跨进程缓存。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称，即本项目 / 框架名称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 Discovery。"
-    aliases:
-      - "门面"
-      - "门面类"
+  Discovery:
+    definition: |
+      文件与类发现 Facade：扫目录找文件、按基类找子类、在子模块里收集同名对象。
+      代替各业务模块手写 importlib 扫描。挂载 file / discover / class_discovery 命名空间；
+      不要直接 import FileUtils / ClassDiscovery / ModuleDiscovery，也不要找已删除的模块级 discover_*。
+    in_code: "from core.infra.discovery import Discovery"
+    aliases: []
     avoid:
       - "直接 import FileUtils / ClassDiscovery / ModuleDiscovery 当公开 API"
       - "模块级 discover_* 便捷函数（已删除）"
 
-  Discovery:
-    definition: "本模块门面类；挂载 file / discover / class_discovery 命名空间。"
-    aliases: []
-    avoid: []
-
-  namespace:
-    definition: "门面下的命名空间（如 Discovery.file），把一组相关静态方法挂在一起。"
+  Discovery.file:
+    definition: |
+      单文件查找与读写命名空间：在树里按 key 定位、按文件名找、读 JSON/YAML/文本，
+      以及对受信 .py 配置做 load_python_config。实现类是 FileUtils；公开只走此命名空间。
+    in_code: "Discovery.file.find_in_tree / find_file / load_* / load_python_config"
     aliases:
-      - "命名空间"
-      - "Discovery.file"
-      - "Discovery.discover"
-      - "Discovery.class_discovery"
-    avoid: []
-
-  FileUtils:
-    definition: "单文件查找与读写实现类（JSON / YAML / 文本 / 受信 Python 配置）；公开入口 Discovery.file。"
-    aliases:
-      - "Discovery.file"
+      - "FileUtils"
     avoid: []
 
   find_in_tree:
-    definition: "按目录名 key 在树中定位 {key}/{filename}（直达或嵌套分组）；公开入口 Discovery.file.find_in_tree。与 find_file（只按文件名）不同。"
+    definition: |
+      按目录名 key 在树中定位 {key}/{filename}（可直达或嵌套分组目录）。
+      与 find_file（只按文件名搜）不同：find_in_tree 认「策略/插件的 key 目录约定」。
+      曾在 project_context.DiscoveryManager，已迁至 Discovery.file。
+    in_code: "Discovery.file.find_in_tree(base, key, filename)"
     aliases:
-      - "Discovery.file.find_in_tree"
       - "按 key 路径发现"
     avoid:
-      - "project_context.DiscoveryManager.find_in_tree（已迁至 Discovery.file）"
+      - "project_context.DiscoveryManager.find_in_tree（已迁走）"
+      - "与 find_file 混用"
 
-  FileDiscovery:
-    definition: "目录树批量路径发现实现类；公开入口 Discovery.discover.files / directories / files_by_suffix。"
+  load_python_config:
+    definition: |
+      对受信 .py 配置文件 exec 后提取变量（如 settings.py）。仅用于本机可信路径；
+      不可用于不可信上传/网络输入。
+    in_code: "Discovery.file.load_python_config(path)"
     aliases:
+      - "exec 配置加载"
+    avoid:
+      - "对不可信 .py 调用"
+
+  Discovery.discover:
+    definition: |
+      批量路径 / 类 / 对象发现命名空间：files / directories / files_by_suffix（树扫描）、
+      subclasses（基类子类）、objects（一级子模块同名对象）。底层分别是 FileDiscovery /
+      ClassDiscovery / ModuleDiscovery。
+    in_code: "Discovery.discover.files / directories / files_by_suffix / subclasses / objects"
+    aliases:
+      - "FileDiscovery"
       - "批量文件发现"
     avoid: []
 
   FileDiscoveryConfig:
-    definition: "FileDiscovery 的配置数据类（base_dir / pattern / max_depth / exclude 等）。"
+    definition: |
+      批量文件发现的配置：base_dir、pattern、max_depth、exclude 等，约束扫哪些路径、扫多深。
+    in_code: "contracts / Discovery.discover 配置对象"
     aliases: []
     avoid: []
 
   ClassDiscovery:
-    definition: "按包路径与命名模式扫描基类子类的实现类；可缓存；公开入口 Discovery.discover.subclasses 与 Discovery.class_discovery。"
+    definition: |
+      按包路径与命名模式扫描某基类的子类；可缓存。公开入口 Discovery.discover.subclasses
+      与 Discovery.class_discovery。不做已删除的 discover_class_attribute 猜测回退。
+    in_code: "Discovery.discover.subclasses；Discovery.class_discovery"
     aliases:
       - "类发现"
+      - "Discovery.class_discovery"
     avoid:
-      - "discover_class_attribute（已删除的猜测性约定回退）"
+      - "discover_class_attribute（已删除）"
 
   ModuleDiscovery:
-    definition: "在一级子模块中收集同名对象的实现类；公开入口 Discovery.discover.objects。"
+    definition: |
+      在一级子模块中收集同名对象（例如每个子包导出的 Handler）。公开入口
+      Discovery.discover.objects；不做已删除的 discover_modules_by_path。
+    in_code: "Discovery.discover.objects"
     aliases:
       - "模块对象发现"
     avoid:
       - "discover_modules_by_path（已删除）"
 
   DiscoveryConfig:
-    definition: "类发现规则数据类（基类、模块路径模式、过滤与键提取等）；见 contracts。"
+    definition: |
+      类发现规则数据类：基类、模块路径模式、过滤、key_extractor 等，描述「怎么认定一个插件类」。
+      见 contracts。
+    in_code: "contracts.DiscoveryConfig"
     aliases:
       - "module_name_pattern"
       - "key_extractor"
     avoid: []
 
   DiscoveryResult:
-    definition: "一次类发现的结果容器：classes + metadata；见 contracts。"
+    definition: |
+      一次类发现的结果容器：classes + metadata。调用方读这个，而不是自己拼 dict。
+    in_code: "contracts.DiscoveryResult"
     aliases: []
     avoid: []
 
   fail-soft:
-    definition: "发现过程中单模块失败时记日志并跳过，仍返回已收集结果。"
+    definition: |
+      发现过程中单个模块 import/扫描失败时：记日志并跳过，仍返回已收集到的结果，
+      而不是整次发现抛死。适合插件目录里可能有坏包的场景。
+    in_code: "ClassDiscovery / ModuleDiscovery 扫描循环"
     aliases:
       - "软失败"
-    avoid: []
-
-  load_python_config:
-    definition: "Discovery.file.load_python_config：对受信 .py 配置 exec 后提取变量；不可用于不可信输入。"
-    aliases:
-      - "exec 配置加载"
-    avoid: []
+    avoid:
+      - "把 fail-soft 当成静默吞掉所有错误且不打日志"

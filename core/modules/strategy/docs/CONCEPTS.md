@@ -4,7 +4,7 @@
 
 **最低支持核心版本：** `>=0.5.0`
 
-本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DECISIONS.md](./DECISIONS.md)。
+本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。单个英文词（simulate、execute_fp、Opportunity 等）见 [glossary.yaml](../glossary.yaml)。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DECISIONS.md](./DECISIONS.md)。
 
 文字入口见 [README.md](../README.md)；调用见 [API.md](../API.md)；指纹与 version 见 [VERSIONING.md](./VERSIONING.md)。
 

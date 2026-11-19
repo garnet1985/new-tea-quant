@@ -2,32 +2,85 @@
 # Version: 0.1.0
 # Compatible-Core: >=0.6.0
 #
-# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块只管 HTTP 通道；多轮对话 / 工具调度见 modules.agent。
 
 terms:
+  AiChannel:
+    definition: |
+      本模块 Facade：发现 userspace 里装了哪些 AI 供应商、读写 API Key、发一次裸补全。
+      只管「连上模型并拿到回复」；不做多轮对话、工具调度、系统提示词编排（那是 Agent）。
+    in_code: "from core.infra.ai import AiChannel；list_providers / set_api_key / load_api_key / complete"
+    aliases:
+      - "AI 通道"
+    avoid:
+      - "deep-import core.providers 当公开 API"
+      - "把 AiChannel 当成 Agent 入口"
+
   Provider:
-    definition: "一家 AI 模型供应商的接入配置，包含 id、显示名、base_url、可用模型列表等；用户可在 userspace 注册自带供应商"
+    definition: |
+      一家 AI 模型供应商的接入配置：id、目录、base_url、默认 model、是否启用、是否已有 Key 等。
+      实现放在 userspace/extensions/ai/providers/ 下，由 discovery 扫出；用户可自注册供应商。
+      Provider 不是「某一个模型」——模型是 Provider 上的字段；也不是会员通道凭证。
+    in_code: "contracts.ProviderInfo；AiChannel.list_providers / get_provider；userspace .../ai/providers/<id>/"
     aliases:
       - "供应商"
       - "AI 供应商"
+      - "ProviderInfo"
     avoid:
-      - "模型（模型属于某个 Provider，Provider 本身不是模型）"
+      - "把 Provider 当成某个 model 名字"
+      - "与 infra.membership 的会员凭证混称"
 
   API Key:
-    definition: "某个 Provider 的访问密钥，由用户填入，本模块负责写入本地存储；与官网会员通用凭证是两回事"
+    definition: |
+      某个 Provider 的访问密钥，用户填入后由本模块写入本地 userspace；complete / 工具侧用
+      load_api_key 读取。与官网会员通用凭证是两回事——会员凭证走 infra.membership，不经本模块。
+      ProviderInfo 只暴露 has_api_key，不含明文。
+    in_code: "AiChannel.set_api_key / load_api_key；ProviderInfo.has_api_key"
     aliases:
+      - "api_key"
       - "密钥"
     avoid:
-      - "会员凭证（会员凭证走 infra.membership，不经过本模块）"
+      - "会员凭证（infra.membership）"
+      - "在 ProviderInfo 里期待明文 key"
 
-  裸补全:
-    definition: "单次发请求拿模型补全结果；本模块只做这一层，不做多轮对话、工具调度、系统提示词编排"
+  complete:
+    definition: |
+      单次裸补全：把 OpenAI 兼容 messages 发给指定（或默认）Provider，拿回 CompleteResult。
+      不注入百科、不拼系统提示词、不管多轮上下文、不做 function calling——调用方（通常是 Agent）
+      自己组好 messages 再进来。
+    in_code: "AiChannel.complete(messages, provider_id=..., ...) -> CompleteResult"
     aliases:
-      - "complete"
+      - "裸补全"
+      - "completion"
     avoid:
-      - "对话（多轮对话与工具调度是 modules.agent 的职责）"
+      - "对话 / chat session（多轮与工具是 modules.agent）"
+      - "以为 complete 会自动加 system prompt"
 
-  OpenAI 兼容协议:
-    definition: "供应商 API 遵循 OpenAI 请求/响应格式；符合该协议的供应商均可接入"
+  CompleteResult:
+    definition: |
+      一次 complete 的返回：reply 文本、实际用的 provider_id / model，以及可选 usage / ntq 扩展字段。
+      不含 API Key。调用失败抛 AiError，不是用 Result 表示错误态。
+    in_code: "contracts.CompleteResult"
+    aliases: []
+    avoid:
+      - "在 CompleteResult 里找密钥"
+
+  OpenAI-compatible:
+    definition: |
+      本通道假定供应商 HTTP API 遵循 OpenAI 请求/响应形态（messages、model、choices 等）。
+      符合该协议的供应商都可挂进 userspace providers；不是「只支持 OpenAI 官方一家」。
+    in_code: "Provider base_url + HTTP POST；messages 形如 OpenAI chat"
+    aliases:
+      - "OpenAI 兼容协议"
+    avoid:
+      - "以为只能用 api.openai.com"
+
+  AiError:
+    definition: |
+      AI 通道配置或调用失败时抛出的异常（缺 Key、HTTP 失败、供应商未启用等）。
+      与业务层 Agent 错误区分：这里只表示通道层问题。
+    in_code: "contracts.AiError"
     aliases: []
     avoid: []

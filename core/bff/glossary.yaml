@@ -1,0 +1,95 @@
+# BFF 术语表
+# Version: 0.2.1
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / 文档中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块无对外 Python Facade / contracts / 根 API.md；HTTP 契约以 FED 页 API.md 与 docs/routes 为准。
+
+terms:
+  BFF:
+    definition: |
+      Backend-for-Frontend：FED（浏览器 React）专用的 Flask HTTP 编排层，位于 core/bff。
+      负责解析请求、校验入参、拼 UI DTO、ok/error 信封、异步 submit 薄壳、CORS、
+      生产模式托管 FED build。领域计算与落盘在 core.modules / core.infra，不在这里。
+      无对外 Python Facade——其它 Python 代码应调 modules/infra，不要把 BFF 当库 import。
+    in_code: "python -m core.bff.app；core/bff/APIs/*"
+    aliases:
+      - "Flask BFF"
+    avoid:
+      - "把 BFF 当成对外 Python Facade"
+      - "在 BFF 里写引擎调度或加权进度算法"
+
+  FED:
+    definition: |
+      Front-End Delivery：浏览器里的 React 应用，源码在 core/ui/fed。经 /api 调 BFF；
+      生产构建产物 fed/build 由 BFF static_ui 托管。FED 与 BFF 成对：UI 在 FED，HTTP 在 BFF。
+    in_code: "core/ui/fed；fed/build；BFF static_ui"
+    aliases:
+      - "前端"
+      - "React UI"
+    avoid:
+      - "在 core/ui 里起 HTTP 服务"
+
+  blueprint domain:
+    definition: |
+      Flask blueprint 按业务域注册（url_prefix=/api）：platform / data / strategy / tag /
+      post_process。目录 APIs/<domain>/；URL 与域边界见 docs/GROUPING.md。
+      不要把 app 级 settings 和 strategy 仿真 options 塞进同一域。
+    in_code: "app.py 注册；APIs/platform|data|strategy|tag|post_process"
+    aliases:
+      - "业务域"
+      - "domain"
+    avoid:
+      - "bff/support（已废弃，勿新增）"
+
+  routes / implementer / helpers:
+    definition: |
+      BFF 三层分工：routes 只解析 HTTP、校验、调 implementer、回 ok/error；
+      implementer 懒加载编排 helpers 与 modules/infra；helpers 只做 UI 列表/snapshot 等 DTO。
+      routes 禁止文件 I/O、DB、线程、DTO 拼装；helpers 禁止重领域写与引擎调度。
+    in_code: "APIs/*/routes.py；implementer.py；helpers/"
+    aliases:
+      - "分层"
+    avoid:
+      - "在 routes 里直接写 DB 或拼复杂 snapshot"
+
+  DTO:
+    definition: |
+      Data Transfer Object：给 FED 用的列表/详情/snapshot 读模型，多在 helpers/ 里 hydrate。
+      页面字段命名可以在此适配；不要把领域落盘结构原样当 HTTP 契约，也不要在 DTO 层跑回测。
+    in_code: "APIs/*/helpers/；snapshot / catalog hydrate"
+    aliases:
+      - "UI 读模型"
+      - "snapshot"
+    avoid:
+      - "在 helpers 里做 Strategy.simulate / Tag.execute"
+
+  ok / error envelope:
+    definition: |
+      统一 HTTP 响应信封：成功走 ok(...)，失败走 error(...)，由 bff/shared 提供。
+      FED 依赖这一形状；不要各路由自造一套 JSON 顶层字段。
+    in_code: "bff/shared response；ok / error"
+    aliases:
+      - "响应信封"
+    avoid: []
+
+  app_settings vs simulation_options:
+    definition: |
+      两类「settings」消歧：app_settings 属 platform（/api/v1/settings/database|data|cache|trace|…），
+      管全局应用配置；simulation_options 属 strategy（/api/v1/strategy/settings/*），管仿真资本/
+      采样/模板。名字都带 settings，归属不同域。
+    in_code: "APIs/platform/app_settings；APIs/strategy/settings"
+    aliases: []
+    avoid:
+      - "把仿真 option catalog 写进 platform app_settings"
+
+  runner 薄壳:
+    definition: |
+      BFF 侧 *_run.py 一类异步入口：线程、进程内锁、lease、触发 core 门面；
+      不实现加权进度算法、不写业务落盘细节（那些在 modules）。
+    in_code: "APIs/*/…/*_run.py；JobPipeline.submit / running_lease"
+    aliases:
+      - "async submit 薄壳"
+    avoid:
+      - "在 BFF runner 里重写 Progress 权重算法"

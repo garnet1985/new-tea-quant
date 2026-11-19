@@ -1,111 +1,225 @@
 # Strategy 术语表
 # Version: 0.12.2
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 归因链路见 docs/CONCEPTS.md；指纹与 version 细则见 docs/VERSIONING.md。
 
 terms:
-  Facade:
-    definition: "对外统一入口类。本模块门面是 Strategy。"
-    aliases:
-      - "门面"
-    avoid:
-      - "deep-import core.engines.* / core.services.*（跨模块优先 Facade）"
-
   Strategy:
-    definition: "策略执行 Facade：scan / simulate（enum·price·portfolio）/ decision / discovery 列表。"
-    aliases: []
-    avoid: []
+    definition: |
+      本模块对外 Facade：策略发现、机会扫描（scan）、模拟三步（simulate：enum / price / portfolio）、
+      决策者回放、报告展示。回测推进交给 BacktestEngine；本模块管钩子契约、指纹缓存与产物落盘。
+      跨模块只从包根用 Strategy + contracts，不要 deep-import core.engines / core.services。
+    in_code: "from core.modules.strategy import Strategy；Strategy.scan / simulate / decision_* / list_*"
+    aliases:
+      - "策略门面"
+    avoid:
+      - "deep-import core.engines.* / core.services.*"
+
+  scan:
+    definition: |
+      全市场（或给定范围）找机会：跑 ScannerPipeline，落盘 scan 日目录（summary + 有机会时的
+      opportunities.csv）。与 simulate 不同——scan 不做 enum/price/portfolio 三步回测，也不分配
+      simulation version。CLI 用 Strategy.scan；工作台另有 scan_page_context / scan_run 等。
+    in_code: "Strategy.scan / scan_run；ScannerPipeline；results/scan/{YYYYMMDD}/"
+    aliases:
+      - "机会扫描"
+    avoid:
+      - "把 scan 当成 simulate(enum)"
+      - "以为 scan 会写入 simulations/{vid}/"
 
   simulate:
-    definition: "统一模拟入口：execute_fp + env_fp → 磁盘 simulations/meta.json registry → Pipeline；enum/price/portfolio 为其薄封装。"
+    definition: |
+      统一模拟入口：算 execute_fp + env_fp → 查/建磁盘 simulations/meta.json registry → 跑对应
+      Pipeline。kind 决定补到哪一步（enum / price / portfolio）；enumerate / price_factor / portfolio
+      是其薄封装。只做回测，不写归因；kind=full 暂不支持。日常配置 SOT 是 settings.py，没有「发布策略」。
+    in_code: "Strategy.simulate(key, kind=...)；Strategy.enumerate / price_factor / portfolio"
     aliases:
       - "回测步骤"
+      - "模拟"
     avoid:
       - "simulate(kind=full)（暂不支持）"
-      - "发布策略（已取消；日常 SOT 是 settings.py）"
+      - "发布策略（已取消）"
+      - "在 simulate 里顺便跑归因"
+
+  SimulateKind:
+    definition: |
+      模拟子步骤枚举：enum（机会盘点）/ price（价格回测）/ portfolio（投资模拟）/ full（预留未开）。
+      与工作台三步、CLI se/sp/so 同值语义。决定跑哪条 Pipeline、写 {vid}/ 下哪个子目录。
+    in_code: "contracts.SimulateKind；simulate(..., kind=SimulateKind.ENUMERATE | …)"
+    aliases:
+      - "kind"
+    avoid:
+      - "把 DecisionMaker 写成一种 SimulateKind"
+
+  WorkbenchStep:
+    definition: |
+      工作台产品侧对三步的称呼：enum = 机会盘点、price = 价格回测、portfolio = 投资模拟。
+      与 SimulateKind 同值；文案面向人，代码里优先用 SimulateKind。
+    in_code: "contracts.WorkbenchStep（与 SimulateKind 同值）"
+    aliases:
+      - "机会盘点"
+      - "价格回测"
+      - "投资模拟"
+    avoid: []
 
   execute_fp:
-    definition: "回测可逆执行输入的指纹：白名单 settings ⊕ 本次解析出的 entity_ids。与 env_fp 组成命中键。"
+    definition: |
+      可逆执行输入的指纹：白名单 settings 投影 ⊕ 本次解析出的 entity_ids。
+      和 env_fp 一起组成「能不能复用某个 {vid}/」的命中键。改策略参数或股票池会变；
+      NTQ 版本、hooks 源码等不可逆环境不进此指纹（那些进 env_fp）。
+    in_code: "fingerprint 服务；meta.json registry 行上的 execute_fp"
     aliases: []
     avoid:
       - "settings_fp（旧名）"
       - "把 interval / entity_ids 再塞进 env_fp"
 
   env_fp:
-    definition: "不可逆执行环境指纹：NTQ/core 版本、hooks 源码、DB 类型、data_contract 映射。变了则旧 {vid}/ 只读。"
+    definition: |
+      不可逆执行环境指纹：NTQ/core 版本、hooks 源码、DB 类型、data_contract 映射等。
+      环境变了 → 旧 {vid}/ 对当前进程只读，不能 cache hit（配置相同也会 miss 并新建 version）。
+      BFF 读到过时环境标 env_invalid；不要因为正在看 env_invalid version 就让 Run 报错。
+    in_code: "fingerprint 服务；registry.env_fp；BFF env_invalid"
     aliases: []
     avoid:
       - "因正在看 env_invalid version 就让 Run 报错"
+      - "把可逆 settings 变化算进 env_fp"
 
   simulation_version:
-    definition: "一次完整回测的磁盘号。三步共享 {vid}/；索引在 simulations/meta.json。选中号不绑定 Run。"
+    definition: |
+      一次完整回测的磁盘号（主号为纯数字）。enum / price / portfolio 三步共享同一个 {vid}/；
+      索引在 simulations/meta.json。Run 按双指纹命中或新建主号，与 UI「当前选中号」无关。
+      归因副本是 {vid}-attr{n}，滚动窗是 {vid}-roll{n}，都不 bump 主号序列。
+    in_code: "version_id；results/simulations/{vid}/；meta.json registry"
     aliases:
       - "version"
       - "vid"
+      - "version_id"
     avoid:
       - "一步一个 version"
       - "工作台 DB version ≠ 磁盘 version"
+      - "与 dm_id 混用"
 
   pin:
-    definition: "meta.json 根上 pinned 列表。置顶且跳过自动清理；不改 settings、不绑定 Run、不禁止手动删除。"
+    definition: |
+      meta.json 根上的 pinned 列表：把某些主号置顶，并跳过自动清理。
+      不改 settings、不绑定某次 Run、也不禁止你手动删。pinned 只写在 meta 根，不写在
+      registry 行或 {vid}/ 目录里。
+    in_code: "simulations/meta.json 的 pinned"
     aliases:
       - "固定"
+      - "置顶"
     avoid:
       - "把 pinned 写在 registry 行或 {vid}/ 上"
 
-  SimulateKind:
-    definition: "模拟子步骤枚举：enum / price / portfolio / full。与工作台步骤同名。从 contracts 导入。"
-    aliases: []
-    avoid: []
+  Enumerator:
+    definition: |
+      机会盘点引擎：在已声明的宇宙与时间窗上，对每个实体推进 hooks.has_opportunity，
+      产出 Opportunity 列表。经 BacktestEngine（entity_based 或 slice_based）+ RunCallbacks 推进；
+      不要在 strategy 侧自建 Timeline。对应 SimulateKind.enum / 工作台「机会盘点」。
+    in_code: "engines/enumerator；Strategy.enumerate / simulate(kind=enum)"
+    aliases:
+      - "枚举器"
+      - "enum 引擎"
+      - "机会盘点引擎"
+    avoid:
+      - "TimelineBuilder（禁止在 strategy 侧引入）"
+
+  PriceFactor:
+    definition: |
+      价格回测引擎：在机会盘点产物之上做去近邻等价格层处理，得到 Investment 等价格路径结果。
+      仍经 BacktestEngine 推进。对应 SimulateKind.price；须先有（或先补）同 vid 的 enum。
+    in_code: "engines/price_factor；Strategy.price_factor / simulate(kind=price)"
+    aliases:
+      - "价格回测"
+      - "price 引擎"
+    avoid:
+      - "把 analysis 模块的因子研究当成 PriceFactor"
+
+  Portfolio:
+    definition: |
+      投资模拟引擎：在价格层之上做资金、槽位、分配与组合约束，产出组合路径结果。
+      本引擎不走 BacktestEngine。对应 SimulateKind.portfolio；须先有上游 enum（及通常的 price）。
+    in_code: "engines/portfolio；Strategy.portfolio / simulate(kind=portfolio)"
+    aliases:
+      - "投资模拟"
+      - "组合引擎"
+    avoid:
+      - "与 DecisionMaker 混称（决策者是人替换选仓的回放，不是 SimulateKind）"
 
   Opportunity:
-    definition: "扫描/机会盘点命中后由框架构建的交易机会数据类；用户钩子 has_opportunity 只返回 bool。从 contracts 导入。"
-    aliases: []
+    definition: |
+      扫描或机会盘点命中后，由框架构建的交易机会数据类（时间、实体、信号快照等）。
+      用户钩子 has_opportunity 只返回 bool；不要在钩子里手动 new Opportunity。
+      命中时的逻辑归因字段在 signal_snapshot。
+    in_code: "contracts.Opportunity；Enumerator / Scanner 产出"
+    aliases:
+      - "机会"
     avoid:
       - "在 has_opportunity 里手动 new Opportunity / 调用已删除的 build_opportunity"
       - "extra_fields（已更名为 signal_snapshot）"
 
   signal_snapshot:
-    definition: "命中时的逻辑层归因记录。用户在 has_opportunity 里 ctx.capture(key, value)，框架写入 Opportunity.signal_snapshot。"
+    definition: |
+      机会成立当时的逻辑层归因记录（as-of 当日现场量）。用户在 has_opportunity 里
+      ctx.capture(key, value)，框架写入 Opportunity.signal_snapshot。
+      与 remember 不同：capture 落归因；remember 只是本次回测易失 scratchpad。
+    in_code: "Opportunity.signal_snapshot；StrategyContext.capture"
     aliases:
       - "信号快照"
       - "决策现场值"
     avoid:
       - "extra_fields"
-      - "ctx.remember（易失 scratchpad，不落归因）"
+      - "ctx.remember（易失，不落归因）"
 
   StrategyContext:
-    definition: "钩子侧数据视图；从 contracts 导入。remember/recall/forget 管本次回测内存袋；capture 管本笔归因输入。"
-    aliases: []
+    definition: |
+      钩子侧数据视图：读合约数据、记 scratchpad、抓归因输入。
+      remember / recall / forget 管本次回测内存袋；capture 管本笔写入 signal_snapshot 的归因输入。
+      不要把 capture 的值写进 custom / remember 冒充落盘归因。
+    in_code: "contracts.StrategyContext；hooks 参数 ctx"
+    aliases:
+      - "ctx"
     avoid:
       - "把 capture 写进 custom / remember"
 
-  Investment:
-    definition: "价格因子/组合路径上的投资记录数据类；从 contracts 导入。"
-    aliases: []
-    avoid: []
-
   StrategyHooks:
-    definition: "userspace 策略钩子基类契约；必实现 has_opportunity。从 contracts 导入，勿从 core.hooks 深引。"
+    definition: |
+      userspace 策略钩子基类契约：用户策略包实现此类，必实现 has_opportunity。
+      从 contracts 导入；勿从 core.hooks 深引。框架在 Enumerator / Scanner 推进时调用钩子。
+    in_code: "contracts.StrategyHooks；userspace 策略包 hooks"
     aliases:
       - "用户钩子"
+      - "hooks"
     avoid:
       - "core.modules.strategy.core.hooks（作者路径）"
 
-  Enumerator:
-    definition: "机会盘点引擎：entity_based / slice_based，经 BacktestEngine RunCallbacks 推进。"
-    aliases:
-      - "枚举器"
+  has_opportunity:
+    definition: |
+      StrategyHooks 的核心判定：给定 ctx 与当前时点，返回 bool 表示是否形成交易机会。
+      只返回真假；机会对象与 signal_snapshot 由框架在 True 时构建。现场量用 ctx.capture。
+    in_code: "StrategyHooks.has_opportunity(ctx, ...) -> bool"
+    aliases: []
     avoid:
-      - "TimelineBuilder（禁止在 strategy 侧引入）"
+      - "在 has_opportunity 里构造 Opportunity"
 
-  WorkbenchStep:
-    definition: "工作台三步 enum / price / portfolio（产品文案：机会盘点 / 价格回测 / 投资模拟）；与 SimulateKind 同值；从 contracts 导入。"
+  Investment:
+    definition: |
+      价格因子 / 组合路径上的一笔投资记录数据类（进出场、收益相关字段等）。
+      由 PriceFactor / Portfolio 产物使用；从 contracts 导入。
+    in_code: "contracts.Investment；price / portfolio 产物"
     aliases:
-      - "机会盘点"
+      - "投资记录"
     avoid: []
 
   DecisionMaker:
-    definition: "当前策略 portfolio 回放：人只替换选谁和买多少股；成交/费用/手数/流动性/组合上限/纪律出场与资金层相同。不是 SimulateKind，不进指纹缓存。"
+    definition: |
+      在已有 enum version 上做 portfolio 资金回放：人只替换「选谁」和「买多少股」；
+      成交、费用、手数、流动性、组合上限、纪律出场与资金层规则与正式 portfolio 相同。
+      不是 SimulateKind，不进双指纹缓存；磁盘在 {vid}/decision/{dm_id}/。
+    in_code: "Strategy.decision_open / decision_repl / …；engines/decision_maker"
     aliases:
       - "决策者"
       - "决策者模式"
@@ -115,8 +229,37 @@ terms:
       - "推进时把日净值写入存档"
 
   dm_id:
-    definition: "一局决策者会话号。磁盘路径 simulations/{vid}/decision/{dm_id}/。与 simulation version_id 不是同一层。"
+    definition: |
+      一局决策者会话号。路径 simulations/{vid}/decision/{dm_id}/。
+      挂在某个 simulation version 之下，与 version_id 本身不是同一层（不能拿 dm_id 当 vid）。
+    in_code: "decision_* 的 session_id / dm_id；{vid}/decision/{dm_id}/"
     aliases:
       - "session id"
+      - "decision session"
     avoid:
       - "与 vid / version_id 混用"
+
+  attribution:
+    definition: |
+      参数敏感度战役：在已有主 version 上展开对照副本 {vid}-attr{n}，按层补跑并出报告。
+      CLI sea（机会层）/ spa（价格层）/ soa（组合层）共用一套副本身份，差别是补到哪一层。
+      平时 Strategy.simulate 不归因；编排在 engines/analyzer，统计原语在 modules.analysis。
+      运作细节见 docs/CONCEPTS.md。
+    in_code: "engines/analyzer；attribution.py；sea / spa / soa；{vid}-attr{n}"
+    aliases:
+      - "归因"
+      - "战役归因"
+    avoid:
+      - "在单次 simulate 里顺便归因"
+      - "把 DecisionMaker 当成归因"
+
+  rolling:
+    definition: |
+      滚动对照：在已完成三步的主 version 上切时间窗跑对照，产物挂 {vid}/rolling/，
+      窗口号 {vid}-roll{n} 不占主号也不占 attr 号。口径见 docs/notes/ROLLING.md。
+    in_code: "engines/rolling；Strategy 滚动相关入口；{vid}-roll{n}"
+    aliases:
+      - "滚动对照"
+      - "sr"
+    avoid:
+      - "与 attribution 副本号混用"

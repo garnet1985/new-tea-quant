@@ -1,43 +1,54 @@
 # Market Profile 术语表
 # Version: 0.2.0
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 本模块 = 市场制度规则（涨跌幅、整手、交收等）；不是「市场微观结构 profile 图」。
 
 terms:
-  Facade:
-    definition: "对外统一入口类。本模块门面是 MarketRulesProxy。"
-    aliases:
-      - "门面"
-    avoid:
-      - "get_market_profile"
-      - "create_market_rules（跨模块 deep-import）"
-
   MarketRulesProxy:
-    definition: "市场制度规则 Facade：挂载/查询市场，或用 for_market 创建单市场规则实例。"
+    definition: |
+      市场制度规则 Facade：挂载/查询已注册市场，或用 for_market 按需创建单市场规则实例。
+      不要用已删除的 get_market_profile / 跨模块 deep-import create_market_rules。
+    in_code: "from core.modules.market_profile import MarketRulesProxy"
     aliases:
       - "市场规则代理"
     avoid:
       - "get_market_profile"
+      - "create_market_rules（跨模块 deep-import）"
 
   MarketBaseRules:
-    definition: "单市场规则实例基类（涨跌幅、整手、交收等）；从 contracts 导入。"
+    definition: |
+      单市场规则实例基类：涨跌停、整手、交收日等制度查询。从 contracts 导入；
+      由 for_market(profile_id) 得到具体市场实现。
+    in_code: "contracts.MarketBaseRules；for_market(...)"
     aliases:
       - "市场规则"
     avoid: []
 
-  LotSizeResolved:
-    definition: "resolve_lot_size 返回的整手解析结果（min_lot / lot_step）；从 contracts 导入。"
-    aliases: []
-    avoid: []
-
   for_market:
-    definition: "MarketRulesProxy 类方法：按 profile_id 创建单个 MarketBaseRules，不预加载其它市场。"
+    definition: |
+      MarketRulesProxy 类方法：按 profile_id 创建单个 MarketBaseRules，不预加载其它市场。
+      内部实现名曾叫 create_market_rules，公开请用 for_market。
+    in_code: "MarketRulesProxy.for_market(profile_id)"
     aliases:
       - "单市场工厂"
     avoid:
-      - "create_market_rules（内部实现名）"
+      - "create_market_rules（内部实现名当公开 API）"
 
   profile_id:
-    definition: "市场配置键，如 china_a_stock、hong_kong、us_stock。"
+    definition: |
+      市场配置键，标识哪套制度：如 china_a_stock、hong_kong、us_stock。
+      for_market 与挂载表都用它；有时口语称 market_profile。
+    in_code: "for_market(\"china_a_stock\")；配置键"
     aliases:
       - "market_profile"
+    avoid: []
+
+  LotSizeResolved:
+    definition: |
+      resolve_lot_size 返回的整手解析结果：min_lot（最少股数）与 lot_step（手数步长）。
+      下单/回测取整用此结构，从 contracts 导入。
+    in_code: "contracts.LotSizeResolved；rules.resolve_lot_size(...)"
+    aliases: []
     avoid: []

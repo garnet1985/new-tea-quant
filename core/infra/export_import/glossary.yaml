@@ -1,81 +1,94 @@
 # Export / Import 术语表
 # Version: 0.2.0
 # Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块管打包 / 冲突预检 / 落盘；不解析业务依赖图（装完后的发现与校验由业务模块做）。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 ExportImport。"
-    aliases:
-      - "门面"
-    avoid:
-      - "直接 import BundleArchive / ArtifactCollector 等实现类当公开 API"
-      - "create_bundle_archive 等模块级自由函数（已收成类）"
-
   ExportImport:
-    definition: "本模块门面类；挂载 archive / install / types 命名空间。"
+    definition: |
+      制品导出与安装 Facade：把策略包 / 扩展包打成 zip，或从 zip 装进 userspace。
+      挂载 archive / install / types；不要直接 import BundleArchive / ArtifactCollector 等实现类，
+      也不要找已收成类方法的模块级 create_bundle_archive 自由函数。
+    in_code: "from core.infra.export_import import ExportImport"
     aliases: []
-    avoid: []
-
-  namespace:
-    definition: "门面下的命名空间（ExportImport.archive / install / types）。"
-    aliases:
-      - "ExportImport.archive"
-      - "ExportImport.install"
-      - "ExportImport.types"
-    avoid: []
+    avoid:
+      - "deep-import BundleArchive / ArtifactCollector 当公开 API"
+      - "模块级 create_bundle_archive 等自由函数"
 
   bundle:
-    definition: "制品归档包（zip + manifest.json）。"
+    definition: |
+      一次导出得到的制品归档：zip 内含文件树 + manifest.json。安装时读 manifest 决定装什么、
+      装到哪；不是「任意 zip 丢进 userspace」。
+    in_code: "ExportImport.archive；BundleArchive"
     aliases:
       - "归档包"
       - "BundleArchive"
-    avoid: []
-
-  ConflictPolicy:
-    definition: "安装冲突策略：reject / skip_existing / overwrite。"
-    aliases: []
-    avoid: []
+    avoid:
+      - "把无 manifest 的普通 zip 当 bundle"
 
   ArtifactSpec:
-    definition: "单个可打包制品的规格（源目录、归档前缀、安装相对路径）。"
+    definition: |
+      单个可打包制品的规格：源目录、归档内前缀、安装到 userspace 的相对路径。
+      收集阶段按若干 ArtifactSpec 收文件；安装阶段按 manifest 条目落盘。
+    in_code: "contracts.ArtifactSpec；ExportImport.types"
     aliases: []
     avoid: []
 
   BundleManifest:
-    definition: "归档清单（format_version + entries）；文件名为 manifest.json。"
+    definition: |
+      归档清单：format_version + entries（每条对应一个制品/路径映射）。文件名固定
+      manifest.json，是安装器认 bundle 的契约；缺了就不能按本模块语义安装。
+    in_code: "manifest.json；contracts.BundleManifest / ManifestEntry"
     aliases:
-      - "ManifestEntry"
       - "manifest.json"
-      - "BundleManifestIO"
+      - "ManifestEntry"
+    avoid: []
+
+  ConflictPolicy:
+    definition: |
+      安装时目标路径已存在怎么办：reject（有冲突就失败）、skip_existing（跳过已有）、
+      overwrite（覆盖）。预检与真正安装都按同一策略解释。
+    in_code: "ExportImport.install(..., conflict_policy=...)；contracts.ConflictPolicy"
+    aliases: []
     avoid: []
 
   PreflightResult:
-    definition: "安装前冲突预检结果：ok / conflicts / skipped / to_install。"
+    definition: |
+      安装前冲突预检结果：ok、conflicts、skipped、to_install 等，让调用方在写盘前知道
+      会碰什么。真正安装是另一步；预检本身不改 userspace。
+    in_code: "ExportImport.install 预检路径；contracts.PreflightResult"
     aliases:
       - "ConflictItem"
       - "ConflictChecker"
-    avoid: []
+    avoid:
+      - "以为 PreflightResult 表示已经装完"
 
   InstallResult:
-    definition: "安装结果：ok / installed / skipped / errors。"
+    definition: |
+      真正落盘后的安装结果：ok、installed、skipped、errors。与 PreflightResult 区分——
+      一个是事前，一个是事后。
+    in_code: "ExportImport.install 返回；contracts.InstallResult"
     aliases:
       - "BundleInstaller"
     avoid: []
 
   CollectedFile:
-    definition: "归档内单文件条目（archive_path + source_path）；偏内部契约。"
+    definition: |
+      收集阶段归档内的单文件条目：archive_path（包内路径）+ source_path（本机源路径）。
+      偏内部契约；调用方一般只传 ArtifactSpec，不手搓 CollectedFile。
+    in_code: "contracts.CollectedFile；ArtifactCollector 内部"
     aliases:
       - "ArtifactCollector"
     avoid: []
 
   RuntimeExcludes:
-    definition: "收集时跳过的运行时目录与垃圾文件规则（results / cache / __pycache__ 等）。"
+    definition: |
+      打包收集时跳过的运行时目录与垃圾规则：results、cache、__pycache__ 等，避免把回测产物
+      打进分享包。不要再按 strategies/tags 路径写特殊 skip 分支——统一走这套 excludes。
+    in_code: "收集器 RuntimeExcludes 规则"
     aliases:
       - "runtime excludes"
     avoid:

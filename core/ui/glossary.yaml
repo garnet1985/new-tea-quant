@@ -1,0 +1,121 @@
+# UI 术语表
+# Version: 0.2.3
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / 文档中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# React 在 fed/；HTTP 在 core/bff。全页引导运作见 docs/CONCEPTS.md；写法见 FED_STANDARD.md。
+
+terms:
+  UI:
+    definition: |
+      浏览器端 NTQ 模块（core/ui）：页面、导航、表单与报告展示，以及全页引导目录。
+      不负责策略/标签/数据计算与落盘；不负责安装状态机（launcher + infra.setup）。
+      HTTP 一律走 BFF，本模块不起服务。
+    in_code: "core/ui；module_info name=ui"
+    aliases: []
+    avoid:
+      - "在 ui 模块里起 Flask / 写领域落盘"
+
+  FED:
+    definition: |
+      Front-End Delivery：本模块内的 React 应用目录 fed/。源码 fed/src；生产构建 fed/build
+      由 BFF 静态托管。日常写法约束见 FED_STANDARD.md。
+    in_code: "core/ui/fed；fed/src；fed/build"
+    aliases:
+      - "前端应用"
+    avoid:
+      - "把 FED 和 BFF 当成同一个进程职责"
+
+  pages:
+    definition: |
+      路由页层：读路由、决定挂哪些 containers、处理本页空态。页面要轻；不直接调 api，
+      也不写颜色间距。一块业务能力应落在 containers，不要堆在 pages。
+    in_code: "fed/src/pages/"
+    aliases:
+      - "路由页"
+    avoid:
+      - "在 pages 里直接调用 api 或拼大段业务逻辑"
+
+  containers:
+    definition: |
+      能力容器层：业务逻辑与数据灌入，拼装 ui / ntq-ui（及过渡中的 views）。
+      可决定显示哪一块；不写颜色、间距、排版。新能力优先放 containers，从 index.js 引出。
+    in_code: "fed/src/containers/"
+    aliases:
+      - "容器"
+    avoid:
+      - "containers 直接 import @mui/material"
+      - "containers 引用 pages"
+
+  ui / ntq-ui:
+    definition: |
+      可复用界面积木：ui 为通用控件；ntq-ui 为 NTQ 壳与固定模板（appBrand、appNav、
+      pageLayout、reportBlock 等）。pages/containers 只能用这两套（及过渡 views），
+      禁止直接 import MUI。它们只收数据，不引用 api/containers/pages。
+    in_code: "fed/src/ui/；fed/src/ntq-ui/"
+    aliases:
+      - "积木"
+    avoid:
+      - "pages/containers 直接 import @mui/material"
+      - "ui 层引用 api 或 containers"
+
+  views:
+    definition: |
+      旧拼装层，仅过渡：能力迁到 containers + ui/ntq-ui 后应删除对旧 view 的引用。
+      新代码不要再往 views 加能力。
+    in_code: "fed/src/views/"
+    aliases: []
+    avoid:
+      - "新建能力仍放 views"
+
+  api:
+    definition: |
+      FED 侧与 BFF 的路径、参数、返回形状封装。URL 或参数变了只改这里；
+      containers 可引用 api，pages 不直接调。
+    in_code: "fed/src/api/"
+    aliases: []
+    avoid:
+      - "在 pages 里散落 fetch URL"
+
+  help / helpId:
+    definition: |
+      全页引导：一份 help 对应一类路由（不是某一个具体 URL）；helpId 是稳定产品 ID
+      （如 strategy-design），与路径字符串无关。路径改了只改 catalog 的 match，尽量不改 helpId。
+      不是字段旁 NtqHelpTooltip，也不是 AI 百科。运作见 docs/CONCEPTS.md。
+    in_code: "全页引导 catalog；helpId；data-ntq-help"
+    aliases:
+      - "全页引导"
+    avoid:
+      - "把路由字符串当 helpId 写入 userspace"
+      - "与 NtqHelpTooltip 混称"
+
+  step / page / target:
+    definition: |
+      引导三层：help → steps[] → pages[]。step = 换一个挖洞高亮目标（换 DOM）；
+      page = 同一高亮里的翻页讲解（不换洞）；target = 锚点 [data-ntq-help="<id>"]。
+    in_code: "catalog steps/pages；data-ntq-help 属性"
+    aliases: []
+    avoid: []
+
+  ui_helper ledger:
+    definition: |
+      关闭账本 userspace/system/prefs/ui_helper.json：记录哪些 helpId 在哪个 version 上被用户关过。
+      与 FED 内 catalog（文案/步骤/match）分离——账本不含路由与 DOM 选择器；
+      catalog 不含用户关闭状态。
+    in_code: "userspace/system/prefs/ui_helper.json；BFF ui-helper API"
+    aliases:
+      - "关闭账本"
+      - "ui_helper.json"
+    avoid:
+      - "把 catalog 文案存进 userspace"
+      - "启动时按目录清空整个账本"
+
+  trigger enter / appear:
+    definition: |
+      引导自动弹出时机：enter = 进这类页且未关闭则自动弹（只试一次）；
+      appear = 进页不弹，等 step 的 target 第一次出现在 DOM 再弹（适合跑完才有的控件）。
+    in_code: "catalog trigger: enter | appear"
+    aliases: []
+    avoid:
+      - "appear 的锚点打在进页就在的空壳上"

@@ -1,6 +1,6 @@
 # 模块文档规范
 
-**版本：** 1.6.0  
+**版本：** 1.7.0  
 **最后更新：** 2026-11-19  
 **适用范围：** `core/modules/*`、`core/infra/*`（及其他按 core 模块标准收口的主模块）的**文档**
 
@@ -8,7 +8,7 @@
 > **模块规则（代码 / 测试结构 / 版本 / Facade 等）：** [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)  
 > **可 copy 骨架：** [`docs/doc_templates/module/`](doc_templates/module/)（与真实模块同结构；整棵 copy 后替换 `<xxx>`，删除不需要的可选文件）
 
-**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。**v1.5.0 起**：架构图 / 组件关系图以 **Mermaid** 为 SSOT；禁止用 Unicode/ASCII 方框「手绘」流程图（见 §3.1）。**v1.6.0 起**：标准 Markdown 文首统一为两行（模块·版本 + 最低支持核心版本）；站点 `ntq_md2html` 按此解析。
+**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。**v1.5.0 起**：架构图 / 组件关系图以 **Mermaid** 为 SSOT；禁止用 Unicode/ASCII 方框「手绘」流程图（见 §3.1）。**v1.6.0 起**：标准 Markdown 文首统一为两行（模块·版本 + 最低支持核心版本）；站点 `ntq_md2html` 按此解析。**v1.7.0 起**：`glossary.yaml` 以**代码中出现的英文概念解释**为主（是什么、为何存在、在代码里对应什么、关键对比）；`aliases` / `avoid` 仍保留但降为辅。
 
 ---
 
@@ -21,7 +21,7 @@
 | 模块根 `README.md` | **是什么 / 干什么**：**纯文字**介绍；**不含**代码块 |
 | 模块根 `API.md` | **怎么调**：公开调用面；与 `__test__/test_api.py` 成对 |
 | 模块根 `QUICKSTART.md` | **可选**；最短可运行路径 |
-| 模块根 `glossary.yaml` | **名词表**：定义 + aliases + avoid；与 CONCEPTS 分离 |
+| 模块根 `glossary.yaml` | **代码概念解释**：英文标识/领域词是什么、为何存在、代码对应、关键对比；aliases/avoid 辅；与 CONCEPTS 分离 |
 | 模块根 `module_info.yaml` | 模块元数据（字段见 [CORE 指标 4](../CORE_MODULE_STANDARDS.md)） |
 | 模块 `docs/ARCHITECTURE.md` | 高阶已定结论：结构图、架构图、数据流（若有） |
 | 模块 `docs/DECISIONS.md` | **可选**（有非平凡设计过程或关键选型时必写）；设计目标、方案思路与拍板决策合一——"为什么这么设计、定了什么" |
@@ -44,7 +44,7 @@
 |---------|------|------|---------|
 | `README.md`（根） | 使用者 | 是什么、干什么 | 文件在模块根 |
 | `API.md`（根） | 调用方 | 公开接口；须有测试覆盖 | 模块根 + `__test__/test_api.py` |
-| `glossary.yaml`（根） | 全员 | 名词定义、aliases、avoid | 文件在模块根 |
+| `glossary.yaml`（根） | 读代码的人 | 本模块英文概念解释（定义要能帮人读代码） | 文件在模块根；见 §3 glossary |
 | `module_info.yaml`（根） | 维护者 | 元数据 | 见 CORE 指标 4 |
 | `docs/ARCHITECTURE.md` | 维护者 | 结构图、架构图、数据流（若有）；有版本 | 在 `docs/` |
 | `docs/USER_GUIDE.md` | 普通用户 | 能干嘛、怎么配、常见坑 | 在 `docs/`；非空 |
@@ -62,7 +62,7 @@
 | 目标 | 文档 |
 |------|------|
 | 是什么、干什么 | `README.md` |
-| 名词 / 别名 / 易混名 | `glossary.yaml`（与 CONCEPTS **分开**） |
+| 代码里出现的英文概念（是什么 / 对比 / 对应符号） | `glossary.yaml`（与 CONCEPTS **分开**） |
 | 工作原理、多步骤关系 | `docs/CONCEPTS.md`（可选） |
 | 快速上手 | `QUICKSTART.md`（可选）+ `API.md` |
 | 正确调用 | `API.md` |
@@ -93,7 +93,13 @@
 
 ### glossary vs CONCEPTS
 
-glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述。二者**不合并**。
+| | `glossary.yaml` | `docs/CONCEPTS.md` |
+|--|-----------------|-------------------|
+| 写什么 | **单个英文概念**：是什么、为何存在、代码里叫什么、与相近概念差在哪 | **链路与协作**：多步骤怎么串、模式怎么选、边界在哪 |
+| 形态 | 按词条；`definition` 用可读短段（可多句），不是一句话标签 | 叙述文；不要做成词典表 |
+| 不写什么 | 完整调用教程、目录树、历史选型 | 把每个词再抄一遍短定义 |
+
+二者**不合并**。范例：[`core/modules/data_contract/glossary.yaml`](../core/modules/data_contract/glossary.yaml)。
 
 ### 交叉链接（最低要求）
 
@@ -194,7 +200,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | 文档 | 必需内容 | 检查方式 |
 |------|---------|---------|
 | `README.md` | 见下「README 结构」；偏使用者 | 含必须章节；版式见模板 |
-| `glossary.yaml`（根） | 见下「glossary 结构」 | terms 含 definition；建议 aliases/avoid |
+| `glossary.yaml`（根） | 见下「glossary 结构」 | terms 含可读 `definition`；建议 `in_code` / aliases / avoid |
 | `QUICKSTART.md`（根，可选） | 见下「QUICKSTART 结构」 | 有则含最小示例 |
 | `docs/CONCEPTS.md`（可选） | 见下「CONCEPTS 结构」；原理与关系 | 有则文首有版本；非词条表 |
 | `docs/ARCHITECTURE.md` | 见下「ARCHITECTURE 结构」 | 文首有版本；结构图 + 架构图 |
@@ -227,14 +233,17 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### `glossary.yaml`（模板见 [`glossary.yaml`](doc_templates/module/glossary.yaml)）
 
-> 解释模块名词；同一事物在不同背景下的叫法用 `aliases` / `avoid` 区分。  
+> **目的（v1.7）：** 帮读代码的人理解本模块里出现的**英文概念**（标识符、枚举值、领域词），不是做中英对照表或「门面/命名空间」这类跨模块通用词堆砌。  
+> **收录标准：** 代码 / API / declaration 里真实出现、且读者常会问「这是什么 / 和那个有什么区别」的词。跨模块通用词（如 Facade）最多一句带过，或省略。  
+> **写法：** `definition` 用短段回答——是什么、为何存在、和相近概念差在哪；可用 `in_code` 点出类型/字段/调用。`aliases` / `avoid` 保留，用于命名纪律，**不能代替解释**。  
 > **不与** `docs/CONCEPTS.md` 合并。
 
-| 字段 | 说明 |
-|------|------|
-| `terms.<Name>.definition` | 本模块中的含义 |
-| `terms.<Name>.aliases` | 可接受别名 / 其他上下文叫法 |
-| `terms.<Name>.avoid` | 易混淆、不应混用的名称 |
+| 字段 | 必须 / 建议 | 说明 |
+|------|-------------|------|
+| `terms.<Name>.definition` | 必须 | 可读短段（可多句 YAML `|`）；写清本模块含义与关键对比 |
+| `terms.<Name>.in_code` | 建议 | 对应符号：类名 / 枚举 / 字段 / 典型调用 |
+| `terms.<Name>.aliases` | 建议 | 可接受别名 / 其他上下文叫法 |
+| `terms.<Name>.avoid` | 建议 | 易混、不应混用的名称 |
 
 ### `QUICKSTART.md`（可选；模板见 [`QUICKSTART.md`](doc_templates/module/QUICKSTART.md)）
 
@@ -403,4 +412,4 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 - [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md) — 模块创建与维护准则
 - [`doc_templates/module/`](doc_templates/module/) — 可 copy 骨架
 - [`docs/README.md`](README.md) — 仓库文档导航
-- 术语表示例：[`core/infra/project_context/glossary.yaml`](../core/infra/project_context/glossary.yaml)
+- 术语表示例（概念解释向）：[`core/modules/data_contract/glossary.yaml`](../core/modules/data_contract/glossary.yaml)

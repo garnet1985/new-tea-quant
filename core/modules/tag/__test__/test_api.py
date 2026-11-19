@@ -60,11 +60,17 @@ class TestTagApi(unittest.TestCase):
             "resolve_path",
             "resolve_folder",
             "load_hooks_class",
-            "trigger_run",
-            "start_run",
             "get_run_progress",
+            "seed_run_progress",
+            "mark_run_running",
+            "complete_run_progress",
+            "fail_run_progress",
+            "run_progress_callback",
         ):
             self.assertTrue(callable(getattr(Tag, name)), name)
+        self.assertFalse(hasattr(Tag, "start_run"))
+        self.assertFalse(hasattr(Tag, "trigger_run"))
+
         self.assertTrue(callable(Tag.is_valid_path))
         self.assertTrue(Tag.is_valid_path("demo/market_cap_tier"))
         self.assertFalse(Tag.is_valid_path("demo/市值"))

@@ -4,29 +4,22 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher as BffTagRunLauncher
-from core.modules.tag.core.services.run_launcher import TagRunLauncher
-
-
-def test_bff_delegates_to_tag_facade():
-    with patch("core.modules.tag.Tag.trigger_run", return_value={"is_triggered": True}) as trig:
-        out = BffTagRunLauncher.trigger(tag_key="demo/x")
-    assert out["is_triggered"] is True
-    trig.assert_called_once_with(tag_key="demo/x")
+from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher
 
 
 def test_trigger_unknown_scenario():
-    with patch.object(TagRunLauncher, "_find_info", return_value=None):
+    with patch("core.modules.tag.Tag.get_tag_info", return_value=None):
         out = TagRunLauncher.trigger(tag_key="no/such/tag")
     assert out["is_triggered"] is False
     assert "未知" in out["reason"]
 
 
 def test_trigger_queues_when_task_busy():
-    info = MagicMock()
-    info.id.return_value = "demo/x"
-    info.settings = {"is_enabled": True}
-    with patch.object(TagRunLauncher, "_find_info", return_value=info):
+    info = {
+        "unique_relative_path": "demo/x",
+        "is_enabled": True,
+    }
+    with patch("core.modules.tag.Tag.get_tag_info", return_value=info):
         with patch(
             "core.infra.job_pipeline.JobPipeline.has_running_job",
             return_value=True,
@@ -47,10 +40,11 @@ def test_trigger_queues_when_task_busy():
 
 
 def test_start_now_does_not_enqueue_when_local_busy():
-    info = MagicMock()
-    info.id.return_value = "demo/x"
-    info.settings = {"is_enabled": True}
-    with patch.object(TagRunLauncher, "_find_info", return_value=info):
+    info = {
+        "unique_relative_path": "demo/x",
+        "is_enabled": True,
+    }
+    with patch("core.modules.tag.Tag.get_tag_info", return_value=info):
         with patch.object(
             TagRunLauncher,
             "_has_active_tag_run_locked",

@@ -2,7 +2,7 @@ name: modules.tag
 version: "0.4.2"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
-description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。异步跑与进度经 Tag Facade；BFF 仅薄封装。"
+description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。execute 同步；异步壳在 BFF/agent。"
 # 站点文档（可选；Drupal title / display title）
 site_title: "标签模块 (Tag)"
 site_display_title: "给任何对象打个标签 - Tag 模块"
@@ -16,11 +16,10 @@ dependencies:
   - infra.utils
   - infra.trace
   - infra.progress
-  - infra.job_pipeline
 changelog:
   - version: "0.4.2"
     changes:
-      - "Facade 增加 list_tag_infos / get_tag_info / resolve_* / load_hooks_class / trigger_run / start_run / get_run_progress；异步编排迁入模块内，BFF 只委托"
+      - "Facade 增加 list_tag_infos / get_tag_info / resolve_* / load_hooks_class 与进度 IO；异步编排在 BFF/agent"
   - version: "0.4.1"
     changes:
       - "TagRunProgress 直连 Progress.channel（channel=tag-run），不再经 strategy.ProgressRecorder"

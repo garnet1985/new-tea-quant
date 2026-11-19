@@ -10,7 +10,7 @@
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 **公开约定：** 包根仅导出 `Tag`；hooks 与枚举从 [`contracts.py`](./contracts.py) 导入。  
-**边界：** UI HTTP 在 BFF（薄封装）；异步跑与进度轮询走本 Facade，禁止跨模块 deep-import `core.services`。
+**边界：** `Tag.execute` 保持同步计算；UI/agent 异步壳（线程 / lease / 入队）在 BFF 或 agent。本 Facade 提供 discovery 与进度 IO，禁止跨模块 deep-import `core.services`。
 
 ---
 
@@ -73,15 +73,18 @@
 - **状态：** `beta`
 - **描述：** 加载 `tag.py` 中的 `TagHooks` 子类；失败返回 `None`
 
-### trigger_run / start_run / get_run_progress
+### get_run_progress / seed_run_progress / mark_run_running / complete_run_progress / fail_run_progress / run_progress_callback
 
-`Tag.trigger_run(*, tag_key: str) -> dict`  
-`Tag.start_run(*, tag_key: str) -> dict`  
-`Tag.get_run_progress(*, tag_key: str, job_id: str) -> dict | None`
+`Tag.get_run_progress(*, tag_key: str, job_id: str) -> dict | None`  
+`Tag.seed_run_progress(tag_key, job_id) -> None`  
+`Tag.mark_run_running(tag_key, job_id, *, label=...) -> None`  
+`Tag.complete_run_progress(tag_key, job_id) -> None`  
+`Tag.fail_run_progress(tag_key, job_id, message) -> None`  
+`Tag.run_progress_callback(tag_key, job_id)`
 
 - **类型：** `staticmethod`
 - **状态：** `beta`
-- **描述：** 异步打标。`trigger_run` 入队 `JobPipeline`；`start_run` 立刻后台开跑并返回 `job_id`；`get_run_progress` 供轮询。BFF / agent 只经此三入口
+- **描述：** 异步打标的进度落盘 IO。编排（线程 / lease / 入队）由 BFF `TagRunLauncher` 或 agent `start_tag` 负责；计算仍调 `Tag.execute`
 
 ### execute
 

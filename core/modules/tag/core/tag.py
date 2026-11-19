@@ -386,7 +386,7 @@ class Tag:
 
         return TagPathRules.is_machine_readable_path(relative_path)
 
-    # --- 跨模块 discovery / 进度 / 异步跑（勿 deep-import core.services）---
+    # --- 跨模块 discovery / 进度 IO（异步壳在 BFF / agent，勿 deep-import services）---
 
     @staticmethod
     def list_tag_infos(*, enabled_only: bool = False) -> List[Dict[str, Any]]:
@@ -445,25 +445,42 @@ class Tag:
         return TagHooksLoader.load_hooks_class(Path(tag_folder), str(tag_key))
 
     @staticmethod
-    def trigger_run(*, tag_key: str) -> Dict[str, Any]:
-        """校验后入队异步打标（``JobPipeline.submit``）。"""
-        from .services.run_launcher import TagRunLauncher
-
-        return TagRunLauncher.trigger(tag_key=tag_key)
-
-    @staticmethod
-    def start_run(*, tag_key: str) -> Dict[str, Any]:
-        """立刻后台启动打标；返回 ``job_id`` / ``tag_key``。"""
-        from .services.run_launcher import TagRunLauncher
-
-        return TagRunLauncher.start_now(tag_key=tag_key)
-
-    @staticmethod
     def get_run_progress(*, tag_key: str, job_id: str) -> Optional[Dict[str, Any]]:
         """读取一次异步打标进度（供轮询）。"""
         from .services.progress import TagRunProgress
 
         return TagRunProgress.get_poll_dto(tag_key=tag_key, job_id=job_id)
+
+    @staticmethod
+    def seed_run_progress(tag_key: str, job_id: str) -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).seed()
+
+    @staticmethod
+    def mark_run_running(tag_key: str, job_id: str, *, label: str = "加载场景…") -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).mark_running(label=label)
+
+    @staticmethod
+    def complete_run_progress(tag_key: str, job_id: str) -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).complete()
+
+    @staticmethod
+    def fail_run_progress(tag_key: str, job_id: str, message: str) -> None:
+        from .services.progress import TagRunProgress
+
+        TagRunProgress.for_job(tag_key, job_id).fail(str(message))
+
+    @staticmethod
+    def run_progress_callback(tag_key: str, job_id: str):
+        """返回可传给 ``execute(on_pipeline_progress=...)`` 的进度回调。"""
+        from .services.progress import TagRunProgress
+
+        return TagRunProgress.for_job(tag_key, job_id).on_progress_callback()
 
     @staticmethod
     def _to_info_dict(info: DiscoveredTagInfo) -> Dict[str, Any]:

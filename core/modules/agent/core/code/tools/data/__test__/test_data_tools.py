@@ -136,3 +136,55 @@ def test_agent_create_data_contract_delegates(contracts_root: Path) -> None:
     assert "agent.feed.data" in (
         contracts_root / "agent_feed" / "declaration.py"
     ).read_text(encoding="utf-8")
+
+
+def test_list_indicators_ok() -> None:
+    from core.modules.agent.core.code.tools.data.inspect_data import list_indicators
+
+    out = list_indicators({})
+    assert out.get("ok") is True, out
+    assert out.get("count", 0) >= 1
+    assert any(row.get("value") == "ma" for row in out.get("indicators") or [])
+
+
+def test_list_stock_pool_dimensions_rejects_bad_dim() -> None:
+    from core.modules.agent.core.code.tools.data.inspect_data import (
+        list_stock_pool_dimensions,
+    )
+
+    out = list_stock_pool_dimensions({"dim": "sector"})
+    assert out.get("ok") is False
+    assert "dim" in str(out.get("error") or "")
+
+
+def test_start_data_renew_busy(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.modules.agent.core.code.tools.data import renew as renew_mod
+
+    monkeypatch.setattr(
+        renew_mod.JobPipeline,
+        "get_running_job",
+        staticmethod(lambda: {"kind": "data_renew", "job_id": "x"}),
+    )
+    out = renew_mod.start_data_renew({})
+    assert out.get("ok") is False
+    assert "进行中" in str(out.get("error") or "")
+
+
+def test_read_renew_progress_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.modules.agent.core.code.tools.data import renew as renew_mod
+
+    monkeypatch.setattr(
+        renew_mod.DataSourceManager,
+        "read_renew_ui_status",
+        staticmethod(lambda: {"tasks": [], "progress": {"pct": 0}}),
+    )
+    monkeypatch.setattr(
+        renew_mod.JobPipeline,
+        "get_running_job",
+        staticmethod(lambda: None),
+    )
+    with renew_mod._LOCK:
+        renew_mod._ACTIVE = None
+    out = renew_mod.read_renew_progress({})
+    assert out.get("ok") is True, out
+    assert out.get("running") is False

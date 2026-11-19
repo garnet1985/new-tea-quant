@@ -433,6 +433,14 @@ def read_attribution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def read_rolling_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """读当前主 version 的滚动对照报告。"""
+    parsed = parse_strategy_key(arguments, only={"key"})
+    if isinstance(parsed, dict):
+        return parsed
+    return Strategy.read_rolling_report(key=parsed)
+
+
 def _locate_key(arguments: Dict[str, Any], *, optional: set[str]):
     allowed = {"key"} | optional
     if not isinstance(arguments, dict) or not set(arguments) <= allowed:

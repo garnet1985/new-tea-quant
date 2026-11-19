@@ -59,3 +59,51 @@ def check_data_freshness(arguments: Dict[str, Any] | None = None) -> Dict[str, A
     if not isinstance(meta, dict):
         meta = {"raw": meta}
     return {"ok": True, "freshness": meta}
+
+
+def list_indicators(arguments: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    """列出可用技术指标名（settings.data.base.indicators）。"""
+    _ = arguments
+    try:
+        from core.modules.indicator import Indicator
+
+        names = list(Indicator.list_indicators())
+    except Exception as exc:
+        return {"ok": False, "error": f"无法列出指标: {exc}"}
+    return {
+        "ok": True,
+        "indicators": [{"value": n, "name": n} for n in names],
+        "count": len(names),
+    }
+
+
+def list_stock_pool_dimensions(
+    arguments: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """列出 stock_list_filter 可用维度与选项。可选 dim=area|industry|board|market|list_status。"""
+    args = arguments if isinstance(arguments, dict) else {}
+    dim = args.get("dim")
+    if dim is not None and not isinstance(dim, str):
+        return {"ok": False, "error": "dim 须为字符串"}
+    extra = set(args) - {"dim"}
+    if extra:
+        return {"ok": False, "error": f"不支持的参数: {', '.join(sorted(extra))}"}
+    dim_norm = str(dim or "").strip() or None
+    allowed = {"area", "industry", "board", "market", "list_status"}
+    if dim_norm is not None and dim_norm not in allowed:
+        return {
+            "ok": False,
+            "error": f"dim 无效: {dim_norm}，允许 {sorted(allowed)}",
+        }
+    try:
+        options = DataManager().stock.list.load_filter_options(dim_norm)
+    except Exception as exc:
+        return {"ok": False, "error": f"无法列出股票池维度: {exc}"}
+    if not isinstance(options, dict):
+        return {"ok": False, "error": "股票池维度返回格式异常"}
+    return {
+        "ok": True,
+        "dim": dim_norm or "all",
+        "options": options,
+        "note": "value 可直接写入 settings.data.stock_list_filter。",
+    }

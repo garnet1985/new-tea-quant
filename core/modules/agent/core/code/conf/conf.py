@@ -45,6 +45,9 @@ WRITE_STRATEGY_MAX_CHARS = 200_000
 WRITE_STRATEGY_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
     {"key", "strategy_py", "settings_py", "attribution_py"}
 )
+WRITE_STRATEGY_ROLLING_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "rolling_py"}
+)
 WRITE_TAG_MAX_CHARS = 200_000
 WRITE_TAG_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
     {"key", "tag_py", "settings_py"}
@@ -60,6 +63,18 @@ WRITE_DATA_SOURCE_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
 WRITE_DATA_CONTRACT_MAX_CHARS = 200_000
 WRITE_DATA_CONTRACT_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
     {"key", "declaration_py", "loader_py", "contract_py"}
+)
+WRITE_SERIES_RELATION_MAX_CHARS = 200_000
+WRITE_SERIES_RELATION_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "settings_py"}
+)
+WRITE_POST_PROCESS_ADAPTER_MAX_CHARS = 200_000
+WRITE_POST_PROCESS_ADAPTER_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"name", "adapter_py", "settings_py"}
+)
+WRITE_POST_PROCESS_PROCESSOR_MAX_CHARS = 200_000
+WRITE_POST_PROCESS_PROCESSOR_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "yaml_body"}
 )
 DOCS_EXCERPT_MAX_CHARS = 12_000
 

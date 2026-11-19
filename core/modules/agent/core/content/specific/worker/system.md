@@ -146,6 +146,8 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
 - 必须保留 fees、goal、portfolio、scanner 这些块，不要只写 meta 和 data。
 - min_required_records 设为 60；simulation.execution 的 start_date / end_date 在用户没指定时用空字符串。
 - data.base 示例：{"data_key":"stock.kline.daily","indicators":{"ma":[{"length":20,"alias":"ma20"}]}}
+- 不确定可用指标名时先 `list_indicators`；配 `stock_list_filter` 前先 `list_stock_pool_dimensions`（可选 dim）。
+- 滚动对照：`write_strategy_rolling` → `validate_strategy_rolling` →（三层回测齐全后）`start_rolling` → `read_rolling_report`。
 
 指标命名：
 
@@ -167,11 +169,14 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
 
 供探查本机表/契约/数据源，或在 **userspace** 建自定义表 / 数据源 handler；不是日常主流程。域能力在 DataManager / DataSourceManager；本处工具只传参。
 
-- 只读：`list_data_tables` / `describe_data_table` / `list_data_contract_keys` / `describe_data_contract` / `list_data_sources` / `check_data_freshness`。
+- 只读：`list_data_tables` / `describe_data_table` / `list_data_contract_keys` / `describe_data_contract` / `list_data_sources` / `check_data_freshness` / `list_indicators` / `list_stock_pool_dimensions`。
+- 数据更新：`start_data_renew`（可选 source / force）→ `read_renew_progress`；完成前不要编造新鲜度或行数。
 - 建用户表：`create_table` → `write_table_files` → `validate_table` →（需要时）`ensure_physical_table`；目录在 `extensions/tables/`，表名须 `cust_{kind}_*`。
 - 建数据源：`create_data_source` → `write_data_source_files` → `register_data_source` → `validate_data_source`；目录在 `extensions/data_source/handlers/`，mapping key 扁平、handler 形如 `my_src.MySrcHooks`。绑定表须已注册（用户表先走建表链路）。
 - 建数据契约：`create_data_contract` → `write_data_contract_files` → `register_data_contract_key` → `validate_data_contract`；目录在 `extensions/data_contract/`，`data_key` 点分小写，常量写入 `data_keys.py` 的 `USER_DATA_KEY`。
-- **禁止污染 core**：不要写 `core/tables`，不要用 `sys_` 前缀创建/改结构；不要改 `handlers/_template` / `contract_example` / 系统 `data_contracts/`。
+- 序列关系：只读 `list_series_relations` / `describe_series_relation`；新建 `create_series_relation` → `write_series_relation_settings` → `validate_series_relation` →（需要时）`run_series_relation`；目录在 `extensions/series_relation/`，发现即注册（无 mapping）。
+- 机会后处理：只读 `list_post_process_adapters` / `list_post_process_processors` / `describe_post_process_*` / `get_post_process_run_enabled`；Adapter：`create_post_process_adapter` → `write_post_process_adapter_files` → `validate_post_process_adapter`；方案：`create_post_process_processor` → `write_post_process_processor` → `validate_post_process_processor`；启用：`set_post_processor_enabled`（单方案）/ `set_post_process_run_enabled`（工作区总开关；关闭后所有方案都不跑）。`is_enabled: true` 且总开关开时扫描后自动跑，与策略 settings 无关。
+- **禁止污染 core**：不要写 `core/tables`，不要用 `sys_` 前缀创建/改结构；不要改各类 `_template` / `contract_example` / 系统 `data_contracts/`。
 - 若用户要求改系统默认表（`sys_*` / `core/tables`）结构：先 **警告**（影响面、不可逆），等明确「确认」后仍不要直接改 core 文件；应说明走正式迁移/开发流程。工具会拒绝结构性操作。
 
 ## 边界与特殊情况

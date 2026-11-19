@@ -170,6 +170,16 @@
 - **状态：** `beta`
 - **描述：** userspace 策略制品用例（实现在 `artifact_ops`）。CLI/agent 只薄封装。脚手架写 `strategies/_template/empty_strategy`，`meta.key` 为完整相对路径。
 
+### write_user_rolling / validate_user_rolling / read_rolling_report
+
+`Strategy.write_user_rolling(*, key: str, rolling_py: str) -> dict`  
+`Strategy.validate_user_rolling(*, key: str) -> dict`  
+`Strategy.read_rolling_report(*, key: str) -> dict`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 覆盖/校验策略目录 `rolling.py`（`rolling = { windows: [...] }`）；读当前主 version 的滚动对照 `report.json`。Agent：`write_strategy_rolling` / `validate_strategy_rolling` / `read_rolling_report`。
+
 ### fetch_workbench_latest / fetch_workbench_by_version / list_workbench_versions
 
 `Strategy.fetch_workbench_latest(strategy_name) -> dict | None`  

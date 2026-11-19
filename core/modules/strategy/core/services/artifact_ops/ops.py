@@ -131,6 +131,76 @@ class StrategyArtifactOps:
         }
 
     @classmethod
+    def write_rolling(
+        cls,
+        *,
+        key: str,
+        rolling_py: str,
+    ) -> Dict[str, Any]:
+        """覆盖策略目录 ``rolling.py``（须含 ``rolling = { windows: [...] }``）。"""
+        try:
+            folder, relative = cls._folder_for_key(key)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        if not folder.is_dir():
+            return {
+                "ok": False,
+                "error": f"策略不存在: {relative}。请先 scaffold_from_template",
+            }
+        body = str(rolling_py or "")
+        if not body.strip():
+            return {"ok": False, "error": "必须提供 rolling_py"}
+        shape = cls._rolling_shape_error(body)
+        if shape:
+            return {"ok": False, "key": key, "error": shape}
+        try:
+            text = cls._python_literals(body)
+            (folder / "rolling.py").write_text(
+                text if text.endswith("\n") else text + "\n",
+                encoding="utf-8",
+            )
+        except OSError:
+            return {"ok": False, "error": f"无法写入 {relative}/rolling.py"}
+        return {
+            "ok": True,
+            "key": key,
+            "path": relative,
+            "files": ["rolling.py"],
+            "note": "rolling.py 已覆盖。接着 validate_user_rolling，通过后再 start_rolling。",
+        }
+
+    @classmethod
+    def validate_rolling(cls, *, key: str) -> Dict[str, Any]:
+        """校验策略目录 rolling.py 窗口列表；不跑批。"""
+        from core.modules.strategy.core.engines.rolling.config import (
+            load_rolling_windows,
+        )
+
+        try:
+            folder, relative = cls._folder_for_key(key)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        path = folder / "rolling.py"
+        if not path.is_file():
+            return {
+                "ok": False,
+                "key": key,
+                "errors": [f"缺少 rolling.py: {relative}"],
+            }
+        try:
+            windows = load_rolling_windows(folder, strategy_key=Path(key).name)
+        except Exception as exc:
+            return {"ok": False, "key": key, "errors": [str(exc)]}
+        return {
+            "ok": True,
+            "key": key,
+            "path": relative,
+            "window_count": len(windows),
+            "windows": [dict(w) for w in windows],
+            "note": "窗口校验通过。须三层回测齐全后再 start_rolling。",
+        }
+
+    @classmethod
     def validate_artifact(cls, *, key: str) -> Dict[str, Any]:
         from core.modules.strategy import Strategy
         from core.modules.strategy.contracts import StrategyHooks
@@ -413,6 +483,40 @@ class StrategyArtifactOps:
             return "attribution.py 无法解析为字典。文件没有被改。"
         if not isinstance(value, dict):
             return "attribution 必须是字典。文件没有被改。"
+        return ""
+
+    @classmethod
+    def _rolling_shape_error(cls, body: str) -> str:
+        text = cls._python_literals(body)
+        syntax = cls._syntax_error_text(text, "rolling.py")
+        if syntax:
+            return syntax
+        if "rolling" not in text or "{" not in text:
+            return (
+                "rolling.py 须含 rolling = { \"windows\": [{\"start\": \"...\", \"end\": \"...\"}] }。"
+                "文件没有被改。"
+            )
+        marker = text.find("rolling")
+        start = text.find("{", marker)
+        if start < 0:
+            return "rolling.py 须含 rolling = { ... }。文件没有被改。"
+        try:
+            value = ast.literal_eval(text[start:])
+        except (SyntaxError, ValueError):
+            return "rolling.py 无法解析为字典。文件没有被改。"
+        if not isinstance(value, dict):
+            return "rolling 必须是字典。文件没有被改。"
+        windows = value.get("windows")
+        if not isinstance(windows, list) or not windows:
+            return "rolling.windows 须为非空 list。文件没有被改。"
+        return ""
+
+    @staticmethod
+    def _syntax_error_text(body: str, label: str) -> str:
+        try:
+            ast.parse(body, filename=label)
+        except SyntaxError as exc:
+            return f"{label} 语法错误: 第 {exc.lineno or '?'} 行: {exc.msg}"
         return ""
 
     @staticmethod

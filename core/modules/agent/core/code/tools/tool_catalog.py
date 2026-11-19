@@ -179,9 +179,40 @@ _TOOLS: tuple[ToolSpec, ...] = (
         implemented=True,
     ),
     ToolSpec(
+        name="write_strategy_rolling",
+        description=(
+            "覆盖已有策略的 rolling.py（须含 rolling = { windows: [...] }）。"
+            "目录必须已存在；改完后 validate_strategy_rolling，通过后再 start_rolling。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("已存在的策略目录名，例如 macd_cross"),
+                "rolling_py": _string(
+                    "rolling.py 全文。须含 rolling 字典与 windows 列表。"
+                ),
+            },
+            ["key", "rolling_py"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_strategy_rolling",
+        description=(
+            "校验策略目录 rolling.py 的窗口列表。未通过则不要 start_rolling。"
+            "不跑批；三层回测是否齐全由 start_rolling / 就绪检查负责。"
+        ),
+        parameters=_object(
+            {"key": _string("策略 meta.key 或相对路径")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
         name="start_rolling",
         description=(
-            "按策略目录里的 rolling.py 启动滚动对照，并立刻返回。任务完成前不要给出对照结论。"
+            "按策略目录里的 rolling.py 启动滚动对照，并立刻返回。"
+            "须先有合法 rolling.py 且三层回测齐全。任务完成前不要给出对照结论；"
+            "结束后用 read_rolling_report。"
         ),
         parameters=_object(
             {"key": _string("已存在的策略目录名，例如 macd_cross")},
@@ -267,6 +298,17 @@ _TOOLS: tuple[ToolSpec, ...] = (
                 "key": _string("策略目录名，例如 macd_cross"),
                 "date": _string("扫描日，例如 20260101。省略则读最新一天"),
             },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="read_rolling_report",
+        description=(
+            "读取当前主 version 的滚动对照报告。不要编造报告里没有的数字。"
+        ),
+        parameters=_object(
+            {"key": _string("策略目录名，例如 macd_cross")},
             ["key"],
         ),
         implemented=True,
@@ -398,6 +440,55 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="check_data_freshness",
         description="读取本机数据结束日/新鲜度摘要。只读；不要编造日期。",
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_indicators",
+        description=(
+            "列出可用技术指标名，供 settings.data.base.indicators 选用。只读。"
+        ),
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_stock_pool_dimensions",
+        description=(
+            "列出 stock_list_filter 可用维度与选项（area/industry/board/market/list_status）。"
+            "可选 dim 只返回一维；value 可直接写入 settings。"
+        ),
+        parameters=_object(
+            {
+                "dim": _string(
+                    "可选：area、industry、board、market、list_status；省略则全部"
+                ),
+            },
+            [],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="start_data_renew",
+        description=(
+            "启动数据源更新并立刻返回。可选 source（表名或 data source key）、force。"
+            "完成前不要编造行数或新鲜度；用 read_renew_progress 看进度。"
+        ),
+        parameters=_object(
+            {
+                "source": _string(
+                    "可选。表名或数据源 key；省略则更新所有需要 renew 的源"
+                ),
+                "force": _boolean("是否强制全量；默认 false"),
+            },
+            [],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="read_renew_progress",
+        description=(
+            "读取数据更新进度（tasks/progress）。未完成时不要声称已更新成功。"
+        ),
         parameters=_object({}, []),
         implemented=True,
     ),
@@ -611,6 +702,225 @@ _TOOLS: tuple[ToolSpec, ...] = (
             {"data_key": _string("如 stock.kline.daily 或 my.feed.data")},
             ["data_key"],
         ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_series_relations",
+        description="列出已发现的序列关系场景（key / 展示名 / 序列条数）。只读。",
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="describe_series_relation",
+        description="只读描述一个序列关系场景的 settings 摘要。",
+        parameters=_object(
+            {"key": _string("场景目录相对路径或 meta.key，例如 cn_index_vs_lpr")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="create_series_relation",
+        description=(
+            "在 userspace/extensions/series_relation 从空模板新建场景骨架。"
+            "目录已存在时不要覆盖；发现即注册，无需 mapping。"
+        ),
+        parameters=_object(
+            {
+                "key": _string(
+                    "场景目录相对路径，例如 my_compare。"
+                    "每段以字母开头，只含字母、数字、下划线。"
+                ),
+                "display_name": _string("展示名；可省略，默认用目录叶名"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="write_series_relation_settings",
+        description=(
+            "覆盖已有序列关系场景的 settings.py。"
+            "须含 settings={...}、meta.key 与非空 series；meta.key 会强制对齐目录叶名。"
+            "改完后 validate_series_relation。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("已存在的场景目录相对路径"),
+                "settings_py": _string("settings.py 全文"),
+            },
+            ["key", "settings_py"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_series_relation",
+        description=(
+            "校验序列关系 settings（data_key 须为已发现时序契约等）。"
+            "未通过则不要 run_series_relation。"
+        ),
+        parameters=_object(
+            {"key": _string("场景目录相对路径，例如 my_compare")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="run_series_relation",
+        description=(
+            "对已通过校验的序列关系场景同步跑批，写入 results/。"
+            "需要本地已有对应行情/宏观数据。"
+        ),
+        parameters=_object(
+            {"key": _string("场景 meta.key 或相对路径")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_post_process_adapters",
+        description="列出 userspace 扫描后处理 Adapter 摘要。只读。",
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_post_process_processors",
+        description="列出 userspace PostProcessor 方案摘要。只读。",
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="describe_post_process_adapter",
+        description="只读描述一个 Adapter（校验/就绪状态摘要）。",
+        parameters=_object(
+            {"name": _string("adapter 目录名，例如 presenter")},
+            ["name"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="describe_post_process_processor",
+        description="只读描述一个 PostProcessor 方案。",
+        parameters=_object(
+            {"key": _string("post_processor key，例如 presenter")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="create_post_process_adapter",
+        description=(
+            "在 userspace/extensions/post_process/adapters 从空模板新建 Adapter。"
+            "目录已存在时不要覆盖。"
+        ),
+        parameters=_object(
+            {
+                "name": _string("adapter 目录名，单段，字母开头"),
+                "display_name": _string("展示名；可省略"),
+            },
+            ["name"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="write_post_process_adapter_files",
+        description=(
+            "覆盖已有 Adapter 的 adapter.py 或 settings.py。"
+            "须继承 BaseAdapter 并实现 run；改完后 validate_post_process_adapter。"
+        ),
+        parameters=_object(
+            {
+                "name": _string("已存在的 adapter 目录名"),
+                "adapter_py": _string("adapter.py 全文。可省略。"),
+                "settings_py": _string("settings.py 全文。可省略。"),
+            },
+            ["name"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_post_process_adapter",
+        description="校验 Adapter 可加载（BaseAdapter 子类、可实例化）。",
+        parameters=_object(
+            {"name": _string("adapter 目录名")},
+            ["name"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="create_post_process_processor",
+        description=(
+            "新建 PostProcessor YAML 骨架（默认 is_enabled=false）。"
+            "可选预挂一个 adapter_name。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("方案目录名 / key，单段"),
+                "name": _string("展示名；可省略"),
+                "adapter_name": _string("可选，预写入 adapters 的 adapter 名"),
+                "is_enabled": _boolean("是否启用，默认 false"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="write_post_process_processor",
+        description=(
+            "覆盖 post_processor.yaml 全文。"
+            "须含 adapters 对象；key 会强制对齐目录名。改完后 validate。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("方案 key"),
+                "yaml_body": _string("post_processor.yaml 全文"),
+            },
+            ["key", "yaml_body"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_post_process_processor",
+        description=(
+            "校验 PostProcessor 声明、所引用 Adapter 与 depends_on 拓扑。"
+            "启用前须通过。"
+        ),
+        parameters=_object(
+            {"key": _string("方案 key")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="set_post_processor_enabled",
+        description=(
+            "开关单个 PostProcessor 方案（写入 post_processor.yaml 的 is_enabled）。"
+            "关闭后扫描不会再跑该方案。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("方案 key"),
+                "is_enabled": _boolean("是否启用"),
+            },
+            ["key", "is_enabled"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="set_post_process_run_enabled",
+        description=(
+            "开关工作区级「扫描后是否跑后处理」。关闭后所有方案都不会跑。"
+        ),
+        parameters=_object(
+            {"enabled": _boolean("是否允许扫描后处理")},
+            ["enabled"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="get_post_process_run_enabled",
+        description="读取工作区级扫描后处理总开关。只读。",
+        parameters=_object({}, []),
         implemented=True,
     ),
 )

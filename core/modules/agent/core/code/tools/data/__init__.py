@@ -17,6 +17,12 @@ from core.modules.agent.core.code.tools.data.inspect_data import (
     list_data_contract_keys,
     list_data_sources,
     list_data_tables,
+    list_indicators,
+    list_stock_pool_dimensions,
+)
+from core.modules.agent.core.code.tools.data.renew import (
+    read_renew_progress,
+    start_data_renew,
 )
 from core.modules.agent.core.code.tools.data.register_data_contract_key import (
     register_data_contract_key,
@@ -58,4 +64,8 @@ __all__ = [
     "list_data_contract_keys",
     "list_data_sources",
     "check_data_freshness",
+    "list_indicators",
+    "list_stock_pool_dimensions",
+    "start_data_renew",
+    "read_renew_progress",
 ]

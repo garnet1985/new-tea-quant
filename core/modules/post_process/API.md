@@ -84,6 +84,20 @@
 `PostProcess.run_post_processor(key, session)` — 显式跑指定 key（忽略 is_enabled）。  
 `PostProcess.run_enabled_post_processors(session) -> list[str]` — 扫描结束后默认路径：跑所有 enabled。
 
+### Userspace 脚手架（Adapter / PostProcessor）
+
+`PostProcess.scaffold_user_adapter(*, name, display_name="") -> dict`  
+`PostProcess.write_user_adapter_files(*, name, adapter_py="", settings_py="") -> dict`  
+`PostProcess.validate_user_adapter(*, name) -> dict`  
+`PostProcess.scaffold_user_post_processor(*, key, name="", adapter_name="", is_enabled=False) -> dict`  
+`PostProcess.write_user_post_processor_yaml(*, key, yaml_body="") -> dict`  
+`PostProcess.validate_user_post_processor(*, key) -> dict`  
+`PostProcess.describe_user_adapter(*, name) -> dict` / `describe_user_post_processor(*, key) -> dict`  
+`PostProcess.list_user_adapter_summaries() -> dict` / `list_user_post_processor_summaries() -> dict`
+
+- **状态：** `beta`
+- **描述：** 实现在 `user_post_process`。模板：`_template/empty_adapter`、`_template/empty_post_processor`。发现即注册；返回 `{ok, ...}`。
+
 ---
 
 ## contracts

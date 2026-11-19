@@ -1216,6 +1216,47 @@ class Strategy:
 
         return StrategyArtifactOps.validate_artifact(key=key)
 
+    @staticmethod
+    def write_user_rolling(*, key: str, rolling_py: str) -> Dict[str, Any]:
+        """覆盖策略目录 ``rolling.py``。"""
+        from .services.artifact_ops import StrategyArtifactOps
+
+        return StrategyArtifactOps.write_rolling(key=key, rolling_py=rolling_py)
+
+    @staticmethod
+    def validate_user_rolling(*, key: str) -> Dict[str, Any]:
+        """校验 ``rolling.py`` 窗口列表；不跑批。"""
+        from .services.artifact_ops import StrategyArtifactOps
+
+        return StrategyArtifactOps.validate_rolling(key=key)
+
+    @staticmethod
+    def read_rolling_report(*, key: str) -> Dict[str, Any]:
+        """读当前主 version 的 ``rolling/report.json`` 摘要。"""
+        import json
+
+        from .engines.rolling.readiness import report_path_for
+
+        name = str(key or "").strip()
+        if not name:
+            return {"ok": False, "error": "key 不能为空"}
+        try:
+            path = report_path_for(name)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            return {"ok": False, "key": name, "error": str(exc)}
+        except Exception as exc:
+            return {"ok": False, "key": name, "error": f"无法读取滚动报告: {exc}"}
+        if not isinstance(payload, dict):
+            return {"ok": False, "key": name, "error": "滚动报告格式无效"}
+        return {
+            "ok": True,
+            "key": name,
+            "path": str(path),
+            "report": payload,
+            "note": "只用报告里的数字解释对照结果，不要编造未出现的指标。",
+        }
+
     # --- workbench snapshot 读模型（磁盘 registry；UI hydrate 仍在 BFF）---
 
     @staticmethod

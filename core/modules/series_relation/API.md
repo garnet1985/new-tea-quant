@@ -43,6 +43,17 @@
 - **状态：** `beta`
 - **描述：** 返回 `{ok, settings, errors}`；规范化后的 settings 不含 `max_series`
 
+### scaffold_user_series_relation / write_user_series_relation_settings / validate_user_series_relation / describe_user_series_relation / list_user_series_relation_summaries
+
+`SeriesRelation.scaffold_user_series_relation(*, key, display_name="") -> dict`（staticmethod）  
+`SeriesRelation.write_user_series_relation_settings(*, key, settings_py="") -> dict`（staticmethod）  
+`SeriesRelation.validate_user_series_relation(*, key) -> dict`（staticmethod）  
+`SeriesRelation.describe_user_series_relation(*, key) -> dict`（staticmethod）  
+`SeriesRelation.list_user_series_relation_summaries() -> dict`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** Userspace 场景脚手架与按 key 校验（实现在 `user_relations`）。从 `_template/empty_relation` 复制；发现即注册，无 mapping。`meta.key` 与目录叶名对齐。
+
 ### save
 
 `SeriesRelation.save(key_or_id: str, settings: Mapping) -> dict`

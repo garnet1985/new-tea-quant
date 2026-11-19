@@ -37,8 +37,14 @@ from core.modules.agent.core.code.tools.tag.read_reports import (
 )
 from core.modules.agent.core.code.tools.tag.validate_tag import validate_tag
 from core.modules.agent.core.code.tools.tag.write_tag_files import write_tag_files
+from core.modules.agent.core.code.tools.data.create_data_contract import (
+    create_data_contract,
+)
 from core.modules.agent.core.code.tools.data.create_data_source import create_data_source
 from core.modules.agent.core.code.tools.data.create_table import create_table
+from core.modules.agent.core.code.tools.data.describe_data_contract import (
+    describe_data_contract,
+)
 from core.modules.agent.core.code.tools.data.ensure_physical_table import (
     ensure_physical_table,
 )
@@ -49,13 +55,22 @@ from core.modules.agent.core.code.tools.data.inspect_data import (
     list_data_sources,
     list_data_tables,
 )
+from core.modules.agent.core.code.tools.data.register_data_contract_key import (
+    register_data_contract_key,
+)
 from core.modules.agent.core.code.tools.data.register_data_source import (
     register_data_source,
+)
+from core.modules.agent.core.code.tools.data.validate_data_contract import (
+    validate_data_contract,
 )
 from core.modules.agent.core.code.tools.data.validate_data_source import (
     validate_data_source,
 )
 from core.modules.agent.core.code.tools.data.validate_table import validate_table
+from core.modules.agent.core.code.tools.data.write_data_contract_files import (
+    write_data_contract_files,
+)
 from core.modules.agent.core.code.tools.data.write_data_source_files import (
     write_data_source_files,
 )
@@ -98,6 +113,11 @@ _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "write_data_source_files": write_data_source_files,
     "register_data_source": register_data_source,
     "validate_data_source": validate_data_source,
+    "create_data_contract": create_data_contract,
+    "write_data_contract_files": write_data_contract_files,
+    "register_data_contract_key": register_data_contract_key,
+    "validate_data_contract": validate_data_contract,
+    "describe_data_contract": describe_data_contract,
 }
 
 

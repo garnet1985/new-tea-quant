@@ -971,5 +971,74 @@ class ContractIssuer:
         src = inspect.getsourcefile(mod)
         return Path(src) if src else None
 
+    # ------------------------------------------------------------------
+    # Userspace 契约用例（脚手架 / 写文件 / data_keys / 校验）
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def scaffold_user_contract(
+        *,
+        key: str,
+        data_key: Optional[str] = None,
+        const_name: Optional[str] = None,
+        contract_type: str = "non_time_series",
+        scope: str = "global",
+        list_data_key: str = "",
+        display_name: str = "",
+    ) -> Dict[str, Any]:
+        """在 ``userspace/extensions/data_contract`` 从 ``contract_example`` 新建契约骨架。"""
+        from core.modules.data_contract.core.user_contracts import UserContractOps
+
+        return UserContractOps.scaffold(
+            key=key,
+            data_key=data_key,
+            const_name=const_name,
+            contract_type=contract_type,
+            scope=scope,
+            list_data_key=list_data_key,
+            display_name=display_name,
+        )
+
+    @staticmethod
+    def write_user_contract_files(
+        *,
+        key: str,
+        declaration_py: str = "",
+        loader_py: str = "",
+        contract_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖已有 userspace 契约的 declaration/loader/contract（至少一份）。"""
+        from core.modules.data_contract.core.user_contracts import UserContractOps
+
+        return UserContractOps.write_files(
+            key=key,
+            declaration_py=declaration_py,
+            loader_py=loader_py,
+            contract_py=contract_py,
+        )
+
+    @staticmethod
+    def apply_user_data_key(*, const_name: str, data_key: str) -> Dict[str, Any]:
+        """合并写入 ``data_keys.py`` 的 ``USER_DATA_KEY`` 常量。"""
+        from core.modules.data_contract.core.user_contracts import UserContractOps
+
+        return UserContractOps.apply_user_data_key(
+            const_name=const_name, data_key=data_key
+        )
+
+    @staticmethod
+    def validate_user_contract(*, key: str, reload: bool = True) -> Dict[str, Any]:
+        """校验 userspace 契约并可选 ``reload`` 生效。"""
+        from core.modules.data_contract.core.user_contracts import UserContractOps
+
+        return UserContractOps.validate(key=key, reload=reload)
+
+    @staticmethod
+    def describe_user_contract(*, data_key: str) -> Dict[str, Any]:
+        """只读契约声明摘要。"""
+        from core.modules.data_contract.core.user_contracts import UserContractOps
+
+        return UserContractOps.describe(data_key=data_key)
+
 
 __all__ = ['ContractIssuer']

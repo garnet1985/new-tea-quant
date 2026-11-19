@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from core.modules.agent.core.code.tools.data.create_data_contract import (
+    create_data_contract,
+)
 from core.modules.agent.core.code.tools.data.create_data_source import create_data_source
 from core.modules.agent.core.code.tools.data.create_table import create_table
 from core.modules.agent.core.code.tools.data.write_table_files import write_table_files
@@ -97,4 +100,39 @@ def test_agent_create_data_source_delegates(handlers_root: Path) -> None:
     assert (handlers_root / "agent_src" / "handler.py").is_file()
     assert "AgentSrcHooks" in (
         handlers_root / "agent_src" / "handler.py"
+    ).read_text(encoding="utf-8")
+
+
+@pytest.fixture()
+def contracts_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    root = tmp_path / "extensions" / "data_contract"
+    example = root / "contract_example"
+    example.mkdir(parents=True)
+    (example / "declaration.py").write_text("X = {}\n", encoding="utf-8")
+    (example / "loader.py").write_text(
+        "from core.modules.data_contract.contracts import BaseDataContractLoader\n"
+        "class MyCustomDataLoader(BaseDataContractLoader):\n"
+        "    def load(self, params):\n"
+        "        return []\n",
+        encoding="utf-8",
+    )
+    (root / "data_keys.py").write_text(
+        "class USER_DATA_KEY:\n    pass\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "core.infra.project_context.ProjectContext.path.get_data_contract_root",
+        lambda: root,
+    )
+    return root
+
+
+def test_agent_create_data_contract_delegates(contracts_root: Path) -> None:
+    created = create_data_contract(
+        {"key": "agent_feed", "data_key": "agent.feed.data"}
+    )
+    assert created.get("ok") is True, created
+    assert (contracts_root / "agent_feed" / "declaration.py").is_file()
+    assert "agent.feed.data" in (
+        contracts_root / "agent_feed" / "declaration.py"
     ).read_text(encoding="utf-8")

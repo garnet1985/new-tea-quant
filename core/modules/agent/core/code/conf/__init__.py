@@ -41,6 +41,8 @@ from core.modules.agent.core.code.conf.conf import (
     WRITE_TABLE_MAX_CHARS,
     WRITE_DATA_SOURCE_ALLOWED_FIELDS,
     WRITE_DATA_SOURCE_MAX_CHARS,
+    WRITE_DATA_CONTRACT_ALLOWED_FIELDS,
+    WRITE_DATA_CONTRACT_MAX_CHARS,
 )
 
 __all__ = [
@@ -83,5 +85,7 @@ __all__ = [
     "WRITE_TABLE_MAX_CHARS",
     "WRITE_DATA_SOURCE_ALLOWED_FIELDS",
     "WRITE_DATA_SOURCE_MAX_CHARS",
+    "WRITE_DATA_CONTRACT_ALLOWED_FIELDS",
+    "WRITE_DATA_CONTRACT_MAX_CHARS",
     "resolve_user_write_path",
 ]

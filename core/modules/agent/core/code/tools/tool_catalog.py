@@ -532,6 +532,87 @@ _TOOLS: tuple[ToolSpec, ...] = (
         ),
         implemented=True,
     ),
+    ToolSpec(
+        name="create_data_contract",
+        description=(
+            "在 userspace/extensions/data_contract 从 contract_example 新建契约骨架。"
+            "目录已存在时不要覆盖；不会自动改 data_keys.py。"
+        ),
+        parameters=_object(
+            {
+                "key": _string(
+                    "契约目录相对路径，例如 my_feed。"
+                    "每段以字母开头，只含字母、数字、下划线。"
+                ),
+                "data_key": _string("点分 data_key，如 my.feed.data；省略则按目录名生成"),
+                "const_name": _string("USER_DATA_KEY 常量名，SCREAMING_SNAKE；可省略"),
+                "contract_type": _string("time_series 或 non_time_series（默认）"),
+                "scope": _string("global（默认）或 per_entity"),
+                "list_data_key": _string("scope=per_entity 时必填，如 stock.list"),
+                "display_name": _string("展示名；可省略"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="write_data_contract_files",
+        description=(
+            "覆盖已有 userspace 契约的 declaration.py / loader.py / contract.py。"
+            "改完后 register_data_contract_key（若未登记）再 validate_data_contract。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("已存在的契约目录相对路径"),
+                "declaration_py": _string("declaration.py 全文。须导出 *_DECLARATION。可省略。"),
+                "loader_py": _string(
+                    "loader.py 全文。须继承 BaseDataContractLoader。可省略。"
+                ),
+                "contract_py": _string("可选 contract.py 全文。"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="register_data_contract_key",
+        description=(
+            "把 data_key 写入 userspace data_keys.py 的 USER_DATA_KEY。"
+            "declaration 的 meta.key 必须等于该 data_key。"
+        ),
+        parameters=_object(
+            {
+                "const_name": _string("常量名，如 MY_FEED_DATA"),
+                "data_key": _string("点分键，如 my.feed.data"),
+            },
+            ["const_name", "data_key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_data_contract",
+        description=(
+            "校验 userspace 契约 declaration/loader，确认 data_key 已登记，并默认 reload 生效。"
+            "未通过则不要在策略里引用该键。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("契约目录相对路径，例如 my_feed"),
+                "reload": _boolean("是否 reload 发现缓存，默认 true"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="describe_data_contract",
+        description="只读描述一个已发现 data_key 的 meta 摘要。",
+        parameters=_object(
+            {"data_key": _string("如 stock.kline.daily 或 my.feed.data")},
+            ["data_key"],
+        ),
+        implemented=True,
+    ),
 )
 
 

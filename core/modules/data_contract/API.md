@@ -65,6 +65,17 @@ kline = ContractIssuer.issue(
 - **状态：** `beta`
 - **描述：** CLI 目录行 / BFF UI 目录行（含 origin、is_custom）。自动 discover；信道勿摸 `_discovered` / `_declarations_cache`
 
+#### scaffold_user_contract / write_user_contract_files / apply_user_data_key / validate_user_contract / describe_user_contract
+
+`ContractIssuer.scaffold_user_contract(*, key, data_key=None, const_name=None, contract_type="non_time_series", scope="global", list_data_key="", display_name="") -> dict`（staticmethod）  
+`ContractIssuer.write_user_contract_files(*, key, declaration_py="", loader_py="", contract_py="") -> dict`（staticmethod）  
+`ContractIssuer.apply_user_data_key(*, const_name, data_key) -> dict`（staticmethod）  
+`ContractIssuer.validate_user_contract(*, key, reload=True) -> dict`（staticmethod）  
+`ContractIssuer.describe_user_contract(*, data_key) -> dict`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** Userspace 契约脚手架与校验（实现在 `user_contracts`）。`key` 为目录相对路径；`data_key` 为点分键；`apply_user_data_key` 写 `USER_DATA_KEY`。校验默认可 `reload` 生效。
+
 #### reload
 
 `ContractIssuer.reload(user_space_path=None) -> int`

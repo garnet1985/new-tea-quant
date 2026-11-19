@@ -23,6 +23,7 @@ from core.modules.agent.core.code.executor.worker.prompt import worker_system_pr
 from core.modules.agent.core.code.session.session_store import (
     PENDING_PLAN_CONFIRM,
     PENDING_PORTFOLIO_CONFIRM,
+    PENDING_TAG_PLAN_CONFIRM,
     set_pending,
     update_state_from_tool,
 )
@@ -34,6 +35,8 @@ _REPORT_TOOLS = frozenset(
         "read_attribution_report",
         "read_scan_report",
         "list_strategy_summaries",
+        "read_tag_report",
+        "list_tag_summaries",
     }
 )
 
@@ -90,12 +93,15 @@ def run(
             if reply and (
                 is_test_plan_confirm(reply)
                 or is_portfolio_plan_confirm(reply)
+                or is_tag_plan_confirm(reply)
                 or is_next_step_offer(reply, tools_seen)
             ):
                 if is_test_plan_confirm(reply):
                     set_pending(PENDING_PLAN_CONFIRM, session_id)
                 elif is_portfolio_plan_confirm(reply):
                     set_pending(PENDING_PORTFOLIO_CONFIRM, session_id)
+                elif is_tag_plan_confirm(reply):
+                    set_pending(PENDING_TAG_PLAN_CONFIRM, session_id)
                 return {"reply": reply, "tools_seen": tools_seen}
             if reply and (
                 asks_user_permission(reply) or is_deferred_plan_reply(reply)
@@ -170,18 +176,31 @@ def is_portfolio_plan_confirm(reply: str) -> bool:
     )
 
 
+def is_tag_plan_confirm(reply: str) -> bool:
+    """打标计划确认单：须含二级标题 + CTA。"""
+    text = str(reply or "")
+    if not re.search(r"##\s*(打标计划|标签计划)", text):
+        return False
+    return bool(
+        re.search(
+            r"(可行吗|需要改动|确认执行|请告诉我|说[「\"]?执行)",
+            text,
+        )
+    )
+
+
 def is_next_step_offer(reply: str, tools_seen: Sequence[Dict[str, Any]]) -> bool:
     """报告后的下一步邀请：本轮已读过报告，且提出资金/归因/滚动等可选下一步。"""
     if not _saw_report_tool(tools_seen):
         return False
     text = str(reply or "")
-    if is_portfolio_plan_confirm(text):
+    if is_portfolio_plan_confirm(text) or is_tag_plan_confirm(text):
         return False
     if not re.search(r"(要不要|要我帮你|可以接着|下一步)", text):
         return False
     return bool(
         re.search(
-            r"(资金|portfolio|归因|止盈|止损|滚动|多区间|扫描|本金)",
+            r"(资金|portfolio|归因|止盈|止损|滚动|多区间|扫描|本金|标签|打标|增量)",
             text,
         )
     )
@@ -190,10 +209,14 @@ def is_next_step_offer(reply: str, tools_seen: Sequence[Dict[str, Any]]) -> bool
 def asks_user_permission(reply: str) -> bool:
     """中途空许可请示。不含「要不要试试…归因/资金/滚动」类下一步。"""
     text = str(reply or "")
-    if is_test_plan_confirm(text) or is_portfolio_plan_confirm(text):
+    if (
+        is_test_plan_confirm(text)
+        or is_portfolio_plan_confirm(text)
+        or is_tag_plan_confirm(text)
+    ):
         return False
     if re.search(
-        r"要不要(试试|用).+(资金|portfolio|归因|止盈|止损|滚动|多区间|本金)",
+        r"要不要(试试|用).+(资金|portfolio|归因|止盈|止损|滚动|多区间|本金|标签|打标)",
         text,
     ):
         return False
@@ -208,7 +231,11 @@ def asks_user_permission(reply: str) -> bool:
 
 def is_deferred_plan_reply(reply: str) -> bool:
     text = str(reply or "")
-    if is_test_plan_confirm(text) or is_portfolio_plan_confirm(text):
+    if (
+        is_test_plan_confirm(text)
+        or is_portfolio_plan_confirm(text)
+        or is_tag_plan_confirm(text)
+    ):
         return False
     if re.search(
         r"(结论如下|敏感度|卡玛|夏普|总收益|机会总数|归因报告|group_id)",

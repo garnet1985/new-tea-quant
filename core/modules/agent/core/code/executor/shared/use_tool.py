@@ -43,8 +43,10 @@ def _await_task(result: Dict[str, Any]) -> Dict[str, Any]:
             seen = marker
             logger.info("任务 %s：%s", task_id, marker)
         if status in {"completed", "failed", "cancelled"}:
-            if status == "completed" and progress.get("kind") != "scan":
+            if status == "completed" and progress.get("kind") not in {"scan", "tag"}:
                 latest["note"] = "任务已结束。接着读执行报告，数字只能来自报告。"
+            elif status == "completed" and progress.get("kind") == "tag":
+                latest["note"] = "打标已结束。接着 read_tag_report，数字只能来自报告。"
             return latest
     latest["note"] = "等待超时，任务可能仍在跑。不要编写结果数字。"
     return latest

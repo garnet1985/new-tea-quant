@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher
+from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher as BffTagRunLauncher
+from core.modules.tag.core.services.run_launcher import TagRunLauncher
+
+
+def test_bff_delegates_to_tag_facade():
+    with patch("core.modules.tag.Tag.trigger_run", return_value={"is_triggered": True}) as trig:
+        out = BffTagRunLauncher.trigger(tag_key="demo/x")
+    assert out["is_triggered"] is True
+    trig.assert_called_once_with(tag_key="demo/x")
 
 
 def test_trigger_unknown_scenario():

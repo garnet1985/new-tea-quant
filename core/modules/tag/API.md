@@ -1,6 +1,6 @@
 # Tag API 文档
 
-**版本：** `0.4.1`  
+**版本：** `0.4.2`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -10,7 +10,7 @@
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 **公开约定：** 包根仅导出 `Tag`；hooks 与枚举从 [`contracts.py`](./contracts.py) 导入。  
-**边界：** UI catalog/run 在 BFF；进度落盘 `TagRunProgress`（内部服务）。
+**边界：** UI HTTP 在 BFF（薄封装）；异步跑与进度轮询走本 Facade，禁止跨模块 deep-import `core.services`。
 
 ---
 
@@ -53,6 +53,35 @@
 
 - **状态：** `beta`
 - **描述：** 脚手架路径段机器可读校验；供 CLI 从模板新建等调用
+
+### list_tag_infos / get_tag_info / resolve_path / resolve_folder
+
+`Tag.list_tag_infos(*, enabled_only: bool = False) -> list[dict]`  
+`Tag.get_tag_info(key_or_id: str, *, enabled_only: bool = False) -> dict | None`  
+`Tag.resolve_path(key_or_id: str) -> str`  
+`Tag.resolve_folder(key_or_id: str) -> Path`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 不构造 `DataManager` 的 discovery 查询。`list_tag_infos` / `get_tag_info` 返回元数据字典（含 `folder` / `key` / `is_enabled` / `hooks_class_name` 等）；`resolve_*` 未命中抛 `FileNotFoundError`
+
+### load_hooks_class
+
+`Tag.load_hooks_class(tag_folder: Path, tag_key: str)`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 加载 `tag.py` 中的 `TagHooks` 子类；失败返回 `None`
+
+### trigger_run / start_run / get_run_progress
+
+`Tag.trigger_run(*, tag_key: str) -> dict`  
+`Tag.start_run(*, tag_key: str) -> dict`  
+`Tag.get_run_progress(*, tag_key: str, job_id: str) -> dict | None`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 异步打标。`trigger_run` 入队 `JobPipeline`；`start_run` 立刻后台开跑并返回 `job_id`；`get_run_progress` 供轮询。BFF / agent 只经此三入口
 
 ### execute
 

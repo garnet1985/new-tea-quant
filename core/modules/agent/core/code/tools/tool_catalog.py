@@ -256,6 +256,93 @@ _TOOLS: tuple[ToolSpec, ...] = (
         ),
         implemented=True,
     ),
+    ToolSpec(
+        name="create_tag",
+        description=(
+            "从空模板新建一个标签场景。先检查目录名和是否已存在，再复制模板、启用并写入 meta.key。"
+            "目录已存在时不要覆盖。成功后仍是空模板，打标逻辑要另写。"
+        ),
+        parameters=_object(
+            {
+                "key": _string(
+                    "标签相对路径，同时作为目录名；meta.key 写叶名。"
+                    "每一段以字母开头，只含字母、数字、下划线。例如 market_cap_tier 或 demo/rsi_band。"
+                )
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="write_tag_files",
+        description=(
+            "覆盖已有标签的 tag.py 或 settings.py。"
+            "目录必须已经存在；至少提供一个文件正文。改完后调用 validate_tag。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("已存在的标签相对路径，例如 market_cap_tier"),
+                "tag_py": _string(
+                    "tag.py 全文。公开类继承 TagHooks，并实现 calculate_tag。可省略。"
+                ),
+                "settings_py": _string(
+                    "settings.py 全文。必须有 settings 字典，含 meta.key、tag_definitions，"
+                    "is_enabled 为 True。可省略。"
+                ),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_tag",
+        description=(
+            "加载 tag.py 和 settings.py。检查语法、meta.key、is_enabled、"
+            "tag_definitions、公开类继承 TagHooks 并实现 calculate_tag。"
+            "未通过则不要启动打标。"
+        ),
+        parameters=_object(
+            {"key": _string("标签 meta.key 或相对路径，例如 market_cap_tier")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="start_tag",
+        description=(
+            "对已启用且通过校验的标签启动计算，并立刻返回。不要等待跑完。"
+            "区间与更新模式用 settings（默认 incremental）。任务完成前不要给出写入条数。"
+        ),
+        parameters=_object(
+            {"key": _string("已存在的标签相对路径或 meta.key")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="list_tag_summaries",
+        description=(
+            "列出本机标签及最新性能报告摘要。"
+            "用于客观陈述已算好的标签；不要据此给投资建议。"
+        ),
+        parameters=_object({}, []),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="read_tag_report",
+        description=(
+            "读取标签性能报告摘要。version_id 可省略，省略时读最新版本。"
+            "不要编造摘要里没有的数字。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("标签 meta.key 或相对路径"),
+                "version_id": _string("版本号，例如 3。省略则读最新"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
 )
 
 

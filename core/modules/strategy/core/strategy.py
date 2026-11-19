@@ -1037,5 +1037,108 @@ class Strategy:
             dry_run=dry_run,
         )
 
+    # --- 跨模块进度 / hooks（agent / BFF 勿 deep-import core.services）---
+
+    @staticmethod
+    def get_pipeline_progress(
+        strategy_key: str,
+        pipeline_id: str,
+        *,
+        apply_stale: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """读取工作台回测 / 归因 / 滚动进度文档。"""
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.get(
+            strategy_key, pipeline_id, apply_stale=apply_stale
+        )
+
+    @staticmethod
+    def get_scan_progress(strategy_key: str, job_id: str) -> Optional[Dict[str, Any]]:
+        """读取扫描任务进度 DTO。"""
+        from .services.progress import ScanProgress
+
+        return ScanProgress.get_poll_dto(strategy_key, job_id)
+
+    @staticmethod
+    def seed_pipeline_progress(
+        strategy_key: str,
+        pipeline_id: str,
+        *,
+        pipeline_name: str,
+        pipeline_description: str | None = None,
+    ) -> None:
+        """登记一条管道进度（启动类任务用）。"""
+        from .services.progress import PipelineProgress
+
+        desc = pipeline_description
+        if desc is None:
+            desc = PipelineProgress.pipeline_description(pipeline_name)
+        PipelineProgress.seed(
+            strategy_key,
+            pipeline_id,
+            pipeline_name=pipeline_name,
+            pipeline_description=desc,
+        )
+
+    @staticmethod
+    def bind_pipeline_progress(strategy_key: str, pipeline_id: str):
+        """绑定当前线程的管道进度上下文（``with`` 使用）。"""
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.bind(strategy_key, pipeline_id)
+
+    @staticmethod
+    def load_pipeline_progress(strategy_key: str, pipeline_id: str):
+        """加载已有管道进度实例（可 ``fail`` / 读状态）。"""
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.load(strategy_key, pipeline_id)
+
+    @staticmethod
+    def pipeline_progress_description(pipeline_name: str) -> str:
+        from .services.progress import PipelineProgress
+
+        return PipelineProgress.pipeline_description(pipeline_name)
+
+    @staticmethod
+    def attribute_pipeline_name() -> str:
+        from .services.progress import ATTRIBUTE_PIPELINE
+
+        return ATTRIBUTE_PIPELINE
+
+    @staticmethod
+    def rolling_pipeline_name() -> str:
+        from .services.progress import ROLLING_PIPELINE
+
+        return ROLLING_PIPELINE
+
+    @staticmethod
+    def seed_scan_progress(
+        strategy_key: str,
+        job_id: str,
+        *,
+        demo: bool = False,
+        force: bool = False,
+    ) -> None:
+        from .services.progress import ScanProgress
+
+        ScanProgress.for_job(strategy_key, job_id).seed(demo=demo, force=force)
+
+    @staticmethod
+    def fail_scan_progress(strategy_key: str, job_id: str, message: str) -> None:
+        from .services.progress import ScanProgress
+
+        ScanProgress.for_job(strategy_key, job_id).fail(str(message))
+
+    @staticmethod
+    def load_hooks_class(strategy_folder: Path, strategy_key: str):
+        """加载 ``strategy.py`` 中的 ``StrategyHooks`` 子类；失败返回 ``None``。"""
+        from .services.discovery.hooks_loader import StrategyHooksLoader
+
+        return StrategyHooksLoader.load_hooks_class(
+            Path(strategy_folder), str(strategy_key)
+        )
+
 
 __all__ = ["Strategy", "BackTestPipelines"]

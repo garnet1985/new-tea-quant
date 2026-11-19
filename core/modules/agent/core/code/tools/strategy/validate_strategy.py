@@ -7,13 +7,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from core.infra.discovery import Discovery
+from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import StrategyHooks
-from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
-    StrategyDraft,
-)
-from core.modules.strategy.core.services.discovery.hooks_loader import (
-    StrategyHooksLoader,
-)
 from core.modules.agent.core.code.tools.strategy._strategy_key import (
     parse_strategy_key,
     strategy_folder,
@@ -46,17 +41,6 @@ def validate_strategy(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if errors:
         return {"ok": False, "key": parsed, "errors": errors}
 
-    draft = StrategyDraft(
-        unique_relative_path=parsed,
-        strategy_file=strategy_file,
-        settings_file=settings_file,
-    )
-    draft_errors: List[str] = []
-    if not draft.is_valid():
-        draft_errors = [
-            _scrub(item, folder, relative) for item in draft.validation_errors()
-        ]
-
     settings = _load_settings(settings_file)
     if isinstance(settings, dict):
         meta = settings.get("meta")
@@ -74,14 +58,10 @@ def validate_strategy(arguments: Dict[str, Any]) -> Dict[str, Any]:
             )
         if settings.get("is_enabled") is not True:
             errors.append("is_enabled 必须为 True，否则不能回测")
-    elif not any(item.startswith("无法加载settings.py") for item in draft_errors):
+    else:
         errors.append(_scrub(f"无法加载settings.py: {settings}", folder, relative))
 
     hooks_error, hooks_name = _hooks_status(folder, parsed)
-    for item in draft_errors:
-        if hooks_error and "strategy.py" in item:
-            continue
-        errors.append(item)
     if hooks_error:
         errors.append(hooks_error)
     bar_access = _bar_attribute_access(strategy_file)
@@ -106,8 +86,6 @@ def _meta_key_aligned(meta_key: str, parsed: str, folder: Path) -> bool:
     if meta_key in {needle, leaf}:
         return True
     try:
-        from core.modules.strategy import Strategy
-
         resolved = Strategy.resolve_folder(meta_key).resolve()
         return resolved == folder.resolve()
     except (FileNotFoundError, ValueError, OSError):
@@ -139,7 +117,7 @@ def _load_settings(path: Path) -> Dict[str, Any] | str:
 
 
 def _hooks_status(folder: Path, key: str) -> tuple[str, str]:
-    loaded = StrategyHooksLoader.load_hooks_class(folder, key)
+    loaded = Strategy.load_hooks_class(folder, key)
     if loaded is None:
         return _hooks_exception(folder, key), ""
     hooks_name, hooks_class = loaded[1], loaded[3]

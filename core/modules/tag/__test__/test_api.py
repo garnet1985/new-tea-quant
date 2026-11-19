@@ -49,7 +49,21 @@ class TestTagApi(unittest.TestCase):
         self.assertFalse(hasattr(pkg, "DiscoveryService"))
 
     def test_public_methods(self) -> None:
-        for name in ("refresh", "list_ids", "list_keys", "find", "execute"):
+        for name in (
+            "refresh",
+            "list_ids",
+            "list_keys",
+            "find",
+            "execute",
+            "list_tag_infos",
+            "get_tag_info",
+            "resolve_path",
+            "resolve_folder",
+            "load_hooks_class",
+            "trigger_run",
+            "start_run",
+            "get_run_progress",
+        ):
             self.assertTrue(callable(getattr(Tag, name)), name)
         self.assertTrue(callable(Tag.is_valid_path))
         self.assertTrue(Tag.is_valid_path("demo/market_cap_tier"))

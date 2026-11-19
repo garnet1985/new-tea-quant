@@ -6,7 +6,7 @@ import logging
 import threading
 import uuid
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict  # prog 实例来自 Strategy.bind_pipeline_progress
 
 from core.infra.job_pipeline import JobPipeline
 from core.infra.job_pipeline.contracts import JobRunningBusyError
@@ -18,17 +18,12 @@ from core.modules.agent.core.code.tools.strategy._strategy_key import (
 from core.modules.agent.core.code.tools.task_record import write_task
 from core.modules.agent.core.code.tools.strategy.validate_strategy import validate_strategy
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.services.progress import (
-    ATTRIBUTE_PIPELINE,
-    ROLLING_PIPELINE,
-    PipelineProgress,
-)
 
 logger = logging.getLogger(__name__)
 
 _LOCK = threading.Lock()
 _ACTIVE: Dict[str, str] = {}
-Runner = Callable[[str, PipelineProgress], Dict[str, Any]]
+Runner = Callable[[str, Any], Dict[str, Any]]
 
 
 def start_enumerate(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -85,7 +80,7 @@ def start_attribute_enumerate(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments,
         prefix="atenum",
         label="枚举归因",
-        pipeline_name=ATTRIBUTE_PIPELINE,
+        pipeline_name=Strategy.attribute_pipeline_name(),
         lease_kind="strategy_attribute",
         runner=_run_attribute_enumerate,
     )
@@ -97,7 +92,7 @@ def start_attribute_price(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments,
         prefix="atprice",
         label="价格归因",
-        pipeline_name=ATTRIBUTE_PIPELINE,
+        pipeline_name=Strategy.attribute_pipeline_name(),
         lease_kind="strategy_attribute",
         runner=_run_attribute_price,
     )
@@ -109,7 +104,7 @@ def start_attribute_portfolio(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments,
         prefix="atport",
         label="资金归因",
-        pipeline_name=ATTRIBUTE_PIPELINE,
+        pipeline_name=Strategy.attribute_pipeline_name(),
         lease_kind="strategy_attribute",
         runner=_run_attribute_portfolio,
     )
@@ -121,7 +116,7 @@ def start_rolling(arguments: Dict[str, Any]) -> Dict[str, Any]:
         arguments,
         prefix="roll",
         label="滚动对照",
-        pipeline_name=ROLLING_PIPELINE,
+        pipeline_name=Strategy.rolling_pipeline_name(),
         lease_kind="strategy_rolling",
         runner=_run_rolling,
     )
@@ -129,8 +124,6 @@ def start_rolling(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 def start_scan(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """扫描当前交易日的机会。不接受 demo 或 force。"""
-    from core.modules.strategy.core.services.progress import ScanProgress
-
     gated = _gate(arguments, "扫描")
     if isinstance(gated, dict):
         return gated
@@ -142,7 +135,7 @@ def start_scan(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not _claim(gated, task_id):
         return {"ok": False, "key": gated, "error": "该策略已有任务在运行"}
     try:
-        ScanProgress.for_job(gated, task_id).seed(demo=False, force=False)
+        Strategy.seed_scan_progress(gated, task_id, demo=False, force=False)
         write_task({"task_id": task_id, "key": gated, "kind": "scan"})
     except Exception as exc:
         _release(gated, task_id)
@@ -201,8 +194,6 @@ def _gate(arguments: Dict[str, Any], label: str) -> str | Dict[str, Any]:
 
 
 def _scan_worker(key: str, task_id: str) -> None:
-    from core.modules.strategy.core.services.progress import ScanProgress
-
     lease = JobPipeline.running_lease(
         kind="strategy_scan",
         job_id=task_id,
@@ -213,13 +204,13 @@ def _scan_worker(key: str, task_id: str) -> None:
     try:
         lease.acquire()
     except JobRunningBusyError as exc:
-        ScanProgress.for_job(key, task_id).fail(str(exc))
+        Strategy.fail_scan_progress(key, task_id, str(exc))
         _release(key, task_id)
         JobPipeline.notify_job_finished()
         return
     try:
         if JobPipeline.is_cancel_requested(task_id):
-            ScanProgress.for_job(key, task_id).fail("用户取消")
+            Strategy.fail_scan_progress(key, task_id, "用户取消")
             return
         Strategy.scan_run(key, progress_id=task_id, demo=False, force=False)
     except Exception:
@@ -252,11 +243,11 @@ def _start(
         return {"ok": False, "key": parsed, "error": "该策略已有任务在运行"}
 
     try:
-        PipelineProgress.seed(
+        Strategy.seed_pipeline_progress(
             parsed,
             task_id,
             pipeline_name=pipeline_name,
-            pipeline_description=PipelineProgress.pipeline_description(pipeline_name),
+            pipeline_description=Strategy.pipeline_progress_description(pipeline_name),
         )
         write_task({"task_id": task_id, "key": parsed, "kind": prefix})
     except Exception as exc:
@@ -317,7 +308,7 @@ def _worker(
         return
 
     try:
-        with PipelineProgress.bind(key, task_id) as prog:
+        with Strategy.bind_pipeline_progress(key, task_id) as prog:
             prog.mark_running()
             if JobPipeline.is_cancel_requested(task_id):
                 prog.fail("用户取消")
@@ -342,36 +333,36 @@ def _worker(
 
 
 def _fail(key: str, task_id: str, message: str) -> None:
-    inst = PipelineProgress.load(key, task_id)
+    inst = Strategy.load_pipeline_progress(key, task_id)
     if inst is not None:
         inst.fail(message)
 
 
-def _use_pipeline(prog: PipelineProgress, pipeline_name: str) -> None:
+def _use_pipeline(prog: Any, pipeline_name: str) -> None:
     """完整回测中途改进度名，后面的层才能推进同一条进度。"""
     prog._doc["pipeline_name"] = pipeline_name
-    prog._doc["pipeline_description"] = PipelineProgress.pipeline_description(
+    prog._doc["pipeline_description"] = Strategy.pipeline_progress_description(
         pipeline_name
     )
     prog._save()
 
 
-def _run_enumerate(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_enumerate(key: str, prog: Any) -> Dict[str, Any]:
     _ = prog
     return _layer_summary(key, Strategy.enumerate(key), "enum")
 
 
-def _run_price(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_price(key: str, prog: Any) -> Dict[str, Any]:
     _ = prog
     return _layer_summary(key, Strategy.price_factor(key), "price")
 
 
-def _run_portfolio(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_portfolio(key: str, prog: Any) -> Dict[str, Any]:
     _ = prog
     return _layer_summary(key, Strategy.portfolio(key), "portfolio")
 
 
-def _run_simulate(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_simulate(key: str, prog: Any) -> Dict[str, Any]:
     layers: Dict[str, Any] = {}
     for pipeline_name, step, fn in (
         ("enum", "enum", Strategy.enumerate),
@@ -391,22 +382,22 @@ def _run_simulate(key: str, prog: PipelineProgress) -> Dict[str, Any]:
     return {"key": key, "layers": layers}
 
 
-def _run_attribute_enumerate(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_attribute_enumerate(key: str, prog: Any) -> Dict[str, Any]:
     _ = prog
     return _campaign_summary(key, Strategy.attribute_enumerate(key), "enum")
 
 
-def _run_attribute_price(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_attribute_price(key: str, prog: Any) -> Dict[str, Any]:
     _ = prog
     return _campaign_summary(key, Strategy.attribute_price(key), "price")
 
 
-def _run_attribute_portfolio(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_attribute_portfolio(key: str, prog: Any) -> Dict[str, Any]:
     _ = prog
     return _campaign_summary(key, Strategy.attribute_portfolio(key), "portfolio")
 
 
-def _run_rolling(key: str, prog: PipelineProgress) -> Dict[str, Any]:
+def _run_rolling(key: str, prog: Any) -> Dict[str, Any]:
     _ = prog
     return _campaign_summary(key, Strategy.rolling(key), "rolling")
 

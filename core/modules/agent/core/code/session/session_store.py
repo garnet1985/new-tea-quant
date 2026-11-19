@@ -263,6 +263,8 @@ def context_block(session_id: str = DEFAULT_SESSION_ID) -> str:
     bits: List[str] = []
     if state.get("strategy_key"):
         bits.append(f"当前策略：{state['strategy_key']}")
+    if state.get("tag_key"):
+        bits.append(f"当前标签：{state['tag_key']}")
     last = state.get("last_task") if isinstance(state.get("last_task"), dict) else {}
     if last.get("task_id"):
         bits.append(
@@ -285,11 +287,14 @@ def context_block(session_id: str = DEFAULT_SESSION_ID) -> str:
 
 PENDING_PLAN_CONFIRM = "awaiting_plan_confirm"
 PENDING_PORTFOLIO_CONFIRM = "awaiting_portfolio_confirm"
+PENDING_TAG_PLAN_CONFIRM = "awaiting_tag_plan_confirm"
 
 _EXECUTE_TOOLS_CLEAR_PENDING = frozenset(
     {
         "create_strategy",
         "write_strategy_files",
+        "create_tag",
+        "write_tag_files",
     }
 )
 
@@ -328,7 +333,14 @@ def update_state_from_tool(
         state["pending"] = ""
     key = str(result.get("key") or "").strip()
     if key:
-        state["strategy_key"] = key
+        name = str(tool_name or "")
+        if (
+            name.startswith(("create_tag", "write_tag", "validate_tag", "start_tag", "read_tag", "list_tag"))
+            or str(result.get("kind") or "") == "tag"
+        ):
+            state["tag_key"] = key
+        else:
+            state["strategy_key"] = key
     task_id = str(result.get("task_id") or "").strip()
     if task_id:
         state["last_task"] = {
@@ -347,6 +359,10 @@ def update_state_from_tool(
         "date",
         "version_id",
         "group_id",
+        "tag_values_count",
+        "saved_tag_values",
+        "ok_jobs",
+        "failed_jobs",
     ):
         if name in result and result.get(name) not in (None, ""):
             facts[name] = result.get(name)
@@ -435,6 +451,7 @@ __all__ = [
     "append_turn",
     "PENDING_PLAN_CONFIRM",
     "PENDING_PORTFOLIO_CONFIRM",
+    "PENDING_TAG_PLAN_CONFIRM",
     "clear_pending",
     "clear_session",
     "context_block",

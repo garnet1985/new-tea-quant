@@ -1,6 +1,6 @@
 # Strategy API 文档
 
-**版本：** `0.12.1`  
+**版本：** `0.12.2`  
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -159,6 +159,22 @@
 
 - **状态：** `beta`
 - **描述：** 策略交流包导出 / bundle 导入（退出码）；供 CLI / system shell 使用，勿 deep-import `PackageCli`
+
+### get_pipeline_progress / get_scan_progress / seed_* / bind_pipeline_progress / load_hooks_class
+
+`Strategy.get_pipeline_progress(strategy_key, pipeline_id, *, apply_stale=True) -> dict | None`  
+`Strategy.get_scan_progress(strategy_key, job_id) -> dict | None`  
+`Strategy.seed_pipeline_progress(strategy_key, pipeline_id, *, pipeline_name, pipeline_description=None) -> None`  
+`Strategy.bind_pipeline_progress(strategy_key, pipeline_id)`  
+`Strategy.load_pipeline_progress(strategy_key, pipeline_id)`  
+`Strategy.pipeline_progress_description(pipeline_name) -> str`  
+`Strategy.attribute_pipeline_name() -> str` / `Strategy.rolling_pipeline_name() -> str`  
+`Strategy.seed_scan_progress(...)` / `Strategy.fail_scan_progress(...)`  
+`Strategy.load_hooks_class(strategy_folder, strategy_key)`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 跨模块进度轮询与启动登记、hooks 加载。agent / BFF 经此调用，勿 deep-import `core.services.progress` / hooks_loader
 
 **举例：**
 

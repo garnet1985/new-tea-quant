@@ -386,5 +386,100 @@ class Tag:
 
         return TagPathRules.is_machine_readable_path(relative_path)
 
+    # --- 跨模块 discovery / 进度 / 异步跑（勿 deep-import core.services）---
+
+    @staticmethod
+    def list_tag_infos(*, enabled_only: bool = False) -> List[Dict[str, Any]]:
+        """返回标签元数据列表（一次 discovery，不构造 DataManager）。"""
+        tags = DiscoveryService.discover_tags()
+        if enabled_only:
+            tags = [t for t in tags if t.is_enabled]
+        return [Tag._to_info_dict(info) for info in tags]
+
+    @staticmethod
+    def get_tag_info(
+        key_or_id: str,
+        *,
+        enabled_only: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """按 ``meta.key`` 或相对路径查找元数据；未命中返回 ``None``。"""
+        needle = str(key_or_id or "").strip()
+        if not needle:
+            return None
+        for info in Tag.list_tag_infos(enabled_only=enabled_only):
+            if needle in (
+                str(info.get("key") or "").strip(),
+                str(info.get("unique_relative_path") or "").strip(),
+                str(info.get("relative_path") or "").strip(),
+            ):
+                return info
+        return None
+
+    @staticmethod
+    def resolve_path(key_or_id: str) -> str:
+        """``meta.key`` 或 path → userspace 相对 path。不存在则 ``FileNotFoundError``。"""
+        info = DiscoveryService.find_tag(key_or_id)
+        if info is None:
+            raise FileNotFoundError(f"找不到标签: {key_or_id}")
+        return str(info.id())
+
+    @staticmethod
+    def resolve_folder(key_or_id: str) -> Path:
+        """``meta.key`` / path → 绝对标签目录。"""
+        info = DiscoveryService.find_tag(key_or_id)
+        if info is not None:
+            return Path(info.folder)
+        needle = str(key_or_id or "").strip().strip("/")
+        if not needle or not Tag.is_valid_path(needle):
+            raise FileNotFoundError(f"找不到标签: {key_or_id}")
+        folder = ProjectContext.path.get_tags_root() / needle
+        if not folder.is_dir():
+            raise FileNotFoundError(f"找不到标签: {key_or_id}")
+        return folder.resolve()
+
+    @staticmethod
+    def load_hooks_class(tag_folder: Path, tag_key: str):
+        """加载 ``tag.py`` 中的 ``TagHooks`` 子类；失败返回 ``None``。"""
+        from .services.discovery.hooks_loader import TagHooksLoader
+
+        return TagHooksLoader.load_hooks_class(Path(tag_folder), str(tag_key))
+
+    @staticmethod
+    def trigger_run(*, tag_key: str) -> Dict[str, Any]:
+        """校验后入队异步打标（``JobPipeline.submit``）。"""
+        from .services.run_launcher import TagRunLauncher
+
+        return TagRunLauncher.trigger(tag_key=tag_key)
+
+    @staticmethod
+    def start_run(*, tag_key: str) -> Dict[str, Any]:
+        """立刻后台启动打标；返回 ``job_id`` / ``tag_key``。"""
+        from .services.run_launcher import TagRunLauncher
+
+        return TagRunLauncher.start_now(tag_key=tag_key)
+
+    @staticmethod
+    def get_run_progress(*, tag_key: str, job_id: str) -> Optional[Dict[str, Any]]:
+        """读取一次异步打标进度（供轮询）。"""
+        from .services.progress import TagRunProgress
+
+        return TagRunProgress.get_poll_dto(tag_key=tag_key, job_id=job_id)
+
+    @staticmethod
+    def _to_info_dict(info: DiscoveredTagInfo) -> Dict[str, Any]:
+        path_id = str(info.id() or "")
+        return {
+            "unique_relative_path": path_id,
+            "relative_path": path_id,
+            "key": str(info.key or ""),
+            "display_name": str(info.display_name or ""),
+            "is_enabled": bool(info.is_enabled),
+            "folder": str(Path(info.folder)),
+            "tag_file": str(Path(info.tag_file)),
+            "settings_file": str(Path(info.settings_file)),
+            "hooks_class_name": str(info.hooks_class_name or ""),
+            "settings": dict(info.settings or {}),
+        }
+
 
 __all__ = ["Tag"]

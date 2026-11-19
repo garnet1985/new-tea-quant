@@ -29,6 +29,14 @@ from core.modules.agent.core.code.tools.strategy.validate_strategy import valida
 from core.modules.agent.core.code.tools.strategy.write_strategy_files import (
     write_strategy_files,
 )
+from core.modules.agent.core.code.tools.tag.background_run import start_tag
+from core.modules.agent.core.code.tools.tag.create_tag import create_tag
+from core.modules.agent.core.code.tools.tag.read_reports import (
+    list_tag_summaries,
+    read_tag_report,
+)
+from core.modules.agent.core.code.tools.tag.validate_tag import validate_tag
+from core.modules.agent.core.code.tools.tag.write_tag_files import write_tag_files
 
 _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "create_strategy": create_strategy,
@@ -48,6 +56,12 @@ _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "read_execution_report": read_execution_report,
     "read_attribution_report": read_attribution_report,
     "read_scan_report": read_scan_report,
+    "create_tag": create_tag,
+    "write_tag_files": write_tag_files,
+    "validate_tag": validate_tag,
+    "start_tag": start_tag,
+    "list_tag_summaries": list_tag_summaries,
+    "read_tag_report": read_tag_report,
 }
 
 

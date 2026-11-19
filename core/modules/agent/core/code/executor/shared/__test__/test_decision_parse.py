@@ -9,6 +9,7 @@ from core.modules.agent.core.code.executor.worker.pipeline import (
     is_deferred_plan_reply,
     is_next_step_offer,
     is_portfolio_plan_confirm,
+    is_tag_plan_confirm,
     is_test_plan_confirm,
     is_zero_opportunity_report,
 )
@@ -142,6 +143,21 @@ def test_is_next_step_offer():
     assert is_next_step_offer(offer, seen)
     assert not is_next_step_offer(offer, [])
     assert not is_next_step_offer("结论如下，机会总数 12。", seen)
+
+
+def test_is_tag_plan_confirm():
+    plan = (
+        "## 打标计划\n"
+        "- **打标逻辑**：按总市值分大中小盘\n"
+        "- **标签名称**：market_cap_tier\n"
+        "- **更新模式**：incremental\n"
+        "- **最小记录数**：0\n"
+        "您觉得这个打标计划可行吗？如果需要改动，请告诉我；确认执行请直接说「执行」。"
+    )
+    assert is_tag_plan_confirm(plan)
+    assert not is_tag_plan_confirm("标签已算完，结论如下。")
+    assert not asks_user_permission(plan)
+    assert not is_test_plan_confirm(plan)
 
 
 def test_is_portfolio_plan_confirm():

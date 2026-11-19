@@ -45,6 +45,10 @@ WRITE_STRATEGY_MAX_CHARS = 200_000
 WRITE_STRATEGY_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
     {"key", "strategy_py", "settings_py", "attribution_py"}
 )
+WRITE_TAG_MAX_CHARS = 200_000
+WRITE_TAG_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "tag_py", "settings_py"}
+)
 DOCS_EXCERPT_MAX_CHARS = 12_000
 
 # --- 模型输出卫生（占位回复视为无效）---

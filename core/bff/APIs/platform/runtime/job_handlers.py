@@ -68,10 +68,10 @@ def _handle_strategy_rolling(job: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _handle_tag_run(job: Dict[str, Any]) -> Dict[str, Any]:
-    from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher
+    from core.modules.tag import Tag
 
     name = str(job.get("resource_key") or "").strip()
-    return TagRunLauncher.start_now(tag_key=name)
+    return Tag.start_run(tag_key=name)
 
 
 def _handle_data_renew(job: Dict[str, Any]) -> Dict[str, Any]:

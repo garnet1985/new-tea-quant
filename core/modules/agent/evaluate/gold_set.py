@@ -144,6 +144,21 @@ GOLD_CASES: List[GoldCase] = [
     {"text": "请帮我校验策略", "kind": "worker", "note": "明确做事"},
     {"text": "再跑一次回测看看", "kind": "worker", "note": "再跑"},
     {"text": "写个动量策略", "kind": "worker", "note": "建策"},
+    {
+        "text": "帮我验证一下是不是出来跳空之后都会总有一天补回来？假如跳空是个机会我能不能利用跳空进行盈利？",
+        "kind": "worker",
+        "note": "研究假说→worker，非 advice",
+    },
+    {
+        "text": "帮我验证金叉之后是不是更容易上涨",
+        "kind": "worker",
+        "note": "研究假说",
+    },
+    {
+        "text": "跳空在 K 线上是什么意思",
+        "kind": "guide",
+        "note": "纯概念，未要求验证",
+    },
 ]
 
 

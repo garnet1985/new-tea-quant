@@ -6,6 +6,7 @@ from .member_channel import (
     fetch_member_quota,
     member_base_url,
     member_token,
+    track_prompt,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "fetch_member_quota",
     "member_base_url",
     "member_token",
+    "track_prompt",
 ]

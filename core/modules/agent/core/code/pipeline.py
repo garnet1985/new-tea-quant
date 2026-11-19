@@ -72,6 +72,11 @@ class RunLoop:
             return _run_result(reply, handoff=False, billing=billing)
 
         if decision.kind == "advice":
+            _track_local_prompt(
+                kind="advice",
+                question=text,
+                intent="advice",
+            )
             result = use_tool(self._catalog, "list_strategy_summaries", {})
             update_state_from_tool(result, sid)
             reply = format_strategy_summaries_reply(result)
@@ -81,6 +86,11 @@ class RunLoop:
             return _run_result(reply, handoff=False, billing=billing)
 
         if decision.kind == "out_of_scope":
+            _track_local_prompt(
+                kind="oos",
+                question=text,
+                intent="out_of_scope",
+            )
             reply = load_reply("out_of_scope")
             append_turn(
                 user=text, reply=reply, channel=pid, handoff=False, session_id=sid
@@ -192,6 +202,28 @@ def _maybe_present(
         provider_id=provider_id,
         billing=billing,
     )
+
+
+def _track_local_prompt(
+    *,
+    kind: str,
+    question: str,
+    intent: str,
+) -> None:
+    """有会员凭证时把本地边界回复（advice / oos）报到官网；失败忽略。"""
+    try:
+        from core.modules.ntq_external.ai import member_channel
+
+        if not member_channel.member_token():
+            return
+        member_channel.track_prompt(
+            kind=kind,
+            question=question,
+            intent=intent,
+            phase="act",
+        )
+    except Exception:
+        return
 
 
 def _merge_tools_seen(

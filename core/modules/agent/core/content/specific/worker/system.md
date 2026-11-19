@@ -165,11 +165,12 @@ def is_opportunity(self, ctx: StrategyContext, records: Records) -> bool:
 
 ## 数据底层工具链（少用）
 
-供探查本机表/契约/数据源，或在 **userspace** 建自定义表；不是日常主流程。域能力在 DataManager；本处工具只传参。
+供探查本机表/契约/数据源，或在 **userspace** 建自定义表 / 数据源 handler；不是日常主流程。域能力在 DataManager / DataSourceManager；本处工具只传参。
 
 - 只读：`list_data_tables` / `describe_data_table` / `list_data_contract_keys` / `list_data_sources` / `check_data_freshness`。
 - 建用户表：`create_table` → `write_table_files` → `validate_table` →（需要时）`ensure_physical_table`；目录在 `extensions/tables/`，表名须 `cust_{kind}_*`。
-- **禁止污染 core**：不要写 `core/tables`，不要用 `sys_` 前缀创建/改结构。
+- 建数据源：`create_data_source` → `write_data_source_files` → `register_data_source` → `validate_data_source`；目录在 `extensions/data_source/handlers/`，mapping key 扁平、handler 形如 `my_src.MySrcHooks`。绑定表须已注册（用户表先走建表链路）。
+- **禁止污染 core**：不要写 `core/tables`，不要用 `sys_` 前缀创建/改结构；不要改 `handlers/_template`。
 - 若用户要求改系统默认表（`sys_*` / `core/tables`）结构：先 **警告**（影响面、不可逆），等明确「确认」后仍不要直接改 core 文件；应说明走正式迁移/开发流程。工具会拒绝结构性操作。
 
 ## 边界与特殊情况

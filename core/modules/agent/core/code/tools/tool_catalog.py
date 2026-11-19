@@ -20,6 +20,21 @@ def _string(description: str) -> Dict[str, str]:
     return {"type": "string", "description": description}
 
 
+def _boolean(description: str) -> Dict[str, str]:
+    return {"type": "boolean", "description": description}
+
+
+def _integer(description: str) -> Dict[str, str]:
+    return {"type": "integer", "description": description}
+
+
+def _array(item_schema: Dict[str, Any], description: str = "") -> Dict[str, Any]:
+    out: Dict[str, Any] = {"type": "array", "items": item_schema}
+    if description:
+        out["description"] = description
+    return out
+
+
 _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="create_strategy",
@@ -444,6 +459,75 @@ _TOOLS: tuple[ToolSpec, ...] = (
         ),
         parameters=_object(
             {"key": _string("表目录相对路径")},
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="create_data_source",
+        description=(
+            "在 userspace/extensions/data_source/handlers 从空模板新建 handler 骨架。"
+            "目录已存在时不要覆盖；不会自动改 mapping.py。"
+        ),
+        parameters=_object(
+            {
+                "key": _string(
+                    "handler 目录相对路径，例如 my_src 或 demo/my_src。"
+                    "每段以字母开头，只含字母、数字、下划线。"
+                ),
+                "hooks_class_name": _string(
+                    "可选。DataSourceHooks 子类名；省略则按目录叶名生成 XxxHooks"
+                ),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="write_data_source_files",
+        description=(
+            "覆盖已有 userspace handler 的 handler.py 或 settings.py。"
+            "settings 须定义 settings={...}；改完后 register_data_source（若未登记）再 validate_data_source。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("已存在的 handler 目录相对路径"),
+                "handler_py": _string("handler.py 全文。须继承 DataSourceHooks。可省略。"),
+                "settings_py": _string("settings.py 全文。须含 settings 字典。可省略。"),
+            },
+            ["key"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="register_data_source",
+        description=(
+            "把数据源写入 mapping.py 的 DATA_SOURCES（扁平 key）。"
+            "handler 形如 my_src.MySrcHooks；嵌套目录用点分路径。"
+        ),
+        parameters=_object(
+            {
+                "key": _string("mapping 扁平 key，例如 my_src（不要斜杠）"),
+                "handler": _string("模块.类名，例如 my_src.MySrcHooks"),
+                "is_enabled": _boolean("是否启用，默认 true"),
+                "depends_on": _array(
+                    _string("依赖的 mapping key 或保留字"),
+                    "依赖列表，可为其他数据源 key 或 latest_completed_trading_date",
+                ),
+                "weight": _integer("越大越先执行；可省略"),
+            },
+            ["key", "handler"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="validate_data_source",
+        description=(
+            "按 mapping key 校验 settings、handler 类与绑定表是否已注册。"
+            "不执行 renew；未通过则不要拉取。"
+        ),
+        parameters=_object(
+            {"key": _string("mapping 扁平 key，例如 my_src")},
             ["key"],
         ),
         implemented=True,

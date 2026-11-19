@@ -74,6 +74,15 @@
 - **状态：** `beta`
 - **描述：** Renew UI 任务栏与 Progress 投影（实现在 `service/renew_ui`）。BFF launcher 只拼 JobPipeline/`_ACTIVE` 壳，勿 deep-import `run_status` / Progress
 
+### scaffold_user_handler / write_user_handler_files / apply_mapping_entry / validate_user_handler
+
+`DataSourceManager.scaffold_user_handler(*, key, hooks_class_name=None) -> dict`（staticmethod）  
+`DataSourceManager.write_user_handler_files(*, key, handler_py="", settings_py="") -> dict`（staticmethod）  
+`DataSourceManager.apply_mapping_entry(*, key, handler, is_enabled=True, depends_on=None, weight=None) -> dict`（staticmethod）  
+`DataSourceManager.validate_user_handler(*, key) -> dict`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** Userspace handler 脚手架与校验（实现在 `user_handlers`）。`key` 对 scaffold/write 为 handlers 相对目录；对 apply/validate 为 mapping 扁平名。不执行 renew。
 ### catalog / provider（跨模块辅助）
 
 - **状态：** `beta`

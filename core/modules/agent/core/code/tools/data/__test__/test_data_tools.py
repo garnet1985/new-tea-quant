@@ -1,4 +1,4 @@
-"""Agent data tools：薄封装；域行为由 DataManager 覆盖。"""
+"""Agent data tools：薄封装；域行为由 DataManager / DataSourceManager 覆盖。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from core.modules.agent.core.code.tools.data.create_data_source import create_data_source
 from core.modules.agent.core.code.tools.data.create_table import create_table
 from core.modules.agent.core.code.tools.data.write_table_files import write_table_files
 
@@ -63,3 +64,37 @@ def test_agent_write_rejects_sys(tables_root: Path) -> None:
         }
     )
     assert out.get("ok") is False
+
+
+@pytest.fixture()
+def handlers_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    root = tmp_path / "extensions" / "data_source"
+    handlers = root / "handlers"
+    template = handlers / "_template" / "example"
+    template.mkdir(parents=True)
+    (template / "handler.py").write_text(
+        "from core.modules.data_source.contracts import DataSourceHooks\n"
+        "class ExampleHooks(DataSourceHooks):\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    (template / "settings.py").write_text("# placeholder\n", encoding="utf-8")
+    (root / "mapping.py").write_text("DATA_SOURCES = {}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "core.infra.project_context.ProjectContext.path.get_data_source_handlers_directory",
+        lambda: handlers,
+    )
+    monkeypatch.setattr(
+        "core.infra.project_context.ProjectContext.path.get_data_source_mapping_path",
+        lambda: root / "mapping.py",
+    )
+    return handlers
+
+
+def test_agent_create_data_source_delegates(handlers_root: Path) -> None:
+    created = create_data_source({"key": "agent_src"})
+    assert created.get("ok") is True, created
+    assert (handlers_root / "agent_src" / "handler.py").is_file()
+    assert "AgentSrcHooks" in (
+        handlers_root / "agent_src" / "handler.py"
+    ).read_text(encoding="utf-8")

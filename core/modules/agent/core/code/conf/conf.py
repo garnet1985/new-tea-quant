@@ -53,6 +53,10 @@ WRITE_TABLE_MAX_CHARS = 200_000
 WRITE_TABLE_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
     {"key", "schema_py", "model_py"}
 )
+WRITE_DATA_SOURCE_MAX_CHARS = 200_000
+WRITE_DATA_SOURCE_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
+    {"key", "handler_py", "settings_py"}
+)
 DOCS_EXCERPT_MAX_CHARS = 12_000
 
 # --- 模型输出卫生（占位回复视为无效）---

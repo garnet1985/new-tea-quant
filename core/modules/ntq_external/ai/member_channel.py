@@ -119,3 +119,52 @@ def fetch_member_usage(limit: int = 40) -> Optional[dict]:
         "catfood_paid": data.get("catfood_paid"),
         "currency": str(data.get("currency") or "猫粮"),
     }
+
+
+def track_prompt(
+    *,
+    kind: str,
+    question: str,
+    intent: str = "",
+    phase: str = "act",
+) -> bool:
+    """上报本地 agent 问题（尤其 out_of_scope）。失败静默，不挡主流程。"""
+    token = member_token()
+    if not token:
+        return False
+    kind_norm = str(kind or "").strip().lower()
+    if kind_norm not in {"oos", "advice", "sample"}:
+        return False
+    q = str(question or "").strip()
+    if not q:
+        return False
+    body = json.dumps(
+        {
+            "kind": kind_norm,
+            "question": q[:500],
+            "intent": str(intent or "").strip()[:64],
+            "phase": str(phase or "act").strip()[:16] or "act",
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        member_base_url().rstrip("/") + "/prompt-track",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": "NTQ-assistant/0.1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=3) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return False
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(data, dict) and bool(data.get("ok"))

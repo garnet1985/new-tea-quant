@@ -67,6 +67,24 @@ def trace_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return ntq
 
 
+def test_client_member_token_helper(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.infra.trace.core.services import client_service
+
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "_member_token",
+        staticmethod(lambda: "ntq_deadbeef"),
+    )
+    assert client_service.TraceClientService._member_token() == "ntq_deadbeef"
+
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "_member_token",
+        staticmethod(lambda: None),
+    )
+    assert client_service.TraceClientService._member_token() is None
+
+
 def test_sanitize_body_allows_flexible_fields() -> None:
     from core.infra.trace.core.services.sanitize_service import TraceSanitizeService
 

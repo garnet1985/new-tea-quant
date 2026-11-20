@@ -70,6 +70,7 @@
   padding: 6px 8px;
   cursor: pointer;
   border-radius: 8px;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(:disabled) {
     color: var(--ntq-text);
@@ -187,6 +188,7 @@
   padding: 5px 6px;
   cursor: pointer;
   border-radius: 6px;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     color: var(--ntq-text);
@@ -197,6 +199,7 @@
 .ntq-assistant-dock__settings-link {
   color: var(--ntq-cyan);
   text-decoration: none;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     text-decoration: underline;

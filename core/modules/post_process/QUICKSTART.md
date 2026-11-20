@@ -24,13 +24,16 @@ class MyNotifyAdapter(BaseAdapter):
 
 ## 声明 PostProcessor
 
-```yaml
-# userspace/extensions/post_process/post_processors/my_notify/post_processor.yaml
-key: my_notify
-is_enabled: true
-adapters:
-  my_notify:
-    config: {}
+```json
+{
+  "key": "my_notify",
+  "is_enabled": true,
+  "adapters": {
+    "my_notify": {
+      "config": {}
+    }
+  }
+}
 ```
 
 启用是全局的：每个策略扫描结束后会跑全部 `is_enabled: true` 的方案。也可在工作台「高级功能 → 后续处理」里开关启用、编辑 adapters / `depends_on`。

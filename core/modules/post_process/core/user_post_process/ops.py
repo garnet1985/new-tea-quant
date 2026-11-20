@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
-
-import yaml
 
 from core.infra.project_context import ProjectContext
 
@@ -197,7 +196,7 @@ class UserPostProcessOps:
             "ok": True,
             "name": parsed,
             "path": relative,
-            "note": "校验通过。可在 post_processor.yaml 的 adapters 中引用。",
+            "note": "校验通过。可在 post_processor.json 的 adapters 中引用。",
         }
 
     # ------------------------------------------------------------------
@@ -222,14 +221,14 @@ class UserPostProcessOps:
         relative = f"extensions/post_process/post_processors/{parsed}"
         if not dest.is_relative_to(root.resolve()) or dest == root.resolve():
             return {"ok": False, "error": f"路径非法: {parsed}"}
-        if dest.exists() or (root / f"{parsed}.yaml").exists():
+        if dest.exists() or (root / f"{parsed}.json").exists():
             return {"ok": False, "error": f"目标已存在: {relative}"}
 
         template = (
             ProjectContext.path.get_post_process_extensions_directory()
             / "_template"
             / "empty_post_processor"
-            / "post_processor.yaml"
+            / "post_processor.json"
         )
         if not template.is_file():
             return {
@@ -244,7 +243,7 @@ class UserPostProcessOps:
         adapter_ref = str(adapter_name or "").strip()
         try:
             dest.mkdir(parents=True, exist_ok=False)
-            raw = yaml.safe_load(template.read_text(encoding="utf-8")) or {}
+            raw = json.loads(template.read_text(encoding="utf-8")) or {}
             if not isinstance(raw, dict):
                 raw = {}
             raw["key"] = parsed
@@ -254,34 +253,38 @@ class UserPostProcessOps:
                 raw["adapters"] = {adapter_ref: {"config": {}}}
             else:
                 raw.setdefault("adapters", {})
-            out_path = dest / "post_processor.yaml"
+            out_path = dest / "post_processor.json"
             out_path.write_text(
-                yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
+                json.dumps(raw, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
         except OSError as exc:
             if dest.exists():
                 shutil.rmtree(dest, ignore_errors=True)
             return {"ok": False, "error": f"无法创建 post_processor: {exc}"}
+        except json.JSONDecodeError as exc:
+            if dest.exists():
+                shutil.rmtree(dest, ignore_errors=True)
+            return {"ok": False, "error": f"模板 JSON 无效: {exc}"}
 
         return {
             "ok": True,
             "key": parsed,
             "path": relative,
-            "files": ["post_processor.yaml"],
+            "files": ["post_processor.json"],
             "is_enabled": bool(is_enabled),
             "note": (
                 "已生成 PostProcessor 骨架（默认 is_enabled=false）。"
-                "接着 write_user_post_processor_yaml 挂 adapters，再 validate_user_post_processor。"
+                "接着 write_user_post_processor 挂 adapters，再 validate_user_post_processor。"
             ),
         }
 
     @classmethod
-    def write_post_processor_yaml(
+    def write_post_processor(
         cls,
         *,
         key: str,
-        yaml_body: str = "",
+        json_body: str = "",
     ) -> Dict[str, Any]:
         parsed = cls._normalize_key(key)
         if isinstance(parsed, dict):
@@ -289,16 +292,16 @@ class UserPostProcessOps:
         root = ProjectContext.path.get_post_processors_directory().resolve()
         dest_dir = (root / parsed).resolve()
         relative = f"extensions/post_process/post_processors/{parsed}"
-        body = str(yaml_body or "")
+        body = str(json_body or "")
         if not body.strip():
-            return {"ok": False, "error": "必须提供 yaml_body"}
+            return {"ok": False, "error": "必须提供 json_body"}
 
         try:
-            raw = yaml.safe_load(body)
-        except Exception as exc:
-            return {"ok": False, "key": parsed, "error": f"YAML 解析失败: {exc}"}
+            raw = json.loads(body)
+        except json.JSONDecodeError as exc:
+            return {"ok": False, "key": parsed, "error": f"JSON 解析失败: {exc}"}
         if not isinstance(raw, dict):
-            return {"ok": False, "key": parsed, "error": "YAML 根须为对象"}
+            return {"ok": False, "key": parsed, "error": "JSON 根须为对象"}
 
         raw["key"] = parsed
         if "adapters" not in raw or not isinstance(raw.get("adapters"), dict):
@@ -310,9 +313,9 @@ class UserPostProcessOps:
 
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
-            path = dest_dir / "post_processor.yaml"
+            path = dest_dir / "post_processor.json"
             path.write_text(
-                yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
+                json.dumps(raw, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
         except OSError as exc:
@@ -322,8 +325,8 @@ class UserPostProcessOps:
             "ok": True,
             "key": parsed,
             "path": relative,
-            "files": ["post_processor.yaml"],
-            "note": "YAML 已覆盖（key 已对齐目录）。接着 validate_user_post_processor。",
+            "files": ["post_processor.json"],
+            "note": "JSON 已覆盖（key 已对齐目录）。接着 validate_user_post_processor。",
         }
 
     @classmethod

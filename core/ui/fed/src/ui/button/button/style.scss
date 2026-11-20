@@ -6,6 +6,7 @@
   line-height: 1 !important;
   box-shadow: none !important;
   text-transform: none;
+  transition: var(--ui-transition-colors);
 
   &.Mui-disabled {
     opacity: 0.45;

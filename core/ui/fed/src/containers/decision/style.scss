@@ -673,6 +673,7 @@ button.decision-cal-event:focus-visible {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: var(--ui-transition-colors);
 }
 
 .decision-holding-row:hover,
@@ -800,6 +801,10 @@ button.decision-cal-event:focus-visible {
   cursor: pointer;
 }
 
+.decision-capsule-btn {
+  transition: var(--ui-transition-colors);
+}
+
 .decision-capsule-btn:hover:not(:disabled) {
   background: rgba(34, 211, 238, 0.16);
 }
@@ -862,6 +867,7 @@ button.decision-cal-event:focus-visible {
   color: var(--ntq-cyan);
   background: transparent;
   cursor: default;
+  transition: var(--ui-transition-colors);
 }
 
 .decision-invest-note-icon:hover {
@@ -940,6 +946,7 @@ button.decision-cal-event:focus-visible {
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
+  transition: var(--ui-transition-colors);
 }
 
 .decision-opp-stock:hover,

@@ -52,7 +52,7 @@ core/default_config/...  →  userspace/system/config/...  →  环境变量
 | 类型 | 路径 |
 | --- | --- |
 | 后续处理适配器 | `userspace/extensions/post_process/adapters/<name>/adapter.py` |
-| 后续处理声明 | `userspace/extensions/post_process/post_processors/<key>/post_processor.yaml` |
+| 后续处理声明 | `userspace/extensions/post_process/post_processors/<key>/post_processor.json` |
 | 标签 | `userspace/extensions/tags/<path>/` |
 | 数据契约 | `userspace/extensions/data_contract/<key>/` |
 | 数据源 | `userspace/extensions/data_source/handlers/` |

@@ -22,15 +22,17 @@ userspace/extensions/
 ├── components/<name>/
 │   ├── adapter.py      # BaseAdapter 子类
 │   └── settings.py       # 可选
-└── post_processes/<key>/
-    └── post_process.yaml
+└── post_processors/<key>/
+    └── post_processor.json
 ```
 
 启用（全局，不在策略 settings）：
 
-```yaml
-# post_processors/presenter/post_processor.yaml
-is_enabled: true
+```json
+{
+  "key": "presenter",
+  "is_enabled": true
+}
 ```
 
 **运行时**：

@@ -51,6 +51,7 @@ p.ntq-caption {
   text-decoration: none;
   cursor: pointer;
   vertical-align: baseline;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     text-decoration: underline;

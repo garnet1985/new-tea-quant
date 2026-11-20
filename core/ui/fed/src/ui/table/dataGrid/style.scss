@@ -33,6 +33,8 @@
   }
 
   .MuiDataGrid-row {
+    transition: background-color var(--ui-transition-color);
+
     &:hover {
       background: var(--ntq-white-03);
     }

@@ -90,7 +90,7 @@ WRITE_POST_PROCESS_ADAPTER_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
 )
 WRITE_POST_PROCESS_PROCESSOR_MAX_CHARS = 200_000
 WRITE_POST_PROCESS_PROCESSOR_ALLOWED_FIELDS: FrozenSet[str] = frozenset(
-    {"key", "yaml_body"}
+    {"key", "json_body"}
 )
 DOCS_EXCERPT_MAX_CHARS = 12_000
 

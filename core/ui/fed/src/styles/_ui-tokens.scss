@@ -128,6 +128,16 @@ body {
   --ui-form-control-font-size: var(--ui-font-normal);
   --ui-form-control-line-height: 1.5;
 
+  // --- 交互色过渡（button / input hover·focus）---
+  --ui-transition-color: 0.3s ease;
+  --ui-transition-colors:
+    color var(--ui-transition-color),
+    background-color var(--ui-transition-color),
+    border-color var(--ui-transition-color),
+    box-shadow var(--ui-transition-color),
+    fill var(--ui-transition-color),
+    stroke var(--ui-transition-color);
+
   // --- 输入默认最大宽度（maxWidth=true）；false 时去掉 ---
   --ui-input-max-width: 20rem; // 320px
   --ui-textarea-max-width: 25rem; // 400px

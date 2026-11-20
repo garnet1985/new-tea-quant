@@ -19,6 +19,7 @@
   color: inherit;
   font-weight: var(--ui-font-weight-bold);
   text-decoration: none;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     color: var(--ntq-cyan);

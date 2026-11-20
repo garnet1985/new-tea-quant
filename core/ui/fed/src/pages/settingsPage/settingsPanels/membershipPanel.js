@@ -13,8 +13,10 @@ import { formatDateTime } from '../../../service/format/formatDateTime';
 import {
   clearMembershipToken,
   fetchCatfoodLedger,
+  fetchMemberMailQuota,
   fetchMemberProfile,
   fetchMembershipSettings,
+  formatMailQuotaRemaining,
   notifyMembershipChanged,
   saveMembershipToken,
 } from '../../../api/settingsApi';
@@ -90,6 +92,7 @@ export function SettingsMembershipPanel() {
   const [ledgerHasMore, setLedgerHasMore] = useState(false);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerLoadingMore, setLedgerLoadingMore] = useState(false);
+  const [mailQuota, setMailQuota] = useState(null);
   const [registerUrl, setRegisterUrl] = useState('');
 
   const saveAction = useAsyncAction(useCallback((value) => saveMembershipToken(value), []));
@@ -109,6 +112,10 @@ export function SettingsMembershipPanel() {
       setLedgerItems([]);
       setLedgerLimit(LEDGER_INITIAL);
       setLedgerHasMore(false);
+      setMailQuota(null);
+      fetchMemberMailQuota()
+        .then((q) => setMailQuota(q))
+        .catch(() => setMailQuota(null));
       return;
     }
     const nextLimit = Math.max(1, Number(limit) || LEDGER_INITIAL);
@@ -117,8 +124,9 @@ export function SettingsMembershipPanel() {
     Promise.all([
       fetchMemberProfile().catch(() => null),
       fetchCatfoodLedger(nextLimit).catch(() => null),
+      fetchMemberMailQuota().catch(() => null),
     ])
-      .then(([profile, ledger]) => {
+      .then(([profile, ledger, quota]) => {
         if (profile?.signed_in && profile.catfood != null) {
           setCatfood(Number(profile.catfood));
           setCatfoodFree(
@@ -150,6 +158,7 @@ export function SettingsMembershipPanel() {
         setLedgerItems(items);
         setLedgerLimit(nextLimit);
         setLedgerHasMore(items.length >= nextLimit);
+        setMailQuota(quota);
       })
       .finally(() => {
         setLedgerLoading(false);
@@ -288,6 +297,30 @@ export function SettingsMembershipPanel() {
         <Message status="warning">
           请妥善保管您的通用凭证，请不要在非自己的电脑上装载，也不要随意暴露给他人。如果发现凭证泄漏，您可以马上登入官网刷新凭证并重新装载。
         </Message>
+      </Section>
+
+      <Section className="settings-membership__mail" gap="md">
+        <Heading level="h3" gap="none">会员邮件额度</Heading>
+        <p className="ntq-muted settings-membership__balance">
+          {mailQuota?.policy
+            || '目前共可发 30 封；只发到注册邮箱；每封邮件里最多显示 80 条机会'}
+          。用于扫描后的邮件通知。
+        </p>
+        {configured ? (
+          mailQuota?.available ? (
+            <p className="ntq-muted">
+              {formatMailQuotaRemaining(mailQuota) || '暂未读到剩余额度。'}
+            </p>
+          ) : (
+            <p className="ntq-muted">
+              {mailQuota?.reason === 'rejected'
+                ? '凭证未被官网接受，暂时读不到剩余额度。'
+                : '暂时读不到剩余额度，请稍后刷新。'}
+            </p>
+          )
+        ) : (
+          <p className="ntq-muted">装载会员凭证后可查看还可发几封。</p>
+        )}
       </Section>
 
       {configured ? (

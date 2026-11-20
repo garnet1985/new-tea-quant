@@ -46,7 +46,7 @@
   background: rgba(255, 255, 255, 0.03);
   color: inherit;
   cursor: pointer;
-  transition: border-color 160ms ease, background-color 160ms ease;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(:disabled) {
     border-color: rgba(255, 255, 255, 0.28);

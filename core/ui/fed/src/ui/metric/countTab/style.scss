@@ -19,6 +19,7 @@
   cursor: pointer;
   vertical-align: middle;
   white-space: nowrap;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(:disabled) {
     background: var(--ntq-white-06);

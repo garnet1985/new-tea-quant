@@ -36,7 +36,7 @@
   -webkit-backdrop-filter: none;
   min-height: 40px;
   align-items: center;
-  transition: background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(.Mui-disabled) {
     background: var(--ntq-input-solid-bg-hover, #161625);
@@ -51,6 +51,7 @@
 /* 与 glass Button 同色；!important 压住 MUI Emotion 默认 ~0.23 白边 */
 .MuiOutlinedInput-notchedOutline {
   border-color: var(--ui-white-12, var(--ntq-white-12)) !important;
+  transition: border-color var(--ui-transition-color);
 }
 
 .MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiOutlinedInput-notchedOutline {
@@ -170,9 +171,14 @@ input[type='date'].ntq-date__input::-webkit-calendar-picker-indicator {
   }
 }
 
-// --- Buttons (base typography) ---
+// --- Buttons (base typography + hover/focus 色过渡) ---
 .MuiButton-root {
   text-transform: none;
+  transition: var(--ui-transition-colors);
+}
+
+.MuiIconButton-root {
+  transition: var(--ui-transition-colors);
 }
 
 // --- Chips / tags ---

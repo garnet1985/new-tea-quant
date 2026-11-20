@@ -94,6 +94,7 @@
   color: var(--ntq-text-muted);
   cursor: pointer;
   line-height: 1;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     background: var(--ntq-white-06);

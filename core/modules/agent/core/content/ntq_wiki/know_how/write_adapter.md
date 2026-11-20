@@ -1,6 +1,6 @@
 ---
 title: 写扫描后续处理 Adapter
-summary: 在 userspace 写 BaseAdapter，用 post_processor.yaml 声明并设 is_enabled。
+summary: 在 userspace 写 BaseAdapter，用 post_processor.json 声明并设 is_enabled。
 ---
 
 # 写扫描后续处理 Adapter
@@ -31,13 +31,16 @@ class MyNotifyAdapter(BaseAdapter):
 
 ## 2. 声明并启用 PostProcessor
 
-```yaml
-# userspace/extensions/post_process/post_processors/my_notify/post_processor.yaml
-key: my_notify
-is_enabled: true
-adapters:
-  my_notify:
-    config: {}
+```json
+{
+  "key": "my_notify",
+  "is_enabled": true,
+  "adapters": {
+    "my_notify": {
+      "config": {}
+    }
+  }
+}
 ```
 
 可选 `depends_on: [other_adapter]`；执行时注入 `deps`。  

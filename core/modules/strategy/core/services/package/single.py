@@ -59,7 +59,7 @@ def resolve_single_entity_spec(kind: str, name: str) -> ExportImport.types.Artif
     if source_dir.name == "post_processors":
         raise FileNotFoundError(
             f"post_processor '{n}' 为扁平 yaml，请改为 "
-            f"extensions/post_process/post_processors/{n}/post_processor.yaml 后再导出"
+            f"extensions/post_process/post_processors/{n}/post_processor.json 后再导出"
         )
     return post_processor_artifact_spec(n, source_dir)
 

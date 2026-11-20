@@ -111,6 +111,14 @@ def get_membership_catfood_ledger():
     return ok({**body, "available": True})
 
 
+@settings_api_bp.route("/v1/membership/mail-quota", methods=["GET"])
+def get_membership_mail_quota():
+    """用本地通用凭证向官网读取会员邮件代发额度与规则说明。响应不含凭证。"""
+    from core.modules.ntq_external.member_mail_quota import member_mail_quota
+
+    return ok(member_mail_quota())
+
+
 @settings_api_bp.route("/v1/settings/membership", methods=["PUT"])
 def put_membership_settings():
     """把官网通用凭证写入 userspace/system/membership/membership_token.txt。"""

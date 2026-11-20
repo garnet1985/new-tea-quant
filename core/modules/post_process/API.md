@@ -71,7 +71,7 @@
 `PostProcess.set_enabled(key, enabled) -> PostProcessorDefinition`
 
 - **状态：** `beta`
-- **描述：** 写入 YAML ``is_enabled``
+- **描述：** 写入 JSON ``is_enabled``
 
 #### update_post_processor_adapters
 
@@ -91,7 +91,7 @@
 `PostProcess.write_user_adapter_files(*, name, adapter_py="", settings_py="") -> dict`  
 `PostProcess.validate_user_adapter(*, name) -> dict`  
 `PostProcess.scaffold_user_post_processor(*, key, name="", adapter_name="", is_enabled=False) -> dict`  
-`PostProcess.write_user_post_processor_yaml(*, key, yaml_body="") -> dict`  
+`PostProcess.write_user_post_processor(*, key, json_body="") -> dict`  
 `PostProcess.validate_user_post_processor(*, key) -> dict`  
 `PostProcess.describe_user_adapter(*, name) -> dict` / `describe_user_post_processor(*, key) -> dict`  
 `PostProcess.list_user_adapter_summaries() -> dict` / `list_user_post_processor_summaries() -> dict`

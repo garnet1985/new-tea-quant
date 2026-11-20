@@ -312,7 +312,7 @@ rsi14 = today.get("rsi14") if today else None  # 单列：{name}{length}；或�
 }
 ```
 
-后续处理不在策略 settings：改 `userspace/extensions/post_process/post_processors/<key>/post_processor.yaml` 的 `is_enabled`。
+后续处理不在策略 settings：改 `userspace/extensions/post_process/post_processors/<key>/post_processor.json` 的 `is_enabled`。
 
 ## fees
 

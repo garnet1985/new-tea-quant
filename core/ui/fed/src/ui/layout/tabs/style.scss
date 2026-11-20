@@ -39,6 +39,7 @@
   font-weight: var(--ntq-font-weight-medium);
   line-height: var(--ntq-leading-normal);
   cursor: pointer;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(.is-disabled) {
     color: var(--ntq-text);
@@ -88,6 +89,7 @@
   line-height: var(--ntq-leading-normal);
   text-align: left;
   cursor: pointer;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(.is-disabled) {
     color: var(--ntq-text);

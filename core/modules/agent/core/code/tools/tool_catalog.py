@@ -403,7 +403,8 @@ _TOOLS: tuple[ToolSpec, ...] = (
         name="list_strategy_summaries",
         description=(
             "列出本机策略及最新执行报告摘要（默认资金层 portfolio）。"
-            "用于客观陈述已有回测结果；禁止据此给投资建议或推荐「能赚钱」的策略。"
+            "每项含 display_name 与 meta.key（字段名 key）；不含路径 id。"
+            "对用户陈述时用展示名，最多括号里带 key；禁止据此给投资建议。"
             "layer 可省略，为 enum、price 或 portfolio。"
         ),
         parameters=_object(

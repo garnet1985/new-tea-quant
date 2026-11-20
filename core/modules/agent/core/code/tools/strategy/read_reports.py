@@ -266,18 +266,24 @@ def list_strategy_summaries(arguments: Dict[str, Any]) -> Dict[str, Any]:
     for info in infos:
         if not isinstance(info, dict):
             continue
-        key = str(info.get("unique_relative_path") or info.get("key") or "").strip()
-        if not key:
+        meta_key = str(info.get("key") or "").strip()
+        path_id = str(info.get("unique_relative_path") or "").strip()
+        # 对外只用 meta.key；路径 id 仅用于定位目录，不写入摘要。
+        lookup = path_id or meta_key
+        if not lookup:
             continue
-        located = strategy_folder(key)
+        public_key = meta_key or Path(lookup).name
+        if not public_key:
+            continue
+        located = strategy_folder(lookup)
         if isinstance(located, dict):
             continue
         folder, _relative = located
         if not folder.is_dir():
             continue
         entry: Dict[str, Any] = {
-            "key": key,
-            "display_name": str(info.get("display_name") or key),
+            "key": public_key,
+            "display_name": str(info.get("display_name") or public_key),
             "enabled": bool(info.get("is_enabled")),
             "has_report": False,
         }

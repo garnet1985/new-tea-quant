@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 from collections import defaultdict, deque
 
-from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
 REPO_ROOT = NewTeaQuantSetup.repo_root
-STEPS_ROOT = Path(__file__).resolve().parent / "steps"
+STEPS_ROOT = Path(__file__).resolve().parent.parent / "steps"
 
 
 def _topological_sort_steps(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

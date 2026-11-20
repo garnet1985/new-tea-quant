@@ -1,4 +1,4 @@
-from core.infra.setup.core.step_errors import (
+from core.infra.setup.core.shared.step_errors import (
     DUCKDB_PROCESS_LOCK_MESSAGE,
     is_duckdb_process_lock,
     setup_failure_message,

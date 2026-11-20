@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.setup.core.db_install_config import write_database_install_config
+from core.infra.setup.core.steps.db_connection.db_install_config import write_database_install_config
 
 
 def test_write_duckdb_config(tmp_path: Path) -> None:

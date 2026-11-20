@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-import core.infra.setup.core.license_acceptance as lic
+import core.infra.setup.core.shared.license_acceptance as lic
 
 pytestmark = pytest.mark.force_run
 

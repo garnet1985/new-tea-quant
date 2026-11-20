@@ -12,7 +12,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core.infra.setup.core.install_runtime import REPO_ROOT
+from core.infra.setup.core.shared.install_runtime import REPO_ROOT
 
 LICENSE_REVISION = "1"
 _ACCEPT_ENV = "NTQ_ACCEPT_LICENSE"

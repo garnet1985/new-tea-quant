@@ -1,3 +1,9 @@
+"""Setup 编排：统一协调安装步骤与全局状态（CLI / UI 入口）。
+
+CLI：``install_cli_runtime`` / ``ensure_cli_install_via_install_py`` / ``CliInstallOptions``
+UI：``install_ui_runtime`` / ``check_runtime_prerequisites`` / ``launch_ui_stack``
+全局步骤状态见 ``core.infra.setup.core.shared.setup_session``。
+"""
 from __future__ import annotations
 
 import os
@@ -8,9 +14,14 @@ import time
 import urllib.error
 import urllib.request
 import webbrowser
-from typing import Optional, Tuple
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
+from core.infra.cmd_layout import CmdLayout
+from core.infra.utils import Utils
 from core.system import python_minimum
+from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
 from core.ui.process_cleanup import (
     install_interrupt_force_exit,
     interrupt_requested,
@@ -19,11 +30,17 @@ from core.ui.process_cleanup import (
     process_cmdline,
     windows_new_process_group_flag,
 )
-from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
-from core.infra.cmd_layout import CmdLayout
-from core.infra.utils import Utils
 
-from core.infra.setup.core.install_runtime import (
+from core.infra.setup.core.shared import setup_session
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.install_progress import (
+    begin_install_step,
+    close_install,
+    fail_install,
+    finish_install_step,
+    open_install,
+)
+from core.infra.setup.core.shared.install_runtime import (
     REPO_ROOT,
     UI_BFF_REQUIREMENTS,
     UI_FED_BUILD_DIR,
@@ -31,17 +48,337 @@ from core.infra.setup.core.install_runtime import (
     UI_FED_ROOT,
     fed_build_fingerprint,
     fed_build_ready,
+    mark_cli_success_fingerprint,
     mark_runtime,
     needs_install,
     python_env_id,
     sha256_file,
     ui_dev_mode,
 )
-from core.infra.setup.core.trace_events import SetupTrace
+from core.infra.setup.core.shared.meta_loader import load_setup_step_meta
+from core.infra.setup.core.shared.trace_events import SetupTrace
+from core.infra.setup.core.steps.db_connection.db_install_config import write_database_install_config
 
+INSTALL_PY = REPO_ROOT / "install.py"
 FED_ROOT = UI_FED_ROOT
 BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
 FED_LOCKFILE = UI_FED_LOCKFILE
+
+DB_TYPES = ("duckdb", "postgresql", "mysql")
+CONFLICT_POLICIES = ("skip", "overwrite")
+DEFAULT_DB_PORTS = {"postgresql": 5432, "mysql": 3306}
+
+
+@dataclass
+class CliInstallOptions:
+    userspace: Optional[str] = None
+    userspace_conflict: Optional[str] = None
+    db: Optional[str] = None
+    db_host: Optional[str] = None
+    db_port: Optional[str] = None
+    db_name: Optional[str] = None
+    db_user: Optional[str] = None
+    db_password: Optional[str] = None
+    db_schema: Optional[str] = None
+    import_demo: bool = True
+    deps_only: bool = False
+
+    @property
+    def conflict_policy(self) -> str:
+        raw = str(self.userspace_conflict or "skip").strip().lower() or "skip"
+        return raw if raw in CONFLICT_POLICIES else "skip"
+
+    @property
+    def has_db_connection_flags(self) -> bool:
+        return any(
+            str(value or "").strip()
+            for value in (
+                self.db_host,
+                self.db_port,
+                self.db_name,
+                self.db_user,
+                self.db_password,
+                self.db_schema,
+            )
+        )
+
+
+def validate_cli_install_options(options: CliInstallOptions) -> None:
+    """Fail fast when flags are present but incomplete or contradictory."""
+    if options.userspace_conflict is not None:
+        policy = str(options.userspace_conflict).strip().lower()
+        if policy not in CONFLICT_POLICIES:
+            raise RuntimeError(
+                f"--userspace-conflict 必须是 skip 或 overwrite，收到: {options.userspace_conflict!r}"
+            )
+
+    db = None if options.db is None else str(options.db).strip().lower()
+    if db == "":
+        db = None
+    if db is not None and db not in DB_TYPES:
+        raise RuntimeError(f"--db 必须是 duckdb / postgresql / mysql，收到: {options.db!r}")
+
+    if db is None:
+        if options.has_db_connection_flags:
+            raise RuntimeError(
+                "已指定 --db-host / --db-name 等连接参数，请同时指定 --db postgresql 或 --db mysql"
+            )
+        return
+
+    if db == "duckdb" and options.has_db_connection_flags:
+        raise RuntimeError("DuckDB 不使用 --db-host / --db-name 等连接参数")
+
+    if db in ("postgresql", "mysql"):
+        missing: list[str] = []
+        if not str(options.db_host or "").strip():
+            missing.append("--db-host")
+        if not str(options.db_name or "").strip():
+            missing.append("--db-name")
+        if not str(options.db_user or "").strip():
+            missing.append("--db-user")
+        if missing:
+            raise RuntimeError(f"{db} 必须提供: {', '.join(missing)}")
+        raw_port = options.db_port
+        if raw_port not in (None, ""):
+            try:
+                int(str(raw_port).strip())
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError(f"--db-port 无效: {raw_port!r}") from exc
+
+
+def db_inputs_from_options(options: CliInstallOptions) -> Optional[Dict[str, Any]]:
+    """UI-shaped db_connection inputs, or None when the caller did not choose a DB."""
+    if options.db is None:
+        return None
+    db = str(options.db).strip().lower()
+    inputs: Dict[str, Any] = {"dbType": db}
+    if db == "duckdb":
+        return inputs
+    port = str(options.db_port or "").strip() or str(DEFAULT_DB_PORTS[db])
+    inputs.update(
+        {
+            "host": str(options.db_host or "").strip(),
+            "port": port,
+            "database": str(options.db_name or "").strip(),
+            "user": str(options.db_user or "").strip(),
+            "password": str(options.db_password or ""),
+        }
+    )
+    if db == "postgresql":
+        inputs["defaultPgsqlSchema"] = str(options.db_schema or "public").strip() or "public"
+    return inputs
+
+
+def userspace_inputs_from_options(options: CliInstallOptions, default_path: str) -> Dict[str, Any]:
+    target = str(options.userspace or "").strip() or default_path
+    return {
+        "userspaceTargetPath": target,
+        "userspaceConflictPolicy": options.conflict_policy,
+    }
+
+
+# requirements 指纹变化时只跑这两步。userspace、数据库和演示包都不重做。
+_DEP_STEP_IDS = ("sys_req_check", "resolve_deps")
+
+
+def _ordered_cli_steps() -> List[str]:
+    metas = load_setup_step_meta(ui_only=False)
+    if metas:
+        return [str(s["id"]) for s in metas if not bool(s.get("cliSkip"))]
+    return [
+        "sys_req_check",
+        "resolve_deps",
+        "init_userspace",
+        "db_connection",
+        "import_data",
+    ]
+
+
+def _run_step(step_id: str, options: Optional[CliInstallOptions] = None) -> int:
+    options = options or CliInstallOptions()
+    extra_env: dict[str, str] = {}
+    if step_id == "init_userspace":
+        target = str(options.userspace or "").strip()
+        if target:
+            extra_env["NTQ_USERSPACE_TARGET_PATH"] = str(Path(target).expanduser().resolve())
+        extra_env["NTQ_USERSPACE_CONFLICT_POLICY"] = options.conflict_policy
+    return NewTeaQuantSetup.run_install_script(step_id, extra_env=extra_env or None)
+
+
+def _default_userspace_path() -> str:
+    from core.infra.project_context import ProjectContext
+
+    return str(ProjectContext.path.resolve_userspace_target(None))
+
+
+def _userspace_root_after_init(options: CliInstallOptions) -> Path:
+    from core.infra.project_context import ProjectContext
+
+    ProjectContext.cache.clear_userspace_cache()
+    target = str(options.userspace or "").strip()
+    if target:
+        return Path(target).expanduser().resolve()
+    return Path(ProjectContext.path.get_userspace_root()).resolve()
+
+
+def _session_inputs(options: CliInstallOptions) -> dict:
+    inputs = {
+        "init_userspace": userspace_inputs_from_options(
+            options, _default_userspace_path()
+        ),
+    }
+    db_inputs = db_inputs_from_options(options)
+    if db_inputs is None:
+        db_inputs = {"dbType": "duckdb"}
+    inputs["db_connection"] = db_inputs
+    return inputs
+
+
+def _steps_for_options(options: CliInstallOptions) -> List[str]:
+    steps = _ordered_cli_steps()
+    if options.deps_only:
+        return [step_id for step_id in steps if step_id in _DEP_STEP_IDS]
+    if not options.import_demo:
+        return [step_id for step_id in steps if step_id != "import_data"]
+    return steps
+
+
+def _apply_db_config(options: CliInstallOptions) -> None:
+    db_inputs = db_inputs_from_options(options)
+    if db_inputs is None:
+        return
+    userspace_root = _userspace_root_after_init(options)
+    write_database_install_config(userspace_root, db_inputs)
+
+
+def install_cli_runtime(
+    force: bool = False,
+    options: Optional[CliInstallOptions] = None,
+) -> None:
+    options = options or CliInstallOptions()
+    validate_cli_install_options(options)
+
+    if not force and not needs_install("cli"):
+        print("CLI 安装状态已就绪。", flush=True)
+        return
+
+    NewTeaQuantSetup.to_root_dir()
+    SetupTrace.ensure_install_id()
+    started = time.monotonic()
+    step_seconds: dict = {}
+    session_inputs = _session_inputs(options)
+    current_step_id = ""
+    steps = list(_steps_for_options(options))
+
+    if steps:
+        open_install(steps)
+
+    print()
+    print("=" * 60)
+    print("  New Tea Quant — 安装")
+    print("=" * 60)
+    print()
+
+    try:
+        for step_id in steps:
+            current_step_id = step_id
+            begin_install_step(step_id)
+            NewTeaQuantSetup.print_check_item("running", f"步骤: {step_id}")
+            setup_session.record_step(
+                step_id,
+                setup_session.STATUS_RUNNING,
+                inputs=session_inputs.get(step_id),
+                source="cli",
+            )
+            t0 = time.monotonic()
+            if step_id == "db_connection":
+                _apply_db_config(options)
+            code = _run_step(step_id, options)
+            step_seconds[step_id] = round(max(0.0, time.monotonic() - t0), 2)
+            if code != 0:
+                raise RuntimeError(f"步骤失败: {step_id}（exit={code}），详见上方日志")
+            setup_session.record_step(
+                step_id,
+                setup_session.STATUS_SUCCESS,
+                inputs=session_inputs.get(step_id),
+                source="cli",
+            )
+            finish_install_step(step_id)
+    except Exception as exc:
+        failed_step = current_step_id
+        message = str(exc)
+        if failed_step:
+            setup_session.mark_pipeline_failed(failed_step, message, source="cli")
+        mark_runtime("cli", success=False, failed_step_id=failed_step)
+        SetupTrace.install_step_failed(
+            step=failed_step or "cli_install",
+            entry="cli",
+            message=message,
+            exc=exc,
+        )
+        SetupTrace.install_complete(
+            success=False,
+            entry="cli",
+            error_code=failed_step or "cli_install",
+            elapsed_seconds=time.monotonic() - started,
+            step_seconds=step_seconds,
+        )
+        print(f"{CmdLayout.icon.get('error')} 安装失败: {exc}", flush=True)
+        fail_install(failed_step, message)
+        raise
+
+    if steps:
+        close_install()
+
+    skipped_import = ["import_data"] if not options.import_demo and not options.deps_only else None
+    if skipped_import:
+        NewTeaQuantSetup.print_check_item("skip", "步骤: import_data（未导入演示数据）")
+    setup_session.mark_pipeline_complete(
+        source="cli",
+        inputs_by_step=session_inputs,
+        skipped_step_ids=skipped_import,
+    )
+    mark_cli_success_fingerprint()
+
+    print()
+    NewTeaQuantSetup.print_check_ok("安装完成")
+    print()
+    print("下一步:")
+    print("  python cli.py --help")
+    if not options.import_demo:
+        print("  尚未导入演示数据。需要时运行: python cli.py id（会覆盖同名表）")
+    print("=" * 60)
+    try:
+        from core.infra.setup.core.shared.license_acceptance import apply_trace_consent
+
+        apply_trace_consent()
+    except Exception:
+        pass
+    SetupTrace.install_complete(
+        success=True,
+        entry="cli",
+        elapsed_seconds=time.monotonic() - started,
+        step_seconds=step_seconds,
+    )
+
+
+def ensure_cli_install_via_install_py() -> int:
+    """
+    通过根目录 ``install.py --if-needed`` 执行 CLI 安装（user CLI 自动触发）。
+
+    冷启动与显式 ``python install.py`` 共用同一入口。
+    """
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    proc = subprocess.run(
+        [sys.executable, str(INSTALL_PY), "--if-needed"],
+        cwd=str(REPO_ROOT),
+        env=env,
+    )
+    return int(proc.returncode)
+
+
+# ----- UI runtime -----
 
 
 def _env_truthy(name: str) -> bool:
@@ -463,7 +800,7 @@ def _shutdown_ui_stack_procs(
 
 
 def _ui_entry_path() -> str:
-    from core.infra.setup.core.license_acceptance import entry_path
+    from core.infra.setup.core.shared.license_acceptance import entry_path
 
     return entry_path()
 

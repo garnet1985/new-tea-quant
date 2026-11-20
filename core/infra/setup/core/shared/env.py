@@ -221,7 +221,7 @@ class NewTeaQuantSetup:
 
     @classmethod
     def install_script_path(cls, step_name: str) -> Path:
-        return Path(__file__).resolve().parent / "steps" / step_name / "install.py"
+        return Path(__file__).resolve().parent.parent / "steps" / step_name / "install.py"
 
     @classmethod
     def run_install_script(

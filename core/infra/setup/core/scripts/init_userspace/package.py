@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import List
 
 from core.infra.cmd_layout import CmdLayout
-from core.infra.setup.core.install_runtime import REPO_ROOT
+from core.infra.setup.core.shared.install_runtime import REPO_ROOT
 
 INIT_USERSPACE_DIR = REPO_ROOT / "initialization" / "userspace"
 INIT_TREE = INIT_USERSPACE_DIR / "userspace"

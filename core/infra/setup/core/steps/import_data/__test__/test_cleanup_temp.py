@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.setup.core.data_packages import (
+from core.infra.setup.core.steps.import_data.data_packages import (
     GIT_DATA_META_NAME,
     GIT_DATA_ZIP_NAME,
 )

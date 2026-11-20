@@ -28,61 +28,61 @@ class EnvNamespace:
 
     @staticmethod
     def repo_root() -> Path:
-        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
         return NewTeaQuantSetup.repo_root
 
     @staticmethod
     def venv_python() -> Path:
-        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
         return NewTeaQuantSetup.venv_python()
 
     @staticmethod
     def in_virtualenv() -> bool:
-        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
         return NewTeaQuantSetup.in_virtualenv()
 
     @staticmethod
     def ensure_sys_path() -> None:
-        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
         NewTeaQuantSetup.ensure_sys_path()
 
     @staticmethod
     def to_root_dir() -> None:
-        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
         NewTeaQuantSetup.to_root_dir()
 
     @staticmethod
     def ensure_venv(entry_script: str | Path | None = None) -> None:
-        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
         NewTeaQuantSetup.ensure_venv(entry_script=entry_script)
 
     @staticmethod
     def ensure_venv_for_setup_step(script_path: str | Path) -> None:
-        from core.infra.setup.core.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
         NewTeaQuantSetup.ensure_venv_for_setup_step(script_path)
 
     @staticmethod
     def requirements_txt() -> Path:
-        from core.infra.setup.core.install_runtime import REQUIREMENTS
+        from core.infra.setup.core.shared.install_runtime import REQUIREMENTS
 
         return REQUIREMENTS
 
     @staticmethod
     def ui_bff_requirements() -> Path:
-        from core.infra.setup.core.install_runtime import UI_BFF_REQUIREMENTS
+        from core.infra.setup.core.shared.install_runtime import UI_BFF_REQUIREMENTS
 
         return UI_BFF_REQUIREMENTS
 
     @staticmethod
     def ui_fed_root() -> Path:
-        from core.infra.setup.core.install_runtime import UI_FED_ROOT
+        from core.infra.setup.core.shared.install_runtime import UI_FED_ROOT
 
         return UI_FED_ROOT
 
@@ -92,13 +92,13 @@ class RuntimeNamespace:
 
     @staticmethod
     def needs_install(profile: InstallProfileName) -> bool:
-        from core.infra.setup.core.install_runtime import needs_install
+        from core.infra.setup.core.shared.install_runtime import needs_install
 
         return needs_install(profile)
 
     @staticmethod
     def cli_install_scope() -> CliInstallScope:
-        from core.infra.setup.core.install_runtime import cli_install_scope
+        from core.infra.setup.core.shared.install_runtime import cli_install_scope
 
         return cli_install_scope()
 
@@ -118,8 +118,8 @@ class RuntimeNamespace:
         import_demo: bool = True,
         deps_only: bool = False,
     ) -> None:
-        from core.infra.setup.core.cli_install_options import CliInstallOptions
-        from core.infra.setup.core.cli_runtime import install_cli_runtime
+        from core.infra.setup.core.orchestrator import CliInstallOptions
+        from core.infra.setup.core.orchestrator import install_cli_runtime
 
         install_cli_runtime(
             force=force,
@@ -141,7 +141,7 @@ class RuntimeNamespace:
     @staticmethod
     def ensure_cli_install() -> int:
         """通过根目录 ``install.py`` 执行 CLI 安装（user CLI 自动触发）。"""
-        from core.infra.setup.core.cli_runtime import ensure_cli_install_via_install_py
+        from core.infra.setup.core.orchestrator import ensure_cli_install_via_install_py
 
         return ensure_cli_install_via_install_py()
 
@@ -164,49 +164,49 @@ class RuntimeNamespace:
 
     @staticmethod
     def install_ui(*, force: bool = False) -> None:
-        from core.infra.setup.core.ui_runtime import install_ui_runtime
+        from core.infra.setup.core.orchestrator import install_ui_runtime
 
         install_ui_runtime(force=force)
 
     @staticmethod
     def check_ui_prerequisites() -> tuple[bool, str]:
-        from core.infra.setup.core.ui_runtime import check_runtime_prerequisites
+        from core.infra.setup.core.orchestrator import check_runtime_prerequisites
 
         return check_runtime_prerequisites()
 
     @staticmethod
     def launch_ui() -> None:
-        from core.infra.setup.core.ui_runtime import launch_ui_stack
+        from core.infra.setup.core.orchestrator import launch_ui_stack
 
         launch_ui_stack()
 
     @staticmethod
     def set_ui_dev_mode(enabled: bool) -> None:
-        from core.infra.setup.core.install_runtime import set_ui_dev_mode
+        from core.infra.setup.core.shared.install_runtime import set_ui_dev_mode
 
         set_ui_dev_mode(enabled)
 
     @staticmethod
     def fed_build_ready() -> bool:
-        from core.infra.setup.core.install_runtime import fed_build_ready
+        from core.infra.setup.core.shared.install_runtime import fed_build_ready
 
         return fed_build_ready()
 
     @staticmethod
     def userspace_ready() -> bool:
-        from core.infra.setup.core.install_runtime import userspace_ready
+        from core.infra.setup.core.shared.install_runtime import userspace_ready
 
         return userspace_ready()
 
     @staticmethod
     def pipeline_ready() -> bool:
-        from core.infra.setup.core.setup_session import is_ready
+        from core.infra.setup.core.shared.setup_session import is_ready
 
         return is_ready()
 
     @staticmethod
     def mark_cli_ready() -> None:
-        from core.infra.setup.core.install_runtime import mark_cli_success_fingerprint
+        from core.infra.setup.core.shared.install_runtime import mark_cli_success_fingerprint
 
         mark_cli_success_fingerprint()
 
@@ -218,7 +218,7 @@ class RuntimeNamespace:
         failed_step_id: str = "",
         fingerprints: Optional[Dict[str, Any]] = None,
     ) -> None:
-        from core.infra.setup.core.install_runtime import mark_runtime
+        from core.infra.setup.core.shared.install_runtime import mark_runtime
 
         mark_runtime(
             profile,
@@ -249,7 +249,7 @@ class MetaNamespace:
 
     @staticmethod
     def load_step_meta(*, ui_only: bool = True) -> List[Dict[str, Any]]:
-        from core.infra.setup.core.meta_loader import load_setup_step_meta
+        from core.infra.setup.core.shared.meta_loader import load_setup_step_meta
 
         return load_setup_step_meta(ui_only=ui_only)
 
@@ -267,7 +267,7 @@ class TraceNamespace:
         step_seconds: Optional[dict] = None,
         skipped: Optional[list] = None,
     ) -> None:
-        from core.infra.setup.core.trace_events import SetupTrace
+        from core.infra.setup.core.shared.trace_events import SetupTrace
 
         SetupTrace.install_complete(
             success=success,
@@ -287,7 +287,7 @@ class TraceNamespace:
         exc: Optional[BaseException] = None,
         extra: Optional[dict] = None,
     ) -> None:
-        from core.infra.setup.core.trace_events import SetupTrace
+        from core.infra.setup.core.shared.trace_events import SetupTrace
 
         SetupTrace.install_step_failed(
             step=step,
@@ -299,7 +299,7 @@ class TraceNamespace:
 
     @staticmethod
     def app_start(*, entry: AppEntry, command: Optional[str] = None) -> None:
-        from core.infra.setup.core.trace_events import SetupTrace
+        from core.infra.setup.core.shared.trace_events import SetupTrace
 
         SetupTrace.app_start(entry=entry, command=command)
 
@@ -309,25 +309,25 @@ class LicenseNamespace:
 
     @staticmethod
     def is_accepted() -> bool:
-        from core.infra.setup.core.license_acceptance import is_accepted
+        from core.infra.setup.core.shared.license_acceptance import is_accepted
 
         return is_accepted()
 
     @staticmethod
     def ensure_accepted(*, source: str, assume_accepted: bool = False) -> bool:
-        from core.infra.setup.core.license_acceptance import ensure_accepted
+        from core.infra.setup.core.shared.license_acceptance import ensure_accepted
 
         return ensure_accepted(source=source, assume_accepted=assume_accepted)
 
     @staticmethod
     def entry_path() -> str:
-        from core.infra.setup.core.license_acceptance import entry_path
+        from core.infra.setup.core.shared.license_acceptance import entry_path
 
         return entry_path()
 
     @staticmethod
     def apply_trace_consent() -> None:
-        from core.infra.setup.core.license_acceptance import apply_trace_consent
+        from core.infra.setup.core.shared.license_acceptance import apply_trace_consent
 
         apply_trace_consent()
 

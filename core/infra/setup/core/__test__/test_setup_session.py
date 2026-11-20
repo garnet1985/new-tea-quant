@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from core.infra.setup.core import setup_session
-from core.infra.setup.core.meta_loader import load_setup_step_meta
+from core.infra.setup.core.shared import setup_session
+from core.infra.setup.core.shared.meta_loader import load_setup_step_meta
 
 
 def test_cli_complete_marks_wizard_ready(tmp_path: Path, monkeypatch) -> None:

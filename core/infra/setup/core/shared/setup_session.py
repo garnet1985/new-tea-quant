@@ -9,9 +9,9 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 
-from core.infra.setup.core.env import NewTeaQuantSetup
-from core.infra.setup.core.meta_loader import load_setup_step_meta
-from core.infra.setup.core.pipeline_state import sync_definition_into_state
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.meta_loader import load_setup_step_meta
+from core.infra.setup.core.shared.pipeline_state import sync_definition_into_state
 
 STATE_FILE = NewTeaQuantSetup.repo_root / ".ntq" / "setup-runtime.json"
 

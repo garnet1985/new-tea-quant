@@ -19,7 +19,7 @@ def progress_dir(tmp_path, monkeypatch):
 
 
 def test_import_progress_counts_finished_tables_only(progress_dir):
-    from core.infra.setup.core.install_progress import (
+    from core.infra.setup.core.shared.install_progress import (
         begin_import_table,
         close_import,
         fail_import_table,
@@ -55,7 +55,7 @@ def test_import_progress_counts_finished_tables_only(progress_dir):
 
 
 def test_import_download_phase_text(progress_dir):
-    from core.infra.setup.core.install_progress import (
+    from core.infra.setup.core.shared.install_progress import (
         begin_import_download,
         clear_import_progress,
         close_import,
@@ -116,7 +116,7 @@ def test_import_download_phase_text(progress_dir):
 
 def test_failed_install_step_stays_on_the_root(progress_dir):
     from core.infra.progress import Progress
-    from core.infra.setup.core.install_progress import (
+    from core.infra.setup.core.shared.install_progress import (
         begin_install_step,
         fail_install,
         open_install,

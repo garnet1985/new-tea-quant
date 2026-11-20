@@ -94,14 +94,14 @@ def get_site_urls():
 
 @setup_api_bp.route("/v1/setup/license", methods=["GET"])
 def get_license_acceptance():
-    from core.infra.setup.core.license_acceptance import status_payload
+    from core.infra.setup.core.shared.license_acceptance import status_payload
 
     return ok(status_payload())
 
 
 @setup_api_bp.route("/v1/setup/license/accept", methods=["POST"])
 def post_license_acceptance():
-    from core.infra.setup.core.license_acceptance import accept, is_accepted, status_payload
+    from core.infra.setup.core.shared.license_acceptance import accept, is_accepted, status_payload
 
     newly = not is_accepted()
     accept(source="ui")
@@ -117,7 +117,7 @@ def post_license_acceptance():
 
 @setup_api_bp.route("/v1/setup/license/decline", methods=["POST"])
 def post_license_decline():
-    from core.infra.setup.core.license_acceptance import exit_process_soon
+    from core.infra.setup.core.shared.license_acceptance import exit_process_soon
 
     exit_process_soon()
     return ok({"exiting": True})

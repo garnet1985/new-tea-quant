@@ -8,7 +8,7 @@ import pytest
 
 from core.infra.project_context import ProjectContext
 from core.infra.project_context.core.path_manager import PathManager
-from core.infra.setup.core import data_packages as dp
+from core.infra.setup.core.steps.import_data import data_packages as dp
 
 pytestmark = pytest.mark.force_run
 

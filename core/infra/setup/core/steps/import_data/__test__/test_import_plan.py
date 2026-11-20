@@ -9,7 +9,7 @@ import pytest
 from core.infra.membership import Membership
 from core.infra.project_context import ProjectContext
 from core.infra.project_context.core.path_manager import PathManager
-from core.infra.setup.core.import_plan import build_import_plan, resolve_import_pack_kind
+from core.infra.setup.core.steps.import_data.import_plan import build_import_plan, resolve_import_pack_kind
 
 pytestmark = pytest.mark.force_run
 

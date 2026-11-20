@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
 
 def test_require_supported_venv_rejects_older_interpreter(monkeypatch: pytest.MonkeyPatch) -> None:

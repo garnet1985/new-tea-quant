@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.setup.core import install_runtime as ir
+from core.infra.setup.core.shared import install_runtime as ir
 
 
 def _write_ready_state(path: Path, *, req: Path) -> None:

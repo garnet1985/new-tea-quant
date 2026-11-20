@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from core.infra.setup.core.data_packages import describe_data_packages
+from core.infra.setup.core.steps.import_data.data_packages import describe_data_packages
 
 PACK_LABELS = {
     "demo": "约 300 只股票 × 三年（公开演示包）",

@@ -12,10 +12,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.infra.project_context import ProjectContext
 from core.infra.project_context.contracts import DUCKDB_DOMAIN_FILES
 from core.infra.setup import Setup
-from core.infra.setup.core.db_install_config import write_database_install_config
-from core.infra.setup.core.pipeline_state import wants_skip_input
-from core.infra.setup.core.step_errors import setup_failure_message
-from core.infra.setup.core import setup_session
+from core.infra.setup.core.steps.db_connection.db_install_config import write_database_install_config
+from core.infra.setup.core.shared.pipeline_state import wants_skip_input
+from core.infra.setup.core.shared.step_errors import setup_failure_message
+from core.infra.setup.core.shared import setup_session
 from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -93,13 +93,13 @@ class SetupRuntimeManager:
 
     def get_import_data_plan(self) -> Dict[str, Any]:
         """设置页导入说明：按会员凭证自动选 demo / member。"""
-        from core.infra.setup.core.import_plan import build_import_plan
+        from core.infra.setup.core.steps.import_data.import_plan import build_import_plan
 
         return {"status": "ok", "message": build_import_plan()}
 
     def import_demo_data(self) -> Dict[str, Any]:
         """设置页导入数据：非会员同步导 demo；会员走 JobPipeline 导 member。"""
-        from core.infra.setup.core.import_plan import build_import_plan
+        from core.infra.setup.core.steps.import_data.import_plan import build_import_plan
 
         plan = build_import_plan()
         pack_kind = str(plan.get("packKind") or "demo")
@@ -272,7 +272,7 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        from core.infra.setup.core.install_progress import read_import_progress
+        from core.infra.setup.core.shared.install_progress import read_import_progress
 
         return {
             "status": "ok",
@@ -280,7 +280,7 @@ class SetupRuntimeManager:
         }
 
     def _run_pipeline(self, state: Dict[str, Any], force_step_id: Optional[str] = None) -> Dict[str, Any]:
-        from core.infra.setup.core.trace_events import SetupTrace
+        from core.infra.setup.core.shared.trace_events import SetupTrace
 
         SetupTrace.ensure_install_id()
         definition = self.get_definition()
@@ -293,7 +293,7 @@ class SetupRuntimeManager:
         else:
             next_ids = ordered_ids
 
-        from core.infra.setup.core.install_progress import (
+        from core.infra.setup.core.shared.install_progress import (
             begin_install_step,
             close_install,
             fail_install,
@@ -455,7 +455,7 @@ class SetupRuntimeManager:
             self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
             if step_id == "init_userspace":
                 ProjectContext.cache.clear_userspace_cache()
-                from core.infra.setup.core.trace_events import SetupTrace
+                from core.infra.setup.core.shared.trace_events import SetupTrace
 
                 SetupTrace.ensure_install_id()
             return True, "", ""
@@ -483,7 +483,7 @@ class SetupRuntimeManager:
         return setup_session.new_state(definition)
 
     def _build_snapshot(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        from core.infra.setup.core.data_packages import describe_data_packages
+        from core.infra.setup.core.steps.import_data.data_packages import describe_data_packages
 
         return {
             "sessionId": state.get("sessionId", ""),

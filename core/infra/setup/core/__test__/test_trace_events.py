@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.infra.trace import Trace  # noqa: F401 — ensure package importable for patch
-from core.infra.setup.core.trace_events import SetupTrace
+from core.infra.setup.core.shared.trace_events import SetupTrace
 
 pytestmark = pytest.mark.force_run
 

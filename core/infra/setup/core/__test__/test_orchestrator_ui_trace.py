@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.infra.setup.core import ui_runtime as ur
+from core.infra.setup.core import orchestrator as ur
 
 pytestmark = pytest.mark.force_run
 

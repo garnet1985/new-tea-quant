@@ -14,31 +14,34 @@
 ```text
 core/infra/setup/         # 执行层
   setup.py / contracts.py
-  core/{env, install_runtime, cli_runtime, ui_runtime, setup_session, steps, scripts}
+  core/
+    orchestrator.py       # 唯一编排：协调 steps + 全局状态（CLI/UI 入口）
+    shared/               # 跨 step 公用能力
+    steps/                # 各安装步骤私有逻辑
+    scripts/              # 产物脚本（userspace 打包 / 演示数据导出）
 
 initialization/userspace/   # 仓库根 userspace 模板
-userspace/.ntq/packages/install_demo/  # 演示包（导出/下载）
-.ntq/setup-runtime.json                          # CLI 与 UI 向导共用的完成态（isReady）
+userspace/.ntq/packages/    # 演示/会员包缓存
+.ntq/setup-runtime.json     # CLI 与 UI 向导共用的完成态（isReady）
 ```
 
 ```text
 Setup
-  ├── env        → core.env.NewTeaQuantSetup + 路径常量
-  ├── runtime    → core.install_runtime / cli_runtime / ui_runtime / setup_session
-  ├── artifacts  → core.scripts.init_userspace / init_data
-  ├── meta       → core.meta_loader
-  ├── trace      → core.trace_events.SetupTrace
+  ├── env        → shared.env.NewTeaQuantSetup
+  ├── runtime    → orchestrator + shared.install_runtime / setup_session
+  ├── artifacts  → scripts.init_userspace / init_data
+  ├── meta       → shared.meta_loader
+  ├── trace      → shared.trace_events.SetupTrace
   └── types      → contracts
 ```
 
 ```mermaid
 flowchart LR
   Caller --> Setup
-  Setup --> Env[env]
-  Setup --> Runtime[runtime]
-  Setup --> Artifacts[artifacts]
-  Setup --> Meta[meta]
-  Setup --> Trace[trace]
+  Setup --> Orch[orchestrator]
+  Orch --> Shared[shared]
+  Orch --> Steps[steps]
+  Setup --> Artifacts[scripts]
 ```
 
 ## 相关文档

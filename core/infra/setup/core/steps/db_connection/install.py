@@ -21,7 +21,7 @@ _REPO_ROOT = next(
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 from core.infra.project_context import ProjectContext
 
 
@@ -159,7 +159,7 @@ def _mysql_create_database(db_cfg: Dict[str, Any]) -> None:
 
 
 def main() -> int:
-    from core.infra.setup.core.env import NewTeaQuantSetup
+    from core.infra.setup.core.shared.env import NewTeaQuantSetup
     # ProjectContext and ConfigManager already imported at module level
 
     common_json = USER_DB_CONFIG_DIR / "common.json"

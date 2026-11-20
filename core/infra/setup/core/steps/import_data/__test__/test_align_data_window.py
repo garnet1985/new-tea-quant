@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from core.infra.setup.core.align_data_window import align_data_json_to_pack_window
+from core.infra.setup.core.steps.import_data.align_data_window import align_data_json_to_pack_window
 from core.infra.setup.core.scripts.init_data.config import (
     DEFAULT_END_DATE,
     DEFAULT_START_DATE,

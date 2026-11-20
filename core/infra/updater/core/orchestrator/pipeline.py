@@ -370,7 +370,7 @@ def _reinstall_dependencies(ctx: UpgradeContext) -> None:
     **纯命令行** 重装运行期依赖（与后续 UI update 向导共用底层实现）。
 
     调用 ``reinstall_runtime_dependencies_cli``：可选根 ``requirements.txt``，再
-    ``setup.core.ui_runtime.install_ui_runtime(force=True)``（BFF + FED）。
+    ``setup.core.orchestrator.install_ui_runtime(force=True)``（BFF + FED）。
 
     调试跳过：``NTQ_UPDATE_SKIP_RUNTIME_REINSTALL=1``；仅跳过根 requirements：
     ``NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS=1``。

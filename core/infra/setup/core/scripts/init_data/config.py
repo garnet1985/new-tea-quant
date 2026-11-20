@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 # 仓库根（config 位于 core/infra/setup/core/scripts/init_data/）
-from core.infra.setup.core.install_runtime import REPO_ROOT
-from core.infra.setup.core.data_packages import (  # noqa: F401 — 对外兼容再导出
+from core.infra.setup.core.shared.install_runtime import REPO_ROOT
+from core.infra.setup.core.steps.import_data.data_packages import (  # noqa: F401 — 对外兼容再导出
     GIT_DATA_META_NAME,
     GIT_DATA_ZIP_NAME,
     PACKAGE_META_BY_KIND,

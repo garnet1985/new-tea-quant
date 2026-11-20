@@ -49,9 +49,11 @@ export function SettingsDatabasePanel({
         {saveOk ? <Message status="success">{saveOk}</Message> : null}
         <UiSelect
           label="数据库类型"
-          value={databaseType}
+          value={databaseType || 'duckdb'}
           onChange={(e) => onDatabaseTypeChange(e.target.value)}
           options={DATABASE_TYPE_OPTIONS}
+          required
+          displayEmpty={false}
         />
         {!isDuckdb ? (
           <UiTextField

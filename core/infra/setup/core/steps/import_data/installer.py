@@ -284,6 +284,31 @@ class SetupDataInstaller:
         if self.progress_file.exists():
             self.progress_file.unlink()
 
+    def _align_data_window_after_success(self) -> None:
+        """demo/member 导入成功后对齐 userspace data.json 日期窗（缺省或仍为 core 默认时）。"""
+        from core.infra.setup.core.align_data_window import align_data_json_to_pack_window
+        from core.infra.setup.core.env import NewTeaQuantSetup
+
+        try:
+            result = align_data_json_to_pack_window(pack_kind=self.pack_kind)
+        except Exception as exc:
+            logger.warning("对齐 data.json 日期窗失败: %s", exc)
+            NewTeaQuantSetup.print_check_item(
+                "warn",
+                f"未能自动写入数据范围到 data.json：{exc}",
+            )
+            return
+        if not result.get("changed"):
+            return
+        updates = result.get("updates") or {}
+        parts = [f"{key}={value}" for key, value in updates.items()]
+        NewTeaQuantSetup.print_check_item(
+            "done",
+            "已按数据包日期窗更新数据范围（"
+            + "，".join(parts)
+            + "）。可在「设置 → 数据范围」查看或修改。",
+        )
+
     def _cleanup_temp_after_success(
         self,
         extract_root: Path,
@@ -413,6 +438,7 @@ class SetupDataInstaller:
                     "done",
                     f"所有表已在当前数据包指纹下导入完成（import_data 本步 {dt_setup:.1f}s）",
                 )
+                self._align_data_window_after_success()
                 self._cleanup_temp_after_success(
                     extract_root,
                     remove_extract=remove_extract,
@@ -512,6 +538,7 @@ class SetupDataInstaller:
                 f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；import_data 全程 {dt_setup_all:.1f}s）",
             )
             close_import()
+            self._align_data_window_after_success()
             self._cleanup_temp_after_success(
                 extract_root,
                 remove_extract=remove_extract,

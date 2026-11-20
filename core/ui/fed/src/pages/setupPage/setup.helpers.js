@@ -44,7 +44,7 @@ export const SETUP_CHOICE_COPY = {
         id: 'later',
         skip: true,
         title: '稍后再导入',
-        description: '注册会员后可导入：全 A 股 5800+ 只股票 × 三年数据（2021年 - 2023年）。',
+        description: '注册会员后可导入：全 A 股 5800+ 只股票 × 三年数据（2023年初 - 2025年底）。',
       },
     ],
   },

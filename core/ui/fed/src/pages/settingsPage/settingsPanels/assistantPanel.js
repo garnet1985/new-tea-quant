@@ -28,7 +28,7 @@ function NtqProxyCard({ configured }) {
       gap="sm"
     >
       <div className="settings-ai__card-head">
-        <strong>NTQ AI</strong>
+        <strong>新茶量化（NTQ）AI</strong>
         <Tag
           status={configured ? 'success' : 'neutral'}
           variant={configured ? 'solid' : 'outline'}
@@ -36,10 +36,10 @@ function NtqProxyCard({ configured }) {
           {configured ? '已配置' : '未配置'}
         </Tag>
       </div>
-      <p className="ntq-caption">官网代理 · 只读提示（凭证在「会员」页配置）</p>
+      <p className="ntq-caption">官网代理 · 只读提示（会员凭证在「会员」页配置）</p>
       {configured ? (
         <p className="ntq-muted">
-          NTQ AI 已配置，可直接使用。若想使用自己的模型，可在 AI 交互框中选择下方已配置的其他 AI。
+          NTQ AI 已配置，可直接使用。若想使用自己的模型，可在 AI 交互框中选择下方已配置的其他 AI。如果同时配置多个AI，可以在AI助手下方切换模型。
         </p>
       ) : (
         <p className="ntq-muted">
@@ -143,13 +143,13 @@ export function SettingsAssistantPanel() {
       </Section>
 
       <Section className="settings-ai__providers" gap="md">
-        <Heading level="h3" gap="none">自有供应商</Heading>
+        <Heading level="h3" gap="none">使用自己的AI模型</Heading>
         <p className="ntq-muted">
-          在此写入 API Key。页面不会回读明文，只会显示是否已配置。
+          在此写入 API Key。页面不会显示明文密钥，只会显示是否已配置。
         </p>
         {sortedProviders.length === 0 ? (
           <Message status="info">
-            还没有发现大模型供应商。请先在扩展目录中放入供应商包后再刷新本页。
+            还没有发现自己的AI模型。请先在扩展目录中放入AI模型包后再刷新本页。
           </Message>
         ) : (
           <div className="settings-ai__provider-list">

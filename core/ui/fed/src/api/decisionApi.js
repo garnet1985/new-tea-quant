@@ -1,4 +1,5 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
+import { formatCalendarDate } from 'service/format/formatDateTime';
 
 function formatMoney(value) {
   const n = Number(value);
@@ -52,12 +53,9 @@ function unwrapMessage(json) {
   return json?.message && typeof json.message === 'object' ? json.message : {};
 }
 
-/** BFF ``YYYYMMDD`` → 页面 ``YYYY-MM-DD``。 */
+/** BFF 日历日 → 页面 ``YYYY-MM-DD``。 */
 export function formatDecisionDate(raw) {
-  const s = String(raw || '').trim();
-  if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  return s;
+  return formatCalendarDate(raw);
 }
 
 export function readSimulationRange(settings) {

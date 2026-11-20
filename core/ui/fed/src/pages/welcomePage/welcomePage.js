@@ -32,7 +32,7 @@ const NEXT_LINKS = [
   {
     to: '/advanced/data-contracts',
     label: '高级功能 → 数据契约',
-    body: '您可以在这里查看所有已经定义的可声明数据契约的信息和状态。',
+    body: '您可以在这里查看所有已定义的数据契约，便于在策略与特征标签配置中查找数据键。',
   },
   {
     to: '/advanced/series-relation',

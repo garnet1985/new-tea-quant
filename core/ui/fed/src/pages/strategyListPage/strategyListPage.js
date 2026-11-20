@@ -41,7 +41,7 @@ import './strategyListPage.scss';
  */
 const STRATEGY_LIST_BANNER_TITLE = '选择一个策略';
 const STRATEGY_LIST_BANNER_DESCRIPTION =
-  '请从表格中选择一个策略；可按归类筛选或按名称搜索。进入后可调参数、分步回测并对比版本。';
+  '管理本地策略，进行参数调试与分步回测。';
 
 function StrategyListPage({
   listBasePath = '/strategy-design',

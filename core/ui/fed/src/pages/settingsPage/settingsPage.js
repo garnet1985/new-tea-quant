@@ -159,7 +159,7 @@ function SettingsPage() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="管理会员、安装维护、数据库、AI 与数据等相关设置。"
+      bannerDescription="会员、安装维护、数据库、AI、数据范围与反馈等系统偏好。"
     >
       <Column
         className="settings-page-layout"

@@ -562,7 +562,7 @@ function Scan() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="策略选股"
       bannerTitle="策略选股"
-      bannerDescription="勾选下方已启用的策略，在全市场范围内按规则筛选机会；每个策略按其配置的标的域（target）分别执行。"
+      bannerDescription="用已启用的策略在全市场扫描当前机会。"
       bannerRightSlot={(
         <Tag status={statusTag.status} variant={statusTag.variant}>
           {statusTag.label}

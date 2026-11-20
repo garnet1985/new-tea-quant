@@ -1379,7 +1379,7 @@ export function DecisionPlaySession({
       breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
       breadcrumbsCurrent={`模拟回测 #${snapshot.dmId}`}
       bannerTitle={`决策模拟回测 · #${snapshot.dmId}`}
-      bannerDescription="时钟只显示当前停顿日。推进后总进度前移；月历是只读地图，只标注已经发生的事件。"
+      bannerDescription="按交易日推进，手动选择买入机会，并与系统自动结果对照。"
       bannerRightSlot={(
         <Button component={RouterLink} to={designHref} variant="outlined" size="small">
           返回制定策略

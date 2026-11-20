@@ -194,7 +194,7 @@ function ProcessorEditDialog({
     >
       <Section gap="md" className="post-process-edit">
         <p className="ntq-muted">
-          添加或移除执行单元，并为每个步骤设置 depends_on（依赖）。执行顺序由依赖拓扑计算，不可拖拽排序。
+          添加或移除执行单元，并为每个步骤设置依赖。执行顺序由依赖关系自动计算，不可拖拽排序。
         </p>
         {error ? <Message status="error">{error}</Message> : null}
 
@@ -224,7 +224,7 @@ function ProcessorEditDialog({
               </div>
               <Autocomplete
                 multiple
-                label="depends_on"
+                label="依赖"
                 tip="依赖的执行单元"
                 options={depOptions}
                 value={row.depends_on || []}
@@ -436,7 +436,7 @@ function PostProcessPage() {
     },
     {
       field: 'execution_order',
-      headerName: '执行序（计算）',
+      headerName: '执行顺序',
       flex: 1.2,
       minWidth: 180,
       sortable: false,
@@ -483,7 +483,7 @@ function PostProcessPage() {
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="后续处理"
       bannerTitle="后续处理"
-      bannerDescription="管理全局扫描后续处理：处理方案（PostProcessor）与执行单元（Adapter）。每个策略扫描结束后，会运行全部已启用的方案（非策略绑定）。"
+      bannerDescription="定义策略选股结束后的全局后续动作，例如通知、过滤或接入机器学习。"
       loading={!pageReady}
       loadingMessage="正在加载后续处理…"
     >
@@ -498,7 +498,7 @@ function PostProcessPage() {
           >
             <Heading level="h3" gap="none">处理方案</Heading>
             <p className="ntq-muted post-process-block__desc">
-              userspace/extensions/post_process/post_processors/；启用后每个策略扫完都会跑。步骤依赖用 depends_on，执行序自动计算。
+              方案存放在用户扩展目录中。启用后，每次策略扫描结束都会执行。步骤按依赖自动排序。
             </p>
             <StepStatusLegend />
             <DataGrid
@@ -520,7 +520,7 @@ function PostProcessPage() {
           >
             <Heading level="h3" gap="none">执行单元</Heading>
             <p className="ntq-muted post-process-block__desc">
-              userspace/extensions/post_process/adapters/；展示名来自 settings.py 的 display_name。颜色含义同上图例。
+              执行单元来自用户扩展；列表展示名为各单元配置中的显示名。颜色含义见上方图例。
             </p>
             <StepStatusLegend />
             <DataGrid

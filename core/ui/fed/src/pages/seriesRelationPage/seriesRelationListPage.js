@@ -80,7 +80,7 @@ function SeriesRelationListPage() {
   const confirmNew = () => {
     const key = String(newKey || '').trim();
     if (!key) {
-      showToast({ status: 'error', content: '请填写场景 key' });
+      showToast({ status: 'error', content: '请填写场景标识' });
       return;
     }
     setNewOpen(false);
@@ -119,11 +119,11 @@ function SeriesRelationListPage() {
       headerName: '结果',
       width: 110,
       renderCell: (params) => (
-        // 约定：有结果（满足）solid；未跑批（未满足）outline
+        // 约定：有结果 solid；尚未计算 outline
         params.value ? (
           <Tag status="success" variant="solid">有结果</Tag>
         ) : (
-          <Tag status="neutral" variant="outline">未跑批</Tag>
+          <Tag status="neutral" variant="outline">尚未计算</Tag>
         )
       ),
     },
@@ -155,7 +155,7 @@ function SeriesRelationListPage() {
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="序列关系"
       bannerTitle="序列关系"
-      bannerDescription="选择一条序列关系场景进行配置与跑批，或新建场景。"
+      bannerDescription="对比多条时间序列，观察它们之间的关联与相关性。"
       loading={!pageReady}
       loadingMessage="正在加载序列关系…"
     >
@@ -233,7 +233,7 @@ function SeriesRelationListPage() {
       >
         <Section gap="md">
           <TextField
-            label="场景 key"
+            label="场景标识"
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
             placeholder="如 banks_vs_macro"

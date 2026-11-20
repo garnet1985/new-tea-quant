@@ -33,9 +33,9 @@ import './dataSourceListPage.scss';
 function RenewAccessTip() {
   return (
     <div className="data-source-renew-tip">
-      <span>未注册：拥有3年300只股票的演示数据（2023-2025年底）。</span>
-      <span>注册后：拥有3年全市场的5000+股票数据（2023-2025年底）。</span>
-      <span>注册并有1000点数：全市场所有股票从2008年开始的所有数据（每日更新）。</span>
+      <span>未注册：约 3 年、300 只股票的演示数据（至 2025 年底）。</span>
+      <span>注册后：约 3 年、全市场 5000+ 只股票数据（至 2025 年底）。</span>
+      <span>注册且有 1000 点数：全市场自 2008 年起的全部数据（每日更新）。</span>
     </div>
   );
 }
@@ -602,7 +602,7 @@ function DataSourceListPage() {
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="数据源"
       bannerTitle="数据源"
-      bannerDescription="一键更新按顺序更新所有需要更新的数据源。正在更新的那一行会显示进度。每一行的按钮只更新那一项。"
+      bannerDescription="查看已接入的外部数据源，并更新本地行情与基础数据。"
       bannerRightSlot={(
         <Tag status={statusTag.status} variant={statusTag.variant}>
           {statusTag.label}
@@ -626,7 +626,7 @@ function DataSourceListPage() {
               <SearchField
                 fluid
                 surface="glass"
-                placeholder="搜索名称、Key 或 Provider"
+                placeholder="搜索名称、标识或数据供应商"
                 label="搜索数据源"
                 value={nameQuery}
                 onChange={(e) => setNameQuery(e.target.value)}

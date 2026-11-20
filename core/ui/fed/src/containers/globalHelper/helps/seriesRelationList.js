@@ -23,7 +23,7 @@ export const SERIES_RELATION_LIST_HELP = {
       pages: [
         {
           title: '刷新',
-          body: '重新加载当前的序列关系场景列表而无需重启app。',
+          body: '重新加载当前的序列关系场景列表，无需重启应用。',
         },
       ],
     },
@@ -32,7 +32,7 @@ export const SERIES_RELATION_LIST_HELP = {
       pages: [
         {
           title: '新建',
-          body: '创建一个新的序列关系场景，并找到和显示他们之间的关系。',
+          body: '创建一个新的序列关系场景，并查看它们之间的关系。',
         },
       ],
     },

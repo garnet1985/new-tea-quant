@@ -1,5 +1,6 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 import { mapDataEnd } from 'service/dataEnd';
+import { formatCalendarDate } from 'service/format/formatDateTime';
 import { getUpdateModeIcon } from 'service/updateModeIcon';
 
 export { fetchPipelineStatus } from './runtimeApi';
@@ -42,13 +43,9 @@ export function getTagUpdateModeIcon(mode) {
   return getUpdateModeIcon(mode);
 }
 
-/** 格式化 ``last_computed_as_of``（YYYYMMDD → YYYY-MM-DD）。 */
+/** 格式化 ``last_computed_as_of``（展示 ``YYYY-MM-DD``）。 */
 export function formatTagAsOfDate(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
-  return raw;
+  return formatCalendarDate(value, { empty: '—' });
 }
 
 /** 计算状态展示文案。 */

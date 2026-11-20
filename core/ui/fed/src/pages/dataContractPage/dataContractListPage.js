@@ -166,7 +166,7 @@ function DataContractListPage() {
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
       breadcrumbsCurrent="数据契约"
       bannerTitle="数据契约"
-      bannerDescription="列出 core 与 userspace 合并后的 DataKey 目录，便于在策略与 Tag 配置中查找 data key。新增或修改 userspace 契约后点「重新发现」，无需重启 NTQ。"
+      bannerDescription="系统与用户扩展合并后的数据契约目录，供策略与特征标签引用数据键。"
       loading={!pageReady}
       loadingMessage="正在加载数据契约…"
     >

@@ -240,7 +240,7 @@ function SeriesRelationReport({
         </div>
         <div className="ntq-srel-showcase__tags">
           <Tag status="neutral" variant="outline">
-            {summary.series_count ?? series.length ?? '—'} 系列
+            {summary.series_count ?? series.length ?? '—'} 条
           </Tag>
           <Tag status="neutral" variant="outline">
             {summary.calendar_len ?? '—'} 交易日

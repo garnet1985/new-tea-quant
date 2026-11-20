@@ -57,6 +57,7 @@
   text-decoration: none;
   cursor: pointer;
   border-radius: var(--ntq-radius-sm);
+  transition: var(--ui-transition-colors);
 
   &:hover {
     color: var(--ntq-text);
@@ -81,6 +82,7 @@
   color: var(--ntq-cyan);
   text-decoration: none;
   white-space: nowrap;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     text-decoration: underline;

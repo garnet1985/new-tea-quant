@@ -115,6 +115,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     background: rgba(255, 255, 255, 0.04);

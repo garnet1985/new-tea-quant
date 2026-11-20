@@ -64,6 +64,7 @@
   font-size: 0.8125rem;
   cursor: pointer;
   text-transform: none;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     border-color: rgba(255, 255, 255, 0.22);
@@ -77,7 +78,7 @@
 }
 
 .feedback-prompt-overlay__rate-icon {
-  transition: color 160ms ease;
+  transition: color var(--ui-transition-color);
 }
 
 .feedback-prompt-overlay__actions {

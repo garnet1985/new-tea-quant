@@ -153,7 +153,7 @@
   border: 1px solid var(--ntq-white-12);
   border-radius: 0.625rem;
   background: transparent;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: var(--ui-transition-colors);
   box-sizing: border-box;
 
   .MuiFormControlLabel-label {
@@ -372,6 +372,7 @@
   color: inherit;
   cursor: pointer;
   line-height: 0;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(:disabled) {
     background: var(--ntq-white-06);
@@ -529,6 +530,7 @@
   text-align: left;
   cursor: pointer;
   box-sizing: border-box;
+  transition: var(--ui-transition-colors);
 
   &:hover:not(:disabled) {
     border-color: rgba(255, 255, 255, 0.18);
@@ -586,6 +588,7 @@
   padding: var(--ntq-space-xxs);
   border-radius: var(--ntq-radius-sm);
   line-height: 0;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     background: var(--ntq-white-06);

@@ -93,6 +93,7 @@
     text-decoration: underline;
     text-underline-offset: 0.15em;
     cursor: pointer;
+    transition: var(--ui-transition-colors);
 
     &:hover {
       color: var(--ntq-white-98, #fff);

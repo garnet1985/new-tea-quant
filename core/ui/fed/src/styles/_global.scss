@@ -6,6 +6,11 @@
   box-sizing: border-box;
 }
 
+// 链接 / 导航类：hover·focus 变色统一过渡（button / input 在各自样式里接同一 token）
+a {
+  transition: var(--ui-transition-colors);
+}
+
 html {
   height: 100%;
   // rem 基准保持浏览器默认 16px（勿改成 14）；1rem = 16px
@@ -85,7 +90,7 @@ body {
   -webkit-backdrop-filter: blur(12px);
   cursor: pointer;
   text-align: center;
-  transition: background-color 160ms ease;
+  transition: background-color var(--ui-transition-color);
 }
 
 .ntq-stock-grid-overlay__icon {

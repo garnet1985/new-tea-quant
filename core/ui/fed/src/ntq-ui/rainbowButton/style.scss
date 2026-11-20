@@ -50,6 +50,7 @@
   cursor: pointer;
   box-sizing: border-box;
   overflow: hidden;
+  transition: var(--ui-transition-colors), transform var(--ui-transition-color);
 
   &:disabled {
     cursor: not-allowed;

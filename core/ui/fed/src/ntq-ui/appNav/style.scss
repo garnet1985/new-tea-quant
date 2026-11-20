@@ -23,7 +23,7 @@
   text-decoration: none;
   cursor: pointer;
   gap: 0.375rem; // 6px
-  transition: background 180ms ease, color 180ms ease;
+  transition: var(--ui-transition-colors);
   min-width: 0;
 
   &:hover {
@@ -124,6 +124,7 @@
   line-height: var(--ntq-leading-normal);
   color: var(--ntq-text);
   text-decoration: none;
+  transition: var(--ui-transition-colors);
 
   &:hover {
     background: var(--ntq-white-06);

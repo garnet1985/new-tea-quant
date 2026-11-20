@@ -24,12 +24,12 @@ const LAYERS = [
   },
   {
     key: 'portfolio',
-    title: '资金',
+    title: '投资模拟',
     columns: [
       { key: 'max_drawdown', label: '最大回撤', style: 'ratio', delta: true },
       { key: 'sharpe_ratio', label: '夏普', style: 'number', delta: true },
-      { key: 'sortino_ratio', label: 'Sortino', style: 'number', delta: true },
-      { key: 'calmar_ratio', label: 'Calmar', style: 'number', delta: true },
+      { key: 'sortino_ratio', label: '索提诺', style: 'number', delta: true },
+      { key: 'calmar_ratio', label: '卡玛', style: 'number', delta: true },
       { key: 'total_return', label: '账户收益', style: 'ratio', delta: false },
     ],
   },

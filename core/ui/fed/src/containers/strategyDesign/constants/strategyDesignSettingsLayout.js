@@ -8,4 +8,4 @@ export const STRATEGY_DESIGN_SETTINGS_GLOBAL_TOOLTIP =
 export const STRATEGY_DESIGN_SETTINGS_PEERS_TITLE = '同类策略';
 
 export const STRATEGY_DESIGN_SETTINGS_PEERS_TOOLTIP =
-  '同归类的其他策略，便于对照调试。无同类时不显示。';
+  '同归类的其他策略，便于对照比较。无同类时不显示。';

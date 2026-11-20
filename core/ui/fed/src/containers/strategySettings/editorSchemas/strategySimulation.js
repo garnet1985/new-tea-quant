@@ -9,7 +9,7 @@ const TEMPLATE_DEFAULT = 'standard';
 const SIMULATION_TEMPLATE_META = {
   standard: {
     label: '标准',
-    tooltip: '日常回测默认；touch 进场、常见贴板限制。不知道选什么就用这个。',
+    tooltip: '日常回测默认；触及限价进场、常见涨跌停限制。不知道选什么就用这个。',
   },
   strict: {
     label: '严格',
@@ -450,12 +450,12 @@ export function buildStrategySimulationSchema(
         type: 'fieldGroup',
         label: '回测时间设置',
         plain: true,
-        tooltip: 'enum / price / portfolio 共用的行情区间与执行调度模式。',
+        tooltip: '机会盘点 / 价格回测 / 投资模拟共用的行情区间与执行模式。',
         children: [
           {
             name: 'simulation.dateRange',
             label: '时间窗口',
-            tooltip: '开始或结束留空表示由系统按 data.json 边界推断（YYYYMMDD）。',
+            tooltip: '开始或结束留空表示由系统按可用行情边界推断（YYYYMMDD）。',
             type: 'dateRange',
             layout: 'vertical',
             startName: 'execution.start_date',

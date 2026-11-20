@@ -34,7 +34,7 @@ function tooltipPrimaryValue(point) {
   return raw;
 }
 
-const ROI_DISTRIBUTION_SCOPE_NOTE = '仅含按 goal 规则退出的交易';
+const ROI_DISTRIBUTION_SCOPE_NOTE = '仅含按持仓目标规则退出的交易';
 
 function buildRoiDistributionOption(metrics) {
   const scopeNote = `<br/><span style="font-size:11px;opacity:.85">${ROI_DISTRIBUTION_SCOPE_NOTE}</span>`;

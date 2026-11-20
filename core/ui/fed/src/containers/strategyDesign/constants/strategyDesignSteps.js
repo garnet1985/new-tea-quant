@@ -18,7 +18,7 @@ export const STRATEGY_DESIGN_STEPS = [
     key: 'portfolio',
     no: 3,
     label: '投资模拟',
-    executionPanelTitle: '模拟投资组合',
+    executionPanelTitle: '投资模拟',
     pathSegment: 'portfolio',
   },
   {

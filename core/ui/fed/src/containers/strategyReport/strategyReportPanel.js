@@ -275,7 +275,7 @@ function StrategyReportPanel({
     if (!resolvedActiveTab) {
       return (
         <p className="ntq-report-panel__hint ntq-muted">
-          先执行任一步，系统会在这里自动新增对应报告 Tab。
+          先执行任一步，系统会在这里自动新增对应报告页签。
         </p>
       );
     }
@@ -299,7 +299,7 @@ function StrategyReportPanel({
             <div className="ntq-stock-grid-overlay__inner">
               <Icon name="refresh" size="xl" className="ntq-stock-grid-overlay__icon" />
               <p className="ntq-report-panel__hint ntq-muted">
-                此结果需要重新执行步骤才能看到结果，点击重新执行
+                需重新执行本步后才能查看逐股明细，点击重新执行
               </p>
             </div>
           </div>
@@ -513,7 +513,7 @@ function StrategyReportPanel({
 
                     {activeWorkbenchVersionId && baseSettings && !compareVersion ? (
                       <div className="ntq-report-compare__settings-block">
-                        <h4 className="ntq-report-compare__settings-heading">当前快照 settings</h4>
+                        <h4 className="ntq-report-compare__settings-heading">当前快照配置</h4>
                         <pre className="ntq-report-compare__pre">
                           {JSON.stringify(baseSettings, null, 2)}
                         </pre>
@@ -523,7 +523,7 @@ function StrategyReportPanel({
                     {!compareVersion ? (
                       <div className="ntq-report-compare__hint">
                         <p className="ntq-report-panel__hint ntq-muted">
-                          选择对比版本后，左右两栏将并排高亮 settings 差异。
+                          选择对比版本后，左右两栏将并排高亮配置差异。
                         </p>
                       </div>
                     ) : null}

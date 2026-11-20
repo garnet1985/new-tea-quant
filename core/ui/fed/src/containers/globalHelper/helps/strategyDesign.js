@@ -37,7 +37,7 @@ export const STRATEGY_LAYOUT_STEPS = [
     pages: [
       {
         title: '策略简介',
-        body: '这里是策略的基本信息栏位。这些信息来自您本地策略文件夹中的settings.py文件的meta信息块。',
+        body: '这里是策略的基本信息。这些信息来自您本地策略文件夹中 settings.py 的基本信息（meta）。',
       },
     ],
   },
@@ -237,7 +237,7 @@ export const STRATEGY_VERSION_AND_REPORT_HELP = {
       pages: [
         {
           title: '回测版本历史',
-          body: '您可以在这里轻松回到一个版本历史。（如果只是改参数）',
+          body: '若仅改参数，可在这里恢复到某个历史版本的配置。',
         },
         {
           title: '回测版本清理',

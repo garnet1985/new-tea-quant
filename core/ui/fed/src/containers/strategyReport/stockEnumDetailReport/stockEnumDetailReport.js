@@ -31,7 +31,7 @@ function StockEnumDetailReport({ metrics }) {
               value={`${metrics.totalOpportunities.toLocaleString()} 个`}
             />
             <MetricCard
-              title="机会完成度"
+              title="机会完整度"
               titleTip={ENUM_METRIC_TIPS.completeness}
               value={`${metrics.completedCount.toLocaleString()} / ${metrics.totalOpportunities.toLocaleString()} (${metrics.completedRatio}%)`}
             />
@@ -74,10 +74,10 @@ function StockEnumDetailReport({ metrics }) {
               title="机会分散度"
               titleTip={ENUM_METRIC_TIPS.dispersion}
               value={Number.isFinite(Number(metrics.stdGap))
-                ? `SD ${metrics.stdGap} 天`
+                ? `标准差 ${metrics.stdGap} 天`
                 : '—'}
               hint={[
-                Number.isFinite(Number(metrics.cv)) ? `CV ${metrics.cv}` : null,
+                Number.isFinite(Number(metrics.cv)) ? `变异系数 ${metrics.cv}` : null,
                 (metrics.dispersionConclusion && String(metrics.dispersionConclusion).trim()) || null,
               ].filter(Boolean).join(' · ') || undefined}
             />

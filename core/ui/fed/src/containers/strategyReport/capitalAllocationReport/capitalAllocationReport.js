@@ -87,7 +87,7 @@ function CapitalAllocationReport({
       ) : null}
 
       <ReportBlock
-        title="资金结果总览"
+        title="投资模拟总览"
         tip={CAPITAL_SECTION_TIPS.overview}
       >
         <MetricGrid columns={3}>
@@ -107,7 +107,7 @@ function CapitalAllocationReport({
             value={`${metrics.totalReturnPct}%`}
           />
           <MetricCard
-            title="收益回撤比（Calmar）"
+            title="卡玛比率"
             titleTip={CAPITAL_METRIC_TIPS.calmarRatio}
             value={formatRiskRatio(metrics.calmarRatio)}
           />
@@ -117,7 +117,7 @@ function CapitalAllocationReport({
             value={formatRiskRatio(metrics.sharpeRatio)}
           />
           <MetricCard
-            title="Sortino"
+            title="索提诺比率"
             titleTip={CAPITAL_METRIC_TIPS.sortinoRatio}
             value={formatRiskRatio(metrics.sortinoRatio)}
           />

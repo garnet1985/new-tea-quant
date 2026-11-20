@@ -1,6 +1,8 @@
 # Market Profile — 用户指南
 
-**版本：** `0.2.0`
+**模块：** `modules.market_profile` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `MarketProfile 提供各市场的交易规则——涨跌停幅度、整手单位、T+N 交割，策略判断能不能买入时查这里。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

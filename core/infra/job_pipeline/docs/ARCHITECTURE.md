@@ -1,6 +1,8 @@
 # Job Pipeline — 架构
 
-**版本：** `0.1.0`
+**模块：** `infra.job_pipeline` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.6.0`
 
 长任务登记表、串行队列与互斥的基础设施；BFF launcher / 管道坞经 `JobPipeline` 门面读写，细进度仍由 `infra.progress` 提供。
 

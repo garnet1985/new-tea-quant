@@ -103,15 +103,10 @@ def userspace_ready() -> bool:
 
 
 def _runtime_status(state: Dict[str, Any], profile: InstallProfileName) -> str:
-    """读取 profile 对应 runtime 状态；UI 兼容旧键 ``setupRuntime``。"""
-    if profile == "ui":
-        ui_rt = state.get("uiRuntime") or {}
-        if ui_rt.get("lastStatus"):
-            return str(ui_rt.get("lastStatus", ""))
-        legacy = state.get("setupRuntime") or {}
-        return str(legacy.get("lastStatus", ""))
-    cli_rt = state.get("cliRuntime") or {}
-    return str(cli_rt.get("lastStatus", ""))
+    """读取 profile 对应 runtime 状态。"""
+    key = "uiRuntime" if profile == "ui" else "cliRuntime"
+    runtime = state.get(key) or {}
+    return str(runtime.get("lastStatus", ""))
 
 
 @dataclass(frozen=True)
@@ -270,8 +265,6 @@ def mark_runtime(
         "lastStatus": "success" if success else "failed",
         "lastFailedStepId": failed_step_id if not success else "",
     }
-    if profile == "ui":
-        state.pop("setupRuntime", None)
     save_state(state)
 
 

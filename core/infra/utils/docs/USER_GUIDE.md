@@ -1,6 +1,8 @@
 # Utils — 用户指南
 
-**版本：** `0.2.2`
+**模块：** `infra.utils` · **版本：** `0.2.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 和业务无关的通用小工具——日期处理、CSV/zip IO、确定性随机。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

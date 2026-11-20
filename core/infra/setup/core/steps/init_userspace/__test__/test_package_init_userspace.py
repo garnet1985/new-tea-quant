@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from core.infra.setup.core.scripts.init_userspace.package import (
+from core.infra.setup.core.steps.init_userspace.package import (
     _copy_ignore,
     _is_data_source_handler_csv,
     _is_runtime_path_in_tree,
@@ -141,7 +141,7 @@ def test_zip_filter_skips_runtime_paths(tmp_path: Path):
 
 
 def test_write_userspace_meta(tmp_path: Path, monkeypatch):
-    from core.infra.setup.core.scripts.init_userspace import package as mod
+    from core.infra.setup.core.steps.init_userspace import package as mod
 
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -150,7 +150,7 @@ def test_write_userspace_meta(tmp_path: Path, monkeypatch):
         json.dumps({"version": "0.4.1"}),
         encoding="utf-8",
     )
-    init_dir = repo / "initialization" / "userspace"
+    init_dir = repo / "assets"
     init_dir.mkdir(parents=True)
     zip_path = init_dir / "userspace.zip"
     zip_path.write_bytes(b"fake")

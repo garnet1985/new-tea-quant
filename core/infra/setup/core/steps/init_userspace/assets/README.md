@@ -1,4 +1,4 @@
-# initialization/userspace
+# core/infra/setup/core/steps/init_userspace/assets
 
 安装用的 userspace 初始化包放在这里。
 
@@ -35,7 +35,7 @@ python devcli.py p -core_v0.5.1 --package-userspace
 运行时默认用仓库根 `userspace/`。若要改用本目录下的副本，优先级高于仓库根：
 
 ```bash
-export NTQ_USERSPACE_ROOT="$(git rev-parse --show-toplevel)/initialization/userspace/userspace"
+export NTQ_USERSPACE_ROOT="$(git rev-parse --show-toplevel)/core/infra/setup/core/steps/init_userspace/assets/userspace"
 ```
 
 也可以把绝对路径写入仓库根 `.ntq/userspace-path.json`（该目录通常 gitignore）。

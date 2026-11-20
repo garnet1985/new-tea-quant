@@ -1,6 +1,6 @@
 """演示导出：ST 时段按与日期窗相交，不按 start_date BETWEEN；预设解析。"""
 
-from core.infra.setup.core.scripts.init_data.config import (
+from core.infra.setup.core.steps.import_data.export.config import (
     DEFAULT_END_DATE,
     DEFAULT_END_QUARTER,
     DEFAULT_START_DATE,
@@ -8,7 +8,7 @@ from core.infra.setup.core.scripts.init_data.config import (
     EXPORT_TABLES,
     TARGET_STOCK_COUNT,
 )
-from core.infra.setup.core.scripts.init_data.demo_data_exporter import (
+from core.infra.setup.core.steps.import_data.export.demo_data_exporter import (
     build_date_condition,
     build_table_export_condition,
     normalize_ex_argv,

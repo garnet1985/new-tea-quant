@@ -1,6 +1,8 @@
 # <Module Display Name> — 架构
 
-**版本：** `<module.version>`  
+**模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+
+**最低支持核心版本：** `<compatible_core_versions>`
 <!-- 只写已定结论；选型过程 → DECISIONS（若有） -->
 <!-- 图示：架构图必须 mermaid；目录树 / 短步骤用 text。见 module-doc-standard §3.1 -->
 

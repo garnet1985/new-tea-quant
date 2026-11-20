@@ -2,6 +2,8 @@
 
 **模块：** `infra.discovery` · **版本：** `0.2.1`
 
+**最低支持核心版本：** `>=0.5.0`
+
 ## 简介
 
 自动找文件和类。扫 userspace / core 下某个目录，把里面的 Provider、Handler、Strategy 等插件类找出来。代替各模块手写 importlib 扫描，统一走 `Discovery` 门面。

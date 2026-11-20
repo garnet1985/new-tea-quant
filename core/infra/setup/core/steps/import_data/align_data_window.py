@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from core.infra.setup.core.scripts.init_data.config import (
+from core.infra.setup.core.steps.import_data.export.config import (
     DEFAULT_END_DATE,
     DEFAULT_START_DATE,
 )

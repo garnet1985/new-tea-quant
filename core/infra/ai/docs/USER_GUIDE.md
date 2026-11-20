@@ -1,6 +1,8 @@
 # AI 通道 — 用户指南
 
-**版本：** `0.1.0`
+**模块：** `infra.ai` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.6.0`
 
 AI 通道——和各家 AI 模型供应商打交道，发现供应商、存 API Key、发请求。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

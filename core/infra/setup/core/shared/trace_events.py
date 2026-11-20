@@ -65,7 +65,7 @@ def _failed_tables(message: str) -> list[str]:
 
 def _import_progress_hint() -> dict[str, Any]:
     try:
-        from core.infra.setup.core.scripts.init_data.config import default_package_dir
+        from core.infra.setup.core.steps.import_data.data_packages import default_package_dir
         from core.infra.setup.core.steps.import_data.installer import PROGRESS_FILE
 
         path = default_package_dir() / PROGRESS_FILE

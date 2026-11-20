@@ -1,6 +1,7 @@
 # Data Manager API 文档
 
-**版本：** `0.2.3`  
+**模块：** `modules.data_manager` · **版本：** `0.2.3`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  

@@ -34,7 +34,7 @@ PROGRESS_FILE = ".import_progress.json"
 
 def default_init_data_dir(kind: str = "demo") -> Path:
     """数据包目录；须在 userspace 已创建之后调用。"""
-    from core.infra.setup.core.scripts.init_data.config import require_package_dir
+    from core.infra.setup.core.steps.import_data.data_packages import require_package_dir
 
     return require_package_dir(kind)
 
@@ -97,7 +97,6 @@ class SetupDataInstaller:
             parts = sorted(self.data_dir.glob("data_member_3y_part*.zip"))
             if parts:
                 return parts
-            # 兼容单文件会员包
             single = self.data_dir / "data_member.zip"
             return [single] if single.is_file() else []
         zips = sorted(self.data_dir.glob("*.zip"))
@@ -319,8 +318,8 @@ class SetupDataInstaller:
         """导入成功后清理解压目录与进度文件；默认保留 zip/meta 供重试与减压。"""
         from core.infra.setup.core.shared.env import NewTeaQuantSetup
         from core.infra.setup.core.steps.import_data.data_packages import (
-            GIT_DATA_META_NAME,
-            GIT_DATA_ZIP_NAME,
+            package_meta_name,
+            package_zip_name,
         )
 
         if remove_extract and extract_root.exists():
@@ -333,7 +332,10 @@ class SetupDataInstaller:
             )
             return
         removed: List[str] = []
-        for name in (GIT_DATA_ZIP_NAME, GIT_DATA_META_NAME):
+        for name in (
+            package_zip_name(self.pack_kind),
+            package_meta_name(self.pack_kind),
+        ):
             path = self.data_dir / name
             if not path.is_file():
                 continue

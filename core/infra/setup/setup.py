@@ -233,13 +233,13 @@ class ArtifactsNamespace:
 
     @staticmethod
     def package_userspace(*, write_zip: bool = True) -> int:
-        from core.infra.setup.core.scripts.init_userspace import package_init_userspace
+        from core.infra.setup.core.steps.init_userspace import package_init_userspace
 
         return package_init_userspace(write_zip=write_zip)
 
     @staticmethod
     def export_demo_data(argv: Optional[Sequence[str]] = None) -> int:
-        from core.infra.setup.core.scripts.init_data.demo_data_exporter import main
+        from core.infra.setup.core.steps.import_data.export.demo_data_exporter import main
 
         return main(list(argv) if argv is not None else None)
 

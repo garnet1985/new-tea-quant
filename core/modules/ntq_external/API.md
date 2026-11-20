@@ -1,6 +1,7 @@
 # NtqExternal API 文档
 
-**版本：** `0.1.1`
+**模块：** `modules.ntq_external` · **版本：** `0.1.1`
+
 **最低支持核心版本：** `>=0.6.0`
 
 > 须与 `module_info.yaml` 一致。core 仍为 `0.x`：公开入口状态最高 **`beta`**（禁止 `stable`）。

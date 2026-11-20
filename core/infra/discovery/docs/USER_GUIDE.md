@@ -1,6 +1,8 @@
 # Discovery — 用户指南
 
-**版本：** `0.2.1`
+**模块：** `infra.discovery` · **版本：** `0.2.1`
+
+**最低支持核心版本：** `>=0.5.0`
 
 自动发现扩展类——扫 userspace 下的 Provider、Handler、Strategy 插件。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

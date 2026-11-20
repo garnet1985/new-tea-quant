@@ -1,7 +1,9 @@
 # 测试用例 — `modules.strategy`
 
-**模块：** `modules.strategy`  
-**版本：** `0.12.1`  
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 ## Scope
 
 验证门面 `Strategy` 与 `contracts` 公开面（对齐 `API.md`）。

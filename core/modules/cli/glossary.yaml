@@ -1,54 +1,28 @@
 # CLI 术语表
 # Version: 0.4.5
+# Compatible-Core: >=0.5.0
 #
-# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
-# 缩写与生僻英文优先在此集中说明，正文首次出现宜括注或链到本表
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 业务逻辑在各 modules；本模块只做双入口命令行门面与 argv 展开。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称，即本项目 / 框架名称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外只暴露一个统一入口类，隐藏内部多包 / 多实现。本模块的门面类是 Cli。"
-    aliases:
-      - "门面"
-      - "门面类"
-      - "CLI Facade"
-    avoid:
-      - "把内部 CliApp 或自由函数当作公开 API"
-
   Cli:
-    definition: "本模块门面类（Facade）；对外唯一入口，挂载 user / dev / shared。"
+    definition: |
+      命令行 Facade：对外唯一入口，挂载 user / dev / shared。
+      不要把内部 CliApp、main、expand_argv 等自由函数当公开 API——一律经 Cli.*。
+    in_code: "from core.modules.cli import Cli"
     aliases:
       - "Cli 类"
     avoid:
       - "把 CliApp 当作公开 API"
       - "导出 main / expand_argv 等自由函数"
 
-  CLI:
-    definition: "Command Line Interface，命令行界面 / 命令行工具。"
-    aliases:
-      - "命令行"
-      - "命令行入口"
-    avoid: []
-
-  namespace:
-    definition: "命名空间：挂在门面类下的分组（如 Cli.user），用来按职责组织一组方法，而不是再建一套独立入口。"
-    aliases:
-      - "命名空间"
-    avoid: []
-
-  argv:
-    definition: "命令行参数列表（argument vector）；通常指不含程序名的参数段，对应 Python 的 sys.argv[1:] 一类用法。"
-    aliases:
-      - "命令行参数"
-    avoid: []
-
   user_cli:
-    definition: "面向策略用户的入口（cli.py），对应 Cli.user。"
+    definition: |
+      面向策略用户的入口脚本 cli.py，对应 Cli.user：跑策略模拟、扫描、Tag、数据更新等
+      日常命令。与 dev_cli 分离，避免把运维命令暴露给终端用户产品面。
+    in_code: "cli.py；Cli.user.*"
     aliases:
       - "user CLI"
       - "Cli.user"
@@ -58,7 +32,10 @@ terms:
       - "prod cli"
 
   dev_cli:
-    definition: "面向开发与运维的入口（devcli.py），对应 Cli.dev。"
+    definition: |
+      面向开发与运维的入口脚本 devcli.py，对应 Cli.dev：文档版本检查、发布准备、内部工具等。
+      与 user 各有独立命令表；不要叫成 devtools cli 包名。
+    in_code: "devcli.py；Cli.dev.*"
     aliases:
       - "dev CLI"
       - "Cli.dev"
@@ -67,22 +44,41 @@ terms:
       - "devtools cli（作为本包名）"
 
   shared:
-    definition: "双入口共用的 argv 展开与 help 判定，挂在 Cli.shared；不是第三套命令行产品。"
+    definition: |
+      双入口共用的 argv 展开与 help 判定，挂在 Cli.shared。不是第三套命令行产品，
+      也不是叫 utils/helpers 的公开导出。
+    in_code: "Cli.shared.*"
     aliases:
       - "Cli.shared"
       - "SharedNamespace"
     avoid:
       - "utils / helpers 作为公开导出名"
 
+  argv:
+    definition: |
+      命令行参数列表（argument vector）；本模块处理的是不含程序名的参数段
+      （类似 sys.argv[1:]），经 abbrev 展开成长命令再分发。
+    in_code: "Cli.shared 展开；handlers 收到的 argv"
+    aliases:
+      - "命令行参数"
+    avoid: []
+
   abbrev:
-    definition: "无横杠短命令别名（如 sp → strategy_price_factor）。user 与 dev 各有独立 SHORT_TO_LONG，允许同名短别名语义不同。"
+    definition: |
+      无横杠短命令别名（如 sp → strategy_price_factor）。user 与 dev 各有独立 SHORT_TO_LONG，
+      允许同名短别名在两边语义不同——不要合并成一张表。
+    in_code: "SHORT_TO_LONG；expand_argv"
     aliases:
       - "short alias"
       - "短别名"
-    avoid: []
+    avoid:
+      - "把 user/dev 短别名合成一张表"
 
   command_registry:
-    definition: "长命令集合与短别名表（LONG_COMMANDS + SHORT_TO_LONG + DEFAULT_COMMAND）。"
+    definition: |
+      长命令集合与短别名表：LONG_COMMANDS + SHORT_TO_LONG + DEFAULT_COMMAND。
+      user / dev 各一份 registry，互不合并。
+    in_code: "各入口的 LONG_COMMANDS / SHORT_TO_LONG / DEFAULT_COMMAND"
     aliases:
       - "command registry"
       - "命令注册表"
@@ -90,7 +86,10 @@ terms:
       - "把 user / dev 两套 registry 合并成一张表"
 
   bootstrap:
-    definition: "启动前准备：仅用户侧做虚拟环境（venv）重入与安装（install）门闸，对应 Cli.user.bootstrap。"
+    definition: |
+      用户侧启动前准备：venv 重入与 install 门闸（未安装则先走安装），对应 Cli.user.bootstrap。
+      dev 入口不一定走同一套门闸。
+    in_code: "Cli.user.bootstrap；UserBootstrap"
     aliases:
       - "UserBootstrap"
       - "启动前检查"

@@ -2,6 +2,8 @@
 
 **模块：** `modules.data_contract` · **版本：** `0.4.3`
 
+**最低支持核心版本：** `>=0.5.0`
+
 ```python
 from core.modules.data_contract import ContractIssuer
 from core.modules.data_contract.contracts import DATA_KEY

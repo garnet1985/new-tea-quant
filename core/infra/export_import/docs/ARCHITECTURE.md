@@ -1,6 +1,8 @@
 # Export / Import — 架构
 
-**版本：** `0.2.0`
+**模块：** `infra.export_import` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 门面 `ExportImport` + 实现包 `core/`。词条见 [glossary.yaml](../glossary.yaml)。
 

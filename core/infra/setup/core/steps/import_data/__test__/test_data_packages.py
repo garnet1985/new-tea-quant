@@ -33,22 +33,9 @@ def test_require_package_dir_by_kind(userspace: Path) -> None:
     assert demo.is_dir() and member.is_dir() and full.is_dir()
 
 
-def test_migrate_legacy_install_demo(userspace: Path) -> None:
-    legacy = userspace / ".ntq" / "packages" / "install_demo"
-    legacy.mkdir(parents=True)
-    (legacy / dp.GIT_DATA_ZIP_NAME).write_bytes(b"PK\x03\x04legacy")
-    (legacy / dp.GIT_DATA_META_NAME).write_text("{}", encoding="utf-8")
-
-    found = dp.find_local_package_zip("demo")
-    assert found is not None
-    assert found.parent.name == "demo"
-    assert found.read_bytes() == b"PK\x03\x04legacy"
-    assert not (legacy / dp.GIT_DATA_ZIP_NAME).exists()
-
-
 def test_describe_and_clear_packages(userspace: Path) -> None:
     demo_dir = dp.require_package_dir("demo")
-    (demo_dir / dp.GIT_DATA_ZIP_NAME).write_bytes(b"PK\x03\x04x" * 100)
+    (demo_dir / dp.package_zip_name("demo")).write_bytes(b"PK\x03\x04x" * 100)
     summary = dp.describe_data_packages()
     assert summary["demoPresent"] is True
     assert summary["packages"]["demo"]["present"] is True

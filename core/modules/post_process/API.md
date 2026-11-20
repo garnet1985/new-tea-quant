@@ -1,6 +1,7 @@
 # PostProcess API 文档
 
-**版本：** `0.3.2`  
+**模块：** `modules.post_process` · **版本：** `0.3.2`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。公开入口状态最高 **`beta`**。

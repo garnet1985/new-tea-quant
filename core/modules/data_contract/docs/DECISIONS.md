@@ -1,6 +1,8 @@
 # Data Contract — 设计与决策
 
-**版本：** `0.4.3`
+**模块：** `modules.data_contract` · **版本：** `0.4.3`
+
+**最低支持核心版本：** `>=0.5.0`
 
 本文记录声明式取数模块的设计目标、方案思路与拍板决策。API 以根目录 [API.md](../API.md) 为准，名词见 [CONCEPTS.md](./CONCEPTS.md) / [glossary.yaml](../glossary.yaml)。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)

@@ -58,16 +58,17 @@
 
 ### **理念3：术语统一**
 
-> 核心模块需要有术语表，术语需要统一，不要出现多个术语描述同一个事物
+> 核心模块需要有术语表：解释**代码中出现的英文概念**（是什么、为何存在、代码对应、关键对比），并统一命名（aliases / avoid），不要多个叫法指同一事物
 
 **原因：**
-- 避免混淆，不同模块使用相同的术语
+- 读代码的人需要先懂领域词（如 data key、scope、time series），而不是只有中英对照
+- 避免混淆，不同模块 / 文档使用相同的术语
 - 减少沟通成本，术语一致便于理解
 
 **实践：**
-- 定义术语表（glossary.yaml）
+- 定义术语表（`glossary.yaml`；写法见 [`docs/module-doc-standard.md`](docs/module-doc-standard.md) § glossary）
 - 遵循术语表（所有代码、文档、注释遵循术语表）
-- 及时更新（发现新的术语冲突，及时更新术语表）
+- 及时更新（新概念进表；发现命名冲突更新 aliases / avoid）
 
 ---
 
@@ -253,7 +254,7 @@
 
 | 内容 | 要求 |
 |------|------|
-| 版本 | = `module_info.yaml` 的 `version`（文首字段名 `**版本：**`，禁止 `**覆盖版本：**`） |
+| 版本 | = `module_info.yaml` 的 `version`（文首统一两行头，见 [模块文档规范](docs/module-doc-standard.md)；禁止 `**覆盖版本：**`） |
 | Scope / 边界 | 负责 / 不负责；允许的测试类型 |
 | Scenario → Case | Case 名 = pytest 函数名；标明所属 `test_*.py` |
 | 与 API 对齐 | 根目录 API suite 须能映射到 `API.md` |
@@ -463,7 +464,7 @@ settings["performance"] = {"max_workers": 8}
 - **公开符号改名** = 破坏性 → **中版本**；仅模块内部改名 → **小版本**。
 - 仅文档笔误、与行为无关的措辞修正：可不 bump；文档与实现对齐的实质性修正 → 至少 **小版本**。
 - 同一发布批次多次提交：合并为一次 bump；`changelog` 写清本版本要点。
-- bump 后同步：`module_info.version`、`changelog[0]`、文档文首标准版本字段（Markdown `**版本：**`，glossary `# Version:`）。`devcli.py p` 强制检查。`API.md` 里「引入版本」只在新增入口时填写。
+- bump 后同步：`module_info.version`、`changelog[0]`、文档文首标准两行头（模块·版本 + 最低支持核心版本；glossary `# Version:` / `# Compatible-Core:`）。`devcli.py p` 强制检查。`API.md` 里「引入版本」只在新增入口时填写。
 
 ---
 
@@ -666,7 +667,7 @@ else:
 
 | 检查项 | 类型 | 说明 |
 |--------|------|------|
-| ✅ 版本号一致 | 硬性指标 | module_info 与各文档文首 `**版本：**` 一致；`devcli.py p` 闸门 |
+| ✅ 版本号一致 | 硬性指标 | module_info 与各文档文首两行头一致；`devcli.py p` 闸门 |
 | ✅ changelog 更新 | 硬性指标 | 记录所有改动 |
 | ✅ 文档同步更新 | 硬性指标 | 见 [模块文档规范](docs/module-doc-standard.md) 维护触发 |
 | ✅ 根目录 `API.md` 与实现一致 | 硬性指标 | 签名 / 状态 / 参数表对齐代码 |

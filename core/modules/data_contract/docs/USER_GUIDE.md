@@ -1,6 +1,8 @@
 # Data Contract — 用户指南
 
-**版本：** `0.4.3`
+**模块：** `modules.data_contract` · **版本：** `0.4.3`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `DataContract 是声明式取数入口——你只写"我要 XX 数据"，它去搞定底层怎么查。`
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

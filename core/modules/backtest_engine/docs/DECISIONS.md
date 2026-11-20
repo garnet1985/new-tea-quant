@@ -1,6 +1,8 @@
 # Backtest Engine — 设计与决策
 
-**版本：** `0.2.0`
+**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 本文记录回测调度引擎的设计目标、方案思路与拍板决策。API 与行为以根目录 [API.md](../API.md) 为准。
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)

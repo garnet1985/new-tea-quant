@@ -1,9 +1,10 @@
 # <Module Display Name> API 文档
 
-**版本：** `<module.version>`  
+**模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+
 **最低支持核心版本：** `<compatible_core_versions>`
 
-> 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
+> 须与 `module_info.yaml` 的 `name` / `version` / `compatible_core_versions` 一致。  
 > 本文档是本模块公开调用面的**唯一人读 API 文档**；内部私有实现不写入。  
 > **位置（硬性）：** 模块根目录 `API.md`。  
 > **测试（硬性）：** 所列公开入口必须有 `__test__/test_api.py` 覆盖。

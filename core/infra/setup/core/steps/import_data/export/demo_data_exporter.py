@@ -28,6 +28,13 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from core.infra.setup.core.steps.import_data.data_packages import (
+    default_package_dir,
+    package_meta_name,
+    package_zip_name,
+    require_package_dir,
+)
+
 from .config import (
     DEFAULT_END_DATE,
     DEFAULT_END_QUARTER,
@@ -43,10 +50,6 @@ from .config import (
     TARGET_STOCK_COUNT,
     DateFilter,
     TableExportSpec,
-    default_package_dir,
-    package_meta_name,
-    package_zip_name,
-    require_package_dir,
 )
 from .stock_pool import (
     load_stock_universe,

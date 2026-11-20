@@ -1,6 +1,8 @@
 # PostProcess 快速开始
 
-**版本：** `0.3.2`
+**模块：** `modules.post_process` · **版本：** `0.3.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 ## 写一个 Adapter
 
@@ -8,7 +10,6 @@
 # userspace/extensions/post_process/adapters/my_notify/adapter.py
 from typing import Any, Dict
 from core.modules.post_process.contracts import BaseAdapter, ScanSessionReport
-
 
 class MyNotifyAdapter(BaseAdapter):
     def run(

@@ -1,6 +1,8 @@
 # Agent — 用户指南
 
-**版本：** `0.1.0`
+**模块：** `modules.agent` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.6.0`
 
 `Agent 是 NTQ 的 AI 助手——你跟它说想干嘛，它后台调工具帮你写策略、读报告、跑扫描。`  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

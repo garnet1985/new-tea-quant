@@ -1,6 +1,7 @@
 # Setup API 文档
 
-**版本：** `0.1.2`  
+**模块：** `infra.setup` · **版本：** `0.2.0`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
@@ -158,7 +159,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 同步仓库 `userspace/` → `initialization/userspace/` 并可选写 zip；`0` 成功
+- **描述：** 同步仓库 `userspace/` → `core/infra/setup/core/steps/init_userspace/assets/` 并可选写 zip；`0` 成功
 
 #### export_demo_data
 
@@ -167,7 +168,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 导出安装/会员数据包到 `userspace/.ntq/packages/{demo|member|full}/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`（需 `--demo` / `--member` / `--full`；无参数只打印帮助）
+- **描述：** 导出安装/会员数据包到 `userspace/.ntq/packages/{demo|member|full}/`；`argv` 同 `python -m core.infra.setup.core.steps.import_data.export`（需 `--demo` / `--member` / `--full`；无参数只打印帮助）
 
 ---
 

@@ -278,7 +278,6 @@ class PathManager:
 
     # 静态数据包：demo / member / full（导出、下载、导入共用）
     DATA_PACKAGE_KINDS = ("demo", "member", "full")
-    _LEGACY_DEMO_PACKAGE_DIR = "install_demo"
 
     @staticmethod
     def get_packages_root() -> Path:
@@ -296,13 +295,8 @@ class PathManager:
         return PathManager.get_packages_root() / key
 
     @staticmethod
-    def get_legacy_install_demo_package_directory() -> Path:
-        """旧演示包目录：userspace/.ntq/packages/install_demo/（只读兼容）。"""
-        return PathManager.get_packages_root() / PathManager._LEGACY_DEMO_PACKAGE_DIR
-
-    @staticmethod
     def get_install_demo_package_directory() -> Path:
-        """演示安装包目录（canonical：packages/demo/；导出与下载共用）。"""
+        """演示安装包目录（packages/demo/；导出与下载共用）。"""
         return PathManager.get_data_package_directory("demo")
 
     # ========== 策略相关路径 ==========

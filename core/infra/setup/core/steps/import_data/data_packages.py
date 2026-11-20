@@ -20,10 +20,6 @@ PACKAGE_META_BY_KIND = {
     "full": "data_full.meta.json",
 }
 
-# 兼容旧常量名（demo）
-GIT_DATA_ZIP_NAME = PACKAGE_ZIP_BY_KIND["demo"]
-GIT_DATA_META_NAME = PACKAGE_META_BY_KIND["demo"]
-
 
 def normalize_package_kind(kind: str = "demo") -> str:
     key = str(kind or "demo").strip().lower() or "demo"
@@ -49,28 +45,6 @@ def default_package_dir(kind: str = "demo") -> Path:
     return ProjectContext.path.get_data_package_directory(normalize_package_kind(kind))
 
 
-def migrate_legacy_demo_package(demo_dir: Path) -> None:
-    """若仅有旧 ``packages/install_demo``，把 zip/meta 迁到 ``packages/demo``。"""
-    from core.infra.project_context import ProjectContext
-
-    legacy = ProjectContext.path.get_packages_root() / PathManager._LEGACY_DEMO_PACKAGE_DIR
-    if not legacy.is_dir() or legacy.resolve() == demo_dir.resolve():
-        return
-    demo_dir.mkdir(parents=True, exist_ok=True)
-    for name in (GIT_DATA_ZIP_NAME, GIT_DATA_META_NAME):
-        src = legacy / name
-        dst = demo_dir / name
-        if not src.is_file() or dst.is_file():
-            continue
-        try:
-            src.replace(dst)
-        except OSError:
-            try:
-                shutil.copy2(src, dst)
-            except OSError:
-                pass
-
-
 def require_package_dir(kind: str = "demo") -> Path:
     """
     返回可写的数据包目录；userspace 根目录不存在时抛出明确错误。
@@ -88,8 +62,6 @@ def require_package_dir(kind: str = "demo") -> Path:
     key = normalize_package_kind(kind)
     out = ProjectContext.path.get_data_package_directory(key)
     out.mkdir(parents=True, exist_ok=True)
-    if key == "demo":
-        migrate_legacy_demo_package(out)
     return out
 
 
@@ -101,7 +73,7 @@ def discover_package_zips(data_dir: Path) -> List[Path]:
 
 
 def find_local_package_zip(kind: str = "demo") -> Optional[Path]:
-    """本地是否已有该类型 zip；demo 会先尝试迁 legacy。"""
+    """本地是否已有该类型 zip。"""
     key = normalize_package_kind(kind)
     try:
         from core.infra.project_context import ProjectContext
@@ -113,18 +85,6 @@ def find_local_package_zip(kind: str = "demo") -> Optional[Path]:
         return None
 
     data_dir = default_package_dir(key)
-    if key == "demo":
-        migrate_legacy_demo_package(data_dir)
-        legacy = PathManager.get_legacy_install_demo_package_directory()
-        for folder in (data_dir, legacy):
-            preferred = folder / package_zip_name(key)
-            if preferred.is_file():
-                return preferred
-            zips = discover_package_zips(folder)
-            if zips:
-                return zips[0]
-        return None
-
     if key == "member":
         if member_package_present(data_dir):
             parts = sorted(data_dir.glob("data_member_3y_part*.zip"))
@@ -193,13 +153,12 @@ def describe_data_packages(
 
 
 def clear_static_data_packages() -> int:
-    """删除 packages 下 demo/member/full 与旧 install_demo。返回清理的目录数。"""
+    """删除 packages 下 demo/member/full。返回清理的目录数。"""
     from core.infra.project_context import ProjectContext
 
     root = ProjectContext.path.get_packages_root()
     removed = 0
-    names = list(PathManager.DATA_PACKAGE_KINDS) + [PathManager._LEGACY_DEMO_PACKAGE_DIR]
-    for name in names:
+    for name in PathManager.DATA_PACKAGE_KINDS:
         path = root / name
         if not path.exists():
             continue

@@ -33,7 +33,13 @@ class NewTeaQuantSetup:
 
     repo_root: ClassVar[Path] = discover_repo_root()
     venv_dir: ClassVar[Path] = repo_root / "venv"
-    init_userspace_dir: ClassVar[Path] = repo_root / "initialization" / "userspace"
+    # userspace 安装模板（zip / meta）在步骤 assets 内
+    init_userspace_dir: ClassVar[Path] = (
+        Path(__file__).resolve().parent.parent
+        / "steps"
+        / "init_userspace"
+        / "assets"
+    )
 
     @classmethod
     def ensure_sys_path(cls) -> None:
@@ -221,7 +227,12 @@ class NewTeaQuantSetup:
 
     @classmethod
     def install_script_path(cls, step_name: str) -> Path:
-        return Path(__file__).resolve().parent.parent / "steps" / step_name / "install.py"
+        return (
+            Path(__file__).resolve().parent.parent
+            / "steps"
+            / step_name
+            / "install.py"
+        )
 
     @classmethod
     def run_install_script(

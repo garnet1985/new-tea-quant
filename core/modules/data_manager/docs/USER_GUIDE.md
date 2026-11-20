@@ -1,6 +1,8 @@
 # Data Manager — 用户指南
 
-**版本：** `0.2.3`
+**模块：** `modules.data_manager` · **版本：** `0.2.3`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `DataManager 是本地数据的统一入口——查 K 线、查股票列表、查行业都从这里走。`
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

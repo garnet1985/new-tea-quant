@@ -6,7 +6,9 @@
   决策点独立编号：DEC-01、DEC-02… 新增决策追加在末尾，不回头改历史条目。
 -->
 
-**版本：** `<module.version>`
+**模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+
+**最低支持核心版本：** `<compatible_core_versions>`
 
 `<一两句：本文记录本模块的设计目标、方案思路与拍板决策。>`  
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)

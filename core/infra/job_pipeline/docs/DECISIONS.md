@@ -1,6 +1,8 @@
 # Job Pipeline — 设计与决策
 
-**版本：** `0.1.0`
+**模块：** `infra.job_pipeline` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.6.0`
 
 本文记录本模块的设计目标、方案思路与拍板决策。  
 相关：[ARCHITECTURE.md](./ARCHITECTURE.md)

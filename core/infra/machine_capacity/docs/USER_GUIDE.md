@@ -1,6 +1,8 @@
 # Machine Capacity — 用户指南
 
-**版本：** `0.2.1`
+**模块：** `infra.machine_capacity` · **版本：** `0.2.1`
+
+**最低支持核心版本：** `>=0.5.0`
 
 探测本机硬件——CPU 核数、内存大小、硬盘类型，回测引擎据此算 worker 数。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)

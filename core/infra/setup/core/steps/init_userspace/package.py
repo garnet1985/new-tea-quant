@@ -1,5 +1,5 @@
 """
-将仓库根 ``userspace/`` 同步到 ``initialization/userspace/userspace/`` 并生成 ``userspace.zip``。
+将仓库根 ``userspace/`` 同步到 ``core/infra/setup/core/steps/init_userspace/assets/userspace/`` 并生成 ``userspace.zip``。
 
 由 ``devcli.py pu`` 或 ``devcli.py p -core_vX.Y.Z --package-userspace`` 调用。
 """
@@ -14,9 +14,10 @@ from pathlib import Path
 from typing import List
 
 from core.infra.cmd_layout import CmdLayout
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 from core.infra.setup.core.shared.install_runtime import REPO_ROOT
 
-INIT_USERSPACE_DIR = REPO_ROOT / "initialization" / "userspace"
+INIT_USERSPACE_DIR = NewTeaQuantSetup.init_userspace_dir
 INIT_TREE = INIT_USERSPACE_DIR / "userspace"
 ZIP_PATH = INIT_USERSPACE_DIR / "userspace.zip"
 META_PATH = INIT_USERSPACE_DIR / "userspace.meta.json"
@@ -274,7 +275,7 @@ def _git_rev(repo_root: Path) -> str:
 
 
 def _write_userspace_meta(*, repo_root: Path, zip_path: Path | None) -> None:
-    """写入 ``initialization/userspace/userspace.meta.json``（与 ``data_demo.meta.json`` 同类）。"""
+    """写入 ``core/infra/setup/core/steps/init_userspace/assets/userspace.meta.json``（与 ``data_demo.meta.json`` 同类）。"""
     core_raw = _read_core_version()
     core_display = core_raw if core_raw.startswith("v") else f"v{core_raw}"
     fit = core_raw.lstrip("vV")
@@ -323,7 +324,7 @@ def package_init_userspace(
     write_zip: bool = True,
 ) -> int:
     """
-    复制 ``<repo>/userspace`` → ``initialization/userspace/userspace``，清理后可选写 zip。
+    复制 ``<repo>/userspace`` → ``core/infra/setup/core/steps/init_userspace/assets/userspace``，清理后可选写 zip。
 
     Returns:
         0 成功；1 源目录不存在或其它错误。

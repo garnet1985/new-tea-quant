@@ -41,8 +41,8 @@ export const STRATEGY_LIST_HELP = {
       target: 'strategy-list-enter',
       pages: [
         {
-          title: '进入调试',
-          body: '点「进入调试」打开该策略的参数调试与回测；需要分享或备份时可以用旁边的「导出」。',
+          title: '进入制定',
+          body: '点「进入制定」打开该策略，可调参数、分步回测并对比版本；需要分享或备份时可以用旁边的「导出」。',
         },
       ],
     },

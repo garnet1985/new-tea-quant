@@ -41,7 +41,7 @@ function CoreSettingsBlock({ showHint, coreEditorContext, settings }) {
     <div className="ntq-design-settings-core-wrap">
       <div className="ntq-design-settings-core-hint" aria-hidden={!showHint}>
         {showHint ? (
-          <p className="ntq-muted">修改核心参数后请回到机会盘点步重新运行。</p>
+          <p className="ntq-muted">修改核心参数后请回到「机会盘点」重新运行。</p>
         ) : null}
       </div>
       <Editor

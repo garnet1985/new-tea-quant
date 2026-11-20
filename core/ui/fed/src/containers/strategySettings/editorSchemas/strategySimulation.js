@@ -37,12 +37,12 @@ const DEFAULT_SKIP_ENTER_WHEN_OPTIONS = [
   {
     value: 'st',
     label: 'ST',
-    tooltip: '触发日处于 ST（含 SST）时，机会盘点、价格回测与资金回测均跳过该机会。',
+    tooltip: '触发日处于 ST（含 SST）时，机会盘点、价格回测与投资模拟均跳过该机会。',
   },
   {
     value: 'star_st',
     label: '*ST',
-    tooltip: '触发日处于 *ST（含 S*ST）时，机会盘点、价格回测与资金回测均跳过该机会。',
+    tooltip: '触发日处于 *ST（含 S*ST）时，机会盘点、价格回测与投资模拟均跳过该机会。',
   },
 ];
 
@@ -52,12 +52,12 @@ const EXECUTION_MODE_OPTIONS = [
   {
     label: '各股独立推进',
     value: 'entity_based',
-    tooltip: '股票之间没有依赖关系，比如只是回溯或者对比自己的历史数据。股票可以各自独立推进（entity_based）。',
+    tooltip: '股票之间没有依赖关系，例如只回溯或对比自身历史；各股可独立推进。',
   },
   {
     label: '所有股票统一日历推进',
     value: 'slice_based',
-    tooltip: '股票之间有依赖，比如需要全市场排序，股票对比等等行为，需要按统一日历推进（slice_based）。',
+    tooltip: '股票之间有依赖，例如全市场排序、横截面对比等，需按统一日历推进。',
   },
 ];
 
@@ -116,7 +116,7 @@ const DELISTED_EXIT_PRICE_OPTIONS = [
     tooltip: '退市强平时使用最后可交易日收盘价。',
   },
   {
-    label: '同 tick 收盘',
+    label: '触发当日收盘',
     value: 'same_tick_close',
     tooltip: '退市强平时使用触发当日收盘价。',
   },
@@ -467,7 +467,7 @@ export function buildStrategySimulationSchema(
             name: 'execution.mode',
             type: 'select',
             label: '执行模式',
-            tooltip: 'entity_based：股票各自独立推进；slice_based：股票按统一日历推进。',
+            tooltip: '各股独立推进，或按统一日历推进（见选项说明）。',
             options: EXECUTION_MODE_OPTIONS,
           },
         ],
@@ -483,9 +483,9 @@ export function buildStrategySimulationSchema(
           {
             name: 'risk_control.skip_enter_when',
             type: 'checkboxGroup',
-            label: '跳过进场如果股票是：',
+            label: '若股票处于以下状态则跳过进场：',
             tooltip:
-              '勾选后，触发日处于对应股票状态的机会不会进入机会盘点结果，价格/资金回测也不会进场。',
+              '勾选后，触发日处于对应股票状态的机会不会进入机会盘点结果，价格回测与投资模拟也不会进场。',
             options: skipOptions,
           },
           {
@@ -550,13 +550,13 @@ export function buildStrategySimulationSchema(
         type: 'fieldGroup',
         label: '回测执行假设',
         plain: true,
-        tooltip: '成交假设模板与 tradability（盯盘/进出场价、滑点、涨跌停与流动性等）。',
+        tooltip: '成交假设：盯盘价、进出场价、滑点、涨跌停与流动性等。',
         children: [
           {
             name: 'assumption.template',
             type: 'select',
             label: '成交假设模板',
-            tooltip: '快捷选择 assumption.tradability；选「自定义」后下方参数可编辑，命名模板下只读预览。',
+            tooltip: '快捷选择成交假设；选「自定义」后下方参数可编辑，命名模板下只读预览。',
             options: templateOptions,
           },
           {
@@ -587,7 +587,7 @@ export function buildStrategySimulationSchema(
             name: 'assumption.tradability.slippage.enter_bps',
             type: 'number',
             label: '进场滑点',
-            tooltip: '在理论进场价上叠加滑点，单位为基点（bps）。',
+            tooltip: '在理论进场价上叠加滑点，单位为基点（万分之一，如 10 表示 0.1%）。',
             parse: parseNumber,
             readonlyWhen: readonlyUnlessExplicit,
           },
@@ -595,14 +595,14 @@ export function buildStrategySimulationSchema(
             name: 'assumption.tradability.slippage.exit_bps',
             type: 'number',
             label: '出场滑点',
-            tooltip: '在理论出场价上叠加滑点，单位为基点（bps）。',
+            tooltip: '在理论出场价上叠加滑点，单位为基点（万分之一，如 10 表示 0.1%）。',
             parse: parseNumber,
             readonlyWhen: readonlyUnlessExplicit,
           },
           {
             name: 'assumption.tradability.edges.no_next_tick',
             type: 'select',
-            label: '样本末日无下一 tick',
+            label: '样本末日无下一根 K 线',
             tooltip: '采样区间最后一根 K 线无法取得「次日」价格时的处理方式。',
             options: NO_NEXT_TICK_OPTIONS,
             readonlyWhen: readonlyUnlessExplicit,
@@ -625,7 +625,7 @@ export function buildStrategySimulationSchema(
             name: 'assumption.tradability.liquidity.max_participation_rate',
             type: 'number',
             label: '最大参与率',
-            tooltip: '单笔成交不超过当日 tick 成交量（股）的该比例；默认 0.1 即 10%。',
+            tooltip: '单笔成交不超过当日成交量（股）的该比例；默认 0.1 即 10%。',
             parse: parseNumber,
             readonlyWhen: readonlyUnlessExplicit,
           },
@@ -641,7 +641,7 @@ export function buildStrategySimulationSchema(
             name: 'assumption.tradability.delisted_exit_price',
             type: 'select',
             label: '退市强平定价',
-            tooltip: '退市强平时使用哪根 tick 定价（是否强平由风控/引擎决定）。',
+            tooltip: '退市强平时使用哪根 K 线定价（是否强平由风控规则决定）。',
             options: DELISTED_EXIT_PRICE_OPTIONS,
             readonlyWhen: readonlyUnlessExplicit,
           },

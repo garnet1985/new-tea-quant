@@ -702,7 +702,7 @@ export async function fetchAttributeReport(strategyName, step, groupId) {
 }
 
 /**
- * 滚动测试按钮是否可点。
+ * 滚动对照按钮是否可点。
  * GET /api/v1/strategy/:key/rolling/status
  * @param {string} strategyName
  */

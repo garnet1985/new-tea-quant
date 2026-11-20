@@ -18,10 +18,10 @@ const EMPTY_STATUS = {
   window_count: 0,
 };
 
-const SETTINGS_CHANGED = '设置已变更。恢复设置或版本后，才能滚动测试。';
+const SETTINGS_CHANGED = '设置已变更。恢复设置或版本后，才能开始滚动对照。';
 
 /**
- * 投资组合面板的滚动测试：按钮状态、进度和报告。
+ * 「投资模拟」步骤的滚动对照：按钮状态、进度和报告。
  */
 export function useStrategyDesignRolling({
   strategyName,

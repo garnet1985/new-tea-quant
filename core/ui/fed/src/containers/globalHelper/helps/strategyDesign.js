@@ -72,8 +72,8 @@ export const STRATEGY_LAYOUT_STEPS = [
     target: 'design-settings',
     pages: [
       {
-        title: '策略设置栏',
-        body: '这里是策略的一部分设置调整的快捷入口，他们本质上都来源于您策略文件夹内的settings.py文件。',
+        title: '策略设置',
+        body: '这里是策略设置的快捷入口，它们本质上都来自策略文件夹内的 settings.py。',
       },
       {
         title: '当设置发生变动',
@@ -85,8 +85,8 @@ export const STRATEGY_LAYOUT_STEPS = [
     target: 'design-settings-global',
     pages: [
       {
-        title: '全局设置栏',
-        body: '全局设置是跨回测步骤的设置。当您在回测设置中修改了这些值，它们会作用于所有回测步骤。',
+        title: '全局设置',
+        body: '全局设置会作用于所有回测步骤。修改后建议从「机会盘点」重新运行。',
       },
     ],
   },
@@ -94,8 +94,8 @@ export const STRATEGY_LAYOUT_STEPS = [
     target: 'design-settings-specific',
     pages: [
       {
-        title: '特定设置栏',
-        body: '特定设置是针对当前回测步骤的设置。当您在回测设置中修改了这些值，它们会作用于当前回测步骤。',
+        title: '当前步骤设置',
+        body: '这里是当前回测步骤专用的设置；修改后只影响本步。',
       },
     ],
   },
@@ -103,8 +103,8 @@ export const STRATEGY_LAYOUT_STEPS = [
     target: 'design-execution',
     pages: [
       {
-        title: '执行栏',
-        body: '这里是回测执行的容器，所有对回测的操作可以在这里执行。',
+        title: '执行面板',
+        body: '在这里启动、重跑本步回测，并查看执行进度。',
       },
     ],
   },
@@ -117,7 +117,7 @@ export const STRATEGY_LAYOUT_STEPS = [
       },
       {
         title: '步骤依赖',
-        body: '如果您开始运行后边的步骤，那么程序会自动解析依赖并且自动运行依赖的步骤。',
+        body: '如果您运行后面的步骤，程序会自动补跑其依赖步骤。',
       },
     ],
   },

@@ -158,7 +158,7 @@ function StrategyDesignRollingReport({
         <p className="ntq-muted">
           {busy
             ? '滚动对照进行中，完成后会显示在这里。'
-            : '尚未运行滚动测试。配置 rolling.py 后，在投资组合面板点击「滚动测试」。'}
+            : '尚未运行滚动对照。配置 rolling.py 后，在「投资模拟」步骤的执行面板点击「开始滚动对照」。'}
         </p>
       </div>
     );

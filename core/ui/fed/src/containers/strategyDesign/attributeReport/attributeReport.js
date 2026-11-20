@@ -28,7 +28,7 @@ const SECTION_ORDER = [
 
 const SECTION_TITLES = {
   opportunity: '各个参数是如何影响回测找到的机会总数？',
-  stock_distribution: '各个参数是如何影响机会的在股票间的分布？',
+  stock_distribution: '各个参数是如何影响机会在股票间的分布？',
   dispersion: '各个参数是如何影响单只票的所有机会在回测区间的分散度？',
   exit_quality: '止损与止盈的不同取值是如何影响股票亏损与盈利的比例？',
   after_take_profit: '止盈后面还有没有涨（仅当分档或动态止盈真跑过）',

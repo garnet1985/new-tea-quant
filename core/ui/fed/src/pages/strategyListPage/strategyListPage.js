@@ -213,7 +213,7 @@ function StrategyListPage({
               className="ntq-link strategy-list-enter"
               onClick={(e) => e.stopPropagation()}
             >
-              进入调试
+              进入制定
               <Icon name="chevronRight" size="sm" />
             </RouterLink>
             <span className="strategy-list-actions-sep" aria-hidden>|</span>

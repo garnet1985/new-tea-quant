@@ -6,8 +6,8 @@ export const strategyDataSchema = {
   children: [
     {
       name: 'data.min_required_records',
-      label: '回测所需最小K线数',
-      tooltip: '策略回测需要的最小K线数量，如果不足此股票会被跳过',
+      label: '回测所需最小 K 线数',
+      tooltip: '策略回测需要的最小 K 线数量；若不足该数量，该股票会被跳过',
       type: 'number',
     },
   ],

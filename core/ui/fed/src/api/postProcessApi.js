@@ -167,15 +167,38 @@ export function getAdapterStatusLabel(status) {
   }
 }
 
-export function getAdapterRemark(row) {
-  const text = String(row?.remark || '').trim();
-  if (text) return text;
-  switch (getAdapterStatus(row)) {
-    case 'live':
-      return '可以正常使用';
-    case 'dry_run':
-      return '当前是测试模式';
-    default:
-      return '缺少必要配置';
+/**
+ * @param {object|string} row
+ * @param {{ available?: boolean, unlimited?: boolean, remaining?: number|null }|null} [mailQuota]
+ */
+export function getAdapterRemark(row, mailQuota = null) {
+  let text = String(row?.remark || '').trim();
+  if (!text) {
+    switch (getAdapterStatus(row)) {
+      case 'live':
+        text = '可以正常使用';
+        break;
+      case 'dry_run':
+        text = '当前是测试模式';
+        break;
+      default:
+        text = '缺少必要配置';
+    }
   }
+  const name = typeof row === 'string' ? row : row?.name;
+  if (String(name || '') !== 'ntq_email' || !mailQuota?.available) {
+    return text;
+  }
+  let remaining = '';
+  if (mailQuota.unlimited) {
+    remaining = '不限发送次数';
+  } else {
+    const n = Number(mailQuota.remaining);
+    if (Number.isFinite(n)) {
+      remaining = n <= 0 ? '额度已用完' : `还可发 ${n} 封`;
+    }
+  }
+  if (!remaining) return text;
+  if (text.includes(remaining)) return text;
+  return `${text}；${remaining}`;
 }

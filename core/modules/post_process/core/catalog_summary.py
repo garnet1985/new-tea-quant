@@ -4,12 +4,28 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from core.modules.ntq_external.member_mail_quota import POLICY_TEXT as NTQ_EMAIL_POLICY
 from core.modules.post_process.core.adapter_loader import AdapterLoader
 from core.modules.post_process.core.adapter_readiness import check_adapter_readiness
 from core.modules.post_process.core.adapter_validator import AdapterValidator
 from core.modules.post_process.core.post_processor_loader import PostProcessorLoader
 from core.modules.post_process.core.post_processor_validator import PostProcessorValidator
 from core.modules.post_process.core.topo import topological_order
+
+
+def _remark_with_ntq_email_policy(name: str, remark: str) -> str:
+    """ntq_email 说明附带终身额度 / 注册邮箱 / 单封条数规则。"""
+    text = str(remark or "").strip()
+    if str(name or "").strip() != "ntq_email":
+        return text
+    policy = str(NTQ_EMAIL_POLICY or "").strip()
+    if not policy:
+        return text
+    if policy in text:
+        return text
+    if not text:
+        return policy
+    return f"{text}。{policy}"
 
 
 def summarize_adapter(name: str) -> Optional[Dict[str, Any]]:
@@ -29,6 +45,7 @@ def summarize_adapter(name: str) -> Optional[Dict[str, Any]]:
     if supports_dry_run:
         default_dry_run = bool(defaults.get("dry_run"))
     readiness = check_adapter_readiness(key)
+    remark = _remark_with_ntq_email_policy(key, str(readiness.get("remark") or ""))
     return {
         "name": key,
         "display_name": display_name or key,
@@ -41,7 +58,7 @@ def summarize_adapter(name: str) -> Optional[Dict[str, Any]]:
             "missing": list(readiness.get("missing") or []),
         },
         "status": str(readiness.get("status") or "unavailable"),
-        "remark": str(readiness.get("remark") or ""),
+        "remark": remark,
     }
 
 
@@ -77,6 +94,9 @@ def summarize_post_processor(key: str) -> Optional[Dict[str, Any]]:
         )
         supports_dry_run = "dry_run" in merged
         dry_run: Optional[bool] = bool(merged["dry_run"]) if supports_dry_run else None
+        remark = _remark_with_ntq_email_policy(
+            adapter_name, str(readiness.get("remark") or "")
+        )
         entry: Dict[str, Any] = {
             "name": adapter_name,
             "display_name": display_name or adapter_name,
@@ -96,7 +116,7 @@ def summarize_post_processor(key: str) -> Optional[Dict[str, Any]]:
             },
             "supports_dry_run": supports_dry_run,
             "status": str(readiness.get("status") or "unavailable"),
-            "remark": str(readiness.get("remark") or ""),
+            "remark": remark,
         }
         if dry_run is not None:
             entry["dry_run"] = dry_run

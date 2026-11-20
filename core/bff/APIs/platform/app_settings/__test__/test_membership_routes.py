@@ -39,6 +39,15 @@ def test_membership_roundtrip_hides_token(token_file):
         assert profile["register_url"].endswith("/zh-hans/user/register")
         assert TOKEN not in guest.get_data(as_text=True)
 
+        mail = client.get("/api/v1/membership/mail-quota")
+        assert mail.status_code == 200
+        quota = mail.get_json()["message"]
+        assert quota["available"] is False
+        assert quota["reason"] == "missing"
+        assert "终身共可发" in quota["policy"]
+        assert "注册邮箱" in quota["policy"]
+        assert TOKEN not in mail.get_data(as_text=True)
+
         bad = client.put("/api/v1/settings/membership", json={"token": "sk-vendor"})
         assert bad.status_code == 400
         assert "凭证格式不对" in bad.get_json()["message"]["detail"]

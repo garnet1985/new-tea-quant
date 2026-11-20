@@ -226,6 +226,63 @@ export async function fetchMemberProfile() {
 }
 
 /**
+ * 会员邮件代发额度（经本机 BFF 转发官网）。
+ * @returns {Promise<{
+ *   available: boolean,
+ *   reason: string,
+ *   limit: number|null,
+ *   used: number|null,
+ *   remaining: number|null,
+ *   unlimited: boolean,
+ *   policy: string,
+ * }>}
+ */
+export async function fetchMemberMailQuota() {
+  const json = await request.getJson(
+    `${API_VERSION_PREFIX}/membership/mail-quota`,
+    { silent: true },
+  );
+  const m = json?.message || {};
+  const limit = m.limit;
+  const used = m.used;
+  const remaining = m.remaining;
+  return {
+    available: Boolean(m.available),
+    reason: String(m.reason || '').trim(),
+    limit: limit == null || limit === '' ? null : Number(limit),
+    used: used == null || used === '' ? null : Number(used),
+    remaining: remaining == null || remaining === '' ? null : Number(remaining),
+    unlimited: Boolean(m.unlimited),
+    policy: String(m.policy || '').trim(),
+  };
+}
+
+/**
+ * 会员邮件额度的「还可发」短句；读不到时返回空串。
+ * @param {{ available?: boolean, unlimited?: boolean, remaining?: number|null, used?: number|null, limit?: number|null }|null|undefined} quota
+ */
+export function formatMailQuotaRemaining(quota) {
+  if (!quota || !quota.available) return '';
+  if (quota.unlimited) return '不限发送次数';
+  const remaining = Number(quota.remaining);
+  if (!Number.isFinite(remaining)) return '';
+  if (remaining <= 0) {
+    const used = Number(quota.used);
+    const limit = Number(quota.limit);
+    if (Number.isFinite(used) && Number.isFinite(limit)) {
+      return `额度已用完（已用 ${used} / 共 ${limit} 封）`;
+    }
+    return '额度已用完';
+  }
+  const used = Number(quota.used);
+  const limit = Number(quota.limit);
+  if (Number.isFinite(used) && Number.isFinite(limit)) {
+    return `还可发 ${remaining} 封（已用 ${used} / 共 ${limit}）`;
+  }
+  return `还可发 ${remaining} 封`;
+}
+
+/**
  * 最近猫粮流水（经本机 BFF 转发官网）。
  * @returns {Promise<{ available: boolean, catfood: number|null, currency: string, items: Array<object> }>}
  */

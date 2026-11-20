@@ -23,6 +23,7 @@ import {
   setPostProcessEnabled,
   updatePostProcessAdapters,
 } from '../../api/postProcessApi';
+import { fetchMemberMailQuota } from '../../api/settingsApi';
 import './postProcessPage.scss';
 
 /** 状态列：一律实心，色区分可用性 */
@@ -273,6 +274,7 @@ function ProcessorEditDialog({
 function PostProcessPage() {
   const [adapters, setAdapters] = useState([]);
   const [processors, setProcessors] = useState([]);
+  const [mailQuota, setMailQuota] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -283,15 +285,18 @@ function PostProcessPage() {
     setLoading(true);
     setLoadError('');
     try {
-      const [adapterRes, processorRes] = await Promise.all([
+      const [adapterRes, processorRes, quota] = await Promise.all([
         fetchPostProcessAdapters(),
         fetchPostProcessProcessors(),
+        fetchMemberMailQuota().catch(() => null),
       ]);
       setAdapters(adapterRes.data || []);
       setProcessors(processorRes.data || []);
+      setMailQuota(quota);
     } catch (err) {
       setAdapters([]);
       setProcessors([]);
+      setMailQuota(null);
       setLoadError(String(err?.message || err || '加载失败'));
     } finally {
       setLoading(false);
@@ -377,10 +382,10 @@ function PostProcessPage() {
       minWidth: 200,
       sortable: false,
       renderCell: (params) => (
-        <span className="ntq-muted">{getAdapterRemark(params.row)}</span>
+        <span className="ntq-muted">{getAdapterRemark(params.row, mailQuota)}</span>
       ),
     },
-  ]), [adaptersByName]);
+  ]), [adaptersByName, mailQuota]);
 
   const processorColumns = useMemo(() => ([
     {

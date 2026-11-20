@@ -517,7 +517,7 @@ function SetupPage() {
             </Message>
           ) : (
             <Message status="warning">
-              检测到必要配置缺失，业务页将继续重定向到 Setup。
+              系统检测到您缺少必要运行配置，将在安装页面重新安装或者修复。
             </Message>
           )}
 
@@ -544,7 +544,7 @@ function SetupPage() {
               <div className="setup-card__content">
                 <h3 className="setup-typo-title">安装开始</h3>
                 <p className="ntq-muted setup-page__lead">
-                  点击开始后，系统会按顺序执行步骤。数据库配置成功后，你可以选择立刻导入公开演示数据，或稍候注册会员后再导入全市场数据；机器学习依赖为选装。跳过的步骤视为完成。
+                  点击开始后，系统会按顺序完成必要配置。过程中你可以选择是否导入演示数据、是否安装机器学习插件；跳过的步骤会记为已完成，之后也可在设置里补做。
                 </p>
                 {bootstrapError ? (
                   <>
@@ -584,8 +584,13 @@ function SetupPage() {
             <section className="setup-card">
               <div className="setup-card__content">
                 <h3 className="setup-typo-title">
-                  需要用户输入：{pausedStepDef?.name || pausedStep}
+                  请完成：{pausedStepDef?.name || pausedStep}
                 </h3>
+                {pausedStepDef?.description ? (
+                  <p className="ntq-muted setup-page__lead">
+                    {pausedStepDef.description}
+                  </p>
+                ) : null}
                 {errorMessage ? (
                   <Message status="error">{errorMessage}</Message>
                 ) : null}
@@ -604,14 +609,21 @@ function SetupPage() {
                     if (!shouldShowDbConnectionField(field.key, dbType)) return null;
                     if (!shouldShowUserspaceConflictPolicy(field, userspacePathEditable, userspacePathExists)) return null;
                     if (field.type === 'select') {
+                      const selectRequired = Boolean(field.required);
+                      const selectValue = formValues[field.key]
+                        ?? field.defaultValue
+                        ?? (selectRequired ? field.options?.[0]?.value : '')
+                        ?? '';
                       return (
                         <Select
                           key={field.key}
                           id={getFieldInputId(pausedStep, field)}
                           label={field.label}
-                          value={formValues[field.key] ?? field.defaultValue ?? ''}
+                          value={selectValue}
                           onChange={(e) => handleInputChange(field.key, e.target.value)}
                           options={field.options || []}
+                          required={selectRequired}
+                          displayEmpty={!selectRequired}
                           className="setup-interaction-form__field"
                           {...SETUP_FIELD_COMMON}
                         />
@@ -697,10 +709,10 @@ function SetupPage() {
                     <div className="setup-page__result-icon">
                       <Icon name="success" size="xxl" tone="success" />
                     </div>
-                    <h3 className="setup-typo-title">成功</h3>
+                    <h3 className="setup-typo-title">安装完成</h3>
                   </div>
                   <p className="ntq-muted setup-page__lead">
-                    安装流程已完成。
+                    环境已就绪。可以进入欢迎页开始使用，或前往设置继续调整。
                   </p>
                   {restartError ? (
                     <Message status="error">{restartError}</Message>
@@ -711,7 +723,7 @@ function SetupPage() {
                       to="/welcome"
                       variant="primary"
                     >
-                      继续
+                      进入欢迎页
                     </Button>
                     <Button component={RouterLink} to="/settings" variant="glass">
                       前往设置

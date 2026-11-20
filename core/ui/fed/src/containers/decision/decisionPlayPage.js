@@ -1041,7 +1041,7 @@ export function DecisionPlaySession({
                   onClick={() => setPositionOpen((open) => !open)}
                 >
                   <span className="decision-aside-title ntq-decision-subtitle ntq-decision-strong">
-                    约束条件与状态统计
+                    持仓约束与策略统计
                   </span>
                   <Icon name="expandMore" size="sm" />
                 </button>
@@ -1277,7 +1277,7 @@ export function DecisionPlaySession({
                 />
               ) : null}
               <span className="ntq-caption ntq-muted decision-info-title-hint">
-                查看数据
+                查看 K 线
               </span>
             </span>
             <Button
@@ -1295,7 +1295,7 @@ export function DecisionPlaySession({
         {infoOpp ? (
           <div className="ntq-decision-stack ntq-decision-stack--gap-md ntq-decision-stack--min0">
             <span className="ntq-muted">
-              as-of {clockDate} · 前复权数据停在当前日，不含未来
+              截至 {clockDate} · 前复权数据停在当前日，不含未来
               {(() => {
                 const panels = new Set(
                   (infoPayload?.indicatorSeries || [])
@@ -1315,14 +1315,14 @@ export function DecisionPlaySession({
             </span>
             <div className="ntq-decision-stack ntq-decision-stack--gap-sm">
               <div className="ntq-decision-stack ntq-decision-stack--row">
-                <span className="ntq-muted">策略 as-of</span>
+                <span className="ntq-muted">策略截至当日</span>
                 <span>
                   胜率 {strategyWin}  平均ROI {strategyRoi}
                   {asof?.sampleSize != null ? `  n=${asof.sampleSize}` : ''}
                 </span>
               </div>
               <div className="ntq-decision-stack ntq-decision-stack--row">
-                <span className="ntq-muted">本标的 as-of</span>
+                <span className="ntq-muted">本标的截至当日</span>
                 <span>
                   胜率 {infoPayload?.tickerStats?.winRateLabel || infoOpp.wr}
                   {' '}
@@ -1379,7 +1379,7 @@ export function DecisionPlaySession({
       breadcrumbsItems={[{ label: '制定策略', to: designHref }]}
       breadcrumbsCurrent={`模拟回测 #${snapshot.dmId}`}
       bannerTitle={`决策模拟回测 · #${snapshot.dmId}`}
-      bannerDescription="时钟只显示当前停顿日。推进后总进度前移；月历是只读地图，只标注已经发生的事件。"
+      bannerDescription="按交易日推进，手动选择买入机会，并与系统自动结果对照。"
       bannerRightSlot={(
         <Button component={RouterLink} to={designHref} variant="outlined" size="small">
           返回制定策略

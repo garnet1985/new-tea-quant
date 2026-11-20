@@ -58,7 +58,7 @@ export function HoldingDetailDialog({
       actions={(
         <>
           {onOpenKline ? (
-            <Button variant="glass" onClick={onOpenKline}>查看数据</Button>
+            <Button variant="glass" onClick={onOpenKline}>查看 K 线</Button>
           ) : null}
           <Button variant="primary" onClick={onClose}>关闭</Button>
         </>
@@ -81,7 +81,7 @@ export function HoldingDetailDialog({
         目标
       </span>
       <div className="ntq-caption ntq-muted">
-        已按某档卖出的会标已完成；剩下的股仍按当前浮动盈亏显示，不会因为还在列表里就把该档当成没做过。
+        已按某档卖出的目标标为「已完成」；剩余持股仍按当前浮动盈亏显示，不会因仍持仓而把该档当成未触发。
       </div>
       {row?.goals?.length ? (
         <div className="decision-goal-list">

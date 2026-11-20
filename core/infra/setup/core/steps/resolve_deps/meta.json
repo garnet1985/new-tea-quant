@@ -1,7 +1,7 @@
 {
   "id": "resolve_deps",
-  "name": "核心依赖",
-  "description": "安装运行所需核心依赖（不含 XGBoost / SHAP）。",
+  "name": "安装运行依赖",
+  "description": "安装软件运行所需的基础组件。",
   "scriptEntry": "core/infra/setup/core/steps/resolve_deps/install.py",
   "requiresUserInput": false,
   "inputSchema": [],

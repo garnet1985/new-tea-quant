@@ -24,7 +24,7 @@ def test_format_strategy_summaries_uses_real_keys():
             "strategies": [
                 {
                     "key": "ma20_touch",
-                    "display_name": "ma20_touch",
+                    "display_name": "均线回踩",
                     "has_report": True,
                     "version_id": "3",
                     "summary": {
@@ -42,8 +42,10 @@ def test_format_strategy_summaries_uses_real_keys():
             ],
         }
     )
-    assert "ma20_touch" in text
+    assert "均线回踩（ma20_touch）" in text
     assert "empty_demo" in text
+    assert "demo/regression" not in text
+    assert " v3" not in text
     assert "策略 A" not in text
     assert "不能提供投资建议" in text
     assert "-9.40%" in text

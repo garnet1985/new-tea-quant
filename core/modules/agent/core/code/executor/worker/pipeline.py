@@ -177,9 +177,12 @@ def is_portfolio_plan_confirm(reply: str) -> bool:
 
 
 def is_tag_plan_confirm(reply: str) -> bool:
-    """打标计划确认单：须含二级标题 + CTA。"""
+    """特征标签计划确认单：须含二级标题 + CTA。"""
     text = str(reply or "")
-    if not re.search(r"##\s*(打标计划|标签计划)", text):
+    if not re.search(
+        r"##\s*(特征标签计划|标签计算计划|打标计划|标签计划)",
+        text,
+    ):
         return False
     return bool(
         re.search(
@@ -200,7 +203,7 @@ def is_next_step_offer(reply: str, tools_seen: Sequence[Dict[str, Any]]) -> bool
         return False
     return bool(
         re.search(
-            r"(资金|portfolio|归因|止盈|止损|滚动|多区间|扫描|本金|标签|打标|增量)",
+            r"(资金|portfolio|归因|止盈|止损|滚动|多区间|多时段|扫描|本金|标签|打标|特征标签|增量)",
             text,
         )
     )

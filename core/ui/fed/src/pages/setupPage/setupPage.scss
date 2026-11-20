@@ -1,5 +1,7 @@
 // 安装向导：交互表单（DB / userspace 等）输入样式统一
 .setup-interaction-form {
+  padding-top: 0.25rem;
+
   .MuiTextField-root {
     .MuiInputLabel-root {
       font-size: var(--ntq-form-control-font-size, 0.8rem);
@@ -36,8 +38,10 @@
   gap: 1.5rem;
 }
 
+// 需压过全局 p.ntq-muted { margin: 0 }，否则说明与表单标签会贴在一起。
+p.setup-page__lead,
 .setup-page__lead {
-  margin: 0 0 1rem;
+  margin: 0 0 1.5rem;
 }
 
 .setup-page__reload {
@@ -48,7 +52,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 1.5rem;
 }
 
 .setup-page__result-head {
@@ -87,7 +91,7 @@
 .setup-interaction-form__fields {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .setup-interaction-form__field {
@@ -96,7 +100,7 @@
 }
 
 .setup-interaction-form__editable {
-  margin-top: 0.25rem;
+  margin-top: 0.625rem;
 }
 
 .setup-page__container {
@@ -124,11 +128,11 @@
 }
 
 .setup-card__content {
-  padding: 1rem 1.125rem;
+  padding: 1.25rem 1.25rem 1.5rem;
 }
 
 .setup-typo-title {
-  margin: 0 0 1rem;
+  margin: 0 0 0.5rem;
   font-size: 1.125rem;
   font-weight: 600;
 }

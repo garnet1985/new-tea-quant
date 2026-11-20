@@ -1457,7 +1457,7 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
     **纯命令行**：重装运行期依赖，供 ``pipeline._reinstall_dependencies`` 与后续 UI 共用。
 
     1. 若存在 ``requirements.txt`` 且未设 ``NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS``：``pip install -r``（仓库根）。
-    2. 子进程内 ``core.infra.setup.core.orchestrator.ui.install_ui_runtime(force=...)``（BFF pip + FED ``npm install``，与 ``install.py`` 对齐）。
+    2. 子进程内 ``core.infra.setup.core.orchestrator.install_ui_runtime(force=...)``（BFF pip + FED ``npm install``，与 ``install.py`` 对齐）。
 
     跳过整步：``NTQ_UPDATE_SKIP_RUNTIME_REINSTALL=1``。``PYTHONPATH`` 设为 ``repo_root`` 以便导入 ``setup`` / ``core``。
     """
@@ -1490,7 +1490,7 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
             raise RuntimeError("NTQ updater: pip install -r requirements.txt failed")
 
     snippet = (
-        "from core.infra.setup.core.orchestrator.ui import install_ui_runtime\n"
+        "from core.infra.setup.core.orchestrator import install_ui_runtime\n"
         f"install_ui_runtime(force={force!r})\n"
     )
     r = subprocess.run([str(py), "-c", snippet], cwd=str(repo_root), env=env)

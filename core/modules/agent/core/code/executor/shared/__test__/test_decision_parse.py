@@ -113,7 +113,7 @@ def test_deferred_plan_reply():
     plan = (
         "## 测试计划\n"
         "- **量化策略**：均线金叉\n"
-        "- **策略名称**：ma10_cross_ma30\n"
+        "- **策略名称**：均线金叉（目录名 ma10_cross_ma30）\n"
         "您觉得这个测试计划可行吗？如果需要改动，请告诉我；确认执行请直接说「执行」。"
     )
     assert not is_deferred_plan_reply(plan)
@@ -123,8 +123,8 @@ def test_is_test_plan_confirm():
     plan = (
         "## 测试计划\n"
         "- **量化策略**：10 日均线上穿 30 日均线当日视为机会\n"
-        "- **策略名称**：ma10_cross_ma30\n"
-        "- **出场目标**：止损 -10%；止盈按模板多段；最长持有 30 开盘日\n"
+        "- **策略名称**：均线金叉（目录名 ma10_cross_ma30）\n"
+        "- **出场规则**：止损亏 10% 全卖；止盈涨 10% 卖一半、涨 20% 全卖；最长持有 30 个开盘日\n"
         "您觉得这个测试计划可行吗？如果需要改动，请告诉我；确认执行请直接说「执行」。"
     )
     assert is_test_plan_confirm(plan)
@@ -138,7 +138,7 @@ def test_is_next_step_offer():
         "## 建议\n"
         "下一步：要不要用 100 万元本金做一版资金模拟，看看最多 10 只持仓时的组合表现？"
         "（确认后我会先给出资金模拟计划）\n"
-        "要不要试试不同的止损和止盈（归因）？"
+        "要不要试试不同的止损和止盈，看结果差多少？"
     )
     assert is_next_step_offer(offer, seen)
     assert not is_next_step_offer(offer, [])
@@ -147,12 +147,11 @@ def test_is_next_step_offer():
 
 def test_is_tag_plan_confirm():
     plan = (
-        "## 打标计划\n"
-        "- **打标逻辑**：按总市值分大中小盘\n"
-        "- **标签名称**：market_cap_tier\n"
-        "- **更新模式**：incremental\n"
-        "- **最小记录数**：0\n"
-        "您觉得这个打标计划可行吗？如果需要改动，请告诉我；确认执行请直接说「执行」。"
+        "## 特征标签计划\n"
+        "- **要算什么标签**：按总市值分成大盘 / 中盘 / 小盘\n"
+        "- **标签名称**：市值分层（目录名 market_cap_tier）\n"
+        "- **怎么更新**：只算新增或缺的部分\n"
+        "您觉得这个特征标签计划可行吗？如果需要改动，请告诉我；确认执行请直接说「执行」。"
     )
     assert is_tag_plan_confirm(plan)
     assert not is_tag_plan_confirm("标签已算完，结论如下。")

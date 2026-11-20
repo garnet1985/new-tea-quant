@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.infra.setup.core.orchestrator.options import (
+from core.infra.setup.core.orchestrator import (
     CliInstallOptions,
     db_inputs_from_options,
     validate_cli_install_options,
@@ -53,7 +53,7 @@ def test_duckdb_rejects_connection_flags() -> None:
 def test_explicit_userspace_must_be_used() -> None:
     options = CliInstallOptions(userspace="/tmp/custom-userspace", db="duckdb")
     validate_cli_install_options(options)
-    from core.infra.setup.core.orchestrator.options import userspace_inputs_from_options
+    from core.infra.setup.core.orchestrator import userspace_inputs_from_options
 
     inputs = userspace_inputs_from_options(options, "/default/userspace")
     assert inputs["userspaceTargetPath"] == "/tmp/custom-userspace"

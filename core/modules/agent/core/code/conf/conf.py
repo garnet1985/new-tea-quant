@@ -111,6 +111,8 @@ PLACEHOLDER_REPLIES: FrozenSet[str] = frozenset(
 # scenario → 模版路径；命中规则在 executor/shared/present.py（一 scenario 一模版）
 PRESENTATION_SCENARIOS: Dict[str, str] = {
     "backtest_price": "templates/backtest_price.md",
+    "backtest_enum": "templates/backtest_enum.md",
+    "backtest_portfolio": "templates/backtest_portfolio.md",
 }
 PRESENT_MAX_TOKENS = 4096
 PRESENT_TIMEOUT_SECONDS = 60.0

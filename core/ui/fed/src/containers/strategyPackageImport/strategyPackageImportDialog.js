@@ -120,7 +120,7 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
     >
       <div className="strategy-package-import-dialog__body">
         <p className="ntq-muted">
-          仅支持策略交流包（策略目录及依赖的 tag / adapter），文件格式为 .zip。
+          仅支持策略交流包（策略目录及依赖的标签与适配器），文件格式为 .zip。
         </p>
         <Button
           variant="glass"
@@ -139,7 +139,7 @@ function StrategyPackageImportDialog({ open, onClose, onSuccess = null }) {
         ) : null}
 
         <RadioGroup
-          label="冲突策略"
+          label="重名处理"
           options={POLICY_OPTIONS}
           value={policy}
           disabled={busy}

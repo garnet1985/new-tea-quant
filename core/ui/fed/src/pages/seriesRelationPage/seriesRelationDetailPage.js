@@ -297,13 +297,13 @@ function SeriesRelationDetailPage() {
       await saveSeriesRelationScene(key, settings);
       const runResult = await runSeriesRelationScene(key);
       if (runResult?.success === false) {
-        throw new Error(runResult.error || '跑批失败');
+        throw new Error(runResult.error || '计算失败');
       }
-      showToast({ status: 'success', content: '跑批完成' });
+      showToast({ status: 'success', content: '计算完成' });
       setIsNew(false);
       await loadResults(key);
     } catch (err) {
-      const msg = err?.message || '跑批失败';
+      const msg = err?.message || '计算失败';
       setActionError(msg);
       showToast({ status: 'error', content: msg });
     } finally {
@@ -327,7 +327,11 @@ function SeriesRelationDetailPage() {
       ]}
       breadcrumbsCurrent={displayName}
       bannerTitle={displayName}
-      bannerDescription={isNew ? `新建场景 · ${sceneKey}` : `key: ${sceneKey}`}
+      bannerDescription={
+        isNew
+          ? `新建序列关系场景（${sceneKey}）`
+          : `对比本场景中的多条序列（${sceneKey}）`
+      }
       bannerRightSlot={(
         <Button
           variant="glass"
@@ -382,7 +386,7 @@ function SeriesRelationDetailPage() {
               className="ntq-srel-field--inline"
             />
             <Select
-              label="自动纠错"
+              label="缺失填充"
               labelPlacement="inline"
               value={draft.fill || 'none'}
               onChange={(e) => patchGlobals({ fill: e.target.value })}

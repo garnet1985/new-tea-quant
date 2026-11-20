@@ -194,7 +194,7 @@ export function SettingsSystemPanel() {
       <Section className="settings-system__reinstall" gap="md">
         <Heading level="h3" gap="none">重新安装</Heading>
         <p className="ntq-muted">
-          会再次走引导：数据路径、数据库连接、演示数据和可选的机器学习依赖。确认后从第一步开始，不会停留在「安装完成」页。
+          若程序运行出现严重问题，可重新走一遍安装向导以修复环境。本页还可导入数据、补装机器学习依赖。
         </p>
         {reinstallError ? <Message status="error">{reinstallError}</Message> : null}
         <div className="settings-system__actions">
@@ -228,18 +228,17 @@ export function SettingsSystemPanel() {
                 onClick={handleConfirmReinstall}
                 disabled={reinstalling}
               >
-                {reinstalling ? '正在进入安装…' : '确认，从第一步开始'}
+                {reinstalling ? '正在进入安装…' : '确认，重新安装'}
               </Button>
             </>
           )}
         >
           <div className="settings-system__dialog-body">
-            <p className="ntq-muted">向导会从头执行。请先了解这些风险：</p>
+            <p className="ntq-muted">重新安装即将执行。请您先了解这些可能的风险：</p>
             <ul className="settings-system__risk-list ntq-muted">
-              <li>可能覆盖 userspace 路径选择，以及数据库连接配置。</li>
-              <li>若选择导入演示数据，现有表数据可能被覆盖。</li>
-              <li>进行中的回测 / 扫描结果不会自动备份。</li>
-              <li>已安装的 Python 依赖不会被卸载；机器学习组件仍可稍后在本页补装。</li>
+              <li>如果您在重新安装过程中选择覆盖用户空间，您的所有用户数据包括策略会丢失，如果需要，请您事先备份。</li>
+              <li>如果您使用不同的数据库，需要重新导入数据。</li>
+              <li>如果您使用相同数据库重新导入数据，会覆盖现有的数据。</li>
             </ul>
           </div>
         </Dialog>
@@ -247,9 +246,19 @@ export function SettingsSystemPanel() {
 
       <Section className="settings-system__import" gap="md">
         <Heading level="h3" gap="none">导入数据</Heading>
-        <p className="ntq-muted">
-          按是否已装载会员凭证自动选择数据包。导入会清空数据包中的表再写入，可能覆盖已有行情。
-        </p>
+        <div className="ntq-muted">
+          <p>根据是否装载会员凭证，导入范围不同：</p>
+          <ul>
+            <li>未注册会员时，仍可导入约 300 只股票 × 三年的演示数据。</li>
+            <li>会员可导入全市场接近 6000 只股票 × 三年的数据。</li>
+            <li>若使用自己的外部数据，可忽略本页导入。</li>
+          </ul>
+        </div>
+        {importPlan && !membershipConfigured ? (
+          <Message status="info">
+            如果您是会员，需要先前往会员设置里从官网粘贴您的会员凭证，再回来导入全市场数据。
+          </Message>
+        ) : null}
         {importPlan && membershipWarning ? (
           <Message status="warning">
             {membershipWarning}
@@ -262,14 +271,14 @@ export function SettingsSystemPanel() {
         {importPlan ? (
           <div className="settings-system__status">
             <p className="ntq-muted">
-              当前将导入：
+              当前可导入：
               {packLabel}
             </p>
             <Tag
               status={membershipConfigured ? 'success' : 'neutral'}
               variant={membershipConfigured ? 'solid' : 'outline'}
             >
-              {membershipConfigured ? '已装载会员凭证' : '未装载会员凭证'}
+              {membershipConfigured ? '会员凭证已装载' : '会员凭证未装载'}
             </Tag>
           </div>
         ) : null}

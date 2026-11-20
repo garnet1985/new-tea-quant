@@ -118,10 +118,10 @@ class RuntimeNamespace:
         import_demo: bool = True,
         deps_only: bool = False,
     ) -> None:
-        from core.infra.setup.core.orchestrator import InstallOrchestrator
-        from core.infra.setup.core.orchestrator.options import CliInstallOptions
+        from core.infra.setup.core.orchestrator import CliInstallOptions
+        from core.infra.setup.core.orchestrator import install_cli_runtime
 
-        InstallOrchestrator.install_cli(
+        install_cli_runtime(
             force=force,
             options=CliInstallOptions(
                 userspace=userspace,
@@ -141,9 +141,9 @@ class RuntimeNamespace:
     @staticmethod
     def ensure_cli_install() -> int:
         """通过根目录 ``install.py`` 执行 CLI 安装（user CLI 自动触发）。"""
-        from core.infra.setup.core.orchestrator import InstallOrchestrator
+        from core.infra.setup.core.orchestrator import ensure_cli_install_via_install_py
 
-        return InstallOrchestrator.ensure_cli_install_via_install_py()
+        return ensure_cli_install_via_install_py()
 
     @staticmethod
     def import_data_pack(
@@ -164,21 +164,21 @@ class RuntimeNamespace:
 
     @staticmethod
     def install_ui(*, force: bool = False) -> None:
-        from core.infra.setup.core.orchestrator import InstallOrchestrator
+        from core.infra.setup.core.orchestrator import install_ui_runtime
 
-        InstallOrchestrator.install_ui(force=force)
+        install_ui_runtime(force=force)
 
     @staticmethod
     def check_ui_prerequisites() -> tuple[bool, str]:
-        from core.infra.setup.core.orchestrator import InstallOrchestrator
+        from core.infra.setup.core.orchestrator import check_runtime_prerequisites
 
-        return InstallOrchestrator.check_runtime_prerequisites()
+        return check_runtime_prerequisites()
 
     @staticmethod
     def launch_ui() -> None:
-        from core.infra.setup.core.orchestrator import InstallOrchestrator
+        from core.infra.setup.core.orchestrator import launch_ui_stack
 
-        InstallOrchestrator.launch_ui_stack()
+        launch_ui_stack()
 
     @staticmethod
     def set_ui_dev_mode(enabled: bool) -> None:
@@ -200,9 +200,9 @@ class RuntimeNamespace:
 
     @staticmethod
     def pipeline_ready() -> bool:
-        from core.infra.setup.core.orchestrator import InstallOrchestrator
+        from core.infra.setup.core.shared.setup_session import is_ready
 
-        return InstallOrchestrator.is_ready()
+        return is_ready()
 
     @staticmethod
     def mark_cli_ready() -> None:

@@ -187,8 +187,12 @@ class ReportManager(BaseReportManager):
         report = self.to_report_dict()
         summary = report["summary"]
         CmdLayout.title.print_h1(f"{icon('search')} 扫描报告", stream=out)
+        from core.modules.strategy.core.engines.scanner.helpers.date_resolver import (
+            display_calendar_date,
+        )
+
         print(
-            f"{icon('calendar')} {report['date']}  "
+            f"{icon('calendar')} {display_calendar_date(report['date'])}  "
             f"{icon('gear')} {self.strategy_key}",
             file=out,
             flush=True,

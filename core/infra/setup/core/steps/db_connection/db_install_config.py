@@ -7,9 +7,8 @@ from typing import Any, Mapping
 
 from core.infra.project_context.contracts import DEFAULT_DUCKDB_DOMAINS
 
-from core.infra.setup.core.orchestrator.options import DEFAULT_DB_PORTS
-
 _VALID_DB_TYPES = frozenset({"duckdb", "postgresql", "mysql"})
+DEFAULT_DB_PORTS = {"postgresql": 5432, "mysql": 3306}
 
 
 def _load_json(path: Path) -> dict:

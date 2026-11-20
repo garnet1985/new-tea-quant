@@ -18,9 +18,9 @@
 core/infra/setup/
   setup.py / contracts.py
   core/
-    shared/          # env / install_runtime / meta / progress / trace / license …
-    orchestrator/    # InstallOrchestrator（CLI / UI / session）
-    steps/           # 各安装步骤 + 步骤内产物工厂
+    orchestrator.py       # 唯一编排：协调 steps + 全局状态（CLI/UI 入口）
+    shared/               # env / install_runtime / meta / progress / trace / license / session …
+    steps/                # 各安装步骤 + 步骤内产物工厂
       init_userspace/assets/   # userspace.zip 模板
       import_data/export/      # 演示包导出（原 scripts/init_data）
 
@@ -31,7 +31,7 @@ userspace/.ntq/packages/{demo|member|full}/  # 演示包（导出/下载）
 ```text
 Setup
   ├── env        → shared.env.NewTeaQuantSetup
-  ├── runtime    → orchestrator.InstallOrchestrator + shared.install_runtime
+  ├── runtime    → orchestrator + shared.install_runtime / setup_session
   ├── artifacts  → steps.init_userspace.package / steps.import_data.export
   ├── meta       → shared.meta_loader
   ├── trace      → shared.trace_events.SetupTrace
@@ -41,7 +41,7 @@ Setup
 ```mermaid
 flowchart TB
   SetupFacade[Setup]
-  Orch[InstallOrchestrator]
+  Orch[orchestrator]
   Shared[shared]
   Steps[steps]
   SetupFacade --> Orch

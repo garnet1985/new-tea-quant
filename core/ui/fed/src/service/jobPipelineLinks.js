@@ -12,7 +12,7 @@ const KIND_TITLE = {
   strategy_run: '制定策略',
   strategy_scan: '策略扫描',
   strategy_attribute: '策略归因',
-  strategy_rolling: '滚动测试',
+  strategy_rolling: '滚动对照',
   tag_run: '标签任务',
   data_renew: '数据更新',
   import_data: '导入数据',

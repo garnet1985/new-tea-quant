@@ -15,7 +15,7 @@ from core.infra.setup import Setup
 from core.infra.setup.core.steps.db_connection.db_install_config import write_database_install_config
 from core.infra.setup.core.shared.pipeline_state import wants_skip_input
 from core.infra.setup.core.shared.step_errors import setup_failure_message
-from core.infra.setup.core.orchestrator import session as setup_session
+from core.infra.setup.core.shared import setup_session
 from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]

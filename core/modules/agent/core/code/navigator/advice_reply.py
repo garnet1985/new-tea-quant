@@ -8,7 +8,10 @@ from core.modules.agent.core.code.executor.shared.prompt_loader import load_repl
 
 
 def format_strategy_summaries_reply(result: Dict[str, Any]) -> str:
-    """避免模型编造策略名；数字只来自工具结果。"""
+    """避免模型编造策略名；数字只来自工具结果。
+
+    展示：中文名优先；最多在括号里带 ``meta.key``；不展示路径 id / version id。
+    """
     if not isinstance(result, dict) or not result.get("ok"):
         err = ""
         if isinstance(result, dict):
@@ -23,15 +26,14 @@ def format_strategy_summaries_reply(result: Dict[str, Any]) -> str:
         if not isinstance(item, dict):
             continue
         key = str(item.get("key") or "").strip()
-        if not key:
-            continue
         name = str(item.get("display_name") or key).strip() or key
-        label = key if name == key else f"{key}（{name}）"
+        if not name:
+            continue
+        label = _strategy_label(name, key)
         if not item.get("has_report"):
-            lines.append(f"- `{label}`：暂无资金层回测报告")
+            lines.append(f"- {label}：暂无资金层回测报告")
             continue
         summary = item.get("summary") if isinstance(item.get("summary"), dict) else {}
-        version = str(item.get("version_id") or "").strip()
         bits: List[str] = []
         if "total_return" in summary:
             bits.append(f"总收益 {_pct_label(summary.get('total_return'))}")
@@ -43,13 +45,23 @@ def format_strategy_summaries_reply(result: Dict[str, Any]) -> str:
             bits.append(f"夏普 {summary.get('sharpe_ratio')}")
         if "calmar_ratio" in summary:
             bits.append(f"卡玛 {summary.get('calmar_ratio')}")
-        ver = f" v{version}" if version else ""
         if bits:
-            lines.append(f"- `{label}`{ver}：{'，'.join(bits)}")
+            lines.append(f"- {label}：{'，'.join(bits)}")
         else:
-            lines.append(f"- `{label}`{ver}：有报告但摘要字段为空")
+            lines.append(f"- {label}：有报告但摘要字段为空")
     lines.extend(["", load_reply("advice_foot")])
     return "\n".join(lines)
+
+
+def _strategy_label(display_name: str, key: str) -> str:
+    """展示名；仅当 key 有意义且与展示名不同时，在括号里附带 key。"""
+    name = str(display_name or "").strip()
+    meta = str(key or "").strip()
+    if not name:
+        return meta
+    if not meta or meta == name:
+        return name
+    return f"{name}（{meta}）"
 
 
 def _pct_label(value: Any) -> str:

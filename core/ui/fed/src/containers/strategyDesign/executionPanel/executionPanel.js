@@ -12,7 +12,7 @@ import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchCon
 import './style.scss';
 
 const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
-const ROLLING_IDLE_TOOLTIP = '请先完成机会盘点、价格和资金回测。需要在策略目录配置 rolling.py 才能滚动测试。';
+const ROLLING_IDLE_TOOLTIP = '请先完成机会盘点、价格回测与投资模拟。需要在策略目录配置 rolling.py 才能开始滚动对照。';
 
 function disabledTip(button, howTo) {
   if (!button || !howTo) return button;
@@ -101,7 +101,7 @@ function resolveExecutionStatusCopy({
 
   return {
     primary: `当前步骤：${stepLabel}`,
-    secondary: '点击左侧开始模拟运行本步回测',
+    secondary: '点击左侧「开始模拟」运行本步回测',
     showProgress: false,
     progress: 0,
   };
@@ -207,10 +207,10 @@ function StrategyDesignExecutionPanel() {
       shimmer
       disabled={wb.disableMetaActions || panelBusy || !wb.rollingEnabled}
       onClick={wb.handleRollingRun}
-      aria-label={rollingDone ? '重新滚动' : '滚动测试'}
+      aria-label={rollingDone ? '重新滚动对照' : '开始滚动对照'}
       data-ntq-help="start-rolling"
     >
-      {rollingDone ? '重新滚动' : '滚动测试'}
+      {rollingDone ? '重新滚动对照' : '开始滚动对照'}
     </RainbowButton>
   ) : null;
   const rollingControl = disabledTip(rollingButton, rollingHowTo);

@@ -21,5 +21,7 @@ def test_conf_knobs() -> None:
 
 def test_presentation_scenarios() -> None:
     assert "backtest_price" in PRESENTATION_SCENARIOS
+    assert "backtest_enum" in PRESENTATION_SCENARIOS
+    assert "backtest_portfolio" in PRESENTATION_SCENARIOS
     assert PRESENTATION_SCENARIOS["backtest_price"].startswith("templates/")
     assert PRESENT_MAX_TOKENS >= 512

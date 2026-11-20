@@ -50,7 +50,7 @@ def test_needs_install_cli_false_when_marked_success(
 def test_install_does_not_ask_trace_permission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
+    from core.infra.setup.core import orchestrator as cr
 
     asked = []
 
@@ -79,7 +79,7 @@ def test_install_does_not_ask_trace_permission(
 
 
 def test_ensure_cli_install_passes_if_needed(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
+    from core.infra.setup.core import orchestrator as cr
 
     recorded: dict = {}
 
@@ -158,8 +158,8 @@ def test_install_py_default_runs_even_when_ready(monkeypatch: pytest.MonkeyPatch
 
 
 def test_run_step_passes_userspace_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
-    from core.infra.setup.core.orchestrator.options import CliInstallOptions
+    from core.infra.setup.core import orchestrator as cr
+    from core.infra.setup.core.orchestrator import CliInstallOptions
 
     recorded: dict = {}
 
@@ -182,8 +182,8 @@ def test_run_step_passes_userspace_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_cli_install_writes_shared_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
-    from core.infra.setup.core.orchestrator import session as setup_session
+    from core.infra.setup.core import orchestrator as cr
+    from core.infra.setup.core.shared import setup_session
 
     monkeypatch.setattr(setup_session, "STATE_FILE", tmp_path / "setup-runtime.json")
     monkeypatch.setattr(cr, "needs_install", lambda _profile: True)
@@ -210,7 +210,7 @@ def test_cli_install_writes_shared_session(
 
 
 def _silence_install(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
+    from core.infra.setup.core import orchestrator as cr
 
     monkeypatch.setattr(cr, "needs_install", lambda _profile: True)
     monkeypatch.setattr(cr.NewTeaQuantSetup, "to_root_dir", lambda: None)
@@ -227,8 +227,8 @@ def _silence_install(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_deps_only_runs_dependency_steps(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
-    from core.infra.setup.core.orchestrator.options import CliInstallOptions
+    from core.infra.setup.core import orchestrator as cr
+    from core.infra.setup.core.orchestrator import CliInstallOptions
 
     ran: list[str] = []
     _silence_install(monkeypatch)
@@ -250,8 +250,8 @@ def test_deps_only_runs_dependency_steps(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_default_install_includes_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
-    from core.infra.setup.core.orchestrator.options import CliInstallOptions
+    from core.infra.setup.core import orchestrator as cr
+    from core.infra.setup.core.orchestrator import CliInstallOptions
 
     ran: list[str] = []
     _silence_install(monkeypatch)
@@ -273,8 +273,8 @@ def test_default_install_includes_demo_step(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_skip_demo_omits_demo_step(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.infra.setup.core.orchestrator import cli as cr
-    from core.infra.setup.core.orchestrator.options import CliInstallOptions
+    from core.infra.setup.core import orchestrator as cr
+    from core.infra.setup.core.orchestrator import CliInstallOptions
 
     ran: list[str] = []
     _silence_install(monkeypatch)

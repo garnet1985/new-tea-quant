@@ -28,7 +28,7 @@ export function findDataContractOption(ref, dataKeyOptions = []) {
 
 export const NORMALIZE_OPTIONS = [
   { value: 'zscore', label: zhEnLabel('标准化', 'zscore') },
-  { value: 'minmax', label: zhEnLabel('最大最小归一', 'minmax') },
+  { value: 'minmax', label: zhEnLabel('最大最小归一化', 'minmax') },
   { value: 'index_100', label: zhEnLabel('指数基准 100', 'index_100') },
   { value: 'none', label: zhEnLabel('不归一', 'none') },
 ];

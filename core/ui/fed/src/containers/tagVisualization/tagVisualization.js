@@ -94,7 +94,7 @@ const FIELD_COLUMNS = [
 function routeNote(route, drilled) {
   if (route === 'non_time_series') return '当前快照，没有时间轴。';
   if (route === 'per_entity' && !drilled) return '点一行查看该实体各标签随时间的变化。';
-  return '纵轴是标签，横轴是时间。悬停可以看到取值。一段接到下一次变化，最后一段收到计算水位。';
+  return '纵轴是标签，横轴是时间。悬停可以看到取值。一段接到下一次变化，最后一段会延伸到当前计算截止日期。';
 }
 
 function routeSubtitle(route, drilledLabel) {

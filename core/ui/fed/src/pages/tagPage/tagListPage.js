@@ -282,10 +282,10 @@ function TagListPage() {
         const isThisRunning = id === runningTagId;
         const disableRun = !enabled || Boolean(runningTagId);
         let title = '';
-        if (!enabled) title = 'Scenario 未启用';
-        else if (running && !isThisRunning) title = '已有 Tag 任务在运行';
+        if (!enabled) title = '场景未启用';
+        else if (running && !isThisRunning) title = '已有标签任务在运行';
         else if (pipelineBusy) title = pipelineLabel ? `系统忙时可加入队列：${pipelineLabel}` : '系统忙时可加入队列';
-        else title = '运行 Tag 计算';
+        else title = '运行标签计算';
 
         return (
           <span
@@ -296,7 +296,7 @@ function TagListPage() {
             <RainbowButton
               icon="play"
               disabled={disableRun}
-              aria-label={pipelineBusy && !running ? '加入队列' : '运行 Tag 计算'}
+              aria-label={pipelineBusy && !running ? '加入队列' : '运行标签计算'}
               onClick={(e) => {
                 e.stopPropagation();
                 setRunningTagId(id);
@@ -510,9 +510,9 @@ function TagListPage() {
     <PageLayout
       className="tag-list-page"
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
-      breadcrumbsCurrent="标签"
-      bannerTitle="标签计算"
-      bannerDescription="列出 userspace 中的 Tag scenario；对已启用场景点击「运行」触发计算。忙时可加入全局管道队列。"
+      breadcrumbsCurrent="特征标签"
+      bannerTitle="特征标签"
+      bannerDescription="为股票等对象计算特征标签，供回测分类与过滤使用。"
       bannerRightSlot={(
         <Tag status={statusTag.status} variant={statusTag.variant}>
           {statusTag.label}
@@ -540,8 +540,8 @@ function TagListPage() {
               <SearchField
                 fluid
                 surface="glass"
-                placeholder="搜索场景名、Tag 或 data_key"
-                label="搜索 Tag 场景"
+                placeholder="搜索场景名、标签或贴标对象"
+                label="搜索标签场景"
                 value={nameQuery}
                 onChange={(e) => setNameQuery(e.target.value)}
               />

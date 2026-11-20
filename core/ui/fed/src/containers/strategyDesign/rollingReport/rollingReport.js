@@ -24,12 +24,12 @@ const LAYERS = [
   },
   {
     key: 'portfolio',
-    title: '资金',
+    title: '投资模拟',
     columns: [
       { key: 'max_drawdown', label: '最大回撤', style: 'ratio', delta: true },
       { key: 'sharpe_ratio', label: '夏普', style: 'number', delta: true },
-      { key: 'sortino_ratio', label: 'Sortino', style: 'number', delta: true },
-      { key: 'calmar_ratio', label: 'Calmar', style: 'number', delta: true },
+      { key: 'sortino_ratio', label: '索提诺', style: 'number', delta: true },
+      { key: 'calmar_ratio', label: '卡玛', style: 'number', delta: true },
       { key: 'total_return', label: '账户收益', style: 'ratio', delta: false },
     ],
   },
@@ -158,7 +158,7 @@ function StrategyDesignRollingReport({
         <p className="ntq-muted">
           {busy
             ? '滚动对照进行中，完成后会显示在这里。'
-            : '尚未运行滚动测试。配置 rolling.py 后，在投资组合面板点击「滚动测试」。'}
+            : '尚未运行滚动对照。配置 rolling.py 后，在「投资模拟」步骤的执行面板点击「开始滚动对照」。'}
         </p>
       </div>
     );

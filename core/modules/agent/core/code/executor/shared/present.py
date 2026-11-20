@@ -27,9 +27,10 @@ from core.modules.agent.core.code.userspace.templates import (
 logger = logging.getLogger(__name__)
 
 # 用户话里「要呈现式总结」的弱信号（与 tools_seen 合取）
-_PRICE_SUMMARY_RE = re.compile(
+_SUMMARY_RE = re.compile(
     r"(总结|解读|讲讲|讲清|分析|评语|成绩单|怎么样|如何看|帮我看|看看报告)"
 )
+_PRICE_SUMMARY_RE = _SUMMARY_RE  # 兼容旧引用
 
 
 def template_path(scenario: str) -> str:
@@ -71,8 +72,35 @@ def resolve_present_scenario(
 ) -> Optional[str]:
     """先内置命中，再 userspace 新 scenario（带 frontmatter match）。"""
     keys = set(merged_scenario_keys())
-    if "backtest_price" in keys and _match_backtest_price(user_text, tools_seen):
+    text = str(user_text or "")
+    if not _SUMMARY_RE.search(text):
+        return match_userspace_scenario(user_text, tools_seen)
+
+    saw_price = _saw_ok_tool(tools_seen, "read_execution_report", layer="price")
+    saw_portfolio = _saw_ok_tool(
+        tools_seen, "read_execution_report", layer="portfolio"
+    )
+    saw_enum = _saw_ok_tool(tools_seen, "read_execution_report", layer="enum")
+
+    # 用户点名某层时优先；否则按价格 → 资金 → 机会盘点
+    if (
+        "backtest_portfolio" in keys
+        and saw_portfolio
+        and re.search(r"资金|组合", text)
+    ):
+        return "backtest_portfolio"
+    if (
+        "backtest_enum" in keys
+        and saw_enum
+        and re.search(r"机会|盘点|枚举", text)
+    ):
+        return "backtest_enum"
+    if "backtest_price" in keys and saw_price:
         return "backtest_price"
+    if "backtest_portfolio" in keys and saw_portfolio:
+        return "backtest_portfolio"
+    if "backtest_enum" in keys and saw_enum:
+        return "backtest_enum"
     return match_userspace_scenario(user_text, tools_seen)
 
 
@@ -80,9 +108,10 @@ def _match_backtest_price(
     user_text: str,
     tools_seen: Sequence[Mapping[str, Any]] | None,
 ) -> bool:
+    """兼容测试：价格层 + 总结意图。"""
     if not _saw_ok_tool(tools_seen, "read_execution_report", layer="price"):
         return False
-    return bool(_PRICE_SUMMARY_RE.search(str(user_text or "")))
+    return bool(_SUMMARY_RE.search(str(user_text or "")))
 
 
 def _saw_ok_tool(

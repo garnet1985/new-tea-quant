@@ -32,26 +32,26 @@ export const SETUP_CHOICE_COPY = {
     introBeforeLink: '在官网',
     introLinkLabel: '注册会员',
     introAfterLink:
-      '后可使用更多演示数据。若只想快速装好试一下，请选「导入演示数据」；若需要全市场三年数据，请在此跳过，稍候注册会员后到「设置 → 安装与维护」再导入。',
+      '后可使用更多演示数据。若您只是想快速安装并体验一下，推荐选择「导入演示数据」；若您需要更多数据（全市场三年数据），请在此跳过，稍候注册会员后到「设置 → 安装与维护」再导入。',
     choices: [
       {
         id: 'demo',
         skip: false,
         title: '导入演示数据',
-        description: '适用于非会员：约 300 只股票 × 三年窗口，装完即可试用策略与扫描。',
+        description: '适用于非会员：约 300 只股票 × 三年数据，安装完成即可体验软件所有功能。',
       },
       {
         id: 'later',
         skip: true,
-        title: '稍候导入',
-        description: '稍候注册会员后导入：全 A 股 5800+ 只股票 × 三年数据。',
+        title: '稍后再导入',
+        description: '注册会员后可导入：全 A 股 5800+ 只股票 × 三年数据（2023年初 - 2025年底）。',
       },
     ],
   },
   resolve_ml_deps: {
-    title: '要安装机器学习依赖吗？',
+    title: '您想现在安装机器学习的插件吗？',
     layout: 'buttons',
-    body: '分析库可用 XGBoost / SHAP。安装可能需要几分钟。跳过后可随时在「设置 → 安装与维护」中补装。',
+    body: '安装机器学习的插件可能需要几分钟。如果跳过，您仍然可以随时在「设置 → 安装与维护」中手动安装。',
     confirmLabel: '安装（可能需要几分钟）',
     skipLabel: '跳过',
   },
@@ -222,7 +222,10 @@ export function validateDbConnectionSubmit(submitValues) {
   if (dbType === 'duckdb') {
     return '';
   }
-  const missing = ['host', 'database', 'user'].filter((key) => !String(submitValues[key] || '').trim());
+  const fieldLabels = { host: '主机地址', database: '数据库名称', user: '用户名' };
+  const missing = ['host', 'database', 'user']
+    .filter((key) => !String(submitValues[key] || '').trim())
+    .map((key) => fieldLabels[key]);
   if (missing.length > 0) {
     return `请填写 ${missing.join('、')} 后再继续。`;
   }

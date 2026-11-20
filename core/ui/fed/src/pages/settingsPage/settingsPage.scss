@@ -187,9 +187,14 @@
 .settings-membership__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: var(--ui-space-sm);
+}
+
+// 猫粮区标题行仍要「标题左、刷新右」
+.settings-membership__catfood .settings-membership__head {
+  justify-content: space-between;
 }
 
 .settings-membership__status {

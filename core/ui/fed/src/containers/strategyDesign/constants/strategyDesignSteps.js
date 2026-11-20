@@ -18,7 +18,7 @@ export const STRATEGY_DESIGN_STEPS = [
     key: 'portfolio',
     no: 3,
     label: '投资模拟',
-    executionPanelTitle: '模拟投资组合',
+    executionPanelTitle: '投资模拟',
     pathSegment: 'portfolio',
   },
   {
@@ -36,11 +36,11 @@ export const STRATEGY_DESIGN_STEPS = [
 export const STRATEGY_DESIGN_STEP_INTRO = {
   enum: {
     title: '机会盘点',
-    summary: '测试股票池中发现交易机会的数量与分布',
+    summary: '测试策略在股票池中发现交易机会的数量与分布',
   },
   price: {
     title: '价格回测',
-    summary: '模拟股票样本中单只股票对当前策略的普遍表现',
+    summary: '按单股模拟样本机会在当前策略下的普遍盈亏表现',
   },
   portfolio: {
     title: '投资模拟',
@@ -48,7 +48,7 @@ export const STRATEGY_DESIGN_STEP_INTRO = {
   },
   decision: {
     title: '决策模拟',
-    summary: '模拟当前策略下的实盘做决策过程',
+    summary: '模拟在当前策略下做实盘决策的过程',
   },
 };
 

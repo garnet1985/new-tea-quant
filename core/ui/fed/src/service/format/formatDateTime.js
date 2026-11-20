@@ -58,6 +58,25 @@ function formatClock(d, { seconds = false } = {}) {
 }
 
 /**
+ * 日历日展示：统一 ``YYYY-MM-DD``（存储侧常见 ``YYYYMMDD``）。
+ * 非日期串原样返回；空值返回 ``empty``（默认空串）。
+ * @param {unknown} raw
+ * @param {{ empty?: string }} [options]
+ * @returns {string}
+ */
+export function formatCalendarDate(raw, options = {}) {
+  const empty = options.empty == null ? '' : String(options.empty);
+  if (raw == null || raw === '') return empty;
+  const s = String(raw).trim();
+  if (!s) return empty;
+  if (/^\d{8}$/.test(s)) {
+    return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return s;
+}
+
+/**
  * @param {unknown} raw
  * @param {{ style?: 'list'|'absolute', now?: Date }} [options]
  * @returns {string}

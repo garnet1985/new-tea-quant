@@ -119,7 +119,7 @@ export default function DecisionSessionDialogs({
     >
       <p className="ntq-muted">
         {panel === 'continue'
-          ? '只能选进行中的模拟回测接着下。时钟停在该次回测上次停留的交易日。'
+          ? '只能选择进行中的模拟回测继续。时钟停在该次回测上次停留的交易日。'
           : '进入或回看会打开该次回测当时的时钟；删除不可恢复。'}
       </p>
       <DataGrid

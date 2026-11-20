@@ -17,7 +17,7 @@ export const SERIES_RELATION_DETAIL_HELP = {
       pages: [
         {
           title: '对比参数',
-          body: '这一栏用来配置对比数据的时间段、归一方式，以及缺失值的自动纠错（填充）方式。',
+          body: '这一栏用来配置对比数据的时间段、归一方式，以及缺失值的填充方式。',
         },
       ],
     },

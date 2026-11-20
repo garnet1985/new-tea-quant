@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from core.infra.setup.core.orchestrator import session as setup_session
+from core.infra.setup.core.shared import setup_session
 from core.infra.setup.core.shared.meta_loader import load_setup_step_meta
 
 

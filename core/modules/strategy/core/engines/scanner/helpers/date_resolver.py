@@ -13,6 +13,24 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def display_calendar_date(value: str) -> str:
+    """用户可见日历日：YYYYMMDD → YYYY-MM-DD；空则 —。"""
+    raw = str(value or "").strip()
+    if not raw:
+        return "—"
+    try:
+        from core.infra.utils import Utils
+
+        formatted = Utils.date.to_format(raw, Utils.date.FMT_YYYY_MM_DD)
+        if formatted:
+            return formatted
+    except Exception:
+        pass
+    if len(raw) == 8 and raw.isdigit():
+        return f"{raw[:4]}-{raw[4:6]}-{raw[6:]}"
+    return raw
+
+
 class ScanDateResolver:
     """解析 scan_date + universe（当日有日 K 的股票）。"""
 
@@ -81,7 +99,7 @@ class ScanDateResolver:
                 source = "real_world_latest_completed"
                 source_detail = (
                     "严格模式：取真实世界上一完整交易日"
-                    f"（get_real_world_latest_completed_trading_date → {raw_anchor or '空'}）"
+                    f"（→ {display_calendar_date(raw_anchor) if raw_anchor else '空'}）"
                 )
             else:
                 from core.modules.data_source import DataSourceManager
@@ -92,14 +110,15 @@ class ScanDateResolver:
                 if assumed_latest:
                     source = "data_json_assumed_latest"
                     source_detail = (
-                        "非严格模式：data.json 的 assumed_latest_completed_trading_date="
-                        f"{assumed_latest}，经交易日历对齐为 {raw_anchor or '空'}"
+                        "非严格模式：假定最新完结交易日="
+                        f"{display_calendar_date(assumed_latest)}，经交易日历对齐为 "
+                        f"{display_calendar_date(raw_anchor) if raw_anchor else '空'}"
                     )
                 else:
                     source = "freshness_latest_completed"
                     source_detail = (
-                        "非严格模式：未配置 assumed_latest，按 freshness/"
-                        f"最新完整交易日解析 → {raw_anchor or '空'}"
+                        "非严格模式：未配置假定最新完结交易日，按 freshness/"
+                        f"最新完整交易日解析 → {display_calendar_date(raw_anchor) if raw_anchor else '空'}"
                     )
         except Exception as exc:
             logger.debug("resolve_anchor_meta failed use_strict=%s: %s", use_strict, exc)
@@ -148,7 +167,7 @@ class ScanDateResolver:
             day = kline_latest
             clamped = True
             source_detail = (
-                f"{source_detail}；锚点晚于库内 K 线最新日 {kline_latest}，已截断到该日"
+                f"{source_detail}；锚点晚于库内 K 线最新日 {display_calendar_date(kline_latest)}，已截断到该日"
             )
             source = f"{source}+kline_clamp"
 
@@ -202,14 +221,14 @@ class ScanDateResolver:
             )
         if raw != kline_latest:
             return (
-                f"严格模式：真实交易日 {raw} 的本地行情尚未就绪"
-                f"（库内 K 线最新仅至 {kline_latest}）。"
+                f"严格模式：真实交易日 {display_calendar_date(raw)} 的本地行情尚未就绪"
+                f"（库内 K 线最新仅至 {display_calendar_date(kline_latest)}）。"
                 "请先更新全部数据后再进行扫描，或改用「扫描演示」模式。"
             )
         ids = ScanDateResolver(data_manager).stocks_with_kline(raw)
         if not ids:
             return (
-                f"严格模式：交易日 {raw} 无可用股票 K 线。"
+                f"严格模式：交易日 {display_calendar_date(raw)} 无可用股票 K 线。"
                 "请先更新行情数据后再进行扫描。"
             )
         return ""
@@ -250,4 +269,4 @@ class ScanDateResolver:
         return sorted(ids)
 
 
-__all__ = ["ScanDateResolver"]
+__all__ = ["ScanDateResolver", "display_calendar_date"]

@@ -18,8 +18,18 @@ from core.modules.strategy import Strategy
 def _price_presentation_note() -> str:
     return template_tool_note(
         "backtest_price",
-        extra="用户没要求时不要主动加归因。",
+        extra="用户没要求时不要主动做止盈止损对照。",
     )
+
+
+def _layer_presentation_note(layer: str) -> str:
+    if layer == "price":
+        return _price_presentation_note()
+    if layer == "enum":
+        return template_tool_note("backtest_enum")
+    if layer == "portfolio":
+        return template_tool_note("backtest_portfolio")
+    return ""
 
 _LAYER_LABEL = {"enum": "机会盘点", "price": "价格", "portfolio": "资金"}
 _LAYERS = frozenset(_LAYER_LABEL)
@@ -266,18 +276,24 @@ def list_strategy_summaries(arguments: Dict[str, Any]) -> Dict[str, Any]:
     for info in infos:
         if not isinstance(info, dict):
             continue
-        key = str(info.get("unique_relative_path") or info.get("key") or "").strip()
-        if not key:
+        meta_key = str(info.get("key") or "").strip()
+        path_id = str(info.get("unique_relative_path") or "").strip()
+        # 对外只用 meta.key；路径 id 仅用于定位目录，不写入摘要。
+        lookup = path_id or meta_key
+        if not lookup:
             continue
-        located = strategy_folder(key)
+        public_key = meta_key or Path(lookup).name
+        if not public_key:
+            continue
+        located = strategy_folder(lookup)
         if isinstance(located, dict):
             continue
         folder, _relative = located
         if not folder.is_dir():
             continue
         entry: Dict[str, Any] = {
-            "key": key,
-            "display_name": str(info.get("display_name") or key),
+            "key": public_key,
+            "display_name": str(info.get("display_name") or public_key),
             "enabled": bool(info.get("is_enabled")),
             "has_report": False,
         }
@@ -374,9 +390,8 @@ def read_execution_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "note": (
             "这是摘要。解释给用户时只用这些数字，不要补充报告里没有的指标。"
             + (
-                " "
-                + _price_presentation_note()
-                if layer == "price"
+                f" {_layer_presentation_note(layer)}"
+                if _layer_presentation_note(layer)
                 else ""
             )
         ),

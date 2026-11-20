@@ -1,4 +1,5 @@
 import {
+  formatCalendarDate,
   formatDateTime,
   formatVersionPickTime,
   parseDateTime,
@@ -37,6 +38,16 @@ describe('parseDateTime', () => {
     expect(parseDateTime('')).toBeNull();
     expect(parseDateTime(null)).toBeNull();
     expect(parseDateTime('not-a-date')).toBeNull();
+  });
+});
+
+describe('formatCalendarDate', () => {
+  it('formats YYYYMMDD and passes through YYYY-MM-DD', () => {
+    expect(formatCalendarDate('20261119')).toBe('2026-11-19');
+    expect(formatCalendarDate('2025-12-31')).toBe('2025-12-31');
+    expect(formatCalendarDate('')).toBe('');
+    expect(formatCalendarDate('', { empty: '—' })).toBe('—');
+    expect(formatCalendarDate('T0')).toBe('T0');
   });
 });
 

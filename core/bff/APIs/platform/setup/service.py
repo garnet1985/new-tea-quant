@@ -20,17 +20,13 @@ class SetupService:
         userspace_abs_path = str(ProjectContext.path.get_userspace_root().resolve())
         userspace_exists = Path(userspace_abs_path).exists()
         for step in steps:
+            # 文案以 steps/*/meta.json 为准；这里只补运行时字段（默认路径、是否显示冲突策略）。
             if step.get("id") == "init_userspace":
-                step["name"] = "初始化 userspace"
                 schema = step.get("inputSchema") or step.get("requiredUserInputs") or []
                 filtered_schema = []
                 for field in schema:
                     if field.get("key") == "userspaceTargetPath":
-                        field["label"] = "userspace 路径"
                         field["defaultValue"] = userspace_abs_path
-                        field["helperText"] = "默认使用该绝对路径；勾选后可改成你自己的路径。"
-                        field["editableByCheckbox"] = True
-                        field["editableLabel"] = "我想自定义 userspace 路径"
                         filtered_schema.append(field)
                         continue
                     if field.get("key") == "userspaceConflictPolicy":
@@ -39,12 +35,6 @@ class SetupService:
                         continue
                     filtered_schema.append(field)
                 step["inputSchema"] = filtered_schema
-            elif step.get("id") == "import_data":
-                step["name"] = "导入演示数据"
-            elif step.get("id") == "resolve_ml_deps":
-                step["name"] = "机器学习依赖"
-            elif step.get("id") == "resolve_deps":
-                step["name"] = "核心依赖"
         return ok({"steps": steps})
 
     def get_setup_status(self):

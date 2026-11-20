@@ -149,7 +149,7 @@ export function SettingsAgentPanel() {
       <Section className="settings-agent__channel" gap="md">
         <Heading level="h3" gap="none">默认 AI 通道</Heading>
         <p className="ntq-muted">
-          管理助理的默认通道、跨会话偏好与补充说明。密钥仍在「AI 配置」；会员凭证在「会员」。
+          设定助手默认使用的 AI 通道，以及跨会话偏好与补充说明。通道密钥在「AI 配置」，会员凭证在「会员」。
           打开聊天框且尚未手动切换时使用本通道；可随时在聊天框里改选。
         </p>
         {loadError ? <Message status="error">{loadError}</Message> : null}

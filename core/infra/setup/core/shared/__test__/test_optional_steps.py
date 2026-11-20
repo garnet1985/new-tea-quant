@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.infra.setup.core.orchestrator.cli import _ordered_cli_steps
+from core.infra.setup.core.orchestrator import _ordered_cli_steps
 from core.infra.setup.core.shared.meta_loader import load_setup_step_meta
 from core.infra.setup.core.shared.pipeline_state import sync_definition_into_state, wants_skip_input
 

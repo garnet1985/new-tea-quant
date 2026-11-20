@@ -403,7 +403,8 @@ _TOOLS: tuple[ToolSpec, ...] = (
         name="list_strategy_summaries",
         description=(
             "列出本机策略及最新执行报告摘要（默认资金层 portfolio）。"
-            "用于客观陈述已有回测结果；禁止据此给投资建议或推荐「能赚钱」的策略。"
+            "每项含 display_name 与 meta.key（字段名 key）；不含路径 id。"
+            "对用户陈述时用展示名，最多括号里带 key；禁止据此给投资建议。"
             "layer 可省略，为 enum、price 或 portfolio。"
         ),
         parameters=_object(
@@ -417,7 +418,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
         description=(
             "读取枚举、价格或资金层的执行报告摘要。layer 为 enum、price 或 portfolio。"
             "version_id 可省略，省略时读该层最新的主版本。"
-            "价格层摘要含分位点/收益桶/配置快照；总结时 present 可套 scenario=backtest_price。"
+            "价格摘要含分位点/收益桶/配置快照；总结时 present 可套 backtest_price / backtest_enum / backtest_portfolio。"
             "不要编造摘要里没有的数字。"
         ),
         parameters=_object(

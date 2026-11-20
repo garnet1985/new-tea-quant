@@ -129,7 +129,7 @@ class TempCleanup:
 
     @staticmethod
     def clear_static_data_packages() -> int:
-        """删除 ``userspace/.ntq/packages/{demo,member,full}``。"""
+        """删除 ``userspace/.ntq/packages/{demo,member,full}`` 与旧 install_demo。"""
         from core.infra.setup.core.steps.import_data.data_packages import clear_static_data_packages
 
         return clear_static_data_packages()

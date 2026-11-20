@@ -42,7 +42,11 @@ export function SettingsDatabasePanel({
       <Section className="settings-database__engine" gap="md">
         <Heading level="h3" gap="none">数据库引擎</Heading>
         <p className="ntq-muted">
-          选择本机使用的数据库。DuckDB 为推荐的本地文件库；PostgreSQL / MySQL 还需在对应配置中填写连接信息。
+          选择本机使用的数据库。DuckDB 为推荐的本地文件库；PostgreSQL / MySQL 的主机、端口与账号等请在
+          {' '}
+          <Text variant="code">userspace/system/config/database/</Text>
+          {' '}
+          下对应引擎配置中填写。
         </p>
         {loadError ? <Message status="error">{loadError}</Message> : null}
         {saveError ? <Message status="error">{saveError}</Message> : null}
@@ -107,14 +111,22 @@ export function SettingsDatabasePanel({
             </p>
           )}
           <Message status="info">
-            高级参数请在对应数据库配置中调整；保存引擎类型后，相关进程可能需要重启才生效。
+            高级参数请在
+            {' '}
+            <Text variant="code">userspace/system/config/database/</Text>
+            {' '}
+            中调整；保存引擎类型后，相关进程可能需要重启才生效。
           </Message>
         </Section>
       ) : (
         <Section className="settings-database__remote" gap="md">
           <Heading level="h3" gap="none">连接说明</Heading>
           <Message status="info">
-            PostgreSQL / MySQL 的主机、端口与账号等请在对应引擎配置中填写；本页只保存引擎类型与库名。
+            主机、端口与账号等请编辑
+            {' '}
+            <Text variant="code">userspace/system/config/database/</Text>
+            {' '}
+            下对应引擎配置；本页只保存引擎类型与库名。
           </Message>
         </Section>
       )}

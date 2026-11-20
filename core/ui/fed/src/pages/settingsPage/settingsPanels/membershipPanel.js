@@ -242,16 +242,20 @@ export function SettingsMembershipPanel() {
             ) : null}
           </div>
         </div>
-        <p className="ntq-muted">
-          请您在官网会员个人页找到会员通用凭证并粘贴到下方。
+        <div className="ntq-muted">
+          <p>
+            请您在官网会员个人页找到会员通用凭证并粘贴到下方。
+          </p>
           <ul>
-            <li>装载后可您可以使用新茶量化AI助手，并可以导入更多演示数据；</li>
-            <li>如果您没有会员凭证仍然可以在「AI 配置」里使用自己的AI密钥来使用新茶AI助手。</li>
+            <li>装载后您可以使用新茶量化 AI 助手，并可以导入更多演示数据；</li>
+            <li>如果没有会员凭证，仍可在「AI 配置」里用自己的 API Key 使用助手。</li>
           </ul>
-          {!configured
-            ? ' 还没有账号时，先点「成为会员」注册，再到会员中心复制通用凭证回来装载。'
-            : null}
-        </p>
+          {!configured ? (
+            <p>
+              还没有账号时，先点「成为会员」注册，再到会员中心复制通用凭证回来装载。
+            </p>
+          ) : null}
+        </div>
         {loadError ? <Message status="error">{loadError}</Message> : null}
         {saveOk ? <Message status="success">{saveOk}</Message> : null}
         {saveAction.error ? <Message status="error">{saveAction.error}</Message> : null}
@@ -282,7 +286,7 @@ export function SettingsMembershipPanel() {
           </Button>
         </div>
         <Message status="warning">
-          请妥善保管您的通用凭证，请不要在非自己的电脑上装载，也不要随意暴露给它人。如果发现凭证泄漏，您可以马上登入官网刷新凭证并重新装载。
+          请妥善保管您的通用凭证，请不要在非自己的电脑上装载，也不要随意暴露给他人。如果发现凭证泄漏，您可以马上登入官网刷新凭证并重新装载。
         </Message>
       </Section>
 

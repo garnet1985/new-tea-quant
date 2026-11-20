@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import {
   Heading,
   Loading,
@@ -43,7 +43,7 @@ export function SettingsDataPanel({
       <Section className="settings-data__intro" gap="md">
         <Heading level="h3" gap="none">数据范围</Heading>
         <p className="ntq-muted">
-          数据范围会定义您的数据默认起点和终点。可以包含和切断您的实际数据范围。所有功能（除去数据更新）都会给予当前数据范围进行操作。
+          设定默认的数据起点与终点，可收窄或截断实际库内区间。除数据更新外，各功能都按此范围运行。
         </p>
         {loadError ? <Message status="error">{loadError}</Message> : null}
         {saveError ? <Message status="error">{saveError}</Message> : null}
@@ -62,14 +62,14 @@ export function SettingsDataPanel({
           value={defaultStartDate}
           onChange={(e) => onDefaultStartDateChange(e.target.value)}
           placeholder="20080101"
-          hint="时间格式是：YYYYMMDD"
+          hint="格式：YYYYMMDD"
         />
         <UiTextField
           label="假定最新已经完结的交易日"
           value={assumedLatestCompletedDate}
           onChange={(e) => onAssumedLatestCompletedDateChange(e.target.value)}
           placeholder="留空表示跟真实日历"
-          hint="时间格式是：YYYYMMDD。"
+          hint="格式：YYYYMMDD；留空则跟真实交易日历"
         />
         <div id="settings-retention">
           <UiTextField

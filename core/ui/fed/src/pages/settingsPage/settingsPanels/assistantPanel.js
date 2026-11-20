@@ -39,7 +39,7 @@ function NtqProxyCard({ configured }) {
       <p className="ntq-caption">官网代理 · 只读提示（会员凭证在「会员」页配置）</p>
       {configured ? (
         <p className="ntq-muted">
-          NTQ AI 已配置，可直接使用。若想使用自己的模型，可在 AI 交互框中选择下方已配置的其他 AI。如果同时配置多个AI，可以在AI助手下方切换模型。
+          NTQ AI 已配置，可直接使用。若要用自有通道，可在助手里选择下方已配置的其他通道；配置了多个时可随时切换。
         </p>
       ) : (
         <p className="ntq-muted">
@@ -78,7 +78,7 @@ export function SettingsAssistantPanel() {
         setMembershipReady(Boolean(membership?.configured));
       })
       .catch((e) => {
-        setLoadError(e?.message || '读取 AI 供应商失败');
+        setLoadError(e?.message || '读取 AI 通道失败');
       })
       .finally(() => setLoading(false));
   }, []);
@@ -126,7 +126,7 @@ export function SettingsAssistantPanel() {
   }, [providers]);
 
   if (loading) {
-    return <Loading variant="inline" message="正在加载 AI 供应商…" />;
+    return <Loading variant="inline" message="正在加载 AI 通道…" />;
   }
 
   return (
@@ -143,13 +143,13 @@ export function SettingsAssistantPanel() {
       </Section>
 
       <Section className="settings-ai__providers" gap="md">
-        <Heading level="h3" gap="none">使用自己的AI模型</Heading>
+        <Heading level="h3" gap="none">自有 AI 通道</Heading>
         <p className="ntq-muted">
           在此写入 API Key。页面不会显示明文密钥，只会显示是否已配置。
         </p>
         {sortedProviders.length === 0 ? (
           <Message status="info">
-            还没有发现自己的AI模型。请先在扩展目录中放入AI模型包后再刷新本页。
+            尚未发现可用的自有通道。请先在扩展目录放入扩展包后再刷新本页。
           </Message>
         ) : (
           <div className="settings-ai__provider-list">

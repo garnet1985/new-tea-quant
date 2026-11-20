@@ -192,9 +192,9 @@ export function SettingsSystemPanel() {
   return (
     <Section className="settings-system" gap="lg">
       <Section className="settings-system__reinstall" gap="md">
-        <Heading level="h3" gap="none">安装与修复</Heading>
+        <Heading level="h3" gap="none">重新安装</Heading>
         <p className="ntq-muted">
-          如果您的程序运行出现了任何严重问题，您可以尝试点击下面的按钮进行安装与修复。
+          若程序运行出现严重问题，可重新走一遍安装向导以修复环境。本页还可导入数据、补装机器学习依赖。
         </p>
         {reinstallError ? <Message status="error">{reinstallError}</Message> : null}
         <div className="settings-system__actions">
@@ -206,7 +206,7 @@ export function SettingsSystemPanel() {
               setReinstallOpen(true);
             }}
           >
-            安装与修复
+            重新安装
           </Button>
         </div>
         <Dialog
@@ -246,14 +246,14 @@ export function SettingsSystemPanel() {
 
       <Section className="settings-system__import" gap="md">
         <Heading level="h3" gap="none">导入数据</Heading>
-        <p className="ntq-muted">
-          根据不同登录信息，可能有以下不同情况：
+        <div className="ntq-muted">
+          <p>根据是否装载会员凭证，导入范围不同：</p>
           <ul>
-            <li>如果您没有注册会员，您仍然可以导入300只股票的3年的演示数据。</li>
-            <li>如果您是会员，您可以导入全市场接近6000只股票的3年数据。</li>
-            <li>如果您使用自己的外部数据，您可以忽略任何的数据导入。</li>
+            <li>未注册会员时，仍可导入约 300 只股票 × 三年的演示数据。</li>
+            <li>会员可导入全市场接近 6000 只股票 × 三年的数据。</li>
+            <li>若使用自己的外部数据，可忽略本页导入。</li>
           </ul>
-        </p>
+        </div>
         {importPlan && !membershipConfigured ? (
           <Message status="info">
             如果您是会员，需要先前往会员设置里从官网粘贴您的会员凭证，再回来导入全市场数据。
@@ -271,7 +271,7 @@ export function SettingsSystemPanel() {
         {importPlan ? (
           <div className="settings-system__status">
             <p className="ntq-muted">
-              当前将可用的导入数据包为：
+              当前可导入：
               {packLabel}
             </p>
             <Tag

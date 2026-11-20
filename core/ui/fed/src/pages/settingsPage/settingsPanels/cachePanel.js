@@ -6,7 +6,6 @@ import {
   Message,
   Button,
   Section,
-  Tag,
 } from 'ui';
 import {
   clearSettingsCache,
@@ -15,18 +14,18 @@ import {
 const CACHE_OPTIONS = [
   {
     key: 'clear_backtest_results',
-    label: '回测结果临时文件清理',
-    hint: '删除各策略 results/simulations/ 下的机会盘点、价格、投资模拟产物。',
+    label: '回测结果文件清理',
+    hint: '删除各策略 results/simulations/ 下的回测结果文件。',
   },
   {
     key: 'clear_scan_results',
-    label: '扫描结果临时文件清理',
-    hint: '删除各策略 results/scan/ 下的扫描机会缓存。',
+    label: '扫描结果文件清理',
+    hint: '删除各策略 results/scan/ 下的扫描结果文件。',
   },
   {
     key: 'clear_userspace_ntq',
-    label: '用户空间缓存清理',
-    hint: '删除 userspace/.ntq/（进度、pipeline 租约、tmp 等）。不含仓库根 .ntq/。勾选此项时已包含下方静态数据包。',
+    label: '用户空间文件清理',
+    hint: '删除 userspace/.ntq/（进度、导入数据下载包、临时文件等）。不含项目根目录下的 .ntq/。勾选此项时已包含下方静态数据包清理。',
   },
   {
     key: 'clear_static_packages',
@@ -88,7 +87,7 @@ export function SettingsCachePanel() {
       <Section className="settings-cache__types" gap="md">
         <Heading level="h3" gap="none">缓存管理</Heading>
         <p className="ntq-muted">
-          勾选需要清理的缓存类型，点击「一键清理」。有 Tag、扫描、回测等任务进行中时将拒绝清理。
+          勾选需要清理的缓存类型，点击「一键清理」来释放更多磁盘空间。
         </p>
         {clearError ? <Message status="error">{clearError}</Message> : null}
         {clearOk ? <Message status="success">{clearOk}</Message> : null}

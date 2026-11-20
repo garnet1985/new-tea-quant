@@ -99,7 +99,7 @@ export function SettingsFeedbackAndTracePanel() {
       <Section className="settings-feedback__prompts" gap="md">
         <Heading level="h3" gap="none">反馈</Heading>
         <p className="ntq-muted">
-          任务成功后会弹出简短反馈，每个半天（0 点到 12 点、12 点到 24 点）最多一次。关闭询问只在本页。一旦你主动发送，不会再要求任何本地授权。更长的问题请走官网联系页。
+          任务成功后可能会随机弹出简短反馈。您可以在这里开启或彻底关闭。
         </p>
         {loadError ? <Message status="error">{loadError}</Message> : null}
         {feedbackSave.error ? <Message status="error">{feedbackSave.error}</Message> : null}
@@ -128,7 +128,7 @@ export function SettingsFeedbackAndTracePanel() {
       <Section className="settings-feedback__trace" gap="md">
         <Heading level="h3" gap="none">使用统计</Heading>
         <p className="ntq-muted">
-          可选的匿名使用数据，用于改进 New Tea Quant。不包含策略代码、回测结果、账户或个人身份信息。详见
+          可选的匿名使用数据，用于改进新茶量化。不包含策略代码、回测结果、账户或个人身份信息。详见
           {' '}
           <RouterLink className="ntq-link" to="/what-we-will-track">
             我们收集哪些信息

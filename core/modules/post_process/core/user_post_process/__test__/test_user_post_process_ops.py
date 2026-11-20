@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -30,11 +31,18 @@ def pp_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
         'settings = {"display_name": "空"}\n',
         encoding="utf-8",
     )
-    (tmpl_p / "post_processor.yaml").write_text(
-        "key: empty_post_processor\n"
-        "name: 空\n"
-        "is_enabled: false\n"
-        "adapters: {}\n",
+    (tmpl_p / "post_processor.json").write_text(
+        json.dumps(
+            {
+                "key": "empty_post_processor",
+                "name": "空",
+                "is_enabled": False,
+                "adapters": {},
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     adapters.mkdir(parents=True, exist_ok=True)
@@ -68,24 +76,25 @@ def test_scaffold_and_write_processor(pp_env: dict[str, Path]) -> None:
         adapter_name="my_notify",
     )
     assert created.get("ok") is True, created
-    path = pp_env["processors"] / "my_pipe" / "post_processor.yaml"
+    path = pp_env["processors"] / "my_pipe" / "post_processor.json"
     assert path.is_file()
     assert "my_notify" in path.read_text(encoding="utf-8")
 
-    written = PostProcess.write_user_post_processor_yaml(
+    written = PostProcess.write_user_post_processor(
         key="my_pipe",
-        yaml_body=(
-            "key: wrong\n"
-            "name: 管线\n"
-            "is_enabled: false\n"
-            "adapters:\n"
-            "  my_notify:\n"
-            "    config: {}\n"
+        json_body=json.dumps(
+            {
+                "key": "wrong",
+                "name": "管线",
+                "is_enabled": False,
+                "adapters": {"my_notify": {"config": {}}},
+            },
+            ensure_ascii=False,
         ),
     )
     assert written.get("ok") is True, written
-    text = path.read_text(encoding="utf-8")
-    assert "key: my_pipe" in text
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    assert raw["key"] == "my_pipe"
 
 
 def test_validate_adapter_with_mock(

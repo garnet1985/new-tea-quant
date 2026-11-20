@@ -27,7 +27,7 @@ def set_post_processor_enabled(arguments: Dict[str, Any]) -> Dict[str, Any]:
         "key": key.strip(),
         "is_enabled": enabled,
         "note": (
-            "已写入 post_processor.yaml。"
+            "已写入 post_processor.json。"
             if enabled
             else "已关闭该方案；扫描后不会再跑它。"
         ),

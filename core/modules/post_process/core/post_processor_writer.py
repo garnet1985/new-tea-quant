@@ -1,11 +1,10 @@
-"""写入 PostProcessor YAML（is_enabled / adapters + depends_on）。"""
+"""写入 PostProcessor JSON（is_enabled / adapters + depends_on）。"""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
-
-import yaml
 
 from core.modules.post_process.core.post_processor_loader import PostProcessorLoader
 from core.modules.post_process.core.post_processor_types import (
@@ -17,19 +16,14 @@ from core.modules.post_process.core.topo import topological_order
 
 
 def _load_raw(path: Path) -> Dict[str, Any]:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    raw = json.loads(path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
-        raise ValueError(f"PostProcessor YAML 须为 mapping: {path}")
+        raise ValueError(f"PostProcessor JSON 须为对象: {path}")
     return dict(raw)
 
 
 def _dump_raw(path: Path, raw: Dict[str, Any]) -> None:
-    text = yaml.safe_dump(
-        raw,
-        allow_unicode=True,
-        default_flow_style=False,
-        sort_keys=False,
-    )
+    text = json.dumps(raw, ensure_ascii=False, indent=2) + "\n"
     path.write_text(text, encoding="utf-8")
 
 
@@ -107,7 +101,7 @@ def update_adapters(
         on_empty=current.on_empty,
         adapters=bindings,
     )
-    # 先做拓扑校验，避免写入坏 YAML
+    # 先做拓扑校验，避免写入坏 JSON
     order = topological_order(trial)
 
     raw = _load_raw(path)

@@ -78,7 +78,7 @@ scanner:
 ```text
 userspace/extensions/
 ├── post_processes/                 # PostProcess 声明（配置）
-│   └── <key>.yaml                  # 或 <key>/post_process.yaml
+│   └── <key>.json                  # 或 <key>/post_processor.json
 └── components/                     # Component 实现（代码）
     └── <name>/
         ├── adapter.py            # 必须：BaseAdapter 子类
@@ -94,32 +94,34 @@ PathManager 提供：`get_post_processors_directory()`、`get_adapters_directory
 
 ### 文件形态
 
-```yaml
-key: demo_handoff
-name: "演示：打印 + 通知 + 假交易"   # 可选，展示用
-
-on_error: continue    # continue | stop（可选，默认 continue）
-on_empty: run         # run | skip：会话无机会时是否仍执行（可选）
-
-# 无序声明：用 mapping，不要用 list 表达「流水线」
-adapters:
-  presenter:
-    config:
-      print: true
-      show_history: true
-
-  msg_sender:
-    config:
-      dry_run: true
-      channel: wecom_webhook
-    depends_on:
-      - presenter                 # 可选：注入 presenter 的 return
-
-  paper_trader:
-    config:
-      dry_run: true
-    depends_on:
-      - presenter
+```json
+{
+  "key": "demo_handoff",
+  "name": "演示：打印 + 通知 + 假交易",
+  "on_error": "continue",
+  "on_empty": "run",
+  "adapters": {
+    "presenter": {
+      "config": {
+        "print": true,
+        "show_history": true
+      }
+    },
+    "msg_sender": {
+      "config": {
+        "dry_run": true,
+        "channel": "wecom_webhook"
+      },
+      "depends_on": ["presenter"]
+    },
+    "paper_trader": {
+      "config": {
+        "dry_run": true
+      },
+      "depends_on": ["presenter"]
+    }
+  }
+}
 ```
 
 要点：
@@ -158,10 +160,11 @@ adapters:
 
 ## 全局启用
 
-```yaml
-# post_processors/presenter/post_processor.yaml
-key: presenter
-is_enabled: true
+```json
+{
+  "key": "presenter",
+  "is_enabled": true
+}
 ```
 
 策略 `settings.scanner` **不再**配置 post_process；旧字段加载时会被丢弃。
@@ -190,7 +193,7 @@ FED 写死识别 `view=presenter`：机会明细仍用默认表，有载荷时�
 
 ## 发现与加载（可扩展性）
 
-用户只往 userspace 丢目录/YAML，框架必须能 **枚举** 与 **按名解析**，否则 enabled 的 PostProcessor 与 `adapters.presenter` 无法落地。能力对齐现有 `PostProcess.validate_post_processor` / `AdapterLoader`。
+用户只往 userspace 丢目录/JSON，框架必须能 **枚举** 与 **按名解析**，否则 enabled 的 PostProcessor 与 `adapters.presenter` 无法落地。能力对齐现有 `PostProcess.validate_post_processor` / `AdapterLoader`。
 
 ### Component 发现
 
@@ -206,9 +209,9 @@ FED 写死识别 `view=presenter`：机会明细仍用默认表，有载荷时�
 
 | API（建议） | 行为 |
 |-------------|------|
-| `list` / `discover` | 扫描 `post_processes/`：`*.yaml` 或含声明文件的子目录；返回 `key` 列表 |
-| `load(key)` | 读入声明 → 结构化对象（key、components map、on_error…） |
-| `validate(key)` | 文件存在、YAML 可解析、`components` 中每个 name 能通过 Component.validate；`depends_on` 无环且引用的 name 都在本 PostProcess 的 components 集合内 |
+| `list` / `discover` | 扫描 `post_processors/`：`*.json` 或含 `post_processor.json` 的子目录；返回 `key` 列表 |
+| `load(key)` | 读入声明 → 结构化对象（key、adapters map、on_error…） |
+| `validate(key)` | 文件存在、JSON 可解析、`adapters` 中每个 name 能通过 Adapter.validate；`depends_on` 无环且引用的 name 都在本方案的 adapters 集合内 |
 
 扫描路径只执行 ``is_enabled: true`` 且 `validate_post_processor` 通过的声明；失效的 enabled 项执行期记错并按 `on_error` 处理。
 

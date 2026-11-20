@@ -48,7 +48,7 @@ terms:
       后续处理声明单元：有 key、is_enabled；无序声明要用的 adapters；可选 depends_on。
       目录 post_processors/<key>/。全局启用，不绑某个策略 settings。
       不要叫 pipeline / scanner.post_process；也不要把 adapter 的 output 当成下一跳的标准协议。
-    in_code: "post_processors/<key>/post_processor.yaml；PostProcessorDefinition"
+    in_code: "post_processors/<key>/post_processor.json；PostProcessorDefinition"
     aliases:
       - "PostProcessorDefinition"
       - "post_processor"
@@ -93,7 +93,7 @@ terms:
   post_processors_directory:
     definition: |
       PostProcessor 声明目录约定：
-      userspace/extensions/post_process/post_processors/<key>/post_processor.yaml。
-    in_code: "…/post_processors/<key>/post_processor.yaml"
+      userspace/extensions/post_process/post_processors/<key>/post_processor.json。
+    in_code: "…/post_processors/<key>/post_processor.json"
     aliases: []
     avoid: []

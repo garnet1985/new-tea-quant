@@ -1027,15 +1027,15 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="write_post_process_processor",
         description=(
-            "覆盖 post_processor.yaml 全文。"
+            "覆盖 post_processor.json 全文。"
             "须含 adapters 对象；key 会强制对齐目录名。改完后 validate。"
         ),
         parameters=_object(
             {
                 "key": _string("方案 key"),
-                "yaml_body": _string("post_processor.yaml 全文"),
+                "json_body": _string("post_processor.json 全文"),
             },
-            ["key", "yaml_body"],
+            ["key", "json_body"],
         ),
         implemented=True,
     ),
@@ -1054,7 +1054,7 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="set_post_processor_enabled",
         description=(
-            "开关单个 PostProcessor 方案（写入 post_processor.yaml 的 is_enabled）。"
+            "开关单个 PostProcessor 方案（写入 post_processor.json 的 is_enabled）。"
             "关闭后扫描不会再跑该方案。"
         ),
         parameters=_object(

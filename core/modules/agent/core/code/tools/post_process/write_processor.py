@@ -1,4 +1,4 @@
-"""write_post_process_processor：薄封装 PostProcess.write_user_post_processor_yaml。"""
+"""write_post_process_processor：薄封装 PostProcess.write_user_post_processor。"""
 
 from __future__ import annotations
 
@@ -16,23 +16,23 @@ def write_post_process_processor(arguments: Dict[str, Any]) -> Dict[str, Any]:
         not isinstance(arguments, dict)
         or not set(arguments) <= WRITE_POST_PROCESS_PROCESSOR_ALLOWED_FIELDS
     ):
-        return {"ok": False, "error": "只接受参数 key、yaml_body"}
-    if "key" not in arguments or "yaml_body" not in arguments:
-        return {"ok": False, "error": "必须提供 key、yaml_body"}
+        return {"ok": False, "error": "只接受参数 key、json_body"}
+    if "key" not in arguments or "json_body" not in arguments:
+        return {"ok": False, "error": "必须提供 key、json_body"}
     key = arguments.get("key")
-    body = arguments.get("yaml_body")
+    body = arguments.get("json_body")
     if not isinstance(key, str) or not key.strip():
         return {"ok": False, "error": "key 不能为空"}
     if not isinstance(body, str) or not body.strip():
-        return {"ok": False, "error": "yaml_body 不能为空"}
+        return {"ok": False, "error": "json_body 不能为空"}
     if "\x00" in body:
-        return {"ok": False, "error": "yaml_body 含有无法写入的字符"}
+        return {"ok": False, "error": "json_body 含有无法写入的字符"}
     if len(body) > WRITE_POST_PROCESS_PROCESSOR_MAX_CHARS:
         return {
             "ok": False,
-            "error": f"yaml_body 超过 {WRITE_POST_PROCESS_PROCESSOR_MAX_CHARS} 个字符",
+            "error": f"json_body 超过 {WRITE_POST_PROCESS_PROCESSOR_MAX_CHARS} 个字符",
         }
-    return PostProcess.write_user_post_processor_yaml(
+    return PostProcess.write_user_post_processor(
         key=key.strip(),
-        yaml_body=body,
+        json_body=body,
     )

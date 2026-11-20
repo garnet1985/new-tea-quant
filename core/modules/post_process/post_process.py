@@ -141,7 +141,7 @@ class PostProcess:
 
     @staticmethod
     def set_enabled(key: str, enabled: bool) -> PostProcessorDefinition:
-        """写入 YAML ``is_enabled``。"""
+        """写入 JSON ``is_enabled``。"""
         return write_set_enabled(key, enabled)
 
     @staticmethod
@@ -254,7 +254,7 @@ class PostProcess:
         adapter_name: str = "",
         is_enabled: bool = False,
     ) -> Dict[str, Any]:
-        """在 ``userspace/.../post_processors`` 新建 YAML 骨架。"""
+        """在 ``userspace/.../post_processors`` 新建 JSON 骨架。"""
         from core.modules.post_process.core.user_post_process import UserPostProcessOps
 
         return UserPostProcessOps.scaffold_post_processor(
@@ -265,16 +265,16 @@ class PostProcess:
         )
 
     @staticmethod
-    def write_user_post_processor_yaml(
+    def write_user_post_processor(
         *,
         key: str,
-        yaml_body: str = "",
+        json_body: str = "",
     ) -> Dict[str, Any]:
-        """覆盖 PostProcessor YAML（key 强制对齐目录）。"""
+        """覆盖 PostProcessor JSON（key 强制对齐目录）。"""
         from core.modules.post_process.core.user_post_process import UserPostProcessOps
 
-        return UserPostProcessOps.write_post_processor_yaml(
-            key=key, yaml_body=yaml_body
+        return UserPostProcessOps.write_post_processor(
+            key=key, json_body=json_body
         )
 
     @staticmethod

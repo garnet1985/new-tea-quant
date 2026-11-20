@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-import yaml
 
 from core.infra.project_context import ProjectContext
 from core.modules.post_process.core.post_processor_types import (
@@ -14,10 +13,7 @@ from core.modules.post_process.core.post_processor_types import (
 )
 
 _DEF_FILENAMES = (
-    "post_processor.yaml",
-    "post_processor.yml",
-    "post_process.yaml",
-    "post_process.yml",
+    "post_processor.json",
 )
 
 
@@ -31,7 +27,7 @@ class PostProcessorLoader:
         for child in sorted(root.iterdir()):
             if child.name.startswith(("_", ".")):
                 continue
-            if child.is_file() and child.suffix.lower() in (".yaml", ".yml"):
+            if child.is_file() and child.suffix.lower() == ".json":
                 keys.append(child.stem)
                 continue
             if child.is_dir():
@@ -47,10 +43,9 @@ class PostProcessorLoader:
         if not name:
             return None
         root = ProjectContext.path.get_post_processors_directory()
-        for suffix in (".yaml", ".yml"):
-            path = root / f"{name}{suffix}"
-            if path.is_file():
-                return path
+        flat = root / f"{name}.json"
+        if flat.is_file():
+            return flat
         for fname in _DEF_FILENAMES:
             path = root / name / fname
             if path.is_file():
@@ -63,7 +58,7 @@ class PostProcessorLoader:
         if path is None:
             return None
         try:
-            raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            raw = json.loads(path.read_text(encoding="utf-8")) or {}
         except Exception:
             return None
         if not isinstance(raw, dict):

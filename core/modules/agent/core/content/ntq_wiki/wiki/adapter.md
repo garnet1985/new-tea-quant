@@ -7,15 +7,16 @@
 ```text
 userspace/extensions/post_process/
 ├── adapters/<name>/adapter.py
-└── post_processors/<key>/post_processor.yaml   # is_enabled: true|false
+└── post_processors/<key>/post_processor.json   # is_enabled: true|false
 ```
 
 ## 启用
 
-```yaml
-# post_processors/presenter/post_processor.yaml
-key: presenter
-is_enabled: true
+```json
+{
+  "key": "presenter",
+  "is_enabled": true
+}
 ```
 
 详见 `core/modules/post_process/docs/`。

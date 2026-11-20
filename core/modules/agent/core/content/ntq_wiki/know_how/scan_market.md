@@ -51,7 +51,7 @@ python cli.py c --demo
 
 ## 后续处理（PostProcess）
 
-扫描完成后自动执行 userspace 中所有 ``is_enabled: true`` 的 PostProcessor（与策略无关）。在对应 `post_processor.yaml` 里开关；勿同时启用会重复通知的多套装配。
+扫描完成后自动执行 userspace 中所有 ``is_enabled: true`` 的 PostProcessor（与策略无关）。在对应 `post_processor.json` 里开关；勿同时启用会重复通知的多套装配。
 
 详见 [如何编写后续处理](write_adapter.md)。
 

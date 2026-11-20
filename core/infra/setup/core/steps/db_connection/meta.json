@@ -1,13 +1,13 @@
 {
   "id": "db_connection",
-  "name": "DB 配置检查/填写",
-  "description": "校验数据库连接信息并执行数据库就绪检查。默认使用 DuckDB（userspace/system/db/ 下三域文件）。",
+  "name": "数据库配置",
+  "description": "确认数据库连接信息。默认使用本地文件数据库（DuckDB），一般无需改动即可继续。",
   "scriptEntry": "core/infra/setup/core/steps/db_connection/install.py",
   "requiresUserInput": true,
   "inputSchema": [
     {
       "key": "dbType",
-      "label": "Database Type",
+      "label": "数据库类型",
       "type": "select",
       "required": true,
       "defaultValue": "duckdb",
@@ -17,48 +17,48 @@
           "value": "duckdb"
         },
         {
-          "label": "postgresql",
+          "label": "PostgreSQL（远程/自建）",
           "value": "postgresql"
         },
         {
-          "label": "mysql",
+          "label": "MySQL（远程/自建）",
           "value": "mysql"
         }
       ]
     },
     {
       "key": "host",
-      "label": "Host",
+      "label": "主机地址",
       "type": "text",
       "required": false
     },
     {
       "key": "port",
-      "label": "Port",
+      "label": "端口",
       "type": "text",
       "required": false
     },
     {
       "key": "database",
-      "label": "Database Name",
+      "label": "数据库名称",
       "type": "text",
       "required": false
     },
     {
       "key": "user",
-      "label": "User",
+      "label": "用户名",
       "type": "text",
       "required": false
     },
     {
       "key": "password",
-      "label": "Password",
+      "label": "密码",
       "type": "password",
       "required": false
     },
     {
       "key": "defaultPgsqlSchema",
-      "label": "Schema",
+      "label": "数据库模式",
       "type": "text",
       "required": false
     }

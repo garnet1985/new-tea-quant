@@ -27,7 +27,7 @@ function SetupLicensePage() {
       })
       .catch((err) => {
         if (!alive) return;
-        setError(err?.message || '暂时打不开条款状态，仍可打开下面的页面阅读。');
+        setError(err?.message || '暂时无法获取条款状态，但是您仍可通过打开下面的页面阅读最新版条款。');
       })
       .finally(() => {
         if (!alive) return;
@@ -75,10 +75,10 @@ function SetupLicensePage() {
           )}
         </div>
         <h1 id="license-gate-title" className="license-gate__title">
-          同意使用条款后才能继续
+          您需要同意使用条款才能继续
         </h1>
         <div className="license-gate__copy ntq-muted">
-          <p>只有同意使用条款，才能继续安装和使用 New Tea Quant。不同意将退出。</p>
+          <p>您需要同意使用条款，才能继续安装和使用新茶量化(New Tea Quant)。不同意将退出。</p>
           {disclaimerUrl || licenseUrl ? (
             <p>
               {disclaimerUrl ? (
@@ -89,12 +89,12 @@ function SetupLicensePage() {
               {disclaimerUrl && licenseUrl ? ' · ' : null}
               {licenseUrl ? (
                 <a className="ntq-link" href={licenseUrl} target="_blank" rel="noopener noreferrer">
-                  NTQ 许可证
+                  新茶量化(New Tea Quant)许可证
                 </a>
               ) : null}
             </p>
           ) : null}
-          <p>全文在仓库根目录的 DISCLAIMER.md 与 LICENSE。条款以后改了，会再问一次。</p>
+          <p>完整条款也可通过上方链接查看。条款更新后，会再次请您确认。</p>
         </div>
         {error ? <Message status="error">{error}</Message> : null}
         {exiting ? <Message status="info">未同意，正在退出。</Message> : null}

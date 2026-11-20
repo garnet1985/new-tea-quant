@@ -1,7 +1,7 @@
 {
   "id": "resolve_ml_deps",
-  "name": "机器学习依赖",
-  "description": "可选安装 XGBoost 与 SHAP。跳过后可在设置中补装。",
+  "name": "安装机器学习插件",
+  "description": "可选安装机器学习相关插件。跳过后可在设置中补装。",
   "scriptEntry": "core/infra/setup/core/steps/resolve_ml_deps/install.py",
   "requiresUserInput": true,
   "optional": true,

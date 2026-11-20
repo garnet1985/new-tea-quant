@@ -56,7 +56,7 @@ function SetupExecutionPanel({
 
   return (
     <section className="setup-exec-panel">
-      <h3 className="setup-exec-panel__title">自动执行步骤</h3>
+      <h3 className="setup-exec-panel__title">正在安装</h3>
       <p className="setup-exec-panel__text ntq-muted">{progressText}</p>
       {pollWarning ? (
         <Message status="warning">
@@ -73,7 +73,7 @@ function SetupExecutionPanel({
                 <>
                   导入进度：{importProgress.completedCount}/{importProgress.totalTables}
                   （{Math.round(progressRatio(importProgress.ratio) * 100)}%）
-                  {importProgress.currentTable ? `，当前表：${importProgress.currentTable}` : ''}
+                  {importProgress.currentTable ? `，正在处理：${importProgress.currentTable}` : ''}
                 </>
               )
               : '准备导入…'}

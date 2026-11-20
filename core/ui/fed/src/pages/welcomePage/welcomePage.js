@@ -119,7 +119,7 @@ function WelcomePage() {
 
         <Section className="welcome-lower" gap="xl">
           <Message status="success">
-            您的安装已经全部完成，欢迎使用 New Tea Quant（NTQ）。
+            您的安装已经全部完成，欢迎使用新茶量化 (New Tea Quant)。
           </Message>
 
           <div>

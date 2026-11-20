@@ -48,8 +48,14 @@ function Select({
   const placement = pickToken(labelPlacement, FIELD_LABEL_PLACEMENTS, 'above');
   const list = Array.isArray(options) ? options : [];
   const hasFieldChrome = placement !== 'none' || tip || hint || error || label;
+  // 必填时不允许空值：不下发「请选择」项，也避免把空串当成合法选中值展示。
+  const allowEmpty = !required && displayEmpty;
   const empty = multiple ? [] : '';
-  const current = value === undefined || value === null ? empty : value;
+  let current = value === undefined || value === null ? empty : value;
+  if (!multiple && required && (current === '' || current === null || current === undefined) && list.length > 0) {
+    const firstEnabled = list.find((opt) => !opt.disabled) || list[0];
+    current = firstEnabled?.value ?? empty;
+  }
   const widthClass = maxWidth ? 'ntq-input--capped' : 'ntq-input--fluid';
   const chromeClass = inputChromeClass({ surface, radius });
 
@@ -123,7 +129,7 @@ function Select({
         }}
         {...selectRest}
       >
-        {!multiple && displayEmpty ? (
+        {!multiple && allowEmpty ? (
           <MenuItem value="">
             <span className="ntq-select__placeholder">{placeholder}</span>
           </MenuItem>

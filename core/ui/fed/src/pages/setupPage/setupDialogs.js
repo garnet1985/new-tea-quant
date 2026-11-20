@@ -17,7 +17,7 @@ function SetupDialogs({
       <Dialog
         open={overwriteConfirmOpen}
         onClose={() => setOverwriteConfirmOpen(false)}
-        title="确认覆盖 userspace"
+        title="确认覆盖用户空间"
         size="sm"
         actions={(
           <>
@@ -37,7 +37,7 @@ function SetupDialogs({
         )}
       >
         <p className="ntq-muted">
-          你选择了“覆盖 userspace”。此操作会删除目标目录中的现有内容，并用初始化包重新解压，
+          您已选择“覆盖用户空间”。此操作会删除目标目录中的现有内容，并重新初始化，
           可能覆盖现有策略、标签和用户配置。确定继续吗？
         </p>
       </Dialog>
@@ -45,7 +45,7 @@ function SetupDialogs({
       <Dialog
         open={dbRiskConfirmOpen}
         onClose={() => setDbRiskConfirmOpen(false)}
-        title="确认数据库风险"
+        title="确认是否覆盖已有数据"
         size="sm"
         actions={(
           <>
@@ -67,21 +67,17 @@ function SetupDialogs({
         <p className="ntq-muted">
           {isDuckdb ? (
             <>
-              系统检测到
-              {' '}
-              <strong>userspace/system/db/</strong>
-              {' '}
-              下已有 DuckDB 数据文件（如 data.duckdb / tag.duckdb / strategy.duckdb）。
-              继续执行后，初始化数据导入可能覆盖其中部分表数据。请确认你要继续。
+              系统检测到本地数据库目录中已有数据文件。
+              继续安装后，导入演示数据可能覆盖其中部分内容，且通常无法撤销。请确认要继续。
             </>
           ) : (
             <>
               系统检测到目标数据库
               {dbRiskContext.dbType || dbRiskContext.database
-                ? `（${dbRiskContext.dbType || 'db'}:${dbRiskContext.database || '未命名'}）`
+                ? `（${dbRiskContext.dbType || '数据库'}:${dbRiskContext.database || '未命名'}）`
                 : ''}
               已存在。
-              继续执行后，初始化数据导入可能覆盖其中部分表数据。请确认你要继续覆盖初始化数据。
+              继续安装后，导入演示数据可能覆盖其中部分内容，且通常无法撤销。请确认要继续。
             </>
           )}
         </p>

@@ -26,7 +26,14 @@ def test_resolve_backtest_price_needs_tool_and_intent() -> None:
             "帮我总结",
             [{"tool": "read_execution_report", "ok": True, "layer": "portfolio"}],
         )
-        is None
+        == "backtest_portfolio"
+    )
+    assert (
+        resolve_present_scenario(
+            "帮我总结一下机会盘点",
+            [{"tool": "read_execution_report", "ok": True, "layer": "enum"}],
+        )
+        == "backtest_enum"
     )
 
 
@@ -78,7 +85,7 @@ def test_run_present_calls_ask_with_template(monkeypatch) -> None:
     blob = "\n".join(m["content"] for m in calls[0]["messages"])
     assert "backtest_price" in blob
     assert "胜率 0.55" in blob
-    assert "收益成绩单" in blob
+    assert "一句话成绩" in blob
 
 
 def test_run_present_fallback_on_ask_error(monkeypatch) -> None:

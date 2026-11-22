@@ -26,9 +26,10 @@ import { Showcase, SampleDim, SampleRow, SampleNA } from './sample';
  * 外层已有 BrowserRouter，禁止再包 MemoryRouter。
  */
 function DemoLink({ to, children, className, onClick }) {
+  const href = typeof to === 'string' && to ? to : '/';
   return (
     <a
-      href={typeof to === 'string' ? to : '#'}
+      href={href}
       className={className}
       onClick={(e) => {
         e.preventDefault();

@@ -83,7 +83,9 @@ class TestDataSourceApi(unittest.TestCase):
             with patch.object(mgr, "execute") as execute:
                 mgr.renew(table_name="sys_data_stock_klines", force=True)
         resolve.assert_called_once_with("sys_data_stock_klines")
-        execute.assert_called_once_with(sources=("stock_klines",), force=True)
+        execute.assert_called_once_with(
+            sources=("stock_klines",), force=True, progress_id=None
+        )
 
     def test_renew_all_delegates_to_execute(self):
         from core.modules.data_source import DataSourceManager
@@ -91,7 +93,7 @@ class TestDataSourceApi(unittest.TestCase):
         mgr = DataSourceManager()
         with patch.object(mgr, "execute") as execute:
             mgr.renew(table_name=None, force=False)
-        execute.assert_called_once_with(sources=None, force=False)
+        execute.assert_called_once_with(sources=None, force=False, progress_id=None)
 
     def test_list_renew_targets_shape(self):
         from core.modules.data_source import DataSourceManager

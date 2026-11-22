@@ -1,6 +1,6 @@
 {
   "version": "0.6.0",
-  "release_date": "2026-10-12",
+  "release_date": "2026-11-22",
   "description": "版本发布",
   "python": {
     "minimum": [
@@ -9,12 +9,27 @@
     ]
   },
   "new_features": [
-    "股票行业改为申万2021分类，并重新导入示例数据",
-    "更新了股票分类和分类K线的datakey，并且补上了之前漏掉的货币供应的datakey",
-    "整理了命令行日志输出：针对用户的日志更加精简，针对开发者的则更加详细。",
-    "增加了UI上的标签计算的可视化，现在标签无论是用来分类还是标记时间段，都可以非常直观的在UI上看到了",
-    "增加了滚动回测功能，可以额外设置与主回测不同的单个或多个回测时间段用来验证策略是不是在回测时间段以外也同样有效",
-    "增加了NTQ自带的AI中转，如果在官网注册会员，可以使用会员凭证每日有30次免费AI的咨询。"
+    "0.6.0 起改用 NTQ 许可证。（见具体改动A，非商业可以随便玩，商用需授权）",
+    "更改了用户安装的步骤，同意NTQ条例才可以使用NTQ。",
+    "升级python最小支持到3.11，不再支持3.9和3.10",
+    "升级其他依赖对齐当前稳定版。见具体改动C",
+    "将所有和NTQ官网的通信收入ntq_external模块中；",
+    "(破坏性改动)重新命名所有策略函数的钩子命名和暴露的参数，见具体改动B",
+    "(破坏性改动)重新命名回测过程中的指标命名方式，加入alias（同名）快捷命名方式",
+    "(破坏性改动)重构数据库表命名，加入kind命名空间",
+    "加入新的ruff的代码规范并修改相应的报错。见具体改动D",
+    "新加入进度模块统一管理app的所有进度相关的信息 infra/progress",
+    "重写AI相关模块，分成infra/ai（基建）和 modules/agent（代理）模块",
+    "新增加job pipeline（任务管线）功能，替换和升级原来的 task guard（长任务守护）模块",
+    "演示数据包不再随仓库发布；安装 / `cli.py id` 从官网 `ntq_data` 公开接口下载",
+    "修复了资金回测层因为进度不细致导致前端显示进度超时的问题",
+    "加强了演示的扫描后处理的两个适配器：回测历史呈现和ntq邮件报告，会员可以有一定的邮件汇报扫描结果的测试额度",
+    "改正了回测步骤中强制刷新本步骤一定会强制刷新机会盘点步骤的bug，现在变成通过指纹比对机会盘点的结果，如果指纹不变就复用，后两步强制回测速度大大提升。",
+    "前端加入ui（可跨项目）和 ntq-ui（项目内重用ui）基础组件，并且让所有页面适配。",
+    "A 非商用沿用 Apache 2.0 条款，商用需书面授权，并须去掉 `core/modules/ntq_external`（会员 AI、反馈、使用统计等打到 new-tea.cn 的客户端）",
+    "B 策略钩子改为显式载荷：`is_opportunity(ctx, records)`、`on_calendar_slice(ctx, calendar_slice)`、`select_portfolio_entries(ctx, opportunities)`。跨日状态用 `ctx.state`，归因仍用 `ctx.capture`。删除 `has_opportunity`、`on_calendar_asof`、`on_pick_portfolio_member`、`calendar_asof_needs_by_entity`、`on_before_scan` / `on_after_scan`，以及 `signal_date` / `core_int` / `core_float` / `deterministic_roll`。",
+    "C 升级的依赖为：duckdb 1.5.6、PyMySQL 1.2.3、psycopg2-binary 2.9.13、requests 2.34.2、urllib3 2.8、Flask-CORS 6.0.5、NumPy 2.4.6、SciPy 1.17.1、pandas-ta-classic 0.8.32。UI 最小依赖改为 Flask 3.1，不再单独锁 Flask 2.3",
+    "D ruff 本版新加入 F821（未定义名字）、F402（循环变量盖住 import）、F811（重复定义未使用的名字）、B007（循环变量没用到）"
   ],
   "update_plan": {
     "managed_scope": [

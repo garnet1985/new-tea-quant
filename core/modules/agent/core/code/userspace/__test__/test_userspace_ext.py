@@ -56,17 +56,18 @@ def test_template_override_builtin(agent_ext: Path) -> None:
 
 
 def test_new_template_match(agent_ext: Path) -> None:
+    # 内置会先吃掉 read_execution_report+portfolio；userspace 新 scenario 需用不冲突的 tool。
     (agent_ext / "templates" / "my_portfolio.md").write_text(
         "---\n"
         "match:\n"
-        "  tool: read_execution_report\n"
+        "  tool: custom_portfolio_report\n"
         "  layer: portfolio\n"
         "  user_re: 总结|解读\n"
         "---\n\n"
         "# 资金层自定义\n",
         encoding="utf-8",
     )
-    tools = [{"tool": "read_execution_report", "ok": True, "layer": "portfolio"}]
+    tools = [{"tool": "custom_portfolio_report", "ok": True, "layer": "portfolio"}]
     assert resolve_present_scenario("帮我总结资金层", tools) == "my_portfolio"
     assert resolve_present_scenario("帮我总结资金层", []) is None
 

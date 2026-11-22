@@ -30,7 +30,7 @@ class TestIndicatorApi(unittest.TestCase):
     def test_facade_export(self) -> None:
         import core.modules.indicator as pkg
 
-        self.assertEqual(pkg.__all__, ["Indicator"])
+        self.assertEqual(pkg.__all__, ["Indicator", "field_naming"])
         self.assertFalse(hasattr(pkg, "IndicatorService"))
         self.assertFalse(hasattr(pkg, "BatchIndicatorResult"))
 

@@ -31,7 +31,7 @@ def test_missing_token_still_returns_policy(tmp_path, monkeypatch):
     body = member_mail_quota()
     assert body["available"] is False
     assert body["reason"] == "missing"
-    assert "终身共可发" in body["policy"]
+    assert "目前共可发" in body["policy"]
     assert "注册邮箱" in body["policy"]
     assert "80" in body["policy"]
     assert TOKEN not in json.dumps(body)
@@ -53,7 +53,7 @@ def test_rejected_token(token_file, monkeypatch):
     body = member_mail_quota()
     assert body["available"] is False
     assert body["reason"] == "rejected"
-    assert "终身共可发" in body["policy"]
+    assert "目前共可发" in body["policy"]
 
 
 def test_quota_ok(token_file, monkeypatch):

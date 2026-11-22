@@ -4,7 +4,7 @@
 
 当前解释器必须是 Python 3.11+。检查项：
 - 泛型类 ``class C[T]:``（3.12+）
-- ``sys.executable -m py_compile``
+- ``ast.parse``（与当前解释器语法一致；不再对每个文件起 ``py_compile`` 子进程）
 
 用法::
 
@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import argparse
 import ast
-import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, List, Optional, Sequence, Tuple
@@ -101,36 +101,6 @@ def _ast_issues_for_file(path: Path, source: str) -> List[CompatIssue]:
     return issues
 
 
-def _py311_compile_issues(paths: Sequence[Path]) -> List[CompatIssue]:
-    issues: List[CompatIssue] = []
-    for path in paths:
-        proc = subprocess.run(
-            [sys.executable, "-m", "py_compile", str(path)],
-            capture_output=True,
-            text=True,
-        )
-        if proc.returncode == 0:
-            continue
-        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
-        msg = detail[-1] if detail else "py_compile 失败"
-        line = 1
-        if "line " in msg:
-            try:
-                frag = msg.split("line ", 1)[1]
-                line = int(frag.split(")", 1)[0].strip())
-            except (IndexError, ValueError):
-                line = 1
-        issues.append(
-            CompatIssue(
-                path=path,
-                line=line,
-                rule="py311-compile",
-                message=msg,
-            )
-        )
-    return issues
-
-
 def iter_scan_paths() -> Iterator[Path]:
     seen: set[Path] = set()
     for root in _SCAN_ROOTS:
@@ -142,7 +112,7 @@ def iter_scan_paths() -> Iterator[Path]:
                 seen.add(resolved)
                 yield root
             continue
-        for path in sorted(root.rglob("*.py")):
+        for path in root.rglob("*.py"):
             if any(part in _SKIP_DIR_NAMES for part in path.parts):
                 continue
             if "core/ui/fed" in path.as_posix():
@@ -165,10 +135,14 @@ def collect_py311_compat_issues(
     paths: Optional[Iterable[Path]] = None,
     use_py311_compile: bool = True,
 ) -> List[CompatIssue]:
-    """收集所有兼容性问题；不修改源码。"""
+    """收集所有兼容性问题；不修改源码。
+
+    ``use_py311_compile`` 保留兼容旧调用方；同解释器下 ``ast.parse`` 已覆盖
+    原先逐文件 ``py_compile`` 子进程的语法检查，故该参数不再触发额外编译。
+    """
+    del use_py311_compile  # 见 docstring：避免 2000+ 次子进程启动
     py_paths = list(paths) if paths is not None else list(iter_scan_paths())
     all_issues: List[CompatIssue] = []
-    compile_candidates: List[Path] = []
 
     for path in py_paths:
         try:
@@ -183,13 +157,7 @@ def collect_py311_compat_issues(
                 )
             )
             continue
-        file_issues = _ast_issues_for_file(path, source)
-        all_issues.extend(file_issues)
-        if not file_issues:
-            compile_candidates.append(path)
-
-    if use_py311_compile and compile_candidates:
-        all_issues.extend(_py311_compile_issues(compile_candidates))
+        all_issues.extend(_ast_issues_for_file(path, source))
 
     return sorted(all_issues, key=lambda i: (i.path.as_posix(), i.line, i.rule))
 
@@ -203,9 +171,17 @@ def run_py311_compat_check(*, use_py311_compile: bool = True) -> int:
             flush=True,
         )
         return 1
-    issues = collect_py311_compat_issues(use_py311_compile=use_py311_compile)
-    if use_py311_compile:
-        print(f"  已使用 {sys.executable} 做 py_compile", flush=True)
+    t0 = time.perf_counter()
+    py_paths = list(iter_scan_paths())
+    issues = collect_py311_compat_issues(
+        paths=py_paths,
+        use_py311_compile=use_py311_compile,
+    )
+    elapsed = time.perf_counter() - t0
+    print(
+        f"  已用 {sys.executable} AST 扫描 {len(py_paths)} 个 .py（{elapsed:.1f}s）",
+        flush=True,
+    )
 
     if not issues:
         print("  未发现已知的 3.11 不兼容写法。", flush=True)
@@ -232,7 +208,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--no-py311-compile",
         action="store_true",
-        help="不调用本机 python3.11 py_compile",
+        help="兼容旧开关；现已始终只用 AST，不再起 py_compile 子进程",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
     return run_py311_compat_check(use_py311_compile=not args.no_py311_compile)

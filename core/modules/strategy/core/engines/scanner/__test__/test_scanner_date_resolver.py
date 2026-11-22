@@ -103,6 +103,6 @@ def test_non_strict_meta_mentions_data_json(monkeypatch: pytest.MonkeyPatch) -> 
     meta = ScanDateResolver.resolve_anchor_meta(dm, use_strict=False)
     assert meta["mode"] == "non_strict"
     assert meta["source"] == "data_json_assumed_latest"
-    assert "data.json" in meta["source_detail"]
-    assert "assumed_latest_completed_trading_date" in meta["source_detail"]
+    assert "假定最新完结交易日" in meta["source_detail"]
+    assert "2024-01-15" in meta["source_detail"]
     assert meta["assumed_latest_completed_trading_date"] == "20240115"

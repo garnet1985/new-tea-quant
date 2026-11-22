@@ -239,6 +239,11 @@ def test_run_strategy_delete_version_ok(monkeypatch, capsys) -> None:
 
     class FakeStrategy:
         @staticmethod
+        def parse_version_spec(raw: object) -> tuple:
+            assert raw == "rsi_v1:3"
+            return "rsi_v1", 3
+
+        @staticmethod
         def resolve(spec: str) -> str:
             assert spec == "rsi_v1"
             return "rsi_v1"
@@ -261,6 +266,10 @@ def test_run_strategy_delete_version_missing_strategy(monkeypatch) -> None:
 
     class FakeStrategy:
         @staticmethod
+        def parse_version_spec(raw: object) -> tuple:
+            return "nope", 3
+
+        @staticmethod
         def resolve(spec: str) -> str:
             raise FileNotFoundError(spec)
 
@@ -275,6 +284,10 @@ def test_run_strategy_delete_version_prints_ok(monkeypatch, capsys) -> None:
     from core.modules.cli.user.handlers import UserHandlers
 
     class FakeStrategy:
+        @staticmethod
+        def parse_version_spec(raw: object) -> tuple:
+            return "rsi_v1", 3
+
         @staticmethod
         def resolve(spec: str) -> str:
             return "rsi_v1"

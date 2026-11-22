@@ -115,6 +115,26 @@ _TOOLS: tuple[ToolSpec, ...] = (
         implemented=True,
     ),
     ToolSpec(
+        name="duckdb_file_locks",
+        description=(
+            "排查或清理占用本机 DuckDB 文件（userspace/system/db/*.duckdb）的进程。"
+            "出现「文件被其他进程占用 / Conflicting lock」时先用本工具："
+            "默认只列出；kill=true 结束卡死的 Python 占用；"
+            "force=true 才允许结束 launcher/BFF。"
+            "不删库、不删 .wal。"
+        ),
+        parameters=_object(
+            {
+                "kill": _boolean("true=结束可清理进程；默认 false 只列出"),
+                "force": _boolean(
+                    "true=连 launcher/BFF 一并结束；仅在确认可关界面时使用"
+                ),
+            },
+            [],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
         name="read_url",
         description=(
             "抓取单个 http(s) 链接正文（Markdown）。用于用户给出的文档/公告链接。"

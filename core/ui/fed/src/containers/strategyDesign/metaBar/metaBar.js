@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Heading, Message } from 'ui';
+import { Button, Heading, HelpTooltip, Message } from 'ui';
 import StrategyMetaDetailText from '../strategyMetaDetailText';
 import { getStrategyListPath } from 'containers/strategyCategory';
 import { formatGoalSummaryLines, resolveStrategyShortLabel } from 'containers/strategySettings';
@@ -66,6 +66,19 @@ function StrategyDesignMetaBar() {
             <Heading level="h3" gap="none" className="ntq-design-meta__strategy-name">
               {strategyLabel}
             </Heading>
+            {wb.strategyDescription ? (
+              <HelpTooltip
+                title={(
+                  <span className="ntq-design-meta__strategy-desc-tip-body">
+                    {wb.strategyDescription}
+                  </span>
+                )}
+                variant="info"
+                placement="bottom"
+                ariaLabel="策略说明"
+                className="ntq-design-meta__strategy-desc-tip"
+              />
+            ) : null}
             {wb.hasPersistedSnapshot ? (
               <div className="ntq-design-meta__version-capsule-wrap" data-ntq-help="strategy-version">
                 <div

@@ -26,11 +26,14 @@ def _ensure_worker_atexit_registered() -> None:
     _ATEXIT_REGISTERED = True
 
 
-def _connect_duckdb_data_domain_readonly(db: Any) -> None:
+def _connect_duckdb_worker_domains_readonly(db: Any) -> None:
+    """子进程只读打开 data + tag（策略可读标签；不连 strategy 写库）。"""
     last_exc: Optional[BaseException] = None
     for attempt in range(1, 9):
         try:
-            Db.duckdb.worker_pool.connect_domains(db, domains=("data",), read_only=True)
+            Db.duckdb.worker_pool.connect_domains(
+                db, domains=("data", "tag"), read_only=True
+            )
             return
         except Exception as exc:
             last_exc = exc
@@ -44,7 +47,7 @@ def _connect_duckdb_data_domain_readonly(db: Any) -> None:
 
 
 def create_worker_data_manager() -> Any:
-    """子进程专用 DataManager：DuckDB 只读 data 域，或 MySQL 等完整 initialize。"""
+    """子进程专用 DataManager：DuckDB 只读 data/tag 域，或 MySQL 等完整 initialize。"""
     from core.modules.data_manager import DataManager
 
     db = DatabaseManager(
@@ -56,7 +59,7 @@ def create_worker_data_manager() -> Any:
         db.engine.rebuild_table_file_map(
             table_to_domain=db.storage_registry.table_to_domain
         )
-        _connect_duckdb_data_domain_readonly(db)
+        _connect_duckdb_worker_domains_readonly(db)
         db._initialized = True
     else:
         db.initialize()

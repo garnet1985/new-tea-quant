@@ -1,4 +1,4 @@
-/** 后续处理：`/advanced/post-process` */
+/** 扫描后机会处理：`/advanced/post-process` */
 export function matchPostProcess(pathname) {
   const path = String(pathname || '').replace(/\/+$/, '') || '/';
   return path === '/advanced/post-process';
@@ -13,8 +13,8 @@ export const POST_PROCESS_HELP = {
     {
       pages: [
         {
-          title: '后续处理',
-          body: '这里管理策略扫描到机会之后，如何处理这些机会。机会的后续处理由「处理方案」和「执行单元」两部分组成。',
+          title: '扫描后机会处理',
+          body: '这里管理策略扫描到机会之后，如何处理这些机会。由「处理方案」和「执行单元」两部分组成。',
         },
       ],
     },
@@ -23,7 +23,7 @@ export const POST_PROCESS_HELP = {
       pages: [
         {
           title: '处理方案',
-          body: '这里管理后续处理的执行方案：把多个执行单元按依赖组合成一套计划，扫描结束后会按启用的方案去跑。',
+          body: '这里管理扫描后机会处理的执行方案：把多个执行单元按依赖组合成一套计划，扫描结束后会按启用的方案去跑。',
         },
       ],
     },
@@ -32,7 +32,7 @@ export const POST_PROCESS_HELP = {
       pages: [
         {
           title: '启用',
-          body: '只有启用的后续处理方案才会真正执行；未启用的方案会保留配置，但扫描后不会跑。',
+          body: '只有启用的方案才会真正执行；未启用的方案会保留配置，但扫描后不会跑。',
         },
       ],
     },

@@ -600,8 +600,8 @@ function DataSourceListPage() {
     <PageLayout
       className="data-source-list-page"
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
-      breadcrumbsCurrent="数据源"
-      bannerTitle="数据源"
+      breadcrumbsCurrent="数据源接入"
+      bannerTitle="数据源接入"
       bannerDescription="查看已接入的外部数据源，并更新本地行情与基础数据。"
       bannerRightSlot={(
         <Tag status={statusTag.status} variant={statusTag.variant}>

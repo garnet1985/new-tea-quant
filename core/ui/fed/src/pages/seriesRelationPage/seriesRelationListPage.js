@@ -46,7 +46,7 @@ function SeriesRelationListPage() {
       })
       .catch((err) => {
         setRows([]);
-        setLoadError(err?.message || '加载序列关系列表失败');
+        setLoadError(err?.message || '加载走势关联列表失败');
       })
       .finally(() => {
         setLoading(false);
@@ -153,11 +153,11 @@ function SeriesRelationListPage() {
     <PageLayout
       className="ntq-srel-list-page"
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
-      breadcrumbsCurrent="序列关系"
-      bannerTitle="序列关系"
-      bannerDescription="对比多条时间序列，观察它们之间的关联与相关性。"
+      breadcrumbsCurrent="走势关联"
+      bannerTitle="走势关联"
+      bannerDescription="对比多条时间序列，观察它们是同涨同跌、谁先谁后，以及相关程度。"
       loading={!pageReady}
-      loadingMessage="正在加载序列关系…"
+      loadingMessage="正在加载走势关联…"
     >
       <Section className="ntq-srel-list-page__stack" gap="md">
         {loadError ? <Message status="error">{loadError}</Message> : null}
@@ -169,7 +169,7 @@ function SeriesRelationListPage() {
                 fluid
                 surface="glass"
                 placeholder="搜索名称或 Key"
-                label="搜索序列关系"
+                label="搜索走势关联"
                 value={nameQuery}
                 onChange={(e) => setNameQuery(e.target.value)}
               />
@@ -222,7 +222,7 @@ function SeriesRelationListPage() {
       <Dialog
         open={newOpen}
         onClose={() => setNewOpen(false)}
-        title="新建序列关系场景"
+        title="新建走势关联场景"
         size="sm"
         actions={(
           <>

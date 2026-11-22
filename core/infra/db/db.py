@@ -279,6 +279,24 @@ class DuckdbNamespace:
         return resolve_duckdb_db_path(db_path)
 
     @staticmethod
+    def inspect_file_locks() -> Dict[str, Any]:
+        """列出占用 ``userspace/system/db/*.duckdb`` 的进程（只读）。"""
+        from core.infra.db.core.engines.duckdb.file_lock import DuckdbFileLock
+
+        return DuckdbFileLock.inspect()
+
+    @staticmethod
+    def release_file_locks(*, kill: bool = False, force: bool = False) -> Dict[str, Any]:
+        """排查并可选结束占用 DuckDB 文件的进程。
+
+        ``kill=False`` 只列出；``kill=True`` 结束卡死的 Python 占用；
+        ``force=True`` 才允许结束 launcher/BFF。
+        """
+        from core.infra.db.core.engines.duckdb.file_lock import DuckdbFileLock
+
+        return DuckdbFileLock.release(kill=kill, force=force)
+
+    @staticmethod
     def overlay_domain_paths(
         base_config: Optional[Dict[str, Any]] = None,
         *,

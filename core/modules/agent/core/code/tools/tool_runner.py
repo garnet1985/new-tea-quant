@@ -134,6 +134,9 @@ from core.modules.agent.core.code.tools.post_process.enable import (
     set_post_processor_enabled,
 )
 from core.modules.agent.core.code.tools.general.calculator_tool import calculator
+from core.modules.agent.core.code.tools.general.duckdb_file_locks_tool import (
+    duckdb_file_locks,
+)
 from core.modules.agent.core.code.tools.general.fs_tools import (
     list_dir,
     read_file,
@@ -158,6 +161,7 @@ _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "search_files": search_files,
     "read_file": read_file,
     "calculator": calculator,
+    "duckdb_file_locks": duckdb_file_locks,
     "preview_data_rows": preview_data_rows,
     "trading_calendar": trading_calendar,
     "run_python_snippet": run_python_snippet,

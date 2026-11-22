@@ -253,7 +253,7 @@ Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUME
 
 | 符号 | 说明 |
 |------|------|
-| `StrategyHooks` / `StrategyContext` / `Records` / `Series` / `CalendarSlice` / `Opportunities` / `StrategyInfo` | userspace hook 契约。用法专文（用户/AI）：[`ntq_wiki/know_how/use_strategy_hooks.md`](../agent/core/content/ntq_wiki/know_how/use_strategy_hooks.md)。`is_opportunity(ctx, records) -> bool`；`ctx.state` 跨日、`ctx.capture` 归因。`Series`/`Records`/`CalendarSlice`/`Opportunities` 快捷见该文 |
+| `StrategyHooks` / `StrategyContext` / `Records` / `Series` / `CalendarSlice` / `Opportunities` / `StrategyInfo` | userspace hook 契约。用法专文（用户/AI）：[`ntq_wiki/know_how/use_strategy_hooks.md`](../agent/core/content/ntq_wiki/know_how/use_strategy_hooks.md)。`is_opportunity(ctx, records) -> bool`；`ctx.core` 读 `settings.core`；`ctx.state` 跨日、`ctx.capture` 归因。`Series`/`Records`/`CalendarSlice`/`Opportunities` 快捷见该文 |
 | `Opportunity` / `Investment` | 引擎共享数据类；`Opportunity.signal_snapshot` 为归因用决策现场记录 |
 | `AsOfSlice` / `JobBundleLoader` | 跨模块协作面（tag / BE 数据装载） |
 | （进度落盘） | 跨模块用 `infra.progress.Progress.channel`；strategy 内部 `ProgressRecorder` 不经 contracts |

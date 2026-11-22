@@ -486,11 +486,11 @@ function PostProcessPage() {
     <PageLayout
       className="post-process-page"
       breadcrumbsItems={[{ label: '高级功能', to: '/advanced/tags' }]}
-      breadcrumbsCurrent="后续处理"
-      bannerTitle="后续处理"
-      bannerDescription="定义策略选股结束后的全局后续动作，例如通知、过滤或接入机器学习。"
+      breadcrumbsCurrent="扫描后机会处理"
+      bannerTitle="扫描后机会处理"
+      bannerDescription="定义策略选股扫出机会之后的全局后续动作，例如通知、过滤或接入机器学习。"
       loading={!pageReady}
-      loadingMessage="正在加载后续处理…"
+      loadingMessage="正在加载扫描后机会处理…"
     >
       <Section className="post-process-page__stack" gap="md">
         {loadError ? <Message status="error">{loadError}</Message> : null}

@@ -233,7 +233,7 @@ function SeriesRelationReport({
     <div className="ntq-srel-showcase">
       <div className="ntq-srel-showcase__head">
         <div>
-          <p className="ntq-srel-showcase__eyebrow">序列关系</p>
+          <p className="ntq-srel-showcase__eyebrow">走势关联</p>
           <Heading level="h3" gap="none" className="ntq-srel-showcase__title">
             {meta.key || results.key || '—'}
           </Heading>

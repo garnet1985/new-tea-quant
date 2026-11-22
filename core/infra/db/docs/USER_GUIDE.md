@@ -49,7 +49,7 @@ DuckDB 的数据文件在 `userspace/system/db/` 下。
 ## 常见坑与注意事项
 
 - **改了数据库引擎忘了跑迁移**：新库是空的，看起来像"数据丢了"。其实旧数据还在原引擎里，切回去或完成迁移即可
-- **DuckDB 文件被另一进程占用**：报锁 / IO 错误。同一时间只能开一个实例，先关掉另一个再启动
+- **DuckDB 文件被另一进程占用**：报锁 / IO 错误。同一时间只能开一个实例。可先 `Db.duckdb.inspect_file_locks()` 查看，再 `Db.duckdb.release_file_locks(kill=True)` 结束卡死进程（助手工具名 `duckdb_file_locks`）；不要手删 `.wal`
 - **直接手动改 DuckDB 文件**：容易写坏，请通过应用操作数据
 - 删除 `userspace/system/db/` 等于清空全部本地数据，删前先备份
 

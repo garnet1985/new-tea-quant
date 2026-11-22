@@ -26,7 +26,7 @@ const NEXT_LINKS = [
   },
   {
     to: '/advanced/data-sources',
-    label: '高级功能 → 数据源',
+    label: '高级功能 → 数据源接入',
     body: '您可以在这里查看所有已经接入的外部数据源及其状态，并通过界面随时拉取和更新外部数据。',
   },
   {
@@ -36,12 +36,12 @@ const NEXT_LINKS = [
   },
   {
     to: '/advanced/series-relation',
-    label: '高级功能 → 序列关系',
+    label: '高级功能 → 走势关联',
     body: '您可以在这里对比任意两组或更多数据，从而从曲线中直观看出它们的关联和相关性。',
   },
   {
     to: '/advanced/post-process',
-    label: '高级功能 → 后续处理',
+    label: '高级功能 → 扫描后机会处理',
     body: '您可以在这里定义：当市场通过策略扫描出机会时，后续如何处理它们。发邮件通知？再次过滤？喂给机器学习？都随您任意扩展。',
   },
   {

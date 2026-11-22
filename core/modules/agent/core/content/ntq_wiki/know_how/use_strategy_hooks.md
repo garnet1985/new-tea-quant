@@ -77,7 +77,8 @@ from core.modules.strategy.contracts import (
 | `ctx.sample_list` | 本回测股票池（只读视图） |
 | `ctx.mode` | `entity_based` / `slice_based` |
 | `ctx.base_data_key` | 主数据键，通常 `stock.kline.daily` |
-| `ctx.effective_settings` / `effective_settings_dict()` | 有效配置 |
+| `ctx.core` | `settings.core` 私有参数（拷贝）；门槛、窗口等优先读这里 |
+| `ctx.effective_settings` / `effective_settings_dict()` | 完整有效配置 |
 | `ctx.state` | **跨日**可变袋（替代旧 remember） |
 | `ctx.capture(key, value)` | **本笔**写入 `signal_snapshot`（归因） |
 

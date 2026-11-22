@@ -10,13 +10,13 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from core.modules.ntq_external.conf.site_target import (
     install_member_meta_url,
     install_member_part_url,
 )
-from core.infra.utils.core.net.ssl_context import https_context
+from core.infra.utils.core.net.ssl_context import urlopen_https
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +275,7 @@ def _http_get_bytes(
     headers = _auth_headers() if auth else {"User-Agent": _USER_AGENT}
     req = Request(url, headers=headers)
     try:
-        with urlopen(req, timeout=timeout_sec, context=https_context()) as resp:
+        with urlopen_https(req, timeout=timeout_sec) as resp:
             status = getattr(resp, "status", None) or resp.getcode()
             if int(status) != 200:
                 raise InstallMemberError(f"HTTP {status}: {url}")

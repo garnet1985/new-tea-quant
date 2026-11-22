@@ -8,6 +8,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 from core.infra.ai import AiChannel
+from core.infra.utils.core.net.ssl_context import urlopen_https
 from core.modules.agent.core.code.conf.conf import (
     WEB_SEARCH_COUNT_DEFAULT,
     WEB_SEARCH_COUNT_MAX,
@@ -79,7 +80,7 @@ def _via_member_knowledge_brief(query: str, count: int) -> Optional[Dict[str, An
         method="POST",
     )
     try:
-        with urllib.request.urlopen(
+        with urlopen_https(
             request, timeout=float(WEB_SEARCH_TIMEOUT_SECONDS) + 25.0
         ) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
@@ -183,7 +184,7 @@ def _via_local_deepseek(query: str, count: int) -> Dict[str, Any]:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(
+        with urlopen_https(
             request, timeout=float(WEB_SEARCH_TIMEOUT_SECONDS)
         ) as resp:
             raw = resp.read().decode("utf-8", errors="replace")

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ssl
+import urllib.request
 from functools import lru_cache
+from typing import Any, Optional
 
 
 @lru_cache(maxsize=1)
@@ -14,3 +16,10 @@ def https_context() -> ssl.SSLContext:
     except ImportError:
         return ssl.create_default_context()
     return ssl.create_default_context(cafile=certifi.where())
+
+
+def urlopen_https(req: urllib.request.Request, *, timeout: Optional[float] = None, **kwargs: Any):
+    """``urllib.request.urlopen``，HTTPS 一律挂上 ``https_context()``。"""
+    if "context" not in kwargs:
+        kwargs["context"] = https_context()
+    return urllib.request.urlopen(req, timeout=timeout, **kwargs)

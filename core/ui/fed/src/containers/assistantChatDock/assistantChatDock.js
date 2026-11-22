@@ -46,7 +46,7 @@ function nextId(idRef) {
 function settingsLinkFor(content) {
   const text = String(content || '');
   // Remote NTQ failures are not fixed by BYOK — no settings CTA.
-  if (/远端服务失败|远端模型|官网暂时不可用|官网应答超时|暂时连不上官网/.test(text)) {
+  if (/远端服务失败|远端模型|官网暂时不可用|官网应答超时|暂时连不上官网|HTTPS 证书校验失败|Install Certificates/.test(text)) {
     return null;
   }
   if (/凭证/.test(text)) {

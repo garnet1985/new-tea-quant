@@ -8,7 +8,7 @@ import urllib.request
 from typing import Optional
 
 from core.modules.ntq_external.conf.site_target import member_profile_url, register_url
-from core.infra.utils.core.net.ssl_context import https_context
+from core.infra.utils.core.net.ssl_context import urlopen_https
 
 
 def member_profile() -> dict:
@@ -34,9 +34,7 @@ def member_profile() -> dict:
         method="GET",
     )
     try:
-        with urllib.request.urlopen(
-            request, timeout=8, context=https_context()
-        ) as response:
+        with urlopen_https(request, timeout=8) as response:
             status = getattr(response, "status", 200)
             raw = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:

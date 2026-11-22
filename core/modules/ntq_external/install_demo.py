@@ -11,13 +11,13 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from core.modules.ntq_external.conf.site_target import (
     install_demo_meta_url,
     install_demo_url,
 )
-from core.infra.utils.core.net.ssl_context import https_context
+from core.infra.utils.core.net.ssl_context import urlopen_https
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +186,7 @@ def _http_get_bytes(
 ) -> bytes:
     req = Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        with urlopen(req, timeout=timeout_sec, context=https_context()) as resp:
+        with urlopen_https(req, timeout=timeout_sec) as resp:
             status = getattr(resp, "status", None) or resp.getcode()
             if int(status) != 200:
                 raise InstallDemoError(f"HTTP {status}: {url}")

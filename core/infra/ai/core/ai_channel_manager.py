@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.infra.ai.contracts import AiError, CompleteResult, ProviderInfo
 from core.infra.ai.core.openai_compatible_client import OpenAICompatibleClient
 from core.infra.ai.core.provider_catalog import ProviderCatalog
+
+logger = logging.getLogger(__name__)
 
 
 def _member_channel():
@@ -18,15 +21,27 @@ def _member_channel():
 
 
 def _member_error(message: str) -> str:
+    """会员通道失败文案。保留可行动作；勿把本机 SSL 说成「官网挂了」。"""
     text = str(message or "").strip()
-    # Website / NTQ member channel failures — do not push users to BYOK.
-    if text.startswith("无法连接") or "超时" in text or text.startswith("供应商请求失败"):
-        return "远端服务失败，请稍候再试。"
+    low = text.lower()
+    if (
+        "certificate_verify_failed" in low
+        or "certificate verify failed" in low
+        or "unable to get local issuer certificate" in low
+    ):
+        return (
+            "本机 HTTPS 证书校验失败（macOS 常见）。"
+            "请确认 venv 已安装 certifi，或运行 Python 安装目录下的 Install Certificates.command。"
+        )
+    if "超时" in text:
+        return "官网应答超时，请稍候再试。"
+    if text.startswith("无法连接") or text.startswith("供应商请求失败"):
+        return "暂时连不上官网 AI，请检查网络后重试。"
     if "远端服务失败" in text or "远端模型" in text:
-        return "远端服务失败，请稍候再试。"
+        return "暂时连不上官网 AI，请检查网络后重试。"
     if text.startswith("供应商"):
         return "官网" + text[len("供应商") :]
-    return text or "远端服务失败，请稍候再试。"
+    return text or "暂时连不上官网 AI，请检查网络后重试。"
 
 
 def _completion_messages(messages: Sequence[Mapping[str, str]]) -> List[Dict[str, str]]:
@@ -118,6 +133,13 @@ class AiChannelManager:
             reply, meta = self._client.complete_with_meta(**kwargs)
         except AiError as exc:
             if route["via"] == "member":
+                logger.warning(
+                    "member AI failed via=%s base=%s model=%s: %s",
+                    route.get("via"),
+                    route.get("base_url"),
+                    route.get("model"),
+                    exc,
+                )
                 raise AiError(_member_error(str(exc))) from None
             raise
         model = str(meta.get("model") or route["model"] or "").strip()

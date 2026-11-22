@@ -9,6 +9,8 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional, Union
 
+from core.infra.utils.core.net.ssl_context import urlopen_https
+
 from ...contracts import TraceEvent
 
 logger = logging.getLogger(__name__)
@@ -56,7 +58,7 @@ class TraceClientService:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=float(timeout_sec)) as resp:
+            with urlopen_https(req, timeout=float(timeout_sec)) as resp:
                 code = getattr(resp, "status", None) or resp.getcode()
                 return 200 <= int(code) < 300
         except urllib.error.HTTPError as exc:

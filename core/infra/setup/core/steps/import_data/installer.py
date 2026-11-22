@@ -158,10 +158,20 @@ class SetupDataInstaller:
             begin_import_prepare(detail="准备导入…")
         except InstallDemoError as exc:
             fail_import(str(exc))
-            raise RuntimeError(
-                f"{CmdLayout.icon.get('error')} 下载演示数据包失败: {exc}\n"
+            hint = (
                 "请检查网络后重跑: python cli.py id\n"
                 "本地联调可设 NTQ_INSTALL_DEMO_URL 指向官网或本机 XAMPP。"
+            )
+            reason = str(exc)
+            if "CERTIFICATE_VERIFY_FAILED" in reason or "certificate verify failed" in reason:
+                hint = (
+                    "本机 Python 缺 CA 证书（macOS 常见）。"
+                    "请确认已安装依赖（含 certifi）后重跑；"
+                    "或执行 Python 安装目录下的 Install Certificates.command。\n"
+                    "也可设 NTQ_INSTALL_DEMO_URL 指向本机已有包。"
+                )
+            raise RuntimeError(
+                f"{CmdLayout.icon.get('error')} 下载演示数据包失败: {exc}\n{hint}"
             ) from exc
         NewTeaQuantSetup.print_check_item("done", f"演示数据包已就绪: {path.name}")
         return path

@@ -17,6 +17,7 @@ from core.modules.ntq_external.conf.site_target import (
     install_demo_meta_url,
     install_demo_url,
 )
+from core.modules.ntq_external.conf.ssl_context import https_context
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +186,7 @@ def _http_get_bytes(
 ) -> bytes:
     req = Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        with urlopen(req, timeout=timeout_sec) as resp:
+        with urlopen(req, timeout=timeout_sec, context=https_context()) as resp:
             status = getattr(resp, "status", None) or resp.getcode()
             if int(status) != 200:
                 raise InstallDemoError(f"HTTP {status}: {url}")

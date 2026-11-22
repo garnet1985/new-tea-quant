@@ -47,6 +47,11 @@ class StrategyContext:
     def base_data_key(self) -> str:
         return self.effective_settings.data.base_data_key
 
+    @property
+    def core(self) -> Dict[str, Any]:
+        """``settings.core`` 私有参数（拷贝）。常用门槛、窗口等写这里。"""
+        return self.effective_settings.core
+
     def effective_settings_dict(self) -> Dict[str, Any]:
         """settings 的 dict 视图。同一 ctx 上缓存。"""
         cached = self._cached_settings_dict

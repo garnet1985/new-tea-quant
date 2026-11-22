@@ -43,15 +43,29 @@ describe('strategyCategory', () => {
     expect(grouped[2].queryValue).toBe(UNKNOWN_STRATEGY_CATEGORY_QUERY);
   });
 
+  it('sorts rows within a category by display_name naturally', () => {
+    const grouped = groupStrategiesByCategory([
+      { name: 'low_price', display_name: '演示4b - 低价股（含退市）', category: '演示 · 横截面' },
+      { name: 'chase_heat', display_name: '演示2 - 追近月强势', category: '演示 · 横截面' },
+      { name: 'low_price_survivor', display_name: '演示4a - 低价股（仅幸存者）', category: '演示 · 横截面' },
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].rows.map((r) => r.name)).toEqual([
+      'chase_heat',
+      'low_price_survivor',
+      'low_price',
+    ]);
+  });
+
   it('lists named-category peers, caps at 5, and skips unknown category', () => {
     const rows = [
-      { name: 'a', category: '动量' },
-      { name: 'b', key: 'b', category: '动量' },
-      { name: 'c', category: '动量' },
-      { name: 'd', category: '动量' },
-      { name: 'e', category: '动量' },
-      { name: 'f', category: '动量' },
-      { name: 'g', category: '动量' },
+      { name: 'a', display_name: '演示7', category: '动量' },
+      { name: 'b', key: 'b', display_name: '演示2', category: '动量' },
+      { name: 'c', display_name: '演示3', category: '动量' },
+      { name: 'd', display_name: '演示4', category: '动量' },
+      { name: 'e', display_name: '演示5', category: '动量' },
+      { name: 'f', display_name: '演示6', category: '动量' },
+      { name: 'g', display_name: '演示8', category: '动量' },
       { name: 'u', category: '' },
     ];
     const listed = listPeerStrategies(rows, { name: 'a' });

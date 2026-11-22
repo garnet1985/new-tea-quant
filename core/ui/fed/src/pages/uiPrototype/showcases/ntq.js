@@ -49,8 +49,8 @@ const DEMO_NAV_ITEMS = [
     match: '/advanced',
     children: [
       { label: '特征标签', to: '/advanced/tags' },
-      { label: '数据源', to: '/advanced/data-sources' },
-      { label: '序列关系', to: '/advanced/series-relation' },
+      { label: '数据源接入', to: '/advanced/data-sources' },
+      { label: '走势关联', to: '/advanced/series-relation' },
     ],
   },
   { label: '文档', href: 'https://example.com/docs', icon: 'help' },
@@ -208,7 +208,7 @@ function PageBannerShowcase() {
         </SampleRow>
         <SampleRow label="带 rightSlot" block>
           <PageBanner
-            title="数据源"
+            title="数据源接入"
             description="查看同步状态与运行入口。"
             rightSlot={(
               <Button variant="glass" icon="refresh" size="small">

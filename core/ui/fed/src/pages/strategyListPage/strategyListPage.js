@@ -27,6 +27,7 @@ import {
   STRATEGY_LIST_CATEGORY_PARAM,
 } from 'containers/strategyCategory';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
+import StrategyDisclaimer from 'containers/strategyDisclaimer';
 import DescriptionText from 'ntq-ui/descriptionText';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import './strategyListPage.scss';
@@ -243,7 +244,6 @@ function StrategyListPage({
           text={params.value}
           className="strategy-list-desc ntq-muted"
           empty="—"
-          maxLines={3}
         />
       ),
     },
@@ -261,6 +261,7 @@ function StrategyListPage({
     >
       <Section className="strategy-list-page__stack" gap="md">
         {loadError ? <Message status="error">{loadError}</Message> : null}
+        <StrategyDisclaimer />
 
         <Section className="strategy-list-grid" gap="md">
           <ListToolbar

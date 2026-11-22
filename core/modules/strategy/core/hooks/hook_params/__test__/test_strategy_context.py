@@ -58,6 +58,23 @@ def test_effective_settings_dict_is_cached() -> None:
     assert ctx.effective_settings_dict() is ctx.effective_settings_dict()
 
 
+def test_core_reads_settings_core_block() -> None:
+    settings = StrategySettings.from_dict(
+        {"core": {"lookback_days": 20, "top_n": 10}}
+    )
+    settings.apply_defaults()
+    ctx = open_context(
+        strategy_key="demo",
+        settings=settings,
+        sample_list=["000001.SZ"],
+    )
+    assert ctx.core["lookback_days"] == 20
+    assert ctx.core["top_n"] == 10
+    # 返回拷贝：改 ctx.core 不影响 settings
+    ctx.core["top_n"] = 99
+    assert ctx.effective_settings.core["top_n"] == 10
+
+
 def test_records_shortcuts() -> None:
     rows = [
         {"date": "20240109", "close": 10},

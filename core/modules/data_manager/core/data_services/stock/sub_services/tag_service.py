@@ -103,13 +103,20 @@ class TagDataService(BaseDataService):
         加载指定名称的 scenario
         
         Args:
-            scenario_name: Scenario 名称
+            scenario_name: Scenario 路径名（如 demo/cyclical_industry）或 meta.key（如 cyclical_industry）
         
         Returns:
             Dict[str, Any]: Scenario 记录（包含 id, name, display_name, description, created_at 等）
             None: 如果不存在
         """
-        return self._tag_scenario_model.load_by_name(scenario_name)
+        needle = str(scenario_name or "").strip()
+        if not needle:
+            return None
+        row = self._tag_scenario_model.load_by_name(needle)
+        if row:
+            return row
+        # 策略 data.required 常写 meta.key；库内 name 是目录路径
+        return self._tag_scenario_model.load_one("key = %s", (needle,))
     
     
     def save_scenario(

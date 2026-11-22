@@ -230,6 +230,19 @@ with Db.duckdb.worker_pool.maybe_scope(
 - **状态：** `beta`
 - **引入版本：** `0.5.0`
 
+#### inspect_file_locks / release_file_locks
+
+**描述：** 排查 / 清理占用 `userspace/system/db/*.duckdb` 的进程（`lsof`；不删 `.wal`）
+
+| 方法 | 说明 |
+|------|------|
+| `inspect_file_locks()` | 只列出占用进程 |
+| `release_file_locks(*, kill=False, force=False)` | `kill=True` 结束卡死 Python；`force=True` 才允许结束 launcher/BFF |
+
+- **状态：** `beta`
+- **助手工具：** `duckdb_file_locks`
+
+
 ---
 
 ### sql

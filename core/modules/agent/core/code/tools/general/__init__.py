@@ -1,6 +1,9 @@
 """通用 agent 工具：搜索、文件系统只读、计算器、日历、沙箱。"""
 
 from core.modules.agent.core.code.tools.general.calculator_tool import calculator
+from core.modules.agent.core.code.tools.general.duckdb_file_locks_tool import (
+    duckdb_file_locks,
+)
 from core.modules.agent.core.code.tools.general.fs_tools import (
     list_dir,
     read_file,
@@ -26,4 +29,5 @@ __all__ = [
     "calculator",
     "trading_calendar",
     "run_python_snippet",
+    "duckdb_file_locks",
 ]

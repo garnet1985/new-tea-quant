@@ -11,10 +11,10 @@ const STATIC_NAV_ITEMS = [
     match: '/advanced',
     children: [
       { label: '特征标签', to: '/advanced/tags' },
-      { label: '数据源', to: '/advanced/data-sources' },
+      { label: '数据源接入', to: '/advanced/data-sources' },
       { label: '数据契约', to: '/advanced/data-contracts' },
-      { label: '序列关系', to: '/advanced/series-relation' },
-      { label: '后续处理', to: '/advanced/post-process' },
+      { label: '走势关联', to: '/advanced/series-relation' },
+      { label: '扫描后机会处理', to: '/advanced/post-process' },
     ],
   },
 ];

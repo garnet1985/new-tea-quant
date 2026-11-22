@@ -323,13 +323,13 @@ function SeriesRelationDetailPage() {
       className="ntq-srel-page"
       breadcrumbsItems={[
         { label: '高级功能', to: '/advanced/tags' },
-        { label: '序列关系', to: '/advanced/series-relation' },
+        { label: '走势关联', to: '/advanced/series-relation' },
       ]}
       breadcrumbsCurrent={displayName}
       bannerTitle={displayName}
       bannerDescription={
         isNew
-          ? `新建序列关系场景（${sceneKey}）`
+          ? `新建走势关联场景（${sceneKey}）`
           : `对比本场景中的多条序列（${sceneKey}）`
       }
       bannerRightSlot={(

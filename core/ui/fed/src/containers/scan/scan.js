@@ -329,7 +329,6 @@ function Scan() {
             text={params.row.description}
             className="scan-cell-strategy__desc ntq-muted"
             empty="—"
-            maxLines={3}
           />
         </div>
       ),

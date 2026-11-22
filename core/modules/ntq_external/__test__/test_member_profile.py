@@ -36,7 +36,7 @@ def test_missing_token_offers_register(tmp_path, monkeypatch):
 
 
 def test_rejected_token_offers_register(token_file, monkeypatch):
-    def raise_unauthorized(request, timeout=8):
+    def raise_unauthorized(request, timeout=8, **_kwargs):
         raise urllib.error.HTTPError(
             request.full_url,
             401,
@@ -82,7 +82,7 @@ def test_profile_returns_name_avatar_points(token_file, monkeypatch):
         def __exit__(self, *args):
             return False
 
-    def fake_open(request, timeout=8):
+    def fake_open(request, timeout=8, **_kwargs):
         seen["auth"] = request.get_header("Authorization")
         seen["timeout"] = timeout
         return Response()

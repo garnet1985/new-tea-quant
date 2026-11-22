@@ -9,6 +9,8 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict
 
+from core.infra.utils.core.net.ssl_context import https_context
+
 logger = logging.getLogger(__name__)
 
 _USER_AGENT = "NTQ-feedback/1"
@@ -38,7 +40,9 @@ class FeedbackClientService:
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=float(timeout_sec)) as resp:
+            with urllib.request.urlopen(
+                req, timeout=float(timeout_sec), context=https_context()
+            ) as resp:
                 code = getattr(resp, "status", None) or resp.getcode()
                 return 200 <= int(code) < 300
         except urllib.error.HTTPError as exc:

@@ -38,7 +38,7 @@ def test_missing_token_still_returns_policy(tmp_path, monkeypatch):
 
 
 def test_rejected_token(token_file, monkeypatch):
-    def raise_unauthorized(request, timeout=8):
+    def raise_unauthorized(request, timeout=8, **_kwargs):
         raise urllib.error.HTTPError(
             request.full_url,
             401,
@@ -73,7 +73,7 @@ def test_quota_ok(token_file, monkeypatch):
 
     seen = {}
 
-    def fake_urlopen(request, timeout=8):
+    def fake_urlopen(request, timeout=8, **_kwargs):
         seen["auth"] = request.get_header("Authorization")
         seen["url"] = request.full_url
         return _Resp()

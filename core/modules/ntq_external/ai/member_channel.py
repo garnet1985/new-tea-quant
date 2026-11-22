@@ -8,6 +8,7 @@ import urllib.request
 from typing import Optional
 
 from core.modules.ntq_external.conf.site_target import ai_base_url
+from core.infra.utils.core.net.ssl_context import https_context
 
 PROVIDER_ID = "ntq"
 MODEL = "glm-4-flash"
@@ -40,7 +41,9 @@ def fetch_member_quota() -> Optional[dict]:
         method="GET",
     )
     try:
-        with urllib.request.urlopen(request, timeout=8) as resp:
+        with urllib.request.urlopen(
+            request, timeout=8, context=https_context()
+        ) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
         return None
@@ -99,7 +102,9 @@ def fetch_member_usage(limit: int = 40) -> Optional[dict]:
         method="GET",
     )
     try:
-        with urllib.request.urlopen(request, timeout=8) as resp:
+        with urllib.request.urlopen(
+            request, timeout=8, context=https_context()
+        ) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
         return None
@@ -159,7 +164,9 @@ def track_prompt(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=3) as resp:
+        with urllib.request.urlopen(
+            request, timeout=3, context=https_context()
+        ) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, TimeoutError, OSError):
         return False

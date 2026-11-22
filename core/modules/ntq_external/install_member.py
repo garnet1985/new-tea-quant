@@ -16,7 +16,7 @@ from core.modules.ntq_external.conf.site_target import (
     install_member_meta_url,
     install_member_part_url,
 )
-from core.modules.ntq_external.conf.ssl_context import https_context
+from core.infra.utils.core.net.ssl_context import https_context
 
 logger = logging.getLogger(__name__)
 

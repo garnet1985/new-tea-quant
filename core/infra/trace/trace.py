@@ -60,6 +60,16 @@ class Trace:
         TraceTrackService.track_setup(event, body)
 
     @staticmethod
+    def track_member_bind(*, source: str = "", force: bool = False) -> None:
+        """
+        Bind this installation to the mapped membership token.
+
+        Posts ``member.bind`` with Bearer when a token is configured. Does not
+        require usage-consent. ``force=True`` always sends (e.g. after save).
+        """
+        TraceTrackService.track_member_bind(source=source, force=force)
+
+    @staticmethod
     def queue(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
         """Enqueue one event to the local file queue (no network I/O)."""
         TraceTrackService.queue(event, body)

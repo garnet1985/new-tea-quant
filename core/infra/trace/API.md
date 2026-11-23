@@ -1,6 +1,6 @@
 # Trace API 文档
 
-**模块：** `infra.trace` · **版本：** `0.1.2`
+**模块：** `infra.trace` · **版本：** `0.1.3`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -45,6 +45,15 @@
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
 - **描述：** 安装流水线事件（`install.complete` / `install.step_failed`）
+
+#### track_member_bind
+
+`Trace.track_member_bind(*, source: str = "", force: bool = False) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.3`
+- **描述：** 已装载会员凭证时上报 `member.bind`（带 Bearer），把本机 `installation_id` 绑到官网 uid。不依赖使用统计同意；`force=True` 总是发送（凭证保存后），否则按本地 marker 去重
 
 #### queue
 

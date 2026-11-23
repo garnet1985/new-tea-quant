@@ -146,7 +146,7 @@ def run_fed_build() -> int:
         )
         if install.returncode != 0:
             return int(install.returncode or 1)
-    env = {**os.environ, "CI": "true"}
+    env = {**os.environ, "CI": "true", "GENERATE_SOURCEMAP": "false"}
     proc = subprocess.run(["npm", "run", "build"], cwd=str(fed_root), env=env)
     if proc.returncode != 0:
         return int(proc.returncode or 1)

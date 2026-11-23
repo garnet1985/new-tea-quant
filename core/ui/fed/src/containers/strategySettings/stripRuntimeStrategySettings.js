@@ -50,6 +50,20 @@ function stripKeysFromBlock(block, keys) {
   return out;
 }
 
+function omitEmptyGoalStages(goal) {
+  if (!goal || typeof goal !== 'object') return goal;
+  const next = { ...goal };
+  ['take_profit', 'stop_loss'].forEach((key) => {
+    const block = next[key];
+    if (!block || typeof block !== 'object') return;
+    const stages = block.stages;
+    if (!Array.isArray(stages) || stages.length === 0) {
+      delete next[key];
+    }
+  });
+  return next;
+}
+
 export function stripRuntimeStrategySettings(settings) {
   if (!settings || typeof settings !== 'object') return settings;
   const out = { ...settings };
@@ -60,6 +74,9 @@ export function stripRuntimeStrategySettings(settings) {
   }
   if (out.price_simulator) {
     out.price_simulator = stripKeysFromBlock(out.price_simulator, PRICE_SIMULATOR_DISPATCH_KEYS);
+  }
+  if (out.goal) {
+    out.goal = omitEmptyGoalStages(out.goal);
   }
 
   return out;

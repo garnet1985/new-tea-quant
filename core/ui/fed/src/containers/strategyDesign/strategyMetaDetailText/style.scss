@@ -25,15 +25,30 @@
   color: rgba(255, 255, 255, 0.55);
 }
 
+.ntq-meta-clip-col__body,
+.ntq-meta-clip-col__empty,
+.ntq-meta-clip-col__list {
+  margin: 0;
+  font-size: var(--ui-font-sm, 0.875rem);
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.62);
+}
+
 .ntq-meta-clip-col__body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
   cursor: default;
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.45;
-  color: rgba(255, 255, 255, 0.62);
   white-space: pre-line;
+}
+
+.ntq-meta-clip-col__list {
+  padding-left: 1.1rem;
+  list-style: disc;
+  cursor: default;
+
+  li + li {
+    margin-top: 0.15rem;
+  }
 }

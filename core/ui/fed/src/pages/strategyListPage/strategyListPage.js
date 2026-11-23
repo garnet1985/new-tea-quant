@@ -5,12 +5,14 @@ import {
   CategoryChipStrip,
   CountBadge,
   DataGrid,
+  HelpTooltip,
   Icon,
   ListToolbar,
   Loading,
   Message,
   SearchField,
   Section,
+  Switch,
   Tag,
 } from 'ui';
 import { showToast } from 'ui/message/toast';
@@ -20,6 +22,7 @@ import {
   fetchStrategyList,
   getStrategyDesignPath,
   getStrategyDisplayLabel,
+  setStrategyEnabled,
 } from '../../api/strategyApi';
 import {
   groupStrategiesByCategory,
@@ -28,8 +31,10 @@ import {
 } from 'containers/strategyCategory';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
 import StrategyDisclaimer from 'containers/strategyDisclaimer';
-import DescriptionText from 'ntq-ui/descriptionText';
-import { buildStrategyDesignNavState } from 'containers/strategyDesign';
+import {
+  buildStrategyDesignNavState,
+  STRATEGY_DESIGN_DEFAULT_STEP,
+} from 'containers/strategyDesign';
 import './strategyListPage.scss';
 
 /**
@@ -40,13 +45,18 @@ import './strategyListPage.scss';
  * @param {string} [props.bannerTitle]
  * @param {string} [props.bannerDescription]
  */
-const STRATEGY_LIST_BANNER_TITLE = '选择一个策略';
+const STRATEGY_LIST_BANNER_TITLE = '所有策略';
 const STRATEGY_LIST_BANNER_DESCRIPTION =
-  '管理本地策略，进行参数调试与分步回测。';
+  '显示当前所有策略，可以在表格内选择一个进行参数调试与分步回测。';
+
+/** 列表进入固定机会盘点；不带 step 会恢复 session 里上次停留的步。 */
+function defaultEnterPath(name) {
+  return getStrategyDesignPath(name, STRATEGY_DESIGN_DEFAULT_STEP);
+}
 
 function StrategyListPage({
   listBasePath = '/strategy-design',
-  getEnterPath = getStrategyDesignPath,
+  getEnterPath = defaultEnterPath,
   navLabel = '制定策略',
   bannerTitle = STRATEGY_LIST_BANNER_TITLE,
   bannerDescription = STRATEGY_LIST_BANNER_DESCRIPTION,
@@ -60,6 +70,7 @@ function StrategyListPage({
   const [nameQuery, setNameQuery] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [exportingName, setExportingName] = useState('');
+  const [togglingName, setTogglingName] = useState('');
 
   const categoryQuery = readStrategyListCategoryQuery(searchParams);
   const selectedChipRef = useRef(null);
@@ -89,6 +100,9 @@ function StrategyListPage({
       const label = String(r.display_name || '').toLowerCase();
       const desc = String(r.description || '').toLowerCase();
       const category = String(r.category || '').toLowerCase();
+      const keywords = (Array.isArray(r.keywords) ? r.keywords : [])
+        .map((k) => String(k || '').toLowerCase())
+        .join(' ');
       return (
         id.includes(q)
         || path.includes(q)
@@ -96,6 +110,7 @@ function StrategyListPage({
         || label.includes(q)
         || desc.includes(q)
         || category.includes(q)
+        || keywords.includes(q)
       );
     });
   }, [categoryFilteredRows, nameQuery]);
@@ -162,35 +177,67 @@ function StrategyListPage({
     }
   }, [exportingName]);
 
+  const handleToggleEnabled = useCallback(async (row, nextEnabled) => {
+    const name = String(row?.name || '').trim();
+    if (!name || togglingName) return;
+    const prev = Boolean(row.is_enabled);
+    setTogglingName(name);
+    setRows((list) => list.map((r) => (
+      r.name === name ? { ...r, is_enabled: nextEnabled } : r
+    )));
+    try {
+      const res = await setStrategyEnabled(row.key || name, nextEnabled);
+      setRows((list) => list.map((r) => (
+        r.name === name ? { ...r, is_enabled: Boolean(res.is_enabled) } : r
+      )));
+    } catch (e) {
+      setRows((list) => list.map((r) => (
+        r.name === name ? { ...r, is_enabled: prev } : r
+      )));
+      showToast({ status: 'error', content: e?.message || '更新可用状态失败' });
+    } finally {
+      setTogglingName('');
+    }
+  }, [togglingName]);
+
   const enterNavState = useCallback((row) => buildStrategyDesignNavState(row), []);
 
   const columns = useMemo(() => ([
     {
       field: 'display_name',
       headerName: '策略名',
-      minWidth: 160,
-      flex: 0.5,
+      minWidth: 220,
+      flex: 1.2,
       valueGetter: (params) => getStrategyDisplayLabel(params.row),
-      renderCell: (params) => (
-        <RouterLink
-          to={getEnterPath(params.row.name)}
-          state={enterNavState(params.row)}
-          className="strategy-list-name-link"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {params.value || params.row.name}
-        </RouterLink>
-      ),
-    },
-    {
-      field: 'is_enabled',
-      headerName: '状态',
-      width: 110,
-      renderCell: (params) => (params.value ? (
-        <Tag status="success" variant="solid">已启用</Tag>
-      ) : (
-        <Tag status="neutral" variant="outline">已禁用</Tag>
-      )),
+      renderCell: (params) => {
+        const label = params.value || params.row.name;
+        const description = String(params.row.description || '').trim();
+        return (
+          <div className="strategy-list-cell-name">
+            <RouterLink
+              to={getEnterPath(params.row.name)}
+              state={enterNavState(params.row)}
+              className="ntq-link strategy-list-name-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {label}
+            </RouterLink>
+            {description ? (
+              <span
+                className="strategy-list-cell-name__tip"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <HelpTooltip
+                  title={description}
+                  shine
+                  ariaLabel={`${label} 简介`}
+                />
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       field: 'actions',
@@ -234,26 +281,70 @@ function StrategyListPage({
       },
     },
     {
-      field: 'description',
-      headerName: '描述',
-      minWidth: 240,
-      flex: 1.5,
+      field: 'is_enabled',
+      headerName: '可用',
+      width: 120,
       sortable: false,
-      renderCell: (params) => (
-        <DescriptionText
-          text={params.value}
-          className="strategy-list-desc ntq-muted"
-          empty="—"
-        />
-      ),
+      filterable: false,
+      renderCell: (params) => {
+        const enabled = Boolean(params.row.is_enabled);
+        return (
+          <div
+            className="strategy-list-cell-enabled"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <Switch
+              checked={enabled}
+              disabled={Boolean(togglingName)}
+              label={enabled ? '可用' : '不可用'}
+              aria-label={enabled ? '设为不可用' : '设为可用'}
+              onChange={(e) => {
+                handleToggleEnabled(params.row, e.target.checked);
+              }}
+            />
+          </div>
+        );
+      },
     },
-  ]), [enterNavState, exportingName, getEnterPath, handleExportStrategyPackage]);
+    {
+      field: 'keywords',
+      headerName: '关键词',
+      minWidth: 180,
+      flex: 1,
+      sortable: false,
+      renderCell: (params) => {
+        const keywords = (Array.isArray(params.value) ? params.value : [])
+          .map((k) => String(k || '').trim())
+          .filter(Boolean);
+        if (keywords.length === 0) {
+          return <span className="ntq-muted">—</span>;
+        }
+        return (
+          <div className="strategy-list-cell-keywords">
+            {keywords.map((word) => (
+              <Tag key={word} status="neutral" variant="outline" size="sm">
+                {word}
+              </Tag>
+            ))}
+          </div>
+        );
+      },
+    },
+  ]), [
+    enterNavState,
+    exportingName,
+    getEnterPath,
+    handleExportStrategyPackage,
+    handleToggleEnabled,
+    togglingName,
+  ]);
 
   return (
     <PageLayout
       className="strategy-list-page"
       breadcrumbsItems={[{ label: navLabel, to: listBasePath }]}
-      breadcrumbsCurrent="选择一个策略"
+      breadcrumbsCurrent="所有策略"
       bannerTitle={bannerTitle}
       bannerDescription={bannerDescription}
       loading={!pageReady}
@@ -361,6 +452,8 @@ function StrategyListPage({
                     </div>
                     <DataGrid
                       autoHeight
+                      density="sm"
+                      disableVirtualization
                       rows={categoryRows}
                       columns={columns}
                       loading={false}

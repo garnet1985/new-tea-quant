@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Button,
+  HelpTooltip,
   Loading,
   Section,
   Tag,
@@ -25,12 +26,18 @@ import {
   readStrategyListCategoryQuery,
   STRATEGY_LIST_CATEGORY_PARAM,
 } from 'containers/strategyCategory';
-import DescriptionText from 'ntq-ui/descriptionText';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import { formatDateTime } from '../../service/format/formatDateTime';
 import { readPresenterHistory, readPresenterScanUi } from './presenterScanReport';
-import { formatScanDate, readOpportunityCount } from './scanHelpers';
+import {
+  formatScanDate,
+  formatStrategyVersionLabel,
+  readOpportunityCount,
+  readWorkbenchVersion,
+  SCAN_VERSION_STALE_TIP,
+  SCAN_SETTINGS_STALE_TIP,
+} from './scanHelpers';
 import ScanSettingsSection from './scanSettingsSection';
 import ScanStrategyListSection from './scanStrategyListSection';
 import ScanReportSection from './scanReportSection';
@@ -237,6 +244,10 @@ function Scan() {
         report: x.report,
         canScan: x.can_scan === true,
         blockReason: String(x.block_reason || '').trim(),
+        settingsStale: Boolean(x.settings_stale),
+        versionStale: Boolean(x.version_stale),
+        currentVersion: Number(x.current_workbench_version) || 0,
+        scannedVersion: readWorkbenchVersion(x.report),
       }))),
     )
       .then((pairs) => {
@@ -244,9 +255,25 @@ function Scan() {
         const next = {};
         const gates = {};
         let sharedBlock = '';
-        pairs.forEach(({ id, action, canScan, blockReason }) => {
+        pairs.forEach(({
+          id,
+          action,
+          canScan,
+          blockReason,
+          settingsStale,
+          versionStale,
+          currentVersion,
+          scannedVersion,
+        }) => {
           next[id] = action;
-          gates[id] = { canScan, blockReason };
+          gates[id] = {
+            canScan,
+            blockReason,
+            settingsStale,
+            versionStale,
+            currentVersion,
+            scannedVersion,
+          };
           if (!demo && !sharedBlock && blockReason) sharedBlock = blockReason;
         });
         setScanPrimaryById(next);
@@ -320,33 +347,47 @@ function Scan() {
       minWidth: 200,
       flex: 0.6,
       valueGetter: (params) => getStrategyDisplayLabel(params.row),
-      renderCell: (params) => (
-        <div className="scan-cell-strategy">
-          <span className="scan-cell-strategy__name">
-            {params.value || params.row.name}
-          </span>
-          <DescriptionText
-            text={params.row.description}
-            className="scan-cell-strategy__desc ntq-muted"
-            empty="—"
-          />
-        </div>
-      ),
+      renderCell: (params) => {
+        const label = params.value || params.row.name;
+        const description = String(params.row.description || '').trim();
+        return (
+          <div className="scan-cell-strategy">
+            <span className="scan-cell-strategy__name">{label}</span>
+            {description ? (
+              <span
+                className="scan-cell-strategy__tip"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <HelpTooltip
+                  title={description}
+                  shine
+                  ariaLabel={`${label} 简介`}
+                />
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       field: 'is_enabled',
-      headerName: '启用',
-      width: 110,
-      renderCell: (params) => (params.value ? (
-        <Tag status="success" variant="solid">已启用</Tag>
-      ) : (
-        <Tag status="neutral" variant="outline">已禁用</Tag>
-      )),
+      headerName: '可用',
+      width: 100,
+      renderCell: (params) => (
+        <Tag
+          status={params.value ? 'success' : 'error'}
+          variant="solid"
+          tooltip="可在「制定策略」列表页或策略调试页中修改可用状态"
+        >
+          {params.value ? '可用' : '不可用'}
+        </Tag>
+      ),
     },
     {
       field: 'opportunities',
       headerName: '机会数量',
-      width: 120,
+      width: 140,
       sortable: false,
       filterable: false,
       headerAlign: 'center',
@@ -367,17 +408,41 @@ function Scan() {
         if (n == null) {
           return <span className="ntq-muted">—</span>;
         }
+        const gate = scanGateById[id] || {};
+        const versionStale = Boolean(gate.versionStale);
+        const settingsStale = Boolean(gate.settingsStale);
+        const staleTip = versionStale
+          ? SCAN_VERSION_STALE_TIP
+          : settingsStale
+            ? SCAN_SETTINGS_STALE_TIP
+            : '';
         return (
-          <Button
-            variant="ghost"
-            className="scan-opp-count"
-            onClick={(e) => {
-              e.stopPropagation();
-              openDetail(id);
-            }}
-          >
-            {n}
-          </Button>
+          <div className="scan-opp-cell">
+            {staleTip ? (
+              <span
+                className="scan-opp-cell__warn"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <HelpTooltip
+                  title={staleTip}
+                  variant="warning"
+                  shine
+                  ariaLabel={staleTip}
+                />
+              </span>
+            ) : null}
+            <Button
+              variant="ghost"
+              className="scan-opp-count"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDetail(id);
+              }}
+            >
+              {n}
+            </Button>
+          </div>
         );
       },
     },
@@ -392,10 +457,28 @@ function Scan() {
         const id = params.row.id;
         const pending = readinessLoading && scanPrimaryById[id] == null;
         const isThisRunning = running && id === runningStrategyId;
-        const isRerun = scanPrimaryById[id] === 'rerun';
+        const hasResult = readOpportunityCount(results?.[id]) != null;
         const gate = scanGateById[id] || {};
+        const settingsStale = Boolean(gate.settingsStale);
+        const versionStale = Boolean(gate.versionStale);
+        const isStale = settingsStale || versionStale;
+        const isRerun = scanPrimaryById[id] === 'rerun' || hasResult || isStale;
         const blocked = mode === 'strict' && gate.canScan === false;
         const disableRun = pending || !enabled || running || blocked;
+        const scannedLabel = formatStrategyVersionLabel(gate.scannedVersion);
+        const currentLabel = formatStrategyVersionLabel(gate.currentVersion);
+        let runTooltip = '在当前最新数据中用该策略扫描机会';
+        if (blocked) {
+          runTooltip = gate.blockReason || '严格模式数据未就绪，无法扫描';
+        } else if (versionStale) {
+          runTooltip = scannedLabel && currentLabel
+            ? `扫描结果对应 ${scannedLabel}，工作台已是 ${currentLabel}，请重新扫描`
+            : '策略已有更新的工作台版本，当前扫描结果可能过时，请重新扫描';
+        } else if (settingsStale) {
+          runTooltip = '策略设置或环境已变更，当前结果可能过时，请重新扫描';
+        } else if (isRerun) {
+          runTooltip = '已有扫描结果，点击将重新全量扫描';
+        }
         return (
           <div className="scan-cell-actions" data-ntq-help="scan-start">
             {pending ? (
@@ -406,17 +489,10 @@ function Scan() {
                 icon="play"
                 iconSize="sm"
                 disabled={disableRun}
-                tooltip={
-                  blocked
-                    ? (gate.blockReason || '严格模式数据未就绪，无法扫描')
-                    : (isRerun
-                      ? '将全量重新扫描并忽略已保存的扫描结果'
-                      : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描')
-                }
+                tooltip={runTooltip}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!enabled || running || blocked) return;
-                  const force = isRerun || e.shiftKey;
                   setRunError('');
                   setReportVisible(false);
                   setReportStrategyId('');
@@ -429,7 +505,7 @@ function Scan() {
                   });
                   startStrategyScan(params.row.name, {
                     demo: mode === 'demo',
-                    force,
+                    force: isRerun,
                     runPostProcess,
                   })
                     .then((res) => {
@@ -459,7 +535,7 @@ function Scan() {
               iconPlacement="end"
               iconSize="sm"
               component={RouterLink}
-              to={getStrategyDesignPath(params.row.name)}
+              to={getStrategyDesignPath(params.row.name, 'enum')}
               state={buildStrategyDesignNavState(params.row)}
               onClick={(e) => e.stopPropagation()}
               className="scan-design-btn"
@@ -550,8 +626,12 @@ function Scan() {
         : { label: '就绪', status: 'success', variant: 'solid' };
 
   const demoDesc = contextLoading
-    ? '截止 …'
-    : `截止 ${demoCutoffLabel}${dataEnd.is_end_date_truncated ? '（受会员档约束）' : ''}，演示用，非实时市场。`;
+    ? '检测假定最新完成交易日中...'
+    : `假定最新完成交易日： ${demoCutoffLabel}`;
+
+  const demoModeHint = contextLoading
+    ? ''
+    : `您当前使用的是演示模式，最新完成的交易日是假设的（${demoCutoffLabel}）。如果您的数据源已经接入，请使用严格模式在最新市场数据中扫描机会。`;
 
   const reportCount = readOpportunityCount(reportPayload);
 
@@ -561,7 +641,7 @@ function Scan() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="策略选股"
       bannerTitle="策略选股"
-      bannerDescription="用已启用的策略在全市场扫描当前机会。"
+      bannerDescription="用您的策略在市场中扫描投资机会。"
       bannerRightSlot={(
         <Tag status={statusTag.status} variant={statusTag.variant}>
           {statusTag.label}
@@ -615,9 +695,10 @@ function Scan() {
           loadError={loadError}
           readinessError={readinessError}
           onClearReadinessError={() => setReadinessError('')}
-          dataEnd={dataEnd}
           readinessLoading={readinessLoading}
           mode={mode}
+          demoModeHint={demoModeHint}
+          contextLoading={contextLoading}
           strictBlockReason={strictBlockReason}
           runError={runError}
           progress={progress}

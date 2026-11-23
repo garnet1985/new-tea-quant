@@ -112,7 +112,7 @@ function Button({
     : button;
 
   return (
-    <Tooltip title={tooltip} arrow describeChild>
+    <Tooltip title={tooltip} arrow enterDelay={0} leaveDelay={0} describeChild>
       {trigger}
     </Tooltip>
   );

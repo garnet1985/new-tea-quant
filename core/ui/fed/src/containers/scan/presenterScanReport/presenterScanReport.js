@@ -157,11 +157,13 @@ export function formatSessionSummaryLine(sessionSummary) {
  */
 export function OpportunityDetailMeta({
   strategyName = '',
+  strategyVersion = '',
   scanDate = '',
   opportunityCount = null,
   presenterLine = '',
   presenterError = '',
 }) {
+  const versionLabel = String(strategyVersion || '').trim();
   return (
     <div className="scan-detail__meta">
       <div className="scan-detail__meta-strip">
@@ -169,6 +171,9 @@ export function OpportunityDetailMeta({
           <div className="scan-detail__meta-label">策略</div>
           <div className="scan-detail__meta-value">
             {strategyName || '—'}
+            {versionLabel ? (
+              <span className="scan-detail__meta-ver"> {versionLabel}</span>
+            ) : null}
           </div>
         </div>
         <div className="scan-detail__meta-cell">

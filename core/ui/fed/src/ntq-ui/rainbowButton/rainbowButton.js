@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tooltip } from '@mui/material';
 import Icon from 'ui/icon/icon';
 import './style.scss';
 
@@ -8,6 +9,7 @@ import './style.scss';
  * ring：spin 色带转动，still 静止渐变，plain 灰边、不闪。
  * glow 是外圈光晕。shimmer 是文字上的色带流动。quiet 把光晕压暗（对话打开时）。
  * icon：play / refresh，色带裁进图标。mark：help 问号，ai 字标。
+ * tooltip：悬停说明（disabled 时也能立刻弹出）。
  */
 function RainbowButton({
   shape = 'circle',
@@ -18,9 +20,11 @@ function RainbowButton({
   shimmer = false,
   icon = '',
   mark = '',
+  tooltip = '',
   className = '',
   children,
   type = 'button',
+  disabled = false,
   ...rest
 }) {
   const rootClass = [
@@ -67,8 +71,8 @@ function RainbowButton({
 
   const showClip = shape === 'pill' && ring === 'spin';
 
-  return (
-    <button type={type} className={rootClass} {...rest}>
+  const button = (
+    <button type={type} className={rootClass} disabled={disabled} {...rest}>
       {glow ? <span className="ntq-rainbow-button__glow" aria-hidden /> : null}
       {showClip ? <span className="ntq-rainbow-button__aurora" aria-hidden /> : null}
       {!showClip && ring !== 'plain' ? <span className="ntq-rainbow-button__ring" aria-hidden /> : null}
@@ -76,6 +80,20 @@ function RainbowButton({
         {face}
       </span>
     </button>
+  );
+
+  if (!tooltip) {
+    return button;
+  }
+
+  const trigger = disabled
+    ? <span className="ntq-rainbow-button__tooltip-wrap">{button}</span>
+    : button;
+
+  return (
+    <Tooltip title={tooltip} arrow enterDelay={0} leaveDelay={0} describeChild>
+      {trigger}
+    </Tooltip>
   );
 }
 

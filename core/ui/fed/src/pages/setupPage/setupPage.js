@@ -154,7 +154,6 @@ function SetupPage() {
         order: idx + 1,
         name: step.name,
         state: displayState,
-        detail: step.description,
       };
     });
   }, [definition, flowStage, status]);
@@ -243,14 +242,14 @@ function SetupPage() {
     if (params.value === '待输入') {
       return (
         <div className={rowClass}>
-          <Icon name="radioUnchecked" size="md" tone="warning" />
+          <Icon name="timer" size="md" tone="warning" />
           <span>待输入</span>
         </div>
       );
     }
     return (
       <div className={rowClass}>
-        <Icon name="radioUnchecked" size="md" tone="disabled" />
+        <Icon name="timer" size="md" tone="disabled" />
         <span>{pendingLabel}</span>
       </div>
     );
@@ -265,7 +264,6 @@ function SetupPage() {
       width: 180,
       renderCell: (params) => renderStepStateCell(params, '未开始'),
     },
-    { field: 'detail', headerName: '说明', flex: 1.6 },
   ]), [renderStepStateCell]);
 
   const handleInputChange = (key, value) => {
@@ -511,16 +509,6 @@ function SetupPage() {
       >
         <div className="setup-page">
           <div className="setup-page__stack">
-          {flowStage !== 'input' && status?.isReady ? (
-            <Message status="success">
-              安装流程已完成。你可以进入欢迎页开始使用。
-            </Message>
-          ) : (
-            <Message status="warning">
-              系统检测到您缺少必要运行配置，将在安装页面重新安装或者修复。
-            </Message>
-          )}
-
           <section className="setup-card">
             <div className="setup-card__content">
               <SetupStepper
@@ -544,7 +532,7 @@ function SetupPage() {
               <div className="setup-card__content">
                 <h3 className="setup-typo-title">安装开始</h3>
                 <p className="ntq-muted setup-page__lead">
-                  点击开始后，系统会按顺序完成必要配置。过程中你可以选择是否导入演示数据、是否安装机器学习插件；跳过的步骤会记为已完成，之后也可在设置里补做。
+                  点击下方按钮开始安装新茶量化 (New Tea Quant)。
                 </p>
                 {bootstrapError ? (
                   <>

@@ -405,11 +405,11 @@ NTQ 自带以下演示资产：
 
 在 UI 点击导航「制定策略」，或打开路径 `/strategy-design/`。列表里选一个 demo（例如 **RSI超跌反弹v1 · 作为对比基准的版本**），点标题或「进入调试」：
 
-![图 1：导航进入制定策略](docs/images/demo/1.jpg)
+![图 1：导航进入制定策略](https://new-tea.cn/sites/default/files/ntq-readme/demo/1.jpg)
 
-![图 2：策略列表](docs/images/demo/2.jpg)
+![图 2：策略列表](https://new-tea.cn/sites/default/files/ntq-readme/demo/2.jpg)
 
-![图 3：策略详情页](docs/images/demo/3.jpg)
+![图 3：策略详情页](https://new-tea.cn/sites/default/files/ntq-readme/demo/3.jpg)
 
 策略页面大致由四块组成：
 
@@ -427,34 +427,34 @@ NTQ 自带以下演示资产：
 
 结合截图走一遍。机会盘点跑完后，报告通常分成两部分（后续步骤也类似）：**单股报告**与**全局报告**。
 
-![图 4：机会盘点后的报告（单股 + 全局）](docs/images/demo/4.jpg)
+![图 4：机会盘点后的报告（单股 + 全局）](https://new-tea.cn/sites/default/files/ntq-readme/demo/4.jpg)
 
 在表格中点击一只股票，可进入单股 K 线：图上会有 K 线、所用指标，并用标记标出策略抓住的机会（如下图蓝点）：
 
-![图 5：单股 K 线与机会标记](docs/images/demo/5.jpg)
+![图 5：单股 K 线与机会标记](https://new-tea.cn/sites/default/files/ntq-readme/demo/5.jpg)
 
 退出单股视图后，在列表下方可看该步骤的整体报告，例如机会盘点的全局分析（机会在哪些股票上分布、平均持续时长等），用来改进「机会产出」能力：
 
-![图 6：机会盘点全局报告](docs/images/demo/6.jpg)
+![图 6：机会盘点全局报告](https://new-tea.cn/sites/default/files/ntq-readme/demo/6.jpg)
 
 #### 第二步：价格回测
 
 价格回测衡量单股价格波动的捕获能力。下图为单股买卖点示意——不强调盈亏，而是直观看入手 / 出手位置，方便调试进出场：
 
-![图 7：价格回测单股 K 线（买卖点）](docs/images/demo/7.jpg)
+![图 7：价格回测单股 K 线（买卖点）](https://new-tea.cn/sites/default/files/ntq-readme/demo/7.jpg)
 
 全局报告里会有买卖价分布、收益等信息；解读时请结合您在配置里设定的目标：
 
-![图 8：价格回测全局报告](docs/images/demo/8.jpg)
+![图 8：价格回测全局报告](https://new-tea.cn/sites/default/files/ntq-readme/demo/8.jpg)
 
 #### 第三步：投资模拟
 
 投资模拟更接近真实交易：可设置仓位、初始资金，以及机会多于空位时的选仓规则，在历史行情上模拟投资。  
 （这一步的报告目前不支持点击单股下钻，机会盘点和价格回测可以。）
 
-![图 9：投资组合全局报告](docs/images/demo/9.jpg)
+![图 9：投资组合全局报告](https://new-tea.cn/sites/default/files/ntq-readme/demo/9.jpg)
 
-![图 10：收益与回撤等曲线](docs/images/demo/10.jpg)
+![图 10：收益与回撤等曲线](https://new-tea.cn/sites/default/files/ntq-readme/demo/10.jpg)
 
 #### 第四步：决策模拟
 
@@ -473,7 +473,7 @@ NTQ 自带以下演示资产：
 
 进入「策略选股」后，可选用 **严格模式**（数据不够新则不执行），选中策略并点击「开始扫描」。结束后页面会列出策略筛出的当前机会：
 
-![图 11：策略选股 / 扫描](docs/images/demo/11.jpg)
+![图 11：策略选股 / 扫描](https://new-tea.cn/sites/default/files/ntq-readme/demo/11.jpg)
 
 若只想看演示：选择 **「扫描演示」** 模式再扫。应用会假定「今天」是您本地数据最晚交易日的下一天，再按该假想时点跑扫描。
 
@@ -574,34 +574,34 @@ python3 -m piptools compile --output-file requirements.txt requirements.in
 <details>
 <summary><strong>Gemini 3.1 Pro</strong>（展开长图）</summary>
 
-![Gemini 3.1 Pro 对 NTQ 的审阅](docs/images/ai-assessments/gemini-3.1-pro.jpg)
+![Gemini 3.1 Pro 对 NTQ 的审阅](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/gemini-3.1-pro.jpg)
 
 </details>
 
 <details>
 <summary><strong>GPT-5.5</strong>（展开长图）</summary>
 
-![GPT-5.5 对 NTQ 的审阅](docs/images/ai-assessments/gpt-5.5.jpg)
+![GPT-5.5 对 NTQ 的审阅](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/gpt-5.5.jpg)
 
 </details>
 
 <details>
 <summary><strong>Claude Sonnet 4.6</strong>（展开长图）</summary>
 
-![Claude Sonnet 4.6 对 NTQ 的审阅](docs/images/ai-assessments/claude-sonnet-4.6.jpg)
+![Claude Sonnet 4.6 对 NTQ 的审阅](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/claude-sonnet-4.6.jpg)
 
 </details>
 
 <details>
 <summary><strong>DeepSeek</strong>（展开长图，6 屏拼接）</summary>
 
-![DeepSeek 对 NTQ 的审阅](docs/images/ai-assessments/deepseek.jpg)
+![DeepSeek 对 NTQ 的审阅](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/deepseek.jpg)
 
 </details>
 
 <details>
 <summary><strong>Gitee 马建仓助手</strong>（展开长图）</summary>
 
-![Gitee 助手对 NTQ 的审阅](docs/images/ai-assessments/gitee-assistant.jpg)
+![Gitee 助手对 NTQ 的审阅](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/gitee-assistant.jpg)
 
 </details>

@@ -144,9 +144,15 @@ export const STRATEGY_LAYOUT_HELP = {
   steps: STRATEGY_LAYOUT_STEPS,
 };
 
+/**
+ * 工作台三步共用同一个 dismiss id：第一次进任一回测步骤弹完整引导，
+ * 关掉后换步骤不再整轮重弹（步骤专属文案仍可通过右上角 Help 手动打开）。
+ */
+const STRATEGY_DESIGN_HELP_ID = 'strategy-design';
+
 /** 机会盘点：无焦点简介 + 共用壳层引导。 */
 export const STRATEGY_DESIGN_ENUM_HELP = {
-  id: 'strategy-design-enum',
+  id: STRATEGY_DESIGN_HELP_ID,
   version: 1,
   trigger: 'enter',
   match: matchStrategyDesignEnum,
@@ -169,7 +175,7 @@ export const STRATEGY_DESIGN_ENUM_HELP = {
 
 /** 价格回测：无焦点简介 + 共用壳层引导。 */
 export const STRATEGY_DESIGN_PRICE_HELP = {
-  id: 'strategy-design-price',
+  id: STRATEGY_DESIGN_HELP_ID,
   version: 1,
   trigger: 'enter',
   match: matchStrategyDesignPrice,
@@ -192,7 +198,7 @@ export const STRATEGY_DESIGN_PRICE_HELP = {
 
 /** 投资模拟：无焦点简介 + 共用壳层引导。 */
 export const STRATEGY_DESIGN_PORTFOLIO_HELP = {
-  id: 'strategy-design-portfolio',
+  id: STRATEGY_DESIGN_HELP_ID,
   version: 1,
   trigger: 'enter',
   match: matchStrategyDesignPortfolio,

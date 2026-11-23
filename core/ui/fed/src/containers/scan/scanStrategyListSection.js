@@ -4,6 +4,7 @@ import {
   CategoryChipStrip,
   CountBadge,
   DataGrid,
+  Heading,
   ListToolbar,
   Loading,
   Message,
@@ -11,7 +12,6 @@ import {
   SearchField,
   Section,
 } from 'ui';
-import DataEndTruncationAlert from 'containers/dataEndTruncation';
 
 /** 策略搜索 / 归类 / 表格列表。 */
 export default function ScanStrategyListSection({
@@ -29,9 +29,10 @@ export default function ScanStrategyListSection({
   loadError,
   readinessError,
   onClearReadinessError,
-  dataEnd,
   readinessLoading,
   mode,
+  demoModeHint,
+  contextLoading,
   strictBlockReason,
   runError,
   progress,
@@ -41,6 +42,7 @@ export default function ScanStrategyListSection({
 }) {
   return (
     <Section className="scan-section scan-section--list" gap="md">
+      <Heading level="h3" gap="none">选择一个策略来扫描机会</Heading>
       <ListToolbar
         search={(
           <SearchField
@@ -62,7 +64,6 @@ export default function ScanStrategyListSection({
             刷新策略列表
           </Button>
         )}
-        hint="一次仅允许扫描一个策略；运行中会禁用其它策略的扫描按钮。"
       />
 
       {catalogGroups.length > 0 ? (
@@ -91,7 +92,15 @@ export default function ScanStrategyListSection({
           {readinessError}
         </Message>
       ) : null}
-      <DataEndTruncationAlert dataEnd={dataEnd} />
+      {mode === 'demo' ? (
+        <Message status="warning" className="scan-demo-mode-alert">
+          {contextLoading ? (
+            <Loading variant="inlineRow" message="正在确认假定最新完成交易日…" />
+          ) : (
+            demoModeHint
+          )}
+        </Message>
+      ) : null}
       {!readinessLoading && mode === 'strict' && strictBlockReason ? (
         <Message status="warning">{strictBlockReason}</Message>
       ) : null}

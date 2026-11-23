@@ -44,15 +44,28 @@
     gap: var(--ui-space-sm);
   }
 
-  .scan-settings__chips {
+  .scan-settings__plans {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: var(--ui-space-sm);
     min-width: 0;
   }
 
-  .scan-settings__chips--muted {
+  .scan-settings__plans--muted {
     opacity: 0.45;
+  }
+
+  .scan-settings__plan {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ui-space-xs) var(--ui-space-sm);
+    min-width: 0;
+  }
+
+  .scan-settings__plan-steps {
+    font-size: var(--ui-font-xs);
+    line-height: 1.4;
   }
 
   .scan-settings__post-actions {
@@ -129,14 +142,25 @@
   }
 
   .scan-cell-strategy {
-    display: flex;
-    flex-direction: column;
+    display: inline-flex;
+    align-items: center;
     gap: var(--ui-space-xs);
     min-width: 0;
+    max-width: 100%;
   }
 
   .scan-cell-strategy__name {
     font-weight: var(--ui-font-weight-bold);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .scan-cell-strategy__tip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
   }
 
   .scan-cell-actions {
@@ -154,6 +178,42 @@
   .scan-cell-actions__pct {
     font-size: var(--ui-font-xs);
     font-variant-numeric: tabular-nums;
+  }
+
+  .scan-opp-cell {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ui-space-xs);
+  }
+
+  .scan-opp-cell__warn {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    .ntq-help-tooltip-trigger,
+    .ntq-help-tooltip-trigger--shine {
+      color: var(--ntq-warning);
+
+      &:hover,
+      &:focus-visible {
+        color: var(--ntq-warning);
+        filter: brightness(1.12);
+        opacity: 1;
+      }
+    }
+
+    .ntq-help-tooltip-trigger__icon {
+      width: var(--ntq-icon-l);
+      height: var(--ntq-icon-l);
+    }
+
+    .ntq-icon {
+      width: var(--ntq-icon-l);
+      height: var(--ntq-icon-l);
+    }
   }
 
   .scan-opp-count.ntq-button--ghost,
@@ -262,6 +322,16 @@
   line-height: 1.45;
   color: rgba(226, 232, 240, 0.96);
   word-break: break-word;
+}
+
+.scan-detail__meta-ver {
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.scan-detail__meta-ver {
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.92);
 }
 
 .scan-detail__meta-value--accent {

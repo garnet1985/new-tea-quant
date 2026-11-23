@@ -27,6 +27,8 @@ _ONLY_BINARY = (
     "numpy,pandas,duckdb,psycopg2-binary,cffi,curl-cffi,lxml,mini-racer,psutil"
 )
 _PROBE_NAMES = ("numpy", "pandas", "duckdb")
+# 3.11 / 3.12 轮子齐全，跳过探测省时间；3.13+ 再提前 dry-download。
+_WHEEL_PROBE_MIN = (3, 13)
 
 
 def _pin_from_requirements(req: Path, name: str) -> str | None:
@@ -41,13 +43,19 @@ def _pin_from_requirements(req: Path, name: str) -> str | None:
     return None
 
 
+def _should_probe_wheels() -> bool:
+    return sys.version_info[:2] >= _WHEEL_PROBE_MIN
+
+
 def _abort_if_wheels_missing(req: Path) -> int | None:
     """
     对强制二进制的核心包做一次 dry download。
 
-    新小版本 Python 常缺 cp3xy 轮子；与「语言不向下兼容」无关。
-    提前失败并给出可执行建议，避免 pip 扫完整份 requirements 才报错。
+    仅 Python 3.13+：新小版本常缺 cp3xy 轮子。3.11/3.12 跳过以节省时间。
     """
+    if not _should_probe_wheels():
+        return None
+
     pins = [_pin_from_requirements(req, name) for name in _PROBE_NAMES]
     pins = [p for p in pins if p]
     if not pins:

@@ -66,16 +66,34 @@
   font-weight: var(--ui-font-weight-bold);
 }
 
-.strategy-list-name-link {
-  color: inherit;
-  font-weight: var(--ui-font-weight-bold);
-  text-decoration: none;
-  transition: var(--ui-transition-colors);
+.strategy-list-cell-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-xs);
+  min-width: 0;
+  max-width: 100%;
+}
 
-  &:hover {
-    color: var(--ntq-cyan);
-    text-decoration: underline;
-  }
+.strategy-list-cell-name__tip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.strategy-list-name-link {
+  font-weight: var(--ui-font-weight-bold);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strategy-list-cell-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-xs);
+  padding-block: var(--ui-space-xxs);
 }
 
 .strategy-list-cell-actions {
@@ -85,6 +103,36 @@
   gap: var(--ui-space-xs);
   line-height: var(--ui-leading-normal, 1.5);
   white-space: nowrap;
+}
+
+.strategy-list-cell-enabled {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+// autoHeight 时 virtualScroller 偶发多出一截底空白
+.strategy-list-data-grid {
+  &.MuiDataGrid-autoHeight {
+    --DataGrid-overlayHeight: 0px;
+  }
+
+  .MuiDataGrid-main {
+    overflow: hidden;
+  }
+
+  .MuiDataGrid-virtualScroller {
+    min-height: 0 !important;
+    overflow-y: hidden;
+  }
+
+  .MuiDataGrid-virtualScrollerContent {
+    min-height: 0 !important;
+  }
+
+  .MuiDataGrid-row:last-child .MuiDataGrid-cell {
+    border-bottom: none;
+  }
 }
 
 .strategy-list-actions-sep {
@@ -101,8 +149,4 @@
   opacity: 0.5;
   cursor: default;
   text-decoration: none;
-}
-
-.strategy-list-desc {
-  min-width: 0;
 }

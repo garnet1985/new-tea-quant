@@ -138,14 +138,23 @@ function GlobalHelperHost() {
   }, [startTour]);
 
   useEffect(() => {
-    autoTriedRef.current = new Set();
-    setEnterSettled(!matchingHelps.some((help) => helpTrigger(help) === 'enter'));
+    // 换页时若引导还开着：记入本会话已关，避免同 id（如工作台三步共用 strategy-design）整轮重弹。
+    // 不整表清空 autoTriedRef，否则未落盘 dismiss 时一换步骤又会再进。
     if (openRef.current) {
+      const current = activeHelpRef.current;
+      if (current?.id) {
+        setSessionDismissed((prev) => {
+          const next = new Set(prev);
+          next.add(current.id);
+          return next;
+        });
+      }
       setOpen(false);
       setActiveHelp(null);
       setLiveSteps([]);
       emitGlobalHelperSession(false);
     }
+    setEnterSettled(!matchingHelps.some((help) => helpTrigger(help) === 'enter'));
   }, [matchingHelps]);
 
   useEffect(() => {

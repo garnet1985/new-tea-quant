@@ -393,11 +393,11 @@ Bundled demo assets:
 
 In the UI click **制定策略**, or open `/strategy-design/`. Pick a demo (e.g. **RSI超跌反弹v1 · 作为对比基准的版本**), then the title or **进入调试**:
 
-![Fig. 1: Navigate to Strategy Design](docs/images/demo/1.jpg)
+![Fig. 1: Navigate to Strategy Design](https://new-tea.cn/sites/default/files/ntq-readme/demo/1.jpg)
 
-![Fig. 2: Strategy list](docs/images/demo/2.jpg)
+![Fig. 2: Strategy list](https://new-tea.cn/sites/default/files/ntq-readme/demo/2.jpg)
 
-![Fig. 3: Strategy detail](docs/images/demo/3.jpg)
+![Fig. 3: Strategy detail](https://new-tea.cn/sites/default/files/ntq-readme/demo/3.jpg)
 
 Four main areas:
 
@@ -415,34 +415,34 @@ Four main areas:
 
 After enumeration, reports usually split into **per-stock** and **global** (later stages follow the same idea):
 
-![Fig. 4: Enumeration report (per-stock + global)](docs/images/demo/4.jpg)
+![Fig. 4: Enumeration report (per-stock + global)](https://new-tea.cn/sites/default/files/ntq-readme/demo/4.jpg)
 
 Click a row to open that stock’s chart — K-lines, indicators, and opportunity markers (e.g. blue dots):
 
-![Fig. 5: Single-stock chart with opportunity marks](docs/images/demo/5.jpg)
+![Fig. 5: Single-stock chart with opportunity marks](https://new-tea.cn/sites/default/files/ntq-readme/demo/5.jpg)
 
 Below the list, the global enum report summarizes where opportunities cluster, average duration, and similar diagnostics:
 
-![Fig. 6: Enumeration global report](docs/images/demo/6.jpg)
+![Fig. 6: Enumeration global report](https://new-tea.cn/sites/default/files/ntq-readme/demo/6.jpg)
 
 #### Stage 2: Price backtest
 
 Focuses on price-capture quality. The single-stock view shows entries/exits — not P&L drama, but clear timing for debugging:
 
-![Fig. 7: Price backtest chart (entries/exits)](docs/images/demo/7.jpg)
+![Fig. 7: Price backtest chart (entries/exits)](https://new-tea.cn/sites/default/files/ntq-readme/demo/7.jpg)
 
 The global report covers buy/sell price distributions, returns, and more — always read it against your configured goals:
 
-![Fig. 8: Price backtest global report](docs/images/demo/8.jpg)
+![Fig. 8: Price backtest global report](https://new-tea.cn/sites/default/files/ntq-readme/demo/8.jpg)
 
 #### Stage 3: Portfolio simulation
 
 Closer to real trading: capital, positions, and a rule for choosing when there are more hits than slots, run on historical bars.  
 (This step’s report does not support per-stock drill-down; enumerate and price backtest do.)
 
-![Fig. 9: Portfolio global report](docs/images/demo/9.jpg)
+![Fig. 9: Portfolio global report](https://new-tea.cn/sites/default/files/ntq-readme/demo/9.jpg)
 
-![Fig. 10: Equity / drawdown style curves](docs/images/demo/10.jpg)
+![Fig. 10: Equity / drawdown style curves](https://new-tea.cn/sites/default/files/ntq-readme/demo/10.jpg)
 
 #### Stage 4: Decision simulation
 
@@ -461,7 +461,7 @@ For a “real” market scan you typically need:
 
 On the scan page you can use **严格模式** (strict: refuse to run if data is stale), pick a strategy, and click **开始扫描**. Results list current opportunities:
 
-![Fig. 11: Strategy scan](docs/images/demo/11.jpg)
+![Fig. 11: Strategy scan](https://new-tea.cn/sites/default/files/ntq-readme/demo/11.jpg)
 
 For a dry run only, choose **扫描演示**. The app pretends “today” is the day after your local data’s last trading day, then runs at that synthetic as-of.
 
@@ -561,34 +561,34 @@ Dep lists: [requirements-dev.txt](requirements-dev.txt) · [requirements.in](req
 <details>
 <summary><strong>Gemini 3.1 Pro</strong> (expand)</summary>
 
-![Gemini 3.1 Pro review of NTQ](docs/images/ai-assessments/gemini-3.1-pro.jpg)
+![Gemini 3.1 Pro review of NTQ](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/gemini-3.1-pro.jpg)
 
 </details>
 
 <details>
 <summary><strong>GPT-5.5</strong> (expand)</summary>
 
-![GPT-5.5 review of NTQ](docs/images/ai-assessments/gpt-5.5.jpg)
+![GPT-5.5 review of NTQ](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/gpt-5.5.jpg)
 
 </details>
 
 <details>
 <summary><strong>Claude Sonnet 4.6</strong> (expand)</summary>
 
-![Claude Sonnet 4.6 review of NTQ](docs/images/ai-assessments/claude-sonnet-4.6.jpg)
+![Claude Sonnet 4.6 review of NTQ](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/claude-sonnet-4.6.jpg)
 
 </details>
 
 <details>
 <summary><strong>DeepSeek</strong> (expand, 6 screens stitched)</summary>
 
-![DeepSeek review of NTQ](docs/images/ai-assessments/deepseek.jpg)
+![DeepSeek review of NTQ](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/deepseek.jpg)
 
 </details>
 
 <details>
 <summary><strong>Gitee Assistant</strong> (expand)</summary>
 
-![Gitee Assistant review of NTQ](docs/images/ai-assessments/gitee-assistant.jpg)
+![Gitee Assistant review of NTQ](https://new-tea.cn/sites/default/files/ntq-readme/ai-assessments/gitee-assistant.jpg)
 
 </details>

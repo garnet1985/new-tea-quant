@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { Button, Heading, HelpTooltip, Message } from 'ui';
+import { Button, Heading, HelpTooltip, Message, Switch } from 'ui';
 import StrategyMetaDetailText from '../strategyMetaDetailText';
 import { getStrategyListPath } from 'containers/strategyCategory';
 import { formatGoalSummaryLines, resolveStrategyShortLabel } from 'containers/strategySettings';
@@ -73,7 +73,7 @@ function StrategyDesignMetaBar() {
                     {wb.strategyDescription}
                   </span>
                 )}
-                variant="info"
+                shine
                 placement="bottom"
                 ariaLabel="策略说明"
                 className="ntq-design-meta__strategy-desc-tip"
@@ -159,6 +159,22 @@ function StrategyDesignMetaBar() {
                 >
                   {wb.packageExporting ? '导出中…' : '导出策略'}
                 </Button>
+                <span className="ntq-design-meta__admin-sep" aria-hidden>|</span>
+                <Switch
+                  className="ntq-design-meta__admin-enabled"
+                  checked={wb.isEnabled}
+                  disabled={
+                    wb.enabledToggling
+                    || wb.disableMetaActions
+                    || wb.packageExporting
+                  }
+                  label={wb.isEnabled ? '可用' : '不可用'}
+                  aria-label={wb.isEnabled ? '设为不可用' : '设为可用'}
+                  onChange={(e) => {
+                    wb.handleSetEnabled(e.target.checked);
+                  }}
+                  data-ntq-help="strategy-enabled"
+                />
               </>
             ) : null}
           </div>

@@ -96,11 +96,17 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
   // 缺省 can_scan 视为不可扫，避免「未定义 = 允许」的障眼法
   const canScanRaw = m.can_scan ?? m.canScan;
   const canScan = typeof canScanRaw === 'boolean' ? canScanRaw : false;
+  const currentWb = Number(m.current_workbench_version ?? m.currentWorkbenchVersion ?? 0);
   return {
     primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
     report,
     can_scan: canScan,
     block_reason: blockReason || (canScanRaw === undefined ? '扫描就绪状态未知' : ''),
+    settings_stale: Boolean(m.settings_stale ?? m.settingsStale),
+    version_stale: Boolean(m.version_stale ?? m.versionStale),
+    current_workbench_version: Number.isFinite(currentWb) && currentWb > 0
+      ? Math.trunc(currentWb)
+      : 0,
   };
 }
 
@@ -264,6 +270,25 @@ export async function persistStrategySettings(strategyKeyOrName, settings, opts 
     execute_settings: m.execute_settings && typeof m.execute_settings === 'object'
       ? m.execute_settings
       : {},
+  };
+}
+
+/**
+ * 读写 ``settings.py`` 的 ``is_enabled``（列表 / 内页开关）。
+ * @returns {Promise<{ is_enabled: boolean, settings_rev: string }>}
+ */
+export async function setStrategyEnabled(strategyKeyOrName, enabled) {
+  const current = await fetchStrategySettingsCurrent(strategyKeyOrName);
+  const disk = current.disk_settings && typeof current.disk_settings === 'object'
+    ? current.disk_settings
+    : {};
+  const next = { ...disk, is_enabled: Boolean(enabled) };
+  const occupancy = await persistStrategySettings(strategyKeyOrName, next, {
+    settings_rev: current.settings_rev,
+  });
+  return {
+    is_enabled: Boolean(occupancy.disk_settings?.is_enabled ?? enabled),
+    settings_rev: occupancy.settings_rev,
   };
 }
 

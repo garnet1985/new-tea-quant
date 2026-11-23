@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping, Optional
 
 from ...contracts import TraceEvent
@@ -19,6 +21,7 @@ class TraceTrackService:
     """Build usage events; ``track`` POSTs immediately, ``queue`` enqueues only."""
 
     _DECISION_EVENT = "track.decision"
+    _MEMBER_BIND_EVENT = "member.bind"
 
     @staticmethod
     def track(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
@@ -83,6 +86,79 @@ class TraceTrackService:
                 body,
                 cfg=cfg,
                 enqueue_on_fail=bool(enabled),
+            )
+        except Exception:
+            return
+
+    @staticmethod
+    def track_member_bind(*, source: str = "", force: bool = False) -> None:
+        """
+        Link this installation to the mapped membership token.
+
+        Bypasses usage-consent: mapping a member credential is an explicit
+        identity signal. Still respects ``NTQ_TRACE_SKIP``. Without ``force``,
+        skips when a local marker already matches the current installation_id.
+        """
+        try:
+            if TraceConfigService.should_skip():
+                return
+            from core.infra.membership import Membership
+
+            if not Membership.read():
+                return
+            TraceEndpointService.ensure()
+            cfg = TraceConfigService.load()
+            if not str(cfg.target_url or "").strip():
+                return
+            install_id = TraceIdentityService.get_or_create()
+            if not install_id:
+                return
+            if not force and TraceTrackService._member_bind_done(install_id):
+                return
+            TraceTrackService._emit(
+                TraceTrackService._MEMBER_BIND_EVENT,
+                {"source": str(source or "")[:32]},
+                cfg=cfg,
+                enqueue_on_fail=True,
+            )
+            TraceTrackService._mark_member_bind(install_id)
+        except Exception:
+            return
+
+    @staticmethod
+    def _member_bind_marker_path() -> Path:
+        from core.infra.project_context import ProjectContext
+
+        return ProjectContext.path.get_user_prefs_root() / "trace_member_bind.json"
+
+    @staticmethod
+    def _member_bind_done(install_id: str) -> bool:
+        path = TraceTrackService._member_bind_marker_path()
+        if not path.is_file():
+            return False
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        if not isinstance(raw, dict):
+            return False
+        return str(raw.get("installation_id") or "") == str(install_id)
+
+    @staticmethod
+    def _mark_member_bind(install_id: str) -> None:
+        path = TraceTrackService._member_bind_marker_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "installation_id": str(install_id),
+                "bound_at": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            }
+            path.write_text(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+                + "\n",
+                encoding="utf-8",
             )
         except Exception:
             return

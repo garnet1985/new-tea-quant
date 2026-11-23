@@ -116,3 +116,14 @@ def test_install_step_failed_classifies_postgres_auth() -> None:
     body = mock_trace.track_setup.call_args.args[1]
     assert body["error_class"] == "db_auth"
     assert "password authentication failed" in body["message_safe"]
+
+
+def test_app_start_binds_then_tracks() -> None:
+    mock_trace = MagicMock()
+    with patch("core.infra.trace.Trace", mock_trace):
+        SetupTrace.app_start(entry="ui")
+
+    mock_trace.track_member_bind.assert_called_once_with(
+        source="app_start:ui", force=False
+    )
+    mock_trace.track.assert_called_once_with("app.start", {"entry": "ui"})

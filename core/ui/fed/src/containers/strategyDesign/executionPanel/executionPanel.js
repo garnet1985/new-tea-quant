@@ -14,15 +14,6 @@ import './style.scss';
 const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
 const ROLLING_IDLE_TOOLTIP = '请先完成机会盘点、价格回测与投资模拟。需要在策略目录配置 rolling.py 才能开始滚动对照。';
 
-function disabledTip(button, howTo) {
-  if (!button || !howTo) return button;
-  return (
-    <span className="ntq-design-exec-panel__attr-tip-wrap" title={howTo}>
-      {button}
-    </span>
-  );
-}
-
 function resolveExecutionStatusCopy({
   activeStep,
   stepStatus,
@@ -180,11 +171,12 @@ function StrategyDesignExecutionPanel() {
   const attributeHowTo = !wb.attributeEnabled
     ? (wb.attributeTooltip || ATTRIBUTE_IDLE_TOOLTIP)
     : '';
-  const attributeButton = showAttributeButton ? (
+  const attributeControl = showAttributeButton ? (
     <RainbowButton
       shape="pill"
       icon={attributeDone ? 'refresh' : 'play'}
       shimmer
+      tooltip={attributeHowTo}
       disabled={wb.disableMetaActions || panelBusy || !wb.attributeEnabled}
       onClick={wb.handleAttributeRun}
       aria-label={attributeDone ? '重新归因' : '开始归因'}
@@ -194,17 +186,16 @@ function StrategyDesignExecutionPanel() {
     </RainbowButton>
   ) : null;
 
-  const attributeControl = disabledTip(attributeButton, attributeHowTo);
-
   const showRollingButton = wb.activeStep === 'portfolio';
   const rollingHowTo = !wb.rollingEnabled
     ? (wb.rollingTooltip || ROLLING_IDLE_TOOLTIP)
     : '';
-  const rollingButton = showRollingButton ? (
+  const rollingControl = showRollingButton ? (
     <RainbowButton
       shape="pill"
       icon={rollingDone ? 'refresh' : 'play'}
       shimmer
+      tooltip={rollingHowTo}
       disabled={wb.disableMetaActions || panelBusy || !wb.rollingEnabled}
       onClick={wb.handleRollingRun}
       aria-label={rollingDone ? '重新滚动对照' : '开始滚动对照'}
@@ -213,7 +204,6 @@ function StrategyDesignExecutionPanel() {
       {rollingDone ? '重新滚动对照' : '开始滚动对照'}
     </RainbowButton>
   ) : null;
-  const rollingControl = disabledTip(rollingButton, rollingHowTo);
 
   const progressValue = statusCopy.showProgress
     ? (statusCopy.progress > 0 ? statusCopy.progress : null)

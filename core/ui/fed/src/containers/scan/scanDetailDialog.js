@@ -6,7 +6,11 @@ import {
   formatSessionSummaryLine,
   mapOpportunityRow,
 } from './presenterScanReport';
-import { readOpportunityCount } from './scanHelpers';
+import {
+  formatStrategyVersionLabel,
+  readOpportunityCount,
+  readWorkbenchVersion,
+} from './scanHelpers';
 
 /** 机会明细弹层。 */
 export default function ScanDetailDialog({
@@ -17,6 +21,9 @@ export default function ScanDetailDialog({
   detailStrategyName,
   detailPresenterHistory,
 }) {
+  const strategyVersion = formatStrategyVersionLabel(readWorkbenchVersion(detailPayload))
+    || String(detailPayload?.strategy_version || detailPayload?.strategyVersion || '').trim();
+
   return (
     <Dialog
       open={open}
@@ -32,6 +39,7 @@ export default function ScanDetailDialog({
           <>
             <OpportunityDetailMeta
               strategyName={detailStrategyName}
+              strategyVersion={strategyVersion}
               scanDate={detailPayload?.date || detailPayload?.scan_date}
               opportunityCount={(() => {
                 const n = readOpportunityCount(detailPayload);

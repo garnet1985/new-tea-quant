@@ -37,7 +37,7 @@ function StrategyDesign({ strategyName, step }) {
         <StrategyDesignShell
           breadcrumbsItems={[
             { label: '制定策略', to: '/strategy-design' },
-            { label: '选择一个策略', to: '/strategy-design' },
+            { label: '所有策略', to: '/strategy-design' },
           ]}
           breadcrumbsCurrent={<StrategyDesignBreadcrumbCurrent />}
         >

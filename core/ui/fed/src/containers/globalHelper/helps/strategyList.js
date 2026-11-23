@@ -6,10 +6,18 @@ export function matchStrategyList(pathname) {
 
 export const STRATEGY_LIST_HELP = {
   id: 'strategy-list',
-  version: 1,
+  version: 2,
   trigger: 'enter',
   match: matchStrategyList,
   steps: [
+    {
+      pages: [
+        {
+          title: '制定策略',
+          body: '这里列出您用户空间里的全部策略。可以筛选归类、刷新本地新建项，或导入策略包；点「进入制定」打开工作台去调参与回测。',
+        },
+      ],
+    },
     {
       target: 'strategy-list-table',
       pages: [

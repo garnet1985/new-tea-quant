@@ -80,24 +80,32 @@ function DictParserTextarea({
       placeholder={field.placeholder || '输入 settings.core（dict）'}
       className={[
         'ntq-dict-parser-field__textarea',
-        fullscreen ? 'ntq-dict-parser-field__textarea--fullscreen' : '',
+        fullscreen ? 'ntq-dict-parser-field__textarea--fullscreen' : 'ntq-dict-parser-field__textarea--compact',
         parser.parseError ? 'is-error' : '',
       ].filter(Boolean).join(' ')}
-      rows={fullscreen ? 24 : Math.round(COMPACT_EDITOR_HEIGHT / 22)}
+      // 紧凑模式勿用大 minRows：MUI 按行高测算时会吃到固定 height，叠出上千 px
+      rows={fullscreen ? 24 : 4}
       InputProps={{
         sx: fullscreen
           ? { flex: 1, height: '100%', alignItems: 'flex-start' }
-          : { alignItems: 'flex-start' },
+          : {
+            alignItems: 'flex-start',
+            height: COMPACT_EDITOR_HEIGHT,
+            maxHeight: COMPACT_EDITOR_HEIGHT,
+            overflow: 'hidden',
+          },
       }}
       inputProps={{
         style: {
           ...DICT_PARSER_TEXT_FONT,
           whiteSpace: 'pre',
           tabSize: 2,
-          height: fullscreen ? '100%' : `${COMPACT_EDITOR_HEIGHT}px`,
-          minHeight: fullscreen ? 'min(72vh, 720px)' : undefined,
+          height: '100%',
+          maxHeight: fullscreen ? undefined : '100%',
+          minHeight: fullscreen ? 'min(72vh, 720px)' : 0,
           overflow: 'auto',
           boxSizing: 'border-box',
+          resize: fullscreen ? undefined : 'none',
         },
       }}
     />

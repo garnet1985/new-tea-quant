@@ -12,6 +12,7 @@ import {
   Message,
   SearchField,
   Section,
+  Switch,
   Tag,
 } from 'ui';
 import { showToast } from 'ui/message/toast';
@@ -21,6 +22,7 @@ import {
   fetchStrategyList,
   getStrategyDesignPath,
   getStrategyDisplayLabel,
+  setStrategyEnabled,
 } from '../../api/strategyApi';
 import {
   groupStrategiesByCategory,
@@ -68,6 +70,7 @@ function StrategyListPage({
   const [nameQuery, setNameQuery] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [exportingName, setExportingName] = useState('');
+  const [togglingName, setTogglingName] = useState('');
 
   const categoryQuery = readStrategyListCategoryQuery(searchParams);
   const selectedChipRef = useRef(null);
@@ -174,6 +177,29 @@ function StrategyListPage({
     }
   }, [exportingName]);
 
+  const handleToggleEnabled = useCallback(async (row, nextEnabled) => {
+    const name = String(row?.name || '').trim();
+    if (!name || togglingName) return;
+    const prev = Boolean(row.is_enabled);
+    setTogglingName(name);
+    setRows((list) => list.map((r) => (
+      r.name === name ? { ...r, is_enabled: nextEnabled } : r
+    )));
+    try {
+      const res = await setStrategyEnabled(row.key || name, nextEnabled);
+      setRows((list) => list.map((r) => (
+        r.name === name ? { ...r, is_enabled: Boolean(res.is_enabled) } : r
+      )));
+    } catch (e) {
+      setRows((list) => list.map((r) => (
+        r.name === name ? { ...r, is_enabled: prev } : r
+      )));
+      showToast({ status: 'error', content: e?.message || '更新可用状态失败' });
+    } finally {
+      setTogglingName('');
+    }
+  }, [togglingName]);
+
   const enterNavState = useCallback((row) => buildStrategyDesignNavState(row), []);
 
   const columns = useMemo(() => ([
@@ -255,6 +281,33 @@ function StrategyListPage({
       },
     },
     {
+      field: 'is_enabled',
+      headerName: '可用',
+      width: 120,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => {
+        const enabled = Boolean(params.row.is_enabled);
+        return (
+          <div
+            className="strategy-list-cell-enabled"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <Switch
+              checked={enabled}
+              disabled={Boolean(togglingName)}
+              label={enabled ? '可用' : '不可用'}
+              aria-label={enabled ? '设为不可用' : '设为可用'}
+              onChange={(e) => {
+                handleToggleEnabled(params.row, e.target.checked);
+              }}
+            />
+          </div>
+        );
+      },
+    },
+    {
       field: 'keywords',
       headerName: '关键词',
       minWidth: 180,
@@ -278,7 +331,14 @@ function StrategyListPage({
         );
       },
     },
-  ]), [enterNavState, exportingName, getEnterPath, handleExportStrategyPackage]);
+  ]), [
+    enterNavState,
+    exportingName,
+    getEnterPath,
+    handleExportStrategyPackage,
+    handleToggleEnabled,
+    togglingName,
+  ]);
 
   return (
     <PageLayout

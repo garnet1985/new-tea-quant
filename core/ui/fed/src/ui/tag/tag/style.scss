@@ -18,6 +18,10 @@
   white-space: nowrap;
 }
 
+.ntq-tag--with-tooltip {
+  cursor: help;
+}
+
 /* 多 Tag 间距：勿用相邻 margin（flex 换行时下一行首枚会被顶歪）。父级用 gap ≥ 0.5rem。 */
 
 .ntq-tag--sm {

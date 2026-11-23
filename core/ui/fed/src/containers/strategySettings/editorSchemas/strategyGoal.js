@@ -367,7 +367,9 @@ export function applyGoalActions(goal) {
     next.dynamic_loss = { ratio: -0.1, close_invest: true };
   }
 
-  if (next.take_profit?.stages) {
+  // 未配置的止盈 / 止损不要落成 ``{ stages: [] }``——后端会校验「有块则 stages 非空」；
+  // 省略整块才表示「不设止盈 / 不设止损」（如演示 7a 仅止损 + 到期）。
+  if (Array.isArray(next.take_profit?.stages) && next.take_profit.stages.length > 0) {
     next.take_profit = {
       ...next.take_profit,
       stages: next.take_profit.stages.map((stage) => {
@@ -375,13 +377,17 @@ export function applyGoalActions(goal) {
         return finalizeStageForSave({ ...rest, actions: takeProfitActionsFromAction(action) });
       }),
     };
+  } else {
+    delete next.take_profit;
   }
 
-  if (next.stop_loss?.stages) {
+  if (Array.isArray(next.stop_loss?.stages) && next.stop_loss.stages.length > 0) {
     next.stop_loss = {
       ...next.stop_loss,
       stages: next.stop_loss.stages.map(({ action, ...rest }) => finalizeStageForSave(rest)),
     };
+  } else {
+    delete next.stop_loss;
   }
 
   // 股票状态风控已迁至 simulation.risk_control

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tooltip } from '@mui/material';
 import Icon from 'ui/icon/icon';
 import {
   TAG_COLORS,
@@ -14,6 +15,7 @@ import './style.scss';
  * - status：语义色（success/error/warning/info/neutral）
  * - color：装饰色（含紫）；与 status 二选一，有 color 走颜色模式
  * - variant：soft（浅底）/ outline / solid
+ * - tooltip：悬停说明（立刻弹出；仅有文案时启用）
  *
  * @example
  * <Tag status="success">已启用</Tag>
@@ -28,6 +30,7 @@ function Tag({
   size = 'sm',
   icon,
   onDelete,
+  tooltip = '',
   className = '',
   style,
   children,
@@ -54,15 +57,17 @@ function Tag({
     }
   }
 
+  const tip = String(tooltip || '').trim();
   const rootClass = [
     'ntq-tag',
     `ntq-tag--${variantToken}`,
     `ntq-tag--${sizeToken}`,
     `ntq-tag--${accentKey}`,
+    tip ? 'ntq-tag--with-tooltip' : '',
     className,
   ].filter(Boolean).join(' ');
 
-  return (
+  const tag = (
     <span className={rootClass} style={style} {...rest}>
       {iconNode ? (
         <span className="ntq-tag__icon" aria-hidden="true">
@@ -81,6 +86,16 @@ function Tag({
         </button>
       ) : null}
     </span>
+  );
+
+  if (!tip) {
+    return tag;
+  }
+
+  return (
+    <Tooltip title={tip} arrow enterDelay={0} leaveDelay={0} describeChild>
+      {tag}
+    </Tooltip>
   );
 }
 

@@ -12,8 +12,20 @@ from core.modules.data_source.core.service.date_range.date_range_service import 
 from core.modules.data_manager import DataManager
 
 
+def _format_assumed_end_hint(assumed: str) -> str:
+    """YYYYMMDD → 「2025年12月31日」；无法解析则原样返回。"""
+    raw = str(assumed or "").strip()
+    if len(raw) == 8 and raw.isdigit():
+        return f"{raw[:4]}年{int(raw[4:6])}月{int(raw[6:8])}日"
+    return raw
+
+
 def _demo_truncation_meta() -> Tuple[bool, str, str]:
-    """演示档提示：区间由官网决定，本地不硬编码截止日。"""
+    """演示档会员提示：看 ``sync_access==demo``（官网演示包），不是扫描「演示模式」。
+
+    截止日取 ``assumed_latest_completed_trading_date``，本地不硬编码。
+    自建数据源且会员档不是 demo 时不会触发。
+    """
     try:
         from core.modules.ntq_external.member_profile import member_profile
 
@@ -22,11 +34,14 @@ def _demo_truncation_meta() -> Tuple[bool, str, str]:
         return False, "", ""
     if profile.get("sync_access") != "demo":
         return False, "", ""
-    return (
-        True,
-        "当前会员档可下载区间由官网决定；完整续传需 Pro（或等价点数）档位。",
-        "/settings/membership",
+    assumed = ProjectContext.config.get_assumed_latest_completed_trading_date() or ""
+    label = _format_assumed_end_hint(assumed)
+    hint = (
+        f"官网演示数据截止{label}。"
+        if label
+        else "您当前为官网演示数据档，区间由会员档位决定。"
     )
+    return True, hint, "/settings/membership"
 
 
 def get_data_end_meta_light() -> Dict[str, Any]:

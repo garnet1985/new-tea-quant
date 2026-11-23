@@ -201,6 +201,23 @@
   display: flex;
 }
 
+.ntq-dict-parser-field__textarea--compact {
+  // 锁住外层，避免 MUI multiline minRows 把编辑区撑到数千 px
+  .MuiInputBase-root {
+    height: 300px !important;
+    max-height: 300px !important;
+    align-items: flex-start !important;
+    overflow: hidden !important;
+  }
+
+  .MuiInputBase-inputMultiline {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: auto !important;
+    resize: none !important;
+  }
+}
+
 .ntq-dict-parser-field__textarea--fullscreen {
   flex: 1;
   height: 100%;

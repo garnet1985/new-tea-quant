@@ -1,4 +1,30 @@
-import { formatGoalSummaryLines } from './strategyGoal';
+import { applyGoalActions, formatGoalSummaryLines, normalizeGoalSettings } from './strategyGoal';
+
+describe('applyGoalActions', () => {
+  it('omits empty take_profit / stop_loss so strategies can skip take-profit', () => {
+    const normalized = normalizeGoalSettings({
+      expiration: { fixed_window_in_days: 40, mode: 'open_day' },
+      stop_loss: { stages: [{ ratio: -0.12, close_invest: true }] },
+    });
+    const saved = applyGoalActions(normalized);
+    expect(saved.take_profit).toBeUndefined();
+    expect(saved.stop_loss.stages).toHaveLength(1);
+    expect(saved.expiration).toEqual({
+      fixed_window_in_days: 40,
+      mode: 'open_day',
+    });
+  });
+
+  it('drops take_profit when stages become empty in the editor', () => {
+    const saved = applyGoalActions({
+      expirationEnabled: false,
+      take_profit: { stages: [] },
+      stop_loss: { stages: [{ ratio: -0.1, close_invest: true }] },
+    });
+    expect(saved.take_profit).toBeUndefined();
+    expect(saved.stop_loss.stages).toHaveLength(1);
+  });
+});
 
 describe('formatGoalSummaryLines', () => {
   it('turns take-profit and stop-loss stages into full Chinese sentences', () => {

@@ -38,6 +38,12 @@ const doc = {
       description: '有则显示关闭按钮。',
     },
     {
+      name: 'tooltip',
+      type: 'string',
+      defaultValue: "''",
+      description: '悬停说明；有文案时立刻弹出（与 Button.tooltip 同延迟）。',
+    },
+    {
       name: 'children / label',
       type: 'ReactNode',
       defaultValue: '—',

@@ -49,6 +49,8 @@ class ReportManager(BaseReportManager):
     date_meta: Dict[str, Any] = field(default_factory=dict)
     goal: Dict[str, Any] = field(default_factory=dict)
     strategy_version: str = ""
+    scan_fingerprint: str = ""
+    workbench_version: int = 0
     max_cache_days: int = 10
     skip_save: bool = False
     opportunities: List[Opportunity] = field(default_factory=list)
@@ -69,6 +71,8 @@ class ReportManager(BaseReportManager):
         date_meta: Optional[Dict[str, Any]] = None,
         goal: Optional[Dict[str, Any]] = None,
         strategy_version: str = "",
+        scan_fingerprint: str = "",
+        workbench_version: int = 0,
         max_cache_days: int = 10,
         skip_save: bool = False,
         strategy_folder: Optional[Path] = None,
@@ -78,6 +82,10 @@ class ReportManager(BaseReportManager):
         root = strategy_folder if strategy_folder is not None else key
         store = ArtifactStore.scan_at(root, day) if day else None
         output_dir = store.output_dir if store is not None else Path()
+        try:
+            wb_ver = int(workbench_version or 0)
+        except (TypeError, ValueError):
+            wb_ver = 0
         mgr = cls(
             output_dir=output_dir,
             strategy_key=key,
@@ -86,6 +94,8 @@ class ReportManager(BaseReportManager):
             date_meta=dict(date_meta or {}),
             goal=dict(goal or {}),
             strategy_version=str(strategy_version or ""),
+            scan_fingerprint=str(scan_fingerprint or "").strip(),
+            workbench_version=max(0, wb_ver),
             max_cache_days=int(max_cache_days),
             skip_save=bool(skip_save),
         )
@@ -127,7 +137,7 @@ class ReportManager(BaseReportManager):
     def to_report_dict(self) -> Dict[str, Any]:
         """CMD / Scan 页 / 落盘共用的报告字典。"""
         summary = self.summary or self.summarize()
-        return {
+        out: Dict[str, Any] = {
             "strategy_key": self.strategy_key,
             "date": self.scan_date,
             "total_opportunities": len(self.opportunities),
@@ -142,6 +152,17 @@ class ReportManager(BaseReportManager):
                 "ui": dict(self.post_process_ui or {}),
             },
         }
+        fp = str(self.scan_fingerprint or "").strip()
+        if fp:
+            out["scan_fingerprint"] = fp
+        try:
+            wb_ver = int(self.workbench_version or 0)
+        except (TypeError, ValueError):
+            wb_ver = 0
+        if wb_ver > 0:
+            out["workbench_version"] = wb_ver
+            out["strategy_version"] = f"v{wb_ver}"
+        return out
 
     def to_ui_dict(self) -> Dict[str, Any]:
         """Scan 页消费的 camelCase 摘要（明细仍走 opportunities 列表 / CSV）。"""

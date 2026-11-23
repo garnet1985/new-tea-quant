@@ -203,6 +203,13 @@
   font-weight: 500;
 }
 
+.ntq-design-meta__admin-enabled.ntq-switch {
+  flex-shrink: 0;
+  height: var(--ntq-design-meta-admin-h);
+  align-items: center;
+  font-size: 0.75rem;
+}
+
 .ntq-design-meta__flash.ntq-message {
   margin: 0;
   padding: 0.375rem 0.5rem;

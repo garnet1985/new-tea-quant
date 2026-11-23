@@ -105,6 +105,12 @@
   white-space: nowrap;
 }
 
+.strategy-list-cell-enabled {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
 // autoHeight 时 virtualScroller 偶发多出一截底空白
 .strategy-list-data-grid {
   &.MuiDataGrid-autoHeight {

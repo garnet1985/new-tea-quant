@@ -23,7 +23,9 @@
 from core.infra.cmd_layout import i
 from typing import Any, Dict, List, Optional, Type
 import logging
+import sys
 import threading
+import types
 import importlib
 import importlib.util
 import inspect
@@ -297,13 +299,15 @@ class DataManager:
                 return None
             
             try:
-                spec = importlib.util.spec_from_file_location("table_model", model_file_path)
-                if spec is None or spec.loader is None:
+                model_module = self._load_table_model_module(
+                    table_folder=table_folder,
+                    model_file_path=str(model_file_path),
+                    table_name=str(table_name),
+                )
+                if model_module is None:
                     logger.error(f"{i('error')} 无法加载模块: {model_file_path}")
                     return None
-                model_module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(model_module)
-                
+
                 model_class = None
                 for _, obj in inspect.getmembers(model_module):
                     if (inspect.isclass(obj) and issubclass(obj, DbBaseModel) and obj != DbBaseModel):
@@ -328,6 +332,45 @@ class DataManager:
         except Exception as e:
             logger.error(f"{i('error')} 注册 Table 失败: {table_folder_path}, error={e}")
             return None
+
+    @staticmethod
+    def _load_table_model_module(
+        *,
+        table_folder: Path,
+        model_file_path: str,
+        table_name: str,
+    ):
+        """按表目录加载 model.py，支持 ``from .schema import …``。
+
+        ``spec_from_file_location`` 默认无 package，相对导入会报
+        ``attempted relative import with no known parent package``。
+        """
+        safe = "".join(ch if ch.isalnum() else "_" for ch in str(table_name or "table"))
+        pkg = f"_ntq_table_{safe}"
+        folder = Path(table_folder)
+        pkg_mod = types.ModuleType(pkg)
+        pkg_mod.__path__ = [str(folder)]
+        sys.modules[pkg] = pkg_mod
+
+        schema_py = folder / "schema.py"
+        if schema_py.is_file():
+            schema_name = f"{pkg}.schema"
+            schema_spec = importlib.util.spec_from_file_location(schema_name, str(schema_py))
+            if schema_spec is not None and schema_spec.loader is not None:
+                schema_mod = importlib.util.module_from_spec(schema_spec)
+                schema_mod.__package__ = pkg
+                sys.modules[schema_name] = schema_mod
+                schema_spec.loader.exec_module(schema_mod)
+
+        model_name = f"{pkg}.model"
+        model_spec = importlib.util.spec_from_file_location(model_name, model_file_path)
+        if model_spec is None or model_spec.loader is None:
+            return None
+        model_mod = importlib.util.module_from_spec(model_spec)
+        model_mod.__package__ = pkg
+        sys.modules[model_name] = model_mod
+        model_spec.loader.exec_module(model_mod)
+        return model_mod
     
     def _discover_tables(self):
         """

@@ -30,16 +30,87 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.services.artifacts.store import ArtifactStore
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
 )
+from core.modules.strategy.core.services.fingerprint import FingerprintCalculator
 
 logger = logging.getLogger(__name__)
 
 
 class ScannerPipeline:
     """扫描领域编排入口。"""
+
+    @classmethod
+    def scan_fingerprint(
+        cls,
+        strategy_info: EnabledStrategyInfo,
+        settings: StrategySettings,
+    ) -> str:
+        """扫描结果身份：执行设置 + 环境（含 hooks），不含选股宇宙。
+
+        用于判断落盘摘要是否仍对应当前策略；宇宙变化不强制作废当日缓存。
+        """
+        try:
+            execute_fp = FingerprintCalculator.to_execute_fingerprint(
+                settings,
+                entity_ids=None,
+            )
+            env_fp = FingerprintCalculator.to_env_fingerprint(strategy_info)
+            return FingerprintCalculator._to_fingerprint_hash(
+                {"execute": execute_fp, "env": env_fp}
+            )
+        except Exception:
+            logger.debug("scan_fingerprint failed", exc_info=True)
+            return ""
+
+    @classmethod
+    def latest_workbench_version(cls, strategy_folder: Any) -> int:
+        """磁盘上最新主号工作台版本（无则为 0）。"""
+        try:
+            root = ArtifactStore.simulations_root(strategy_folder)
+            vids = VersionMetaStore.list_version_ids(root)
+            return max((int(v) for v in vids), default=0)
+        except Exception:
+            logger.debug("latest_workbench_version failed", exc_info=True)
+            return 0
+
+    @staticmethod
+    def _settings_stale(summary_payload: Dict[str, Any], current_fp: str) -> bool:
+        stored = str(summary_payload.get("scan_fingerprint") or "").strip()
+        cur = str(current_fp or "").strip()
+        if not stored or not cur:
+            return False
+        return stored != cur
+
+    @staticmethod
+    def _version_stale(summary_payload: Dict[str, Any], current_version: int) -> bool:
+        """工作台已有更新主号 → 扫描结果视为过时（环境/产物可能已变）。"""
+        try:
+            stored = int(summary_payload.get("workbench_version") or 0)
+        except (TypeError, ValueError):
+            stored = 0
+        try:
+            cur = int(current_version or 0)
+        except (TypeError, ValueError):
+            cur = 0
+        return cur > 0 and stored < cur
+
+    @classmethod
+    def _scan_result_stale(
+        cls,
+        summary_payload: Dict[str, Any],
+        *,
+        current_fp: str,
+        current_version: int,
+    ) -> Tuple[bool, bool]:
+        """返回 ``(settings_stale, version_stale)``。"""
+        return (
+            cls._settings_stale(summary_payload, current_fp),
+            cls._version_stale(summary_payload, current_version),
+        )
 
     @classmethod
     def scan(
@@ -212,11 +283,16 @@ class ScannerPipeline:
             settings.apply_defaults()
             use_strict = cls.apply_scan_mode(settings, demo=bool(demo))
 
+            current_fp = cls.scan_fingerprint(info, settings)
+            current_wb_ver = cls.latest_workbench_version(folder)
+
             block = cls.block_reason(demo=bool(demo), data_manager=data_mgr)
             if block:
                 kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
                 report = None
                 primary = "run"
+                settings_stale = False
+                version_stale = False
                 if kline_latest:
                     store = ArtifactStore.scan_at(folder, kline_latest)
                     summary_payload = store.read_summary()
@@ -244,10 +320,17 @@ class ScannerPipeline:
                                 ),
                             )
                         primary = "rerun"
+                        settings_stale, version_stale = cls._scan_result_stale(
+                            summary_payload,
+                            current_fp=current_fp,
+                            current_version=current_wb_ver,
+                        )
                 return {
                     "primary_action": primary,
                     "can_scan": False,
                     "block_reason": block,
+                    "settings_stale": settings_stale,
+                    "version_stale": version_stale,
                     **({"report": report} if report else {}),
                 }
 
@@ -256,7 +339,13 @@ class ScannerPipeline:
             store = ArtifactStore.scan_at(folder, scan_date)
             summary_payload = store.read_summary()
             if not isinstance(summary_payload, dict):
-                return {"primary_action": "run", "can_scan": True, "block_reason": ""}
+                return {
+                    "primary_action": "run",
+                    "can_scan": True,
+                    "block_reason": "",
+                    "settings_stale": False,
+                    "version_stale": False,
+                }
 
             opportunities = ReportManager.load_opportunities(store)
             total_from_summary = summary_payload.get("total_opportunities")
@@ -301,10 +390,17 @@ class ScannerPipeline:
                         summary_payload.get("strategy_key") or name or ""
                     ),
                 )
+            settings_stale, version_stale = cls._scan_result_stale(
+                summary_payload,
+                current_fp=current_fp,
+                current_version=current_wb_ver,
+            )
             return {
                 "primary_action": "rerun",
                 "can_scan": True,
                 "block_reason": "",
+                "settings_stale": settings_stale,
+                "version_stale": version_stale,
                 "report": report,
             }
         except Exception:
@@ -343,7 +439,20 @@ class ScannerPipeline:
         scan_max = ProjectContext.config.get_scan_results_max_versions()
         ArtifactStore.prune_scan(strategy_folder, max_versions=scan_max)
         store = ArtifactStore.scan_at(strategy_folder, scan_date)
+        current_fp = cls.scan_fingerprint(strategy_info, settings)
+        current_wb_ver = cls.latest_workbench_version(strategy_folder)
         use_cache = (not force) and store.has_summary()
+        if use_cache:
+            existing = store.read_summary()
+            if isinstance(existing, dict):
+                settings_stale, version_stale = cls._scan_result_stale(
+                    existing,
+                    current_fp=current_fp,
+                    current_version=current_wb_ver,
+                )
+                if settings_stale or version_stale:
+                    # 设置/环境变了，或工作台已有更新版本 → 作废当日缓存
+                    use_cache = False
 
         # 横截面策略：先切片选股再扫，避免 is_opportunity 对全宇宙放行
         if not use_cache:
@@ -362,6 +471,8 @@ class ScannerPipeline:
             stock_ids=stock_ids,
             date_meta=date_meta,
             goal=PostProcess.goal_summary_from_settings(settings.goal.goal),
+            scan_fingerprint=current_fp,
+            workbench_version=current_wb_ver,
             max_cache_days=scan_max,
             skip_save=use_cache,
         )

@@ -96,6 +96,7 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
   // 缺省 can_scan 视为不可扫，避免「未定义 = 允许」的障眼法
   const canScanRaw = m.can_scan ?? m.canScan;
   const canScan = typeof canScanRaw === 'boolean' ? canScanRaw : false;
+  const currentWb = Number(m.current_workbench_version ?? m.currentWorkbenchVersion ?? 0);
   return {
     primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
     report,
@@ -103,6 +104,9 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
     block_reason: blockReason || (canScanRaw === undefined ? '扫描就绪状态未知' : ''),
     settings_stale: Boolean(m.settings_stale ?? m.settingsStale),
     version_stale: Boolean(m.version_stale ?? m.versionStale),
+    current_workbench_version: Number.isFinite(currentWb) && currentWb > 0
+      ? Math.trunc(currentWb)
+      : 0,
   };
 }
 

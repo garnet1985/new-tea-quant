@@ -180,6 +180,42 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .scan-opp-cell {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ui-space-xs);
+  }
+
+  .scan-opp-cell__warn {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    .ntq-help-tooltip-trigger,
+    .ntq-help-tooltip-trigger--shine {
+      color: var(--ntq-warning);
+
+      &:hover,
+      &:focus-visible {
+        color: var(--ntq-warning);
+        filter: brightness(1.12);
+        opacity: 1;
+      }
+    }
+
+    .ntq-help-tooltip-trigger__icon {
+      width: var(--ntq-icon-l);
+      height: var(--ntq-icon-l);
+    }
+
+    .ntq-icon {
+      width: var(--ntq-icon-l);
+      height: var(--ntq-icon-l);
+    }
+  }
+
   .scan-opp-count.ntq-button--ghost,
   .scan-report__count.ntq-button--ghost {
     min-width: 0;
@@ -286,6 +322,16 @@
   line-height: 1.45;
   color: rgba(226, 232, 240, 0.96);
   word-break: break-word;
+}
+
+.scan-detail__meta-ver {
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.scan-detail__meta-ver {
+  font-weight: 500;
+  color: rgba(148, 163, 184, 0.92);
 }
 
 .scan-detail__meta-value--accent {

@@ -86,6 +86,10 @@ class ReportManager(BaseReportManager):
             wb_ver = int(workbench_version or 0)
         except (TypeError, ValueError):
             wb_ver = 0
+        wb_ver = max(0, wb_ver)
+        ver_label = str(strategy_version or "").strip()
+        if not ver_label and wb_ver > 0:
+            ver_label = f"v{wb_ver}"
         mgr = cls(
             output_dir=output_dir,
             strategy_key=key,
@@ -93,9 +97,9 @@ class ReportManager(BaseReportManager):
             stock_ids=list(stock_ids or []),
             date_meta=dict(date_meta or {}),
             goal=dict(goal or {}),
-            strategy_version=str(strategy_version or ""),
+            strategy_version=ver_label,
             scan_fingerprint=str(scan_fingerprint or "").strip(),
-            workbench_version=max(0, wb_ver),
+            workbench_version=wb_ver,
             max_cache_days=int(max_cache_days),
             skip_save=bool(skip_save),
         )

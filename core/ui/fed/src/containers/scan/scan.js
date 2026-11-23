@@ -30,7 +30,14 @@ import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import { formatDateTime } from '../../service/format/formatDateTime';
 import { readPresenterHistory, readPresenterScanUi } from './presenterScanReport';
-import { formatScanDate, readOpportunityCount } from './scanHelpers';
+import {
+  formatScanDate,
+  formatStrategyVersionLabel,
+  readOpportunityCount,
+  readWorkbenchVersion,
+  SCAN_VERSION_STALE_TIP,
+  SCAN_SETTINGS_STALE_TIP,
+} from './scanHelpers';
 import ScanSettingsSection from './scanSettingsSection';
 import ScanStrategyListSection from './scanStrategyListSection';
 import ScanReportSection from './scanReportSection';
@@ -239,6 +246,8 @@ function Scan() {
         blockReason: String(x.block_reason || '').trim(),
         settingsStale: Boolean(x.settings_stale),
         versionStale: Boolean(x.version_stale),
+        currentVersion: Number(x.current_workbench_version) || 0,
+        scannedVersion: readWorkbenchVersion(x.report),
       }))),
     )
       .then((pairs) => {
@@ -246,9 +255,25 @@ function Scan() {
         const next = {};
         const gates = {};
         let sharedBlock = '';
-        pairs.forEach(({ id, action, canScan, blockReason, settingsStale, versionStale }) => {
+        pairs.forEach(({
+          id,
+          action,
+          canScan,
+          blockReason,
+          settingsStale,
+          versionStale,
+          currentVersion,
+          scannedVersion,
+        }) => {
           next[id] = action;
-          gates[id] = { canScan, blockReason, settingsStale, versionStale };
+          gates[id] = {
+            canScan,
+            blockReason,
+            settingsStale,
+            versionStale,
+            currentVersion,
+            scannedVersion,
+          };
           if (!demo && !sharedBlock && blockReason) sharedBlock = blockReason;
         });
         setScanPrimaryById(next);
@@ -362,7 +387,7 @@ function Scan() {
     {
       field: 'opportunities',
       headerName: '机会数量',
-      width: 120,
+      width: 140,
       sortable: false,
       filterable: false,
       headerAlign: 'center',
@@ -383,17 +408,41 @@ function Scan() {
         if (n == null) {
           return <span className="ntq-muted">—</span>;
         }
+        const gate = scanGateById[id] || {};
+        const versionStale = Boolean(gate.versionStale);
+        const settingsStale = Boolean(gate.settingsStale);
+        const staleTip = versionStale
+          ? SCAN_VERSION_STALE_TIP
+          : settingsStale
+            ? SCAN_SETTINGS_STALE_TIP
+            : '';
         return (
-          <Button
-            variant="ghost"
-            className="scan-opp-count"
-            onClick={(e) => {
-              e.stopPropagation();
-              openDetail(id);
-            }}
-          >
-            {n}
-          </Button>
+          <div className="scan-opp-cell">
+            {staleTip ? (
+              <span
+                className="scan-opp-cell__warn"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <HelpTooltip
+                  title={staleTip}
+                  variant="warning"
+                  shine
+                  ariaLabel={staleTip}
+                />
+              </span>
+            ) : null}
+            <Button
+              variant="ghost"
+              className="scan-opp-count"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDetail(id);
+              }}
+            >
+              {n}
+            </Button>
+          </div>
         );
       },
     },
@@ -416,11 +465,15 @@ function Scan() {
         const isRerun = scanPrimaryById[id] === 'rerun' || hasResult || isStale;
         const blocked = mode === 'strict' && gate.canScan === false;
         const disableRun = pending || !enabled || running || blocked;
+        const scannedLabel = formatStrategyVersionLabel(gate.scannedVersion);
+        const currentLabel = formatStrategyVersionLabel(gate.currentVersion);
         let runTooltip = '在当前最新数据中用该策略扫描机会';
         if (blocked) {
           runTooltip = gate.blockReason || '严格模式数据未就绪，无法扫描';
         } else if (versionStale) {
-          runTooltip = '策略已有更新的工作台版本，当前扫描结果可能过时，请重新扫描';
+          runTooltip = scannedLabel && currentLabel
+            ? `扫描结果对应 ${scannedLabel}，工作台已是 ${currentLabel}，请重新扫描`
+            : '策略已有更新的工作台版本，当前扫描结果可能过时，请重新扫描';
         } else if (settingsStale) {
           runTooltip = '策略设置或环境已变更，当前结果可能过时，请重新扫描';
         } else if (isRerun) {

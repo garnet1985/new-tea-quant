@@ -112,6 +112,75 @@ class ScannerPipeline:
             cls._version_stale(summary_payload, current_version),
         )
 
+    @staticmethod
+    def _read_workbench_version(payload: Optional[Dict[str, Any]]) -> int:
+        if not isinstance(payload, dict):
+            return 0
+        try:
+            return max(0, int(payload.get("workbench_version") or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    @classmethod
+    def _strategy_version_label(cls, payload: Optional[Dict[str, Any]]) -> str:
+        """落盘摘要上的 ``strategy_version``（缺省由 workbench_version 推导）。"""
+        if not isinstance(payload, dict):
+            return ""
+        raw = str(payload.get("strategy_version") or "").strip()
+        if raw:
+            return raw
+        wb = cls._read_workbench_version(payload)
+        return f"v{wb}" if wb > 0 else ""
+
+    @classmethod
+    def _attach_scan_identity(
+        cls,
+        report: Dict[str, Any],
+        summary_payload: Dict[str, Any],
+        *,
+        fallback_strategy_key: str = "",
+    ) -> Dict[str, Any]:
+        """把扫描时的策略身份 / 版本写进 readiness / UI 报告。"""
+        key = str(
+            summary_payload.get("strategy_key") or fallback_strategy_key or ""
+        ).strip()
+        if key:
+            report["strategy_key"] = key
+        wb = cls._read_workbench_version(summary_payload)
+        if wb > 0:
+            report["workbench_version"] = wb
+        ver = cls._strategy_version_label(summary_payload)
+        if ver:
+            report["strategy_version"] = ver
+        fp = str(summary_payload.get("scan_fingerprint") or "").strip()
+        if fp:
+            report["scan_fingerprint"] = fp
+        return report
+
+    @classmethod
+    def _readiness_payload(
+        cls,
+        *,
+        primary_action: str,
+        can_scan: bool,
+        block_reason: str = "",
+        settings_stale: bool = False,
+        version_stale: bool = False,
+        current_workbench_version: int = 0,
+        report: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        out: Dict[str, Any] = {
+            "primary_action": primary_action,
+            "can_scan": bool(can_scan),
+            "block_reason": str(block_reason or ""),
+            "settings_stale": bool(settings_stale),
+            "version_stale": bool(version_stale),
+            "current_workbench_version": max(0, int(current_workbench_version or 0)),
+        }
+        if report is not None:
+            out["report"] = report
+        return out
+
     @classmethod
     def scan(
         cls,
@@ -267,15 +336,19 @@ class ScannerPipeline:
 
         name = str(key_or_id or "").strip()
         if not name:
-            return {"primary_action": "run", "can_scan": False, "block_reason": "strategy_name 无效"}
+            return cls._readiness_payload(
+                primary_action="run",
+                can_scan=False,
+                block_reason="strategy_name 无效",
+            )
         try:
             info, err = cls.resolve_one(name)
             if err or info is None:
-                return {
-                    "primary_action": "run",
-                    "can_scan": False,
-                    "block_reason": err or "策略不存在或无法加载",
-                }
+                return cls._readiness_payload(
+                    primary_action="run",
+                    can_scan=False,
+                    block_reason=err or "策略不存在或无法加载",
+                )
 
             folder = cls.strategy_folder(info)
             data_mgr = DataManager(is_verbose=False)
@@ -299,24 +372,32 @@ class ScannerPipeline:
                     if isinstance(summary_payload, dict):
                         opportunities = ReportManager.load_opportunities(store)
                         total_opps = int(summary_payload.get("total_opportunities") or 0)
-                        report = {
-                            "date": str(summary_payload.get("date") or kline_latest),
-                            "total_opportunities": total_opps,
-                            "total_stocks": int(summary_payload.get("total_stocks") or 0),
-                            "summary": summary_payload.get("summary")
-                            if isinstance(summary_payload.get("summary"), dict)
-                            else {
+                        report = cls._attach_scan_identity(
+                            {
+                                "date": str(summary_payload.get("date") or kline_latest),
                                 "total_opportunities": total_opps,
-                                "total_stocks": 0,
-                                "stocks_with_opportunities": [],
+                                "total_stocks": int(
+                                    summary_payload.get("total_stocks") or 0
+                                ),
+                                "summary": summary_payload.get("summary")
+                                if isinstance(summary_payload.get("summary"), dict)
+                                else {
+                                    "total_opportunities": total_opps,
+                                    "total_stocks": 0,
+                                    "stocks_with_opportunities": [],
+                                },
+                                "opportunities": ScanProgress.opportunity_rows(
+                                    opportunities
+                                ),
                             },
-                            "opportunities": ScanProgress.opportunity_rows(opportunities),
-                        }
+                            summary_payload,
+                            fallback_strategy_key=name,
+                        )
                         if isinstance(summary_payload.get("post_process"), dict):
                             report["post_process"] = enrich_post_process_ui_history(
                                 dict(summary_payload["post_process"]),
                                 fallback_strategy_name=str(
-                                    summary_payload.get("strategy_key") or name or ""
+                                    report.get("strategy_key") or name or ""
                                 ),
                             )
                         primary = "rerun"
@@ -325,27 +406,26 @@ class ScannerPipeline:
                             current_fp=current_fp,
                             current_version=current_wb_ver,
                         )
-                return {
-                    "primary_action": primary,
-                    "can_scan": False,
-                    "block_reason": block,
-                    "settings_stale": settings_stale,
-                    "version_stale": version_stale,
-                    **({"report": report} if report else {}),
-                }
+                return cls._readiness_payload(
+                    primary_action=primary,
+                    can_scan=False,
+                    block_reason=block,
+                    settings_stale=settings_stale,
+                    version_stale=version_stale,
+                    current_workbench_version=current_wb_ver,
+                    report=report,
+                )
 
             resolver = ScanDateResolver(data_mgr)
             scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
             store = ArtifactStore.scan_at(folder, scan_date)
             summary_payload = store.read_summary()
             if not isinstance(summary_payload, dict):
-                return {
-                    "primary_action": "run",
-                    "can_scan": True,
-                    "block_reason": "",
-                    "settings_stale": False,
-                    "version_stale": False,
-                }
+                return cls._readiness_payload(
+                    primary_action="run",
+                    can_scan=True,
+                    current_workbench_version=current_wb_ver,
+                )
 
             opportunities = ReportManager.load_opportunities(store)
             total_from_summary = summary_payload.get("total_opportunities")
@@ -376,18 +456,22 @@ class ScannerPipeline:
                 )
             except (TypeError, ValueError):
                 total_stocks_n = len(stock_ids)
-            report: Dict[str, Any] = {
-                "date": str(summary_payload.get("date") or scan_date),
-                "total_opportunities": total_opps,
-                "total_stocks": total_stocks_n,
-                "summary": summary,
-                "opportunities": ScanProgress.opportunity_rows(opportunities),
-            }
+            report = cls._attach_scan_identity(
+                {
+                    "date": str(summary_payload.get("date") or scan_date),
+                    "total_opportunities": total_opps,
+                    "total_stocks": total_stocks_n,
+                    "summary": summary,
+                    "opportunities": ScanProgress.opportunity_rows(opportunities),
+                },
+                summary_payload,
+                fallback_strategy_key=name,
+            )
             if isinstance(summary_payload.get("post_process"), dict):
                 report["post_process"] = enrich_post_process_ui_history(
                     dict(summary_payload["post_process"]),
                     fallback_strategy_name=str(
-                        summary_payload.get("strategy_key") or name or ""
+                        report.get("strategy_key") or name or ""
                     ),
                 )
             settings_stale, version_stale = cls._scan_result_stale(
@@ -395,21 +479,21 @@ class ScannerPipeline:
                 current_fp=current_fp,
                 current_version=current_wb_ver,
             )
-            return {
-                "primary_action": "rerun",
-                "can_scan": True,
-                "block_reason": "",
-                "settings_stale": settings_stale,
-                "version_stale": version_stale,
-                "report": report,
-            }
+            return cls._readiness_payload(
+                primary_action="rerun",
+                can_scan=True,
+                settings_stale=settings_stale,
+                version_stale=version_stale,
+                current_workbench_version=current_wb_ver,
+                report=report,
+            )
         except Exception:
             logger.debug("scanner readiness failed strategy=%s", name, exc_info=True)
-            return {
-                "primary_action": "run",
-                "can_scan": False,
-                "block_reason": "读取扫描就绪状态失败",
-            }
+            return cls._readiness_payload(
+                primary_action="run",
+                can_scan=False,
+                block_reason="读取扫描就绪状态失败",
+            )
 
     @classmethod
     def run(

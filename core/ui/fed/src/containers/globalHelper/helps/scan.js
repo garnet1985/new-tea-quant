@@ -6,7 +6,7 @@ export function matchScan(pathname) {
 
 export const SCAN_HELP = {
   id: 'scan',
-  version: 1,
+  version: 3,
   trigger: 'enter',
   match: matchScan,
   steps: [
@@ -42,7 +42,7 @@ export const SCAN_HELP = {
       pages: [
         {
           title: '开始扫描',
-          body: '首次扫描显示「开始扫描」；已有结果时变为「重新扫描」。若工作台有了更新版本，或策略设置/环境已变更，会提示结果可能过时并请重新扫描。结果会出现在表格对应行内，以及表格下方的「报告区」。',
+          body: '首次扫描显示「开始扫描」；已有结果时变为「重新扫描」。扫描结果会记下当时的策略工作台版本；若之后又跑出了更新版本，或策略设置/环境已变更，机会数量前会出现警告图标（悬停可看说明），按钮保持「重新扫描」。结果会出现在表格对应行内，以及表格下方的「报告区」。',
         },
       ],
     },

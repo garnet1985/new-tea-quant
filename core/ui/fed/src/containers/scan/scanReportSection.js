@@ -1,6 +1,11 @@
 import React from 'react';
 import { Button, Heading, Section } from 'ui';
-import { formatScanDate, SHOW_REPORT_GENERATED_AT } from './scanHelpers';
+import {
+  formatScanDate,
+  formatStrategyVersionLabel,
+  readWorkbenchVersion,
+  SHOW_REPORT_GENERATED_AT,
+} from './scanHelpers';
 
 /** 扫描完成后的摘要报告条。 */
 export default function ScanReportSection({
@@ -14,6 +19,9 @@ export default function ScanReportSection({
   reportDemo,
   enabledPostProcessors,
 }) {
+  const strategyVersion = formatStrategyVersionLabel(readWorkbenchVersion(reportPayload))
+    || String(reportPayload?.strategy_version || reportPayload?.strategyVersion || '').trim();
+
   return (
     <Section className="scan-section scan-section--report" gap="sm">
       <div className="scan-report__head">
@@ -29,6 +37,12 @@ export default function ScanReportSection({
         使用策略
         {' '}
         <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
+        {strategyVersion ? (
+          <>
+            {' '}
+            <span className="ntq-muted">（{strategyVersion}）</span>
+          </>
+        ) : null}
         {' '}
         扫描完成：共找到
         {' '}
@@ -49,6 +63,7 @@ export default function ScanReportSection({
       </p>
       <div className="scan-report__facts ntq-muted">
         <p>- 扫描日期：{formatScanDate(reportPayload?.date) || '—'}</p>
+        <p>- 策略版本：{strategyVersion || '—'}</p>
         <p>- 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}</p>
         <p>- 模式：{reportDemo === true ? '演示模式' : '严格模式'}</p>
         <p>

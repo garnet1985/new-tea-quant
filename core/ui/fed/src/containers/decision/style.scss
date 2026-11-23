@@ -287,12 +287,13 @@
   font-weight: 700;
 }
 
+/* A 股：涨红跌绿（与 styles/marketPnlColors cn 对齐） */
 .decision-hud-delta.is-up {
   color: #ff4d67;
 }
 
 .decision-hud-delta.is-down {
-  color: #4ade80;
+  color: #00d9a5;
 }
 
 .decision-hud-ratio {
@@ -629,7 +630,7 @@ button.decision-cal-event:focus-visible {
 }
 
 .decision-pnl.is-loss {
-  color: #4ade80;
+  color: #00d9a5;
 }
 
 .decision-holding-head {

@@ -206,6 +206,14 @@ def _sanitize_init_userspace(tree: Path) -> List[str]:
             p.unlink()
             notes.append(f"删除 {p.relative_to(tree)}")
 
+    # 首次安装应弹出 help / 反馈 / 埋点同意；勿打包开发机上的 dismiss 账本
+    prefs_dir = tree / "system" / "prefs"
+    if prefs_dir.is_dir():
+        for p in sorted(prefs_dir.iterdir()):
+            if p.is_file() and p.suffix.lower() == ".json":
+                p.unlink()
+                notes.append(f"删除偏好 {p.relative_to(tree)}")
+
     ds_config = tree / "extensions" / "data_source" / "config.py"
     if ds_config.is_file():
         ds_config.unlink()

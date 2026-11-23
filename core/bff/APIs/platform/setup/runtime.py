@@ -295,6 +295,7 @@ class SetupRuntimeManager:
 
         from core.infra.setup.core.shared.install_progress import (
             begin_install_step,
+            bind_install_progress_dir,
             close_install,
             fail_install,
             finish_install_step,
@@ -307,6 +308,7 @@ class SetupRuntimeManager:
             for step_id in ordered_ids
             if self._get_step_state(state, step_id) == self.STATUS_SUCCESS
         ]
+        bind_install_progress_dir(self._resolve_userspace_root(state))
         open_install(ordered_ids, done_ids=done_ids)
 
         for step_id in next_ids:

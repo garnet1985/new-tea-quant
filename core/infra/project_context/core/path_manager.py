@@ -1,9 +1,11 @@
 """Path Manager - 路径管理器"""
 from pathlib import Path
 from typing import Optional, Union
+import importlib.util
 import logging
 import os
 import sys
+import types
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +15,61 @@ class PathManager:
 
     _root_cache: Optional[Path] = None
     _userspace_cache: Optional[Path] = None
+    _bound_userspace_root: Optional[Path] = None
 
     @staticmethod
     def clear_userspace_cache() -> None:
         """清理 userspace 路径缓存（当路径变化后强制重新计算）"""
+        PathManager._drop_userspace_modules()
         PathManager._userspace_cache = None
+        PathManager._bound_userspace_root = None
+
+    @staticmethod
+    def _drop_userspace_modules() -> None:
+        """丢掉已缓存的 ``userspace.*``，避免外置路径切换后仍指向旧包。"""
+        for key in list(sys.modules):
+            if key == "userspace" or key.startswith("userspace."):
+                del sys.modules[key]
+
+    @staticmethod
+    def bind_userspace_package(root: Optional[Path] = None) -> Path:
+        """
+        让 ``import userspace…`` 解析到当前 userspace 根。
+
+        仓库根常在 ``sys.path`` 上，默认会优先吃到 ``<repo>/userspace``；
+        外置 userspace 时必须把包 ``__path__`` 绑到实际根，否则扩展/适配器导入失败。
+        """
+        target = (root or PathManager.get_userspace_root()).resolve()
+        if PathManager._bound_userspace_root == target:
+            existing = sys.modules.get("userspace")
+            paths = list(getattr(existing, "__path__", []) or []) if existing else []
+            if paths and Path(paths[0]).resolve() == target:
+                return target
+
+        PathManager._drop_userspace_modules()
+        root_s = str(target)
+        init_py = target / "__init__.py"
+        if init_py.is_file():
+            spec = importlib.util.spec_from_file_location(
+                "userspace",
+                init_py,
+                submodule_search_locations=[root_s],
+            )
+            if spec is not None and spec.loader is not None:
+                mod = importlib.util.module_from_spec(spec)
+                mod.__path__ = [root_s]  # type: ignore[attr-defined]
+                sys.modules["userspace"] = mod
+                spec.loader.exec_module(mod)
+                PathManager._bound_userspace_root = target
+                return target
+
+        mod = types.ModuleType("userspace")
+        mod.__file__ = root_s
+        mod.__path__ = [root_s]  # type: ignore[attr-defined]
+        mod.__package__ = "userspace"
+        sys.modules["userspace"] = mod
+        PathManager._bound_userspace_root = target
+        return target
 
     @staticmethod
     def get_project_root() -> Path:
@@ -147,6 +199,7 @@ class PathManager:
         已配置路径即使目录尚不存在也直接返回，禁止静默回落到项目内 userspace。
         """
         if PathManager._userspace_cache is not None:
+            PathManager.bind_userspace_package(PathManager._userspace_cache)
             return PathManager._userspace_cache
 
         for env_path in (
@@ -157,15 +210,18 @@ class PathManager:
             if text:
                 p = Path(text).expanduser().resolve()
                 PathManager._userspace_cache = p
+                PathManager.bind_userspace_package(p)
                 return p
 
         from_state = PathManager._read_userspace_path_from_state()
         if from_state is not None:
             PathManager._userspace_cache = from_state
+            PathManager.bind_userspace_package(from_state)
             return from_state
 
         new_path = (PathManager.get_project_root() / "userspace").resolve()
         PathManager._userspace_cache = new_path
+        PathManager.bind_userspace_package(new_path)
         return new_path
 
     @staticmethod

@@ -35,6 +35,7 @@ from core.infra.setup.core.shared import setup_session
 from core.infra.setup.core.shared.env import NewTeaQuantSetup
 from core.infra.setup.core.shared.install_progress import (
     begin_install_step,
+    bind_install_progress_dir,
     close_install,
     fail_install,
     finish_install_step,
@@ -271,6 +272,11 @@ def install_cli_runtime(
     steps = list(_steps_for_options(options))
 
     if steps:
+        bind_install_progress_dir(
+            userspace_inputs_from_options(options, _default_userspace_path())[
+                "userspaceTargetPath"
+            ]
+        )
         open_install(steps)
 
     print()
@@ -303,6 +309,11 @@ def install_cli_runtime(
                 inputs=session_inputs.get(step_id),
                 source="cli",
             )
+            if step_id == "init_userspace":
+                from core.infra.project_context import ProjectContext
+
+                ProjectContext.cache.clear_userspace_cache()
+                ProjectContext.path.get_userspace_root()
             finish_install_step(step_id)
     except Exception as exc:
         failed_step = current_step_id

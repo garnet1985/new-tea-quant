@@ -260,3 +260,42 @@ class TestPathManager:
             ).resolve()
         finally:
             ProjectContext.cache.clear_userspace_cache()
+
+    def test_bind_userspace_package_external_root(self, tmp_path, monkeypatch):
+        """外置 userspace 时 import userspace.extensions 必须落到外置根。"""
+        import sys
+
+        from core.infra.project_context.core.path_manager import PathManager
+
+        fake_root = tmp_path / "repo"
+        fake_root.mkdir()
+        (fake_root / "README.md").touch()
+        # 仓库内占位 userspace，确保默认 import 会误命中这里
+        decoy = fake_root / "userspace"
+        (decoy / "extensions").mkdir(parents=True)
+        (decoy / "__init__.py").write_text('MARKER = "decoy"\n', encoding="utf-8")
+        (decoy / "extensions" / "__init__.py").write_text("", encoding="utf-8")
+
+        external = tmp_path / "external-us"
+        (external / "extensions").mkdir(parents=True)
+        (external / "__init__.py").write_text('MARKER = "external"\n', encoding="utf-8")
+        (external / "extensions" / "__init__.py").write_text("", encoding="utf-8")
+
+        monkeypatch.setenv("NTQ_USERSPACE_ROOT", str(external))
+        monkeypatch.delenv("NEW_TEA_QUANT_USERSPACE_ROOT", raising=False)
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        if str(fake_root) not in sys.path:
+            sys.path.insert(0, str(fake_root))
+        ProjectContext.cache.clear_userspace_cache()
+        try:
+            root = ProjectContext.path.get_userspace_root()
+            assert root == external.resolve()
+            import userspace
+            import userspace.extensions as ext
+
+            assert userspace.MARKER == "external"
+            assert Path(list(userspace.__path__)[0]).resolve() == external.resolve()
+            assert Path(list(ext.__path__)[0]).resolve() == (external / "extensions").resolve()
+        finally:
+            ProjectContext.cache.clear_userspace_cache()
+            monkeypatch.delenv("NTQ_USERSPACE_ROOT", raising=False)

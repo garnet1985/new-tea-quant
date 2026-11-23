@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
 pytestmark = pytest.mark.force_run
@@ -112,6 +115,17 @@ def test_import_download_phase_text(progress_dir):
     assert cleared["running"] is False
     assert cleared["totalTables"] == 0
     assert cleared["phase"] == ""
+
+
+def test_bind_install_progress_dir_uses_target_userspace(tmp_path, monkeypatch):
+    from core.infra.setup.core.shared.install_progress import bind_install_progress_dir
+
+    monkeypatch.delenv("NTQ_PROGRESS_DIR", raising=False)
+    target = tmp_path / "ext-us"
+    progress = bind_install_progress_dir(target)
+    assert progress == (target / ".ntq" / "tmp" / "progress").resolve()
+    assert progress.is_dir()
+    assert Path(os.environ["NTQ_PROGRESS_DIR"]).resolve() == progress
 
 
 def test_failed_install_step_stays_on_the_root(progress_dir):

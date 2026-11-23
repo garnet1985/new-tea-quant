@@ -45,10 +45,17 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     _write(root / "system/db/data.duckdb", "db")
     _write(root / "extensions/data_source/handlers/adj_factor_event/adj_factor_events_2025Q4.csv", "a,b")
     _write(root / "strategies/demo/strategy.py", "pass")
+    _write(root / "system/prefs/ui_helper.json", '{"dismissed":{"welcome":{}}}')
+    _write(root / "system/prefs/feedback_prefs.json", '{"prompts_disabled":true}')
+    _write(root / "system/prefs/trace_consent.json", '{"accepted":true}')
 
     notes = _sanitize_init_userspace(root)
 
     assert not (root / "system/.ntq").exists()
+    assert not (root / "system/prefs/ui_helper.json").exists()
+    assert not (root / "system/prefs/feedback_prefs.json").exists()
+    assert not (root / "system/prefs/trace_consent.json").exists()
+    assert any("ui_helper" in n for n in notes)
     assert not (root / ".ntq").exists()
     assert not (root / "system/config/database/mysql.json").exists()
     assert (root / "system/config/database/mysql.example.json").is_file()

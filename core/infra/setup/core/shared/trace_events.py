@@ -223,6 +223,8 @@ class SetupTrace:
             text = str(command or "").strip()
             if text:
                 body["command"] = text[:256]
+            # Heal installs that already have a token but never posted member.bind.
+            Trace.track_member_bind(source=f"app_start:{entry}", force=False)
             Trace.track("app.start", body)
         except Exception:
             pass

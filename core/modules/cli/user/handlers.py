@@ -197,6 +197,13 @@ class UserHandlers:
             print(UserHandlers._auth_guide(), flush=True)
             return 1
 
+        try:
+            from core.infra.trace import Trace
+
+            Trace.track_member_bind(source="cli_auth", force=True)
+        except Exception:
+            pass
+
         print(f"{i('success')} token 设置成功", flush=True)
         return 0
 

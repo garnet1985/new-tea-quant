@@ -315,3 +315,95 @@ def test_malformed_consent_file_is_treated_as_undecided(consent_env: Path) -> No
     (consent_env / "trace_consent.json").write_text("{not json", encoding="utf-8")
     assert TraceConsentService.is_decided() is False
     assert TraceConsentService.is_granted() is False
+
+
+def test_track_member_bind_without_consent(
+    consent_env: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.membership import Membership
+    from core.infra.project_context.core.path_manager import PathManager
+    from core.infra.trace import Trace
+    from core.infra.trace.contracts import TraceEvent
+    from core.infra.trace.core.services import (
+        client_service,
+        identity_service,
+        track_service,
+    )
+
+    monkeypatch.setenv("NTQ_TRACE_ENDPOINT", "https://example.test/api/v1/traces")
+    token = "ntq_" + ("ab" * 24)
+    token_path = tmp_path / "membership_token.txt"
+    prefs = tmp_path / "prefs"
+    prefs.mkdir()
+    monkeypatch.setattr(
+        PathManager,
+        "get_membership_token_file",
+        staticmethod(lambda: token_path),
+    )
+    monkeypatch.setattr(
+        PathManager,
+        "get_user_prefs_root",
+        staticmethod(lambda: prefs),
+    )
+    assert Membership.save(token) is None
+
+    posts = []
+
+    def fake_post(url, event, *, timeout_sec):
+        posts.append(event.to_wire_dict() if isinstance(event, TraceEvent) else event)
+        return True
+
+    monkeypatch.setattr(
+        client_service.TraceClientService, "post", staticmethod(fake_post)
+    )
+    fake_id = "ntq_i_" + "b" * 32
+    monkeypatch.setattr(
+        identity_service.TraceIdentityService,
+        "get_or_create",
+        staticmethod(lambda: fake_id),
+    )
+    monkeypatch.setattr(
+        track_service.TraceIdentityService,
+        "get_or_create",
+        staticmethod(lambda: fake_id),
+    )
+
+    # No usage consent: regular track stays silent.
+    Trace.track("app.start", {"entry": "ui"})
+    assert posts == []
+
+    Trace.track_member_bind(source="test", force=True)
+    assert len(posts) == 1
+    assert posts[0]["event"] == "member.bind"
+    assert posts[0]["installation_id"] == fake_id
+    assert posts[0]["body"]["source"] == "test"
+    assert (prefs / "trace_member_bind.json").is_file()
+
+    Trace.track_member_bind(source="again", force=False)
+    assert len(posts) == 1
+
+    Trace.track_member_bind(source="force", force=True)
+    assert len(posts) == 2
+    assert posts[1]["body"]["source"] == "force"
+
+
+def test_track_member_bind_noop_without_token(
+    consent_env: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.project_context.core.path_manager import PathManager
+    from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service
+
+    monkeypatch.setattr(
+        PathManager,
+        "get_membership_token_file",
+        staticmethod(lambda: tmp_path / "missing_token.txt"),
+    )
+    posts = []
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(lambda *a, **k: posts.append(a) or True),
+    )
+    Trace.track_member_bind(source="test", force=True)
+    assert posts == []

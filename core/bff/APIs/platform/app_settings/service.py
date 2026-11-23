@@ -273,6 +273,12 @@ def save_membership_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str
     err = Membership.save(token)
     if err:
         return None, err
+    try:
+        from core.infra.trace import Trace
+
+        Trace.track_member_bind(source="membership_save", force=True)
+    except Exception:
+        pass
     return Membership.status(), None
 
 

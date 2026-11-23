@@ -139,7 +139,8 @@ describe('findHelpForPath / isHelpDismissed', () => {
     const helps = findHelpsForPath('/strategy-design');
     expect(helps.map((item) => item.id)).toEqual(['strategy-list']);
     expect(helpTrigger(helps[0])).toBe('enter');
-    expect(helps[0].steps.map((step) => step.target)).toEqual([
+    expect(String(helps[0].steps[0].target || '')).toBe('');
+    expect(helps[0].steps.slice(1).map((step) => step.target)).toEqual([
       'strategy-list-table',
       'strategy-list-filter',
       'strategy-list-refresh-import',
@@ -239,17 +240,17 @@ describe('findHelpForPath / isHelpDismissed', () => {
     ]);
   });
 
-  it('returns per-step enter help on workbench routes', () => {
-    expect(findHelpForPath('/strategy-design/demo/enum')?.id).toBe('strategy-design-enum');
-    expect(findHelpForPath('/strategy-design/demo/price')?.id).toBe('strategy-design-price');
-    expect(findHelpForPath('/strategy-design/demo/portfolio')?.id).toBe('strategy-design-portfolio');
+  it('returns per-step enter help on workbench routes with a shared dismiss id', () => {
+    expect(findHelpForPath('/strategy-design/demo/enum')?.id).toBe('strategy-design');
+    expect(findHelpForPath('/strategy-design/demo/price')?.id).toBe('strategy-design');
+    expect(findHelpForPath('/strategy-design/demo/portfolio')?.id).toBe('strategy-design');
     expect(findHelpForPath('/strategy-design')?.id).toBe('strategy-list');
   });
 
   it('returns enter and appear helps for the same route class', () => {
     const helps = findHelpsForPath('/strategy-design/demo/enum');
     expect(helps.map((item) => item.id)).toEqual([
-      'strategy-design-enum',
+      'strategy-design',
       'strategy-version-and-report',
       'strategy-report-stock',
       'strategy-report-compare',
@@ -271,7 +272,7 @@ describe('findHelpForPath / isHelpDismissed', () => {
   it('includes portfolio chart help only on the portfolio step', () => {
     const portfolioHelps = findHelpsForPath('/strategy-design/demo/portfolio');
     expect(portfolioHelps.map((item) => item.id)).toEqual([
-      'strategy-design-portfolio',
+      'strategy-design',
       'strategy-version-and-report',
       'strategy-report-stock',
       'strategy-report-compare',
@@ -283,7 +284,14 @@ describe('findHelpForPath / isHelpDismissed', () => {
 
   it('prefers enter help when opening from the button', () => {
     const helps = findHelpsForPath('/strategy-design/demo/price');
-    expect(pickHelpForManualOpen(helps)?.id).toBe('strategy-design-price');
+    expect(pickHelpForManualOpen(helps)?.id).toBe('strategy-design');
+  });
+
+  it('keeps workbench enter help dismissed across enum/price/portfolio', () => {
+    const dismissed = { 'strategy-design': { version: 1 } };
+    expect(isHelpDismissed(findHelpForPath('/strategy-design/demo/enum'), dismissed)).toBe(true);
+    expect(isHelpDismissed(findHelpForPath('/strategy-design/demo/price'), dismissed)).toBe(true);
+    expect(isHelpDismissed(findHelpForPath('/strategy-design/demo/portfolio'), dismissed)).toBe(true);
   });
 
   it('returns decision intro + appear helps on the decision route', () => {
@@ -301,7 +309,7 @@ describe('findHelpForPath / isHelpDismissed', () => {
   it('treats same or newer stored version as dismissed', () => {
     const help = findHelpForPath('/strategy-design/demo/enum');
     expect(isHelpDismissed(help, {})).toBe(false);
-    expect(isHelpDismissed(help, { 'strategy-design-enum': { version: 1 } })).toBe(true);
-    expect(isHelpDismissed(help, { 'strategy-design-enum': { version: 0 } })).toBe(false);
+    expect(isHelpDismissed(help, { 'strategy-design': { version: 1 } })).toBe(true);
+    expect(isHelpDismissed(help, { 'strategy-design': { version: 0 } })).toBe(false);
   });
 });

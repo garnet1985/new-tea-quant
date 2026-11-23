@@ -50,13 +50,15 @@
 
 `ProjectContext.path.get_core_root() -> Path`  
 `ProjectContext.path.get_userspace_root() -> Path`  
+`ProjectContext.path.bind_userspace_package(root: str | Path | None = None) -> Path`  
 `ProjectContext.path.resolve_userspace_target(raw: str | Path | None = None) -> Path`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.2.0`（`resolve_userspace_target`：`0.6.x`）
+- **引入版本：** `0.2.0`（`resolve_userspace_target`：`0.6.x`；`bind_userspace_package`：`0.6.x`）
 - **描述：**
-  - `get_userspace_root`：运行时 SOT。优先级：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。已配置路径即使目录尚不存在也直接返回，**不**静默回落。
+  - `get_userspace_root`：运行时 SOT。优先级：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。已配置路径即使目录尚不存在也直接返回，**不**静默回落。解析后会 `bind_userspace_package`，保证 `import userspace…` 落到该根（外置路径不再误用仓库内 `userspace/`）。
+  - `bind_userspace_package`：把 `sys.modules["userspace"]` 的 `__path__` 绑到当前或指定根；路径变更后 `clear_userspace_cache` 会丢掉已缓存的 `userspace.*`。
   - `resolve_userspace_target`：仅安装 / BFF precheck。规范化为绝对路径并校验可写；`raw` 为空时沿用已有 json，否则默认 `<repo>/userspace`；失败抛 `ValueError` / `PermissionError`。
 
 #### coerce_strategy_folder

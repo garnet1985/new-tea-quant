@@ -1,12 +1,16 @@
 import React from 'react';
 import { Tag } from 'ui';
 import { isHttpStatusError } from 'service/request';
+import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
 import {
   formatMoney,
   formatSignedMoney,
   mapStockStatusTags,
   statusChipClassName,
 } from './decisionFormat';
+
+/** 决策者默认按 A 股习惯：涨红跌绿（可用 market profile polarity 覆盖）。 */
+const DECISION_PNL_PALETTE = resolveMarketPnlPalette('cn');
 
 export function prefersReducedMotion() {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -52,6 +56,21 @@ export function holdingPnlTone(unrealized) {
   return Number(unrealized) < 0 ? 'is-loss' : 'is-profit';
 }
 
+/** 盈亏色：正数用涨色（A 股红），负数用跌色（A 股绿）。 */
+export function holdingPnlStyle(unrealized, palette = DECISION_PNL_PALETTE) {
+  if (unrealized == null || !Number.isFinite(Number(unrealized))) return undefined;
+  const n = Number(unrealized);
+  return { color: n < 0 ? palette.loss : palette.profit };
+}
+
+export function equityDeltaStyle(delta, palette = DECISION_PNL_PALETTE) {
+  if (delta == null || !Number.isFinite(Number(delta)) || Number(delta) === 0) {
+    return undefined;
+  }
+  const n = Number(delta);
+  return { color: n < 0 ? palette.loss : palette.profit };
+}
+
 export function formatMarketValueWithPnl(marketValue, unrealized) {
   if (marketValue == null || !Number.isFinite(Number(marketValue))) return '—';
   const value = formatMoney(marketValue);
@@ -60,7 +79,10 @@ export function formatMarketValueWithPnl(marketValue, unrealized) {
     <>
       {value}
       {' '}
-      <span className={`decision-pnl ${holdingPnlTone(unrealized)}`}>
+      <span
+        className={`decision-pnl ${holdingPnlTone(unrealized)}`}
+        style={holdingPnlStyle(unrealized)}
+      >
         ({formatSignedMoney(unrealized)})
       </span>
     </>

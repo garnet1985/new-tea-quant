@@ -36,10 +36,12 @@ import {
   weekdayLabel,
 } from './decisionFormat';
 import {
+  equityDeltaStyle,
   errorMessage,
   formatDrawdown,
   formatHoldingListPnl,
   headerWithTooltip,
+  holdingPnlStyle,
   holdingPnlTone,
   lotRule,
   opportunityStockLabel,
@@ -865,7 +867,10 @@ export function DecisionPlaySession({
             <div className="decision-hud-metric__value ntq-decision-metric-value">
               {formatMoney(equity)}
               {showEquityDelta ? (
-                <span className={`decision-hud-delta ${equityDelta >= 0 ? 'is-up' : 'is-down'}`}>
+                <span
+                  className={`decision-hud-delta ${equityDelta >= 0 ? 'is-up' : 'is-down'}`}
+                  style={equityDeltaStyle(equityDelta)}
+                >
                   （{formatSignedMoney(equityDelta)}）
                 </span>
               ) : null}
@@ -1013,11 +1018,13 @@ export function DecisionPlaySession({
                           <span className="decision-holding-row__qty">
                             {Number(row.shares).toLocaleString()} 股
                           </span>
-                          <span className={`decision-holding-row__pnl decision-pnl ${
-                            row.unrealized == null || !Number.isFinite(Number(row.unrealized))
-                              ? ''
-                              : holdingPnlTone(row.unrealized)
-                          }`}
+                          <span
+                            className={`decision-holding-row__pnl decision-pnl ${
+                              row.unrealized == null || !Number.isFinite(Number(row.unrealized))
+                                ? ''
+                                : holdingPnlTone(row.unrealized)
+                            }`}
+                            style={holdingPnlStyle(row.unrealized)}
                           >
                             {formatHoldingListPnl(row.unrealized)}
                           </span>

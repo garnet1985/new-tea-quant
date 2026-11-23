@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import time
-from typing import Iterable, Optional
+from pathlib import Path
+from typing import Iterable, Optional, Union
 
 from core.infra.progress import Progress
 
@@ -16,6 +18,32 @@ _STATUS_STEPS = frozenset({DOWNLOAD_STEP, PREPARE_STEP})
 _DOWNLOAD_TICK_MIN_INTERVAL_SEC = 0.25
 _last_download_tick_at = 0.0
 _last_download_parts_done = -1
+
+
+def bind_install_progress_dir(userspace_root: Union[str, Path]) -> Path:
+    """
+    安装进度写到目标 userspace，避免外置路径时残留 ``<repo>/userspace/.ntq/tmp/progress``。
+    """
+    root = Path(userspace_root).expanduser().resolve()
+    progress = root / ".ntq" / "tmp" / "progress"
+    progress.mkdir(parents=True, exist_ok=True)
+    os.environ["NTQ_PROGRESS_DIR"] = str(progress)
+
+    # 清掉默认仓库内 userspace 上可能留下的半截 install.json
+    try:
+        from core.infra.project_context import ProjectContext
+
+        default_us = (ProjectContext.path.get_project_root() / "userspace").resolve()
+    except Exception:
+        default_us = None
+    if default_us is not None and default_us != root:
+        stale = default_us / ".ntq" / "tmp" / "progress" / f"{INSTALL_ID}.json"
+        if stale.is_file():
+            try:
+                stale.unlink()
+            except OSError:
+                pass
+    return progress
 
 
 def open_install(step_ids: Iterable[str], *, done_ids: Iterable[str] = ()) -> None:

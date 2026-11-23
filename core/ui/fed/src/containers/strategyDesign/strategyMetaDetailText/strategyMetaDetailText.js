@@ -6,22 +6,34 @@ function clipTitle(lines) {
   return lines.length ? lines.join('\n') : '';
 }
 
-function MetaClipColumn({ label, lines, empty }) {
+function MetaClipColumn({ label, lines, empty, bullets = false }) {
   const items = Array.isArray(lines)
     ? lines.map((item) => String(item || '').trim()).filter(Boolean)
     : [];
   const full = clipTitle(items);
-  const body = items.length ? items : [empty];
 
   return (
     <div className="ntq-meta-clip-col">
       <span className="ntq-meta-clip-col__label">{label}</span>
-      <div
-        className="ntq-meta-clip-col__body"
-        title={full || undefined}
-      >
-        {body.join('\n')}
-      </div>
+      {items.length === 0 ? (
+        <p className="ntq-meta-clip-col__empty ntq-muted">{empty}</p>
+      ) : bullets ? (
+        <ul
+          className="ntq-meta-clip-col__list"
+          title={full || undefined}
+        >
+          {items.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <div
+          className="ntq-meta-clip-col__body"
+          title={full || undefined}
+        >
+          {items.join('\n')}
+        </div>
+      )}
     </div>
   );
 }
@@ -41,7 +53,7 @@ function StrategyMetaDetailText({
 
   return (
     <div className={`ntq-meta-clip ${className}`.trim()}>
-      <MetaClipColumn label="入场条件" lines={entries} empty={empty} />
+      <MetaClipColumn label="入场条件" lines={entries} empty={empty} bullets />
       <MetaClipColumn label="目标" lines={goals} empty={empty} />
     </div>
   );

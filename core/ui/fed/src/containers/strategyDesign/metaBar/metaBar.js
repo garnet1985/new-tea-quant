@@ -73,7 +73,7 @@ function StrategyDesignMetaBar() {
                     {wb.strategyDescription}
                   </span>
                 )}
-                variant="info"
+                shine
                 placement="bottom"
                 ariaLabel="策略说明"
                 className="ntq-design-meta__strategy-desc-tip"

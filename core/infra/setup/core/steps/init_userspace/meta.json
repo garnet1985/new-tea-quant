@@ -1,18 +1,17 @@
 {
   "id": "init_userspace",
   "name": "初始化用户空间",
-  "description": "用户空间用来存放你的策略、数据和配置。一般保持默认路径即可。",
+  "description": "用户空间(userspace)是用来存放您的个人代码和配置的目录，建议保持默认。如果您是重新安装，请先备份这个目录。",
   "scriptEntry": "core/infra/setup/core/steps/init_userspace/install.py",
   "requiresUserInput": true,
   "inputSchema": [
     {
       "key": "userspaceTargetPath",
-      "label": "用户空间路径",
+      "label": "建议路径",
       "type": "text",
       "required": false,
       "defaultValue": "",
       "placeholder": "默认使用项目根目录下的用户空间文件夹",
-      "helperText": "默认使用下方绝对路径；仅在需要换盘或共享目录时再自定义。",
       "editableByCheckbox": true,
       "editableLabel": "我想自定义用户空间路径"
     },

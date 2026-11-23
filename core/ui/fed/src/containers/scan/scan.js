@@ -459,7 +459,7 @@ function Scan() {
               iconPlacement="end"
               iconSize="sm"
               component={RouterLink}
-              to={getStrategyDesignPath(params.row.name)}
+              to={getStrategyDesignPath(params.row.name, 'enum')}
               state={buildStrategyDesignNavState(params.row)}
               onClick={(e) => e.stopPropagation()}
               className="scan-design-btn"

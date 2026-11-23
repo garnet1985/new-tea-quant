@@ -31,14 +31,14 @@ function stateIcon(row, runningStep) {
   if (row.state === '待输入') {
     return (
       <span className="setup-step-state">
-        <Icon name="radioUnchecked" size="md" tone="warning" />
+        <Icon name="timer" size="md" tone="warning" />
         <span>待输入</span>
       </span>
     );
   }
   return (
     <span className="setup-step-state">
-      <Icon name="radioUnchecked" size="md" tone="disabled" />
+      <Icon name="timer" size="md" tone="disabled" />
       <span>{row.state}</span>
     </span>
   );
@@ -85,7 +85,6 @@ function SetupExecutionPanel({
             <span className="setup-page__step-row-index">{row.order}</span>
             <div className="setup-page__step-row-main">
               <p className="setup-page__step-row-name">{row.name}</p>
-              <p className="setup-page__step-row-detail ntq-muted">{row.detail}</p>
             </div>
             {stateIcon(row, runningStep)}
           </div>

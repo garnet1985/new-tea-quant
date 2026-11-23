@@ -1,7 +1,7 @@
 {
   "id": "db_connection",
   "name": "数据库配置",
-  "description": "确认数据库连接信息。默认使用本地文件数据库（DuckDB），一般无需改动即可继续。",
+  "description": "选择和配置您所使用的数据库。",
   "scriptEntry": "core/infra/setup/core/steps/db_connection/install.py",
   "requiresUserInput": true,
   "inputSchema": [

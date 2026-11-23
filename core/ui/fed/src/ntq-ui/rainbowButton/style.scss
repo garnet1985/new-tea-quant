@@ -35,6 +35,11 @@
   }
 }
 
+.ntq-rainbow-button__tooltip-wrap {
+  display: inline-flex;
+  max-width: 100%;
+}
+
 .ntq-rainbow-button {
   position: relative;
   display: inline-flex;

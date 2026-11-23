@@ -267,7 +267,7 @@ function StrategyReportPanel({
     if (lockedTab && executionState?.stepStatus?.[lockedTab] !== 'done') {
       return (
         <p className="ntq-report-panel__hint ntq-muted">
-          在执行面板点击开始来产出报告
+          在上方执行面板点击“开始模拟”来产出报告
         </p>
       );
     }

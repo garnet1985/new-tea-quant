@@ -94,6 +94,14 @@ Navigator 协议与金标（产品语义）  执行推理、计量猫粮
 
 硬条件挂在**远端请求链**上，不依赖本机先拉 `/agent/policy`。单独的 policy GET 仅供检查/可选同步；本机改代码绕过拉包**不会**去掉官网注入。自备 Key 不经官网，只受本地弱法约束。
 
+### 框架问答索引（本地 wiki + 远端快表）
+
+| 层 | 位置 | 作用 |
+|----|------|------|
+| **Wiki 正文** | 本机 `content/ntq_wiki/`（含 `framework_index.md`、`know_how/how_sharpe_is_calculated.md` 等） | 说明书与公式细节；开源默认可搜 |
+| **远端快表** | 官网 `ntq_ai.framework_index` → `GET .../agent/framework-index` | 可运营关键词 → wiki/代码落点；随 prompt-track 增补，不必发 App |
+| **工具** | `lookup_framework_index` | 有凭证优先远端；否则本地 md；再 `search_wiki` 打开 wiki |
+
 ---
 
 ## 明确不做（本地）

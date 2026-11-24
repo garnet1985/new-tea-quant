@@ -142,6 +142,25 @@ if profile["signed_in"]:
 
 ---
 
+### fetch_framework_index
+
+`from core.modules.ntq_external.ai import fetch_framework_index`
+
+`fetch_framework_index(*, force_refresh=False) -> dict`
+
+- **描述：** 拉取官网可运营的「框架问题快速索引」（关键词 → wiki / 模块 / 代码落点）。**详细 wiki 仍在本机 App**；本接口失败时 Agent 工具 `lookup_framework_index` 回落本地 `framework_index.md`。
+- **返回值：**
+
+| 字段 | 说明 |
+|------|------|
+| `ok` | 成功为 True |
+| `version` / `entries` / `issued_at` | 成功时的索引包 |
+| `error` / `reason` | 失败：`missing_credential` / `fetch_failed` 等 |
+
+开发可用 `NTQ_FRAMEWORK_INDEX_FIXTURE=1`。官网：`ntq_ai.framework_index` + `GET .../agent/framework-index`。
+
+---
+
 ## contracts
 
-本模块无独立契约文件；`Feedback` 与 `member_profile` 的返回结构即上表。`resolve_agent_policy` 见上节。
+本模块无独立契约文件；`Feedback` 与 `member_profile` 的返回结构即上表。`resolve_agent_policy` / `fetch_framework_index` 见上节。

@@ -25,6 +25,7 @@ import {
   persistDockSelectedId,
   readDockChat,
 } from './dockChatStore';
+import { splitAssistantReply } from './splitAssistantReply';
 import './style.scss';
 
 function formatCatfoodSpent(value) {
@@ -75,15 +76,47 @@ function SpentLine({ spent }) {
   const text = formatCatfoodSpent(spent);
   if (text == null) return null;
   return (
-    <p className="ntq-assistant-dock__spent">
+    <span className="ntq-assistant-dock__spent">
       本次消耗猫粮
       {' '}
       <span>{text}</span>
-    </p>
+    </span>
   );
 }
 
-function BubbleBody({ item, onNavigate }) {
+function AssistantBubbleFooter({ spent }) {
+  return (
+    <div className="ntq-assistant-dock__bubble-footer">
+      <span className="ntq-assistant-dock__ai-gen" role="note">
+        以上内容由 AI 生成，可能不准确，请谨慎使用。
+      </span>
+      <SpentLine spent={spent} />
+    </div>
+  );
+}
+
+function NextStepChips({ suggestions, disabled, onPick }) {
+  const list = Array.isArray(suggestions) ? suggestions.filter(Boolean).slice(0, 2) : [];
+  if (!list.length) return null;
+  return (
+    <div className="ntq-assistant-dock__next-steps" role="group" aria-label="建议的下一步">
+      {list.map((text) => (
+        <button
+          key={text}
+          type="button"
+          className="ntq-assistant-dock__next-step"
+          disabled={disabled}
+          onClick={() => onPick(text)}
+        >
+          <span className="ntq-assistant-dock__next-step-text">{text}</span>
+          <span className="ntq-assistant-dock__next-step-arrow" aria-hidden="true">→</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function BubbleBody({ item, onNavigate, onPickNext, sending }) {
   const link = item.error ? settingsLinkFor(item.content) : null;
   return (
     <>
@@ -97,7 +130,16 @@ function BubbleBody({ item, onNavigate }) {
           {link.label}
         </RouterLink>
       ) : null}
-      {!item.error ? <SpentLine spent={item.catfoodSpent} /> : null}
+      {!item.error ? (
+        <>
+          <AssistantBubbleFooter spent={item.catfoodSpent} />
+          <NextStepChips
+            suggestions={item.suggestions}
+            disabled={sending}
+            onPick={onPickNext}
+          />
+        </>
+      ) : null}
     </>
   );
 }
@@ -342,8 +384,8 @@ function AssistantChatDock() {
     }
   }, [refreshNtqQuota, selectedId, sending]);
 
-  const send = useCallback(async () => {
-    const content = draft.trim();
+  const send = useCallback(async (overrideContent) => {
+    const content = String(overrideContent != null ? overrideContent : draft).trim();
     if (!content || sending || !selectedId) return;
     const userId = nextId(idRef);
     const pendingId = nextId(idRef);
@@ -353,7 +395,11 @@ function AssistantChatDock() {
     }
     setSending(true);
     setMessages((prev) => [
-      ...prev,
+      ...prev.map((item) => (
+        item.role === 'assistant' && item.suggestions?.length
+          ? { ...item, suggestions: undefined }
+          : item
+      )),
       { id: userId, role: 'user', content },
       {
         id: pendingId,
@@ -387,12 +433,15 @@ function AssistantChatDock() {
         }
         refreshNtqQuota();
       }
+      const rawReply = result.reply || '（空回复）';
+      const { body, suggestions } = splitAssistantReply(rawReply);
       setMessages((prev) => prev.map((item) => (
         item.id === pendingId
           ? {
             ...item,
             pending: false,
-            content: result.reply || '（空回复）',
+            content: body || rawReply,
+            suggestions: suggestions.length ? suggestions : undefined,
             mode: result.mode || (selectedId === 'ntq' ? 'ask' : undefined),
             catfoodSpent: spent,
           }
@@ -413,6 +462,10 @@ function AssistantChatDock() {
       setSending(false);
     }
   }, [draft, refreshNtqQuota, selectedId, sending]);
+
+  const sendNextStep = useCallback((text) => {
+    void send(text);
+  }, [send]);
 
   const onDraftKeyDown = (event) => {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -568,10 +621,20 @@ function AssistantChatDock() {
                       onProgress={scrollToBottom}
                       onDone={() => markTyped(item.id)}
                     />
-                    <SpentLine spent={item.catfoodSpent} />
+                    <AssistantBubbleFooter spent={item.catfoodSpent} />
+                    <NextStepChips
+                      suggestions={item.suggestions}
+                      disabled={sending}
+                      onPick={sendNextStep}
+                    />
                   </>
                 ) : (
-                  <BubbleBody item={item} onNavigate={close} />
+                  <BubbleBody
+                    item={item}
+                    onNavigate={close}
+                    onPickNext={sendNextStep}
+                    sending={sending}
+                  />
                 )}
               </div>
             ))}
@@ -582,9 +645,6 @@ function AssistantChatDock() {
               当前为开源框架态（本地准则，可被本机修改）。使用 NTQ 会员通道时，官网会在每次补全强制注入产品准则。
             </p>
           ) : null}
-          <p className="ntq-assistant-dock__ai-disclaimer" role="note">
-            以上内容由 AI 生成，可能不准确，请谨慎使用。
-          </p>
 
           <form
             className="ntq-assistant-dock__composer"

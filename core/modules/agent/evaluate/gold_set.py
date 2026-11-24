@@ -87,6 +87,7 @@ GOLD_CASES: List[GoldCase] = [
     {"text": "重跑一遍组合", "kind": "worker", "note": "重跑"},
     # —— guide ——
     {"text": "资金报告里的夏普怎么读？", "kind": "guide", "note": "读报告"},
+    {"text": "NTQ 里夏普是怎么算的？", "kind": "guide", "note": "框架索引/wiki"},
     {"text": "帮我看看 ma20_touch 的资金报告", "kind": "guide", "note": "读报告"},
     {"text": "settings 里 length 和 alias 怎么配", "kind": "guide", "note": "说明书"},
     {"text": "指标字段名怎么取", "kind": "guide", "note": "说明书"},
@@ -193,6 +194,7 @@ _TRAP_TEXTS = {
     "介绍一下新茶，顺便帮我写个均线策略并回测",
     "美联储加息了吗，帮我重跑一遍组合",
     "资金报告里的夏普怎么读？",
+    "NTQ 里夏普是怎么算的？",
     "滚动回测怎么配参数",
     "机会扫描入口在哪",
     "帮我改止损并重跑回测",

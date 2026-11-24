@@ -162,6 +162,22 @@ _TOOLS: tuple[ToolSpec, ...] = (
         implemented=True,
     ),
     ToolSpec(
+        name="lookup_framework_index",
+        description=(
+            "查框架「某某怎么算 / 在哪实现」快速索引：返回 wiki 路径、模块与核心文件。"
+            "用户问夏普怎么算、指标在哪算、报告口径时先用本工具，再 search_wiki 打开 wiki。"
+            "会员通道优先远端可运营索引；否则用本机 framework_index.md。"
+        ),
+        parameters=_object(
+            {
+                "query": _string("问题关键字，例如 夏普怎么算 或 Sortino"),
+                "limit": _integer("最多返回条数，默认 5"),
+            },
+            ["query"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
         name="preview_data_rows",
         description=(
             "抽样读取本机行情行（验收 renew / 契约）。"

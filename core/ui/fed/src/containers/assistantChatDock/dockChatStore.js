@@ -1,3 +1,5 @@
+import { splitAssistantReply } from './splitAssistantReply';
+
 const STORAGE_KEY = 'ntq.assistant.dock.v1';
 const MAX_MESSAGES = 40;
 
@@ -47,6 +49,9 @@ export function persistDockChat(providerId, messages) {
       error: Boolean(item.error),
       mode: item.mode || undefined,
       catfoodSpent: item.catfoodSpent == null ? undefined : item.catfoodSpent,
+      suggestions: Array.isArray(item.suggestions) && item.suggestions.length
+        ? item.suggestions.map((s) => String(s || '').trim()).filter(Boolean).slice(0, 2)
+        : undefined,
     }))
     .slice(-MAX_MESSAGES);
   store.chats[providerId] = {
@@ -70,7 +75,7 @@ export function persistDockSelectedId(selectedId) {
 }
 
 /**
- * @param {Array<{ role: string, content: string, mode?: string, catfoodSpent?: number, error?: boolean }>} rows
+ * @param {Array<{ role: string, content: string, mode?: string, catfoodSpent?: number, error?: boolean, suggestions?: string[] }>} rows
  * @param {{ idRef: { current: number } }} opts
  */
 export function hydrateMessages(rows, { idRef }) {
@@ -86,13 +91,23 @@ export function hydrateMessages(rows, { idRef }) {
         return value;
       })();
     if (id >= idRef.current) idRef.current = id + 1;
+    let content = String(row.content);
+    let suggestions = Array.isArray(row.suggestions)
+      ? row.suggestions.map((s) => String(s || '').trim()).filter(Boolean).slice(0, 2)
+      : [];
+    if (role === 'assistant' && !row.error && !suggestions.length) {
+      const split = splitAssistantReply(content);
+      content = split.body || content;
+      suggestions = split.suggestions;
+    }
     list.push({
       id,
       role,
-      content: String(row.content),
+      content,
       error: Boolean(row.error),
       mode: row.mode,
       catfoodSpent: row.catfoodSpent,
+      suggestions: role === 'assistant' && suggestions.length ? suggestions : undefined,
     });
   });
   return list;

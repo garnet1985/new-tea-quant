@@ -413,6 +413,12 @@ def clear_session(session_id: str = DEFAULT_SESSION_ID) -> None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         archive = directory / "archive" / f"transcript-{stamp}.jsonl"
         transcript.replace(archive)
+    summary = directory / "compact_summary.md"
+    if summary.is_file():
+        try:
+            summary.unlink()
+        except OSError:
+            pass
     save_state(_empty_state(), session_id)
 
 

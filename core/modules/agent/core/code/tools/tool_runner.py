@@ -151,12 +151,16 @@ from core.modules.agent.core.code.tools.general.trading_calendar_tool import (
 )
 from core.modules.agent.core.code.tools.general.web_search_tool import web_search
 from core.modules.agent.core.code.tools.general.wiki_search_tool import search_wiki
+from core.modules.agent.core.code.tools.general.framework_index_tool import (
+    lookup_framework_index,
+)
 from core.modules.agent.core.code.tools.data.preview_data import preview_data_rows
 
 _HANDLERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "web_search": web_search,
     "read_url": read_url,
     "search_wiki": search_wiki,
+    "lookup_framework_index": lookup_framework_index,
     "list_dir": list_dir,
     "search_files": search_files,
     "read_file": read_file,

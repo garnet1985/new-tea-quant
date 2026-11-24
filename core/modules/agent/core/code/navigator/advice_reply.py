@@ -1,4 +1,4 @@
-"""投资建议陷阱：用本机 list_strategy_summaries 生成合规答复。"""
+"""荐股红线答复：用本机 list_strategy_summaries 生成合规研究摘要（不荐股）。"""
 
 from __future__ import annotations
 

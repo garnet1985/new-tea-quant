@@ -149,7 +149,7 @@ def _via_member_knowledge_brief(query: str, count: int) -> Optional[Dict[str, An
         "results": results,
         "note": (
             "简报来自 NTQ 远端（已搜网并总结）。"
-            "只作事实与背景参考并注明来源；禁止据此荐股、预测涨跌或编造未出现的报价。"
+            "只作事实与背景参考；对用户可不强制贴链接；禁止据此荐股、预测涨跌或编造未出现的报价。"
         ),
     }
 
@@ -242,6 +242,6 @@ def _via_local_deepseek(query: str, count: int) -> Dict[str, Any]:
         "count": len(results),
         "results": results,
         "note": (
-            "只作事实与背景参考并注明来源；禁止据此荐股、预测涨跌或编造未出现的报价。"
+            "只作事实与背景参考；对用户可不强制贴链接；禁止据此荐股、预测涨跌或编造未出现的报价。"
         ),
     }

@@ -53,10 +53,31 @@ def load_section(rel_path: str, key: str) -> str:
 
 
 def load_reply(key: str, *, variables: Optional[Mapping[str, str]] = None) -> str:
-    text = _load_section_from(_REPLY_FILES, key)
+    text = _reply_from_active_policy(key)
+    if text is None:
+        text = _load_section_from(_REPLY_FILES, key)
     if not variables:
         return text
     return _substitute(text, variables)
+
+
+def _reply_from_active_policy(key: str) -> Optional[str]:
+    """产品态：优先远端 policy.sections.replies。"""
+    try:
+        from core.modules.agent.core.code.policy_bind import active_policy_sections
+    except ImportError:
+        return None
+    sections = active_policy_sections()
+    if not sections:
+        return None
+    replies = sections.get("replies")
+    if not isinstance(replies, dict):
+        return None
+    body = replies.get(str(key or "").strip())
+    if body is None:
+        return None
+    text = str(body).strip()
+    return (text + "\n") if text else None
 
 
 def load_nudge(role: str, key: str, *, variables: Optional[Mapping[str, str]] = None) -> str:

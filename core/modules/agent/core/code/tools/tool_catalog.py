@@ -39,9 +39,9 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="web_search",
         description=(
-            "网页搜索：新闻背景、历史事件、专有名词与公开知识。"
+            "网页搜索：新闻背景、历史事件、专有名词、公开策略类型/逻辑与知识。"
             "优先走 NTQ 远端 knowledge_brief（一次搜+总结）；无会员凭证时回退本机 deepseek。"
-            "返回 brief/来源；须注明出处。禁止据此荐股、预测涨跌或当作实时行情报价。"
+            "返回 brief/来源；对用户可不强制贴链接。禁止据此荐股、预测涨跌或当作实时行情报价。"
         ),
         parameters=_object(
             {
@@ -157,6 +157,22 @@ _TOOLS: tuple[ToolSpec, ...] = (
         ),
         parameters=_object(
             {"query": _string("关键字，例如 stock_list_filter 或 止损 stages")},
+            ["query"],
+        ),
+        implemented=True,
+    ),
+    ToolSpec(
+        name="lookup_framework_index",
+        description=(
+            "查框架「某某怎么算 / 在哪实现」快速索引：返回 wiki 路径、模块与核心文件。"
+            "用户问夏普怎么算、指标在哪算、报告口径时先用本工具，再 search_wiki 打开 wiki。"
+            "会员通道优先远端可运营索引；否则用本机 framework_index.md。"
+        ),
+        parameters=_object(
+            {
+                "query": _string("问题关键字，例如 夏普怎么算 或 Sortino"),
+                "limit": _integer("最多返回条数，默认 5"),
+            },
             ["query"],
         ),
         implemented=True,

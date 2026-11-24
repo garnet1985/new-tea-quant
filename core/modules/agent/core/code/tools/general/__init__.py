@@ -18,11 +18,15 @@ from core.modules.agent.core.code.tools.general.trading_calendar_tool import (
 )
 from core.modules.agent.core.code.tools.general.web_search_tool import web_search
 from core.modules.agent.core.code.tools.general.wiki_search_tool import search_wiki
+from core.modules.agent.core.code.tools.general.framework_index_tool import (
+    lookup_framework_index,
+)
 
 __all__ = [
     "web_search",
     "read_url",
     "search_wiki",
+    "lookup_framework_index",
     "list_dir",
     "search_files",
     "read_file",

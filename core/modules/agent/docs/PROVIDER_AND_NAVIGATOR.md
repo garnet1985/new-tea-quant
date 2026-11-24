@@ -58,12 +58,23 @@ flowchart TB
 
 无论哪个 Provider：
 
-1. **组 context**（说明书、会话、工具说明、红线准则等）
+1. **组 context**（说明书、会话、工具说明、红线准则等）— 分层打包，见下
 2. **Navigator**：根据用户话得到处理清单（可多意图排队）
 3. **按清单执行流向**（含拒绝、固定文案、guide、worker…）
-4. **本机执行工具**（写策略、回测、读报告等），结果再拼回 context
+4. **本机执行工具**（写策略、回测、读报告等），结果再拼回 context（工具环主动清扫旧结果）
 
 差别只在：**每一步需要模型补全时，请求打到当前选定的那一个 Provider 出入口**。
+
+### Context 分层（App 编排）
+
+| 层 | 内容 | 策略 |
+|----|------|------|
+| A 固定 | role system、session preamble、`context_block` | 始终保留 |
+| B 摘要 | 更早轮次 | 默认抽取式；长会话可 LLM compaction（本机触发，ntq 时官网计费） |
+| C 近期 | 最近若干轮原文 | verbatim |
+| D 工作集 | 本轮用户句 + 工具往返 | 只留最近几次工具对；大结果截断 |
+
+运输层消息条数上限仍是兜底；正常路径靠打包压住，不依赖硬裁。实现：`session/context_pack.py`。
 
 - 用户自备：Navigator 与各流向的补全 = 同一供应商。  
 - ntq：每次补全仍只调 `provider_id=ntq`；Website 在远端决定本次用哪颗模型、如何计费。
@@ -79,11 +90,28 @@ App（重信息与流程）              Website（重调度与消耗）
 拼 messages / context          选模型（如分流 DS、问答 GLM…）
 Navigator 协议与金标（产品语义）  执行推理、计量猫粮
 跑流向状态机                   返回文本 / 结构化结果
-执行本机工具、写 userspace
+执行本机工具、写 userspace       签发 Agent 产品 policy（会员）
 ```
 
 **App 负责：** 信息齐不齐、流程对不对、工具安不安全。  
-**Website 负责：** 算力落在哪颗模型、花多少钱、内部 fallback。
+**Website 负责：** 算力落在哪颗模型、花多少钱、内部 fallback；会员态下签发不可篡改的 Agent 准则。
+
+### 框架态 vs 产品态（准则）
+
+| 状态 | 判定 | 准则来源 |
+|------|------|----------|
+| **框架态** | 未走官网大脑（无会员 / 自备 Key） | 本地 `content/global/*.md`（可改；开源自担） |
+| **产品态** | `Provider=ntq`（会员凭证打官网补全） | **官网在 `chat/completions` 服务端强制注入** `ntq_ai.agent_policy`；客户端无法剥除 |
+
+硬条件挂在**远端请求链**上，不依赖本机先拉 `/agent/policy`。单独的 policy GET 仅供检查/可选同步；本机改代码绕过拉包**不会**去掉官网注入。自备 Key 不经官网，只受本地弱法约束。
+
+### 框架问答索引（本地 wiki + 远端快表）
+
+| 层 | 位置 | 作用 |
+|----|------|------|
+| **Wiki 正文** | 本机 `content/ntq_wiki/`（含 `framework_index.md`、`know_how/how_sharpe_is_calculated.md` 等） | 说明书与公式细节；开源默认可搜 |
+| **远端快表** | 官网 `ntq_ai.framework_index` → `GET .../agent/framework-index` | 可运营关键词 → wiki/代码落点；随 prompt-track 增补，不必发 App |
+| **工具** | `lookup_framework_index` | 有凭证优先远端；否则本地 md；再 `search_wiki` 打开 wiki |
 
 ---
 
@@ -103,5 +131,5 @@ Navigator 协议与金标（产品语义）  执行推理、计量猫粮
 - Navigator：`core/code/navigator/`
 - 流程：`Agent.run` → `code/pipeline.py`（全程同一 `provider.id`）
 - 出站：`infra.ai.AiChannel.complete`（经 `executor/shared/complete.ask`）
-- 会员 ntq：`ntq_external`（Website）
+- 会员 ntq / 产品准则：`ntq_external`（Website；`ai.agent_policy.resolve_agent_policy`）
 - **远端状态协议：** [NTQ_REMOTE_PROTOCOL.md](./NTQ_REMOTE_PROTOCOL.md)（`ntq.phase` / `ntq.intent`）

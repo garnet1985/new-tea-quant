@@ -17,6 +17,7 @@ WIKI_READ_TOOLS: FrozenSet[str] = frozenset(
         "web_search",
         "read_url",
         "search_wiki",
+        "lookup_framework_index",
         "list_dir",
         "search_files",
         "read_file",

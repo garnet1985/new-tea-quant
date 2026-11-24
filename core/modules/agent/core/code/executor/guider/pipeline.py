@@ -30,6 +30,10 @@ from core.modules.agent.core.code.executor.shared.prompt_loader import (
 )
 from core.modules.agent.core.code.executor.shared.use_tool import use_tool
 from core.modules.agent.core.code.navigator import patterns as nav_patterns
+from core.modules.agent.core.code.session.context_pack import (
+    clip_tool_result_content,
+    compact_working_messages,
+)
 from core.modules.agent.core.code.session.session_store import update_state_from_tool
 from core.modules.agent.core.code.tools.tool_catalog import ToolCatalog
 
@@ -91,6 +95,7 @@ def run_wiki(
     ]
     tools_seen: List[Dict[str, Any]] = []
     for _ in range(GUIDER_MAX_STEPS):
+        messages = compact_working_messages(messages)
         raw = ask(
             messages,
             provider_id=provider_id,
@@ -111,13 +116,11 @@ def run_wiki(
             result = use_tool(catalog, tool, chosen.get("arguments") or {})
             record_tool_seen(tools_seen, tool, result)
             update_state_from_tool(result, session_id)
-            messages.append({"role": "assistant", "content": raw.strip()})
-            messages.append(
-                {
-                    "role": "user",
-                    "content": "工具结果：\n" + json.dumps(result, ensure_ascii=False),
-                }
+            tool_body = clip_tool_result_content(
+                "工具结果：\n" + json.dumps(result, ensure_ascii=False)
             )
+            messages.append({"role": "assistant", "content": raw.strip()})
+            messages.append({"role": "user", "content": tool_body})
             continue
         reply = usable_reply(chosen.get("reply"))
         if reply and nav_patterns.has_brand_leak(reply):

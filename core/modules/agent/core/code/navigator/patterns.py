@@ -41,18 +41,34 @@ FORCE_WORK_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+# 荐股红线：点名买卖个股 / 该买什么。策略思路（含「能赚钱的策略」）走 guide，不在此列。
 ADVICE_TRAP_RE = re.compile(
+    r"("
+    r"投资建议|"
+    r"荐股|"
+    r"(该|应该)?买什么|"
+    r"买什么股|"
+    r"买哪(只|支|个)股|"
+    r"哪(只|支)股.{0,12}(买|涨|赚)|"
+    r"(今天|明日|明天).{0,8}(买|卖).{0,8}(什么|哪)|"
+    r"(推荐|给我).{0,8}(几只|一只|一支).{0,6}股|"
+    r"(看好|建议买).{0,12}(股|标的|代码)"
+    r")",
+    re.IGNORECASE,
+)
+# 策略思路：要类型/逻辑/推荐思路（可含盈利导向用语）→ guide；同意测试后再 worker。
+STRATEGY_IDEAS_RE = re.compile(
     r"("
     r"什么策略.{0,12}(赚|挣)|"
     r"哪些策略.{0,12}(赚|挣)|"
     r"(能|会)?赚钱的策略|"
     r"推荐.{0,12}策略|"
-    r"投资建议|"
-    r"(该|应该)?买什么|"
-    r"买什么股|"
-    r"稳赚|"
-    r"怎么赚钱|"
-    r"哪(个|种)策略.{0,12}(赚|好|强)"
+    r"策略.{0,8}(思路|想法|灵感)|"
+    r"(没|没有).{0,8}(策略)?.{0,8}(思路|想法)|"
+    r"(给我|有没有).{0,8}(一些|几个)?.{0,8}(策略)?(思路|想法)|"
+    r"稳赚.{0,8}策略|"
+    r"哪(个|种)策略.{0,12}(赚|好|强)|"
+    r"怎么.{0,6}(制定|设计|想).{0,6}策略"
     r")",
     re.IGNORECASE,
 )
@@ -104,8 +120,17 @@ def is_product_identity_question(text: str) -> bool:
 
 
 def is_investment_advice_trap(text: str) -> bool:
+    """荐股 / 该买什么等红线；不含策略思路推荐。"""
     raw = str(text or "").strip()
     return bool(raw and ADVICE_TRAP_RE.search(raw))
+
+
+def is_strategy_ideas_question(text: str) -> bool:
+    """要策略类型/思路（可含赚钱用语）；应走 guide，先给思路再问是否测试。"""
+    raw = str(text or "").strip()
+    if not raw or is_investment_advice_trap(raw):
+        return False
+    return bool(STRATEGY_IDEAS_RE.search(raw))
 
 
 def is_out_of_scope_web_question(text: str) -> bool:

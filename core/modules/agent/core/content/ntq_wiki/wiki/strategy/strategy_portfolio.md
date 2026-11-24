@@ -88,3 +88,13 @@ summary: 回测第三步：资金分配、纪律出场、账户净值与回撤�
 
 组合模拟在主进程单线程完成，不走多进程回测引擎。
 
+## 快捷落点
+
+| 类型 | 位置 |
+|------|------|
+| 模块 | `modules.strategy` · portfolio |
+| 夏普 / Sortino 怎么算 | [资金层夏普怎么算](../../know_how/how_sharpe_is_calculated.md) |
+| 算法说明（开发） | `core/modules/strategy/core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md` |
+| 核心计算 | `core/modules/strategy/core/engines/portfolio/report_manager/capital_metrics.py` |
+| 模拟器 | `core/modules/strategy/core/engines/portfolio/simulator.py` |
+

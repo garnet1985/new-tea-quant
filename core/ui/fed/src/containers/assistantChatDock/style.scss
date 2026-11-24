@@ -308,25 +308,15 @@
 .ntq-assistant-dock__bubble-footer {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   margin-top: 10px;
   flex-wrap: wrap;
 }
 
-.ntq-assistant-dock__ai-gen {
-  flex: 1 1 10rem;
-  min-width: 0;
-  font-size: 0.68rem;
-  line-height: 1.4;
-  color: var(--ntq-text-muted, rgba(255, 255, 255, 0.45));
-  user-select: none;
-}
-
 .ntq-assistant-dock__spent {
   flex: 0 0 auto;
   margin: 0;
-  margin-left: auto;
   text-align: right;
   font-size: 0.72rem;
   line-height: 1.4;
@@ -751,6 +741,36 @@
   line-height: 1.45;
   color: var(--ntq-text-muted);
   user-select: none;
+}
+
+.ntq-assistant-dock__ai-rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin: 2px 16px 8px;
+  user-select: none;
+}
+
+.ntq-assistant-dock__ai-rule-line {
+  flex: 1 1 0;
+  height: 1px;
+  min-width: 12px;
+  background: var(--ntq-white-12, rgba(255, 255, 255, 0.12));
+}
+
+.ntq-assistant-dock__ai-rule-text {
+  flex: 0 1 auto;
+  max-width: 70%;
+  margin: 0;
+  text-align: center;
+  font-size: 0.66rem;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: var(--ntq-text-muted, rgba(255, 255, 255, 0.42));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ntq-assistant-dock__composer {

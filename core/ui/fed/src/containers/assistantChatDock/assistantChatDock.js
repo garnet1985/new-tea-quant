@@ -85,12 +85,10 @@ function SpentLine({ spent }) {
 }
 
 function AssistantBubbleFooter({ spent, showSpent = true }) {
+  if (!showSpent || formatCatfoodSpent(spent) == null) return null;
   return (
     <div className="ntq-assistant-dock__bubble-footer">
-      <span className="ntq-assistant-dock__ai-gen" role="note">
-        以上内容由 AI 生成，可能不准确，请谨慎使用。
-      </span>
-      {showSpent ? <SpentLine spent={spent} /> : null}
+      <SpentLine spent={spent} />
     </div>
   );
 }
@@ -118,6 +116,7 @@ function NextStepChips({ suggestions, disabled, onPick }) {
 
 function BubbleBody({ item, onNavigate, onPickNext, sending }) {
   const link = item.error ? settingsLinkFor(item.content) : null;
+  const isAssistant = item.role === 'assistant';
   return (
     <>
       <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
@@ -130,7 +129,7 @@ function BubbleBody({ item, onNavigate, onPickNext, sending }) {
           {link.label}
         </RouterLink>
       ) : null}
-      {!item.error ? (
+      {isAssistant && !item.error ? (
         <>
           <AssistantBubbleFooter
             spent={item.catfoodSpent}
@@ -654,6 +653,14 @@ function AssistantChatDock() {
               当前为开源框架态（本地准则，可被本机修改）。使用 NTQ 会员通道时，官网会在每次补全强制注入产品准则。
             </p>
           ) : null}
+
+          <div className="ntq-assistant-dock__ai-rule" role="note">
+            <span className="ntq-assistant-dock__ai-rule-line" aria-hidden="true" />
+            <span className="ntq-assistant-dock__ai-rule-text">
+              以上内容由 AI 生成，可能不准确，请谨慎使用
+            </span>
+            <span className="ntq-assistant-dock__ai-rule-line" aria-hidden="true" />
+          </div>
 
           <form
             className="ntq-assistant-dock__composer"

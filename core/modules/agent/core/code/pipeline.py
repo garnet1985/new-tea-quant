@@ -62,6 +62,8 @@ class RunLoop:
         pid = provider.id
         billing: Dict[str, Any] = {"catfood_spent": 0.0, "balance": None}
 
+        # 准则：框架态用本地 md（可改）；产品态（Provider=ntq）由官网在
+        # chat/completions 服务端强制注入，不依赖本机拉 policy API。
         decision = navigate(text, provider_id=pid)
 
         if decision.kind == "identity":

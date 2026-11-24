@@ -24,7 +24,7 @@ def test_load_redlines_and_replies() -> None:
     intro = load_reply("intro")
     assert "New Tea Quant" in intro
     assert load_reply("out_of_scope")
-    assert "不能提供投资建议" in load_reply("advice_head")
+    assert "不能荐股" in load_reply("advice_head")
     assert "（超时）" in load_reply(
         "advice_list_unavailable", variables={"detail": "（超时）"}
     )

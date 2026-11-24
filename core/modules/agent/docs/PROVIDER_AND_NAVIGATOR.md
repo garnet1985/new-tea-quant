@@ -79,11 +79,20 @@ App（重信息与流程）              Website（重调度与消耗）
 拼 messages / context          选模型（如分流 DS、问答 GLM…）
 Navigator 协议与金标（产品语义）  执行推理、计量猫粮
 跑流向状态机                   返回文本 / 结构化结果
-执行本机工具、写 userspace
+执行本机工具、写 userspace       签发 Agent 产品 policy（会员）
 ```
 
 **App 负责：** 信息齐不齐、流程对不对、工具安不安全。  
-**Website 负责：** 算力落在哪颗模型、花多少钱、内部 fallback。
+**Website 负责：** 算力落在哪颗模型、花多少钱、内部 fallback；会员态下签发不可篡改的 Agent 准则。
+
+### 框架态 vs 产品态（准则）
+
+| 状态 | 判定 | 准则来源 |
+|------|------|----------|
+| **框架态** | 未走官网大脑（无会员 / 自备 Key） | 本地 `content/global/*.md`（可改；开源自担） |
+| **产品态** | `Provider=ntq`（会员凭证打官网补全） | **官网在 `chat/completions` 服务端强制注入** `ntq_ai.agent_policy`；客户端无法剥除 |
+
+硬条件挂在**远端请求链**上，不依赖本机先拉 `/agent/policy`。单独的 policy GET 仅供检查/可选同步；本机改代码绕过拉包**不会**去掉官网注入。自备 Key 不经官网，只受本地弱法约束。
 
 ---
 
@@ -103,5 +112,5 @@ Navigator 协议与金标（产品语义）  执行推理、计量猫粮
 - Navigator：`core/code/navigator/`
 - 流程：`Agent.run` → `code/pipeline.py`（全程同一 `provider.id`）
 - 出站：`infra.ai.AiChannel.complete`（经 `executor/shared/complete.ask`）
-- 会员 ntq：`ntq_external`（Website）
+- 会员 ntq / 产品准则：`ntq_external`（Website；`ai.agent_policy.resolve_agent_policy`）
 - **远端状态协议：** [NTQ_REMOTE_PROTOCOL.md](./NTQ_REMOTE_PROTOCOL.md)（`ntq.phase` / `ntq.intent`）

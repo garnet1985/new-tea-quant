@@ -675,6 +675,30 @@
   word-break: break-word;
 }
 
+.ntq-assistant-dock__framework-hint {
+  flex-shrink: 0;
+  margin: 0 14px 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 193, 7, 0.28);
+  background: rgba(255, 193, 7, 0.08);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--ntq-text-muted);
+  user-select: none;
+}
+
+.ntq-assistant-dock__ai-disclaimer {
+  flex-shrink: 0;
+  margin: 0 14px 6px;
+  padding: 0 2px;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--ntq-text-muted);
+  opacity: 0.85;
+  user-select: none;
+}
+
 .ntq-assistant-dock__composer {
   display: flex;
   flex-direction: column;

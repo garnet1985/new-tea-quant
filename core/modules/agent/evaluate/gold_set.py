@@ -27,15 +27,15 @@ GOLD_CASES: List[GoldCase] = [
     {"text": "NTQ 的回测四步架构原理是什么？", "kind": "guide_arch", "note": "架构"},
     {"text": "userspace 隔离是什么设计？", "kind": "guide_arch", "note": "架构"},
     {"text": "为什么要把回测拆成四步", "kind": "guide_arch", "note": "架构"},
-    # —— 合规 advice ——
-    {"text": "告诉我什么策略赚钱？", "kind": "advice", "note": "投资建议陷阱"},
-    {"text": "有没有能赚钱的策略", "kind": "advice", "note": "投资建议陷阱"},
-    {"text": "推荐一个稳赚的策略", "kind": "advice", "note": "投资建议陷阱"},
+    # —— 策略思路 → guide；荐股 → advice ——
+    {"text": "告诉我什么策略赚钱？", "kind": "guide", "note": "策略思路（可搜网，附免责）"},
+    {"text": "有没有能赚钱的策略", "kind": "guide", "note": "策略思路"},
+    {"text": "推荐一个稳赚的策略", "kind": "guide", "note": "策略思路"},
     {
         "text": "推荐能赚钱的策略并帮我写一个",
-        "kind": "advice",
-        "kinds": ["advice", "worker"],
-        "note": "pipeline：先拒荐，再问是否自述任务去实现",
+        "kind": "guide",
+        "kinds": ["guide", "worker"],
+        "note": "pipeline：先给思路，再问是否动手实现",
     },
     # —— 资讯 / 知识（guide + web_search）——
     {
@@ -100,8 +100,8 @@ GOLD_CASES: List[GoldCase] = [
     {"text": "NTQ 是什么产品", "kind": "identity", "note": "短品牌问"},
     {"text": "新茶能干嘛", "kind": "identity", "note": "短品牌问"},
     {"text": "目录分层是怎么设计的", "kind": "guide_arch", "note": "架构"},
-    {"text": "该买什么股今天能涨", "kind": "advice", "note": "投资建议陷阱"},
-    {"text": "有没有稳赚不赔的策略推荐", "kind": "advice", "note": "投资建议陷阱"},
+    {"text": "该买什么股今天能涨", "kind": "advice", "note": "荐股红线"},
+    {"text": "有没有稳赚不赔的策略推荐", "kind": "guide", "note": "策略思路（非荐股）"},
     {
         "text": "今天大盘为什么跌，网上怎么说的",
         "kind": "guide",

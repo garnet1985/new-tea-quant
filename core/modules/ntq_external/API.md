@@ -123,6 +123,25 @@ if profile["signed_in"]:
 
 ---
 
+### resolve_agent_policy
+
+`from core.modules.ntq_external.ai import resolve_agent_policy`
+
+`resolve_agent_policy(*, force_refresh=False) -> dict`
+
+- **描述：** 可选同步/检查门面。**产品硬条件不在这里**：官网对 `Provider=ntq` 的每次 `chat/completions` 服务端注入 policy。本接口可失败，不阻断 Agent。
+- **返回值：**
+
+| 字段 | 说明 |
+|------|------|
+| `mode` | `framework` \| `product`（有会员凭证时为 product） |
+| `ok` | 拉取成功为 True；失败为 False |
+| `version` / `sections` / `error` / `reason` | 同步结果 |
+
+开发可用 `NTQ_AGENT_POLICY_FIXTURE=1`。官网：配置 `ntq_ai.agent_policy` + 补全注入；`GET .../agent/policy` 可选。
+
+---
+
 ## contracts
 
-本模块无独立契约文件；`Feedback` 与 `member_profile` 的返回结构即上表。
+本模块无独立契约文件；`Feedback` 与 `member_profile` 的返回结构即上表。`resolve_agent_policy` 见上节。

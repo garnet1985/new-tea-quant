@@ -68,7 +68,7 @@ def _detect_regex_kinds(raw: str) -> List[str]:
         found.append("advice")
     if P.is_out_of_scope_web_question(raw):
         found.append("out_of_scope")
-    if P.is_web_knowledge_question(raw):
+    if P.is_strategy_ideas_question(raw) or P.is_web_knowledge_question(raw):
         found.append("guide")
     if is_architecture_question(raw):
         found.append("guide_arch")
@@ -88,7 +88,10 @@ def _escalate_queue(text: str, kinds: List[str]) -> List[str]:
     if P.is_out_of_scope_web_question(text) and "out_of_scope" not in merged:
         merged.append("out_of_scope")
     if (
-        P.is_web_knowledge_question(text)
+        (
+            P.is_web_knowledge_question(text)
+            or P.is_strategy_ideas_question(text)
+        )
         and "guide" not in merged
         and "out_of_scope" not in merged
     ):

@@ -39,9 +39,9 @@ _TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         name="web_search",
         description=(
-            "网页搜索：新闻背景、历史事件、专有名词与公开知识。"
+            "网页搜索：新闻背景、历史事件、专有名词、公开策略类型/逻辑与知识。"
             "优先走 NTQ 远端 knowledge_brief（一次搜+总结）；无会员凭证时回退本机 deepseek。"
-            "返回 brief/来源；须注明出处。禁止据此荐股、预测涨跌或当作实时行情报价。"
+            "返回 brief/来源；对用户可不强制贴链接。禁止据此荐股、预测涨跌或当作实时行情报价。"
         ),
         parameters=_object(
             {

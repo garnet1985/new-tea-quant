@@ -1,20 +1,32 @@
-"""投资建议陷阱：固定口径回复，不编造策略 A/B/C。"""
+"""荐股红线：固定口径回复；策略思路走 guide。"""
 
 from __future__ import annotations
 
 from core.modules.agent.core.code.navigator.patterns import (
     is_investment_advice_trap,
     is_out_of_scope_web_question,
+    is_strategy_ideas_question,
 )
 from core.modules.agent.core.code.navigator.router import route
 from core.modules.agent.core.code.executor.guider.patterns import is_architecture_question
 from core.modules.agent.core.code.navigator.advice_reply import format_strategy_summaries_reply
 
 
-def test_advice_trap_detects_make_money_question():
-    assert is_investment_advice_trap("告诉我什么策略赚钱？")
-    assert is_investment_advice_trap("有没有能赚钱的策略")
+def test_advice_trap_is_stock_only():
+    assert is_investment_advice_trap("该买什么股今天能涨")
+    assert is_investment_advice_trap("给我推荐几只股")
+    assert not is_investment_advice_trap("告诉我什么策略赚钱？")
+    assert not is_investment_advice_trap("有没有能赚钱的策略")
     assert not is_investment_advice_trap("帮我看看 ma20_touch 的资金报告")
+
+
+def test_strategy_ideas_detection():
+    assert is_strategy_ideas_question("告诉我什么策略赚钱？")
+    assert is_strategy_ideas_question("有没有能赚钱的策略")
+    assert is_strategy_ideas_question("推荐一个稳赚的策略")
+    assert is_strategy_ideas_question("我没思路，给我一些策略想法")
+    assert not is_strategy_ideas_question("该买什么股今天能涨")
+    assert not is_strategy_ideas_question("帮我看看 ma20_touch 的资金报告")
 
 
 def test_format_strategy_summaries_uses_real_keys():
@@ -47,14 +59,14 @@ def test_format_strategy_summaries_uses_real_keys():
     assert "demo/regression" not in text
     assert " v3" not in text
     assert "策略 A" not in text
-    assert "不能提供投资建议" in text
+    assert "不能荐股" in text
     assert "-9.40%" in text
 
 
 def test_format_strategy_summaries_empty():
     text = format_strategy_summaries_reply({"ok": True, "strategies": []})
     assert "还没有可列出的策略" in text
-    assert "投资建议" in text
+    assert "不能荐股" in text
 
 
 def test_out_of_scope_web_only_realtime_quotes():
@@ -76,9 +88,9 @@ def test_navigator_splits_guide_arch_and_worker():
 
 
 def test_navigator_cross_intent_pipeline():
-    advice = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq", mode="regex")
-    assert advice.kind == "advice"
-    assert advice.queue == ("advice", "worker")
+    ideas = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq", mode="regex")
+    assert ideas.kind == "guide"
+    assert ideas.queue == ("guide", "worker")
     ident = route("NTQ 是什么，顺便帮我回测一下", provider_id="ntq", mode="regex")
     assert ident.kind == "identity"
     assert ident.queue == ("identity", "worker")
@@ -87,3 +99,5 @@ def test_navigator_cross_intent_pipeline():
     )
     assert news.kind == "guide"
     assert news.queue == ("guide", "worker")
+    stock = route("该买什么股今天能涨", provider_id="ntq", mode="regex")
+    assert stock.kind == "advice"

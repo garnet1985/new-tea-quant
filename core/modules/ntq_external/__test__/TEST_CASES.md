@@ -12,7 +12,7 @@
 
 验证模块根公开契约：包根导出 `register_trace_endpoint` 与 `site_urls`；地址集合键完整且为绝对地址；`Feedback` 门面方法齐全；安装演示包 URL / 下载逻辑（不联网）。
 
-**不覆盖**：真实 HTTP 请求、会员凭证有效性、反馈落库。子包各有自己的 `__test__/`。
+**不覆盖**：真实 HTTP 请求、会员凭证有效性、反馈落库、官网 `/agent/policy` 联调。子包各有自己的 `__test__/`（含 `ai/__test__/test_agent_policy.py`）。
 
 ## 边界
 

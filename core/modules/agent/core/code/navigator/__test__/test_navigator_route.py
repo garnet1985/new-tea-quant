@@ -8,10 +8,10 @@ from core.modules.agent.evaluate.harness import evaluate, format_report, worker_
 from core.modules.agent.core.code.navigator.router import regex_route, route
 
 
-def test_regex_pipeline_advice_then_worker():
+def test_regex_pipeline_guide_then_worker_for_strategy_ideas():
     r = regex_route("推荐能赚钱的策略并帮我写一个")
-    assert r.kind == "advice"
-    assert r.queue == ("advice", "worker")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
 
 
 def test_regex_pipeline_identity_then_worker():
@@ -42,7 +42,8 @@ def test_regex_hypothesis_validation_is_worker():
     assert regex_route(gap).kind == "worker"
     assert regex_route("帮我验证金叉之后是不是更容易上涨").kind == "worker"
     assert regex_route("跳空在 K 线上是什么意思").kind == "guide"
-    assert regex_route("有没有能赚钱的策略").kind == "advice"
+    assert regex_route("有没有能赚钱的策略").kind == "guide"
+    assert regex_route("该买什么股今天能涨").kind == "advice"
 
 
 def test_parse_kinds_queue():
@@ -89,11 +90,11 @@ def _install_oracle_classifier(monkeypatch):
 def test_route_uses_classifier_queue(monkeypatch):
     _install_oracle_classifier(monkeypatch)
     r = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq")
-    assert r.kind == "advice"
-    assert r.queue == ("advice", "worker")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
 
 
-def test_escalate_advice_when_model_misses(monkeypatch):
+def test_escalate_guide_when_model_misses_strategy_ideas(monkeypatch):
     from core.modules.agent.core.code.navigator import classifier as clf
     from core.infra.ai.contracts import CompleteResult
 
@@ -104,6 +105,21 @@ def test_escalate_advice_when_model_misses(monkeypatch):
 
     monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
     r = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq", mode="ask")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
+
+
+def test_escalate_advice_when_model_misses_stock_tip(monkeypatch):
+    from core.modules.agent.core.code.navigator import classifier as clf
+    from core.infra.ai.contracts import CompleteResult
+
+    def fake_complete(messages, **kwargs):
+        return CompleteResult(
+            reply='{"kinds":["guide"]}', provider_id="ntq", model="stub"
+        )
+
+    monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
+    r = route("该买什么股今天能涨", provider_id="ntq", mode="ask")
     assert r.kind == "advice"
     assert "advice" in r.queue
 

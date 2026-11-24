@@ -11,6 +11,7 @@
 - 对外地址的唯一来源（`conf/site_target.py`）
 - 会员资料查询与访客态归一化（`member_profile.py`）
 - 会员 AI 通道的凭证、根地址与额度（`ai/`）
+- Agent 产品准则可选同步（`ai/agent_policy.py`）；**硬注入在官网** `chat/completions`
 - 应用内软反馈（`feedback/`）
 - 向 `infra.trace` 登记官网发送端（`track/`）
 - 公开演示安装包下载（`install_demo.py`，供 Setup 导入）
@@ -33,6 +34,7 @@
 | `conf/endpoints.py` | 配置 | 生产默认地址常量 |
 | `member_profile.py` | 业务 | 读凭证 → 请求资料 → 归一化字段 |
 | `ai/member_channel.py` | 业务 | 会员凭证、AI 根地址、额度与流水 |
+| `ai/agent_policy.py` | 业务 | Agent 产品准则：resolve / fetch / 短时缓存 |
 | `feedback/feedback.py` | 业务 | 反馈提交与提示偏好 |
 | `feedback/core/` | 内部 | 提交、偏好、HTTP 客户端 |
 | `track/__init__.py` | 装配 | 导入时登记 trace 发送端 |

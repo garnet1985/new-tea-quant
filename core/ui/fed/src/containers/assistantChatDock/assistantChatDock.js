@@ -112,6 +112,7 @@ function AssistantChatDock() {
   const [options, setOptions] = useState([]);
   const [selectedId, setSelectedId] = useState(() => loadDockStore().selectedId || '');
   const [ntqQuota, setNtqQuota] = useState(null);
+  const [memberConfigured, setMemberConfigured] = useState(false);
   const [registerUrl, setRegisterUrl] = useState('');
   const [contextTipDismissed, setContextTipDismissed] = useState(false);
   const listRef = useRef(null);
@@ -224,6 +225,7 @@ function AssistantChatDock() {
           return nextOptions[0]?.id || '';
         });
         setNeedsKey(nextOptions.length === 0);
+        setMemberConfigured(Boolean(membership?.configured));
         setHint('');
       })
       .catch((err) => {
@@ -574,6 +576,15 @@ function AssistantChatDock() {
               </div>
             ))}
           </div>
+
+          {!memberConfigured ? (
+            <p className="ntq-assistant-dock__framework-hint" role="note">
+              当前为开源框架态（本地准则，可被本机修改）。使用 NTQ 会员通道时，官网会在每次补全强制注入产品准则。
+            </p>
+          ) : null}
+          <p className="ntq-assistant-dock__ai-disclaimer" role="note">
+            以上内容由 AI 生成，可能不准确，请谨慎使用。
+          </p>
 
           <form
             className="ntq-assistant-dock__composer"

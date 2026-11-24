@@ -49,6 +49,7 @@ export function persistDockChat(providerId, messages) {
       error: Boolean(item.error),
       mode: item.mode || undefined,
       catfoodSpent: item.catfoodSpent == null ? undefined : item.catfoodSpent,
+      showDisclaimer: item.showDisclaimer === false ? false : undefined,
       suggestions: Array.isArray(item.suggestions) && item.suggestions.length
         ? item.suggestions.map((s) => String(s || '').trim()).filter(Boolean).slice(0, 2)
         : undefined,
@@ -95,10 +96,12 @@ export function hydrateMessages(rows, { idRef }) {
     let suggestions = Array.isArray(row.suggestions)
       ? row.suggestions.map((s) => String(s || '').trim()).filter(Boolean).slice(0, 2)
       : [];
-    if (role === 'assistant' && !row.error && !suggestions.length) {
+    let showDisclaimer = row.showDisclaimer !== false;
+    if (role === 'assistant' && !row.error) {
       const split = splitAssistantReply(content);
       content = split.body || content;
-      suggestions = split.suggestions;
+      if (!suggestions.length) suggestions = split.suggestions;
+      if (row.showDisclaimer == null) showDisclaimer = split.showDisclaimer !== false;
     }
     list.push({
       id,
@@ -108,6 +111,7 @@ export function hydrateMessages(rows, { idRef }) {
       mode: row.mode,
       catfoodSpent: row.catfoodSpent,
       billingReady: true,
+      showDisclaimer: role === 'assistant' ? showDisclaimer : undefined,
       suggestions: role === 'assistant' && suggestions.length ? suggestions : undefined,
     });
   });

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button } from 'ui';
 import RainbowButton from 'ntq-ui/rainbowButton';
-import AssistantTypewriter from './assistantTypewriter';
+import AssistantReplyStream from './assistantReplyStream';
 import PendingStream from './pendingStream';
 import {
   runAgent,
@@ -27,11 +27,6 @@ import {
 } from './dockChatStore';
 import { splitAssistantReply } from './splitAssistantReply';
 import './style.scss';
-
-function formatCatfoodSpent(value) {
-  if (value == null || Number.isNaN(Number(value))) return null;
-  return Number(value).toFixed(2);
-}
 
 function errorMessage(err, fallback) {
   if (isHttpStatusError(err) && err.message) return err.message;
@@ -72,51 +67,8 @@ function buildAiOptions(items, membership) {
   return options;
 }
 
-function SpentLine({ spent }) {
-  const text = formatCatfoodSpent(spent);
-  if (text == null) return null;
-  return (
-    <span className="ntq-assistant-dock__spent">
-      本次消耗猫粮
-      {' '}
-      <span>{text}</span>
-    </span>
-  );
-}
-
-function AssistantBubbleFooter({ spent, showSpent = true }) {
-  if (!showSpent || formatCatfoodSpent(spent) == null) return null;
-  return (
-    <div className="ntq-assistant-dock__bubble-footer">
-      <SpentLine spent={spent} />
-    </div>
-  );
-}
-
-function NextStepChips({ suggestions, disabled, onPick }) {
-  const list = Array.isArray(suggestions) ? suggestions.filter(Boolean).slice(0, 2) : [];
-  if (!list.length) return null;
-  return (
-    <div className="ntq-assistant-dock__next-steps" role="group" aria-label="建议的下一步">
-      {list.map((text) => (
-        <button
-          key={text}
-          type="button"
-          className="ntq-assistant-dock__next-step"
-          disabled={disabled}
-          onClick={() => onPick(text)}
-        >
-          <span className="ntq-assistant-dock__next-step-text">{text}</span>
-          <span className="ntq-assistant-dock__next-step-arrow" aria-hidden="true">→</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function BubbleBody({ item, onNavigate, onPickNext, sending }) {
+function BubbleBody({ item, onNavigate }) {
   const link = item.error ? settingsLinkFor(item.content) : null;
-  const isAssistant = item.role === 'assistant';
   return (
     <>
       <p className="ntq-assistant-dock__bubble-text">{item.content}</p>
@@ -128,19 +80,6 @@ function BubbleBody({ item, onNavigate, onPickNext, sending }) {
         >
           {link.label}
         </RouterLink>
-      ) : null}
-      {isAssistant && !item.error ? (
-        <>
-          <AssistantBubbleFooter
-            spent={item.catfoodSpent}
-            showSpent={item.billingReady !== false}
-          />
-          <NextStepChips
-            suggestions={item.suggestions}
-            disabled={sending}
-            onPick={onPickNext}
-          />
-        </>
       ) : null}
     </>
   );
@@ -443,9 +382,9 @@ function AssistantChatDock() {
             pending: false,
             content: body || rawReply,
             suggestions: suggestions.length ? suggestions : undefined,
+            showDisclaimer: true,
             mode: result.mode || (selectedId === 'ntq' ? 'ask' : undefined),
             catfoodSpent: spent,
-            // 等打字结束再显示消耗 / 刷新顶栏余额，避免「先算好了」的观感。
             billingReady: false,
           }
           : item
@@ -619,29 +558,21 @@ function AssistantChatDock() {
                     onTick={scrollToBottom}
                   />
                 ) : item.role === 'assistant' && !item.error ? (
-                  <>
-                    <AssistantTypewriter
-                      text={item.content}
-                      animate={item.id === latestAssistantId && !typedIdsRef.current.has(item.id)}
-                      onProgress={scrollToBottom}
-                      onDone={() => revealBilling(item.id)}
-                    />
-                    <AssistantBubbleFooter
-                      spent={item.catfoodSpent}
-                      showSpent={item.billingReady !== false}
-                    />
-                    <NextStepChips
-                      suggestions={item.suggestions}
-                      disabled={sending}
-                      onPick={sendNextStep}
-                    />
-                  </>
+                  <AssistantReplyStream
+                    body={item.content}
+                    spent={item.catfoodSpent}
+                    suggestions={item.suggestions}
+                    showDisclaimer={item.showDisclaimer !== false}
+                    animate={item.id === latestAssistantId && !typedIdsRef.current.has(item.id)}
+                    sending={sending}
+                    onProgress={scrollToBottom}
+                    onComplete={() => revealBilling(item.id)}
+                    onPickNext={sendNextStep}
+                  />
                 ) : (
                   <BubbleBody
                     item={item}
                     onNavigate={close}
-                    onPickNext={sendNextStep}
-                    sending={sending}
                   />
                 )}
               </div>

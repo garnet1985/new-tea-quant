@@ -21,11 +21,15 @@ from core.modules.agent.core.code.executor.worker import pipeline as worker_role
 from core.modules.agent.core.code.navigator.advice_reply import format_strategy_summaries_reply
 from core.modules.agent.core.code.navigator.router import route as navigate
 from core.modules.agent.core.code.provider.provider import resolve_provider
+from core.modules.agent.core.code.session.context_pack import (
+    build_session_memory,
+    maybe_llm_compact,
+    should_llm_compact,
+)
 from core.modules.agent.core.code.session.session_store import (
     append_turn,
     context_block,
     default_session_id,
-    recent_turns,
     update_state_from_tool,
 )
 from core.modules.agent.core.code.tools.tool_catalog import ToolCatalog
@@ -53,7 +57,6 @@ class RunLoop:
         if steps < 1 or steps > PIPELINE_MAX_STEPS:
             raise AgentError(f"一轮最多 {PIPELINE_MAX_STEPS} 次模型调用")
         sid = str(session_id or "").strip() or default_session_id()
-        memory = _memory_messages(sid)
         provider = resolve_provider(provider_id)
         if not provider.available:
             raise AgentError(
@@ -61,6 +64,10 @@ class RunLoop:
             )
         pid = provider.id
         billing: Dict[str, Any] = {"catfood_spent": 0.0, "balance": None}
+        # 长会话：先尝试 LLM 压缩摘要（失败则抽取式），再组 memory
+        if should_llm_compact(sid):
+            maybe_llm_compact(sid, provider_id=pid, billing=billing)
+        memory = _memory_messages(sid)
 
         # 准则：框架态用本地 md（可改）；产品态（Provider=ntq）由官网在
         # chat/completions 服务端强制注入，不依赖本机拉 policy API。
@@ -253,7 +260,7 @@ def _memory_messages(session_id: str) -> List[Dict[str, str]]:
     if block or "用户扩展" in preamble:
         content = preamble if not block else preamble + "\n" + block
         messages.append({"role": "system", "content": content})
-    messages.extend(recent_turns(session_id))
+    messages.extend(build_session_memory(session_id))
     return messages
 
 

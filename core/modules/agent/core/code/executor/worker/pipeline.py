@@ -20,6 +20,10 @@ from core.modules.agent.core.code.executor.shared.present import record_tool_see
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_nudge
 from core.modules.agent.core.code.executor.shared.use_tool import use_tool
 from core.modules.agent.core.code.executor.worker.prompt import worker_system_prompt
+from core.modules.agent.core.code.session.context_pack import (
+    clip_tool_result_content,
+    compact_working_messages,
+)
 from core.modules.agent.core.code.session.session_store import (
     PENDING_PLAN_CONFIRM,
     PENDING_PORTFOLIO_CONFIRM,
@@ -67,6 +71,7 @@ def run(
     zero_heal_active = False
     saw_rerun_after_zero = False
     for _ in range(max_steps):
+        messages = compact_working_messages(messages)
         raw = ask(
             messages,
             provider_id=provider_id,
@@ -136,13 +141,11 @@ def run(
         ):
             zero_heal_active = False
         update_state_from_tool(result, session_id, tool_name=tool_name)
-        messages.append({"role": "assistant", "content": raw.strip()})
-        messages.append(
-            {
-                "role": "user",
-                "content": "工具结果：\n" + json.dumps(result, ensure_ascii=False),
-            }
+        tool_body = clip_tool_result_content(
+            "工具结果：\n" + json.dumps(result, ensure_ascii=False)
         )
+        messages.append({"role": "assistant", "content": raw.strip()})
+        messages.append({"role": "user", "content": tool_body})
     raise AgentError("这一轮调用次数已到上限，已停止")
 
 

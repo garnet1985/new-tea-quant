@@ -44,6 +44,10 @@ def _member_error(message: str) -> str:
     return text or "暂时连不上官网 AI，请检查网络后重试。"
 
 
+# 与官网 ChatController::MAX_MESSAGES 对齐；工具多轮时裁掉中间旧往返，不硬拒。
+_MAX_COMPLETION_MESSAGES = 40
+
+
 def _completion_messages(messages: Sequence[Mapping[str, str]]) -> List[Dict[str, str]]:
     if not isinstance(messages, Sequence) or isinstance(messages, (str, bytes)):
         raise AiError("消息必须是列表")
@@ -58,11 +62,46 @@ def _completion_messages(messages: Sequence[Mapping[str, str]]) -> List[Dict[str
         if len(text) > 80000:
             raise AiError("单条消息过长")
         cleaned.append({"role": role, "content": text})
-    if not cleaned or len(cleaned) > 40:
+    if not cleaned:
         raise AiError("消息条数不正确")
+    cleaned = _trim_completion_messages(cleaned, limit=_MAX_COMPLETION_MESSAGES)
     if not any(item["role"] == "user" for item in cleaned):
         raise AiError("至少要有一条用户消息")
     return cleaned
+
+
+def _trim_completion_messages(
+    cleaned: List[Dict[str, str]],
+    *,
+    limit: int = _MAX_COMPLETION_MESSAGES,
+) -> List[Dict[str, str]]:
+    """超限时保留开头连续 system + 末尾对话，避免工具多轮把通道打爆。"""
+    limit = max(1, int(limit))
+    if len(cleaned) <= limit:
+        return cleaned
+    head: List[Dict[str, str]] = []
+    for item in cleaned:
+        if item["role"] != "system":
+            break
+        head.append(item)
+    # system 过多时也得让出位置给最近对话
+    if len(head) >= limit:
+        head = head[: max(1, limit - 1)]
+    rest = cleaned[len(head) :]
+    budget = limit - len(head)
+    trimmed = head + rest[-budget:]
+    if not any(item["role"] == "user" for item in trimmed):
+        for item in reversed(cleaned):
+            if item["role"] == "user":
+                if len(trimmed) >= limit:
+                    trimmed = trimmed[:-1]
+                # 插在 system 头之后，尽量靠近末尾用户语境
+                insert_at = len(head)
+                trimmed = trimmed[:insert_at] + [item] + trimmed[insert_at:]
+                if len(trimmed) > limit:
+                    trimmed = trimmed[:limit]
+                break
+    return trimmed
 
 
 class AiChannelManager:

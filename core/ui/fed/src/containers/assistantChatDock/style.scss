@@ -305,17 +305,36 @@
   }
 }
 
-.ntq-assistant-dock__bubble-footer {
+.ntq-assistant-dock__reply-stream {
   display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
-  margin-top: 10px;
-  flex-wrap: wrap;
+  min-width: 0;
 }
 
-.ntq-assistant-dock__spent {
-  flex: 0 0 auto;
+.ntq-assistant-dock__reply-disclaimer {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid rgba(234, 179, 8, 0.55);
+  border-radius: 0 8px 8px 0;
+  background: rgba(234, 179, 8, 0.07);
+  color: var(--ntq-text-muted, rgba(255, 255, 255, 0.62));
+  font-size: 0.78rem;
+  line-height: 1.45;
+
+  .ntq-assistant-md {
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+  }
+
+  .ntq-assistant-md p {
+    margin: 0;
+  }
+}
+
+.ntq-assistant-dock__reply-spent {
   margin: 0;
   text-align: right;
   font-size: 0.72rem;
@@ -323,17 +342,26 @@
   color: var(--ntq-text-muted, rgba(255, 255, 255, 0.55));
   font-variant-numeric: tabular-nums;
 
-  span {
-    color: var(--ntq-cyan);
-    font-weight: 700;
+  .ntq-assistant-md {
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
   }
+
+  .ntq-assistant-md p {
+    margin: 0;
+  }
+
+  /* 数字略强调：整行由 typewriter 打出，用青色字重提示 */
+  color: var(--ntq-cyan);
+  font-weight: 600;
 }
 
 .ntq-assistant-dock__next-steps {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 2px;
 }
 
 .ntq-assistant-dock__next-step {

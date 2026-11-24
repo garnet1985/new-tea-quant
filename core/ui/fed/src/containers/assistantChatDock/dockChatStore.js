@@ -107,6 +107,7 @@ export function hydrateMessages(rows, { idRef }) {
       error: Boolean(row.error),
       mode: row.mode,
       catfoodSpent: row.catfoodSpent,
+      billingReady: true,
       suggestions: role === 'assistant' && suggestions.length ? suggestions : undefined,
     });
   });

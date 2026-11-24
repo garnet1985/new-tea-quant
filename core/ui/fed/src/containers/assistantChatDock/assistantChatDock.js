@@ -84,13 +84,13 @@ function SpentLine({ spent }) {
   );
 }
 
-function AssistantBubbleFooter({ spent }) {
+function AssistantBubbleFooter({ spent, showSpent = true }) {
   return (
     <div className="ntq-assistant-dock__bubble-footer">
       <span className="ntq-assistant-dock__ai-gen" role="note">
         以上内容由 AI 生成，可能不准确，请谨慎使用。
       </span>
-      <SpentLine spent={spent} />
+      {showSpent ? <SpentLine spent={spent} /> : null}
     </div>
   );
 }
@@ -132,7 +132,10 @@ function BubbleBody({ item, onNavigate, onPickNext, sending }) {
       ) : null}
       {!item.error ? (
         <>
-          <AssistantBubbleFooter spent={item.catfoodSpent} />
+          <AssistantBubbleFooter
+            spent={item.catfoodSpent}
+            showSpent={item.billingReady !== false}
+          />
           <NextStepChips
             suggestions={item.suggestions}
             disabled={sending}
@@ -172,10 +175,6 @@ function AssistantChatDock() {
   ))?.id ?? null;
 
   const showContextTip = !contextTipDismissed && isHeavyContext(messages);
-
-  const markTyped = useCallback((id) => {
-    if (id != null) typedIdsRef.current.add(id);
-  }, []);
 
   const applyMessages = useCallback((rows, { markAllTyped = true } = {}) => {
     const hydrated = hydrateMessages(rows, { idRef });
@@ -354,6 +353,26 @@ function AssistantChatDock() {
       .catch(() => setNtqQuota(null));
   }, []);
 
+  /** 打字结束后再露出消耗，并拉一次真实剩余猫粮（顶栏同步）。 */
+  const revealBilling = useCallback((id) => {
+    if (id == null) return;
+    typedIdsRef.current.add(id);
+    let shouldRefresh = false;
+    setMessages((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (item.id !== id || item.billingReady !== false) return item;
+        changed = true;
+        shouldRefresh = selectedId === 'ntq';
+        return { ...item, billingReady: true };
+      });
+      return changed ? next : prev;
+    });
+    if (shouldRefresh) {
+      refreshNtqQuota();
+    }
+  }, [refreshNtqQuota, selectedId]);
+
   useEffect(() => {
     if (!open || selectedId !== 'ntq') return undefined;
     refreshNtqQuota();
@@ -416,23 +435,6 @@ function AssistantChatDock() {
         providerId: selectedId === 'ntq' ? 'ntq' : selectedId,
       });
       const spent = selectedId === 'ntq' ? result.catfoodSpent : null;
-      const balance = selectedId === 'ntq' ? result.balance : null;
-      if (selectedId === 'ntq') {
-        if (balance != null) {
-          setNtqQuota((prev) => (
-            prev
-              ? { ...prev, balance, remaining: balance }
-              : {
-                available: true,
-                balance,
-                remaining: balance,
-                currency: '猫粮',
-              }
-          ));
-          notifyMembershipChanged({ catfood: balance });
-        }
-        refreshNtqQuota();
-      }
       const rawReply = result.reply || '（空回复）';
       const { body, suggestions } = splitAssistantReply(rawReply);
       setMessages((prev) => prev.map((item) => (
@@ -444,6 +446,8 @@ function AssistantChatDock() {
             suggestions: suggestions.length ? suggestions : undefined,
             mode: result.mode || (selectedId === 'ntq' ? 'ask' : undefined),
             catfoodSpent: spent,
+            // 等打字结束再显示消耗 / 刷新顶栏余额，避免「先算好了」的观感。
+            billingReady: false,
           }
           : item
       )));
@@ -455,9 +459,11 @@ function AssistantChatDock() {
             pending: false,
             error: true,
             content: errorMessage(err, '对话失败'),
+            billingReady: true,
           }
           : item
       )));
+      if (selectedId === 'ntq') refreshNtqQuota();
     } finally {
       setSending(false);
     }
@@ -619,9 +625,12 @@ function AssistantChatDock() {
                       text={item.content}
                       animate={item.id === latestAssistantId && !typedIdsRef.current.has(item.id)}
                       onProgress={scrollToBottom}
-                      onDone={() => markTyped(item.id)}
+                      onDone={() => revealBilling(item.id)}
                     />
-                    <AssistantBubbleFooter spent={item.catfoodSpent} />
+                    <AssistantBubbleFooter
+                      spent={item.catfoodSpent}
+                      showSpent={item.billingReady !== false}
+                    />
                     <NextStepChips
                       suggestions={item.suggestions}
                       disabled={sending}
@@ -674,7 +683,10 @@ function AssistantChatDock() {
             />
             <div className="ntq-assistant-dock__actions">
               <span className="ntq-assistant-dock__quota" aria-live="polite">
-                {sending && selectedId === 'ntq'
+                {selectedId === 'ntq' && (
+                  sending
+                  || messages.some((m) => m.role === 'assistant' && m.billingReady === false)
+                )
                   ? '进行中…'
                   : selectedId === 'ntq' && ntqQuota
                     ? `${Number(ntqQuota.balance ?? ntqQuota.remaining).toFixed(2)} ${ntqQuota.currency || '猫粮'}`

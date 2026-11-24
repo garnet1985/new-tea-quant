@@ -68,6 +68,7 @@ function AssistantTypewriter({ text = '', animate = false, onProgress, onDone })
   useEffect(() => {
     if (!shouldType) {
       setShownCount(source.length);
+      onDoneRef.current?.();
       return undefined;
     }
     skipRef.current = false;

@@ -22,13 +22,13 @@ Author: Garnet Xin & his AI companions
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-Install now? → [One-command install](#one-command-install) · [Setup guide](https://new-tea.cn/zh-hans/setup) · [Quick intro (screenshots)](https://new-tea.cn/zh-hans/quick-intro) · [Tutorials](https://new-tea.cn/zh-hans/more-examples) · [Register](https://new-tea.cn/zh-hans/user/register)
+Install now? → [One-command install](#one-command-install) · [Why NTQ](#why-new-tea-quant) · [With AI agents](#using-ntq-with-ai-agents) · [Setup guide](https://new-tea.cn/zh-hans/setup) · [Quick intro (screenshots)](https://new-tea.cn/zh-hans/quick-intro) · [Tutorials](https://new-tea.cn/zh-hans/more-examples) · [Register](https://new-tea.cn/zh-hans/user/register)
 
 ---
 
 ## Current version (v0.6.0)
 
-**License update**: Through 0.5.3, NTQ used Apache-2.0 and could be used freely. From 0.6.0 onward it uses the NTQ terms: non-commercial use still follows Apache-2.0 principles; commercial use needs the author’s authorization. See [LICENSE](LICENSE) and the site [terms](https://new-tea.cn/zh-hans/disclaimer).
+**License update**: Through 0.5.3, NTQ used Apache-2.0 and could be used freely. From 0.6.0 onward it uses the NTQ terms: non-commercial use follows the Apache-2.0 terms, but the license itself is not Apache-2.0; commercial use needs the author’s authorization. See [LICENSE](LICENSE) and the site [terms](https://new-tea.cn/zh-hans/disclaimer).
 
 **NTQ AI agent is live**: [Register as a member](https://new-tea.cn/zh-hans/user/register) and you get a monthly free AI quota (“cat food” / 猫粮). The New Tea assistant can help with in-app work, including writing code. How to load a membership credential: [Import membership credential](#import-membership-credential).
 
@@ -70,6 +70,16 @@ All demo data is for demonstration only — do not use commercially. AI replies 
 
 ---
 
+## Why New Tea Quant?
+
+- **Four-step backtest that inches toward live trading**: opportunity audit → price backtest → investment simulation → decision simulation. In the last step you make the calls yourself on historical data, testing how “pressure” affects judgment instead of staring at a single return number.
+- **Local-first**: data, strategies, and results stay on your machine — reproducible, exportable, no cloud account required.
+- **Declarative and pluggable**: data contracts, strategies, feature tags, and post-scan steps are swappable units you compose as needed.
+- **One core, three ways to use it**: the same capabilities are available through the UI, the CLI, and HTTP — good for hands-on research and for automation.
+- **AI can help across most of the workflow**: the in-app assistant, or a local coding agent, can write strategies, run backtests, and summarize results.
+
+---
+
 ## One-command install
 
 From the **project root**:
@@ -85,6 +95,19 @@ Follow the UI prompts (defaults are fine). Step-by-step screenshots: [Install Ne
 - Install and launch use the same command; if already installed, it skips setup and starts the app.
 - Local Python may be `python` or `python3`; the launcher path may be `launcher.py` or `./launcher.py`. Try combinations if the first fails.
 - 0.5.x minimum Python was 3.9; from 0.6.0 it is **3.11**. Prefer 3.11–3.12: newer Pythons may lack wheels for some dependencies. Check with `python3 --version`.
+
+---
+
+## Using NTQ with AI agents
+
+If you would rather not write code, hand NTQ to a local coding agent (e.g. Workbuddy, Harness, TreaWorker): you describe the goal, and it builds the strategy, runs the backtest, and summarizes the results.
+
+1. **Install**: have the agent run `python3 install.py --accept-license` (headless; confirm the terms yourself on first install)
+2. **Create a strategy**: `python3 cli.py -n my_strategy`, then let the agent edit `settings.py` and `strategy.py`
+3. **Run**: `python3 cli.py se --strategy my_strategy` (price layer `sp`, portfolio layer `so`, all three at once with `sim`)
+4. **Read results**: reports live under `userspace/strategies/<strategy>/results/`; `python3 cli.py ls --json` lists available resources
+
+The in-app AI assistant (`python3 cli.py a`) needs a membership credential; external agents do not — they just call the CLI. Full command reference: `python3 cli.py -h`.
 
 ---
 
@@ -126,7 +149,7 @@ To unlock more NTQ services, including:
 
 ## What can NTQ do?
 
-Everything below can be driven by the New Tea AI assistant, or by a local agent (Workbuddy, Harness, TreaWorker, Doubao, etc.). Fuller screenshots: [Quick intro](https://new-tea.cn/zh-hans/quick-intro).
+Most of what follows can be driven by the New Tea AI assistant, or by a local agent (Workbuddy, Harness, TreaWorker, Doubao, etc.) — see [Using NTQ with AI agents](#using-ntq-with-ai-agents). Fuller screenshots: [Quick intro](https://new-tea.cn/zh-hans/quick-intro).
 
 **Note**
 

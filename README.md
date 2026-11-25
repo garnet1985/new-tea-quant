@@ -22,15 +22,15 @@
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-想直接安装？→ [一键安装](#一键安装)　·　[官网安装说明](https://new-tea.cn/zh-hans/setup)　·　[快速了解（图文）](https://new-tea.cn/zh-hans/quick-intro)　·　[教程](https://new-tea.cn/zh-hans/more-examples)　·　[注册会员](https://new-tea.cn/zh-hans/user/register)
+想直接安装？→ [一键安装](#一键安装)　·　[为什么用](#为什么用新茶量化)　·　[用智能体](#用智能体使用新茶量化)　·　[官网安装说明](https://new-tea.cn/zh-hans/setup)　·　[快速了解（图文）](https://new-tea.cn/zh-hans/quick-intro)　·　[教程](https://new-tea.cn/zh-hans/more-examples)　·　[注册会员](https://new-tea.cn/zh-hans/user/register)
 
 ---
 
 ## 当前版本（v0.6.0）
 
-**使用条款更新**：0.5.3 及更早版本仍按 Apache-2.0，可自由使用。自 0.6.0 起采用 NTQ 条款：非商用仍遵循 Apache-2.0 原则；商用需作者授权。详见 [LICENSE](LICENSE) 与官网 [使用条款](https://new-tea.cn/zh-hans/disclaimer)。
+**使用条款更新**：0.5.3 及更早版本仍按 Apache-2.0，可自由使用。自 0.6.0 起采用 NTQ 条款：非商用沿用 Apache-2.0 的条款，但许可证本身不是 Apache-2.0；商用需作者授权。详见 [LICENSE](LICENSE) 与官网 [使用条款](https://new-tea.cn/zh-hans/disclaimer)。
 
-**新茶量化 AI agent 上线了**：您只需要在 [官网注册会员](https://new-tea.cn/zh-hans/user/register) 后，每个月就会有一定额度的免费 AI agent 额度（猫粮）。新茶助手可以帮助您完成 app 里的任何操作，也包括写代码。会员凭证如何装载，见下方 [导入会员凭证](#导入会员凭证)。
+**新茶量化 AI agent 上线了**：您只需要在 [官网注册会员](https://new-tea.cn/zh-hans/user/register) 后，每个月就会有一定额度的免费 AI agent 额度（猫粮）。新茶助手可以帮助您完成 app 里的大部分操作，也包括写代码。会员凭证如何装载，见下方 [导入会员凭证](#导入会员凭证)。
 
 摘要见 **[CHANGELOG.md](CHANGELOG.md)**。本版含破坏性改动（策略钩子、指标命名、库表、扫描后处理配置格式、Python ≥ 3.11、NTQ 许可证等）。
 
@@ -70,6 +70,16 @@
 
 ---
 
+## 为什么用新茶量化？
+
+- **四步回测，逐步逼近实盘**：机会盘点 → 价格回测 → 投资模拟 → 决策模拟。最后一步由您亲自在历史行情里做决策，检验「临场抗压」对判断的影响，而不只是看一个收益率数字。
+- **本地优先**：数据、策略、结果都在您自己的机器上，可复现、可导出，不依赖云端账户。
+- **声明式 + 插件化**：数据契约、策略、特征标签、扫描后处理都是可替换的单元，按需组合。
+- **一套 core，三种用法**：同一套能力可以用 UI 点、用 CLI 跑、用 HTTP 调，适合手动研究，也适合自动化。
+- **AI 可参与大部分流程**：应用内助手，或本地编码智能体，都能帮您写策略、跑回测、汇总结果。
+
+---
+
 ## 一键安装
 
 进入**项目根目录**，然后：
@@ -85,6 +95,19 @@ python3 launcher.py
 - 安装与启动是同一条命令；若已安装过，会跳过安装直接启动。
 - 本机 Python 命令可能不同（`python` / `python3`），启动器路径写法也可能不同（`launcher.py` / `./launcher.py`）。若上述命令失败，请尝试不同组合。
 - 0.5.x 最低 Python 为 3.9；自 0.6.0 起为 **3.11**。建议 3.11–3.12：过新的 Python 上部分依赖可能尚无 wheel。可用 `python3 --version` 查看版本。
+
+---
+
+## 用智能体使用新茶量化
+
+如果您不想写代码，也可以把 NTQ 交给本地编码智能体（如 Workbuddy、Harness、TreaWorker 等）：您说需求，它来建策略、跑回测、汇总结果。
+
+1. **安装**：让智能体执行 `python3 install.py --accept-license`（无图形界面；首次安装请自行确认使用条款）
+2. **新建策略**：`python3 cli.py -n my_strategy`，再由智能体编辑 `settings.py` 与 `strategy.py`
+3. **运行**：`python3 cli.py se --strategy my_strategy`（价格层 `sp`、资金层 `so`、三层一次 `sim`）
+4. **取结果**：报告在 `userspace/strategies/<策略>/results/`；`python3 cli.py ls --json` 可列出可用资源
+
+应用内 AI 助手（`python3 cli.py a`）需要会员凭证；外部智能体不需要，直接调用 CLI 即可。完整命令见 `python3 cli.py -h`。
 
 ---
 
@@ -126,7 +149,7 @@ python3 launcher.py
 
 ## 新茶量化能做什么？
 
-下列功能都可通过新茶 AI 助手完成，也可由本地智能体（如 Workbuddy、Harness、TreaWorker、豆包等）直接调用。更完整的图文见 [快速了解](https://new-tea.cn/zh-hans/quick-intro)。
+下列功能都可通过新茶 AI 助手完成，也可由本地智能体（如 Workbuddy、Harness、TreaWorker、豆包等）直接调用（见 [用智能体使用新茶量化](#用智能体使用新茶量化)）。更完整的图文见 [快速了解](https://new-tea.cn/zh-hans/quick-intro)。
 
 **注意**
 
